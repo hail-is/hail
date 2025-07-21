@@ -117,6 +117,7 @@ class ServiceBackend(Backend):
         regions: Optional[List[str]] = None,
         gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
         gcs_bucket_allow_list: Optional[List[str]] = None,
+        branching_factor: Optional[int] = None,
     ):
         async_exit_stack = AsyncExitStack()
         billing_project = configuration_of(ConfigVariable.BATCH_BILLING_PROJECT, billing_project, None)
@@ -170,6 +171,9 @@ class ServiceBackend(Backend):
                 disable_progress_bar = len(disable_progress_bar_str) > 0
 
         flags = flags or {}
+        if branching_factor is not None:
+            flags['branching_factor'] = str(branching_factor)
+
         if 'gcs_requester_pays_project' in flags or 'gcs_requester_pays_buckets' in flags:
             raise ValueError(
                 'Specify neither gcs_requester_pays_project nor gcs_requester_'

@@ -3,7 +3,7 @@ import logging
 import os
 import sys
 from contextlib import ExitStack
-from typing import List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 from py4j.java_gateway import GatewayParameters, JavaGateway, launch_gateway
 
@@ -78,7 +78,7 @@ class LocalBackend(Py4JBackend):
             append,
             skip_logging_configuration,
         )
-        jhc = hail_package.HailContext.apply(jbackend, branching_factor)
+        jhc = hail_package.HailContext.apply(jbackend)
 
         super().__init__(self._gateway.jvm, jbackend, jhc, tmpdir, tmpdir)
         self.gcs_requester_pays_configuration = gcs_requester_pays_configuration
@@ -87,7 +87,12 @@ class LocalBackend(Py4JBackend):
         )
 
         self._logger = None
-        self._initialize_flags({})
+
+        flags: Dict[str, str] = {}
+        if branching_factor is not None:
+            flags['branching_factor'] = str(branching_factor)
+
+        self._initialize_flags(flags)
 
     def validate_file(self, uri: str) -> None:
         async_to_blocking(validate_file(uri, self._fs.afs))
