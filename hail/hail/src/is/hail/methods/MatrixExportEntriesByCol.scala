@@ -1,6 +1,4 @@
 package is.hail.methods
-
-import is.hail.HailContext
 import is.hail.annotations.{UnsafeIndexedSeq, UnsafeRow}
 import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.SparkBackend
@@ -69,7 +67,7 @@ case class MatrixExportEntriesByCol(
       val extension = if (bgzip) ".tsv.bgz" else ".tsv"
       val localHeaderJsonInFile = headerJsonInFile
 
-      val colValuesJSON = HailContext.backend.broadcast(
+      val colValuesJSON = ctx.backend.broadcast(
         (startIdx until endIdx)
           .map(allColValuesJSON)
           .toArray
