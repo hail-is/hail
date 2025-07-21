@@ -72,7 +72,7 @@ class AccessLogger(AbstractAccessLogger):
 
         formdata = request.get('formdata', {})
         request_data.update(formdata)
-        
+
         post_data = request._post or {}
         request_data.update(post_data)
 
