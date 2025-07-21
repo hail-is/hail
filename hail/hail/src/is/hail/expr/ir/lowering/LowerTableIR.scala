@@ -1,6 +1,5 @@
 package is.hail.expr.ir.lowering
 
-import is.hail.HailContext
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{agg, TableNativeWriter, _}
 import is.hail.expr.ir.analyses.PartitionCounts
@@ -851,7 +850,7 @@ object LowerTableIR {
           InitFromSerializedValue(i, GetTupleElement(initStateRef, i), agg.state)
         })
 
-        val branchFactor = HailContext.get.branchingFactor
+        val branchFactor = agg.branchFactor(ctx)
         val useTreeAggregate = aggs.shouldTreeAggregate && branchFactor < lc.numPartitions
         val isCommutative = aggs.isCommutative
         log.info(s"Aggregate: useTreeAggregate=$useTreeAggregate")
@@ -1682,7 +1681,7 @@ object LowerTableIR {
           val initFromSerializedStates = Begin(aggs.aggs.zipWithIndex.map { case (agg, i) =>
             InitFromSerializedValue(i, GetTupleElement(initStateRef, i), agg.state)
           })
-          val branchFactor = HailContext.get.branchingFactor
+          val branchFactor = agg.branchFactor(ctx)
           val big = aggs.shouldTreeAggregate && branchFactor < lc.numPartitions
           val (partitionPrefixSumValues, transformPrefixSum): (IR, IR => IR) = if (big) {
             val tmpDir = ctx.createTmpPath("aggregate_intermediates/")
