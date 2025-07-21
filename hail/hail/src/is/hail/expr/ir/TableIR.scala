@@ -1,6 +1,5 @@
 package is.hail.expr.ir
 
-import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.{ExecuteContext, HailStateManager, HailTaskContext, TaskFinalizer}
@@ -1977,7 +1976,7 @@ case class TableFromBlockMatrixNativeReader(
 ) extends TableReaderWithExtraUID {
   def pathsUsed: Seq[String] = FastSeq(params.path)
 
-  val getNumPartitions: Int = params.nPartitions.getOrElse(HailContext.backend.defaultParallelism)
+  val getNumPartitions: Int = params.nPartitions.getOrElse(4)
 
   val partitionRanges = (0 until getNumPartitions).map { i =>
     val nRows = metadata.nRows

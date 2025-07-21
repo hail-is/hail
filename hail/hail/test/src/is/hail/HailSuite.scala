@@ -183,7 +183,7 @@ class HailSuite extends TestNGSuite with TestUtils {
     assert(t == TVoid || t.typeCheck(expected), s"$t, $expected")
 
     val filteredExecStrats: Set[ExecStrategy] =
-      if (HailContext.backend.isInstanceOf[SparkBackend])
+      if (backend.isInstanceOf[SparkBackend])
         execStrats
       else {
         info("skipping interpret and non-lowering compile steps on non-spark backend")
@@ -289,7 +289,7 @@ class HailSuite extends TestNGSuite with TestUtils {
   )(implicit execStrats: Set[ExecStrategy]
   ): scalatest.Assertion = {
     val filteredExecStrats: Set[ExecStrategy] =
-      if (HailContext.backend.isInstanceOf[SparkBackend]) execStrats
+      if (backend.isInstanceOf[SparkBackend]) execStrats
       else {
         info("skipping interpret and non-lowering compile steps on non-spark backend")
         execStrats.intersect(ExecStrategy.backendOnly)

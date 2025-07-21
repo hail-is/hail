@@ -220,7 +220,7 @@ case class BlockMatrixBinaryMultiWriter(
 ) extends BlockMatrixMultiWriter {
 
   def apply(ctx: ExecuteContext, bms: IndexedSeq[BlockMatrix]): Unit =
-    BlockMatrix.binaryWriteBlockMatrices(ctx.fs, bms, prefix, overwrite)
+    BlockMatrix.binaryWriteBlockMatrices(ctx, bms, prefix, overwrite)
 
   def loweredTyp: Type = TVoid
 }
@@ -237,7 +237,7 @@ case class BlockMatrixTextMultiWriter(
 
   def apply(ctx: ExecuteContext, bms: IndexedSeq[BlockMatrix]): Unit =
     BlockMatrix.exportBlockMatrices(
-      ctx.fs,
+      ctx,
       bms,
       prefix,
       overwrite,

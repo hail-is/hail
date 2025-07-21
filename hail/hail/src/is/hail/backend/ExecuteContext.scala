@@ -138,7 +138,7 @@ class ExecuteContext(
 
   val stateManager = HailStateManager(references)
 
-  def fsBc: BroadcastValue[FS] = fs.broadcast
+  lazy val fsBc: BroadcastValue[FS] = backend.broadcast(fs)
 
   val memo: mutable.Map[Any, Any] = new mutable.HashMap[Any, Any]()
 

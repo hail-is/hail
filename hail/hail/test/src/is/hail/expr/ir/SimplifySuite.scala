@@ -337,7 +337,7 @@ class SimplifySuite extends HailSuite {
   }
 
   @Test def testMatrixColsTableMatrixMapColsWithAggLetDoesNotSimplify(): scalatest.Assertion = {
-    val reader = MatrixRangeReader(1, 1, None)
+    val reader = MatrixRangeReader(ctx, 1, 1, None)
     var mir: MatrixIR = MatrixRead(reader.fullMatrixType, false, false, reader)
     val colType = reader.fullMatrixType.colType
     mir = MatrixMapCols(
@@ -404,7 +404,7 @@ class SimplifySuite extends HailSuite {
     val tnr = TableNativeReader(fs, TableNativeReaderParameters(src + "/rows", None))
     val tr = TableRead(tnr.fullType, false, tnr)
 
-    val tzr = mr.lower().asInstanceOf[TableMapGlobals].child.asInstanceOf[TableRead]
+    val tzr = mr.lower(ctx).asInstanceOf[TableMapGlobals].child.asInstanceOf[TableRead]
     val tzrr = tzr.tr.asInstanceOf[TableNativeZippedReader]
 
     val intervals1 = FastSeq(

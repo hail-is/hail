@@ -1,6 +1,6 @@
 package is.hail.sparkextras
 
-import is.hail.HailContext
+import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
 import is.hail.macros.void
 import is.hail.rvd.RVDContext
@@ -102,13 +102,14 @@ object ContextRDD {
     new ContextRDD(rdd.mapPartitions(it => Iterator.single((ctx: RVDContext) => it)))
 
   def textFilesLines(
+    ctx: ExecuteContext,
     files: Array[String],
     nPartitions: Option[Int] = None,
     filterAndReplace: TextInputFilterAndReplace = TextInputFilterAndReplace(),
   ): ContextRDD[WithContext[String]] =
     textFilesLines(
       files,
-      nPartitions.getOrElse(HailContext.backend.defaultParallelism),
+      nPartitions.getOrElse(ctx.backend.defaultParallelism),
       filterAndReplace,
     )
 
