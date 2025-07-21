@@ -991,7 +991,7 @@ class Aggregators2Suite extends HailSuite {
       TStruct.empty,
     )
     val ir = TableCollect(MatrixColsTable(MatrixMapCols(
-      MatrixRead(t, false, false, MatrixRangeReader(10, 10, None)),
+      MatrixRead(t, false, false, MatrixRangeReader(ctx, 10, 10, None)),
       InsertFields(
         Ref(MatrixIR.colName, t.colType),
         FastSeq((

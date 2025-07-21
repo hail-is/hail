@@ -52,7 +52,7 @@ class BackendUtils(
     val remainingPartitions =
       contexts.indices.filterNot(k => cachedResults.containsOrdered[Int](k, _ < _, _._2))
 
-    val backend = HailContext.backend
+    val backend = HailContext.get.backend
     val mod = getModule(modID)
     val t = System.nanoTime()
     val (failureOpt, successes) =

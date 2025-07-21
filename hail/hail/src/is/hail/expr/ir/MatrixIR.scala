@@ -1,6 +1,5 @@
 package is.hail.expr.ir
 
-import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.DeprecatedIRBuilder._
@@ -33,13 +32,14 @@ object MatrixIR {
   }
 
   def range(
+    ctx: ExecuteContext,
     nRows: Int,
     nCols: Int,
     nPartitions: Option[Int],
     dropCols: Boolean = false,
     dropRows: Boolean = false,
   ): MatrixIR = {
-    val reader = MatrixRangeReader(nRows, nCols, nPartitions)
+    val reader = MatrixRangeReader(ctx, nRows, nCols, nPartitions)
     val requestedType = reader.fullMatrixTypeWithoutUIDs
     MatrixRead(requestedType, dropCols = dropCols, dropRows = dropRows, reader = reader)
   }
@@ -141,7 +141,8 @@ trait MatrixReader {
     mt.copy(rowType = newRowType, colType = newColType)
   }
 
-  def lower(requestedType: MatrixType, dropCols: Boolean, dropRows: Boolean): TableIR
+  def lower(ctx: ExecuteContext, requestedType: MatrixType, dropCols: Boolean, dropRows: Boolean)
+    : TableIR
 
   def toJValue: JValue
 
@@ -182,7 +183,12 @@ abstract class MatrixHybridReader extends TableReaderWithExtraUID with MatrixRea
 
   override def defaultRender(): String = super.defaultRender()
 
-  override def lower(requestedType: MatrixType, dropCols: Boolean, dropRows: Boolean): TableIR = {
+  override def lower(
+    ctx: ExecuteContext,
+    requestedType: MatrixType,
+    dropCols: Boolean,
+    dropRows: Boolean,
+  ): TableIR = {
     var tr: TableIR = TableRead(matrixToTableType(requestedType), dropRows, this)
     if (dropCols) {
       // this lowering preserves dropCols using pruning
@@ -273,7 +279,12 @@ class MatrixNativeReader(
   def rowUIDType = TTuple(TInt64, TInt64)
   def colUIDType = TTuple(TInt64, TInt64)
 
-  override def lower(requestedType: MatrixType, dropCols: Boolean, dropRows: Boolean): TableIR = {
+  override def lower(
+    ctx: ExecuteContext,
+    requestedType: MatrixType,
+    dropCols: Boolean,
+    dropRows: Boolean,
+  ): TableIR = {
     val rowsPath = params.path + "/rows"
     val entriesPath = params.path + "/entries"
     val colsPath = params.path + "/cols"
@@ -369,19 +380,19 @@ class MatrixNativeReader(
 }
 
 object MatrixRangeReader {
-  def apply(nRows: Int, nCols: Int, nPartitions: Option[Int]): MatrixRangeReader =
-    MatrixRangeReader(MatrixRangeReaderParameters(nRows, nCols, nPartitions))
+  def apply(ctx: ExecuteContext, nRows: Int, nCols: Int, nPartitions: Option[Int])
+    : MatrixRangeReader =
+    MatrixRangeReader(ctx, MatrixRangeReaderParameters(nRows, nCols, nPartitions))
 
   def fromJValue(ctx: ExecuteContext, jv: JValue): MatrixRangeReader = {
     implicit val formats: Formats = DefaultFormats
     val params = jv.extract[MatrixRangeReaderParameters]
-
-    MatrixRangeReader(params)
+    MatrixRangeReader(ctx, params)
   }
 
-  def apply(params: MatrixRangeReaderParameters): MatrixRangeReader = {
+  def apply(ctx: ExecuteContext, params: MatrixRangeReaderParameters): MatrixRangeReader = {
     val nPartitionsAdj =
-      math.min(params.nRows, params.nPartitions.getOrElse(HailContext.backend.defaultParallelism))
+      math.min(params.nRows, params.nPartitions.getOrElse(ctx.backend.defaultParallelism))
     new MatrixRangeReader(params, nPartitionsAdj)
   }
 }
@@ -413,11 +424,16 @@ case class MatrixRangeReader(
   lazy val partitionCounts: Option[IndexedSeq[Long]] =
     Some(partition(params.nRows, nPartitionsAdj).map(_.toLong))
 
-  override def lower(requestedType: MatrixType, dropCols: Boolean, dropRows: Boolean): TableIR = {
+  override def lower(
+    ctx: ExecuteContext,
+    requestedType: MatrixType,
+    dropCols: Boolean,
+    dropRows: Boolean,
+  ): TableIR = {
     val nRowsAdj = if (dropRows) 0 else params.nRows
     val nColsAdj = if (dropCols) 0 else params.nCols
     var ht =
-      TableRange(nRowsAdj, params.nPartitions.getOrElse(HailContext.backend.defaultParallelism))
+      TableRange(nRowsAdj, params.nPartitions.getOrElse(ctx.backend.defaultParallelism))
         .rename(Map("idx" -> "row_idx"))
     if (requestedType.colType.hasField(colUIDFieldName))
       ht = ht.mapGlobals(makeStruct(LowerMatrixIR.colsField ->
@@ -500,7 +516,8 @@ case class MatrixRead(
     s"dropCols = $dropCols, " +
     s"dropRows = $dropRows)"
 
-  final def lower(): TableIR = reader.lower(typ, dropCols, dropRows)
+  final def lower(ctx: ExecuteContext): TableIR =
+    reader.lower(ctx, typ, dropCols, dropRows)
 }
 
 case class MatrixFilterCols(child: MatrixIR, pred: IR) extends MatrixIR with PreservesRows {

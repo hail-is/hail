@@ -1379,7 +1379,6 @@ object RVD {
     val sc = SparkBackend.sparkContext
     val localTmpdir = execCtx.localTmpdir
     val fs = execCtx.fs
-    val fsBc = fs.broadcast
 
     val nRVDs = rvds.length
     val partitioner = first.partitioner
@@ -1411,6 +1410,7 @@ object RVD {
       fs.mkDir(path + "/index")
     }
 
+    val fsBc = execCtx.fsBc
     val partF = {
       (originIdx: Int, originPartIdx: Int, it: Iterator[RVDContext => Iterator[Long]]) =>
         Iterator.single { ctx: RVDContext =>

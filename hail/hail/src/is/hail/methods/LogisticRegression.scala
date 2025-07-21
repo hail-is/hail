@@ -1,6 +1,5 @@
 package is.hail.methods
 
-import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{IntArrayBuilder, MatrixValue, TableValue}
@@ -91,7 +90,7 @@ case class LogisticRegression(
       nullFit
     }
 
-    val backend = HailContext.backend
+    val backend = ctx.backend
     val completeColIdxBc = backend.broadcast(completeColIdx)
 
     val yVecsBc = backend.broadcast(yVecs)

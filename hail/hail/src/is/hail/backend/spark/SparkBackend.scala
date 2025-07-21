@@ -83,7 +83,11 @@ object SparkBackend {
 
   private var theSparkBackend: SparkBackend = _
 
-  def sparkContext(implicit E: Enclosing): SparkContext = HailContext.sparkBackend.sc
+  def sparkContext(implicit E: Enclosing): SparkContext =
+    synchronized {
+      if (theSparkBackend == null) throw new IllegalStateException(E.value)
+      else theSparkBackend.sc
+    }
 
   def checkSparkCompatibility(jarVersion: String, sparkVersion: String): Unit = {
     def majorMinor(version: String): String = version.split("\\.", 3).take(2).mkString(".")

@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.HailSuite
+import is.hail.backend.ExecuteContext
 import is.hail.expr.Nat
 import is.hail.expr.ir.PruneDeadFields.TypeState
 import is.hail.expr.ir.defs._
@@ -213,7 +214,12 @@ class PruneSuite extends HailSuite {
 
       def fullMatrixTypeWithoutUIDs: MatrixType = mat.typ
 
-      def lower(requestedType: MatrixType, dropCols: Boolean, dropRows: Boolean): TableIR = ???
+      def lower(
+        ctx: ExecuteContext,
+        requestedType: MatrixType,
+        dropCols: Boolean,
+        dropRows: Boolean,
+      ): TableIR = ???
 
       def toJValue: JValue = ???
 

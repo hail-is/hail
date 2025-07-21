@@ -3133,7 +3133,7 @@ class IRSuite extends HailSuite {
   @Test def testMatrixAggregate(): scalatest.Assertion = {
     implicit val execStrats = ExecStrategy.interpretOnly
 
-    val matrix = MatrixIR.range(5, 5, None)
+    val matrix = MatrixIR.range(ctx, 5, 5, None)
     val count = ApplyAggOp(Count())()
     assertEvalsTo(MatrixAggregate(matrix, MakeStruct(IndexedSeq("foo" -> count))), Row(25L))
   }
@@ -3298,7 +3298,7 @@ class IRSuite extends HailSuite {
 
     val table = TableRange(100, 10)
 
-    val mt = MatrixIR.range(20, 2, Some(3))
+    val mt = MatrixIR.range(ctx, 20, 2, Some(3))
     val vcf = importVCF(ctx, getTestResource("sample.vcf"))
     val bgenReader = MatrixBGENReader(
       ctx,
@@ -3710,7 +3710,7 @@ class IRSuite extends HailSuite {
       val tableRead = TableIR.read(fs, getTestResource("backward_compatability/1.1.0/table/0.ht"))
       val read =
         MatrixIR.read(fs, getTestResource("backward_compatability/1.0.0/matrix_table/0.hmt"))
-      val range = MatrixIR.range(3, 7, None)
+      val range = MatrixIR.range(ctx, 3, 7, None)
       val vcf = importVCF(ctx, getTestResource("sample.vcf"))
 
       val bgenReader = MatrixBGENReader(
@@ -3724,8 +3724,8 @@ class IRSuite extends HailSuite {
       )
       val bgen = MatrixRead(bgenReader.fullMatrixType, false, false, bgenReader)
 
-      val range1 = MatrixIR.range(20, 2, Some(3))
-      val range2 = MatrixIR.range(20, 2, Some(4))
+      val range1 = MatrixIR.range(ctx, 20, 2, Some(3))
+      val range2 = MatrixIR.range(ctx, 20, 2, Some(4))
 
       val b = True()
 
