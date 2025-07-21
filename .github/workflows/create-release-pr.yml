@@ -6,6 +6,7 @@ on:
     - cron: 0 0 1 */2 *
 jobs:
   create-release-pr:
+    if: github.repository == 'hail-is/hail'
     runs-on: ubuntu-latest
     permissions:
       contents: write
