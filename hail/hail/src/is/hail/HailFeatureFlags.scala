@@ -2,13 +2,12 @@ package is.hail
 
 import is.hail.backend.ExecutionCache
 import is.hail.backend.spark.SparkBackend
-import is.hail.expr.ir.Optimize
+import is.hail.expr.ir.{Optimize, agg}
 import is.hail.io.fs.RequesterPaysConfig
 import is.hail.types.encoded.EType
 import is.hail.utils._
 
 import scala.collection.mutable
-
 import org.json4s.JsonAST.{JArray, JObject, JString}
 
 object HailFeatureFlags {
@@ -48,6 +47,7 @@ object HailFeatureFlags {
     ),
     (Optimize.Flags.Optimize, "HAIL_QUERY_OPTIMIZE" -> "1"),
     (Optimize.Flags.MaxOptimizerIterations, "HAIL_OPTIMIZER_ITERATIONS" -> null),
+    (agg.Flags.BranchFactor, "HAIL_BRANCH_FACTOR" -> null),
   )
 
   def fromEnv(m: Map[String, String] = sys.env): HailFeatureFlags =
