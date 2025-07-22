@@ -17,5 +17,5 @@ ubuntu:22.04
 ubuntu:24.04
 ubuntu:bionic-20230530
 ubuntu:focal-20250404
-ubuntu:jammy-20250530
-ubuntu:noble-20250529
+ubuntu:jammy-20250714
+ubuntu:noble-20250714
