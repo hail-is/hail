@@ -6,7 +6,7 @@ aiohappyeyeballs==2.6.1
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
     #   aiohttp
-aiohttp==3.12.13
+aiohttp==3.12.14
     # via
     #   -c gear/../hail/python/dev/pinned-requirements.txt
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
@@ -17,7 +17,7 @@ aiohttp-session==2.12.1
     # via -r gear/requirements.txt
 aiomysql==0.2.0
     # via -r gear/requirements.txt
-aiosignal==1.3.2
+aiosignal==1.4.0
     # via
     #   -c gear/../hail/python/dev/pinned-requirements.txt
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
@@ -40,7 +40,7 @@ cachetools==5.5.2
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
     #   google-auth
-certifi==2025.6.15
+certifi==2025.7.14
     # via
     #   -c gear/../hail/python/dev/pinned-requirements.txt
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
@@ -62,7 +62,7 @@ frozenlist==1.7.0
     #   aiosignal
 google-api-core==2.25.1
     # via google-api-python-client
-google-api-python-client==2.174.0
+google-api-python-client==2.176.0
     # via google-cloud-profiler
 google-auth==2.40.3
     # via
@@ -181,11 +181,12 @@ sortedcontainers==2.4.0
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
     #   -r gear/requirements.txt
-typing-extensions==4.14.0
+typing-extensions==4.14.1
     # via
     #   -c gear/../hail/python/dev/pinned-requirements.txt
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
+    #   aiosignal
     #   multidict
 uritemplate==4.2.0
     # via google-api-python-client
