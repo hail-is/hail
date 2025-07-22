@@ -37,5 +37,6 @@ RUN chmod 755 /bin/retry && \
     echo 'deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main' \
         >> /etc/apt/sources.list
 
-ENV VIRTUAL_ENV=/opt/venv PATH=/opt/venv/bin:$PATH
+ENV UV_MANAGED_PYTHON=1 UV_PYTHON_INSTALL_DIR=/opt/uv/python VIRTUAL_ENV=/opt/venv
+ENV PATH=$VIRTUAL_ENV/bin:$PATH
 RUN uv python install $PYTHON_VERSION && uv venv $VIRTUAL_ENV && uv pip install pip
