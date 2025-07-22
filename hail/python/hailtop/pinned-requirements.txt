@@ -57,7 +57,7 @@ cryptography==45.0.5
     #   azure-storage-blob
     #   msal
     #   pyjwt
-dill==0.3.9
+dill==0.4.0
     # via -r hail/python/hailtop/requirements.txt
 frozenlist==1.7.0
     # via
