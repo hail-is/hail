@@ -4,13 +4,13 @@ aiohappyeyeballs==2.6.1
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   aiohttp
-aiohttp==3.12.13
+aiohttp==3.12.14
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   aiohttp-devtools
 aiohttp-devtools==1.1.2
     # via -r hail/python/dev/requirements.txt
-aiosignal==1.3.2
+aiosignal==1.4.0
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   aiohttp
@@ -27,7 +27,7 @@ argon2-cffi-bindings==21.2.0
     # via argon2-cffi
 arrow==1.3.0
     # via isoduration
-astroid==3.3.10
+astroid==3.3.11
     # via pylint
 asttokens==2.4.1
     # via
@@ -56,7 +56,7 @@ bleach==6.2.0
     # via nbconvert
 build==1.1.1
     # via -r hail/python/dev/requirements.txt
-certifi==2025.6.15
+certifi==2025.7.14
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   httpcore
@@ -90,7 +90,7 @@ curlylint==0.13.1
     # via -r hail/python/dev/requirements.txt
 cycler==0.12.1
     # via matplotlib
-debugpy==1.8.14
+debugpy==1.8.15
     # via ipykernel
 decorator==4.4.2
     # via
@@ -104,7 +104,7 @@ dill==0.3.9
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   pylint
-distlib==0.3.9
+distlib==0.4.0
     # via virtualenv
 docutils==0.18.1
     # via
@@ -126,7 +126,7 @@ fastjsonschema==2.21.1
     # via nbformat
 filelock==3.18.0
     # via virtualenv
-fonttools==4.58.4
+fonttools==4.59.0
     # via matplotlib
 fqdn==1.5.1
     # via jsonschema
@@ -159,7 +159,7 @@ importlib-metadata==8.7.0
     # via build
 iniconfig==2.1.0
     # via pytest
-ipykernel==6.29.5
+ipykernel==6.30.0
     # via
     #   jupyter
     #   jupyter-console
@@ -190,7 +190,7 @@ json5==0.12.0
     # via jupyterlab-server
 jsonpointer==3.0.0
     # via jsonschema
-jsonschema==4.24.0
+jsonschema==4.25.0
     # via
     #   jupyter-events
     #   jupyterlab-server
@@ -219,7 +219,7 @@ jupyter-core==5.8.1
     #   nbformat
 jupyter-events==0.12.0
     # via jupyter-server
-jupyter-lsp==2.2.5
+jupyter-lsp==2.2.6
     # via jupyterlab
 jupyter-server==2.16.0
     # via
@@ -230,7 +230,7 @@ jupyter-server==2.16.0
     #   notebook-shim
 jupyter-server-terminals==0.5.3
     # via jupyter-server
-jupyterlab==4.4.4
+jupyterlab==4.4.5
     # via
     #   jupyter
     #   notebook
@@ -244,6 +244,8 @@ jupyterlab-widgets==3.0.15
     # via ipywidgets
 kiwisolver==1.4.8
     # via matplotlib
+lark==1.2.2
+    # via rfc3987-syntax
 markupsafe==3.0.2
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
@@ -382,7 +384,7 @@ pyparsing==3.2.3
     # via matplotlib
 pyproject-hooks==1.2.0
     # via build
-pyright==1.1.402
+pyright==1.1.403
     # via -r hail/python/dev/requirements.txt
 pytest==7.4.4
     # via
@@ -452,6 +454,8 @@ rfc3986-validator==0.1.1
     # via
     #   jsonschema
     #   jupyter-events
+rfc3987-syntax==1.1.0
+    # via jsonschema
 rpds-py==0.26.0
     # via
     #   jsonschema
@@ -552,9 +556,9 @@ types-decorator==5.2.0.20250324
     # via -r hail/python/dev/requirements.txt
 types-deprecated==1.2.15.20250304
     # via -r hail/python/dev/requirements.txt
-types-pymysql==1.1.0.20250516
+types-pymysql==1.1.0.20250711
     # via -r hail/python/dev/requirements.txt
-types-python-dateutil==2.9.0.20250516
+types-python-dateutil==2.9.0.20250708
     # via
     #   -r hail/python/dev/requirements.txt
     #   arrow
@@ -572,9 +576,10 @@ types-urllib3==1.26.25.14
     # via
     #   -r hail/python/dev/requirements.txt
     #   types-requests
-typing-extensions==4.14.0
+typing-extensions==4.14.1
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
+    #   aiosignal
     #   anyio
     #   astroid
     #   async-lru
@@ -591,9 +596,9 @@ urllib3==2.5.0
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   requests
-uv==0.7.18
+uv==0.8.0
     # via -r hail/python/dev/requirements.txt
-virtualenv==20.31.2
+virtualenv==20.32.0
     # via pre-commit
 watchfiles==1.1.0
     # via aiohttp-devtools
