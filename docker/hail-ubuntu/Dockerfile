@@ -39,4 +39,8 @@ RUN chmod 755 /bin/retry && \
 
 ENV UV_MANAGED_PYTHON=1 UV_PYTHON_INSTALL_DIR=/opt/uv/python VIRTUAL_ENV=/opt/venv
 ENV PATH=$VIRTUAL_ENV/bin:$PATH
-RUN uv python install $PYTHON_VERSION && uv venv $VIRTUAL_ENV && uv pip install pip
+RUN uv python install $PYTHON_VERSION && \
+    uv venv --seed $VIRTUAL_ENV && \
+    command -v python3 && \
+    python3 -m pip check && \
+    python3 -m pip --version
