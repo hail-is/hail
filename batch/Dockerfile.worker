@@ -48,7 +48,7 @@ RUN hail-pip-install \
     -r batch-requirements.txt \
     pyspark==3.5.0
 
-ENV SPARK_HOME=$VIRTUAL_ENV/lib/python$HAIL_PYTHON_MAJOR_VERSION/dist-packages/pyspark
+ENV SPARK_HOME=$VIRTUAL_ENV/lib/python$HAIL_PYTHON_MAJOR_VERSION/site-packages/pyspark
 ENV PATH="$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin"
 ENV PYSPARK_PYTHON=python3
 
