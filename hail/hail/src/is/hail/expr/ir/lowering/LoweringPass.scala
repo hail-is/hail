@@ -32,7 +32,7 @@ abstract class LoweringPass(implicit E: sourcecode.Enclosing) extends Invariants
   val after: Invariant
   val context: String
 
-  final def apply(ctx: ExecuteContext, ir: BaseIR): BaseIR =
+  def apply(ctx: ExecuteContext, ir: BaseIR): BaseIR =
     ctx.time {
       before.verify(ctx, ir)
       val result = transform(ctx, ir)
@@ -47,6 +47,11 @@ case class OptimizePass(_context: String) extends LoweringPass {
   override val context = s"Optimize: ${_context}"
   override val before: Invariant = AnyIR
   override val after: Invariant = AnyIR
+
+  override def apply(ctx: ExecuteContext, ir: BaseIR): BaseIR =
+    if (ctx.flags.isDefined(Optimize.Flags.Optimize)) super.apply(ctx, ir)
+    else ir
+
   override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = Optimize(ctx, ir)
 }
 
