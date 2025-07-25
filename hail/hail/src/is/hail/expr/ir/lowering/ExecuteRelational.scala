@@ -84,9 +84,8 @@ object ExecuteRelational {
         TableValueIntermediate(TableValue(ctx, typ, globals, rvd))
       case TableMapGlobals(child, newGlobals) =>
         TableValueIntermediate(recur(child).asTableValue(ctx).mapGlobals(newGlobals))
-      case TableMapRows(child, newRow) =>
-        val extracted = agg.Extract(newRow, r.requirednessAnalysis, isScan = true)
-        TableValueIntermediate(recur(child).asTableValue(ctx).mapRows(extracted))
+      case ir: TableMapRows =>
+        TableStageIntermediate(ctx.backend.tableToTableStage(ctx, ir, r))
       case TableMapPartitions(child, globalName, partitionStreamName, body, _,
             allowedOverlap) =>
         TableValueIntermediate(

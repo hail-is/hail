@@ -130,7 +130,6 @@ class Backend(abc.ABC):
     # Must match knownFlags in HailFeatureFlags.scala
     _flags_env_vars_and_defaults: ClassVar[Dict[str, Tuple[str, Optional[str]]]] = {
         "cachedir": ("HAIL_CACHE_DIR", None),
-        "distributed_scan_comb_op": ("HAIL_DEV_DISTRIBUTED_SCAN_COMB_OP", None),
         "gcs_requester_pays_buckets": ("HAIL_GCS_REQUESTER_PAYS_BUCKETS", None),
         "gcs_requester_pays_project": ("HAIL_GCS_REQUESTER_PAYS_PROJECT", None),
         "grouped_aggregate_buffer_size": ("HAIL_GROUPED_AGGREGATE_BUFFER_SIZE", "50"),

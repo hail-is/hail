@@ -13,7 +13,7 @@ from hail import ir
 from hail.expr.functions import _cdf_combine, _error_from_cdf, _result_from_raw_cdf
 from hail.expr.types import tarray, tbool, tcall, tfloat, tfloat32, tfloat64, tint, tint32, tint64, tstr, tstruct
 
-from ..helpers import assert_evals_to, convert_struct_to_dict, qobtest, resource, test_timeout, with_flags
+from ..helpers import assert_evals_to, convert_struct_to_dict, qobtest, resource, test_timeout
 
 
 def _test_many_equal(test_cases):
@@ -704,7 +704,6 @@ class Tests(unittest.TestCase):
         ]
 
     @qobtest
-    @with_flags(distributed_scan_comb_op='1')
     def test_densify_table(self):
         ht = hl.utils.range_table(100, n_partitions=33)
         ht = ht.annotate(arr=hl.range(100).map(lambda idx: hl.or_missing(idx == ht.idx, idx)))
