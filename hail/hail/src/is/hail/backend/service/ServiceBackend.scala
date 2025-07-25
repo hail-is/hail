@@ -1,23 +1,20 @@
 package is.hail.backend.service
 
 import is.hail.HailFeatureFlags
-import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend._
 import is.hail.backend.service.ServiceBackend.MaxAvailableGcsConnections
 import is.hail.expr.Validate
-import is.hail.expr.ir.{IR, IRSize, LoweringAnalyses, SortField, TableIR, TableReader, TypeCheck}
+import is.hail.expr.ir.{
+  CompileAndEvaluate, IR, IRSize, LoweringAnalyses, SortField, TableIR, TableReader, TypeCheck,
+}
 import is.hail.expr.ir.analyses.SemanticHash
-import is.hail.expr.ir.compile.Compile
-import is.hail.expr.ir.defs.MakeTuple
 import is.hail.expr.ir.lowering._
 import is.hail.io.fs._
 import is.hail.services._
 import is.hail.services.JobGroupStates.{Cancelled, Failure, Success}
 import is.hail.types._
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
-import is.hail.types.virtual.TVoid
 import is.hail.utils._
 
 import scala.reflect.ClassTag
@@ -292,35 +289,11 @@ class ServiceBackend(
     }
 
   private[this] def _jvmLowerAndExecute(ctx: ExecuteContext, ir: IR): Either[Unit, (PTuple, Long)] =
-    ctx.time {
-      val x = LoweringPipeline.darrayLowerer(true)(DArrayLowering.All)(ctx, ir).asInstanceOf[IR]
-
-      x.typ match {
-        case TVoid =>
-          val (_, f) = Compile[AsmFunction1RegionUnit](
-            ctx,
-            FastSeq(),
-            FastSeq[TypeInfo[_]](classInfo[Region]),
-            UnitInfo,
-            x,
-            optimize = true,
-          )
-
-          Left(ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r)(r)))
-        case _ =>
-          val (Some(PTypeReferenceSingleCodeType(pt: PTuple)), f) =
-            Compile[AsmFunction1RegionLong](
-              ctx,
-              FastSeq(),
-              FastSeq(classInfo[Region]),
-              LongInfo,
-              MakeTuple.ordered(FastSeq(x)),
-              optimize = true,
-            )
-
-          Right((pt, ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r)(r))))
-      }
-    }
+    CompileAndEvaluate._apply(
+      ctx,
+      ir,
+      lower = LoweringPipeline.darrayLowerer(true)(DArrayLowering.All),
+    )
 
   override def lowerDistributedSort(
     ctx: ExecuteContext,

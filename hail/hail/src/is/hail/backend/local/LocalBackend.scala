@@ -1,20 +1,15 @@
 package is.hail.backend.local
 
 import is.hail.{CancellingExecutorService, HailContext}
-import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend._
 import is.hail.expr.Validate
 import is.hail.expr.ir._
 import is.hail.expr.ir.analyses.SemanticHash
-import is.hail.expr.ir.compile.Compile
-import is.hail.expr.ir.defs.MakeTuple
 import is.hail.expr.ir.lowering._
 import is.hail.io.fs._
 import is.hail.types._
 import is.hail.types.physical.PTuple
-import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
-import is.hail.types.virtual.TVoid
 import is.hail.utils._
 
 import scala.reflect.ClassTag
@@ -105,38 +100,13 @@ object LocalBackend extends Backend {
     ir0: IR,
     print: Option[PrintWriter] = None,
   ): Either[Unit, (PTuple, Long)] =
-    ctx.time {
-      val ir = LoweringPipeline.darrayLowerer(true)(DArrayLowering.All)(ctx, ir0).asInstanceOf[IR]
-
-      if (!Compilable(ir))
-        throw new LowererUnsupportedOperation(s"lowered to uncompilable IR: ${Pretty(ctx, ir)}")
-
-      ir.typ match {
-        case TVoid =>
-          val (_, f) = Compile[AsmFunction1RegionUnit](
-            ctx,
-            FastSeq(),
-            FastSeq(classInfo[Region]),
-            UnitInfo,
-            ir,
-            print = print,
-          )
-
-          Left(ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r)(r)))
-        case _ =>
-          val (Some(PTypeReferenceSingleCodeType(pt: PTuple)), f) =
-            Compile[AsmFunction1RegionLong](
-              ctx,
-              FastSeq(),
-              FastSeq(classInfo[Region]),
-              LongInfo,
-              MakeTuple.ordered(FastSeq(ir)),
-              print = print,
-            )
-
-          Right((pt, ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r)(r))))
-      }
-    }
+    CompileAndEvaluate._apply(
+      ctx,
+      ir0,
+      optimize = true,
+      LoweringPipeline.darrayLowerer(true)(DArrayLowering.All),
+      print = print,
+    )
 
   override def execute(ctx: ExecuteContext, ir: IR): Either[Unit, (PTuple, Long)] =
     ctx.time {

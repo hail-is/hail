@@ -7,8 +7,6 @@ import is.hail.backend._
 import is.hail.expr.Validate
 import is.hail.expr.ir._
 import is.hail.expr.ir.analyses.SemanticHash
-import is.hail.expr.ir.compile.Compile
-import is.hail.expr.ir.defs.MakeTuple
 import is.hail.expr.ir.lowering._
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.fs._
@@ -16,8 +14,6 @@ import is.hail.macros.void
 import is.hail.rvd.RVD
 import is.hail.types._
 import is.hail.types.physical.{PStruct, PTuple}
-import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
-import is.hail.types.virtual._
 import is.hail.utils._
 
 import scala.collection.mutable
@@ -403,45 +399,21 @@ class SparkBackend(val sc: SparkContext) extends Backend {
     lowerTable: Boolean,
     lowerBM: Boolean,
     print: Option[PrintWriter] = None,
-  ): Either[Unit, (PTuple, Long)] =
-    ctx.time {
-      val typesToLower: DArrayLowering.Type = (lowerTable, lowerBM) match {
-        case (true, true) => DArrayLowering.All
-        case (true, false) => DArrayLowering.TableOnly
-        case (false, true) => DArrayLowering.BMOnly
-        case (false, false) => throw new LowererUnsupportedOperation("no lowering enabled")
-      }
-      val ir = LoweringPipeline.darrayLowerer(optimize)(typesToLower)(ctx, ir0).asInstanceOf[IR]
-
-      if (!Compilable(ir))
-        throw new LowererUnsupportedOperation(s"lowered to uncompilable IR: ${Pretty(ctx, ir)}")
-
-      ir.typ match {
-        case TVoid =>
-          val (_, f) = Compile[AsmFunction1RegionUnit](
-            ctx,
-            FastSeq(),
-            FastSeq(classInfo[Region]),
-            UnitInfo,
-            ir,
-            print = print,
-          )
-
-          Left(ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r)(r)))
-        case _ =>
-          val (Some(PTypeReferenceSingleCodeType(pt: PTuple)), f) =
-            Compile[AsmFunction1RegionLong](
-              ctx,
-              FastSeq(),
-              FastSeq(classInfo[Region]),
-              LongInfo,
-              MakeTuple.ordered(FastSeq(ir)),
-              print = print,
-            )
-
-          Right((pt, ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r)(r))))
-      }
+  ): Either[Unit, (PTuple, Long)] = {
+    val typesToLower: DArrayLowering.Type = (lowerTable, lowerBM) match {
+      case (true, true) => DArrayLowering.All
+      case (true, false) => DArrayLowering.TableOnly
+      case (false, true) => DArrayLowering.BMOnly
+      case (false, false) => throw new LowererUnsupportedOperation("no lowering enabled")
     }
+    CompileAndEvaluate._apply(
+      ctx,
+      ir0,
+      optimize = optimize,
+      lower = LoweringPipeline.darrayLowerer(optimize)(typesToLower),
+      print = print,
+    )
+  }
 
   override def execute(ctx: ExecuteContext, ir: IR): Either[Unit, (PTuple, Long)] =
     ctx.time {
@@ -455,7 +427,7 @@ class SparkBackend(val sc: SparkContext) extends Backend {
       } catch {
         case e: LowererUnsupportedOperation if ctx.flags.get("lower_only") != null => throw e
         case _: LowererUnsupportedOperation =>
-          CompileAndEvaluate._apply(ctx, ir, optimize = true)
+          CompileAndEvaluate._apply(ctx, ir, lower = LoweringPipeline.relationalLowerer(true))
       }
     }
 
