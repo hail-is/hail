@@ -4,6 +4,7 @@ import is.hail.HailSuite
 import is.hail.expr.Nat
 import is.hail.expr.ir.agg.CallStatsState
 import is.hail.expr.ir.defs._
+import is.hail.expr.ir.lowering.LoweringPipeline
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.stats.fetStruct
 import is.hail.types._
@@ -720,7 +721,8 @@ class RequirednessSuite extends HailSuite {
     CompileAndEvaluate[Unit](
       ctx,
       TableWrite(table, TableNativeWriter(path, overwrite = true)),
-      false,
+      optimize = false,
+      LoweringPipeline.relationalLowerer(optimize = false),
     )
 
     val reader = TableNativeReader(fs, TableNativeReaderParameters(path, None))
