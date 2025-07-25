@@ -7,8 +7,8 @@ import is.hail.linalg.BlockMatrix.ops._
 import is.hail.scalacheck._
 import is.hail.types.virtual.{TFloat64, TInt64, TStruct}
 import is.hail.utils._
-
-import breeze.linalg.{*, diag, DenseMatrix, DenseVector => BDV}
+import breeze.linalg.{*, DenseMatrix, diag, DenseVector => BDV}
+import is.hail.expr.ir.lowering.LoweringPipeline
 import org.apache.spark.sql.Row
 import org.scalacheck._
 import org.scalacheck.Arbitrary._
@@ -833,7 +833,11 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       val entriesLiteral = TableLiteral(toBM(lm, blockSize).entriesTable(ctx), theHailClassLoader)
       assert(entriesLiteral.typ.rowType == expectedSignature)
       val rows =
-        CompileAndEvaluate[IndexedSeq[Row]](ctx, GetField(TableCollect(entriesLiteral), "rows"))
+        CompileAndEvaluate[IndexedSeq[Row]](
+          ctx,
+          GetField(TableCollect(entriesLiteral), "rows"),
+          lower = LoweringPipeline.relationalLowerer(optimize = true),
+        )
       val entries = rows.map(row => (row.get(0), row.get(1), row.get(2))).toSet
       // block size affects order of rows in table, but sets will be the same
       assert(entries === expectedEntries)
@@ -857,6 +861,7 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         ),
         "rows",
       ),
+      lower = LoweringPipeline.relationalLowerer(optimize = true),
     )
     val expected = rows
       .sortBy(r => (r.get(0).asInstanceOf[Long], r.get(1).asInstanceOf[Long]))
