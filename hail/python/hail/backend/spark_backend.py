@@ -7,11 +7,11 @@ import pyspark
 import pyspark.sql
 
 from hail.expr.table_type import ttable
-from hail.fs.hadoop_fs import HadoopFS
 from hail.ir import BaseIR
 from hail.ir.renderer import CSERenderer
 from hail.table import Table
 from hail.utils import copy_log
+from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiotools.validators import validate_file
 from hailtop.utils import async_to_blocking
@@ -47,12 +47,9 @@ class SparkBackend(Py4JBackend):
         skip_logging_configuration,
         optimizer_iterations,
         *,
-        gcs_requester_pays_project: Optional[str] = None,
-        gcs_requester_pays_buckets: Optional[str] = None,
+        gcs_requester_pays_config: Optional[GCSRequesterPaysConfiguration] = None,
         copy_log_on_error: bool = False,
     ):
-        assert gcs_requester_pays_project is not None or gcs_requester_pays_buckets is None
-
         try:
             local_jar_info = local_jar_information()
         except ValueError:
@@ -120,10 +117,6 @@ class SparkBackend(Py4JBackend):
                 append,
                 skip_logging_configuration,
                 min_block_size,
-                tmpdir,
-                local_tmpdir,
-                gcs_requester_pays_project,
-                gcs_requester_pays_buckets,
             )
             jhc = hail_package.HailContext.getOrCreate(jbackend, branching_factor, optimizer_iterations)
         else:
@@ -137,10 +130,6 @@ class SparkBackend(Py4JBackend):
                 append,
                 skip_logging_configuration,
                 min_block_size,
-                tmpdir,
-                local_tmpdir,
-                gcs_requester_pays_project,
-                gcs_requester_pays_buckets,
             )
             jhc = hail_package.HailContext.apply(jbackend, branching_factor, optimizer_iterations)
 
@@ -149,12 +138,12 @@ class SparkBackend(Py4JBackend):
             self.sc = sc
         else:
             self.sc = pyspark.SparkContext(gateway=self._gateway, jsc=jvm.JavaSparkContext(self._jsc))
-        self._jspark_session = jbackend.sparkSession()
+        self._jspark_session = jbackend.sparkSession().apply()
         self._spark_session = pyspark.sql.SparkSession(self.sc, self._jspark_session)
 
-        super(SparkBackend, self).__init__(jvm, jbackend, jhc)
+        super().__init__(jvm, jbackend, jhc, local_tmpdir, tmpdir)
+        self.gcs_requester_pays_configuration = gcs_requester_pays_config
 
-        self._fs = None
         self._logger = None
 
         if not quiet:
@@ -162,12 +151,12 @@ class SparkBackend(Py4JBackend):
             if self._jsc.uiWebUrl().isDefined():
                 sys.stderr.write('SparkUI available at {}\n'.format(self._jsc.uiWebUrl().get()))
 
-            jbackend.startProgressBar()
+            jbackend.pyStartProgressBar()
 
         self._initialize_flags({})
 
         self._router_async_fs = RouterAsyncFS(
-            gcs_kwargs={"gcs_requester_pays_configuration": gcs_requester_pays_project}
+            gcs_kwargs={"gcs_requester_pays_configuration": gcs_requester_pays_config}
         )
 
         self._tmpdir = tmpdir
@@ -180,12 +169,6 @@ class SparkBackend(Py4JBackend):
         super().stop()
         self.sc.stop()
         self.sc = None
-
-    @property
-    def fs(self):
-        if self._fs is None:
-            self._fs = HadoopFS(self._utils_package_object, self._jbackend.fs())
-        return self._fs
 
     def from_spark(self, df, key):
         result_tuple = self._jbackend.pyFromDF(df._jdf, key)

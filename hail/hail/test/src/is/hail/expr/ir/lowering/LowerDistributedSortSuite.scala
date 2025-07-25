@@ -4,6 +4,7 @@ import is.hail.{ExecStrategy, HailSuite, TestUtils}
 import is.hail.expr.ir.{
   mapIR, Ascending, Descending, LoweringAnalyses, SortField, TableIR, TableMapRows, TableRange,
 }
+import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.defs.{
   Apply, ErrorIDs, GetField, I32, Literal, MakeStruct, Ref, SelectFields, ToArray, ToStream,
 }
@@ -16,7 +17,7 @@ import org.apache.spark.sql.Row
 import org.scalatest
 import org.testng.annotations.Test
 
-class LowerDistributedSortSuite extends HailSuite {
+class LowerDistributedSortSuite extends HailSuite with TestUtils {
   implicit val execStrats = ExecStrategy.compileOnly
 
   @Test def testSamplePartition(): scalatest.Assertion = {
@@ -73,14 +74,14 @@ class LowerDistributedSortSuite extends HailSuite {
       val sortedTs = LowerDistributedSort.distributedSort(ctx, stage, sortFields, rt)
         .lower(ctx, myTable.typ.copy(key = FastSeq()))
       val res =
-        TestUtils.eval(sortedTs.mapCollect("test")(x => ToArray(x))).asInstanceOf[IndexedSeq[
+        eval(sortedTs.mapCollect("test")(x => ToArray(x))).asInstanceOf[IndexedSeq[
           IndexedSeq[Row]
         ]].flatten
 
       val rowFunc = myTable.typ.rowType.select(sortFields.map(_.field))._2
-      val unsortedCollect = is.hail.expr.ir.TestUtils.collect(myTable)
+      val unsortedCollect = collect(myTable)
       val unsortedAnalyses = LoweringAnalyses.apply(unsortedCollect, ctx)
-      val unsorted = TestUtils.eval(LowerTableIR.apply(
+      val unsorted = eval(LowerTableIR.apply(
         unsortedCollect,
         DArrayLowering.All,
         ctx,

@@ -87,7 +87,7 @@ object ContextRDD {
 
   def empty[T: ClassTag](): ContextRDD[T] =
     new ContextRDD(
-      SparkBackend.sparkContext("ContextRDD.empty").emptyRDD[RVDContext => Iterator[T]]
+      SparkBackend.sparkContext.emptyRDD[RVDContext => Iterator[T]]
     )
 
   def union[T: ClassTag](
@@ -118,7 +118,7 @@ object ContextRDD {
     filterAndReplace: TextInputFilterAndReplace,
   ): ContextRDD[WithContext[String]] =
     ContextRDD.weaken(
-      SparkBackend.sparkContext("ContxtRDD.textFilesLines").textFilesLines(
+      SparkBackend.sparkContext.textFilesLines(
         files,
         nPartitions,
       )
@@ -130,12 +130,12 @@ object ContextRDD {
     weaken(sc.parallelize(data, nPartitions.getOrElse(sc.defaultMinPartitions))).map(x => x)
 
   def parallelize[T: ClassTag](data: Seq[T], numSlices: Int): ContextRDD[T] =
-    weaken(SparkBackend.sparkContext("ContextRDD.parallelize").parallelize(data, numSlices)).map {
+    weaken(SparkBackend.sparkContext.parallelize(data, numSlices)).map {
       x => x
     }
 
   def parallelize[T: ClassTag](data: Seq[T]): ContextRDD[T] =
-    weaken(SparkBackend.sparkContext("ContextRDD.parallelize").parallelize(data)).map(x => x)
+    weaken(SparkBackend.sparkContext.parallelize(data)).map(x => x)
 
   type ElementType[T] = RVDContext => Iterator[T]
 

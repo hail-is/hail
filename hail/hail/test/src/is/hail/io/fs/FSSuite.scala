@@ -16,13 +16,10 @@ import org.scalatestplus.testng.TestNGSuiteLike
 import org.testng.SkipException
 import org.testng.annotations.Test
 
-trait FSSuite extends TestNGSuiteLike {
+trait FSSuite extends TestNGSuiteLike with TestUtils {
   val root: String = System.getenv("HAIL_TEST_STORAGE_URI")
-
   def fsResourcesRoot: String = System.getenv("HAIL_FS_TEST_CLOUD_RESOURCES_URI")
-
   def tmpdir: String = System.getenv("HAIL_TEST_STORAGE_URI")
-
   def fs: FS
 
   /* Structure of src/test/resources/fs:
@@ -77,7 +74,7 @@ trait FSSuite extends TestNGSuiteLike {
 
   @Test def testFileStatusOnDirIsFailure(): scalatest.Assertion = {
     val f = r("/dir")
-    TestUtils.interceptException[FileNotFoundException](f)(
+    interceptException[FileNotFoundException](f)(
       fs.fileStatus(f)
     )
   }

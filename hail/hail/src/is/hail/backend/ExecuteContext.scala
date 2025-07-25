@@ -1,6 +1,6 @@
 package is.hail.backend
 
-import is.hail.{HailContext, HailFeatureFlags}
+import is.hail.HailFeatureFlags
 import is.hail.annotations.{Region, RegionPool}
 import is.hail.asm4s.HailClassLoader
 import is.hail.backend.local.LocalTaskContext
@@ -23,7 +23,7 @@ trait TempFileManager extends AutoCloseable {
   def newTmpPath(tmpdir: String, prefix: String, extension: String = null): String
 }
 
-class OwningTempFileManager(fs: FS) extends TempFileManager {
+class OwningTempFileManager(val fs: FS) extends TempFileManager {
   private[this] val tmpPaths = mutable.ArrayBuffer[String]()
 
   override def newTmpPath(tmpdir: String, prefix: String, extension: String): String = {
@@ -39,7 +39,7 @@ class OwningTempFileManager(fs: FS) extends TempFileManager {
   }
 }
 
-class NonOwningTempFileManager private (owner: TempFileManager) extends TempFileManager {
+private class NonOwningTempFileManager private (owner: TempFileManager) extends TempFileManager {
   override def newTmpPath(tmpdir: String, prefix: String, extension: String): String =
     owner.newTmpPath(tmpdir, prefix, extension)
 
@@ -55,13 +55,6 @@ object NonOwningTempFileManager {
 }
 
 object ExecuteContext {
-  def scoped[T](f: ExecuteContext => T)(implicit E: Enclosing): T = {
-    val result = HailContext.sparkBackend("ExecuteContext.scoped").withExecuteContext(
-      selfContainedExecution = false
-    )(f)
-    result
-  }
-
   def scoped[T](
     tmpdir: String,
     localTmpdir: String,
@@ -72,7 +65,6 @@ object ExecuteContext {
     tempFileManager: TempFileManager,
     theHailClassLoader: HailClassLoader,
     flags: HailFeatureFlags,
-    backendContext: BackendContext,
     irMetadata: IrMetadata,
     blockMatrixCache: mutable.Map[String, BlockMatrix],
     codeCache: mutable.Map[CodeCacheKey, CompiledFunction[_]],
@@ -94,7 +86,6 @@ object ExecuteContext {
           tempFileManager,
           theHailClassLoader,
           flags,
-          backendContext,
           irMetadata,
           blockMatrixCache,
           codeCache,
@@ -124,10 +115,9 @@ class ExecuteContext(
   val fs: FS,
   val r: Region,
   val timer: ExecutionTimer,
-  _tempFileManager: TempFileManager,
+  val tempFileManager: TempFileManager,
   val theHailClassLoader: HailClassLoader,
   val flags: HailFeatureFlags,
-  val backendContext: BackendContext,
   val irMetadata: IrMetadata,
   val BlockMatrixCache: mutable.Map[String, BlockMatrix],
   val CodeCache: mutable.Map[CodeCacheKey, CompiledFunction[_]],
@@ -147,9 +137,6 @@ class ExecuteContext(
     }
 
   val stateManager = HailStateManager(references)
-
-  val tempFileManager: TempFileManager =
-    if (_tempFileManager != null) _tempFileManager else new OwningTempFileManager(fs)
 
   def fsBc: BroadcastValue[FS] = fs.broadcast
 
@@ -197,7 +184,6 @@ class ExecuteContext(
     tempFileManager: TempFileManager = NonOwningTempFileManager(this.tempFileManager),
     theHailClassLoader: HailClassLoader = this.theHailClassLoader,
     flags: HailFeatureFlags = this.flags,
-    backendContext: BackendContext = this.backendContext,
     irMetadata: IrMetadata = this.irMetadata,
     blockMatrixCache: mutable.Map[String, BlockMatrix] = this.BlockMatrixCache,
     codeCache: mutable.Map[CodeCacheKey, CompiledFunction[_]] = this.CodeCache,
@@ -217,7 +203,6 @@ class ExecuteContext(
       tempFileManager,
       theHailClassLoader,
       flags,
-      backendContext,
       irMetadata,
       blockMatrixCache,
       codeCache,
