@@ -670,7 +670,7 @@ class BlockMatrixStage2 private (
 
   def ctxType: Type = contexts.elementType
 
-  def ctxRef: IR = Ref(ctxRefName, ctxType)
+  def ctxRef: TrivialIR = Ref(ctxRefName, ctxType)
 
   def toOldBMS: BlockMatrixStage = {
     new BlockMatrixStage(broadcastVals, ctxType) {
@@ -1007,17 +1007,15 @@ class BlockMatrixStage2 private (
     staticID: String,
     dynamicID: IR = NA(TString),
   )(
-    f: (IR, IR, IR) => IR // (ctx, pos, block)
+    f: (TrivialIR, TrivialIR, TrivialIR) => IR // (ctx, pos, block)
   ): IR = {
-    val posRef = Ref(freshName(), TInt32)
     val newCtxRef = Ref(freshName(), TTuple(TInt32, ctxType))
-    val body = Let(
-      FastSeq(
-        posRef.name -> GetTupleElement(newCtxRef, 0),
-        ctxRefName -> GetTupleElement(newCtxRef, 1),
-      ),
-      f(ctxRef, posRef, _blockIR),
-    )
+    val body = IRBuilder.scoped { bodyIB =>
+      val pos = bodyIB.memoize(GetTupleElement(newCtxRef, 0))
+      val ctx = bodyIB.strictMemoize(GetTupleElement(newCtxRef, 1), ctxRefName)
+      val block = bodyIB.memoize(_blockIR)
+      f(ctx, pos, block)
+    }
 
     val bodyFreeVars = FreeVariables(body, supportsAgg = false, supportsScan = false)
     val bcFields = broadcastVals.filter { case Ref(f, _) =>
