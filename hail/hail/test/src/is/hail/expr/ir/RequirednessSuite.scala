@@ -5,6 +5,7 @@ import is.hail.backend.ExecuteContext
 import is.hail.expr.Nat
 import is.hail.expr.ir.agg.CallStatsState
 import is.hail.expr.ir.defs._
+import is.hail.expr.ir.lowering.LoweringPipeline
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.stats.fetStruct
 import is.hail.types._
@@ -14,7 +15,6 @@ import is.hail.types.physical.stypes.interfaces.SStream
 import is.hail.types.physical.stypes.primitives.SInt32
 import is.hail.types.virtual._
 import is.hail.utils.{BoxedArrayBuilder, FastSeq}
-
 import org.apache.spark.sql.Row
 import org.scalatest
 import org.scalatest.Inspectors.forAll
@@ -721,7 +721,8 @@ class RequirednessSuite extends HailSuite {
     CompileAndEvaluate[Unit](
       ctx,
       TableWrite(table, TableNativeWriter(path, overwrite = true)),
-      false,
+      optimize = false,
+      LoweringPipeline.relationalLowerer(optimize = false),
     )
 
     val reader = TableNativeReader(fs, TableNativeReaderParameters(path, None))

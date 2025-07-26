@@ -5,9 +5,10 @@ import is.hail.expr.{JSONAnnotationImpex, Nat, ParserUtils}
 import is.hail.expr.ir.agg._
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.functions.RelationalFunctions
+import is.hail.expr.ir.lowering.LoweringPipeline
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.rvd.{RVDPartitioner, RVDType}
-import is.hail.types.{tcoerce, VirtualTypeWithReq}
+import is.hail.types.{VirtualTypeWithReq, tcoerce}
 import is.hail.types.encoded.EType
 import is.hail.types.physical._
 import is.hail.types.virtual._
@@ -19,9 +20,7 @@ import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.util.parsing.combinator.JavaTokenParsers
 import scala.util.parsing.input.Positional
-
 import java.util.Base64
-
 import org.apache.spark.sql.Row
 import org.json4s.{Formats, JObject}
 import org.json4s.jackson.{JsonMethods, Serialization}
@@ -1937,6 +1936,7 @@ object IRParser {
   def blockmatrix_sparsifier(ctx: ExecuteContext)(it: TokenIterator)
     : StackFrame[BlockMatrixSparsifier] = {
     punctuation(it, "(")
+    val lower = LoweringPipeline.relationalLowerer(optimize = true)
     identifier(it) match {
       case "PyRowIntervalSparsifier" =>
         val blocksOnly = boolean_literal(it)
@@ -1944,7 +1944,7 @@ object IRParser {
         ir_value_expr(ctx)(it).map { ir_ =>
           val ir = annotateTypes(ctx, ir_, BindingEnv.empty).asInstanceOf[IR]
           val Row(starts: IndexedSeq[Long @unchecked], stops: IndexedSeq[Long @unchecked]) =
-            CompileAndEvaluate[Row](ctx, ir)
+            CompileAndEvaluate[Row](ctx, ir, lower = lower)
           RowIntervalSparsifier(blocksOnly, starts, stops)
         }
       case "PyBandSparsifier" =>
@@ -1952,21 +1952,21 @@ object IRParser {
         punctuation(it, ")")
         ir_value_expr(ctx)(it).map { ir_ =>
           val ir = annotateTypes(ctx, ir_, BindingEnv.empty).asInstanceOf[IR]
-          val Row(l: Long, u: Long) = CompileAndEvaluate[Row](ctx, ir)
+          val Row(l: Long, u: Long) = CompileAndEvaluate[Row](ctx, ir, lower = lower)
           BandSparsifier(blocksOnly, l, u)
         }
       case "PyPerBlockSparsifier" =>
         punctuation(it, ")")
         ir_value_expr(ctx)(it).map { ir_ =>
           val ir = annotateTypes(ctx, ir_, BindingEnv.empty).asInstanceOf[IR]
-          val indices = CompileAndEvaluate[IndexedSeq[Int]](ctx, ir)
+          val indices = CompileAndEvaluate[IndexedSeq[Int]](ctx, ir, lower = lower)
           PerBlockSparsifier(indices)
         }
       case "PyRectangleSparsifier" =>
         punctuation(it, ")")
         ir_value_expr(ctx)(it).map { ir_ =>
           val ir = annotateTypes(ctx, ir_, BindingEnv.empty).asInstanceOf[IR]
-          val rectangles = CompileAndEvaluate[IndexedSeq[Long]](ctx, ir)
+          val rectangles = CompileAndEvaluate[IndexedSeq[Long]](ctx, ir, lower = lower)
           RectangleSparsifier(rectangles.grouped(4).toIndexedSeq)
         }
       case "RowIntervalSparsifier" =>
