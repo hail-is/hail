@@ -36,6 +36,25 @@
     </form>
   </div>
   <div class='w-full md:w-2/5'>
+    <h1 class='text-2xl font-light mb-4'>Reactivate User</h1>
+    <form action="{{ base_path }}/users/activate" method="POST" onsubmit="validateReactivateForm()">
+      <div class='flex-col space-y-2'>
+        <div class='flex items-center space-x-4'>
+          <span class='w-32'>User ID</span>
+          <input id="inactive-id" class='border rounded-sm p-1 text-sm w-48' name="id" />
+        </div>
+        <div class='flex items-center space-x-4'>
+          <span class='w-32'>Username</span>
+          <input id="inactive-username" class='border rounded-sm p-1 text-sm w-48' name="username" />
+        </div>
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
+        <div class='mt-4'>
+          {{ submit_button('Reactivate') }}
+        </div>
+      </div>
+    </form>
+  </div>
+  <div class='w-full md:w-2/5'>
     <h1 class='text-2xl font-light mb-4'>Delete User</h1>
     <form action="{{ base_path }}/users/delete" method="POST">
       <div class='flex-col space-y-2'>
@@ -90,6 +109,7 @@
       <th class='h-12 bg-slate-200 font-light text-left'>Login ID</th>
       <th class='h-12 bg-slate-200 font-light text-left'>Hail Identity</th>
       <th class='h-12 bg-slate-200 font-light text-left'>State</th>
+      <th class='h-12 bg-slate-200 font-light text-left'>Last Active</th>
       <th class='h-12 bg-slate-200 font-light'>Developer</th>
       <th class='h-12 bg-slate-200 font-light rounded-tr pr-2'>Robot</th>
     </tr>
@@ -102,6 +122,7 @@
       <td>{{ user['login_id'] }}</td>
       <td>{{ user['hail_identity'] }}</td>
       <td class='text-center' data-state="{{ user['state'] }}">{{ user['state'] }}</td>
+      <td class='text-center' data-state="{{ user['last_activated'] }}">{{ user['last_activated'] }}</td>
       <td class='text-center' data-developer="{{ user['is_developer'] }}">{{ check_or_cross(user['is_developer']) }}</td>
       <td class='text-center'>{{ check_or_cross(user['is_service_account']) }}</td>
     </tr>
@@ -113,19 +134,29 @@
 function filterTable() {
   const showActive = document.getElementById('show-active').checked;
   const showDevelopers = document.getElementById('show-developers').checked;
-  
+
   const rows = document.querySelectorAll('#users-table tbody tr');
-  
+
   rows.forEach(row => {
     const state = row.querySelector('[data-state]').dataset.state.trim();
     const isDeveloper = row.querySelector('[data-developer]').dataset.developer.trim();
-    
+
     let show = true;
     if (showActive && state !== 'active') show = false;
     if (showDevelopers && isDeveloper !== '1') show = false;
-    
+
     row.style.display = show ? '' : 'none';
   });
+}
+function validateReactivateForm() {
+  const userId = document.getElementById('inactive-id').value.trim();
+  const username = document.getElementById('inactive-username').value.trim();
+
+  if (!userId && !username) {
+    alert('Please provide either a User ID or a Username.');
+    return false;
+  }
+  return true;
 }
 </script>
 {% endblock %}

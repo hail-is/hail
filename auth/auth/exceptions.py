@@ -63,3 +63,11 @@ class UnknownUser(AuthUserError):
 class PreviouslyDeletedUser(AuthUserError):
     def __init__(self, username):
         super().__init__(f"User '{username}' has already been deleted.", 'error')
+
+
+class NotInactiveUser(AuthUserError):
+    def __init__(self, username):
+        super().__init__(f"No user '{username}' currently marked as inactive.", 'error')
+
+    def http_response(self):
+        return web.HTTPNotFound(reason=self.message)
