@@ -1386,3 +1386,11 @@ def test_write_from_entry_expr_simple():
         BlockMatrix.write_from_entry_expr(mt.x, path, block_size=32)
         actual = hl.eval(BlockMatrix.read(path).to_ndarray())
         assert np.array_equal(expected, actual)
+
+
+def test_write_block_matrix_with_block_size_eq_n_cols():
+    n_cols = 10
+    mt = hl.utils.range_matrix_table(10, n_cols)
+    mt = mt.annotate_entries(x=mt.row_idx * mt.col_idx)
+    bm = hl.linalg.BlockMatrix.from_entry_expr(mt.x, block_size=n_cols)
+    assert bm.shape == bm.to_numpy().shape

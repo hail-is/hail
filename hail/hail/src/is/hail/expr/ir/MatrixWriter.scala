@@ -2359,7 +2359,7 @@ case class MatrixBlockMatrixWriter(
     val countColumnsIR = ArrayLen(GetField(ts.getGlobals(), colsFieldName))
     val numCols: Int = CompileAndEvaluate(ctx, countColumnsIR, true).asInstanceOf[Int]
     val numBlockCols: Int = (numCols - 1) / blockSize + 1
-    val lastBlockNumCols = numCols % blockSize
+    val lastBlockNumCols = (numCols - 1) % blockSize + 1
 
     val rowCountIR = ts.mapCollect("matrix_block_matrix_writer_partition_counts")(paritionIR =>
       StreamLen(paritionIR)
