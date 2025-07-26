@@ -72,22 +72,6 @@ case class WrappedMatrixWriter(
 abstract class MatrixWriter {
   def path: String
 
-  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = {
-    val tv = mv.toTableValue
-    val ts = TableExecuteIntermediate(tv).asTableStage(ctx)
-    CompileAndEvaluate(
-      ctx,
-      lower(
-        LowerMatrixIR.colsFieldName,
-        MatrixType.entriesIdentifier,
-        mv.typ.colKey,
-        ctx,
-        ts,
-        BaseTypeWithRequiredness(tv.typ).asInstanceOf[RTable],
-      ),
-    )
-  }
-
   def lower(
     colsFieldName: String,
     entriesFieldName: String,
