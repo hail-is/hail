@@ -78,7 +78,7 @@ def submit(
 
     # print underlying gcloud command
     print('gcloud command:')
-    print('gcloud ' + ' '.join(cmd[:5]) + ' \\\n    ' + ' \\\n    '.join(cmd[6:]))
+    print('gcloud ' + ' '.join(cmd[:5]) + ' \\\n    ' + ' \\\n    '.join(cmd[5:]))
 
     # submit job
     if not dry_run:
