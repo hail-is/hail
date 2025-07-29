@@ -169,7 +169,7 @@ async def main() -> None:
 
         # Add disk availability log before starting copy operations
         try:
-            df_result = subprocess.run(['df', '-kh'], capture_output=True, text=True, check=True)
+            df_result = subprocess.run(['df', '-h'], capture_output=True, text=True, check=True)
             logging.info("=== Disk availability before copy operations ===")
             logging.info(df_result.stdout)
             logging.info("=== End disk availability ===")
