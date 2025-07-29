@@ -91,17 +91,6 @@ class AccessLogger(AbstractAccessLogger):
             else:
                 extra[k] = default
 
-        # Try to get formdata in various ways:
-        request_data = request.get('request_data', {})
-
-        formdata = request.get('formdata', {})
-        request_data.update(formdata)
-        
-        post_data = request._post or {}
-        request_data.update(post_data)
-
-        extra.update({f'request_data_{k}': request_data[k] for k in request_data.keys()})
-
         self.logger.info(
             f'{request.scheme} {request.method} {request.path} done in {time}s: {response.status}',
             extra={**extra, **request.get('batch_telemetry', {})},
