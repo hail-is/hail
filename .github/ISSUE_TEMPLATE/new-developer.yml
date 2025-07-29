@@ -13,13 +13,19 @@ body:
         Hail username - <proposed hail username>
 
         Action items:
-        - Existing developer:
-          - Coordinate with appsec
-          - Create a new developer account - see [here](https://github.com/hail-is/hail/blob/main/dev-docs/services/creating-a-developer-account.md#creating-a-developer-account)
-          - Grant appropriate IAM roles to new developer on Hail Google Projects, Azure subscriptions, etc
-            - In Google, grant at least Editor and Kubernetes Engine Admine roles
-        - New developer: Create a PR to add yourself as a new CI user (see [here](https://github.com/hail-is/hail/blob/main/ci/ci/constants.py))
-          - Existing developers: review and approve PR
+          - Existing developer:
+            - [ ] Coordinate with appsec
+            - [ ] Create a new developer account - see [here](https://github.com/hail-is/hail/blob/main/dev-docs/services/creating-a-developer-account.md#creating-a-developer-account)
+            - Add internal.hail.is/username in gcloud as:
+              - [ ] An authorized redirect URL
+              - [ ] A valid cloud DNS entry
+            - [ ] Grant appropriate IAM roles to new developer on Hail Google Projects, Azure subscriptions, etc
+              - In Google, grant at least Editor and Kubernetes Engine Admine roles
+          - New developer: 
+            - [ ] Complete training and onboarding requested by appsec
+            - [ ] Create a PR to add yourself as a new CI user (see [here](https://github.com/hail-is/hail/blob/main/ci/ci/constants.py))
+          - Existing developers: 
+            - [ ] Review and approve PR
   - type: textarea
     id: security-impact
     attributes:
