@@ -269,8 +269,37 @@ steps:
     script: |
       set -ex
 
-      if ! kubectl get secret -n {{ default_ns.name }} database-server-config;
-      then
+      # Check if secret exists and get its age
+      if kubectl get secret -n {{ default_ns.name }} database-server-config >/dev/null 2>&1; then
+          echo "Secret exists, checking age..."
+          
+          # Extract the latest timestamp from managed fields
+          LATEST_TIME=$(kubectl get secret database-server-config -n {{ default_ns.name }} -o json --show-managed-fields | \
+              jq -r '.metadata.managedFields[] | .time' | \
+              sort -r | head -n1)
+          
+          echo "Latest secret modification time: $LATEST_TIME"
+          
+          # Convert to timestamp and check if over 1 year old (365 days)
+          TIMESTAMP=$(date -d "$LATEST_TIME" +%s 2>/dev/null || echo "0")
+          CURRENT_TIME=$(date +%s)
+          AGE_DAYS=$(( (CURRENT_TIME - TIMESTAMP) / 86400 ))
+          
+          echo "Secret age: $AGE_DAYS days"
+          
+          if [ "$AGE_DAYS" -gt 365 ]; then
+              echo "Secret is over 1 year old, regenerating certificates while preserving password..."
+              
+              # Extract existing password
+              EXISTING_PASSWORD=$(kubectl get secret database-server-config -n {{ default_ns.name }} -o jsonpath='{.data.db-root-password}' | base64 -d)
+              
+              # Regenerate certificates with existing password
+              NAMESPACE={{ default_ns.name }} bash /create_test_db_config.sh --keep-password "$EXISTING_PASSWORD"
+          else
+              echo "Secret is less than 1 year old, skipping regeneration"
+          fi
+      else
+          echo "Secret does not exist, creating new one..."
           NAMESPACE={{ default_ns.name }} bash /create_test_db_config.sh
       fi
     serviceAccount:
@@ -3972,8 +4001,6 @@ steps:
     dependsOn:
       - ci_utils_image
       - default_ns
-    scopes:
-      - deploy
   - kind: runImage
     name: test_gcp_ar_cleanup_policies
     resources:
