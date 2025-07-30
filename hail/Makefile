@@ -1,3 +1,7 @@
+ifeq (3.82,$(lastword $(sort $(MAKE_VERSION) 3.82)))
+$(error requires gmake version at least 3.82)
+endif
+
 HAIL_HAIL_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 
 REVISION := $(shell git rev-parse HEAD)
