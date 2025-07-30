@@ -57,6 +57,8 @@ if [ -n "$KEEP_PASSWORD" ]; then
     echo "Using provided password"
     echo "$KEEP_PASSWORD" > db-root-password
     password=$KEEP_PASSWORD
+    # Disable set -x to avoid logging password
+    set +x
 else
     echo "Generating new password"
     LC_ALL=C tr -dc '[:alnum:]' </dev/urandom | head -c 16 > db-root-password
@@ -90,6 +92,7 @@ cat >sql-config.json <<EOF
 }
 EOF
 
+# Always use dry-run | apply for consistency
 kubectl create secret generic database-server-config \
     --namespace=$NAMESPACE \
     --from-file=server-ca.pem \
@@ -99,4 +102,5 @@ kubectl create secret generic database-server-config \
     --from-file=client-key.pem \
     --from-file=sql-config.cnf \
     --from-file=sql-config.json \
-    --from-file=db-root-password
+    --from-file=db-root-password \
+    --dry-run=client -o yaml | kubectl apply -n $NAMESPACE -f -
