@@ -8,6 +8,21 @@ elif [ "${NAMESPACE}" == "default" ]; then
     exit 1;
 fi
 
+# Parse command line arguments
+KEEP_PASSWORD=""
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --keep-password)
+            KEEP_PASSWORD="$2"
+            shift 2
+            ;;
+        *)
+            echo "Unknown option: $1"
+            exit 1
+            ;;
+    esac
+done
+
 function create_key_and_cert() {
     local name=$1
     local key_file=${name}-key.pem
@@ -36,8 +51,17 @@ create_key_and_cert server
 create_key_and_cert client
 
 set +x
-LC_ALL=C tr -dc '[:alnum:]' </dev/urandom | head -c 16 > db-root-password
-password=$(cat db-root-password)
+
+# Use provided password or generate new one
+if [ -n "$KEEP_PASSWORD" ]; then
+    echo "Using provided password"
+    echo "$KEEP_PASSWORD" > db-root-password
+    password=$KEEP_PASSWORD
+else
+    echo "Generating new password"
+    LC_ALL=C tr -dc '[:alnum:]' </dev/urandom | head -c 16 > db-root-password
+    password=$(cat db-root-password)
+fi
 
 cat >sql-config.cnf <<EOF
 [client]
