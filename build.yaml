@@ -290,11 +290,14 @@ steps:
           if [ "$AGE_DAYS" -gt 365 ]; then
               echo "Secret is over 1 year old, regenerating certificates while preserving password..."
               
-              # Extract existing password
+              # Turn off set -x to avoid logging password:
+              set +x
+              echo 'Running: EXISTING_PASSWORD=$(kubectl get secret database-server-config -n {{ default_ns.name }} -o jsonpath='{.data.db-root-password}' | base64 -d)'
               EXISTING_PASSWORD=$(kubectl get secret database-server-config -n {{ default_ns.name }} -o jsonpath='{.data.db-root-password}' | base64 -d)
-              
-              # Regenerate certificates with existing password
+              # Regenerate certificates with existing password (disable set -x to avoid logging password)
+              echo 'Running: NAMESPACE={{ default_ns.name }} bash /create_test_db_config.sh --keep-password "$EXISTING_PASSWORD"'
               NAMESPACE={{ default_ns.name }} bash /create_test_db_config.sh --keep-password "$EXISTING_PASSWORD"
+              set -x
           else
               echo "Secret is less than 1 year old, skipping regeneration"
           fi
