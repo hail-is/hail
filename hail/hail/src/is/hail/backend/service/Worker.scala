@@ -11,7 +11,6 @@ import is.hail.utils._
 import scala.collection.mutable
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.concurrent.duration.Duration
-import scala.util.control.NonFatal
 
 import java.io._
 import java.nio.charset._
@@ -214,7 +213,7 @@ object Worker {
           Right(f(context, htc, theHailClassLoader, fs))
         }
       catch {
-        case NonFatal(err) => Left(err)
+        case t: Throwable => Left(t)
       }
     }
 
