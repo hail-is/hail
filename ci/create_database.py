@@ -162,7 +162,7 @@ async def _create_database():
             await db.just_execute(f"""
                 GRANT {allowed_operations} ON `{_name}`.* TO '{mysql_username}'@'%';
                 """)
-            
+
             # For existing users, patch the certificates in the secret in case they were regenerated
             await _patch_user_config_certificates(namespace, database_name, admin_or_user)
             return
