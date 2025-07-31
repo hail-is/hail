@@ -165,31 +165,32 @@ async def _create_database():
             
             # For existing users, patch the certificates in the secret in case they were regenerated
             await _patch_user_config_certificates(namespace, database_name, admin_or_user)
-        else:
-            await db.just_execute(f"""
-                CREATE USER '{mysql_username}'@'%' IDENTIFIED BY '{mysql_password}';
-                GRANT {allowed_operations} ON `{_name}`.* TO '{mysql_username}'@'%';
-                """)
+            return
+        
+        await db.just_execute(f"""
+            CREATE USER '{mysql_username}'@'%' IDENTIFIED BY '{mysql_password}';
+            GRANT {allowed_operations} ON `{_name}`.* TO '{mysql_username}'@'%';
+            """)
 
-            # For new users, create the full secret
-            await _write_user_config(
-                namespace,
-                database_name,
-                admin_or_user,
-                SQLConfig(
-                    host=sql_config.host,
-                    port=sql_config.port,
-                    instance=sql_config.instance,
-                    connection_name=sql_config.connection_name,
-                    user=mysql_username,
-                    password=mysql_password,
-                    db=_name,
-                    ssl_ca=sql_config.ssl_ca,
-                    ssl_cert=sql_config.ssl_cert,
-                    ssl_key=sql_config.ssl_key,
-                    ssl_mode=sql_config.ssl_mode,
-                ),
-            )
+        # For new users, create the full secret
+        await _write_user_config(
+            namespace,
+            database_name,
+            admin_or_user,
+            SQLConfig(
+                host=sql_config.host,
+                port=sql_config.port,
+                instance=sql_config.instance,
+                connection_name=sql_config.connection_name,
+                user=mysql_username,
+                password=mysql_password,
+                db=_name,
+                ssl_ca=sql_config.ssl_ca,
+                ssl_cert=sql_config.ssl_cert,
+                ssl_key=sql_config.ssl_key,
+                ssl_mode=sql_config.ssl_mode,
+            ),
+        )
 
     admin_username = create_database_config['admin_username']
     user_username = create_database_config['user_username']
