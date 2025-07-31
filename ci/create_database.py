@@ -162,31 +162,34 @@ async def _create_database():
             await db.just_execute(f"""
                 GRANT {allowed_operations} ON `{_name}`.* TO '{mysql_username}'@'%';
                 """)
+            
+            # For existing users, patch the certificates in the secret in case they were regenerated
+            await _patch_user_config_certificates(namespace, database_name, admin_or_user)
         else:
             await db.just_execute(f"""
                 CREATE USER '{mysql_username}'@'%' IDENTIFIED BY '{mysql_password}';
                 GRANT {allowed_operations} ON `{_name}`.* TO '{mysql_username}'@'%';
                 """)
 
-        # Always update the user config secret with latest certificates
-        await _write_user_config(
-            namespace,
-            database_name,
-            admin_or_user,
-            SQLConfig(
-                host=sql_config.host,
-                port=sql_config.port,
-                instance=sql_config.instance,
-                connection_name=sql_config.connection_name,
-                user=mysql_username,
-                password=mysql_password,
-                db=_name,
-                ssl_ca=sql_config.ssl_ca,
-                ssl_cert=sql_config.ssl_cert,
-                ssl_key=sql_config.ssl_key,
-                ssl_mode=sql_config.ssl_mode,
-            ),
-        )
+            # For new users, create the full secret
+            await _write_user_config(
+                namespace,
+                database_name,
+                admin_or_user,
+                SQLConfig(
+                    host=sql_config.host,
+                    port=sql_config.port,
+                    instance=sql_config.instance,
+                    connection_name=sql_config.connection_name,
+                    user=mysql_username,
+                    password=mysql_password,
+                    db=_name,
+                    ssl_ca=sql_config.ssl_ca,
+                    ssl_cert=sql_config.ssl_cert,
+                    ssl_key=sql_config.ssl_key,
+                    ssl_mode=sql_config.ssl_mode,
+                ),
+            )
 
     admin_username = create_database_config['admin_username']
     user_username = create_database_config['user_username']
@@ -229,6 +232,32 @@ kubectl -n {shq(namespace)} create secret generic \
         --save-config --dry-run=client \
         -o yaml \
         | kubectl -n {shq(namespace)} apply -f -
+""")
+
+
+async def _patch_user_config_certificates(namespace: str, database_name: str, user: str):
+    """Update only the certificate files in an existing user config secret."""
+    
+    secret_name = f'sql-{database_name}-{user}-config'
+    print(f'patching certificates in secret {secret_name}')
+    
+    # Read the latest certificates from the mounted location
+    with open('/sql-config/server-ca.pem', 'r', encoding='utf-8') as f:
+        server_ca = f.read()
+    with open('/sql-config/client-cert.pem', 'r', encoding='utf-8') as f:
+        client_cert = f.read()
+    with open('/sql-config/client-key.pem', 'r', encoding='utf-8') as f:
+        client_key = f.read()
+    
+    # Patch only the certificate files in the existing secret
+    await check_shell(f"""
+kubectl -n {shq(namespace)} patch secret {shq(secret_name)} --type='merge' -p='{{
+    "data": {{
+        "server-ca.pem": "{base64.b64encode(server_ca.encode()).decode()}",
+        "client-cert.pem": "{base64.b64encode(client_cert.encode()).decode()}",
+        "client-key.pem": "{base64.b64encode(client_key.encode()).decode()}"
+    }}
+}}'
 """)
 
 
