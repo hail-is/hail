@@ -511,9 +511,8 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     val compareGen =
       for {
         tdict <- arbitrary[TDict]
-        dict: Map[Annotation, Annotation] <- genNullableT(ctx, tdict)
-        key <- genNullable(ctx, tdict.keyType)
-        if dict != null && key != null
+        dict: Map[Annotation, Annotation] <- genNonMissingT(ctx, tdict, innerRequired = false)
+        key <- genNonMissing(ctx, tdict.keyType, innerRequired = false)
       } yield (tdict, dict, key)
 
     forAll(compareGen) { case (tDict, dict, key) =>
