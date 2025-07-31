@@ -4004,6 +4004,8 @@ steps:
     dependsOn:
       - ci_utils_image
       - default_ns
+    scopes:
+      - deploy
   - kind: runImage
     name: test_gcp_ar_cleanup_policies
     resources:
