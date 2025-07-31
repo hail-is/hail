@@ -354,8 +354,7 @@ def submit(
     Recursive glob patterns are not supported
     """
 
-    # from .submit import HailctlBatchSubmitError  # pylint: disable=import-outside-toplevel
-    from .submit2 import HailctlBatchSubmitError, submit as _submit  # pylint: disable=import-outside-toplevel
+    from .submit import HailctlBatchSubmitError, submit as _submit  # pylint: disable=import-outside-toplevel
 
     assert command_and_args
 
