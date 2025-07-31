@@ -162,13 +162,13 @@ async def _create_database():
             await db.just_execute(f"""
                 GRANT {allowed_operations} ON `{_name}`.* TO '{mysql_username}'@'%';
                 """)
-            return
+        else:
+            await db.just_execute(f"""
+                CREATE USER '{mysql_username}'@'%' IDENTIFIED BY '{mysql_password}';
+                GRANT {allowed_operations} ON `{_name}`.* TO '{mysql_username}'@'%';
+                """)
 
-        await db.just_execute(f"""
-            CREATE USER '{mysql_username}'@'%' IDENTIFIED BY '{mysql_password}';
-            GRANT {allowed_operations} ON `{_name}`.* TO '{mysql_username}'@'%';
-            """)
-
+        # Always update the user config secret with latest certificates
         await _write_user_config(
             namespace,
             database_name,
