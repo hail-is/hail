@@ -1,125 +1,79 @@
-import glob
-import logging
 import os
-import sys
-from contextlib import ExitStack
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, Optional
 
-from py4j.java_gateway import GatewayParameters, JavaGateway, launch_gateway
+from py4j.java_gateway import JavaGateway, JavaObject, Py4JJavaError
 
-from hail.ir import finalize_randomness
-from hail.ir.renderer import CSERenderer
+from hail.backend.backend import fatal_error_from_java_error_triplet
+from hail.backend.py4j_backend import (
+    Py4JBackend,
+    connect_logger,
+    raise_when_mismatched_hail_versions,
+    start_py4j_gateway,
+)
+from hail.utils.java import scala_object, scala_package_object
+from hail.version import __version__
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
-from hailtop.aiotools.validators import validate_file
-from hailtop.fs.router_fs import RouterFS
-from hailtop.utils import async_to_blocking, find_spark_home
-
-from ..expr import Expression
-from ..expr.types import HailType
-from .backend import local_jar_information
-from .py4j_backend import Py4JBackend, uninstall_exception_handler
-
-log = logging.getLogger('hail.backend')
 
 
 class LocalBackend(Py4JBackend):
+    @classmethod
+    def create(
+        cls,
+        tmpdir: str,
+        logfile: str,
+        quiet: bool,
+        append: bool,
+        branching_factor: int | None = None,
+        skip_logging_configuration: bool = False,
+        jvm_heap_size: str | None = None,
+        gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
+    ) -> Py4JBackend:
+        max_heap_size = jvm_heap_size or os.getenv('HAIL_LOCAL_BACKEND_HEAP_SIZE')
+
+        gateway = start_py4j_gateway(max_heap_size=max_heap_size)
+
+        try:
+            raise_when_mismatched_hail_versions(gateway.jvm)
+
+            _is = getattr(gateway.jvm, 'is')
+            py4jutils = scala_package_object(_is.hail.utils)
+            try:
+                if not skip_logging_configuration:
+                    py4jutils.configureLogging(logfile, quiet, append)
+
+                if not quiet:
+                    connect_logger(py4jutils, 'localhost', 12888)
+
+                flags = {}
+                if branching_factor is not None:
+                    flags['branching_factor'] = str(branching_factor)
+
+                jbackend = scala_object(_is.hail.backend.local, 'LocalBackend')
+                backend = LocalBackend(gateway, jbackend, flags)
+
+                backend.local_tmpdir = tmpdir
+                backend.remote_tmpdir = tmpdir
+                backend.gcs_requester_pays_configuration = gcs_requester_pays_configuration
+                backend.logger.info(f'Hail {__version__}')
+
+                return backend
+            except Py4JJavaError as e:
+                tpl = py4jutils.handleForPython(e.java_exception)
+                deepest, full, error_id = tpl._1(), tpl._2(), tpl._3()
+                raise fatal_error_from_java_error_triplet(deepest, full, error_id) from None
+        except:
+            gateway.shutdown()
+            raise
+
     def __init__(
         self,
-        tmpdir,
-        log,
-        quiet,
-        append,
-        branching_factor,
-        skip_logging_configuration,
-        jvm_heap_size,
-        gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
+        jgateway: JavaGateway,
+        jbackend: JavaObject,
+        flags: Dict[str, str],
     ):
-        self._exit_stack = ExitStack()
-
-        spark_home = find_spark_home()
-        hail_jar_path = os.environ.get('HAIL_JAR')
-        if hail_jar_path is None:
-            try:
-                local_jar_info = local_jar_information()
-                hail_jar_path = local_jar_info.path
-                extra_classpath = ':'.join([f'{spark_home}/jars/*', hail_jar_path, *local_jar_info.extra_classpath])
-            except ValueError:
-                raise RuntimeError('local backend requires a packaged jar or HAIL_JAR to be set')
-        else:
-            extra_classpath = ':'.join([f'{spark_home}/jars/*', hail_jar_path])
-
-        jvm_opts = []
-        if jvm_heap_size is not None:
-            jvm_opts.append(f'-Xmx{jvm_heap_size}')
-
-        py4j_jars = glob.glob(f'{spark_home}/jars/py4j-*.jar')
-        if len(py4j_jars) == 0:
-            raise ValueError(f'No py4j JAR found in {spark_home}/jars')
-        if len(py4j_jars) > 1:
-            log.warning(f'found multiple p4yj jars arbitrarily choosing the first one: {py4j_jars}')
-
-        port = launch_gateway(
-            redirect_stdout=sys.stdout,
-            redirect_stderr=sys.stderr,
-            java_path=None,
-            javaopts=jvm_opts,
-            jarpath=py4j_jars[0],
-            classpath=extra_classpath,
-            die_on_exit=True,
-        )
-        self._gateway = JavaGateway(gateway_parameters=GatewayParameters(port=port, auto_convert=True))
-        self._exit_stack.callback(self._gateway.shutdown)
-
-        hail_package = getattr(self._gateway.jvm, 'is').hail
-
-        jbackend = hail_package.backend.local.LocalBackend.apply(
-            log,
-            quiet,
-            append,
-            skip_logging_configuration,
-        )
-
-        super().__init__(self._gateway.jvm, jbackend, tmpdir, tmpdir)
-        self.gcs_requester_pays_configuration = gcs_requester_pays_configuration
-        self._fs = self._exit_stack.enter_context(
-            RouterFS(gcs_kwargs={'gcs_requester_pays_configuration': gcs_requester_pays_configuration})
-        )
-
-        self._logger = None
-
-        flags: Dict[str, str] = {}
-        if branching_factor is not None:
-            flags['branching_factor'] = str(branching_factor)
-
-        self._initialize_flags(flags)
-
-    def validate_file(self, uri: str) -> None:
-        async_to_blocking(validate_file(uri, self._fs.afs))
-
-    def register_ir_function(
-        self,
-        name: str,
-        type_parameters: Union[Tuple[HailType, ...], List[HailType]],
-        value_parameter_names: Union[Tuple[str, ...], List[str]],
-        value_parameter_types: Union[Tuple[HailType, ...], List[HailType]],
-        return_type: HailType,
-        body: Expression,
-    ):
-        r = CSERenderer()
-        code = r(finalize_randomness(body._ir))
-        self._register_ir_function(
-            name, type_parameters, value_parameter_names, value_parameter_types, return_type, code
-        )
+        self._gateway = jgateway
+        super().__init__(jgateway.jvm, jbackend, flags)
 
     def stop(self):
-        super(Py4JBackend, self).stop()
-        self._exit_stack.close()
-        uninstall_exception_handler()
-
-    @property
-    def fs(self):
-        return self._fs
-
-    @property
-    def requires_lowering(self):
-        return True
+        super().stop()
+        self._gateway.shutdown()

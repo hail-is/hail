@@ -69,16 +69,25 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable {
   def pySetRemoteTmp(tmp: String): Unit =
     synchronized { tmpdir = tmp }
 
+  def pyGetRemoteTmp: String =
+    synchronized(tmpdir)
+
   def pySetLocalTmp(tmp: String): Unit =
     synchronized {
       localTmpdir = tmp
       backend match {
-        case s: SparkBackend =>
-          s.sc.getConf.set("spark.local.dir", tmp)
+        case s: SparkBackend if tmp != "file://" + s.sc.getConf.get("spark.local.dir", "") =>
+          log.warn(
+            "Cannot modify Spark's local directory at runtime. " +
+              "Please stop and re-initialize hail with 'spark.local.dir' " +
+              "in your Spark configuration."
+          )
         case _ =>
-          ()
       }
     }
+
+  def pyGetLocalTmp: String =
+    synchronized(localTmpdir)
 
   def pySetGcsRequesterPaysConfig(project: String, buckets: util.List[String]): Unit =
     synchronized {

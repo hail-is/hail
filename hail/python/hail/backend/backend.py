@@ -1,7 +1,9 @@
 import abc
+import logging
+import os
 import warnings
 import zipfile
-from dataclasses import dataclass
+from dataclasses import astuple, dataclass
 from enum import Enum
 from typing import AbstractSet, Any, ClassVar, Dict, List, Mapping, Optional, Set, Tuple, TypeVar, Union
 
@@ -43,29 +45,29 @@ Error summary: {short_message}""",
     )
 
 
-class LocalJarInformation:
-    def __init__(self, development_mode: bool, local_jar_path: str, extra_classpath: List[str]):
-        self.development_mode = development_mode
-        self.path = local_jar_path
-        self.extra_classpath = extra_classpath
+@dataclass
+class LocalJarInfo:
+    dev: bool
+    hail_jar: str
+    extra_classpath: List[str]
+
+    def __iter__(self):
+        return iter(astuple(self))
 
 
-def local_jar_information() -> LocalJarInformation:
+def local_jar_information() -> LocalJarInfo:
+    if (hail_jar := os.getenv('HAIL_JAR')) is not None:
+        logging.info(f'picked up HAIL_JAR={hail_jar}')
+        return LocalJarInfo(True, hail_jar, [])
+
     if (hail_jar := __resource('backend/hail.jar')).is_file():
         warnings.warn('!!! THIS IS A DEVELOPMENT VERSION OF HAIL !!!')
-        return LocalJarInformation(
-            True,
-            str(hail_jar),
-            [__resource_str('backend/extra_classpath')],
-        )
-    elif (hail_all_spark_jar := __resource('backend/hail-all-spark.jar')).is_file():
-        return LocalJarInformation(
-            False,
-            str(hail_all_spark_jar),
-            [],
-        )
-    else:
-        raise ValueError(f'Hail requires either {hail_jar} or {hail_all_spark_jar}.')
+        return LocalJarInfo(True, str(hail_jar), [__resource_str('backend/extra_classpath')])
+
+    if (hail_all_spark_jar := __resource('backend/hail-all-spark.jar')).is_file():
+        return LocalJarInfo(False, str(hail_all_spark_jar), [])
+
+    raise RuntimeError('Hail requires either the environment variable HAIL_JAR, hail.jar or hail-all-spark.jar.')
 
 
 class IRFunction:
@@ -287,7 +289,7 @@ class Backend(abc.ABC):
     def initialize_references(self):
         from hail.genetics.reference_genome import ReferenceGenome
 
-        jar_path = local_jar_information().path
+        _, jar_path, *_ = local_jar_information()
         for path_in_jar in BUILTIN_REFERENCE_RESOURCE_PATHS.values():
             rg_config = orjson.loads(zipfile.ZipFile(jar_path).open(path_in_jar).read())
             rg = ReferenceGenome._from_config(rg_config, _builtin=True)

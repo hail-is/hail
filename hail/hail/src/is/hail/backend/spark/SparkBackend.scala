@@ -113,15 +113,11 @@ object SparkBackend {
 
     val conf = new SparkConf().setAppName(appName)
 
-    if (master != null)
-      conf.setMaster(master): Unit
-    else {
-      if (!conf.contains("spark.master"))
-        conf.setMaster(local): Unit
-    }
+    if (master != null) conf.setMaster(master): Unit
+    else if (!conf.contains("spark.master")) conf.setMaster(local): Unit
 
-    conf.set("spark.logConf", "true")
-      .set("spark.ui.showConsoleProgress", "false")
+    conf
+      .set("spark.logConf", "true")
       .set("spark.kryoserializer.buffer.max", "1g")
       .set("spark.driver.maxResultSize", "0")
       .set(
@@ -139,34 +135,32 @@ object SparkBackend {
       ): Unit
 
     // load additional Spark properties from HAIL_SPARK_PROPERTIES
-    val hailSparkProperties = System.getenv("HAIL_SPARK_PROPERTIES")
-    if (hailSparkProperties != null) {
-      hailSparkProperties
-        .split(",")
-        .foreach { p =>
-          p.split("=") match {
-            case Array(k, v) =>
-              log.info(s"set Spark property from HAIL_SPARK_PROPERTIES: $k=$v")
-              conf.set(k, v)
-            case _ =>
-              warn(s"invalid key-value property pair in HAIL_SPARK_PROPERTIES: $p")
-          }
+    sys.env.get("HAIL_SPARK_PROPERTIES").foreach { hailSparkProperties =>
+      for (p <- hailSparkProperties.split(",")) {
+        p.split("=") match {
+          case Array(k, v) =>
+            log.info(s"set Spark property from HAIL_SPARK_PROPERTIES: $k=$v")
+            conf.set(k, v)
+          case _ =>
+            warn(s"invalid key-value property pair in HAIL_SPARK_PROPERTIES: $p")
         }
+      }
     }
+
     conf
   }
 
-  def configureAndCreateSparkContext(
-    appName: String,
-    master: String,
-    local: String,
-    blockSize: Long,
-  ): SparkContext =
-    new SparkContext(createSparkConf(appName, master, local, blockSize))
+  def pySparkSession(
+    appName: String = "Hail",
+    master: String = null,
+    local: String = "local[*]",
+    minBlockSize: Long = 1L,
+  ): SparkSession = {
+    val conf = createSparkConf(appName, master, local, minBlockSize)
+    SparkSession.builder().config(conf).getOrCreate()
+  }
 
-  def checkSparkConfiguration(sc: SparkContext): Unit = {
-    val conf = sc.getConf
-
+  def checkSparkConfiguration(conf: SparkConf): Unit = {
     val problems = new mutable.ArrayBuffer[String]
 
     val serializer = conf.getOption("spark.serializer")
@@ -190,84 +184,37 @@ object SparkBackend {
       )
   }
 
-  def hailCompressionCodecs: Array[String] = Array(
-    "org.apache.hadoop.io.compress.DefaultCodec",
-    "is.hail.io.compress.BGzipCodec",
-    "is.hail.io.compress.BGzipCodecTbi",
-    "org.apache.hadoop.io.compress.GzipCodec",
-  )
+  private[this] lazy val CompressionCodecs: Array[String] =
+    Array(
+      "org.apache.hadoop.io.compress.DefaultCodec",
+      "is.hail.io.compress.BGzipCodec",
+      "is.hail.io.compress.BGzipCodecTbi",
+      "org.apache.hadoop.io.compress.GzipCodec",
+    )
 
-  def getOrCreate(
-    sc: SparkContext = null,
-    appName: String = "Hail",
-    master: String = null,
-    local: String = "local[*]",
-    logFile: String = "hail.log",
-    quiet: Boolean = false,
-    append: Boolean = false,
-    skipLoggingConfiguration: Boolean = false,
-    minBlockSize: Long = 1L,
-  ): SparkBackend =
+  def getOrCreate(session: SparkSession): SparkBackend =
     synchronized {
-      if (theSparkBackend == null)
-        return SparkBackend(sc, appName, master, local, logFile, quiet, append,
-          skipLoggingConfiguration,
-          minBlockSize)
-
-      // there should be only one SparkContext
-      assert(sc == null || (sc eq theSparkBackend.sc))
-
-      val initializedMinBlockSize =
-        theSparkBackend.sc.getConf.getLong(
-          "spark.hadoop.mapreduce.input.fileinputformat.split.minsize",
-          0L,
-        ) / 1024L / 1024L
-      if (minBlockSize != initializedMinBlockSize)
-        warn(
-          s"Requested minBlockSize $minBlockSize, but already initialized to $initializedMinBlockSize.  Ignoring requested setting."
-        )
-
-      if (master != null) {
-        val initializedMaster = theSparkBackend.sc.master
-        if (master != initializedMaster)
-          warn(
-            s"Requested master $master, but already initialized to $initializedMaster.  Ignoring requested setting."
+      if (theSparkBackend == null) SparkBackend(session)
+      else {
+        // there should be only one SparkContext
+        if (session.sparkContext ne theSparkBackend.sc)
+          fatal(
+            "Spark requires that there is at most one active `SparkContext` per JVM.\n" +
+              "You must stop() the active context or specify it as the `sc` parameter to hl.init().\n" +
+              "Please refer to the pyspark documentation for how to obtain the active spark context."
           )
+        theSparkBackend
       }
-
-      theSparkBackend
     }
 
-  def apply(
-    sc: SparkContext = null,
-    appName: String = "Hail",
-    master: String = null,
-    local: String = "local[*]",
-    logFile: String = "hail.log",
-    quiet: Boolean = false,
-    append: Boolean = false,
-    skipLoggingConfiguration: Boolean = false,
-    minBlockSize: Long = 1L,
-  ): SparkBackend =
+  def apply(session: SparkSession): SparkBackend =
     synchronized {
       require(theSparkBackend == null)
-
-      if (!skipLoggingConfiguration)
-        configureLogging(logFile, quiet, append)
-
-      var sc1 = sc
-      if (sc1 == null)
-        sc1 = configureAndCreateSparkContext(appName, master, local, minBlockSize)
-
-      sc1.hadoopConfiguration.set("io.compression.codecs", hailCompressionCodecs.mkString(","))
-
-      checkSparkConfiguration(sc1)
-
-      if (!quiet) ProgressBarBuilder.build(sc1): Unit
-
-      sc1.uiWebUrl.foreach(ui => info(s"SparkUI: $ui"))
-
-      theSparkBackend = new SparkBackend(sc1)
+      val sc = session.sparkContext
+      sc.hadoopConfiguration.set("io.compression.codecs", CompressionCodecs.mkString(","))
+      checkSparkConfiguration(sc.getConf)
+      sc.uiWebUrl.foreach(ui => info(s"SparkUI: $ui"))
+      theSparkBackend = new SparkBackend(session)
       theSparkBackend
     }
 }
@@ -278,14 +225,11 @@ class AnonymousDependency[T](val _rdd: RDD[T]) extends NarrowDependency[T](_rdd)
   override def getParents(partitionId: Int): Seq[Int] = Seq.empty
 }
 
-class SparkBackend(val sc: SparkContext) extends Backend {
+class SparkBackend(val spark: SparkSession) extends Backend {
 
-  logHailVersion()
-
-  val sparkSession: Lazy[SparkSession] =
-    lazily {
-      SparkSession.builder().config(sc.getConf).getOrCreate()
-    }
+  // cached for convenience
+  val sc: SparkContext =
+    spark.sparkContext
 
   def broadcast[T: ClassTag](value: T): BroadcastValue[T] =
     new SparkBroadcastValue[T](sc.broadcast(value))
@@ -347,6 +291,7 @@ class SparkBackend(val sc: SparkContext) extends Backend {
         val maxStageParallelism =
           ctx.flags.get(SparkBackend.Flags.MaxStageParallelism).toInt
 
+        sc.setJobGroup(stageIdentifier, "", interruptOnCancel = true)
         try {
           for (subparts <- todo.grouped(maxStageParallelism)) {
             sc.runJob(
@@ -362,16 +307,17 @@ class SparkBackend(val sc: SparkContext) extends Backend {
           case NonFatal(t) => failure = failure.orElse(Some(t))
           case e: ExecutionException => failure = failure.orElse(Some(e.getCause))
           case _: InterruptedException =>
-            sc.cancelAllJobs()
+            sc.cancelJobGroup(stageIdentifier)
             Thread.currentThread().interrupt()
             throw new CancellationException()
-        }
+        } finally sc.clearJobGroup()
 
         (failure, buffer.result().sortBy(_._2))
       }
     }
 
-  def defaultParallelism: Int = sc.defaultParallelism
+  def defaultParallelism: Int =
+    sc.defaultParallelism
 
   override def asSpark(implicit E: Enclosing): SparkBackend = this
 
@@ -379,17 +325,12 @@ class SparkBackend(val sc: SparkContext) extends Backend {
     SparkBackend.synchronized {
       assert(this eq SparkBackend.theSparkBackend)
       SparkBackend.theSparkBackend = null
-      if (sparkSession.isEvaluated) sparkSession.close()
-      sc.stop()
       // Hadoop does not honor the hadoop configuration as a component of the cache key for file
       // systems, so we blow away the cache so that a new configuration can successfully take
       // effect.
       // https://github.com/hail-is/hail/pull/12133#issuecomment-1241322443
       hadoop.fs.FileSystem.closeAll()
     }
-
-  def pyStartProgressBar(): Unit =
-    ProgressBarBuilder.build(sc): Unit
 
   def jvmLowerAndExecute(
     ctx: ExecuteContext,
@@ -484,7 +425,7 @@ class SparkBackend(val sc: SparkContext) extends Backend {
   }
 
   def tableToTableStage(ctx: ExecuteContext, inputIR: TableIR, analyses: LoweringAnalyses)
-    : TableStage = {
+    : TableStage =
     CanLowerEfficiently(ctx, inputIR) match {
       case Some(failReason) =>
         log.info(s"SparkBackend: could not lower IR to table stage: $failReason")
@@ -492,5 +433,4 @@ class SparkBackend(val sc: SparkContext) extends Backend {
       case None =>
         LowerTableIR.applyTable(inputIR, DArrayLowering.All, ctx, analyses)
     }
-  }
 }
