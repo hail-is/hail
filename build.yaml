@@ -282,7 +282,7 @@ steps:
 
           # Extract the latest timestamp from managed fields
           set +x
-          echo 'Running: LATEST_TIME=$(echo "$SECRET_JSON" | jq -r '.metadata.managedFields[] | .time' | sort -r | head -n1)'
+          echo 'Running: LATEST_TIME=$(echo "$SECRET_JSON" | jq -r \'.metadata.managedFields[] | .time\' | sort -r | head -n1)'
           LATEST_TIME=$(echo "$SECRET_JSON" | jq -r '.metadata.managedFields[] | .time' | sort -r | head -n1)
           set -x
           
