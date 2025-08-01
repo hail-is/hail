@@ -166,7 +166,7 @@ async def _create_database():
             # For existing users, patch the certificates in the secret in case they were regenerated
             await _patch_user_config_certificates(namespace, database_name, admin_or_user)
             return
-        
+
         await db.just_execute(f"""
             CREATE USER '{mysql_username}'@'%' IDENTIFIED BY '{mysql_password}';
             GRANT {allowed_operations} ON `{_name}`.* TO '{mysql_username}'@'%';
@@ -236,12 +236,53 @@ kubectl -n {shq(namespace)} create secret generic \
 """)
 
 
+async def _check_k8s_secret_last_modified(namespace: str, secret_name: str) -> tuple[Optional[str], Optional[str]]:
+    """Check the last modified time of a Kubernetes secret."""
+    stdout, stderr = await check_shell_output(
+        f"kubectl get secret {shq(secret_name)} -n {shq(namespace)} -o json --show-managed-fields"
+    )
+    if stderr:
+        print(f"Error getting {secret_name} secret: {stderr.decode()}")
+        return None, stderr.decode()
+
+    secret_data = json.loads(stdout.decode())
+    secret_latest_time = None
+    for field in secret_data['metadata']['managedFields']:
+        field_time = field['time']
+        if secret_latest_time is None or field_time > secret_latest_time:
+            secret_latest_time = field_time
+
+    return secret_latest_time, None
+
+
 async def _patch_user_config_certificates(namespace: str, database_name: str, user: str):
     """Update only the certificate files in an existing user config secret."""
-    
+
     secret_name = f'sql-{database_name}-{user}-config'
+    print(f'checking if {secret_name} needs certificate update...')
+
+    # Get the latest modification time of database-server-config secret
+    db_config_latest_time, db_config_error = await _check_k8s_secret_last_modified(namespace, 'database-server-config')
+    if db_config_latest_time is None:
+        print(f"Error getting database-server-config secret. Stderr: {db_config_error}. Skipping certificate update.")
+        return
+
+    # Get the latest modification time of the user config secret
+    user_config_latest_time, user_config_error = await _check_k8s_secret_last_modified(namespace, secret_name)
+    if user_config_latest_time is None:
+        print(f"Error getting {secret_name} secret. Stderr: {user_config_error}. Skipping certificate update.")
+        return
+
+    print(f"Database config latest time: {db_config_latest_time}")
+    print(f"User config latest time: {user_config_latest_time}")
+
+    # Only update if database-server-config is newer
+    if db_config_latest_time <= user_config_latest_time:
+        print(f"Skipping certificate update for {secret_name} - already up to date")
+        return
+
     print(f'patching certificates in secret {secret_name}')
-    
+
     # Read the latest certificates from the mounted location
     with open('/sql-config/server-ca.pem', 'r', encoding='utf-8') as f:
         server_ca = f.read()
@@ -249,7 +290,7 @@ async def _patch_user_config_certificates(namespace: str, database_name: str, us
         client_cert = f.read()
     with open('/sql-config/client-key.pem', 'r', encoding='utf-8') as f:
         client_key = f.read()
-    
+
     # Patch only the certificate files in the existing secret
     await check_shell(f"""
 kubectl -n {shq(namespace)} patch secret {shq(secret_name)} --type='merge' -p='{{
