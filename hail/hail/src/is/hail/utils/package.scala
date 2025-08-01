@@ -9,7 +9,7 @@ import scala.collection.compat._
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
-import scala.util.control.NonFatal
+import scala.util.control.{ControlThrowable, NonFatal}
 
 import java.io._
 import java.lang.reflect.Method
@@ -378,6 +378,8 @@ package object utils
     anyFailAllFailInstance.asInstanceOf[AnyFailAllFail[C]]
 
   def uninitialized[T]: T = null.asInstanceOf[T]
+
+  def unreachable[A]: A = throw new AssertionError("unreachable")
 
   private object mapAccumulateInstance extends MapAccumulate[Nothing, Nothing]
 
@@ -958,6 +960,23 @@ package object utils
 
   def jsonToBytes(v: JValue): Array[Byte] =
     JsonMethods.compact(v).getBytes(StandardCharsets.UTF_8)
+
+  private[this] object Retry extends ControlThrowable
+
+  def retry[A]: A = throw Retry
+
+  def retryable[A](f: Int => A): A = {
+    var attempts: Int = 0
+
+    while (true)
+      try return f(attempts)
+      catch {
+        case Retry =>
+          attempts += 1
+      }
+
+    unreachable
+  }
 }
 
 class CancellingExecutorService(delegate: ExecutorService) extends AbstractExecutorService {
