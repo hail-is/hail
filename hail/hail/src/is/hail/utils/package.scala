@@ -9,7 +9,7 @@ import scala.collection.{mutable, GenTraversableOnce, TraversableOnce}
 import scala.collection.compat._
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
-import scala.util.control.NonFatal
+import scala.util.control.{ControlThrowable, NonFatal}
 
 import java.io._
 import java.lang.reflect.Method
@@ -1038,6 +1038,23 @@ package object utils
 
   def jsonToBytes(v: JValue): Array[Byte] =
     JsonMethods.compact(v).getBytes(StandardCharsets.UTF_8)
+
+  private[this] object Retry extends ControlThrowable
+
+  def retry[A]: A = throw Retry
+
+  def retryable[A](f: Int => A): A = {
+    var attempts: Int = 0
+
+    while (true)
+      try return f(attempts)
+      catch {
+        case Retry =>
+          attempts += 1
+      }
+
+    uninitialized
+  }
 }
 
 class CancellingExecutorService(delegate: ExecutorService) extends AbstractExecutorService {

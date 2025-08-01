@@ -7,7 +7,7 @@ import is.hail.services.BatchClient.{
 }
 import is.hail.services.JobGroupStates.isTerminal
 import is.hail.services.oauth2.CloudCredentials
-import is.hail.services.requests.Requester
+import is.hail.services.requests.{ClientResponseException, Requester}
 import is.hail.utils._
 
 import scala.collection.immutable.Stream.cons
@@ -270,22 +270,33 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
     batchId
   }
 
-  def newJobGroup(req: JobGroupRequest): (Int, Int) = {
-    val nJobs = req.jobs.length
-    val (updateId, startJobGroupId, startJobId) = beginUpdate(req.batch_id, req.token, nJobs)
-    log.info(s"Began update '$updateId' for batch '${req.batch_id}'.")
+  def newJobGroup(req: JobGroupRequest): (Int, Int) =
+    retryable { attempts =>
+      try {
+        val nJobs = req.jobs.length
+        val (updateId, startJobGroupId, startJobId) = beginUpdate(req.batch_id, req.token, nJobs)
+        log.info(s"Began update '$updateId' for batch '${req.batch_id}'.")
 
-    createJobGroup(updateId, req)
-    log.info(s"Created job group $startJobGroupId for batch ${req.batch_id}")
+        createJobGroup(updateId, req)
+        log.info(s"Created job group $startJobGroupId for batch ${req.batch_id}")
 
-    createJobsIncremental(req.batch_id, updateId, req.jobs)
-    log.info(s"Submitted $nJobs in job group $startJobGroupId for batch ${req.batch_id}")
+        createJobsIncremental(req.batch_id, updateId, req.jobs)
+        log.info(s"Submitted $nJobs in job group $startJobGroupId for batch ${req.batch_id}")
 
-    commitUpdate(req.batch_id, updateId)
-    log.info(s"Committed update $updateId for batch ${req.batch_id}.")
+        commitUpdate(req.batch_id, updateId)
+        log.info(s"Committed update $updateId for batch ${req.batch_id}.")
 
-    (startJobGroupId, startJobId)
-  }
+        (startJobGroupId, startJobId)
+      } catch {
+        case e: ClientResponseException
+            if attempts < 5 &&
+              e.status == 400 &&
+              e.getMessage.contains("job group specs were not submitted in order") =>
+          Thread.sleep(delayMsForTry(attempts))
+          log.info("retry", e)
+          retry
+      }
+    }
 
   def getJobGroup(batchId: Int, jobGroupId: Int): JobGroupResponse =
     req
