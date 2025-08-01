@@ -1867,11 +1867,13 @@ async def create_update(request, userdata):
     update_id, start_job_group_id, start_job_id = await _create_batch_update(
         batch_id, update_spec['token'], n_jobs, n_job_groups, user, db
     )
-    return json_response({
+    response = {
         'update_id': update_id,
         'start_job_group_id': start_job_group_id,
         'start_job_id': start_job_id,
-    })
+    }
+    log.info(response)
+    return json_response(response)
 
 
 async def _create_batch_update(
