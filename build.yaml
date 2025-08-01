@@ -282,7 +282,7 @@ steps:
 
           # Extract the latest timestamp from managed fields
           set +x
-          echo 'Running: LATEST_TIME=$(echo "$SECRET_JSON" | jq -r \'.metadata.managedFields[] | .time\' | sort -r | head -n1)'
+          echo "Running: LATEST_TIME=\$(echo \"\$SECRET_JSON\" | jq -r '.metadata.managedFields[] | .time' | sort -r | head -n1)"
           LATEST_TIME=$(echo "$SECRET_JSON" | jq -r '.metadata.managedFields[] | .time' | sort -r | head -n1)
           set -x
           
@@ -300,10 +300,10 @@ steps:
               
               # Turn off set -x to avoid logging password:
               set +x
-              echo 'Running: EXISTING_PASSWORD=$(echo "$SECRET_JSON" | jq -r ".data[\"db-root-password\"]" | base64 -d)'
+              echo "Running: EXISTING_PASSWORD=\$(echo \"\$SECRET_JSON\" | jq -r '.data[\"db-root-password\"]' | base64 -d)"
               EXISTING_PASSWORD=$(echo "$SECRET_JSON" | jq -r '.data["db-root-password"]' | base64 -d)
               # Regenerate certificates with existing password (disable set -x to avoid logging password)
-              echo 'Running: NAMESPACE={{ default_ns.name }} KEEP_PASSWORD="$EXISTING_PASSWORD" bash /create_test_db_config.sh'
+              echo "Running: NAMESPACE={{ default_ns.name }} KEEP_PASSWORD=\"\$EXISTING_PASSWORD\" bash /create_test_db_config.sh"
               NAMESPACE={{ default_ns.name }} KEEP_PASSWORD="$EXISTING_PASSWORD" bash /create_test_db_config.sh
               set -x
           else
