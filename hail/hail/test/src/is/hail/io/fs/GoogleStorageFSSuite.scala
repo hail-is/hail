@@ -18,7 +18,11 @@ class GoogleStorageFSSuite extends TestNGSuite with FSSuite {
       throw new SkipException("skip")
 
   override lazy val fs: FS =
-    new GoogleStorageFS(GoogleCloudCredentials(None, GoogleStorageFS.RequiredOAuthScopes), None)
+    new GoogleStorageFS(
+      GoogleCloudCredentials(None)
+        .scoped(GoogleStorageFS.RequiredOAuthScopes),
+      None,
+    )
 
   @Test def testMakeQualified(): scalatest.Assertion = {
     val qualifiedFileName = "gs://bucket/path"
