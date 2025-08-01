@@ -1,6 +1,6 @@
 package is.hail.backend.driver
 
-import is.hail.HailFeatureFlags
+import is.hail.{HAIL_PRETTY_VERSION, HailFeatureFlags}
 import is.hail.annotations.Memory
 import is.hail.asm4s.HailClassLoader
 import is.hail.backend.{Backend, ExecuteContext, OwningTempFileManager}
@@ -132,6 +132,8 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
     val name = argv(4)
     val inputURL = argv(5)
     val outputURL = argv(6)
+
+    log.info(f"${getClass.getName} $HAIL_PRETTY_VERSION")
 
     val deployConfig = DeployConfig.fromConfigFile("/deploy-config/deploy-config.json")
     DeployConfig.set(deployConfig)
