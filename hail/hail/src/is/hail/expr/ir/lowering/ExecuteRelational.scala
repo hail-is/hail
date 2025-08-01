@@ -25,7 +25,7 @@ object ExecuteRelational {
         TableValueIntermediate(function.execute(ctx, b, a))
       case TableAggregateByKey(child, expr) =>
         val prev = recur(child).asTableValue(ctx)
-        val extracted = agg.Extract(expr, r.requirednessAnalysis)
+        val extracted = agg.Extract(ctx, expr, r.requirednessAnalysis).independent
         val tv = prev.aggregateByKey(extracted)
         assert(tv.typ == ir.typ, s"${tv.typ}, ${ir.typ}")
         TableValueIntermediate(tv)
@@ -62,7 +62,7 @@ object ExecuteRelational {
         TableValueIntermediate(tv.copy(typ = ir.typ, rvd = tv.rvd.enforceKey(ctx, keys, isSorted)))
       case TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize) =>
         val prev = recur(child).asTableValue(ctx)
-        val extracted = agg.Extract(expr, r.requirednessAnalysis)
+        val extracted = agg.Extract(ctx, expr, r.requirednessAnalysis).independent
         TableValueIntermediate(
           prev.keyByAndAggregate(ctx, newKey, extracted, nPartitions, bufferSize)
         )
@@ -86,7 +86,7 @@ object ExecuteRelational {
       case TableMapGlobals(child, newGlobals) =>
         TableValueIntermediate(recur(child).asTableValue(ctx).mapGlobals(newGlobals))
       case TableMapRows(child, newRow) =>
-        val extracted = agg.Extract(newRow, r.requirednessAnalysis, isScan = true)
+        val extracted = agg.Extract(ctx, newRow, r.requirednessAnalysis, isScan = true).independent
         TableValueIntermediate(recur(child).asTableValue(ctx).mapRows(extracted))
       case TableMapPartitions(child, globalName, partitionStreamName, body, _,
             allowedOverlap) =>
