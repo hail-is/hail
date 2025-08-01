@@ -366,7 +366,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
   }
 
   def toDF(ctx: ExecuteContext): DataFrame =
-    ctx.backend.asSpark.sparkSession.createDataFrame(
+    ctx.backend.asSpark.spark.createDataFrame(
       rvd.toRows,
       typ.rowType.schema.asInstanceOf[StructType],
     )

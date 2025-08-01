@@ -31,14 +31,14 @@ def _get_tmpdir(tmpdir):
     return tmpdir
 
 
-def _get_local_tmpdir(local_tmpdir):
+def _get_local_tmpdir(local_tmpdir) -> str:
     local_tmpdir = get_env_or_default(local_tmpdir, 'TMPDIR', 'file:///tmp')
     r = urlparse(local_tmpdir)
     if not r.scheme:
         r = r._replace(scheme='file')
     elif r.scheme != 'file':
         raise ValueError('invalid local_tmpfile: must use scheme file, got scheme {r.scheme}')
-    return urlunparse(r)
+    return str(urlunparse(r))
 
 
 def _get_log(log):
@@ -401,7 +401,6 @@ def init(
             tmp_dir=tmp_dir,
             local_tmpdir=local_tmpdir,
             default_reference=default_reference,
-            idempotent=idempotent,
             global_seed=global_seed,
             skip_logging_configuration=skip_logging_configuration,
             gcs_requester_pays_configuration=gcs_requester_pays_configuration,
@@ -433,7 +432,6 @@ def init(
     branching_factor=int,
     tmp_dir=nullable(str),
     default_reference=enumeration(*BUILTIN_REFERENCES),
-    idempotent=bool,
     global_seed=nullable(int),
     spark_conf=nullable(dictof(str, str)),
     skip_logging_configuration=bool,
@@ -453,7 +451,6 @@ def init_spark(
     branching_factor=50,
     tmp_dir=None,
     default_reference='GRCh37',
-    idempotent=False,
     global_seed=None,
     spark_conf=None,
     skip_logging_configuration=False,
@@ -461,7 +458,6 @@ def init_spark(
     gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
     copy_log_on_error: bool = False,
 ):
-    from hail.backend.py4j_backend import connect_logger
     from hail.backend.spark_backend import SparkBackend
 
     log = _get_log(log)
@@ -474,7 +470,6 @@ def init_spark(
     )
 
     backend = SparkBackend(
-        idempotent,
         sc,
         spark_conf,
         app_name,
@@ -495,8 +490,6 @@ def init_spark(
         backend.fs.mkdir(tmpdir)
 
     HailContext.create(log, quiet, append, default_reference, global_seed, backend)
-    if not quiet:
-        connect_logger(backend._utils_package_object, 'localhost', 12888)
 
 
 @typecheck(
@@ -593,7 +586,6 @@ def init_local(
     gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
 ):
     from hail.backend.local_backend import LocalBackend
-    from hail.backend.py4j_backend import connect_logger
 
     log = _get_log(log)
     tmpdir = _get_tmpdir(tmpdir)
@@ -614,13 +606,12 @@ def init_local(
         backend.fs.mkdir(tmpdir)
 
     HailContext.create(log, quiet, append, default_reference, global_seed, backend)
-    if not quiet:
-        connect_logger(backend._utils_package_object, 'localhost', 12888)
 
 
 def _hail_cite_url():
     [tag, sha_prefix] = __version__.split("-")
-    if not local_jar_information().development_mode:
+    is_devel, *_ = local_jar_information()
+    if not is_devel:
         # pip installed
         return f"https://github.com/hail-is/hail/releases/tag/{tag}"
     return f"https://github.com/hail-is/hail/commit/{sha_prefix}"
@@ -670,7 +661,7 @@ def spark_context():
     -------
     :class:`pyspark.SparkContext`
     """
-    return Env.spark_backend('spark_context').sc
+    return Env.spark_backend('spark_context')._spark.sparkContext
 
 
 def tmp_dir() -> str:
@@ -919,4 +910,11 @@ def debug_info():
     spark_conf = None
     if isinstance(Env.backend(), SparkBackend):
         spark_conf = spark_context()._conf.getAll()
-    return {'spark_conf': spark_conf, 'local_jar_information': local_jar_information(), 'version': __version__}
+
+    dev, hail_jar, classpath = local_jar_information()
+    return {
+        'version': __version__,
+        'hail_jar': hail_jar,
+        'classpath': classpath,
+        'spark_conf': spark_conf,
+    }

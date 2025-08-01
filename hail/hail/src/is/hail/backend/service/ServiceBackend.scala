@@ -45,8 +45,6 @@ class ServiceBackend(
   jobConfig: BatchJobConfig,
 ) extends Backend {
 
-  logHailVersion()
-
   private[this] var stageCount = 0
 
   private[this] val executor =

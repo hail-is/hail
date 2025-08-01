@@ -1,9 +1,12 @@
 import os
 
+import pyspark
 import pytest
 
 import hail as hl
-from test.hail.helpers import skip_unless_spark_backend
+from hail.backend.spark_backend import _get_or_create_pyspark_gateway
+from hail.utils.java import Env
+from test.hail.helpers import hl_init_for_test
 
 
 def fatal(typ: hl.HailType, msg: str = "") -> hl.Expression:
@@ -20,8 +23,6 @@ def test_copy_spark_log(tmpdir, copy):
     with pytest.raises(Exception):
         hl.eval(expr)
 
-    from hail.utils.java import Env
-
     hc = Env.hc()
     _, filename = os.path.split(hc._log)
     log = os.path.join(hc._tmpdir, filename)
@@ -29,22 +30,38 @@ def test_copy_spark_log(tmpdir, copy):
     assert Env.fs().exists(log) == copy
 
 
-@skip_unless_spark_backend()
-def test_idempotent_init():
+@pytest.mark.backend('spark')
+@pytest.mark.uninitialized
+def test_init_without_existing_spark_context(request):
+    hl_init_for_test(app_name=request.node.name, quiet=True)
+    sc = Env.spark_session().sparkContext
+    hl.stop()
+
+    assert getattr(sc, '_jsc', None) is None, 'SparkBackend.close() did not stop the SparkContext.'
+
+
+@pytest.mark.backend('spark')
+@pytest.mark.uninitialized
+def test_init_with_existing_spark_context(request):
     """
     Simulate sharing a spark context across notebook sessions.
     The first notebook successfully initialised hail.
-    The second re-uses the same context and calls init with idempotent=True
+    The second re-uses the same context.
     """
 
-    from hail.backend.py4j_backend import uninstall_exception_handler
-    from hail.utils.java import Env
+    gateway = _get_or_create_pyspark_gateway(None, None, quiet=True)
+    JCons = getattr(gateway.jvm, 'is').hail.backend.spark.SparkBackend
+    jspark = JCons.pySparkSession(request.node.name, 'local[1]', None, 0)
+    sc = pyspark.SparkContext(gateway=gateway, jsc=gateway.jvm.JavaSparkContext(jspark.sparkContext()))
 
-    sc = Env.backend().sc
+    try:
+        hl_init_for_test(sc=sc, quiet=True)
+        assert sc == Env.spark_session().sparkContext
 
-    # Setup globals to simulate new notebook session
-    # please don't do this!
-    Env._hc = None
-    uninstall_exception_handler()
+        hl.stop()
 
-    hl.init(sc, idempotent=True)
+        assert (jsc := getattr(sc, '_jsc', None)) is not None
+        assert not jsc.sc().isStopped(), 'SparkBackend.close() should not stop a SparkContext it does not own.'
+    finally:
+        sc.stop()
+        gateway.close()

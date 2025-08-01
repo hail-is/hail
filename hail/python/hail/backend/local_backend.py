@@ -1,5 +1,4 @@
 import glob
-import logging
 import os
 import sys
 from contextlib import ExitStack
@@ -9,6 +8,7 @@ from py4j.java_gateway import GatewayParameters, JavaGateway, launch_gateway
 
 from hail.ir import finalize_randomness
 from hail.ir.renderer import CSERenderer
+from hail.version import __version__
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
 from hailtop.aiotools.validators import validate_file
 from hailtop.fs.router_fs import RouterFS
@@ -16,10 +16,9 @@ from hailtop.utils import async_to_blocking, find_spark_home
 
 from ..expr import Expression
 from ..expr.types import HailType
+from ..utils.java import scala_object, scala_package_object
 from .backend import local_jar_information
-from .py4j_backend import Py4JBackend, uninstall_exception_handler
-
-log = logging.getLogger('hail.backend')
+from .py4j_backend import Py4JBackend, connect_logger, uninstall_exception_handler
 
 
 class LocalBackend(Py4JBackend):
@@ -40,9 +39,8 @@ class LocalBackend(Py4JBackend):
         hail_jar_path = os.environ.get('HAIL_JAR')
         if hail_jar_path is None:
             try:
-                local_jar_info = local_jar_information()
-                hail_jar_path = local_jar_info.path
-                extra_classpath = ':'.join([f'{spark_home}/jars/*', hail_jar_path, *local_jar_info.extra_classpath])
+                _, hail_jar_path, extra_classpath = local_jar_information()
+                extra_classpath = ':'.join([f'{spark_home}/jars/*', hail_jar_path, *extra_classpath])
             except ValueError:
                 raise RuntimeError('local backend requires a packaged jar or HAIL_JAR to be set')
         else:
@@ -70,22 +68,21 @@ class LocalBackend(Py4JBackend):
         self._gateway = JavaGateway(gateway_parameters=GatewayParameters(port=port, auto_convert=True))
         self._exit_stack.callback(self._gateway.shutdown)
 
-        hail_package = getattr(self._gateway.jvm, 'is').hail
+        _is = getattr(self._gateway.jvm, 'is')
+        py4jutils = scala_package_object(_is.hail.utils)
 
-        jbackend = hail_package.backend.local.LocalBackend.apply(
-            log,
-            quiet,
-            append,
-            skip_logging_configuration,
-        )
+        if not skip_logging_configuration:
+            py4jutils.configureLogging(log, quiet, append)
 
+        if not quiet:
+            connect_logger(py4jutils, 'localhost', 12888)
+
+        py4jutils.log().info(f'Hail {__version__}')
+
+        jbackend = scala_object(_is.hail.backend.local, 'LocalBackend')
         super().__init__(self._gateway.jvm, jbackend, tmpdir, tmpdir)
         self.gcs_requester_pays_configuration = gcs_requester_pays_configuration
-        self._fs = self._exit_stack.enter_context(
-            RouterFS(gcs_kwargs={'gcs_requester_pays_configuration': gcs_requester_pays_configuration})
-        )
-
-        self._logger = None
+        self._fs = None
 
         flags: Dict[str, str] = {}
         if branching_factor is not None:
@@ -94,7 +91,7 @@ class LocalBackend(Py4JBackend):
         self._initialize_flags(flags)
 
     def validate_file(self, uri: str) -> None:
-        async_to_blocking(validate_file(uri, self._fs.afs))
+        async_to_blocking(validate_file(uri, self.fs.afs))
 
     def register_ir_function(
         self,
@@ -118,7 +115,25 @@ class LocalBackend(Py4JBackend):
 
     @property
     def fs(self):
+        if self._fs is None:
+            self._fs = RouterFS(
+                gcs_kwargs={"gcs_requester_pays_configuration": self.gcs_requester_pays_configuration},
+            )
         return self._fs
+
+    @property
+    def gcs_requester_pays_configuration(self) -> Optional[GCSRequesterPaysConfiguration]:
+        return self._gcs_requester_pays_config
+
+    @gcs_requester_pays_configuration.setter
+    def gcs_requester_pays_configuration(self, config: Optional[GCSRequesterPaysConfiguration]):
+        self._gcs_requester_pays_config = config
+        project, buckets = (None, None) if config is None else (config, None) if isinstance(config, str) else config
+        self._jbackend.pySetGcsRequesterPaysConfig(project, buckets)
+        # stale
+        if self._fs is not None:
+            self._fs.close()
+            self._fs = None
 
     @property
     def requires_lowering(self):

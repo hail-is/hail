@@ -102,7 +102,7 @@ class Env:
 
     @staticmethod
     def spark_session():
-        return Env.backend()._spark_session
+        return Env.spark_backend('Env.spark_session')._spark
 
     _dummy_table = None
 

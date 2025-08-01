@@ -1,5 +1,7 @@
 import abc
+import glob
 import http.client
+import logging
 import socket
 import socketserver
 import sys
@@ -10,19 +12,22 @@ from typing import Mapping, Optional, Tuple
 import orjson
 import py4j
 import requests
-from py4j.java_gateway import JavaObject, JVMView
+from py4j.java_gateway import (
+    GatewayParameters,
+    JavaGateway,
+    JavaObject,
+    JVMView,
+    launch_gateway,
+)
 
-import hail
 from hail.expr import construct_expr
-from hail.fs.hadoop_fs import HadoopFS
 from hail.ir import JavaIR
 from hail.utils.java import Env, FatalError, scala_package_object
 from hail.version import __version__
-from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
-from hailtop.utils import sync_retry_transient_errors
+from hailtop.utils import find_spark_home, sync_retry_transient_errors
 
 from ..hail_logging import Logger
-from .backend import ActionTag, Backend, fatal_error_from_java_error_triplet
+from .backend import ActionTag, Backend, fatal_error_from_java_error_triplet, local_jar_information
 
 # This defaults to 65536 and fails if a header is longer than _MAXLINE
 # The timing json that we output can exceed 65536 bytes so we raise the limit
@@ -31,6 +36,35 @@ http.client._MAXLINE = 2**20
 
 _installed = False
 _original = None
+
+
+def start_py4j_gateway(*, max_heap_size: str | None = None) -> JavaGateway:
+    spark_home = find_spark_home()
+    _, hail_jar_path, extra_classpath = local_jar_information()
+    extra_classpath = ':'.join([f'{spark_home}/jars/*', hail_jar_path, *extra_classpath])
+
+    jvm_opts = []
+    if max_heap_size is not None:
+        jvm_opts.append(f'-Xmx{max_heap_size}')
+
+    py4j_jars = glob.glob(f'{spark_home}/jars/py4j-*.jar')
+    if len(py4j_jars) == 0:
+        raise ValueError(f'No py4j JAR found in {spark_home}/jars')
+
+    if len(py4j_jars) > 1:
+        logging.warning(f'found multiple p4yj jars arbitrarily choosing the first one: {py4j_jars}')
+
+    port = launch_gateway(
+        redirect_stdout=sys.stdout,
+        redirect_stderr=sys.stderr,
+        java_path=None,
+        javaopts=jvm_opts,
+        jarpath=py4j_jars[0],
+        classpath=extra_classpath,
+        die_on_exit=True,
+    )
+
+    return JavaGateway(gateway_parameters=GatewayParameters(port=port, auto_convert=True))
 
 
 def install_exception_handler():
@@ -75,7 +109,7 @@ def handle_java_exception(f):
             raise FatalError(
                 '%s\n\nJava stack trace:\n%s\n'
                 'Hail version: %s\n'
-                'Error summary: %s' % (e.desc, e.stackTrace, hail.__version__, e.desc)
+                'Error summary: %s' % (e.desc, e.stackTrace, __version__, e.desc)
             ) from None
 
     return deco
@@ -185,12 +219,9 @@ class Py4JBackend(Backend):
         super().__init__()
         import base64
 
-        def decode_bytearray(encoded):
-            return base64.standard_b64decode(encoded)
-
         # By default, py4j's version of this function does extra
         # work to support python 2. This eliminates that.
-        py4j.protocol.decode_bytearray = decode_bytearray
+        py4j.protocol.decode_bytearray = base64.standard_b64decode
 
         self._jvm = jvm
         self._hail_package = getattr(self._jvm, 'is').hail
@@ -203,7 +234,7 @@ class Py4JBackend(Backend):
         self._jhttp_server = self._jbackend.pyHttpServer()
 
         self._gcs_requester_pays_config = None
-        self._fs = None
+        self._logger = Log4jLogger(self._utils_package_object)
 
         # This has to go after creating the SparkSession. Unclear why.
         # Maybe it does its own patch?
@@ -238,26 +269,7 @@ class Py4JBackend(Backend):
         return self._utils_package_object
 
     @property
-    def gcs_requester_pays_configuration(self) -> Optional[GCSRequesterPaysConfiguration]:
-        return self._gcs_requester_pays_config
-
-    @gcs_requester_pays_configuration.setter
-    def gcs_requester_pays_configuration(self, config: Optional[GCSRequesterPaysConfiguration]):
-        self._gcs_requester_pays_config = config
-        project, buckets = (None, None) if config is None else (config, None) if isinstance(config, str) else config
-        self._jbackend.pySetGcsRequesterPaysConfig(project, buckets)
-        self._fs = None  # stale
-
-    @property
-    def fs(self):
-        if self._fs is None:
-            self._fs = HadoopFS(self._utils_package_object, self._jbackend.pyFs())
-        return self._fs
-
-    @property
-    def logger(self):
-        if self._logger is None:
-            self._logger = Log4jLogger(self._utils_package_object)
+    def logger(self) -> Logger:
         return self._logger
 
     def _rpc(self, action, payload) -> Tuple[bytes, Optional[dict]]:
@@ -352,18 +364,16 @@ class Py4JBackend(Backend):
 
     @property
     def local_tmpdir(self) -> str:
-        return self._local_tmpdir
+        return self._jbackend.pyGetLocalTmp()
 
     @local_tmpdir.setter
     def local_tmpdir(self, tmpdir: str) -> None:
-        self._local_tmpdir = tmpdir
         self._jbackend.pySetLocalTmp(tmpdir)
 
     @property
     def remote_tmpdir(self) -> str:
-        return self._remote_tmpdir
+        return self._jbackend.pyGetRemoteTmp()
 
     @remote_tmpdir.setter
     def remote_tmpdir(self, tmpdir: str) -> None:
-        self._remote_tmpdir = tmpdir
         self._jbackend.pySetRemoteTmp(tmpdir)
