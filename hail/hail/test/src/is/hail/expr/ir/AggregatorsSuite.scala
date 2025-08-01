@@ -1249,7 +1249,6 @@ class AggregatorsSuite extends HailSuite {
     implicit val execStrats = ExecStrategy.interpretOnly
 
     def getAgg(n: Int, m: Int): IR = {
-      hc
       val ht = TableRange(10, 3)
         .mapRows('row.insertFields('aRange -> irRange(0, m, 1)))
 
@@ -1274,7 +1273,6 @@ class AggregatorsSuite extends HailSuite {
     implicit val execStrats = ExecStrategy.interpretOnly
 
     def getAgg(n: Int, m: Int, knownLength: Option[IR]): IR = {
-      hc
       val ht = TableRange(10, 3)
         .mapRows('row.insertFields('aRange -> irRange(0, m, 1)))
         .mapGlobals('global.insertFields('m -> m))

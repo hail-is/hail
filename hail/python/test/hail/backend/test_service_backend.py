@@ -74,7 +74,7 @@ def test_big_worker_has_big_memory(run_on_batch_mocks):
 
     hl.utils.range_table(10)._force_count()
 
-    config = run_on_batch_mocks.driver_config['config']
+    config = run_on_batch_mocks.driver_config['job_config']
     assert config['worker_cores'] == '8'
     assert config['worker_memory'] == 'highmem'
 

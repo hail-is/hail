@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
-import is.hail.expr.ir.TestUtils.IRCall
+import is.hail.expr.ir.TestUtils.{IRArray, IRCall}
 import is.hail.expr.ir.defs.{False, I32, Str, True}
 import is.hail.types.virtual.{TArray, TBoolean, TCall, TInt32}
 import is.hail.variant._
@@ -62,7 +62,7 @@ class CallFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("Call", TCall, I32(1), False()), Call1(1, false))
     assertEvalsTo(invoke("Call", TCall, I32(0), I32(0), False()), Call2(0, 0, false))
     assertEvalsTo(
-      invoke("Call", TCall, TestUtils.IRArray(0, 1), False()),
+      invoke("Call", TCall, IRArray(0, 1), False()),
       CallN(Array(0, 1), false),
     )
     assertEvalsTo(invoke("Call", TCall, Str("0|1")), Call2(0, 1, true))

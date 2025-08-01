@@ -1,7 +1,6 @@
 package is.hail.expr.ir
 
 import is.hail.{stats, ExecStrategy, HailSuite}
-import is.hail.TestUtils._
 import is.hail.expr.ir.defs.{ErrorIDs, F32, F64, False, I32, I64, Str, True}
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -11,7 +10,7 @@ import org.scalatest
 import org.testng.annotations.{DataProvider, Test}
 
 class MathFunctionsSuite extends HailSuite {
-  hc
+
   implicit val execStrats = ExecStrategy.values
 
   val tfloat = TFloat64

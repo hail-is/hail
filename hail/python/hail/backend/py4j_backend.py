@@ -4,7 +4,7 @@ import socket
 import socketserver
 import sys
 from threading import Thread
-from typing import Mapping, Optional, Set, Tuple
+from typing import Mapping, Optional, Tuple
 
 import orjson
 import py4j
@@ -13,9 +13,12 @@ from py4j.java_gateway import JavaObject, JVMView
 
 import hail
 from hail.expr import construct_expr
+from hail.fs.hadoop_fs import HadoopFS
 from hail.ir import JavaIR
 from hail.utils.java import Env, FatalError, scala_package_object
 from hail.version import __version__
+from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
+from hailtop.utils import sync_retry_transient_errors
 
 from ..hail_logging import Logger
 from .backend import ActionTag, Backend, fatal_error_from_java_error_triplet
@@ -61,7 +64,7 @@ def handle_java_exception(f):
             if s.startswith('java.util.NoSuchElementException'):
                 raise
 
-            if not Env.is_fully_initialized:
+            if not Env.is_fully_initialized():
                 raise ValueError('Error occurred during Hail initialization.') from e
 
             tpl = Env.jutils().handleForPython(e.java_exception)
@@ -171,8 +174,15 @@ def parse_timings(str: Optional[str]) -> Optional[dict]:
 
 class Py4JBackend(Backend):
     @abc.abstractmethod
-    def __init__(self, jvm: JVMView, jbackend: JavaObject, jhc: JavaObject):
-        super(Py4JBackend, self).__init__()
+    def __init__(
+        self,
+        jvm: JVMView,
+        jbackend: JavaObject,
+        jhc: JavaObject,
+        tmpdir: str,
+        remote_tmpdir: str,
+    ):
+        super().__init__()
         import base64
 
         def decode_bytearray(encoded):
@@ -185,15 +195,16 @@ class Py4JBackend(Backend):
         self._jvm = jvm
         self._hail_package = getattr(self._jvm, 'is').hail
         self._utils_package_object = scala_package_object(self._hail_package.utils)
-        self._jbackend = jbackend
         self._jhc = jhc
 
-        self._backend_server = self._hail_package.backend.BackendServer(self._jbackend)
-        self._backend_server_port: int = self._backend_server.port()
-        self._backend_server.start()
-        self._requests_session = requests.Session()
+        self._jbackend = self._hail_package.backend.driver.Py4JQueryDriver(jbackend)
+        self._jbackend.pySetLocalTmp(tmpdir)
+        self._jbackend.pySetRemoteTmp(remote_tmpdir)
 
-        self._registered_ir_function_names: Set[str] = set()
+        self._jhttp_server = self._jbackend.pyHttpServer()
+
+        self._gcs_requester_pays_config = None
+        self._fs = None
 
         # This has to go after creating the SparkSession. Unclear why.
         # Maybe it does its own patch?
@@ -217,6 +228,23 @@ class Py4JBackend(Backend):
         return self._utils_package_object
 
     @property
+    def gcs_requester_pays_configuration(self) -> Optional[GCSRequesterPaysConfiguration]:
+        return self._gcs_requester_pays_config
+
+    @gcs_requester_pays_configuration.setter
+    def gcs_requester_pays_configuration(self, config: Optional[GCSRequesterPaysConfiguration]):
+        self._gcs_requester_pays_config = config
+        project, buckets = (None, None) if config is None else (config, None) if isinstance(config, str) else config
+        self._jbackend.pySetGcsRequesterPaysConfig(project, buckets)
+        self._fs = None  # stale
+
+    @property
+    def fs(self):
+        if self._fs is None:
+            self._fs = HadoopFS(self._utils_package_object, self._jbackend.pyFs())
+        return self._fs
+
+    @property
     def logger(self):
         if self._logger is None:
             self._logger = Log4jLogger(self._utils_package_object)
@@ -225,21 +253,29 @@ class Py4JBackend(Backend):
     def _rpc(self, action, payload) -> Tuple[bytes, Optional[dict]]:
         data = orjson.dumps(payload)
         path = action_routes[action]
-        port = self._backend_server_port
-        resp = self._requests_session.post(f'http://localhost:{port}{path}', data=data)
+
+        def go():
+            port = self._jhttp_server.port()
+            try:
+                return requests.post(f'http://localhost:{port}{path}', data=data)
+            except requests.exceptions.ConnectionError:
+                self._stop_jhttp_server()
+                self._jhttp_server = self._jbackend.pyHttpServer()
+                raise
+
+        resp = sync_retry_transient_errors(go)
+
         if resp.status_code >= 400:
             error_json = orjson.loads(resp.content)
             raise fatal_error_from_java_error_triplet(
                 error_json['short'], error_json['expanded'], error_json['error_id']
             )
+
         return resp.content, parse_timings(resp.headers.get('X-Hail-Timings', None))
 
     def persist_expression(self, expr):
         t = expr.dtype
         return construct_expr(JavaIR(t, self._jbackend.pyExecuteLiteral(self._render_ir(expr._ir))), t)
-
-    def _is_registered_ir_function_name(self, name: str) -> bool:
-        return name in self._registered_ir_function_names
 
     def set_flags(self, **flags: Mapping[str, str]):
         available = self._jbackend.pyAvailableFlags()
@@ -275,12 +311,6 @@ class Py4JBackend(Backend):
     def remove_liftover(self, name, dest_reference_genome):
         self._jbackend.pyRemoveLiftover(name, dest_reference_genome)
 
-    def _parse_value_ir(self, code, ref_map={}):
-        return self._jbackend.parse_value_ir(
-            code,
-            {k: t._parsable_string() for k, t in ref_map.items()},
-        )
-
     def _register_ir_function(self, name, type_parameters, argument_names, argument_types, return_type, code):
         self._registered_ir_function_names.add(name)
         self._jbackend.pyRegisterIR(
@@ -292,26 +322,22 @@ class Py4JBackend(Backend):
             code,
         )
 
-    def _parse_table_ir(self, code):
-        return self._jbackend.parse_table_ir(code)
-
-    def _parse_matrix_ir(self, code):
-        return self._jbackend.parse_matrix_ir(code)
-
     def _parse_blockmatrix_ir(self, code):
         return self._jbackend.parse_blockmatrix_ir(code)
 
     def _to_java_blockmatrix_ir(self, ir):
         return self._parse_blockmatrix_ir(self._render_ir(ir))
 
-    def stop(self):
+    def _stop_jhttp_server(self):
         try:
-            self._backend_server.close()
+            self._jhttp_server.close()
         except requests.exceptions.ConnectionError:
             pass
 
+    def stop(self):
+        self._stop_jhttp_server()
         self._jbackend.close()
         self._jhc.stop()
         self._jhc = None
-        self._registered_ir_function_names = set()
         uninstall_exception_handler()
+        super().stop()

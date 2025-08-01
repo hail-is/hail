@@ -286,7 +286,7 @@ class ReadBlocksAsRowsRDD(
   partFiles: IndexedSeq[String],
   partitionCounts: Array[Long],
   gp: GridPartitioner,
-) extends RDD[(Long, Array[Double])](SparkBackend.sparkContext("ReadBlocksAsRowsRDD"), Nil) {
+) extends RDD[(Long, Array[Double])](SparkBackend.sparkContext, Nil) {
 
   private val partitionStarts = partitionCounts.scanLeft(0L)(_ + _)
 

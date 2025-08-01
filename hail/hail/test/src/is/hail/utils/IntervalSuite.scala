@@ -1,7 +1,6 @@
 package is.hail.utils
 
 import is.hail.HailSuite
-import is.hail.TestUtils.cartesian
 import is.hail.annotations.ExtendedOrdering
 import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.rvd.RVDPartitioner

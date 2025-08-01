@@ -1,6 +1,6 @@
 package is.hail.stats
 
-import is.hail.{HailSuite, TestUtils}
+import is.hail.HailSuite
 import is.hail.utils._
 
 import breeze.linalg.{eigSym, svd, DenseMatrix, DenseVector}
@@ -112,7 +112,7 @@ class eigSymDSuite extends HailSuite {
 
       val x = DenseVector.fill[Double](n)(rand.nextGaussian())
 
-      TestUtils.assertVectorEqualityDouble(x, TriSolve(A, A * x))
+      assertVectorEqualityDouble(x, TriSolve(A, A * x))
     }
   }
 }

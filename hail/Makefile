@@ -348,7 +348,7 @@ upload-artifacts: $(WHEEL)
 # target must be run at least once a day. To trigger this target to re-run,
 # > rm upload-remote-test-resources
 upload-remote-test-resources: install-editable
-upload-remote-test-resources: $(shell git ls-files src/test/resources)
+upload-remote-test-resources: $(shell git ls-files hail/test/resources)
 upload-remote-test-resources: $(shell git ls-files python/hail/docs/data)
 	# # If hailtop.aiotools.copy gives you trouble:
 	# gcloud storage cp -r src/test/resources/\* $(CLOUD_HAIL_TEST_RESOURCES_DIR)
@@ -357,7 +357,7 @@ upload-remote-test-resources: $(shell git ls-files python/hail/docs/data)
             -vvv \
             'null' \
             "[\
-              {\"from\":\"src/test/resources\",\"to\":\"$(CLOUD_HAIL_TEST_RESOURCES_DIR)\"}, \
+              {\"from\":\"hail/test/resources\",\"to\":\"$(CLOUD_HAIL_TEST_RESOURCES_DIR)\"}, \
               {\"from\":\"python/hail/docs/data\",\"to\":\"$(CLOUD_HAIL_DOCTEST_DATA_DIR)\"} \
              ]" \
             --timeout 600

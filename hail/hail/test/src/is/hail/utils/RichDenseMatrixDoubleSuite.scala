@@ -1,6 +1,6 @@
 package is.hail.utils
 
-import is.hail.{HailSuite, TestUtils}
+import is.hail.HailSuite
 import is.hail.linalg.BlockMatrix
 import is.hail.utils.richUtils.RichDenseMatrixDouble
 
@@ -34,7 +34,7 @@ class RichDenseMatrixDoubleSuite extends HailSuite {
     val lmT2 = RichDenseMatrixDouble.importFromDoubles(fs, fileT, 100, 50, rowMajor = true)
     assert(mT === lmT2)
 
-    TestUtils.interceptFatal("Premature") {
+    interceptFatal("Premature") {
       RichDenseMatrixDouble.importFromDoubles(fs, fileT, 100, 100, rowMajor = true)
     }
   }

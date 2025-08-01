@@ -2,7 +2,6 @@ package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
 import is.hail.ExecStrategy.ExecStrategy
-import is.hail.TestUtils._
 import is.hail.annotations.BroadcastRow
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.TestUtils._
@@ -386,7 +385,7 @@ class MatrixIRSuite extends HailSuite {
   }
 
   @Test def testMatrixMultiWriteDifferentTypesRaisesError(): scalatest.Assertion = {
-    val vcf = is.hail.TestUtils.importVCF(ctx, getTestResource("sample.vcf"))
+    val vcf = importVCF(ctx, getTestResource("sample.vcf"))
     val range = rangeMatrix(10, 2, None)
     val path1 = ctx.createTmpPath("test1")
     val path2 = ctx.createTmpPath("test2")
