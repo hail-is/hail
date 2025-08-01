@@ -10,6 +10,7 @@ import is.hail.io.fs.{CloudStorageFSConfig, FS, RouterFS}
 import is.hail.io.reference.{IndexedFastaSequenceFile, LiftOver}
 import is.hail.macros.void
 import is.hail.services._
+import is.hail.services.oauth2.CloudCredentials
 import is.hail.types.virtual.Kinds._
 import is.hail.utils._
 import is.hail.utils.ExecutionTimer.Timings
@@ -136,8 +137,6 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
     val inputURL = argv(5)
     val outputURL = argv(6)
 
-    val deployConfig = DeployConfig.fromConfigFile("/deploy-config/deploy-config.json")
-    DeployConfig.set(deployConfig)
     sys.env.get("HAIL_SSL_CONFIG_DIR").foreach(tls.setSSLConfigFromDir)
 
     val (rpcConfig, jobConfig, action, payload) = {
@@ -188,7 +187,10 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
     val backend =
       new ServiceBackend(
         name,
-        BatchClient(deployConfig, Path.of(scratchDir, "secrets/gsa-key/key.json")),
+        BatchClient(
+          DeployConfig.fromConfigFile("/deploy-config/deploy-config.json"),
+          CloudCredentials(Some(Path.of(scratchDir, "secrets/gsa-key/key.json"))),
+        ),
         JarUrl(jarLocation),
         BatchConfig.fromConfigFile(Path.of(scratchDir, "batch-config/batch-config.json")),
         jobConfig,

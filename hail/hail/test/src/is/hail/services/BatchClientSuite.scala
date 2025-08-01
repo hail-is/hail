@@ -3,6 +3,7 @@ package is.hail.services
 import is.hail.HAIL_REVISION
 import is.hail.backend.service.Main
 import is.hail.services.JobGroupStates.Failure
+import is.hail.services.oauth2.CloudCredentials
 import is.hail.utils._
 
 import java.lang.reflect.Method
@@ -11,6 +12,8 @@ import java.nio.file.Path
 import org.scalatest
 import org.scalatest.Inspectors.forAll
 import org.scalatest.enablers.InspectorAsserting.assertingNatureOfAssertion
+import org.scalatest.matchers.must.Matchers.be
+import org.scalatest.matchers.should.Matchers.convertToAnyShouldWrapper
 import org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.{AfterClass, BeforeClass, BeforeMethod, Test}
 
@@ -22,15 +25,21 @@ class BatchClientSuite extends TestNGSuite {
 
   @BeforeClass
   def createClientAndBatch(): Unit = {
-    client = BatchClient(DeployConfig.get(), Path.of("/test-gsa-key/key.json"))
-    batchId = client.newBatch(
-      BatchRequest(
-        billing_project = "test",
-        n_jobs = 0,
-        token = tokenUrlSafe,
-        attributes = Map("name" -> s"${getClass.getName}"),
+    client =
+      BatchClient(
+        DeployConfig.default,
+        CloudCredentials(Some(Path.of("/test-gsa-key/key.json"))),
       )
-    )
+
+    batchId =
+      client.newBatch(
+        BatchRequest(
+          billing_project = "test",
+          n_jobs = 0,
+          token = tokenUrlSafe,
+          attributes = Map("name" -> s"${getClass.getName}"),
+        )
+      )
   }
 
   @BeforeMethod
@@ -165,5 +174,30 @@ class BatchClientSuite extends TestNGSuite {
 
     val result = client.getJobGroup(batchId, jobGroupId)
     assert(result.n_jobs == 1)
+  }
+
+  def testCancelJobGroup(): scalatest.Assertion = {
+    val (jobGroupId, _) = client.newJobGroup(
+      req = JobGroupRequest(
+        batch_id = batchId,
+        absolute_parent_id = parentJobGroupId,
+        token = tokenUrlSafe,
+        jobs = FastSeq(
+          JobRequest(
+            always_run = false,
+            process = BashJob(
+              image = "ubuntu:24.04",
+              command = Array("/bin/bash", "-c", "sleep 5m"),
+            ),
+            resources = Some(JobResources(preemptible = true)),
+          )
+        ),
+      )
+    )
+
+    client.cancelJobGroup(batchId, jobGroupId)
+    val jobGroup = client.waitForJobGroup(batchId, jobGroupId)
+
+    jobGroup.state should be(JobGroupStates.Cancelled)
   }
 }
