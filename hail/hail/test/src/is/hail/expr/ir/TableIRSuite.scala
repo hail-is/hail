@@ -5,6 +5,7 @@ import is.hail.ExecStrategy.ExecStrategy
 import is.hail.annotations.SafeNDArray
 import is.hail.expr.Nat
 import is.hail.expr.ir.TestUtils._
+import is.hail.expr.ir.analyses.PartitionCounts
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.lowering.{DArrayLowering, ExecuteRelational, LowerTableIR}
 import is.hail.methods.{ForceCountTable, NPartitionsTable}
@@ -1015,7 +1016,7 @@ class TableIRSuite extends HailSuite {
       override def fullType: TableType = TableType(TStruct(), FastSeq(), TStruct.empty)
     }
     val tir = TableRead(tr.fullType, true, tr)
-    assert(tir.partitionCounts.forall(_.sum == 0))
+    assert(PartitionCounts(tir).forall(_.sum == 0))
   }
 
   @Test def testScanInAggInMapRows(): scalatest.Assertion = {
