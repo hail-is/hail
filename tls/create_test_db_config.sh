@@ -8,24 +8,6 @@ elif [ "${NAMESPACE}" == "default" ]; then
     exit 1;
 fi
 
-# Parse command line arguments
-set +x
-echo "Parsing KEEP_PASSWORD command line argument (with set +x to avoid logging password)"
-KEEP_PASSWORD=""
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        --keep-password)
-            KEEP_PASSWORD="$2"
-            shift 2
-            ;;
-        *)
-            echo "Unknown option: $1"
-            exit 1
-            ;;
-    esac
-done
-set -x
-
 function create_key_and_cert() {
     local name=$1
     local key_file=${name}-key.pem

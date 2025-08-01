@@ -303,8 +303,8 @@ steps:
               echo 'Running: EXISTING_PASSWORD=$(echo "$SECRET_JSON" | jq -r ".data[\"db-root-password\"]" | base64 -d)'
               EXISTING_PASSWORD=$(echo "$SECRET_JSON" | jq -r '.data["db-root-password"]' | base64 -d)
               # Regenerate certificates with existing password (disable set -x to avoid logging password)
-              echo 'Running: NAMESPACE={{ default_ns.name }} bash /create_test_db_config.sh --keep-password "$EXISTING_PASSWORD"'
-              NAMESPACE={{ default_ns.name }} bash /create_test_db_config.sh --keep-password "$EXISTING_PASSWORD"
+              echo 'Running: NAMESPACE={{ default_ns.name }} KEEP_PASSWORD="$EXISTING_PASSWORD" bash /create_test_db_config.sh'
+              NAMESPACE={{ default_ns.name }} KEEP_PASSWORD="$EXISTING_PASSWORD" bash /create_test_db_config.sh
               set -x
           else
               echo "Secret is less than 1 year old, skipping regeneration"
