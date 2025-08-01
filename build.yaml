@@ -295,6 +295,8 @@ steps:
           
           echo "Secret age: $AGE_DAYS days"
           
+          # REMOVEME: For testing only
+          AGE_DAYS=366
           if [ "$AGE_DAYS" -gt 365 ]; then
               echo "Secret is over 1 year old, regenerating certificates while preserving password..."
               
