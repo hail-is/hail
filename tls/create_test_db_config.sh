@@ -9,6 +9,8 @@ elif [ "${NAMESPACE}" == "default" ]; then
 fi
 
 # Parse command line arguments
+set +x
+echo "Parsing KEEP_PASSWORD command line argument (with set +x to avoid logging password)"
 KEEP_PASSWORD=""
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -22,6 +24,7 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+set -x
 
 function create_key_and_cert() {
     local name=$1
@@ -57,14 +60,13 @@ if [ -n "$KEEP_PASSWORD" ]; then
     echo "Using provided password"
     echo "$KEEP_PASSWORD" > db-root-password
     password=$KEEP_PASSWORD
-    # Disable set -x to avoid logging password
-    set +x
 else
     echo "Generating new password"
     LC_ALL=C tr -dc '[:alnum:]' </dev/urandom | head -c 16 > db-root-password
     password=$(cat db-root-password)
 fi
 
+echo "Creating sql-config.cnf"
 cat >sql-config.cnf <<EOF
 [client]
 host=db.$NAMESPACE
@@ -77,6 +79,7 @@ ssl-key=/sql-config/client-key.pem
 ssl-mode=VERIFY_CA
 EOF
 
+echo "Creating sql-config.json"
 cat >sql-config.json <<EOF
 {
     "host": "db.$NAMESPACE.svc.cluster.local",
@@ -92,7 +95,8 @@ cat >sql-config.json <<EOF
 }
 EOF
 
-# Always use dry-run | apply for consistency
+# Use dry-run | apply pattern to make sure the secret is created or patched regardless of whether it already exists
+echo "Creating or patching database-server-config secret"
 kubectl create secret generic database-server-config \
     --namespace=$NAMESPACE \
     --from-file=server-ca.pem \
