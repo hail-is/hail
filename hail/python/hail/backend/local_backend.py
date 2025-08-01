@@ -3,21 +3,17 @@ import logging
 import os
 import sys
 from contextlib import ExitStack
-from typing import List, Optional, Tuple, Union
+from typing import Optional
 
 from py4j.java_gateway import GatewayParameters, JavaGateway, launch_gateway
 
-from hail.ir import finalize_randomness
-from hail.ir.renderer import CSERenderer
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
 from hailtop.aiotools.validators import validate_file
 from hailtop.fs.router_fs import RouterFS
 from hailtop.utils import async_to_blocking, find_spark_home
 
-from ..expr import Expression
-from ..expr.types import HailType
 from .backend import local_jar_information
-from .py4j_backend import Py4JBackend, uninstall_exception_handler
+from .py4j_backend import Py4JBackend
 
 log = logging.getLogger('hail.backend')
 
@@ -93,25 +89,9 @@ class LocalBackend(Py4JBackend):
     def validate_file(self, uri: str) -> None:
         async_to_blocking(validate_file(uri, self._fs.afs))
 
-    def register_ir_function(
-        self,
-        name: str,
-        type_parameters: Union[Tuple[HailType, ...], List[HailType]],
-        value_parameter_names: Union[Tuple[str, ...], List[str]],
-        value_parameter_types: Union[Tuple[HailType, ...], List[HailType]],
-        return_type: HailType,
-        body: Expression,
-    ):
-        r = CSERenderer()
-        code = r(finalize_randomness(body._ir))
-        self._register_ir_function(
-            name, type_parameters, value_parameter_names, value_parameter_types, return_type, code
-        )
-
     def stop(self):
         super(Py4JBackend, self).stop()
         self._exit_stack.close()
-        uninstall_exception_handler()
 
     @property
     def fs(self):

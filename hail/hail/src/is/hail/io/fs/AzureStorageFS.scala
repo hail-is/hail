@@ -13,7 +13,6 @@ import is.hail.shadedazure.com.azure.storage.blob.models.{
   BlobItem, BlobRange, BlobStorageException, ListBlobsOptions,
 }
 import is.hail.shadedazure.com.azure.storage.blob.specialized.BlockBlobClient
-import is.hail.utils.FastSeq
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -60,8 +59,8 @@ object AzureStorageFS {
   private val AZURE_HTTPS_URI_REGEX =
     "^https:\\/\\/([a-z0-9_\\-\\.]+)\\.blob\\.core\\.windows\\.net\\/([a-z0-9_\\-\\.]+)(\\/.*)?".r
 
-  val RequiredOAuthScopes: IndexedSeq[String] =
-    FastSeq("https://storage.azure.com/.default")
+  val RequiredOAuthScopes: Array[String] =
+    Array("https://storage.azure.com/.default")
 
   def parseUrl(filename: String): AzureStorageFSURL = {
     AZURE_HTTPS_URI_REGEX
