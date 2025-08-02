@@ -1,108 +1,204 @@
 import os
-import re
-from shlex import quote as shq
-from typing import Tuple
+import shlex
+from contextlib import AsyncExitStack
+from pathlib import Path
+from typing import Any, Dict, Generator, List, NoReturn, Optional, Set, Tuple, Union
 
 import orjson
+import typer
 
-from hailtop import __pip_version__
+from hailtop import yamlx
+from hailtop.aiotools.copy import copy_from_dict
+from hailtop.aiotools.fs import AsyncFSURL
+from hailtop.aiotools.router_fs import RouterAsyncFS
+import hailtop.batch_client.aioclient as bc
+from hailtop.batch import Batch, ServiceBackend
+from hailtop.batch.job import BashJob
+from hailtop.config import (
+    ConfigVariable,
+    configuration_of,
+    get_deploy_config,
+    get_remote_tmpdir,
+    get_hail_config_path,
+)
+from hailtop.utils import secret_alnum_string
+from hailtop.version import __pip_version__
 
-FILE_REGEX = re.compile(r'(?P<src>[^:]+)(:(?P<dest>.+))?')
+from .batch_cli_utils import StructuredFormatPlusTextOption
 
 
-async def submit(name, image_name, files, output, script, arguments):
-    import hailtop.batch as hb  # pylint: disable=import-outside-toplevel
-    from hailtop.aiotools.copy import copy_from_dict  # pylint: disable=import-outside-toplevel
-    from hailtop.config import (  # pylint: disable=import-outside-toplevel
-        get_deploy_config,
-        get_remote_tmpdir,
-        get_user_config_path,
-    )
-    from hailtop.utils import (  # pylint: disable=import-outside-toplevel
-        secret_alnum_string,
-        unpack_comma_delimited_inputs,
-    )
+class HailctlBatchSubmitError(Exception):
+    def __init__(self, message: str, exit_code: int):
+        self.message = message
+        self.exit_code = exit_code
 
-    files = unpack_comma_delimited_inputs(files)
-    user_config = str(get_user_config_path())
 
-    quiet = output != 'text'
+async def submit(
+    image: str,
+    entrypoint: List[str],
+    name: Optional[str],
+    cpu: str,
+    memory: str,
+    storage: str,
+    machine_type: Optional[str],
+    spot: bool,
+    workdir: str,
+    cloudfuse: Optional[List[Tuple[str, str, bool]]],
+    env: Optional[Dict[str, str]],
+    billing_project: Optional[str],
+    remote_tmpdir: Optional[str],
+    regions: Optional[List[str]],
+    requester_pays_project: Optional[str],
+    attributes: Optional[Dict[str, str]],
+    volume_mounts: Optional[List[str]],
+    shell: Optional[str],
+    output: StructuredFormatPlusTextOption,
+    wait: bool,
+    quiet: bool,
+):
+    async with (AsyncExitStack() as exitstack):
+        fs = RouterAsyncFS()
+        exitstack.push_async_callback(fs.close)
 
-    remote_tmpdir = get_remote_tmpdir('hailctl batch submit')
+        remote_tmpdir = fs.parse_url(get_remote_tmpdir('hailctl batch submit')) / secret_alnum_string()
+        local_user_config_dir = '/io/hail-config/'
+        workdir = workdir or '/'
 
-    tmpdir_path_prefix = secret_alnum_string()
+        billing_project = configuration_of(ConfigVariable.BATCH_BILLING_PROJECT, billing_project, None)
+        if billing_project is None:
+            raise ValueError(
+                'the billing_project parameter of ServiceBackend must be set '
+                'or run `hailctl config set batch/billing_project '
+                'MY_BILLING_PROJECT`'
+            )
 
-    def cloud_prefix(path):
-        path = path.lstrip('/')
-        return f'{remote_tmpdir}/{tmpdir_path_prefix}/{path}'
+        client = await bc.BatchClient.create(billing_project=billing_project)
+        exitstack.push_async_callback(client.close)
 
-    def file_input_to_src_dest(file: str) -> Tuple[str, str, str]:
-        match = FILE_REGEX.match(file)
-        if match is None:
-            raise ValueError(f'invalid file specification {file}. Must have the form "src" or "src:dest"')
+        b = client.create_batch(attributes=attributes)
 
-        result = match.groupdict()
+        _env = {
+            'HAIL_QUERY_BACKEND': 'batch',
+            'XDG_CONFIG_HOME': local_user_config_dir,
+        }
+        _env.update(env or {})
 
-        src = result.get('src')
-        if src is None:
-            raise ValueError(f'invalid file specification {file}. Must have a "src" defined.')
-        src = os.path.abspath(os.path.expanduser(src))
-        src = src.rstrip('/')
+        resources = {
+            'cpu': cpu or '1',
+            'memory': memory or 'standard',
+            'storage': storage or '0Gi',
+            'preemptible': spot,
+        }
 
-        dest = result.get('dest')
-        if dest is not None:
-            dest = os.path.abspath(os.path.expanduser(dest))
+        if machine_type is not None:
+            resources['machine_type'] = machine_type
+
+        name = name or 'submit'
+        _attributes: Dict[str, str] = {'name': name}
+        _attributes.update(attributes or {})
+
+        remote_user_config_dir = await transfer_user_config_into_job(remote_tmpdir)
+
+        maybe_volume_mounts = await convert_volume_mounts_to_file_transfers_with_local_upload(fs, remote_tmpdir, volume_mounts)
+
+        symlinks_needed = []
+        input_files = [(remote_user_config_dir, local_user_config_dir + 'hail/')]
+
+        for src, dest in maybe_volume_mounts:
+            io_dest = f'/io{dest}'
+            if not dest.startswith('/io/'):
+                symlinks_needed.append((io_dest, dest))
+            input_files.append((src, io_dest))
+
+        executable = entrypoint[0]
+        args = entrypoint[1:]
+
+        entrypoint_str = ' '.join([shq(x) for x in entrypoint])
+
+        symlinks = [f'ln -s {io_dest.rstrip("/")} {dest.rstrip("/")}' for io_dest, dest in symlinks_needed]
+        symlinks_str = "\n".join(symlinks)
+
+        cmd = f'''
+{symlinks_str}
+mkdir -p {workdir}
+hailctl config list
+hailctl config profile list
+cd {workdir}
+{entrypoint_str}
+'''
+
+        j = b.create_job(image=image,
+                         command=[shell if shell else '/bin/bash', '-c', cmd],
+                         env=_env,
+                         resources=resources,
+                         attributes=_attributes,
+                         input_files=input_files,
+                         output_files=None,
+                         cloudfuse=cloudfuse,
+                         requester_pays_project=requester_pays_project,
+                         regions=regions)
+
+        await b.submit()
+
+        if wait:
+            await b.wait(disable_progress_bar=quiet)
+
+
+async def transfer_user_config_into_job(remote_tmpdir: AsyncFSURL) -> str:
+    user_config_path = get_hail_config_path()
+    if not user_config_path.exists():
+        return
+
+    staging = str(remote_tmpdir / 'hail-config')
+    await copy_from_dict(files=[{'from': str(user_config_path), 'to': str(staging)}])
+    return staging
+
+
+def parse_to_src_dest(fileopt: str) -> Tuple[Path, Path]:
+    def raise_value_error(msg: str) -> NoReturn:
+        raise ValueError(f'Invalid file specification {fileopt}: {msg}.')
+
+    try:
+        from_, to_ = fileopt.split(':')
+    except ValueError:
+        raise_value_error('Must have the form "src:dst"')
+
+    from_ = __real_absolute_local_path(from_, strict=False)  # defer strictness checks and globbing
+
+    return (from_, to_)
+
+
+async def convert_volume_mounts_to_file_transfers_with_local_upload(
+    fs: RouterAsyncFS,
+    remote_tmpdir: Path,
+    volume_mounts: List[str],
+) -> List[Tuple[str, str]]:
+    local_file_transfers = []
+    remote_file_transfers = []
+
+    src_dst_list = [parse_to_src_dest(mount) for mount in volume_mounts]
+
+    for src, dst in src_dst_list:
+        if fs.parse_url(str(src)).scheme == 'file':
+            remote_src = remote_tmpdir / 'input' / secret_alnum_string()
+            local_file_transfers.append((src, remote_src))
         else:
-            dest = os.getcwd()
+            remote_src = src
 
-        cloud_file = cloud_prefix(src)
+        remote_file_transfers.append((str(remote_src), str(dst)))
 
-        return (src, dest, cloud_file)
+    await copy_from_dict(files=[{'from': str(local_src), 'to': str(remote_src)}
+                                for local_src, remote_src in local_file_transfers])
 
-    backend = hb.ServiceBackend()
-    b = hb.Batch(name=name, backend=backend)
-    j = b.new_bash_job()
-    j.image(image_name or os.environ.get('HAIL_GENETICS_HAIL_IMAGE', f'hailgenetics/hail:{__pip_version__}'))
+    return remote_file_transfers
 
-    local_files_to_cloud_files = []
 
-    for file in files:
-        src, dest, cloud_file = file_input_to_src_dest(file)
-        local_files_to_cloud_files.append({'from': src, 'to': cloud_file})
-        in_file = b.read_input(cloud_file)
-        j.command(f'mkdir -p {os.path.dirname(dest)}; ln -s {in_file} {dest}')
+# Note well, friends:
+# This uses the local environment to support paths with variables like $HOME or $XDG_ directories.
+# Consequently, it is inappropriate to resolve paths on the worker with this function.
+def __real_absolute_local_path(path: Union[str, os.PathLike[str]], *, strict: bool) -> Path:
+    return Path(os.path.expandvars(path)).expanduser().resolve(strict=strict)
 
-    script_src, _, script_cloud_file = file_input_to_src_dest(script)
-    user_config_src, _, user_config_cloud_file = file_input_to_src_dest(user_config)
 
-    await copy_from_dict(files=local_files_to_cloud_files)
-    await copy_from_dict(
-        files=[
-            {'from': script_src, 'to': script_cloud_file},
-            {'from': user_config_src, 'to': user_config_cloud_file},
-        ]
-    )
-
-    script_file = b.read_input(script_cloud_file)
-    config_file = b.read_input(user_config_cloud_file)
-
-    j.env('HAIL_QUERY_BACKEND', 'batch')
-
-    command = 'python3' if script.endswith('.py') else 'bash'
-    script_arguments = " ".join(shq(x) for x in arguments)
-
-    j.command(f'mkdir -p $HOME/.config/hail && ln -s {config_file} $HOME/.config/hail/config.ini')
-    j.command(f'cd {os.getcwd()}')
-    j.command(f'{command} {script_file} {script_arguments}')
-    batch_handle = await b._async_run(wait=False, disable_progress_bar=quiet)
-    assert batch_handle
-
-    if output == 'text':
-        deploy_config = get_deploy_config()
-        url = deploy_config.external_url('batch', f'/batches/{batch_handle.id}/jobs/1')
-        print(f'Submitted batch {batch_handle.id}, see {url}')
-    else:
-        assert output == 'json'
-        print(orjson.dumps({'id': batch_handle.id}).decode('utf-8'))
-
-    await backend.async_close()
+def shq(p: Any) -> str:
+    return shlex.quote(str(p))
