@@ -10,6 +10,20 @@ else
     KUBECTL_APPLY=cat
 fi
 
+# Path where certbot used to store a dhparams.pem file:
+DHPARAM_PATH="/opt/certbot/src/certbot/certbot/ssl-dhparams.pem"
+
+# Only generate if it doesn't already exist
+if [ ! -f "$DHPARAM_PATH" ]; then
+  # Make a new path
+  DHPARAM_PATH=/tmp/ssl-dhparams.pem
+  echo "Generating DH parameters (2048 bits)... this may take a minute."
+  openssl dhparam -out "$DHPARAM_PATH" 2048
+else
+  echo "DH parameters already exist at $DHPARAM_PATH. Skipping generation."
+fi
+
+
 certbot certonly --standalone $CERTBOT_FLAGS --cert-name $DOMAIN -n --agree-tos -m cseed@broadinstitute.org -d $DOMAINS
 
 # https://github.com/certbot/certbot/blob/master/certbot-nginx/certbot_nginx/_internal/tls_configs/options-ssl-nginx.conf
@@ -35,7 +49,7 @@ data:
   fullchain.pem: $(cat /etc/letsencrypt/live/$DOMAIN/fullchain.pem | base64 | tr -d \\n)
   privkey.pem: $(cat /etc/letsencrypt/live/$DOMAIN/privkey.pem | base64 | tr -d \\n)
   options-ssl-nginx.conf: $(cat /options-ssl-nginx.conf | base64 | tr -d \\n)
-  ssl-dhparams.pem: $(cat /opt/certbot/src/certbot/certbot/ssl-dhparams.pem | base64 | tr -d \\n)
+  ssl-dhparams.pem: $(cat $DHPARAM_PATH | base64 | tr -d \\n)
 EOF
 
 set -x
