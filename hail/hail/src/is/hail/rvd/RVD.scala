@@ -5,7 +5,7 @@ import is.hail.annotations._
 import is.hail.asm4s.{theHailClassLoaderForSparkWorkers, HailClassLoader}
 import is.hail.backend.{ExecuteContext, HailStateManager, HailTaskContext}
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
-import is.hail.expr.ir.InferPType
+import is.hail.expr.ir.{agg, InferPType}
 import is.hail.expr.ir.PruneDeadFields.isSupertype
 import is.hail.io._
 import is.hail.io.index.IndexWriter
@@ -722,7 +722,7 @@ class RVD(
     }
 
     if (tree) {
-      val depth = treeAggDepth(getNumPartitions, HailContext.get.branchingFactor)
+      val depth = treeAggDepth(getNumPartitions, agg.branchFactor(execCtx))
       val scale = math.max(
         math.ceil(math.pow(getNumPartitions, 1.0 / depth)).toInt,
         2,
