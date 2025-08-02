@@ -52,6 +52,10 @@ supports.
 policy. Their functionality or even existence may change without notice. Please contact us if you
 critically depend on experimental functionality.**
 
+## Version 0.2.136
+
+- (hail#14934) Update init_notebook dependency versions
+
 ## Version 0.2.135
 
 Released 2025-06-26
