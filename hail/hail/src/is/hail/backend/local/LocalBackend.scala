@@ -106,7 +106,7 @@ object LocalBackend extends Backend {
     print: Option[PrintWriter] = None,
   ): Either[Unit, (PTuple, Long)] =
     ctx.time {
-      val ir = LoweringPipeline.darrayLowerer(true)(DArrayLowering.All)(ctx, ir0).asInstanceOf[IR]
+      val ir = LoweringPipeline.darrayLowerer(DArrayLowering.All)(ctx, ir0).asInstanceOf[IR]
 
       if (!Compilable(ir))
         throw new LowererUnsupportedOperation(s"lowered to uncompilable IR: ${Pretty(ctx, ir)}")
