@@ -4,8 +4,6 @@ import is.hail.backend.Backend
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.io.fs.FS
-import is.hail.io.vcf._
-import is.hail.types.virtual._
 import is.hail.utils._
 
 import scala.reflect.ClassTag
@@ -17,9 +15,6 @@ import org.apache.log4j.{LogManager, PropertyConfigurator}
 import org.apache.spark._
 import org.apache.spark.executor.InputMetrics
 import org.apache.spark.rdd.RDD
-import org.json4s.Extraction
-import org.json4s.jackson.JsonMethods
-import sourcecode.Enclosing
 
 case class FilePartition(index: Int, file: String) extends Partition
 
@@ -41,8 +36,6 @@ object HailContext {
   }
 
   def backend: Backend = get.backend
-
-  def sparkBackend(implicit E: Enclosing): SparkBackend = get.backend.asSpark
 
   def configureLogging(logFile: String, quiet: Boolean, append: Boolean): Unit = {
     org.apache.log4j.helpers.LogLog.setInternalDebugging(true)
@@ -194,12 +187,4 @@ class HailContext private (
     : Array[(String, Array[String])] =
     fileAndLineCounts(fs: FS, regex, files, maxLines).mapValues(_.map(_.value)).toArray
 
-  def parseVCFMetadata(fs: FS, file: String): Map[String, Map[String, Map[String, String]]] =
-    LoadVCF.parseHeaderMetadata(fs, Set.empty, TFloat64, file)
-
-  def pyParseVCFMetadataJSON(fs: FS, file: String): String = {
-    val metadata = LoadVCF.parseHeaderMetadata(fs, Set.empty, TFloat64, file)
-    implicit val formats = defaultJSONFormats
-    JsonMethods.compact(Extraction.decompose(metadata))
-  }
 }
