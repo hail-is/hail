@@ -254,27 +254,6 @@ class SimplifySuite extends HailSuite {
         },
       ),
       Array(
-//        bindIR(
-//          bindIR(
-//            I32(1) + Ref(Name("free1"), TInt32)
-//          ) { b =>
-//            InsertFields(
-//              Ref(Name("free2"), TStruct("foo" -> TInt32)),
-//              FastSeq("field0" -> b, "field1" -> (I32(1) + b)),
-//            )
-//          }
-//        )(a => InsertFields(a, FastSeq("field2" -> (I32(1) + GetField(a, "field1"))))),
-//        IRBuilder.scoped { x =>
-//          val b = x.strictMemoize(I32(1) + Ref(Name("free1"), TInt32))
-//          val x0 = x.strictMemoize(b)
-//          val x1 = x.strictMemoize(I32(1) + b)
-//          val a = Ref(Name("free2"), TStruct("foo" -> TInt32))
-//          InsertFields(
-//            a,
-//            FastSeq("field0" -> x0, "field1" -> x1, "field2" -> (I32(1) + x1)),
-//            Some(FastSeq("foo", "field0", "field1", "field2")),
-//          )
-//        },
         IRBuilder.scoped { outer =>
           val ins =
             outer.strictMemoize {

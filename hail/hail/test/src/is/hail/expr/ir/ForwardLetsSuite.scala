@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.HailSuite
+import is.hail.backend.ExecuteContext
 import is.hail.expr.Nat
 import is.hail.expr.ir.defs._
 import is.hail.types.virtual._
@@ -120,41 +121,41 @@ class ForwardLetsSuite extends HailSuite {
       FastSeq(Binding(x.name, I32(1), Scope.AGG), Binding(y.name, x, Scope.AGG)),
       ApplyAggOp(Sum())(y),
     )
-    val after: IR = ForwardLets(ctx)(ir)
+    val after: IR = ForwardLets(ctx, ir)
     val expected = ApplyAggOp(Sum())(I32(1))
-    assert(NormalizeNames(ctx, after) == NormalizeNames(ctx, expected))
+    assert(NormalizeNames()(ctx, after) == NormalizeNames()(ctx, expected))
   }
 
   @Test(dataProvider = "nonForwardingOps")
   def testNonForwardingOps(ir: IR): scalatest.Assertion = {
-    val after = ForwardLets(ctx)(ir)
-    val normalizedBefore = NormalizeNames(ctx, ir)
-    val normalizedAfter = NormalizeNames(ctx, after)
+    val after = ForwardLets(ctx, ir)
+    val normalizedBefore = NormalizeNames()(ctx, ir)
+    val normalizedAfter = NormalizeNames()(ctx, after)
     assert(normalizedBefore == normalizedAfter)
   }
 
   @Test(dataProvider = "nonForwardingNonEvalOps")
   def testNonForwardingNonEvalOps(ir: IR): scalatest.Assertion = {
-    val after = ForwardLets(ctx)(ir)
+    val after = ForwardLets(ctx, ir)
     assert(after.isInstanceOf[Block])
   }
 
   @Test(dataProvider = "nonForwardingAggOps")
   def testNonForwardingAggOps(ir: IR): scalatest.Assertion = {
-    val after = ForwardLets(ctx)(ir)
+    val after = ForwardLets(ctx, ir)
     assert(after.isInstanceOf[Block])
   }
 
   @Test(dataProvider = "forwardingOps")
   def testForwardingOps(ir: IR): scalatest.Assertion = {
-    val after = ForwardLets(ctx)(ir)
+    val after = ForwardLets(ctx, ir)
     assert(!after.isInstanceOf[Block])
     assertEvalSame(ir, args = Array(5 -> TInt32))
   }
 
   @Test(dataProvider = "forwardingAggOps")
   def testForwardingAggOps(ir: IR): scalatest.Assertion = {
-    val after = ForwardLets(ctx)(ir)
+    val after = ForwardLets(ctx, ir)
     assert(!after.isInstanceOf[Block])
   }
 
@@ -221,10 +222,11 @@ class ForwardLetsSuite extends HailSuite {
 
   @Test(dataProvider = "TrivialIRCases")
   def testTrivialCases(input: IR, _expected: IR, reason: String): scalatest.Assertion = {
-    val result = NormalizeNames(ctx, ForwardLets(ctx)(input), allowFreeVariables = true)
-    val expected = NormalizeNames(ctx, _expected, allowFreeVariables = true)
+    val normalize: (ExecuteContext, BaseIR) => BaseIR = NormalizeNames(allowFreeVariables = true)
+    val result = normalize(ctx, ForwardLets(ctx, input))
+    val expected = normalize(ctx, _expected)
     assert(
-      result == NormalizeNames(ctx, expected, allowFreeVariables = true),
+      result == normalize(ctx, expected),
       s"\ninput:\n${Pretty.sexprStyle(input)}\nexpected:\n${Pretty.sexprStyle(expected)}\ngot:\n${Pretty.sexprStyle(result)}\n$reason",
     )
   }
@@ -239,8 +241,8 @@ class ForwardLetsSuite extends HailSuite {
       AggSignature(Sum(), FastSeq(), FastSeq(TFloat64)),
     )
 
-    TypeCheck(ctx, ForwardLets(ctx)(ir0), BindingEnv(Env.empty, agg = Some(aggEnv)))
-    scalatest.Succeeded
+    TypeCheck(ctx, ForwardLets(ctx, ir0), BindingEnv(Env.empty, agg = Some(aggEnv)))
+    succeed
   }
 
   @Test def testNestedBindingOverwrites(): scalatest.Assertion = {
@@ -250,8 +252,8 @@ class ForwardLetsSuite extends HailSuite {
     val ir = bindIRs(xCast, xCast) { case Seq(x1, x2) => x2 + x2 + x1 }
 
     TypeCheck(ctx, ir, BindingEnv(env))
-    TypeCheck(ctx, ForwardLets(ctx)(ir), BindingEnv(env))
-    scalatest.Succeeded
+    TypeCheck(ctx, ForwardLets(ctx, ir), BindingEnv(env))
+    succeed
   }
 
   @Test def testLetsDoNotForwardInsideArrayAggWithNoOps(): scalatest.Assertion = {
@@ -261,7 +263,7 @@ class ForwardLetsSuite extends HailSuite {
     )(x => streamAggIR(ToStream(In(1, TArray(TInt32))))(_ => y + x))
 
     TypeCheck(ctx, x, BindingEnv(Env(y.name -> TInt32)))
-    TypeCheck(ctx, ForwardLets(ctx)(x), BindingEnv(Env(y.name -> TInt32)))
-    scalatest.Succeeded
+    TypeCheck(ctx, ForwardLets(ctx, x), BindingEnv(Env(y.name -> TInt32)))
+    succeed
   }
 }

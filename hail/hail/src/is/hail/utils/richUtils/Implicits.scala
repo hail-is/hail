@@ -82,6 +82,8 @@ trait Implicits {
   implicit def toRichPairRDD[K, V](r: RDD[(K, V)])(implicit kct: ClassTag[K], vct: ClassTag[V])
     : RichPairRDD[K, V] = new RichPairRDD(r)
 
+  implicit def toRichPredicate[A](f: A => Boolean): RichPredicate[A] = new RichPredicate[A](f)
+
   implicit def toRichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]): RichRDD[T] = new RichRDD(r)
 
   implicit def toRichContextRDDRegionValue(r: ContextRDD[RegionValue]): RichContextRDDRegionValue =
