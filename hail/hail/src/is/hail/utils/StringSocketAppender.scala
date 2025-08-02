@@ -13,12 +13,16 @@ object StringSocketAppender {
   // low reconnection delay because everything is local
   val DEFAULT_RECONNECTION_DELAY = 100
 
-  var theAppender: StringSocketAppender = _
+  private var theAppender: StringSocketAppender = _
 
-  def get(): StringSocketAppender = theAppender
+  def get(): StringSocketAppender =
+    synchronized {
+      if (theAppender == null) theAppender = new StringSocketAppender
+      theAppender
+    }
 }
 
-class StringSocketAppender() extends AppenderSkeleton {
+class StringSocketAppender extends AppenderSkeleton {
   private var address: InetAddress = _
   private var port: Int = _
   private var os: OutputStream = _
@@ -39,7 +43,7 @@ class StringSocketAppender() extends AppenderSkeleton {
 
   override def close(): Unit = {
     if (closed) return
-    this.closed = true
+    closed = true
     cleanUp()
   }
 
@@ -57,6 +61,10 @@ class StringSocketAppender() extends AppenderSkeleton {
     if (connector != null) {
       connector.interrupted = true
       connector = null // allow gc
+    }
+
+    StringSocketAppender.synchronized {
+      StringSocketAppender.theAppender = null
     }
   }
 

@@ -8,18 +8,7 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods
 
 object DeployConfig {
-  private[this] lazy val default: DeployConfig = fromConfigFile()
-  private[this] var _get: DeployConfig = null
-
-  def set(x: DeployConfig) =
-    _get = x
-
-  def get(): DeployConfig = {
-    if (_get == null) {
-      _get = default
-    }
-    _get
-  }
+  lazy val default: DeployConfig = fromConfigFile()
 
   def fromConfigFile(file0: String = null): DeployConfig = {
     var file = file0
