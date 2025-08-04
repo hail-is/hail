@@ -5,6 +5,7 @@ import is.hail.expr.{JSONAnnotationImpex, Nat, ParserUtils}
 import is.hail.expr.ir.agg._
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.functions.RelationalFunctions
+import is.hail.expr.ir.lowering.LoweringPipeline
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.rvd.{RVDPartitioner, RVDType}
 import is.hail.types.{tcoerce, VirtualTypeWithReq}
@@ -1937,6 +1938,7 @@ object IRParser {
   def blockmatrix_sparsifier(ctx: ExecuteContext)(it: TokenIterator)
     : StackFrame[BlockMatrixSparsifier] = {
     punctuation(it, "(")
+    val lower = LoweringPipeline.relationalLowerer(optimize = true)
     identifier(it) match {
       case "PyRowIntervalSparsifier" =>
         val blocksOnly = boolean_literal(it)
@@ -1944,7 +1946,7 @@ object IRParser {
         ir_value_expr(ctx)(it).map { ir_ =>
           val ir = annotateTypes(ctx, ir_, BindingEnv.empty).asInstanceOf[IR]
           val Row(starts: IndexedSeq[Long @unchecked], stops: IndexedSeq[Long @unchecked]) =
-            CompileAndEvaluate[Row](ctx, ir)
+            CompileAndEvaluate[Row](ctx, ir, lower = lower)
           RowIntervalSparsifier(blocksOnly, starts, stops)
         }
       case "PyBandSparsifier" =>
@@ -1952,21 +1954,21 @@ object IRParser {
         punctuation(it, ")")
         ir_value_expr(ctx)(it).map { ir_ =>
           val ir = annotateTypes(ctx, ir_, BindingEnv.empty).asInstanceOf[IR]
-          val Row(l: Long, u: Long) = CompileAndEvaluate[Row](ctx, ir)
+          val Row(l: Long, u: Long) = CompileAndEvaluate[Row](ctx, ir, lower = lower)
           BandSparsifier(blocksOnly, l, u)
         }
       case "PyPerBlockSparsifier" =>
         punctuation(it, ")")
         ir_value_expr(ctx)(it).map { ir_ =>
           val ir = annotateTypes(ctx, ir_, BindingEnv.empty).asInstanceOf[IR]
-          val indices = CompileAndEvaluate[IndexedSeq[Int]](ctx, ir)
+          val indices = CompileAndEvaluate[IndexedSeq[Int]](ctx, ir, lower = lower)
           PerBlockSparsifier(indices)
         }
       case "PyRectangleSparsifier" =>
         punctuation(it, ")")
         ir_value_expr(ctx)(it).map { ir_ =>
           val ir = annotateTypes(ctx, ir_, BindingEnv.empty).asInstanceOf[IR]
-          val rectangles = CompileAndEvaluate[IndexedSeq[Long]](ctx, ir)
+          val rectangles = CompileAndEvaluate[IndexedSeq[Long]](ctx, ir, lower = lower)
           RectangleSparsifier(rectangles.grouped(4).toIndexedSeq)
         }
       case "RowIntervalSparsifier" =>
