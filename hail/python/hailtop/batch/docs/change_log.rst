@@ -15,6 +15,18 @@ versions. In particular, Hail officially supports:
 Change Log
 ==========
 
+**Version 0.2.136**
+
+- (`#14980 <https://github.com/hail-is/hail/pull/14980>`__) Update dataproc image version to 2.2.60
+- (`#14970 <https://github.com/hail-is/hail/pull/14970>`__) Fix dry-run and docs for `dataproc submit`
+- (`#14961 <https://github.com/hail-is/hail/pull/14961>`__) Upgrade dill to latest version, publish python-dill for more python versions
+- (`#14954 <https://github.com/hail-is/hail/pull/14954>`__) Add user agent and auth-level metadata to API logs
+- (`#14926 <https://github.com/hail-is/hail/pull/14926>`__) number migrations in application order
+- (`#14918 <https://github.com/hail-is/hail/pull/14918>`__) Default to python 3.11, drop support for 3.9
+- (`#14948 <https://github.com/hail-is/hail/pull/14948>`__) fix to slow scheduler query
+- (`#14946 <https://github.com/hail-is/hail/pull/14946>`__) fix to autoscaler logic
+- (`#14937 <https://github.com/hail-is/hail/pull/14937>`__) Fix tmpdir bug
+
 **Version 0.2.135**
 
 - (`#14927 <https://github.com/hail-is/hail/pull/14927>`__)

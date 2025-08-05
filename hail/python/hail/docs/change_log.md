@@ -52,6 +52,24 @@ supports.
 policy. Their functionality or even existence may change without notice. Please contact us if you
 critically depend on experimental functionality.**
 
+## Version 0.2.136
+
+- (hail#14969) don't lower inside CompileAndEvaluate
+- (hail#14731) Lowering + Optimisation with implict timing context
+- (hail#14921) refactor row/col count estimates
+- (hail#14982) fix flaky scalacheck test
+- (hail#14966) fix memory leak in lowered blockmatrix diagonal
+- (hail#14698) Lift backend state into `(Batch|Py4J)QueryDriver`
+- (hail#14977) write any throwable to worker out file
+- (hail#14973) make make error on unsupported make version
+- (hail#14968) delete unused MatrixWriter.apply method
+- (hail#14965) Fix `MatrixBlockMatrixWriter` for when `n_cols mod block_size == 0`
+- (hail#14961) Upgrade dill to latest version, publish python-dill for more python versions
+- (hail#14918) Default to python 3.11, drop support for 3.9
+- (hail#14920) move relational IR typecheck methods out of class
+- (hail#14877) Add `vds.read_dense_mt` to execute a single pass densify on read
+- (hail#14934) Update init_notebook dependency versions
+
 ## Version 0.2.135
 
 Released 2025-06-26
