@@ -42,7 +42,6 @@ async def update_inactive_users(db: Database, user_timeout_days: int):
     Function updates the 'users' table in the database, setting the state to 'inactive'
     for users who:
         - are currently 'active';
-        - have a 'last_activated' timestamp;
         - have been inactive for more than 'user_timeout_days' days; and
         - are NOT service accounts.
     Args:
