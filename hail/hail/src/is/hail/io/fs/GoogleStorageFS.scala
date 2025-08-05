@@ -3,6 +3,7 @@ package is.hail.io.fs
 import is.hail.HailFeatureFlags
 import is.hail.io.fs.FSUtil.dropTrailingSlash
 import is.hail.io.fs.GoogleStorageFS.RequesterPaysFailure
+import is.hail.macros.void
 import is.hail.services.{isTransientError, retryTransientErrors}
 import is.hail.services.oauth2.GoogleCloudCredentials
 import is.hail.utils._
@@ -286,14 +287,14 @@ class GoogleStorageFS(
       }
 
       override def flush(): Unit = {
-        bb.flip()
+        void(bb.flip())
 
         while (bb.remaining() > 0)
           doHandlingRequesterPays {
-            writer.write(bb)
+            void(writer.write(bb))
           }
 
-        bb.clear()
+        void(bb.clear())
       }
 
       override def close(): Unit = {
@@ -357,7 +358,10 @@ class GoogleStorageFS(
             throw exc
           }
       }
-      storage.copy(config).getResult() // getResult is necessary to cause this to go to completion
+
+      void {
+        storage.copy(config).getResult
+      } // getResult is necessary to cause this to go to completion
     }
 
     def discoverExceptionThenRetryCopyIfRequesterPays(exc: Throwable): Unit = exc match {
@@ -383,48 +387,49 @@ class GoogleStorageFS(
         discoverExceptionThenRetryCopyIfRequesterPays(exc)
     }
 
-    if (deleteSource)
-      storage.delete(srcId)
+    if (deleteSource) void(storage.delete(srcId))
   }
 
-  def delete(url: URL, recursive: Boolean): Unit = retryTransientErrors {
-    if (recursive) {
-      var page = retryTransientErrors {
+  def delete(url: URL, recursive: Boolean): Unit =
+    retryTransientErrors[Unit] {
+      if (recursive) {
+        var page = retryTransientErrors {
+          handleRequesterPays(
+            (options: Seq[BlobListOption]) =>
+              storage.list(url.bucket, (BlobListOption.prefix(url.path) +: options): _*),
+            BlobListOption.userProject,
+            url.bucket,
+          )
+        }
+        while (page != null) {
+          retryTransientErrors {
+            val blobs = page.getValues.asScala.map(_.getBlobId).asJava
+            if (blobs.iterator().hasNext) {
+              handleRequesterPays(
+                { (options: Seq[BlobSourceOption]) =>
+                  if (options.isEmpty) {
+                    storage.delete(blobs)
+                  } else {
+                    blobs.asScala.foreach(storage.delete(_, options: _*))
+                  }
+                },
+                BlobSourceOption.userProject,
+                url.bucket,
+              )
+            }
+          }
+          page = page.getNextPage()
+        }
+      } else void {
+        /* Storage.delete is idempotent. it returns a Boolean which is false if the file did not
+         * exist */
         handleRequesterPays(
-          (options: Seq[BlobListOption]) =>
-            storage.list(url.bucket, (BlobListOption.prefix(url.path) +: options): _*),
-          BlobListOption.userProject,
+          (options: Seq[BlobSourceOption]) => storage.delete(url.bucket, url.path, options: _*),
+          BlobSourceOption.userProject,
           url.bucket,
         )
       }
-      while (page != null) {
-        retryTransientErrors {
-          val blobs = page.getValues.asScala.map(_.getBlobId).asJava
-          if (blobs.iterator().hasNext) {
-            handleRequesterPays(
-              { (options: Seq[BlobSourceOption]) =>
-                if (options.isEmpty) {
-                  storage.delete(blobs)
-                } else {
-                  blobs.asScala.foreach(storage.delete(_, options: _*))
-                }
-              },
-              BlobSourceOption.userProject,
-              url.bucket,
-            )
-          }
-        }
-        page = page.getNextPage()
-      }
-    } else {
-      // Storage.delete is idempotent. it returns a Boolean which is false if the file did not exist
-      handleRequesterPays(
-        (options: Seq[BlobSourceOption]) => storage.delete(url.bucket, url.path, options: _*),
-        BlobSourceOption.userProject,
-        url.bucket,
-      )
     }
-  }
 
   def glob(url: URL): Array[FileListEntry] = retryTransientErrors {
     globWithPrefix(url.withPath(""), path = dropTrailingSlash(url.path))

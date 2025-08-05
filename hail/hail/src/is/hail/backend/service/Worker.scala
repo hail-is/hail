@@ -4,6 +4,7 @@ import is.hail.{HAIL_REVISION, HailContext, HailFeatureFlags}
 import is.hail.asm4s._
 import is.hail.backend.HailTaskContext
 import is.hail.io.fs._
+import is.hail.macros.void
 import is.hail.services._
 import is.hail.utils._
 
@@ -36,7 +37,7 @@ class WorkerTimer() {
   var startTimes: mutable.Map[String, Long] = mutable.Map()
 
   def start(label: String): Unit =
-    startTimes.put(label, System.nanoTime())
+    void(startTimes.put(label, System.nanoTime()))
 
   def end(label: String): Unit = {
     val endTime = System.nanoTime()
@@ -236,7 +237,7 @@ object Worker {
     timer.end(s"Job $i")
     log.info(s"finished job $i at root $root")
 
-    result.left.map { throwableWhileExecutingUserCode =>
+    result.left.foreach { throwableWhileExecutingUserCode =>
       log.info("throwing the exception so that this Worker job is marked as failed.")
       throw throwableWhileExecutingUserCode
     }

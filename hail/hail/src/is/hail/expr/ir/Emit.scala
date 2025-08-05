@@ -816,14 +816,11 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
 
     (ir: @unchecked) match {
       case Literal(TVoid, ()) =>
-        Code._empty
 
       case Void() =>
-        Code._empty
 
       case If(cond, cnsq, altr) =>
         assert(cnsq.typ == TVoid && altr.typ == TVoid)
-
         emitI(cond).consume(cb, {}, m => cb.if_(m.asBoolean.value, emitVoid(cnsq), emitVoid(altr)))
 
       case let: Block =>

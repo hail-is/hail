@@ -57,33 +57,31 @@ final case class TTuple(_types: IndexedSeq[TupleField]) extends TBaseStruct {
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = {
     if (!_isCanonical) {
-      sb.append("TupleSubset[")
+      sb ++= "TupleSubset["
       fields.foreachBetween { fd =>
-        sb.append(fd.name)
-        sb.append(':')
+        sb ++= fd.name += ':'
         fd.typ.pretty(sb, indent, compact)
       }(sb += ',')
       sb += ']'
     } else {
-      sb.append("Tuple[")
+      sb ++= "Tuple["
       _types.foreachBetween(fd => fd.typ.pretty(sb, indent, compact))(sb += ',')
       sb += ']'
     }
   }
 
   override def pyString(sb: StringBuilder): Unit = {
-    sb.append("tuple(")
+    sb ++= "tuple("
     if (!_isCanonical) {
       fields.foreachBetween({ field =>
-        sb.append(field.name)
-        sb.append(':')
+        sb ++= field.name += ':'
         field.typ.pyString(sb)
-      })(sb.append(", "))
-      sb.append(')')
+      })(sb ++= ", ")
+      sb += ')'
     } else {
-      fields.foreachBetween({ field => field.typ.pyString(sb) })(sb.append(", "))
+      fields.foreachBetween({ field => field.typ.pyString(sb) })(sb ++= ", ")
     }
-    sb.append(')')
+    sb += ')'
   }
 
   override def valueSubsetter(subtype: Type): Any => Any = {

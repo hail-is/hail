@@ -62,6 +62,7 @@ object HailContext {
       logProps.put("log4j.logger.Hail", "INFO, HailConsoleAppender, HailSocketAppender")
       logProps.put("log4j.appender.HailConsoleAppender", "org.apache.log4j.ConsoleAppender")
       logProps.put("log4j.appender.HailConsoleAppender.target", "System.err")
+      logProps.put("log4j.appender.HailConsoleAppender.layout", "org.apache.log4j.PatternLayout")
     } else
       logProps.put("log4j.logger.Hail", "INFO, HailSocketAppender")
 

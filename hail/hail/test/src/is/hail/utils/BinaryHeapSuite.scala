@@ -1,5 +1,6 @@
 package is.hail.utils
 
+import is.hail.macros.void
 import is.hail.scalacheck._
 
 import scala.collection.mutable
@@ -8,13 +9,15 @@ import scala.util.Random
 import org.scalacheck.Arbitrary._
 import org.scalacheck.Gen
 import org.scalacheck.Gen._
+import org.scalatest
 import org.scalatest.matchers.should.Matchers._
+import org.scalatestplus.scalacheck.CheckerAsserting.assertingNatureOfAssertion
 import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
 import org.testng.annotations.Test
 
 class BinaryHeapSuite extends ScalaCheckDrivenPropertyChecks {
   @Test
-  def insertOneIsMax(): Unit = {
+  def insertOneIsMax(): scalatest.Assertion = {
     val bh = new BinaryHeap[Int]()
     bh.insert(1, 10)
     assert(bh.max() === 1)
@@ -25,12 +28,12 @@ class BinaryHeapSuite extends ScalaCheckDrivenPropertyChecks {
     assert(bh.contains(1) === false)
     assert(bh.size === 0)
 
-    intercept[Exception](bh.max())
-    intercept[Exception](bh.extractMax())
+    assertThrows[Exception](bh.max())
+    assertThrows[Exception](bh.extractMax())
   }
 
   @Test
-  def twoElements(): Unit = {
+  def twoElements(): scalatest.Assertion = {
     val bh = new BinaryHeap[Int]()
     bh.insert(1, 5)
     assert(bh.contains(1) == true)
@@ -51,7 +54,7 @@ class BinaryHeapSuite extends ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def threeElements(): Unit = {
+  def threeElements(): scalatest.Assertion = {
     val bh = new BinaryHeap[Int]()
     bh.insert(1, -10)
     assert(bh.contains(1) == true)
@@ -83,7 +86,7 @@ class BinaryHeapSuite extends ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def decreaseToKey1(): Unit = {
+  def decreaseToKey1(): scalatest.Assertion = {
     val bh = new BinaryHeap[Int]()
 
     bh.insert(1, 0)
@@ -98,7 +101,7 @@ class BinaryHeapSuite extends ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def decreaseToKey2(): Unit = {
+  def decreaseToKey2(): scalatest.Assertion = {
     val bh = new BinaryHeap[Int]()
 
     bh.insert(1, 0)
@@ -113,7 +116,7 @@ class BinaryHeapSuite extends ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def decreaseToKeyButNoOrderingChange(): Unit = {
+  def decreaseToKeyButNoOrderingChange(): scalatest.Assertion = {
     val bh = new BinaryHeap[Int]()
 
     bh.insert(1, 0)
@@ -128,7 +131,7 @@ class BinaryHeapSuite extends ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def decreaseKey1(): Unit = {
+  def decreaseKey1(): scalatest.Assertion = {
     val bh = new BinaryHeap[Int]()
 
     bh.insert(1, 0)
@@ -143,7 +146,7 @@ class BinaryHeapSuite extends ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def decreaseKey2(): Unit = {
+  def decreaseKey2(): scalatest.Assertion = {
     val bh = new BinaryHeap[Int]()
 
     bh.insert(1, 0)
@@ -158,7 +161,7 @@ class BinaryHeapSuite extends ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def decreaseKeyButNoOrderingChange(): Unit = {
+  def decreaseKeyButNoOrderingChange(): scalatest.Assertion = {
     val bh = new BinaryHeap[Int]()
 
     bh.insert(1, 0)
@@ -173,7 +176,7 @@ class BinaryHeapSuite extends ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def increaseToKey1(): Unit = {
+  def increaseToKey1(): scalatest.Assertion = {
     val bh = new BinaryHeap[Int]()
 
     bh.insert(1, 0)
@@ -188,7 +191,7 @@ class BinaryHeapSuite extends ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def increaseToKeys(): Unit = {
+  def increaseToKeys(): scalatest.Assertion = {
     val bh = new BinaryHeap[Int]()
 
     bh.insert(1, 0)
@@ -206,7 +209,7 @@ class BinaryHeapSuite extends ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def increaseKey1(): Unit = {
+  def increaseKey1(): scalatest.Assertion = {
     val bh = new BinaryHeap[Int]()
 
     bh.insert(1, 0)
@@ -221,7 +224,7 @@ class BinaryHeapSuite extends ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def increaseKeys(): Unit = {
+  def increaseKeys(): scalatest.Assertion = {
     val bh = new BinaryHeap[Int]()
 
     bh.insert(1, 0)
@@ -239,7 +242,7 @@ class BinaryHeapSuite extends ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def samePriority(): Unit = {
+  def samePriority(): scalatest.Assertion = {
     val bh = new BinaryHeap[Int]()
 
     bh.insert(1, 0)
@@ -253,12 +256,13 @@ class BinaryHeapSuite extends ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def successivelyMoreInserts(): Unit = {
-    for (count <- Seq(2, 4, 8, 16, 32)) {
+  def successivelyMoreInserts(): scalatest.Assertion =
+    scalatest.Inspectors.forAll(Seq(2, 4, 8, 16, 32)) { count =>
       val bh = new BinaryHeap[Int](8)
       val trace = new BoxedArrayBuilder[String]()
       trace += bh.toString()
       bh.checkHeapProperty()
+
       for (i <- 0 until count) {
         bh.insert(i, i)
         trace += bh.toString()
@@ -266,7 +270,8 @@ class BinaryHeapSuite extends ScalaCheckDrivenPropertyChecks {
       }
       assert(bh.size === count)
       assert(bh.max() === count - 1)
-      for (i <- 0 until count) {
+
+      scalatest.Inspectors.forAll(0 until count) { i =>
         val actual = bh.extractMax()
         trace += bh.toString()
         bh.checkHeapProperty()
@@ -276,36 +281,36 @@ class BinaryHeapSuite extends ScalaCheckDrivenPropertyChecks {
           s"[$count] $actual did not equal $expected, heap: $bh; trace ${trace.result().mkString("\n")}",
         )
       }
+
       assert(bh.isEmpty)
     }
-  }
 
   @Test
-  def growPastCapacity4(): Unit = {
+  def growPastCapacity4(): scalatest.Assertion = {
     val bh = new BinaryHeap[Int](4)
     bh.insert(1, 0)
     bh.insert(2, 0)
     bh.insert(3, 0)
     bh.insert(4, 0)
     bh.insert(5, 0)
-    assert(true)
+    succeed
   }
 
   @Test
-  def growPastCapacity32(): Unit = {
+  def growPastCapacity32(): scalatest.Assertion = {
     val bh = new BinaryHeap[Int](32)
     for (i <- 0 to 32)
       bh.insert(i, 0)
-    assert(true)
+    succeed
   }
 
   @Test
-  def shrinkCapacity(): Unit = {
+  def shrinkCapacity(): scalatest.Assertion = {
     val bh = new BinaryHeap[Int](8)
     val trace = new BoxedArrayBuilder[String]()
     trace += bh.toString()
     bh.checkHeapProperty()
-    for (i <- 0 until 64) {
+    scalatest.Inspectors.forAll(0 until 64) { i =>
       bh.insert(i, i)
       trace += bh.toString()
       bh.checkHeapProperty()
@@ -313,7 +318,7 @@ class BinaryHeapSuite extends ScalaCheckDrivenPropertyChecks {
     assert(bh.size === 64, s"trace: ${trace.result().mkString("\n")}")
     assert(bh.max() === 63, s"trace: ${trace.result().mkString("\n")}")
     // shrinking happens when size is <1/4 of capacity
-    for (i <- 0 until (32 + 16 + 1)) {
+    scalatest.Inspectors.forAll(0 until (32 + 16 + 1)) { i =>
       val actual = bh.extractMax()
       val expected = 64 - i - 1
       trace += bh.toString()
@@ -357,11 +362,11 @@ class BinaryHeapSuite extends ScalaCheckDrivenPropertyChecks {
     }
 
     def insert(t: Long, rank: Long): Unit =
-      m += (t -> rank)
+      void(m += (t -> rank))
   }
 
   @Test
-  def sameAsReferenceImplementation(): Unit = {
+  def sameAsReferenceImplementation(): scalatest.Assertion = {
     val ops =
       for {
         maxOrExtract <- containerOfN[IndexedSeq, HeapOp](64, Gen.oneOf(Max(), ExtractMax()))
@@ -374,7 +379,7 @@ class BinaryHeapSuite extends ScalaCheckDrivenPropertyChecks {
       val ref = new LongPriorityQueueReference()
       val trace = new BoxedArrayBuilder[String]()
       trace += bh.toString()
-      opList.foreach {
+      scalatest.Inspectors.forAll(opList) {
         case Max() =>
           if (bh.isEmpty && ref.isEmpty)
             assert(true, s"trace; ${trace.result().mkString("\n")}")
@@ -382,6 +387,7 @@ class BinaryHeapSuite extends ScalaCheckDrivenPropertyChecks {
             assert(bh.max() === ref.max(), s"trace; ${trace.result().mkString("\n")}")
           trace += bh.toString()
           bh.checkHeapProperty()
+          succeed
         case ExtractMax() =>
           if (bh.isEmpty && ref.isEmpty)
             assert(true, s"trace; ${trace.result().mkString("\n")}")
@@ -389,6 +395,7 @@ class BinaryHeapSuite extends ScalaCheckDrivenPropertyChecks {
             assert(bh.max() === ref.max(), s"trace; ${trace.result().mkString("\n")}")
           trace += bh.toString()
           bh.checkHeapProperty()
+          succeed
         case Insert(t, rank) =>
           bh.insert(t, rank)
           ref.insert(t, rank)
@@ -396,7 +403,6 @@ class BinaryHeapSuite extends ScalaCheckDrivenPropertyChecks {
           bh.checkHeapProperty()
           assert(bh.size === ref.size, s"trace; ${trace.result().mkString("\n")}")
       }
-      true
     }
   }
 
@@ -410,7 +416,7 @@ class BinaryHeapSuite extends ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def tieBreakingDoesntChangeExistingFunctionality(): Unit = {
+  def tieBreakingDoesntChangeExistingFunctionality(): scalatest.Assertion = {
     val bh = new BinaryHeap[Int](maybeTieBreaker = evensFirst)
     bh.insert(1, -10)
     assert(bh.contains(1) == true)
@@ -442,7 +448,7 @@ class BinaryHeapSuite extends ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def tieBreakingHappens(): Unit = {
+  def tieBreakingHappens(): scalatest.Assertion = {
     val bh = new BinaryHeap[Int](maybeTieBreaker = evensFirst)
     bh.insert(1, -10)
     assert(bh.contains(1) == true)
@@ -474,7 +480,7 @@ class BinaryHeapSuite extends ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def tieBreakingThreeWayDeterministic(): Unit = {
+  def tieBreakingThreeWayDeterministic(): scalatest.Assertion = {
     val bh = new BinaryHeap[Int](maybeTieBreaker = evensFirst)
     bh.insert(1, -5)
     assert(bh.contains(1) == true)
@@ -508,7 +514,7 @@ class BinaryHeapSuite extends ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def tieBreakingThreeWayNonDeterministic(): Unit = {
+  def tieBreakingThreeWayNonDeterministic(): scalatest.Assertion = {
     val bh = new BinaryHeap[Int](maybeTieBreaker = evensFirst)
     bh.insert(0, -5)
     assert(bh.contains(0) == true)
@@ -542,7 +548,7 @@ class BinaryHeapSuite extends ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def tieBreakingAfterPriorityChange(): Unit = {
+  def tieBreakingAfterPriorityChange(): scalatest.Assertion = {
     val bh = new BinaryHeap[Int](maybeTieBreaker = evensFirst)
     bh.insert(1, 15)
     bh.insert(2, 10)

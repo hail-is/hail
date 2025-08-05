@@ -5,11 +5,12 @@ import is.hail.linalg.BlockMatrix
 import is.hail.utils.richUtils.RichDenseMatrixDouble
 
 import breeze.linalg.{DenseMatrix => BDM}
+import org.scalatest
 import org.testng.annotations.Test
 
 class RichDenseMatrixDoubleSuite extends HailSuite {
   @Test
-  def readWriteBDM(): Unit = {
+  def readWriteBDM(): scalatest.Assertion = {
     val m = BDM.rand[Double](256, 129) // 33024 doubles
     val fname = ctx.createTmpPath("test")
 
@@ -20,7 +21,7 @@ class RichDenseMatrixDoubleSuite extends HailSuite {
   }
 
   @Test
-  def testReadWriteDoubles(): Unit = {
+  def testReadWriteDoubles(): scalatest.Assertion = {
     val file = ctx.createTmpPath("test")
     val m = BDM.rand[Double](50, 100)
     RichDenseMatrixDouble.exportToDoubles(fs, file, m, forceRowMajor = false)

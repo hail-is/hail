@@ -9,9 +9,9 @@ final case class TSet(elementType: Type) extends TContainer {
   def _toPretty = s"Set[$elementType]"
 
   override def pyString(sb: StringBuilder): Unit = {
-    sb.append("set<")
+    sb ++= "set<"
     elementType.pyString(sb)
-    sb.append('>')
+    sb += '>'
   }
 
   override def canCompare(other: Type): Boolean = other match {
@@ -30,9 +30,9 @@ final case class TSet(elementType: Type) extends TContainer {
     a.isInstanceOf[Set[_]] && a.asInstanceOf[Set[_]].forall(elementType.typeCheck)
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false): Unit = {
-    sb.append("Set[")
+    sb ++= "Set["
     elementType.pretty(sb, indent, compact)
-    sb.append("]")
+    sb += ']'
   }
 
   override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =

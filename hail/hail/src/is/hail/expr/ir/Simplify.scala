@@ -758,39 +758,11 @@ object Simplify {
     case ApplyUnaryPrimOp(Bang, ApplyComparisonOp(op, l, r)) =>
       ApplyComparisonOp(ComparisonOp.negate(op.asInstanceOf[ComparisonOp[Boolean]]), l, r)
 
-    case StreamAgg(_, _, query) if {
-          def canBeLifted(x: IR): Boolean = x match {
-            case _: TableAggregate => true
-            case _: MatrixAggregate => true
-            case Block(bindings, _) if bindings.exists {
-                  case Binding(_, _, Scope.AGG) => true
-                  case _ => false
-                } => false
-            case x if IsAggResult(x) => false
-            case other => other.children.forall {
-                case child: IR => canBeLifted(child)
-                case _: BaseIR => true
-              }
-          }
-          canBeLifted(query)
-        } => query
+    case StreamAgg(_, _, query) if !ContainsAgg(query) =>
+      query
 
-    case StreamAggScan(_, _, query) if {
-          def canBeLifted(x: IR): Boolean = x match {
-            case _: TableAggregate => true
-            case _: MatrixAggregate => true
-            case Block(bindings, _) if bindings.exists {
-                  case Binding(_, _, Scope.SCAN) => true
-                  case _ => false
-                } => false
-            case x if IsScanResult(x) => false
-            case other => other.children.forall {
-                case child: IR => canBeLifted(child)
-                case _: BaseIR => true
-              }
-          }
-          canBeLifted(query)
-        } => query
+    case StreamAggScan(a, name, query) if !ContainsScan(query) =>
+      StreamMap(a, name, query)
 
     case BlockMatrixToValueApply(
           ValueToBlockMatrix(child, IndexedSeq(_, ncols), _),

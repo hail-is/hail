@@ -68,8 +68,6 @@ sealed abstract class MatrixIR extends BaseIR {
     }
 
   def pyUnpersist(): MatrixIR = unpersist()
-
-  def typecheck(): Unit = {}
 }
 
 object MatrixLiteral {
@@ -608,9 +606,6 @@ case class MatrixCollectColsByKey(child: MatrixIR) extends MatrixIR {
 }
 
 case class MatrixAggregateRowsByKey(child: MatrixIR, entryExpr: IR, rowExpr: IR) extends MatrixIR {
-  override def typecheck(): Unit =
-    assert(child.typ.rowKey.nonEmpty)
-
   lazy val childrenSeq: IndexedSeq[BaseIR] = Array(child, entryExpr, rowExpr)
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR])
@@ -630,9 +625,6 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, entryExpr: IR, rowExpr: IR)
 }
 
 case class MatrixAggregateColsByKey(child: MatrixIR, entryExpr: IR, colExpr: IR) extends MatrixIR {
-  override def typecheck(): Unit =
-    assert(child.typ.colKey.nonEmpty)
-
   lazy val childrenSeq: IndexedSeq[BaseIR] = Array(child, entryExpr, colExpr)
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR])
@@ -653,18 +645,6 @@ case class MatrixAggregateColsByKey(child: MatrixIR, entryExpr: IR, colExpr: IR)
 
 case class MatrixUnionCols(left: MatrixIR, right: MatrixIR, joinType: String) extends MatrixIR {
   require(joinType == "inner" || joinType == "outer")
-
-  override def typecheck(): Unit = {
-    assert(
-      left.typ.rowKeyStruct == right.typ.rowKeyStruct,
-      s"${left.typ.rowKeyStruct} != ${right.typ.rowKeyStruct}",
-    )
-    assert(left.typ.colType == right.typ.colType, s"${left.typ.colType} != ${right.typ.colType}")
-    assert(
-      left.typ.entryType == right.typ.entryType,
-      s"${left.typ.entryType} != ${right.typ.entryType}",
-    )
-  }
 
   lazy val childrenSeq: IndexedSeq[BaseIR] = Array(left, right)
 
@@ -736,11 +716,6 @@ case class MatrixMapEntries(child: MatrixIR, newEntries: IR) extends MatrixIR {
 
 case class MatrixKeyRowsBy(child: MatrixIR, keys: IndexedSeq[String], isSorted: Boolean = false)
     extends MatrixIR {
-  override def typecheck(): Unit = {
-    val fields = child.typ.rowType.fieldNames.toSet
-    assert(keys.forall(fields.contains), s"${keys.filter(k => !fields.contains(k)).mkString(", ")}")
-  }
-
   val childrenSeq: IndexedSeq[BaseIR] = Array(child)
 
   lazy val typ: MatrixType = child.typ.copy(rowKey = keys)
@@ -837,9 +812,6 @@ case class MatrixAnnotateColsTable(
   table: TableIR,
   root: String,
 ) extends MatrixIR {
-  override def typecheck(): Unit =
-    assert(child.typ.colType.selfField(root).isEmpty)
-
   lazy val childrenSeq: IndexedSeq[BaseIR] = FastSeq(child, table)
 
   override def columnCount: Option[Call] = child.columnCount
@@ -867,15 +839,6 @@ case class MatrixAnnotateRowsTable(
   root: String,
   product: Boolean,
 ) extends MatrixIR {
-  override def typecheck(): Unit =
-    assert(
-      (!product && table.typ.keyType.isPrefixOf(child.typ.rowKeyStruct)) ||
-        (table.typ.keyType.size == 1 && table.typ.keyType.types(0) == TInterval(
-          child.typ.rowKeyStruct.types(0)
-        )),
-      s"\n  L: ${child.typ}\n  R: ${table.typ}",
-    )
-
   lazy val childrenSeq: IndexedSeq[BaseIR] = FastSeq(child, table)
 
   override def columnCount: Option[Int] = child.columnCount
@@ -943,19 +906,7 @@ case class MatrixRepartition(child: MatrixIR, n: Int, strategy: Int) extends Mat
 case class MatrixUnionRows(childrenSeq: IndexedSeq[MatrixIR]) extends MatrixIR {
   require(childrenSeq.length > 1)
 
-  override def typecheck(): Unit =
-    assert(
-      childrenSeq.tail.forall(c => compatible(c.typ, childrenSeq.head.typ)),
-      childrenSeq.map(_.typ),
-    )
-
   def typ: MatrixType = childrenSeq.head.typ
-
-  def compatible(t1: MatrixType, t2: MatrixType): Boolean =
-    t1.colKeyStruct == t2.colKeyStruct &&
-      t1.rowType == t2.rowType &&
-      t1.rowKey == t2.rowKey &&
-      t1.entryType == t2.entryType
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): MatrixUnionRows =
     MatrixUnionRows(newChildren.asInstanceOf[IndexedSeq[MatrixIR]])
@@ -1111,12 +1062,6 @@ case class CastTableToMatrix(
   colsFieldName: String,
   colKey: IndexedSeq[String],
 ) extends MatrixIR {
-  override def typecheck(): Unit =
-    child.typ.rowType.fieldType(entriesFieldName) match {
-      case TArray(TStruct(_)) =>
-      case t => fatal(s"expected entry field to be an array of structs, found $t")
-    }
-
   lazy val typ: MatrixType =
     MatrixType.fromTableType(child.typ, colsFieldName, entriesFieldName, colKey)
 
@@ -1161,13 +1106,6 @@ case class MatrixRename(
   rowMap: Map[String, String],
   entryMap: Map[String, String],
 ) extends MatrixIR {
-  override def typecheck(): Unit = {
-    assert(globalMap.keys.forall(child.typ.globalType.hasField))
-    assert(colMap.keys.forall(child.typ.colType.hasField))
-    assert(rowMap.keys.forall(child.typ.rowType.hasField))
-    assert(entryMap.keys.forall(child.typ.entryType.hasField))
-  }
-
   lazy val typ: MatrixType = MatrixType(
     globalType = child.typ.globalType.rename(globalMap),
     colKey = child.typ.colKey.map(k => colMap.getOrElse(k, k)),

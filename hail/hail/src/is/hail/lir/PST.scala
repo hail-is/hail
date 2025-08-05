@@ -1,6 +1,7 @@
 package is.hail.lir
 
 import is.hail.expr.ir.{BooleanArrayBuilder, IntArrayBuilder}
+import is.hail.macros.void
 import is.hail.utils.BoxedArrayBuilder
 
 import scala.collection.mutable
@@ -340,7 +341,7 @@ class PSTBuilder(
             if (backEdgesOK(rStart, newStart)) {
               // expensive, for debugging
               checkRegion(rStart, newStart)
-              addRegion(rStart, newStart)
+              void(addRegion(rStart, newStart))
             } else
               f(i - 1)
           }

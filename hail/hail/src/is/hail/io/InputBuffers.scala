@@ -2,6 +2,7 @@ package is.hail.io
 
 import is.hail.annotations.{Memory, Region}
 import is.hail.io.compress.LZ4
+import is.hail.macros.void
 import is.hail.utils._
 
 import java.io._
@@ -319,22 +320,23 @@ final class TracingInputBuffer(
   override def skipBoolean(): Unit = skipByte()
 
   def skipByte(): Unit =
-    readBytesArray(1)
+    skipBytes(1)
 
   def skipInt(): Unit =
-    readBytesArray(4)
+    skipBytes(4)
 
   def skipLong(): Unit =
-    readBytesArray(8)
+    skipBytes(8)
 
   def skipFloat(): Unit =
-    readBytesArray(4)
+    skipBytes(4)
 
   def skipDouble(): Unit =
-    readBytesArray(8)
+    skipBytes(8)
 
-  def skipBytes(n: Int): Unit =
-    readBytesArray(n)
+  @inline def skipBytes(n: Int): Unit =
+    for (_ <- 0 until n)
+      void(readByte())
 
   def readDoubles(to: Array[Double], off: Int, n: Int): Unit = {
     var i = 0

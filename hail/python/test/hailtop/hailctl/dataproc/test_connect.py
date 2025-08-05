@@ -5,7 +5,7 @@ from typer.testing import CliRunner
 
 from hailtop.hailctl.dataproc import cli
 
-runner = CliRunner(mix_stderr=False)
+runner = CliRunner()
 
 
 @pytest.fixture

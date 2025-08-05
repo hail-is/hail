@@ -7,6 +7,7 @@ import is.hail.types.tcoerce
 import is.hail.types.virtual.{TInt32, TInt64, TStruct}
 import is.hail.utils.FastSeq
 
+import org.scalatest
 import org.testng.annotations.Test
 
 class SStructViewSuite extends HailSuite {
@@ -22,7 +23,7 @@ class SStructViewSuite extends HailSuite {
       )
     )
 
-  @Test def testCastRename(): Unit = {
+  @Test def testCastRename(): scalatest.Assertion = {
     val newtype = TStruct("x" -> TStruct("b" -> TInt32))
 
     val expected =
@@ -35,7 +36,7 @@ class SStructViewSuite extends HailSuite {
     assert(SStructView.subset(FastSeq("z"), xyz).castRename(newtype) == expected)
   }
 
-  @Test def testSubsetRenameSubset(): Unit = {
+  @Test def testSubsetRenameSubset(): scalatest.Assertion = {
     val subset =
       SStructView.subset(
         FastSeq("x"),
@@ -54,8 +55,8 @@ class SStructViewSuite extends HailSuite {
     assert(subset == expected)
   }
 
-  @Test def testAssertIsomorphism(): Unit =
-    intercept[AssertionError] {
+  @Test def testAssertIsomorphism(): scalatest.Assertion =
+    assertThrows[AssertionError] {
       SStructView.subset(FastSeq("x", "y"), xyz)
         .castRename(TStruct("x" -> TInt64, "x" -> TInt32))
     }

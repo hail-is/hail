@@ -13,6 +13,8 @@ import org.apache.spark.sql.Row
 import org.scalacheck._
 import org.scalacheck.Arbitrary._
 import org.scalacheck.Gen.{size, _}
+import org.scalatest
+import org.scalatestplus.scalacheck.CheckerAsserting.assertingNatureOfAssertion
 import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
 import org.testng.annotations.Test
 
@@ -94,44 +96,29 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
   private val defaultRelTolerance = 1e-14
 
-  private def sameDoubleMatrixNaNEqualsNaN(
+  private def assertDoubleMatrixNaNEqualsNaN(
     x: DenseMatrix[Double],
     y: DenseMatrix[Double],
     relTolerance: Double = defaultRelTolerance,
-  ): Boolean =
-    findDoubleMatrixMismatchNaNEqualsNaN(x, y, relTolerance) match {
-      case Some(_) => false
-      case None => true
-    }
-
-  private def findDoubleMatrixMismatchNaNEqualsNaN(
-    x: DenseMatrix[Double],
-    y: DenseMatrix[Double],
-    relTolerance: Double = defaultRelTolerance,
-  ): Option[(Int, Int)] = {
+  ): scalatest.Assertion = {
     assert(
       x.rows == y.rows && x.cols == y.cols,
       s"dimension mismatch: ${x.rows} x ${x.cols} vs ${y.rows} x ${y.cols}",
     )
-    var j = 0
-    while (j < x.cols) {
-      var i = 0
-      while (i < x.rows) {
-        if (D_==(x(i, j) - y(i, j), relTolerance) && !(x(i, j).isNaN && y(i, j).isNaN)) {
-          println(x.toString(1000, 1000))
-          println(y.toString(1000, 1000))
-          println(s"inequality found at ($i, $j): ${x(i, j)} and ${y(i, j)}")
-          return Some((i, j))
-        }
-        i += 1
+    scalatest.Inspectors.forAll(0 until x.cols) { j =>
+      scalatest.Inspectors.forAll(0 until x.rows) { i =>
+        assert(
+          !(D_==(x(i, j) - y(i, j), relTolerance) && !(x(i, j).isNaN && y(i, j).isNaN)),
+          s"x=${x.toString(1000, 1000)}\n" ++
+            s"y=${y.toString(1000, 1000)}\n" ++
+            s"inequality found at ($i, $j): ${x(i, j)} and ${y(i, j)}",
+        )
       }
-      j += 1
     }
-    None
   }
 
   @Test
-  def pointwiseSubtractCorrect(): Unit = {
+  def pointwiseSubtractCorrect(): scalatest.Assertion = {
     val m = toBM(
       4,
       4,
@@ -157,7 +144,7 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def multiplyByLocalMatrix(): Unit = {
+  def multiplyByLocalMatrix(): scalatest.Assertion = {
     val ll = toLM(
       4,
       4,
@@ -184,73 +171,62 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def randomMultiplyByLocalMatrix(): Unit =
+  def randomMultiplyByLocalMatrix(): scalatest.Assertion =
     forAll(genMultipliableDenseMatrices) { case (ll, lr) =>
       val l = toBM(ll)
-      sameDoubleMatrixNaNEqualsNaN(ll * lr, l.dot(lr).toBreezeMatrix())
+      assertDoubleMatrixNaNEqualsNaN(ll * lr, l.dot(lr).toBreezeMatrix())
     }
 
   @Test
-  def multiplySameAsBreeze(): Unit = {
+  def multiplySameAsBreeze(): scalatest.Assertion = {
     forAll(genDenseMatrix(4, 4), genDenseMatrix(4, 4)) { (ll, lr) =>
       val l = toBM(ll, 2)
       val r = toBM(lr, 2)
 
-      sameDoubleMatrixNaNEqualsNaN(l.dot(r).toBreezeMatrix(), ll * lr)
+      assertDoubleMatrixNaNEqualsNaN(l.dot(r).toBreezeMatrix(), ll * lr)
     }
 
     forAll(genDenseMatrix(9, 9), genDenseMatrix(9, 9)) { (ll, lr) =>
       val l = toBM(ll, 3)
       val r = toBM(lr, 3)
 
-      sameDoubleMatrixNaNEqualsNaN(l.dot(r).toBreezeMatrix(), ll * lr)
+      assertDoubleMatrixNaNEqualsNaN(l.dot(r).toBreezeMatrix(), ll * lr)
     }
 
     forAll(genDenseMatrix(9, 9), genDenseMatrix(9, 9)) { (ll, lr) =>
       val l = toBM(ll, 2)
       val r = toBM(lr, 2)
 
-      sameDoubleMatrixNaNEqualsNaN(l.dot(r).toBreezeMatrix(), ll * lr)
+      assertDoubleMatrixNaNEqualsNaN(l.dot(r).toBreezeMatrix(), ll * lr)
     }
 
     forAll(genDenseMatrix(2, 10), genDenseMatrix(10, 2)) { (ll, lr) =>
       val l = toBM(ll, 3)
       val r = toBM(lr, 3)
 
-      sameDoubleMatrixNaNEqualsNaN(l.dot(r).toBreezeMatrix(), ll * lr)
+      assertDoubleMatrixNaNEqualsNaN(l.dot(r).toBreezeMatrix(), ll * lr)
     }
 
     forAll(genMultipliableDenseMatrices, interestingPosInt) { case ((ll, lr), blockSize) =>
       val l = toBM(ll, blockSize)
       val r = toBM(lr, blockSize)
 
-      sameDoubleMatrixNaNEqualsNaN(l.dot(r).toBreezeMatrix(), ll * lr)
+      assertDoubleMatrixNaNEqualsNaN(l.dot(r).toBreezeMatrix(), ll * lr)
     }
   }
 
   @Test
-  def multiplySameAsBreezeRandomized(): Unit = {
+  def multiplySameAsBreezeRandomized(): scalatest.Assertion = {
     forAll(twoMultipliableBlockMatrices) {
       case (l: BlockMatrix, r: BlockMatrix) =>
         val actual = l.dot(r).toBreezeMatrix()
         val expected = l.toBreezeMatrix() * r.toBreezeMatrix()
-
-        findDoubleMatrixMismatchNaNEqualsNaN(actual, expected) match {
-          case Some((i, j)) =>
-            println(s"blockSize: ${l.blockSize}")
-            println(s"${l.toBreezeMatrix()}")
-            println(s"${r.toBreezeMatrix()}")
-            println(s"row: ${l.toBreezeMatrix()(i, ::)}")
-            println(s"col: ${r.toBreezeMatrix()(::, j)}")
-            false
-          case None =>
-            true
-        }
+        assertDoubleMatrixNaNEqualsNaN(actual, expected)
     }
   }
 
   @Test
-  def rowwiseMultiplication(): Unit = {
+  def rowwiseMultiplication(): scalatest.Assertion = {
     val l = toBM(
       4,
       4,
@@ -277,7 +253,7 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def rowwiseMultiplicationRandom(): Unit = {
+  def rowwiseMultiplicationRandom(): scalatest.Assertion = {
     val g = for {
       l <- blockMatrixGen()
       v <- containerOfN[Array, Double](l.nCols.toInt, arbitrary[Double])
@@ -289,12 +265,12 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       val repeatedRMatrix = new DenseMatrix(v.length, l.nRows.toInt, repeatedR).t
       val expected = l.toBreezeMatrix() *:* repeatedRMatrix
 
-      sameDoubleMatrixNaNEqualsNaN(actual, expected)
+      assertDoubleMatrixNaNEqualsNaN(actual, expected)
     }
   }
 
   @Test
-  def colwiseMultiplication(): Unit = {
+  def colwiseMultiplication(): scalatest.Assertion = {
     val l = toBM(
       4,
       4,
@@ -321,7 +297,7 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def colwiseMultiplicationRandom(): Unit = {
+  def colwiseMultiplicationRandom(): scalatest.Assertion = {
     val g = for {
       l <- blockMatrixGen()
       v <- containerOfN[Array, Double](l.nRows.toInt, arbitrary[Double])
@@ -332,18 +308,12 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       val repeatedR = (0 until l.nCols.toInt).flatMap(_ => v).toArray
       val repeatedRMatrix = new DenseMatrix(v.length, l.nCols.toInt, repeatedR)
       val expected = l.toBreezeMatrix() *:* repeatedRMatrix
-
-      if (sameDoubleMatrixNaNEqualsNaN(actual, expected))
-        true
-      else {
-        println(s"${l.toBreezeMatrix().toArray.toSeq}\n*\n${v.toSeq}")
-        false
-      }
+      assertDoubleMatrixNaNEqualsNaN(actual, expected)
     }
   }
 
   @Test
-  def colwiseAddition(): Unit = {
+  def colwiseAddition(): scalatest.Assertion = {
     val l = toBM(
       4,
       4,
@@ -370,7 +340,7 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def rowwiseAddition(): Unit = {
+  def rowwiseAddition(): scalatest.Assertion = {
     val l = toBM(
       4,
       4,
@@ -397,7 +367,7 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def diagonalTestTiny(): Unit = {
+  def diagonalTestTiny(): scalatest.Assertion = {
     val lm = toLM(
       3,
       4,
@@ -415,34 +385,28 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def diagonalTestRandomized(): Unit = {
+  def diagonalTestRandomized(): scalatest.Assertion =
     forAll(squareBlockMatrixGen) { (m: BlockMatrix) =>
       val lm = m.toBreezeMatrix()
       val diagonalLength = math.min(lm.rows, lm.cols)
       val diagonal = Array.tabulate(diagonalLength)(i => lm(i, i))
 
-      if (m.diagonal().toSeq == diagonal.toSeq)
-        true
-      else {
-        println(s"lm: $lm")
-        println(s"${m.diagonal().toSeq} != ${diagonal.toSeq}")
-        false
-      }
+      assert(
+        m.diagonal().toSeq == diagonal.toSeq,
+        s"lm: $lm\n${m.diagonal().toSeq} != ${diagonal.toSeq}",
+      )
     }
-  }
 
   @Test
-  def fromLocalTest(): Unit = {
+  def fromLocalTest(): scalatest.Assertion =
     forAll(arbitrary[DenseMatrix[Double]].flatMap { m =>
       Gen.zip(Gen.const(m), Gen.choose(math.sqrt(m.rows).toInt, m.rows + 16))
     }) { case (lm, blockSize) =>
       assert(lm === BlockMatrix.fromBreezeMatrix(lm, blockSize).toBreezeMatrix())
-      true
     }
-  }
 
   @Test
-  def readWriteIdentityTrivial(): Unit = {
+  def readWriteIdentityTrivial(): scalatest.Assertion = {
     val m = toBM(
       4,
       4,
@@ -463,7 +427,7 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def readWriteIdentityTrivialTransposed(): Unit = {
+  def readWriteIdentityTrivialTransposed(): scalatest.Assertion = {
     val m = toBM(
       4,
       4,
@@ -484,44 +448,41 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def readWriteIdentityRandom(): Unit = {
+  def readWriteIdentityRandom(): scalatest.Assertion = {
     forAll(blockMatrixGen()) { (m: BlockMatrix) =>
       val fname = ctx.createTmpPath("test")
       m.write(ctx, fname)
-      assert(sameDoubleMatrixNaNEqualsNaN(
+      assertDoubleMatrixNaNEqualsNaN(
         m.toBreezeMatrix(),
         BlockMatrix.read(fs, fname).toBreezeMatrix(),
-      ))
-      true
+      )
     }
   }
 
   @Test
-  def transpose(): Unit = {
+  def transpose(): scalatest.Assertion = {
     forAll(blockMatrixGen()) { (m: BlockMatrix) =>
       val transposed = m.toBreezeMatrix().t
       assert(transposed.rows == m.nCols)
       assert(transposed.cols == m.nRows)
       assert(transposed === m.T.toBreezeMatrix())
-      true
     }
   }
 
   @Test
-  def doubleTransposeIsIdentity(): Unit = {
+  def doubleTransposeIsIdentity(): scalatest.Assertion = {
     forAll(blockMatrixGen(element = nonExtremeDouble)) { (m: BlockMatrix) =>
       val mt = m.T.cache()
       val mtt = m.T.T.cache()
       assert(mtt.nRows == m.nRows)
       assert(mtt.nCols == m.nCols)
-      assert(sameDoubleMatrixNaNEqualsNaN(mtt.toBreezeMatrix(), m.toBreezeMatrix()))
-      assert(sameDoubleMatrixNaNEqualsNaN(mt.dot(mtt).toBreezeMatrix(), mt.dot(m).toBreezeMatrix()))
-      true
+      assertDoubleMatrixNaNEqualsNaN(mtt.toBreezeMatrix(), m.toBreezeMatrix())
+      assertDoubleMatrixNaNEqualsNaN(mt.dot(mtt).toBreezeMatrix(), mt.dot(m).toBreezeMatrix())
     }
   }
 
   @Test
-  def cachedOpsOK(): Unit = {
+  def cachedOpsOK(): scalatest.Assertion =
     forAll(twoMultipliableBlockMatrices) {
       case (l: BlockMatrix, r: BlockMatrix) =>
         l.cache()
@@ -529,43 +490,23 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
         val actual = l.dot(r).toBreezeMatrix()
         val expected = l.toBreezeMatrix() * r.toBreezeMatrix()
-
-        if (!sameDoubleMatrixNaNEqualsNaN(actual, expected)) {
-          println(s"${l.toBreezeMatrix()}")
-          println(s"${r.toBreezeMatrix()}")
-          assert(false)
-        }
-
-        if (!sameDoubleMatrixNaNEqualsNaN(l.T.cache().T.toBreezeMatrix(), l.toBreezeMatrix())) {
-          println(s"${l.T.cache().T.toBreezeMatrix()}")
-          println(s"${l.toBreezeMatrix()}")
-          assert(false)
-        }
-
-        true
+        assertDoubleMatrixNaNEqualsNaN(actual, expected)
+        assertDoubleMatrixNaNEqualsNaN(l.T.cache().T.toBreezeMatrix(), l.toBreezeMatrix())
     }
-  }
 
   @Test
-  def toIRMToHBMIdentity(): Unit = {
+  def toIRMToHBMIdentity(): scalatest.Assertion =
     forAll(blockMatrixGen()) { (m: BlockMatrix) =>
       val roundtrip = m.toIndexedRowMatrix().toHailBlockMatrix(m.blockSize)
 
       val roundtriplm = roundtrip.toBreezeMatrix()
       val lm = m.toBreezeMatrix()
 
-      if (roundtriplm != lm) {
-        println(roundtriplm)
-        println(lm)
-        assert(false)
-      }
-
-      true
+      assert(roundtriplm == lm)
     }
-  }
 
   @Test
-  def map2RespectsTransposition(): Unit = {
+  def map2RespectsTransposition(): scalatest.Assertion = {
     val lm = toLM(
       4,
       2,
@@ -594,7 +535,7 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def map4RespectsTransposition(): Unit = {
+  def map4RespectsTransposition(): scalatest.Assertion = {
     val lm = toLM(
       4,
       2,
@@ -620,7 +561,7 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def mapRespectsTransposition(): Unit = {
+  def mapRespectsTransposition(): scalatest.Assertion = {
     val lm = toLM(
       4,
       2,
@@ -647,7 +588,7 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def mapWithIndexRespectsTransposition(): Unit = {
+  def mapWithIndexRespectsTransposition(): scalatest.Assertion = {
     val lm = toLM(
       4,
       2,
@@ -683,7 +624,7 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def map2WithIndexRespectsTransposition(): Unit = {
+  def map2WithIndexRespectsTransposition(): scalatest.Assertion = {
     val lm = toLM(
       4,
       2,
@@ -725,13 +666,13 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def filterCols(): Unit = {
+  def filterCols(): scalatest.Assertion = {
     val lm = new DenseMatrix[Double](9, 10, (0 until 90).map(_.toDouble).toArray)
 
-    for { blockSize <- Seq(1, 2, 3, 5, 10, 11) } {
+    scalatest.Inspectors.forAll(Seq(1, 2, 3, 5, 10, 11)) { blockSize =>
       val bm = BlockMatrix.fromBreezeMatrix(lm, blockSize)
-      for {
-        keep <- Seq(
+      scalatest.Inspectors.forAll {
+        Seq(
           Array(0),
           Array(1),
           Array(9),
@@ -739,50 +680,48 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
           Array(1, 4, 5, 7, 8, 9),
           Array(0, 1, 2, 3, 4, 5, 6, 7, 8, 9),
         )
-      } {
+      } { keep =>
         val filteredViaBlock = bm.filterCols(keep.map(_.toLong)).toBreezeMatrix()
         val filteredViaBreeze = lm(::, keep.toFastSeq).copy
-
         assert(filteredViaBlock === filteredViaBreeze)
       }
     }
   }
 
   @Test
-  def filterColsTranspose(): Unit = {
+  def filterColsTranspose(): scalatest.Assertion = {
     val lm = new DenseMatrix[Double](9, 10, (0 until 90).map(_.toDouble).toArray)
     val lmt = lm.t
 
-    for { blockSize <- Seq(2, 3) } {
+    scalatest.Inspectors.forAll(Seq(2, 3)) { blockSize =>
       val bm = BlockMatrix.fromBreezeMatrix(lm, blockSize).transpose()
-      for {
-        keep <- Seq(
+      scalatest.Inspectors.forAll {
+        Seq(
           Array(0),
           Array(1, 4, 5, 7, 8),
           Array(0, 1, 2, 3, 4, 5, 6, 7, 8),
         )
-      } {
+      } { keep =>
         val filteredViaBlock = bm.filterCols(keep.map(_.toLong)).toBreezeMatrix()
         val filteredViaBreeze = lmt(::, keep.toFastSeq).copy
-
         assert(filteredViaBlock === filteredViaBreeze)
       }
     }
   }
 
   @Test
-  def filterRows(): Unit = {
+  def filterRows(): scalatest.Assertion = {
     val lm = new DenseMatrix[Double](9, 10, (0 until 90).map(_.toDouble).toArray)
 
-    for { blockSize <- Seq(2, 3) } {
+    scalatest.Inspectors.forAll(Seq(2, 3)) { blockSize =>
       val bm = BlockMatrix.fromBreezeMatrix(lm, blockSize)
-      for {
-        keep <- Seq(
+      scalatest.Inspectors.forAll {
+        Seq(
           Array(0),
           Array(1, 4, 5, 7, 8),
           Array(0, 1, 2, 3, 4, 5, 6, 7, 8),
         )
-      } {
+      } { keep =>
         val filteredViaBlock = bm.filterRows(keep.map(_.toLong)).toBreezeMatrix()
         val filteredViaBreeze = lm(keep.toFastSeq, ::).copy
 
@@ -792,13 +731,13 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def filterSymmetric(): Unit = {
+  def filterSymmetric(): scalatest.Assertion = {
     val lm = new DenseMatrix[Double](10, 10, (0 until 100).map(_.toDouble).toArray)
 
-    for { blockSize <- Seq(1, 2, 3, 5, 10, 11) } {
+    scalatest.Inspectors.forAll(Seq(1, 2, 3, 5, 10, 11)) { blockSize =>
       val bm = BlockMatrix.fromBreezeMatrix(lm, blockSize)
-      for {
-        keep <- Seq(
+      scalatest.Inspectors.forAll {
+        Seq(
           Array(0),
           Array(1),
           Array(9),
@@ -806,7 +745,7 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
           Array(1, 4, 5, 7, 8, 9),
           Array(0, 1, 2, 3, 4, 5, 6, 7, 8, 9),
         )
-      } {
+      } { keep =>
         val filteredViaBlock = bm.filter(keep.map(_.toLong), keep.map(_.toLong)).toBreezeMatrix()
         val filteredViaBreeze = lm(keep.toFastSeq, keep.toFastSeq).copy
 
@@ -816,23 +755,24 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def filter(): Unit = {
+  def filter(): scalatest.Assertion = {
     val lm = new DenseMatrix[Double](9, 10, (0 until 90).map(_.toDouble).toArray)
-
-    for { blockSize <- Seq(1, 2, 3, 5, 10, 11) } {
+    scalatest.Inspectors.forAll(Seq(1, 2, 3, 5, 10, 11)) { blockSize =>
       val bm = BlockMatrix.fromBreezeMatrix(lm, blockSize)
-      for {
-        keepRows <- Seq(
-          Array(1),
-          Array(0, 3, 4, 5, 7),
-          Array(0, 1, 2, 3, 4, 5, 6, 7, 8),
-        )
-        keepCols <- Seq(
-          Array(2),
-          Array(1, 4, 5, 7, 8, 9),
-          Array(0, 1, 2, 3, 4, 5, 6, 7, 8, 9),
-        )
-      } {
+      scalatest.Inspectors.forAll {
+        for {
+          keepRows <- Seq(
+            Array(1),
+            Array(0, 3, 4, 5, 7),
+            Array(0, 1, 2, 3, 4, 5, 6, 7, 8),
+          )
+          keepCols <- Seq(
+            Array(2),
+            Array(1, 4, 5, 7, 8, 9),
+            Array(0, 1, 2, 3, 4, 5, 6, 7, 8, 9),
+          )
+        } yield (keepRows, keepCols)
+      } { case (keepRows, keepCols) =>
         val filteredViaBlock =
           bm.filter(keepRows.map(_.toLong), keepCols.map(_.toLong)).toBreezeMatrix()
         val filteredViaBreeze = lm(keepRows.toFastSeq, keepCols.toFastSeq).copy
@@ -843,10 +783,10 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def writeLocalAsBlockTest(): Unit = {
+  def writeLocalAsBlockTest(): scalatest.Assertion = {
     val lm = new DenseMatrix[Double](10, 10, (0 until 100).map(_.toDouble).toArray)
 
-    for { blockSize <- Seq(1, 2, 3, 5, 10, 11) } {
+    scalatest.Inspectors.forAll(Seq(1, 2, 3, 5, 10, 11)) { blockSize =>
       val fname = ctx.createTmpPath("test")
       lm.writeBlockMatrix(fs, fname, blockSize)
       assert(lm === BlockMatrix.read(fs, fname).toBreezeMatrix())
@@ -854,7 +794,7 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def randomTest(): Unit = {
+  def randomTest(): scalatest.Assertion = {
     var lm1 =
       BlockMatrix.random(5, 10, 2, staticUID = 1, nonce = 1, gaussian = false).toBreezeMatrix()
     var lm2 =
@@ -883,13 +823,13 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def testEntriesTable(): Unit = {
+  def testEntriesTable(): scalatest.Assertion = {
     val data = (0 until 90).map(_.toDouble).toArray
     val lm = new DenseMatrix[Double](9, 10, data)
     val expectedEntries = data.map(x => ((x % 9).toLong, (x / 9).toLong, x)).toSet
     val expectedSignature = TStruct("i" -> TInt64, "j" -> TInt64, "entry" -> TFloat64)
 
-    for { blockSize <- Seq(1, 4, 10) } {
+    scalatest.Inspectors.forAll(Seq(1, 4, 10)) { blockSize =>
       val entriesLiteral = TableLiteral(toBM(lm, blockSize).entriesTable(ctx), theHailClassLoader)
       assert(entriesLiteral.typ.rowType == expectedSignature)
       val rows =
@@ -901,7 +841,7 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def testEntriesTableWhenKeepingOnlySomeBlocks(): Unit = {
+  def testEntriesTableWhenKeepingOnlySomeBlocks(): scalatest.Assertion = {
     val data = (0 until 50).map(_.toDouble).toArray
     val lm = new DenseMatrix[Double](5, 10, data)
     val bm = toBM(lm, blockSize = 2)
@@ -926,7 +866,7 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def testPowSqrt(): Unit = {
+  def testPowSqrt(): scalatest.Assertion = {
     val lm = new DenseMatrix[Double](2, 3, Array(0.0, 1.0, 4.0, 9.0, 16.0, 25.0))
     val bm = BlockMatrix.fromBreezeMatrix(lm, blockSize = 2)
     val expected = new DenseMatrix[Double](2, 3, Array(0.0, 1.0, 2.0, 3.0, 4.0, 5.0))
@@ -940,7 +880,7 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     bm1.blocks.collect() sameElements bm2.blocks.collect()
 
   @Test
-  def testSparseFilterEdges(): Unit = {
+  def testSparseFilterEdges(): scalatest.Assertion = {
     val lm = new DenseMatrix[Double](12, 12, (0 to 143).map(_.toDouble).toArray)
     val bm = toBM(lm, blockSize = 5)
 
@@ -957,7 +897,7 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def testSparseTransposeMaybeBlocks(): Unit = {
+  def testSparseTransposeMaybeBlocks(): scalatest.Assertion = {
     val lm = new DenseMatrix[Double](9, 12, (0 to 107).map(_.toDouble).toArray)
     val bm = toBM(lm, blockSize = 3)
     val sparse = bm.filterBand(0, 0, true)
@@ -969,7 +909,7 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def filterRowsRectangleSum(): Unit = {
+  def filterRowsRectangleSum(): scalatest.Assertion = {
     val nRows = 10
     val nCols = 50
     val bm = BlockMatrix.fill(nRows, nCols, 2, 1)
@@ -984,7 +924,7 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def testFilterBlocks(): Unit = {
+  def testFilterBlocks(): scalatest.Assertion = {
     val lm = toLM(
       4,
       4,
@@ -1009,7 +949,7 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     val localBlocks =
       Array(lm(0 to 1, 0 to 1), lm(2 to 3, 0 to 1), lm(0 to 1, 2 to 3), lm(2 to 3, 2 to 3))
 
-    for { keep <- keepArray } {
+    scalatest.Inspectors.forAll(keepArray) { keep =>
       val fbm = bm.filterBlocks(keep)
 
       assert(fbm.blocks.count() == keep.length)
@@ -1031,7 +971,7 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def testSparseBlockMatrixIO(): Unit = {
+  def testSparseBlockMatrixIO(): scalatest.Assertion = {
     val lm = toLM(
       4,
       4,
@@ -1066,7 +1006,7 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     }
 
     // test toBlockMatrix, toIndexedRowMatrix, toRowMatrix, read/write identity
-    for { keep <- keepArray } {
+    scalatest.Inspectors.forAll(keepArray) { keep =>
       val fbm = bm.filterBlocks(keep)
       val flm = filterBlocks(keep)
 
@@ -1084,7 +1024,7 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def testSparseBlockMatrixMathAndFilter(): Unit = {
+  def testSparseBlockMatrixMathAndFilter(): scalatest.Assertion = {
     val lm = toLM(
       4,
       4,
@@ -1123,7 +1063,7 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     val v = Array(1.0, 2.0, 3.0, 4.0)
 
     // test transpose, diagonal, math ops, filter ops
-    for { keep <- keepArray } {
+    scalatest.Inspectors.forAll(keepArray) { keep =>
       println(s"Test says keep block: ${keep.toIndexedSeq}")
       val fbm = bm.filterBlocks(keep)
       val flm = filterBlocks(keep)
@@ -1238,7 +1178,7 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def testRealizeBlocks(): Unit = {
+  def testRealizeBlocks(): scalatest.Assertion = {
     val lm = toLM(
       4,
       4,
@@ -1275,7 +1215,7 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(filteredEquals(bm.densify(), bm))
     assert(filteredEquals(bm.realizeBlocks(None), bm))
 
-    for { keep <- keepArray } {
+    scalatest.Inspectors.forAll(keepArray) { keep =>
       val fbm = bm.filterBlocks(keep)
       val flm = filterBlocks(keep)
 

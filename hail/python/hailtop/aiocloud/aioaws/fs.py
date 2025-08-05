@@ -558,9 +558,9 @@ class S3AsyncFS(AsyncFS):
         else:
             it = self._listfiles_flat(bucket, name)
 
-        it = it.__aiter__()
+        it = aiter(it)
         try:
-            first_entry = await it.__anext__()
+            first_entry = await anext(it)
         except StopAsyncIteration:
             raise FileNotFoundError(url)  # pylint: disable=raise-missing-from
 
@@ -581,7 +581,7 @@ class S3AsyncFS(AsyncFS):
                 yield first_entry
             try:
                 while True:
-                    next_entry = await it.__anext__()
+                    next_entry = await anext(it)
                     if await should_yield(next_entry):
                         yield next_entry
             except StopAsyncIteration:

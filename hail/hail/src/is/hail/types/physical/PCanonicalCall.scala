@@ -14,7 +14,8 @@ final case class PCanonicalCall(required: Boolean = false) extends PCall {
 
   override def copiedType: PType = this
 
-  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = sb.append("PCCall")
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit =
+    sb ++= "PCCall"
 
   val representation: PInt32 = PInt32(required)
 

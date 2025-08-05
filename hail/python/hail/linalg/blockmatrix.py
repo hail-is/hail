@@ -830,7 +830,7 @@ class BlockMatrix:
     def _check_indices(indices, size):
         if len(indices) == 0:
             raise ValueError('index list must be non-empty')
-        if not all(x < y for x, y in zip(indices, indices[1:])):
+        if not all(x < y for x, y in itertools.pairwise(indices)):
             raise ValueError('index list must be strictly increasing')
         if indices[0] < 0:
             raise ValueError(f'index list values must be in range [0, {size}), found {indices[0]}')
@@ -1583,7 +1583,7 @@ class BlockMatrix:
         if splits != 1:
             inner_brange_size = math.ceil(self._n_block_cols / splits)
             split_points = [*list(range(0, self._n_block_cols, inner_brange_size)), self._n_block_cols]
-            inner_ranges = list(zip(split_points[:-1], split_points[1:]))
+            inner_ranges = list(itertools.pairwise(split_points))
             blocks_to_multiply = [
                 (
                     self._select_blocks((0, self._n_block_rows), (start, stop)),

@@ -7,15 +7,16 @@ import is.hail.expr.ir.defs.{
 import is.hail.types.virtual.{TFloat64, TInt32}
 import is.hail.utils.FastSeq
 
+import org.scalatest
 import org.testng.annotations.{DataProvider, Test}
 
 class FoldConstantsSuite extends HailSuite {
-  @Test def testRandomBlocksFolding(): Unit = {
+  @Test def testRandomBlocksFolding(): scalatest.Assertion = {
     val x = ApplySeeded("rand_norm", FastSeq(F64(0d), F64(0d)), RNGStateLiteral(), 0L, TFloat64)
     assert(FoldConstants(ctx, x) == x)
   }
 
-  @Test def testErrorCatching(): Unit = {
+  @Test def testErrorCatching(): scalatest.Assertion = {
     val ir = invoke("toInt32", TInt32, Str(""))
     assert(FoldConstants(ctx, ir) == ir)
   }
@@ -30,8 +31,8 @@ class FoldConstantsSuite extends HailSuite {
     ).map(x => Array[Any](x))
   }
 
-  @Test def testAggNodesConstruction(): Unit = aggNodes()
+  @Test def testAggNodesConstruction(): scalatest.Assertion = { aggNodes(); scalatest.Succeeded }
 
-  @Test(dataProvider = "aggNodes") def testAggNodesDoNotFold(node: IR): Unit =
+  @Test(dataProvider = "aggNodes") def testAggNodesDoNotFold(node: IR): scalatest.Assertion =
     assert(FoldConstants(ctx, node) == node)
 }
