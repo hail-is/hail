@@ -8,7 +8,6 @@ import pyspark.sql
 
 from hail.expr.table_type import ttable
 from hail.ir import BaseIR
-from hail.ir.renderer import CSERenderer
 from hail.table import Table
 from hail.utils import copy_log
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
@@ -180,12 +179,6 @@ class SparkBackend(Py4JBackend):
         if flatten:
             t = t.flatten()
         return pyspark.sql.DataFrame(self._jbackend.pyToDF(self._render_ir(t._tir)), self._spark_session)
-
-    def register_ir_function(self, name, type_parameters, argument_names, argument_types, return_type, body):
-        r = CSERenderer()
-        assert not body._ir.uses_randomness
-        code = r(body._ir)
-        self._register_ir_function(name, type_parameters, argument_names, argument_types, return_type, code)
 
     def execute(self, ir: BaseIR, timed: bool = False) -> Any:
         try:

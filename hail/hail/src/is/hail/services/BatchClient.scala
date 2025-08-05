@@ -7,7 +7,7 @@ import is.hail.services.BatchClient.{
   JobListEntryDeserializer, JobProcessRequestSerializer, JobStateDeserializer,
 }
 import is.hail.services.oauth2.CloudCredentials
-import is.hail.services.requests.Requester
+import is.hail.services.requests.{ClientResponseException, Requester}
 import is.hail.utils._
 
 import scala.collection.immutable.Stream.cons
@@ -15,7 +15,6 @@ import scala.util.Random
 
 import java.net.{URL, URLEncoder}
 import java.nio.charset.StandardCharsets.UTF_8
-import java.nio.file.Path
 
 import org.apache.http.entity.ByteArrayEntity
 import org.apache.http.entity.ContentType.APPLICATION_JSON
@@ -113,31 +112,39 @@ case class JobListEntry(
 )
 
 object BatchClient {
+  object RequiredOAuth2Scopes {
+    private[this] val Google: Array[String] =
+      Array(
+        "https://www.googleapis.com/auth/userinfo.profile",
+        "https://www.googleapis.com/auth/userinfo.email",
+        "openid",
+      )
+
+    private[this] val Microsoft: Array[String] =
+      Array(".default")
+
+    def apply(env: Map[String, String] = sys.env): Array[String] =
+      env.get("HAIL_CLOUD") match {
+        case Some("gcp") => Google
+        case Some("azure") => env.get("HAIL_AZURE_OAUTH_SCOPE").map(Array(_)).getOrElse(Microsoft)
+        case Some(cloud) => throw new IllegalArgumentException(s"Unknown cloud: '$cloud'.")
+        case None => throw new IllegalArgumentException(s"'HAIL_CLOUD' must be set.")
+      }
+  }
 
   val BunchMaxSizeBytes: Int = 1024 * 1024
 
-  def apply(deployConfig: DeployConfig, credentialsFile: Path, env: Map[String, String] = sys.env)
-    : BatchClient =
-    new BatchClient(Requester(
-      new URL(deployConfig.baseUrl("batch")),
-      CloudCredentials(credentialsFile, BatchServiceScopes(env), env),
-    ))
-
-  def BatchServiceScopes(env: Map[String, String]): Array[String] =
-    env.get("HAIL_CLOUD") match {
-      case Some("gcp") =>
-        Array(
-          "https://www.googleapis.com/auth/userinfo.profile",
-          "https://www.googleapis.com/auth/userinfo.email",
-          "openid",
-        )
-      case Some("azure") =>
-        env.get("HAIL_AZURE_OAUTH_SCOPE").toArray
-      case Some(cloud) =>
-        throw new IllegalArgumentException(s"Unknown cloud: '$cloud'.")
-      case None =>
-        throw new IllegalArgumentException(s"HAIL_CLOUD must be set.")
-    }
+  def apply(
+    deployConfig: DeployConfig,
+    credentials: CloudCredentials,
+    env: Map[String, String] = sys.env,
+  ): BatchClient =
+    new BatchClient(
+      Requester(
+        new URL(deployConfig.baseUrl("batch")),
+        credentials.scoped(RequiredOAuth2Scopes(env)),
+      )
+    )
 
   object JobProcessRequestSerializer extends CustomSerializer[JobProcess](implicit fmts =>
         (
@@ -261,22 +268,33 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
     batchId
   }
 
-  def newJobGroup(req: JobGroupRequest): (Int, Int) = {
-    val nJobs = req.jobs.length
-    val (updateId, startJobGroupId, startJobId) = beginUpdate(req.batch_id, req.token, nJobs)
-    log.info(s"Began update '$updateId' for batch '${req.batch_id}'.")
+  def newJobGroup(req: JobGroupRequest): (Int, Int) =
+    retryable { attempts =>
+      try {
+        val nJobs = req.jobs.length
+        val (updateId, startJobGroupId, startJobId) = beginUpdate(req.batch_id, req.token, nJobs)
+        log.info(s"Began update '$updateId' for batch '${req.batch_id}'.")
 
-    createJobGroup(updateId, req)
-    log.info(s"Created job group $startJobGroupId for batch ${req.batch_id}")
+        createJobGroup(updateId, req)
+        log.info(s"Created job group $startJobGroupId for batch ${req.batch_id}")
 
-    createJobsIncremental(req.batch_id, updateId, req.jobs)
-    log.info(s"Submitted $nJobs in job group $startJobGroupId for batch ${req.batch_id}")
+        createJobsIncremental(req.batch_id, updateId, req.jobs)
+        log.info(s"Submitted $nJobs in job group $startJobGroupId for batch ${req.batch_id}")
 
-    commitUpdate(req.batch_id, updateId)
-    log.info(s"Committed update $updateId for batch ${req.batch_id}.")
+        commitUpdate(req.batch_id, updateId)
+        log.info(s"Committed update $updateId for batch ${req.batch_id}.")
 
-    (startJobGroupId, startJobId)
-  }
+        (startJobGroupId, startJobId)
+      } catch {
+        case e: ClientResponseException
+            if attempts < 5 &&
+              e.status == 400 &&
+              e.getMessage.contains("job group specs were not submitted in order") =>
+          Thread.sleep(delayMsForTry(attempts))
+          log.info("retry", e)
+          retry
+      }
+    }
 
   def getJobGroup(batchId: Int, jobGroupId: Int): JobGroupResponse =
     req
@@ -302,6 +320,9 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
     }
       .takeWhile(_.nonEmpty)
   }
+
+  def cancelJobGroup(batchId: Int, jobGroupId: Int): Unit =
+    void(req.patch(s"/api/v1alpha/batches/$batchId/job-groups/$jobGroupId/cancel"))
 
   def waitForJobGroup(batchId: Int, jobGroupId: Int): JobGroupResponse = {
     val start = System.nanoTime()
