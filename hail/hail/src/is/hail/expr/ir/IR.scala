@@ -230,7 +230,8 @@ package defs {
 
     def typeArgs: Seq[Type]
 
-    def argTypes: Seq[Type] = args.map(_.typ)
+    def argTypes: Seq[Type] =
+      args.map(_.typ)
 
     val implementation: F =
       IRFunctionRegistry.lookupFunctionOrFail(function, typ, typeArgs, argTypes)

@@ -546,7 +546,7 @@ object IRDSL_Impl extends IRDSL {
       val paramsBase = attsAndChildren.map(_.classParam)
       val params = if (explicitType) paramsBase else paramsBase :+ typeArg
       val paramList = s"$name(${params.mkString(", ")})"
-      s"final class $paramList extends IR" + traits.map(" with " + _.name).mkString
+      s"final case class $paramList extends IR" + traits.map(" with " + _.name).mkString
     }
 
     private def classBody = {
@@ -1176,8 +1176,8 @@ object Main {
       in("staticUID", att("Long")),
       typ,
     ).withTraits(ApplyNode())
-      .withPreamble("val args = rngState +: _args")
-      .withPreamble("val typeArgs: Seq[Type] = Seq.empty[Type]")
+      .withPreamble("def args = rngState +: _args")
+      .withPreamble("def typeArgs: Seq[Type] = Seq.empty[Type]")
 
     r += node(
       "ApplySpecial",
