@@ -46,7 +46,7 @@ Our Zulip server is https://hail.zulipchat.com
 
 ##### uv - managed Python environment
 
-Homebrew is able to install uv for you - `brew install uv`
+Homebrew is able to install uv for you - `brew install uv`.
 
 After installing, cd to the repo and create a new environment there:
 ```bash
