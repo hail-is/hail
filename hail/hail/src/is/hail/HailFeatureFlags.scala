@@ -2,12 +2,13 @@ package is.hail
 
 import is.hail.backend.ExecutionCache
 import is.hail.backend.spark.SparkBackend
-import is.hail.expr.ir.{Optimize, agg}
+import is.hail.expr.ir.{agg, Optimize}
 import is.hail.io.fs.RequesterPaysConfig
 import is.hail.types.encoded.EType
 import is.hail.utils._
 
 import scala.collection.mutable
+
 import org.json4s.JsonAST.{JArray, JObject, JString}
 
 object HailFeatureFlags {
