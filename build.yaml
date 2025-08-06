@@ -1410,7 +1410,7 @@ steps:
       valueFrom: hailgenetics_hail_image.image
     script: |
       set -ex
-      python3 --version | grep '3.11'
+      python3 -c 'import sys; assert sys.version_info.major == 3 and sys.version_info.minor == 11, sys.version_info'
       python3 -c 'import hail as hl; hl.balding_nichols_model(3, 100, 100)._force_count_rows()'
       python3 -c 'import numpy; import pandas; import sklearn; import scipy'
     dependsOn:
@@ -1421,7 +1421,7 @@ steps:
       valueFrom: hailgenetics_hail_image_python_3_10.image
     script: |
       set -ex
-      python3 --version | grep '3.10'
+      python3 -c 'import sys; assert sys.version_info.major == 3 and sys.version_info.minor == 10, sys.version_info'
       python3 -c 'import hail as hl; hl.balding_nichols_model(3, 100, 100)._force_count_rows()'
       python3 -c 'import numpy; import pandas; import sklearn; import scipy'
     dependsOn:
