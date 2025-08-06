@@ -197,6 +197,7 @@ class Backend(abc.ABC):
         "write_ir_files": ("HAIL_WRITE_IR_FILES", None),
         "optimize": ("HAIL_QUERY_OPTIMIZE", "1"),
         "max_optimizer_iterations": ("HAIL_OPTIMIZER_ITERATIONS", None),
+        "branch_factor": ("HAIL_BRANCH_FACTOR", None),
     }
 
     def _valid_flags(self) -> AbstractSet[str]:
