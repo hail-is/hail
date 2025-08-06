@@ -45,6 +45,8 @@ trait IRDSL {
   def in[T](name: String, pack: Type[T]): Declaration[T]
   def typ: Declaration[Attribute]
   def typ(typeBound: String): Declaration[Attribute]
+  def typ(inferable: Boolean): Declaration[Attribute]
+  def typ(typeBound: String, inferable: Boolean): Declaration[Attribute]
 
   trait DeclarationInterface[T] {
     def withConstraint(c: String => String): Declaration[T]
@@ -89,16 +91,18 @@ trait IRDSL {
 }
 
 object IRDSL_Impl extends IRDSL {
-  val typeField = "typ"
+  private val typeField = "typ"
 
   override def node(name: String, attsAndChildren: Declaration[_]*): NodeDef = {
-    var explicitType: Option[String] = None
+    var explicitTypeName: Option[String] = None
+    var explicitType: ExplicitType = ExplicitType.None
     attsAndChildren.foreach {
-      case Declaration(`typeField`, Att_(typeBound), _, _) =>
-        explicitType = Some(typeBound)
+      case Declaration(DeclarationName.Typ(inferable), Att_(typeBound), _, _) =>
+        explicitTypeName = Some(typeBound)
+        explicitType = if (inferable) ExplicitType.Inferable else ExplicitType.Required
       case _ =>
     }
-    NodeDef(name, attsAndChildren, typeBound = explicitType, explicitType = explicitType.nonEmpty)
+    NodeDef(name, attsAndChildren, typeBound = explicitTypeName, explicitType = explicitType)
   }
 
   override def att(typ: String): Type[Attribute] = Att_(typ)
@@ -120,12 +124,14 @@ object IRDSL_Impl extends IRDSL {
   override def bmChild: Type[Child] = Child_("BlockMatrixIR")
 
   override def in[T](name: String, pack: Type[T]): Declaration[T] =
-    Declaration(name, pack)
+    Declaration(DeclarationName.Param(name), pack)
 
   override def typ: Declaration[Attribute] = typ("Type")
+  override def typ(typeBound: String): Declaration[Attribute] = typ(typeBound, false)
+  override def typ(inferable: Boolean): Declaration[Attribute] = typ("Type", inferable)
 
-  override def typ(typeBound: String): Declaration[Attribute] =
-    Declaration(typeField, Att_(typeBound))
+  override def typ(typeBound: String, inferable: Boolean): Declaration[Attribute] =
+    Declaration(DeclarationName.Typ(inferable), Att_(typeBound))
 
   def int(i: Int): IntRepr = IntRepr(i)
 
@@ -146,6 +152,8 @@ object IRDSL_Impl extends IRDSL {
     def nChildren: IntRepr = int(0)
     def childrenSeq: SeqRepr[Child] = SeqRepr.empty(Child_("BaseIR"))
     def copyWithNewChildren(newChildren: SeqRepr[Child]): Repr[T]
+    def fromUntyped: Repr[T]
+    def toUntyped: Repr[T]
   }
 
   case class IntRepr(static: Int = 0, dynamic: String = "") extends Repr[Int] {
@@ -161,6 +169,9 @@ object IRDSL_Impl extends IRDSL {
       assert(newChildren.hasStaticLen(0))
       this
     }
+
+    override def fromUntyped: Repr[Int] = this
+    override def toUntyped: Repr[Int] = this
 
     def getStatic: Option[Int] = if (dynamic.isEmpty) Some(static) else None
 
@@ -196,6 +207,9 @@ object IRDSL_Impl extends IRDSL {
       assert(newChildren.hasStaticLen(0))
       this
     }
+
+    override def fromUntyped: Repr[Attribute] = this
+    override def toUntyped: Repr[Attribute] = this
   }
 
   final case class ChildRepr(override val typ: Child_, self: String) extends Repr[Child] {
@@ -205,23 +219,34 @@ object IRDSL_Impl extends IRDSL {
 
     override def copyWithNewChildren(newChildren: SeqRepr[Child]): Repr[Child] = {
       assert(newChildren.hasStaticLen(1))
-      ChildRepr(typ, s"${newChildren(0)}.asInstanceOf[$typ]")
+      ChildRepr(typ, s"${newChildren(0)}.asInstanceOf[${typ.generateDeclaration()}]")
     }
+
+    override def fromUntyped: Repr[Child] = ChildRepr(typ, s"$self.get")
+
+    override def toUntyped: Repr[Child] =
+      ChildRepr(typ, s"${typ.generateDeclaration(untyped = true)}($self)")
   }
 
   final case class BindingRepr(self: String) extends Repr[Binding] {
     override def typ: Type[Binding] = Binding
     override def nChildren: IntRepr = 1
 
-    override def childrenSeq: SeqRepr[Child] =
-      SeqRepr.Static(Seq(ChildRepr(Child_("BaseIR"), s"$self.value")), Child_("BaseIR"))
+    private def value = ChildRepr(Child_("IR"), s"$self.value")
+
+    override def childrenSeq: SeqRepr[Child] = SeqRepr.Static(Seq(value), value.typ)
 
     override def toString: String = self
 
     override def copyWithNewChildren(newChildren: SeqRepr[Child]): Repr[Binding] = {
       assert(newChildren.hasStaticLen(1))
-      BindingRepr(s"$self.copy(value = ${newChildren(0)}.asInstanceOf[IR])")
+      BindingRepr(
+        s"$self.copy(value = ${value.copyWithNewChildren(newChildren)})"
+      )
     }
+
+    override def fromUntyped: Repr[Binding] = BindingRepr(s"$self.get")
+    override def toUntyped: Repr[Binding] = BindingRepr(s"new Binding.untyped($self)")
   }
 
   final case class OptRepr[T](eltType: Type[T], self: String) extends Repr[Option[T]] {
@@ -249,6 +274,12 @@ object IRDSL_Impl extends IRDSL {
         eltType,
         s"$self.map(x => ${eltType.repr("x").copyWithNewChildren(newChildren.slice(0, 1))})",
       )
+
+    override def fromUntyped: Repr[Option[T]] =
+      OptRepr(eltType, s"$self.map(x => ${eltType.repr("x").fromUntyped})")
+
+    override def toUntyped: Repr[Option[T]] =
+      OptRepr(eltType, s"$self.map(x => ${eltType.repr("x").toUntyped})")
   }
 
   sealed abstract class SeqRepr[T] extends Repr[Seq[T]] {
@@ -291,13 +322,12 @@ object IRDSL_Impl extends IRDSL {
       val n = eltType.repr("x").nChildren
       if (n.hasStaticValue(0)) this
       else if (eltType.isChild)
-        SeqRepr.Dynamic(s"$newChildren.asInstanceOf[${typ.generateDeclaration}]", eltType)
+        SeqRepr.Dynamic(s"$newChildren.asInstanceOf[${typ.generateDeclaration()}]", eltType)
       else {
         assert(n.hasStaticValue(1))
         SeqRepr.Dynamic(
-          s"$this.lazyZip($newChildren).map { (x, newChild) => ${eltType.repr("x").copyWithNewChildren(
-              SeqRepr.Static(Seq(ChildRepr(Child_("BaseIR"), "newChild")), Att_("BaseIR"))
-            )} }",
+          s"$this.lazyZip($newChildren).map { (x, newChild) => ${eltType.repr("x")
+              .copyWithNewChildren(SeqRepr.Static(Seq(ChildRepr(Child_("BaseIR"), "newChild")), Att_("BaseIR")))} }",
           eltType,
         )
       }
@@ -307,7 +337,10 @@ object IRDSL_Impl extends IRDSL {
   object SeqRepr {
     def empty[T](t: Type[T]): Static[T] = Static[T](Seq.empty, t)
 
-    trait Unsliced[T] extends SeqRepr[T]
+    trait Unsliced[T] extends SeqRepr[T] {
+      override def fromUntyped: Unsliced[T]
+      override def toUntyped: Unsliced[T]
+    }
 
     final case class Static[T](elts: Seq[Repr[T]], eltType: Type[T]) extends Unsliced[T] {
       override def typ: Collection[T] = Collection(eltType)
@@ -330,6 +363,9 @@ object IRDSL_Impl extends IRDSL {
       override def nChildren: IntRepr = elts.foldLeft(IntRepr()) { case (acc, elt) =>
         acc + elt.nChildren
       }
+
+      override def fromUntyped: Static[T] = Static(elts.map(_.fromUntyped), eltType)
+      override def toUntyped: Static[T] = Static(elts.map(_.toUntyped), eltType)
     }
 
     final case class Dynamic[T](elts: String, eltType: Type[T]) extends Unsliced[T] {
@@ -342,6 +378,12 @@ object IRDSL_Impl extends IRDSL {
         Range[T](this, relStart, len)
 
       override def apply(i: IntRepr): Repr[T] = eltType.repr(s"$this($i)")
+
+      override def fromUntyped: Dynamic[T] =
+        Dynamic(s"$elts.map(x => ${eltType.repr("x").fromUntyped})", eltType)
+
+      override def toUntyped: Dynamic[T] =
+        Dynamic(s"$elts.map(x => ${eltType.repr("x").toUntyped})", eltType)
     }
 
     final private case class Range[T](
@@ -358,6 +400,9 @@ object IRDSL_Impl extends IRDSL {
         Range(seq, start + relStart, len)
 
       override def apply(i: IntRepr): Repr[T] = eltType.repr(s"$seq(${start + i})")
+
+      override def fromUntyped: Range[T] = Range(seq.fromUntyped, start, len)
+      override def toUntyped: Range[T] = Range(seq.toUntyped, start, len)
     }
   }
 
@@ -386,29 +431,62 @@ object IRDSL_Impl extends IRDSL {
         }.mkString("(", ", ", ")"),
       )
     }
+
+    override def fromUntyped: Repr[T] = {
+      val elts = typ.elts.zipWithIndex.map {
+        case (elt, i) => elt.repr(s"$self._${i + 1}").fromUntyped
+      }
+      TupRepr(typ, s"(${elts.mkString(", ")})")
+    }
+
+    override def toUntyped: Repr[T] = {
+      val elts = typ.elts.zipWithIndex.map {
+        case (elt, i) => elt.repr(s"$self._${i + 1}").toUntyped
+      }
+      TupRepr(typ, s"(${elts.mkString(", ")})")
+    }
   }
 
   override type GenericDeclaration = Declaration[_]
 
+  sealed abstract class DeclarationName {
+    def name: String
+    override def toString = name
+  }
+
+  object DeclarationName {
+    final case class Param(name: String) extends DeclarationName
+
+    final case class Typ(inferable: Boolean) extends DeclarationName {
+      def name = typeField
+    }
+  }
+
   final case class Declaration[T](
-    name: String,
+    name: DeclarationName,
     pack: Type[T],
     default: Option[String] = None,
     extraConstraints: Seq[String => String] = Seq.empty,
   ) extends DeclarationInterface[T] {
-    def repr: Repr[T] = pack.repr(name)
+    def repr: Repr[T] = pack.repr(name.name)
     override def withDefault(value: String): Declaration[T] = copy(default = Some(value))
 
     override def withConstraint(c: String => String): Declaration[T] =
       copy(extraConstraints = extraConstraints :+ c)
 
-    def param: String = s"$name: ${pack.generateDeclaration}"
-    def classParam: String = if (name == typeField) s"override val $param" else s"val $param"
-    def constructorParam: String = s"$param${default.map(d => s" = $d").getOrElse("")}"
+    def param(untyped: Boolean = false): String = s"$name: ${pack.generateDeclaration(untyped)}"
 
-    def constraints: Seq[String] = (pack.constraints ++ extraConstraints).map(_(name))
-    def nChildren: IntRepr = pack.repr(name).nChildren
-    def childrenSeq: SeqRepr[Child] = pack.repr(name).childrenSeq
+    def classParam: String = name match {
+      case DeclarationName.Param(_) => s"val ${param()}"
+      case DeclarationName.Typ(_) => s"override val ${param()}"
+    }
+
+    def constructorParam(untyped: Boolean = false): String =
+      s"${param(untyped)}${default.map(d => s" = $d").getOrElse("")}"
+
+    def constraints: Seq[String] = (pack.constraints ++ extraConstraints).map(_(name.name))
+    def nChildren: IntRepr = repr.nChildren
+    def childrenSeq: SeqRepr[Child] = repr.childrenSeq
   }
 
   override def zeroOrMore[T](x: Type[T]): Type[Seq[T]] = Collection(x)
@@ -419,12 +497,12 @@ object IRDSL_Impl extends IRDSL {
     def isChild: Boolean = false
     def repr(self: String): Repr[T]
 
-    def generateDeclaration: String
+    def generateDeclaration(untyped: Boolean = false): String
     def constraints: Seq[String => String] = Seq.empty
   }
 
   final case class Att_[T](typ: String) extends Type[T] {
-    override def generateDeclaration: String = typ
+    override def generateDeclaration(untyped: Boolean = false): String = typ
 
     override def repr(self: String): Repr[T] =
       if (typ == "Int") IntRepr(dynamic = self).asInstanceOf[Repr[T]]
@@ -434,22 +512,31 @@ object IRDSL_Impl extends IRDSL {
   final case class Child_(t: String = "IR") extends Type[Child] {
     override def toString: String = t
     override def isChild: Boolean = true
-    override def generateDeclaration: String = t
+
+    override def generateDeclaration(untyped: Boolean = false): String =
+      if (untyped) s"UntypedBaseIR[$t]" else t
+
     override def repr(self: String): Repr[Child] = ChildRepr(this, self)
   }
 
   case object Binding extends Type[Binding] {
-    override def generateDeclaration: String = "Binding"
+    override def generateDeclaration(untyped: Boolean = false): String =
+      if (untyped) "Binding.untyped" else "Binding"
+
     override def repr(self: String): Repr[Binding] = BindingRepr(self)
   }
 
   final case class Optional[T](elt: Type[T]) extends Type[Option[T]] {
-    override def generateDeclaration: String = s"Option[${elt.generateDeclaration}]"
+    override def generateDeclaration(untyped: Boolean = false): String =
+      s"Option[${elt.generateDeclaration(untyped)}]"
+
     override def repr(self: String): Repr[Option[T]] = OptRepr(elt, self)
   }
 
   final case class Collection[T](elt: Type[T], allowEmpty: Boolean = true) extends Type[Seq[T]] {
-    override def generateDeclaration: String = s"IndexedSeq[${elt.generateDeclaration}]"
+    override def generateDeclaration(untyped: Boolean = false): String =
+      s"IndexedSeq[${elt.generateDeclaration(untyped)}]"
+
     override def repr(self: String): Repr[Seq[T]] = SeqRepr.Dynamic(self, elt)
 
     override def constraints: Seq[String => String] = {
@@ -465,8 +552,8 @@ object IRDSL_Impl extends IRDSL {
   }
 
   abstract class Tup[T](val elts: Type[_]*) extends Type[T] {
-    override def generateDeclaration: String =
-      elts.map(_.generateDeclaration).mkString("(", ", ", ")")
+    override def generateDeclaration(untyped: Boolean = false): String =
+      elts.map(_.generateDeclaration(untyped)).mkString("(", ", ", ")")
 
     override def constraints: Seq[String => String] =
       elts.zipWithIndex.flatMap { case (elt, i) =>
@@ -484,17 +571,25 @@ object IRDSL_Impl extends IRDSL {
     x3: Type[T3],
   ) extends Tup[(T1, T2, T3)](x1, x2, x3)
 
+  sealed abstract class ExplicitType
+
+  object ExplicitType {
+    case object None extends ExplicitType
+    case object Required extends ExplicitType
+    case object Inferable extends ExplicitType
+  }
+
   case class NodeDef(
     name: String,
     attsAndChildren: Seq[Declaration[_]],
-    traits: Seq[Trait] = Seq.empty,
+    traits: Set[Trait] = Set.empty,
     constraints: Seq[String] = Seq.empty,
     extraMethods: Seq[String] = Seq.empty,
     staticMethods: Seq[String] = Seq.empty,
     docstring: String = "",
     hasCompanionExtension: Boolean = false,
     typeBound: Option[String] = None,
-    explicitType: Boolean = false,
+    explicitType: ExplicitType = ExplicitType.None,
   ) extends NodeDefInterface {
     override def withTraits(newTraits: Trait*): NodeDef = copy(traits = traits ++ newTraits)
 
@@ -521,6 +616,24 @@ object IRDSL_Impl extends IRDSL {
     private def childrenOffsets: Seq[IntRepr] =
       attsAndChildren.scanLeft(IntRepr())(_ + _.nChildren)
 
+    private def copyWithNewChildrenUntyped: String = {
+      val decl =
+        s"override def copyWithNewChildrenUntyped(newChildren: IndexedSeq[BaseIR]): UntypedBaseIR[BaseIR] = "
+      val assertion = s"assert(newChildren.length == $nChildren)"
+      val body = s"$name.untyped" + attsAndChildren.lazyZip(childrenOffsets).map {
+          case (x, offset) =>
+            val newChildren = SeqRepr.Dynamic("newChildren", Child_("BaseIR"))
+            x.repr.copyWithNewChildren(
+              if (x.nChildren.hasStaticValue(0)) SeqRepr.empty(Child_("BaseIR"))
+              else if (x.nChildren.hasStaticValue(1))
+                SeqRepr.Static(Seq(newChildren(offset)), Child_("BaseIR"))
+              else if (x.nChildren == nChildren) newChildren
+              else newChildren.slice(offset, x.nChildren)
+            ).toUntyped
+        }.mkString("(", ", ", ")")
+      decl + "{\n    " + assertion + "\n    " + body + "\n  }"
+    }
+
     private def copyWithNewChildren: String = {
       val decl = s"override def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): $name = "
       val assertion = s"assert(newChildren.length == $nChildren)"
@@ -538,7 +651,7 @@ object IRDSL_Impl extends IRDSL {
     }
 
     private def copyMethod =
-      s"""def copy(${attsAndChildren.map(x => s"${x.param} = ${x.name}").mkString(", ")}) =
+      s"""def copy(${attsAndChildren.map(x => s"${x.param()} = ${x.name}").mkString(", ")}) =
          |    $name(${attsAndChildren.map(_.name).mkString(", ")})""".stripMargin
 
     private def equalsMethod = {
@@ -547,17 +660,22 @@ object IRDSL_Impl extends IRDSL {
         s"""other match {
            |    case that: $name => ${attsAndChildren.map(att => s"this.${att.name} == that.${att.name}").mkString(" && ")}
            |    case _ => false
-           |  }
-           |""".stripMargin
+           |  }""".stripMargin
       "override def equals(other: Any): Boolean = " ++ body
     }
 
     private def classDecl = {
-      def typeArg = "override val typ: " + typeBound.getOrElse("Type")
-      val paramsBase = attsAndChildren.map(_.classParam)
-      val params = if (explicitType) paramsBase else paramsBase :+ typeArg
+      val params =
+        attsAndChildren.filter(!_.name.isInstanceOf[DeclarationName.Typ]).map(_.classParam)
       val paramList = s"$name(${params.mkString(", ")})"
-      s"final class $paramList extends IR" + traits.map(" with " + _.name).mkString
+      // FIXME: for now always adding an extension trait, to define computeTypeFromChildren
+      val allTraits = traits + Trait(s"${name}Ext") +
+        (explicitType match {
+          case ExplicitType.None => Trait(s"ComputableType")
+          case ExplicitType.Required => Trait(s"ExplicitType")
+          case ExplicitType.Inferable => Trait(s"InferableType")
+        })
+      s"final class $paramList extends IR" + allTraits.map(" with " + _.name).mkString
     }
 
     private def classBody = {
@@ -565,8 +683,11 @@ object IRDSL_Impl extends IRDSL {
         s"override def childrenSeq: IndexedSeq[BaseIR] = IndexedSeq.empty"
       else
         s"override lazy val childrenSeq: IndexedSeq[BaseIR] = $children"
-      val extraMethods =
-        this.extraMethods :+ childrenSeqDef :+ copyWithNewChildren :+ copyMethod :+ equalsMethod
+      var extraMethods =
+        this.extraMethods :+ childrenSeqDef :+ copyWithNewChildren :+ copyWithNewChildrenUntyped :+ copyMethod :+ equalsMethod
+      typeBound.foreach { bound =>
+        extraMethods = extraMethods :+ s"override def typ: $bound = _typ.asInstanceOf[$bound]"
+      }
       val constraints = this.constraints ++ attsAndChildren.flatMap(_.constraints)
       (
         " {" +
@@ -582,40 +703,66 @@ object IRDSL_Impl extends IRDSL {
       (if (docstring.nonEmpty) s"\n/** $docstring*/\n" else "") + classDecl + classBody
 
     private def companionDef = {
-      val argTypes = attsAndChildren.map(_.pack.generateDeclaration)
+      val argTypes = attsAndChildren.map(_.pack.generateDeclaration())
       val decl =
         (
           s"object $name extends"
             + (if (hasCompanionExtension) s" ${name}CompanionExt with" else "")
             + s" ((${argTypes.mkString(", ")}) => $name) {\n"
         )
-      val constructorArgsBase = attsAndChildren.map(_.name)
-      def constructorArgs(typ: String) =
-        (constructorArgsBase ++ (if (explicitType) Seq() else Seq(typ))).mkString(", ")
-      val constructorParams = attsAndChildren.map(_.constructorParam).mkString(", ")
-      val apply = if (explicitType)
+      val constructorArgs =
+        attsAndChildren.map(_.name).filter(!_.isInstanceOf[DeclarationName.Typ]).mkString(", ")
+      val constructorParams = attsAndChildren.map(_.constructorParam()).mkString(", ")
+      val untypedConstructorParams =
+        attsAndChildren.map(_.constructorParam(untyped = true)).mkString(", ")
+      val fromUntypedConstructorArgs =
+        attsAndChildren.filter(!_.name.isInstanceOf[DeclarationName.Typ]).map(
+          _.repr.fromUntyped
+        ).mkString(", ")
+      val apply = if (explicitType != ExplicitType.None)
         s"""  def apply($constructorParams): $name = {
-           |    require(typ != null)
-           |    ComputeTypeFromChildren.$name(${constructorArgsBase.mkString(", ")})
-           |    val node = new $name(${constructorArgsBase.mkString(", ")})
+           |    require($typeField != null)
+           |    val node = new $name($constructorArgs)
+           |    node._typ = $typeField
+           |    node.check()
            |    node
            |  }
            |""".stripMargin
       else
         s"""  def apply($constructorParams): $name = {
-           |    val typ = ComputeTypeFromChildren.$name(${constructorArgsBase.mkString(", ")})
-           |    new $name(${constructorArgs("typ")})
+           |    val node = new $name($constructorArgs)
+           |    node._typ = node.computeTypeFromChildren
+           |    assert(node._typ != null)
+           |    node
            |  }
            |""".stripMargin
-      val untyped = s"""  def untyped($constructorParams): $name =
-                       |    new $name(${constructorArgs("null")})
-                       |""".stripMargin
+      val untyped = explicitType match {
+        case ExplicitType.None =>
+          s"""  def untyped($untypedConstructorParams): UntypedIR =
+             |    UntypedIR(new $name($fromUntypedConstructorArgs))
+             |""".stripMargin
+        case ExplicitType.Required =>
+          s"""  def untyped($untypedConstructorParams): UntypedIR = {
+             |    require($typeField != null)
+             |    val node = new $name($fromUntypedConstructorArgs)
+             |    node._typ = $typeField
+             |    node
+             |  }
+             |""".stripMargin
+        case ExplicitType.Inferable =>
+          s"""  def untyped($untypedConstructorParams): UntypedIR = {
+             |    val node = new $name($fromUntypedConstructorArgs)
+             |    node._typ = $typeField
+             |    node
+             |  }
+             |""".stripMargin
+      }
       val unapply =
         (
           s"  def unapply(x: $name): "
             + (attsAndChildren match {
               case Seq() => "Boolean = true\n"
-              case Seq(a) => s"Some[${a.pack.generateDeclaration}] = Some(x.${a.name})\n"
+              case Seq(a) => s"Some[${a.pack.generateDeclaration()}] = Some(x.${a.name})\n"
               case ts =>
                 s"Some[(${argTypes.mkString(", ")})] = Some((${ts.map(a => s"x.${a.name}").mkString(", ")}))\n"
             })
@@ -701,8 +848,7 @@ object Main {
     r += node("Block", in("bindings", binding.*), in("body", child))
       .withPreamble("override lazy val size: Int = bindings.length + 1")
       .withCompanionExtension
-
-    r += node("Ref", name, typ).withTraits(BaseRef)
+    r += node("Ref", name, typ(inferable = true)).withTraits(BaseRef).withCompanionExtension
 
     r += node(
       "TailLoop",
@@ -718,7 +864,7 @@ object Main {
           |""".stripMargin
       )
       .withPreamble("lazy val paramIdx: Map[Name, Int] = params.map(_._1).zipWithIndex.toMap")
-    r += node("Recur", name, in("args", child.*), typ).withTraits(BaseRef)
+    r += node("Recur", name, in("args", child.*), typ(inferable = true)).withTraits(BaseRef)
 
     r += node("RelationalLet", name, in("value", child), in("body", child))
     r += node("RelationalRef", name, typ).withTraits(BaseRef)
@@ -732,7 +878,8 @@ object Main {
       in("r", child),
     )
 
-    r += node("MakeArray", in("args", child.*), typ("TArray")).withCompanionExtension
+    r += node("MakeArray", in("args", child.*), typ("TArray", inferable = true))
+      .withCompanionExtension
     r += node("MakeStream", in("args", child.*), typ("TStream"), mmPerElt).withCompanionExtension
     r += node("ArrayRef", in("a", child), in("i", child), errorID)
     r += node(
@@ -983,7 +1130,8 @@ object Main {
       .typed("TStream")
 
     def ndNode(name: String, attsAndChildren: GenericDeclaration*): NodeDef =
-      node(name, attsAndChildren: _*).withTraits(NDArrayIR).typed("TNDArray")
+      node(name, attsAndChildren: _*).typed("TNDArray")
+
     r += ndNode(
       "MakeNDArray",
       in("data", child),

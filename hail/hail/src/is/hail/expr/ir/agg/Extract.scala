@@ -9,7 +9,7 @@ import is.hail.expr.ir._
 import is.hail.expr.ir.compile.CompileWithAggregators
 import is.hail.expr.ir.defs._
 import is.hail.io.BufferSpec
-import is.hail.types.{tcoerce, TypeWithRequiredness, VirtualTypeWithReq}
+import is.hail.types.{TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -478,9 +478,11 @@ object Extract {
     val initBuilder = ArrayBuffer.empty[InitOp]
     val seqBuilder = ArraySeq.newBuilder[(Name, IR)]
     val memo = mutable.Map.empty[IR, Int]
-    val result = Ref(freshName(), null)
+    val resultName = freshName()
+    val result = Ref.untyped(resultName)
 
-    val postAggIR = extract(
+    val postAggIRUntyped = extract(
+      ctx,
       ir,
       BindingEnv.empty,
       initBindings,
@@ -495,14 +497,16 @@ object Extract {
     val initOps = initBuilder.to(ArraySeq)
     val pAggSigs = initOps.map(_.aggSig)
     val sigs = new AggSignatures(pAggSigs)
-    result.typ = sigs.resultsOp.typ
+
+    val postAggIR =
+      postAggIRUntyped.annotateTypes(ctx, BindingEnv.eval(resultName -> sigs.resultsOp.typ))
 
     new ExtractedAggs(
       ctx,
       initBindings.result(),
       Begin(initOps),
       Let.void(seqBuilder.result()),
-      Let(FastSeq(result.name -> sigs.resultsOp), postAggIR),
+      Let(FastSeq(resultName -> sigs.resultsOp), postAggIR),
       new AggSignatures(pAggSigs),
     )
   }
@@ -512,6 +516,7 @@ object Extract {
   }
 
   private def extract(
+    ctx: ExecuteContext,
     ir: IR,
     env: BindingEnv[BindingState],
     // Bindings in scope for init op arguments. Will also be in scope in post-agg IR.
@@ -525,10 +530,10 @@ object Extract {
      * state, used to perform CSE on agg ops */
     memo: mutable.Map[IR, Int],
     // a reference to the tuple of results of contained aggs
-    result: IR,
+    result: UntypedIR,
     r: RequirednessAnalysis,
     isScan: Boolean,
-  ): IR = {
+  ): UntypedIR = {
     def newMemo: mutable.Map[IR, Int] = mutable.Map.empty[IR, Int]
 
     // For each free variable in each init op arg, add the binding site to bindingNodesReferenced
@@ -544,29 +549,30 @@ object Extract {
     ir match {
       case Block(bindings, body) =>
         var newEnv = env
-        val bindingsTemp = Array.newBuilder[(Name, IR)]
+        val bindingsTemp = Array.newBuilder[(Name, UntypedIR)]
         bindingsTemp.sizeHint(bindings)
         for (binding <- bindings) binding match {
           case Binding(name, value, Scope.EVAL) =>
             val newValue =
-              this.extract(value, newEnv, initBindings, initBuilder, seqBuilder, memo, result, r,
-                isScan)
+              this.extract(ctx, value, newEnv, initBindings, initBuilder, seqBuilder, memo, result,
+                r, isScan)
             bindingsTemp += name -> newValue
             newEnv = newEnv.bindEval(name, new BindingState)
           case Binding(name, value, _) =>
             seqBuilder += name -> value
         }
-        val newBody = this.extract(body, newEnv, initBindings, initBuilder, seqBuilder,
+        val newBody = this.extract(ctx, body, newEnv, initBindings, initBuilder, seqBuilder,
           memo, result, r, isScan)
         val newBindings = bindingsTemp.result()
         bindingsTemp.clear()
         newBindings.foreach { case b @ (name, f) =>
-          if (newEnv.eval(name).usedInInitOp) initBindings += ((name, f))
+          if (newEnv.eval(name).usedInInitOp)
+            initBindings += ((name, f.annotateTypes(ctx, BindingEnv.empty)))
           else bindingsTemp += b
         }
 
-        Block(
-          bindingsTemp.result().map { case (name, value) => Binding(name, value) },
+        Block.untyped(
+          bindingsTemp.result().map { case (name, value) => Binding.untyped(name, value) },
           newBody,
         )
 
@@ -583,7 +589,7 @@ object Extract {
           },
         )
 
-        GetTupleElement(result, idx)
+        GetTupleElement.untyped(result, idx)
 
       case x: ApplyScanOp if isScan =>
         val idx = memo.getOrElseUpdate(
@@ -598,7 +604,7 @@ object Extract {
           },
         )
 
-        GetTupleElement(result, idx)
+        GetTupleElement.untyped(result, idx)
 
       case x @ AggFold(zero, seqOp, combOp, accumName, otherAccumName, _) =>
         val idx = memo.getOrElseUpdate(
@@ -619,11 +625,11 @@ object Extract {
           },
         )
 
-        GetTupleElement(result, idx)
+        GetTupleElement.untyped(result, idx)
 
       case AggFilter(cond, aggIR, _) =>
         val newSeq = ArraySeq.newBuilder[(Name, IR)]
-        val transformed = this.extract(aggIR, env, initBindings, initBuilder, newSeq,
+        val transformed = this.extract(ctx, aggIR, env, initBindings, initBuilder, newSeq,
           newMemo, result, r, isScan)
 
         seqBuilder += freshName() -> If(cond, Let.void(newSeq.result()), Void())
@@ -631,7 +637,7 @@ object Extract {
 
       case AggExplode(array, name, aggBody, _) =>
         val newSeq = ArraySeq.newBuilder[(Name, IR)]
-        val transformed = this.extract(aggBody, env, initBindings, initBuilder, newSeq,
+        val transformed = this.extract(ctx, aggBody, env, initBindings, initBuilder, newSeq,
           newMemo, result, r, isScan)
 
         val (dependent, independent) = partitionDependentLets(newSeq.result(), name)
@@ -643,15 +649,17 @@ object Extract {
         val i = initBuilder.length
         val newInit = ArrayBuffer.empty[InitOp]
         val newSeq = ArraySeq.newBuilder[(Name, IR)]
-        val newRef = Ref(freshName(), null)
+        val subAggResultName = freshName()
+        val subAggResult = Ref.untyped(subAggResultName)
         val transformed = this.extract(
+          ctx,
           aggIR,
           env,
           initBindings,
           newInit,
           newSeq,
           newMemo,
-          GetField(newRef, "value"),
+          GetField.untyped(subAggResult, "value"),
           r,
           isScan,
         )
@@ -667,30 +675,26 @@ object Extract {
           groupSig,
         )
 
-        val rt = tcoerce[TDict](groupSig.resultType)
-        newRef._typ = rt.elementType
-
-        ToDict(StreamMap(
-          ToStream(GetTupleElement(result, i)),
-          newRef.name,
-          MakeTuple.ordered(FastSeq(GetField(newRef, "key"), transformed)),
+        ToDict.untyped(StreamMap.untyped(
+          ToStream.untyped(GetTupleElement.untyped(result, i)),
+          subAggResultName,
+          MakeTuple.untyped(FastSeq(0 -> GetField.untyped(subAggResult, "key"), 1 -> transformed)),
         ))
 
       case x @ AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, _) =>
         val i = initBuilder.length
         val newAggs = ArrayBuffer.empty[InitOp]
         val newSeq = ArraySeq.newBuilder[(Name, IR)]
-        val newRef = Ref(freshName(), null)
+        val subAggResultName = freshName()
+        val subAggResult = Ref.untyped(subAggResultName)
 
-        val transformed = this.extract(aggBody, env, initBindings, newAggs, newSeq,
-          newMemo, newRef, r, isScan)
+        val transformed = this.extract(ctx, aggBody, env, initBindings, newAggs, newSeq,
+          newMemo, subAggResult, r, isScan)
 
         val initOps = newAggs.to(ArraySeq)
         val pAggSigs = initOps.map(_.aggSig)
         val checkSig = ArrayLenAggSig(x.knownLength.isDefined, pAggSigs)
         val nestedSigs = checkSig.nested
-        val rt = TArray(TTuple(nestedSigs.map(_.resultType): _*))
-        newRef._typ = rt.elementType
 
         val (dependent, independent) = partitionDependentLets(newSeq.result(), elementName)
 
@@ -721,15 +725,16 @@ object Extract {
             ),
           )
 
-        val rUID = Ref(freshName(), rt)
+        val rUIDName = freshName()
+        val rUID = Ref.untyped(rUIDName)
 
-        Let(
-          FastSeq(rUID.name -> GetTupleElement(result, i)),
-          ToArray(StreamMap(
-            StreamRange(0, ArrayLen(rUID), 1),
+        Let.untyped(
+          FastSeq(rUIDName -> GetTupleElement.untyped(result, i)),
+          ToArray.untyped(StreamMap.untyped(
+            StreamRange.untyped(I32(0), ArrayLen.untyped(rUID), I32(1)),
             indexName,
-            Let(
-              FastSeq(newRef.name -> ArrayRef(rUID, Ref(indexName, TInt32))),
+            Let.untyped(
+              FastSeq(subAggResultName -> ArrayRef.untyped(rUID, Ref(indexName, TInt32))),
               transformed,
             ),
           )),
@@ -742,10 +747,10 @@ object Extract {
         assert(!ContainsAgg(x))
         x
       case x =>
-        x.mapChildrenWithIndex { case (child: IR, i) =>
+        x.mapChildrenWithIndexUntyped { case (child: IR, i) =>
           val newEnv = env.extend(Bindings.get(x, i).map((_, _) => new BindingState))
 
-          this.extract(child, newEnv, initBindings, initBuilder, seqBuilder, memo,
+          this.extract(ctx, child, newEnv, initBindings, initBuilder, seqBuilder, memo,
             result, r, isScan)
         }
     }

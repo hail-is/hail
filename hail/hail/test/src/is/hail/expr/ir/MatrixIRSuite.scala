@@ -390,11 +390,8 @@ class MatrixIRSuite extends HailSuite {
     val range = rangeMatrix(10, 2, None)
     val path1 = ctx.createTmpPath("test1")
     val path2 = ctx.createTmpPath("test2")
-    assertThrows[HailException] {
-      TypeCheck(
-        ctx,
-        MatrixMultiWrite(FastSeq(vcf, range), MatrixNativeMultiWriter(IndexedSeq(path1, path2))),
-      )
+    assertThrows[java.lang.AssertionError] {
+      MatrixMultiWrite(FastSeq(vcf, range), MatrixNativeMultiWriter(IndexedSeq(path1, path2)))
     }
   }
 }

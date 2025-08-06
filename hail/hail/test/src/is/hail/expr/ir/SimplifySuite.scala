@@ -5,9 +5,9 @@ import is.hail.ExecStrategy.ExecStrategy
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.defs._
 import is.hail.types.virtual._
+import is.hail.utils.compat.immutable.ArraySeq
 import is.hail.utils.{FastSeq, Interval}
 import is.hail.variant.Locus
-
 import org.apache.spark.sql.Row
 import org.scalactic.{Equivalence, Prettifier}
 import org.scalatest.Inspectors.forAll
@@ -328,7 +328,7 @@ class SimplifySuite extends HailSuite {
   }
 
   @Test def testArrayLenCollectToTableCount(): Unit = {
-    val tr = TableRange(10, 10)
+    val tr = TableKeyBy(TableRange(10, 10), ArraySeq())
     val a = ArrayLen(GetField(TableCollect(tr), "rows"))
     assert(a.typ == TInt32)
     val s = Simplify(ctx, a).asInstanceOf[IR]
@@ -707,13 +707,13 @@ class SimplifySuite extends HailSuite {
   @DataProvider(name = "SwitchRules")
   def switchRules: Array[Array[Any]] =
     Array(
-      Array(I32(-1), I32(-1), IndexedSeq.tabulate(5)(I32.apply), I32(-1)),
-      Array(I32(1), I32(-1), IndexedSeq.tabulate(5)(I32.apply), I32(1)),
+      Array(I32(-1), I32(-1), IndexedSeq.tabulate(5)(I32), I32(-1)),
+      Array(I32(1), I32(-1), IndexedSeq.tabulate(5)(I32), I32(1)),
       Array(
         ref(TInt32),
         I32(-1),
-        IndexedSeq.tabulate(5)(I32.apply),
-        Switch(ref(TInt32), I32(-1), IndexedSeq.tabulate(5)(I32.apply)),
+        IndexedSeq.tabulate(5)(I32),
+        Switch(ref(TInt32), I32(-1), IndexedSeq.tabulate(5)(I32)),
       ),
       Array(I32(256), I32(-1), IndexedSeq.empty[IR], I32(-1)),
       Array(

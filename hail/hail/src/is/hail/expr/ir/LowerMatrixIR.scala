@@ -224,7 +224,7 @@ object LowerMatrixIR {
 
       case MatrixChooseCols(child, oldIndices) =>
         lower(ctx, child, liftedRelationalLets)
-          .mapGlobals('global.insertFields('newColIdx -> oldIndices.map(I32.apply)))
+          .mapGlobals('global.insertFields('newColIdx -> oldIndices.map(I32)))
           .mapRows('row.insertFields(
             entriesField -> 'global('newColIdx).map('i ~> 'row(entriesField)('i))
           ))

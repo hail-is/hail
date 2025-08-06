@@ -53,6 +53,10 @@ sealed abstract class TableIR extends BaseIR {
   def typ: TableType
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): TableIR
+
+  final override protected def copyWithNewChildrenUntyped(newChildren: IndexedSeq[BaseIR])
+  : UntypedBaseIR[TableIR] =
+    UntypedBaseIR(copyWithNewChildren(newChildren))
 }
 
 object TableLiteral {
