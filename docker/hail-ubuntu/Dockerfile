@@ -14,8 +14,6 @@ COPY uv.toml /root/.config/uv/uv.toml
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 ARG PYTHON_VERSION=3.11
-# save PYTHON_VERSION to the environment so that dependent images can inherit the value
-ENV HAIL_PYTHON_MAJOR_VERSION=$PYTHON_VERSION
 RUN chmod 755 /bin/retry && \
     chmod 755 /bin/hail-apt-get-install && \
     chmod 755 /bin/hail-pip-install && \
@@ -37,10 +35,9 @@ RUN chmod 755 /bin/retry && \
     echo 'deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main' \
         >> /etc/apt/sources.list
 
-ENV UV_MANAGED_PYTHON=1 UV_PYTHON_INSTALL_DIR=/opt/uv/python VIRTUAL_ENV=/opt/venv
+ENV UV_PYTHON=$PYTHON_VERSION UV_MANAGED_PYTHON=1 UV_PYTHON_INSTALL_DIR=/opt/uv/python VIRTUAL_ENV=/opt/venv
 ENV PATH=$VIRTUAL_ENV/bin:$PATH
-RUN uv python install $PYTHON_VERSION && \
-    uv venv --seed $VIRTUAL_ENV && \
+RUN uv venv --seed $VIRTUAL_ENV && \
     command -v python3 && \
     python3 -m pip check && \
     python3 -m pip --version
