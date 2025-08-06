@@ -541,12 +541,23 @@ object IRDSL_Impl extends IRDSL {
       s"""def copy(${attsAndChildren.map(x => s"${x.param} = ${x.name}").mkString(", ")}) =
          |    $name(${attsAndChildren.map(_.name).mkString(", ")})""".stripMargin
 
+    private def equalsMethod = {
+      val body = if (attsAndChildren.isEmpty) s"other.isInstanceOf[$name]"
+      else
+        s"""other match {
+           |    case that: $name => ${attsAndChildren.map(att => s"this.${att.name} == that.${att.name}").mkString(" && ")}
+           |    case _ => false
+           |  }
+           |""".stripMargin
+      "override def equals(other: Any): Boolean = " ++ body
+    }
+
     private def classDecl = {
       def typeArg = "override val typ: " + typeBound.getOrElse("Type")
       val paramsBase = attsAndChildren.map(_.classParam)
       val params = if (explicitType) paramsBase else paramsBase :+ typeArg
       val paramList = s"$name(${params.mkString(", ")})"
-      s"final case class $paramList extends IR" + traits.map(" with " + _.name).mkString
+      s"final class $paramList extends IR" + traits.map(" with " + _.name).mkString
     }
 
     private def classBody = {
@@ -555,7 +566,7 @@ object IRDSL_Impl extends IRDSL {
       else
         s"override lazy val childrenSeq: IndexedSeq[BaseIR] = $children"
       val extraMethods =
-        this.extraMethods :+ childrenSeqDef :+ copyWithNewChildren :+ copyMethod
+        this.extraMethods :+ childrenSeqDef :+ copyWithNewChildren :+ copyMethod :+ equalsMethod
       val constraints = this.constraints ++ attsAndChildren.flatMap(_.constraints)
       (
         " {" +
