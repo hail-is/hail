@@ -1,5 +1,6 @@
 import asyncio
 import collections
+import logging
 import os
 import secrets
 import time
@@ -1999,15 +2000,18 @@ def test_cancel_job_group(client: BatchClient):
 
 
 def test_submit_new_job_groups_after_a_group_was_cancelled(client: BatchClient):
-    b = create_batch(client)
-    g1 = b.create_job_group()
-    g1.create_job(DOCKER_ROOT_IMAGE, ['true'])
-    b.submit()
-    g1.cancel()
-    g2 = b.create_job_group()
-    g2.create_job(DOCKER_ROOT_IMAGE, ['true'])
-    b.submit()
-    assert g2.wait()['state'] == 'success', str(g2.debug_info())
+    # Do this in a loop to make sure that the bug is fixed.
+    for i in range(100):
+        logging.info('test_submit_new_job_groups_after_a_group_was_cancelled: iteration %s', i)
+        b = create_batch(client)
+        g1 = b.create_job_group()
+        g1.create_job(DOCKER_ROOT_IMAGE, ['true'])
+        b.submit()
+        g1.cancel()
+        g2 = b.create_job_group()
+        g2.create_job(DOCKER_ROOT_IMAGE, ['true'])
+        b.submit()
+        assert g2.wait()['state'] == 'success', str(g2.debug_info())
 
 
 def test_get_job_group_from_client_batch(client: BatchClient):
