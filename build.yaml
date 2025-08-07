@@ -267,15 +267,14 @@ steps:
     image:
       valueFrom: create_certs_image.image
     script: |
-      set -ex
-
       # Check if secret exists and get its age
-      set +x
+      # First, set +ex to (e) allow the command to fail, (x) avoid logging the password
+      set +ex
       echo 'Running: SECRET_JSON=$(kubectl get secret database-server-config -n {{ default_ns.name }} -o json --show-managed-fields)'
       SECRET_JSON=$(kubectl get secret database-server-config -n {{ default_ns.name }} -o json --show-managed-fields)
       SECRET_EXISTS_EXIT_CODE=$?
       echo "SECRET_EXISTS_EXIT_CODE=$SECRET_EXISTS_EXIT_CODE"
-      set -x
+      set -ex
 
       if [ "$SECRET_EXISTS_EXIT_CODE" -eq 0 ]; then
           echo "Secret exists, checking age..."
