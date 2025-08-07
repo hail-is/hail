@@ -168,14 +168,27 @@ def job_record_to_dict(record: Dict[str, Any], name: Optional[str]) -> JobListEn
 async def cancel_job_group_in_db(db, batch_id, job_group_id):
     @transaction(db)
     async def cancel(tx):
+        # Check batch exists and is not deleted via MVCC (no lock on batches).
+        # Joining batches with FOR UPDATE previously caused a deadlock: cancel acquired
+        # X on job_groups then waited for X on batches, while _create_job_groups held
+        # S on batches and waited on cancel's gap lock in job_groups.
+        # A cascade-delete of the batch will remove job_groups rows, so if the batch
+        # is deleted between this check and the FOR UPDATE below, we get no rows and
+        # raise NonExistentJobGroupError — which is correct.
+        batch = await tx.execute_and_fetchone(
+            'SELECT 1 FROM batches WHERE id = %s AND NOT deleted;',
+            (batch_id,),
+        )
+        if not batch:
+            raise NonExistentJobGroupError(batch_id, job_group_id)
+
         record = await tx.execute_and_fetchone(
             """
 SELECT 1
 FROM job_groups
-LEFT JOIN batches ON batches.id = job_groups.batch_id
 LEFT JOIN batch_updates ON job_groups.batch_id = batch_updates.batch_id AND
   job_groups.update_id = batch_updates.update_id
-WHERE job_groups.batch_id = %s AND job_groups.job_group_id = %s AND NOT deleted AND (batch_updates.committed OR job_groups.job_group_id = %s)
+WHERE job_groups.batch_id = %s AND job_groups.job_group_id = %s AND (batch_updates.committed OR job_groups.job_group_id = %s)
 FOR UPDATE;
 """,
             (batch_id, job_group_id, ROOT_JOB_GROUP_ID),
