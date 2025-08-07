@@ -493,15 +493,13 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         val asArray = SafeIndexedSeq(pArray, soff)
 
         val f = fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, region)
-        val closestI = f(region, soff, eoff)
+        val i = f(region, soff, eoff)
+        val ordering = t.ordering(sm)
 
-        whenever(set.contains(elem)) {
-          val maybeEqual = asArray(closestI)
-          assert(
-            (elem == maybeEqual) &&
-              (t.ordering(sm).compare(elem, maybeEqual) <= 0 || (closestI == set.size - 1))
-          )
-        }
+        // if i-1 is in bounds, then asArray(i) < elem
+        // if i is in bounds, then elem <= asArray(i)
+        assert(((i - 1 < 0) || ordering.compare(asArray(i - 1), elem) < 0) &&
+          ((i >= set.size) || ordering.compare(elem, asArray(i)) <= 0))
       }
     }
   }
