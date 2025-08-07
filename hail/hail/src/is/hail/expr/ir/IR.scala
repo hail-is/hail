@@ -754,19 +754,7 @@ package defs {
 
     abstract class ApplyAggOpCompanionExt {
       def apply(op: AggOp, initOpArgs: IR*)(seqOpArgs: IR*): ApplyAggOp =
-        ApplyAggOp(
-          initOpArgs.toIndexedSeq,
-          seqOpArgs.toIndexedSeq,
-          AggSignature(op, initOpArgs.map(_.typ), seqOpArgs.map(_.typ)),
-        )
-    }
-
-    trait ApplyAggOpExt { self: ApplyAggOp =>
-      def nSeqOpArgs = seqOpArgs.length
-
-      def nInitArgs = initOpArgs.length
-
-      def op: AggOp = aggSig.op
+        ApplyAggOp(initOpArgs.toIndexedSeq, seqOpArgs.toIndexedSeq, op)
     }
 
     abstract class AggFoldCompanionExt {
@@ -838,19 +826,13 @@ package defs {
 
     abstract class ApplyScanOpCompanionExt {
       def apply(op: AggOp, initOpArgs: IR*)(seqOpArgs: IR*): ApplyScanOp =
-        ApplyScanOp(
-          initOpArgs.toIndexedSeq,
-          seqOpArgs.toIndexedSeq,
-          AggSignature(op, initOpArgs.map(_.typ), seqOpArgs.map(_.typ)),
-        )
+        ApplyScanOp(initOpArgs.toIndexedSeq, seqOpArgs.toIndexedSeq, op)
     }
 
     trait ApplyScanOpExt { self: ApplyScanOp =>
       def nSeqOpArgs = seqOpArgs.length
 
       def nInitArgs = initOpArgs.length
-
-      def op: AggOp = aggSig.op
     }
 
     abstract class ResultOpCompanionExt {

@@ -2867,11 +2867,8 @@ class IRSuite extends HailSuite {
   @Test def testArrayAgg(): scalatest.Assertion = {
     implicit val execStrats = ExecStrategy.compileOnly
 
-    val sumSig = AggSignature(Sum(), IndexedSeq(), IndexedSeq(TInt64))
     assertEvalsTo(
-      streamAggIR(mapIR(rangeIR(4))(x => Cast(x, TInt64))) { x =>
-        ApplyAggOp(FastSeq.empty, FastSeq(x), sumSig)
-      },
+      streamAggIR(mapIR(rangeIR(4))(x => Cast(x, TInt64)))(x => ApplyAggOp(Sum())(x)),
       6L,
     )
   }
@@ -2885,20 +2882,16 @@ class IRSuite extends HailSuite {
           invoke(
             "append",
             TArray(TArray(TInt32)),
-            ApplyAggOp(
-              FastSeq(),
-              FastSeq(
-                MakeArray(
-                  FastSeq(
-                    x,
-                    elt,
-                    Cast(y, TInt32),
-                    Cast(y, TInt32),
-                  ), // reference y twice to prevent forwarding
-                  TArray(TInt32),
-                )
-              ),
-              AggSignature(Collect(), FastSeq(), FastSeq(TArray(TInt32))),
+            ApplyAggOp(Collect())(
+              MakeArray(
+                FastSeq(
+                  x,
+                  elt,
+                  Cast(y, TInt32),
+                  Cast(y, TInt32),
+                ), // reference y twice to prevent forwarding
+                TArray(TInt32),
+              )
             ),
             MakeArray(FastSeq(x), TArray(TInt32)),
           )
@@ -2921,11 +2914,7 @@ class IRSuite extends HailSuite {
     val ir = streamAggScanIR(ToStream(In(0, TArray(eltType)))) { foo =>
       GetField(foo, "y") +
         GetField(
-          ApplyScanOp(
-            FastSeq(I32(2)),
-            FastSeq(GetField(foo, "x")),
-            AggSignature(CallStats(), FastSeq(TInt32), FastSeq(TCall)),
-          ),
+          ApplyScanOp(CallStats(), I32(2))(GetField(foo, "x")),
           "AN",
         )
     }
@@ -3138,8 +3127,7 @@ class IRSuite extends HailSuite {
     implicit val execStrats = ExecStrategy.allRelational
 
     val table = TableRange(3, 2)
-    val countSig = AggSignature(Count(), IndexedSeq(), IndexedSeq())
-    val count = ApplyAggOp(FastSeq.empty, FastSeq.empty, countSig)
+    val count = ApplyAggOp(Count())()
     assertEvalsTo(TableAggregate(table, MakeStruct(IndexedSeq("foo" -> count))), Row(3L))
   }
 
@@ -3147,8 +3135,7 @@ class IRSuite extends HailSuite {
     implicit val execStrats = ExecStrategy.interpretOnly
 
     val matrix = MatrixIR.range(5, 5, None)
-    val countSig = AggSignature(Count(), IndexedSeq(), IndexedSeq())
-    val count = ApplyAggOp(FastSeq.empty, FastSeq.empty, countSig)
+    val count = ApplyAggOp(Count())()
     assertEvalsTo(MatrixAggregate(matrix, MakeStruct(IndexedSeq("foo" -> count))), Row(25L))
   }
 
@@ -3300,19 +3287,13 @@ class IRSuite extends HailSuite {
 
     val call = Ref(freshName(), TCall)
 
-    val collectSig = AggSignature(Collect(), IndexedSeq(), IndexedSeq(TInt32))
     val pCollectSig = PhysicalAggSig(Collect(), CollectStateSig(VirtualTypeWithReq(PInt32())))
 
-    val sumSig = AggSignature(Sum(), IndexedSeq(), IndexedSeq(TInt64))
     val pSumSig = PhysicalAggSig(Sum(), TypedStateSig(VirtualTypeWithReq(PInt64(true))))
 
-    val callStatsSig = AggSignature(CallStats(), IndexedSeq(TInt32), IndexedSeq(TCall))
     val pCallStatsSig = PhysicalAggSig(CallStats(), CallStatsStateSig())
 
-    val takeBySig = AggSignature(TakeBy(), IndexedSeq(TInt32), IndexedSeq(TFloat64, TInt32))
-
-    val countSig = AggSignature(Count(), IndexedSeq(), IndexedSeq())
-    val count = ApplyAggOp(FastSeq.empty, FastSeq.empty, countSig)
+    val count = ApplyAggOp(Count())()
 
     val groupSignature = GroupedAggSig(VirtualTypeWithReq(PInt32(true)), FastSeq(pSumSig))
 
@@ -3343,8 +3324,7 @@ class IRSuite extends HailSuite {
     )
     val rngState = RNGStateLiteral()
 
-    def collect(ir: IR): IR =
-      ApplyAggOp(FastSeq.empty, FastSeq(ir), collectSig)
+    def collect(ir: IR): IR = ApplyAggOp(Collect())(ir)
 
     implicit def addEnv(ir: IR): (IR, BindingEnv[Type] => BindingEnv[Type]) =
       (ir, env => env)
@@ -3449,10 +3429,8 @@ class IRSuite extends HailSuite {
         )
       },
       forIR(st)(_ => Void()) -> Array(st),
-      streamAggIR(st)(x => ApplyAggOp(FastSeq.empty, FastSeq(Cast(x, TInt64)), sumSig)) ->
-        Array(st),
-      streamAggScanIR(st)(x => ApplyScanOp(FastSeq.empty, FastSeq(Cast(x, TInt64)), sumSig)) ->
-        Array(st),
+      streamAggIR(st)(x => ApplyAggOp(Sum())(Cast(x, TInt64))) -> Array(st),
+      streamAggScanIR(st)(x => ApplyScanOp(Sum())(Cast(x, TInt64))) -> Array(st),
       RunAgg(
         Begin(FastSeq(
           InitOp(0, FastSeq(Begin(FastSeq(InitOp(0, FastSeq(), pSumSig)))), groupSignature),
@@ -3474,12 +3452,12 @@ class IRSuite extends HailSuite {
       AggFilter(True(), I32(0), false) -> (_.createAgg),
       aggExplodeIR(NA(TStream(TInt32)))(_ => I32(0)) -> (_.createAgg),
       AggGroupBy(True(), I32(0), false) -> (_.createAgg),
-      ApplyAggOp(FastSeq.empty, FastSeq(I32(0)), collectSig) -> (_.createAgg),
-      ApplyAggOp(FastSeq(I32(2)), FastSeq(call), callStatsSig) -> (_.createAgg.bindAgg(
+      ApplyAggOp(Collect())(I32(0)) -> (_.createAgg),
+      ApplyAggOp(CallStats(), I32(2))(call) -> (_.createAgg.bindAgg(
         call.name,
         call.typ,
       )),
-      ApplyAggOp(FastSeq(I32(10)), FastSeq(F64(-2.11), I32(4)), takeBySig) -> (_.createAgg),
+      ApplyAggOp(TakeBy(), I32(10))(F64(-2.11), I32(4)) -> (_.createAgg),
       AggFold(I32(0), l + I32(1), l + r, l.name, r.name, false) -> (_.createAgg),
       InitOp(0, FastSeq(I32(2)), pCallStatsSig),
       SeqOp(0, FastSeq(i), pCollectSig),
@@ -3769,8 +3747,7 @@ class IRSuite extends HailSuite {
         ),
       ))
 
-      val collectSig = AggSignature(Collect(), IndexedSeq(), IndexedSeq(TInt32))
-      val collect = ApplyAggOp(FastSeq.empty, FastSeq(I32(0)), collectSig)
+      val collect = ApplyAggOp(Collect())(I32(0))
 
       val newRowAnn = MakeStruct(FastSeq("count_row" -> collect))
       val newColAnn = MakeStruct(FastSeq("count_col" -> collect))
@@ -4024,7 +4001,7 @@ class IRSuite extends HailSuite {
           "global" -> MakeStruct(FastSeq()),
         ))),
       ),
-      ApplyAggOp(FastSeq(), FastSeq(), AggSignature(Count(), FastSeq(), FastSeq())),
+      ApplyAggOp(Count())(),
     )
     assertEvalsTo(ir, 1L)
   }
@@ -4054,7 +4031,7 @@ class IRSuite extends HailSuite {
     )
     val ir = MatrixAggregate(
       RelationalLetMatrixTable(x.name, Literal(t, FastSeq(Row(1))), m),
-      ApplyAggOp(FastSeq(), FastSeq(), AggSignature(Count(), FastSeq(), FastSeq())),
+      ApplyAggOp(Count())(),
     )
     assertEvalsTo(ir, 1L)
   }
@@ -4246,12 +4223,9 @@ class IRSuite extends HailSuite {
 
   @Test def freeVariables(): scalatest.Assertion = {
     val stream = rangeIR(5)
-    val sumSig = AggSignature(Sum(), IndexedSeq(), IndexedSeq(TInt32))
     val y = Ref(freshName(), TInt32)
     val z = Ref(freshName(), TInt32)
-    val explodeIR = aggExplodeIR(stream) { x =>
-      z + ApplyAggOp(FastSeq.empty, FastSeq(x + y), sumSig)
-    }
+    val explodeIR = aggExplodeIR(stream)(x => z + ApplyAggOp(Sum())(x + y))
 
     assert(FreeVariables(explodeIR, true, true) == BindingEnv[Unit](
       Env((z.name, ())),
@@ -4260,7 +4234,7 @@ class IRSuite extends HailSuite {
     ))
     assert(FreeVariables(explodeIR, false, false) == BindingEnv[Unit](Env((z.name, ()))))
 
-    val aggIR = streamAggIR(stream)(x => z + ApplyAggOp(FastSeq.empty, FastSeq(x + y), sumSig))
+    val aggIR = streamAggIR(stream)(x => z + ApplyAggOp(Sum())(x + y))
     assert(
       FreeVariables(aggIR, true, true) == BindingEnv[Unit](
         Env((z.name, ()), (y.name, ())),

@@ -1568,16 +1568,18 @@ object PruneDeadFields {
         if (knownLength.nonEmpty) void(recurMax(ir, 2))
 
       case a @ (_: ApplyAggOp | _: ApplyScanOp) =>
-        val (initOpArgs, sig) = a match {
-          case ApplyAggOp(initOpArgs, _, sig) => (initOpArgs, sig)
-          case ApplyScanOp(initOpArgs, _, sig) => (initOpArgs, sig)
+        val (initOpArgs, seqOpArgs, op) = a match {
+          case ApplyAggOp(initOpArgs, seqOpArgs, op) =>
+            (initOpArgs.map(_.typ), seqOpArgs.map(_.typ), op)
+          case ApplyScanOp(initOpArgs, seqOpArgs, op) =>
+            (initOpArgs.map(_.typ), seqOpArgs.map(_.typ), op)
         }
 
-        val prunedSig = AggSignature.prune(sig, requestedType)
-        prunedSig.initOpArgs.zipWithIndex.foreach { case (req, i) =>
+        val prunedSeqOpArgs = AggOp.prune(op, seqOpArgs, requestedType)
+        initOpArgs.zipWithIndex.foreach { case (req, i) =>
           recur(ir, i, req)
         }
-        prunedSig.seqOpArgs.zipWithIndex.foreach { case (req, i) =>
+        prunedSeqOpArgs.zipWithIndex.foreach { case (req, i) =>
           recur(ir, initOpArgs.length + i, req)
         }
 
@@ -2323,29 +2325,13 @@ object PruneDeadFields {
           ))
         }
       case x: ApplyAggOp =>
-        val rewritten = x.mapChildrenWithEnv(env) { (child, childEnv) =>
+        x.mapChildrenWithEnv(env) { (child, childEnv) =>
           rebuildIR(ctx, child.asInstanceOf[IR], childEnv, memo)
         }.asInstanceOf[ApplyAggOp]
-        ApplyAggOp(
-          aggSig = rewritten.aggSig.copy(
-            initOpArgs = rewritten.initOpArgs.map(_.typ),
-            seqOpArgs = rewritten.seqOpArgs.map(_.typ),
-          ),
-          initOpArgs = rewritten.initOpArgs,
-          seqOpArgs = rewritten.seqOpArgs,
-        )
       case x: ApplyScanOp =>
-        val rewritten = x.mapChildrenWithEnv(env) { (child, childEnv) =>
+        x.mapChildrenWithEnv(env) { (child, childEnv) =>
           rebuildIR(ctx, child.asInstanceOf[IR], childEnv, memo)
         }.asInstanceOf[ApplyScanOp]
-        ApplyScanOp(
-          aggSig = rewritten.aggSig.copy(
-            initOpArgs = rewritten.initOpArgs.map(_.typ),
-            seqOpArgs = rewritten.seqOpArgs.map(_.typ),
-          ),
-          initOpArgs = rewritten.initOpArgs,
-          seqOpArgs = rewritten.seqOpArgs,
-        )
       case CollectDistributedArray(contexts, globals, cname, gname, body, dynamicID, staticID,
             tsd) =>
         val contexts2 = upcast(

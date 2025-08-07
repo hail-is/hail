@@ -196,8 +196,8 @@ class Pretty(
   def single(d: Doc): Iterable[Doc] = RichIterable.single(d)
 
   def header(ir: BaseIR, elideBindings: Boolean = false): Iterable[Doc] = ir match {
-    case ApplyAggOp(_, _, aggSig) => single(Pretty.prettyClass(aggSig.op))
-    case ApplyScanOp(_, _, aggSig) => single(Pretty.prettyClass(aggSig.op))
+    case ApplyAggOp(_, _, op) => single(Pretty.prettyClass(op))
+    case ApplyScanOp(_, _, op) => single(Pretty.prettyClass(op))
     case InitOp(i, _, aggSig) => FastSeq(i.toString, prettyPhysicalAggSig(aggSig))
     case SeqOp(i, _, aggSig) => FastSeq(i.toString, prettyPhysicalAggSig(aggSig))
     case CombOp(i1, i2, aggSig) => FastSeq(i1.toString, i2.toString, prettyPhysicalAggSig(aggSig))
