@@ -483,7 +483,7 @@ class Aggregators2Suite extends HailSuite {
           invoke("str", TString, GetField(Ref(TableIR.rowName, tr.typ.rowType), "idx")),
           I32(9999) - GetField(Ref(TableIR.rowName, tr.typ.rowType), "idx"),
         ),
-        AggSignature(TakeBy(), FastSeq(TInt32), FastSeq(TString, TInt32)),
+        TakeBy(),
       ),
     )
 
@@ -1002,7 +1002,7 @@ class Aggregators2Suite extends HailSuite {
               bar.toL + bar.toL + ApplyAggOp(
                 FastSeq(),
                 FastSeq(GetField(Ref(MatrixIR.rowName, t.rowType), "row_idx").toL),
-                AggSignature(Sum(), FastSeq(), FastSeq(TInt64)),
+                Sum(),
               ),
               false,
             )
