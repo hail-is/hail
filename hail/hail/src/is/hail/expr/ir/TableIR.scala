@@ -130,12 +130,6 @@ object LoweredTableReader {
       SelectFields(k, key.take(partitionKey))
 
     info(s"scanning $context for sortedness...")
-    val prevkey = AggSignature(PrevNonnull(), FastSeq(), FastSeq(keyType))
-    val count = AggSignature(Count(), FastSeq(), FastSeq())
-    val samplekey = AggSignature(TakeBy(), FastSeq(TInt32), FastSeq(keyType, TFloat64))
-    val sum = AggSignature(Sum(), FastSeq(), FastSeq(TInt64))
-    val minkey = AggSignature(TakeBy(), FastSeq(TInt32), FastSeq(keyType, keyType))
-    val maxkey = AggSignature(TakeBy(Descending), FastSeq(TInt32), FastSeq(keyType, keyType))
 
     val xType = TStruct(
       "key" -> keyType,
@@ -172,12 +166,12 @@ object LoweredTableReader {
               F64(0.0),
               F64(1.0),
             ),
-            "prevkey" -> ApplyScanOp(FastSeq(), FastSeq(keyRef), prevkey),
+            "prevkey" -> ApplyScanOp(FastSeq(), FastSeq(keyRef), PrevNonnull()),
           )),
         ),
         xRef.name,
         Let(
-          FastSeq(nRef.name -> ApplyAggOp(FastSeq(), FastSeq(), count)),
+          FastSeq(nRef.name -> ApplyAggOp(FastSeq(), FastSeq(), Count())),
           AggLet(
             keyRef.name,
             GetField(xRef, "key"),
@@ -187,13 +181,13 @@ object LoweredTableReader {
                 ApplyAggOp(
                   FastSeq(I32(1)),
                   FastSeq(keyRef, keyRef),
-                  minkey,
+                  TakeBy(),
                 ),
               "maxkey" ->
                 ApplyAggOp(
                   FastSeq(I32(1)),
                   FastSeq(keyRef, keyRef),
-                  maxkey,
+                  TakeBy(Descending),
                 ),
               "ksorted" ->
                 ApplyComparisonOp(
@@ -216,7 +210,7 @@ object LoweredTableReader {
                         ),
                       )
                     ),
-                    sum,
+                    Sum(),
                   ),
                   nRef,
                 ),
@@ -241,14 +235,14 @@ object LoweredTableReader {
                         ),
                       )
                     ),
-                    sum,
+                    Sum(),
                   ),
                   nRef,
                 ),
               "sample" -> ApplyAggOp(
                 FastSeq(I32(samplesPerPartition)),
                 FastSeq(GetField(xRef, "key"), GetField(xRef, "token")),
-                samplekey,
+                TakeBy(),
               ),
             )),
             isScan = false,

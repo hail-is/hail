@@ -298,15 +298,7 @@ class SimplifySuite extends HailSuite {
     forAll(doesRewrite)(a => a should simplifyTo(a.query))
 
     val doesNotRewrite: Array[StreamAgg] = Array(
-      streamAggIR(
-        ToStream(In(0, TArray(TInt32)))
-      ) { foo =>
-        ApplyAggOp(
-          FastSeq(),
-          FastSeq(foo),
-          AggSignature(Sum(), FastSeq(), FastSeq(TInt32)),
-        )
-      },
+      streamAggIR(ToStream(In(0, TArray(TInt32))))(ApplyAggOp(Sum())(_)),
       streamAggIR(ToStream(In(0, TArray(TInt32)))) { _ =>
         aggBindIR(In(1, TInt32) * In(1, TInt32))(_ => Ref(freshName(), TInt32))
       },
