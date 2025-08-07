@@ -58,6 +58,7 @@ from .exceptions import (
     InvalidUsername,
     MultipleExistingUsers,
     MultipleUserTypes,
+    NotInactiveUser,
     PreviouslyDeletedUser,
     UnknownUser,
 )
@@ -713,6 +714,46 @@ async def rest_delete_user(request: web.Request, _) -> web.Response:
     return web.json_response()
 
 
+async def _activate_user(db: Database, username: str, id: Optional[str]):
+    where_conditions = ['state = "inactive"', 'username = %s']
+    where_args = [username]
+
+    if id is not None:
+        where_conditions.append('id = %s')
+        where_args.append(id)
+
+    n_rows = await db.execute_update(
+        f"""
+UPDATE users
+SET state = 'active', last_activated = CURRENT_TIMESTAMP(3)
+WHERE {' AND '.join(where_conditions)};
+""",
+        where_args,
+    )
+
+    if n_rows == 0:
+        raise NotInactiveUser(username)
+
+
+@routes.post('/users/activate')
+@web_security_headers
+@auth.authenticated_developers_only()
+async def activate_user(request: web.Request, _) -> NoReturn:
+    session = await aiohttp_session.get_session(request)
+    db = request.app[AppKeys.DB]
+    post = await request.post()
+    id = str(post['id'])
+    username = str(post['username'])
+
+    try:
+        await _activate_user(db, username, id)
+        set_message(session, f'Reactivated user {id} {username}.', 'info')
+    except NotInactiveUser:
+        set_message(session, f'Reactivation failed, user {id} {username} is not inactive.', 'error')
+
+    raise web.HTTPFound(deploy_config.external_url('auth', '/users'))
+
+
 @routes.get('/api/v1alpha/oauth2callback')
 @api_security_headers
 async def rest_callback(request):
@@ -876,6 +917,18 @@ WHERE users.state = 'active' AND sessions.session_id = %s AND (ISNULL(sessions.m
 
     if len(users) != 1:
         return None
+
+    if users[0]['state'] == 'active':
+        current_uid = users[0]['id']
+        await db.execute_update(
+            """
+UPDATE users
+SET last_activated = CURRENT_TIMESTAMP(3)
+WHERE id = %s;
+""",
+            current_uid,
+        )
+
     return typing.cast(UserData, users[0])
 
 

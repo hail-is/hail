@@ -52,6 +52,12 @@ spec:
                 key: cloud
           - name: HAIL_SHA
             value: "{{ code.sha }}"
+          - name: INACTIVE_USER_TIMEOUT_DAYS
+            valueFrom:
+              secretKeyRef:
+                name: auth-config
+                key: inactive_user_timeout_days
+                optional: true
           - name: SESSION_MAX_AGE_SECS
             valueFrom:
               secretKeyRef:
