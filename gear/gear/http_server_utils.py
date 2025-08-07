@@ -9,7 +9,15 @@ async def json_request(request: web.Request) -> Any:
     result = orjson.loads(await request.read())
     if 'request_data' not in request:
         request['request_data'] = {}
-    request['request_data'].update(result)
+
+    # Handle both dictionaries and lists
+    if isinstance(result, dict):
+        request['request_data'].update(result)
+    elif isinstance(result, list):
+        request['request_data'].update({'list_data': result})
+    else:
+        request['request_data'].update({'raw_data': result})
+
     return result
 
 
