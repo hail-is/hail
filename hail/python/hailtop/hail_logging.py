@@ -86,32 +86,32 @@ class AccessLogger(AbstractAccessLogger):
 
         extra.update({'request_data_source': request_data_source})
 
-        # extra.update({'request_data': {k: request_data[k] for k in request_data.keys() if not k.startswith('_')}})
+        extra.update({'request_data': {k: request_data[k] for k in request_data.keys() if not k.startswith('_')}})
         # Add error handling to prevent logging failures from masking other issues
-        try:
-            # Filter out potentially problematic data and limit size
-            safe_request_data = {}
-            for k, v in request_data.items():
-                if k.startswith('_'):
-                    continue
-                try:
-                    # Test if the value can be serialized
-                    orjson.dumps(v)
-                    # Limit size to prevent memory issues
-                    if isinstance(v, (list, dict)) and len(str(v)) > 1000:
-                        safe_request_data[k] = (
-                            f"[{type(v).__name__} with {len(v) if isinstance(v, (list, dict)) else 'unknown'} items]"
-                        )
-                    else:
-                        safe_request_data[k] = v
-                except (TypeError, ValueError, RecursionError):
-                    # Skip values that can't be serialized
-                    safe_request_data[k] = f"[{type(v).__name__} - not serializable]"
+        # try:
+        #     # Filter out potentially problematic data and limit size
+        #     safe_request_data = {}
+        #     for k, v in request_data.items():
+        #         if k.startswith('_'):
+        #             continue
+        #         try:
+        #             # Test if the value can be serialized
+        #             orjson.dumps(v)
+        #             # Limit size to prevent memory issues
+        #             if isinstance(v, (list, dict)) and len(str(v)) > 1000:
+        #                 safe_request_data[k] = (
+        #                     f"[{type(v).__name__} with {len(v) if isinstance(v, (list, dict)) else 'unknown'} items]"
+        #                 )
+        #             else:
+        #                 safe_request_data[k] = v
+        #         except (TypeError, ValueError, RecursionError):
+        #             # Skip values that can't be serialized
+        #             safe_request_data[k] = f"[{type(v).__name__} - not serializable]"
 
-            extra.update({'request_data': safe_request_data})
-        except Exception as e:
-            # Log the error but don't let it break the main logging
-            extra['request_data_error'] = str(e)
+        #     extra.update({'request_data': safe_request_data})
+        # except Exception as e:
+        #     # Log the error but don't let it break the main logging
+        #     extra['request_data_error'] = str(e)
 
         api_info_maybe = request.get('api_info', {})
         api_info_keys_and_defaults = {
