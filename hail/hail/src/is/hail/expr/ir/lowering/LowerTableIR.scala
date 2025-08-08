@@ -778,7 +778,7 @@ object LowerTableIR {
             ))(inner => ToStream(inner)))
           }
         })) { partData =>
-          val sorted = sortIR(partData)((l, r) => ApplyComparisonOp(LT(keyType, keyType), l, r))
+          val sorted = sortIR(partData)((l, r) => ApplyComparisonOp(LT, l, r))
           bindIR(ToArray(flatMapIR(StreamGroupByKey(
             ToStream(sorted),
             keyType.fieldNames,

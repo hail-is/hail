@@ -143,11 +143,9 @@ object TypeCheck {
       case x @ ApplyUnaryPrimOp(op, v) =>
         assert(x.typ == UnaryOp.getReturnType(op, v.typ))
       case x @ ApplyComparisonOp(op, l, r) =>
-        assert(op.t1 == l.typ)
-        assert(op.t2 == r.typ)
-        ComparisonOp.checkCompatible(op.t1, op.t2)
+        ComparisonOp.checkCompatible(l.typ, r.typ)
         op match {
-          case _: Compare => assert(x.typ == TInt32)
+          case Compare => assert(x.typ == TInt32)
           case _ => assert(x.typ == TBoolean)
         }
       case MakeArray(args, typ) =>

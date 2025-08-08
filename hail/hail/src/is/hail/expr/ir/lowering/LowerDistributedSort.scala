@@ -373,7 +373,7 @@ object LowerDistributedSort {
             val sortedOversampling = sortIR(flatMapIR(ToStream(GetField(aggResults, "samples"))) {
               onePartCollectedArray => ToStream(onePartCollectedArray)
             }) { case (left, right) =>
-              ApplyComparisonOp(StructLT(keyToSortBy, sortFields), left, right)
+              ApplyComparisonOp(StructLT(sortFields), left, right)
             }
             val minArray = MakeArray(GetField(aggResults, "min"))
             val maxArray = MakeArray(GetField(aggResults, "max"))
@@ -561,7 +561,7 @@ object LowerDistributedSort {
                     partitionStream,
                     ArrayRef(pivotsWithEndpointsGroupedBySegmentIdx, indexIntoPivotsArray),
                     path,
-                    StructCompare(keyToSortBy, keyToSortBy, sortFields.toArray),
+                    StructCompare(sortFields),
                     spec,
                   ),
                 ))
@@ -652,7 +652,7 @@ object LowerDistributedSort {
           val newKeyFieldNames = keyToSortBy.fields.map(_.name)
           val sortedStream = ToStream(sortIR(partitionInputStream) { (refLeft, refRight) =>
             ApplyComparisonOp(
-              StructLT(keyToSortBy, sortFields),
+              StructLT(sortFields),
               SelectFields(refLeft, newKeyFieldNames),
               SelectFields(refRight, newKeyFieldNames),
             )
@@ -857,7 +857,7 @@ object LowerDistributedSort {
             "haveSeenAny" -> true,
           )),
           If(
-            ApplyComparisonOp(StructLTEQ(eltType, sortFields), lastKeySeenRef, eltRef),
+            ApplyComparisonOp(StructLTEQ(sortFields), lastKeySeenRef, eltRef),
             MakeStruct(FastSeq(
               "lastKeySeen" -> eltRef,
               "sortedSoFar" -> GetField(aggFoldSortedAccumRef1, "sortedSoFar"),
@@ -909,13 +909,10 @@ object LowerDistributedSort {
   /* Given an IR of type TArray(TTuple(minKey, maxKey)), determine if there's any overlap between
    * these closed intervals. */
   def tuplesAreSorted(arrayOfTuples: IR, sortFields: IndexedSeq[SortField]): IR = {
-    val intervalElementType =
-      arrayOfTuples.typ.asInstanceOf[TArray].elementType.asInstanceOf[TTuple].types(0)
-
     foldIR(
       mapIR(rangeIR(1, ArrayLen(arrayOfTuples))) { idxOfTuple =>
         ApplyComparisonOp(
-          StructLTEQ(intervalElementType, sortFields),
+          StructLTEQ(sortFields),
           GetTupleElement(ArrayRef(arrayOfTuples, idxOfTuple - 1), 1),
           GetTupleElement(ArrayRef(arrayOfTuples, idxOfTuple), 0),
         )

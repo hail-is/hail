@@ -41,14 +41,14 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
 
   def grch38: ReferenceGenome = ctx.references(ReferenceGenome.GRCh38)
 
-  def lt(l: IR, r: IR): IR = ApplyComparisonOp(LT(l.typ), l, r)
-  def gt(l: IR, r: IR): IR = ApplyComparisonOp(GT(l.typ), l, r)
-  def lteq(l: IR, r: IR): IR = ApplyComparisonOp(LTEQ(l.typ), l, r)
-  def gteq(l: IR, r: IR): IR = ApplyComparisonOp(GTEQ(l.typ), l, r)
-  def eq(l: IR, r: IR): IR = ApplyComparisonOp(EQ(l.typ), l, r)
-  def neq(l: IR, r: IR): IR = ApplyComparisonOp(NEQ(l.typ), l, r)
-  def eqna(l: IR, r: IR): IR = ApplyComparisonOp(EQWithNA(l.typ), l, r)
-  def neqna(l: IR, r: IR): IR = ApplyComparisonOp(NEQWithNA(l.typ), l, r)
+  def lt(l: IR, r: IR): IR = ApplyComparisonOp(LT, l, r)
+  def gt(l: IR, r: IR): IR = ApplyComparisonOp(GT, l, r)
+  def lteq(l: IR, r: IR): IR = ApplyComparisonOp(LTEQ, l, r)
+  def gteq(l: IR, r: IR): IR = ApplyComparisonOp(GTEQ, l, r)
+  def eq(l: IR, r: IR): IR = ApplyComparisonOp(EQ, l, r)
+  def neq(l: IR, r: IR): IR = ApplyComparisonOp(NEQ, l, r)
+  def eqna(l: IR, r: IR): IR = ApplyComparisonOp(EQWithNA, l, r)
+  def neqna(l: IR, r: IR): IR = ApplyComparisonOp(NEQWithNA, l, r)
   def or(l: IR, r: IR): IR = invoke("lor", TBoolean, l, r)
   def and(l: IR, r: IR): IR = invoke("land", TBoolean, l, r)
   def not(b: IR): IR = ApplyUnaryPrimOp(Bang, b)
@@ -93,7 +93,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       accRef.name,
       rowRef.name,
       ApplyComparisonOp(
-        EQ(TBoolean),
+        EQ,
         filterIsTrue,
         invoke("land", TBoolean, keyInIntervals, residualIsTrue),
       ),
@@ -189,21 +189,21 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     }
 
     check(
-      LT(TInt32),
+      LT,
       I32(0),
       FastSeq(Interval(Row(), Row(0), true, false)),
       FastSeq(Interval(Row(0), Row(null), true, false)),
       FastSeq(Interval(Row(null), Row(), true, true)),
     )
     check(
-      GT(TInt32),
+      GT,
       I32(0),
       FastSeq(Interval(Row(0), Row(null), false, false)),
       FastSeq(Interval(Row(), Row(0), true, true)),
       FastSeq(Interval(Row(null), Row(), true, true)),
     )
     check(
-      EQ(TInt32),
+      EQ,
       I32(0),
       FastSeq(Interval(Row(0), Row(0), true, true)),
       FastSeq(
@@ -214,12 +214,12 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     )
 
     // These are never true (always missing), extracts the empty set of intervals
-    check(LT(TInt32), NA(TInt32), FastSeq(), FastSeq(), FastSeq(Interval(Row(), Row(), true, true)))
-    check(GT(TInt32), NA(TInt32), FastSeq(), FastSeq(), FastSeq(Interval(Row(), Row(), true, true)))
-    check(EQ(TInt32), NA(TInt32), FastSeq(), FastSeq(), FastSeq(Interval(Row(), Row(), true, true)))
+    check(LT, NA(TInt32), FastSeq(), FastSeq(), FastSeq(Interval(Row(), Row(), true, true)))
+    check(GT, NA(TInt32), FastSeq(), FastSeq(), FastSeq(Interval(Row(), Row(), true, true)))
+    check(EQ, NA(TInt32), FastSeq(), FastSeq(), FastSeq(Interval(Row(), Row(), true, true)))
 
     check(
-      EQWithNA(TInt32),
+      EQWithNA,
       I32(0),
       FastSeq(Interval(Row(0), Row(0), true, true)),
       FastSeq(
@@ -229,7 +229,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       FastSeq(),
     )
     check(
-      EQWithNA(TInt32),
+      EQWithNA,
       NA(TInt32),
       FastSeq(Interval(Row(null), Row(), true, true)),
       FastSeq(Interval(Row(), Row(null), true, false)),
@@ -238,7 +238,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
 
     assert(ExtractIntervalFilters.extractPartitionFilters(
       ctx,
-      ApplyComparisonOp(Compare(TInt32), I32(0), k1),
+      ApplyComparisonOp(Compare, I32(0), k1),
       ref1,
       ref1Key,
     ).isEmpty)
@@ -573,14 +573,14 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     }
 
     check(
-      GT(TInt32),
+      GT,
       100,
       FastSeq(Interval(Row(100), Row(null), false, false)),
       FastSeq(Interval(Row(), Row(100), true, true)),
       FastSeq(Interval(Row(null), Row(), true, true)),
     )
     check(
-      GT(TInt32),
+      GT,
       -1000,
       FastSeq(Interval(Row(1), Row(null), true, false)),
       FastSeq(),
@@ -588,14 +588,14 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     )
 
     check(
-      LT(TInt32),
+      LT,
       100,
       FastSeq(Interval(Row(), Row(100), true, false)),
       FastSeq(Interval(Row(100), Row(null), true, false)),
       FastSeq(Interval(Row(null), Row(), true, true)),
     )
     check(
-      LT(TInt32),
+      LT,
       -1000,
       FastSeq(),
       FastSeq(Interval(Row(), Row(null), true, false)),
@@ -603,7 +603,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     )
 
     check(
-      EQ(TInt32),
+      EQ,
       100,
       FastSeq(Interval(Row(100), Row(100), true, true)),
       FastSeq(
@@ -613,7 +613,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       FastSeq(Interval(Row(null), Row(), true, true)),
     )
     check(
-      EQ(TInt32),
+      EQ,
       -1000,
       FastSeq(),
       FastSeq(Interval(Row(), Row(null), true, false)),
@@ -621,7 +621,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     )
 
     check(
-      EQWithNA(TInt32),
+      EQWithNA,
       100,
       FastSeq(Interval(Row(100), Row(100), true, true)),
       FastSeq(
@@ -631,7 +631,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       FastSeq(),
     )
     check(
-      EQWithNA(TInt32),
+      EQWithNA,
       -1000,
       FastSeq(),
       FastSeq(Interval(Row(), Row(), true, true)),
@@ -640,7 +640,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
 
     assert(ExtractIntervalFilters.extractPartitionFilters(
       ctx,
-      ApplyComparisonOp(Compare(TInt32), I32(0), pos),
+      ApplyComparisonOp(Compare, I32(0), pos),
       ref,
       ref1Key,
     ).isEmpty)
@@ -1114,8 +1114,8 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
         invoke(
           "land",
           TBoolean,
-          ApplyComparisonOp(GT(TInt32), k, I32(3)),
-          ApplyComparisonOp(LTEQ(TInt32), k, I32(9)),
+          ApplyComparisonOp(GT, k, I32(3)),
+          ApplyComparisonOp(LTEQ, k, I32(9)),
         ),
         False(),
       )),

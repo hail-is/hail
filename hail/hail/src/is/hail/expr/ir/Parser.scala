@@ -2088,9 +2088,6 @@ object IRParser {
           x.aggSig.initOpArgs = x.initOpArgs.map(_.typ)
           x.aggSig.seqOpArgs = x.seqOpArgs.map(_.typ)
           x
-        case x: ApplyComparisonOp =>
-          x.op = x.op.copy(x.l.typ, x.r.typ)
-          x
         case MakeArray(args, typ) =>
           MakeArray.unify(ctx, args, typ)
         case x @ InitOp(

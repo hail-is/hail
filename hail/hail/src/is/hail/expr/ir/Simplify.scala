@@ -82,8 +82,8 @@ object Simplify {
           _: MakeStruct |
           _: MakeTuple |
           _: IsNA |
-          ApplyComparisonOp(EQWithNA(_, _), _, _) |
-          ApplyComparisonOp(NEQWithNA(_, _), _, _) |
+          ApplyComparisonOp(EQWithNA, _, _) |
+          ApplyComparisonOp(NEQWithNA, _, _) |
           _: I32 | _: I64 | _: F32 | _: F64 | True() | False() => true
       case _ => false
     }
@@ -165,12 +165,12 @@ object Simplify {
         case ApplyComparisonOp(op, x, y)
             if (!isFloating(x.typ) && x.typ == y.typ) && x == y =>
           op match {
-            case _: LT => Some(False())
-            case _: LTEQ => Some(True())
-            case _: EQ => Some(True())
-            case _: GTEQ => Some(True())
-            case _: GT => Some(False())
-            case _: NEQ => Some(False())
+            case LT => Some(False())
+            case LTEQ => Some(True())
+            case EQ => Some(True())
+            case GTEQ => Some(True())
+            case GT => Some(False())
+            case NEQ => Some(False())
             case _ => None
           }
 
@@ -796,7 +796,6 @@ object Simplify {
         val left = freshName()
         val right = freshName()
         val uid3 = freshName()
-        val sortType = child.typ.rowType.select(sortFields.map(_.field))._1
 
         val kvElement = MakeStruct(FastSeq(
           ("key", SelectFields(Ref(uid2, child.typ.rowType), sortFields.map(_.field))),
@@ -811,7 +810,7 @@ object Simplify {
           left,
           right,
           ApplyComparisonOp(
-            LT(sortType),
+            LT,
             GetField(Ref(left, kvElement.typ), "key"),
             GetField(Ref(right, kvElement.typ), "key"),
           ),
@@ -881,16 +880,16 @@ object Simplify {
         Some(InsertFields(s, fields))
 
       // simplify Boolean equality
-      case ApplyComparisonOp(EQ(_, _), expr, True()) =>
+      case ApplyComparisonOp(EQ, expr, True()) =>
         Some(expr)
 
-      case ApplyComparisonOp(EQ(_, _), True(), expr) =>
+      case ApplyComparisonOp(EQ, True(), expr) =>
         Some(expr)
 
-      case ApplyComparisonOp(EQ(_, _), expr, False()) =>
+      case ApplyComparisonOp(EQ, expr, False()) =>
         Some(ApplyUnaryPrimOp(Bang, expr))
 
-      case ApplyComparisonOp(EQ(_, _), False(), expr) =>
+      case ApplyComparisonOp(EQ, False(), expr) =>
         Some(ApplyUnaryPrimOp(Bang, expr))
 
       case ApplyUnaryPrimOp(Bang, ApplyComparisonOp(op, l, r)) =>
