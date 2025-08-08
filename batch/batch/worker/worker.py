@@ -1431,7 +1431,8 @@ def copy_container(
     assert job.worker.fs is not None
 
     command = [
-        '/usr/bin/python3',
+        '/usr/bin/env',
+        'python3',
         '-m',
         'hailtop.aiotools.copy',
         json.dumps(requester_pays_project),
