@@ -81,7 +81,7 @@ object ArrayFunctions extends RegistryFunctions {
     )
   }
 
-  def isEmpty(a: IR): IR = ApplyComparisonOp(EQ(TInt32), ArrayLen(a), I32(0))
+  def isEmpty(a: IR): IR = ApplyComparisonOp(EQ, ArrayLen(a), I32(0))
 
   def extend(a1: IR, a2: IR): IR = {
     val uid = freshName()
@@ -106,15 +106,7 @@ object ArrayFunctions extends RegistryFunctions {
   }
 
   def contains(a: IR, value: IR): IR =
-    exists(
-      a,
-      elt =>
-        ApplyComparisonOp(
-          EQWithNA(elt.typ, value.typ),
-          elt,
-          value,
-        ),
-    )
+    exists(a, elt => ApplyComparisonOp(EQWithNA, elt, value))
 
   def sum(a: IR): IR = {
     val t = tcoerce[TArray](a.typ).elementType
@@ -224,7 +216,7 @@ object ArrayFunctions extends RegistryFunctions {
       }
     }
 
-    def argF(a: IR, op: (Type) => ComparisonOp[Boolean], errorID: Int): IR = {
+    def argF(a: IR, op: ComparisonOp[Boolean], errorID: Int): IR = {
       val t = tcoerce[TArray](a.typ).elementType
       val tAccum = TStruct("m" -> t, "midx" -> TInt32)
 
@@ -241,7 +233,7 @@ object ArrayFunctions extends RegistryFunctions {
                 IsNA(m),
                 updateAccum(value, idx),
                 If(
-                  ApplyComparisonOp(op(t), value, m),
+                  ApplyComparisonOp(op, value, m),
                   updateAccum(value, idx),
                   accum,
                 ),
@@ -253,11 +245,11 @@ object ArrayFunctions extends RegistryFunctions {
       )
     }
 
-    registerIR1("argmin", TArray(tv("T")), TInt32)((_, a, errorID) => argF(a, LT(_), errorID))
+    registerIR1("argmin", TArray(tv("T")), TInt32)((_, a, errorID) => argF(a, LT, errorID))
 
-    registerIR1("argmax", TArray(tv("T")), TInt32)((_, a, errorID) => argF(a, GT(_), errorID))
+    registerIR1("argmax", TArray(tv("T")), TInt32)((_, a, errorID) => argF(a, GT, errorID))
 
-    def uniqueIndex(a: IR, op: (Type) => ComparisonOp[Boolean], errorID: Int): IR = {
+    def uniqueIndex(a: IR, op: ComparisonOp[Boolean], errorID: Int): IR = {
       val t = tcoerce[TArray](a.typ).elementType
       val tAccum = TStruct("m" -> t, "midx" -> TInt32, "count" -> TInt32)
 
@@ -273,10 +265,10 @@ object ArrayFunctions extends RegistryFunctions {
               IsNA(m),
               updateAccum(value, idx, I32(1)),
               If(
-                ApplyComparisonOp(op(t), value, m),
+                ApplyComparisonOp(op, value, m),
                 updateAccum(value, idx, I32(1)),
                 If(
-                  ApplyComparisonOp(EQ(t), value, m),
+                  ApplyComparisonOp(EQ, value, m),
                   updateAccum(
                     value,
                     idx,
@@ -292,7 +284,7 @@ object ArrayFunctions extends RegistryFunctions {
 
       bindIR(fold) { result =>
         If(
-          ApplyComparisonOp(EQ(TInt32), GetField(result, "count"), I32(1)),
+          ApplyComparisonOp(EQ, GetField(result, "count"), I32(1)),
           GetField(result, "midx"),
           NA(TInt32),
         )
@@ -300,17 +292,17 @@ object ArrayFunctions extends RegistryFunctions {
     }
 
     registerIR1("uniqueMinIndex", TArray(tv("T")), TInt32)((_, a, errorID) =>
-      uniqueIndex(a, LT(_), errorID)
+      uniqueIndex(a, LT, errorID)
     )
 
     registerIR1("uniqueMaxIndex", TArray(tv("T")), TInt32)((_, a, errorID) =>
-      uniqueIndex(a, GT(_), errorID)
+      uniqueIndex(a, GT, errorID)
     )
 
     registerIR2("indexArray", TArray(tv("T")), TInt32, tv("T")) { (_, a, i, errorID) =>
       ArrayRef(
         a,
-        If(ApplyComparisonOp(LT(TInt32), i, I32(0)), ApplyBinaryPrimOp(Add(), ArrayLen(a), i), i),
+        If(ApplyComparisonOp(LT, i, I32(0)), ApplyBinaryPrimOp(Add(), ArrayLen(a), i), i),
         errorID,
       )
     }

@@ -5,7 +5,6 @@ import is.hail.expr.ir.defs.{
   ApplyComparisonOp, GetField, I32, If, InsertFields, MakeStruct, Ref, StreamRange, TableCollect,
   TableWrite, ToArray,
 }
-import is.hail.types.virtual.TInt32
 import is.hail.utils.FastSeq
 
 import org.scalatest
@@ -17,7 +16,7 @@ class DistinctlyKeyedSuite extends HailSuite {
     val tableFilter = TableFilter(
       tableRange,
       ApplyComparisonOp(
-        LT(TInt32),
+        LT,
         GetField(Ref(TableIR.rowName, tableRange.typ.rowType), "idx"),
         I32(5),
       ),
@@ -109,7 +108,7 @@ class DistinctlyKeyedSuite extends HailSuite {
     val tableFilter = TableFilter(
       tableRange,
       ApplyComparisonOp(
-        LT(TInt32),
+        LT,
         GetField(Ref(TableIR.rowName, tableRange.typ.rowType), "idx"),
         I32(5),
       ),

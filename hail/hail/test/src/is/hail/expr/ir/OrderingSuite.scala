@@ -627,15 +627,15 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
     val args = FastSeq(a -> t, a2 -> t)
 
-    assertEvalSame(ApplyComparisonOp(EQ(t, t), In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(EQWithNA(t, t), In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(NEQ(t, t), In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(NEQWithNA(t, t), In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(LT(t, t), In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(LTEQ(t, t), In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(GT(t, t), In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(GTEQ(t, t), In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(Compare(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(EQ, In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(EQWithNA, In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(NEQ, In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(NEQWithNA, In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(LT, In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(LTEQ, In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(GT, In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(GTEQ, In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(Compare, In(0, t), In(1, t)), args)
   }
 
   @Test(dataProvider = "arrayDoubleOrderingData")
@@ -649,15 +649,15 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     val s2 = if (a2 != null) a2.toSet else null
     val args = FastSeq(s -> t, s2 -> t)
 
-    assertEvalSame(ApplyComparisonOp(EQ(t, t), In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(EQWithNA(t, t), In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(NEQ(t, t), In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(NEQWithNA(t, t), In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(LT(t, t), In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(LTEQ(t, t), In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(GT(t, t), In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(GTEQ(t, t), In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(Compare(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(EQ, In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(EQWithNA, In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(NEQ, In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(NEQWithNA, In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(LT, In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(LTEQ, In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(GT, In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(GTEQ, In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(Compare, In(0, t), In(1, t)), args)
   }
 
   @DataProvider(name = "rowDoubleOrderingData")
@@ -686,14 +686,14 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
     val args = FastSeq(r -> t, r2 -> t)
 
-    assertEvalSame(ApplyComparisonOp(EQ(t, t), In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(EQWithNA(t, t), In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(NEQ(t, t), In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(NEQWithNA(t, t), In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(LT(t, t), In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(LTEQ(t, t), In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(GT(t, t), In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(GTEQ(t, t), In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(Compare(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(EQ, In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(EQWithNA, In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(NEQ, In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(NEQWithNA, In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(LT, In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(LTEQ, In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(GT, In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(GTEQ, In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(Compare, In(0, t), In(1, t)), args)
   }
 }

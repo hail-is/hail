@@ -174,38 +174,38 @@ object DeprecatedIRBuilder {
 
     def ceq(other: IRProxy): IRProxy = (env: E) => {
       val left = ir(env)
-      val right = other(env);
-      ApplyComparisonOp(EQWithNA(left.typ, right.typ), left, right)
+      val right = other(env)
+      ApplyComparisonOp(EQWithNA, left, right)
     }
 
     def cne(other: IRProxy): IRProxy = (env: E) => {
       val left = ir(env)
       val right = other(env)
-      ApplyComparisonOp(NEQWithNA(left.typ, right.typ), left, right)
+      ApplyComparisonOp(NEQWithNA, left, right)
     }
 
     def <(other: IRProxy): IRProxy = (env: E) => {
       val left = ir(env)
       val right = other(env)
-      ApplyComparisonOp(LT(left.typ, right.typ), left, right)
+      ApplyComparisonOp(LT, left, right)
     }
 
     def >(other: IRProxy): IRProxy = (env: E) => {
       val left = ir(env)
       val right = other(env)
-      ApplyComparisonOp(GT(left.typ, right.typ), left, right)
+      ApplyComparisonOp(GT, left, right)
     }
 
     def <=(other: IRProxy): IRProxy = (env: E) => {
       val left = ir(env)
       val right = other(env)
-      ApplyComparisonOp(LTEQ(left.typ, right.typ), left, right)
+      ApplyComparisonOp(LTEQ, left, right)
     }
 
     def >=(other: IRProxy): IRProxy = (env: E) => {
       val left = ir(env)
       val right = other(env)
-      ApplyComparisonOp(GTEQ(left.typ, right.typ), left, right)
+      ApplyComparisonOp(GTEQ, left, right)
     }
 
     def apply(lookup: Symbol): IRProxy = (env: E) => {

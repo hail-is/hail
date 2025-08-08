@@ -350,7 +350,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
 
       def fromComparison(v: Any, op: ComparisonOp[_], wrapped: Boolean = true): BoolValue = {
         (op: @unchecked) match {
-          case _: EQ => BoolValue( // value == key
+          case EQ => BoolValue( // value == key
               KeySet(Interval(endpoint(v, -1, wrapped), endpoint(v, 1, wrapped))),
               KeySet(
                 Interval(negInf, endpoint(v, -1, wrapped)),
@@ -358,7 +358,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
               ),
               KeySet(Interval(endpoint(null, -1), posInf)),
             )
-          case _: NEQ => BoolValue( // value != key
+          case NEQ => BoolValue( // value != key
               KeySet(
                 Interval(negInf, endpoint(v, -1, wrapped)),
                 Interval(endpoint(v, 1, wrapped), endpoint(null, -1)),
@@ -366,27 +366,27 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
               KeySet(Interval(endpoint(v, -1, wrapped), endpoint(v, 1, wrapped))),
               KeySet(Interval(endpoint(null, -1), posInf)),
             )
-          case _: GT => BoolValue( // value > key
+          case GT => BoolValue( // value > key
               KeySet(Interval(negInf, endpoint(v, -1, wrapped))),
               KeySet(Interval(endpoint(v, -1, wrapped), endpoint(null, -1))),
               KeySet(Interval(endpoint(null, -1), posInf)),
             )
-          case _: GTEQ => BoolValue( // value >= key
+          case GTEQ => BoolValue( // value >= key
               KeySet(Interval(negInf, endpoint(v, 1, wrapped))),
               KeySet(Interval(endpoint(v, 1, wrapped), endpoint(null, -1))),
               KeySet(Interval(endpoint(null, -1), posInf)),
             )
-          case _: LT => BoolValue( // value < key
+          case LT => BoolValue( // value < key
               KeySet(Interval(endpoint(v, 1, wrapped), endpoint(null, -1))),
               KeySet(Interval(negInf, endpoint(v, 1, wrapped))),
               KeySet(Interval(endpoint(null, -1), posInf)),
             )
-          case _: LTEQ => BoolValue( // value <= key
+          case LTEQ => BoolValue( // value <= key
               KeySet(Interval(endpoint(v, -1, wrapped), endpoint(null, -1))),
               KeySet(Interval(negInf, endpoint(v, -1, wrapped))),
               KeySet(Interval(endpoint(null, -1), posInf)),
             )
-          case _: EQWithNA => // value == key
+          case EQWithNA => // value == key
             if (v == null)
               BoolValue(
                 KeySet(Interval(endpoint(v, -1, wrapped), posInf)),
@@ -402,7 +402,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
                 ),
                 KeySetLattice.bottom,
               )
-          case _: NEQWithNA => // value != key
+          case NEQWithNA => // value != key
             if (v == null)
               BoolValue(
                 KeySet(Interval(negInf, endpoint(v, -1, wrapped))),
@@ -423,7 +423,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
 
       def fromComparisonKeyPrefix(v: Row, op: ComparisonOp[_]): BoolValue = {
         (op: @unchecked) match {
-          case _: EQ => BoolValue( // value == key
+          case EQ => BoolValue( // value == key
               KeySet(Interval(endpoint(v, -1, false), endpoint(v, 1, false))),
               KeySet(
                 Interval(negInf, endpoint(v, -1, false)),
@@ -431,7 +431,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
               ),
               KeySetLattice.bottom,
             )
-          case _: NEQ => BoolValue( // value != key
+          case NEQ => BoolValue( // value != key
               KeySet(
                 Interval(negInf, endpoint(v, -1, false)),
                 Interval(endpoint(v, 1, false), posInf),
@@ -439,27 +439,27 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
               KeySet(Interval(endpoint(v, -1, false), endpoint(v, 1, false))),
               KeySetLattice.bottom,
             )
-          case _: GT => BoolValue( // value > key
+          case GT => BoolValue( // value > key
               KeySet(Interval(negInf, endpoint(v, -1, false))),
               KeySet(Interval(endpoint(v, -1, false), posInf)),
               KeySetLattice.bottom,
             )
-          case _: GTEQ => BoolValue( // value >= key
+          case GTEQ => BoolValue( // value >= key
               KeySet(Interval(negInf, endpoint(v, 1, false))),
               KeySet(Interval(endpoint(v, 1, false), posInf)),
               KeySetLattice.bottom,
             )
-          case _: LT => BoolValue( // value < key
+          case LT => BoolValue( // value < key
               KeySet(Interval(endpoint(v, 1, false), posInf)),
               KeySet(Interval(negInf, endpoint(v, 1, false))),
               KeySetLattice.bottom,
             )
-          case _: LTEQ => BoolValue( // value <= key
+          case LTEQ => BoolValue( // value <= key
               KeySet(Interval(endpoint(v, -1, false), posInf)),
               KeySet(Interval(negInf, endpoint(v, 1, false))),
               KeySetLattice.bottom,
             )
-          case _: EQWithNA => BoolValue( // value == key
+          case EQWithNA => BoolValue( // value == key
               KeySet(Interval(endpoint(v, -1, false), endpoint(v, 1, false))),
               KeySet(
                 Interval(negInf, endpoint(v, -1, false)),
@@ -467,7 +467,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
               ),
               KeySetLattice.bottom,
             )
-          case _: NEQWithNA => BoolValue( // value != key
+          case NEQWithNA => BoolValue( // value != key
               KeySet(
                 Interval(negInf, endpoint(v, -1, false)),
                 Interval(endpoint(v, 1, false), posInf),
@@ -657,8 +657,8 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
               )
 
               op match {
-                case _: EQ => b
-                case _: NEQ => BoolValue.not(b)
+                case EQ => b
+                case NEQ => BoolValue.not(b)
                 case _ => BoolValue.top(keySet)
               }
             case None =>
@@ -685,7 +685,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
       }
 
     private def opIsSupported(op: ComparisonOp[_]): Boolean = op match {
-      case _: EQ | _: NEQ | _: LTEQ | _: LT | _: GTEQ | _: GT | _: EQWithNA | _: NEQWithNA => true
+      case EQ | NEQ | LTEQ | LT | GTEQ | GT | EQWithNA | NEQWithNA => true
       case _ => false
     }
   }
