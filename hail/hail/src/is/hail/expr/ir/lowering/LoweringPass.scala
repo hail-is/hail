@@ -126,39 +126,37 @@ case object LowerArrayAggsToRunAggsPass extends LoweringPass {
         x,
         {
           case x @ StreamAgg(a, name, query) =>
-            val aggs = Extract(query, r)
+            val aggs = Extract(ctx, query, r)
 
-            val newNode = aggs.rewriteFromInitBindingRoot { root =>
-              Let(
-                FastSeq(
-                  aggs.resultRef.name -> RunAgg(
-                    Begin(FastSeq(
-                      aggs.init,
-                      StreamFor(a, name, aggs.seqPerElt),
-                    )),
-                    aggs.results,
-                    aggs.states,
-                  )
-                ),
-                root,
-              )
-            }
+            val newNode = Let(
+              aggs.initBindings,
+              RunAgg(
+                Begin(FastSeq(
+                  aggs.init,
+                  StreamFor(a, name, aggs.seqPerElt),
+                )),
+                aggs.result,
+                aggs.sigs.states,
+              ),
+            )
 
             if (newNode.typ != x.typ)
               throw new RuntimeException(s"types differ:\n  new: ${newNode.typ}\n  old: ${x.typ}")
             Some(newNode.noSharing(ctx))
           case x @ StreamAggScan(a, name, query) =>
-            val aggs = Extract(query, r, isScan = true)
-            val newNode = aggs.rewriteFromInitBindingRoot { root =>
+            val aggs = Extract(ctx, query, r, isScan = true)
+
+            val newNode = Let(
+              aggs.initBindings,
               RunAggScan(
                 a,
                 name,
                 aggs.init,
                 aggs.seqPerElt,
-                Let(FastSeq(aggs.resultRef.name -> aggs.results), root),
-                aggs.states,
-              )
-            }
+                aggs.result,
+                aggs.sigs.states,
+              ),
+            )
             if (newNode.typ != x.typ)
               throw new RuntimeException(s"types differ:\n  new: ${newNode.typ}\n  old: ${x.typ}")
             Some(newNode.noSharing(ctx))
