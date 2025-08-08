@@ -1,4 +1,0 @@
-no-cache = true
-
-[pip]
-upgrade = true
