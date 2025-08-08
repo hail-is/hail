@@ -22,7 +22,7 @@ class ForwardLetsSuite extends HailSuite {
     val x = Ref(freshName(), TInt32)
     Array(
       mapArray(a)(y => ApplyBinaryPrimOp(Add(), x, y)),
-      ToArray(filterIR(ToStream(a))(y => ApplyComparisonOp(LT(TInt32), x, y))),
+      ToArray(filterIR(ToStream(a))(y => ApplyComparisonOp(LT, x, y))),
       ToArray(flatMapIR(ToStream(a))(y => StreamRange(x, y, I32(1)))),
       foldIR(ToStream(a), I32(0)) { (acc, y) =>
         ApplyBinaryPrimOp(Add(), ApplyBinaryPrimOp(Add(), x, y), acc)

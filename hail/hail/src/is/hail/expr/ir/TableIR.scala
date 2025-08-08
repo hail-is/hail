@@ -197,7 +197,7 @@ object LoweredTableReader {
                 ),
               "ksorted" ->
                 ApplyComparisonOp(
-                  EQ(TInt64),
+                  EQ,
                   ApplyAggOp(
                     FastSeq(),
                     FastSeq(
@@ -209,7 +209,7 @@ object LoweredTableReader {
                           TBoolean,
                           IsNA(GetField(xRef, "prevkey")),
                           ApplyComparisonOp(
-                            LTEQ(keyType),
+                            LTEQ,
                             GetField(xRef, "prevkey"),
                             GetField(xRef, "key"),
                           ),
@@ -222,7 +222,7 @@ object LoweredTableReader {
                 ),
               "pksorted" ->
                 ApplyComparisonOp(
-                  EQ(TInt64),
+                  EQ,
                   ApplyAggOp(
                     FastSeq(),
                     FastSeq(
@@ -234,7 +234,7 @@ object LoweredTableReader {
                           TBoolean,
                           IsNA(selectPK(GetField(xRef, "prevkey"))),
                           ApplyComparisonOp(
-                            LTEQ(pkType),
+                            LTEQ,
                             selectPK(GetField(xRef, "prevkey")),
                             selectPK(GetField(xRef, "key")),
                           ),
@@ -286,7 +286,7 @@ object LoweredTableReader {
       }
     }) { (l, r) =>
       ApplyComparisonOp(
-        LT(TStruct("minkey" -> keyType, "maxkey" -> keyType)),
+        LT,
         SelectFields(l, FastSeq("minkey", "maxkey")),
         SelectFields(r, FastSeq("minkey", "maxkey")),
       )
@@ -308,7 +308,7 @@ object LoweredTableReader {
                   TBoolean,
                   acc,
                   ApplyComparisonOp(
-                    LTEQ(keyType),
+                    LTEQ,
                     GetField(ArrayRef(sortedPartData, i), "maxkey"),
                     GetField(ArrayRef(sortedPartData, i + I32(1)), "minkey"),
                   ),
@@ -329,7 +329,7 @@ object LoweredTableReader {
                   TBoolean,
                   acc,
                   ApplyComparisonOp(
-                    LTEQ(pkType),
+                    LTEQ,
                     selectPK(GetField(ArrayRef(sortedPartData, i), "maxkey")),
                     selectPK(GetField(ArrayRef(sortedPartData, i + I32(1)), "minkey")),
                   ),
@@ -442,7 +442,7 @@ object LoweredTableReader {
           .extendKeyPreservesPartitioning(ctx, key)
           .mapPartition(None) { part =>
             flatMapIR(StreamGroupByKey(part, pkType.fieldNames, missingEqual = true)) {
-              inner => ToStream(sortIR(inner) { case (l, r) => ApplyComparisonOp(LT(l.typ), l, r) })
+              inner => ToStream(sortIR(inner) { case (l, r) => ApplyComparisonOp(LT, l, r) })
             }
           }
       }
