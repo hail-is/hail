@@ -718,12 +718,13 @@ class RequirednessSuite extends HailSuite {
     )
 
     val path = ctx.createTmpPath("test-table-requiredness", "ht")
-    CompileAndEvaluate[Unit](
-      ctx,
-      TableWrite(table, TableNativeWriter(path, overwrite = true)),
-      optimize = false,
-      LoweringPipeline.relationalLowerer(optimize = false),
-    )
+    unoptimized { ctx =>
+      CompileAndEvaluate[Unit](
+        ctx,
+        TableWrite(table, TableNativeWriter(path)),
+        LoweringPipeline.relationalLowerer,
+      )
+    }
 
     val reader = TableNativeReader(fs, TableNativeReaderParameters(path, None))
     forAll(

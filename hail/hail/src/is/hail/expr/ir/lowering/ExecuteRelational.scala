@@ -21,7 +21,7 @@ object ExecuteRelational {
         TableValueIntermediate(child.execute(ctx).entriesTable(ctx))
       case BlockMatrixToTableApply(bm, aux, function) =>
         val b = bm.execute(ctx)
-        val a = CompileAndEvaluate[Any](ctx, aux, optimize = false)
+        val a = CompileAndEvaluate[Any](ctx, aux)
         TableValueIntermediate(function.execute(ctx, b, a))
       case TableAggregateByKey(child, expr) =>
         val prev = recur(child).asTableValue(ctx)
