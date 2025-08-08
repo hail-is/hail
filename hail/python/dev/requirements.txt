@@ -1,4 +1,5 @@
 -c ../pinned-requirements.txt
+-c constraints.txt
 
 aiohttp-devtools>=1.1,<2
 build>=1.1,<1.2
