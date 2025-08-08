@@ -547,38 +547,17 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
           )
         )
 
-        val asArray = SafeIndexedSeq(PCanonicalArray(pDict.elementType), soff)
+        val asArray =
+          SafeIndexedSeq(PCanonicalArray(pDict.elementType), soff).map(_.asInstanceOf[Row])
 
         val f = fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, region)
-        val closestI = f(region, soff, eoff)
+        val i = f(region, soff, eoff)
+        val ordering = pDict.keyType.virtualType.ordering(sm)
 
-        if (closestI == asArray.length) {
-          whenever(!dict.contains(key)) {
-            scalatest.Inspectors.forAll(asArray) { keyI =>
-              val otherKey = keyI.asInstanceOf[Row].get(0)
-              assert(pDict.keyType.virtualType.ordering(sm).compare(key, otherKey) > 0)
-            }
-          }
-        } else {
-          def getKey(i: Int) = asArray(i).asInstanceOf[Row].get(0)
-          val maybeEqual = getKey(closestI)
-          val closestIIsClosest =
-            (pDict.keyType.virtualType.ordering(sm).compare(
-              key,
-              maybeEqual,
-            ) <= 0 || closestI == dict.size - 1) &&
-              (closestI == 0 || pDict.keyType.virtualType.ordering(sm).compare(
-                key,
-                getKey(closestI - 1),
-              ) > 0)
-
-          /* FIXME: -0.0 and 0.0 count as the same in scala Map, but not off-heap Hail data
-           * structures */
-          val kord = tDict.keyType.ordering(sm)
-          whenever(dict.contains(key) && dict.keysIterator.exists(kord.compare(_, key) == 0)) {
-            assert((key == maybeEqual) && closestIIsClosest)
-          }
-        }
+        // if i-1 is in bounds, then asArray(i).getKey < key
+        // if i is in bounds, then key <= asArray(i).getKey
+        assert(((i - 1 < 0) || ordering.compare(asArray(i - 1).get(0), key) < 0) &&
+          ((i >= asArray.size) || ordering.compare(key, asArray(i).get(0)) <= 0))
       }
     }
   }
