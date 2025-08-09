@@ -16,7 +16,6 @@ object HailFeatureFlags {
     //
     // The default values and envvars here are only used in the Scala tests. In all other
     // conditions, Python initializes the flags, see HailContext._initialize_flags in context.py.
-    ("distributed_scan_comb_op", ("HAIL_DEV_DISTRIBUTED_SCAN_COMB_OP" -> null)),
     ("grouped_aggregate_buffer_size", ("HAIL_GROUPED_AGGREGATE_BUFFER_SIZE" -> "50")),
     ("index_branching_factor", "HAIL_INDEX_BRANCHING_FACTOR" -> null),
     ("jvm_bytecode_dump", ("HAIL_DEV_JVM_BYTECODE_DUMP" -> null)),
