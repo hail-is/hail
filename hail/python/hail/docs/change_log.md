@@ -52,6 +52,19 @@ supports.
 policy. Their functionality or even existence may change without notice. Please contact us if you
 critically depend on experimental functionality.**
 
+## Version 0.2.136
+
+Released 2025-08-08
+
+### New Features
+
+- (hail#14918) Upgrade default Python version to 3.11
+- (hail#14877) Adds [vds.read_dense_mt](https://hail.is/docs/0.2/vds/hail.vds.read_dense_mt.html)
+
+### Deprecations
+
+- (hail#14918) Removes support for Python <= 3.9
+
 ## Version 0.2.135
 
 Released 2025-06-26
