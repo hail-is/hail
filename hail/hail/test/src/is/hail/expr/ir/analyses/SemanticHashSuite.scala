@@ -44,7 +44,7 @@ class SemanticHashSuite extends HailSuite {
   def isLetSemanticallyEquivalent: Array[Array[Any]] = {
     val x = freshName()
     val y = freshName()
-    Array((Let(_, _), Ref), (mkRelationalLet _, RelationalRef)).flatMap { case (let, ref) =>
+    Array((Let(_, _), Ref(_, _)), (mkRelationalLet _, RelationalRef(_, _))).flatMap { case (let, ref) =>
       Array(
         Array(
           let(FastSeq(x -> I32(0)), ref(x, TInt32)),
@@ -234,7 +234,7 @@ class SemanticHashSuite extends HailSuite {
           )
         },
       Array(
-        TableGetGlobals,
+        TableGetGlobals(_),
         TableAggregate(_, I32(0)),
         TableAggregateByKey(_, MakeStruct(FastSeq())),
         TableKeyByAndAggregate(
@@ -245,8 +245,8 @@ class SemanticHashSuite extends HailSuite {
           256,
         ),
         (ir: TableIR) => TableCollect(TableKeyBy(ir, FastSeq())),
-        TableCount,
-        TableDistinct,
+        TableCount(_),
+        TableDistinct(_),
         TableFilter(_, True()),
         TableMapGlobals(_, MakeStruct(IndexedSeq.empty)),
         TableMapRows(_, MakeStruct(FastSeq("a" -> I32(0)))),
