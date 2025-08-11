@@ -278,7 +278,7 @@ trait CodeBuilderLike {
       val assertion = Code.newInstance[AssertionError, String, Throwable](message, traceback)
       if_(cond, {}, _throw(assertion))
     } else {
-      if_(cond, {}, _throw(Code.newInstance[AssertionError, String](message)))
+      if_(cond, {}, _throw(Code.newInstance[AssertionError, Object](message)))
     }
   }
 }
