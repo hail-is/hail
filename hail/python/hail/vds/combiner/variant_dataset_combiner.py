@@ -680,6 +680,9 @@ def new_combiner(
             duplicates = [gvcf for gvcf, count in collections.Counter(gvcf_paths).items() if count > 1]
             duplicates = '\n    '.join(duplicates)
             raise ValueError(f'gvcf paths should be unique, the following paths are repeated:{duplicates}')
+        empty_idxs = [index for index, path in enumerate(gvcf_paths) if not path]
+        if len(empty_idxs) > 0:
+            raise ValueError(f'gvcf paths should not be empty or None, found such values at indicies {empty_idxs}')
         if gvcf_sample_names is not None and len(set(gvcf_sample_names)) != len(gvcf_sample_names):
             duplicates = [gvcf for gvcf, count in collections.Counter(gvcf_sample_names).items() if count > 1]
             duplicates = '\n    '.join(duplicates)
@@ -690,6 +693,10 @@ def new_combiner(
 
     if vds_paths is None:
         vds_paths = []
+    if len(vds_paths) > 0:
+        empty_idxs = [index for index, path in enumerate(gvcf_paths) if not path]
+        if len(empty_idxs) > 0:
+            raise ValueError(f'vds paths should not be empty or None, found such values at indicies {empty_idxs}')
     if vds_sample_counts is not None and len(vds_paths) != len(vds_sample_counts):
         raise ValueError(
             "'vds_paths' and 'vds_sample_counts' (if present) must have the same length "

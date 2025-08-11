@@ -2213,11 +2213,23 @@ case class GVCFPartitionReader(
     context.toI(cb).map(cb) { case ctxValue: SBaseStructValue =>
       val fileNum = cb.memoizeField(ctxValue.loadField(cb, "fileNum").getOrAssert(cb).asInt32.value)
       val filePath =
-        cb.memoizeField(ctxValue.loadField(cb, "path").getOrAssert(cb).asString.loadString(cb))
+        cb.memoizeField(ctxValue.loadField(cb, "path").getOrFatal(
+          cb,
+          "expected present gvcf path",
+        ).asString.loadString(cb))
       val contig =
-        cb.memoizeField(ctxValue.loadField(cb, "contig").getOrAssert(cb).asString.loadString(cb))
-      val start = cb.memoizeField(ctxValue.loadField(cb, "start").getOrAssert(cb).asInt32.value)
-      val end = cb.memoizeField(ctxValue.loadField(cb, "end").getOrAssert(cb).asInt32.value)
+        cb.memoizeField(ctxValue.loadField(cb, "contig").getOrFatal(
+          cb,
+          "expected present interval contig",
+        ).asString.loadString(cb))
+      val start = cb.memoizeField(ctxValue.loadField(cb, "start").getOrFatal(
+        cb,
+        "expected present interval start position",
+      ).asInt32.value)
+      val end = cb.memoizeField(ctxValue.loadField(cb, "end").getOrFatal(
+        cb,
+        "expected present interval end position",
+      ).asInt32.value)
 
       val requestedPType = fullRowPType.subsetTo(requestedType).asInstanceOf[PStruct]
       val eltRegion = mb.genFieldThisRef[Region]("gvcf_elt_region")
