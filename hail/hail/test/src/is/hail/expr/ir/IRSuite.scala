@@ -472,7 +472,7 @@ class IRSuite extends HailSuite {
 
   @Test def testApplyComparisonOpGT(): scalatest.Assertion = {
     def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean): scalatest.Assertion =
-      assertEvalsTo(ApplyComparisonOp(GT(t), In(0, t), In(1, t)), FastSeq(x -> t, y -> t), expected)
+      assertEvalsTo(ApplyComparisonOp(GT, In(0, t), In(1, t)), FastSeq(x -> t, y -> t), expected)
 
     assertComparesTo(TInt32, 1, 1, false)
     assertComparesTo(TInt32, 0, 1, false)
@@ -495,7 +495,7 @@ class IRSuite extends HailSuite {
   @Test def testApplyComparisonOpGTEQ(): scalatest.Assertion = {
     def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean): scalatest.Assertion =
       assertEvalsTo(
-        ApplyComparisonOp(GTEQ(t), In(0, t), In(1, t)),
+        ApplyComparisonOp(GTEQ, In(0, t), In(1, t)),
         FastSeq(x -> t, y -> t),
         expected,
       )
@@ -519,7 +519,7 @@ class IRSuite extends HailSuite {
 
   @Test def testApplyComparisonOpLT(): scalatest.Assertion = {
     def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean): scalatest.Assertion =
-      assertEvalsTo(ApplyComparisonOp(LT(t), In(0, t), In(1, t)), FastSeq(x -> t, y -> t), expected)
+      assertEvalsTo(ApplyComparisonOp(LT, In(0, t), In(1, t)), FastSeq(x -> t, y -> t), expected)
 
     assertComparesTo(TInt32, 1, 1, false)
     assertComparesTo(TInt32, 0, 1, true)
@@ -542,7 +542,7 @@ class IRSuite extends HailSuite {
   @Test def testApplyComparisonOpLTEQ(): scalatest.Assertion = {
     def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean): scalatest.Assertion =
       assertEvalsTo(
-        ApplyComparisonOp(LTEQ(t), In(0, t), In(1, t)),
+        ApplyComparisonOp(LTEQ, In(0, t), In(1, t)),
         FastSeq(x -> t, y -> t),
         expected,
       )
@@ -567,7 +567,7 @@ class IRSuite extends HailSuite {
 
   @Test def testApplyComparisonOpEQ(): scalatest.Assertion = {
     def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean): scalatest.Assertion =
-      assertEvalsTo(ApplyComparisonOp(EQ(t), In(0, t), In(1, t)), FastSeq(x -> t, y -> t), expected)
+      assertEvalsTo(ApplyComparisonOp(EQ, In(0, t), In(1, t)), FastSeq(x -> t, y -> t), expected)
 
     assertComparesTo(TInt32, 1, 1, expected = true)
     assertComparesTo(TInt32, 0, 1, expected = false)
@@ -589,7 +589,7 @@ class IRSuite extends HailSuite {
   @Test def testApplyComparisonOpNE(): scalatest.Assertion = {
     def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean): scalatest.Assertion =
       assertEvalsTo(
-        ApplyComparisonOp(NEQ(t), In(0, t), In(1, t)),
+        ApplyComparisonOp(NEQ, In(0, t), In(1, t)),
         FastSeq(x -> t, y -> t),
         expected,
       )
@@ -3110,7 +3110,7 @@ class IRSuite extends HailSuite {
   @Test def testSameLiteralsWithDifferentTypes(): scalatest.Assertion = {
     assertEvalsTo(
       ApplyComparisonOp(
-        EQ(TArray(TInt32)),
+        EQ,
         ToArray(
           mapIR(ToStream(Literal(TArray(TFloat64), FastSeq(1.0, 2.0))))(Cast(_, TInt32))
         ),
@@ -3209,47 +3209,47 @@ class IRSuite extends HailSuite {
     implicit val execStrats = ExecStrategy.javaOnly
 
     assertEvalsTo(
-      ApplyComparisonOp(EQ(t1, t2), In(0, t1), In(1, t2)),
+      ApplyComparisonOp(EQ, In(0, t1), In(1, t2)),
       FastSeq(a -> t1, a -> t2),
       true,
     )
     assertEvalsTo(
-      ApplyComparisonOp(LT(t1, t2), In(0, t1), In(1, t2)),
+      ApplyComparisonOp(LT, In(0, t1), In(1, t2)),
       FastSeq(a -> t1, a -> t2),
       false,
     )
     assertEvalsTo(
-      ApplyComparisonOp(GT(t1, t2), In(0, t1), In(1, t2)),
+      ApplyComparisonOp(GT, In(0, t1), In(1, t2)),
       FastSeq(a -> t1, a -> t2),
       false,
     )
     assertEvalsTo(
-      ApplyComparisonOp(LTEQ(t1, t2), In(0, t1), In(1, t2)),
+      ApplyComparisonOp(LTEQ, In(0, t1), In(1, t2)),
       FastSeq(a -> t1, a -> t2),
       true,
     )
     assertEvalsTo(
-      ApplyComparisonOp(GTEQ(t1, t2), In(0, t1), In(1, t2)),
+      ApplyComparisonOp(GTEQ, In(0, t1), In(1, t2)),
       FastSeq(a -> t1, a -> t2),
       true,
     )
     assertEvalsTo(
-      ApplyComparisonOp(NEQ(t1, t2), In(0, t1), In(1, t2)),
+      ApplyComparisonOp(NEQ, In(0, t1), In(1, t2)),
       FastSeq(a -> t1, a -> t2),
       false,
     )
     assertEvalsTo(
-      ApplyComparisonOp(EQWithNA(t1, t2), In(0, t1), In(1, t2)),
+      ApplyComparisonOp(EQWithNA, In(0, t1), In(1, t2)),
       FastSeq(a -> t1, a -> t2),
       true,
     )
     assertEvalsTo(
-      ApplyComparisonOp(NEQWithNA(t1, t2), In(0, t1), In(1, t2)),
+      ApplyComparisonOp(NEQWithNA, In(0, t1), In(1, t2)),
       FastSeq(a -> t1, a -> t2),
       false,
     )
     assertEvalsTo(
-      ApplyComparisonOp(Compare(t1, t2), In(0, t1), In(1, t2)),
+      ApplyComparisonOp(Compare, In(0, t1), In(1, t2)),
       FastSeq(a -> t1, a -> t2),
       0,
     )
@@ -3375,7 +3375,7 @@ class IRSuite extends HailSuite {
       },
       ApplyBinaryPrimOp(Add(), i, j),
       ApplyUnaryPrimOp(Negate, i),
-      ApplyComparisonOp(EQ(TInt32), i, j),
+      ApplyComparisonOp(EQ, i, j),
       MakeArray(FastSeq(i, NA(TInt32), I32(-3)), TArray(TInt32)),
       MakeStream(FastSeq(i, NA(TInt32), I32(-3)), TStream(TInt32)),
       nd,
@@ -4421,13 +4421,7 @@ class IRSuite extends HailSuite {
       PCanonicalStruct(("rowIdx", PInt32Required), ("extraInfo", PInt32Required)),
       BufferSpec.default,
     )
-    val dist = StreamDistribute(
-      child,
-      pivots,
-      Str(ctx.localTmpdir),
-      Compare(pivots.typ.asInstanceOf[TArray].elementType),
-      spec,
-    )
+    val dist = StreamDistribute(child, pivots, Str(ctx.localTmpdir), Compare, spec)
     val result = eval(dist).asInstanceOf[IndexedSeq[Row]].map(row =>
       (
         row(0).asInstanceOf[Interval],

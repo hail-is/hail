@@ -14,7 +14,7 @@ object SetFunctions extends RegistryFunctions {
         If(
           i.ceq(ArrayLen(CastToArray(set))),
           False(),
-          ApplyComparisonOp(EQWithNA(elem.typ), ArrayRef(CastToArray(set), i), elem),
+          ApplyComparisonOp(EQWithNA, ArrayRef(CastToArray(set), i), elem),
         )
       },
     )
@@ -30,8 +30,7 @@ object SetFunctions extends RegistryFunctions {
     registerIR2("contains", TSet(tv("T")), tv("T"), TBoolean)((_, a, b, _) => contains(a, b))
 
     registerIR2("remove", TSet(tv("T")), tv("T"), TSet(tv("T"))) { (_, s, v, _) =>
-      val t = v.typ
-      ToSet(filterIR(ToStream(s))(ApplyComparisonOp(NEQWithNA(t), _, v)))
+      ToSet(filterIR(ToStream(s))(ApplyComparisonOp(NEQWithNA, _, v)))
     }
 
     registerIR2("add", TSet(tv("T")), tv("T"), TSet(tv("T"))) { (_, s, v, _) =>

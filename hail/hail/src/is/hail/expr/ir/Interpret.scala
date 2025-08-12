@@ -247,19 +247,20 @@ object Interpret {
       case ApplyComparisonOp(op, l, r) =>
         val lValue = interpret(l, env, args)
         val rValue = interpret(r, env, args)
+        val t = l.typ
         if (op.strict && (lValue == null || rValue == null))
           null
         else
           op match {
-            case EQ(t, _) => t.ordering(ctx.stateManager).equiv(lValue, rValue)
-            case EQWithNA(t, _) => t.ordering(ctx.stateManager).equiv(lValue, rValue)
-            case NEQ(t, _) => !t.ordering(ctx.stateManager).equiv(lValue, rValue)
-            case NEQWithNA(t, _) => !t.ordering(ctx.stateManager).equiv(lValue, rValue)
-            case LT(t, _) => t.ordering(ctx.stateManager).lt(lValue, rValue)
-            case GT(t, _) => t.ordering(ctx.stateManager).gt(lValue, rValue)
-            case LTEQ(t, _) => t.ordering(ctx.stateManager).lteq(lValue, rValue)
-            case GTEQ(t, _) => t.ordering(ctx.stateManager).gteq(lValue, rValue)
-            case Compare(t, _) => t.ordering(ctx.stateManager).compare(lValue, rValue)
+            case EQ => t.ordering(ctx.stateManager).equiv(lValue, rValue)
+            case EQWithNA => t.ordering(ctx.stateManager).equiv(lValue, rValue)
+            case NEQ => !t.ordering(ctx.stateManager).equiv(lValue, rValue)
+            case NEQWithNA => !t.ordering(ctx.stateManager).equiv(lValue, rValue)
+            case LT => t.ordering(ctx.stateManager).lt(lValue, rValue)
+            case GT => t.ordering(ctx.stateManager).gt(lValue, rValue)
+            case LTEQ => t.ordering(ctx.stateManager).lteq(lValue, rValue)
+            case GTEQ => t.ordering(ctx.stateManager).gteq(lValue, rValue)
+            case Compare => t.ordering(ctx.stateManager).compare(lValue, rValue)
           }
 
       case MakeArray(elements, _) => elements.map(interpret(_, env, args)).toFastSeq

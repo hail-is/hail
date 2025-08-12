@@ -669,7 +669,7 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
   def getStructOrderingFunction(
     t1: SBaseStruct,
     t2: SBaseStruct,
-    sortFields: Array[SortField],
+    sortFields: IndexedSeq[SortField],
     op: CodeOrdering.Op,
   ): CodeOrdering.F[op.ReturnType] = {
     (cb: EmitCodeBuilder, v1: EmitValue, v2: EmitValue) =>
