@@ -553,7 +553,7 @@ object Extract {
         val idx = memo.getOrElseUpdate(
           x, {
             val i = ab.length
-            val op = x.aggSig.op
+            val op = x.op
             bindInitArgRefs(x.initOpArgs)
             val state = PhysicalAggSig(op, AggStateSig(op, x.seqOpArgs, r))
             ab += InitOp(i, x.initOpArgs, state) -> state
@@ -566,7 +566,7 @@ object Extract {
         val idx = memo.getOrElseUpdate(
           x, {
             val i = ab.length
-            val op = x.aggSig.op
+            val op = x.op
             bindInitArgRefs(x.initOpArgs)
             val state = PhysicalAggSig(op, AggStateSig(op, x.seqOpArgs, r))
             ab += InitOp(i, x.initOpArgs, state) -> state

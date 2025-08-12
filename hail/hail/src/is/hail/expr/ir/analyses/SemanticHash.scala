@@ -97,10 +97,8 @@ case object SemanticHash extends Logging {
         tyArgs.foreach(buffer ++= EncodeTypename(_))
         buffer ++= EncodeTypename(retTy)
 
-      case ApplyAggOp(_, _, AggSignature(op, initOpTys, seqOpTys)) =>
+      case ApplyAggOp(_, _, op) =>
         buffer ++= Bytes.fromClass(op.getClass)
-        initOpTys.foreach(buffer ++= EncodeTypename(_))
-        seqOpTys.foreach(buffer ++= EncodeTypename(_))
 
       case ApplyBinaryPrimOp(op, _, _) =>
         buffer ++= Bytes.fromClass(op.getClass)
