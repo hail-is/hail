@@ -103,8 +103,7 @@ object LocalBackend extends Backend {
     CompileAndEvaluate._apply(
       ctx,
       ir0,
-      optimize = true,
-      LoweringPipeline.darrayLowerer(true)(DArrayLowering.All),
+      LoweringPipeline.darrayLowerer(DArrayLowering.All),
       print = print,
     )
 
