@@ -68,11 +68,31 @@ class AccessLogger(AbstractAccessLogger):
         userdata_keys = ['username', 'login_id', 'is_developer', 'hail_identity']
         extra.update({k: userdata_maybe[k] for k in userdata_keys if k in userdata_maybe})
 
+        # Try to get formdata in various ways:
+        request_data_source = []
+        request_data = request.get('request_data', {})
+        if len(request_data) > 0:
+            request_data_source.append('request_data')
+
+        formdata = request.get('formdata', {})
+        if len(formdata) > 0:
+            request_data_source.append('formdata')
+        request_data.update(formdata)
+
+        post_data = request._post or {}
+        if len(post_data) > 0:
+            request_data_source.append('post_data')
+        request_data.update(post_data)
+
+        extra.update({'request_data_source': request_data_source})
+        extra.update({'request_data': {k: request_data[k] for k in request_data.keys() if not k.startswith('_')}})
+
         api_info_maybe = request.get('api_info', {})
         api_info_keys_and_defaults = {
             'authenticated_users_only': False,
             'developers_only': False,
         }
+
         for k, default in api_info_keys_and_defaults.items():
             if k in api_info_maybe:
                 extra[k] = api_info_maybe[k]
