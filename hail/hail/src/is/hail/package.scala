@@ -65,9 +65,9 @@ object BuildConfiguration {
 
   def parseString(c: String): Option[BuildConfiguration] =
     c match {
-      case "Release" => Some(BuildConfiguration.Release)
-      case "Dev" => Some(BuildConfiguration.Debug)
-      case "CI" => Some(BuildConfiguration.CI)
+      case "release" => Some(BuildConfiguration.Release)
+      case "dev" => Some(BuildConfiguration.Debug)
+      case "ci" => Some(BuildConfiguration.CI)
       case _ => None
     }
 }

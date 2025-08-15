@@ -23,7 +23,7 @@ import is.hail.variant.ReferenceGenome
 
 import scala.annotation.nowarn
 import scala.collection.mutable
-import scala.jdk.CollectionConverters.{asScalaBufferConverter, seqAsJavaListConverter}
+import scala.jdk.CollectionConverters._
 
 import java.io.Closeable
 import java.net.InetSocketAddress

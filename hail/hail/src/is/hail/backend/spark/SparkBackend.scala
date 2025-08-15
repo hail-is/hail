@@ -356,7 +356,7 @@ class SparkBackend(val sc: SparkContext) extends Backend {
         Thread.currentThread().interrupt()
     }
 
-    (failure, buffer.sortBy(_._2))
+    (failure, buffer.sortBy(_._2).toFastSeq)
   }
 
   def defaultParallelism: Int = sc.defaultParallelism

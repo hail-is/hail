@@ -6,6 +6,8 @@ import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.virtual.{TInt32, TStruct}
 
+import scala.collection.compat.immutable.ArraySeq
+
 import org.apache.spark.sql.Row
 import org.scalatest
 import org.scalatest.Inspectors.forAll
@@ -25,8 +27,8 @@ class IntervalSuite extends HailSuite {
     for {
       s <- points
       e <- points
-      is <- Array(true, false)
-      ie <- Array(true, false)
+      is <- ArraySeq(true, false)
+      ie <- ArraySeq(true, false)
       if pord.lt(s, e) || (pord.equiv(s, e) && is && ie)
     } yield SetInterval(s, e, is, ie)
 

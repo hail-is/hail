@@ -3,8 +3,8 @@ package is.hail.annotations
 import is.hail.backend.HailStateManager
 import is.hail.rvd.RVDContext
 import is.hail.types.physical.{PStruct, PType}
+import is.hail.utils.compat.GrowableCompat
 
-import scala.collection.generic.Growable
 import scala.collection.mutable.{ArrayBuffer, PriorityQueue}
 
 import java.io.{ObjectInputStream, ObjectOutputStream}
@@ -103,9 +103,7 @@ class RegionValuePriorityQueue(
   private val queue = new PriorityQueue[RegionValue]()(ord)
   private val rvb = new RegionValueBuilder(sm)
 
-  override def nonEmpty: Boolean = queue.nonEmpty
-
-  def empty: Boolean = queue.nonEmpty
+  override def isEmpty: Boolean = queue.isEmpty
 
   override def head: RegionValue = queue.head
 
@@ -131,7 +129,7 @@ class RegionValuePriorityQueue(
 }
 
 class RegionValueArrayBuffer(val t: PType, region: Region, sm: HailStateManager)
-    extends Iterable[RegionValue] with Growable[RegionValue] {
+    extends Iterable[RegionValue] with GrowableCompat[RegionValue] {
 
   val value = RegionValue(region, 0)
 
@@ -140,7 +138,9 @@ class RegionValueArrayBuffer(val t: PType, region: Region, sm: HailStateManager)
 
   def length = idx.length
 
-  def +=(rv: RegionValue): this.type =
+  override def knownSize: Int = idx.length
+
+  def addOne(rv: RegionValue): this.type =
     this.append(rv.region, rv.offset)
 
   def append(fromRegion: Region, fromOffset: Long): this.type = {

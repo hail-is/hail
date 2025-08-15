@@ -170,7 +170,7 @@ class Pretty(
           case None => text(Pretty.prettyClass(state)) +: state.t.view.map(typ =>
               text(typ.canonicalPType.toString)
             )
-          case Some(nested) => text(Pretty.prettyClass(state)) +: state.t.view.map(typ =>
+          case Some(nested) => text(Pretty.prettyClass(state)) +: state.t.map(typ =>
               text(typ.canonicalPType.toString)
             ) :+ prettyAggStateSignatures(nested)
         })
@@ -946,7 +946,7 @@ class Pretty(
         val (bodyPre, bodyHead) = pretty(body, bindings.bind(name, valueIdent))
         (concat(valueDoc, bodyPre), bodyHead)
       case _ =>
-        val strictChildBodies = mutable.ArrayBuilder.make[Doc]()
+        val strictChildBodies = mutable.ArrayBuilder.make[Doc]
         val strictChildIdents = for {
           (child, i) <- ir.children.zipWithIndex
           if childIsStrict(ir, i)
