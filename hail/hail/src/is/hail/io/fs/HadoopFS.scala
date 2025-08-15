@@ -3,6 +3,7 @@ package is.hail.io.fs
 import is.hail.macros.void
 import is.hail.utils._
 
+import scala.collection.parallel.CollectionConverters._
 import scala.util.Try
 
 import java.io._

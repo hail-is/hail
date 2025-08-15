@@ -4,6 +4,8 @@ import is.hail.annotations._
 import is.hail.backend.HailStateManager
 import is.hail.expr.ir.{Env, IRParser, IntArrayBuilder, Name}
 import is.hail.utils._
+import is.hail.utils.compat._
+import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -24,10 +26,10 @@ object TStruct {
 
   def apply(args: (String, Type)*): TStruct =
     TStruct(args
-      .iterator
+      .view
       .zipWithIndex
       .map { case ((n, t), i) => Field(n, t, i) }
-      .toArray)
+      .to(ArraySeq))
 
   def apply(names: java.util.List[String], types: java.util.List[Type]): TStruct = {
     val sNames = names.asScala.toArray
