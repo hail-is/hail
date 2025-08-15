@@ -9,7 +9,6 @@ import is.hail.utils._
 import is.hail.variant.Locus
 
 import scala.annotation.meta.param
-
 import org.apache.commons.io.input.{CountingInputStream, ProxyInputStream}
 import org.apache.hadoop.io.compress.SplittableCompressionCodec
 import org.apache.spark.{Partition, TaskContext}
@@ -400,9 +399,9 @@ object GenericLines {
   }
 
   def collect(fs: FS, lines: GenericLines): IndexedSeq[String] =
-    lines.contexts.flatMap { context =>
-      using(lines.body(fs, context))(it => it.map(_.toString).toArray)
-    }
+    lines.contexts.flatMap(context =>
+      using(lines.body(fs, context))(it => it.map(_.toString).toFastSeq)
+    )
 }
 
 class GenericLine(

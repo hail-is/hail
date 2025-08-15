@@ -15,6 +15,8 @@ import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.interfaces.SBaseStructValue
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.utils.compat._
+import is.hail.utils.compat.immutable.ArraySeq
 
 import org.apache.spark.sql.Row
 import org.scalacheck.Arbitrary.arbitrary
@@ -370,12 +372,11 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         FastSeq(array -> TArray(telt)),
         expected =
           array
-            .view
             .filter(_ != null)
             .map { case Row(k, _) => k }
+            .to(ArraySeq)
             .distinct
-            .sorted(telt.types(0).ordering(sm).toOrdering)
-            .toFastSeq,
+            .sorted(telt.types(0).ordering(sm).toOrdering),
       )
     }
   }

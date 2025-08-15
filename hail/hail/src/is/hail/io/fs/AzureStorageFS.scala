@@ -251,7 +251,7 @@ class AzureStorageFS(val credential: AzureCloudCredentials) extends FS {
   override def readNoCompression(url: URL): Array[Byte] = handlePublicAccessError(url) {
     val client = getBlobClient(url)
     val size = client.getProperties.getBlobSize
-    if (size < 2 * 1024 * 1024 * 1024) { // https://learn.microsoft.com/en-us/java/api/com.azure.storage.blob.specialized.blobclientbase?view=azure-java-stable#com-azure-storage-blob-specialized-blobclientbase-downloadcontent()
+    if (size < 2L * 1024 * 1024 * 1024) { // https://learn.microsoft.com/en-us/java/api/com.azure.storage.blob.specialized.blobclientbase?view=azure-java-stable#com-azure-storage-blob-specialized-blobclientbase-downloadcontent()
       retryTransientErrors {
         client.downloadContent().toBytes()
       }

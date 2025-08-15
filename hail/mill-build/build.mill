@@ -16,17 +16,33 @@ object `package` extends MillBuildRootModule {
          |package millbuild
          |object BuildConfig{
          |  def buildMode = "${buildMode()}"
+         |  def enabledScalaVersions = IndexedSeq(${enabledScalaVersions().map(v => s"\"$v\"").mkString(", ")})
          |}
       """.stripMargin
     )
     super.generatedSources() ++ Seq(PathRef(Task.dest))
   }
 
+  def configDir: T[PathRef] = Task.Source("config")
+
+  def envEnabledScalaVersions: T[Option[String]] = Task.Input {
+    Task.env.get("HAIL_ENABLED_SCALA_VERSIONS")
+  }
+
+  def enabledScalaVersions: T[Seq[String]] = Task {
+    val path = configDir().path / "hail-enabled-scala-versions"
+    val raw = envEnabledScalaVersions().getOrElse {
+      if (os.exists(path))
+        os.read(path)
+      else
+        "2.12,2.12.13,2.13"
+    }
+    raw.split(",").toIndexedSeq
+  }
+
   def envBuildMode: T[Option[String]] = Task.Input {
     Task.env.get("HAIL_BUILD_MODE")
   }
-
-  def configDir: T[PathRef] = Task.Source("config")
 
   def buildMode: T[String] = Task {
     val path = configDir().path / "hail-build-mode"

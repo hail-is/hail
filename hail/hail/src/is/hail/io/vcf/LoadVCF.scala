@@ -28,6 +28,7 @@ import is.hail.variant._
 import scala.annotation.meta.param
 import scala.annotation.switch
 import scala.collection.JavaConverters._
+import scala.collection.compat._
 
 import htsjdk.variant.vcf._
 import org.apache.spark.{Partition, TaskContext}
@@ -77,9 +78,9 @@ object VCFHeaderInfo {
     val formatFields = lookupFields("formatFields")
 
     def lookupAttrs(name: String) = (jv \ name).asInstanceOf[JObject].obj.toMap
-      .mapValues { case elt: JObject =>
-        elt.obj.toMap.mapValues(_.asInstanceOf[JString].s)
-      }
+      .view.mapValues { case elt: JObject =>
+        elt.obj.toMap.view.mapValues(_.asInstanceOf[JString].s).toMap
+      }.toMap
 
     val filterAttrs = lookupAttrs("filterAttrs")
     val infoAttrs = lookupAttrs("infoAttrs")
