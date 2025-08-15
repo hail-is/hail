@@ -1,12 +1,16 @@
 package is.hail.utils
 
+import is.hail.utils.compat._
+
 import scala.collection.mutable
 
 object ImmutableMap {
 
-  private[this] object EmptyInstance extends mutable.AbstractMap[Any, Any] {
-    override def +=(kv: (Any, Any)): EmptyInstance.this.type = this
-    override def -=(key: Any): EmptyInstance.this.type = this
+  private[this] object EmptyInstance
+      extends mutable.AbstractMap[Any, Any] with GrowableCompat[(Any, Any)]
+      with ShrinkableCompat[Any] {
+    override def addOne(kv: (Any, Any)): EmptyInstance.this.type = this
+    override def subtractOne(key: Any): EmptyInstance.this.type = this
     override def get(key: Any): Option[Any] = None
     override def iterator: Iterator[(Any, Any)] = Iterator.empty
     override def getOrElseUpdate(key: Any, op: => Any): Any = op
