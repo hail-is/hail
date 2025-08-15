@@ -25,7 +25,6 @@ import is.hail.utils.{FastSeq, _}
 import is.hail.variant.{Call2, Locus}
 
 import scala.collection.mutable
-import scala.language.implicitConversions
 
 import org.apache.spark.sql.Row
 import org.json4s.jackson.{JsonMethods, Serialization}

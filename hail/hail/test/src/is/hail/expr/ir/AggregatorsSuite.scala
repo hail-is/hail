@@ -1357,7 +1357,7 @@ class AggregatorsSuite extends HailSuite {
   }
 
   // fails because there is no "lowest binding referenced in an init op"
-  @Test def testStreamAgg(): Unit = {
+  @Test def testStreamAgg(): scalatest.Assertion = {
     implicit val execStrats = Set(ExecStrategy.JvmCompileUnoptimized)
     val foo = StreamRange(I32(0), I32(10), I32(1))
 
@@ -1372,7 +1372,7 @@ class AggregatorsSuite extends HailSuite {
     assertEvalsTo(ir, 1)
   }
 
-  @Test def testLetBoundInitOpArg(): Unit = {
+  @Test def testLetBoundInitOpArg(): scalatest.Assertion = {
     implicit val execStrats = ExecStrategy.allRelational
     var tir: TableIR = TableRange(10, 3)
     tir =

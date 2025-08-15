@@ -1,6 +1,5 @@
 package is.hail
 
-import scala.language.implicitConversions
 import scala.reflect.ClassTag
 
 import org.objectweb.asm.Opcodes._

@@ -1,5 +1,4 @@
 import scala.annotation.nowarn
-import scala.language.{higherKinds, implicitConversions}
 
 import mainargs.{main, ParserForMethods}
 
