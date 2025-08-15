@@ -4,6 +4,8 @@ import is.hail.expr.Nat
 import is.hail.types.virtual._
 import is.hail.variant.ReferenceGenome.hailReferences
 
+import scala.collection.compat._
+
 import org.scalacheck.{Arbitrary, Gen}
 import org.scalacheck.Arbitrary.arbitrary
 import org.scalacheck.Gen._
@@ -40,7 +42,7 @@ private[scalacheck] trait ArbitraryTypeInstances {
       len <- size
       names <- distinctContainerOfN[Array, String](len, identifier)
       types <- distribute(len, arbitrary[Type])
-    } yield TStruct((names, types, 0 until len).zipped.map(Field))
+    } yield TStruct((names lazyZip types lazyZip (0 until len)).map(Field))
 
   implicit lazy val arbTTuple: Arbitrary[TTuple] =
     sized(n => distribute(n, arbitrary[Type]) map { TTuple(_: _*) })

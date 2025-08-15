@@ -13,6 +13,8 @@ import is.hail.sparkextras.{ContextRDD, OriginUnionPartition, OriginUnionRDD}
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.utils.compat._
+import is.hail.utils.compat.immutable.ArraySeq
 import is.hail.utils.richUtils.{
   ByteTrackingOutputStream, RichArray, RichContextRDD, RichDenseMatrixDouble,
 }
@@ -2057,13 +2059,13 @@ private class BlockMatrixMultiplyRDD(l: BlockMatrix, r: BlockMatrix)
       new NarrowDependency(l.blocks) {
         def getParents(partitionId: Int): Seq[Int] = {
           val i = gp.blockBlockRow(partitionId)
-          (0 until nProducts).map(k => lGP.coordinatesPart(i, k)).filter(_ >= 0).toArray
+          (0 until nProducts).map(k => lGP.coordinatesPart(i, k)).filter(_ >= 0).to(ArraySeq)
         }
       },
       new NarrowDependency(r.blocks) {
         def getParents(partitionId: Int): Seq[Int] = {
           val j = gp.blockBlockCol(partitionId)
-          (0 until nProducts).map(k => rGP.coordinatesPart(k, j)).filter(_ >= 0).toArray
+          (0 until nProducts).map(k => rGP.coordinatesPart(k, j)).filter(_ >= 0).to(ArraySeq)
         }
       },
     )

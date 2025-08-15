@@ -11,8 +11,8 @@ import is.hail.types._
 import is.hail.types.virtual._
 import is.hail.utils._
 
+import scala.collection.compat.immutable.ArraySeq
 import scala.collection.mutable
-import scala.collection.mutable.ArrayBuffer
 
 import org.apache.spark.sql.Row
 import org.json4s.JValue
@@ -1854,8 +1854,8 @@ class PruneSuite extends HailSuite {
   }
 
   val ndArrayTS = MakeNDArray(
-    MakeArray(ArrayBuffer(NA(ts)), TArray(ts)),
-    MakeTuple(IndexedSeq((0, I64(1L)))),
+    MakeArray(ArraySeq(NA(ts)), TArray(ts)),
+    MakeTuple(ArraySeq((0, I64(1L)))),
     True(),
     ErrorIDs.NO_ERROR,
   )

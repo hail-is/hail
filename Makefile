@@ -53,7 +53,7 @@ pylint-hailtop:
 
 .PHONY: check-hail
 check-hail: check-hail-fast pylint-hailtop
-	cd hail && HAIL_BUILD_MODE=Dev sh mill --no-server __.checkFormat + __.fix --check
+	cd hail && HAIL_BUILD_MODE=Dev SCALA_VERSION=2.13 sh mill --no-server hail[].__.checkFormat + hail[].__.fix --check
 
 .PHONY: check-services
 check-services: $(CHECK_SERVICES_MODULES)
