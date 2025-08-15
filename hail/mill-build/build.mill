@@ -1,0 +1,40 @@
+package build
+
+import mill.*, scalalib.*
+import mill.meta.MillBuildRootModule
+
+object `package` extends MillBuildRootModule {
+  def mvnDeps = Seq(
+    mvn"com.goyeau::mill-scalafix::0.6.0",
+    mvn"org.typelevel::scalac-options:0.1.8",
+  )
+
+  def generatedSources: T[Seq[PathRef]] = Task {
+    os.write(
+      Task.dest / "BuildConfig.scala",
+      s"""
+         |package millbuild
+         |object BuildConfig{
+         |  def buildMode = "${buildMode()}"
+         |}
+      """.stripMargin
+    )
+    super.generatedSources() ++ Seq(PathRef(Task.dest))
+  }
+
+  def envBuildMode: T[Option[String]] = Task.Input {
+    Task.env.get("HAIL_BUILD_MODE")
+  }
+
+  def configDir: T[PathRef] = Task.Source("config")
+
+  def buildMode: T[String] = Task {
+    val path = configDir().path / "hail-build-mode"
+    envBuildMode().getOrElse {
+      if (os.exists(path))
+        os.read(path)
+      else
+        "Release"
+    }
+  }
+}

@@ -1,11 +1,10 @@
-//| mill-version: 1.0.3
+//| mill-version: 1.0.4
 //| mill-jvm-version: 11
-//| mvnDeps:
-//| - com.goyeau::mill-scalafix::0.6.0
 
 package build
 
 import com.goyeau.mill.scalafix.ScalafixModule
+import org.typelevel.scalacoptions._
 import mill.*
 import mill.api.{Result, BuildCtx}
 import mill.javalib.UnresolvedPath
@@ -14,6 +13,7 @@ import mill.scalalib.Assembly.*
 import mill.scalalib.TestModule.TestNg
 import mill.scalalib.scalafmt.ScalafmtModule
 import mill.util.{Jvm, VcsVersion}
+import upickle.default.ReadWriter
 
 object Settings {
   val hailMajorMinorVersion = "0.2"
@@ -49,8 +49,8 @@ object Deps {
   }
 
   object Spark {
-    def core: Task[Dep] = Task.Anon(mvn"org.apache.spark::spark-core:${build.env.sparkVersion()}")
-    def mllib: Task[Dep] = Task.Anon(mvn"org.apache.spark::spark-mllib:${build.env.sparkVersion()}")
+    def core: Task[Dep] = Task.Anon(mvn"org.apache.spark::spark-core:${Env.sparkVersion()}")
+    def mllib: Task[Dep] = Task.Anon(mvn"org.apache.spark::spark-mllib:${Env.sparkVersion()}")
   }
 
   val samtools = mvn"com.github.samtools:htsjdk:3.0.5"
@@ -76,7 +76,11 @@ object Deps {
   }
 }
 
-object env extends Module {
+enum BuildMode derives ReadWriter {
+  case Dev, CI, Release
+}
+
+object Env extends Module {
   def scalaVersion: T[String] = Task.Input {
     val v = Task.env.getOrElse("SCALA_VERSION", "2.12.20")
     if (!v.startsWith("2.12"))
@@ -93,50 +97,53 @@ object env extends Module {
     Result.Success(Task.env.getOrElse("SPARK_VERSION", "3.5.0"))
   }
 
-  def getDebugMode(env: Map[String, String]): Boolean =
-    !env.contains("HAIL_RELEASE_MODE")
-
-  def debugMode: T[Boolean] = Task.Input {
-    val isDebug = getDebugMode(Task.env)
-    Task.log.info(s"Building in ${if (isDebug) "debug" else "release"} mode")
-    isDebug
-  }
-
-  def debugOrRelease: Task[String] = Task.Anon {
-    if (debugMode()) "debug" else "release"
-  }
+  val buildMode: BuildMode = BuildMode.valueOf(millbuild.BuildConfig.buildMode)
 }
 
 trait HailModule extends ScalaModule with ScalafmtModule with ScalafixModule { outer =>
-  override def scalaVersion: T[String] = build.env.scalaVersion()
+  override def scalaVersion: T[String] = Env.scalaVersion()
 
   override def javacOptions: T[Seq[String]] = Seq(
     "-Xlint:all",
     "-Werror",
-    if (build.env.debugMode()) "-g" else "-O",
-  ) ++ (if (!build.env.javaVersion().startsWith("1.8")) Seq("-Xlint:-processing") else Seq())
+    if (Env.buildMode == BuildMode.Release) "-O" else "-g",
+  ) ++ (if (!Env.javaVersion().startsWith("1.8")) Seq("-Xlint:-processing") else Seq())
 
   override def scalacOptions: T[Seq[String]] = Task {
-    Seq(
-      "-explaintypes",
-      "-unchecked",
-      "-Xsource:2.13",
-      "-Xno-patmat-analysis",
-      "-Ypartial-unification",
-      "-Yno-adapted-args", // will be removed in 2.13
-      "-Ywarn-value-discard",
-      "-Xlint",
-      "-Ywarn-unused:_,-explicits,-implicits",
-      "-Wconf:msg=legacy-binding:s",
-      "-feature",
-    ) ++ (
-      if (build.env.debugMode()) Seq()
-      else Seq(
-        "-Xfatal-warnings",
-        "-opt:l:method",
-        "-opt:-closure-invocations",
-      )
+    val disabledOptions = Set(
+      ScalacOptions.warnNumericWiden, ScalacOptions.privateWarnNumericWiden,
+      ScalacOptions.warnUnusedParams, ScalacOptions.privateWarnUnusedParams,
+      ScalacOptions.warnUnusedImplicits, ScalacOptions.privateWarnUnusedImplicits,
+      ScalacOptions.warnUnusedExplicits,
+      ScalacOptions.warnDeadCode, ScalacOptions.privateWarnDeadCode,
+      ScalacOptions.warnUnusedImports, ScalacOptions.privateWarnUnusedImports,
+
+      ScalacOptions.lintInferAny,
     )
+    
+    val baseOptions = ScalacOptions.default +
+      ScalacOptions.source213 +
+      ScalacOptions.advancedOption("no-patmat-analysis")
+    
+    val additionalOptions = Env.buildMode match {
+      case BuildMode.Dev =>
+        ScalacOptions.verboseOptions
+      // enable to help debug accessing unitialized fields
+      //     + ScalacOptions.checkInit
+      case BuildMode.CI => 
+        Set(ScalacOptions.fatalWarnings)
+      case BuildMode.Release =>
+        Set(
+          ScalacOptions.fatalWarnings,
+          ScalacOptions.optimizerMethodLocal,
+          ScalacOptions.optimizerOption(":-closure-invocations"),
+        )
+    }
+
+    ScalacOptions.tokensForVersion(
+      ScalaVersion.unsafeFromString(scalaVersion()),
+      baseOptions -- disabledOptions ++ additionalOptions
+    ) :+ "-Wconf:msg=legacy-binding:s"
   }
 
   trait HailTests extends ScalaTests with TestNg with ScalafmtModule with ScalafixModule {
@@ -162,9 +169,9 @@ object hail extends HailModule { outer =>
       Task.dest / "build-info.properties",
       s"""[Build Metadata]
          |revision=$revision
-         |sparkVersion=${env.sparkVersion()}
+         |sparkVersion=${Env.sparkVersion()}
          |hailPipVersion=${Settings.hailMajorMinorVersion}.${Settings.hailPatchVersion}
-         |hailBuildConfiguration=${env.debugOrRelease()}
+         |hailBuildConfiguration=${Env.buildMode}
          |""".stripMargin,
     )
     PathRef(Task.dest)
@@ -281,7 +288,7 @@ object hail extends HailModule { outer =>
 
     override def javacOptions: T[Seq[String]] =
       outer.javacOptions() ++ (
-        if (env.javaVersion().startsWith("1.8")) Seq(
+        if (Env.javaVersion().startsWith("1.8")) Seq(
           "-XDenableSunApiLintControl",
           "-Xlint:-sunapi",
         )
@@ -289,7 +296,7 @@ object hail extends HailModule { outer =>
       )
 
     override def sources: T[Seq[PathRef]] = Task.Sources {
-      val debugOrRelease = if (env.getDebugMode(Task.env)) "debug" else "release"
+      val debugOrRelease = if (Env.buildMode == BuildMode.CI) "debug" else "release"
       os.sub / debugOrRelease / "src"
     }
   }

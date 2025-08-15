@@ -59,10 +59,15 @@ object BuildConfiguration {
     override def isDebug: Boolean = true
   }
 
+  case object CI extends BuildConfiguration {
+    override def isDebug: Boolean = true
+  }
+
   def parseString(c: String): Option[BuildConfiguration] =
     c match {
-      case "release" => Some(BuildConfiguration.Release)
-      case "debug" => Some(BuildConfiguration.Debug)
+      case "Release" => Some(BuildConfiguration.Release)
+      case "Dev" => Some(BuildConfiguration.Debug)
+      case "CI" => Some(BuildConfiguration.CI)
       case _ => None
     }
 }
