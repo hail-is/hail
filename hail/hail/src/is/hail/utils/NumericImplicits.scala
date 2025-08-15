@@ -1,7 +1,5 @@
 package is.hail.utils
 
-import scala.language.implicitConversions
-
 import breeze.linalg.{DenseVector => BDenseVector, SparseVector => BSparseVector, Vector => BVector}
 import breeze.linalg.operators.{OpAdd, OpSub}
 import org.apache.spark.mllib.linalg.{

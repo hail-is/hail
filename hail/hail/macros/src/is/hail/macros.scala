@@ -1,6 +1,5 @@
 package is.hail
 
-import scala.language.experimental.{macros => scalamacros}
 import scala.reflect.macros.blackbox
 
 package object macros extends VoidImpl {

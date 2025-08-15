@@ -9,8 +9,6 @@ import is.hail.expr.ir.{
 import is.hail.expr.ir.defs.{ApplyIR, RelationalLet, RelationalRef}
 import is.hail.utils.toRichPredicate
 
-import scala.language.implicitConversions
-
 abstract class Invariant(implicit E: sourcecode.Enclosing) extends (BaseIR => Boolean) {
   final def verify(ctx: ExecuteContext, ir: BaseIR): Unit =
     ctx.time {

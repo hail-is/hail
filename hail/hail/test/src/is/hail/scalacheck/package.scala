@@ -2,7 +2,6 @@ package is.hail
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
-import scala.language.{higherKinds, implicitConversions}
 import scala.reflect.ClassTag
 
 import org.apache.commons.math3.distribution.{

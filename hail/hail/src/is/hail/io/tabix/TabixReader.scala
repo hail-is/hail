@@ -6,7 +6,6 @@ import is.hail.io.fs.FS
 import is.hail.utils._
 
 import scala.collection.mutable
-import scala.language.implicitConversions
 
 import java.io.InputStream
 
