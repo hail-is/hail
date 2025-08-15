@@ -11,6 +11,8 @@ import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant._
 
+import scala.collection.compat.immutable.ArraySeq
+
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.Row
 
@@ -128,7 +130,7 @@ case class MatrixValue(
       path + "/rows",
       globals.t,
       bufferSpec,
-      Array(globals.javaValue),
+      ArraySeq(globals.javaValue),
     )
     val partitionCounts = fileData.map(_.rowsWritten)
 
@@ -137,7 +139,7 @@ case class MatrixValue(
       path + "/globals",
       PCanonicalStruct.empty(required = true),
       bufferSpec,
-      Array[Annotation](Row()),
+      ArraySeq[Annotation](Row()),
     )
 
     val globalsSpec = TableSpecParameters(

@@ -878,7 +878,8 @@ object LowerMatrixIR {
         val e2 = Env[IRProxy](
           MatrixIR.globalName -> 'global.selectFields(child.typ.globalType.fieldNames: _*)
         )
-        val ceSub = subst(lower(ctx, colExpr, liftedRelationalLets), BindingEnv(e2, agg = Some(e1)))
+        val ceSub =
+          subst(lower(ctx, colExpr, liftedRelationalLets), BindingEnv(e2, agg = Some(Env.empty)))
         val eeSub =
           subst(lower(ctx, entryExpr, liftedRelationalLets), BindingEnv(e1, agg = Some(e1)))
 

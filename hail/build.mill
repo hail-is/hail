@@ -10,7 +10,6 @@ import com.goyeau.mill.scalafix.ScalafixModule
 import org.typelevel.scalacoptions._
 import mill.*
 import mill.api.{Result, BuildCtx}
-import mill.javalib.UnresolvedPath
 import mill.scalalib.*
 import mill.scalalib.Assembly.*
 import mill.scalalib.TestModule.TestNg
@@ -21,6 +20,7 @@ import upickle.default.ReadWriter
 object Settings {
   val hailMajorMinorVersion = "0.2"
   val hailPatchVersion = "135"
+  val scalaMinorVersions = Map("2.12" -> "2.12.20", "2.12.13" -> "2.12.13", "2.13" -> "2.13.13")
 }
 
 object Deps {
@@ -73,6 +73,9 @@ object Deps {
   val hadoopClient = mvn"org.apache.hadoop:hadoop-client:3.3.4"
   val jackson = mvn"com.fasterxml.jackson.core:jackson-core:2.15.2"
   val sourcecode = mvn"com.lihaoyi::sourcecode:0.4.2"
+  val collection_compat = mvn"org.scala-lang.modules::scala-collection-compat:2.13.0"
+  // provides @nowarn212 and @nowarn213
+  val scalac_compat = mvn"org.typelevel::scalac-compat-annotation:0.1.4"
 
   object Plugins {
     val betterModadicFor = mvn"com.olegpy::better-monadic-for:0.3.1"
@@ -88,14 +91,6 @@ enum BuildMode derives ReadWriter {
 }
 
 object env extends Module {
-  def scalaVersion: T[String] = Task.Input {
-    val v = Task.env.getOrElse("SCALA_VERSION", "2.12.20")
-    if (!v.startsWith("2.12"))
-      Result.Failure("Hail currently supports only Scala 2.12")
-    else
-      v
-  }
-
   def javaVersion: T[String] = Task.Input {
     System.getProperty("java.version")
   }
@@ -113,13 +108,15 @@ object env extends Module {
         Task.log.info(s"Building in $mode mode")
         mode
       case None =>
-        Result.Failure("Must set HAIL_BUILD_MODE to one of Dev, CI, or Release")
+//        Result.Failure("Must set HAIL_BUILD_MODE to one of Dev, CI, or Release")
+        BuildMode.Dev
     }
   }
 }
 
 trait HailModule extends ScalaModule with ScalafmtModule with ScalafixModule { outer =>
-  override def scalaVersion: T[String] = build.env.scalaVersion()
+  def crossValue: String
+  override def scalaVersion: T[String] = Task { Settings.scalaMinorVersions(crossValue) }
 
   override def javacOptions: T[Seq[String]] = Seq(
     "-Xlint:all",
@@ -165,7 +162,13 @@ trait HailModule extends ScalaModule with ScalafmtModule with ScalafixModule { o
       baseOptions -- disabledWarnings ++ additionalOptions
     )
     if (scalaVersion().startsWith("2.13"))
-      "-Wconf:cat=deprecation:s,cat=other-pure-statement:s,msg=legacy-binding:s,cat=other-nullary-override:s,cat=other-match-analysis:s,cat=other-implicit-type:s,any:e" +:
+      "-Wconf:any:e" +:
+        "-Wconf:cat=deprecation:s" +:
+        "-Wconf:cat=other-pure-statement:s" +:
+        "-Wconf:msg=legacy-binding:s" +:
+        "-Wconf:cat=other-nullary-override:s" +:
+        "-Wconf:cat=other-match-analysis:s" +:
+        "-Wconf:cat=other-implicit-type:s" +:
         "-Wconf:cat=unused-imports&origin=scala\\.collection\\.compat\\._:s" +:
         "-Wconf:cat=unused-imports&origin=scala\\.Option\\.option2Iterable:s" +:
         "-Wconf:cat=unused-imports&origin=is\\.hail\\.utils\\.compat\\._:s" +:
@@ -190,8 +193,9 @@ trait HailModule extends ScalaModule with ScalafmtModule with ScalafixModule { o
   }
 }
 
-object hail extends HailModule { outer =>
+object hail extends Cross[RootHailModule](Seq("2.12"))
 
+trait RootHailModule extends CrossScalaModule with HailModule { outer =>
   def buildInfo: T[PathRef] = Task {
     val revision = VcsVersion.vcsState().currentRevision
     os.write(
@@ -247,6 +251,7 @@ object hail extends HailModule { outer =>
     Deps.json4s.excludeOrg("com.fasterxml.jackson.core"),
     Deps.zstd,
     Deps.sourcecode,
+    Deps.collection_compat,
   )
 
   override def runMvnDeps: T[Seq[Dep]] = Seq(
@@ -268,6 +273,7 @@ object hail extends HailModule { outer =>
     Deps.Spark.mllib().excludeOrg("org.scalanlp"),  // Hail has an explicit dependency on Breeze 1.1
     Deps.Breeze.core,
     Deps.jackson,
+    Deps.scalac_compat,
   )
 
   override def assemblyRules: Seq[Rule] = super.assemblyRules ++ Seq(
@@ -297,7 +303,7 @@ object hail extends HailModule { outer =>
     PathRef(Task.dest)
   }
 
-  object `ir-gen` extends HailModule with DefaultTaskModule {
+  object `ir-gen` extends HailModule with DefaultTaskModule with CrossValue {
     override def defaultTask(): String = "generate"
 
     override def mvnDeps = Seq(
@@ -312,7 +318,7 @@ object hail extends HailModule { outer =>
     }
   }
 
-  object memory extends JavaModule { // with CrossValue {
+  object memory extends JavaModule with CrossValue {
     override def zincIncrementalCompilation: T[Boolean] = false
 
     override def javacOptions: T[Seq[String]] =
@@ -324,14 +330,13 @@ object hail extends HailModule { outer =>
         else Seq()
       )
 
-    scala.util.Using
     override def sources: T[Seq[PathRef]] = Task.Sources {
       val debugOrRelease = if (env.getBuildMode(Task.env).contains(BuildMode.CI)) "debug" else "release"
       os.sub / debugOrRelease / "src"
     }
   }
 
-  object macros extends HailModule {
+  object macros extends HailModule with CrossValue {
     override def compileMvnDeps: T[Seq[Dep]] = Seq(
       mvn"org.scala-lang:scala-reflect:${scalaVersion()}",
       mvn"orf.scala-lang:scala-compiler:${scalaVersion()}"
