@@ -624,12 +624,12 @@ class IRSuite extends HailSuite {
   @DataProvider(name = "SwitchEval")
   def switchEvalRules: Array[Array[Any]] =
     Array(
-      Array(I32(-1), I32(Int.MinValue), FastSeq(0, Int.MaxValue).map(I32), Int.MinValue),
-      Array(I32(0), I32(Int.MinValue), FastSeq(0, Int.MaxValue).map(I32), 0),
-      Array(I32(1), I32(Int.MinValue), FastSeq(0, Int.MaxValue).map(I32), Int.MaxValue),
-      Array(I32(2), I32(Int.MinValue), FastSeq(0, Int.MaxValue).map(I32), Int.MinValue),
-      Array(NA(TInt32), I32(Int.MinValue), FastSeq(0, Int.MaxValue).map(I32), null),
-      Array(I32(-1), NA(TInt32), FastSeq(0, Int.MaxValue).map(I32), null),
+      Array(I32(-1), I32(Int.MinValue), FastSeq(0, Int.MaxValue).map(I32.apply), Int.MinValue),
+      Array(I32(0), I32(Int.MinValue), FastSeq(0, Int.MaxValue).map(I32.apply), 0),
+      Array(I32(1), I32(Int.MinValue), FastSeq(0, Int.MaxValue).map(I32.apply), Int.MaxValue),
+      Array(I32(2), I32(Int.MinValue), FastSeq(0, Int.MaxValue).map(I32.apply), Int.MinValue),
+      Array(NA(TInt32), I32(Int.MinValue), FastSeq(0, Int.MaxValue).map(I32.apply), null),
+      Array(I32(-1), NA(TInt32), FastSeq(0, Int.MaxValue).map(I32.apply), null),
       Array(I32(0), NA(TInt32), FastSeq(NA(TInt32), I32(0)), null),
     )
 
@@ -654,11 +654,11 @@ class IRSuite extends HailSuite {
 
     // test let binding streams
     assertEvalsTo(
-      bindIR(MakeStream(IndexedSeq(I32(0), I32(5)), TStream(TInt32)))(ToArray),
+      bindIR(MakeStream(IndexedSeq(I32(0), I32(5)), TStream(TInt32)))(ToArray.apply),
       FastSeq(0, 5),
     )
     assertEvalsTo(
-      bindIR(NA(TStream(TInt32)))(ToArray),
+      bindIR(NA(TStream(TInt32)))(ToArray.apply),
       null,
     )
     assertEvalsTo(
@@ -1304,7 +1304,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(MakeTuple.ordered(FastSeq()), Row())
     assertEvalsTo(MakeTuple.ordered(FastSeq(NA(TInt32), 4, 0.5)), Row(null, 4, 0.5))
     // making sure wide structs get emitted without failure
-    assertEvalsTo(GetTupleElement(MakeTuple.ordered((0 until 20000).map(I32)), 1), 1)
+    assertEvalsTo(GetTupleElement(MakeTuple.ordered((0 until 20000).map(I32.apply)), 1), 1)
   }
 
   @Test def testGetTupleElement(): scalatest.Assertion = {
@@ -1647,7 +1647,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(StreamLen(StreamDrop(a, 1)), 2)
   }
 
-  def toNestedArray(stream: IR): IR = ToArray(mapIR(stream)(ToArray))
+  def toNestedArray(stream: IR): IR = ToArray(mapIR(stream)(ToArray.apply))
 
   @Test def testStreamGrouped(): scalatest.Assertion = {
     val naa = NA(TStream(TInt32))
@@ -1765,7 +1765,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(ToArray(filterIR(a)(_ => False())), FastSeq())
     assertEvalsTo(ToArray(filterIR(a)(_ => True())), FastSeq(3, null, 7))
 
-    assertEvalsTo(ToArray(filterIR(a)(IsNA)), FastSeq(null))
+    assertEvalsTo(ToArray(filterIR(a)(IsNA.apply)), FastSeq(null))
     assertEvalsTo(ToArray(filterIR(a)(!IsNA(_))), FastSeq(3, 7))
 
     assertEvalsTo(ToArray(filterIR(a)(_ < I32(6))), FastSeq(3))
@@ -1880,14 +1880,14 @@ class IRSuite extends HailSuite {
 
   def makeNDArray(data: IndexedSeq[Double], shape: IndexedSeq[Long], rowMajor: IR): MakeNDArray =
     MakeNDArray(
-      MakeArray(data.map(F64), TArray(TFloat64)),
-      MakeTuple.ordered(shape.map(I64)),
+      MakeArray(data.map(F64.apply), TArray(TFloat64)),
+      MakeTuple.ordered(shape.map(I64.apply)),
       rowMajor,
       ErrorIDs.NO_ERROR,
     )
 
   def makeNDArrayRef(nd: IR, indxs: IndexedSeq[Long]): NDArrayRef =
-    NDArrayRef(nd, indxs.map(I64), -1)
+    NDArrayRef(nd, indxs.map(I64.apply), -1)
 
   val scalarRowMajor = makeNDArray(FastSeq(3.0), FastSeq(), True())
   val scalarColMajor = makeNDArray(FastSeq(3.0), FastSeq(), False())
@@ -2039,7 +2039,7 @@ class IRSuite extends HailSuite {
 
     val trues = MakeNDArray(
       MakeArray(data.map(_ => True()), TArray(TBoolean)),
-      MakeTuple.ordered(shape.map(I64)),
+      MakeTuple.ordered(shape.map(I64.apply)),
       True(),
       ErrorIDs.NO_ERROR,
     )
@@ -2049,7 +2049,7 @@ class IRSuite extends HailSuite {
 
     val bools = MakeNDArray(
       MakeArray(data.map(i => if (i % 2 == 0) True() else False()), TArray(TBoolean)),
-      MakeTuple.ordered(shape.map(I64)),
+      MakeTuple.ordered(shape.map(I64.apply)),
       False(),
       ErrorIDs.NO_ERROR,
     )
@@ -2063,7 +2063,7 @@ class IRSuite extends HailSuite {
   @Test def testNDArrayMap2(): scalatest.Assertion = {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
-    val shape = MakeTuple.ordered(FastSeq(2L, 2L).map(I64))
+    val shape = MakeTuple.ordered(FastSeq(2L, 2L).map(I64.apply))
     val numbers = MakeNDArray(
       MakeArray((0 until 4).map(i => F64(i.toDouble)), TArray(TFloat64)),
       shape,
@@ -3366,7 +3366,7 @@ class IRSuite extends HailSuite {
       NA(TInt32),
       IsNA(i),
       If(b, i, j),
-      Switch(i, j, 0 until 7 map I32),
+      Switch(i, j, 0 until 7 map I32.apply),
       Coalesce(FastSeq(i, I32(1))),
       bindIR(i)(v => v),
       aggBindIR(i)(collect(_)) -> (_.createAgg), {
