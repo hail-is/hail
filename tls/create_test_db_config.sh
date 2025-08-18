@@ -36,9 +36,19 @@ create_key_and_cert server
 create_key_and_cert client
 
 set +x
-LC_ALL=C tr -dc '[:alnum:]' </dev/urandom | head -c 16 > db-root-password
-password=$(cat db-root-password)
 
+# Use provided password or generate new one
+if [ -n "$KEEP_PASSWORD" ]; then
+    echo "Using provided password"
+    echo "$KEEP_PASSWORD" > db-root-password
+    password=$KEEP_PASSWORD
+else
+    echo "Generating new password"
+    LC_ALL=C tr -dc '[:alnum:]' </dev/urandom | head -c 16 > db-root-password
+    password=$(cat db-root-password)
+fi
+
+echo "Creating sql-config.cnf"
 cat >sql-config.cnf <<EOF
 [client]
 host=db.$NAMESPACE
@@ -51,6 +61,7 @@ ssl-key=/sql-config/client-key.pem
 ssl-mode=VERIFY_CA
 EOF
 
+echo "Creating sql-config.json"
 cat >sql-config.json <<EOF
 {
     "host": "db.$NAMESPACE.svc.cluster.local",
@@ -66,6 +77,8 @@ cat >sql-config.json <<EOF
 }
 EOF
 
+# Use dry-run | apply pattern to make sure the secret is created or patched regardless of whether it already exists
+echo "Creating or patching database-server-config secret"
 kubectl create secret generic database-server-config \
     --namespace=$NAMESPACE \
     --from-file=server-ca.pem \
@@ -75,4 +88,5 @@ kubectl create secret generic database-server-config \
     --from-file=client-key.pem \
     --from-file=sql-config.cnf \
     --from-file=sql-config.json \
-    --from-file=db-root-password
+    --from-file=db-root-password \
+    --dry-run=client -o yaml | kubectl apply -n $NAMESPACE -f -
