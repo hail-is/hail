@@ -1,10 +1,61 @@
 {% from "utils.html" import submit_button %}
 {% macro table_search(component_name, endpoint) %}
-<form id='{{ component_name }}-form' class='min-h-48 flex space-x-4' method="GET" action="{{ endpoint }}">
+<!-- Determine search context based on component_name -->
+{% set is_job_search = component_name == "job-search" %}
+
+<form id='{{ component_name }}-form' class='min-h-48 flex space-x-4' method="GET" action="{{ endpoint }}" data-is-job-search="{{ 'true' if is_job_search else 'false' }}">
   <div class='basis-2/3'>
-    <textarea id='{{ component_name }}-input-box' class='h-full w-full p-4 bg-zinc-200 rounded resize whitespace-pre'
-      spellcheck="false" autocorrect="off" autofocus name="q">{% if q %}{{ q }}{% endif %}</textarea>
+    <!-- Search criteria container -->
+    <div id='{{ component_name }}-criteria-container' class='h-full w-full p-4 bg-zinc-200 rounded space-y-3'>
+      <!-- Initial search criterion -->
+      <div class='search-criterion flex space-x-2 items-center'>
+        <select class='criterion-select p-2 bg-white rounded border' onchange='updateOperators(this)'>
+          <option value="">Select field...</option>
+          <optgroup label="General">
+            <option value="name">Name</option>
+            <option value="cost">Cost</option>
+            <option value="duration">Duration</option>
+            <option value="start_time">Start Time</option>
+            <option value="end_time">End Time</option>
+          </optgroup>
+          {% if is_job_search %}
+          <optgroup label="Job Fields">
+            <option value="job_id">Job ID</option>
+            <option value="state">State</option>
+            <option value="instance">Instance</option>
+            <option value="instance_collection">Instance Collection</option>
+          </optgroup>
+          {% else %}
+          <optgroup label="Batch Fields">
+            <option value="batch_id">Batch ID</option>
+            <option value="state">State</option>
+            <option value="user">User</option>
+            <option value="billing_project">Billing Project</option>
+          </optgroup>
+          {% endif %}
+        </select>
+
+        <select class='operator-select p-2 bg-white rounded border'>
+          <option value="">Select operator...</option>
+        </select>
+
+        <input type='text' class='value-input p-2 bg-white rounded border flex-grow' placeholder='Enter value...'>
+
+        <button type='button' class='remove-criterion text-red-500 hover:text-red-700' onclick='removeCriterion(this)' title='Remove criterion'>
+          <span class="material-symbols-outlined text-sm">close</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Add criterion button -->
+    <button type='button' id='{{ component_name }}-add-criterion' class='mt-2 px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600' onclick='addCriterion("{{ component_name }}")'>
+      + Add Criterion
+    </button>
+
+    <!-- Hidden input to store the built query -->
+    <input type='hidden' id='{{ component_name }}-query' name='q' value='{% if q %}{{ q }}{% endif %}'>
   </div>
+
   <div class='flex flex-col justify-between'>
     <a href="https://hail.is/docs/batch/advanced_search_help.html" target="_blank">
       <span class="material-symbols-outlined">help</span>
@@ -12,13 +63,254 @@
     {{ submit_button('Search') }}
   </div>
 </form>
+
 <script>
-  document.getElementById("{{ component_name }}-input-box")
-    .addEventListener("keydown", function (e) {
-      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault();
-        document.getElementById("{{ component_name }}-form").submit();
-      }
+// Field configurations with their allowed operators and value types
+const fieldConfigs = {
+  // General fields
+  'name': {
+    operators: ['=', '!=', '=~', '!~'],
+    type: 'string',
+    placeholder: 'Enter name...'
+  },
+  'cost': {
+    operators: ['=', '!=', '>', '>=', '<', '<='],
+    type: 'number',
+    placeholder: 'Enter cost (e.g., 5.00)...'
+  },
+  'duration': {
+    operators: ['=', '!=', '>', '>=', '<', '<='],
+    type: 'number',
+    placeholder: 'Enter duration in seconds...'
+  },
+  'start_time': {
+    operators: ['=', '!=', '>', '>=', '<', '<='],
+    type: 'datetime',
+    placeholder: 'Enter date (ISO format, e.g., 2023-02-24T17:15:25Z)...'
+  },
+  'end_time': {
+    operators: ['=', '!=', '>', '>=', '<', '<='],
+    type: 'datetime',
+    placeholder: 'Enter date (ISO format, e.g., 2023-02-24T17:15:25Z)...'
+  },
+
+  // Batch-specific fields
+  'batch_id': {
+    operators: ['=', '!=', '>', '>=', '<', '<='],
+    type: 'number',
+    placeholder: 'Enter batch ID...'
+  },
+  'user': {
+    operators: ['=', '!=', '=~', '!~'],
+    type: 'string',
+    placeholder: 'Enter username...'
+  },
+  'billing_project': {
+    operators: ['=', '!=', '=~', '!~'],
+    type: 'string',
+    placeholder: 'Enter billing project...'
+  },
+
+  // Job-specific fields
+  'job_id': {
+    operators: ['=', '!=', '>', '>=', '<', '<='],
+    type: 'number',
+    placeholder: 'Enter job ID...'
+  },
+  'instance': {
+    operators: ['=', '!=', '=~', '!~'],
+    type: 'string',
+    placeholder: 'Enter instance name...'
+  },
+  'instance_collection': {
+    operators: ['=', '!=', '=~', '!~'],
+    type: 'string',
+    placeholder: 'Enter instance collection...'
+  }
+};
+
+// Special state values
+const stateValues = {
+  batch: ['running', 'complete', 'success', 'failure', 'cancelled', 'open', 'closed'],
+  job: ['pending', 'ready', 'creating', 'running', 'live', 'cancelled', 'error', 'failed', 'bad', 'success', 'done']
+};
+
+// Global variable for search context
+let isJobSearch;
+
+// Update operators based on selected field
+function updateOperators(selectElement) {
+  const field = selectElement.value;
+  const operatorSelect = selectElement.parentElement.querySelector('.operator-select');
+  const valueInput = selectElement.parentElement.querySelector('.value-input');
+
+  // Clear existing options
+  operatorSelect.innerHTML = '<option value="">Select operator...</option>';
+
+  if (field && fieldConfigs[field]) {
+    const config = fieldConfigs[field];
+
+    // Add operator options
+    config.operators.forEach(op => {
+      const option = document.createElement('option');
+      option.value = op;
+      option.textContent = op;
+      operatorSelect.appendChild(option);
     });
+
+    // Update value input
+    valueInput.placeholder = config.placeholder;
+
+    // Handle state fields specially
+    if (field === 'state') {
+      valueInput.style.display = 'none';
+      if (!selectElement.parentElement.querySelector('.state-select')) {
+        const stateSelect = document.createElement('select');
+        stateSelect.className = 'state-select p-2 bg-white rounded border';
+        stateSelect.innerHTML = '<option value="">Select state...</option>';
+
+        const values = isJobSearch ? stateValues.job : stateValues.batch;
+        values.forEach(state => {
+          const option = document.createElement('option');
+          option.value = state;
+          option.textContent = state;
+          stateSelect.appendChild(option);
+        });
+
+        valueInput.parentElement.insertBefore(stateSelect, valueInput);
+      }
+    } else {
+      valueInput.style.display = 'block';
+      const stateSelect = selectElement.parentElement.querySelector('.state-select');
+      if (stateSelect) {
+        stateSelect.remove();
+      }
+    }
+  }
+}
+
+// Add new search criterion
+function addCriterion(componentName) {
+  const container = document.getElementById(componentName + '-criteria-container');
+  const newCriterion = container.querySelector('.search-criterion').cloneNode(true);
+
+  // Reset values
+  newCriterion.querySelector('.criterion-select').value = '';
+  newCriterion.querySelector('.operator-select').innerHTML = '<option value="">Select operator...</option>';
+  newCriterion.querySelector('.value-input').value = '';
+  newCriterion.querySelector('.value-input').placeholder = 'Enter value...';
+
+  // Remove any state select
+  const stateSelect = newCriterion.querySelector('.state-select');
+  if (stateSelect) {
+    stateSelect.remove();
+  }
+
+  container.appendChild(newCriterion);
+}
+
+// Remove search criterion
+function removeCriterion(button) {
+  const container = button.closest('[id$="-criteria-container"]');
+  const criteria = container.querySelectorAll('.search-criterion');
+
+  // Don't remove if it's the last criterion
+  if (criteria.length > 1) {
+    button.closest('.search-criterion').remove();
+  }
+}
+
+// Build query string from criteria
+function buildQuery(componentName) {
+  const container = document.getElementById(componentName + '-criteria-container');
+  const criteria = container.querySelectorAll('.search-criterion');
+  const queryParts = [];
+
+  criteria.forEach(criterion => {
+    const field = criterion.querySelector('.criterion-select').value;
+    const operator = criterion.querySelector('.operator-select').value;
+    let value = criterion.querySelector('.value-input').value;
+
+    // Check for state select
+    const stateSelect = criterion.querySelector('.state-select');
+    if (stateSelect && stateSelect.style.display !== 'none') {
+      value = stateSelect.value;
+    }
+
+    if (field && operator && value) {
+      queryParts.push(`${field} ${operator} ${value}`);
+    }
+  });
+
+  return queryParts.join('\n');
+}
+
+// Parse existing query and populate dropdowns
+function parseQuery(componentName, query) {
+  if (!query) return;
+
+  const container = document.getElementById(componentName + '-criteria-container');
+  container.innerHTML = ''; // Clear existing criteria
+
+  const lines = query.split('\n').filter(line => line.trim());
+
+  lines.forEach((line, index) => {
+    if (index === 0) {
+      // Create first criterion
+      addCriterion(componentName);
+    } else {
+      // Add additional criteria
+      addCriterion(componentName);
+    }
+
+    // Parse line and populate the last criterion
+    const criterion = container.querySelectorAll('.search-criterion')[index];
+    const parts = line.trim().match(/^(\w+)\s*(=~|!~|<=|>=|!=|==|=|<|>)\s*(.+)$/);
+
+    if (parts) {
+      const [, field, operator, value] = parts;
+
+      criterion.querySelector('.criterion-select').value = field;
+      updateOperators(criterion.querySelector('.criterion-select'));
+      criterion.querySelector('.operator-select').value = operator;
+
+      if (field === 'state') {
+        const stateSelect = criterion.querySelector('.state-select');
+        if (stateSelect) {
+          stateSelect.value = value;
+        }
+      } else {
+        criterion.querySelector('.value-input').value = value;
+      }
+    }
+  });
+}
+
+// Form submission handler
+document.getElementById("{{ component_name }}-form").addEventListener('submit', function(e) {
+  const query = buildQuery("{{ component_name }}");
+  document.getElementById("{{ component_name }}-query").value = query;
+});
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+  // Initialize search context
+  isJobSearch = document.getElementById("{{ component_name }}-form").getAttribute('data-is-job-search') === 'true';
+
+  const existingQuery = document.getElementById("{{ component_name }}-query").value;
+  if (existingQuery) {
+    parseQuery("{{ component_name }}", existingQuery);
+  }
+});
+
+// Keyboard shortcut support
+document.addEventListener("keydown", function (e) {
+  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+    e.preventDefault();
+    const query = buildQuery("{{ component_name }}");
+    document.getElementById("{{ component_name }}-query").value = query;
+    document.getElementById("{{ component_name }}-form").submit();
+  }
+});
 </script>
 {% endmacro %}
