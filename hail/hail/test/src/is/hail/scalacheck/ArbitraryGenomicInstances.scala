@@ -1,7 +1,7 @@
 package is.hail.scalacheck
 
 import is.hail.annotations.Annotation
-import is.hail.collection.implicits.toRichIterable
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.utils.{triangle, uniqueMaxIndex}
 import is.hail.variant._
 import is.hail.variant.Genotype.gqFromPL
@@ -25,7 +25,7 @@ private[scalacheck] trait ArbitraryGenomicInstances {
   implicit lazy val arbSex: Arbitrary[Sex] =
     oneOf(Sex.Male, Sex.Female)
 
-  def genReferenceGenome(genContigs: Int => Gen[Array[String]]): Gen[ReferenceGenome] =
+  def genReferenceGenome(genContigs: Int => Gen[IndexedSeq[String]]): Gen[ReferenceGenome] =
     for {
       name <- identifier
       n <- posNum[Int]
@@ -44,7 +44,7 @@ private[scalacheck] trait ArbitraryGenomicInstances {
 
       par <-
         if (nx + ny > 0)
-          distinctContainerOf[Array, (Locus, Locus)] {
+          distinctContainerOf[ArraySeq, (Locus, Locus)] {
             for {
               contig <- oneOf(xContigs ++ yContigs)
               lo <- choose(1, rg.lengths(contig))
@@ -52,7 +52,7 @@ private[scalacheck] trait ArbitraryGenomicInstances {
             } yield (Locus(contig, lo, rg), Locus(contig, hi, rg))
           }
         else
-          const(Array.empty[(Locus, Locus)])
+          const(ArraySeq.empty)
 
     } yield rg.copy(
       xContigs = xContigs,
@@ -62,11 +62,11 @@ private[scalacheck] trait ArbitraryGenomicInstances {
     )
 
   lazy val genPlinkCompatibleReferenceGenome: Gen[ReferenceGenome] =
-    atMost(21)(_ => genReferenceGenome(n => const(Array.tabulate(n)(i => (i + 1).toString))))
+    atMost(21)(_ => genReferenceGenome(n => const(ArraySeq.tabulate(n)(i => (i + 1).toString))))
 
   implicit lazy val arbReferenceGenome: Arbitrary[ReferenceGenome] =
     oneOf(
-      genReferenceGenome(n => distinctContainerOfN[Array, String](n, identifier)),
+      genReferenceGenome(n => distinctContainerOfN[ArraySeq, String](n, identifier)),
       genPlinkCompatibleReferenceGenome,
     )
 
@@ -90,7 +90,7 @@ private[scalacheck] trait ArbitraryGenomicInstances {
     for {
       ploidy <- genPloidy
       phased <- genPhased
-      alleles <- containerOfN[Array, Int](ploidy, Gen.choose(0, nAlleles - 1))
+      alleles <- containerOfN[ArraySeq, Int](ploidy, Gen.choose(0, nAlleles - 1))
     } yield CallN(alleles, phased)
 
   def genUnphasedDiploid(nAlleles: Int): Gen[Call] =
@@ -108,7 +108,7 @@ private[scalacheck] trait ArbitraryGenomicInstances {
       val nGenotypes = triangle(nAlleles)
       for {
         c <- option(genUnphasedDiploid(nAlleles))
-        ad <- option(containerOfN[Array, Int](nAlleles, choose(0, m)))
+        ad <- option(containerOfN[ArraySeq, Int](nAlleles, choose(0, m)))
         dp <- option(choose(0, m))
         gq <- option(choose(0, 10000))
         pl <- oneOf(
@@ -128,10 +128,10 @@ private[scalacheck] trait ArbitraryGenomicInstances {
 
         Annotation(
           c.orNull,
-          ad.map(a => a: IndexedSeq[Int]).orNull,
+          ad.orNull,
           dp.map(_ + ad.map(_.sum).getOrElse(0)).orNull,
           gq.orNull,
-          pl.map(a => a: IndexedSeq[Int]).orNull,
+          pl.map(ArraySeq.unsafeWrapArray).orNull,
         )
       }
     }
@@ -148,14 +148,14 @@ private[scalacheck] trait ArbitraryGenomicInstances {
           zip(freq, freq).map { case (gti, gtj) => Call2(gti, gtj) }
         }
 
-        ad <- option(containerOfN[Array, Int](nAlleles, choose(0, 50)))
+        ad <- option(containerOfN[ArraySeq, Int](nAlleles, choose(0, 50)))
         dp <- choose(0, 30).map(d => ad.map(o => o.sum + d))
         pl <- option {
           val nGenotypes = triangle(nAlleles)
           containerOfN[Array, Int](nGenotypes, choose(0, 1000)).map { arr =>
             c match {
               case Some(x) =>
-                arr(Call.unphasedDiploidGtIndex(x).toInt) = 0
+                arr(Call.unphasedDiploidGtIndex(x)) = 0
                 arr
               case None =>
                 val min = arr.min
@@ -166,10 +166,10 @@ private[scalacheck] trait ArbitraryGenomicInstances {
         gq <- choose(-30, 30).map(i => pl.map(pls => math.max(0, gqFromPL(pls) + i)))
       } yield Annotation(
         c.orNull,
-        ad.map(a => a: IndexedSeq[Int]).orNull,
+        ad.orNull,
         dp.orNull,
         gq.orNull,
-        pl.map(a => a: IndexedSeq[Int]).orNull,
+        pl.map(ArraySeq.unsafeWrapArray).orNull,
       )
     }
 
@@ -197,10 +197,10 @@ private[scalacheck] trait ArbitraryGenomicInstances {
       (contig, length) <- genContig
       start <- Gen.choose(1, length)
       nAlleles <- genNAlleles
-      altAlleles <- distinctContainerOfN[Array, String](nAlleles - 1, genAlt)
+      altAlleles <- distinctContainerOfN[ArraySeq, String](nAlleles - 1, genAlt)
       ref <- genRef
       if !altAlleles.contains(ref)
-    } yield Annotation(Locus(contig, start), (ref +: altAlleles).toFastSeq)
+    } yield Annotation(Locus(contig, start), ref +: altAlleles)
 
   def genRandomLocusAlleles(rg: ReferenceGenome): Gen[Annotation] =
     genLocusAlleles(

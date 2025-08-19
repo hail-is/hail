@@ -35,12 +35,12 @@ class IntervalSuite extends HailSuite {
 
   @BeforeMethod
   def setupIntervalTrees(context: ITestContext): Unit = {
-    test_itrees = SetIntervalTree(ctx, Array[(SetInterval, Int)]()) +:
+    test_itrees = SetIntervalTree(ctx, ArraySeq[(SetInterval, Int)]()) +:
       test_intervals.flatMap { i1 =>
-        SetIntervalTree(ctx, Array(i1).zipWithIndex) +:
+        SetIntervalTree(ctx, ArraySeq(i1).zipWithIndex) +:
           test_intervals.flatMap { i2 =>
             if (i1.end <= i2.start)
-              Some(SetIntervalTree(ctx, Array(i1, i2).zipWithIndex))
+              Some(SetIntervalTree(ctx, ArraySeq(i1, i2).zipWithIndex))
             else
               None
           }
@@ -252,7 +252,7 @@ case class SetInterval(start: Int, end: Int, includesStart: Boolean, includesEnd
   }
 }
 
-case class SetIntervalTree(ctx: ExecuteContext, annotations: Array[(SetInterval, Int)]) {
+case class SetIntervalTree(ctx: ExecuteContext, annotations: IndexedSeq[(SetInterval, Int)]) {
 
   val pord: ExtendedOrdering = TInt32.ordering(HailStateManager(Map.empty))
 

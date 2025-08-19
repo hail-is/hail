@@ -13,8 +13,8 @@ import scala.collection.mutable
 import scala.jdk.CollectionConverters._
 
 object PCanonicalStruct {
-  private val requiredEmpty = PCanonicalStruct(Array.empty[PField], true)
-  private val optionalEmpty = PCanonicalStruct(Array.empty[PField], false)
+  private val requiredEmpty = PCanonicalStruct(ArraySeq.empty, true)
+  private val optionalEmpty = PCanonicalStruct(ArraySeq.empty, false)
 
   def empty(required: Boolean = false): PStruct = if (required) requiredEmpty else optionalEmpty
 
@@ -30,8 +30,8 @@ object PCanonicalStruct {
 
   def apply(names: java.util.List[String], types: java.util.List[PType], required: Boolean)
     : PCanonicalStruct = {
-    val sNames = names.asScala.toArray
-    val sTypes = types.asScala.toArray
+    val sNames = names.asScala.to(ArraySeq)
+    val sTypes = types.asScala.to(ArraySeq)
     if (sNames.length != sTypes.length)
       fatal(
         s"number of names does not match number of types: found ${sNames.length} names and ${sTypes.length} types"
@@ -48,7 +48,7 @@ object PCanonicalStruct {
 }
 
 final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean = false)
-    extends PCanonicalBaseStruct(fields.map(_.typ).toArray) with PStruct {
+    extends PCanonicalBaseStruct(fields.map(_.typ)) with PStruct {
   assert(fields.zipWithIndex.forall { case (f, i) => f.index == i })
 
   if (!fieldNames.areDistinct()) {

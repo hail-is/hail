@@ -3,6 +3,7 @@ package is.hail.expr.ir.agg
 import is.hail.annotations.{Region, RegionValueBuilder, UnsafeRow}
 import is.hail.asm4s._
 import is.hail.backend.{ExecuteContext, HailStateManager}
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.EmitType
@@ -110,8 +111,8 @@ class LinearRegressionAggregator() extends StagedAggregator {
   override def resultEmitType: EmitType =
     EmitType(SBaseStructPointer(LinearRegressionAggregator.resultPType), true)
 
-  val initOpTypes: Seq[Type] = Array(TInt32, TInt32)
-  val seqOpTypes: Seq[Type] = Array(TFloat64, TArray(TFloat64))
+  val initOpTypes: IndexedSeq[Type] = ArraySeq(TInt32, TInt32)
+  val seqOpTypes: IndexedSeq[Type] = ArraySeq(TFloat64, TArray(TFloat64))
 
   def initOpF(state: State)(cb: EmitCodeBuilder, kc: Code[Int], k0c: Code[Int]): Unit = {
     val k = cb.newLocal[Int]("lra_init_k", kc)

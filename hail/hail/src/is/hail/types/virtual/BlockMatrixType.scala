@@ -76,6 +76,27 @@ case class BlockMatrixType(
     r -> c
   }
 
+  private[this] def getBlockDependencies(keep: IndexedSeq[IndexedSeq[Long]])
+    : IndexedSeq[IndexedSeq[Int]] =
+    keep.map(keeps =>
+      ArraySeq.range(
+        BlockMatrixType.getBlockIdx(keeps.head, blockSize),
+        BlockMatrixType.getBlockIdx(keeps.last, blockSize) + 1,
+      )
+    )
+
+  def rowBlockDependents(keepRows: IndexedSeq[IndexedSeq[Long]]): IndexedSeq[IndexedSeq[Int]] =
+    if (keepRows.isEmpty)
+      ArraySeq.tabulate(nRowBlocks)(i => ArraySeq(i))
+    else
+      getBlockDependencies(keepRows)
+
+  def colBlockDependents(keepCols: IndexedSeq[IndexedSeq[Long]]): IndexedSeq[IndexedSeq[Int]] =
+    if (keepCols.isEmpty)
+      ArraySeq.tabulate(nColBlocks)(i => ArraySeq(i))
+    else
+      getBlockDependencies(keepCols)
+
   override def pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = {
     val space: String = if (compact) "" else " "
     val newline: String = if (compact) "" else "\n"

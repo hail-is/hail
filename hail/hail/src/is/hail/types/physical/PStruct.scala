@@ -1,6 +1,7 @@
 package is.hail.types.physical
 
 import is.hail.asm4s.{Code, Value}
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.interfaces.SBaseStruct
 import is.hail.types.virtual.{Field, TStruct}
@@ -16,20 +17,18 @@ trait PStruct extends PBaseStruct {
   final def deleteField(key: String): PCanonicalStruct = {
     assert(fieldIdx.contains(key))
     val index = fieldIdx(key)
-    val newFields = Array.fill[PField](fields.length - 1)(null)
+    val newFields = ArraySeq.newBuilder[PField]
+    newFields.sizeHint(fields.length - 1)
     for (i <- 0 until index)
-      newFields(i) = fields(i)
+      newFields += fields(i)
     for (i <- index + 1 until fields.length)
-      newFields(i - 1) = fields(i).copy(index = i - 1)
-    PCanonicalStruct(newFields, required)
+      newFields += fields(i).copy(index = i - 1)
+    PCanonicalStruct(newFields.result(), required)
   }
 
   final def appendKey(key: String, sig: PType): PCanonicalStruct = {
     assert(!fieldIdx.contains(key))
-    val newFields = Array.fill[PField](fields.length + 1)(null)
-    for (i <- fields.indices)
-      newFields(i) = fields(i)
-    newFields(fields.length) = PField(key, sig, fields.length)
+    val newFields = fields :+ PField(key, sig, fields.length)
     PCanonicalStruct(newFields, required)
   }
 

@@ -6,6 +6,7 @@ import is.hail.asm4s.implicits.{
   valueToRichCodeInputBuffer, valueToRichCodeOutputBuffer, valueToRichCodeRegion,
 }
 import is.hail.backend.ExecuteContext
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.types.VirtualTypeWithReq
@@ -112,8 +113,8 @@ class TakeAggregator(typ: VirtualTypeWithReq) extends StagedAggregator {
   private val pt = typ.canonicalPType
   val resultPType: PCanonicalArray = PCanonicalArray(pt)
   val resultEmitType: EmitType = EmitType(SIndexablePointer(resultPType), true)
-  val initOpTypes: Seq[Type] = Array(TInt32)
-  val seqOpTypes: Seq[Type] = Array(typ.t)
+  val initOpTypes: IndexedSeq[Type] = ArraySeq(TInt32)
+  val seqOpTypes: IndexedSeq[Type] = ArraySeq(typ.t)
 
   override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     assert(init.length == 1)

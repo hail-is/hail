@@ -3,6 +3,7 @@ package is.hail.types.encoded
 import is.hail.annotations.Region
 import is.hail.asm4s.Value
 import is.hail.asm4s.implicits.{valueToRichCodeInputBuffer, valueToRichCodeOutputBuffer}
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types.physical.stypes.SValue
@@ -40,14 +41,14 @@ final case class ERNGState(override val required: Boolean, staticInfo: Option[SR
     case Some(staticInfo) =>
       new SRNGStateStaticSizeValue(
         _decodedSType(t),
-        Array.fill(4)(cb.memoize(in.readLong())),
-        Array.fill(staticInfo.numWordsInLastBlock)(cb.memoize(in.readLong())),
+        ArraySeq.fill(4)(cb.memoize(in.readLong())),
+        ArraySeq.fill(staticInfo.numWordsInLastBlock)(cb.memoize(in.readLong())),
       )
     case None =>
       new SCanonicalRNGStateValue(
         _decodedSType(t),
-        Array.fill(4)(cb.memoize(in.readLong())),
-        Array.fill(4)(cb.memoize(in.readLong())),
+        ArraySeq.fill(4)(cb.memoize(in.readLong())),
+        ArraySeq.fill(4)(cb.memoize(in.readLong())),
         cb.memoize(in.readInt()),
         cb.memoize(in.readBoolean()),
         cb.memoize(in.readInt()),

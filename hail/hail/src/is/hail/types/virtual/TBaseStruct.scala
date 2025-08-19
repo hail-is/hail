@@ -14,11 +14,11 @@ object TBaseStruct {
   /** Define an ordering on Row objects. Works with any row r such that the list of types of r is a
     * prefix of types, or types is a prefix of the list of types of r.
     */
-  def getOrdering(sm: HailStateManager, types: Array[Type], missingEqual: Boolean = true)
+  def getOrdering(sm: HailStateManager, types: IndexedSeq[Type], missingEqual: Boolean = true)
     : ExtendedOrdering =
     ExtendedOrdering.rowOrdering(types.map(_.ordering(sm)), missingEqual)
 
-  def getJoinOrdering(sm: HailStateManager, types: Array[Type], missingEqual: Boolean = false)
+  def getJoinOrdering(sm: HailStateManager, types: IndexedSeq[Type], missingEqual: Boolean = false)
     : ExtendedOrdering =
     ExtendedOrdering.rowOrdering(
       types.map(_.mkOrdering(sm, missingEqual = missingEqual)),
@@ -27,7 +27,7 @@ object TBaseStruct {
 }
 
 abstract class TBaseStruct extends Type {
-  def types: Array[Type]
+  def types: IndexedSeq[Type]
 
   def fields: IndexedSeq[Field]
 

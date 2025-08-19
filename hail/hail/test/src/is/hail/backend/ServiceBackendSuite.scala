@@ -248,7 +248,7 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
 
   @Test def testCancelledJobGroup(): Unit =
     runMock { (ctx, _, batchClient, backend) =>
-      val contexts = Array.tabulate(2)(_ => Array.emptyByteArray)
+      val contexts = ArraySeq.tabulate(2)(_ => Array.emptyByteArray)
       val startJobId = 2356
       when(batchClient.newJobGroup(any[JobGroupRequest])) thenAnswer {
         _: JobGroupRequest => (backend.batchConfig.jobGroupId + 1, startJobId)
@@ -282,7 +282,7 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
 
   @Test def testInterrupt(): Unit =
     runMock { (ctx, _, batchClient, backend) =>
-      val contexts = Array.tabulate(2)(_ => Array.emptyByteArray)
+      val contexts = ArraySeq.tabulate(2)(_ => Array.emptyByteArray)
       val jobGroupId = Random.nextInt()
 
       when(batchClient.newJobGroup(any[JobGroupRequest])) thenAnswer {

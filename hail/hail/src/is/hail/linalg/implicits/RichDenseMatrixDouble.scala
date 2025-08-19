@@ -1,6 +1,7 @@
 package is.hail.linalg.implicits
 
 import is.hail.backend.ExecuteContext
+import is.hail.collection.implicits._
 import is.hail.expr.ir.partFile
 import is.hail.io._
 import is.hail.io.fs.FS
@@ -155,7 +156,7 @@ class RichDenseMatrixDouble(val m: BDM[Double]) extends AnyVal {
 
       f
     }
-      .toArray
+      .toArray.unsafeToArraySeq
 
     using(new DataOutputStream(fs.create(path + BlockMatrix.metadataRelativePath))) { os =>
       implicit val formats = DefaultFormats
