@@ -9,7 +9,7 @@ class ByteArrayReader(val arr: Array[Byte]) extends AbstractBinaryReader {
     if (position < length) {
       val b = arr(position)
       position += 1
-      b
+      b.toInt
     } else
       -1
   }

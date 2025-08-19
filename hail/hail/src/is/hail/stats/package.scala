@@ -247,9 +247,9 @@ package object stats {
 
     def mnhyper(ncp: Double): Double = {
       if (ncp == 0d)
-        low
+        low.toDouble
       else if (ncp == Double.PositiveInfinity)
-        high
+        high.toDouble
       else
         dnhyper(ncp).zipWithIndex.map { case (dnh, i) => dnh * support(i) }.sum
     }
@@ -337,7 +337,7 @@ package object stats {
 
     assert(pvalue >= 0d && pvalue <= 1.000000000002)
 
-    val oddsRatioEstimate = mle(numSuccessSample)
+    val oddsRatioEstimate = mle(numSuccessSample.toDouble)
 
     val confInterval = alternative match {
       case "less" => (0d, ncpUpper(numSuccessSample, 1 - confidenceLevel))
@@ -471,11 +471,11 @@ package object stats {
     var acc = 0.0
     counts.valuesIterator.foreach { count =>
       length += count
-      acc += count * math.log(count)
+      acc += count * math.log(count.toDouble)
     }
 
     if (length != 0)
-      (math.log(length) - (acc / length)) / math.log(2)
+      (math.log(length.toDouble) - (acc / length)) / math.log(2)
     else
       0.0
   }

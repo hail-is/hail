@@ -324,7 +324,7 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
         ),
         50,
       )
-      Thread.sleep(d)
+      Thread.sleep(d.toLong)
     }
 
     throw new AssertionError("unreachable")

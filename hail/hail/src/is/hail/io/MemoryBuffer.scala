@@ -46,83 +46,83 @@ final class MemoryBuffer extends Serializable {
   def writeByte(b: Byte): Unit = {
     if (end + 1 > capacity)
       grow(1)
-    Memory.storeByte(mem, end, b)
+    Memory.storeByte(mem, end.toLong, b)
     end += 1
   }
 
   def writeInt(i: Int): Unit = {
     if (end + 4 > capacity)
       grow(4)
-    Memory.storeInt(mem, end, i)
+    Memory.storeInt(mem, end.toLong, i)
     end += 4
   }
 
   def writeLong(i: Long): Unit = {
     if (end + 8 > capacity)
       grow(8)
-    Memory.storeLong(mem, end, i)
+    Memory.storeLong(mem, end.toLong, i)
     end += 8
   }
 
   def writeFloat(i: Float): Unit = {
     if (end + 4 > capacity)
       grow(4)
-    Memory.storeFloat(mem, end, i)
+    Memory.storeFloat(mem, end.toLong, i)
     end += 4
   }
 
   def writeDouble(i: Double): Unit = {
     if (end + 8 > capacity)
       grow(8)
-    Memory.storeDouble(mem, end, i)
+    Memory.storeDouble(mem, end.toLong, i)
     end += 8
   }
 
   def writeBytes(off: Long, n: Int): Unit = {
     if (end + n > capacity)
       grow(n)
-    Memory.memcpy(mem, end, off, n)
+    Memory.memcpy(mem, end.toLong, off, n.toLong)
     end += n
   }
 
   def readByte(): Byte = {
     assert(pos + 1 <= end)
-    val b = Memory.loadByte(mem, pos)
+    val b = Memory.loadByte(mem, pos.toLong)
     pos += 1
     b
   }
 
   def readInt(): Int = {
     assert(pos + 4 <= end)
-    val i = Memory.loadInt(mem, pos)
+    val i = Memory.loadInt(mem, pos.toLong)
     pos += 4
     i
   }
 
   def readLong(): Long = {
     assert(pos + 8 <= end)
-    val l = Memory.loadLong(mem, pos)
+    val l = Memory.loadLong(mem, pos.toLong)
     pos += 8
     l
   }
 
   def readFloat(): Float = {
     assert(pos + 4 <= end)
-    val f = Memory.loadFloat(mem, pos)
+    val f = Memory.loadFloat(mem, pos.toLong)
     pos += 4
     f
   }
 
   def readDouble(): Double = {
     assert(pos + 8 <= end)
-    val d = Memory.loadDouble(mem, pos)
+    val d = Memory.loadDouble(mem, pos.toLong)
     pos += 8
     d
   }
 
   def readBytes(toOff: Long, n: Int): Unit = {
     assert(pos + n <= end)
-    Memory.memcpy(toOff, mem, pos, n)
+    Memory.memcpy(toOff, mem, pos.toLong, n.toLong)
     pos += n
   }
 

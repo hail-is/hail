@@ -24,17 +24,17 @@ class BlockMatrixIRSuite extends HailSuite {
   val N_ROWS = 3
   val N_COLS = 3
   val BLOCK_SIZE = 10
-  val shape: Array[Long] = Array[Long](N_ROWS, N_COLS)
+  val shape: Array[Long] = Array(N_ROWS.toLong, N_COLS.toLong)
 
   def toIR(bdm: BDM[Double], blockSize: Int = BLOCK_SIZE): BlockMatrixIR =
     ValueToBlockMatrix(
       Literal(TArray(TFloat64), bdm.t.toArray.toFastSeq),
-      FastSeq(bdm.rows, bdm.cols),
+      FastSeq(bdm.rows.toLong, bdm.cols.toLong),
       blockSize,
     )
 
   def fill(v: Double, nRows: Int = N_ROWS, nCols: Int = N_COLS, blockSize: Int = BLOCK_SIZE) =
-    toIR(BDM.fill[Double](nRows, nCols)(v), blockSize)
+    toIR(BDM.fill(nRows, nCols)(v), blockSize)
 
   val ones: BlockMatrixIR = fill(1)
 
@@ -154,12 +154,12 @@ class BlockMatrixIRSuite extends HailSuite {
       val leftRowOp = makeMap2(broadcastRowVector, ones, op, merge)
       val leftColOp = makeMap2(broadcastColVector, ones, op, merge)
 
-      BDM.tabulate(3, 3)((_, j) => f(1.0, j + 1))
+      BDM.tabulate(3, 3)((_, j) => f(1.0, j.toDouble + 1))
 
-      val expectedRightRowOp = BDM.tabulate(3, 3)((_, j) => f(1.0, j + 1))
-      val expectedRightColOp = BDM.tabulate(3, 3)((i, _) => f(1.0, i + 1))
-      val expectedLeftRowOp = BDM.tabulate(3, 3)((_, j) => f(j + 1, 1.0))
-      val expectedLeftColOp = BDM.tabulate(3, 3)((i, _) => f(i + 1, 1.0))
+      val expectedRightRowOp = BDM.tabulate(3, 3)((_, j) => f(1.0, j.toDouble + 1))
+      val expectedRightColOp = BDM.tabulate(3, 3)((i, _) => f(1.0, i.toDouble + 1))
+      val expectedLeftRowOp = BDM.tabulate(3, 3)((_, j) => f(j.toDouble + 1, 1.0))
+      val expectedLeftColOp = BDM.tabulate(3, 3)((i, _) => f(i.toDouble + 1, 1.0))
 
       assertBMEvalsTo(rightRowOp, expectedRightRowOp)
       assertBMEvalsTo(rightColOp, expectedRightColOp)
@@ -171,7 +171,7 @@ class BlockMatrixIRSuite extends HailSuite {
   @Test def testBlockMatrixFilter(): scalatest.Assertion = {
     val nRows = 5
     val nCols = 8
-    val original = BDM.tabulate[Double](nRows, nCols)((i, j) => i * nCols + j)
+    val original = BDM.tabulate[Double](nRows, nCols)((i, j) => i.toDouble * nCols + j)
     val unfiltered = toIR(original, blockSize = 3)
 
     val keepRows = Array(0L, 1L, 4L)
@@ -194,7 +194,7 @@ class BlockMatrixIRSuite extends HailSuite {
   @Test def testBlockMatrixSlice(): scalatest.Assertion = {
     val nRows = 12
     val nCols = 8
-    val original = BDM.tabulate[Double](nRows, nCols)((i, j) => i * nCols + j)
+    val original = BDM.tabulate[Double](nRows, nCols)((i, j) => i.toDouble * nCols + j)
     val unsliced = toIR(original, blockSize = 3)
 
     val rowSlice = FastSeq(1L, 10L, 3L)
@@ -209,8 +209,8 @@ class BlockMatrixIRSuite extends HailSuite {
   }
 
   @Test def testBlockMatrixDot(): scalatest.Assertion = {
-    val m1 = BDM.tabulate[Double](5, 4)((i, j) => (i + 1) * j)
-    val m2 = BDM.tabulate[Double](4, 6)((i, j) => (i + 5) * (j - 2))
+    val m1 = BDM.tabulate[Double](5, 4)((i, j) => (i.toDouble + 1) * j)
+    val m2 = BDM.tabulate[Double](4, 6)((i, j) => (i.toDouble + 5) * (j - 2))
     assertBMEvalsTo(BlockMatrixDot(toIR(m1), toIR(m2)), m1 * m2)
   }
 
