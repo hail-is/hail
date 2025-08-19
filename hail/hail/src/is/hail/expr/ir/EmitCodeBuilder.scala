@@ -198,7 +198,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
       if (callee.mb.isStatic) callee.emitParamTypes
       else CodeParamType(callee.ecb.cb.ti) +: callee.emitParamTypes
 
-    val args = _args.toArray
+    val args = _args.toFastSeq
 
     if (expectedArgs.size != args.length)
       throw new RuntimeException(s"invoke ${callee.mb.methodName}: wrong number of parameters: " +

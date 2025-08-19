@@ -10,6 +10,7 @@ import is.hail.types.physical.stypes.concrete.SIndexablePointer
 import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SInterval, SNDArray, SStream}
 import is.hail.types.virtual._
 import is.hail.utils.{toMapFast, FastSeq, Interval}
+import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.collection.compat._
 
@@ -360,7 +361,7 @@ object RIterable {
 
   def dict(keyType: TypeWithRequiredness, valueType: TypeWithRequiredness): RIterable =
     new RIterable(
-      RStruct.fromNamesAndTypes(Array("key" -> keyType, "value" -> valueType)),
+      RStruct.fromNamesAndTypes(ArraySeq("key" -> keyType, "value" -> valueType)),
       true,
     )
 }
@@ -538,13 +539,13 @@ case class RStruct(fields: IndexedSeq[RField]) extends RBaseStruct {
 
   def copy(newChildren: IndexedSeq[BaseTypeWithRequiredness]): RStruct = {
     assert(newChildren.length == fields.length)
-    RStruct.fromNamesAndTypes(Array.tabulate(fields.length)(i =>
+    RStruct.fromNamesAndTypes(ArraySeq.tabulate(fields.length)(i =>
       fields(i).name -> tcoerce[TypeWithRequiredness](newChildren(i))
     ))
   }
 
-  def select(newFields: Array[String]): RStruct =
-    RStruct(Array.tabulate(newFields.length)(i => RField(newFields(i), field(newFields(i)), i)))
+  def select(newFields: IndexedSeq[String]): RStruct =
+    RStruct(ArraySeq.tabulate(newFields.length)(i => RField(newFields(i), field(newFields(i)), i)))
 
   def _toString: String =
     s"RStruct[${fields.map(f => s"${f.name}: ${f.typ.toString}").mkString(",")}]"
@@ -579,7 +580,7 @@ case class RUnion(cases: IndexedSeq[(String, TypeWithRequiredness)]) extends Typ
 
   def copy(newChildren: IndexedSeq[BaseTypeWithRequiredness]): RUnion = {
     assert(newChildren.length == cases.length)
-    RUnion(Array.tabulate(cases.length)(i =>
+    RUnion(ArraySeq.tabulate(cases.length)(i =>
       cases(i)._1 -> tcoerce[TypeWithRequiredness](newChildren(i))
     ))
   }

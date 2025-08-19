@@ -1,6 +1,7 @@
 package is.hail.io.plink
 
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 import is.hail.variant._
 
 import java.io.OutputStream
@@ -11,7 +12,7 @@ object ExportPlink {
 
   def checkVariant(contig: String, varid: String, position: Int, a0: String, a1: String): Unit = {
     def locus: Locus = Locus(contig, position)
-    def alleles: Array[String] = Array(a0, a1)
+    def alleles = ArraySeq(a0, a1)
 
     if (spaceRegex.findFirstIn(contig).isDefined)
       fatal(

@@ -6,7 +6,7 @@ import org.testng.annotations.Test
 
 class SpillingCollectIteratorSuite extends HailSuite {
   @Test def addOneElement(): Unit = {
-    val array = (0 to 1234).toArray
+    val array = (0 to 1234)
     val sci = SpillingCollectIterator(ctx.localTmpdir, fs, sc.parallelize(array, 99), 100)
     assert(sci.hasNext)
     assert(sci.next() == 0)

@@ -14,6 +14,7 @@ import is.hail.types.physical.stypes.interfaces.SStream
 import is.hail.types.physical.stypes.primitives.SInt32
 import is.hail.types.virtual._
 import is.hail.utils.FastSeq
+import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.collection.mutable.ArrayBuffer
 
@@ -192,7 +193,7 @@ class RequirednessSuite extends HailSuite {
       nodes += Array(
         ReadPartition(
           if (path.isInstanceOf[Str])
-            MakeStruct(Array("partitionIndex" -> I64(0), "partitionPath" -> path))
+            MakeStruct(ArraySeq("partitionIndex" -> I64(0), "partitionPath" -> path))
           else
             NA(contextType),
           pt.virtualType,

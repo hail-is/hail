@@ -1,9 +1,9 @@
 package is.hail.types.virtual
 
-import is.hail.annotations.Annotation
 import is.hail.expr.ir.{Env, IRParser, LowerMatrixIR, MatrixIR, Name}
 import is.hail.types.physical.{PArray, PStruct}
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 import org.apache.spark.sql.Row
 import org.json4s.{CustomSerializer, JValue}
@@ -25,7 +25,7 @@ object MatrixType {
     rvRowType.field(entriesIdentifier).typ.asInstanceOf[PArray]
 
   def getSplitEntriesType(rvRowType: PStruct): PStruct =
-    rvRowType.selectFields(Array(entriesIdentifier))
+    rvRowType.selectFields(ArraySeq(entriesIdentifier))
 
   def getEntryType(rvRowType: PStruct): PStruct =
     getEntryArrayType(rvRowType).elementType.asInstanceOf[PStruct]
@@ -95,23 +95,12 @@ case class MatrixType(
 
   lazy val (rowKeyStruct, _) = rowType.select(rowKey)
   def extractRowKey: Row => Row = rowType.select(rowKey)._2
-  lazy val rowKeyFieldIdx: Array[Int] = rowKey.toArray.map(rowType.fieldIdx)
+  lazy val rowKeyFieldIdx: IndexedSeq[Int] = rowKey.map(rowType.fieldIdx)
   lazy val (rowValueStruct, _) = rowType.filterSet(rowKey.toSet, include = false)
-
-  def extractRowValue: Annotation => Annotation =
-    rowType.filterSet(rowKey.toSet, include = false)._2
-
-  lazy val rowValueFieldIdx: Array[Int] = rowValueStruct.fieldNames.map(rowType.fieldIdx)
 
   lazy val (colKeyStruct, _) = colType.select(colKey)
   def extractColKey: Row => Row = colType.select(colKey)._2
-  lazy val colKeyFieldIdx: Array[Int] = colKey.toArray.map(colType.fieldIdx)
   lazy val (colValueStruct, _) = colType.filterSet(colKey.toSet, include = false)
-
-  def extractColValue: Annotation => Annotation =
-    colType.filterSet(colKey.toSet, include = false)._2
-
-  lazy val colValueFieldIdx: Array[Int] = colValueStruct.fieldNames.map(colType.fieldIdx)
 
   lazy val colsTableType: TableType =
     TableType(colType, colKey, globalType)
@@ -227,9 +216,7 @@ case class MatrixType(
   }
 
   def requireColKeyString(): Unit =
-    colKeyStruct.types match {
-      case Array(TString) =>
-    }
+    assert(colKeyStruct.types == ArraySeq(TString))
 
   def referenceGenomeName: String = {
     val firstKeyField = rowKeyStruct.types(0)

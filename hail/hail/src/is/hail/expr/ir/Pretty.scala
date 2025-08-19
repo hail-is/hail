@@ -256,7 +256,7 @@ class Pretty(
     case TailLoop(name, args, returnType, _) if !elideBindings =>
       FastSeq(
         prettyName(name),
-        prettyNames(args.map(_._1).toFastSeq),
+        prettyNames(args.map(_._1)),
         returnType.parsableString(),
       )
     case Recur(name, _, _) if !elideBindings =>
@@ -273,7 +273,7 @@ class Pretty(
     case ApplyComparisonOp(op, _, _) => single(op.render())
     case GetField(_, name) => single(prettyIdentifier(name))
     case GetTupleElement(_, idx) => single(idx.toString)
-    case MakeTuple(fields) => FastSeq(prettyInts(fields.map(_._1).toFastSeq, elideLiterals))
+    case MakeTuple(fields) => FastSeq(prettyInts(fields.map(_._1), elideLiterals))
     case MakeArray(_, typ) => single(typ.parsableString())
     case MakeStream(_, typ, requiresMemoryManagementPerElement) =>
       FastSeq(typ.parsableString(), Pretty.prettyBooleanLiteral(requiresMemoryManagementPerElement))
@@ -584,28 +584,22 @@ class Pretty(
         text(errorId.toString),
       )
     case TableRename(_, rowMap, globalMap) =>
-      val rowKV = rowMap.toArray
-      val globalKV = globalMap.toArray
       FastSeq(
-        prettyStrings(rowKV.map(_._1)),
-        prettyStrings(rowKV.map(_._2)),
-        prettyStrings(globalKV.map(_._1)),
-        prettyStrings(globalKV.map(_._2)),
+        prettyStrings(ArraySeq.from(rowMap.keys)),
+        prettyStrings(ArraySeq.from(rowMap.values)),
+        prettyStrings(ArraySeq.from(globalMap.keys)),
+        prettyStrings(ArraySeq.from(globalMap.values)),
       )
     case MatrixRename(_, globalMap, colMap, rowMap, entryMap) =>
-      val globalKV = globalMap.toArray
-      val colKV = colMap.toArray
-      val rowKV = rowMap.toArray
-      val entryKV = entryMap.toArray
       FastSeq(
-        prettyStrings(globalKV.map(_._1)),
-        prettyStrings(globalKV.map(_._2)),
-        prettyStrings(colKV.map(_._1)),
-        prettyStrings(colKV.map(_._2)),
-        prettyStrings(rowKV.map(_._1)),
-        prettyStrings(rowKV.map(_._2)),
-        prettyStrings(entryKV.map(_._1)),
-        prettyStrings(entryKV.map(_._2)),
+        prettyStrings(ArraySeq.from(globalMap.keys)),
+        prettyStrings(ArraySeq.from(globalMap.values)),
+        prettyStrings(ArraySeq.from(colMap.keys)),
+        prettyStrings(ArraySeq.from(colMap.values)),
+        prettyStrings(ArraySeq.from(rowMap.keys)),
+        prettyStrings(ArraySeq.from(rowMap.values)),
+        prettyStrings(ArraySeq.from(entryMap.keys)),
+        prettyStrings(ArraySeq.from(entryMap.values)),
       )
     case TableFilterIntervals(child, intervals, keep) =>
       FastSeq(
@@ -667,7 +661,7 @@ class Pretty(
             list(prettyIdentifier(n), pretty(a))
           }
           pretty(old) +: prettyStringsOpt(fieldOrder) +: fieldDocs
-        case _ => ir.children.map(pretty).toFastSeq
+        case _ => ir.children.map(pretty)
       }
 
       /* val pt = ir match{ case ir: IR => if (ir._pType != null) single(ir.pType.toString) case _
@@ -692,63 +686,63 @@ class Pretty(
             name -> "loop")
         else None
       case StreamMap(_, name, _) =>
-        if (i == 1) Some(Array(name -> "elt")) else None
+        if (i == 1) Some(ArraySeq(name -> "elt")) else None
       case StreamZip(as, names, _, _, _) =>
         if (i == as.length) Some(names.map(_ -> "elt")) else None
       case StreamZipJoin(as, _, curKey, curVals, _) =>
         if (i == as.length)
-          Some(Array(curKey -> "key", curVals -> "elts"))
+          Some(ArraySeq(curKey -> "key", curVals -> "elts"))
         else
           None
       case StreamFor(_, name, _) =>
-        if (i == 1) Some(Array(name -> "elt")) else None
+        if (i == 1) Some(ArraySeq(name -> "elt")) else None
       case StreamFlatMap(_, name, _) =>
-        if (i == 1) Some(Array(name -> "elt")) else None
+        if (i == 1) Some(ArraySeq(name -> "elt")) else None
       case StreamFilter(_, name, _) =>
-        if (i == 1) Some(Array(name -> "elt")) else None
+        if (i == 1) Some(ArraySeq(name -> "elt")) else None
       case StreamTakeWhile(_, name, _) =>
-        if (i == 1) Some(Array(name -> "elt")) else None
+        if (i == 1) Some(ArraySeq(name -> "elt")) else None
       case StreamDropWhile(_, name, _) =>
-        if (i == 1) Some(Array(name -> "elt")) else None
+        if (i == 1) Some(ArraySeq(name -> "elt")) else None
       case StreamFold(_, _, accumName, valueName, _) =>
-        if (i == 2) Some(Array(accumName -> "accum", valueName -> "elt")) else None
+        if (i == 2) Some(ArraySeq(accumName -> "accum", valueName -> "elt")) else None
       case StreamFold2(_, accum, valueName, _, _) =>
         if (i <= accum.length)
           None
         else if (i < 2 * accum.length + 1)
-          Some(Array(valueName -> "elt") ++ accum.map { case (name, _) => name -> "accum" })
+          Some(ArraySeq(valueName -> "elt") ++ accum.map { case (name, _) => name -> "accum" })
         else
           Some(accum.map { case (name, _) => name -> "accum" })
       case RunAggScan(_, name, _, _, _, _) =>
-        if (i == 2 || i == 3) Some(Array(name -> "elt")) else None
+        if (i == 2 || i == 3) Some(ArraySeq(name -> "elt")) else None
       case StreamScan(_, _, accumName, valueName, _) =>
-        if (i == 2) Some(Array(accumName -> "accum", valueName -> "elt")) else None
+        if (i == 2) Some(ArraySeq(accumName -> "accum", valueName -> "elt")) else None
       case StreamAggScan(_, name, _) =>
         if (i == 1) Some(FastSeq(name -> "elt")) else None
       case StreamJoinRightDistinct(_, _, _, _, l, r, _, _) =>
-        if (i == 2) Some(Array(l -> "l_elt", r -> "r_elt")) else None
+        if (i == 2) Some(ArraySeq(l -> "l_elt", r -> "r_elt")) else None
       case StreamLeftIntervalJoin(_, _, _, _, l, r, _) =>
-        if (i == 2) Some(Array(l -> "l_elt", r -> "r_elts")) else None
+        if (i == 2) Some(ArraySeq(l -> "l_elt", r -> "r_elts")) else None
       case ArraySort(_, left, right, _) =>
-        if (i == 1) Some(Array(left -> "l", right -> "r")) else None
+        if (i == 1) Some(ArraySeq(left -> "l", right -> "r")) else None
       case AggArrayPerElement(_, elementName, indexName, _, _, _) =>
-        if (i == 1) Some(Array(elementName -> "elt", indexName -> "idx")) else None
+        if (i == 1) Some(ArraySeq(elementName -> "elt", indexName -> "idx")) else None
       case AggFold(_, _, _, accumName, otherAccumName, _) =>
-        if (i == 1) Some(Array(accumName -> "accum"))
-        else if (i == 2) Some(Array(accumName -> "l", otherAccumName -> "r"))
+        if (i == 1) Some(ArraySeq(accumName -> "accum"))
+        else if (i == 2) Some(ArraySeq(accumName -> "l", otherAccumName -> "r"))
         else None
       case NDArrayMap(_, name, _) =>
-        if (i == 1) Some(Array(name -> "elt")) else None
+        if (i == 1) Some(ArraySeq(name -> "elt")) else None
       case NDArrayMap2(_, _, lName, rName, _, _) => if (i == 2)
-          Some(Array(lName -> "l_elt", rName -> "r_elt"))
+          Some(ArraySeq(lName -> "l_elt", rName -> "r_elt"))
         else
           None
       case CollectDistributedArray(_, _, cname, gname, _, _, _, _) =>
-        if (i == 2) Some(Array(cname -> "ctx", gname -> "g")) else None
+        if (i == 2) Some(ArraySeq(cname -> "ctx", gname -> "g")) else None
       case TableAggregate(_, _) =>
-        if (i == 1) Some(Array(TableIR.globalName -> "g", TableIR.rowName -> "row")) else None
+        if (i == 1) Some(ArraySeq(TableIR.globalName -> "g", TableIR.rowName -> "row")) else None
       case MatrixAggregate(_, _) =>
-        if (i == 1) Some(Array(
+        if (i == 1) Some(ArraySeq(
           MatrixIR.globalName -> "g",
           MatrixIR.colName -> "col",
           MatrixIR.rowName -> "row",
@@ -756,21 +750,21 @@ class Pretty(
         ))
         else None
       case TableFilter(_, _) =>
-        if (i == 1) Some(Array(TableIR.globalName -> "g", TableIR.rowName -> "row")) else None
+        if (i == 1) Some(ArraySeq(TableIR.globalName -> "g", TableIR.rowName -> "row")) else None
       case TableMapGlobals(_, _) =>
-        if (i == 1) Some(Array(TableIR.globalName -> "g")) else None
+        if (i == 1) Some(ArraySeq(TableIR.globalName -> "g")) else None
       case TableMapRows(_, _) =>
-        if (i == 1) Some(Array(TableIR.globalName -> "g", TableIR.rowName -> "row")) else None
+        if (i == 1) Some(ArraySeq(TableIR.globalName -> "g", TableIR.rowName -> "row")) else None
       case TableAggregateByKey(_, _) =>
-        if (i == 1) Some(Array(TableIR.globalName -> "g", TableIR.rowName -> "row")) else None
+        if (i == 1) Some(ArraySeq(TableIR.globalName -> "g", TableIR.rowName -> "row")) else None
       case TableKeyByAndAggregate(_, _, _, _, _) =>
         if (i == 1 || i == 2)
-          Some(Array(TableIR.globalName -> "g", TableIR.rowName -> "row"))
+          Some(ArraySeq(TableIR.globalName -> "g", TableIR.rowName -> "row"))
         else None
       case TableMapPartitions(_, g, p, _, _, _) =>
-        if (i == 1) Some(Array(g -> "g", p -> "part")) else None
+        if (i == 1) Some(ArraySeq(g -> "g", p -> "part")) else None
       case MatrixMapRows(_, _) =>
-        if (i == 1) Some(Array(
+        if (i == 1) Some(ArraySeq(
           MatrixIR.globalName -> "g",
           MatrixIR.rowName -> "row",
           MatrixIR.colName -> "col",
@@ -779,9 +773,9 @@ class Pretty(
         ))
         else None
       case MatrixFilterRows(_, _) =>
-        if (i == 1) Some(Array(MatrixIR.globalName -> "g", MatrixIR.rowName -> "row")) else None
+        if (i == 1) Some(ArraySeq(MatrixIR.globalName -> "g", MatrixIR.rowName -> "row")) else None
       case MatrixMapCols(_, _, _) =>
-        if (i == 1) Some(Array(
+        if (i == 1) Some(ArraySeq(
           MatrixIR.globalName -> "g",
           MatrixIR.rowName -> "row",
           MatrixIR.colName -> "col",
@@ -790,9 +784,9 @@ class Pretty(
         ))
         else None
       case MatrixFilterCols(_, _) =>
-        if (i == 1) Some(Array(MatrixIR.globalName -> "g", MatrixIR.colName -> "col")) else None
+        if (i == 1) Some(ArraySeq(MatrixIR.globalName -> "g", MatrixIR.colName -> "col")) else None
       case MatrixMapEntries(_, _) =>
-        if (i == 1) Some(Array(
+        if (i == 1) Some(ArraySeq(
           MatrixIR.globalName -> "g",
           MatrixIR.colName -> "col",
           MatrixIR.rowName -> "row",
@@ -800,7 +794,7 @@ class Pretty(
         ))
         else None
       case MatrixFilterEntries(_, _) =>
-        if (i == 1) Some(Array(
+        if (i == 1) Some(ArraySeq(
           MatrixIR.globalName -> "g",
           MatrixIR.colName -> "col",
           MatrixIR.rowName -> "row",
@@ -808,39 +802,39 @@ class Pretty(
         ))
         else None
       case MatrixMapGlobals(_, _) =>
-        if (i == 1) Some(Array(MatrixIR.globalName -> "g")) else None
+        if (i == 1) Some(ArraySeq(MatrixIR.globalName -> "g")) else None
       case MatrixAggregateColsByKey(_, _, _) =>
         if (i == 1)
-          Some(Array(
+          Some(ArraySeq(
             MatrixIR.globalName -> "g",
             MatrixIR.rowName -> "row",
             MatrixIR.colName -> "col",
             MatrixIR.entryName -> "entry",
           ))
         else if (i == 2)
-          Some(Array(MatrixIR.globalName -> "g", MatrixIR.colName -> "col"))
+          Some(ArraySeq(MatrixIR.globalName -> "g", MatrixIR.colName -> "col"))
         else
           None
       case MatrixAggregateRowsByKey(_, _, _) =>
         if (i == 1)
-          Some(Array(
+          Some(ArraySeq(
             MatrixIR.globalName -> "g",
             MatrixIR.rowName -> "row",
             MatrixIR.colName -> "col",
             MatrixIR.entryName -> "entry",
           ))
         else if (i == 2)
-          Some(Array(MatrixIR.globalName -> "g", MatrixIR.rowName -> "row"))
+          Some(ArraySeq(MatrixIR.globalName -> "g", MatrixIR.rowName -> "row"))
         else
           None
       case BlockMatrixMap(_, eltName, _, _) =>
-        if (i == 1) Some(Array(eltName -> "elt")) else None
+        if (i == 1) Some(ArraySeq(eltName -> "elt")) else None
       case BlockMatrixMap2(_, _, lName, rName, _, _) =>
-        if (i == 2) Some(Array(lName -> "l", rName -> "r")) else None
+        if (i == 2) Some(ArraySeq(lName -> "l", rName -> "r")) else None
       case AggExplode(_, name, _, _) =>
-        if (i == 1) Some(Array(name -> "elt")) else None
+        if (i == 1) Some(ArraySeq(name -> "elt")) else None
       case StreamAgg(_, name, _) =>
-        if (i == 1) Some(Array(name -> "elt")) else None
+        if (i == 1) Some(ArraySeq(name -> "elt")) else None
       case _ =>
         None
     }
@@ -965,10 +959,11 @@ class Pretty(
           }
         }
 
-        val nestedBlocks = (for {
-          (child, i) <- ir.children.zipWithIndex
-          if !childIsStrict(ir, i)
-        } yield prettyBlock(child, blockArgs(ir, i).get, bindings)).toFastSeq
+        val nestedBlocks =
+          (for {
+            (child, i) <- ir.children.zipWithIndex
+            if !childIsStrict(ir, i)
+          } yield prettyBlock(child, blockArgs(ir, i).get, bindings))
 
         val attsIterable = header(ir, elideBindings = true)
         val attributes = if (attsIterable.isEmpty) Iterable.empty
@@ -993,12 +988,13 @@ class Pretty(
             val args = s" ${strictChildIdents.head} $newFields"
             hsep(text(Pretty.prettyClass(ir) + args) +: (attributes ++ nestedBlocks))
           case ir: If =>
+            val Seq(cnsq, altr) = nestedBlocks
             hsep(
               text(s"${Pretty.prettyClass(ir)} ${strictChildIdents.head}"),
               text("then"),
-              nestedBlocks(0),
+              cnsq,
               text("else"),
-              nestedBlocks(1),
+              altr,
             )
           case _ =>
             hsep(text(Pretty.prettyClass(ir) + standardArgs) +: (attributes ++ nestedBlocks))

@@ -19,7 +19,6 @@ import is.hail.utils._
 import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.collection.compat._
-import scala.collection.mutable
 
 import org.apache.spark.sql.Row
 
@@ -263,8 +262,8 @@ object Interpret extends Logging {
             case Compare => t.ordering(ctx.stateManager).compare(lValue, rValue)
           }
 
-      case MakeArray(elements, _) => elements.map(interpret(_, env, args)).toFastSeq
-      case MakeStream(elements, _, _) => elements.map(interpret(_, env, args)).toFastSeq
+      case MakeArray(elements, _) => elements.map(interpret(_, env, args))
+      case MakeStream(elements, _, _) => elements.map(interpret(_, env, args))
       case ArrayRef(a, i, errorId) =>
         val aValue = interpret(a, env, args)
         val iValue = interpret(i, env, args)
@@ -377,9 +376,12 @@ object Interpret extends Logging {
           val ordering = tcoerce[TIterable](c.typ).elementType.ordering(ctx.stateManager).toOrdering
           cValue match {
             case s: Set[_] =>
-              s.asInstanceOf[Set[Any]].toFastSeq.sorted(ordering)
+              ArraySeq.sorted(s.asInstanceOf[Set[Any]])(implicitly, ordering)
             case d: Map[_, _] =>
-              d.iterator.map { case (k, v) => Row(k, v) }.toFastSeq.sorted(ordering)
+              ArraySeq.sorted[Any](d.iterator.map { case (k, v) => Row(k, v) })(
+                implicitly,
+                ordering,
+              )
             case a => a
           }
         }
@@ -487,7 +489,7 @@ object Interpret extends Logging {
             }
             outer += inner.result()
 
-            outer.result().toFastSeq
+            outer.result()
           }
         }
       case StreamMap(a, name, body) =>
@@ -597,7 +599,7 @@ object Interpret extends Logging {
 
           for (i <- 0 until k) advance(i)
 
-          val builder = new mutable.ArrayBuffer[Any]()
+          val builder = ArraySeq.newBuilder[Any]
           while (tournament(0) != k) {
             val i = tournament(0)
             val elt = Array.fill[Row](k)(null)
@@ -612,11 +614,11 @@ object Interpret extends Logging {
             }
             builder += interpret(
               joinF,
-              env.bind(curKeyName -> curKey, curValsName -> elt.toFastSeq),
+              env.bind(curKeyName -> curKey, curValsName -> ArraySeq.unsafeWrapArray(elt)),
               args,
             )
           }
-          builder.toFastSeq
+          builder.result()
         }
       case StreamFilter(a, name, cond) =>
         val aValue = interpret(a, env, args)
@@ -915,7 +917,7 @@ object Interpret extends Logging {
         ExecuteRelational(ctx, child).asTableValue(ctx).globals.safeJavaValue
       case TableCollect(child) =>
         val tv = ExecuteRelational(ctx, child).asTableValue(ctx)
-        Row(tv.rvd.collect(ctx).toFastSeq, tv.globals.safeJavaValue)
+        Row(tv.rvd.collect(ctx), tv.globals.safeJavaValue)
       case TableMultiWrite(children, writer) =>
         val tvs = children.map(child => ExecuteRelational(ctx, child).asTableValue(ctx))
         writer(ctx, tvs)
@@ -934,7 +936,7 @@ object Interpret extends Logging {
         // transpose because breeze toArray is column major
         val breezeMat = bm.transpose().toBreezeMatrix()
         val shape = IndexedSeq(bm.nRows, bm.nCols)
-        SafeNDArray(shape, breezeMat.toArray)
+        SafeNDArray(shape, ArraySeq.unsafeWrapArray(breezeMat.toArray))
       case x @ TableAggregate(child, query) =>
         val value = ExecuteRelational(ctx, child).asTableValue(ctx)
         val fsBc = ctx.fsBc

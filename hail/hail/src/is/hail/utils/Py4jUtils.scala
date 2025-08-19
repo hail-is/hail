@@ -3,6 +3,7 @@ package is.hail.utils
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.io.fs.{FS, FileListEntry, FileStatus, SeekableDataInputStream}
 import is.hail.types.virtual.Type
+import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.jdk.CollectionConverters._
 
@@ -36,7 +37,8 @@ trait Py4jUtils extends Logging {
 
   def javaMapToMap[K, V](jm: java.util.Map[K, V]): Map[K, V] = jm.asScala.toMap
 
-  def makeIndexedSeq[T](arr: Array[T]): IndexedSeq[T] = arr: IndexedSeq[T]
+  def makeIndexedSeq[T](arr: Array[T]): IndexedSeq[T] =
+    ArraySeq.unsafeWrapArray(arr)
 
   def makeInt(i: Int): Int = i
 

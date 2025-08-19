@@ -3,8 +3,6 @@ package is.hail.io
 import is.hail.io.fs.FS
 import is.hail.utils._
 
-import scala.collection.mutable
-
 import java.io.{Closeable, DataOutputStream}
 import java.util.Arrays
 
@@ -33,15 +31,15 @@ object IndexBTree {
     val depth = calcDepth(arr, branchingFactor)
 
     // Write layers above last layer if needed -- padding of -1 included
-    val layers = mutable.ArrayBuffer[IndexedSeq[Long]]()
+    val layers = Array.newBuilder[Array[Long]]
     for (i <- 0 until depth - 1) {
       val multiplier = math.pow(branchingFactor.toDouble, depth.toDouble - 1 - i).toInt
-      layers.append((0 until math.pow(branchingFactor.toDouble, i.toDouble + 1).toInt).map { j =>
+      layers += (0 until math.pow(branchingFactor.toDouble, i.toDouble + 1).toInt).map { j =>
         if (j * multiplier < arr.length)
           arr(j * multiplier)
         else
           -1L
-      })
+      }.toArray
     }
 
     // Pad last layer so last block is branchingFactor elements (branchingFactor*8 bytes)
@@ -51,9 +49,9 @@ object IndexBTree {
       else branchingFactor - danglingElements
     val padding = (0 until paddingRequired).map(_ => -1L)
     // Write last layer
-    layers.append(arr ++ padding)
+    layers += (arr ++ padding)
 
-    layers.map(_.toArray).toArray
+    layers.result()
   }
 
   private[io] def btreeBytes(

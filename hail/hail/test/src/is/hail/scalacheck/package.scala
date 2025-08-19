@@ -1,7 +1,8 @@
 package is.hail
 
+import is.hail.utils.compat.immutable.ArraySeq
+
 import scala.collection.mutable
-import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 
 import org.apache.commons.math3.distribution.{
@@ -95,15 +96,18 @@ package object scalacheck
   def gamma(shape: Double, scale: Double): Gen[Double] =
     rngGen map { new GammaDistribution(_, shape, scale).sample() }
 
-  def dirichlet(alpha: Array[Double]): Gen[Array[Double]] =
-    sequence(alpha.map(gamma(_, 1))) map { samples =>
-      val sum = samples.sum; samples.map(_ / sum)
+  def dirichlet(alpha: IndexedSeq[Double]): Gen[IndexedSeq[Double]] =
+    sequence[ArraySeq[Double], Double](alpha.map(gamma(_, 1))) map { samples =>
+      val sum = samples.sum
+      samples.map(_ / sum)
     }
 
-  def multinomial(trials: Int, probs: Array[Double]): Gen[Array[Int]] =
-    tailRecM((new ArrayBuffer[Int](probs.length), trials, 1.0d, probs.toList)) {
+  def multinomial(trials: Int, probs: IndexedSeq[Double]): Gen[IndexedSeq[Int]] = {
+    val builder = ArraySeq.newBuilder[Int]
+    builder.sizeHint(probs)
+    tailRecM((builder, trials, 1.0d, probs.toList)) {
       case (buff, _, _, Nil) =>
-        const(Right(buff.toArray))
+        const(Right(buff.result()))
       case (buff, rem, _, _ :: Nil) =>
         const(Left((buff += rem, 0, 0, List.empty[Double])))
       case (buff, rem, rho, p :: ps) =>
@@ -111,15 +115,16 @@ package object scalacheck
           Left((buff += outcome, rem - outcome, rho - p, ps))
         }
     }
+  }
 
-  def partition(n: Int): Gen[Array[Int]] =
+  def partition(n: Int): Gen[IndexedSeq[Int]] =
     sized(partition(n, _))
 
-  def partition(n: Int, size: Int): Gen[Array[Int]] =
-    dirichlet(Array.fill(n)(1d)) flatMap { multinomial(size, _) }
+  def partition(n: Int, size: Int): Gen[IndexedSeq[Int]] =
+    dirichlet(ArraySeq.fill(n)(1d)) flatMap { multinomial(size, _) }
 
-  def distribute[A: ClassTag](n: Int, gen: Gen[A]): Gen[Array[A]] =
-    partition(n) flatMap { sizes => sequence(sizes map { resize(_, gen) }) }
+  def distribute[A: ClassTag](n: Int, gen: Gen[A]): Gen[IndexedSeq[A]] =
+    partition(n) flatMap { sizes => sequence[ArraySeq[A], A](sizes map { resize(_, gen) }) }
 
   def liftA2[A, B, C](f: (A, B) => C, genA: Gen[A], genB: Gen[B]): Gen[C] =
     for {

@@ -7,6 +7,7 @@ import is.hail.linalg.BlockMatrix
 import is.hail.linalg.BlockMatrix.ops._
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 import breeze.linalg.{DenseMatrix => BDM}
 import org.apache.spark.rdd.RDD
@@ -39,7 +40,7 @@ object PCRelate {
     ("ibd2", TFloat64),
   )
 
-  private val keys: IndexedSeq[String] = Array("i", "j")
+  private val keys: IndexedSeq[String] = ArraySeq("i", "j")
 
   private def rowsToBDM(xss: IndexedSeq[IndexedSeq[java.lang.Double]]): BDM[Double] = {
     val x = xss.toArray
