@@ -2339,7 +2339,7 @@ case class MatrixBlockMatrixWriter(
     val rm = r.asMatrixType(colsFieldName, entriesFieldName)
 
     val countColumnsIR = ArrayLen(GetField(ts.getGlobals(), colsFieldName))
-    val numCols: Int = CompileAndEvaluate(ctx, countColumnsIR).asInstanceOf[Int]
+    val numCols: Int = CompileAndEvaluate[Int](ctx, countColumnsIR)
     val numBlockCols: Int = (numCols - 1) / blockSize + 1
     val lastBlockNumCols = (numCols - 1) % blockSize + 1
 
@@ -2347,7 +2347,7 @@ case class MatrixBlockMatrixWriter(
       StreamLen(paritionIR)
     )
     val inputRowCountPerPartition: IndexedSeq[Int] =
-      CompileAndEvaluate(ctx, rowCountIR).asInstanceOf[IndexedSeq[Int]]
+      CompileAndEvaluate[IndexedSeq[Int]](ctx, rowCountIR)
     val inputPartStartsPlusLast = inputRowCountPerPartition.scanLeft(0L)(_ + _)
     val inputPartStarts = inputPartStartsPlusLast.dropRight(1)
     val inputPartStops = inputPartStartsPlusLast.tail

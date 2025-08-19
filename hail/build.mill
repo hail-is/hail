@@ -113,7 +113,6 @@ trait HailModule extends ScalaModule with ScalafmtModule with ScalafixModule { o
       ScalacOptions.warnUnusedParams, ScalacOptions.privateWarnUnusedParams,
       ScalacOptions.warnUnusedImplicits, ScalacOptions.privateWarnUnusedImplicits,
       ScalacOptions.warnUnusedExplicits,
-      ScalacOptions.warnDeadCode, ScalacOptions.privateWarnDeadCode,
       // we don't enable the unused imports warning in 2.12, as the wconf origin filter doesn't work
       ScalacOptions.privateWarnUnusedImports,
       // 2.13 added the -Wnonunit-discard flag, which is a stronger check than -Wvalue-discard

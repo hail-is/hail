@@ -83,8 +83,8 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
 
       failure.foreach(throw _)
 
-      batchClient.newJobGroup(any) wasCalled once
-      batchClient.waitForJobGroup(any, any) wasCalled once
+      batchClient.newJobGroup(any[JobGroupRequest]) wasCalled once
+      batchClient.waitForJobGroup(any[Int], any[Int]) wasCalled once
     }
 
   @Test def testFailedJobGroup(): Unit =
