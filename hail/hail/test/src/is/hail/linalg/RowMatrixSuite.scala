@@ -32,7 +32,7 @@ class RowMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def localizeRowMatrix(): scalatest.Assertion = {
+  def localizeRowMatrix(): Unit = {
     val fname = ctx.createTmpPath("test")
 
     val rowArrays = Array(
@@ -49,7 +49,7 @@ class RowMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def readBlockSmall(): scalatest.Assertion = {
+  def readBlockSmall(): Unit = {
     val fname = ctx.createTmpPath("test")
 
     val localMatrix = DenseMatrix(
@@ -65,7 +65,7 @@ class RowMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def readBlock(): scalatest.Assertion =
+  def readBlock(): Unit =
     forAll(genDenseMatrix(9, 10)) { lm =>
       val fname = ctx.createTmpPath("test")
       scalatest.Inspectors.forAll {
@@ -92,15 +92,14 @@ class RowMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         .toArray[Array[Double]]
     )
 
-  private def exportImportAssert(export: (String) => Unit, expected: Array[Double]*)
-    : scalatest.Assertion = {
+  private def exportImportAssert(export: (String) => Unit, expected: Array[Double]*): Unit = {
     val fname = ctx.createTmpPath("test")
     export(fname)
     assert(readCSV(fname) === expected.toArray[Array[Double]])
   }
 
   @Test
-  def exportWithIndex(): scalatest.Assertion = {
+  def exportWithIndex(): Unit = {
     val rowArrays = Array(
       Array(1.0, 2.0, 3.0),
       Array(4.0, 5.0, 6.0),
@@ -128,7 +127,7 @@ class RowMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def exportSquare(): scalatest.Assertion = {
+  def exportSquare(): Unit = {
     val rowArrays = Array(
       Array(1.0, 2.0, 3.0),
       Array(4.0, 5.0, 6.0),
@@ -204,7 +203,7 @@ class RowMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def exportWide(): scalatest.Assertion = {
+  def exportWide(): Unit = {
     val rowArrays = Array(
       Array(1.0, 2.0, 3.0),
       Array(4.0, 5.0, 6.0),
@@ -276,7 +275,7 @@ class RowMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def exportTall(): scalatest.Assertion = {
+  def exportTall(): Unit = {
     val rowArrays = Array(
       Array(1.0, 2.0),
       Array(4.0, 5.0),
@@ -350,7 +349,7 @@ class RowMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def exportBig(): scalatest.Assertion = {
+  def exportBig(): Unit = {
     val rowArrays: Array[Array[Double]] =
       Array.tabulate(20)(r => Array.tabulate(30)(c => 30 * c + r))
     val rowMatrix = rowArrayToRowMatrix(rowArrays)

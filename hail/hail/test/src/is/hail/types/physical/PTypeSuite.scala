@@ -8,7 +8,6 @@ import is.hail.variant.ReferenceGenome
 
 import org.apache.spark.sql.Row
 import org.json4s.jackson.Serialization
-import org.scalatest
 import org.testng.annotations.{DataProvider, Test}
 
 class PTypeSuite extends HailSuite {
@@ -42,16 +41,16 @@ class PTypeSuite extends HailSuite {
     ).map(t => Array(t: Any))
   }
 
-  @Test def testPTypesDataProvider(): scalatest.Assertion = { ptypes(); succeed }
+  @Test def testPTypesDataProvider(): Unit = ptypes(): Unit
 
   @Test(dataProvider = "ptypes")
-  def testSerialization(ptype: PType): scalatest.Assertion = {
+  def testSerialization(ptype: PType): Unit = {
     implicit val formats = AbstractRVDSpec.formats
     val s = Serialization.write(ptype)
     assert(Serialization.read[PType](s) == ptype)
   }
 
-  @Test def testLiteralPType(): scalatest.Assertion = {
+  @Test def testLiteralPType(): Unit = {
     assert(PType.literalPType(TInt32, 5) == PInt32(true))
     assert(PType.literalPType(TInt32, null) == PInt32())
 

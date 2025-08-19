@@ -2,12 +2,11 @@ package is.hail.annotations
 
 import is.hail.HailSuite
 
-import org.scalatest
 import org.testng.annotations.Test
 
 /** This testing suite evaluates the functionality of the [[is.hail.annotations]] package */
 class AnnotationsSuite extends HailSuite {
-  @Test def testExtendedOrdering(): scalatest.Assertion = {
+  @Test def testExtendedOrdering(): Unit = {
     val ord = ExtendedOrdering.extendToNull(implicitly[Ordering[Int]])
     val rord = ord.reverse
 

@@ -4,7 +4,6 @@ import scala.collection.compat._
 
 import org.scalacheck.Gen
 import org.scalacheck.Gen._
-import org.scalatest
 import org.scalatest.matchers.should.Matchers.{be, convertToAnyShouldWrapper}
 import org.scalatestplus.scalacheck.CheckerAsserting.assertingNatureOfAssertion
 import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
@@ -31,7 +30,7 @@ class BufferedAggregatorIteratorSuite extends TestNGSuite with ScalaCheckDrivenP
       len <- choose(1, 5)
     } yield (data, len)
 
-  @Test def test(): scalatest.Assertion =
+  @Test def test(): Unit =
     forAll(gen) { case (arr, bufferSize) =>
       val simple: Map[Int, Long] =
         arr.groupBy(_._1).map { case (k, a) => k -> a.map(_._2).sum }

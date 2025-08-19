@@ -574,7 +574,7 @@ object ReferenceGenome {
   def writeReference(fs: FS, path: String, rg: ReferenceGenome): Unit = {
     val rgPath = path + "/" + rg.name + ".json.gz"
     if (!hailReferences.contains(rg.name) && !fs.isFile(rgPath))
-      rg.asInstanceOf[ReferenceGenome].write(fs, rgPath)
+      rg.write(fs, rgPath)
   }
 
   def getReferences(t: Type): Set[String] = {

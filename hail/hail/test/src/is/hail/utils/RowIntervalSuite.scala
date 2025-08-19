@@ -7,15 +7,13 @@ import is.hail.rvd.{PartitionBoundOrdering, RVDPartitioner}
 import is.hail.types.virtual.{TBoolean, TInt32, TStruct}
 
 import org.apache.spark.sql.Row
-import org.scalatest
 import org.testng.annotations.Test
 
 class RowIntervalSuite extends HailSuite {
   lazy val t = TStruct("a" -> TInt32, "b" -> TInt32, "c" -> TInt32)
   lazy val pord = PartitionBoundOrdering(ctx, t)
 
-  def assertContains(i: Interval, point: Row, shouldContain: Boolean = true)
-    : scalatest.Assertion = {
+  def assertContains(i: Interval, point: Row, shouldContain: Boolean = true): Unit = {
     val c = i.contains(pord, point)
     if (shouldContain)
       assert(c)
@@ -36,7 +34,7 @@ class RowIntervalSuite extends HailSuite {
     )(ExecStrategy.compileOnly)
   }
 
-  @Test def testContains(): scalatest.Assertion = {
+  @Test def testContains(): Unit = {
     assertContains(Interval(Row(0, 1, 5), Row(1, 2, 4), true, true), Row(1, 1, 3))
     assertContains(Interval(Row(0, 1, 5), Row(1, 2, 4), true, true), Row(0, 1, 5))
     assertContains(
@@ -86,7 +84,7 @@ class RowIntervalSuite extends HailSuite {
     assert(!Interval(Row(0, 1, 5, 7), Row(2, 1, 4, 5), false, false).contains(pord, Row(0, 1, 5)))
   }
 
-  @Test def testAbovePosition(): scalatest.Assertion = {
+  @Test def testAbovePosition(): Unit = {
     assert(Interval(Row(0, 1, 5), Row(1, 2, 4), true, true).isAbovePosition(pord, Row(0, 1, 4)))
     assert(Interval(Row(0, 1, 5), Row(1, 2, 4), false, true).isAbovePosition(pord, Row(0, 1, 5)))
     assert(!Interval(Row(0, 1, 5), Row(1, 2, 4), true, true).isAbovePosition(pord, Row(0, 1, 5)))
@@ -106,7 +104,7 @@ class RowIntervalSuite extends HailSuite {
     ))
   }
 
-  @Test def testBelowPosition(): scalatest.Assertion = {
+  @Test def testBelowPosition(): Unit = {
     assert(Interval(Row(0, 1, 5), Row(1, 2, 4), true, true).isBelowPosition(pord, Row(1, 2, 5)))
     assert(Interval(Row(0, 1, 5), Row(1, 2, 4), true, false).isBelowPosition(pord, Row(1, 2, 4)))
     assert(!Interval(Row(0, 1, 5), Row(1, 2, 4), true, true).isBelowPosition(pord, Row(1, 2, 4)))
@@ -117,7 +115,7 @@ class RowIntervalSuite extends HailSuite {
     assert(!Interval(Row(1, 1, 8), Row(1, 2), true, true).isBelowPosition(pord, Row(1, 2, 5)))
   }
 
-  @Test def testAbutts(): scalatest.Assertion = {
+  @Test def testAbutts(): Unit = {
     assert(Interval(Row(0, 1, 5), Row(1, 2, 4), true, true).abutts(
       pord,
       Interval(Row(1, 2, 4), Row(1, 3, 4), false, true),
@@ -137,7 +135,7 @@ class RowIntervalSuite extends HailSuite {
     ))
   }
 
-  @Test def testLteqWithOverlap(): scalatest.Assertion = {
+  @Test def testLteqWithOverlap(): Unit = {
     val eord = pord.intervalEndpointOrdering
     assert(!eord.lteqWithOverlap(3)(
       IntervalEndpoint(Row(0, 1, 6), -1),
@@ -211,7 +209,7 @@ class RowIntervalSuite extends HailSuite {
     ))
   }
 
-  @Test def testIsValid(): scalatest.Assertion = {
+  @Test def testIsValid(): Unit = {
     assert(Interval.isValid(pord, Row(0, 1, 5), Row(0, 2), false, false))
     assert(!Interval.isValid(pord, Row(0, 1, 5), Row(0, 0), false, false))
     assert(Interval.isValid(pord, Row(0, 1, 5), Row(0, 1), false, true))

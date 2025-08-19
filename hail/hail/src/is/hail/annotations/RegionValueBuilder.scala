@@ -102,8 +102,8 @@ class RegionValueBuilder(sm: HailStateManager, var region: Region) {
 
   def endBaseStruct(): Unit = {
     val t = typestk.top.asInstanceOf[PBaseStruct]
-    typestk.pop()
-    offsetstk.pop()
+    typestk.pop(): Unit
+    offsetstk.pop(): Unit
     val last = indexstk.pop()
     assert(last == t.size)
 
@@ -174,10 +174,10 @@ class RegionValueBuilder(sm: HailStateManager, var region: Region) {
   }
 
   def endArrayUnchecked(): Unit = {
-    typestk.pop()
-    offsetstk.pop()
-    elementsOffsetstk.pop()
-    indexstk.pop()
+    typestk.pop(): Unit
+    offsetstk.pop(): Unit
+    elementsOffsetstk.pop(): Unit
+    indexstk.pop(): Unit
 
     advance()
   }

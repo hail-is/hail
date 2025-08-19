@@ -1,11 +1,10 @@
 package is.hail.utils
 
-import org.scalatest
 import org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.Test
 
 class ArrayStackSuite extends TestNGSuite {
-  @Test def test(): scalatest.Assertion = {
+  @Test def test(): Unit = {
     val s = new IntArrayStack(4)
     assert(s.isEmpty)
     assert(!s.nonEmpty)
@@ -43,8 +42,8 @@ class ArrayStackSuite extends TestNGSuite {
     assert(s.pop() == 39)
     assert(s.size == 2)
 
-    s.pop()
-    s.pop()
+    s.pop(): Unit
+    s.pop(): Unit
     assert(s.isEmpty)
   }
 }

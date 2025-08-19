@@ -97,13 +97,13 @@ class TabixReader(val filePath: String, fs: FS, idxFilePath: Option[String] = No
       fatal(s"Hail only supports tabix indexing for VCF, found format code $format")
     val colSeq = readInt(is)
     val colBeg = readInt(is)
-    readInt(is) // colEnd
+    readInt(is): Unit // colEnd
     val meta = readInt(is)
     // meta char for VCF is '#'
     if (meta != '#')
       fatal(s"Meta character was $meta, should be '#' for VCF")
     val chr2tid = new mutable.HashMap[String, Int]()
-    readInt(is) // unused, need to consume
+    readInt(is): Unit // unused, need to consume
 
     // read the sequence dictionary
     buf = new Array[Byte](readInt(is)) // # sequences
