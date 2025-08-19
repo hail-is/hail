@@ -1,5 +1,6 @@
 package is.hail.scalacheck
 
+import is.hail.utils.compat.immutable.ArraySeq
 import is.hail.utils.roundWithConstantSum
 
 import breeze.linalg.DenseMatrix
@@ -21,15 +22,15 @@ private[scalacheck] trait ArbitraryDenseMatrixInstances {
   lazy val genNonEmptySquareOfAreaAtMostSize: Gen[(Int, Int)] =
     genNonEmptyNCubeOfVolumeAtMostSize(2).map(x => (x(0), x(1)))
 
-  def genNCubeOfVolumeAtMostSize(n: Int): Gen[Array[Int]] =
+  def genNCubeOfVolumeAtMostSize(n: Int): Gen[IndexedSeq[Int]] =
     sized(s => genNCubeOfVolumeAtMost(n, s))
 
-  def genNonEmptyNCubeOfVolumeAtMostSize(n: Int): Gen[Array[Int]] =
+  def genNonEmptyNCubeOfVolumeAtMostSize(n: Int): Gen[IndexedSeq[Int]] =
     sized(s => genNCubeOfVolumeAtMost(n, s).map(_.map(x => if (x == 0) 1 else x)))
 
-  def genNCubeOfVolumeAtMost(n: Int, size: Int, alpha: Int = 1): Gen[Array[Int]] =
+  def genNCubeOfVolumeAtMost(n: Int, size: Int, alpha: Int = 1): Gen[IndexedSeq[Int]] =
     for {
-      simplexVector <- dirichlet(Array.fill(n)(alpha.toDouble))
+      simplexVector <- dirichlet(ArraySeq.fill(n)(alpha.toDouble))
       sizeOfSum = math.log(size.toDouble)
     } yield roundWithConstantSum(simplexVector.map(_ * sizeOfSum)).map(i =>
       math.exp(i.toDouble).toInt
@@ -40,7 +41,7 @@ private[scalacheck] trait ArbitraryDenseMatrixInstances {
 
   lazy val genMultipliableDenseMatrices: Gen[(DenseMatrix[Double], DenseMatrix[Double])] =
     for {
-      Array(rows, inner, columns) <- genNonEmptyNCubeOfVolumeAtMostSize(3)
+      Seq(rows, inner, columns) <- genNonEmptyNCubeOfVolumeAtMostSize(3)
       l <- genDenseMatrix(rows, inner)
       r <- genDenseMatrix(inner, columns)
     } yield (l, r)

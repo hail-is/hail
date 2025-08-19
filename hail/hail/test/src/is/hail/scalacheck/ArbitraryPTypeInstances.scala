@@ -2,6 +2,7 @@ package is.hail.scalacheck
 
 import is.hail.scalacheck.ArbitraryPTypeInstances.DefaultRequiredGenRatio
 import is.hail.types.physical._
+import is.hail.utils.compat.immutable.ArraySeq
 import is.hail.variant.ReferenceGenome
 
 import scala.collection.compat._
@@ -42,11 +43,11 @@ private[scalacheck] trait ArbitraryPTypeInstances {
   implicit lazy val arbPCanonicalStruct: Arbitrary[PCanonicalStruct] =
     for {
       len <- size
-      names <- distinctContainerOfN[Array, String](len, identifier)
+      names <- distinctContainerOfN[ArraySeq, String](len, identifier)
       types <- distribute(len, arbitrary[PType])
       required <- genIsRequired
     } yield PCanonicalStruct(
-      (names lazyZip types lazyZip Array.range(0, len)).map(PField),
+      (names lazyZip types lazyZip Range(0, len)).map(PField),
       required,
     )
 
@@ -55,7 +56,7 @@ private[scalacheck] trait ArbitraryPTypeInstances {
       len <- size
       types <- distribute(len, arbitrary[PType])
       required <- genIsRequired
-    } yield PCanonicalTuple(Array.range(0, len).lazyZip(types).map(PTupleField), required)
+    } yield PCanonicalTuple(ArraySeq.range(0, len).lazyZip(types).map(PTupleField), required)
 
   implicit lazy val arbPCanonicalArray: Arbitrary[PCanonicalArray] =
     liftA2(PCanonicalArray(_, _), smaller[PType], genIsRequired)

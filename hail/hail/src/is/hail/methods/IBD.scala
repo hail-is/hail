@@ -8,6 +8,7 @@ import is.hail.sparkextras.ContextRDD
 import is.hail.types.physical.{PCanonicalString, PCanonicalStruct, PFloat64, PInt64}
 import is.hail.types.virtual.{MatrixType, TFloat64, TStruct, TableType}
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 import is.hail.variant.{AllelePair, Call, Genotype, HardCallView}
 
 import org.apache.spark.sql.Row
@@ -335,7 +336,7 @@ object IBD {
   private val ibdPType =
     PCanonicalStruct(
       required = true,
-      Array(
+      ArraySeq(
         ("i", PCanonicalString()),
         ("j", PCanonicalString()),
       ) ++ ExtendedIBDInfo.pType.fields.map(f => (f.name, f.typ)): _*

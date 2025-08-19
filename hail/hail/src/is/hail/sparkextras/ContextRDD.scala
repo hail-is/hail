@@ -4,6 +4,7 @@ import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
 import is.hail.rvd.RVDContext
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.collection.compat._
 import scala.reflect.ClassTag
@@ -103,7 +104,7 @@ object ContextRDD {
 
   def textFilesLines(
     ctx: ExecuteContext,
-    files: Array[String],
+    files: IndexedSeq[String],
     nPartitions: Option[Int] = None,
     filterAndReplace: TextInputFilterAndReplace = TextInputFilterAndReplace(),
   ): ContextRDD[WithContext[String]] =
@@ -114,7 +115,7 @@ object ContextRDD {
     )
 
   def textFilesLines(
-    files: Array[String],
+    files: IndexedSeq[String],
     nPartitions: Int,
     filterAndReplace: TextInputFilterAndReplace,
   ): ContextRDD[WithContext[String]] =
@@ -144,7 +145,7 @@ object ContextRDD {
     crdds: IndexedSeq[ContextRDD[T]],
     preservesPartitioning: Boolean = false,
   )(
-    f: (RVDContext, Array[Iterator[T]]) => Iterator[U]
+    f: (RVDContext, IndexedSeq[Iterator[T]]) => Iterator[U]
   ): ContextRDD[U] = {
     def inCtx(f: RVDContext => Iterator[U]): Iterator[RVDContext => Iterator[U]] =
       Iterator.single(f)
@@ -170,8 +171,8 @@ class ContextRDD[T: ClassTag](
   def run[U >: T: ClassTag]: RDD[U] =
     this.cleanupRegions.rdd.mapPartitions(part => sparkManagedContext(c => part.flatMap(_(c))))
 
-  def collect(): Array[T] =
-    run.collect()
+  def collect(): IndexedSeq[T] =
+    ArraySeq.unsafeWrapArray(run.collect())
 
   private[this] def inCtx[U: ClassTag](
     f: RVDContext => Iterator[U]
@@ -362,10 +363,10 @@ class ContextRDD[T: ClassTag](
     rdd.zipPartitions(that.rdd, preservesPartitioning)((l, r) => inCtx(ctx => f(ctx, l, r)))
   )
 
-  def subsetPartitions(keptPartitionIndices: Array[Int]): ContextRDD[T] =
+  def subsetPartitions(keptPartitionIndices: IndexedSeq[Int]): ContextRDD[T] =
     onRDD(_.subsetPartitions(keptPartitionIndices))
 
-  def reorderPartitions(oldIndices: Array[Int]): ContextRDD[T] =
+  def reorderPartitions(oldIndices: IndexedSeq[Int]): ContextRDD[T] =
     onRDD(_.reorderPartitions(oldIndices))
 
   def noShuffleCoalesce(numPartitions: Int): ContextRDD[T] =
@@ -378,7 +379,7 @@ class ContextRDD[T: ClassTag](
   // a ContextRDD with 8 partitions, being naively coalesced to 3, one example set of part ends is
   // [2, 5, 7]. With this, original partion indicies 0, 1, and 2 make up the first new partition 3,
   // 4, and 5 make up the second, and 6 and 7 make up the third.
-  def coalesceWithEnds(partEnds: Array[Int]): ContextRDD[T] =
+  def coalesceWithEnds(partEnds: IndexedSeq[Int]): ContextRDD[T] =
     onRDD { rdd =>
       rdd.coalesce(
         partEnds.length,
@@ -419,7 +420,8 @@ class ContextRDD[T: ClassTag](
   ): ContextRDD[U] = new ContextRDD(f(rdd))
 }
 
-private class CRDDCoalescer(partEnds: Array[Int]) extends PartitionCoalescer with Serializable {
+private class CRDDCoalescer(partEnds: IndexedSeq[Int])
+    extends PartitionCoalescer with Serializable {
   override def coalesce(maxPartitions: Int, prev: RDD[_]): Array[PartitionGroup] = {
     assert(maxPartitions == partEnds.length)
     val groups = Array.fill(maxPartitions)(new PartitionGroup())

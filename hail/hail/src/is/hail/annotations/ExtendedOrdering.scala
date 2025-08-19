@@ -1,6 +1,7 @@
 package is.hail.annotations
 
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 import org.apache.spark.sql.Row
 
@@ -96,26 +97,26 @@ object ExtendedOrdering {
 
       override def compareNonnull(x: T, y: T): Int =
         itOrd.compareNonnull(
-          x.asInstanceOf[Array[T]].sorted(elemOrd).toFastSeq,
-          y.asInstanceOf[Array[T]].sorted(elemOrd).toFastSeq,
+          ArraySeq.unsafeWrapArray(x.asInstanceOf[Array[T]]).sorted(elemOrd),
+          ArraySeq.unsafeWrapArray(y.asInstanceOf[Array[T]]).sorted(elemOrd),
         )
 
       override def ltNonnull(x: T, y: T): Boolean =
         itOrd.ltNonnull(
-          x.asInstanceOf[Array[T]].sorted(elemOrd).toFastSeq,
-          y.asInstanceOf[Array[T]].sorted(elemOrd).toFastSeq,
+          ArraySeq.unsafeWrapArray(x.asInstanceOf[Array[T]]).sorted(elemOrd),
+          ArraySeq.unsafeWrapArray(y.asInstanceOf[Array[T]]).sorted(elemOrd),
         )
 
       override def lteqNonnull(x: T, y: T): Boolean =
         itOrd.lteqNonnull(
-          x.asInstanceOf[Array[T]].sorted(elemOrd).toFastSeq,
-          y.asInstanceOf[Array[T]].sorted(elemOrd).toFastSeq,
+          ArraySeq.unsafeWrapArray(x.asInstanceOf[Array[T]]).sorted(elemOrd),
+          ArraySeq.unsafeWrapArray(y.asInstanceOf[Array[T]]).sorted(elemOrd),
         )
 
       override def equivNonnull(x: T, y: T): Boolean =
         itOrd.equivNonnull(
-          x.asInstanceOf[Array[T]].sorted(elemOrd).toFastSeq,
-          y.asInstanceOf[Array[T]].sorted(elemOrd).toFastSeq,
+          ArraySeq.unsafeWrapArray(x.asInstanceOf[Array[T]]).sorted(elemOrd),
+          ArraySeq.unsafeWrapArray(y.asInstanceOf[Array[T]]).sorted(elemOrd),
         )
     }
 
@@ -184,7 +185,7 @@ object ExtendedOrdering {
         )
     }
 
-  def rowOrdering(fieldOrd: Array[ExtendedOrdering], _missingEqual: Boolean = true)
+  def rowOrdering(fieldOrd: IndexedSeq[ExtendedOrdering], _missingEqual: Boolean = true)
     : ExtendedOrdering =
     new ExtendedOrdering {
       outer =>
@@ -280,7 +281,7 @@ object ExtendedOrdering {
 abstract class ExtendedOrdering extends Serializable {
   outer =>
 
-  type T = Any
+  final type T = Any
 
   val missingEqual: Boolean
 

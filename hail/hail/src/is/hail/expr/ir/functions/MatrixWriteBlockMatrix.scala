@@ -4,6 +4,7 @@ import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.MatrixValue
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, GridPartitioner, WriteBlocksRDD}
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 import java.io.DataOutputStream
 
@@ -58,7 +59,7 @@ object MatrixWriteBlockMatrix extends Logging {
           nRows,
           localNCols.toLong,
           gp.partitionIndexToBlockIndex,
-          partFiles,
+          ArraySeq.unsafeWrapArray(partFiles),
         ),
         os,
       )

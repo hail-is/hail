@@ -3,6 +3,7 @@ package is.hail.utils.richUtils
 import is.hail.annotations.{Region, RegionValue}
 import is.hail.types.physical.PStruct
 import is.hail.utils.{FlipbookIterator, StagingIterator, StateMachine}
+import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.io.Source
 import scala.jdk.CollectionConverters._
@@ -143,7 +144,7 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
       }
     }
 
-  def toFastSeq(implicit tct: ClassTag[T]): IndexedSeq[T] = it.toArray[T]
+  def toFastSeq(implicit tct: ClassTag[T]): IndexedSeq[T] = it.to(ArraySeq)
 
   def headOption: Option[T] = if (it.isEmpty) None else Some(it.next())
 }

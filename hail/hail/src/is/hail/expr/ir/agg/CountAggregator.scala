@@ -8,13 +8,14 @@ import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.interfaces.primitive
 import is.hail.types.physical.stypes.primitives.SInt64
 import is.hail.types.virtual.Type
+import is.hail.utils.compat.immutable.ArraySeq
 
 object CountAggregator extends StagedAggregator {
   type State = PrimitiveRVAState
 
   val resultEmitType: EmitType = EmitType(SInt64, true)
-  val initOpTypes: Seq[Type] = Array[Type]()
-  val seqOpTypes: Seq[Type] = Array[Type]()
+  val initOpTypes: IndexedSeq[Type] = ArraySeq.empty
+  val seqOpTypes: IndexedSeq[Type] = ArraySeq.empty
 
   override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     assert(init.length == 0)

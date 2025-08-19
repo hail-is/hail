@@ -59,10 +59,10 @@ class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
     rgContainers.getOrElseUpdate(rg, modb.genStaticField[ReferenceGenome](s"reference_genome_$rg"))
 
   def referenceGenomes(): IndexedSeq[ReferenceGenome] =
-    rgContainers.keys.map(ctx.references(_)).toIndexedSeq.sortBy(_.name)
+    ArraySeq.sortedBy(rgContainers.keys.map(ctx.references))(_.name)
 
   def referenceGenomeFields(): IndexedSeq[StaticFieldRef[ReferenceGenome]] =
-    rgContainers.toFastSeq.sortBy(_._1).map(_._2)
+    ArraySeq.sortedBy(rgContainers)(_._1).map(_._2)
 
   var _rgMapField: StaticFieldRef[Map[String, ReferenceGenome]] = null
 
@@ -401,7 +401,8 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
 
   private[this] def encodeLiterals(): Array[AnyRef] = {
     val (literals, preEncodedLiterals) = emodb.literalsResult()
-    val litType = PCanonicalTuple(true, literals.map(_._1.canonicalPType.setRequired(true)): _*)
+    val litType =
+      PCanonicalTuple(true, literals.toFastSeq.map(_._1.canonicalPType.setRequired(true)): _*)
     val spec = TypedCodecSpec(ctx, litType, BufferSpec.wireSpec)
 
     cb.addInterface(typeInfo[FunctionWithLiterals].iname)
@@ -1106,7 +1107,7 @@ object EmitFunctionBuilder {
     EmitFunctionBuilder[AsmFunction1[A, R]](
       ctx,
       baseName,
-      Array(GenericTypeInfo[A]),
+      ArraySeq(GenericTypeInfo[A]),
       GenericTypeInfo[R],
     )
 
@@ -1115,7 +1116,7 @@ object EmitFunctionBuilder {
     EmitFunctionBuilder[AsmFunction2[A, B, R]](
       ctx,
       baseName,
-      Array(GenericTypeInfo[A], GenericTypeInfo[B]),
+      ArraySeq(GenericTypeInfo[A], GenericTypeInfo[B]),
       GenericTypeInfo[R],
     )
 
@@ -1126,7 +1127,7 @@ object EmitFunctionBuilder {
     EmitFunctionBuilder[AsmFunction3[A, B, C, R]](
       ctx,
       baseName,
-      Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C]),
+      ArraySeq(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C]),
       GenericTypeInfo[R],
     )
 
@@ -1137,7 +1138,7 @@ object EmitFunctionBuilder {
     EmitFunctionBuilder[AsmFunction4[A, B, C, D, R]](
       ctx,
       baseName,
-      Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D]),
+      ArraySeq(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D]),
       GenericTypeInfo[R],
     )
 
@@ -1148,7 +1149,7 @@ object EmitFunctionBuilder {
     EmitFunctionBuilder[AsmFunction5[A, B, C, D, E, R]](
       ctx,
       baseName,
-      Array(
+      ArraySeq(
         GenericTypeInfo[A],
         GenericTypeInfo[B],
         GenericTypeInfo[C],
@@ -1173,7 +1174,7 @@ object EmitFunctionBuilder {
     EmitFunctionBuilder[AsmFunction6[A, B, C, D, E, F, R]](
       ctx,
       baseName,
-      Array(
+      ArraySeq(
         GenericTypeInfo[A],
         GenericTypeInfo[B],
         GenericTypeInfo[C],
@@ -1200,7 +1201,7 @@ object EmitFunctionBuilder {
     EmitFunctionBuilder[AsmFunction7[A, B, C, D, E, F, G, R]](
       ctx,
       baseName,
-      Array(
+      ArraySeq(
         GenericTypeInfo[A],
         GenericTypeInfo[B],
         GenericTypeInfo[C],

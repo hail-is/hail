@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.expr.ir.defs._
 import is.hail.types.virtual._
 import is.hail.utils.{toRichIterable, FastSeq}
+import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.language.dynamics
 
@@ -47,10 +48,10 @@ object DeprecatedIRBuilder {
     Die(message(env), typ, -1)
 
   def makeArray(first: IRProxy, rest: IRProxy*): IRProxy =
-    arrayToProxy((first +: rest).toArray[IRProxy])
+    arrayToProxy(first +: rest.toFastSeq)
 
   def makeStruct(fields: (Symbol, IRProxy)*): IRProxy = (env: E) =>
-    MakeStruct(fields.toArray.map { case (s, ir) => (s.name, ir(env)) })
+    MakeStruct(fields.toFastSeq.map { case (s, ir) => (s.name, ir(env)) })
 
   def concatStructs(struct1: IRProxy, struct2: IRProxy): IRProxy = (env: E) => {
     val s2Type = struct2(env).typ.asInstanceOf[TStruct]
@@ -60,7 +61,7 @@ object DeprecatedIRBuilder {
   }
 
   def makeTuple(values: IRProxy*): IRProxy = (env: E) =>
-    MakeTuple.ordered(values.toArray.map(_(env)))
+    MakeTuple.ordered(values.toFastSeq.map(_(env)))
 
   def applyAggOp(
     op: AggOp,
@@ -135,7 +136,7 @@ object DeprecatedIRBuilder {
       ArrayRef(ir(env), idx(env))
 
     def invoke(name: String, rt: Type, args: IRProxy*): IRProxy = { env: E =>
-      val irArgs = Array(ir(env)) ++ args.map(_(env))
+      val irArgs = ArraySeq(ir(env)) ++ args.map(_(env))
       is.hail.expr.ir.invoke(name, rt, irArgs: _*)
     }
 
@@ -227,7 +228,7 @@ object DeprecatedIRBuilder {
       InsertFields(ir(env), fields.map { case (s, fir) => (s.name, fir(env)) }, ordering)
 
     def selectFields(fields: String*): IRProxy = (env: E) =>
-      SelectFields(ir(env), fields.toArray[String])
+      SelectFields(ir(env), fields.toFastSeq)
 
     def dropFieldList(fields: IndexedSeq[String]): IRProxy = (env: E) => {
       val struct = ir(env)
@@ -235,7 +236,7 @@ object DeprecatedIRBuilder {
       SelectFields(struct, typ.fieldNames.diff(fields))
     }
 
-    def dropFields(fields: Symbol*): IRProxy = dropFieldList(fields.map(_.name).toArray[String])
+    def dropFields(fields: Symbol*): IRProxy = dropFieldList(fields.toFastSeq.map(_.name))
 
     def insertStruct(other: IRProxy, ordering: Option[IndexedSeq[String]] = None): IRProxy =
       (env: E) => {
@@ -406,7 +407,7 @@ object DeprecatedIRBuilder {
 
   object letDyn {
     def apply(args: (Name, IRProxy)*): LetProxy =
-      new LetProxy(args.map { case (s, b) => BindingProxy(Symbol(s.str), b, Scope.EVAL) }.toFastSeq)
+      new LetProxy(args.toFastSeq.map { case (s, b) => BindingProxy(Symbol(s.str), b, Scope.EVAL) })
   }
 
   class LetProxy(val bindings: IndexedSeq[BindingProxy]) extends AnyVal {
@@ -418,7 +419,7 @@ object DeprecatedIRBuilder {
   object aggLet extends Dynamic {
     def applyDynamicNamed(method: String)(args: (String, IRProxy)*): AggLetProxy = {
       assert(method == "apply")
-      new AggLetProxy(args.map { case (s, b) => BindingProxy(Symbol(s), b, Scope.AGG) }.toFastSeq)
+      new AggLetProxy(args.toFastSeq.map { case (s, b) => BindingProxy(Symbol(s), b, Scope.AGG) })
     }
   }
 

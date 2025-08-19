@@ -1,6 +1,7 @@
 package is.hail.expr
 
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 import is.hail.variant._
 
 import scala.util.parsing.combinator.JavaTokenParsers
@@ -114,10 +115,10 @@ object Parser extends JavaTokenParsers {
 
   def call: Parser[Call] = {
     wholeNumber ~ "/" ~ rep1sep(wholeNumber, "/") ^^ { case a0 ~ _ ~ arest =>
-      CallN(coerceInt(a0) +: arest.map(coerceInt).toArray, phased = false)
+      CallN(coerceInt(a0) +: arest.view.map(coerceInt).to(ArraySeq), phased = false)
     } |
       wholeNumber ~ "|" ~ rep1sep(wholeNumber, "|") ^^ { case a0 ~ _ ~ arest =>
-        CallN(coerceInt(a0) +: arest.map(coerceInt).toArray, phased = true)
+        CallN(coerceInt(a0) +: arest.view.map(coerceInt).to(ArraySeq), phased = true)
       } |
       wholeNumber ^^ { a => Call1(coerceInt(a), phased = false) } |
       "|" ~ wholeNumber ^^ { case _ ~ a => Call1(coerceInt(a), phased = true) } |

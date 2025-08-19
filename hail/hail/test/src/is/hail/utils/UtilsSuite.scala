@@ -2,6 +2,7 @@ package is.hail.utils
 
 import is.hail.HailSuite
 import is.hail.io.fs.HadoopFS
+import is.hail.utils.compat.immutable.ArraySeq
 
 import org.apache.spark.storage.StorageLevel
 import org.scalacheck.Gen
@@ -62,8 +63,8 @@ class UtilsSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   @Test def testPairRDDNoDup(): Unit = {
     val answer1 =
       Array((1, (1, Option(1))), (2, (4, Option(2))), (3, (9, Option(3))), (4, (16, Option(4))))
-    val pairRDD1 = sc.parallelize(Array(1, 2, 3, 4)).map(i => (i, i * i))
-    val pairRDD2 = sc.parallelize(Array(1, 2, 3, 4, 1, 2, 3, 4)).map(i => (i, i))
+    val pairRDD1 = sc.parallelize(ArraySeq(1, 2, 3, 4)).map(i => (i, i * i))
+    val pairRDD2 = sc.parallelize(ArraySeq(1, 2, 3, 4, 1, 2, 3, 4)).map(i => (i, i))
     val join = pairRDD1.leftOuterJoin(pairRDD2.distinct())
 
     assert(join.collect().sortBy(t => t._1) sameElements answer1)
@@ -71,7 +72,7 @@ class UtilsSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   }
 
   @Test def testForallExists(): Unit = {
-    val rdd1 = sc.parallelize(Array(1, 2, 3, 4, 5))
+    val rdd1 = sc.parallelize(ArraySeq(1, 2, 3, 4, 5))
 
     assert(rdd1.forall(_ > 0))
     assert(!rdd1.forall(_ <= 0))
@@ -115,7 +116,7 @@ class UtilsSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   }
 
   @Test def testCollectAsSet(): Unit =
-    forAll(containerOf[Array, Int](Gen.choose(-1000, 1000)), Gen.choose(1, 10)) {
+    forAll(containerOf[ArraySeq, Int](Gen.choose(-1000, 1000)), Gen.choose(1, 10)) {
       case (values, parts) =>
         val rdd = sc.parallelize(values, numSlices = parts)
         assert(rdd.collectAsSet() == rdd.collect().toSet)
@@ -189,19 +190,19 @@ class UtilsSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(merge(empty, empty, lt) == empty)
 
     val ones: IndexedSeq[Int] =
-      Array(1)
+      ArraySeq(1)
 
     assert(merge(ones, empty, lt) == ones)
     assert(merge(empty, ones, lt) == ones)
 
     val twos: IndexedSeq[Int] =
-      Array(2)
+      ArraySeq(2)
 
     assert(merge(ones, twos, lt) == (1 to 2))
     assert(merge(twos, ones, lt) == (1 to 2))
 
     val threes: IndexedSeq[Int] =
-      Array(3)
+      ArraySeq(3)
 
     assert(merge(twos, ones ++ threes, lt) == (1 to 3))
 

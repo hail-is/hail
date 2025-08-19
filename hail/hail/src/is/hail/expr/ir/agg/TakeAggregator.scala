@@ -11,6 +11,7 @@ import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerValue}
 import is.hail.types.virtual.{TInt32, Type}
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 class TakeRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuilder[_])
     extends AggregatorState {
@@ -110,8 +111,8 @@ class TakeAggregator(typ: VirtualTypeWithReq) extends StagedAggregator {
   private val pt = typ.canonicalPType
   val resultPType: PCanonicalArray = PCanonicalArray(pt)
   val resultEmitType: EmitType = EmitType(SIndexablePointer(resultPType), true)
-  val initOpTypes: Seq[Type] = Array(TInt32)
-  val seqOpTypes: Seq[Type] = Array(typ.t)
+  val initOpTypes: IndexedSeq[Type] = ArraySeq(TInt32)
+  val seqOpTypes: IndexedSeq[Type] = ArraySeq(typ.t)
 
   override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     assert(init.length == 1)

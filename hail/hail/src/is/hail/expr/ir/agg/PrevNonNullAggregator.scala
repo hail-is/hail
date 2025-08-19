@@ -7,12 +7,13 @@ import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.virtual.Type
+import is.hail.utils.compat.immutable.ArraySeq
 
 class PrevNonNullAggregator(typ: VirtualTypeWithReq) extends StagedAggregator {
   type State = TypedRegionBackedAggState
   val resultEmitType = EmitType(typ.canonicalEmitType.st, false)
-  val initOpTypes: Seq[Type] = Array[Type]()
-  val seqOpTypes: Seq[Type] = Array[Type](typ.t)
+  val initOpTypes: IndexedSeq[Type] = ArraySeq.empty
+  val seqOpTypes: IndexedSeq[Type] = ArraySeq(typ.t)
 
   override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     assert(init.length == 0)

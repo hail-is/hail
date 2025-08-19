@@ -17,7 +17,7 @@ class RVDPartitioner(
   val kType: TStruct,
   // rangeBounds: Array[Interval[kType]]
   // rangeBounds is interval containing all keys within a partition
-  val rangeBounds: Array[Interval],
+  val rangeBounds: IndexedSeq[Interval],
   allowedOverlap: Int,
 ) {
   // expensive, for debugging
@@ -30,28 +30,21 @@ class RVDPartitioner(
     sm: HailStateManager,
     kType: TStruct,
     rangeBounds: IndexedSeq[Interval],
-    allowedOverlap: Int,
-  ) = this(sm, kType, rangeBounds.toArray, allowedOverlap)
-
-  def this(
-    sm: HailStateManager,
-    kType: TStruct,
-    rangeBounds: IndexedSeq[Interval],
-  ) = this(sm, kType, rangeBounds.toArray, kType.size)
+  ) = this(sm, kType, rangeBounds, kType.size)
 
   def this(
     sm: HailStateManager,
     partitionKey: Array[String],
     kType: TStruct,
     rangeBounds: IndexedSeq[Interval],
-  ) = this(sm, kType, rangeBounds.toArray, math.max(partitionKey.length - 1, 0))
+  ) = this(sm, kType, rangeBounds, math.max(partitionKey.length - 1, 0))
 
   def this(
     sm: HailStateManager,
     partitionKey: Option[Int],
     kType: TStruct,
     rangeBounds: IndexedSeq[Interval],
-  ) = this(sm, kType, rangeBounds.toArray, partitionKey.map(_ - 1).getOrElse(kType.size))
+  ) = this(sm, kType, rangeBounds, partitionKey.map(_ - 1).getOrElse(kType.size))
 
   require(rangeBounds.forall { case Interval(l, r, _, _) =>
     kType.relaxedTypeCheck(l) && kType.relaxedTypeCheck(r)
@@ -122,7 +115,7 @@ class RVDPartitioner(
 
   // Key manipulation
 
-  def coarsenedRangeBounds(newKeyLen: Int): Array[Interval] =
+  def coarsenedRangeBounds(newKeyLen: Int): IndexedSeq[Interval] =
     rangeBounds.map(_.coarsen(newKeyLen))
 
   def coarsen(newKeyLen: Int): RVDPartitioner = {
@@ -308,7 +301,7 @@ class RVDPartitioner(
   def partitionBoundsIRRepresentation: Literal =
     Literal(
       TArray(RVDPartitioner.intervalIRRepresentation(kType)),
-      rangeBounds.map(i => RVDPartitioner.intervalToIRRepresentation(i, kType.size)).toFastSeq,
+      rangeBounds.map(i => RVDPartitioner.intervalToIRRepresentation(i, kType.size)),
     )
 }
 
@@ -317,14 +310,14 @@ object RVDPartitioner extends Logging {
     RVDPartitioner.empty(ctx.stateManager, typ)
 
   def empty(sm: HailStateManager, typ: TStruct): RVDPartitioner =
-    new RVDPartitioner(sm, typ, Array.empty[Interval])
+    new RVDPartitioner(sm, typ, ArraySeq.empty)
 
   def unkeyed(sm: HailStateManager, numPartitions: Int): RVDPartitioner = {
     val unkeyedInterval = Interval(Row(), Row(), true, true)
     new RVDPartitioner(
       sm,
       TStruct.empty,
-      Array.fill(numPartitions)(unkeyedInterval),
+      ArraySeq.fill(numPartitions)(unkeyedInterval),
       0,
     )
   }
@@ -398,9 +391,9 @@ object RVDPartitioner extends Logging {
     val kOrd = PartitionBoundOrdering(ctx.stateManager, typ.kType.virtualType).toOrdering
     val sortedKeys = keys.sorted(kOrd)
     val step = (sortedKeys.length - 1).toDouble / nPartitions
-    val partitionEdges = Array.tabulate(nPartitions - 1) { i =>
+    val partitionEdges = ArraySeq.tabulate(nPartitions - 1) { i =>
       IntervalEndpoint(sortedKeys(((i + 1) * step).toInt), 1)
-    }.toFastSeq
+    }
 
     val interval = Interval(min, max, true, true)
     new RVDPartitioner(

@@ -445,7 +445,7 @@ object EmitStream {
               val newKeyVType = typeWithReqx(newKey)
               val kb = mb.ecb
               val nestedStates =
-                aggSignatures.toArray.map(sig => AggStateSig.getState(sig.state, kb))
+                aggSignatures.map(sig => AggStateSig.getState(sig.state, kb))
               val nested = StateTuple(nestedStates)
               val dictState = new DictState(kb, newKeyVType, nested)
               val maxSize = mb.genFieldThisRef[Int]("stream_buff_agg_max_size")
@@ -514,7 +514,7 @@ object EmitStream {
                   // Garbage collects old aggregator state if moving onto new group
                   dictState.newState(cb)
                   val initContainer = AggContainer(
-                    aggSignatures.toArray.map(sig => sig.state),
+                    aggSignatures.map(sig => sig.state),
                     dictState.initContainer,
                     cleanup = () => (),
                   )
@@ -532,7 +532,7 @@ object EmitStream {
                   }
                   val resultKeyValue = newKeyResultCode.memoize(cb, "buff_agg_stream_result_key")
                   val keyedContainer = AggContainer(
-                    aggSignatures.toArray.map(sig => sig.state),
+                    aggSignatures.map(sig => sig.state),
                     dictState.keyed.container,
                     cleanup = () => (),
                   )
@@ -1464,7 +1464,7 @@ object EmitStream {
 
         case RunAggScan(child, name, init, seqs, result, states) =>
           val (newContainer, aggSetup, aggCleanup) =
-            AggContainer.fromMethodBuilder(states.toArray, mb, "run_agg_scan")
+            AggContainer.fromMethodBuilder(states, mb, "run_agg_scan")
 
           produce(child, cb).map(cb) { case childStream: SStreamValue =>
             val childProducer = childStream.getProducer(mb)

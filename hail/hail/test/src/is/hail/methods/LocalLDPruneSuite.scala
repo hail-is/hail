@@ -4,6 +4,7 @@ import is.hail.HailSuite
 import is.hail.annotations.Annotation
 import is.hail.expr.ir.{Interpret, MatrixValue, TableValue}
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 import is.hail.variant._
 
 import breeze.linalg.{Vector => BVector}
@@ -12,7 +13,6 @@ import org.scalacheck.{Gen, Properties}
 import org.scalacheck.Gen._
 import org.scalacheck.Prop.forAll
 import org.scalatest
-import org.scalatest.matchers.must.Matchers.contain
 import org.scalatest.matchers.should.Matchers.convertToAnyShouldWrapper
 import org.testng.annotations.Test
 
@@ -63,7 +63,7 @@ object LocalLDPruneSuite {
     maxQueueSize
   }
 
-  def normalizedHardCalls(calls: Array[BoxedCall]): Option[Array[Double]] = {
+  def normalizedHardCalls(calls: IndexedSeq[BoxedCall]): Option[Array[Double]] = {
     val nSamples = calls.length
     val vals = Array.ofDim[Double](nSamples)
     var nMissing = 0
@@ -118,7 +118,7 @@ class LocalLDPruneSuite extends HailSuite {
     Interpret(
       importVCF(ctx, getTestResource("sample.vcf.bgz"), nPartitions = Option(10)),
       ctx,
-    ).toMatrixValue(Array("s"))
+    ).toMatrixValue(ArraySeq("s"))
   }
 
   lazy val maxQueueSize = LocalLDPruneSuite.estimateMemoryRequirements(
@@ -231,13 +231,13 @@ class LocalLDPruneSuite extends HailSuite {
   }
 
   @Test def testBitPackUnpack(): Unit = {
-    val calls1 = Array(-1, 0, 1, 2, 1, 1, 0, 0, 0, 0, 2, 2, -1, -1, -1, -1).map(toC2)
-    val calls2 = Array(0, 1, 2, 2, 2, 0, -1, -1).map(toC2)
-    val calls3 = calls1 ++ Array.ofDim[Int](32 - calls1.length).map(toC2) ++ calls2
+    val calls1 = ArraySeq(-1, 0, 1, 2, 1, 1, 0, 0, 0, 0, 2, 2, -1, -1, -1, -1).map(toC2)
+    val calls2 = ArraySeq(0, 1, 2, 2, 2, 0, -1, -1).map(toC2)
+    val calls3 = calls1 ++ ArraySeq.fill(32 - calls1.length)(toC2(0)) ++ calls2
 
-    scalatest.Inspectors.forAll(Array(calls1, calls2, calls3)) { calls =>
+    scalatest.Inspectors.forAll(ArraySeq(calls1, calls2, calls3)) { calls =>
       scalatest.Inspectors.forAll(LocalLDPruneSuite.fromCalls(calls).toSeq) { bpv =>
-        bpv.unpack().map(toC2(_)) should contain theSameElementsAs (calls)
+        bpv.unpack().map(toC2) shouldBe calls
       }
     }
   }
@@ -282,7 +282,7 @@ class LocalLDPruneSuite extends HailSuite {
 
     assert(isSame)
 
-    val input = Array(0, 1, 2, 2, 2, 0, -1, -1).map(toC2)
+    val input = ArraySeq(0, 1, 2, 2, 2, 0, -1, -1).map(toC2)
     val bvi1 = LocalLDPruneSuite.fromCalls(input).get
     val bvi2 = LocalLDPruneSuite.fromCalls(input).get
 
@@ -290,47 +290,48 @@ class LocalLDPruneSuite extends HailSuite {
   }
 
   object Spec extends Properties("LDPrune") {
-    val vectorGen: Gen[(Call, Array[BoxedCall], Array[BoxedCall])] =
+    val vectorGen: Gen[(Call, IndexedSeq[BoxedCall], IndexedSeq[BoxedCall])] =
       for {
         nSamples: Int <- choose(1, 1000)
-        v1: Array[BoxedCall] <- containerOfN[Array, BoxedCall](nSamples, choose(-1, 2).map(toC2))
-        v2: Array[BoxedCall] <- containerOfN[Array, BoxedCall](nSamples, choose(-1, 2).map(toC2))
+        v1 <- containerOfN[ArraySeq, BoxedCall](nSamples, choose(-1, 2).map(toC2))
+        v2 <- containerOfN[ArraySeq, BoxedCall](nSamples, choose(-1, 2).map(toC2))
       } yield (nSamples, v1, v2)
 
     (property("bitPacked pack and unpack give same as orig") =
-      forAll(vectorGen) { case (_: Int, v1: Array[BoxedCall], _) =>
+      forAll(vectorGen) { case (_: Int, v1: IndexedSeq[BoxedCall], _) =>
         val bpv = LocalLDPruneSuite.fromCalls(v1)
 
         bpv match {
-          case Some(x) => LocalLDPruneSuite.fromCalls(x.unpack().map(toC2)).get.gs sameElements x.gs
+          case Some(x) => LocalLDPruneSuite.fromCalls(x.unpack().map(toC2)).get.gs == x.gs
           case None => true
         }
       }): Unit
 
     (property("R2 bitPacked same as BVector") =
-      forAll(vectorGen) { case (nSamples: Int, v1: Array[BoxedCall], v2: Array[BoxedCall]) =>
-        val bv1 = LocalLDPruneSuite.fromCalls(v1)
-        val bv2 = LocalLDPruneSuite.fromCalls(v2)
+      forAll(vectorGen) {
+        case (nSamples: Int, v1: IndexedSeq[BoxedCall], v2: IndexedSeq[BoxedCall]) =>
+          val bv1 = LocalLDPruneSuite.fromCalls(v1)
+          val bv2 = LocalLDPruneSuite.fromCalls(v2)
 
-        val sgs1 =
-          LocalLDPruneSuite.normalizedHardCalls(v1).map(math.sqrt(1d / nSamples) * BVector(_))
-        val sgs2 =
-          LocalLDPruneSuite.normalizedHardCalls(v2).map(math.sqrt(1d / nSamples) * BVector(_))
+          val sgs1 =
+            LocalLDPruneSuite.normalizedHardCalls(v1).map(math.sqrt(1d / nSamples) * BVector(_))
+          val sgs2 =
+            LocalLDPruneSuite.normalizedHardCalls(v2).map(math.sqrt(1d / nSamples) * BVector(_))
 
-        (bv1, bv2, sgs1, sgs2) match {
-          case (Some(a), Some(b), Some(c: BVector[Double]), Some(d: BVector[Double])) =>
-            val rBreeze = c.dot(d): Double
-            val r2Breeze = rBreeze * rBreeze
-            val r2BitPacked = LocalLDPrune.computeR2(a, b)
+          (bv1, bv2, sgs1, sgs2) match {
+            case (Some(a), Some(b), Some(c: BVector[Double]), Some(d: BVector[Double])) =>
+              val rBreeze = c.dot(d): Double
+              val r2Breeze = rBreeze * rBreeze
+              val r2BitPacked = LocalLDPrune.computeR2(a, b)
 
-            val isSame =
-              D_==(r2BitPacked, r2Breeze) && D_>=(r2BitPacked, 0d) && D_<=(r2BitPacked, 1d)
-            if (!isSame) {
-              println(s"breeze=$r2Breeze bitPacked=$r2BitPacked nSamples=$nSamples")
-            }
-            isSame
-          case _ => true
-        }
+              val isSame =
+                D_==(r2BitPacked, r2Breeze) && D_>=(r2BitPacked, 0d) && D_<=(r2BitPacked, 1d)
+              if (!isSame) {
+                println(s"breeze=$r2Breeze bitPacked=$r2BitPacked nSamples=$nSamples")
+              }
+              isSame
+            case _ => true
+          }
       }): Unit
   }
 

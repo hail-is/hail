@@ -1,5 +1,7 @@
 package is.hail.utils.richUtils
 
+import is.hail.utils.compat.immutable.ArraySeq
+
 import org.apache.spark.sql.Row
 
 class RichRow(r: Row) {
@@ -7,10 +9,10 @@ class RichRow(r: Row) {
   def update(i: Int, a: Any): Row = {
     val arr = Array.tabulate(r.size)(r.get)
     arr(i) = a
-    Row.fromSeq(arr)
+    Row.fromSeq(ArraySeq.unsafeWrapArray(arr))
   }
 
-  def select(indices: Array[Int]): Row = Row.fromSeq(indices.map(r.get))
+  def select(indices: IndexedSeq[Int]): Row = Row.fromSeq(indices.map(r.get))
 
   def deleteField(i: Int): Row = {
     require(i >= 0 && i < r.length)
@@ -19,7 +21,7 @@ class RichRow(r: Row) {
 
   def truncate(newSize: Int): Row = {
     require(newSize <= r.size)
-    Row.fromSeq(Array.tabulate(newSize)(i => r.get(i)))
+    Row.fromSeq(ArraySeq.tabulate(newSize)(i => r.get(i)))
   }
 }
 

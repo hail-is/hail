@@ -92,7 +92,7 @@ object compile {
     ctx.time {
       val normalizedBody = NormalizeNames(allowFreeVariables = true)(ctx, body)
       ctx.CodeCache.getOrElseUpdate(
-        CodeCacheKey(aggSigs.getOrElse(ArraySeq.empty).toFastSeq, params, normalizedBody), {
+        CodeCacheKey(aggSigs.getOrElse(ArraySeq.empty), params, normalizedBody), {
           var ir = Subst(
             body,
             BindingEnv(Env.fromSeq(params.zipWithIndex.map { case ((n, t), i) => n -> In(i, t) })),

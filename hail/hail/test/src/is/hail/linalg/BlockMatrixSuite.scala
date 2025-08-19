@@ -8,6 +8,7 @@ import is.hail.linalg.BlockMatrix.ops._
 import is.hail.scalacheck._
 import is.hail.types.virtual.{TFloat64, TInt64, TStruct}
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 import breeze.linalg.{*, diag, DenseMatrix, DenseVector => BDV}
 import org.apache.spark.sql.Row
@@ -60,7 +61,7 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
   val twoMultipliableBlockMatrices: Gen[(BlockMatrix, BlockMatrix)] =
     for {
-      Array(nRows, innerDim, nCols) <- genNonEmptyNCubeOfVolumeAtMostSize(3)
+      Seq(nRows, innerDim, nCols) <- genNonEmptyNCubeOfVolumeAtMostSize(3)
       blockSize <- interestingPosInt
       if blockSize > 3 // 1 or 2 cause large numbers of partitions, leading to slow tests
       l <- blockMatrixGen(const(blockSize), const(nRows -> innerDim), nonExtremeDouble)
@@ -678,16 +679,16 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       val bm = BlockMatrix.fromBreezeMatrix(ctx, lm, blockSize)
       scalatest.Inspectors.forAll {
         Seq(
-          Array(0),
-          Array(1),
-          Array(9),
-          Array(0, 3, 4, 5, 7),
-          Array(1, 4, 5, 7, 8, 9),
-          Array(0, 1, 2, 3, 4, 5, 6, 7, 8, 9),
+          ArraySeq(0),
+          ArraySeq(1),
+          ArraySeq(9),
+          ArraySeq(0, 3, 4, 5, 7),
+          ArraySeq(1, 4, 5, 7, 8, 9),
+          ArraySeq(0, 1, 2, 3, 4, 5, 6, 7, 8, 9),
         )
       } { keep =>
         val filteredViaBlock = bm.filterCols(keep.map(_.toLong)).toBreezeMatrix()
-        val filteredViaBreeze = lm(::, keep.toFastSeq).copy
+        val filteredViaBreeze = lm(::, keep).copy
         assert(filteredViaBlock === filteredViaBreeze)
       }
     }
@@ -702,13 +703,13 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       val bm = BlockMatrix.fromBreezeMatrix(ctx, lm, blockSize).transpose()
       scalatest.Inspectors.forAll {
         Seq(
-          Array(0),
-          Array(1, 4, 5, 7, 8),
-          Array(0, 1, 2, 3, 4, 5, 6, 7, 8),
+          ArraySeq(0),
+          ArraySeq(1, 4, 5, 7, 8),
+          ArraySeq(0, 1, 2, 3, 4, 5, 6, 7, 8),
         )
       } { keep =>
         val filteredViaBlock = bm.filterCols(keep.map(_.toLong)).toBreezeMatrix()
-        val filteredViaBreeze = lmt(::, keep.toFastSeq).copy
+        val filteredViaBreeze = lmt(::, keep).copy
         assert(filteredViaBlock === filteredViaBreeze)
       }
     }
@@ -722,13 +723,13 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       val bm = BlockMatrix.fromBreezeMatrix(ctx, lm, blockSize)
       scalatest.Inspectors.forAll {
         Seq(
-          Array(0),
-          Array(1, 4, 5, 7, 8),
-          Array(0, 1, 2, 3, 4, 5, 6, 7, 8),
+          ArraySeq(0),
+          ArraySeq(1, 4, 5, 7, 8),
+          ArraySeq(0, 1, 2, 3, 4, 5, 6, 7, 8),
         )
       } { keep =>
         val filteredViaBlock = bm.filterRows(keep.map(_.toLong)).toBreezeMatrix()
-        val filteredViaBreeze = lm(keep.toFastSeq, ::).copy
+        val filteredViaBreeze = lm(keep, ::).copy
 
         assert(filteredViaBlock === filteredViaBreeze)
       }
@@ -743,16 +744,16 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       val bm = BlockMatrix.fromBreezeMatrix(ctx, lm, blockSize)
       scalatest.Inspectors.forAll {
         Seq(
-          Array(0),
-          Array(1),
-          Array(9),
-          Array(0, 3, 4, 5, 7),
-          Array(1, 4, 5, 7, 8, 9),
-          Array(0, 1, 2, 3, 4, 5, 6, 7, 8, 9),
+          ArraySeq(0),
+          ArraySeq(1),
+          ArraySeq(9),
+          ArraySeq(0, 3, 4, 5, 7),
+          ArraySeq(1, 4, 5, 7, 8, 9),
+          ArraySeq(0, 1, 2, 3, 4, 5, 6, 7, 8, 9),
         )
       } { keep =>
         val filteredViaBlock = bm.filter(keep.map(_.toLong), keep.map(_.toLong)).toBreezeMatrix()
-        val filteredViaBreeze = lm(keep.toFastSeq, keep.toFastSeq).copy
+        val filteredViaBreeze = lm(keep, keep).copy
 
         assert(filteredViaBlock === filteredViaBreeze)
       }
@@ -767,20 +768,20 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       scalatest.Inspectors.forAll {
         for {
           keepRows <- Seq(
-            Array(1),
-            Array(0, 3, 4, 5, 7),
-            Array(0, 1, 2, 3, 4, 5, 6, 7, 8),
+            ArraySeq(1),
+            ArraySeq(0, 3, 4, 5, 7),
+            ArraySeq(0, 1, 2, 3, 4, 5, 6, 7, 8),
           )
           keepCols <- Seq(
-            Array(2),
-            Array(1, 4, 5, 7, 8, 9),
-            Array(0, 1, 2, 3, 4, 5, 6, 7, 8, 9),
+            ArraySeq(2),
+            ArraySeq(1, 4, 5, 7, 8, 9),
+            ArraySeq(0, 1, 2, 3, 4, 5, 6, 7, 8, 9),
           )
         } yield (keepRows, keepCols)
       } { case (keepRows, keepCols) =>
         val filteredViaBlock =
           bm.filter(keepRows.map(_.toLong), keepCols.map(_.toLong)).toBreezeMatrix()
-        val filteredViaBreeze = lm(keepRows.toFastSeq, keepCols.toFastSeq).copy
+        val filteredViaBreeze = lm(keepRows, keepCols).copy
 
         assert(filteredViaBlock === filteredViaBreeze)
       }
@@ -860,7 +861,7 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       GetField(
         TableCollect(
           TableLiteral(
-            bm.filterBlocks(Array(0, 1, 6)).entriesTable(ctx),
+            bm.filterBlocks(ArraySeq(0, 1, 6)).entriesTable(ctx),
             theHailClassLoader,
           )
         ),
@@ -894,10 +895,10 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     val lm = new DenseMatrix[Double](12, 12, (0 to 143).map(_.toDouble).toArray)
     val bm = toBM(lm, blockSize = 5)
 
-    val onlyEight = bm.filterBlocks(Array(8)) // Bottom right corner block
-    val onlyEightRowEleven = onlyEight.filterRows(Array(11)).toBreezeMatrix()
-    val onlyEightColEleven = onlyEight.filterCols(Array(11)).toBreezeMatrix()
-    val onlyEightCornerFour = onlyEight.filter(Array(10, 11), Array(10, 11)).toBreezeMatrix()
+    val onlyEight = bm.filterBlocks(ArraySeq(8)) // Bottom right corner block
+    val onlyEightRowEleven = onlyEight.filterRows(ArraySeq(11)).toBreezeMatrix()
+    val onlyEightColEleven = onlyEight.filterCols(ArraySeq(11)).toBreezeMatrix()
+    val onlyEightCornerFour = onlyEight.filter(ArraySeq(10, 11), ArraySeq(10, 11)).toBreezeMatrix()
 
     assert(onlyEightRowEleven.toArray sameElements Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 131,
       143).map(_.toDouble))
@@ -924,7 +925,7 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     val nCols = 50
     val bm = BlockMatrix.fill(nRows.toLong, nCols.toLong, 2, 1)
     val banded = bm.filterBand(0, 0, false)
-    val rowFilt = banded.filterRows((0L until nRows.toLong by 2L).toArray)
+    val rowFilt = banded.filterRows(0L until nRows.toLong by 2L)
     val summed = rowFilt.rowSum().toBreezeMatrix().toArray
     val expected =
       Array.tabulate(nRows)(x => if (x % 2 == 0) 2.0 else 0) ++ Array.tabulate(nCols - nRows)(x =>
@@ -947,13 +948,13 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
     val bm = toBM(lm, blockSize = 2)
 
-    val keepArray = Array(
-      Array.empty[Int],
-      Array(0),
-      Array(1, 3),
-      Array(2, 3),
-      Array(1, 2, 3),
-      Array(0, 1, 2, 3),
+    val keepArray = ArraySeq(
+      ArraySeq(),
+      ArraySeq(0),
+      ArraySeq(1, 3),
+      ArraySeq(2, 3),
+      ArraySeq(1, 2, 3),
+      ArraySeq(0, 1, 2, 3),
     )
 
     val localBlocks =
@@ -969,14 +970,18 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     }
 
     // test multiple block filters
-    val bm13 = bm.filterBlocks(Array(1, 3)).cache()
+    val bm13 = bm.filterBlocks(ArraySeq(1, 3)).cache()
 
-    assert(filteredEquals(bm13, bm13.filterBlocks(Array(1, 3))))
-    assert(filteredEquals(bm13, bm.filterBlocks(Array(1, 2, 3)).filterBlocks(Array(0, 1, 3))))
-    assert(filteredEquals(bm13, bm13.filterBlocks(Array(0, 1, 2, 3))))
+    assert(filteredEquals(bm13, bm13.filterBlocks(ArraySeq(1, 3))))
+    assert(filteredEquals(bm13, bm.filterBlocks(ArraySeq(1, 2, 3)).filterBlocks(ArraySeq(0, 1, 3))))
+    assert(filteredEquals(bm13, bm13.filterBlocks(ArraySeq(0, 1, 2, 3))))
     assert(filteredEquals(
-      bm.filterBlocks(Array(1)),
-      bm.filterBlocks(Array(1, 2, 3)).filterBlocks(Array(0, 1, 2)).filterBlocks(Array(0, 1, 3)),
+      bm.filterBlocks(ArraySeq(1)),
+      bm.filterBlocks(ArraySeq(1, 2, 3)).filterBlocks(ArraySeq(0, 1, 2)).filterBlocks(ArraySeq(
+        0,
+        1,
+        3,
+      )),
     ))
   }
 
@@ -994,18 +999,18 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
     val bm = toBM(lm, blockSize = 2)
 
-    val keepArray = Array(
-      Array.empty[Int],
-      Array(0),
-      Array(1, 3),
-      Array(2, 3),
-      Array(1, 2, 3),
-      Array(0, 1, 2, 3),
+    val keepArray = ArraySeq(
+      ArraySeq(),
+      ArraySeq(0),
+      ArraySeq(1, 3),
+      ArraySeq(2, 3),
+      ArraySeq(1, 2, 3),
+      ArraySeq(0, 1, 2, 3),
     )
 
     val lm_zero = DenseMatrix.zeros[Double](2, 2)
 
-    def filterBlocks(keep: Array[Int]): DenseMatrix[Double] = {
+    def filterBlocks(keep: IndexedSeq[Int]): DenseMatrix[Double] = {
       val flm = lm.copy
       (0 to 3).diff(keep).foreach { i =>
         val r = 2 * (i % 2)
@@ -1047,18 +1052,18 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
     val bm = toBM(lm, blockSize = 2)
 
-    val keepArray = Array(
-      Array.empty[Int],
-      Array(0),
-      Array(1, 3),
-      Array(2, 3),
-      Array(1, 2, 3),
-      Array(0, 1, 2, 3),
+    val keepArray = ArraySeq(
+      ArraySeq(),
+      ArraySeq(0),
+      ArraySeq(1, 3),
+      ArraySeq(2, 3),
+      ArraySeq(1, 2, 3),
+      ArraySeq(0, 1, 2, 3),
     )
 
     val lm_zero = DenseMatrix.zeros[Double](2, 2)
 
-    def filterBlocks(keep: Array[Int]): DenseMatrix[Double] = {
+    def filterBlocks(keep: IndexedSeq[Int]): DenseMatrix[Double] = {
       val flm = lm.copy
       (0 to 3).diff(keep).foreach { i =>
         val r = 2 * (i % 2)
@@ -1074,7 +1079,7 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
     // test transpose, diagonal, math ops, filter ops
     scalatest.Inspectors.forAll(keepArray) { keep =>
-      println(s"Test says keep block: ${keep.toIndexedSeq}")
+      println(s"Test says keep block: $keep")
       val fbm = bm.filterBlocks(keep)
       val flm = filterBlocks(keep)
 
@@ -1123,23 +1128,23 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       assert(fbm.reverseColVectorSub(ctx, v).toBreezeMatrix() === -(flm(::, *) - BDV(v)))
 
       // filter ops
-      assert(fbm.filterRows(Array(1, 2)).toBreezeMatrix() === flm(1 to 2, ::))
-      assert(fbm.filterCols(Array(1, 2)).toBreezeMatrix() === flm(::, 1 to 2))
-      assert(fbm.filter(Array(1, 2), Array(1, 2)).toBreezeMatrix() === flm(1 to 2, 1 to 2))
+      assert(fbm.filterRows(ArraySeq(1, 2)).toBreezeMatrix() === flm(1 to 2, ::))
+      assert(fbm.filterCols(ArraySeq(1, 2)).toBreezeMatrix() === flm(::, 1 to 2))
+      assert(fbm.filter(ArraySeq(1, 2), ArraySeq(1, 2)).toBreezeMatrix() === flm(1 to 2, 1 to 2))
     }
 
-    val bm0 = bm.filterBlocks(Array(0))
-    val bm13 = bm.filterBlocks(Array(1, 3))
-    val bm23 = bm.filterBlocks(Array(2, 3))
-    val bm123 = bm.filterBlocks(Array(1, 2, 3))
+    val bm0 = bm.filterBlocks(ArraySeq(0))
+    val bm13 = bm.filterBlocks(ArraySeq(1, 3))
+    val bm23 = bm.filterBlocks(ArraySeq(2, 3))
+    val bm123 = bm.filterBlocks(ArraySeq(1, 2, 3))
 
-    val lm0 = filterBlocks(Array(0))
-    val lm13 = filterBlocks(Array(1, 3))
-    val lm23 = filterBlocks(Array(2, 3))
-    val lm123 = filterBlocks(Array(1, 2, 3))
+    val lm0 = filterBlocks(ArraySeq(0))
+    val lm13 = filterBlocks(ArraySeq(1, 3))
+    val lm23 = filterBlocks(ArraySeq(2, 3))
+    val lm123 = filterBlocks(ArraySeq(1, 2, 3))
 
     // test +/- with mismatched blocks
-    assert(filteredEquals(bm0 + bm13, bm.filterBlocks(Array(0, 1, 3))))
+    assert(filteredEquals(bm0 + bm13, bm.filterBlocks(ArraySeq(0, 1, 3))))
 
     assert((bm0 + bm).toBreezeMatrix() === lm0 + lm)
     assert((bm + bm0).toBreezeMatrix() === lm + lm0)
@@ -1164,10 +1169,10 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     )
 
     // test * with mismatched blocks
-    assert(filteredEquals(bm0 * bm13, bm.filterBlocks(Array.empty[Int])))
-    assert(filteredEquals(bm13 * bm23, (bm * bm).filterBlocks(Array(3))))
-    assert(filteredEquals(bm13 * bm, (bm * bm).filterBlocks(Array(1, 3))))
-    assert(filteredEquals(bm * bm13, (bm * bm).filterBlocks(Array(1, 3))))
+    assert(filteredEquals(bm0 * bm13, bm.filterBlocks(ArraySeq.empty)))
+    assert(filteredEquals(bm13 * bm23, (bm * bm).filterBlocks(ArraySeq(3))))
+    assert(filteredEquals(bm13 * bm, (bm * bm).filterBlocks(ArraySeq(1, 3))))
+    assert(filteredEquals(bm * bm13, (bm * bm).filterBlocks(ArraySeq(1, 3))))
 
     // test unsupported ops
     val notSupported: String = "not supported for block-sparse matrices"
@@ -1201,18 +1206,18 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
     val bm = toBM(lm, blockSize = 2)
 
-    val keepArray = Array(
-      Array.empty[Int],
-      Array(0),
-      Array(1, 3),
-      Array(2, 3),
-      Array(1, 2, 3),
-      Array(0, 1, 2, 3),
+    val keepArray = ArraySeq(
+      ArraySeq.empty,
+      ArraySeq(0),
+      ArraySeq(1, 3),
+      ArraySeq(2, 3),
+      ArraySeq(1, 2, 3),
+      ArraySeq(0, 1, 2, 3),
     )
 
     val lm_zero = DenseMatrix.zeros[Double](2, 2)
 
-    def filterBlocks(keep: Array[Int]): DenseMatrix[Double] = {
+    def filterBlocks(keep: IndexedSeq[Int]): DenseMatrix[Double] = {
       val flm = lm.copy
       (0 to 3).diff(keep).foreach { i =>
         val r = 2 * (i % 2)
@@ -1232,9 +1237,9 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       assert(filteredEquals(fbm.densify(), toBM(flm, blockSize = 2)))
       assert(filteredEquals(fbm.realizeBlocks(Some(keep)), fbm))
 
-      val bis = (keep ++ Array(0, 2)).distinct.sorted
+      val bis = (keep ++ ArraySeq(0, 2)).distinct.sorted
       assert(filteredEquals(
-        fbm.realizeBlocks(Some(Array(0, 2))),
+        fbm.realizeBlocks(Some(ArraySeq(0, 2))),
         toBM(flm, blockSize = 2).filterBlocks(bis),
       ))
     }

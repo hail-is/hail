@@ -11,6 +11,7 @@ import is.hail.types.physical.stypes.concrete.SBaseStructPointer
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual.{TCall, TInt32, Type}
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 object CallStatsState {
   val callStatsInternalArrayType = PCanonicalArray(PInt32Required, required = true)
@@ -135,8 +136,8 @@ class CallStatsAggregator extends StagedAggregator {
   val resultEmitType: EmitType = EmitType(SBaseStructPointer(CallStatsState.resultPType), true)
   val resultStorageType = resultEmitType.storageType.asInstanceOf[PBaseStruct]
 
-  val initOpTypes: Seq[Type] = FastSeq(TInt32)
-  val seqOpTypes: Seq[Type] = FastSeq(TCall)
+  val initOpTypes: IndexedSeq[Type] = ArraySeq(TInt32)
+  val seqOpTypes: IndexedSeq[Type] = ArraySeq(TCall)
 
   override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     val Array(nAlleles) = init

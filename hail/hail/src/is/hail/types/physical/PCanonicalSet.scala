@@ -6,6 +6,7 @@ import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePoin
 import is.hail.types.physical.stypes.interfaces.SIndexableValue
 import is.hail.types.virtual.{TSet, Type}
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 object PCanonicalSet {
   def coerceArrayCode(contents: SIndexableValue): SIndexableValue =
@@ -37,9 +38,10 @@ final case class PCanonicalSet(elementType: PType, required: Boolean = false)
 
   override def unstagedStoreJavaObject(sm: HailStateManager, annotation: Annotation, region: Region)
     : Long = {
-    val s: IndexedSeq[Annotation] = annotation.asInstanceOf[Set[Annotation]]
-      .toFastSeq
-      .sorted(elementType.virtualType.ordering(sm).toOrdering)
+    val s: IndexedSeq[Annotation] = ArraySeq.sorted(annotation.asInstanceOf[Set[Annotation]])(
+      implicitly,
+      elementType.virtualType.ordering(sm).toOrdering,
+    )
     arrayRep.unstagedStoreJavaObject(sm, s, region)
   }
 

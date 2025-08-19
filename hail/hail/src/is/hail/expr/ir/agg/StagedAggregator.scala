@@ -11,8 +11,8 @@ abstract class StagedAggregator {
   type State <: AggregatorState
 
   def resultEmitType: EmitType
-  def initOpTypes: Seq[Type]
-  def seqOpTypes: Seq[Type]
+  def initOpTypes: IndexedSeq[Type]
+  def seqOpTypes: IndexedSeq[Type]
 
   protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit
 

@@ -10,6 +10,7 @@ import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerValue}
 import is.hail.types.virtual.{TFloat64, TInt32, Type}
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 class ApproxCDFState(val kb: EmitClassBuilder[_]) extends AggregatorState {
   override val regionSize: Region.Size = Region.TINIER
@@ -148,8 +149,8 @@ class ApproxCDFAggregator extends StagedAggregator {
   override def resultEmitType: EmitType =
     EmitType(SBaseStructPointer(QuantilesAggregator.resultPType), true)
 
-  val initOpTypes: Seq[Type] = FastSeq(TInt32)
-  val seqOpTypes: Seq[Type] = FastSeq(TFloat64)
+  val initOpTypes: IndexedSeq[Type] = ArraySeq(TInt32)
+  val seqOpTypes: IndexedSeq[Type] = ArraySeq(TFloat64)
 
   override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     val Array(k) = init

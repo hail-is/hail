@@ -24,7 +24,7 @@ abstract class BlockMatrixStage(val broadcastVals: IndexedSeq[Ref], val ctxType:
     dynamicID: IR = NA(TString),
   )(
     f: (IR, IR) => IR,
-    blocksToCollect: Array[(Int, Int)],
+    blocksToCollect: IndexedSeq[(Int, Int)],
   ): IR = {
     val ctxRef = Ref(freshName(), ctxType)
     val body = f(ctxRef, blockBody(ctxRef))
@@ -40,8 +40,8 @@ abstract class BlockMatrixStage(val broadcastVals: IndexedSeq[Ref], val ctxType:
   }
 
   def collectLocal(typ: BlockMatrixType, staticID: String, dynamicID: IR = NA(TString)): IR = {
-    val blocksRowMajor = Array.range(0, typ.nRowBlocks).flatMap { i =>
-      Array.tabulate(typ.nColBlocks)(j => i -> j).filter((typ.hasBlock _).tupled)
+    val blocksRowMajor = ArraySeq.range(0, typ.nRowBlocks).flatMap { i =>
+      ArraySeq.tabulate(typ.nColBlocks)(j => i -> j).filter((typ.hasBlock _).tupled)
     }
     val cda = collectBlocks(staticID, dynamicID)((_, b) => b, blocksRowMajor)
     val blockResults = Ref(freshName(), cda.typ)
@@ -49,10 +49,10 @@ abstract class BlockMatrixStage(val broadcastVals: IndexedSeq[Ref], val ctxType:
     val rows = if (typ.isSparse) {
       val blockMap = blocksRowMajor.zipWithIndex.toMap
       MakeArray(
-        Array.tabulate[IR](typ.nRowBlocks) { i =>
+        ArraySeq.tabulate[IR](typ.nRowBlocks) { i =>
           NDArrayConcat(
             MakeArray(
-              Array.tabulate[IR](typ.nColBlocks) { j =>
+              ArraySeq.tabulate[IR](typ.nColBlocks) { j =>
                 if (blockMap.contains(i -> j))
                   ArrayRef(blockResults, i * typ.nColBlocks + j)
                 else {
@@ -864,8 +864,8 @@ class BlockMatrixStage2 private (
       BlockMatrixType.getBlockDependencies(keepCols.grouped(typ.blockSize), typ.blockSize)
 
     def localIndices(idxs: IndexedSeq[Long]): IndexedSeq[IndexedSeq[Long]] = {
-      val result = new AnyRefArrayBuilder[IndexedSeq[Long]]()
-      val builder = new LongArrayBuilder()
+      val result = ArraySeq.newBuilder[IndexedSeq[Long]]
+      val builder = ArraySeq.newBuilder[Long]
       var curBlock = idxs.head / typ.blockSize
       for (i <- idxs) {
         val nextBlock = i / typ.blockSize
@@ -1375,7 +1375,7 @@ object LowerBlockMatrixIR {
         lower(child)
 
       case x @ BlockMatrixFilter(child, keep) =>
-        val Array(keepRow, keepCol) = keep
+        val Seq(keepRow, keepCol) = keep
         lower(child).filter(keepRow, keepCol, x.typ, ib)
 
       case BlockMatrixDensify(child) =>
@@ -1477,7 +1477,7 @@ object LowerBlockMatrixIR {
           override def blockContext(idx: (Int, Int)): IR = {
             val (i, j) = idx
             MakeArray(
-              Array.tabulate[Option[IR]](leftIR.typ.nColBlocks) { k =>
+              ArraySeq.tabulate[Option[IR]](leftIR.typ.nColBlocks) { k =>
                 if (leftIR.typ.hasBlock(i, k) && rightIR.typ.hasBlock(k, j))
                   Some(MakeTuple.ordered(FastSeq(
                     left.blockContext(i -> k),

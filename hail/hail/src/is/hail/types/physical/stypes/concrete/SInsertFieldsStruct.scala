@@ -7,6 +7,7 @@ import is.hail.types.physical.{PCanonicalStruct, PType}
 import is.hail.types.physical.stypes.{EmitType, SType, SValue}
 import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructSettable, SBaseStructValue}
 import is.hail.types.virtual.{TStruct, Type}
+import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.collection.compat._
 
@@ -137,7 +138,11 @@ final case class SInsertFieldsStruct(
       parentPassThroughMap.getOrElse(f, (f, parentType.fieldType(f)))
     ): _*)
     val renamedParentType = parent.castRename(parentCastType)
-    SInsertFieldsStruct(ts, renamedParentType.asInstanceOf[SBaseStruct], renamedInsertedFields)
+    SInsertFieldsStruct(
+      ts,
+      renamedParentType.asInstanceOf[SBaseStruct],
+      ArraySeq.unsafeWrapArray(renamedInsertedFields),
+    )
   }
 }
 

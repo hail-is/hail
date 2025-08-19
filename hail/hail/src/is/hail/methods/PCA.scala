@@ -118,14 +118,14 @@ case class PCA(entryField: String, k: Int, computeLoadings: Boolean)
 
     val g1 = f1(mv.globals.value, eigenvalues.toFastSeq)
     val globalScores = mv.colValues.safeJavaValue.zipWithIndex.map { case (cv, i) =>
-      f3(mv.typ.extractColKey(cv.asInstanceOf[Row]), scores(i))
+      f3(mv.typ.extractColKey(cv), scores(i))
     }
     val newGlobal = f2(g1, globalScores)
 
     TableValue(
       ctx,
-      TableType(rowType.virtualType, mv.typ.rowKey, newGlobalType.asInstanceOf[TStruct]),
-      BroadcastRow(ctx, newGlobal.asInstanceOf[Row], newGlobalType.asInstanceOf[TStruct]),
+      TableType(rowType.virtualType, mv.typ.rowKey, newGlobalType),
+      BroadcastRow(ctx, newGlobal.asInstanceOf[Row], newGlobalType),
       rvd,
     )
   }

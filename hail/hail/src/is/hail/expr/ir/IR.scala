@@ -888,7 +888,7 @@ package defs {
         (body, inline)
       }
 
-      lazy val refs: IndexedSeq[Ref] = args.map(a => Ref(freshName(), a.typ)).toFastSeq
+      lazy val refs: IndexedSeq[Ref] = args.map(a => Ref(freshName(), a.typ))
 
       lazy val explicitNode: IR = {
         val ir = Let(refs.map(_.name).zip(args), body)

@@ -120,12 +120,7 @@ trait HailScalaModule extends ScalaModule, HailJavaModule, ScalafmtModule, Scala
           // collection types
           // value ArrayStack in package mutable is deprecated (since 2.13.0): Use Stack instead of ArrayStack; it now uses an array-based implementation
           "-Wconf:cat=deprecation&msg=value ArrayStack in package mutable is deprecated:s",
-          // generic to immutable default
           // collection methods
-          // method copyArrayToImmutableIndexedSeq in class LowPriorityImplicits2 is deprecated (since 2.13.0): implicit conversions from Array to immutable.IndexedSeq are implemented by copying; use `toIndexedSeq` explicitly if you want to copy, or use the more efficient non-copying ArraySeq.unsafeWrapArray
-          "-Wconf:cat=deprecation&msg=method copyArrayToImmutableIndexedSeq in class LowPriorityImplicits2 is deprecated:s",
-          // Passing an explicit array value to a Scala varargs method is deprecated (since 2.13.0) and will result in a defensive copy; Use the more efficient non-copying ArraySeq.unsafeWrapArray or an explicit toIndexedSeq call
-          "-Wconf:cat=deprecation&msg=Passing an explicit array value to a Scala varargs method is deprecated:s",
           // method transform in trait SeqOps is deprecated (since 2.13.0): Use `mapInPlace` on an `IndexedSeq` instead
           "-Wconf:cat=deprecation&msg=method transform in trait SeqOps is deprecated:s",
           // other

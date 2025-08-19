@@ -13,6 +13,7 @@ import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SBoolean, SInt32, SInt64}
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.collection.mutable
 
@@ -781,11 +782,11 @@ object StringFunctions extends RegistryFunctions {
 
     registerSCode(
       "parse_json",
-      Array(TString),
+      ArraySeq(TString),
       TTuple(tv("T")),
       (rType: Type, _: Seq[SType]) => SType.canonical(rType),
-      typeParameters = Array(tv("T")),
-    ) { case (r, cb, _, resultType, Array(s: SStringValue), _) =>
+      typeParameters = ArraySeq(tv("T")),
+    ) { case (r, cb, _, resultType, Seq(s: SStringValue), _) =>
       val warnCtx = cb.emb.genFieldThisRef[mutable.HashSet[String]]("parse_json_context")
       cb.if_(warnCtx.load().isNull, cb.assign(warnCtx, Code.newInstance[mutable.HashSet[String]]()))
 

@@ -11,6 +11,7 @@ import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.concrete.SIndexablePointer
 import is.hail.types.virtual.Type
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 class CollectAggState(val elemVType: VirtualTypeWithReq, val kb: EmitClassBuilder[_])
     extends AggregatorState {
@@ -80,8 +81,8 @@ class CollectAggregator(val elemType: VirtualTypeWithReq) extends StagedAggregat
 
   val sArrayType = SIndexablePointer(PCanonicalArray(elemType.canonicalPType))
   val resultEmitType = EmitType(sArrayType, true)
-  val initOpTypes: Seq[Type] = Array[Type]()
-  val seqOpTypes: Seq[Type] = Array[Type](elemType.t)
+  val initOpTypes: IndexedSeq[Type] = ArraySeq.empty
+  val seqOpTypes: IndexedSeq[Type] = ArraySeq(elemType.t)
 
   override protected def _initOp(cb: EmitCodeBuilder, state: State, args: Array[EmitCode]): Unit = {
     assert(args.isEmpty)

@@ -316,7 +316,8 @@ class RegionValueBuilder(sm: HailStateManager, var region: Region) {
   def addAllFields(t: PBaseStruct, fromRV: RegionValue): Unit =
     addAllFields(t, fromRV.region, fromRV.offset)
 
-  def addFields(t: PBaseStruct, fromRegion: Region, fromOff: Long, fieldIdx: Array[Int]): Unit = {
+  def addFields(t: PBaseStruct, fromRegion: Region, fromOff: Long, fieldIdx: IndexedSeq[Int])
+    : Unit = {
     var i = 0
     while (i < fieldIdx.length) {
       addField(t, fromRegion, fromOff, fieldIdx(i))
@@ -324,13 +325,13 @@ class RegionValueBuilder(sm: HailStateManager, var region: Region) {
     }
   }
 
-  def addFields(t: PBaseStruct, fromRV: RegionValue, fieldIdx: Array[Int]): Unit =
+  def addFields(t: PBaseStruct, fromRV: RegionValue, fieldIdx: IndexedSeq[Int]): Unit =
     addFields(t, fromRV.region, fromRV.offset, fieldIdx)
 
-  def selectRegionValue(fromT: PStruct, fromFieldIdx: Array[Int], fromRV: RegionValue): Unit =
+  def selectRegionValue(fromT: PStruct, fromFieldIdx: IndexedSeq[Int], fromRV: RegionValue): Unit =
     selectRegionValue(fromT, fromFieldIdx, fromRV.region, fromRV.offset)
 
-  def selectRegionValue(fromT: PStruct, fromFieldIdx: Array[Int], region: Region, offset: Long)
+  def selectRegionValue(fromT: PStruct, fromFieldIdx: IndexedSeq[Int], region: Region, offset: Long)
     : Unit = {
     // too expensive!
     // val t = fromT.typeAfterSelect(fromFieldIdx)

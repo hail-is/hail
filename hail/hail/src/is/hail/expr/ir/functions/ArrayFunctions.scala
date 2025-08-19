@@ -12,6 +12,7 @@ import is.hail.types.physical.stypes.primitives.{SBooleanValue, SFloat64, SInt32
 import is.hail.types.tcoerce
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 object ArrayFunctions extends RegistryFunctions {
   val arrayOps: Array[(String, Type, Type, (IR, IR, Int) => IR)] =
@@ -174,20 +175,20 @@ object ArrayFunctions extends RegistryFunctions {
       )
     }
 
-    registerIR("min", Array(TArray(tnum("T"))), tv("T"), inline = true)((_, a, _) =>
+    registerIR("min", ArraySeq(TArray(tnum("T"))), tv("T"), inline = true)((_, a, _) =>
       makeMinMaxOp("min")(a)
     )
-    registerIR("nanmin", Array(TArray(tnum("T"))), tv("T"), inline = true)((_, a, _) =>
+    registerIR("nanmin", ArraySeq(TArray(tnum("T"))), tv("T"), inline = true)((_, a, _) =>
       makeMinMaxOp("nanmin")(a)
     )
-    registerIR("max", Array(TArray(tnum("T"))), tv("T"), inline = true)((_, a, _) =>
+    registerIR("max", ArraySeq(TArray(tnum("T"))), tv("T"), inline = true)((_, a, _) =>
       makeMinMaxOp("max")(a)
     )
-    registerIR("nanmax", Array(TArray(tnum("T"))), tv("T"), inline = true)((_, a, _) =>
+    registerIR("nanmax", ArraySeq(TArray(tnum("T"))), tv("T"), inline = true)((_, a, _) =>
       makeMinMaxOp("nanmax")(a)
     )
 
-    registerIR("mean", Array(TArray(tnum("T"))), TFloat64, inline = true)((_, a, _) => mean(a))
+    registerIR("mean", ArraySeq(TArray(tnum("T"))), TFloat64, inline = true)((_, a, _) => mean(a))
 
     registerIR1("median", TArray(tnum("T")), tv("T")) { (_, array, errorID) =>
       val t = array.typ.asInstanceOf[TArray].elementType
@@ -315,7 +316,7 @@ object ArrayFunctions extends RegistryFunctions {
      * `indices` */
     registerSCode3t(
       "scatter",
-      Array(tv("T")),
+      ArraySeq(tv("T")),
       TArray(tv("T")), // elts
       TArray(TInt32), // indices
       TInt32, // len

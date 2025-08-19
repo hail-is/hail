@@ -17,6 +17,7 @@ import is.hail.types.physical.stypes.concrete.{
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual.{TInt32, Type}
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 object TakeByRVAS {
   val END_SERIALIZATION: Int = 0x1324
@@ -58,7 +59,7 @@ class TakeByRVAS(
   val storageType: PStruct =
     PCanonicalStruct(
       true,
-      Array(
+      ArraySeq(
         ("state", ab.stateType),
         ("staging", PInt64Required),
         ("key_stage", PInt64Required),
@@ -77,7 +78,7 @@ class TakeByRVAS(
       k1.st.asInstanceOf[SBaseStruct],
       k2.st.asInstanceOf[SBaseStruct],
       cb.emb.ecb,
-      Array(so, Ascending),
+      ArraySeq(so, Ascending),
       true,
     )
     ord.compareNonnull(cb, k1, k2)
@@ -674,8 +675,8 @@ class TakeByAggregator(valueType: VirtualTypeWithReq, keyType: VirtualTypeWithRe
   val resultEmitType: EmitType =
     EmitType(SIndexablePointer(PCanonicalArray(valueType.canonicalPType)), true)
 
-  val initOpTypes: Seq[Type] = Array(TInt32)
-  val seqOpTypes: Seq[Type] = Array(valueType.t, keyType.t)
+  val initOpTypes: IndexedSeq[Type] = ArraySeq(TInt32)
+  val seqOpTypes: IndexedSeq[Type] = ArraySeq(valueType.t, keyType.t)
 
   override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     assert(init.length == 1)

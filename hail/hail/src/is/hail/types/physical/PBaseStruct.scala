@@ -8,7 +8,7 @@ import is.hail.types.physical.stypes.interfaces.SBaseStructValue
 import is.hail.utils._
 
 object PBaseStruct {
-  def alignment(types: Array[PType]): Long =
+  def alignment(types: IndexedSeq[PType]): Long =
     if (types.isEmpty)
       1
     else
@@ -16,17 +16,17 @@ object PBaseStruct {
 }
 
 abstract class PBaseStruct extends PType {
-  val types: Array[PType]
+  val types: IndexedSeq[PType]
 
   val fields: IndexedSeq[PField]
 
-  final lazy val fieldRequired: Array[Boolean] = types.map(_.required)
+  final lazy val fieldRequired: IndexedSeq[Boolean] = types.map(_.required)
   final lazy val allFieldsRequired: Boolean = fieldRequired.forall(_ == true)
 
   final lazy val fieldIdx: Map[String, Int] =
     fields.map(f => (f.name, f.index)).toMap
 
-  final lazy val fieldNames: Array[String] = fields.map(_.name).toArray
+  final lazy val fieldNames: IndexedSeq[String] = fields.map(_.name)
 
   def fieldByName(name: String): PField = fields(fieldIdx(name))
 
@@ -75,7 +75,7 @@ abstract class PBaseStruct extends PType {
     require(this isOfType rightType)
 
     val right = rightType.asInstanceOf[PBaseStruct]
-    val fieldOrderings: Array[UnsafeOrdering] =
+    val fieldOrderings =
       types.zip(right.types).map { case (l, r) => l.unsafeOrdering(sm, r) }
 
     new UnsafeOrdering {
@@ -102,7 +102,7 @@ abstract class PBaseStruct extends PType {
 
   def nMissing: Int
 
-  def missingIdx: Array[Int]
+  def missingIdx: IndexedSeq[Int]
 
   def allocate(region: Region): Long
 

@@ -70,7 +70,7 @@ object AbstractRVDSpec {
     rowType: PStruct,
     bufferSpec: BufferSpec,
     rows: IndexedSeq[Annotation],
-  ): Array[FileWriteMetadata] = {
+  ): IndexedSeq[FileWriteMetadata] = {
     val fs = execCtx.fs
     val partsPath = path + "/parts"
     fs.mkDir(partsPath)
@@ -96,10 +96,10 @@ object AbstractRVDSpec {
       }
 
     val spec =
-      MakeRVDSpec(codecSpec, Array(filePath), RVDPartitioner.unkeyed(execCtx.stateManager, 1))
+      MakeRVDSpec(codecSpec, ArraySeq(filePath), RVDPartitioner.unkeyed(execCtx.stateManager, 1))
     spec.write(fs, path)
 
-    Array(FileWriteMetadata(path, part0Count, bytesWritten))
+    ArraySeq(FileWriteMetadata(path, part0Count, bytesWritten))
   }
 
   def readZippedLowered(
@@ -258,7 +258,7 @@ abstract class AbstractRVDSpec {
         TArray(ctxType),
         absolutePartPaths(path).zipWithIndex.map {
           case (x, i) => Row(i.toLong, x)
-        }.toFastSeq,
+        },
       ))
 
       val body = (ctx: IR) =>
@@ -385,7 +385,7 @@ object RVDSpecMaker {
     codecSpec,
     partitioner.kType.fieldNames,
     JSONAnnotationImpex.exportAnnotation(
-      partitioner.rangeBounds.toFastSeq,
+      partitioner.rangeBounds,
       partitioner.rangeBoundsType,
     ),
     indexSpec,
@@ -437,7 +437,7 @@ object IndexedRVDSpec2 {
       indexSpec,
       partFiles,
       JSONAnnotationImpex.exportAnnotation(
-        partitioner.rangeBounds.toFastSeq,
+        partitioner.rangeBounds,
         partitioner.rangeBoundsType,
       ),
       attrs,
@@ -528,7 +528,7 @@ case class IndexedRVDSpec2(
          * but dropping any partitions we know would be empty. So we construct a map from old
          * partitions to the range of overlapping new partitions, dropping any with an empty range. */
         val contextsAndBounds = for {
-          (oldInterval, oldPartIdx) <- part.rangeBounds.toFastSeq.zipWithIndex
+          (oldInterval, oldPartIdx) <- part.rangeBounds.zipWithIndex
           overlapRange = extendedNP.queryInterval(oldInterval)
           if overlapRange.nonEmpty
         } yield {
@@ -553,7 +553,7 @@ case class IndexedRVDSpec2(
          * new partition. So we construct a map from new partitioner to the range of overlapping old
          * partitions. */
         val nestedContexts =
-          extendedNP.rangeBounds.toFastSeq.zipWithIndex.map { case (newInterval, newPartIdx) =>
+          extendedNP.rangeBounds.zipWithIndex.map { case (newInterval, newPartIdx) =>
             val overlapRange = part.queryInterval(newInterval)
             overlapRange.map(oldPartIdx => makeCtx(oldPartIdx, newPartIdx))
           }

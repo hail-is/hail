@@ -11,9 +11,9 @@ import is.hail.types.physical.stypes.concrete.{SNDArraySlice, SNDArraySliceValue
 import is.hail.types.physical.stypes.primitives.SInt64Value
 import is.hail.types.virtual.TInt32
 import is.hail.utils.{toRichIterable, valueToRichCodeRegion, FastSeq}
+import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.collection.compat._
-import scala.collection.mutable
 
 object SNDArray {
   def numElements(shape: IndexedSeq[Value[Long]]): Code[Long] =
@@ -42,8 +42,8 @@ object SNDArray {
     body: IndexedSeq[SValue] => Unit
   ): Unit = {
     if (arrays.isEmpty) return
-    val indexVars = Array.tabulate(arrays(0)._1.st.nDims)(i => s"i$i").toFastSeq
-    val indices = Array.range(0, arrays(0)._1.st.nDims).toFastSeq
+    val indexVars = ArraySeq.tabulate(arrays(0)._1.st.nDims)(i => s"i$i")
+    val indices = ArraySeq.range(0, arrays(0)._1.st.nDims)
     coiterate(cb, indexVars, arrays.map { case (array, name) => (array, indices, name) }: _*)(body)
   }
 
@@ -107,7 +107,7 @@ object SNDArray {
         }
       }
       val strides = array.strides
-      val pos = Array.tabulate(array.st.nDims + 1)(i => cb.newLocal[Long](s"$name$i"))
+      val pos = ArraySeq.tabulate(array.st.nDims + 1)(i => cb.newLocal[Long](s"$name$i"))
       val indexToDim = indices.zipWithIndex.toMap
       ArrayInfo(array, strides, pos, indexToDim, name)
     }
@@ -156,7 +156,7 @@ object SNDArray {
     f: (EmitCodeBuilder, IndexedSeq[Value[Long]]) => Unit
   ): Unit = {
 
-    val indices = Array.tabulate(shape.length) { dimIdx =>
+    val indices = ArraySeq.tabulate(shape.length) { dimIdx =>
       cb.newLocal[Long](s"${context}_foreach_dim_$dimIdx", 0L)
     }
 
@@ -217,7 +217,7 @@ object SNDArray {
     f: (EmitCodeBuilder, IndexedSeq[Value[Long]]) => Unit
   ): Unit = {
 
-    val indices = Array.tabulate(shape.length) { dimIdx =>
+    val indices = ArraySeq.tabulate(shape.length) { dimIdx =>
       cb.newLocal[Long](s"${context}_foreach_dim_$dimIdx", 0L)
     }
 
@@ -272,7 +272,7 @@ object SNDArray {
       }
     }
 
-    val body = () => f(indices)
+    val body = () => f(ArraySeq.unsafeWrapArray(indices))
 
     recurLoopBuilder(0, body)
   }
@@ -1118,8 +1118,8 @@ object SNDArray {
     assert(IWork.pt.elementType.virtualType == TInt32)
 
     val n = A.shapes(0)
-    A.assertHasShape(cb, Array(n, n), "syevr: A must be square")
-    W.assertHasShape(cb, Array(n), "syevr: W has wrong size")
+    A.assertHasShape(cb, ArraySeq(n, n), "syevr: A must be square")
+    W.assertHasShape(cb, ArraySeq(n), "syevr: W has wrong size")
 
     val ldA = A.eltStride(1).max(1)
     val lWork = Work.shapes(0)
@@ -1130,7 +1130,7 @@ object SNDArray {
         assertVector(iSuppZ)
         assertMatrix(z)
 
-        z.assertHasShape(cb, Array(n, n), "syevr: Z has wrong size")
+        z.assertHasShape(cb, ArraySeq(n, n), "syevr: Z has wrong size")
         iSuppZ.assertHasShape(
           cb,
           IndexedSeq(SizeValueDyn(cb.memoize(n * 2))),
@@ -1433,8 +1433,8 @@ trait SNDArrayValue extends SValue {
   )(
     body: IndexedSeq[SValue] => SValue
   ): Unit = {
-    val indexVars = Array.tabulate(st.nDims)(i => s"i$i").toFastSeq
-    val indices = Array.range(0, st.nDims).toFastSeq
+    val indexVars = ArraySeq.tabulate(st.nDims)(i => s"i$i")
+    val indices = ArraySeq.range(0, st.nDims)
     coiterateMutate(
       cb,
       region,
@@ -1477,8 +1477,8 @@ trait SNDArrayValue extends SValue {
   def _slice(cb: EmitCodeBuilder, indices: IndexedSeq[NDArrayIndex]): SNDArraySliceValue = {
     val shapeX = shapes
     val stridesX = strides
-    val shapeBuilder = mutable.ArrayBuilder.make[SizeValue]
-    val stridesBuilder = mutable.ArrayBuilder.make[Value[Long]]
+    val shapeBuilder = ArraySeq.newBuilder[SizeValue]
+    val stridesBuilder = ArraySeq.newBuilder[Value[Long]]
 
     for (i <- indices.indices) indices(i) match {
       case ScalarIndex(j) =>

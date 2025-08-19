@@ -18,6 +18,7 @@ import is.hail.types.physical.stypes.interfaces.{primitive, SBaseStructValue, SS
 import is.hail.types.physical.stypes.primitives.SInt64
 import is.hail.types.virtual.{TArray, TInt32, TInt64, TStruct, TTuple, TableType, Type}
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 import org.apache.spark.sql.Row
 import org.json4s.{Extraction, JValue}
@@ -63,7 +64,7 @@ class PartitionIteratorLongReader(
     val eltPType = bodyPType(concreteType)
     val uidSType: SStackStruct = SStackStruct(
       TTuple(TInt64, TInt64),
-      Array(EmitType(SInt64, true), EmitType(SInt64, true)),
+      ArraySeq(EmitType(SInt64, true), EmitType(SInt64, true)),
     )
 
     context.toI(cb).map(cb) { case _ctxStruct: SBaseStructValue =>
@@ -116,7 +117,7 @@ class PartitionIteratorLongReader(
               val uid = EmitValue.present(
                 new SStackStructValue(
                   uidSType,
-                  Array(
+                  ArraySeq(
                     EmitValue.present(primitive(partIdx)),
                     EmitValue.present(primitive(rowIdx)),
                   ),

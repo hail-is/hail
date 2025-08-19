@@ -86,7 +86,7 @@ case class LinearRegressionRowsSingle(
     val tableType = typ(mv.typ)
     val rvdType = tableType.canonicalRVDType
 
-    val copiedFieldIndices = (mv.typ.rowKey ++ passThrough).map(fullRowType.fieldIdx(_)).toArray
+    val copiedFieldIndices = (mv.typ.rowKey ++ passThrough).map(fullRowType.fieldIdx(_))
     val nDependentVariables = yFields.length
 
     val sm = ctx.stateManager
@@ -266,7 +266,7 @@ case class LinearRegressionRowsChained(
 
     val tableType = typ(mv.typ)
     val rvdType = tableType.canonicalRVDType
-    val copiedFieldIndices = (mv.typ.rowKey ++ passThrough).map(fullRowType.fieldIdx(_)).toArray
+    val copiedFieldIndices = (mv.typ.rowKey ++ passThrough).map(fullRowType.fieldIdx(_))
 
     val sm = ctx.stateManager
     val newRVD = mv.rvd.mapPartitionsWithContext(
