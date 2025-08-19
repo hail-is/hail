@@ -170,7 +170,7 @@ object CompileIterator {
 
     def next(): java.lang.Long = {
       if (!hasNext)
-        return Iterator.empty.next()
+        return Iterator.empty[Long].next()
       _stepped = false
       stepFunction.loadAddress()
     }

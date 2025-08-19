@@ -2347,7 +2347,7 @@ case class MatrixBlockMatrixWriter(
       StreamLen(paritionIR)
     )
     val inputRowCountPerPartition: IndexedSeq[Int] =
-      CompileAndEvaluate(ctx, rowCountIR).asInstanceOf[IndexedSeq[Int]]
+      CompileAndEvaluate[IndexedSeq[Int]](ctx, rowCountIR)
     val inputPartStartsPlusLast = inputRowCountPerPartition.scanLeft(0L)(_ + _)
     val inputPartStarts = inputPartStartsPlusLast.dropRight(1)
     val inputPartStops = inputPartStartsPlusLast.tail

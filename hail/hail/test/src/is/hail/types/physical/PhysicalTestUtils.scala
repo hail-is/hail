@@ -57,7 +57,7 @@ abstract class PhysicalTestUtils extends HailSuite {
             return succeed
           }
 
-          return fail(e)
+          fail(e)
       }
 
       return succeed
@@ -83,7 +83,7 @@ abstract class PhysicalTestUtils extends HailSuite {
           return succeed
         }
 
-        return fail(e)
+        fail(e)
     }
 
     if (compileSuccess && expectCompileError) {
@@ -104,7 +104,7 @@ abstract class PhysicalTestUtils extends HailSuite {
             return succeed
           }
 
-          return fail(e)
+          fail(e)
       }
 
     log.info(s"Copied value: $copy, Source value: $sourceValue")

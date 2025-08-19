@@ -3261,7 +3261,7 @@ class IRSuite extends HailSuite {
   def valueIRs(ctx: ExecuteContext): Array[Array[Object]] = {
     val fs = ctx.fs
 
-    CompileAndEvaluate(
+    CompileAndEvaluate[Unit](
       ctx,
       invoke(
         "index_bgen",
@@ -3715,7 +3715,7 @@ class IRSuite extends HailSuite {
     try {
       val fs = ctx.fs
 
-      CompileAndEvaluate(
+      CompileAndEvaluate[Unit](
         ctx,
         invoke(
           "index_bgen",
