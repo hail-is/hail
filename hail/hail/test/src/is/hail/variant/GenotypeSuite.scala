@@ -91,7 +91,7 @@ class GenotypeSuite extends TestNGSuite with ScalaCheckDrivenPropertyChecks {
       val alleles = Call.alleles(c)
       c != Call2.fromUnphasedDiploidGtIndex(unphasedGt) &&
       Call.isPhased(c) &&
-      Call.ploidy(c) == 2
+      Call.ploidy(c) == 2 &&
       Call.isDiploid(c) &&
       !Call.isUnphasedDiploid(c) &&
       Call.unphasedDiploidGtIndex(Call2(alleles(0), alleles(1))) == unphasedGt &&
@@ -119,8 +119,8 @@ class GenotypeSuite extends TestNGSuite with ScalaCheckDrivenPropertyChecks {
     assert(Call.parse("|1") == Call1(1, phased = true))
     assert(Call.parse("0/0") == Call2(0, 0))
     assert(Call.parse("0|1") == Call2(0, 1, phased = true))
-    intercept[UnsupportedOperationException](Call.parse("1/1/1"))
-    intercept[UnsupportedOperationException](Call.parse("1|1|1"))
+    assertThrows[UnsupportedOperationException](Call.parse("1/1/1"))
+    assertThrows[UnsupportedOperationException](Call.parse("1|1|1"))
     val he = intercept[HailException](Call.parse("0/"))
     assert(he.msg.contains("invalid call expression"))
   }

@@ -36,8 +36,8 @@ class RegionSuite extends TestNGSuite {
       assert(pool.numFreeRegions() == 0)
       assert(pool.numFreeBlocks() == 0)
 
-      r.allocate(Region.SIZES(Region.REGULAR) - 1)
-      r.allocate(16)
+      r.allocate(Region.SIZES(Region.REGULAR) - 1): Unit
+      r.allocate(16): Unit
       r.clear()
 
       assert(pool.numRegions() == 1)
@@ -180,10 +180,10 @@ class RegionSuite extends TestNGSuite {
   @Test def largeChunksAreNotReturnedToBlockPool(): scalatest.Assertion = {
     using(RegionPool(strictMemoryCheck = true)) { pool =>
       val region = pool.getRegion(Region.REGULAR)
-      region.allocate(4, Region.SIZES(Region.REGULAR) - 4)
+      region.allocate(4, Region.SIZES(Region.REGULAR) - 4): Unit
 
       assert(pool.numFreeBlocks() == 0)
-      region.allocate(4, 1024 * 1024)
+      region.allocate(4, 1024 * 1024): Unit
       region.invalidate()
       assert(pool.numFreeBlocks() == 1)
     }

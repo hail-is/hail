@@ -3,7 +3,6 @@ package is.hail
 import is.hail.annotations.ExtendedOrdering
 import is.hail.expr.ir.ByteArrayBuilder
 import is.hail.io.fs.{FS, FileListEntry}
-import is.hail.macros.void
 
 import scala.collection.{mutable, GenTraversableOnce, TraversableOnce}
 import scala.collection.compat._
@@ -466,7 +465,7 @@ package object utils
     var count = 0L
     while (iterator.hasNext) {
       count += 1L
-      iterator.next()
+      iterator.next(): Unit
     }
     count
   }
@@ -475,7 +474,7 @@ package object utils
     var count = 0L
     while (iterator.hasNext && count < max) {
       count += 1L
-      iterator.next()
+      iterator.next(): Unit
     }
     count
   }
@@ -808,7 +807,7 @@ package object utils
     val m = mutable.Map[K, V]()
     while (it.hasNext) {
       val t = it.next
-      m.put(key(t), value(t))
+      m.update(key(t), value(t))
     }
     m
   }
@@ -1084,14 +1083,12 @@ class CancellingExecutorService(delegate: ExecutorService) extends AbstractExecu
     @volatile private[this] var isFailed = false
 
     override def run(): Unit =
-      void {
         try set(f())
         catch {
           case NonFatal(e) =>
             isFailed = true
             setException(e)
         }
-      }
 
     override def afterDone(): Unit =
       if (isFailed && CancellingExecutorService.this.isCancelled.compareAndSet(false, true)) {
@@ -1101,7 +1098,7 @@ class CancellingExecutorService(delegate: ExecutorService) extends AbstractExecu
 
   final private[this] class CancelledFuture[A] extends AbstractFuture[A] with RunnableFuture[A] {
     override def run(): Unit =
-      void(setException(new CancellationException()))
+      setException(new CancellationException())
   }
 
   override def newTaskFor[T](runnable: Runnable, value: T): RunnableFuture[T] =

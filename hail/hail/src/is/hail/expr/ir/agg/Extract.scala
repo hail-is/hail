@@ -483,7 +483,7 @@ object Extract {
       ref,
       r,
       isScan,
-    )
+    ): Unit
     val (initOps, pAggSigs) = ab.result().unzip
     val rt = TTuple(initOps.map(_.aggSig.resultType): _*)
     ref._typ = rt

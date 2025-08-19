@@ -21,7 +21,7 @@ class ApproxCDFAggregatorSuite extends TestNGSuite {
     val items: Array[Double] = Array(7, 2, 6, 4, 1, 3, 8, 0, 5, 9)
     val compactionCounts: Array[Int] = Array(0, 0, 0)
     val combiner = new ApproxCDFCombiner(levels, items, compactionCounts, 3, rand)
-    combiner.compactLevel(0)
+    combiner.compactLevel(0): Unit
     assert(items.view.slice(1, 10) sameElements Array(2, 7, 1, 3, 6, 8, 0, 5, 9))
   }
 
@@ -32,7 +32,7 @@ class ApproxCDFAggregatorSuite extends TestNGSuite {
     val items: Array[Double] = Array(7, 2, 4, 1, 3, 8, 0, 5, 9)
     val compactionCounts: Array[Int] = Array(0, 0, 0)
     val combiner = new ApproxCDFCombiner(levels, items, compactionCounts, 3, rand)
-    combiner.compactLevel(1)
+    combiner.compactLevel(1): Unit
     assert(items.view.slice(1, 9) sameElements Array(7, 2, 4, 1, 0, 5, 8, 9))
   }
 }

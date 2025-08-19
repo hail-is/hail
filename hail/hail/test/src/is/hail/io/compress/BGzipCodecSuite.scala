@@ -37,7 +37,7 @@ class TestFileInputFormat extends hd.mapreduce.lib.input.TextInputFormat {
     val fileSystem = path.getFileSystem(hConf)
     val blkLocations = fileSystem.getFileBlockLocations(file, 0, length)
 
-    Array.tabulate(splitPoints.length - 1) { i =>
+    Range(0, splitPoints.length - 1).foreach { i =>
       val s = splitPoints(i)
       val e = splitPoints(i + 1)
       val splitSize = e - s

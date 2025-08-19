@@ -3873,10 +3873,10 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testIRConstruction(): scalatest.Assertion = {
-    matrixIRs()
-    tableIRs()
-    valueIRs()
-    blockMatrixIRs()
+    matrixIRs(): Unit
+    tableIRs(): Unit
+    valueIRs(): Unit
+    blockMatrixIRs(): Unit
     scalatest.Succeeded
   }
 
@@ -3913,7 +3913,7 @@ class IRSuite extends HailSuite {
     val bm = BlockMatrixRandom(0, gaussian = true, shape = Array(5L, 6L), blockSize = 3)
     try {
       ctx.local(blockMatrixCache = cache) { ctx =>
-        backend.execute(ctx, BlockMatrixWrite(bm, BlockMatrixPersistWriter("x", "MEMORY_ONLY")))
+        backend.execute(ctx, BlockMatrixWrite(bm, BlockMatrixPersistWriter("x", "MEMORY_ONLY"))): Unit
       }
 
       ctx.local(blockMatrixCache = cache) { ctx =>
@@ -4101,7 +4101,7 @@ class IRSuite extends HailSuite {
   )
 
   @Test def relationalFunctionsRun(): scalatest.Assertion = {
-    relationalFunctionsData(); scalatest.Succeeded
+    relationalFunctionsData(): Unit; scalatest.Succeeded
   }
 
   @Test(dataProvider = "relationalFunctions")

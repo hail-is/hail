@@ -148,7 +148,7 @@ final case class RVDType(rowType: PStruct, key: IndexedSeq[String]) extends Seri
       key.foreachBetween(k => sb ++= prettyIdentifier(k))(sb += ',')
     }
 
-    sb ++= "]],row:" ++= rowType.toString += '}'
+    sb ++= "]],row:" ++= rowType.toString += '}': Unit
 
     sb.result()
   }

@@ -10,14 +10,11 @@ import is.hail.expr.ir.streams.EmitStream
 import is.hail.io.fs.FS
 import is.hail.rvd.RVDContext
 import is.hail.types.physical.{PStruct, PType}
-import is.hail.types.physical.stypes.{
-  PTypeReferenceSingleCodeType, SingleCodeType, StreamSingleCodeType,
-}
+import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeType, StreamSingleCodeType}
 import is.hail.types.physical.stypes.interfaces.{NoBoxLongIterator, SStream}
 import is.hail.utils._
 
 import java.io.PrintWriter
-
 import sourcecode.Enclosing
 
 case class CodeCacheKey(
@@ -169,8 +166,7 @@ object CompileIterator {
     }
 
     def next(): java.lang.Long = {
-      if (!hasNext)
-        return Iterator.empty.next()
+      if (!hasNext) Iterator.empty.next(): Unit // throw
       _stepped = false
       stepFunction.loadAddress()
     }
@@ -242,7 +238,7 @@ object CompileIterator {
 
       cb.if_(
         !didSetup, {
-          optStream.toI(cb).getOrAssert(cb) // handle missing, but bound stream producer above
+          optStream.toI(cb).getOrAssert(cb): Unit // handle missing, but bound stream producer above
 
           cb.assign(producer.elementRegion, eltRegionField)
           producer.initialize(cb, outerRegion)

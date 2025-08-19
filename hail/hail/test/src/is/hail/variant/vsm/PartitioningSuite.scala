@@ -34,7 +34,7 @@ class PartitioningSuite extends HailSuite {
       ctx,
       optimize = false,
     )
-      .rvd.count()
+      .rvd.count(): Unit
     succeed
   }
 }

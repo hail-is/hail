@@ -389,7 +389,7 @@ class MatrixIRSuite extends HailSuite {
     val range = rangeMatrix(10, 2, None)
     val path1 = ctx.createTmpPath("test1")
     val path2 = ctx.createTmpPath("test2")
-    intercept[HailException] {
+    assertThrows[HailException] {
       TypeCheck(
         ctx,
         MatrixMultiWrite(FastSeq(vcf, range), MatrixNativeMultiWriter(IndexedSeq(path1, path2))),

@@ -252,7 +252,7 @@ object PType {
     : Option[(HailClassLoader) => AsmFunction2RegionLongLong] = {
     def canonicalPath(pt: PType, path: List[String]): PType = {
       if (path.isEmpty) {
-        PType.canonical(pt)
+        return PType.canonical(pt)
       }
 
       val head :: tail = path

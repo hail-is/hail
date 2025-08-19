@@ -1,7 +1,6 @@
 package is.hail.services
 
 import is.hail.expr.ir.ByteArrayBuilder
-import is.hail.macros.void
 import is.hail.services.BatchClient.{
   BunchMaxSizeBytes, JarSpecSerializer, JobGroupResponseDeserializer, JobGroupStateDeserializer,
   JobListEntryDeserializer, JobProcessRequestSerializer, JobStateDeserializer,
@@ -346,7 +345,7 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
       req.post(
         s"/api/v1alpha/batches/$batchId/updates/$updateId/jobs/create",
         new ByteArrayEntity(buff.result(), APPLICATION_JSON),
-      )
+      ): Unit
       buff.clear()
       sym = "["
     }
@@ -402,10 +401,9 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
       }
 
   private[this] def commitUpdate(batchId: Int, updateId: Int): Unit =
-    void(req.patch(s"/api/v1alpha/batches/$batchId/updates/$updateId/commit"))
+    req.patch(s"/api/v1alpha/batches/$batchId/updates/$updateId/commit"): Unit
 
   private[this] def createJobGroup(updateId: Int, jobGroup: JobGroupRequest): Unit =
-    void {
       req.post(
         s"/api/v1alpha/batches/${jobGroup.batch_id}/updates/$updateId/job-groups/create",
         JArray(List(
@@ -418,7 +416,5 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
             "attributes" -> Extraction.decompose(jobGroup.attributes),
           )
         )),
-      )
-    }
-
+      ): Unit
 }

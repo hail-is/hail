@@ -77,7 +77,7 @@ class IndexBTreeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     IndexBTree.write(index, idxFile, fs)
     val btree = new IndexBTree(idxFile, fs)
 
-    intercept[IllegalArgumentException] {
+    assertThrows[IllegalArgumentException] {
       btree.queryIndex(-5)
     }
 

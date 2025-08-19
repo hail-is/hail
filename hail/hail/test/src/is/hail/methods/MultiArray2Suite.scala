@@ -9,27 +9,27 @@ class MultiArray2Suite extends HailSuite {
   @Test def test() = {
 
     // test multiarray of size 0 will be created
-    MultiArray2.fill[Int](0, 0)(0)
+    MultiArray2.fill[Int](0, 0)(0): Unit
 
     // test multiarray of size 0 that apply nothing out
-    intercept[IllegalArgumentException] {
+    assertThrows[IllegalArgumentException] {
       val ma0 = MultiArray2.fill[Int](0, 0)(0)
       ma0(0, 0)
     }
 
     // test array index out of bounds on row slice
-    intercept[ArrayIndexOutOfBoundsException] {
+    assertThrows[ArrayIndexOutOfBoundsException] {
       val foo = MultiArray2.fill[Int](5, 5)(0)
       foo.row(0)(5)
     }
 
     // bad multiarray initiation -- negative number
-    intercept[IllegalArgumentException] {
+    assertThrows[IllegalArgumentException] {
       MultiArray2.fill[Int](-5, 5)(0)
     }
 
     // bad multiarray initiation -- negative number
-    intercept[IllegalArgumentException] {
+    assertThrows[IllegalArgumentException] {
       MultiArray2.fill[Int](5, -5)(0)
     }
 
@@ -40,7 +40,7 @@ class MultiArray2Suite extends HailSuite {
     assert(ma1(6, 1) == 6)
 
     // Catch exception if try to apply value that is not in indices of multiarray
-    intercept[IllegalArgumentException] {
+    assertThrows[IllegalArgumentException] {
       ma1(100, 100)
     }
 
@@ -69,28 +69,28 @@ class MultiArray2Suite extends HailSuite {
     }
       assert(row(idx) == ((row.i * idx, "foo")))
 
-    intercept[IllegalArgumentException] {
+    assertThrows[IllegalArgumentException] {
       ma5.row(100)
     }
 
-    intercept[ArrayIndexOutOfBoundsException] {
+    assertThrows[ArrayIndexOutOfBoundsException] {
       val x = ma5.row(0)
       x(100)
     }
 
-    intercept[IllegalArgumentException] {
+    assertThrows[IllegalArgumentException] {
       ma5.row(-5)
     }
 
-    intercept[IllegalArgumentException] {
+    assertThrows[IllegalArgumentException] {
       ma5.column(100)
     }
 
-    intercept[IllegalArgumentException] {
+    assertThrows[IllegalArgumentException] {
       ma5.column(-5)
     }
 
-    intercept[ArrayIndexOutOfBoundsException] {
+    assertThrows[ArrayIndexOutOfBoundsException] {
       val x = ma5.column(0)
       x(100)
     }

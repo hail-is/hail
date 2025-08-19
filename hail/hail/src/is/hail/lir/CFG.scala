@@ -1,7 +1,5 @@
 package is.hail.lir
 
-import is.hail.macros.void
-
 import scala.collection.mutable
 
 object CFG {
@@ -17,8 +15,8 @@ object CFG {
       def edgeTo(L: Block): Unit = {
         val j = blocks.index(L)
 
-        void(succ(i) += j)
-        void(pred(j) += i)
+        succ(i) += j
+        pred(j) += i
       }
 
       b.last match {

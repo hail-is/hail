@@ -107,7 +107,7 @@ class BatchClientSuite extends TestNGSuite {
         ),
       )
     )
-    client.waitForJobGroup(batchId, jobGroupId)
+    client.waitForJobGroup(batchId, jobGroupId): Unit
     forAll(Array(JobStates.Failed, JobStates.Success)) { state =>
       forAll(client.getJobGroupJobs(batchId, jobGroupId, Some(state))) { jobs =>
         assert(jobs.length == 1)

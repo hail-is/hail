@@ -1,6 +1,5 @@
 package is.hail.utils
 
-import is.hail.macros.void
 import is.hail.scalacheck._
 
 import scala.collection.mutable
@@ -361,8 +360,7 @@ class BinaryHeapSuite extends ScalaCheckDrivenPropertyChecks {
       max
     }
 
-    def insert(t: Long, rank: Long): Unit =
-      void(m += (t -> rank))
+    def insert(t: Long, rank: Long): Unit = m += (t -> rank)
   }
 
   @Test
