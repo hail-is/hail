@@ -4,6 +4,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.defs.{Literal, MakeStruct, PartitionReader, ReadPartition, Ref, ToStream}
 import is.hail.expr.ir.functions.StringFunctions
 import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage, TableStageDependency}
@@ -22,7 +23,7 @@ import is.hail.types.virtual._
 import org.json4s.{Extraction, Formats, JValue}
 
 case class StringTableReaderParameters(
-  files: Array[String],
+  files: IndexedSeq[String],
   minPartitions: Option[Int],
   forceBGZ: Boolean,
   forceGZ: Boolean,
@@ -32,7 +33,12 @@ case class StringTableReaderParameters(
 object StringTableReader {
   def apply(fs: FS, params: StringTableReaderParameters): StringTableReader = {
     val fileListEntries = fs.globAll(params.files)
-    checkGzipOfGlobbedFiles(params.files, fileListEntries, params.forceGZ, params.forceBGZ)
+    checkGzipOfGlobbedFiles(
+      params.files,
+      fileListEntries,
+      params.forceGZ,
+      params.forceBGZ,
+    )
     new StringTableReader(params, fileListEntries)
   }
 
@@ -67,7 +73,7 @@ case class StringTablePartitionReader(lines: GenericLines, uidFieldName: String)
 
     val uidSType: SStackStruct = SStackStruct(
       TTuple(TInt64, TInt64),
-      Array(EmitType(SInt64, true), EmitType(SInt64, true)),
+      ArraySeq(EmitType(SInt64, true), EmitType(SInt64, true)),
     )
 
     context.toI(cb).map(cb) { case partitionContext: SBaseStructValue =>
@@ -128,7 +134,7 @@ case class StringTablePartitionReader(lines: GenericLines, uidFieldName: String)
           val uid = EmitValue.present(
             new SStackStructValue(
               uidSType,
-              Array(
+              ArraySeq(
                 EmitValue.present(new SInt64Value(partIdx)),
                 EmitValue.present(new SInt64Value(rowIdx)),
               ),

@@ -49,14 +49,14 @@ class WritableRegionValue private (
 
   def offset: Long = value.offset
 
-  def setSelect(fromT: PStruct, fromFieldIdx: Array[Int], fromRV: RegionValue): Unit =
+  def setSelect(fromT: PStruct, fromFieldIdx: IndexedSeq[Int], fromRV: RegionValue): Unit =
     setSelect(fromT, fromFieldIdx, fromRV.region, fromRV.offset)
 
-  def setSelect(fromT: PStruct, fromFieldIdx: Array[Int], fromRegion: Region, fromOffset: Long)
+  def setSelect(fromT: PStruct, fromFieldIdx: IndexedSeq[Int], fromRegion: Region, fromOffset: Long)
     : Unit =
     setSelect(fromT, fromFieldIdx, fromOffset, region.ne(fromRegion))
 
-  def setSelect(fromT: PStruct, fromFieldIdx: Array[Int], fromOffset: Long, deepCopy: Boolean)
+  def setSelect(fromT: PStruct, fromFieldIdx: IndexedSeq[Int], fromOffset: Long, deepCopy: Boolean)
     : Unit = {
     (t: @unchecked) match {
       case t: PStruct =>
@@ -152,7 +152,7 @@ class RegionValueArrayBuffer(val t: PType, region: Region, sm: HailStateManager)
 
   def appendSelect(
     fromT: PStruct,
-    fromFieldIdx: Array[Int],
+    fromFieldIdx: IndexedSeq[Int],
     fromRV: RegionValue,
   ): this.type = {
 

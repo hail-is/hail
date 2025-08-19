@@ -5,6 +5,7 @@ import is.hail.asm4s._
 import is.hail.asm4s.implicits.valueToRichCodeRegion
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{CodeParamType, EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.linalg.LinalgCodeUtils
 import is.hail.types.VirtualTypeWithReq
@@ -21,9 +22,8 @@ class NDArrayMultiplyAddAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAgg
   private val ndTyp =
     resultEmitType.storageType.asInstanceOf[PCanonicalNDArray] // TODO: Set required false?
 
-  override def initOpTypes: Seq[Type] = Array[Type]()
-
-  override def seqOpTypes: Seq[Type] = Array(ndTyp.virtualType, ndTyp.virtualType)
+  override def initOpTypes: IndexedSeq[Type] = ArraySeq.empty
+  override def seqOpTypes: IndexedSeq[Type] = ArraySeq(ndTyp.virtualType, ndTyp.virtualType)
 
   val ndarrayFieldNumber = 0
 

@@ -1,6 +1,7 @@
 package is.hail.io.bgen
 
 import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.PruneDeadFields
 import is.hail.io._
 import is.hail.rvd.AbstractIndexSpec
@@ -142,7 +143,7 @@ case class BgenSettings(
 
   val rowPType: PCanonicalStruct = PCanonicalStruct(
     required = true,
-    Array(
+    ArraySeq(
       "locus" -> PCanonicalLocus.schemaFromRG(rg, required = false),
       "alleles" -> PCanonicalArray(PCanonicalString(false), false),
       "rsid" -> PCanonicalString(),
@@ -150,7 +151,7 @@ case class BgenSettings(
       "offset" -> PInt64(),
       "file_idx" -> PInt32(),
       MatrixType.entriesIdentifier -> PCanonicalArray(PCanonicalStruct(
-        Array(
+        ArraySeq(
           "GT" -> PCanonicalCall(),
           "GP" -> PCanonicalArray(PFloat64Required, required = true),
           "dosage" -> PFloat64Required,
@@ -166,7 +167,7 @@ case class BgenSettings(
   )
 
   val indexKeyType: PStruct =
-    rowPType.selectFields(Array("locus", "alleles")).setRequired(false).asInstanceOf[PStruct]
+    rowPType.selectFields(ArraySeq("locus", "alleles")).setRequired(false).asInstanceOf[PStruct]
 
   def hasField(name: String): Boolean = requestedType.rowType.hasField(name)
 

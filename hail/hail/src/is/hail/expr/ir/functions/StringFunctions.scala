@@ -3,6 +3,7 @@ package is.hail.expr.ir.functions
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.collection.{FastSeq, StringArrayBuilder}
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir._
 import is.hail.expr.ir.defs._
@@ -782,11 +783,11 @@ object StringFunctions extends RegistryFunctions {
 
     registerSCode(
       "parse_json",
-      Array(TString),
+      ArraySeq(TString),
       TTuple(tv("T")),
       (rType: Type, _: Seq[SType]) => SType.canonical(rType),
-      typeParameters = Array(tv("T")),
-    ) { case (r, cb, _, resultType, Array(s: SStringValue), _) =>
+      typeParameters = ArraySeq(tv("T")),
+    ) { case (r, cb, _, resultType, Seq(s: SStringValue), _) =>
       val warnCtx = cb.emb.genFieldThisRef[mutable.HashSet[String]]("parse_json_context")
       cb.if_(warnCtx.load().isNull, cb.assign(warnCtx, Code.newInstance[mutable.HashSet[String]]()))
 

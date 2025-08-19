@@ -3,6 +3,7 @@ package is.hail.io
 import is.hail.{ExecStrategy, HailSuite}
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.defs.{I64, MakeStruct, ReadPartition, Str, ToArray}
 import is.hail.io.avro.AvroPartitionReader
 import is.hail.utils.{fatal, using}
@@ -65,7 +66,7 @@ class AvroReaderSuite extends HailSuite {
   @Test def avroReaderWorks(): Unit = {
     val avroFile = makeTestFile()
     val ir = ToArray(ReadPartition(
-      MakeStruct(Array("partitionPath" -> Str(avroFile), "partitionIndex" -> I64(0))),
+      MakeStruct(ArraySeq("partitionPath" -> Str(avroFile), "partitionIndex" -> I64(0))),
       partitionReader.fullRowType,
       partitionReader,
     ))
@@ -78,7 +79,7 @@ class AvroReaderSuite extends HailSuite {
   @Test def testSmallerRequestedType(): Unit = {
     val avroFile = makeTestFile()
     val ir = ToArray(ReadPartition(
-      MakeStruct(Array("partitionPath" -> Str(avroFile), "partitionIndex" -> I64(0))),
+      MakeStruct(ArraySeq("partitionPath" -> Str(avroFile), "partitionIndex" -> I64(0))),
       partitionReader.fullRowType.typeAfterSelect(FastSeq(0, 2, 4)),
       partitionReader,
     ))

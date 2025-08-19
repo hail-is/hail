@@ -5,6 +5,7 @@ import is.hail.asm4s._
 import is.hail.asm4s.implicits.valueToRichCodeRegion
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.types.physical._
@@ -136,8 +137,8 @@ class CallStatsAggregator extends StagedAggregator {
   val resultEmitType: EmitType = EmitType(SBaseStructPointer(CallStatsState.resultPType), true)
   val resultStorageType = resultEmitType.storageType.asInstanceOf[PBaseStruct]
 
-  val initOpTypes: Seq[Type] = FastSeq(TInt32)
-  val seqOpTypes: Seq[Type] = FastSeq(TCall)
+  val initOpTypes: IndexedSeq[Type] = ArraySeq(TInt32)
+  val seqOpTypes: IndexedSeq[Type] = ArraySeq(TCall)
 
   override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     val Array(nAlleles) = init

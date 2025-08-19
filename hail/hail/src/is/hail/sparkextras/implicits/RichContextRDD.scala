@@ -97,7 +97,7 @@ class RichContextRDD[T](val crdd: ContextRDD[T]) extends AnyVal {
     stageLocally: Boolean,
     mkIdxWriter: (String, RegionPool) => IndexWriter,
     write: (RVDContext, Iterator[T], OutputStream, IndexWriter) => (Long, Long),
-  ): Array[FileWriteMetadata] = {
+  ): IndexedSeq[FileWriteMetadata] = {
     val localTmpdir = ctx.localTmpdir
     val fs = ctx.fs
 

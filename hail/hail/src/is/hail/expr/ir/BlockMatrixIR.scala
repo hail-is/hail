@@ -60,7 +60,7 @@ sealed abstract class BlockMatrixIR extends BaseIR {
 case class BlockMatrixRead(reader: BlockMatrixReader) extends BlockMatrixIR {
   override lazy val typ: BlockMatrixType = reader.fullType
 
-  lazy val childrenSeq: IndexedSeq[BaseIR] = Array.empty[BlockMatrixIR]
+  lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq.empty
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): BlockMatrixRead = {
     assert(newChildren.isEmpty)
@@ -127,7 +127,7 @@ class BlockMatrixNativeReader(
   val params: BlockMatrixNativeReaderParameters,
   val metadata: BlockMatrixMetadata,
 ) extends BlockMatrixReader {
-  override def pathsUsed: Seq[String] = Array(params.path)
+  override def pathsUsed: Seq[String] = ArraySeq(params.path)
 
   lazy val fullType: BlockMatrixType = {
     val sparsity = MatrixSparsity.fromLinearCoords(
@@ -196,7 +196,7 @@ class BlockMatrixNativeReader(
 
 case class BlockMatrixBinaryReader(path: String, shape: IndexedSeq[Long], blockSize: Int)
     extends BlockMatrixReader {
-  override def pathsUsed: Seq[String] = Array(path)
+  override def pathsUsed: Seq[String] = ArraySeq(path)
 
   val IndexedSeq(nRows, nCols) = shape
   BlockMatrixIR.checkFitsIntoArray(nRows, nCols)
@@ -268,7 +268,7 @@ case class BlockMatrixMap(child: BlockMatrixIR, eltName: Name, f: IR, needsDense
     extends BlockMatrixIR {
   override def typ: BlockMatrixType = child.typ
 
-  lazy val childrenSeq: IndexedSeq[BaseIR] = Array(child, f)
+  lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child, f)
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): BlockMatrixMap = {
     val IndexedSeq(newChild: BlockMatrixIR, newF: IR) = newChildren
@@ -403,7 +403,7 @@ case class BlockMatrixMap2(
   override lazy val typ: BlockMatrixType =
     left.typ.copy(sparsity = sparsityStrategy.mergeSparsity(left.typ.sparsity, right.typ.sparsity))
 
-  lazy val childrenSeq: IndexedSeq[BaseIR] = Array(left, right, f)
+  lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(left, right, f)
 
   val blockCostIsLinear: Boolean = left.blockCostIsLinear && right.blockCostIsLinear
 
@@ -546,7 +546,7 @@ case class BlockMatrixDot(left: BlockMatrixIR, right: BlockMatrixIR)
     BlockMatrixType(left.typ.elementType, left.typ.nRows, right.typ.nCols, blockSize, sparsity)
   }
 
-  lazy val childrenSeq: IndexedSeq[BaseIR] = Array(left, right)
+  lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(left, right)
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): BlockMatrixDot = {
     assert(newChildren.length == 2)
@@ -628,7 +628,7 @@ case class BlockMatrixBroadcast(
     BlockMatrixType(child.typ.elementType, nRows, nCols, blockSize, sparsity)
   }
 
-  lazy val childrenSeq: IndexedSeq[BaseIR] = Array(child)
+  lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child)
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR])
     : BlockMatrixBroadcast = {
@@ -708,7 +708,7 @@ case class BlockMatrixAgg(
     BlockMatrixType(child.typ.elementType, nRows, nCols, child.typ.blockSize, sparsity)
   }
 
-  lazy val childrenSeq: IndexedSeq[BaseIR] = Array(child)
+  lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child)
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): BlockMatrixAgg = {
     assert(newChildren.length == 1)
@@ -729,30 +729,23 @@ case class BlockMatrixAgg(
 
 case class BlockMatrixFilter(
   child: BlockMatrixIR,
-  indices: Array[Array[Long]],
+  indices: IndexedSeq[IndexedSeq[Long]],
 ) extends BlockMatrixIR {
 
   assert(indices.length == 2)
 
   val blockCostIsLinear: Boolean = child.blockCostIsLinear
-  private[this] val Array(keepRow, keepCol) = indices
+  private[this] val Seq(keepRow, keepCol) = indices
 
   override lazy val typ: BlockMatrixType = {
     val blockSize = child.typ.blockSize
-    val keepRowPartitioned: IndexedSeq[IndexedSeq[Long]] =
-      keepRow.grouped(blockSize).map(_.to(ArraySeq)).to(ArraySeq)
-    val keepColPartitioned: IndexedSeq[IndexedSeq[Long]] =
-      keepCol.grouped(blockSize).map(_.to(ArraySeq)).to(ArraySeq)
+    val keepRowPartitioned: IndexedSeq[IndexedSeq[Long]] = keepRow.grouped(blockSize).to(ArraySeq)
+    val keepColPartitioned: IndexedSeq[IndexedSeq[Long]] = keepCol.grouped(blockSize).to(ArraySeq)
 
-    val rowBlockDependents: IndexedSeq[IndexedSeq[Int]] = if (keepRowPartitioned.isEmpty)
-      ArraySeq.tabulate(child.typ.nRowBlocks)(i => ArraySeq(i))
-    else
-      BlockMatrixType.getBlockDependencies(keepRowPartitioned, blockSize)
-
-    val colBlockDependents: IndexedSeq[IndexedSeq[Int]] = if (keepColPartitioned.isEmpty)
-      ArraySeq.tabulate(child.typ.nColBlocks)(i => ArraySeq(i))
-    else
-      BlockMatrixType.getBlockDependencies(keepColPartitioned, blockSize)
+    val rowBlockDependents: IndexedSeq[IndexedSeq[Int]] =
+      child.typ.rowBlockDependents(keepRowPartitioned)
+    val colBlockDependents: IndexedSeq[IndexedSeq[Int]] =
+      child.typ.colBlockDependents(keepColPartitioned)
 
     val nRows = if (keepRow.isEmpty) child.typ.nRows else keepRow.length.toLong
     val nCols = if (keepCol.isEmpty) child.typ.nCols else keepCol.length.toLong
@@ -761,7 +754,7 @@ case class BlockMatrixFilter(
     BlockMatrixType(child.typ.elementType, nRows, nCols, blockSize, sparsity)
   }
 
-  override def childrenSeq: IndexedSeq[BaseIR] = Array(child)
+  override def childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child)
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): BlockMatrixFilter = {
     assert(newChildren.length == 1)
@@ -851,7 +844,7 @@ case class RowIntervalSparsifier(
   }
 
   override def sparsify(ctx: ExecuteContext, bm: BlockMatrix): BlockMatrix =
-    bm.filterRowIntervals(ctx, starts.toArray, stops.toArray, blocksOnly)
+    bm.filterRowIntervals(ctx, starts, stops, blocksOnly)
 
   override def pretty(): String =
     s"(RowIntervalSparsifier ${Pretty.prettyBooleanLiteral(blocksOnly)} ${starts.mkString("(", " ", ")")} ${stops.mkString("(", " ", ")")})"
@@ -879,7 +872,7 @@ case class RectangleSparsifier(rectangles: IndexedSeq[IndexedSeq[Long]])
   }
 
   override def sparsify(ctx: ExecuteContext, bm: BlockMatrix): BlockMatrix =
-    bm.filterRectangles(rectangles.flatten.toArray)
+    bm.filterRectangles(rectangles.flatten)
 
   override def pretty(): String =
     s"(RectangleSparsifier ${rectangles.flatten.mkString("(", " ", ")")})"
@@ -897,7 +890,7 @@ case class PerBlockSparsifier(blocks: IndexedSeq[Int]) extends BlockMatrixSparsi
     }
 
   override def sparsify(ctx: ExecuteContext, bm: BlockMatrix): BlockMatrix =
-    bm.filterBlocks(blocks.toArray)
+    bm.filterBlocks(blocks)
 
   override def pretty(): String = s"(PerBlockSparsifier with blocks $blocks)"
 }
@@ -911,7 +904,7 @@ case class BlockMatrixSparsify(
 
   override def blockCostIsLinear: Boolean = child.blockCostIsLinear
 
-  val childrenSeq: IndexedSeq[BaseIR] = Array(child)
+  val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child)
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): BlockMatrixIR = {
     val IndexedSeq(newChild: BlockMatrixIR) = newChildren
@@ -954,7 +947,7 @@ case class BlockMatrixSlice(child: BlockMatrixIR, slices: IndexedSeq[IndexedSeq[
     BlockMatrixType(child.typ.elementType, nRows, nCols, child.typ.blockSize, sparsity)
   }
 
-  override def childrenSeq: IndexedSeq[BaseIR] = Array(child)
+  override def childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child)
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): BlockMatrixIR = {
     assert(newChildren.length == 1)
@@ -969,11 +962,11 @@ case class BlockMatrixSlice(child: BlockMatrixIR, slices: IndexedSeq[IndexedSeq[
     }
 
     if (isFullRange(rowKeep, child.typ.nRows)) {
-      bm.filterCols(colKeep.toArray)
+      bm.filterCols(colKeep)
     } else if (isFullRange(colKeep, child.typ.nCols)) {
-      bm.filterRows(rowKeep.toArray)
+      bm.filterRows(rowKeep)
     } else {
-      bm.filter(rowKeep.toArray, colKeep.toArray)
+      bm.filter(rowKeep, colKeep)
     }
   }
 
@@ -1000,7 +993,7 @@ case class ValueToBlockMatrix(
       case _ => childType
     }
 
-  lazy val childrenSeq: IndexedSeq[BaseIR] = Array(child)
+  lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child)
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR])
     : ValueToBlockMatrix = {
@@ -1049,7 +1042,7 @@ case class BlockMatrixRandom(
   override lazy val typ: BlockMatrixType =
     BlockMatrixType.dense(TFloat64, shape(0), shape(1), blockSize)
 
-  lazy val childrenSeq: IndexedSeq[BaseIR] = Array.empty[BaseIR]
+  lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq.empty
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): BlockMatrixRandom = {
     assert(newChildren.isEmpty)

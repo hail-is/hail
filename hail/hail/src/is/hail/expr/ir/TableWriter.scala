@@ -6,6 +6,7 @@ import is.hail.asm4s._
 import is.hail.asm4s.implicits.{valueToRichCodeOutputBuffer, valueToRichCodeRegion}
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.ir.defs._
@@ -95,7 +96,7 @@ object TableNativeWriter {
         val d = digitsNeeded(ts.numPartitions)
         val partFiles = Literal(
           TArray(TString),
-          Array.tabulate(ts.numPartitions)(i => s"${partFile(d, i)}-").toFastSeq,
+          ArraySeq.tabulate(ts.numPartitions)(i => s"${partFile(d, i)}-"),
         )
 
         zip2(oldCtx, ToStream(partFiles), ArrayZipBehavior.AssertSameLength) { (ctxElt, pf) =>
@@ -220,7 +221,7 @@ case class PartitionNativeWriter(
     streamType: RIterable,
   ): Unit = {
     val rs = r.asInstanceOf[RStruct]
-    val rKeyType = streamType.elementType.asInstanceOf[RStruct].select(keyFields.toArray)
+    val rKeyType = streamType.elementType.asInstanceOf[RStruct].select(keyFields)
     rs.field("firstKey").union(false)
     rs.field("firstKey").unionFrom(rKeyType)
     rs.field("lastKey").union(false)
@@ -460,7 +461,7 @@ class TableSpecHelper(
       Map(
         "globals" -> RVDComponentSpec(globalRelPath),
         "rows" -> RVDComponentSpec(rowRelPath),
-        "partition_counts" -> PartitionCountsComponentSpec(partCounts),
+        "partition_counts" -> PartitionCountsComponentSpec(ArraySeq.unsafeWrapArray(partCounts)),
         "properties" -> PropertiesSpec(JObject(
           "distinctlyKeyed" -> JBool(distinctlyKeyed)
         )),
@@ -721,7 +722,7 @@ case class TableTextWriter(
       val d = digitsNeeded(ts.numPartitions)
       val partFiles = Literal(
         TArray(TString),
-        Array.tabulate(ts.numPartitions)(i => s"$folder/${partFile(d, i)}-").toFastSeq,
+        ArraySeq.tabulate(ts.numPartitions)(i => s"$folder/${partFile(d, i)}-"),
       )
 
       zip2(oldCtx, ToStream(partFiles), ArrayZipBehavior.AssertSameLength) { (ctxElt, pf) =>
@@ -993,14 +994,14 @@ case class TableNativeFanoutWriter(
           PartitionNativeWriter(globalSpec, IndexedSeq(), s"$targetPath/globals/parts/", None, None)
         new FanoutWriterTarget(field, targetPath, rowSpec, keyPType, tableType, rowWriter,
           globalWriter)
-      }.toFastSeq
+      }
     }
 
     val writeTables = ts.mapContexts { oldCtx =>
       val d = digitsNeeded(ts.numPartitions)
       val partFiles = Literal(
         TArray(TString),
-        Array.tabulate(ts.numPartitions)(i => s"${partFile(d, i)}-").toFastSeq,
+        ArraySeq.tabulate(ts.numPartitions)(i => s"${partFile(d, i)}-"),
       )
 
       zip2(oldCtx, ToStream(partFiles), ArrayZipBehavior.AssertSameLength) { (ctxElt, pf) =>
@@ -1064,7 +1065,7 @@ case class TableNativeFanoutWriter(
               ),
             ),
           ))
-        }.toFastSeq)
+        })
       }
     }
 

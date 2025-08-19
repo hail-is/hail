@@ -1,6 +1,7 @@
 package is.hail.expr.ir.functions
 
 import is.hail.asm4s.Code
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.types.physical.{PCanonicalArray, PInt32}
 import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.concrete.{SCanonicalCall, SIndexablePointer}
@@ -29,8 +30,8 @@ object CallFunctions extends RegistryFunctions {
           Code.invokeScalaObject[Int](
             Call0.getClass,
             "apply",
-            Array(classTag[Boolean].runtimeClass),
-            Array(phased.asBoolean.value),
+            ArraySeq(classTag[Boolean].runtimeClass),
+            ArraySeq(phased.asBoolean.value),
           ),
         )
     }
@@ -48,8 +49,8 @@ object CallFunctions extends RegistryFunctions {
           Code.invokeScalaObject[Int](
             Call1.getClass,
             "apply",
-            Array(classTag[Int].runtimeClass, classTag[Boolean].runtimeClass),
-            Array(a1.asInt.value, phased.asBoolean.value),
+            ArraySeq(classTag[Int].runtimeClass, classTag[Boolean].runtimeClass),
+            ArraySeq(a1.asInt.value, phased.asBoolean.value),
           ),
         )
     }
@@ -68,12 +69,12 @@ object CallFunctions extends RegistryFunctions {
           Code.invokeScalaObject[Int](
             Call2.getClass,
             "apply",
-            Array(
+            ArraySeq(
               classTag[Int].runtimeClass,
               classTag[Int].runtimeClass,
               classTag[Boolean].runtimeClass,
             ),
-            Array(a1.asInt.value, a2.asInt.value, phased.asBoolean.value),
+            ArraySeq(a1.asInt.value, a2.asInt.value, phased.asBoolean.value),
           ),
         )
     }
@@ -90,8 +91,8 @@ object CallFunctions extends RegistryFunctions {
           Code.invokeScalaObject[Int](
             Call2.getClass,
             "fromUnphasedDiploidGtIndex",
-            Array(classTag[Int].runtimeClass),
-            Array(x.asInt.value),
+            ArraySeq(classTag[Int].runtimeClass),
+            ArraySeq(x.asInt.value),
           ),
         )
     }
@@ -114,8 +115,8 @@ object CallFunctions extends RegistryFunctions {
           primitive(cb.memoize(Code.invokeScalaObject[Boolean](
             Call.getClass,
             q,
-            Array(classTag[Int].runtimeClass),
-            Array(call.asCall.canonicalCall(cb)),
+            ArraySeq(classTag[Int].runtimeClass),
+            ArraySeq(call.asCall.canonicalCall(cb)),
           )))
       }
 
@@ -124,8 +125,8 @@ object CallFunctions extends RegistryFunctions {
         primitive(cb.memoize(Code.invokeScalaObject[Int](
           Call.getClass,
           "ploidy",
-          Array(classTag[Int].runtimeClass),
-          Array(call.asCall.canonicalCall(cb)),
+          ArraySeq(classTag[Int].runtimeClass),
+          ArraySeq(call.asCall.canonicalCall(cb)),
         )))
     }
 
@@ -150,8 +151,8 @@ object CallFunctions extends RegistryFunctions {
         primitive(cb.memoize(Code.invokeScalaObject[Int](
           Call.getClass,
           "nNonRefAlleles",
-          Array(classTag[Int].runtimeClass),
-          Array(call.asCall.canonicalCall(cb)),
+          ArraySeq(classTag[Int].runtimeClass),
+          ArraySeq(call.asCall.canonicalCall(cb)),
         )))
     }
 
@@ -160,8 +161,8 @@ object CallFunctions extends RegistryFunctions {
         primitive(cb.memoize(Code.invokeScalaObject[Int](
           Call.getClass,
           "unphasedDiploidGtIndex",
-          Array(classTag[Int].runtimeClass),
-          Array(call.asCall.canonicalCall(cb)),
+          ArraySeq(classTag[Int].runtimeClass),
+          ArraySeq(call.asCall.canonicalCall(cb)),
         )))
     }
 
@@ -170,8 +171,8 @@ object CallFunctions extends RegistryFunctions {
         primitive(cb.memoize(Code.invokeScalaObject[Int](
           Call.getClass,
           "alleleByIndex",
-          Array(classTag[Int].runtimeClass, classTag[Int].runtimeClass),
-          Array(call.asCall.canonicalCall(cb), idx.asInt.value),
+          ArraySeq(classTag[Int].runtimeClass, classTag[Int].runtimeClass),
+          ArraySeq(call.asCall.canonicalCall(cb), idx.asInt.value),
         )))
     }
 
@@ -188,8 +189,8 @@ object CallFunctions extends RegistryFunctions {
           Code.invokeScalaObject[Int](
             Call.getClass,
             "downcode",
-            Array(classTag[Int].runtimeClass, classTag[Int].runtimeClass),
-            Array(call.asCall.canonicalCall(cb), downcodedAllele.asInt.value),
+            ArraySeq(classTag[Int].runtimeClass, classTag[Int].runtimeClass),
+            ArraySeq(call.asCall.canonicalCall(cb), downcodedAllele.asInt.value),
           ),
         )
     }

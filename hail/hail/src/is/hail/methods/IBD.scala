@@ -3,6 +3,7 @@ package is.hail.methods
 import is.hail.annotations._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichOption
 import is.hail.expr.ir._
 import is.hail.expr.ir.functions.MatrixToTableFunction
@@ -338,7 +339,7 @@ object IBD {
   private val ibdPType =
     PCanonicalStruct(
       required = true,
-      Array(
+      ArraySeq(
         ("i", PCanonicalString()),
         ("j", PCanonicalString()),
       ) ++ ExtendedIBDInfo.pType.fields.map(f => (f.name, f.typ)): _*

@@ -2,7 +2,8 @@ package is.hail.types.physical
 
 import is.hail.annotations.{Annotation, Region}
 import is.hail.backend.HailStateManager
-import is.hail.collection.implicits.toRichIterable
+import is.hail.collection.compat.immutable.ArraySeq
+import is.hail.collection.implicits._
 import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerValue}
 import is.hail.types.physical.stypes.interfaces.SIndexableValue
 import is.hail.types.virtual.{TSet, Type}
@@ -37,9 +38,10 @@ final case class PCanonicalSet(elementType: PType, required: Boolean = false)
 
   override def unstagedStoreJavaObject(sm: HailStateManager, annotation: Annotation, region: Region)
     : Long = {
-    val s: IndexedSeq[Annotation] = annotation.asInstanceOf[Set[Annotation]]
-      .toFastSeq
-      .sorted(elementType.virtualType.ordering(sm).toOrdering)
+    val s: IndexedSeq[Annotation] = ArraySeq.sorted(annotation.asInstanceOf[Set[Annotation]])(
+      implicitly,
+      elementType.virtualType.ordering(sm).toOrdering,
+    )
     arrayRep.unstagedStoreJavaObject(sm, s, region)
   }
 

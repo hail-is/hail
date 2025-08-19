@@ -2,6 +2,7 @@ package is.hail.expr
 
 import is.hail.asm4s._
 import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.functions.IRFunctionRegistry
@@ -56,10 +57,10 @@ package object ir {
     invoke(name, rt, typeArgs, ErrorIDs.NO_ERROR, args: _*)
 
   def invoke(name: String, rt: Type, args: IR*): IR =
-    invoke(name, rt, Array.empty[Type], ErrorIDs.NO_ERROR, args: _*)
+    invoke(name, rt, ArraySeq.empty, ErrorIDs.NO_ERROR, args: _*)
 
   def invoke(name: String, rt: Type, errorID: Int, args: IR*): IR =
-    invoke(name, rt, Array.empty[Type], errorID, args: _*)
+    invoke(name, rt, ArraySeq.empty, errorID, args: _*)
 
   implicit def irToPrimitiveIR(ir: IR): PrimitiveIR = new PrimitiveIR(ir)
 
@@ -164,12 +165,12 @@ package object ir {
     result: IndexedSeq[Ref] => IR
   ): IR = {
     val elt = Ref(freshName(), tcoerce[TStream](stream.typ).elementType)
-    val accums = inits.map(i => Ref(freshName(), i.typ)).toFastSeq
+    val accums = inits.toFastSeq.map(i => Ref(freshName(), i.typ))
     StreamFold2(
       stream,
       accums.lazyZip(inits).map((acc, i) => (acc.name, i)),
       elt.name,
-      seqs.map(f => f(elt, accums)).toFastSeq,
+      seqs.toFastSeq.map(f => f(elt, accums)),
       result(accums),
     )
   }
@@ -249,9 +250,9 @@ package object ir {
   def rangeIR(start: IR, stop: IR): IR = StreamRange(start, stop, 1)
 
   def insertIR(old: IR, fields: (String, IR)*): InsertFields =
-    InsertFields(old, fields.toArray[(String, IR)])
+    InsertFields(old, fields.toFastSeq)
 
-  def selectIR(old: IR, fields: String*): SelectFields = SelectFields(old, fields.toArray[String])
+  def selectIR(old: IR, fields: String*): SelectFields = SelectFields(old, fields.toFastSeq)
 
   def zip2(s1: IR, s2: IR, behavior: ArrayZipBehavior.ArrayZipBehavior)(f: (Ref, Ref) => IR): IR = {
     val r1 = Ref(freshName(), tcoerce[TStream](s1.typ).elementType)
@@ -297,10 +298,10 @@ package object ir {
     BlockMatrixMap(bm, ref.name, f(ref), needsDense)
   }
 
-  def makestruct(fields: (String, IR)*): MakeStruct = MakeStruct(fields.toArray[(String, IR)])
+  def makestruct(fields: (String, IR)*): MakeStruct = MakeStruct(fields.toFastSeq)
 
   def maketuple(fields: IR*): MakeTuple =
-    MakeTuple(fields.toArray.zipWithIndex.map { case (field, idx) => (idx, field) })
+    MakeTuple(fields.toFastSeq.zipWithIndex.map { case (field, idx) => (idx, field) })
 
   def aggBindIR(v: IR, isScan: Boolean = false)(body: Ref => IR): IR = {
     val ref = Ref(freshName(), v.typ)

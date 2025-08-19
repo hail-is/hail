@@ -1,5 +1,7 @@
 package is.hail.utils
 
+import is.hail.collection.compat.immutable.ArraySeq
+
 import scala.annotation.tailrec
 import scala.collection.compat._
 
@@ -149,7 +151,7 @@ object StackSafe {
   }
 
   implicit class RichIteratorStackFrame[A](private val i: Iterator[StackFrame[A]]) extends AnyVal {
-    def collectRecur(implicit bf: Factory[A, Array[A]]): StackFrame[IndexedSeq[A]] = {
+    def collectRecur(implicit bf: Factory[A, ArraySeq[A]]): StackFrame[IndexedSeq[A]] = {
       val builder = bf.newBuilder
       var cont: A => StackFrame[IndexedSeq[A]] = null
       def loop(): StackFrame[IndexedSeq[A]] =
@@ -166,13 +168,12 @@ object StackSafe {
     }
   }
 
-  def fillArray[A](n: Int)(body: => StackFrame[A])(implicit bf: Factory[A, Array[A]])
-    : StackFrame[Array[A]] = {
+  def fillArray[A, C](n: Int)(body: => StackFrame[A])(implicit bf: Factory[A, C]): StackFrame[C] = {
     val builder = bf.newBuilder
     builder.sizeHint(n)
     var i = 0
-    var cont: A => StackFrame[Array[A]] = null
-    def loop(): StackFrame[Array[A]] =
+    var cont: A => StackFrame[C] = null
+    def loop(): StackFrame[C] =
       if (i < n) {
         body.flatMap(cont)
       } else {

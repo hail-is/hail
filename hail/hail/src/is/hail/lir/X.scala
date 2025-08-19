@@ -4,6 +4,7 @@ import is.hail.asm4s.{
   arrayInfo, ByteInfo, ClassInfo, DoubleInfo, FloatInfo, IntInfo, LongInfo, TypeInfo,
 }
 import is.hail.collection.ObjectArrayStack
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.utils._
 import is.hail.utils.implicits.toRichBoolean
 
@@ -695,7 +696,7 @@ class SwitchX(var lineNumber: Int = 0) extends ControlX {
 
   def setLdefault(newLdefault: Block): Unit = setTarget(0, newLdefault)
 
-  def Lcases: IndexedSeq[Block] = _Lcases
+  def Lcases: IndexedSeq[Block] = ArraySeq.unsafeWrapArray(_Lcases)
 
   def setLcases(newLcases: IndexedSeq[Block]): Unit = {
     for ((block, i) <- _Lcases.zipWithIndex)

@@ -2,6 +2,7 @@ package is.hail.io.avro
 
 import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir._
 import is.hail.expr.ir.defs.{
   ArrayZipBehavior, Cast, I32, Literal, MakeStruct, PartitionReader, ReadPartition, StreamIota,
@@ -76,7 +77,7 @@ class AvroTableReader(
       StreamIota(I32(0), I32(1)),
       ArrayZipBehavior.TakeMinLength,
     ) { (path, idx) =>
-      MakeStruct(Array("partitionPath" -> path, "partitionIndex" -> Cast(idx, TInt64)))
+      MakeStruct(ArraySeq("partitionPath" -> path, "partitionIndex" -> Cast(idx, TInt64)))
     }
     TableStage(
       globals,

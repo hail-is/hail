@@ -1,5 +1,7 @@
 package is.hail.linalg
 
+import is.hail.collection.compat.immutable.ArraySeq
+
 import org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.Test
 
@@ -83,25 +85,25 @@ class GridPartitionerSuite extends TestNGSuite {
     val gp2 = GridPartitioner(10, 21, 31)
 
     for (gp <- Seq(gp1, gp2)) {
-      assert(gp.rectangleBlocks(Array(0, 1, 0, 1)) sameElements Array(0))
-      assert(gp.rectanglesBlocks(Array(Array(0, 1, 0, 1))) sameElements Array(0))
+      assert(gp.rectangleBlocks(ArraySeq[Long](0, 1, 0, 1)) == ArraySeq(0))
+      assert(gp.rectanglesBlocks(ArraySeq(ArraySeq[Long](0, 1, 0, 1))) == ArraySeq(0))
 
-      assert(gp.rectangleBlocks(Array(0, 10, 0, 10)) sameElements Array(0))
+      assert(gp.rectangleBlocks(ArraySeq[Long](0, 10, 0, 10)) == ArraySeq(0))
 
-      assert(gp.rectangleBlocks(Array(9, 11, 9, 11)) sameElements Array(0, 1, 3, 4))
-      assert(gp.rectanglesBlocks(Array(Array(9, 11, 9, 11))) sameElements Array(0, 1, 3, 4))
+      assert(gp.rectangleBlocks(ArraySeq[Long](9, 11, 9, 11)) == ArraySeq(0, 1, 3, 4))
+      assert(gp.rectanglesBlocks(ArraySeq(ArraySeq[Long](9, 11, 9, 11))) == ArraySeq(0, 1, 3, 4))
 
-      assert(gp.rectangleBlocks(Array(10, 20, 10, 30)) sameElements Array(4, 7))
+      assert(gp.rectangleBlocks(ArraySeq[Long](10, 20, 10, 30)) == ArraySeq(4, 7))
 
-      assert(gp.rectanglesBlocks(Array(
-        Array(9, 11, 9, 11),
-        Array(10, 20, 10, 30),
-        Array(0, 1, 20, 21),
-        Array(20, 21, 20, 31),
+      assert(gp.rectanglesBlocks(ArraySeq(
+        ArraySeq[Long](9, 11, 9, 11),
+        ArraySeq(10, 20, 10, 30),
+        ArraySeq(0, 1, 20, 21),
+        ArraySeq(20, 21, 20, 31),
       ))
-        sameElements Array(0, 1, 3, 4, 6, 7, 8, 11))
+        == ArraySeq(0, 1, 3, 4, 6, 7, 8, 11))
 
-      assert(gp.rectangleBlocks(Array(0, 21, 0, 31)) sameElements (0 until 12))
+      assert(gp.rectangleBlocks(ArraySeq[Long](0, 21, 0, 31)) == (0 until 12))
     }
   }
 }

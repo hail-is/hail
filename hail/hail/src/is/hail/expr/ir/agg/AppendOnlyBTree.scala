@@ -6,6 +6,7 @@ import is.hail.asm4s.implicits.{
   valueToRichCodeInputBuffer, valueToRichCodeOutputBuffer, valueToRichCodeRegion,
 }
 import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir._
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types.physical._
@@ -48,7 +49,7 @@ class AppendOnlyBTree(
   private val eltType: PTuple = PCanonicalTuple(false, key.storageType, PInt64(true))
 
   private val elementsType: PTuple =
-    PCanonicalTuple(required = true, Array.fill[PType](maxElements)(eltType): _*)
+    PCanonicalTuple(required = true, ArraySeq.fill[PType](maxElements)(eltType): _*)
 
   private val storageType: PStruct = PCanonicalStruct(
     required = true,

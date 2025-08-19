@@ -1,6 +1,7 @@
 package is.hail.io.compress
 
 import is.hail.HailSuite
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterator
 import is.hail.expr.ir.GenericLines
 import is.hail.scalacheck.ApplicativeGenOps
@@ -79,7 +80,7 @@ class BGzipCodecSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     scalatest.Inspectors.forAll(0 until 16) { i =>
       val lines2 = GenericLines.collect(
         fs,
-        GenericLines.read(fs, Array(uncompStatus), Some(i), None, None, false, false),
+        GenericLines.read(fs, ArraySeq(uncompStatus), Some(i), None, None, false, false),
       )
       lines2 should equal(lines)
     }
@@ -92,7 +93,7 @@ class BGzipCodecSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     scalatest.Inspectors.forAll(0 until 16) { i =>
       val lines2 = GenericLines.collect(
         fs,
-        GenericLines.read(fs, Array(compStatus), Some(i), None, None, false, false),
+        GenericLines.read(fs, ArraySeq(compStatus), Some(i), None, None, false, false),
       )
       lines2 should equal(lines)
     }
@@ -105,7 +106,7 @@ class BGzipCodecSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     val gzStatus = fs.fileStatus(gzPath)
     val lines2 = GenericLines.collect(
       fs,
-      GenericLines.read(fs, Array(gzStatus), Some(7), None, None, false, true),
+      GenericLines.read(fs, ArraySeq(gzStatus), Some(7), None, None, false, true),
     )
     lines2 should equal(lines)
   }
@@ -113,14 +114,14 @@ class BGzipCodecSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   @Test def testGenericLinesRefuseGZ(): Unit =
     interceptFatal("Cowardly refusing") {
       val gzStatus = fs.fileStatus(gzPath)
-      GenericLines.read(fs, Array(gzStatus), Some(7), None, None, false, false)
+      GenericLines.read(fs, ArraySeq(gzStatus), Some(7), None, None, false, false)
     }
 
   @Test def testGenericLinesRandom(): Unit = {
     val lines = Source.fromFile(uncompPath).getLines().toFastSeq
 
     val compLength = 195353L
-    val compSplits = Array[Long](6566, 20290, 33438, 41165, 56691, 70278, 77419, 92522, 106310,
+    val compSplits = ArraySeq[Long](6566, 20290, 33438, 41165, 56691, 70278, 77419, 92522, 106310,
       112477, 112505, 124593,
       136405, 144293, 157375, 169172, 175174, 186973, 195325)
 
@@ -171,7 +172,7 @@ class BGzipCodecSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     }
 
     val compLength = 195353L
-    val compSplits = Array[Long](6566, 20290, 33438, 41165, 56691, 70278, 77419, 92522, 106310,
+    val compSplits = ArraySeq[Long](6566, 20290, 33438, 41165, 56691, 70278, 77419, 92522, 106310,
       112477, 112505, 124593,
       136405, 144293, 157375, 169172, 175174, 186973, 195325)
 

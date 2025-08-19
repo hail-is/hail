@@ -310,7 +310,7 @@ object MatrixPLINKReader extends Logging {
 
     val fullMatrixType: MatrixType = MatrixType(
       globalType = TStruct.empty,
-      colKey = Array("s"),
+      colKey = ArraySeq("s"),
       colType = saSignature.virtualType,
       rowType = TStruct(
         "locus" -> locusType,
@@ -318,7 +318,7 @@ object MatrixPLINKReader extends Logging {
         "rsid" -> TString,
         "cm_position" -> TFloat64,
       ),
-      rowKey = Array("locus", "alleles"),
+      rowKey = ArraySeq("locus", "alleles"),
       entryType = TStruct("GT" -> TCall),
     )
     assert(locusAllelesType == fullMatrixType.rowKeyStruct)

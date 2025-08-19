@@ -5,8 +5,9 @@ import is.hail.asm4s.{theHailClassLoaderForSparkWorkers, HailClassLoader}
 import is.hail.backend.{ExecuteContext, HailStateManager, HailTaskContext}
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
 import is.hail.collection.FastSeq
+import is.hail.collection.compat._
 import is.hail.collection.compat.immutable.ArraySeq
-import is.hail.collection.implicits.{arrayToRichIndexedSeq, toRichIterable, toRichOrderedArray}
+import is.hail.collection.implicits._
 import is.hail.expr.ir.InferPType
 import is.hail.expr.ir.PruneDeadFields.isSupertype
 import is.hail.expr.ir.agg.AggExecuteContextExtensions
@@ -387,7 +388,7 @@ class RVD(
           (j == partCumulativeSize.length - 1 ||
             t < partCumulativeSize(j + 1)))
         j
-      }.toArray
+      }
 
       newPartEnd = newPartEnd.zipWithIndex.filter { case (_, i) =>
         i == 0 || newPartEnd(i) != newPartEnd(i - 1)
@@ -543,9 +544,9 @@ class RVD(
       case None =>
         val crddCleanup = crdd.cleanupRegions
         val PCSubsetOffset(idx, nTake, _) =
-          incrementalPCSubsetOffset(n, 0 until getNumPartitions)(
-            crddCleanup.runJob(getIteratorSizeWithMaxN(n), _)
-          )
+          incrementalPCSubsetOffset(n, 0 until getNumPartitions) { parts =>
+            ArraySeq.unsafeWrapArray(crddCleanup.runJob(getIteratorSizeWithMaxN(n), parts))
+          }
         idx -> nTake
     }
 
@@ -558,12 +559,12 @@ class RVD(
       },
       preservesPartitioning = true,
     )
-      .subsetPartitions((0 to idxLast).toArray)
+      .subsetPartitions(0 to idxLast)
 
     val newNParts = newRDD.getNumPartitions
     assert(newNParts >= 0)
 
-    val newRangeBounds = Array.range(0, newNParts).map(partitioner.rangeBounds)
+    val newRangeBounds = ArraySeq.tabulate(newNParts)(partitioner.rangeBounds)
     val newPartitioner = partitioner.copy(rangeBounds = newRangeBounds)
 
     RVD(typ, newPartitioner, newRDD)
@@ -584,9 +585,9 @@ class RVD(
       case None =>
         val crddCleanup = crdd.cleanupRegions
         val PCSubsetOffset(idx, _, nDrop) =
-          incrementalPCSubsetOffset(n, Range.inclusive(getNumPartitions - 1, 0, -1))(
-            crddCleanup.runJob(getIteratorSize, _)
-          )
+          incrementalPCSubsetOffset(n, Range.inclusive(getNumPartitions - 1, 0, -1)) { parts =>
+            ArraySeq.unsafeWrapArray(crddCleanup.runJob(getIteratorSize, parts))
+          }
         idx -> nDrop
     }
     assert(nDrop < Int.MaxValue)
@@ -606,14 +607,15 @@ class RVD(
       },
       preservesPartitioning = true,
     )
-      .subsetPartitions(Array.range(idxFirst, getNumPartitions))
+      .subsetPartitions(Range(idxFirst, getNumPartitions))
 
     val oldNParts = crdd.getNumPartitions
     val newNParts = newRDD.getNumPartitions
     assert(oldNParts >= newNParts)
     assert(newNParts >= 0)
 
-    val newRangeBounds = Array.range(oldNParts - newNParts, oldNParts).map(partitioner.rangeBounds)
+    val newRangeBounds =
+      ArraySeq.range(oldNParts - newNParts, oldNParts).map(partitioner.rangeBounds)
     val newPartitioner = partitioner.copy(rangeBounds = newRangeBounds)
 
     RVD(typ, newPartitioner, newRDD)
@@ -684,7 +686,7 @@ class RVD(
 
     val newPartitionIndices = Iterator.range(0, partitioner.numPartitions)
       .filter(i => intervals.overlaps(partitioner.rangeBounds(i)))
-      .toArray
+      .to(ArraySeq)
 
     logger.info(s"reading ${newPartitionIndices.length} of $nPartitions data partitions")
 
@@ -695,7 +697,7 @@ class RVD(
     }
   }
 
-  def subsetPartitions(keep: Array[Int]): RVD = {
+  def subsetPartitions(keep: IndexedSeq[Int]): RVD = {
     require(keep.length <= crdd.partitions.length, "tried to subset to more partitions than exist")
     require(
       keep.isIncreasing && (keep.isEmpty || (keep.head >= 0 && keep.last < crdd.partitions.length)),
@@ -781,7 +783,7 @@ class RVD(
       Iterator.single(count)
     }.run.fold(0L)(_ + _)
 
-  def countPerPartition(): Array[Long] =
+  def countPerPartition(): IndexedSeq[Long] =
     crdd.boundary.cmapPartitions { (ctx, it) =>
       var count = 0L
       it.foreach(_ => count += 1)
@@ -790,7 +792,7 @@ class RVD(
 
   // Collecting
 
-  def collect(execCtx: ExecuteContext): Array[Row] = {
+  def collect(execCtx: ExecuteContext): IndexedSeq[Row] = {
     val enc = TypedCodecSpec(execCtx, rowPType, BufferSpec.wireSpec)
     val encodedData = collectAsBytes(execCtx, enc)
     val (pType: PStruct, dec) = enc.buildDecoder(execCtx, rowType)
@@ -800,7 +802,7 @@ class RVD(
           val row = SafeRow(pType, ptr)
           region.clear()
           row
-        }.toArray
+        }.toFastSeq
     }
   }
 
@@ -845,7 +847,7 @@ class RVD(
     idxRelPath: String,
     stageLocally: Boolean,
     codecSpec: AbstractTypedCodecSpec,
-  ): Array[FileWriteMetadata] = {
+  ): IndexedSeq[FileWriteMetadata] = {
     val fileData = crdd.writeRows(ctx, path, idxRelPath, typ, stageLocally, codecSpec)
     val spec = MakeRVDSpec(
       codecSpec,
@@ -1108,11 +1110,11 @@ object RVD extends Logging {
     // 'partitionKey' key fields, even if they aren't ordered by the full key.
     partitionKey: Int,
     keys: ContextRDD[Long],
-  ): Array[RVDPartitionInfo] = {
+  ): IndexedSeq[RVDPartitionInfo] = {
     // the region values in 'keys' are of typ `typ.keyType`
     val nPartitions = keys.getNumPartitions
     if (nPartitions == 0)
-      return Array()
+      return ArraySeq.empty
 
     val rng = new java.util.Random(1)
     val partitionSeed = Array.fill[Long](nPartitions)(rng.nextLong())
@@ -1140,7 +1142,7 @@ object RVD extends Logging {
     }.flatten
 
     val kOrd = PartitionBoundOrdering(sm, typ.kType.virtualType).toOrdering
-    keyInfo.sortBy(_.min)(kOrd)
+    ArraySeq.unsafeWrapArray(keyInfo.sortInPlaceBy(_.min)(implicitly, kOrd).array)
   }
 
   def coerce(
@@ -1210,7 +1212,7 @@ object RVD extends Logging {
     if (keyInfo.isEmpty)
       return emptyCoercer
 
-    val bounds = keyInfo.map(_.interval).toFastSeq
+    val bounds = keyInfo.map(_.interval)
     val pkBounds = bounds.map(_.coarsen(partitionKey))
 
     def orderPartitions = { crdd: CRDD =>
@@ -1306,7 +1308,7 @@ object RVD extends Logging {
   def calculateKeyRanges(
     ctx: ExecuteContext,
     typ: RVDType,
-    pInfo: Array[RVDPartitionInfo],
+    pInfo: IndexedSeq[RVDPartitionInfo],
     nPartitions: Int,
     partitionKey: Int,
   ): RVDPartitioner = {
@@ -1326,7 +1328,7 @@ object RVD extends Logging {
     if (CheckRvdKeyOrderingForTesting) rvd.checkKeyOrdering() else rvd
   }
 
-  def unify(execCtx: ExecuteContext, rvds: Seq[RVD]): Seq[RVD] = {
+  def unify(execCtx: ExecuteContext, rvds: IndexedSeq[RVD]): IndexedSeq[RVD] = {
     if (rvds.length == 1 || rvds.forall(_.rowPType == rvds.head.rowPType))
       return rvds
 

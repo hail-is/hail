@@ -5,7 +5,7 @@ import is.hail.backend.{BroadcastValue, ExecuteContext, HailStateManager}
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
 import is.hail.collection.{FastSeq, IntArrayBuilder}
 import is.hail.collection.compat.immutable.ArraySeq
-import is.hail.collection.implicits.toRichIterable
+import is.hail.collection.implicits._
 import is.hail.expr.ir.{partFile, TableReader, TableValue, ThreefryRandomEngine}
 import is.hail.io._
 import is.hail.io.fs.FS
@@ -182,7 +182,7 @@ object BlockMatrix {
       GridPartitioner(blockSize, nRows, nCols),
       (gp, pi) => {
         val (i, j) = gp.blockCoordinates(pi)
-        val generator = ThreefryRandomEngine(nonce, staticUID, Array(pi.toLong))
+        val generator = ThreefryRandomEngine(nonce, staticUID, ArraySeq(pi.toLong))
         val randBasis: RandBasis = new RandBasis(generator)
         val rand = if (gaussian) randBasis.gaussian else randBasis.uniform
 
@@ -484,17 +484,17 @@ object BlockMatrix {
     val grouped = rddNumberAndPartFiles.groupBy(_._2)
     grouped.foreach { case (rddIndex, numberedPartFiles) =>
       val fileData = numberedPartFiles.map { case (partFileName, _) => partFileName }
-      val metadataPath = blockMatrixURI(rddIndex.toInt) + metadataRelativePath
+      val metadataPath = blockMatrixURI(rddIndex) + metadataRelativePath
       using(new DataOutputStream(fs.create(metadataPath))) { os =>
         implicit val formats = DefaultFormats
-        val (blockSize, nRows, nCols, maybeBlocks) = blockMatrixMetadataFields(rddIndex.toInt)
+        val (blockSize, nRows, nCols, maybeBlocks) = blockMatrixMetadataFields(rddIndex)
         jackson.Serialization.write(
           BlockMatrixMetadata(blockSize, nRows, nCols, maybeBlocks, fileData.map(_.path)),
           os,
         )
       }
 
-      using(fs.create(blockMatrixURI(rddIndex.toInt) + "/_SUCCESS"))(out => ())
+      using(fs.create(blockMatrixURI(rddIndex) + "/_SUCCESS"))(out => ())
     }
   }
 }
@@ -562,7 +562,7 @@ class BlockMatrix(
     }
   }
 
-  def filterBlocks(blocksToKeep: Array[Int]): BlockMatrix =
+  def filterBlocks(blocksToKeep: IndexedSeq[Int]): BlockMatrix =
     if (blocksToKeep.length == gp.maxNBlocks)
       this
     else
@@ -661,8 +661,8 @@ class BlockMatrix(
   // checked in Python: start >= 0 && start <= stop && stop <= nCols
   def filterRowIntervals(
     ctx: ExecuteContext,
-    starts: Array[Long],
-    stops: Array[Long],
+    starts: IndexedSeq[Long],
+    stops: IndexedSeq[Long],
     blocksOnly: Boolean,
   ): BlockMatrix = {
     require(nRows <= Int.MaxValue)
@@ -674,7 +674,7 @@ class BlockMatrix(
     else filteredBM.zeroRowIntervals(ctx, starts, stops)
   }
 
-  def zeroRowIntervals(ctx: ExecuteContext, starts: Array[Long], stops: Array[Long])
+  def zeroRowIntervals(ctx: ExecuteContext, starts: IndexedSeq[Long], stops: IndexedSeq[Long])
     : BlockMatrix = {
     val backend = ctx.backend
     val startBlockIndexBc = backend.broadcast(starts.map(gp.indexBlockIndex))
@@ -723,9 +723,9 @@ class BlockMatrix(
     new BlockMatrix(zeroedBlocks, blockSize, nRows, nCols)
   }
 
-  def filterRectangles(flattenedRectangles: Array[Long]): BlockMatrix = {
+  def filterRectangles(flattenedRectangles: IndexedSeq[Long]): BlockMatrix = {
     require(flattenedRectangles.length % 4 == 0)
-    val rectangles = flattenedRectangles.grouped(4).toArray
+    val rectangles = flattenedRectangles.grouped(4).to(ArraySeq)
 
     filterBlocks(gp.rectanglesBlocks(rectangles))
   }
@@ -733,7 +733,7 @@ class BlockMatrix(
   def exportRectangles(
     ctx: ExecuteContext,
     output: String,
-    rectangles: Array[Array[Long]],
+    rectangles: IndexedSeq[IndexedSeq[Long]],
     delimiter: String,
     binary: Boolean,
   ): Unit = {
@@ -977,7 +977,7 @@ class BlockMatrix(
     val result = new Array[Double](nDiagElements)
 
     val nDiagBlocks = math.min(gp.nBlockRows, gp.nBlockCols)
-    val diagBlocks = Array.tabulate(nDiagBlocks)(i => gp.coordinatesBlock(i, i))
+    val diagBlocks = ArraySeq.tabulate(nDiagBlocks)(i => gp.coordinatesBlock(i, i))
 
     filterBlocks(diagBlocks).blocks
       .map { case ((i, j), lm) =>
@@ -1529,7 +1529,7 @@ class BlockMatrix(
     if (pi >= 0) {
       val rowOffset = gp.indexBlockOffset(row)
       val colOffset = gp.indexBlockOffset(col)
-      blocks.subsetPartitions(Array(pi))
+      blocks.subsetPartitions(ArraySeq(pi))
         .map { case ((i, j), lm) =>
           assert(i == blockRow && j == blockCol)
           lm(rowOffset, colOffset)
@@ -1539,13 +1539,13 @@ class BlockMatrix(
       0.0
   }
 
-  def filterRows(keep: Array[Long]): BlockMatrix =
+  def filterRows(keep: IndexedSeq[Long]): BlockMatrix =
     new BlockMatrix(new BlockMatrixFilterRowsRDD(this, keep), blockSize, keep.length.toLong, nCols)
 
-  def filterCols(keep: Array[Long]): BlockMatrix =
+  def filterCols(keep: IndexedSeq[Long]): BlockMatrix =
     new BlockMatrix(new BlockMatrixFilterColsRDD(this, keep), blockSize, nRows, keep.length.toLong)
 
-  def filter(keepRows: Array[Long], keepCols: Array[Long]): BlockMatrix =
+  def filter(keepRows: IndexedSeq[Long], keepCols: IndexedSeq[Long]): BlockMatrix =
     new BlockMatrix(
       new BlockMatrixFilterRDD(this, keepRows, keepCols),
       blockSize,
@@ -1596,7 +1596,7 @@ object BlockMatrixFilterRDD {
    * with blockCol increasing */
   /* startIndices.zip(endIndices) gives all column-index ranges in blockCol to be copied to ranges
    * in newBlockCol */
-  def computeAllBlockColRanges(keep: Array[Long], gp: GridPartitioner, newGP: GridPartitioner)
+  def computeAllBlockColRanges(keep: IndexedSeq[Long], gp: GridPartitioner, newGP: GridPartitioner)
     : Array[Array[(Int, Array[Int], Array[Int])]] = {
 
     val blockSize = gp.blockSize
@@ -1643,14 +1643,17 @@ object BlockMatrixFilterRDD {
       }.toArray
   }
 
-  def computeAllBlockRowRanges(keep: Array[Long], gp: GridPartitioner, newGP: GridPartitioner)
+  def computeAllBlockRowRanges(keep: IndexedSeq[Long], gp: GridPartitioner, newGP: GridPartitioner)
     : Array[Array[(Int, Array[Int], Array[Int])]] =
     computeAllBlockColRanges(keep, gp.transpose._1, newGP.transpose._1)
 }
 
 // checked in Python: keepRows and keepCols non-empty, increasing, valid range
-private class BlockMatrixFilterRDD(bm: BlockMatrix, keepRows: Array[Long], keepCols: Array[Long])
-    extends RDD[((Int, Int), BDM[Double])](bm.blocks.sparkContext, Nil) with Logging {
+private class BlockMatrixFilterRDD(
+  bm: BlockMatrix,
+  keepRows: IndexedSeq[Long],
+  keepCols: IndexedSeq[Long],
+) extends RDD[((Int, Int), BDM[Double])](bm.blocks.sparkContext, Nil) with Logging {
   logger.info("Constructing BlockMatrixFilterRDD")
 
   val t0 = System.nanoTime()
@@ -1690,7 +1693,7 @@ private class BlockMatrixFilterRDD(bm: BlockMatrix, keepRows: Array[Long], keepC
     (blockId, filteredParents)
   }.filter { case (_, parents) => !parents.isEmpty }.toMap
 
-  private val blockIndices = blockParentMap.keys.toArray.sorted
+  private val blockIndices = ArraySeq.sorted(blockParentMap.keys)
 
   private val newGPMaybeBlocks: Option[IndexedSeq[Int]] =
     if (blockIndices.length == tempDenseGP.maxNBlocks) None else Some(blockIndices)
@@ -1711,13 +1714,13 @@ private class BlockMatrixFilterRDD(bm: BlockMatrix, keepRows: Array[Long], keepC
       )
     }
 
-  override def getDependencies: Seq[Dependency[_]] = Array[Dependency[_]](
+  override def getDependencies: Seq[Dependency[_]] = ArraySeq[Dependency[_]](
     new NarrowDependency(bm.blocks) {
       override def getParents(partitionId: Int): Seq[Int] = {
         val blockForPartition = newGP.partitionToBlock(partitionId)
         val blockParents = blockParentMap(blockForPartition)
         val partitionParents =
-          blockParents.map(blockId => originalGP.blockToPartition(blockId)).toSet.toArray.sorted
+          ArraySeq.sorted(blockParents.map(blockId => originalGP.blockToPartition(blockId)).toSet)
         partitionParents
       }
     }
@@ -1794,7 +1797,7 @@ case class BlockMatrixFilterOneDimRDDPartition(
 ) extends Partition
 
 // checked in Python: keep non-empty, increasing, valid range
-private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: Array[Long])
+private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: IndexedSeq[Long])
     extends RDD[((Int, Int), BDM[Double])](bm.blocks.sparkContext, Nil) {
 
   private val childPartitionsBc = bm.blocks.sparkContext.broadcast(bm.blocks.partitions)
@@ -1829,7 +1832,7 @@ private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: Array[Long])
 
   private val blockParentMapBc = bm.blocks.sparkContext.broadcast(blockParentMap)
 
-  @transient private val blockIndices = blockParentMap.keys.toFastSeq.sorted
+  @transient private val blockIndices = ArraySeq.sorted(blockParentMap.keys)
 
   @transient private val newGPMaybeBlocks =
     if (blockIndices.length == tempDenseGP.maxNBlocks) None else Some(blockIndices)
@@ -1845,13 +1848,13 @@ private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: Array[Long])
       )
     }
 
-  override def getDependencies: Seq[Dependency[_]] = Array[Dependency[_]](
+  override def getDependencies: Seq[Dependency[_]] = ArraySeq[Dependency[_]](
     new NarrowDependency(bm.blocks) {
       override def getParents(partitionId: Int): Seq[Int] = {
         val blockForPartition = newGP.partitionToBlock(partitionId)
         val blockParents = blockParentMap(blockForPartition)
         val partitionParents =
-          blockParents.map(blockId => originalGP.blockToPartition(blockId)).toSet.toArray.sorted
+          ArraySeq.sorted(blockParents.map(blockId => originalGP.blockToPartition(blockId)).toSet)
         partitionParents
       }
     }
@@ -1900,7 +1903,7 @@ private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: Array[Long])
 }
 
 // checked in Python: keep non-empty, increasing, valid range
-private class BlockMatrixFilterRowsRDD(bm: BlockMatrix, keep: Array[Long])
+private class BlockMatrixFilterRowsRDD(bm: BlockMatrix, keep: IndexedSeq[Long])
     extends RDD[((Int, Int), BDM[Double])](bm.blocks.sparkContext, Nil) {
 
   private val childPartitionsBc = bm.blocks.sparkContext.broadcast(bm.blocks.partitions)
@@ -1933,7 +1936,7 @@ private class BlockMatrixFilterRowsRDD(bm: BlockMatrix, keep: Array[Long])
 
   private val blockParentMapBc = bm.blocks.sparkContext.broadcast(blockParentMap)
 
-  @transient private val blockIndices = blockParentMap.keys.toFastSeq.sorted
+  @transient private val blockIndices = ArraySeq.sorted(blockParentMap.keys)
 
   @transient private val newGPMaybeBlocks =
     if (blockIndices.length == tempDenseGP.maxNBlocks) None else Some(blockIndices)
@@ -1949,13 +1952,13 @@ private class BlockMatrixFilterRowsRDD(bm: BlockMatrix, keep: Array[Long])
       )
     }
 
-  override def getDependencies: Seq[Dependency[_]] = Array[Dependency[_]](
+  override def getDependencies: Seq[Dependency[_]] = ArraySeq[Dependency[_]](
     new NarrowDependency(bm.blocks) {
       override def getParents(partitionId: Int): Seq[Int] = {
         val blockForPartition = newGP.partitionToBlock(partitionId)
         val blockParents = blockParentMap(blockForPartition)
         val partitionParents =
-          blockParents.map(blockId => originalGP.blockToPartition(blockId)).distinct.sorted
+          ArraySeq.sorted(blockParents.map(blockId => originalGP.blockToPartition(blockId)).toSet)
         partitionParents
       }
     }
@@ -2010,14 +2013,14 @@ private class BlockMatrixTransposeRDD(bm: BlockMatrix)
 
   private val (newGP, transposedPartitionIndicesToParentPartitions) = bm.gp.transpose
 
-  override def getDependencies: Seq[Dependency[_]] = Array[Dependency[_]](
+  override def getDependencies: Seq[Dependency[_]] = ArraySeq[Dependency[_]](
     new NarrowDependency(bm.blocks) {
       override def getParents(partitionId: Int): Seq[Int] = {
         val parent = transposedPartitionIndicesToParentPartitions(partitionId)
         val (oldI, oldJ) = bm.gp.partCoordinates(parent)
         val (newI, newJ) = newGP.partCoordinates(partitionId)
         assert(newI == oldJ && newJ == oldI)
-        Array(parent)
+        ArraySeq(parent)
       }
     }
   )
@@ -2058,14 +2061,14 @@ private class BlockMatrixUnionOpRDD(
   private val rParts = r.blocks.partitions
 
   override def getDependencies: Seq[Dependency[_]] =
-    Array[Dependency[_]](
+    ArraySeq[Dependency[_]](
       new NarrowDependency(l.blocks) {
         override def getParents(partitionId: Int): Seq[Int] =
-          Array(lGP.blockToPartition(gp.partitionToBlock(partitionId))).filter(_ >= 0)
+          ArraySeq(lGP.blockToPartition(gp.partitionToBlock(partitionId))).filter(_ >= 0)
       },
       new NarrowDependency(r.blocks) {
         override def getParents(partitionId: Int): Seq[Int] =
-          Array(rGP.blockToPartition(gp.partitionToBlock(partitionId))).filter(_ >= 0)
+          ArraySeq(rGP.blockToPartition(gp.partitionToBlock(partitionId))).filter(_ >= 0)
       },
     )
 
@@ -2108,7 +2111,7 @@ private class BlockMatrixMultiplyRDD(l: BlockMatrix, r: BlockMatrix)
   private val nProducts = lGP.nBlockCols
 
   override def getDependencies: Seq[Dependency[_]] =
-    Array[Dependency[_]](
+    ArraySeq[Dependency[_]](
       new NarrowDependency(l.blocks) {
         override def getParents(partitionId: Int): Seq[Int] = {
           val i = gp.blockBlockRow(partitionId)
@@ -2176,7 +2179,7 @@ private class BlockMatrixMultiplyRDD(l: BlockMatrix, r: BlockMatrix)
   @transient override val partitioner: Option[Partitioner] = Some(gp)
 }
 
-case class BlockMatrixRectanglesRDD(rectangles: Array[Array[Long]], bm: BlockMatrix)
+case class BlockMatrixRectanglesRDD(rectangles: IndexedSeq[IndexedSeq[Long]], bm: BlockMatrix)
     extends RDD[(Int, BDM[Double])](bm.blocks.sparkContext, Nil) {
 
   assert(rectangles.forall(rect => rect.length == 4))
@@ -2189,7 +2192,7 @@ case class BlockMatrixRectanglesRDD(rectangles: Array[Array[Long]], bm: BlockMat
 
   override def compute(split: Partition, context: TaskContext): Iterator[(Int, BDM[Double])] = {
     val rect = rectangles(split.index)
-    val Array(rectStartRow, rectEndRow, rectStartCol, rectEndCol) = rect
+    val Seq(rectStartRow, rectEndRow, rectStartCol, rectEndCol) = rect
 
     val rectData =
       new BDM[Double]((rectEndRow - rectStartRow).toInt, (rectEndCol - rectStartCol).toInt)
@@ -2252,7 +2255,7 @@ class WriteBlocksRDD(
   localTmpDir: String,
   path: String,
   rvd: RVD,
-  parentPartStarts: Array[Long],
+  parentPartStarts: IndexedSeq[Long],
   entryField: String,
   gp: GridPartitioner,
 ) extends RDD[(Int, String)](SparkBackend.sparkContext, Nil) {
@@ -2266,7 +2269,7 @@ class WriteBlocksRDD(
   private val d = digitsNeeded(gp.numPartitions)
 
   override def getDependencies: Seq[Dependency[_]] =
-    Array[Dependency[_]](
+    ArraySeq[Dependency[_]](
       new NarrowDependency(crdd.rdd) {
         override def getParents(partitionId: Int): Seq[Int] =
           partitions(partitionId).asInstanceOf[WriteBlocksRDDPartition].range
@@ -2453,7 +2456,7 @@ class BlockMatrixReadRowBlockedRDD(
     val createRowUID = requestedType.fieldNames.contains(TableReader.uidFieldName)
     assert(requestedType.fieldNames.contains("entries"))
     val rowPType = PCanonicalStruct(
-      Array(
+      ArraySeq(
         if (createRowIdx) Some("row_idx" -> PInt64()) else None,
         Some("entries" -> PCanonicalArray(PFloat64())),
         if (createRowUID) Some(TableReader.uidFieldName -> PInt64()) else None,

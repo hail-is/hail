@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.Nat
 import is.hail.expr.ir.defs.{MetadataWriter, Str, UUID4, WriteMetadata, WriteValue}
 import is.hail.expr.ir.lowering.{BlockMatrixStage2, LowererUnsupportedOperation}
@@ -108,7 +109,7 @@ case class BlockMatrixNativeMetadataWriter(
     partIdxToBlockIdx: Option[IndexedSeq[Int]],
   ) {
     def write(fs: FS, rawPartFiles: Array[String]): Unit = {
-      val partFiles = rawPartFiles.map(_.split('/').last)
+      val partFiles = ArraySeq.unsafeWrapArray(rawPartFiles).map(_.split('/').last)
       using(new DataOutputStream(fs.create(s"$path/metadata.json"))) { os =>
         implicit val formats = DefaultFormats
         jackson.Serialization.write(
@@ -201,7 +202,7 @@ case class BlockMatrixPersistWriter(id: String, storageLevel: String) extends Bl
 
 case class BlockMatrixRectanglesWriter(
   path: String,
-  rectangles: Array[Array[Long]],
+  rectangles: IndexedSeq[IndexedSeq[Long]],
   delimiter: String,
   binary: Boolean,
 ) extends BlockMatrixWriter {

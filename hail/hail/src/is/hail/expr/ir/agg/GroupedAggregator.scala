@@ -7,6 +7,7 @@ import is.hail.asm4s.implicits.{
 }
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{
   EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitValue, IEmitCode, ParamType,
 }
@@ -305,7 +306,7 @@ class DictState(
   }
 }
 
-class GroupedAggregator(ktV: VirtualTypeWithReq, nestedAggs: Array[StagedAggregator])
+class GroupedAggregator(ktV: VirtualTypeWithReq, nestedAggs: IndexedSeq[StagedAggregator])
     extends StagedAggregator {
   type State = DictState
 
@@ -318,8 +319,8 @@ class GroupedAggregator(ktV: VirtualTypeWithReq, nestedAggs: Array[StagedAggrega
   override val resultEmitType = EmitType(SIndexablePointer(resultPType), true)
   private[this] val arrayRep = resultPType.arrayRep
   private[this] val dictElt = arrayRep.elementType.asInstanceOf[PCanonicalStruct]
-  val initOpTypes: Seq[Type] = Array(TVoid)
-  val seqOpTypes: Seq[Type] = Array(ktV.t, TVoid)
+  val initOpTypes: IndexedSeq[Type] = ArraySeq(TVoid)
+  val seqOpTypes: IndexedSeq[Type] = ArraySeq(ktV.t, TVoid)
 
   override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     val Array(inits) = init

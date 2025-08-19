@@ -3,6 +3,7 @@ package is.hail.expr.ir.streams
 import is.hail.annotations.{Region, RegionPool}
 import is.hail.asm4s._
 import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{EmitClassBuilder, EmitCodeBuilder, EmitMethodBuilder, EmitModuleBuilder}
 import is.hail.expr.ir.agg.StagedArrayBuilder
 import is.hail.types.physical.PCanonicalArray
@@ -53,7 +54,7 @@ object StagedMinHeap {
         val poolRef = mb.getCodeParam[RegionPool](1)
 
         mb.voidWithBuilder { cb =>
-          cb += classBuilder.cb.super_.invoke(coerce[Object](cb.this_), Array())
+          cb += classBuilder.cb.super_.invoke(coerce[Object](cb.this_), ArraySeq.empty)
           cb.assign(pool, poolRef)
           cb.assign(region, Region.stagedCreate(Region.REGULAR, poolRef))
           cb.assign(garbage, 0L)

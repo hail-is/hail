@@ -4,6 +4,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.asm4s.implicits.valueToRichCodeRegion
 import is.hail.backend.ExecuteContext
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.types.VirtualTypeWithReq
@@ -80,8 +81,8 @@ class CollectAggregator(val elemType: VirtualTypeWithReq) extends StagedAggregat
 
   val sArrayType = SIndexablePointer(PCanonicalArray(elemType.canonicalPType))
   val resultEmitType = EmitType(sArrayType, true)
-  val initOpTypes: Seq[Type] = Array[Type]()
-  val seqOpTypes: Seq[Type] = Array[Type](elemType.t)
+  val initOpTypes: IndexedSeq[Type] = ArraySeq.empty
+  val seqOpTypes: IndexedSeq[Type] = ArraySeq(elemType.t)
 
   override protected def _initOp(cb: EmitCodeBuilder, state: State, args: Array[EmitCode]): Unit = {
     assert(args.isEmpty)

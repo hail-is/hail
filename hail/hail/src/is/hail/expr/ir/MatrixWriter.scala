@@ -5,6 +5,7 @@ import is.hail.asm4s._
 import is.hail.asm4s.implicits.{valueToRichCodeOutputBuffer, valueToRichCodeRegion}
 import is.hail.backend.ExecuteContext
 import is.hail.collection.{ByteArrayBuilder, FastSeq}
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.{JSONAnnotationImpex, Nat}
 import is.hail.expr.ir.defs._
@@ -199,11 +200,11 @@ object MatrixNativeWriter {
       override val stage: TableStage =
         lowered.mapContexts { oldCtx =>
           val d = digitsNeeded(lowered.numPartitions)
-          val partFiles = Array.tabulate(lowered.numPartitions)(i => s"${partFile(d, i)}-")
+          val partFiles = ArraySeq.tabulate(lowered.numPartitions)(i => s"${partFile(d, i)}-")
 
           zip2(
             oldCtx,
-            ToStream(Literal(TArray(TString), partFiles.toFastSeq)),
+            ToStream(Literal(TArray(TString), partFiles)),
             ArrayZipBehavior.AssertSameLength,
           )((ctxElt, pf) => MakeStruct(FastSeq("oldCtx" -> ctxElt, "writeCtx" -> pf)))
         }(GetField(_, "oldCtx"))
@@ -428,7 +429,7 @@ case class SplitPartitionNativeWriter(
     streamType: RIterable,
   ): Unit = {
     val rs = r.asInstanceOf[RStruct]
-    val rKeyType = streamType.elementType.asInstanceOf[RStruct].select(keyFieldNames.toArray)
+    val rKeyType = streamType.elementType.asInstanceOf[RStruct].select(keyFieldNames)
     rs.field("firstKey").union(false)
     rs.field("firstKey").unionFrom(rKeyType)
     rs.field("lastKey").union(false)
@@ -665,7 +666,7 @@ class MatrixSpecHelper(
         "cols" -> RVDComponentSpec(colRelPath),
         "rows" -> RVDComponentSpec(rowRelPath),
         "entries" -> RVDComponentSpec(entryRelPath),
-        "partition_counts" -> PartitionCountsComponentSpec(partCounts),
+        "partition_counts" -> PartitionCountsComponentSpec(ArraySeq.unsafeWrapArray(partCounts)),
       ),
     )
 
@@ -783,7 +784,7 @@ case class MatrixVCFWriter(
       val d = digitsNeeded(ts.numPartitions)
       val partFiles = Literal(
         TArray(TString),
-        Array.tabulate(ts.numPartitions)(i => s"$folder/${partFile(d, i)}-").toFastSeq,
+        ArraySeq.tabulate(ts.numPartitions)(i => s"$folder/${partFile(d, i)}-"),
       )
 
       zip2(oldCtx, ToStream(partFiles), ArrayZipBehavior.AssertSameLength) { (ctxElt, pf) =>
@@ -1431,7 +1432,7 @@ case class MatrixGENWriter(
       val d = digitsNeeded(ts.numPartitions)
       val partFiles = Literal(
         TArray(TString),
-        Array.tabulate(ts.numPartitions)(i => s"$folder/${partFile(d, i)}-").toFastSeq,
+        ArraySeq.tabulate(ts.numPartitions)(i => s"$folder/${partFile(d, i)}-"),
       )
 
       zip2(oldCtx, ToStream(partFiles), ArrayZipBehavior.AssertSameLength) { (ctxElt, pf) =>
@@ -1635,10 +1636,10 @@ case class MatrixBGENWriter(
       val d = digitsNeeded(ts.numPartitions)
       val partFiles = ToStream(Literal(
         TArray(TString),
-        Array.tabulate(ts.numPartitions)(i => s"$folder/${partFile(d, i)}-").toFastSeq,
+        ArraySeq.tabulate(ts.numPartitions)(i => s"$folder/${partFile(d, i)}-"),
       ))
       val numVariants = if (writeHeader) ToStream(ts.countPerPartition())
-      else ToStream(MakeArray(Array.tabulate(ts.numPartitions)(_ => NA(TInt64)): _*))
+      else ToStream(MakeArray(ArraySeq.tabulate(ts.numPartitions)(_ => NA(TInt64)): _*))
 
       val ctxElt = Ref(freshName(), tcoerce[TStream](oldCtx.typ).elementType)
       val pf = Ref(freshName(), tcoerce[TStream](partFiles.typ).elementType)
@@ -2128,9 +2129,9 @@ case class MatrixPLINKWriter(
       val d = digitsNeeded(ts.numPartitions)
       val files = Literal(
         TArray(TTuple(TString, TString)),
-        Array.tabulate(ts.numPartitions)(i =>
+        ArraySeq.tabulate(ts.numPartitions)(i =>
           Row(s"$tmpBedDir/${partFile(d, i)}-", s"$tmpBimDir/${partFile(d, i)}-")
-        ).toFastSeq,
+        ),
       )
 
       zip2(oldCtx, ToStream(files), ArrayZipBehavior.AssertSameLength) { (ctxElt, pf) =>

@@ -5,6 +5,7 @@ import is.hail.asm4s.HailClassLoader
 import is.hail.backend._
 import is.hail.backend.spark.SparkBackend
 import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex}
 import is.hail.expr.ir._
@@ -189,9 +190,9 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
       IRFunctionRegistry.registerIR(
         ctx,
         name,
-        typeParamStrs.asScala.toArray,
-        argNameStrs.asScala.toArray,
-        argTypeStrs.asScala.toArray,
+        typeParamStrs.asScala.to(ArraySeq),
+        argNameStrs.asScala.to(ArraySeq),
+        argTypeStrs.asScala.to(ArraySeq),
         returnType,
         bodyStr,
       ): Unit
@@ -211,7 +212,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
 
   def pyFromDF(df: DataFrame, jKey: java.util.List[String]): (Int, String) =
     withExecuteContext(selfContainedExecution = false) { ctx =>
-      val key = jKey.asScala.toArray.toFastSeq
+      val key = jKey.asScala.toFastSeq
       val signature =
         SparkAnnotationImpex.importType(df.schema).setRequired(true).asInstanceOf[PStruct]
       val tir = TableLiteral(

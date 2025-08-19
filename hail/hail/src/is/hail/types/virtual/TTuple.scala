@@ -2,6 +2,7 @@ package is.hail.types.virtual
 
 import is.hail.annotations.ExtendedOrdering
 import is.hail.backend.HailStateManager
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
 
 import scala.collection.compat._
@@ -13,13 +14,13 @@ object TTuple {
 
   def apply(args: Type*): TTuple = TTuple(args.iterator.zipWithIndex.map { case (t, i) =>
     TupleField(i, t)
-  }.toArray)
+  }.to(ArraySeq))
 }
 
 case class TupleField(index: Int, typ: Type)
 
 final case class TTuple(_types: IndexedSeq[TupleField]) extends TBaseStruct {
-  lazy val types: Array[Type] = _types.map(_.typ).toArray
+  lazy val types: IndexedSeq[Type] = _types.map(_.typ)
 
   lazy val fields: IndexedSeq[Field] = _types.zipWithIndex.map { case (tf, i) =>
     Field(s"${tf.index}", tf.typ, i)

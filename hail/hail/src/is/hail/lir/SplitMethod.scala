@@ -2,6 +2,7 @@ package is.hail.lir
 
 import is.hail.asm4s.{classInfo, BooleanInfo, IntInfo, UnitInfo}
 import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.utils._
 
 import scala.collection.mutable
@@ -361,13 +362,13 @@ class SplitMethod(
 
     {
       if (returnTI == UnitInfo) {
-        val s = methodStmt(INVOKEVIRTUAL, splitM, Array(load(m.getParam(0)), load(spills)))
+        val s = methodStmt(INVOKEVIRTUAL, splitM, ArraySeq(load(m.getParam(0)), load(spills)))
         newL.append(s)
         if (splitsReturn)
           splitReturnCalls += s
       } else {
         splitMReturnValue =
-          methodInsn(INVOKEVIRTUAL, splitM, Array(load(m.getParam(0)), load(spills)))
+          methodInsn(INVOKEVIRTUAL, splitM, ArraySeq(load(m.getParam(0)), load(spills)))
         if (splitsReturn) {
           val l = m.newLocal("splitMReturnValue", returnTI)
           val s = store(l, splitMReturnValue)

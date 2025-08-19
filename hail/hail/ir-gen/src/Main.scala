@@ -1,7 +1,8 @@
 import scala.annotation.nowarn
 import scala.collection.compat._
+import mainargs.{ParserForMethods, main}
 
-import mainargs.{main, ParserForMethods}
+import scala.collection.compat.immutable.ArraySeq
 
 trait IRDSL {
   // Phantom types used to tag a ConstrainedType
@@ -1226,6 +1227,6 @@ object Main {
   }
 
   def main(args: Array[String]): Unit = {
-    val _ = ParserForMethods(this).runOrExit(args)
+    val _ = ParserForMethods(this).runOrExit(ArraySeq.unsafeWrapArray(args))
   }
 }

@@ -27,7 +27,7 @@ package object io extends Logging {
 
   def checkGzipOfGlobbedFiles(
     globPaths: Seq[String],
-    fileListEntries: Array[FileListEntry],
+    fileListEntries: IndexedSeq[FileListEntry],
     forceGZ: Boolean,
     gzAsBGZ: Boolean,
     maxSizeMB: Int = 128,

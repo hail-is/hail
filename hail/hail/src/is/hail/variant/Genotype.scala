@@ -1,6 +1,7 @@
 package is.hail.variant
 
 import is.hail.annotations.Annotation
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.types.virtual.{TArray, TCall, TInt32, TStruct}
 
 import org.apache.spark.sql.Row
@@ -32,7 +33,7 @@ object AllelePair {
   def nNonRefAlleles(p: Int): Int =
     (if (j(p) != 0) 1 else 0) + (if (k(p) != 0) 1 else 0)
 
-  def alleleIndices(p: Int): Array[Int] = Array(j(p), k(p))
+  def alleleIndices(p: Int): IndexedSeq[Int] = ArraySeq(j(p), k(p))
 }
 
 object Genotype {
@@ -55,32 +56,6 @@ object Genotype {
         Some(r.getInt(0))
     }
   }
-
-  def apply(c: BoxedCall): Annotation = Annotation(c, null, null, null, null)
-
-  def apply(
-    c: BoxedCall,
-    ad: Array[Int],
-    dp: java.lang.Integer,
-    gq: java.lang.Integer,
-    pl: Array[Int],
-  ): Annotation =
-    Annotation(c, ad: IndexedSeq[Int], dp, gq, pl: IndexedSeq[Int])
-
-  def apply(
-    c: Option[Call] = None,
-    ad: Option[Array[Int]] = None,
-    dp: Option[Int] = None,
-    gq: Option[Int] = None,
-    pl: Option[Array[Int]] = None,
-  ): Annotation =
-    Annotation(
-      c.orNull,
-      ad.map(adx => adx: IndexedSeq[Int]).orNull,
-      dp.orNull,
-      gq.orNull,
-      pl.map(plx => plx: IndexedSeq[Int]).orNull,
-    )
 
   def gqFromPL(pl: Array[Int]): Int = {
     var m = 99

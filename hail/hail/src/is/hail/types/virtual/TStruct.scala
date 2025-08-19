@@ -34,8 +34,8 @@ object TStruct {
       .to(ArraySeq))
 
   def apply(names: java.util.List[String], types: java.util.List[Type]): TStruct = {
-    val sNames = names.asScala.toArray
-    val sTypes = types.asScala.toArray
+    val sNames = names.asScala.to(ArraySeq)
+    val sTypes = types.asScala.to(ArraySeq)
     if (sNames.length != sTypes.length)
       fatal(
         s"number of names does not match number of types: found ${sNames.length} names and ${sTypes.length} types"
@@ -55,11 +55,11 @@ object TStruct {
 final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
   assert(fields.zipWithIndex.forall { case (f, i) => f.index == i })
 
-  lazy val types: Array[Type] = fields.map(_.typ).toArray
+  lazy val types: IndexedSeq[Type] = fields.map(_.typ)
 
-  val fieldNames: Array[String] = {
+  val fieldNames: IndexedSeq[String] = {
     val seen = mutable.Set.empty[String]
-    fields.toArray.map { f =>
+    fields.map { f =>
       val name = f.name
       assert(seen.add(name), f"duplicate name '$name' found in '${_toPretty}'.")
       name
@@ -146,7 +146,7 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
         case _ =>
           val arr = new Array[Any](typ.size)
           arr.update(idx, f(missing, v))
-          Row.fromSeq(arr)
+          Row.fromSeq(ArraySeq.unsafeWrapArray(arr))
       }
 
     def addField(typ: TStruct)(f: Inserter)(a: Annotation, v: Any): Annotation = {
@@ -158,7 +158,7 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
         case _ =>
       }
       arr(typ.size) = f(missing, v)
-      Row.fromSeq(arr)
+      Row.fromSeq(ArraySeq.unsafeWrapArray(arr))
     }
 
     val (newType, inserter) =
@@ -208,7 +208,7 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
     for (i <- fields.indices)
       newFields(i) = fields(i)
     newFields(i) = Field(key, sig, i)
-    TStruct(newFields)
+    TStruct(ArraySeq.unsafeWrapArray(newFields))
   }
 
   def deleteKey(key: String): TStruct = deleteKey(key, fieldIdx(key))
@@ -223,7 +223,7 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
         newFields(i) = fields(i)
       for (i <- index + 1 until fields.length)
         newFields(i - 1) = fields(i).copy(index = i - 1)
-      TStruct(newFields)
+      TStruct(ArraySeq.unsafeWrapArray(newFields))
     }
   }
 
@@ -233,7 +233,7 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
     for (i <- fields.indices)
       newFields(i) = fields(i)
     newFields(fields.length) = Field(key, sig, fields.length)
-    TStruct(newFields)
+    TStruct(ArraySeq.unsafeWrapArray(newFields))
   }
 
   def annotate(other: TStruct): (TStruct, Merger) = {
@@ -264,8 +264,8 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
 
     val newStruct = TStruct(newFieldsBuilder.result(): _*)
     val fieldIdx = fieldIdxBuilder.result()
-    val leftNulls = Row.fromSeq(Array.fill[Any](size)(null))
-    val rightNulls = Row.fromSeq(Array.fill[Any](other.size)(null))
+    val leftNulls = Row.fromSeq(ArraySeq.fill[Any](size)(null))
+    val rightNulls = Row.fromSeq(ArraySeq.fill[Any](other.size)(null))
 
     val annotator = (a1: Annotation, a2: Annotation) => {
       if (a1 == null && a2 == null)
@@ -273,15 +273,8 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
       else {
         val leftValues = if (a1 == null) leftNulls else a1.asInstanceOf[Row]
         val rightValues = if (a2 == null) rightNulls else a2.asInstanceOf[Row]
-        val resultValues = new Array[Any](fieldIdx.length)
-        var i = 0
-        while (i < resultValues.length) {
-          val idx = fieldIdx(i)
-          if (idx < 0)
-            resultValues(i) = rightValues(~idx)
-          else
-            resultValues(i) = leftValues(idx)
-          i += 1
+        val resultValues = fieldIdx.map { idx =>
+          if (idx < 0) rightValues(~idx) else leftValues(idx)
         }
         Row.fromSeq(resultValues)
       }

@@ -2,6 +2,7 @@ package is.hail.io
 
 import is.hail.HailSuite
 import is.hail.annotations.Annotation
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.{toRichIterable, toRichIterator}
 import is.hail.io.index._
 import is.hail.types.physical.{PCanonicalString, PCanonicalStruct, PInt32, PType}
@@ -12,14 +13,14 @@ import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
 
 class IndexSuite extends HailSuite {
-  val strings = Array(
+  val strings = ArraySeq(
     "bear", "cat", "deer", "dog",
     "lion", "mouse", "parrot", "quail",
     "rabbit", "raccoon", "rat", "raven",
     "skunk", "snail", "squirrel", "vole",
     "weasel", "whale", "yak", "zebra")
 
-  val stringsWithDups = Array(
+  val stringsWithDups = ArraySeq(
     "bear", "bear", "cat", "cat",
     "cat", "cat", "cat", "cat",
     "cat", "dog", "mouse", "mouse",
@@ -31,13 +32,13 @@ class IndexSuite extends HailSuite {
   }
 
   @DataProvider(name = "elements")
-  def data(): Array[Array[Array[String]]] =
+  def data(): Array[Array[ArraySeq[String]]] =
     (1 to strings.length).map(i => Array(strings.take(i))).toArray
 
   def writeIndex(
     file: String,
-    data: Array[Any],
-    annotations: Array[Annotation],
+    data: IndexedSeq[Any],
+    annotations: IndexedSeq[Annotation],
     keyType: PType,
     annotationType: PType,
     branchingFactor: Int,
@@ -82,8 +83,8 @@ class IndexSuite extends HailSuite {
 
   def writeIndex(
     file: String,
-    data: Array[String],
-    annotations: Array[Annotation],
+    data: IndexedSeq[String],
+    annotations: IndexedSeq[Annotation],
     annotationType: Type,
     branchingFactor: Int = 2,
     attributes: Map[String, Any] = Map.empty[String, Any],
@@ -99,7 +100,7 @@ class IndexSuite extends HailSuite {
     )
 
   @Test(dataProvider = "elements")
-  def writeReadGivesSameAsInput(data: Array[String]): Unit = {
+  def writeReadGivesSameAsInput(data: IndexedSeq[String]): Unit = {
     val file = ctx.createTmpPath("test", "idx")
     val attributes: Map[String, Any] = Map("foo" -> true, "bar" -> 5)
 
@@ -109,7 +110,7 @@ class IndexSuite extends HailSuite {
       writeIndex(
         file,
         data,
-        data.indices.map(i => a(i)).toArray,
+        data.indices.map(i => a(i)),
         TStruct("a" -> TBoolean),
         branchingFactor,
         attributes,
@@ -134,7 +135,7 @@ class IndexSuite extends HailSuite {
 
   @Test def testEmptyKeys(): Unit = {
     val file = ctx.createTmpPath("empty", "idx")
-    writeIndex(file, Array.empty[String], Array.empty[Annotation], TStruct("a" -> TBoolean), 2)
+    writeIndex(file, ArraySeq.empty, ArraySeq.empty, TStruct("a" -> TBoolean), 2)
     assert(fs.getFileSize(file + "/index") != 0)
     assert(fs.getFileSize(file + "/metadata.json.gz") != 0)
     val index = indexReader(file, TStruct("a" -> TBoolean))
@@ -150,7 +151,7 @@ class IndexSuite extends HailSuite {
       writeIndex(
         file,
         stringsWithDups,
-        stringsWithDups.indices.map(i => Row()).toArray,
+        stringsWithDups.indices.map(i => Row()),
         TStruct.empty,
         branchingFactor,
       )
@@ -183,7 +184,7 @@ class IndexSuite extends HailSuite {
       writeIndex(
         file,
         stringsWithDups,
-        stringsWithDups.indices.map(i => Row()).toArray,
+        stringsWithDups.indices.map(i => Row()),
         TStruct.empty,
         branchingFactor = 2,
       )
@@ -217,21 +218,19 @@ class IndexSuite extends HailSuite {
       writeIndex(
         file,
         stringsWithDups,
-        stringsWithDups.indices.map(a).toArray,
+        stringsWithDups.indices.map(a),
         TStruct.empty,
         branchingFactor,
       )
       val index = indexReader(file, TStruct.empty)
 
-      val bounds = stringsWithDups.indices.toArray.combinations(2).toArray
+      val bounds = stringsWithDups.indices.combinations(2)
       bounds.foreach(b =>
-        index.iterator(b(0).toLong, b(1).toLong).toArray sameElements leafsWithDups.slice(
-          b(0),
-          b(1),
-        )
+        index.iterator(b(0).toLong, b(1).toLong) ==
+          leafsWithDups.slice(b(0), b(1))
       )
 
-      assert(index.iterator.toArray sameElements stringsWithDups.zipWithIndex.map { case (s, i) =>
+      assert(index.iterator sameElements stringsWithDups.iterator.zipWithIndex.map { case (s, i) =>
         LeafChild(s, i.toLong, a(i))
       })
     }
@@ -243,7 +242,7 @@ class IndexSuite extends HailSuite {
       writeIndex(
         file,
         stringsWithDups,
-        stringsWithDups.indices.map(i => Row()).toArray,
+        stringsWithDups.indices.map(i => Row()),
         TStruct.empty,
         branchingFactor,
       )
@@ -254,7 +253,7 @@ class IndexSuite extends HailSuite {
 
       val stringsInList = stringsWithDups.distinct
       assert(stringsInList.forall(s =>
-        index.queryByKey(s) sameElements leafsWithDups.filter(_.key == s)
+        index.queryByKey(s) == leafsWithDups.filter(_.key == s)
       ))
     }
   }
@@ -265,7 +264,7 @@ class IndexSuite extends HailSuite {
       writeIndex(
         file,
         stringsWithDups,
-        stringsWithDups.indices.map(i => Row()).toArray,
+        stringsWithDups.indices.map(i => Row()),
         TStruct.empty,
         branchingFactor,
       )
@@ -388,10 +387,10 @@ class IndexSuite extends HailSuite {
 
               if (includesStart)
                 assert(index.iterateFrom(bounds(0)).toFastSeq ==
-                  leafsWithDups.slice(lowerBoundIdx, stringsWithDups.length).toFastSeq)
+                  leafsWithDups.slice(lowerBoundIdx, stringsWithDups.length))
               if (!includesEnd)
                 assert(index.iterateUntil(bounds(1)).toFastSeq ==
-                  leafsWithDups.slice(0, upperBoundIdx).toFastSeq)
+                  leafsWithDups.slice(0, upperBoundIdx))
             } else
               intercept[IllegalArgumentException](index.queryByInterval(
                 bounds(0),
@@ -412,7 +411,7 @@ class IndexSuite extends HailSuite {
       writeIndex(
         file,
         stringsWithDups.zipWithIndex.map { case (s, i) => Row(s, i) },
-        stringsWithDups.indices.map(i => Row()).toArray,
+        stringsWithDups.indices.map(i => Row()),
         keyType,
         +PCanonicalStruct(),
         branchingFactor,
@@ -421,7 +420,7 @@ class IndexSuite extends HailSuite {
 
       val leafChildren = stringsWithDups.zipWithIndex.map { case (s, i) =>
         LeafChild(Row(s, i), i.toLong, Row())
-      }.toFastSeq
+      }
 
       val index = indexReader(
         file,
@@ -472,7 +471,7 @@ class IndexSuite extends HailSuite {
       writeIndex(
         file,
         stringsWithDups,
-        stringsWithDups.indices.map(i => Row()).toArray,
+        stringsWithDups.indices.map(i => Row()),
         TStruct.empty,
         branchingFactor,
       )
@@ -487,10 +486,10 @@ class IndexSuite extends HailSuite {
         assert(index.iterateFrom(s).toFastSeq == leafsWithDups.slice(
           start,
           stringsWithDups.length,
-        ).toFastSeq)
+        ))
 
         val end = stringsWithDups.lastIndexWhere(s > _) + 1
-        assert(index.iterateUntil(s).toFastSeq == leafsWithDups.slice(0, end).toFastSeq)
+        assert(index.iterateUntil(s).toFastSeq == leafsWithDups.slice(0, end))
       }
     }
   }

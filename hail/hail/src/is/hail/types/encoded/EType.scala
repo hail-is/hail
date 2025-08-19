@@ -4,6 +4,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s.{coerce => _, _}
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{
   EmitClassBuilder, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, IRParser, ParamType,
   PunctuationToken, TokenIterator,
@@ -234,7 +235,7 @@ object EType extends Logging {
       val fb = EmitFunctionBuilder[EncoderAsmFunction](
         ctx,
         "etypeEncode",
-        Array(NotGenericTypeInfo[Long], NotGenericTypeInfo[OutputBuffer]),
+        ArraySeq(NotGenericTypeInfo[Long], NotGenericTypeInfo[OutputBuffer]),
         NotGenericTypeInfo[Unit],
       )
       fb.ecb.makeAddPartitionRegion()
@@ -281,7 +282,7 @@ object EType extends Logging {
       val fb = EmitFunctionBuilder[DecoderAsmFunction](
         ctx,
         "etypeDecode",
-        Array(NotGenericTypeInfo[Region], NotGenericTypeInfo[InputBuffer]),
+        ArraySeq(NotGenericTypeInfo[Region], NotGenericTypeInfo[InputBuffer]),
         NotGenericTypeInfo[Long],
       )
       val mb = fb.apply_method
@@ -317,7 +318,7 @@ object EType extends Logging {
     case TString => EBinary(r.required)
     case TLocus(_) =>
       EBaseStruct(
-        Array(
+        ArraySeq(
           EField("contig", EBinary(true), 0),
           EField("position", EInt32(true), 1),
         ),
@@ -328,7 +329,7 @@ object EType extends Logging {
     case t: TInterval =>
       val rinterval = r.asInstanceOf[RInterval]
       EBaseStruct(
-        Array(
+        ArraySeq(
           EField("start", fromTypeAndAnalysis(ctx, t.pointType, rinterval.startType), 0),
           EField("end", fromTypeAndAnalysis(ctx, t.pointType, rinterval.endType), 1),
           EField("includesStart", EBoolean(true), 2),
@@ -349,7 +350,7 @@ object EType extends Logging {
       val rstruct = tcoerce[RBaseStruct](r)
       assert(t.size == rstruct.size, s"different number of fields: $t $r")
       EBaseStruct(
-        Array.tabulate(t.size) { i =>
+        ArraySeq.tabulate(t.size) { i =>
           val f = rstruct.fields(i)
           if (f.index != i)
             throw new AssertionError(s"$t [$i]")
@@ -376,7 +377,7 @@ object EType extends Logging {
     case TString => EBinary(false)
     case TLocus(_) =>
       EBaseStruct(
-        Array(
+        ArraySeq(
           EField("contig", EBinary(false), 0),
           EField("position", EInt32(false), 1),
         ),
@@ -385,7 +386,7 @@ object EType extends Logging {
     case TCall => EInt32(false)
     case t: TInterval =>
       EBaseStruct(
-        Array(
+        ArraySeq(
           EField("start", fromPythonTypeEncoding(t.pointType), 0),
           EField("end", fromPythonTypeEncoding(t.pointType), 1),
           EField("includesStart", EBoolean(false), 2),
@@ -399,7 +400,7 @@ object EType extends Logging {
     case t: TIterable => EArray(fromPythonTypeEncoding(t.elementType), false)
     case t: TBaseStruct =>
       EBaseStruct(
-        Array.tabulate(t.size) { i =>
+        ArraySeq.tabulate(t.size) { i =>
           val f = t.fields(i)
           if (f.index != i)
             throw new AssertionError(s"$t [$i]")

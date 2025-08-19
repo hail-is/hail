@@ -2,6 +2,10 @@ package is.hail.expr.ir
 
 import is.hail.asm4s._
 import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
+
+import scala.{collection => C}
+import scala.collection.{mutable => M}
 
 import net.sourceforge.jdistlib.{Beta, Gamma, HyperGeometric, Poisson}
 import net.sourceforge.jdistlib.rng.RandomEngine
@@ -65,7 +69,7 @@ object Threefry {
     cb: CodeBuilderLike,
     key: IndexedSeq[Long],
     tweak: IndexedSeq[Value[Long]],
-    block: IndexedSeq[Settable[Long]],
+    block: C.IndexedSeq[Settable[Long]],
     s: Int,
   ): Unit = {
     cb.assign(block(0), block(0) + key(s % 5))
@@ -74,7 +78,7 @@ object Threefry {
     cb.assign(block(3), block(3) + const(key((s + 3) % 5)) + const(s.toLong))
   }
 
-  def permute(x: Array[Settable[Long]]): Unit = {
+  def permute(x: M.IndexedSeq[Settable[Long]]): Unit = {
     val tmp = x(1)
     x(1) = x(3)
     x(3) = tmp
@@ -178,7 +182,7 @@ object Threefry {
     assert(k.length == 5)
     assert(_t.length == 2)
     assert(x.length == 4)
-    val t = Array(_t(0), _t(1), _t(0) ^ _t(1))
+    val t = ArraySeq(_t(0), _t(1), _t(0) ^ _t(1))
 
     for (d <- 0 until rounds) {
       if (d % 4 == 0)
@@ -218,8 +222,8 @@ object Threefry {
     assert(k.length == 5)
     assert(_t.length == 2)
     assert(_x.length == 4)
-    val x = _x.toArray
-    val t = Array(_t(0), _t(1), cb.memoize(_t(0) ^ _t(1)))
+    val x = M.ArraySeq(_x: _*)
+    val t = ArraySeq(_t(0), _t(1), cb.memoize(_t(0) ^ _t(1)))
 
     for (d <- 0 until rounds) {
       if (d % 4 == 0)
@@ -250,13 +254,13 @@ object Threefry {
 
   def pmac(sum: Array[Long], message: IndexedSeq[Long]): Array[Long] = {
     val (hash, finalTweak) = pmacHashFromState(sum, message)
-    encrypt(Threefry.defaultKey, Array(finalTweak, 0L), hash)
+    encrypt(Threefry.defaultKey, ArraySeq(finalTweak, 0L), hash)
     hash
   }
 
   def pmac(nonce: Long, staticID: Long, message: IndexedSeq[Long]): Array[Long] = {
     val sum = Array(nonce, staticID, 0L, 0L)
-    encrypt(Threefry.defaultKey, Array(Threefry.staticTweak, 0L), sum)
+    encrypt(Threefry.defaultKey, ArraySeq(Threefry.staticTweak, 0L), sum)
     pmac(sum, message)
   }
 
@@ -267,7 +271,7 @@ object Threefry {
 
   def pmacHash(nonce: Long, staticID: Long, message: IndexedSeq[Long]): (Array[Long], Long) = {
     val sum = Array(nonce, staticID, 0L, 0L)
-    encrypt(Threefry.defaultKey, Array(Threefry.staticTweak, 0L), sum)
+    encrypt(Threefry.defaultKey, ArraySeq(Threefry.staticTweak, 0L), sum)
     pmacHashFromState(sum, message)
   }
 
@@ -282,7 +286,7 @@ object Threefry {
     var i = 0
     while (i + 4 < paddedLength) {
       val x = message.slice(i, i + 4)
-      encrypt(Threefry.defaultKey, Array(i.toLong, 0L), x)
+      encrypt(Threefry.defaultKey, ArraySeq(i.toLong, 0L), x)
       sum(0) ^= x(0)
       sum(1) ^= x(1)
       sum(2) ^= x(2)
@@ -301,8 +305,8 @@ object Threefry {
     f.mb.emitWithBuilder { cb =>
       val xArray = f.mb.getArg[Array[Long]](1)
       val tArray = f.mb.getArg[Array[Long]](2)
-      val t = Array(cb.memoize(tArray(0)), cb.memoize(tArray(1)))
-      val x = Array.tabulate[Settable[Long]](4)(i => cb.newLocal[Long](s"x$i", xArray(i)))
+      val t = ArraySeq(cb.memoize(tArray(0)), cb.memoize(tArray(1)))
+      val x = ArraySeq.tabulate[Settable[Long]](4)(i => cb.newLocal[Long](s"x$i", xArray(i)))
       encrypt(cb, expandKey(k), t, x)
       for (i <- 0 until 4) cb += (xArray(i) = x(i))
       Code._empty
@@ -323,7 +327,7 @@ class PMacHash() {
     while (4 - curOffset < n - j) {
       val lenCopied = 4 - curOffset
       Array.copy(a, j, buffer, curOffset, lenCopied)
-      Threefry.encrypt(Threefry.defaultKey, Array(i.toLong, 0L), buffer)
+      Threefry.encrypt(Threefry.defaultKey, ArraySeq(i.toLong, 0L), buffer)
       sum(0) ^= buffer(0)
       sum(1) ^= buffer(1)
       sum(2) ^= buffer(2)
@@ -350,7 +354,7 @@ class PMacHash() {
       sum(j) ^= buffer(j)
       j += 1
     }
-    Threefry.encrypt(Threefry.defaultKey, Array(finalTweak, 0L), sum)
+    Threefry.encrypt(Threefry.defaultKey, ArraySeq(finalTweak, 0L), sum)
     sum
   }
 }
@@ -382,7 +386,7 @@ object ThreefryRandomEngine {
 
   def randState(): ThreefryRandomEngine = {
     val rand = new java.util.Random()
-    val key = Threefry.expandKey(Array.fill(4)(rand.nextLong()))
+    val key = Threefry.expandKey(ArraySeq.fill(4)(rand.nextLong()))
     new ThreefryRandomEngine(
       key(0),
       key(1),

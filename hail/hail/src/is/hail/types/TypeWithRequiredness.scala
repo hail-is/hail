@@ -3,6 +3,7 @@ package is.hail.types
 import is.hail.annotations.{Annotation, NDArray}
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{ComputeUsesAndDefs, Env, IR}
 import is.hail.expr.ir.lowering.TableStage
 import is.hail.types.physical._
@@ -356,7 +357,7 @@ object RIterable {
 
   def dict(keyType: TypeWithRequiredness, valueType: TypeWithRequiredness): RIterable =
     new RIterable(
-      RStruct.fromNamesAndTypes(Array("key" -> keyType, "value" -> valueType)),
+      RStruct.fromNamesAndTypes(ArraySeq("key" -> keyType, "value" -> valueType)),
       true,
     )
 }
@@ -534,13 +535,13 @@ case class RStruct(fields: IndexedSeq[RField]) extends RBaseStruct {
 
   override def copy(newChildren: IndexedSeq[BaseTypeWithRequiredness]): RStruct = {
     assert(newChildren.length == fields.length)
-    RStruct.fromNamesAndTypes(Array.tabulate(fields.length)(i =>
+    RStruct.fromNamesAndTypes(ArraySeq.tabulate(fields.length)(i =>
       fields(i).name -> tcoerce[TypeWithRequiredness](newChildren(i))
     ))
   }
 
-  def select(newFields: Array[String]): RStruct =
-    RStruct(Array.tabulate(newFields.length)(i => RField(newFields(i), field(newFields(i)), i)))
+  def select(newFields: IndexedSeq[String]): RStruct =
+    RStruct(ArraySeq.tabulate(newFields.length)(i => RField(newFields(i), field(newFields(i)), i)))
 
   override def _toString: String =
     s"RStruct[${fields.map(f => s"${f.name}: ${f.typ.toString}").mkString(",")}]"

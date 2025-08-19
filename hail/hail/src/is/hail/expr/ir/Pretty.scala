@@ -263,7 +263,7 @@ class Pretty(
     case TailLoop(name, args, returnType, _) if !elideBindings =>
       FastSeq(
         prettyName(name),
-        prettyNames(args.map(_._1).toFastSeq),
+        prettyNames(args.map(_._1)),
         returnType.parsableString(),
       )
     case Recur(name, _, _) if !elideBindings =>
@@ -281,7 +281,7 @@ class Pretty(
     case ApplyComparisonOp(op, _, _) => single(op.render())
     case GetField(_, name) => single(prettyIdentifier(name))
     case GetTupleElement(_, idx) => single(idx.toString)
-    case MakeTuple(fields) => FastSeq(prettyInts(fields.map(_._1).toFastSeq, elideLiterals))
+    case MakeTuple(fields) => FastSeq(prettyInts(fields.map(_._1), elideLiterals))
     case MakeArray(_, typ) => single(typ.parsableString())
     case MakeStream(_, typ, requiresMemoryManagementPerElement) =>
       FastSeq(typ.parsableString(), Pretty.prettyBooleanLiteral(requiresMemoryManagementPerElement))
@@ -592,28 +592,22 @@ class Pretty(
         text(errorId.toString),
       )
     case TableRename(_, rowMap, globalMap) =>
-      val rowKV = rowMap.toArray
-      val globalKV = globalMap.toArray
       FastSeq(
-        prettyStrings(rowKV.map(_._1)),
-        prettyStrings(rowKV.map(_._2)),
-        prettyStrings(globalKV.map(_._1)),
-        prettyStrings(globalKV.map(_._2)),
+        prettyStrings(ArraySeq.from(rowMap.keys)),
+        prettyStrings(ArraySeq.from(rowMap.values)),
+        prettyStrings(ArraySeq.from(globalMap.keys)),
+        prettyStrings(ArraySeq.from(globalMap.values)),
       )
     case MatrixRename(_, globalMap, colMap, rowMap, entryMap) =>
-      val globalKV = globalMap.toArray
-      val colKV = colMap.toArray
-      val rowKV = rowMap.toArray
-      val entryKV = entryMap.toArray
       FastSeq(
-        prettyStrings(globalKV.map(_._1)),
-        prettyStrings(globalKV.map(_._2)),
-        prettyStrings(colKV.map(_._1)),
-        prettyStrings(colKV.map(_._2)),
-        prettyStrings(rowKV.map(_._1)),
-        prettyStrings(rowKV.map(_._2)),
-        prettyStrings(entryKV.map(_._1)),
-        prettyStrings(entryKV.map(_._2)),
+        prettyStrings(ArraySeq.from(globalMap.keys)),
+        prettyStrings(ArraySeq.from(globalMap.values)),
+        prettyStrings(ArraySeq.from(colMap.keys)),
+        prettyStrings(ArraySeq.from(colMap.values)),
+        prettyStrings(ArraySeq.from(rowMap.keys)),
+        prettyStrings(ArraySeq.from(rowMap.values)),
+        prettyStrings(ArraySeq.from(entryMap.keys)),
+        prettyStrings(ArraySeq.from(entryMap.values)),
       )
     case TableFilterIntervals(child, intervals, keep) =>
       FastSeq(
@@ -675,7 +669,7 @@ class Pretty(
             list(prettyIdentifier(n), pretty(a))
           }
           pretty(old) +: prettyStringsOpt(fieldOrder) +: fieldDocs
-        case _ => ir.children.map(pretty).toFastSeq
+        case _ => ir.children.map(pretty)
       }
 
       /* val pt = ir match{ case ir: IR => if (ir._pType != null) single(ir.pType.toString) case _
@@ -996,10 +990,11 @@ class Pretty(
           }
         }
 
-        val nestedBlocks = (for {
-          (child, i) <- ir.children.zipWithIndex
-          if !childIsStrict(ir, i)
-        } yield prettyBlock(child, blockArgs(ir, i).get, bindings)).toFastSeq
+        val nestedBlocks =
+          (for {
+            (child, i) <- ir.children.zipWithIndex
+            if !childIsStrict(ir, i)
+          } yield prettyBlock(child, blockArgs(ir, i).get, bindings))
 
         val attsIterable = header(ir, elideBindings = true)
         val attributes = if (attsIterable.isEmpty) Iterable.empty
@@ -1024,12 +1019,13 @@ class Pretty(
             val args = s" ${strictChildIdents.head} $newFields"
             hsep(text(Pretty.prettyClass(ir) + args) +: (attributes ++ nestedBlocks))
           case ir: If =>
+            val Seq(cnsq, altr) = nestedBlocks
             hsep(
               text(s"${Pretty.prettyClass(ir)} ${strictChildIdents.head}"),
               text("then"),
-              nestedBlocks(0),
+              cnsq,
               text("else"),
-              nestedBlocks(1),
+              altr,
             )
           case _ =>
             hsep(text(Pretty.prettyClass(ir) + standardArgs) +: (attributes ++ nestedBlocks))

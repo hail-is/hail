@@ -41,7 +41,7 @@ case class MatrixExportEntriesByCol(
         )
       ids
     } else
-      Array.tabulate(mv.nCols)(i => partFile(padding, i))
+      ArraySeq.tabulate(mv.nCols)(i => partFile(padding, i))
 
     val allColValuesJSON =
       mv.colValues.javaValue.map(TableAnnotationImpex.exportAnnotation(_, mv.typ.colType)).toArray

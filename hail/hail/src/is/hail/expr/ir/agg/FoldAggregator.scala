@@ -3,6 +3,7 @@ package is.hail.expr.ir.agg
 import is.hail.annotations.Region
 import is.hail.asm4s.Value
 import is.hail.backend.ExecuteContext
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{
   Emit, EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitContext, EmitEnv, EmitMethodBuilder, Env,
   IEmitCode, IR, Name,
@@ -20,9 +21,8 @@ class FoldAggregator(
 ) extends StagedAggregator {
   override type State = TypedRegionBackedAggState
 
-  override val initOpTypes: Seq[Type] = IndexedSeq(resultEmitType.virtualType)
-
-  override val seqOpTypes: Seq[Type] = IndexedSeq(resultEmitType.virtualType)
+  override val initOpTypes: IndexedSeq[Type] = ArraySeq(resultEmitType.virtualType)
+  override val seqOpTypes: IndexedSeq[Type] = ArraySeq(resultEmitType.virtualType)
 
   override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     val Array(initEC) = init

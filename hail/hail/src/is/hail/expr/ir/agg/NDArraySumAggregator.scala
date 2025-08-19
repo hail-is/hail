@@ -5,6 +5,7 @@ import is.hail.asm4s._
 import is.hail.asm4s.implicits.valueToRichCodeRegion
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{CodeParamType, EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical.PCanonicalNDArray
@@ -20,9 +21,8 @@ class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator 
   private val ndTyp =
     resultEmitType.storageType.asInstanceOf[PCanonicalNDArray] // TODO: Set required false?
 
-  override def initOpTypes: Seq[Type] = Array[Type]()
-
-  override def seqOpTypes: Seq[Type] = Array(ndVTyp.t)
+  override def initOpTypes: IndexedSeq[Type] = ArraySeq.empty
+  override def seqOpTypes: IndexedSeq[Type] = ArraySeq(ndVTyp.t)
 
   val ndarrayFieldNumber = 0
 

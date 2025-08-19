@@ -1,5 +1,6 @@
 package is.hail.scalacheck
 
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.Nat
 import is.hail.types.virtual._
 import is.hail.variant.ReferenceGenome.hailReferences
@@ -40,7 +41,7 @@ private[scalacheck] trait ArbitraryTypeInstances {
   implicit lazy val arbTStruct: Arbitrary[TStruct] =
     for {
       len <- size
-      names <- distinctContainerOfN[Array, String](len, identifier)
+      names <- distinctContainerOfN[ArraySeq, String](len, identifier)
       types <- distribute(len, arbitrary[Type])
     } yield TStruct((names lazyZip types lazyZip (0 until len)).map(Field))
 

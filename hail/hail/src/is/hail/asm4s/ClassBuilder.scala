@@ -1,6 +1,7 @@
 package is.hail.asm4s
 
 import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.lir
 import is.hail.utils._
@@ -143,7 +144,7 @@ class ModuleBuilder() {
         }
         val ctor = kb.newMethod("<init>", fieldTypes, UnitInfo)
         ctor.emitWithBuilder { cb =>
-          cb += kb.super_.invoke(coerce[Object](cb.this_), Array())
+          cb += kb.super_.invoke(coerce[Object](cb.this_), ArraySeq.empty)
           fields.zipWithIndex.foreach { case (f, i) =>
             cb += f.putAny(ctor.this_, ctor.getArg(i + 1)(f.ti).get)
           }
@@ -326,7 +327,7 @@ class ClassBuilder[C](
     Invokeable(classOf[Object], classOf[Object].getConstructor())
 
   private[this] var initBody: Code[Unit] =
-    super_.invoke(coerce[Object](this_), Array())
+    super_.invoke(coerce[Object](this_), ArraySeq.empty)
 
   private[this] var lClinit: lir.Method = _
 
@@ -597,13 +598,13 @@ object FunctionBuilder {
     apply[AsmFunction0[R]](baseName, FastSeq.empty[MaybeGenericTypeInfo[_]], GenericTypeInfo[R])
 
   def apply[A1: TypeInfo, R: TypeInfo](baseName: String): FunctionBuilder[AsmFunction1[A1, R]] =
-    apply[AsmFunction1[A1, R]](baseName, Array(GenericTypeInfo[A1]), GenericTypeInfo[R])
+    apply[AsmFunction1[A1, R]](baseName, ArraySeq(GenericTypeInfo[A1]), GenericTypeInfo[R])
 
   def apply[A1: TypeInfo, A2: TypeInfo, R: TypeInfo](baseName: String)
     : FunctionBuilder[AsmFunction2[A1, A2, R]] =
     apply[AsmFunction2[A1, A2, R]](
       baseName,
-      Array(GenericTypeInfo[A1], GenericTypeInfo[A2]),
+      ArraySeq(GenericTypeInfo[A1], GenericTypeInfo[A2]),
       GenericTypeInfo[R],
     )
 
@@ -611,7 +612,7 @@ object FunctionBuilder {
     : FunctionBuilder[AsmFunction3[A1, A2, A3, R]] =
     apply[AsmFunction3[A1, A2, A3, R]](
       baseName,
-      Array(GenericTypeInfo[A1], GenericTypeInfo[A2], GenericTypeInfo[A3]),
+      ArraySeq(GenericTypeInfo[A1], GenericTypeInfo[A2], GenericTypeInfo[A3]),
       GenericTypeInfo[R],
     )
 
@@ -619,7 +620,7 @@ object FunctionBuilder {
     : FunctionBuilder[AsmFunction4[A1, A2, A3, A4, R]] =
     apply[AsmFunction4[A1, A2, A3, A4, R]](
       baseName,
-      Array(GenericTypeInfo[A1], GenericTypeInfo[A2], GenericTypeInfo[A3], GenericTypeInfo[A4]),
+      ArraySeq(GenericTypeInfo[A1], GenericTypeInfo[A2], GenericTypeInfo[A3], GenericTypeInfo[A4]),
       GenericTypeInfo[R],
     )
 }

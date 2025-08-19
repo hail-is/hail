@@ -2,6 +2,7 @@ package is.hail.expr.ir.analyses
 
 import is.hail.{HailSuite, PrettyVersion}
 import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir._
 import is.hail.expr.ir.defs._
 import is.hail.io.fs.{FS, FakeFS, FakeURL, FileListEntry}
@@ -91,32 +92,32 @@ class SemanticHashSuite extends HailSuite {
     Array.concat(
       Array(
         Array(
-          MakeStruct(Array.empty[(String, IR)]),
-          MakeStruct(Array.empty[(String, IR)]),
+          MakeStruct(ArraySeq.empty),
+          MakeStruct(ArraySeq.empty),
           true,
           "empty structs",
         ),
         Array(
-          MakeStruct(Array(genUID() -> I32(0))),
-          MakeStruct(Array(genUID() -> I32(0))),
+          MakeStruct(ArraySeq(genUID() -> I32(0))),
+          MakeStruct(ArraySeq(genUID() -> I32(0))),
           true,
           "field names do not affect MakeStruct semantics",
         ),
         Array(
-          MakeTuple(Array.empty[(Int, IR)]),
-          MakeTuple(Array.empty[(Int, IR)]),
+          MakeTuple(ArraySeq.empty),
+          MakeTuple(ArraySeq.empty),
           true,
           "empty tuples",
         ),
         Array(
-          MakeTuple(Array(0 -> I32(0))),
-          MakeTuple(Array(0 -> I32(0))),
+          MakeTuple(ArraySeq(0 -> I32(0))),
+          MakeTuple(ArraySeq(0 -> I32(0))),
           true,
           "identical tuples",
         ),
         Array(
-          MakeTuple(Array(0 -> I32(0))),
-          MakeTuple(Array(1 -> I32(0))),
+          MakeTuple(ArraySeq(0 -> I32(0))),
+          MakeTuple(ArraySeq(1 -> I32(0))),
           false,
           "tuple indices affect MakeTuple semantics",
         ),
@@ -139,7 +140,7 @@ class SemanticHashSuite extends HailSuite {
             "GetTupleElement of same index",
           ),
           f(
-            mkType = i => TTuple(Array(TupleField(i, TInt32))),
+            mkType = i => TTuple(ArraySeq(TupleField(i, TInt32))),
             get = (ir, i) => GetTupleElement(ir, i),
             isSame = false,
             "GetTupleElement on different index",
@@ -208,7 +209,7 @@ class SemanticHashSuite extends HailSuite {
       Array[String => TableReader](
         path =>
           new StringTableReader(
-            StringTableReaderParameters(Array(path), None, false, false, false),
+            StringTableReaderParameters(ArraySeq(path), None, false, false, false),
             fakeFs.glob(path),
           ),
         path =>
@@ -256,7 +257,7 @@ class SemanticHashSuite extends HailSuite {
 
   def isBlockMatrixIRSemanticallyEquivalent: Array[Array[Any]] =
     Array[String => BlockMatrixReader](
-      path => BlockMatrixBinaryReader(path, Array(1L, 1L), 1),
+      path => BlockMatrixBinaryReader(path, ArraySeq(1L, 1L), 1),
       path =>
         new BlockMatrixNativeReader(
           BlockMatrixNativeReaderParameters(path),
@@ -322,8 +323,8 @@ class SemanticHashSuite extends HailSuite {
       override def eTag(url: FakeURL): Option[String] =
         Some(url.path)
 
-      override def glob(url: FakeURL): Array[FileListEntry] =
-        Array(new FileListEntry {
+      override def glob(url: FakeURL): IndexedSeq[FileListEntry] =
+        ArraySeq(new FileListEntry {
           override def getPath: String = url.path
           override def getActualUrl: String = url.path
           override def getModificationTime: lang.Long = ???
@@ -390,7 +391,7 @@ class SemanticHashSuite extends HailSuite {
       override def hail_version: String = ???
 
       override def components: Map[String, ComponentSpec] =
-        Map("partition_counts" -> PartitionCountsComponentSpec(Array(1L)))
+        Map("partition_counts" -> PartitionCountsComponentSpec(ArraySeq(1L)))
 
       override def toJValue: JValue = ???
     }

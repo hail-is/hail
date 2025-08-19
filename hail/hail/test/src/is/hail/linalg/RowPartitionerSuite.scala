@@ -1,5 +1,7 @@
 package is.hail.linalg
 
+import is.hail.collection.compat.immutable.ArraySeq
+
 import org.scalacheck.Arbitrary.arbitrary
 import org.scalatest
 import org.scalatestplus.scalacheck.CheckerAsserting.assertingNatureOfAssertion
@@ -10,7 +12,7 @@ import org.testng.annotations.Test
 class RowPartitionerSuite extends TestNGSuite with ScalaCheckDrivenPropertyChecks {
   @Test
   def testGetPartition(): Unit = {
-    val partitionStarts = Array[Long](0, 0, 0, 4, 5, 5, 8, 10, 10)
+    val partitionStarts = ArraySeq[Long](0, 0, 0, 4, 5, 5, 8, 10, 10)
     val partitionCounts = Array(0, 0, 4, 1, 0, 3, 2, 0)
     val keyPart = partitionCounts.zipWithIndex.flatMap { case (count, pi) => Array.fill(count)(pi) }
 
@@ -20,7 +22,7 @@ class RowPartitionerSuite extends TestNGSuite with ScalaCheckDrivenPropertyCheck
   }
 
   @Test def testFindInterval(): Unit = {
-    def naiveFindInterval(a: Array[Long], key: Long): Int = {
+    def naiveFindInterval(a: IndexedSeq[Long], key: Long): Int = {
       if (a.length == 0 || key < a(0))
         -1
       else if (key >= a(a.length - 1))
@@ -35,7 +37,7 @@ class RowPartitionerSuite extends TestNGSuite with ScalaCheckDrivenPropertyCheck
 
     val moreKeys = Array(Long.MinValue, -1000L, -1L, 0L, 1L, 1000L, Long.MaxValue)
 
-    forAll(arbitrary[Array[Long]] map { _.sorted }) { a =>
+    forAll(arbitrary[ArraySeq[Long]] map { _.sorted }) { a =>
       whenever(a.nonEmpty) {
         scalatest.Inspectors.forAll(a ++ moreKeys) { key =>
           assert(

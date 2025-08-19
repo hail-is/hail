@@ -1,5 +1,6 @@
 package is.hail.experimental
 
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.functions._
 import is.hail.types.physical.{PCanonicalArray, PFloat64}
 import is.hail.types.physical.stypes.SType
@@ -13,7 +14,7 @@ object ExperimentalFunctions extends RegistryFunctions {
 
     registerScalaFunction(
       "filtering_allele_frequency",
-      Array(TInt32, TInt32, TFloat64),
+      ArraySeq(TInt32, TInt32, TFloat64),
       TFloat64,
       null,
     )(experimentalPackageClass, "calcFilterAlleleFreq")

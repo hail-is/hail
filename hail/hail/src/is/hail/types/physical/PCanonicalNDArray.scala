@@ -5,6 +5,7 @@ import is.hail.asm4s.{Code, _}
 import is.hail.asm4s.implicits.valueToRichCodeRegion
 import is.hail.backend.HailStateManager
 import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{
   CodeParam, CodeParamType, EmitCode, EmitCodeBuilder, Param, ParamType, SCodeParam,
 }
@@ -36,7 +37,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   }
 
   lazy val shapeType: PCanonicalTuple =
-    PCanonicalTuple(true, Array.tabulate(nDims)(_ => PInt64Required): _*)
+    PCanonicalTuple(true, ArraySeq.tabulate(nDims)(_ => PInt64Required): _*)
 
   lazy val strideType: PCanonicalTuple = shapeType
 
@@ -101,26 +102,20 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   override def makeColumnMajorStrides(
     sourceShapeArray: IndexedSeq[Value[Long]],
     cb: EmitCodeBuilder,
-  ): IndexedSeq[Value[Long]] = {
-    val strides = new Array[Value[Long]](nDims)
-    for (i <- 0 until nDims)
-      if (i == 0) strides(i) = const(elementType.byteSize)
-      else strides(i) =
-        cb.memoize(strides(i - 1) * (sourceShapeArray(i - 1) > 0L).mux(sourceShapeArray(i - 1), 1L))
-
-    strides
-  }
+  ): IndexedSeq[Value[Long]] =
+    if (nDims == 0) FastSeq.empty
+    else
+      sourceShapeArray.init.scanLeft(const(elementType.byteSize)) { case (curStride, curShape) =>
+        cb.memoize(curStride * (curShape > 0L).mux(curShape, 1L))
+      }
 
   override def makeRowMajorStrides(sourceShapeArray: IndexedSeq[Value[Long]], cb: EmitCodeBuilder)
-    : IndexedSeq[Value[Long]] = {
-    val strides = new Array[Value[Long]](nDims)
-    for (i <- (nDims - 1) to 0 by -1)
-      if (i == nDims - 1) strides(i) = const(elementType.byteSize)
-      else strides(i) =
-        cb.memoize(strides(i + 1) * (sourceShapeArray(i + 1) > 0L).mux(sourceShapeArray(i + 1), 1L))
-
-    strides
-  }
+    : IndexedSeq[Value[Long]] =
+    if (nDims == 0) FastSeq.empty
+    else
+      sourceShapeArray.tail.scanRight(const(elementType.byteSize)) { case (curStride, curShape) =>
+        cb.memoize(curStride * (curShape > 0L).mux(curShape, 1L))
+      }
 
   override def getElementAddress(indices: IndexedSeq[Long], nd: Long): Long = {
     var bytesAway = 0L
@@ -480,12 +475,12 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SNDArrayPointerValue = {
     val a = cb.memoize(addr)
     val shapeTuple = shapeType.loadCheapSCode(cb, representation.loadField(a, "shape"))
-    val shape =
-      Array.tabulate(nDims)(i =>
-        SizeValueDyn(shapeTuple.loadField(cb, i).getOrAssert(cb).asLong.value)
-      )
+    val shape = ArraySeq.tabulate(nDims) { i =>
+      SizeValueDyn(shapeTuple.loadField(cb, i).getOrAssert(cb).asLong.value)
+    }
     val strideTuple = strideType.loadCheapSCode(cb, representation.loadField(a, "strides"))
-    val strides = Array.tabulate(nDims)(strideTuple.loadField(cb, _).getOrAssert(cb).asLong.value)
+    val strides =
+      ArraySeq.tabulate(nDims)(strideTuple.loadField(cb, _).getOrAssert(cb).asLong.value)
     val firstDataAddress = cb.memoize(dataFirstElementPointer(a))
     new SNDArrayPointerValue(sType, a, shape, strides, firstDataAddress)
   }
@@ -592,7 +587,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
       curElementAddress += elementType.byteSize
     }
     val shapeRow = Row(aNDArray.shape: _*)
-    val stridesRow = Row(stridesArray: _*)
+    val stridesRow = Row(ArraySeq.unsafeWrapArray(stridesArray): _*)
     this.representation.unstagedStoreJavaObjectAtAddress(
       sm,
       addr,

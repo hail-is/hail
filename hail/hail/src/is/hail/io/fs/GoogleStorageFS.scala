@@ -2,6 +2,7 @@ package is.hail.io.fs
 
 import is.hail.HailFeatureFlags
 import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.io.fs.FSUtil.dropTrailingSlash
 import is.hail.io.fs.GoogleStorageFS.RequesterPaysFailure
 import is.hail.services.{isTransientError, retryTransientErrors}
@@ -419,11 +420,11 @@ class GoogleStorageFS(
       }
     }
 
-  override def glob(url: URL): Array[FileListEntry] = retryTransientErrors {
+  override def glob(url: URL): IndexedSeq[FileListEntry] = retryTransientErrors {
     globWithPrefix(url.withPath(""), path = dropTrailingSlash(url.path))
   }
 
-  override def listDirectory(url: URL): Array[FileListEntry] = retryTransientErrors {
+  override def listDirectory(url: URL): IndexedSeq[FileListEntry] = retryTransientErrors {
     val path = if (url.path.endsWith("/")) url.path else url.path + "/"
 
     val blobs = retryTransientErrors {
@@ -441,7 +442,7 @@ class GoogleStorageFS(
     blobs.iterateAll().iterator.asScala
       .filter(b => b.getName != path) // elide directory markers created by Hadoop
       .map(b => GoogleStorageFileListEntry(b))
-      .toArray
+      .to(ArraySeq)
   }
 
   private[this] def getBlob(url: URL) = retryTransientErrors {

@@ -9,9 +9,9 @@ import scala.collection.compat._
 
 case class FilePartitionInfo(
   metadata: BgenFileMetadata,
-  intervals: Array[Interval],
-  partStarts: Array[Long],
-  partN: Array[Long],
+  intervals: IndexedSeq[Interval],
+  partStarts: IndexedSeq[Long],
+  partN: IndexedSeq[Long],
 )
 
 object BgenRDDPartitions extends Logging {
@@ -87,7 +87,7 @@ object BgenRDDPartitions extends Logging {
 
     nonEmptyFilesAfterFilter.zipWithIndex.map { case (file, fileIndex) =>
       val nPartitions = math.min(fileNPartitions(fileIndex).toLong, file.nVariants).toInt
-      val partNVariants: Array[Long] = partition(file.nVariants, nPartitions)
+      val partNVariants = partition(file.nVariants, nPartitions).toArray
       val partFirstVariantIndex = partNVariants.scan(0L)(_ + _).init
       val partLastVariantIndex = partFirstVariantIndex.lazyZip(partNVariants).map { (idx, n) =>
         idx + n
@@ -95,16 +95,21 @@ object BgenRDDPartitions extends Logging {
 
       val allPositions = partFirstVariantIndex ++ partLastVariantIndex.map(_ - 1L)
       val keys = getKeysFromFile(file.indexPath, allPositions)
-      val rangeBounds = (0 until nPartitions).map { i =>
+      val rangeBounds = ArraySeq.tabulate(nPartitions) { i =>
         Interval(
           keys(i),
           keys(i + nPartitions),
           true,
           true,
         ) // this must be true -- otherwise boundaries with duplicates will have the wrong range bounds
-      }.toArray
+      }
 
-      FilePartitionInfo(file, rangeBounds, partFirstVariantIndex, partNVariants)
+      FilePartitionInfo(
+        file,
+        rangeBounds,
+        ArraySeq.unsafeWrapArray(partFirstVariantIndex),
+        ArraySeq.unsafeWrapArray(partNVariants),
+      )
     }
   }
 }
