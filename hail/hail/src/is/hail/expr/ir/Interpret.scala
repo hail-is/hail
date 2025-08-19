@@ -44,7 +44,7 @@ object Interpret {
   }
 
   def apply[T](ctx: ExecuteContext, ir: IR): T =
-    apply(ctx, ir, Env.empty[(Any, Type)], FastSeq[(Any, Type)]()).asInstanceOf[T]
+    apply[T](ctx, ir, Env.empty[(Any, Type)], FastSeq[(Any, Type)]())
 
   def apply[T](
     ctx: ExecuteContext,

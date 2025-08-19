@@ -164,8 +164,7 @@ object CompileIterator {
     }
 
     def next(): java.lang.Long = {
-      if (!hasNext)
-        return Iterator.empty.next()
+      if (!hasNext) Iterator.empty.next() // throw
       _stepped = false
       stepFunction.loadAddress()
     }
