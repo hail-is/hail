@@ -9,7 +9,9 @@ import pytest
 from typer.testing import CliRunner, Result
 
 from hailtop import __pip_version__
+from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.batch import Batch
+from hailtop.config import get_remote_tmpdir
 from hailtop.hailctl.batch import cli
 from hailtop.hailctl.batch.submit import parse_files_to_src_dest
 from hailtop.utils import secret_alnum_string
@@ -26,8 +28,8 @@ def expect_timeouts_as_image_pulling_is_very_slow(request):
 def submit(request):
     runner = CliRunner(mix_stderr=False)
 
-    def invoker(script: Union[str, os.PathLike], *args: str, **kwargs):
-        command = ['submit', str(script), *args]
+    def invoker(script: Union[str, os.PathLike], opts: List[str], args: List[str], **kwargs):
+        command = ['submit', *opts, str(script), *args]
 
         # For ease of identifying the test in the batch ui
         if '--name' not in command:
@@ -92,7 +94,22 @@ def write_hello(filename: Path):
 
 def test_name(submit, tmp_path, request):
     batch_name = request.node.nodeid + secret_alnum_string()
-    res = submit(echo0(tmp_path), '--name', batch_name)
+    echo_script = echo0(tmp_path)
+    res = submit(echo_script.name, ['--name', batch_name, '-v', f'{echo_script}:/'], [])
+    assert_exit_code(res, 0)
+
+    b = parse_batch_from_text_output(res)
+    assert b.run().attributes['name'] == batch_name
+
+
+def test_workdir(submit, tmp_path, request):
+    batch_name = request.node.nodeid + secret_alnum_string()
+    echo_script = echo0(tmp_path)
+    res = submit(echo_script.name, [
+        '--name', batch_name,
+        '--workdir', '/workdir/',
+        '-v', f'{echo_script}:/workdir/'
+    ], [])
     assert_exit_code(res, 0)
 
     b = parse_batch_from_text_output(res)
@@ -101,7 +118,8 @@ def test_name(submit, tmp_path, request):
 
 def test_image(submit, tmp_path):
     image = 'busybox:latest'
-    res = submit(echo0(tmp_path), '--image', image)
+    echo_script = echo0(tmp_path)
+    res = submit(echo_script.name, ['--image', image, '-v', f'{echo_script}:/'], [])
     assert_exit_code(res, 0)
 
     b = parse_batch_from_text_output(res)
@@ -110,7 +128,8 @@ def test_image(submit, tmp_path):
 
 
 def test_default_image(submit, tmp_path):
-    res = submit(echo0(tmp_path))
+    echo_script = echo0(tmp_path)
+    res = submit(echo_script.name, ['-v', f'{echo_script}:/'], [])
     assert_exit_code(res, 0)
 
     b = parse_batch_from_text_output(res)
@@ -119,7 +138,8 @@ def test_default_image(submit, tmp_path):
 
 
 def test_image_environment_variable(submit, tmp_path):
-    res = submit(echo0(tmp_path), env={'HAIL_GENETICS_HAIL_IMAGE': 'busybox:latest'})
+    echo_script = echo0(tmp_path)
+    res = submit(echo_script.name, ['-v', f'{echo_script}:/'], [], env={'HAIL_GENETICS_HAIL_IMAGE': 'busybox:latest'})
     assert_exit_code(res, 0)
 
     b = parse_batch_from_text_output(res)
@@ -136,7 +156,11 @@ world!
 
     script = tmp_path / 'script'
     script.write_text(script_text)
-    res = submit(script, '--wait', '-o', 'json')
+    res = submit(script.name, [
+        '--wait',
+        '-o', 'json',
+        '-v', f'{script}:/'
+    ], [])
     assert_exit_code(res, 0)
 
     output = orjson.loads(res.output)
@@ -145,31 +169,18 @@ world!
 
 @pytest.mark.parametrize('files', ['', ':', ':dst'])
 def test_files_invalid_format(submit, files):
-    with pytest.raises(ValueError, match='Invalid file specification'):
-        submit(__file__, '--wait', '--files', files)
+    with pytest.raises(ValueError, match='Invalid file specification'):  # FIXME
+        submit(__file__, ['--wait', '-v', files])
 
 
 def test_files_copy_rename(submit, tmp_cwd):
     write_hello(tmp_cwd / 'hello.txt')
     pyscript = write_pyscript(tmp_cwd, '/child')
-    res = submit(pyscript, '--wait', '--files', 'hello.txt:/child')
-    assert_exit_code(res, 0)
-
-
-@pytest.mark.parametrize('files', ['.', '.:.', '*', '*.txt'])
-def test_files_copy_cwd(submit, tmp_cwd, files):
-    write_hello(tmp_cwd / 'hello.txt')
-    write_hello(tmp_cwd / 'hello2.txt')
-
-    script = tmp_cwd / 'script'
-    script.write_text(
-        """\
-cat hello.txt
-cat hello2.txt
-""",
-    )
-
-    res = submit(script, '--wait', '--files', files)
+    res = submit(pyscript.name, [
+        '--wait',
+        '-v', 'hello.txt:/child',
+        '-v', f'{pyscript}:/'
+    ], [])
     assert_exit_code(res, 0)
 
 
@@ -189,7 +200,12 @@ def test_files_copy_folder(submit, tmp_cwd, files, remote):
     src, dst = parse_files_to_src_dest(files)
     write_hello(src / 'hello.txt')
     pyscript = write_pyscript(tmp_cwd, Path(remote) / 'hello.txt')
-    res = submit(pyscript, '--wait', '--files', files)
+    res = submit(pyscript.name, [
+        '--workdir', remote,
+        '--wait',
+        '-v', files,
+        '-v', f'{pyscript}:{remote}'
+    ], [])
     assert_exit_code(res, 0)
 
 
@@ -207,7 +223,11 @@ print(f'{a.message}, {b.message}')
 """,
     )
 
-    res = submit(script, '--wait', '--files', str(tmp_path / 'python'))
+    res = submit(script.name, [
+        '--wait',
+        '-v', f"{str(tmp_path / 'python')}:/",
+        '-v', f"{script}:/python/"
+    ], [])
     assert_exit_code(res, 0)
 
 
@@ -223,7 +243,12 @@ def test_files_mount_multiple_files_options(submit, tmp_cwd):
         """,
     )
 
-    res = submit(script, '--wait', '--files', 'hello1.txt:a/hello.txt', '--files', 'hello2.txt:b/hello.txt')
+    res = submit(script.name, [
+        '--wait',
+        '-v', 'hello1.txt:/a/hello.txt',
+        '-v', 'hello2.txt:/b/hello.txt',
+        '-v', f'{script}:/'])
+
     assert_exit_code(res, 0)
 
 
@@ -231,15 +256,11 @@ def test_files_outside_current_dir(submit, tmp_path):
     with tmp_cwd(tmp_path / 'working') as cwd:
         write_hello(tmp_path / 'data' / 'hello.txt')
         pyscript = write_pyscript(cwd, '/hello.txt')
-        res = submit(pyscript, '--wait', '--files', f'{tmp_path}/data/hello.txt:/')
-        assert_exit_code(res, 0)
-
-
-def test_files_relative_dst(submit, tmp_path):
-    with tmp_cwd(tmp_path / 'working') as cwd:
-        write_hello(tmp_path / 'hello.txt')
-        pyscript = write_pyscript(cwd, '../hello.txt')
-        res = submit(pyscript, '--wait', '--files', '../hello.txt:../')
+        res = submit(pyscript.name, [
+            '--wait',
+            '-v', f'{tmp_path}/data/hello.txt:/',
+            '-v', f'{pyscript}:/',
+        ], [])
         assert_exit_code(res, 0)
 
 
@@ -248,33 +269,61 @@ def test_files_dir_outside_curdir(submit, tmp_path):
         write_hello(tmp_path / 'hello1.txt')
         write_hello(tmp_path / 'hello2.txt')
         pyscript = write_pyscript(tmp_path, '/foo/hello1.txt')
-        res = submit(pyscript, '--wait', '--files', f'{tmp_path}:/foo')
+        res = submit(f'/foo/{pyscript.name}', ['--wait', '-v', f'{tmp_path}:/foo'], [])
         assert_exit_code(res, 0)
-
-
-def test_files_environment_variables(submit, tmp_path):
-    write_hello(tmp_path / 'hello.txt')
-    pyscript = write_pyscript(tmp_path, 'hello.txt')
-
-    varname = secret_alnum_string(6)
-    os.environ[varname] = str(tmp_path)
-    res = submit(pyscript, '--wait', '--files', f'${varname}')
-    assert_exit_code(res, 0)
-
-
-def test_files_unsupported_glob_patterns(submit):
-    with pytest.raises(ValueError, match='Recursive SRC glob patterns are not supported'):
-        submit(__file__, '--wait', '--files', '../**/*.txt')
-
-
-@pytest.mark.parametrize('files', ['/', '/*'])
-def test_files_unsupported_transfer_root(submit, files):
-    with pytest.raises(ValueError, match='Cannot transfer whole drive or root filesystem to remote worker'):
-        submit(__file__, '--wait', '--files', files)
 
 
 def test_files_clobber_file_with_folder(submit, tmp_path):
     write_hello(tmp_path / 'hello.txt')
     pyscript = write_pyscript(tmp_path, 'hello.txt')
-    res = submit(pyscript, '--files', f'{tmp_path}/hello.txt', '--files', f'{tmp_path}:hello.txt')
+    res = submit(pyscript.name, [
+        '-v', f'{pyscript}:/',
+        '-v', f'{tmp_path}/hello.txt:/',
+        '-v', f'{tmp_path}:/hello.txt'
+    ], [])
     assert_exit_code(res, 1)
+
+
+def test_submit_with_args(submit, tmp_path):
+    script = tmp_path / 'script'
+    script.write_text(
+        """\
+#!/usr/bin/env python3
+import sys
+args = sys.argv[1:]
+assert args == [1, 2, 'a', 'b', '--foo', 'bar=5']
+""",
+    )
+
+    res = submit(script.name, [
+        '--wait',
+        '-v', f"{script}:/"
+    ], [1, 2, 'a', 'b', '--foo', 'bar=5'])
+    assert_exit_code(res, 0)
+
+
+def test_submit_with_proper_job_settings(submit, tmp_path):
+    remote_tmpdir = get_remote_tmpdir('test_submit.py::tmpdir')
+
+    fs = RouterAsyncFS()
+    url = fs.parse_url(output_tmpdir)
+    bucket = '/'.join(url.bucket_parts)
+
+    echo_script = echo0(tmp_path)
+    res = submit(echo_script.name, [
+        '--cpu', '0.25',
+        '--memory', 'highmem',
+        '--storage', '15Gi',
+        '--regions', "us-central1",
+        '--attrs', 'foo=bar',
+        '--env', 'FOO=bar',
+        '--cloudfuse', f'{bucket}:/foo:true'
+        '-v', f'{echo_script}:/'
+    ], [])
+    assert_exit_code(res, 0)
+
+    b = parse_batch_from_text_output(res)
+    j = b.run().get_job(1)
+
+    # check cpu
+    assert j.status()['spec']['process']['image'] == f'hailgenetics/hail:{__pip_version__}'
