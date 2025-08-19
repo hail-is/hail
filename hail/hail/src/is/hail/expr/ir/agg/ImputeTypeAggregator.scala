@@ -4,6 +4,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.types.{RPrimitive, VirtualTypeWithReq}
 import is.hail.types.physical.stypes.EmitType
@@ -71,7 +72,7 @@ object ImputeTypeState {
 }
 
 class ImputeTypeState(kb: EmitClassBuilder[_]) extends PrimitiveRVAState(
-      Array(VirtualTypeWithReq(TInt32, RPrimitive()).setRequired(true)),
+      ArraySeq(VirtualTypeWithReq(TInt32, RPrimitive()).setRequired(true)),
       kb,
     ) {
   private def repr: Code[Int] = _repr.pv.asInt32.value
@@ -163,8 +164,8 @@ class ImputeTypeState(kb: EmitClassBuilder[_]) extends PrimitiveRVAState(
 
 class ImputeTypeAggregator() extends StagedAggregator {
 
-  val initOpTypes: Seq[Type] = FastSeq()
-  val seqOpTypes: Seq[Type] = FastSeq(TString)
+  val initOpTypes: IndexedSeq[Type] = ArraySeq.empty
+  val seqOpTypes: IndexedSeq[Type] = ArraySeq(TString)
 
   type State = ImputeTypeState
 
@@ -192,7 +193,7 @@ class ImputeTypeAggregator() extends StagedAggregator {
 
   override protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region])
     : IEmitCode = {
-    val emitCodes = Array(
+    val emitCodes = ArraySeq(
       state.getAnyNonMissing,
       state.getAllDefined,
       state.getSupportsBool,

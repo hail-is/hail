@@ -2,6 +2,7 @@ package is.hail.annotations
 
 import is.hail.backend.HailStateManager
 import is.hail.collection.{FlipbookIterator, StagingIterator, StateMachine}
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.compat.mutable.Growable
 import is.hail.collection.implicits.toRichIterator
 import is.hail.rvd.{RVDContext, RVDType}
@@ -69,7 +70,7 @@ case class OrderedRVIterator(
       other.t.kFieldIdx,
       other.t.rowType,
       other.t.kFieldIdx,
-      Array(other.t.kType.types(0).asInstanceOf[PInterval].endPrimaryUnsafeOrdering(sm)),
+      ArraySeq(other.t.kType.types(0).asInstanceOf[PInterval].endPrimaryUnsafeOrdering(sm)),
       missingEqual = true,
     ).toRVOrdering.reverse
     val mixedOrd: (RegionValue, RegionValue) => Int = this.t.intervalJoinComp(sm, other.t).compare

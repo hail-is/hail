@@ -147,7 +147,7 @@ object LowerDistributedSort extends Logging {
       val f = rowType.fields(i)
       val fo = f.typ.ordering(ctx.stateManager)
       if (so == Ascending) fo else fo.reverse
-    }.toArray
+    }
 
     val ord: Ordering[Annotation] = ExtendedOrdering.rowOrdering(sortColIndexOrd).toOrdering
 
@@ -306,7 +306,7 @@ object LowerDistributedSort extends Logging {
             val partitionStream = flatMapIR(ToStream(filenames)) { fileName =>
               mapIR(
                 ReadPartition(
-                  MakeStruct(Array("partitionIndex" -> I64(0), "partitionPath" -> fileName)),
+                  MakeStruct(ArraySeq("partitionIndex" -> I64(0), "partitionPath" -> fileName)),
                   tcoerce[TStruct](spec._vType),
                   reader,
                 )
@@ -555,7 +555,7 @@ object LowerDistributedSort extends Logging {
                 val filenames = GetField(ctxRef, "files")
                 val partitionStream = flatMapIR(ToStream(filenames)) { fileName =>
                   ReadPartition(
-                    MakeStruct(Array("partitionIndex" -> I64(0), "partitionPath" -> fileName)),
+                    MakeStruct(ArraySeq("partitionIndex" -> I64(0), "partitionPath" -> fileName)),
                     tcoerce[TStruct](spec._vType),
                     reader,
                   )
@@ -649,7 +649,7 @@ object LowerDistributedSort extends Logging {
           val filenames = ctxRef
           val partitionInputStream = flatMapIR(ToStream(filenames)) { fileName =>
             ReadPartition(
-              MakeStruct(Array("partitionIndex" -> I64(0), "partitionPath" -> fileName)),
+              MakeStruct(ArraySeq("partitionIndex" -> I64(0), "partitionPath" -> fileName)),
               tcoerce[TStruct](spec._vType),
               reader,
             )
@@ -792,22 +792,16 @@ object LowerDistributedSort extends Logging {
     var successStatesRemaining = initialNumSamplesToSelect.toDouble
     var failureStatesRemaining = totalNumberOfRecords.toDouble - successStatesRemaining
 
-    val ans = new Array[Int](partitionCounts.size)
-
-    var i = 0
-    while (i < partitionCounts.size) {
+    partitionCounts.map { n =>
       val numSuccesses = rand.rhyper(
         successStatesRemaining,
         failureStatesRemaining,
-        partitionCounts(i).toDouble,
+        n.toDouble,
       ).toInt
       successStatesRemaining -= numSuccesses
-      failureStatesRemaining -= (partitionCounts(i) - numSuccesses)
-      ans(i) = numSuccesses
-      i += 1
+      failureStatesRemaining -= (n - numSuccesses)
+      numSuccesses
     }
-
-    ans
   }
 
   def samplePartition(dataStream: IR, sampleIndices: IR, sortFields: IndexedSeq[SortField]): IR = {

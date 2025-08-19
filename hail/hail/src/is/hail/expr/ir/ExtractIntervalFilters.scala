@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.annotations.{ExtendedOrdering, IntervalEndpointOrdering, SafeRow}
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.{toRichIndexedSeq, toRichIterable}
 import is.hail.expr.ir.defs._
 import is.hail.rvd.PartitionBoundOrdering
@@ -176,7 +177,7 @@ class KeySetLattice(ctx: ExecuteContext, keyType: TStruct) extends Lattice {
   def complement(v: Value): Value = {
     if (v.isEmpty) return top
 
-    val builder = mutable.ArrayBuilder.make[Interval]
+    val builder = ArraySeq.newBuilder[Interval]
     if (v.head.left != IntervalEndpoint(Row(), -1)) {
       builder += Interval(IntervalEndpoint(Row(), -1), v.head.left)
     }

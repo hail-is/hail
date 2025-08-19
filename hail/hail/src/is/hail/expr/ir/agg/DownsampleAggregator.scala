@@ -7,6 +7,7 @@ import is.hail.asm4s.implicits.{
 }
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{
   EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitValue, IEmitCode, ParamType,
 }
@@ -722,8 +723,8 @@ class DownsampleAggregator(arrayType: VirtualTypeWithReq) extends StagedAggregat
 
   val resultEmitType = EmitType(SIndexablePointer(resultPType), true)
 
-  val initOpTypes: Seq[Type] = Array(TInt32)
-  val seqOpTypes: Seq[Type] = Array(TFloat64, TFloat64, arrayType.t)
+  val initOpTypes: IndexedSeq[Type] = ArraySeq(TInt32)
+  val seqOpTypes: IndexedSeq[Type] = ArraySeq(TFloat64, TFloat64, arrayType.t)
 
   override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     val Array(nDivisions) = init

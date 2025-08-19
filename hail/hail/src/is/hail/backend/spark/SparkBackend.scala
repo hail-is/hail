@@ -3,7 +3,9 @@ package is.hail.backend.spark
 import is.hail.annotations._
 import is.hail.backend._
 import is.hail.backend.Backend.PartitionFn
+import is.hail.collection.compat._
 import is.hail.collection.compat.immutable.ArraySeq
+import is.hail.collection.implicits._
 import is.hail.expr.Validate
 import is.hail.expr.ir._
 import is.hail.expr.ir.analyses.SemanticHash
@@ -278,7 +280,7 @@ class SparkBackend(val spark: SparkSession) extends Backend with Logging {
         val todo: IndexedSeq[Int] =
           partitions.getOrElse(contexts.indices)
 
-        val buffer = ArraySeq.newBuilder[(Array[Byte], Int)]
+        val buffer = ArraySeq.newSortedByBuilder[(Array[Byte], Int)](_._2)
         buffer.sizeHint(todo.length)
 
         var failure: Option[Throwable] =
@@ -308,7 +310,7 @@ class SparkBackend(val spark: SparkSession) extends Backend with Logging {
             throw new CancellationException()
         } finally sc.clearJobGroup()
 
-        (failure, buffer.result().sortBy(_._2))
+        (failure, buffer.result())
       }
     }
 
@@ -405,7 +407,7 @@ class SparkBackend(val spark: SparkSession) extends Backend with Logging {
       val f = rowType.fields(i)
       val fo = f.typ.ordering(ctx.stateManager)
       if (so == Ascending) fo else fo.reverse
-    }.toArray
+    }
 
     val ord: Ordering[Annotation] = ExtendedOrdering.rowOrdering(sortColIndexOrd).toOrdering
 

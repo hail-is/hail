@@ -33,18 +33,18 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
     extends EType {
   assert(fields.zipWithIndex.forall { case (f, i) => f.index == i })
 
-  val types: Array[EType] = fields.map(_.typ).toArray
+  val types: IndexedSeq[EType] = fields.map(_.typ)
 
   def size: Int = types.length
 
-  val fieldNames: Array[String] = fields.map(_.name).toArray
+  val fieldNames: IndexedSeq[String] = fields.map(_.name)
   val fieldIdx: Map[String, Int] = fields.map(f => (f.name, f.index)).toMap
 
   def hasField(name: String): Boolean = fieldIdx.contains(name)
 
   def fieldType(name: String): EType = types(fieldIdx(name))
 
-  val (missingIdx: Array[Int], nMissing: Int) =
+  val (missingIdx: IndexedSeq[Int], nMissing: Int) =
     BaseStruct.getMissingIndexAndCount(types.map(_.required))
 
   val nMissingBytes = UnsafeUtils.packBitsToBytes(nMissing)

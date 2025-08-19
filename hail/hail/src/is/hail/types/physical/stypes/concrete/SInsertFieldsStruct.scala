@@ -2,6 +2,7 @@ package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
 import is.hail.asm4s.{Settable, TypeInfo, Value}
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{EmitCodeBuilder, EmitSettable, EmitValue, IEmitCode}
 import is.hail.types.physical.{PCanonicalStruct, PType}
 import is.hail.types.physical.stypes.{EmitType, SType, SValue}
@@ -137,7 +138,11 @@ final case class SInsertFieldsStruct(
       parentPassThroughMap.getOrElse(f, (f, parentType.fieldType(f)))
     ): _*)
     val renamedParentType = parent.castRename(parentCastType)
-    SInsertFieldsStruct(ts, renamedParentType.asInstanceOf[SBaseStruct], renamedInsertedFields)
+    SInsertFieldsStruct(
+      ts,
+      renamedParentType.asInstanceOf[SBaseStruct],
+      ArraySeq.unsafeWrapArray(renamedInsertedFields),
+    )
   }
 }
 

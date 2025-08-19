@@ -8,6 +8,7 @@ import is.hail.asm4s.implicits.{
 }
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{
   Ascending, EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitValue, IEmitCode, ParamType, SortOrder,
 }
@@ -62,7 +63,7 @@ class TakeByRVAS(
   val storageType: PStruct =
     PCanonicalStruct(
       true,
-      Array(
+      ArraySeq(
         ("state", ab.stateType),
         ("staging", PInt64Required),
         ("key_stage", PInt64Required),
@@ -81,7 +82,7 @@ class TakeByRVAS(
       k1.st.asInstanceOf[SBaseStruct],
       k2.st.asInstanceOf[SBaseStruct],
       cb.emb.ecb,
-      Array(so, Ascending),
+      ArraySeq(so, Ascending),
       true,
     )
     ord.compareNonnull(cb, k1, k2)
@@ -678,8 +679,8 @@ class TakeByAggregator(valueType: VirtualTypeWithReq, keyType: VirtualTypeWithRe
   val resultEmitType: EmitType =
     EmitType(SIndexablePointer(PCanonicalArray(valueType.canonicalPType)), true)
 
-  val initOpTypes: Seq[Type] = Array(TInt32)
-  val seqOpTypes: Seq[Type] = Array(valueType.t, keyType.t)
+  val initOpTypes: IndexedSeq[Type] = ArraySeq(TInt32)
+  val seqOpTypes: IndexedSeq[Type] = ArraySeq(valueType.t, keyType.t)
 
   override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     assert(init.length == 1)

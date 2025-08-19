@@ -1,5 +1,6 @@
 package is.hail.io.fs
 
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.io.fs.FSUtil.dropTrailingSlash
 import is.hail.services.oauth2.AzureCloudCredentials
 import is.hail.services.retryTransientErrors
@@ -14,7 +15,6 @@ import is.hail.shadedazure.com.azure.storage.blob.models.{
 import is.hail.shadedazure.com.azure.storage.blob.specialized.BlockBlobClient
 
 import scala.collection.mutable
-import scala.collection.mutable.ArrayBuffer
 import scala.jdk.CollectionConverters._
 
 import java.io.{FileNotFoundException, OutputStream}
@@ -294,9 +294,9 @@ class AzureStorageFS(val credential: AzureCloudCredentials) extends FS {
     }
   }
 
-  override def listDirectory(url: URL): Array[FileListEntry] = handlePublicAccessError(url) {
+  override def listDirectory(url: URL): IndexedSeq[FileListEntry] = handlePublicAccessError(url) {
     val blobContainerClient: BlobContainerClient = getContainerClient(url)
-    val statList: ArrayBuffer[FileListEntry] = ArrayBuffer()
+    val statList = ArraySeq.newBuilder[FileListEntry]
 
     val prefix = dropTrailingSlash(url.path) + "/"
     // collect all children of this directory (blobs and subdirectories)
@@ -304,10 +304,10 @@ class AzureStorageFS(val credential: AzureCloudCredentials) extends FS {
 
     prefixMatches.forEach(blobItem => statList += AzureStorageFileListEntry(url, blobItem))
 
-    statList.toArray
+    statList.result()
   }
 
-  override def glob(url: URL): Array[FileListEntry] = handlePublicAccessError(url) {
+  override def glob(url: URL): IndexedSeq[FileListEntry] = handlePublicAccessError(url) {
     globWithPrefix(prefix = url.withPath(""), path = dropTrailingSlash(url.path))
   }
 
