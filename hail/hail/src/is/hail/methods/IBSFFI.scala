@@ -73,7 +73,7 @@ object IBSFFI {
 
     val nPacks = nGenotypes / genotypesPerPack
     val ibs = new Array[Long](nSamples * nSamples * 3)
-    ibsMat(ibs, nSamples, nPacks, gs1, gs2)
+    ibsMat(ibs, nSamples.toLong, nPacks.toLong, gs1, gs2)
     ibs
   }
 

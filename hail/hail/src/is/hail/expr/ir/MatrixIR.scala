@@ -338,7 +338,7 @@ class MatrixNativeReader(
         val contextType = TStruct("partitionIndex" -> TInt64, "partitionPath" -> TString)
         val partNames = MakeArray(
           partFiles.zipWithIndex.map { case (path, idx) =>
-            MakeStruct(Array("partitionIndex" -> I64(idx), "partitionPath" -> Str(path)))
+            MakeStruct(Array("partitionIndex" -> I64(idx.toLong), "partitionPath" -> Str(path)))
           },
           TArray(contextType),
         )

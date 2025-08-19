@@ -2339,7 +2339,7 @@ case class MatrixBlockMatrixWriter(
     val rm = r.asMatrixType(colsFieldName, entriesFieldName)
 
     val countColumnsIR = ArrayLen(GetField(ts.getGlobals(), colsFieldName))
-    val numCols: Int = CompileAndEvaluate(ctx, countColumnsIR).asInstanceOf[Int]
+    val numCols: Int = CompileAndEvaluate[Int](ctx, countColumnsIR)
     val numBlockCols: Int = (numCols - 1) / blockSize + 1
     val lastBlockNumCols = (numCols - 1) % blockSize + 1
 
@@ -2507,7 +2507,7 @@ case class MatrixBlockMatrixWriter(
     val flatPaths = ToArray(mapIR(ToStream(sortedColMajorPairs))(GetTupleElement(_, 1)))
     val bmt = BlockMatrixType(
       elementType,
-      IndexedSeq(numRows, numCols),
+      IndexedSeq(numRows, numCols.toLong),
       numRows == 1,
       blockSize,
       BlockMatrixSparsity.dense,

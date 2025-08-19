@@ -40,7 +40,7 @@ object MatrixWriteBlockMatrix {
 
     // write blocks
     fs.mkDir(path + "/parts")
-    val gp = GridPartitioner(blockSize, nRows, localNCols)
+    val gp = GridPartitioner(blockSize, nRows, localNCols.toLong)
     val blockPartFiles =
       new WriteBlocksRDD(ctx.fsBc, ctx.localTmpdir, path, rvd, partStarts, entryField, gp)
         .collect()
@@ -53,7 +53,13 @@ object MatrixWriteBlockMatrix {
     using(new DataOutputStream(fs.create(path + BlockMatrix.metadataRelativePath))) { os =>
       implicit val formats = defaultJSONFormats
       jackson.Serialization.write(
-        BlockMatrixMetadata(blockSize, nRows, localNCols, gp.partitionIndexToBlockIndex, partFiles),
+        BlockMatrixMetadata(
+          blockSize,
+          nRows,
+          localNCols.toLong,
+          gp.partitionIndexToBlockIndex,
+          partFiles,
+        ),
         os,
       )
     }

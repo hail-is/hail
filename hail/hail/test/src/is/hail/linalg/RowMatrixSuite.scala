@@ -19,7 +19,7 @@ class RowMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     RowMatrix(
       sc.parallelize(a.zipWithIndex.map { case (row, i) => (i.toLong, row) }, nPartitions),
       nCols,
-      nRows,
+      nRows.toLong,
     )
   }
 
@@ -352,7 +352,7 @@ class RowMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   @Test
   def exportBig(): scalatest.Assertion = {
     val rowArrays: Array[Array[Double]] =
-      Array.tabulate(20)(r => Array.tabulate(30)(c => 30 * c + r))
+      Array.tabulate(20)(r => Array.tabulate(30)(c => 30.0 * c + r))
     val rowMatrix = rowArrayToRowMatrix(rowArrays)
 
     exportImportAssert(

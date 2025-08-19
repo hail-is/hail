@@ -1305,7 +1305,7 @@ object LowerBlockMatrixIR {
             }
             val summedChildType = BlockMatrixType(
               child.typ.elementType,
-              IndexedSeq[Long](child.typ.nRowBlocks, child.typ.nColBlocks),
+              IndexedSeq(child.typ.nRowBlocks.toLong, child.typ.nColBlocks.toLong),
               child.typ.nRowBlocks == 1,
               1,
               BlockMatrixSparsity.dense,

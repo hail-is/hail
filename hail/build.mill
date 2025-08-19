@@ -109,7 +109,6 @@ trait HailModule extends ScalaModule with ScalafmtModule with ScalafixModule { o
 
   override def scalacOptions: T[Seq[String]] = Task {
     val disabledOptions = Set(
-      ScalacOptions.warnNumericWiden, ScalacOptions.privateWarnNumericWiden,
       ScalacOptions.warnUnusedParams, ScalacOptions.privateWarnUnusedParams,
       ScalacOptions.warnUnusedImplicits, ScalacOptions.privateWarnUnusedImplicits,
       ScalacOptions.warnUnusedExplicits,

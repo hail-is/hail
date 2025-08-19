@@ -191,7 +191,7 @@ class IndexReader(
     } else {
       val node = readInternalNode(offset)
       val firstIndex = node.firstIndex
-      val nKeysPerChild = math.pow(branchingFactor, level).toLong
+      val nKeysPerChild = math.pow(branchingFactor.toDouble, level.toDouble).toLong
       val localIndex = (index - firstIndex) / nKeysPerChild
       getLeafNode(index, level - 1, node.children(localIndex.toInt).indexFileOffset)
     }
