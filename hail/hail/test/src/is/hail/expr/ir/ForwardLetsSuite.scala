@@ -7,7 +7,6 @@ import is.hail.expr.ir.defs._
 import is.hail.types.virtual._
 import is.hail.utils._
 
-import org.scalatest
 import org.testng.annotations.{BeforeMethod, DataProvider, Test}
 
 class ForwardLetsSuite extends HailSuite {
@@ -105,15 +104,14 @@ class ForwardLetsSuite extends HailSuite {
     ).map(ir => Array[IR](AggLet(x.name, In(0, TInt32) + In(0, TInt32), ir, false)))
   }
 
-  @Test def assertDataProvidersWork(): scalatest.Assertion = {
-    nonForwardingOps()
-    forwardingOps()
-    nonForwardingAggOps()
-    forwardingAggOps()
-    scalatest.Succeeded
+  @Test def assertDataProvidersWork(): Unit = {
+    nonForwardingOps(): Unit
+    forwardingOps(): Unit
+    nonForwardingAggOps(): Unit
+    forwardingAggOps(): Unit
   }
 
-  @Test def testBlock(): scalatest.Assertion = {
+  @Test def testBlock(): Unit = {
     val x = Ref(freshName(), TInt32)
     val y = Ref(freshName(), TInt32)
     val ir = Block(
@@ -126,7 +124,7 @@ class ForwardLetsSuite extends HailSuite {
   }
 
   @Test(dataProvider = "nonForwardingOps")
-  def testNonForwardingOps(ir: IR): scalatest.Assertion = {
+  def testNonForwardingOps(ir: IR): Unit = {
     val after = ForwardLets(ctx, ir)
     val normalizedBefore = NormalizeNames()(ctx, ir)
     val normalizedAfter = NormalizeNames()(ctx, after)
@@ -134,26 +132,26 @@ class ForwardLetsSuite extends HailSuite {
   }
 
   @Test(dataProvider = "nonForwardingNonEvalOps")
-  def testNonForwardingNonEvalOps(ir: IR): scalatest.Assertion = {
+  def testNonForwardingNonEvalOps(ir: IR): Unit = {
     val after = ForwardLets(ctx, ir)
     assert(after.isInstanceOf[Block])
   }
 
   @Test(dataProvider = "nonForwardingAggOps")
-  def testNonForwardingAggOps(ir: IR): scalatest.Assertion = {
+  def testNonForwardingAggOps(ir: IR): Unit = {
     val after = ForwardLets(ctx, ir)
     assert(after.isInstanceOf[Block])
   }
 
   @Test(dataProvider = "forwardingOps")
-  def testForwardingOps(ir: IR): scalatest.Assertion = {
+  def testForwardingOps(ir: IR): Unit = {
     val after = ForwardLets(ctx, ir)
     assert(!after.isInstanceOf[Block])
     assertEvalSame(ir, args = Array(5 -> TInt32))
   }
 
   @Test(dataProvider = "forwardingAggOps")
-  def testForwardingAggOps(ir: IR): scalatest.Assertion = {
+  def testForwardingAggOps(ir: IR): Unit = {
     val after = ForwardLets(ctx, ir)
     assert(!after.isInstanceOf[Block])
   }
@@ -220,7 +218,7 @@ class ForwardLetsSuite extends HailSuite {
   }
 
   @Test(dataProvider = "TrivialIRCases")
-  def testTrivialCases(input: IR, _expected: IR, reason: String): scalatest.Assertion = {
+  def testTrivialCases(input: IR, _expected: IR, reason: String): Unit = {
     val normalize: (ExecuteContext, BaseIR) => BaseIR = NormalizeNames(allowFreeVariables = true)
     val result = normalize(ctx, ForwardLets(ctx, input))
     val expected = normalize(ctx, _expected)
@@ -230,17 +228,16 @@ class ForwardLetsSuite extends HailSuite {
     )
   }
 
-  @Test def testAggregators(): scalatest.Assertion = {
+  @Test def testAggregators(): Unit = {
     val row = Ref(freshName(), TStruct("idx" -> TInt32))
     val aggEnv = Env[Type](row.name -> row.typ)
 
     val ir0 = ApplyAggOp(Sum())(bindIR(GetField(row, "idx") - 1)(x => Cast(x, TFloat64)))
 
     TypeCheck(ctx, ForwardLets(ctx, ir0), BindingEnv(Env.empty, agg = Some(aggEnv)))
-    succeed
   }
 
-  @Test def testNestedBindingOverwrites(): scalatest.Assertion = {
+  @Test def testNestedBindingOverwrites(): Unit = {
     val x = Ref(freshName(), TInt32)
     val env = Env[Type](x.name -> TInt32)
     def xCast = Cast(x, TFloat64)
@@ -248,10 +245,9 @@ class ForwardLetsSuite extends HailSuite {
 
     TypeCheck(ctx, ir, BindingEnv(env))
     TypeCheck(ctx, ForwardLets(ctx, ir), BindingEnv(env))
-    succeed
   }
 
-  @Test def testLetsDoNotForwardInsideArrayAggWithNoOps(): scalatest.Assertion = {
+  @Test def testLetsDoNotForwardInsideArrayAggWithNoOps(): Unit = {
     val y = Ref(freshName(), TInt32)
     val x = bindIR(
       streamAggIR(ToStream(In(0, TArray(TInt32))))(_ => y)
@@ -259,6 +255,5 @@ class ForwardLetsSuite extends HailSuite {
 
     TypeCheck(ctx, x, BindingEnv(Env(y.name -> TInt32)))
     TypeCheck(ctx, ForwardLets(ctx, x), BindingEnv(Env(y.name -> TInt32)))
-    succeed
   }
 }

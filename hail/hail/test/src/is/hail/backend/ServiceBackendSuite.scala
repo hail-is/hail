@@ -2,7 +2,6 @@ package is.hail.backend
 
 import is.hail.HailSuite
 import is.hail.backend.service.{BatchJobConfig, ServiceBackend, Worker}
-import is.hail.macros.void
 import is.hail.services._
 import is.hail.services.JobGroupStates.{Cancelled, Failure, Success}
 import is.hail.utils.{handleForPython, tokenUrlSafe, using, HailWorkerException}
@@ -58,7 +57,7 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
           jobGroupId shouldEqual backend.batchConfig.jobGroupId + 1
 
           val resultsDir = Path(ctx.tmpdir) / "parallelizeAndComputeWithIndex" / tokenUrlSafe
-          resultsDir.createDirectory()
+          resultsDir.createDirectory(): Unit
 
           for (i <- contexts.indices) (resultsDir / f"result.$i").toFile.writeAll("11")
           JobGroupResponse(
@@ -101,7 +100,7 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
       when(batchClient.waitForJobGroup(any[Int], any[Int])) thenAnswer {
         (id: Int, jobGroupId: Int) =>
           val resultsDir = Path(ctx.tmpdir) / "parallelizeAndComputeWithIndex" / tokenUrlSafe
-          resultsDir.createDirectory()
+          resultsDir.createDirectory(): Unit
 
           for (i <- successes)
             (resultsDir / f"result.$i").toFile.writeAll("11")
@@ -163,7 +162,7 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
       when(batchClient.waitForJobGroup(any[Int], any[Int])) thenAnswer {
         (id: Int, jobGroupId: Int) =>
           val resultsDir = Path(ctx.tmpdir) / "parallelizeAndComputeWithIndex" / tokenUrlSafe
-          resultsDir.createDirectory()
+          resultsDir.createDirectory(): Unit
 
           for (i <- successes)
             (resultsDir / f"result.$i").toFile.writeAll("11")
@@ -233,7 +232,7 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
       def localTmpDirectory: Directory with Closeable =
         new Directory(Directory.makeTemp("hail-testing-tmp").jfile) with Closeable {
           override def close(): Unit =
-            void(deleteRecursively())
+            deleteRecursively(): Unit
         }
 
       using(serviceBackend) { backend =>

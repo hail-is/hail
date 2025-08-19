@@ -16,7 +16,6 @@ import is.hail.types.virtual._
 import is.hail.utils.{BoxedArrayBuilder, FastSeq}
 
 import org.apache.spark.sql.Row
-import org.scalatest
 import org.scalatest.Inspectors.forAll
 import org.scalatest.enablers.InspectorAsserting.assertingNatureOfAssertion
 import org.testng.annotations.{DataProvider, Test}
@@ -631,7 +630,7 @@ class RequirednessSuite extends HailSuite {
   }
 
   @Test
-  def testDataProviders(): scalatest.Assertion = {
+  def testDataProviders(): Unit = {
     val s = new BoxedArrayBuilder[String]()
     valueIR().map(v => v(0) -> v(1)).foreach {
       case (n: IR, t: PType) =>
@@ -658,7 +657,7 @@ class RequirednessSuite extends HailSuite {
     }.mkString("\n\n")
 
   @Test(dataProvider = "valueIR")
-  def testRequiredness(node: IR, expected: Any): scalatest.Assertion = {
+  def testRequiredness(node: IR, expected: Any): Unit = {
     TypeCheck(ctx, node)
     val et = expected match {
       case pt: PType => EmitType(pt.sType, pt.required)
@@ -672,7 +671,7 @@ class RequirednessSuite extends HailSuite {
     )
   }
 
-  @Test def sharedNodesWorkCorrectly(): scalatest.Assertion = {
+  @Test def sharedNodesWorkCorrectly(): Unit = {
     val n2 = bindIR(I32(1))(x => MakeStruct(FastSeq("a" -> x, "b" -> x)))
     val node = InsertFields(n2, FastSeq("c" -> GetField(n2, "a"), "d" -> GetField(n2, "b")))
     val res = Requiredness.apply(node, ctx)
@@ -687,7 +686,7 @@ class RequirednessSuite extends HailSuite {
   }
 
   @Test(dataProvider = "tableIR")
-  def testTableRequiredness(node: TableIR, row: PType, global: PType): scalatest.Assertion = {
+  def testTableRequiredness(node: TableIR, row: PType, global: PType): Unit = {
     val res = Requiredness.apply(node, ctx)
     val actual = res.r.lookup(node).asInstanceOf[RTable]
     assert(
@@ -700,7 +699,7 @@ class RequirednessSuite extends HailSuite {
     )
   }
 
-  @Test def testTableReader(): scalatest.Assertion = {
+  @Test def testTableReader(): Unit = {
     val table = TableParallelize(
       makestruct(
         "rows" -> MakeArray(makestruct(
@@ -749,7 +748,7 @@ class RequirednessSuite extends HailSuite {
     }
   }
 
-  @Test def testSubsettedTuple(): scalatest.Assertion = {
+  @Test def testSubsettedTuple(): Unit = {
     val node = MakeTuple(FastSeq(0 -> I32(0), 4 -> NA(TInt32), 2 -> NA(TArray(TInt32))))
     val expected = PCanonicalTuple(
       FastSeq(

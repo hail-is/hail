@@ -13,7 +13,6 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.scalacheck.Arbitrary._
 import org.scalacheck.Gen
-import org.scalatest
 import org.scalatestplus.scalacheck.CheckerAsserting.assertingNatureOfAssertion
 import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
 import org.testng.annotations.Test
@@ -22,7 +21,7 @@ class ExprSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
   def sm: HailStateManager = ctx.stateManager
 
-  @Test def testTypePretty(): scalatest.Assertion = {
+  @Test def testTypePretty(): Unit = {
     // for arbType
 
     val sb = new StringBuilder
@@ -49,10 +48,10 @@ class ExprSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     }
   }
 
-  @Test def testEscaping(): scalatest.Assertion =
+  @Test def testEscaping(): Unit =
     forAll((s: String) => assert(s == unescapeString(escapeString(s))))
 
-  @Test def testEscapingSimple(): scalatest.Assertion = {
+  @Test def testEscapingSimple(): Unit = {
     // a == 0x61, _ = 0x5f
     assert(escapeStringSimple("abc", '_', _ => false) == "abc")
     assert(escapeStringSimple("abc", '_', _ == 'a') == "_61bc")
@@ -72,13 +71,13 @@ class ExprSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     }
   }
 
-  @Test def testImportEmptyJSONObjectAsStruct(): scalatest.Assertion =
+  @Test def testImportEmptyJSONObjectAsStruct(): Unit =
     assert(JSONAnnotationImpex.importAnnotation(parse("{}"), TStruct()) == Row())
 
-  @Test def testExportEmptyJSONObjectAsStruct(): scalatest.Assertion =
+  @Test def testExportEmptyJSONObjectAsStruct(): Unit =
     assert(compact(render(JSONAnnotationImpex.exportAnnotation(Row(), TStruct()))) == "{}")
 
-  @Test def testRoundTripEmptyJSONObject(): scalatest.Assertion = {
+  @Test def testRoundTripEmptyJSONObject(): Unit = {
     val actual = JSONAnnotationImpex.exportAnnotation(
       JSONAnnotationImpex.importAnnotation(parse("{}"), TStruct()),
       TStruct(),
@@ -86,7 +85,7 @@ class ExprSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(compact(render(actual)) == "{}")
   }
 
-  @Test def testRoundTripEmptyStruct(): scalatest.Assertion = {
+  @Test def testRoundTripEmptyStruct(): Unit = {
     val actual = JSONAnnotationImpex.importAnnotation(
       JSONAnnotationImpex.exportAnnotation(Row(), TStruct()),
       TStruct(),
@@ -94,7 +93,7 @@ class ExprSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(actual == Row())
   }
 
-  @Test def testImpexes(): scalatest.Assertion = {
+  @Test def testImpexes(): Unit = {
 
     val g = for {
       t <- arbitrary[Type]
@@ -114,7 +113,7 @@ class ExprSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     }
   }
 
-  @Test def testOrdering(): scalatest.Assertion = {
+  @Test def testOrdering(): Unit = {
     val intOrd = TInt32.ordering(ctx.stateManager)
 
     assert(intOrd.compare(-2, -2) == 0)

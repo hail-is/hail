@@ -5,7 +5,6 @@ import is.hail.annotations.{Annotation, Inserter}
 import is.hail.utils.FastSeq
 
 import org.apache.spark.sql.Row
-import org.scalatest
 import org.testng.annotations.{DataProvider, Test}
 
 class TStructSuite extends HailSuite {
@@ -26,7 +25,7 @@ class TStructSuite extends HailSuite {
     )
 
   @Test(dataProvider = "isPrefixOf")
-  def testIsPrefixOf(a: TStruct, b: TStruct, isPrefix: Boolean): scalatest.Assertion =
+  def testIsPrefixOf(a: TStruct, b: TStruct, isPrefix: Boolean): Unit =
     assert(a.isPrefixOf(b) == isPrefix, s"expected $a `isPrefixOf` $b == $isPrefix")
 
   @DataProvider(name = "isSubsetOf")
@@ -42,7 +41,7 @@ class TStructSuite extends HailSuite {
     )
 
   @Test(dataProvider = "isSubsetOf")
-  def testIsSubsetOf(a: TStruct, b: TStruct, isSubset: Boolean): scalatest.Assertion =
+  def testIsSubsetOf(a: TStruct, b: TStruct, isSubset: Boolean): Unit =
     assert(a.isSubsetOf(b) == isSubset, s"expected $a `isSubsetOf` $b == $isSubset")
 
   @DataProvider(name = "structInsert")
@@ -63,10 +62,10 @@ class TStructSuite extends HailSuite {
 
   @Test(dataProvider = "structInsert")
   def testStructInsert(base: TStruct, path: IndexedSeq[String], signature: Type, expected: TStruct)
-    : scalatest.Assertion =
+    : Unit =
     assert(base.structInsert(signature, path) == expected)
 
-  @Test def testInsertEmptyPath(): scalatest.Assertion =
+  @Test def testInsertEmptyPath(): Unit =
     assertThrows[IllegalArgumentException] {
       TStruct.empty.insert(TInt32, FastSeq())
     }
@@ -83,8 +82,7 @@ class TStructSuite extends HailSuite {
     )
 
   @Test(dataProvider = "inserter")
-  def testInsert(inserter: Inserter, base: Annotation, value: Any, expected: Annotation)
-    : scalatest.Assertion =
+  def testInsert(inserter: Inserter, base: Annotation, value: Any, expected: Annotation): Unit =
     assert(inserter(base, value) == expected)
 
   @DataProvider(name = "isIsomorphicTo")
@@ -100,7 +98,7 @@ class TStructSuite extends HailSuite {
     )
 
   @Test(dataProvider = "isIsomorphicTo")
-  def testIsIsomorphicTo(a: TStruct, b: TStruct, isIsomorphic: Boolean): scalatest.Assertion =
+  def testIsIsomorphicTo(a: TStruct, b: TStruct, isIsomorphic: Boolean): Unit =
     assert((a isIsomorphicTo b) == isIsomorphic, s"expected $a isIsomorphicTo $b == $isIsomorphic")
 
   @DataProvider(name = "isJoinableWith")
@@ -117,6 +115,6 @@ class TStructSuite extends HailSuite {
     )
 
   @Test(dataProvider = "isJoinableWith")
-  def testIsJoinableWith(a: TStruct, b: TStruct, isJoinable: Boolean): scalatest.Assertion =
+  def testIsJoinableWith(a: TStruct, b: TStruct, isJoinable: Boolean): Unit =
     assert((a isJoinableWith b) == isJoinable, s"expected $a isJoinableWith $b == $isJoinable")
 }

@@ -3,7 +3,6 @@ package is.hail.types.virtual
 import is.hail.expr.ir._
 import is.hail.expr.ir.defs.{I64, If, Literal, ToStream}
 import is.hail.linalg.BlockMatrix
-import is.hail.macros.void
 import is.hail.utils._
 
 import org.apache.spark.sql.Row
@@ -437,19 +436,19 @@ case class BlockMatrixType(
     val newline: String = if (compact) "" else "\n"
     val padding: String = if (compact) "" else " " * indent
 
-    sb ++= "BlockMatrix" ++= space += '{' ++= newline
+    sb ++= "BlockMatrix" ++= space += '{' ++= newline: Unit
 
-    sb ++= padding ++= "elementType:" ++= space
+    sb ++= padding ++= "elementType:" ++= space: Unit
     elementType.pretty(sb, indent + 4, compact)
-    sb += ',' ++= newline
+    sb += ',' ++= newline: Unit
 
-    sb ++= padding ++= "shape:" ++= space += '['
-    shape.foreachBetween(dimSize => sb ++= s"$dimSize")(void(sb += ',' ++= space))
-    sb ++= "]," ++= newline
+    sb ++= padding ++= "shape:" ++= space += '[': Unit
+    shape.foreachBetween(dimSize => sb ++= s"$dimSize")(sb += ',' ++= space: Unit)
+    sb ++= "]," ++= newline: Unit
 
-    sb ++= padding ++= "isRowVector:" ++= space ++= s"$isRowVector" += ',' ++= newline
-    sb ++= padding ++= "blockSize:" ++= space ++= s"$blockSize" += ',' ++= newline
-    sb ++= padding ++= "sparsity:" ++= space ++= s"$sparsity" += ',' ++= newline
+    sb ++= padding ++= "isRowVector:" ++= space ++= s"$isRowVector" += ',' ++= newline: Unit
+    sb ++= padding ++= "blockSize:" ++= space ++= s"$blockSize" += ',' ++= newline: Unit
+    sb ++= padding ++= "sparsity:" ++= space ++= s"$sparsity" += ',' ++= newline: Unit
 
     sb += '}'
   }

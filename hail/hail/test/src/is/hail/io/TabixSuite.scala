@@ -5,7 +5,6 @@ import is.hail.io.tabix._
 import is.hail.io.vcf.TabixVCF
 
 import htsjdk.tribble.readers.{TabixReader => HtsjdkTabixReader}
-import org.scalatest
 import org.scalatest.Inspectors.forAll
 import org.scalatest.enablers.InspectorAsserting.assertingNatureOfAssertion
 import org.scalatest.matchers.must.Matchers.contain
@@ -21,13 +20,13 @@ class TabixSuite extends HailSuite {
 
   lazy val reader = new TabixReader(vcfGzFile, fs)
 
-  @Test def testLargeNumberOfSequences(): scalatest.Assertion = {
+  @Test def testLargeNumberOfSequences(): Unit = {
     val tbx = new TabixReader(null, fs, Some(getTestResource("large-tabix.tbi")))
     // known length of sequences
     assert(tbx.index.seqs.length == 3366)
   }
 
-  @Test def testSequenceNames(): scalatest.Assertion = {
+  @Test def testSequenceNames(): Unit = {
     val expectedSeqNames = new Array[String](24);
     for (i <- 1 to 22)
       expectedSeqNames(i - 1) = i.toString
@@ -39,14 +38,14 @@ class TabixSuite extends HailSuite {
     sequenceNames should contain theSameElementsAs expectedSeqNames
   }
 
-  @Test def testSequenceSet(): scalatest.Assertion = {
+  @Test def testSequenceSet(): Unit = {
     val chrs = reader.index.chr2tid.keySet
     assert(chrs.nonEmpty)
     assert(chrs.contains("1"))
     assert(!chrs.contains("MT"))
   }
 
-  @Test def testLineIterator(): scalatest.Assertion = {
+  @Test def testLineIterator(): Unit = {
     val htsjdkrdr = new HtsjdkTabixReader(vcfGzFile)
     // In range access
     forAll(Seq("1", "19", "X")) { chr =>
@@ -89,7 +88,7 @@ class TabixSuite extends HailSuite {
     }
   }
 
-  def _testLineIterator2(vcfFile: String): scalatest.Assertion = {
+  def _testLineIterator2(vcfFile: String): Unit = {
     val chr = "20"
     val htsjdkrdr = new HtsjdkTabixReader(vcfFile)
     val hailrdr = new TabixReader(vcfFile, fs)
@@ -122,16 +121,16 @@ class TabixSuite extends HailSuite {
           test = true
         } else {
           assert(hailStr != null)
+          ()
         }
       }
-      scalatest.Assertions.succeed
     }
   }
 
-  @Test def testLineIterator2(): scalatest.Assertion =
+  @Test def testLineIterator2(): Unit =
     _testLineIterator2(getTestResource("sample.vcf.bgz"))
 
-  @Test def testWriter(): scalatest.Assertion = {
+  @Test def testWriter(): Unit = {
     val vcfFile = getTestResource("sample.vcf.bgz")
     val path = ctx.createTmpPath("test-tabix-write", "bgz")
     fs.copy(vcfFile, path)

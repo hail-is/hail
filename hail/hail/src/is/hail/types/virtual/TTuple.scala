@@ -61,7 +61,7 @@ final case class TTuple(_types: IndexedSeq[TupleField]) extends TBaseStruct {
     if (!_isCanonical) {
       sb ++= "TupleSubset["
       fields.foreachBetween { fd =>
-        sb ++= fd.name += ':'
+        sb ++= fd.name += ':': Unit
         fd.typ.pretty(sb, indent, compact)
       }(sb += ',')
       sb += ']'
@@ -76,7 +76,7 @@ final case class TTuple(_types: IndexedSeq[TupleField]) extends TBaseStruct {
     sb ++= "tuple("
     if (!_isCanonical) {
       fields.foreachBetween({ field =>
-        sb ++= field.name += ':'
+        sb ++= field.name += ':': Unit
         field.typ.pyString(sb)
       })(sb ++= ", ")
       sb += ')'

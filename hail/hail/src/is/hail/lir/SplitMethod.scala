@@ -84,23 +84,25 @@ class SplitMethod(
 
   private var _spillReturnValue: Field = _
 
-  def spillReturned: Field = {
+  private def _createReturnFields(): Unit =
     if (_spillReturned == null) {
       _spillReturned = spillsClass.newField(genName("f", "spillReturned"), BooleanInfo)
       if (m.returnTypeInfo != UnitInfo)
         _spillReturnValue = spillsClass.newField(genName("f", "spillReturnValue"), m.returnTypeInfo)
     }
+
+  private def spillReturned: Field = {
+    _createReturnFields()
     _spillReturned
   }
 
-  def spillReturnValue: Field = {
-    // create
-    spillReturned
+  private def spillReturnValue: Field = {
+    _createReturnFields()
     assert(_spillReturnValue != null)
     _spillReturnValue
   }
 
-  def throwUnreachable(): ControlX = {
+  private def throwUnreachable(): ControlX = {
     val ti = classInfo[SplitUnreachable]
     val tcls = classOf[SplitUnreachable]
     val c = tcls.getDeclaredConstructor()
@@ -141,7 +143,7 @@ class SplitMethod(
   }
 
   // also fixes up null switch targets
-  def spillLocals(method: Method): Unit = {
+  private def spillLocals(method: Method): Unit = {
     def localField(l: Local): Field =
       l match {
         case p: Parameter =>
@@ -228,14 +230,14 @@ class SplitMethod(
     }
   }
 
-  def spillLocals(): Unit = {
+  private def spillLocals(): Unit = {
     createSpillFields()
     for (splitM <- splitMethods)
       spillLocals(splitM)
     spillLocals(m)
   }
 
-  def fixSplitReturnCalls(): Unit = {
+  private def fixSplitReturnCalls(): Unit = {
     for (s <- splitReturnCalls) {
       val method = s.containingMethod()
       assert(method != null)

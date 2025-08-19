@@ -1,7 +1,6 @@
 package is.hail.io.fs
 
 import is.hail.io.fs.FSUtil.dropTrailingSlash
-import is.hail.macros.void
 import is.hail.services.oauth2.AzureCloudCredentials
 import is.hail.services.retryTransientErrors
 import is.hail.shadedazure.com.azure.core.credential.AzureSasCredential
@@ -153,7 +152,7 @@ class AzureStorageFS(val credential: AzureCloudCredentials) extends FS {
 
   override def validUrl(filename: String): Boolean =
     try {
-      parseUrl(filename)
+      parseUrl(filename): Unit
       true
     } catch {
       case _: IllegalArgumentException => false
@@ -206,9 +205,9 @@ class AzureStorageFS(val credential: AzureCloudCredentials) extends FS {
     val is: SeekableInputStream = new FSSeekableInputStream {
       val bbOS = new OutputStream {
         override def write(b: Array[Byte]): Unit =
-          void(bb.put(b))
+          bb.put(b): Unit
         override def write(b: Int): Unit =
-          void(bb.put(b.toByte))
+          bb.put(b.toByte): Unit
       }
 
       override def physicalSeek(newPos: Long): Unit = ()
@@ -272,13 +271,13 @@ class AzureStorageFS(val credential: AzureCloudCredentials) extends FS {
       private[this] val blobOutputStream = client.getBlobOutputStream(true)
 
       override def flush(): Unit = {
-        void(bb.flip())
+        bb.flip(): Unit
 
         if (bb.limit() > 0) {
           blobOutputStream.write(bb.array(), 0, bb.limit())
         }
 
-        void(bb.clear())
+        bb.clear(): Unit
       }
 
       override def close(): Unit = {
@@ -378,7 +377,7 @@ class AzureStorageFS(val credential: AzureCloudCredentials) extends FS {
     }
 
   def makeQualified(filename: String): String = {
-    parseUrl(filename)
+    parseUrl(filename): Unit
     filename
   }
 }

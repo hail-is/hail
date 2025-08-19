@@ -4,7 +4,6 @@ import is.hail.annotations.{Region, UnsafeUtils}
 import is.hail.asm4s.{Field => _, _}
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.io.{InputBuffer, OutputBuffer}
-import is.hail.macros.void
 import is.hail.types.BaseStruct
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.{SType, SValue}
@@ -231,10 +230,10 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
       sb += '}'
     } else if (fields.isEmpty) {
       sb ++= "EBaseStruct { }"
-    } else void {
+    } else {
       sb ++= "EBaseStruct {\n"
       fields.foreachBetween(_.pretty(sb, indent + 4, compact))(sb ++= ",\n")
-      sb += '\n' ++= " " * indent += '}'
+      sb += '\n' ++= " " * indent += '}': Unit
     }
 
   def setRequired(newRequired: Boolean): EBaseStruct = EBaseStruct(fields, newRequired)

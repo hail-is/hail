@@ -583,7 +583,7 @@ object EmitNDArray {
                         childProducer.initAll(cb)
                         // Need to get the indexingIndices to the right starting points
                         indexingIndices.zipWithIndex.foreach { case (childIdx, ordinalIdx) =>
-                          childProducer.initAxis(childIdx)
+                          childProducer.initAxis(childIdx)(cb)
                           childProducer.stepAxis(childIdx)(cb, indexingValues(ordinalIdx))
                         }
                       }

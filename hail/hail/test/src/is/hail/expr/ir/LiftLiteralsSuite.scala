@@ -6,13 +6,12 @@ import is.hail.expr.ir.lowering.ExecuteRelational
 import is.hail.utils.FastSeq
 
 import org.apache.spark.sql.Row
-import org.scalatest
 import org.testng.annotations.Test
 
 class LiftLiteralsSuite extends HailSuite {
   implicit val execStrats = ExecStrategy.interpretOnly
 
-  @Test def testNestedGlobalsRewrite(): scalatest.Assertion = {
+  @Test def testNestedGlobalsRewrite(): Unit = {
     val tab =
       TableLiteral(ExecuteRelational(ctx, TableRange(10, 1)).asTableValue(ctx), theHailClassLoader)
     val ir = TableGetGlobals(

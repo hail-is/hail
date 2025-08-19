@@ -13,7 +13,6 @@ import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.lowering.IrMetadata
 import is.hail.io.fs._
 import is.hail.io.reference.{IndexedFastaSequenceFile, LiftOver}
-import is.hail.macros.void
 import is.hail.types.physical.PStruct
 import is.hail.types.virtual.{TArray, TInterval}
 import is.hail.types.virtual.Kinds.{BlockMatrix, Matrix, Table, Value}
@@ -77,7 +76,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable {
       localTmpdir = tmp
       backend match {
         case s: SparkBackend =>
-          void(s.sc.getConf.set("spark.local.dir", tmp))
+          s.sc.getConf.set("spark.local.dir", tmp)
         case _ =>
           ()
       }
@@ -115,9 +114,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable {
     }
 
   def pyRemoveJavaIR(id: Int): Unit =
-    synchronized {
-      void(irCache.remove(id))
-    }
+    synchronized(irCache -= id: Unit)
 
   def pyAddSequence(name: String, fastaFile: String, indexFile: String): Unit =
     synchronized {
@@ -138,37 +135,35 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable {
     partitionSize: java.lang.Integer,
     entries: String,
   ): Unit = {
-    void {
-      withExecuteContext() { ctx =>
-        val rm = linalg.RowMatrix.readBlockMatrix(ctx, pathIn, partitionSize)
-        entries match {
-          case "full" =>
-            rm.export(ctx, pathOut, delimiter, Option(header), addIndex, exportType)
-          case "lower" =>
-            rm.exportLowerTriangle(ctx, pathOut, delimiter, Option(header), addIndex, exportType)
-          case "strict_lower" =>
-            rm.exportStrictLowerTriangle(
-              ctx,
-              pathOut,
-              delimiter,
-              Option(header),
-              addIndex,
-              exportType,
-            )
-          case "upper" =>
-            rm.exportUpperTriangle(ctx, pathOut, delimiter, Option(header), addIndex, exportType)
-          case "strict_upper" =>
-            rm.exportStrictUpperTriangle(
-              ctx,
-              pathOut,
-              delimiter,
-              Option(header),
-              addIndex,
-              exportType,
-            )
-        }
+    withExecuteContext() { ctx =>
+      val rm = linalg.RowMatrix.readBlockMatrix(ctx, pathIn, partitionSize)
+      entries match {
+        case "full" =>
+          rm.export(ctx, pathOut, delimiter, Option(header), addIndex, exportType)
+        case "lower" =>
+          rm.exportLowerTriangle(ctx, pathOut, delimiter, Option(header), addIndex, exportType)
+        case "strict_lower" =>
+          rm.exportStrictLowerTriangle(
+            ctx,
+            pathOut,
+            delimiter,
+            Option(header),
+            addIndex,
+            exportType,
+          )
+        case "upper" =>
+          rm.exportUpperTriangle(ctx, pathOut, delimiter, Option(header), addIndex, exportType)
+        case "strict_upper" =>
+          rm.exportStrictUpperTriangle(
+            ctx,
+            pathOut,
+            delimiter,
+            Option(header),
+            addIndex,
+            exportType,
+          )
       }
-    }
+    }._1
   }
 
   def pyRegisterIR(
@@ -179,19 +174,17 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable {
     returnType: String,
     bodyStr: String,
   ): Unit =
-    void {
-      withExecuteContext() { ctx =>
-        IRFunctionRegistry.registerIR(
-          ctx,
-          name,
-          typeParamStrs.asScala.toArray,
-          argNameStrs.asScala.toArray,
-          argTypeStrs.asScala.toArray,
-          returnType,
-          bodyStr,
-        )
-      }
-    }
+    withExecuteContext() { ctx =>
+      IRFunctionRegistry.registerIR(
+        ctx,
+        name,
+        typeParamStrs.asScala.toArray,
+        argNameStrs.asScala.toArray,
+        argTypeStrs.asScala.toArray,
+        returnType,
+        bodyStr,
+      ): Unit
+    }._1
 
   def pyExecuteLiteral(irStr: String): Int =
     withExecuteContext(selfContainedExecution = false) { ctx =>

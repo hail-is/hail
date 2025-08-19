@@ -3,13 +3,12 @@ package is.hail.variant
 import is.hail.HailSuite
 import is.hail.utils._
 
-import org.scalatest
 import org.testng.annotations.Test
 
 class LocusIntervalSuite extends HailSuite {
   def rg = ctx.references(ReferenceGenome.GRCh37)
 
-  @Test def testParser(): scalatest.Assertion = {
+  @Test def testParser(): Unit = {
     val xMax = rg.contigLength("X")
     val yMax = rg.contigLength("Y")
     val chr22Max = rg.contigLength("22")

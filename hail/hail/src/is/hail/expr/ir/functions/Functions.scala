@@ -7,7 +7,6 @@ import is.hail.experimental.ExperimentalFunctions
 import is.hail.expr.ir._
 import is.hail.expr.ir.defs.{Apply, ApplyIR, ApplySeeded, ApplySpecial}
 import is.hail.io.bgen.BGENFunctions
-import is.hail.macros.void
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.{EmitType, SType, SValue}
 import is.hail.types.physical.stypes.concrete._
@@ -119,7 +118,7 @@ object IRFunctionRegistry {
     valueParameterTypes: Seq[Type],
   ): Unit = {
     val m = irRegistry(name)
-    void(m.remove((typeParameters, valueParameterTypes, returnType, false)))
+    m -= ((typeParameters, valueParameterTypes, returnType, false))
   }
 
   private[this] def lookupFunction(

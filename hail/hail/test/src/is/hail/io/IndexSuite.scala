@@ -135,7 +135,7 @@ class IndexSuite extends HailSuite {
     assert(fs.getFileSize(file + "/index") != 0)
     assert(fs.getFileSize(file + "/metadata.json.gz") != 0)
     val index = indexReader(file, TStruct("a" -> TBoolean))
-    intercept[IllegalArgumentException](index.queryByIndex(0L))
+    assertThrows[IllegalArgumentException](index.queryByIndex(0L))
     assert(index.queryByKey("moo").isEmpty)
     assert(index.queryByInterval("bear", "cat", includesStart = true, includesEnd = true).isEmpty)
     index.close()
@@ -324,25 +324,25 @@ class IndexSuite extends HailSuite {
       ).toFastSeq == index.iterator(0, 9).toFastSeq)
 
       // illegal interval queries
-      intercept[IllegalArgumentException](index.queryByInterval(
+      assertThrows[IllegalArgumentException](index.queryByInterval(
         "bear",
         "bear",
         includesStart = false,
         includesEnd = false,
       ).toFastSeq)
-      intercept[IllegalArgumentException](index.queryByInterval(
+      assertThrows[IllegalArgumentException](index.queryByInterval(
         "bear",
         "bear",
         includesStart = false,
         includesEnd = true,
       ).toFastSeq)
-      intercept[IllegalArgumentException](index.queryByInterval(
+      assertThrows[IllegalArgumentException](index.queryByInterval(
         "bear",
         "bear",
         includesStart = true,
         includesEnd = false,
       ).toFastSeq)
-      intercept[IllegalArgumentException](index.queryByInterval(
+      assertThrows[IllegalArgumentException](index.queryByInterval(
         "cat",
         "bear",
         includesStart = true,

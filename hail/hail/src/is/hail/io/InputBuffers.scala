@@ -2,7 +2,6 @@ package is.hail.io
 
 import is.hail.annotations.{Memory, Region}
 import is.hail.io.compress.LZ4
-import is.hail.macros.void
 import is.hail.utils._
 
 import java.io._
@@ -335,8 +334,7 @@ final class TracingInputBuffer(
     skipBytes(8)
 
   @inline def skipBytes(n: Int): Unit =
-    for (_ <- 0 until n)
-      void(readByte())
+    for (_ <- 0 until n) readByte()
 
   def readDoubles(to: Array[Double], off: Int, n: Int): Unit = {
     var i = 0

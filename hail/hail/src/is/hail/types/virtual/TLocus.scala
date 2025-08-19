@@ -2,7 +2,6 @@ package is.hail.types.virtual
 
 import is.hail.annotations._
 import is.hail.backend.HailStateManager
-import is.hail.macros.void
 import is.hail.utils._
 import is.hail.variant._
 
@@ -27,7 +26,7 @@ case class TLocus(rgName: String) extends Type {
   def rg: String = rgName
 
   override def pyString(sb: StringBuilder): Unit =
-    void(sb ++= "locus<" ++= prettyIdentifier(rgName) += '>')
+    sb ++= "locus<" ++= prettyIdentifier(rgName) += '>': Unit
 
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[Locus]
 

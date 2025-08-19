@@ -4,12 +4,11 @@ import is.hail.HailSuite
 import is.hail.utils._
 
 import org.apache.commons.math3.distribution.{ChiSquaredDistribution, NormalDistribution}
-import org.scalatest
 import org.testng.annotations.Test
 
 class StatsSuite extends HailSuite {
 
-  @Test def chiSquaredTailTest(): scalatest.Assertion = {
+  @Test def chiSquaredTailTest(): Unit = {
     val chiSq1 = new ChiSquaredDistribution(1)
     assert(D_==(pchisqtail(1d, 1), 1 - chiSq1.cumulativeProbability(1d)))
     assert(D_==(pchisqtail(5.52341d, 1), 1 - chiSq1.cumulativeProbability(5.52341d)))
@@ -33,7 +32,7 @@ class StatsSuite extends HailSuite {
     assert(D_==(qchisqtail(5.507248e-89, 1), 400))
   }
 
-  @Test def normalTest(): scalatest.Assertion = {
+  @Test def normalTest(): Unit = {
     val normalDist = new NormalDistribution()
     assert(D_==(pnorm(1), normalDist.cumulativeProbability(1)))
     assert(math.abs(pnorm(-10) - normalDist.cumulativeProbability(-10)) < 1e-10)
@@ -48,7 +47,7 @@ class StatsSuite extends HailSuite {
     assert(D_==(qnorm(2.753624e-89), -20))
   }
 
-  @Test def poissonTest(): scalatest.Assertion = {
+  @Test def poissonTest(): Unit = {
     // compare with R
     assert(D_==(dpois(5, 10), 0.03783327))
     assert(qpois(0.3, 10) == 8)
@@ -67,7 +66,7 @@ class StatsSuite extends HailSuite {
     assert(ppois(30, 1, lowerTail = false, logP = false) > 0)
   }
 
-  @Test def betaTest(): scalatest.Assertion = {
+  @Test def betaTest(): Unit = {
     val tol = 1e-5
 
     assert(D_==(dbeta(.2, 1, 3), 1.92, tol))
@@ -83,7 +82,7 @@ class StatsSuite extends HailSuite {
 
   }
 
-  @Test def entropyTest(): scalatest.Assertion = {
+  @Test def entropyTest(): Unit = {
     assert(D_==(entropy("accctg"), 1.79248, tolerance = 1e-5))
     assert(D_==(entropy(Array(2, 3, 4, 5, 6, 6, 4)), 2.23593, tolerance = 1e-5))
 

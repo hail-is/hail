@@ -8,7 +8,6 @@ import is.hail.backend.service._
 import is.hail.expr.ir.lowering.IrMetadata
 import is.hail.io.fs.{CloudStorageFSConfig, FS, RouterFS}
 import is.hail.io.reference.{IndexedFastaSequenceFile, LiftOver}
-import is.hail.macros.void
 import is.hail.services._
 import is.hail.types.virtual.Kinds._
 import is.hail.utils._
@@ -118,10 +117,8 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
       }
 
     override def putReferences(env: Env)(refs: Iterable[ReferenceGenome]): Unit =
-      void {
-        // evaluate for effects
-        ReferenceGenome.addFatalOnCollision(env.references, refs)
-      }
+      // evaluate for effects
+      ReferenceGenome.addFatalOnCollision(env.references, refs): Unit
   }
 
   def main(argv: Array[String]): Unit = {
@@ -194,7 +191,7 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
         jobConfig,
       )
 
-    HailContext.getOrCreate
+    HailContext.getOrCreate: Unit
     Backend.set(backend)
     log.info("HailContext initialized.")
 

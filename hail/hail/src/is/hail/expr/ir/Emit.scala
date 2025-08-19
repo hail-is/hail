@@ -539,7 +539,7 @@ object EmitCode {
 
   def apply(setup: Code[Unit], ec: EmitCode): EmitCode = {
     val Lstart = CodeLabel()
-    Code(Lstart, setup, ec.start.goto)
+    Code(Lstart, setup, ec.start.goto): Unit
     new EmitCode(Lstart, ec.iec)
   }
 
@@ -3126,7 +3126,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
         val loopRef = loopEnv.get.lookup(name)
 
         // Need to emit into region 1, copy to region 2, then clear region 1, then swap them.
-        (loopRef.tmpLoopArgs lazyZip loopRef.loopTypes lazyZip args).map {
+        (loopRef.tmpLoopArgs lazyZip loopRef.loopTypes lazyZip args).foreach {
           case (tmpLoopArg, et, arg) =>
             tmpLoopArg.store(
               cb,

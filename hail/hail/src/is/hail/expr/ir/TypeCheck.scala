@@ -606,8 +606,8 @@ object TypeCheck {
       case TableExplode(child, path) =>
         assert(!child.typ.key.contains(path.head))
       case TableGen(contexts, globals, _, _, body, partitioner, _) =>
-        TypeCheck.coerce[TStream]("contexts", contexts.typ)
-        TypeCheck.coerce[TStruct]("globals", globals.typ)
+        TypeCheck.coerce[TStream]("contexts", contexts.typ): Unit
+        TypeCheck.coerce[TStruct]("globals", globals.typ): Unit
         val bodyType = TypeCheck.coerce[TStream]("body", body.typ)
         val rowType = TypeCheck.coerce[TStruct]("body.elementType", bodyType.elementType)
 

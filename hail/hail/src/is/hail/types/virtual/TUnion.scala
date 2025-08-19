@@ -3,7 +3,6 @@ package is.hail.types.virtual
 import is.hail.annotations.ExtendedOrdering
 import is.hail.backend.HailStateManager
 import is.hail.expr.ir.IRParser
-import is.hail.macros.void
 import is.hail.utils._
 
 import scala.collection.compat._
@@ -99,7 +98,7 @@ final case class TUnion(cases: IndexedSeq[Case]) extends Type {
   override def pyString(sb: StringBuilder): Unit = {
     sb ++= "union{"
     cases.foreachBetween({ field =>
-      sb ++= prettyIdentifier(field.name) ++= ": "
+      sb ++= prettyIdentifier(field.name) ++= ": ": Unit
       field.typ.pyString(sb)
     })(sb ++= ", ")
     sb += '}'
@@ -107,16 +106,16 @@ final case class TUnion(cases: IndexedSeq[Case]) extends Type {
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = {
     if (compact) {
-      void(sb ++= "Union{")
-      cases.foreachBetween(_.pretty(sb, indent, compact))(void(sb += ','))
-      void(sb += '}')
+      sb ++= "Union{"
+      cases.foreachBetween(_.pretty(sb, indent, compact))(sb += ',')
+      sb += '}'
     } else {
       if (size == 0)
-        void(sb ++= "Union { }")
+        sb ++= "Union { }"
       else {
-        void(sb ++= "Union {\n")
+        sb ++= "Union {\n"
         cases.foreachBetween(_.pretty(sb, indent + 4, compact))(sb ++= ",\n")
-        void(sb += '\n' ++= (" " * indent) += '}')
+        sb += '\n' ++= (" " * indent) += '}': Unit
       }
     }
   }
