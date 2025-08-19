@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.{ExecStrategy, HailSuite}
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.defs.{
   ErrorIDs, False, GetTupleElement, I32, If, Literal, MakeTuple, NA, True,
 }
@@ -136,33 +137,31 @@ class IntervalSuite extends HailSuite {
   @Test def testIntervalSortAndReduce(): Unit = {
     val ord = TInt32.ordering(ctx.stateManager).intervalEndpointOrdering
 
-    assert(Interval.union(Array[Interval](), ord).sameElements(Array[Interval]()))
-    assert(Interval.union(Array(intInterval(0, 10)), ord)
-      .sameElements(Array(intInterval(0, 10))))
+    assert(Interval.union(ArraySeq(), ord) == ArraySeq())
+    assert(Interval.union(ArraySeq(intInterval(0, 10)), ord) == ArraySeq(intInterval(0, 10)))
 
-    assert(Interval.union(
-      Array(
-        intInterval(0, 10),
-        intInterval(0, 20, includesEnd = true),
-        intInterval(20, 30),
-        intInterval(40, 50),
-      ).reverse,
-      ord,
-    ).toSeq == FastSeq(
-      intInterval(0, 30),
-      intInterval(40, 50),
-    ))
+    assert(
+      Interval.union(
+        ArraySeq(
+          intInterval(0, 10),
+          intInterval(0, 20, includesEnd = true),
+          intInterval(20, 30),
+          intInterval(40, 50),
+        ).reverse,
+        ord,
+      ) == ArraySeq(intInterval(0, 30), intInterval(40, 50))
+    )
   }
 
   @Test def testIntervalIntersection(): Unit = {
     val ord = TInt32.ordering(ctx.stateManager).intervalEndpointOrdering
 
-    val x1 = Array[Interval](
+    val x1 = ArraySeq(
       intInterval(5, 10),
       intInterval(15, 20),
       intInterval(25, 26),
     )
-    val x2 = Array[Interval](
+    val x2 = ArraySeq(
       intInterval(0, 1),
       intInterval(5, 22),
       intInterval(23, 24),
@@ -171,15 +170,13 @@ class IntervalSuite extends HailSuite {
       intInterval(26, 27),
     )
 
-    val x3 = Array[Interval](
-      intInterval(7, 19, includesEnd = true)
-    )
+    val x3 = ArraySeq(intInterval(7, 19, includesEnd = true))
 
-    assert(Interval.intersection(x1, Array[Interval](), ord).isEmpty)
-    assert(Interval.intersection(Array[Interval](), x2, ord).isEmpty)
-    assert(Interval.intersection(x1, x2, ord).toSeq == x1.toSeq)
-    assert(Interval.intersection(x1, x2, ord).toSeq == x1.toSeq)
-    assert(Interval.intersection(x1, x3, ord).toSeq == FastSeq[Interval](
+    assert(Interval.intersection(x1, ArraySeq(), ord).isEmpty)
+    assert(Interval.intersection(ArraySeq(), x2, ord).isEmpty)
+    assert(Interval.intersection(x1, x2, ord) == x1)
+    assert(Interval.intersection(x1, x2, ord) == x1)
+    assert(Interval.intersection(x1, x3, ord) == ArraySeq(
       intInterval(7, 10),
       intInterval(15, 19, includesEnd = true),
     ))
@@ -244,7 +241,7 @@ class IntervalSuite extends HailSuite {
     partitioner = new RVDPartitioner(
       ctx.stateManager,
       partitionerKType,
-      Array(
+      ArraySeq(
         Interval(Row(1, 0), Row(4, 3), true, false),
         Interval(Row(4, 3), Row(7, 9), true, false),
         Interval(Row(7, 11), Row(10, 0), true, true),
@@ -281,7 +278,7 @@ class IntervalSuite extends HailSuite {
     ): Unit = {
       val pointIR = MakeTuple.ordered(point.map(I32))
       val endpointIR = MakeTuple.ordered(FastSeq(
-        MakeTuple.ordered(Array.tabulate(3)(i =>
+        MakeTuple.ordered(ArraySeq.tabulate(3)(i =>
           if (i < intervalEndpoint.length) I32(intervalEndpoint(i)) else NA(TInt32)
         )),
         I32(intervalEndpoint.length),
@@ -303,23 +300,23 @@ class IntervalSuite extends HailSuite {
     ): Unit =
       assertComp(point, intervalEndpoint, leansRight, "pointLessThanPartitionIntervalRightEndpoint",
         false)
-    assertLT(Array(1, 3, 2), Array(1, 3, 2), true)
-    assertNotLT(Array(1, 3, 2), Array(1, 3, 2), false)
-    assertLT(Array(1, 3, 2), Array(1, 3, 4), true)
-    assertLT(Array(1, 3, 2), Array(1, 4, 1), false)
-    assertLT(Array(1, 3, 2), Array(1, 4, 1), true)
-    assertNotLT(Array(1, 3, 2), Array(1, 2, 4), false)
-    assertNotLT(Array(1, 3, 2), Array(1, 2, 4), true)
-    assertLT(Array(1, 3, 2), Array(1, 3, 4), false)
-    assertLT(Array(1, 3, 2), Array(1, 3), true)
-    assertNotLT(Array(1, 3, 2), Array(1, 3), false)
-    assertLT(Array(1, 3, 2), Array(1, 4), true)
-    assertLT(Array(1, 3, 2), Array(1, 4), false)
-    assertLT(Array(1, 3, 2), Array(1), true)
-    assertNotLT(Array(1, 3, 2), Array(1), false)
-    assertLT(Array(1, 3, 2), Array(2), true)
-    assertLT(Array(1, 3, 2), Array(2), false)
-    assertLT(Array(1, 3, 2), Array[Int](), true)
-    assertNotLT(Array(1, 3, 2), Array[Int](), false)
+    assertLT(ArraySeq(1, 3, 2), ArraySeq(1, 3, 2), true)
+    assertNotLT(ArraySeq(1, 3, 2), ArraySeq(1, 3, 2), false)
+    assertLT(ArraySeq(1, 3, 2), ArraySeq(1, 3, 4), true)
+    assertLT(ArraySeq(1, 3, 2), ArraySeq(1, 4, 1), false)
+    assertLT(ArraySeq(1, 3, 2), ArraySeq(1, 4, 1), true)
+    assertNotLT(ArraySeq(1, 3, 2), ArraySeq(1, 2, 4), false)
+    assertNotLT(ArraySeq(1, 3, 2), ArraySeq(1, 2, 4), true)
+    assertLT(ArraySeq(1, 3, 2), ArraySeq(1, 3, 4), false)
+    assertLT(ArraySeq(1, 3, 2), ArraySeq(1, 3), true)
+    assertNotLT(ArraySeq(1, 3, 2), ArraySeq(1, 3), false)
+    assertLT(ArraySeq(1, 3, 2), ArraySeq(1, 4), true)
+    assertLT(ArraySeq(1, 3, 2), ArraySeq(1, 4), false)
+    assertLT(ArraySeq(1, 3, 2), ArraySeq(1), true)
+    assertNotLT(ArraySeq(1, 3, 2), ArraySeq(1), false)
+    assertLT(ArraySeq(1, 3, 2), ArraySeq(2), true)
+    assertLT(ArraySeq(1, 3, 2), ArraySeq(2), false)
+    assertLT(ArraySeq(1, 3, 2), ArraySeq(), true)
+    assertNotLT(ArraySeq(1, 3, 2), ArraySeq(), false)
   }
 }

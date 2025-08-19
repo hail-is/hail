@@ -1,6 +1,7 @@
 package is.hail.testUtils
 
 import is.hail.annotations.Annotation
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.variant._
 
 import scala.jdk.CollectionConverters._
@@ -9,16 +10,7 @@ import org.apache.spark.sql.Row
 
 object Variant {
   def apply(contig: String, start: Int, ref: String, alt: String): Variant =
-    Variant(contig, start, ref, Array(AltAllele(ref, alt)))
-
-  def apply(contig: String, start: Int, ref: String, alts: Array[String]): Variant =
-    Variant(contig, start, ref, alts.map(alt => AltAllele(ref, alt)))
-
-  def apply(contig: String, start: Int, ref: String, alts: Array[String], rg: ReferenceGenome)
-    : Variant = {
-    rg.checkLocus(contig, start)
-    Variant(contig, start, ref, alts)
-  }
+    Variant(contig, start, ref, ArraySeq(AltAllele(ref, alt)))
 
   def apply(
     contig: String,
@@ -26,7 +18,10 @@ object Variant {
     ref: String,
     alts: java.util.ArrayList[String],
     rg: ReferenceGenome,
-  ): Variant = Variant(contig, start, ref, alts.asScala.toArray, rg)
+  ): Variant = {
+    rg.checkLocus(contig, start)
+    Variant(contig, start, ref, alts.asScala.view.map(AltAllele(ref, _)).to(ArraySeq))
+  }
 
   def fromLocusAlleles(a: Annotation): Variant = {
     val r = a.asInstanceOf[Row]

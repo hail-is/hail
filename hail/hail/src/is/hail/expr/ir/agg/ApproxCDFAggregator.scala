@@ -7,6 +7,7 @@ import is.hail.asm4s.implicits.{
 }
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.types.physical._
@@ -151,8 +152,8 @@ class ApproxCDFAggregator extends StagedAggregator {
   override def resultEmitType: EmitType =
     EmitType(SBaseStructPointer(QuantilesAggregator.resultPType), true)
 
-  val initOpTypes: Seq[Type] = FastSeq(TInt32)
-  val seqOpTypes: Seq[Type] = FastSeq(TFloat64)
+  val initOpTypes: IndexedSeq[Type] = ArraySeq(TInt32)
+  val seqOpTypes: IndexedSeq[Type] = ArraySeq(TFloat64)
 
   override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     val Array(k) = init

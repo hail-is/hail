@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.asm4s._
 import is.hail.collection.FastSeq
+import is.hail.collection.implicits._
 import is.hail.expr.ir.functions.StringFunctions
 import is.hail.types.physical.stypes.{SSettable, SType, SValue}
 import is.hail.types.physical.stypes.interfaces.{SStream, SStreamValue}
@@ -199,7 +200,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
       if (callee.mb.isStatic) callee.emitParamTypes
       else CodeParamType(callee.ecb.cb.ti) +: callee.emitParamTypes
 
-    val args = _args.toArray
+    val args = _args.toFastSeq
 
     if (expectedArgs.size != args.length)
       throw new RuntimeException(s"invoke ${callee.mb.methodName}: wrong number of parameters: " +

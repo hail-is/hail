@@ -1,12 +1,13 @@
 package is.hail.expr
 
 import is.hail.HailSuite
+import is.hail.collection.compat.immutable.ArraySeq
 
 import org.testng.annotations.Test
 
 class ParserSuite extends HailSuite {
   @Test def testOneOfLiteral(): Unit = {
-    val strings = Array("A", "B", "AB", "AA", "CAD", "EF")
+    val strings = ArraySeq("A", "B", "AB", "AA", "CAD", "EF")
     val p = Parser.oneOfLiteral(strings)
     strings.foreach(s => assert(p.parse(s) == s))
 

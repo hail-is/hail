@@ -4,6 +4,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.asm4s.implicits.toRichCodeIterator
 import is.hail.backend.ExecuteContext
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.LoweredTableReader.LoweredTableReaderCoercer
 import is.hail.expr.ir.defs.{Literal, PartitionReader, ReadPartition, ToStream}
 import is.hail.expr.ir.functions.UtilFunctions
@@ -63,7 +64,7 @@ class PartitionIteratorLongReader(
     val eltPType = bodyPType(concreteType)
     val uidSType: SStackStruct = SStackStruct(
       TTuple(TInt64, TInt64),
-      Array(EmitType(SInt64, true), EmitType(SInt64, true)),
+      ArraySeq(EmitType(SInt64, true), EmitType(SInt64, true)),
     )
 
     context.toI(cb).map(cb) { case _ctxStruct: SBaseStructValue =>
@@ -116,7 +117,7 @@ class PartitionIteratorLongReader(
               val uid = EmitValue.present(
                 new SStackStructValue(
                   uidSType,
-                  Array(
+                  ArraySeq(
                     EmitValue.present(primitive(partIdx)),
                     EmitValue.present(primitive(rowIdx)),
                   ),

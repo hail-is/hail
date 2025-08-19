@@ -53,7 +53,7 @@ object StagedBGENReader {
     PCanonicalArray(
       PCanonicalStruct(
         false,
-        Array(
+        ArraySeq(
           "GT" -> PCanonicalCall(),
           "GP" -> PCanonicalArray(PFloat64Required, required = true),
           "dosage" -> PFloat64Required,
@@ -614,17 +614,17 @@ object BGENFunctions extends RegistryFunctions {
   override def registerAll(): Unit = {
     registerSCode(
       "index_bgen",
-      Array(TString, TString, TDict(TString, TString), TBoolean, TInt32),
+      ArraySeq(TString, TString, TDict(TString, TString), TBoolean, TInt32),
       TInt64,
       (_, _) => SInt64,
-      Array(TVariable("locusType")),
+      ArraySeq(TVariable("locusType")),
     ) {
       case (
             r,
             cb,
             Seq(locType),
             _,
-            Array(_path, _idxPath, _recoding, _skipInvalidLoci, _bufferSize),
+            Seq(_path, _idxPath, _recoding, _skipInvalidLoci, _bufferSize),
             err,
           ) =>
         val mb = cb.emb
@@ -682,7 +682,7 @@ object BGENFunctions extends RegistryFunctions {
               "alleles" -> TArray(TString),
               "offset" -> TInt64,
             ),
-            key = Array("locus", "alleles"),
+            key = ArraySeq("locus", "alleles"),
             globalType = TStruct.empty,
           ),
           rg,

@@ -4,6 +4,7 @@ import is.hail.annotations._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
+import is.hail.collection.implicits._
 import is.hail.expr.Nat
 import is.hail.expr.ir.defs._
 import is.hail.types._
@@ -13,6 +14,7 @@ import is.hail.utils._
 
 import scala.collection.compat._
 import scala.collection.mutable
+import scala.reflect.ClassTag
 
 object PruneDeadFields extends Logging {
 
@@ -190,11 +192,10 @@ object PruneDeadFields extends Logging {
       if (k.length > comb.length) k else comb
     }
 
-  private def unifyBaseTypeSeq(base: BaseType, _children: Seq[BaseType]): BaseType = {
+  private def unifyBaseTypeSeq(base: BaseType, children: IndexedSeq[BaseType]): BaseType = {
     try {
-      if (_children.isEmpty)
+      if (children.isEmpty)
         return minimalBT(base)
-      val children = _children.toArray
       base match {
         case tt: TableType =>
           val ttChildren = children.map(_.asInstanceOf[TableType])
@@ -252,7 +253,7 @@ object PruneDeadFields extends Logging {
                 }
                 oldIdx += 1
               }
-              TStruct(subFields)
+              TStruct(ArraySeq.unsafeWrapArray(subFields))
             case tt: TTuple =>
               val subTuples = children.map(_.asInstanceOf[TTuple])
 
@@ -277,21 +278,20 @@ object PruneDeadFields extends Logging {
                 typIndex += 1
               }
 
-              val subFields = new Array[TupleField](nPresent)
+              val subFields = ArraySeq.newBuilder[TupleField]
+              subFields.sizeHint(nPresent)
 
-              var newIdx = 0
               var oldIdx = 0
               while (oldIdx < fieldArrays.length) {
                 val fields = fieldArrays(oldIdx).result()
                 if (fields.nonEmpty) {
                   val oldField = tt._types(oldIdx)
-                  subFields(newIdx) =
+                  subFields +=
                     TupleField(oldField.index, unifySeq(oldField.typ, fields))
-                  newIdx += 1
                 }
                 oldIdx += 1
               }
-              TTuple(subFields)
+              TTuple(subFields.result())
             case ta: TArray =>
               TArray(unifySeq(ta.elementType, children.map(TIterable.elementType)))
             case ts: TStream =>
@@ -310,16 +310,16 @@ object PruneDeadFields extends Logging {
     } catch {
       case e: RuntimeException =>
         throw new RuntimeException(
-          s"failed to unify children while unifying:\n  base:  $base\n${_children.mkString("\n")}",
+          s"failed to unify children while unifying:\n  base:  $base\n${children.mkString("\n")}",
           e,
         )
     }
   }
 
-  def unify[T <: BaseType](base: T, children: T*): T =
-    unifyBaseTypeSeq(base, children).asInstanceOf[T]
+  def unify[T <: BaseType: ClassTag](base: T, children: T*): T =
+    unifyBaseTypeSeq(base, children.toFastSeq).asInstanceOf[T]
 
-  private def unifySeq[T <: BaseType](base: T, children: Seq[T]): T =
+  private def unifySeq[T <: BaseType](base: T, children: IndexedSeq[T]): T =
     unifyBaseTypeSeq(base, children).asInstanceOf[T]
 
   def relationalTypeToEnv(bt: BaseType): BindingEnv[Type] = {

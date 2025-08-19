@@ -362,7 +362,7 @@ object LowerMatrixIR {
           val ab = ArraySeq.newBuilder[(Name, IR)]
           val b0 = lift(ir, ab)
 
-          val scans = ab.result().toFastSeq
+          val scans = ab.result()
           val scanStruct = MakeStruct(scans.map { case (n, ir) => n.str -> ir })
 
           val scanResultRef = Ref(freshName(), scanStruct.typ)
@@ -484,7 +484,7 @@ object LowerMatrixIR {
             })
 
           case Block(bindings, body) =>
-            var newBindings = Seq[Binding]()
+            val newBindings = ArraySeq.newBuilder[Binding]
             def go(i: Int, scanBindings: Growable[(Name, IR)], aggBindings: Growable[(Name, IR)])
               : IR = {
               if (i == bindings.length) {
@@ -493,7 +493,7 @@ object LowerMatrixIR {
                 case Binding(name, value, Scope.EVAL) =>
                   val lifted = lift(value, scanBindings, aggBindings)
                   val liftedBody = go(i + 1, scanBindings, aggBindings)
-                  newBindings = Binding(name, lifted, Scope.EVAL) +: newBindings
+                  newBindings += Binding(name, lifted, Scope.EVAL)
                   liftedBody
                 case Binding(name, value, scope) =>
                   val ab = ArraySeq.newBuilder[(Name, IR)]
@@ -509,14 +509,14 @@ object LowerMatrixIR {
 
                   val uid = freshName()
                   builder += (uid -> Block(FastSeq(Binding(name, value, scope)), structResult))
-                  newBindings = aggs.map { case (name, _) =>
+                  newBindings ++= aggs.map { case (name, _) =>
                     Binding(name, GetField(Ref(uid, structResult.typ), name.str), Scope.EVAL)
-                  } ++ newBindings
+                  }
                   liftedBody
               }
             }
             val newBody = go(0, scanBindings, aggBindings)
-            Block(newBindings.toFastSeq, newBody)
+            Block(newBindings.result().reverse, newBody)
 
           case x: StreamAgg => x
           case x: StreamAggScan => x
@@ -1001,7 +1001,7 @@ object LowerMatrixIR {
 
               'row.dropFields(entriesField, colIdx).insertFieldsList(
                 newFields,
-                ordering = Some(x.typ.rowType.fieldNames.toFastSeq),
+                ordering = Some(x.typ.rowType.fieldNames),
               )
             })
             .mapGlobals('global.dropFields(colsField))
