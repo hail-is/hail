@@ -10,6 +10,7 @@ import is.hail.types.physical.stypes.{EmitType, SCode}
 import is.hail.types.physical.stypes.interfaces.SNDArrayValue
 import is.hail.types.virtual.Type
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator {
   override type State = TypedRegionBackedAggState
@@ -19,9 +20,8 @@ class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator 
   private val ndTyp =
     resultEmitType.storageType.asInstanceOf[PCanonicalNDArray] // TODO: Set required false?
 
-  override def initOpTypes: Seq[Type] = Array[Type]()
-
-  override def seqOpTypes: Seq[Type] = Array(ndVTyp.t)
+  override def initOpTypes: IndexedSeq[Type] = ArraySeq.empty
+  override def seqOpTypes: IndexedSeq[Type] = ArraySeq(ndVTyp.t)
 
   val ndarrayFieldNumber = 0
 

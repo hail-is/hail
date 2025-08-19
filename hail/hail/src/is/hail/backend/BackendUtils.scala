@@ -6,6 +6,7 @@ import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.lowering.TableStageDependency
 import is.hail.io.fs._
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 object BackendUtils {
   type F = AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]]
@@ -30,7 +31,8 @@ class BackendUtils(
     stageName: String,
     tsd: Option[TableStageDependency],
   ): Array[Array[Byte]] = {
-    val (failureOpt, results) = runCDA(ctx, globals, contexts, None, modID, stageName, tsd)
+    val (failureOpt, results) =
+      runCDA(ctx, globals, ArraySeq.unsafeWrapArray(contexts), None, modID, stageName, tsd)
     failureOpt.foreach(throw _)
     Array.tabulate[Array[Byte]](results.length)(results(_)._1)
   }
@@ -56,10 +58,18 @@ class BackendUtils(
     val (failureOpt, successes) =
       todo match {
         case Seq() =>
-          (None, IndexedSeq.empty)
+          (None, ArraySeq.empty)
 
         case partitions =>
-          runCDA(ctx, globals, contexts, Some(partitions), modID, stageName, tsd)
+          runCDA(
+            ctx,
+            globals,
+            ArraySeq.unsafeWrapArray(contexts),
+            Some(partitions),
+            modID,
+            stageName,
+            tsd,
+          )
       }
 
     val results = merge[(Array[Byte], Int)](cachedResults, successes, _._2 < _._2)
@@ -74,7 +84,7 @@ class BackendUtils(
   private[this] def runCDA(
     rtx: DriverRuntimeContext,
     globals: Array[Byte],
-    contexts: Array[Array[Byte]],
+    contexts: IndexedSeq[Array[Byte]],
     partitions: Option[IndexedSeq[Int]],
     modID: String,
     stageName: String,

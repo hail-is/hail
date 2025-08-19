@@ -104,5 +104,5 @@ class RichIterable[T](val i: Iterable[T]) extends Serializable {
   }
 
   def toFastSeq(implicit tct: ClassTag[T]): ArraySeq[T] =
-    i.to(ArraySeq)
+    ArraySeq.from(i)
 }

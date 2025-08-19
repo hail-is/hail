@@ -1,6 +1,8 @@
 package is.hail.linalg
 
 import is.hail.utils._
+import is.hail.utils.compat._
+import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.collection.mutable
 
@@ -184,7 +186,7 @@ case class GridPartitioner(
 
   // returns increasing array of all blocks intersecting the diagonal band consisting of
   //   all elements with lower <= jj - ii <= upper
-  def bandBlocks(lower: Long, upper: Long): Array[Int] = {
+  def bandBlocks(lower: Long, upper: Long): IndexedSeq[Int] = {
     require(lower <= upper)
 
     val lowerBlock = java.lang.Math.floorDiv(lower, blockSize).toInt
@@ -194,34 +196,33 @@ case class GridPartitioner(
       j <- 0 until nBlockCols
       i <- ((j - upperBlock) max 0) to
         ((j - lowerBlock) min (nBlockRows - 1))
-    } yield (j * nBlockRows) + i).toArray
+    } yield (j * nBlockRows) + i)
   }
 
   // returns increasing array of all blocks intersecting the rectangle
   // [r(0), r(1)) x [r(2), r(3)), i.e. [startRow, stopRow) x [startCol, stopCol)
   // rectangle checked in Python
-  def rectangleBlocks(r: Array[Long]): Array[Int] = {
+  def rectangleBlocks(r: IndexedSeq[Long]): IndexedSeq[Int] = {
     val startBlockRow = indexBlockIndex(r(0))
     val stopBlockRow = java.lang.Math.floorDiv(r(1) - 1, blockSize).toInt + 1
     val startBlockCol = indexBlockIndex(r(2))
     val stopBlockCol = java.lang.Math.floorDiv(r(3) - 1, blockSize).toInt + 1
 
-    (for {
+    for {
       j <- startBlockCol until stopBlockCol
       i <- startBlockRow until stopBlockRow
-    } yield (j * nBlockRows) + i).toArray
+    } yield (j * nBlockRows) + i
   }
 
   // returns increasing array of all blocks intersecting the union of rectangles
   // rectangles checked in Python
-  def rectanglesBlocks(rectangles: Array[Array[Long]]): Array[Int] = {
-    val blocks = rectangles.foldLeft(mutable.Set[Int]())((s, r) => s ++= rectangleBlocks(r)).toArray
-    scala.util.Sorting.quickSort(blocks)
-    blocks
+  def rectanglesBlocks(rectangles: IndexedSeq[IndexedSeq[Long]]): IndexedSeq[Int] = {
+    val blocks = rectangles.foldLeft(mutable.Set[Int]())((s, r) => s ++= rectangleBlocks(r))
+    ArraySeq.sorted(blocks)
   }
 
   // starts, stops checked in Python
-  def rowIntervalsBlocks(starts: Array[Long], stops: Array[Long]): Array[Int] = {
+  def rowIntervalsBlocks(starts: IndexedSeq[Long], stops: IndexedSeq[Long]): IndexedSeq[Int] = {
     val rectangles = starts.grouped(blockSize).zip(stops.grouped(blockSize))
       .zipWithIndex
       .flatMap { case ((startsInBlockRow, stopsInBlockRow), blockRow) =>
@@ -240,10 +241,10 @@ case class GridPartitioner(
         }
         if (minStart < maxStop) {
           val row = blockRow.toLong * blockSize
-          Some(Array(row, row + 1, minStart, maxStop))
+          Some(ArraySeq(row, row + 1, minStart, maxStop))
         } else
           None
-      }.toArray
+      }.to(ArraySeq)
 
     rectanglesBlocks(rectangles)
   }

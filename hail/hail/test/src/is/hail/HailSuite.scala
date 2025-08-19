@@ -13,6 +13,7 @@ import is.hail.io.fs.{FS, HadoopFS}
 import is.hail.rvd.RVD
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 import is.hail.variant.ReferenceGenome
 
 import java.io.{File, PrintWriter}
@@ -254,7 +255,7 @@ class HailSuite extends TestNGSuite with TestUtils with Logging {
   )(implicit execStrats: Set[ExecStrategy]
   ): Unit = {
     var e: IndexedSeq[Any] = expected.asInstanceOf[IndexedSeq[Any]]
-    val dims = Array.fill(nd.typ.asInstanceOf[TNDArray].nDims) {
+    val dims = ArraySeq.fill(nd.typ.asInstanceOf[TNDArray].nDims) {
       val n = e.length
       if (n != 0 && e.head.isInstanceOf[IndexedSeq[_]])
         e = e.head.asInstanceOf[IndexedSeq[Any]]
@@ -274,7 +275,7 @@ class HailSuite extends TestNGSuite with TestUtils with Logging {
   ): Unit = {
     val arrayIR = if (expected == null) nd
     else {
-      val refs = Array.fill(nd.typ.asInstanceOf[TNDArray].nDims)(Ref(freshName(), TInt32))
+      val refs = ArraySeq.fill(nd.typ.asInstanceOf[TNDArray].nDims)(Ref(freshName(), TInt32))
       bindIR(nd) { nd =>
         dims.zip(refs).foldRight[IR](NDArrayRef(nd, refs.map(Cast(_, TInt64)), -1)) {
           case ((n, ref), accum) =>
@@ -314,9 +315,9 @@ class HailSuite extends TestNGSuite with TestUtils with Logging {
           if (execStrats.contains(strat)) throw e
       }
     }
-    val expectedArray = Array.tabulate(expected.rows)(i =>
-      Array.tabulate(expected.cols)(j => expected(i, j)).toFastSeq
-    ).toFastSeq
+    val expectedArray = ArraySeq.tabulate(expected.rows)(i =>
+      ArraySeq.tabulate(expected.cols)(j => expected(i, j))
+    )
     assertNDEvals(BlockMatrixCollect(bm), expectedArray)(
       filteredExecStrats.filterNot(ExecStrategy.interpretOnly)
     )
@@ -326,7 +327,7 @@ class HailSuite extends TestNGSuite with TestUtils with Logging {
     xs: (IR, Any)*
   )(implicit execStrats: Set[ExecStrategy]
   ): Unit =
-    assertEvalsTo(MakeTuple.ordered(xs.toArray.map(_._1)), Row.fromSeq(xs.map(_._2)))
+    assertEvalsTo(MakeTuple.ordered(xs.toFastSeq.map(_._1)), Row.fromSeq(xs.map(_._2)))
 
   def assertEvalsTo(
     x: IR,

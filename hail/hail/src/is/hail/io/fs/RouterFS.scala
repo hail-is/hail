@@ -98,9 +98,9 @@ class RouterFS(fss: IndexedSeq[FS]) extends FS {
 
   def delete(url: URL, recursive: Boolean) = url.fs.delete(url.url, recursive)
 
-  def listDirectory(url: URL): Array[FileListEntry] = url.fs.listDirectory(url.url)
+  def listDirectory(url: URL): IndexedSeq[FileListEntry] = url.fs.listDirectory(url.url)
 
-  def glob(url: URL): Array[FileListEntry] = url.fs.glob(url.url)
+  def glob(url: URL): IndexedSeq[FileListEntry] = url.fs.glob(url.url)
 
   def fileStatus(url: URL): FileStatus = url.fs.fileStatus(url.url)
 

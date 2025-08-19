@@ -122,7 +122,7 @@ package object utils
 
   def checkGzipOfGlobbedFiles(
     globPaths: Seq[String],
-    fileListEntries: Array[FileListEntry],
+    fileListEntries: IndexedSeq[FileListEntry],
     forceGZ: Boolean,
     gzAsBGZ: Boolean,
     maxSizeMB: Int = 128,
@@ -484,7 +484,7 @@ package object utils
       resourceStream.close()
   }
 
-  def roundWithConstantSum(a: Array[Double]): Array[Int] = {
+  def roundWithConstantSum(a: IndexedSeq[Double]): IndexedSeq[Int] = {
     val withFloors = a.zipWithIndex.map { case (d, i) => (i, d, math.floor(d)) }
     val totalFractional = (withFloors.map { case (_, orig, floor) => orig - floor }.sum + 0.5).toInt
     withFloors
@@ -520,7 +520,7 @@ package object utils
       f(1, a(0), 0, 1)
   }
 
-  def uniqueMaxIndex(a: Array[Int]): java.lang.Integer = {
+  def uniqueMaxIndex(a: IndexedSeq[Int]): java.lang.Integer = {
     def f(i: Int, m: Int, mi: Int, count: Int): java.lang.Integer = {
       if (i == a.length) {
         assert(count >= 1)
@@ -624,31 +624,21 @@ package object utils
     }
   }
 
-  def partition(n: Int, k: Int): Array[Int] = {
-    if (k == 0) {
-      assert(n == 0)
-      return Array.empty[Int]
-    }
-
+  def partition(n: Int, k: Int): IndexedSeq[Int] = {
     assert(n >= 0)
-    assert(k > 0)
-    val parts = Array.tabulate(k)(i => n / k + (i < (n % k)).toInt)
+    assert(k >= 0)
+    val parts = ArraySeq.tabulate(k)(i => n / k + (i < (n % k)).toInt)
     assert(parts.sum == n)
-    assert(parts.max - parts.min <= 1)
+    if (k > 0) assert(parts.max - parts.min <= 1)
     parts
   }
 
-  def partition(n: Long, k: Int): Array[Long] = {
-    if (k == 0) {
-      assert(n == 0)
-      return Array.empty[Long]
-    }
-
+  def partition(n: Long, k: Int): IndexedSeq[Long] = {
     assert(n >= 0)
-    assert(k > 0)
-    val parts = Array.tabulate(k)(i => n / k + (i < (n % k)).toLong)
+    assert(k >= 0)
+    val parts = ArraySeq.tabulate(k)(i => n / k + (i < (n % k)).toLong)
     assert(parts.sum == n)
-    assert(parts.max - parts.min <= 1)
+    if (k > 0) assert(parts.max - parts.min <= 1)
     parts
   }
 
@@ -859,37 +849,32 @@ package object utils
     Base64.getUrlEncoder.encodeToString(bytes)
   }
 
-  // mutates byteOffsets and returns the byte size
+  // returns offsets of each field and total byte size
   def getByteSizeAndOffsets(
-    byteSize: Array[Long],
-    alignment: Array[Long],
+    byteSize: IndexedSeq[Long],
+    alignment: IndexedSeq[Long],
     nMissingBytes: Long,
-    byteOffsets: Array[Long],
-  ): Long = {
+  ): (IndexedSeq[Long], Long) = {
     assert(byteSize.length == alignment.length)
-    assert(byteOffsets.length == byteSize.length)
     val bp = new BytePacker()
 
-    var offset: Long = nMissingBytes
-    byteSize.indices.foreach { i =>
-      val fSize = byteSize(i)
-      val fAlignment = alignment(i)
-
+    var curOffset: Long = nMissingBytes
+    val byteOffsets = byteSize.lazyZip(alignment).map { (fSize, fAlignment) =>
       bp.getSpace(fSize, fAlignment) match {
-        case Some(start) =>
-          byteOffsets(i) = start
+        case Some(start) => start
         case None =>
-          val mod = offset % fAlignment
+          val mod = curOffset % fAlignment
           if (mod != 0) {
             val shift = fAlignment - mod
-            bp.insertSpace(shift, offset)
-            offset += (fAlignment - mod)
+            bp.insertSpace(shift, curOffset)
+            curOffset += (fAlignment - mod)
           }
-          byteOffsets(i) = offset
-          offset += fSize
+          val offset = curOffset
+          curOffset += fSize
+          offset
       }
     }
-    offset
+    (byteOffsets, curOffset)
   }
 
   /** Merge the sorted `IndexedSeq`s `xs` and `ys` using comparison function `lt`. */
@@ -967,6 +952,6 @@ object GenericIndexedSeqSerializer extends Serializer[IndexedSeq[_]] {
           .asInstanceOf[Class[_]],
         None,
       )
-      xs.map(x => Extraction.extract(x, typeInfo)).toArray[Any]
+      xs.view.map(x => Extraction.extract(x, typeInfo)).to(ArraySeq)
   }
 }

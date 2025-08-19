@@ -354,7 +354,7 @@ trait TestUtils extends Assertions {
 
     val reader = MatrixVCFReader(
       ctx,
-      Array(file),
+      ArraySeq(file),
       callFields,
       entryFloatType,
       headerFile,

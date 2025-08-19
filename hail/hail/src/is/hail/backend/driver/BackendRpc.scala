@@ -22,9 +22,9 @@ import org.json4s.{DefaultFormats, Extraction, Formats, JArray, JValue}
 
 case class SerializedIRFunction(
   name: String,
-  type_parameters: Array[String],
-  value_parameter_names: Array[String],
-  value_parameter_types: Array[String],
+  type_parameters: IndexedSeq[String],
+  value_parameter_names: IndexedSeq[String],
+  value_parameter_types: IndexedSeq[String],
   return_type: String,
   rendered_body: String,
 )
@@ -35,7 +35,10 @@ trait BackendRpc {
 
   object Commands {
     case class TypeOf(k: Kind, ir: String) extends Command
-    case class Execute(ir: String, fs: Array[SerializedIRFunction], codec: String) extends Command
+
+    case class Execute(ir: String, fs: IndexedSeq[SerializedIRFunction], codec: String)
+        extends Command
+
     case class ParseVcfMetadata(path: String) extends Command
 
     case class ImportFam(path: String, isQuantPheno: Boolean, delimiter: String, missing: String)
@@ -47,10 +50,10 @@ trait BackendRpc {
       name: String,
       fasta_file: String,
       index_file: String,
-      x_contigs: Array[String],
-      y_contigs: Array[String],
-      mt_contigs: Array[String],
-      par: Array[String],
+      x_contigs: IndexedSeq[String],
+      y_contigs: IndexedSeq[String],
+      mt_contigs: IndexedSeq[String],
+      par: IndexedSeq[String],
     ) extends Command
   }
 
@@ -147,7 +150,7 @@ trait BackendRpc {
 
   private[this] def withRegisterSerializedFns[A](
     ctx: ExecuteContext,
-    serializedFns: Array[SerializedIRFunction],
+    serializedFns: IndexedSeq[SerializedIRFunction],
   )(
     body: => A
   ): A = {
@@ -182,10 +185,10 @@ object HttpLikeRpc {
       name: String,
       fasta_file: String,
       index_file: String,
-      x_contigs: Array[String],
-      y_contigs: Array[String],
-      mt_contigs: Array[String],
-      par: Array[String],
+      x_contigs: IndexedSeq[String],
+      y_contigs: IndexedSeq[String],
+      mt_contigs: IndexedSeq[String],
+      par: IndexedSeq[String],
     )
 
     case class ParseVCFMetadataPayload(path: String)
@@ -199,7 +202,7 @@ object HttpLikeRpc {
 
     case class ExecutePayload(
       ir: String,
-      fns: Array[SerializedIRFunction],
+      fns: IndexedSeq[SerializedIRFunction],
       stream_codec: String,
     )
   }

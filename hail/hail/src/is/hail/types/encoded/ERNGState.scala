@@ -10,6 +10,7 @@ import is.hail.types.physical.stypes.concrete.{
 }
 import is.hail.types.virtual.Type
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 //case object ERNGStateOptional extends ERNGState(false)
 //
@@ -40,14 +41,14 @@ final case class ERNGState(override val required: Boolean, staticInfo: Option[SR
     case Some(staticInfo) =>
       new SRNGStateStaticSizeValue(
         _decodedSType(t),
-        Array.fill(4)(cb.memoize(in.readLong())),
-        Array.fill(staticInfo.numWordsInLastBlock)(cb.memoize(in.readLong())),
+        ArraySeq.fill(4)(cb.memoize(in.readLong())),
+        ArraySeq.fill(staticInfo.numWordsInLastBlock)(cb.memoize(in.readLong())),
       )
     case None =>
       new SCanonicalRNGStateValue(
         _decodedSType(t),
-        Array.fill(4)(cb.memoize(in.readLong())),
-        Array.fill(4)(cb.memoize(in.readLong())),
+        ArraySeq.fill(4)(cb.memoize(in.readLong())),
+        ArraySeq.fill(4)(cb.memoize(in.readLong())),
         cb.memoize(in.readInt()),
         cb.memoize(in.readBoolean()),
         cb.memoize(in.readInt()),

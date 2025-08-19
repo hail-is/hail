@@ -91,7 +91,7 @@ package object experimental {
 
     }
 
-    return (p_next *:* nHaplotypes).toArray.toFastSeq
+    (p_next *:* nHaplotypes).toArray.toFastSeq
   }
 
 }

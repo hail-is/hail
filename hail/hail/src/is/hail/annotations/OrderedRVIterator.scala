@@ -4,6 +4,7 @@ import is.hail.backend.HailStateManager
 import is.hail.rvd.{RVDContext, RVDType}
 import is.hail.types.physical.PInterval
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 import is.hail.utils.compat.mutable.Growable
 
 import scala.collection.mutable
@@ -67,7 +68,7 @@ case class OrderedRVIterator(
       other.t.kFieldIdx,
       other.t.rowType,
       other.t.kFieldIdx,
-      Array(other.t.kType.types(0).asInstanceOf[PInterval].endPrimaryUnsafeOrdering(sm)),
+      ArraySeq(other.t.kType.types(0).asInstanceOf[PInterval].endPrimaryUnsafeOrdering(sm)),
       missingEqual = true,
     ).toRVOrdering.reverse
     val mixedOrd: (RegionValue, RegionValue) => Int = this.t.intervalJoinComp(sm, other.t).compare

@@ -18,6 +18,7 @@ import is.hail.types.virtual.{TArray, TInterval}
 import is.hail.types.virtual.Kinds.{BlockMatrix, Matrix, Table, Value}
 import is.hail.utils._
 import is.hail.utils.ExecutionTimer.Timings
+import is.hail.utils.compat.immutable.ArraySeq
 import is.hail.variant.ReferenceGenome
 
 import scala.annotation.nowarn
@@ -185,9 +186,9 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
       IRFunctionRegistry.registerIR(
         ctx,
         name,
-        typeParamStrs.asScala.toArray,
-        argNameStrs.asScala.toArray,
-        argTypeStrs.asScala.toArray,
+        typeParamStrs.asScala.to(ArraySeq),
+        argNameStrs.asScala.to(ArraySeq),
+        argTypeStrs.asScala.to(ArraySeq),
         returnType,
         bodyStr,
       ): Unit
@@ -207,7 +208,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
 
   def pyFromDF(df: DataFrame, jKey: java.util.List[String]): (Int, String) =
     withExecuteContext(selfContainedExecution = false) { ctx =>
-      val key = jKey.asScala.toArray.toFastSeq
+      val key = jKey.asScala.toFastSeq
       val signature =
         SparkAnnotationImpex.importType(df.schema).setRequired(true).asInstanceOf[PStruct]
       val tir = TableLiteral(

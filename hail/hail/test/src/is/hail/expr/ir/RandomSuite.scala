@@ -6,6 +6,7 @@ import is.hail.types.physical.stypes.concrete.{
   SCanonicalRNGStateSettable, SCanonicalRNGStateValue, SRNGState, SRNGStateStaticSizeValue,
 }
 import is.hail.utils.FastSeq
+import is.hail.utils.compat.immutable.ArraySeq
 
 import org.apache.commons.math3.distribution.ChiSquaredDistribution
 import org.testng.annotations.Test
@@ -14,13 +15,13 @@ class RandomSuite extends HailSuite {
   // from skein_golden_kat_short_internals.txt in the skein source
   val threefryTestCases = FastSeq(
     (
-      Array(0x0L, 0x0L, 0x0L, 0x0L),
+      ArraySeq(0x0L, 0x0L, 0x0L, 0x0L),
       Array(0x0L, 0x0L),
       Array(0x0L, 0x0L, 0x0L, 0x0L),
       Array(0x09218ebde6c85537L, 0x55941f5266d86105L, 0x4bd25e16282434dcL, 0xee29ec846bd2e40bL),
     ),
     (
-      Array(0x1716151413121110L, 0x1f1e1d1c1b1a1918L, 0x2726252423222120L, 0x2f2e2d2c2b2a2928L),
+      ArraySeq(0x1716151413121110L, 0x1f1e1d1c1b1a1918L, 0x2726252423222120L, 0x2f2e2d2c2b2a2928L),
       Array(0x0706050403020100L, 0x0f0e0d0c0b0a0908L),
       Array(0xf8f9fafbfcfdfeffL, 0xf0f1f2f3f4f5f6f7L, 0xe8e9eaebecedeeefL, 0xe0e1e2e3e4e5e6e7L),
       Array(0x008cf75d18c19da0L, 0x1d7d14be2266e7d8L, 0x5d09e0e985fe673bL, 0xb4a5480c6039b172L),
@@ -52,7 +53,7 @@ class RandomSuite extends HailSuite {
       assert(x sameElements expected)
 
       x = input.clone()
-      Threefry.encrypt(expandedKey, tweak, x)
+      Threefry.encrypt(expandedKey, ArraySeq.unsafeWrapArray(tweak), x)
       assert(x sameElements expected)
     }
   }
@@ -163,7 +164,7 @@ class RandomSuite extends HailSuite {
     for {
       (message, staticID) <- pmacTestCases
     } {
-      val res1 = Threefry.pmac(ctx.rngNonce, staticID, message)
+      val res1 = Threefry.pmac(ctx.rngNonce, staticID, ArraySeq.unsafeWrapArray(message))
       val res2 = pmacStagedStaticSize(staticID, message.length)(message)
       val res3 = pmacStagedDynSize(staticID)(message)
       assert(res1 sameElements res2)
@@ -175,7 +176,7 @@ class RandomSuite extends HailSuite {
     for {
       (message, _) <- pmacTestCases
     } {
-      val res1 = Threefry.pmac(message)
+      val res1 = Threefry.pmac(ArraySeq.unsafeWrapArray(message))
       val res2 = new PMacHash().extend(message).hash
       val n = message.length
       val res3 = new PMacHash().extend(message.slice(0, n / 2)).extend(message.slice(n / 2, n)).hash
@@ -188,22 +189,23 @@ class RandomSuite extends HailSuite {
     for {
       (message, staticID) <- pmacTestCases
     } {
-      val (hash, finalTweak) = Threefry.pmacHash(ctx.rngNonce, staticID, message)
+      val (hash, finalTweak) =
+        Threefry.pmacHash(ctx.rngNonce, staticID, ArraySeq.unsafeWrapArray(message))
       val engine1 = pmacEngineStagedStaticSize(staticID, message.length)(message)
       val engine2 = pmacEngineStagedDynSize(staticID)(message)
 
       var expected = hash.clone()
-      Threefry.encrypt(Threefry.defaultKey, Array(finalTweak, 0L), expected)
+      Threefry.encrypt(Threefry.defaultKey, ArraySeq(finalTweak, 0L), expected)
       assert(Array.fill(4)(engine1.nextLong()) sameElements expected)
       assert(Array.fill(4)(engine2.nextLong()) sameElements expected)
 
       expected = hash.clone()
-      Threefry.encrypt(Threefry.defaultKey, Array(finalTweak, 1L), expected)
+      Threefry.encrypt(Threefry.defaultKey, ArraySeq(finalTweak, 1L), expected)
       assert(Array.fill(4)(engine1.nextLong()) sameElements expected)
       assert(Array.fill(4)(engine2.nextLong()) sameElements expected)
 
       expected = hash.clone()
-      Threefry.encrypt(Threefry.defaultKey, Array(finalTweak, 2L), expected)
+      Threefry.encrypt(Threefry.defaultKey, ArraySeq(finalTweak, 2L), expected)
       assert(Array.fill(4)(engine1.nextLong()) sameElements expected)
       assert(Array.fill(4)(engine2.nextLong()) sameElements expected)
     }

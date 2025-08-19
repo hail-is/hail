@@ -6,7 +6,7 @@ import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 
 class RichSparkContext(val sc: SparkContext) extends AnyVal {
-  def textFilesLines(files: Array[String], nPartitions: Int = sc.defaultMinPartitions)
+  def textFilesLines(files: IndexedSeq[String], nPartitions: Int = sc.defaultMinPartitions)
     : RDD[WithContext[String]] = {
 
     /* Don't use:
