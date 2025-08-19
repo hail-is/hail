@@ -116,7 +116,7 @@ case object SemanticHash extends Logging {
         buffer ++=
           fname.getBytes ++=
           Bytes.fromLong(staticUID) ++=
-          EncodeTypename(retTy)
+          EncodeTypename(retTy): Unit
 
       case ApplySpecial(fname, tyArgs, _, retTy, _) =>
         buffer ++= fname.getBytes
@@ -134,7 +134,7 @@ case object SemanticHash extends Logging {
               Bytes.fromDouble(maf) ++=
               Bytes.fromInt(blockSize) ++=
               kinship.fold(Array.empty[Byte])(Bytes.fromDouble) ++=
-              Bytes.fromInt(stats)
+              Bytes.fromInt(stats): Unit
         }
 
       case BlockMatrixRead(reader) =>
@@ -168,7 +168,7 @@ case object SemanticHash extends Logging {
         buffer ++= Bytes.fromInt(idx)
 
       case Literal(typ, value) =>
-        buffer ++= EncodeTypename(typ) ++= typ.export(value).toString.getBytes
+        buffer ++= EncodeTypename(typ) ++= typ.export(value).toString.getBytes: Unit
 
       case MakeTuple(fields) =>
         fields.foreach { case (index, _) => buffer ++= Bytes.fromInt(index) }
@@ -179,7 +179,7 @@ case object SemanticHash extends Logging {
           EncodeTypename(ty.rowType) ++=
           EncodeTypename(ty.colType) ++=
           EncodeTypename(ty.entryType) ++=
-          encode(fs, tLiteral, 0)
+          encode(fs, tLiteral, 0): Unit
 
       case MatrixRead(_, _, _, reader) =>
         buffer ++= Bytes.fromClass(reader.getClass)
@@ -189,7 +189,7 @@ case object SemanticHash extends Logging {
               Bytes.fromInt(params.nRows) ++=
               Bytes.fromInt(params.nCols) ++=
               params.nPartitions.fold(Array.empty[Byte])(Bytes.fromInt) ++=
-              Bytes.fromInt(nPartitionsAdj)
+              Bytes.fromInt(nPartitionsAdj): Unit
 
           case _: MatrixNativeReader =>
             reader
@@ -239,16 +239,16 @@ case object SemanticHash extends Logging {
         buffer ++= Bytes.fromInt(bufferSize)
 
       case TableJoin(_, _, joinop, key) =>
-        buffer ++= joinop.getBytes ++= Bytes.fromInt(key)
+        buffer ++= joinop.getBytes ++= Bytes.fromInt(key): Unit
 
       case TableParallelize(_, nPartitions) =>
         nPartitions.foreach(buffer ++= Bytes.fromInt(_))
 
       case TableRange(count, numPartitions) =>
-        buffer ++= Bytes.fromInt(count) ++= Bytes.fromInt(numPartitions)
+        buffer ++= Bytes.fromInt(count) ++= Bytes.fromInt(numPartitions): Unit
 
       case TableRead(_, dropRows, reader) =>
-        buffer += dropRows.toByte ++= Bytes.fromClass(reader.getClass)
+        buffer += dropRows.toByte ++= Bytes.fromClass(reader.getClass): Unit
 
         reader match {
           case StringTableReader(_, fileStatuses) =>

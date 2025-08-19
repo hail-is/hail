@@ -116,7 +116,7 @@ class StagedMinHeapSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       mb.voidWithBuilder { cb =>
         MinHeap.push(cb, A.fromValue(cb, Main.partitionRegion, mb.getCodeParam[A](1)(A.ti)))
       }
-    }
+    }: Unit
 
     Main.defineEmitMethod("pop", FastSeq(), A.ti) { mb =>
       mb.emitWithBuilder[A] { cb =>
@@ -125,11 +125,11 @@ class StagedMinHeapSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         MinHeap.realloc(cb)
         res
       }
-    }
+    }: Unit
 
     Main.defineEmitMethod("nonEmpty", FastSeq(), BooleanInfo) { mb =>
       mb.emitWithBuilder[Boolean](MinHeap.nonEmpty)
-    }
+    }: Unit
 
     Main.defineEmitMethod("toArray", FastSeq(typeInfo[Region]), LongInfo) { mb =>
       mb.emitWithBuilder { cb =>
@@ -137,7 +137,7 @@ class StagedMinHeapSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         val arr = MinHeap.toArray(cb, region)
         arr.asInstanceOf[SIndexablePointerValue].a
       }
-    }
+    }: Unit
 
     trait Resource extends AutoCloseable { def init(): Unit }
 
@@ -149,8 +149,8 @@ class StagedMinHeapSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         // initialise the heap with them.
         MinHeap.init(cb, Main.pool())
       }
-    }
-    Main.defineEmitMethod("close", FastSeq(), UnitInfo)(_.voidWithBuilder(MinHeap.close))
+    }: Unit
+    Main.defineEmitMethod("close", FastSeq(), UnitInfo)(_.voidWithBuilder(MinHeap.close)): Unit
 
     ctx.scopedExecution { (cl, fs, tc, r) =>
       val heap = Main

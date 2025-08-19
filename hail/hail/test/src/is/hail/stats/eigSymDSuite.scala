@@ -84,15 +84,15 @@ class eigSymDSuite extends HailSuite {
 
         println(s"$n dim")
         print("svd:     ")
-        printTime({ svd(W) })
+        printTime({ svd(W) }): Unit
         print("svdK:    ")
-        printTime({ svd(K) })
+        printTime({ svd(K) }): Unit
         print("eigSym:  ")
-        printTime({ eigSymD(K) })
+        printTime({ eigSymD(K) }): Unit
         print("eigSymR: ")
-        printTime({ eigSymR(K) })
+        printTime({ eigSymR(K) }): Unit
         print("eigSymD: ")
-        printTime({ eigSym(K) })
+        printTime({ eigSym(K) }): Unit
         println()
       }
     }

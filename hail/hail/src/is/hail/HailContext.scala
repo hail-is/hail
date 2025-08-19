@@ -9,10 +9,8 @@ import is.hail.types.virtual._
 import is.hail.utils._
 
 import scala.reflect.ClassTag
-
 import java.io.InputStream
 import java.util.Properties
-
 import org.apache.log4j.{LogManager, PropertyConfigurator}
 import org.apache.spark._
 import org.apache.spark.executor.InputMetrics
@@ -126,7 +124,7 @@ object HailContext {
         DenseVector[Double],
       ]].register(
         DenseMatrix.implOpMulMatrix_DMD_DVD_eq_DVD
-      )
+      ): Unit
     }
 
     theContext = new HailContext(backend, branchingFactor, optimizerIterations)

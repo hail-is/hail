@@ -120,7 +120,7 @@ object LoadBgen {
       fatal(s"expected magic number [0000] or [bgen], got [${magicNumber.mkString}]")
 
     if (headerLength > 20)
-      is.skipBytes(headerLength - 20)
+      is.skipBytes(headerLength - 20): Unit
 
     val flags = is.readInt()
     val compressType = flags & 3

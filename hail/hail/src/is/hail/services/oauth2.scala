@@ -1,6 +1,5 @@
 package is.hail.services
 
-import is.hail.macros.void
 import is.hail.services.oauth2.AzureCloudCredentials.AzureTokenRefreshMinutes
 import is.hail.services.oauth2.AzureCloudCredentials.EnvVars.AzureApplicationCredentials
 import is.hail.services.oauth2.GoogleCloudCredentials.EnvVars.GoogleApplicationCredentials
@@ -80,13 +79,13 @@ object oauth2 {
     }
 
     private[this] def refreshIfRequired(): Unit =
-      if (!isExpired) void(token.getToken)
+      if (!isExpired) token.getToken
       else synchronized {
         if (isExpired) {
           token = value.getTokenSync(new TokenRequestContext().setScopes(scopes.asJava))
         }
 
-        void(token.getToken)
+        token.getToken: Unit
       }
 
     private[this] def isExpired: Boolean =

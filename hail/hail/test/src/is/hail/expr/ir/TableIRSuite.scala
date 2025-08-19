@@ -1495,7 +1495,7 @@ class TableIRSuite extends HailSuite {
     )
     val optimized = Optimize(ctx, irToLower)
     val analyses = LoweringAnalyses.apply(optimized, ctx)
-    LowerTableIR(optimized, DArrayLowering.All, ctx, analyses)
+    LowerTableIR(optimized, DArrayLowering.All, ctx, analyses): Unit
     scalatest.Succeeded
   }
 

@@ -170,7 +170,7 @@ case class SStreamControlFlow(st: SimpleSStream, producer: StreamProducer) exten
           cb.define(producer.LendOfStream)
           cb.define(producer.LproduceElementDone)
           cb._fatal("unreachable")
-        }
+        }: Unit
 
       case (eos, ped) =>
         throw new RuntimeException(s"unrealizable value unused asymmetrically: eos=$eos, ped=$ped")

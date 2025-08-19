@@ -71,7 +71,7 @@ class RichIndexedRowMatrixSuite extends HailSuite {
     assert(blockMatAsBreeze.toArray.toIndexedSeq == irmLocal.toArray.toIndexedSeq)
     assert(m.blocks.count() == 5)
 
-    (m.dot(m.T)).toBreezeMatrix() // assert no exception
+    m.dot(m.T).toBreezeMatrix(): Unit // assert no exception
 
     assert(m.mapWithIndex { case (i, j, v) => i + 10 * j + v }.toBreezeMatrix() ===
       new BDM[Double](

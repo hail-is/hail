@@ -388,7 +388,7 @@ class PNDArraySuite extends PhysicalTestUtils {
 
         // Region 2 gets an ndarray at ndaddress2, plus a reference to the one at ndarray 1.
         val (_, snd2Finisher) = nd.constructDataFunction(shapeSeq, shapeSeq, cb, codeRegion2)
-        snd2Finisher(cb)
+        snd2Finisher(cb): Unit
         cb.assign(r2PointerToNDAddress1, nd.store(cb, codeRegion2, snd1, true))
 
         // Return the 1st ndarray
@@ -426,7 +426,7 @@ class PNDArraySuite extends PhysicalTestUtils {
 
     assert(region3.memory.listNDArrayRefs().size == 0)
     // Do an unstaged copy into region3
-    nd.copyFromAddress(ctx.stateManager, region3, nd, result1, true)
+    nd.copyFromAddress(ctx.stateManager, region3, nd, result1, true): Unit
     assert(region3.memory.listNDArrayRefs().size == 1)
 
     // Check that clearing region2 removes both ndarrays

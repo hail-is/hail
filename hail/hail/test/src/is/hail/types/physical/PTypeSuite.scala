@@ -42,7 +42,7 @@ class PTypeSuite extends HailSuite {
     ).map(t => Array(t: Any))
   }
 
-  @Test def testPTypesDataProvider(): scalatest.Assertion = { ptypes(); succeed }
+  @Test def testPTypesDataProvider(): scalatest.Assertion = { ptypes(): Unit; succeed }
 
   @Test(dataProvider = "ptypes")
   def testSerialization(ptype: PType): scalatest.Assertion = {

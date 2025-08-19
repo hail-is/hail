@@ -140,7 +140,7 @@ case class MatrixValue(
       PCanonicalStruct.empty(required = true),
       bufferSpec,
       ArraySeq[Annotation](Row()),
-    )
+    ): Unit
 
     val globalsSpec = TableSpecParameters(
       FileFormat.version.rep,

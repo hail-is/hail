@@ -1,7 +1,6 @@
 package is.hail.asm4s
 
 import is.hail.{lir, HAIL_BUILD_CONFIGURATION}
-import is.hail.macros.void
 import is.hail.utils.{toRichIterable, Traceback}
 
 import org.objectweb.asm.Opcodes.{INVOKESTATIC, INVOKEVIRTUAL}
@@ -125,10 +124,10 @@ trait CodeBuilderLike {
 
     append(cond.branch(Ltrue, Lfalse))
     define(Ltrue)
-    emitThen
+    emitThen: Unit
     if (isOpenEnded) goto(Lexit)
     define(Lfalse)
-    emitElse
+    emitElse: Unit
     define(Lexit)
   }
 
@@ -145,11 +144,11 @@ trait CodeBuilderLike {
     append(discriminant.switch(Ldefault, Lcases))
     (Lcases, cases).zipped.foreach { case (label, emitCase) =>
       define(label)
-      emitCase()
+      emitCase(): Unit
       if (isOpenEnded) append(Lexit.goto)
     }
     define(Ldefault)
-    emitDefault
+    emitDefault: Unit
     define(Lexit)
   }
 
@@ -157,7 +156,7 @@ trait CodeBuilderLike {
     : Unit = {
     val Lstart = CodeLabel()
     define(Lstart)
-    void(emitBody(Lstart))
+    emitBody(Lstart): Unit
   }
 
   def while_[A](
@@ -168,7 +167,7 @@ trait CodeBuilderLike {
     loop { Lstart =>
       if_(
         cond, {
-          void(emitBody(Lstart))
+          emitBody(Lstart): Unit
           goto(Lstart)
         },
       )
@@ -188,11 +187,11 @@ trait CodeBuilderLike {
     emitBody: CodeLabel => A,
   )(implicit ev: A =:= Unit /* Note [Evidence Is Unit] */
   ): Unit = {
-    setup
+    setup: Unit
     while_(
       cond, {
         val Lincr = CodeLabel()
-        emitBody(Lincr)
+        emitBody(Lincr): Unit
         define(Lincr)
         incr
       },

@@ -43,8 +43,8 @@ class ArrayStackSuite extends TestNGSuite {
     assert(s.pop() == 39)
     assert(s.size == 2)
 
-    s.pop()
-    s.pop()
+    s.pop(): Unit
+    s.pop(): Unit
     assert(s.isEmpty)
   }
 }

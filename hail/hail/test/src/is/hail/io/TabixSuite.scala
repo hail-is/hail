@@ -122,6 +122,7 @@ class TabixSuite extends HailSuite {
           test = true
         } else {
           assert(hailStr != null)
+          ()
         }
       }
       scalatest.Assertions.succeed
