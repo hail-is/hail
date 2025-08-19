@@ -117,7 +117,7 @@ class BGzipCodecSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   @Test def testGenericLinesRandom(): Unit = {
     val lines = Source.fromFile(uncompPath).getLines().toFastSeq
 
-    val compLength = 195353
+    val compLength = 195353L
     val compSplits = Array[Long](6566, 20290, 33438, 41165, 56691, 70278, 77419, 92522, 106310,
       112477, 112505, 124593,
       136405, 144293, 157375, 169172, 175174, 186973, 195325)
@@ -168,7 +168,7 @@ class BGzipCodecSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       assert(linesRDD.collectOrdered().sameElements(lines))
     }
 
-    val compLength = 195353
+    val compLength = 195353L
     val compSplits = Array[Long](6566, 20290, 33438, 41165, 56691, 70278, 77419, 92522, 106310,
       112477, 112505, 124593,
       136405, 144293, 157375, 169172, 175174, 186973, 195325)
@@ -239,7 +239,7 @@ class BGzipCodecSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
           decompIS.virtualSeek(vOff)
           assert(decompIS.getVirtualOffset() == vOff);
-          uncompIS.seek(uOff + extra)
+          uncompIS.seek(uOff.toLong + extra)
 
           val decompRead = decompIS.readRepeatedly(decompData)
           val uncompRead = uncompIS.readRepeatedly(uncompData)

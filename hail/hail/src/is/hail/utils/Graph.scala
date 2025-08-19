@@ -98,7 +98,7 @@ object Graph {
     val verticesByDegree = new BinaryHeap[T](maybeTieBreaker = maybeTieBreaker.orNull)
 
     g.foreach { case (v, neighbors) =>
-      verticesByDegree.insert(v, neighbors.size)
+      verticesByDegree.insert(v, neighbors.size.toLong)
     }
 
     while (verticesByDegree.nonEmpty && verticesByDegree.maxPriority() > 0) {

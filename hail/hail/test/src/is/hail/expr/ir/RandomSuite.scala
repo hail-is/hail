@@ -210,7 +210,7 @@ class RandomSuite extends HailSuite {
   }
 
   def runChiSquareTest(samples: Int, buckets: Int)(sample: => Int): Unit = {
-    val chiSquareDist = new ChiSquaredDistribution(buckets - 1)
+    val chiSquareDist = new ChiSquaredDistribution(buckets.toDouble - 1)
     val expected = samples.toDouble / buckets
     var numRuns = 0
     val passThreshold = 0.1
@@ -248,7 +248,7 @@ class RandomSuite extends HailSuite {
     }
 
     n = 30000000
-    k = math.pow(n, 3.0 / 5).toInt
+    k = math.pow(n.toDouble, 3.0 / 5).toInt
     runChiSquareTest(n, k) {
       rand.nextInt(k)
     }
@@ -259,13 +259,13 @@ class RandomSuite extends HailSuite {
     var k = 1 << 15
     val rand = ThreefryRandomEngine.randState()
     runChiSquareTest(n, k) {
-      rand.nextLong(k).toInt
+      rand.nextLong(k.toLong).toInt
     }
 
     n = 30000000
-    k = math.pow(n, 3.0 / 5).toInt
+    k = math.pow(n.toDouble, 3.0 / 5).toInt
     runChiSquareTest(n, k) {
-      rand.nextLong(k).toInt
+      rand.nextLong(k.toLong).toInt
     }
   }
 

@@ -22,7 +22,7 @@ object CompressionUtils {
   }
 
   def compressZstd(bb: ByteArrayBuilder, input: Array[Byte]): Int = {
-    val maxSize = Zstd.compressBound(input.length).toInt
+    val maxSize = Zstd.compressBound(input.length.toLong).toInt
     val sizeBefore = bb.size
     bb.ensureCapacity(bb.size + maxSize)
     val compressedSize =

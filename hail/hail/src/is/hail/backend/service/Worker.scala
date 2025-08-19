@@ -159,7 +159,7 @@ object Worker {
     val contextFuture = Future {
       retryTransientErrors {
         using(open(s"$root/contexts")) { is =>
-          is.seek(i * 12)
+          is.seek(i.toLong * 12)
           val offset = is.readLong()
           val length = is.readInt()
           is.seek(offset)

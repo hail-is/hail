@@ -369,6 +369,8 @@ package object asm4s {
 
   implicit def const(b: Byte): Value[Byte] = _const(b.toInt, ByteInfo)
 
+  implicit def const(b: Short): Value[Short] = _const(b.toInt, ShortInfo)
+
   implicit def strToCode(s: String): Code[String] = const(s)
 
   implicit def boolToCode(b: Boolean): Code[Boolean] = const(b)

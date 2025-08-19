@@ -175,7 +175,7 @@ case class Skat(
     if (maxSize <= 0 || maxSize > 46340)
       fatal(s"Maximum group size must be in [1, 46340], got $maxSize")
 
-    val maxEntriesForSmallN = math.min(maxSize * maxSize, hardMaxEntriesForSmallN)
+    val maxEntriesForSmallN = math.min(math.pow(maxSize.toDouble, 2), hardMaxEntriesForSmallN)
 
     if (accuracy <= 0)
       fatal(s"tolerance must be positive, default is 1e-6, got $accuracy")

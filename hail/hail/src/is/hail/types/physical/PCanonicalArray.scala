@@ -114,7 +114,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false)
     aoff + lengthHeaderBytes + nMissingBytes(len).toL
 
   override def isElementDefined(aoff: Long, i: Int): Boolean =
-    elementRequired || !Region.loadBit(aoff + lengthHeaderBytes, i)
+    elementRequired || !Region.loadBit(aoff + lengthHeaderBytes, i.toLong)
 
   override def isElementDefined(aoff: Code[Long], i: Code[Int]): Code[Boolean] =
     if (elementRequired)
@@ -130,7 +130,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false)
 
   override def setElementMissing(aoff: Long, i: Int): Unit =
     if (!elementRequired)
-      Region.setBit(aoff + lengthHeaderBytes, i)
+      Region.setBit(aoff + lengthHeaderBytes, i.toLong)
 
   override def setElementMissing(cb: EmitCodeBuilder, aoff: Code[Long], i: Code[Int]): Unit = {
     assert(!elementRequired, s"Array elements of ptype '${elementType.asIdent}' cannot be missing.")
@@ -237,7 +237,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false)
     region.allocate(contentsAlignment, contentsByteSize(length))
 
   private def writeMissingness(aoff: Long, length: Int, value: Byte): Unit =
-    Region.setMemory(aoff + lengthHeaderBytes, nMissingBytes(length), value)
+    Region.setMemory(aoff + lengthHeaderBytes, nMissingBytes(length).toLong, value)
 
   override def setAllMissingBits(aoff: Long, length: Int): Unit =
     if (!elementRequired)

@@ -30,7 +30,7 @@ object NormalizeNames {
       val noSharing = ir.noSharing(ctx)
       val normalize = new NormalizeNames(freeVariables)
       val res = normalize.normalizeIR(noSharing, env).run().asInstanceOf[T]
-      uidCounter = math.max(uidCounter, normalize.count)
+      uidCounter = math.max(uidCounter, normalize.count.toLong)
       res
     }
 

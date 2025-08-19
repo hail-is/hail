@@ -215,7 +215,7 @@ class AzureStorageFS(val credential: AzureCloudCredentials) extends FS {
       override def fill(): Int = {
         val pos = getPosition
         val numBytesRemainingInBlob = blobSize - pos
-        val count = Math.min(numBytesRemainingInBlob, bb.capacity())
+        val count = Math.min(numBytesRemainingInBlob, bb.capacity().toLong)
         if (count <= 0) {
           return -1
         }

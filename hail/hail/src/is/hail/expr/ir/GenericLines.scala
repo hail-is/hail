@@ -183,7 +183,7 @@ object GenericLines {
                 fatal(
                   s"GenericLines: line size reached: cannot read a line with more than 2^31-1 bytes"
                 )
-              val newSize = Math.min(copySize * 2, maxArraySize).toInt
+              val newSize = Math.min(copySize * 2, maxArraySize.toLong).toInt
               if (newSize > (1 << 20)) {
                 log.info(s"GenericLines: growing line buffer to $newSize")
               }

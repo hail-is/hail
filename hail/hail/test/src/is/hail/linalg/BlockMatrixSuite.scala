@@ -49,11 +49,11 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
   val squareBlockMatrixGen: Gen[BlockMatrix] =
     blockMatrixGen(
-      blockSize = interestingPosInt.map(math.sqrt(_).toInt),
+      blockSize = interestingPosInt.map(n => math.sqrt(n.toDouble).toInt),
       dims = for {
         size <- size
         l <- interestingPosInt
-        s = math.sqrt(math.min(l, math.max(size, 1))).toInt
+        s = math.sqrt(math.min(l, math.max(size, 1)).toDouble).toInt
       } yield (s, s),
       element = arbitrary[Double],
     )
@@ -405,7 +405,7 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   @Test
   def fromLocalTest(): Unit =
     forAll(arbitrary[DenseMatrix[Double]].flatMap { m =>
-      Gen.zip(Gen.const(m), Gen.choose(math.sqrt(m.rows).toInt, m.rows + 16))
+      Gen.zip(Gen.const(m), Gen.choose(math.sqrt(m.rows.toDouble).toInt, m.rows + 16))
     }) { case (lm, blockSize) =>
       assert(lm === BlockMatrix.fromBreezeMatrix(ctx, lm, blockSize).toBreezeMatrix())
     }
@@ -922,7 +922,7 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   def filterRowsRectangleSum(): Unit = {
     val nRows = 10
     val nCols = 50
-    val bm = BlockMatrix.fill(nRows, nCols, 2, 1)
+    val bm = BlockMatrix.fill(nRows.toLong, nCols.toLong, 2, 1)
     val banded = bm.filterBand(0, 0, false)
     val rowFilt = banded.filterRows((0L until nRows.toLong by 2L).toArray)
     val summed = rowFilt.rowSum().toBreezeMatrix().toArray

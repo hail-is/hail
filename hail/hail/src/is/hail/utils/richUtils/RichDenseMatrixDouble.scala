@@ -136,7 +136,7 @@ class RichDenseMatrixDouble(val m: BDM[Double]) extends AnyVal {
 
     fs.mkDir(path)
 
-    val gp = GridPartitioner(blockSize, m.rows, m.cols)
+    val gp = GridPartitioner(blockSize, m.rows.toLong, m.cols.toLong)
     val nParts = gp.numPartitions
     val d = digitsNeeded(nParts)
 
@@ -159,7 +159,13 @@ class RichDenseMatrixDouble(val m: BDM[Double]) extends AnyVal {
     using(new DataOutputStream(fs.create(path + BlockMatrix.metadataRelativePath))) { os =>
       implicit val formats = defaultJSONFormats
       jackson.Serialization.write(
-        BlockMatrixMetadata(blockSize, m.rows, m.cols, gp.partitionIndexToBlockIndex, partFiles),
+        BlockMatrixMetadata(
+          blockSize,
+          m.rows.toLong,
+          m.cols.toLong,
+          gp.partitionIndexToBlockIndex,
+          partFiles,
+        ),
         os,
       )
     }

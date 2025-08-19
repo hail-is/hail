@@ -37,8 +37,8 @@ class IndexBTreeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
       val indexSize = fs.getFileSize(index)
       val padding = 1024 - (arrayRandomStarts.length % 1024)
-      val numEntries = arrayRandomStarts.length + padding + (1 until depth).map {
-        math.pow(1024, _).toInt
+      val numEntries = arrayRandomStarts.length + padding + (1 until depth).map { i =>
+        math.pow(1024, i.toDouble).toInt
       }.sum
 
       // make sure index size is correct
@@ -85,7 +85,7 @@ class IndexBTreeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(btree.queryIndex(20).contains(24))
     assert(btree.queryIndex(24).contains(24))
     assert(btree.queryIndex(25).isEmpty)
-    assert(btree.queryIndex(fileSize - 1).isEmpty)
+    assert(btree.queryIndex(fileSize.toLong - 1).isEmpty)
   }
 
   @Test def zeroVariants(): Unit =
@@ -114,7 +114,7 @@ class IndexBTreeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   @Test def writeReadMultipleOfBranchingFactorDoesNotError(): Unit = {
     val idxFile = ctx.createTmpPath("btree")
     IndexBTree.write(
-      Array.tabulate(1024)(i => i),
+      Array.tabulate(1024)(i => i.toLong),
       idxFile,
       fs,
     )
@@ -132,9 +132,9 @@ class IndexBTreeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(bt.queryArrayPositionAndFileOffset(2).contains((1, 2)))
     assert(bt.queryArrayPositionAndFileOffset(3).contains((2, 3)))
     for (i <- 4 to 40)
-      assert(bt.queryArrayPositionAndFileOffset(i).contains((3, 40)), s"$i")
+      assert(bt.queryArrayPositionAndFileOffset(i.toLong).contains((3, 40)), s"$i")
     for (i <- 41 to 50)
-      assert(bt.queryArrayPositionAndFileOffset(i).contains((4, 50)), s"$i")
+      assert(bt.queryArrayPositionAndFileOffset(i.toLong).contains((4, 50)), s"$i")
     assert(bt.queryArrayPositionAndFileOffset(65).contains((6, 70)))
     assert(bt.queryArrayPositionAndFileOffset(70).contains((6, 70)))
     assert(bt.queryArrayPositionAndFileOffset(71).isEmpty)
@@ -143,7 +143,7 @@ class IndexBTreeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   @Test def queryArrayPositionAndFileOffsetIsCorrectTwoLevelsArray(): Unit = {
     def sqr(x: Long) = x * x
     val f = ctx.createTmpPath("btree")
-    val v = Array.tabulate(1025)(x => sqr(x))
+    val v = Array.tabulate(1025)(x => sqr(x.toLong))
     val branchingFactor = 1024
     IndexBTree.write(v, f, fs, branchingFactor = branchingFactor)
     val bt = new IndexBTree(f, fs, branchingFactor = branchingFactor)
@@ -170,7 +170,7 @@ class IndexBTreeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   @Test def queryArrayPositionAndFileOffsetIsCorrectThreeLevelsArray(): Unit = {
     def sqr(x: Long) = x * x
     val f = ctx.createTmpPath("btree")
-    val v = Array.tabulate(1024 * 1024 + 1)(x => sqr(x))
+    val v = Array.tabulate(1024 * 1024 + 1)(x => sqr(x.toLong))
     val branchingFactor = 1024
     IndexBTree.write(v, f, fs, branchingFactor = branchingFactor)
     val bt = new IndexBTree(f, fs, branchingFactor = branchingFactor)

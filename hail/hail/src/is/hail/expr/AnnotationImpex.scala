@@ -131,7 +131,7 @@ object JSONAnnotationImpex {
         case TBoolean => JBool(a.asInstanceOf[Boolean])
         case TInt32 => JInt(a.asInstanceOf[Int])
         case TInt64 => JInt(a.asInstanceOf[Long])
-        case TFloat32 => JDouble(a.asInstanceOf[Float])
+        case TFloat32 => JDouble(a.asInstanceOf[Float].toDouble)
         case TFloat64 => JDouble(a.asInstanceOf[Double])
         case TString => JString(a.asInstanceOf[String])
         case TVoid =>

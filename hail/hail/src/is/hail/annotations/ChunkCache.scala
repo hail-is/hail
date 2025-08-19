@@ -21,7 +21,7 @@ import java.util.function.BiConsumer
 
 private class ChunkCache(allocator: Long => Long, freer: Long => Unit) {
   private[this] val highestSmallChunkPowerOf2 = 24
-  private[this] val biggestSmallChunk = Math.pow(2, highestSmallChunkPowerOf2)
+  private[this] val biggestSmallChunk = 1L << highestSmallChunkPowerOf2
   private[this] val bigChunkCache = new TreeMap[Long, LongArrayBuilder]()
   private[this] val chunksEncountered = mutable.Map[Long, Long]()
   private[this] val minSpaceRequirements = .9

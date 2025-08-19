@@ -725,7 +725,7 @@ class RVD(
     if (tree) {
       val depth = treeAggDepth(getNumPartitions, execCtx.branchingFactor)
       val scale = math.max(
-        math.ceil(math.pow(getNumPartitions, 1.0 / depth)).toInt,
+        math.ceil(math.pow(getNumPartitions.toDouble, 1.0 / depth)).toInt,
         2,
       )
 

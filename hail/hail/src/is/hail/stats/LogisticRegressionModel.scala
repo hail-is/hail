@@ -138,7 +138,7 @@ object LikelihoodRatioTest extends GLMTest {
     val lrStats =
       if (fit.converged) {
         val chi2 = 2 * (fit.logLkhd - nullFit.logLkhd)
-        val p = pchisqtail(chi2, m - m0)
+        val p = pchisqtail(chi2, m.toDouble - m0)
 
         Some(LikelihoodRatioStats(fit.b, chi2, p))
       } else
@@ -188,7 +188,7 @@ object LogisticFirthTest extends GLMTest {
       val firthStats =
         if (fitFirth.converged) {
           val chi2 = 2 * (fitFirth.logLkhd - nullFitFirth.logLkhd)
-          val p = pchisqtail(chi2, m - m0)
+          val p = pchisqtail(chi2, m.toDouble - m0)
 
           Some(FirthStats(fitFirth.b, chi2, p))
         } else
@@ -250,7 +250,7 @@ object LogisticScoreTest extends GLMTest {
         fisher(r1, r1) := X1.t * (X1(::, *) *:* (mu *:* (1d - mu))): Unit
 
         val chi2 = score dot (fisher \ score)
-        val p = pchisqtail(chi2, m - m0)
+        val p = pchisqtail(chi2, m.toDouble - m0)
 
         Some(ScoreStats(chi2, p))
       } catch {

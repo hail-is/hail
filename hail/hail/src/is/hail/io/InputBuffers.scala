@@ -148,7 +148,7 @@ final class StreamInputBuffer(in: InputStream) extends InputBuffer {
   }
 
   def skipBytes(n: Int): Unit = {
-    val bytesRead = in.skip(n)
+    val bytesRead = in.skip(n.toLong)
     assert(bytesRead == n)
   }
 
@@ -278,7 +278,7 @@ final class TracingInputBuffer(
 
   def readByte(): Byte = {
     val x = in.readByte()
-    logfile.write(x)
+    logfile.write(x.toInt)
     x
   }
 
@@ -375,35 +375,35 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
 
   def readByte(): Byte = {
     ensure(1)
-    val b = Memory.loadByte(buf, off)
+    val b = Memory.loadByte(buf, off.toLong)
     off += 1
     b
   }
 
   def readInt(): Int = {
     ensure(4)
-    val i = Memory.loadInt(buf, off)
+    val i = Memory.loadInt(buf, off.toLong)
     off += 4
     i
   }
 
   def readLong(): Long = {
     ensure(8)
-    val l = Memory.loadLong(buf, off)
+    val l = Memory.loadLong(buf, off.toLong)
     off += 8
     l
   }
 
   def readFloat(): Float = {
     ensure(4)
-    val f = Memory.loadFloat(buf, off)
+    val f = Memory.loadFloat(buf, off.toLong)
     off += 4
     f
   }
 
   def readDouble(): Double = {
     ensure(8)
-    val d = Memory.loadDouble(buf, off)
+    val d = Memory.loadDouble(buf, off.toLong)
     off += 8
     d
   }
@@ -420,7 +420,7 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
       }
       val p = math.min(end - off, n)
       assert(p > 0)
-      Region.storeBytes(toOff, buf, off, p)
+      Region.storeBytes(toOff, buf, off.toLong, p.toLong)
       toOff += p
       n -= p
       off += p
@@ -492,7 +492,7 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
     assert(toOff0 >= 0)
     assert(n0 >= 0)
     assert(toOff0 <= to.length - n0)
-    var toOff = toOff0
+    var toOff = toOff0.toLong
     var n = n0
 
     while (n > 0) {
@@ -502,7 +502,7 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
       }
       val p = math.min(end - off, n << 3) >>> 3
       assert(p > 0)
-      Memory.memcpy(to, toOff, buf, off, p)
+      Memory.memcpy(to, toOff, buf, off.toLong, p.toLong)
       toOff += p
       n -= p
       off += (p << 3)
@@ -612,7 +612,7 @@ object ZstdDecompressLib {
 
 final class ZstdInputBlockBuffer(blockSize: Int, in: InputBlockBuffer) extends InputBlockBuffer {
   private[this] val zstd = ZstdDecompressLib.instance.get
-  private[this] val comp = new Array[Byte](4 + Zstd.compressBound(blockSize).toInt)
+  private[this] val comp = new Array[Byte](4 + Zstd.compressBound(blockSize.toLong).toInt)
 
   def close(): Unit =
     in.close()
@@ -635,7 +635,7 @@ final class ZstdInputBlockBuffer(blockSize: Int, in: InputBlockBuffer) extends I
 final class ZstdSizedBasedInputBlockBuffer(blockSize: Int, in: InputBlockBuffer)
     extends InputBlockBuffer {
   private[this] val zstd = ZstdDecompressLib.instance.get
-  private[this] val comp = new Array[Byte](4 + Zstd.compressBound(blockSize).toInt)
+  private[this] val comp = new Array[Byte](4 + Zstd.compressBound(blockSize.toLong).toInt)
 
   def close(): Unit =
     in.close()

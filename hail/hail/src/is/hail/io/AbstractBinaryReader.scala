@@ -65,7 +65,7 @@ abstract class AbstractBinaryReader {
     require(lengthBytes == 2 || lengthBytes == 4)
 
     val length = if (lengthBytes == 2) readShort() else readInt()
-    skipBytes(length): Unit
+    skipBytes(length.toLong): Unit
   }
 
   def skipBytes(lengthBytes: Long): Long

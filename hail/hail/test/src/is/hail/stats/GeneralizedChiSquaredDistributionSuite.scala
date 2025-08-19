@@ -24,12 +24,12 @@ class GeneralizedChiSquaredDistributionSuite extends HailSuite {
     val DaviesAlgorithmTrace(a, b, c, d, e, f, g) = x
     val DaviesAlgorithmTrace(a2, b2, c2, d2, e2, f2, g2) = x
     (nearEqual(a, a2) &&
-    nearEqual(b, b2) &&
-    nearEqual(c, c2) &&
+    b == b2 &&
+    c == c2 &&
     nearEqual(d, d2) &&
     nearEqual(e, e2) &&
     nearEqual(f, f2) &&
-    nearEqual(g, g2))
+    g == g2)
   }
 
   @Test def test0(): Unit = {

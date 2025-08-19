@@ -96,7 +96,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
           cb += out.writeBytes(addr, missingBytes - 1)
         if (nMissingBytes > 0)
           cb += out.writeByte((Region.loadByte(addr + (missingBytes.toLong - 1)).toI & const(
-            EType.lowBitMask(st.nMissing & 0x7)
+            EType.lowBitMask(st.nMissing & 0x7).toInt
           )).toB)
 
       case _ =>
@@ -158,7 +158,8 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
       case t: PCanonicalInterval => t.representation
       case t: PCanonicalBaseStruct => t
     }
-    val mbytes = cb.newLocal[Long]("mbytes", region.allocate(const(1), const(nMissingBytes)))
+    val mbytes =
+      cb.newLocal[Long]("mbytes", region.allocate(const(1L), const(nMissingBytes.toLong)))
     var midx = 0
     var byteIdx = 0L
     cb += in.readBytes(region, mbytes, nMissingBytes)
@@ -198,7 +199,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
   }
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
-    val mbytes = cb.newLocal[Long]("mbytes", r.allocate(const(1), const(nMissingBytes)))
+    val mbytes = cb.newLocal[Long]("mbytes", r.allocate(const(1L), const(nMissingBytes.toLong)))
     cb += in.readBytes(r, mbytes, nMissingBytes)
     fields.foreach { f =>
       val skip = f.typ.buildSkip(cb.emb.ecb)

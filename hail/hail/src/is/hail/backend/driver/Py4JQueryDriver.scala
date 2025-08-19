@@ -394,7 +394,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable {
           )
 
         private[this] def respond(req: HttpExchange, code: Int, payload: Array[Byte]): Unit = {
-          req.sendResponseHeaders(code, payload.length)
+          req.sendResponseHeaders(code, payload.length.toLong)
           using(req.getResponseBody)(_.write(payload))
         }
       }
