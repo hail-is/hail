@@ -19,6 +19,8 @@ Change Log
 
 - (`#14980 <https://github.com/hail-is/hail/pull/14980>`__)
   Update dataproc image version to 2.2.60
+- (`#14970 <https://github.com/hail-is/hail/pull/14970>`__)
+  Fix dry-run and docs for dataproc submit
 - (`#14918 <https://github.com/hail-is/hail/pull/14918>`__)
   Upgrade default Python version to 3.11
 - (`#14937 <https://github.com/hail-is/hail/pull/14937>`__)
