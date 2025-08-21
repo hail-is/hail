@@ -32,7 +32,7 @@ class EBinary(override val required: Boolean) extends EType {
     v.st match {
       case SBinaryPointer(_) => writeCanonicalBinary(v.asInstanceOf[SBinaryPointerValue])
       case SStringPointer(_) =>
-        writeCanonicalBinary(v.asInstanceOf[SStringPointerValue].binaryRepr())
+        writeCanonicalBinary(v.asInstanceOf[SStringPointerValue].binaryRepr)
       case _: SBinary => writeBytes(v.asInstanceOf[SBinaryValue].loadBytes(cb))
       case _: SString => writeBytes(v.asString.toBytes(cb).loadBytes(cb))
     }

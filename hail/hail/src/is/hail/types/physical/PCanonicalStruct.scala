@@ -110,7 +110,7 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
     }
     val it = fieldsToInsert.toIterator
     while (it.hasNext) {
-      val (name, typ) = it.next
+      val (name, typ) = it.next()
       if (fieldIdx.contains(name)) {
         val j = fieldIdx(name)
         ab(j) = PField(name, typ, j)

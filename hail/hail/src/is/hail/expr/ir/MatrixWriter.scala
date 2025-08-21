@@ -698,7 +698,7 @@ case class MatrixSpecWriter(
     val partCounts = cb.newLocal[Array[Long]]("partCounts")
     val a = c.loadField(cb, "rows").getOrAssert(cb).asIndexable
 
-    val n = cb.newLocal[Int]("n", a.loadLength())
+    val n = cb.newLocal[Int]("n", a.loadLength)
     val i = cb.newLocal[Int]("i", 0)
     cb.assign(partCounts, Code.newArray[Long](n))
     cb.while_(
@@ -877,7 +877,7 @@ case class VCFPartitionWriter(
       val os = cb.memoize(cb.emb.create(filename))
       if (writeHeader) {
         val sampleIds = ctx.loadField(cb, "cols").getOrAssert(cb).asIndexable
-        val stringSampleIds = cb.memoize(Code.newArray[String](sampleIds.loadLength()))
+        val stringSampleIds = cb.memoize(Code.newArray[String](sampleIds.loadLength))
         sampleIds.forEachDefined(cb) { case (cb, i, colv: SBaseStructValue) =>
           val s = colv.subset(typ.colKey: _*).loadField(cb, 0).getOrAssert(cb).asString
           cb += (stringSampleIds(i) = s.loadString(cb))
@@ -1106,11 +1106,11 @@ case class VCFPartitionWriter(
     // ALT
     writeC('\t')
     cb.if_(
-      alleles.loadLength() > 1, {
+      alleles.loadLength > 1, {
         val i = cb.newLocal[Int]("i")
         cb.for_(
           cb.assign(i, 1),
-          i < alleles.loadLength(),
+          i < alleles.loadLength,
           cb.assign(i, i + 1), {
             cb.if_(i.cne(1), writeC(','))
             writeB(alleles.loadElement(cb, i).getOrAssert(cb).asString.toBytes(cb).loadBytes(cb))
@@ -1145,7 +1145,7 @@ case class VCFPartitionWriter(
         writeC('.'),
         { case filters: SIndexableValue =>
           cb.if_(
-            filters.loadLength().ceq(0),
+            filters.loadLength.ceq(0),
             writeB(passUTF8Value),
             writeIterable(cb, filters, ';'),
           )
@@ -1173,7 +1173,7 @@ case class VCFPartitionWriter(
                 case infoArray: SIndexableValue
                     if infoArray.st.elementType.virtualType != TBoolean =>
                   cb.if_(
-                    infoArray.loadLength() > 0, {
+                    infoArray.loadLength > 0, {
                       cb.if_(wroteInfo, writeC(';'))
                       writeS(field.name)
                       writeC('=')
@@ -1210,7 +1210,7 @@ case class VCFPartitionWriter(
     // FORMAT
     val genotypes = elt.loadField(cb, entriesFieldName).getOrAssert(cb).asIndexable
     cb.if_(
-      genotypes.loadLength() > 0, {
+      genotypes.loadLength > 0, {
         writeC('\t')
         writeB(formatFieldUTF8)
         genotypes.forEachDefinedOrMissing(cb)(
@@ -1243,7 +1243,7 @@ case class VCFExportFinalizer(
   private def header(cb: EmitCodeBuilder, annotations: SBaseStructValue): Code[String] = {
     val mb = cb.emb
     val sampleIds = annotations.loadField(cb, "cols").getOrAssert(cb).asIndexable
-    val stringSampleIds = cb.memoize(Code.newArray[String](sampleIds.loadLength()))
+    val stringSampleIds = cb.memoize(Code.newArray[String](sampleIds.loadLength))
     sampleIds.forEachDefined(cb) { case (cb, i, colv: SBaseStructValue) =>
       val s = colv.subset(typ.colKey: _*).loadField(cb, 0).getOrAssert(cb).asString
       cb += (stringSampleIds(i) = s.loadString(cb))
@@ -1285,7 +1285,7 @@ case class VCFExportFinalizer(
     )
 
     val allFiles = if (tabix && exportType != ExportType.CONCATENATED) {
-      val len = partPaths.loadLength()
+      val len = partPaths.loadLength
       val files = cb.memoize(Code.newArray[String](len * 2))
       val i = cb.newLocal[Int]("i", 0)
       cb.while_(
@@ -1319,7 +1319,7 @@ case class VCFExportFinalizer(
         cb += os.invoke[Int, Unit]("write", '\n')
         cb += os.invoke[Unit]("close")
 
-        val jFiles = cb.memoize(Code.newArray[String](partFiles.length + 1))
+        val jFiles = cb.memoize(Code.newArray[String](partFiles.length() + 1))
         cb += (jFiles(0) = const(headerFilePath))
         cb += Code.invokeStatic5[System, Any, Int, Any, Int, Int, Unit](
           "arraycopy",
@@ -1327,7 +1327,7 @@ case class VCFExportFinalizer(
           0 /*srcPos*/,
           jFiles /*dest*/,
           1 /*destPos*/,
-          partFiles.length, /*len*/
+          partFiles.length(), /*len*/
         )
 
         cb += cb.emb.getFS.invoke[Array[String], String, Unit](
@@ -1339,7 +1339,7 @@ case class VCFExportFinalizer(
         val i = cb.newLocal[Int]("i")
         cb.for_(
           cb.assign(i, 0),
-          i < jFiles.length,
+          i < jFiles.length(),
           cb.assign(i, i + 1),
           cb += cb.emb.getFS.invoke[String, Boolean, Unit]("delete", jFiles(i), const(false)),
         )
@@ -1510,7 +1510,7 @@ final case class GenVariantWriter(typ: MatrixType, entriesFieldName: String, pre
               _writeS(cb, " 0 0 0"),
               { case gp: SIndexableValue =>
                 cb.if_(
-                  gp.loadLength().cne(3),
+                  gp.loadLength.cne(3),
                   cb._fatal(
                     "Invalid 'gp' at variant '",
                     locus.contig(cb).loadString(cb),
@@ -1701,10 +1701,10 @@ case class BGENPartitionWriter(
 
       val os = cb.memoize(cb.emb.create(filename))
       val colValues = ctx.loadField(cb, "cols").getOrAssert(cb).asIndexable
-      val nSamples = colValues.loadLength()
+      val nSamples = colValues.loadLength
 
       if (writeHeader) {
-        val sampleIds = cb.memoize(Code.newArray[String](colValues.loadLength()))
+        val sampleIds = cb.memoize(Code.newArray[String](colValues.loadLength))
         colValues.forEachDefined(cb) { case (cb, i, colv: SBaseStructValue) =>
           val s = colv.subset(typ.colKey: _*).loadField(cb, 0).getOrAssert(cb).asString
           cb += (sampleIds(i) = s.loadString(cb))
@@ -1831,8 +1831,8 @@ case class BGENPartitionWriter(
     val alleles = elt.loadField(cb, "alleles").getOrAssert(cb).asIndexable
 
     cb.if_(
-      alleles.loadLength() >= 0xffff,
-      cb._fatal("Maximum number of alleles per variant is 65536. Found ", alleles.loadLength().toS),
+      alleles.loadLength >= 0xffff,
+      cb._fatal("Maximum number of alleles per variant is 65536. Found ", alleles.loadLength.toS),
     )
 
     cb += buf.invoke[Unit]("clear")
@@ -1841,7 +1841,7 @@ case class BGENPartitionWriter(
     stringToBytesWithShortLength(cb, buf, rsid)
     stringToBytesWithShortLength(cb, buf, chr)
     intToBytesLE(cb, buf, pos)
-    shortToBytesLE(cb, buf, alleles.loadLength())
+    shortToBytesLE(cb, buf, alleles.loadLength)
     alleles.forEachDefined(cb) { (cb, i, allele) =>
       stringToBytesWithIntLength(cb, buf, allele.asString.loadString(cb))
     }
@@ -1851,9 +1851,9 @@ case class BGENPartitionWriter(
     intToBytesLE(cb, buf, 0) // placeholder for length of uncompressed data
 
     // begin emitGPData
-    val nGenotypes = cb.memoize(((alleles.loadLength() + 1) * alleles.loadLength()) / 2)
+    val nGenotypes = cb.memoize(((alleles.loadLength + 1) * alleles.loadLength) / 2)
     intToBytesLE(cb, uncompBuf, nSamples)
-    shortToBytesLE(cb, uncompBuf, alleles.loadLength())
+    shortToBytesLE(cb, uncompBuf, alleles.loadLength)
     add(cb, uncompBuf, BgenWriter.ploidy)
     add(cb, uncompBuf, BgenWriter.ploidy)
 
@@ -1975,7 +1975,7 @@ case class BGENExportFinalizer(typ: MatrixType, path: String, exportType: String
     : Unit = {
     val annotations = writeAnnotations.getOrAssert(cb).asBaseStruct
     val colValues = annotations.loadField(cb, "cols").getOrAssert(cb).asIndexable
-    val sampleIds = cb.memoize(Code.newArray[String](colValues.loadLength()))
+    val sampleIds = cb.memoize(Code.newArray[String](colValues.loadLength))
     colValues.forEachDefined(cb) { case (cb, i, colv: SBaseStructValue) =>
       val s = colv.subset(typ.colKey: _*).loadField(cb, 0).getOrAssert(cb).asString
       cb += (sampleIds(i) = s.loadString(cb))
@@ -2013,7 +2013,7 @@ case class BGENExportFinalizer(typ: MatrixType, path: String, exportType: String
     if (
       exportType == ExportType.PARALLEL_SEPARATE_HEADER || exportType == ExportType.PARALLEL_HEADER_IN_SHARD
     ) {
-      val files = cb.memoize(Code.newArray[String](results.loadLength()))
+      val files = cb.memoize(Code.newArray[String](results.loadLength))
       results.forEachDefined(cb) { (cb, i, res) =>
         cb += files.update(
           i,
@@ -2299,8 +2299,8 @@ case class PLINKExportFinalizer(typ: MatrixType, path: String, headerPath: Strin
   def writeMetadata(writeAnnotations: => IEmitCode, cb: EmitCodeBuilder, region: Value[Region])
     : Unit = {
     val paths = writeAnnotations.getOrAssert(cb).asIndexable
-    val bedFiles = cb.memoize(Code.newArray[String](paths.loadLength() + 1)) // room for header
-    val bimFiles = cb.memoize(Code.newArray[String](paths.loadLength()))
+    val bedFiles = cb.memoize(Code.newArray[String](paths.loadLength + 1)) // room for header
+    val bimFiles = cb.memoize(Code.newArray[String](paths.loadLength))
     paths.forEachDefined(cb) { case (cb, i, elt: SBaseStructValue) =>
       val bed = elt.loadField(cb, "bedFile").getOrAssert(cb).asString.loadString(cb)
       val bim = elt.loadField(cb, "bimFile").getOrAssert(cb).asString.loadString(cb)

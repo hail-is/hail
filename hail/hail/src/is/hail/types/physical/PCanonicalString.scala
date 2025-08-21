@@ -64,7 +64,7 @@ class PCanonicalString(val required: Boolean) extends PString {
     val dstAddress = cb.newField[Long]("pcanonical_string_alloc_dst_address")
     val byteRep = cb.newField[Array[Byte]]("pcanonical_string_alloc_byte_rep")
     cb.assign(byteRep, str.invoke[Array[Byte]]("getBytes"))
-    cb.assign(dstAddress, binaryRepresentation.allocate(region, byteRep.length))
+    cb.assign(dstAddress, binaryRepresentation.allocate(region, byteRep.length()))
     binaryRepresentation.store(cb, dstAddress, byteRep)
     dstAddress
   }

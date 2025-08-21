@@ -69,7 +69,7 @@ package object tls extends Logging {
   }
 
   lazy val getSSLContext: SSLContext = {
-    val sslConfig = getSSLConfig
+    val sslConfig = getSSLConfig()
 
     val pw = "dummypw".toCharArray
 

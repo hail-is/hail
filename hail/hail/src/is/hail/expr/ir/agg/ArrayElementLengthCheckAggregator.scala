@@ -191,7 +191,7 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
   protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     if (knownLength) {
       val Array(len, inits) = init
-      state.init(cb, cb => cb += inits.asVoid, initLen = false)
+      state.init(cb, cb => cb += inits.asVoid(), initLen = false)
       len.toI(cb).consume(
         cb,
         cb._fatal("Array length can't be missing"),
@@ -199,7 +199,7 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
       )
     } else {
       val Array(inits) = init
-      state.init(cb, cb => cb += inits.asVoid, initLen = true)
+      state.init(cb, cb => cb += inits.asVoid(), initLen = true)
       cb.assign(state.lenRef, -1)
     }
   }
@@ -328,7 +328,7 @@ class ArrayElementwiseOpAggregator(nestedAggs: Array[StagedAggregator]) extends 
           state.idx > state.lenRef || state.idx < 0,
           cb._fatal("element idx out of bounds"), {
             state.load(cb)
-            cb += seqOps.asVoid
+            cb += seqOps.asVoid()
             state.store(cb)
           },
         )

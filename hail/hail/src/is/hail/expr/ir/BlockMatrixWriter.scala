@@ -140,7 +140,7 @@ case class BlockMatrixNativeMetadataWriter(
 
     val pc = writeAnnotations.getOrFatal(cb, "write annotations can't be missing!").asIndexable
     val partFiles = cb.newLocal[Array[String]]("partFiles")
-    val n = cb.newLocal[Int]("n", pc.loadLength())
+    val n = cb.newLocal[Int]("n", pc.loadLength)
     val i = cb.newLocal[Int]("i", 0)
     cb.assign(partFiles, Code.newArray[String](n))
     cb.while_(
