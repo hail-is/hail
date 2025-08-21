@@ -353,7 +353,7 @@ def submit(
     """
 
     from .submit import HailctlBatchSubmitError  # pylint: disable=import-outside-toplevel
-    from .submit import submit as _submit   # pylint: disable=import-outside-toplevel
+    from .submit import submit as _submit  # pylint: disable=import-outside-toplevel
 
     assert command_and_args
 
