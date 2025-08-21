@@ -29,7 +29,7 @@ case class OrderedRVIterator(
   iterator: Iterator[RegionValue],
   ctx: RVDContext,
   sm: HailStateManager,
-) {
+) { outer =>
 
   def staircase: StagingIterator[FlipbookIterator[RegionValue]] =
     iterator.toFlipbookIterator.staircased(t.kRowOrdView(sm, ctx.freshRegion()))
@@ -182,7 +182,7 @@ case class OrderedRVIterator(
     val consumerRegion = ctx.region
 
     new Iterator[RegionValue] {
-      private val bit = iterator.buffered
+      private val bit = outer.iterator.buffered
 
       private val q = new mutable.PriorityQueue[RegionValue]()(
         t.copy(key = newKey).kInRowOrd(sm).toRVOrdering.reverse
