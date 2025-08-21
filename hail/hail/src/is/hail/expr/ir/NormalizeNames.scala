@@ -29,6 +29,9 @@ object NormalizeNames {
       val env = BindingEnv.empty[Name].createAgg.createScan
       val noSharing = ir.noSharing(ctx)
       val normalize = new NormalizeNames(freeVariables)
+      IRTraversal.postOrder(noSharing).foreach { x =>
+        assert(x.typ != null)
+      }
       val res = normalize.normalizeIR(noSharing, env).run().asInstanceOf[T]
       uidCounter = math.max(uidCounter, normalize.count)
       res

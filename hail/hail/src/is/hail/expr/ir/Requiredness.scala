@@ -842,7 +842,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
           EmitType(pt.sType, pt.required)
         }
         requiredness.unionFrom(x.implementation.computeReturnEmitType(
-          x.returnType,
+          x.typ,
           argP,
         ).typeWithRequiredness.r)
       case CollectDistributedArray(ctxs, _, _, _, body, _, _, _) =>
