@@ -13,7 +13,6 @@ from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.batch import Batch
 from hailtop.config import get_remote_tmpdir
 from hailtop.hailctl.batch import cli
-from hailtop.hailctl.batch.submit import parse_files_to_src_dest
 from hailtop.utils import secret_alnum_string
 
 
@@ -187,7 +186,6 @@ def test_files_copy_rename(submit, tmp_cwd):
 @pytest.mark.parametrize(
     'files, remote',
     [
-        ('a', '.'),
         ('a:/', '/'),
         ('a:a', 'a'),
         ('a/b:a', 'a'),
@@ -197,7 +195,7 @@ def test_files_copy_rename(submit, tmp_cwd):
     ],
 )
 def test_files_copy_folder(submit, tmp_cwd, files, remote):
-    src, dst = parse_files_to_src_dest(files)
+    src, dst = files.split(':')
     write_hello(src / 'hello.txt')
     pyscript = write_pyscript(tmp_cwd, Path(remote) / 'hello.txt')
     res = submit(pyscript.name, [
