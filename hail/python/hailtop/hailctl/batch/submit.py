@@ -4,6 +4,8 @@ from contextlib import AsyncExitStack
 from pathlib import Path
 from typing import Any, Dict, List, NoReturn, Optional, Tuple, Union
 
+import orjson
+
 import hailtop.batch_client.aioclient as bc
 from hailtop.aiotools.copy import copy_from_dict
 from hailtop.aiotools.fs import AsyncFSURL
@@ -11,6 +13,7 @@ from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.config import (
     ConfigVariable,
     configuration_of,
+    get_deploy_config,
     get_hail_config_path,
     get_remote_tmpdir,
 )
