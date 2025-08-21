@@ -176,7 +176,7 @@ object Worker {
     timer.start("executeFunction")
 
     // FIXME: workers should not have backends, but some things do need hail contexts
-    HailContext(new ServiceBackend(null, null, null, null, null))
+    HailContext.getOrCreate(new ServiceBackend(null, null, null, null, null))
     val result =
       try
         using(new ServiceTaskContext(i)) { htc =>
