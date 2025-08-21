@@ -185,7 +185,7 @@ class TableIRSuite extends HailSuite {
         MakeStruct(FastSeq("x" -> GetField(ArrayRef(GetField(collect(t), "rows"), 4), "idx"))),
       ),
       ApplyComparisonOp(
-        EQ(TInt32),
+        EQ,
         GetField(Ref(TableIR.rowName, t.typ.rowType), "idx"),
         GetField(Ref(TableIR.globalName, TStruct("x" -> TInt32)), "x"),
       ),

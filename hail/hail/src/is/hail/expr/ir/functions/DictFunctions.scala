@@ -16,7 +16,7 @@ object DictFunctions extends RegistryFunctions {
           i.ceq(ArrayLen(CastToArray(dict))),
           False(),
           ApplyComparisonOp(
-            EQWithNA(key.typ),
+            EQWithNA,
             GetField(ArrayRef(CastToArray(dict), i), "key"),
             key,
           ),
@@ -35,7 +35,7 @@ object DictFunctions extends RegistryFunctions {
           default,
           If(
             ApplyComparisonOp(
-              EQWithNA(key.typ),
+              EQWithNA,
               GetField(ArrayRef(CastToArray(dict), i), "key"),
               key,
             ),
