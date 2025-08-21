@@ -174,7 +174,6 @@ class HailContext(object):
     spark_conf=nullable(dictof(str, str)),
     skip_logging_configuration=bool,
     local_tmpdir=nullable(str),
-    _optimizer_iterations=nullable(int),
     backend=nullable(enumeration(*BackendType.__args__)),
     driver_cores=nullable(oneof(str, int)),
     driver_memory=nullable(str),
@@ -203,7 +202,6 @@ def init(
     spark_conf=None,
     skip_logging_configuration=False,
     local_tmpdir=None,
-    _optimizer_iterations=None,
     *,
     backend: Optional[BackendType] = None,
     driver_cores=None,
@@ -399,7 +397,6 @@ def init(
             min_block_size=min_block_size,
             branching_factor=branching_factor,
             spark_conf=spark_conf,
-            _optimizer_iterations=_optimizer_iterations,
             log=log,
             quiet=quiet,
             append=append,
@@ -443,7 +440,6 @@ def init(
     spark_conf=nullable(dictof(str, str)),
     skip_logging_configuration=bool,
     local_tmpdir=nullable(str),
-    _optimizer_iterations=nullable(int),
     gcs_requester_pays_configuration=nullable(oneof(str, sized_tupleof(str, sequenceof(str)))),
     copy_log_on_error=nullable(bool),
 )
@@ -464,7 +460,6 @@ def init_spark(
     spark_conf=None,
     skip_logging_configuration=False,
     local_tmpdir=None,
-    _optimizer_iterations=None,
     gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
     copy_log_on_error: bool = False,
 ):
@@ -474,7 +469,6 @@ def init_spark(
     log = _get_log(log)
     tmpdir = _get_tmpdir(tmp_dir)
     local_tmpdir = _get_local_tmpdir(local_tmpdir)
-    optimizer_iterations = get_env_or_default(_optimizer_iterations, 'HAIL_OPTIMIZER_ITERATIONS', 3)
 
     app_name = app_name or 'Hail'
     gcs_requester_pays_configuration = get_gcs_requester_pays_configuration(
@@ -496,7 +490,6 @@ def init_spark(
         tmpdir,
         local_tmpdir,
         skip_logging_configuration,
-        optimizer_iterations,
         gcs_requester_pays_config=gcs_requester_pays_configuration,
         copy_log_on_error=copy_log_on_error,
     )
@@ -590,7 +583,6 @@ async def init_batch(
     global_seed=nullable(int),
     skip_logging_configuration=bool,
     jvm_heap_size=nullable(str),
-    _optimizer_iterations=nullable(int),
     gcs_requester_pays_configuration=nullable(oneof(str, sized_tupleof(str, sequenceof(str)))),
 )
 def init_local(
@@ -603,7 +595,6 @@ def init_local(
     global_seed=None,
     skip_logging_configuration=False,
     jvm_heap_size=None,
-    _optimizer_iterations=None,
     gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
 ):
     from hail.backend.local_backend import LocalBackend
@@ -611,7 +602,6 @@ def init_local(
 
     log = _get_log(log)
     tmpdir = _get_tmpdir(tmpdir)
-    optimizer_iterations = get_env_or_default(_optimizer_iterations, 'HAIL_OPTIMIZER_ITERATIONS', 3)
 
     jvm_heap_size = get_env_or_default(jvm_heap_size, 'HAIL_LOCAL_BACKEND_HEAP_SIZE', None)
     backend = LocalBackend(
@@ -621,7 +611,6 @@ def init_local(
         append,
         branching_factor,
         skip_logging_configuration,
-        optimizer_iterations,
         jvm_heap_size,
         gcs_requester_pays_configuration,
     )
