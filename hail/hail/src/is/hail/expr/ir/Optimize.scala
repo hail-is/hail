@@ -76,7 +76,7 @@ object Optimize {
                   s"\n  After IR:\n  ---------\n${Pretty(ctx, ir)}"
               )
 
-            if (ir == last) break
+            if (ir == last) break()
           }
         }
       }

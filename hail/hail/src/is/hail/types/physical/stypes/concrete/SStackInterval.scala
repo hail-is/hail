@@ -101,7 +101,7 @@ class SStackIntervalValue(
   require(start.emitType == end.emitType && start.emitType == st.pointEmitType)
 
   override lazy val valueTuple: IndexedSeq[Value[_]] =
-    start.valueTuple() ++ end.valueTuple() ++ FastSeq(includesStart, includesEnd)
+    start.valueTuple ++ end.valueTuple ++ FastSeq(includesStart, includesEnd)
 
   override def loadStart(cb: EmitCodeBuilder): IEmitCode = start.toI(cb)
 

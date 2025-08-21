@@ -283,7 +283,7 @@ case class SUnreachableContainer(virtualType: TContainer) extends SUnreachable w
 
 class SUnreachableContainerValue(override val st: SUnreachableContainer)
     extends SUnreachableValue with SIndexableValue {
-  override def loadLength(): Value[Int] = const(0)
+  override def loadLength: Value[Int] = const(0)
 
   override def isElementMissing(cb: EmitCodeBuilder, i: Code[Int]): Value[Boolean] = const(false)
 

@@ -340,8 +340,8 @@ object ArrayFunctions extends RegistryFunctions {
     ) { case (cb, _, _, errorID, ec1, ec2) =>
       ec1.toI(cb).flatMap(cb) { case pv1: SIndexableValue =>
         ec2.toI(cb).flatMap(cb) { case pv2: SIndexableValue =>
-          val l1 = cb.newLocal("len1", pv1.loadLength())
-          val l2 = cb.newLocal("len2", pv2.loadLength())
+          val l1 = cb.newLocal("len1", pv1.loadLength)
+          val l2 = cb.newLocal("len2", pv2.loadLength)
           cb.if_(
             l1.cne(l2),
             cb._fatalWithError(
@@ -445,8 +445,8 @@ object ArrayFunctions extends RegistryFunctions {
                 nGenotypes.toS,
               ),
             )
-            val localLen = array.loadLength()
-            val laLen = localAlleles.loadLength()
+            val localLen = array.loadLength
+            val laLen = localAlleles.loadLength
             cb.if_(
               localLen cne triangle(laLen),
               cb._fatalWithError(
@@ -574,15 +574,15 @@ object ArrayFunctions extends RegistryFunctions {
                 nTotalAlleles.toS,
               ),
             )
-            val localLen = array.loadLength()
+            val localLen = array.loadLength
             cb.if_(
-              localLen cne localAlleles.loadLength(),
+              localLen cne localAlleles.loadLength,
               cb._fatalWithError(
                 err,
                 "local_to_global: array and local alleles lengths differ: ",
                 localLen.toS,
                 ", ",
-                localAlleles.loadLength().toS,
+                localAlleles.loadLength.toS,
               ),
             )
 

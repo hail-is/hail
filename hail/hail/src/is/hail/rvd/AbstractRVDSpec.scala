@@ -74,10 +74,10 @@ object AbstractRVDSpec {
     val partsPath = path + "/parts"
     fs.mkDir(partsPath)
 
-    val filePath = if (TaskContext.get == null)
+    val filePath = if (TaskContext.get() == null)
       "part-0"
     else
-      partFile(0, 0, TaskContext.get)
+      partFile(0, 0, TaskContext.get())
     val codecSpec = TypedCodecSpec(execCtx, rowType, bufferSpec)
 
     val (part0Count, bytesWritten) =

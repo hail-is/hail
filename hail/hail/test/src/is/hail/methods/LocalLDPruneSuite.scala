@@ -166,7 +166,7 @@ class LocalLDPruneSuite extends HailSuite {
     val r2Matrix = LocalLDPruneSuite.correlationMatrixGT(locallyPrunedRDD.map {
       case (_, _, gs) => gs
     }.collect())
-    val variantMap = locallyPrunedRDD.zipWithIndex.map { case ((locus, _, _), i) =>
+    val variantMap = locallyPrunedRDD.zipWithIndex().map { case ((locus, _, _), i) =>
       (i.toInt, locus)
     }.collectAsMap()
 

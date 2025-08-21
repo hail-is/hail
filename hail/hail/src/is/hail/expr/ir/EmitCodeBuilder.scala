@@ -232,7 +232,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
             case _ => ec
           }
           val castEv = memoize(castEc, "_invoke")
-          castEv.valueTuple()
+          castEv.valueTuple
         case (arg, expected) =>
           throw new RuntimeException(s"invoke ${callee.mb.methodName}: arg $i: type mismatch:" +
             s"\n  got $arg" +

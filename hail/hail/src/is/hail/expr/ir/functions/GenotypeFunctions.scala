@@ -17,7 +17,7 @@ object GenotypeFunctions extends RegistryFunctions {
         val i = cb.newLocal[Int]("i", 0)
 
         cb.while_(
-          i < pl.loadLength(), {
+          i < pl.loadLength, {
             val value =
               pl.loadElement(cb, i).getOrFatal(cb, "PL cannot have missing elements.", errorID)
             val pli = cb.newLocal[Int]("pli", value.asInt.value)
@@ -47,10 +47,10 @@ object GenotypeFunctions extends RegistryFunctions {
     ) { case (cb, _, _, errorID, gp) =>
       gp.toI(cb).flatMap(cb) { case gpv: SIndexableValue =>
         cb.if_(
-          gpv.loadLength().cne(3),
+          gpv.loadLength.cne(3),
           cb._fatalWithError(
             errorID,
-            const("length of gp array must be 3, got ").concat(gpv.loadLength().toS),
+            const("length of gp array must be 3, got ").concat(gpv.loadLength.toS),
           ),
         )
 

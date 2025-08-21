@@ -75,7 +75,7 @@ class UtilsSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       Array((1, (1, Option(1))), (2, (4, Option(2))), (3, (9, Option(3))), (4, (16, Option(4))))
     val pairRDD1 = sc.parallelize(Array(1, 2, 3, 4)).map(i => (i, i * i))
     val pairRDD2 = sc.parallelize(Array(1, 2, 3, 4, 1, 2, 3, 4)).map(i => (i, i))
-    val join = pairRDD1.leftOuterJoin(pairRDD2.distinct)
+    val join = pairRDD1.leftOuterJoin(pairRDD2.distinct())
 
     assert(join.collect().sortBy(t => t._1) sameElements answer1)
     assert(join.count() == 4)

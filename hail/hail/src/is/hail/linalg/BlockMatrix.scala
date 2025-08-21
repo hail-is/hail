@@ -461,7 +461,7 @@ object BlockMatrix {
       val (rddIndex, partIndex) = partMap(i)
       val trueIt = it(ctx)
       val rootPath = blockMatrixURI(rddIndex)
-      val fileName = partFile(numDigits, partIndex, TaskContext.get)
+      val fileName = partFile(numDigits, partIndex, TaskContext.get())
       val fileDataIterator = RichContextRDD.writeParts(
         ctx,
         rootPath,
@@ -779,9 +779,9 @@ class BlockMatrix(
   }
 
   // element-wise ops
-  def unary_+(): M = this
+  def unary_+ : M = this
 
-  def unary_-(): M = blockMap(-_, "negation", reqDense = false)
+  def unary_- : M = blockMap(-_, "negation", reqDense = false)
 
   def add(that: M): M =
     if (sameBlocks(that)) {
@@ -2303,7 +2303,7 @@ class WriteBlocksRDD(
   def compute(split: Partition, context: TaskContext): Iterator[(Int, String)] = {
     val blockRow = split.index
     val nRowsInBlock = gp.blockRowNRows(blockRow)
-    val ctx = TaskContext.get
+    val ctx = TaskContext.get()
 
     val (blockPartFiles, outPerBlockCol, paths) = Array.tabulate(gp.nBlockCols) { blockCol =>
       val nColsInBlock = gp.blockColNCols(blockCol)

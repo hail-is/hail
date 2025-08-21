@@ -94,7 +94,7 @@ object StackSafe {
         if (i < s.size) {
           f(s(i)).flatMap(cont)
         } else {
-          done(builder.result)
+          done(builder.result())
         }
       cont = { b =>
         builder += b
@@ -116,7 +116,7 @@ object StackSafe {
         if (i < a.size) {
           f(a(i)).flatMap(cont)
         } else {
-          done(builder.result)
+          done(builder.result())
         }
       cont = { b =>
         builder += b
@@ -176,7 +176,7 @@ object StackSafe {
       if (i < n) {
         body.flatMap(cont)
       } else {
-        done(builder.result)
+        done(builder.result())
       }
     cont = { a =>
       builder += a
