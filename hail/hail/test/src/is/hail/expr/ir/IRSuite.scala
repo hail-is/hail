@@ -34,7 +34,7 @@ import org.scalatest.enablers.InspectorAsserting.assertingNatureOfAssertion
 import org.testng.annotations.{DataProvider, Test}
 
 class IRSuite extends HailSuite {
-  implicit val execStrats = ExecStrategy.nonLowering
+  implicit val execStrats: Set[ExecStrategy] = ExecStrategy.nonLowering
 
   @Test def testRandDifferentLengthUIDStrings(): Unit = {
     implicit val execStrats = ExecStrategy.lowering

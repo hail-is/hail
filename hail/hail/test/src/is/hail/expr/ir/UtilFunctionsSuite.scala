@@ -1,13 +1,14 @@
 package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
+import is.hail.ExecStrategy.ExecStrategy
 import is.hail.expr.ir.defs.{Die, False, MakeStream, NA, Str, True}
 import is.hail.types.virtual.{TBoolean, TInt32, TStream}
 
 import org.testng.annotations.Test
 
 class UtilFunctionsSuite extends HailSuite {
-  implicit val execStrats = ExecStrategy.javaOnly
+  implicit val execStrats: Set[ExecStrategy] = ExecStrategy.javaOnly
 
   val na = NA(TBoolean)
   val die = Die("it ded", TBoolean)

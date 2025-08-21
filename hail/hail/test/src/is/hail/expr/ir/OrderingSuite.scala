@@ -18,6 +18,7 @@ import is.hail.utils._
 import is.hail.utils.compat._
 import is.hail.utils.compat.immutable.ArraySeq
 
+import is.hail
 import org.apache.spark.sql.Row
 import org.scalacheck.Arbitrary.arbitrary
 import org.scalacheck.Gen
@@ -28,7 +29,7 @@ import org.testng.annotations.{DataProvider, Test}
 
 class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
-  implicit val execStrats = ExecStrategy.values
+  implicit val execStrats: hail.ExecStrategy.ValueSet = ExecStrategy.values
 
   def sm = ctx.stateManager
 

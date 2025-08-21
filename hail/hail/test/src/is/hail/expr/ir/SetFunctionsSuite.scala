@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
+import is.hail.ExecStrategy.ExecStrategy
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.defs.{I32, NA, ToSet, ToStream}
 import is.hail.types.virtual._
@@ -11,7 +12,7 @@ class SetFunctionsSuite extends HailSuite {
   val naa = NA(TArray(TInt32))
   val nas = NA(TSet(TInt32))
 
-  implicit val execStrats = ExecStrategy.javaOnly
+  implicit val execStrats: Set[ExecStrategy] = ExecStrategy.javaOnly
 
   @Test def toSet(): Unit = {
     assertEvalsTo(IRSet(3, 7), Set(3, 7))

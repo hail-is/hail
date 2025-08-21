@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
+import is.hail.ExecStrategy.ExecStrategy
 import is.hail.expr.ir.TestUtils._
 import is.hail.types.virtual.TFloat64
 import is.hail.utils.FastSeq
@@ -9,7 +10,7 @@ import org.testng.annotations.{DataProvider, Test}
 
 class GenotypeFunctionsSuite extends HailSuite {
 
-  implicit val execStrats = ExecStrategy.javaOnly
+  implicit val execStrats: Set[ExecStrategy] = ExecStrategy.javaOnly
 
   @DataProvider(name = "gps")
   def gpData(): Array[Array[Any]] = Array(

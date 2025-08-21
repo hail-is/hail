@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
+import is.hail.ExecStrategy.ExecStrategy
 import is.hail.expr.ir.DeprecatedIRBuilder._
 import is.hail.expr.ir.defs.{
   AggFilter, AggGroupBy, ApplyAggOp, ApplyBinaryPrimOp, ArrayRef, Cast, GetField, I32, InsertFields,
@@ -17,7 +18,7 @@ import org.testng.annotations.Test
 
 class AggregatorsSuite extends HailSuite {
 
-  implicit val execStrats = ExecStrategy.compileOnly
+  implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
   def runAggregator(
     op: AggOp,

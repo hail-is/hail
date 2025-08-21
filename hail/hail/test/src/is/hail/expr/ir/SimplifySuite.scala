@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
+import is.hail.ExecStrategy.ExecStrategy
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.defs._
 import is.hail.types.virtual._
@@ -19,7 +20,7 @@ import org.testng.annotations.{DataProvider, Test}
 
 class SimplifySuite extends HailSuite {
 
-  implicit val execStrats = ExecStrategy.interpretOnly
+  implicit val execStrats: Set[ExecStrategy] = ExecStrategy.interpretOnly
 
   def simplifyTo(expected: BaseIR): MatcherFactory1[BaseIR, Equivalence] =
     new MatcherFactory1[BaseIR, Equivalence] {

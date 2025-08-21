@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
+import is.hail.ExecStrategy.ExecStrategy
 import is.hail.expr.ir.defs.{
   ErrorIDs, False, GetTupleElement, I32, If, Literal, MakeTuple, NA, True,
 }
@@ -15,7 +16,7 @@ import org.testng.annotations.{BeforeMethod, Test}
 
 class IntervalSuite extends HailSuite {
 
-  implicit val execStrats = ExecStrategy.javaOnly
+  implicit val execStrats: Set[ExecStrategy] = ExecStrategy.javaOnly
 
   val tpoint1 = TTuple(TInt32)
   val tinterval1 = TInterval(tpoint1)

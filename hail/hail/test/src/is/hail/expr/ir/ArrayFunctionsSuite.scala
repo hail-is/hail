@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
+import is.hail.ExecStrategy.ExecStrategy
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.defs.{ArraySlice, F32, F64, I32, In, MakeArray, NA, Str}
 import is.hail.types.virtual._
@@ -11,7 +12,7 @@ import org.testng.annotations.{DataProvider, Test}
 class ArrayFunctionsSuite extends HailSuite {
   val naa = NA(TArray(TInt32))
 
-  implicit val execStrats = ExecStrategy.javaOnly
+  implicit val execStrats: Set[ExecStrategy] = ExecStrategy.javaOnly
 
   @DataProvider(name = "basic")
   def basicData(): Array[Array[Any]] = Array(

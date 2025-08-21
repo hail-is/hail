@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
+import is.hail.ExecStrategy.ExecStrategy
 import is.hail.annotations.{Region, SafeRow, ScalaToRegionValue}
 import is.hail.asm4s._
 import is.hail.expr.ir.agg.{CollectStateSig, PhysicalAggSig, TypedStateSig}
@@ -25,7 +26,7 @@ import org.testng.annotations.Test
 
 class EmitStreamSuite extends HailSuite {
 
-  implicit val execStrats = ExecStrategy.compileOnly
+  implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
   def log(str: Code[String], enabled: Boolean = false): Code[Unit] =
     if (enabled) Code._println(str) else Code._empty
