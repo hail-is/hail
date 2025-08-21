@@ -107,12 +107,11 @@ class TableIRSuite extends HailSuite {
     implicit val execStrats = ExecStrategy.interpretOnly
     val t = TableRange(10, 2)
     val row = Ref(TableIR.rowName, t.typ.rowType)
-    val sum = AggSignature(Sum(), FastSeq(), FastSeq(TInt64))
     val node = collect(TableMapRows(
       t,
       InsertFields(
         row,
-        FastSeq("sum" -> ApplyScanOp(FastSeq(), FastSeq(Cast(GetField(row, "idx"), TInt64)), sum)),
+        FastSeq("sum" -> ApplyScanOp(Sum())(Cast(GetField(row, "idx"), TInt64))),
       ),
     ))
     assertEvalsTo(
@@ -1091,13 +1090,9 @@ class TableIRSuite extends HailSuite {
       MakeStruct(FastSeq(
         (
           "sum",
-          ApplyAggOp(
-            FastSeq(),
-            FastSeq(GetField(Ref(TableIR.rowName, tir.typ.rowType), "z").toL),
-            AggSignature(Sum(), FastSeq(), FastSeq(TInt64)),
-          ),
+          ApplyAggOp(Sum())(GetField(Ref(TableIR.rowName, tir.typ.rowType), "z").toL),
         ),
-        ("n", ApplyAggOp(FastSeq(), FastSeq(), AggSignature(Count(), FastSeq(), FastSeq()))),
+        ("n", ApplyAggOp(Count())()),
       )),
     )
     val ir = GetField(TableCollect(TableKeyBy(tir, FastSeq())), "rows")
@@ -1291,12 +1286,9 @@ class TableIRSuite extends HailSuite {
     val tir: TableIR = TableRead.native(fs, getTestResource("three_key.ht"))
     val unkeyed = TableKeyBy(tir, IndexedSeq[String]())
     val rowRef = Ref(TableIR.rowName, unkeyed.typ.rowType)
-    val aggSignature = AggSignature(Sum(), FastSeq(), FastSeq(TInt64))
-    val aggExpression = MakeStruct(FastSeq("y_sum" -> ApplyAggOp(
-      FastSeq(),
-      FastSeq(Cast(GetField(rowRef, "y"), TInt64)),
-      aggSignature,
-    )))
+    val aggExpression = MakeStruct(FastSeq(
+      "y_sum" -> ApplyAggOp(Sum())(Cast(GetField(rowRef, "y"), TInt64))
+    ))
     val keyByXAndAggregateSum = TableKeyByAndAggregate(
       unkeyed,
       aggExpression,

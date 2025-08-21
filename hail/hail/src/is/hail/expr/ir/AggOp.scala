@@ -4,63 +4,6 @@ import is.hail.expr.ir.agg._
 import is.hail.types.virtual._
 import is.hail.utils.FastSeq
 
-object AggSignature {
-  def prune(agg: AggSignature, requestedType: Type): AggSignature = agg match {
-    case AggSignature(Collect(), Seq(), Seq(_)) =>
-      AggSignature(Collect(), FastSeq(), FastSeq(requestedType.asInstanceOf[TArray].elementType))
-    case AggSignature(Take(), Seq(n), Seq(_)) =>
-      AggSignature(Take(), FastSeq(n), FastSeq(requestedType.asInstanceOf[TArray].elementType))
-    case AggSignature(ReservoirSample(), Seq(n), Seq(_)) =>
-      AggSignature(
-        ReservoirSample(),
-        FastSeq(n),
-        FastSeq(requestedType.asInstanceOf[TArray].elementType),
-      )
-    case AggSignature(TakeBy(reverse), Seq(n), Seq(_, k)) =>
-      AggSignature(
-        TakeBy(reverse),
-        FastSeq(n),
-        FastSeq(requestedType.asInstanceOf[TArray].elementType, k),
-      )
-    case AggSignature(PrevNonnull(), Seq(), Seq(_)) =>
-      AggSignature(PrevNonnull(), FastSeq(), FastSeq(requestedType))
-    case AggSignature(Densify(), Seq(), Seq(_)) =>
-      AggSignature(Densify(), FastSeq(), FastSeq(requestedType))
-    case _ => agg
-  }
-}
-
-case class AggSignature(
-  op: AggOp,
-  var initOpArgs: Seq[Type],
-  var seqOpArgs: Seq[Type],
-) {
-  // only to be used with virtual non-nested signatures on ApplyAggOp and ApplyScanOp
-  lazy val returnType: Type = (op, seqOpArgs) match {
-    case (Sum(), Seq(t)) => t
-    case (Product(), Seq(t)) => t
-    case (Min(), Seq(t)) => t
-    case (Max(), Seq(t)) => t
-    case (Count(), _) => TInt64
-    case (Take(), Seq(t)) => TArray(t)
-    case (ReservoirSample(), Seq(t)) => TArray(t)
-    case (CallStats(), _) => CallStatsState.resultPType.virtualType
-    case (TakeBy(_), Seq(value, _)) => TArray(value)
-    case (PrevNonnull(), Seq(t)) => t
-    case (CollectAsSet(), Seq(t)) => TSet(t)
-    case (Collect(), Seq(t)) => TArray(t)
-    case (Densify(), Seq(t)) => t
-    case (ImputeType(), _) => ImputeTypeState.resultEmitType.virtualType
-    case (LinearRegression(), _) =>
-      LinearRegressionAggregator.resultPType.virtualType
-    case (ApproxCDF(), _) => QuantilesAggregator.resultPType.virtualType
-    case (Downsample(), Seq(_, _, _)) => DownsampleAggregator.resultType
-    case (NDArraySum(), Seq(t)) => t
-    case (NDArrayMultiplyAdd(), Seq(a: TNDArray, _)) => a
-    case _ => throw new UnsupportedExtraction(this.toString)
-  }
-}
-
 sealed trait AggOp {}
 final case class ApproxCDF() extends AggOp
 final case class CallStats() extends AggOp
@@ -90,6 +33,48 @@ final case class Fold() extends AggOp
 // forall === map(p).product, needs short-circuiting aggs
 
 object AggOp {
+  // only to be used with virtual non-nested signatures on ApplyAggOp and ApplyScanOp
+  def getReturnType(op: AggOp, seqOpArgs: IndexedSeq[Type]): Type = (op, seqOpArgs) match {
+    case (Sum(), Seq(t)) => t
+    case (Product(), Seq(t)) => t
+    case (Min(), Seq(t)) => t
+    case (Max(), Seq(t)) => t
+    case (Count(), _) => TInt64
+    case (Take(), Seq(t)) => TArray(t)
+    case (ReservoirSample(), Seq(t)) => TArray(t)
+    case (CallStats(), _) => CallStatsState.resultPType.virtualType
+    case (TakeBy(_), Seq(value, _)) => TArray(value)
+    case (PrevNonnull(), Seq(t)) => t
+    case (CollectAsSet(), Seq(t)) => TSet(t)
+    case (Collect(), Seq(t)) => TArray(t)
+    case (Densify(), Seq(t)) => t
+    case (ImputeType(), _) => ImputeTypeState.resultEmitType.virtualType
+    case (LinearRegression(), _) =>
+      LinearRegressionAggregator.resultPType.virtualType
+    case (ApproxCDF(), _) => QuantilesAggregator.resultPType.virtualType
+    case (Downsample(), Seq(_, _, _)) => DownsampleAggregator.resultType
+    case (NDArraySum(), Seq(t)) => t
+    case (NDArrayMultiplyAdd(), Seq(a: TNDArray, _)) => a
+    case _ => throw new UnsupportedExtraction(this.toString)
+  }
+
+  def prune(agg: AggOp, seqOpArgs: IndexedSeq[Type], requestedType: Type): IndexedSeq[Type] =
+    (agg, seqOpArgs) match {
+      case (Collect(), Seq(_)) =>
+        FastSeq(requestedType.asInstanceOf[TArray].elementType)
+      case (Take(), Seq(_)) =>
+        FastSeq(requestedType.asInstanceOf[TArray].elementType)
+      case (ReservoirSample(), Seq(_)) =>
+        FastSeq(requestedType.asInstanceOf[TArray].elementType)
+      case (TakeBy(_), Seq(_, k)) =>
+        FastSeq(requestedType.asInstanceOf[TArray].elementType, k)
+      case (PrevNonnull(), Seq(_)) =>
+        FastSeq(requestedType)
+      case (Densify(), Seq(_)) =>
+        FastSeq(requestedType)
+      case _ => seqOpArgs
+    }
+
   val fromString: PartialFunction[String, AggOp] = {
     case "approxCDF" | "ApproxCDF" => ApproxCDF()
     case "collect" | "Collect" => Collect()

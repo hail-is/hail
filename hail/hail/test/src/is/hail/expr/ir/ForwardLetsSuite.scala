@@ -69,8 +69,7 @@ class ForwardLetsSuite extends HailSuite {
     ).map(ir => Array[IR](Let(FastSeq(x.name -> (In(0, TInt32) + In(0, TInt32))), ir)))
   }
 
-  def aggMin(value: IR): ApplyAggOp =
-    ApplyAggOp(FastSeq(), FastSeq(value), AggSignature(Min(), FastSeq(), FastSeq(value.typ)))
+  def aggMin(value: IR): ApplyAggOp = ApplyAggOp(Min())(value)
 
   @DataProvider(name = "nonForwardingAggOps")
   def nonForwardingAggOps(): Array[Array[IR]] = {
@@ -235,11 +234,7 @@ class ForwardLetsSuite extends HailSuite {
     val row = Ref(freshName(), TStruct("idx" -> TInt32))
     val aggEnv = Env[Type](row.name -> row.typ)
 
-    val ir0 = ApplyAggOp(
-      FastSeq(),
-      FastSeq(bindIR(GetField(row, "idx") - 1)(x => Cast(x, TFloat64))),
-      AggSignature(Sum(), FastSeq(), FastSeq(TFloat64)),
-    )
+    val ir0 = ApplyAggOp(Sum())(bindIR(GetField(row, "idx") - 1)(x => Cast(x, TFloat64)))
 
     TypeCheck(ctx, ForwardLets(ctx, ir0), BindingEnv(Env.empty, agg = Some(aggEnv)))
     succeed
