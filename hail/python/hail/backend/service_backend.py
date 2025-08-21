@@ -99,17 +99,6 @@ class ServiceBackend(Backend):
     WORKER = "worker"
     DRIVER = "driver"
 
-    # is.hail.backend.service.ServiceBackendSocketAPI2 protocol
-    VALUE_TYPE = 1
-    TABLE_TYPE = 2
-    MATRIX_TABLE_TYPE = 3
-    BLOCK_MATRIX_TYPE = 4
-    EXECUTE = 5
-    PARSE_VCF_METADATA = 6
-    IMPORT_FAM = 7
-    LOAD_REFERENCES_FROM_DATASET = 8
-    FROM_FASTA_FILE = 9
-
     @staticmethod
     async def create(
         *,

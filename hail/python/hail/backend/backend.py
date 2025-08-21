@@ -99,6 +99,7 @@ class IRFunction:
 
 
 class ActionTag(Enum):
+    # is.hail.backend.service.ServiceBackendSocketAPI2 protocol
     VALUE_TYPE = 1
     TABLE_TYPE = 2
     MATRIX_TABLE_TYPE = 3
