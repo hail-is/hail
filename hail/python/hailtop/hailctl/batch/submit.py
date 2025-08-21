@@ -129,6 +129,14 @@ cd {workdir}
 
         await b.submit()
 
+        if output == 'text':
+            deploy_config = get_deploy_config()
+            url = deploy_config.external_url('batch', f'/batches/{b.id}/jobs/1')
+            print(f'Submitted batch {b.id}, see {url}')
+        else:
+            assert output == 'json'
+            print(orjson.dumps({'id': b.id}).decode('utf-8'))
+
         if wait:
             await b.wait(disable_progress_bar=quiet)
 
