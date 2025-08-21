@@ -25,7 +25,7 @@ def expect_timeouts_as_image_pulling_is_very_slow(request):
 
 @pytest.fixture
 def submit(request):
-    runner = CliRunner(mix_stderr=False)
+    runner = CliRunner()
 
     def invoker(script: Union[str, os.PathLike], opts: List[str], args: List[str], **kwargs):
         command = ['submit', *opts, str(script), *args]
