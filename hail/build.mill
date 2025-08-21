@@ -211,7 +211,6 @@ trait HailModule extends ScalaModule with ScalafmtModule with ScalafixModule { o
         "-Wconf:cat=deprecation&msg=Widening conversion from Long to Double:s",
         "-Wconf:cat=deprecation&msg=symbol literal is deprecated:s",
         "-Wconf:cat=other-implicit-type:s",
-        "-Wconf:msg=legacy-binding:s",
         raw"-Wconf:cat=unused-imports&origin=scala\.collection\.compat\._:s",
         raw"-Wconf:cat=unused-imports&origin=scala\.Option\.option2Iterable:s",
         raw"-Wconf:cat=unused-imports&origin=is\.hail\.utils\.compat\._:s",

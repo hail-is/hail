@@ -20,7 +20,7 @@ object ExtendedOrdering {
     }
   }
 
-  def iterableOrdering[T](ord: ExtendedOrdering, _missingEqual: Boolean = true): ExtendedOrdering =
+  def iterableOrdering(ord: ExtendedOrdering, _missingEqual: Boolean = true): ExtendedOrdering =
     new ExtendedOrdering {
       val missingEqual = _missingEqual
 
