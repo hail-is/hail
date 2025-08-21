@@ -210,7 +210,6 @@ trait HailModule extends ScalaModule with ScalafmtModule with ScalafixModule { o
         // Widening conversion from Long to Double is deprecated because it loses precision. Write `.toDouble` instead.
         "-Wconf:cat=deprecation&msg=Widening conversion from Long to Double:s",
         "-Wconf:cat=deprecation&msg=symbol literal is deprecated:s",
-        "-Wconf:cat=other-match-analysis:s",
         "-Wconf:cat=other-implicit-type:s",
         "-Wconf:msg=legacy-binding:s",
         raw"-Wconf:cat=unused-imports&origin=scala\.collection\.compat\._:s",
