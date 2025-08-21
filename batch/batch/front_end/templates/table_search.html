@@ -1,12 +1,12 @@
 {% from "utils.html" import submit_button %}
 {% macro table_search(component_name, endpoint) %}
-<!-- Determine search context based on component_name -->
+<!-- Determine search context based on component_name (see table search, in batches.html and batch.html) -->
 {% set is_job_search = component_name == "job-search" %}
 
 <form id='{{ component_name }}-form' class='min-h-48 flex space-x-4' method="GET" action="{{ endpoint }}" data-is-job-search="{{ 'true' if is_job_search else 'false' }}">
   <div class='basis-2/3'>
     <!-- Search criteria container -->
-    <div id='{{ component_name }}-criteria-container' class='h-full w-full p-4 bg-zinc-200 rounded space-y-3'>
+    <div id='{{ component_name }}-criteria-container' class='min-h-24 w-full p-4 bg-slate-200 rounded space-y-3'>
       <!-- Initial search criterion -->
       <div class='search-criterion flex space-x-2 items-center'>
         <select class='criterion-select p-2 bg-white rounded border' onchange='updateOperators(this)'>
@@ -47,20 +47,22 @@
       </div>
     </div>
 
-    <!-- Add criterion button -->
-    <button type='button' id='{{ component_name }}-add-criterion' class='mt-2 px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600' onclick='addCriterion("{{ component_name }}")'>
-      + Add Criterion
-    </button>
+    <!-- Buttons below search box container -->
+    <div class='flex justify-between items-center mt-3'>
+      <button type='button' id='{{ component_name }}-add-criterion' class='px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600' onclick='addCriterion("{{ component_name }}")'>
+        Add Search Criterion
+      </button>
+      {{ submit_button('Search') }}
+    </div>
 
     <!-- Hidden input to store the built query -->
     <input type='hidden' id='{{ component_name }}-query' name='q' value='{% if q %}{{ q }}{% endif %}'>
   </div>
 
-  <div class='flex flex-col justify-between'>
+  <div class='flex items-start'>
     <a href="https://hail.is/docs/batch/advanced_search_help.html" target="_blank">
       <span class="material-symbols-outlined">help</span>
     </a>
-    {{ submit_button('Search') }}
   </div>
 </form>
 
@@ -93,6 +95,11 @@ const fieldConfigs = {
     type: 'datetime',
     placeholder: 'Enter date (ISO format, e.g., 2023-02-24T17:15:25Z)...'
   },
+  'state': {
+    operators: ['=', '!='],
+    type: 'string',
+    placeholder: 'Select state...'
+  },
 
   // Batch-specific fields
   'batch_id': {
@@ -101,12 +108,12 @@ const fieldConfigs = {
     placeholder: 'Enter batch ID...'
   },
   'user': {
-    operators: ['=', '!=', '=~', '!~'],
+    operators: ['=', '!='],
     type: 'string',
     placeholder: 'Enter username...'
   },
   'billing_project': {
-    operators: ['=', '!=', '=~', '!~'],
+    operators: ['=', '!='],
     type: 'string',
     placeholder: 'Enter billing project...'
   },
@@ -161,7 +168,7 @@ function updateOperators(selectElement) {
     // Update value input
     valueInput.placeholder = config.placeholder;
 
-    // Handle state fields specially
+    // Handle state fields via dropdown
     if (field === 'state') {
       valueInput.style.display = 'none';
       if (!selectElement.parentElement.querySelector('.state-select')) {
@@ -250,24 +257,32 @@ function parseQuery(componentName, query) {
   if (!query) return;
 
   const container = document.getElementById(componentName + '-criteria-container');
-  container.innerHTML = ''; // Clear existing criteria
+  const existingCriteria = container.querySelectorAll('.search-criterion');
+
+  // Remove extra criteria, keeping only the first one
+  for (let i = existingCriteria.length - 1; i > 0; i--) {
+    existingCriteria[i].remove();
+  }
 
   const lines = query.split('\n').filter(line => line.trim());
 
   lines.forEach((line, index) => {
+    let criterion;
+
     if (index === 0) {
-      // Create first criterion
-      addCriterion(componentName);
+      // Use the existing first criterion
+      criterion = container.querySelector('.search-criterion');
     } else {
       // Add additional criteria
       addCriterion(componentName);
+      const criteria = container.querySelectorAll('.search-criterion');
+      criterion = criteria[criteria.length - 1];
     }
 
-    // Parse line and populate the last criterion
-    const criterion = container.querySelectorAll('.search-criterion')[index];
+    // Parse line and populate the criterion
     const parts = line.trim().match(/^(\w+)\s*(=~|!~|<=|>=|!=|==|=|<|>)\s*(.+)$/);
 
-    if (parts) {
+    if (parts && criterion) {
       const [, field, operator, value] = parts;
 
       criterion.querySelector('.criterion-select').value = field;
