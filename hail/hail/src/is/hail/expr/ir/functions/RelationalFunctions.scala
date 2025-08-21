@@ -8,7 +8,7 @@ import is.hail.types.{RTable, TypeWithRequiredness}
 import is.hail.types.virtual.{BlockMatrixType, MatrixType, TableType, Type}
 import is.hail.utils._
 
-import org.json4s.{Extraction, JValue, ShortTypeHints}
+import org.json4s.{Extraction, Formats, JValue, ShortTypeHints}
 import org.json4s.jackson.JsonMethods
 
 abstract class MatrixToMatrixFunction {
@@ -109,7 +109,7 @@ abstract class BlockMatrixToValueFunction {
 }
 
 object RelationalFunctions {
-  implicit val formats = RelationalSpec.formats + ShortTypeHints(
+  implicit val formats: Formats = RelationalSpec.formats + ShortTypeHints(
     List(
       classOf[LinearRegressionRowsSingle],
       classOf[LinearRegressionRowsChained],

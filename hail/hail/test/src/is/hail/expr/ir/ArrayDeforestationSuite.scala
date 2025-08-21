@@ -11,7 +11,7 @@ import org.scalatest
 import org.testng.annotations.Test
 
 class ArrayDeforestationSuite extends HailSuite {
-  implicit val execStrats = ExecStrategy.values
+  implicit val execStrats: ExecStrategy.ValueSet = ExecStrategy.values
 
   def primitiveArrayNoRegion(len: IR): IR =
     ToArray(mapIR(StreamRange(0, len, 1))(_ + 5))
