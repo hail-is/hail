@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
+import is.hail.ExecStrategy.ExecStrategy
 import is.hail.expr.ir.defs.{ArrayRef, Die, GetTupleElement, I32, If, IsNA, Literal, Str, Trap}
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -10,7 +11,7 @@ import org.scalatest
 import org.testng.annotations.Test
 
 class TrapNodeSuite extends HailSuite {
-  implicit val execStrats = ExecStrategy.javaOnly
+  implicit val execStrats: Set[ExecStrategy] = ExecStrategy.javaOnly
 
   @Test def testTrapNode(): scalatest.Assertion = {
     assertEvalsTo(Trap(ArrayRef(Literal(TArray(TInt32), FastSeq(0, 1, 2)), I32(1))), Row(null, 1))

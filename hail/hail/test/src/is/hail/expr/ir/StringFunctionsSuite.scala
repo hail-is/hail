@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
+import is.hail.ExecStrategy.ExecStrategy
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.defs.{F32, I32, I64, MakeTuple, NA, Str}
 import is.hail.types.virtual._
@@ -11,7 +12,7 @@ import org.scalatest
 import org.testng.annotations.{DataProvider, Test}
 
 class StringFunctionsSuite extends HailSuite {
-  implicit val execStrats = ExecStrategy.javaOnly
+  implicit val execStrats: Set[ExecStrategy] = ExecStrategy.javaOnly
 
   @Test def testRegexMatch(): scalatest.Assertion = {
     assertEvalsTo(invoke("regexMatch", TBoolean, Str("a"), NA(TString)), null)

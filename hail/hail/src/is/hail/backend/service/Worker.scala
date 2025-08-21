@@ -9,7 +9,7 @@ import is.hail.services._
 import is.hail.utils._
 
 import scala.collection.mutable
-import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutorService, Future}
 import scala.concurrent.duration.Duration
 
 import java.io._
@@ -90,9 +90,10 @@ object Worker {
   private[this] val log = Logger.getLogger(getClass.getName())
   private[this] val myRevision = HAIL_REVISION
 
-  implicit private[this] val ec = ExecutionContext.fromExecutorService(
-    javaConcurrent.Executors.newCachedThreadPool()
-  )
+  implicit private[this] val ec: ExecutionContextExecutorService =
+    ExecutionContext.fromExecutorService(
+      javaConcurrent.Executors.newCachedThreadPool()
+    )
 
   private[this] def writeString(out: DataOutputStream, s: String): Unit = {
     val bytes = s.getBytes(StandardCharsets.UTF_8)
