@@ -2,7 +2,7 @@ import os
 import re
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Union
+from typing import List, Union
 
 import orjson
 import pytest
@@ -225,7 +225,7 @@ print(f'{a.message}, {b.message}')
 
     res = submit(script.name, [
         '--wait',
-        '-v', f"{str(tmp_path / 'python')}:/",
+        '-v', f"{tmp_path / 'python'!s}:/",
         '-v', f"{script}:/python/"
     ], [])
     assert_exit_code(res, 0)
@@ -306,7 +306,7 @@ def test_submit_with_proper_job_settings(submit, tmp_path):
     remote_tmpdir = get_remote_tmpdir('test_submit.py::tmpdir')
 
     fs = RouterAsyncFS()
-    url = fs.parse_url(output_tmpdir)
+    url = fs.parse_url(remote_tmpdir)
     bucket = '/'.join(url.bucket_parts)
 
     echo_script = echo0(tmp_path)
@@ -317,6 +317,7 @@ def test_submit_with_proper_job_settings(submit, tmp_path):
         '--regions', "us-central1",
         '--attrs', 'foo=bar',
         '--env', 'FOO=bar',
+        '--remote-tmpdir', remote_tmpdir,
         '--cloudfuse', f'{bucket}:/foo:true'
         '-v', f'{echo_script}:/'
     ], [])
@@ -327,3 +328,7 @@ def test_submit_with_proper_job_settings(submit, tmp_path):
 
     # check cpu
     assert j.status()['spec']['process']['image'] == f'hailgenetics/hail:{__pip_version__}'
+
+
+def test_region():
+    pass

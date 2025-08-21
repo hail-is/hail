@@ -1,6 +1,5 @@
 import asyncio
 from enum import Enum
-from pathlib import Path
 from typing import Annotated as Ann
 from typing import (
     Any,
@@ -13,7 +12,6 @@ from typing import (
 
 import orjson
 import typer
-from typer import Argument as Arg
 from typer import Option as Opt
 
 from hailtop import __pip_version__
@@ -354,7 +352,8 @@ def submit(
     Recursive glob patterns are not supported
     """
 
-    from .submit import HailctlBatchSubmitError, submit as _submit  # pylint: disable=import-outside-toplevel
+    from .submit import HailctlBatchSubmitError  # pylint: disable=import-outside-toplevel
+    from .submit import submit as _submit   # pylint: disable=import-outside-toplevel
 
     assert command_and_args
 

@@ -2,27 +2,19 @@ import os
 import shlex
 from contextlib import AsyncExitStack
 from pathlib import Path
-from typing import Any, Dict, Generator, List, NoReturn, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, NoReturn, Optional, Tuple, Union
 
-import orjson
-import typer
-
-from hailtop import yamlx
+import hailtop.batch_client.aioclient as bc
 from hailtop.aiotools.copy import copy_from_dict
 from hailtop.aiotools.fs import AsyncFSURL
 from hailtop.aiotools.router_fs import RouterAsyncFS
-import hailtop.batch_client.aioclient as bc
-from hailtop.batch import Batch, ServiceBackend
-from hailtop.batch.job import BashJob
 from hailtop.config import (
     ConfigVariable,
     configuration_of,
-    get_deploy_config,
-    get_remote_tmpdir,
     get_hail_config_path,
+    get_remote_tmpdir,
 )
 from hailtop.utils import secret_alnum_string
-from hailtop.version import __pip_version__
 
 from .batch_cli_utils import StructuredFormatPlusTextOption
 
@@ -110,9 +102,6 @@ async def submit(
                 symlinks_needed.append((io_dest, dest))
             input_files.append((src, io_dest))
 
-        executable = entrypoint[0]
-        args = entrypoint[1:]
-
         entrypoint_str = ' '.join([shq(x) for x in entrypoint])
 
         symlinks = [f'ln -s {io_dest.rstrip("/")} {dest.rstrip("/")}' for io_dest, dest in symlinks_needed]
@@ -127,16 +116,16 @@ cd {workdir}
 {entrypoint_str}
 '''
 
-        j = b.create_job(image=image,
-                         command=[shell if shell else '/bin/bash', '-c', cmd],
-                         env=_env,
-                         resources=resources,
-                         attributes=_attributes,
-                         input_files=input_files,
-                         output_files=None,
-                         cloudfuse=cloudfuse,
-                         requester_pays_project=requester_pays_project,
-                         regions=regions)
+        b.create_job(image=image,
+                     command=[shell if shell else '/bin/bash', '-c', cmd],
+                     env=_env,
+                     resources=resources,
+                     attributes=_attributes,
+                     input_files=input_files,
+                     output_files=None,
+                     cloudfuse=cloudfuse,
+                     requester_pays_project=requester_pays_project,
+                     regions=regions)
 
         await b.submit()
 
