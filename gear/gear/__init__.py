@@ -13,6 +13,7 @@ from .http_server_utils import json_request, json_response
 from .k8s_cache import K8sCache
 from .metrics import monitor_endpoints_middleware
 from .session import setup_aiohttp_session
+from .system_permissions import SystemPermission
 
 __all__ = [
     'AuthServiceAuthenticator',
@@ -35,4 +36,5 @@ __all__ = [
     'resolve_test_db_endpoint',
     'setup_aiohttp_session',
     'transaction',
+    'SystemPermission',
 ]

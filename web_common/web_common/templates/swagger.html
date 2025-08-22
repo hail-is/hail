@@ -21,6 +21,20 @@
           SwaggerUIStandalonePreset
         ],
         layout: "StandaloneLayout",
+        requestInterceptor: function(request) {
+          // Get CSRF token from template variable
+          const csrfToken = "{{ csrf_token }}";
+          
+          if (csrfToken) {
+            // Add CSRF token to request headers
+            if (!request.headers) {
+              request.headers = {};
+            }
+            request.headers['X-CSRF-Token'] = csrfToken;
+          }
+          
+          return request;
+        }
       });
     };
   </script>
