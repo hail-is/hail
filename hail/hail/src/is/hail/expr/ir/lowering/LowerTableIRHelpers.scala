@@ -7,6 +7,8 @@ import is.hail.types.RTable
 import is.hail.types.virtual.TStruct
 import is.hail.utils.FastSeq
 
+import scala.collection.compat._
+
 object LowerTableIRHelpers {
 
   def lowerTableJoin(
@@ -38,7 +40,7 @@ object LowerTableIRHelpers {
       },
       (lEltRef, rEltRef) => {
         MakeStruct(
-          (lKeyFields, rKeyFields).zipped.map { (lKey, rKey) =>
+          lKeyFields.lazyZip(rKeyFields).map { (lKey, rKey) =>
             if (joinType == "outer" && lReq.field(lKey).required && rReq.field(rKey).required)
               lKey -> Coalesce(FastSeq(
                 GetField(lEltRef, lKey),

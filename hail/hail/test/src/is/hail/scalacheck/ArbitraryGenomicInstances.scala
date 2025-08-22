@@ -6,6 +6,8 @@ import is.hail.variant._
 import is.hail.variant.Genotype.gqFromPL
 import is.hail.variant.Sex.Sex
 
+import scala.collection.compat._
+
 import org.apache.spark.sql.Row
 import org.scalacheck.{Arbitrary, Gen}
 import org.scalacheck.Arbitrary.arbitrary
@@ -141,7 +143,7 @@ private[scalacheck] trait ArbitraryGenomicInstances {
         c <- option {
           val min = alleleFrequencies.min
           val weights = alleleFrequencies.map(f => (f / min).toInt)
-          val freq = frequency((weights, (0 until nAlleles).map(const)).zipped.toSeq: _*)
+          val freq = frequency(weights.lazyZip((0 until nAlleles).map(const)).toSeq: _*)
           zip(freq, freq).map { case (gti, gtj) => Call2(gti, gtj) }
         }
 

@@ -5,6 +5,7 @@ import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.virtual.{TStruct, Type}
 import is.hail.utils._
 
+import scala.collection.compat._
 import scala.collection.JavaConverters._
 
 object PCanonicalStruct {
@@ -124,7 +125,7 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
 
   private def deepRenameStruct(t: TStruct): PStruct =
     PCanonicalStruct(
-      (t.fields, this.fields).zipped.map { (tfield, pfield) =>
+      t.fields.lazyZip(this.fields).map { (tfield, pfield) =>
         assert(tfield.index == pfield.index)
         PField(tfield.name, pfield.typ.deepRename(tfield.typ), pfield.index)
       },

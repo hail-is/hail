@@ -10,6 +10,8 @@ import is.hail.types.physical.stypes.primitives.SInt64Value
 import is.hail.types.virtual.{TRNGState, Type}
 import is.hail.utils.FastSeq
 
+import scala.collection.compat._
+
 final case class SRNGStateStaticInfo(
   numWordsInLastBlock: Int,
   hasStaticSplit: Boolean,
@@ -241,8 +243,8 @@ class SCanonicalRNGStateSettable(
       numDynBlocks) with SRNGStateSettable {
   override def store(cb: EmitCodeBuilder, v: SValue): Unit = v match {
     case v: SCanonicalRNGStateValue =>
-      (runningSum, v.runningSum).zipped.foreach((x, s) => cb.assign(x, s))
-      (lastDynBlock, v.lastDynBlock).zipped.foreach((x, s) => cb.assign(x, s))
+      runningSum.lazyZip(v.runningSum).foreach((x, s) => cb.assign(x, s))
+      lastDynBlock.lazyZip(v.lastDynBlock).foreach((x, s) => cb.assign(x, s))
       cb.assign(numWordsInLastBlock, v.numWordsInLastBlock)
       cb.assign(hasStaticSplit, v.hasStaticSplit)
       cb.assign(numDynBlocks, v.numDynBlocks)
@@ -371,8 +373,8 @@ class SRNGStateStaticSizeSettable(
 ) extends SRNGStateStaticSizeValue(st, runningSum, lastDynBlock) with SRNGStateSettable {
   override def store(cb: EmitCodeBuilder, v: SValue): Unit = v match {
     case v: SRNGStateStaticSizeValue =>
-      (runningSum, v.runningSum).zipped.foreach((x, s) => cb.assign(x, s))
-      (lastDynBlock, v.lastDynBlock).zipped.foreach((x, s) => cb.assign(x, s))
+      runningSum.lazyZip(v.runningSum).foreach((x, s) => cb.assign(x, s))
+      lastDynBlock.lazyZip(v.lastDynBlock).foreach((x, s) => cb.assign(x, s))
   }
 
   override def settableTuple(): IndexedSeq[Settable[_]] =

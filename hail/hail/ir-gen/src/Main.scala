@@ -1,4 +1,5 @@
 import scala.annotation.nowarn
+import scala.collection.compat._
 
 import mainargs.{main, ParserForMethods}
 
@@ -281,7 +282,7 @@ object IRDSL_Impl extends IRDSL {
       else {
         assert(n.hasStaticValue(1))
         SeqRepr.Dynamic(
-          s"($this, $newChildren).zipped.map { (x, newChild) => ${eltType.repr("x").copyWithNewChildren(
+          s"$this.lazyZip($newChildren).map { (x, newChild) => ${eltType.repr("x").copyWithNewChildren(
               SeqRepr.Static(Seq(ChildRepr(Child_("BaseIR"), "newChild")), Att_("BaseIR"))
             )} }",
           eltType,
@@ -508,7 +509,7 @@ object IRDSL_Impl extends IRDSL {
     private def copyMethod: String = {
       val decl = s"override def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): $name = "
       val assertion = s"assert(newChildren.length == $nChildren)"
-      val body = name + (attsAndChildren, childrenOffsets).zipped.map { case (x, offset) =>
+      val body = name + attsAndChildren.lazyZip(childrenOffsets).map { case (x, offset) =>
         val newChildren = SeqRepr.Dynamic("newChildren", Child_("BaseIR"))
         x.repr.copyWithNewChildren(
           if (x.nChildren.hasStaticValue(0)) SeqRepr.empty(Child_("BaseIR"))
@@ -1225,6 +1226,7 @@ object Main {
         "UnseededMissingnessObliviousJVMFunction, TableToValueFunction, MatrixToValueFunction, " +
         "BlockMatrixToValueFunction}",
       "is.hail.expr.ir.defs.exts._",
+      "scala.collection.compat._",
     )
     val gen = pack + "\n\n" + imports.map(i => s"import $i").mkString("\n") + "\n\n" + allNodes.map(
       _.generateDef
