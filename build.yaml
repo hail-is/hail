@@ -3081,7 +3081,7 @@ steps:
       STATE=$(echo $STATUS | jq -jr '.state')
       if [ "$STATE" != "success" ]; then
           echo $STATUS;
-	  echo $LOGS;
+          echo $LOGS;
           exit 1;
       fi
 
@@ -3102,7 +3102,7 @@ steps:
       STATE=$(echo $STATUS | jq -jr '.state')
       if [ "$STATE" != "success" ]; then
           echo $STATUS;
-	  echo $LOGS;
+          echo $LOGS;
           exit 1;
       fi
 
@@ -3119,7 +3119,7 @@ steps:
       STATE=$(echo $STATUS | jq -jr '.state')
       if [ "$STATE" != "success" ]; then
           echo $STATUS;
-	  echo $LOGS;
+          echo $LOGS;
           exit 1;
       fi
 
@@ -3138,7 +3138,7 @@ steps:
       STATE=$(echo $STATUS | jq -jr '.state')
       if [ "$STATE" != "success" ]; then
           echo $STATUS;
-	  echo $LOGS;
+          echo $LOGS;
           exit 1;
       fi
     secrets:
