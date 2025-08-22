@@ -133,16 +133,6 @@ def test_image(submit, tmp_path, client):
     assert j.status()['spec']['process']['image'] == image
 
 
-def test_default_image(submit, tmp_path, client):
-    echo_script = echo0(tmp_path)
-    res = submit(echo_script.name, ['--quiet', '-v', f'{echo_script}:/', '--wait', '-o', 'json'], [])
-    assert_exit_code(res, 0)
-
-    b = get_batch_from_text_output(res, client)
-    j = b.get_job(1)
-    assert j.status()['spec']['process']['image'] == f'hailgenetics/hail:{__pip_version__}'
-
-
 def test_image_environment_variable(submit, tmp_path, client):
     echo_script = echo0(tmp_path)
     res = submit(

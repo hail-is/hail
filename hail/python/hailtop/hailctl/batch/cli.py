@@ -203,6 +203,8 @@ def parse_file_mount(value: str) -> Tuple[str, str]:
     if ':' not in value:
         raise typer.BadParameter(f"Invalid format for file mount: '{value}'. " "Expected 'src:dest'.")
     src, dest = value.split(':', 1)
+    if not src or not dst:
+        raise typer.BadParameter(f"Invalid format for file mount: '{value}'. " "Expected 'src:dest'.")
     return (src, dest)
 
 
