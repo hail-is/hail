@@ -214,8 +214,6 @@ trait HailModule extends ScalaModule with ScalafmtModule with ScalafixModule { o
         "-Wconf:cat=deprecation&msg=unary prefix operator definition with empty parameter list is deprecated:s",
         "-Wconf:cat=other-nullary-override:s",
       // other
-        // Wrap `export` in backticks to use it as an identifier, it will become a keyword in Scala 3
-        "-Wconf:cat=deprecation&msg=`export`:s",
         // Widening conversion from Long to Double is deprecated because it loses precision. Write `.toDouble` instead.
         "-Wconf:cat=deprecation&msg=Widening conversion from Long to Double:s",
         "-Wconf:cat=deprecation&msg=symbol literal is deprecated:s",
