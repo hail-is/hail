@@ -26,6 +26,7 @@ import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 
 import scala.annotation.{nowarn, tailrec}
+import scala.collection.compat._
 import scala.collection.mutable
 
 import java.io._
@@ -2915,12 +2916,12 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
               tmpRegion = mb.genFieldThisRef[Region]("streamfold_tmpregion")
               cb.assign(tmpRegion, Region.stagedCreate(Region.REGULAR, region.getPool()))
 
-              (accVars, acc).zipped.foreach { case (xAcc, (_, x)) =>
+              accVars.lazyZip(acc).foreach { case (xAcc, (_, x)) =>
                 cb.assign(xAcc, emitI(x, tmpRegion).map(cb)(_.castTo(cb, tmpRegion, xAcc.st)))
               }
             } else {
               cb.assign(producer.elementRegion, region)
-              (accVars, acc).zipped.foreach { case (xAcc, (_, x)) =>
+              accVars.lazyZip(acc).foreach { case (xAcc, (_, x)) =>
                 cb.assign(xAcc, emitI(x, region).map(cb)(_.castTo(cb, region, xAcc.st)))
               }
             }
@@ -2928,7 +2929,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
             producer.unmanagedConsume(cb, region) { cb =>
               cb.assign(xElt, producer.element)
               if (producer.requiresMemoryManagementPerElement) {
-                (accVars, seq).zipped.foreach { (accVar, ir) =>
+                accVars.lazyZip(seq).foreach { (accVar, ir) =>
                   cb.assign(
                     accVar,
                     emitI(ir, producer.elementRegion, env = seqEnv)
@@ -2941,7 +2942,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
                 cb.assign(producer.elementRegion, tmpRegion.load())
                 cb.assign(tmpRegion, swapRegion.load())
               } else {
-                (accVars, seq).zipped.foreach { (accVar, ir) =>
+                accVars.lazyZip(seq).foreach { (accVar, ir) =>
                   cb.assign(
                     accVar,
                     emitI(ir, producer.elementRegion, env = seqEnv)
@@ -3093,7 +3094,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
         )
 
         val argEnv = env
-          .bind((args.map(_._1), loopRef.loopArgs).zipped.toArray: _*)
+          .bind(args.map(_._1).lazyZip(loopRef.loopArgs).toArray: _*)
 
         val newLoopEnv = loopEnv.getOrElse(Env.empty)
 
@@ -3125,15 +3126,16 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
         val loopRef = loopEnv.get.lookup(name)
 
         // Need to emit into region 1, copy to region 2, then clear region 1, then swap them.
-        (loopRef.tmpLoopArgs, loopRef.loopTypes, args).zipped.map { case (tmpLoopArg, et, arg) =>
-          tmpLoopArg.store(
-            cb,
-            emitI(arg, loopEnv = None, region = loopRef.r1).map(cb)(_.copyToRegion(
+        (loopRef.tmpLoopArgs lazyZip loopRef.loopTypes lazyZip args).map {
+          case (tmpLoopArg, et, arg) =>
+            tmpLoopArg.store(
               cb,
-              loopRef.r2,
-              et.st,
-            )),
-          )
+              emitI(arg, loopEnv = None, region = loopRef.r1).map(cb)(_.copyToRegion(
+                cb,
+                loopRef.r2,
+                et.st,
+              )),
+            )
         }
 
         cb.append(loopRef.r1.clearRegion())

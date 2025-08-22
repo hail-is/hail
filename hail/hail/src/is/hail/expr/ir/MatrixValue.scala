@@ -10,6 +10,7 @@ import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant._
 
+import scala.collection.compat._
 import scala.collection.compat.immutable.ArraySeq
 
 import org.apache.spark.SparkContext
@@ -343,7 +344,7 @@ object MatrixValue {
     }
 
     val fileData = RVD.writeRowsSplitFiles(ctx, mvs.map(_.rvd), paths, bufferSpec, stageLocally)
-    (mvs, paths, fileData).zipped.foreach { case (mv, path, fd) =>
+    (mvs lazyZip paths lazyZip fileData).foreach { case (mv, path, fd) =>
       mv.finalizeWrite(ctx, path, bufferSpec, fd, consoleInfo = false)
     }
   }

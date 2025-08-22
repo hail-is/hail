@@ -9,6 +9,8 @@ import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructSettabl
 import is.hail.types.virtual.{TStruct, Type}
 import is.hail.utils._
 
+import scala.collection.compat._
+
 final case class SInsertFieldsStruct(
   virtualType: TStruct,
   parent: SBaseStruct,
@@ -181,6 +183,6 @@ final class SInsertFieldsStructSettable(
   override def store(cb: EmitCodeBuilder, sv: SValue): Unit = sv match {
     case sv: SInsertFieldsStructValue =>
       parent.store(cb, sv.parent)
-      (newFields, sv.newFields).zipped.foreach((settable, value) => cb.assign(settable, value))
+      newFields.lazyZip(sv.newFields).foreach((settable, value) => cb.assign(settable, value))
   }
 }

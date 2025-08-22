@@ -9,6 +9,8 @@ import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual.Type
 import is.hail.utils.{toRichIterable, FastSeq}
 
+import scala.collection.compat._
+
 final case class SNDArrayPointer(pType: PCanonicalNDArray) extends SNDArray {
   require(!pType.required)
 
@@ -157,8 +159,8 @@ final class SNDArrayPointerSettable(
   def store(cb: EmitCodeBuilder, v: SValue): Unit = v match {
     case v: SNDArrayPointerValue =>
       cb.assign(a, v.a)
-      (shape, v.shapes).zipped.foreach(cb.assign(_, _))
-      (strides, v.strides).zipped.foreach(cb.assign(_, _))
+      shape.lazyZip(v.shapes).foreach(cb.assign(_, _))
+      strides.lazyZip(v.strides).foreach(cb.assign(_, _))
       cb.assign(firstDataAddress, v.firstDataAddress)
   }
 }

@@ -168,7 +168,7 @@ package object ir {
     val accums = inits.map(i => Ref(freshName(), i.typ)).toFastSeq
     StreamFold2(
       stream,
-      (accums, inits).zipped.map((acc, i) => (acc.name, i)),
+      accums.lazyZip(inits).map((acc, i) => (acc.name, i)),
       elt.name,
       seqs.map(f => f(elt, accums)).toFastSeq,
       result(accums),
