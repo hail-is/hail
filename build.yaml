@@ -3077,9 +3077,11 @@ steps:
 
       BATCH_ID=$(hailctl batch submit -v simple_hail.py:/ -v foo/:/foo/ --workdir / --name=test-hailctl-batch-submit -o json python3 simple_hail.py | jq '.id')
       STATUS=$(hailctl batch wait -o json $BATCH_ID)
+      LOGS=$(hailctl batch log -o json $BATCH_ID 1)
       STATE=$(echo $STATUS | jq -jr '.state')
       if [ "$STATE" != "success" ]; then
           echo $STATUS;
+	  echo $LOGS;
           exit 1;
       fi
 
@@ -3096,9 +3098,11 @@ steps:
 
       BATCH_ID=$(hailctl batch submit -v hail_with_args.py:/ -v foo/:/foo/ --workdir / --name=test-hailctl-batch-submit -o json python3 hail_with_args.py 100 | jq '.id')
       STATUS=$(hailctl batch wait -o json $BATCH_ID)
+      LOGS=$(hailctl batch log -o json $BATCH_ID 1)      
       STATE=$(echo $STATUS | jq -jr '.state')
       if [ "$STATE" != "success" ]; then
           echo $STATUS;
+	  echo $LOGS;
           exit 1;
       fi
 
@@ -3111,9 +3115,11 @@ steps:
 
       BATCH_ID=$(hailctl batch submit --name=test-hailctl-batch-submit -v file.sh:/ -v foo/:/foo/ -o json --image busybox:latest sh file.sh | jq '.id')
       STATUS=$(hailctl batch wait -o json $BATCH_ID)
+      LOGS=$(hailctl batch log -o json $BATCH_ID 1)      
       STATE=$(echo $STATUS | jq -jr '.state')
       if [ "$STATE" != "success" ]; then
           echo $STATUS;
+	  echo $LOGS;
           exit 1;
       fi
 
@@ -3128,9 +3134,11 @@ steps:
 
       BATCH_ID=$(hailctl batch submit --name=test-hailctl-batch-submit -v foo/:/foo/ -o json --image ubuntu:latest sh file-with-args.sh abc 123 | jq '.id')
       STATUS=$(hailctl batch wait -o json $BATCH_ID)
+      LOGS=$(hailctl batch log -o json $BATCH_ID 1)      
       STATE=$(echo $STATUS | jq -jr '.state')
       if [ "$STATE" != "success" ]; then
           echo $STATUS;
+	  echo $LOGS;
           exit 1;
       fi
     secrets:
