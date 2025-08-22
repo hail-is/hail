@@ -1,3 +1,5 @@
+import uuid
+
 import os
 import shlex
 from contextlib import AsyncExitStack
@@ -102,9 +104,9 @@ async def submit(
         input_files = [(remote_user_config_dir, local_user_config_dir + 'hail/')]
 
         for src, dest in maybe_volume_mounts:
-            io_dest = f'/io{dest}'
-            if not dest.startswith('/io/'):
-                symlinks_needed.append((io_dest, dest))
+            rand_uid = uuid.uuid4().hex[:5]
+            io_dest = f'/io/{rand_uid}/{dest}'
+            symlinks_needed.append((io_dest, dest))
             input_files.append((src, io_dest))
 
         entrypoint_str = ' '.join([shq(x) for x in entrypoint])

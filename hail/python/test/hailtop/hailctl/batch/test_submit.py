@@ -101,7 +101,7 @@ def write_hello(filename: Path):
 def test_name(submit, tmp_path, request, client):
     batch_name = request.node.nodeid + secret_alnum_string()
     echo_script = echo0(tmp_path)
-    res = submit(echo_script.name, ['--name', batch_name, '-v', f'{echo_script}:/', '--wait', '-o', 'json'], [])
+    res = submit(echo_script.name, ['--name', batch_name, '-v', f'{echo_script}:/', '--wait', '-o', 'json', '--quiet'], [])
     assert_exit_code(res, 0)
 
     b = get_batch_from_text_output(res, client)
@@ -113,7 +113,7 @@ def test_workdir(submit, tmp_path, request, client):
     echo_script = echo0(tmp_path)
     res = submit(
         echo_script.name,
-        ['--name', batch_name, '--workdir', '/workdir/', '-v', f'{echo_script}:/workdir/', '--wait', '-o', 'json'],
+        ['--name', batch_name, '--workdir', '/workdir/', '-v', f'{echo_script}:/workdir/', '--wait', '-o', 'json', '--quiet'],
         [],
     )
     assert_exit_code(res, 0)
@@ -125,7 +125,7 @@ def test_workdir(submit, tmp_path, request, client):
 def test_image(submit, tmp_path, client):
     image = 'busybox:latest'
     echo_script = echo0(tmp_path)
-    res = submit(echo_script.name, ['--image', image, '-v', f'{echo_script}:/', '--wait', '-o', 'json'], [])
+    res = submit(echo_script.name, ['--image', image, '-v', f'{echo_script}:/', '--wait', '-o', 'json', '--quiet'], [])
     assert_exit_code(res, 0)
 
     b = get_batch_from_text_output(res, client)
@@ -135,7 +135,7 @@ def test_image(submit, tmp_path, client):
 
 def test_default_image(submit, tmp_path, client):
     echo_script = echo0(tmp_path)
-    res = submit(echo_script.name, ['-v', f'{echo_script}:/', '--wait', '-o', 'json'], [])
+    res = submit(echo_script.name, ['--quiet', '-v', f'{echo_script}:/', '--wait', '-o', 'json'], [])
     assert_exit_code(res, 0)
 
     b = get_batch_from_text_output(res, client)
@@ -147,7 +147,7 @@ def test_image_environment_variable(submit, tmp_path, client):
     echo_script = echo0(tmp_path)
     res = submit(
         echo_script.name,
-        ['-v', f'{echo_script}:/', '--wait', '-o', 'json'],
+        ['-v', f'{echo_script}:/', '--wait', '--quiet', '-o', 'json'],
         [],
         env={'HAIL_GENETICS_HAIL_IMAGE': 'busybox:latest'},
     )
@@ -167,7 +167,7 @@ world!
 
     script = tmp_path / 'script'
     script.write_text(script_text)
-    res = submit(script.name, ['--wait', '-o', 'json', '-v', f'{script}:/', '--wait', '-o', 'json'], [])
+    res = submit(script.name, ['--wait', '--quiet', '-o', 'json', '-v', f'{script}:/', '--wait', '-o', 'json'], [])
     assert_exit_code(res, 0)
 
     b = get_batch_from_text_output(res, client)
@@ -178,14 +178,14 @@ world!
 @pytest.mark.parametrize('files', ['', ':', ':dst'])
 def test_files_invalid_format(submit, files):
     with pytest.raises(ValueError, match='Invalid file specification'):
-        submit(__file__, ['--wait', '-v', files], [])
+        submit(__file__, ['--wait', '--quiet', '-v', files], [])
 
 
 def test_files_copy_rename(submit, tmp_cwd):
     write_hello(tmp_cwd / 'hello.txt')
     pyscript = write_pyscript(tmp_cwd, '/child')
     res = submit(
-        pyscript.name, ['--wait', '-v', 'hello.txt:/child', '-v', f'{pyscript.name}:/', '--wait', '-o', 'json'], []
+        pyscript.name, ['--wait', '--quiet', '-v', 'hello.txt:/child', '-v', f'{pyscript.name}:/', '--wait', '-o', 'json'], []
     )
     assert_exit_code(res, 0)
 
@@ -206,7 +206,7 @@ def test_files_copy_folder(submit, tmp_cwd, files, remote):
     write_hello(Path(src) / 'hello.txt')
     pyscript = write_pyscript(tmp_cwd, Path(remote) / 'hello.txt')
     res = submit(
-        pyscript.name, ['--workdir', remote, '--wait', '-o', 'json', '-v', files, '-v', f'{pyscript}:{remote}'], []
+        pyscript.name, ['--workdir', remote, '--quiet', '--wait', '-o', 'json', '-v', files, '-v', f'{pyscript}:{remote}'], []
     )
     assert_exit_code(res, 0)
 
@@ -226,7 +226,7 @@ print(f'{a.message}, {b.message}')
     )
 
     res = submit(
-        script.name, ['--wait', '-o', 'json', '-v', f"{tmp_path / 'python'!s}:/", '-v', f"{script}:/python/"], []
+        script.name, ['--wait', '--quiet', '-o', 'json', '-v', f"{tmp_path / 'python'!s}:/", '-v', f"{script}:/python/"], []
     )
     assert_exit_code(res, 0)
 
@@ -245,7 +245,7 @@ def test_files_mount_multiple_files_options(submit, tmp_cwd):
 
     res = submit(
         script.name,
-        ['--wait', '-o', 'json', '-v', 'hello1.txt:/a/hello.txt', '-v', 'hello2.txt:/b/hello.txt', '-v', f'{script}:/'],
+        ['--wait', '-o', 'json', '--quiet', '-v', 'hello1.txt:/a/hello.txt', '-v', 'hello2.txt:/b/hello.txt', '-v', f'{script}:/'],
         [],
     )
 
@@ -277,7 +277,7 @@ def test_files_dir_outside_curdir(submit, tmp_path):
         write_hello(tmp_path / 'hello1.txt')
         write_hello(tmp_path / 'hello2.txt')
         pyscript = write_pyscript(tmp_path, '/foo/hello1.txt')
-        res = submit(f'/foo/{pyscript.name}', ['--wait', '-o', 'json', '-v', f'{tmp_path}:/foo'], [])
+        res = submit(f'/foo/{pyscript.name}', ['--wait', '-o', '--quiet', 'json', '-v', f'{tmp_path}:/foo'], [])
         assert_exit_code(res, 0)
 
 
@@ -292,7 +292,7 @@ assert args == [1, 2, 'a', 'b', '--foo', 'bar=5']
 """,
     )
 
-    res = submit(script.name, ['--wait', '-o', 'json', '-v', f"{script}:/"], ['1', '2', 'a', 'b', '--foo', 'bar=5'])
+    res = submit(script.name, ['--wait', '-o', 'json', '--quiet', '-v', f"{script}:/"], ['1', '2', 'a', 'b', '--foo', 'bar=5'])
     assert_exit_code(res, 0)
 
 
@@ -330,6 +330,7 @@ def test_submit_with_proper_job_settings(submit, tmp_path, client):
             '--wait',
             '-o',
             'json',
+            '--quiet',
         ],
         [],
     )
@@ -362,7 +363,7 @@ print(files)
 assert os.path.isfile(os.environ["XDG_CONFIG_HOME"] + "/hail/config.ini"), str(files)
 """,
     )
-    res = submit(script.name, ['--name', batch_name, '-v', f'{script}:/', '--wait', '-o', 'json'], [])
+    res = submit(script.name, ['--name', batch_name, '-v', f'{script}:/', '--wait', '-o', 'json', '--quiet'], [])
     assert_exit_code(res, 0)
 
     b = get_batch_from_text_output(res, client)

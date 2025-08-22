@@ -3078,10 +3078,12 @@ steps:
       BATCH_ID=$(hailctl batch submit -v simple_hail.py:/ -v foo/:/foo/ --workdir / --name=test-hailctl-batch-submit -o json python3 simple_hail.py | jq '.id')
       STATUS=$(hailctl batch wait -o json $BATCH_ID)
       LOGS=$(hailctl batch log -o json $BATCH_ID 1)
+      JOB_STATUS=$(hailctl batch job $BATCH_ID 1)
       STATE=$(echo $STATUS | jq -jr '.state')
       if [ "$STATE" != "success" ]; then
           echo $STATUS;
           echo $LOGS;
+          echo $JOB_STATUS;
           exit 1;
       fi
 
