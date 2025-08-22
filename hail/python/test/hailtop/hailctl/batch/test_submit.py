@@ -104,11 +104,9 @@ def test_name(submit, tmp_path, request):
 def test_workdir(submit, tmp_path, request):
     batch_name = request.node.nodeid + secret_alnum_string()
     echo_script = echo0(tmp_path)
-    res = submit(echo_script.name, [
-        '--name', batch_name,
-        '--workdir', '/workdir/',
-        '-v', f'{echo_script}:/workdir/'
-    ], [])
+    res = submit(
+        echo_script.name, ['--name', batch_name, '--workdir', '/workdir/', '-v', f'{echo_script}:/workdir/'], []
+    )
     assert_exit_code(res, 0)
 
     b = parse_batch_from_text_output(res)
@@ -155,11 +153,7 @@ world!
 
     script = tmp_path / 'script'
     script.write_text(script_text)
-    res = submit(script.name, [
-        '--wait',
-        '-o', 'json',
-        '-v', f'{script}:/'
-    ], [])
+    res = submit(script.name, ['--wait', '-o', 'json', '-v', f'{script}:/'], [])
     assert_exit_code(res, 0)
 
     output = orjson.loads(res.output)
@@ -175,11 +169,7 @@ def test_files_invalid_format(submit, files):
 def test_files_copy_rename(submit, tmp_cwd):
     write_hello(tmp_cwd / 'hello.txt')
     pyscript = write_pyscript(tmp_cwd, '/child')
-    res = submit(pyscript.name, [
-        '--wait',
-        '-v', 'hello.txt:/child',
-        '-v', f'{pyscript}:/'
-    ], [])
+    res = submit(pyscript.name, ['--wait', '-v', 'hello.txt:/child', '-v', f'{pyscript}:/'], [])
     assert_exit_code(res, 0)
 
 
@@ -198,12 +188,7 @@ def test_files_copy_folder(submit, tmp_cwd, files, remote):
     src, dst = files.split(':')
     write_hello(src / 'hello.txt')
     pyscript = write_pyscript(tmp_cwd, Path(remote) / 'hello.txt')
-    res = submit(pyscript.name, [
-        '--workdir', remote,
-        '--wait',
-        '-v', files,
-        '-v', f'{pyscript}:{remote}'
-    ], [])
+    res = submit(pyscript.name, ['--workdir', remote, '--wait', '-v', files, '-v', f'{pyscript}:{remote}'], [])
     assert_exit_code(res, 0)
 
 
@@ -221,11 +206,7 @@ print(f'{a.message}, {b.message}')
 """,
     )
 
-    res = submit(script.name, [
-        '--wait',
-        '-v', f"{tmp_path / 'python'!s}:/",
-        '-v', f"{script}:/python/"
-    ], [])
+    res = submit(script.name, ['--wait', '-v', f"{tmp_path / 'python'!s}:/", '-v', f"{script}:/python/"], [])
     assert_exit_code(res, 0)
 
 
@@ -241,11 +222,9 @@ def test_files_mount_multiple_files_options(submit, tmp_cwd):
         """,
     )
 
-    res = submit(script.name, [
-        '--wait',
-        '-v', 'hello1.txt:/a/hello.txt',
-        '-v', 'hello2.txt:/b/hello.txt',
-        '-v', f'{script}:/'])
+    res = submit(
+        script.name, ['--wait', '-v', 'hello1.txt:/a/hello.txt', '-v', 'hello2.txt:/b/hello.txt', '-v', f'{script}:/']
+    )
 
     assert_exit_code(res, 0)
 
@@ -254,11 +233,17 @@ def test_files_outside_current_dir(submit, tmp_path):
     with tmp_cwd(tmp_path / 'working') as cwd:
         write_hello(tmp_path / 'data' / 'hello.txt')
         pyscript = write_pyscript(cwd, '/hello.txt')
-        res = submit(pyscript.name, [
-            '--wait',
-            '-v', f'{tmp_path}/data/hello.txt:/',
-            '-v', f'{pyscript}:/',
-        ], [])
+        res = submit(
+            pyscript.name,
+            [
+                '--wait',
+                '-v',
+                f'{tmp_path}/data/hello.txt:/',
+                '-v',
+                f'{pyscript}:/',
+            ],
+            [],
+        )
         assert_exit_code(res, 0)
 
 
@@ -274,11 +259,9 @@ def test_files_dir_outside_curdir(submit, tmp_path):
 def test_files_clobber_file_with_folder(submit, tmp_path):
     write_hello(tmp_path / 'hello.txt')
     pyscript = write_pyscript(tmp_path, 'hello.txt')
-    res = submit(pyscript.name, [
-        '-v', f'{pyscript}:/',
-        '-v', f'{tmp_path}/hello.txt:/',
-        '-v', f'{tmp_path}:/hello.txt'
-    ], [])
+    res = submit(
+        pyscript.name, ['-v', f'{pyscript}:/', '-v', f'{tmp_path}/hello.txt:/', '-v', f'{tmp_path}:/hello.txt'], []
+    )
     assert_exit_code(res, 1)
 
 
@@ -293,10 +276,7 @@ assert args == [1, 2, 'a', 'b', '--foo', 'bar=5']
 """,
     )
 
-    res = submit(script.name, [
-        '--wait',
-        '-v', f"{script}:/"
-    ], [1, 2, 'a', 'b', '--foo', 'bar=5'])
+    res = submit(script.name, ['--wait', '-v', f"{script}:/"], [1, 2, 'a', 'b', '--foo', 'bar=5'])
     assert_exit_code(res, 0)
 
 
@@ -308,17 +288,29 @@ def test_submit_with_proper_job_settings(submit, tmp_path):
     bucket = '/'.join(url.bucket_parts)
 
     echo_script = echo0(tmp_path)
-    res = submit(echo_script.name, [
-        '--cpu', '0.25',
-        '--memory', 'highmem',
-        '--storage', '15Gi',
-        '--regions', "us-central1",
-        '--attrs', 'foo=bar',
-        '--env', 'FOO=bar',
-        '--remote-tmpdir', remote_tmpdir,
-        '--cloudfuse', f'{bucket}:/foo:true'
-        '-v', f'{echo_script}:/'
-    ], [])
+    res = submit(
+        echo_script.name,
+        [
+            '--cpu',
+            '0.25',
+            '--memory',
+            'highmem',
+            '--storage',
+            '15Gi',
+            '--regions',
+            "us-central1",
+            '--attrs',
+            'foo=bar',
+            '--env',
+            'FOO=bar',
+            '--remote-tmpdir',
+            remote_tmpdir,
+            '--cloudfuse',
+            f'{bucket}:/foo:true' '-v',
+            f'{echo_script}:/',
+        ],
+        [],
+    )
     assert_exit_code(res, 0)
 
     b = parse_batch_from_text_output(res)

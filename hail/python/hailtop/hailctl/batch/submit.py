@@ -51,7 +51,7 @@ async def submit(
     wait: bool,
     quiet: bool,
 ):
-    async with (AsyncExitStack() as exitstack):
+    async with AsyncExitStack() as exitstack:
         fs = RouterAsyncFS()
         exitstack.push_async_callback(fs.close)
 
@@ -94,7 +94,9 @@ async def submit(
 
         remote_user_config_dir = await transfer_user_config_into_job(remote_tmpdir)
 
-        maybe_volume_mounts = await convert_volume_mounts_to_file_transfers_with_local_upload(fs, remote_tmpdir, volume_mounts)
+        maybe_volume_mounts = await convert_volume_mounts_to_file_transfers_with_local_upload(
+            fs, remote_tmpdir, volume_mounts
+        )
 
         symlinks_needed = []
         input_files = [(remote_user_config_dir, local_user_config_dir + 'hail/')]
@@ -110,25 +112,27 @@ async def submit(
         symlinks = [f'ln -s {io_dest.rstrip("/")} {dest.rstrip("/")}' for io_dest, dest in symlinks_needed]
         symlinks_str = "\n".join(symlinks)
 
-        cmd = f'''
+        cmd = f"""
 {symlinks_str}
 mkdir -p {workdir}
 hailctl config list
 hailctl config profile list
 cd {workdir}
 {entrypoint_str}
-'''
+"""
 
-        b.create_job(image=image,
-                     command=[shell if shell else '/bin/bash', '-c', cmd],
-                     env=_env,
-                     resources=resources,
-                     attributes=_attributes,
-                     input_files=input_files,
-                     output_files=None,
-                     cloudfuse=cloudfuse,
-                     requester_pays_project=requester_pays_project,
-                     regions=regions)
+        b.create_job(
+            image=image,
+            command=[shell if shell else '/bin/bash', '-c', cmd],
+            env=_env,
+            resources=resources,
+            attributes=_attributes,
+            input_files=input_files,
+            output_files=None,
+            cloudfuse=cloudfuse,
+            requester_pays_project=requester_pays_project,
+            regions=regions,
+        )
 
         await b.submit()
 
@@ -187,8 +191,9 @@ async def convert_volume_mounts_to_file_transfers_with_local_upload(
 
         remote_file_transfers.append((str(remote_src), str(dst)))
 
-    await copy_from_dict(files=[{'from': str(local_src), 'to': str(remote_src)}
-                                for local_src, remote_src in local_file_transfers])
+    await copy_from_dict(
+        files=[{'from': str(local_src), 'to': str(remote_src)} for local_src, remote_src in local_file_transfers]
+    )
 
     return remote_file_transfers
 

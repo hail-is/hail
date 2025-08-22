@@ -174,8 +174,7 @@ def parse_cloudfuse_entry(value: str) -> CloudFuseEntry:
     parts = value.split(':')
     if len(parts) != 3:
         raise typer.BadParameter(
-            f"Invalid cloudfuse entry format: '{value}'. "
-            "Expected 'bucket_name:mount_point:read_only'."
+            f"Invalid cloudfuse entry format: '{value}'. " "Expected 'bucket_name:mount_point:read_only'."
         )
     bucket_name = parts[0]
     mount_point = parts[1]
@@ -187,8 +186,7 @@ def parse_cloudfuse_entry(value: str) -> CloudFuseEntry:
         flag = False
     else:
         raise typer.BadParameter(
-            f"Invalid read only flag in cloudfuse entry: '{parts[2]}'. "
-            "Expected 'true' or 'false'."
+            f"Invalid read only flag in cloudfuse entry: '{parts[2]}'. " "Expected 'true' or 'false'."
         )
 
     return (bucket_name, mount_point, flag)
@@ -196,21 +194,22 @@ def parse_cloudfuse_entry(value: str) -> CloudFuseEntry:
 
 def parse_key_value_pair(value: str) -> Tuple[str, str]:
     if '=' not in value:
-        raise typer.BadParameter(
-            f"Invalid format for key-value pair: '{value}'. "
-            "Expected 'KEY=VALUE'."
-        )
+        raise typer.BadParameter(f"Invalid format for key-value pair: '{value}'. " "Expected 'KEY=VALUE'.")
     key, val = value.split('=', 1)
     return (key, val)
 
 
-@app.command(name='submit', help='Submit a job using files mounted from the local file system.', context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
+@app.command(
+    name='submit',
+    help='Submit a job using files mounted from the local file system.',
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+)
 def submit(
     ctx: typer.Context,
     command_and_args: List[str] = typer.Argument(
         ...,
         help="The command to execute inside the container, followed by its arguments. "
-             "Example: python3 /script.py a b --bar 5 --baz 7"
+        "Example: python3 /script.py a b --bar 5 --baz 7",
     ),
     *,
     image: Ann[
@@ -220,11 +219,10 @@ def submit(
             envvar='HAIL_GENETICS_HAIL_IMAGE',
         ),
     ] = f'hailgenetics/hail:{__pip_version__}',
-    volume_mounts: Ann[List[str], Opt(
-        ...,
-        "-v",
-        help="Volume mounts in the format 'source:destination'. Can be specified multiple times."
-    )] = [],
+    volume_mounts: Ann[
+        List[str],
+        Opt(..., "-v", help="Volume mounts in the format 'source:destination'. Can be specified multiple times."),
+    ] = [],
     name: Ann[Optional[str], Opt(help='The name of the batch.')] = None,
     cpu: Ann[str, Opt(help='CPU for the job.')] = '1',
     memory: Ann[str, Opt(help='Memory for the job.')] = 'standard',
@@ -235,29 +233,33 @@ def submit(
     cloudfuse: Ann[
         Optional[List[str]],
         Opt(
-            help="Specify a cloudfuse binding 'bucket_name:mount_point:read_only'. "
-                 "Can be specified multiple times.",
-            parser=parse_cloudfuse_entry
-        )
+            help="Specify a cloudfuse binding 'bucket_name:mount_point:read_only'. " "Can be specified multiple times.",
+            parser=parse_cloudfuse_entry,
+        ),
     ] = None,
-    env: Ann[Optional[List[str]], Opt(
-        help="Specify an environment variable in KEY=VALUE format. Can be specified multiple times.",
-        parser=parse_key_value_pair
-    )] = None,
+    env: Ann[
+        Optional[List[str]],
+        Opt(
+            help="Specify an environment variable in KEY=VALUE format. Can be specified multiple times.",
+            parser=parse_key_value_pair,
+        ),
+    ] = None,
     billing_project: Ann[Optional[str], Opt(help='The billing project to use.')] = None,
     remote_tmpdir: Ann[Optional[str], Opt(help='The remote tmpdir to use.')] = None,
     requester_pays_project: Ann[Optional[str], Opt(help='The requester pays project to use.')] = None,
-    regions: Ann[Optional[List[str]], Opt(
-    ...,
-        "--region",
-        help="Specify a region to run a job in. Can be provided multiple times."
-    )] = None,
-    attributes: Ann[Optional[List[str]], Opt(
-        ...,
-        "--attr",
-        help="Specify an attribute in KEY=VALUE format. Can be specified multiple times.",
-        parser=parse_key_value_pair
-    )] = None,
+    regions: Ann[
+        Optional[List[str]],
+        Opt(..., "--region", help="Specify a region to run a job in. Can be provided multiple times."),
+    ] = None,
+    attributes: Ann[
+        Optional[List[str]],
+        Opt(
+            ...,
+            "--attr",
+            help="Specify an attribute in KEY=VALUE format. Can be specified multiple times.",
+            parser=parse_key_value_pair,
+        ),
+    ] = None,
     shell: Ann[str, Opt(help='Shell to use when running the job.')] = '/bin/bash',
     output: StructuredFormatPlusTextOption = StructuredFormatPlusText.TEXT,
     wait: Ann[bool, Opt(help='Wait for the batch to complete.')] = False,
@@ -358,29 +360,31 @@ def submit(
     assert command_and_args
 
     try:
-        asyncio.run(_submit(
-            image,
-            entrypoint=command_and_args,
-            name=name,
-            cpu=cpu,
-            memory=memory,
-            storage=storage,
-            machine_type=machine_type,
-            spot=(not nonpreemptible),
-            workdir=workdir,
-            cloudfuse=cloudfuse,
-            env=env,
-            billing_project=billing_project,
-            remote_tmpdir=remote_tmpdir,
-            regions=regions,
-            requester_pays_project=requester_pays_project,
-            attributes=attributes,
-            volume_mounts=volume_mounts,
-            shell=shell,
-            output=output,
-            wait=wait,
-            quiet=quiet
-        ))
+        asyncio.run(
+            _submit(
+                image,
+                entrypoint=command_and_args,
+                name=name,
+                cpu=cpu,
+                memory=memory,
+                storage=storage,
+                machine_type=machine_type,
+                spot=(not nonpreemptible),
+                workdir=workdir,
+                cloudfuse=cloudfuse,
+                env=env,
+                billing_project=billing_project,
+                remote_tmpdir=remote_tmpdir,
+                regions=regions,
+                requester_pays_project=requester_pays_project,
+                attributes=attributes,
+                volume_mounts=volume_mounts,
+                shell=shell,
+                output=output,
+                wait=wait,
+                quiet=quiet,
+            )
+        )
     except HailctlBatchSubmitError as err:
         print(err.message)
         raise typer.Exit(err.exit_code)
