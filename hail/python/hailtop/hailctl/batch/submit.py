@@ -19,6 +19,7 @@ from hailtop.config import (
     get_hail_config_path,
     get_remote_tmpdir,
 )
+import hailtop.fs as hfs
 from hailtop.utils import secret_alnum_string
 
 from .batch_cli_utils import StructuredFormatPlusTextOption
@@ -47,11 +48,12 @@ async def submit(
     regions: Optional[List[str]],
     requester_pays_project: Optional[str],
     attributes: Optional[Dict[str, str]],
-    volume_mounts: Optional[List[str]],
+    volume_mounts: Optional[List[Tuple[str, str]]],
     shell: Optional[str],
     output: StructuredFormatPlusTextOption,
     wait: bool,
     quiet: bool,
+    # FIXME: requester pays config
 ):
     async with AsyncExitStack() as exitstack:
         fs = RouterAsyncFS()
@@ -97,21 +99,29 @@ async def submit(
         remote_user_config_dir = await transfer_user_config_into_job(remote_tmpdir)
 
         maybe_volume_mounts = await convert_volume_mounts_to_file_transfers_with_local_upload(
-            fs, remote_tmpdir, volume_mounts
+            fs, remote_tmpdir, volume_mounts or []
         )
 
         symlinks_needed = []
         input_files = [(remote_user_config_dir, local_user_config_dir + 'hail/')]
 
         for src, dest in maybe_volume_mounts:
-            rand_uid = uuid.uuid4().hex[:5]
-            io_dest = f'/io/{rand_uid}/{dest}'
-            symlinks_needed.append((io_dest, dest))
+            if hfs.is_file(src):  # FIXME: requester pays config
+                src_basename = os.path.basename(src)
+                io_dest = f'/io/{rand_uid}/{src_basename}'
+                if dest.endswith('/'):
+                    symlinks_needed.append((io_dest, f'{dest}/{src_basename}'))
+                else:
+                    symlinks_needed.append((io_dest, dest))
+            else:
+                io_dest = f'/io/{rand_uid}/'
+                symlinks_needed.append((io_dest.rstrip('/'), dest.rstrip('/')))
+
             input_files.append((src, io_dest))
 
         entrypoint_str = ' '.join([shq(x) for x in entrypoint])
 
-        symlinks = [f'ln -s {io_dest.rstrip("/")} {dest.rstrip("/")}' for io_dest, dest in symlinks_needed]
+        symlinks = [f'ln -s {io_dest} {dest}' for io_dest, dest in symlinks_needed]
         symlinks_str = "\n".join(symlinks)
 
         cmd = f"""
@@ -122,6 +132,9 @@ hailctl config profile list
 cd {workdir}
 {entrypoint_str}
 """
+
+        if regions is None:
+            regions = [client.default_region()]
 
         b.create_job(
             image=image,
@@ -160,29 +173,20 @@ async def transfer_user_config_into_job(remote_tmpdir: AsyncFSURL) -> str:
     return staging
 
 
-def parse_to_src_dest(fileopt: str) -> Tuple[Path, Path]:
-    def raise_value_error(msg: str) -> NoReturn:
-        raise ValueError(f'Invalid file specification {fileopt}: {msg}.')
-
-    try:
-        from_, to_ = fileopt.split(':')
-    except ValueError:
-        raise_value_error('Must have the form "src:dst"')
-
+def parse_to_src_dest(src: str, dst: str) -> Tuple[Path, Path]:
     from_ = __real_absolute_local_path(from_, strict=False)  # defer strictness checks and globbing
-
     return (from_, to_)
 
 
 async def convert_volume_mounts_to_file_transfers_with_local_upload(
     fs: RouterAsyncFS,
     remote_tmpdir: Path,
-    volume_mounts: List[str],
+    volume_mounts: List[Tuple[str, str]],
 ) -> List[Tuple[str, str]]:
     local_file_transfers = []
     remote_file_transfers = []
 
-    src_dst_list = [parse_to_src_dest(mount) for mount in volume_mounts]
+    src_dst_list = [parse_to_src_dest(src, dst) for src, dst in volume_mounts]
 
     for src, dst in src_dst_list:
         if fs.parse_url(str(src)).scheme == 'file':

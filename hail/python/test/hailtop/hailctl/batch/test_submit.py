@@ -177,7 +177,7 @@ world!
 
 @pytest.mark.parametrize('files', ['', ':', ':dst'])
 def test_files_invalid_format(submit, files):
-    with pytest.raises(ValueError, match='Invalid file specification'):
+    with pytest.raises(ValueError, match='Invalid format for file mount'):
         submit(__file__, ['--wait', '--quiet', '-v', files], [])
 
 
@@ -262,6 +262,7 @@ def test_files_outside_current_dir(submit, tmp_path):
                 '--wait',
                 '-o',
                 'json',
+                '--quiet',
                 '-v',
                 f'{tmp_path}/data/hello.txt:/',
                 '-v',
@@ -277,7 +278,7 @@ def test_files_dir_outside_curdir(submit, tmp_path):
         write_hello(tmp_path / 'hello1.txt')
         write_hello(tmp_path / 'hello2.txt')
         pyscript = write_pyscript(tmp_path, '/foo/hello1.txt')
-        res = submit(f'/foo/{pyscript.name}', ['--wait', '-o', '--quiet', 'json', '-v', f'{tmp_path}:/foo'], [])
+        res = submit(f'/foo/{pyscript.name}', ['--wait', '--quiet', '-o', 'json', '-v', f'{tmp_path}:/foo'], [])
         assert_exit_code(res, 0)
 
 
@@ -313,9 +314,9 @@ def test_submit_with_proper_job_settings(submit, tmp_path, client):
             'highmem',
             '--storage',
             '15Gi',
-            '--regions',
+            '--region',
             "us-east1",
-            '--regions',
+            '--region',
             "us-central1",
             '--attrs',
             'foo=bar',

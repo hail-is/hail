@@ -199,6 +199,13 @@ def parse_key_value_pair(value: str) -> Tuple[str, str]:
     return (key, val)
 
 
+def parse_file_mount(value: str) -> Tuple[str, str]:
+    if ':' not in value:
+        raise typer.BadParameter(f"Invalid format for file mount: '{value}'. " "Expected 'src:dest'.")
+    src, dest = value.split(':', 1)
+    return (src, dest)
+
+
 @app.command(
     name='submit',
     help='Submit a job using files mounted from the local file system.',
@@ -220,9 +227,10 @@ def submit(
         ),
     ] = f'hailgenetics/hail:{__pip_version__}',
     volume_mounts: Ann[
-        List[str],
-        Opt(..., "-v", help="Volume mounts in the format 'source:destination'. Can be specified multiple times."),
-    ] = [],
+        Optional[List[str]],
+        Opt(..., "-v", help="Volume mounts in the format 'source:destination'. Can be specified multiple times.",
+            parser=parse_file_mount),
+    ] = None,
     name: Ann[Optional[str], Opt(help='The name of the batch.')] = None,
     cpu: Ann[str, Opt(help='CPU for the job.')] = '1',
     memory: Ann[str, Opt(help='Memory for the job.')] = 'standard',
