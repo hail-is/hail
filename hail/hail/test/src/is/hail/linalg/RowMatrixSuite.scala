@@ -92,9 +92,9 @@ class RowMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         .toArray[Array[Double]]
     )
 
-  private def exportImportAssert(export: (String) => Unit, expected: Array[Double]*): Unit = {
+  private def exportImportAssert(`export`: (String) => Unit, expected: Array[Double]*): Unit = {
     val fname = ctx.createTmpPath("test")
-    export(fname)
+    `export`(fname)
     assert(readCSV(fname) === expected.toArray[Array[Double]])
   }
 

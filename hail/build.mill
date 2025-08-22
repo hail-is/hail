@@ -205,8 +205,6 @@ trait HailModule extends ScalaModule with ScalafmtModule with ScalafixModule { o
         // method transform in trait SeqOps is deprecated (since 2.13.0): Use `mapInPlace` on an `IndexedSeq` instead
         "-Wconf:cat=deprecation&msg=method transform in trait SeqOps is deprecated:s",
       // other
-        // Wrap `export` in backticks to use it as an identifier, it will become a keyword in Scala 3
-        "-Wconf:cat=deprecation&msg=`export`:s",
         // Widening conversion from Long to Double is deprecated because it loses precision. Write `.toDouble` instead.
         "-Wconf:cat=deprecation&msg=Widening conversion from Long to Double:s",
         "-Wconf:cat=deprecation&msg=symbol literal is deprecated:s",
