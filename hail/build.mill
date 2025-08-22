@@ -57,7 +57,7 @@ object Deps {
   val jdistlib = mvn"net.sourceforge.jdistlib:jdistlib:0.4.5"
   val freemarker = mvn"org.freemarker:freemarker:2.3.31"
   val elasticsearch = mvn"org.elasticsearch::elasticsearch-spark-30:8.4.3"
-  val gcloud = mvn"com.google.cloud:google-cloud-storage:2.30.1"
+  val gcloud = mvn"com.google.cloud:google-cloud-storage:2.55.0"
   val jna = mvn"net.java.dev.jna:jna:5.13.0"
   val json4s = mvn"org.json4s::json4s-jackson:3.7.0-M11"
   val zstd = mvn"com.github.luben:zstd-jni:1.5.5-11"
