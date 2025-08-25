@@ -18,7 +18,6 @@ import is.hail.utils.prettyPrint.ArrayOfByteArrayInputStream
 import is.hail.variant.ReferenceGenome
 
 import scala.collection.mutable
-import scala.language.existentials
 
 import java.io._
 import java.lang.reflect.InvocationTargetException
@@ -466,7 +465,7 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
     Array[AnyRef](baos.toByteArray) ++ preEncodedLiterals.map(_._1.value.ba)
   }
 
-  private[this] var _mods: BoxedArrayBuilder[(
+  private[this] val _mods: BoxedArrayBuilder[(
     String,
     (HailClassLoader, FS, HailTaskContext, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]],
   )] = new BoxedArrayBuilder()
