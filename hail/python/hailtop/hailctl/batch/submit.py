@@ -173,9 +173,9 @@ async def transfer_user_config_into_job(remote_tmpdir: AsyncFSURL) -> str:
     return staging
 
 
-def parse_to_src_dest(src: str, dst: str) -> Tuple[Path, Path]:
-    from_ = __real_absolute_local_path(from_, strict=False)  # defer strictness checks and globbing
-    return (from_, to_)
+def get_absolute_source_path(src: str, dst: str) -> Tuple[Path, Path]:
+    src = __real_absolute_local_path(src, strict=False)  # defer strictness checks and globbing
+    return (src, dest)
 
 
 async def convert_volume_mounts_to_file_transfers_with_local_upload(
@@ -186,7 +186,7 @@ async def convert_volume_mounts_to_file_transfers_with_local_upload(
     local_file_transfers = []
     remote_file_transfers = []
 
-    src_dst_list = [parse_to_src_dest(src, dst) for src, dst in volume_mounts]
+    src_dst_list = [get_absolute_source_path(src, dst) for src, dst in volume_mounts]
 
     for src, dst in src_dst_list:
         if fs.parse_url(str(src)).scheme == 'file':
