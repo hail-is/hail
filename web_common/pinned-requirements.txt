@@ -58,7 +58,7 @@ markupsafe==3.0.2
     #   -c web_common/../hail/python/dev/pinned-requirements.txt
     #   -c web_common/../hail/python/pinned-requirements.txt
     #   jinja2
-multidict==6.6.3
+multidict==6.6.4
     # via
     #   -c web_common/../gear/pinned-requirements.txt
     #   -c web_common/../hail/python/dev/pinned-requirements.txt
@@ -72,7 +72,7 @@ propcache==0.3.2
     #   -c web_common/../hail/python/pinned-requirements.txt
     #   aiohttp
     #   yarl
-typing-extensions==4.14.1
+typing-extensions==4.15.0
     # via
     #   -c web_common/../gear/pinned-requirements.txt
     #   -c web_common/../hail/python/dev/pinned-requirements.txt
