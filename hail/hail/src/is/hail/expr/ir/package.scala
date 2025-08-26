@@ -11,6 +11,8 @@ import is.hail.types.virtual._
 import is.hail.types.virtual.TIterable.elementType
 import is.hail.utils._
 
+import scala.collection.BufferedIterator
+
 import java.util.UUID
 
 package object ir {
