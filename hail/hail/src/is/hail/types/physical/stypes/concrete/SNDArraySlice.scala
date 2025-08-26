@@ -10,6 +10,8 @@ import is.hail.types.physical.stypes.primitives.SInt64
 import is.hail.types.virtual.{TNDArray, Type}
 import is.hail.utils.toRichIterable
 
+import scala.collection.compat._
+
 final case class SNDArraySlice(pType: PCanonicalNDArray) extends SNDArray {
   override def nDims: Int = pType.nDims
 
@@ -130,8 +132,8 @@ final class SNDArraySliceSettable(
 
   override def store(cb: EmitCodeBuilder, v: SValue): Unit = v match {
     case v: SNDArraySliceValue =>
-      (shape, v.shapes).zipped.foreach((x, s) => cb.assign(x, s))
-      (strides, v.strides).zipped.foreach((x, s) => cb.assign(x, s))
+      shape.lazyZip(v.shapes).foreach((x, s) => cb.assign(x, s))
+      strides.lazyZip(v.strides).foreach((x, s) => cb.assign(x, s))
       cb.assign(firstDataAddress, v.firstDataAddress)
   }
 }

@@ -7,6 +7,8 @@ import is.hail.types.physical.stypes.{SSettable, SType, SValue}
 import is.hail.types.physical.stypes.interfaces.{SStream, SStreamValue}
 import is.hail.utils._
 
+import scala.collection.compat._
+
 object EmitCodeBuilder {
   def apply(mb: EmitMethodBuilder[_]): EmitCodeBuilder = new EmitCodeBuilder(mb, Code._empty)
 
@@ -119,7 +121,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     s.store(this, v)
 
   def assign(is: IndexedSeq[EmitSettable], ix: IndexedSeq[EmitCode]): Unit =
-    (is, ix).zipped.foreach((s, c) => s.store(this, c))
+    is.lazyZip(ix).foreach((s, c) => s.store(this, c))
 
   def memoizeField(pc: SValue, name: String): SValue = {
     val f = emb.newPField(name, pc.st)

@@ -4,6 +4,8 @@ import is.hail.{lir, HAIL_BUILD_CONFIGURATION}
 import is.hail.macros.void
 import is.hail.utils.{toRichIterable, Traceback}
 
+import scala.collection.compat._
+
 import org.objectweb.asm.Opcodes.{INVOKESTATIC, INVOKEVIRTUAL}
 
 abstract class SettableBuilder {
@@ -143,7 +145,7 @@ trait CodeBuilderLike {
     val Ldefault = CodeLabel()
 
     append(discriminant.switch(Ldefault, Lcases))
-    (Lcases, cases).zipped.foreach { case (label, emitCase) =>
+    Lcases.lazyZip(cases).foreach { case (label, emitCase) =>
       define(label)
       emitCase()
       if (isOpenEnded) append(Lexit.goto)
