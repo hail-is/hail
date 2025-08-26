@@ -5,6 +5,7 @@ import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
 import is.hail.rvd.RVDContext
 import is.hail.utils._
 
+import scala.collection.compat._
 import scala.reflect.ClassTag
 
 import org.apache.spark._
@@ -182,7 +183,7 @@ class ContextRDD[T: ClassTag](
   def filter(f: T => Boolean): ContextRDD[T] =
     mapPartitions(_.filter(f), preservesPartitioning = true)
 
-  def flatMap[U: ClassTag](f: T => TraversableOnce[U]): ContextRDD[U] =
+  def flatMap[U: ClassTag](f: T => IterableOnce[U]): ContextRDD[U] =
     mapPartitions(_.flatMap(f))
 
   def mapPartitions[U: ClassTag](
@@ -203,7 +204,7 @@ class ContextRDD[T: ClassTag](
   def cfilter(f: (RVDContext, T) => Boolean): ContextRDD[T] =
     cmapPartitions((c, it) => it.filter(f(c, _)), true)
 
-  def cflatMap[U: ClassTag](f: (RVDContext, T) => TraversableOnce[U]): ContextRDD[U] =
+  def cflatMap[U: ClassTag](f: (RVDContext, T) => IterableOnce[U]): ContextRDD[U] =
     cmapPartitions((c, it) => it.flatMap(f(c, _)))
 
   def cmapPartitions[U: ClassTag](

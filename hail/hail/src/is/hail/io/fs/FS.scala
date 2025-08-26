@@ -630,7 +630,7 @@ trait FS extends Serializable with Logging {
     }
   }
 
-  def writeTable(filename: String, lines: Traversable[String], header: Option[String] = None)
+  def writeTable(filename: String, lines: Iterable[String], header: Option[String] = None)
     : Unit = {
     using(new OutputStreamWriter(create(filename))) { fw =>
       header.foreach { h =>

@@ -7,6 +7,7 @@ import is.hail.io.fs.FS
 import is.hail.types.physical.PTuple
 import is.hail.variant.ReferenceGenome
 
+import scala.collection.compat._
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
@@ -27,7 +28,7 @@ object Graph {
     m
   }
 
-  def mkGraph[T](edges: TraversableOnce[(T, T)]): mutable.MultiMap[T, T] = {
+  def mkGraph[T](edges: IterableOnce[(T, T)]): mutable.MultiMap[T, T] = {
     val m = new mutable.HashMap[T, mutable.Set[T]]() with mutable.MultiMap[T, T]
     edges.foreach { case (i, j) =>
       m.addBinding(i, j)
