@@ -810,7 +810,7 @@ class TableIRSuite extends HailSuite {
                 Literal(t, initialData),
                 Some(howManyInitialPartitions),
               ),
-              howManyRowsToTake,
+              howManyRowsToTake.toLong,
             )
           ),
           headData,
@@ -846,7 +846,7 @@ class TableIRSuite extends HailSuite {
                 Literal(t, initialData),
                 Some(howManyInitialPartitions),
               ),
-              howManyRowsToTake,
+              howManyRowsToTake.toLong,
             )
           ),
           headData,

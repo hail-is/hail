@@ -27,7 +27,7 @@ class PContainerTest extends PhysicalTestUtils {
     log.info(s"Testing $data")
 
     val res =
-      Region.containsNonZeroBits(src + sourceType.missingBytesOffset, sourceType.loadLength(src))
+      Region.containsNonZeroBits(src + sourceType.missingBytesOffset, sourceType.loadLength(src).toLong)
     res
   }
 

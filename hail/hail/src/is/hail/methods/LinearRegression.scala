@@ -154,7 +154,7 @@ case class LinearRegressionRowsSingle(
           val se = sqrt(dRec * (yyp * xxpRec.t - (b *:* b)))
 
           val t = b /:/ se
-          val p = t.map(s => 2 * T.cumulative(-math.abs(s), d, true, false))
+          val p = t.map(s => 2 * T.cumulative(-math.abs(s), d.toDouble, true, false))
 
           (0 until blockLength).iterator.map { i =>
             val wrv = blockWRVs(i)
@@ -338,7 +338,7 @@ case class LinearRegressionRowsChained(
             val se = sqrt((1d / cri.d) * (yyp * xxpRec.t - (b *:* b)))
 
             val t = b /:/ se
-            val p = t.map(s => 2 * T.cumulative(-math.abs(s), cri.d, true, false))
+            val p = t.map(s => 2 * T.cumulative(-math.abs(s), cri.d.toDouble, true, false))
 
             ChainedLinregResult(cri.n, AC, ytx, b, se, t, p)
           }

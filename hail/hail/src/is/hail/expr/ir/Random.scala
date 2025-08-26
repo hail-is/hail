@@ -580,7 +580,7 @@ class ThreefryRandomEngine(
     }
     // use trailing zeroes instead of leading zeroes as slight optimization,
     // but probabilistically equivalent
-    val e = java.lang.Long.numberOfTrailingZeros(bits)
+    val e = java.lang.Integer.numberOfTrailingZeros(bits)
     exponent -= e
     // If there are at least 23 bits before the trailing 1, use those
     val significand = (if (e < 9) bits else nextInt()) >>> 9

@@ -123,7 +123,7 @@ case class BlockMatrixNativeMetadataWriter(
 
       info(s"wrote matrix with $nRows ${plural(nRows, "row")} " +
         s"and $nCols ${plural(nCols, "column")} " +
-        s"as $nBlocks ${plural(nBlocks, "block")} " +
+        s"as $nBlocks ${plural(nBlocks.toLong, "block")} " +
         s"of size $blockSize to $path")
     }
   }

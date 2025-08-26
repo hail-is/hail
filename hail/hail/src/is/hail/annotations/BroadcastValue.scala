@@ -73,7 +73,7 @@ trait BroadcastRegionValue {
           val arrays = encodeToByteArrays(theHailClassLoader)
           val totalSize = arrays.map(_.length).sum
           log.info(
-            s"BroadcastRegionValue.broadcast: broadcasting ${arrays.length} byte arrays of total size $totalSize (${formatSpace(totalSize)}"
+            s"BroadcastRegionValue.broadcast: broadcasting ${arrays.length} byte arrays of total size $totalSize (${formatSpace(totalSize.toLong)}"
           )
           val srv = SerializableRegionValue(arrays, decodedPType, makeDec)
           broadcasted = ctx.backend.broadcast(srv)

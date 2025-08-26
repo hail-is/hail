@@ -2489,7 +2489,7 @@ class IRSuite extends HailSuite {
             MakeStruct(FastSeq(
               "lk1" -> (if (n == null) NA(TInt32) else I32(n)),
               "lk2" -> Str("x"),
-              "a" -> I64(idx),
+              "a" -> I64(idx.toLong),
             ))
           },
         ),

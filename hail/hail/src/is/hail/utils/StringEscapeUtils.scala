@@ -4,7 +4,7 @@ import java.util.Locale
 
 object StringEscapeUtils {
 
-  def hex(ch: Char): String = Integer.toHexString(ch).toUpperCase(Locale.ENGLISH)
+  def hex(ch: Char): String = Integer.toHexString(ch.toInt).toUpperCase(Locale.ENGLISH)
 
   def escapeStringSimple(
     str: String,
@@ -19,7 +19,7 @@ object StringEscapeUtils {
       if (c == escapeChar || escape(c) || (i == 0 && escapeFirst(c)) || c > 255) {
         sb += escapeChar
 
-        val h = Integer.toHexString(c)
+        val h = Integer.toHexString(c.toInt)
         if (c < 256) {
           assert(h.length <= 2)
           val hpad = "0" * (2 - h.length) + h
