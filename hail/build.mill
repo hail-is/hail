@@ -148,8 +148,6 @@ trait HailModule extends ScalaModule with ScalafmtModule with ScalafixModule { o
       finalOptions ++
       Seq(
       // collection types
-        // type BufferedIterator in package scala is deprecated (since 2.13.0): Use scala.collection.BufferedIterator instead of scala.BufferedIterator
-        "-Wconf:cat=deprecation&msg=type BufferedIterator in package scala is deprecated:s",
         // class Stream in package immutable is deprecated (since 2.13.0): Use LazyList (which is fully lazy) instead of Stream (which has a lazy tail only)
         "-Wconf:cat=deprecation&msg=Stream:s",
         // type Growable in package generic is deprecated (since 2.13.0): Growable was moved from collection.generic to collection.mutable

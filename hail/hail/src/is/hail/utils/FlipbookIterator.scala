@@ -2,6 +2,7 @@ package is.hail.utils
 
 import org.typelevel.scalaccompat.annotation.nowarn213
 
+import scala.collection.BufferedIterator
 import scala.collection.compat._
 import scala.collection.generic.Growable
 import scala.collection.mutable.PriorityQueue
