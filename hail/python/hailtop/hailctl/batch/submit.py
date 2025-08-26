@@ -1,14 +1,14 @@
-import uuid
-
 import os
 import shlex
+import uuid
 from contextlib import AsyncExitStack
 from pathlib import Path
-from typing import Any, Dict, List, NoReturn, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import orjson
 
 import hailtop.batch_client.aioclient as bc
+import hailtop.fs as hfs
 from hailtop.aiotools.copy import copy_from_dict
 from hailtop.aiotools.fs import AsyncFSURL
 from hailtop.aiotools.router_fs import RouterAsyncFS
@@ -19,7 +19,6 @@ from hailtop.config import (
     get_hail_config_path,
     get_remote_tmpdir,
 )
-import hailtop.fs as hfs
 from hailtop.utils import secret_alnum_string
 
 from .batch_cli_utils import StructuredFormatPlusTextOption
@@ -106,6 +105,7 @@ async def submit(
         input_files = [(remote_user_config_dir, local_user_config_dir + 'hail/')]
 
         for src, dest in maybe_volume_mounts:
+            rand_uid = uuid.uuid4().hex[:6]
             if hfs.is_file(src):  # FIXME: requester pays config
                 src_basename = os.path.basename(src)
                 io_dest = f'/io/{rand_uid}/{src_basename}'
