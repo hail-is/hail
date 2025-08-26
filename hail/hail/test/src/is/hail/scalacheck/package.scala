@@ -59,7 +59,7 @@ package object scalacheck
         }
     }
 
-  private[scalacheck] def MaxCollisionsExceeded(s: Traversable[_], size: Int, collisions: Int) =
+  private[scalacheck] def MaxCollisionsExceeded(s: Iterable[_], size: Int, collisions: Int) =
     new RuntimeException(
       f"Failed to generate $size distinct elements after $collisions collisions." +
         f"Elements are: ${s.mkString("[", ", ", "]")}"

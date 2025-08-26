@@ -712,11 +712,11 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
   private def intervalsFromLiteral(lit: Any, ordering: Ordering[Any], wrapped: Boolean): KeySet =
     (lit: @unchecked) match {
       case x: Map[_, _] => intervalsFromCollection(x.keys, ordering, wrapped)
-      case x: Traversable[_] => intervalsFromCollection(x, ordering, wrapped)
+      case x: Iterable[_] => intervalsFromCollection(x, ordering, wrapped)
     }
 
   private def intervalsFromCollection(
-    lit: Traversable[Any],
+    lit: Iterable[Any],
     ordering: Ordering[Any],
     wrapped: Boolean,
   ): KeySet =
@@ -733,7 +733,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
             TInt32.ordering(null).toOrdering.asInstanceOf[Ordering[Integer]]
           )
           .flatMap(getIntervalFromContig(_, rg))
-      case x: Traversable[_] => x.asInstanceOf[Traversable[String]].toArray.toFastSeq
+      case x: Iterable[_] => x.asInstanceOf[Iterable[String]].toArray.toFastSeq
           .sortBy(rg.contigsIndex.get(_))(
             TInt32.ordering(null).toOrdering.asInstanceOf[Ordering[Integer]]
           )
