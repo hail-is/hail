@@ -561,7 +561,7 @@ abstract class RegistryFunctions {
           val res = impl(cb, r, rpt, errorID, args.toArray)
           if (res.emitType != calculateReturnType(rpt.virtualType, args.map(_.emitType)))
             throw new RuntimeException(
-              s"type mismatch while registering $name" +
+              s"type mismatch while registering ${this.name}" +
                 s"\n  got ${res.emitType}, got ${calculateReturnType(rpt.virtualType, args.map(_.emitType))}"
             )
           res

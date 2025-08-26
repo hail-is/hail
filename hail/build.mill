@@ -130,7 +130,6 @@ trait HailModule extends ScalaModule with ScalafmtModule with ScalafixModule { o
       ScalacOptions.warnUnusedParams, ScalacOptions.privateWarnUnusedParams,
       ScalacOptions.warnUnusedImplicits, ScalacOptions.privateWarnUnusedImplicits,
       ScalacOptions.warnUnusedExplicits,
-      ScalacOptions.warnDeadCode, ScalacOptions.privateWarnDeadCode,
       // we don't enable the unused imports warning in 2.12, as the wconf origin filter doesn't work
       ScalacOptions.privateWarnUnusedImports,
       ScalacOptions.warnNonUnitStatement,
@@ -231,12 +230,7 @@ trait HailModule extends ScalaModule with ScalafmtModule with ScalafixModule { o
         "-Wconf:cat=deprecation&msg=unary prefix operator definition with empty parameter list is deprecated:s" +:
         "-Wconf:cat=other-nullary-override:s" +:
       // other
-        // Wrap `export` in backticks to use it as an identifier, it will become a keyword in Scala 3
-        "-Wconf:cat=deprecation&msg=`export`:s" +:
         "-Wconf:cat=deprecation&msg=symbol literal is deprecated:s" +:
-        "-Wconf:cat=other-match-analysis:s" +:
-        "-Wconf:cat=other-implicit-type:s" +:
-        "-Wconf:msg=legacy-binding:s" +:
         raw"-Wconf:cat=unused-imports&origin=scala\.collection\.compat\._:s" +:
         raw"-Wconf:cat=unused-imports&origin=scala\.Option\.option2Iterable:s" +:
         raw"-Wconf:cat=unused-imports&origin=is\.hail\.utils\.compat\._:s" +:
@@ -262,7 +256,7 @@ trait HailModule extends ScalaModule with ScalafmtModule with ScalafixModule { o
   }
 }
 
-object hail extends Cross[RootHailModule](Seq("2.12", "2.12.13", "2.13"))
+object hail extends Cross[RootHailModule](Seq("2.12", "2.13"))
 
 trait RootHailModule extends CrossScalaModule with HailModule { outer =>
   def buildInfo: T[PathRef] = Task {
@@ -338,8 +332,8 @@ trait RootHailModule extends CrossScalaModule with HailModule { outer =>
   override def compileMvnDeps: T[Seq[Dep]] = Seq(
     Deps.log4jApi,
     Deps.hadoopClient,
-    Deps.Spark.core().excludeOrg("org.scalanlp"),  // Hail has an explicit dependency on Breeze 1.1
-    Deps.Spark.mllib().excludeOrg("org.scalanlp"),  // Hail has an explicit dependency on Breeze 1.1
+    Deps.Spark.core(),//.excludeOrg("org.scalanlp"),  // Hail has an explicit dependency on Breeze 1.1
+    Deps.Spark.mllib(),//.excludeOrg("org.scalanlp"),  // Hail has an explicit dependency on Breeze 1.1
     Deps.Breeze.core,
     Deps.jackson,
     Deps.scalac_compat,

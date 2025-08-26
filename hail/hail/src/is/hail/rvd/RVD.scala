@@ -1231,11 +1231,11 @@ object RVD {
 
       new RVDCoercer(fullType) {
         val unfixedPartitioner =
-          new RVDPartitioner(execCtx.stateManager, fullType.kType.virtualType, bounds)
+          new RVDPartitioner(execCtx.stateManager, this.fullType.kType.virtualType, bounds)
         val newPartitioner = RVDPartitioner.generate(
           execCtx.stateManager,
-          fullType.key.take(partitionKey),
-          fullType.kType.virtualType,
+          this.fullType.key.take(partitionKey),
+          this.fullType.kType.virtualType,
           bounds,
         )
 
@@ -1259,13 +1259,13 @@ object RVD {
       new RVDCoercer(fullType) {
         val unfixedPartitioner = new RVDPartitioner(
           execCtx.stateManager,
-          fullType.kType.virtualType.truncate(partitionKey),
+          this.fullType.kType.virtualType.truncate(partitionKey),
           pkBounds,
         )
         val newPartitioner = RVDPartitioner.generate(
           execCtx.stateManager,
-          fullType.key.take(partitionKey),
-          fullType.kType.virtualType.truncate(partitionKey),
+          this.fullType.key.take(partitionKey),
+          this.fullType.kType.virtualType.truncate(partitionKey),
           pkBounds,
         )
 
@@ -1286,7 +1286,7 @@ object RVD {
 
       new RVDCoercer(fullType) {
         val newPartitioner =
-          calculateKeyRanges(execCtx, fullType, keyInfo, keys.getNumPartitions, partitionKey)
+          calculateKeyRanges(execCtx, this.fullType, keyInfo, keys.getNumPartitions, partitionKey)
 
         def _coerce(typ: RVDType, crdd: CRDD): RVD =
           RVD.unkeyed(typ.rowType, crdd)

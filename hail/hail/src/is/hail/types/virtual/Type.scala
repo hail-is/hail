@@ -77,8 +77,9 @@ abstract class Type extends VType with Serializable {
     else
       s
   }
+  scala.collection.immutable.ArraySeq
 
-  def export(a: Annotation): JValue =
+  def `export`(a: Annotation): JValue =
     JSONAnnotationImpex.exportAnnotation(a, this)
 
   override def toJSON: JValue =

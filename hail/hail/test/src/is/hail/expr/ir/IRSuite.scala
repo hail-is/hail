@@ -34,7 +34,7 @@ import org.scalatest.enablers.InspectorAsserting.assertingNatureOfAssertion
 import org.testng.annotations.{DataProvider, Test}
 
 class IRSuite extends HailSuite {
-  implicit val execStrats = ExecStrategy.nonLowering
+  implicit val execStrats: Set[ExecStrategy] = ExecStrategy.nonLowering
 
   @Test def testRandDifferentLengthUIDStrings(): scalatest.Assertion = {
     implicit val execStrats = ExecStrategy.lowering
@@ -3261,7 +3261,7 @@ class IRSuite extends HailSuite {
   def valueIRs(ctx: ExecuteContext): Array[Array[Object]] = {
     val fs = ctx.fs
 
-    CompileAndEvaluate(
+    CompileAndEvaluate[Unit](
       ctx,
       invoke(
         "index_bgen",
@@ -3715,7 +3715,7 @@ class IRSuite extends HailSuite {
     try {
       val fs = ctx.fs
 
-      CompileAndEvaluate(
+      CompileAndEvaluate[Unit](
         ctx,
         invoke(
           "index_bgen",
