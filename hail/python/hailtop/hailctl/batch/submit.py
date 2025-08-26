@@ -134,7 +134,7 @@ cd {workdir}
 """
 
         if regions is None:
-            regions = [client.default_region()]
+            regions = [await client.default_region()]
 
         b.create_job(
             image=image,
