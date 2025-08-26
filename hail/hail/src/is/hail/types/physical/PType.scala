@@ -332,9 +332,9 @@ abstract class PType extends Serializable with Requiredness {
 
   def alignment: Long = byteSize
 
-  final def unary_+(): PType = setRequired(true)
+  final def unary_+ : PType = setRequired(true)
 
-  final def unary_-(): PType = setRequired(false)
+  final def unary_- : PType = setRequired(false)
 
   def setRequired(required: Boolean): PType
 

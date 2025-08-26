@@ -279,7 +279,7 @@ object IntervalFunctions extends RegistryFunctions {
 
     val compare = BinarySearch.Comparator.fromLtGt(ltNeedle, gtNeedle)
 
-    BinarySearch.equalRange(cb, intervals, compare, ltNeedle, gtNeedle, 0, intervals.loadLength())
+    BinarySearch.equalRange(cb, intervals, compare, ltNeedle, gtNeedle, 0, intervals.loadLength)
   }
 
   def arrayOfStructFindIntervalRange(
@@ -303,7 +303,7 @@ object IntervalFunctions extends RegistryFunctions {
     }
     val compare = BinarySearch.Comparator.fromLtGt(ltNeedle, gtNeedle)
 
-    BinarySearch.equalRange(cb, array, compare, ltNeedle, gtNeedle, 0, array.loadLength())
+    BinarySearch.equalRange(cb, array, compare, ltNeedle, gtNeedle, 0, array.loadLength)
   }
 
   def registerAll(): Unit = {

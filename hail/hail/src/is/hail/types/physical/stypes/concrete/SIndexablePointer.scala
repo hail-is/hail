@@ -33,7 +33,7 @@ final case class SIndexablePointer(pType: PContainer) extends SContainer {
         new SIndexablePointerValue(
           this,
           a,
-          value.loadLength(),
+          value.loadLength,
           cb.memoize(pType.firstElementOffset(a)),
         )
     }
@@ -81,7 +81,7 @@ class SIndexablePointerValue(
 
   override lazy val valueTuple: IndexedSeq[Value[_]] = FastSeq(a, length, elementsAddress)
 
-  override def loadLength(): Value[Int] = length
+  override def loadLength: Value[Int] = length
 
   override def loadElement(cb: EmitCodeBuilder, i: Code[Int]): IEmitCode = {
     val iv = cb.memoize(i)

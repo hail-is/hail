@@ -129,13 +129,13 @@ class SCanonicalCallValue(val call: Value[Int]) extends SCallValue {
     def checkAndTranslate(cb: EmitCodeBuilder, allele: Code[Int]): Code[Int] = {
       val av = cb.newLocal[Int](s"allele", allele)
       cb.if_(
-        av >= localAlleles.loadLength(),
+        av >= localAlleles.loadLength,
         cb._fatalWithError(
           errorID,
           s"lgt_to_gt: found allele ",
           av.toS,
           ", but there are only ",
-          localAlleles.loadLength().toS,
+          localAlleles.loadLength.toS,
           " local alleles",
         ),
       )
@@ -178,7 +178,7 @@ class SCanonicalCallValue(val call: Value[Int]) extends SCallValue {
           )
 
           cb.if_(
-            j >= localAlleles.loadLength(),
+            j >= localAlleles.loadLength,
             cb._fatalWithError(errorID, "invalid lgt_to_gt: allele "),
           )
 

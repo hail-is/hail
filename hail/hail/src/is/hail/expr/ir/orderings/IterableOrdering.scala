@@ -21,7 +21,7 @@ object IterableOrdering {
         f: (EmitValue, EmitValue) => Unit
       ): Unit = {
         val i = cb.newLocal[Int]("i")
-        val lim = cb.newLocal("lim", lhs.loadLength().min(rhs.loadLength()))
+        val lim = cb.newLocal("lim", lhs.loadLength.min(rhs.loadLength))
         cb.for_(
           cb.assign(i, 0),
           i < lim,
@@ -52,8 +52,8 @@ object IterableOrdering {
           cmp,
           Code.invokeStatic2[java.lang.Integer, Int, Int, Int](
             "compare",
-            lhs.loadLength(),
-            rhs.loadLength(),
+            lhs.loadLength,
+            rhs.loadLength,
           ),
         )
         cb.define(Lout)
@@ -82,7 +82,7 @@ object IterableOrdering {
           )
         }
 
-        cb.assign(ret, lhs.loadLength() < rhs.loadLength())
+        cb.assign(ret, lhs.loadLength < rhs.loadLength)
         cb.define(Lout)
         ret
       }
@@ -109,7 +109,7 @@ object IterableOrdering {
           )
         }
 
-        cb.assign(ret, lhs.loadLength() <= rhs.loadLength)
+        cb.assign(ret, lhs.loadLength <= rhs.loadLength)
         cb.define(Lout)
         ret
       }
@@ -136,7 +136,7 @@ object IterableOrdering {
           )
         }
 
-        cb.assign(ret, lhs.loadLength() > rhs.loadLength())
+        cb.assign(ret, lhs.loadLength > rhs.loadLength)
         cb.define(Lout)
         ret
       }
@@ -163,7 +163,7 @@ object IterableOrdering {
           )
         }
 
-        cb.assign(ret, lhs.loadLength() >= rhs.loadLength)
+        cb.assign(ret, lhs.loadLength >= rhs.loadLength)
         cb.define(Lout)
         ret
       }
@@ -179,7 +179,7 @@ object IterableOrdering {
 
         val lhs = x.asIndexable
         val rhs = y.asIndexable
-        cb.if_(lhs.loadLength().cne(rhs.loadLength()), exitWith(false))
+        cb.if_(lhs.loadLength.cne(rhs.loadLength), exitWith(false))
         loop(cb, lhs, rhs) { (lhs, rhs) =>
           cb.assign(ret, elemEq(cb, lhs, rhs))
           cb.if_(!ret, cb.goto(Lout))

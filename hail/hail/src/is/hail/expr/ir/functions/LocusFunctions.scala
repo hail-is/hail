@@ -242,7 +242,7 @@ object LocusFunctions extends RegistryFunctions {
             errorID,
           ) =>
         val radius = radiusVal.value
-        val ncontigs = grouped.loadLength()
+        val ncontigs = grouped.loadLength
         val totalLen = cb.newLocal[Int]("locuswindows_totallen", 0)
 
         def forAllContigs(
@@ -284,7 +284,7 @@ object LocusFunctions extends RegistryFunctions {
           forAllContigs(cb) { case (cb, _, coords) =>
             val i = cb.newLocal[Int]("locuswindows_i", 0)
             val idx = cb.newLocal[Int]("locuswindows_idx", 0)
-            val len = coords.loadLength()
+            val len = coords.loadLength
             cb.if_(
               len.ceq(0),
               cb.assign(lastCoord, 0.0),
@@ -345,7 +345,7 @@ object LocusFunctions extends RegistryFunctions {
         }
 
         forAllContigs(cb) { case (cb, _, coordsPerContig) =>
-          cb.assign(totalLen, totalLen + coordsPerContig.loadLength())
+          cb.assign(totalLen, totalLen + coordsPerContig.loadLength)
         }
 
         rt.constructFromFields(

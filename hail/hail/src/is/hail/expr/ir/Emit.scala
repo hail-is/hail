@@ -72,7 +72,7 @@ case class EmitEnv(bindings: Env[EmitValue], inputValues: IndexedSeq[EmitValue])
     val paramTypes =
       bindingNames.map(name => m(name).emitType.paramType) ++ inputValues.map(_.emitType.paramType)
     val params =
-      bindingNames.flatMap(name => m(name).valueTuple()) ++ inputValues.flatMap(_.valueTuple())
+      bindingNames.flatMap(name => m(name).valueTuple) ++ inputValues.flatMap(_.valueTuple)
     val recreateFromMB = {
       (cb: EmitCodeBuilder, startIdx: Int) =>
         val emb = cb.emb
@@ -262,7 +262,7 @@ class EmitValue protected (missing: Option[Value[Boolean]], val v: SValue) {
 
   lazy val emitType: EmitType = EmitType(v.st, required)
 
-  def valueTuple(): IndexedSeq[Value[_]] = missing match {
+  def valueTuple: IndexedSeq[Value[_]] = missing match {
     case Some(m) => v.valueTuple :+ m
     case None => v.valueTuple
   }
@@ -1295,7 +1295,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
         emitI(a).flatMap(cb) { case av: SIndexableValue =>
           emitI(i).flatMap(cb) { case ic: SInt32Value =>
             val iv = ic.value
-            cb.invokeVoid(boundsCheck, cb.this_, iv, av.loadLength(), const(errorID))
+            cb.invokeVoid(boundsCheck, cb.this_, iv, av.loadLength, const(errorID))
             av.loadElement(cb, iv)
           }
         }
@@ -1304,7 +1304,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
         emitI(a).flatMap(cb) { case arrayValue: SIndexableValue =>
           emitI(start).flatMap(cb) { startCode =>
             emitI(step).flatMap(cb) { stepCode =>
-              val arrayLength = arrayValue.loadLength()
+              val arrayLength = arrayValue.loadLength
               val realStep = cb.newLocal[Int]("array_slice_requestedStep", stepCode.asInt.value)
 
               cb.if_(
@@ -1383,7 +1383,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
         }
 
       case ArrayLen(a) =>
-        emitI(a).map(cb)(ac => primitive(ac.asIndexable.loadLength()))
+        emitI(a).map(cb)(ac => primitive(ac.asIndexable.loadLength))
 
       case GetField(o, name) =>
         emitI(o).flatMap(cb)(oc => oc.asBaseStruct.loadField(cb, name))

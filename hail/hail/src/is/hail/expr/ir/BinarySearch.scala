@@ -172,7 +172,7 @@ object BinarySearch {
     haystack: SIndexableValue,
     ltNeedle: IEmitCode => Code[Boolean],
   ): Value[Int] =
-    lowerBound(cb, haystack, ltNeedle, 0, haystack.loadLength())
+    lowerBound(cb, haystack, ltNeedle, 0, haystack.loadLength)
 
   /** Returns i in ['start', 'end'] such that
     *   - range [start, i) is <= needle
@@ -194,7 +194,7 @@ object BinarySearch {
     haystack: SIndexableValue,
     gtNeedle: IEmitCode => Code[Boolean],
   ): Value[Int] =
-    lowerBound(cb, haystack, gtNeedle, 0, haystack.loadLength())
+    lowerBound(cb, haystack, gtNeedle, 0, haystack.loadLength)
 
   /** Returns 'start' <= i <= 'end' such that
     *   - pred is false on range [start, i), and
@@ -228,7 +228,7 @@ object BinarySearch {
     haystack: SIndexableValue,
     pred: IEmitCode => Code[Boolean],
   ): Value[Int] =
-    partitionPoint(cb, haystack, pred, const(0), haystack.loadLength())
+    partitionPoint(cb, haystack, pred, const(0), haystack.loadLength)
 
   /** Perform binary search until either
     *   - an index m is found for which haystack(i) is incomparable with the needle, i.e. neither
@@ -315,7 +315,7 @@ object BinarySearch {
     found: (Value[Int], Value[Int], Value[Int]) => Code[T],
     notFound: Value[Int] => Code[T],
   ): Value[T] =
-    runSearchBounded[T](cb, haystack, compare, 0, haystack.loadLength(), found, notFound)
+    runSearchBounded[T](cb, haystack, compare, 0, haystack.loadLength, found, notFound)
 }
 
 class BinarySearch[C](

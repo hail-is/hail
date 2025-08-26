@@ -186,13 +186,13 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
       new StateMachine[B] {
         var it: FlipbookIterator[B] = _
         if (self.isValid) it = f(self.value).toIterator.toFlipbookIterator
-        findNextValid
+        findNextValid()
         def value: B = it.value
         def isValid = self.isValid
 
         def advance(): Unit = {
           it.advance()
-          findNextValid
+          findNextValid()
         }
 
         def findNextValid(): Unit =
@@ -213,7 +213,7 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
     def calculateValidity: Boolean
     def value: A
     def advance(): Unit
-    refreshValidity
+    refreshValidity()
   }
 
   def staircased(ord: OrderingView[A]): StagingIterator[FlipbookIterator[A]] = {
@@ -223,7 +223,7 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
       def calculateValidity: Boolean = self.isValid && ord.isEquivalent(self.value)
       def advance() = {
         self.advance()
-        refreshValidity
+        refreshValidity()
       }
     }
     val stepIterator: FlipbookIterator[A] = FlipbookIterator(stepSM)
@@ -234,10 +234,10 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
         stepIterator.exhaust()
         if (self.isValid) {
           ord.setValue(self.value)
-          stepSM.refreshValidity
+          stepSM.refreshValidity()
         } else {
           ord.setBottom()
-          stepSM.refreshValidity
+          stepSM.refreshValidity()
           isValid = false
         }
       }

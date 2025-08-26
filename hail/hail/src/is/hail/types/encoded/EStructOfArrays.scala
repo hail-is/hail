@@ -115,14 +115,14 @@ final case class EStructOfArrays(
 
         val array = field.typ.buildDecoder(t, cb.emb.ecb)(cb, scratchRegion, in).asIndexable
         cb.if_(
-          array.loadLength().cne(length),
+          array.loadLength.cne(length),
           cb._fatal(
             "Mismatch in length for decoded array of field `",
             field.name,
             "` expected ",
             length.toS,
             ", was ",
-            array.loadLength().toS,
+            array.loadLength.toS,
           ),
         )
         cb.assign(i, 0)

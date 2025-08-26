@@ -634,7 +634,7 @@ abstract class RegistryFunctions {
               val sv = code.asIndexable
               val arr = cb.newLocal[Array[String]](
                 "scode_array_string",
-                Code.newArray[String](sv.loadLength()),
+                Code.newArray[String](sv.loadLength),
               )
               sv.forEachDefined(cb) { case (cb, idx, elt) =>
                 cb += (arr(idx) = elt.asString.loadString(cb))

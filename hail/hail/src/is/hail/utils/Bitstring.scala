@@ -40,7 +40,7 @@ case class Bitstring(contents: IndexedSeq[Long], bitsInLastWord: Int) {
       i += 1
     }
     result += ')'
-    result.result
+    result.result()
   }
 
   def ++(rhs: Bitstring): Bitstring = {

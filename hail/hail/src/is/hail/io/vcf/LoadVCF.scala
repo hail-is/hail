@@ -307,8 +307,6 @@ final class VCFLine(
     }
   }
 
-  def endFilterArrayElement(p: Int): Boolean = endInfoField
-
   def endField(): Boolean = endField(pos)
 
   def endArrayElement(): Boolean = endArrayElement(pos)
@@ -325,7 +323,7 @@ final class VCFLine(
 
   def endFormatArrayElement(): Boolean = endFormatArrayElement(pos)
 
-  def endFilterArrayElement(): Boolean = endFilterArrayElement(pos)
+  def endFilterArrayElement(): Boolean = endInfoField()
 
   def skipInfoField(): Unit =
     while (!endInfoField())
@@ -1711,7 +1709,7 @@ class PartitionedVCFRDD(
     val lines = new TabixLineIterator(fsBc.value, file, reg)
 
     // clean up
-    val context = TaskContext.get
+    val context = TaskContext.get()
     context.addTaskCompletionListener[Unit]((context: TaskContext) => lines.close())
 
     val it: Iterator[WithContext[String]] = new Iterator[WithContext[String]] {
