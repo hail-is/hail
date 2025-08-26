@@ -31,6 +31,7 @@ from gear import (
     Transaction,
     check_csrf_token,
     get_authenticator,
+    global_security_headers_middleware,
     json_request,
     json_response,
     monitor_endpoints_middleware,
@@ -1767,7 +1768,8 @@ def run():
     install_profiler_if_requested('batch-driver')
 
     app = web.Application(
-        client_max_size=HTTP_CLIENT_MAX_SIZE, middlewares=[check_csrf_token, monitor_endpoints_middleware]
+        client_max_size=HTTP_CLIENT_MAX_SIZE,
+        middlewares=[check_csrf_token, monitor_endpoints_middleware, global_security_headers_middleware],
     )
     setup_aiohttp_session(app)
 

@@ -36,6 +36,7 @@ from gear import (
     UserData,
     check_csrf_token,
     get_authenticator,
+    global_security_headers_middleware,
     json_request,
     json_response,
     monitor_endpoints_middleware,
@@ -3656,7 +3657,12 @@ def run():
 
     app = web.Application(
         client_max_size=HTTP_CLIENT_MAX_SIZE,
-        middlewares=[check_csrf_token, unavailable_if_frozen, monitor_endpoints_middleware],
+        middlewares=[
+            check_csrf_token,
+            unavailable_if_frozen,
+            monitor_endpoints_middleware,
+            global_security_headers_middleware,
+        ],
     )
     setup_aiohttp_session(app)
 
