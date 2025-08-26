@@ -3501,6 +3501,9 @@ steps:
       GITHUB_OAUTH_HEADER_FILE=/io/github-oauth \
       HAIL_GENETICS_HAIL_IMAGE=docker://{{ hailgenetics_hail_image.image }} \
       HAIL_GENETICS_HAIL_IMAGE_PY_3_10=docker://{{ hailgenetics_hail_image_python_3_10.image }} \
+      HAIL_GENETICS_HAIL_IMAGE_PY_3_11=docker://{{ hailgenetics_hail_image_python.image }} \  # <- current "default" version
+      HAIL_GENETICS_HAIL_IMAGE_PY_3_12=docker://{{ hailgenetics_hail_image_python_3_12.image }} \
+      HAIL_GENETICS_HAIL_IMAGE_PY_3_13=docker://{{ hailgenetics_hail_image_python_3_13.image }} \
       HAIL_GENETICS_HAILTOP_IMAGE=docker://{{ hailgenetics_hailtop_image.image }} \
       HAIL_GENETICS_VEP_GRCH37_85_IMAGE=docker://{{ hailgenetics_vep_grch37_85_image.image }} \
       HAIL_GENETICS_VEP_GRCH38_95_IMAGE=docker://{{ hailgenetics_vep_grch38_95_image.image }} \
@@ -3547,6 +3550,8 @@ steps:
       - merge_code
       - hailgenetics_hail_image
       - hailgenetics_hail_image_python_3_10
+      - hailgenetics_hail_image_python_3_12
+      - hailgenetics_hail_image_python_3_13
       - hailgenetics_hailtop_image
       - hailgenetics_vep_grch37_85_image
       - hailgenetics_vep_grch38_95_image
