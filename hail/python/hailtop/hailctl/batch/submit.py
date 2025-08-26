@@ -173,7 +173,7 @@ async def transfer_user_config_into_job(remote_tmpdir: AsyncFSURL) -> str:
     return staging
 
 
-def get_absolute_source_path(src: str, dst: str) -> Tuple[Path, Path]:
+def get_absolute_source_path(src: str, dest: str) -> Tuple[Path, Path]:
     src = __real_absolute_local_path(src, strict=False)  # defer strictness checks and globbing
     return (src, dest)
 
