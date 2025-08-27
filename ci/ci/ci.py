@@ -39,7 +39,6 @@ from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
 from hailtop.utils import collect_aiter, humanize_timedelta_msecs, periodically_call, retry_transient_errors
 from web_common import (
-    api_security_headers,
     render_template,
     set_message,
     setup_aiohttp_jinja2,
@@ -376,7 +375,6 @@ async def post_authorized_source_sha(request: web.Request, _) -> NoReturn:
 
 
 @routes.get('/healthcheck')
-@web_security_headers
 async def healthcheck(_) -> web.Response:
     return web.Response(status=200)
 
@@ -447,7 +445,6 @@ async def github_callback_handler(request: web.Request):
 
 
 @routes.post('/github_callback')
-@api_security_headers
 async def github_callback(request: web.Request):
     await asyncio.shield(github_callback_handler(request))
     return web.Response(status=200)
@@ -487,7 +484,6 @@ async def batch_callback_handler(request: web.Request):
 
 
 @routes.get('/api/v1alpha/deploy_status')
-@api_security_headers
 @auth.authenticated_developers_only()
 async def deploy_status(request: web.Request, _) -> web.Response:
     batch_client = request.app[AppKeys.BATCH_CLIENT]
@@ -523,7 +519,6 @@ async def deploy_status(request: web.Request, _) -> web.Response:
 
 
 @routes.post('/api/v1alpha/update')
-@api_security_headers
 @auth.authenticated_developers_only()
 async def post_update(request: web.Request, _) -> web.Response:
     log.info('developer triggered update')
@@ -541,7 +536,6 @@ async def post_update(request: web.Request, _) -> web.Response:
 
 
 @routes.post('/api/v1alpha/dev_deploy_branch')
-@api_security_headers
 @auth.authenticated_developers_only()
 async def dev_deploy_branch(request: web.Request, userdata: UserData) -> web.Response:
     app = request.app
@@ -594,7 +588,6 @@ async def dev_deploy_branch(request: web.Request, userdata: UserData) -> web.Res
 
 
 @routes.post('/api/v1alpha/batch_callback')
-@api_security_headers
 async def batch_callback(request: web.Request):
     await asyncio.shield(batch_callback_handler(request))
     return web.Response(status=200)
