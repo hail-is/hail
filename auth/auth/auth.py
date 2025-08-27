@@ -962,8 +962,8 @@ async def check_system_permission(request: web.Request, userdata: UserData) -> w
 
     try:
         permission = SystemPermission.from_string(permission_name)
-    except ValueError:
-        raise web.HTTPBadRequest(text='Unknown system permission')
+    except ValueError as exc:
+        raise web.HTTPBadRequest(text='Unknown system permission') from exc
 
     db = request.app[AppKeys.DB]
 
