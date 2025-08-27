@@ -190,7 +190,11 @@ async def convert_volume_mounts_to_file_transfers_with_local_upload(
 
     for src, dst in src_dst_list:
         if fs.parse_url(str(src)).scheme == 'file':
-            remote_src = remote_tmpdir / 'input' / secret_alnum_string()
+            if fs.isfile(str(src)):
+                remote_src = remote_tmpdir / 'input' / secret_alnum_string() / os.path.basename(str(src))
+            else:
+                remote_src = remote_tmpdir / 'input' / secret_alnum_string()
+
             local_file_transfers.append((src, remote_src))
         else:
             remote_src = src
