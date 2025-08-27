@@ -125,8 +125,6 @@ def web_security_header_generator(fun, extra_script: str = '', extra_style: str 
     @wraps(fun)
     async def wrapped(request, *args, **kwargs):
         response = await fun(request, *args, **kwargs)
-        response.headers['Strict-Transport-Security'] = 'max-age=63072000; includeSubDomains;'
-        response.headers['X-Content-Type-Options'] = 'nosniff'
 
         default_src = 'default-src \'self\';'
         style_src = f'style-src \'self\' \'unsafe-inline\' {extra_style} fonts.googleapis.com fonts.gstatic.com;'
