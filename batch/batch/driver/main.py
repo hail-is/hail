@@ -53,7 +53,13 @@ from hailtop.utils import (
     periodically_call,
     time_msecs,
 )
-from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
+from web_common import (
+    render_template,
+    set_message,
+    setup_aiohttp_jinja2,
+    setup_common_static_routes,
+    web_security_headers,
+)
 
 from ..batch import cancel_job_group_in_db
 from ..batch_configuration import (
@@ -440,6 +446,7 @@ async def billing_update(request, instance):
 
 @routes.get('/')
 @routes.get('')
+@web_security_headers
 @auth.authenticated_developers_only()
 async def get_index(request, userdata):
     app = request.app
@@ -475,6 +482,7 @@ FROM user_inst_coll_resources;
 
 
 @routes.get('/quotas')
+@web_security_headers
 @auth.authenticated_developers_only()
 async def get_quotas(request, userdata):
     if CLOUD != 'gcp':
@@ -870,6 +878,7 @@ async def job_private_config_update(request: web.Request, _) -> NoReturn:
 
 
 @routes.get('/inst_coll/pool/{pool}')
+@web_security_headers
 @auth.authenticated_developers_only()
 async def get_pool(request, userdata):
     app = request.app
@@ -907,6 +916,7 @@ async def get_pool(request, userdata):
 
 
 @routes.get('/inst_coll/jpim')
+@web_security_headers
 @auth.authenticated_developers_only()
 async def get_job_private_inst_manager(request, userdata):
     app = request.app
@@ -980,6 +990,7 @@ UPDATE globals SET frozen = 0;
 
 
 @routes.get('/user_resources')
+@web_security_headers
 @auth.authenticated_developers_only()
 async def get_user_resources(request, userdata):
     app = request.app
