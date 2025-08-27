@@ -73,7 +73,11 @@ async def submit(
         client = await bc.BatchClient.create(billing_project=billing_project)
         exitstack.push_async_callback(client.close)
 
-        b = client.create_batch(attributes=attributes)
+        name = name or 'submit'
+        _attributes: Dict[str, str] = {'name': name}
+        _attributes.update(attributes or {})
+
+        b = client.create_batch(attributes=_attributes)
 
         _env = {
             'HAIL_QUERY_BACKEND': 'batch',
@@ -90,10 +94,6 @@ async def submit(
 
         if machine_type is not None:
             resources['machine_type'] = machine_type
-
-        name = name or 'submit'
-        _attributes: Dict[str, str] = {'name': name}
-        _attributes.update(attributes or {})
 
         remote_user_config_dir = await transfer_user_config_into_job(remote_tmpdir)
 
@@ -190,7 +190,7 @@ async def convert_volume_mounts_to_file_transfers_with_local_upload(
 
     for src, dst in src_dst_list:
         if fs.parse_url(str(src)).scheme == 'file':
-            if fs.isfile(str(src)):
+            if await fs.isfile(str(src)):
                 remote_src = remote_tmpdir / 'input' / secret_alnum_string() / os.path.basename(str(src))
             else:
                 remote_src = remote_tmpdir / 'input' / secret_alnum_string()

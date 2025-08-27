@@ -3115,7 +3115,7 @@ steps:
       echo "Hello World!"
       EOF
 
-      BATCH_ID=$(hailctl batch submit --name=test-hailctl-batch-submit -v file.sh:/ -v foo/:/foo/ -o json --image busybox:latest sh file.sh | jq '.id')
+      BATCH_ID=$(hailctl batch submit --name=test-hailctl-batch-submit -v file.sh:/ -v foo/:/foo/ -o json --image busybox:latest bash file.sh | jq '.id')
       STATUS=$(hailctl batch wait -o json $BATCH_ID)
       LOGS=$(hailctl batch log -o json $BATCH_ID 1)      
       STATE=$(echo $STATUS | jq -jr '.state')
@@ -3134,7 +3134,7 @@ steps:
       echo "Hello World! $1 $2"
       EOF
 
-      BATCH_ID=$(hailctl batch submit --name=test-hailctl-batch-submit -v foo/:/foo/ -o json --image ubuntu:latest sh file-with-args.sh abc 123 | jq '.id')
+      BATCH_ID=$(hailctl batch submit --name=test-hailctl-batch-submit -v foo/:/foo/ -o json --image ubuntu:latest bash file-with-args.sh abc 123 | jq '.id')
       STATUS=$(hailctl batch wait -o json $BATCH_ID)
       LOGS=$(hailctl batch log -o json $BATCH_ID 1)      
       STATE=$(echo $STATUS | jq -jr '.state')

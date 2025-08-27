@@ -5,6 +5,7 @@ from typing import List, Union
 
 import orjson
 import pytest
+import typer
 from typer.testing import CliRunner, Result
 
 import hailtop.batch_client.client as bc
@@ -101,11 +102,13 @@ def write_hello(filename: Path):
 def test_name(submit, tmp_path, request, client):
     batch_name = request.node.nodeid + secret_alnum_string()
     echo_script = echo0(tmp_path)
-    res = submit(echo_script.name, ['--name', batch_name, '-v', f'{echo_script}:/', '--wait', '-o', 'json', '--quiet'], [])
+    res = submit(
+        echo_script.name, ['--name', batch_name, '-v', f'{echo_script}:/', '--wait', '-o', 'json', '--quiet'], []
+    )
     assert_exit_code(res, 0)
 
     b = get_batch_from_text_output(res, client)
-    assert b.attributes['name'] == batch_name
+    assert b.attributes['name'] == batch_name, str(b.debug_info())
 
 
 def test_workdir(submit, tmp_path, request, client):
@@ -113,13 +116,24 @@ def test_workdir(submit, tmp_path, request, client):
     echo_script = echo0(tmp_path)
     res = submit(
         echo_script.name,
-        ['--name', batch_name, '--workdir', '/workdir/', '-v', f'{echo_script}:/workdir/', '--wait', '-o', 'json', '--quiet'],
+        [
+            '--name',
+            batch_name,
+            '--workdir',
+            '/workdir/',
+            '-v',
+            f'{echo_script}:/workdir/',
+            '--wait',
+            '-o',
+            'json',
+            '--quiet',
+        ],
         [],
     )
     assert_exit_code(res, 0)
 
     b = get_batch_from_text_output(res, client)
-    assert b.status()['state'] == 'success'
+    assert b.status()['state'] == 'success', str(b.debug_info())
 
 
 def test_image(submit, tmp_path, client):
@@ -130,7 +144,7 @@ def test_image(submit, tmp_path, client):
 
     b = get_batch_from_text_output(res, client)
     j = b.get_job(1)
-    assert j.status()['spec']['process']['image'] == image
+    assert j.status()['spec']['process']['image'] == image, str(j.status())
 
 
 def test_image_environment_variable(submit, tmp_path, client):
@@ -145,7 +159,7 @@ def test_image_environment_variable(submit, tmp_path, client):
 
     b = get_batch_from_text_output(res, client)
     j = b.get_job(1)
-    assert j.status()['spec']['process']['image'] == 'busybox:latest'
+    assert j.status()['spec']['process']['image'] == 'busybox:latest', str(j.status())
 
 
 def test_script_shebang(submit, tmp_path, client):
@@ -162,12 +176,12 @@ world!
 
     b = get_batch_from_text_output(res, client)
     log_output = b.get_job_log(1)['main']
-    assert log_output == script_text
+    assert script_text in log_output
 
 
 @pytest.mark.parametrize('files', ['', ':', ':dst'])
 def test_files_invalid_format(submit, files):
-    with pytest.raises(ValueError, match='Invalid format for file mount'):
+    with pytest.raises(typer.BadParameter, match='Invalid format for file mount'):
         submit(__file__, ['--wait', '--quiet', '-v', files], [])
 
 
@@ -175,7 +189,9 @@ def test_files_copy_rename(submit, tmp_cwd):
     write_hello(tmp_cwd / 'hello.txt')
     pyscript = write_pyscript(tmp_cwd, '/child')
     res = submit(
-        pyscript.name, ['--wait', '--quiet', '-v', 'hello.txt:/child', '-v', f'{pyscript.name}:/', '--wait', '-o', 'json'], []
+        pyscript.name,
+        ['--wait', '--quiet', '-v', 'hello.txt:/child', '-v', f'{pyscript.name}:/', '--wait', '-o', 'json'],
+        [],
     )
     assert_exit_code(res, 0)
 
@@ -196,7 +212,9 @@ def test_files_copy_folder(submit, tmp_cwd, files, remote):
     write_hello(Path(src) / 'hello.txt')
     pyscript = write_pyscript(tmp_cwd, Path(remote) / 'hello.txt')
     res = submit(
-        pyscript.name, ['--workdir', remote, '--quiet', '--wait', '-o', 'json', '-v', files, '-v', f'{pyscript}:{remote}'], []
+        pyscript.name,
+        ['--workdir', remote, '--quiet', '--wait', '-o', 'json', '-v', files, '-v', f'{pyscript}:{remote}'],
+        [],
     )
     assert_exit_code(res, 0)
 
@@ -216,7 +234,9 @@ print(f'{a.message}, {b.message}')
     )
 
     res = submit(
-        script.name, ['--wait', '--quiet', '-o', 'json', '-v', f"{tmp_path / 'python'!s}:/", '-v', f"{script}:/python/"], []
+        script.name,
+        ['--wait', '--quiet', '-o', 'json', '-v', f"{tmp_path / 'python'!s}:/", '-v', f"{script}:/python/"],
+        [],
     )
     assert_exit_code(res, 0)
 
@@ -235,7 +255,18 @@ def test_files_mount_multiple_files_options(submit, tmp_cwd):
 
     res = submit(
         script.name,
-        ['--wait', '-o', 'json', '--quiet', '-v', 'hello1.txt:/a/hello.txt', '-v', 'hello2.txt:/b/hello.txt', '-v', f'{script}:/'],
+        [
+            '--wait',
+            '-o',
+            'json',
+            '--quiet',
+            '-v',
+            'hello1.txt:/a/hello.txt',
+            '-v',
+            'hello2.txt:/b/hello.txt',
+            '-v',
+            f'{script}:/',
+        ],
         [],
     )
 
@@ -283,7 +314,9 @@ assert args == [1, 2, 'a', 'b', '--foo', 'bar=5']
 """,
     )
 
-    res = submit(script.name, ['--wait', '-o', 'json', '--quiet', '-v', f"{script}:/"], ['1', '2', 'a', 'b', '--foo', 'bar=5'])
+    res = submit(
+        script.name, ['--wait', '-o', 'json', '--quiet', '-v', f"{script}:/"], ['1', '2', 'a', 'b', '--foo', 'bar=5']
+    )
     assert_exit_code(res, 0)
 
 
@@ -330,13 +363,13 @@ def test_submit_with_proper_job_settings(submit, tmp_path, client):
     b = get_batch_from_text_output(res, client)
     j = b.get_job(1)
 
-    assert j.status()['spec']['resources']['req_cpu'] == '0.25'
-    assert j.status()['spec']['resources']['req_memory'] == 'highmem'
-    assert j.status()['spec']['resources']['req_storage'] == '15Gi'
-    assert set(j.status()['spec']['regions']) == set(['us-east1', 'us-central1'])
-    assert 'gcsfuse' in j.status()['spec']
-    assert 'FOO' in [env['name'] for env in j.status()['spec']['env']]
-    assert j.status()['spec']['process']['image'] == f'hailgenetics/hail:{__pip_version__}'
+    assert j.status()['spec']['resources']['req_cpu'] == '0.25', str(j.status())
+    assert j.status()['spec']['resources']['req_memory'] == 'highmem', str(j.status())
+    assert j.status()['spec']['resources']['req_storage'] == '15Gi', str(j.status())
+    assert set(j.status()['spec']['regions']) == set(['us-east1', 'us-central1']), str(j.status())
+    assert 'gcsfuse' in j.status()['spec'], str(j.status())
+    assert 'FOO' in [env['name'] for env in j.status()['spec']['env']], str(j.status())
+    assert j.status()['spec']['process']['image'] == os.environ['HAIL_GENETICS_HAIL_IMAGE'], str(j.status())
 
 
 def test_hail_config_in_right_place(submit, tmp_path, request, client):

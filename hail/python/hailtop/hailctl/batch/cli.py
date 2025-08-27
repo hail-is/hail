@@ -230,8 +230,12 @@ def submit(
     ] = f'hailgenetics/hail:{__pip_version__}',
     volume_mounts: Ann[
         Optional[List[str]],
-        Opt(..., "-v", help="Volume mounts in the format 'source:destination'. Can be specified multiple times.",
-            parser=parse_file_mount),
+        Opt(
+            ...,
+            "-v",
+            help="Volume mounts in the format 'source:destination'. Can be specified multiple times.",
+            parser=parse_file_mount,
+        ),
     ] = None,
     name: Ann[Optional[str], Opt(help='The name of the batch.')] = None,
     cpu: Ann[str, Opt(help='CPU for the job.')] = '1',
