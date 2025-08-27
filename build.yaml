@@ -3065,7 +3065,7 @@ steps:
       mkdir -p foo
       echo "bar" > foo/baz.txt
 
-      cat > simple_hail.py << EOF
+      cat >simple_hail.py <<EOF
       import hail as hl
 
       with open('foo/baz.txt') as f:
@@ -3087,7 +3087,7 @@ steps:
           exit 1;
       fi
 
-      cat > hail_with_args.py << EOF
+      cat >hail_with_args.py <<EOF
       import hail as hl
       import sys
 
@@ -3108,7 +3108,7 @@ steps:
           exit 1;
       fi
 
-      cat > file.sh << 'EOF'
+      cat >file.sh <<EOF
       set -ex
 
       cat foo/baz.txt
@@ -3125,7 +3125,7 @@ steps:
           exit 1;
       fi
 
-      cat > file-with-args.sh << EOF
+      cat >file-with-args.sh <<EOF
       set -ex
 
       [[ $# -eq 2 ]]

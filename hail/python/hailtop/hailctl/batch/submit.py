@@ -125,8 +125,8 @@ async def submit(
         symlinks_str = "\n".join(symlinks)
 
         cmd = f"""
-{symlinks_str}
 mkdir -p {workdir}
+{symlinks_str}
 hailctl config list
 hailctl config profile list
 cd {workdir}
