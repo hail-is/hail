@@ -23,8 +23,11 @@ def tos_agreement():
     This broad surveillance enables the protection of the Hail system from malicious actors.
     """
     agree_statement = """
-    Notice: By signing up or logging in and continuing to use the system, you agree to these terms of service.
-    Do you agree to these terms? Y/n:
+    Use of Hail requires you to read and agree to our Terms of Service, and to read the Privacy Policy.
+    Please read and agree to the Terms of Service: https://batch.hail.is/tos
+    Please read the Privacy Policy: https://batch.hail.is/privacy
+
+    Enter 'y' to agree or 'n' to disagree with the following statement: I have reviewed and agree to the [Terms of Service](https://batch.hail.is/tos) and have read the [Privacy Policy](https://batch.hail.is/privacy)? y/n:
     """
 
     print(tos_statement)
@@ -33,7 +36,13 @@ def tos_agreement():
     while True:
         if response in {'y', 'n'}:
             break
-        response = input('Please enter a valid input. Do you agree to the Terms of Service? Y/n: ').strip().lower()
+        response = (
+            input(
+                "Invalid input. Enter 'y' to agree or 'n' to disagree with the following statement: I have reviewed and agree to the [Terms of Service](https://batch.hail.is/tos) and have read the [Privacy Policy](https://batch.hail.is/privacy). y/n: "
+            )
+            .strip()
+            .lower()
+        )
     if response != 'y':
         print("You must agree to the Terms of Service to log in.")
         return False
