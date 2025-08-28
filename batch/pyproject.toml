@@ -1,0 +1,17 @@
+[build-system]
+requires = [ "uv_build" ]
+build-backend = "uv_build"
+
+[project]
+name = "batch"
+version = "0.0.2"
+authors = [ { name="Hail Team", email="hail@broadinstitute.org" } ]
+description = "Job manager"
+
+[project.urls]
+Repository = "https://github.com/hail-is/hail.git"
+
+[tool.uv.build-backend]
+module-name = "batch"
+module-root = ""
+namespace = true
