@@ -5,7 +5,6 @@ from typing import List, Union
 
 import orjson
 import pytest
-import typer
 from typer.testing import CliRunner, Result
 
 import hailtop.batch_client.client as bc
@@ -114,7 +113,7 @@ def test_workdir(submit, tmp_path, request, client):
     batch_name = request.node.nodeid + secret_alnum_string()
     echo_script = echo0(tmp_path)
     res = submit(
-        echo_script.name,
+        f'./{echo_script.name}',
         [
             '--name',
             batch_name,
@@ -169,7 +168,7 @@ echo "Hello, world!"
 
     script = tmp_path / 'script'
     script.write_text(script_text)
-    res = submit(script.name, ['--wait', '--quiet', '-o', 'json', '-v', f'{script}:/', '--wait', '-o', 'json'], [])
+    res = submit(f'./{script.name}', ['--wait', '--quiet', '-o', 'json', '-v', f'{script}:/', '--wait', '-o', 'json'], [])
     assert_exit_code(res, 0)
 
     b = get_batch_from_text_output(res, client)
@@ -180,7 +179,8 @@ echo "Hello, world!"
 @pytest.mark.parametrize('files', ['', ':', ':dst'])
 def test_files_invalid_format(submit, files):
     # with pytest.raises(typer.BadParameter, match='Invalid format for file mount'):
-    submit(__file__, ['--wait', '--quiet', '-v', files], [])
+    res = submit(__file__, ['--wait', '--quiet', '-v', files], [])
+    assert_exit_code(res, 0)
 
 
 def test_files_copy_rename(submit, tmp_cwd):
