@@ -9,7 +9,6 @@ import typer
 from typer.testing import CliRunner, Result
 
 import hailtop.batch_client.client as bc
-from hailtop import __pip_version__
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.batch_client.client import BatchClient
 from hailtop.config import get_remote_tmpdir
@@ -164,9 +163,8 @@ def test_image_environment_variable(submit, tmp_path, client):
 
 def test_script_shebang(submit, tmp_path, client):
     script_text = """\
-#!/usr/bin/env cat
-hello,
-world!
+#!/bin/bash
+echo "Hello, world!"
 """
 
     script = tmp_path / 'script'
@@ -176,7 +174,7 @@ world!
 
     b = get_batch_from_text_output(res, client)
     log_output = b.get_job_log(1)['main']
-    assert script_text in log_output
+    assert 'Hello, world!' in log_output
 
 
 @pytest.mark.parametrize('files', ['', ':', ':dst'])
