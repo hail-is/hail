@@ -3112,11 +3112,9 @@ steps:
       test $(jq -jr '.state' <<< "$STATUS") = "success"
 
       cat >file-with-args.sh <<EOF
-      set -ex
+      [ "$#" -eq 2 ]
 
-      [[ $# -eq 2 ]]
-
-      cat foo
+      cat foo/baz.txt
       echo "Hello World! $1 $2"
       EOF
 
