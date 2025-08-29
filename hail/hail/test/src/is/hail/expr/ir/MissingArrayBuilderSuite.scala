@@ -5,7 +5,6 @@ import is.hail.utils.FastSeq
 
 import scala.reflect.ClassTag
 
-import org.scalatest
 import org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.{DataProvider, Test}
 
@@ -47,8 +46,7 @@ class MissingArrayBuilderSuite extends TestNGSuite {
   )
 
   @Test(dataProvider = "sortInt")
-  def testSortOnIntArrayBuilder(array: IndexedSeq[Integer], expected: IndexedSeq[Integer])
-    : scalatest.Assertion = {
+  def testSortOnIntArrayBuilder(array: IndexedSeq[Integer], expected: IndexedSeq[Integer]): Unit = {
     val ab = new IntMissingArrayBuilder(16)
     addToArrayBuilder(ab, array)((iab, i) => iab.add(i))
 
@@ -68,7 +66,7 @@ class MissingArrayBuilderSuite extends TestNGSuite {
   def testSortOnLongArrayBuilder(
     array: IndexedSeq[java.lang.Long],
     expected: IndexedSeq[java.lang.Long],
-  ): scalatest.Assertion = {
+  ): Unit = {
     val ab = new LongMissingArrayBuilder(16)
     addToArrayBuilder(ab, array)((jab, j) => jab.add(j))
 
@@ -90,7 +88,7 @@ class MissingArrayBuilderSuite extends TestNGSuite {
   def testSortOnFloatArrayBuilder(
     array: IndexedSeq[java.lang.Float],
     expected: IndexedSeq[java.lang.Float],
-  ): scalatest.Assertion = {
+  ): Unit = {
     val ab = new FloatMissingArrayBuilder(16)
     addToArrayBuilder(ab, array)((fab, f) => fab.add(f))
 
@@ -112,7 +110,7 @@ class MissingArrayBuilderSuite extends TestNGSuite {
   def testSortOnDoubleArrayBuilder(
     array: IndexedSeq[java.lang.Double],
     expected: IndexedSeq[java.lang.Double],
-  ): scalatest.Assertion = {
+  ): Unit = {
     val ab = new DoubleMissingArrayBuilder(16)
     addToArrayBuilder(ab, array)((dab, d) => dab.add(d))
 
@@ -134,7 +132,7 @@ class MissingArrayBuilderSuite extends TestNGSuite {
   def testSortOnBooleanArrayBuilder(
     array: IndexedSeq[java.lang.Boolean],
     expected: IndexedSeq[java.lang.Boolean],
-  ): scalatest.Assertion = {
+  ): Unit = {
     val ab = new BooleanMissingArrayBuilder(16)
     addToArrayBuilder(ab, array)((bab, b) => bab.add(b))
 

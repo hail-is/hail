@@ -3125,15 +3125,16 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
         val loopRef = loopEnv.get.lookup(name)
 
         // Need to emit into region 1, copy to region 2, then clear region 1, then swap them.
-        (loopRef.tmpLoopArgs, loopRef.loopTypes, args).zipped.foreach { case (tmpLoopArg, et, arg) =>
-          tmpLoopArg.store(
-            cb,
-            emitI(arg, loopEnv = None, region = loopRef.r1).map(cb)(_.copyToRegion(
+        (loopRef.tmpLoopArgs, loopRef.loopTypes, args).zipped.foreach {
+          case (tmpLoopArg, et, arg) =>
+            tmpLoopArg.store(
               cb,
-              loopRef.r2,
-              et.st,
-            )),
-          )
+              emitI(arg, loopEnv = None, region = loopRef.r1).map(cb)(_.copyToRegion(
+                cb,
+                loopRef.r2,
+                et.st,
+              )),
+            )
         }
 
         cb.append(loopRef.r1.clearRegion())

@@ -266,25 +266,25 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case StreamFold(a, zero, accumName, valueName, body) =>
         addElementBinding(valueName, a)
         addBindings(accumName, Array[IR](zero, body))
-          states.bind(
-            node,
-            Array[TypeWithRequiredness](lookup(
-              refMap.get(accumName)
-                .flatMap(refs => refs.headOption.map(_.t.asInstanceOf[IR]))
-                .getOrElse(zero)
-            )),
-          )
+        states.bind(
+          node,
+          Array[TypeWithRequiredness](lookup(
+            refMap.get(accumName)
+              .flatMap(refs => refs.headOption.map(_.t.asInstanceOf[IR]))
+              .getOrElse(zero)
+          )),
+        )
       case StreamScan(a, zero, accumName, valueName, body) =>
         addElementBinding(valueName, a)
         addBindings(accumName, Array[IR](zero, body))
-          states.bind(
-            node,
-            Array[TypeWithRequiredness](lookup(
-              refMap.get(accumName)
-                .flatMap(refs => refs.headOption.map(_.t.asInstanceOf[IR]))
-                .getOrElse(zero)
-            )),
-          )
+        states.bind(
+          node,
+          Array[TypeWithRequiredness](lookup(
+            refMap.get(accumName)
+              .flatMap(refs => refs.headOption.map(_.t.asInstanceOf[IR]))
+              .getOrElse(zero)
+          )),
+        )
       case StreamFold2(a, accums, valueName, seq, _) =>
         addElementBinding(valueName, a)
         val s = Array.fill[TypeWithRequiredness](accums.length)(null)

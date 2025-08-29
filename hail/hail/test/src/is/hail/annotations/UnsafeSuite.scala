@@ -18,7 +18,6 @@ import org.json4s.jackson.Serialization
 import org.scalacheck._
 import org.scalacheck.Arbitrary.arbitrary
 import org.scalacheck.Gen._
-import org.scalatest
 import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
 import org.testng.annotations.{DataProvider, Test}
 
@@ -70,7 +69,7 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     )))
       .map(x => Array[Any](x))
 
-  @Test(dataProvider = "codecs") def testCodecSerialization(codec: Spec): scalatest.Assertion = {
+  @Test(dataProvider = "codecs") def testCodecSerialization(codec: Spec): Unit = {
     implicit val formats = AbstractRVDSpec.formats
     assert(Serialization.read[Spec](codec.toString) == codec)
 
@@ -199,7 +198,7 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     }
   }
 
-  @Test def testRegionValue(): scalatest.Assertion = {
+  @Test def testRegionValue(): Unit = {
     val region = Region(pool = pool)
     val region2 = Region(pool = pool)
     val rvb = new RegionValueBuilder(sm, region)
@@ -280,7 +279,6 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
       true
     }
-    scalatest.Succeeded
   }
 
   val g: Gen[(TStruct, Annotation)] =
@@ -295,7 +293,7 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       if v != null
     } yield (t, v)
 
-  @Test def testPacking(): scalatest.Assertion = {
+  @Test def testPacking(): Unit = {
 
     def makeStruct(types: PType*): PCanonicalStruct =
       PCanonicalStruct(types.zipWithIndex.map { case (t, i) => (s"f$i", t) }: _*)
@@ -338,10 +336,10 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(t4.byteSize == 256 * 4 / 8 + 256 * 4 * 2 + 256 * 8 + 256)
   }
 
-  @Test def testEmptySize(): scalatest.Assertion =
+  @Test def testEmptySize(): Unit =
     assert(PCanonicalStruct().byteSize == 0)
 
-  @Test def testUnsafeOrdering(): scalatest.Assertion = {
+  @Test def testUnsafeOrdering(): Unit = {
     val region = Region(pool = pool)
     val region2 = Region(pool = pool)
 
@@ -386,6 +384,5 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         println(s"c1=$c1, c2=$c2, c3=$c3")
       }
     }
-    scalatest.Succeeded
   }
 }

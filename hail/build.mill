@@ -147,7 +147,6 @@ trait HailModule extends ScalaModule with ScalafmtModule with ScalafixModule { o
     if (scalaVersion().startsWith("2.13")) {
       finalOptions ++
       Seq(
-        "-Wconf:any:e",
       // collection types
         // type Traversable in package scala is deprecated (since 2.13.0): Use Iterable instead of Traversable
         "-Wconf:cat=deprecation&msg=type Traversable in package scala is deprecated:s",

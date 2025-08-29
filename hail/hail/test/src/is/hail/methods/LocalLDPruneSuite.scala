@@ -229,7 +229,7 @@ class LocalLDPruneSuite extends HailSuite {
     locallyUncorrelated.fold(true)((bool1, bool2) => bool1 && bool2)
   }
 
-  @Test def testBitPackUnpack(): scalatest.Assertion = {
+  @Test def testBitPackUnpack(): Unit = {
     val calls1 = Array(-1, 0, 1, 2, 1, 1, 0, 0, 0, 0, 2, 2, -1, -1, -1, -1).map(toC2)
     val calls2 = Array(0, 1, 2, 2, 2, 0, -1, -1).map(toC2)
     val calls3 = calls1 ++ Array.ofDim[Int](32 - calls1.length).map(toC2) ++ calls2
@@ -241,7 +241,7 @@ class LocalLDPruneSuite extends HailSuite {
     }
   }
 
-  @Test def testR2(): scalatest.Assertion = {
+  @Test def testR2(): Unit = {
     val calls = Array(
       Array(1, 0, 0, 0, 0, 0, 0, 0).map(toC2),
       Array(1, 1, 1, 1, 1, 1, 1, 1).map(toC2),
@@ -333,9 +333,9 @@ class LocalLDPruneSuite extends HailSuite {
       }): Unit
   }
 
-  @Test def testRandom(): scalatest.Assertion = { Spec.check(); succeed }
+  @Test def testRandom(): Unit = Spec.check()
 
-  @Test def testIsLocallyUncorrelated(): scalatest.Assertion = {
+  @Test def testIsLocallyUncorrelated(): Unit = {
     val locallyPrunedVariantsTable =
       LocalLDPrune(ctx, mt, r2Threshold = 0.2, windowSize = 1000000, maxQueueSize = maxQueueSize)
     assert(isLocallyUncorrelated(mt, locallyPrunedVariantsTable, 0.2, 1000000))

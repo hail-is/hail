@@ -10,11 +10,14 @@ import is.hail.expr.ir.streams.EmitStream
 import is.hail.io.fs.FS
 import is.hail.rvd.RVDContext
 import is.hail.types.physical.{PStruct, PType}
-import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeType, StreamSingleCodeType}
+import is.hail.types.physical.stypes.{
+  PTypeReferenceSingleCodeType, SingleCodeType, StreamSingleCodeType,
+}
 import is.hail.types.physical.stypes.interfaces.{NoBoxLongIterator, SStream}
 import is.hail.utils._
 
 import java.io.PrintWriter
+
 import sourcecode.Enclosing
 
 case class CodeCacheKey(

@@ -287,9 +287,9 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
           }
         }
 
-          if (c == 0) value.set(left.consume(), right.consume())
-          else if (c < 0) value.set(left.consume(), rightDefault)
-          else value.set(leftDefault, right.consume())
+        if (c == 0) value.set(left.consume(), right.consume())
+        else if (c < 0) value.set(left.consume(), rightDefault)
+        else value.set(leftDefault, right.consume())
       }
     }
 

@@ -422,7 +422,8 @@ class GoogleStorageFS(
         /* Storage.delete is idempotent. it returns a Boolean which is false if the file did not
          * exist */
         handleRequesterPays(
-          (options: Seq[BlobSourceOption]) => storage.delete(url.bucket, url.path, options: _*): Unit,
+          (options: Seq[BlobSourceOption]) =>
+            storage.delete(url.bucket, url.path, options: _*): Unit,
           BlobSourceOption.userProject,
           url.bucket,
         )

@@ -1444,11 +1444,11 @@ object PruneDeadFields {
           tcoerce[TStream](tcoerce[TStream](requestedType).elementType).elementType
         )
         val origStructT = tcoerce[TStruct](tcoerce[TStream](a.typ).elementType)
-          recur(
-            ir,
-            0,
-            TStream(unify(origStructT, reqStructT, selectKey(origStructT, key))),
-          )
+        recur(
+          ir,
+          0,
+          TStream(unify(origStructT, reqStructT, selectKey(origStructT, key))),
+        )
 
       case StreamZip(as, _, _, behavior, _) =>
         val bodyBindings = recurWithBindings(ir, as.length, TIterable.elementType(requestedType))
@@ -1546,13 +1546,15 @@ object PruneDeadFields {
         recurMax(ir, 2)
 
       case NDArrayMap(nd, _, _) =>
-        val Seq(eltState) = recurWithBindings(ir, 1, requestedType.asInstanceOf[TNDArray].elementType)
+        val Seq(eltState) =
+          recurWithBindings(ir, 1, requestedType.asInstanceOf[TNDArray].elementType)
         val eltType =
           nd.typ.asInstanceOf[TNDArray].copy(elementType = eltState.newType)
         recur(ir, 0, eltType)
 
       case NDArrayMap2(left, right, _, _, _, _) =>
-        val Seq(lState, rState) = recurWithBindings(ir, 2, requestedType.asInstanceOf[TNDArray].elementType)
+        val Seq(lState, rState) =
+          recurWithBindings(ir, 2, requestedType.asInstanceOf[TNDArray].elementType)
         recur(ir, 0, left.typ.asInstanceOf[TNDArray].copy(elementType = lState.newType))
         recur(ir, 1, right.typ.asInstanceOf[TNDArray].copy(elementType = rState.newType))
 

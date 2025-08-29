@@ -9,8 +9,10 @@ import is.hail.types.virtual._
 import is.hail.utils._
 
 import scala.reflect.ClassTag
+
 import java.io.InputStream
 import java.util.Properties
+
 import org.apache.log4j.{LogManager, PropertyConfigurator}
 import org.apache.spark._
 import org.apache.spark.executor.InputMetrics

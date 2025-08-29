@@ -84,13 +84,12 @@ class SplitMethod(
 
   private var _spillReturnValue: Field = _
 
-  private def _createReturnFields(): Unit = {
+  private def _createReturnFields(): Unit =
     if (_spillReturned == null) {
       _spillReturned = spillsClass.newField(genName("f", "spillReturned"), BooleanInfo)
       if (m.returnTypeInfo != UnitInfo)
         _spillReturnValue = spillsClass.newField(genName("f", "spillReturnValue"), m.returnTypeInfo)
     }
-  }
 
   private def spillReturned: Field = {
     _createReturnFields()

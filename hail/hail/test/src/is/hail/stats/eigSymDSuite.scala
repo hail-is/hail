@@ -5,13 +5,12 @@ import is.hail.utils._
 
 import breeze.linalg.{eigSym, svd, DenseMatrix, DenseVector}
 import org.apache.commons.math3.random.JDKRandomGenerator
-import org.scalatest
 import org.scalatest.Inspectors.forAll
 import org.scalatest.enablers.InspectorAsserting.assertingNatureOfAssertion
 import org.testng.annotations.Test
 
 class eigSymDSuite extends HailSuite {
-  @Test def eigSymTest(): scalatest.Assertion = {
+  @Test def eigSymTest(): Unit = {
     val seed = 0
 
     val rand = new JDKRandomGenerator()
@@ -100,7 +99,7 @@ class eigSymDSuite extends HailSuite {
     timeSymEig()
   }
 
-  @Test def triSolveTest(): scalatest.Assertion = {
+  @Test def triSolveTest(): Unit = {
     val seed = 0
 
     val rand = new JDKRandomGenerator()

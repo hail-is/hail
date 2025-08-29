@@ -2,9 +2,10 @@ package is.hail.lir
 
 import is.hail.expr.ir.{BooleanArrayBuilder, IntArrayBuilder}
 import is.hail.utils.BoxedArrayBuilder
-import org.typelevel.scalaccompat.annotation.nowarn
 
 import scala.collection.mutable
+
+import org.typelevel.scalaccompat.annotation.nowarn
 
 // PST computes a non-standard variant of the Program Structure Tree (PST)
 // For the original definition, see:

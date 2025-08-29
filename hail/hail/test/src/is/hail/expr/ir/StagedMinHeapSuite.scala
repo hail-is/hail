@@ -35,10 +35,10 @@ class StagedMinHeapSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       sa.asInt.value
   }
 
-  @Test def testSorting(): scalatest.Assertion =
+  @Test def testSorting(): Unit =
     forAll((xs: IndexedSeq[Int]) => assert(sort(xs) == xs.sorted))
 
-  @Test def testHeapProperty(): scalatest.Assertion =
+  @Test def testHeapProperty(): Unit =
     forAll { (xs: IndexedSeq[Int]) =>
       val heap = heapify(xs)
       scalatest.Inspectors.forAll(0 until heap.size / 2) { i =>
@@ -49,7 +49,7 @@ class StagedMinHeapSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       }
     }
 
-  @Test def testNonEmpty(): scalatest.Assertion =
+  @Test def testNonEmpty(): Unit =
     gen(ctx, "NonEmpty") { (heap: IntHeap) =>
       heap.nonEmpty should be(false)
       for (i <- 0 to 10) heap.push(i)
@@ -64,7 +64,7 @@ class StagedMinHeapSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       loci <- Gen.containerOf[IndexedSeq, Locus](genLocus(rg))
     } yield (rg, loci)
 
-  @Test def testLocus(): scalatest.Assertion =
+  @Test def testLocus(): Unit =
     forAll(loci) { case (rg: ReferenceGenome, loci: IndexedSeq[Locus]) =>
       ctx.local(references = Map(rg.name -> rg)) { ctx =>
         implicit val coercions: StagedCoercions[Locus] =

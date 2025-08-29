@@ -1083,12 +1083,12 @@ class CancellingExecutorService(delegate: ExecutorService) extends AbstractExecu
     @volatile private[this] var isFailed = false
 
     override def run(): Unit =
-        try set(f())
-        catch {
-          case NonFatal(e) =>
-            isFailed = true
-            setException(e)
-        }
+      try set(f())
+      catch {
+        case NonFatal(e) =>
+          isFailed = true
+          setException(e)
+      }
 
     override def afterDone(): Unit =
       if (isFailed && CancellingExecutorService.this.isCancelled.compareAndSet(false, true)) {
