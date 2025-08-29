@@ -127,8 +127,6 @@ async def submit(
         cmd = f"""
 mkdir -p {workdir}
 {symlinks_str}
-hailctl config list
-hailctl config profile list
 cd {workdir}
 {entrypoint_str}
 """

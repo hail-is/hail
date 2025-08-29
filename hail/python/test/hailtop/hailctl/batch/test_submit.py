@@ -113,7 +113,7 @@ def test_workdir(submit, tmp_path, request, client):
     batch_name = request.node.nodeid + secret_alnum_string()
     echo_script = echo0(tmp_path)
     res = submit(
-        f'./{echo_script.name}',
+        f'sh {echo_script.name}',
         [
             '--name',
             batch_name,
@@ -168,7 +168,7 @@ echo "Hello, world!"
 
     script = tmp_path / 'script'
     script.write_text(script_text)
-    res = submit(f'./{script.name}', ['--wait', '--quiet', '-o', 'json', '-v', f'{script}:/', '--wait', '-o', 'json'], [])
+    res = submit(f'chmod 770 {script.name} && ./{script.name}', ['--wait', '--quiet', '-o', 'json', '-v', f'{script}:/', '--wait', '-o', 'json'], [])
     assert_exit_code(res, 0)
 
     b = get_batch_from_text_output(res, client)
@@ -178,12 +178,12 @@ echo "Hello, world!"
 
 @pytest.mark.parametrize('files', ['', ':', ':dst'])
 def test_files_invalid_format(submit, files):
-    # with pytest.raises(typer.BadParameter, match='Invalid format for file mount'):
     res = submit(__file__, ['--wait', '--quiet', '-v', files], [])
-    assert_exit_code(res, 0)
+    assert_exit_code(res, 2)
+    assert 'Invalid format for file mount' in res.output
 
 
-def test_files_copy_rename(submit, tmp_cwd):
+def test_files_copy_rename(submit, tmp_cwd, client):
     write_hello(tmp_cwd / 'hello.txt')
     pyscript = write_pyscript(tmp_cwd, '/child')
     res = submit(
@@ -192,6 +192,9 @@ def test_files_copy_rename(submit, tmp_cwd):
         [],
     )
     assert_exit_code(res, 0)
+
+    b = get_batch_from_text_output(res, client)
+    assert b.status()['state'] == 'success', str(b.debug_info())
 
 
 @pytest.mark.parametrize(
@@ -205,7 +208,7 @@ def test_files_copy_rename(submit, tmp_cwd):
         ('a:a/../b', 'b'),
     ],
 )
-def test_files_copy_folder(submit, tmp_cwd, files, remote):
+def test_files_copy_folder(submit, tmp_cwd, files, remote, client):
     src, _ = files.split(':')
     write_hello(Path(src) / 'hello.txt')
     pyscript = write_pyscript(tmp_cwd, Path(remote) / 'hello.txt')
@@ -216,8 +219,11 @@ def test_files_copy_folder(submit, tmp_cwd, files, remote):
     )
     assert_exit_code(res, 0)
 
+    b = get_batch_from_text_output(res, client)
+    assert b.status()['state'] == 'success', str(b.debug_info())
 
-def test_files_nested_folders(submit, tmp_path):
+
+def test_files_nested_folders(submit, tmp_path, client):
     puts(tmp_path / 'python' / 'main' / '__init__.py', '')
     puts(tmp_path / 'python' / 'main' / 'a' / '__init__.py', 'message: str = "hello"')
     puts(tmp_path / 'python' / 'main' / 'b' / '__init__.py', 'message: str = "world"')
@@ -238,8 +244,11 @@ print(f'{a.message}, {b.message}')
     )
     assert_exit_code(res, 0)
 
+    b = get_batch_from_text_output(res, client)
+    assert b.status()['state'] == 'success', str(b.debug_info())
 
-def test_files_mount_multiple_files_options(submit, tmp_cwd):
+
+def test_files_mount_multiple_files_options(submit, tmp_cwd, client):
     write_hello(tmp_cwd / 'hello1.txt')
     write_hello(tmp_cwd / 'hello2.txt')
 
@@ -270,8 +279,11 @@ def test_files_mount_multiple_files_options(submit, tmp_cwd):
 
     assert_exit_code(res, 0)
 
+    b = get_batch_from_text_output(res, client)
+    assert b.status()['state'] == 'success', str(b.debug_info())
 
-def test_files_outside_current_dir(submit, tmp_path):
+
+def test_files_outside_current_dir(submit, tmp_path, client):
     with tmp_cwd(tmp_path / 'working') as cwd:
         write_hello(tmp_path / 'data' / 'hello.txt')
         pyscript = write_pyscript(cwd, '/hello.txt')
@@ -291,8 +303,11 @@ def test_files_outside_current_dir(submit, tmp_path):
         )
         assert_exit_code(res, 0)
 
+        b = get_batch_from_text_output(res, client)
+        assert b.status()['state'] == 'success', str(b.debug_info())
 
-def test_files_dir_outside_curdir(submit, tmp_path):
+
+def test_files_dir_outside_curdir(submit, tmp_path, client):
     with tmp_cwd(tmp_path / 'working'):
         write_hello(tmp_path / 'hello1.txt')
         write_hello(tmp_path / 'hello2.txt')
@@ -300,8 +315,11 @@ def test_files_dir_outside_curdir(submit, tmp_path):
         res = submit(f'/foo/{pyscript.name}', ['--wait', '--quiet', '-o', 'json', '-v', f'{tmp_path}:/foo'], [])
         assert_exit_code(res, 0)
 
+        b = get_batch_from_text_output(res, client)
+        assert b.status()['state'] == 'success', str(b.debug_info())
 
-def test_submit_with_args(submit, tmp_path):
+
+def test_submit_with_args(submit, tmp_path, client):
     script = tmp_path / 'script'
     script.write_text(
         """\
@@ -316,6 +334,9 @@ assert args == [1, 2, 'a', 'b', '--foo', 'bar=5']
         script.name, ['--wait', '-o', 'json', '--quiet', '-v', f"{script}:/"], ['1', '2', 'a', 'b', '--foo', 'bar=5']
     )
     assert_exit_code(res, 0)
+
+    b = get_batch_from_text_output(res, client)
+    assert b.status()['state'] == 'success', str(b.debug_info())
 
 
 def test_submit_with_proper_job_settings(submit, tmp_path, client):
