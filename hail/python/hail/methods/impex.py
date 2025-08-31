@@ -719,6 +719,8 @@ def import_locus_intervals(
         Interval-keyed table.
     """
 
+    hl.current_backend().validate_file(path)
+
     if contig_recoding is not None:
         contig_recoding = hl.literal(contig_recoding)
 
@@ -897,6 +899,8 @@ def import_bed(path, reference_genome='default', skip_invalid_intervals=False, c
         Interval-keyed table.
     """
 
+    hl.current_backend().validate_file(path)
+
     # UCSC BED spec defined here: https://genome.ucsc.edu/FAQ/FAQformat.html#format1
 
     t = import_table(
@@ -1006,6 +1010,8 @@ def import_fam(path, quant_pheno=False, delimiter=r'\\s+', missing='NA') -> Tabl
     -------
     :class:`.Table`
     """
+    hl.current_backend().validate_file(path)
+
     type_and_data = Env.backend().import_fam(path, quant_pheno, delimiter, missing)
     typ = hl.dtype(type_and_data['type'])
     return hl.Table.parallelize(hl.tarray(typ)._convert_from_json_na(type_and_data['data']), typ, key=['id'])
@@ -1255,6 +1261,12 @@ def import_bgen(
 
     """
 
+    if isinstance(path, list):
+        for p in path:
+            hl.current_backend().validate_file(p)
+    else:
+        hl.current_backend().validate_file(path)
+
     if n_partitions is None and block_size is None:
         block_size = 128
 
@@ -1447,6 +1459,13 @@ def import_gen(
     -------
     :class:`.MatrixTable`
     """
+
+    if isinstance(path, list):
+        for p in path:
+            hl.current_backend().validate_file(p)
+    else:
+        hl.current_backend().validate_file(path)
+
     gen_table = import_lines(path, min_partitions)
     sample_table = import_lines(sample_file)
     rg = reference_genome.name if reference_genome else None
@@ -1759,6 +1778,13 @@ def import_table(
     -------
     :class:`.Table`
     """
+
+    if isinstance(paths, list):
+        for p in paths:
+            hl.current_backend().validate_file(p)
+    else:
+        hl.current_backend().validate_file(paths)
+
     if len(delimiter) < 1:
         raise ValueError('import_table: empty delimiter is not supported')
 
@@ -1946,6 +1972,9 @@ def import_lines(paths, min_partitions=None, force_bgz=False, force=False, file_
     """
 
     paths = wrap_to_list(paths)
+
+    for p in paths:
+        hl.current_backend().validate_file(p)
 
     if file_per_partition and min_partitions is not None:
         if min_partitions > len(paths):
@@ -2140,10 +2169,14 @@ def import_matrix_table(
     :class:`.MatrixTable`
         MatrixTable constructed from imported data.
     """
+
     row_key = wrap_to_list(row_key)
     comment = wrap_to_list(comment)
     paths = [hl.current_backend().fs.canonicalize_path(p) for p in wrap_to_list(paths)]
     missing_list = wrap_to_list(missing)
+
+    for p in paths:
+        hl.current_backend().validate_file(p)
 
     def comment_filter(table):
         return (
@@ -2641,6 +2674,9 @@ def import_plink(
 
     """
 
+    for p in (bed, bim, fam):
+        hl.current_backend().validate_file(p)
+
     if contig_recoding is None:
         if reference_genome is None:
             contig_recoding = {}
@@ -2708,6 +2744,8 @@ def read_matrix_table(
     -------
     :class:`.MatrixTable`
     """
+    hl.current_backend().validate_file(path)
+
     if _load_refs:
         for rg_config in Env.backend().load_references_from_dataset(path):
             hl.ReferenceGenome._from_config(rg_config)
@@ -2792,6 +2830,8 @@ def get_vcf_metadata(path):
     -------
     :obj:`dict` of :class:`str` to (:obj:`dict` of :obj:`str` to (:obj:`dict` of :obj:`str` to :obj:`str`))
     """
+
+    hl.current_backend().validate_file(path)
 
     return Env.backend().parse_vcf_metadata(path)
 
@@ -3186,6 +3226,7 @@ def index_bgen(
         If ``True``, skip loci that are not consistent with `reference_genome`.
 
     """
+
     rg_t = hl.tlocus(reference_genome) if reference_genome else hl.tstruct(contig=hl.tstr, position=hl.tint32)
     if index_file_map is None:
         index_file_map = {}
@@ -3196,6 +3237,7 @@ def index_bgen(
     fs = hl.current_backend().fs
     paths = []
     for p in raw_paths:
+        hl.current_backend().validate_file(p)
         if fs.is_file(p):
             paths.append(p)
         else:
@@ -3281,6 +3323,8 @@ def read_table(
     -------
     :class:`.Table`
     """
+    hl.current_backend().validate_file(path)
+
     if _load_refs:
         for rg_config in Env.backend().load_references_from_dataset(path):
             hl.ReferenceGenome._from_config(rg_config)
@@ -3334,6 +3378,9 @@ def export_elasticsearch(t, host, port, index, index_type, block_size, config=No
 
 @typecheck(paths=sequenceof(str), key=nullable(sequenceof(str)), intervals=nullable(sequenceof(anytype)))
 def import_avro(paths, *, key=None, intervals=None):
+    for path in paths:
+        hl.current_backend().validate_file(path)
+
     if not paths:
         raise ValueError('import_avro requires at least one path')
     if (key is None) != (intervals is None):
