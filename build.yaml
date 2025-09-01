@@ -3501,7 +3501,7 @@ steps:
       GITHUB_OAUTH_HEADER_FILE=/io/github-oauth \
       HAIL_GENETICS_HAIL_IMAGE=docker://{{ hailgenetics_hail_image.image }} \
       HAIL_GENETICS_HAIL_IMAGE_PY_3_10=docker://{{ hailgenetics_hail_image_python_3_10.image }} \
-      HAIL_GENETICS_HAIL_IMAGE_PY_3_11=docker://{{ hailgenetics_hail_image_python.image }} \  # <- current "default" version
+      HAIL_GENETICS_HAIL_IMAGE_PY_3_11=docker://{{ hailgenetics_hail_image.image }} \  # <- current "default" version
       HAIL_GENETICS_HAIL_IMAGE_PY_3_12=docker://{{ hailgenetics_hail_image_python_3_12.image }} \
       HAIL_GENETICS_HAIL_IMAGE_PY_3_13=docker://{{ hailgenetics_hail_image_python_3_13.image }} \
       HAIL_GENETICS_HAILTOP_IMAGE=docker://{{ hailgenetics_hailtop_image.image }} \
