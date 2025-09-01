@@ -13,6 +13,8 @@ import is.hail.sparkextras.{ContextRDD, OriginUnionPartition, OriginUnionRDD}
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.utils.compat._
+import is.hail.utils.compat.immutable.ArraySeq
 import is.hail.utils.richUtils.{
   ByteTrackingOutputStream, RichArray, RichContextRDD, RichDenseMatrixDouble,
 }
@@ -86,7 +88,7 @@ class CollectMatricesRDD(@transient var bms: IndexedSeq[BlockMatrix])
       m(
         (i * p.blockSize) until (i * p.blockSize + b.rows),
         (j * p.blockSize) until (j * p.blockSize + b.cols),
-      ) := b
+      ) := b: Unit
 
       k += 1
     }
@@ -300,11 +302,11 @@ object BlockMatrix {
         val m = it.next()
         val path = prefix + "/" + StringUtils.leftPad(i.toString, d, '0')
 
-        RichDenseMatrixDouble.exportToDoubles(fsBc.value, path, m, forceRowMajor = true)
+        RichDenseMatrixDouble.exportToDoubles(fsBc.value, path, m, forceRowMajor = true): Unit
 
         Iterator.single(1)
       }
-      .collect()
+      .foreach(_ => ())
 
     using(fs.create(prefix + "/_SUCCESS"))(out => ())
   }
@@ -376,7 +378,7 @@ object BlockMatrix {
 
         Iterator.single(1)
       }
-      .collect()
+      .foreach(_ => ())
 
     using(fs.create(prefix + "/_SUCCESS"))(out => ())
   }
@@ -608,24 +610,24 @@ class BlockMatrix(
             var ii = iiLeft
             var jj = math.max(lower - diagIndex, 0).toInt
             while (ii < iiRight) {
-              lm(ii to ii, 0 until jj) := 0.0
+              lm(ii to ii, 0 until jj) := 0.0: Unit
               ii += 1
               jj += 1
             }
 
-            lm(iiRight until nRowsInBlock, ::) := 0.0
+            lm(iiRight until nRowsInBlock, ::) := 0.0: Unit
           }
 
           if (upper < highestDiagIndex) {
             val iiLeft = math.max(diagIndex - upper, 0).toInt
             val iiRight = math.min(diagIndex - upper + nColsInBlock, nRowsInBlock).toInt
 
-            lm(0 until iiLeft, ::) := 0.0
+            lm(0 until iiLeft, ::) := 0.0: Unit
 
             var ii = iiLeft
             var jj = math.max(upper - diagIndex, 0).toInt + 1
             while (ii < iiRight) {
-              lm(ii to ii, jj until nColsInBlock) := 0.0
+              lm(ii to ii, jj until nColsInBlock) := 0.0: Unit
               ii += 1
               jj += 1
             }
@@ -684,14 +686,14 @@ class BlockMatrix(
         while (ii < nRowsInBlock) {
           val startBlock = startBlockIndex(row)
           if (startBlock == j)
-            lm(ii to ii, 0 until startBlockOffset(row)) := 0.0
+            lm(ii to ii, 0 until startBlockOffset(row)) := 0.0: Unit
           else if (startBlock > j)
-            lm(ii to ii, ::) := 0.0
+            lm(ii to ii, ::) := 0.0: Unit
           val stopBlock = stopBlockIndex(row)
           if (stopBlock == j)
-            lm(ii to ii, stopBlockOffset(row) until nColsInBlock) := 0.0
+            lm(ii to ii, stopBlockOffset(row) until nColsInBlock) := 0.0: Unit
           else if (stopBlock < j)
-            lm(ii to ii, ::) := 0.0
+            lm(ii to ii, ::) := 0.0: Unit
           row += 1
           ii += 1
         }
@@ -741,7 +743,7 @@ class BlockMatrix(
         }
         k += 1
       }
-      sb.append(data.last).append("\n")
+      sb.append(data.last).append("\n"): Unit
 
       os.write(sb.result())
       os.close()
@@ -1720,7 +1722,7 @@ private class BlockMatrixFilterRDD(bm: BlockMatrix, keepRows: Array[Long], keepC
             newBlock(jRow until kRow, jCol until kCol) := block(
               siRow until eiRow,
               siCol until eiCol,
-            )
+            ): Unit
 
             jRow = kRow
             rowRangeIndex += 1
@@ -1833,7 +1835,7 @@ private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: Array[Long])
           val ei = endIndices(colRangeIndex)
           k = j + ei - si
 
-          newBlock(::, j until k) := block(0 until newBlock.rows, si until ei)
+          newBlock(::, j until k) := block(0 until newBlock.rows, si until ei): Unit
 
           j = k
           colRangeIndex += 1
@@ -1936,7 +1938,7 @@ private class BlockMatrixFilterRowsRDD(bm: BlockMatrix, keep: Array[Long])
           val ei = endIndices(rowRangeIndex)
           k = j + ei - si
 
-          newBlock(j until k, ::) := block(si until ei, 0 until newBlock.cols)
+          newBlock(j until k, ::) := block(si until ei, 0 until newBlock.cols): Unit
 
           j = k
           rowRangeIndex += 1
@@ -2057,13 +2059,13 @@ private class BlockMatrixMultiplyRDD(l: BlockMatrix, r: BlockMatrix)
       new NarrowDependency(l.blocks) {
         def getParents(partitionId: Int): Seq[Int] = {
           val i = gp.blockBlockRow(partitionId)
-          (0 until nProducts).map(k => lGP.coordinatesPart(i, k)).filter(_ >= 0).toArray
+          (0 until nProducts).map(k => lGP.coordinatesPart(i, k)).filter(_ >= 0).to(ArraySeq)
         }
       },
       new NarrowDependency(r.blocks) {
         def getParents(partitionId: Int): Seq[Int] = {
           val j = gp.blockBlockCol(partitionId)
-          (0 until nProducts).map(k => rGP.coordinatesPart(k, j)).filter(_ >= 0).toArray
+          (0 until nProducts).map(k => rGP.coordinatesPart(k, j)).filter(_ >= 0).to(ArraySeq)
         }
       },
     )
@@ -2301,7 +2303,7 @@ class WriteBlocksRDD(
         if (pi == start) {
           var j = 0
           while (j < writeBlocksPart.skip) {
-            it.next()
+            it.next(): Unit
             ctx.region.clear()
             j += 1
           }

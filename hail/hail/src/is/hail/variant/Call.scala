@@ -1,7 +1,6 @@
 package is.hail.variant
 
 import is.hail.expr.Parser
-import is.hail.macros.void
 import is.hail.utils._
 
 import scala.annotation.switch
@@ -344,17 +343,17 @@ object Call extends Serializable {
         if (phased)
           throw new UnsupportedOperationException("VCF spec does not support phased haploid calls.")
         else
-          void(sb ++= alleleByIndex(c, 0).toString)
+          sb ++= alleleByIndex(c, 0).toString
       case 2 =>
         val p = allelePair(c)
-        void(sb ++= AllelePair.j(p).toString ++= sep ++= AllelePair.k(p).toString)
+        sb ++= AllelePair.j(p).toString ++= sep ++= AllelePair.k(p).toString: Unit
       case _ =>
         var i = 0
         val nAlleles = ploidy(c)
         while (i < nAlleles) {
-          void(sb ++= alleleByIndex(c, i).toString)
+          sb ++= alleleByIndex(c, i).toString
           if (i != nAlleles - 1)
-            void(sb ++= sep)
+            sb ++= sep
           i += 1
         }
     }

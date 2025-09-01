@@ -1,10 +1,11 @@
 package is.hail.lir
 
 import is.hail.expr.ir.{BooleanArrayBuilder, IntArrayBuilder}
-import is.hail.macros.void
 import is.hail.utils.BoxedArrayBuilder
 
 import scala.collection.mutable
+
+import org.typelevel.scalaccompat.annotation.nowarn
 
 // PST computes a non-standard variant of the Program Structure Tree (PST)
 // For the original definition, see:
@@ -80,6 +81,7 @@ class PSTBuilder(
   def nBlocks: Int = blocks.length
 
   // for debugging
+  @nowarn("cat=unused-privates")
   private def checkRegion(start: Int, end: Int): Unit = {
     // only enter at start
     var i = start + 1
@@ -185,7 +187,7 @@ class PSTBuilder(
           }
         }
       } else
-        stack.pop()
+        stack.pop(): Unit
     }
 
     assert(k == nBlocks)
@@ -260,7 +262,7 @@ class PSTBuilder(
   // regions with no parents
   private val frontier = new IntArrayBuilder()
 
-  private def addRegion(start: Int, end: Int): Int = {
+  private def addRegion(start: Int, end: Int): Unit = {
     var firstc = frontier.size
     while ((firstc - 1) >= 0 && regions(frontier(firstc - 1)).start >= start)
       firstc -= 1
@@ -282,7 +284,6 @@ class PSTBuilder(
       splitBlock.set(start)
     frontier += ri
     regions += new PSTRegion(start, end, children)
-    ri
   }
 
   private def addRoot(): Int = {
@@ -340,8 +341,8 @@ class PSTBuilder(
 
             if (backEdgesOK(rStart, newStart)) {
               // expensive, for debugging
-              checkRegion(rStart, newStart)
-              void(addRegion(rStart, newStart))
+//              checkRegion(rStart, newStart)
+              addRegion(rStart, newStart)
             } else
               f(i - 1)
           }

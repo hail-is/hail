@@ -80,7 +80,7 @@ object ExtractIntervalFilters {
         None
       else {
         val rw = extract.Rewrites(mutable.Set.empty, mutable.Set.empty)
-        extract.analyze(cond, ref.name, Some(rw), trueSet)
+        extract.analyze(cond, ref.name, Some(rw), trueSet): Unit
         Some((extract.rewrite(cond, rw), trueSet))
       }
     }
@@ -174,7 +174,7 @@ class KeySetLattice(ctx: ExecuteContext, keyType: TStruct) extends Lattice {
   def complement(v: Value): Value = {
     if (v.isEmpty) return top
 
-    val builder = mutable.ArrayBuilder.make[Interval]()
+    val builder = mutable.ArrayBuilder.make[Interval]
     if (v.head.left != IntervalEndpoint(Row(), -1)) {
       builder += Interval(IntervalEndpoint(Row(), -1), v.head.left)
     }

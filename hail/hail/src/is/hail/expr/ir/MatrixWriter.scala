@@ -30,8 +30,6 @@ import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
 import is.hail.variant.{Call, ReferenceGenome}
 
-import scala.language.existentials
-
 import java.io.{InputStream, OutputStream}
 import java.nio.file.{FileSystems, Path}
 import java.util.UUID

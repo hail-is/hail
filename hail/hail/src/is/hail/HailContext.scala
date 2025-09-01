@@ -126,7 +126,7 @@ object HailContext {
         DenseVector[Double],
       ]].register(
         DenseMatrix.implOpMulMatrix_DMD_DVD_eq_DVD
-      )
+      ): Unit
     }
 
     theContext = new HailContext(backend, branchingFactor, optimizerIterations)

@@ -106,7 +106,7 @@ object RichContextRDDRegionValue {
           fs.delete(rowsPartPath, recursive = false)
           fs.delete(entriesPartPath, recursive = false)
           fs.delete(idxPath, recursive = true)
-        }
+        }: Unit
         (rowsPartPath, entriesPartPath, idxPath)
       } else
         (finalRowsPartPath, finalEntriesPartPath, finalIdxPath)

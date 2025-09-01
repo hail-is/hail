@@ -27,8 +27,6 @@ import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
 import is.hail.variant.ReferenceGenome
 
-import scala.language.existentials
-
 import java.io.{BufferedOutputStream, OutputStream}
 import java.nio.file.{FileSystems, Path}
 import java.util.UUID

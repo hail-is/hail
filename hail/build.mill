@@ -1,23 +1,26 @@
-//| mill-version: 1.0.3
+//| mill-version: 1.0.4
 //| mill-jvm-version: 11
-//| mvnDeps:
-//| - com.goyeau::mill-scalafix::0.6.0
 
 package build
 
 import com.goyeau.mill.scalafix.ScalafixModule
+import org.typelevel.scalacoptions.*
 import mill.*
-import mill.api.{Result, BuildCtx}
-import mill.javalib.UnresolvedPath
+import mill.api.{BuildCtx, Result}
+import mill.javalib.testrunner.TestResult
 import mill.scalalib.*
 import mill.scalalib.Assembly.*
 import mill.scalalib.TestModule.TestNg
 import mill.scalalib.scalafmt.ScalafmtModule
 import mill.util.{Jvm, VcsVersion}
+import upickle.default.ReadWriter
+
+import scala.collection.immutable.ArraySeq
 
 object Settings {
   val hailMajorMinorVersion = "0.2"
   val hailPatchVersion = "136"
+  val scalaMinorVersions = Map("2.12" -> "2.12.20", "2.12.13" -> "2.12.13", "2.13" -> "2.13.13")
 }
 
 object Deps {
@@ -49,8 +52,8 @@ object Deps {
   }
 
   object Spark {
-    def core: Task[Dep] = Task.Anon(mvn"org.apache.spark::spark-core:${build.env.sparkVersion()}")
-    def mllib: Task[Dep] = Task.Anon(mvn"org.apache.spark::spark-mllib:${build.env.sparkVersion()}")
+    def core: Task[Dep] = Task.Anon(mvn"org.apache.spark::spark-core:${Env.sparkVersion()}")
+    def mllib: Task[Dep] = Task.Anon(mvn"org.apache.spark::spark-mllib:${Env.sparkVersion()}")
   }
 
   val samtools = mvn"com.github.samtools:htsjdk:3.0.5"
@@ -70,21 +73,20 @@ object Deps {
   val hadoopClient = mvn"org.apache.hadoop:hadoop-client:3.3.4"
   val jackson = mvn"com.fasterxml.jackson.core:jackson-core:2.15.2"
   val sourcecode = mvn"com.lihaoyi::sourcecode:0.4.2"
+  val collection_compat = mvn"org.scala-lang.modules::scala-collection-compat:2.13.0"
+  // provides @nowarn212 and @nowarn213
+  val scalac_compat = mvn"org.typelevel::scalac-compat-annotation:0.1.4"
 
   object Plugins {
     val betterModadicFor = mvn"com.olegpy::better-monadic-for:0.3.1"
   }
 }
 
-object env extends Module {
-  def scalaVersion: T[String] = Task.Input {
-    val v = Task.env.getOrElse("SCALA_VERSION", "2.12.20")
-    if (!v.startsWith("2.12"))
-      Result.Failure("Hail currently supports only Scala 2.12")
-    else
-      v
-  }
+enum BuildMode derives ReadWriter {
+  case Dev, CI, Release
+}
 
+object Env extends Module {
   def javaVersion: T[String] = Task.Input {
     System.getProperty("java.version")
   }
@@ -93,50 +95,146 @@ object env extends Module {
     Result.Success(Task.env.getOrElse("SPARK_VERSION", "3.5.0"))
   }
 
-  def getDebugMode(env: Map[String, String]): Boolean =
-    !env.contains("HAIL_RELEASE_MODE")
-
-  def debugMode: T[Boolean] = Task.Input {
-    val isDebug = getDebugMode(Task.env)
-    Task.log.info(s"Building in ${if (isDebug) "debug" else "release"} mode")
-    isDebug
-  }
-
-  def debugOrRelease: Task[String] = Task.Anon {
-    if (debugMode()) "debug" else "release"
-  }
+  val buildMode: BuildMode = BuildMode.valueOf(millbuild.BuildConfig.buildMode)
 }
 
 trait HailModule extends ScalaModule with ScalafmtModule with ScalafixModule { outer =>
-  override def scalaVersion: T[String] = build.env.scalaVersion()
+  def crossValue: String
+  override def scalaVersion: T[String] = Task { Settings.scalaMinorVersions(crossValue) }
 
   override def javacOptions: T[Seq[String]] = Seq(
     "-Xlint:all",
     "-Werror",
-    if (build.env.debugMode()) "-g" else "-O",
-  ) ++ (if (!build.env.javaVersion().startsWith("1.8")) Seq("-Xlint:-processing") else Seq())
+    if (Env.buildMode == BuildMode.Release) "-O" else "-g",
+  ) ++ (if (!Env.javaVersion().startsWith("1.8")) Seq("-Xlint:-processing") else Seq())
 
   override def scalacOptions: T[Seq[String]] = Task {
-    Seq(
-      "-explaintypes",
-      "-unchecked",
-      "-Xsource:2.13",
-      "-Xno-patmat-analysis",
-      "-Ypartial-unification",
-      "-Yno-adapted-args", // will be removed in 2.13
-      "-Ywarn-value-discard",
-      "-Xlint",
-      "-Ywarn-unused:_,-explicits,-implicits",
-      "-Wconf:msg=legacy-binding:s",
-      "-feature",
-    ) ++ (
-      if (build.env.debugMode()) Seq()
-      else Seq(
-        "-Xfatal-warnings",
-        "-opt:l:method",
-        "-opt:-closure-invocations",
-      )
+    val disabledOptions = Set(
+      ScalacOptions.warnNumericWiden, ScalacOptions.privateWarnNumericWiden,
+      ScalacOptions.warnUnusedParams, ScalacOptions.privateWarnUnusedParams,
+      ScalacOptions.warnUnusedImplicits, ScalacOptions.privateWarnUnusedImplicits,
+      ScalacOptions.warnUnusedExplicits,
+      ScalacOptions.warnDeadCode, ScalacOptions.privateWarnDeadCode,
+      // we don't enable the unused imports warning in 2.12, as the wconf origin filter doesn't work
+      ScalacOptions.privateWarnUnusedImports,
+      // 2.13 added the -Wnonunit-discard flag, which is a stronger check than -Wvalue-discard
+      ScalacOptions.warnValueDiscard, ScalacOptions.privateWarnValueDiscard,
+
+      ScalacOptions.lintInferAny,
+      ScalacOptions.languageExperimentalMacros,
     )
+    
+    val baseOptions = ScalacOptions.default +
+      ScalacOptions.source213 +
+      ScalacOptions.advancedOption("no-patmat-analysis")
+    
+    val additionalOptions = Env.buildMode match {
+      case BuildMode.Dev =>
+        ScalacOptions.verboseOptions
+      // enable to help debug accessing unitialized fields
+      //     + ScalacOptions.checkInit
+      case BuildMode.CI => 
+        Set(ScalacOptions.fatalWarnings)
+      case BuildMode.Release =>
+        Set(
+          ScalacOptions.fatalWarnings,
+          ScalacOptions.optimizerMethodLocal,
+          ScalacOptions.optimizerOption(":-closure-invocations"),
+        )
+    }
+
+    val finalOptions = ScalacOptions.tokensForVersion(
+      ScalaVersion.unsafeFromString(scalaVersion()),
+      baseOptions -- disabledOptions ++ additionalOptions
+    )
+    if (scalaVersion().startsWith("2.13")) {
+      finalOptions ++
+      Seq(
+      // collection types
+        // type Traversable in package scala is deprecated (since 2.13.0): Use Iterable instead of Traversable
+        "-Wconf:cat=deprecation&msg=type Traversable in package scala is deprecated:s",
+        // type TraversableOnce in package scala is deprecated (since 2.13.0): Use IterableOnce instead of TraversableOnce
+        "-Wconf:cat=deprecation&msg=type TraversableOnce:s",
+        // type BufferedIterator in package scala is deprecated (since 2.13.0): Use scala.collection.BufferedIterator instead of scala.BufferedIterator
+        "-Wconf:cat=deprecation&msg=type BufferedIterator in package scala is deprecated:s",
+        // class Stream in package immutable is deprecated (since 2.13.0): Use LazyList (which is fully lazy) instead of Stream (which has a lazy tail only)
+        "-Wconf:cat=deprecation&msg=Stream:s",
+        // type Growable in package generic is deprecated (since 2.13.0): Growable was moved from collection.generic to collection.mutable
+        "-Wconf:cat=deprecation&msg=type Growable in package generic is deprecated:s",
+        // type GenTraversableOnce in package collection is deprecated (since 2.13.0): Gen* collection types have been removed
+        "-Wconf:cat=deprecation&msg=type GenTraversableOnce in package collection is deprecated:s",
+        // trait MultiMap in package mutable is deprecated (since 2.13.0): Use a scala.collection.mutable.MultiDict in the scala-collection-contrib module
+        "-Wconf:cat=deprecation&msg=trait MultiMap in package mutable is deprecated:s",
+        // inheritance from class HashMap in package mutable is deprecated (since 2.13.0): HashMap will be made final; use .withDefault for the common use case of computing a default value
+        "-Wconf:cat=deprecation&msg=inheritance from class HashMap in package mutable is deprecated:s",
+        // object JavaConverters in package collection is deprecated (since 2.13.0): Use `scala.jdk.CollectionConverters` instead
+        "-Wconf:cat=deprecation&msg=object JavaConverters in package collection is deprecated:s",
+        // object ImplicitConversions in package convert is deprecated (since 2.13.0): Use `scala.jdk.CollectionConverters` instead
+        "-Wconf:cat=deprecation&msg=object ImplicitConversions in package convert is deprecated:s",
+      // generic to immutable default
+      // collection methods
+        // method copyArrayToImmutableIndexedSeq in class LowPriorityImplicits2 is deprecated (since 2.13.0): implicit conversions from Array to immutable.IndexedSeq are implemented by copying; use `toIndexedSeq` explicitly if you want to copy, or use the more efficient non-copying ArraySeq.unsafeWrapArray
+        "-Wconf:cat=deprecation&msg=method copyArrayToImmutableIndexedSeq in class LowPriorityImplicits2 is deprecated:s",
+        // Passing an explicit array value to a Scala varargs method is deprecated (since 2.13.0) and will result in a defensive copy; Use the more efficient non-copying ArraySeq.unsafeWrapArray or an explicit toIndexedSeq call
+        "-Wconf:cat=deprecation&msg=Passing an explicit array value to a Scala varargs method is deprecated:s",
+        // method zipped in class Ops is deprecated (since 2.13.0): Use xs.lazyZip(ys)
+        "-Wconf:cat=deprecation&msg=method zipped in class Ops is deprecated:s",
+        // object ZippedIterable2 in package runtime is deprecated (since 2.13.0): Use scala.collection.LazyZip2
+        "-Wconf:cat=deprecation&msg=object ZippedIterable2 in package runtime is deprecated:s",
+        // method any2stringadd in object Predef is deprecated (since 2.13.0): Implicit injection of + is deprecated. Convert to String to call +
+        "-Wconf:cat=deprecation&msg=any2stringadd:s",
+        // method + in class Char is deprecated (since 2.13.0): Adding a number and a String is deprecated. Use the string interpolation `s"$num$str"`
+        raw"-Wconf:cat=deprecation&msg=method \+ in class Char is deprecated:s",
+        // method toIterable in trait Iterable is deprecated (since 2.13.7): toIterable is internal and will be made protected; its name is similar to `toList` or `toSeq`, but it doesn't copy non-immutable collections
+        "-Wconf:cat=deprecation&msg=method toIterable in trait Iterable is deprecated:s",
+        // method toIterator in class IterableOnceExtensionMethods is deprecated (since 2.13.0): Use .iterator instead
+        "-Wconf:cat=deprecation&msg=toIterator:s",
+        // method foreach in class IterableOnceExtensionMethods is deprecated (since 2.13.0): Use .iterator.foreach(...) instead
+        "-Wconf:cat=deprecation&msg=foreach:s",
+        // method nonEmpty in class IterableOnceExtensionMethods is deprecated (since 2.13.0): Use .iterator.nonEmpty instead
+        "-Wconf:cat=deprecation&msg=method nonEmpty in class IterableOnceExtensionMethods is deprecated:s",
+        // method view in trait IndexedSeqOps is deprecated (since 2.13.0): Use .view.slice(from, until) instead of .view(from, until)
+        "-Wconf:cat=deprecation&msg=method view in trait IndexedSeqOps is deprecated:s",
+        // method reverseContents in class StringBuilder is deprecated (since 2.13.0): Use reverseInPlace instead
+        "-Wconf:cat=deprecation&msg=method reverseContents in class StringBuilder is deprecated:s",
+        // method + in trait MapOps is deprecated (since 2.13.0): Consider requiring an immutable Map or fall back to Map.concat.
+        raw"-Wconf:cat=deprecation&msg=method \+ in trait MapOps is deprecated:s",
+        "-Wconf:cat=deprecation&msg=method - in trait MapOps is deprecated:s",
+        // method mapValues in trait MapOps is deprecated (since 2.13.0): Use .view.mapValues(f). A future version will include a strict version of this method (for now, .view.mapValues(f).toMap).
+        "-Wconf:cat=deprecation&msg=method mapValues in trait MapOps is deprecated:s",
+        // method filterKeys in trait MapOps is deprecated (since 2.13.0): Use .view.filterKeys(f). A future version will include a strict version of this method (for now, .view.filterKeys(p).toMap).
+        "-Wconf:cat=deprecation&msg=method filterKeys in trait MapOps is deprecated:s",
+        // method - in trait SetOps is deprecated (since 2.13.0): Consider requiring an immutable Set or fall back to Set.diff
+        "-Wconf:cat=deprecation&msg=method - in trait SetOps is deprecated:s",
+        // method reverseMap in trait SeqOps is deprecated (since 2.13.0): Use .reverseIterator.map(f).to(...) instead of .reverseMap(f)
+        "-Wconf:cat=deprecation&msg=method reverseMap in trait SeqOps is deprecated:s",
+        // method transform in trait SeqOps is deprecated (since 2.13.0): Use `mapInPlace` on an `IndexedSeq` instead
+        "-Wconf:cat=deprecation&msg=method transform in trait SeqOps is deprecated:s",
+      // nullary args
+        // Auto-application to `()` is deprecated. Supply the empty argument list `()` explicitly to invoke method apply,
+        // or remove the empty argument list from its definition (Java-defined methods are exempt).
+        // In Scala 3, an unapplied method like this will be eta-expanded into a function
+        raw"-Wconf:cat=deprecation&msg=Auto-application:s",
+        "-Wconf:cat=deprecation&msg=unary prefix operator definition with empty parameter list is deprecated:s",
+        "-Wconf:cat=other-nullary-override:s",
+      // other
+        // Wrap `export` in backticks to use it as an identifier, it will become a keyword in Scala 3
+        "-Wconf:cat=deprecation&msg=`export`:s",
+        // Widening conversion from Long to Double is deprecated because it loses precision. Write `.toDouble` instead.
+        "-Wconf:cat=deprecation&msg=Widening conversion from Long to Double:s",
+        "-Wconf:cat=deprecation&msg=symbol literal is deprecated:s",
+        "-Wconf:cat=other-match-analysis:s",
+        "-Wconf:cat=other-implicit-type:s",
+        "-Wconf:msg=legacy-binding:s",
+        raw"-Wconf:cat=unused-imports&origin=scala\.collection\.compat\._:s",
+        raw"-Wconf:cat=unused-imports&origin=scala\.Option\.option2Iterable:s",
+        raw"-Wconf:cat=unused-imports&origin=is\.hail\.utils\.compat\._:s",
+        raw"-Wconf:msg=unused value of type org\.scalatest\..*Assertion:s",
+        raw"-Wconf:msg=unused value of type org\.mockito\.stubbing\.ScalaOngoingStubbing:s",
+      )
+    } else {
+      finalOptions :+ "-Wconf:msg=legacy-binding:s"
+    }
   }
 
   trait HailTests extends ScalaTests with TestNg with ScalafmtModule with ScalafixModule {
@@ -154,26 +252,24 @@ trait HailModule extends ScalaModule with ScalafmtModule with ScalafixModule { o
   }
 }
 
-object hail extends HailModule { outer =>
+object hail extends Cross[RootHailModule](millbuild.BuildConfig.enabledScalaVersions)
 
+trait RootHailModule extends CrossScalaModule with HailModule { outer =>
   def buildInfo: T[PathRef] = Task {
     val revision = VcsVersion.vcsState().currentRevision
     os.write(
       Task.dest / "build-info.properties",
       s"""[Build Metadata]
          |revision=$revision
-         |sparkVersion=${env.sparkVersion()}
+         |sparkVersion=${Env.sparkVersion()}
          |hailPipVersion=${Settings.hailMajorMinorVersion}.${Settings.hailPatchVersion}
-         |hailBuildConfiguration=${env.debugOrRelease()}
+         |hailBuildConfiguration=${Env.buildMode}
          |""".stripMargin,
     )
     PathRef(Task.dest)
   }
 
   override def moduleDeps: Seq[JavaModule] = Seq(memory)
-
-  override def compileModuleDeps: Seq[JavaModule] =
-    Seq(macros)
 
   override def resources: T[Seq[PathRef]] = super.resources() ++ Seq(
     BuildCtx.withFilesystemCheckerDisabled {
@@ -211,6 +307,7 @@ object hail extends HailModule { outer =>
     Deps.json4s.excludeOrg("com.fasterxml.jackson.core"),
     Deps.zstd,
     Deps.sourcecode,
+    Deps.collection_compat,
   )
 
   override def runMvnDeps: T[Seq[Dep]] = Seq(
@@ -232,12 +329,14 @@ object hail extends HailModule { outer =>
     Deps.Spark.mllib().excludeOrg("org.scalanlp"),  // Hail has an explicit dependency on Breeze 1.1
     Deps.Breeze.core,
     Deps.jackson,
+    Deps.scalac_compat,
   )
 
   override def assemblyRules: Seq[Rule] = super.assemblyRules ++ Seq(
     Rule.Exclude("META-INF/INDEX.LIST"),
-    Rule.ExcludePattern("scala/.*"),
+    Rule.ExcludePattern("scala/(?!collection/compat).*"),
     Rule.AppendPattern("META-INF/services/.*", "\n"),
+//    Rule.Relocate("scala.collection.compat.**", "is.hail.relocated.@0"),
     Rule.Relocate("breeze.**", "is.hail.relocated.@0"),
     Rule.Relocate("com.google.cloud.**", "is.hail.relocated.@0"),
     Rule.Relocate("com.google.common.**", "is.hail.relocated.@0"),
@@ -261,7 +360,7 @@ object hail extends HailModule { outer =>
     PathRef(Task.dest)
   }
 
-  object `ir-gen` extends HailModule with DefaultTaskModule {
+  object `ir-gen` extends HailModule with DefaultTaskModule with CrossValue {
     override def defaultTask(): String = "generate"
 
     override def mvnDeps = Seq(
@@ -276,12 +375,12 @@ object hail extends HailModule { outer =>
     }
   }
 
-  object memory extends JavaModule { // with CrossValue {
+  object memory extends JavaModule with CrossValue {
     override def zincIncrementalCompilation: T[Boolean] = false
 
     override def javacOptions: T[Seq[String]] =
       outer.javacOptions() ++ (
-        if (env.javaVersion().startsWith("1.8")) Seq(
+        if (Env.javaVersion().startsWith("1.8")) Seq(
           "-XDenableSunApiLintControl",
           "-Xlint:-sunapi",
         )
@@ -289,16 +388,9 @@ object hail extends HailModule { outer =>
       )
 
     override def sources: T[Seq[PathRef]] = Task.Sources {
-      val debugOrRelease = if (env.getDebugMode(Task.env)) "debug" else "release"
+      val debugOrRelease = if (Env.buildMode == BuildMode.CI) "debug" else "release"
       os.sub / debugOrRelease / "src"
     }
-  }
-
-  object macros extends HailModule {
-    override def compileMvnDeps: T[Seq[Dep]] = Seq(
-      mvn"org.scala-lang:scala-reflect:${scalaVersion()}",
-      mvn"orf.scala-lang:scala-compiler:${scalaVersion()}"
-    )
   }
 
   object test extends HailTests {
@@ -314,6 +406,28 @@ object hail extends HailModule { outer =>
 
     override def compileModuleDeps: Seq[JavaModule] =
       super.compileModuleDeps ++ outer.compileModuleDeps
+
+    val numCISplits: Int = 5
+
+    def ciTestGrouping: T[Seq[Seq[String]]] = Task {
+      val k = numCISplits
+      val classes: ArraySeq[String] = discoveredTestClasses().to(ArraySeq)
+      val n = classes.length
+      val shuffled = scala.util.Random(12345).shuffle(classes)
+      val offsets = Range(0, k).map(i => (n - i + k - 1) / k).scan(0)(_ + _)
+      assert(offsets.last == n)
+      Range(0, k).map { i =>
+        shuffled.slice(offsets(i), offsets(i + 1))
+      }
+    }
+
+    def testCISplit(args: String*): Task.Command[(msg: String, results: Seq[TestResult])] = {
+      require(args.length == 1)
+      val split = args.head.toInt
+      Task.Command {
+        testTask(Task.Anon { Seq.empty }, Task.Anon { ciTestGrouping()(split) })()
+      }
+    }
   }
 
   object shadedazure extends JavaModule {

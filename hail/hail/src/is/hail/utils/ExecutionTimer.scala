@@ -1,6 +1,5 @@
 package is.hail.utils
 
-import is.hail.macros.void
 import is.hail.utils.ExecutionTimer.{TimeBlock, Timings}
 
 import scala.collection.mutable
@@ -100,7 +99,7 @@ class ExecutionTimer(val rootName: String) {
     finally {
       val end = System.nanoTime()
       child.finish(end - start)
-      void(stack.pop())
+      stack.pop(): Unit
     }
   }
 
@@ -109,7 +108,7 @@ class ExecutionTimer(val rootName: String) {
       return
     val end = System.nanoTime()
     rootBlock.finish(end - start)
-    void(stack.pop())
+    stack.pop(): Unit
     assert(stack.size == 0)
     finished = true
   }

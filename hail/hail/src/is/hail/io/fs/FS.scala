@@ -581,7 +581,7 @@ trait FS extends Serializable with Logging {
 
   final def exists(url: URL): Boolean = {
     try {
-      fileListEntry(url)
+      fileListEntry(url): Unit
       true
     } catch {
       case _: FileNotFoundException => false
@@ -595,7 +595,7 @@ trait FS extends Serializable with Logging {
 
   def copy(src: URL, dst: URL, deleteSource: Boolean = false): Unit = {
     using(openNoCompression(src)) { is =>
-      using(createNoCompression(dst))(os => IOUtils.copy(is, os))
+      using(createNoCompression(dst))(os => IOUtils.copy(is, os): Unit)
     }
     if (deleteSource)
       delete(src, recursive = false)
@@ -607,7 +607,7 @@ trait FS extends Serializable with Logging {
     copyRecode(parseUrl(src), parseUrl(dst), deleteSource)
 
   def copyRecode(src: URL, dst: URL, deleteSource: Boolean = false): Unit = {
-    using(open(src))(is => using(create(dst))(os => IOUtils.copy(is, os)))
+    using(open(src))(is => using(create(dst))(os => IOUtils.copy(is, os): Unit))
     if (deleteSource)
       delete(src, recursive = false)
   }

@@ -1,8 +1,9 @@
 package is.hail.utils
 
+import scala.collection.compat._
+
 import org.scalacheck.Gen
 import org.scalacheck.Gen._
-import org.scalatest
 import org.scalatest.matchers.should.Matchers.{be, convertToAnyShouldWrapper}
 import org.scalatestplus.scalacheck.CheckerAsserting.assertingNatureOfAssertion
 import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
@@ -29,7 +30,7 @@ class BufferedAggregatorIteratorSuite extends TestNGSuite with ScalaCheckDrivenP
       len <- choose(1, 5)
     } yield (data, len)
 
-  @Test def test(): scalatest.Assertion =
+  @Test def test(): Unit =
     forAll(gen) { case (arr, bufferSize) =>
       val simple: Map[Int, Long] =
         arr.groupBy(_._1).map { case (k, a) => k -> a.map(_._2).sum }
@@ -44,9 +45,8 @@ class BufferedAggregatorIteratorSuite extends TestNGSuite with ScalaCheckDrivenP
           bufferSize,
         )
           .toArray
-          .groupBy(_._1)
-          .mapValues(_.map(_._2).fold(new SumAgg()) { case (s1, s2) => s1.comb(s2) }.x)
-
+          .groupMapReduce(_._1)(_._2)(_ comb _)
+          .view.mapValues(_.x).toMap
       simple should be(buffAgg)
     }
 

@@ -6,7 +6,6 @@ import is.hail.expr.ir.defs.{False, I32, Str, True}
 import is.hail.types.virtual.{TArray, TBoolean, TCall, TInt32}
 import is.hail.variant._
 
-import org.scalatest
 import org.testng.annotations.{DataProvider, Test}
 
 class CallFunctionsSuite extends HailSuite {
@@ -56,7 +55,7 @@ class CallFunctionsSuite extends HailSuite {
     )
   }
 
-  @Test def constructors(): scalatest.Assertion = {
+  @Test def constructors(): Unit = {
     assertEvalsTo(invoke("Call", TCall, False()), Call0())
     assertEvalsTo(invoke("Call", TCall, I32(0), True()), Call1(0, true))
     assertEvalsTo(invoke("Call", TCall, I32(1), False()), Call1(1, false))
@@ -69,66 +68,66 @@ class CallFunctionsSuite extends HailSuite {
   }
 
   @Test(dataProvider = "basic")
-  def isPhased(c: Call): scalatest.Assertion =
+  def isPhased(c: Call): Unit =
     assertEvalsTo(invoke("isPhased", TBoolean, IRCall(c)), Option(c).map(Call.isPhased).orNull)
 
   @Test(dataProvider = "basic")
-  def isHomRef(c: Call): scalatest.Assertion =
+  def isHomRef(c: Call): Unit =
     assertEvalsTo(invoke("isHomRef", TBoolean, IRCall(c)), Option(c).map(Call.isHomRef).orNull)
 
   @Test(dataProvider = "basic")
-  def isHet(c: Call): scalatest.Assertion =
+  def isHet(c: Call): Unit =
     assertEvalsTo(invoke("isHet", TBoolean, IRCall(c)), Option(c).map(Call.isHet).orNull)
 
   @Test(dataProvider = "basic")
-  def isHomVar(c: Call): scalatest.Assertion =
+  def isHomVar(c: Call): Unit =
     assertEvalsTo(invoke("isHomVar", TBoolean, IRCall(c)), Option(c).map(Call.isHomVar).orNull)
 
   @Test(dataProvider = "basic")
-  def isNonRef(c: Call): scalatest.Assertion =
+  def isNonRef(c: Call): Unit =
     assertEvalsTo(invoke("isNonRef", TBoolean, IRCall(c)), Option(c).map(Call.isNonRef).orNull)
 
   @Test(dataProvider = "basic")
-  def isHetNonRef(c: Call): scalatest.Assertion =
+  def isHetNonRef(c: Call): Unit =
     assertEvalsTo(
       invoke("isHetNonRef", TBoolean, IRCall(c)),
       Option(c).map(Call.isHetNonRef).orNull,
     )
 
   @Test(dataProvider = "basic")
-  def isHetRef(c: Call): scalatest.Assertion =
+  def isHetRef(c: Call): Unit =
     assertEvalsTo(invoke("isHetRef", TBoolean, IRCall(c)), Option(c).map(Call.isHetRef).orNull)
 
   @Test(dataProvider = "basic")
-  def nNonRefAlleles(c: Call): scalatest.Assertion =
+  def nNonRefAlleles(c: Call): Unit =
     assertEvalsTo(
       invoke("nNonRefAlleles", TInt32, IRCall(c)),
       Option(c).map(Call.nNonRefAlleles).orNull,
     )
 
   @Test(dataProvider = "basicWithIndex")
-  def alleleByIndex(c: Call, idx: Int): scalatest.Assertion =
+  def alleleByIndex(c: Call, idx: Int): Unit =
     assertEvalsTo(
       invoke("index", TInt32, IRCall(c), I32(idx)),
       Option(c).map(c => Call.alleleByIndex(c, idx)).orNull,
     )
 
   @Test(dataProvider = "basicWithIndex")
-  def downcode(c: Call, idx: Int): scalatest.Assertion =
+  def downcode(c: Call, idx: Int): Unit =
     assertEvalsTo(
       invoke("downcode", TCall, IRCall(c), I32(idx)),
       Option(c).map(c => Call.downcode(c, idx)).orNull,
     )
 
   @Test(dataProvider = "diploid")
-  def unphasedDiploidGtIndex(c: Call): scalatest.Assertion =
+  def unphasedDiploidGtIndex(c: Call): Unit =
     assertEvalsTo(
       invoke("unphasedDiploidGtIndex", TInt32, IRCall(c)),
       Option(c).map(c => Call.unphasedDiploidGtIndex(c)).orNull,
     )
 
   @Test(dataProvider = "basic")
-  def oneHotAlleles(c: Call): scalatest.Assertion =
+  def oneHotAlleles(c: Call): Unit =
     assertEvalsTo(
       invoke("oneHotAlleles", TArray(TInt32), IRCall(c), I32(2)),
       Option(c).map(c => Call.oneHotAlleles(c, 2)).orNull,

@@ -11,7 +11,6 @@ import is.hail.expr.ir.compile.{Compile, CompileWithAggregators}
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.lowering.{RVDToTableStage, TableStage, TableStageToRVD}
 import is.hail.io.{exportTypes, BufferSpec, ByteArrayDecoder, ByteArrayEncoder, TypedCodecSpec}
-import is.hail.macros.void
 import is.hail.rvd.{RVD, RVDContext, RVDPartitioner, RVDType}
 import is.hail.sparkextras.ContextRDD
 import is.hail.types.physical.{
@@ -106,7 +105,7 @@ object TableValue {
     def newGlobalType = TStruct(globalName -> TArray(childValues.head.typ.globalType))
     def newValueType = TStruct(fieldName -> TArray(childValues.head.typ.valueType))
     def newRowType = childValues.head.typ.keyType ++ newValueType
-    val typ = childValues.head.typ.copy(
+    val typ: TableType = childValues.head.typ.copy(
       rowType = newRowType,
       globalType = newGlobalType,
     )
@@ -353,7 +352,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
         sb.clear()
         localTypes.indices.foreachBetween { i =>
           sb ++= TableAnnotationImpex.exportAnnotation(ur.get(i), localTypes(i))
-        }(void(sb.append(localDelim)))
+        }(sb.append(localDelim))
 
         sb.result()
       }
@@ -1099,7 +1098,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
         it.map(ptr => newRow(ctx.r, globals, ptr))
       }
 
-      copy(
+      return copy(
         typ = newType,
         rvd = rvd.mapPartitionsWithIndex(RVDType(rTyp.asInstanceOf[PStruct], typ.key))(itF),
       )
@@ -1321,7 +1320,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
         }
         res
       }
-      copy(
+      return copy(
         typ = newType,
         rvd = rvd.mapPartitionsWithIndex(RVDType(rTyp.asInstanceOf[PStruct], typ.key))(itF),
       )

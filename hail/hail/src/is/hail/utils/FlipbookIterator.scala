@@ -1,7 +1,5 @@
 package is.hail.utils
 
-import is.hail.macros.void
-
 import scala.collection.GenTraversableOnce
 import scala.collection.generic.Growable
 import scala.collection.mutable.PriorityQueue
@@ -289,11 +287,9 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
           }
         }
 
-        void {
-          if (c == 0) value.set(left.consume(), right.consume())
-          else if (c < 0) value.set(left.consume(), rightDefault)
-          else value.set(leftDefault, right.consume())
-        }
+        if (c == 0) value.set(left.consume(), right.consume())
+        else if (c < 0) value.set(left.consume(), rightDefault)
+        else value.set(leftDefault, right.consume())
       }
     }
 

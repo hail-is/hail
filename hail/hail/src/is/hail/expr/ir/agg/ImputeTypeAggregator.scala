@@ -38,7 +38,7 @@ object ImputeTypeState {
 
   def matchBoolean(x: String): Boolean =
     try {
-      x.toBoolean
+      x.toBoolean: Unit
       true
     } catch {
       case _: IllegalArgumentException => false
