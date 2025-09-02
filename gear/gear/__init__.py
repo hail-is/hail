@@ -13,6 +13,7 @@ from .http_server_utils import json_request, json_response
 from .k8s_cache import K8sCache
 from .metrics import monitor_endpoints_middleware
 from .session import setup_aiohttp_session
+from .system_permissions import SystemPermission
 
 __all__ = [
     'AuthServiceAuthenticator',
@@ -20,6 +21,7 @@ __all__ = [
     'CommonAiohttpAppKeys',
     'Database',
     'K8sCache',
+    'SystemPermission',
     'Transaction',
     'UserData',
     'check_csrf_token',
