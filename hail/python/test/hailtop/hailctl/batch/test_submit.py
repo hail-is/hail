@@ -321,7 +321,7 @@ def test_submit_with_args(submit, tmp_path, client):
 #!/usr/bin/env python3
 import sys
 args = sys.argv[1:]
-assert args == [1, 2, 'a', 'b', '--foo', 'bar=5']
+assert args == ['1', '2', 'a', 'b', '--foo', 'bar=5']
 """,
     )
 
