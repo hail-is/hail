@@ -101,7 +101,7 @@ async def submit(
             fs, remote_tmpdir, volume_mounts or []
         )
 
-        mkdirs_needed = []
+        mkdirs_needed = set()
         symlinks_needed = []
         input_files = [(remote_user_config_dir, local_user_config_dir + 'hail/')]
 
@@ -112,14 +112,14 @@ async def submit(
                 io_dest = f'/io/{rand_uid}/{src_basename}'
                 if dest.endswith('/'):
                     symlinks_needed.append((io_dest, f'{dest}/{src_basename}'))
-                    mkdirs_needed.append(dest)
+                    mkdirs_needed.add(dest)
                 else:
                     symlinks_needed.append((io_dest, dest))
-                    mkdirs_needed.append(os.path.dirname(dest))
+                    mkdirs_needed.add(os.path.dirname(dest))
             else:
                 io_dest = f'/io/{rand_uid}/'
                 symlinks_needed.append((io_dest.rstrip('/'), dest.rstrip('/')))
-                mkdirs_needed.append(dest.rstrip('/') + '/')
+                mkdirs_needed.add(dest.rstrip('/') + '/')
 
             input_files.append((src, io_dest))
 
@@ -205,9 +205,7 @@ async def convert_volume_mounts_to_file_transfers_with_local_upload(
         else:
             remote_src = src
 
-        dst = os.path.normpath(str(dst))
-
-        remote_file_transfers.append((str(remote_src), dst))
+        remote_file_transfers.append((str(remote_src), str(dst)))
 
     await copy_from_dict(
         files=[{'from': str(local_src), 'to': str(remote_src)} for local_src, remote_src in local_file_transfers]

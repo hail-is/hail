@@ -198,7 +198,7 @@ def test_files_copy_rename(submit, tmp_cwd, client):
 
 
 @pytest.mark.parametrize(
-    'src', 'dest', 'hello_dir',
+    'src, dest, hello_dir',
     [
         ('a', '/', '/a/'),
         ('a/', '/', '/'),
