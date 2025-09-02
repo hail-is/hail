@@ -3,8 +3,9 @@ package is.hail.expr.ir
 import is.hail.{ExecStrategy, HailSuite}
 import is.hail.expr.ir.DeprecatedIRBuilder._
 import is.hail.expr.ir.defs.{
-  AggFilter, AggGroupBy, ApplyAggOp, ApplyBinaryPrimOp, Cast, GetField, I32, Ref, StreamAggScan,
-  StreamRange, TableAggregate, ToArray, ToStream,
+  AggFilter, AggGroupBy, ApplyAggOp, ApplyBinaryPrimOp, ArrayRef, Cast, GetField, I32, InsertFields,
+  MakeStruct, MakeTuple, Ref, Str, StreamAgg, StreamAggScan, StreamRange, TableAggregate, ToArray,
+  ToStream,
 }
 import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR}
 import is.hail.types.virtual._
@@ -1353,5 +1354,49 @@ class AggregatorsSuite extends HailSuite {
       )
     )
     assertEvalsTo(myIR, IndexedSeq(0, 0, 1, 3, 6, 10, 15, 21, 28, 36))
+  }
+
+  // fails because there is no "lowest binding referenced in an init op"
+  @Test def testStreamAgg(): scalatest.Assertion = {
+    implicit val execStrats = Set(ExecStrategy.JvmCompileUnoptimized)
+    val foo = StreamRange(I32(0), I32(10), I32(1))
+
+    val elt = Ref(freshName(), TInt32)
+    val agg1 = bindIR(I32(1))(i => ApplyAggOp(Take(), i)(elt))
+    val agg2 = bindIR(I32(2))(i => ApplyAggOp(Take(), i)(elt))
+    val ir = StreamAgg(
+      foo,
+      elt.name,
+      ApplyBinaryPrimOp(Add(), ArrayRef(agg1, I32(0)), ArrayRef(agg2, I32(1))),
+    )
+    assertEvalsTo(ir, 1)
+  }
+
+  @Test def testLetBoundInitOpArg(): scalatest.Assertion = {
+    implicit val execStrats = ExecStrategy.allRelational
+    var tir: TableIR = TableRange(10, 3)
+    tir =
+      TableMapRows(
+        tir,
+        InsertFields(Ref(TableIR.rowName, tir.typ.rowType), FastSeq("aStr" -> Str("foo"))),
+      )
+    tir = TableMapGlobals(tir, MakeStruct(FastSeq("n" -> I32(5))))
+    val x = TableAggregate(
+      tir,
+      bindIR(GetField(Ref(TableIR.globalName, tir.typ.globalType), "n")) { n =>
+        MakeTuple.ordered(FastSeq(
+          n,
+          ApplyAggOp(Take(), n)(GetField(Ref(TableIR.rowName, tir.typ.rowType), "idx")),
+        ))
+      },
+    )
+
+    assertEvalsTo(
+      x,
+      Row(
+        5,
+        0 until 5,
+      ),
+    )
   }
 }
