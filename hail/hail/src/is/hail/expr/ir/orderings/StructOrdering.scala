@@ -10,7 +10,7 @@ object StructOrdering {
     t1: SBaseStruct,
     t2: SBaseStruct,
     ecb: EmitClassBuilder[_],
-    sortOrders: Array[SortOrder] = null,
+    sortOrders: IndexedSeq[SortOrder] = null,
     missingFieldsEqual: Boolean = true,
   ): CodeOrdering = new CodeOrdering {
 

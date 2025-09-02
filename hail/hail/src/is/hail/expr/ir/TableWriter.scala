@@ -27,8 +27,6 @@ import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
 import is.hail.variant.ReferenceGenome
 
-import scala.language.existentials
-
 import java.io.{BufferedOutputStream, OutputStream}
 import java.nio.file.{FileSystems, Path}
 import java.util.UUID
@@ -325,8 +323,8 @@ case class PartitionNativeWriter(
                 firstSeenSettable,
                 EmitValue.present(key.copyToRegion(cb, region, firstSeenSettable.st)),
               ),
-              { lastSeen =>
-                val comparator = EQ(lastSeenSettable.emitType.virtualType).codeOrdering(
+              { _ =>
+                val comparator = EQ.codeOrdering(
                   cb.emb.ecb,
                   lastSeenSettable.st,
                   key.st,
@@ -522,7 +520,7 @@ case class TableSpecWriter(
                 const("firstKey of curElement can't be missing, part size was ") concat count.toS,
               )
 
-              val comparator = NEQ(lastSeenSettable.emitType.virtualType).codeOrdering(
+              val comparator = NEQ.codeOrdering(
                 cb.emb.ecb,
                 lastSeenSettable.st,
                 curFirst.st,

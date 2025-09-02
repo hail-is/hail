@@ -1119,7 +1119,7 @@ class PruneSuite extends HailSuite {
     val select = SelectFields(x, IndexedSeq("c"))
     checkMemo(
       AggFilter(
-        ApplyComparisonOp(LT(TInt32, TInt32), GetField(x, "a"), I32(0)),
+        ApplyComparisonOp(LT, GetField(x, "a"), I32(0)),
         ApplyAggOp(
           FastSeq(),
           FastSeq(select),
