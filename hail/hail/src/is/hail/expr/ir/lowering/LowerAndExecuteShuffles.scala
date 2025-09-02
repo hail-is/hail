@@ -38,13 +38,8 @@ object LowerAndExecuteShuffles {
           case t @ TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize) =>
             val newKeyType = newKey.typ.asInstanceOf[TStruct]
 
-            val req = Requiredness(t, ctx)
-
-            val aggs = Extract(expr, req)
-            val postAggIR = aggs.postAggIR
-            val init = aggs.init
-            val seq = aggs.seqPerElt
-            val aggSigs = aggs.aggs
+            val aggs = Extract(ctx, expr, Requiredness(t, ctx)).independent
+            val aggSigs = aggs.sigs
 
             var ts = child
 
@@ -56,13 +51,7 @@ object LowerAndExecuteShuffles {
                 ("oldGlobals", Ref(TableIR.globalName, origGlobalTyp)),
                 (
                   "__initState",
-                  RunAgg(
-                    init,
-                    MakeTuple.ordered(aggSigs.indices.map { aIdx =>
-                      AggStateValue(aIdx, aggSigs(aIdx).state)
-                    }),
-                    aggSigs.map(_.state),
-                  ),
+                  RunAgg(aggs.init, aggSigs.valuesOp, aggSigs.states),
                 ),
               )),
             )
@@ -73,19 +62,11 @@ object LowerAndExecuteShuffles {
                   FastSeq(TableIR.globalName -> GetField(insGlob, "oldGlobals")),
                   StreamBufferedAggregate(
                     partStream,
-                    bindIR(GetField(insGlob, "__initState")) { states =>
-                      Begin(aggSigs.indices.map { aIdx =>
-                        InitFromSerializedValue(
-                          aIdx,
-                          GetTupleElement(states, aIdx),
-                          aggSigs(aIdx).state,
-                        )
-                      })
-                    },
+                    bindIR(GetField(insGlob, "__initState"))(aggSigs.initFromSerializedValueOp),
                     newKey,
-                    seq,
+                    aggs.seqPerElt,
                     TableIR.rowName,
-                    aggSigs,
+                    aggSigs.sigs,
                     bufferSize,
                   ),
                 )
@@ -106,15 +87,13 @@ object LowerAndExecuteShuffles {
             val takeVirtualSig =
               TakeStateSig(VirtualTypeWithReq(newKeyType, rt.rowType.select(newKeyType.fieldNames)))
             val takeAggSig = PhysicalAggSig(Take(), takeVirtualSig)
-            val aggStateSigsPlusTake = aggs.states ++ Array(takeVirtualSig)
+            val aggStateSigsPlusTake = aggSigs.states ++ Array(takeVirtualSig)
 
-            val result = ResultOp(aggs.aggs.length, takeAggSig)
+            val result = ResultOp(aggSigs.nAggs, takeAggSig)
 
             val shuffleRead =
               TableRead(partiallyAggregatedReader.fullType, false, partiallyAggregatedReader)
 
-            val postAggUID = Ref(freshName(), postAggIR.typ)
-            val resultFromTakeUID = Ref(freshName(), result.typ)
             val tmp = mapPartitions(
               shuffleRead,
               newKeyType.size,
@@ -129,53 +108,33 @@ object LowerAndExecuteShuffles {
                 )) { groupRef =>
                   RunAgg(
                     Begin(FastSeq(
-                      bindIR(GetField(insGlob, "__initState")) { states =>
-                        Begin(aggSigs.indices.map { aIdx =>
-                          InitFromSerializedValue(
-                            aIdx,
-                            GetTupleElement(states, aIdx),
-                            aggSigs(aIdx).state,
-                          )
-                        })
-                      },
+                      bindIR(GetField(insGlob, "__initState"))(aggSigs.initFromSerializedValueOp),
                       InitOp(
-                        aggSigs.length,
+                        aggSigs.nAggs,
                         IndexedSeq(I32(1)),
                         PhysicalAggSig(Take(), takeVirtualSig),
                       ),
                       forIR(groupRef) { elem =>
                         Begin(FastSeq(
                           SeqOp(
-                            aggSigs.length,
+                            aggSigs.nAggs,
                             IndexedSeq(SelectFields(elem, newKeyType.fieldNames)),
                             PhysicalAggSig(Take(), takeVirtualSig),
                           ),
-                          Begin((0 until aggSigs.length).map { aIdx =>
-                            CombOpValue(
-                              aIdx,
-                              GetTupleElement(GetField(elem, "agg"), aIdx),
-                              aggSigs(aIdx),
-                            )
-                          }),
+                          bindIR(GetField(elem, "agg"))(aggSigs.combOpValues),
                         ))
                       },
                     )),
-                    Let(
-                      FastSeq(
-                        aggs.resultRef.name -> ResultOp.makeTuple(aggs.aggs),
-                        postAggUID.name -> postAggIR,
-                        resultFromTakeUID.name -> result,
-                      ), {
-                        val keyIRs: IndexedSeq[(String, IR)] =
-                          newKeyType.fieldNames.map(keyName =>
-                            keyName -> GetField(ArrayRef(resultFromTakeUID, 0), keyName)
-                          )
+                    bindIRs(aggs.result, result) { case Seq(postAgg, resultFromTake) =>
+                      val keyIRs: IndexedSeq[(String, IR)] =
+                        newKeyType.fieldNames.map(keyName =>
+                          keyName -> GetField(ArrayRef(resultFromTake, 0), keyName)
+                        )
 
-                        MakeStruct(keyIRs ++ expr.typ.asInstanceOf[TStruct].fieldNames.map { f =>
-                          (f, GetField(postAggUID, f))
-                        })
-                      },
-                    ),
+                      MakeStruct(keyIRs ++ expr.typ.asInstanceOf[TStruct].fieldNames.map { f =>
+                        (f, GetField(postAgg, f))
+                      })
+                    },
                     aggStateSigsPlusTake,
                   )
                 },

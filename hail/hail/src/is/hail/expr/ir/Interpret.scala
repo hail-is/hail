@@ -938,9 +938,10 @@ object Interpret {
         val globalsBc = value.globals.broadcast(ctx.theHailClassLoader)
         val globalsOffset = value.globals.value.offset
 
-        val extracted = agg.Extract(query, Requiredness(x, ctx))
+        val extracted = agg.Extract(ctx, query, Requiredness(x, ctx)).independent
+        val aggSigs = extracted.sigs
 
-        val wrapped = if (extracted.aggs.isEmpty) {
+        val wrapped = if (aggSigs.isEmpty) {
           val (Some(PTypeReferenceSingleCodeType(rt: PTuple)), f) =
             Compile[AsmFunction2RegionLongLong](
               ctx,
@@ -950,7 +951,7 @@ object Interpret {
               )),
               FastSeq(classInfo[Region], LongInfo),
               LongInfo,
-              MakeTuple.ordered(FastSeq(extracted.postAggIR)),
+              MakeTuple.ordered(FastSeq(extracted.result)),
             )
 
           // TODO Is this right? where does wrapped run?
@@ -962,7 +963,7 @@ object Interpret {
 
           val (_, initOp) = CompileWithAggregators[AsmFunction2RegionLongUnit](
             ctx,
-            extracted.states,
+            aggSigs.states,
             FastSeq((
               TableIR.globalName,
               SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.globals.t)),
@@ -974,7 +975,7 @@ object Interpret {
 
           val (_, partitionOpSeq) = CompileWithAggregators[AsmFunction3RegionLongLongUnit](
             ctx,
-            extracted.states,
+            aggSigs.states,
             FastSeq(
               (
                 TableIR.globalName,
@@ -990,8 +991,8 @@ object Interpret {
             extracted.seqPerElt,
           )
 
-          val useTreeAggregate = extracted.shouldTreeAggregate
-          val isCommutative = extracted.isCommutative
+          val useTreeAggregate = aggSigs.shouldTreeAggregate
+          val isCommutative = aggSigs.isCommutative
           log.info(s"Aggregate: useTreeAggregate=$useTreeAggregate")
           log.info(s"Aggregate: commutative=$isCommutative")
 
@@ -1006,7 +1007,7 @@ object Interpret {
 
           // creates a region, giving ownership to the caller
           val read: (HailClassLoader, HailTaskContext) => (WrappedByteArray => RegionValue) = {
-            val deserialize = extracted.deserialize(ctx, spec)
+            val deserialize = aggSigs.deserialize(ctx, spec)
             (hcl: HailClassLoader, htc: HailTaskContext) => {
               (a: WrappedByteArray) =>
                 val r = Region(Region.SMALL, htc.getRegionPool())
@@ -1018,7 +1019,7 @@ object Interpret {
 
           // consumes a region, taking ownership from the caller
           val write: (HailClassLoader, HailTaskContext, RegionValue) => WrappedByteArray = {
-            val serialize = extracted.serialize(ctx, spec)
+            val serialize = aggSigs.serialize(ctx, spec)
             (hcl: HailClassLoader, htc: HailTaskContext, rv: RegionValue) => {
               val a = serialize(hcl, htc, rv.region, rv.offset)
               rv.region.invalidate()
@@ -1028,7 +1029,7 @@ object Interpret {
 
           // takes ownership of both inputs, returns ownership of result
           val combOpF: (HailClassLoader, HailTaskContext, RegionValue, RegionValue) => RegionValue =
-            extracted.combOpF(ctx, spec)
+            aggSigs.combOpF(ctx, spec)
 
           // returns ownership of a new region holding the partition aggregation
           // result
@@ -1068,17 +1069,14 @@ object Interpret {
           val (Some(PTypeReferenceSingleCodeType(rTyp: PTuple)), f) =
             CompileWithAggregators[AsmFunction2RegionLongLong](
               ctx,
-              extracted.states,
+              aggSigs.states,
               FastSeq((
                 TableIR.globalName,
                 SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.globals.t)),
               )),
               FastSeq(classInfo[Region], LongInfo),
               LongInfo,
-              Let(
-                FastSeq(extracted.resultRef.name -> extracted.results),
-                MakeTuple.ordered(FastSeq(extracted.postAggIR)),
-              ),
+              MakeTuple.ordered(FastSeq(extracted.result)),
             )
           assert(rTyp.types(0).virtualType == query.typ)
 
