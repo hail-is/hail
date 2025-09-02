@@ -6,7 +6,7 @@ import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
 import is.hail.expr.TableAnnotationImpex
-import is.hail.expr.ir.agg.Aggs
+import is.hail.expr.ir.agg.IndependentExtractedAggs
 import is.hail.expr.ir.compile.{Compile, CompileWithAggregators}
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.lowering.{RVDToTableStage, TableStage, TableStageToRVD}
@@ -430,14 +430,16 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
     )
   }
 
-  def aggregateByKey(extracted: Aggs): TableValue = {
+  def aggregateByKey(extracted: IndependentExtractedAggs): TableValue = {
     val prevRVD = rvd.truncateKey(typ.key)
     val fsBc = ctx.fsBc
     val sm = ctx.stateManager
 
+    val aggSigs = extracted.sigs
+
     val (_, makeInit) = CompileWithAggregators[AsmFunction2RegionLongUnit](
       ctx,
-      extracted.states,
+      aggSigs.states,
       FastSeq((
         TableIR.globalName,
         SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(globals.t)),
@@ -449,7 +451,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
 
     val (_, makeSeq) = CompileWithAggregators[AsmFunction3RegionLongLongUnit](
       ctx,
-      extracted.states,
+      aggSigs.states,
       FastSeq(
         (
           TableIR.globalName,
@@ -465,15 +467,13 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
       extracted.seqPerElt,
     )
 
-    val valueIR = Let(FastSeq(extracted.resultRef.name -> extracted.results), extracted.postAggIR)
     val keyType = prevRVD.typ.kType
 
     val key = Ref(freshName(), keyType.virtualType)
-    val value = Ref(freshName(), valueIR.typ)
     val (Some(PTypeReferenceSingleCodeType(rowType: PStruct)), makeRow) =
       CompileWithAggregators[AsmFunction3RegionLongLongLong](
         ctx,
-        extracted.states,
+        aggSigs.states,
         FastSeq(
           (
             TableIR.globalName,
@@ -483,13 +483,12 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
         ),
         FastSeq(classInfo[Region], LongInfo, LongInfo),
         LongInfo,
-        Let(
-          FastSeq(value.name -> valueIR),
+        bindIR(extracted.result) { value =>
           InsertFields(
             key,
-            tcoerce[TStruct](valueIR.typ).fieldNames.map(n => n -> GetField(value, n)),
-          ),
-        ),
+            tcoerce[TStruct](value.typ).fieldNames.map(n => n -> GetField(value, n)),
+          )
+        },
       )
 
     val resultType = typ.copy(rowType = rowType.virtualType)
@@ -779,12 +778,14 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
   def keyByAndAggregate(
     ctx: ExecuteContext,
     newKey: IR,
-    extracted: Aggs,
+    extracted: IndependentExtractedAggs,
     nPartitions: Option[Int],
     bufferSize: Int,
   ): TableValue = {
     val fsBc = ctx.fsBc
     val sm = ctx.stateManager
+
+    val aggSigs = extracted.sigs
 
     val (Some(PTypeReferenceSingleCodeType(localKeyPType: PStruct)), makeKeyF) =
       Compile[AsmFunction3RegionLongLongLong](
@@ -813,7 +814,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
 
     val (_, makeInit) = CompileWithAggregators[AsmFunction2RegionLongUnit](
       ctx,
-      extracted.states,
+      aggSigs.states,
       FastSeq((
         TableIR.globalName,
         SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(globals.t)),
@@ -825,7 +826,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
 
     val (_, makeSeq) = CompileWithAggregators[AsmFunction3RegionLongLongUnit](
       ctx,
-      extracted.states,
+      aggSigs.states,
       FastSeq(
         (
           TableIR.globalName,
@@ -844,19 +845,19 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
     val (Some(PTypeReferenceSingleCodeType(rTyp: PStruct)), makeAnnotate) =
       CompileWithAggregators[AsmFunction2RegionLongLong](
         ctx,
-        extracted.states,
+        aggSigs.states,
         FastSeq((
           TableIR.globalName,
           SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(globals.t)),
         )),
         FastSeq(classInfo[Region], LongInfo),
         LongInfo,
-        Let(FastSeq(extracted.resultRef.name -> extracted.results), extracted.postAggIR),
+        extracted.result,
       )
 
-    val serialize = extracted.serialize(ctx, spec)
-    val deserialize = extracted.deserialize(ctx, spec)
-    val combOp = extracted.combOpFSerializedWorkersOnly(ctx, spec)
+    val serialize = aggSigs.serialize(ctx, spec)
+    val deserialize = aggSigs.deserialize(ctx, spec)
+    val combOp = aggSigs.combOpFSerializedWorkersOnly(ctx, spec)
 
     val hcl = theHailClassLoaderForSparkWorkers
     val tc = ctx.taskContext
@@ -1053,11 +1054,13 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
     )
   }
 
-  def mapRows(extracted: Aggs): TableValue = {
+  def mapRows(extracted: IndependentExtractedAggs): TableValue = {
     val fsBc = ctx.fsBc
-    val newType = typ.copy(rowType = extracted.postAggIR.typ.asInstanceOf[TStruct])
+    val aggSigs = extracted.sigs
 
-    if (extracted.aggs.isEmpty) {
+    val newType = typ.copy(rowType = extracted.result.typ.asInstanceOf[TStruct])
+
+    if (aggSigs.isEmpty) {
       val (Some(PTypeReferenceSingleCodeType(rTyp)), f) =
         Compile[AsmFunction3RegionLongLongLong](
           ctx,
@@ -1074,12 +1077,12 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
           FastSeq(classInfo[Region], LongInfo, LongInfo),
           LongInfo,
           Coalesce(FastSeq(
-            extracted.postAggIR,
-            Die("Internal error: TableMapRows: row expression missing", extracted.postAggIR.typ),
+            extracted.result,
+            Die("Internal error: TableMapRows: row expression missing", extracted.result.typ),
           )),
         )
 
-      val rowIterationNeedsGlobals = Mentions(extracted.postAggIR, TableIR.globalName)
+      val rowIterationNeedsGlobals = Mentions(extracted.result, TableIR.globalName)
       val globalsBc =
         if (rowIterationNeedsGlobals)
           globals.broadcast(ctx.theHailClassLoader)
@@ -1099,7 +1102,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
         it.map(ptr => newRow(ctx.r, globals, ptr))
       }
 
-      copy(
+      return copy(
         typ = newType,
         rvd = rvd.mapPartitionsWithIndex(RVDType(rTyp.asInstanceOf[PStruct], typ.key))(itF),
       )
@@ -1107,7 +1110,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
 
     val scanInitNeedsGlobals = Mentions(extracted.init, TableIR.globalName)
     val scanSeqNeedsGlobals = Mentions(extracted.seqPerElt, TableIR.globalName)
-    val rowIterationNeedsGlobals = Mentions(extracted.postAggIR, TableIR.globalName)
+    val rowIterationNeedsGlobals = Mentions(extracted.result, TableIR.globalName)
 
     val globalsBc =
       if (rowIterationNeedsGlobals || scanInitNeedsGlobals || scanSeqNeedsGlobals)
@@ -1125,21 +1128,19 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
 
     val (_, initF) = CompileWithAggregators[AsmFunction2RegionLongUnit](
       ctx,
-      extracted.states,
+      aggSigs.states,
       FastSeq((
         TableIR.globalName,
         SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(globals.t)),
       )),
       FastSeq(classInfo[Region], LongInfo),
       UnitInfo,
-      Begin(FastSeq(extracted.init)),
+      extracted.init,
     )
-
-    val serializeF = extracted.serialize(ctx, spec)
 
     val (_, eltSeqF) = CompileWithAggregators[AsmFunction3RegionLongLongUnit](
       ctx,
-      extracted.states,
+      aggSigs.states,
       FastSeq(
         (
           TableIR.globalName,
@@ -1155,14 +1156,14 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
       extracted.seqPerElt,
     )
 
-    val read = extracted.deserialize(ctx, spec)
-    val write = extracted.serialize(ctx, spec)
-    val combOpFNeedsPool = extracted.combOpFSerializedFromRegionPool(ctx, spec)
+    val read = aggSigs.deserialize(ctx, spec)
+    val write = aggSigs.serialize(ctx, spec)
+    val combOpFNeedsPool = aggSigs.combOpFSerializedFromRegionPool(ctx, spec)
 
     val (Some(PTypeReferenceSingleCodeType(rTyp)), f) =
       CompileWithAggregators[AsmFunction3RegionLongLongLong](
         ctx,
-        extracted.states,
+        aggSigs.states,
         FastSeq(
           (
             TableIR.globalName,
@@ -1175,13 +1176,10 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
         ),
         FastSeq(classInfo[Region], LongInfo, LongInfo),
         LongInfo,
-        Let(
-          FastSeq(extracted.resultRef.name -> extracted.results),
-          Coalesce(FastSeq(
-            extracted.postAggIR,
-            Die("Internal error: TableMapRows: row expression missing", extracted.postAggIR.typ),
-          )),
-        ),
+        Coalesce(FastSeq(
+          extracted.result,
+          Die("Internal error: TableMapRows: row expression missing", extracted.result.typ),
+        )),
       )
 
     // 1. init op on all aggs and write out to initPath
@@ -1190,11 +1188,11 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
         val init = initF(ctx.theHailClassLoader, fsBc.value, ctx.taskContext, fRegion)
         init.newAggState(aggRegion)
         init(fRegion, globals.value.offset)
-        serializeF(ctx.theHailClassLoader, ctx.taskContext, aggRegion, init.getAggOffset())
+        write(ctx.theHailClassLoader, ctx.taskContext, aggRegion, init.getAggOffset())
       }
     }
 
-    if (ctx.getFlag("distributed_scan_comb_op") != null && extracted.shouldTreeAggregate) {
+    if (ctx.getFlag("distributed_scan_comb_op") != null && extracted.sigs.shouldTreeAggregate) {
       val fsBc = ctx.fs.broadcast
       val tmpBase = ctx.createTmpPath("table-map-rows-distributed-scan")
       val d = digitsNeeded(rvd.getNumPartitions)
