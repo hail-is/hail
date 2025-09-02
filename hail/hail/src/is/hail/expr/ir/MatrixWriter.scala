@@ -30,8 +30,6 @@ import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
 import is.hail.variant.{Call, ReferenceGenome}
 
-import scala.language.existentials
-
 import java.io.{InputStream, OutputStream}
 import java.nio.file.{FileSystems, Path}
 import java.util.UUID
@@ -571,8 +569,8 @@ case class SplitPartitionNativeWriter(
                   firstSeenSettable,
                   EmitValue.present(key.copyToRegion(cb, region, firstSeenSettable.st)),
                 ),
-                { lastSeen =>
-                  val comparator = EQ(lastSeenSettable.emitType.virtualType).codeOrdering(
+                { _ =>
+                  val comparator = EQ.codeOrdering(
                     cb.emb.ecb,
                     lastSeenSettable.st,
                     key.st,
@@ -2504,7 +2502,7 @@ case class MatrixBlockMatrixWriter(
       }
     val flatPathsAndIndices = flatMapIR(ToStream(pathsWithColMajorIndices))(ToStream(_))
     val sortedColMajorPairs = sortIR(flatPathsAndIndices) { case (l, r) =>
-      ApplyComparisonOp(LT(TInt32), GetTupleElement(l, 0), GetTupleElement(r, 0))
+      ApplyComparisonOp(LT, GetTupleElement(l, 0), GetTupleElement(r, 0))
     }
     val flatPaths = ToArray(mapIR(ToStream(sortedColMajorPairs))(GetTupleElement(_, 1)))
     val bmt = BlockMatrixType(

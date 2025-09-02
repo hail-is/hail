@@ -75,7 +75,7 @@ object InferType {
       case ApplyComparisonOp(op, l, r) =>
         assert(l.typ == r.typ)
         op match {
-          case _: Compare => TInt32
+          case Compare => TInt32
           case _ => TBoolean
         }
       case a: ApplyIR => a.returnType

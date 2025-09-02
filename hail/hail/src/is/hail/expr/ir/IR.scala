@@ -499,17 +499,17 @@ package defs {
 
     def unary_!(): IR = ApplyUnaryPrimOp(Bang, self)
 
-    def ceq(other: IR): IR = ApplyComparisonOp(EQWithNA(self.typ, other.typ), self, other)
+    def ceq(other: IR): IR = ApplyComparisonOp(EQWithNA, self, other)
 
-    def cne(other: IR): IR = ApplyComparisonOp(NEQWithNA(self.typ, other.typ), self, other)
+    def cne(other: IR): IR = ApplyComparisonOp(NEQWithNA, self, other)
 
-    def <(other: IR): IR = ApplyComparisonOp(LT(self.typ, other.typ), self, other)
+    def <(other: IR): IR = ApplyComparisonOp(LT, self, other)
 
-    def >(other: IR): IR = ApplyComparisonOp(GT(self.typ, other.typ), self, other)
+    def >(other: IR): IR = ApplyComparisonOp(GT, self, other)
 
-    def <=(other: IR): IR = ApplyComparisonOp(LTEQ(self.typ, other.typ), self, other)
+    def <=(other: IR): IR = ApplyComparisonOp(LTEQ, self, other)
 
-    def >=(other: IR): IR = ApplyComparisonOp(GTEQ(self.typ, other.typ), self, other)
+    def >=(other: IR): IR = ApplyComparisonOp(GTEQ, self, other)
   }
 
   object ErrorIDs {
@@ -637,21 +637,21 @@ package defs {
             case _: TStruct =>
               val elt = tcoerce[TStruct](atyp.elementType)
               ApplyComparisonOp(
-                Compare(elt.types(0)),
+                Compare,
                 GetField(Ref(l, elt), elt.fieldNames(0)),
                 GetField(Ref(r, atyp.elementType), elt.fieldNames(0)),
               )
             case _: TTuple =>
               val elt = tcoerce[TTuple](atyp.elementType)
               ApplyComparisonOp(
-                Compare(elt.types(0)),
+                Compare,
                 GetTupleElement(Ref(l, elt), elt.fields(0).index),
                 GetTupleElement(Ref(r, atyp.elementType), elt.fields(0).index),
               )
           }
         } else {
           ApplyComparisonOp(
-            Compare(atyp.elementType),
+            Compare,
             Ref(l, atyp.elementType),
             Ref(r, atyp.elementType),
           )
@@ -773,13 +773,13 @@ package defs {
       def min(element: IR, sortFields: IndexedSeq[SortField]): IR = {
         val elementType = element.typ.asInstanceOf[TStruct]
         val keyType = elementType.select(sortFields.map(_.field))._1
-        minAndMaxHelper(element, keyType, StructLT(keyType, sortFields))
+        minAndMaxHelper(element, keyType, StructLT(sortFields))
       }
 
       def max(element: IR, sortFields: IndexedSeq[SortField]): IR = {
         val elementType = element.typ.asInstanceOf[TStruct]
         val keyType = elementType.select(sortFields.map(_.field))._1
-        minAndMaxHelper(element, keyType, StructGT(keyType, sortFields))
+        minAndMaxHelper(element, keyType, StructGT(sortFields))
       }
 
       def all(element: IR): IR =
