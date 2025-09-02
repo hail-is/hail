@@ -464,6 +464,8 @@ steps:
         script: /io/sql/008-add-hail-identity-uid.sql
       - name: add-users-last-active
         script: /io/sql/009-add-users-last-active.sql
+      - name: refactor-roles
+        script: /io/sql/010-refactor-roles.sql
     inputs:
       - from: /repo/auth/sql
         to: /io/sql
