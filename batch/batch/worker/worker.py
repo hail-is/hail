@@ -2535,8 +2535,6 @@ class JVMContainer:
             CLOUD, INSTANCE_CONFIG["machine_type"]
         )
         total_memory_bytes = int((n_cores / total_machine_cores) * total_machine_memory_bytes)
-        # We allocate 60% of memory per core to off heap memory
-
         memory_mib = total_memory_bytes // (1024**2)
         heap_memory_mib = int(0.9 * memory_mib)
 
