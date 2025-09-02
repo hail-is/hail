@@ -49,7 +49,7 @@ class ETypeSuite extends HailSuite {
     ).map(t => Array(t: Any))
   }
 
-  @Test def testDataProvider(): scalatest.Assertion = { etypes(); succeed }
+  @Test def testDataProvider(): scalatest.Assertion = { etypes(): Unit; succeed }
 
   @Test(dataProvider = "etypes")
   def testSerialization(etype: EType): scalatest.Assertion = {

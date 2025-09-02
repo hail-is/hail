@@ -400,9 +400,9 @@ object GenericLines {
   }
 
   def collect(fs: FS, lines: GenericLines): IndexedSeq[String] =
-    lines.contexts.flatMap { context =>
-      using(lines.body(fs, context))(it => it.map(_.toString).toArray)
-    }
+    lines.contexts.flatMap(context =>
+      using(lines.body(fs, context))(it => it.map(_.toString).toFastSeq)
+    )
 }
 
 class GenericLine(
@@ -458,7 +458,7 @@ class GenericLinesRDD(
 
   def compute(split: Partition, context: TaskContext): Iterator[GenericLine] = {
     val it = body(split.asInstanceOf[GenericLinesRDDPartition].context)
-    TaskContext.get.addTaskCompletionListener[Unit](_ => it.close())
+    TaskContext.get.addTaskCompletionListener[Unit](_ => it.close()): Unit
     it
   }
 }

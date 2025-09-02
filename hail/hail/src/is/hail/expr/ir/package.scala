@@ -11,8 +11,6 @@ import is.hail.types.virtual._
 import is.hail.types.virtual.TIterable.elementType
 import is.hail.utils._
 
-import scala.language.implicitConversions
-
 import java.util.UUID
 
 package object ir {
@@ -394,7 +392,7 @@ package object ir {
   )(
     f: (Ref, Ref) => IR
   ): TableGen = {
-    TypeCheck.coerce[TStream]("contexts", contexts.typ)
+    TypeCheck.coerce[TStream]("contexts", contexts.typ): Unit
     val c = Ref(freshName(), elementType(contexts.typ))
     val g = Ref(freshName(), globals.typ)
     TableGen(contexts, globals, c.name, g.name, f(c, g), partitioner, errorID)

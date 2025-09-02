@@ -1,6 +1,5 @@
 package is.hail.types
 
-import is.hail.macros.void
 import is.hail.types.virtual._
 
 object MapTypes {
@@ -19,6 +18,16 @@ object MapTypes {
     recurF(typ)
   }
 
-  def foreach(f: Type => Unit)(typ: Type): Unit =
-    void(recur { t => f(t); t }(typ))
+  def foreach(f: Type => Unit)(typ: Type): Unit = {
+    typ match {
+      case TInterval(pointType) => foreach(f)(pointType)
+      case TArray(elt) => foreach(f)(elt)
+      case TSet(elt) => foreach(f)(elt)
+      case TDict(kt, vt) => foreach(f)(kt); foreach(f)(vt)
+      case t: TStruct => t.fields.foreach(field => (field.name, foreach(f)(field.typ)))
+      case t: TTuple => t.types.foreach(foreach(f))
+      case _ =>
+    }
+    f(typ)
+  }
 }

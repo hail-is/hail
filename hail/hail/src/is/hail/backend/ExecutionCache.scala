@@ -3,7 +3,6 @@ package is.hail.backend
 import is.hail.HailFeatureFlags
 import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.io.fs.FS
-import is.hail.macros.void
 import is.hail.utils.{using, Logging}
 
 import scala.io.Source
@@ -54,7 +53,7 @@ case object ExecutionCache {
       storage.getOrDefault(s, IndexedSeq.empty)
 
     override def put(s: SemanticHash.Type, r: IndexedSeq[(Array[Byte], Int)]): Unit =
-      void(storage.put(s, r))
+      storage.put(s, r)
   }
 }
 

@@ -3,7 +3,7 @@ package is.hail.io.reference
 import is.hail.io.fs.FS
 import is.hail.utils.{fatal, using}
 
-import scala.jdk.CollectionConverters.iterableAsScalaIterableConverter
+import scala.jdk.CollectionConverters._
 
 import htsjdk.samtools.reference.FastaSequenceIndexEntry
 

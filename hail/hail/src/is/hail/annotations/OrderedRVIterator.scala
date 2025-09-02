@@ -1,7 +1,6 @@
 package is.hail.annotations
 
 import is.hail.backend.HailStateManager
-import is.hail.macros.void
 import is.hail.rvd.{RVDContext, RVDType}
 import is.hail.types.physical.PInterval
 import is.hail.utils._
@@ -90,7 +89,7 @@ case class OrderedRVIterator(
             }
             right.advance()
           }
-          void(value.set(left.value, buffer))
+          value.set(left.value, buffer)
         } else {
           isValid = false
         }

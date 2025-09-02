@@ -154,8 +154,6 @@ class BlockMatrixIRSuite extends HailSuite {
       val leftRowOp = makeMap2(broadcastRowVector, ones, op, merge)
       val leftColOp = makeMap2(broadcastColVector, ones, op, merge)
 
-      BDM.tabulate(3, 3)((_, j) => f(1.0, j + 1))
-
       val expectedRightRowOp = BDM.tabulate(3, 3)((_, j) => f(1.0, j + 1))
       val expectedRightColOp = BDM.tabulate(3, 3)((i, _) => f(1.0, i + 1))
       val expectedLeftRowOp = BDM.tabulate(3, 3)((_, j) => f(j + 1, 1.0))
@@ -281,7 +279,7 @@ class BlockMatrixIRSuite extends HailSuite {
     val sparse = BlockMatrixSparsify(dense, PerBlockSparsifier(FastSeq(0, 1, 2)))
     val densified = BlockMatrixDensify(sparse)
     val expected = BDM.fill(10, 10)(1.0)
-    expected(5 until 10, 5 until 10) := BDM.fill(5, 5)(0.0)
+    expected(5 until 10, 5 until 10) := BDM.fill(5, 5)(0.0): Unit
     assertBMEvalsTo(densified, expected)
   }
 }

@@ -39,7 +39,7 @@ object RichContextRDD {
         context.addTaskCompletionListener[Unit] { (context: TaskContext) =>
           fs.delete(partPath, recursive = false)
           fs.delete(idxPath, recursive = true)
-        }
+        }: Unit
         partPath -> idxPath
       } else
         finalFilename -> finalIdxFilename

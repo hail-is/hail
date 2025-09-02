@@ -107,10 +107,10 @@ class ForwardLetsSuite extends HailSuite {
   }
 
   @Test def assertDataProvidersWork(): scalatest.Assertion = {
-    nonForwardingOps()
-    forwardingOps()
-    nonForwardingAggOps()
-    forwardingAggOps()
+    nonForwardingOps(): Unit
+    forwardingOps(): Unit
+    nonForwardingAggOps(): Unit
+    forwardingAggOps(): Unit
     scalatest.Succeeded
   }
 

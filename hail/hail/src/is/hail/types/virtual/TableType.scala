@@ -1,7 +1,6 @@
 package is.hail.types.virtual
 
 import is.hail.expr.ir._
-import is.hail.macros.void
 import is.hail.rvd.RVDType
 import is.hail.types.physical.{PStruct, PType}
 import is.hail.utils._
@@ -64,20 +63,20 @@ case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStr
 
     val indent = indent0 + 4
 
-    sb ++= "Table" ++= space += '{' ++= newline
+    sb ++= "Table" ++= space += '{' ++= newline: Unit
 
-    sb ++= padding ++= "global:" ++= space
+    sb ++= padding ++= "global:" ++= space: Unit
     globalType.pretty(sb, indent, compact)
-    sb += ',' ++= newline
+    sb += ',' ++= newline: Unit
 
-    sb ++= padding ++= "key:" ++= space += '['
-    key.foreachBetween(k => sb ++= prettyIdentifier(k))(void(sb += ',' ++= space))
+    sb ++= padding ++= "key:" ++= space += '[': Unit
+    key.foreachBetween(k => sb ++= prettyIdentifier(k))(sb += ',' ++= space: Unit)
     sb ++= "]," ++ newline
 
-    sb ++= padding ++= "row:" ++= space
+    sb ++= padding ++= "row:" ++= space: Unit
     rowType.pretty(sb, indent, compact)
 
-    void(sb ++= newline += '}')
+    sb ++= newline += '}': Unit
   }
 
   override def toJSON: JObject =

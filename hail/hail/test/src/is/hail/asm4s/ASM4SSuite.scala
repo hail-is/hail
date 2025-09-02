@@ -446,13 +446,13 @@ class ASM4SSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     Main.emitWithBuilder[Int] { cb =>
       val a = cb.newLocal("a", Code.newInstance(Counter.cb, Counter.cb.ctor, FastSeq()))
       val b = cb.newLocal("b", Code.newInstance(Counter.cb, Counter.cb.ctor, FastSeq()))
-      cb.invoke[Int](Counter.mb, a)
-      cb.invoke[Int](Counter.mb, a)
-      cb.invoke[Int](Counter.mb, b)
+      cb.invoke[Int](Counter.mb, a): Unit
+      cb.invoke[Int](Counter.mb, a): Unit
+      cb.invoke[Int](Counter.mb, b): Unit
       cb.invoke[Int](Counter.mb, a) * cb.invoke[Int](Counter.mb, b)
     }
 
-    Counter.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
+    Counter.result(ctx.shouldWriteIRFiles())(theHailClassLoader): Unit
     val test = Main.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
     assert(test() == 6)
   }

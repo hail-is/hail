@@ -1,7 +1,5 @@
 package is.hail.utils
 
-import is.hail.macros.void
-
 import java.time.DayOfWeek
 import java.time.chrono.Chronology
 import java.time.format.{DateTimeFormatter, DateTimeFormatterBuilder, TextStyle}
@@ -18,10 +16,9 @@ object DateFormatUtils {
     val MONDAY_START_ALWAYS = WeekFields.of(DayOfWeek.MONDAY, 7)
 
     def char(c: Char): Unit =
-      void(fmt.appendLiteral(c))
+      fmt.appendLiteral(c)
 
     def spec(c: Char): Unit =
-      void {
         c match {
           case '%' => fmt.appendLiteral('%')
           case 'A' => fmt.appendText(ChronoField.DAY_OF_WEEK, TextStyle.FULL)
@@ -62,7 +59,6 @@ object DateFormatUtils {
             throw new HailException(s"Currently unsupported time formatting character: $c")
           case d => fatal(s"invalid time format descriptor: $d")
         }
-      }
 
     def alternating(s: String): Unit = {
       var isSpec = true

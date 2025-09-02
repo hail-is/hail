@@ -18,7 +18,6 @@ import is.hail.utils.prettyPrint.ArrayOfByteArrayInputStream
 import is.hail.variant.ReferenceGenome
 
 import scala.collection.mutable
-import scala.language.existentials
 
 import java.io._
 import java.lang.reflect.InvocationTargetException
@@ -86,7 +85,7 @@ class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
       (t, value), {
         val curr = currLitIndex
         val pt = t.canonicalPType
-        literalsBuilder.put((t, value), (pt, curr))
+        literalsBuilder.update((t, value), (pt, curr))
         currLitIndex += 1
         (pt, curr)
       },
@@ -98,7 +97,7 @@ class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
       el, {
         val curr = currLitIndex
         val pt = el.codec.decodedPType()
-        encodedLiteralsBuilder.put(el, (pt, curr))
+        encodedLiteralsBuilder.update(el, (pt, curr))
         currLitIndex += 1
         (pt, curr)
       },
@@ -466,7 +465,7 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
     Array[AnyRef](baos.toByteArray) ++ preEncodedLiterals.map(_._1.value.ba)
   }
 
-  private[this] var _mods: BoxedArrayBuilder[(
+  private[this] val _mods: BoxedArrayBuilder[(
     String,
     (HailClassLoader, FS, HailTaskContext, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]],
   )] = new BoxedArrayBuilder()

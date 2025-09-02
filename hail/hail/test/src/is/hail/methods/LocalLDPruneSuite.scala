@@ -296,7 +296,7 @@ class LocalLDPruneSuite extends HailSuite {
         v2: Array[BoxedCall] <- containerOfN[Array, BoxedCall](nSamples, choose(-1, 2).map(toC2))
       } yield (nSamples, v1, v2)
 
-    property("bitPacked pack and unpack give same as orig") =
+    (property("bitPacked pack and unpack give same as orig") =
       forAll(vectorGen) { case (_: Int, v1: Array[BoxedCall], _) =>
         val bpv = LocalLDPruneSuite.fromCalls(v1)
 
@@ -304,9 +304,9 @@ class LocalLDPruneSuite extends HailSuite {
           case Some(x) => LocalLDPruneSuite.fromCalls(x.unpack().map(toC2)).get.gs sameElements x.gs
           case None => true
         }
-      }
+      }): Unit
 
-    property("R2 bitPacked same as BVector") =
+    (property("R2 bitPacked same as BVector") =
       forAll(vectorGen) { case (nSamples: Int, v1: Array[BoxedCall], v2: Array[BoxedCall]) =>
         val bv1 = LocalLDPruneSuite.fromCalls(v1)
         val bv2 = LocalLDPruneSuite.fromCalls(v2)
@@ -330,7 +330,7 @@ class LocalLDPruneSuite extends HailSuite {
             isSame
           case _ => true
         }
-      }
+      }): Unit
   }
 
   @Test def testRandom(): scalatest.Assertion = { Spec.check(); succeed }

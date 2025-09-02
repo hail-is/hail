@@ -11,8 +11,8 @@ import is.hail.types._
 import is.hail.types.virtual._
 import is.hail.utils._
 
+import scala.collection.compat.immutable.ArraySeq
 import scala.collection.mutable
-import scala.collection.mutable.ArrayBuffer
 
 import org.apache.spark.sql.Row
 import org.json4s.JValue
@@ -1871,8 +1871,8 @@ class PruneSuite extends HailSuite {
   }
 
   val ndArrayTS = MakeNDArray(
-    MakeArray(ArrayBuffer(NA(ts)), TArray(ts)),
-    MakeTuple(IndexedSeq((0, I64(1L)))),
+    MakeArray(ArraySeq(NA(ts)), TArray(ts)),
+    MakeTuple(ArraySeq((0, I64(1L)))),
     True(),
     ErrorIDs.NO_ERROR,
   )
@@ -1896,8 +1896,8 @@ class PruneSuite extends HailSuite {
       TNDArray(subsetTS("b"), Nat(1)),
       (_: BaseIR, r: BaseIR) => {
         val ir = r.asInstanceOf[NDArrayMap2]
-        ir.l.typ == TNDArray(TStruct(("b", TInt64)), Nat(1))
-        ir.r.typ == TNDArray(TStruct.empty, Nat(1))
+        ir.l.typ == TNDArray(TStruct(("b", TInt64)), Nat(1)) &&
+          ir.r.typ == TNDArray(TStruct.empty, Nat(1))
       },
     )
     checkRebuild(
@@ -1905,8 +1905,8 @@ class PruneSuite extends HailSuite {
       TNDArray(subsetTS("b"), Nat(1)),
       (_: BaseIR, r: BaseIR) => {
         val ir = r.asInstanceOf[NDArrayMap2]
-        ir.l.typ == TNDArray(TStruct.empty, Nat(1))
-        ir.r.typ == TNDArray(TStruct(("b", TInt64)), Nat(1))
+        ir.l.typ == TNDArray(TStruct.empty, Nat(1)) &&
+          ir.r.typ == TNDArray(TStruct(("b", TInt64)), Nat(1))
       },
     )
   }
@@ -2037,7 +2037,7 @@ class PruneSuite extends HailSuite {
       ifIR,
       BindingEnv.empty[Type].bindEval(freshName(), t),
       PruneDeadFields.RebuildMutableState(memo, mutable.HashMap.empty),
-    )
+    ): Unit
 
     scalatest.Succeeded
   }
@@ -2172,9 +2172,9 @@ class PruneSuite extends HailSuite {
 
     def checker(original: IR, rebuilt: IR): Boolean = {
       val r = rebuilt.asInstanceOf[StreamFold2]
-      r.typ == TStruct("c" -> TInt32)
-      r.a.typ == TStream(TStruct("a" -> TInt32))
-      r.accum(0)._2.typ == r.typ
+      r.typ == TStruct("c" -> TInt32) &&
+        r.a.typ == TStream(TStruct("a" -> TInt32)) &&
+        r.accum(0)._2.typ == r.typ
     }
 
     checkRebuild(ir0, TStruct("c" -> TInt32), checker)

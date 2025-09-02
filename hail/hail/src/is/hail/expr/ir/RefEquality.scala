@@ -24,16 +24,16 @@ object Memo {
 }
 
 class Memo[T] private (val m: mutable.HashMap[RefEquality[BaseIR], T]) {
-  def bind(ir: BaseIR, t: T): Memo[T] = bind(RefEquality(ir), t)
+  def bind(ir: BaseIR, t: T): this.type = bind(RefEquality(ir), t)
 
-  def bind(ir: RefEquality[BaseIR], t: T): Memo[T] = {
+  def bind(ir: RefEquality[BaseIR], t: T): this.type = {
     if (m.contains(ir))
       throw new RuntimeException(s"IR already in memo: ${ir.t}")
     m += ir -> t
     this
   }
 
-  def bindIf(test: Boolean, ir: BaseIR, t: => T): Memo[T] =
+  def bindIf(test: Boolean, ir: BaseIR, t: => T): this.type =
     if (test) bind(ir, t) else this
 
   def contains(ir: BaseIR): Boolean = contains(RefEquality(ir))

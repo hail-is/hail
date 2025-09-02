@@ -4,7 +4,7 @@ import is.hail.expr.ir.defs._
 import is.hail.types.virtual._
 import is.hail.utils.{toRichIterable, FastSeq}
 
-import scala.language.{dynamics, implicitConversions}
+import scala.language.dynamics
 
 object DeprecatedIRBuilder {
   type E = Env[Type]
