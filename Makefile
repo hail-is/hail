@@ -237,7 +237,7 @@ tailwind-compile-watch:
 
 .PHONY: run-dev-proxy
 run-dev-proxy:
-	cd devbin && python3 -m pip install -e ../gear -e ../batch -e ../web_common && SERVICE=$(SERVICE) adev runserver --root . dev_proxy.py
+	SERVICE=$(SERVICE) adev runserver --root . devbin/dev_proxy.py
 
 .PHONY: devserver
 devserver:

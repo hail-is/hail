@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools >= 80.9.0"]
-build-backend = "setuptools.build_meta"
+requires = [ "uv_build" ]
+build-backend = "uv_build"
 
 [project]
 name = "gear"
@@ -11,12 +11,8 @@ description = "Utils for building services"
 [project.urls]
 Repository = "https://github.com/hail-is/hail.git"
 
-[tool.setuptools]
-include-package-data = true
-
-[tool.setuptools.package-data]
-gear = ["py.typed"]
-
-[tool.setuptools.packages.find]
-include = ["gear"]
-namespaces = true
+[tool.uv.build-backend]
+module-name = "gear"
+module-root = ""
+namespace = true
+source-include = [ "py.typed" ]
