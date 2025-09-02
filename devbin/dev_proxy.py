@@ -21,6 +21,7 @@ IS_DEVELOPER = bool(os.getenv('IS_DEVELOPER', True))
 MODULES = {'batch': 'batch.front_end', 'batch-driver': 'batch.driver'}
 BC = web.AppKey('backend_client', Session)
 
+
 @routes.view('/api/{route:.*}')
 async def default_proxied_api_route(request: web.Request):
     return web.json_response(await proxy(request))
