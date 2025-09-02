@@ -1,6 +1,6 @@
 [build-system]
-requires = [ "uv_build" ]
-build-backend = "uv_build"
+requires = ["setuptools >= 80.9.0"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "batch"
@@ -11,7 +11,9 @@ description = "Job manager"
 [project.urls]
 Repository = "https://github.com/hail-is/hail.git"
 
-[tool.uv.build-backend]
-module-name = "batch"
-module-root = ""
-namespace = true
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["batch"]
+namespaces = true
