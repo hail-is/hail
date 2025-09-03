@@ -3067,6 +3067,10 @@ steps:
 
       cat >simple_hail.py <<EOF
       import hail as hl
+      import os
+
+      print(os.stat('foo'))
+      print(os.listdir('foo'))
 
       with open('foo/baz.txt') as f:
           print(f.read())
@@ -3101,6 +3105,7 @@ steps:
       cat >file.sh <<EOF
       set -ex
 
+      stat foo
       cat foo/baz.txt
       echo "Hello World!"
       EOF
@@ -3116,7 +3121,7 @@ steps:
 
       [[ $# -eq 2 ]]
 
-      cat foo
+      cat foo/baz.txt
       echo "Hello World! $1 $2"
       EOF
 
