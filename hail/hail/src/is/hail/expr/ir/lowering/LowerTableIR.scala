@@ -749,31 +749,14 @@ object LowerTableIR {
         val sampleSize = math.min((nPartitions * 20 + 256), 1000000)
         val samplesPerPartition = sampleSize / math.max(1, stage.numPartitions)
         val keyType = child.typ.keyType
-        val samplekey = AggSignature(ReservoirSample(), FastSeq(TInt32), FastSeq(keyType))
-
-        val minkey = AggSignature(TakeBy(), FastSeq(TInt32), FastSeq(keyType, keyType))
-
-        val maxkey = AggSignature(TakeBy(Descending), FastSeq(TInt32), FastSeq(keyType, keyType))
 
         bindIR(flatten(stage.mapCollect("table_calculate_new_partitions") { rows =>
           streamAggIR(mapIR(rows)(row => SelectFields(row, keyType.fieldNames))) { elt =>
             ToArray(flatMapIR(ToStream(
               MakeArray(
-                ApplyAggOp(
-                  FastSeq(I32(samplesPerPartition)),
-                  FastSeq(elt),
-                  samplekey,
-                ),
-                ApplyAggOp(
-                  FastSeq(I32(1)),
-                  FastSeq(elt, elt),
-                  minkey,
-                ),
-                ApplyAggOp(
-                  FastSeq(I32(1)),
-                  FastSeq(elt, elt),
-                  maxkey,
-                ),
+                ApplyAggOp(FastSeq(I32(samplesPerPartition)), FastSeq(elt), ReservoirSample()),
+                ApplyAggOp(FastSeq(I32(1)), FastSeq(elt, elt), TakeBy()),
+                ApplyAggOp(FastSeq(I32(1)), FastSeq(elt, elt), TakeBy(Descending)),
               )
             ))(inner => ToStream(inner)))
           }
@@ -1179,7 +1162,7 @@ object LowerTableIR {
                     ApplyAggOp(
                       FastSeq(I32(1)),
                       FastSeq(SelectFields(Ref(TableIR.rowName, child.typ.rowType), child.typ.key)),
-                      AggSignature(Take(), FastSeq(TInt32), FastSeq(child.typ.keyType)),
+                      Take(),
                     ),
                     I32(0),
                   ), // FIXME: would prefer a First() agg op

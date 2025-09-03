@@ -493,14 +493,10 @@ object TypeCheck {
       case InitFromSerializedValue(_, value, _) => assert(value.typ == TBinary)
       case _: SerializeAggs =>
       case _: DeserializeAggs =>
-      case x @ ApplyAggOp(initOpArgs, seqOpArgs, aggSig) =>
-        assert(x.typ == aggSig.returnType)
-        assert(initOpArgs.map(_.typ).zip(aggSig.initOpArgs).forall { case (l, r) => l == r })
-        assert(seqOpArgs.map(_.typ).zip(aggSig.seqOpArgs).forall { case (l, r) => l == r })
-      case x @ ApplyScanOp(initOpArgs, seqOpArgs, aggSig) =>
-        assert(x.typ == aggSig.returnType)
-        assert(initOpArgs.map(_.typ).zip(aggSig.initOpArgs).forall { case (l, r) => l == r })
-        assert(seqOpArgs.map(_.typ).zip(aggSig.seqOpArgs).forall { case (l, r) => l == r })
+      case x @ ApplyAggOp(_, seqOpArgs, op) =>
+        assert(x.typ == AggOp.getReturnType(op, seqOpArgs.map(_.typ)))
+      case x @ ApplyScanOp(_, seqOpArgs, op) =>
+        assert(x.typ == AggOp.getReturnType(op, seqOpArgs.map(_.typ)))
       case AggFold(zero, seqOp, combOp, _, _, _) =>
         assert(zero.typ == seqOp.typ)
         assert(zero.typ == combOp.typ)

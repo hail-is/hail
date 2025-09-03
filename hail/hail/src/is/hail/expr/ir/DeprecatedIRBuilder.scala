@@ -67,11 +67,9 @@ object DeprecatedIRBuilder {
     initOpArgs: IndexedSeq[IRProxy] = FastSeq(),
     seqOpArgs: IndexedSeq[IRProxy] = FastSeq(),
   ): IRProxy = (env: E) => {
-
     val i = initOpArgs.map(x => x(env))
     val s = seqOpArgs.map(x => x(env))
-
-    ApplyAggOp(i, s, AggSignature(op, i.map(_.typ), s.map(_.typ)))
+    ApplyAggOp(i, s, op)
   }
 
   def aggFilter(filterCond: IRProxy, query: IRProxy, isScan: Boolean = false): IRProxy = (env: E) =>

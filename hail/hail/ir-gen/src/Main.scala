@@ -991,14 +991,14 @@ object Main {
       "ApplyAggOp",
       in("initOpArgs", child.*),
       in("seqOpArgs", child.*),
-      in("aggSig", att("AggSignature")),
+      in("op", att("AggOp")),
     )
-      .withClassExtension.withCompanionExtension
+      .withCompanionExtension
     r += node(
       "ApplyScanOp",
       in("initOpArgs", child.*),
       in("seqOpArgs", child.*),
-      in("aggSig", att("AggSignature")),
+      in("op", att("AggOp")),
     )
       .withClassExtension.withCompanionExtension
     r += node(
@@ -1216,8 +1216,8 @@ object Main {
       "is.hail.io.{AbstractTypedCodecSpec, BufferSpec}",
       "is.hail.types.virtual.{Type, TArray, TStream, TVoid, TStruct, TTuple}",
       "is.hail.utils.{FastSeq, StringEscapeUtils}",
-      "is.hail.expr.ir.{BaseIR, IR, TableIR, MatrixIR, BlockMatrixIR, Name, UnaryOp, BinaryOp, " +
-        "ComparisonOp, CanEmit, AggSignature, EmitParamType, TableWriter, " +
+      "is.hail.expr.ir.{AggOp, BaseIR, IR, TableIR, MatrixIR, BlockMatrixIR, Name, UnaryOp, BinaryOp, " +
+        "ComparisonOp, CanEmit, EmitParamType, TableWriter, " +
         "WrappedMatrixNativeMultiWriter, MatrixWriter, MatrixNativeMultiWriter, BlockMatrixWriter, " +
         "BlockMatrixMultiWriter, ValueReader, ValueWriter}",
       "is.hail.expr.ir.lowering.TableStageDependency",
