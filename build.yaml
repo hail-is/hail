@@ -3124,7 +3124,7 @@ steps:
       echo "Hello World! $1 $2"
       EOF
 
-      BATCH_ID=$(hailctl batch submit -v file-with-args.sh:/ --name=test-hailctl-batch-submit -v foo/:/foo/ -o json --image ubuntu:latest sh file-with-args.sh abc 123 | jq '.id')
+      BATCH_ID=$(hailctl batch submit -v file-with-args.sh:/ --name=test-hailctl-batch-submit -v foo/:/foo/ -o json --image ubuntu:latest bash file-with-args.sh abc 123 | jq '.id')
       STATUS=$(hailctl batch wait -o json $BATCH_ID)
       hailctl batch job $BATCH_ID 1          # print job status
       hailctl batch log -o json $BATCH_ID 1  # print the logs
