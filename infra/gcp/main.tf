@@ -139,6 +139,7 @@ resource "google_container_node_pool" "vdc_preemptible_pool" {
   node_config {
     spot = true
     machine_type = "n1-standard-4"
+    service_account = google_service_account.gke_node_pool.email
 
     labels = {
       "preemptible" = "true"
@@ -153,10 +154,6 @@ resource "google_container_node_pool" "vdc_preemptible_pool" {
     metadata = {
       disable-legacy-endpoints = "true"
     }
-
-    oauth_scopes = [
-      "https://www.googleapis.com/auth/cloud-platform"
-    ]
   }
 }
 
@@ -176,6 +173,7 @@ resource "google_container_node_pool" "vdc_nonpreemptible_pool" {
   node_config {
     preemptible = false
     machine_type = "n1-standard-4"
+    service_account = google_service_account.gke_node_pool.email
 
     labels = {
       preemptible = "false"
@@ -184,10 +182,6 @@ resource "google_container_node_pool" "vdc_nonpreemptible_pool" {
     metadata = {
       disable-legacy-endpoints = "true"
     }
-
-    oauth_scopes = [
-      "https://www.googleapis.com/auth/cloud-platform"
-    ]
   }
 }
 
@@ -644,6 +638,27 @@ resource "google_project_iam_member" "batch_agent_iam_member" {
   project = var.gcp_project
   role = "roles/${each.key}"
   member = "serviceAccount:${google_service_account.batch_agent.email}"
+}
+
+resource "google_service_account" "gke_node_pool" {
+  description  = "Service account for GKE node pools"
+  display_name = "gke-node-pool"
+  account_id = "gke-node-pool"
+}
+
+resource "google_project_iam_member" "gke_node_pool_iam_member" {
+  for_each = toset([
+    "storage.objectViewer",
+    "logging.logWriter", 
+    "monitoring.metricWriter",
+    "monitoring.viewer",
+    "autoscaling.metricsWriter",
+    "artifactregistry.reader",
+  ])
+
+  project = var.gcp_project
+  role = "roles/${each.key}"
+  member = "serviceAccount:${google_service_account.gke_node_pool.email}"
 }
 
 resource "google_compute_firewall" "default_allow_internal" {
