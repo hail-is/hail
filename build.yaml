@@ -3071,7 +3071,6 @@ steps:
 
       print(os.stat('foo'))
       print(os.listdir('foo'))
-
       with open('foo/baz.txt') as f:
           print(f.read())
 
@@ -3125,7 +3124,7 @@ steps:
       echo "Hello World! $1 $2"
       EOF
 
-      BATCH_ID=$(hailctl batch submit --name=test-hailctl-batch-submit -v foo/:/foo/ -o json --image ubuntu:latest sh file-with-args.sh abc 123 | jq '.id')
+      BATCH_ID=$(hailctl batch submit -v file-with-args.sh:/ --name=test-hailctl-batch-submit -v foo/:/foo/ -o json --image ubuntu:latest sh file-with-args.sh abc 123 | jq '.id')
       STATUS=$(hailctl batch wait -o json $BATCH_ID)
       hailctl batch job $BATCH_ID 1          # print job status
       hailctl batch log -o json $BATCH_ID 1  # print the logs
