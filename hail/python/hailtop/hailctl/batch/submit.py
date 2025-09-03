@@ -58,7 +58,7 @@ async def submit(
         fs = RouterAsyncFS()
         exitstack.push_async_callback(fs.close)
 
-        remote_tmpdir = fs.parse_url(get_remote_tmpdir('hailctl batch submit')) / secret_alnum_string()
+        remote_tmpdir_url = fs.parse_url(get_remote_tmpdir('hailctl batch submit')) / secret_alnum_string()
         local_user_config_dir = '/io/hail-config/'
         workdir = workdir or '/'
 
@@ -95,10 +95,10 @@ async def submit(
         if machine_type is not None:
             resources['machine_type'] = machine_type
 
-        remote_user_config_dir = await transfer_user_config_into_job(remote_tmpdir)
+        remote_user_config_dir = await transfer_user_config_into_job(remote_tmpdir_url)
 
         maybe_volume_mounts = await convert_volume_mounts_to_file_transfers_with_local_upload(
-            fs, remote_tmpdir, volume_mounts or []
+            fs, remote_tmpdir_url, volume_mounts or []
         )
 
         symlinks_needed = []
@@ -163,24 +163,24 @@ cd {workdir}
             await b.wait(disable_progress_bar=quiet)
 
 
-async def transfer_user_config_into_job(remote_tmpdir: AsyncFSURL) -> str:
+async def transfer_user_config_into_job(remote_tmpdir: AsyncFSURL) -> Optional[str]:
     user_config_path = get_hail_config_path()
     if not user_config_path.exists():
         return
 
     staging = str(remote_tmpdir / 'hail-config')
-    await copy_from_dict(files=[{'from': str(user_config_path), 'to': str(staging)}])
+    await copy_from_dict(files=[{'from': str(user_config_path), 'to': staging}])
     return staging
 
 
 def get_absolute_source_path(src: str, dest: str) -> Tuple[Path, Path]:
-    src = __real_absolute_local_path(src, strict=False)  # defer strictness checks and globbing
-    return (src, dest)
+    src_path = __real_absolute_local_path(src, strict=False)  # defer strictness checks and globbing
+    return src_path, Path(dest)
 
 
 async def convert_volume_mounts_to_file_transfers_with_local_upload(
     fs: RouterAsyncFS,
-    remote_tmpdir: Path,
+    remote_tmpdir: AsyncFSURL,
     volume_mounts: List[Tuple[str, str]],
 ) -> List[Tuple[str, str]]:
     local_file_transfers = []
