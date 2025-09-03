@@ -5,7 +5,6 @@ from typing import List, Union
 
 import orjson
 import pytest
-import typer
 from typer.testing import CliRunner, Result
 
 import hailtop.batch_client.client as bc

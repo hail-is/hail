@@ -174,7 +174,7 @@ def parse_cloudfuse_entry(value: str) -> CloudFuseEntry:
     parts = value.split(':')
     if len(parts) != 3:
         raise typer.BadParameter(
-            f"Invalid cloudfuse entry format: '{value}'. " "Expected 'bucket_name:mount_point:read_only'."
+            f"Invalid cloudfuse entry format: '{value}'. Expected 'bucket_name:mount_point:read_only'."
         )
     bucket_name = parts[0]
     mount_point = parts[1]
@@ -186,7 +186,7 @@ def parse_cloudfuse_entry(value: str) -> CloudFuseEntry:
         flag = False
     else:
         raise typer.BadParameter(
-            f"Invalid read only flag in cloudfuse entry: '{parts[2]}'. " "Expected 'true' or 'false'."
+            f"Invalid read only flag in cloudfuse entry: '{parts[2]}'. Expected 'true' or 'false'."
         )
 
     return (bucket_name, mount_point, flag)
@@ -194,17 +194,17 @@ def parse_cloudfuse_entry(value: str) -> CloudFuseEntry:
 
 def parse_key_value_pair(value: str) -> Tuple[str, str]:
     if '=' not in value:
-        raise typer.BadParameter(f"Invalid format for key-value pair: '{value}'. " "Expected 'KEY=VALUE'.")
+        raise typer.BadParameter(f"Invalid format for key-value pair: '{value}'. Expected 'KEY=VALUE'.")
     key, val = value.split('=', 1)
     return (key, val)
 
 
 def parse_file_mount(value: str) -> Tuple[str, str]:
     if ':' not in value:
-        raise typer.BadParameter(f"Invalid format for file mount: '{value}'. " "Expected 'src:dest'.")
+        raise typer.BadParameter(f"Invalid format for file mount: '{value}'. Expected 'src:dest'.")
     src, dest = value.split(':', 1)
     if not src or not dest:
-        raise typer.BadParameter(f"Invalid format for file mount: '{value}'. " "Expected 'src:dest'.")
+        raise typer.BadParameter(f"Invalid format for file mount: '{value}'. Expected 'src:dest'.")
     return (src, dest)
 
 
@@ -247,7 +247,7 @@ def submit(
     cloudfuse: Ann[
         Optional[List[str]],
         Opt(
-            help="Specify a cloudfuse binding 'bucket_name:mount_point:read_only'. " "Can be specified multiple times.",
+            help="Specify a cloudfuse binding 'bucket_name:mount_point:read_only'. Can be specified multiple times.",
             parser=parse_cloudfuse_entry,
         ),
     ] = None,
