@@ -27,7 +27,7 @@ object Deps {
   }
 
   object Asm {
-    val version: String = "7.3.1"
+    val version: String = "9.8"
     val core = mvn"org.ow2.asm:asm:$version"
     val analysis = mvn"org.ow2.asm:asm-analysis:$version"
     val util = mvn"org.ow2.asm:asm-util:$version"
