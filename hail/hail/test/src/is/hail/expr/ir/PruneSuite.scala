@@ -1116,15 +1116,10 @@ class PruneSuite extends HailSuite {
   @Test def testAggFilterMemo(): scalatest.Assertion = {
     val t = TStruct("a" -> TInt32, "b" -> TInt64, "c" -> TString)
     val x = Ref(freshName(), t)
-    val select = SelectFields(x, IndexedSeq("c"))
     checkMemo(
       AggFilter(
         ApplyComparisonOp(LT, GetField(x, "a"), I32(0)),
-        ApplyAggOp(
-          FastSeq(),
-          FastSeq(select),
-          AggSignature(Collect(), FastSeq(), FastSeq(select.typ)),
-        ),
+        ApplyAggOp(Collect())(SelectFields(x, IndexedSeq("c"))),
         false,
       ),
       TArray(TStruct("c" -> TString)),
@@ -1137,14 +1132,7 @@ class PruneSuite extends HailSuite {
     val t = TStream(TStruct("a" -> TInt32, "b" -> TInt64))
     val x = Ref(freshName(), t)
     checkMemo(
-      aggExplodeIR(x) { foo =>
-        val select = SelectFields(foo, IndexedSeq("a"))
-        ApplyAggOp(
-          FastSeq(),
-          FastSeq(select),
-          AggSignature(Collect(), FastSeq(), FastSeq(select.typ)),
-        )
-      },
+      aggExplodeIR(x)(foo => ApplyAggOp(Collect())(SelectFields(foo, IndexedSeq("a")))),
       TArray(TStruct("a" -> TInt32)),
       Array(TStream(TStruct("a" -> TInt32)), TArray(TStruct("a" -> TInt32))),
       BindingEnv.empty.createAgg.bindAgg(x.name -> t),
@@ -1156,12 +1144,7 @@ class PruneSuite extends HailSuite {
     val x = Ref(freshName(), t)
     checkMemo(
       aggArrayPerElement(x) { (foo, _) =>
-        val select = SelectFields(foo, IndexedSeq("a"))
-        ApplyAggOp(
-          FastSeq(),
-          FastSeq(select),
-          AggSignature(Collect(), FastSeq(), FastSeq(select.typ)),
-        )
+        ApplyAggOp(Collect())(SelectFields(foo, IndexedSeq("a")))
       },
       TArray(TArray(TStruct("a" -> TInt32))),
       Array(TArray(TStruct("a" -> TInt32)), TArray(TStruct("a" -> TInt32))),

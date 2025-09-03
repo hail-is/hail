@@ -668,7 +668,7 @@ object Simplify {
               )) {
                 case (comb, s) => GetField(comb, s)
               })).toL),
-              AggSignature(Sum(), FastSeq(), FastSeq(TInt64)),
+              Sum(),
             ),
           )
         )
@@ -1138,7 +1138,6 @@ object Simplify {
         // n < 256 is arbitrary for memory concerns
         val row = Ref(TableIR.rowName, child.typ.rowType)
         val keyStruct = MakeStruct(sortFields.map(f => f.field -> GetField(row, f.field)))
-        val aggSig = AggSignature(TakeBy(), FastSeq(TInt32), FastSeq(row.typ, keyStruct.typ))
         val te =
           TableExplode(
             TableKeyByAndAggregate(
@@ -1147,7 +1146,7 @@ object Simplify {
                 "row" -> ApplyAggOp(
                   FastSeq(I32(n.toInt)),
                   Array(row, keyStruct),
-                  aggSig,
+                  TakeBy(),
                 )
               )),
               MakeStruct(FastSeq()), // aggregate to one row

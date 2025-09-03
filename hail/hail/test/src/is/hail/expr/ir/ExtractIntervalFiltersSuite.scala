@@ -1096,7 +1096,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
 
     val count = TableAggregate(
       TableRange(10, 1),
-      ApplyAggOp(FastSeq(), FastSeq(), AggSignature(Count(), FastSeq(), FastSeq())),
+      ApplyAggOp(Count())(),
     )
     print(count.typ)
     val filter = gt(count, Cast(k1, TInt64))

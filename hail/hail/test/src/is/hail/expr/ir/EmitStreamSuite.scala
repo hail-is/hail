@@ -795,13 +795,6 @@ class EmitStreamSuite extends HailSuite {
       }
     }
 
-    def scanOp(op: AggOp, initArgs: IndexedSeq[IR], opArgs: IndexedSeq[IR]): ApplyScanOp =
-      ApplyScanOp(
-        initArgs.toFastSeq,
-        opArgs.toFastSeq,
-        AggSignature(op, initArgs.map(_.typ), opArgs.map(_.typ)),
-      )
-
     val pairType = TStruct("x" -> TCall, "y" -> TInt32)
     val intsType = TArray(TInt32)
 
@@ -809,7 +802,7 @@ class EmitStreamSuite extends HailSuite {
       streamAggScanIR(ToStream(In(0, TArray(pairType)))) { foo =>
         GetField(foo, "y") +
           GetField(
-            scanOp(CallStats(), IndexedSeq(I32(2)), IndexedSeq(GetField(foo, "x"))),
+            ApplyScanOp(CallStats(), I32(2))(GetField(foo, "x")),
             "AN",
           )
       },
@@ -826,10 +819,8 @@ class EmitStreamSuite extends HailSuite {
 
     assertAggScan(
       streamAggScanIR(
-        streamAggScanIR(ToStream(In(0, intsType))) { i =>
-          scanOp(Sum(), IndexedSeq(), IndexedSeq(i.toL))
-        }
-      )(x => scanOp(Max(), IndexedSeq(), IndexedSeq(x))),
+        streamAggScanIR(ToStream(In(0, intsType)))(i => ApplyScanOp(Sum())(i.toL))
+      )(x => ApplyScanOp(Max())(x)),
       intsType,
       FastSeq(2, 5, 8, -3, 2, 2, 1, 0, 0) ->
         IndexedSeq(null, 0L, 2L, 7L, 15L, 15L, 15L, 16L, 17L),

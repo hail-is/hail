@@ -735,22 +735,16 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         val rit = tcoerce[RIterable](requiredness)
         rit.union(lookup(a).required)
         rit.elementType.unionFrom(lookup(body))
-      case ApplyAggOp(_, seqOpArgs, aggSig) => // FIXME round-tripping through ptype
+      case ApplyAggOp(_, seqOpArgs, op) => // FIXME round-tripping through ptype
         val emitResult = agg.PhysicalAggSig(
-          aggSig.op,
-          agg.AggStateSig(
-            aggSig.op,
-            seqOpArgs.map(s => s -> lookup(s)),
-          ),
+          op,
+          agg.AggStateSig(op, seqOpArgs.map(s => s -> lookup(s))),
         ).emitResultType
         requiredness.fromEmitType(emitResult)
-      case ApplyScanOp(_, seqOpArgs, aggSig) =>
+      case ApplyScanOp(_, seqOpArgs, op) =>
         val emitResult = agg.PhysicalAggSig(
-          aggSig.op,
-          agg.AggStateSig(
-            aggSig.op,
-            seqOpArgs.map(s => s -> lookup(s)),
-          ),
+          op,
+          agg.AggStateSig(op, seqOpArgs.map(s => s -> lookup(s))),
         ).emitResultType
         requiredness.fromEmitType(emitResult)
       case AggFold(zero, seqOp, combOp, _, _, _) =>

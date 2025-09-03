@@ -567,7 +567,7 @@ object Extract {
           x, {
             val i = initBuilder.length
             bindInitArgRefs(x.initOpArgs)
-            val op = x.aggSig.op
+            val op = x.op
             val state = PhysicalAggSig(op, AggStateSig(op, x.seqOpArgs, r))
             initBuilder += InitOp(i, x.initOpArgs, state)
             seqBuilder += freshName() -> SeqOp(i, x.seqOpArgs, state)
@@ -582,7 +582,7 @@ object Extract {
           x, {
             val i = initBuilder.length
             bindInitArgRefs(x.initOpArgs)
-            val op = x.aggSig.op
+            val op = x.op
             val state = PhysicalAggSig(op, AggStateSig(op, x.seqOpArgs, r))
             initBuilder += InitOp(i, x.initOpArgs, state)
             seqBuilder += freshName() -> SeqOp(i, x.seqOpArgs, state)

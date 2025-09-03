@@ -740,18 +740,6 @@ object IRParser {
     sig
   }
 
-  def agg_signature(it: TokenIterator): AggSignature = {
-    punctuation(it, "(")
-    val op = agg_op(it)
-    val initArgs = type_exprs(it)
-    val seqOpArgs = type_exprs(it)
-    punctuation(it, ")")
-    AggSignature(op, initArgs, seqOpArgs)
-  }
-
-  def agg_signatures(it: TokenIterator): Array[AggSignature] =
-    base_seq_parser(agg_signature)(it)
-
   def ir_value(it: TokenIterator): (Type, Any) = {
     val typ = type_expr(it)
     val s = string_literal(it)
@@ -1293,15 +1281,13 @@ object IRParser {
         for {
           initOpArgs <- ir_value_exprs(ctx)(it)
           seqOpArgs <- ir_value_exprs(ctx)(it)
-          aggSig = AggSignature(aggOp, null, null)
-        } yield ApplyAggOp(initOpArgs, seqOpArgs, aggSig)
+        } yield ApplyAggOp(initOpArgs, seqOpArgs, aggOp)
       case "ApplyScanOp" =>
         val aggOp = agg_op(it)
         for {
           initOpArgs <- ir_value_exprs(ctx)(it)
           seqOpArgs <- ir_value_exprs(ctx)(it)
-          aggSig = AggSignature(aggOp, null, null)
-        } yield ApplyScanOp(initOpArgs, seqOpArgs, aggSig)
+        } yield ApplyScanOp(initOpArgs, seqOpArgs, aggOp)
       case "AggFold" =>
         val accumName = name(it)
         val otherAccumName = name(it)
@@ -2079,14 +2065,6 @@ object IRParser {
         case x: Recur =>
           val TTuple(IndexedSeq(_, TupleField(_, rt))) = env.eval.lookup(x.name)
           x._typ = rt
-          x
-        case x: ApplyAggOp =>
-          x.aggSig.initOpArgs = x.initOpArgs.map(_.typ)
-          x.aggSig.seqOpArgs = x.seqOpArgs.map(_.typ)
-          x
-        case x: ApplyScanOp =>
-          x.aggSig.initOpArgs = x.initOpArgs.map(_.typ)
-          x.aggSig.seqOpArgs = x.seqOpArgs.map(_.typ)
           x
         case MakeArray(args, typ) =>
           MakeArray.unify(ctx, args, typ)
