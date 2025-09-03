@@ -84,6 +84,13 @@ resource "google_project_service" "service_networking" {
   service = "servicenetworking.googleapis.com"
 }
 
+resource "google_compute_project_metadata" "oslogin" {
+  metadata = {
+    enable-oslogin = "TRUE"
+    block-project-ssh-keys = "TRUE"
+  }
+}
+
 resource "google_compute_network" "default" {
   name = "default"
 }
