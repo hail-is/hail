@@ -53,7 +53,7 @@ pylint-hailtop:
 
 .PHONY: check-hail
 check-hail: check-hail-fast pylint-hailtop
-	cd hail && sh mill --no-server __.checkFormat + __.fix --check
+	cd hail && HAIL_BUILD_MODE=Dev sh mill --no-server __.checkFormat + __.fix --check
 
 .PHONY: check-services
 check-services: $(CHECK_SERVICES_MODULES)
@@ -130,7 +130,7 @@ hail-run-image: base-image hail/Dockerfile.hail-run hail/python/pinned-requireme
 	echo $(IMAGE_NAME) > $@
 
 hailgenetics-hail-image: hail-ubuntu-image docker/hailgenetics/hail/Dockerfile $(shell git ls-files hail/src/main hail/python)
-	$(MAKE) HAIL_RELEASE_MODE=1 -C hail wheel
+	$(MAKE) HAIL_BUILD_MODE=Release -C hail wheel
 	./docker-build.sh . docker/hailgenetics/hail/Dockerfile $(IMAGE_NAME) \
 		--build-arg BASE_IMAGE=$(shell cat hail-ubuntu-image)
 	echo $(IMAGE_NAME) > $@
@@ -196,7 +196,7 @@ terra-batch-image: batch-image
 	echo $(IMAGE_NAME) > $@
 
 terra-batch-worker-image: batch-worker-image
-	$(MAKE) -C hail shadowJar HAIL_RELEASE_MODE=1
+	$(MAKE) -C hail shadowJar HAIL_BUILD_MODE=Release
 	./docker-build.sh . batch/terra-chart/Dockerfile.worker $(IMAGE_NAME) \
 		--build-arg BASE_IMAGE=$(shell cat batch-worker-image)
 	echo $(IMAGE_NAME) > $@

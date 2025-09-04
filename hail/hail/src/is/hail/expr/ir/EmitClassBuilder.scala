@@ -18,7 +18,6 @@ import is.hail.utils.prettyPrint.ArrayOfByteArrayInputStream
 import is.hail.variant.ReferenceGenome
 
 import scala.collection.mutable
-import scala.language.existentials
 
 import java.io._
 import java.lang.reflect.InvocationTargetException

@@ -21,7 +21,7 @@ steps:
       mkdir -p repo
       cd repo
       {{ code.checkout_script }}
-      make -C hail python-version-info HAIL_RELEASE_MODE=1 MILLOPTS=--no-server
+      make -C hail python-version-info HAIL_BUILD_MODE=Release MILLOPTS=--no-server
     outputs:
       - from: /io/repo/
         to: /repo
@@ -763,7 +763,7 @@ steps:
       set -ex
       cd /io/repo/hail
 
-      export MILLOPTS='--no-server' HAIL_RELEASE_MODE=1
+      export MILLOPTS='--no-server' HAIL_BUILD_MODE=Release
       time retry sh mill --no-server --version
 
       # We've encountered the following sporadic error in CI between `mill`
@@ -808,7 +808,7 @@ steps:
       cd /io/repo/hail
 
       gcloud auth activate-service-account --key-file=/test-dataproc-service-account-key/test-dataproc-service-account-key.json
-      make HAIL_RELEASE_MODE=1 DEV_CLARIFIER=hail-ci-build upload-artifacts \
+      make HAIL_BUILD_MODE=Release DEV_CLARIFIER=hail-ci-build upload-artifacts \
           -o $(ls build/deploy/dist/hail-*-py3-none-any.whl)
     dependsOn:
       - ci_utils_image
@@ -841,7 +841,7 @@ steps:
       set -ex
       cd /io/repo/hail
 
-      export MILLOPTS='--no-server'
+      export MILLOPTS='--no-server' HAIL_BUILD_MODE=CI
       time retry sh mill --no-server --version
 
       # See `build_hail_jar_and_wheel`
@@ -874,7 +874,7 @@ steps:
       set -ex
       cd /io/repo/hail
 
-      export MILLOPTS='--no-server'
+      export MILLOPTS='--no-server' HAIL_BUILD_MODE=CI
       time retry sh mill --no-server --version
 
       # See `build_hail_jar_and_wheel`
@@ -934,7 +934,7 @@ steps:
       set -ex
       cd /io/repo/hail
 
-      export SPARK_VERSION="3.0.2" SCALA_VERSION="2.12.13" HAIL_RELEASE_MODE=1 MILLOPTS='--no-server'
+      export SPARK_VERSION="3.0.2" SCALA_VERSION="2.12.13" HAIL_BUILD_MODE=Release MILLOPTS='--no-server'
       time retry sh mill --no-server --version
 
       # See `build_hail_jar_and_wheel`
@@ -3392,7 +3392,7 @@ steps:
       fi
 
       cd hail
-      make test-dataproc-37 HAIL_RELEASE_MODE=1 \
+      make test-dataproc-37 HAIL_BUILD_MODE=Release \
           -o $(ls build/deploy/dist/hail-*-py3-none-any.whl)
     dependsOn:
       - ci_utils_image
@@ -3436,7 +3436,7 @@ steps:
       fi
 
       cd hail
-      make test-dataproc-38 HAIL_RELEASE_MODE=1 \
+      make test-dataproc-38 HAIL_BUILD_MODE=Release \
           -o $(ls build/deploy/dist/hail-*-py3-none-any.whl)
     dependsOn:
       - ci_utils_image
@@ -3491,7 +3491,7 @@ steps:
 
       # #14452 - must build wheel with release `hailtop/hailctl/deploy.yaml`
       # use `-o` to prevent `mill` from rebuilding the "SHADOW_JAR"
-      make upload-artifacts HAIL_RELEASE_MODE=1 DEPLOY_REMOTE=origin \
+      make upload-artifacts HAIL_BUILD_MODE=Release DEPLOY_REMOTE=origin \
         -o out/hail/assembly.dest/out.jar
 
       echo Setting arguments and invoking release.sh.

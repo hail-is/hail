@@ -7,7 +7,6 @@ import is.hail.sparkextras._
 import is.hail.utils.{HailIterator, MultiArray2, Truncatable, WithContext}
 
 import scala.collection.{mutable, TraversableOnce}
-import scala.language.implicitConversions
 import scala.reflect.ClassTag
 import scala.util.matching.Regex
 
