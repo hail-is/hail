@@ -938,7 +938,6 @@ async def verify_dev_or_sa_credentials(_, userdata: UserData) -> web.Response:
 
 
 @routes.get('/api/v1alpha/check_system_permission')
-@api_security_headers
 @auth.authenticated_users_only()
 async def check_system_permission(request: web.Request, userdata: UserData) -> web.Response:
     permission_name = request.query.get('permission')
@@ -985,7 +984,6 @@ WHERE usr.user_id = %s
 
 
 @routes.get('/api/v1alpha/system_roles/me')
-@api_security_headers
 @auth.authenticated_users_only()
 async def get_system_roles_for_me(request: web.Request, userdata: UserData) -> web.Response:
     user_roles_permissions = await _get_system_role_assignments(request, user_id_filter=userdata['id'])
@@ -993,7 +991,6 @@ async def get_system_roles_for_me(request: web.Request, userdata: UserData) -> w
 
 
 @routes.get('/api/v1alpha/system_roles/{user_id}')
-@api_security_headers
 @auth.authenticated_users_with_permission(SystemPermission.READ_SYSTEM_ROLES)
 async def get_system_roles_for_user(request: web.Request, _) -> web.Response:
     user_id = request.match_info['user_id']
@@ -1003,7 +1000,6 @@ async def get_system_roles_for_user(request: web.Request, _) -> web.Response:
 
 
 @routes.patch('/api/v1alpha/system_roles/{user_id}')
-@api_security_headers
 @auth.authenticated_users_with_permission(SystemPermission.ASSIGN_SYSTEM_ROLES)
 async def patch_system_roles_for_user(request: web.Request, _) -> web.Response:
     user_id = request.match_info['user_id']
@@ -1093,7 +1089,6 @@ WHERE usr.user_id = %s AND sr.name = %s
 
 
 @routes.get('/api/v1alpha/system_roles/all')
-@api_security_headers
 @auth.authenticated_users_with_permission(SystemPermission.READ_SYSTEM_ROLES)
 async def get_all_system_role_assignments(request: web.Request, _userdata: UserData) -> web.Response:
     # Note: userdata provided by authenticating wrapper, but is otherwise unused in function.
