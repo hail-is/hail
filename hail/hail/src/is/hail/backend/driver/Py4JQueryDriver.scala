@@ -403,6 +403,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable {
 
       // 0 => let the OS pick an available port
       private[this] val httpServer = HttpServer.create(new InetSocketAddress(0), 10)
+      httpServer.createContext("/", runRpc(_: HttpExchange))
 
       @nowarn def port: Int = httpServer.getAddress.getPort
       override def close(): Unit = httpServer.stop(10)
@@ -427,20 +428,15 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable {
       //
       /* Source:
        * https://docs.oracle.com/en/java/javase/11/docs/api/jdk.httpserver/com/sun/net/httpserver/HttpServer.html#setExecutor(java.util.concurrent.Executor) */
-      //
-      // Note that simply calling start() from a non-daemon thread will spawn a non-daemon
-      // thread itself.
-      private[this] val thread = {
-        httpServer.createContext("/", runRpc(_: HttpExchange))
-        httpServer.setExecutor(null) // ensures the server creates no new threads
-        val thread =
-          java.util.concurrent.Executors.defaultThreadFactory().newThread(new Runnable() {
-            def run(): Unit = httpServer.start()
-          })
-        thread.setDaemon(true)
-        thread
-      }
+      httpServer.setExecutor(null) // ensures the server creates no new threads
 
+      // Note that simply calling httpServer.start() from a non-daemon thread will spawn a
+      // non-daemon thread itself.
+      private[this] val thread = new Thread(new Runnable() {
+        def run(): Unit = httpServer.start()
+      })
+
+      thread.setDaemon(true)
       thread.start()
     }
 }
