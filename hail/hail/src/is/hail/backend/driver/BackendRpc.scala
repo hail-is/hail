@@ -9,10 +9,11 @@ import is.hail.io.plink.LoadPlink
 import is.hail.io.vcf.LoadVCF
 import is.hail.types.virtual.{Kind, TFloat64}
 import is.hail.types.virtual.Kinds._
-import is.hail.utils.{using, BoxedArrayBuilder, ExecutionTimer, FastSeq}
+import is.hail.utils.{using, ExecutionTimer, FastSeq}
 import is.hail.utils.ExecutionTimer.Timings
 import is.hail.variant.ReferenceGenome
 
+import scala.collection.mutable
 import scala.util.control.NonFatal
 
 import java.io.ByteArrayOutputStream
@@ -155,7 +156,8 @@ trait BackendRpc {
   )(
     body: => A
   ): A = {
-    val fns = new BoxedArrayBuilder[UserDefinedFnKey](serializedFns.length)
+    val fns = mutable.ArrayBuffer.empty[UserDefinedFnKey]
+    fns.sizeHint(serializedFns.length)
     try {
       for (func <- serializedFns) {
         fns += IRFunctionRegistry.registerIR(
@@ -171,8 +173,7 @@ trait BackendRpc {
 
       body
     } finally
-      for (i <- (0 until fns.length).reverse)
-        IRFunctionRegistry.unregisterIr(fns(i))
+      fns.view.reverse.foreach(IRFunctionRegistry.unregisterIr)
   }
 }
 

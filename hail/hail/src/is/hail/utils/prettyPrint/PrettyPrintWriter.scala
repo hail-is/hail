@@ -1,8 +1,7 @@
 package is.hail.utils.prettyPrint
 
-import is.hail.utils.BoxedArrayBuilder
-
 import scala.annotation.tailrec
+import scala.collection.mutable.ArrayBuffer
 
 import java.io.{StringWriter, Writer}
 import java.util.ArrayDeque
@@ -123,7 +122,7 @@ object Doc {
 
     def openGroups(): Unit =
       while (pendingOpens > 0) {
-        pendingGroups.addLast(GroupN(new BoxedArrayBuilder[ScannedNode](), globalPos, -1))
+        pendingGroups.addLast(GroupN(ArrayBuffer.empty[ScannedNode], globalPos, -1))
         pendingOpens -= 1
       }
 
@@ -181,7 +180,7 @@ private[prettyPrint] case class TextN(t: String) extends ScannedNode
 private[prettyPrint] case class LineN(indentation: Int, ifFlat: String) extends ScannedNode
 
 private[prettyPrint] case class GroupN(
-  contents: BoxedArrayBuilder[ScannedNode],
+  contents: ArrayBuffer[ScannedNode],
   start: Int,
   var end: Int,
 ) extends ScannedNode
