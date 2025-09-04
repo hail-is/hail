@@ -409,8 +409,8 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable {
 
       // This HTTP server *must not* start non-daemon threads because such threads keep the JVM
       // alive. A living JVM indicates to Spark that the job is incomplete. This does not manifest
-      // when you run jobs in a local pyspark (because you'll Ctrl-C out of Python regardless of
-      // the JVM's state) nor does it manifest in a Notebook (again, you'll kill the Notebook kernel
+      // when you run jobs in a local pyspark (because you'll Ctrl-C out of Python regardless of the
+      // JVM's state) nor does it manifest in a Notebook (again, you'll kill the Notebook kernel
       // explicitly regardless of the JVM). It *does* manifest when submitting jobs with
       //
       //     gcloud dataproc submit ...
@@ -418,8 +418,29 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable {
       // or
       //
       //     spark-submit
-      httpServer.createContext("/", runRpc(_: HttpExchange))
-      httpServer.setExecutor(null) // ensures the server creates no new threads
-      httpServer.start()
+      //
+      // setExecutor(null) ensures the server creates no new threads:
+      //
+      // > If this method is not called (before start()) or if it is called with a null Executor,
+      // > then a default implementation is used, which uses the thread which was created by
+      // > the start() method.
+      //
+      /* Source:
+       * https://docs.oracle.com/en/java/javase/11/docs/api/jdk.httpserver/com/sun/net/httpserver/HttpServer.html#setExecutor(java.util.concurrent.Executor) */
+      //
+      // Note that simply calling start() from a non-daemon thread will spawn a non-daemon
+      // thread itself.
+      private[this] val thread = {
+        httpServer.createContext("/", runRpc(_: HttpExchange))
+        httpServer.setExecutor(null) // ensures the server creates no new threads
+        val thread =
+          java.util.concurrent.Executors.defaultThreadFactory().newThread(new Runnable() {
+            def run(): Unit = httpServer.start()
+          })
+        thread.setDaemon(true)
+        thread
+      }
+
+      thread.start()
     }
 }
