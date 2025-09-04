@@ -5,6 +5,7 @@ import is.hail.asm4s.{Code, Value}
 import is.hail.io.{InputBuffer, OutputBuffer, RichContextRDDLong, RichContextRDDRegionValue}
 import is.hail.sparkextras._
 import is.hail.utils.{HailIterator, MultiArray2, Truncatable, WithContext}
+import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.collection.compat._
 import scala.collection.mutable
@@ -21,6 +22,9 @@ import org.apache.spark.sql.Row
 
 trait Implicits {
   implicit def toRichArray[T](a: Array[T]): RichArray[T] = new RichArray(a)
+
+  implicit def toRichArraySeqCompanion(a: ArraySeq.type): RichArraySeqCompanion.type =
+    RichArraySeqCompanion
 
   implicit def toRichIndexedSeq[T](s: IndexedSeq[T]): RichIndexedSeq[T] = new RichIndexedSeq(s)
 

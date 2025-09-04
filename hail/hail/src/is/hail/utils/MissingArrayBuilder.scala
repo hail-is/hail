@@ -7,7 +7,7 @@ final class MissingArrayBuilder[@specialized T](initialCapacity: Int)(implicit t
   private var missing: Array[Boolean] = new Array[Boolean](initialCapacity)
   private var size_ : Int = 0
 
-  def this()(implicit tct: ClassTag[T]) = this(BoxedArrayBuilder.defaultInitialCapacity)
+  def this()(implicit tct: ClassTag[T]) = this(16)
 
   def size: Int = size_
 

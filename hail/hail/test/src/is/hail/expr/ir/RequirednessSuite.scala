@@ -13,7 +13,9 @@ import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.interfaces.SStream
 import is.hail.types.physical.stypes.primitives.SInt32
 import is.hail.types.virtual._
-import is.hail.utils.{BoxedArrayBuilder, FastSeq}
+import is.hail.utils.FastSeq
+
+import scala.collection.mutable.ArrayBuffer
 
 import org.apache.spark.sql.Row
 import org.scalatest.Inspectors.forAll
@@ -107,7 +109,8 @@ class RequirednessSuite extends HailSuite {
 
   @DataProvider(name = "valueIR")
   def valueIR(): Array[Array[Any]] = {
-    val nodes = new BoxedArrayBuilder[Array[Any]](50)
+    val nodes = Array.newBuilder[Array[Any]]
+    nodes.sizeHint(50)
 
     val allRequired = Array(
       I32(5),
@@ -350,7 +353,8 @@ class RequirednessSuite extends HailSuite {
 
   @DataProvider(name = "tableIR")
   def tableIR(): Array[Array[Any]] = {
-    val nodes = new BoxedArrayBuilder[Array[Any]](50)
+    val nodes = Array.newBuilder[Array[Any]]
+    nodes.sizeHint(50)
 
     nodes += Array[Any](
       TableRange(1, 1),
@@ -631,7 +635,7 @@ class RequirednessSuite extends HailSuite {
 
   @Test
   def testDataProviders(): Unit = {
-    val s = new BoxedArrayBuilder[String]()
+    val s = ArrayBuffer.empty[String]
     valueIR().map(v => v(0) -> v(1)).foreach {
       case (n: IR, t: PType) =>
         if (n.typ != t.virtualType)
@@ -648,7 +652,7 @@ class RequirednessSuite extends HailSuite {
              |${Pretty(ctx, n)}"
              |""".stripMargin
     }
-    assert(s.size == 0, s.result().mkString("\n\n"))
+    assert(s.isEmpty, s.mkString("\n\n"))
   }
 
   def /**/ dump(m: Memo[BaseTypeWithRequiredness]): String =

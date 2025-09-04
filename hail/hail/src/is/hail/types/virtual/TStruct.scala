@@ -2,7 +2,7 @@ package is.hail.types.virtual
 
 import is.hail.annotations._
 import is.hail.backend.HailStateManager
-import is.hail.expr.ir.{Env, IRParser, IntArrayBuilder, Name}
+import is.hail.expr.ir.{Env, IRParser, Name}
 import is.hail.utils._
 import is.hail.utils.compat._
 import is.hail.utils.compat.immutable.ArraySeq
@@ -236,8 +236,8 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
   }
 
   def annotate(other: TStruct): (TStruct, Merger) = {
-    val newFieldsBuilder = new BoxedArrayBuilder[(String, Type)]()
-    val fieldIdxBuilder = new IntArrayBuilder()
+    val newFieldsBuilder = ArraySeq.newBuilder[(String, Type)]
+    val fieldIdxBuilder = ArraySeq.newBuilder[Int]
     // In fieldIdxBuilder, positive integers are field indices from the left.
     // Negative integers are the complement of field indices from the right.
 
@@ -289,7 +289,8 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
   }
 
   def insertFields(fieldsToInsert: IterableOnce[(String, Type)]): TStruct = {
-    val ab = new BoxedArrayBuilder[Field](fields.length)
+    val ab = mutable.ArrayBuffer.empty[Field]
+    ab.sizeHint(fields.length)
     var i = 0
     while (i < fields.length) {
       ab += fields(i)
@@ -304,11 +305,11 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
       } else
         ab += Field(name, typ, ab.length)
     }
-    TStruct(ab.result())
+    TStruct(ab.to(ArraySeq))
   }
 
   def rename(m: Map[String, String]): TStruct = {
-    val newFieldsBuilder = new BoxedArrayBuilder[(String, Type)]()
+    val newFieldsBuilder = ArraySeq.newBuilder[(String, Type)]
     fields.foreach { fd =>
       val n = fd.name
       newFieldsBuilder += (m.getOrElse(n, n) -> fd.typ)

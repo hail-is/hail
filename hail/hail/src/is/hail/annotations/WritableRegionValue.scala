@@ -3,7 +3,7 @@ package is.hail.annotations
 import is.hail.backend.HailStateManager
 import is.hail.rvd.RVDContext
 import is.hail.types.physical.{PStruct, PType}
-import is.hail.utils.compat.mutable.Growable
+import is.hail.utils.compat.mutable.GrowableCompat
 
 import scala.collection.mutable.{ArrayBuffer, PriorityQueue}
 
@@ -129,7 +129,7 @@ class RegionValuePriorityQueue(
 }
 
 class RegionValueArrayBuffer(val t: PType, region: Region, sm: HailStateManager)
-    extends Iterable[RegionValue] with Growable[RegionValue] {
+    extends Iterable[RegionValue] with GrowableCompat[RegionValue] {
 
   val value = RegionValue(region, 0)
 

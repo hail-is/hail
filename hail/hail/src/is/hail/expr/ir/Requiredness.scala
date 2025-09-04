@@ -9,7 +9,9 @@ import is.hail.types.physical.PType
 import is.hail.types.physical.stypes.{EmitType, PTypeReferenceSingleCodeType, StreamSingleCodeType}
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
+import scala.collection.compat._
 import scala.collection.mutable
 
 object Requiredness {
@@ -144,7 +146,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         dependents.getOrElseUpdate(d, mutable.Set[RefEquality[BaseIR]]()) ++= uses
       }
 
-    def addBindings(name: Name, ds: Array[IR]): Unit =
+    def addBindings(name: Name, ds: IndexedSeq[IR]): Unit =
       if (refMap.contains(name)) {
         val uses = refMap(name)
         uses.foreach(u => defs.bind(u, ds.map(lookup).toArray[BaseTypeWithRequiredness]))
@@ -173,19 +175,18 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case RelationalLetTable(name, value, _) => addBinding(name, value)
       case TailLoop(loopName, params, _, body) =>
         addBinding(loopName, body)
-        val argDefs = Array.fill(params.length)(new BoxedArrayBuilder[IR]())
+        val argDefs = ArraySeq.fill(params.length)(ArraySeq.newBuilder[IR])
         refMap.getOrElse(loopName, FastSeq()).map(_.t).foreach { case Recur(_, args, _) =>
           argDefs.zip(args).foreach { case (ab, d) => ab += d }
         }
-        val s = Array.fill[TypeWithRequiredness](params.length)(null)
-        var i = 0
-        while (i < params.length) {
-          val (name, init) = params(i)
-          s(i) = lookup(refMap.get(name).flatMap(refs =>
+
+        val s = params.lazyZip(argDefs).map { (param, args) =>
+          val (name, init) = param
+          args += init
+          addBindings(name, args.result())
+          lookup(refMap.get(name).flatMap(refs =>
             refs.headOption.map(_.t.asInstanceOf[IR])
           ).getOrElse(init))
-          addBindings(name, argDefs(i).result() :+ init)
-          i += 1
         }
         states.bind(node, s)
       case x @ ApplyIR(_, _, args, _, _) =>

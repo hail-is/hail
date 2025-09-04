@@ -180,7 +180,7 @@ object RichContextRDDRegionValue {
     t: RVDType,
     rowsRVType: PStruct,
     entriesRVType: PStruct,
-    partFiles: Array[String],
+    partFiles: IndexedSeq[String],
     partitioner: RVDPartitioner,
   ): Unit = {
     val rowsSpec = MakeRVDSpec(rowsCodecSpec, partFiles, partitioner, rowsIndexSpec)

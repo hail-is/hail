@@ -12,11 +12,11 @@ object OrderedRVIterator {
   def multiZipJoin(
     sm: HailStateManager,
     its: IndexedSeq[OrderedRVIterator],
-  ): Iterator[BoxedArrayBuilder[(RegionValue, Int)]] = {
-    require(its.length > 0)
+  ): Iterator[collection.IndexedSeq[(RegionValue, Int)]] = {
+    require(its.nonEmpty)
     val first = its(0)
     val flipbooks = its.map(_.iterator.toFlipbookIterator)
-    FlipbookIterator.multiZipJoin(
+    FlipbookIterator.multiZipJoin[RegionValue](
       flipbooks.toArray,
       first.t.joinComp(sm, first.t).compare,
     )

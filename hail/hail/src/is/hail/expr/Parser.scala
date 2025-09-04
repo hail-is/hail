@@ -83,7 +83,7 @@ object Parser extends JavaTokenParsers {
       case NoSuccess(msg, _) => fatal(s"invalid call expression: '$input': $msg")
     }
 
-  def oneOfLiteral(a: Array[String]): Parser[String] = new Parser[String] {
+  def oneOfLiteral(a: IndexedSeq[String]): Parser[String] = new Parser[String] {
     private[this] val root = ParseTrieNode.generate(a)
 
     def apply(in: Input): ParseResult[String] = {
