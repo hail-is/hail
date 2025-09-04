@@ -21,7 +21,8 @@ import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces.{primitive, NoBoxLongIterator, SBaseStructValue}
 import is.hail.types.physical.stypes.primitives.SInt64
 import is.hail.types.virtual._
-import is.hail.utils.{BoxedArrayBuilder, CompressionUtils, FastSeq}
+import is.hail.utils.{CompressionUtils, FastSeq}
+import is.hail.utils.compat.immutable.ArraySeq
 import is.hail.variant.Call2
 
 import org.objectweb.asm.Opcodes._
@@ -177,7 +178,7 @@ object StagedBGENReader {
         },
       )
 
-      val structFieldCodes = new BoxedArrayBuilder[EmitCode]()
+      val structFieldCodes = ArraySeq.newBuilder[EmitCode]
 
       if (requestedType.hasField("locus")) {
         // double-allocates the locus struct, but this is a very minor performance regression
@@ -277,7 +278,7 @@ object StagedBGENReader {
                   d1 < 256, {
                     val d2 = cb.newLocal[Int]("memoize_entries_d2", const(255) - d0 - d1)
 
-                    val entryFieldCodes = new BoxedArrayBuilder[EmitCode]()
+                    val entryFieldCodes = ArraySeq.newBuilder[EmitCode]
 
                     if (includeGT)
                       entryFieldCodes += EmitCode.fromI(cb.emb) { cb =>

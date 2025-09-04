@@ -74,11 +74,11 @@ case class JSONExtractContig(name: String, length: Int)
 
 case class JSONExtractReferenceGenome(
   name: String,
-  contigs: Array[JSONExtractContig],
+  contigs: IndexedSeq[JSONExtractContig],
   xContigs: Set[String],
   yContigs: Set[String],
   mtContigs: Set[String],
-  par: Array[JSONExtractIntervalLocus],
+  par: IndexedSeq[JSONExtractIntervalLocus],
 ) {
 
   def toReferenceGenome: ReferenceGenome = ReferenceGenome(

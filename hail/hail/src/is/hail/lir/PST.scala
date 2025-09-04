@@ -1,7 +1,6 @@
 package is.hail.lir
 
 import is.hail.expr.ir.{BooleanArrayBuilder, IntArrayBuilder}
-import is.hail.utils.BoxedArrayBuilder
 
 import scala.collection.mutable
 
@@ -110,7 +109,7 @@ class PSTBuilder(
 
   private def computeBackEdges(): Unit = {
     // recursion will blow out the stack
-    val stack = new BoxedArrayBuilder[(Int, Iterator[Int])]()
+    val stack = mutable.ArrayStack.empty[(Int, Iterator[Int])]
     val onStack = mutable.Set[Int]()
     val visited = mutable.Set[Int]()
 
@@ -165,7 +164,7 @@ class PSTBuilder(
     var k = 0
 
     // recursion will blow out the stack
-    val stack = new BoxedArrayBuilder[(Int, Iterator[Int])]()
+    val stack = mutable.ArrayStack.empty[(Int, Iterator[Int])]
 
     def push(b: Int): Unit = {
       val i = k
@@ -386,7 +385,7 @@ class PSTBuilder(
     findRegions(0, nBlocks - 1)
     val root = addRoot()
 
-    val newBlocksB = new BoxedArrayBuilder[Block]()
+    val newBlocksB = mutable.ArrayBuffer.empty[Block]
     val newSplitBlock = new BooleanArrayBuilder()
 
     // split blocks, compute new blocks
@@ -431,7 +430,7 @@ class PSTBuilder(
 
     // compute new regions, including singletons
     // update children
-    val newRegionsB = new BoxedArrayBuilder[PSTRegion]()
+    val newRegionsB = mutable.ArrayBuffer.empty[PSTRegion]
     val regionNewRegion = new Array[Int](regions.length)
     i = 0
     while (i < regions.length) {
@@ -483,8 +482,8 @@ class PSTBuilder(
       i += 1
     }
 
-    val newBlocks = new Blocks(newBlocksB.result())
-    val newRegions = newRegionsB.result()
+    val newBlocks = new Blocks(newBlocksB.toArray)
+    val newRegions = newRegionsB.toArray
     val newRoot = regionNewRegion(root)
 
     val newCFG = CFG(m, newBlocks)

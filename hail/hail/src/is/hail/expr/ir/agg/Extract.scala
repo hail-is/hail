@@ -13,8 +13,12 @@ import is.hail.types.{tcoerce, TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.utils.compat._
+import is.hail.utils.compat.immutable.ArraySeq
+import is.hail.utils.compat.mutable.Growable
 
 import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
 
 import org.apache.spark.TaskContext
 
@@ -61,7 +65,7 @@ object AggStateSig {
     }
   }
 
-  def grouped(k: IR, aggs: Seq[AggStateSig], r: RequirednessAnalysis): GroupedStateSig =
+  def grouped(k: IR, aggs: IndexedSeq[AggStateSig], r: RequirednessAnalysis): GroupedStateSig =
     GroupedStateSig(VirtualTypeWithReq(k.typ, r(k)), aggs)
 
   def getState(sig: AggStateSig, cb: EmitClassBuilder[_]): AggregatorState = sig match {
@@ -79,10 +83,10 @@ object AggStateSig {
     case ImputeTypeStateSig() => new ImputeTypeState(cb)
     case ArrayAggStateSig(nested) => new ArrayElementState(
         cb,
-        StateTuple(nested.map(sig => AggStateSig.getState(sig, cb)).toArray),
+        StateTuple(nested.map(sig => AggStateSig.getState(sig, cb))),
       )
     case GroupedStateSig(kt, nested) =>
-      new DictState(cb, kt, StateTuple(nested.map(sig => AggStateSig.getState(sig, cb)).toArray))
+      new DictState(cb, kt, StateTuple(nested.map(sig => AggStateSig.getState(sig, cb))))
     case NDArraySumStateSig(nda) => new TypedRegionBackedAggState(nda, cb)
     case NDArrayMultiplyAddStateSig(nda) =>
       new TypedRegionBackedAggState(nda, cb)
@@ -93,7 +97,11 @@ object AggStateSig {
   }
 }
 
-sealed abstract class AggStateSig(val t: Seq[VirtualTypeWithReq], val n: Option[Seq[AggStateSig]])
+sealed abstract class AggStateSig(
+  val t: IndexedSeq[VirtualTypeWithReq],
+  val n: Option[IndexedSeq[AggStateSig]],
+)
+
 case class TypedStateSig(pt: VirtualTypeWithReq) extends AggStateSig(Array(pt), None)
 
 case class DownsampleStateSig(labelType: VirtualTypeWithReq)
@@ -111,10 +119,10 @@ case class CollectAsSetStateSig(pt: VirtualTypeWithReq) extends AggStateSig(Arra
 case class CallStatsStateSig() extends AggStateSig(Array[VirtualTypeWithReq](), None)
 case class ImputeTypeStateSig() extends AggStateSig(Array[VirtualTypeWithReq](), None)
 
-case class ArrayAggStateSig(nested: Seq[AggStateSig])
+case class ArrayAggStateSig(nested: IndexedSeq[AggStateSig])
     extends AggStateSig(Array[VirtualTypeWithReq](), Some(nested))
 
-case class GroupedStateSig(kt: VirtualTypeWithReq, nested: Seq[AggStateSig])
+case class GroupedStateSig(kt: VirtualTypeWithReq, nested: IndexedSeq[AggStateSig])
     extends AggStateSig(Array(kt), Some(nested))
 
 case class ApproxCDFStateSig() extends AggStateSig(Array[VirtualTypeWithReq](), None)
@@ -176,10 +184,10 @@ case class ArrayLenAggSig(knownLength: Boolean, nested: IndexedSeq[PhysicalAggSi
       nested.flatMap(sig => sig.allOps).toArray,
     )
 
-class AggSignatures(val sigs: Array[PhysicalAggSig]) {
+class AggSignatures(val sigs: IndexedSeq[PhysicalAggSig]) {
   val nAggs: Int = sigs.length
   def isEmpty: Boolean = sigs.isEmpty
-  val states: Array[AggStateSig] = sigs.map(_.state)
+  val states: IndexedSeq[AggStateSig] = sigs.map(_.state)
 
   def resultsOp: IR = ResultOp.makeTuple(sigs)
 
@@ -371,7 +379,7 @@ class AggSignatures(val sigs: Array[PhysicalAggSig]) {
 class ExtractedAggs(
   ctx: ExecuteContext,
   // Must be bound in `init` and `postAggIR`
-  val initBindings: Array[(Name, IR)],
+  val initBindings: IndexedSeq[(Name, IR)],
   // The extracted void-typed initialization ir
   val init: IR,
   // The extracted void-typed update ir
@@ -402,13 +410,13 @@ object Extract {
   // are returned in the first array, the rest are in the second.
   /* TODO: this is only being used to do ad hoc code motion. Remove when we have a real code motion
    * pass. */
-  private def partitionDependentLets(lets: Array[(Name, IR)], name: Name)
-    : (Array[(Name, IR)], Array[(Name, IR)]) = {
+  private def partitionDependentLets(lets: IndexedSeq[(Name, IR)], name: Name)
+    : (IndexedSeq[(Name, IR)], IndexedSeq[(Name, IR)]) = {
     val depBindings = mutable.HashSet.empty[Name]
     depBindings += name
 
-    val dep = new BoxedArrayBuilder[(Name, IR)]
-    val indep = new BoxedArrayBuilder[(Name, IR)]
+    val dep = ArraySeq.newBuilder[(Name, IR)]
+    val indep = ArraySeq.newBuilder[(Name, IR)]
 
     lets.foreach { case x @ (name, value) =>
       if (value.typ == TVoid || value.isInstanceOf[ResultOp] || value.isInstanceOf[AggStateValue]) {
@@ -466,9 +474,9 @@ object Extract {
 
   def apply(ctx: ExecuteContext, ir: IR, r: RequirednessAnalysis, isScan: Boolean = false)
     : ExtractedAggs = {
-    val initBindings = new BoxedArrayBuilder[(Name, IR)]()
-    val initBuilder = new BoxedArrayBuilder[InitOp]()
-    val seqBuilder = new BoxedArrayBuilder[(Name, IR)]()
+    val initBindings = ArraySeq.newBuilder[(Name, IR)]
+    val initBuilder = ArrayBuffer.empty[InitOp]
+    val seqBuilder = ArraySeq.newBuilder[(Name, IR)]
     val memo = mutable.Map.empty[IR, Int]
     val result = Ref(freshName(), null)
 
@@ -484,7 +492,7 @@ object Extract {
       isScan,
     )
 
-    val initOps = initBuilder.result()
+    val initOps = initBuilder.to(ArraySeq)
     val pAggSigs = initOps.map(_.aggSig)
     val sigs = new AggSignatures(pAggSigs)
     result._typ = sigs.resultsOp.typ
@@ -507,12 +515,12 @@ object Extract {
     ir: IR,
     env: BindingEnv[BindingState],
     // Bindings in scope for init op arguments. Will also be in scope in post-agg IR.
-    initBindings: BoxedArrayBuilder[(Name, IR)],
+    initBindings: Growable[(Name, IR)],
     // set of contained aggs, and the init op for each
-    initBuilder: BoxedArrayBuilder[InitOp],
+    initBuilder: mutable.Buffer[InitOp],
     /* Set of updates for contained aggs, with intermediate let-bound values. Will be wrapped in a
      * Block. */
-    seqBuilder: BoxedArrayBuilder[(Name, IR)],
+    seqBuilder: Growable[(Name, IR)],
     /* Map each contained ApplyAggOp, ApplyScanOp, or AggFold, to the index of the corresponding agg
      * state, used to perform CSE on agg ops */
     memo: mutable.Map[IR, Int],
@@ -614,7 +622,7 @@ object Extract {
         GetTupleElement(result, idx)
 
       case AggFilter(cond, aggIR, _) =>
-        val newSeq = new BoxedArrayBuilder[(Name, IR)]()
+        val newSeq = ArraySeq.newBuilder[(Name, IR)]
         val transformed = this.extract(aggIR, env, initBindings, initBuilder, newSeq,
           newMemo, result, r, isScan)
 
@@ -622,7 +630,7 @@ object Extract {
         transformed
 
       case AggExplode(array, name, aggBody, _) =>
-        val newSeq = new BoxedArrayBuilder[(Name, IR)]()
+        val newSeq = ArraySeq.newBuilder[(Name, IR)]
         val transformed = this.extract(aggBody, env, initBindings, initBuilder, newSeq,
           newMemo, result, r, isScan)
 
@@ -633,8 +641,8 @@ object Extract {
 
       case AggGroupBy(key, aggIR, _) =>
         val i = initBuilder.length
-        val newInit = new BoxedArrayBuilder[InitOp]()
-        val newSeq = new BoxedArrayBuilder[(Name, IR)]()
+        val newInit = ArrayBuffer.empty[InitOp]
+        val newSeq = ArraySeq.newBuilder[(Name, IR)]
         val newRef = Ref(freshName(), null)
         val transformed = this.extract(
           aggIR,
@@ -647,7 +655,7 @@ object Extract {
           r,
           isScan,
         )
-        val initOps = newInit.result()
+        val initOps = newInit.to(ArraySeq)
 
         val pAggSigs = initOps.map(_.aggSig)
         val groupState = AggStateSig.grouped(key, pAggSigs.map(_.state), r)
@@ -670,14 +678,14 @@ object Extract {
 
       case x @ AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, _) =>
         val i = initBuilder.length
-        val newAggs = new BoxedArrayBuilder[InitOp]()
-        val newSeq = new BoxedArrayBuilder[(Name, IR)]()
+        val newAggs = ArrayBuffer.empty[InitOp]
+        val newSeq = ArraySeq.newBuilder[(Name, IR)]
         val newRef = Ref(freshName(), null)
 
         val transformed = this.extract(aggBody, env, initBindings, newAggs, newSeq,
           newMemo, newRef, r, isScan)
 
-        val initOps = newAggs.result()
+        val initOps = newAggs.to(ArraySeq)
         val pAggSigs = initOps.map(_.aggSig)
         val checkSig = ArrayLenAggSig(x.knownLength.isDefined, pAggSigs)
         val nestedSigs = checkSig.nested

@@ -14,6 +14,7 @@ import is.hail.types.physical.{PCanonicalStruct, PInt64, PStruct}
 import is.hail.types.virtual.{MatrixType, TInterval, TStruct}
 import is.hail.utils._
 import is.hail.utils.PartitionCounts.{getPCSubsetOffset, incrementalPCSubsetOffset, PCSubsetOffset}
+import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.collection.parallel.CollectionConverters._
 import scala.reflect.ClassTag
@@ -1365,7 +1366,7 @@ object RVD extends Logging {
     paths: IndexedSeq[String],
     bufferSpec: BufferSpec,
     stageLocally: Boolean,
-  ): Array[Array[FileWriteMetadata]] = {
+  ): IndexedSeq[IndexedSeq[FileWriteMetadata]] = {
     val first = rvds.head
     rvds.foreach { rvd =>
       if (rvd.typ != first.typ)
@@ -1438,8 +1439,7 @@ object RVD extends Logging {
       new ContextRDD(rdd).collect()
     }
 
-    val fileDataByOrigin =
-      Array.fill[BoxedArrayBuilder[FileWriteMetadata]](nRVDs)(new BoxedArrayBuilder())
+    val fileDataByOrigin = ArraySeq.fill(nRVDs)(ArraySeq.newBuilder[FileWriteMetadata])
 
     for ((fd, oidx) <- partFilePartitionCounts)
       fileDataByOrigin(oidx) += fd

@@ -8,16 +8,19 @@ import is.hail.types._
 import is.hail.types.virtual._
 import is.hail.types.virtual.TIterable.elementType
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.collection.compat._
 import scala.collection.mutable
 
 object PruneDeadFields extends Logging {
 
-  case class ComputeMutableState(
-    requestedType: Memo[BaseType],
-    relationalRefs: mutable.HashMap[Name, BoxedArrayBuilder[Type]],
-  ) {
+  class ComputeMutableState {
+    val requestedType: Memo[BaseType] = Memo.empty
+
+    val relationalRefs: mutable.Map[Name, mutable.Builder[Type, IndexedSeq[Type]]] =
+      mutable.HashMap.empty.withDefault((_: Name) => ArraySeq.newBuilder[Type])
+
     def rebuildState: RebuildMutableState =
       RebuildMutableState(requestedType, mutable.HashMap.empty)
   }
@@ -118,7 +121,7 @@ object PruneDeadFields extends Logging {
     ctx.time {
       try {
         val irCopy = ir.deepCopy()
-        val ms = ComputeMutableState(Memo.empty[BaseType], mutable.HashMap.empty)
+        val ms = new ComputeMutableState
         irCopy match {
           case mir: MatrixIR =>
             memoizeMatrixIR(ctx, mir, mir.typ, ms)
@@ -215,7 +218,7 @@ object PruneDeadFields extends Logging {
           t match {
             case ts: TStruct =>
               val subStructs = children.map(_.asInstanceOf[TStruct])
-              val fieldArrays = Array.fill(ts.fields.length)(new BoxedArrayBuilder[Type])
+              val fieldArrays = ArraySeq.fill(ts.fields.length)(ArraySeq.newBuilder[Type])
 
               var nPresent = 0
               ts.fields.foreach { f =>
@@ -239,11 +242,11 @@ object PruneDeadFields extends Logging {
               var newIdx = 0
               var oldIdx = 0
               while (oldIdx < fieldArrays.length) {
-                val ab = fieldArrays(oldIdx)
-                if (ab.nonEmpty) {
+                val fields = fieldArrays(oldIdx).result()
+                if (fields.nonEmpty) {
                   val oldField = ts.fields(oldIdx)
                   subFields(newIdx) =
-                    Field(oldField.name, unifySeq(oldField.typ, ab.result()), newIdx)
+                    Field(oldField.name, unifySeq(oldField.typ, fields), newIdx)
                   newIdx += 1
                 }
                 oldIdx += 1
@@ -252,7 +255,7 @@ object PruneDeadFields extends Logging {
             case tt: TTuple =>
               val subTuples = children.map(_.asInstanceOf[TTuple])
 
-              val fieldArrays = Array.fill(tt.size)(new BoxedArrayBuilder[Type])
+              val fieldArrays = ArraySeq.fill(tt.size)(ArraySeq.newBuilder[Type])
 
               var nPresent = 0
 
@@ -278,11 +281,11 @@ object PruneDeadFields extends Logging {
               var newIdx = 0
               var oldIdx = 0
               while (oldIdx < fieldArrays.length) {
-                val ab = fieldArrays(oldIdx)
-                if (ab.nonEmpty) {
+                val fields = fieldArrays(oldIdx).result()
+                if (fields.nonEmpty) {
                   val oldField = tt._types(oldIdx)
                   subFields(newIdx) =
-                    TupleField(oldField.index, unifySeq(oldField.typ, ab.result()))
+                    TupleField(oldField.index, unifySeq(oldField.typ, fields))
                   newIdx += 1
                 }
                 oldIdx += 1
@@ -333,9 +336,6 @@ object PruneDeadFields extends Logging {
     }
     BindingEnv(e, Some(e), Some(e))
   }
-
-  def uses(name: Name, env: Env[BoxedArrayBuilder[Type]]): Array[Type] =
-    env.lookupOption(name).map(_.result()).getOrElse(Array.empty)
 
   def memoizeTableIR(
     ctx: ExecuteContext,
@@ -770,7 +770,7 @@ object PruneDeadFields extends Logging {
       case BlockMatrixToTable(child) => memoizeBlockMatrixIR(ctx, child, child.typ, memo)
       case RelationalLetTable(name, value, body) =>
         memoizeTableIR(ctx, body, requestedType, memo)
-        val usages = memo.relationalRefs.get(name).map(_.result()).getOrElse(Array())
+        val usages = memo.relationalRefs(name).result()
         memoizeValueIR(ctx, value, unifySeq(value.typ, usages), memo)
     }
   }
@@ -1127,7 +1127,7 @@ object PruneDeadFields extends Logging {
         memoizeMatrixIR(ctx, child, childDep, memo)
       case RelationalLetMatrixTable(name, value, body) =>
         memoizeMatrixIR(ctx, body, requestedType, memo)
-        val usages = memo.relationalRefs.get(name).map(_.result()).getOrElse(Array())
+        val usages = memo.relationalRefs(name).result()
         memoizeValueIR(ctx, value, unifySeq(value.typ, usages), memo)
     }
   }
@@ -1396,11 +1396,11 @@ object PruneDeadFields extends Logging {
 
       case RelationalLet(name, value, _) =>
         recur(ir, 1, requestedType)
-        val usages = memo.relationalRefs.get(name).map(_.result()).getOrElse(Array())
+        val usages = memo.relationalRefs(name).result()
         recur(ir, 0, unifySeq(value.typ, usages))
 
       case RelationalRef(name, _) =>
-        memo.relationalRefs.getOrElseUpdate(name, new BoxedArrayBuilder[Type]) += requestedType
+        memo.relationalRefs(name) += requestedType
 
       case MakeArray(args, _) =>
         val eltType = TIterable.elementType(requestedType)

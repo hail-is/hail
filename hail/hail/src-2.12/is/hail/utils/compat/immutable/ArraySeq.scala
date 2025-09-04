@@ -1,5 +1,6 @@
 package is.hail.utils.compat.immutable
 
+import scala.collection.compat.IterableOnce
 import scala.collection.generic.CanBuildFrom
 import scala.collection.mutable
 import scala.reflect.ClassTag
@@ -13,9 +14,12 @@ object ArraySeq {
   def newBuilder[T: ClassTag]: mutable.Builder[T, ArraySeq[T]] =
     Array.newBuilder[T].mapResult(unsafeWrapArray)
 
-  def apply[T: ClassTag](elems: T*): ArraySeq[T] = elems match {
+  def apply[T: ClassTag](elems: T*): ArraySeq[T] = from(elems)
+
+  def from[T: ClassTag](it: IterableOnce[T]): ArraySeq[T] = it match {
     case a: mutable.WrappedArray[T] => unsafeWrapArray(a.array)
-    case _ => unsafeWrapArray(elems.toArray)
+    case a: ArraySeq[T] => a
+    case _ => unsafeWrapArray(it.toArray)
   }
 
   def unapplySeq[T](seq: ArraySeq[T]): Some[ArraySeq[T]] = Some(seq)
@@ -24,4 +28,10 @@ object ArraySeq {
 
   implicit def canBuildFrom[T: ClassTag]: CanBuildFrom[ArraySeq[_], T, ArraySeq[T]] =
     A.canBuildFrom
+
+  def fill[T: ClassTag](n: Int)(elem: => T): ArraySeq[T] =
+    unsafeWrapArray(Array.fill(n)(elem))
+
+  def tabulate[T: ClassTag](n: Int)(f: Int => T): ArraySeq[T] =
+    unsafeWrapArray(Array.tabulate(n)(f))
 }

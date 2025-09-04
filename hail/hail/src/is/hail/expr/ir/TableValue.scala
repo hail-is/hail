@@ -22,6 +22,7 @@ import is.hail.types.physical.stypes.interfaces.NoBoxLongIterator
 import is.hail.types.tcoerce
 import is.hail.types.virtual.{Field, MatrixType, TArray, TInt32, TStream, TStruct, TableType}
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.reflect.ClassTag
 
@@ -146,7 +147,7 @@ object TableValue extends Logging {
       )): _*
     )
     val localDataLength = childValues.length
-    val rvMerger = { (ctx: RVDContext, it: Iterator[BoxedArrayBuilder[(RegionValue, Int)]]) =>
+    val rvMerger = { (ctx: RVDContext, it: Iterator[collection.IndexedSeq[(RegionValue, Int)]]) =>
       val rvb = new RegionValueBuilder(sm)
       val newRegionValue = RegionValue()
 
@@ -1225,7 +1226,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
         }
       }.collect()
 
-      val fileStack = new BoxedArrayBuilder[Array[String]]()
+      val fileStack = ArraySeq.newBuilder[IndexedSeq[String]]
       var filesToMerge: Array[String] = files
       while (filesToMerge.length > 1) {
         val nToMerge = filesToMerge.length / 2
@@ -1272,18 +1273,16 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
         else
           0
         val partitionAggs = {
-          var j = 0
           var x = i
-          val ab = new BoxedArrayBuilder[String]
-          while (j < fileStack.length) {
-            assert(x <= fileStack(j).length)
+          val ab = ArraySeq.newBuilder[String]
+          fileStack.result().foreach { files =>
+            assert(x <= files.length)
             if (x % 2 != 0) {
               x -= 1
-              ab += fileStack(j)(x)
+              ab += files(x)
             }
             assert(x % 2 == 0)
             x = x / 2
-            j += 1
           }
           assert(x == 0)
           var b = initAgg

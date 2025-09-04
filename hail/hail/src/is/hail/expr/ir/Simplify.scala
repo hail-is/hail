@@ -8,6 +8,7 @@ import is.hail.rvd.PartitionBoundOrdering
 import is.hail.types.tcoerce
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.collection.mutable
 
@@ -469,10 +470,8 @@ object Simplify {
             case _ => 1
           }
 
-        val newBindings =
-          new BoxedArrayBuilder[Binding](
-            bindings.foldLeft(0)((sum, binding) => sum + numBindings(binding))
-          )
+        val newBindings = ArraySeq.newBuilder[Binding]
+        newBindings.sizeHint(bindings.view.map(numBindings).sum)
 
         newBindings ++= bindings.view.take(i)
 
@@ -487,7 +486,7 @@ object Simplify {
           case binding => newBindings += binding
         }
 
-        Some(Block(newBindings.underlying(), body))
+        Some(Block(newBindings.result(), body))
 
       case Block(
             Block.Insert(
@@ -1634,7 +1633,8 @@ object Simplify {
       ir match {
         case MakeStruct(fields) if fields.nonEmpty =>
           val names = mutable.HashSet.empty[String]
-          val rewrites = new BoxedArrayBuilder[(String, String)](fields.length)
+          val rewrites = ArraySeq.newBuilder[(String, String)]
+          rewrites.sizeHint(fields.length)
 
           fields.view.map {
             case (a, GetField(o, b)) if names.add(b) =>
@@ -1643,7 +1643,7 @@ object Simplify {
             case _ => None
           }
             .reduce((a, b) => if (a == b) a else None)
-            .map(_ -> rewrites.underlying().toFastSeq)
+            .map(_ -> rewrites.result())
         case _ =>
           None
       }

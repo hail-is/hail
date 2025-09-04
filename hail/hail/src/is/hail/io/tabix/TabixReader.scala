@@ -4,6 +4,7 @@ import is.hail.expr.ir.IntArrayBuilder
 import is.hail.io.compress.BGzipLineReader
 import is.hail.io.fs.FS
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.collection.mutable
 
@@ -21,7 +22,7 @@ class Tabix(
   val meta: Int,
   val seqs: Array[String],
   val chr2tid: mutable.HashMap[String, Int],
-  val indices: Array[(mutable.HashMap[Int, Array[TbiPair]], Array[Long])],
+  val indices: IndexedSeq[(mutable.HashMap[Int, Array[TbiPair]], Array[Long])],
 )
 
 case class TbiPair(var _1: Long, var _2: Long) extends java.lang.Comparable[TbiPair] {
@@ -121,8 +122,8 @@ class TabixReader(val filePath: String, fs: FS, idxFilePath: Option[String] = No
     }
 
     // read the index
-    val indices =
-      new BoxedArrayBuilder[(mutable.HashMap[Int, Array[TbiPair]], Array[Long])](seqs.length)
+    val indices = ArraySeq.newBuilder[(mutable.HashMap[Int, Array[TbiPair]], Array[Long])]
+    indices.sizeHint(seqs.length)
     i = 0
     while (i < seqs.length) {
       // binning index

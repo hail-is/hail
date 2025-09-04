@@ -163,7 +163,7 @@ case class MatrixValue(
     ctx: ExecuteContext,
     path: String,
     bufferSpec: BufferSpec,
-    fileData: Array[FileWriteMetadata],
+    fileData: IndexedSeq[FileWriteMetadata],
     consoleInfo: Boolean,
   ): Unit = {
     val fs = ctx.fs

@@ -8,6 +8,7 @@ import is.hail.expr.ir.defs._
 import is.hail.expr.ir.functions.RelationalFunctions
 import is.hail.types.virtual.{MatrixType, TArray, TInterval, TStream, TableType, Type}
 import is.hail.utils.{space => _, _}
+import is.hail.utils.compat.immutable.ArraySeq
 import is.hail.utils.prettyPrint._
 import is.hail.utils.richUtils.RichIterable
 
@@ -351,7 +352,9 @@ class Pretty(
           joinType,
         )
     case StreamLeftIntervalJoin(_, _, lKeyFieldName, rIntrvlName, lEltName, rEltName, _) =>
-      val builder = new BoxedArrayBuilder[Doc](if (elideBindings) 2 else 4)
+      val builder = ArraySeq.newBuilder[Doc]
+      builder.sizeHint(if (elideBindings) 2 else 4)
+
       builder += prettyIdentifier(lKeyFieldName)
       builder += prettyIdentifier(rIntrvlName)
 
@@ -360,7 +363,7 @@ class Pretty(
         builder += prettyName(rEltName)
       }
 
-      builder.underlying()
+      builder.result()
     case StreamFor(_, valueName, _) if !elideBindings => single(prettyName(valueName))
     case StreamAgg(_, name, _) if !elideBindings => single(prettyName(name))
     case StreamAggScan(_, name, _) if !elideBindings => single(prettyName(name))

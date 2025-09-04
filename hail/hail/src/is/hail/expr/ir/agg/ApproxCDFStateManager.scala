@@ -6,6 +6,8 @@ import is.hail.expr.ir.{DoubleArrayBuilder, IntArrayBuilder, LongArrayBuilder}
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types.physical.{PCanonicalArray, PCanonicalStruct, PFloat64, PInt32}
 import is.hail.utils._
+import is.hail.utils.compat._
+import is.hail.utils.compat.immutable.ArraySeq
 
 object ApproxCDFHelper {
   def sort(a: Array[Double], begin: Int, end: Int): Unit = java.util.Arrays.sort(a, begin, end)
@@ -471,7 +473,8 @@ class ApproxCDFCombiner(
   }
 
   def computeCDF(): (Array[Double], Array[Long]) = {
-    val builder: BoxedArrayBuilder[(Long, Double)] = new BoxedArrayBuilder(size)
+    val builder = ArraySeq.newSortedByBuilder[(Long, Double)](_._2)
+    builder.sizeHint(size)
 
     var level = 0
     while (level < numLevels) {
@@ -484,7 +487,7 @@ class ApproxCDFCombiner(
       level += 1
     }
 
-    val sorted = builder.result().sortBy(_._2)
+    val sorted = builder.result()
 
     val values = new DoubleArrayBuilder(16)
     val ranks = new LongArrayBuilder(16)

@@ -16,9 +16,8 @@ import is.hail.types.physical.{PBaseStruct, PCanonicalArray, PType}
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 import is.hail.variant._
-
-import scala.collection.mutable
 
 import java.io.PrintWriter
 
@@ -143,20 +142,10 @@ trait TestUtils extends Assertions {
     bytecodePrinter: Option[PrintWriter] = None,
     ctx: ExecuteContext = ctx,
   ): Any = {
-    val inputTypesB = new BoxedArrayBuilder[Type]()
-    val inputsB = new mutable.ArrayBuffer[Any]()
+    val inputs = (args.view.map(_._1) ++ env.m.view.map(_._2._1)).to(ArraySeq)
+    val inputTypes = (args.view.map(_._2) ++ env.m.view.map(_._2._2)).to(ArraySeq)
 
-    args.foreach { case (v, t) =>
-      inputsB += v
-      inputTypesB += t
-    }
-
-    env.m.foreach { case (_, (v, t)) =>
-      inputsB += v
-      inputTypesB += t
-    }
-
-    val argsType = TTuple(inputTypesB.result(): _*)
+    val argsType = TTuple(inputTypes: _*)
     val resultType = TTuple(x.typ)
     val argsVar = Ref(freshName(), argsType)
 
@@ -217,8 +206,8 @@ trait TestUtils extends Assertions {
             rvb.start(argsPType)
             rvb.startTuple()
             var i = 0
-            while (i < inputsB.length) {
-              rvb.addAnnotation(inputTypesB(i), inputsB(i))
+            while (i < inputs.length) {
+              rvb.addAnnotation(inputTypes(i), inputs(i))
               i += 1
             }
             rvb.endTuple()
@@ -258,8 +247,8 @@ trait TestUtils extends Assertions {
             rvb.start(argsPType)
             rvb.startTuple()
             var i = 0
-            while (i < inputsB.length) {
-              rvb.addAnnotation(inputTypesB(i), inputsB(i))
+            while (i < inputs.length) {
+              rvb.addAnnotation(inputTypes(i), inputs(i))
               i += 1
             }
             rvb.endTuple()

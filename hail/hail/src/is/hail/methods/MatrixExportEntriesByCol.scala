@@ -8,6 +8,7 @@ import is.hail.expr.ir.functions.MatrixToValueFunction
 import is.hail.types.{RTable, TypeWithRequiredness}
 import is.hail.types.virtual.{MatrixType, TVoid, Type}
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 import java.io.{BufferedOutputStream, OutputStreamWriter}
 
@@ -44,7 +45,7 @@ case class MatrixExportEntriesByCol(
     val allColValuesJSON =
       mv.colValues.javaValue.map(TableAnnotationImpex.exportAnnotation(_, mv.typ.colType)).toArray
 
-    val tempFolders = new BoxedArrayBuilder[String]
+    val tempFolders = ArraySeq.newBuilder[String]
 
     logger.info(s"exporting ${mv.nCols} files in batches of $parallelism...")
     val nBatches = (mv.nCols + parallelism - 1) / parallelism

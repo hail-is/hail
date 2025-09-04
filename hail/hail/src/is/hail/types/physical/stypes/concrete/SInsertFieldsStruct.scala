@@ -7,7 +7,6 @@ import is.hail.types.physical.{PCanonicalStruct, PType}
 import is.hail.types.physical.stypes.{EmitType, SType, SValue}
 import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructSettable, SBaseStructValue}
 import is.hail.types.virtual.{TStruct, Type}
-import is.hail.utils._
 
 import scala.collection.compat._
 
@@ -119,7 +118,7 @@ final case class SInsertFieldsStruct(
     val parentType = parent.virtualType.asInstanceOf[TStruct]
 
     val renamedInsertedFields = Array.fill[(String, EmitType)](insertedFields.size)(null)
-    val parentPassThroughFieldBuilder = new BoxedArrayBuilder[(String, (String, Type))]()
+    val parentPassThroughFieldBuilder = Map.newBuilder[String, (String, Type)]
 
     (0 until ts.size).foreach { i =>
       val newField = ts.fields(i)
@@ -133,7 +132,7 @@ final case class SInsertFieldsStruct(
       }
     }
 
-    val parentPassThroughMap = parentPassThroughFieldBuilder.result().toMap
+    val parentPassThroughMap = parentPassThroughFieldBuilder.result()
     val parentCastType = TStruct(parentType.fieldNames.map(f =>
       parentPassThroughMap.getOrElse(f, (f, parentType.fieldType(f)))
     ): _*)

@@ -14,6 +14,8 @@ import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.interfaces.SBaseStruct
 import is.hail.types.virtual.Type
 import is.hail.utils._
+import is.hail.utils.compat._
+import is.hail.utils.compat.immutable.ArraySeq
 import is.hail.utils.prettyPrint.ArrayOfByteArrayInputStream
 import is.hail.variant.ReferenceGenome
 
@@ -243,7 +245,7 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
     : EmitMethodBuilder[C] =
     ecb.genStaticEmitMethod(baseName, argsInfo, returnInfo)
 
-  def addAggStates(aggSigs: Array[agg.AggStateSig]): agg.TupleAggregatorState =
+  def addAggStates(aggSigs: IndexedSeq[agg.AggStateSig]): agg.TupleAggregatorState =
     ecb.addAggStates(aggSigs)
 
   def newRNG(seed: Long): Value[IRRandomness] = ecb.newRNG(seed)
@@ -465,23 +467,28 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
     Array[AnyRef](baos.toByteArray) ++ preEncodedLiterals.map(_._1.value.ba)
   }
 
-  private[this] val _mods: BoxedArrayBuilder[(
+  private[this] val _mods = Array.newBuilder[(
     String,
-    (HailClassLoader, FS, HailTaskContext, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]],
-  )] = new BoxedArrayBuilder()
+    (HailClassLoader, FS, HailTaskContext, Region) => AsmFunction3[
+      Region,
+      Array[Byte],
+      Array[Byte],
+      Array[Byte],
+    ],
+  )]
 
   private[this] var _backendField: Settable[BackendUtils] = _
 
-  private[this] var _aggSigs: Array[agg.AggStateSig] = _
+  private[this] var _aggSigs: IndexedSeq[agg.AggStateSig] = _
   private[this] var _aggRegion: Settable[Region] = _
   private[this] var _aggOff: Settable[Long] = _
   private[this] var _aggState: agg.TupleAggregatorState = _
   private[this] var _nSerialized: Int = 0
   private[this] var _aggSerialized: Settable[Array[Array[Byte]]] = _
 
-  def addAggStates(aggSigs: Array[agg.AggStateSig]): agg.TupleAggregatorState = {
+  def addAggStates(aggSigs: IndexedSeq[agg.AggStateSig]): agg.TupleAggregatorState = {
     if (_aggSigs != null) {
-      assert(aggSigs sameElements _aggSigs)
+      assert(aggSigs == _aggSigs)
       return _aggState
     }
     cb.addInterface(typeInfo[FunctionWithAggRegion].iname)
@@ -509,7 +516,7 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
       newEmitMethod("getSerializedAgg", FastSeq[ParamType](typeInfo[Int]), typeInfo[Array[Byte]])
 
     val (nfcode, states) = EmitCodeBuilder.scoped(newF) { cb =>
-      val states = agg.StateTuple(aggSigs.map(a => agg.AggStateSig.getState(a, cb.emb.ecb)).toArray)
+      val states = agg.StateTuple(aggSigs.map(a => agg.AggStateSig.getState(a, cb.emb.ecb)))
       _aggState = new agg.TupleAggregatorState(this, states, _aggRegion, _aggOff)
       cb += (_aggRegion := newF.getCodeParam[Region](1))
       cb += _aggState.topRegion.setNumParents(aggSigs.length)
@@ -623,7 +630,7 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
       val mb =
         newEmitMethod("setObjects", FastSeq[ParamType](typeInfo[Array[AnyRef]]), typeInfo[Unit])
       mb.voidWithBuilder(cb => emodb.setObjects(cb, mb.getCodeParam[Array[AnyRef]](1)))
-      emodb.modb._objects.result()
+      emodb.modb._objects.toArray
     }
   }
 
@@ -773,8 +780,7 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
     )
   }
 
-  val rngs: BoxedArrayBuilder[(Settable[IRRandomness], Code[IRRandomness])] =
-    new BoxedArrayBuilder()
+  private val rngs = ArraySeq.newBuilder[(Settable[IRRandomness], Code[IRRandomness])]
 
   var threefryRNG: Option[(Settable[ThreefryRandomEngine], Code[ThreefryRandomEngine])] = None
 

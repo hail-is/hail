@@ -3,6 +3,7 @@ package is.hail.io.bgen
 import is.hail.backend.ExecuteContext
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.collection.compat._
 
@@ -20,7 +21,7 @@ object BgenRDDPartitions extends Logging {
     val pord = keyType.ordering(ctx.stateManager)
     val bounds = fileMetadata.map(md => (md.path, md.rangeBounds))
 
-    val overlappingBounds = new BoxedArrayBuilder[(String, Interval, String, Interval)]
+    val overlappingBounds = ArraySeq.newBuilder[(String, Interval, String, Interval)]
     var i = 0
     while (i < bounds.length) {
       var j = 0
@@ -34,13 +35,15 @@ object BgenRDDPartitions extends Logging {
       i += 1
     }
 
-    if (!overlappingBounds.isEmpty)
-      fatal(
-        s"""Each BGEN file must contain a region of the genome disjoint from other files. Found the following overlapping files:
-           |  ${overlappingBounds.result().map { case (f1, i1, f2, i2) =>
-            s"file1: $f1\trangeBounds1: $i1\tfile2: $f2\trangeBounds2: $i2"
-          }.mkString("\n  ")})""".stripMargin
-      )
+    overlappingBounds.result() match {
+      case Seq() =>
+      case overlappingBounds => fatal(
+          s"""Each BGEN file must contain a region of the genome disjoint from other files. Found the following overlapping files:
+             |  ${overlappingBounds.map { case (f1, i1, f2, i2) =>
+              s"file1: $f1\trangeBounds1: $i1\tfile2: $f2\trangeBounds2: $i2"
+            }.mkString("\n  ")})""".stripMargin
+        )
+    }
 
     bounds.map(_._2).toArray
   }

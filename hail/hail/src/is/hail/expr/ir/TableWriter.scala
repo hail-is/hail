@@ -423,7 +423,7 @@ case class RVDSpecWriter(path: String, spec: RVDSpecMaker) extends MetadataWrite
       },
     )
     cb += cb.emb.getObject(spec)
-      .invoke[Array[String], AbstractRVDSpec]("apply", partFiles)
+      .invoke[Array[String], AbstractRVDSpec]("applyFromCodegen", partFiles)
       .invoke[FS, String, Unit]("write", cb.emb.getFS, path)
   }
 }

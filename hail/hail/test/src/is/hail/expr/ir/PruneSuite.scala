@@ -86,7 +86,7 @@ class PruneSuite extends HailSuite {
       PruneDeadFields.isSupertype(requestedType, irCopy.typ),
       s"not supertype:\n  super: ${requestedType.parsableString()}\n  sub:   ${irCopy.typ.parsableString()}",
     )
-    val ms = PruneDeadFields.ComputeMutableState(Memo.empty[BaseType], mutable.HashMap.empty)
+    val ms = new PruneDeadFields.ComputeMutableState
     irCopy match {
       case mir: MatrixIR =>
         PruneDeadFields.memoizeMatrixIR(ctx, mir, requestedType.asInstanceOf[MatrixType], ms)
@@ -113,7 +113,7 @@ class PruneSuite extends HailSuite {
   ): Unit = {
     TypeCheck(ctx, ir, env)
     val irCopy = ir.deepCopy()
-    val ms = PruneDeadFields.ComputeMutableState(Memo.empty[BaseType], mutable.HashMap.empty)
+    val ms = new PruneDeadFields.ComputeMutableState
     val rebuilt = (irCopy match {
       case mir: MatrixIR =>
         PruneDeadFields.memoizeMatrixIR(ctx, mir, requestedType.asInstanceOf[MatrixType], ms)
@@ -269,8 +269,8 @@ class PruneSuite extends HailSuite {
     MakeStruct(FastSeq("foo" -> matrixRefBoolean(mt, fields: _*)))
 
   def subsetTable(tt: TableType, fields: String*): TableType = {
-    val rowFields = new BoxedArrayBuilder[TStruct]()
-    val globalFields = new BoxedArrayBuilder[TStruct]()
+    val rowFields = ArraySeq.newBuilder[TStruct]
+    val globalFields = ArraySeq.newBuilder[TStruct]
     var noKey = false
     fields.foreach { f =>
       val split = f.split("\\.")
@@ -295,10 +295,10 @@ class PruneSuite extends HailSuite {
   }
 
   def subsetMatrixTable(mt: MatrixType, fields: String*): MatrixType = {
-    val rowFields = new BoxedArrayBuilder[TStruct]()
-    val colFields = new BoxedArrayBuilder[TStruct]()
-    val entryFields = new BoxedArrayBuilder[TStruct]()
-    val globalFields = new BoxedArrayBuilder[TStruct]()
+    val rowFields = ArraySeq.newBuilder[TStruct]
+    val colFields = ArraySeq.newBuilder[TStruct]
+    val entryFields = ArraySeq.newBuilder[TStruct]
+    val globalFields = ArraySeq.newBuilder[TStruct]
     var noRowKey = false
     var noColKey = false
     fields.foreach { f =>

@@ -15,6 +15,7 @@ import is.hail.types.physical.stypes.{
 }
 import is.hail.types.physical.stypes.interfaces.{NoBoxLongIterator, SStream}
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 import java.io.PrintWriter
 
@@ -56,7 +57,7 @@ object compile {
 
   def CompileWithAggregators[F: TypeInfo](
     ctx: ExecuteContext,
-    aggSigs: Array[AggStateSig],
+    aggSigs: IndexedSeq[AggStateSig],
     params: IndexedSeq[(Name, EmitParamType)],
     expectedCodeParamTypes: IndexedSeq[TypeInfo[_]],
     expectedCodeReturnType: TypeInfo[_],
@@ -79,7 +80,7 @@ object compile {
   private[this] def Impl[F: TypeInfo, Mixin](
     ctx: ExecuteContext,
     params: IndexedSeq[(Name, EmitParamType)],
-    aggSigs: Option[Array[AggStateSig]],
+    aggSigs: Option[IndexedSeq[AggStateSig]],
     expectedCodeParamTypes: IndexedSeq[TypeInfo[_]],
     expectedCodeReturnType: TypeInfo[_],
     body: IR,
@@ -91,7 +92,7 @@ object compile {
     ctx.time {
       val normalizedBody = NormalizeNames(allowFreeVariables = true)(ctx, body)
       ctx.CodeCache.getOrElseUpdate(
-        CodeCacheKey(aggSigs.getOrElse(Array.empty).toFastSeq, params, normalizedBody), {
+        CodeCacheKey(aggSigs.getOrElse(ArraySeq.empty).toFastSeq, params, normalizedBody), {
           var ir = Subst(
             body,
             BindingEnv(Env.fromSeq(params.zipWithIndex.map { case ((n, t), i) => n -> In(i, t) })),

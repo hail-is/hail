@@ -159,6 +159,9 @@ trait HailModule extends ScalaModule with ScalafmtModule with ScalafixModule { o
     if (scalaVersion().startsWith("2.13")) {
       finalOptions ++
       Seq(
+       // collection types
+        // value ArrayStack in package mutable is deprecated (since 2.13.0): Use Stack instead of ArrayStack; it now uses an array-based implementation
+        "-Wconf:cat=deprecation&msg=value ArrayStack in package mutable is deprecated:s",
       // generic to immutable default
       // collection methods
         // method copyArrayToImmutableIndexedSeq in class LowPriorityImplicits2 is deprecated (since 2.13.0): implicit conversions from Array to immutable.IndexedSeq are implemented by copying; use `toIndexedSeq` explicitly if you want to copy, or use the more efficient non-copying ArraySeq.unsafeWrapArray
@@ -328,6 +331,7 @@ trait RootHailModule extends CrossScalaModule with HailModule { outer =>
     Rule.Relocate("org.elasticsearch.**", "is.hail.relocated.@0"),
     Rule.Relocate("org.json4s.**", "is.hail.relocated.@0"),
     Rule.Relocate("org.objectweb.**", "is.hail.relocated.@0"),
+    Rule.Relocate("scala.collection.compat.**", "is.hail.relocated.@0"),
   )
 
   override def scalacPluginMvnDeps: T[Seq[Dep]] = Seq(

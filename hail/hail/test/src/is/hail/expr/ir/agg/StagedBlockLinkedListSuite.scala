@@ -6,7 +6,8 @@ import is.hail.asm4s.Code
 import is.hail.expr.ir.{EmitCode, EmitFunctionBuilder}
 import is.hail.types.physical._
 import is.hail.utils._
-import is.hail.utils.compat.mutable.Growable
+import is.hail.utils.compat.immutable.ArraySeq
+import is.hail.utils.compat.mutable.GrowableCompat
 
 import org.testng.Assert._
 import org.testng.annotations.Test
@@ -14,7 +15,7 @@ import org.testng.annotations.Test
 class StagedBlockLinkedListSuite extends HailSuite {
 
   class BlockLinkedList[E](region: Region, val elemPType: PType, initImmediately: Boolean = true)
-      extends Growable[E] {
+      extends GrowableCompat[E] {
     val arrayPType = PCanonicalArray(elemPType)
 
     private val initF: Region => Long = {
@@ -149,14 +150,14 @@ class StagedBlockLinkedListSuite extends HailSuite {
 
   @Test def testPushStrsMissing(): Unit = {
     pool.scopedRegion { region =>
-      val a = new BoxedArrayBuilder[String]()
+      val a = ArraySeq.newBuilder[String]
       val b = new BlockLinkedList[String](region, PCanonicalString())
       for (i <- 1 to 100) {
         val elt = if (i % 3 == 0) null else i.toString()
         a += elt
         b += elt
       }
-      assertEquals(b.toIndexedSeq, a.result().toIndexedSeq)
+      assertEquals(b.toIndexedSeq, a.result())
     }
   }
 

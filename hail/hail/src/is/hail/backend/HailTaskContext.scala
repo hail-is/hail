@@ -3,10 +3,12 @@ package is.hail.backend
 import is.hail.annotations.RegionPool
 import is.hail.utils._
 
+import scala.collection.mutable
+
 import java.io.Closeable
 
 class TaskFinalizer {
-  val closeables = new BoxedArrayBuilder[Closeable]()
+  val closeables = mutable.ArrayBuffer.empty[Closeable]
 
   def clear(): Unit =
     closeables.clear()
@@ -14,8 +16,7 @@ class TaskFinalizer {
   def addCloseable(c: Closeable): Unit =
     closeables += c
 
-  def closeAll(): Unit =
-    (0 until closeables.size).foreach(i => closeables(i).close())
+  def closeAll(): Unit = closeables.foreach(_.close())
 }
 
 abstract class HailTaskContext extends AutoCloseable with Logging {
@@ -35,7 +36,7 @@ abstract class HailTaskContext extends AutoCloseable with Logging {
     s"${stageId()}-${partitionId()}-${attemptNumber()}-$fileUUID"
   }
 
-  val finalizers = new BoxedArrayBuilder[TaskFinalizer]()
+  val finalizers = mutable.ArrayBuffer.empty[TaskFinalizer]
 
   def newFinalizer(): TaskFinalizer = {
     val f = new TaskFinalizer
@@ -49,7 +50,7 @@ abstract class HailTaskContext extends AutoCloseable with Logging {
         s"peakBytes=${thePool.getHighestTotalUsage}, peakBytesReadable=${formatSpace(thePool.getHighestTotalUsage)}, " +
         s"chunks requested=${thePool.getUsage._1}, cache hits=${thePool.getUsage._2}"
     )
-    (0 until finalizers.size).foreach(i => finalizers(i).closeAll())
+    finalizers.foreach(_.closeAll())
     thePool.close()
   }
 }
