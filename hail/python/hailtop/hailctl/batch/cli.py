@@ -244,7 +244,7 @@ def submit(
     memory: Ann[str, Opt(help='Memory for the job.')] = 'standard',
     storage: Ann[str, Opt(help='Storage for the job.')] = '0Gi',
     machine_type: Ann[Optional[str], Opt(help='Use a specific job-private machine. Example: n1-standard-1.')] = None,
-    nonpreemptible: Ann[bool, Opt(help='Use a non-preemptible instance.')] = False,
+    spot: Ann[bool, Opt(help='Use a spot instance.')] = True,
     workdir: Ann[str, Opt(help='Working directory for the job.')] = '/',
     cloudfuse: Ann[
         Optional[List[str]],
@@ -385,7 +385,7 @@ def submit(
                 memory=memory,
                 storage=storage,
                 machine_type=machine_type,
-                spot=(not nonpreemptible),
+                spot=spot,
                 workdir=workdir,
                 cloudfuse=cloudfuse,
                 env=env,

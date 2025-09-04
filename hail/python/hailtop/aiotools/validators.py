@@ -16,13 +16,13 @@ async def validate_file(uri: str, router_async_fs: RouterAsyncFS, *, validate_sc
     :class:`ValueError`
         If one of the validation steps fails.
     """
-    if validate_scheme:
-        scheme = urlparse(uri).scheme
-        if not scheme or scheme == "file":
-            raise ValueError(
-                f"Local filepath detected: '{uri}'. The Hail Batch Service does not support the use of local "
-                "filepaths. Please specify a remote URI instead (e.g. 'gs://bucket/folder')."
-            )
+    # if validate_scheme:
+    #     scheme = urlparse(uri).scheme
+    #     if not scheme or scheme == "file":
+    #         raise ValueError(
+    #             f"Local filepath detected: '{uri}'. The Hail Batch Service does not support the use of local "
+    #             "filepaths. Please specify a remote URI instead (e.g. 'gs://bucket/folder')."
+    #         )
     fs = await router_async_fs._get_fs(uri)
     if isinstance(fs, GoogleStorageAsyncFS):
         if not await fs.is_hot_storage(uri):

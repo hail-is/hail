@@ -1,25 +1,17 @@
 import os
 import shlex
-import uuid
 from contextlib import AsyncExitStack
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import orjson
 
-import hailtop.batch_client.aioclient as bc
-import hailtop.fs as hfs
-from hailtop.aiotools.copy import copy_from_dict
-from hailtop.aiotools.fs import AsyncFSURL
+import hailtop.batch as hb
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.config import (
-    ConfigVariable,
-    configuration_of,
     get_deploy_config,
     get_hail_config_path,
-    get_remote_tmpdir,
 )
-from hailtop.utils import secret_alnum_string
 
 from .batch_cli_utils import StructuredFormatPlusTextOption
 
@@ -58,26 +50,60 @@ async def submit(
         fs = RouterAsyncFS()
         exitstack.push_async_callback(fs.close)
 
-        remote_tmpdir = fs.parse_url(get_remote_tmpdir('hailctl batch submit')) / secret_alnum_string()
-        local_user_config_dir = '/io/hail-config/'
-        workdir = workdir or '/'
+        backend = hb.ServiceBackend(billing_project=billing_project,
+                                    remote_tmpdir=remote_tmpdir,
+                                    regions=regions,
+                                    gcs_requester_pays_configuration=requester_pays_project)
 
-        billing_project = configuration_of(ConfigVariable.BATCH_BILLING_PROJECT, billing_project, None)
-        if billing_project is None:
-            raise ValueError(
-                'the billing_project parameter of ServiceBackend must be set '
-                'or run `hailctl config set batch/billing_project '
-                'MY_BILLING_PROJECT`'
-            )
+        exitstack.push_async_callback(backend.async_close)
 
-        client = await bc.BatchClient.create(billing_project=billing_project)
-        exitstack.push_async_callback(client.close)
+        local_user_config_dir = '/hail-config/'
 
-        name = name or 'submit'
-        _attributes: Dict[str, str] = {'name': name}
-        _attributes.update(attributes or {})
+        b = hb.Batch(backend=backend, name=name, attributes=attributes)
 
-        b = client.create_batch(attributes=_attributes)
+        config_file_paths = await get_user_config_files(fs)
+        config_file_inputs = [(os.path.basename(path), b.read_input(path)) for path in config_file_paths]
+        config_file_str = "\n".join(f'mv {input} {local_user_config_dir}{file_name}' for file_name, input in config_file_inputs)
+
+        volume_mount_inputs = []
+        mkdirs_needed = {local_user_config_dir}
+
+        for src, dest in volume_mounts:
+            if await fs.isfile(src):
+                mkdirs_needed.add(os.path.dirname(dest))
+            else:
+                if src.endswith('/') and not dest.endswith('/'):
+                    raise ValueError('copy and renaming a directory is not supported.')
+                if not src.endswith('/') and dest.endswith('/'):
+                    dest = dest.rstrip('/') + '/' + os.path.basename(src)
+
+                dest = dest.rstrip('/') + '/'
+                mkdirs_needed.add(dest)
+
+            volume_mount_paths = await get_volume_mount_files(fs, src)
+
+            for path in volume_mount_paths:
+                path_relname = os.path.relpath(path, src)
+                if path_relname == '.':
+                    path_relname = ''
+                mkdirs_needed.add(os.path.dirname(f'{dest}{path_relname}').rstrip('/') + '/')
+
+                if dest.endswith('/'):
+                    volume_mount_inputs.append((f'{dest}{path_relname}', b.read_input(path)))
+                else:
+                    volume_mount_inputs.append((dest, b.read_input(path)))
+
+        volume_mount_str = "\n".join(f'mv {input} {dest}' for dest, input in volume_mount_inputs)
+
+        mkdirs_str = "\n".join(f'mkdir -p {dir}' for dir in mkdirs_needed)
+
+        entrypoint_str = ' '.join([shq(x) for x in entrypoint])
+
+        j = b.new_job(name=name or 'submit',
+                      attributes=attributes,
+                      shell=shell)
+
+        j.image(image)
 
         _env = {
             'HAIL_QUERY_BACKEND': 'batch',
@@ -85,133 +111,67 @@ async def submit(
         }
         _env.update(env or {})
 
-        resources = {
-            'cpu': cpu or '1',
-            'memory': memory or 'standard',
-            'storage': storage or '0Gi',
-            'preemptible': spot,
-        }
+        for env_name, env_val in _env.items():
+            j.env(env_name, env_val)
 
-        if machine_type is not None:
-            resources['machine_type'] = machine_type
+        j.cpu(cpu)
+        j.memory(memory)
+        j.storage(storage)
+        j.spot(spot)
+        j._machine_type = machine_type
 
-        remote_user_config_dir = await transfer_user_config_into_job(remote_tmpdir)
+        workdir = workdir or '/'
 
-        maybe_volume_mounts = await convert_volume_mounts_to_file_transfers_with_local_upload(
-            fs, remote_tmpdir, volume_mounts or []
-        )
-
-        mkdirs_needed = set()
-        symlinks_needed = []
-        input_files = [(remote_user_config_dir, local_user_config_dir + 'hail/')]
-
-        for src, dest in maybe_volume_mounts:
-            rand_uid = uuid.uuid4().hex[:6]
-            if hfs.is_file(src):  # FIXME: requester pays config
-                src_basename = os.path.basename(src)
-                io_dest = f'/io/{rand_uid}/{src_basename}'
-                if dest.endswith('/'):
-                    symlinks_needed.append((io_dest, f'{dest}/{src_basename}'))
-                    mkdirs_needed.add(dest)
-                else:
-                    symlinks_needed.append((io_dest, dest))
-                    mkdirs_needed.add(os.path.dirname(dest))
-            else:
-                io_dest = f'/io/{rand_uid}/'
-                symlinks_needed.append((io_dest.rstrip('/'), dest.rstrip('/')))
-                mkdirs_needed.add(dest.rstrip('/') + '/')
-
-            input_files.append((src, io_dest))
-
-        entrypoint_str = ' '.join([shq(x) for x in entrypoint])
-
-        symlinks = [f'ln -s {io_dest} {dest}' for io_dest, dest in symlinks_needed]
-        symlinks_str = "\n".join(symlinks)
-
-        mkdirs = [f'mkdir -p {mkdir}' for mkdir in mkdirs_needed]
-        mkdirs_str = "\n".join(mkdirs)
-
-        cmd = f"""
-mkdir -p {workdir}
+        print(f'''
 {mkdirs_str}
-{symlinks_str}
+{config_file_str}
+{volume_mount_str}
 cd {workdir}
 {entrypoint_str}
-"""
+''')
 
-        if regions is None:
-            regions = [await client.default_region()]
+        j.command(f'''
+{mkdirs_str}
+{config_file_str}
+{volume_mount_str}
+cd {workdir}
+{entrypoint_str}
+''')
 
-        b.create_job(
-            image=image,
-            command=[shell if shell else '/bin/bash', '-c', cmd],
-            env=_env,
-            resources=resources,
-            attributes=_attributes,
-            input_files=input_files,
-            output_files=None,
-            cloudfuse=cloudfuse,
-            requester_pays_project=requester_pays_project,
-            regions=regions,
-        )
+        if cloudfuse is not None:
+            for bucket, mount, read_only in cloudfuse:
+                j.cloudfuse(bucket, mount, read_only=read_only)
 
-        await b.submit()
+        async_b = b.run(wait=False, disable_progress_bar=True)
 
         if output == 'text':
             deploy_config = get_deploy_config()
-            url = deploy_config.external_url('batch', f'/batches/{b.id}/jobs/1')
-            print(f'Submitted batch {b.id}, see {url}')
+            url = deploy_config.external_url('batch', f'/batches/{async_b.id}/jobs/1')
+            print(f'Submitted batch {async_b.id}, see {url}')
+        # FIXME: support yaml
         else:
             assert output == 'json'
-            print(orjson.dumps({'id': b.id}).decode('utf-8'))
+            print(orjson.dumps({'id': async_b.id}).decode('utf-8'))
 
         if wait:
-            await b.wait(disable_progress_bar=quiet)
+            async_b.wait(disable_progress_bar=quiet)
 
 
-async def transfer_user_config_into_job(remote_tmpdir: AsyncFSURL) -> str:
+async def get_user_config_files(fs: RouterAsyncFS) -> List[str]:
     user_config_path = get_hail_config_path()
     if not user_config_path.exists():
-        return
-
-    staging = str(remote_tmpdir / 'hail-config')
-    await copy_from_dict(files=[{'from': str(user_config_path), 'to': str(staging)}])
-    return staging
+        return []
+    files = [await f.url() async for f in await fs.listfiles(str(user_config_path), recursive=False)]
+    return [f for f in files if f.endswith('.ini')]
 
 
-def get_absolute_source_path(src: str, dest: str) -> Tuple[Path, Path]:
+async def get_volume_mount_files(fs: RouterAsyncFS, src: str) -> List[str]:
     src = __real_absolute_local_path(src, strict=False)  # defer strictness checks and globbing
-    return (src, dest)
-
-
-async def convert_volume_mounts_to_file_transfers_with_local_upload(
-    fs: RouterAsyncFS,
-    remote_tmpdir: Path,
-    volume_mounts: List[Tuple[str, str]],
-) -> List[Tuple[str, str]]:
-    local_file_transfers = []
-    remote_file_transfers = []
-
-    src_dst_list = [get_absolute_source_path(src, dst) for src, dst in volume_mounts]
-
-    for src, dst in src_dst_list:
-        if fs.parse_url(str(src)).scheme == 'file':
-            if await fs.isfile(str(src)):
-                remote_src = remote_tmpdir / 'input' / secret_alnum_string() / os.path.basename(str(src))
-            else:
-                remote_src = remote_tmpdir / 'input' / secret_alnum_string()
-
-            local_file_transfers.append((src, remote_src))
-        else:
-            remote_src = src
-
-        remote_file_transfers.append((str(remote_src), str(dst)))
-
-    await copy_from_dict(
-        files=[{'from': str(local_src), 'to': str(remote_src)} for local_src, remote_src in local_file_transfers]
-    )
-
-    return remote_file_transfers
+    if await fs.isdir(str(src)):
+        return [await f.url() async for f in await fs.listfiles(str(src), recursive=True)]
+    if await fs.isfile(str(src)):
+        return [str(src)]
+    raise ValueError(f'source `{src}` does not exist')
 
 
 # Note well, friends:
