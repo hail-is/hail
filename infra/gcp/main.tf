@@ -128,6 +128,17 @@ resource "google_container_cluster" "vdc" {
     enabled = false
     autoscaling_profile = "OPTIMIZE_UTILIZATION"
   }
+
+  addons_config {
+    network_policy_config {
+      disabled = false
+    }
+  }
+
+  network_policy {
+    enabled = true
+    provider = "CALICO"
+  }
 }
 
 resource "google_container_node_pool" "vdc_preemptible_pool" {
