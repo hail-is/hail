@@ -7,8 +7,6 @@ import is.hail.types.physical.stypes.interfaces.SIndexableValue
 import is.hail.types.virtual.{TArray, TDict, TSet, Type}
 import is.hail.utils.FastSeq
 
-import scala.language.existentials
-
 class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
   val ti: TypeInfo[_] = array.elt.ti
   val mb: EmitMethodBuilder[_] = r.mb

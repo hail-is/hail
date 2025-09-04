@@ -1,7 +1,5 @@
 package is.hail.utils
 
-import scala.language.implicitConversions
-
 package object prettyPrint {
   implicit def text(t: String): Doc = Text(t)
 

@@ -27,7 +27,6 @@ import is.hail.variant.ReferenceGenome
 
 import scala.annotation.{nowarn, tailrec}
 import scala.collection.mutable
-import scala.language.existentials
 
 import java.io._
 

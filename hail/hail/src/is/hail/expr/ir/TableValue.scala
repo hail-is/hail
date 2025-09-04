@@ -106,7 +106,7 @@ object TableValue {
     def newGlobalType = TStruct(globalName -> TArray(childValues.head.typ.globalType))
     def newValueType = TStruct(fieldName -> TArray(childValues.head.typ.valueType))
     def newRowType = childValues.head.typ.keyType ++ newValueType
-    val typ = childValues.head.typ.copy(
+    val typ: TableType = childValues.head.typ.copy(
       rowType = newRowType,
       globalType = newGlobalType,
     )

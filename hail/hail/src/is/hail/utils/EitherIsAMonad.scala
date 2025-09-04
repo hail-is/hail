@@ -1,7 +1,5 @@
 package is.hail.utils
 
-import scala.language.implicitConversions
-
 object EitherIsAMonad {
   implicit def eitherIsAMonad[A, B](eab: Either[A, B]): EitherOps[A, B] = new EitherOps(eab)
 }

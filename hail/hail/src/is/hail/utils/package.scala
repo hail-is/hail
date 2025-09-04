@@ -9,7 +9,6 @@ import scala.collection.{mutable, GenTraversableOnce, TraversableOnce}
 import scala.collection.generic.CanBuildFrom
 import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.ExecutionException
-import scala.language.{higherKinds, implicitConversions}
 import scala.reflect.ClassTag
 import scala.util.control.NonFatal
 
