@@ -1,3 +1,4 @@
+import atexit
 import os
 import sys
 import warnings
@@ -673,6 +674,7 @@ def cite_hail_bibtex():
     return citation(bibtex=True)
 
 
+@atexit.register
 def stop():
     """Stop the currently running Hail session."""
     if Env.is_fully_initialized():
