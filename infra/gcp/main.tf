@@ -49,6 +49,21 @@ variable deploy_ukbb {
   default = false
 }
 
+variable "enable_master_authorized_networks" {
+  type = bool
+  description = "Enable master authorized networks configuration for GKE cluster"
+  default = false
+}
+
+variable "master_authorized_networks" {
+  type = list(object({
+    cidr_block   = string
+    display_name = string
+  }))
+  description = "List of CIDR blocks authorized to access the GKE master"
+  default = []
+}
+
 locals {
   docker_prefix = (
     var.use_artifact_registry ?
@@ -116,6 +131,19 @@ resource "google_container_cluster" "vdc" {
   master_auth {
     client_certificate_config {
       issue_client_certificate = false
+    }
+  }
+
+  dynamic "master_authorized_networks_config" {
+    for_each = var.enable_master_authorized_networks && length(var.master_authorized_networks) > 0 ? [1] : []
+    content {
+      dynamic "cidr_blocks" {
+        for_each = var.master_authorized_networks
+        content {
+          cidr_block   = cidr_blocks.value.cidr_block
+          display_name = cidr_blocks.value.display_name
+        }
+      }
     }
   }
 

@@ -166,6 +166,38 @@ resource "google_container_cluster" "vdc" {
     }
   }
 
+  master_authorized_networks_config {
+    # Broad Institute ranges from https://ipinfo.io/AS46964
+    cidr_blocks {
+      cidr_block   = "69.173.64.0/18"
+      display_name = "Broad Institute Range 1"
+    }
+    cidr_blocks {
+      cidr_block   = "69.173.64.0/19"
+      display_name = "Broad Institute Range 2"
+    }
+    cidr_blocks {
+      cidr_block   = "69.173.96.0/19"
+      display_name = "Broad Institute Range 3"
+    }
+    cidr_blocks {
+      cidr_block   = "69.173.95.0/24"
+      display_name = "Broad Institute Range 4"
+    }
+    cidr_blocks {
+      cidr_block   = "69.173.97.0/24"
+      display_name = "Broad Institute Range 5"
+    }
+    cidr_blocks {
+      cidr_block   = "10.0.0.0/8"
+      display_name = "VDC Internal Networks"
+    }
+    cidr_blocks {
+      cidr_block   = "10.128.0.0/9"
+      display_name = "GKE Control Plane and Nodes"
+    }
+  }
+
   cluster_autoscaling {
     # Don't use node auto-provisioning since we manage node pools ourselves
     enabled = false

@@ -106,6 +106,25 @@ export GCP_PROJECT=<gcp project name>
    # If set to true, pull the base ubuntu image from Artifact Registry.
    # Otherwise, assumes GCR.
    use_artifact_registry = true
+
+   # Optional: Enable master authorized networks for GKE cluster security
+   # If not set or set to false, the cluster will be accessible from anywhere
+   # If set to true, only the specified networks can access the GKE control plane
+   enable_master_authorized_networks = true
+   master_authorized_networks = [
+     {
+       cidr_block   = "x.x.x.x/32"
+       display_name = "Organizational Network"
+     },
+     {
+       cidr_block   = "10.0.0.0/8"
+       display_name = "Internal Network"
+     },
+     {
+       cidr_block   = "10.128.0.0/9"
+       display_name = "GKE Control Plane and Nodes"
+     }
+   ]
    ```
 
 - You can optionally create a `/tmp/ci_config.json` file to enable CI triggered by GitHub
