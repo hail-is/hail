@@ -194,14 +194,12 @@ def test_files_invalid_format(submit, src_dest):
 
 
 def test_files_invalid_source_dest(submit, tmp_path):
-    res = submit([__file__], ['--wait', '--quiet', '-v', '/garbage_path_does_not_exist/:/'])
-    assert_exit_code(res, 1)
-    assert 'not a directory' in res.output
+    with pytest.raises(ValueError, match='not a directory'):
+        submit([__file__], ['--wait', '--quiet', '-v', '/garbage_path_does_not_exist/:/'])
 
-    this_dir = os.path.curdir.rstrip('/') + '/'
-    res = submit([__file__], ['--wait', '--quiet', '-v', f'{this_dir}:/a'])
-    assert_exit_code(res, 1)
-    assert 'copy and renaming a directory is not supported' in res.output
+    with pytest.raises(ValueError, match='copy and renaming a directory is not supported'):
+        this_dir = os.path.curdir.rstrip('/') + '/'
+        submit([__file__], ['--wait', '--quiet', '-v', f'{this_dir}:/a'])
 
 
 def test_files_copy_rename(submit, tmp_cwd, client):

@@ -133,14 +133,6 @@ async def submit(
 
         workdir = workdir or '/'
 
-        print(f"""
-{mkdirs_str}
-{config_file_str}
-{volume_mount_str}
-cd {workdir}
-{entrypoint_str}
-""")
-
         j.command(f"""
 {mkdirs_str}
 {config_file_str}
@@ -153,19 +145,19 @@ cd {workdir}
             for bucket, mount, read_only in cloudfuse:
                 j.cloudfuse(bucket, mount, read_only=read_only)
 
-        async_b = b.run(wait=False, disable_progress_bar=True)
+        bc_b = b.run(wait=False, disable_progress_bar=True)
 
         if output == 'text':
             deploy_config = get_deploy_config()
-            url = deploy_config.external_url('batch', f'/batches/{async_b.id}/jobs/1')
-            print(f'Submitted batch {async_b.id}, see {url}')
+            url = deploy_config.external_url('batch', f'/batches/{bc_b.id}/jobs/1')
+            print(f'Submitted batch {bc_b.id}, see {url}')
         # FIXME: support yaml
         else:
             assert output == 'json'
-            print(orjson.dumps({'id': async_b.id}).decode('utf-8'))
+            print(orjson.dumps({'id': bc_b.id}).decode('utf-8'))
 
         if wait:
-            async_b.wait(disable_progress_bar=quiet)
+            bc_b.wait(disable_progress_bar=quiet)
 
 
 async def get_user_config_files(fs: RouterAsyncFS) -> List[str]:
