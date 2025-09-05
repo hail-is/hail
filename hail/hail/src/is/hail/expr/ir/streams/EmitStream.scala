@@ -27,6 +27,7 @@ import is.hail.utils._
 import is.hail.variant.Locus
 
 import scala.annotation.nowarn
+import scala.collection.compat._
 
 import java.util
 
@@ -2889,7 +2890,7 @@ object EmitStream {
                         case ArrayZipBehavior.AssumeSameLength =>
                           producers.flatMap(_.length).headOption
                         case ArrayZipBehavior.TakeMinLength =>
-                          anyFailAllFail((producers, as).zipped.flatMap { (producer, child) =>
+                          anyFailAllFail(producers.lazyZip(as).flatMap { (producer, child) =>
                             child match {
                               case _: StreamIota => None
                               case _ => Some(producer.length)

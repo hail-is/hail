@@ -16,6 +16,7 @@ import is.hail.utils._
 import is.hail.utils.StackSafe._
 import is.hail.utils.StringEscapeUtils._
 
+import scala.collection.compat._
 import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.util.parsing.combinator.JavaTokenParsers
@@ -246,7 +247,7 @@ object IRParser {
     new RVDPartitioner(
       ctx.stateManager,
       keyType,
-      rangeBounds.asInstanceOf[mutable.IndexedSeq[Interval]],
+      rangeBounds.asInstanceOf[IndexedSeq[Interval]],
     )
   }
 
@@ -853,7 +854,7 @@ object IRParser {
           }
           body <- ir_value_expr(ctx)(it)
         } yield {
-          val bindings = (names, values).zipped.map { case ((bindType, name), value) =>
+          val bindings = names.lazyZip(values).map { case ((bindType, name), value) =>
             val scope = bindType match {
               case "eval" => Scope.EVAL
               case "agg" => Scope.AGG
