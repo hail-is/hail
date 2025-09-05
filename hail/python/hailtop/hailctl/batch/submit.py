@@ -66,11 +66,11 @@ async def submit(
         config_file_paths = await get_user_config_files(fs)
         config_file_inputs = [(os.path.basename(path), b.read_input(path)) for path in config_file_paths]
         config_file_str = "\n".join(
-            f'mv {input} {local_user_config_dir}{file_name}' for file_name, input in config_file_inputs
+            f'mv {input} {local_user_config_dir}hail/{file_name}' for file_name, input in config_file_inputs
         )
 
         volume_mount_inputs = []
-        mkdirs_needed = {local_user_config_dir}
+        mkdirs_needed = {f'{local_user_config_dir}hail/'}
 
         for src, maybe_dest in volume_mounts:
             if await fs.isfile(src):

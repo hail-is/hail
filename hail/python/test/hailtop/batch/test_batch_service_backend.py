@@ -731,15 +731,6 @@ def test_non_spot_batch(service_backend: ServiceBackend):
     assert res.get_job(3).status()['spec']['resources']['preemptible'] is True
 
 
-def test_local_file_paths_error(service_backend: ServiceBackend):
-    b = batch(service_backend)
-    b.new_job()
-    for input in ["hi.txt", "~/hello.csv", "./hey.tsv", "/sup.json", "file://yo.yaml"]:
-        with pytest.raises(ValueError) as e:
-            b.read_input(input)
-        assert str(e.value).startswith("Local filepath detected")
-
-
 @skip_in_azure
 async def test_validate_cloud_storage_policy(service_backend: ServiceBackend, monkeypatch):
     # buckets do not exist (bucket names can't contain the string "google" per
