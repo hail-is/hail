@@ -283,91 +283,73 @@ def submit(
 ):
     """Submit a batch with a single job that runs SCRIPT, optionally with ARGUMENTS.
 
-    Use '--' to pass additional arguments and switches to SCRIPT:
+    $ hailctl batch submit [OPTIONS] COMMAND [ARGUMENTS]
 
-    $ hailctl batch submit [OPTIONS] SCRIPT [-- ARGUMENTS]
 
+    Specify the command and arguments:
+
+    $ hailctl batch submit --image docker.io/image python3 my_script.py 1 2 --output my_output.txt
+
+
+    Specify the working directory:
+
+    $ hailctl batch submit --workdir /workdir/ python3 my_script.py 1 2 --output my_output.txt
 
 
     Specify a docker image to use for the job:
 
-    $ hailctl batch submit SCRIPT --image docker.io/image
-
+    $ hailctl batch submit --image docker.io/image python3 my_script.py
 
 
     Specify the name of the batch to submit:
 
-    $ hailctl batch submit SCRIPT --name my-batch
+    $ hailctl batch submit --name my-batch python3 my_script.py
 
 
-
-    Add additional files to your job using the --files SRC[:DST] option as follows:
-
+    Add additional files to your job using the `-v` option where the value is "src:dest" where dest must be a fully qualified path:
 
 
-    Copy a local file or folder into the working directory of the job:
+    Copy a local file into the root directory of the container:
 
-    $ hailctl batch submit SCRIPT --files a-file-or-folder
-
-
-
-    Copy the local working directory to the working directory of the job:
-
-    $ hailctl batch submit --files .
-
-    $ hailctl batch submit --files .:.
+    $ hailctl batch submit -v a-file:/ python3 my_script.py
 
 
+    Copy a local file into the root directory of the container and rename it:
 
-    Copy a local file or folder DRC to an absolute path or a path relative to the job's working directory:
-
-    $ hailctl batch submit SCRIPT --files src:dst
-
+    $ hailctl batch submit -v a-file:/a-file-renamed python3 my_script.py
 
 
-    Copy a local file or folder to DST, using environment variables in the SRC path
+    Copy the local working directory to the root directory of the container:
 
-    $ hailctl batch submit SCRIPT --files "${HOME}/foo":dst
+    $ hailctl batch submit --files ./:/ python3 my_script.py
 
 
+    Copy the local working directory to a new subdirectory of the container:
 
-    Copy the result of globbing a local folder SRC with PATTERN into DST on the worker:
+    $ hailctl batch submit --files ./:/workdir/ python3 /workdir/my_script.py
 
-    $ hailctl batch submit SCRIPT --files src/[pattern]:dst
 
+    Copy the contents of a local directory into a new directory inside the container:
+
+    $ hailctl batch submit --workdir /myproject/ --files /Users/jdoe/my-project:/myproject python3 my_script.py
 
 
     Notes
 
     -----
 
-    SCRIPTs ending in '.py' will be invoked with `python3`, or as an executable otherwise.
+    If SRC is a file and DST is a file, SRC will be copied to DST, otherwise
 
+    IF SRC is a file and DST is a directory, SRC will be copied into DST, otherwise
 
+    IF SRC is a directory and DST has a trailing slash, the contents of SRC will be recursively copied into DST, otherwise
 
-    Relative DST paths are relative to the worker's working directory
+    IF SRC is a directory without a trailing slash and DST has no trailing slash, the contents of SRC will be recursively copied into DST, otherwise
 
-
-
-    If DST does not exist, SRC will be copied to DST, otherwise
-
-    If SRC is a file and DST is a file, DST will be replaced by SRC, otherwise
-
-    If SRC is a file and DST is a folder, SRC will be copied into DST, otherwise
-
-    If SRC is a folder and DST is a folder, the contents of SRC will to DST, otherwise
-
-    If DST is a file, DST will be overwritten by SRC if SRC is a file, otherwise
+    IF SRC is a directory without a trailing slash and DST has a trailing slash, the directory SRC will be moved into DST, otherwise
 
     An error will be raised.
 
-
-
-    Environment variables are permitted in SRC paths only
-
-
-
-    Recursive glob patterns are not supported
     """
 
     from .submit import HailctlBatchSubmitError  # pylint: disable=import-outside-toplevel

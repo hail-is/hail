@@ -6,12 +6,12 @@ import functools
 import os
 import subprocess as sp
 import time
-from urllib.parse import urlparse
 import uuid
 import warnings
 import webbrowser
 from shlex import quote as shq
 from typing import Any, ClassVar, Dict, Generic, List, Optional, TypeVar, Union
+from urllib.parse import urlparse
 
 import orjson
 from rich.progress import track
@@ -750,7 +750,7 @@ class ServiceBackend(Backend[bc.Batch]):
 
             if isinstance(r, resource.InputResourceFile):
                 scheme = urlparse(r._input_path).scheme
-                if scheme == '' or scheme == 'file':
+                if scheme in ('', 'file'):
                     dest = r._get_path(batch_remote_tmpdir + '/' + uuid.uuid4().hex[:8])
                     local_input_file_transfers.append({'from': r._input_path, 'to': dest})
                     return [(dest, r._get_path(local_tmpdir))]
