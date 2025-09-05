@@ -50,10 +50,12 @@ async def submit(
         fs = RouterAsyncFS()
         exitstack.push_async_callback(fs.close)
 
-        backend = hb.ServiceBackend(billing_project=billing_project,
-                                    remote_tmpdir=remote_tmpdir,
-                                    regions=regions,
-                                    gcs_requester_pays_configuration=requester_pays_project)
+        backend = hb.ServiceBackend(
+            billing_project=billing_project,
+            remote_tmpdir=remote_tmpdir,
+            regions=regions,
+            gcs_requester_pays_configuration=requester_pays_project,
+        )
 
         exitstack.push_async_callback(backend.async_close)
 
@@ -63,35 +65,46 @@ async def submit(
 
         config_file_paths = await get_user_config_files(fs)
         config_file_inputs = [(os.path.basename(path), b.read_input(path)) for path in config_file_paths]
-        config_file_str = "\n".join(f'mv {input} {local_user_config_dir}{file_name}' for file_name, input in config_file_inputs)
+        config_file_str = "\n".join(
+            f'mv {input} {local_user_config_dir}{file_name}' for file_name, input in config_file_inputs
+        )
 
         volume_mount_inputs = []
         mkdirs_needed = {local_user_config_dir}
 
-        for src, dest in volume_mounts:
+        for src, maybe_dest in volume_mounts:
             if await fs.isfile(src):
-                mkdirs_needed.add(os.path.dirname(dest))
+                if maybe_dest.endswith('/'):
+                    local_dest = os.path.join(maybe_dest, os.path.basename(src))
+                else:
+                    local_dest = maybe_dest
+
+                mkdirs_needed.add(os.path.dirname(local_dest))
+                volume_mount_inputs.append((local_dest, b.read_input(src)))
             else:
-                if src.endswith('/') and not dest.endswith('/'):
+                if not await fs.isdir(src):
+                    raise ValueError(f'src "{src}" is not a directory.')
+                if src.endswith('/') and not maybe_dest.endswith('/'):
                     raise ValueError('copy and renaming a directory is not supported.')
-                if not src.endswith('/') and dest.endswith('/'):
-                    dest = dest.rstrip('/') + '/' + os.path.basename(src)
+
+                if not src.endswith('/') and maybe_dest.endswith('/'):
+                    dest = os.path.join(maybe_dest, os.path.basename(src))
+                else:
+                    dest = maybe_dest
 
                 dest = dest.rstrip('/') + '/'
-                mkdirs_needed.add(dest)
 
-            volume_mount_paths = await get_volume_mount_files(fs, src)
+                volume_mount_paths = await get_volume_mount_files(fs, src)
 
-            for path in volume_mount_paths:
-                path_relname = os.path.relpath(path, src)
-                if path_relname == '.':
-                    path_relname = ''
-                mkdirs_needed.add(os.path.dirname(f'{dest}{path_relname}').rstrip('/') + '/')
+                for path in volume_mount_paths:
+                    path_relname = os.path.relpath(path, src)
+                    if path_relname == '.':
+                        path_relname = ''
 
-                if dest.endswith('/'):
-                    volume_mount_inputs.append((f'{dest}{path_relname}', b.read_input(path)))
-                else:
-                    volume_mount_inputs.append((dest, b.read_input(path)))
+                    local_dest = os.path.join(dest, path_relname)
+
+                    mkdirs_needed.add(os.path.dirname(local_dest))
+                    volume_mount_inputs.append((local_dest, b.read_input(path)))
 
         volume_mount_str = "\n".join(f'mv {input} {dest}' for dest, input in volume_mount_inputs)
 
@@ -99,9 +112,7 @@ async def submit(
 
         entrypoint_str = ' '.join([shq(x) for x in entrypoint])
 
-        j = b.new_job(name=name or 'submit',
-                      attributes=attributes,
-                      shell=shell)
+        j = b.new_job(name=name or 'submit', attributes=attributes, shell=shell)
 
         j.image(image)
 
@@ -122,21 +133,21 @@ async def submit(
 
         workdir = workdir or '/'
 
-        print(f'''
+        print(f"""
 {mkdirs_str}
 {config_file_str}
 {volume_mount_str}
 cd {workdir}
 {entrypoint_str}
-''')
+""")
 
-        j.command(f'''
+        j.command(f"""
 {mkdirs_str}
 {config_file_str}
 {volume_mount_str}
 cd {workdir}
 {entrypoint_str}
-''')
+""")
 
         if cloudfuse is not None:
             for bucket, mount, read_only in cloudfuse:

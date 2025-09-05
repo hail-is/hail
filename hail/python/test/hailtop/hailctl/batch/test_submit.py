@@ -84,13 +84,20 @@ def puts(filename: Path, content: str):
 
 def echo0(dir: Path) -> Path:
     script = dir / f'script{secret_alnum_string(6)}'
-    puts(script, 'echo 0')
+    puts(script, f'ls -R {os.path.dirname(str(dir))}; echo 0')
     return script
 
 
 def write_pyscript(dir: Union[str, Path], file_to_echo: Union[str, Path]) -> Path:
     script = Path(dir) / f'test_job_{secret_alnum_string(6)}.py'
-    puts(script, f'print(open("{file_to_echo}").read())')
+    puts(
+        script,
+        f"""
+import os
+print(os.listdir({os.path.dirname(str(file_to_echo))}, recursive=True))
+print(open("{file_to_echo}").read())
+""",
+    )
     return script
 
 
@@ -102,7 +109,8 @@ def test_name(submit, tmp_path, request, client):
     batch_name = request.node.nodeid + secret_alnum_string()
     echo_script = echo0(tmp_path)
     res = submit(
-        [echo_script.name], ['--name', batch_name, '-v', f'{echo_script}:/', '--wait', '-o', 'json', '--quiet'],
+        [echo_script.name],
+        ['--name', batch_name, '-v', f'{echo_script}:/', '--wait', '-o', 'json', '--quiet'],
     )
     assert_exit_code(res, 0)
 
@@ -167,9 +175,10 @@ echo "Hello, world!"
 
     script = tmp_path / 'script'
     script.write_text(script_text)
-    res = submit(['chmod', '770', script.name, '&&', f'./{script.name}'],
-                 ['--wait', '--quiet', '-o', 'json', '-v', f'{script}:/', '--wait', '-o', 'json'],
-                 )
+    res = submit(
+        ['chmod', '770', script.name, '&&', f'./{script.name}'],
+        ['--wait', '--quiet', '-o', 'json', '-v', f'{script}:/', '--wait', '-o', 'json'],
+    )
     assert_exit_code(res, 0)
 
     b = get_batch_from_text_output(res, client)
@@ -177,19 +186,30 @@ echo "Hello, world!"
     assert 'Hello, world!' in log_output
 
 
-@pytest.mark.parametrize('files', ['', ':', ':dst', 'a/:foo'])
-def test_files_invalid_format(submit, files):
-    res = submit([__file__], ['--wait', '--quiet', '-v', files])
+@pytest.mark.parametrize("src_dest", ['', ':', ':dst'])
+def test_files_invalid_format(submit, src_dest):
+    res = submit([__file__], ['--wait', '--quiet', '-v', src_dest])
     assert_exit_code(res, 2)
     assert 'Invalid format for file mount' in res.output
 
 
+def test_files_invalid_source_dest(submit, tmp_path):
+    res = submit([__file__], ['--wait', '--quiet', '-v', '/garbage_path_does_not_exist/:/'])
+    assert_exit_code(res, 1)
+    assert 'not a directory' in res.output
+
+    this_dir = os.path.curdir.rstrip('/') + '/'
+    res = submit([__file__], ['--wait', '--quiet', '-v', f'{this_dir}:/a'])
+    assert_exit_code(res, 1)
+    assert 'copy and renaming a directory is not supported' in res.output
+
+
 def test_files_copy_rename(submit, tmp_cwd, client):
     write_hello(tmp_cwd / 'hello.txt')
-    pyscript = write_pyscript(tmp_cwd, '/child')
+    pyscript = write_pyscript(tmp_cwd, '/renamed_hello.txt')
     res = submit(
         [pyscript.name],
-        ['--wait', '--quiet', '-v', 'hello.txt:/child', '-v', f'{pyscript.name}:/', '--wait', '-o', 'json'],
+        ['--wait', '--quiet', '-v', 'hello.txt:/renamed_hello.txt', '-v', f'{pyscript.name}:/', '--wait', '-o', 'json'],
     )
     assert_exit_code(res, 0)
 
@@ -202,8 +222,8 @@ def test_files_copy_rename(submit, tmp_cwd, client):
     [
         ('a', '/', '/a/'),
         ('a/', '/', '/'),
-        ('a/b', '/a/b/', '/a/b/'),
-        ('a/../b', '/b/', '/b/'),
+        ('a/b', '/a/b/', '/a/b/b/'),
+        ('a/../b', '/indirect/', '/indirect/b/'),
         ('a/b/', '/', '/'),
         ('a/', '/b/', '/b/'),
     ],
@@ -265,9 +285,9 @@ def test_files_mount_multiple_files_options(submit, tmp_cwd, client):
             'json',
             '--quiet',
             '-v',
-            'hello1.txt:/a/hello.txt',
+            'hello1.txt:/a/hello1.txt',
             '-v',
-            'hello2.txt:/b/hello.txt',
+            'hello2.txt:/b/hello2.txt',
             '-v',
             f'{script}:/',
         ],
@@ -303,10 +323,10 @@ def test_files_outside_current_dir(submit, tmp_path, client):
 
 
 def test_files_dir_outside_curdir(submit, tmp_path, client):
-    with tmp_cwd(tmp_path / 'working'):
-        write_hello(tmp_path / 'hello1.txt')
-        write_hello(tmp_path / 'hello2.txt')
-        pyscript = write_pyscript(tmp_path, '/foo/hello1.txt')
+    with tmp_cwd(tmp_path / 'working') as workdir_path:
+        write_hello(workdir_path / 'hello1.txt')
+        write_hello(workdir_path / 'hello2.txt')
+        pyscript = write_pyscript(tmp_path, '/foo/working/hello1.txt')
         res = submit([f'/foo/{pyscript.name}'], ['--wait', '--quiet', '-o', 'json', '-v', f'{tmp_path}:/foo'])
         assert_exit_code(res, 0)
 
@@ -395,15 +415,11 @@ def test_hail_config_in_right_place(submit, tmp_path, request, client):
 import os
 assert "XDG_CONFIG_HOME" in os.environ
 files = os.path.listdir(os.environ["XDG_CONFIG_HOME"])
-print(files)
-files = os.path.listdir(os.environ["XDG_CONFIG_HOME"] + "/hail/")
-print(files)
-assert os.path.isfile(os.environ["XDG_CONFIG_HOME"] + "/hail/config.ini"), str(files)
+assert os.path.isfile(os.environ["XDG_CONFIG_HOME"] + "/config.ini"), str(files)
 """,
     )
     res = submit([script.name], ['--name', batch_name, '-v', f'{script}:/', '--wait', '-o', 'json', '--quiet'])
     assert_exit_code(res, 0)
 
     b = get_batch_from_text_output(res, client)
-    j = b.get_job(1)
-    print(j.log())
+    assert b.status()['state'] == 'success', str(b.debug_info())
