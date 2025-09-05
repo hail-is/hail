@@ -5,7 +5,7 @@ import struct
 import warnings
 from contextlib import AsyncExitStack
 from dataclasses import dataclass
-from typing import Any, Awaitable, Dict, List, Mapping, Optional, Set, Tuple, TypeVar, Union
+from typing import Any, Awaitable, Dict, List, Mapping, NoReturn, Optional, Set, Tuple, TypeVar, Union
 
 import orjson
 
@@ -230,7 +230,7 @@ class ServiceBackend(Backend):
         self._batch = batch
         self._job_group_was_submitted: bool = False
         self.disable_progress_bar = disable_progress_bar
-        self.remote_tmpdir = remote_tmpdir
+        self._remote_tmpdir = remote_tmpdir
         self.flags: Dict[str, str] = {}
         self._registered_ir_function_names: Set[str] = set()
         self.driver_cores = driver_cores
@@ -502,3 +502,19 @@ class ServiceBackend(Backend):
     @property
     def requires_lowering(self):
         return True
+
+    @property
+    def local_tmpdir(self) -> NoReturn:
+        raise AttributeError('local tmp folders are not supported on the batch backend')
+
+    @local_tmpdir.setter
+    def local_tmpdir(self, tmpdir: str) -> NoReturn:
+        raise AttributeError('local tmp folders are not supported on the batch backend')
+
+    @property
+    def remote_tmpdir(self) -> str:
+        return self._remote_tmpdir
+
+    @remote_tmpdir.setter
+    def remote_tmpdir(self, tmpdir: str) -> None:
+        self._remote_tmpdir = tmpdir
