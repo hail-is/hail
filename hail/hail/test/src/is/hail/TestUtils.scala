@@ -1,12 +1,13 @@
 package is.hail
 
-import is.hail.annotations.{Region, RegionValueBuilder, SafeRow}
+import is.hail.annotations.{Region, RegionPool, RegionValueBuilder, SafeRow}
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{
   freshName, streamAggIR, BindingEnv, Env, IR, Interpret, MapIR, MatrixIR, MatrixRead, Name,
   SingleCodeEmitParamType, Subst,
 }
+import is.hail.expr.ir.Optimize.Flags.Optimize
 import is.hail.expr.ir.compile.Compile
 import is.hail.expr.ir.defs.{GetField, GetTupleElement, In, MakeTuple, Ref, ToStream}
 import is.hail.expr.ir.lowering.LowererUnsupportedOperation
@@ -120,12 +121,18 @@ trait TestUtils extends Assertions {
     agg: Option[(IndexedSeq[Row], TStruct)],
     bytecodePrinter: Option[PrintWriter] = None,
   ): Any = {
-    if (agg.isDefined || !env.isEmpty || !args.isEmpty)
+    if (agg.isDefined || !env.isEmpty || args.nonEmpty)
       throw new LowererUnsupportedOperation("can't test with aggs or user defined args/env")
 
-    HailContext.sparkBackend.jvmLowerAndExecute(ctx, x, optimize = false, lowerTable = true,
-      lowerBM = true,
-      print = bytecodePrinter)
+    unoptimized { ctx =>
+      ctx.backend.asSpark.jvmLowerAndExecute(
+        ctx,
+        x,
+        lowerTable = true,
+        lowerBM = true,
+        print = bytecodePrinter,
+      )
+    }
   }
 
   def eval(
@@ -134,7 +141,6 @@ trait TestUtils extends Assertions {
     args: IndexedSeq[(Any, Type)] = FastSeq(),
     agg: Option[(IndexedSeq[Row], TStruct)] = None,
     bytecodePrinter: Option[PrintWriter] = None,
-    optimize: Boolean = true,
     ctx: ExecuteContext = ctx,
   ): Any = {
     val inputTypesB = new BoxedArrayBuilder[Type]()
@@ -202,7 +208,6 @@ trait TestUtils extends Assertions {
             LongInfo,
             aggIR,
             print = bytecodePrinter,
-            optimize = optimize,
           )
         assert(resultType2.virtualType == resultType)
 
@@ -243,7 +248,6 @@ trait TestUtils extends Assertions {
             FastSeq(classInfo[Region], LongInfo),
             LongInfo,
             MakeTuple.ordered(FastSeq(rewrite(Subst(x, BindingEnv(substEnv))))),
-            optimize = optimize,
             print = bytecodePrinter,
           )
         assert(resultType2.virtualType == resultType)
@@ -278,12 +282,16 @@ trait TestUtils extends Assertions {
   def assertEvalSame(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)]): Assertion = {
     val t = x.typ
 
-    val (i, i2, c) = {
-      val i = Interpret[Any](ctx, x, env, args)
-      val i2 = Interpret[Any](ctx, x, env, args, optimize = false)
-      val c = eval(x, env, args, None, None, true, ctx)
-      (i, i2, c)
-    }
+    val (i, i2, c) =
+      ctx.local() { ctx =>
+        ctx.flags.set(Optimize, "1")
+        val i = Interpret[Any](ctx, x, env, args)
+        ctx.flags.set(Optimize, null)
+        val i2 = Interpret[Any](ctx, x, env, args)
+        ctx.flags.set(Optimize, "1")
+        val c = eval(x, env, args, None, None, ctx)
+        (i, i2, c)
+      }
 
     assert(t.typeCheck(i))
     assert(t.typeCheck(i2))
@@ -301,11 +309,15 @@ trait TestUtils extends Assertions {
     env: Env[(Any, Type)],
     args: IndexedSeq[(Any, Type)],
     regex: String,
-  ): Assertion = {
-    interceptException[E](regex)(Interpret[Any](ctx, x, env, args))
-    interceptException[E](regex)(Interpret[Any](ctx, x, env, args, optimize = false))
-    interceptException[E](regex)(eval(x, env, args, None, None, true, ctx))
-  }
+  ): Assertion =
+    ctx.local() { ctx =>
+      ctx.flags.set(Optimize, "1")
+      interceptException[E](regex)(Interpret[Any](ctx, x, env, args))
+      ctx.flags.set(Optimize, null)
+      interceptException[E](regex)(Interpret[Any](ctx, x, env, args))
+      ctx.flags.set(Optimize, "1")
+      interceptException[E](regex)(eval(x, env, args, None, None, ctx))
+    }
 
   def assertFatal(x: IR, regex: String): Assertion =
     assertThrows[HailException](x, regex)
@@ -323,7 +335,7 @@ trait TestUtils extends Assertions {
     args: IndexedSeq[(Any, Type)],
     regex: String,
   ): Assertion =
-    interceptException[E](regex)(eval(x, env, args, None, None, true, ctx))
+    interceptException[E](regex)(eval(x, env, args, None, None, ctx))
 
   def assertCompiledThrows[E <: Throwable: Manifest](x: IR, regex: String): Assertion =
     assertCompiledThrows[E](x, Env.empty[(Any, Type)], FastSeq.empty[(Any, Type)], regex)
@@ -379,4 +391,16 @@ trait TestUtils extends Assertions {
       a <- as
       b <- bs
     } yield (a, b)
+
+  def measuringHighestTotalMemoryUsage[A](f: => ExecuteContext => A): (A, Long) =
+    RegionPool.scoped { p =>
+      val a = ctx.local(r = Region(pool = p))(f)
+      (a, p.getHighestTotalUsage)
+    }
+
+  def unoptimized[A](f: ExecuteContext => A): A =
+    unoptimized(ctx)(f)
+
+  def unoptimized[A](ctx: ExecuteContext)(f: ExecuteContext => A): A =
+    ctx.local(flags = ctx.flags - Optimize)(f)
 }

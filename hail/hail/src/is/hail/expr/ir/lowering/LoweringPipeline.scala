@@ -37,15 +37,14 @@ case class LoweringPipeline(lowerings: LoweringPass*) {
     }
   }
 
-  def noOptimization(): LoweringPipeline =
-    LoweringPipeline(lowerings.filter(l => !l.isInstanceOf[OptimizePass]): _*)
-
   def +(suffix: LoweringPipeline): LoweringPipeline =
     LoweringPipeline((lowerings ++ suffix.lowerings): _*)
 }
 
 object LoweringPipeline {
-  def fullLoweringPipeline(context: String, baseTransformer: LoweringPass): LoweringPipeline = {
+
+  private[this] def fullLoweringPipeline(context: String, baseTransformer: LoweringPass)
+    : LoweringPipeline = {
 
     val base = LoweringPipeline(
       baseTransformer,
@@ -73,47 +72,30 @@ object LoweringPipeline {
     ) + withLetEvaluation
   }
 
-  private val _relationalLowerer =
+  lazy val relationalLowerer: LoweringPipeline =
     fullLoweringPipeline("relationalLowerer", LowerOrInterpretNonCompilablePass)
-
-  private val _relationalLowererNoOpt = _relationalLowerer.noOptimization()
 
   // legacy lowers can run partial optimization on a TableIR/MatrixIR that gets interpreted to a
   // TableValue for spark compatibility
-  private val _relationalLowererLegacy =
+  lazy val legacyRelationalLowerer: LoweringPipeline =
     fullLoweringPipeline("relationalLowererLegacy", LegacyInterpretNonCompilablePass)
 
-  private val _relationalLowererNoOptLegacy = _relationalLowererLegacy.noOptimization()
+  lazy val compileLowerer: LoweringPipeline =
+    LoweringPipeline(
+      OptimizePass("compileLowerer, initial IR"),
+      InlineApplyIR,
+      OptimizePass("compileLowerer, after InlineApplyIR"),
+      LowerArrayAggsToRunAggsPass,
+      OptimizePass("compileLowerer, after LowerArrayAggsToRunAggs"),
+    )
 
-  private val _compileLowerer = LoweringPipeline(
-    OptimizePass("compileLowerer, initial IR"),
-    InlineApplyIR,
-    OptimizePass("compileLowerer, after InlineApplyIR"),
-    LowerArrayAggsToRunAggsPass,
-    OptimizePass("compileLowerer, after LowerArrayAggsToRunAggs"),
-  )
+  lazy val darrayLowerer: Map[DArrayLowering.Value, LoweringPipeline] =
+    Array(
+      DArrayLowering.All,
+      DArrayLowering.TableOnly,
+      DArrayLowering.BMOnly,
+    )
+      .map(lv => lv -> fullLoweringPipeline("darrayLowerer", LowerToDistributedArrayPass(lv)))
+      .toMap
 
-  private val _compileLowererNoOpt = _compileLowerer.noOptimization()
-
-  private val _dArrayLowerers = Array(
-    DArrayLowering.All,
-    DArrayLowering.TableOnly,
-    DArrayLowering.BMOnly,
-  ).map { lv =>
-    (lv -> fullLoweringPipeline("darrayLowerer", LowerToDistributedArrayPass(lv)))
-  }.toMap
-
-  private val _dArrayLowerersNoOpt = _dArrayLowerers.mapValues(_.noOptimization()).toMap
-
-  def relationalLowerer(optimize: Boolean): LoweringPipeline =
-    if (optimize) _relationalLowerer else _relationalLowererNoOpt
-
-  def legacyRelationalLowerer(optimize: Boolean): LoweringPipeline =
-    if (optimize) _relationalLowererLegacy else _relationalLowererNoOptLegacy
-
-  def darrayLowerer(optimize: Boolean): Map[DArrayLowering.Type, LoweringPipeline] =
-    if (optimize) _dArrayLowerers else _dArrayLowerersNoOpt
-
-  def compileLowerer(optimize: Boolean): LoweringPipeline =
-    if (optimize) _compileLowerer else _compileLowererNoOpt
 }
