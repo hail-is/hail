@@ -237,7 +237,7 @@ tailwind-compile-watch:
 
 .PHONY: run-dev-proxy
 run-dev-proxy:
-	SERVICE=$(SERVICE) adev runserver --root . devbin/dev_proxy.py
+	SERVICE=$(SERVICE) adev runserver --root . --static web_common/web_common/static devbin/dev_proxy.py
 
 .PHONY: devserver
 devserver:

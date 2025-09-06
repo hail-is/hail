@@ -17,10 +17,10 @@ COPY hail/python/setup-hailtop.py /hailtop/setup.py
 COPY hail/python/MANIFEST.in /hailtop/MANIFEST.in
 COPY hail/python/hailtop /hailtop/hailtop/
 
-COPY gear/setup.py /gear/setup.py
+COPY gear/pyproject.toml /gear/pyproject.toml
 COPY gear/gear /gear/gear/
 
-COPY web_common/setup.py web_common/MANIFEST.in /web_common/
+COPY web_common/pyproject.toml web_common/MANIFEST.in /web_common/
 COPY web_common/web_common /web_common/web_common/
 
 COPY ci/setup.py ci/MANIFEST.in /ci/
