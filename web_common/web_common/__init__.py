@@ -1,5 +1,4 @@
 from .web_common import (
-    api_security_headers,
     base_context,
     render_template,
     sass_compile,
@@ -12,7 +11,6 @@ from .web_common import (
 )
 
 __all__ = [
-    'api_security_headers',
     'base_context',
     'render_template',
     'sass_compile',

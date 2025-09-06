@@ -105,16 +105,6 @@ async def render_template(
     return response
 
 
-def api_security_headers(fun):
-    @wraps(fun)
-    async def wrapped(request, *args, **kwargs):
-        response = await fun(request, *args, **kwargs)
-        response.headers['Strict-Transport-Security'] = 'max-age=63072000; includeSubDomains;'
-        return response
-
-    return wrapped
-
-
 def web_security_headers(fun):
     # Although this looks like a boring passthrough, we're explicitly not changing the optional parameters that
     # would otherwise make the fun-wrapping via annotations behave funky.
@@ -135,7 +125,6 @@ def web_security_header_generator(fun, extra_script: str = '', extra_style: str 
     @wraps(fun)
     async def wrapped(request, *args, **kwargs):
         response = await fun(request, *args, **kwargs)
-        response.headers['Strict-Transport-Security'] = 'max-age=63072000; includeSubDomains;'
 
         default_src = 'default-src \'self\';'
         style_src = f'style-src \'self\' \'unsafe-inline\' {extra_style} fonts.googleapis.com fonts.gstatic.com;'
