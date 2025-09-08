@@ -1,8 +1,4 @@
 # Batch Database UML Diagram - Instances
-Conventions:
-- Primary keys are listed in order as the first rows of each table, and are denoted by **bold text**.
-- Foreign keys are denoted by `FK` in the rightmost column, and are further denoted via connections between two tables.
-```mermaid
 ---
 config:
   layout: dagre

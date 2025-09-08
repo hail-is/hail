@@ -1,3 +1,4 @@
+# Batch Database UML Diagram - Batches
 ```mermaid
 ---
 config:
