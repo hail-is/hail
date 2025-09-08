@@ -2,6 +2,10 @@
 
 This diagram is made to be an up-to-date visual representation of (the important parts of) the Batch database, and more specifically to be a visual representation of `estimated-current.sql`. As such, it is generally only as reliable as `estimated-current.sql`, and must be updated manually to be an accurate source of information (as is the case with `estimated-current.sql`). Regarding the few tables excluded from this diagram: if a table has been excluded, it is almost certainly for visual clarity reasons and/or relevance to the Batch system as a whole.
 
+Accompanying this diagram are additional diagrams depicting:
+- various subsets of the batch database (e.g., only the tables relating to "instances"); and
+- a simplified version of this diagram.
+
 Conventions:
 - Primary keys are listed in order as the first rows of each table, and are denoted by **bold text**.
 - Foreign keys are denoted by `FK` in the rightmost column, and are further denoted via connections between two tables.
@@ -116,7 +120,7 @@ direction TB
 	}
 	job_group_attributes {
 		bigint **batch_id** FK ""
-		int **job_group_id** ""
+		int **job_group_id** FK ""
 		varchar(100) **key**  ""
 		text value  ""
 
@@ -130,7 +134,7 @@ direction TB
 		bigint **batch_id** FK ""
 		int **job_id** FK ""
 		varchar(40) **attempt_id** FK ""
-		int **resource_id** ""
+		int **resource_id** FK ""
 		bigint quantity  ""
 		int deduped_resource_id  ""
 	}
@@ -138,7 +142,7 @@ direction TB
 		bigint **batch_id** FK ""
 		int **job_id** FK ""
 		varchar(40) **attempt_id** ""
-		varchar(100) instance_name  ""
+		varchar(100) instance_name FK ""
 		bigint start_time  ""
 		bigint end_time  ""
 		varchar(40) reason  ""
@@ -161,7 +165,7 @@ direction TB
 		varchar(40) region ""
 	}
 	job_groups {
-		bigint **batch_id** ""
+		bigint **batch_id** FK ""
 		int **job_group_id** ""
 		varchar(100) user  ""
 		text attributes  ""
@@ -183,10 +187,10 @@ direction TB
 
 	aggregated_billing_project_user_resources_v3 {
 		VARCHAR(100) **billing_project** FK ""
-	  VARCHAR(100) **user** ""
-	  INT **resource_id** ""
-	  INT **token** ""
-	  BIGINT usage ""
+		VARCHAR(100) **user** ""
+		INT **resource_id** ""
+		INT **token** ""
+		BIGINT usage ""
 	}
 
 	resources {
