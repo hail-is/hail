@@ -393,6 +393,7 @@ journalctl -u docker.service > dockerd.log
             ]
         },
         'tags': {'items': ["batch2-agent"]},
+        'shieldedInstanceConfig': {'enableSecureBoot': True, 'enableVtpm': True, 'enableIntegrityMonitoring': True},
     }
     if is_gpu:
         config['guestAccelerators'] = [
