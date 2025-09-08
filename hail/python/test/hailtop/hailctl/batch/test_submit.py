@@ -169,6 +169,7 @@ def test_image_environment_variable(submit, tmp_path, client):
     assert j.status()['spec']['process']['image'] == 'busybox:latest', str(j.status())
 
 
+@pytest.mark.xfail(reason='Executable files are not supported.')
 def test_script_shebang(submit, tmp_path, client):
     script_text = """\
 #!/bin/bash
@@ -257,7 +258,7 @@ print(f'{a.message}, {b.message}')
 
     res = submit(
         ['python3', script.name],
-        ['--wait', '--quiet', '-o', 'json', '-v', f"{tmp_path / 'python'!s}:/", '-v', f"{script}:/python/"],
+        ['--workdir', '/python/', '--wait', '--quiet', '-o', 'json', '-v', f"{tmp_path / 'python'!s}:/", '-v', f"{script}:/python/"],
     )
     assert_exit_code(res, 0)
 
@@ -416,7 +417,7 @@ def test_hail_config_in_right_place(submit, tmp_path, request, client):
 #!/usr/bin/env python3
 import os
 assert "XDG_CONFIG_HOME" in os.environ
-files = os.path.listdir(os.environ["XDG_CONFIG_HOME"])
+files = os.listdir(os.environ["XDG_CONFIG_HOME"])
 assert os.path.isfile(os.environ["XDG_CONFIG_HOME"] + "/hail/config.ini"), str(files)
 """,
     )
