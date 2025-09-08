@@ -500,12 +500,38 @@ module "testns_auth_gsa_secret" {
   ]
 }
 
+resource "google_project_iam_custom_role" "batch_compute_manager" {
+  role_id     = "batchComputeManager"
+  title       = "Batch Compute Manager"
+  description = "Custom role for batch service with specific compute permissions for instance management"
+  
+  permissions = [
+    "compute.disks.create",
+    "compute.disks.delete",
+    "compute.disks.list",
+    "compute.images.useReadOnly",
+    "compute.instances.create",
+    "compute.instances.delete",
+    "compute.instances.get",
+    "compute.instances.list",
+    "compute.instances.setLabels",
+    "compute.instances.setMetadata",
+    "compute.instances.setServiceAccount",
+    "compute.instances.setTags",
+    "compute.machineTypes.list",
+    "compute.regions.get",
+    "compute.subnetworks.use",
+    "compute.subnetworks.useExternalIp",
+    "compute.zoneOperations.get",
+  ]
+}
+
 module "batch_gsa_secret" {
   source = "./gsa"
   name = "batch"
   project = var.gcp_project
   iam_roles = [
-    "compute.instanceAdmin.v1",
+    "batchComputeManager",
     "iam.serviceAccountUser",
     "logging.viewer",
     "cloudprofiler.agent",
@@ -523,7 +549,7 @@ module "testns_batch_gsa_secret" {
   name = "testns-batch"
   project = var.gcp_project
   iam_roles = [
-    "compute.instanceAdmin.v1",
+    "batchComputeManager",
     "iam.serviceAccountUser",
     "logging.viewer",
     "cloudprofiler.agent",
@@ -578,16 +604,11 @@ module "testns_grafana_gsa_secret" {
   project = var.gcp_project
 }
 
-# FIXME Now that there are test identities for each service, the test user no longer
-# needs this many permissions. Perform an audit to see which can be removed
 module "test_gsa_secret" {
   source = "./gsa"
   name = "test"
   project = var.gcp_project
   iam_roles = [
-    "compute.instanceAdmin.v1",
-    "iam.serviceAccountUser",
-    "logging.viewer",
     "serviceusage.serviceUsageConsumer",
   ]
 }
@@ -685,6 +706,23 @@ resource "google_artifact_registry_repository_iam_member" "artifact_registry_tes
   member = "serviceAccount:${module.testns_test_dev_gsa_secret.email}"
 }
 
+resource "google_project_iam_custom_role" "batch2_agent_compute_ops" {
+  role_id     = "batch2AgentComputeOps"
+  title       = "Batch2 Agent Compute Ops"
+  description = "Custom role for batch2-agent with minimal disk and instance management permissions"
+  
+  permissions = [
+    "compute.disks.create",
+    "compute.disks.delete",
+    "compute.disks.setLabels",
+    "compute.disks.use",
+    "compute.instances.attachDisk",
+    "compute.instances.delete",
+    "compute.instances.detachDisk",
+    "compute.zoneOperations.get",
+  ]
+}
+
 resource "google_service_account" "batch_agent" {
   description  = "Delete instances and pull images"
   display_name = "batch2-agent"
@@ -693,7 +731,7 @@ resource "google_service_account" "batch_agent" {
 
 resource "google_project_iam_member" "batch_agent_iam_member" {
   for_each = toset([
-    "compute.instanceAdmin.v1",
+    "batch2AgentComputeOps",
     "iam.serviceAccountUser",
     "logging.logWriter",
     "storage.objectCreator",
