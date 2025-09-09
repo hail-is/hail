@@ -15,6 +15,9 @@ versions. In particular, Hail officially supports:
 Change Log
 ==========
 
+**Version 0.2.137**
+
+
 **Version 0.2.136**
 
 - (`#14980 <https://github.com/hail-is/hail/pull/14980>`__)
