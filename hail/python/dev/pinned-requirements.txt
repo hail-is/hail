@@ -622,7 +622,7 @@ urllib3==2.5.0
     #   requests
 uv==0.8.13
     # via -r hail/python/dev/requirements.txt
-uv_build==0.8.13
+uv-build==0.8.13
     # via -r hail/python/dev/requirements.txt
 virtualenv==20.34.0
     # via pre-commit
