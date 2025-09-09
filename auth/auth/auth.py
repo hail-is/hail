@@ -23,6 +23,7 @@ from gear import (
     UserData,
     check_csrf_token,
     create_session,
+    global_security_headers_middleware,
     json_request,
     json_response,
     maybe_parse_bearer_header,
@@ -40,7 +41,6 @@ from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
 from hailtop.utils import secret_alnum_string
 from web_common import (
-    api_security_headers,
     render_template,
     set_message,
     setup_aiohttp_jinja2,
@@ -226,7 +226,6 @@ def validate_next_page_url(next_page):
 
 
 @routes.get('/healthcheck')
-@api_security_headers
 async def get_healthcheck(_) -> web.Response:
     return web.Response()
 
@@ -446,7 +445,6 @@ async def callback(request) -> web.Response:
 
 
 @routes.post('/api/v1alpha/users/{user}/create')
-@api_security_headers
 @auth.authenticated_developers_only()
 async def create_user(request: web.Request, _) -> web.Response:
     db = request.app[AppKeys.DB]
@@ -509,7 +507,6 @@ async def get_copy_paste_token(request: web.Request, userdata: UserData) -> web.
 
 
 @routes.post('/api/v1alpha/copy-paste-token')
-@api_security_headers
 @auth.authenticated_users_only()
 async def get_copy_paste_token_api(request: web.Request, _) -> web.Response:
     session_id = await get_session_id(request)
@@ -536,7 +533,6 @@ async def logout(request: web.Request, userdata: Optional[UserData]) -> NoReturn
 
 
 @routes.get('/api/v1alpha/login')
-@api_security_headers
 async def rest_login(request: web.Request) -> web.Response:
     callback_port = request.query['callback_port']
     callback_uri = f'http://127.0.0.1:{callback_port}/oauth2callback'
@@ -552,7 +548,6 @@ async def rest_login(request: web.Request) -> web.Response:
 
 
 @routes.get('/api/v1alpha/oauth2-client')
-@api_security_headers
 async def hailctl_oauth_client(request):  # pylint: disable=unused-argument
     idp = IdentityProvider.GOOGLE if CLOUD == 'gcp' else IdentityProvider.MICROSOFT
     return json_response({'idp': idp.value, 'oauth2_client': request.app[AppKeys.HAILCTL_CLIENT_CONFIG]})
@@ -614,7 +609,6 @@ async def post_create_user(request: web.Request, _) -> NoReturn:
 
 
 @routes.get('/api/v1alpha/users')
-@api_security_headers
 @auth.authenticated_users_only()
 async def rest_get_users(request: web.Request, userdata: UserData) -> web.Response:
     if userdata['is_developer'] != 1 and userdata['username'] != 'ci':
@@ -630,7 +624,6 @@ FROM users;
 
 
 @routes.get('/api/v1alpha/users/{user}')
-@api_security_headers
 @auth.authenticated_developers_only()
 async def rest_get_user(request: web.Request, _) -> web.Response:
     db = request.app[AppKeys.DB]
@@ -695,7 +688,6 @@ async def delete_user(request: web.Request, _) -> NoReturn:
 
 
 @routes.delete('/api/v1alpha/users/{user}')
-@api_security_headers
 @auth.authenticated_developers_only()
 async def rest_delete_user(request: web.Request, _) -> web.Response:
     db = request.app[AppKeys.DB]
@@ -750,7 +742,6 @@ async def activate_user(request: web.Request, _) -> NoReturn:
 
 
 @routes.get('/api/v1alpha/oauth2callback')
-@api_security_headers
 async def rest_callback(request):
     flow_json = request.query.get('flow')
     if flow_json is None:
@@ -789,7 +780,6 @@ async def rest_callback(request):
 
 
 @routes.post('/api/v1alpha/copy-paste-login')
-@api_security_headers
 async def rest_copy_paste_login(request):
     copy_paste_token = request.query['copy_paste_token']
     db = request.app[AppKeys.DB]
@@ -816,7 +806,6 @@ WHERE copy_paste_tokens.id = %s
 
 
 @routes.post('/api/v1alpha/invalidate_all_sessions')
-@api_security_headers
 @auth.authenticated_developers_only()
 async def rest_invalidate_all_sessions(request: web.Request, _) -> web.Response:
     db = request.app[AppKeys.DB]
@@ -836,7 +825,6 @@ async def invalidate_all_sessions(request: web.Request, _) -> NoReturn:
 
 
 @routes.post('/api/v1alpha/logout')
-@api_security_headers
 @auth.authenticated_users_only()
 async def rest_logout(request: web.Request, _) -> web.Response:
     session_id = await get_session_id(request)
@@ -928,14 +916,12 @@ WHERE id = %s;
 
 
 @routes.get('/api/v1alpha/userinfo')
-@api_security_headers
 @auth.authenticated_users_only()
 async def userinfo(_, userdata: UserData) -> web.Response:
     return json_response(userdata)
 
 
 @routes.route('*', '/api/v1alpha/verify_dev_credentials', name='verify_dev')
-@api_security_headers
 @auth.authenticated_users_only()
 async def verify_dev_credentials(_, userdata: UserData) -> web.Response:
     if userdata['is_developer'] != 1:
@@ -944,7 +930,6 @@ async def verify_dev_credentials(_, userdata: UserData) -> web.Response:
 
 
 @routes.route('*', '/api/v1alpha/verify_dev_or_sa_credentials', name='verify_dev_or_sa')
-@api_security_headers
 @auth.authenticated_users_only()
 async def verify_dev_or_sa_credentials(_, userdata: UserData) -> web.Response:
     if userdata['is_developer'] != 1 and userdata['is_service_account'] != 1:
@@ -953,7 +938,6 @@ async def verify_dev_or_sa_credentials(_, userdata: UserData) -> web.Response:
 
 
 @routes.get('/api/v1alpha/check_system_permission')
-@api_security_headers
 @auth.authenticated_users_only()
 async def check_system_permission(request: web.Request, userdata: UserData) -> web.Response:
     permission_name = request.query.get('permission')
@@ -1000,7 +984,6 @@ WHERE usr.user_id = %s
 
 
 @routes.get('/api/v1alpha/system_roles/me')
-@api_security_headers
 @auth.authenticated_users_only()
 async def get_system_roles_for_me(request: web.Request, userdata: UserData) -> web.Response:
     user_roles_permissions = await _get_system_role_assignments(request, user_id_filter=userdata['id'])
@@ -1008,7 +991,6 @@ async def get_system_roles_for_me(request: web.Request, userdata: UserData) -> w
 
 
 @routes.get('/api/v1alpha/system_roles/{user_id}')
-@api_security_headers
 @auth.authenticated_users_with_permission(SystemPermission.READ_SYSTEM_ROLES)
 async def get_system_roles_for_user(request: web.Request, _) -> web.Response:
     user_id = request.match_info['user_id']
@@ -1018,7 +1000,6 @@ async def get_system_roles_for_user(request: web.Request, _) -> web.Response:
 
 
 @routes.patch('/api/v1alpha/system_roles/{user_id}')
-@api_security_headers
 @auth.authenticated_users_with_permission(SystemPermission.ASSIGN_SYSTEM_ROLES)
 async def patch_system_roles_for_user(request: web.Request, _) -> web.Response:
     user_id = request.match_info['user_id']
@@ -1108,7 +1089,6 @@ WHERE usr.user_id = %s AND sr.name = %s
 
 
 @routes.get('/api/v1alpha/system_roles/all')
-@api_security_headers
 @auth.authenticated_users_with_permission(SystemPermission.READ_SYSTEM_ROLES)
 async def get_all_system_role_assignments(request: web.Request, _userdata: UserData) -> web.Response:
     # Note: userdata provided by authenticating wrapper, but is otherwise unused in function.
@@ -1253,7 +1233,9 @@ def run():
 
     install_profiler_if_requested('auth')
 
-    app = web.Application(middlewares=[auth_check_csrf_token, monitor_endpoints_middleware])
+    app = web.Application(
+        middlewares=[auth_check_csrf_token, monitor_endpoints_middleware, global_security_headers_middleware]
+    )
 
     setup_aiohttp_jinja2(app, 'auth')
     setup_aiohttp_session(app)

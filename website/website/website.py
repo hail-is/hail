@@ -8,7 +8,13 @@ import jinja2
 from aiohttp import web
 from prometheus_async.aio.web import server_stats  # type: ignore
 
-from gear import AuthServiceAuthenticator, CommonAiohttpAppKeys, monitor_endpoints_middleware, setup_aiohttp_session
+from gear import (
+    AuthServiceAuthenticator,
+    CommonAiohttpAppKeys,
+    global_security_headers_middleware,
+    monitor_endpoints_middleware,
+    setup_aiohttp_session,
+)
 from hailtop import httpx
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
@@ -110,7 +116,7 @@ async def on_cleanup(app):
 
 
 def run(local_mode):
-    app = web.Application(middlewares=[monitor_endpoints_middleware])
+    app = web.Application(middlewares=[monitor_endpoints_middleware, global_security_headers_middleware])
 
     if local_mode:
         log.error('running in local mode with bogus cookie storage key')
