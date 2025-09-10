@@ -155,7 +155,7 @@ class ServiceBackend(Backend):
 
         if regions == ANY_REGION:
             regions = await batch_client.supported_regions()
-        else:
+        elif regions is None:
             fallback = await batch_client.default_region()
             regions_from_conf = configuration_of(ConfigVariable.BATCH_REGIONS, regions, fallback)
             regions = regions_from_conf.split(',')
