@@ -2200,7 +2200,7 @@ async def delete_batch(request: web.Request, _, batch_id: int) -> web.Response:
     return web.Response()
 
 
-@routes.get('/batches/{batch_id}')
+@routes.get('/batches/{batch_id}', name='batch_details_page')
 @web_security_headers_unsafe_eval
 @billing_project_users_only()
 @catch_ui_error_in_dev
@@ -2261,7 +2261,7 @@ async def ui_cancel_batch(request: web.Request, _, batch_id: int) -> NoReturn:
         await _handle_ui_error(session, _cancel_job_group, request.app, batch_id, ROOT_JOB_GROUP_ID)
         set_message(session, f'Batch {batch_id} cancelled.', 'info')
     finally:
-        location = request.app.router['batches'].url_for().with_query(params)
+        location = request.app.router['batch_details_page'].url_for(batch_id=str(batch_id)).with_query(params)
         raise web.HTTPFound(location=location)  # pylint: disable=lost-exception
 
 

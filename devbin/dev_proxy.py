@@ -22,12 +22,12 @@ MODULES = {'batch': 'batch.front_end', 'batch-driver': 'batch.driver'}
 BC = web.AppKey('backend_client', Session)
 
 
-@routes.get('/api/{route:.*}')
+@routes.view('/api/{route:.*}')
 async def default_proxied_api_route(request: web.Request):
     return web.json_response(await proxy(request))
 
 
-@routes.get('/{route:.*}')
+@routes.view('/{route:.*}')
 async def default_proxied_web_route(request: web.Request):
     return await render_html(request, await proxy(request))
 
