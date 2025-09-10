@@ -6,7 +6,7 @@ Accompanying this diagram are additional, more detailed diagrams depicting:
 - various subsets of the batch database (e.g., only the tables relating to "instances"); and
 - a fully-detailed version of this diagram.
 
-Regarding the few tables excluded from this diagram, if a table has been excluded, it is almost certainly for visual clarity reasons and/or relevance to the Batch system as a whole. Pracitcally speaking, most of the excluded tables, e.g., contain one useful key/field and are never by other tables. That is, they aren't necessarily relevant with respect to the interconnection between tables in the Batch database, which is what this diagram serves to illustrate. Excluded tables are as follows:
+Regarding the few tables excluded from this diagram, if a table has been excluded, it is almost certainly for visual clarity reasons and/or relevance to the Batch system as a whole. Practically speaking, most of the excluded tables, e.g., contain one useful key/field and are never by other tables. That is, they aren't necessarily relevant with respect to the interconnection between tables in the Batch database, which is what this diagram serves to illustrate. Excluded tables are as follows:
 - aggregated_billing_project_user_resources_by_date_v3
 - aggregated_job_group_resources_v3
 - aggregated_job_resources_v3
