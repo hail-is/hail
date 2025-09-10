@@ -690,16 +690,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  batches:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Batch'
-                  last_batch_id:
-                    type: integer
-                    nullable: true
-                    description: ID of the last batch in the response, for pagination
+                $ref: '#/components/schemas/BatchListResponse'
         '401':
           description: Unauthorized
         '403':
