@@ -445,13 +445,26 @@ module "ukbb" {
   source = "../k8s/ukbb"
 }
 
+resource "google_project_iam_custom_role" "auth_service_account_manager" {
+  role_id     = "authServiceAccountManager"
+  title       = "Auth Service Account Manager"
+  description = "Custom role for auth service with minimal required permissions for service account management"
+  
+  permissions = [
+    "iam.serviceAccounts.create",
+    "iam.serviceAccounts.delete", 
+    "iam.serviceAccounts.get",
+    "iam.serviceAccounts.list",
+    "iam.serviceAccountKeys.create",
+  ]
+}
+
 module "auth_gsa_secret" {
   source = "./gsa_k8s_secret"
   name = "auth"
   project = var.gcp_project
   iam_roles = [
-    "iam.serviceAccountAdmin",
-    "iam.serviceAccountKeyAdmin",
+    "authServiceAccountManager",
     "cloudprofiler.agent",
   ]
 }
