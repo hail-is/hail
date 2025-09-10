@@ -394,7 +394,7 @@ async def on_cleanup(app):
 @web_security_headers_swagger
 async def swagger(request):
     page_context = {'service': 'monitoring', 'base_path': deploy_config.base_path('monitoring')}
-    return await render_template('monitoring', request, None, 'swagger.html', page_context)
+    return await render_template('monitoring', request, None, 'swagger/index.html', page_context)
 
 
 @routes.get('/openapi.yaml')
