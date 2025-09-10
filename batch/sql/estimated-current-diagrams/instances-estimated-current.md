@@ -1,4 +1,5 @@
 # Batch Database UML Diagram - Instances
+```mermaid
 ---
 config:
   layout: dagre

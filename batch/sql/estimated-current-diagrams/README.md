@@ -1,6 +1,25 @@
-# Batch Database UML Diagram (simplified)
+# Batch Database UML Diagram
 
-This diagram is is a simplified version of `estimated-current.md`, whose description can be found on that diagram. Like `estimated-current.md`, this serves to be a visual representation of `estimated-current.sql`, however it has been simplified by **only including the primary and foreign keys for a given table**.
+This diagram is made to be an up-to-date visual representation of (the important parts of) the Batch database, and more specifically to be a visual representation of `estimated-current.sql`. As such, it is generally only as reliable as `estimated-current.sql`, and must be updated manually to be an accurate source of information (as is the case with `estimated-current.sql`). As this diagram serves to be an informative visual representation of `estimated-current.sql`, certain extraneous information has been abridged and/or excluded, and has been simplified by **only including the primary and foreign keys for a given table**. For a complete (albeit harder to read) diagram representation of the Batch database, please refer to `estimated-current.md` in this directory. For detailed views of
+
+Regarding the few tables excluded from this diagram: if a table has been excluded, it is almost certainly for visual clarity reasons and/or relevance to the Batch system as a whole. Pracitcally speaking, most of the excluded tables, e.g., contain one useful key/field and are never by other tables. That is, they aren't necessarily relevant with respect to the interconnection between tables in the Batch database, which is what this diagram serves to illustrate. Excluded tables are as follows:
+- aggregated_billing_project_user_resources_by_date_v3
+- aggregated_job_group_resources_v3
+- aggregated_job_resources_v3
+- batch_migration_version
+- batch_migrations
+- events_mark
+- feature_flags
+- globals
+- instances_free_cores_mcpu
+- job_group_inst_coll_cancellable_resources
+- job_group_self_and_ancestors
+- job_groups_cancelled
+- job_groups_inst_coll_staging
+- job_groups_n_jobs_in_complete_states
+- jobs_telemetry
+- latest_product_versions
+- regions
 
 Conventions:
 - Primary keys are listed in order as the first rows of each table, and are denoted by **bold text**.

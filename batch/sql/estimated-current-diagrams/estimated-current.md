@@ -1,31 +1,4 @@
-# Batch Database UML Diagram
-
-This diagram is made to be an up-to-date visual representation of (the important parts of) the Batch database, and more specifically to be a visual representation of `estimated-current.sql`. As such, it is generally only as reliable as `estimated-current.sql`, and must be updated manually to be an accurate source of information (as is the case with `estimated-current.sql`). Regarding the few tables excluded from this diagram: if a table has been excluded, it is almost certainly for visual clarity reasons and/or relevance to the Batch system as a whole. Excluded tables are as follows:
-- aggregated_billing_project_user_resources_by_date_v3
-- aggregated_job_group_resources_v3
-- aggregated_job_resources_v3
-- batch_migration_version
-- batch_migrations
-- events_mark
-- feature_flags
-- globals
-- instances_free_cores_mcpu
-- job_group_inst_coll_cancellable_resources
-- job_group_self_and_ancestors
-- job_groups_cancelled
-- job_groups_inst_coll_staging
-- job_groups_n_jobs_in_complete_states
-- jobs_telemetry
-- latest_product_versions
-- regions
-
-Accompanying this diagram are additional diagrams depicting:
-- various subsets of the batch database (e.g., only the tables relating to "instances"); and
-- a simplified version of this diagram.
-
-Conventions:
-- Primary keys are listed in order as the first rows of each table, and are denoted by **bold text**.
-- Foreign keys are denoted by `FK` in the rightmost column, and are further denoted via connections between two tables.
+# Batch Database UML Diagram (full)
 ```mermaid
 ---
 config:
