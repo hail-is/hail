@@ -793,7 +793,7 @@ def contingency_table_test(c1, c2, c3, c4, min_cell_count) -> StructExpression:
     Struct(p_value=1.4626257805267089e-07, odds_ratio=4.959830866807611)
 
     >>> hl.eval(hl.contingency_table_test(51, 43, 22, 92, min_cell_count=23))
-    Struct(p_value=2.1564999740157304e-07, odds_ratio=4.918058171469967)
+    Struct(p_value=2.156499974015729e-07, odds_ratio=4.918058171469967)
 
     Notes
     -----
@@ -1133,8 +1133,8 @@ def exp(x) -> Float64Expression:
     return _func("exp", tfloat64, x)
 
 
-@typecheck(c1=expr_int32, c2=expr_int32, c3=expr_int32, c4=expr_int32)
-def fisher_exact_test(c1, c2, c3, c4) -> StructExpression:
+@typecheck(c1=expr_int32, c2=expr_int32, c3=expr_int32, c4=expr_int32, _pvalue_only=bool)
+def fisher_exact_test(c1, c2, c3, c4, *, _pvalue_only=False) -> StructExpression:
     """Calculates the p-value, odds ratio, and 95% confidence interval using
     Fisher's exact test for a 2x2 table.
 
@@ -1142,11 +1142,11 @@ def fisher_exact_test(c1, c2, c3, c4) -> StructExpression:
     --------
 
     >>> hl.eval(hl.fisher_exact_test(10, 10, 10, 10))
-    Struct(p_value=1.0000000000000002, odds_ratio=1.0,
+    Struct(p_value=1.0, odds_ratio=1.0,
            ci_95_lower=0.24385796914260355, ci_95_upper=4.100747675033819)
 
     >>> hl.eval(hl.fisher_exact_test(51, 43, 22, 92))
-    Struct(p_value=2.1564999740157304e-07, odds_ratio=4.918058171469967,
+    Struct(p_value=2.156499974015729e-07, odds_ratio=4.918058171469967,
            ci_95_lower=2.5659373368248444, ci_95_upper=9.677929632035475)
 
     Notes
@@ -1176,8 +1176,11 @@ def fisher_exact_test(c1, c2, c3, c4) -> StructExpression:
         `ci_95_lower (:py:data:`.tfloat64`), and `ci_95_upper`
         (:py:data:`.tfloat64`).
     """
-    ret_type = tstruct(p_value=tfloat64, odds_ratio=tfloat64, ci_95_lower=tfloat64, ci_95_upper=tfloat64)
-    return _func("fisher_exact_test", ret_type, c1, c2, c3, c4)
+    if _pvalue_only:
+        return struct(p_value=_func("fisher_exact_test_pvalue_only", tfloat64, c1, c2, c3, c4))
+    else:
+        ret_type = tstruct(p_value=tfloat64, odds_ratio=tfloat64, ci_95_lower=tfloat64, ci_95_upper=tfloat64)
+        return _func("fisher_exact_test", ret_type, c1, c2, c3, c4)
 
 
 @typecheck(x=expr_oneof(expr_float32, expr_float64, expr_ndarray(expr_float64)))
