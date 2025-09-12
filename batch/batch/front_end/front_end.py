@@ -3450,7 +3450,7 @@ async def index(request: web.Request, _) -> NoReturn:
 @web_security_headers_swagger
 async def swagger(request):
     page_context = {'service': 'batch', 'base_path': deploy_config.base_path('batch')}
-    return await render_template('batch', request, None, 'swagger.html', page_context)
+    return await render_template('batch', request, None, 'swagger/index.html', page_context)
 
 
 @routes.get('/openapi.yaml')
