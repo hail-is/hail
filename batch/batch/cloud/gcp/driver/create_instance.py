@@ -393,7 +393,12 @@ journalctl -u docker.service > dockerd.log
             ]
         },
         'tags': {'items': ["batch2-agent"]},
-        'shieldedInstanceConfig': {'enableSecureBoot': True, 'enableVtpm': True, 'enableIntegrityMonitoring': True},
+        # Note: secureBoot is problematic for GPU jobs because nvidia drivers aren't presigned and therefore won't load
+        'shieldedInstanceConfig': {
+            'enableSecureBoot': not is_gpu,
+            'enableVtpm': True,
+            'enableIntegrityMonitoring': True,
+        },
     }
     if is_gpu:
         config['guestAccelerators'] = [
