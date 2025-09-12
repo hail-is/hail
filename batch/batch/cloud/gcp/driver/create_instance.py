@@ -53,7 +53,7 @@ def create_vm_config(
         machine_type, accelerator_type, count = parts
         accelerator_count = int(count)
 
-    is_gpu = machine_type_to_gpu(machine_type_full) is not None
+    is_gpu = accelerator_type is not None and accelerator_count is not None
 
     parts = gcp_machine_type_to_parts(machine_type)
     assert parts
@@ -395,7 +395,7 @@ journalctl -u docker.service > dockerd.log
         'tags': {'items': ["batch2-agent"]},
         # Note: secureBoot is problematic for GPU jobs because nvidia drivers aren't presigned and therefore won't load
         'shieldedInstanceConfig': {
-            'enableSecureBoot': not is_gpu,
+            'enableSecureBoot': not is_gpu and not machine_type_to_gpu(machine_type_full),
             'enableVtpm': True,
             'enableIntegrityMonitoring': True,
         },
