@@ -53,7 +53,7 @@ def create_vm_config(
         machine_type, accelerator_type, count = parts
         accelerator_count = int(count)
 
-    is_gpu = accelerator_type is not None and accelerator_count is not None
+    is_gpu = machine_type_to_gpu(machine_type_full) is not None
 
     parts = gcp_machine_type_to_parts(machine_type)
     assert parts
