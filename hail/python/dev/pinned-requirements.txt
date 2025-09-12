@@ -622,6 +622,8 @@ urllib3==2.5.0
     #   requests
 uv==0.8.13
     # via -r hail/python/dev/requirements.txt
+uv-build==0.8.13
+    # via -r hail/python/dev/requirements.txt
 virtualenv==20.34.0
     # via pre-commit
 watchfiles==1.1.0
