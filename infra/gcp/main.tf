@@ -121,6 +121,7 @@ resource "google_container_cluster" "vdc" {
   name = "vdc"
   location = var.gcp_zone
   network = google_compute_network.default.name
+  enable_shielded_nodes = true
 
   # We can't create a cluster with no node pool defined, but we want to only use
   # separately managed node pools. So we create the smallest possible default
@@ -200,6 +201,11 @@ resource "google_container_node_pool" "vdc_preemptible_pool" {
     metadata = {
       disable-legacy-endpoints = "true"
     }
+
+    shielded_instance_config {
+      enable_integrity_monitoring = true
+      enable_secure_boot          = true
+    }
   }
 }
 
@@ -227,6 +233,11 @@ resource "google_container_node_pool" "vdc_nonpreemptible_pool" {
 
     metadata = {
       disable-legacy-endpoints = "true"
+    }
+
+    shielded_instance_config {
+      enable_integrity_monitoring = true
+      enable_secure_boot          = true
     }
   }
 }
