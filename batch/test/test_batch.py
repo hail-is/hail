@@ -1519,6 +1519,7 @@ async def test_gpu_accesibility_g2(client: BatchClient):
         os.environ['HAIL_GPU_IMAGE'],
         ['python3', '-c', 'import torch; assert torch.cuda.is_available()'],
         resources=resources,
+        n_max_attempts=1,
     )
     await b.submit()
     try:
@@ -1539,6 +1540,7 @@ async def test_nvidia_driver_accesibility_usage(client: BatchClient):
         os.environ['HAIL_GPU_IMAGE'],
         ['nvidia-smi'],
         resources=resources,
+        n_max_attempts=1,
     )
     await b.submit()
     try:
