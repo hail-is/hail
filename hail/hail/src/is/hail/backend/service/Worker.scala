@@ -53,35 +53,11 @@ class WorkerTimer() {
 // the ObjectInputStream to use the correct classloader, but it is not configurable
 // so we override the behavior ourselves.
 // For more context, see: https://github.com/scala/bug/issues/9237#issuecomment-292436652
-object ExplicitClassLoaderInputStream {
-  val primClasses: util.HashMap[String, Class[_]] = {
-    val m = new util.HashMap[String, Class[_]](8, 1.0f)
-    m.put("boolean", Boolean.getClass)
-    m.put("byte", Byte.getClass)
-    m.put("char", Char.getClass)
-    m.put("short", Short.getClass)
-    m.put("int", Int.getClass)
-    m.put("long", Long.getClass)
-    m.put("float", Float.getClass)
-    m.put("double", Double.getClass)
-    m.put("void", Unit.getClass)
-    m
-  }
-}
-
 class ExplicitClassLoaderInputStream(is: InputStream, cl: ClassLoader)
     extends ObjectInputStream(is) {
 
-  override def resolveClass(desc: ObjectStreamClass): Class[_] = {
-    val name = desc.getName
-    try return Class.forName(name, false, cl)
-    catch {
-      case ex: ClassNotFoundException =>
-        val cl = ExplicitClassLoaderInputStream.primClasses.get(name)
-        if (cl != null) return cl
-        else throw ex
-    }
-  }
+  override def resolveClass(desc: ObjectStreamClass): Class[_] =
+    Class.forName(desc.getName, false, cl)
 }
 
 object Worker {
