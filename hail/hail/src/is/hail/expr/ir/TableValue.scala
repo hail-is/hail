@@ -194,8 +194,10 @@ object TableValue {
 
   def parallelize(ctx: ExecuteContext, rowsAndGlobal: IR, nPartitions: Option[Int]): TableValue = {
     val (ptype: PStruct, res) =
-      CompileAndEvaluate._apply(ctx, rowsAndGlobal, optimize = false) match {
-        case Right((t, off)) => (t.fields(0).typ, t.loadField(off, 0))
+      ctx.local(flags = ctx.flags - Optimize.Flags.Optimize) { ctx =>
+        CompileAndEvaluate._apply(ctx, rowsAndGlobal) match {
+          case Right((t, off)) => (t.fields(0).typ, t.loadField(off, 0))
+        }
       }
 
     val globalsT = ptype.types(1).setRequired(true).asInstanceOf[PStruct]
