@@ -14,7 +14,7 @@ from hail.expr.types import tint32
 from hail.ir.renderer import CSERenderer
 from hail.utils import new_temp_file
 from hail.utils.java import Env
-from test.hail.helpers import resource, skip_unless_spark_backend, skip_when_service_backend
+from test.hail.helpers import resource, skip_unless_spark_backend
 
 
 def value_irs_env():
@@ -189,12 +189,6 @@ def value_ir(value_irs, request):
     return value_irs[request.param]
 
 
-@skip_when_service_backend()
-def test_ir_parses(value_ir):
-    env = value_irs_env()
-    Env.backend()._parse_value_ir(str(value_ir), env)
-
-
 def test_ir_value_type(value_ir):
     env = value_irs_env()
     typ = Env.backend().value_type(
@@ -313,11 +307,6 @@ def table_ir(table_irs, request):
     return table_irs[request.param]
 
 
-@skip_when_service_backend()
-def test_table_ir_parses(table_ir):
-    Env.backend()._parse_table_ir(str(table_ir))
-
-
 def test_table_ir_table_type(table_ir):
     typ = Env.backend().table_type(table_ir)
     assert table_ir.typ == typ
@@ -418,11 +407,6 @@ static_len_matrix_irs = 29
 def matrix_ir(matrix_irs, request):
     assert len(matrix_irs) == static_len_matrix_irs
     return matrix_irs[request.param]
-
-
-@skip_when_service_backend()
-def test_matrix_ir_parses(matrix_ir):
-    Env.backend()._parse_matrix_ir(str(matrix_ir))
 
 
 def test_matrix_ir_matrix_type(matrix_ir):

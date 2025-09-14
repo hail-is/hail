@@ -5,6 +5,7 @@ import is.hail.expr.{JSONAnnotationImpex, Nat, ParserUtils}
 import is.hail.expr.ir.agg._
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.functions.RelationalFunctions
+import is.hail.expr.ir.lowering.LoweringPipeline
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.rvd.{RVDPartitioner, RVDType}
 import is.hail.types.{tcoerce, VirtualTypeWithReq}
@@ -739,18 +740,6 @@ object IRParser {
     sig
   }
 
-  def agg_signature(it: TokenIterator): AggSignature = {
-    punctuation(it, "(")
-    val op = agg_op(it)
-    val initArgs = type_exprs(it)
-    val seqOpArgs = type_exprs(it)
-    punctuation(it, ")")
-    AggSignature(op, initArgs, seqOpArgs)
-  }
-
-  def agg_signatures(it: TokenIterator): Array[AggSignature] =
-    base_seq_parser(agg_signature)(it)
-
   def ir_value(it: TokenIterator): (Type, Any) = {
     val typ = type_expr(it)
     val s = string_literal(it)
@@ -1292,15 +1281,13 @@ object IRParser {
         for {
           initOpArgs <- ir_value_exprs(ctx)(it)
           seqOpArgs <- ir_value_exprs(ctx)(it)
-          aggSig = AggSignature(aggOp, null, null)
-        } yield ApplyAggOp(initOpArgs, seqOpArgs, aggSig)
+        } yield ApplyAggOp(initOpArgs, seqOpArgs, aggOp)
       case "ApplyScanOp" =>
         val aggOp = agg_op(it)
         for {
           initOpArgs <- ir_value_exprs(ctx)(it)
           seqOpArgs <- ir_value_exprs(ctx)(it)
-          aggSig = AggSignature(aggOp, null, null)
-        } yield ApplyScanOp(initOpArgs, seqOpArgs, aggSig)
+        } yield ApplyScanOp(initOpArgs, seqOpArgs, aggOp)
       case "AggFold" =>
         val accumName = name(it)
         val otherAccumName = name(it)
@@ -1937,6 +1924,7 @@ object IRParser {
   def blockmatrix_sparsifier(ctx: ExecuteContext)(it: TokenIterator)
     : StackFrame[BlockMatrixSparsifier] = {
     punctuation(it, "(")
+    val lower = LoweringPipeline.relationalLowerer(optimize = true)
     identifier(it) match {
       case "PyRowIntervalSparsifier" =>
         val blocksOnly = boolean_literal(it)
@@ -1944,7 +1932,7 @@ object IRParser {
         ir_value_expr(ctx)(it).map { ir_ =>
           val ir = annotateTypes(ctx, ir_, BindingEnv.empty).asInstanceOf[IR]
           val Row(starts: IndexedSeq[Long @unchecked], stops: IndexedSeq[Long @unchecked]) =
-            CompileAndEvaluate[Row](ctx, ir)
+            CompileAndEvaluate[Row](ctx, ir, lower = lower)
           RowIntervalSparsifier(blocksOnly, starts, stops)
         }
       case "PyBandSparsifier" =>
@@ -1952,21 +1940,21 @@ object IRParser {
         punctuation(it, ")")
         ir_value_expr(ctx)(it).map { ir_ =>
           val ir = annotateTypes(ctx, ir_, BindingEnv.empty).asInstanceOf[IR]
-          val Row(l: Long, u: Long) = CompileAndEvaluate[Row](ctx, ir)
+          val Row(l: Long, u: Long) = CompileAndEvaluate[Row](ctx, ir, lower = lower)
           BandSparsifier(blocksOnly, l, u)
         }
       case "PyPerBlockSparsifier" =>
         punctuation(it, ")")
         ir_value_expr(ctx)(it).map { ir_ =>
           val ir = annotateTypes(ctx, ir_, BindingEnv.empty).asInstanceOf[IR]
-          val indices = CompileAndEvaluate[IndexedSeq[Int]](ctx, ir)
+          val indices = CompileAndEvaluate[IndexedSeq[Int]](ctx, ir, lower = lower)
           PerBlockSparsifier(indices)
         }
       case "PyRectangleSparsifier" =>
         punctuation(it, ")")
         ir_value_expr(ctx)(it).map { ir_ =>
           val ir = annotateTypes(ctx, ir_, BindingEnv.empty).asInstanceOf[IR]
-          val rectangles = CompileAndEvaluate[IndexedSeq[Long]](ctx, ir)
+          val rectangles = CompileAndEvaluate[IndexedSeq[Long]](ctx, ir, lower = lower)
           RectangleSparsifier(rectangles.grouped(4).toIndexedSeq)
         }
       case "RowIntervalSparsifier" =>
@@ -2077,17 +2065,6 @@ object IRParser {
         case x: Recur =>
           val TTuple(IndexedSeq(_, TupleField(_, rt))) = env.eval.lookup(x.name)
           x._typ = rt
-          x
-        case x: ApplyAggOp =>
-          x.aggSig.initOpArgs = x.initOpArgs.map(_.typ)
-          x.aggSig.seqOpArgs = x.seqOpArgs.map(_.typ)
-          x
-        case x: ApplyScanOp =>
-          x.aggSig.initOpArgs = x.initOpArgs.map(_.typ)
-          x.aggSig.seqOpArgs = x.seqOpArgs.map(_.typ)
-          x
-        case x: ApplyComparisonOp =>
-          x.op = x.op.copy(x.l.typ, x.r.typ)
           x
         case MakeArray(args, typ) =>
           MakeArray.unify(ctx, args, typ)

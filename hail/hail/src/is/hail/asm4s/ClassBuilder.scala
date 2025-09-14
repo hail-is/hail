@@ -5,7 +5,6 @@ import is.hail.lir
 import is.hail.utils._
 
 import scala.collection.mutable
-import scala.language.existentials
 
 import java.io._
 import java.nio.charset.StandardCharsets

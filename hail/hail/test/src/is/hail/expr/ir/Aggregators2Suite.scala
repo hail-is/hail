@@ -15,6 +15,8 @@ import is.hail.utils._
 import is.hail.variant.{Call0, Call1, Call2}
 
 import org.apache.spark.sql.Row
+import org.scalatest
+import org.scalatest.Inspectors.forAll
 import org.testng.annotations.Test
 
 class Aggregators2Suite extends HailSuite {
@@ -28,7 +30,7 @@ class Aggregators2Suite extends HailSuite {
     nPartitions: Int = 2,
     expectedInit: Option[Any] = None,
     transformResult: Option[Any => Any] = None,
-  ): Unit = {
+  ): scalatest.Assertion = {
     assert(seqOps.length >= 2 * nPartitions, s"Test aggregators with a larger stream!")
 
     val argT = PType.canonical(
@@ -183,7 +185,7 @@ class Aggregators2Suite extends HailSuite {
     nPartitions: Int = 2,
     expectedInit: Option[Any] = None,
     transformResult: Option[Any => Any] = None,
-  ): Unit =
+  ): scalatest.Assertion =
     assertAggEqualsProcessed(
       aggSig,
       InitOp(0, initArgs, aggSig),
@@ -212,7 +214,7 @@ class Aggregators2Suite extends HailSuite {
   def collectAggSig(t: Type): PhysicalAggSig =
     PhysicalAggSig(Collect(), CollectStateSig(VirtualTypeWithReq(PType.canonical(t))))
 
-  @Test def TestCount(): Unit = {
+  @Test def TestCount(): scalatest.Assertion = {
     val seqOpArgs = Array.fill(rows.length)(FastSeq[IR]())
     assertAggEquals(
       countAggSig,
@@ -223,7 +225,7 @@ class Aggregators2Suite extends HailSuite {
     )
   }
 
-  @Test def testSum(): Unit = {
+  @Test def testSum(): scalatest.Assertion = {
     val a = Ref(freshName(), arrayType)
     val seqOpArgs = Array.tabulate(rows.length)(i =>
       FastSeq[IR](GetField(ArrayRef(a, i), "b"))
@@ -237,7 +239,7 @@ class Aggregators2Suite extends HailSuite {
     )
   }
 
-  @Test def testPrevNonnullStr(): Unit = {
+  @Test def testPrevNonnullStr(): scalatest.Assertion = {
     val aggSig =
       PhysicalAggSig(PrevNonnull(), TypedStateSig(VirtualTypeWithReq(PCanonicalString())))
     val a = Ref(freshName(), arrayType)
@@ -254,7 +256,7 @@ class Aggregators2Suite extends HailSuite {
     )
   }
 
-  @Test def testPrevNonnull(): Unit = {
+  @Test def testPrevNonnull(): scalatest.Assertion = {
     val a = Ref(freshName(), arrayType)
     val seqOpArgs =
       Array.tabulate(rows.length)(i => FastSeq[IR](ArrayRef(a, i)))
@@ -267,7 +269,7 @@ class Aggregators2Suite extends HailSuite {
     )
   }
 
-  @Test def testProduct(): Unit = {
+  @Test def testProduct(): scalatest.Assertion = {
     val aggSig = PhysicalAggSig(
       Product(),
       TypedStateSig(VirtualTypeWithReq.fullyOptional(TInt64).setRequired(true)),
@@ -285,7 +287,7 @@ class Aggregators2Suite extends HailSuite {
     )
   }
 
-  @Test def testCallStats(): Unit = {
+  @Test def testCallStats(): scalatest.Assertion = {
     val t = TStruct("x" -> TCall)
 
     val calls = FastSeq(
@@ -337,7 +339,7 @@ class Aggregators2Suite extends HailSuite {
     )
   }
 
-  @Test def testTakeBy(): Unit = {
+  @Test def testTakeBy(): scalatest.Assertion = {
     val t = TStruct(
       "a" -> TStruct("x" -> TInt32, "y" -> TInt64),
       "b" -> TInt32,
@@ -404,7 +406,7 @@ class Aggregators2Suite extends HailSuite {
       keyType: Type,
       keyF: IR => IR,
       so: SortOrder = Ascending,
-    ): Unit = {
+    ): scalatest.Assertion = {
 
       val aggSig = PhysicalAggSig(
         TakeBy(),
@@ -481,7 +483,7 @@ class Aggregators2Suite extends HailSuite {
           invoke("str", TString, GetField(Ref(TableIR.rowName, tr.typ.rowType), "idx")),
           I32(9999) - GetField(Ref(TableIR.rowName, tr.typ.rowType), "idx"),
         ),
-        AggSignature(TakeBy(), FastSeq(TInt32), FastSeq(TString, TInt32)),
+        TakeBy(),
       ),
     )
 
@@ -490,7 +492,7 @@ class Aggregators2Suite extends HailSuite {
     )
   }
 
-  @Test def testTake(): Unit = {
+  @Test def testTake(): scalatest.Assertion = {
     val t = TStruct(
       "a" -> TStruct("x" -> TInt32, "y" -> TInt64),
       "b" -> TInt32,
@@ -542,7 +544,7 @@ class Aggregators2Suite extends HailSuite {
       ((x: IR) => GetField(x, f.name), (r: Row) => if (r == null) null else r.get(f.index), f.typ)
     }.filter(_._3 == TString)
 
-    transformations.foreach { case (irF, rowF, subT) =>
+    forAll(transformations) { case (irF, rowF, subT) =>
       val aggSig = PhysicalAggSig(Take(), TakeStateSig(VirtualTypeWithReq(PType.canonical(subT))))
       val seqOpArgs =
         Array.tabulate(rows.length)(i => FastSeq[IR](irF(ArrayRef(a, i))))
@@ -573,7 +575,7 @@ class Aggregators2Suite extends HailSuite {
     ))
   }
 
-  @Test def testMin(): Unit = {
+  @Test def testMin(): scalatest.Assertion = {
     val aggSig = PhysicalAggSig(Min(), TypedStateSig(VirtualTypeWithReq(PInt64(false))))
     val a = Ref(freshName(), arrayType)
     val seqOpArgs = Array.tabulate(rows.length)(i => FastSeq[IR](GetField(ArrayRef(a, i), "b")))
@@ -595,7 +597,7 @@ class Aggregators2Suite extends HailSuite {
     )
   }
 
-  @Test def testMax(): Unit = {
+  @Test def testMax(): scalatest.Assertion = {
     val aggSig = PhysicalAggSig(Max(), TypedStateSig(VirtualTypeWithReq(PInt64(false))))
     val a = Ref(freshName(), arrayType)
     val seqOpArgs = Array.tabulate(rows.length)(i => FastSeq[IR](GetField(ArrayRef(a, i), "b")))
@@ -617,7 +619,7 @@ class Aggregators2Suite extends HailSuite {
     )
   }
 
-  @Test def testCollectLongs(): Unit = {
+  @Test def testCollectLongs(): scalatest.Assertion = {
     val a = Ref(freshName(), arrayType)
     val seqOpArgs = Array.tabulate(rows.length)(i => FastSeq[IR](GetField(ArrayRef(a, i), "b")))
     assertAggEquals(
@@ -629,7 +631,7 @@ class Aggregators2Suite extends HailSuite {
     )
   }
 
-  @Test def testCollectStrs(): Unit = {
+  @Test def testCollectStrs(): scalatest.Assertion = {
     val a = Ref(freshName(), arrayType)
     val seqOpArgs = Array.tabulate(rows.length)(i => FastSeq[IR](GetField(ArrayRef(a, i), "a")))
 
@@ -642,7 +644,7 @@ class Aggregators2Suite extends HailSuite {
     )
   }
 
-  @Test def testCollectBig(): Unit = {
+  @Test def testCollectBig(): scalatest.Assertion = {
     val seqOpArgs = Array.tabulate(100)(i => FastSeq(I64(i)))
     assertAggEquals(
       collectAggSig(TInt64),
@@ -653,7 +655,7 @@ class Aggregators2Suite extends HailSuite {
     )
   }
 
-  @Test def testArrayElementsAgg(): Unit = {
+  @Test def testArrayElementsAgg(): scalatest.Assertion = {
     val alState = ArrayLenAggSig(knownLength = false, FastSeq(pnnAggSig, countAggSig, sumAggSig))
 
     val value = FastSeq(
@@ -709,7 +711,7 @@ class Aggregators2Suite extends HailSuite {
     )
   }
 
-  @Test def testNestedArrayElementsAgg(): Unit = {
+  @Test def testNestedArrayElementsAgg(): scalatest.Assertion = {
     val alstate1 = ArrayLenAggSig(knownLength = false, FastSeq(sumAggSig))
     val alstate2 = ArrayLenAggSig(knownLength = false, FastSeq[PhysicalAggSig](alstate1))
 
@@ -751,7 +753,7 @@ class Aggregators2Suite extends HailSuite {
     )
   }
 
-  @Test def testArrayElementsAggTake(): Unit = {
+  @Test def testArrayElementsAggTake(): scalatest.Assertion = {
     val value = FastSeq(
       FastSeq(Row("a", 0L), Row("b", 0L), Row("c", 0L), Row("f", 0L)),
       FastSeq(Row("a", 1L), null, Row("c", 1L), null),
@@ -791,7 +793,7 @@ class Aggregators2Suite extends HailSuite {
     )
   }
 
-  @Test def testGroup(): Unit = {
+  @Test def testGroup(): scalatest.Assertion = {
     val group = GroupedAggSig(
       VirtualTypeWithReq(PCanonicalString()),
       FastSeq(pnnAggSig, countAggSig, sumAggSig),
@@ -833,7 +835,7 @@ class Aggregators2Suite extends HailSuite {
     )
   }
 
-  @Test def testNestedGroup(): Unit = {
+  @Test def testNestedGroup(): scalatest.Assertion = {
 
     val group1 = GroupedAggSig(
       VirtualTypeWithReq(PCanonicalString()),
@@ -893,7 +895,7 @@ class Aggregators2Suite extends HailSuite {
     )
   }
 
-  @Test def testCollectAsSet(): Unit = {
+  @Test def testCollectAsSet(): scalatest.Assertion = {
     val rows =
       FastSeq(Row("abcd", 5L), null, Row(null, -2L), Row("abcd", 7L), null, Row("foo", null))
     val rref = Ref(freshName(), arrayType)
@@ -925,7 +927,7 @@ class Aggregators2Suite extends HailSuite {
     )
   }
 
-  @Test def testDownsample(): Unit = {
+  @Test def testDownsample(): scalatest.Assertion = {
     val aggSig = PhysicalAggSig(
       Downsample(),
       DownsampleStateSig(VirtualTypeWithReq(PCanonicalArray(PCanonicalString()))),
@@ -979,7 +981,7 @@ class Aggregators2Suite extends HailSuite {
     )
   }
 
-  @Test def testLoweringMatrixMapColsWithAggFilterAndLets(): Unit = {
+  @Test def testLoweringMatrixMapColsWithAggFilterAndLets(): scalatest.Assertion = {
     val t = MatrixType(
       TStruct.empty,
       FastSeq("col_idx"),
@@ -1000,7 +1002,7 @@ class Aggregators2Suite extends HailSuite {
               bar.toL + bar.toL + ApplyAggOp(
                 FastSeq(),
                 FastSeq(GetField(Ref(MatrixIR.rowName, t.rowType), "row_idx").toL),
-                AggSignature(Sum(), FastSeq(), FastSeq(TInt64)),
+                Sum(),
               ),
               false,
             )
@@ -1014,7 +1016,7 @@ class Aggregators2Suite extends HailSuite {
     )
   }
 
-  @Test def testRunAggScan(): Unit = {
+  @Test def testRunAggScan(): scalatest.Assertion = {
     implicit val execStrats = ExecStrategy.compileOnly
     val sig = PhysicalAggSig(
       Sum(),
@@ -1032,7 +1034,7 @@ class Aggregators2Suite extends HailSuite {
     assertEvalsTo(x, FastSeq(0.0, 0.0, 1.0, 3.0, 6.0))
   }
 
-  @Test def testNestedRunAggScan(): Unit = {
+  @Test def testNestedRunAggScan(): scalatest.Assertion = {
     implicit val execStrats = ExecStrategy.compileOnly
     val sig = PhysicalAggSig(
       Sum(),
@@ -1061,7 +1063,7 @@ class Aggregators2Suite extends HailSuite {
     )
   }
 
-  @Test def testRunAggBasic(): Unit = {
+  @Test def testRunAggBasic(): scalatest.Assertion = {
     implicit val execStrats = ExecStrategy.compileOnly
     val sig = PhysicalAggSig(Sum(), TypedStateSig(VirtualTypeWithReq(PFloat64(true))))
     val x = RunAgg(
@@ -1076,7 +1078,7 @@ class Aggregators2Suite extends HailSuite {
     assertEvalsTo(x, Row(-4.0))
   }
 
-  @Test def testRunAggNested(): Unit = {
+  @Test def testRunAggNested(): scalatest.Assertion = {
     implicit val execStrats = ExecStrategy.compileOnly
     val sumSig = PhysicalAggSig(Sum(), TypedStateSig(VirtualTypeWithReq(PFloat64(true))))
     val takeSig = PhysicalAggSig(Take(), TakeStateSig(VirtualTypeWithReq(PFloat64(true))))
@@ -1107,7 +1109,7 @@ class Aggregators2Suite extends HailSuite {
     assertEvalsTo(x, FastSeq(-1d, 0d, 1d, 2d, 3d))
   }
 
-  @Test(enabled = false) def testAggStateAndCombOp(): Unit = {
+  @Test(enabled = false) def testAggStateAndCombOp(): scalatest.Assertion = {
     implicit val execStrats = ExecStrategy.compileOnly
     val takeSig = PhysicalAggSig(Take(), TakeStateSig(VirtualTypeWithReq(PInt64(true))))
     val x = bindIR(

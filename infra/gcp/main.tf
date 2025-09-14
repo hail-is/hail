@@ -87,6 +87,13 @@ resource "google_project_service" "service_networking" {
   service = "servicenetworking.googleapis.com"
 }
 
+resource "google_compute_project_metadata" "oslogin" {
+  metadata = {
+    enable-oslogin = "TRUE"
+    block-project-ssh-keys = "TRUE"
+  }
+}
+
 resource "google_compute_network" "default" {
   name = "default"
 }
@@ -123,6 +130,17 @@ resource "google_container_cluster" "vdc" {
     # Don't use node auto-provisioning since we manage node pools ourselves
     enabled = false
     autoscaling_profile = "OPTIMIZE_UTILIZATION"
+  }
+
+  addons_config {
+    network_policy_config {
+      disabled = false
+    }
+  }
+
+  network_policy {
+    enabled = true
+    provider = "CALICO"
   }
 }
 

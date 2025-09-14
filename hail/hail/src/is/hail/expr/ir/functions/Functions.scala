@@ -7,6 +7,7 @@ import is.hail.experimental.ExperimentalFunctions
 import is.hail.expr.ir._
 import is.hail.expr.ir.defs.{Apply, ApplyIR, ApplySeeded, ApplySpecial}
 import is.hail.io.bgen.BGENFunctions
+import is.hail.macros.void
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.{EmitType, SType, SValue}
 import is.hail.types.physical.stypes.concrete._
@@ -22,7 +23,9 @@ import scala.reflect._
 import org.apache.spark.sql.Row
 
 object IRFunctionRegistry {
-  private val userAddedFunctions: mutable.Set[(String, (Type, Seq[Type], Seq[Type]))] =
+  type UserDefinedFnKey = (String, (Type, Seq[Type], Seq[Type]))
+
+  private[this] val userAddedFunctions: mutable.Set[UserDefinedFnKey] =
     mutable.HashSet.empty
 
   def clearUserFunctions(): Unit = {
@@ -71,9 +74,9 @@ object IRFunctionRegistry {
     typeParamStrs: Array[String],
     argNameStrs: Array[String],
     argTypeStrs: Array[String],
-    returnType: String,
+    returnTypeStr: String,
     bodyStr: String,
-  ): Unit = {
+  ): UserDefinedFnKey = {
     requireJavaIdentifier(name)
     val argNames = argNameStrs.map(Name)
     val typeParameters = typeParamStrs.map(IRParser.parseType).toFastSeq
@@ -81,15 +84,31 @@ object IRFunctionRegistry {
     val refMap = BindingEnv.eval(argNames.zip(valueParameterTypes): _*)
     val body = IRParser.parse_value_ir(ctx, bodyStr, refMap)
 
-    userAddedFunctions += ((name, (body.typ, typeParameters, valueParameterTypes)))
+    val returnType = IRParser.parseType(returnTypeStr)
+    assert(body.typ == returnType)
+
+    val key: UserDefinedFnKey = (name, (returnType, typeParameters, valueParameterTypes))
+    userAddedFunctions += key
     addIR(
       name,
       typeParameters,
       valueParameterTypes,
-      IRParser.parseType(returnType),
+      returnType,
       false,
       (_, args, _) => Subst(body, BindingEnv.eval(argNames.zip(args): _*)),
     )
+    key
+  }
+
+  def unregisterIr(key: UserDefinedFnKey): Unit = {
+    val (name, (returnType, typeParameterTypes, valueParameterTypes)) = key
+    if (userAddedFunctions.remove(key))
+      removeIRFunction(name, returnType, typeParameterTypes, valueParameterTypes)
+    else {
+      throw new NoSuchElementException(
+        s"No user defined function registered matching: ${prettySignature(name, typeParameterTypes, valueParameterTypes, returnType)}"
+      )
+    }
   }
 
   def removeIRFunction(
@@ -99,22 +118,23 @@ object IRFunctionRegistry {
     valueParameterTypes: Seq[Type],
   ): Unit = {
     val m = irRegistry(name)
-    m.remove((typeParameters, valueParameterTypes, returnType, false))
+    void(m.remove((typeParameters, valueParameterTypes, returnType, false)))
   }
 
-  def lookupFunction(
+  private[this] def lookupFunction(
     name: String,
     returnType: Type,
     typeParameters: Seq[Type],
     valueParameterTypes: Seq[Type],
   ): Option[JVMFunction] =
-    jvmRegistry.get(name).map { fs =>
-      fs.filter(t => t.unify(typeParameters, valueParameterTypes, returnType)).toSeq
-    }.getOrElse(FastSeq()) match {
-      case Seq() => None
-      case Seq(f) => Some(f)
-      case _ =>
-        fatal(s"Multiple functions found that satisfy $name(${valueParameterTypes.mkString(",")}).")
+    jvmRegistry.get(name).flatMap { fs =>
+      fs.filter(_.unify(typeParameters, valueParameterTypes, returnType)).toSeq match {
+        case Seq() => None
+        case Seq(f) => Some(f)
+        case _ => fatal(
+            s"Multiple functions found that satisfy ${prettySignature(name, typeParameters, valueParameterTypes, returnType)}."
+          )
+      }
     }
 
   def lookupFunctionOrFail(
@@ -122,31 +142,26 @@ object IRFunctionRegistry {
     returnType: Type,
     typeParameters: Seq[Type],
     valueParameterTypes: Seq[Type],
-  ): JVMFunction = {
-    jvmRegistry.lift(name) match {
+  ): JVMFunction =
+    jvmRegistry.get(name) match {
       case None =>
         fatal(
-          s"no functions found with the signature $name(${valueParameterTypes.mkString(", ")}): $returnType"
+          s"no functions found with the signature ${prettySignature(name, typeParameters, valueParameterTypes, returnType)}."
         )
       case Some(functions) =>
-        functions.filter(t =>
-          t.unify(typeParameters, valueParameterTypes, returnType)
-        ).toSeq match {
+        functions.filter(_.unify(typeParameters, valueParameterTypes, returnType)).toSeq match {
           case Seq() =>
-            val prettyFunctionSignature =
-              s"$name[${typeParameters.mkString(", ")}](${valueParameterTypes.mkString(", ")}): $returnType"
             val prettyMismatchedFunctionSignatures = functions.map(x => s"  $x").mkString("\n")
             fatal(
-              s"No function found with the signature $prettyFunctionSignature.\n" +
+              s"No function found with the signature ${prettySignature(name, typeParameters, valueParameterTypes, returnType)}.\n" +
                 s"However, there are other functions with that name:\n$prettyMismatchedFunctionSignatures"
             )
           case Seq(f) => f
           case _ => fatal(
-              s"Multiple functions found that satisfy $name(${valueParameterTypes.mkString(", ")})."
+              s"Multiple functions found that satisfy ${prettySignature(name, typeParameters, valueParameterTypes, returnType)})."
             )
         }
     }
-  }
 
   def lookupIR(
     name: String,
@@ -244,7 +259,8 @@ object IRFunctionRegistry {
   ).foreach(_.registerAll())
 
   def dumpFunctions(): Unit = {
-    def dtype(t: Type): String = s"""dtype("${StringEscapeUtils.escapeString(t.toString)}\")"""
+    def dtype(t: Type): String =
+      s"""dtype("${StringEscapeUtils.escapeString(t.toString)}\")"""
 
     irRegistry.foreach { case (name, fns) =>
       fns.foreach { case ((typeParameters, valueParameterTypes, returnType, _), _) =>
@@ -264,6 +280,14 @@ object IRFunctionRegistry {
       }
     }
   }
+
+  private[this] def prettySignature(
+    name: String,
+    typeParameterTypes: Seq[Type],
+    valueParameterTypes: Seq[Type],
+    returnType: Type,
+  ): String =
+    s"$name[${typeParameterTypes.mkString(", ")}](${valueParameterTypes.mkString(", ")}): $returnType"
 }
 
 object RegistryHelpers {

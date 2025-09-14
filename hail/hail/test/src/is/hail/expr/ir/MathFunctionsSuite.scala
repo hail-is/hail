@@ -1,21 +1,21 @@
 package is.hail.expr.ir
 
 import is.hail.{stats, ExecStrategy, HailSuite}
-import is.hail.TestUtils._
 import is.hail.expr.ir.defs.{ErrorIDs, F32, F64, False, I32, I64, Str, True}
 import is.hail.types.virtual._
 import is.hail.utils._
 
 import org.apache.spark.sql.Row
+import org.scalatest
 import org.testng.annotations.{DataProvider, Test}
 
 class MathFunctionsSuite extends HailSuite {
-  hc
+
   implicit val execStrats = ExecStrategy.values
 
   val tfloat = TFloat64
 
-  @Test def log2(): Unit = {
+  @Test def log2(): scalatest.Assertion = {
     assertEvalsTo(invoke("log2", TInt32, I32(2)), 1)
     assertEvalsTo(invoke("log2", TInt32, I32(32)), 5)
     assertEvalsTo(invoke("log2", TInt32, I32(33)), 5)
@@ -23,7 +23,7 @@ class MathFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("log2", TInt32, I32(64)), 6)
   }
 
-  @Test def roundToNextPowerOf2(): Unit = {
+  @Test def roundToNextPowerOf2(): scalatest.Assertion = {
     assertEvalsTo(invoke("roundToNextPowerOf2", TInt32, I32(2)), 2)
     assertEvalsTo(invoke("roundToNextPowerOf2", TInt32, I32(32)), 32)
     assertEvalsTo(invoke("roundToNextPowerOf2", TInt32, I32(33)), 64)
@@ -31,7 +31,7 @@ class MathFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("roundToNextPowerOf2", TInt32, I32(64)), 64)
   }
 
-  @Test def isnan(): Unit = {
+  @Test def isnan(): scalatest.Assertion = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     assertEvalsTo(invoke("isnan", TBoolean, F32(0)), false)
@@ -41,7 +41,7 @@ class MathFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("isnan", TBoolean, F64(Double.NaN)), true)
   }
 
-  @Test def is_finite(): Unit = {
+  @Test def is_finite(): scalatest.Assertion = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     assertEvalsTo(invoke("is_finite", TBoolean, F32(0)), expected = true)
@@ -57,7 +57,7 @@ class MathFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("is_finite", TBoolean, F64(Double.NegativeInfinity)), expected = false)
   }
 
-  @Test def is_infinite(): Unit = {
+  @Test def is_infinite(): scalatest.Assertion = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     assertEvalsTo(invoke("is_infinite", TBoolean, F32(0)), expected = false)
@@ -73,7 +73,7 @@ class MathFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("is_infinite", TBoolean, F64(Double.NegativeInfinity)), expected = true)
   }
 
-  @Test def sign(): Unit = {
+  @Test def sign(): scalatest.Assertion = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     assertEvalsTo(invoke("sign", TInt32, I32(2)), 1)
@@ -97,7 +97,7 @@ class MathFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("sign", TFloat64, F64(Double.NegativeInfinity)), -1.0)
   }
 
-  @Test def approxEqual(): Unit = {
+  @Test def approxEqual(): scalatest.Assertion = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     assertEvalsTo(
@@ -158,7 +158,7 @@ class MathFunctionsSuite extends HailSuite {
     )
   }
 
-  @Test def entropy(): Unit = {
+  @Test def entropy(): scalatest.Assertion = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     assertEvalsTo(invoke("entropy", TFloat64, Str("")), 0.0)
@@ -180,7 +180,8 @@ class MathFunctionsSuite extends HailSuite {
   )
 
   @Test(dataProvider = "chi_squared_test")
-  def chiSquaredTest(a: Int, b: Int, c: Int, d: Int, pValue: Double, oddsRatio: Double): Unit = {
+  def chiSquaredTest(a: Int, b: Int, c: Int, d: Int, pValue: Double, oddsRatio: Double)
+    : scalatest.Assertion = {
     val r = eval(invoke(
       "chi_squared_test",
       stats.chisqStruct.virtualType,
@@ -211,7 +212,7 @@ class MathFunctionsSuite extends HailSuite {
     oddsRatio: Double,
     confLower: Double,
     confUpper: Double,
-  ): Unit = {
+  ): scalatest.Assertion = {
     val r = eval(invoke(
       "fisher_exact_test",
       stats.fetStruct.virtualType,
@@ -242,7 +243,7 @@ class MathFunctionsSuite extends HailSuite {
     minCellCount: Int,
     pValue: Double,
     oddsRatio: Double,
-  ): Unit = {
+  ): scalatest.Assertion = {
     val r = eval(invoke(
       "contingency_table_test",
       stats.chisqStruct.virtualType,
@@ -267,7 +268,7 @@ class MathFunctionsSuite extends HailSuite {
 
   @Test(dataProvider = "hardy_weinberg_test")
   def hardyWeinbergTest(nHomRef: Int, nHet: Int, nHomVar: Int, pValue: Double, hetFreq: Double)
-    : Unit = {
+    : scalatest.Assertion = {
     val r = eval(invoke(
       "hardy_weinberg_test",
       stats.hweStruct.virtualType,
@@ -281,7 +282,7 @@ class MathFunctionsSuite extends HailSuite {
     assert(D0_==(hetFreq, r.getDouble(1)))
   }
 
-  @Test def modulusTest(): Unit = {
+  @Test def modulusTest(): scalatest.Assertion = {
     assertFatal(
       invoke("mod", TInt32, I32(1), I32(0)),
       "(modulo by zero)|(error while calling 'mod')",
@@ -300,7 +301,7 @@ class MathFunctionsSuite extends HailSuite {
     )
   }
 
-  @Test def testMinMax(): Unit = {
+  @Test def testMinMax(): scalatest.Assertion = {
     implicit val execStrats = ExecStrategy.javaOnly
     assertAllEvalTo(
       (invoke("min", TFloat32, F32(1.0f), F32(2.0f)), 1.0f),

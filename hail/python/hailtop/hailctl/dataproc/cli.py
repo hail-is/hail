@@ -334,7 +334,7 @@ def submit(
 
 
 
-    $ hailctl dataproc submit name --image-name docker.io/image my_script.py -- some-argument --animal dog
+    $ hailctl dataproc submit cluster-name my_script.py -- some-argument --animal dog
 
     """
     dataproc_submit(

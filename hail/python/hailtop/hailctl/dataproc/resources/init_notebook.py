@@ -36,15 +36,15 @@ if role == 'Master':
     # additional packages to install
     pip_pkgs = [
         'setuptools',
-        'mkl<2020',
-        'lxml<5',
+        'mkl',
+        'lxml',
         'https://github.com/hail-is/jgscm/archive/v0.1.13+hail.zip',
-        'ipykernel==6.22.0',
-        'ipywidgets==8.0.6',
+        'ipykernel==6.29.2',
+        'ipywidgets==8.1.7',
         'jupyter-console==6.6.3',
-        'nbconvert==7.3.1',
-        'notebook==6.5.6',
-        'qtconsole==5.4.2',
+        'nbconvert==7.13.1',
+        'notebook==6.5.7',
+        'qtconsole==5.6.1',
     ]
 
     # add user-requested packages

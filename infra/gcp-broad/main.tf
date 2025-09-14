@@ -80,6 +80,13 @@ resource "google_project_service" "service_networking" {
   timeouts {}
 }
 
+resource "google_compute_project_metadata" "oslogin" {
+  metadata = {
+    enable-oslogin = "TRUE"
+    block-project-ssh-keys = "TRUE"
+  }
+}
+
 resource "google_compute_network" "default" {
   name = "default"
   description = "Default network for the project"
@@ -175,6 +182,17 @@ resource "google_container_cluster" "vdc" {
   }
 
   timeouts {}
+
+  addons_config {
+    network_policy_config {
+      disabled = false
+    }
+  }
+
+  network_policy {
+    enabled = true
+    provider = "CALICO"
+  }
 }
 
 resource "google_container_node_pool" "vdc_preemptible_pool" {

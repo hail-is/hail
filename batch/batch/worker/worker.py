@@ -1445,7 +1445,8 @@ def copy_container(
     assert job.worker.fs is not None
 
     command = [
-        '/usr/bin/python3',
+        '/usr/bin/env',
+        'python3',
         '-m',
         'hailtop.aiotools.copy',
         json.dumps(requester_pays_project),
@@ -2549,11 +2550,8 @@ class JVMContainer:
             CLOUD, INSTANCE_CONFIG["machine_type"]
         )
         total_memory_bytes = int((n_cores / total_machine_cores) * total_machine_memory_bytes)
-        # We allocate 60% of memory per core to off heap memory
-
         memory_mib = total_memory_bytes // (1024**2)
-        heap_memory_mib = int(0.4 * memory_mib)
-        off_heap_memory_per_core_mib = memory_mib - heap_memory_mib
+        heap_memory_mib = int(0.9 * memory_mib)
 
         command = [
             'java',
@@ -2613,7 +2611,7 @@ class JVMContainer:
             cpu_in_mcpu=n_cores * 1000,
             memory_in_bytes=total_memory_bytes,
             user_credentials=None,
-            env=[f'HAIL_WORKER_OFF_HEAP_MEMORY_PER_CORE_MB={off_heap_memory_per_core_mib}', f'HAIL_CLOUD={CLOUD}'],
+            env=[f'HAIL_CLOUD={CLOUD}'],
             volume_mounts=volume_mounts,
             log_path=f'/batch/jvm-container-logs/jvm-{index}.log',
         )

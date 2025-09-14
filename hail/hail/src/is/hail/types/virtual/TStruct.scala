@@ -374,29 +374,27 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
   }
 
   override def pyString(sb: StringBuilder): Unit = {
-    sb.append("struct{")
+    sb ++= "struct{"
     fields.foreachBetween({ field =>
-      sb.append(prettyIdentifier(field.name))
-      sb.append(": ")
+      sb ++= prettyIdentifier(field.name) ++= ": "
       field.typ.pyString(sb)
-    })(sb.append(", "))
-    sb.append('}')
+    })(sb ++= ", ")
+    sb += '}'
   }
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = {
     if (compact) {
-      sb.append("Struct{")
+      sb ++= "Struct{"
       fields.foreachBetween(_.pretty(sb, indent, compact))(sb += ',')
       sb += '}'
     } else {
       if (size == 0)
-        sb.append("Struct { }")
+        sb ++= "Struct { }"
       else {
-        sb.append("Struct {")
+        sb ++= "Struct {\n"
+        fields.foreachBetween(_.pretty(sb, indent + 4, compact))(sb ++= ",\n")
         sb += '\n'
-        fields.foreachBetween(_.pretty(sb, indent + 4, compact))(sb.append(",\n"))
-        sb += '\n'
-        sb.append(" " * indent)
+        sb ++= (" " * indent)
         sb += '}'
       }
     }

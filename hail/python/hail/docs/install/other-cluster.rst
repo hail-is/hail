@@ -11,7 +11,7 @@ Hail needs to be built from source on the leader node. Building Hail from source
 requires:
 
 - Java 11 JDK.
-- Python 3.9 or later.
+- Python 3.10 or later.
 - A recent C and a C++ compiler, GCC 5.0, LLVM 3.4, or later versions of either
   suffice.
 - The LZ4 library.
@@ -36,7 +36,7 @@ The next block of commands downloads, builds, and installs Hail from source.
 
     git clone https://github.com/hail-is/hail.git
     cd hail/hail
-    make install-on-cluster HAIL_RELEASE_MODE=1 HAIL_COMPILE_NATIVES=1 SCALA_VERSION=2.12.18 SPARK_VERSION=3.5.0
+    make install-on-cluster HAIL_BUILD_MODE=Release HAIL_COMPILE_NATIVES=1 SCALA_VERSION=2.12.18 SPARK_VERSION=3.5.0
 
 If you forget to install any of the requirements before running `make install-on-cluster`, it's possible
 to get into a bad state where `make` insists you don't have a requirement that you have in fact installed.

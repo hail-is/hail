@@ -499,17 +499,17 @@ package defs {
 
     def unary_!(): IR = ApplyUnaryPrimOp(Bang, self)
 
-    def ceq(other: IR): IR = ApplyComparisonOp(EQWithNA(self.typ, other.typ), self, other)
+    def ceq(other: IR): IR = ApplyComparisonOp(EQWithNA, self, other)
 
-    def cne(other: IR): IR = ApplyComparisonOp(NEQWithNA(self.typ, other.typ), self, other)
+    def cne(other: IR): IR = ApplyComparisonOp(NEQWithNA, self, other)
 
-    def <(other: IR): IR = ApplyComparisonOp(LT(self.typ, other.typ), self, other)
+    def <(other: IR): IR = ApplyComparisonOp(LT, self, other)
 
-    def >(other: IR): IR = ApplyComparisonOp(GT(self.typ, other.typ), self, other)
+    def >(other: IR): IR = ApplyComparisonOp(GT, self, other)
 
-    def <=(other: IR): IR = ApplyComparisonOp(LTEQ(self.typ, other.typ), self, other)
+    def <=(other: IR): IR = ApplyComparisonOp(LTEQ, self, other)
 
-    def >=(other: IR): IR = ApplyComparisonOp(GTEQ(self.typ, other.typ), self, other)
+    def >=(other: IR): IR = ApplyComparisonOp(GTEQ, self, other)
   }
 
   object ErrorIDs {
@@ -637,21 +637,21 @@ package defs {
             case _: TStruct =>
               val elt = tcoerce[TStruct](atyp.elementType)
               ApplyComparisonOp(
-                Compare(elt.types(0)),
+                Compare,
                 GetField(Ref(l, elt), elt.fieldNames(0)),
                 GetField(Ref(r, atyp.elementType), elt.fieldNames(0)),
               )
             case _: TTuple =>
               val elt = tcoerce[TTuple](atyp.elementType)
               ApplyComparisonOp(
-                Compare(elt.types(0)),
+                Compare,
                 GetTupleElement(Ref(l, elt), elt.fields(0).index),
                 GetTupleElement(Ref(r, atyp.elementType), elt.fields(0).index),
               )
           }
         } else {
           ApplyComparisonOp(
-            Compare(atyp.elementType),
+            Compare,
             Ref(l, atyp.elementType),
             Ref(r, atyp.elementType),
           )
@@ -754,32 +754,20 @@ package defs {
 
     abstract class ApplyAggOpCompanionExt {
       def apply(op: AggOp, initOpArgs: IR*)(seqOpArgs: IR*): ApplyAggOp =
-        ApplyAggOp(
-          initOpArgs.toIndexedSeq,
-          seqOpArgs.toIndexedSeq,
-          AggSignature(op, initOpArgs.map(_.typ), seqOpArgs.map(_.typ)),
-        )
-    }
-
-    trait ApplyAggOpExt { self: ApplyAggOp =>
-      def nSeqOpArgs = seqOpArgs.length
-
-      def nInitArgs = initOpArgs.length
-
-      def op: AggOp = aggSig.op
+        ApplyAggOp(initOpArgs.toIndexedSeq, seqOpArgs.toIndexedSeq, op)
     }
 
     abstract class AggFoldCompanionExt {
       def min(element: IR, sortFields: IndexedSeq[SortField]): IR = {
         val elementType = element.typ.asInstanceOf[TStruct]
         val keyType = elementType.select(sortFields.map(_.field))._1
-        minAndMaxHelper(element, keyType, StructLT(keyType, sortFields))
+        minAndMaxHelper(element, keyType, StructLT(sortFields))
       }
 
       def max(element: IR, sortFields: IndexedSeq[SortField]): IR = {
         val elementType = element.typ.asInstanceOf[TStruct]
         val keyType = elementType.select(sortFields.map(_.field))._1
-        minAndMaxHelper(element, keyType, StructGT(keyType, sortFields))
+        minAndMaxHelper(element, keyType, StructGT(sortFields))
       }
 
       def all(element: IR): IR =
@@ -838,19 +826,13 @@ package defs {
 
     abstract class ApplyScanOpCompanionExt {
       def apply(op: AggOp, initOpArgs: IR*)(seqOpArgs: IR*): ApplyScanOp =
-        ApplyScanOp(
-          initOpArgs.toIndexedSeq,
-          seqOpArgs.toIndexedSeq,
-          AggSignature(op, initOpArgs.map(_.typ), seqOpArgs.map(_.typ)),
-        )
+        ApplyScanOp(initOpArgs.toIndexedSeq, seqOpArgs.toIndexedSeq, op)
     }
 
     trait ApplyScanOpExt { self: ApplyScanOp =>
       def nSeqOpArgs = seqOpArgs.length
 
       def nInitArgs = initOpArgs.length
-
-      def op: AggOp = aggSig.op
     }
 
     abstract class ResultOpCompanionExt {

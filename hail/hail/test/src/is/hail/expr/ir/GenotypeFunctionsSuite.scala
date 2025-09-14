@@ -1,11 +1,11 @@
 package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
-import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
 import is.hail.types.virtual.TFloat64
 import is.hail.utils.FastSeq
 
+import org.scalatest
 import org.testng.annotations.{DataProvider, Test}
 
 class GenotypeFunctionsSuite extends HailSuite {
@@ -27,10 +27,11 @@ class GenotypeFunctionsSuite extends HailSuite {
   )
 
   @Test(dataProvider = "gps")
-  def testDosage(gp: IndexedSeq[java.lang.Double], expected: java.lang.Double): Unit =
+  def testDosage(gp: IndexedSeq[java.lang.Double], expected: java.lang.Double)
+    : scalatest.Assertion =
     assertEvalsTo(invoke("dosage", TFloat64, toIRDoubleArray(gp)), expected)
 
-  @Test def testDosageLength(): Unit = {
+  @Test def testDosageLength(): scalatest.Assertion = {
     assertFatal(invoke("dosage", TFloat64, IRDoubleArray(1.0, 1.5)), "length")
     assertFatal(invoke("dosage", TFloat64, IRDoubleArray(1.0, 1.5, 0.0, 0.0)), "length")
   }

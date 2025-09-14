@@ -74,7 +74,6 @@ class LocalBackend(Py4JBackend):
         hail_package = getattr(self._gateway.jvm, 'is').hail
 
         jbackend = hail_package.backend.local.LocalBackend.apply(
-            tmpdir,
             log,
             True,
             append,
@@ -82,23 +81,14 @@ class LocalBackend(Py4JBackend):
         )
         jhc = hail_package.HailContext.apply(jbackend, branching_factor, optimizer_iterations)
 
-        super(LocalBackend, self).__init__(self._gateway.jvm, jbackend, jhc)
+        super().__init__(self._gateway.jvm, jbackend, jhc, tmpdir, tmpdir)
+        self.gcs_requester_pays_configuration = gcs_requester_pays_configuration
         self._fs = self._exit_stack.enter_context(
             RouterFS(gcs_kwargs={'gcs_requester_pays_configuration': gcs_requester_pays_configuration})
         )
 
         self._logger = None
-
-        flags = {}
-        if gcs_requester_pays_configuration is not None:
-            if isinstance(gcs_requester_pays_configuration, str):
-                flags['gcs_requester_pays_project'] = gcs_requester_pays_configuration
-            else:
-                assert isinstance(gcs_requester_pays_configuration, tuple)
-                flags['gcs_requester_pays_project'] = gcs_requester_pays_configuration[0]
-                flags['gcs_requester_pays_buckets'] = ','.join(gcs_requester_pays_configuration[1])
-
-        self._initialize_flags(flags)
+        self._initialize_flags({})
 
     def validate_file(self, uri: str) -> None:
         async_to_blocking(validate_file(uri, self._fs.afs))
@@ -119,7 +109,7 @@ class LocalBackend(Py4JBackend):
         )
 
     def stop(self):
-        super().stop()
+        super(Py4JBackend, self).stop()
         self._exit_stack.close()
         uninstall_exception_handler()
 

@@ -955,7 +955,7 @@ class PythonJob(Job):
 
         # Create a batch object with a default Python image
 
-        b = Batch(default_python_image='hailgenetics/python-dill:3.9-slim')
+        b = Batch(default_python_image='hailgenetics/python-dill:3.11-slim')
 
         def multiply(x, y):
             return x * y
@@ -1015,11 +1015,11 @@ class PythonJob(Job):
         Examples
         --------
 
-        Set the job's docker image to `hailgenetics/python-dill:3.9-slim`:
+        Set the job's docker image to `hailgenetics/python-dill:3.11-slim`:
 
         >>> b = Batch()
         >>> j = b.new_python_job()
-        >>> (j.image('hailgenetics/python-dill:3.9-slim')
+        >>> (j.image('hailgenetics/python-dill:3.11-slim')
         ...   .call(print, 'hello'))
         >>> b.run()  # doctest: +SKIP
 

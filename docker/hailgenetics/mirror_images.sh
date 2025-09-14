@@ -29,12 +29,14 @@ then
 fi
 
 images=(
-    "python-dill:3.9"
-    "python-dill:3.9-slim"
     "python-dill:3.10"
     "python-dill:3.10-slim"
     "python-dill:3.11"
     "python-dill:3.11-slim"
+    "python-dill:3.12"
+    "python-dill:3.12-slim"
+    "python-dill:3.13"
+    "python-dill:3.13-slim"
     "hail:${HAIL_PIP_VERSION}"
     "hailtop:${HAIL_PIP_VERSION}"
     "vep-grch37-85:${HAIL_PIP_VERSION}"

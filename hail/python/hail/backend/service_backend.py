@@ -10,12 +10,8 @@ from typing import Any, Awaitable, Dict, List, Mapping, Optional, Set, Tuple, Ty
 import orjson
 
 import hailtop.aiotools.fs as afs
-from hail.context import TemporaryDirectory, TemporaryFilename, tmp_dir
+from hail.context import TemporaryDirectory, TemporaryFilename
 from hail.experimental import read_expression, write_expression
-from hail.expr.expressions.base_expression import Expression
-from hail.expr.types import HailType
-from hail.ir import finalize_randomness
-from hail.ir.renderer import CSERenderer
 from hail.utils import FatalError
 from hail.version import __revision__, __version__
 from hailtop import yamlx
@@ -33,7 +29,7 @@ from hailtop.utils.rich_progress_bar import BatchProgressBar
 
 from ..builtin_references import BUILTIN_REFERENCES
 from ..utils import ANY_REGION
-from .backend import ActionPayload, ActionTag, Backend, ExecutePayload, fatal_error_from_java_error_triplet
+from .backend import ActionPayload, ActionTag, Backend, fatal_error_from_java_error_triplet
 
 ReferenceGenomeConfig = Dict[str, Any]
 
@@ -68,53 +64,6 @@ async def read_str(strm: afs.ReadableStream) -> str:
 
 
 @dataclass
-class SerializedIRFunction:
-    name: str
-    type_parameters: List[str]
-    value_parameter_names: List[str]
-    value_parameter_types: List[str]
-    return_type: str
-    rendered_body: str
-
-
-class IRFunction:
-    def __init__(
-        self,
-        name: str,
-        type_parameters: Union[Tuple[HailType, ...], List[HailType]],
-        value_parameter_names: Union[Tuple[str, ...], List[str]],
-        value_parameter_types: Union[Tuple[HailType, ...], List[HailType]],
-        return_type: HailType,
-        body: Expression,
-    ):
-        assert len(value_parameter_names) == len(value_parameter_types)
-        render = CSERenderer()
-        self._name = name
-        self._type_parameters = type_parameters
-        self._value_parameter_names = value_parameter_names
-        self._value_parameter_types = value_parameter_types
-        self._return_type = return_type
-        self._rendered_body = render(finalize_randomness(body._ir))
-
-    def to_dataclass(self):
-        return SerializedIRFunction(
-            name=self._name,
-            type_parameters=[tp._parsable_string() for tp in self._type_parameters],
-            value_parameter_names=list(self._value_parameter_names),
-            value_parameter_types=[vpt._parsable_string() for vpt in self._value_parameter_types],
-            return_type=self._return_type._parsable_string(),
-            rendered_body=self._rendered_body,
-        )
-
-
-@dataclass
-class ServiceBackendExecutePayload(ActionPayload):
-    functions: List[SerializedIRFunction]
-    idempotency_token: str
-    payload: ExecutePayload
-
-
-@dataclass
 class CloudfuseConfig:
     bucket: str
     mount_path: str
@@ -130,34 +79,25 @@ class SequenceConfig:
 @dataclass
 class ServiceBackendRPCConfig:
     tmp_dir: str
-    remote_tmpdir: str
-    billing_project: str
-    worker_cores: str
-    worker_memory: str
-    storage: str
-    cloudfuse_configs: List[CloudfuseConfig]
-    regions: List[str]
     flags: Dict[str, str]
     custom_references: List[str]
     liftovers: Dict[str, Dict[str, str]]
     sequences: Dict[str, SequenceConfig]
 
 
+@dataclass
+class BatchJobConfig:
+    worker_cores: str
+    worker_memory: str
+    storage: str
+    cloudfuse_configs: List[CloudfuseConfig]
+    regions: List[str]
+
+
 class ServiceBackend(Backend):
     # is.hail.backend.service.Main protocol
     WORKER = "worker"
     DRIVER = "driver"
-
-    # is.hail.backend.service.ServiceBackendSocketAPI2 protocol
-    LOAD_REFERENCES_FROM_DATASET = 1
-    VALUE_TYPE = 2
-    TABLE_TYPE = 3
-    MATRIX_TABLE_TYPE = 4
-    BLOCK_MATRIX_TYPE = 5
-    EXECUTE = 6
-    PARSE_VCF_METADATA = 7
-    IMPORT_FAM = 8
-    FROM_FASTA_FILE = 9
 
     @staticmethod
     async def create(
@@ -292,7 +232,6 @@ class ServiceBackend(Backend):
         self.disable_progress_bar = disable_progress_bar
         self.remote_tmpdir = remote_tmpdir
         self.flags: Dict[str, str] = {}
-        self.functions: List[IRFunction] = []
         self._registered_ir_function_names: Set[str] = set()
         self.driver_cores = driver_cores
         self.driver_memory = driver_memory
@@ -333,16 +272,16 @@ class ServiceBackend(Backend):
 
     def stop(self):
         hail_event_loop().run_until_complete(self._stop())
+        super().stop()
 
     async def _stop(self):
         await self._async_exit_stack.aclose()
-        self.functions = []
-        self._registered_ir_function_names = set()
 
     async def _run_on_batch(
         self,
         name: str,
         service_backend_config: ServiceBackendRPCConfig,
+        job_config: BatchJobConfig,
         action: ActionTag,
         payload: ActionPayload,
         *,
@@ -356,7 +295,8 @@ class ServiceBackend(Backend):
                 async with await self._async_fs.create(iodir + '/in') as infile:
                     await infile.write(
                         orjson.dumps({
-                            'config': service_backend_config,
+                            'rpc_config': service_backend_config,
+                            'job_config': job_config,
                             'action': action.value,
                             'payload': payload,
                         })
@@ -374,8 +314,8 @@ class ServiceBackend(Backend):
                 elif self.driver_memory is not None:
                     resources['memory'] = str(self.driver_memory)
 
-                if service_backend_config.storage != '0Gi':
-                    resources['storage'] = service_backend_config.storage
+                if job_config.storage != '0Gi':
+                    resources['storage'] = job_config.storage
 
                 self._job_group = self._batch.create_job_group(attributes={'name': name})
                 self._batch.create_jvm_job(
@@ -390,7 +330,7 @@ class ServiceBackend(Backend):
                     resources=resources,
                     attributes={'name': name + '_driver'},
                     regions=self.regions,
-                    cloudfuse=[(c.bucket, c.mount_path, c.read_only) for c in service_backend_config.cloudfuse_configs],
+                    cloudfuse=[(c.bucket, c.mount_path, c.read_only) for c in job_config.cloudfuse_configs],
                     profile=self.flags['profile'] is not None,
                 )
                 await self._batch.submit(disable_progress_bar=True)
@@ -464,11 +404,6 @@ class ServiceBackend(Backend):
         return self._cancel_on_ctrl_c(self._async_rpc(action, payload))
 
     async def _async_rpc(self, action: ActionTag, payload: ActionPayload):
-        if isinstance(payload, ExecutePayload):
-            payload = ServiceBackendExecutePayload(
-                [f.to_dataclass() for f in self.functions], self._batch.token, payload
-            )
-
         storage_requirement_bytes = 0
         readonly_fuse_buckets: Set[str] = set()
 
@@ -483,31 +418,35 @@ class ServiceBackend(Backend):
                 readonly_fuse_buckets.add(bucket)
                 storage_requirement_bytes += await (await self._async_fs.statfile(blob)).size()
             sequence_file_mounts[rg_name] = SequenceConfig(
-                f'/cloudfuse/{fasta_bucket}/{fasta_path}', f'/cloudfuse/{index_bucket}/{index_path}'
+                f'/cloudfuse/{fasta_bucket}/{fasta_path}',
+                f'/cloudfuse/{index_bucket}/{index_path}',
             )
 
-        storage_gib_str = f'{math.ceil(storage_requirement_bytes / 1024 / 1024 / 1024)}Gi'
-        qob_config = ServiceBackendRPCConfig(
-            tmp_dir=tmp_dir(),
-            remote_tmpdir=self.remote_tmpdir,
-            billing_project=self.billing_project,
-            worker_cores=str(self.worker_cores),
-            worker_memory=str(self.worker_memory),
-            storage=storage_gib_str,
-            cloudfuse_configs=[
-                CloudfuseConfig(bucket, f'/cloudfuse/{bucket}', True) for bucket in readonly_fuse_buckets
-            ],
-            regions=self.regions,
-            flags=self.flags,
-            custom_references=[
-                orjson.dumps(rg._config).decode('utf-8')
-                for rg in self._references.values()
-                if rg.name not in BUILTIN_REFERENCES
-            ],
-            liftovers={rg.name: rg._liftovers for rg in self._references.values() if len(rg._liftovers) > 0},
-            sequences=sequence_file_mounts,
+        return await self._run_on_batch(
+            name=f'{action.name.lower()}(...)',
+            service_backend_config=ServiceBackendRPCConfig(
+                tmp_dir=self.remote_tmpdir,
+                flags=self.flags,
+                custom_references=[
+                    orjson.dumps(rg._config).decode('utf-8')
+                    for rg in self._references.values()
+                    if rg.name not in BUILTIN_REFERENCES
+                ],
+                liftovers={rg.name: rg._liftovers for rg in self._references.values() if len(rg._liftovers) > 0},
+                sequences=sequence_file_mounts,
+            ),
+            job_config=BatchJobConfig(
+                worker_cores=str(self.worker_cores),
+                worker_memory=str(self.worker_memory),
+                storage=f'{math.ceil(storage_requirement_bytes / 1024 / 1024 / 1024)}Gi',
+                cloudfuse_configs=[
+                    CloudfuseConfig(bucket, f'/cloudfuse/{bucket}', True) for bucket in readonly_fuse_buckets
+                ],
+                regions=self.regions,
+            ),
+            action=action,
+            payload=payload,
         )
-        return await self._run_on_batch(f'{action.name.lower()}(...)', qob_config, action, payload)
 
     # Sequence and liftover information is stored on the ReferenceGenome
     # and there is no persistent backend to keep in sync.
@@ -529,23 +468,6 @@ class ServiceBackend(Backend):
 
     def remove_liftover(self, name, dest_reference_genome):  # pylint: disable=unused-argument
         pass
-
-    def register_ir_function(
-        self,
-        name: str,
-        type_parameters: Union[Tuple[HailType, ...], List[HailType]],
-        value_parameter_names: Union[Tuple[str, ...], List[str]],
-        value_parameter_types: Union[Tuple[HailType, ...], List[HailType]],
-        return_type: HailType,
-        body: Expression,
-    ):
-        self._registered_ir_function_names.add(name)
-        self.functions.append(
-            IRFunction(name, type_parameters, value_parameter_names, value_parameter_types, return_type, body)
-        )
-
-    def _is_registered_ir_function_name(self, name: str) -> bool:
-        return name in self._registered_ir_function_names
 
     def persist_expression(self, expr):
         # FIXME: should use context manager to clean up persisted resources

@@ -29,5 +29,6 @@ AUTHORIZED_USERS = [
     User('grohli', 'grohlice', [SERVICES_TEAM]),
     User('jkgoodrich', 'jgoodric'),
     User('konradjk', 'konradk'),
+    User('kush-chandra', 'kchandra', HAIL_TEAM),
     User('patrick-schultz', 'pschultz', HAIL_TEAM),
 ]

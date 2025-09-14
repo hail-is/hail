@@ -1,5 +1,7 @@
 package is.hail.io
 
+import is.hail.macros.void
+
 import java.io._
 
 abstract class AbstractBinaryReader {
@@ -65,7 +67,7 @@ abstract class AbstractBinaryReader {
     require(lengthBytes == 2 || lengthBytes == 4)
 
     val length = if (lengthBytes == 2) readShort() else readInt()
-    skipBytes(length)
+    void(skipBytes(length))
   }
 
   def skipBytes(lengthBytes: Long): Long

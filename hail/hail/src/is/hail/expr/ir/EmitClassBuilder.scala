@@ -18,7 +18,6 @@ import is.hail.utils.prettyPrint.ArrayOfByteArrayInputStream
 import is.hail.variant.ReferenceGenome
 
 import scala.collection.mutable
-import scala.language.existentials
 
 import java.io._
 import java.lang.reflect.InvocationTargetException
@@ -669,7 +668,7 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
   def getStructOrderingFunction(
     t1: SBaseStruct,
     t2: SBaseStruct,
-    sortFields: Array[SortField],
+    sortFields: IndexedSeq[SortField],
     op: CodeOrdering.Op,
   ): CodeOrdering.F[op.ReturnType] = {
     (cb: EmitCodeBuilder, v1: EmitValue, v2: EmitValue) =>
@@ -1410,16 +1409,14 @@ class EmitMethodBuilder[C](
   }
 
   def implementLabel(label: CodeLabel)(f: EmitCodeBuilder => Unit): Unit = {
-    EmitCodeBuilder.scopedVoid(this) { cb =>
-      cb.define(label)
-      f(cb)
-      // assert(!cb.isOpenEnded)
-      /* FIXME: The above assertion should hold, but currently does not. This is likely due to
-       * client code with patterns like the following, which incorrectly leaves the code builder
-       * open-ended:
-       *
-       * cb.ifx(b, cb.goto(L1), cb.goto(L2)) */
-    }
+    val cb = EmitCodeBuilder(this)
+    cb.define(label)
+    f(cb)
+    // assert(!cb.isOpenEnded)
+    /* FIXME: The above assertion should hold, but currently does not. This is likely due to client
+     * code with patterns like the following, which incorrectly leaves the code builder open-ended:
+     *
+     * cb.ifx(b, cb.goto(L1), cb.goto(L2)) */
   }
 
   def defineAndImplementLabel(f: EmitCodeBuilder => Unit): CodeLabel = {

@@ -1,15 +1,16 @@
 package is.hail.utils
 
-import is.hail.{HailSuite, TestUtils}
+import is.hail.HailSuite
 import is.hail.linalg.BlockMatrix
 import is.hail.utils.richUtils.RichDenseMatrixDouble
 
 import breeze.linalg.{DenseMatrix => BDM}
+import org.scalatest
 import org.testng.annotations.Test
 
 class RichDenseMatrixDoubleSuite extends HailSuite {
   @Test
-  def readWriteBDM(): Unit = {
+  def readWriteBDM(): scalatest.Assertion = {
     val m = BDM.rand[Double](256, 129) // 33024 doubles
     val fname = ctx.createTmpPath("test")
 
@@ -20,7 +21,7 @@ class RichDenseMatrixDoubleSuite extends HailSuite {
   }
 
   @Test
-  def testReadWriteDoubles(): Unit = {
+  def testReadWriteDoubles(): scalatest.Assertion = {
     val file = ctx.createTmpPath("test")
     val m = BDM.rand[Double](50, 100)
     RichDenseMatrixDouble.exportToDoubles(fs, file, m, forceRowMajor = false)
@@ -33,7 +34,7 @@ class RichDenseMatrixDoubleSuite extends HailSuite {
     val lmT2 = RichDenseMatrixDouble.importFromDoubles(fs, fileT, 100, 50, rowMajor = true)
     assert(mT === lmT2)
 
-    TestUtils.interceptFatal("Premature") {
+    interceptFatal("Premature") {
       RichDenseMatrixDouble.importFromDoubles(fs, fileT, 100, 100, rowMajor = true)
     }
   }

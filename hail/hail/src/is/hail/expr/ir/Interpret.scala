@@ -4,6 +4,7 @@ import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.{ExecuteContext, HailTaskContext}
 import is.hail.backend.spark.SparkTaskContext
+import is.hail.expr.ir.analyses.PartitionCounts
 import is.hail.expr.ir.compile.{Compile, CompileWithAggregators}
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.lowering.{ExecuteRelational, LoweringPipeline}
@@ -246,19 +247,20 @@ object Interpret {
       case ApplyComparisonOp(op, l, r) =>
         val lValue = interpret(l, env, args)
         val rValue = interpret(r, env, args)
+        val t = l.typ
         if (op.strict && (lValue == null || rValue == null))
           null
         else
           op match {
-            case EQ(t, _) => t.ordering(ctx.stateManager).equiv(lValue, rValue)
-            case EQWithNA(t, _) => t.ordering(ctx.stateManager).equiv(lValue, rValue)
-            case NEQ(t, _) => !t.ordering(ctx.stateManager).equiv(lValue, rValue)
-            case NEQWithNA(t, _) => !t.ordering(ctx.stateManager).equiv(lValue, rValue)
-            case LT(t, _) => t.ordering(ctx.stateManager).lt(lValue, rValue)
-            case GT(t, _) => t.ordering(ctx.stateManager).gt(lValue, rValue)
-            case LTEQ(t, _) => t.ordering(ctx.stateManager).lteq(lValue, rValue)
-            case GTEQ(t, _) => t.ordering(ctx.stateManager).gteq(lValue, rValue)
-            case Compare(t, _) => t.ordering(ctx.stateManager).compare(lValue, rValue)
+            case EQ => t.ordering(ctx.stateManager).equiv(lValue, rValue)
+            case EQWithNA => t.ordering(ctx.stateManager).equiv(lValue, rValue)
+            case NEQ => !t.ordering(ctx.stateManager).equiv(lValue, rValue)
+            case NEQWithNA => !t.ordering(ctx.stateManager).equiv(lValue, rValue)
+            case LT => t.ordering(ctx.stateManager).lt(lValue, rValue)
+            case GT => t.ordering(ctx.stateManager).gt(lValue, rValue)
+            case LTEQ => t.ordering(ctx.stateManager).lteq(lValue, rValue)
+            case GTEQ => t.ordering(ctx.stateManager).gteq(lValue, rValue)
+            case Compare => t.ordering(ctx.stateManager).compare(lValue, rValue)
           }
 
       case MakeArray(elements, _) => elements.map(interpret(_, env, args)).toFastSeq
@@ -902,7 +904,7 @@ object Interpret {
           }
         }
       case TableCount(child) =>
-        child.partitionCounts
+        PartitionCounts(child)
           .map(_.sum)
           .getOrElse(ExecuteRelational(ctx, child).asTableValue(ctx).rvd.count())
       case TableGetGlobals(child) =>
@@ -936,9 +938,10 @@ object Interpret {
         val globalsBc = value.globals.broadcast(ctx.theHailClassLoader)
         val globalsOffset = value.globals.value.offset
 
-        val extracted = agg.Extract(query, Requiredness(x, ctx))
+        val extracted = agg.Extract(ctx, query, Requiredness(x, ctx)).independent
+        val aggSigs = extracted.sigs
 
-        val wrapped = if (extracted.aggs.isEmpty) {
+        val wrapped = if (aggSigs.isEmpty) {
           val (Some(PTypeReferenceSingleCodeType(rt: PTuple)), f) =
             Compile[AsmFunction2RegionLongLong](
               ctx,
@@ -948,7 +951,7 @@ object Interpret {
               )),
               FastSeq(classInfo[Region], LongInfo),
               LongInfo,
-              MakeTuple.ordered(FastSeq(extracted.postAggIR)),
+              MakeTuple.ordered(FastSeq(extracted.result)),
             )
 
           // TODO Is this right? where does wrapped run?
@@ -960,7 +963,7 @@ object Interpret {
 
           val (_, initOp) = CompileWithAggregators[AsmFunction2RegionLongUnit](
             ctx,
-            extracted.states,
+            aggSigs.states,
             FastSeq((
               TableIR.globalName,
               SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.globals.t)),
@@ -972,7 +975,7 @@ object Interpret {
 
           val (_, partitionOpSeq) = CompileWithAggregators[AsmFunction3RegionLongLongUnit](
             ctx,
-            extracted.states,
+            aggSigs.states,
             FastSeq(
               (
                 TableIR.globalName,
@@ -988,8 +991,8 @@ object Interpret {
             extracted.seqPerElt,
           )
 
-          val useTreeAggregate = extracted.shouldTreeAggregate
-          val isCommutative = extracted.isCommutative
+          val useTreeAggregate = aggSigs.shouldTreeAggregate
+          val isCommutative = aggSigs.isCommutative
           log.info(s"Aggregate: useTreeAggregate=$useTreeAggregate")
           log.info(s"Aggregate: commutative=$isCommutative")
 
@@ -1004,7 +1007,7 @@ object Interpret {
 
           // creates a region, giving ownership to the caller
           val read: (HailClassLoader, HailTaskContext) => (WrappedByteArray => RegionValue) = {
-            val deserialize = extracted.deserialize(ctx, spec)
+            val deserialize = aggSigs.deserialize(ctx, spec)
             (hcl: HailClassLoader, htc: HailTaskContext) => {
               (a: WrappedByteArray) =>
                 val r = Region(Region.SMALL, htc.getRegionPool())
@@ -1016,7 +1019,7 @@ object Interpret {
 
           // consumes a region, taking ownership from the caller
           val write: (HailClassLoader, HailTaskContext, RegionValue) => WrappedByteArray = {
-            val serialize = extracted.serialize(ctx, spec)
+            val serialize = aggSigs.serialize(ctx, spec)
             (hcl: HailClassLoader, htc: HailTaskContext, rv: RegionValue) => {
               val a = serialize(hcl, htc, rv.region, rv.offset)
               rv.region.invalidate()
@@ -1026,7 +1029,7 @@ object Interpret {
 
           // takes ownership of both inputs, returns ownership of result
           val combOpF: (HailClassLoader, HailTaskContext, RegionValue, RegionValue) => RegionValue =
-            extracted.combOpF(ctx, spec)
+            aggSigs.combOpF(ctx, spec)
 
           // returns ownership of a new region holding the partition aggregation
           // result
@@ -1066,17 +1069,14 @@ object Interpret {
           val (Some(PTypeReferenceSingleCodeType(rTyp: PTuple)), f) =
             CompileWithAggregators[AsmFunction2RegionLongLong](
               ctx,
-              extracted.states,
+              aggSigs.states,
               FastSeq((
                 TableIR.globalName,
                 SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.globals.t)),
               )),
               FastSeq(classInfo[Region], LongInfo),
               LongInfo,
-              Let(
-                FastSeq(extracted.resultRef.name -> extracted.results),
-                MakeTuple.ordered(FastSeq(extracted.postAggIR)),
-              ),
+              MakeTuple.ordered(FastSeq(extracted.result)),
             )
           assert(rTyp.types(0).virtualType == query.typ)
 

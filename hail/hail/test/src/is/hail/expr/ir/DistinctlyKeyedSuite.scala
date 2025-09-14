@@ -5,18 +5,18 @@ import is.hail.expr.ir.defs.{
   ApplyComparisonOp, GetField, I32, If, InsertFields, MakeStruct, Ref, StreamRange, TableCollect,
   TableWrite, ToArray,
 }
-import is.hail.types.virtual.TInt32
 import is.hail.utils.FastSeq
 
+import org.scalatest
 import org.testng.annotations.Test
 
 class DistinctlyKeyedSuite extends HailSuite {
-  @Test def distinctlyKeyedRangeTableBase(): Unit = {
+  @Test def distinctlyKeyedRangeTableBase(): scalatest.Assertion = {
     val tableRange = TableRange(10, 2)
     val tableFilter = TableFilter(
       tableRange,
       ApplyComparisonOp(
-        LT(TInt32),
+        LT,
         GetField(Ref(TableIR.rowName, tableRange.typ.rowType), "idx"),
         I32(5),
       ),
@@ -27,7 +27,7 @@ class DistinctlyKeyedSuite extends HailSuite {
     assert(tableIRSeq.forall(tableIR => distinctlyKeyedAnalysis.contains(tableIR)))
   }
 
-  @Test def readTableKeyByDistinctlyKeyedAnalysis(): Unit = {
+  @Test def readTableKeyByDistinctlyKeyedAnalysis(): scalatest.Assertion = {
     val rt = TableRange(40, 4)
     val idxRef = GetField(Ref(TableIR.rowName, rt.typ.rowType), "idx")
     val at = TableMapRows(
@@ -62,7 +62,7 @@ class DistinctlyKeyedSuite extends HailSuite {
     assert(distinctlyKeyedAnalysis4.contains(intactKeysTable))
   }
 
-  @Test def nonDistinctlyKeyedParent(): Unit = {
+  @Test def nonDistinctlyKeyedParent(): scalatest.Assertion = {
     val tableRange1 = TableRange(10, 2)
     val tableRange2 = TableRange(10, 2)
     val row = Ref(TableIR.rowName, tableRange2.typ.rowType)
@@ -84,7 +84,7 @@ class DistinctlyKeyedSuite extends HailSuite {
     assert(distinctlyKeyedSeq.forall(tableIR => distinctlyKeyedAnalysis.contains(tableIR)))
   }
 
-  @Test def distinctlyKeyedParent(): Unit = {
+  @Test def distinctlyKeyedParent(): scalatest.Assertion = {
     val tableRange1 = TableRange(10, 2)
     val tableRange2 = TableRange(10, 2)
     val row = Ref(TableIR.rowName, tableRange2.typ.rowType)
@@ -103,12 +103,12 @@ class DistinctlyKeyedSuite extends HailSuite {
     assert(distinctlyKeyedAnalysis.contains(tableDistinct))
   }
 
-  @Test def iRparent(): Unit = {
+  @Test def iRparent(): scalatest.Assertion = {
     val tableRange = TableRange(10, 2)
     val tableFilter = TableFilter(
       tableRange,
       ApplyComparisonOp(
-        LT(TInt32),
+        LT,
         GetField(Ref(TableIR.rowName, tableRange.typ.rowType), "idx"),
         I32(5),
       ),

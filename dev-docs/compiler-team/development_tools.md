@@ -44,20 +44,17 @@ https://zulip.com/
 
 Our Zulip server is https://hail.zulipchat.com
 
-##### Anaconda - manage Python installations and packages
+##### uv - managed Python environment
 
-https://www.anaconda.com/download/#macos
+Homebrew is able to install uv for you - `brew install uv`.
 
-After installing Anaconda, you should create a new dev environment
-for Hail with:
-
-    conda create --name hail python=3.9
-
-and
-
-    conda activate hail
-
-(put the latter in a shell .rc file so this is done on shell startup)
+After installing, cd to the repo and create a new environment there:
+```bash
+% cd hail
+% uv venv --seed --python 3.11
+[...]
+% source .venv/bin/activate
+```
 
 ##### IntelliJ IDEA - IDE for java/scala/python
 

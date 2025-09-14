@@ -1,6 +1,6 @@
 package is.hail.methods
 
-import is.hail.{HailSuite, TestUtils}
+import is.hail.HailSuite
 import is.hail.annotations.Annotation
 import is.hail.expr.ir.{Interpret, MatrixValue, TableValue}
 import is.hail.utils._
@@ -11,6 +11,9 @@ import org.apache.spark.rdd.RDD
 import org.scalacheck.{Gen, Properties}
 import org.scalacheck.Gen._
 import org.scalacheck.Prop.forAll
+import org.scalatest
+import org.scalatest.matchers.must.Matchers.contain
+import org.scalatest.matchers.should.Matchers.convertToAnyShouldWrapper
 import org.testng.annotations.Test
 
 object LocalLDPruneSuite {
@@ -112,7 +115,7 @@ class LocalLDPruneSuite extends HailSuite {
   val nCores = 4
 
   lazy val mt = Interpret(
-    TestUtils.importVCF(ctx, getTestResource("sample.vcf.bgz"), nPartitions = Option(10)),
+    importVCF(ctx, getTestResource("sample.vcf.bgz"), nPartitions = Option(10)),
     ctx,
     false,
   ).toMatrixValue(Array("s"))
@@ -226,18 +229,19 @@ class LocalLDPruneSuite extends HailSuite {
     locallyUncorrelated.fold(true)((bool1, bool2) => bool1 && bool2)
   }
 
-  @Test def testBitPackUnpack(): Unit = {
+  @Test def testBitPackUnpack(): scalatest.Assertion = {
     val calls1 = Array(-1, 0, 1, 2, 1, 1, 0, 0, 0, 0, 2, 2, -1, -1, -1, -1).map(toC2)
     val calls2 = Array(0, 1, 2, 2, 2, 0, -1, -1).map(toC2)
     val calls3 = calls1 ++ Array.ofDim[Int](32 - calls1.length).map(toC2) ++ calls2
 
-    for (calls <- Array(calls1, calls2, calls3))
-      assert(LocalLDPruneSuite.fromCalls(calls).forall { bpv =>
-        bpv.unpack().map(toC2(_)) sameElements calls
-      })
+    scalatest.Inspectors.forAll(Array(calls1, calls2, calls3)) { calls =>
+      scalatest.Inspectors.forAll(LocalLDPruneSuite.fromCalls(calls).toSeq) { bpv =>
+        bpv.unpack().map(toC2(_)) should contain theSameElementsAs (calls)
+      }
+    }
   }
 
-  @Test def testR2(): Unit = {
+  @Test def testR2(): scalatest.Assertion = {
     val calls = Array(
       Array(1, 0, 0, 0, 0, 0, 0, 0).map(toC2),
       Array(1, 1, 1, 1, 1, 1, 1, 1).map(toC2),
@@ -329,10 +333,9 @@ class LocalLDPruneSuite extends HailSuite {
       }
   }
 
-  @Test def testRandom(): Unit =
-    Spec.check()
+  @Test def testRandom(): scalatest.Assertion = { Spec.check(); succeed }
 
-  @Test def testIsLocallyUncorrelated(): Unit = {
+  @Test def testIsLocallyUncorrelated(): scalatest.Assertion = {
     val locallyPrunedVariantsTable =
       LocalLDPrune(ctx, mt, r2Threshold = 0.2, windowSize = 1000000, maxQueueSize = maxQueueSize)
     assert(isLocallyUncorrelated(mt, locallyPrunedVariantsTable, 0.2, 1000000))

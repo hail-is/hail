@@ -27,7 +27,6 @@ import is.hail.variant.ReferenceGenome
 
 import scala.annotation.{nowarn, tailrec}
 import scala.collection.mutable
-import scala.language.existentials
 
 import java.io._
 
@@ -816,14 +815,11 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
 
     (ir: @unchecked) match {
       case Literal(TVoid, ()) =>
-        Code._empty
 
       case Void() =>
-        Code._empty
 
       case If(cond, cnsq, altr) =>
         assert(cnsq.typ == TVoid && altr.typ == TVoid)
-
         emitI(cond).consume(cb, {}, m => cb.if_(m.asBoolean.value, emitVoid(cnsq), emitVoid(altr)))
 
       case let: Block =>
@@ -3381,7 +3377,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
               Array[Array[Byte]],
             ](
               "collectDArray",
-              mb.getObject(ctx.executeContext.backendContext),
+              mb.getObject(ctx.executeContext.backend.backendContext(ctx.executeContext)),
               mb.getHailClassLoader,
               mb.getFS,
               functionID,

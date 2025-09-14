@@ -1,3 +1,7 @@
+ifeq (3.82,$(lastword $(sort $(MAKE_VERSION) 3.82)))
+$(error requires gmake version at least 3.82)
+endif
+
 HAIL_HAIL_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 
 REVISION := $(shell git rev-parse HEAD)
@@ -11,7 +15,7 @@ $(error "git rev-parse --short=12 HEAD" failed to produce output)
 endif
 
 HAIL_MAJOR_MINOR_VERSION := 0.2
-HAIL_PATCH_VERSION := 135
+HAIL_PATCH_VERSION := 136
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
 HAIL_VERSION := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
 
@@ -130,7 +134,7 @@ fs-jvm-test: upload-remote-test-resources
 	HAIL_DEFAULT_NAMESPACE=$(NAMESPACE) \
 	HAIL_FS_TEST_CLOUD_RESOURCES_URI=$(CLOUD_HAIL_TEST_RESOURCES_DIR)fs \
 	HAIL_TEST_STORAGE_URI=$(TEST_STORAGE_URI) \
-	$(MILL) $(MILLOPTS) hail.test testng-fs.xml
+	$(MILL) $(MILLOPTS) hail.test $(realpath testng-fs.xml)
 
 # end mill integration
 
@@ -350,7 +354,7 @@ upload-artifacts: $(WHEEL)
 # target must be run at least once a day. To trigger this target to re-run,
 # > rm upload-remote-test-resources
 upload-remote-test-resources: install-editable
-upload-remote-test-resources: $(shell git ls-files src/test/resources)
+upload-remote-test-resources: $(shell git ls-files hail/test/resources)
 upload-remote-test-resources: $(shell git ls-files python/hail/docs/data)
 	# # If hailtop.aiotools.copy gives you trouble:
 	# gcloud storage cp -r src/test/resources/\* $(CLOUD_HAIL_TEST_RESOURCES_DIR)
@@ -359,7 +363,7 @@ upload-remote-test-resources: $(shell git ls-files python/hail/docs/data)
             -vvv \
             'null' \
             "[\
-              {\"from\":\"src/test/resources\",\"to\":\"$(CLOUD_HAIL_TEST_RESOURCES_DIR)\"}, \
+              {\"from\":\"hail/test/resources\",\"to\":\"$(CLOUD_HAIL_TEST_RESOURCES_DIR)\"}, \
               {\"from\":\"python/hail/docs/data\",\"to\":\"$(CLOUD_HAIL_DOCTEST_DATA_DIR)\"} \
              ]" \
             --timeout 600

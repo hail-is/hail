@@ -18,7 +18,7 @@ class PBoolean(override val required: Boolean) extends PType with PPrimitive {
   def _asIdent = "bool"
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit =
-    sb.append("PBoolean")
+    sb ++= "PBoolean"
 
   override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering = new UnsafeOrdering {
     def compare(o1: Long, o2: Long): Int =

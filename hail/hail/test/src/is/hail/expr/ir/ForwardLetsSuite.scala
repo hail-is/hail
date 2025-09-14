@@ -1,12 +1,13 @@
 package is.hail.expr.ir
 
 import is.hail.HailSuite
-import is.hail.TestUtils._
+import is.hail.backend.ExecuteContext
 import is.hail.expr.Nat
 import is.hail.expr.ir.defs._
 import is.hail.types.virtual._
 import is.hail.utils._
 
+import org.scalatest
 import org.testng.annotations.{BeforeMethod, DataProvider, Test}
 
 class ForwardLetsSuite extends HailSuite {
@@ -21,7 +22,7 @@ class ForwardLetsSuite extends HailSuite {
     val x = Ref(freshName(), TInt32)
     Array(
       mapArray(a)(y => ApplyBinaryPrimOp(Add(), x, y)),
-      ToArray(filterIR(ToStream(a))(y => ApplyComparisonOp(LT(TInt32), x, y))),
+      ToArray(filterIR(ToStream(a))(y => ApplyComparisonOp(LT, x, y))),
       ToArray(flatMapIR(ToStream(a))(y => StreamRange(x, y, I32(1)))),
       foldIR(ToStream(a), I32(0)) { (acc, y) =>
         ApplyBinaryPrimOp(Add(), ApplyBinaryPrimOp(Add(), x, y), acc)
@@ -68,8 +69,7 @@ class ForwardLetsSuite extends HailSuite {
     ).map(ir => Array[IR](Let(FastSeq(x.name -> (In(0, TInt32) + In(0, TInt32))), ir)))
   }
 
-  def aggMin(value: IR): ApplyAggOp =
-    ApplyAggOp(FastSeq(), FastSeq(value), AggSignature(Min(), FastSeq(), FastSeq(value.typ)))
+  def aggMin(value: IR): ApplyAggOp = ApplyAggOp(Min())(value)
 
   @DataProvider(name = "nonForwardingAggOps")
   def nonForwardingAggOps(): Array[Array[IR]] = {
@@ -105,55 +105,56 @@ class ForwardLetsSuite extends HailSuite {
     ).map(ir => Array[IR](AggLet(x.name, In(0, TInt32) + In(0, TInt32), ir, false)))
   }
 
-  @Test def assertDataProvidersWork(): Unit = {
+  @Test def assertDataProvidersWork(): scalatest.Assertion = {
     nonForwardingOps()
     forwardingOps()
     nonForwardingAggOps()
     forwardingAggOps()
+    scalatest.Succeeded
   }
 
-  @Test def testBlock(): Unit = {
+  @Test def testBlock(): scalatest.Assertion = {
     val x = Ref(freshName(), TInt32)
     val y = Ref(freshName(), TInt32)
     val ir = Block(
       FastSeq(Binding(x.name, I32(1), Scope.AGG), Binding(y.name, x, Scope.AGG)),
       ApplyAggOp(Sum())(y),
     )
-    val after: IR = ForwardLets(ctx)(ir)
+    val after: IR = ForwardLets(ctx, ir)
     val expected = ApplyAggOp(Sum())(I32(1))
-    assert(NormalizeNames(ctx, after) == NormalizeNames(ctx, expected))
+    assert(NormalizeNames()(ctx, after) == NormalizeNames()(ctx, expected))
   }
 
   @Test(dataProvider = "nonForwardingOps")
-  def testNonForwardingOps(ir: IR): Unit = {
-    val after = ForwardLets(ctx)(ir)
-    val normalizedBefore = NormalizeNames(ctx, ir)
-    val normalizedAfter = NormalizeNames(ctx, after)
+  def testNonForwardingOps(ir: IR): scalatest.Assertion = {
+    val after = ForwardLets(ctx, ir)
+    val normalizedBefore = NormalizeNames()(ctx, ir)
+    val normalizedAfter = NormalizeNames()(ctx, after)
     assert(normalizedBefore == normalizedAfter)
   }
 
   @Test(dataProvider = "nonForwardingNonEvalOps")
-  def testNonForwardingNonEvalOps(ir: IR): Unit = {
-    val after = ForwardLets(ctx)(ir)
+  def testNonForwardingNonEvalOps(ir: IR): scalatest.Assertion = {
+    val after = ForwardLets(ctx, ir)
     assert(after.isInstanceOf[Block])
   }
 
   @Test(dataProvider = "nonForwardingAggOps")
-  def testNonForwardingAggOps(ir: IR): Unit = {
-    val after = ForwardLets(ctx)(ir)
+  def testNonForwardingAggOps(ir: IR): scalatest.Assertion = {
+    val after = ForwardLets(ctx, ir)
     assert(after.isInstanceOf[Block])
   }
 
   @Test(dataProvider = "forwardingOps")
-  def testForwardingOps(ir: IR): Unit = {
-    val after = ForwardLets(ctx)(ir)
+  def testForwardingOps(ir: IR): scalatest.Assertion = {
+    val after = ForwardLets(ctx, ir)
     assert(!after.isInstanceOf[Block])
     assertEvalSame(ir, args = Array(5 -> TInt32))
   }
 
   @Test(dataProvider = "forwardingAggOps")
-  def testForwardingAggOps(ir: IR): Unit = {
-    val after = ForwardLets(ctx)(ir)
+  def testForwardingAggOps(ir: IR): scalatest.Assertion = {
+    val after = ForwardLets(ctx, ir)
     assert(!after.isInstanceOf[Block])
   }
 
@@ -219,45 +220,45 @@ class ForwardLetsSuite extends HailSuite {
   }
 
   @Test(dataProvider = "TrivialIRCases")
-  def testTrivialCases(input: IR, _expected: IR, reason: String): Unit = {
-    val result = NormalizeNames(ctx, ForwardLets(ctx)(input), allowFreeVariables = true)
-    val expected = NormalizeNames(ctx, _expected, allowFreeVariables = true)
+  def testTrivialCases(input: IR, _expected: IR, reason: String): scalatest.Assertion = {
+    val normalize: (ExecuteContext, BaseIR) => BaseIR = NormalizeNames(allowFreeVariables = true)
+    val result = normalize(ctx, ForwardLets(ctx, input))
+    val expected = normalize(ctx, _expected)
     assert(
-      result == NormalizeNames(ctx, expected, allowFreeVariables = true),
+      result == normalize(ctx, expected),
       s"\ninput:\n${Pretty.sexprStyle(input)}\nexpected:\n${Pretty.sexprStyle(expected)}\ngot:\n${Pretty.sexprStyle(result)}\n$reason",
     )
   }
 
-  @Test def testAggregators(): Unit = {
+  @Test def testAggregators(): scalatest.Assertion = {
     val row = Ref(freshName(), TStruct("idx" -> TInt32))
     val aggEnv = Env[Type](row.name -> row.typ)
 
-    val ir0 = ApplyAggOp(
-      FastSeq(),
-      FastSeq(bindIR(GetField(row, "idx") - 1)(x => Cast(x, TFloat64))),
-      AggSignature(Sum(), FastSeq(), FastSeq(TFloat64)),
-    )
+    val ir0 = ApplyAggOp(Sum())(bindIR(GetField(row, "idx") - 1)(x => Cast(x, TFloat64)))
 
-    TypeCheck(ctx, ForwardLets(ctx)(ir0), BindingEnv(Env.empty, agg = Some(aggEnv)))
+    TypeCheck(ctx, ForwardLets(ctx, ir0), BindingEnv(Env.empty, agg = Some(aggEnv)))
+    succeed
   }
 
-  @Test def testNestedBindingOverwrites(): Unit = {
+  @Test def testNestedBindingOverwrites(): scalatest.Assertion = {
     val x = Ref(freshName(), TInt32)
     val env = Env[Type](x.name -> TInt32)
     def xCast = Cast(x, TFloat64)
     val ir = bindIRs(xCast, xCast) { case Seq(x1, x2) => x2 + x2 + x1 }
 
     TypeCheck(ctx, ir, BindingEnv(env))
-    TypeCheck(ctx, ForwardLets(ctx)(ir), BindingEnv(env))
+    TypeCheck(ctx, ForwardLets(ctx, ir), BindingEnv(env))
+    succeed
   }
 
-  @Test def testLetsDoNotForwardInsideArrayAggWithNoOps(): Unit = {
+  @Test def testLetsDoNotForwardInsideArrayAggWithNoOps(): scalatest.Assertion = {
     val y = Ref(freshName(), TInt32)
     val x = bindIR(
       streamAggIR(ToStream(In(0, TArray(TInt32))))(_ => y)
     )(x => streamAggIR(ToStream(In(1, TArray(TInt32))))(_ => y + x))
 
     TypeCheck(ctx, x, BindingEnv(Env(y.name -> TInt32)))
-    TypeCheck(ctx, ForwardLets(ctx)(x), BindingEnv(Env(y.name -> TInt32)))
+    TypeCheck(ctx, ForwardLets(ctx, x), BindingEnv(Env(y.name -> TInt32)))
+    succeed
   }
 }

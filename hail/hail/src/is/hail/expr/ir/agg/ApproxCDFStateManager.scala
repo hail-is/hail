@@ -4,6 +4,7 @@ import is.hail.annotations._
 import is.hail.backend.HailStateManager
 import is.hail.expr.ir.{DoubleArrayBuilder, IntArrayBuilder, LongArrayBuilder}
 import is.hail.io.{InputBuffer, OutputBuffer}
+import is.hail.macros.void
 import is.hail.types.physical.{PCanonicalArray, PCanonicalStruct, PFloat64, PInt32}
 import is.hail.utils._
 
@@ -706,7 +707,7 @@ class ApproxCDFStateManager(val k: Int, var combiner: ApproxCDFCombiner) {
     val level = findFullLevel()
     if (level == numLevels - 1) growSketch()
 
-    combiner.compactLevel(level)
+    void(combiner.compactLevel(level))
   }
 
   /* If we are following the eager compacting strategy, level 0 must be full when starting a

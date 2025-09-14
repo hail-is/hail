@@ -3,7 +3,7 @@ import warnings
 import zipfile
 from dataclasses import dataclass
 from enum import Enum
-from typing import AbstractSet, Any, ClassVar, Dict, List, Mapping, Optional, Tuple, TypeVar, Union
+from typing import AbstractSet, Any, ClassVar, Dict, List, Mapping, Optional, Set, Tuple, TypeVar, Union
 
 import orjson
 
@@ -68,15 +68,46 @@ def local_jar_information() -> LocalJarInformation:
         raise ValueError(f'Hail requires either {hail_jar} or {hail_all_spark_jar}.')
 
 
+class IRFunction:
+    def __init__(
+        self,
+        name: str,
+        type_parameters: Union[Tuple[HailType, ...], List[HailType]],
+        value_parameter_names: Union[Tuple[str, ...], List[str]],
+        value_parameter_types: Union[Tuple[HailType, ...], List[HailType]],
+        return_type: HailType,
+        body: Expression,
+    ):
+        assert len(value_parameter_names) == len(value_parameter_types)
+        render = CSERenderer()
+        self._name = name
+        self._type_parameters = type_parameters
+        self._value_parameter_names = value_parameter_names
+        self._value_parameter_types = value_parameter_types
+        self._return_type = return_type
+        self._rendered_body = render(finalize_randomness(body._ir))
+
+    def to_dataclass(self):
+        return SerializedIRFunction(
+            name=self._name,
+            type_parameters=[tp._parsable_string() for tp in self._type_parameters],
+            value_parameter_names=list(self._value_parameter_names),
+            value_parameter_types=[vpt._parsable_string() for vpt in self._value_parameter_types],
+            return_type=self._return_type._parsable_string(),
+            rendered_body=self._rendered_body,
+        )
+
+
 class ActionTag(Enum):
-    LOAD_REFERENCES_FROM_DATASET = 1
-    VALUE_TYPE = 2
-    TABLE_TYPE = 3
-    MATRIX_TABLE_TYPE = 4
-    BLOCK_MATRIX_TYPE = 5
-    EXECUTE = 6
-    PARSE_VCF_METADATA = 7
-    IMPORT_FAM = 8
+    # is.hail.backend.service.ServiceBackendSocketAPI2 protocol
+    VALUE_TYPE = 1
+    TABLE_TYPE = 2
+    MATRIX_TABLE_TYPE = 3
+    BLOCK_MATRIX_TYPE = 4
+    EXECUTE = 5
+    PARSE_VCF_METADATA = 6
+    IMPORT_FAM = 7
+    LOAD_REFERENCES_FROM_DATASET = 8
     FROM_FASTA_FILE = 9
 
 
@@ -91,10 +122,20 @@ class IRTypePayload(ActionPayload):
 
 
 @dataclass
+class SerializedIRFunction:
+    name: str
+    type_parameters: List[str]
+    value_parameter_names: List[str]
+    value_parameter_types: List[str]
+    return_type: str
+    rendered_body: str
+
+
+@dataclass
 class ExecutePayload(ActionPayload):
     ir: str
+    fns: List[SerializedIRFunction]
     stream_codec: str
-    timed: bool
 
 
 @dataclass
@@ -164,6 +205,8 @@ class Backend(abc.ABC):
     def __init__(self):
         self._persisted_locations = dict()
         self._references = {}
+        self.functions: List[IRFunction] = []
+        self._registered_ir_function_names: Set[str] = set()
 
     @abc.abstractmethod
     def validate_file(self, uri: str):
@@ -171,10 +214,15 @@ class Backend(abc.ABC):
 
     @abc.abstractmethod
     def stop(self):
-        pass
+        self.functions = []
+        self._registered_ir_function_names = set()
 
     def execute(self, ir: BaseIR, timed: bool = False) -> Any:
-        payload = ExecutePayload(self._render_ir(ir), '{"name":"StreamBufferSpec"}', timed)
+        payload = ExecutePayload(
+            self._render_ir(ir),
+            fns=[fn.to_dataclass() for fn in self.functions],
+            stream_codec='{"name":"StreamBufferSpec"}',
+        )
         try:
             result, timings = self._rpc(ActionTag.EXECUTE, payload)
         except FatalError as e:
@@ -300,7 +348,6 @@ class Backend(abc.ABC):
         tempfile.__exit__(None, None, None)
         return unpersisted
 
-    @abc.abstractmethod
     def register_ir_function(
         self,
         name: str,
@@ -310,11 +357,13 @@ class Backend(abc.ABC):
         return_type: HailType,
         body: Expression,
     ):
-        pass
+        self._registered_ir_function_names.add(name)
+        self.functions.append(
+            IRFunction(name, type_parameters, value_parameter_names, value_parameter_types, return_type, body)
+        )
 
-    @abc.abstractmethod
     def _is_registered_ir_function_name(self, name: str) -> bool:
-        pass
+        return name in self._registered_ir_function_names
 
     @abc.abstractmethod
     def persist_expression(self, expr: Expression) -> Expression:

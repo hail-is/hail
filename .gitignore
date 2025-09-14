@@ -53,3 +53,4 @@ hail/python/install-editable
 batch/jvm-entryway/bin
 _/
 .helix
+/hail/mill-build/config/hail-build-mode

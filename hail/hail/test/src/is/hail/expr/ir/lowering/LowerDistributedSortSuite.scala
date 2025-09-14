@@ -4,6 +4,7 @@ import is.hail.{ExecStrategy, HailSuite, TestUtils}
 import is.hail.expr.ir.{
   mapIR, Ascending, Descending, LoweringAnalyses, SortField, TableIR, TableMapRows, TableRange,
 }
+import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.defs.{
   Apply, ErrorIDs, GetField, I32, Literal, MakeStruct, Ref, SelectFields, ToArray, ToStream,
 }
@@ -13,12 +14,13 @@ import is.hail.types.virtual.{TArray, TInt32, TStruct}
 import is.hail.utils.FastSeq
 
 import org.apache.spark.sql.Row
+import org.scalatest
 import org.testng.annotations.Test
 
-class LowerDistributedSortSuite extends HailSuite {
+class LowerDistributedSortSuite extends HailSuite with TestUtils {
   implicit val execStrats = ExecStrategy.compileOnly
 
-  @Test def testSamplePartition(): Unit = {
+  @Test def testSamplePartition(): scalatest.Assertion = {
     val dataKeys = IndexedSeq(
       (0, 0),
       (0, -1),
@@ -62,7 +64,8 @@ class LowerDistributedSortSuite extends HailSuite {
   }
 
   // Only does ascending for now
-  def testDistributedSortHelper(myTable: TableIR, sortFields: IndexedSeq[SortField]): Unit =
+  def testDistributedSortHelper(myTable: TableIR, sortFields: IndexedSeq[SortField])
+    : scalatest.Assertion =
     ctx.local(flags = ctx.flags + ("shuffle_cutoff_to_local_sort" -> "40")) { ctx =>
       val analyses: LoweringAnalyses = LoweringAnalyses.apply(myTable, ctx)
       val rt = analyses.requirednessAnalysis.lookup(myTable).asInstanceOf[RTable]
@@ -71,14 +74,14 @@ class LowerDistributedSortSuite extends HailSuite {
       val sortedTs = LowerDistributedSort.distributedSort(ctx, stage, sortFields, rt)
         .lower(ctx, myTable.typ.copy(key = FastSeq()))
       val res =
-        TestUtils.eval(sortedTs.mapCollect("test")(x => ToArray(x))).asInstanceOf[IndexedSeq[
+        eval(sortedTs.mapCollect("test")(x => ToArray(x))).asInstanceOf[IndexedSeq[
           IndexedSeq[Row]
         ]].flatten
 
       val rowFunc = myTable.typ.rowType.select(sortFields.map(_.field))._2
-      val unsortedCollect = is.hail.expr.ir.TestUtils.collect(myTable)
+      val unsortedCollect = collect(myTable)
       val unsortedAnalyses = LoweringAnalyses.apply(unsortedCollect, ctx)
-      val unsorted = TestUtils.eval(LowerTableIR.apply(
+      val unsorted = eval(LowerTableIR.apply(
         unsortedCollect,
         DArrayLowering.All,
         ctx,
@@ -105,7 +108,7 @@ class LowerDistributedSortSuite extends HailSuite {
       assert(res == scalaSorted)
     }
 
-  @Test def testDistributedSort(): Unit = {
+  @Test def testDistributedSort(): scalatest.Assertion = {
     val tableRange = TableRange(100, 10)
     val rangeRow = Ref(TableIR.rowName, tableRange.typ.rowType)
     val tableWithExtraField = TableMapRows(
@@ -138,7 +141,7 @@ class LowerDistributedSortSuite extends HailSuite {
     )
   }
 
-  @Test def testDistributedSortEmpty(): Unit = {
+  @Test def testDistributedSortEmpty(): scalatest.Assertion = {
     val tableRange = TableRange(0, 1)
     testDistributedSortHelper(tableRange, IndexedSeq(SortField("idx", Ascending)))
   }

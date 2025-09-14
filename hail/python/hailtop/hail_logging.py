@@ -38,14 +38,14 @@ class CustomJsonFormatter(jsonlogger.JsonFormatter):
         log_record['hail_log'] = 1
 
 
-def configure_logging():
+def configure_logging(level=logging.INFO):
     fmt = CustomJsonFormatter('%(severity)s %(levelname)s %(asctime)s %(filename)s %(funcNameAndLine)s %(message)s')
 
     stream_handler = logging.StreamHandler(stream=sys.stdout)
-    stream_handler.setLevel(logging.INFO)
+    stream_handler.setLevel(level)
     stream_handler.setFormatter(fmt)
 
-    logging.basicConfig(handlers=[stream_handler], level=logging.INFO)
+    logging.basicConfig(handlers=[stream_handler], level=level)
 
 
 class AccessLogger(AbstractAccessLogger):
@@ -61,11 +61,43 @@ class AccessLogger(AbstractAccessLogger):
             'request_duration': time,
             'response_status': response.status,
             'x_real_ip': request.headers.get("X-Real-IP"),
+            'user_agent': request.headers.get("User-Agent"),
         }
 
         userdata_maybe = request.get('userdata', {})
         userdata_keys = ['username', 'login_id', 'is_developer', 'hail_identity']
         extra.update({k: userdata_maybe[k] for k in userdata_keys if k in userdata_maybe})
+
+        # Try to get formdata in various ways:
+        request_data_source = []
+        request_data = request.get('request_data', {})
+        if len(request_data) > 0:
+            request_data_source.append('request_data')
+
+        formdata = request.get('formdata', {})
+        if len(formdata) > 0:
+            request_data_source.append('formdata')
+        request_data.update(formdata)
+
+        post_data = request._post or {}
+        if len(post_data) > 0:
+            request_data_source.append('post_data')
+        request_data.update(post_data)
+
+        extra.update({'request_data_source': request_data_source})
+        extra.update({'request_data': {k: request_data[k] for k in request_data.keys() if not k.startswith('_')}})
+
+        api_info_maybe = request.get('api_info', {})
+        api_info_keys_and_defaults = {
+            'authenticated_users_only': False,
+            'developers_only': False,
+        }
+
+        for k, default in api_info_keys_and_defaults.items():
+            if k in api_info_maybe:
+                extra[k] = api_info_maybe[k]
+            else:
+                extra[k] = default
 
         self.logger.info(
             f'{request.scheme} {request.method} {request.path} done in {time}s: {response.status}',

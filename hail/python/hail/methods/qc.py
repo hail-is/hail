@@ -1,5 +1,6 @@
 import abc
 import logging
+import math
 import os
 from collections import Counter
 from shlex import quote as shq
@@ -1657,9 +1658,8 @@ class _VariantSummary(object):
         for allele_type, count in Counter(self.allele_types).most_common():
             summary = f'  {allele_type_formatter % allele_type}: {count} alternate alleles'
             if allele_type == 'SNP':
-                nti = self.nti
-                ntv = self.ntv
-                summary += f' (Ti: {nti}, Tv: {ntv}, ratio: {nti / ntv:.2f})'
+                r_ti_tv = self.nti / self.ntv if self.ntv != 0 else math.nan
+                summary += f' (Ti: {self.nti}, Tv: {self.ntv}, ratio: {r_ti_tv:.2f})'
             builder.append(summary)
         builder.append(line_break)
         return '\n'.join(builder)
@@ -1701,7 +1701,8 @@ class _VariantSummary(object):
         builder.append('<tr><th>Metric</th><th>Value</th></tr></thead><tbody>')
         builder.append(f'<tr><td>Transitions</td><td>{self.nti}</td></tr>')
         builder.append(f'<tr><td>Transversions</td><td>{self.ntv}</td></tr>')
-        builder.append(f'<tr><td>Ratio</td><td>{self.nti / self.ntv:.2f}</td></tr>')
+        r_ti_tv = self.nti / self.ntv if self.ntv != 0 else math.nan
+        builder.append(f'<tr><td>Ratio</td><td>{r_ti_tv:.2f}</td></tr>')
         builder.append('</tbody></table>')
         builder.append('</li>')
 
@@ -1805,7 +1806,7 @@ def summarize_variants(mt: Union[MatrixTable, MatrixTable], show=True, *, handle
             contigs=contigs,
             allele_counts=allele_counts,
             n_variants=n_variants,
-            r_ti_tv=nti / ntv,
+            r_ti_tv=nti / ntv if ntv != 0 else None,
         )
 
 

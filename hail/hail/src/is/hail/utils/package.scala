@@ -3,12 +3,12 @@ package is.hail
 import is.hail.annotations.ExtendedOrdering
 import is.hail.expr.ir.ByteArrayBuilder
 import is.hail.io.fs.{FS, FileListEntry}
+import is.hail.macros.void
 
 import scala.collection.{mutable, GenTraversableOnce, TraversableOnce}
 import scala.collection.generic.CanBuildFrom
 import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.ExecutionException
-import scala.language.higherKinds
 import scala.reflect.ClassTag
 import scala.util.control.NonFatal
 
@@ -89,6 +89,23 @@ package utils {
       }
       b.result()
     }
+  }
+
+  class Lazy[A] private[utils] (f: => A) {
+    private[this] var option: Option[A] = None
+
+    def apply(): A =
+      synchronized {
+        option match {
+          case Some(a) => a
+          case None => val a = f; option = Some(a); a
+        }
+      }
+
+    def isEvaluated: Boolean =
+      synchronized {
+        option.isDefined
+      }
   }
 }
 
@@ -1027,7 +1044,7 @@ package object utils
     val buffer = new mutable.ArrayBuffer[(A, Int)](tasks.length)
     val completer = new ExecutorCompletionService[(A, Int)](executor)
 
-    tasks.foreach { case (t, k) => completer.submit(() => t() -> k) }
+    val futures = tasks.map { case (t, k) => completer.submit(() => t() -> k) }
     tasks.foreach { _ =>
       try buffer += completer.take().get()
       catch {
@@ -1035,6 +1052,9 @@ package object utils
           err = accum(err, e.getCause)
         case NonFatal(ex) =>
           err = accum(err, ex)
+        case _: InterruptedException =>
+          futures.foreach(_.cancel(true))
+          Thread.currentThread().interrupt()
       }
     }
 
@@ -1044,6 +1064,12 @@ package object utils
   def runAllKeepFirstError[A](executor: ExecutorService)
     : IndexedSeq[(() => A, Int)] => (Option[Throwable], IndexedSeq[(A, Int)]) =
     runAll[Option, A](executor) { case (opt, e) => opt.orElse(Some(e)) }(None)
+
+  def lazily[A](f: => A): Lazy[A] =
+    new Lazy(f)
+
+  implicit def evalLazy[A](f: Lazy[A]): A =
+    f()
 }
 
 class CancellingExecutorService(delegate: ExecutorService) extends AbstractExecutorService {
@@ -1056,11 +1082,13 @@ class CancellingExecutorService(delegate: ExecutorService) extends AbstractExecu
     @volatile private[this] var isFailed = false
 
     override def run(): Unit =
-      try set(f())
-      catch {
-        case NonFatal(e) =>
-          isFailed = true
-          setException(e)
+      void {
+        try set(f())
+        catch {
+          case NonFatal(e) =>
+            isFailed = true
+            setException(e)
+        }
       }
 
     override def afterDone(): Unit =
@@ -1070,7 +1098,8 @@ class CancellingExecutorService(delegate: ExecutorService) extends AbstractExecu
   }
 
   final private[this] class CancelledFuture[A] extends AbstractFuture[A] with RunnableFuture[A] {
-    override def run(): Unit = setException(new CancellationException())
+    override def run(): Unit =
+      void(setException(new CancellationException()))
   }
 
   override def newTaskFor[T](runnable: Runnable, value: T): RunnableFuture[T] =

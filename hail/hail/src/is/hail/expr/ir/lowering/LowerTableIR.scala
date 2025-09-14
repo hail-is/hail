@@ -3,6 +3,7 @@ package is.hail.expr.ir.lowering
 import is.hail.HailContext
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{agg, TableNativeWriter, _}
+import is.hail.expr.ir.analyses.PartitionCounts
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.defs.ArrayZipBehavior.AssertSameLength
 import is.hail.expr.ir.functions.{TableCalculateNewPartitions, WrappedMatrixToTableFunction}
@@ -748,36 +749,19 @@ object LowerTableIR {
         val sampleSize = math.min((nPartitions * 20 + 256), 1000000)
         val samplesPerPartition = sampleSize / math.max(1, stage.numPartitions)
         val keyType = child.typ.keyType
-        val samplekey = AggSignature(ReservoirSample(), FastSeq(TInt32), FastSeq(keyType))
-
-        val minkey = AggSignature(TakeBy(), FastSeq(TInt32), FastSeq(keyType, keyType))
-
-        val maxkey = AggSignature(TakeBy(Descending), FastSeq(TInt32), FastSeq(keyType, keyType))
 
         bindIR(flatten(stage.mapCollect("table_calculate_new_partitions") { rows =>
           streamAggIR(mapIR(rows)(row => SelectFields(row, keyType.fieldNames))) { elt =>
             ToArray(flatMapIR(ToStream(
               MakeArray(
-                ApplyAggOp(
-                  FastSeq(I32(samplesPerPartition)),
-                  FastSeq(elt),
-                  samplekey,
-                ),
-                ApplyAggOp(
-                  FastSeq(I32(1)),
-                  FastSeq(elt, elt),
-                  minkey,
-                ),
-                ApplyAggOp(
-                  FastSeq(I32(1)),
-                  FastSeq(elt, elt),
-                  maxkey,
-                ),
+                ApplyAggOp(FastSeq(I32(samplesPerPartition)), FastSeq(elt), ReservoirSample()),
+                ApplyAggOp(FastSeq(I32(1)), FastSeq(elt, elt), TakeBy()),
+                ApplyAggOp(FastSeq(I32(1)), FastSeq(elt, elt), TakeBy(Descending)),
               )
             ))(inner => ToStream(inner)))
           }
         })) { partData =>
-          val sorted = sortIR(partData)((l, r) => ApplyComparisonOp(LT(keyType, keyType), l, r))
+          val sorted = sortIR(partData)((l, r) => ApplyComparisonOp(LT, l, r))
           bindIR(ToArray(flatMapIR(StreamGroupByKey(
             ToStream(sorted),
             keyType.fieldNames,
@@ -824,21 +808,14 @@ object LowerTableIR {
         lower(child).collectWithGlobals("table_collect")
 
       case TableAggregate(child, query) =>
-        val aggs = agg.Extract(query, analyses.requirednessAnalysis, false)
-
-        def results: IR = ResultOp.makeTuple(aggs.aggs)
+        val aggs = agg.Extract(ctx, query, analyses.requirednessAnalysis).independent
+        val aggSigs = aggs.sigs
 
         val lc = lower(child)
 
         val initState = Let(
           FastSeq(TableIR.globalName -> lc.globals),
-          RunAgg(
-            aggs.init,
-            MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) =>
-              AggStateValue(i, sig.state)
-            }),
-            aggs.states,
-          ),
+          RunAgg(aggs.init, aggSigs.valuesOp, aggSigs.states),
         )
         val initStateRef = Ref(freshName(), initState.typ)
         val lcWithInitBinding = lc.copy(
@@ -846,13 +823,11 @@ object LowerTableIR {
           broadcastVals = lc.broadcastVals ++ FastSeq((initStateRef.name, initStateRef)),
         )
 
-        val initFromSerializedStates = Begin(aggs.aggs.zipWithIndex.map { case (agg, i) =>
-          InitFromSerializedValue(i, GetTupleElement(initStateRef, i), agg.state)
-        })
+        val initFromSerializedStates = aggSigs.initFromSerializedValueOp(initStateRef)
 
         val branchFactor = HailContext.get.branchingFactor
-        val useTreeAggregate = aggs.shouldTreeAggregate && branchFactor < lc.numPartitions
-        val isCommutative = aggs.isCommutative
+        val useTreeAggregate = aggSigs.shouldTreeAggregate && branchFactor < lc.numPartitions
+        val isCommutative = aggSigs.isCommutative
         log.info(s"Aggregate: useTreeAggregate=$useTreeAggregate")
         log.info(s"Aggregate: commutative=$isCommutative")
 
@@ -861,7 +836,7 @@ object LowerTableIR {
 
           val codecSpec = TypedCodecSpec(
             ctx,
-            PCanonicalTuple(true, aggs.aggs.map(_ => PCanonicalBinary(true)): _*),
+            PCanonicalTuple(true, Seq.fill(aggSigs.nAggs)(PCanonicalBinary(true)): _*),
             BufferSpec.wireSpec,
           )
           val writer = ETypeValueWriter(codecSpec)
@@ -874,14 +849,8 @@ object LowerTableIR {
                   initFromSerializedStates,
                   StreamFor(part, TableIR.rowName, aggs.seqPerElt),
                 )),
-                WriteValue(
-                  MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) =>
-                    AggStateValue(i, sig.state)
-                  }),
-                  Str(tmpDir) + UUID4(),
-                  writer,
-                ),
-                aggs.states,
+                WriteValue(aggSigs.valuesOp, Str(tmpDir) + UUID4(), writer),
+                aggSigs.states,
               ),
             )
           }) { case (collected, globals) =>
@@ -898,13 +867,7 @@ object LowerTableIR {
                     ArrayRef(partArrayRef, 0),
                     reader,
                     reader.spec.encodedVirtualType,
-                  )) { serializedTuple =>
-                    Begin(
-                      aggs.aggs.zipWithIndex.map { case (sig, i) =>
-                        InitFromSerializedValue(i, GetTupleElement(serializedTuple, i), sig.state)
-                      }
-                    )
-                  }
+                  ))(aggSigs.initFromSerializedValueOp)
                 },
                 forIR(StreamRange(
                   if (useInitStates) 0 else 1,
@@ -916,13 +879,7 @@ object LowerTableIR {
                     ArrayRef(partArrayRef, fileIdx),
                     reader,
                     reader.spec.encodedVirtualType,
-                  )) { serializedTuple =>
-                    Begin(
-                      aggs.aggs.zipWithIndex.map { case (sig, i) =>
-                        CombOpValue(i, GetTupleElement(serializedTuple, i), sig)
-                      }
-                    )
-                  }
+                  ))(aggSigs.combOpValues)
                 },
               ))
             }
@@ -948,14 +905,8 @@ object LowerTableIR {
                   )((context, _) =>
                     RunAgg(
                       combineGroup(context, false),
-                      WriteValue(
-                        MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) =>
-                          AggStateValue(i, sig.state)
-                        }),
-                        Str(tmpDir) + UUID4(),
-                        writer,
-                      ),
-                      aggs.states,
+                      WriteValue(aggSigs.valuesOp, Str(tmpDir) + UUID4(), writer),
+                      aggSigs.states,
                     )
                   ),
                   iterNumber + 1,
@@ -972,10 +923,10 @@ object LowerTableIR {
               RunAgg(
                 combineGroup(finalParts, true),
                 Let(
-                  FastSeq(TableIR.globalName -> globals, aggs.resultRef.name -> results),
-                  aggs.postAggIR,
+                  FastSeq(TableIR.globalName -> globals),
+                  aggs.result,
                 ),
-                aggs.states,
+                aggSigs.states,
               )
             }
           }
@@ -988,10 +939,8 @@ object LowerTableIR {
                   initFromSerializedStates,
                   StreamFor(part, TableIR.rowName, aggs.seqPerElt),
                 )),
-                MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) =>
-                  AggStateValue(i, sig.state)
-                }),
-                aggs.states,
+                aggSigs.valuesOp,
+                aggSigs.states,
               ),
             )
           }) { case (collected, globals) =>
@@ -1000,14 +949,12 @@ object LowerTableIR {
               RunAgg(
                 Begin(FastSeq(
                   initFromSerializedStates,
-                  forIR(ToStream(collected, requiresMemoryManagementPerElement = true)) { state =>
-                    Begin(aggs.aggs.zipWithIndex.map { case (sig, i) =>
-                      CombOpValue(i, GetTupleElement(state, i), sig)
-                    })
-                  },
+                  forIR(ToStream(collected, requiresMemoryManagementPerElement = true))(
+                    aggSigs.combOpValues
+                  ),
                 )),
-                Let(FastSeq(aggs.resultRef.name -> results), aggs.postAggIR),
-                aggs.states,
+                aggs.result,
+                aggSigs.states,
               ),
             )
           }
@@ -1215,7 +1162,7 @@ object LowerTableIR {
                     ApplyAggOp(
                       FastSeq(I32(1)),
                       FastSeq(SelectFields(Ref(TableIR.rowName, child.typ.rowType), child.typ.key)),
-                      AggSignature(Take(), FastSeq(TInt32), FastSeq(child.typ.keyType)),
+                      Take(),
                     ),
                     I32(0),
                   ), // FIXME: would prefer a First() agg op
@@ -1372,7 +1319,7 @@ object LowerTableIR {
             StreamLen(a)
 
         def partitionSizeArray(childContexts: Ref): IR = {
-          child.partitionCounts match {
+          PartitionCounts(child) match {
             case Some(partCounts) =>
               var idx = 0
               var sumSoFar = 0L
@@ -1508,7 +1455,7 @@ object LowerTableIR {
         val loweredChild = lower(child)
 
         def partitionSizeArray(childContexts: Ref, totalNumPartitions: Ref): IR = {
-          child.partitionCounts match {
+          PartitionCounts(child) match {
             case Some(partCounts) =>
               var idx = partCounts.length - 1
               var sumSoFar = 0L
@@ -1662,15 +1609,14 @@ object LowerTableIR {
             )
           }
         } else {
-          val aggs = agg.Extract(newRow, analyses.requirednessAnalysis, isScan = true)
+          val aggs =
+            agg.Extract(ctx, newRow, analyses.requirednessAnalysis, isScan = true).independent
+          val aggSigs = aggs.sigs
 
-          val results: IR = ResultOp.makeTuple(aggs.aggs)
           val initState = RunAgg(
             Let(FastSeq(TableIR.globalName -> lc.globals), aggs.init),
-            MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) =>
-              AggStateValue(i, sig.state)
-            }),
-            aggs.states,
+            aggSigs.valuesOp,
+            aggSigs.states,
           )
           val initStateRef = Ref(freshName(), initState.typ)
           val lcWithInitBinding = lc.copy(
@@ -1678,17 +1624,15 @@ object LowerTableIR {
             broadcastVals = lc.broadcastVals ++ FastSeq((initStateRef.name, initStateRef)),
           )
 
-          val initFromSerializedStates = Begin(aggs.aggs.zipWithIndex.map { case (agg, i) =>
-            InitFromSerializedValue(i, GetTupleElement(initStateRef, i), agg.state)
-          })
+          val initFromSerializedStates = aggSigs.initFromSerializedValueOp(initStateRef)
           val branchFactor = HailContext.get.branchingFactor
-          val big = aggs.shouldTreeAggregate && branchFactor < lc.numPartitions
+          val big = aggSigs.shouldTreeAggregate && branchFactor < lc.numPartitions
           val (partitionPrefixSumValues, transformPrefixSum): (IR, IR => IR) = if (big) {
             val tmpDir = ctx.createTmpPath("aggregate_intermediates/")
 
             val codecSpec = TypedCodecSpec(
               ctx,
-              PCanonicalTuple(true, aggs.aggs.map(_ => PCanonicalBinary(true)): _*),
+              PCanonicalTuple(true, Seq.fill(aggSigs.nAggs)(PCanonicalBinary(true)): _*),
               BufferSpec.wireSpec,
             )
             val writer = ETypeValueWriter(codecSpec)
@@ -1702,14 +1646,8 @@ object LowerTableIR {
                       initFromSerializedStates,
                       StreamFor(part, TableIR.rowName, aggs.seqPerElt),
                     )),
-                    WriteValue(
-                      MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) =>
-                        AggStateValue(i, sig.state)
-                      }),
-                      Str(tmpDir) + UUID4(),
-                      writer,
-                    ),
-                    aggs.states,
+                    WriteValue(aggSigs.valuesOp, Str(tmpDir) + UUID4(), writer),
+                    aggSigs.states,
                   ),
                 )
                 // Collected is TArray of TString
@@ -1720,13 +1658,7 @@ object LowerTableIR {
                       ArrayRef(partArrayRef, 0),
                       reader,
                       reader.spec.encodedVirtualType,
-                    )) { serializedTuple =>
-                      Begin(
-                        aggs.aggs.zipWithIndex.map { case (sig, i) =>
-                          InitFromSerializedValue(i, GetTupleElement(serializedTuple, i), sig.state)
-                        }
-                      )
-                    },
+                    ))(aggSigs.initFromSerializedValueOp),
                     forIR(StreamRange(
                       1,
                       ArrayLen(partArrayRef),
@@ -1737,13 +1669,7 @@ object LowerTableIR {
                         ArrayRef(partArrayRef, fileIdx),
                         reader,
                         reader.spec.encodedVirtualType,
-                      )) { serializedTuple =>
-                        Begin(
-                          aggs.aggs.zipWithIndex.map { case (sig, i) =>
-                            CombOpValue(i, GetTupleElement(serializedTuple, i), sig)
-                          }
-                        )
-                      }
+                      ))(aggSigs.combOpValues)
                     },
                   ))
                 }
@@ -1787,14 +1713,8 @@ object LowerTableIR {
                           ) { case (contexts, _) =>
                             RunAgg(
                               combineGroup(contexts),
-                              WriteValue(
-                                MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) =>
-                                  AggStateValue(i, sig.state)
-                                }),
-                                Str(tmpDir) + UUID4(),
-                                writer,
-                              ),
-                              aggs.states,
+                              WriteValue(aggSigs.valuesOp, Str(tmpDir) + UUID4(), writer),
+                              aggSigs.states,
                             )
                           }
                           Recur(
@@ -1869,34 +1789,14 @@ object LowerTableIR {
                                 requiresMemoryManagementPerElement = true,
                               ),
                               elt.name,
-                              bindIR(ReadValue(prev, reader, reader.spec.encodedVirtualType)) {
-                                serializedTuple =>
-                                  Begin(
-                                    aggs.aggs.zipWithIndex.map { case (sig, i) =>
-                                      InitFromSerializedValue(
-                                        i,
-                                        GetTupleElement(serializedTuple, i),
-                                        sig.state,
-                                      )
-                                    }
-                                  )
-                              },
-                              bindIR(ReadValue(elt, reader, reader.spec.encodedVirtualType)) {
-                                serializedTuple =>
-                                  Begin(
-                                    aggs.aggs.zipWithIndex.map { case (sig, i) =>
-                                      CombOpValue(i, GetTupleElement(serializedTuple, i), sig)
-                                    }
-                                  )
-                              },
-                              WriteValue(
-                                MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) =>
-                                  AggStateValue(i, sig.state)
-                                }),
-                                Str(tmpDir) + UUID4(),
-                                writer,
+                              bindIR(ReadValue(prev, reader, reader.spec.encodedVirtualType))(
+                                aggSigs.initFromSerializedValueOp
                               ),
-                              aggs.states,
+                              bindIR(ReadValue(elt, reader, reader.spec.encodedVirtualType))(
+                                aggSigs.combOpValues
+                              ),
+                              WriteValue(aggSigs.valuesOp, Str(tmpDir) + UUID4(), writer),
+                              aggSigs.states,
                             ))
                           }
                         }
@@ -1940,10 +1840,8 @@ object LowerTableIR {
                         initFromSerializedStates,
                         StreamFor(part, TableIR.rowName, aggs.seqPerElt),
                       )),
-                      MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) =>
-                        AggStateValue(i, sig.state)
-                      }),
-                      aggs.states,
+                      aggSigs.valuesOp,
+                      aggSigs.states,
                     ),
                   )
               }) { case (collected, globals) =>
@@ -1960,17 +1858,11 @@ object LowerTableIR {
                         value.name,
                         RunAgg(
                           Begin(FastSeq(
-                            Begin(aggs.aggs.zipWithIndex.map { case (agg, i) =>
-                              InitFromSerializedValue(i, GetTupleElement(acc, i), agg.state)
-                            }),
-                            Begin(aggs.aggs.zipWithIndex.map { case (sig, i) =>
-                              CombOpValue(i, GetTupleElement(value, i), sig)
-                            }),
+                            aggSigs.initFromSerializedValueOp(acc),
+                            aggSigs.combOpValues(value),
                           )),
-                          MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) =>
-                            AggStateValue(i, sig.state)
-                          }),
-                          aggs.states,
+                          aggSigs.valuesOp,
+                          aggSigs.states,
                         ),
                       )
                     },
@@ -2007,12 +1899,10 @@ object LowerTableIR {
                       RunAggScan(
                         lc.partition(oldContext),
                         TableIR.rowName,
-                        Begin(aggs.aggs.zipWithIndex.map { case (agg, i) =>
-                          InitFromSerializedValue(i, GetTupleElement(scanState, i), agg.state)
-                        }),
+                        aggSigs.initFromSerializedValueOp(scanState),
                         aggs.seqPerElt,
-                        Let(FastSeq(aggs.resultRef.name -> results), aggs.postAggIR),
-                        aggs.states,
+                        aggs.result,
+                        aggSigs.states,
                       ),
                     )
                   }

@@ -30,8 +30,6 @@ import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
 import is.hail.variant.{Call, ReferenceGenome}
 
-import scala.language.existentials
-
 import java.io.{InputStream, OutputStream}
 import java.nio.file.{FileSystems, Path}
 import java.util.UUID
@@ -71,22 +69,6 @@ case class WrappedMatrixWriter(
 
 abstract class MatrixWriter {
   def path: String
-
-  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = {
-    val tv = mv.toTableValue
-    val ts = TableExecuteIntermediate(tv).asTableStage(ctx)
-    CompileAndEvaluate(
-      ctx,
-      lower(
-        LowerMatrixIR.colsFieldName,
-        MatrixType.entriesIdentifier,
-        mv.typ.colKey,
-        ctx,
-        ts,
-        BaseTypeWithRequiredness(tv.typ).asInstanceOf[RTable],
-      ),
-    )
-  }
 
   def lower(
     colsFieldName: String,
@@ -587,8 +569,8 @@ case class SplitPartitionNativeWriter(
                   firstSeenSettable,
                   EmitValue.present(key.copyToRegion(cb, region, firstSeenSettable.st)),
                 ),
-                { lastSeen =>
-                  val comparator = EQ(lastSeenSettable.emitType.virtualType).codeOrdering(
+                { _ =>
+                  val comparator = EQ.codeOrdering(
                     cb.emb.ecb,
                     lastSeenSettable.st,
                     key.st,
@@ -2359,7 +2341,7 @@ case class MatrixBlockMatrixWriter(
     val countColumnsIR = ArrayLen(GetField(ts.getGlobals(), colsFieldName))
     val numCols: Int = CompileAndEvaluate(ctx, countColumnsIR, true).asInstanceOf[Int]
     val numBlockCols: Int = (numCols - 1) / blockSize + 1
-    val lastBlockNumCols = numCols % blockSize
+    val lastBlockNumCols = (numCols - 1) % blockSize + 1
 
     val rowCountIR = ts.mapCollect("matrix_block_matrix_writer_partition_counts")(paritionIR =>
       StreamLen(paritionIR)
@@ -2520,7 +2502,7 @@ case class MatrixBlockMatrixWriter(
       }
     val flatPathsAndIndices = flatMapIR(ToStream(pathsWithColMajorIndices))(ToStream(_))
     val sortedColMajorPairs = sortIR(flatPathsAndIndices) { case (l, r) =>
-      ApplyComparisonOp(LT(TInt32), GetTupleElement(l, 0), GetTupleElement(r, 0))
+      ApplyComparisonOp(LT, GetTupleElement(l, 0), GetTupleElement(r, 0))
     }
     val flatPaths = ToArray(mapIR(ToStream(sortedColMajorPairs))(GetTupleElement(_, 1)))
     val bmt = BlockMatrixType(

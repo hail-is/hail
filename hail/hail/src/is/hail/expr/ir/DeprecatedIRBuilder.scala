@@ -4,7 +4,7 @@ import is.hail.expr.ir.defs._
 import is.hail.types.virtual._
 import is.hail.utils.{toRichIterable, FastSeq}
 
-import scala.language.{dynamics, implicitConversions}
+import scala.language.dynamics
 
 object DeprecatedIRBuilder {
   type E = Env[Type]
@@ -67,11 +67,9 @@ object DeprecatedIRBuilder {
     initOpArgs: IndexedSeq[IRProxy] = FastSeq(),
     seqOpArgs: IndexedSeq[IRProxy] = FastSeq(),
   ): IRProxy = (env: E) => {
-
     val i = initOpArgs.map(x => x(env))
     val s = seqOpArgs.map(x => x(env))
-
-    ApplyAggOp(i, s, AggSignature(op, i.map(_.typ), s.map(_.typ)))
+    ApplyAggOp(i, s, op)
   }
 
   def aggFilter(filterCond: IRProxy, query: IRProxy, isScan: Boolean = false): IRProxy = (env: E) =>
@@ -174,38 +172,38 @@ object DeprecatedIRBuilder {
 
     def ceq(other: IRProxy): IRProxy = (env: E) => {
       val left = ir(env)
-      val right = other(env);
-      ApplyComparisonOp(EQWithNA(left.typ, right.typ), left, right)
+      val right = other(env)
+      ApplyComparisonOp(EQWithNA, left, right)
     }
 
     def cne(other: IRProxy): IRProxy = (env: E) => {
       val left = ir(env)
       val right = other(env)
-      ApplyComparisonOp(NEQWithNA(left.typ, right.typ), left, right)
+      ApplyComparisonOp(NEQWithNA, left, right)
     }
 
     def <(other: IRProxy): IRProxy = (env: E) => {
       val left = ir(env)
       val right = other(env)
-      ApplyComparisonOp(LT(left.typ, right.typ), left, right)
+      ApplyComparisonOp(LT, left, right)
     }
 
     def >(other: IRProxy): IRProxy = (env: E) => {
       val left = ir(env)
       val right = other(env)
-      ApplyComparisonOp(GT(left.typ, right.typ), left, right)
+      ApplyComparisonOp(GT, left, right)
     }
 
     def <=(other: IRProxy): IRProxy = (env: E) => {
       val left = ir(env)
       val right = other(env)
-      ApplyComparisonOp(LTEQ(left.typ, right.typ), left, right)
+      ApplyComparisonOp(LTEQ, left, right)
     }
 
     def >=(other: IRProxy): IRProxy = (env: E) => {
       val left = ir(env)
       val right = other(env)
-      ApplyComparisonOp(GTEQ(left.typ, right.typ), left, right)
+      ApplyComparisonOp(GTEQ, left, right)
     }
 
     def apply(lookup: Symbol): IRProxy = (env: E) => {

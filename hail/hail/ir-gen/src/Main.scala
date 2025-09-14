@@ -1,5 +1,4 @@
 import scala.annotation.nowarn
-import scala.language.{higherKinds, implicitConversions}
 
 import mainargs.{main, ParserForMethods}
 
@@ -991,14 +990,14 @@ object Main {
       "ApplyAggOp",
       in("initOpArgs", child.*),
       in("seqOpArgs", child.*),
-      in("aggSig", att("AggSignature")),
+      in("op", att("AggOp")),
     )
-      .withClassExtension.withCompanionExtension
+      .withCompanionExtension
     r += node(
       "ApplyScanOp",
       in("initOpArgs", child.*),
       in("seqOpArgs", child.*),
-      in("aggSig", att("AggSignature")),
+      in("op", att("AggOp")),
     )
       .withClassExtension.withCompanionExtension
     r += node(
@@ -1209,15 +1208,15 @@ object Main {
   }
 
   @main
-  def main(path: String) = {
+  def main(path: String): Unit = {
     val pack = "package is.hail.expr.ir.defs"
     val imports = Seq(
       "is.hail.annotations.Annotation",
       "is.hail.io.{AbstractTypedCodecSpec, BufferSpec}",
       "is.hail.types.virtual.{Type, TArray, TStream, TVoid, TStruct, TTuple}",
       "is.hail.utils.{FastSeq, StringEscapeUtils}",
-      "is.hail.expr.ir.{BaseIR, IR, TableIR, MatrixIR, BlockMatrixIR, Name, UnaryOp, BinaryOp, " +
-        "ComparisonOp, CanEmit, AggSignature, EmitParamType, TableWriter, " +
+      "is.hail.expr.ir.{AggOp, BaseIR, IR, TableIR, MatrixIR, BlockMatrixIR, Name, UnaryOp, BinaryOp, " +
+        "ComparisonOp, CanEmit, EmitParamType, TableWriter, " +
         "WrappedMatrixNativeMultiWriter, MatrixWriter, MatrixNativeMultiWriter, BlockMatrixWriter, " +
         "BlockMatrixMultiWriter, ValueReader, ValueWriter}",
       "is.hail.expr.ir.lowering.TableStageDependency",
@@ -1233,5 +1232,7 @@ object Main {
     os.write(os.Path(path) / "IR_gen.scala", gen)
   }
 
-  def main(args: Array[String]): Unit = ParserForMethods(this).runOrExit(args)
+  def main(args: Array[String]): Unit = {
+    val _ = ParserForMethods(this).runOrExit(args)
+  }
 }

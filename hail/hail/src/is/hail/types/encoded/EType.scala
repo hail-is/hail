@@ -180,7 +180,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
   def _toPretty: String
 
   def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit =
-    sb.append(_toPretty)
+    sb ++= _toPretty
 
   final def decodedSType(requestedType: Type): SType =
     _decodedSType(requestedType)

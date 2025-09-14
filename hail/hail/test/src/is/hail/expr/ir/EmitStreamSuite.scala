@@ -1,10 +1,8 @@
 package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
-import is.hail.TestUtils._
-import is.hail.annotations.{Region, SafeRow, ScalaToRegionValue}
+import is.hail.annotations.{Region, RegionPool, SafeRow, ScalaToRegionValue}
 import is.hail.asm4s._
-import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.agg.{CollectStateSig, PhysicalAggSig, TypedStateSig}
 import is.hail.expr.ir.compile.Compile
 import is.hail.expr.ir.defs._
@@ -21,6 +19,9 @@ import is.hail.utils._
 import is.hail.variant.Call2
 
 import org.apache.spark.sql.Row
+import org.scalatest
+import org.scalatest.Inspectors.forAll
+import org.scalatest.enablers.InspectorAsserting.assertingNatureOfAssertion
 import org.testng.annotations.Test
 
 class EmitStreamSuite extends HailSuite {
@@ -190,10 +191,10 @@ class EmitStreamSuite extends HailSuite {
     }
   }
 
-  @Test def testEmitNA(): Unit =
+  @Test def testEmitNA(): scalatest.Assertion =
     assert(evalStream(NA(TStream(TInt32))) == null)
 
-  @Test def testEmitMake(): Unit = {
+  @Test def testEmitMake(): scalatest.Assertion = {
     val typ = TStream(TInt32)
     val tests: Array[(IR, IndexedSeq[Any])] = Array(
       MakeStream(IndexedSeq[IR](1, 2, NA(TInt32), 3), typ) -> IndexedSeq(1, 2, null, 3),
@@ -206,13 +207,13 @@ class EmitStreamSuite extends HailSuite {
       MakeStream(IndexedSeq[IR](Str("hi"), Str("world")), TStream(TString)) ->
         IndexedSeq("hi", "world"),
     )
-    for ((ir, v) <- tests) {
+    forAll(tests) { case (ir, v) =>
       assert(evalStream(ir) == v, Pretty(ctx, ir))
-      assert(evalStreamLen(ir) == Some(v.length), Pretty(ctx, ir))
+      assert(evalStreamLen(ir).contains(v.length), Pretty(ctx, ir))
     }
   }
 
-  @Test def testEmitRange(): Unit = {
+  @Test def testEmitRange(): scalatest.Assertion = {
     val tripleType =
       PCanonicalStruct(false, "start" -> PInt32(), "stop" -> PInt32(), "step" -> PInt32())
     val range = compileStream(
@@ -247,7 +248,7 @@ class EmitStreamSuite extends HailSuite {
     assert(range(null) == null)
   }
 
-  @Test def testEmitSeqSample(): Unit = {
+  @Test def testEmitSeqSample(): scalatest.Assertion = {
     val N = 20
     val n = 2
 
@@ -272,8 +273,8 @@ class EmitStreamSuite extends HailSuite {
       assert(IndexedSeq.forall(e => e >= 0 && e < N))
     }
 
-    (0 until N).foreach { i =>
-      (i + 1 until N).foreach { j =>
+    forAll(0 until N) { i =>
+      forAll(i + 1 until N) { j =>
         val entry = results(i)(j)
         // Expected value of entry is 5263.
         assert(entry > 4880 && entry < 5650)
@@ -281,20 +282,20 @@ class EmitStreamSuite extends HailSuite {
     }
   }
 
-  @Test def testEmitToStream(): Unit = {
+  @Test def testEmitToStream(): scalatest.Assertion = {
     val tests: Array[(IR, IndexedSeq[Any])] = Array(
       ToStream(MakeArray(IndexedSeq[IR](), TArray(TInt32))) -> IndexedSeq(),
       ToStream(MakeArray(IndexedSeq[IR](1, 2, 3, 4), TArray(TInt32))) -> IndexedSeq(1, 2, 3, 4),
       ToStream(NA(TArray(TInt32))) -> null,
     )
-    for ((ir, v) <- tests) {
+    forAll(tests) { case (ir, v) =>
       val expectedLen = Option(v).map(_.length)
       assert(evalStream(ir) == v, Pretty(ctx, ir))
       assert(evalStreamLen(ir) == expectedLen, Pretty(ctx, ir))
     }
   }
 
-  @Test def testEmitLet(): Unit = {
+  @Test def testEmitLet(): scalatest.Assertion = {
     val ir =
       bindIRs(3, 10) { case Seq(start, end) =>
         flatMapIR(StreamRange(start, end, 1)) { i =>
@@ -305,7 +306,7 @@ class EmitStreamSuite extends HailSuite {
     assert(evalStreamLen(ir).isEmpty, Pretty(ctx, ir))
   }
 
-  @Test def testEmitMap(): Unit = {
+  @Test def testEmitMap(): scalatest.Assertion = {
     def ten = StreamRange(I32(0), I32(10), I32(1))
 
     val tests: Array[(IR, IndexedSeq[Any])] = Array(
@@ -314,13 +315,13 @@ class EmitStreamSuite extends HailSuite {
       mapIR(mapIR(ten)(_ + 1))(y => y * y) -> (0 until 10).map(i => (i + 1) * (i + 1)),
       mapIR(ten)(_ => NA(TInt32)) -> IndexedSeq.tabulate(10)(_ => null),
     )
-    for ((ir, v) <- tests) {
+    forAll(tests) { case (ir, v) =>
       assert(evalStream(ir) == v, Pretty(ctx, ir))
-      assert(evalStreamLen(ir) == Some(v.length), Pretty(ctx, ir))
+      assert(evalStreamLen(ir).contains(v.length), Pretty(ctx, ir))
     }
   }
 
-  @Test def testEmitFilter(): Unit = {
+  @Test def testEmitFilter(): scalatest.Assertion = {
     def ten = StreamRange(I32(0), I32(10), I32(1))
 
     val tests: Array[(IR, IndexedSeq[Any])] = Array(
@@ -331,13 +332,13 @@ class EmitStreamSuite extends HailSuite {
       filterIR(mapIR(ten)(_ => NA(TInt32)))(_ => True()) ->
         IndexedSeq.tabulate(10)(_ => null),
     )
-    for ((ir, v) <- tests) {
+    forAll(tests) { case (ir, v) =>
       assert(evalStream(ir) == v, Pretty(ctx, ir))
       assert(evalStreamLen(ir).isEmpty, Pretty(ctx, ir))
     }
   }
 
-  @Test def testEmitFlatMap(): Unit = {
+  @Test def testEmitFlatMap(): scalatest.Assertion = {
 
     val tests: Array[(IR, IndexedSeq[Any])] = Array(
       flatMapIR(rangeIR(6))(rangeIR(_)) ->
@@ -354,14 +355,18 @@ class EmitStreamSuite extends HailSuite {
         ToStream(MakeArray(IndexedSeq[IR](x, x), TArray(TInt32)))
       } -> IndexedSeq(0, 0, 1, 1, 2, 2, 3, 3),
     )
-    for ((ir, v) <- tests) {
+
+    forAll(tests) { case (ir, v) =>
       assert(evalStream(ir) == v, Pretty(ctx, ir))
       if (v != null)
-        assert(evalStreamLen(ir) == None, Pretty(ctx, ir))
+        assert(evalStreamLen(ir).isEmpty, Pretty(ctx, ir))
+
     }
+
+    scalatest.Succeeded
   }
 
-  @Test def testStreamBufferedAggregator(): Unit = {
+  @Test def testStreamBufferedAggregator(): scalatest.Assertion = {
     val resultArrayToCompare = (0 until 12).map(i => Row(Row(i, i + 1), 1))
     val streamType = TStream(TStruct("a" -> TInt64, "b" -> TInt64))
     val numSeq = (0 until 12).map(i => IndexedSeq(I64(i), I64(i + 1)))
@@ -407,7 +412,7 @@ class EmitStreamSuite extends HailSuite {
 
   }
 
-  @Test def testStreamBufferedAggregatorCombine(): Unit = {
+  @Test def testStreamBufferedAggregatorCombine(): scalatest.Assertion = {
     val resultArrayToCompare = IndexedSeq(Row(Row(1), 2))
     val streamType = TStream(TStruct("a" -> TInt64))
     val elemOne = MakeStruct(IndexedSeq(("a", I64(1))))
@@ -451,7 +456,7 @@ class EmitStreamSuite extends HailSuite {
     assert(evalStream(result) == resultArrayToCompare)
   }
 
-  @Test def testStreamBufferedAggregatorCollectAggregator(): Unit = {
+  @Test def testStreamBufferedAggregatorCollectAggregator(): scalatest.Assertion = {
     val resultArrayToCompare =
       IndexedSeq(Row(Row(1), IndexedSeq(1, 3)), Row(Row(2), IndexedSeq(2, 4)))
     val streamType = TStream(TStruct("a" -> TInt64, "b" -> TInt64))
@@ -497,7 +502,7 @@ class EmitStreamSuite extends HailSuite {
     assert(evalStream(result) == resultArrayToCompare)
   }
 
-  @Test def testStreamBufferedAggregatorMultipleAggregators(): Unit = {
+  @Test def testStreamBufferedAggregatorMultipleAggregators(): scalatest.Assertion = {
     val resultArrayToCompare = IndexedSeq(
       Row(Row(1), Row(3, IndexedSeq(1L, 3L, 2L))),
       Row(Row(2), Row(2, IndexedSeq(2L, 4L))),
@@ -588,7 +593,7 @@ class EmitStreamSuite extends HailSuite {
     assert(evalStream(result) == resultArrayToCompare)
   }
 
-  @Test def testEmitJoinRightDistinct(): Unit = {
+  @Test def testEmitJoinRightDistinct(): scalatest.Assertion = {
     val eltType = TStruct("k" -> TInt32, "v" -> TString)
 
     def join(lstream: IR, rstream: IR, joinType: String): IR =
@@ -634,17 +639,19 @@ class EmitStreamSuite extends HailSuite {
         IndexedSeq(Row("A", "a"), Row("B1", "b"), Row("B2", "b"), Row(null, "c")),
       ),
     )
-    for ((lstream, rstream, expectedLeft, expectedOuter) <- tests) {
+    forAll(tests) { case (lstream, rstream, expectedLeft, expectedOuter) =>
       val l = leftjoin(lstream, rstream)
       val o = outerjoin(lstream, rstream)
       assert(evalStream(l) == expectedLeft, Pretty(ctx, l))
       assert(evalStream(o) == expectedOuter, Pretty(ctx, o))
-      assert(evalStreamLen(l) == Some(expectedLeft.length), Pretty(ctx, l))
-      assert(evalStreamLen(o) == None, Pretty(ctx, o))
+      assert(evalStreamLen(l).contains(expectedLeft.length), Pretty(ctx, l))
+      assert(evalStreamLen(o).isEmpty, Pretty(ctx, o))
     }
+
+    scalatest.Succeeded
   }
 
-  @Test def testEmitJoinRightDistinctInterval(): Unit = {
+  @Test def testEmitJoinRightDistinctInterval(): scalatest.Assertion = {
     val lEltType = TStruct("k" -> TInt32, "v" -> TString)
     val rEltType = TStruct("k" -> TInterval(TInt32), "v" -> TString)
 
@@ -717,17 +724,20 @@ class EmitStreamSuite extends HailSuite {
         IndexedSeq(Row("A", "a"), Row("B", "b"), Row("C", "b")),
       ),
     )
-    for ((lstream, rstream, expectedLeft, expectedInner) <- tests) {
+
+    forAll(tests) { case (lstream, rstream, expectedLeft, expectedInner) =>
       val l = leftjoin(lstream, rstream)
       val i = innerjoin(lstream, rstream)
       assert(evalStream(l) == expectedLeft, Pretty(ctx, l))
       assert(evalStream(i) == expectedInner, Pretty(ctx, i))
-      assert(evalStreamLen(l) == Some(expectedLeft.length), Pretty(ctx, l))
-      assert(evalStreamLen(i) == None, Pretty(ctx, i))
+      assert(evalStreamLen(l).contains(expectedLeft.length), Pretty(ctx, l))
+      assert(evalStreamLen(i).isEmpty, Pretty(ctx, i))
     }
+
+    scalatest.Succeeded
   }
 
-  @Test def testStreamJoinOuterWithKeyRepeats(): Unit = {
+  @Test def testStreamJoinOuterWithKeyRepeats(): scalatest.Assertion = {
     val lEltType = TStruct("k" -> TInt32, "idx_left" -> TInt32)
     val lRows = FastSeq(
       Row(1, 1),
@@ -762,34 +772,28 @@ class EmitStreamSuite extends HailSuite {
     assert(compiled == expected)
   }
 
-  @Test def testEmitScan(): Unit = {
+  @Test def testEmitScan(): scalatest.Assertion = {
     val tests: Array[(IR, IndexedSeq[Any])] = Array(
       streamScanIR(MakeStream(IndexedSeq(), TStream(TInt32)), 9)(_ + _) -> IndexedSeq(9),
       streamScanIR(mapIR(rangeIR(4))(x => x * x), 1)(_ + _) ->
         IndexedSeq(1, 1 /*1+0*0*/, 2 /*1+1*1*/, 6 /*2+2*2*/, 15 /*6+3*3*/ ),
     )
-    for ((ir, v) <- tests) {
+    forAll(tests) { case (ir, v) =>
       assert(evalStream(ir) == v, Pretty(ctx, ir))
-      assert(evalStreamLen(ir) == Some(v.length), Pretty(ctx, ir))
+      assert(evalStreamLen(ir).contains(v.length), Pretty(ctx, ir))
     }
   }
 
-  @Test def testEmitAggScan(): Unit = {
-    def assertAggScan(ir: IR, inType: Type, tests: (Any, Any)*): Unit = {
+  @Test def testEmitAggScan(): scalatest.Assertion = {
+    def assertAggScan(ir: IR, inType: Type, tests: (Any, Any)*): scalatest.Assertion = {
       val aggregate = compileStream(
         LoweringPipeline.compileLowerer(false).apply(ctx, ir).asInstanceOf[IR],
         PType.canonical(inType),
       )
-      for ((inp, expected) <- tests)
+      forAll(tests) { case (inp, expected) =>
         assert(aggregate(inp) == expected, Pretty(ctx, ir))
+      }
     }
-
-    def scanOp(op: AggOp, initArgs: IndexedSeq[IR], opArgs: IndexedSeq[IR]): ApplyScanOp =
-      ApplyScanOp(
-        initArgs.toFastSeq,
-        opArgs.toFastSeq,
-        AggSignature(op, initArgs.map(_.typ), opArgs.map(_.typ)),
-      )
 
     val pairType = TStruct("x" -> TCall, "y" -> TInt32)
     val intsType = TArray(TInt32)
@@ -798,7 +802,7 @@ class EmitStreamSuite extends HailSuite {
       streamAggScanIR(ToStream(In(0, TArray(pairType)))) { foo =>
         GetField(foo, "y") +
           GetField(
-            scanOp(CallStats(), IndexedSeq(I32(2)), IndexedSeq(GetField(foo, "x"))),
+            ApplyScanOp(CallStats(), I32(2))(GetField(foo, "x")),
             "AN",
           )
       },
@@ -815,17 +819,15 @@ class EmitStreamSuite extends HailSuite {
 
     assertAggScan(
       streamAggScanIR(
-        streamAggScanIR(ToStream(In(0, intsType))) { i =>
-          scanOp(Sum(), IndexedSeq(), IndexedSeq(i.toL))
-        }
-      )(x => scanOp(Max(), IndexedSeq(), IndexedSeq(x))),
+        streamAggScanIR(ToStream(In(0, intsType)))(i => ApplyScanOp(Sum())(i.toL))
+      )(x => ApplyScanOp(Max())(x)),
       intsType,
       FastSeq(2, 5, 8, -3, 2, 2, 1, 0, 0) ->
         IndexedSeq(null, 0L, 2L, 7L, 15L, 15L, 15L, 16L, 17L),
     )
   }
 
-  @Test def testEmitFromIterator(): Unit = {
+  @Test def testEmitFromIterator(): scalatest.Assertion = {
     val intsPType = PInt32(true)
 
     val f1 = compileStreamWithIter(
@@ -862,7 +864,7 @@ class EmitStreamSuite extends HailSuite {
     assert(f3(IndexedSeq().iterator) == IndexedSeq())
   }
 
-  @Test def testEmitIf(): Unit = {
+  @Test def testEmitIf(): scalatest.Assertion = {
     def xs = MakeStream(IndexedSeq[IR](5, 3, 6), TStream(TInt32))
 
     def ys = StreamRange(0, 4, 1)
@@ -881,13 +883,13 @@ class EmitStreamSuite extends HailSuite {
         -> IndexedSeq(0, 1, 2, 3, 5, 3, 6, 0, 1, 2, 3),
     )
     val lens: Array[Option[Int]] = Array(Some(3), Some(4), Some(3), None, None, None)
-    for (((ir, v), len) <- tests zip lens) {
+    forAll(tests zip lens) { case ((ir, v), len) =>
       assert(evalStream(ir) == v, Pretty(ctx, ir))
       assert(evalStreamLen(ir) == len, Pretty(ctx, ir))
     }
   }
 
-  @Test def testZipIfNA(): Unit = {
+  @Test def testZipIfNA(): scalatest.Assertion = {
 
     val t = PCanonicalStruct(
       true,
@@ -930,7 +932,7 @@ class EmitStreamSuite extends HailSuite {
     }
   }
 
-  @Test def testFold(): Unit = {
+  @Test def testFold(): scalatest.Assertion = {
     val ints = Literal(TArray(TInt32), IndexedSeq(1, 2, 3, 4))
     val strsLit = Literal(TArray(TString), IndexedSeq("one", "two", "three", "four"))
     val strs =
@@ -956,7 +958,7 @@ class EmitStreamSuite extends HailSuite {
     )
   }
 
-  @Test def testGrouped(): Unit = {
+  @Test def testGrouped(): scalatest.Assertion = {
     // empty => empty
     assertEvalsTo(
       ToArray(
@@ -1023,7 +1025,7 @@ class EmitStreamSuite extends HailSuite {
 
   }
 
-  @Test def testMakeStream(): Unit = {
+  @Test def testMakeStream(): scalatest.Assertion = {
     assertEvalsTo(
       ToArray(
         MakeStream(IndexedSeq(I32(1), NA(TInt32), I32(2)), TStream(TInt32))
@@ -1042,44 +1044,46 @@ class EmitStreamSuite extends HailSuite {
     )
   }
 
-  @Test def testMultiplicity(): Unit = {
+  @Test def testMultiplicity(): scalatest.Assertion = {
     val target = Ref(freshName(), TStream(TInt32))
-    for (
-      (ir, v) <- IndexedSeq(
-        StreamRange(0, 10, 1) -> 0,
-        target -> 1,
-        bindIR(True())(_ => target) -> 1,
-        mapIR(target)(i => i) -> 1,
-        mapIR(mapIR(target)(i => i))(i => i * i) -> 1,
-        filterIR(target)(i => foldIR(rangeIR(i), 0)((_, i) => i)) -> 1,
-        filterIR(rangeIR(5))(_ => foldIR(target, 0)((_, i) => i)) -> 2,
-        flatMapIR(target)(i => rangeIR(i)) -> 1,
-        flatMapIR(rangeIR(5))(_ => target) -> 2,
-        streamScanIR(mapIR(target)(i => i), 0)((_, i) => i) -> 1,
-        streamScanIR(streamScanIR(target, 0)((_, i) => i), 0)((_, i) => i) -> 1,
-      )
+    val tests = IndexedSeq(
+      StreamRange(0, 10, 1) -> 0,
+      target -> 1,
+      bindIR(True())(_ => target) -> 1,
+      mapIR(target)(i => i) -> 1,
+      mapIR(mapIR(target)(i => i))(i => i * i) -> 1,
+      filterIR(target)(i => foldIR(rangeIR(i), 0)((_, i) => i)) -> 1,
+      filterIR(rangeIR(5))(_ => foldIR(target, 0)((_, i) => i)) -> 2,
+      flatMapIR(target)(i => rangeIR(i)) -> 1,
+      flatMapIR(rangeIR(5))(_ => target) -> 2,
+      streamScanIR(mapIR(target)(i => i), 0)((_, i) => i) -> 1,
+      streamScanIR(streamScanIR(target, 0)((_, i) => i), 0)((_, i) => i) -> 1,
     )
+
+    forAll(tests) { case (ir, v) =>
       assert(StreamUtils.multiplicity(ir, target.name) == v, Pretty(ctx, ir))
+    }
   }
 
   def assertMemoryDoesNotScaleWithStreamSize(lowSize: Int = 50, highSize: Int = 2500)(f: IR => IR)
-    : Unit = {
-    val memUsed1 = ExecuteContext.scoped { ctx =>
-      eval(f(lowSize), Env.empty, FastSeq(), None, None, false, ctx)
-      ctx.r.pool.getHighestTotalUsage
+    : scalatest.Assertion = {
+    val memUsed1 = RegionPool.scoped { pool =>
+      ctx.local(r = Region(pool = pool))(ctx => eval(f(lowSize), optimize = false, ctx = ctx))
+      pool.getHighestTotalUsage
     }
 
-    val memUsed2 = ExecuteContext.scoped { ctx =>
-      eval(f(highSize), Env.empty, FastSeq(), None, None, false, ctx)
-      ctx.r.pool.getHighestTotalUsage
+    val memUsed2 = RegionPool.scoped { pool =>
+      ctx.local(r = Region(pool = pool))(ctx => eval(f(highSize), optimize = false, ctx = ctx))
+      pool.getHighestTotalUsage
     }
 
-    if (memUsed1 != memUsed2)
-      throw new RuntimeException(s"memory usage scales with stream size!" +
+    assert(
+      memUsed1 == memUsed2,
+      s"memory usage scales with stream size!" +
         s"\n  at size=$lowSize, memory=$memUsed1" +
         s"\n  at size=$highSize, memory=$memUsed2" +
-        s"\n  IR: ${Pretty(ctx, f(lowSize))}")
-
+        s"\n  IR: ${Pretty(ctx, f(lowSize))}",
+    )
   }
 
   def sumIR(x: IR): IR = foldIR(x, 0) { case (acc, value) => acc + value }
@@ -1104,7 +1108,7 @@ class EmitStreamSuite extends HailSuite {
     )
   }
 
-  @Test def testMemoryRangeFold(): Unit =
+  @Test def testMemoryRangeFold(): scalatest.Assertion =
     assertMemoryDoesNotScaleWithStreamSize() { size =>
       foldIR(
         mapIR(flatMapIR(StreamRange(0, size, 1, true))(x => StreamRange(0, x, 1, true))) { i =>
@@ -1114,7 +1118,7 @@ class EmitStreamSuite extends HailSuite {
       ) { case (acc, value) => maxIR(acc, invoke("length", TInt32, value)) }
     }
 
-  @Test def testStreamJoinMemory(): Unit = {
+  @Test def testStreamJoinMemory(): scalatest.Assertion = {
 
     assertMemoryDoesNotScaleWithStreamSize() { size =>
       sumIR(joinRightDistinctIR(
@@ -1154,7 +1158,7 @@ class EmitStreamSuite extends HailSuite {
     }
   }
 
-  @Test def testStreamGroupedMemory(): Unit = {
+  @Test def testStreamGroupedMemory(): scalatest.Assertion = {
     assertMemoryDoesNotScaleWithStreamSize() { size =>
       sumIR(mapIR(StreamGrouped(rangeIR(size), 100))(stream => I32(1)))
     }
@@ -1164,14 +1168,14 @@ class EmitStreamSuite extends HailSuite {
     }
   }
 
-  @Test def testStreamFilterMemory(): Unit =
+  @Test def testStreamFilterMemory(): scalatest.Assertion =
     assertMemoryDoesNotScaleWithStreamSize(highSize = 100000) { size =>
       StreamLen(filterIR(mapIR(StreamRange(0, size, 1, true))(i => invoke("str", TString, i))) {
         str => invoke("length", TInt32, str) > (size * 9 / 10).toString.size
       })
     }
 
-  @Test def testStreamFlatMapMemory(): Unit = {
+  @Test def testStreamFlatMapMemory(): scalatest.Assertion = {
     assertMemoryDoesNotScaleWithStreamSize() { size =>
       sumIR(flatMapIR(filteredRangeStructs(size)) { struct =>
         StreamRange(0, invoke("length", TInt32, GetField(struct, "foo2")), 1, true)
@@ -1185,14 +1189,14 @@ class EmitStreamSuite extends HailSuite {
     }
   }
 
-  @Test def testGroupedFlatMapMemManagementMismatch(): Unit =
+  @Test def testGroupedFlatMapMemManagementMismatch(): scalatest.Assertion =
     assertMemoryDoesNotScaleWithStreamSize() { size =>
       foldLength(flatMapIR(mapIR(StreamGrouped(rangeStructs(size), 16))(x => ToArray(x))) { a =>
         ToStream(a, false)
       })
     }
 
-  @Test def testStreamTakeWhile(): Unit = {
+  @Test def testStreamTakeWhile(): scalatest.Assertion = {
     val makestream = MakeStream(FastSeq(I32(1), I32(2), I32(0), I32(1), I32(-1)), TStream(TInt32))
     assert(evalStream(takeWhile(makestream)(r => r > 0)) == IndexedSeq(1, 2))
     assert(evalStream(StreamTake(makestream, I32(3))) == IndexedSeq(1, 2, 0))
@@ -1203,7 +1207,7 @@ class EmitStreamSuite extends HailSuite {
     ))
   }
 
-  @Test def testStreamDropWhile(): Unit = {
+  @Test def testStreamDropWhile(): scalatest.Assertion = {
     val makestream = MakeStream(FastSeq(I32(1), I32(2), I32(0), I32(1), I32(-1)), TStream(TInt32))
     assert(evalStream(dropWhile(makestream)(r => r > 0)) == IndexedSeq(0, 1, -1))
     assert(evalStream(StreamDrop(makestream, I32(3))) == IndexedSeq(1, -1))
@@ -1216,7 +1220,7 @@ class EmitStreamSuite extends HailSuite {
 
   }
 
-  @Test def testStreamTakeDropMemory(): Unit = {
+  @Test def testStreamTakeDropMemory(): scalatest.Assertion = {
     assertMemoryDoesNotScaleWithStreamSize() { size =>
       foldLength(StreamTake(rangeStructs(size), (size / 2).toI))
     }
@@ -1234,12 +1238,12 @@ class EmitStreamSuite extends HailSuite {
     }
   }
 
-  @Test def testStreamIota(): Unit = {
+  @Test def testStreamIota(): scalatest.Assertion = {
     assert(evalStream(takeWhile(iota(0, 2))(elt => elt < 10)) == IndexedSeq(0, 2, 4, 6, 8))
     assert(evalStream(StreamTake(iota(5, -5), 3)) == IndexedSeq(5, 0, -5))
   }
 
-  @Test def testStreamIntervalJoin(): Unit = {
+  @Test def testStreamIntervalJoin(): scalatest.Assertion = {
     val keyStream = mapIR(StreamRange(0, 9, 1, requiresMemoryManagementPerElement = true)) { i =>
       MakeStruct(FastSeq("i" -> i))
     }

@@ -7,6 +7,7 @@ import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.defs.{
   ApplyIR, Begin, Let, RunAgg, RunAggScan, StreamAgg, StreamAggScan, StreamFor,
 }
+import is.hail.expr.ir.lowering.Invariant._
 import is.hail.utils._
 
 final class IrMetadata() {
@@ -26,16 +27,17 @@ final class IrMetadata() {
   }
 }
 
-trait LoweringPass {
-  val before: IRState
-  val after: IRState
+abstract class LoweringPass(implicit E: sourcecode.Enclosing) {
+
+  val before: Invariant
+  val after: Invariant
   val context: String
 
   final def apply(ctx: ExecuteContext, ir: BaseIR): BaseIR =
-    ctx.timer.time(context) {
-      ctx.timer.time("Verify")(before.verify(ir))
-      val result = ctx.timer.time("Transform")(transform(ctx, ir))
-      ctx.timer.time("Verify")(after.verify(result))
+    ctx.time {
+      before.verify(ctx, ir)
+      val result = transform(ctx, ir)
+      after.verify(ctx, result)
       result
     }
 
@@ -44,14 +46,14 @@ trait LoweringPass {
 
 case class OptimizePass(_context: String) extends LoweringPass {
   override val context = s"Optimize: ${_context}"
-  override val before: IRState = AnyIR
-  override val after: IRState = AnyIR
+  override val before: Invariant = AnyIR
+  override val after: Invariant = AnyIR
   override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = Optimize(ctx, ir)
 }
 
 case object LowerMatrixToTablePass extends LoweringPass {
-  val before: IRState = AnyIR
-  val after: IRState = MatrixLoweredToTable
+  val before: Invariant = AnyIR
+  val after: Invariant = NoMatrixIR
   val context: String = "LowerMatrixToTable"
 
   def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = ir match {
@@ -63,108 +65,110 @@ case object LowerMatrixToTablePass extends LoweringPass {
 }
 
 case object LiftRelationalValuesToRelationalLets extends LoweringPass {
-  val before: IRState = MatrixLoweredToTable
-  val after: IRState = MatrixLoweredToTable
+  val before: Invariant = NoMatrixIR
+  val after: Invariant = NoMatrixIR
   val context: String = "LiftRelationalValuesToRelationalLets"
 
   def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = LiftRelationalValues(ir)
 }
 
 case object LegacyInterpretNonCompilablePass extends LoweringPass {
-  val before: IRState = MatrixLoweredToTable
-  val after: IRState = ExecutableTableIR
+  val before: Invariant = NoMatrixIR
+  val after: Invariant = NoMatrixIR and NoRelationalLets and CompilableValueIRs
   val context: String = "InterpretNonCompilable"
 
   def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = LowerOrInterpretNonCompilable(ctx, ir)
 }
 
 case object LowerOrInterpretNonCompilablePass extends LoweringPass {
-  val before: IRState = MatrixLoweredToTable
-  val after: IRState = CompilableIR
+  val before: Invariant = NoMatrixIR
+  val after: Invariant = CompilableIR
   val context: String = "LowerOrInterpretNonCompilable"
 
   def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = LowerOrInterpretNonCompilable(ctx, ir)
 }
 
 case class LowerToDistributedArrayPass(t: DArrayLowering.Type) extends LoweringPass {
-  val before: IRState = MatrixLoweredToTable
-  val after: IRState = CompilableIR
+  val before: Invariant = NoMatrixIR
+  val after: Invariant = CompilableIR
   val context: String = "LowerToDistributedArray"
 
   def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = LowerToCDA(ir.asInstanceOf[IR], t, ctx)
 }
 
 case object InlineApplyIR extends LoweringPass {
-  val before: IRState = CompilableIR
-  val after: IRState = CompilableIRNoApply
+  val before: Invariant = CompilableIR
+  val after: Invariant = CompilableIR and NoApplyIR
   val context: String = "InlineApplyIR"
 
-  override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = RewriteBottomUp(
-    ir,
-    {
-      case x: ApplyIR => Some(x.explicitNode)
-      case _ => None
-    },
-  )
+  override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR =
+    ctx.time {
+      RewriteBottomUp(
+        ir,
+        {
+          case x: ApplyIR => Some(x.explicitNode)
+          case _ => None
+        },
+      )
+    }
 }
 
 case object LowerArrayAggsToRunAggsPass extends LoweringPass {
-  val before: IRState = CompilableIRNoApply
-  val after: IRState = EmittableIR
+  val before: Invariant = CompilableIR and NoApplyIR
+  val after: Invariant = EmittableIR
   val context: String = "LowerArrayAggsToRunAggs"
 
-  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = {
-    val x = ir.noSharing(ctx)
-    val r = Requiredness(x, ctx)
-    RewriteBottomUp(
-      x,
-      {
-        case x @ StreamAgg(a, name, query) =>
-          val aggs = Extract(query, r)
+  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR =
+    ctx.time {
+      val x = ir.noSharing(ctx)
+      val r = Requiredness(x, ctx)
+      RewriteBottomUp(
+        x,
+        {
+          case x @ StreamAgg(a, name, query) =>
+            val aggs = Extract(ctx, query, r)
 
-          val newNode = aggs.rewriteFromInitBindingRoot { root =>
-            Let(
-              FastSeq(
-                aggs.resultRef.name -> RunAgg(
-                  Begin(FastSeq(
-                    aggs.init,
-                    StreamFor(a, name, aggs.seqPerElt),
-                  )),
-                  aggs.results,
-                  aggs.states,
-                )
+            val newNode = Let(
+              aggs.initBindings,
+              RunAgg(
+                Begin(FastSeq(
+                  aggs.init,
+                  StreamFor(a, name, aggs.seqPerElt),
+                )),
+                aggs.result,
+                aggs.sigs.states,
               ),
-              root,
             )
-          }
 
-          if (newNode.typ != x.typ)
-            throw new RuntimeException(s"types differ:\n  new: ${newNode.typ}\n  old: ${x.typ}")
-          Some(newNode.noSharing(ctx))
-        case x @ StreamAggScan(a, name, query) =>
-          val aggs = Extract(query, r, isScan = true)
-          val newNode = aggs.rewriteFromInitBindingRoot { root =>
-            RunAggScan(
-              a,
-              name,
-              aggs.init,
-              aggs.seqPerElt,
-              Let(FastSeq(aggs.resultRef.name -> aggs.results), root),
-              aggs.states,
+            if (newNode.typ != x.typ)
+              throw new RuntimeException(s"types differ:\n  new: ${newNode.typ}\n  old: ${x.typ}")
+            Some(newNode.noSharing(ctx))
+          case x @ StreamAggScan(a, name, query) =>
+            val aggs = Extract(ctx, query, r, isScan = true)
+
+            val newNode = Let(
+              aggs.initBindings,
+              RunAggScan(
+                a,
+                name,
+                aggs.init,
+                aggs.seqPerElt,
+                aggs.result,
+                aggs.sigs.states,
+              ),
             )
-          }
-          if (newNode.typ != x.typ)
-            throw new RuntimeException(s"types differ:\n  new: ${newNode.typ}\n  old: ${x.typ}")
-          Some(newNode.noSharing(ctx))
-        case _ => None
-      },
-    )
-  }
+            if (newNode.typ != x.typ)
+              throw new RuntimeException(s"types differ:\n  new: ${newNode.typ}\n  old: ${x.typ}")
+            Some(newNode.noSharing(ctx))
+          case _ => None
+        },
+      )
+    }
 }
 
 case class EvalRelationalLetsPass(passesBelow: LoweringPipeline) extends LoweringPass {
-  val before: IRState = MatrixLoweredToTable
-  val after: IRState = before + NoRelationalLetsState
+  val before: Invariant = NoMatrixIR
+  val after: Invariant = NoMatrixIR and NoRelationalLets
   val context: String = "EvalRelationalLets"
 
   override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR =
@@ -172,8 +176,8 @@ case class EvalRelationalLetsPass(passesBelow: LoweringPipeline) extends Lowerin
 }
 
 case class LowerAndExecuteShufflesPass(passesBelow: LoweringPipeline) extends LoweringPass {
-  val before: IRState = NoRelationalLetsState + MatrixLoweredToTable
-  val after: IRState = before + LoweredShuffles
+  val before: Invariant = NoRelationalLets and NoMatrixIR
+  val after: Invariant = before and LoweredShuffles
   val context: String = "LowerAndExecuteShuffles"
 
   override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR =

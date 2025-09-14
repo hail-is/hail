@@ -5,21 +5,20 @@ import is.hail.expr.ir.{BaseIR, IRSize, Pretty, TypeCheck}
 import is.hail.utils._
 
 case class LoweringPipeline(lowerings: LoweringPass*) {
-  assert(lowerings.nonEmpty)
-
-  final def apply(ctx: ExecuteContext, ir: BaseIR): BaseIR =
-    ctx.time {
+  final def apply(ctx: ExecuteContext, ir: BaseIR): BaseIR = {
+    if (lowerings.isEmpty) ir
+    else ctx.time {
       var x = ir
 
       def render(context: String): Unit =
         if (ctx.shouldLogIR())
-          log.info(s"$context: IR size ${IRSize(x)}: \n" + Pretty(ctx, x, elideLiterals = true))
+          log.info(s"$context: IR size ${IRSize(x)}: \n" + Pretty(ctx, x))
 
       render(s"initial IR")
 
-      lowerings.foreach { l =>
+      for (l <- lowerings) {
         try {
-          x = l.apply(ctx, x)
+          x = l(ctx, x)
           render(s"after ${l.context}")
         } catch {
           case e: Throwable =>
@@ -36,6 +35,7 @@ case class LoweringPipeline(lowerings: LoweringPass*) {
 
       x
     }
+  }
 
   def noOptimization(): LoweringPipeline =
     LoweringPipeline(lowerings.filter(l => !l.isInstanceOf[OptimizePass]): _*)
@@ -45,7 +45,6 @@ case class LoweringPipeline(lowerings: LoweringPass*) {
 }
 
 object LoweringPipeline {
-
   def fullLoweringPipeline(context: String, baseTransformer: LoweringPass): LoweringPipeline = {
 
     val base = LoweringPipeline(

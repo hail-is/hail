@@ -19,6 +19,7 @@ import org.apache.spark.executor.InputMetrics
 import org.apache.spark.rdd.RDD
 import org.json4s.Extraction
 import org.json4s.jackson.JsonMethods
+import sourcecode.Enclosing
 
 case class FilePartition(index: Int, file: String) extends Partition
 
@@ -41,7 +42,7 @@ object HailContext {
 
   def backend: Backend = get.backend
 
-  def sparkBackend(op: String): SparkBackend = get.sparkBackend(op)
+  def sparkBackend(implicit E: Enclosing): SparkBackend = get.backend.asSpark
 
   def configureLogging(logFile: String, quiet: Boolean, append: Boolean): Unit = {
     org.apache.log4j.helpers.LogLog.setInternalDebugging(true)
@@ -62,6 +63,7 @@ object HailContext {
       logProps.put("log4j.logger.Hail", "INFO, HailConsoleAppender, HailSocketAppender")
       logProps.put("log4j.appender.HailConsoleAppender", "org.apache.log4j.ConsoleAppender")
       logProps.put("log4j.appender.HailConsoleAppender.target", "System.err")
+      logProps.put("log4j.appender.HailConsoleAppender.layout", "org.apache.log4j.PatternLayout")
     } else
       logProps.put("log4j.logger.Hail", "INFO, HailSocketAppender")
 
@@ -152,7 +154,7 @@ object HailContext {
 
     val fsBc = fs.broadcast
 
-    new RDD[T](SparkBackend.sparkContext("readPartition"), Nil) {
+    new RDD[T](SparkBackend.sparkContext, Nil) {
       def getPartitions: Array[Partition] =
         Array.tabulate(nPartitions)(i => FilePartition(i, partFiles(i)))
 
@@ -175,8 +177,6 @@ class HailContext private (
 ) {
   def stop(): Unit = HailContext.stop()
 
-  def sparkBackend(op: String): SparkBackend = backend.asSpark(op)
-
   var checkRVDKeys: Boolean = false
 
   def version: String = is.hail.HAIL_PRETTY_VERSION
@@ -188,7 +188,7 @@ class HailContext private (
     maxLines: Int,
   ): Map[String, Array[WithContext[String]]] = {
     val regexp = regex.r
-    SparkBackend.sparkContext("fileAndLineCounts").textFilesLines(fs.globAll(files).map(_.getPath))
+    SparkBackend.sparkContext.textFilesLines(fs.globAll(files).map(_.getPath))
       .filter(line => regexp.findFirstIn(line.value).isDefined)
       .take(maxLines)
       .groupBy(_.source.file)

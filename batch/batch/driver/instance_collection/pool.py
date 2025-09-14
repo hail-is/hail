@@ -238,16 +238,12 @@ WHERE removed = 0 AND inst_coll = %s;
     def compute_n_instances_needed(
         self,
         ready_cores_mcpu: int,
-        regions: List[str],
         remaining_max_new_instances_per_autoscaler_loop: int,
     ):
         pool_stats = self.current_worker_version_stats
         n_live_instances = pool_stats.n_instances_by_state['pending'] + pool_stats.n_instances_by_state['active']
-        live_free_cores_mcpu = sum(pool_stats.live_free_cores_mcpu_by_region[region] for region in regions)
 
-        instances_needed = (ready_cores_mcpu - live_free_cores_mcpu + (self.worker_cores * 1000) - 1) // (
-            self.worker_cores * 1000
-        )
+        instances_needed = (ready_cores_mcpu + (self.worker_cores * 1000) - 1) // (self.worker_cores * 1000)
         instances_needed = min(
             instances_needed,
             self.max_live_instances - n_live_instances,
@@ -284,7 +280,6 @@ WHERE removed = 0 AND inst_coll = %s;
     ):
         instances_needed = self.compute_n_instances_needed(
             ready_cores_mcpu,
-            regions,
             remaining_max_new_instances_per_autoscaler_loop,
         )
 
@@ -428,10 +423,21 @@ GROUP BY user;
         head_job_queue_ready_cores_mcpu: Dict[str, float] = defaultdict(float)
 
         remaining_instances_per_autoscaler_loop = self.max_new_instances_per_autoscaler_loop
+        unclaimed_free_cores_mcpu_by_region = self.current_worker_version_stats.live_free_cores_mcpu_by_region.copy()
         if head_job_queue_regions_ready_cores_mcpu_ordered and free_cores < 500:
             for regions, ready_cores_mcpu in head_job_queue_regions_ready_cores_mcpu_ordered:
+                unschedulable_ready_cores_mcpu = ready_cores_mcpu
+                # Don't create new cores when there are free cores that can be used.
+                # Mark free cores as "claimed" so later records can't "use" the same cores.
+                # FIXME: this eagerly claimes cores in an arbitrary region order. Would be better
+                # to balance over regions somehow.
+                for region in regions:
+                    diff = min(unschedulable_ready_cores_mcpu, unclaimed_free_cores_mcpu_by_region[region])
+                    unschedulable_ready_cores_mcpu -= diff
+                    unclaimed_free_cores_mcpu_by_region[region] -= diff
+
                 n_instances_created = await self.create_instances_from_ready_cores(
-                    ready_cores_mcpu,
+                    unschedulable_ready_cores_mcpu,
                     regions,
                     remaining_instances_per_autoscaler_loop,
                 )
@@ -660,12 +666,12 @@ LIMIT 300;
                     async for record in self.db.select_and_fetchall(
                         """
 SELECT jobs.job_id, spec, cores_mcpu, regions_bits_rep, time_ready, job_group_id, n_max_attempts, count(attempts.attempt_id) AS n_prior_attempts
-FROM jobs FORCE INDEX(jobs_batch_id_ic_state_ar_n_regions_bits_rep_job_group_id)
+FROM jobs FORCE INDEX(jobs_batch_id_ic_state_ar_n_regions_bits_rep_job_id)
 LEFT JOIN jobs_telemetry ON jobs.batch_id = jobs_telemetry.batch_id AND jobs.job_id = jobs_telemetry.job_id
 LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id
 WHERE jobs.batch_id = %s AND job_group_id = %s AND inst_coll = %s AND jobs.state = 'Ready' AND always_run = 0 AND cancelled = 0
-GROUP BY jobs.job_id, jobs.batch_id
-ORDER BY jobs.batch_id, jobs.job_group_id, inst_coll, state, always_run, -n_regions DESC, regions_bits_rep, jobs.job_id
+GROUP BY jobs.batch_id, inst_coll, state, always_run, n_regions, regions_bits_rep, jobs.job_id
+ORDER BY jobs.batch_id, inst_coll, state, always_run, n_regions, regions_bits_rep, jobs.job_id
 LIMIT 300;
 """,
                         (job_group['batch_id'], job_group['job_group_id'], self.pool.name),

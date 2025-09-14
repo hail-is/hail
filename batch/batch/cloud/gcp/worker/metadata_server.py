@@ -81,8 +81,11 @@ async def middleware(request: web.Request, handler):
         response.headers['Content-Type'] = 'application/json'
     response.headers['Metadata-Flavor'] = 'Google'
     response.headers['Server'] = 'Metadata Server for VM'
+    response.headers['Strict-Transport-Security'] = 'max-age=63072000; includeSubDomains;'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['X-XSS-Protection'] = '0'
     response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+
     return response
 
 

@@ -75,7 +75,7 @@ object InferType {
       case ApplyComparisonOp(op, l, r) =>
         assert(l.typ == r.typ)
         op match {
-          case _: Compare => TInt32
+          case Compare => TInt32
           case _ => TBoolean
         }
       case a: ApplyIR => a.returnType
@@ -248,10 +248,10 @@ object InferType {
       case AggGroupBy(key, aggIR, _) =>
         TDict(key.typ, aggIR.typ)
       case AggArrayPerElement(_, _, _, aggBody, _, _) => TArray(aggBody.typ)
-      case ApplyAggOp(_, _, aggSig) =>
-        aggSig.returnType
-      case ApplyScanOp(_, _, aggSig) =>
-        aggSig.returnType
+      case ApplyAggOp(_, seqOpArgs, op) =>
+        AggOp.getReturnType(op, seqOpArgs.map(_.typ))
+      case ApplyScanOp(_, seqOpArgs, op) =>
+        AggOp.getReturnType(op, seqOpArgs.map(_.typ))
       case AggFold(zero, _, _, _, _, _) =>
         zero.typ
       case MakeStruct(fields) =>

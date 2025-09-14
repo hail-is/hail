@@ -1,34 +1,58 @@
 package is.hail
 
 import is.hail.ExecStrategy.ExecStrategy
-import is.hail.TestUtils._
 import is.hail.annotations._
-import is.hail.backend.{BroadcastValue, ExecuteContext}
+import is.hail.asm4s.HailClassLoader
+import is.hail.backend.{Backend, ExecuteContext, OwningTempFileManager}
 import is.hail.backend.spark.SparkBackend
-import is.hail.expr.ir.{
-  bindIR, freshName, rangeIR, BindingEnv, BlockMatrixIR, Compilable, Env, Forall, IR, Interpret,
-  Pretty, TypeCheck,
-}
+import is.hail.expr.ir._
 import is.hail.expr.ir.defs.{
   BlockMatrixCollect, Cast, MakeTuple, NDArrayRef, Ref, StreamMap, ToArray,
 }
-import is.hail.io.fs.FS
+import is.hail.expr.ir.lowering.IrMetadata
+import is.hail.io.fs.{FS, HadoopFS}
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.variant.ReferenceGenome
 
 import java.io.{File, PrintWriter}
 
 import breeze.linalg.DenseMatrix
+import org.apache.hadoop
+import org.apache.hadoop.conf.Configuration
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.Row
+import org.scalatest
+import org.scalatest.Inspectors.forEvery
 import org.scalatestplus.testng.TestNGSuite
 import org.testng.ITestContext
-import org.testng.annotations.{AfterMethod, BeforeClass, BeforeMethod}
+import org.testng.annotations.{AfterClass, AfterSuite, BeforeClass, BeforeSuite}
 
 object HailSuite {
-  val theHailClassLoader = TestUtils.theHailClassLoader
+  val theHailClassLoader: HailClassLoader =
+    new HailClassLoader(getClass.getClassLoader)
 
-  def withSparkBackend(): HailContext = {
+  val flags: HailFeatureFlags =
+    HailFeatureFlags.fromEnv(sys.env + ("lower" -> "1"))
+
+  private var hc_ : HailContext = _
+}
+
+class HailSuite extends TestNGSuite with TestUtils {
+
+  private[this] var ctx_ : ExecuteContext = _
+
+  override def ctx: ExecuteContext = ctx_
+  def backend: Backend = ctx.backend
+  def fs: FS = ctx.fs
+  def pool: RegionPool = ctx.r.pool
+  def sc: SparkContext = ctx.backend.asSpark.sc
+  def theHailClassLoader: HailClassLoader = ctx.theHailClassLoader
+
+  def getTestResource(localPath: String): String = s"hail/test/resources/$localPath"
+
+  @BeforeSuite
+  def setupHailContext(): Unit = {
     HailContext.configureLogging("/tmp/hail.log", quiet = false, append = false)
     val backend = SparkBackend(
       sc = new SparkContext(
@@ -40,64 +64,108 @@ object HailSuite {
         )
           .set("spark.unsafe.exceptionOnMemoryLeak", "true")
       ),
-      tmpdir = "/tmp",
-      localTmpdir = "file:///tmp",
       skipLoggingConfiguration = true,
     )
-    HailContext(backend)
+    HailSuite.hc_ = HailContext(backend)
+    HailSuite.hc_.checkRVDKeys = true
   }
 
-  lazy val hc: HailContext = {
-    val hc = withSparkBackend()
-    hc.sparkBackend("HailSuite.hc").flags.set("lower", "1")
-    hc.checkRVDKeys = true
-    hc
-  }
-}
-
-class HailSuite extends TestNGSuite {
-  val theHailClassLoader = HailSuite.theHailClassLoader
-
-  def hc: HailContext = HailSuite.hc
-
-  @BeforeClass def ensureHailContextInitialized(): Unit = hc
-
-  def backend: SparkBackend = hc.sparkBackend("HailSuite.backend")
-
-  def sc: SparkContext = backend.sc
-
-  def fs: FS = backend.fs
-
-  def fsBc: BroadcastValue[FS] = fs.broadcast
-
-  var timer: ExecutionTimer = _
-
-  var ctx: ExecuteContext = _
-
-  var pool: RegionPool = _
-
-  def getTestResource(localPath: String): String = s"hail/test/resources/$localPath"
-
-  @BeforeMethod
-  def setupContext(context: ITestContext): Unit = {
-    assert(timer == null)
-    timer = new ExecutionTimer("HailSuite")
-    assert(ctx == null)
-    pool = RegionPool()
-    ctx = backend.createExecuteContextForTests(timer, Region(pool = pool))
+  @BeforeClass
+  def setupExecuteContext(): Unit = {
+    val backend = HailSuite.hc_.backend.asSpark
+    val conf = new Configuration(backend.sc.hadoopConfiguration)
+    val fs = new HadoopFS(new SerializableHadoopConfiguration(conf))
+    val pool = RegionPool()
+    ctx_ = new ExecuteContext(
+      tmpdir = "/tmp",
+      localTmpdir = "file:///tmp",
+      backend = backend,
+      references = ReferenceGenome.builtinReferences(),
+      fs = fs,
+      r = Region(pool = pool),
+      timer = new ExecutionTimer(getClass.getSimpleName),
+      tempFileManager = new OwningTempFileManager(fs),
+      theHailClassLoader = HailSuite.theHailClassLoader,
+      flags = HailSuite.flags,
+      irMetadata = new IrMetadata(),
+      BlockMatrixCache = ImmutableMap.empty,
+      CodeCache = ImmutableMap.empty,
+      PersistedIrCache = ImmutableMap.empty,
+      PersistedCoercerCache = ImmutableMap.empty,
+    )
   }
 
-  @AfterMethod
-  def tearDownContext(context: ITestContext): Unit = {
-    ctx.close()
-    ctx = null
-    timer.finish()
-    timer = null
-    pool.close()
+  @AfterClass
+  def tearDownExecuteContext(context: ITestContext): Unit = {
+    ctx_.timer.finish()
+    ctx_.close()
+    ctx_.r.pool.close()
+    ctx_ = null
 
-    if (backend.sc.isStopped)
-      throw new RuntimeException(s"method stopped spark context!")
+    hadoop.fs.FileSystem.closeAll()
+
+    if (HailSuite.hc_.backend.asSpark.sc.isStopped)
+      throw new RuntimeException(s"'${context.getName}' stopped spark context!")
   }
+
+  @AfterSuite
+  def tearDownHailContext(): Unit = {
+    HailSuite.hc_.stop()
+    HailSuite.hc_ = null
+  }
+
+  def evaluate(
+    ctx: ExecuteContext,
+    ir: IR,
+    args: IndexedSeq[(Any, Type)],
+    env: Env[(Any, Type)] = Env.empty,
+    agg: Option[(IndexedSeq[Row], TStruct)] = None,
+  )(implicit strat: ExecStrategy
+  ): Any =
+    strat match {
+      case ExecStrategy.Interpret =>
+        assert(agg.isEmpty)
+        Interpret[Any](ctx, ir, env, args)
+      case ExecStrategy.InterpretUnoptimized =>
+        assert(agg.isEmpty)
+        Interpret[Any](ctx, ir, env, args, optimize = false)
+      case ExecStrategy.JvmCompile =>
+        assert(Forall(ir, node => Compilable(node)))
+        eval(
+          ir,
+          env,
+          args,
+          agg,
+          bytecodePrinter =
+            Option(ctx.getFlag("jvm_bytecode_dump"))
+              .map { path =>
+                val pw = new PrintWriter(new File(path))
+                pw.print(s"/* JVM bytecode dump for IR:\n${Pretty(ctx, ir)}\n */\n\n")
+                pw
+              },
+          true,
+          ctx,
+        )
+      case ExecStrategy.JvmCompileUnoptimized =>
+        assert(Forall(ir, node => Compilable(node)))
+        eval(
+          ir,
+          env,
+          args,
+          agg,
+          bytecodePrinter =
+            Option(ctx.getFlag("jvm_bytecode_dump"))
+              .map { path =>
+                val pw = new PrintWriter(new File(path))
+                pw.print(s"/* JVM bytecode dump for IR:\n${Pretty(ctx, ir)}\n */\n\n")
+                pw
+              },
+          optimize = false,
+          ctx,
+        )
+      case ExecStrategy.LoweredJVMCompile =>
+        loweredExecute(ctx, ir, env, args, agg)
+    }
 
   def assertEvalsTo(
     x: IR,
@@ -106,92 +174,53 @@ class HailSuite extends TestNGSuite {
     agg: Option[(IndexedSeq[Row], TStruct)],
     expected: Any,
   )(implicit execStrats: Set[ExecStrategy]
-  ): Unit = {
+  ): scalatest.Assertion = {
 
     TypeCheck(ctx, x, BindingEnv(env.mapValues(_._2), agg = agg.map(_._2.toEnv)))
 
     val t = x.typ
     assert(t == TVoid || t.typeCheck(expected), s"$t, $expected")
 
-    ExecuteContext.scoped { ctx =>
-      val filteredExecStrats: Set[ExecStrategy] =
-        if (HailContext.backend.isInstanceOf[SparkBackend])
-          execStrats
-        else {
-          info("skipping interpret and non-lowering compile steps on non-spark backend")
-          execStrats.intersect(ExecStrategy.backendOnly)
+    val filteredExecStrats: Set[ExecStrategy] =
+      if (HailContext.backend.isInstanceOf[SparkBackend])
+        execStrats
+      else {
+        info("skipping interpret and non-lowering compile steps on non-spark backend")
+        execStrats.intersect(ExecStrategy.backendOnly)
+      }
+
+    forEvery(filteredExecStrats) { implicit strat =>
+      try {
+        val res =
+          evaluate(ctx, x, args, env, agg)
+
+        if (t != TVoid) {
+          assert(t.typeCheck(res), s"\n  t=$t\n  result=$res\n  strategy=$strat")
+          assert(
+            t.valuesSimilar(res, expected),
+            s"\n  result=$res\n  expect=$expected\n  strategy=$strat)",
+          )
         }
 
-      filteredExecStrats.foreach { strat =>
-        try {
-          val res = strat match {
-            case ExecStrategy.Interpret =>
-              assert(agg.isEmpty)
-              Interpret[Any](ctx, x, env, args)
-            case ExecStrategy.InterpretUnoptimized =>
-              assert(agg.isEmpty)
-              Interpret[Any](ctx, x, env, args, optimize = false)
-            case ExecStrategy.JvmCompile =>
-              assert(Forall(x, node => Compilable(node)))
-              eval(
-                x,
-                env,
-                args,
-                agg,
-                bytecodePrinter =
-                  Option(ctx.getFlag("jvm_bytecode_dump"))
-                    .map { path =>
-                      val pw = new PrintWriter(new File(path))
-                      pw.print(s"/* JVM bytecode dump for IR:\n${Pretty(ctx, x)}\n */\n\n")
-                      pw
-                    },
-                true,
-                ctx,
-              )
-            case ExecStrategy.JvmCompileUnoptimized =>
-              assert(Forall(x, node => Compilable(node)))
-              eval(
-                x,
-                env,
-                args,
-                agg,
-                bytecodePrinter =
-                  Option(ctx.getFlag("jvm_bytecode_dump"))
-                    .map { path =>
-                      val pw = new PrintWriter(new File(path))
-                      pw.print(s"/* JVM bytecode dump for IR:\n${Pretty(ctx, x)}\n */\n\n")
-                      pw
-                    },
-                optimize = false,
-                ctx,
-              )
-            case ExecStrategy.LoweredJVMCompile =>
-              loweredExecute(ctx, x, env, args, agg)
-          }
-          if (t != TVoid) {
-            assert(t.typeCheck(res), s"\n  t=$t\n  result=$res\n  strategy=$strat")
-            assert(
-              t.valuesSimilar(res, expected),
-              s"\n  result=$res\n  expect=$expected\n  strategy=$strat)",
-            )
-          }
-        } catch {
-          case e: Exception =>
-            error(s"error from strategy $strat")
-            if (execStrats.contains(strat)) throw e
-        }
+      } catch {
+        case e: Exception =>
+          error(s"error from strategy $strat")
+          if (execStrats.contains(strat)) throw e
       }
+
+      succeed
     }
   }
 
-  def assertNDEvals(nd: IR, expected: Any)(implicit execStrats: Set[ExecStrategy]): Unit =
+  def assertNDEvals(nd: IR, expected: Any)(implicit execStrats: Set[ExecStrategy])
+    : scalatest.Assertion =
     assertNDEvals(nd, Env.empty, FastSeq(), None, expected)
 
   def assertNDEvals(
     nd: IR,
     expected: (Any, IndexedSeq[Long]),
   )(implicit execStrats: Set[ExecStrategy]
-  ): Unit =
+  ): scalatest.Assertion =
     if (expected == null)
       assertNDEvals(nd, Env.empty, FastSeq(), None, null, null)
     else
@@ -202,7 +231,7 @@ class HailSuite extends TestNGSuite {
     args: IndexedSeq[(Any, Type)],
     expected: Any,
   )(implicit execStrats: Set[ExecStrategy]
-  ): Unit =
+  ): scalatest.Assertion =
     assertNDEvals(nd, Env.empty, args, None, expected)
 
   def assertNDEvals(
@@ -210,7 +239,7 @@ class HailSuite extends TestNGSuite {
     agg: (IndexedSeq[Row], TStruct),
     expected: Any,
   )(implicit execStrats: Set[ExecStrategy]
-  ): Unit =
+  ): scalatest.Assertion =
     assertNDEvals(nd, Env.empty, FastSeq(), Some(agg), expected)
 
   def assertNDEvals(
@@ -220,7 +249,7 @@ class HailSuite extends TestNGSuite {
     agg: Option[(IndexedSeq[Row], TStruct)],
     expected: Any,
   )(implicit execStrats: Set[ExecStrategy]
-  ): Unit = {
+  ): scalatest.Assertion = {
     var e: IndexedSeq[Any] = expected.asInstanceOf[IndexedSeq[Any]]
     val dims = Array.fill(nd.typ.asInstanceOf[TNDArray].nDims) {
       val n = e.length
@@ -239,7 +268,7 @@ class HailSuite extends TestNGSuite {
     dims: IndexedSeq[Long],
     expected: Any,
   )(implicit execStrats: Set[ExecStrategy]
-  ): Unit = {
+  ): scalatest.Assertion = {
     val arrayIR = if (expected == null) nd
     else {
       val refs = Array.fill(nd.typ.asInstanceOf[TNDArray].nDims)(Ref(freshName(), TInt32))
@@ -257,49 +286,47 @@ class HailSuite extends TestNGSuite {
     bm: BlockMatrixIR,
     expected: DenseMatrix[Double],
   )(implicit execStrats: Set[ExecStrategy]
-  ): Unit = {
-    ExecuteContext.scoped { ctx =>
-      val filteredExecStrats: Set[ExecStrategy] =
-        if (HailContext.backend.isInstanceOf[SparkBackend]) execStrats
-        else {
-          info("skipping interpret and non-lowering compile steps on non-spark backend")
-          execStrats.intersect(ExecStrategy.backendOnly)
-        }
-      filteredExecStrats.filter(ExecStrategy.interpretOnly).foreach { strat =>
-        try {
-          val res = strat match {
-            case ExecStrategy.Interpret =>
-              Interpret(bm, ctx, optimize = true)
-            case ExecStrategy.InterpretUnoptimized =>
-              Interpret(bm, ctx, optimize = false)
-          }
-          assert(res.toBreezeMatrix() == expected)
-        } catch {
-          case e: Exception =>
-            error(s"error from strategy $strat")
-            if (execStrats.contains(strat)) throw e
-        }
+  ): scalatest.Assertion = {
+    val filteredExecStrats: Set[ExecStrategy] =
+      if (HailContext.backend.isInstanceOf[SparkBackend]) execStrats
+      else {
+        info("skipping interpret and non-lowering compile steps on non-spark backend")
+        execStrats.intersect(ExecStrategy.backendOnly)
       }
-      val expectedArray = Array.tabulate(expected.rows)(i =>
-        Array.tabulate(expected.cols)(j => expected(i, j)).toFastSeq
-      ).toFastSeq
-      assertNDEvals(BlockMatrixCollect(bm), expectedArray)(
-        filteredExecStrats.filterNot(ExecStrategy.interpretOnly)
-      )
+    filteredExecStrats.filter(ExecStrategy.interpretOnly).foreach { strat =>
+      try {
+        val res = strat match {
+          case ExecStrategy.Interpret =>
+            Interpret(bm, ctx, optimize = true)
+          case ExecStrategy.InterpretUnoptimized =>
+            Interpret(bm, ctx, optimize = false)
+        }
+        assert(res.toBreezeMatrix() == expected)
+      } catch {
+        case e: Exception =>
+          error(s"error from strategy $strat")
+          if (execStrats.contains(strat)) throw e
+      }
     }
+    val expectedArray = Array.tabulate(expected.rows)(i =>
+      Array.tabulate(expected.cols)(j => expected(i, j)).toFastSeq
+    ).toFastSeq
+    assertNDEvals(BlockMatrixCollect(bm), expectedArray)(
+      filteredExecStrats.filterNot(ExecStrategy.interpretOnly)
+    )
   }
 
   def assertAllEvalTo(
     xs: (IR, Any)*
   )(implicit execStrats: Set[ExecStrategy]
-  ): Unit =
+  ): scalatest.Assertion =
     assertEvalsTo(MakeTuple.ordered(xs.toArray.map(_._1)), Row.fromSeq(xs.map(_._2)))
 
   def assertEvalsTo(
     x: IR,
     expected: Any,
   )(implicit execStrats: Set[ExecStrategy]
-  ): Unit =
+  ): scalatest.Assertion =
     assertEvalsTo(x, Env.empty, FastSeq(), None, expected)
 
   def assertEvalsTo(
@@ -307,7 +334,7 @@ class HailSuite extends TestNGSuite {
     args: IndexedSeq[(Any, Type)],
     expected: Any,
   )(implicit execStrats: Set[ExecStrategy]
-  ): Unit =
+  ): scalatest.Assertion =
     assertEvalsTo(x, Env.empty, args, None, expected)
 
   def assertEvalsTo(
@@ -315,6 +342,6 @@ class HailSuite extends TestNGSuite {
     agg: (IndexedSeq[Row], TStruct),
     expected: Any,
   )(implicit execStrats: Set[ExecStrategy]
-  ): Unit =
+  ): scalatest.Assertion =
     assertEvalsTo(x, Env.empty, FastSeq(), Some(agg), expected)
 }

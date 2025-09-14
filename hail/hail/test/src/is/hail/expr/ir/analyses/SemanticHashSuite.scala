@@ -1,7 +1,6 @@
 package is.hail.expr.ir.analyses
 
 import is.hail.{HAIL_PRETTY_VERSION, HailSuite}
-import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
 import is.hail.expr.ir.defs._
 import is.hail.io.fs.{FS, FakeFS, FakeURL, FileListEntry}
@@ -14,6 +13,7 @@ import java.io.FileNotFoundException
 import java.lang
 
 import org.json4s.JValue
+import org.scalatest
 import org.testng.annotations.{DataProvider, Test}
 
 class SemanticHashSuite extends HailSuite {
@@ -291,16 +291,19 @@ class SemanticHashSuite extends HailSuite {
     )
 
   @Test(dataProvider = "isBaseIRSemanticallyEquivalent")
-  def testSemanticEquivalence(a: BaseIR, b: BaseIR, isEqual: Boolean, comment: String): Unit =
-    assertResult(
-      isEqual,
-      s"expected semhash($a) ${if (isEqual) "==" else "!="} semhash($b), $comment",
-    )(
-      semhash(fakeFs)(a) == semhash(fakeFs)(b)
-    )
+  def testSemanticEquivalence(a: BaseIR, b: BaseIR, isEqual: Boolean, comment: String)
+    : scalatest.Assertion =
+    ctx.local(fs = fakeFs) { ctx =>
+      assertResult(
+        isEqual,
+        s"expected semhash($a) ${if (isEqual) "==" else "!="} semhash($b), $comment",
+      )(
+        SemanticHash(ctx, a) == SemanticHash(ctx, b)
+      )
+    }
 
   @Test
-  def testFileNotFoundExceptions(): Unit = {
+  def testFileNotFoundExceptions(): scalatest.Assertion = {
     val fs =
       new FakeFS {
         override def eTag(url: FakeURL): Option[String] =
@@ -309,15 +312,14 @@ class SemanticHashSuite extends HailSuite {
 
     val ir = importMatrix("gs://fake-bucket/fake-matrix")
 
-    assertResult(None, "SemHash should be resilient to FileNotFoundExceptions.")(
-      semhash(fs)(ir)
-    )
+    ctx.local(fs = fs) { ctx =>
+      assertResult(None, "SemHash should be resilient to FileNotFoundExceptions.")(
+        SemanticHash(ctx, ir)
+      )
+    }
   }
 
-  def semhash(fs: FS)(ir: BaseIR): Option[SemanticHash.Type] =
-    ExecuteContext.scoped(_.local(fs = fs)(SemanticHash(_)(ir)))
-
-  val fakeFs: FS =
+  private[this] val fakeFs: FS =
     new FakeFS {
       override def eTag(url: FakeURL): Option[String] =
         Some(url.getPath)

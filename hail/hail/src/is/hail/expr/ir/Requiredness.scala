@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.functions.GetElement
+import is.hail.macros.void
 import is.hail.methods.ForceCountTable
 import is.hail.types._
 import is.hail.types.physical.PType
@@ -66,7 +67,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
           usesAndDefs.uses.bind(re, uses)
         }
         usesAndDefs.uses.bind(re, xUses.free)
-        dependents.getOrElseUpdate(x.body, mutable.Set[RefEquality[BaseIR]]()) += re
+        void(dependents.getOrElseUpdate(x.body, mutable.Set[RefEquality[BaseIR]]()) += re)
       case _ =>
     }
     node.children.foreach {
@@ -126,12 +127,12 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
           req
         } else eltReq
         uses.foreach(u => defs.bind(u, Array(req)))
-        dependents.getOrElseUpdate(d, mutable.Set[RefEquality[BaseIR]]()) ++= uses
+        void(dependents.getOrElseUpdate(d, mutable.Set[RefEquality[BaseIR]]()) ++= uses)
       }
     }
 
     def addBlockMatrixElementBinding(name: Name, d: BlockMatrixIR, makeOptional: Boolean = false)
-      : Unit = {
+      : Unit =
       if (refMap.contains(name)) {
         val uses = refMap(name)
         val eltReq = tcoerce[RBlockMatrix](lookup(d)).elementType
@@ -141,9 +142,8 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
           optional
         } else eltReq
         uses.foreach(u => defs.bind(u, Array(req)))
-        dependents.getOrElseUpdate(d, mutable.Set[RefEquality[BaseIR]]()) ++= uses
+        void(dependents.getOrElseUpdate(d, mutable.Set[RefEquality[BaseIR]]()) ++= uses)
       }
-    }
 
     def addBindings(name: Name, ds: Array[IR]): Unit =
       if (refMap.contains(name)) {
@@ -166,7 +166,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       })
       val refs = refMap.getOrElse(TableIR.rowName, FastSeq()) ++
         refMap.getOrElse(TableIR.globalName, FastSeq())
-      dependents.getOrElseUpdate(table, mutable.Set[RefEquality[BaseIR]]()) ++= refs
+      void(dependents.getOrElseUpdate(table, mutable.Set[RefEquality[BaseIR]]()) ++= refs)
     }
     node match {
       case Block(bindings, _) => bindings.foreach(b => addBinding(b.name, b.value))
@@ -188,7 +188,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
           addBindings(name, argDefs(i).result() :+ init)
           i += 1
         }
-        states.bind(node, s)
+        void(states.bind(node, s))
       case x @ ApplyIR(_, _, args, _, _) =>
         x.refs.zipWithIndex.foreach { case (r, i) => addBinding(r.name, args(i)) }
       case ArraySort(a, l, r, _) =>
@@ -256,7 +256,9 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
           val optional = producerElementType.copy(producerElementType.children)
           optional.union(false)
           uses.foreach(u => defs.bind(u, Array(RIterable(optional))))
-          dependents.getOrElseUpdate(makeProducer, mutable.Set[RefEquality[BaseIR]]()) ++= uses
+          void {
+            dependents.getOrElseUpdate(makeProducer, mutable.Set[RefEquality[BaseIR]]()) ++= uses
+          }
         }
 
       case StreamFilter(a, name, _) => addElementBinding(name, a)
@@ -267,25 +269,29 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case StreamFold(a, zero, accumName, valueName, body) =>
         addElementBinding(valueName, a)
         addBindings(accumName, Array[IR](zero, body))
-        states.bind(
-          node,
-          Array[TypeWithRequiredness](lookup(
-            refMap.get(accumName)
-              .flatMap(refs => refs.headOption.map(_.t.asInstanceOf[IR]))
-              .getOrElse(zero)
-          )),
-        )
+        void {
+          states.bind(
+            node,
+            Array[TypeWithRequiredness](lookup(
+              refMap.get(accumName)
+                .flatMap(refs => refs.headOption.map(_.t.asInstanceOf[IR]))
+                .getOrElse(zero)
+            )),
+          )
+        }
       case StreamScan(a, zero, accumName, valueName, body) =>
         addElementBinding(valueName, a)
         addBindings(accumName, Array[IR](zero, body))
-        states.bind(
-          node,
-          Array[TypeWithRequiredness](lookup(
-            refMap.get(accumName)
-              .flatMap(refs => refs.headOption.map(_.t.asInstanceOf[IR]))
-              .getOrElse(zero)
-          )),
-        )
+        void {
+          states.bind(
+            node,
+            Array[TypeWithRequiredness](lookup(
+              refMap.get(accumName)
+                .flatMap(refs => refs.headOption.map(_.t.asInstanceOf[IR]))
+                .getOrElse(zero)
+            )),
+          )
+        }
       case StreamFold2(a, accums, valueName, seq, _) =>
         addElementBinding(valueName, a)
         val s = Array.fill[TypeWithRequiredness](accums.length)(null)
@@ -298,7 +304,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
           ).getOrElse(z))
           i += 1
         }
-        states.bind(node, s)
+        void(states.bind(node, s))
       case StreamJoinRightDistinct(left, right, _, _, l, r, _, joinType) =>
         addElementBinding(l, left, makeOptional = (joinType == "outer" || joinType == "right"))
         addElementBinding(r, right, makeOptional = (joinType == "outer" || joinType == "left"))
@@ -307,7 +313,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         val uses = refMap(rname)
         val rtypes = Array(lookup(right))
         uses.foreach(u => defs.bind(u, rtypes))
-        dependents.getOrElseUpdate(right, mutable.Set[RefEquality[BaseIR]]()) ++= uses
+        void(dependents.getOrElseUpdate(right, mutable.Set[RefEquality[BaseIR]]()) ++= uses)
       case StreamAgg(a, name, _) =>
         addElementBinding(name, a)
       case StreamAggScan(a, name, _) =>
@@ -365,7 +371,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
           partitionStreamName,
           FastSeq(),
         )
-        dependents.getOrElseUpdate(child, mutable.Set[RefEquality[BaseIR]]()) ++= refs
+        void(dependents.getOrElseUpdate(child, mutable.Set[RefEquality[BaseIR]]()) ++= refs)
       case TableGen(contexts, globals, cname, gname, _, _, _) =>
         addElementBinding(cname, contexts)
         addBinding(gname, globals)
@@ -568,11 +574,9 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case ConsoleLog(_, result) =>
         requiredness.unionFrom(lookup(result))
       case x if x.typ == TVoid =>
-      case ApplyComparisonOp(EQWithNA(_, _), _, _) | ApplyComparisonOp(
-            NEQWithNA(_, _),
-            _,
-            _,
-          ) | ApplyComparisonOp(Compare(_, _), _, _) =>
+      case ApplyComparisonOp(EQWithNA, _, _) |
+          ApplyComparisonOp(NEQWithNA, _, _) |
+          ApplyComparisonOp(Compare, _, _) =>
       case ApplyComparisonOp(op, _, _) =>
         fatal(s"non-strict comparison op $op must have explicit case")
       case TableCount(_) =>
@@ -731,22 +735,16 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         val rit = tcoerce[RIterable](requiredness)
         rit.union(lookup(a).required)
         rit.elementType.unionFrom(lookup(body))
-      case ApplyAggOp(_, seqOpArgs, aggSig) => // FIXME round-tripping through ptype
+      case ApplyAggOp(_, seqOpArgs, op) => // FIXME round-tripping through ptype
         val emitResult = agg.PhysicalAggSig(
-          aggSig.op,
-          agg.AggStateSig(
-            aggSig.op,
-            seqOpArgs.map(s => s -> lookup(s)),
-          ),
+          op,
+          agg.AggStateSig(op, seqOpArgs.map(s => s -> lookup(s))),
         ).emitResultType
         requiredness.fromEmitType(emitResult)
-      case ApplyScanOp(_, seqOpArgs, aggSig) =>
+      case ApplyScanOp(_, seqOpArgs, op) =>
         val emitResult = agg.PhysicalAggSig(
-          aggSig.op,
-          agg.AggStateSig(
-            aggSig.op,
-            seqOpArgs.map(s => s -> lookup(s)),
-          ),
+          op,
+          agg.AggStateSig(op, seqOpArgs.map(s => s -> lookup(s))),
         ).emitResultType
         requiredness.fromEmitType(emitResult)
       case AggFold(zero, seqOp, combOp, _, _, _) =>

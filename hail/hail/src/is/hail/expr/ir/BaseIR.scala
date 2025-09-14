@@ -33,11 +33,11 @@ abstract class BaseIR {
   // New sentinel values can be obtained by `nextFlag` on `IRMetadata`.
   var mark: Int = 0
 
-  def isAlphaEquiv(ctx: ExecuteContext, other: BaseIR): Boolean =
-    /* FIXME: rewrite to not rebuild the irs, by maintaining an env mapping left names to right
-     * names */
-    NormalizeNames(ctx, this, allowFreeVariables = true) ==
-      NormalizeNames(ctx, other, allowFreeVariables = true)
+  def isAlphaEquiv(ctx: ExecuteContext, other: BaseIR): Boolean = {
+    // FIXME: rewrite to not rebuild the irs by maintaining an env mapping left to right names
+    val normalize: (ExecuteContext, BaseIR) => BaseIR = NormalizeNames(allowFreeVariables = true)
+    normalize(ctx, this) == normalize(ctx, other)
+  }
 
   def mapChildrenWithIndex(f: (BaseIR, Int) => BaseIR): BaseIR = {
     val newChildren = childrenSeq.view.zipWithIndex.map(f.tupled).toArray
@@ -132,3 +132,55 @@ abstract class BaseIR {
       f(child, i, childEnv)
     }
 }
+
+trait PreservesRowsOrCols extends BaseIR {
+  def preservesRowsOrColsFrom: BaseIR
+}
+
+object PreservesOrRemovesRows {
+  def unapply(ir: BaseIR): Option[BaseIR] = ir match {
+    case ir: PreservesRows if ir.preservesRowsCond => Some(ir.preservesRowsOrColsFrom)
+    case _ => None
+  }
+}
+
+/** A Table or MatrixTable node should implement this when each row in the `preservesRowsOrColsFrom`
+  * input is either deleted or corresponds to a row in the output with the same key. In particular,
+  * the total number of rows cannot increase.
+  *
+  * If `preservesPartitioning` is true, then moreover each surviving input row stays in the same
+  * partition.
+  */
+trait PreservesOrRemovesRows extends PreservesRowsOrCols {
+  // Allows the trait to be conditionally applied
+  def preservesRowsCond: Boolean = true
+  def preservesPartitioning: Boolean = true
+}
+
+object PreservesRows {
+  def unapply(ir: BaseIR): Option[(BaseIR, Boolean)] = ir match {
+    case ir: PreservesRows if ir.preservesRowsCond =>
+      Some((ir.preservesRowsOrColsFrom, ir.preservesPartitioning))
+    case _ => None
+  }
+}
+
+/** A Table or MatrixTable implementing this has all the properties of `PreservesOrRemovesRows`, but
+  * input rows are never deleted. In particular, the total number of rows is preserved exactly.
+  *
+  * If `preservesPartitioning` is true, then partition counts are also preserved exactly.
+  */
+trait PreservesRows extends PreservesOrRemovesRows
+
+object PreservesCols {
+  def unapply(ir: BaseIR): Option[BaseIR] = ir match {
+    case ir: PreservesCols => Some(ir.preservesRowsOrColsFrom)
+    case _ => None
+  }
+}
+
+/** A MatrixTable should implement this when each column in `preservesRowsOrColsFrom` corresponds to
+  * a column in the output with the same key. In particular, the number of columns is preserved
+  * exactly.
+  */
+trait PreservesCols extends PreservesRowsOrCols

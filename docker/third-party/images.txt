@@ -6,10 +6,14 @@ google/cloud-sdk:305.0.0-slim
 grafana/grafana:9.1.4
 jupyter/scipy-notebook:c094bb7219f9
 moby/buildkit:v0.8.3-rootless
-python:3.9
-python:3.9-slim
 python:3.10
 python:3.10-slim
+python:3.11
+python:3.11-slim
+python:3.12
+python:3.12-slim
+python:3.13
+python:3.13-slim
 redis:6.0.6-alpine
 ubuntu:18.04
 ubuntu:20.04
@@ -17,5 +21,5 @@ ubuntu:22.04
 ubuntu:24.04
 ubuntu:bionic-20230530
 ubuntu:focal-20250404
-ubuntu:jammy-20250530
-ubuntu:noble-20250529
+ubuntu:jammy-20250714
+ubuntu:noble-20250714

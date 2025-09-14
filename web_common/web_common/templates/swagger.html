@@ -5,12 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="SwaggerUI" />
     <title>SwaggerUI</title>
-    <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui.css" />
+    <link rel="stylesheet" href="{{ base_path }}/common_static/lib/swagger/swagger-ui.css" />
   </head>
   <body>
   <div id="swagger-ui"></div>
-  <script src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-bundle.js" crossorigin></script>
-  <script src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-standalone-preset.js" crossorigin></script>
+  <script src="{{ base_path }}/common_static/lib/swagger/swagger-ui-bundle.js" crossorigin></script>
+  <script src="{{ base_path }}/common_static/lib/swagger/swagger-ui-standalone-preset.js" crossorigin></script>
   <script>
     window.onload = () => {
       window.ui = SwaggerUIBundle({
@@ -21,6 +21,20 @@
           SwaggerUIStandalonePreset
         ],
         layout: "StandaloneLayout",
+        requestInterceptor: function(request) {
+          // Get CSRF token from template variable
+          const csrfToken = "{{ csrf_token }}";
+          
+          if (csrfToken) {
+            // Add CSRF token to request headers
+            if (!request.headers) {
+              request.headers = {};
+            }
+            request.headers['X-CSRF-Token'] = csrfToken;
+          }
+          
+          return request;
+        }
       });
     };
   </script>

@@ -6,6 +6,7 @@ on:
     - cron: 0 0 1 */2 *
 jobs:
   create-release-pr:
+    if: github.repository == 'hail-is/hail'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -32,26 +33,10 @@ jobs:
           echo "next=${prefix}.$((n + 1))" >> "${GITHUB_OUTPUT}"
 
       - name: Generate Changelog Entries
+        working-directory: hail
         run: |
           git fetch --unshallow --filter=tree:0 --no-tags origin tag ${{ steps.version.outputs.old }}
-          
-          git log ${{ steps.version.outputs.old }}.. --format='%s' |\
-            grep -P '\[all|(com(biner|piler)|dep(s|endencies)|hail(?!ctl|genetics|jwt|top)|ir|jvm|p(ip|ython)|q(uery|ob)|vds)[^\]]*\]' |\
-            sed -E 's/\[[^\]+\] (.*) \(#([[:digit:]]*)\)/- (hail#\2) \1/' |\
-            sed 1i"## Version ${{ steps.version.outputs.new }}\n" |\
-            sed -e '$a\'$'\n' > HAIL_ENTRY
-          
-          sed -i '/## Version '"${{ steps.version.outputs.old }}"'/e cat HAIL_ENTRY' \
-            hail/python/hail/docs/change_log.md
-          
-          git log ${{ steps.version.outputs.old }}.. --format='%s' |\
-            grep -P '\[(a(ll|uth)|batch|dataproc|fs|hail(ctl|genetics|top)|infra|services)[^\]]*\]' |\
-            sed -E 's$\[[^\]+\] (.*) \(#([[:digit:]]*)\)$- (\`#\2 <https://github.com/hail-is/hail/pull/\2>\`__) \1$' |\
-            sed 1i"**Version ${{ steps.version.outputs.new }}**\n" |\
-            sed -e '$a\'$'\n' > HAILTOP_ENTRY
-          
-          sed -i -e '/Change Log/{N; N; r HAILTOP_ENTRY' -e '}' \
-            hail/python/hailtop/batch/docs/change_log.rst
+          bash scripts/update-changelog
 
       # identity from https://api.github.com/users/github-actions%5Bbot%5D
       - name: Commit and Push

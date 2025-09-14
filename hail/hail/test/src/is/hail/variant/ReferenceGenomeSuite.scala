@@ -1,7 +1,7 @@
 package is.hail.variant
 
-import is.hail.{HailSuite, TestUtils}
-import is.hail.backend.{ExecuteContext, HailStateManager}
+import is.hail.HailSuite
+import is.hail.backend.HailStateManager
 import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.io.reference.{FASTAReader, FASTAReaderConfig, LiftOver}
 import is.hail.scalacheck.{genLocus, genNullable}
@@ -10,17 +10,14 @@ import is.hail.utils._
 
 import htsjdk.samtools.reference.ReferenceSequenceFileFactory
 import org.scalacheck.Prop.forAll
+import org.scalatest
 import org.testng.annotations.Test
 
 class ReferenceGenomeSuite extends HailSuite {
 
-  def hasReference(name: String) = ctx.stateManager.referenceGenomes.contains(name)
-
-  def getReference(name: String) = ctx.references(name)
-
-  @Test def testGRCh37(): Unit = {
-    assert(hasReference(ReferenceGenome.GRCh37))
-    val grch37 = getReference(ReferenceGenome.GRCh37)
+  @Test def testGRCh37(): scalatest.Assertion = {
+    assert(ctx.references.contains(ReferenceGenome.GRCh37))
+    val grch37 = ctx.references(ReferenceGenome.GRCh37)
 
     assert(grch37.inX("X") && grch37.inY("Y") && grch37.isMitochondrial("MT"))
     assert(grch37.contigLength("1") == 249250621)
@@ -34,9 +31,9 @@ class ReferenceGenomeSuite extends HailSuite {
     assert(!nonParXLocus.forall(grch37.inXPar) && !nonParYLocus.forall(grch37.inYPar))
   }
 
-  @Test def testGRCh38(): Unit = {
-    assert(hasReference(ReferenceGenome.GRCh38))
-    val grch38 = getReference(ReferenceGenome.GRCh38)
+  @Test def testGRCh38(): scalatest.Assertion = {
+    assert(ctx.references.contains(ReferenceGenome.GRCh38))
+    val grch38 = ctx.references(ReferenceGenome.GRCh38)
 
     assert(grch38.inX("chrX") && grch38.inY("chrY") && grch38.isMitochondrial("chrM"))
     assert(grch38.contigLength("chr1") == 248956422)
@@ -50,19 +47,19 @@ class ReferenceGenomeSuite extends HailSuite {
     assert(!nonParXLocus38.forall(grch38.inXPar) && !nonParYLocus38.forall(grch38.inYPar))
   }
 
-  @Test def testAssertions(): Unit = {
-    TestUtils.interceptFatal("Must have at least one contig in the reference genome.")(
+  @Test def testAssertions(): scalatest.Assertion = {
+    interceptFatal("Must have at least one contig in the reference genome.")(
       ReferenceGenome("test", Array.empty[String], Map.empty[String, Int])
     )
-    TestUtils.interceptFatal("No lengths given for the following contigs:")(ReferenceGenome(
+    interceptFatal("No lengths given for the following contigs:")(ReferenceGenome(
       "test",
       Array("1", "2", "3"),
       Map("1" -> 5),
     ))
-    TestUtils.interceptFatal("Contigs found in 'lengths' that are not present in 'contigs'")(
+    interceptFatal("Contigs found in 'lengths' that are not present in 'contigs'")(
       ReferenceGenome("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5, "4" -> 100))
     )
-    TestUtils.interceptFatal("The following X contig names are absent from the reference:")(
+    interceptFatal("The following X contig names are absent from the reference:")(
       ReferenceGenome(
         "test",
         Array("1", "2", "3"),
@@ -70,7 +67,7 @@ class ReferenceGenomeSuite extends HailSuite {
         xContigs = Set("X"),
       )
     )
-    TestUtils.interceptFatal("The following Y contig names are absent from the reference:")(
+    interceptFatal("The following Y contig names are absent from the reference:")(
       ReferenceGenome(
         "test",
         Array("1", "2", "3"),
@@ -78,7 +75,7 @@ class ReferenceGenomeSuite extends HailSuite {
         yContigs = Set("Y"),
       )
     )
-    TestUtils.interceptFatal(
+    interceptFatal(
       "The following mitochondrial contig names are absent from the reference:"
     )(ReferenceGenome(
       "test",
@@ -86,13 +83,13 @@ class ReferenceGenomeSuite extends HailSuite {
       Map("1" -> 5, "2" -> 5, "3" -> 5),
       mtContigs = Set("MT"),
     ))
-    TestUtils.interceptFatal("The contig name for PAR interval")(ReferenceGenome(
+    interceptFatal("The contig name for PAR interval")(ReferenceGenome(
       "test",
       Array("1", "2", "3"),
       Map("1" -> 5, "2" -> 5, "3" -> 5),
       parInput = Array((Locus("X", 1), Locus("X", 5))),
     ))
-    TestUtils.interceptFatal("in both X and Y contigs.")(ReferenceGenome(
+    interceptFatal("in both X and Y contigs.")(ReferenceGenome(
       "test",
       Array("1", "2", "3"),
       Map("1" -> 5, "2" -> 5, "3" -> 5),
@@ -101,15 +98,15 @@ class ReferenceGenomeSuite extends HailSuite {
     ))
   }
 
-  @Test def testContigRemap(): Unit = {
+  @Test def testContigRemap(): scalatest.Assertion = {
     val mapping = Map("23" -> "foo")
-    TestUtils.interceptFatal("have remapped contigs in reference genome")(
-      getReference(ReferenceGenome.GRCh37).validateContigRemap(mapping)
+    interceptFatal("have remapped contigs in reference genome")(
+      ctx.references(ReferenceGenome.GRCh37).validateContigRemap(mapping)
     )
   }
 
-  @Test def testComparisonOps(): Unit = {
-    val rg = getReference(ReferenceGenome.GRCh37)
+  @Test def testComparisonOps(): scalatest.Assertion = {
+    val rg = ctx.references(ReferenceGenome.GRCh37)
 
     // Test contigs
     assert(rg.compare("3", "18") < 0)
@@ -125,10 +122,10 @@ class ReferenceGenomeSuite extends HailSuite {
     assert(rg.compare("Y", "MT") < 0)
   }
 
-  @Test def testWriteToFile(): Unit = {
+  @Test def testWriteToFile(): scalatest.Assertion = {
     val tmpFile = ctx.createTmpPath("grWrite", "json")
 
-    val rg = getReference(ReferenceGenome.GRCh37)
+    val rg = ctx.references(ReferenceGenome.GRCh37)
     rg.copy(name = "GRCh37_2").write(fs, tmpFile)
     val gr2 = ReferenceGenome.fromFile(fs, tmpFile)
 
@@ -140,7 +137,7 @@ class ReferenceGenomeSuite extends HailSuite {
       (rg.parInput sameElements gr2.parInput))
   }
 
-  @Test def testFasta(): Unit = {
+  @Test def testFasta(): scalatest.Assertion = {
     val fastaFile = getTestResource("fake_reference.fasta")
     val fastaFileGzip = getTestResource("fake_reference.fasta.gz")
     val indexFile = getTestResource("fake_reference.fasta.fai")
@@ -228,20 +225,19 @@ class ReferenceGenomeSuite extends HailSuite {
     }
   }
 
-  @Test def testSerializeOnFB(): Unit = {
-    ExecuteContext.scoped { ctx =>
-      val grch38 = ctx.references(ReferenceGenome.GRCh38)
-      val fb = EmitFunctionBuilder[String, Boolean](ctx, "serialize_rg")
-      val rgfield = fb.getReferenceGenome(grch38.name)
-      fb.emit(rgfield.invoke[String, Boolean]("isValidContig", fb.getCodeParam[String](1)))
-
-      val f = fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, ctx.r)
+  @Test def testSerializeOnFB(): scalatest.Assertion = {
+    val grch38 = ctx.references(ReferenceGenome.GRCh38)
+    val fb = EmitFunctionBuilder[String, Boolean](ctx, "serialize_rg")
+    val rgfield = fb.getReferenceGenome(grch38.name)
+    fb.emit(rgfield.invoke[String, Boolean]("isValidContig", fb.getCodeParam[String](1)))
+    ctx.scopedExecution { (cl, fs, tc, r) =>
+      val f = fb.resultWithIndex()(cl, fs, tc, r)
       assert(f("X") == grch38.isValidContig("X"))
     }
   }
 
-  @Test def testSerializeWithLiftoverOnFB(): Unit = {
-    ExecuteContext.scoped { ctx =>
+  @Test def testSerializeWithLiftoverOnFB(): scalatest.Assertion =
+    ctx.local(references = ReferenceGenome.builtinReferences()) { ctx =>
       val grch37 = ctx.references(ReferenceGenome.GRCh37)
       val liftoverFile = getTestResource("grch37_to_grch38_chr20.over.chain.gz")
 
@@ -257,13 +253,13 @@ class ReferenceGenomeSuite extends HailSuite {
         fb.getCodeParam[Double](3),
       ))
 
-      val f = fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, ctx.r)
-      assert(f("GRCh38", Locus("20", 60001), 0.95) == grch37.liftoverLocus(
-        "GRCh38",
-        Locus("20", 60001),
-        0.95,
-      ))
-      grch37.removeLiftover("GRCh38")
+      ctx.scopedExecution { (cl, fs, tc, r) =>
+        val f = fb.resultWithIndex()(cl, fs, tc, r)
+        assert(f("GRCh38", Locus("20", 60001), 0.95) == grch37.liftoverLocus(
+          "GRCh38",
+          Locus("20", 60001),
+          0.95,
+        ))
+      }
     }
-  }
 }

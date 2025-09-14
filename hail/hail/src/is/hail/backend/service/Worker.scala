@@ -4,13 +4,13 @@ import is.hail.{HAIL_REVISION, HailContext, HailFeatureFlags}
 import is.hail.asm4s._
 import is.hail.backend.HailTaskContext
 import is.hail.io.fs._
+import is.hail.macros.void
 import is.hail.services._
 import is.hail.utils._
 
 import scala.collection.mutable
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.concurrent.duration.Duration
-import scala.util.control.NonFatal
 
 import java.io._
 import java.nio.charset._
@@ -36,7 +36,7 @@ class WorkerTimer() {
   var startTimes: mutable.Map[String, Long] = mutable.Map()
 
   def start(label: String): Unit =
-    startTimes.put(label, System.nanoTime())
+    void(startTimes.put(label, System.nanoTime()))
 
   def end(label: String): Unit = {
     val endTime = System.nanoTime()
@@ -174,48 +174,20 @@ object Worker {
 
     timer.end("readInputs")
     timer.start("executeFunction")
-    if (HailContext.isInitialized) {
-      HailContext.get.backend = new ServiceBackend(
-        null,
-        null,
-        new HailClassLoader(getClass().getClassLoader()),
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        scratchDir,
-      )
-    } else {
-      HailContext(
-        // FIXME: workers should not have backends, but some things do need hail contexts
-        new ServiceBackend(
-          null,
-          null,
-          new HailClassLoader(getClass().getClassLoader()),
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          scratchDir,
-        )
-      )
-    }
 
-    val result = using(new ServiceTaskContext(i)) { htc =>
+    // FIXME: workers should not have backends, but some things do need hail contexts
+    HailContext.getOrCreate(new ServiceBackend(null, null, null, null, null))
+    val result =
       try
-        retryTransientErrors {
-          Right(f(context, htc, theHailClassLoader, fs))
+        using(new ServiceTaskContext(i)) { htc =>
+          retryTransientErrors {
+            Right(f(context, htc, theHailClassLoader, fs))
+          }
         }
       catch {
-        case NonFatal(err) => Left(err)
-      }
-    }
+        case t: Throwable => Left(t)
+      } finally
+        HailContext.stop()
 
     timer.end("executeFunction")
     timer.start("writeOutputs")
@@ -236,7 +208,7 @@ object Worker {
     timer.end(s"Job $i")
     log.info(s"finished job $i at root $root")
 
-    result.left.map { throwableWhileExecutingUserCode =>
+    result.left.foreach { throwableWhileExecutingUserCode =>
       log.info("throwing the exception so that this Worker job is marked as failed.")
       throw throwableWhileExecutingUserCode
     }

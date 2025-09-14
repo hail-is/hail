@@ -3,6 +3,7 @@ package is.hail.expr.ir.lowering
 import is.hail.annotations.{BroadcastRow, RegionValue}
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
+import is.hail.expr.ir.analyses.PartitionCounts
 import is.hail.rvd.{RVD, RVDPartitioner}
 import is.hail.types.physical.PStruct
 import is.hail.utils.fatal
@@ -24,7 +25,7 @@ object ExecuteRelational {
         TableValueIntermediate(function.execute(ctx, b, a))
       case TableAggregateByKey(child, expr) =>
         val prev = recur(child).asTableValue(ctx)
-        val extracted = agg.Extract(expr, r.requirednessAnalysis)
+        val extracted = agg.Extract(ctx, expr, r.requirednessAnalysis).independent
         val tv = prev.aggregateByKey(extracted)
         assert(tv.typ == ir.typ, s"${tv.typ}, ${ir.typ}")
         TableValueIntermediate(tv)
@@ -61,7 +62,7 @@ object ExecuteRelational {
         TableValueIntermediate(tv.copy(typ = ir.typ, rvd = tv.rvd.enforceKey(ctx, keys, isSorted)))
       case TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize) =>
         val prev = recur(child).asTableValue(ctx)
-        val extracted = agg.Extract(expr, r.requirednessAnalysis)
+        val extracted = agg.Extract(ctx, expr, r.requirednessAnalysis).independent
         TableValueIntermediate(
           prev.keyByAndAggregate(ctx, newKey, extracted, nPartitions, bufferSize)
         )
@@ -85,7 +86,7 @@ object ExecuteRelational {
       case TableMapGlobals(child, newGlobals) =>
         TableValueIntermediate(recur(child).asTableValue(ctx).mapGlobals(newGlobals))
       case TableMapRows(child, newRow) =>
-        val extracted = agg.Extract(newRow, r.requirednessAnalysis, isScan = true)
+        val extracted = agg.Extract(ctx, newRow, r.requirednessAnalysis, isScan = true).independent
         TableValueIntermediate(recur(child).asTableValue(ctx).mapRows(extracted))
       case TableMapPartitions(child, globalName, partitionStreamName, body, _,
             allowedOverlap) =>
@@ -103,7 +104,7 @@ object ExecuteRelational {
       case TableParallelize(rowsAndGlobal, nPartitions) =>
         TableValueIntermediate(TableValue.parallelize(ctx, rowsAndGlobal, nPartitions))
       case ir: TableRange =>
-        TableValueIntermediate(TableValue.range(ctx, ir.partitionCounts.value.map(_.toInt)))
+        TableValueIntermediate(TableValue.range(ctx, ir.partitionCounts))
       case TableRead(typ, dropRows, tr) =>
         tr.toExecuteIntermediate(ctx, typ, dropRows)
       case TableRename(child, rowMap, globalMap) =>
@@ -114,10 +115,10 @@ object ExecuteRelational {
         TableValueIntermediate(recur(child).asTableValue(ctx).repartition(n, strategy))
       case TableHead(child, n) =>
         val prev = recur(child).asTableValue(ctx)
-        TableValueIntermediate(prev.copy(rvd = prev.rvd.head(n, child.partitionCounts)))
+        TableValueIntermediate(prev.copy(rvd = prev.rvd.head(n, PartitionCounts(child))))
       case TableTail(child, n) =>
         val prev = recur(child).asTableValue(ctx)
-        TableValueIntermediate(prev.copy(rvd = prev.rvd.tail(n, child.partitionCounts)))
+        TableValueIntermediate(prev.copy(rvd = prev.rvd.tail(n, PartitionCounts(child))))
       case TableToTableApply(child, function) =>
         TableValueIntermediate(function.execute(ctx, recur(child).asTableValue(ctx)))
       case TableUnion(childrenSeq) =>

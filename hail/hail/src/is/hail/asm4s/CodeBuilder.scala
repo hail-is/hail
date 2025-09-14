@@ -1,6 +1,7 @@
 package is.hail.asm4s
 
 import is.hail.{lir, HAIL_BUILD_CONFIGURATION}
+import is.hail.macros.void
 import is.hail.utils.{toRichIterable, Traceback}
 
 import org.objectweb.asm.Opcodes.{INVOKESTATIC, INVOKEVIRTUAL}
@@ -156,7 +157,7 @@ trait CodeBuilderLike {
     : Unit = {
     val Lstart = CodeLabel()
     define(Lstart)
-    emitBody(Lstart)
+    void(emitBody(Lstart))
   }
 
   def while_[A](
@@ -167,7 +168,7 @@ trait CodeBuilderLike {
     loop { Lstart =>
       if_(
         cond, {
-          emitBody(Lstart)
+          void(emitBody(Lstart))
           goto(Lstart)
         },
       )
@@ -277,7 +278,7 @@ trait CodeBuilderLike {
       val assertion = Code.newInstance[AssertionError, String, Throwable](message, traceback)
       if_(cond, {}, _throw(assertion))
     } else {
-      if_(cond, {}, _throw(Code.newInstance[AssertionError, String](message)))
+      if_(cond, {}, _throw(Code.newInstance[AssertionError, Object](message)))
     }
   }
 }

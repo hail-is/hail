@@ -98,25 +98,13 @@ object TestUtils {
 
   def IRCall(c: Call): IR = invoke("callFromRepr", TCall, I32(c))
 
-  def IRAggCount: IR = {
-    val aggSig = AggSignature(Count(), FastSeq.empty, FastSeq.empty)
-    ApplyAggOp(FastSeq.empty, FastSeq.empty, aggSig)
-  }
+  def IRAggCount: IR = ApplyAggOp(Count())()
 
-  def IRScanCount: IR = {
-    val aggSig = AggSignature(Count(), FastSeq.empty, FastSeq.empty)
-    ApplyScanOp(FastSeq.empty, FastSeq.empty, aggSig)
-  }
+  def IRScanCount: IR = ApplyScanOp(Count())()
 
-  def IRAggCollect(ir: IR): IR = {
-    val aggSig = AggSignature(Collect(), FastSeq.empty, FastSeq[Type](ir.typ))
-    ApplyAggOp(FastSeq(), FastSeq(ir), aggSig)
-  }
+  def IRAggCollect(ir: IR): IR = ApplyAggOp(Collect())(ir)
 
-  def IRScanCollect(ir: IR): IR = {
-    val aggSig = AggSignature(Collect(), FastSeq.empty, FastSeq[Type](ir.typ))
-    ApplyScanOp(FastSeq(), FastSeq(ir), aggSig)
-  }
+  def IRScanCollect(ir: IR): IR = ApplyScanOp(Collect())(ir)
 
   def IRStruct(fields: (String, IR)*): IR =
     MakeStruct(fields.toArray[(String, IR)])

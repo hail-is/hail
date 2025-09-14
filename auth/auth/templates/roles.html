@@ -1,38 +1,140 @@
-{% from "utils.html" import submit_button %}
 {% extends "layout.html" %}
 {% block title %}Roles{% endblock %}
 {% block content %}
-<h1 class='text-2xl font-light mb-4'>Create Role</h1>
-<form action="{{ base_path }}/roles" method="POST">
-  <div class='w-64 flex-col space-y-2'>
-    <div class='flex justify-between'>
-      <span>Name</span>
-      <input class='border rounded-sm p-1 text-sm' required name="name" />
-    </div>
-    <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
-    <div class='flex justify-end'>
-      {{ submit_button('Create') }}
-    </div>
-  </div>
-</form>
 
-<br />
+{% if all_system_role_assignments.keys().__len__() > 0 %}
+<h1 class='text-2xl font-light mb-4'>System role assignments</h1>
 
-<h1 class='text-2xl font-light mb-4'>Roles</h1>
-<table class='table-auto w-64'>
+<table class='table-auto w-full border border-slate-300 border-collapse font-inter'>
   <thead>
     <tr>
-      <th class='h-12 bg-slate-200 text-center font-light rounded-tl pl-2'>ID</th>
-      <th class='h-12 bg-slate-200 text-center font-light rounded-tr pr-2'>Name</th>
+      <th class='h-12 bg-slate-200 text-center font-light border border-slate-300 px-2 w-1/4'>Role name</th>
+      <th class='h-12 bg-slate-200 text-center font-light border border-slate-300 px-2 w-1/4'>Permissions</th>
+      <th class='h-12 bg-slate-200 text-center font-light border border-slate-300 px-2 w-1/4'>Users</th>
     </tr>
   </thead>
-  <tbody class='border border-collapse border-slate-50'>
-    {% for role in roles %}
+  <tbody>
+    {% for role in all_system_role_assignments.keys() %}
     <tr>
-      <td class='text-center'>{{ role['id'] }}</td>
-      <td class='text-center'>{{ role['name'] }}</td>
+      <td class='text-left border border-slate-300 px-2 py-2'>{{ role }}</td>
+      <td class='text-left border border-slate-300 px-2 py-2'>
+        <ul class='list-disc list-inside'>
+          {% for permission in all_system_role_assignments[role]['permissions'] %}
+          <li>{{ permission }}</li>
+          {% endfor %}
+        </ul>
+      </td>
+      <td class='text-left border border-slate-300 px-2 py-2 align-top'>
+        <ul class='list-none pl-0'>
+          {% for user in all_system_role_assignments[role]['users'] %}
+          <li class='flex items-center mb-1'>
+            <button 
+              onclick="removeRole('{{ user }}', '{{ role }}')"
+              class='mr-2 w-6 flex-shrink-0 text-red-600 hover:text-red-800 transition-colors duration-200 flex items-center justify-center'
+              title='Remove {{ role }} role from {{ user }}'
+            >
+              <svg class='w-4 h-4' fill='currentColor' viewBox='0 0 20 20'>
+                <path fill-rule='evenodd' d='M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z' clip-rule='evenodd'></path>
+              </svg>
+            </button>
+            <span class='flex-grow text-left'>{{ user }}</span>
+          </li>
+          {% endfor %}
+        </ul>
+        <hr class='my-4 border-slate-200'>
+        <div class='flex items-center mt-4'>
+          <span class='mr-2 flex items-center justify-center'>
+            <svg class='w-5 h-5 text-green-600' fill='currentColor' viewBox='0 0 20 20'>
+              <path fill-rule='evenodd' d='M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z' clip-rule='evenodd'/>
+            </svg>
+          </span>
+          <input 
+            type='text' 
+            id='add-user-{{ role }}'
+            placeholder='Enter username'
+            autocomplete='off'
+            data-lpignore='true'
+            class='flex-1 border border-slate-300 rounded px-2 py-1 text-sm mr-2'
+          />
+          <button 
+            onclick="addRole('{{ role }}')"
+            class='bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 transition-colors duration-200'
+            title='Add {{ role }} role to user'
+          >
+            Add
+          </button>
+        </div>
+      </td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
+{% endif %}
+
+<script>
+async function removeRole(username, roleName) {
+  if (!confirm(`Are you sure you want to remove the '${roleName}' role from user '${username}'?`)) {
+    return;
+  }
+
+  try {
+    const response = await fetch(`{{ base_path }}/api/v1alpha/system_roles/${username}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': '{{ csrf_token }}'
+      },
+      body: JSON.stringify({
+        role_removal: roleName
+      })
+    });
+
+    if (response.ok) {
+      // Refresh the page to show updated data
+      window.location.reload();
+    } else {
+      const errorData = await response.json().catch(() => ({}));
+      alert(`Failed to remove role: ${errorData.message || response.statusText}`);
+    }
+  } catch (error) {
+    console.error('Error removing role:', error);
+    alert('Failed to remove role. Please try again.');
+  }
+}
+
+async function addRole(roleName) {
+  const inputId = `add-user-${roleName}`;
+  const username = document.getElementById(inputId).value.trim();
+  
+  if (!username) {
+    alert('Please enter a username');
+    return;
+  }
+
+  try {
+    const response = await fetch(`{{ base_path }}/api/v1alpha/system_roles/${username}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': '{{ csrf_token }}'
+      },
+      body: JSON.stringify({
+        role_addition: roleName
+      })
+    });
+
+    if (response.ok) {
+      // Clear the input and refresh the page
+      document.getElementById(inputId).value = '';
+      window.location.reload();
+    } else {
+      const errorData = await response.json().catch(() => ({}));
+      alert(`Failed to add role: ${errorData.message || response.statusText}`);
+    }
+  } catch (error) {
+    console.error('Error adding role:', error);
+    alert('Failed to add role. Please try again.');
+  }
+}
+</script>
 {% endblock %}

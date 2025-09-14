@@ -14,6 +14,7 @@ from hailtop import httpx
 from hailtop.config import get_deploy_config
 from hailtop.utils import retry_transient_errors
 
+from .system_permissions import SystemPermission
 from .time_limited_max_size_cache import TimeLimitedMaxSizeCache
 
 log = logging.getLogger('gear.auth')
@@ -59,12 +60,19 @@ class Authenticator(abc.ABC):
         def wrap(fun: AuthenticatedAIOHTTPHandler):
             @wraps(fun)
             async def wrapped(request: web.Request) -> web.StreamResponse:
+                if 'api_info' not in request:
+                    request['api_info'] = {}
+                request['api_info']['authenticated_users_only'] = True
                 userdata = await self._fetch_userdata(request)
                 if not userdata:
                     # Only web routes should redirect by default
                     if redirect or (redirect is None and '/api/' not in request.path):
                         raise login_redirect(request)
                     raise web.HTTPUnauthorized()
+                if userdata['state'] == 'inactive':
+                    raise web.HTTPForbidden(
+                        text="Account is inactive. Please contact a Hail administrator to reactivate."
+                    )
                 request['userdata'] = userdata
                 return await fun(request, userdata)
 
@@ -91,7 +99,25 @@ class Authenticator(abc.ABC):
             @self.authenticated_users_only(redirect)
             @wraps(fun)
             async def wrapped(request: web.Request, userdata: UserData, *args, **kwargs):
+                if 'api_info' not in request:
+                    request['api_info'] = {}
+                request['api_info']['developers_only'] = True
                 if userdata['is_developer'] == 1:
+                    return await fun(request, userdata, *args, **kwargs)
+                raise web.HTTPUnauthorized()
+
+            return wrapped
+
+        return wrap
+
+    def authenticated_users_with_permission(
+        self, permission: SystemPermission, redirect: bool = True
+    ) -> Callable[[AuthenticatedAIOHTTPHandler], AIOHTTPHandler]:
+        def wrap(fun: AuthenticatedAIOHTTPHandler):
+            @self.authenticated_users_only(redirect)
+            @wraps(fun)
+            async def wrapped(request: web.Request, userdata: UserData, *args, **kwargs):
+                if await self._check_system_permission(request, permission):
                     return await fun(request, userdata, *args, **kwargs)
                 raise web.HTTPUnauthorized()
 
@@ -101,6 +127,10 @@ class Authenticator(abc.ABC):
 
     @abc.abstractmethod
     async def _fetch_userdata(self, request: web.Request) -> Optional[UserData]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def _check_system_permission(self, request: web.Request, permission: SystemPermission) -> bool:
         raise NotImplementedError
 
 
@@ -131,6 +161,14 @@ class AuthServiceAuthenticator(Authenticator):
             log.exception('unknown exception getting userinfo')
             raise web.HTTPInternalServerError() from e
 
+    async def _check_system_permission(self, request: web.Request, permission: SystemPermission) -> bool:
+        log.info(f'Checking system permission {permission} for {request.path}')
+        session_id = await get_session_id(request)
+        if session_id is None:
+            return False
+        client_session = request.app[CommonAiohttpAppKeys.CLIENT_SESSION]
+        return await impersonate_user_and_check_system_permission(session_id, client_session, permission)
+
 
 class TrustedSingleTenantAuthenticator(Authenticator):
     async def _fetch_userdata(self, request: web.Request) -> Optional[UserData]:
@@ -143,6 +181,23 @@ class TrustedSingleTenantAuthenticator(Authenticator):
                 'tokens_secret_name': 'dummy',
             },
         )
+
+    async def _check_system_permission(self, request: web.Request, permission: SystemPermission) -> bool:
+        # Trusted single tenant - so the trusted single tenant has all permissions.
+        return True
+
+
+async def impersonate_user_and_check_system_permission(
+    session_id: str, client_session: httpx.ClientSession, permission: SystemPermission
+) -> bool:
+    permission_check_url = deploy_config.url(
+        'auth', f'/api/v1alpha/check_system_permission?permission={permission.value}'
+    )
+    response = await impersonate_user(session_id, client_session, permission_check_url)
+    if not response:
+        return False
+
+    return response.get('has_permission', False)
 
 
 async def impersonate_user_and_get_info(session_id: str, client_session: httpx.ClientSession):

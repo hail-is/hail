@@ -13,12 +13,12 @@ COPY hail/python/pinned-requirements.txt requirements.txt
 COPY hail/python/dev/pinned-requirements.txt dev-requirements.txt
 RUN hail-pip-install -r requirements.txt -r dev-requirements.txt
 
-ENV SPARK_HOME /usr/local/lib/python3.9/dist-packages/pyspark
-ENV PATH "$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin"
-ENV PYSPARK_PYTHON python3
-ENV PYSPARK_SUBMIT_ARGS "--conf spark.kryo.registrator=is.hail.kryo.HailKryoRegistrator pyspark-shell"
+ENV SPARK_HOME=$VIRTUAL_ENV/lib/python$UV_PYTHON/site-packages/pyspark
+ENV PATH="$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin"
+ENV PYSPARK_PYTHON=python3
+ENV PYSPARK_SUBMIT_ARGS="--conf spark.kryo.registrator=is.hail.kryo.HailKryoRegistrator pyspark-shell"
 
 RUN curl --fail --silent --show-error --location \
-         https://repo1.maven.org/maven2/com/google/cloud/bigdataoss/gcs-connector/3.0.0/gcs-connector-3.0.0-shaded.jar \
-         >${SPARK_HOME}/jars/gcs-connector-3.0.0-shaded.jar
+         https://repo1.maven.org/maven2/com/google/cloud/bigdataoss/gcs-connector/3.1.3/gcs-connector-3.1.3-shaded.jar \
+         >${SPARK_HOME}/jars/gcs-connector-3.1.3-shaded.jar
 COPY docker/core-site.xml ${SPARK_HOME}/conf/core-site.xml

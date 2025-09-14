@@ -264,10 +264,10 @@ in Kubernetes, you can run `devbin/sync.py` like the following:
 python3 devbin/sync.py \
     --namespace <my_namespace> \
     --app batch --app batch-driver \
-    --path batch/batch /usr/local/lib/python3.9/dist-packages/ \
-    --path gear/gear /usr/local/lib/python3.9/dist-packages/ \
-    --path web_common/web_common /usr/local/lib/python3.9/dist-packages/ \
-    --path hail/python/hailtop /usr/local/lib/python3.9/dist-packages/
+    --path batch/batch /opt/venv/lib/python3.11/site-packages/ \
+    --path gear/gear /opt/venv/lib/python3.11/site-packages/ \
+    --path web_common/web_common /opt/venv/lib/python3.11/site-packages/ \
+    --path hail/python/hailtop /opt/venv/lib/python3.11/site-packages/
 ```
 
 This will create a long-running process that watches the files in the `batch`
