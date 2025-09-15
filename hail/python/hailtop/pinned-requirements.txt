@@ -14,13 +14,13 @@ attrs==25.3.0
     # via aiohttp
 azure-common==1.1.28
     # via azure-mgmt-storage
-azure-core==1.35.0
+azure-core==1.35.1
     # via
     #   azure-identity
     #   azure-mgmt-core
     #   azure-storage-blob
     #   msrest
-azure-identity==1.24.0
+azure-identity==1.25.0
     # via -r hail/python/hailtop/requirements.txt
 azure-mgmt-core==1.6.0
     # via azure-mgmt-storage
@@ -28,9 +28,9 @@ azure-mgmt-storage==20.1.0
     # via -r hail/python/hailtop/requirements.txt
 azure-storage-blob==12.26.0
     # via -r hail/python/hailtop/requirements.txt
-boto3==1.40.16
+boto3==1.40.30
     # via -r hail/python/hailtop/requirements.txt
-botocore==1.40.16
+botocore==1.40.30
     # via
     #   -r hail/python/hailtop/requirements.txt
     #   boto3
@@ -41,7 +41,7 @@ certifi==2025.8.3
     # via
     #   msrest
     #   requests
-cffi==1.17.1
+cffi==2.0.0
     # via
     #   cryptography
     #   pycares
@@ -51,7 +51,7 @@ click==8.2.1
     # via typer
 commonmark==0.9.1
     # via rich
-cryptography==45.0.6
+cryptography==45.0.7
     # via
     #   azure-identity
     #   azure-storage-blob
@@ -104,7 +104,7 @@ nest-asyncio==1.6.0
     # via -r hail/python/hailtop/requirements.txt
 oauthlib==3.3.1
     # via requests-oauthlib
-orjson==3.11.2
+orjson==3.11.3
     # via -r hail/python/hailtop/requirements.txt
 propcache==0.3.2
     # via
@@ -116,9 +116,9 @@ pyasn1==0.6.1
     #   rsa
 pyasn1-modules==0.4.2
     # via google-auth
-pycares==4.10.0
+pycares==4.11.0
     # via aiodns
-pycparser==2.22
+pycparser==2.23
     # via cffi
 pygments==2.19.2
     # via rich
@@ -146,7 +146,7 @@ rich==12.6.0
     #   typer
 rsa==4.9.1
     # via google-auth
-s3transfer==0.13.1
+s3transfer==0.14.0
     # via boto3
 shellingham==1.5.4
     # via typer
@@ -159,7 +159,7 @@ sortedcontainers==2.4.0
     # via -r hail/python/hailtop/requirements.txt
 tabulate==0.9.0
     # via -r hail/python/hailtop/requirements.txt
-typer==0.16.1
+typer==0.17.4
     # via -r hail/python/hailtop/requirements.txt
 typing-extensions==4.15.0
     # via

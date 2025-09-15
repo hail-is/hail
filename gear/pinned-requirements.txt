@@ -62,7 +62,7 @@ frozenlist==1.7.0
     #   aiosignal
 google-api-core==2.25.1
     # via google-api-python-client
-google-api-python-client==2.179.0
+google-api-python-client==2.181.0
     # via google-cloud-profiler
 google-auth==2.40.3
     # via
@@ -80,7 +80,7 @@ google-cloud-profiler==4.1.0
     # via -r gear/requirements.txt
 googleapis-common-protos==1.70.0
     # via google-api-core
-httplib2==0.22.0
+httplib2==0.31.0
     # via
     #   google-api-python-client
     #   google-auth-httplib2
@@ -116,7 +116,7 @@ propcache==0.3.2
     #   yarl
 proto-plus==1.26.1
     # via google-api-core
-protobuf==6.32.0
+protobuf==6.32.1
     # via
     #   google-api-core
     #   google-cloud-profiler
@@ -137,7 +137,7 @@ pymysql==1.1.2
     # via
     #   -r gear/requirements.txt
     #   aiomysql
-pyparsing==3.2.3
+pyparsing==3.2.4
     # via
     #   -c gear/../hail/python/dev/pinned-requirements.txt
     #   httplib2
