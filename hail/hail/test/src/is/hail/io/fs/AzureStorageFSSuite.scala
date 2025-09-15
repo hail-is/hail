@@ -18,7 +18,10 @@ class AzureStorageFSSuite extends TestNGSuite with FSSuite {
       throw new SkipException("skip")
 
   override lazy val fs: FS =
-    new AzureStorageFS(AzureCloudCredentials(None, AzureStorageFS.RequiredOAuthScopes))
+    new AzureStorageFS(
+      AzureCloudCredentials(None)
+        .scoped(AzureStorageFS.RequiredOAuthScopes)
+    )
 
   @Test def testMakeQualified(): scalatest.Assertion = {
     val qualifiedFileName = "https://account.blob.core.windows.net/container/path"

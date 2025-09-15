@@ -368,12 +368,14 @@ def init(
         backend = 'batch'
 
     if backend == 'batch':
-        return hail_event_loop().run_until_complete(
-            init_batch(
+        if os.getenv('HAIL_QUERY_USE_LOCAL_DRIVER') is not None:
+            return hail.experimental.init(
+                backend=backend,
+                app_name=app_name,
                 log=log,
                 quiet=quiet,
                 append=append,
-                tmpdir=tmp_dir,
+                tmp_dir=tmp_dir,
                 default_reference=default_reference,
                 global_seed=global_seed,
                 driver_cores=driver_cores,
@@ -381,12 +383,31 @@ def init(
                 worker_cores=worker_cores,
                 worker_memory=worker_memory,
                 batch_id=batch_id,
-                name_prefix=app_name,
                 gcs_requester_pays_configuration=gcs_requester_pays_configuration,
                 regions=regions,
                 gcs_bucket_allow_list=gcs_bucket_allow_list,
             )
-        )
+        else:
+            return hail_event_loop().run_until_complete(
+                init_batch(
+                    log=log,
+                    quiet=quiet,
+                    append=append,
+                    tmpdir=tmp_dir,
+                    local_tmpdir=local_tmpdir,
+                    default_reference=default_reference,
+                    global_seed=global_seed,
+                    driver_cores=driver_cores,
+                    driver_memory=driver_memory,
+                    worker_cores=worker_cores,
+                    worker_memory=worker_memory,
+                    batch_id=batch_id,
+                    name_prefix=app_name,
+                    gcs_requester_pays_configuration=gcs_requester_pays_configuration,
+                    regions=regions,
+                    gcs_bucket_allow_list=gcs_bucket_allow_list,
+                )
+            )
     if backend == 'spark':
         return init_spark(
             sc=sc,
