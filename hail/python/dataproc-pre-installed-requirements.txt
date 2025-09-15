@@ -1,4 +1,4 @@
 # https://cloud.google.com/dataproc/docs/concepts/versioning/dataproc-release-2.2
 #
-# 2.2.5-debian12
-pyspark==3.5.0
+# 2.2.64-debian12
+pyspark==3.5.3
