@@ -415,7 +415,6 @@ async def _query_job_group_jobs(
 
 
 @routes.get('/api/v1alpha/batches/completed')
-@api_security_headers
 @auth.authenticated_users_only()
 @add_metadata_to_request
 async def get_completed_batches_ordered_by_completed_time(request, userdata):
@@ -570,7 +569,6 @@ async def _api_get_job_group_jobs(request, batch_id: int, job_group_id: int, ver
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/resources')
-@api_security_headers
 @billing_project_users_only()
 @add_metadata_to_request
 async def get_jobs_for_billing(request, userdata, batch_id):
