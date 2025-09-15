@@ -235,6 +235,10 @@ resource "google_container_node_pool" "vdc_preemptible_pool" {
       enable_integrity_monitoring = true
       enable_secure_boot          = true
     }
+
+    workload_metadata_config {
+      mode = "GKE_METADATA"
+    }
   }
 }
 
@@ -267,6 +271,10 @@ resource "google_container_node_pool" "vdc_nonpreemptible_pool" {
     shielded_instance_config {
       enable_integrity_monitoring = true
       enable_secure_boot          = true
+    }
+
+    workload_metadata_config {
+      mode = "GKE_METADATA"
     }
   }
 }
