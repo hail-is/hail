@@ -1061,6 +1061,9 @@ class RVD(
 }
 
 object RVD {
+
+  var CheckRvdKeyOrderingForTesting: Boolean = false
+
   def empty(ctx: ExecuteContext, typ: RVDType): RVD =
     RVD.empty(ctx.stateManager, typ)
 
@@ -1313,15 +1316,10 @@ object RVD {
     RVDPartitioner.fromKeySamples(ctx, typ, min, max, samples, nPartitions, partitionKey)
   }
 
-  def apply(
-    typ: RVDType,
-    partitioner: RVDPartitioner,
-    crdd: ContextRDD[Long],
-  ): RVD =
-    if (!HailContext.get.checkRVDKeys)
-      new RVD(typ, partitioner, crdd)
-    else
-      new RVD(typ, partitioner, crdd).checkKeyOrdering()
+  def apply(typ: RVDType, partitioner: RVDPartitioner, crdd: ContextRDD[Long]): RVD = {
+    val rvd = new RVD(typ, partitioner, crdd)
+    if (CheckRvdKeyOrderingForTesting) rvd.checkKeyOrdering() else rvd
+  }
 
   def unify(execCtx: ExecuteContext, rvds: Seq[RVD]): Seq[RVD] = {
     if (rvds.length == 1 || rvds.forall(_.rowPType == rvds.head.rowPType))

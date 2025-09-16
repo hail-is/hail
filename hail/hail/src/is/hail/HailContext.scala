@@ -162,8 +162,6 @@ class HailContext private (
 ) {
   def stop(): Unit = HailContext.stop()
 
-  var checkRVDKeys: Boolean = false
-
   def version: String = is.hail.HAIL_PRETTY_VERSION
 
   private[this] def fileAndLineCounts(

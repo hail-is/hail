@@ -11,6 +11,7 @@ import is.hail.expr.ir.defs.{
 }
 import is.hail.expr.ir.lowering.IrMetadata
 import is.hail.io.fs.{FS, HadoopFS}
+import is.hail.rvd.RVD
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
@@ -54,6 +55,7 @@ class HailSuite extends TestNGSuite with TestUtils {
   @BeforeSuite
   def setupHailContext(): Unit = {
     HailContext.configureLogging("/tmp/hail.log", quiet = false, append = false)
+    RVD.CheckRvdKeyOrderingForTesting = true
     val backend = SparkBackend(
       sc = new SparkContext(
         SparkBackend.createSparkConf(
@@ -67,7 +69,6 @@ class HailSuite extends TestNGSuite with TestUtils {
       skipLoggingConfiguration = true,
     )
     HailSuite.hc_ = HailContext(backend)
-    HailSuite.hc_.checkRVDKeys = true
   }
 
   @BeforeClass
