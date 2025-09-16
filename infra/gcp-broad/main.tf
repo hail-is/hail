@@ -515,7 +515,7 @@ module "auth_gsa_secret" {
   name = "auth"
   project = var.gcp_project
   iam_roles = [
-    "authServiceAccountManager",
+    "projects/${var.gcp_project}/roles/authServiceAccountManager",
     "cloudprofiler.agent",
   ]
 }
@@ -561,7 +561,7 @@ module "batch_gsa_secret" {
   name = "batch"
   project = var.gcp_project
   iam_roles = [
-    "batchComputeManager",
+    "projects/${var.gcp_project}/roles/batchComputeManager",
     "iam.serviceAccountUser",
     "logging.viewer",
     "cloudprofiler.agent",
@@ -579,7 +579,7 @@ module "testns_batch_gsa_secret" {
   name = "testns-batch"
   project = var.gcp_project
   iam_roles = [
-    "batchComputeManager",
+    "projects/${var.gcp_project}/roles/batchComputeManager",
     "iam.serviceAccountUser",
     "logging.viewer",
     "cloudprofiler.agent",
@@ -761,7 +761,6 @@ resource "google_service_account" "batch_agent" {
 
 resource "google_project_iam_member" "batch_agent_iam_member" {
   for_each = toset([
-    "batch2AgentComputeOps",
     "iam.serviceAccountUser",
     "logging.logWriter",
     "storage.objectCreator",
@@ -770,6 +769,12 @@ resource "google_project_iam_member" "batch_agent_iam_member" {
 
   project = var.gcp_project
   role = "roles/${each.key}"
+  member = "serviceAccount:${google_service_account.batch_agent.email}"
+}
+
+resource "google_project_iam_member" "batch_agent_custom_role" {
+  project = var.gcp_project
+  role = "projects/${var.gcp_project}/roles/batch2AgentComputeOps"
   member = "serviceAccount:${google_service_account.batch_agent.email}"
 }
 
