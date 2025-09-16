@@ -1924,7 +1924,7 @@ object IRParser {
   def blockmatrix_sparsifier(ctx: ExecuteContext)(it: TokenIterator)
     : StackFrame[BlockMatrixSparsifier] = {
     punctuation(it, "(")
-    val lower = LoweringPipeline.relationalLowerer(optimize = true)
+    val lower = LoweringPipeline.relationalLowerer
     identifier(it) match {
       case "PyRowIntervalSparsifier" =>
         val blocksOnly = boolean_literal(it)

@@ -320,7 +320,7 @@ class MatrixIRSuite extends HailSuite {
 
     // All rows must have the same number of elements in the entry field as colTab has rows
     interceptSpark("length mismatch between entry array and column array") {
-      Interpret(mir, ctx, optimize = true).rvd.count()
+      Interpret(mir, ctx).rvd.count()
     }
 
     // The entry field must be an array
@@ -336,7 +336,7 @@ class MatrixIRSuite extends HailSuite {
     val rowTab2 = makeLocalizedTable(rdata2, cdata)
     val mir2 = CastTableToMatrix(rowTab2, "__entries", "__cols", Array("col_idx"))
 
-    interceptSpark("missing")(Interpret(mir2, ctx, optimize = true).rvd.count())
+    interceptSpark("missing")(Interpret(mir2, ctx).rvd.count())
   }
 
   @Test def testMatrixFiltersWorkWithRandomness(): scalatest.Assertion = {
@@ -346,17 +346,16 @@ class MatrixIRSuite extends HailSuite {
 
     val colUID = GetField(Ref(MatrixIR.colName, range.typ.colType), MatrixReader.colUIDFieldName)
     val colRNG = RNGSplit(RNGStateLiteral(), colUID)
-    val cols = Interpret(MatrixFilterCols(range, rand(colRNG)), ctx, optimize = true).toMatrixValue(
+    val cols = Interpret(MatrixFilterCols(range, rand(colRNG)), ctx).toMatrixValue(
       range.typ.colKey
     ).nCols
     val rowUID = GetField(Ref(MatrixIR.rowName, range.typ.rowType), MatrixReader.rowUIDFieldName)
     val rowRNG = RNGSplit(RNGStateLiteral(), rowUID)
-    val rows = Interpret(MatrixFilterRows(range, rand(rowRNG)), ctx, optimize = true).rvd.count()
+    val rows = Interpret(MatrixFilterRows(range, rand(rowRNG)), ctx).rvd.count()
     val entryRNG = RNGSplit(RNGStateLiteral(), MakeTuple.ordered(FastSeq(rowUID, colUID)))
     val entries = Interpret(
       MatrixEntriesTable(MatrixFilterEntries(range, rand(entryRNG))),
       ctx,
-      optimize = true,
     ).rvd.count()
 
     assert(cols < 20 && cols > 0)
@@ -377,10 +376,12 @@ class MatrixIRSuite extends HailSuite {
     )
 
     forAll(params) { case (n, strat) =>
-      val rvd = Interpret(MatrixRepartition(range, n, strat), ctx, optimize = false).rvd
-      assert(rvd.getNumPartitions == n, n -> strat)
-      val values = rvd.collect(ctx).map(r => r.getAs[Int](0))
-      assert(values.isSorted && values.length == 11, n -> strat)
+      unoptimized { ctx =>
+        val rvd = Interpret(MatrixRepartition(range, n, strat), ctx).rvd
+        assert(rvd.getNumPartitions == n, n -> strat)
+        val values = rvd.collect(ctx).map(r => r.getAs[Int](0))
+        assert(values.isSorted && values.length == 11, n -> strat)
+      }
     }
   }
 

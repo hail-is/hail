@@ -40,7 +40,6 @@ object LowerDistributedSort {
         LongInfo,
         collected,
         print = None,
-        optimize = true,
       )
 
     val rowsAndGlobal = ctx.scopedExecution { (hcl, fs, htc, r) =>

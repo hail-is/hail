@@ -382,12 +382,11 @@ class SparkBackend(val sc: SparkContext) extends Backend {
   def jvmLowerAndExecute(
     ctx: ExecuteContext,
     ir0: IR,
-    optimize: Boolean,
     lowerTable: Boolean,
     lowerBM: Boolean,
     print: Option[PrintWriter] = None,
   ): Any =
-    _jvmLowerAndExecute(ctx, ir0, optimize, lowerTable, lowerBM, print) match {
+    _jvmLowerAndExecute(ctx, ir0, lowerTable, lowerBM, print) match {
       case Left(x) => x
       case Right((pt, off)) => SafeRow(pt, off).get(0)
     }
@@ -395,22 +394,22 @@ class SparkBackend(val sc: SparkContext) extends Backend {
   private[this] def _jvmLowerAndExecute(
     ctx: ExecuteContext,
     ir0: IR,
-    optimize: Boolean,
     lowerTable: Boolean,
     lowerBM: Boolean,
     print: Option[PrintWriter] = None,
   ): Either[Unit, (PTuple, Long)] = {
-    val typesToLower: DArrayLowering.Type = (lowerTable, lowerBM) match {
-      case (true, true) => DArrayLowering.All
-      case (true, false) => DArrayLowering.TableOnly
-      case (false, true) => DArrayLowering.BMOnly
-      case (false, false) => throw new LowererUnsupportedOperation("no lowering enabled")
-    }
+    val typesToLower: DArrayLowering.Type =
+      (lowerTable, lowerBM) match {
+        case (true, true) => DArrayLowering.All
+        case (true, false) => DArrayLowering.TableOnly
+        case (false, true) => DArrayLowering.BMOnly
+        case (false, false) => throw new LowererUnsupportedOperation("no lowering enabled")
+      }
+
     CompileAndEvaluate._apply(
       ctx,
       ir0,
-      optimize = optimize,
-      lower = LoweringPipeline.darrayLowerer(optimize)(typesToLower),
+      lower = LoweringPipeline.darrayLowerer(typesToLower),
       print = print,
     )
   }
@@ -423,11 +422,11 @@ class SparkBackend(val sc: SparkContext) extends Backend {
       try {
         val lowerTable = ctx.flags.get("lower") != null
         val lowerBM = ctx.flags.get("lower_bm") != null
-        _jvmLowerAndExecute(ctx, ir, optimize = true, lowerTable, lowerBM)
+        _jvmLowerAndExecute(ctx, ir, lowerTable, lowerBM)
       } catch {
         case e: LowererUnsupportedOperation if ctx.flags.get("lower_only") != null => throw e
         case _: LowererUnsupportedOperation =>
-          CompileAndEvaluate._apply(ctx, ir, lower = LoweringPipeline.relationalLowerer(true))
+          CompileAndEvaluate._apply(ctx, ir, lower = LoweringPipeline.relationalLowerer)
       }
     }
 

@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
 import is.hail.ExecStrategy.ExecStrategy
-import is.hail.annotations.{BroadcastRow, ExtendedOrdering, Region, RegionPool, SafeNDArray}
+import is.hail.annotations.{BroadcastRow, ExtendedOrdering, SafeNDArray}
 import is.hail.backend.ExecuteContext
 import is.hail.expr.Nat
 import is.hail.expr.ir.TestUtils._
@@ -4198,19 +4198,17 @@ class IRSuite extends HailSuite {
 
     val startingArg = SafeNDArray(IndexedSeq[Long](4L, 4L), (0 until 16).toFastSeq)
 
-    val memUsed = RegionPool.scoped { pool =>
-      ctx.local(r = Region(pool = pool)) { ctx =>
-        eval(ndSum, Env.empty, FastSeq(2 -> TInt32, startingArg -> ndType), None, None, true, ctx)
-        pool.getHighestTotalUsage
+    val (_, memUsed) =
+      measuringHighestTotalMemoryUsage { ctx =>
+        eval(ndSum, Env.empty, FastSeq(2 -> TInt32, startingArg -> ndType), None, None, ctx)
       }
-    }
 
-    RegionPool.scoped { pool =>
-      ctx.local(r = Region(pool = pool)) { ctx =>
-        eval(ndSum, Env.empty, FastSeq(100 -> TInt32, startingArg -> ndType), None, None, true, ctx)
-        assert(memUsed == pool.getHighestTotalUsage)
+    val (_, memUsed2) =
+      measuringHighestTotalMemoryUsage { ctx =>
+        eval(ndSum, Env.empty, FastSeq(100 -> TInt32, startingArg -> ndType), None, None, ctx)
       }
-    }
+
+    assert(memUsed == memUsed2)
   }
 
   @Test def testHasIRSharing(): scalatest.Assertion = {

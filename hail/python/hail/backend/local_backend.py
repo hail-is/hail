@@ -31,7 +31,6 @@ class LocalBackend(Py4JBackend):
         append,
         branching_factor,
         skip_logging_configuration,
-        optimizer_iterations,
         jvm_heap_size,
         gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
     ):
@@ -75,11 +74,11 @@ class LocalBackend(Py4JBackend):
 
         jbackend = hail_package.backend.local.LocalBackend.apply(
             log,
-            True,
+            quiet,
             append,
             skip_logging_configuration,
         )
-        jhc = hail_package.HailContext.apply(jbackend, branching_factor, optimizer_iterations)
+        jhc = hail_package.HailContext.apply(jbackend, branching_factor)
 
         super().__init__(self._gateway.jvm, jbackend, jhc, tmpdir, tmpdir)
         self.gcs_requester_pays_configuration = gcs_requester_pays_configuration

@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
-import is.hail.annotations.{Region, RegionPool, SafeRow, ScalaToRegionValue}
+import is.hail.annotations.{Region, SafeRow, ScalaToRegionValue}
 import is.hail.asm4s._
 import is.hail.expr.ir.agg.{CollectStateSig, PhysicalAggSig, TypedStateSig}
 import is.hail.expr.ir.compile.Compile
@@ -785,15 +785,16 @@ class EmitStreamSuite extends HailSuite {
   }
 
   @Test def testEmitAggScan(): scalatest.Assertion = {
-    def assertAggScan(ir: IR, inType: Type, tests: (Any, Any)*): scalatest.Assertion = {
-      val aggregate = compileStream(
-        LoweringPipeline.compileLowerer(false).apply(ctx, ir).asInstanceOf[IR],
-        PType.canonical(inType),
-      )
-      forAll(tests) { case (inp, expected) =>
-        assert(aggregate(inp) == expected, Pretty(ctx, ir))
+    def assertAggScan(ir: IR, inType: Type, tests: (Any, Any)*): scalatest.Assertion =
+      unoptimized { ctx =>
+        val aggregate = compileStream(
+          LoweringPipeline.compileLowerer(ctx, ir).asInstanceOf[IR],
+          PType.canonical(inType),
+        )
+        forAll(tests) { case (inp, expected) =>
+          assert(aggregate(inp) == expected, Pretty(ctx, ir))
+        }
       }
-    }
 
     val pairType = TStruct("x" -> TCall, "y" -> TInt32)
     val intsType = TArray(TInt32)
@@ -1066,25 +1067,22 @@ class EmitStreamSuite extends HailSuite {
   }
 
   def assertMemoryDoesNotScaleWithStreamSize(lowSize: Int = 50, highSize: Int = 2500)(f: IR => IR)
-    : scalatest.Assertion = {
-    val memUsed1 = RegionPool.scoped { pool =>
-      ctx.local(r = Region(pool = pool))(ctx => eval(f(lowSize), optimize = false, ctx = ctx))
-      pool.getHighestTotalUsage
-    }
+    : scalatest.Assertion =
+    unoptimized { ctx =>
+      val (_, memUsed1) =
+        measuringHighestTotalMemoryUsage(ctx => eval(f(lowSize), ctx = ctx))
 
-    val memUsed2 = RegionPool.scoped { pool =>
-      ctx.local(r = Region(pool = pool))(ctx => eval(f(highSize), optimize = false, ctx = ctx))
-      pool.getHighestTotalUsage
-    }
+      val (_, memUsed2) =
+        measuringHighestTotalMemoryUsage(ctx => eval(f(highSize), ctx = ctx))
 
-    assert(
-      memUsed1 == memUsed2,
-      s"memory usage scales with stream size!" +
-        s"\n  at size=$lowSize, memory=$memUsed1" +
-        s"\n  at size=$highSize, memory=$memUsed2" +
-        s"\n  IR: ${Pretty(ctx, f(lowSize))}",
-    )
-  }
+      assert(
+        memUsed1 == memUsed2,
+        s"memory usage scales with stream size!" +
+          s"\n  at size=$lowSize, memory=$memUsed1" +
+          s"\n  at size=$highSize, memory=$memUsed2" +
+          s"\n  IR: ${Pretty(ctx, f(lowSize))}",
+      )
+    }
 
   def sumIR(x: IR): IR = foldIR(x, 0) { case (acc, value) => acc + value }
 

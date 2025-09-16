@@ -1,7 +1,6 @@
 package is.hail.expr.ir
 
 import is.hail.HailSuite
-import is.hail.annotations.{Region, RegionPool}
 import is.hail.expr.ir
 import is.hail.expr.ir.defs.{Literal, ToArray, ToStream}
 import is.hail.types.virtual.{TArray, TBoolean, TSet, TString}
@@ -17,23 +16,24 @@ class MemoryLeakSuite extends HailSuite {
     def run(size: Int): Long = {
       val lit = Literal(TSet(TString), (0 until litSize).map(_.toString).toSet)
       val queries = Literal(TArray(TString), (0 until size).map(_.toString).toFastSeq)
-      RegionPool.scoped { pool =>
-        ctx.local(r = Region(pool = pool)) { ctx =>
-          eval(
-            ToArray(
-              mapIR(ToStream(queries))(r => ir.invoke("contains", TBoolean, lit, r))
-            ),
-            Env.empty,
-            FastSeq(),
-            None,
-            None,
-            false,
-            ctx,
-          )
+
+      val (_, memUsed) =
+        measuringHighestTotalMemoryUsage { ctx =>
+          unoptimized(ctx) { ctx =>
+            eval(
+              ToArray(
+                mapIR(ToStream(queries))(r => ir.invoke("contains", TBoolean, lit, r))
+              ),
+              Env.empty,
+              FastSeq(),
+              None,
+              None,
+              ctx,
+            )
+          }
         }
 
-        pool.getHighestTotalUsage
-      }
+      memUsed
     }
 
     val size1 = 10

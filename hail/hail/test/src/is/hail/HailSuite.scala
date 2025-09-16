@@ -128,7 +128,7 @@ class HailSuite extends TestNGSuite with TestUtils {
         Interpret[Any](ctx, ir, env, args)
       case ExecStrategy.InterpretUnoptimized =>
         assert(agg.isEmpty)
-        Interpret[Any](ctx, ir, env, args, optimize = false)
+        unoptimized(ctx => Interpret[Any](ctx, ir, env, args))
       case ExecStrategy.JvmCompile =>
         assert(Forall(ir, node => Compilable(node)))
         eval(
@@ -143,26 +143,26 @@ class HailSuite extends TestNGSuite with TestUtils {
                 pw.print(s"/* JVM bytecode dump for IR:\n${Pretty(ctx, ir)}\n */\n\n")
                 pw
               },
-          true,
           ctx,
         )
       case ExecStrategy.JvmCompileUnoptimized =>
         assert(Forall(ir, node => Compilable(node)))
-        eval(
-          ir,
-          env,
-          args,
-          agg,
-          bytecodePrinter =
-            Option(ctx.getFlag("jvm_bytecode_dump"))
-              .map { path =>
-                val pw = new PrintWriter(new File(path))
-                pw.print(s"/* JVM bytecode dump for IR:\n${Pretty(ctx, ir)}\n */\n\n")
-                pw
-              },
-          optimize = false,
-          ctx,
-        )
+        unoptimized { ctx =>
+          eval(
+            ir,
+            env,
+            args,
+            agg,
+            bytecodePrinter =
+              Option(ctx.getFlag("jvm_bytecode_dump"))
+                .map { path =>
+                  val pw = new PrintWriter(new File(path))
+                  pw.print(s"/* JVM bytecode dump for IR:\n${Pretty(ctx, ir)}\n */\n\n")
+                  pw
+                },
+            ctx,
+          )
+        }
       case ExecStrategy.LoweredJVMCompile =>
         loweredExecute(ctx, ir, env, args, agg)
     }
@@ -295,12 +295,15 @@ class HailSuite extends TestNGSuite with TestUtils {
       }
     filteredExecStrats.filter(ExecStrategy.interpretOnly).foreach { strat =>
       try {
-        val res = strat match {
-          case ExecStrategy.Interpret =>
-            Interpret(bm, ctx, optimize = true)
-          case ExecStrategy.InterpretUnoptimized =>
-            Interpret(bm, ctx, optimize = false)
-        }
+        val res =
+          unoptimized { ctx =>
+            strat match {
+              case ExecStrategy.Interpret =>
+                Interpret(bm, ctx)
+              case ExecStrategy.InterpretUnoptimized =>
+                Interpret(bm, ctx)
+            }
+          }
         assert(res.toBreezeMatrix() == expected)
       } catch {
         case e: Exception =>

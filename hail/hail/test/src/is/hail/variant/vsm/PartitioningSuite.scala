@@ -24,17 +24,18 @@ class PartitioningSuite extends HailSuite {
       theHailClassLoader,
     )
     val rangeReader = ir.MatrixRangeReader(100, 10, Some(10))
-    Interpret(
-      MatrixAnnotateRowsTable(
-        ir.MatrixRead(rangeReader.fullMatrixType, false, false, rangeReader),
-        t,
-        "foo",
-        product = false,
-      ),
-      ctx,
-      optimize = false,
-    )
-      .rvd.count()
+    unoptimized { ctx =>
+      Interpret(
+        MatrixAnnotateRowsTable(
+          ir.MatrixRead(rangeReader.fullMatrixType, false, false, rangeReader),
+          t,
+          "foo",
+          product = false,
+        ),
+        ctx,
+      )
+        .rvd.count()
+    }
     succeed
   }
 }
