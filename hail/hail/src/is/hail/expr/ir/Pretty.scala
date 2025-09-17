@@ -622,7 +622,6 @@ class Pretty(
       )
     case RelationalLetTable(name, _, _) => single(prettyName(name))
     case RelationalLetMatrixTable(name, _, _) => single(prettyName(name))
-    case RelationalLetBlockMatrix(name, _, _) => single(prettyName(name))
     case ReadPartition(_, rowType, reader) =>
       FastSeq(rowType.parsableString(), prettyStringLiteral(JsonMethods.compact(reader.toJValue)))
     case WritePartition(_, _, writer) =>
@@ -939,10 +938,6 @@ class Pretty(
         val (bodyPre, bodyHead) = pretty(body, bindings.bind(name, valueIdent))
         (concat(valueDoc, bodyPre), bodyHead)
       case RelationalLetMatrixTable(name, value, body) =>
-        val (valueDoc, valueIdent) = prettyWithIdent(value, bindings, "%", Some(name))
-        val (bodyPre, bodyHead) = pretty(body, bindings.bind(name, valueIdent))
-        (concat(valueDoc, bodyPre), bodyHead)
-      case RelationalLetBlockMatrix(name, value, body) =>
         val (valueDoc, valueIdent) = prettyWithIdent(value, bindings, "%", Some(name))
         val (bodyPre, bodyHead) = pretty(body, bindings.bind(name, valueIdent))
         (concat(valueDoc, bodyPre), bodyHead)

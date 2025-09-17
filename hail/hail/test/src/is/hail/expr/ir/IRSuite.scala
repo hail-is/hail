@@ -3842,7 +3842,6 @@ class IRSuite extends HailSuite {
       sparsify2,
       sparsify3,
       densify,
-      RelationalLetBlockMatrix(freshName(), I32(0), read),
       slice,
     )
 

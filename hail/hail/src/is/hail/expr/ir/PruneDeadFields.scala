@@ -1139,18 +1139,11 @@ object PruneDeadFields {
     memo: ComputeMutableState,
   ): Unit = {
     memo.requestedType.bind(bmir, requestedType)
-    bmir match {
-      case RelationalLetBlockMatrix(name, value, body) =>
-        memoizeBlockMatrixIR(ctx, body, requestedType, memo)
-        val usages = memo.relationalRefs.get(name).map(_.result()).getOrElse(Array())
-        memoizeValueIR(ctx, value, unifySeq(value.typ, usages), memo)
-      case _ =>
-        bmir.children.zipWithIndex.foreach {
-          case (mir: MatrixIR, _) => memoizeMatrixIR(ctx, mir, mir.typ, memo)
-          case (tir: TableIR, _) => memoizeTableIR(ctx, tir, tir.typ, memo)
-          case (bmir: BlockMatrixIR, _) => memoizeBlockMatrixIR(ctx, bmir, bmir.typ, memo)
-          case (ir: IR, i) => createTypeStatesAndMemoize(ctx, bmir, i, ir.typ, memo)
-        }
+    bmir.children.zipWithIndex.foreach {
+      case (mir: MatrixIR, _) => memoizeMatrixIR(ctx, mir, mir.typ, memo)
+      case (tir: TableIR, _) => memoizeTableIR(ctx, tir, tir.typ, memo)
+      case (bmir: BlockMatrixIR, _) => memoizeBlockMatrixIR(ctx, bmir, bmir.typ, memo)
+      case (ir: IR, i) => createTypeStatesAndMemoize(ctx, bmir, i, ir.typ, memo)
     }
   }
 
@@ -2133,19 +2126,13 @@ object PruneDeadFields {
     ctx: ExecuteContext,
     bmir: BlockMatrixIR,
     memo: RebuildMutableState,
-  ): BlockMatrixIR = bmir match {
-    case RelationalLetBlockMatrix(name, value, body) =>
-      val value2 = rebuildIR(ctx, value, BindingEnv.empty, memo)
-      memo.relationalRefs += name -> value2.typ
-      RelationalLetBlockMatrix(name, value2, rebuild(ctx, body, memo))
-    case _ =>
-      bmir.mapChildren {
-        case tir: TableIR => rebuild(ctx, tir, memo)
-        case mir: MatrixIR => rebuild(ctx, mir, memo)
-        case ir: IR => rebuildIR(ctx, ir, BindingEnv.empty[Type], memo)
-        case bmir: BlockMatrixIR => rebuild(ctx, bmir, memo)
-      }.asInstanceOf[BlockMatrixIR]
-  }
+  ): BlockMatrixIR =
+    bmir.mapChildren {
+      case tir: TableIR => rebuild(ctx, tir, memo)
+      case mir: MatrixIR => rebuild(ctx, mir, memo)
+      case ir: IR => rebuildIR(ctx, ir, BindingEnv.empty[Type], memo)
+      case bmir: BlockMatrixIR => rebuild(ctx, bmir, memo)
+    }.asInstanceOf[BlockMatrixIR]
 
   def rebuildIR(
     ctx: ExecuteContext,

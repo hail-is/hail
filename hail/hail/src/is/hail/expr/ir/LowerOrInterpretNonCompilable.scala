@@ -47,8 +47,6 @@ object LowerOrInterpretNonCompilable {
           rewrite(body, m += (name -> evaluate(rewrite(value, m).asInstanceOf[IR])))
         case RelationalLetMatrixTable(name, value, body) =>
           rewrite(body, m += (name -> evaluate(rewrite(value, m).asInstanceOf[IR])))
-        case RelationalLetBlockMatrix(name, value, body) =>
-          rewrite(body, m += (name -> evaluate(rewrite(value, m).asInstanceOf[IR])))
         case RelationalRef(name, t) =>
           m.get(name) match {
             case Some(res) =>
