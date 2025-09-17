@@ -2,7 +2,7 @@ terraform {
   required_providers {
     google = {
       source = "hashicorp/google"
-      version = "5.15.0"
+      version = "7.2.0"
     }
     kubernetes = {
       source = "hashicorp/kubernetes"
@@ -62,6 +62,8 @@ locals {
 
 provider "google" {
   project = var.gcp_project
+  billing_project = var.gcp_project
+  user_project_override = true
   region = var.gcp_region
   zone = var.gcp_zone
 }
@@ -245,6 +247,12 @@ resource "google_container_node_pool" "vdc_preemptible_pool" {
     machine_type = "n1-standard-2"
     service_account = google_service_account.gke_node_pool.email
 
+    kubelet_config {
+      cpu_manager_policy = ""
+      cpu_cfs_quota = false
+      pod_pids_limit = 0
+    }
+
     labels = {
       "preemptible" = "true"
     }
@@ -297,6 +305,12 @@ resource "google_container_node_pool" "vdc_nonpreemptible_pool" {
     preemptible = false
     machine_type = "n1-standard-2"
     service_account = google_service_account.gke_node_pool.email
+
+    kubelet_config {
+      cpu_manager_policy = ""
+      cpu_cfs_quota = false
+      pod_pids_limit = 0
+    }
 
     labels = {
       preemptible = "false"
@@ -364,7 +378,7 @@ resource "google_sql_database_instance" "db" {
     ip_configuration {
       ipv4_enabled = false
       private_network = google_compute_network.default.id
-      require_ssl = true
+      ssl_mode = "TRUSTED_CLIENT_CERTIFICATE_REQUIRED"
     }
 
     backup_configuration {
@@ -500,10 +514,10 @@ resource "google_project_iam_custom_role" "auth_service_account_manager" {
   role_id     = "authServiceAccountManager"
   title       = "Auth Service Account Manager"
   description = "Custom role for auth service with minimal required permissions for service account management"
-  
+
   permissions = [
     "iam.serviceAccounts.create",
-    "iam.serviceAccounts.delete", 
+    "iam.serviceAccounts.delete",
     "iam.serviceAccounts.get",
     "iam.serviceAccounts.list",
     "iam.serviceAccountKeys.create",
@@ -534,7 +548,7 @@ resource "google_project_iam_custom_role" "batch_compute_manager" {
   role_id     = "batchComputeManager"
   title       = "Batch Compute Manager"
   description = "Custom role for batch service with specific compute permissions for instance management"
-  
+
   permissions = [
     "compute.disks.create",
     "compute.disks.delete",
@@ -740,7 +754,7 @@ resource "google_project_iam_custom_role" "batch2_agent_compute_ops" {
   role_id     = "batch2AgentComputeOps"
   title       = "Batch2 Agent Compute Ops"
   description = "Custom role for batch2-agent with minimal disk and instance management permissions"
-  
+
   permissions = [
     "compute.disks.create",
     "compute.disks.delete",
@@ -782,7 +796,7 @@ resource "google_service_account" "gke_node_pool" {
 resource "google_project_iam_member" "gke_node_pool_iam_member" {
   for_each = toset([
     "storage.objectViewer",
-    "logging.logWriter", 
+    "logging.logWriter",
     "monitoring.metricWriter",
     "monitoring.viewer",
     "autoscaling.metricsWriter",
