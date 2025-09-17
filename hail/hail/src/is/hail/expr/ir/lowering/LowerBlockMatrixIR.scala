@@ -1181,13 +1181,13 @@ object LowerBlockMatrixIR {
             nd,
             MakeTuple.ordered(FastSeq(
               MakeTuple.ordered(FastSeq(
-                r * I64(x.typ.blockSize),
-                r + nr,
+                r.toL * I64(x.typ.blockSize),
+                r.toL + nr,
                 I64(1),
               )),
               MakeTuple.ordered(FastSeq(
-                c * I64(x.typ.blockSize),
-                c + nc,
+                c.toL * I64(x.typ.blockSize),
+                c.toL + nc,
                 I64(1),
               )),
             )),
