@@ -1175,21 +1175,21 @@ object LowerBlockMatrixIR {
             )
           case _: TNDArray => lowered
         })
-        val contexts = BMSContexts.tabulate(x.typ, ib) { (r, c) =>
-          val rstart = r.toL * I64(x.typ.blockSize)
-          val cstart = c.toL * I64(x.typ.blockSize)
-          val (nr, nc) = x.typ.blockShapeIR(r, c)
+        val contexts = BMSContexts.tabulate(x.typ, ib) { (rowBlockIdx, colBlockIdx) =>
+          val rowStartIdx = rowBlockIdx.toL * I64(x.typ.blockSize)
+          val colStartIdx = colBlockIdx.toL * I64(x.typ.blockSize)
+          val (numRowsBlock, numColsBlock) = x.typ.blockShapeIR(rowBlockIdx, colBlockIdx)
           NDArraySlice(
             nd,
             MakeTuple.ordered(FastSeq(
               MakeTuple.ordered(FastSeq(
-                rstart,
-                rstart + nr,
+                rowStartIdx,
+                rowStartIdx + numRowsBlock,
                 I64(1),
               )),
               MakeTuple.ordered(FastSeq(
-                cstart,
-                cstart + nc,
+                colStartIdx,
+                colStartIdx + numColsBlock,
                 I64(1),
               )),
             )),
