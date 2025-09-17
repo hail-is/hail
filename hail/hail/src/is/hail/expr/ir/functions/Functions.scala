@@ -815,6 +815,31 @@ abstract class RegistryFunctions {
       case (r, cb, _, rt, Array(a1, a2, a3), errorID) => impl(r, cb, rt, a1, a2, a3, errorID)
     }
 
+  def registerSCode3t(
+    name: String,
+    typeParams: Array[Type],
+    mt1: Type,
+    mt2: Type,
+    mt3: Type,
+    rt: Type,
+    pt: (Type, SType, SType, SType) => SType,
+  )(
+    impl: (
+      EmitRegion,
+      EmitCodeBuilder,
+      Seq[Type],
+      SType,
+      SValue,
+      SValue,
+      SValue,
+      Value[Int],
+    ) => SValue
+  ): Unit =
+    registerSCode(name, Array(mt1, mt2, mt3), rt, unwrappedApply(pt), typeParams) {
+      case (r, cb, typeParams, rt, Array(a1, a2, a3), errorID) =>
+        impl(r, cb, typeParams, rt, a1, a2, a3, errorID)
+    }
+
   def registerSCode4(
     name: String,
     mt1: Type,

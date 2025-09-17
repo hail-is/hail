@@ -372,4 +372,54 @@ class ArrayFunctionsSuite extends HailSuite {
       expected = true,
     )
   }
+
+  @DataProvider(name = "scatter")
+  def scatterData: Array[Array[Any]] = Array(
+    Array(FastSeq("a", "b", "c"), FastSeq(1, 3, 4), FastSeq(null, "a", null, "b", "c")),
+    Array(FastSeq("a", "b", "c"), FastSeq(2, 0, 3), FastSeq("b", null, "a", "c", null)),
+    Array(FastSeq(), FastSeq(), FastSeq(null, null, null)),
+    Array(FastSeq(), FastSeq(), FastSeq()),
+  )
+
+  @Test(dataProvider = "scatter")
+  def testScatter(elts: IndexedSeq[String], indices: IndexedSeq[Int], expected: IndexedSeq[String])
+    : Unit = {
+    val t1 = TArray(TInt32)
+    val t2 = TArray(TString)
+
+    assertEvalsTo(
+      invoke("scatter", t2, FastSeq(TString), In(0, t2), In(1, t1), expected.length),
+      args = FastSeq(elts -> t2, indices -> t1),
+      expected = expected,
+    )
+  }
+
+  @DataProvider(name = "scatter_errors")
+  def scatterErrorData: Array[Array[Any]] = Array(
+    Array(FastSeq("a", "b", "c"), FastSeq(1, 3, 4), 4, "indices array contained index 4"),
+    Array(
+      FastSeq("a", "b"),
+      FastSeq(1, 3, 4),
+      4,
+      "values and indices arrays have different lengths",
+    ),
+    Array(FastSeq("a", "b", "c"), FastSeq(1, 2, 2), 2, "values array is larger than result length"),
+  )
+
+  @Test(dataProvider = "scatter_errors")
+  def testScatterErrors(
+    elts: IndexedSeq[String],
+    indices: IndexedSeq[Int],
+    length: Int,
+    regex: String,
+  ): Unit = {
+    val t1 = TArray(TInt32)
+    val t2 = TArray(TString)
+
+    assertFatal(
+      invoke("scatter", t2, FastSeq(TString), In(0, t2), In(1, t1), length),
+      args = FastSeq(elts -> t2, indices -> t1),
+      regex = regex,
+    )
+  }
 }
