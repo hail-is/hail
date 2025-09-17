@@ -50,15 +50,6 @@ object ForwardRelationalLets {
               rewrite(value).asInstanceOf[IR],
               rewrite(body).asInstanceOf[MatrixIR],
             )
-          case RelationalLetBlockMatrix(name, value, body) =>
-            if (shouldForward(name)) {
-              env(name) = rewrite(value).asInstanceOf[IR]
-              rewrite(body)
-            } else RelationalLetBlockMatrix(
-              name,
-              rewrite(value).asInstanceOf[IR],
-              rewrite(body).asInstanceOf[BlockMatrixIR],
-            )
           case x @ RelationalRef(name, _) =>
             env.getOrElse(name, x)
           case _ => ir1.mapChildren(rewrite)

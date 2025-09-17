@@ -51,18 +51,6 @@ object LiftRelationalValues {
             RelationalLetMatrixTable(name, value, acc)
           },
         )
-      case RelationalLetBlockMatrix(name, value, body) =>
-        val value2 = rewrite(value, ab, memo).asInstanceOf[IR]
-        val ab2 = new BoxedArrayBuilder[(Name, IR)]
-        val memo2 = mutable.Map.empty[IR, Name]
-        val body2 = rewrite(body, ab2, memo2).asInstanceOf[BlockMatrixIR]
-        RelationalLetBlockMatrix(
-          name,
-          value2,
-          ab2.result().foldRight[BlockMatrixIR](body2) { case ((name, value), acc) =>
-            RelationalLetBlockMatrix(name, value, acc)
-          },
-        )
       case LiftMeOut(child) =>
         val name = memo.get(child) match {
           case Some(name) => name
@@ -101,9 +89,9 @@ object LiftRelationalValues {
       case rw: MatrixIR => ab.result().foldRight[MatrixIR](rw) { case ((name, value), acc) =>
           RelationalLetMatrixTable(name, value, acc)
         }
-      case rw: BlockMatrixIR => ab.result().foldRight[BlockMatrixIR](rw) {
-          case ((name, value), acc) => RelationalLetBlockMatrix(name, value, acc)
-        }
+      case rw: BlockMatrixIR =>
+        assert(ab.result().isEmpty)
+        rw
     }
 
   }
