@@ -24,4 +24,7 @@ object ArraySeq {
 
   implicit def canBuildFrom[T: ClassTag]: CanBuildFrom[ArraySeq[_], T, ArraySeq[T]] =
     A.canBuildFrom
+
+  def tabulate[T: ClassTag](n: Int)(f: Int => T): ArraySeq[T] =
+    A.unsafeWrapArray(Array.tabulate(n)(f))
 }

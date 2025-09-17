@@ -8,7 +8,7 @@ import is.hail.expr.ir.defs.{MetadataWriter, Str, UUID4, WriteMetadata, WriteVal
 import is.hail.expr.ir.lowering.{BlockMatrixStage2, LowererUnsupportedOperation}
 import is.hail.io.{StreamBufferSpec, TypedCodecSpec}
 import is.hail.io.fs.FS
-import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata}
+import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, MatrixSparsity}
 import is.hail.types.TypeWithRequiredness
 import is.hail.types.encoded.{EBlockMatrixNDArray, ENumpyBinaryNDArray, EType}
 import is.hail.types.virtual._
@@ -135,8 +135,11 @@ case class BlockMatrixNativeMetadataWriter(
     cb: EmitCodeBuilder,
     region: Value[Region],
   ): Unit = {
-    val metaHelper =
-      BMMetadataHelper(path, typ.blockSize, typ.nRows, typ.nCols, typ.linearizedDefinedBlocks)
+    val partIdxToBlockIdx = typ.sparsity match {
+      case _: MatrixSparsity.Dense => None
+      case x: MatrixSparsity.Sparse => Some(x.definedBlocksColMajorLinear)
+    }
+    val metaHelper = BMMetadataHelper(path, typ.blockSize, typ.nRows, typ.nCols, partIdxToBlockIdx)
 
     val pc = writeAnnotations.getOrFatal(cb, "write annotations can't be missing!").asIndexable
     val partFiles = cb.newLocal[Array[String]]("partFiles")

@@ -13,6 +13,8 @@ import is.hail.types.encoded.{EBlockMatrixNDArray, EFloat64Required}
 import is.hail.types.virtual._
 import is.hail.utils._
 
+import java.lang.Math.floorDiv
+
 import breeze.linalg.{DenseMatrix => BDM}
 import breeze.math.Ring.ringFromField
 import org.scalatest.Inspectors.forAll
@@ -95,6 +97,83 @@ class BlockMatrixIRSuite extends HailSuite {
   @Test(dataProvider = "valToBMData")
   def testValueToBlockMatrix(bmir: ValueToBlockMatrix, bdm: BDM[Double]): Unit =
     assertBMEvalsTo(bmir, bdm)
+
+  def rangeBlockMatrix(nRows: Int, nCols: Int, blockSize: Int = 2): BlockMatrixIR =
+    ValueToBlockMatrix(
+      ToArray(mapIR(rangeIR(nRows * nCols))(i => i.toD)),
+      FastSeq(nRows.toLong, nCols.toLong),
+      blockSize,
+    )
+
+  def sparseRangeBlockMatrix(
+    nRows: Int,
+    nCols: Int,
+    blocks: IndexedSeq[(Int, Int)],
+    blockSize: Int = 2,
+  ): BlockMatrixIR =
+    BlockMatrixSparsify(
+      rangeBlockMatrix(nRows, nCols, blockSize),
+      PerBlockSparsifier(blocks.map(p => p._1 + p._2 * 3)),
+    )
+
+  def rangeBreezeMatrix(nRows: Int, nCols: Int): BDM[Double] =
+    BDM.tabulate[Double](nRows, nCols)((i, j) => i * 5.0 + j)
+
+  def sparseRangeBreezeMatrix(nRows: Int, nCols: Int, blocks: IndexedSeq[(Int, Int)]): BDM[Double] =
+    BDM.tabulate[Double](nRows, nCols) { (i, j) =>
+      if (blocks.contains(floorDiv(i, 2) -> floorDiv(j, 2)))
+        i * 5.0 + j
+      else 0.0
+    }
+
+  @Test
+  def testBlockMatrixSparsify(): Unit = {
+    val blocks = FastSeq((1, 0), (0, 1), (2, 1), (0, 2))
+    val bm = sparseRangeBlockMatrix(5, 5, blocks)
+    val expected = sparseRangeBreezeMatrix(5, 5, blocks)
+    assertBMEvalsTo(bm, expected)
+  }
+
+  @Test
+  def testBlockMatrixSparseTranspose(): Unit = {
+    val blocks = FastSeq((1, 0), (0, 1), (2, 1), (0, 2))
+    val bm = sparseRangeBlockMatrix(5, 5, blocks)
+    val expected = sparseRangeBreezeMatrix(5, 5, blocks)
+    assertBMEvalsTo(
+      BlockMatrixBroadcast(bm, FastSeq(1, 0), FastSeq(5, 5), 2),
+      expected.t,
+    )
+  }
+
+  @Test
+  def testBlockMatrixSparseSumCols(): Unit = {
+    val blocks = FastSeq((1, 0), (0, 1), (2, 1), (0, 2))
+    val bm = sparseRangeBlockMatrix(5, 5, blocks)
+    assertBMEvalsTo(
+      BlockMatrixAgg(bm, FastSeq(0)),
+      BDM.create(1, 5, Array(25.0, 27.0, 31.0, 34.0, 13.0)),
+    )
+  }
+
+  @Test
+  def testBlockMatrixSparseSumRows(): Unit = {
+    val blocks = FastSeq((1, 0), (0, 1), (2, 1), (0, 2))
+    val bm = sparseRangeBlockMatrix(5, 5, blocks)
+    assertBMEvalsTo(
+      BlockMatrixAgg(bm, FastSeq(1)),
+      BDM.create(5, 1, Array(9.0, 24.0, 21.0, 31.0, 45.0)),
+    )
+  }
+
+  @Test
+  def testBlockMatrixSparseSumAll(): Unit = {
+    val blocks = FastSeq((1, 0), (0, 1), (2, 1), (0, 2))
+    val bm = sparseRangeBlockMatrix(5, 5, blocks)
+    assertBMEvalsTo(
+      BlockMatrixAgg(bm, FastSeq(0, 1)),
+      BDM.create(1, 1, Array(130.0)),
+    )
+  }
 
   @Test def testBlockMatrixWriteRead(): Unit = {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.interpretOnly

@@ -111,6 +111,10 @@ trait HailModule extends ScalaModule with ScalafmtModule with ScalafixModule { o
     mvn"io.github.tanin47::scalafix-forbidden-symbol:1.0.0",
   )
 
+  override def depManagement: T[Seq[Dep]] = Task {
+    Seq(Deps.collection_compat)
+  }
+
   override def javacOptions: T[Seq[String]] = Seq(
     "-Xlint:all",
     "-Werror",
@@ -325,6 +329,7 @@ trait RootHailModule extends CrossScalaModule with HailModule { outer =>
     Rule.Relocate("org.elasticsearch.**", "is.hail.relocated.@0"),
     Rule.Relocate("org.json4s.**", "is.hail.relocated.@0"),
     Rule.Relocate("org.objectweb.**", "is.hail.relocated.@0"),
+    Rule.Relocate("scala.collection.compat.**", "is.hail.relocated.@0"),
   )
 
   override def scalacPluginMvnDeps: T[Seq[Dep]] = Seq(
@@ -343,7 +348,7 @@ trait RootHailModule extends CrossScalaModule with HailModule { outer =>
     override def defaultTask(): String = "generate"
 
     override def mvnDeps = Seq(
-      mvn"com.lihaoyi::mainargs:0.6.2",
+      mvn"com.lihaoyi::mainargs:0.7.7",
       mvn"com.lihaoyi::os-lib:0.10.7",
       mvn"com.lihaoyi::sourcecode:0.4.2",
     )

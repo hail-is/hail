@@ -22,7 +22,6 @@ import org.apache.hadoop
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.{Row, SparkSession}
-import org.scalatest.Inspectors.forEvery
 import org.scalatestplus.testng.TestNGSuite
 import org.testng.ITestContext
 import org.testng.annotations.{AfterClass, AfterSuite, BeforeClass, BeforeSuite}
@@ -189,7 +188,7 @@ class HailSuite extends TestNGSuite with TestUtils {
         execStrats.intersect(ExecStrategy.backendOnly)
       }
 
-    forEvery(filteredExecStrats) { implicit strat =>
+    filteredExecStrats.foreach { implicit strat =>
       try {
         val res =
           evaluate(ctx, x, args, env, agg)
