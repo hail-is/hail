@@ -2,7 +2,7 @@ package is.hail
 
 import is.hail.backend.ExecutionCache
 import is.hail.backend.spark.SparkBackend
-import is.hail.expr.ir.Optimize
+import is.hail.expr.ir.{agg, Optimize}
 import is.hail.io.fs.RequesterPaysConfig
 import is.hail.types.encoded.EType
 import is.hail.utils._
@@ -37,6 +37,7 @@ object HailFeatureFlags {
     ("use_new_shuffle", ("HAIL_USE_NEW_SHUFFLE" -> null)),
     ("use_ssa_logs", "HAIL_USE_SSA_LOGS" -> "1"),
     ("write_ir_files", ("HAIL_WRITE_IR_FILES" -> null)),
+    (agg.Flags.BranchingFactor, "HAIL_BRANCHING_FACTOR" -> null),
     (EType.Flags.UseUnstableEncodings, EType.Flags.UseUnstableEncodingsVar -> null),
     (ExecutionCache.Flags.Cachedir, "HAIL_CACHE_DIR" -> null),
     (ExecutionCache.Flags.UseFastRestarts, "HAIL_USE_FAST_RESTARTS" -> null),

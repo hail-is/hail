@@ -1,8 +1,8 @@
 package is.hail.expr.ir.lowering
 
-import is.hail.HailContext
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{agg, TableNativeWriter, _}
+import is.hail.expr.ir.agg.AggExecuteContextExtensions
 import is.hail.expr.ir.analyses.PartitionCounts
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.defs.ArrayZipBehavior.AssertSameLength
@@ -825,7 +825,7 @@ object LowerTableIR {
 
         val initFromSerializedStates = aggSigs.initFromSerializedValueOp(initStateRef)
 
-        val branchFactor = HailContext.get.branchingFactor
+        val branchFactor = ctx.branchingFactor
         val useTreeAggregate = aggSigs.shouldTreeAggregate && branchFactor < lc.numPartitions
         val isCommutative = aggSigs.isCommutative
         log.info(s"Aggregate: useTreeAggregate=$useTreeAggregate")
@@ -1625,7 +1625,7 @@ object LowerTableIR {
           )
 
           val initFromSerializedStates = aggSigs.initFromSerializedValueOp(initStateRef)
-          val branchFactor = HailContext.get.branchingFactor
+          val branchFactor = ctx.branchingFactor
           val big = aggSigs.shouldTreeAggregate && branchFactor < lc.numPartitions
           val (partitionPrefixSumValues, transformPrefixSum): (IR, IR => IR) = if (big) {
             val tmpDir = ctx.createTmpPath("aggregate_intermediates/")

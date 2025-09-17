@@ -383,6 +383,7 @@ def init(
                 gcs_requester_pays_configuration=gcs_requester_pays_configuration,
                 regions=regions,
                 gcs_bucket_allow_list=gcs_bucket_allow_list,
+                branching_factor=branching_factor,
             )
         )
     if backend == 'spark':
@@ -518,6 +519,7 @@ def init_spark(
     gcs_requester_pays_configuration=nullable(oneof(str, sized_tupleof(str, sequenceof(str)))),
     regions=nullable(sequenceof(str)),
     gcs_bucket_allow_list=nullable(sequenceof(str)),
+    branching_factor=nullable(int),
 )
 async def init_batch(
     *,
@@ -540,6 +542,7 @@ async def init_batch(
     gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
     regions: Optional[List[str]] = None,
     gcs_bucket_allow_list: Optional[List[str]] = None,
+    branching_factor: Optional[int] = None,
 ):
     from hail.backend.service_backend import ServiceBackend
 
@@ -558,6 +561,7 @@ async def init_batch(
         regions=regions,
         gcs_requester_pays_configuration=gcs_requester_pays_configuration,
         gcs_bucket_allow_list=gcs_bucket_allow_list,
+        branching_factor=branching_factor,
     )
 
     log = _get_log(log)

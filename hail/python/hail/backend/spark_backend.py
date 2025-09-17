@@ -1,6 +1,6 @@
 import os
 import sys
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 
 import orjson
 import pyspark
@@ -117,7 +117,7 @@ class SparkBackend(Py4JBackend):
                 skip_logging_configuration,
                 min_block_size,
             )
-            jhc = hail_package.HailContext.getOrCreate(jbackend, branching_factor)
+            jhc = hail_package.HailContext.getOrCreate(jbackend)
         else:
             jbackend = hail_package.backend.spark.SparkBackend.apply(
                 jsc,
@@ -130,7 +130,7 @@ class SparkBackend(Py4JBackend):
                 skip_logging_configuration,
                 min_block_size,
             )
-            jhc = hail_package.HailContext.apply(jbackend, branching_factor)
+            jhc = hail_package.HailContext.apply(jbackend)
 
         self._jsc = jbackend.sc()
         if sc:
@@ -152,7 +152,11 @@ class SparkBackend(Py4JBackend):
 
             jbackend.pyStartProgressBar()
 
-        self._initialize_flags({})
+        flags: Dict[str, str] = {}
+        if branching_factor is not None:
+            flags['branching_factor'] = str(branching_factor)
+
+        self._initialize_flags(flags)
 
         self._router_async_fs = RouterAsyncFS(
             gcs_kwargs={"gcs_requester_pays_configuration": gcs_requester_pays_config}
