@@ -1179,21 +1179,23 @@ object LowerBlockMatrixIR {
           val rowStartIdx = rowBlockIdx.toL * I64(x.typ.blockSize)
           val colStartIdx = colBlockIdx.toL * I64(x.typ.blockSize)
           val (numRowsBlock, numColsBlock) = x.typ.blockShapeIR(rowBlockIdx, colBlockIdx)
-          NDArraySlice(
-            nd,
-            MakeTuple.ordered(FastSeq(
+          bindIRs(rowStartIdx, colStartIdx) { case Seq(rowStartIdx, colStartIdx) =>
+            NDArraySlice(
+              nd,
               MakeTuple.ordered(FastSeq(
-                rowStartIdx,
-                rowStartIdx + numRowsBlock,
-                I64(1),
+                MakeTuple.ordered(FastSeq(
+                  rowStartIdx,
+                  rowStartIdx + numRowsBlock,
+                  I64(1),
+                )),
+                MakeTuple.ordered(FastSeq(
+                  colStartIdx,
+                  colStartIdx + numColsBlock,
+                  I64(1),
+                )),
               )),
-              MakeTuple.ordered(FastSeq(
-                colStartIdx,
-                colStartIdx + numColsBlock,
-                I64(1),
-              )),
-            )),
-          )
+            )
+          }
         }
 
         BlockMatrixStage2(
