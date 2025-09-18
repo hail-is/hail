@@ -425,8 +425,10 @@ class PR(Code):
             await gh_client.post(
                 f'/repos/{self.target_branch.branch.repo.short_str()}/statuses/{self.source_sha}', data=data
             )
-        except gidgethub.HTTPException:
-            log.exception(f'{self.short_str()}: notify github of build state failed due to exception: {data}')
+        except (gidgethub.HTTPException, TypeError) as e:
+            log.exception(
+                f'{self.short_str()}: notify github of build state failed due to exception: {f"/repos/{self.target_branch.branch.repo.short_str()}/statuses/{self.source_sha}"} / {data} / {e}'
+            )
         except aiohttp.client_exceptions.ClientResponseError:
             log.exception(f'{self.short_str()}: Unexpected exception in post to github: {data}')
 
