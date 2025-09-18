@@ -384,7 +384,7 @@ async def healthcheck(_) -> web.Response:
 async def swagger(request):
     """UI for exploring the API documentation."""
     page_context = {'service': 'ci', 'base_path': deploy_config.base_path('ci')}
-    return await render_template('ci', request, None, 'swagger.html', page_context)
+    return await render_template('ci', request, None, 'swagger/index.html', page_context)
 
 
 @routes.get('/openapi.yaml')

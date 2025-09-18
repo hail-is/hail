@@ -234,7 +234,7 @@ async def get_healthcheck(_) -> web.Response:
 @web_security_headers_swagger
 async def swagger(request):
     page_context = {'service': 'auth', 'base_path': deploy_config.base_path('auth')}
-    return await render_template('auth', request, None, 'swagger.html', page_context)
+    return await render_template('auth', request, None, 'swagger/index.html', page_context)
 
 
 @routes.get('/openapi.yaml')
