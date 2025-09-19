@@ -1,6 +1,6 @@
 package is.hail.backend.local
 
-import is.hail.{CancellingExecutorService, HailContext}
+import is.hail.CancellingExecutorService
 import is.hail.asm4s._
 import is.hail.backend._
 import is.hail.expr.Validate
@@ -46,7 +46,7 @@ object LocalBackend extends Backend {
     skipLoggingConfiguration: Boolean = false,
   ): LocalBackend.type =
     synchronized {
-      if (!skipLoggingConfiguration) HailContext.configureLogging(logFile, quiet, append)
+      if (!skipLoggingConfiguration) Logging.configureLogging(logFile, quiet, append)
       this
     }
 

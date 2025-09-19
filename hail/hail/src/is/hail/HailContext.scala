@@ -6,14 +6,9 @@ import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.io.fs.FS
 import is.hail.utils._
 
-import java.util.Properties
-
-import org.apache.log4j.{LogManager, PropertyConfigurator}
 import org.apache.spark._
 
 object HailContext {
-
-  val logFormat: String = "%d{yyyy-MM-dd HH:mm:ss.SSS} %c{1}: %p: %m%n"
 
   private var theContext: HailContext = _
 
@@ -21,36 +16,6 @@ object HailContext {
     assert(TaskContext.get() == null, "HailContext not available on worker")
     assert(theContext != null, "HailContext not initialized")
     theContext
-  }
-
-  def configureLogging(logFile: String, quiet: Boolean, append: Boolean): Unit = {
-    org.apache.log4j.helpers.LogLog.setInternalDebugging(true)
-    org.apache.log4j.helpers.LogLog.setQuietMode(false)
-    val logProps = new Properties()
-
-    // uncomment to see log4j LogLog output:
-    // logProps.put("log4j.debug", "true")
-    logProps.put("log4j.rootLogger", "INFO, logfile")
-    logProps.put("log4j.appender.logfile", "org.apache.log4j.FileAppender")
-    logProps.put("log4j.appender.logfile.append", append.toString)
-    logProps.put("log4j.appender.logfile.file", logFile)
-    logProps.put("log4j.appender.logfile.threshold", "INFO")
-    logProps.put("log4j.appender.logfile.layout", "org.apache.log4j.PatternLayout")
-    logProps.put("log4j.appender.logfile.layout.ConversionPattern", HailContext.logFormat)
-
-    if (!quiet) {
-      logProps.put("log4j.logger.Hail", "INFO, HailConsoleAppender, HailSocketAppender")
-      logProps.put("log4j.appender.HailConsoleAppender", "org.apache.log4j.ConsoleAppender")
-      logProps.put("log4j.appender.HailConsoleAppender.target", "System.err")
-      logProps.put("log4j.appender.HailConsoleAppender.layout", "org.apache.log4j.PatternLayout")
-    } else
-      logProps.put("log4j.logger.Hail", "INFO, HailSocketAppender")
-
-    logProps.put("log4j.appender.HailSocketAppender", "is.hail.utils.StringSocketAppender")
-    logProps.put("log4j.appender.HailSocketAppender.layout", "org.apache.log4j.PatternLayout")
-
-    LogManager.resetConfiguration()
-    PropertyConfigurator.configure(logProps)
   }
 
   def checkJavaVersion(): Unit = {
@@ -97,7 +62,7 @@ object HailContext {
 
     theContext = new HailContext(backend)
 
-    info(s"Running Hail version ${theContext.version}")
+    info(s"Running Hail version $HAIL_PRETTY_VERSION")
 
     theContext
   }
@@ -114,8 +79,6 @@ class HailContext private (
   var backend: Backend
 ) {
   def stop(): Unit = HailContext.stop()
-
-  def version: String = is.hail.HAIL_PRETTY_VERSION
 
   private[this] def fileAndLineCounts(
     fs: FS,

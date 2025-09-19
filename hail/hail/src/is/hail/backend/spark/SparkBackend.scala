@@ -260,7 +260,7 @@ object SparkBackend {
       require(theSparkBackend == null)
 
       if (!skipLoggingConfiguration)
-        HailContext.configureLogging(logFile, quiet, append)
+        Logging.configureLogging(logFile, quiet, append)
 
       var sc1 = sc
       if (sc1 == null)
