@@ -1,22 +1,13 @@
 package is.hail
 
-import is.hail.backend.Backend
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.io.fs.FS
 import is.hail.utils._
 
-import org.apache.spark._
-
 object HailContext {
 
   private var theContext: HailContext = _
-
-  def get: HailContext = synchronized {
-    assert(TaskContext.get() == null, "HailContext not available on worker")
-    assert(theContext != null, "HailContext not initialized")
-    theContext
-  }
 
   def checkJavaVersion(): Unit = {
     val javaVersion = raw"(\d+)\.(\d+)\.(\d+).*".r
@@ -36,13 +27,13 @@ object HailContext {
     }
   }
 
-  def getOrCreate(backend: Backend): HailContext =
+  def getOrCreate: HailContext =
     synchronized {
       if (theContext != null) theContext
-      else HailContext(backend)
+      else apply
     }
 
-  def apply(backend: Backend): HailContext = synchronized {
+  def apply: HailContext = synchronized {
     require(theContext == null)
     checkJavaVersion()
 
@@ -60,7 +51,7 @@ object HailContext {
       )
     }
 
-    theContext = new HailContext(backend)
+    theContext = new HailContext
 
     info(s"Running Hail version $HAIL_PRETTY_VERSION")
 
@@ -70,14 +61,11 @@ object HailContext {
   def stop(): Unit =
     synchronized {
       IRFunctionRegistry.clearUserFunctions()
-      theContext.backend.close()
       theContext = null
     }
 }
 
-class HailContext private (
-  var backend: Backend
-) {
+class HailContext {
   def stop(): Unit = HailContext.stop()
 
   private[this] def fileAndLineCounts(
