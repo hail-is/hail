@@ -62,7 +62,7 @@ object HailContext {
 
     theContext = new HailContext(backend)
 
-    info(s"Running Hail version ${theContext.version}")
+    info(s"Running Hail version $HAIL_PRETTY_VERSION")
 
     theContext
   }
@@ -79,8 +79,6 @@ class HailContext private (
   var backend: Backend
 ) {
   def stop(): Unit = HailContext.stop()
-
-  def version: String = is.hail.HAIL_PRETTY_VERSION
 
   private[this] def fileAndLineCounts(
     fs: FS,

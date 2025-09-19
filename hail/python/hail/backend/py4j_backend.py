@@ -210,7 +210,7 @@ class Py4JBackend(Backend):
         # Maybe it does its own patch?
         install_exception_handler()
 
-        jar_version = self._jhc.version()
+        jar_version = scala_package_object(self._hail_package).HAIL_PRETTY_VERSION()
         if jar_version != __version__:
             raise RuntimeError(
                 f"Hail version mismatch between JAR and Python library\n"
