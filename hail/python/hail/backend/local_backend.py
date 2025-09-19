@@ -78,7 +78,7 @@ class LocalBackend(Py4JBackend):
             append,
             skip_logging_configuration,
         )
-        jhc = hail_package.HailContext.apply(jbackend)
+        jhc = hail_package.HailContext.apply()
 
         super().__init__(self._gateway.jvm, jbackend, jhc, tmpdir, tmpdir)
         self.gcs_requester_pays_configuration = gcs_requester_pays_configuration
