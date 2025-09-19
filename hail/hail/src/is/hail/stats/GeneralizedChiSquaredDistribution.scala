@@ -63,7 +63,7 @@ class DaviesAlgorithm(
   private[this] var count: Int = 0
   private[this] var ndtsrt: Boolean = true // "need to sort"
   private[this] var fail: Boolean = true
-  private[this] var th: Array[Int] = new Array[Int](r)
+  private[this] val th: Array[Int] = new Array[Int](r)
   private[this] var intl: Double = 0.0
   private[this] var ersm: Double = 0.0
   private[this] var sigsq: Double = square(sigma)

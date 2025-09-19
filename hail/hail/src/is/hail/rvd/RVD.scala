@@ -16,6 +16,7 @@ import is.hail.types.virtual.{MatrixType, TInterval, TStruct}
 import is.hail.utils._
 import is.hail.utils.PartitionCounts.{getPCSubsetOffset, incrementalPCSubsetOffset, PCSubsetOffset}
 
+import scala.collection.parallel.CollectionConverters._
 import scala.reflect.ClassTag
 
 import java.util

@@ -14,8 +14,11 @@ import is.hail.types.physical.{PArray, PStruct}
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.utils.compat._
+import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.collection.mutable.ArrayBuffer
+import scala.reflect.ClassTag
 
 import org.apache.spark.sql.Row
 import org.json4s.JValue
@@ -687,8 +690,10 @@ object LowerDistributedSort {
     )
   }
 
-  def orderedGroupBy[T, U](is: IndexedSeq[T], func: T => U): IndexedSeq[(U, IndexedSeq[T])] = {
-    val result = new ArrayBuffer[(U, IndexedSeq[T])](is.size)
+  def orderedGroupBy[T: ClassTag, U](is: IndexedSeq[T], func: T => U)
+    : IndexedSeq[(U, IndexedSeq[T])] = {
+    val result = ArraySeq.newBuilder[(U, IndexedSeq[T])]
+    result.sizeHint(is)
     val currentGroup = new ArrayBuffer[T]()
     var lastKeySeen: Option[U] = None
     is.foreach { element =>
@@ -696,19 +701,19 @@ object LowerDistributedSort {
       if (currentGroup.isEmpty) {
         currentGroup.append(element)
         lastKeySeen = Some(key)
-      } else if (lastKeySeen.map(lastKey => lastKey == key).getOrElse(false)) {
+      } else if (lastKeySeen.contains(key)) {
         currentGroup.append(element)
       } else {
-        result.append((lastKeySeen.get, currentGroup.result().toIndexedSeq))
+        result += lastKeySeen.get -> currentGroup.to(ArraySeq)
         currentGroup.clear()
         currentGroup.append(element)
         lastKeySeen = Some(key)
       }
     }
-    if (!currentGroup.isEmpty) {
-      result.append((lastKeySeen.get, currentGroup))
+    if (currentGroup.nonEmpty) {
+      result += lastKeySeen.get -> currentGroup.to(ArraySeq)
     }
-    result.result().toIndexedSeq
+    result.result()
   }
 
   def lessThanForSegmentIndices(i1: IndexedSeq[Int], i2: IndexedSeq[Int]): Boolean = {
@@ -742,33 +747,34 @@ object LowerDistributedSort {
         coerceToInt((segmentSize + idealNumberOfRowsPerPart - 1) / idealNumberOfRowsPerPart)
       var currentPartSize = 0L
       var currentPartByteSize = 0L
-      val groupedIntoParts = new ArrayBuffer[PartitionInfo](numParts)
+      val groupedIntoParts = ArraySeq.newBuilder[PartitionInfo]
+      groupedIntoParts.sizeHint(numParts)
       val currentFiles = new ArrayBuffer[String]()
       sr.chunks.foreach { chunk =>
         if (chunk.size > 0) {
-          currentFiles.append(chunk.filename)
+          currentFiles += chunk.filename
           currentPartSize += chunk.size
           currentPartByteSize += chunk.byteSize
           if (currentPartSize >= idealNumberOfRowsPerPart) {
-            groupedIntoParts.append(PartitionInfo(
+            groupedIntoParts += PartitionInfo(
               sr.indices,
-              currentFiles.result().toIndexedSeq,
+              currentFiles.to(ArraySeq),
               currentPartSize,
               currentPartByteSize,
-            ))
+            )
             currentFiles.clear()
             currentPartSize = 0
             currentPartByteSize = 0L
           }
         }
       }
-      if (!currentFiles.isEmpty) {
-        groupedIntoParts.append(PartitionInfo(
+      if (currentFiles.nonEmpty) {
+        groupedIntoParts += PartitionInfo(
           sr.indices,
-          currentFiles.result().toIndexedSeq,
+          currentFiles.to(ArraySeq),
           currentPartSize,
           currentPartByteSize,
-        ))
+        )
       }
       groupedIntoParts.result()
     }

@@ -1,7 +1,5 @@
 package is.hail.utils.richUtils
 
-import scala.collection.mutable
-
 import org.apache.spark.sql.Row
 
 class RichRow(r: Row) {
@@ -17,21 +15,6 @@ class RichRow(r: Row) {
   def deleteField(i: Int): Row = {
     require(i >= 0 && i < r.length)
     new RowWithDeletedField(r, i)
-  }
-
-  def append(a: Any): Row = {
-    val ab = new mutable.ArrayBuffer[Any]()
-    ab ++= r.toSeq
-    ab += a
-    Row.fromSeq(ab)
-  }
-
-  def insertBefore(i: Int, a: Any): Row = {
-    val ab = new mutable.ArrayBuffer[Any]()
-    (0 until i).foreach(ab += r.get(_))
-    ab += a
-    (i until r.size).foreach(ab += r.get(_))
-    Row.fromSeq(ab)
   }
 
   def truncate(newSize: Int): Row = {

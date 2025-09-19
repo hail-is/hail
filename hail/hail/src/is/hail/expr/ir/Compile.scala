@@ -303,12 +303,13 @@ object CompileIterator {
     (
       eltPType,
       (theHailClassLoader, fs, htc, consumerCtx, v0, part) => {
-        val stepper = makeStepper(theHailClassLoader, fs, htc, consumerCtx.partitionRegion)
-        stepper.setRegions(consumerCtx.partitionRegion, consumerCtx.region)
+        val outerStepFunction =
+          makeStepper(theHailClassLoader, fs, htc, consumerCtx.partitionRegion)
+        outerStepFunction.setRegions(consumerCtx.partitionRegion, consumerCtx.region)
         new LongIteratorWrapper {
-          val stepFunction: TMPStepFunction = stepper
+          val stepFunction: TMPStepFunction = outerStepFunction
 
-          def step(): Boolean = stepper.apply(null, v0, part)
+          def step(): Boolean = stepFunction.apply(null, v0, part)
         }
       },
     )
@@ -338,12 +339,13 @@ object CompileIterator {
     (
       eltPType,
       (theHailClassLoader, fs, htc, consumerCtx, v0, v1) => {
-        val stepper = makeStepper(theHailClassLoader, fs, htc, consumerCtx.partitionRegion)
-        stepper.setRegions(consumerCtx.partitionRegion, consumerCtx.region)
+        val outerStepFunction =
+          makeStepper(theHailClassLoader, fs, htc, consumerCtx.partitionRegion)
+        outerStepFunction.setRegions(consumerCtx.partitionRegion, consumerCtx.region)
         new LongIteratorWrapper {
-          val stepFunction: TableStageToRVDStepFunction = stepper
+          val stepFunction: TableStageToRVDStepFunction = outerStepFunction
 
-          def step(): Boolean = stepper.apply(null, v0, v1)
+          def step(): Boolean = stepFunction.apply(null, v0, v1)
         }
       },
     )

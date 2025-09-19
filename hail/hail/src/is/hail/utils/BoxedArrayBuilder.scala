@@ -57,7 +57,7 @@ final class BoxedArrayBuilder[T <: AnyRef](initialCapacity: Int)(implicit tct: C
     size_ += 1
   }
 
-  def ++=(s: Seq[T]): Unit = s.foreach(x => this += x)
+  def ++=(s: Iterable[T]): Unit = s.foreach(x => this += x)
 
   def ++=(a: Array[T]): Unit = ++=(a, a.length)
 

@@ -19,9 +19,8 @@ HAIL_PATCH_VERSION := 136
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
 HAIL_VERSION := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
 
-SCALA_VERSION ?= 2.12.18
+SCALA_VERSION ?= 2.12
 SPARK_VERSION ?= 3.5.0
-
 
 include env_var.mk
 
@@ -78,50 +77,50 @@ mill-clean:
 # be recomputed.
 FORCE:
 
-SHADOW_JAR := out/hail/assembly.dest/out.jar
+SHADOW_JAR := out/hail/$(SCALA_VERSION)/assembly.dest/out.jar
 ifdef HAIL_COMPILE_NATIVES
 $(SHADOW_JAR): native-lib-prebuilt
 endif
 $(SHADOW_JAR): FORCE
-	$(MILL) $(MILLOPTS) hail.assembly
+	$(MILL) $(MILLOPTS) hail[$(SCALA_VERSION)].assembly
 
 .PHONY: shadowJar
 shadowJar: $(SHADOW_JAR)
 
-NON_SHADOW_JAR := out/hail/jar.dest/out.jar
+NON_SHADOW_JAR := out/hail/$(SCALA_VERSION)/jar.dest/out.jar
 ifdef HAIL_COMPILE_NATIVES
 $(NON_SHADOW_JAR): native-lib-prebuilt
 endif
 $(NON_SHADOW_JAR): FORCE
-	$(MILL) $(MILLOPTS) hail.jar
+	$(MILL) $(MILLOPTS) hail[$(SCALA_VERSION)].jar
 
-SHADOW_TEST_JAR := out/hail/test/assembly.dest/out.jar
+SHADOW_TEST_JAR := out/hail/$(SCALA_VERSION)/test/assembly.dest/out.jar
 ifdef HAIL_COMPILE_NATIVES
 $(SHADOW_TEST_JAR): native-lib-prebuilt
 endif
 $(SHADOW_TEST_JAR): FORCE
-	$(MILL) $(MILLOPTS) hail.test.assembly
+	$(MILL) $(MILLOPTS) hail[$(SCALA_VERSION)].test.assembly
 
 .PHONY: shadowTestJar
 shadowTestJar: $(SHADOW_TEST_JAR)
 
-EXTRA_CLASSPATH := out/hail/writeRunClasspath.dest/runClasspath
+EXTRA_CLASSPATH := out/hail/$(SCALA_VERSION)/writeRunClasspath.dest/runClasspath
 $(EXTRA_CLASSPATH): FORCE
-	$(MILL) $(MILLOPTS) hail.writeRunClasspath
+	$(MILL) $(MILLOPTS) hail[$(SCALA_VERSION)].writeRunClasspath
 
 .PHONY: jvm-test
 ifdef HAIL_COMPILE_NATIVES
 jvm-test: native-lib-prebuilt
 endif
 jvm-test:
-	$(MILL) $(MILLOPTS) hail.test testng.xml
+	$(MILL) $(MILLOPTS) hail[$(SCALA_VERSION)].test testng.xml
 
 .PHONY: services-jvm-test
 ifdef HAIL_COMPILE_NATIVES
 services-jvm-test: native-lib-prebuilt
 endif
 services-jvm-test:
-	$(MILL) $(MILLOPTS) hail.test testng-services.xml
+	$(MILL) $(MILLOPTS) hail[$(SCALA_VERSION)].test testng-services.xml
 
 .PHONY: fs-jvm-test
 ifdef HAIL_COMPILE_NATIVES
@@ -134,7 +133,7 @@ fs-jvm-test: upload-remote-test-resources
 	HAIL_DEFAULT_NAMESPACE=$(NAMESPACE) \
 	HAIL_FS_TEST_CLOUD_RESOURCES_URI=$(CLOUD_HAIL_TEST_RESOURCES_DIR)fs \
 	HAIL_TEST_STORAGE_URI=$(TEST_STORAGE_URI) \
-	$(MILL) $(MILLOPTS) hail.test $(realpath testng-fs.xml)
+	$(MILL) $(MILLOPTS) hail[$(SCALA_VERSION)].test $(realpath testng-fs.xml)
 
 # end mill integration
 
