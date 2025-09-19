@@ -74,6 +74,10 @@ provider "google-beta" {
 
 data "google_client_config" "provider" {}
 
+data "google_project" "current" {
+  project_id = var.gcp_project
+}
+
 resource "google_project_service" "service_networking" {
   disable_on_destroy = false
   service = "servicenetworking.googleapis.com"
@@ -824,11 +828,14 @@ resource "google_project_iam_member" "gke_node_pool_iam_member" {
   member = "serviceAccount:${google_service_account.gke_node_pool.email}"
 }
 
-# Grant CloudKMS permissions to GKE node service account for secrets encryption
-resource "google_kms_crypto_key_iam_member" "gke_node_pool_kms_encrypter_decrypter" {
+# Grant CloudKMS permissions to GKE service account for secrets encryption
+resource "google_kms_crypto_key_iam_binding" "gke_service_account_kms_encrypter_decrypter" {
   crypto_key_id = google_kms_crypto_key.k8s_secrets_key.id
   role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
-  member        = "serviceAccount:${google_service_account.gke_node_pool.email}"
+
+  members = [
+    "serviceAccount:service-${data.google_project.current.number}@container-engine-robot.iam.gserviceaccount.com",
+  ]
 }
 
 resource "google_compute_firewall" "default_allow_internal" {
