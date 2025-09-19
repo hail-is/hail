@@ -43,6 +43,18 @@ object Backend {
     assert(t.isFieldDefined(off, 0))
     codec.encode(ctx, elementType, t.loadField(off, 0), os)
   }
+
+  // Currently required by `BackendUtils.collectDArray`
+  private[this] var instance: Backend = _
+
+  def set(b: Backend): Unit =
+    synchronized { instance = b }
+
+  def get: Backend =
+    synchronized {
+      assert(instance != null)
+      instance
+    }
 }
 
 abstract class BroadcastValue[T] { def value: T }
