@@ -1,6 +1,5 @@
 package is.hail.backend.spark
 
-import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend._
@@ -199,11 +198,6 @@ object SparkBackend {
     "org.apache.hadoop.io.compress.GzipCodec",
   )
 
-  /** If a SparkBackend has already been initialized, this function returns it regardless of the
-    * parameters with which it was initialized.
-    *
-    * Otherwise, it initializes and returns a new HailContext.
-    */
   def getOrCreate(
     sc: SparkContext = null,
     appName: String = "Hail",

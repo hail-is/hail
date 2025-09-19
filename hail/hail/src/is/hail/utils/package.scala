@@ -20,10 +20,7 @@ import java.security.SecureRandom
 import java.text.SimpleDateFormat
 import java.util
 import java.util.{Base64, Date}
-import java.util.concurrent.{
-  AbstractExecutorService, Callable, CancellationException, ExecutorCompletionService,
-  ExecutorService, RunnableFuture, TimeUnit,
-}
+import java.util.concurrent._
 import java.util.concurrent.atomic.AtomicBoolean
 
 import com.google.common.util.concurrent.AbstractFuture
@@ -850,7 +847,7 @@ package object utils
     using(new OutputStreamWriter(fs.create(path + "/README.txt"))) { out =>
       out.write(
         s"""This folder comprises a Hail (www.hail.is) native Table or MatrixTable.
-           |  Written with version ${HailContext.get.version}
+           |  Written with version $HAIL_PRETTY_VERSION
            |  Created at ${dateFormat.format(new Date())}""".stripMargin
       )
     }
