@@ -1445,8 +1445,6 @@ object LowerBlockMatrixIR {
               MakeTuple.ordered(FastSeq(rows, cols))
           }.mapBody((ctx, body) => NDArraySlice(body, GetField(ctx, "new")))
 
-      case RelationalLetBlockMatrix(_, _, _) => unimplemented(ctx, bmir)
-
       case ValueToBlockMatrix(child, _, _)
           if !child.typ.isInstanceOf[TArray] && !child.typ.isInstanceOf[TNDArray] =>
         val element = lowerIR(child)

@@ -217,8 +217,6 @@ object Bindings {
         Bindings.inFreshScope(FastSeq(eltName -> TFloat64))
       case BlockMatrixMap2(_, _, lName, rName, _, _) if i == 2 =>
         Bindings.inFreshScope(FastSeq(lName -> TFloat64, rName -> TFloat64))
-      case RelationalLetBlockMatrix(name, value, _) if i == 1 =>
-        Bindings.inFreshScope(FastSeq(name -> value.typ), relational = FastSeq(0))
       case _ =>
         Bindings.inFreshScope()
     }

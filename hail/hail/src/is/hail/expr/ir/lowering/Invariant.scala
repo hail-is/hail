@@ -2,9 +2,8 @@ package is.hail.expr.ir.lowering
 
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{
-  BaseIR, BlockMatrixIR, Compilable, Emittable, IR, IRTraversal, MatrixIR, RelationalLetBlockMatrix,
-  RelationalLetMatrixTable, RelationalLetTable, TableIR, TableKeyBy, TableKeyByAndAggregate,
-  TableOrderBy,
+  BaseIR, BlockMatrixIR, Compilable, Emittable, IR, IRTraversal, MatrixIR, RelationalLetMatrixTable,
+  RelationalLetTable, TableIR, TableKeyBy, TableKeyByAndAggregate, TableOrderBy,
 }
 import is.hail.expr.ir.defs.{ApplyIR, RelationalLet, RelationalRef}
 import is.hail.utils.toRichPredicate
@@ -41,7 +40,6 @@ object Invariant {
   lazy val NoRelationalLets: Invariant =
     Invariant {
       case _: RelationalLet => false
-      case _: RelationalLetBlockMatrix => false
       case _: RelationalLetMatrixTable => false
       case _: RelationalLetTable => false
       case _: RelationalRef => false
