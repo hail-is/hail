@@ -149,9 +149,9 @@ class ExecuteContext(
   )(implicit E: Enclosing
   ): T =
     using(new LocalTaskContext(0, 0)) { tc =>
-      time {
-        f(theHailClassLoader, fs, tc, r)
-      }
+      Backend.set(backend)
+      try time(f(theHailClassLoader, fs, tc, r))
+      finally Backend.set(null)
     }
 
   def createTmpPath(prefix: String, extension: String = null, local: Boolean = false): String =
