@@ -1145,6 +1145,66 @@ object LowerBlockMatrixIR {
     bmir match {
       case BlockMatrixRead(reader) => reader.lower(ctx, ib)
 
+      case ValueToBlockMatrix(child, _, _)
+          if !child.typ.isInstanceOf[TArray] && !child.typ.isInstanceOf[TNDArray] =>
+        val element = LowerToCDA.lower(child, typesToLower, ctx, analyses)
+        val contextsIR = MakeArray(MakeStruct(FastSeq()))
+
+        def blockIR(ctxRef: Ref): IR = MakeNDArray(
+          MakeArray(element),
+          MakeTuple(FastSeq((0, I64(1)), (1, I64(1)))),
+          False(),
+          ErrorIDs.NO_ERROR,
+        )
+
+        BlockMatrixStage2(
+          FastSeq(),
+          bmir.typ,
+          BMSContexts(bmir.typ, contextsIR, ib),
+          blockIR,
+        )
+
+      case x @ ValueToBlockMatrix(child, _, _) =>
+        val lowered = LowerToCDA.lower(child, typesToLower, ctx, analyses)
+        val nd = ib.memoize(child.typ match {
+          case _: TArray => MakeNDArray(
+              lowered,
+              MakeTuple.ordered(FastSeq(I64(x.typ.nRows), I64(x.typ.nCols))),
+              True(),
+              ErrorIDs.NO_ERROR,
+            )
+          case _: TNDArray => lowered
+        })
+        val contexts = BMSContexts.tabulate(x.typ, ib) { (rowBlockIdx, colBlockIdx) =>
+          val rowStartIdx = rowBlockIdx.toL * I64(x.typ.blockSize)
+          val colStartIdx = colBlockIdx.toL * I64(x.typ.blockSize)
+          val (numRowsBlock, numColsBlock) = x.typ.blockShapeIR(rowBlockIdx, colBlockIdx)
+          bindIRs(rowStartIdx, colStartIdx) { case Seq(rowStartIdx, colStartIdx) =>
+            NDArraySlice(
+              nd,
+              MakeTuple.ordered(FastSeq(
+                MakeTuple.ordered(FastSeq(
+                  rowStartIdx,
+                  rowStartIdx + numRowsBlock,
+                  I64(1),
+                )),
+                MakeTuple.ordered(FastSeq(
+                  colStartIdx,
+                  colStartIdx + numColsBlock,
+                  I64(1),
+                )),
+              )),
+            )
+          }
+        }
+
+        BlockMatrixStage2(
+          FastSeq(),
+          x.typ,
+          contexts,
+          (ctxRef) => ctxRef,
+        )
+
       case x @ BlockMatrixRandom(staticUID, gaussian, _, _) =>
         val contexts = BMSContexts.tabulate(x.typ, ib) { (rowIdx, colIdx) =>
           val (m, n) = x.typ.blockShapeIR(rowIdx, colIdx)
@@ -1162,6 +1222,28 @@ object LowerBlockMatrixIR {
 
         BlockMatrixStage2(FastSeq(), x.typ, contexts, bodyIR)
 
+      case BlockMatrixAgg(child, IndexedSeq(0, 1) /* axesToSumOut */ ) =>
+        val summedChild = lower(child).mapBody { body =>
+          NDArrayReshape(
+            NDArrayAgg(body, IndexedSeq(0, 1)),
+            MakeTuple.ordered(FastSeq(I64(1), I64(1))),
+            ErrorIDs.NO_ERROR,
+          )
+        }
+        val blockResults =
+          summedChild.collectBlocks(ib, "block_matrix_agg_axes_0_1")((_, _, block) => block)
+        val ndArrayResults = NDArrayConcat(blockResults, 0)
+        val aggResult = NDArrayAgg(ndArrayResults, IndexedSeq(0, 1))
+        val newBlockIR =
+          NDArrayReshape(aggResult, MakeTuple.ordered(FastSeq(I64(1), I64(1))), ErrorIDs.NO_ERROR)
+        val contextsIR = MakeArray(newBlockIR)
+
+        BlockMatrixStage2(
+          FastSeq(),
+          bmir.typ,
+          BMSContexts(bmir.typ, contextsIR, ib),
+          (ctxRef) => ctxRef,
+        )
       case BlockMatrixMap(child, eltName, f, _) =>
         lower(child).mapBody(body => NDArrayMap(body, eltName, f))
 
@@ -1288,37 +1370,11 @@ object LowerBlockMatrixIR {
     def lower(ir: BlockMatrixIR, ib: IRBuilder = ib) =
       LowerBlockMatrixIR.lower(ir, ib, typesToLower, ctx, analyses).toOldBMS
 
-    def lowerIR(node: IR): IR = LowerToCDA.lower(node, typesToLower, ctx, analyses)
-
     bmir match {
 
       case BlockMatrixAgg(child, axesToSumOut) =>
         val loweredChild = lower(child)
         axesToSumOut match {
-          case IndexedSeq(0, 1) =>
-            val summedChild = loweredChild.mapBody { (ctx, body) =>
-              NDArrayReshape(
-                NDArrayAgg(body, IndexedSeq(0, 1)),
-                MakeTuple.ordered(FastSeq(I64(1), I64(1))),
-                ErrorIDs.NO_ERROR,
-              )
-            }
-            val summedChildType = BlockMatrixType(
-              child.typ.elementType,
-              IndexedSeq[Long](child.typ.nRowBlocks, child.typ.nColBlocks),
-              child.typ.nRowBlocks == 1,
-              1,
-              BlockMatrixSparsity.dense,
-            )
-            val res = NDArrayAgg(
-              summedChild.collectLocal(summedChildType, "block_matrix_agg"),
-              IndexedSeq[Int](0, 1),
-            )
-            new BlockMatrixStage(summedChild.broadcastVals, TStruct.empty) {
-              override def blockContext(idx: (Int, Int)): IR = makestruct()
-              override def blockBody(ctxRef: Ref): IR =
-                NDArrayReshape(res, MakeTuple.ordered(FastSeq(I64(1L), I64(1L))), ErrorIDs.NO_ERROR)
-            }
           case IndexedSeq(0) => // Number of rows goes to 1. Number of cols remains the same.
             new BlockMatrixStage(loweredChild.broadcastVals, TArray(loweredChild.ctxType)) {
               override def blockContext(idx: (Int, Int)): IR = {
@@ -1447,51 +1503,6 @@ object LowerBlockMatrixIR {
 
       case RelationalLetBlockMatrix(_, _, _) => unimplemented(ctx, bmir)
 
-      case ValueToBlockMatrix(child, _, _)
-          if !child.typ.isInstanceOf[TArray] && !child.typ.isInstanceOf[TNDArray] =>
-        val element = lowerIR(child)
-        new BlockMatrixStage(FastSeq(), TStruct()) {
-          override def blockContext(idx: (Int, Int)): IR = MakeStruct(FastSeq())
-
-          override def blockBody(ctxRef: Ref): IR = MakeNDArray(
-            MakeArray(element),
-            MakeTuple(FastSeq((0, I64(1)), (1, I64(1)))),
-            False(),
-            ErrorIDs.NO_ERROR,
-          )
-        }
-      case x @ ValueToBlockMatrix(child, _, blockSize) =>
-        val nd = ib.memoize(child.typ match {
-          case _: TArray => MakeNDArray(
-              lowerIR(child),
-              MakeTuple.ordered(FastSeq(I64(x.typ.nRows), I64(x.typ.nCols))),
-              True(),
-              ErrorIDs.NO_ERROR,
-            )
-          case _: TNDArray => lowerIR(child)
-        })
-        new BlockMatrixStage(FastSeq(), nd.typ) {
-          def blockContext(idx: (Int, Int)): IR = {
-            val (r, c) = idx
-            NDArraySlice(
-              nd,
-              MakeTuple.ordered(FastSeq(
-                MakeTuple.ordered(FastSeq(
-                  I64(r.toLong * blockSize),
-                  I64(java.lang.Math.min((r.toLong + 1) * blockSize, x.typ.nRows)),
-                  I64(1),
-                )),
-                MakeTuple.ordered(FastSeq(
-                  I64(c.toLong * blockSize),
-                  I64(java.lang.Math.min((c.toLong + 1) * blockSize, x.typ.nCols)),
-                  I64(1),
-                )),
-              )),
-            )
-          }
-
-          def blockBody(ctxRef: Ref): IR = ctxRef
-        }
       case BlockMatrixDot(leftIR, rightIR) =>
         val left = lower(leftIR)
         val right = lower(rightIR)
