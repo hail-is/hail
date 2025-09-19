@@ -79,6 +79,8 @@ object SparkBackend {
     StreamReadConstraints.builder().maxStringLength(Integer.MAX_VALUE).build()
   )
 
+  is.hail.linalg.registerImplOpMulMatrix_DMD_DVD_eq_DVD
+
   private var theSparkBackend: SparkBackend = _
 
   def sparkContext(implicit E: Enclosing): SparkContext =
