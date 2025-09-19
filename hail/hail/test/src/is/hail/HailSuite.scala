@@ -6,9 +6,7 @@ import is.hail.asm4s.HailClassLoader
 import is.hail.backend.{Backend, ExecuteContext, OwningTempFileManager}
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir._
-import is.hail.expr.ir.defs.{
-  BlockMatrixCollect, Cast, MakeTuple, NDArrayRef, Ref, StreamMap, ToArray,
-}
+import is.hail.expr.ir.defs._
 import is.hail.expr.ir.lowering.IrMetadata
 import is.hail.io.fs.{FS, HadoopFS}
 import is.hail.rvd.RVD
@@ -54,7 +52,7 @@ class HailSuite extends TestNGSuite with TestUtils {
 
   @BeforeSuite
   def setupHailContext(): Unit = {
-    HailContext.configureLogging("/tmp/hail.log", quiet = false, append = false)
+    Logging.configureLogging("/tmp/hail.log", quiet = false, append = false)
     RVD.CheckRvdKeyOrderingForTesting = true
     val backend = SparkBackend(
       sc = new SparkContext(
