@@ -7,6 +7,7 @@ import is.hail.backend.{Backend, ExecuteContext, OwningTempFileManager}
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir._
 import is.hail.expr.ir.defs._
+import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.lowering.IrMetadata
 import is.hail.io.fs.{FS, HadoopFS}
 import is.hail.rvd.RVD
@@ -33,8 +34,6 @@ object HailSuite {
 
   val flags: HailFeatureFlags =
     HailFeatureFlags.fromEnv(sys.env + ("lower" -> "1"))
-
-  private var hc_ : HailContext = _
 }
 
 class HailSuite extends TestNGSuite with TestUtils {
@@ -51,7 +50,7 @@ class HailSuite extends TestNGSuite with TestUtils {
   def getTestResource(localPath: String): String = s"hail/test/resources/$localPath"
 
   @BeforeSuite
-  def setupHailContext(): Unit = {
+  def setupBackend(): Unit = {
     Logging.configureLogging("/tmp/hail.log", quiet = false, append = false)
     RVD.CheckRvdKeyOrderingForTesting = true
     Backend.set(
@@ -68,7 +67,6 @@ class HailSuite extends TestNGSuite with TestUtils {
         skipLoggingConfiguration = true,
       )
     )
-    HailSuite.hc_ = HailContext.getOrCreate
   }
 
   @BeforeClass
@@ -110,9 +108,10 @@ class HailSuite extends TestNGSuite with TestUtils {
   }
 
   @AfterSuite
-  def tearDownHailContext(): Unit = {
-    HailSuite.hc_.stop()
-    HailSuite.hc_ = null
+  def tearDownBackend(): Unit = {
+    Backend.get.close()
+    Backend.set(null)
+    IRFunctionRegistry.clearUserFunctions()
   }
 
   def evaluate(

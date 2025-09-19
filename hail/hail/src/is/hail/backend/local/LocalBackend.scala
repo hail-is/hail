@@ -39,6 +39,8 @@ object LocalBackend extends Backend {
     StreamReadConstraints.builder().maxStringLength(Integer.MAX_VALUE).build()
   )
 
+  is.hail.linalg.registerImplOpMulMatrix_DMD_DVD_eq_DVD
+
   def apply(
     logFile: String = "hail.log",
     quiet: Boolean = false,
