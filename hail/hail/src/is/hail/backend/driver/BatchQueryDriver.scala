@@ -1,6 +1,6 @@
 package is.hail.backend.driver
 
-import is.hail.{HailContext, HailFeatureFlags}
+import is.hail.HailFeatureFlags
 import is.hail.annotations.Memory
 import is.hail.asm4s.HailClassLoader
 import is.hail.backend.{Backend, ExecuteContext, OwningTempFileManager}
@@ -194,9 +194,6 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
         jobConfig,
       )
 
-    HailContext.getOrCreate
-    log.info("HailContext initialized.")
-
     // FIXME: when can the classloader be shared? (optimizer benefits!)
     try runRpc(
         Env(
@@ -211,10 +208,7 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
           payload,
         )
       )
-    finally {
-      backend.close()
-      HailContext.stop()
-    }
+    finally backend.close()
   }
 }
 
