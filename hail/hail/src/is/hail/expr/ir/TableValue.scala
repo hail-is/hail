@@ -1,6 +1,5 @@
 package is.hail.expr.ir
 
-import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
@@ -367,8 +366,8 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
     )
   }
 
-  def toDF(): DataFrame =
-    HailContext.sparkBackend.sparkSession.createDataFrame(
+  def toDF(ctx: ExecuteContext): DataFrame =
+    ctx.backend.asSpark.sparkSession.createDataFrame(
       rvd.toRows,
       typ.rowType.schema.asInstanceOf[StructType],
     )
@@ -1195,7 +1194,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
     }
 
     if (ctx.getFlag("distributed_scan_comb_op") != null && extracted.sigs.shouldTreeAggregate) {
-      val fsBc = ctx.fs.broadcast
+      val fsBc = ctx.fsBc
       val tmpBase = ctx.createTmpPath("table-map-rows-distributed-scan")
       val d = digitsNeeded(rvd.getNumPartitions)
       val files = rvd.mapPartitionsWithIndex { (i, ctx, it) =>

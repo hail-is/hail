@@ -1,6 +1,5 @@
 package is.hail.methods
 
-import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{IntArrayBuilder, MatrixValue, TableValue}
@@ -67,7 +66,7 @@ case class LinearRegressionRowsSingle(
 
     val Qty = Qt * y
 
-    val backend = HailContext.backend
+    val backend = ctx.backend
     val completeColIdxBc = backend.broadcast(completeColIdx)
     val yBc = backend.broadcast(y)
     val QtBc = backend.broadcast(Qt)
@@ -251,7 +250,7 @@ case class LinearRegressionRowsChained(
       ChainedLinregInput(n, y, completeColIdx, Qt, Qty, yyp, d)
     }
 
-    val bc = HailContext.backend.broadcast(bcData)
+    val bc = ctx.backend.broadcast(bcData)
     val nGroups = bcData.length
 
     val fullRowType = mv.rvd.rowPType

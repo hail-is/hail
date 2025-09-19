@@ -43,7 +43,7 @@ class RowMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     val rowMatrix = rowArrayToRowMatrix(rowArrays)
     val localMatrix = rowArrayToLocalMatrix(rowArrays)
 
-    BlockMatrix.fromBreezeMatrix(localMatrix).write(ctx, fname)
+    BlockMatrix.fromBreezeMatrix(ctx, localMatrix).write(ctx, fname)
 
     assert(rowMatrix.toBreezeMatrix() === localMatrix)
   }
@@ -57,9 +57,9 @@ class RowMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       Array(4.0, 5.0, 6.0),
     )
 
-    BlockMatrix.fromBreezeMatrix(localMatrix).write(ctx, fname, forceRowMajor = true)
+    BlockMatrix.fromBreezeMatrix(ctx, localMatrix).write(ctx, fname, forceRowMajor = true)
 
-    val rowMatrixFromBlock = RowMatrix.readBlockMatrix(fs, fname, 1)
+    val rowMatrixFromBlock = RowMatrix.readBlockMatrix(ctx, fname, 1)
 
     assert(rowMatrixFromBlock.toBreezeMatrix() == localMatrix)
   }
@@ -74,13 +74,13 @@ class RowMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
           Seq(1, 2, 4, 9, 11),
         )
       } { case (blockSize, partSize) =>
-        BlockMatrix.fromBreezeMatrix(lm, blockSize).write(
+        BlockMatrix.fromBreezeMatrix(ctx, lm, blockSize).write(
           ctx,
           fname,
           overwrite = true,
           forceRowMajor = true,
         )
-        val rowMatrix = RowMatrix.readBlockMatrix(fs, fname, partSize)
+        val rowMatrix = RowMatrix.readBlockMatrix(ctx, fname, partSize)
         assert(rowMatrix.toBreezeMatrix() === lm)
       }
     }

@@ -172,7 +172,7 @@ case class PCRelate(
   private def writeRead(ctx: ExecuteContext, m: M): M = {
     val file = ctx.createTmpPath("pcrelate-write-read", "bm")
     m.write(ctx, file)
-    BlockMatrix.read(ctx.fs, file)
+    BlockMatrix.read(ctx, file)
   }
 
   private def gram(ctx: ExecuteContext, m: M): M = {
@@ -229,9 +229,9 @@ case class PCRelate(
 
     val qr.QR(q, r) = qr.reduced(pcsWithIntercept)
 
-    val halfBeta = writeRead(ctx, (inv(2.0 * r) * q.t).matrixMultiply(blockedG.T))
+    val halfBeta = writeRead(ctx, (inv(2.0 * r) * q.t).matrixMultiply(ctx, blockedG.T))
 
-    writeRead(ctx, pcsWithIntercept.matrixMultiply(halfBeta).T)
+    writeRead(ctx, pcsWithIntercept.matrixMultiply(ctx, halfBeta).T)
   }
 
   private[methods] def phi(ctx: ExecuteContext, mu: M, variance: M, g: M): M = {

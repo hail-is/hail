@@ -1968,7 +1968,7 @@ class MatrixVCFReader(
 
   val columnCount: Option[Int] = Some(nCols)
 
-  val partitionCounts: Option[IndexedSeq[Long]] = None
+  def partitionCounts: Option[IndexedSeq[Long]] = None
 
   def partitioner(sm: HailStateManager): Option[RVDPartitioner] =
     params.partitionsJSON.map { partitionsJSON =>

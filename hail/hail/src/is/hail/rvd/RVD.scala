@@ -1,6 +1,5 @@
 package is.hail.rvd
 
-import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s.{theHailClassLoaderForSparkWorkers, HailClassLoader}
 import is.hail.backend.{ExecuteContext, HailStateManager, HailTaskContext}
@@ -1379,7 +1378,6 @@ object RVD {
     val sc = SparkBackend.sparkContext
     val localTmpdir = execCtx.localTmpdir
     val fs = execCtx.fs
-    val fsBc = fs.broadcast
 
     val nRVDs = rvds.length
     val partitioner = first.partitioner
@@ -1411,6 +1409,7 @@ object RVD {
       fs.mkDir(path + "/index")
     }
 
+    val fsBc = execCtx.fsBc
     val partF = {
       (originIdx: Int, originPartIdx: Int, it: Iterator[RVDContext => Iterator[Long]]) =>
         Iterator.single { ctx: RVDContext =>
