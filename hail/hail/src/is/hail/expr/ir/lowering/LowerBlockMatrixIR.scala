@@ -1222,6 +1222,28 @@ object LowerBlockMatrixIR {
 
         BlockMatrixStage2(FastSeq(), x.typ, contexts, bodyIR)
 
+      case BlockMatrixAgg(child, IndexedSeq(0, 1) /* axesToSumOut */ ) =>
+        val summedChild = lower(child).mapBody { body =>
+          NDArrayReshape(
+            NDArrayAgg(body, IndexedSeq(0, 1)),
+            MakeTuple.ordered(FastSeq(I64(1), I64(1))),
+            ErrorIDs.NO_ERROR,
+          )
+        }
+        val blockResults =
+          summedChild.collectBlocks(ib, "block_matrix_agg_axes_0_1")((_, _, block) => block)
+        val ndArrayResults = NDArrayConcat(blockResults, 0)
+        val aggResult = NDArrayAgg(ndArrayResults, IndexedSeq(0, 1))
+        val newBlockIR =
+          NDArrayReshape(aggResult, MakeTuple.ordered(FastSeq(I64(1), I64(1))), ErrorIDs.NO_ERROR)
+        val contextsIR = MakeArray(newBlockIR)
+
+        BlockMatrixStage2(
+          FastSeq(),
+          bmir.typ,
+          BMSContexts(bmir.typ, contextsIR, ib),
+          (ctxRef) => ctxRef,
+        )
       case BlockMatrixMap(child, eltName, f, _) =>
         lower(child).mapBody(body => NDArrayMap(body, eltName, f))
 
@@ -1353,30 +1375,6 @@ object LowerBlockMatrixIR {
       case BlockMatrixAgg(child, axesToSumOut) =>
         val loweredChild = lower(child)
         axesToSumOut match {
-          case IndexedSeq(0, 1) =>
-            val summedChild = loweredChild.mapBody { (ctx, body) =>
-              NDArrayReshape(
-                NDArrayAgg(body, IndexedSeq(0, 1)),
-                MakeTuple.ordered(FastSeq(I64(1), I64(1))),
-                ErrorIDs.NO_ERROR,
-              )
-            }
-            val summedChildType = BlockMatrixType(
-              child.typ.elementType,
-              IndexedSeq(child.typ.nRowBlocks.toLong, child.typ.nColBlocks.toLong),
-              child.typ.nRowBlocks == 1,
-              1,
-              BlockMatrixSparsity.dense,
-            )
-            val res = NDArrayAgg(
-              summedChild.collectLocal(summedChildType, "block_matrix_agg"),
-              IndexedSeq[Int](0, 1),
-            )
-            new BlockMatrixStage(summedChild.broadcastVals, TStruct.empty) {
-              override def blockContext(idx: (Int, Int)): IR = makestruct()
-              override def blockBody(ctxRef: Ref): IR =
-                NDArrayReshape(res, MakeTuple.ordered(FastSeq(I64(1L), I64(1L))), ErrorIDs.NO_ERROR)
-            }
           case IndexedSeq(0) => // Number of rows goes to 1. Number of cols remains the same.
             new BlockMatrixStage(loweredChild.broadcastVals, TArray(loweredChild.ctxType)) {
               override def blockContext(idx: (Int, Int)): IR = {
