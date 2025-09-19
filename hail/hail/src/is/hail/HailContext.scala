@@ -37,20 +37,6 @@ object HailContext {
     require(theContext == null)
     checkJavaVersion()
 
-    {
-      import breeze.linalg._
-      import breeze.linalg.operators.{BinaryRegistry, OpMulMatrix}
-
-      implicitly[BinaryRegistry[
-        DenseMatrix[Double],
-        Vector[Double],
-        OpMulMatrix.type,
-        DenseVector[Double],
-      ]].register(
-        DenseMatrix.implOpMulMatrix_DMD_DVD_eq_DVD
-      )
-    }
-
     theContext = new HailContext
 
     info(s"Running Hail version $HAIL_PRETTY_VERSION")

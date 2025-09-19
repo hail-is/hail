@@ -17,6 +17,8 @@ object Main {
     StreamReadConstraints.builder().maxStringLength(Integer.MAX_VALUE).build()
   )
 
+  is.hail.linalg.registerImplOpMulMatrix_DMD_DVD_eq_DVD
+
   def main(argv: Array[String]): Unit =
     argv(3) match {
       case WORKER => Worker.main(argv)
