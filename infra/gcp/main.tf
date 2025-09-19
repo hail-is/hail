@@ -95,6 +95,10 @@ provider "google-beta" {
 
 data "google_client_config" "provider" {}
 
+data "google_project" "current" {
+  project_id = var.gcp_project
+}
+
 resource "google_project_service" "service_networking" {
   service = "servicenetworking.googleapis.com"
 }
@@ -103,6 +107,25 @@ resource "google_compute_project_metadata" "oslogin" {
   metadata = {
     enable-oslogin = "TRUE"
     block-project-ssh-keys = "TRUE"
+  }
+}
+
+# KMS Key Ring for Kubernetes secrets encryption
+resource "google_kms_key_ring" "k8s_secrets" {
+  name     = "k8s-secrets"
+  location = var.gcp_region
+}
+
+# KMS Key for Kubernetes secrets encryption with 90-day rotation
+resource "google_kms_crypto_key" "k8s_secrets_key" {
+  name     = "k8s-secrets-key"
+  key_ring = google_kms_key_ring.k8s_secrets.id
+  purpose  = "ENCRYPT_DECRYPT"
+
+  rotation_period = "7776000s" # 90 days in seconds
+
+  lifecycle {
+    prevent_destroy = true
   }
 }
 
@@ -167,6 +190,12 @@ resource "google_container_cluster" "vdc" {
   network_policy {
     enabled = true
     provider = "CALICO"
+  }
+
+  # Enable secrets encryption using CloudKMS
+  database_encryption {
+    state    = "ENCRYPTED"
+    key_name = google_kms_crypto_key.k8s_secrets_key.id
   }
 }
 
@@ -772,6 +801,16 @@ resource "google_project_iam_member" "gke_node_pool_iam_member" {
   project = var.gcp_project
   role = "roles/${each.key}"
   member = "serviceAccount:${google_service_account.gke_node_pool.email}"
+}
+
+# Grant CloudKMS permissions to GKE service account for secrets encryption
+resource "google_kms_crypto_key_iam_binding" "gke_service_account_kms_encrypter_decrypter" {
+  crypto_key_id = google_kms_crypto_key.k8s_secrets_key.id
+  role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
+
+  members = [
+    "serviceAccount:service-${data.google_project.current.number}@container-engine-robot.iam.gserviceaccount.com",
+  ]
 }
 
 resource "google_compute_firewall" "default_allow_internal" {
