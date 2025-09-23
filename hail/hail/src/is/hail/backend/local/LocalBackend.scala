@@ -49,6 +49,7 @@ object LocalBackend extends Backend {
   ): LocalBackend.type =
     synchronized {
       if (!skipLoggingConfiguration) Logging.configureLogging(logFile, quiet, append)
+      Logging.preamble()
       this
     }
 

@@ -8,6 +8,7 @@ from avro.io import DatumReader
 
 import hail as hl
 from hail import ir
+from hail.backend.py4j_backend import Py4JBackend
 from hail.expr import (
     LocusExpression,
     StructExpression,
@@ -1062,24 +1063,21 @@ def grep(regex, path, max_count=100, *, show: bool = True, force: bool = False, 
     ---
     :obj:`dict` of :class:`str` to :obj:`list` of :obj:`str`
     """
-    from hail.backend.spark_backend import SparkBackend
-
-    if isinstance(hl.current_backend(), SparkBackend):
-        jfs = Env.spark_backend('grep').fs._jfs
-        if show:
-            Env.backend()._jhc.grepPrint(jfs, regex, jindexed_seq_args(path), max_count)
-            return
-        else:
-            jarr = Env.backend()._jhc.grepReturn(jfs, regex, jindexed_seq_args(path), max_count)
-            return {x._1(): list(x._2()) for x in jarr}
+    backend = hl.current_backend()
+    if isinstance(backend, Py4JBackend):
+        jb = backend._jbackend
+        return (
+            jb.pyGrepPrint(regex, jindexed_seq_args(path), max_count)
+            if show
+            else {x._1(): list(x._2()) for x in jb.pyGrepReturn(regex, jindexed_seq_args(path), max_count)}
+        )
 
     ht = hl.import_lines(path, force=force, force_bgz=force_bgz)
     ht = ht.filter(ht.text.matches(regex))
     ht = ht.head(max_count)
     lines = ht.collect()
     if show:
-        print('\n'.join(line.file + ': ' + line.text for line in lines))
-        return
+        return print('\n'.join(line.file + ': ' + line.text for line in lines))
 
     results = defaultdict(list)
     for line in lines:
