@@ -117,7 +117,6 @@ class SparkBackend(Py4JBackend):
                 skip_logging_configuration,
                 min_block_size,
             )
-            jhc = hail_package.HailContext.getOrCreate()
         else:
             jbackend = hail_package.backend.spark.SparkBackend.apply(
                 jsc,
@@ -130,17 +129,13 @@ class SparkBackend(Py4JBackend):
                 skip_logging_configuration,
                 min_block_size,
             )
-            jhc = hail_package.HailContext.apply()
 
         self._jsc = jbackend.sc()
-        if sc:
-            self.sc = sc
-        else:
-            self.sc = pyspark.SparkContext(gateway=self._gateway, jsc=jvm.JavaSparkContext(self._jsc))
+        self.sc = sc if sc else pyspark.SparkContext(gateway=self._gateway, jsc=jvm.JavaSparkContext(self._jsc))
         self._jspark_session = jbackend.sparkSession().apply()
         self._spark_session = pyspark.sql.SparkSession(self.sc, self._jspark_session)
 
-        super().__init__(jvm, jbackend, jhc, local_tmpdir, tmpdir)
+        super().__init__(jvm, jbackend, local_tmpdir, tmpdir)
         self.gcs_requester_pays_configuration = gcs_requester_pays_config
 
         self._logger = None

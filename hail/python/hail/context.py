@@ -814,10 +814,6 @@ def current_backend() -> Backend:
     return Env.hc()._backend
 
 
-async def _async_current_backend() -> Backend:
-    return (await Env._async_hc())._backend
-
-
 @typecheck(new_default_reference=nullable(reference_genome_type))
 def default_reference(new_default_reference=None) -> Optional[ReferenceGenome]:
     """With no argument, returns the default reference genome (``'GRCh37'`` by default).

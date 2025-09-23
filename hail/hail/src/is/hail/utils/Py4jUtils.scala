@@ -132,7 +132,7 @@ trait Py4jUtils {
   }
 
   def addSocketAppender(hostname: String, port: Int): Unit =
-    StringSocketAppender.get().connect(hostname, port, Logging.LogFormat)
+    StringSocketAppender.get().connect(hostname, port, LogFormat)
 
   def logWarn(msg: String): Unit =
     warn(msg)

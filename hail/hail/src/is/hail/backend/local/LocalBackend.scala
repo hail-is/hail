@@ -48,7 +48,8 @@ object LocalBackend extends Backend {
     skipLoggingConfiguration: Boolean = false,
   ): LocalBackend.type =
     synchronized {
-      if (!skipLoggingConfiguration) Logging.configureLogging(logFile, quiet, append)
+      if (!skipLoggingConfiguration) configureLogging(logFile, quiet, append)
+      logHailVersion()
       this
     }
 
