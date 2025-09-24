@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.backend.{BackendContext, ExecuteContext, HailTaskContext}
+import is.hail.backend.{DriverRuntimeContext, ExecuteContext, HailTaskContext}
 import is.hail.expr.ir.agg.{AggStateSig, ArrayAggStateSig, GroupedStateSig}
 import is.hail.expr.ir.analyses.{
   ComputeMethodSplits, ControlFlowPreventsSplit, ParentPointers, SemanticHash,
@@ -3312,83 +3312,80 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
           val stageName = cb.newLocal[String]("stagename")
           cb.assign(stageName, staticID)
 
-          val semhash = cb.newLocal[Option[SemanticHash.Type]](
-            "semhash",
-            Code.invokeScalaObject[Option[SemanticHash.Type]](
-              Option.getClass,
-              "empty",
-              Array(),
-              Array(),
-            ),
-          )
+          val rtx =
+            mb.getObject(ctx.executeContext.backend.runtimeContext(ctx.executeContext))
+
+          val encRes =
+            cb.newLocal[Array[Array[Byte]]]("encRes")
+
+          val dynV =
+            cb.newLocal[String]("dynamicId", "")
 
           emitI(dynamicID).consume(
             cb,
-            ctx.executeContext.irMetadata.nextHash.foreach { hash =>
-              cb.assign(
-                semhash,
-                Code.invokeScalaObject[Option[SemanticHash.Type]](
-                  SemanticHash.CodeGenSupport.getClass,
-                  "lift",
-                  Array(classOf[SemanticHash.Type]),
-                  Array(hash),
-                ),
-              )
-            },
-            { dynamicID =>
-              val dynV = dynamicID.asString.loadString(cb)
+            ifMissing = {},
+            ifPresent = { dynamicID =>
+              cb.assign(dynV, dynamicID.asString.loadString(cb))
               cb.assign(stageName, stageName.concat("|").concat(dynV))
-              ctx.executeContext.irMetadata.nextHash.foreach { staticHash =>
-                val dynamicHash =
-                  dynV.invoke[Array[Byte]]("getBytes")
-
-                val combined =
-                  Code.invokeScalaObject[SemanticHash.Type](
-                    SemanticHash.getClass,
-                    "extend",
-                    Array(classOf[SemanticHash.Type], classOf[Array[Byte]]),
-                    Array(staticHash, dynamicHash),
-                  )
-
-                cb.assign(
-                  semhash,
-                  Code.invokeScalaObject[Option[SemanticHash.Type]](
-                    SemanticHash.CodeGenSupport.getClass,
-                    "lift",
-                    Array(classOf[SemanticHash.Type]),
-                    Array(combined),
-                  ),
-                )
-              }
             },
           )
 
-          val encRes = cb.newLocal[Array[Array[Byte]]]("encRes")
           cb.assign(
             encRes,
-            backend.invoke[
-              BackendContext,
-              HailClassLoader,
-              FS,
-              String,
-              Array[Array[Byte]],
-              Array[Byte],
-              String,
-              Option[SemanticHash.Type],
-              Option[TableStageDependency],
-              Array[Array[Byte]],
-            ](
-              "collectDArray",
-              mb.getObject(ctx.executeContext.backend.backendContext(ctx.executeContext)),
-              mb.getHailClassLoader,
-              mb.getFS,
-              functionID,
-              ctxab.invoke[Array[Array[Byte]]]("result"),
-              baos.invoke[Array[Byte]]("toByteArray"),
-              stageName,
-              semhash,
-              mb.getObject(tsd),
-            ),
+            ctx.executeContext.irMetadata.nextHash match {
+              case Some(semhash) =>
+                val dynamicHash =
+                  dynV.invoke[Array[Byte]]("getBytes")
+
+                val combinedHash =
+                  cb.memoize(
+                    Code.invokeScalaObject[SemanticHash.Type](
+                      SemanticHash.getClass,
+                      "extend",
+                      Array(classOf[SemanticHash.Type], classOf[Array[Byte]]),
+                      Array(semhash, dynamicHash),
+                    )
+                  )
+
+                backend.invoke[
+                  DriverRuntimeContext,
+                  String,
+                  Array[Array[Byte]],
+                  Array[Byte],
+                  String,
+                  SemanticHash.Type,
+                  Option[TableStageDependency],
+                  Array[Array[Byte]],
+                ](
+                  "ccCollectDArray",
+                  rtx,
+                  functionID,
+                  ctxab.invoke[Array[Array[Byte]]]("result"),
+                  baos.invoke[Array[Byte]]("toByteArray"),
+                  stageName,
+                  combinedHash,
+                  mb.getObject(tsd),
+                )
+
+              case None =>
+                backend.invoke[
+                  DriverRuntimeContext,
+                  String,
+                  Array[Array[Byte]],
+                  Array[Byte],
+                  String,
+                  Option[TableStageDependency],
+                  Array[Array[Byte]],
+                ](
+                  "collectDArray",
+                  rtx,
+                  functionID,
+                  ctxab.invoke[Array[Array[Byte]]]("result"),
+                  baos.invoke[Array[Byte]]("toByteArray"),
+                  stageName,
+                  mb.getObject(tsd),
+                )
+            },
           )
 
           val len = cb.memoize(encRes.length())

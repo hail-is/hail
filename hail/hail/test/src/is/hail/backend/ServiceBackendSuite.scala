@@ -4,7 +4,7 @@ import is.hail.HailSuite
 import is.hail.backend.service.{BatchJobConfig, ServiceBackend, Worker}
 import is.hail.services._
 import is.hail.services.JobGroupStates.{Cancelled, Failure, Success}
-import is.hail.utils.{handleForPython, tokenUrlSafe, using, HailWorkerException}
+import is.hail.utils.{handleForPython, tokenUrlSafe, using, FastSeq, HailWorkerException}
 
 import scala.concurrent.CancellationException
 import scala.reflect.io.{Directory, Path}
@@ -21,9 +21,26 @@ import org.testng.annotations.Test
 
 class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionValues {
 
+  @Test def testExecutesSinglePartitionLocally(): Unit =
+    runMock { (ctx, _, batchClient, backend) =>
+      val contexts = Array.tabulate(10)(_.toString.getBytes)
+
+      val (failure, _) =
+        backend.runtimeContext(ctx).mapCollectPartitions(
+          Array.emptyByteArray,
+          contexts,
+          "stage1",
+          partitions = Some(FastSeq(0)),
+        )((_, bytes, _, _, _) => bytes)
+
+      failure.foreach(throw _)
+
+      batchClient.newJobGroup(any[JobGroupRequest]) wasNever called
+    }
+
   @Test def testCreateJobPayload(): Unit =
     runMock { (ctx, jobConfig, batchClient, backend) =>
-      val contexts = Array.tabulate(1)(_.toString.getBytes)
+      val contexts = Array.tabulate(2)(_.toString.getBytes)
 
       // verify that
       // - the number of jobs matches the number of partitions, and
@@ -56,7 +73,7 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
           id shouldEqual backend.batchConfig.batchId
           jobGroupId shouldEqual backend.batchConfig.jobGroupId + 1
 
-          val resultsDir = Path(ctx.tmpdir) / "parallelizeAndComputeWithIndex" / tokenUrlSafe
+          val resultsDir = Path(ctx.tmpdir) / "mapCollectPartitions" / tokenUrlSafe
           resultsDir.createDirectory(): Unit
 
           for (i <- contexts.indices) (resultsDir / f"result.$i").toFile.writeAll("11")
@@ -74,12 +91,11 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
       }
 
       val (failure, _) =
-        backend.parallelizeAndComputeWithIndex(
-          backend.backendContext(ctx),
-          ctx.fs,
+        backend.runtimeContext(ctx).mapCollectPartitions(
+          Array.emptyByteArray,
           contexts,
           "stage1",
-        )((bytes, _, _, _) => bytes)
+        )((_, bytes, _, _, _) => bytes)
 
       failure.foreach(throw _)
 
@@ -99,7 +115,7 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
       val expectedCause = new NoSuchMethodError("")
       when(batchClient.waitForJobGroup(any[Int], any[Int])) thenAnswer {
         (id: Int, jobGroupId: Int) =>
-          val resultsDir = Path(ctx.tmpdir) / "parallelizeAndComputeWithIndex" / tokenUrlSafe
+          val resultsDir = Path(ctx.tmpdir) / "mapCollectPartitions" / tokenUrlSafe
           resultsDir.createDirectory(): Unit
 
           for (i <- successes)
@@ -138,12 +154,11 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
       }
 
       val (failure, result) =
-        backend.parallelizeAndComputeWithIndex(
-          backend.backendContext(ctx),
-          ctx.fs,
+        backend.runtimeContext(ctx).mapCollectPartitions(
+          Array.emptyByteArray,
           contexts,
           "stage1",
-        )((bytes, _, _, _) => bytes)
+        )((_, bytes, _, _, _) => bytes)
 
       val (shortMessage, expanded, id) = handleForPython(expectedCause)
       failure.value shouldBe HailWorkerException(failures.head, shortMessage, expanded, id)
@@ -161,7 +176,7 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
       val successes = Array(13, 34, 65, 81) // arbitrary indices
       when(batchClient.waitForJobGroup(any[Int], any[Int])) thenAnswer {
         (id: Int, jobGroupId: Int) =>
-          val resultsDir = Path(ctx.tmpdir) / "parallelizeAndComputeWithIndex" / tokenUrlSafe
+          val resultsDir = Path(ctx.tmpdir) / "mapCollectPartitions" / tokenUrlSafe
           resultsDir.createDirectory(): Unit
 
           for (i <- successes)
@@ -191,12 +206,11 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
       }
 
       val (failure, result) =
-        backend.parallelizeAndComputeWithIndex(
-          backend.backendContext(ctx),
-          ctx.fs,
+        backend.runtimeContext(ctx).mapCollectPartitions(
+          Array.emptyByteArray,
           contexts,
           "stage1",
-        )((bytes, _, _, _) => bytes)
+        )((_, bytes, _, _, _) => bytes)
 
       failure.value shouldBe a[CancellationException]
       result.map(_._2) shouldBe successes
