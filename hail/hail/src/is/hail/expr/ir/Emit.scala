@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.backend.{BackendContext, ExecuteContext, HailTaskContext}
+import is.hail.backend.{DriverContext, ExecuteContext, HailTaskContext}
 import is.hail.expr.ir.agg.{AggStateSig, ArrayAggStateSig, GroupedStateSig}
 import is.hail.expr.ir.analyses.{
   ComputeMethodSplits, ControlFlowPreventsSplit, ParentPointers, SemanticHash,
@@ -3365,9 +3365,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
           cb.assign(
             encRes,
             backend.invoke[
-              BackendContext,
-              HailClassLoader,
-              FS,
+              DriverContext,
               String,
               Array[Array[Byte]],
               Array[Byte],
@@ -3377,9 +3375,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
               Array[Array[Byte]],
             ](
               "collectDArray",
-              mb.getObject(ctx.executeContext.backend.backendContext(ctx.executeContext)),
-              mb.getHailClassLoader,
-              mb.getFS,
+              mb.getObject(ctx.executeContext.backend.driverContext(ctx.executeContext)),
               functionID,
               ctxab.invoke[Array[Array[Byte]]]("result"),
               baos.invoke[Array[Byte]]("toByteArray"),
