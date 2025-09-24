@@ -2,6 +2,7 @@ package is.hail.backend.service
 
 import is.hail.{HAIL_REVISION, HailFeatureFlags}
 import is.hail.asm4s._
+import is.hail.backend.Backend.PartitionFn
 import is.hail.backend.HailTaskContext
 import is.hail.io.fs._
 import is.hail.services._
@@ -146,12 +147,16 @@ object Worker {
     def write(x: String)(writer: PositionedDataOutputStream => Unit): Unit =
       fs.writePDOS(x)(writer)
 
+    val gFuture = Future {
+      retryTransientErrors {
+        using(open(s"$root/globals"))(_.readAllBytes())
+      }
+    }
+
     val fFuture = Future {
       retryTransientErrors {
-        using(new ExplicitClassLoaderInputStream(open(s"$root/f"), theHailClassLoader)) { is =>
-          is.readObject().asInstanceOf[(Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[
-            Byte
-          ]]
+        using(new ExplicitClassLoaderInputStream(open(s"$root/f"), theHailClassLoader)) {
+          _.readObject().asInstanceOf[PartitionFn]
         }
       }
     }
@@ -170,6 +175,7 @@ object Worker {
       }
     }
 
+    val globals = Await.result(gFuture, Duration.Inf)
     val f = Await.result(fFuture, Duration.Inf)
     val context = Await.result(contextFuture, Duration.Inf)
 
@@ -180,7 +186,7 @@ object Worker {
       try
         using(new ServiceTaskContext(i)) { htc =>
           retryTransientErrors {
-            Right(f(context, htc, theHailClassLoader, fs))
+            Right(f(globals, context, htc, theHailClassLoader, fs))
           }
         }
       catch {

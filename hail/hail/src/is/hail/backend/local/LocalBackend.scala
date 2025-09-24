@@ -1,23 +1,22 @@
 package is.hail.backend.local
 
-import is.hail.CancellingExecutorService
-import is.hail.asm4s._
 import is.hail.backend._
+import is.hail.backend.Backend.PartitionFn
 import is.hail.expr.Validate
 import is.hail.expr.ir._
 import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.lowering._
-import is.hail.io.fs._
 import is.hail.types._
 import is.hail.types.physical.PTuple
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.reflect.ClassTag
+import scala.util.control.NonFatal
 
 import java.io.PrintWriter
 
 import com.fasterxml.jackson.core.StreamReadConstraints
-import com.google.common.util.concurrent.MoreExecutors
 
 class LocalBroadcastValue[T](val value: T) extends BroadcastValue[T] with Serializable
 
@@ -53,9 +52,6 @@ object LocalBackend extends Backend {
       this
     }
 
-  private case class Context(hcl: HailClassLoader, override val executionCache: ExecutionCache)
-      extends BackendContext
-
   def broadcast[T: ClassTag](value: T): BroadcastValue[T] = new LocalBroadcastValue[T](value)
 
   private[this] var stageIdx: Int = 0
@@ -67,31 +63,53 @@ object LocalBackend extends Backend {
       current
     }
 
-  override def parallelizeAndComputeWithIndex(
-    ctx: BackendContext,
-    fs: FS,
-    contexts: IndexedSeq[Array[Byte]],
-    stageIdentifier: String,
-    dependency: Option[TableStageDependency],
-    partitions: Option[IndexedSeq[Int]],
-  )(
-    f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
-  ): (Option[Throwable], IndexedSeq[(Array[Byte], Int)]) = {
+  override def runtimeContext(ctx: ExecuteContext): DriverRuntimeContext = {
+    new DriverRuntimeContext {
 
-    val stageId = nextStageId()
-    val hcl = ctx.asInstanceOf[Context].hcl
-    runAllKeepFirstError(new CancellingExecutorService(MoreExecutors.newDirectExecutorService())) {
-      partitions.getOrElse(contexts.indices).map { i =>
-        (
-          () => using(new LocalTaskContext(i, stageId))(f(contexts(i), _, hcl, fs)),
-          i,
-        )
+      override val executionCache: ExecutionCache =
+        ExecutionCache.fromFlags(ctx.flags, ctx.fs, ctx.localTmpdir)
+
+      override def mapCollectPartitions(
+        globals: Array[Byte],
+        contexts: IndexedSeq[Array[Byte]],
+        stageIdentifier: String,
+        dependency: Option[TableStageDependency],
+        partitions: Option[IndexedSeq[Int]],
+      )(
+        f: PartitionFn
+      ): (Option[Throwable], IndexedSeq[(Array[Byte], Int)]) = {
+
+        val todo: IndexedSeq[Int] =
+          partitions.getOrElse(contexts.indices)
+
+        val results = ArraySeq.newBuilder[(Array[Byte], Int)]
+        results.sizeHint(todo.length)
+
+        var failure: Option[Throwable] =
+          None
+
+        val stageId = nextStageId()
+
+        try
+          for (idx <- todo) {
+            using(new LocalTaskContext(idx, stageId)) { tx =>
+              results += {
+                (
+                  f(globals, contexts(idx), tx, ctx.theHailClassLoader, ctx.fs),
+                  idx,
+                )
+              }
+            }
+          }
+        catch {
+          case NonFatal(t) =>
+            failure = Some(t)
+        }
+
+        (failure, results.result())
       }
     }
   }
-
-  override def backendContext(ctx: ExecuteContext): BackendContext =
-    Context(ctx.theHailClassLoader, ExecutionCache.fromFlags(ctx.flags, ctx.fs, ctx.tmpdir))
 
   def defaultParallelism: Int = 1
 
@@ -116,7 +134,9 @@ object LocalBackend extends Backend {
       Validate(ir)
       val queryID = Backend.nextID()
       log.info(s"starting execution of query $queryID of initial size ${IRSize(ir)}")
-      ctx.irMetadata.semhash = SemanticHash(ctx, ir)
+      if (ctx.flags.isDefined(ExecutionCache.Flags.UseFastRestarts))
+        ctx.irMetadata.semhash = SemanticHash(ctx, ir)
+
       val res = _jvmLowerAndExecute(ctx, ir)
       log.info(s"finished execution of query $queryID")
       res

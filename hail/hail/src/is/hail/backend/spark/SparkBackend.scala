@@ -3,6 +3,7 @@ package is.hail.backend.spark
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend._
+import is.hail.backend.Backend.PartitionFn
 import is.hail.expr.Validate
 import is.hail.expr.ir._
 import is.hail.expr.ir.analyses.SemanticHash
@@ -13,10 +14,10 @@ import is.hail.rvd.RVD
 import is.hail.types._
 import is.hail.types.physical.{PStruct, PTuple}
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.collection.mutable
-import scala.collection.mutable.ArrayBuffer
-import scala.concurrent.ExecutionException
+import scala.concurrent.{CancellationException, ExecutionException}
 import scala.reflect.ClassTag
 import scala.util.control.NonFatal
 
@@ -281,81 +282,94 @@ class SparkBackend(val sc: SparkContext) extends Backend {
 
   logHailVersion()
 
-  private case class Context(
-    maxStageParallelism: Int,
-    override val executionCache: ExecutionCache,
-  ) extends BackendContext
-
   val sparkSession: Lazy[SparkSession] =
     lazily {
       SparkSession.builder().config(sc.getConf).getOrCreate()
     }
 
-  override def canExecuteParallelTasksOnDriver: Boolean = false
-
   def broadcast[T: ClassTag](value: T): BroadcastValue[T] =
     new SparkBroadcastValue[T](sc.broadcast(value))
 
-  override def backendContext(ctx: ExecuteContext): BackendContext =
-    Context(
-      ctx.flags.get(SparkBackend.Flags.MaxStageParallelism).toInt,
-      ExecutionCache.fromFlags(ctx.flags, ctx.fs, ctx.tmpdir),
-    )
+  override def runtimeContext(ctx: ExecuteContext): DriverRuntimeContext =
+    new DriverRuntimeContext {
 
-  override def parallelizeAndComputeWithIndex(
-    ctx: BackendContext,
-    fs: FS,
-    contexts: IndexedSeq[Array[Byte]],
-    stageIdentifier: String,
-    dependency: Option[TableStageDependency],
-    partitions: Option[IndexedSeq[Int]],
-  )(
-    f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
-  ): (Option[Throwable], IndexedSeq[(Array[Byte], Int)]) = {
-    val sparkDeps =
-      for {
-        rvdDep <- dependency.toIndexedSeq
-        dep <- rvdDep.deps
-      } yield new AnonymousDependency(dep.asInstanceOf[RVDDependency].rvd.crdd.rdd)
+      override val executionCache: ExecutionCache =
+        ExecutionCache.fromFlags(ctx.flags, ctx.fs, ctx.tmpdir)
 
-    val rdd =
-      new RDD[Array[Byte]](sc, sparkDeps) {
+      override def mapCollectPartitions(
+        globals: Array[Byte],
+        contexts: IndexedSeq[Array[Byte]],
+        stageIdentifier: String,
+        dependency: Option[TableStageDependency],
+        partitions: Option[IndexedSeq[Int]],
+      )(
+        f: PartitionFn
+      ): (Option[Throwable], IndexedSeq[(Array[Byte], Int)]) = {
+        val sparkDeps =
+          for {
+            rvdDep <- dependency.toIndexedSeq
+            dep <- rvdDep.deps
+          } yield new AnonymousDependency(dep.asInstanceOf[RVDDependency].rvd.crdd.rdd)
 
-        case class RDDPartition(data: Array[Byte], override val index: Int) extends Partition
+        val rdd: RDD[Array[Byte]] =
+          new RDD[Array[Byte]](sc, sparkDeps) {
 
-        override protected val getPartitions: Array[Partition] =
-          Array.tabulate(contexts.length)(index => RDDPartition(contexts(index), index))
+            case class RDDPartition(data: Array[Byte], override val index: Int) extends Partition
 
-        override def compute(partition: Partition, context: TaskContext): Iterator[Array[Byte]] = {
-          val sp = partition.asInstanceOf[RDDPartition]
-          val fs = new HadoopFS(null)
-          Iterator.single(f(sp.data, SparkTaskContext.get(), theHailClassLoaderForSparkWorkers, fs))
+            val fsConfig: SerializableHadoopConfiguration =
+              ctx.fs.getConfiguration().asInstanceOf[SerializableHadoopConfiguration]
+
+            override protected val getPartitions: Array[Partition] =
+              Array.tabulate(contexts.length)(index => RDDPartition(contexts(index), index))
+
+            override def compute(partition: Partition, context: TaskContext)
+              : Iterator[Array[Byte]] =
+              Iterator.single(
+                f(
+                  globals,
+                  partition.asInstanceOf[RDDPartition].data,
+                  SparkTaskContext.get(),
+                  theHailClassLoaderForSparkWorkers,
+                  new HadoopFS(fsConfig),
+                )
+              )
+          }
+
+        val todo: IndexedSeq[Int] =
+          partitions.getOrElse(contexts.indices)
+
+        val buffer = ArraySeq.newBuilder[(Array[Byte], Int)]
+        buffer.sizeHint(todo.length)
+
+        var failure: Option[Throwable] =
+          None
+
+        val maxStageParallelism =
+          ctx.flags.get(SparkBackend.Flags.MaxStageParallelism).toInt
+
+        try {
+          for (subparts <- todo.grouped(maxStageParallelism)) {
+            sc.runJob(
+              rdd,
+              (_: TaskContext, it: Iterator[Array[Byte]]) => it.next(),
+              subparts,
+              (idx, result: Array[Byte]) =>
+                // appending here is safe as resultHandler is called in a synchronized block
+                buffer += result -> subparts(idx),
+            )
+          }
+        } catch {
+          case NonFatal(t) => failure = failure.orElse(Some(t))
+          case e: ExecutionException => failure = failure.orElse(Some(e.getCause))
+          case _: InterruptedException =>
+            sc.cancelAllJobs()
+            Thread.currentThread().interrupt()
+            throw new CancellationException()
         }
-      }
 
-    val partsToRun = partitions.getOrElse(contexts.indices)
-    val buffer = new ArrayBuffer[(Array[Byte], Int)](partsToRun.length)
-    var failure: Option[Throwable] = None
-
-    try {
-      for (subparts <- partsToRun.grouped(ctx.asInstanceOf[Context].maxStageParallelism)) {
-        sc.runJob(
-          rdd,
-          (_: TaskContext, it: Iterator[Array[Byte]]) => it.next(),
-          subparts,
-          (idx, result: Array[Byte]) => buffer += result -> subparts(idx),
-        )
+        (failure, buffer.result().sortBy(_._2))
       }
-    } catch {
-      case NonFatal(t) => failure = failure.orElse(Some(t))
-      case e: ExecutionException => failure = failure.orElse(Some(e.getCause))
-      case _: InterruptedException =>
-        sc.cancelAllJobs()
-        Thread.currentThread().interrupt()
     }
-
-    (failure, buffer.sortBy(_._2).toFastSeq)
-  }
 
   def defaultParallelism: Int = sc.defaultParallelism
 
@@ -416,7 +430,10 @@ class SparkBackend(val sc: SparkContext) extends Backend {
     ctx.time {
       TypeCheck(ctx, ir)
       Validate(ir)
-      ctx.irMetadata.semhash = SemanticHash(ctx, ir)
+
+      if (ctx.flags.isDefined(ExecutionCache.Flags.UseFastRestarts))
+        ctx.irMetadata.semhash = SemanticHash(ctx, ir)
+
       try {
         val lowerTable = ctx.flags.get("lower") != null
         val lowerBM = ctx.flags.get("lower_bm") != null
