@@ -42,7 +42,9 @@ spec:
             periodSeconds: 5
           resources:
             requests:
-              cpu: "1.5"
+              # How we got to 1250m: "it would have been nice to have 2cpus, but all the other cruft on 2 cpu node pool VMs means only 1.47 cpus are guaranteed to be free"
+              # If this is too small, we can consider increasing the node pool VM size to 4cpu and raising this back to 1.5 or 2,
+              cpu: "1250m"
               memory: "1G"
             limits:
               cpu: "2"
