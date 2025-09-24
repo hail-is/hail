@@ -1,11 +1,10 @@
 package is.hail.rvd
 
-import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s.{theHailClassLoaderForSparkWorkers, HailClassLoader}
 import is.hail.backend.{ExecuteContext, HailStateManager, HailTaskContext}
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
-import is.hail.expr.ir.{agg, InferPType}
+import is.hail.expr.ir.InferPType
 import is.hail.expr.ir.PruneDeadFields.isSupertype
 import is.hail.expr.ir.agg.AggExecuteContextExtensions
 import is.hail.io._
@@ -16,6 +15,7 @@ import is.hail.types.virtual.{MatrixType, TInterval, TStruct}
 import is.hail.utils._
 import is.hail.utils.PartitionCounts.{getPCSubsetOffset, incrementalPCSubsetOffset, PCSubsetOffset}
 
+import scala.collection.parallel.CollectionConverters._
 import scala.reflect.ClassTag
 
 import java.util

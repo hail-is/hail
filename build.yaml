@@ -21,7 +21,7 @@ steps:
       mkdir -p repo
       cd repo
       {{ code.checkout_script }}
-      make -C hail python-version-info HAIL_BUILD_MODE=Release MILLOPTS=--no-server
+      make -C hail python-version-info HAIL_BUILD_MODE=Release MILLOPTS=--no-daemon
     outputs:
       - from: /io/repo/
         to: /repo
@@ -763,8 +763,8 @@ steps:
       set -ex
       cd /io/repo/hail
 
-      export MILLOPTS='--no-server' HAIL_BUILD_MODE=Release
-      time retry sh mill --no-server --version
+      export MILLOPTS='--no-daemon' HAIL_BUILD_MODE=Release
+      time retry sh mill --no-daemon --version
 
       # We've encountered the following sporadic error in CI between `mill`
       # finishing assembling the jar and `Make` copying the jar:
@@ -775,7 +775,7 @@ steps:
       # This was likely from running mill in server mode; mill main exits before
       # the jar has finished being written.
       time retry make shadowJar
-      if [ ! -f out/hail/assembly.dest/out.jar ]; then
+      if [ ! -f out/hail/2.12/assembly.dest/out.jar ]; then
           echo 'no out.jar found after mill assembly returned. going to sleep'
           sleep 5
       fi
@@ -841,12 +841,12 @@ steps:
       set -ex
       cd /io/repo/hail
 
-      export MILLOPTS='--no-server' HAIL_BUILD_MODE=CI
-      time retry sh mill --no-server --version
+      export MILLOPTS='--no-daemon' HAIL_BUILD_MODE=CI
+      time retry sh mill --no-daemon --version
 
       # See `build_hail_jar_and_wheel`
       time retry make shadowJar
-      if [ ! -f out/hail/assembly.dest/out.jar ]; then
+      if [ ! -f out/hail/2.12/assembly.dest/out.jar ]; then
           echo 'no out.jar found after mill assembly returned. going to sleep'
           sleep 5
       fi
@@ -874,12 +874,12 @@ steps:
       set -ex
       cd /io/repo/hail
 
-      export MILLOPTS='--no-server' HAIL_BUILD_MODE=CI
-      time retry sh mill --no-server --version
+      export MILLOPTS='--no-daemon' HAIL_BUILD_MODE=CI
+      time retry sh mill --no-daemon --version
 
       # See `build_hail_jar_and_wheel`
       time retry make shadowTestJar
-      if [ ! -f out/hail/test/assembly.dest/out.jar ]; then
+      if [ ! -f out/hail/2.12/test/assembly.dest/out.jar ]; then
           echo 'no out.jar found after mill assembly returned. going to sleep'
           sleep 5
       fi
@@ -934,12 +934,12 @@ steps:
       set -ex
       cd /io/repo/hail
 
-      export SPARK_VERSION="3.0.2" SCALA_VERSION="2.12.13" HAIL_BUILD_MODE=Release MILLOPTS='--no-server'
-      time retry sh mill --no-server --version
+      export SPARK_VERSION="3.0.2" SCALA_VERSION="2.12.13" HAIL_BUILD_MODE=Release MILLOPTS='--no-daemon'
+      time retry sh mill --no-daemon --version
 
       # See `build_hail_jar_and_wheel`
       time retry make shadowJar
-      if [ ! -f out/hail/assembly.dest/out.jar ]; then
+      if [ ! -f out/hail/2.12/assembly.dest/out.jar ]; then
           echo 'no out.jar found after mill assembly returned. going to sleep'
           sleep 5
       fi
@@ -1072,7 +1072,7 @@ steps:
     inputs:
       - from: /resources.tar.gz
         to: /io/resources.tar.gz
-      - from: /derived/debug/hail/out/hail/test/assembly.dest/out.jar
+      - from: /derived/debug/hail/out/hail/2.12/test/assembly.dest/out.jar
         to: /io/hail-test.jar
       - from: /splits.tar.gz
         to: /io/splits.tar.gz
@@ -1679,6 +1679,25 @@ steps:
         to: /io/repo/config.mk
     dependsOn:
       - hail_linting_image
+      - merge_code
+  - kind: runImage
+    name: compile_hail_213
+    image:
+      valueFrom: base_image.image
+    resources:
+      memory: standard
+      cpu: '2'
+    script: |
+      set -ex
+      cd /io/repo/hail
+
+      HAIL_BUILD_MODE='CI'
+      time retry sh mill --no-daemon hail[2.13].__.compile
+    inputs:
+      - from: /repo
+        to: /io/repo
+    dependsOn:
+      - base_image
       - merge_code
   - kind: runImage
     name: get_pip_versioned_docs
@@ -2544,7 +2563,7 @@ steps:
           valueFrom: default_ns.name
         mountPath: /batch-gsa-key
     inputs:
-      - from: /derived/release/hail/out/hail/assembly.dest/out.jar
+      - from: /derived/release/hail/out/hail/2.12/assembly.dest/out.jar
         to: /io/hail.jar
       - from: /repo/hail/env/REVISION
         to: /io/REVISION
@@ -3492,7 +3511,7 @@ steps:
       # #14452 - must build wheel with release `hailtop/hailctl/deploy.yaml`
       # use `-o` to prevent `mill` from rebuilding the "SHADOW_JAR"
       make upload-artifacts HAIL_BUILD_MODE=Release DEPLOY_REMOTE=origin \
-        -o out/hail/assembly.dest/out.jar
+        -o out/hail/2.12/assembly.dest/out.jar
 
       echo Setting arguments and invoking release.sh.
 
@@ -3517,8 +3536,8 @@ steps:
     inputs:
       - from: /repo
         to: /io/repo
-      - from: /derived/release/hail/out/hail/assembly.dest/out.jar
-        to: /io/repo/hail/out/hail/assembly.dest/out.jar
+      - from: /derived/release/hail/out/hail/2.12/assembly.dest/out.jar
+        to: /io/repo/hail/out/hail/2.12/assembly.dest/out.jar
       - from: /azure-wheel
         to: /io/azure-wheel
       - from: /www.tar.gz
@@ -3762,7 +3781,7 @@ steps:
     inputs:
       - from: /resources.tar.gz
         to: /io/resources.tar.gz
-      - from: /derived/debug/hail/out/hail/test/assembly.dest/out.jar
+      - from: /derived/debug/hail/out/hail/2.12/test/assembly.dest/out.jar
         to: /io/hail-test.jar
       - from: /repo/hail/testng-fs.xml
         to: /io/testng-fs.xml
@@ -3804,7 +3823,7 @@ steps:
     inputs:
       - from: /resources.tar.gz
         to: /io/resources.tar.gz
-      - from: /derived/debug/hail/out/hail/test/assembly.dest/out.jar
+      - from: /derived/debug/hail/out/hail/2.12/test/assembly.dest/out.jar
         to: /io/hail-test.jar
       - from: /repo/hail/testng-services.xml
         to: /io/testng-services.xml

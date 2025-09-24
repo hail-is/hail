@@ -16,25 +16,46 @@ object `package` extends MillBuildRootModule {
          |package millbuild
          |object BuildConfig{
          |  def buildMode = "${buildMode()}"
+         |  def enabledScalaVersions = IndexedSeq(${enabledScalaVersions().map(v => s"\"$v\"").mkString(", ")})
          |}
       """.stripMargin
     )
     super.generatedSources() ++ Seq(PathRef(Task.dest))
   }
 
+  def configDir: T[PathRef] = Task.Source("config")
+
+  def envScalaVersion: T[Option[String]] = Task.Input {
+    Task.env.get("SCALA_VERSION")
+  }
+
+  def enabledScalaVersions: T[Seq[String]] = Task {
+    val path = configDir().path / "scala-version"
+    val supportedScalaVersions = IndexedSeq("2.12", "2.12.13", "2.13")
+    envScalaVersion()
+      .orElse(Option.when(os.exists(path))(os.read(path).strip))
+      .map { scalaVersion =>
+        require(
+          supportedScalaVersions.contains(scalaVersion),
+          s"SCALA_VERSION must be set to one of 2.12.13, 2.12, or 2.13; found $scalaVersion"
+        )
+        IndexedSeq(scalaVersion)
+      }.getOrElse(supportedScalaVersions)
+  }
+
   def envBuildMode: T[Option[String]] = Task.Input {
     Task.env.get("HAIL_BUILD_MODE")
   }
 
-  def configDir: T[PathRef] = Task.Source("config")
-
   def buildMode: T[String] = Task {
     val path = configDir().path / "hail-build-mode"
-    envBuildMode().getOrElse {
-      if (os.exists(path))
-        os.read(path)
-      else
-        "Release"
-    }
+    val raw = envBuildMode().orElse(Option.when(os.exists(path))(os.read(path).strip))
+      .getOrElse("Release")
+    val supportedBuildModes = IndexedSeq("dev", "ci", "release")
+    require(
+      supportedBuildModes.contains(raw.toLowerCase),
+      s"HAIL_BUILD_MODE must be set to one of 'dev', 'ci' or 'release'; found '$raw'"
+    )
+    raw.toLowerCase
   }
 }

@@ -4,9 +4,10 @@ import is.hail.annotations.ExtendedOrdering
 import is.hail.expr.ir.ByteArrayBuilder
 import is.hail.io.fs.{FS, FileListEntry}
 import is.hail.macros.void
+import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.collection.{mutable, GenTraversableOnce, TraversableOnce}
-import scala.collection.generic.CanBuildFrom
+import scala.collection.compat._
 import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.ExecutionException
 import scala.reflect.ClassTag
@@ -40,6 +41,9 @@ import org.json4s.jackson.Serialization
 import org.json4s.reflect.TypeInfo
 
 package utils {
+
+  import scala.collection.compat.{Factory, IterableOnce}
+
   trait Truncatable {
     def truncate: String
 
@@ -58,9 +62,8 @@ package utils {
   }
 
   sealed trait AnyFailAllFail[C[_]] {
-    def apply[T](ts: TraversableOnce[Option[T]])(implicit cbf: CanBuildFrom[Nothing, T, C[T]])
-      : Option[C[T]] = {
-      val b = cbf()
+    def apply[T](ts: IterableOnce[Option[T]])(implicit cbf: Factory[T, C[T]]): Option[C[T]] = {
+      val b = cbf.newBuilder
       for (t <- ts)
         if (t.isEmpty)
           return None
@@ -76,13 +79,11 @@ package utils {
       z: S,
     )(
       f: (T, S) => (U, S)
-    )(implicit
-      uct: ClassTag[U],
-      cbf: CanBuildFrom[Nothing, U, C[U]],
+    )(implicit cbf: Factory[U, C[U]]
     ): C[U] = {
-      val b = cbf()
+      val b = cbf.newBuilder
       var acc = z
-      for ((x, i) <- a.zipWithIndex) {
+      a.foreach { x =>
         val (y, newAcc) = f(x, acc)
         b += y
         acc = newAcc
@@ -185,8 +186,6 @@ package object utils
       plur
 
   val noOp: () => Unit = () => ()
-
-  def square[T](d: T)(implicit ev: T => scala.math.Numeric[T]#Ops): T = d * d
 
   def triangle(n: Int): Int = (n * (n + 1)) / 2
 
@@ -999,12 +998,14 @@ package object utils
   }
 
   /** Merge the sorted `IndexedSeq`s `xs` and `ys` using comparison function `lt`. */
-  def merge[A](xs: IndexedSeq[A], ys: IndexedSeq[A], lt: (A, A) => Boolean): IndexedSeq[A] =
+  def merge[A: ClassTag](xs: IndexedSeq[A], ys: IndexedSeq[A], lt: (A, A) => Boolean)
+    : IndexedSeq[A] =
     (xs.length, ys.length) match {
       case (0, _) => ys
       case (_, 0) => xs
       case (n, m) =>
-        val res = new ArrayBuffer[A](n + m)
+        val res = ArraySeq.newBuilder[A]
+        res.sizeHint(n + m)
 
         var i = 0
         var j = 0
@@ -1024,7 +1025,7 @@ package object utils
         for (k <- j until m)
           res += ys(k)
 
-        res
+        res.result()
     }
 
   /** Run tasks on the `executor`, returning some `F` of the failures and an `IndexedSeq` of the
@@ -1041,7 +1042,8 @@ package object utils
   ): (F[Throwable], IndexedSeq[(A, Int)]) = {
 
     var err = init
-    val buffer = new mutable.ArrayBuffer[(A, Int)](tasks.length)
+    val buffer = ArraySeq.newBuilder[(A, Int)]
+    buffer.sizeHint(tasks.length)
     val completer = new ExecutorCompletionService[(A, Int)](executor)
 
     val futures = tasks.map { case (t, k) => completer.submit(() => t() -> k) }
@@ -1058,7 +1060,7 @@ package object utils
       }
     }
 
-    (err, buffer.sortBy(_._2))
+    (err, buffer.result().sortBy(_._2))
   }
 
   def runAllKeepFirstError[A](executor: ExecutorService)

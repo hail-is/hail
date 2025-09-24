@@ -899,8 +899,8 @@ case class RectangleSparsifier(rectangles: IndexedSeq[IndexedSeq[Long]])
       val re = childType.getBlockIdx(java.lang.Math.min(rowEnd - 1, childType.nRows)) + 1
       val cs = childType.getBlockIdx(java.lang.Math.max(colStart, 0))
       val ce = childType.getBlockIdx(java.lang.Math.min(colEnd - 1, childType.nCols)) + 1
-      Array.range(rs, re).flatMap { i =>
-        Array.range(cs, ce)
+      Range(rs, re).flatMap { i =>
+        Range(cs, ce)
           .filter(j => childType.hasBlock(i -> j))
           .map(j => i -> j)
       }

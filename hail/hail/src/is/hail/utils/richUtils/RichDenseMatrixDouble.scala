@@ -5,6 +5,8 @@ import is.hail.io.fs.FS
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, GridPartitioner}
 import is.hail.utils._
 
+import scala.collection.parallel.CollectionConverters._
+
 import java.io.{DataInputStream, DataOutputStream, InputStream, OutputStream}
 
 import breeze.linalg.{DenseMatrix => BDM}

@@ -174,7 +174,7 @@ class KeySetLattice(ctx: ExecuteContext, keyType: TStruct) extends Lattice {
   def complement(v: Value): Value = {
     if (v.isEmpty) return top
 
-    val builder = mutable.ArrayBuilder.make[Interval]()
+    val builder = mutable.ArrayBuilder.make[Interval]
     if (v.head.left != IntervalEndpoint(Row(), -1)) {
       builder += Interval(IntervalEndpoint(Row(), -1), v.head.left)
     }

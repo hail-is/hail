@@ -64,7 +64,9 @@ object ExplicitClassLoaderInputStream {
     m.put("long", Long.getClass)
     m.put("float", Float.getClass)
     m.put("double", Double.getClass)
-    m.put("void", Unit.getClass)
+    // FIXME: I (ps) don't understand what this code is doing. In Scala 2.13 the Unit object isn't
+    // allowed to be named anymore. Why are we loading scala companion objects here?
+    m.put("void", ().getClass)
     m
   }
 }
