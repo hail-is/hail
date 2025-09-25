@@ -95,7 +95,7 @@ package object services {
   }
 
   def isTransientError(_e: Throwable): Boolean = {
-    // ReactiveException is package private inside reactore.core.Exception so we cannot access
+    // ReactiveException is package.scala private inside reactore.core.Exception so we cannot access
     // it directly for an isInstance check. AFAICT, this is the only way to check if we received
     // a ReactiveException.
     //

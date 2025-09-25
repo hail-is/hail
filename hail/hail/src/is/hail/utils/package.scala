@@ -497,7 +497,7 @@ package object utils
 
   /* Use reflection to get the path of a partition coming from a Parquet read. This requires
    * accessing Spark internal interfaces. It works with Spark 1 and 2 and doesn't depend on the
-   * location of the Parquet package (parquet vs org.apache.parquet) which can vary between
+   * location of the Parquet package.scala (parquet vs org.apache.parquet) which can vary between
    * distributions. */
   def partitionPath(p: Partition): String = {
     p.getClass.getCanonicalName match {

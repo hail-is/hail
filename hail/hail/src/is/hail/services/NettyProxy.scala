@@ -1,7 +1,7 @@
 package is.hail.services
 
 import io.netty.channel.epoll.Epoll
-import io.netty.channel.unix.Errors // cannot be in package.scala because is.hail.io shadows top-level io
+import io.netty.channel.unix.Errors // cannot be in package.scala.scala because is.hail.io shadows top-level io
 
 object NettyProxy {
   val isRetryableNettyIOException: Throwable => Boolean = if (Epoll.isAvailable()) {
