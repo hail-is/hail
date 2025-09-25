@@ -216,6 +216,37 @@ object MathFunctions extends RegistryFunctions {
       "qpois",
     )
 
+    registerScalaFunction("dgamma", Array(TFloat64, TFloat64, TFloat64), TFloat64, null)(
+      statsPackageClass,
+      "dgamma",
+    )
+    registerScalaFunction("dgamma", Array(TFloat64, TFloat64, TFloat64, TBoolean), TFloat64, null)(
+      statsPackageClass,
+      "dgamma",
+    )
+
+    registerScalaFunction("pgamma", Array(TFloat64, TFloat64, TFloat64), TFloat64, null)(
+      statsPackageClass,
+      "pgamma",
+    )
+    registerScalaFunction(
+      "pgamma",
+      Array(TFloat64, TFloat64, TFloat64, TBoolean, TBoolean),
+      TFloat64,
+      null,
+    )(statsPackageClass, "pgamma")
+
+    registerScalaFunction("qgamma", Array(TFloat64, TFloat64, TFloat64), TFloat64, null)(
+      statsPackageClass,
+      "qgamma",
+    )
+    registerScalaFunction(
+      "qgamma",
+      Array(TFloat64, TFloat64, TFloat64, TBoolean, TBoolean),
+      TFloat64,
+      null,
+    )(statsPackageClass, "qgamma")
+
     registerScalaFunction("dchisq", Array(TFloat64, TFloat64), TFloat64, null)(
       statsPackageClass,
       "dchisq",

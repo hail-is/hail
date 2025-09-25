@@ -3,7 +3,7 @@ package is.hail
 import is.hail.types.physical.{PCanonicalStruct, PFloat64}
 import is.hail.utils._
 
-import net.sourceforge.jdistlib.{Beta, ChiSquare, NonCentralChiSquare, Normal, Poisson}
+import net.sourceforge.jdistlib.{Beta, ChiSquare, Gamma, NonCentralChiSquare, Normal, Poisson}
 import net.sourceforge.jdistlib.disttest.{DistributionTest, TestKind}
 import org.apache.commons.math3.distribution.HypergeometricDistribution
 
@@ -445,6 +445,25 @@ package object stats {
   }
 
   def qpois(x: Double, lambda: Double): Int = qpois(x, lambda, lowerTail = true, logP = false)
+
+  def dgamma(x: Double, shape: Double, scale: Double, logP: Boolean): Double =
+    Gamma.density(x, shape, scale, logP)
+
+  def dgamma(x: Double, shape: Double, scale: Double): Double =
+    dgamma(x, shape, scale, logP = false)
+
+  def pgamma(x: Double, shape: Double, scale: Double, lowerTail: Boolean, logP: Boolean): Double =
+    Gamma.cumulative(x, shape, scale, lowerTail, logP)
+
+  def pgamma(x: Double, shape: Double, scale: Double): Double =
+    pgamma(x, shape, scale, lowerTail = true, logP = false)
+
+  def qgamma(p: Double, shape: Double, scale: Double, lowerTail: Boolean, logP: Boolean): Double =
+    Gamma.quantile(p, shape, scale, lowerTail, logP)
+
+  def qgamma(p: Double, shape: Double, scale: Double): Double =
+    qgamma(p, shape, scale, lowerTail = true, logP = false)
+
 
   def phyper(x: Int, popSize: Int, ngood: Int, nsample: Int, logP: Boolean): Double =
     if (logP)
