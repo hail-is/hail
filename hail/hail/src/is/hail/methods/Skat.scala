@@ -1,6 +1,5 @@
 package is.hail.methods
 
-import is.hail.HailContext
 import is.hail.annotations.{Annotation, Region, UnsafeRow}
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{IntArrayBuilder, MatrixValue, TableValue}
@@ -202,9 +201,9 @@ case class Skat(
     }
 
     val (keyGsWeightRdd, _) =
-      computeKeyGsWeightRdd(mv, xField, completeColIdx, keyField, weightField)
+      computeKeyGsWeightRdd(ctx, mv, xField, completeColIdx, keyField, weightField)
 
-    val backend = HailContext.backend
+    val backend = ctx.backend
 
     def linearSkat(): RDD[Row] = {
       // fit null model
@@ -318,6 +317,7 @@ case class Skat(
   }
 
   def computeKeyGsWeightRdd(
+    ctx: ExecuteContext,
     mv: MatrixValue,
     xField: String,
     completeColIdx: Array[Int],
@@ -345,7 +345,7 @@ case class Skat(
     val fieldIdx = entryType.fieldIdx(xField)
 
     val n = completeColIdx.length
-    val completeColIdxBc = HailContext.backend.broadcast(completeColIdx)
+    val completeColIdxBc = ctx.backend.broadcast(completeColIdx)
 
     /* I believe no `boundary` is needed here because `mapPartitions` calls `run` which calls
      * `cleanupRegions`. */

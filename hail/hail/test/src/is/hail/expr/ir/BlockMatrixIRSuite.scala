@@ -237,7 +237,7 @@ class BlockMatrixIRSuite extends HailSuite {
       getTestResource(
         "blockmatrix_example/0/parts/part-0-28-0-0-0feb7ac2-ab02-6cd4-5547-bfcb94dacb33"
       )
-    val matrix = BlockMatrix.read(fs, getTestResource("blockmatrix_example/0")).toBreezeMatrix()
+    val matrix = BlockMatrix.read(ctx, getTestResource("blockmatrix_example/0")).toBreezeMatrix()
     val expected = Array.tabulate(2)(i => Array.tabulate(2)(j => matrix(i, j)).toFastSeq).toFastSeq
 
     val typ = TNDArray(TFloat64, Nat(2))
@@ -261,7 +261,7 @@ class BlockMatrixIRSuite extends HailSuite {
 
   @Test def readWriteBlockMatrix(): scalatest.Assertion = {
     val original = getTestResource("blockmatrix_example/0")
-    val expected = BlockMatrix.read(ctx.fs, original).toBreezeMatrix()
+    val expected = BlockMatrix.read(ctx, original).toBreezeMatrix()
 
     val path = ctx.createTmpPath("read-blockmatrix-ir", "bm")
 

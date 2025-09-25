@@ -138,7 +138,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable {
   ): Unit = {
     void {
       withExecuteContext() { ctx =>
-        val rm = linalg.RowMatrix.readBlockMatrix(ctx.fs, pathIn, partitionSize)
+        val rm = linalg.RowMatrix.readBlockMatrix(ctx, pathIn, partitionSize)
         entries match {
           case "full" =>
             rm.export(ctx, pathOut, delimiter, Option(header), addIndex, exportType)
@@ -225,7 +225,8 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable {
   def pyToDF(s: String): DataFrame =
     withExecuteContext(selfContainedExecution = false) { ctx =>
       val tir = IRParser.parse_table_ir(ctx, s)
-      Interpret(tir, ctx).toDF()
+      val tv = Interpret(tir, ctx)
+      tv.toDF(ctx)
     }._1
 
   def pyReadMultipleMatrixTables(jsonQuery: String): util.List[MatrixIR] =

@@ -25,7 +25,7 @@ class MatrixIRSuite extends HailSuite {
     Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.LoweredJVMCompile)
 
   @Test def testMatrixWriteRead(): scalatest.Assertion = {
-    val range = MatrixIR.range(10, 10, Some(3))
+    val range = MatrixIR.range(ctx, 10, 10, Some(3))
     val withEntries = MatrixMapEntries(
       range,
       makestruct(
@@ -90,7 +90,7 @@ class MatrixIRSuite extends HailSuite {
     nPartitions: Option[Int] = Some(4),
     uids: Boolean = false,
   ): MatrixIR = {
-    val reader = MatrixRangeReader(nRows, nCols, nPartitions)
+    val reader = MatrixRangeReader(ctx, nRows, nCols, nPartitions)
     val requestedType = if (uids)
       reader.fullMatrixType
     else

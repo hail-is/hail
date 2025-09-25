@@ -1,11 +1,9 @@
 package is.hail
 
-import is.hail.backend.Backend
+import is.hail.backend.{Backend, ExecuteContext}
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.io.fs.FS
-import is.hail.io.vcf._
-import is.hail.types.virtual._
 import is.hail.utils._
 
 import scala.reflect.ClassTag
@@ -17,32 +15,20 @@ import org.apache.log4j.{LogManager, PropertyConfigurator}
 import org.apache.spark._
 import org.apache.spark.executor.InputMetrics
 import org.apache.spark.rdd.RDD
-import org.json4s.Extraction
-import org.json4s.jackson.JsonMethods
-import sourcecode.Enclosing
 
 case class FilePartition(index: Int, file: String) extends Partition
 
 object HailContext {
-  val tera: Long = 1024L * 1024L * 1024L * 1024L
 
   val logFormat: String = "%d{yyyy-MM-dd HH:mm:ss.SSS} %c{1}: %p: %m%n"
 
   private var theContext: HailContext = _
-
-  def isInitialized: Boolean = synchronized {
-    theContext != null
-  }
 
   def get: HailContext = synchronized {
     assert(TaskContext.get() == null, "HailContext not available on worker")
     assert(theContext != null, "HailContext not initialized")
     theContext
   }
-
-  def backend: Backend = get.backend
-
-  def sparkBackend(implicit E: Enclosing): SparkBackend = get.backend.asSpark
 
   def configureLogging(logFile: String, quiet: Boolean, append: Boolean): Unit = {
     org.apache.log4j.helpers.LogLog.setInternalDebugging(true)
@@ -94,7 +80,7 @@ object HailContext {
 
   def getOrCreate(backend: Backend): HailContext =
     synchronized {
-      if (isInitialized) theContext
+      if (theContext != null) theContext
       else HailContext(backend)
     }
 
@@ -123,15 +109,15 @@ object HailContext {
     theContext
   }
 
-  def stop(): Unit = synchronized {
-    IRFunctionRegistry.clearUserFunctions()
-    backend.close()
-
-    theContext = null
-  }
+  def stop(): Unit =
+    synchronized {
+      IRFunctionRegistry.clearUserFunctions()
+      theContext.backend.close()
+      theContext = null
+    }
 
   def readPartitions[T: ClassTag](
-    fs: FS,
+    ctx: ExecuteContext,
     path: String,
     partFiles: IndexedSeq[String],
     read: (Int, InputStream, InputMetrics) => Iterator[T],
@@ -139,9 +125,9 @@ object HailContext {
   ): RDD[T] = {
     val nPartitions = partFiles.length
 
-    val fsBc = fs.broadcast
+    val fsBc = ctx.fsBc
 
-    new RDD[T](SparkBackend.sparkContext, Nil) {
+    new RDD[T](ctx.backend.asSpark.sc, Nil) {
       def getPartitions: Array[Partition] =
         Array.tabulate(nPartitions)(i => FilePartition(i, partFiles(i)))
 
@@ -192,12 +178,4 @@ class HailContext private (
     : Array[(String, Array[String])] =
     fileAndLineCounts(fs: FS, regex, files, maxLines).mapValues(_.map(_.value)).toArray
 
-  def parseVCFMetadata(fs: FS, file: String): Map[String, Map[String, Map[String, String]]] =
-    LoadVCF.parseHeaderMetadata(fs, Set.empty, TFloat64, file)
-
-  def pyParseVCFMetadataJSON(fs: FS, file: String): String = {
-    val metadata = LoadVCF.parseHeaderMetadata(fs, Set.empty, TFloat64, file)
-    implicit val formats = defaultJSONFormats
-    JsonMethods.compact(Extraction.decompose(metadata))
-  }
 }

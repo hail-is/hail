@@ -1,6 +1,5 @@
 package is.hail.expr.ir
 
-import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.io.{BufferSpec, FileWriteMetadata}
@@ -264,11 +263,11 @@ case class MatrixValue(
       s"\n    * Largest partition:  $largestStr")
   }
 
-  def toRowMatrix(entryField: String): RowMatrix = {
+  def toRowMatrix(ctx: ExecuteContext, entryField: String): RowMatrix = {
     val partCounts: Array[Long] = rvd.countPerPartition()
     val partStarts = partCounts.scanLeft(0L)(_ + _)
     assert(partStarts.length == rvd.getNumPartitions + 1)
-    val partStartsBc = HailContext.backend.broadcast(partStarts)
+    val partStartsBc = ctx.backend.broadcast(partStarts)
 
     val localRvRowPType = rvRowPType
     val localEntryArrayPType = entryArrayPType
