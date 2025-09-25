@@ -82,7 +82,7 @@ ifdef HAIL_COMPILE_NATIVES
 $(SHADOW_JAR): native-lib-prebuilt
 endif
 $(SHADOW_JAR): FORCE
-	$(MILL) $(MILLOPTS) hail[$(SCALA_VERSION)].assembly
+	SCALA_VERSION=$(SCALA_VERSION) $(MILL) $(MILLOPTS) hail[].assembly
 
 .PHONY: shadowJar
 shadowJar: $(SHADOW_JAR)
@@ -92,35 +92,35 @@ ifdef HAIL_COMPILE_NATIVES
 $(NON_SHADOW_JAR): native-lib-prebuilt
 endif
 $(NON_SHADOW_JAR): FORCE
-	$(MILL) $(MILLOPTS) hail[$(SCALA_VERSION)].jar
+	SCALA_VERSION=$(SCALA_VERSION) $(MILL) $(MILLOPTS) hail[].jar
 
 SHADOW_TEST_JAR := out/hail/$(SCALA_VERSION)/test/assembly.dest/out.jar
 ifdef HAIL_COMPILE_NATIVES
 $(SHADOW_TEST_JAR): native-lib-prebuilt
 endif
 $(SHADOW_TEST_JAR): FORCE
-	$(MILL) $(MILLOPTS) hail[$(SCALA_VERSION)].test.assembly
+	SCALA_VERSION=$(SCALA_VERSION) $(MILL) $(MILLOPTS) hail[].test.assembly
 
 .PHONY: shadowTestJar
 shadowTestJar: $(SHADOW_TEST_JAR)
 
 EXTRA_CLASSPATH := out/hail/$(SCALA_VERSION)/writeRunClasspath.dest/runClasspath
 $(EXTRA_CLASSPATH): FORCE
-	$(MILL) $(MILLOPTS) hail[$(SCALA_VERSION)].writeRunClasspath
+	SCALA_VERSION=$(SCALA_VERSION) $(MILL) $(MILLOPTS) hail[].writeRunClasspath
 
 .PHONY: jvm-test
 ifdef HAIL_COMPILE_NATIVES
 jvm-test: native-lib-prebuilt
 endif
 jvm-test:
-	$(MILL) $(MILLOPTS) hail[$(SCALA_VERSION)].test testng.xml
+	SCALA_VERSION=$(SCALA_VERSION) $(MILL) $(MILLOPTS) hail[].test testng.xml
 
 .PHONY: services-jvm-test
 ifdef HAIL_COMPILE_NATIVES
 services-jvm-test: native-lib-prebuilt
 endif
 services-jvm-test:
-	$(MILL) $(MILLOPTS) hail[$(SCALA_VERSION)].test testng-services.xml
+	SCALA_VERSION=$(SCALA_VERSION) $(MILL) $(MILLOPTS) hail[].test testng-services.xml
 
 .PHONY: fs-jvm-test
 ifdef HAIL_COMPILE_NATIVES
@@ -133,7 +133,7 @@ fs-jvm-test: upload-remote-test-resources
 	HAIL_DEFAULT_NAMESPACE=$(NAMESPACE) \
 	HAIL_FS_TEST_CLOUD_RESOURCES_URI=$(CLOUD_HAIL_TEST_RESOURCES_DIR)fs \
 	HAIL_TEST_STORAGE_URI=$(TEST_STORAGE_URI) \
-	$(MILL) $(MILLOPTS) hail[$(SCALA_VERSION)].test $(realpath testng-fs.xml)
+	SCALA_VERSION=$(SCALA_VERSION) $(MILL) $(MILLOPTS) hail[].test $(realpath testng-fs.xml)
 
 # end mill integration
 
