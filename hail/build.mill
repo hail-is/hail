@@ -148,8 +148,6 @@ trait HailModule extends ScalaModule with ScalafmtModule with ScalafixModule { o
       finalOptions ++
       Seq(
       // collection types
-        // class Stream in package immutable is deprecated (since 2.13.0): Use LazyList (which is fully lazy) instead of Stream (which has a lazy tail only)
-        "-Wconf:cat=deprecation&msg=Stream:s",
         // type Growable in package generic is deprecated (since 2.13.0): Growable was moved from collection.generic to collection.mutable
         "-Wconf:cat=deprecation&msg=type Growable in package generic is deprecated:s",
         // trait MultiMap in package mutable is deprecated (since 2.13.0): Use a scala.collection.mutable.MultiDict in the scala-collection-contrib module

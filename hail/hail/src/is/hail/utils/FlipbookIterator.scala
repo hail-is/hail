@@ -1,12 +1,12 @@
 package is.hail.utils
 
-import org.typelevel.scalaccompat.annotation.nowarn213
-
 import scala.collection.BufferedIterator
 import scala.collection.compat._
 import scala.collection.generic.Growable
 import scala.collection.mutable.PriorityQueue
 import scala.reflect.ClassTag
+
+import org.typelevel.scalaccompat.annotation.nowarn213
 
 /** A StateMachine has the same primary interface as FlipbookIterator, but the implementations are
   * not expected to be checked (for instance, value does not need to assert isValid). The only

@@ -10,7 +10,7 @@ import is.hail.services.oauth2.CloudCredentials
 import is.hail.services.requests.Requester
 import is.hail.utils._
 
-import scala.collection.immutable.Stream.cons
+import scala.collection.compat.immutable.LazyList
 import scala.util.Random
 
 import java.net.{URL, URLEncoder}
@@ -252,9 +252,9 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
       JobStateDeserializer +
       JobListEntryDeserializer
 
-  private[this] def paginated[S, A](s0: S)(f: S => (A, S)): Stream[A] = {
+  private[this] def paginated[S, A](s0: S)(f: S => (A, S)): LazyList[A] = {
     val (a, s1) = f(s0)
-    cons(a, paginated(s1)(f))
+    LazyList.cons(a, paginated(s1)(f))
   }
 
   def newBatch(createRequest: BatchRequest): Int = {
@@ -287,7 +287,7 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
       .extract[JobGroupResponse]
 
   def getJobGroupJobs(batchId: Int, jobGroupId: Int, status: Option[JobState] = None)
-    : Stream[IndexedSeq[JobListEntry]] = {
+    : LazyList[IndexedSeq[JobListEntry]] = {
     val q = status.map(s => s"state=${s.toString.toLowerCase}").getOrElse("")
     paginated(Some(0): Option[Int]) {
       case Some(jobId) =>

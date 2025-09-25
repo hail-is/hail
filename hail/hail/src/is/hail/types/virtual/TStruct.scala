@@ -7,8 +7,8 @@ import is.hail.utils._
 import is.hail.utils.compat._
 import is.hail.utils.compat.immutable.ArraySeq
 
-import scala.collection.compat._
 import scala.collection.JavaConverters._
+import scala.collection.compat._
 import scala.collection.compat._
 import scala.collection.mutable
 
