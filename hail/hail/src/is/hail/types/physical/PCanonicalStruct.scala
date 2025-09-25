@@ -5,8 +5,8 @@ import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.virtual.{TStruct, Type}
 import is.hail.utils._
 
-import scala.collection.compat._
 import scala.collection.JavaConverters._
+import scala.collection.compat._
 import scala.collection.compat._
 
 object PCanonicalStruct {

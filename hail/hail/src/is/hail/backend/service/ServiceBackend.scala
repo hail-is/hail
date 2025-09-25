@@ -18,6 +18,7 @@ import is.hail.types.physical._
 import is.hail.utils._
 
 import scala.collection.compat._
+import scala.collection.compat.immutable.LazyList
 import scala.reflect.ClassTag
 
 import java.io._
@@ -227,7 +228,7 @@ class ServiceBackend(
     log.info(s"parallelizeAndComputeWithIndex: $token: reading results")
     val startTime = System.nanoTime()
 
-    def streamSuccessfulPartitionResults: Stream[(Array[Byte], Int)] =
+    def streamSuccessfulPartitionResults: LazyList[(Array[Byte], Int)] =
       for {
         successes <- batchClient.getJobGroupJobs(
           jobGroup.batch_id,

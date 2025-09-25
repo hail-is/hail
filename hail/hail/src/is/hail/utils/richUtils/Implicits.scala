@@ -40,8 +40,7 @@ trait Implicits {
   implicit def toRichIndexedRowMatrix(irm: IndexedRowMatrix): RichIndexedRowMatrix =
     new RichIndexedRowMatrix(irm)
 
-  implicit def toRichIntPairIterableOnce[V](t: IterableOnce[(Int, V)])
-    : RichIntPairIterableOnce[V] =
+  implicit def toRichIntPairIterableOnce[V](t: IterableOnce[(Int, V)]): RichIntPairIterableOnce[V] =
     new RichIntPairIterableOnce[V](t)
 
   implicit def toRichIterable[T](i: Iterable[T]): RichIterable[T] = new RichIterable(i)
