@@ -1,8 +1,9 @@
 package is.hail.utils
 
+import is.hail.utils.compat.mutable.Growable
+
 import scala.collection.BufferedIterator
 import scala.collection.compat._
-import scala.collection.generic.Growable
 import scala.collection.mutable.PriorityQueue
 import scala.reflect.ClassTag
 

@@ -3,9 +3,9 @@ package is.hail.annotations
 import is.hail.backend.HailStateManager
 import is.hail.rvd.{RVDContext, RVDType}
 import is.hail.types.physical.PInterval
+import is.hail.utils.compat.mutable.Growable
 import is.hail.utils._
 
-import scala.collection.generic.Growable
 import scala.collection.mutable
 
 object OrderedRVIterator {
