@@ -148,8 +148,6 @@ trait HailModule extends ScalaModule with ScalafmtModule with ScalafixModule { o
       finalOptions ++
       Seq(
       // collection types
-        // type Growable in package generic is deprecated (since 2.13.0): Growable was moved from collection.generic to collection.mutable
-        "-Wconf:cat=deprecation&msg=type Growable in package generic is deprecated:s",
         // trait MultiMap in package mutable is deprecated (since 2.13.0): Use a scala.collection.mutable.MultiDict in the scala-collection-contrib module
         "-Wconf:cat=deprecation&msg=trait MultiMap in package mutable is deprecated:s",
         // inheritance from class HashMap in package mutable is deprecated (since 2.13.0): HashMap will be made final; use .withDefault for the common use case of computing a default value

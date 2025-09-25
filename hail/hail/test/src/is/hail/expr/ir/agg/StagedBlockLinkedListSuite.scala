@@ -6,7 +6,7 @@ import is.hail.asm4s.Code
 import is.hail.expr.ir.{EmitCode, EmitFunctionBuilder}
 import is.hail.types.physical._
 import is.hail.utils._
-import is.hail.utils.compat.GrowableCompat
+import is.hail.utils.compat.mutable.Growable
 
 import org.testng.Assert._
 import org.testng.annotations.Test
@@ -14,7 +14,7 @@ import org.testng.annotations.Test
 class StagedBlockLinkedListSuite extends HailSuite {
 
   class BlockLinkedList[E](region: Region, val elemPType: PType, initImmediately: Boolean = true)
-      extends GrowableCompat[E] {
+      extends Growable[E] {
     val arrayPType = PCanonicalArray(elemPType)
 
     private val initF: Region => Long = {
