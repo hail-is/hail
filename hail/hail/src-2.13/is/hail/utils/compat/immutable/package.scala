@@ -1,7 +1,5 @@
 package is.hail.utils.compat
 
-import scala.collection.mutable
-
 package object immutable {
   type ArraySeq[+A] = scala.collection.immutable.ArraySeq[A]
 
