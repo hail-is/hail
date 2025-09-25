@@ -92,7 +92,7 @@ ifdef HAIL_COMPILE_NATIVES
 $(NON_SHADOW_JAR): native-lib-prebuilt
 endif
 $(NON_SHADOW_JAR): FORCE
-    $(MILL) $(MILLOPTS) hail[].jar
+	$(MILL) $(MILLOPTS) hail[].jar
 
 SHADOW_TEST_JAR := out/hail/$(SCALA_VERSION)/test/assembly.dest/out.jar
 ifdef HAIL_COMPILE_NATIVES
