@@ -868,15 +868,6 @@ def register_functions():
             dtype("float64"),
             dtype("float64"),
             dtype("float64"),
-        ),
-        dtype("float64"),
-    )
-    register_function(
-        "dgamma",
-        (
-            dtype("float64"),
-            dtype("float64"),
-            dtype("float64"),
             dtype("bool"),
         ),
         dtype("float64"),
@@ -887,26 +878,8 @@ def register_functions():
             dtype("float64"),
             dtype("float64"),
             dtype("float64"),
-        ),
-        dtype("float64"),
-    )
-    register_function(
-        "pgamma",
-        (
-            dtype("float64"),
-            dtype("float64"),
-            dtype("float64"),
             dtype("bool"),
             dtype("bool"),
-        ),
-        dtype("float64"),
-    )
-    register_function(
-        "qgamma",
-        (
-            dtype("float64"),
-            dtype("float64"),
-            dtype("float64"),
         ),
         dtype("float64"),
     )

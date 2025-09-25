@@ -446,24 +446,24 @@ package object stats {
 
   def qpois(x: Double, lambda: Double): Int = qpois(x, lambda, lowerTail = true, logP = false)
 
-  def dgamma(x: Double, shape: Double, scale: Double, logP: Boolean): Double =
+  def dgamma(x: Double, shape: Double, scale: Double, logP: Boolean = false): Double =
     Gamma.density(x, shape, scale, logP)
 
-  def dgamma(x: Double, shape: Double, scale: Double): Double =
-    dgamma(x, shape, scale, logP = false)
+  def pgamma(
+    x: Double,
+    shape: Double,
+    scale: Double,
+    lowerTail: Boolean = true,
+    logP: Boolean = false,
+  ): Double = Gamma.cumulative(x, shape, scale, lowerTail, logP)
 
-  def pgamma(x: Double, shape: Double, scale: Double, lowerTail: Boolean, logP: Boolean): Double =
-    Gamma.cumulative(x, shape, scale, lowerTail, logP)
-
-  def pgamma(x: Double, shape: Double, scale: Double): Double =
-    pgamma(x, shape, scale, lowerTail = true, logP = false)
-
-  def qgamma(p: Double, shape: Double, scale: Double, lowerTail: Boolean, logP: Boolean): Double =
-    Gamma.quantile(p, shape, scale, lowerTail, logP)
-
-  def qgamma(p: Double, shape: Double, scale: Double): Double =
-    qgamma(p, shape, scale, lowerTail = true, logP = false)
-
+  def qgamma(
+    p: Double,
+    shape: Double,
+    scale: Double,
+    lowerTail: Boolean = true,
+    logP: Boolean = false,
+  ): Double = Gamma.quantile(p, shape, scale, lowerTail, logP)
 
   def phyper(x: Int, popSize: Int, ngood: Int, nsample: Int, logP: Boolean): Double =
     if (logP)
