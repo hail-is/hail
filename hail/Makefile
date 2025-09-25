@@ -64,7 +64,7 @@ CLOUD_HAIL_DOCTEST_DATA_DIR = $(CLOUD_HAIL_TEST_RESOURCES_PREFIX)/doctest/data/
 
 # mill integration
 
-MILL := bash mill
+MILL := SCALA_VERSION=$(SCALA_VERSION) bash mill
 MILLOPTS ?=
 
 .PHONY: mill-clean
@@ -82,7 +82,7 @@ ifdef HAIL_COMPILE_NATIVES
 $(SHADOW_JAR): native-lib-prebuilt
 endif
 $(SHADOW_JAR): FORCE
-	SCALA_VERSION=$(SCALA_VERSION) $(MILL) $(MILLOPTS) hail[].assembly
+	$(MILL) $(MILLOPTS) hail[].assembly
 
 .PHONY: shadowJar
 shadowJar: $(SHADOW_JAR)
@@ -92,35 +92,35 @@ ifdef HAIL_COMPILE_NATIVES
 $(NON_SHADOW_JAR): native-lib-prebuilt
 endif
 $(NON_SHADOW_JAR): FORCE
-	SCALA_VERSION=$(SCALA_VERSION) $(MILL) $(MILLOPTS) hail[].jar
+    $(MILL) $(MILLOPTS) hail[].jar
 
 SHADOW_TEST_JAR := out/hail/$(SCALA_VERSION)/test/assembly.dest/out.jar
 ifdef HAIL_COMPILE_NATIVES
 $(SHADOW_TEST_JAR): native-lib-prebuilt
 endif
 $(SHADOW_TEST_JAR): FORCE
-	SCALA_VERSION=$(SCALA_VERSION) $(MILL) $(MILLOPTS) hail[].test.assembly
+	$(MILL) $(MILLOPTS) hail[].test.assembly
 
 .PHONY: shadowTestJar
 shadowTestJar: $(SHADOW_TEST_JAR)
 
 EXTRA_CLASSPATH := out/hail/$(SCALA_VERSION)/writeRunClasspath.dest/runClasspath
 $(EXTRA_CLASSPATH): FORCE
-	SCALA_VERSION=$(SCALA_VERSION) $(MILL) $(MILLOPTS) hail[].writeRunClasspath
+	$(MILL) $(MILLOPTS) hail[].writeRunClasspath
 
 .PHONY: jvm-test
 ifdef HAIL_COMPILE_NATIVES
 jvm-test: native-lib-prebuilt
 endif
 jvm-test:
-	SCALA_VERSION=$(SCALA_VERSION) $(MILL) $(MILLOPTS) hail[].test testng.xml
+	$(MILL) $(MILLOPTS) hail[].test testng.xml
 
 .PHONY: services-jvm-test
 ifdef HAIL_COMPILE_NATIVES
 services-jvm-test: native-lib-prebuilt
 endif
 services-jvm-test:
-	SCALA_VERSION=$(SCALA_VERSION) $(MILL) $(MILLOPTS) hail[].test testng-services.xml
+	$(MILL) $(MILLOPTS) hail[].test testng-services.xml
 
 .PHONY: fs-jvm-test
 ifdef HAIL_COMPILE_NATIVES
@@ -133,7 +133,7 @@ fs-jvm-test: upload-remote-test-resources
 	HAIL_DEFAULT_NAMESPACE=$(NAMESPACE) \
 	HAIL_FS_TEST_CLOUD_RESOURCES_URI=$(CLOUD_HAIL_TEST_RESOURCES_DIR)fs \
 	HAIL_TEST_STORAGE_URI=$(TEST_STORAGE_URI) \
-	SCALA_VERSION=$(SCALA_VERSION) $(MILL) $(MILLOPTS) hail[].test $(realpath testng-fs.xml)
+	$(MILL) $(MILLOPTS) hail[].test $(realpath testng-fs.xml)
 
 # end mill integration
 
