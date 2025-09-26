@@ -29,15 +29,16 @@ import org.testng.ITestContext
 import org.testng.annotations.{AfterClass, AfterSuite, BeforeClass, BeforeSuite}
 
 object HailSuite {
-  val theHailClassLoader: HailClassLoader =
+  private val hcl: HailClassLoader =
     new HailClassLoader(getClass.getClassLoader)
 
-  val flags: HailFeatureFlags =
+  private val flags: HailFeatureFlags =
     HailFeatureFlags.fromEnv(sys.env + ("lower" -> "1"))
 }
 
 class HailSuite extends TestNGSuite with TestUtils {
 
+  private[this] var backend_ : SparkBackend = _
   private[this] var ctx_ : ExecuteContext = _
 
   override def ctx: ExecuteContext = ctx_
@@ -53,38 +54,35 @@ class HailSuite extends TestNGSuite with TestUtils {
   def setupBackend(): Unit = {
     Logging.configureLogging("/tmp/hail.log", quiet = false, append = false)
     RVD.CheckRvdKeyOrderingForTesting = true
-    Backend.set(
-      SparkBackend(
-        sc = new SparkContext(
-          SparkBackend.createSparkConf(
-            appName = "Hail.TestNG",
-            master = System.getProperty("hail.master"),
-            local = "local[2]",
-            blockSize = 0,
-          )
-            .set("spark.unsafe.exceptionOnMemoryLeak", "true")
-        ),
-        skipLoggingConfiguration = true,
-      )
+    backend_ = SparkBackend(
+      sc = new SparkContext(
+        SparkBackend.createSparkConf(
+          appName = "Hail.TestNG",
+          master = System.getProperty("hail.master"),
+          local = "local[2]",
+          blockSize = 0,
+        )
+          .set("spark.unsafe.exceptionOnMemoryLeak", "true")
+      ),
+      skipLoggingConfiguration = true,
     )
   }
 
   @BeforeClass
   def setupExecuteContext(): Unit = {
-    val backend = Backend.get.asSpark
-    val conf = new Configuration(backend.sc.hadoopConfiguration)
+    val conf = new Configuration(backend_.sc.hadoopConfiguration)
     val fs = new HadoopFS(new SerializableHadoopConfiguration(conf))
     val pool = RegionPool()
     ctx_ = new ExecuteContext(
       tmpdir = "/tmp",
       localTmpdir = "file:///tmp",
-      backend = backend,
+      backend = backend_,
       references = ReferenceGenome.builtinReferences(),
       fs = fs,
       r = Region(pool = pool),
       timer = new ExecutionTimer(getClass.getSimpleName),
       tempFileManager = new OwningTempFileManager(fs),
-      theHailClassLoader = HailSuite.theHailClassLoader,
+      theHailClassLoader = HailSuite.hcl,
       flags = HailSuite.flags,
       irMetadata = new IrMetadata(),
       BlockMatrixCache = ImmutableMap.empty,
@@ -103,14 +101,14 @@ class HailSuite extends TestNGSuite with TestUtils {
 
     hadoop.fs.FileSystem.closeAll()
 
-    if (SparkBackend.sparkContext.isStopped)
+    if (backend_.sc.isStopped)
       throw new RuntimeException(s"'${context.getName}' stopped spark context!")
   }
 
   @AfterSuite
   def tearDownBackend(): Unit = {
-    Backend.get.close()
-    Backend.set(null)
+    backend_.close()
+    backend_ = null
     IRFunctionRegistry.clearUserFunctions()
   }
 
