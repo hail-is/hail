@@ -178,7 +178,6 @@ class Py4JBackend(Backend):
         self,
         jvm: JVMView,
         jbackend: JavaObject,
-        jhc: JavaObject,
         tmpdir: str,
         remote_tmpdir: str,
     ):
@@ -195,7 +194,6 @@ class Py4JBackend(Backend):
         self._jvm = jvm
         self._hail_package = getattr(self._jvm, 'is').hail
         self._utils_package_object = scala_package_object(self._hail_package.utils)
-        self._jhc = jhc
 
         self._jbackend = self._hail_package.backend.driver.Py4JQueryDriver(jbackend)
         self.local_tmpdir = tmpdir
@@ -337,8 +335,6 @@ class Py4JBackend(Backend):
     def stop(self):
         self._stop_jhttp_server()
         self._jbackend.close()
-        self._jhc.stop()
-        self._jhc = None
         uninstall_exception_handler()
         super().stop()
 

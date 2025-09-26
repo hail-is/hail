@@ -1,5 +1,7 @@
 package is.hail.utils
 
+import is.hail.HAIL_PRETTY_VERSION
+
 import java.util.Properties
 
 import org.apache.log4j.{LogManager, Logger, PropertyConfigurator}
@@ -92,6 +94,12 @@ object Logging {
 
     LogManager.resetConfiguration()
     PropertyConfigurator.configure(logProps)
+  }
+
+  def preamble(): Unit = {
+    info(s"Running Hail version $HAIL_PRETTY_VERSION")
+    val jreVersion = Runtime.version().feature()
+    if (jreVersion != 11) warn(s"Hail is tested against Java 11, found $jreVersion")
   }
 
 }
