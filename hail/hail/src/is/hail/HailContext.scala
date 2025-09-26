@@ -1,22 +1,15 @@
 package is.hail
 
-import is.hail.backend.{Backend, ExecuteContext}
+import is.hail.backend.Backend
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.io.fs.FS
 import is.hail.utils._
 
-import scala.reflect.ClassTag
-
-import java.io.InputStream
 import java.util.Properties
 
 import org.apache.log4j.{LogManager, PropertyConfigurator}
 import org.apache.spark._
-import org.apache.spark.executor.InputMetrics
-import org.apache.spark.rdd.RDD
-
-case class FilePartition(index: Int, file: String) extends Partition
 
 object HailContext {
 
@@ -115,32 +108,6 @@ object HailContext {
       theContext.backend.close()
       theContext = null
     }
-
-  def readPartitions[T: ClassTag](
-    ctx: ExecuteContext,
-    path: String,
-    partFiles: IndexedSeq[String],
-    read: (Int, InputStream, InputMetrics) => Iterator[T],
-    optPartitioner: Option[Partitioner] = None,
-  ): RDD[T] = {
-    val nPartitions = partFiles.length
-
-    val fsBc = ctx.fsBc
-
-    new RDD[T](ctx.backend.asSpark.sc, Nil) {
-      def getPartitions: Array[Partition] =
-        Array.tabulate(nPartitions)(i => FilePartition(i, partFiles(i)))
-
-      override def compute(split: Partition, context: TaskContext): Iterator[T] = {
-        val p = split.asInstanceOf[FilePartition]
-        val filename = path + "/parts/" + p.file
-        val in = fsBc.value.open(filename)
-        read(p.index, in, context.taskMetrics().inputMetrics)
-      }
-
-      @transient override val partitioner: Option[Partitioner] = optPartitioner
-    }
-  }
 }
 
 class HailContext private (

@@ -1,6 +1,5 @@
 package is.hail.linalg
 
-import is.hail._
 import is.hail.annotations._
 import is.hail.backend.{BroadcastValue, ExecuteContext, HailStateManager}
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
@@ -28,7 +27,6 @@ import breeze.numerics.{abs => breezeAbs, log => breezeLog, pow => breezePow, sq
 import breeze.stats.distributions.RandBasis
 import org.apache.commons.lang3.StringUtils
 import org.apache.spark._
-import org.apache.spark.executor.InputMetrics
 import org.apache.spark.mllib.linalg.distributed.{GridPartitioner => _, _}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
@@ -216,16 +214,27 @@ object BlockMatrix {
       readMetadata(ctx.fs, uri)
 
     val gp = GridPartitioner(blockSize, nRows, nCols, maybeFiltered)
+    val nPartitions = partFiles.length
+    val fsBc = ctx.fsBc
 
-    def readBlock(pi: Int, is: InputStream, metrics: InputMetrics)
-      : Iterator[((Int, Int), BDM[Double])] = {
-      val block = RichDenseMatrixDouble.read(is, bufferSpec)
-      is.close()
+    val blocks =
+      new RDD[((Int, Int), BDM[Double])](ctx.backend.asSpark.sc, Nil) {
 
-      Iterator.single(gp.partCoordinates(pi) -> block)
-    }
+        case class FilePartition(index: Int, file: String) extends Partition
 
-    val blocks = HailContext.readPartitions(ctx, uri, partFiles, readBlock, Some(gp))
+        override lazy val getPartitions: Array[Partition] =
+          Array.tabulate(nPartitions)(i => FilePartition(i, partFiles(i)))
+
+        override def compute(split: Partition, context: TaskContext)
+          : Iterator[((Int, Int), BDM[Double])] =
+          using(fsBc.value.open(uri + "/parts/" + split.asInstanceOf[FilePartition].file)) { in =>
+            val block = RichDenseMatrixDouble.read(in, bufferSpec)
+            Iterator.single(gp.partCoordinates(split.index) -> block)
+          }
+
+        @transient override val partitioner: Option[Partitioner] =
+          Some(gp)
+      }
 
     new BlockMatrix(blocks, blockSize, nRows, nCols)
   }
