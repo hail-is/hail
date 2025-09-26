@@ -1509,7 +1509,7 @@ def test_pool_standard_instance_cheapest(client: BatchClient):
     assert 'standard' in status['status']['worker'], str((status, b.debug_info()))
 
 
-# TODO: This test is too flaky to be run by default.Come up with a way that this test can be tested on demand (eg if we change GPU-y things) but not on
+# TODO (#15116): This test is too flaky to be run by default.Come up with a way that this test can be tested on demand (eg if we change GPU-y things) but not on
 # all unrelated changes.
 #  @skip_in_azure
 # async def test_nvidia_driver_accesibility_usage(client: BatchClient):
