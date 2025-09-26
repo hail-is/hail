@@ -9,7 +9,6 @@ import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.lowering._
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.fs._
-import is.hail.macros.void
 import is.hail.rvd.RVD
 import is.hail.types._
 import is.hail.types.physical.{PStruct, PTuple}
@@ -43,7 +42,7 @@ object SparkTaskContext {
       override def initialValue(): SparkTaskContext = {
         val sparkTC = TaskContext.get()
         assert(sparkTC != null, "Spark Task Context was null, maybe this ran on the driver?")
-        sparkTC.addTaskCompletionListener[Unit]((_: TaskContext) => SparkTaskContext.finish())
+        sparkTC.addTaskCompletionListener[Unit]((_: TaskContext) => SparkTaskContext.finish()): Unit
 
         // this must be the only place where SparkTaskContext classes are created
         new SparkTaskContext(sparkTC)
@@ -111,33 +110,29 @@ object SparkBackend {
     val conf = new SparkConf().setAppName(appName)
 
     if (master != null)
-      conf.setMaster(master)
+      conf.setMaster(master): Unit
     else {
       if (!conf.contains("spark.master"))
-        conf.setMaster(local)
+        conf.setMaster(local): Unit
     }
 
     conf.set("spark.logConf", "true")
-    conf.set("spark.ui.showConsoleProgress", "false")
-
-    conf.set("spark.kryoserializer.buffer.max", "1g")
-    conf.set("spark.driver.maxResultSize", "0")
-
-    conf.set(
-      "spark.hadoop.io.compression.codecs",
-      "org.apache.hadoop.io.compress.DefaultCodec," +
-        "is.hail.io.compress.BGzipCodec," +
-        "is.hail.io.compress.BGzipCodecTbi," +
-        "org.apache.hadoop.io.compress.GzipCodec",
-    )
-
-    conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
-    conf.set("spark.kryo.registrator", "is.hail.kryo.HailKryoRegistrator")
-
-    conf.set(
-      "spark.hadoop.mapreduce.input.fileinputformat.split.minsize",
-      (blockSize * 1024L * 1024L).toString,
-    )
+      .set("spark.ui.showConsoleProgress", "false")
+      .set("spark.kryoserializer.buffer.max", "1g")
+      .set("spark.driver.maxResultSize", "0")
+      .set(
+        "spark.hadoop.io.compression.codecs",
+        "org.apache.hadoop.io.compress.DefaultCodec," +
+          "is.hail.io.compress.BGzipCodec," +
+          "is.hail.io.compress.BGzipCodecTbi," +
+          "org.apache.hadoop.io.compress.GzipCodec",
+      )
+      .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+      .set("spark.kryo.registrator", "is.hail.kryo.HailKryoRegistrator")
+      .set(
+        "spark.hadoop.mapreduce.input.fileinputformat.split.minsize",
+        (blockSize * 1024L * 1024L).toString,
+      ): Unit
 
     // load additional Spark properties from HAIL_SPARK_PROPERTIES
     val hailSparkProperties = System.getenv("HAIL_SPARK_PROPERTIES")
@@ -264,7 +259,7 @@ object SparkBackend {
 
       checkSparkConfiguration(sc1)
 
-      if (!quiet) ProgressBarBuilder.build(sc1)
+      if (!quiet) ProgressBarBuilder.build(sc1): Unit
 
       sc1.uiWebUrl.foreach(ui => info(s"SparkUI: $ui"))
 
@@ -375,7 +370,7 @@ class SparkBackend(val sc: SparkContext) extends Backend {
     }
 
   def pyStartProgressBar(): Unit =
-    void(ProgressBarBuilder.build(sc))
+    ProgressBarBuilder.build(sc): Unit
 
   def jvmLowerAndExecute(
     ctx: ExecuteContext,

@@ -1,7 +1,6 @@
 package is.hail.utils
 
 import is.hail.annotations.{Region, RegionMemory}
-import is.hail.macros.void
 import is.hail.utils.compat._
 
 import scala.collection.mutable
@@ -50,7 +49,7 @@ class LongToRegionValueCache(capacity: Int) extends Closeable {
     if (addr == 0L)
       throw new RuntimeException("tried to cache null pointer")
     val rm = region.getMemory()
-    void(m.put(key, (rm, addr)))
+    m.put(key, (rm, addr))
   }
 
   // returns -1 if not in cache

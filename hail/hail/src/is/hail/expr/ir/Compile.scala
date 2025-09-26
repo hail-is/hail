@@ -164,8 +164,7 @@ object CompileIterator {
     }
 
     def next(): java.lang.Long = {
-      if (!hasNext)
-        return Iterator.empty.next()
+      if (!hasNext) Iterator.empty.next(): Unit // throw
       _stepped = false
       stepFunction.loadAddress()
     }
@@ -237,7 +236,7 @@ object CompileIterator {
 
       cb.if_(
         !didSetup, {
-          optStream.toI(cb).getOrAssert(cb) // handle missing, but bound stream producer above
+          optStream.toI(cb).getOrAssert(cb): Unit // handle missing, but bound stream producer above
 
           cb.assign(producer.elementRegion, eltRegionField)
           producer.initialize(cb, outerRegion)

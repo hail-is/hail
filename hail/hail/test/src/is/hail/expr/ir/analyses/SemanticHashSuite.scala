@@ -13,7 +13,6 @@ import java.io.FileNotFoundException
 import java.lang
 
 import org.json4s.JValue
-import org.scalatest
 import org.testng.annotations.{DataProvider, Test}
 
 class SemanticHashSuite extends HailSuite {
@@ -291,8 +290,7 @@ class SemanticHashSuite extends HailSuite {
     )
 
   @Test(dataProvider = "isBaseIRSemanticallyEquivalent")
-  def testSemanticEquivalence(a: BaseIR, b: BaseIR, isEqual: Boolean, comment: String)
-    : scalatest.Assertion =
+  def testSemanticEquivalence(a: BaseIR, b: BaseIR, isEqual: Boolean, comment: String): Unit =
     ctx.local(fs = fakeFs) { ctx =>
       assertResult(
         isEqual,
@@ -303,7 +301,7 @@ class SemanticHashSuite extends HailSuite {
     }
 
   @Test
-  def testFileNotFoundExceptions(): scalatest.Assertion = {
+  def testFileNotFoundExceptions(): Unit = {
     val fs =
       new FakeFS {
         override def eTag(url: FakeURL): Option[String] =

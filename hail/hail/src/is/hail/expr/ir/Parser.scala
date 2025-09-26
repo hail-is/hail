@@ -149,9 +149,9 @@ object IRParser {
     it.next()
   }
 
-  def punctuation(it: TokenIterator, symbol: String): String =
+  def punctuation(it: TokenIterator, symbol: String): Unit =
     consumeToken(it) match {
-      case x: PunctuationToken if x.value == symbol => x.value
+      case x: PunctuationToken if x.value == symbol =>
       case x: Token =>
         error(x, s"Expected punctuation '$symbol' but found ${x.getName} '${x.value}'.")
     }
@@ -162,9 +162,9 @@ object IRParser {
       case x: Token => error(x, s"Expected identifier but found ${x.getName} '${x.value}'.")
     }
 
-  def identifier(it: TokenIterator, expectedId: String): String =
+  def identifier(it: TokenIterator, expectedId: String): Unit =
     consumeToken(it) match {
-      case x: IdentifierToken if x.value == expectedId => x.value
+      case x: IdentifierToken if x.value == expectedId =>
       case x: Token =>
         error(x, s"Expected identifier '$expectedId' but found ${x.getName} '${x.value}'.")
     }
@@ -279,7 +279,7 @@ object IRParser {
   def opt[T](it: TokenIterator, f: (TokenIterator) => T)(implicit tct: ClassTag[T]): Option[T] = {
     it.head match {
       case x: IdentifierToken if x.value == "None" =>
-        consumeToken(it)
+        consumeToken(it): Unit
         None
       case _ =>
         Some(f(it))
@@ -297,7 +297,7 @@ object IRParser {
     while (it.hasNext && it.head != end) {
       xs += f(it)
       if (it.head == sep)
-        consumeToken(it)
+        consumeToken(it): Unit
     }
     xs.toArray
   }
@@ -369,7 +369,7 @@ object IRParser {
     punctuation(it, ":")
     val typ = f(it)
     while (it.hasNext && it.head == PunctuationToken("@"))
-      decorator(it)
+      decorator(it): Unit
     (name, typ)
   }
 
@@ -387,7 +387,7 @@ object IRParser {
   def ptype_expr(it: TokenIterator): PType = {
     val req = it.head match {
       case x: PunctuationToken if x.value == "+" =>
-        consumeToken(it)
+        punctuation(it, "+")
         true
       case _ => false
     }
@@ -469,7 +469,7 @@ object IRParser {
     // skip requiredness token for back-compatibility
     it.head match {
       case x: PunctuationToken if x.value == "+" =>
-        consumeToken(it)
+        punctuation(it, "+")
       case _ =>
     }
 
@@ -1470,7 +1470,7 @@ object IRParser {
       case "ReadPartition" =>
         val requestedTypeRaw = it.head match {
           case x: IdentifierToken if x.value == "None" || x.value == "DropRowUIDs" =>
-            consumeToken(it)
+            consumeToken(it): Unit
             Left(x.value)
           case _ =>
             Right(type_expr(it))
@@ -1553,7 +1553,7 @@ object IRParser {
       case "TableRead" =>
         val requestedTypeRaw = it.head match {
           case x: IdentifierToken if x.value == "None" || x.value == "DropRowUIDs" =>
-            consumeToken(it)
+            consumeToken(it): Unit
             Left(x.value)
           case _ =>
             Right(table_type_expr(it))
@@ -1803,7 +1803,7 @@ object IRParser {
         val requestedTypeRaw = it.head match {
           case x: IdentifierToken
               if x.value == "None" || x.value == "DropColUIDs" || x.value == "DropRowUIDs" || x.value == "DropRowColUIDs" =>
-            consumeToken(it)
+            consumeToken(it): Unit
             Left(x.value)
           case _ =>
             Right(matrix_type_expr(it))
@@ -2077,7 +2077,7 @@ object IRParser {
           run(
             combIR,
             BindingEnv.empty.bindEval(accumName -> t.virtualType, otherAccumName -> t.virtualType),
-          )
+          ): Unit
           x
         case x @ SeqOp(
               _,
@@ -2087,7 +2087,7 @@ object IRParser {
           run(
             combIR,
             BindingEnv.empty.bindEval(accumName -> t.virtualType, otherAccumName -> t.virtualType),
-          )
+          ): Unit
           x
         case x @ CombOp(
               _,
@@ -2097,7 +2097,7 @@ object IRParser {
           run(
             combIR,
             BindingEnv.empty.bindEval(accumName -> t.virtualType, otherAccumName -> t.virtualType),
-          )
+          ): Unit
           x
         case x @ ResultOp(
               _,
@@ -2106,7 +2106,7 @@ object IRParser {
           run(
             combIR,
             BindingEnv.empty.bindEval(accumName -> t.virtualType, otherAccumName -> t.virtualType),
-          )
+          ): Unit
           x
         case Apply(name, typeArgs, args, rt, errorID) =>
           invoke(name, rt, typeArgs, errorID, args: _*)

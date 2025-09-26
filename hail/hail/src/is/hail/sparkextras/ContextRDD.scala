@@ -2,7 +2,6 @@ package is.hail.sparkextras
 
 import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
-import is.hail.macros.void
 import is.hail.rvd.RVDContext
 import is.hail.utils._
 
@@ -66,7 +65,7 @@ class AssociativeCombiner[U](zero: => U, combine: (U, U) => U) extends Combiner[
       }
     }
 
-    void(t.put(i, TreeValue(value, end)))
+    t.put(i, TreeValue(value, end))
   }
 
   def result(): U = {
@@ -163,7 +162,7 @@ class ContextRDD[T: ClassTag](
 
   private[this] def sparkManagedContext[U](func: RVDContext => U): U = {
     val c = RVDContext.default(SparkTaskContext.get().getRegionPool())
-    TaskContext.get().addTaskCompletionListener[Unit]((_: TaskContext) => c.close())
+    TaskContext.get().addTaskCompletionListener[Unit]((_: TaskContext) => c.close()): Unit
     func(c)
   }
 

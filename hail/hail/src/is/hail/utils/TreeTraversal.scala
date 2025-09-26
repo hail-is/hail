@@ -55,7 +55,7 @@ object TreeTraversal {
       override def next(): A = {
         val top = queue.front.next()
         if (!queue.front.hasNext)
-          queue.dequeue()
+          queue.dequeue(): Unit
 
         val children = adj(top)
         if (children.hasNext)

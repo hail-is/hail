@@ -21,7 +21,6 @@ import org.apache.hadoop
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.Row
-import org.scalatest
 import org.scalatest.Inspectors.forEvery
 import org.scalatestplus.testng.TestNGSuite
 import org.testng.ITestContext
@@ -173,7 +172,7 @@ class HailSuite extends TestNGSuite with TestUtils {
     agg: Option[(IndexedSeq[Row], TStruct)],
     expected: Any,
   )(implicit execStrats: Set[ExecStrategy]
-  ): scalatest.Assertion = {
+  ): Unit = {
 
     TypeCheck(ctx, x, BindingEnv(env.mapValues(_._2), agg = agg.map(_._2.toEnv)))
 
@@ -211,15 +210,14 @@ class HailSuite extends TestNGSuite with TestUtils {
     }
   }
 
-  def assertNDEvals(nd: IR, expected: Any)(implicit execStrats: Set[ExecStrategy])
-    : scalatest.Assertion =
+  def assertNDEvals(nd: IR, expected: Any)(implicit execStrats: Set[ExecStrategy]): Unit =
     assertNDEvals(nd, Env.empty, FastSeq(), None, expected)
 
   def assertNDEvals(
     nd: IR,
     expected: (Any, IndexedSeq[Long]),
   )(implicit execStrats: Set[ExecStrategy]
-  ): scalatest.Assertion =
+  ): Unit =
     if (expected == null)
       assertNDEvals(nd, Env.empty, FastSeq(), None, null, null)
     else
@@ -230,7 +228,7 @@ class HailSuite extends TestNGSuite with TestUtils {
     args: IndexedSeq[(Any, Type)],
     expected: Any,
   )(implicit execStrats: Set[ExecStrategy]
-  ): scalatest.Assertion =
+  ): Unit =
     assertNDEvals(nd, Env.empty, args, None, expected)
 
   def assertNDEvals(
@@ -238,7 +236,7 @@ class HailSuite extends TestNGSuite with TestUtils {
     agg: (IndexedSeq[Row], TStruct),
     expected: Any,
   )(implicit execStrats: Set[ExecStrategy]
-  ): scalatest.Assertion =
+  ): Unit =
     assertNDEvals(nd, Env.empty, FastSeq(), Some(agg), expected)
 
   def assertNDEvals(
@@ -248,7 +246,7 @@ class HailSuite extends TestNGSuite with TestUtils {
     agg: Option[(IndexedSeq[Row], TStruct)],
     expected: Any,
   )(implicit execStrats: Set[ExecStrategy]
-  ): scalatest.Assertion = {
+  ): Unit = {
     var e: IndexedSeq[Any] = expected.asInstanceOf[IndexedSeq[Any]]
     val dims = Array.fill(nd.typ.asInstanceOf[TNDArray].nDims) {
       val n = e.length
@@ -267,7 +265,7 @@ class HailSuite extends TestNGSuite with TestUtils {
     dims: IndexedSeq[Long],
     expected: Any,
   )(implicit execStrats: Set[ExecStrategy]
-  ): scalatest.Assertion = {
+  ): Unit = {
     val arrayIR = if (expected == null) nd
     else {
       val refs = Array.fill(nd.typ.asInstanceOf[TNDArray].nDims)(Ref(freshName(), TInt32))
@@ -285,7 +283,7 @@ class HailSuite extends TestNGSuite with TestUtils {
     bm: BlockMatrixIR,
     expected: DenseMatrix[Double],
   )(implicit execStrats: Set[ExecStrategy]
-  ): scalatest.Assertion = {
+  ): Unit = {
     val filteredExecStrats: Set[ExecStrategy] =
       if (backend.isInstanceOf[SparkBackend]) execStrats
       else {
@@ -321,14 +319,14 @@ class HailSuite extends TestNGSuite with TestUtils {
   def assertAllEvalTo(
     xs: (IR, Any)*
   )(implicit execStrats: Set[ExecStrategy]
-  ): scalatest.Assertion =
+  ): Unit =
     assertEvalsTo(MakeTuple.ordered(xs.toArray.map(_._1)), Row.fromSeq(xs.map(_._2)))
 
   def assertEvalsTo(
     x: IR,
     expected: Any,
   )(implicit execStrats: Set[ExecStrategy]
-  ): scalatest.Assertion =
+  ): Unit =
     assertEvalsTo(x, Env.empty, FastSeq(), None, expected)
 
   def assertEvalsTo(
@@ -336,7 +334,7 @@ class HailSuite extends TestNGSuite with TestUtils {
     args: IndexedSeq[(Any, Type)],
     expected: Any,
   )(implicit execStrats: Set[ExecStrategy]
-  ): scalatest.Assertion =
+  ): Unit =
     assertEvalsTo(x, Env.empty, args, None, expected)
 
   def assertEvalsTo(
@@ -344,6 +342,6 @@ class HailSuite extends TestNGSuite with TestUtils {
     agg: (IndexedSeq[Row], TStruct),
     expected: Any,
   )(implicit execStrats: Set[ExecStrategy]
-  ): scalatest.Assertion =
+  ): Unit =
     assertEvalsTo(x, Env.empty, FastSeq(), Some(agg), expected)
 }

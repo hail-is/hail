@@ -5,7 +5,6 @@ import is.hail.asm4s._
 import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.utils._
 
-import org.scalatest
 import org.scalatest.Inspectors.forAll
 import org.scalatest.enablers.InspectorAsserting.assertingNatureOfAssertion
 import org.testng.annotations.Test
@@ -64,7 +63,7 @@ class PContainerTest extends PhysicalTestUtils {
     res
   }
 
-  @Test def checkFirstNonZeroByte(): scalatest.Assertion = {
+  @Test def checkFirstNonZeroByte(): Unit = {
     val sourceType = PCanonicalArray(PInt64(false))
 
     assert(testContainsNonZeroBits(sourceType, nullInByte(0, 0)) == false)
@@ -106,14 +105,14 @@ class PContainerTest extends PhysicalTestUtils {
     assert(testContainsNonZeroBits(sourceType, nullInByte(73, 64)) == true)
   }
 
-  @Test def checkFirstNonZeroByteStaged(): scalatest.Assertion = {
+  @Test def checkFirstNonZeroByteStaged(): Unit = {
     val sourceType = PCanonicalArray(PInt64(false))
 
     assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(32, 0)) == false)
     assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(73, 64)) == true)
   }
 
-  @Test def checkHasMissingValues(): scalatest.Assertion = {
+  @Test def checkHasMissingValues(): Unit = {
     val sourceType = PCanonicalArray(PInt64(false))
 
     assert(testHasMissingValues(sourceType, nullInByte(1, 0)) == false)
@@ -127,10 +126,10 @@ class PContainerTest extends PhysicalTestUtils {
     }
   }
 
-  @Test def arrayCopyTest(): scalatest.Assertion = {
+  @Test def arrayCopyTest(): Unit = {
     /* Note: can't test where data is null due to ArrayStack.top semantics (ScalaToRegionValue:
      * assert(size_ > 0)) */
-    def runTests(deepCopy: Boolean, interpret: Boolean): scalatest.Assertion = {
+    def runTests(deepCopy: Boolean, interpret: Boolean): Unit = {
       copyTestExecutor(
         PCanonicalArray(PInt32()),
         PCanonicalArray(PInt64()),
@@ -308,8 +307,8 @@ class PContainerTest extends PhysicalTestUtils {
     runTests(false, interpret = true)
   }
 
-  @Test def dictCopyTests(): scalatest.Assertion = {
-    def runTests(deepCopy: Boolean, interpret: Boolean): scalatest.Assertion = {
+  @Test def dictCopyTests(): Unit = {
+    def runTests(deepCopy: Boolean, interpret: Boolean): Unit = {
       copyTestExecutor(
         PCanonicalDict(PCanonicalString(), PInt32()),
         PCanonicalDict(PCanonicalString(), PInt32()),
@@ -341,8 +340,8 @@ class PContainerTest extends PhysicalTestUtils {
     runTests(false, interpret = true)
   }
 
-  @Test def setCopyTests(): scalatest.Assertion = {
-    def runTests(deepCopy: Boolean, interpret: Boolean): scalatest.Assertion = {
+  @Test def setCopyTests(): Unit = {
+    def runTests(deepCopy: Boolean, interpret: Boolean): Unit = {
       copyTestExecutor(
         PCanonicalSet(PCanonicalString(true)),
         PCanonicalSet(PCanonicalString()),
