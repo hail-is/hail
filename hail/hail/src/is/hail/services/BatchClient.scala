@@ -309,8 +309,7 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
     while (true) {
       val jobGroup = getJobGroup(batchId, jobGroupId)
 
-      if (jobGroup.complete)
-        return jobGroup
+      if (jobGroup.state != JobGroupStates.Running) return jobGroup
 
       // wait 10% of duration so far
       // at least, 50ms
