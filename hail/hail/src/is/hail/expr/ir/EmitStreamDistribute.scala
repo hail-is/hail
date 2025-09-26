@@ -32,7 +32,7 @@ object EmitStreamDistribute {
       region,
       pivotsPType,
       1,
-      requestedSplittersAndEndsVal.loadLength() - 1,
+      requestedSplittersAndEndsVal.loadLength - 1,
     )
 
     val keyType = requestedSplittersVal.st.elementType.asInstanceOf[SBaseStruct]
@@ -59,7 +59,7 @@ object EmitStreamDistribute {
     val filledInTreeSize = Code.invokeScalaObject1[Int, Int](
       MathFunctions.getClass,
       "roundToNextPowerOf2",
-      requestedSplittersVal.loadLength() + 1,
+      requestedSplittersVal.loadLength + 1,
     )
     val treeHeight = cb.memoize[Int](Code.invokeScalaObject1[Int, Int](
       MathFunctions.getClass,
@@ -97,7 +97,7 @@ object EmitStreamDistribute {
 
       cb.for_(
         cb.assign(requestedSplittersIdx, 0),
-        requestedSplittersIdx < requestedSplittersVal.loadLength(),
+        requestedSplittersIdx < requestedSplittersVal.loadLength,
         cb.assign(requestedSplittersIdx, requestedSplittersIdx + 1), {
           val currentSplitter = requestedSplittersVal.loadElement(
             cb,
@@ -306,7 +306,7 @@ object EmitStreamDistribute {
     val tree = buildTree(paddedSplitters, PCanonicalArray(keyPType))
 
     val shouldUseIdentityBuckets =
-      cb.memoize[Boolean](numUniqueSplitters < requestedSplittersVal.loadLength())
+      cb.memoize[Boolean](numUniqueSplitters < requestedSplittersVal.loadLength)
     val numberOfBuckets = cb.newLocal[Int]("stream_dist_number_of_buckets")
     cb.if_(
       shouldUseIdentityBuckets,
@@ -436,9 +436,9 @@ object EmitStreamDistribute {
     val firstSplitter = paddedSplitters.loadElement(cb, 0).memoize(cb, "stream_dist_first_splitter")
     val max = requestedSplittersAndEndsVal.loadElement(
       cb,
-      requestedSplittersAndEndsVal.loadLength() - 1,
+      requestedSplittersAndEndsVal.loadLength - 1,
     ).memoize(cb, "stream_dist_min")
-    val lastSplitter = paddedSplitters.loadElement(cb, paddedSplitters.loadLength() - 1).memoize(
+    val lastSplitter = paddedSplitters.loadElement(cb, paddedSplitters.loadLength - 1).memoize(
       cb,
       "stream_dist_last_splitter",
     )
@@ -579,7 +579,7 @@ object EmitStreamDistribute {
           EmitCode.fromI(cb.emb)(cb =>
             requestedSplittersAndEndsVal.loadElement(
               cb,
-              requestedSplittersAndEndsVal.loadLength() - 1,
+              requestedSplittersAndEndsVal.loadLength - 1,
             )
           ),
           false,

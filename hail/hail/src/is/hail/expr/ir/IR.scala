@@ -495,9 +495,9 @@ package defs {
 
     def toD: IR = Cast(self, TFloat64)
 
-    def unary_-(): IR = ApplyUnaryPrimOp(Negate, self)
+    def unary_- : IR = ApplyUnaryPrimOp(Negate, self)
 
-    def unary_!(): IR = ApplyUnaryPrimOp(Bang, self)
+    def unary_! : IR = ApplyUnaryPrimOp(Bang, self)
 
     def ceq(other: IR): IR = ApplyComparisonOp(EQWithNA, self, other)
 

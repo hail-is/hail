@@ -161,7 +161,8 @@ case class MatrixExportEntriesByCol(
       val ns = endIdx - startIdx
       val newFiles = mv.sparkContext.parallelize(0 until ns, numSlices = ns)
         .map { sampleIdx =>
-          val partFilePath = path + "/" + partFile(digitsNeeded(nCols), sampleIdx, TaskContext.get)
+          val partFilePath =
+            path + "/" + partFile(digitsNeeded(nCols), sampleIdx, TaskContext.get())
           val fileStatuses =
             partFolders.map(pf => fsBc.value.fileStatus(pf + s"/$sampleIdx" + extension))
           fsBc.value.copyMergeList(fileStatuses, partFilePath, deleteSource = false)

@@ -146,7 +146,7 @@ class SInsertFieldsStructValue(
   val newFields: IndexedSeq[EmitValue],
 ) extends SBaseStructValue {
   override lazy val valueTuple: IndexedSeq[Value[_]] =
-    parent.valueTuple ++ newFields.flatMap(_.valueTuple())
+    parent.valueTuple ++ newFields.flatMap(_.valueTuple)
 
   override def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode =
     st.getFieldIndexInNewOrParent(fieldIdx) match {

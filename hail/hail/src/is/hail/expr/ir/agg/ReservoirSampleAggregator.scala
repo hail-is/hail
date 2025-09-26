@@ -37,7 +37,7 @@ class ReservoirSampleRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuil
     cb += region.getNewRegion(regionSize)
 
   def createState(cb: EmitCodeBuilder): Unit = {
-    cb.assign(rand, Code.newInstance[java.util.Random])
+    cb.assign(rand, Code.newInstance[java.util.Random]())
     cb.if_(region.isNull, cb.assign(r, Region.stagedCreate(regionSize, kb.pool())))
   }
 

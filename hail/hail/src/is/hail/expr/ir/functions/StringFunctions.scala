@@ -135,7 +135,7 @@ object StringFunctions extends RegistryFunctions {
         )
         mb.emitWithBuilder[Array[String]] { cb =>
           val sv = mb.getSCodeParam(1).asIndexable
-          val m = cb.newLocal[Array[String]]("missingvals", Code.newArray[String](sv.loadLength()))
+          val m = cb.newLocal[Array[String]]("missingvals", Code.newArray[String](sv.loadLength))
           sv.forEachDefined(cb) { case (cb, idx, sc) =>
             cb += (m(idx) = sc.asString.loadString(cb))
           }
@@ -240,7 +240,7 @@ object StringFunctions extends RegistryFunctions {
                     cb.assign(i, i + 1) // skip quote
 
                     cb.if_(
-                      i < string.length, {
+                      i < string.length(), {
                         cb.assign(c, string(i))
                         val l = getPatternMatch(i, c)
                         cb.if_(

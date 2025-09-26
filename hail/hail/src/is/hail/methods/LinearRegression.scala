@@ -91,7 +91,7 @@ case class LinearRegressionRowsSingle(
     val newRVD = mv.rvd.mapPartitionsWithContext(
       rvdType
     ) { (consumerCtx, it) =>
-      val producerCtx = consumerCtx.freshContext
+      val producerCtx = consumerCtx.freshContext()
       val rvb = new RegionValueBuilder(sm)
 
       val missingCompleteCols = new IntArrayBuilder()
@@ -270,7 +270,7 @@ case class LinearRegressionRowsChained(
     val newRVD = mv.rvd.mapPartitionsWithContext(
       rvdType
     ) { (consumerCtx, it) =>
-      val producerCtx = consumerCtx.freshContext
+      val producerCtx = consumerCtx.freshContext()
       val rvb = new RegionValueBuilder(sm)
 
       val inputData = bc.value

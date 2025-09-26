@@ -207,13 +207,6 @@ trait HailModule extends ScalaModule with ScalafmtModule with ScalafixModule { o
         "-Wconf:cat=deprecation&msg=method reverseMap in trait SeqOps is deprecated:s",
         // method transform in trait SeqOps is deprecated (since 2.13.0): Use `mapInPlace` on an `IndexedSeq` instead
         "-Wconf:cat=deprecation&msg=method transform in trait SeqOps is deprecated:s",
-      // nullary args
-        // Auto-application to `()` is deprecated. Supply the empty argument list `()` explicitly to invoke method apply,
-        // or remove the empty argument list from its definition (Java-defined methods are exempt).
-        // In Scala 3, an unapplied method like this will be eta-expanded into a function
-        raw"-Wconf:cat=deprecation&msg=Auto-application:s",
-        "-Wconf:cat=deprecation&msg=unary prefix operator definition with empty parameter list is deprecated:s",
-        "-Wconf:cat=other-nullary-override:s",
       // other
         // Wrap `export` in backticks to use it as an identifier, it will become a keyword in Scala 3
         "-Wconf:cat=deprecation&msg=`export`:s",

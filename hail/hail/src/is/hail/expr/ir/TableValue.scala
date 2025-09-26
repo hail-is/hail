@@ -1198,7 +1198,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
       val tmpBase = ctx.createTmpPath("table-map-rows-distributed-scan")
       val d = digitsNeeded(rvd.getNumPartitions)
       val files = rvd.mapPartitionsWithIndex { (i, ctx, it) =>
-        val path = tmpBase + "/" + partFile(d, i, TaskContext.get)
+        val path = tmpBase + "/" + partFile(d, i, TaskContext.get())
         val globalRegion = ctx.freshRegion()
         val globals = if (scanSeqNeedsGlobals)
           globalsBc.value.readRegionValue(globalRegion, theHailClassLoaderForSparkWorkers)
@@ -1240,7 +1240,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
             .cmapPartitions { (ctx, it) =>
               val i = it.next()
               assert(it.isEmpty)
-              val path = tmpBase + "/" + partFile(d, i, TaskContext.get)
+              val path = tmpBase + "/" + partFile(d, i, TaskContext.get())
               val file1 = filesToMerge(i * 2)
               val file2 = filesToMerge(i * 2 + 1)
 

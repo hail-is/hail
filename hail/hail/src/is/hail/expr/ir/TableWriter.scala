@@ -412,7 +412,7 @@ case class RVDSpecWriter(path: String, spec: RVDSpecMaker) extends MetadataWrite
     cb += cb.emb.getFS.invoke[String, Unit]("mkDir", path)
     val a = writeAnnotations.getOrFatal(cb, "write annotations can't be missing!").asIndexable
     val partFiles = cb.newLocal[Array[String]]("partFiles")
-    val n = cb.newLocal[Int]("n", a.loadLength())
+    val n = cb.newLocal[Int]("n", a.loadLength)
     val i = cb.newLocal[Int]("i", 0)
     cb.assign(partFiles, Code.newArray[String](n))
     cb.while_(
@@ -496,7 +496,7 @@ case class TableSpecWriter(
     cb.assign(lastSeenSettable, EmitCode.missing(cb.emb, keySType))
     val distinctlyKeyed = cb.newLocal[Boolean]("tsw_write_metadata_distinctlyKeyed", hasKey)
 
-    val n = cb.newLocal[Int]("n", a.loadLength())
+    val n = cb.newLocal[Int]("n", a.loadLength)
     val i = cb.newLocal[Int]("i", 0)
     cb.assign(partCounts, Code.newArray[Long](n))
     cb.while_(
@@ -831,7 +831,7 @@ case class TableTextFinalizer(
           cb += os.invoke[Int, Unit]("write", '\n')
           cb += os.invoke[Unit]("close")
 
-          val allFiles = cb.memoize(Code.newArray[String](files.length + 1))
+          val allFiles = cb.memoize(Code.newArray[String](files.length() + 1))
           cb += (allFiles(0) = const(headerFilePath))
           cb += Code.invokeStatic5[System, Any, Int, Any, Int, Int, Unit](
             "arraycopy",
@@ -839,7 +839,7 @@ case class TableTextFinalizer(
             0 /*srcPos*/,
             allFiles /*dest*/,
             1 /*destPos*/,
-            files.length, /*len*/
+            files.length(), /*len*/
           )
           allFiles
         } else {
@@ -855,7 +855,7 @@ case class TableTextFinalizer(
         val i = cb.newLocal[Int]("i")
         cb.for_(
           cb.assign(i, 0),
-          i < jFiles.length,
+          i < jFiles.length(),
           cb.assign(i, i + 1),
           cb += cb.emb.getFS.invoke[String, Boolean, Unit]("delete", jFiles(i), const(false)),
         )

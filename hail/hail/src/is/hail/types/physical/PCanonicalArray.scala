@@ -225,7 +225,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false)
     def value: Long =
       firstElementOffset + i * elementByteSize
 
-    def iterate: Unit = i += 1
+    def iterate(): Unit = i += 1
   }
 
   def elementIterator(aoff: Long, length: Int): Iterator = new Iterator(aoff, length)
@@ -453,7 +453,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false)
     indexable: SIndexableValue,
     deepCopy: Boolean,
   ): Unit = {
-    val length = indexable.loadLength()
+    val length = indexable.loadLength
     indexable.st match {
       case SIndexablePointer(PCanonicalArray(otherElementType, _))
           if otherElementType == elementType =>
@@ -472,7 +472,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false)
             cb._fatal("tried to copy array with missing values to array of required elements"),
           )
         }
-        stagedInitialize(cb, addr, indexable.loadLength(), setMissing = false)
+        stagedInitialize(cb, addr, indexable.loadLength, setMissing = false)
 
         cb += Region.copyFrom(
           otherType.firstElementOffset(indexable.asInstanceOf[SIndexablePointerValue].a),
@@ -516,7 +516,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false)
         value.asInstanceOf[SIndexablePointerValue].a
       case _ =>
         val idxValue = value.asIndexable
-        val newAddr = cb.memoize(allocate(region, idxValue.loadLength()))
+        val newAddr = cb.memoize(allocate(region, idxValue.loadLength))
         storeContentsAtAddress(cb, newAddr, region, idxValue, deepCopy)
         newAddr
     }

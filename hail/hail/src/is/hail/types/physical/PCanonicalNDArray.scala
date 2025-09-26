@@ -254,13 +254,13 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
             cb += Region.copyFrom(
               dataValue.asInstanceOf[SIndexablePointerValue].elementsAddress,
               result.firstDataAddress,
-              dataValue.loadLength().toL * elementType.byteSize,
+              dataValue.loadLength.toL * elementType.byteSize,
             )
           case _ =>
             val loopCtr = cb.newLocal[Long]("pcanonical_ndarray_construct_by_copying_loop_idx")
             cb.for_(
               cb.assign(loopCtr, 0L),
-              loopCtr < dataValue.loadLength().toL,
+              loopCtr < dataValue.loadLength.toL,
               cb.assign(loopCtr, loopCtr + 1L),
               elementType.storeAtAddress(
                 cb,

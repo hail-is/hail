@@ -346,10 +346,10 @@ class BinaryHeapSuite extends ScalaCheckDrivenPropertyChecks {
 
     val m = new mutable.HashMap[Long, Long]()
 
-    def isEmpty() =
+    def isEmpty =
       m.size == 0
 
-    def size() =
+    def size =
       m.size
 
     def max(): Long =

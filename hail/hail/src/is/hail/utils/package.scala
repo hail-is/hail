@@ -349,7 +349,7 @@ package object utils
     var idx: Int = 0
     def hasNext: Boolean = idx < r.size
 
-    def next: Any = {
+    def next(): Any = {
       val a = r(idx)
       idx += 1
       a
@@ -804,7 +804,7 @@ package object utils
     val it = ts.toIterator
     val m = mutable.Map[K, V]()
     while (it.hasNext) {
-      val t = it.next
+      val t = it.next()
       m.put(key(t), value(t))
     }
     m

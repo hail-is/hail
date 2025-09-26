@@ -157,7 +157,7 @@ class BGzipCodecSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
     assert(uncomp.sameElements(decomp))
 
-    val lines = Source.fromBytes(uncomp).getLines.toArray
+    val lines = Source.fromBytes(uncomp).getLines().toArray
 
     assert(sc.textFile(uncompPath).collectOrdered()
       .sameElements(lines))
