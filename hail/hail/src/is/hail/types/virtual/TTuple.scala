@@ -4,6 +4,8 @@ import is.hail.annotations.ExtendedOrdering
 import is.hail.backend.HailStateManager
 import is.hail.utils._
 
+import scala.collection.compat._
+
 import org.apache.spark.sql.Row
 
 object TTuple {
@@ -47,7 +49,7 @@ final case class TTuple(_types: IndexedSeq[TupleField]) extends TBaseStruct {
   override def unify(concrete: Type): Boolean = concrete match {
     case TTuple(ctypes) =>
       size == ctypes.length &&
-      (types, ctypes).zipped.forall { case (t, ct) =>
+      types.lazyZip(ctypes).forall { case (t, ct) =>
         t.unify(ct.typ)
       }
     case _ => false

@@ -8,6 +8,8 @@ import is.hail.types.physical.stypes.{EmitType, SType, SValue}
 import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructSettable, SBaseStructValue}
 import is.hail.types.virtual.{TBaseStruct, TStruct, TTuple, Type}
 
+import scala.collection.compat._
+
 object SStackStruct {
   val MAX_FIELDS_FOR_CONSTRUCT: Int = 64
 
@@ -166,7 +168,7 @@ final case class SStackStruct(virtualType: TBaseStruct, fieldEmitTypes: IndexedS
 class SStackStructValue(val st: SStackStruct, val values: IndexedSeq[EmitValue])
     extends SBaseStructValue {
   assert(
-    (st.fieldTypes, values).zipped.forall((st, v) => v.st == st),
+    st.fieldTypes.lazyZip(values).forall((st, v) => v.st == st),
     s"type mismatch!\n  struct type: $st\n  value types:  ${values.map(_.st).mkString("[", ", ", "]")}",
   )
 
@@ -197,8 +199,6 @@ final class SStackStructSettable(
 
   override def store(cb: EmitCodeBuilder, v: SValue): Unit = {
     assert(v.st == st)
-    (settables, v.asInstanceOf[SStackStructValue].values).zipped.foreach { (s, c) =>
-      s.store(cb, c)
-    }
+    settables.lazyZip(v.asInstanceOf[SStackStructValue].values).foreach((s, c) => s.store(cb, c))
   }
 }

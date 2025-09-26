@@ -174,10 +174,6 @@ trait HailModule extends ScalaModule with ScalafmtModule with ScalafixModule { o
         "-Wconf:cat=deprecation&msg=method copyArrayToImmutableIndexedSeq in class LowPriorityImplicits2 is deprecated:s",
         // Passing an explicit array value to a Scala varargs method is deprecated (since 2.13.0) and will result in a defensive copy; Use the more efficient non-copying ArraySeq.unsafeWrapArray or an explicit toIndexedSeq call
         "-Wconf:cat=deprecation&msg=Passing an explicit array value to a Scala varargs method is deprecated:s",
-        // method zipped in class Ops is deprecated (since 2.13.0): Use xs.lazyZip(ys)
-        "-Wconf:cat=deprecation&msg=method zipped in class Ops is deprecated:s",
-        // object ZippedIterable2 in package runtime is deprecated (since 2.13.0): Use scala.collection.LazyZip2
-        "-Wconf:cat=deprecation&msg=object ZippedIterable2 in package runtime is deprecated:s",
         // method any2stringadd in object Predef is deprecated (since 2.13.0): Implicit injection of + is deprecated. Convert to String to call +
         "-Wconf:cat=deprecation&msg=any2stringadd:s",
         // method + in class Char is deprecated (since 2.13.0): Adding a number and a String is deprecated. Use the string interpolation `s"$num$str"`

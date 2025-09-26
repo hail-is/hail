@@ -12,6 +12,7 @@ import is.hail.types.physical.stypes.primitives.SInt64Value
 import is.hail.types.virtual.TInt32
 import is.hail.utils.{toRichIterable, valueToRichCodeRegion, FastSeq}
 
+import scala.collection.compat._
 import scala.collection.mutable
 
 object SNDArray {
@@ -1316,7 +1317,7 @@ trait SNDArrayValue extends SValue {
     val shape = this.shapes
     assert(shape.length == otherShape.length)
 
-    (shape, otherShape).zipped.foreach((s1, s2) => b = s1.ceq(s2))
+    shape.lazyZip(otherShape).foreach((s1, s2) => b = s1.ceq(s2))
     b
   }
 

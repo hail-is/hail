@@ -9,6 +9,7 @@ import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.utils.StackSafe._
 
+import scala.collection.compat._
 import scala.reflect.ClassTag
 
 object TypeCheck {
@@ -409,7 +410,7 @@ object TypeCheck {
           assert(lKeyTyp == rKeyTyp.pointType)
           assert((joinType == "left") || (joinType == "inner"))
         } else {
-          assert((lKey, rKey).zipped.forall { case (lk, rk) =>
+          assert(lKey.lazyZip(rKey).forall { case (lk, rk) =>
             lEltTyp.fieldType(lk) == rEltTyp.fieldType(rk)
           })
         }

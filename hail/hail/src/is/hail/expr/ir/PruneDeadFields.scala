@@ -2209,8 +2209,7 @@ object PruneDeadFields {
           requestedType = TStream(dep.elementType),
         )
       case StreamZip(as, names, body, b, errorID) =>
-        val (newAs, newNames) = (as, names)
-          .zipped
+        val (newAs, newNames) = as.lazyZip(names)
           .flatMap { case (a, name) =>
             if (memo.requestedType.contains(a)) Some((rebuildIR(ctx, a, env, memo), name)) else None
           }

@@ -12,6 +12,8 @@ import is.hail.expr.ir.defs.{
 import is.hail.types.virtual._
 import is.hail.utils._
 
+import scala.collection.compat._
+
 import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods
 import org.scalatest
@@ -61,7 +63,7 @@ class MatrixIRSuite extends HailSuite {
           (partSize, partIndex) <- partition(10, 3).zipWithIndex
           i <- 0 until partSize
         } yield Row(partIndex.toLong, i.toLong)
-        (0 until 10, uids).zipped.map { (i, uid) =>
+        (0 until 10).lazyZip(uids).map { (i, uid) =>
           Row(i, uid, expectedCols.map { case Row(j, _) => Row(i, j) })
         }
       } else

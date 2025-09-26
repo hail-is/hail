@@ -8,6 +8,7 @@ import is.hail.utils.compat._
 import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.collection.JavaConverters._
+import scala.collection.compat._
 import scala.collection.mutable
 
 import org.apache.spark.sql.Row
@@ -81,7 +82,7 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
   override def unify(concrete: Type): Boolean = concrete match {
     case TStruct(cfields) =>
       fields.length == cfields.length &&
-      (fields, cfields).zipped.forall { case (f, cf) =>
+      fields.lazyZip(cfields).forall { case (f, cf) =>
         f.unify(cf)
       }
     case _ => false

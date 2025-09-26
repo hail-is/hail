@@ -7,6 +7,8 @@ import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.utils.Interval
 
+import scala.collection.compat._
+
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.scalacheck.{Arbitrary, Gen}
@@ -36,7 +38,7 @@ private[scalacheck] trait GenVal {
         case t: PBaseStruct =>
           for {
             sizes <- partition(t.types.length)
-            values <- sequence((sizes, t.types).zipped.map { case (s, t) =>
+            values <- sequence(sizes.lazyZip(t.types).map { case (s, t) =>
               resize(s, genVal(ctx, t))
             })
           } yield new GenericRow(values)
