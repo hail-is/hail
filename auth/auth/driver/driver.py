@@ -55,7 +55,7 @@ async def update_inactive_users(db: Database, user_timeout_days: int):
         """
 UPDATE users
 SET users.state = 'inactive'
-WHERE (users.state = 'active') AND (users.last_activated IS NOT NULL) AND (DATEDIFF(NOW(), users.last_activated) > %d) AND (users.is_service_account = 0);
+WHERE (users.state = 'active') AND (users.last_activated IS NOT NULL) AND (DATEDIFF(NOW(), users.last_activated) > %s) AND (users.is_service_account = 0);
 """,
         (user_timeout_days,),
     )
