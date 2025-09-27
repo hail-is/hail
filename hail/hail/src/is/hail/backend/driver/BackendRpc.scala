@@ -9,17 +9,15 @@ import is.hail.io.plink.LoadPlink
 import is.hail.io.vcf.LoadVCF
 import is.hail.types.virtual.{Kind, TFloat64}
 import is.hail.types.virtual.Kinds._
-import is.hail.utils.{using, BoxedArrayBuilder, ExecutionTimer, FastSeq}
+import is.hail.utils.{jsonToBytes, using, BoxedArrayBuilder, ExecutionTimer, FastSeq}
 import is.hail.utils.ExecutionTimer.Timings
 import is.hail.variant.ReferenceGenome
 
 import scala.util.control.NonFatal
 
 import java.io.ByteArrayOutputStream
-import java.nio.charset.StandardCharsets
 
 import org.json4s.{DefaultFormats, Extraction, Formats, JArray, JValue}
-import org.json4s.jackson.JsonMethods
 
 case class SerializedIRFunction(
   name: String,
@@ -145,9 +143,6 @@ trait BackendRpc {
     } catch {
       case NonFatal(error) => R.failure(env, error)
     }
-
-  def jsonToBytes(v: JValue): Array[Byte] =
-    JsonMethods.compact(v).getBytes(StandardCharsets.UTF_8)
 
   private[this] def withRegisterSerializedFns[A](
     ctx: ExecuteContext,

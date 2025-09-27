@@ -1,6 +1,6 @@
 package is.hail.backend.service
 
-import is.hail.HailFeatureFlags
+import is.hail.{HAIL_REVISION, HailFeatureFlags}
 import is.hail.asm4s._
 import is.hail.backend._
 import is.hail.backend.service.ServiceBackend.MaxAvailableGcsConnections
@@ -13,6 +13,7 @@ import is.hail.expr.ir.lowering._
 import is.hail.io.fs._
 import is.hail.services._
 import is.hail.services.JobGroupStates.{Cancelled, Failure, Success}
+import is.hail.services.oauth2.{CloudCredentials, HailCredentials}
 import is.hail.types._
 import is.hail.types.physical._
 import is.hail.utils._
@@ -23,8 +24,65 @@ import java.io._
 import java.nio.charset.StandardCharsets
 import java.util.concurrent._
 
+import com.fasterxml.jackson.core.StreamReadConstraints
+
 object ServiceBackend {
   val MaxAvailableGcsConnections = 1000
+
+  // See https://github.com/hail-is/hail/issues/14580
+  StreamReadConstraints.overrideDefaultStreamReadConstraints(
+    StreamReadConstraints.builder().maxStringLength(Integer.MAX_VALUE).build()
+  )
+
+  def pyServiceBackend(
+    name: String,
+    batchId_ : Integer,
+    billingProject: String,
+    deployConfigFile: String,
+    workerCores: String,
+    workerMemory: String,
+    storage: String,
+    cloudfuse: Array[CloudfuseConfig],
+    regions: Array[String],
+  ): ServiceBackend = {
+    val credentials: CloudCredentials =
+      HailCredentials().getOrElse(CloudCredentials(keyPath = None))
+
+    val client =
+      BatchClient(
+        DeployConfig.fromConfigFile(deployConfigFile),
+        credentials,
+      )
+
+    val batchId =
+      Option(batchId_).map(_.toInt).getOrElse {
+        client.newBatch(
+          BatchRequest(
+            billing_project = billingProject,
+            token = tokenUrlSafe,
+            n_jobs = 0,
+            attributes = Map("name" -> name),
+          )
+        )
+      }
+
+    val workerConfig =
+      BatchJobConfig(
+        workerCores,
+        workerMemory,
+        storage,
+        cloudfuse,
+        regions,
+      )
+
+    new ServiceBackend(
+      name,
+      client,
+      GitRevision(HAIL_REVISION),
+      BatchConfig(batchId, 0),
+      workerConfig,
+    )
+  }
 }
 
 case class BatchJobConfig(
@@ -144,10 +202,16 @@ class ServiceBackend(
       )
 
     stageCount += 1
-
-    Thread.sleep(600) // it is not possible for the batch to be finished in less than 600ms
-    val response = batchClient.waitForJobGroup(batchConfig.batchId, jobGroupId)
-    (response, startJobId)
+    try {
+      Thread.sleep(600) // it is not possible for the batch to be finished in less than 600ms
+      val response = batchClient.waitForJobGroup(batchConfig.batchId, jobGroupId)
+      (response, startJobId)
+    } catch {
+      case _: InterruptedException =>
+        batchClient.cancelJobGroup(batchConfig.batchId, jobGroupId)
+        Thread.currentThread().interrupt()
+        throw new CancellationException()
+    }
   }
 
   private[this] def readPartitionResult(fs: FS, root: String, i: Int): Array[Byte] = {

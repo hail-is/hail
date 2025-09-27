@@ -3,41 +3,58 @@ package is.hail.services
 import is.hail.macros.void
 import is.hail.services.oauth2.AzureCloudCredentials.AzureTokenRefreshMinutes
 import is.hail.services.oauth2.AzureCloudCredentials.EnvVars.AzureApplicationCredentials
-import is.hail.services.oauth2.GoogleCloudCredentials.EnvVars.GoogleApplicationCredentials
 import is.hail.shadedazure.com.azure.core.credential.{
   AccessToken, TokenCredential, TokenRequestContext,
 }
 import is.hail.shadedazure.com.azure.identity.{
   ClientSecretCredentialBuilder, DefaultAzureCredentialBuilder,
 }
-import is.hail.utils.{defaultJSONFormats, using}
+import is.hail.utils.{jsonToBytes, using}
 
 import scala.collection.JavaConverters._
 
-import java.io.Serializable
+import java.io.{ByteArrayInputStream, Serializable}
 import java.nio.file.{Files, Path}
 import java.time.OffsetDateTime
 
-import com.google.auth.oauth2.{GoogleCredentials, ServiceAccountCredentials}
-import org.json4s.Formats
+import com.google.auth.oauth2.GoogleCredentials
+import org.json4s.{DefaultFormats, Formats, JValue}
 import org.json4s.jackson.JsonMethods
 
 object oauth2 {
 
   sealed trait CloudCredentials extends Product with Serializable {
     def accessToken: String
+    def scoped(scopes: Array[String]): CloudCredentials
   }
 
-  def CloudCredentials(
-    keyPath: Path,
-    scopes: IndexedSeq[String],
-    env: Map[String, String] = sys.env,
-  ): CloudCredentials =
+  implicit lazy val fmts: Formats = DefaultFormats
+
+  def HailCredentials(env: Map[String, String] = sys.env): Option[CloudCredentials] =
+    for {
+      config <-
+        env
+          .get("XDG_CONFIG_HOME")
+          .map(Path.of(_))
+          .orElse(env.get("HOME").map(Path.of(_, ".config")))
+
+      identity = config.resolve("hail/identity.json").toFile
+      if identity.exists()
+
+      json <- JsonMethods.parseOpt(identity)
+    } yield (json \ "idp").extract[String] match {
+      case "Google" => GoogleCloudCredentials.fromJson(json \ "credentials")
+      case "Microsoft" => AzureCloudCredentials.fromJson(json \ "credentials")
+      case other => throw new IllegalArgumentException(s"Unknown identity provider: '$other'")
+    }
+
+  def CloudCredentials(keyPath: Option[Path], env: Map[String, String] = sys.env)
+    : CloudCredentials =
     env.get("HAIL_CLOUD") match {
-      case Some("gcp") => GoogleCloudCredentials(Some(keyPath), scopes, env)
-      case Some("azure") => AzureCloudCredentials(Some(keyPath), scopes, env)
+      case Some("gcp") => GoogleCloudCredentials(keyPath)
+      case Some("azure") => AzureCloudCredentials(keyPath, env)
       case Some(cloud) => throw new IllegalArgumentException(s"Unknown cloud: '$cloud'")
-      case None => throw new IllegalArgumentException(s"HAIL_CLOUD must be set.")
+      case _ => throw new IllegalStateException("'HAIL_CLOUD' must be set.")
     }
 
   case class GoogleCloudCredentials(value: GoogleCredentials) extends CloudCredentials {
@@ -45,25 +62,27 @@ object oauth2 {
       value.refreshIfExpired()
       value.getAccessToken.getTokenValue
     }
+
+    override def scoped(scopes: Array[String]): GoogleCloudCredentials =
+      GoogleCloudCredentials(value.createScoped(scopes: _*))
   }
 
   object GoogleCloudCredentials {
-    object EnvVars {
-      val GoogleApplicationCredentials = "GOOGLE_APPLICATION_CREDENTIALS"
-    }
-
-    def apply(keyPath: Option[Path], scopes: IndexedSeq[String], env: Map[String, String] = sys.env)
-      : GoogleCloudCredentials =
+    def fromJson(jv: JValue): GoogleCloudCredentials =
       GoogleCloudCredentials {
-        val creds: GoogleCredentials =
-          keyPath.orElse(env.get(GoogleApplicationCredentials).map(Path.of(_))) match {
-            case Some(path) =>
-              using(Files.newInputStream(path))(ServiceAccountCredentials.fromStream)
-            case None =>
-              GoogleCredentials.getApplicationDefault
-          }
+        GoogleCredentials.fromStream(
+          new ByteArrayInputStream(jsonToBytes(jv))
+        )
+      }
 
-        creds.createScoped(scopes: _*)
+    def apply(keyPath: Option[Path]): GoogleCloudCredentials =
+      GoogleCloudCredentials {
+        keyPath match {
+          case Some(path) =>
+            using(Files.newInputStream(path))(GoogleCredentials.fromStream)
+          case None =>
+            GoogleCredentials.getApplicationDefault
+        }
       }
   }
 
@@ -78,6 +97,8 @@ object oauth2 {
       refreshIfRequired()
       token.getToken
     }
+
+    override def scoped(scopes: Array[String]): AzureCloudCredentials
 
     private[this] def refreshIfRequired(): Unit =
       if (!isExpired) void(token.getToken)
@@ -100,13 +121,22 @@ object oauth2 {
       val AzureApplicationCredentials = "AZURE_APPLICATION_CREDENTIALS"
     }
 
+    val DefaultOAuth2Scopes: Array[String] =
+      Array(".default")
+
     private[AzureCloudCredentials] val AzureTokenRefreshMinutes = 5
 
-    def apply(keyPath: Option[Path], scopes: IndexedSeq[String], env: Map[String, String] = sys.env)
-      : AzureCloudCredentials =
+    def fromJson(jv: JValue): AzureCloudCredentials =
+      AzureClientSecretCredentials(jv, DefaultOAuth2Scopes)
+
+    def apply(keyPath: Option[Path], env: Map[String, String] = sys.env): AzureCloudCredentials =
       keyPath.orElse(env.get(AzureApplicationCredentials).map(Path.of(_))) match {
-        case Some(path) => AzureClientSecretCredentials(path, scopes)
-        case None => AzureDefaultCredentials(scopes)
+        case Some(path) =>
+          using(Files.newInputStream(path)) { in =>
+            AzureClientSecretCredentials(JsonMethods.parse(in), DefaultOAuth2Scopes)
+          }
+        case None =>
+          AzureDefaultCredentials(DefaultOAuth2Scopes)
       }
   }
 
@@ -114,19 +144,21 @@ object oauth2 {
       extends AzureCloudCredentials {
     @transient override lazy val value: TokenCredential =
       new DefaultAzureCredentialBuilder().build()
+
+    override def scoped(scopes: Array[String]): AzureDefaultCredentials =
+      copy(scopes)
   }
 
-  private case class AzureClientSecretCredentials(path: Path, scopes: IndexedSeq[String])
+  private case class AzureClientSecretCredentials(secret: JValue, scopes: IndexedSeq[String])
       extends AzureCloudCredentials {
     @transient override lazy val value: TokenCredential =
-      using(Files.newInputStream(path)) { is =>
-        implicit val fmts: Formats = defaultJSONFormats
-        val kvs = JsonMethods.parse(is)
-        new ClientSecretCredentialBuilder()
-          .clientId((kvs \ "appId").extract[String])
-          .clientSecret((kvs \ "password").extract[String])
-          .tenantId((kvs \ "tenant").extract[String])
-          .build()
-      }
+      new ClientSecretCredentialBuilder()
+        .clientId((secret \ "appId").extract[String])
+        .clientSecret((secret \ "password").extract[String])
+        .tenantId((secret \ "tenant").extract[String])
+        .build()
+
+    override def scoped(scopes: Array[String]): AzureClientSecretCredentials =
+      copy(scopes = scopes)
   }
 }

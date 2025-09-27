@@ -5,6 +5,7 @@ import is.hail.shadedazure.com.azure.storage.common.implementation.Constants
 import is.hail.utils._
 
 import scala.util.Random
+import scala.util.control.ControlThrowable
 
 import java.io._
 import java.net._
@@ -185,14 +186,28 @@ package object services {
     }
   }
 
-  def retryTransientErrors[T](f: => T, reset: Option[() => Unit] = None): T = {
-    var tries = 0
-    while (true) {
-      try
-        return f
+  private[this] object Retry extends ControlThrowable
+
+  def retry[A]: A = throw Retry
+
+  def retryable[A](f: Int => A): A = {
+    var attempts: Int = 0
+
+    while (true)
+      try return f(attempts)
+      catch {
+        case Retry =>
+          attempts += 1
+      }
+
+    uninitialized
+  }
+
+  def retryTransientErrors[T](f: => T, reset: Option[() => Unit] = None): T =
+    retryable { tries =>
+      try f
       catch {
         case e: Exception =>
-          tries += 1
           val delay = delayMsForTry(tries)
           if (tries <= 5 && isLimitedRetriesError(e)) {
             log.warn(
@@ -206,12 +221,10 @@ package object services {
             log.warn(s"Encountered $tries transient errors, most recent one was $e.")
           }
           Thread.sleep(delay)
+          reset.foreach(_())
+          retry
       }
-      reset.foreach(_())
     }
-
-    throw new AssertionError("unreachable")
-  }
 
   def formatException(e: Throwable): String = {
     using(new StringWriter()) { sw =>
