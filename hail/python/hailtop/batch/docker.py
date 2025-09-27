@@ -10,6 +10,7 @@ def build_python_image(
     fullname: str,
     requirements: Optional[List[str]] = None,
     python_version: Optional[str] = None,
+    slim: bool = True,
     _tmp_dir: str = '/tmp',
     *,
     show_docker_output: bool = False,
@@ -38,6 +39,8 @@ def build_python_image(
     python_version:
         String in the format of `major_version.minor_version` (ex: `3.9`). Defaults to
         current version of Python that is running.
+    slim:
+        Whether to use the slim version of the Python image.
     _tmp_dir:
         Location to place local temporary files used while building the image.
     show_docker_output:
@@ -61,7 +64,10 @@ def build_python_image(
             f'Python versions older than 3.9 (you are using {major_version}.{minor_version}) are not supported'
         )
 
-    base_image = f'hailgenetics/python-dill:{major_version}.{minor_version}-slim'
+    if slim:
+        base_image = f'hailgenetics/python-dill:{major_version}.{minor_version}-slim'
+    else:
+        base_image = f'hailgenetics/python-dill:{major_version}.{minor_version}'
 
     docker_path = f'{_tmp_dir}/{secret_alnum_string(6)}/docker'
     try:
