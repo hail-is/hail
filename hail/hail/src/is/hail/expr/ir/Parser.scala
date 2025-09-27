@@ -2047,12 +2047,6 @@ object IRParser {
         val shape = int64_literals(it)
         val blockSize = int32_literal(it)
         done(BlockMatrixRandom(staticUID, gaussian, shape, blockSize))
-      case "RelationalLetBlockMatrix" =>
-        val n = name(it)
-        for {
-          value <- ir_value_expr(ctx)(it)
-          body <- blockmatrix_ir(ctx)(it)
-        } yield RelationalLetBlockMatrix(n, value, body)
     }
   }
 

@@ -41,9 +41,8 @@ object LowerMatrixIR {
     val ab = new BoxedArrayBuilder[(Name, IR)]
 
     val l1 = lower(ctx, bmir, ab)
-    ab.result().foldRight[BlockMatrixIR](l1) { case ((ident, value), body) =>
-      RelationalLetBlockMatrix(ident, value, body)
-    }
+    assert(ab.result().isEmpty)
+    l1
   }
 
   private[this] def lowerChildren(

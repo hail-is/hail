@@ -159,7 +159,6 @@ class NormalizeNames(freeVariables: Set[Name]) {
       case x: BlockMatrixMap => x.copy(eltName = rename(x.eltName))
       case x: BlockMatrixMap2 =>
         x.copy(leftName = rename(x.leftName), rightName = rename(x.rightName))
-      case x: RelationalLetBlockMatrix => x.copy(name = rename(x.name))
 
       case x => x
     }

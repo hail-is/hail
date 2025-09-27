@@ -1112,17 +1112,3 @@ case class BlockMatrixRandom(
   override protected[ir] def execute(ctx: ExecuteContext): BlockMatrix =
     BlockMatrix.random(shape(0), shape(1), blockSize, ctx.rngNonce, staticUID, gaussian)
 }
-
-case class RelationalLetBlockMatrix(name: Name, value: IR, body: BlockMatrixIR)
-    extends BlockMatrixIR {
-  override def typ: BlockMatrixType = body.typ
-
-  def childrenSeq: IndexedSeq[BaseIR] = Array(value, body)
-
-  val blockCostIsLinear: Boolean = body.blockCostIsLinear
-
-  override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): BlockMatrixIR = {
-    val IndexedSeq(newValue: IR, newBody: BlockMatrixIR) = newChildren
-    RelationalLetBlockMatrix(name, newValue, newBody)
-  }
-}
