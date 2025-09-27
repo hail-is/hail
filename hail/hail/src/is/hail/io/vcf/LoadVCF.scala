@@ -217,7 +217,7 @@ class VCFParseError(val msg: String, val pos: Int) extends RuntimeException(msg)
 
 final class VCFLine(
   val line: String,
-  val fileNum: Long,
+  val fileNum: Int,
   val fileOffset: Long,
   arrayElementsRequired: Boolean,
   val abs: MissingArrayBuilder[String],
@@ -1487,7 +1487,7 @@ object LoadVCF {
 
     if (hasRowUID) {
       rvb.startTuple()
-      rvb.addLong(vcfLine.fileNum)
+      rvb.addLong(vcfLine.fileNum.toLong)
       rvb.addLong(vcfLine.fileOffset)
       rvb.endTuple()
     }
@@ -1531,7 +1531,7 @@ object LoadVCF {
               val vcfLine = new VCFLine(
                 line,
                 context.fileNum,
-                lwc.source.position.get,
+                lwc.source.position.get.toLong,
                 arrayElementsRequired,
                 abs,
                 abi,

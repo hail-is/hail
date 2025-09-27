@@ -218,7 +218,7 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
       // test addAnnotation
       region.clear()
-      region.allocate(1, n) // preallocate
+      region.allocate(1, n.toLong) // preallocate
 
       val offset = pt.unstagedStoreJavaObject(sm, a, region)
 
@@ -231,7 +231,7 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
       // test addAnnotation from ur
       region2.clear()
-      region2.allocate(1, n2) // preallocate
+      region2.allocate(1, n2.toLong) // preallocate
       val offset2 = pt.unstagedStoreJavaObject(sm, ur, region2)
 
       val ur2 = UnsafeRow.read(pt, region2, offset2)
@@ -239,7 +239,7 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
       // test addRegionValue
       region2.clear()
-      region2.allocate(1, n2) // preallocate
+      region2.allocate(1, n2.toLong) // preallocate
       rvb2.start(pt)
       rvb2.addRegionValue(pt, region, offset)
       val offset3 = rvb2.end()
@@ -251,7 +251,7 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         case t: TStruct =>
           val ps = pt.asInstanceOf[PStruct]
           region2.clear()
-          region2.allocate(1, n) // preallocate
+          region2.allocate(1, n.toLong) // preallocate
           val offset4 =
             ps.unstagedStoreJavaObject(sm, Row.fromSeq(a.asInstanceOf[Row].toSeq), region2)
           val ur4 = new UnsafeRow(ps, region2, offset4)

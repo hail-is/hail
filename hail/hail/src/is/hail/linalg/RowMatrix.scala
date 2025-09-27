@@ -41,7 +41,7 @@ object RowMatrix {
     }
     val gp = GridPartitioner(blockSize, nRows, nCols, maybeFiltered)
     val partSize: Int = if (maybePartSize != null) maybePartSize else blockSize
-    val partitionCounts = computePartitionCounts(partSize, gp.nRows)
+    val partitionCounts = computePartitionCounts(partSize.toLong, gp.nRows)
     RowMatrix(
       new ReadBlocksAsRowsRDD(ctx.fsBc, uri, partFiles, partitionCounts, gp),
       gp.nCols.toInt,

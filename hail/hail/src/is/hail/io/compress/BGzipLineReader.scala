@@ -45,7 +45,7 @@ final class BGzipLineReader(
     assert(start < buffer.length)
     bufferLen = start
     virtualFileOffsetAtLastRead = is.getVirtualOffset
-    bufferPositionAtLastRead = start
+    bufferPositionAtLastRead = start.toLong
     val bytesRead = is.read(buffer, start, buffer.length - start)
     if (bytesRead < 0)
       bufferEOF = true

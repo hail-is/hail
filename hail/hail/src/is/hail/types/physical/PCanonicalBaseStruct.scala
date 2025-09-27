@@ -25,7 +25,12 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
   val byteOffsets: Array[Long] = new Array[Long](size)
 
   override val byteSize: Long =
-    getByteSizeAndOffsets(types.map(_.byteSize), types.map(_.alignment), nMissingBytes, byteOffsets)
+    getByteSizeAndOffsets(
+      types.map(_.byteSize),
+      types.map(_.alignment),
+      nMissingBytes.toLong,
+      byteOffsets,
+    )
 
   override val alignment: Long = PBaseStruct.alignment(types)
 
@@ -57,7 +62,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     }
 
   override def isFieldDefined(offset: Long, fieldIdx: Int): Boolean =
-    fieldRequired(fieldIdx) || !Region.loadBit(offset, missingIdx(fieldIdx))
+    fieldRequired(fieldIdx) || !Region.loadBit(offset, missingIdx(fieldIdx).toLong)
 
   override def isFieldMissing(cb: EmitCodeBuilder, offset: Code[Long], fieldIdx: Int)
     : Value[Boolean] =
@@ -68,7 +73,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
 
   override def setFieldMissing(offset: Long, fieldIdx: Int): Unit = {
     assert(!fieldRequired(fieldIdx))
-    Region.setBit(offset, missingIdx(fieldIdx))
+    Region.setBit(offset, missingIdx(fieldIdx).toLong)
   }
 
   override def setFieldMissing(cb: EmitCodeBuilder, offset: Code[Long], fieldIdx: Int): Unit =
@@ -80,7 +85,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
 
   override def setFieldPresent(offset: Long, fieldIdx: Int): Unit =
     if (!fieldRequired(fieldIdx))
-      Region.clearBit(offset, missingIdx(fieldIdx))
+      Region.clearBit(offset, missingIdx(fieldIdx).toLong)
 
   override def setFieldPresent(cb: EmitCodeBuilder, offset: Code[Long], fieldIdx: Int): Unit =
     if (!fieldRequired(fieldIdx))

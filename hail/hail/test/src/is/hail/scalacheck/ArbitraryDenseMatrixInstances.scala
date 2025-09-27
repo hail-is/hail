@@ -29,9 +29,11 @@ private[scalacheck] trait ArbitraryDenseMatrixInstances {
 
   def genNCubeOfVolumeAtMost(n: Int, size: Int, alpha: Int = 1): Gen[Array[Int]] =
     for {
-      simplexVector <- dirichlet(Array.fill(n)(alpha))
-      sizeOfSum = math.log(size)
-    } yield roundWithConstantSum(simplexVector.map(_ * sizeOfSum)).map(math.exp(_).toInt)
+      simplexVector <- dirichlet(Array.fill(n)(alpha.toDouble))
+      sizeOfSum = math.log(size.toDouble)
+    } yield roundWithConstantSum(simplexVector.map(_ * sizeOfSum)).map(i =>
+      math.exp(i.toDouble).toInt
+    )
 
   implicit lazy val arbDenseMatrix: Arbitrary[DenseMatrix[Double]] =
     genNonEmptySquareOfAreaAtMostSize flatMap { case (m, n) => genDenseMatrix(m, n) }

@@ -73,7 +73,7 @@ object LocalLDPruneSuite {
     for ((call, i) <- calls.zipWithIndex) {
       if (call != null) {
         val gt = Call.unphasedDiploidGtIndex(call)
-        vals(i) = gt
+        vals(i) = gt.toDouble
         (gt: @unchecked) match {
           case 0 =>
           case 1 =>
@@ -111,7 +111,7 @@ object LocalLDPruneSuite {
 }
 
 class LocalLDPruneSuite extends HailSuite {
-  val memoryPerCoreBytes = 256 * 1024 * 1024
+  val memoryPerCoreBytes = 256L * 1024 * 1024
   val nCores = 4
 
   lazy val mt = unoptimized { ctx =>
