@@ -326,15 +326,16 @@ check-pip-lockfile:
 	$(PIP) install 'pip-tools==7.4.0' && bash ../check_pip_requirements.sh python
 
 
-python/hailtop/hailctl/deploy.yaml: env/cloud_base env/wheel_cloud_path
+python/hailtop/hailctl/deploy.yaml: env/cloud_base env/wheel_cloud_path python/pinned-requirements.txt
 python/hailtop/hailctl/deploy.yaml: $(resources)
 	rm -f $@
 	echo "dataproc:" >> $@
 	for FILE in $(notdir $(resources)); do \
-	  echo "  $$FILE: $(cloud_base)/$$FILE" >> $@ || exit 1; done
+		echo "  $$FILE: $(cloud_base)/$$FILE" >> $@ || exit 1
+	done
 	echo "  wheel: $(wheel_cloud_path)" >> $@
-	printf "  pip_dependencies: " >> $@
-	cat python/pinned-requirements.txt | sed '/^[[:blank:]]*#/d;s/#.*//' | grep -v pyspark | tr "\n" "|||" | tr -d '[:space:]' >> $@
+	echo "  pip_dependencies:" >> $@
+	sed '/^[[:blank:]]*#/d;s/#.*//;s/^/    - /' python/pinned-requirements.txt | grep -v pyspark >> $@
 
 .PHONY: upload-artifacts
 upload-artifacts: $(WHEEL)
