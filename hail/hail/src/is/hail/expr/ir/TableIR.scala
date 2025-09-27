@@ -1472,7 +1472,7 @@ case class PartitionZippedNativeIntervalReader(
     codeContext: EmitCode,
     requestedType: TStruct,
   ): IEmitCode = {
-    val zipContextType: TBaseStruct = tcoerce(zippedReader.contextType)
+    val zipContextType = tcoerce[TBaseStruct](zippedReader.contextType)
     val valueContext = cb.memoize(codeContext)
     val contexts: IndexedSeq[EmitCode] = FastSeq(valueContext, valueContext)
     val st = SStackStruct(zipContextType, contexts.map(_.emitType))

@@ -1511,11 +1511,6 @@ object IRParser {
           case Array(value, path, stagingFile) => WriteValue(value, path, writer, Some(stagingFile))
         }
       case "LiftMeOut" => ir_value_expr(ctx)(it).map(LiftMeOut)
-      case "ReadPartition" =>
-        val rowType = tcoerce[TStruct](type_expr(it))
-        import PartitionReader.formats
-        val reader = JsonMethods.parse(string_literal(it)).extract[PartitionReader]
-        ir_value_expr(ctx)(it).map(context => ReadPartition(context, rowType, reader))
     }
   }
 

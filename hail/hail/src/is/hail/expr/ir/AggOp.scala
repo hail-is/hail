@@ -85,7 +85,7 @@ object AggOp {
     case "min" | "Min" => Min()
     case "count" | "Count" => Count()
     case "take" | "Take" => Take()
-    case "ReservoirSample" | "Take" => ReservoirSample()
+    case "reservoirSample" | "ReservoirSample" => ReservoirSample()
     case "densify" | "Densify" => Densify()
     case "takeBy" | "TakeBy" => TakeBy()
     case "callStats" | "CallStats" => CallStats()

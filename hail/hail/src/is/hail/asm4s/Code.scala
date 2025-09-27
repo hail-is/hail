@@ -1333,8 +1333,8 @@ class VCode[+T](
 }
 
 object CodeKind extends Enumeration {
-  type Kind = Value
-  val V, C = Value
+  type Kind = this.Value
+  val V, C = this.Value
 }
 
 class CCode(

@@ -305,7 +305,7 @@ case class BlockMatrixMap(child: BlockMatrixIR, eltName: Name, f: IR, needsDense
   val blockCostIsLinear: Boolean = child.blockCostIsLinear
 
   private def evalIR(ctx: ExecuteContext, ir: IR): Double = {
-    val res: Any = CompileAndEvaluate(ctx, ir)
+    val res: Any = CompileAndEvaluate[Any](ctx, ir)
     if (res == null)
       fatal("can't perform BlockMatrix operation on missing values!")
     res.asInstanceOf[Double]
