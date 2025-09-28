@@ -2725,6 +2725,158 @@ steps:
     clouds:
       - azure
   - kind: runImage
+    name: test_hail_python_service_backend_gcp
+    numSplits: 16
+    image:
+      valueFrom: hail_run_image.image
+    resources:
+      cpu: '0.25'
+      preemptible: False
+    script: |
+      set -ex
+      python3 -m pip install --no-dependencies /io/wheel/hail-*-py3-none-any.whl
+
+      cd /io/repo/hail/python
+
+      export HAIL_CLOUD={{ global.cloud }}
+      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
+      export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
+      export HAIL_TEST_RESOURCES_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/test/resources/"
+      export HAIL_DOCTEST_DATA_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/doctest/data/"
+      export HAIL_GENETICS_VEP_GRCH37_85_IMAGE={{ hailgenetics_vep_grch37_85_image.image }}
+      export HAIL_GENETICS_VEP_GRCH38_95_IMAGE={{ hailgenetics_vep_grch38_95_image.image }}
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+
+      export GCS_REQUESTER_PAYS_PROJECT=broad-ctsa
+
+      export HAIL_SHUFFLE_MAX_BRANCH=4
+      export HAIL_SHUFFLE_CUTOFF=1000000
+      export HAIL_QUERY_BACKEND=batch
+      export HAIL_QUERY_USE_LOCAL_DRIVER=1
+      export HAIL_BATCH_REGIONS={{ global.gcp_region }}
+      export HAIL_BATCH_BILLING_PROJECT=test
+      export HAIL_BATCH_REMOTE_TMPDIR={{ global.test_storage_uri }}
+
+      python3 -m pytest \
+              -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
+              --log-cli-level=INFO \
+              -s \
+              -r A \
+              -vv \
+              --instafail \
+              --durations=50 \
+              --ignore=test/hailtop/ \
+              --ignore=test/hail/matrixtable/test_file_formats.py \
+              -m backend \
+              --timeout=600 \
+              test
+    timeout: 5400
+    inputs:
+      - from: /derived/release/hail/build/deploy/dist
+        to: /io/wheel
+      - from: /repo/hail/python/pytest.ini
+        to: /io/repo/hail/python/pytest.ini
+      - from: /repo/hail/python/test
+        to: /io/repo/hail/python/test
+    secrets:
+      - name: test-gsa-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-gsa-key
+    dependsOn:
+      - default_ns
+      - merge_code
+      - deploy_batch
+      - create_deploy_config
+      - create_accounts
+      - hail_run_image
+      - upload_query_jar
+      - upload_test_resources_to_blob_storage
+      - build_hail_jar_and_wheel
+      - hailgenetics_vep_grch37_85_image
+      - hailgenetics_vep_grch38_95_image
+    clouds:
+      - gcp
+  - kind: runImage
+    name: test_hail_python_service_backend_azure
+    numSplits: 16
+    image:
+      valueFrom: hail_run_image.image
+    resources:
+      cpu: '0.25'
+      preemptible: False
+    script: |
+      set -ex
+      python3 -m pip install --no-dependencies /io/wheel/hail-*-py3-none-any.whl
+
+      cd /io/repo/hail/python
+
+      export HAIL_CLOUD={{ global.cloud }}
+      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
+      export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
+      export HAIL_TEST_RESOURCES_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/test/resources/"
+      export HAIL_DOCTEST_DATA_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/doctest/data/"
+      export HAIL_GENETICS_VEP_GRCH37_85_IMAGE={{ hailgenetics_vep_grch37_85_image.image }}
+      export HAIL_GENETICS_VEP_GRCH38_95_IMAGE={{ hailgenetics_vep_grch38_95_image.image }}
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+
+      export HAIL_AZURE_SUBSCRIPTION_ID={{ global.azure_subscription_id }}
+      export HAIL_AZURE_RESOURCE_GROUP={{ global.azure_resource_group }}
+
+      export HAIL_SHUFFLE_MAX_BRANCH=4
+      export HAIL_SHUFFLE_CUTOFF=1000000
+      export HAIL_QUERY_BACKEND=batch
+      export HAIL_QUERY_USE_LOCAL_DRIVER=1
+      export HAIL_BATCH_REGIONS={{ global.azure_location }}
+      export HAIL_BATCH_BILLING_PROJECT=test
+      export HAIL_BATCH_REMOTE_TMPDIR={{ global.test_storage_uri }}
+
+      python3 -m pytest \
+              -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
+              --log-cli-level=INFO \
+              -s \
+              -r A \
+              -vv \
+              --instafail \
+              --durations=50 \
+              --ignore=test/hailtop/ \
+              --ignore=test/hail/matrixtable/test_file_formats.py \
+              -m backend \
+              --timeout=600 \
+              test
+    timeout: 5400
+    inputs:
+      - from: /derived/release/hail/build/deploy/dist
+        to: /io/wheel
+      - from: /repo/hail/python/pytest.ini
+        to: /io/repo/hail/python/pytest.ini
+      - from: /repo/hail/python/test
+        to: /io/repo/hail/python/test
+    secrets:
+      - name: test-gsa-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-gsa-key
+    dependsOn:
+      - default_ns
+      - merge_code
+      - deploy_batch
+      - create_deploy_config
+      - create_accounts
+      - hail_run_image
+      - upload_query_jar
+      - upload_test_resources_to_blob_storage
+      - build_hail_jar_and_wheel
+      - hailgenetics_vep_grch37_85_image
+      - hailgenetics_vep_grch38_95_image
+    scopes:
+      - deploy
+      - dev
+    clouds:
+      - azure
+  - kind: runImage
     name: test_hail_spark_conf_requester_pays_parsing
     image:
       valueFrom: hail_run_image.image

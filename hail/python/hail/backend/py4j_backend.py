@@ -15,6 +15,7 @@ import hail
 from hail.expr import construct_expr
 from hail.fs.hadoop_fs import HadoopFS
 from hail.ir import JavaIR
+from hail.ir.renderer import CSERenderer
 from hail.utils.java import Env, FatalError, scala_package_object
 from hail.version import __version__
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
@@ -185,12 +186,9 @@ class Py4JBackend(Backend):
         super().__init__()
         import base64
 
-        def decode_bytearray(encoded):
-            return base64.standard_b64decode(encoded)
-
         # By default, py4j's version of this function does extra
         # work to support python 2. This eliminates that.
-        py4j.protocol.decode_bytearray = decode_bytearray
+        py4j.protocol.decode_bytearray = base64.standard_b64decode
 
         self._jvm = jvm
         self._hail_package = getattr(self._jvm, 'is').hail
@@ -311,7 +309,10 @@ class Py4JBackend(Backend):
     def remove_liftover(self, name, dest_reference_genome):
         self._jbackend.pyRemoveLiftover(name, dest_reference_genome)
 
-    def _register_ir_function(self, name, type_parameters, argument_names, argument_types, return_type, code):
+    def register_ir_function(self, name, type_parameters, argument_names, argument_types, return_type, body):
+        r = CSERenderer()
+        assert not body._ir.uses_randomness
+        code = r(body._ir)
         self._registered_ir_function_names.add(name)
         self._jbackend.pyRegisterIR(
             name,
