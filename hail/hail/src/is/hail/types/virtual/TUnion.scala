@@ -6,6 +6,8 @@ import is.hail.expr.ir.IRParser
 import is.hail.macros.void
 import is.hail.utils._
 
+import scala.collection.compat._
+
 import org.json4s.CustomSerializer
 import org.json4s.JsonAST.JString
 
@@ -59,7 +61,7 @@ final case class TUnion(cases: IndexedSeq[Case]) extends Type {
   override def unify(concrete: Type): Boolean = concrete match {
     case TUnion(cfields) =>
       cases.length == cfields.length &&
-      (cases, cfields).zipped.forall { case (f, cf) =>
+      cases.lazyZip(cfields).forall { case (f, cf) =>
         f.unify(cf)
       }
     case _ => false
@@ -125,7 +127,7 @@ final case class TUnion(cases: IndexedSeq[Case]) extends Type {
     t match {
       case u: TUnion =>
         size == u.size &&
-        (cases, u.cases).zipped.forall(_.typ isIsomorphicTo _.typ)
+        cases.lazyZip(u.cases).forall(_.typ isIsomorphicTo _.typ)
       case _ =>
         false
     }

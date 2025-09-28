@@ -11,6 +11,8 @@ import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SInterval, SNDArra
 import is.hail.types.virtual._
 import is.hail.utils.{toMapFast, FastSeq, Interval}
 
+import scala.collection.compat._
+
 import org.apache.spark.sql.Row
 
 object BaseTypeWithRequiredness {
@@ -41,19 +43,19 @@ object BaseTypeWithRequiredness {
         check(r.endType, typ.asInstanceOf[TInterval].pointType)
       case r: RStruct =>
         val struct = typ.asInstanceOf[TStruct]
-        (r.fields, struct.fields).zipped.foreach { (rf, f) =>
+        r.fields.lazyZip(struct.fields).foreach { (rf, f) =>
           assert(rf.name == f.name)
           check(rf.typ, f.typ)
         }
       case r: RTuple =>
         val tuple = typ.asInstanceOf[TTuple]
-        (r.fields, tuple.fields).zipped.foreach { (rf, f) =>
+        r.fields.lazyZip(tuple.fields).foreach { (rf, f) =>
           assert(rf.index == f.index)
           check(rf.typ, f.typ)
         }
       case r: RUnion =>
         val union = typ.asInstanceOf[TUnion]
-        (r.cases, union.cases).zipped.foreach { (rc, c) =>
+        r.cases.lazyZip(union.cases).foreach { (rc, c) =>
           assert(rc._1 == c.name)
           check(rc._2, c.typ)
         }
@@ -324,7 +326,7 @@ abstract class RContainer extends TypeWithRequiredness {
 
   def unionElement(newElement: BaseTypeWithRequiredness): Unit =
     if (eltRequired)
-      (elementType.children, newElement.children).zipped.foreach((r1, r2) => r1.unionFrom(r2))
+      elementType.children.lazyZip(newElement.children).foreach((r1, r2) => r1.unionFrom(r2))
     else
       elementType.unionFrom(newElement)
 
@@ -483,7 +485,7 @@ sealed abstract class RBaseStruct extends TypeWithRequiredness {
   val children: IndexedSeq[TypeWithRequiredness] = fields.map(_.typ)
 
   def _unionLiteral(a: Annotation): Unit = a match {
-    case a: Row => (children, a.toSeq).zipped.foreach((r, f) => r.unionLiteral(f))
+    case a: Row => children.lazyZip(a.toSeq).foreach((r, f) => r.unionLiteral(f))
     case (k, v) =>
       // needed to handle the elements of a Map/Dict
       assert(size == 2)
@@ -504,7 +506,7 @@ sealed abstract class RBaseStruct extends TypeWithRequiredness {
 
   def unionFields(other: RStruct): Unit = {
     assert(fields.length == other.fields.length)
-    (fields, other.fields).zipped.foreach((fd1, fd2) => fd1.typ.unionFrom(fd2.typ))
+    fields.lazyZip(other.fields).foreach((fd1, fd2) => fd1.typ.unionFrom(fd2.typ))
   }
 
   def canonicalPType(t: Type): PType = t match {
@@ -515,7 +517,7 @@ sealed abstract class RBaseStruct extends TypeWithRequiredness {
       )
     case ts: TTuple =>
       PCanonicalTuple(
-        (fields, ts._types).zipped.map { case (fr, ft) =>
+        fields.lazyZip(ts._types).map { case (fr, ft) =>
           PTupleField(ft.index, fr.typ.canonicalPType(ft.typ))
         },
         required = required,
@@ -559,7 +561,7 @@ case class RTuple(fields: IndexedSeq[RField]) extends RBaseStruct {
 
   def copy(newChildren: IndexedSeq[BaseTypeWithRequiredness]): RTuple = {
     assert(newChildren.length == fields.length)
-    RTuple((fields, newChildren).zipped.map { (f, c) =>
+    RTuple(fields.lazyZip(newChildren).map { (f, c) =>
       RField(f.name, tcoerce[TypeWithRequiredness](c), f.index)
     })
   }
@@ -672,7 +674,7 @@ case class RTable(
 
   def unionKeys(req: RTable): Unit = {
     assert(key.length <= req.key.length)
-    (key, req.key).zipped.foreach((k, rk) => field(k).unionFrom(req.field(rk)))
+    key.lazyZip(req.key).foreach((k, rk) => field(k).unionFrom(req.field(rk)))
   }
 
   def unionValues(req: RStruct): Unit = valueFields.foreach { n =>
@@ -685,10 +687,10 @@ case class RTable(
 
   def copy(newChildren: IndexedSeq[BaseTypeWithRequiredness]): RTable = {
     assert(newChildren.length == rowFields.length + globalFields.length)
-    val newRowFields = (rowFields, newChildren.take(rowFields.length)).zipped.map {
+    val newRowFields = rowFields.lazyZip(newChildren.take(rowFields.length)).map {
       case ((n, _), r: TypeWithRequiredness) => n -> r
     }
-    val newGlobalFields = (globalFields, newChildren.drop(rowFields.length)).zipped.map {
+    val newGlobalFields = globalFields.lazyZip(newChildren.drop(rowFields.length)).map {
       case ((n, _), r: TypeWithRequiredness) => n -> r
     }
     RTable(newRowFields, newGlobalFields, key)

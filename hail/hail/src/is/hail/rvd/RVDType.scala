@@ -6,6 +6,8 @@ import is.hail.expr.ir.IRParser
 import is.hail.types.physical.{PInterval, PStruct}
 import is.hail.utils._
 
+import scala.collection.compat._
+
 import org.json4s.CustomSerializer
 import org.json4s.JsonAST.{JArray, JObject, JString, JValue}
 
@@ -179,7 +181,7 @@ object RVDType {
     missingEqual: Boolean,
   ): UnsafeOrdering = {
     require(fields1.length == fields2.length)
-    require((fields1, fields2).zipped.forall { case (f1, f2) =>
+    require(fields1.lazyZip(fields2).forall { case (f1, f2) =>
       t1.types(f1) isOfType t2.types(f2)
     })
 

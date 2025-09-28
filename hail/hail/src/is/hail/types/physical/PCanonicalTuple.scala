@@ -3,6 +3,8 @@ package is.hail.types.physical
 import is.hail.types.virtual.{TTuple, Type}
 import is.hail.utils._
 
+import scala.collection.compat._
+
 object PCanonicalTuple {
   def apply(required: Boolean, args: PType*): PCanonicalTuple = PCanonicalTuple(
     args.iterator.zipWithIndex.map { case (t, i) => PTupleField(i, t) }.toIndexedSeq,
@@ -35,7 +37,7 @@ final case class PCanonicalTuple(
 
   private def deepTupleRename(t: TTuple) =
     PCanonicalTuple(
-      (t._types, this._types).zipped.map { (tfield, pfield) =>
+      t._types.lazyZip(this._types).map { (tfield, pfield) =>
         assert(tfield.index == pfield.index)
         PTupleField(pfield.index, pfield.typ.deepRename(tfield.typ))
       },

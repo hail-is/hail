@@ -14,6 +14,8 @@ import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.Locus
 
+import scala.collection.compat._
+
 import org.apache.spark.sql.Row
 import org.scalatest
 import org.scalatest.{Failed, Succeeded}
@@ -59,7 +61,7 @@ class TableIRSuite extends HailSuite {
       (partSize, partIndex) <- partition(10, 3).zipWithIndex
       i <- 0 until partSize
     } yield Row(partIndex.toLong, i.toLong)
-    val expectedRows = (0 until 10, uids).zipped.map((i, uid) => Row(i, uid))
+    val expectedRows = (0 until 10).lazyZip(uids).map((i, uid) => Row(i, uid))
     val expectedGlobals = Row(57)
 
     assertEvalsTo(TableCollect(read), Row(expectedRows, expectedGlobals))

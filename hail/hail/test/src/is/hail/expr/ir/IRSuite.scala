@@ -24,6 +24,7 @@ import is.hail.types.virtual.TIterable.elementType
 import is.hail.utils.{FastSeq, _}
 import is.hail.variant.{Call2, Locus}
 
+import scala.collection.compat._
 import scala.collection.mutable
 
 import org.apache.spark.sql.Row
@@ -2311,7 +2312,7 @@ class IRSuite extends HailSuite {
     ) { (l: IR, r: IR) =>
       bindIRs(l, r) { case Seq(l, r) =>
         MakeStruct(
-          (lKeys, rKeys).zipped.map { (lk, rk) =>
+          lKeys.lazyZip(rKeys).map { (lk, rk) =>
             lk -> Coalesce(IndexedSeq(GetField(l, lk), GetField(r, rk)))
           }
             ++ tcoerce[TStruct](l.typ).fields.filter(f => !lKeys.contains(f.name)).map { f =>
