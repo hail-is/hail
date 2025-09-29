@@ -273,14 +273,14 @@ def start(
     conf.extend_flag('metadata', {'WHEEL': wheel})
 
     # if Python packages requested, add metadata variable
-    hail_packages = deploy_metadata['pip_dependencies'].strip('|').split('|||')
+    hail_packages = set(deploy_metadata['pip_dependencies'])
     metadata_pkgs = conf.flags['metadata'].get('PKGS')
     split_regex = r'[|,]'
     if metadata_pkgs:
-        hail_packages.extend(re.split(split_regex, metadata_pkgs))
+        hail_packages.update(re.split(split_regex, metadata_pkgs))
     if packages:
-        hail_packages.extend(re.split(split_regex, packages))
-    conf.extend_flag('metadata', {'PKGS': '|'.join(set(hail_packages))})
+        hail_packages.update(re.split(split_regex, packages))
+    conf.extend_flag('metadata', {'PKGS': '|'.join(sorted(hail_packages))})
 
     def disk_size(size):
         if vep:
