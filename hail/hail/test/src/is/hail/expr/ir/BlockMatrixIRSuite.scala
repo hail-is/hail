@@ -4,8 +4,8 @@ import is.hail.{ExecStrategy, HailSuite}
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.expr.Nat
 import is.hail.expr.ir.defs.{
-  Apply, ApplyBinaryPrimOp, ApplyUnaryPrimOp, BlockMatrixWrite, ErrorIDs, F64, Literal, MakeArray,
-  ReadValue, Ref, Str, UUID4, WriteValue,
+  Apply, ApplyBinaryPrimOp, ApplyUnaryPrimOp, BlockMatrixWrite, ErrorIDs, F64, I64, Literal,
+  MakeArray, MakeNDArray, MakeTuple, ReadValue, Ref, Str, ToArray, True, UUID4, WriteValue,
 }
 import is.hail.io.TypedCodecSpec
 import is.hail.linalg.BlockMatrix
@@ -17,7 +17,7 @@ import breeze.linalg.{DenseMatrix => BDM}
 import breeze.math.Ring.ringFromField
 import org.scalatest
 import org.scalatest.Inspectors.forAll
-import org.testng.annotations.Test
+import org.testng.annotations.{DataProvider, Test}
 
 class BlockMatrixIRSuite extends HailSuite {
 
@@ -46,6 +46,56 @@ class BlockMatrixIRSuite extends HailSuite {
     val r = Ref(freshName(), TFloat64)
     BlockMatrixMap2(left, right, l.name, r.name, ApplyBinaryPrimOp(op, l, r), strategy)
   }
+
+  @DataProvider(name = "valToBMData")
+  def valToBMData(): Array[Array[Any]] = Array(
+    Array(
+      ValueToBlockMatrix(F64(1), FastSeq(1, 1), BLOCK_SIZE),
+      BDM.fill[Double](1, 1)(1),
+    ),
+    Array(ones, BDM.fill[Double](N_ROWS, N_COLS)(1)),
+    Array(
+      ValueToBlockMatrix(
+        child = ToArray(mapIR(rangeIR(64))(it => it.toD)),
+        shape = FastSeq(8, 8),
+        blockSize = 3,
+      ),
+      BDM.tabulate[Double](8, 8)((i, j) => i * 8 + j),
+    ),
+    Array(
+      ValueToBlockMatrix(
+        child = ToArray(mapIR(rangeIR(27))(it => it.toD)),
+        shape = FastSeq(3, 9),
+        blockSize = 3,
+      ),
+      BDM.tabulate[Double](3, 9)((i, j) => i * 9 + j),
+    ),
+    Array(
+      ValueToBlockMatrix(
+        child = MakeNDArray.fill(F64(1), FastSeq(I64(8), I64(8)), True()),
+        shape = FastSeq(8, 8),
+        blockSize = 3,
+      ),
+      BDM.fill[Double](8, 8)(1),
+    ),
+    Array(
+      ValueToBlockMatrix(
+        child = MakeNDArray(
+          ToArray(mapIR(rangeIR(27))(it => it.toD)),
+          MakeTuple.ordered(FastSeq(I64(3), I64(9))),
+          True(),
+          ErrorIDs.NO_ERROR,
+        ),
+        shape = FastSeq(3, 9),
+        blockSize = 3,
+      ),
+      BDM.tabulate[Double](3, 9)((i, j) => i * 9 + j),
+    ),
+  )
+
+  @Test(dataProvider = "valToBMData")
+  def testValueToBlockMatrix(bmir: ValueToBlockMatrix, bdm: BDM[Double]): scalatest.Assertion =
+    assertBMEvalsTo(bmir, bdm)
 
   @Test def testBlockMatrixWriteRead(): scalatest.Assertion = {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.interpretOnly
