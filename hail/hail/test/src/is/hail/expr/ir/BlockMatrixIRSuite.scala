@@ -4,9 +4,8 @@ import is.hail.{ExecStrategy, HailSuite}
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.expr.Nat
 import is.hail.expr.ir.defs.{
-  Apply, ApplyBinaryPrimOp, ApplyUnaryPrimOp, BlockMatrixWrite, ErrorIDs, F64, I32, I64, Literal,
-  MakeArray, MakeNDArray, MakeTuple, ReadValue, Ref, Str, StreamRange, ToArray, True, UUID4,
-  WriteValue,
+  Apply, ApplyBinaryPrimOp, ApplyUnaryPrimOp, BlockMatrixWrite, ErrorIDs, F64, I64, Literal,
+  MakeArray, MakeNDArray, MakeTuple, ReadValue, Ref, Str, ToArray, True, UUID4, WriteValue,
 }
 import is.hail.io.TypedCodecSpec
 import is.hail.linalg.BlockMatrix
