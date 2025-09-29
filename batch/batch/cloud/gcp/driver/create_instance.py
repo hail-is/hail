@@ -390,6 +390,10 @@ journalctl -u docker.service > dockerd.log
                     'key': 'instance_config',
                     'value': base64.b64encode(json.dumps(instance_config.to_dict()).encode()).decode(),
                 },
+                {
+                    'key': 'block-project-ssh-keys',
+                    'value': 'TRUE',
+                },
             ]
         },
         'tags': {'items': ["batch2-agent"]},
