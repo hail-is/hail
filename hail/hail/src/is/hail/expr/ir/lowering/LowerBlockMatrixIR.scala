@@ -1244,6 +1244,39 @@ object LowerBlockMatrixIR {
           BMSContexts(bmir.typ, contextsIR, ib),
           (ctxRef) => ctxRef,
         )
+
+      case BlockMatrixAgg(child, IndexedSeq(0) /* axesToSumOut */ ) =>
+        val summedChild = lower(child).mapBody { body =>
+          bindIR(NDArrayAgg(body, IndexedSeq(0))) { aggedND =>
+            NDArrayReshape(
+              aggedND,
+              MakeTuple.ordered(FastSeq(
+                I64(1),
+                GetTupleElement(NDArrayShape(aggedND), 0),
+              )),
+              ErrorIDs.NO_ERROR,
+            )
+          }
+        }
+
+        summedChild
+
+      case BlockMatrixAgg(child, IndexedSeq(1) /* axesToSumOut */ ) =>
+        val summedChild = lower(child).mapBody { body =>
+          bindIR(NDArrayAgg(body, IndexedSeq(1))) { aggedND =>
+            NDArrayReshape(
+              aggedND,
+              MakeTuple.ordered(FastSeq(
+                GetTupleElement(NDArrayShape(aggedND), 0),
+                I64(1),
+              )),
+              ErrorIDs.NO_ERROR,
+            )
+          }
+        }
+
+        summedChild
+
       case BlockMatrixMap(child, eltName, f, _) =>
         lower(child).mapBody(body => NDArrayMap(body, eltName, f))
 
