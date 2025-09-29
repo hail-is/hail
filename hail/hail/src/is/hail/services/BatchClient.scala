@@ -6,6 +6,7 @@ import is.hail.services.BatchClient.{
   BunchMaxSizeBytes, JarSpecSerializer, JobGroupResponseDeserializer, JobGroupStateDeserializer,
   JobListEntryDeserializer, JobProcessRequestSerializer, JobStateDeserializer,
 }
+import is.hail.services.JobGroupStates.isTerminal
 import is.hail.services.oauth2.CloudCredentials
 import is.hail.services.requests.Requester
 import is.hail.utils._
@@ -90,6 +91,9 @@ object JobGroupStates {
   case object Cancelled extends JobGroupState
   case object Success extends JobGroupState
   case object Running extends JobGroupState
+
+  def isTerminal(s: JobGroupState): Boolean =
+    s != Running
 }
 
 sealed trait JobState extends Product with Serializable
@@ -303,14 +307,16 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
       .takeWhile(_.nonEmpty)
   }
 
+  def cancelJobGroup(batchId: Int, jobGroupId: Int): Unit =
+    void(req.patch(s"/api/v1alpha/batches/$batchId/job-groups/$jobGroupId/cancel"))
+
   def waitForJobGroup(batchId: Int, jobGroupId: Int): JobGroupResponse = {
     val start = System.nanoTime()
 
     while (true) {
       val jobGroup = getJobGroup(batchId, jobGroupId)
 
-      if (jobGroup.complete)
-        return jobGroup
+      if (isTerminal(jobGroup.state)) return jobGroup
 
       // wait 10% of duration so far
       // at least, 50ms

@@ -1,9 +1,12 @@
 package is.hail.services
 
-import is.hail.HAIL_REVISION
+import is.hail.{services, HAIL_REVISION}
 import is.hail.backend.service.Main
 import is.hail.services.JobGroupStates.Failure
 import is.hail.utils._
+
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
 
 import java.lang.reflect.Method
 import java.nio.file.Path
@@ -11,6 +14,7 @@ import java.nio.file.Path
 import org.scalatest
 import org.scalatest.Inspectors.forAll
 import org.scalatest.enablers.InspectorAsserting.assertingNatureOfAssertion
+import org.scalatest.matchers.should.Matchers.convertToAnyShouldWrapper
 import org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.{AfterClass, BeforeClass, BeforeMethod, Test}
 
@@ -165,5 +169,36 @@ class BatchClientSuite extends TestNGSuite {
 
     val result = client.getJobGroup(batchId, jobGroupId)
     assert(result.n_jobs == 1)
+  }
+
+  @Test // #15118
+  def testWaitForCancelledJobGroup(): scalatest.Assertion = {
+    val (jobGroupId, _) = client.newJobGroup(
+      req = JobGroupRequest(
+        batch_id = batchId,
+        absolute_parent_id = parentJobGroupId,
+        cancel_after_n_failures = Some(1),
+        token = tokenUrlSafe,
+        jobs = 0 until 10 map { _ =>
+          JobRequest(
+            always_run = false,
+            process = BashJob(
+              image = "ubuntu:24.04",
+              command = Array("/bin/bash", "-c", "sleep 5s"),
+            ),
+            resources = Some(JobResources(preemptible = true)),
+          )
+        },
+      )
+    )
+
+    Future {
+      Thread.sleep(100)
+      client.cancelJobGroup(batchId, jobGroupId)
+    }
+
+    val jg = client.waitForJobGroup(batchId, jobGroupId)
+    jg.state shouldBe services.JobGroupStates.Cancelled
+    jg.complete shouldBe false
   }
 }
