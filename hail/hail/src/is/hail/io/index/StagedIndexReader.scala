@@ -380,7 +380,7 @@ class StagedIndexReader(
 
     def updateSuccessor(children: SIndexableValue, idx: Value[Int]): Unit =
       cb.if_(
-        idx < children.loadLength(), {
+        idx < children.loadLength, {
           val successorChild = children.loadElement(cb, idx).getOrAssert(cb).asBaseStruct
           cb.assign(
             successorIndex,
@@ -417,7 +417,7 @@ class StagedIndexReader(
           },
         )
 
-        cb.if_(!(start < children.loadLength()), cb._fatal("unreachable"))
+        cb.if_(!(start < children.loadLength), cb._fatal("unreachable"))
 
         // continue with separate point queries for each endpoint
         updateSuccessor(children, end)
@@ -453,7 +453,7 @@ class StagedIndexReader(
         val firstIndex =
           cb.memoize(node.asBaseStruct.loadField(cb, "first_idx")).get(cb).asInt64.value
         cb.if_(
-          start < children.loadLength(), {
+          start < children.loadLength, {
             cb.assign(startIndex, firstIndex + start.toL)
             cb.assign(
               startLeaf,

@@ -1,7 +1,6 @@
 package is.hail.annotations
 
 import is.hail.expr.ir.LongArrayBuilder
-import is.hail.macros.void
 
 import scala.collection.mutable
 
@@ -140,7 +139,7 @@ private class ChunkCache(allocator: Long => Long, freer: Long => Unit) {
       if (sameSizeEntries == null) {
         val newSize = new LongArrayBuilder()
         newSize += chunkPointer
-        void(bigChunkCache.put(chunkSize, newSize))
+        bigChunkCache.put(chunkSize, newSize): Unit
       } else sameSizeEntries += chunkPointer
     }
   }

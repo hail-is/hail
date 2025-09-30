@@ -276,7 +276,7 @@ object Threefry {
     val paddedLength = Math.max((length + 3) & (~3), 4)
     val padded = (paddedLength != length)
     val message = Array.ofDim[Long](paddedLength)
-    _message.copyToArray(message)
+    _message.copyToArray(message): Unit
     if (padded) message(length) = 1L
 
     var i = 0

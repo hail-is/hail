@@ -15,6 +15,8 @@ import is.hail.types.physical.{PCanonicalBinary, PCanonicalTuple}
 import is.hail.types.virtual._
 import is.hail.utils._
 
+import scala.collection.compat._
+
 import org.apache.spark.sql.Row
 
 class LowererUnsupportedOperation(msg: String = null) extends Exception(msg)
@@ -618,7 +620,7 @@ class TableStage(
     require(joinKey <= right.kType.size)
 
     val leftKeyToRightKeyMap =
-      (kType.fieldNames.take(joinKey), right.kType.fieldNames.take(joinKey)).zipped.toMap
+      (kType.fieldNames.take(joinKey) lazyZip right.kType.fieldNames.take(joinKey)).toMap
     val newRightPartitioner = partitioner.coarsen(joinKey).rename(leftKeyToRightKeyMap)
     val repartitionedRight =
       right.repartitionNoShuffle(ec, newRightPartitioner, allowDuplication = true)

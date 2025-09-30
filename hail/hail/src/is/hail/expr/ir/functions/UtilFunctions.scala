@@ -109,21 +109,21 @@ object UtilFunctions extends RegistryFunctions {
 
   def isValidInt32(s: String): Boolean =
     try {
-      s.toInt; true
+      s.toInt: Unit; true
     } catch {
       case _: NumberFormatException => false
     }
 
   def isValidInt64(s: String): Boolean =
     try {
-      s.toLong; true
+      s.toLong: Unit; true
     } catch {
       case _: NumberFormatException => false
     }
 
   def isValidFloat32(s: String): Boolean =
     try {
-      parseFloat32(s, -1)
+      parseFloat32(s, -1): Unit
       true
     } catch {
       case _: NumberFormatException => false
@@ -132,7 +132,7 @@ object UtilFunctions extends RegistryFunctions {
 
   def isValidFloat64(s: String): Boolean =
     try {
-      parseFloat64(s, -1)
+      parseFloat64(s, -1): Unit
       true
     } catch {
       case _: NumberFormatException => false

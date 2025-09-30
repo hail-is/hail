@@ -11,6 +11,7 @@ import is.hail.utils.{space => _, _}
 import is.hail.utils.prettyPrint._
 import is.hail.utils.richUtils.RichIterable
 
+import scala.collection.compat._
 import scala.collection.mutable
 
 import org.json4s.DefaultFormats
@@ -983,12 +984,12 @@ class Pretty(
 
         val head = ir match {
           case MakeStruct(fields) =>
-            val args = (fields.map(_._1), strictChildIdents).zipped.map { (field, value) =>
+            val args = fields.map(_._1).lazyZip(strictChildIdents).map { (field, value) =>
               s"$field: $value"
             }.mkString("(", ", ", ")")
             hsep(text(Pretty.prettyClass(ir) + args) +: (attributes ++ nestedBlocks))
           case InsertFields(_, fields, _) =>
-            val newFields = (fields.map(_._1), strictChildIdents.tail).zipped.map {
+            val newFields = fields.map(_._1).lazyZip(strictChildIdents.tail).map {
               (field, value) => s"$field: $value"
             }.mkString("(", ", ", ")")
             val args = s" ${strictChildIdents.head} $newFields"

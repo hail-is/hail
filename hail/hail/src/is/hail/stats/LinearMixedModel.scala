@@ -119,8 +119,8 @@ class LinearMixedModel(lmmData: LMMData) {
         xdx(
           r1,
           r0,
-        ) := (dpa.t * px).t + gamma * (a.t * x).t // if px and x are not copied, the forms px.t * dpa and x.t * a result in a subtle bug
-        xdx(r0, r1) := xdx(r1, r0).t
+        ) := (dpa.t * px).t + gamma * (a.t * x).t: Unit // if px and x are not copied, the forms px.t * dpa and x.t * a result in a subtle bug
+        xdx(r0, r1) := xdx(r1, r0).t: Unit
 
         region.clear()
         rvb.start(rowType)
@@ -188,8 +188,8 @@ class LinearMixedModel(lmmData: LMMData) {
         xdx(
           r1,
           r0,
-        ) := (dpa.t * px).t // if px is not copied, the form px.t * dpa results in a subtle bug
-        xdx(r0, r1) := xdx(r1, r0).t
+        ) := (dpa.t * px).t: Unit // if px is not copied, the form px.t * dpa results in a subtle bug
+        xdx(r0, r1) := xdx(r1, r0).t: Unit
 
         region.clear()
         rvb.start(rowType)

@@ -116,9 +116,11 @@ trait HailModule extends ScalaModule with ScalafmtModule with ScalafixModule { o
       ScalacOptions.warnDeadCode, ScalacOptions.privateWarnDeadCode,
       // we don't enable the unused imports warning in 2.12, as the wconf origin filter doesn't work
       ScalacOptions.privateWarnUnusedImports,
-      ScalacOptions.warnNonUnitStatement,
+      // 2.13 added the -Wnonunit-discard flag, which is a stronger check than -Wvalue-discard
+      ScalacOptions.warnValueDiscard, ScalacOptions.privateWarnValueDiscard,
 
       ScalacOptions.lintInferAny,
+      ScalacOptions.languageExperimentalMacros,
     )
     
     val baseOptions = ScalacOptions.default +
@@ -174,10 +176,6 @@ trait HailModule extends ScalaModule with ScalafmtModule with ScalafixModule { o
         "-Wconf:cat=deprecation&msg=method copyArrayToImmutableIndexedSeq in class LowPriorityImplicits2 is deprecated:s",
         // Passing an explicit array value to a Scala varargs method is deprecated (since 2.13.0) and will result in a defensive copy; Use the more efficient non-copying ArraySeq.unsafeWrapArray or an explicit toIndexedSeq call
         "-Wconf:cat=deprecation&msg=Passing an explicit array value to a Scala varargs method is deprecated:s",
-        // method zipped in class Ops is deprecated (since 2.13.0): Use xs.lazyZip(ys)
-        "-Wconf:cat=deprecation&msg=method zipped in class Ops is deprecated:s",
-        // object ZippedIterable2 in package runtime is deprecated (since 2.13.0): Use scala.collection.LazyZip2
-        "-Wconf:cat=deprecation&msg=object ZippedIterable2 in package runtime is deprecated:s",
         // method any2stringadd in object Predef is deprecated (since 2.13.0): Implicit injection of + is deprecated. Convert to String to call +
         "-Wconf:cat=deprecation&msg=any2stringadd:s",
         // method + in class Char is deprecated (since 2.13.0): Adding a number and a String is deprecated. Use the string interpolation `s"$num$str"`
@@ -207,13 +205,6 @@ trait HailModule extends ScalaModule with ScalafmtModule with ScalafixModule { o
         "-Wconf:cat=deprecation&msg=method reverseMap in trait SeqOps is deprecated:s",
         // method transform in trait SeqOps is deprecated (since 2.13.0): Use `mapInPlace` on an `IndexedSeq` instead
         "-Wconf:cat=deprecation&msg=method transform in trait SeqOps is deprecated:s",
-      // nullary args
-        // Auto-application to `()` is deprecated. Supply the empty argument list `()` explicitly to invoke method apply,
-        // or remove the empty argument list from its definition (Java-defined methods are exempt).
-        // In Scala 3, an unapplied method like this will be eta-expanded into a function
-        raw"-Wconf:cat=deprecation&msg=Auto-application:s",
-        "-Wconf:cat=deprecation&msg=unary prefix operator definition with empty parameter list is deprecated:s",
-        "-Wconf:cat=other-nullary-override:s",
       // other
         // Wrap `export` in backticks to use it as an identifier, it will become a keyword in Scala 3
         "-Wconf:cat=deprecation&msg=`export`:s",
@@ -226,6 +217,8 @@ trait HailModule extends ScalaModule with ScalafmtModule with ScalafixModule { o
         raw"-Wconf:cat=unused-imports&origin=scala\.collection\.compat\._:s",
         raw"-Wconf:cat=unused-imports&origin=scala\.Option\.option2Iterable:s",
         raw"-Wconf:cat=unused-imports&origin=is\.hail\.utils\.compat\._:s",
+        raw"-Wconf:msg=unused value of type org\.scalatest\..*Assertion:s",
+        raw"-Wconf:msg=unused value of type org\.mockito\.stubbing\.ScalaOngoingStubbing:s",
       )
     } else {
       finalOptions :+ "-Wconf:msg=legacy-binding:s"
@@ -265,9 +258,6 @@ trait RootHailModule extends CrossScalaModule with HailModule { outer =>
   }
 
   override def moduleDeps: Seq[JavaModule] = Seq(memory)
-
-  override def compileModuleDeps: Seq[JavaModule] =
-    Seq(macros)
 
   override def resources: T[Seq[PathRef]] = super.resources() ++ Seq(
     BuildCtx.withFilesystemCheckerDisabled {
@@ -389,13 +379,6 @@ trait RootHailModule extends CrossScalaModule with HailModule { outer =>
       val debugOrRelease = if (Env.buildMode == BuildMode.ci) "debug" else "release"
       os.sub / debugOrRelease / "src"
     }
-  }
-
-  object macros extends HailModule with CrossValue {
-    override def compileMvnDeps: T[Seq[Dep]] = Seq(
-      mvn"org.scala-lang:scala-reflect:${scalaVersion()}",
-      mvn"orf.scala-lang:scala-compiler:${scalaVersion()}"
-    )
   }
 
   object test extends HailTests {

@@ -8,6 +8,7 @@ import is.hail.utils.compat._
 import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.collection.JavaConverters._
+import scala.collection.compat._
 import scala.collection.mutable
 
 import org.apache.spark.sql.Row
@@ -81,7 +82,7 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
   override def unify(concrete: Type): Boolean = concrete match {
     case TStruct(cfields) =>
       fields.length == cfields.length &&
-      (fields, cfields).zipped.forall { case (f, cf) =>
+      fields.lazyZip(cfields).forall { case (f, cf) =>
         f.unify(cf)
       }
     case _ => false
@@ -296,7 +297,7 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
     }
     val it = fieldsToInsert.toIterator
     while (it.hasNext) {
-      val (name, typ) = it.next
+      val (name, typ) = it.next()
       if (fieldIdx.contains(name)) {
         val j = fieldIdx(name)
         ab(j) = Field(name, typ, j)
@@ -378,7 +379,7 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
   override def pyString(sb: StringBuilder): Unit = {
     sb ++= "struct{"
     fields.foreachBetween({ field =>
-      sb ++= prettyIdentifier(field.name) ++= ": "
+      sb ++= prettyIdentifier(field.name) ++= ": ": Unit
       field.typ.pyString(sb)
     })(sb ++= ", ")
     sb += '}'

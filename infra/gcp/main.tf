@@ -197,6 +197,10 @@ resource "google_container_cluster" "vdc" {
     state    = "ENCRYPTED"
     key_name = google_kms_crypto_key.k8s_secrets_key.id
   }
+  
+  workload_identity_config {
+    workload_pool = "${var.gcp_project}.svc.id.goog"
+  }
 }
 
 resource "google_container_node_pool" "vdc_preemptible_pool" {
@@ -235,6 +239,10 @@ resource "google_container_node_pool" "vdc_preemptible_pool" {
       enable_integrity_monitoring = true
       enable_secure_boot          = true
     }
+
+    workload_metadata_config {
+      mode = "GKE_METADATA"
+    }
   }
 }
 
@@ -267,6 +275,10 @@ resource "google_container_node_pool" "vdc_nonpreemptible_pool" {
     shielded_instance_config {
       enable_integrity_monitoring = true
       enable_secure_boot          = true
+    }
+
+    workload_metadata_config {
+      mode = "GKE_METADATA"
     }
   }
 }

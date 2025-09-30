@@ -11,7 +11,7 @@ object LegacyEncodedTypeParser {
   def legacy_type_expr(it: TokenIterator): (Type, EType) = {
     val req = it.head match {
       case x: PunctuationToken if x.value == "+" =>
-        consumeToken(it)
+        punctuation(it, "+")
         true
       case _ => false
     }

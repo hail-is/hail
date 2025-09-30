@@ -1,6 +1,5 @@
 package is.hail.expr.ir
 
-import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
@@ -11,7 +10,6 @@ import is.hail.expr.ir.compile.{Compile, CompileWithAggregators}
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.lowering.{RVDToTableStage, TableStage, TableStageToRVD}
 import is.hail.io.{exportTypes, BufferSpec, ByteArrayDecoder, ByteArrayEncoder, TypedCodecSpec}
-import is.hail.macros.void
 import is.hail.rvd.{RVD, RVDContext, RVDPartitioner, RVDType}
 import is.hail.sparkextras.ContextRDD
 import is.hail.types.physical.{
@@ -355,7 +353,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
         sb.clear()
         localTypes.indices.foreachBetween { i =>
           sb ++= TableAnnotationImpex.exportAnnotation(ur.get(i), localTypes(i))
-        }(void(sb.append(localDelim)))
+        }(sb.append(localDelim))
 
         sb.result()
       }
@@ -367,8 +365,8 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
     )
   }
 
-  def toDF(): DataFrame =
-    HailContext.sparkBackend.sparkSession.createDataFrame(
+  def toDF(ctx: ExecuteContext): DataFrame =
+    ctx.backend.asSpark.sparkSession.createDataFrame(
       rvd.toRows,
       typ.rowType.schema.asInstanceOf[StructType],
     )
@@ -1195,11 +1193,11 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
     }
 
     if (ctx.getFlag("distributed_scan_comb_op") != null && extracted.sigs.shouldTreeAggregate) {
-      val fsBc = ctx.fs.broadcast
+      val fsBc = ctx.fsBc
       val tmpBase = ctx.createTmpPath("table-map-rows-distributed-scan")
       val d = digitsNeeded(rvd.getNumPartitions)
       val files = rvd.mapPartitionsWithIndex { (i, ctx, it) =>
-        val path = tmpBase + "/" + partFile(d, i, TaskContext.get)
+        val path = tmpBase + "/" + partFile(d, i, TaskContext.get())
         val globalRegion = ctx.freshRegion()
         val globals = if (scanSeqNeedsGlobals)
           globalsBc.value.readRegionValue(globalRegion, theHailClassLoaderForSparkWorkers)
@@ -1241,7 +1239,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
             .cmapPartitions { (ctx, it) =>
               val i = it.next()
               assert(it.isEmpty)
-              val path = tmpBase + "/" + partFile(d, i, TaskContext.get)
+              val path = tmpBase + "/" + partFile(d, i, TaskContext.get())
               val file1 = filesToMerge(i * 2)
               val file2 = filesToMerge(i * 2 + 1)
 
@@ -1321,7 +1319,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
         }
         res
       }
-      copy(
+      return copy(
         typ = newType,
         rvd = rvd.mapPartitionsWithIndex(RVDType(rTyp.asInstanceOf[PStruct], typ.key))(itF),
       )

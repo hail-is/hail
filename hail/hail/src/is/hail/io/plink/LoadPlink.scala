@@ -364,7 +364,7 @@ class MatrixPLINKReader(
 
   val columnCount: Option[Int] = Some(nSamples)
 
-  val partitionCounts: Option[IndexedSeq[Long]] = None
+  def partitionCounts: Option[IndexedSeq[Long]] = None
 
   val globals = Row(sampleInfo.zipWithIndex.map { case (s, idx) =>
     Row((0 until s.length).map(s.apply) :+ idx.toLong: _*)
@@ -449,9 +449,11 @@ class MatrixPLINKReader(
           ]]
 
         val is = fs.open(bed)
-        if (TaskContext.get != null) {
+        if (TaskContext.get() != null) {
           // FIXME: need to close InputStream for other backends too
-          TaskContext.get.addTaskCompletionListener[Unit]((context: TaskContext) => is.close())
+          TaskContext.get().addTaskCompletionListener[Unit]((context: TaskContext) =>
+            is.close()
+          ): Unit
         }
         var offset: Long = 0
 

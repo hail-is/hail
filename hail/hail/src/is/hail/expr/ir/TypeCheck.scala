@@ -9,6 +9,7 @@ import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.utils.StackSafe._
 
+import scala.collection.compat._
 import scala.reflect.ClassTag
 
 object TypeCheck {
@@ -409,7 +410,7 @@ object TypeCheck {
           assert(lKeyTyp == rKeyTyp.pointType)
           assert((joinType == "left") || (joinType == "inner"))
         } else {
-          assert((lKey, rKey).zipped.forall { case (lk, rk) =>
+          assert(lKey.lazyZip(rKey).forall { case (lk, rk) =>
             lEltTyp.fieldType(lk) == rEltTyp.fieldType(rk)
           })
         }
@@ -605,8 +606,8 @@ object TypeCheck {
       case TableExplode(child, path) =>
         assert(!child.typ.key.contains(path.head))
       case TableGen(contexts, globals, _, _, body, partitioner, _) =>
-        TypeCheck.coerce[TStream]("contexts", contexts.typ)
-        TypeCheck.coerce[TStruct]("globals", globals.typ)
+        TypeCheck.coerce[TStream]("contexts", contexts.typ): Unit
+        TypeCheck.coerce[TStruct]("globals", globals.typ): Unit
         val bodyType = TypeCheck.coerce[TStream]("body", body.typ)
         val rowType = TypeCheck.coerce[TStruct]("body.elementType", bodyType.elementType)
 

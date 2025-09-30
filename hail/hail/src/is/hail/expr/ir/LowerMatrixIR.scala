@@ -859,7 +859,7 @@ object LowerMatrixIR {
       case MatrixExplodeRows(child, path) =>
         TableExplode(lower(ctx, child, liftedRelationalLets), path)
 
-      case mr: MatrixRead => mr.lower()
+      case mr: MatrixRead => mr.lower(ctx)
 
       case MatrixAggregateColsByKey(child, entryExpr, colExpr) =>
         val colKey = child.typ.colKey

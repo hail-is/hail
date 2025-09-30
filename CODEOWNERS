@@ -28,6 +28,6 @@
 
 
 # Files at the top level of the repository:
-CODEOWNERS @hail-is/appsec
-build.yaml @hail-is/appsec
-Makefile @hail-is/appsec
+/CODEOWNERS @hail-is/appsec
+/build.yaml @hail-is/appsec
+/Makefile @hail-is/appsec

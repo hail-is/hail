@@ -99,7 +99,7 @@ class RVD(
     val localRowPType = rowPType
     crdd.cmapPartitions { (ctx, it) =>
       val encoder = new ByteArrayEncoder(theHailClassLoaderForSparkWorkers, makeEnc)
-      TaskContext.get.addTaskCompletionListener[Unit](_ => encoder.close())
+      TaskContext.get().addTaskCompletionListener[Unit](_ => encoder.close()): Unit
       it.map { ptr =>
         val keys: Any = SafeRow.selectFields(localRowPType, ctx.r, ptr)(kFieldIdx)
         val bytes = encoder.regionValueToBytes(ctx.r, ptr)
@@ -622,7 +622,7 @@ class RVD(
     val crdd: ContextRDD[Long] =
       this.crdd.cmapPartitionsWithContextAndIndex { (i, consumerCtx, iteratorToFilter) =>
         val c = makeContext(i, consumerCtx)
-        val producerCtx = consumerCtx.freshContext
+        val producerCtx = consumerCtx.freshContext()
         iteratorToFilter(producerCtx).filter { ptr =>
           val b = f(c, consumerCtx, ptr)
           if (b) {
@@ -993,7 +993,7 @@ class RVD(
     val sm = ctx.stateManager
     val partitionKeyedIntervals = that.crdd.cmapPartitions { (ctx, it) =>
       val encoder = new ByteArrayEncoder(theHailClassLoaderForSparkWorkers, makeEnc)
-      TaskContext.get.addTaskCompletionListener[Unit](_ => encoder.close())
+      TaskContext.get().addTaskCompletionListener[Unit](_ => encoder.close()): Unit
       it.flatMap { ptr =>
         val r = SafeRow(rightTyp.rowType, ptr)
         val interval = r.getAs[Interval](rightTyp.kFieldIdx(0))
@@ -1086,7 +1086,7 @@ object RVD {
     val localType = typ
     val sm = ctx.stateManager
     crdd.cmapPartitionsWithContext { (consumerCtx, it) =>
-      val producerCtx = consumerCtx.freshContext
+      val producerCtx = consumerCtx.freshContext()
       val wrv = WritableRegionValue(sm, localType.kType, consumerCtx.region)
       it(producerCtx).map { ptr =>
         wrv.setSelect(localType.rowType, localType.kFieldIdx, ptr, deepCopy = true)
@@ -1379,7 +1379,6 @@ object RVD {
     val sc = SparkBackend.sparkContext
     val localTmpdir = execCtx.localTmpdir
     val fs = execCtx.fs
-    val fsBc = fs.broadcast
 
     val nRVDs = rvds.length
     val partitioner = first.partitioner
@@ -1411,6 +1410,7 @@ object RVD {
       fs.mkDir(path + "/index")
     }
 
+    val fsBc = execCtx.fsBc
     val partF = {
       (originIdx: Int, originPartIdx: Int, it: Iterator[RVDContext => Iterator[Long]]) =>
         Iterator.single { ctx: RVDContext =>

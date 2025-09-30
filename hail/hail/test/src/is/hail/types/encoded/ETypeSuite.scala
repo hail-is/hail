@@ -11,7 +11,6 @@ import is.hail.utils._
 
 import org.apache.spark.sql.Row
 import org.json4s.jackson.Serialization
-import org.scalatest
 import org.testng.annotations.{DataProvider, Test}
 
 class ETypeSuite extends HailSuite {
@@ -49,10 +48,10 @@ class ETypeSuite extends HailSuite {
     ).map(t => Array(t: Any))
   }
 
-  @Test def testDataProvider(): scalatest.Assertion = { etypes(); succeed }
+  @Test def testDataProvider(): Unit = etypes(): Unit
 
   @Test(dataProvider = "etypes")
-  def testSerialization(etype: EType): scalatest.Assertion = {
+  def testSerialization(etype: EType): Unit = {
     implicit val formats = AbstractRVDSpec.formats
     val s = Serialization.write(etype)
     assert(Serialization.read[EType](s) == etype)
@@ -94,12 +93,12 @@ class ETypeSuite extends HailSuite {
   }
 
   def assertEqualEncodeDecode(inPType: PType, eType: EType, outPType: PType, data: Annotation)
-    : scalatest.Assertion = {
+    : Unit = {
     val encodeDecodeResult = encodeDecode(inPType, eType, outPType, data)
     assert(encodeDecodeResult == data)
   }
 
-  @Test def testDifferentRequirednessEncodeDecode(): scalatest.Assertion = {
+  @Test def testDifferentRequirednessEncodeDecode(): Unit = {
 
     val inPType = PCanonicalArray(
       PCanonicalStruct(
@@ -139,7 +138,7 @@ class ETypeSuite extends HailSuite {
     assertEqualEncodeDecode(inPType, etype, outPType, data)
   }
 
-  @Test def testNDArrayEncodeDecode(): scalatest.Assertion = {
+  @Test def testNDArrayEncodeDecode(): Unit = {
     val pTypeInt0 = PCanonicalNDArray(PInt32Required, 0, true)
     val eTypeInt0 = ENDArrayColumnMajor(EInt32Required, 0, true)
     val dataInt0 = new SafeNDArray(IndexedSeq[Long](), FastSeq(0))
@@ -187,7 +186,7 @@ class ETypeSuite extends HailSuite {
       Row(3))
   }
 
-  @Test def testArrayOfString(): scalatest.Assertion = {
+  @Test def testArrayOfString(): Unit = {
     val etype = EArray(EBinary(false), false)
     val toEncode = PCanonicalArray(PCanonicalStringRequired, false)
     val toDecode = PCanonicalArray(PCanonicalStringOptional, false)
@@ -197,7 +196,7 @@ class ETypeSuite extends HailSuite {
     assert(encodeDecode(toEncode, etype, toDecode, data) == data)
   }
 
-  @Test def testStructOfArrays(): scalatest.Assertion = {
+  @Test def testStructOfArrays(): Unit = {
     val etype =
       EStructOfArrays(
         FastSeq(

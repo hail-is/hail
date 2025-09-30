@@ -1,7 +1,5 @@
 package is.hail.io.fs
 
-import is.hail.HailContext
-import is.hail.backend.BroadcastValue
 import is.hail.io.compress.{BGzipInputStream, BGzipOutputStream}
 import is.hail.io.fs.FSUtil.{containsWildcard, dropTrailingSlash}
 import is.hail.services._
@@ -581,7 +579,7 @@ trait FS extends Serializable with Logging {
 
   final def exists(url: URL): Boolean = {
     try {
-      fileListEntry(url)
+      fileListEntry(url): Unit
       true
     } catch {
       case _: FileNotFoundException => false
@@ -595,7 +593,7 @@ trait FS extends Serializable with Logging {
 
   def copy(src: URL, dst: URL, deleteSource: Boolean = false): Unit = {
     using(openNoCompression(src)) { is =>
-      using(createNoCompression(dst))(os => IOUtils.copy(is, os))
+      using(createNoCompression(dst))(os => IOUtils.copy(is, os): Unit)
     }
     if (deleteSource)
       delete(src, recursive = false)
@@ -607,7 +605,7 @@ trait FS extends Serializable with Logging {
     copyRecode(parseUrl(src), parseUrl(dst), deleteSource)
 
   def copyRecode(src: URL, dst: URL, deleteSource: Boolean = false): Unit = {
-    using(open(src))(is => using(create(dst))(os => IOUtils.copy(is, os)))
+    using(open(src))(is => using(create(dst))(os => IOUtils.copy(is, os): Unit))
     if (deleteSource)
       delete(src, recursive = false)
   }
@@ -743,8 +741,6 @@ trait FS extends Serializable with Logging {
 
   def touch(url: URL): Unit =
     using(createNoCompression(url))(_ => ())
-
-  lazy val broadcast: BroadcastValue[FS] = HailContext.backend.broadcast(this)
 
   def getConfiguration(): Any
 

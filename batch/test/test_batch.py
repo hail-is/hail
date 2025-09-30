@@ -1,4 +1,3 @@
-import asyncio
 import collections
 import os
 import secrets
@@ -1510,47 +1509,21 @@ def test_pool_standard_instance_cheapest(client: BatchClient):
     assert 'standard' in status['status']['worker'], str((status, b.debug_info()))
 
 
-# Transitively is not valid for terra
-@skip_in_azure
-async def test_gpu_accesibility_g2(client: BatchClient):
-    b = create_batch(client)._async_batch
-    resources = {'machine_type': "g2-standard-4", 'storage': '100Gi'}
-    j = b.create_job(
-        os.environ['HAIL_GPU_IMAGE'],
-        ['python3', '-c', 'import torch; assert torch.cuda.is_available()'],
-        resources=resources,
-        n_max_attempts=1,
-    )
-    await b.submit()
-    try:
-        status = await asyncio.wait_for(j.wait(), timeout=5 * 60)
-        assert status['state'] == 'Success', str((status, b.debug_info()))
-    except asyncio.TimeoutError:
-        # G2 instances are not always available within a time window
-        # acceptable for CI. This test is permitted to time out
-        # but not otherwise fail
-        pass
-
-
-@skip_in_azure
-async def test_nvidia_driver_accesibility_usage(client: BatchClient):
-    b = create_batch(client)._async_batch
-    resources = {'machine_type': "g2-standard-4", 'storage': '100Gi'}
-    j = b.create_job(
-        os.environ['HAIL_GPU_IMAGE'],
-        ['nvidia-smi'],
-        resources=resources,
-        n_max_attempts=1,
-    )
-    await b.submit()
-    try:
-        status = await asyncio.wait_for(j.wait(), timeout=5 * 60)
-        assert status['state'] == 'Success', str((status, b.debug_info()))
-    except asyncio.TimeoutError:
-        # G2 instances are not always available within a time window
-        # acceptable for CI. This test is permitted to time out
-        # but not otherwise fail
-        pass
+# TODO (#15116): This test is too flaky to be run by default.Come up with a way that this test can be tested on demand (eg if we change GPU-y things) but not on
+# all unrelated changes.
+#  @skip_in_azure
+# async def test_nvidia_driver_accesibility_usage(client: BatchClient):
+#     b = create_batch(client)._async_batch
+#     resources = {'machine_type': "g2-standard-4", 'storage': '100Gi'}
+#     j = b.create_job(
+#         os.environ['HAIL_GPU_IMAGE'],
+#         ['/bin/sh', '-c', 'nvidia-smi && python3 -c "import torch; assert torch.cuda.is_available()"'],
+#         resources=resources,
+#         n_max_attempts=4,
+#     )
+#     await b.submit()
+#     status = await asyncio.wait_for(j.wait(), timeout=5 * 60)
+#     assert status['state'] == 'Success', str((status, b.debug_info()))
 
 
 def test_job_private_instance_preemptible(client: BatchClient):

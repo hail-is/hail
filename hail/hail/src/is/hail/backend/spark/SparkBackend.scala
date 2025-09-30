@@ -1,6 +1,5 @@
 package is.hail.backend.spark
 
-import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend._
@@ -10,7 +9,6 @@ import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.lowering._
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.fs._
-import is.hail.macros.void
 import is.hail.rvd.RVD
 import is.hail.types._
 import is.hail.types.physical.{PStruct, PTuple}
@@ -44,7 +42,7 @@ object SparkTaskContext {
       override def initialValue(): SparkTaskContext = {
         val sparkTC = TaskContext.get()
         assert(sparkTC != null, "Spark Task Context was null, maybe this ran on the driver?")
-        sparkTC.addTaskCompletionListener[Unit]((_: TaskContext) => SparkTaskContext.finish())
+        sparkTC.addTaskCompletionListener[Unit]((_: TaskContext) => SparkTaskContext.finish()): Unit
 
         // this must be the only place where SparkTaskContext classes are created
         new SparkTaskContext(sparkTC)
@@ -83,7 +81,11 @@ object SparkBackend {
 
   private var theSparkBackend: SparkBackend = _
 
-  def sparkContext(implicit E: Enclosing): SparkContext = HailContext.sparkBackend.sc
+  def sparkContext(implicit E: Enclosing): SparkContext =
+    synchronized {
+      if (theSparkBackend == null) throw new IllegalStateException(E.value)
+      else theSparkBackend.sc
+    }
 
   def checkSparkCompatibility(jarVersion: String, sparkVersion: String): Unit = {
     def majorMinor(version: String): String = version.split("\\.", 3).take(2).mkString(".")
@@ -108,33 +110,29 @@ object SparkBackend {
     val conf = new SparkConf().setAppName(appName)
 
     if (master != null)
-      conf.setMaster(master)
+      conf.setMaster(master): Unit
     else {
       if (!conf.contains("spark.master"))
-        conf.setMaster(local)
+        conf.setMaster(local): Unit
     }
 
     conf.set("spark.logConf", "true")
-    conf.set("spark.ui.showConsoleProgress", "false")
-
-    conf.set("spark.kryoserializer.buffer.max", "1g")
-    conf.set("spark.driver.maxResultSize", "0")
-
-    conf.set(
-      "spark.hadoop.io.compression.codecs",
-      "org.apache.hadoop.io.compress.DefaultCodec," +
-        "is.hail.io.compress.BGzipCodec," +
-        "is.hail.io.compress.BGzipCodecTbi," +
-        "org.apache.hadoop.io.compress.GzipCodec",
-    )
-
-    conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
-    conf.set("spark.kryo.registrator", "is.hail.kryo.HailKryoRegistrator")
-
-    conf.set(
-      "spark.hadoop.mapreduce.input.fileinputformat.split.minsize",
-      (blockSize * 1024L * 1024L).toString,
-    )
+      .set("spark.ui.showConsoleProgress", "false")
+      .set("spark.kryoserializer.buffer.max", "1g")
+      .set("spark.driver.maxResultSize", "0")
+      .set(
+        "spark.hadoop.io.compression.codecs",
+        "org.apache.hadoop.io.compress.DefaultCodec," +
+          "is.hail.io.compress.BGzipCodec," +
+          "is.hail.io.compress.BGzipCodecTbi," +
+          "org.apache.hadoop.io.compress.GzipCodec",
+      )
+      .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+      .set("spark.kryo.registrator", "is.hail.kryo.HailKryoRegistrator")
+      .set(
+        "spark.hadoop.mapreduce.input.fileinputformat.split.minsize",
+        (blockSize * 1024L * 1024L).toString,
+      ): Unit
 
     // load additional Spark properties from HAIL_SPARK_PROPERTIES
     val hailSparkProperties = System.getenv("HAIL_SPARK_PROPERTIES")
@@ -195,11 +193,6 @@ object SparkBackend {
     "org.apache.hadoop.io.compress.GzipCodec",
   )
 
-  /** If a SparkBackend has already been initialized, this function returns it regardless of the
-    * parameters with which it was initialized.
-    *
-    * Otherwise, it initializes and returns a new HailContext.
-    */
   def getOrCreate(
     sc: SparkContext = null,
     appName: String = "Hail",
@@ -256,7 +249,7 @@ object SparkBackend {
       require(theSparkBackend == null)
 
       if (!skipLoggingConfiguration)
-        HailContext.configureLogging(logFile, quiet, append)
+        Logging.configureLogging(logFile, quiet, append)
 
       var sc1 = sc
       if (sc1 == null)
@@ -266,7 +259,7 @@ object SparkBackend {
 
       checkSparkConfiguration(sc1)
 
-      if (!quiet) ProgressBarBuilder.build(sc1)
+      if (!quiet) ProgressBarBuilder.build(sc1): Unit
 
       sc1.uiWebUrl.foreach(ui => info(s"SparkUI: $ui"))
 
@@ -377,7 +370,7 @@ class SparkBackend(val sc: SparkContext) extends Backend {
     }
 
   def pyStartProgressBar(): Unit =
-    void(ProgressBarBuilder.build(sc))
+    ProgressBarBuilder.build(sc): Unit
 
   def jvmLowerAndExecute(
     ctx: ExecuteContext,

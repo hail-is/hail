@@ -3,11 +3,10 @@ package is.hail.utils
 import is.hail.HailSuite
 import is.hail.utils.richUtils.RichArray
 
-import org.scalatest
 import org.testng.annotations.Test
 
 class RichArraySuite extends HailSuite {
-  @Test def testArrayImpex(): scalatest.Assertion = {
+  @Test def testArrayImpex(): Unit = {
     val file = ctx.createTmpPath("test")
     val a = Array.fill[Double](100)(util.Random.nextDouble())
     val a2 = new Array[Double](100)

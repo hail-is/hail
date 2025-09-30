@@ -44,7 +44,7 @@ object ComputeMethodSplits {
         })
       }
     }
-    recurAndComputeSizeUnderneath(ir)
+    recurAndComputeSizeUnderneath(ir): Unit
     m
   }
 }

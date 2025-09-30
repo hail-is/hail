@@ -33,13 +33,13 @@ object RichContextRDD {
       if (idxRelPath != null) rootPath + "/" + idxRelPath + "/" + f + ".idx" else null
     val (filename, idxFilename) =
       if (stageLocally) {
-        val context = TaskContext.get
+        val context = TaskContext.get()
         val partPath = ExecuteContext.createTmpPathNoCleanup(localTmpdir, "write-partitions-part")
         val idxPath = partPath + ".idx"
         context.addTaskCompletionListener[Unit] { (context: TaskContext) =>
           fs.delete(partPath, recursive = false)
           fs.delete(idxPath, recursive = true)
-        }
+        }: Unit
         partPath -> idxPath
       } else
         finalFilename -> finalIdxFilename
@@ -77,12 +77,12 @@ class RichContextRDD[T: ClassTag](crdd: ContextRDD[T]) {
           it.hasNext
         }
 
-        def next: T = {
+        def next(): T = {
           if (!cleared) {
             ctx.region.clear()
           }
           cleared = false
-          it.next
+          it.next()
         }
       }
     }
@@ -109,7 +109,7 @@ class RichContextRDD[T: ClassTag](crdd: ContextRDD[T]) {
     val d = digitsNeeded(nPartitions)
 
     val fileData = crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
-      val f = partFile(d, i, TaskContext.get)
+      val f = partFile(d, i, TaskContext.get())
       RichContextRDD.writeParts(ctx, path, f, idxRelPath, mkIdxWriter, stageLocally, fs,
         localTmpdir, it, write)
     }

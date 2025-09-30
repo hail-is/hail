@@ -4,7 +4,6 @@ import is.hail.{HAIL_REVISION, HailContext, HailFeatureFlags}
 import is.hail.asm4s._
 import is.hail.backend.HailTaskContext
 import is.hail.io.fs._
-import is.hail.macros.void
 import is.hail.services._
 import is.hail.utils._
 
@@ -36,7 +35,7 @@ class WorkerTimer() {
   var startTimes: mutable.Map[String, Long] = mutable.Map()
 
   def start(label: String): Unit =
-    void(startTimes.put(label, System.nanoTime()))
+    startTimes.update(label, System.nanoTime())
 
   def end(label: String): Unit = {
     val endTime = System.nanoTime()
@@ -177,8 +176,7 @@ object Worker {
     timer.end("readInputs")
     timer.start("executeFunction")
 
-    // FIXME: workers should not have backends, but some things do need hail contexts
-    HailContext.getOrCreate(new ServiceBackend(null, null, null, null, null))
+    HailContext.getOrCreate: Unit
     val result =
       try
         using(new ServiceTaskContext(i)) { htc =>

@@ -1,6 +1,5 @@
 package is.hail.io.fs
 
-import is.hail.macros.void
 import is.hail.utils._
 
 import scala.collection.parallel.CollectionConverters._
@@ -140,16 +139,16 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
   }
 
   override def mkDir(url: URL): Unit =
-    void(url.hadoopFs.mkdirs(url.hadoopPath))
+    url.hadoopFs.mkdirs(url.hadoopPath)
 
   def remove(fname: String): Unit =
-    void(getFileSystem(fname).delete(new hadoop.fs.Path(fname), false))
+    getFileSystem(fname).delete(new hadoop.fs.Path(fname), false)
 
   def rmtree(dirname: String): Unit =
-    void(getFileSystem(dirname).delete(new hadoop.fs.Path(dirname), true))
+    getFileSystem(dirname).delete(new hadoop.fs.Path(dirname), true)
 
   def delete(url: URL, recursive: Boolean): Unit =
-    void(url.hadoopFs.delete(url.hadoopPath, recursive))
+    url.hadoopFs.delete(url.hadoopPath, recursive): Unit
 
   override def globAll(filenames: Iterable[String]): Array[FileListEntry] = {
     filenames.flatMap { filename =>
@@ -194,7 +193,7 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
   }
 
   override def deleteOnExit(url: URL): Unit =
-    void(url.hadoopFs.deleteOnExit(url.hadoopPath))
+    url.hadoopFs.deleteOnExit(url.hadoopPath): Unit
 
   def supportsScheme(scheme: String): Boolean =
     (scheme == "") || {

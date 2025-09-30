@@ -307,8 +307,6 @@ final class VCFLine(
     }
   }
 
-  def endFilterArrayElement(p: Int): Boolean = endInfoField
-
   def endField(): Boolean = endField(pos)
 
   def endArrayElement(): Boolean = endArrayElement(pos)
@@ -325,7 +323,7 @@ final class VCFLine(
 
   def endFormatArrayElement(): Boolean = endFormatArrayElement(pos)
 
-  def endFilterArrayElement(): Boolean = endFilterArrayElement(pos)
+  def endFilterArrayElement(): Boolean = endInfoField()
 
   def skipInfoField(): Unit =
     while (!endInfoField())
@@ -1711,8 +1709,8 @@ class PartitionedVCFRDD(
     val lines = new TabixLineIterator(fsBc.value, file, reg)
 
     // clean up
-    val context = TaskContext.get
-    context.addTaskCompletionListener[Unit]((context: TaskContext) => lines.close())
+    val context = TaskContext.get()
+    context.addTaskCompletionListener[Unit]((context: TaskContext) => lines.close()): Unit
 
     val it: Iterator[WithContext[String]] = new Iterator[WithContext[String]] {
       private var l = lines.next()
@@ -1969,7 +1967,7 @@ class MatrixVCFReader(
 
   val columnCount: Option[Int] = Some(nCols)
 
-  val partitionCounts: Option[IndexedSeq[Long]] = None
+  def partitionCounts: Option[IndexedSeq[Long]] = None
 
   def partitioner(sm: HailStateManager): Option[RVDPartitioner] =
     params.partitionsJSON.map { partitionsJSON =>

@@ -436,7 +436,7 @@ object RandomSeededFunctions extends RegistryFunctions {
         val rng = cb.emb.getThreefryRNG()
         rngState.copyIntoEngine(cb, rng)
         val (push, finish) = PCanonicalArray(PInt32(required = true))
-          .constructFromFunctions(cb, r.region, colors.loadLength(), deepCopy = false)
+          .constructFromFunctions(cb, r.region, colors.loadLength, deepCopy = false)
         cb.if_(
           colors.hasMissingValues(cb),
           cb._fatal("rand_multi_hyper: colors may not contain missing values"),
@@ -467,7 +467,7 @@ object RandomSeededFunctions extends RegistryFunctions {
         case (_: Type, _: SType, _: SType) => SInt32
       },
     ) { case (_, cb, _, rngState: SRNGStateValue, weights: SIndexableValue, _) =>
-      val len = weights.loadLength()
+      val len = weights.loadLength
       val i = cb.newLocal[Int]("i", 0)
       val s = cb.newLocal[Double]("sum", 0.0)
       cb.while_(
@@ -525,7 +525,7 @@ object RandomSeededFunctions extends RegistryFunctions {
         rngState.copyIntoEngine(cb, rng)
 
         val totalNumberOfRecords = cb.newLocal[Int]("scnspp_total_number_of_records", 0)
-        val resultSize: Value[Int] = partitionCounts.loadLength()
+        val resultSize: Value[Int] = partitionCounts.loadLength
         val i = cb.newLocal[Int]("scnspp_index", 0)
         cb.for_(
           cb.assign(i, 0),

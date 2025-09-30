@@ -252,7 +252,7 @@ object PType {
     : Option[(HailClassLoader) => AsmFunction2RegionLongLong] = {
     def canonicalPath(pt: PType, path: List[String]): PType = {
       if (path.isEmpty) {
-        PType.canonical(pt)
+        return PType.canonical(pt)
       }
 
       val head :: tail = path
@@ -332,9 +332,9 @@ abstract class PType extends Serializable with Requiredness {
 
   def alignment: Long = byteSize
 
-  final def unary_+(): PType = setRequired(true)
+  final def unary_+ : PType = setRequired(true)
 
-  final def unary_-(): PType = setRequired(false)
+  final def unary_- : PType = setRequired(false)
 
   def setRequired(required: Boolean): PType
 

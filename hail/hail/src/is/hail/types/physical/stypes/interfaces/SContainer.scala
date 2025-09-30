@@ -19,7 +19,7 @@ trait SContainer extends SType {
 trait SIndexableValue extends SValue {
   def st: SContainer
 
-  def loadLength(): Value[Int]
+  def loadLength: Value[Int]
 
   def isElementMissing(cb: EmitCodeBuilder, i: Code[Int]): Value[Boolean]
 
@@ -34,7 +34,7 @@ trait SIndexableValue extends SValue {
 
   def forEachDefined(cb: EmitCodeBuilder)(f: (EmitCodeBuilder, Value[Int], SValue) => Unit)
     : Unit = {
-    val length = loadLength()
+    val length = loadLength
     val idx = cb.newLocal[Int]("foreach_idx", 0)
     cb.while_(
       idx < length, {
@@ -55,7 +55,7 @@ trait SIndexableValue extends SValue {
     missingF: (EmitCodeBuilder, Value[Int]) => Unit,
     presentF: (EmitCodeBuilder, Value[Int], SValue) => Unit,
   ): Unit = {
-    val length = loadLength()
+    val length = loadLength
     val idx = cb.newLocal[Int]("foreach_idx", 0)
     cb.while_(
       idx < length, {
@@ -104,7 +104,7 @@ trait SIndexableValue extends SValue {
 
   override def sizeToStoreInBytes(cb: EmitCodeBuilder): SInt64Value = {
     val storageType = this.st.storageType().asInstanceOf[PContainer]
-    val length = this.loadLength()
+    val length = this.loadLength
     val totalSize =
       cb.newLocal[Long]("sindexableptr_size_in_bytes", storageType.elementsOffset(length).toL)
     if (this.st.elementType.containsPointers) {

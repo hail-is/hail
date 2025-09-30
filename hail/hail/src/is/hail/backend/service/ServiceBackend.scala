@@ -17,6 +17,7 @@ import is.hail.types._
 import is.hail.types.physical._
 import is.hail.utils._
 
+import scala.collection.compat._
 import scala.reflect.ClassTag
 
 import java.io._
@@ -239,7 +240,7 @@ class ServiceBackend(
       jobGroup.state match {
         case Success =>
           runAllKeepFirstError(executor) {
-            (partIdxs, parts.indices).zipped.map { (partIdx, jobIndex) =>
+            partIdxs.lazyZip(parts.indices).map { (partIdx, jobIndex) =>
               (() => readPartitionResult(fs, root, jobIndex), partIdx)
             }
           }

@@ -138,7 +138,7 @@ class ExecuteContext(
 
   val stateManager = HailStateManager(references)
 
-  def fsBc: BroadcastValue[FS] = fs.broadcast
+  lazy val fsBc: BroadcastValue[FS] = backend.broadcast(fs)
 
   val memo: mutable.Map[Any, Any] = new mutable.HashMap[Any, Any]()
 
@@ -148,11 +148,7 @@ class ExecuteContext(
     f: (HailClassLoader, FS, HailTaskContext, Region) => T
   )(implicit E: Enclosing
   ): T =
-    using(new LocalTaskContext(0, 0)) { tc =>
-      time {
-        f(theHailClassLoader, fs, tc, r)
-      }
-    }
+    using(new LocalTaskContext(0, 0))(tc => time(f(theHailClassLoader, fs, tc, r)))
 
   def createTmpPath(prefix: String, extension: String = null, local: Boolean = false): String =
     tempFileManager.newTmpPath(if (local) localTmpdir else tmpdir, prefix, extension)

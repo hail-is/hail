@@ -1506,7 +1506,12 @@ object Simplify {
             t,
             dr,
             dc,
-            MatrixRangeReader(r.params.nRows, math.min(r.params.nCols, n), r.params.nPartitions),
+            MatrixRangeReader(
+              ctx,
+              r.params.nRows,
+              math.min(r.params.nCols, n),
+              r.params.nPartitions,
+            ),
           )
         )
       case MatrixColsHead(MatrixMapRows(child, newRow), n)

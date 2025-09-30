@@ -2,7 +2,6 @@ package is.hail.types.virtual
 
 import is.hail.annotations.Annotation
 import is.hail.expr.ir.{Env, IRParser, LowerMatrixIR, MatrixIR, Name}
-import is.hail.macros.void
 import is.hail.types.physical.{PArray, PStruct}
 import is.hail.utils._
 
@@ -163,29 +162,29 @@ case class MatrixType(
 
     val indent = indent0 + 4
 
-    sb ++= "Matrix" ++= space += '{' ++= newline
+    sb ++= "Matrix" ++= space += '{' ++= newline: Unit
 
-    sb ++= padding ++= "global:" ++= space
+    sb ++= padding ++= "global:" ++= space: Unit
     globalType.pretty(sb, indent, compact)
-    sb += ',' ++= newline
+    sb += ',' ++= newline: Unit
 
-    sb ++= padding ++= "col_key:" ++= space += '['
-    colKey.foreachBetween(k => sb ++= prettyIdentifier(k))(void(sb += ',' ++= space))
-    sb ++= "]," ++= newline
+    sb ++= padding ++= "col_key:" ++= space += '[': Unit
+    colKey.foreachBetween(k => sb ++= prettyIdentifier(k))(sb += ',' ++= space: Unit)
+    sb ++= "]," ++= newline: Unit
 
-    sb ++= padding ++= "col:" ++= space
+    sb ++= padding ++= "col:" ++= space: Unit
     colType.pretty(sb, indent, compact)
-    sb += ',' ++= newline
+    sb += ',' ++= newline: Unit
 
-    sb ++= padding ++= "row_key:" ++= space ++= "[["
-    rowKey.foreachBetween(k => sb ++= prettyIdentifier(k))(void(sb += ',' ++= space))
-    sb ++= "]]," ++= newline
+    sb ++= padding ++= "row_key:" ++= space ++= "[[": Unit
+    rowKey.foreachBetween(k => sb ++= prettyIdentifier(k))(sb += ',' ++= space: Unit)
+    sb ++= "]]," ++= newline: Unit
 
-    sb ++= padding ++= "row:" ++= space
+    sb ++= padding ++= "row:" ++= space: Unit
     rowType.pretty(sb, indent, compact)
-    sb += ',' ++= newline
+    sb += ',' ++= newline: Unit
 
-    sb ++= padding ++= "entry:" ++= space
+    sb ++= padding ++= "entry:" ++= space: Unit
     entryType.pretty(sb, indent, compact)
     sb ++= newline
     sb += '}'

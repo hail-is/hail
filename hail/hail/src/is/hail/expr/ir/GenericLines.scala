@@ -22,7 +22,7 @@ object CloseableIterator {
   def empty[T]: CloseableIterator[T] = new CloseableIterator[T] {
     def close(): Unit = ()
     def hasNext: Boolean = false
-    def next: T = throw new NoSuchElementException
+    def next(): T = throw new NoSuchElementException
   }
 }
 
@@ -458,7 +458,7 @@ class GenericLinesRDD(
 
   def compute(split: Partition, context: TaskContext): Iterator[GenericLine] = {
     val it = body(split.asInstanceOf[GenericLinesRDDPartition].context)
-    TaskContext.get.addTaskCompletionListener[Unit](_ => it.close())
+    TaskContext.get().addTaskCompletionListener[Unit](_ => it.close()): Unit
     it
   }
 }

@@ -20,6 +20,8 @@ import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual._
 import is.hail.utils._
 
+import scala.collection.compat._
+
 import java.io.OutputStream
 
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
@@ -78,7 +80,7 @@ package defs {
           false
         } else {
           val other = obj.asInstanceOf[WrappedByteArrays]
-          ba.length == other.ba.length && (ba, other.ba).zipped.forall(java.util.Arrays.equals)
+          ba.length == other.ba.length && ba.lazyZip(other.ba).forall(java.util.Arrays.equals)
         }
       }
     }
@@ -495,9 +497,9 @@ package defs {
 
     def toD: IR = Cast(self, TFloat64)
 
-    def unary_-(): IR = ApplyUnaryPrimOp(Negate, self)
+    def unary_- : IR = ApplyUnaryPrimOp(Negate, self)
 
-    def unary_!(): IR = ApplyUnaryPrimOp(Bang, self)
+    def unary_! : IR = ApplyUnaryPrimOp(Bang, self)
 
     def ceq(other: IR): IR = ApplyComparisonOp(EQWithNA, self, other)
 

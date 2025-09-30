@@ -168,7 +168,7 @@ package object ir {
     val accums = inits.map(i => Ref(freshName(), i.typ)).toFastSeq
     StreamFold2(
       stream,
-      (accums, inits).zipped.map((acc, i) => (acc.name, i)),
+      accums.lazyZip(inits).map((acc, i) => (acc.name, i)),
       elt.name,
       seqs.map(f => f(elt, accums)).toFastSeq,
       result(accums),
@@ -392,7 +392,7 @@ package object ir {
   )(
     f: (Ref, Ref) => IR
   ): TableGen = {
-    TypeCheck.coerce[TStream]("contexts", contexts.typ)
+    TypeCheck.coerce[TStream]("contexts", contexts.typ): Unit
     val c = Ref(freshName(), elementType(contexts.typ))
     val g = Ref(freshName(), globals.typ)
     TableGen(contexts, globals, c.name, g.name, f(c, g), partitioner, errorID)

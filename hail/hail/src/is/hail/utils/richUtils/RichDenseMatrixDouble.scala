@@ -1,5 +1,6 @@
 package is.hail.utils.richUtils
 
+import is.hail.backend.ExecuteContext
 import is.hail.io._
 import is.hail.io.fs.FS
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, GridPartitioner}
@@ -71,12 +72,12 @@ object RichDenseMatrixDouble {
 
 class RichDenseMatrixDouble(val m: BDM[Double]) extends AnyVal {
   // dot is overloaded in Breeze
-  def matrixMultiply(bm: BlockMatrix): BlockMatrix = {
+  def matrixMultiply(ctx: ExecuteContext, bm: BlockMatrix): BlockMatrix = {
     require(
       m.cols == bm.nRows,
       s"incompatible matrix dimensions: ${m.rows} x ${m.cols} and ${bm.nRows} x ${bm.nCols} ",
     )
-    BlockMatrix.fromBreezeMatrix(m, bm.blockSize).dot(bm)
+    BlockMatrix.fromBreezeMatrix(ctx, m, bm.blockSize).dot(bm)
   }
 
   def forceSymmetry(): Unit = {

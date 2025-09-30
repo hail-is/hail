@@ -1,6 +1,5 @@
 package is.hail.utils
 
-import is.hail.HailContext
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.io.fs.{FS, FileListEntry, FileStatus, SeekableDataInputStream}
 import is.hail.types.virtual.Type
@@ -133,8 +132,7 @@ trait Py4jUtils {
   }
 
   def addSocketAppender(hostname: String, port: Int): Unit =
-    StringSocketAppender.get()
-      .connect(hostname, port, HailContext.logFormat)
+    StringSocketAppender.get().connect(hostname, port, Logging.LogFormat)
 
   def logWarn(msg: String): Unit =
     warn(msg)

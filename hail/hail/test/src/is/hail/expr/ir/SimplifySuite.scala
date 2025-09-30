@@ -9,7 +9,6 @@ import is.hail.variant.Locus
 
 import org.apache.spark.sql.Row
 import org.scalactic.{Equivalence, Prettifier}
-import org.scalatest
 import org.scalatest.Inspectors.forAll
 import org.scalatest.enablers.InspectorAsserting.assertingNatureOfAssertion
 import org.scalatest.matchers.{MatchResult, Matcher}
@@ -51,7 +50,7 @@ class SimplifySuite extends HailSuite {
     case x => Prettifier.default(x)
   }
 
-  @Test def testTableMultiWayZipJoinGlobalsRewrite(): scalatest.Assertion = {
+  @Test def testTableMultiWayZipJoinGlobalsRewrite(): Unit = {
     val tmwzj = TableGetGlobals(TableMultiWayZipJoin(
       Array(TableRange(10, 10), TableRange(10, 10), TableRange(10, 10)),
       "rowField",
@@ -60,7 +59,7 @@ class SimplifySuite extends HailSuite {
     assertEvalsTo(tmwzj, Row(FastSeq(Row(), Row(), Row())))
   }
 
-  @Test def testRepartitionableMapUpdatesForUpstreamOptimizations(): scalatest.Assertion = {
+  @Test def testRepartitionableMapUpdatesForUpstreamOptimizations(): Unit = {
     val range = TableKeyBy(TableRange(10, 3), FastSeq())
     val simplifiableIR =
       If(True(), GetField(Ref(TableIR.rowName, range.typ.rowType), "idx").ceq(0), False())
@@ -75,7 +74,7 @@ class SimplifySuite extends HailSuite {
 
   lazy val base = Literal(TStruct("1" -> TInt32, "2" -> TInt32), Row(1, 2))
 
-  @Test def testInsertFieldsRewriteRules(): scalatest.Assertion = {
+  @Test def testInsertFieldsRewriteRules(): Unit = {
     val ir1 =
       InsertFields(InsertFields(base, FastSeq("1" -> I32(2)), None), FastSeq("1" -> I32(3)), None)
 
@@ -127,7 +126,7 @@ class SimplifySuite extends HailSuite {
   lazy val base2 =
     Literal(TStruct("A" -> TInt32, "B" -> TInt32, "C" -> TInt32, "D" -> TInt32), Row(1, 2, 3, 4))
 
-  @Test def testInsertFieldsWhereFieldBeingInsertedCouldBeSelected(): scalatest.Assertion = {
+  @Test def testInsertFieldsWhereFieldBeingInsertedCouldBeSelected(): Unit = {
     val ir1 =
       InsertFields(
         SelectFields(base2, IndexedSeq("A", "B", "C")),
@@ -138,7 +137,7 @@ class SimplifySuite extends HailSuite {
     assert(simplify1.typ == ir1.typ)
   }
 
-  @Test def testInsertSelectRewriteRules(): scalatest.Assertion = {
+  @Test def testInsertSelectRewriteRules(): Unit = {
     SelectFields(InsertFields(base, FastSeq("3" -> I32(1)), None), FastSeq("1")) should
       simplifyTo(SelectFields(base, FastSeq("1")))
 
@@ -152,7 +151,7 @@ class SimplifySuite extends HailSuite {
       }
   }
 
-  @Test def testContainsRewrites(): scalatest.Assertion = {
+  @Test def testContainsRewrites(): Unit = {
     assertEvalsTo(
       invoke("contains", TBoolean, Literal(TArray(TString), FastSeq("a")), In(0, TString)),
       FastSeq("a" -> TString),
@@ -172,7 +171,7 @@ class SimplifySuite extends HailSuite {
     )
   }
 
-  @Test def testTableCountExplodeSetRewrite(): scalatest.Assertion = {
+  @Test def testTableCountExplodeSetRewrite(): Unit = {
     var ir: TableIR = TableRange(1, 1)
     ir = TableMapRows(
       ir,
@@ -281,10 +280,10 @@ class SimplifySuite extends HailSuite {
   }
 
   @Test(dataProvider = "NestedInserts")
-  def testNestedInsertsSimplify(input: IR, expected: IR): scalatest.Assertion =
+  def testNestedInsertsSimplify(input: IR, expected: IR): Unit =
     input should simplifyTo(expected)
 
-  @Test def testArrayAggNoAggRewrites(): scalatest.Assertion = {
+  @Test def testArrayAggNoAggRewrites(): Unit = {
     val doesRewrite: Array[StreamAgg] = {
       val x = Ref(freshName(), TInt32)
       Array(
@@ -307,7 +306,7 @@ class SimplifySuite extends HailSuite {
     forAll(doesNotRewrite)(a => a should simplifyTo(a))
   }
 
-  @Test def testArrayAggScanNoAggRewrites(): scalatest.Assertion = {
+  @Test def testArrayAggScanNoAggRewrites(): Unit = {
     val doesRewrite: Array[StreamAggScan] = Array(
       streamAggScanIR(ToStream(In(0, TArray(TInt32))))(_ => Ref(freshName(), TInt32)),
       streamAggScanIR(ToStream(In(0, TArray(TInt32)))) { _ =>
@@ -327,7 +326,7 @@ class SimplifySuite extends HailSuite {
     forAll(doesNotRewrite)(a => Simplify(ctx, a) shouldBe a)
   }
 
-  @Test def testArrayLenCollectToTableCount(): scalatest.Assertion = {
+  @Test def testArrayLenCollectToTableCount(): Unit = {
     val tr = TableRange(10, 10)
     val a = ArrayLen(GetField(TableCollect(tr), "rows"))
     assert(a.typ == TInt32)
@@ -336,8 +335,8 @@ class SimplifySuite extends HailSuite {
     assert(s.typ == TInt32)
   }
 
-  @Test def testMatrixColsTableMatrixMapColsWithAggLetDoesNotSimplify(): scalatest.Assertion = {
-    val reader = MatrixRangeReader(1, 1, None)
+  @Test def testMatrixColsTableMatrixMapColsWithAggLetDoesNotSimplify(): Unit = {
+    val reader = MatrixRangeReader(ctx, 1, 1, None)
     var mir: MatrixIR = MatrixRead(reader.fullMatrixType, false, false, reader)
     val colType = reader.fullMatrixType.colType
     mir = MatrixMapCols(
@@ -352,7 +351,7 @@ class SimplifySuite extends HailSuite {
     tir should simplifyTo(tir)
   }
 
-  @Test def testFilterParallelize(): scalatest.Assertion =
+  @Test def testFilterParallelize(): Unit =
     forAll(
       Array(
         MakeStruct(FastSeq(
@@ -370,7 +369,7 @@ class SimplifySuite extends HailSuite {
       assert(!Exists(rw, _.isInstanceOf[TableFilter]))
     }
 
-  @Test def testStreamLenSimplifications(): scalatest.Assertion = {
+  @Test def testStreamLenSimplifications(): Unit = {
     val rangeIR = StreamRange(I32(0), I32(10), I32(1))
     val mapOfRange = mapIR(rangeIR)(range_element => range_element + 5)
     val mapBlockedByLet =
@@ -382,7 +381,7 @@ class SimplifySuite extends HailSuite {
     })
   }
 
-  @Test def testNestedFilterIntervals(): scalatest.Assertion = {
+  @Test def testNestedFilterIntervals(): Unit = {
     var tir: TableIR = TableRange(10, 5)
     def r = Ref(TableIR.rowName, tir.typ.rowType)
     tir = TableMapRows(tir, InsertFields(r, FastSeq("idx2" -> GetField(r, "idx"))))
@@ -395,7 +394,7 @@ class SimplifySuite extends HailSuite {
     ))
   }
 
-  @Test def testSimplifyReadFilterIntervals(): scalatest.Assertion = {
+  @Test def testSimplifyReadFilterIntervals(): Unit = {
     val src = getTestResource("sample-indexed-0.2.52.mt")
 
     val mnr = MatrixNativeReader(fs, src, None)
@@ -404,7 +403,7 @@ class SimplifySuite extends HailSuite {
     val tnr = TableNativeReader(fs, TableNativeReaderParameters(src + "/rows", None))
     val tr = TableRead(tnr.fullType, false, tnr)
 
-    val tzr = mr.lower().asInstanceOf[TableMapGlobals].child.asInstanceOf[TableRead]
+    val tzr = mr.lower(ctx).asInstanceOf[TableMapGlobals].child.asInstanceOf[TableRead]
     val tzrr = tzr.tr.asInstanceOf[TableNativeZippedReader]
 
     val intervals1 = FastSeq(
@@ -468,7 +467,7 @@ class SimplifySuite extends HailSuite {
     }
   }
 
-  @Test(enabled = false) def testFilterIntervalsKeyByToFilter(): scalatest.Assertion = {
+  @Test(enabled = false) def testFilterIntervalsKeyByToFilter(): Unit = {
     var t: TableIR = TableRange(100, 10)
     t = TableMapRows(
       t,
@@ -492,7 +491,7 @@ class SimplifySuite extends HailSuite {
     })
   }
 
-  @Test def testSimplifyArraySlice(): scalatest.Assertion = {
+  @Test def testSimplifyArraySlice(): Unit = {
     val stream = StreamRange(I32(0), I32(10), I32(1))
     val streamSlice1 = Simplify(ctx, ArraySlice(ToArray(stream), I32(0), Some(I32(7))))
     assert(streamSlice1 match {
@@ -532,7 +531,7 @@ class SimplifySuite extends HailSuite {
     ).asInstanceOf[Array[Array[Any]]]
 
   @Test(dataProvider = "unaryBooleanArithmetic")
-  def testUnaryBooleanSimplification(input: IR, expected: IR): scalatest.Assertion =
+  def testUnaryBooleanSimplification(input: IR, expected: IR): Unit =
     input should simplifyTo(expected)
 
   @DataProvider(name = "unaryIntegralArithmetic")
@@ -553,7 +552,7 @@ class SimplifySuite extends HailSuite {
     }
 
   @Test(dataProvider = "unaryIntegralArithmetic")
-  def testUnaryIntegralSimplification(input: IR, expected: IR): scalatest.Assertion =
+  def testUnaryIntegralSimplification(input: IR, expected: IR): Unit =
     input should simplifyTo(expected)
 
   @DataProvider(name = "binaryIntegralArithmetic")
@@ -633,7 +632,7 @@ class SimplifySuite extends HailSuite {
     }
 
   @Test(dataProvider = "binaryIntegralArithmetic")
-  def testBinaryIntegralSimplification(input: IR, expected: IR): scalatest.Assertion =
+  def testBinaryIntegralSimplification(input: IR, expected: IR): Unit =
     input should simplifyTo(expected)
 
   @DataProvider(name = "floatingIntegralArithmetic")
@@ -673,7 +672,7 @@ class SimplifySuite extends HailSuite {
     }
 
   @Test(dataProvider = "binaryIntegralArithmetic")
-  def testBinaryFloatingSimplification(input: IR, expected: IR): scalatest.Assertion =
+  def testBinaryFloatingSimplification(input: IR, expected: IR): Unit =
     input should simplifyTo(expected)
 
   @DataProvider(name = "blockMatrixRules")
@@ -701,8 +700,7 @@ class SimplifySuite extends HailSuite {
   }
 
   @Test(dataProvider = "blockMatrixRules")
-  def testBlockMatrixSimplification(input: BlockMatrixIR, expected: BlockMatrixIR)
-    : scalatest.Assertion =
+  def testBlockMatrixSimplification(input: BlockMatrixIR, expected: BlockMatrixIR): Unit =
     input should simplifyTo(expected)
 
   @DataProvider(name = "SwitchRules")
@@ -727,7 +725,7 @@ class SimplifySuite extends HailSuite {
 
   @Test(dataProvider = "SwitchRules")
   def testTestSwitchSimplification(x: IR, default: IR, cases: IndexedSeq[IR], expected: BaseIR)
-    : scalatest.Assertion =
+    : Unit =
     Switch(x, default, cases) should simplifyTo(expected)
 
   @DataProvider(name = "IfRules")
@@ -748,7 +746,7 @@ class SimplifySuite extends HailSuite {
   }
 
   @Test(dataProvider = "IfRules")
-  def testIfSimplification(pred: IR, cnsq: IR, altr: IR, expected: BaseIR): scalatest.Assertion =
+  def testIfSimplification(pred: IR, cnsq: IR, altr: IR, expected: BaseIR): Unit =
     If(pred, cnsq, altr) should simplifyTo(expected)
 
   @DataProvider(name = "MakeStructRules")
@@ -782,7 +780,7 @@ class SimplifySuite extends HailSuite {
   }
 
   @Test(dataProvider = "MakeStructRules")
-  def testMakeStruct(fields: IndexedSeq[(String, IR)], expected: IR): scalatest.Assertion =
+  def testMakeStruct(fields: IndexedSeq[(String, IR)], expected: IR): Unit =
     MakeStruct(fields) should simplifyTo(expected)
 
   @DataProvider(name = "CastRules")
@@ -798,7 +796,7 @@ class SimplifySuite extends HailSuite {
   }
 
   @Test(dataProvider = "CastRules")
-  def testCastSimplify(t1: Type, t2: Type, simplifies: Boolean): scalatest.Assertion = {
+  def testCastSimplify(t1: Type, t2: Type, simplifies: Boolean): Unit = {
     val x = ref(t1)
     val ir = Cast(Cast(x, t2), t1)
     ir should simplifyTo(if (simplifies) x else ir)

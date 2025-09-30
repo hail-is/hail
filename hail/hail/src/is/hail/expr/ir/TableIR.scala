@@ -1,6 +1,5 @@
 package is.hail.expr.ir
 
-import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.{ExecuteContext, HailStateManager, HailTaskContext, TaskFinalizer}
@@ -1950,7 +1949,7 @@ object TableFromBlockMatrixNativeReader {
   def apply(
     fs: FS,
     path: String,
-    nPartitions: Option[Int] = None,
+    nPartitions: Int,
     maximumCacheMemoryInBytes: Option[Int] = None,
   ): TableFromBlockMatrixNativeReader =
     TableFromBlockMatrixNativeReader(
@@ -1967,7 +1966,7 @@ object TableFromBlockMatrixNativeReader {
 
 case class TableFromBlockMatrixNativeReaderParameters(
   path: String,
-  nPartitions: Option[Int],
+  nPartitions: Int,
   maximumCacheMemoryInBytes: Option[Int],
 )
 
@@ -1977,12 +1976,10 @@ case class TableFromBlockMatrixNativeReader(
 ) extends TableReaderWithExtraUID {
   def pathsUsed: Seq[String] = FastSeq(params.path)
 
-  val getNumPartitions: Int = params.nPartitions.getOrElse(HailContext.backend.defaultParallelism)
-
-  val partitionRanges = (0 until getNumPartitions).map { i =>
+  val partitionRanges = (0 until params.nPartitions).map { i =>
     val nRows = metadata.nRows
-    val start = (i * nRows) / getNumPartitions
-    val end = ((i + 1) * nRows) / getNumPartitions
+    val start = (i * nRows) / params.nPartitions
+    val end = ((i + 1) * nRows) / params.nPartitions
     start until end
   }
 

@@ -1823,6 +1823,9 @@ class BlockMatrix:
             )
 
         self.write(path, overwrite=True, force_row_major=True)
+
+        # target 16k rows per partition for a sizeable block matrix with default block size
+        n_partitions = max(1, n_partitions or self._n_block_rows // 4)
         reader = TableFromBlockMatrixNativeReader(path, n_partitions, maximum_cache_memory_in_bytes)
         return Table(TableRead(reader))
 

@@ -47,7 +47,7 @@ final case class SJavaArrayString(elementRequired: Boolean) extends SContainer {
         new SJavaArrayStringValue(this, value.asInstanceOf[SJavaArrayStringValue].array)
       case SIndexablePointer(pc) if pc.elementType.isInstanceOf[PString] =>
         val sv = value.asInstanceOf[SIndexableValue]
-        val len = sv.loadLength()
+        val len = sv.loadLength
         val array = cb.memoize[Array[String]](Code.newArray[String](len))
         (pc.elementType.required, elementRequired) match {
           case (true, _) =>
@@ -96,7 +96,7 @@ class SJavaArrayStringValue(
 ) extends SIndexableValue {
   override lazy val valueTuple: IndexedSeq[Value[_]] = FastSeq(array)
 
-  override def loadLength(): Value[Int] = new Value[Int] {
+  override def loadLength: Value[Int] = new Value[Int] {
     override def get: Code[Int] = array.length()
   }
 

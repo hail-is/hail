@@ -1,6 +1,5 @@
 package is.hail.expr.ir
 
-import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.io.{BufferSpec, FileWriteMetadata}
@@ -11,6 +10,7 @@ import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant._
 
+import scala.collection.compat._
 import scala.collection.compat.immutable.ArraySeq
 
 import org.apache.spark.SparkContext
@@ -140,7 +140,7 @@ case class MatrixValue(
       PCanonicalStruct.empty(required = true),
       bufferSpec,
       ArraySeq[Annotation](Row()),
-    )
+    ): Unit
 
     val globalsSpec = TableSpecParameters(
       FileFormat.version.rep,
@@ -264,11 +264,11 @@ case class MatrixValue(
       s"\n    * Largest partition:  $largestStr")
   }
 
-  def toRowMatrix(entryField: String): RowMatrix = {
+  def toRowMatrix(ctx: ExecuteContext, entryField: String): RowMatrix = {
     val partCounts: Array[Long] = rvd.countPerPartition()
     val partStarts = partCounts.scanLeft(0L)(_ + _)
     assert(partStarts.length == rvd.getNumPartitions + 1)
-    val partStartsBc = HailContext.backend.broadcast(partStarts)
+    val partStartsBc = ctx.backend.broadcast(partStarts)
 
     val localRvRowPType = rvRowPType
     val localEntryArrayPType = entryArrayPType
@@ -344,7 +344,7 @@ object MatrixValue {
     }
 
     val fileData = RVD.writeRowsSplitFiles(ctx, mvs.map(_.rvd), paths, bufferSpec, stageLocally)
-    (mvs, paths, fileData).zipped.foreach { case (mv, path, fd) =>
+    (mvs lazyZip paths lazyZip fileData).foreach { case (mv, path, fd) =>
       mv.finalizeWrite(ctx, path, bufferSpec, fd, consoleInfo = false)
     }
   }
