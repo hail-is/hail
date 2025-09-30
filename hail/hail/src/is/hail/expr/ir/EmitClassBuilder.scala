@@ -85,7 +85,7 @@ class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
       (t, value), {
         val curr = currLitIndex
         val pt = t.canonicalPType
-        literalsBuilder.put((t, value), (pt, curr))
+        literalsBuilder.update((t, value), (pt, curr))
         currLitIndex += 1
         (pt, curr)
       },
@@ -97,7 +97,7 @@ class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
       el, {
         val curr = currLitIndex
         val pt = el.codec.decodedPType()
-        encodedLiteralsBuilder.put(el, (pt, curr))
+        encodedLiteralsBuilder.update(el, (pt, curr))
         currLitIndex += 1
         (pt, curr)
       },

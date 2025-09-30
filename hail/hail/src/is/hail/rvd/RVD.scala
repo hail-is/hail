@@ -99,7 +99,7 @@ class RVD(
     val localRowPType = rowPType
     crdd.cmapPartitions { (ctx, it) =>
       val encoder = new ByteArrayEncoder(theHailClassLoaderForSparkWorkers, makeEnc)
-      TaskContext.get().addTaskCompletionListener[Unit](_ => encoder.close())
+      TaskContext.get().addTaskCompletionListener[Unit](_ => encoder.close()): Unit
       it.map { ptr =>
         val keys: Any = SafeRow.selectFields(localRowPType, ctx.r, ptr)(kFieldIdx)
         val bytes = encoder.regionValueToBytes(ctx.r, ptr)
@@ -993,7 +993,7 @@ class RVD(
     val sm = ctx.stateManager
     val partitionKeyedIntervals = that.crdd.cmapPartitions { (ctx, it) =>
       val encoder = new ByteArrayEncoder(theHailClassLoaderForSparkWorkers, makeEnc)
-      TaskContext.get().addTaskCompletionListener[Unit](_ => encoder.close())
+      TaskContext.get().addTaskCompletionListener[Unit](_ => encoder.close()): Unit
       it.flatMap { ptr =>
         val r = SafeRow(rightTyp.rowType, ptr)
         val interval = r.getAs[Interval](rightTyp.kFieldIdx(0))

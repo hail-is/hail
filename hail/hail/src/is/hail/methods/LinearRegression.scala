@@ -146,7 +146,7 @@ case class LinearRegressionRowsSingle(
           val b = xyp
           i = 0
           while (i < blockLength) {
-            xyp(::, i) :*= xxpRec(i)
+            xyp(::, i) :*= xxpRec(i): Unit
             i += 1
           }
 
@@ -331,7 +331,7 @@ case class LinearRegressionRowsChained(
             val b = xyp
             i = 0
             while (i < blockLength) {
-              xyp(::, i) :*= xxpRec(i)
+              xyp(::, i) :*= xxpRec(i): Unit
               i += 1
             }
             val se = sqrt((1d / cri.d) * (yyp * xxpRec.t - (b *:* b)))

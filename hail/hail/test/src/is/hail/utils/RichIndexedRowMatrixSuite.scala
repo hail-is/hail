@@ -7,7 +7,6 @@ import breeze.linalg.{DenseMatrix => BDM}
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 import org.apache.spark.rdd.RDD
-import org.scalatest
 import org.scalatest.Inspectors.forAll
 import org.scalatest.enablers.InspectorAsserting.assertingNatureOfAssertion
 import org.testng.annotations.Test
@@ -15,7 +14,7 @@ import org.testng.annotations.Test
 /** Testing RichIndexedRowMatrix. */
 class RichIndexedRowMatrixSuite extends HailSuite {
 
-  @Test def testToBlockMatrixDense(): scalatest.Assertion = {
+  @Test def testToBlockMatrixDense(): Unit = {
     val nRows = 9L
     val nCols = 6L
     val data = Seq(
@@ -51,7 +50,7 @@ class RichIndexedRowMatrixSuite extends HailSuite {
     }
   }
 
-  @Test def emptyBlocks(): scalatest.Assertion = {
+  @Test def emptyBlocks(): Unit = {
     val nRows = 9
     val nCols = 2
     val data = Seq(
@@ -71,7 +70,7 @@ class RichIndexedRowMatrixSuite extends HailSuite {
     assert(blockMatAsBreeze.toArray.toIndexedSeq == irmLocal.toArray.toIndexedSeq)
     assert(m.blocks.count() == 5)
 
-    (m.dot(m.T)).toBreezeMatrix() // assert no exception
+    m.dot(m.T).toBreezeMatrix(): Unit // assert no exception
 
     assert(m.mapWithIndex { case (i, j, v) => i + 10 * j + v }.toBreezeMatrix() ===
       new BDM[Double](

@@ -4,12 +4,11 @@ import is.hail.HailSuite
 import is.hail.utils._
 
 import breeze.linalg._
-import org.scalatest
 import org.testng.annotations.Test
 
 class LogisticRegressionModelSuite extends HailSuite {
 
-  @Test def covariatesVsInterceptOnlyTest(): scalatest.Assertion = {
+  @Test def covariatesVsInterceptOnlyTest(): Unit = {
 
     /* R code:
      * y0 = c(0, 0, 1, 1, 1, 1) c1 = c(0, 2, 1, -2, -2, 4) c2 = c(-1, 3, 5, 0, -4, 3) logfit <-
@@ -61,7 +60,7 @@ class LogisticRegressionModelSuite extends HailSuite {
     assert(D_==(scoreStats.p, 0.8408652791, tolerance = 1.0e-5))
   }
 
-  @Test def gtsAndCovariatesVsCovariatesOnlyTest(): scalatest.Assertion = {
+  @Test def gtsAndCovariatesVsCovariatesOnlyTest(): Unit = {
 
     /* R code:
      * y0 <- c(0, 0, 1, 1, 1, 1) c1 <- c(0, 2, 1, -2, -2, 4) c2 <- c(-1, 3, 5, 0, -4, 3) gts <- c(0,
@@ -126,7 +125,7 @@ class LogisticRegressionModelSuite extends HailSuite {
     assert(D_==(scoreStats.p, 0.3724319159, tolerance = 1.0e-5))
   }
 
-  @Test def firthSeparationTest(): scalatest.Assertion = {
+  @Test def firthSeparationTest(): Unit = {
     val y = DenseVector(0d, 0d, 0d, 1d, 1d, 1d)
     val X = y.asDenseMatrix.t
 

@@ -37,7 +37,7 @@ class TestFileInputFormat extends hd.mapreduce.lib.input.TextInputFormat {
     val fileSystem = path.getFileSystem(hConf)
     val blkLocations = fileSystem.getFileBlockLocations(file, 0, length)
 
-    Array.tabulate(splitPoints.length - 1) { i =>
+    Range(0, splitPoints.length - 1).foreach { i =>
       val s = splitPoints(i)
       val e = splitPoints(i + 1)
       val splitSize = e - s
@@ -70,7 +70,7 @@ class BGzipCodecSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
    * - concatenated the chunks */
   val compPath = getTestResource("bgz.test.sample.vcf.bgz")
 
-  @Test def testGenericLinesSimpleUncompressed(): scalatest.Assertion = {
+  @Test def testGenericLinesSimpleUncompressed(): Unit = {
     val lines = Source.fromFile(uncompPath).getLines().toFastSeq
     val uncompStatus = fs.fileStatus(uncompPath)
 
@@ -83,7 +83,7 @@ class BGzipCodecSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     }
   }
 
-  @Test def testGenericLinesSimpleBGZ(): scalatest.Assertion = {
+  @Test def testGenericLinesSimpleBGZ(): Unit = {
     val lines = Source.fromFile(uncompPath).getLines().toFastSeq
 
     val compStatus = fs.fileStatus(compPath)
@@ -96,7 +96,7 @@ class BGzipCodecSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     }
   }
 
-  @Test def testGenericLinesSimpleGZ(): scalatest.Assertion = {
+  @Test def testGenericLinesSimpleGZ(): Unit = {
     val lines = Source.fromFile(uncompPath).getLines().toFastSeq
 
     // won't split, just run once
@@ -108,13 +108,13 @@ class BGzipCodecSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     lines2 should equal(lines)
   }
 
-  @Test def testGenericLinesRefuseGZ(): scalatest.Assertion =
+  @Test def testGenericLinesRefuseGZ(): Unit =
     interceptFatal("Cowardly refusing") {
       val gzStatus = fs.fileStatus(gzPath)
       GenericLines.read(fs, Array(gzStatus), Some(7), None, None, false, false)
     }
 
-  @Test def testGenericLinesRandom(): scalatest.Assertion = {
+  @Test def testGenericLinesRandom(): Unit = {
     val lines = Source.fromFile(uncompPath).getLines().toFastSeq
 
     val compLength = 195353
@@ -144,7 +144,7 @@ class BGzipCodecSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     }
   }
 
-  @Test def test(): scalatest.Assertion = {
+  @Test def test(): Unit = {
     sc.hadoopConfiguration.setLong("mapreduce.input.fileinputformat.split.minsize", 1L)
 
     val uncompIS = fs.open(uncompPath)
@@ -203,7 +203,7 @@ class BGzipCodecSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     }
   }
 
-  @Test def testVirtualSeek(): scalatest.Assertion = {
+  @Test def testVirtualSeek(): Unit = {
     // real offsets of the start of some blocks, paired with the offset to the next block
     val blockStarts = Array[(Long, Long)](
       (0, 14653),

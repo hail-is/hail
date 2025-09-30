@@ -9,7 +9,6 @@ import is.hail.types.virtual.{TInt32, TStruct}
 import scala.collection.compat.immutable.ArraySeq
 
 import org.apache.spark.sql.Row
-import org.scalatest
 import org.scalatest.Inspectors.forAll
 import org.scalatest.enablers.InspectorAsserting.assertingNatureOfAssertion
 import org.testng.ITestContext
@@ -48,7 +47,7 @@ class IntervalSuite extends HailSuite {
       }
   }
 
-  @Test def interval_agrees_with_set_interval_greater_than_point(): scalatest.Assertion =
+  @Test def interval_agrees_with_set_interval_greater_than_point(): Unit =
     forAll(cartesian(test_intervals, points)) { case (set_interval, p) =>
       val interval = set_interval.interval
       assert(
@@ -57,7 +56,7 @@ class IntervalSuite extends HailSuite {
       )
     }
 
-  @Test def interval_agrees_with_set_interval_less_than_point(): scalatest.Assertion =
+  @Test def interval_agrees_with_set_interval_less_than_point(): Unit =
     forAll(cartesian(test_intervals, points)) { case (set_interval, p) =>
       val interval = set_interval.interval
       assert(
@@ -66,20 +65,20 @@ class IntervalSuite extends HailSuite {
       )
     }
 
-  @Test def interval_agrees_with_set_interval_contains(): scalatest.Assertion =
+  @Test def interval_agrees_with_set_interval_contains(): Unit =
     forAll(cartesian(test_intervals, points)) { case (set_interval, p) =>
       val interval = set_interval.interval
       assert(interval.contains(pord, p) == set_interval.contains(p))
     }
 
-  @Test def interval_agrees_with_set_interval_includes(): scalatest.Assertion =
+  @Test def interval_agrees_with_set_interval_includes(): Unit =
     forAll(cartesian(test_intervals, test_intervals)) { case (set_interval1, set_interval2) =>
       val interval1 = set_interval1.interval
       val interval2 = set_interval2.interval
       assert(interval1.includes(pord, interval2) == set_interval1.includes(set_interval2))
     }
 
-  @Test def interval_agrees_with_set_interval_probably_overlaps(): scalatest.Assertion =
+  @Test def interval_agrees_with_set_interval_probably_overlaps(): Unit =
     forAll(cartesian(test_intervals, test_intervals)) { case (set_interval1, set_interval2) =>
       val interval1 = set_interval1.interval
       val interval2 = set_interval2.interval
@@ -89,7 +88,7 @@ class IntervalSuite extends HailSuite {
       )
     }
 
-  @Test def interval_agrees_with_set_interval_definitely_disjoint(): scalatest.Assertion =
+  @Test def interval_agrees_with_set_interval_definitely_disjoint(): Unit =
     forAll(cartesian(test_intervals, test_intervals)) { case (set_interval1, set_interval2) =>
       val interval1 = set_interval1.interval
       val interval2 = set_interval2.interval
@@ -99,28 +98,28 @@ class IntervalSuite extends HailSuite {
       )
     }
 
-  @Test def interval_agrees_with_set_interval_disjoint_greater_than(): scalatest.Assertion =
+  @Test def interval_agrees_with_set_interval_disjoint_greater_than(): Unit =
     forAll(cartesian(test_intervals, test_intervals)) { case (set_interval1, set_interval2) =>
       val interval1 = set_interval1.interval
       val interval2 = set_interval2.interval
       assert(interval1.isAbove(pord, interval2) == set_interval1.isAboveInterval(set_interval2))
     }
 
-  @Test def interval_agrees_with_set_interval_disjoint_less_than(): scalatest.Assertion =
+  @Test def interval_agrees_with_set_interval_disjoint_less_than(): Unit =
     forAll(cartesian(test_intervals, test_intervals)) { case (set_interval1, set_interval2) =>
       val interval1 = set_interval1.interval
       val interval2 = set_interval2.interval
       assert(interval1.isBelow(pord, interval2) == set_interval1.isBelowInterval(set_interval2))
     }
 
-  @Test def interval_agrees_with_set_interval_mergeable(): scalatest.Assertion =
+  @Test def interval_agrees_with_set_interval_mergeable(): Unit =
     forAll(cartesian(test_intervals, test_intervals)) { case (set_interval1, set_interval2) =>
       val interval1 = set_interval1.interval
       val interval2 = set_interval2.interval
       assert(interval1.canMergeWith(pord, interval2) == set_interval1.mergeable(set_interval2))
     }
 
-  @Test def interval_agrees_with_set_interval_merge(): scalatest.Assertion =
+  @Test def interval_agrees_with_set_interval_merge(): Unit =
     forAll(cartesian(test_intervals, test_intervals)) { case (set_interval1, set_interval2) =>
       val interval1 = set_interval1.interval
       val interval2 = set_interval2.interval
@@ -130,7 +129,7 @@ class IntervalSuite extends HailSuite {
       )
     }
 
-  @Test def interval_agrees_with_set_interval_intersect(): scalatest.Assertion =
+  @Test def interval_agrees_with_set_interval_intersect(): Unit =
     forAll(cartesian(test_intervals, test_intervals)) { case (set_interval1, set_interval2) =>
       val interval1 = set_interval1.interval
       val interval2 = set_interval2.interval
@@ -140,27 +139,27 @@ class IntervalSuite extends HailSuite {
       )
     }
 
-  @Test def interval_tree_agrees_with_set_interval_tree_contains(): scalatest.Assertion =
+  @Test def interval_tree_agrees_with_set_interval_tree_contains(): Unit =
     forAll(cartesian(test_itrees, points)) { case (set_itree, p) =>
       val itree = set_itree.intervalTree
       assert(itree.contains(Row(p)) == set_itree.contains(p))
     }
 
-  @Test def interval_tree_agrees_with_set_interval_tree_probably_overlaps(): scalatest.Assertion =
+  @Test def interval_tree_agrees_with_set_interval_tree_probably_overlaps(): Unit =
     forAll(cartesian(test_itrees, test_intervals)) { case (set_itree, set_interval) =>
       val itree = set_itree.intervalTree
       val interval = set_interval.rowInterval
       assert(itree.overlaps(interval) == set_itree.probablyOverlaps(set_interval))
     }
 
-  @Test def interval_tree_agrees_with_set_interval_tree_definitely_disjoint(): scalatest.Assertion =
+  @Test def interval_tree_agrees_with_set_interval_tree_definitely_disjoint(): Unit =
     forAll(cartesian(test_itrees, test_intervals)) { case (set_itree, set_interval) =>
       val itree = set_itree.intervalTree
       val interval = set_interval.rowInterval
       assert(itree.isDisjointFrom(interval) == set_itree.definitelyDisjoint(set_interval))
     }
 
-  @Test def interval_tree_agrees_with_set_interval_tree_query_values(): scalatest.Assertion =
+  @Test def interval_tree_agrees_with_set_interval_tree_query_values(): Unit =
     forAll(cartesian(test_itrees, points)) { case (set_itree, point) =>
       val itree = set_itree.intervalTree
       val result = itree.queryKey(Row(point))
@@ -168,8 +167,7 @@ class IntervalSuite extends HailSuite {
       assert(result.toSet == set_itree.queryValues(point))
     }
 
-  @Test def interval_tree_agrees_with_set_interval_tree_query_overlapping_values()
-    : scalatest.Assertion =
+  @Test def interval_tree_agrees_with_set_interval_tree_query_overlapping_values(): Unit =
     forAll(cartesian(test_itrees, test_intervals)) { case (set_itree, set_interval) =>
       val itree = set_itree.intervalTree
       val interval = set_interval.rowInterval

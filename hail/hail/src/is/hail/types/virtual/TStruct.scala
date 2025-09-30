@@ -379,7 +379,7 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
   override def pyString(sb: StringBuilder): Unit = {
     sb ++= "struct{"
     fields.foreachBetween({ field =>
-      sb ++= prettyIdentifier(field.name) ++= ": "
+      sb ++= prettyIdentifier(field.name) ++= ": ": Unit
       field.typ.pyString(sb)
     })(sb ++= ", ")
     sb += '}'

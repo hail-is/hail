@@ -6,7 +6,6 @@ import is.hail.backend.HailStateManager
 import is.hail.expr.ir.{
   CodeParam, CodeParamType, EmitCode, EmitCodeBuilder, Param, ParamType, SCodeParam,
 }
-import is.hail.macros.void
 import is.hail.types.physical.stypes.SValue
 import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces._
@@ -30,9 +29,9 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   override def containsPointers: Boolean = true
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false): Unit = {
-    void(sb ++= "PCNDArray[")
+    sb ++= "PCNDArray["
     elementType.pretty(sb, indent, compact)
-    void(sb ++= s"," ++= s"$nDims" += ']')
+    sb ++= s"," ++= s"$nDims" += ']': Unit
   }
 
   lazy val shapeType: PCanonicalTuple =

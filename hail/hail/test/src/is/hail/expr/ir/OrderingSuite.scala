@@ -67,7 +67,7 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, r)
   }
 
-  @Test def testMissingNonequalComparisons(): scalatest.Assertion = {
+  @Test def testMissingNonequalComparisons(): Unit = {
     def getStagedOrderingFunctionWithMissingness(
       t: PType,
       op: CodeOrdering.Op,
@@ -99,7 +99,7 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         val eordME = t.mkOrdering(sm)
         val eordMNE = t.mkOrdering(sm, missingEqual = false)
 
-        def checkCompare(compResult: Int, expected: Int): scalatest.Assertion =
+        def checkCompare(compResult: Int, expected: Int): Unit =
           assert(
             java.lang.Integer.signum(compResult) == expected,
             s"compare expected: $expected vs $compResult\n  t=${t.parsableString()}\n  v=$a",
@@ -127,7 +127,7 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         checkCompare(eordMNE.compare(null, a), 1)
         checkCompare(eordMNE.compare(a, null), -1)
 
-        def check(result: Boolean, expected: Boolean): scalatest.Assertion =
+        def check(result: Boolean, expected: Boolean): Unit =
           assert(result == expected, s"t=${t.parsableString()}\n  v=$a")
 
         val fequivME = getStagedOrderingFunctionWithMissingness(pType, CodeOrdering.Equiv(), region)
@@ -236,7 +236,7 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     }
   }
 
-  @Test def testRandomOpsAgainstExtended(): scalatest.Assertion =
+  @Test def testRandomOpsAgainstExtended(): Unit =
     forAll(genTypeNonMissingVal2) { case (t, a1, a2) =>
       pool.scopedRegion { region =>
         val pType = PType.canonical(t)
@@ -281,7 +281,7 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       }
     }
 
-  @Test def testReverseIsSwappedArgumentsOfExtendedOrdering(): scalatest.Assertion =
+  @Test def testReverseIsSwappedArgumentsOfExtendedOrdering(): Unit =
     forAll(genTypeNonMissingVal2) { case (t, a1, a2) =>
       pool.scopedRegion { region =>
         val pType = PType.canonical(t)
@@ -325,7 +325,7 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       }
     }
 
-  @Test def testSortOnRandomArray(): scalatest.Assertion = {
+  @Test def testSortOnRandomArray(): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     forAll(genTypeVal[TArray](ctx), arbitrary[Boolean]) {
@@ -339,7 +339,7 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     }
   }
 
-  @Test def testToSetOnRandomDuplicatedArray(): scalatest.Assertion = {
+  @Test def testToSetOnRandomDuplicatedArray(): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     forAll(genTypeVal[TArray](ctx)) { case (tarray, a: IndexedSeq[Any]) =>
@@ -352,7 +352,7 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     }
   }
 
-  @Test def testToDictOnRandomDuplicatedArray(): scalatest.Assertion = {
+  @Test def testToDictOnRandomDuplicatedArray(): Unit = {
     implicit val execStrats: Set[ExecStrategy] =
       ExecStrategy.javaOnly
 
@@ -381,16 +381,15 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     }
   }
 
-  @Test def testSortOnMissingArray(): scalatest.Assertion = {
+  @Test def testSortOnMissingArray(): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
     val ts = TStream(TStruct("key" -> TInt32, "value" -> TInt32))
     val irs: Array[IR => IR] = Array(ArraySort(_, True()), ToSet(_), ToDict(_))
 
     scalatest.Inspectors.forAll(irs)(irF => assertEvalsTo(IsNA(irF(NA(ts))), true))
-    scalatest.Succeeded
   }
 
-  @Test def testSetContainsOnRandomSet(): scalatest.Assertion = {
+  @Test def testSetContainsOnRandomSet(): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
     val compareGen =
       for {
@@ -419,7 +418,7 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     }
   }
 
-  @Test def testDictGetOnRandomDict(): scalatest.Assertion = {
+  @Test def testDictGetOnRandomDict(): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     val compareGen =
@@ -449,7 +448,7 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     }
   }
 
-  @Test def testBinarySearchOnSet(): scalatest.Assertion = {
+  @Test def testBinarySearchOnSet(): Unit = {
     val compareGen =
       for {
         elt <- arbitrary[Type]
@@ -505,7 +504,7 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     }
   }
 
-  @Test def testBinarySearchOnDict(): scalatest.Assertion = {
+  @Test def testBinarySearchOnDict(): Unit = {
     val compareGen =
       for {
         tdict <- arbitrary[TDict]
@@ -563,7 +562,7 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     }
   }
 
-  @Test def testContainsWithArrayFold(): scalatest.Assertion = {
+  @Test def testContainsWithArrayFold(): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
     val set1 = ToSet(MakeStream(IndexedSeq(I32(1), I32(4)), TStream(TInt32)))
     val set2 = ToSet(MakeStream(IndexedSeq(I32(9), I32(1), I32(4)), TStream(TInt32)))
@@ -602,7 +601,7 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   def testOrderingArrayDouble(
     a: IndexedSeq[Any],
     a2: IndexedSeq[Any],
-  ): scalatest.Assertion = {
+  ): Unit = {
     val t = TArray(TFloat64)
 
     val args = FastSeq(a -> t, a2 -> t)
@@ -622,7 +621,7 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   def testOrderingSetDouble(
     a: IndexedSeq[Any],
     a2: IndexedSeq[Any],
-  ): scalatest.Assertion = {
+  ): Unit = {
     val t = TSet(TFloat64)
 
     val s = if (a != null) a.toSet else null
@@ -661,7 +660,7 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   def testOrderingRowDouble(
     r: Row,
     r2: Row,
-  ): scalatest.Assertion = {
+  ): Unit = {
     val t = TStruct("x" -> TFloat64, "s" -> TString)
 
     val args = FastSeq(r -> t, r2 -> t)

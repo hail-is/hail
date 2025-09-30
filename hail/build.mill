@@ -116,9 +116,11 @@ trait HailModule extends ScalaModule with ScalafmtModule with ScalafixModule { o
       ScalacOptions.warnDeadCode, ScalacOptions.privateWarnDeadCode,
       // we don't enable the unused imports warning in 2.12, as the wconf origin filter doesn't work
       ScalacOptions.privateWarnUnusedImports,
-      ScalacOptions.warnNonUnitStatement,
+      // 2.13 added the -Wnonunit-discard flag, which is a stronger check than -Wvalue-discard
+      ScalacOptions.warnValueDiscard, ScalacOptions.privateWarnValueDiscard,
 
       ScalacOptions.lintInferAny,
+      ScalacOptions.languageExperimentalMacros,
     )
     
     val baseOptions = ScalacOptions.default +
@@ -215,6 +217,8 @@ trait HailModule extends ScalaModule with ScalafmtModule with ScalafixModule { o
         raw"-Wconf:cat=unused-imports&origin=scala\.collection\.compat\._:s",
         raw"-Wconf:cat=unused-imports&origin=scala\.Option\.option2Iterable:s",
         raw"-Wconf:cat=unused-imports&origin=is\.hail\.utils\.compat\._:s",
+        raw"-Wconf:msg=unused value of type org\.scalatest\..*Assertion:s",
+        raw"-Wconf:msg=unused value of type org\.mockito\.stubbing\.ScalaOngoingStubbing:s",
       )
     } else {
       finalOptions :+ "-Wconf:msg=legacy-binding:s"
@@ -254,9 +258,6 @@ trait RootHailModule extends CrossScalaModule with HailModule { outer =>
   }
 
   override def moduleDeps: Seq[JavaModule] = Seq(memory)
-
-  override def compileModuleDeps: Seq[JavaModule] =
-    Seq(macros)
 
   override def resources: T[Seq[PathRef]] = super.resources() ++ Seq(
     BuildCtx.withFilesystemCheckerDisabled {
@@ -378,13 +379,6 @@ trait RootHailModule extends CrossScalaModule with HailModule { outer =>
       val debugOrRelease = if (Env.buildMode == BuildMode.ci) "debug" else "release"
       os.sub / debugOrRelease / "src"
     }
-  }
-
-  object macros extends HailModule with CrossValue {
-    override def compileMvnDeps: T[Seq[Dep]] = Seq(
-      mvn"org.scala-lang:scala-reflect:${scalaVersion()}",
-      mvn"orf.scala-lang:scala-compiler:${scalaVersion()}"
-    )
   }
 
   object test extends HailTests {

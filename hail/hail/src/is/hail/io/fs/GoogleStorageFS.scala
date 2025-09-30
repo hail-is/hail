@@ -3,7 +3,6 @@ package is.hail.io.fs
 import is.hail.HailFeatureFlags
 import is.hail.io.fs.FSUtil.dropTrailingSlash
 import is.hail.io.fs.GoogleStorageFS.RequesterPaysFailure
-import is.hail.macros.void
 import is.hail.services.{isTransientError, retryTransientErrors}
 import is.hail.services.oauth2.GoogleCloudCredentials
 import is.hail.utils._
@@ -287,14 +286,14 @@ class GoogleStorageFS(
       }
 
       override def flush(): Unit = {
-        void(bb.flip())
+        bb.flip(): Unit
 
         while (bb.remaining() > 0)
           doHandlingRequesterPays {
-            void(writer.write(bb))
+            writer.write(bb): Unit
           }
 
-        void(bb.clear())
+        bb.clear(): Unit
       }
 
       override def close(): Unit = {
@@ -359,9 +358,8 @@ class GoogleStorageFS(
           }
       }
 
-      void {
-        storage.copy(config).getResult
-      } // getResult is necessary to cause this to go to completion
+      // getResult is necessary to cause this to go to completion
+      storage.copy(config).getResult
     }
 
     def discoverExceptionThenRetryCopyIfRequesterPays(exc: Throwable): Unit = exc match {
@@ -387,7 +385,7 @@ class GoogleStorageFS(
         discoverExceptionThenRetryCopyIfRequesterPays(exc)
     }
 
-    if (deleteSource) void(storage.delete(srcId))
+    if (deleteSource) storage.delete(srcId): Unit
   }
 
   def delete(url: URL, recursive: Boolean): Unit =
@@ -420,11 +418,12 @@ class GoogleStorageFS(
           }
           page = page.getNextPage()
         }
-      } else void {
+      } else {
         /* Storage.delete is idempotent. it returns a Boolean which is false if the file did not
          * exist */
         handleRequesterPays(
-          (options: Seq[BlobSourceOption]) => storage.delete(url.bucket, url.path, options: _*),
+          (options: Seq[BlobSourceOption]) =>
+            storage.delete(url.bucket, url.path, options: _*): Unit,
           BlobSourceOption.userProject,
           url.bucket,
         )

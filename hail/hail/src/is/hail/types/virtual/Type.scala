@@ -4,7 +4,6 @@ import is.hail.annotations._
 import is.hail.backend.HailStateManager
 import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex}
 import is.hail.expr.ir._
-import is.hail.macros.void
 import is.hail.utils
 import is.hail.utils._
 
@@ -60,7 +59,7 @@ abstract class Type extends VType with Serializable {
   def _toPretty: String
 
   def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit =
-    void(sb ++= _toPretty)
+    sb ++= _toPretty
 
   def schema: DataType = SparkAnnotationImpex.exportType(this)
 

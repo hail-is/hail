@@ -164,7 +164,12 @@ case class BlockMatrixBinaryWriter(path: String) extends BlockMatrixWriter {
   def pathOpt: Option[String] = Some(path)
 
   def apply(ctx: ExecuteContext, bm: BlockMatrix): String = {
-    RichDenseMatrixDouble.exportToDoubles(ctx.fs, path, bm.toBreezeMatrix(), forceRowMajor = true)
+    RichDenseMatrixDouble.exportToDoubles(
+      ctx.fs,
+      path,
+      bm.toBreezeMatrix(),
+      forceRowMajor = true,
+    ): Unit
     path
   }
 

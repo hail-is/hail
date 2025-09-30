@@ -80,7 +80,7 @@ object ExtractIntervalFilters {
         None
       else {
         val rw = extract.Rewrites(mutable.Set.empty, mutable.Set.empty)
-        extract.analyze(cond, ref.name, Some(rw), trueSet)
+        extract.analyze(cond, ref.name, Some(rw), trueSet): Unit
         Some((extract.rewrite(cond, rw), trueSet))
       }
     }

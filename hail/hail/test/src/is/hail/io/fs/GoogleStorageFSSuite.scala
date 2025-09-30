@@ -2,7 +2,6 @@ package is.hail.io.fs
 
 import is.hail.services.oauth2.GoogleCloudCredentials
 
-import org.scalatest
 import org.scalatestplus.testng.TestNGSuite
 import org.testng.SkipException
 import org.testng.annotations.{BeforeClass, Test}
@@ -20,7 +19,7 @@ class GoogleStorageFSSuite extends TestNGSuite with FSSuite {
   override lazy val fs: FS =
     new GoogleStorageFS(GoogleCloudCredentials(None, GoogleStorageFS.RequiredOAuthScopes), None)
 
-  @Test def testMakeQualified(): scalatest.Assertion = {
+  @Test def testMakeQualified(): Unit = {
     val qualifiedFileName = "gs://bucket/path"
     assert(fs.makeQualified(qualifiedFileName) == qualifiedFileName)
 
