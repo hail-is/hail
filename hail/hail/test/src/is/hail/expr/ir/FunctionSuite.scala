@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
+import is.hail.ExecStrategy.ExecStrategy
 import is.hail.asm4s._
 import is.hail.expr.ir.defs.{ApplyBinaryPrimOp, I32, In}
 import is.hail.expr.ir.functions.{IRFunctionRegistry, RegistryFunctions}
@@ -47,7 +48,7 @@ object TestRegisterFunctions extends RegistryFunctions {
 
 class FunctionSuite extends HailSuite {
 
-  implicit val execStrats = ExecStrategy.javaOnly
+  implicit val execStrats: Set[ExecStrategy] = ExecStrategy.javaOnly
 
   TestRegisterFunctions.registerAll()
 

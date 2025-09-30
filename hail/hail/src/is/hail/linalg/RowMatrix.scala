@@ -115,7 +115,7 @@ class RowMatrix(
     new DenseMatrix[Double](nRowsInt, nCols, a.flatten, 0, nCols, isTranspose = true)
   }
 
-  def export(
+  def `export`(
     ctx: ExecuteContext,
     path: String,
     columnDelimiter: String,

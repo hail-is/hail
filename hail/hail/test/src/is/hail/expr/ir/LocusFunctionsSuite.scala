@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
+import is.hail.ExecStrategy.ExecStrategy
 import is.hail.expr.ir.defs.{Apply, ErrorIDs, False, I32, I64, MakeArray, MakeTuple, NA, Str, True}
 import is.hail.types.virtual._
 import is.hail.utils.{FastSeq, Interval}
@@ -11,7 +12,7 @@ import org.testng.annotations.Test
 
 class LocusFunctionsSuite extends HailSuite {
 
-  implicit val execStrats = ExecStrategy.javaOnly
+  implicit val execStrats: Set[ExecStrategy] = ExecStrategy.javaOnly
 
   private def grch38: ReferenceGenome = ctx.references(ReferenceGenome.GRCh38)
   private def tlocus = TLocus(grch38.name)

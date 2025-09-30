@@ -324,7 +324,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
   def persist(ctx: ExecuteContext, level: StorageLevel) =
     TableValue(ctx, typ, globals, rvd.persist(ctx, level))
 
-  def export(
+  def `export`(
     ctx: ExecuteContext,
     path: String,
     typesFile: String = null,

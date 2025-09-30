@@ -1,6 +1,7 @@
 package is.hail.expr.ir.lowering
 
 import is.hail.{ExecStrategy, HailSuite, TestUtils}
+import is.hail.ExecStrategy.ExecStrategy
 import is.hail.expr.ir.{
   mapIR, Ascending, Descending, LoweringAnalyses, SortField, TableIR, TableMapRows, TableRange,
 }
@@ -17,7 +18,7 @@ import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
 class LowerDistributedSortSuite extends HailSuite with TestUtils {
-  implicit val execStrats = ExecStrategy.compileOnly
+  implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
   @Test def testSamplePartition(): Unit = {
     val dataKeys = IndexedSeq(

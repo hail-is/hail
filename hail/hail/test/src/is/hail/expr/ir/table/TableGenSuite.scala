@@ -1,6 +1,7 @@
 package is.hail.expr.ir.table
 
 import is.hail.{ExecStrategy, HailSuite}
+import is.hail.ExecStrategy.ExecStrategy
 import is.hail.expr.ir._
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.defs.{
@@ -19,7 +20,7 @@ import org.testng.annotations.Test
 
 class TableGenSuite extends HailSuite {
 
-  implicit val execStrategy = ExecStrategy.lowering
+  implicit val execStrategy: Set[ExecStrategy] = ExecStrategy.lowering
 
   @Test(groups = Array("construction", "typecheck"))
   def testWithInvalidContextsType(): Unit = {

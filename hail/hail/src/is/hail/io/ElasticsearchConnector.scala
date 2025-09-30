@@ -8,7 +8,7 @@ import org.elasticsearch.spark.sql._
 
 object ElasticsearchConnector {
 
-  def export(
+  def `export`(
     df: spark.sql.DataFrame,
     host: String,
     port: Int,
@@ -30,7 +30,7 @@ object ElasticsearchConnector {
     )
   }
 
-  def export(
+  def `export`(
     df: spark.sql.DataFrame,
     host: String = "localhost",
     port: Int = 9200,

@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
+import is.hail.ExecStrategy.ExecStrategy
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.defs.{NA, ToSet, ToStream}
 import is.hail.types.virtual._
@@ -13,7 +14,7 @@ class DictFunctionsSuite extends HailSuite {
   def tuplesToMap(a: IndexedSeq[(Integer, Integer)]): Map[Integer, Integer] =
     Option(a).map(_.filter(_ != null).toMap).orNull
 
-  implicit val execStrats = ExecStrategy.javaOnly
+  implicit val execStrats: Set[ExecStrategy] = ExecStrategy.javaOnly
 
   @DataProvider(name = "basic")
   def basicData(): Array[Array[Any]] = Array(

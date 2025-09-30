@@ -113,7 +113,6 @@ trait HailModule extends ScalaModule with ScalafmtModule with ScalafixModule { o
       ScalacOptions.warnUnusedParams, ScalacOptions.privateWarnUnusedParams,
       ScalacOptions.warnUnusedImplicits, ScalacOptions.privateWarnUnusedImplicits,
       ScalacOptions.warnUnusedExplicits,
-      ScalacOptions.warnDeadCode, ScalacOptions.privateWarnDeadCode,
       // we don't enable the unused imports warning in 2.12, as the wconf origin filter doesn't work
       ScalacOptions.privateWarnUnusedImports,
       // 2.13 added the -Wnonunit-discard flag, which is a stronger check than -Wvalue-discard
@@ -206,14 +205,9 @@ trait HailModule extends ScalaModule with ScalafmtModule with ScalafixModule { o
         // method transform in trait SeqOps is deprecated (since 2.13.0): Use `mapInPlace` on an `IndexedSeq` instead
         "-Wconf:cat=deprecation&msg=method transform in trait SeqOps is deprecated:s",
       // other
-        // Wrap `export` in backticks to use it as an identifier, it will become a keyword in Scala 3
-        "-Wconf:cat=deprecation&msg=`export`:s",
         // Widening conversion from Long to Double is deprecated because it loses precision. Write `.toDouble` instead.
         "-Wconf:cat=deprecation&msg=Widening conversion from Long to Double:s",
         "-Wconf:cat=deprecation&msg=symbol literal is deprecated:s",
-        "-Wconf:cat=other-match-analysis:s",
-        "-Wconf:cat=other-implicit-type:s",
-        "-Wconf:msg=legacy-binding:s",
         raw"-Wconf:cat=unused-imports&origin=scala\.collection\.compat\._:s",
         raw"-Wconf:cat=unused-imports&origin=scala\.Option\.option2Iterable:s",
         raw"-Wconf:cat=unused-imports&origin=is\.hail\.utils\.compat\._:s",

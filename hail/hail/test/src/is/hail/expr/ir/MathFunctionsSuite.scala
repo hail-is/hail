@@ -10,7 +10,7 @@ import org.testng.annotations.{DataProvider, Test}
 
 class MathFunctionsSuite extends HailSuite {
 
-  implicit val execStrats = ExecStrategy.values
+  implicit val execStrats: ExecStrategy.ValueSet = ExecStrategy.values
 
   val tfloat = TFloat64
 

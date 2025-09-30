@@ -501,7 +501,7 @@ class TableStage(
       )
     } else {
       val location = ec.createTmpPath(genUID())
-      CompileAndEvaluate(
+      CompileAndEvaluate[Unit](
         ec,
         TableNativeWriter(location).lower(ec, this, RTable.fromTableStage(ec, this)),
       )
@@ -1434,7 +1434,7 @@ object LowerTableIR {
 
         val bindRelationLetsNewCtx = Let(loweredChild.letBindings, ToArray(newCtxs))
         val newCtxSeq =
-          CompileAndEvaluate(ctx, bindRelationLetsNewCtx).asInstanceOf[IndexedSeq[Any]]
+          CompileAndEvaluate[IndexedSeq[Any]](ctx, bindRelationLetsNewCtx)
         val numNewParts = newCtxSeq.length
         val newIntervals = loweredChild.partitioner.rangeBounds.slice(0, numNewParts)
         val newPartitioner = loweredChild.partitioner.copy(rangeBounds = newIntervals)
@@ -1583,7 +1583,7 @@ object LowerTableIR {
         }
 
         val letBindNewCtx = Let(loweredChild.letBindings, ToArray(newCtxs))
-        val newCtxSeq = CompileAndEvaluate(ctx, letBindNewCtx).asInstanceOf[IndexedSeq[Any]]
+        val newCtxSeq = CompileAndEvaluate[IndexedSeq[Any]](ctx, letBindNewCtx)
         val numNewParts = newCtxSeq.length
         val oldParts = loweredChild.partitioner.rangeBounds
         val newIntervals = oldParts.slice(oldParts.length - numNewParts, oldParts.length)

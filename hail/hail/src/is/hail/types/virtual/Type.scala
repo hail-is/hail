@@ -77,7 +77,7 @@ abstract class Type extends VType with Serializable {
       s
   }
 
-  def export(a: Annotation): JValue =
+  def `export`(a: Annotation): JValue =
     JSONAnnotationImpex.exportAnnotation(a, this)
 
   override def toJSON: JValue =
