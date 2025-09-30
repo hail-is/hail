@@ -117,7 +117,7 @@ class SparkBackend(Py4JBackend):
                 skip_logging_configuration,
                 min_block_size,
             )
-            jhc = hail_package.HailContext.getOrCreate(jbackend)
+            jhc = hail_package.HailContext.getOrCreate()
         else:
             jbackend = hail_package.backend.spark.SparkBackend.apply(
                 jsc,
@@ -130,7 +130,7 @@ class SparkBackend(Py4JBackend):
                 skip_logging_configuration,
                 min_block_size,
             )
-            jhc = hail_package.HailContext.apply(jbackend)
+            jhc = hail_package.HailContext.apply()
 
         self._jsc = jbackend.sc()
         if sc:

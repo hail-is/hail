@@ -55,6 +55,8 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable {
     newFs(CloudStorageFSConfig.fromFlagsAndEnv(None, flags))
   )
 
+  Backend.set(backend)
+
   def pyFs: FS =
     synchronized(tmpFileManager.fs)
 
@@ -284,6 +286,8 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable {
       compiledCodeCache.clear()
       irCache.clear()
       coercerCache.clear()
+      Backend.set(null)
+      backend.close()
     }
 
   private[this] def removeReference(name: String): Unit =

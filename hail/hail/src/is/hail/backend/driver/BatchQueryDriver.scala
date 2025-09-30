@@ -194,7 +194,8 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
         jobConfig,
       )
 
-    HailContext(backend)
+    HailContext.getOrCreate
+    Backend.set(backend)
     log.info("HailContext initialized.")
 
     // FIXME: when can the classloader be shared? (optimizer benefits!)
@@ -211,7 +212,11 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
           payload,
         )
       )
-    finally HailContext.stop()
+    finally {
+      HailContext.stop()
+      Backend.set(null)
+      backend.close()
+    }
   }
 }
 
