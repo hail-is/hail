@@ -198,6 +198,16 @@ class GSAResource:
 
         key = await self.iam_client.post(f'/serviceAccounts/{self.gsa_email}/keys')
 
+        policy_body = {
+            "bindings": [
+                {
+                    "role": "roles/iam.serviceAccountUser",
+                    "members": [f"serviceAccount:batch2-agent@{project}.iam.gserviceaccount.com"],
+                }
+            ]
+        }
+        await self.iam_client.post(f'/serviceAccounts/{self.gsa_email}:setIamPolicy', json={"policy": policy_body})
+
         return (self.gsa_email, key)
 
     async def _delete(self, gsa_email):
