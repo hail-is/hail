@@ -9,8 +9,7 @@ import is.hail.utils._
 import is.hail.variant.Locus
 
 import scala.annotation.meta.param
-
-import org.apache.commons.io.input.{CountingInputStream, ProxyInputStream}
+import org.apache.commons.io.input.{BoundedInputStream, CountingInputStream, ProxyInputStream}
 import org.apache.hadoop.io.compress.SplittableCompressionCodec
 import org.apache.spark.{Partition, TaskContext}
 import org.apache.spark.rdd.RDD
