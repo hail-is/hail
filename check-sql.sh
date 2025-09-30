@@ -14,21 +14,12 @@ if [ ! -d sql ]; then
     exit 0
 fi
 
-set +e
-git diff --name-status --diff-filter=r $target_treeish sql \
+if git diff --name-status --diff-filter=r $target_treeish sql \
     | grep -Ev $'^A|^M\t[^/]+/sql/estimated-current.sql|^D\t[^/]+/sql/delete-[^ ]+-tables.sql'
-grep_exit_code=$?
-
-
-if [[ $grep_exit_code -eq 0 ]]
 then
     echo 'At least one migration file was modified. See above.'
     exit 1
-elif [[ $grep_exit_code -eq 1 ]]
-then
-    # Exit code 1 means nothing survived grep's filter, so no illegal changes were made
-    # https://www.gnu.org/software/grep/manual/html_node/Exit-Status.html#Exit-Status-1
-    exit 0
 fi
-
-exit $grep_exit_code
+# NOTE: Exit code 1 (above if failed) means nothing survived grep's filter, so
+# no illegal changes were made. See link for more details:
+#     https://www.gnu.org/software/grep/manual/html_node/Exit-Status.html#Exit-Status-1
