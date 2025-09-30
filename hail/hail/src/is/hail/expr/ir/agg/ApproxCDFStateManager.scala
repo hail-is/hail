@@ -207,11 +207,11 @@ class ApproxCDFCombiner(
 
   def capacity = items.length
 
-  def n: Int = {
-    var n = 0
+  def n: Long = {
+    var n: Long = 0
     var i = 0
     while (i < numLevels) {
-      n += (levels(i + 1) - levels(i)) << i
+      n += (levels(i + 1) - levels(i)).toLong << i
       i += 1
     }
     n
@@ -475,7 +475,7 @@ class ApproxCDFCombiner(
 
     var level = 0
     while (level < numLevels) {
-      val weight: Long = 1 << level
+      val weight: Long = 1L << level
       var i = levels(level)
       while (i < levels(level + 1)) {
         builder += (weight -> items(i))
@@ -616,7 +616,7 @@ class ApproxCDFStateManager(val k: Int, var combiner: ApproxCDFCombiner) {
 
   def levelsCapacity = combiner.maxNumLevels
 
-  def n: Int = combiner.n
+  def n: Long = combiner.n
 
   private[agg] def capacity: Int = combiner.capacity
 

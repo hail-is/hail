@@ -188,7 +188,8 @@ class PNDArraySuite extends PhysicalTestUtils {
     val matType = PCanonicalNDArray(PFloat64Required, 2)
     val Xw = matType.constructUninitialized(X.shapes, cb, region)
     Xw.coiterateMutate(cb, region, (X, "X")) { case Seq(_, v) => v }
-    val curWindow = matType.constructUninitialized(FastSeq(m, SizeValueStatic(w)), cb, region)
+    val curWindow =
+      matType.constructUninitialized(FastSeq(m, SizeValueStatic(w.toLong)), cb, region)
     val btm = SizeValueDyn(cb.memoize(m * blocksize))
     val btn = SizeValueDyn(cb.memoize(n * blocksize))
     val work = vecType.constructUninitialized(FastSeq(btm), cb, region)

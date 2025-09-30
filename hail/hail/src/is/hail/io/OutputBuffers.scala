@@ -199,35 +199,35 @@ final class BlockingOutputBuffer(blockSize: Int, out: OutputBlockBuffer) extends
   def writeByte(b: Byte): Unit = {
     if (off + 1 > buf.length)
       writeBlock()
-    Memory.storeByte(buf, off, b)
+    Memory.storeByte(buf, off.toLong, b)
     off += 1
   }
 
   def writeInt(i: Int): Unit = {
     if (off + 4 > buf.length)
       writeBlock()
-    Memory.storeInt(buf, off, i)
+    Memory.storeInt(buf, off.toLong, i)
     off += 4
   }
 
   def writeLong(l: Long): Unit = {
     if (off + 8 > buf.length)
       writeBlock()
-    Memory.storeLong(buf, off, l)
+    Memory.storeLong(buf, off.toLong, l)
     off += 8
   }
 
   def writeFloat(f: Float): Unit = {
     if (off + 4 > buf.length)
       writeBlock()
-    Memory.storeFloat(buf, off, f)
+    Memory.storeFloat(buf, off.toLong, f)
     off += 4
   }
 
   def writeDouble(d: Double): Unit = {
     if (off + 8 > buf.length)
       writeBlock()
-    Memory.storeDouble(buf, off, d)
+    Memory.storeDouble(buf, off.toLong, d)
     off += 8
   }
 
@@ -240,14 +240,14 @@ final class BlockingOutputBuffer(blockSize: Int, out: OutputBlockBuffer) extends
 
     while (off + n > buf.length) {
       val p = buf.length - off
-      Region.loadBytes(addr, buf, off, p)
+      Region.loadBytes(addr, buf, off.toLong, p.toLong)
       off += p
       addr += p
       n -= p
       assert(off == buf.length)
       writeBlock()
     }
-    Region.loadBytes(addr, buf, off, n)
+    Region.loadBytes(addr, buf, off.toLong, n.toLong)
     off += n
   }
 
@@ -260,13 +260,13 @@ final class BlockingOutputBuffer(blockSize: Int, out: OutputBlockBuffer) extends
 
     while (off + (n << 3) > buf.length) {
       val p = (buf.length - off) >>> 3
-      Memory.memcpy(buf, off, from, fromOff, p)
+      Memory.memcpy(buf, off.toLong, from, fromOff.toLong, p.toLong)
       off += (p << 3)
       fromOff += p
       n -= p
       writeBlock()
     }
-    Memory.memcpy(buf, off, from, fromOff, n)
+    Memory.memcpy(buf, off.toLong, from, fromOff.toLong, n.toLong)
     off += (n << 3)
   }
 }
@@ -352,7 +352,7 @@ object ZstdCompressLib {
 final class ZstdOutputBlockBuffer(blockSize: Int, out: OutputBlockBuffer)
     extends OutputBlockBuffer {
   private[this] val zstd = ZstdCompressLib.instance.get
-  private[this] val comp = new Array[Byte](4 + Zstd.compressBound(blockSize).toInt)
+  private[this] val comp = new Array[Byte](4 + Zstd.compressBound(blockSize.toLong).toInt)
 
   def flush(): Unit = out.flush()
 
@@ -373,7 +373,7 @@ final class ZstdSizedBasedOutputBlockBuffer(
   out: OutputBlockBuffer,
 ) extends OutputBlockBuffer {
   private[this] val zstd = ZstdCompressLib.instance.get
-  private[this] val comp = new Array[Byte](4 + Zstd.compressBound(blockSize).toInt)
+  private[this] val comp = new Array[Byte](4 + Zstd.compressBound(blockSize.toLong).toInt)
 
   def flush(): Unit = out.flush()
 

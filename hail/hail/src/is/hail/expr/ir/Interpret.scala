@@ -200,7 +200,7 @@ object Interpret {
                 case Subtract() => ll - rr
                 case Multiply() => ll * rr
                 case FloatingPointDivide() => ll / rr
-                case RoundToNegInfDivide() => math.floor(ll / rr).toFloat
+                case RoundToNegInfDivide() => math.floor(ll.toDouble / rr).toFloat
               }
             case (TFloat64, TFloat64) =>
               val ll = lValue.asInstanceOf[Double]

@@ -173,6 +173,10 @@ package object utils
     }
   }
 
+  def plural(n: Int, sing: String): String = plural(n.toLong, sing)
+
+  def plural(n: Int, sing: String, plur: String): String = plural(n.toLong, sing, plur)
+
   def plural(n: Long, sing: String, plur: String = null): String =
     if (n == 1)
       sing
@@ -192,7 +196,7 @@ package object utils
     if (nPartitions == 0)
       return 1
 
-    math.ceil(math.log(nPartitions) / math.log(branchingFactor)).toInt
+    math.ceil(math.log(nPartitions.toDouble) / math.log(branchingFactor.toDouble)).toInt
   }
 
   def simpleAssert(p: Boolean): Unit =

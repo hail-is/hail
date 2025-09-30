@@ -12,7 +12,7 @@ class TracingInputStream(
 
   override def read(): Int = {
     val b = in.read()
-    logfile.write(b.toByte)
+    logfile.write(b)
     b
   }
 

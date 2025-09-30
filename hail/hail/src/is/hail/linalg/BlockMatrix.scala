@@ -133,7 +133,7 @@ object BlockMatrix {
     fromBreezeMatrix(ctx, lm, defaultBlockSize)
 
   def fromBreezeMatrix(ctx: ExecuteContext, lm: BDM[Double], blockSize: Int): M = {
-    val gp = GridPartitioner(blockSize, lm.rows, lm.cols)
+    val gp = GridPartitioner(blockSize, lm.rows.toLong, lm.cols.toLong)
 
     val localBlocksBc = Array.tabulate(gp.numPartitions) { pi =>
       val (i, j) = gp.blockCoordinates(pi)
@@ -617,7 +617,7 @@ class BlockMatrix(
 
           if (lower > lowestDiagIndex) {
             val iiLeft = math.max(diagIndex - lower, 0).toInt
-            val iiRight = math.min(diagIndex - lower + nColsInBlock, nRowsInBlock).toInt
+            val iiRight = math.min(diagIndex - lower + nColsInBlock, nRowsInBlock.toLong).toInt
 
             var ii = iiLeft
             var jj = math.max(lower - diagIndex, 0).toInt
@@ -632,7 +632,7 @@ class BlockMatrix(
 
           if (upper < highestDiagIndex) {
             val iiLeft = math.max(diagIndex - upper, 0).toInt
-            val iiRight = math.min(diagIndex - upper + nColsInBlock, nRowsInBlock).toInt
+            val iiRight = math.min(diagIndex - upper + nColsInBlock, nRowsInBlock.toLong).toInt
 
             lm(0 until iiLeft, ::) := 0.0: Unit
 
@@ -1512,7 +1512,7 @@ class BlockMatrix(
         for (k <- 0 until lm.rows)
           yield (k + iOffset, (jOffset, lm(k, ::).inner.toArray))
       }.aggregateByKey(new Array[Double](nColsInt))(seqOp, combOp)
-        .map { case (i, a) => IndexedRow(i, BDV(a)) },
+        .map { case (i, a) => IndexedRow(i.toLong, BDV(a)) },
       nRows,
       nColsInt,
     )
@@ -1536,17 +1536,17 @@ class BlockMatrix(
   }
 
   def filterRows(keep: Array[Long]): BlockMatrix =
-    new BlockMatrix(new BlockMatrixFilterRowsRDD(this, keep), blockSize, keep.length, nCols)
+    new BlockMatrix(new BlockMatrixFilterRowsRDD(this, keep), blockSize, keep.length.toLong, nCols)
 
   def filterCols(keep: Array[Long]): BlockMatrix =
-    new BlockMatrix(new BlockMatrixFilterColsRDD(this, keep), blockSize, nRows, keep.length)
+    new BlockMatrix(new BlockMatrixFilterColsRDD(this, keep), blockSize, nRows, keep.length.toLong)
 
   def filter(keepRows: Array[Long], keepCols: Array[Long]): BlockMatrix =
     new BlockMatrix(
       new BlockMatrixFilterRDD(this, keepRows, keepCols),
       blockSize,
-      keepRows.length,
-      keepCols.length,
+      keepRows.length.toLong,
+      keepCols.length.toLong,
     )
 
   def entriesTable(ctx: ExecuteContext): TableValue = {
@@ -1658,7 +1658,9 @@ private class BlockMatrixFilterRDD(bm: BlockMatrix, keepRows: Array[Long], keepC
   }
 
   private val blockSize = originalGP.blockSize
-  @transient private val tempDenseGP = GridPartitioner(blockSize, keepRows.length, keepCols.length)
+
+  @transient private val tempDenseGP =
+    GridPartitioner(blockSize, keepRows.length.toLong, keepCols.length.toLong)
 
   private val allBlockRowRanges: Array[Array[(Int, Array[Int], Array[Int])]] =
     BlockMatrixFilterRDD.computeAllBlockRowRanges(keepRows, originalGP, tempDenseGP)
@@ -1794,7 +1796,9 @@ private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: Array[Long])
 
   private val originalGP = bm.gp
   private val blockSize = originalGP.blockSize
-  @transient private val tempDenseGP = GridPartitioner(blockSize, originalGP.nRows, keep.length)
+
+  @transient private val tempDenseGP =
+    GridPartitioner(blockSize, originalGP.nRows, keep.length.toLong)
 
   @transient private val allBlockColRanges: Array[Array[(Int, Array[Int], Array[Int])]] =
     BlockMatrixFilterRDD.computeAllBlockColRanges(keep, originalGP, tempDenseGP)
@@ -1897,7 +1901,7 @@ private class BlockMatrixFilterRowsRDD(bm: BlockMatrix, keep: Array[Long])
 
   private val originalGP = bm.gp
   private val blockSize = originalGP.blockSize
-  private val tempDenseGP = GridPartitioner(blockSize, keep.length, originalGP.nCols)
+  private val tempDenseGP = GridPartitioner(blockSize, keep.length.toLong, originalGP.nCols)
 
   @transient private val allBlockRowRanges: Array[Array[(Int, Array[Int], Array[Int])]] =
     BlockMatrixFilterRDD.computeAllBlockRowRanges(keep, originalGP, tempDenseGP)
@@ -2182,8 +2186,8 @@ case class BlockMatrixRectanglesRDD(rectangles: Array[Array[Long]], bm: BlockMat
     val blocksInRectangle = gp.rectangleBlocks(rect)
     blocksInRectangle.foreach { blockIdx =>
       val (blockRowIdx, blockColIdx) = gp.blockCoordinates(blockIdx)
-      val blockStartRow = blockRowIdx * gp.blockSize
-      val blockStartCol = blockColIdx * gp.blockSize
+      val blockStartRow = blockRowIdx.toLong * gp.blockSize
+      val blockStartCol = blockColIdx.toLong * gp.blockSize
       val blockEndRow = blockStartRow + gp.blockRowNRows(blockRowIdx)
       val blockEndCol = blockStartCol + gp.blockColNCols(blockColIdx)
 

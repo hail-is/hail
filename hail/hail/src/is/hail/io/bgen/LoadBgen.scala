@@ -64,7 +64,7 @@ object LoadBgen {
     val bState = readState(fs, file)
     if (bState.hasIds) {
       using(new HadoopFSDataBinaryReader(fs.openNoCompression(file))) { is =>
-        is.seek(bState.headerLength + 4)
+        is.seek(bState.headerLength.toLong + 4)
         val sampleIdSize = is.readInt()
         val nSamples = is.readInt()
 
@@ -120,7 +120,7 @@ object LoadBgen {
       fatal(s"expected magic number [0000] or [bgen], got [${magicNumber.mkString}]")
 
     if (headerLength > 20)
-      is.skipBytes(headerLength - 20): Unit
+      is.skipBytes(headerLength.toLong - 20): Unit
 
     val flags = is.readInt()
     val compressType = flags & 3

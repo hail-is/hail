@@ -239,7 +239,7 @@ case class GridPartitioner(
           ii += 1
         }
         if (minStart < maxStop) {
-          val row = blockRow * blockSize
+          val row = blockRow.toLong * blockSize
           Some(Array(row, row + 1, minStart, maxStop))
         } else
           None

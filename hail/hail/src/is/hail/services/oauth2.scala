@@ -89,7 +89,7 @@ object oauth2 {
       }
 
     private[this] def isExpired: Boolean =
-      token == null || OffsetDateTime.now.plusMinutes(AzureTokenRefreshMinutes).isBefore(
+      token == null || OffsetDateTime.now.plusMinutes(AzureTokenRefreshMinutes.toLong).isBefore(
         token.getExpiresAt
       )
   }

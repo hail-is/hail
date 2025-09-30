@@ -1176,8 +1176,8 @@ object LowerBlockMatrixIR {
           case _: TNDArray => lowered
         })
         val contexts = BMSContexts.tabulate(x.typ, ib) { (rowBlockIdx, colBlockIdx) =>
-          val rowStartIdx = rowBlockIdx.toL * I64(x.typ.blockSize)
-          val colStartIdx = colBlockIdx.toL * I64(x.typ.blockSize)
+          val rowStartIdx = rowBlockIdx.toL * I64(x.typ.blockSize.toLong)
+          val colStartIdx = colBlockIdx.toL * I64(x.typ.blockSize.toLong)
           val (numRowsBlock, numColsBlock) = x.typ.blockShapeIR(rowBlockIdx, colBlockIdx)
           bindIRs(rowStartIdx, colStartIdx) { case Seq(rowStartIdx, colStartIdx) =>
             NDArraySlice(
@@ -1363,7 +1363,7 @@ object LowerBlockMatrixIR {
             }
             val summedChildType = BlockMatrixType(
               child.typ.elementType,
-              IndexedSeq[Long](child.typ.nRowBlocks, child.typ.nColBlocks),
+              IndexedSeq(child.typ.nRowBlocks.toLong, child.typ.nColBlocks.toLong),
               child.typ.nRowBlocks == 1,
               1,
               BlockMatrixSparsity.dense,

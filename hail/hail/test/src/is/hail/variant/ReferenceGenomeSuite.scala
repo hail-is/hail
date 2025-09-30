@@ -161,8 +161,9 @@ class ReferenceGenomeSuite extends HailSuite {
         "cache gives same base as from file" |: forAll(genLocus(rg)) { l =>
           val contig = l.contig
           val pos = l.position
-          val expected = refReader.getSubsequenceAt(contig, pos, pos).getBaseString
-          val expectedGz = refReaderGz.getSubsequenceAt(contig, pos, pos).getBaseString
+          val expected = refReader.getSubsequenceAt(contig, pos.toLong, pos.toLong).getBaseString
+          val expectedGz =
+            refReaderGz.getSubsequenceAt(contig, pos.toLong, pos.toLong).getBaseString
           assert(expected == expectedGz, "wat: fasta files don't have the same data")
           fr.lookup(contig, pos, 0, 0) == expected && frGzip.lookup(contig, pos, 0, 0) == expectedGz
         }
@@ -184,7 +185,11 @@ class ReferenceGenomeSuite extends HailSuite {
               while (ordering.lteq(pos, end) && pos != null) {
                 val endPos =
                   if (pos.contig != end.contig) rg.contigLength(pos.contig) else end.position
-                sb ++= refReader.getSubsequenceAt(pos.contig, pos.position, endPos).getBaseString
+                sb ++= refReader.getSubsequenceAt(
+                  pos.contig,
+                  pos.position.toLong,
+                  endPos.toLong,
+                ).getBaseString
                 pos =
                   if (rg.contigsIndex.get(pos.contig) == rg.contigs.length - 1)
                     null

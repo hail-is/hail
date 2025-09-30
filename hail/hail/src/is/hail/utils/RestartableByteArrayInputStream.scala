@@ -41,7 +41,7 @@ class RestartableByteArrayInputStream extends InputStream {
       end - off,
     )
     off += skipped
-    skipped
+    skipped.toLong
   }
 
   override def available(): Int =

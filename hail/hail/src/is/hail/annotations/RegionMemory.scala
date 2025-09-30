@@ -247,7 +247,7 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
   def takeOwnershipOf(r: RegionMemory): Unit =
     references.add(r)
 
-  def nReferencedRegions(): Long = references.size
+  def nReferencedRegions(): Int = references.size
 
   def setNumParents(n: Int): Unit = {
     assert(n >= references.size)

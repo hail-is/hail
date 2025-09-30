@@ -129,7 +129,7 @@ class StringSocketAppender() extends AppenderSkeleton {
       var c = true
       while (c && !interrupted)
         try {
-          Thread.sleep(reconnectionDelay)
+          Thread.sleep(reconnectionDelay.toLong)
           LogLog.debug("Attempting connection to " + address.getHostName)
           socket = new Socket(address, port)
           this.synchronized {

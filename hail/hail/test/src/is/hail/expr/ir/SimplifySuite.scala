@@ -680,8 +680,8 @@ class SimplifySuite extends HailSuite {
   def blockMatrixRules: Array[Array[Any]] = {
     val matrix =
       ValueToBlockMatrix(
-        MakeArray((1 to 4).map(F64(_)), TArray(TFloat64)),
-        FastSeq(2, 2),
+        MakeArray((1 to 4).map(i => F64(i.toDouble)), TArray(TFloat64)),
+        FastSeq(2L, 2L),
         10,
       )
 

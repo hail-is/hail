@@ -29,7 +29,7 @@ object LinearRegressionModel {
     val b = xyp / xxp
     val se = math.sqrt((yyp / xxp - b * b) / d)
     val t = b / se
-    val p = 2 * T.cumulative(-math.abs(t), d, true, false)
+    val p = 2 * T.cumulative(-math.abs(t), d.toDouble, true, false)
 
     Annotation(b, se, t, p)
   }

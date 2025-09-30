@@ -437,10 +437,10 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
     val prefix = s"$tmpdir/fs-suite/delete-many-files/${java.util.UUID.randomUUID()}"
     val p = s"$prefix/seek_file"
     using(fs.createCachedNoCompression(p)) { os =>
-      os.write(1.toByte)
-      os.write(2.toByte)
-      os.write(3.toByte)
-      os.write(4.toByte)
+      os.write(1)
+      os.write(2)
+      os.write(3)
+      os.write(4)
     }
 
     using(fs.openNoCompression(p)) { is =>

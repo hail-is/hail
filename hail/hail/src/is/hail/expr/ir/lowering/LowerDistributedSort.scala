@@ -260,7 +260,7 @@ object LowerDistributedSort {
       val numSamplesPerPartitionPerSegment = partitionDataPerSegment.map { partData =>
         val partitionCountsForOneSegment = partData.map(_.currentPartSize)
         val recordsInSegment = partitionCountsForOneSegment.sum
-        val branchingFactor = math.min(recordsInSegment, defaultBranchingFactor)
+        val branchingFactor = math.min(recordsInSegment, defaultBranchingFactor.toLong)
         howManySamplesPerPartition(
           rand,
           recordsInSegment,
@@ -389,7 +389,9 @@ object LowerDistributedSort {
                     I32(2),
                     UtilFunctions.intMin(
                       UtilFunctions.intMin(numSamples, I32(defaultBranchingFactor)),
-                      (I64(2L) * (GetField(aggResults, "byteSize").floorDiv(I64(sizeCutoff)))).toI,
+                      (I64(2L) * GetField(aggResults, "byteSize").floorDiv(
+                        I64(sizeCutoff.toLong)
+                      )).toI,
                     ),
                   )
                 ) { branchingFactor =>
@@ -609,7 +611,7 @@ object LowerDistributedSort {
             case ((chunksWithSameInterval, priorIndices), newIndex) =>
               val interval = chunksWithSameInterval.head._1
               val chunks = chunksWithSameInterval.map { case (_, filename, numRows, numBytes) =>
-                Chunk(filename, numRows, numBytes)
+                Chunk(filename, numRows.toLong, numBytes)
               }
               val newSegmentIndices = priorIndices :+ newIndex
               SegmentResult(newSegmentIndices, interval, chunks)
@@ -786,15 +788,18 @@ object LowerDistributedSort {
     initialNumSamplesToSelect: Int,
     partitionCounts: IndexedSeq[Long],
   ): IndexedSeq[Int] = {
-    var successStatesRemaining = initialNumSamplesToSelect
-    var failureStatesRemaining = totalNumberOfRecords - successStatesRemaining
+    var successStatesRemaining = initialNumSamplesToSelect.toDouble
+    var failureStatesRemaining = totalNumberOfRecords.toDouble - successStatesRemaining
 
     val ans = new Array[Int](partitionCounts.size)
 
     var i = 0
     while (i < partitionCounts.size) {
-      val numSuccesses =
-        rand.rhyper(successStatesRemaining, failureStatesRemaining, partitionCounts(i)).toInt
+      val numSuccesses = rand.rhyper(
+        successStatesRemaining,
+        failureStatesRemaining,
+        partitionCounts(i).toDouble,
+      ).toInt
       successStatesRemaining -= numSuccesses
       failureStatesRemaining -= (partitionCounts(i) - numSuccesses)
       ans(i) = numSuccesses

@@ -644,7 +644,7 @@ class Aggregators2Suite extends HailSuite {
   }
 
   @Test def testCollectBig(): Unit = {
-    val seqOpArgs = Array.tabulate(100)(i => FastSeq(I64(i)))
+    val seqOpArgs = Array.tabulate(100)(i => FastSeq(I64(i.toLong)))
     assertAggEquals(
       collectAggSig(TInt64),
       FastSeq(),

@@ -22,7 +22,7 @@ object IndexBTree {
 
   private[io] def calcDepth(arr: Array[Long], branchingFactor: Int) =
     // max necessary for array of length 1 becomes depth=0
-    math.max(1, (math.log10(arr.length) / math.log10(branchingFactor)).ceil.toInt)
+    math.max(1, (math.log10(arr.length.toDouble) / math.log10(branchingFactor.toDouble)).ceil.toInt)
 
   private[io] def btreeLayers(
     arr: Array[Long],
@@ -35,8 +35,8 @@ object IndexBTree {
     // Write layers above last layer if needed -- padding of -1 included
     val layers = mutable.ArrayBuffer[IndexedSeq[Long]]()
     for (i <- 0 until depth - 1) {
-      val multiplier = math.pow(branchingFactor, depth - 1 - i).toInt
-      layers.append((0 until math.pow(branchingFactor, i + 1).toInt).map { j =>
+      val multiplier = math.pow(branchingFactor.toDouble, depth.toDouble - 1 - i).toInt
+      layers.append((0 until math.pow(branchingFactor.toDouble, i.toDouble + 1).toInt).map { j =>
         if (j * multiplier < arr.length)
           arr(j * multiplier)
         else
@@ -114,7 +114,7 @@ class IndexBTree(indexFileName: String, fs: FS, branchingFactor: Int = 1024) ext
     IndexBTree.calcDepth(fs.getFileSize(indexFileName) / 8, branchingFactor)
 
   private def getOffset(depth: Int): Long =
-    (1 until depth).map(math.pow(branchingFactor, _).toLong * 8).sum
+    (1 until depth).map(i => math.pow(branchingFactor.toDouble, i.toDouble).toLong * 8).sum
 
   private def getOffset(depth: Int, blockIndex: Long): Long =
     getOffset(depth) + blockIndex * 8 * branchingFactor

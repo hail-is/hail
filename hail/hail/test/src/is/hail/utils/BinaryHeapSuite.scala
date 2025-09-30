@@ -263,7 +263,7 @@ class BinaryHeapSuite extends ScalaCheckDrivenPropertyChecks {
       bh.checkHeapProperty()
 
       for (i <- 0 until count) {
-        bh.insert(i, i)
+        bh.insert(i, i.toLong)
         trace += bh.toString()
         bh.checkHeapProperty()
       }
@@ -308,7 +308,7 @@ class BinaryHeapSuite extends ScalaCheckDrivenPropertyChecks {
     trace += bh.toString()
     bh.checkHeapProperty()
     scalatest.Inspectors.forAll(0 until 64) { i =>
-      bh.insert(i, i)
+      bh.insert(i, i.toLong)
       trace += bh.toString()
       bh.checkHeapProperty()
     }
@@ -402,7 +402,7 @@ class BinaryHeapSuite extends ScalaCheckDrivenPropertyChecks {
     }
   }
 
-  private def evensFirst(a: Int, b: Int): Int = {
+  private def evensFirst(a: Int, b: Int): Double = {
     if (a % 2 == 0 && b % 2 == 1)
       1
     else if (a % 2 == 1 && b % 2 == 0)

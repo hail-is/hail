@@ -800,7 +800,7 @@ case class BlockMatrixFilter(
     }
 
     val matrixShape = indices.zipWithIndex.map { case (dim, i) =>
-      if (dim.isEmpty) childMatrixShape(i) else dim.length
+      if (dim.isEmpty) childMatrixShape(i) else dim.length.toLong
     }
 
     val IndexedSeq(nRows: Long, nCols: Long) = matrixShape.toFastSeq
