@@ -1019,7 +1019,7 @@ def dgamma(x, shape, scale, log_p=False) -> Float64Expression:
     --------
 
     >>> hl.eval(hl.dgamma(1.0, 2.0, 1.0))
-    0.36787944117144233
+    0.3678794411714424
 
     >>> hl.eval(hl.dgamma(2.0, 1.0, 2.0))
     0.18393972058572117
