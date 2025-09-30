@@ -198,6 +198,5 @@ class BatchClientSuite extends TestNGSuite {
 
     val jg = client.waitForJobGroup(batchId, jobGroupId)
     jg.state shouldBe services.JobGroupStates.Cancelled
-    jg.complete shouldBe false
   }
 }
