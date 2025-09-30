@@ -2829,8 +2829,8 @@ def qchisqtail(p, df, ncp=None, lower_tail=False, log_p=False) -> Float64Express
         return _func("qnchisqtail", tfloat64, p, df, ncp, lower_tail, log_p)
 
 
-@typecheck(p=expr_float64, shape=expr_float64, scale=expr_float64)
-def qgamma(p, shape, scale) -> Float64Expression:
+@typecheck(p=expr_float64, shape=expr_float64, scale=expr_float64, lower_tail=expr_bool, log_p=expr_bool)
+def qgamma(p, shape, scale, lower_tail=True, log_p=False) -> Float64Expression:
     """The quantile function of a gamma distribution with shape parameter `shape` and
     scale parameter `scale`.
 
@@ -2856,12 +2856,16 @@ def qgamma(p, shape, scale) -> Float64Expression:
         Shape parameter.
     scale : float or :class:`.Expression` of type :py:data:`.tfloat64`
         Scale parameter.
+    lower_tail : bool or :class:`.BooleanExpression`
+        If True, return Prob(X < x). If False, return Prob(X > x).
+    log_p : bool or :class:`.BooleanExpression`
+        If True, return log probability.
 
     Returns
     -------
     :class:`.Expression` of type :py:data:`.tfloat64`
     """
-    return _func("qgamma", tfloat64, p, shape, scale)
+    return _func("qgamma", tfloat64, p, shape, scale, lower_tail, log_p)
 
 
 @typecheck(p=expr_float64, mu=expr_float64, sigma=expr_float64, lower_tail=expr_bool, log_p=expr_bool)
