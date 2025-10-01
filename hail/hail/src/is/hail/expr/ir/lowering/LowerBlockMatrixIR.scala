@@ -400,7 +400,7 @@ case class DenseContexts(nRows: TrivialIR, nCols: TrivialIR, contexts: TrivialIR
     val groupedContexts = ToArray(mapIR(rangeIR(nCols)) { col =>
       sliceArrayIR(contexts, col * nRows, col * (nRows + 1))
     })
-    DenseContexts(ib.memoize(groupedContexts), I32(1), nCols)
+    DenseContexts(I32(1), nCols, ib.memoize(groupedContexts))
   }
 
   def grouped(
@@ -593,7 +593,7 @@ case class SparseContexts(
     val groupedContexts = ib.memoize(ToArray(mapIR(rangeIR(nCols)) { col =>
       sliceArrayIR(contexts, ArrayRef(rowPos, col), ArrayRef(rowPos, col + 1))
     }))
-    val newRowPos = ib.memoize(ToArray(streamScanIR(rangeIR(nCols), I32(0)){ (accum, elt) =>
+    val newRowPos = ib.memoize(ToArray(streamScanIR(rangeIR(nCols), I32(0)) { (accum, elt) =>
       accum + If(ArrayRef(rowPos, elt).ceq(ArrayRef(rowPos, elt + 1)), 0, 1)
     }))
     val newRowIdx = ib.memoize(ToArray(mapIR(rangeIR(ArrayLen(groupedContexts)))(_ => 0)))
