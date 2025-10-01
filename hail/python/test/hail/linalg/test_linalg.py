@@ -577,8 +577,6 @@ def test_matrix_sums(block_matrix_bindings, x, y):
     _assert_eq(lhs, rhs)
 
 
-@fails_service_backend()
-@fails_local_backend()
 @pytest.mark.parametrize(
     'x, y',
     [
