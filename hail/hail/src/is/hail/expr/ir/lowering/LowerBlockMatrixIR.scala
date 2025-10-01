@@ -330,6 +330,8 @@ abstract class BMSContexts {
     ib: IRBuilder,
   ): BMSContexts
 
+  def groupedByCol(ib: IRBuilder): BMSContexts
+
   def collect(makeBlock: (Ref, Ref, Ref) => IR): IR
 
   def print(ctx: ExecuteContext): Unit
@@ -392,6 +394,13 @@ case class DenseContexts(nRows: TrivialIR, nCols: TrivialIR, contexts: TrivialIR
       }
     }))
     SparseContexts(nRows, nCols, rowPos, rowIdx, newContexts)
+  }
+
+  def groupedByCol(ib: IRBuilder): DenseContexts = {
+    val groupedContexts = ToArray(mapIR(rangeIR(nCols)) { col =>
+      sliceArrayIR(contexts, col * nRows, col * (nRows + 1))
+    })
+    DenseContexts(ib.memoize(groupedContexts), I32(1), nCols)
   }
 
   def grouped(
@@ -578,6 +587,24 @@ case class SparseContexts(
       ArrayZipBehavior.AssertSameLength,
     )((l, r) => maketuple(l, r)))
     SparseContexts(nRows, nCols, rowPos, rowIdx, newContexts)
+  }
+
+  def groupedByCol(ib: IRBuilder): BMSContexts = {
+    val groupedContexts = ib.memoize(ToArray(mapIR(rangeIR(nCols)) { col =>
+      sliceArrayIR(contexts, ArrayRef(rowPos, col), ArrayRef(rowPos, col + 1))
+    }))
+    val newRowPos = ib.memoize(ToArray(streamScanIR(rangeIR(nCols), I32(0)){ (accum, elt) =>
+      accum + If(ArrayRef(rowPos, elt).ceq(ArrayRef(rowPos, elt + 1)), 0, 1)
+    }))
+    val newRowIdx = ib.memoize(ToArray(mapIR(rangeIR(ArrayLen(groupedContexts)))(_ => 0)))
+
+    SparseContexts(
+      I32(1),
+      nCols,
+      newRowPos,
+      newRowIdx,
+      groupedContexts,
+    )
   }
 
   def grouped(
@@ -1246,36 +1273,30 @@ object LowerBlockMatrixIR {
         )
 
       case BlockMatrixAgg(child, IndexedSeq(0) /* axesToSumOut */ ) =>
-        val summedChild = lower(child).mapBody { body =>
-          bindIR(NDArrayAgg(body, IndexedSeq(0))) { aggedND =>
-            NDArrayReshape(
-              aggedND,
-              MakeTuple.ordered(FastSeq(
-                I64(1),
-                GetTupleElement(NDArrayShape(aggedND), 0),
-              )),
-              ErrorIDs.NO_ERROR,
-            )
-          }
-        }
+        val loweredChild = lower(child)
+        val contexts = loweredChild.contexts.groupedByCol(ib)
 
-        summedChild
+        BlockMatrixStage2(
+          loweredChild.broadcastVals,
+          bmir.typ,
+          contexts,
+          (ctx) =>
+            streamAggIR(mapIR(ToStream(ctx)) { childCtx =>
+              bindIR(NDArrayAgg(loweredChild.blockIR(childCtx), IndexedSeq(0))) { aggedND =>
+                NDArrayReshape(
+                  aggedND,
+                  MakeTuple.ordered(FastSeq(
+                    I64(1),
+                    GetTupleElement(NDArrayShape(aggedND), 0),
+                  )),
+                  ErrorIDs.NO_ERROR,
+                )
+              }
+            })(block => ApplyAggOp(NDArraySum())(block)),
+        )
 
-      case BlockMatrixAgg(child, IndexedSeq(1) /* axesToSumOut */ ) =>
-        val summedChild = lower(child).mapBody { body =>
-          bindIR(NDArrayAgg(body, IndexedSeq(1))) { aggedND =>
-            NDArrayReshape(
-              aggedND,
-              MakeTuple.ordered(FastSeq(
-                GetTupleElement(NDArrayShape(aggedND), 0),
-                I64(1),
-              )),
-              ErrorIDs.NO_ERROR,
-            )
-          }
-        }
-
-        summedChild
+      // case BlockMatrixAgg(child @ _, IndexedSeq(1) /* axesToSumOut */ ) =>
+      //   ???
 
       case BlockMatrixMap(child, eltName, f, _) =>
         lower(child).mapBody(body => NDArrayMap(body, eltName, f))
