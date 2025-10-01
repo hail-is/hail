@@ -1503,8 +1503,6 @@ object LowerBlockMatrixIR {
               MakeTuple.ordered(FastSeq(rows, cols))
           }.mapBody((ctx, body) => NDArraySlice(body, GetField(ctx, "new")))
 
-      case RelationalLetBlockMatrix(_, _, _) => unimplemented(ctx, bmir)
-
       case BlockMatrixDot(leftIR, rightIR) =>
         val left = lower(leftIR)
         val right = lower(rightIR)
