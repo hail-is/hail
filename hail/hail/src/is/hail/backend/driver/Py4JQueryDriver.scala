@@ -281,6 +281,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable {
       coercerCache.clear()
       Backend.set(null)
       backend.close()
+      IRFunctionRegistry.clearUserFunctions()
     }
 
   private[this] def removeReference(name: String): Unit =

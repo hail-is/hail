@@ -1,7 +1,6 @@
 package is.hail
 
 import is.hail.backend.spark.SparkBackend
-import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.io.fs.FS
 import is.hail.utils._
 
@@ -37,20 +36,6 @@ object HailContext {
     require(theContext == null)
     checkJavaVersion()
 
-    {
-      import breeze.linalg._
-      import breeze.linalg.operators.{BinaryRegistry, OpMulMatrix}
-
-      implicitly[BinaryRegistry[
-        DenseMatrix[Double],
-        Vector[Double],
-        OpMulMatrix.type,
-        DenseVector[Double],
-      ]].register(
-        DenseMatrix.implOpMulMatrix_DMD_DVD_eq_DVD
-      ): Unit
-    }
-
     theContext = new HailContext
 
     info(s"Running Hail version $HAIL_PRETTY_VERSION")
@@ -60,7 +45,6 @@ object HailContext {
 
   def stop(): Unit =
     synchronized {
-      IRFunctionRegistry.clearUserFunctions()
       theContext = null
     }
 }

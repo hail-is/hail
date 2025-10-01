@@ -1,6 +1,6 @@
 package is.hail.backend.service
 
-import is.hail.{HAIL_REVISION, HailContext, HailFeatureFlags}
+import is.hail.{HAIL_REVISION, HailFeatureFlags}
 import is.hail.asm4s._
 import is.hail.backend.HailTaskContext
 import is.hail.io.fs._
@@ -87,7 +87,6 @@ class ExplicitClassLoaderInputStream(is: InputStream, cl: ClassLoader)
 
 object Worker {
   private[this] val log = Logger.getLogger(getClass.getName())
-  private[this] val myRevision = HAIL_REVISION
 
   implicit private[this] val ec: ExecutionContextExecutorService =
     ExecutionContext.fromExecutorService(
@@ -128,7 +127,7 @@ object Worker {
     DeployConfig.set(deployConfig)
     sys.env.get("HAIL_SSL_CONFIG_DIR").foreach(tls.setSSLConfigFromDir)
 
-    log.info(s"is.hail.backend.service.Worker $myRevision")
+    log.info(s"is.hail.backend.service.Worker $HAIL_REVISION")
     log.info(s"running job $i/$n at root $root with scratch directory '$scratchDir'")
 
     timer.start(s"Job $i/$n")
@@ -177,8 +176,7 @@ object Worker {
     timer.end("readInputs")
     timer.start("executeFunction")
 
-    HailContext.getOrCreate: Unit
-    val result =
+    val result: Either[Throwable, Array[Byte]] =
       try
         using(new ServiceTaskContext(i)) { htc =>
           retryTransientErrors {
@@ -187,8 +185,7 @@ object Worker {
         }
       catch {
         case t: Throwable => Left(t)
-      } finally
-        HailContext.stop()
+      }
 
     timer.end("executeFunction")
     timer.start("writeOutputs")
