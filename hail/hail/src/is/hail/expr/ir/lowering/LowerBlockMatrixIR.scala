@@ -590,9 +590,11 @@ case class SparseContexts(
   }
 
   def groupedByCol(ib: IRBuilder): BMSContexts = {
-    val groupedContexts = ib.memoize(ToArray(mapIR(rangeIR(nCols)) { col =>
+    val groupedStream = mapIR(rangeIR(nCols)) { col =>
       sliceArrayIR(contexts, ArrayRef(rowPos, col), ArrayRef(rowPos, col + 1))
-    }))
+    }
+    val groupedContexts =
+      ib.memoize(ToArray(filterIR(groupedStream)(slice => ArrayLen(slice).cne(0))))
     val newRowPos = ib.memoize(ToArray(streamScanIR(rangeIR(nCols), I32(0)) { (accum, elt) =>
       accum + If(ArrayRef(rowPos, elt).ceq(ArrayRef(rowPos, elt + 1)), 0, 1)
     }))
