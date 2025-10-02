@@ -1453,48 +1453,6 @@ object LowerBlockMatrixIR {
 
     bmir match {
 
-      case BlockMatrixAgg(child, axesToSumOut) =>
-        val loweredChild = lower(child)
-        axesToSumOut match {
-          case IndexedSeq(1) => // Number of cols goes to 1. Number of rows remains the same.
-            new BlockMatrixStage(loweredChild.broadcastVals, TArray(loweredChild.ctxType)) {
-              override def blockContext(idx: (Int, Int)): IR = {
-                val (row, col) = idx
-                assert(col == 0, s"Asked for idx $idx")
-                MakeArray(
-                  (0 until child.typ.nColBlocks).map(childCol =>
-                    loweredChild.blockContext((row, childCol))
-                  ),
-                  TArray(loweredChild.ctxType),
-                )
-              }
-              override def blockBody(ctxRef: Ref): IR = {
-                val summedChildBlocks = mapIR(ToStream(ctxRef)) { singleChildCtx =>
-                  bindIR(NDArrayAgg(loweredChild.blockBody(singleChildCtx), axesToSumOut)) {
-                    aggedND =>
-                      NDArrayReshape(
-                        aggedND,
-                        MakeTuple(FastSeq(
-                          0 -> GetTupleElement(NDArrayShape(aggedND), 0),
-                          1 -> I64(1),
-                        )),
-                        ErrorIDs.NO_ERROR,
-                      )
-                  }
-                }
-                val aggVar = freshName()
-                StreamAgg(
-                  summedChildBlocks,
-                  aggVar,
-                  ApplyAggOp(NDArraySum())(Ref(
-                    aggVar,
-                    summedChildBlocks.typ.asInstanceOf[TStream].elementType,
-                  )),
-                )
-              }
-            }
-        }
-
       case x @ BlockMatrixSlice(
             child,
             IndexedSeq(IndexedSeq(rStart, rEnd, rStep), IndexedSeq(cStart, cEnd, cStep)),
