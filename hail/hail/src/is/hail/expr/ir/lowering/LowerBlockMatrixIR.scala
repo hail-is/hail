@@ -589,7 +589,7 @@ case class SparseContexts(
     SparseContexts(nRows, nCols, rowPos, rowIdx, newContexts)
   }
 
-  def groupedByCol(ib: IRBuilder): BMSContexts = {
+  def groupedByCol(ib: IRBuilder): SparseContexts = {
     val groupedStream = mapIR(rangeIR(nCols)) { col =>
       sliceArrayIR(contexts, ArrayRef(rowPos, col), ArrayRef(rowPos, col + 1))
     }
