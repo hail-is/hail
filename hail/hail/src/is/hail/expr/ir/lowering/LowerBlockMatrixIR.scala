@@ -1252,6 +1252,7 @@ object LowerBlockMatrixIR {
         BlockMatrixStage2(FastSeq(), x.typ, contexts, bodyIR)
 
       case BlockMatrixAgg(child, IndexedSeq(0, 1) /* axesToSumOut */ ) =>
+        // Reduce to a single row and column
         val summedChild = lower(child).mapBody { body =>
           NDArrayReshape(
             NDArrayAgg(body, IndexedSeq(0, 1)),
@@ -1275,6 +1276,7 @@ object LowerBlockMatrixIR {
         )
 
       case BlockMatrixAgg(child, IndexedSeq(0) /* axesToSumOut */ ) =>
+        // Number of rows goes to 1. Number of cols remains the same.
         val loweredChild = lower(child)
         val contexts = loweredChild.contexts.groupedByCol(ib)
 
