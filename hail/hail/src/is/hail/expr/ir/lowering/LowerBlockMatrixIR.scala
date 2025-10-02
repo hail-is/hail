@@ -1299,8 +1299,31 @@ object LowerBlockMatrixIR {
             })(block => ApplyAggOp(NDArraySum())(block)),
         )
 
-      // case BlockMatrixAgg(child @ _, IndexedSeq(1) /* axesToSumOut */ ) =>
-      //   ???
+      case BlockMatrixAgg(child, IndexedSeq(1) /* axesToSumOut */ ) =>
+        // Number of cols goes to 1. Number of rows remains the same.
+        val loweredChild = lower(child)
+
+        // FIXME proper contexts bookeeping for row/col indices?
+        val contexts = BMSContexts.transpose(loweredChild.contexts, ib, child.typ).groupedByCol(ib)
+
+        BlockMatrixStage2(
+          loweredChild.broadcastVals,
+          bmir.typ,
+          contexts,
+          (ctx) =>
+            streamAggIR(mapIR(ToStream(ctx)) { childCtx =>
+              bindIR(NDArrayAgg(loweredChild.blockIR(childCtx), IndexedSeq(1))) { aggedND =>
+                NDArrayReshape(
+                  aggedND,
+                  MakeTuple.ordered(FastSeq(
+                    GetTupleElement(NDArrayShape(aggedND), 0),
+                    I64(1),
+                  )),
+                  ErrorIDs.NO_ERROR,
+                )
+              }
+            })(block => ApplyAggOp(NDArraySum())(block)),
+        )
 
       case BlockMatrixMap(child, eltName, f, _) =>
         lower(child).mapBody(body => NDArrayMap(body, eltName, f))
