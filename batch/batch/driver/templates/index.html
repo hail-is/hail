@@ -5,8 +5,10 @@
   <div class="attributes">
     <div>instance ID: {{ instance_id }}</div>
     <div>ready cores: {{ ready_cores_mcpu / 1000 }}</div>
+    <div>frozen: {{ frozen }}</div>
   </div>
 
+  {% if userdata['system_permissions']['update_deployed_system_state'] %}
   <div>
     {% if not frozen %}
     <form action="{{ base_path }}/freeze" method="POST">
@@ -24,8 +26,10 @@
     </form>
     {% endif %}
   </div>
+  {% endif %}
 
 <h1>Feature Flags</h1>
+  {% if userdata['system_permissions']['update_deployed_system_state'] %}
   <div>
     <form action="{{ base_path }}/configure-feature-flags" method="POST">
       <input type="hidden" name="_csrf" value="{{ csrf_token }}">
@@ -46,6 +50,12 @@
       </div>
     </form>
   </div>
+  {% else %}
+  <div class="attributes">
+    <div>compact_billing_tables: {{ feature_flags['compact_billing_tables'] }}</div>
+    <div>oms_agent: {{ feature_flags['oms_agent'] }}</div>
+  </div>
+  {% endif %}
 
   <h1>Instance Collections</h1>
 
