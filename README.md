@@ -65,4 +65,6 @@ open-source by providing free hosting, and YourKit, LLC for generously providing
 free licenses for <a href="https://www.yourkit.com/java/profiler/">YourKit Java
 Profiler</a> for open-source development.
 
-<img src="https://www.yourkit.com/images/yklogo.png" align="right" />
+<a href="https://www.yourkit.com" target="_blank" rel="noopener noreferrer">
+  <img src="https://www.yourkit.com/images/yklogo.png" align="right" alt="YourKit Logo" />
+</a>
