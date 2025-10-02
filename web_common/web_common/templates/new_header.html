@@ -28,11 +28,8 @@
     {% if userdata['system_permissions']['read_deployed_system_state'] %}
     <a class="block hover:bg-slate-100 px-2 py-1" href="{{ batch_driver_base_url }}">Driver</a>
     {% endif %}
-    {% if userdata['system_permissions']['read_all_billing_projects'] %}
-    <a class="block hover:bg-slate-100 px-2 py-1" href="{{ batch_base_url }}/billing_projects">Billing Projects</a>
-    {% endif %}
-
     {% if userdata['username'] %}
+    <a class="block hover:bg-slate-100 px-2 py-1" href="{{ batch_base_url }}/billing_projects">Billing Projects</a>
     <a class="block hover:bg-slate-100 px-2 py-1" href="{{ batch_base_url}}/billing_limits">Billing Limits</a>
     <a class="block hover:bg-slate-100 px-2 py-1" href="{{ batch_base_url }}/billing">Billing</a>
     {% endif %}
