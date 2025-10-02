@@ -33,6 +33,7 @@ from typing_extensions import ParamSpec
 from gear import (
     CommonAiohttpAppKeys,
     Database,
+    SystemPermission,
     Transaction,
     UserData,
     check_csrf_token,
@@ -156,17 +157,6 @@ BATCH_JOB_DEFAULT_PREEMPTIBLE = True
 
 T = TypeVar('T')
 P = ParamSpec('P')
-
-
-def authenticated_developers_or_auth_only(fun: Callable[[web.Request], Awaitable[web.StreamResponse]]):
-    @auth.authenticated_users_only()
-    @wraps(fun)
-    async def wrapped(request: web.Request, userdata: UserData) -> web.StreamResponse:
-        if userdata['is_developer'] == 1 or userdata['username'] == 'auth':
-            return await fun(request)
-        raise web.HTTPUnauthorized()
-
-    return wrapped
 
 
 def catch_ui_error_in_dev(fun):
@@ -2838,7 +2828,7 @@ async def ui_get_billing_limits(request, userdata):
     app = request.app
     db: Database = app['db']
 
-    if not userdata['is_developer']:
+    if not userdata['system_permissions'].get(SystemPermission.READ_ALL_BILLING_PROJECTS, False):
         user = userdata['username']
     else:
         user = None
@@ -2851,7 +2841,6 @@ async def ui_get_billing_limits(request, userdata):
     page_context = {
         'open_billing_projects': open_billing_projects,
         'closed_billing_projects': closed_billing_projects,
-        'is_developer': userdata['is_developer'],
     }
     return await render_template('batch', request, userdata, 'billing_limits.html', page_context)
 
@@ -2901,8 +2890,8 @@ UPDATE billing_projects SET `limit` = %s WHERE name_cs = %s;
 
 
 @routes.post('/api/v1alpha/billing_limits/{billing_project}/edit')
-@authenticated_developers_or_auth_only
-async def post_edit_billing_limits(request: web.Request) -> web.Response:
+@auth.authenticated_users_with_permission(SystemPermission.UPDATE_ALL_BILLING_PROJECTS)
+async def post_edit_billing_limits(request: web.Request, _: UserData) -> web.Response:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
     data = await json_request(request)
@@ -2913,7 +2902,7 @@ async def post_edit_billing_limits(request: web.Request) -> web.Response:
 
 @routes.post('/billing_limits/{billing_project}/edit')
 @web_security_headers
-@auth.authenticated_developers_only(redirect=False)
+@auth.authenticated_users_with_permission(SystemPermission.UPDATE_ALL_BILLING_PROJECTS, redirect=False)
 @catch_ui_error_in_dev
 async def post_edit_billing_limits_ui(request: web.Request, _) -> NoReturn:
     db: Database = request.app['db']
@@ -3003,8 +2992,10 @@ GROUP BY billing_project, `user`;
 @auth.authenticated_users_only()
 @catch_ui_error_in_dev
 async def ui_get_billing(request, userdata):
-    is_developer = userdata['is_developer'] == 1
-    user = userdata['username'] if not is_developer else None
+    if not userdata['system_permissions'].get(SystemPermission.READ_ALL_BILLING_PROJECTS, False):
+        user = userdata['username']
+    else:
+        user = None
     billing, start, end = await _query_billing(request, user=user)
 
     billing_by_user: Dict[str, int] = {}
@@ -3039,7 +3030,6 @@ async def ui_get_billing(request, userdata):
         'billing_by_project_user': billing_by_project_user,
         'start': start,
         'end': end,
-        'is_developer': is_developer,
         'user': userdata['username'],
         'total_cost': total_cost,
     }
@@ -3048,11 +3038,17 @@ async def ui_get_billing(request, userdata):
 
 @routes.get('/billing_projects')
 @web_security_headers
-@auth.authenticated_developers_only()
+@auth.authenticated_users_only()
 @catch_ui_error_in_dev
 async def ui_get_billing_projects(request, userdata):
     db: Database = request.app['db']
-    billing_projects = await query_billing_projects_without_cost(db)
+
+    if not userdata['system_permissions'].get(SystemPermission.READ_ALL_BILLING_PROJECTS, False):
+        user = userdata['username']
+    else:
+        user = None
+
+    billing_projects = await query_billing_projects_without_cost(db, user=user)
     page_context = {
         'billing_projects': [{**p, 'size': len(p['users'])} for p in billing_projects if p['status'] == 'open'],
         'closed_projects': [p for p in billing_projects if p['status'] == 'closed'],
@@ -3065,7 +3061,7 @@ async def ui_get_billing_projects(request, userdata):
 async def get_billing_projects(request, userdata):
     db: Database = request.app['db']
 
-    if not userdata['is_developer'] and userdata['username'] != 'auth':
+    if not userdata['system_permissions'].get(SystemPermission.READ_ALL_BILLING_PROJECTS, False):
         user = userdata['username']
     else:
         user = None
@@ -3080,7 +3076,7 @@ async def get_billing_project(request, userdata):
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
 
-    if not userdata['is_developer'] and userdata['username'] != 'auth':
+    if not userdata['system_permissions'].get(SystemPermission.READ_ALL_BILLING_PROJECTS, False):
         user = userdata['username']
     else:
         user = None
@@ -3141,7 +3137,7 @@ WHERE billing_projects.name_cs = %s AND user_cs = %s;
 
 @routes.post('/billing_projects/{billing_project}/users/{user}/remove')
 @web_security_headers
-@auth.authenticated_developers_only(redirect=False)
+@auth.authenticated_users_with_permission(SystemPermission.ASSIGN_USERS_TO_ALL_BILLING_PROJECTS, redirect=False)
 @catch_ui_error_in_dev
 async def post_billing_projects_remove_user(request: web.Request, _) -> NoReturn:
     db: Database = request.app['db']
@@ -3157,8 +3153,8 @@ async def post_billing_projects_remove_user(request: web.Request, _) -> NoReturn
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/users/{user}/remove')
-@authenticated_developers_or_auth_only
-async def api_get_billing_projects_remove_user(request: web.Request) -> web.Response:
+@auth.authenticated_users_with_permission(SystemPermission.ASSIGN_USERS_TO_ALL_BILLING_PROJECTS)
+async def api_get_billing_projects_remove_user(request: web.Request, _: UserData) -> web.Response:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
     user = request.match_info['user']
@@ -3222,9 +3218,9 @@ VALUES (%s, %s, %s);
 
 @routes.post('/billing_projects/{billing_project}/users/add')
 @web_security_headers
-@auth.authenticated_developers_only(redirect=False)
+@auth.authenticated_users_with_permission(SystemPermission.ASSIGN_USERS_TO_ALL_BILLING_PROJECTS, redirect=False)
 @catch_ui_error_in_dev
-async def post_billing_projects_add_user(request: web.Request, _) -> NoReturn:
+async def post_billing_projects_add_user(request: web.Request, _: UserData) -> NoReturn:
     db: Database = request.app['db']
     post = await request.post()
     user = str(post['user'])
@@ -3240,8 +3236,8 @@ async def post_billing_projects_add_user(request: web.Request, _) -> NoReturn:
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/users/{user}/add')
-@authenticated_developers_or_auth_only
-async def api_billing_projects_add_user(request: web.Request) -> web.Response:
+@auth.authenticated_users_with_permission(SystemPermission.ASSIGN_USERS_TO_ALL_BILLING_PROJECTS)
+async def api_billing_projects_add_user(request: web.Request, _: UserData) -> web.Response:
     db: Database = request.app['db']
     user = request.match_info['user']
     billing_project = request.match_info['billing_project']
@@ -3280,9 +3276,9 @@ VALUES (%s, %s);
 
 @routes.post('/billing_projects/create')
 @web_security_headers
-@auth.authenticated_developers_only(redirect=False)
+@auth.authenticated_users_with_permission(SystemPermission.CREATE_BILLING_PROJECTS, redirect=False)
 @catch_ui_error_in_dev
-async def post_create_billing_projects(request: web.Request, _) -> NoReturn:
+async def post_create_billing_projects(request: web.Request, _: UserData) -> NoReturn:
     db: Database = request.app['db']
     post = await request.post()
     billing_project = post['billing_project']
@@ -3296,8 +3292,8 @@ async def post_create_billing_projects(request: web.Request, _) -> NoReturn:
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/create')
-@authenticated_developers_or_auth_only
-async def api_get_create_billing_projects(request: web.Request) -> web.Response:
+@auth.authenticated_users_with_permission(SystemPermission.CREATE_BILLING_PROJECTS)
+async def api_get_create_billing_projects(request: web.Request, _: UserData) -> web.Response:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
     await _handle_api_error(_create_billing_project, db, billing_project)
@@ -3341,9 +3337,9 @@ FOR UPDATE;
 
 @routes.post('/billing_projects/{billing_project}/close')
 @web_security_headers
-@auth.authenticated_developers_only(redirect=False)
+@auth.authenticated_users_with_permission(SystemPermission.DELETE_ALL_BILLING_PROJECTS, redirect=False)
 @catch_ui_error_in_dev
-async def post_close_billing_projects(request: web.Request, _) -> NoReturn:
+async def post_close_billing_projects(request: web.Request, _: UserData) -> NoReturn:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
 
@@ -3356,8 +3352,8 @@ async def post_close_billing_projects(request: web.Request, _) -> NoReturn:
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/close')
-@authenticated_developers_or_auth_only
-async def api_close_billing_projects(request: web.Request) -> web.Response:
+@auth.authenticated_users_with_permission(SystemPermission.DELETE_ALL_BILLING_PROJECTS)
+async def api_close_billing_projects(request: web.Request, _: UserData) -> web.Response:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
 
@@ -3386,9 +3382,9 @@ async def _reopen_billing_project(db, billing_project):
 
 @routes.post('/billing_projects/{billing_project}/reopen')
 @web_security_headers
-@auth.authenticated_developers_only(redirect=False)
+@auth.authenticated_users_with_permission(SystemPermission.UPDATE_ALL_BILLING_PROJECTS, redirect=False)
 @catch_ui_error_in_dev
-async def post_reopen_billing_projects(request: web.Request, _) -> NoReturn:
+async def post_reopen_billing_projects(request: web.Request, _: UserData) -> NoReturn:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
 
@@ -3401,8 +3397,8 @@ async def post_reopen_billing_projects(request: web.Request, _) -> NoReturn:
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/reopen')
-@authenticated_developers_or_auth_only
-async def api_reopen_billing_projects(request: web.Request) -> web.Response:
+@auth.authenticated_users_with_permission(SystemPermission.UPDATE_ALL_BILLING_PROJECTS)
+async def api_reopen_billing_projects(request: web.Request, _: UserData) -> web.Response:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
     await _handle_api_error(_reopen_billing_project, db, billing_project)
@@ -3431,8 +3427,8 @@ async def _delete_billing_project(db, billing_project):
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/delete')
-@authenticated_developers_or_auth_only
-async def api_delete_billing_projects(request: web.Request) -> web.Response:
+@auth.authenticated_users_with_permission(SystemPermission.DELETE_ALL_BILLING_PROJECTS)
+async def api_delete_billing_projects(request: web.Request, _: UserData) -> web.Response:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
 

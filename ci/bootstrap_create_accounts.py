@@ -23,7 +23,7 @@ SCOPE = os.environ['HAIL_SCOPE']
 DEFAULT_NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
 
 
-async def insert_user_if_not_exists(app, username, login_id, is_developer, is_service_account):
+async def insert_user_if_not_exists(app, username, login_id, system_roles, is_service_account):
     db = app['db']
     k8s_client = app['k8s_client']
 
@@ -54,21 +54,24 @@ async def insert_user_if_not_exists(app, username, login_id, is_developer, is_se
             assert CLOUD == 'azure'
             hail_identity = credentials['appObjectId']
 
-        if is_developer and SCOPE != 'deploy':
+        # Technically we should be doing a permission check not a role check.
+        # But since this is bootstrap we can assume the initial roles and permissions.
+        # Also, all the users are hard coded below so the intention is not ambiguous.
+        # Therefore: developer => access_developer_environments => give them a namespace
+        if 'developer' in system_roles and SCOPE != 'deploy':
             namespace_name = DEFAULT_NAMESPACE
         else:
             namespace_name = None
 
-        return await tx.execute_insertone(
+        result = await tx.execute_insertone(
             """
-    INSERT INTO users (state, username, login_id, is_developer, is_service_account, hail_identity, hail_credentials_secret_name, namespace_name)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
+    INSERT INTO users (state, username, login_id, is_service_account, hail_identity, hail_credentials_secret_name, namespace_name)
+    VALUES (%s, %s, %s, %s, %s, %s, %s);
     """,
             (
                 'creating',
                 username,
                 login_id,
-                is_developer,
                 is_service_account,
                 hail_identity,
                 hail_credentials_secret_name,
@@ -76,18 +79,30 @@ async def insert_user_if_not_exists(app, username, login_id, is_developer, is_se
             ),
         )
 
+        if result is not None and result > 0:
+            for role in system_roles:
+                await tx.execute_insertone(
+                    """
+    INSERT INTO users_system_roles (user_id, role_id)
+    VALUES
+    ((SELECT id FROM users WHERE username = %s), (SELECT id FROM system_roles WHERE name = %s));
+    """,
+                    (username, role),
+                )
+        return result
+
     return await insert()
 
 
 async def main():
     users = [
-        # username, login_id, is_developer, is_service_account
-        ('auth', None, 0, 1),
-        ('batch', None, 0, 1),
-        ('ci', None, 0, 1),
-        ('test', None, 0, 0),
-        ('test-dev', None, 1, 0),
-        ('grafana', None, 0, 1),
+        # username, login_id, system_roles, is_service_account
+        ('auth', None, [], 1),
+        ('batch', None, [], 1),
+        ('ci', None, [], 1),
+        ('test', None, [], 0),
+        ('test-dev', None, ['developer', 'billing_manager', 'sysadmin'], 0),
+        ('grafana', None, ['sysadmin-readonly'], 1),
     ]
 
     app = {}
@@ -108,11 +123,12 @@ async def main():
 
         app['identity_client'] = get_identity_client()
 
-        for username, login_id, is_developer, is_service_account in users:
-            user_id = await insert_user_if_not_exists(app, username, login_id, is_developer, is_service_account)
+        for username, login_id, system_roles, is_service_account in users:
+            user_id = await insert_user_if_not_exists(app, username, login_id, system_roles, is_service_account)
 
             if user_id is not None:
                 db_user = await db.execute_and_fetchone('SELECT * FROM users where id = %s;', (user_id,))
+                db_user['system_roles'] = system_roles
                 await create_user(app, db_user, skip_trial_bp=True)
     finally:
         await k8s_client.api_client.rest_client.pool_manager.close()
