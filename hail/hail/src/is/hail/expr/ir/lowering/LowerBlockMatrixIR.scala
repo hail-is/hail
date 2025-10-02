@@ -1303,8 +1303,8 @@ object LowerBlockMatrixIR {
         // Number of cols goes to 1. Number of rows remains the same.
         val loweredChild = lower(child)
 
-        // FIXME proper contexts bookeeping for row/col indices?
-        val contexts = BMSContexts.transpose(loweredChild.contexts, ib, child.typ).groupedByCol(ib)
+        val contextsT = BMSContexts.transpose(loweredChild.contexts, ib, child.typ).groupedByCol(ib)
+        val contexts = BMSContexts.transpose(contextsT, ib, bmir.typ.transpose)
 
         BlockMatrixStage2(
           loweredChild.broadcastVals,
