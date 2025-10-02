@@ -875,7 +875,30 @@ WHERE (users.login_id = %s OR users.hail_identity_uid = %s) AND users.state = 'a
     if len(users) != 1:
         log.info('Unknown login id')
         raise web.HTTPUnauthorized()
-    return typing.cast(UserData, users[0])
+
+    user = users[0]
+
+    # Fetch user's system permissions
+    permissions = [
+        x['name']
+        async for x in db.select_and_fetchall(
+            """
+SELECT sp.name
+FROM users_system_roles usr
+JOIN system_roles sr ON usr.role_id = sr.id
+JOIN system_role_permissions srp ON srp.role_id = sr.id
+JOIN system_permissions sp ON sp.id = srp.permission_id
+WHERE usr.user_id = %s
+""",
+            user['id'],
+        )
+    ]
+
+    # Convert to UserData format with system permissions
+    userdata = dict(user)
+    userdata['system_permissions'] = {perm: True for perm in permissions}
+
+    return typing.cast(UserData, userdata)
 
 
 async def get_userinfo_from_hail_session_id(request: web.Request, session_id: str) -> Optional[UserData]:
@@ -901,8 +924,9 @@ WHERE users.state = 'active' AND sessions.session_id = %s AND (ISNULL(sessions.m
     if len(users) != 1:
         return None
 
-    if users[0]['state'] == 'active':
-        current_uid = users[0]['id']
+    user = users[0]
+    if user['state'] == 'active':
+        current_uid = user['id']
         await db.execute_update(
             """
 UPDATE users
@@ -912,7 +936,27 @@ WHERE id = %s;
             current_uid,
         )
 
-    return typing.cast(UserData, users[0])
+    # Fetch user's system permissions
+    permissions = [
+        x['name']
+        async for x in db.select_and_fetchall(
+            """
+SELECT sp.name
+FROM users_system_roles usr
+JOIN system_roles sr ON usr.role_id = sr.id
+JOIN system_role_permissions srp ON srp.role_id = sr.id
+JOIN system_permissions sp ON sp.id = srp.permission_id
+WHERE usr.user_id = %s
+""",
+            user['id'],
+        )
+    ]
+
+    # Convert to UserData format with system permissions
+    userdata = dict(user)
+    userdata['system_permissions'] = {perm: True for perm in permissions}
+
+    return typing.cast(UserData, userdata)
 
 
 @routes.get('/api/v1alpha/userinfo')

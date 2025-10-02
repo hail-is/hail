@@ -18,6 +18,12 @@ class SystemPermission(str, Enum):
     READ_DEVELOPER_ENVIRONMENTS = 'read_developer_environments'
     UPDATE_DEVELOPER_ENVIRONMENTS = 'update_developer_environments'
     DELETE_DEVELOPER_ENVIRONMENTS = 'delete_developer_environments'
+    # CI
+    READ_CI = 'read_ci'
+    MANAGE_CI = 'manage_ci'
+    # Deployed System
+    READ_DEPLOYED_SYSTEM_STATE = 'read_deployed_system_state'
+    UPDATE_DEPLOYED_SYSTEM_STATE = 'update_deployed_system_state'
     # Logging and monitoring
     VIEW_MONITORING_DASHBOARDS = 'view_monitoring_dashboards'
     # Billing projects
