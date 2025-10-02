@@ -26,6 +26,7 @@ from gear import (
     AuthServiceAuthenticator,
     CommonAiohttpAppKeys,
     Database,
+    SystemPermission,
     UserData,
     check_csrf_token,
     json_request,
@@ -144,7 +145,7 @@ async def watched_branch_config(app: web.Application, wb: WatchedBranch, index: 
 @routes.get('')
 @routes.get('/')
 @web_security_headers
-@auth.authenticated_developers_only()
+@auth.authenticated_users_with_permission(SystemPermission.READ_CI)
 async def index(request: web.Request, userdata: UserData) -> web.Response:
     wb_configs = [await watched_branch_config(request.app, wb, i) for i, wb in enumerate(watched_branches)]
     page_context = {
@@ -267,7 +268,7 @@ async def _populate_historical_pr_context(
 
 @routes.get('/watched_branches/{watched_branch_index}/pr/{pr_number}')
 @web_security_headers
-@auth.authenticated_developers_only()
+@auth.authenticated_users_with_permission(SystemPermission.READ_CI)
 async def get_pr(request: web.Request, userdata: UserData) -> web.Response:
     watched_branch_index = int(request.match_info['watched_branch_index'])
     pr_number = int(request.match_info['pr_number'])
@@ -379,7 +380,7 @@ async def retry_pr(wb: WatchedBranch, pr: PR, request: web.Request, userdata: Us
 
 @routes.post('/watched_branches/{watched_branch_index}/pr/{pr_number}/retry')
 @web_security_headers
-@auth.authenticated_developers_only(redirect=False)
+@auth.authenticated_users_with_permission(SystemPermission.MANAGE_CI, redirect=False)
 async def post_retry_pr(request: web.Request, userdata: UserData) -> NoReturn:
     wb, pr = wb_and_pr_from_request(request)
 
@@ -388,14 +389,20 @@ async def post_retry_pr(request: web.Request, userdata: UserData) -> NoReturn:
 
 
 @routes.get('/batches')
-async def get_batches(request: web.Request) -> NoReturn:
-    raise web.HTTPFound(deploy_config.external_url('batch', '/batches'))
+@web_security_headers
+@auth.authenticated_users_with_permission(SystemPermission.READ_CI)
+async def get_batches(request: web.Request, userdata: UserData):
+    batch_client = request.app[AppKeys.BATCH_CLIENT]
+    batches = [b async for b in batch_client.list_batches()]
+    statuses = [await b.last_known_status() for b in batches]
+    page_context = {'batches': statuses}
+    return await render_template('ci', request, userdata, 'batches.html', page_context)
 
 
 @routes.get('/batches/{batch_id}')
 @web_security_headers
-@auth.authenticated_developers_only()
-async def get_batch(request: web.Request, _: UserData) -> NoReturn:
+@auth.authenticated_users_with_permission(SystemPermission.READ_CI)
+async def get_batch(request: web.Request, _: UserData):
     batch_id = int(request.match_info['batch_id'])
     batch_client = request.app[AppKeys.BATCH_CLIENT]
     pr_url = None
@@ -436,7 +443,7 @@ def pr_requires_action(gh_username: str, pr_config: PRConfig) -> bool:
 
 @routes.get('/me')
 @web_security_headers
-@auth.authenticated_developers_only()
+@auth.authenticated_users_with_permission(SystemPermission.READ_CI)
 async def get_user(request: web.Request, userdata: UserData) -> web.Response:
     for authorized_user in AUTHORIZED_USERS:
         if authorized_user.hail_username == userdata['username']:
@@ -470,7 +477,7 @@ async def get_user(request: web.Request, userdata: UserData) -> web.Response:
 
 @routes.post('/authorize_source_sha')
 @web_security_headers
-@auth.authenticated_developers_only(redirect=False)
+@auth.authenticated_users_with_permission(SystemPermission.MANAGE_CI, redirect=False)
 async def post_authorized_source_sha(request: web.Request, _) -> NoReturn:
     app = request.app
     db = app[AppKeys.DB]
@@ -593,7 +600,7 @@ async def batch_callback_handler(request: web.Request):
 
 
 @routes.get('/api/v1alpha/deploy_status')
-@auth.authenticated_developers_only()
+@auth.authenticated_users_with_permission(SystemPermission.READ_CI, redirect=False)
 async def deploy_status(request: web.Request, _) -> web.Response:
     batch_client = request.app[AppKeys.BATCH_CLIENT]
 
@@ -628,7 +635,7 @@ async def deploy_status(request: web.Request, _) -> web.Response:
 
 
 @routes.post('/api/v1alpha/update')
-@auth.authenticated_developers_only()
+@auth.authenticated_users_with_permission(SystemPermission.MANAGE_CI, redirect=False)
 async def post_update(request: web.Request, _) -> web.Response:
     log.info('developer triggered update')
     db = request.app[AppKeys.DB]
@@ -645,7 +652,7 @@ async def post_update(request: web.Request, _) -> web.Response:
 
 
 @routes.post('/api/v1alpha/dev_deploy_branch')
-@auth.authenticated_developers_only()
+@auth.authenticated_users_with_permission(SystemPermission.MANAGE_CI, redirect=False)
 async def dev_deploy_branch(request: web.Request, userdata: UserData) -> web.Response:
     app = request.app
     try:
@@ -704,7 +711,7 @@ async def batch_callback(request: web.Request):
 
 @routes.post('/freeze_merge_deploy')
 @web_security_headers
-@auth.authenticated_developers_only()
+@auth.authenticated_users_with_permission(SystemPermission.MANAGE_CI)
 async def freeze_deploys(request: web.Request, _) -> NoReturn:
     app = request.app
     db = app[AppKeys.DB]
@@ -727,7 +734,7 @@ UPDATE globals SET frozen_merge_deploy = 1;
 
 @routes.post('/unfreeze_merge_deploy')
 @web_security_headers
-@auth.authenticated_developers_only()
+@auth.authenticated_users_with_permission(SystemPermission.MANAGE_CI)
 async def unfreeze_deploys(request: web.Request, _) -> NoReturn:
     app = request.app
     db = app[AppKeys.DB]
@@ -750,7 +757,7 @@ UPDATE globals SET frozen_merge_deploy = 0;
 
 @routes.get('/namespaces')
 @web_security_headers
-@auth.authenticated_developers_only()
+@auth.authenticated_users_with_permission(SystemPermission.READ_CI)
 async def get_active_namespaces(request: web.Request, userdata: UserData) -> web.Response:
     db = request.app[AppKeys.DB]
     namespaces = [
@@ -772,7 +779,7 @@ GROUP BY active_namespaces.namespace""")
 
 @routes.post('/namespaces/{namespace}/services/add')
 @web_security_headers
-@auth.authenticated_developers_only()
+@auth.authenticated_users_with_permission(SystemPermission.MANAGE_CI)
 async def add_namespaced_service(request: web.Request, _) -> NoReturn:
     db = request.app[AppKeys.DB]
     post = await request.post()
@@ -801,7 +808,7 @@ WHERE namespace = %s AND service = %s
 
 @routes.post('/namespaces/{namespace}/services/{service}/edit')
 @web_security_headers
-@auth.authenticated_developers_only()
+@auth.authenticated_users_with_permission(SystemPermission.MANAGE_CI)
 async def update_namespaced_service(request: web.Request, _) -> NoReturn:
     db = request.app[AppKeys.DB]
     service = request.match_info['service']
@@ -821,7 +828,7 @@ async def update_namespaced_service(request: web.Request, _) -> NoReturn:
 
 @routes.post('/namespaces/add')
 @web_security_headers
-@auth.authenticated_developers_only()
+@auth.authenticated_users_with_permission(SystemPermission.MANAGE_CI)
 async def add_namespace(request: web.Request, _) -> NoReturn:
     db = request.app[AppKeys.DB]
     post = await request.post()
@@ -846,7 +853,7 @@ async def add_namespace(request: web.Request, _) -> NoReturn:
 
 @routes.get('/envoy-config/{proxy}')
 @web_security_headers
-@auth.authenticated_developers_only()
+@auth.authenticated_users_with_permission(SystemPermission.READ_DEPLOYED_SYSTEM_STATE, redirect=False)
 async def get_envoy_configs(request: web.Request, _) -> web.Response:
     proxy = request.match_info['proxy']
     if proxy not in ('gateway', 'internal-gateway'):
@@ -858,13 +865,13 @@ async def get_envoy_configs(request: web.Request, _) -> web.Response:
 
 @routes.get('/flaky_tests')
 @web_security_headers
-@auth.authenticated_developers_only()
+@auth.authenticated_users_with_permission(SystemPermission.READ_CI)
 async def get_flaky_tests(request: web.Request, userdata: UserData) -> web.Response:
     return await render_template('ci', request, userdata, 'flaky_tests.html', {'use_tailwind': True})
 
 
 @routes.get('/api/v1alpha/retried_tests')
-@auth.authenticated_developers_only(redirect=False)
+@auth.authenticated_users_with_permission(SystemPermission.READ_CI, redirect=False)
 async def api_retried_tests(request: web.Request, _) -> web.Response:
     db = request.app[AppKeys.DB]
 
@@ -1079,7 +1086,9 @@ SELECT frozen_merge_deploy FROM globals;
         deploy_config.url('auth', '/api/v1alpha/users'),
         headers=headers,
     )
-    app[AppKeys.DEVELOPERS] = [u for u in users if u['is_developer'] == 1 and u['state'] == 'active']
+    app[AppKeys.DEVELOPERS] = [
+        u for u in users if u['system_permissions'].get(SystemPermission.MANAGE_CI, False) and u['state'] == 'active'
+    ]
 
     global watched_branches
     watched_branches = [

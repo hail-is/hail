@@ -47,10 +47,10 @@ data:
                       # Envoy will append the user-requested path to the end of the path_prefix
                       # so this sets a query param with the user-requested path instead of
                       # messing with the authorization route for auth
-                      # e.g. /api/v1alpha/verify_dev_credentials?url=/freeze
-                      path_prefix: /api/v1alpha/verify_dev_credentials?url=
+                      # e.g. /api/v1alpha/verify_system_permission?permission=view_monitoring_dashboards&url=/freeze
+                      path_prefix: /api/v1alpha/verify_system_permission?permission=view_monitoring_dashboards&url=
 {% else %}
-                      path_prefix: /{{ default_ns.name }}/auth/api/v1alpha/verify_dev_credentials?url=
+                      path_prefix: /{{ default_ns.name }}/auth/api/v1alpha/verify_system_permission?permission=view_monitoring_dashboards&url=
 {% endif %}
                       authorization_request:
                         allowed_headers:
