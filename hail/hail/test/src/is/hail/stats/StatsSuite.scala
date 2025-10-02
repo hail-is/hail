@@ -6,7 +6,6 @@ import is.hail.utils._
 import org.apache.commons.math3.distribution.{
   ChiSquaredDistribution, GammaDistribution, NormalDistribution,
 }
-import org.scalatest
 import org.testng.annotations.Test
 
 class StatsSuite extends HailSuite {
