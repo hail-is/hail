@@ -2838,7 +2838,7 @@ def qgamma(p, shape, scale, lower_tail=True, log_p=False) -> Float64Expression:
     --------
 
     >>> hl.eval(hl.qgamma(0.5, 2.0, 1.0))
-    1.6783469900166608
+    1.6783469900166605
 
     >>> hl.eval(hl.qgamma(0.95, 1.0, 2.0))
     5.99146454710798
