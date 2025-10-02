@@ -468,6 +468,8 @@ steps:
         script: /io/sql/010-refactor-roles.sql
       - name: add-ci-and-deployed-system-permissions
         script: /io/sql/011-add-ci-and-deployed-system-permissions.sql
+      - name: monitoring-is-an-admin-permission
+        script: /io/sql/012-monitoring-is-an-admin-permission.sql
     inputs:
       - from: /repo/auth/sql
         to: /io/sql
