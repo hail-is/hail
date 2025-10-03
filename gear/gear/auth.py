@@ -4,7 +4,7 @@ import logging
 import os
 import urllib.parse
 from functools import wraps
-from typing import Awaitable, Callable, Optional, Tuple, TypedDict, cast
+from typing import Awaitable, Callable, Dict, Optional, Tuple, TypedDict, cast
 
 import aiohttp
 import aiohttp_session
@@ -40,6 +40,7 @@ class UserData(TypedDict):
     is_service_account: bool
     hail_credentials_secret_name: str
     tokens_secret_name: str
+    system_permissions: Dict[str, bool]
 
 
 def maybe_parse_bearer_header(value: str) -> Optional[str]:
@@ -175,10 +176,37 @@ class TrustedSingleTenantAuthenticator(Authenticator):
         return cast(
             UserData,
             {
-                'is_developer': True,
+                'id': 1,
+                'state': 'active',
                 'username': 'user',
+                'login_id': 'user',
+                'namespace_name': 'default',
+                'is_developer': True,
+                'is_service_account': False,
                 'hail_credentials_secret_name': 'dummy',
                 'tokens_secret_name': 'dummy',
+                'system_permissions': {
+                    'create_users': True,
+                    'read_users': True,
+                    'update_users': True,
+                    'delete_users': True,
+                    'assign_system_roles': True,
+                    'read_system_roles': True,
+                    'create_developer_environments': True,
+                    'read_developer_environments': True,
+                    'update_developer_environments': True,
+                    'delete_developer_environments': True,
+                    'view_monitoring_dashboards': True,
+                    'create_billing_projects': True,
+                    'read_all_billing_projects': True,
+                    'update_all_billing_projects': True,
+                    'delete_all_billing_projects': True,
+                    'assign_users_to_all_billing_projects': True,
+                    'read_ci': True,
+                    'manage_ci': True,
+                    'read_deployed_system_state': True,
+                    'update_deployed_system_state': True,
+                },
             },
         )
 
