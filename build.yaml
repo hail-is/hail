@@ -476,12 +476,8 @@ steps:
         script: /io/sql/009-add-users-last-active.sql
       - name: refactor-roles
         script: /io/sql/010-refactor-roles.sql
-      - name: add-ci-and-deployed-system-permissions
-        script: /io/sql/011-add-ci-and-deployed-system-permissions.sql
-      - name: monitoring-is-an-admin-permission
-        script: /io/sql/012-monitoring-is-an-admin-permission.sql
-      - name: namespace_management-is-an-admin-permission
-        script: /io/sql/013-namespace_management-is-an-admin-permission.sql
+      - name: refactor-system-permissions
+        script: /io/sql/011-refactor-system-permissions.sql
     inputs:
       - from: /repo/auth/sql
         to: /io/sql
