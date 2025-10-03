@@ -191,8 +191,6 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
         jobConfig,
       )
 
-    Backend.set(backend)
-
     // FIXME: when can the classloader be shared? (optimizer benefits!)
     try runRpc(
         Env(
@@ -207,10 +205,7 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
           payload,
         )
       )
-    finally {
-      Backend.set(null)
-      backend.close()
-    }
+    finally backend.close()
   }
 }
 

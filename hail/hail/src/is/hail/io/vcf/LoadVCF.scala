@@ -1803,60 +1803,58 @@ object MatrixVCFReader {
         val files = fileListEntries.map(_.getPath)
         val localFilterAndReplace = params.filterAndReplace
 
-        val fsConfigBC = backend.broadcast(fs.getConfiguration())
-        val (failureOpt, _) = backend.parallelizeAndComputeWithIndex(
-          ctx.backend.backendContext(ctx),
-          fs,
-          files.tail.map(_.getBytes),
-          "load_vcf_parse_header",
-        ) { (bytes, htc, _, fs) =>
-          val fsConfig = fsConfigBC.value
-          fs.setConfiguration(fsConfig)
-          val file = new String(bytes)
+        backend
+          .runtimeContext(ctx)
+          .mapCollectPartitions(
+            Array.emptyByteArray,
+            files.tail.map(_.getBytes),
+            "load_vcf_parse_header",
+          ) { (_, bytes, htc, _, fs) =>
+            val file = new String(bytes)
 
-          val hd = parseHeader(getHeaderLines(fs, file, localFilterAndReplace))
-          val hd1 = header1Bc.value
+            val hd = parseHeader(getHeaderLines(fs, file, localFilterAndReplace))
+            val hd1 = header1Bc.value
 
-          if (params.sampleIDs.isEmpty && hd1.sampleIds.length != hd.sampleIds.length) {
-            fatal(
-              s"""invalid sample IDs: expected same number of samples for all inputs.
-                 | ${files(0)} has ${hd1.sampleIds.length} ids and
-                 | $file has ${hd.sampleIds.length} ids.
+            if (params.sampleIDs.isEmpty && hd1.sampleIds.length != hd.sampleIds.length) {
+              fatal(
+                s"""invalid sample IDs: expected same number of samples for all inputs.
+                   | ${files(0)} has ${hd1.sampleIds.length} ids and
+                   | $file has ${hd.sampleIds.length} ids.
          """.stripMargin
-            )
-          }
+              )
+            }
 
-          if (params.sampleIDs.isEmpty) {
-            hd1.sampleIds.iterator.zipAll(hd.sampleIds.iterator, None, None)
-              .zipWithIndex.foreach { case ((s1, s2), i) =>
-                if (s1 != s2) {
-                  fatal(
-                    s"""invalid sample IDs: expected sample ids to be identical for all inputs. Found different sample IDs at position $i.
-                       |    ${files(0)}: $s1
-                       |    $file: $s2""".stripMargin
-                  )
+            if (params.sampleIDs.isEmpty) {
+              hd1.sampleIds.iterator.zipAll(hd.sampleIds.iterator, None, None)
+                .zipWithIndex.foreach { case ((s1, s2), i) =>
+                  if (s1 != s2) {
+                    fatal(
+                      s"""invalid sample IDs: expected sample ids to be identical for all inputs. Found different sample IDs at position $i.
+                         |    ${files(0)}: $s1
+                         |    $file: $s2""".stripMargin
+                    )
+                  }
                 }
-              }
+            }
+
+            if (!hd.formatCompatible(hd1))
+              fatal(
+                s"""invalid genotype signature: expected signatures to be identical for all inputs.
+                   |   ${files(0)}: ${hd1.genotypeSignature.toString}
+                   |   $file: ${hd.genotypeSignature.toString}""".stripMargin
+              )
+
+            if (!hd.infoCompatible(hd1))
+              fatal(
+                s"""invalid variant annotation signature: expected signatures to be identical for all inputs. Check that all files have same INFO fields.
+                   |   ${files(0)}: ${hd1.infoSignature.toString}
+                   |   $file: ${hd.infoSignature.toString}""".stripMargin
+              )
+
+            bytes
           }
-
-          if (!hd.formatCompatible(hd1))
-            fatal(
-              s"""invalid genotype signature: expected signatures to be identical for all inputs.
-                 |   ${files(0)}: ${hd1.genotypeSignature.toString}
-                 |   $file: ${hd.genotypeSignature.toString}""".stripMargin
-            )
-
-          if (!hd.infoCompatible(hd1))
-            fatal(
-              s"""invalid variant annotation signature: expected signatures to be identical for all inputs. Check that all files have same INFO fields.
-                 |   ${files(0)}: ${hd1.infoSignature.toString}
-                 |   $file: ${hd.infoSignature.toString}""".stripMargin
-            )
-
-          bytes
-        }
-
-        failureOpt.foreach(throw _)
+          ._1
+          .foreach(throw _)
       }
     }
 
