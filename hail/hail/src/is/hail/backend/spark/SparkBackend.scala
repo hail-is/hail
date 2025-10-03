@@ -107,6 +107,7 @@ object SparkBackend {
   def createSparkConf(appName: String, master: String, local: String, blockSize: Long)
     : SparkConf = {
     require(blockSize >= 0)
+
     checkSparkCompatibility(is.hail.HAIL_SPARK_VERSION, org.apache.spark.SPARK_VERSION)
 
     val conf = new SparkConf().setAppName(appName)
@@ -251,7 +252,7 @@ object SparkBackend {
       require(theSparkBackend == null)
 
       if (!skipLoggingConfiguration)
-        Logging.configureLogging(logFile, quiet, append)
+        configureLogging(logFile, quiet, append)
 
       var sc1 = sc
       if (sc1 == null)
@@ -277,6 +278,8 @@ class AnonymousDependency[T](val _rdd: RDD[T]) extends NarrowDependency[T](_rdd)
 }
 
 class SparkBackend(val sc: SparkContext) extends Backend {
+
+  logHailVersion()
 
   private case class Context(
     maxStageParallelism: Int,

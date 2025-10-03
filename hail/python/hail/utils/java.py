@@ -73,22 +73,6 @@ class Env:
         return Env._hc is not None
 
     @staticmethod
-    async def _async_hc() -> 'hail.context.HailContext':
-        if not Env._hc:
-            sys.stderr.write("Initializing Hail with default parameters...\n")
-            sys.stderr.flush()
-
-            backend_name = choose_backend()
-            if backend_name == 'service':
-                from hail.context import init_batch
-
-                await init_batch()
-            else:
-                return Env.hc()
-        assert Env._hc is not None
-        return Env._hc
-
-    @staticmethod
     def backend() -> 'hail.backend.Backend':
         return Env.hc()._backend
 

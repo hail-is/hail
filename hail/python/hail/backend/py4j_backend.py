@@ -3,6 +3,7 @@ import http.client
 import socket
 import socketserver
 import sys
+import warnings
 from threading import Thread
 from typing import Mapping, Optional, Tuple
 
@@ -178,7 +179,6 @@ class Py4JBackend(Backend):
         self,
         jvm: JVMView,
         jbackend: JavaObject,
-        jhc: JavaObject,
         tmpdir: str,
         remote_tmpdir: str,
     ):
@@ -195,7 +195,6 @@ class Py4JBackend(Backend):
         self._jvm = jvm
         self._hail_package = getattr(self._jvm, 'is').hail
         self._utils_package_object = scala_package_object(self._hail_package.utils)
-        self._jhc = jhc
 
         self._jbackend = self._hail_package.backend.driver.Py4JQueryDriver(jbackend)
         self.local_tmpdir = tmpdir
@@ -209,6 +208,17 @@ class Py4JBackend(Backend):
         # This has to go after creating the SparkSession. Unclear why.
         # Maybe it does its own patch?
         install_exception_handler()
+
+        feature, *rest = jvm.System.getProperty('java.version').split('.')
+        if feature != '11':
+            warnings.warn(
+                message=(
+                    'Hail was built and tested with Java 11. '
+                    f'You are using Java {".".join([feature, *rest])} which is not supported. '
+                    'This may lead to errors. '
+                    'Consider installing Java 11 and setting the JAVA_HOME environment variable.'
+                )
+            )
 
         jar_version = scala_package_object(self._hail_package).HAIL_PRETTY_VERSION()
         if jar_version != __version__:
@@ -337,8 +347,6 @@ class Py4JBackend(Backend):
     def stop(self):
         self._stop_jhttp_server()
         self._jbackend.close()
-        self._jhc.stop()
-        self._jhc = None
         uninstall_exception_handler()
         super().stop()
 

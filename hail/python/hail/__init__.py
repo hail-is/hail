@@ -70,7 +70,6 @@ from . import (
 from .context import (
     TemporaryDirectory,
     TemporaryFilename,
-    _async_current_backend,
     _get_flags,
     _set_flags,
     _with_flags,
@@ -120,7 +119,6 @@ __all__ = [
     '__pip_version__',
     '__revision__',
     '__version__',
-    '_async_current_backend',
     '_get_flags',
     '_set_flags',
     '_with_flags',

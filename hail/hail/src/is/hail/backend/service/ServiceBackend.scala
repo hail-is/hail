@@ -42,7 +42,9 @@ class ServiceBackend(
   jarSpec: JarSpec,
   val batchConfig: BatchConfig,
   jobConfig: BatchJobConfig,
-) extends Backend with Logging {
+) extends Backend {
+
+  logHailVersion()
 
   case class Context(
     remoteTmpDir: String,

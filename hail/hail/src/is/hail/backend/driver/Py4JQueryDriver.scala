@@ -270,6 +270,34 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable {
       IRParser.parse_blockmatrix_ir(ctx, s)
     }._1
 
+  private[this] def fileAndLineCounts(
+    regex: String,
+    files: Seq[String],
+    maxLines: Int,
+  ): Map[String, Array[WithContext[String]]] =
+    synchronized {
+      val regexp = regex.r
+      backend.asSpark.sc
+        .textFilesLines(tmpFileManager.fs.globAll(files).map(_.getPath))
+        .filter(line => regexp.findFirstIn(line.value).isDefined)
+        .take(maxLines)
+        .groupBy(_.source.file)
+    }
+
+  def pyGrepPrint(regex: String, files: Seq[String], maxLines: Int): Unit =
+    fileAndLineCounts(regex, files, maxLines).foreach { case (file, lines) =>
+      info(s"$file: ${lines.length} ${plural(lines.length, "match", "matches")}:")
+      lines.map(_.value).foreach { line =>
+        val (screen, logged) = line.truncatable().strings
+        log.info("\t" + logged)
+        println(s"\t$screen")
+      }
+    }
+
+  def pyGrepReturn(regex: String, files: Seq[String], maxLines: Int)
+    : Array[(String, Array[String])] =
+    fileAndLineCounts(regex, files, maxLines).mapValues(_.map(_.value)).toArray
+
   private[this] def addReference(rg: ReferenceGenome): Unit =
     ReferenceGenome.addFatalOnCollision(references, FastSeq(rg))
 
