@@ -3,7 +3,9 @@ package is.hail.stats
 import is.hail.HailSuite
 import is.hail.utils._
 
-import org.apache.commons.math3.distribution.{ChiSquaredDistribution, NormalDistribution}
+import org.apache.commons.math3.distribution.{
+  ChiSquaredDistribution, GammaDistribution, NormalDistribution,
+}
 import org.testng.annotations.Test
 
 class StatsSuite extends HailSuite {
@@ -30,6 +32,83 @@ class StatsSuite extends HailSuite {
     // compare with R
     assert(math.abs(pchisqtail(400, 1) - 5.507248e-89) < 1e-93)
     assert(D_==(qchisqtail(5.507248e-89, 1), 400))
+  }
+
+  @Test def gammaTest(): Unit = {
+    val gammaDist1 = new GammaDistribution(2.0, 1.0)
+    val gammaDist2 = new GammaDistribution(1.0, 2.0)
+    val gammaDist3 = new GammaDistribution(1.0, 1.0)
+
+    // Test dgamma (density function)
+    assert(D_==(dgamma(1.0, 2.0, 1.0), gammaDist1.density(1.0)))
+    assert(D_==(dgamma(2.0, 1.0, 2.0), gammaDist2.density(2.0)))
+    assert(D_==(dgamma(0.5, 1.0, 1.0), gammaDist3.density(0.5)))
+
+    // Test dgamma with logP
+    assert(D_==(dgamma(1.0, 2.0, 1.0, logP = true), gammaDist1.logDensity(1.0)))
+    assert(D_==(dgamma(2.0, 1.0, 2.0, logP = true), gammaDist2.logDensity(2.0)))
+
+    // Test pgamma (cumulative distribution function)
+    assert(D_==(pgamma(1.0, 2.0, 1.0), gammaDist1.cumulativeProbability(1.0)))
+    assert(D_==(pgamma(2.0, 1.0, 2.0), gammaDist2.cumulativeProbability(2.0)))
+    assert(D_==(pgamma(0.5, 1.0, 1.0), gammaDist3.cumulativeProbability(0.5)))
+
+    // Test pgamma with lowerTail = false
+    assert(D_==(
+      pgamma(1.0, 2.0, 1.0, lowerTail = false, logP = false),
+      1.0 - gammaDist1.cumulativeProbability(1.0),
+    ))
+    assert(D_==(
+      pgamma(2.0, 1.0, 2.0, lowerTail = false, logP = false),
+      1.0 - gammaDist2.cumulativeProbability(2.0),
+    ))
+
+    // Test pgamma with logP = true
+    assert(D_==(
+      pgamma(1.0, 2.0, 1.0, lowerTail = true, logP = true),
+      math.log(gammaDist1.cumulativeProbability(1.0)),
+    ))
+    assert(D_==(
+      pgamma(2.0, 1.0, 2.0, lowerTail = true, logP = true),
+      math.log(gammaDist2.cumulativeProbability(2.0)),
+    ))
+
+    // Test qgamma (quantile function)
+    assert(D_==(qgamma(0.5, 2.0, 1.0), gammaDist1.inverseCumulativeProbability(0.5)))
+    assert(D_==(qgamma(0.95, 2.0, 1.0), gammaDist1.inverseCumulativeProbability(0.95)))
+    assert(D_==(qgamma(0.5, 1.0, 2.0), gammaDist2.inverseCumulativeProbability(0.5)))
+    assert(D_==(qgamma(0.99, 1.0, 2.0), gammaDist2.inverseCumulativeProbability(0.99)))
+
+    // Test qgamma with lowerTail = false
+    assert(D_==(
+      qgamma(0.5, 2.0, 1.0, lowerTail = false, logP = false),
+      gammaDist1.inverseCumulativeProbability(0.5),
+    ))
+    assert(D_==(
+      qgamma(0.1, 1.0, 2.0, lowerTail = false, logP = false),
+      gammaDist2.inverseCumulativeProbability(0.9),
+    ))
+
+    // Test qgamma with logP = true
+    assert(D_==(
+      qgamma(math.log(0.5), 2.0, 1.0, lowerTail = true, logP = true),
+      gammaDist1.inverseCumulativeProbability(0.5),
+    ))
+    assert(D_==(
+      qgamma(math.log(0.95), 1.0, 2.0, lowerTail = true, logP = true),
+      gammaDist2.inverseCumulativeProbability(0.95),
+    ))
+
+    // Test edge cases
+    assert(D_==(qgamma(0.001, 1.0, 1.0), gammaDist3.inverseCumulativeProbability(0.001)))
+    assert(D_==(qgamma(0.999, 1.0, 1.0), gammaDist3.inverseCumulativeProbability(0.999)))
+
+    // Test round-trip consistency: pgamma(qgamma(p, shape, scale), shape, scale) == p
+    val testProbs = List(0.001, 0.1, 0.5, 0.9, 0.999)
+    testProbs.foreach { p =>
+      assert(D_==(pgamma(qgamma(p, 2.0, 1.0), 2.0, 1.0), p))
+      assert(D_==(pgamma(qgamma(p, 1.0, 2.0), 1.0, 2.0), p))
+    }
   }
 
   @Test def normalTest(): Unit = {

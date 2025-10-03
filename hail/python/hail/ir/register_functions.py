@@ -862,6 +862,38 @@ def register_functions():
         ),
         dtype("int32"),
     )
+    register_function(
+        "dgamma",
+        (
+            dtype("float64"),
+            dtype("float64"),
+            dtype("float64"),
+            dtype("bool"),
+        ),
+        dtype("float64"),
+    )
+    register_function(
+        "pgamma",
+        (
+            dtype("float64"),
+            dtype("float64"),
+            dtype("float64"),
+            dtype("bool"),
+            dtype("bool"),
+        ),
+        dtype("float64"),
+    )
+    register_function(
+        "qgamma",
+        (
+            dtype("float64"),
+            dtype("float64"),
+            dtype("float64"),
+            dtype("bool"),
+            dtype("bool"),
+        ),
+        dtype("float64"),
+    )
     register_function("is_finite", (dtype("float32"),), dtype("bool"))
     register_function("is_finite", (dtype("float64"),), dtype("bool"))
     register_function("inYPar", (dtype("?T:locus"),), dtype("bool"))
