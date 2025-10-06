@@ -30,6 +30,7 @@ from gear import (
     K8sCache,
     Transaction,
     check_csrf_token,
+    error_handler_middleware,
     get_authenticator,
     global_security_headers_middleware,
     json_request,
@@ -1781,7 +1782,7 @@ def run():
 
     app = web.Application(
         client_max_size=HTTP_CLIENT_MAX_SIZE,
-        middlewares=[check_csrf_token, monitor_endpoints_middleware, global_security_headers_middleware],
+        middlewares=[error_handler_middleware, check_csrf_token, monitor_endpoints_middleware, global_security_headers_middleware],
     )
     setup_aiohttp_session(app)
 

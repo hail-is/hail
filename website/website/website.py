@@ -11,6 +11,7 @@ from prometheus_async.aio.web import server_stats  # type: ignore
 from gear import (
     AuthServiceAuthenticator,
     CommonAiohttpAppKeys,
+    error_handler_middleware,
     global_security_headers_middleware,
     monitor_endpoints_middleware,
     setup_aiohttp_session,
@@ -116,7 +117,7 @@ async def on_cleanup(app):
 
 
 def run(local_mode):
-    app = web.Application(middlewares=[monitor_endpoints_middleware, global_security_headers_middleware])
+    app = web.Application(middlewares=[error_handler_middleware, monitor_endpoints_middleware, global_security_headers_middleware])
 
     if local_mode:
         log.error('running in local mode with bogus cookie storage key')
