@@ -57,6 +57,10 @@ resource "kubernetes_secret" "ci_config" {
     github_context   = var.github_context
     test_oauth2_callback_urls = var.test_oauth2_callback_urls
   }
+
+  lifecycle {
+    ignore_changes = [metadata.0.annotations]
+  }
 }
 
 data "sops_file" "zuliprc" {
@@ -78,6 +82,9 @@ resource "kubernetes_secret" "zulip_config" {
   data = {
     ".zuliprc" = local.zuliprc.raw
   }
+  lifecycle {
+    ignore_changes = [metadata.0.annotations]
+  }
 }
 
 resource "kubernetes_secret" "hail_ci_0_1_github_oauth_token" {
@@ -88,6 +95,10 @@ resource "kubernetes_secret" "hail_ci_0_1_github_oauth_token" {
   data = {
     "oauth-token" = var.github_oauth_token
   }
+
+  lifecycle {
+    ignore_changes = [metadata.0.annotations]
+  }
 }
 
 resource "kubernetes_secret" "hail_ci_0_1_service_account_key" {
@@ -97,5 +108,9 @@ resource "kubernetes_secret" "hail_ci_0_1_service_account_key" {
 
   data = {
     "user1" = var.github_user1_oauth_token
+  }
+
+  lifecycle {
+    ignore_changes = [metadata.0.annotations]
   }
 }
