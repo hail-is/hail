@@ -1235,7 +1235,12 @@ def run():
     install_profiler_if_requested('auth')
 
     app = web.Application(
-        middlewares=[error_handler_middleware, auth_check_csrf_token, monitor_endpoints_middleware, global_security_headers_middleware]
+        middlewares=[
+            global_security_headers_middleware,
+            error_handler_middleware,
+            auth_check_csrf_token,
+            monitor_endpoints_middleware,
+        ]
     )
 
     setup_aiohttp_jinja2(app, 'auth')

@@ -4,7 +4,7 @@ from aiohttp import web
 @web.middleware
 async def error_handler_middleware(request: web.Request, handler):
     """Error handler middleware that catches exceptions and ensures security headers are applied.
-    
+
     This middleware wraps the handler in a try/catch block to catch any exceptions
     that would otherwise bypass the middleware chain. It returns simple text responses
     for common HTTP errors while allowing subsequent middlewares (like security headers)
@@ -32,9 +32,9 @@ async def error_handler_middleware(request: web.Request, handler):
             # For other HTTP status codes, use the exception's reason or a generic message
             reason = e.reason or f"{e.status} Error"
             response = web.Response(text=reason, status=e.status)
-        
+
         return response
-    except Exception as e:
+    except Exception:
         # For unexpected exceptions, return a 500 error
         # This ensures all errors go through the middleware chain
         response = web.Response(text="500 Internal Server Error", status=500)

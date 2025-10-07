@@ -117,7 +117,9 @@ async def on_cleanup(app):
 
 
 def run(local_mode):
-    app = web.Application(middlewares=[error_handler_middleware, monitor_endpoints_middleware, global_security_headers_middleware])
+    app = web.Application(
+        middlewares=[global_security_headers_middleware, error_handler_middleware, monitor_endpoints_middleware]
+    )
 
     if local_mode:
         log.error('running in local mode with bogus cookie storage key')
