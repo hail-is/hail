@@ -13,12 +13,17 @@ async def error_handler_middleware(request: web.Request, handler):
     try:
         response = await handler(request)
         return response
+    except web.HTTPMove as e:
+        response = web.Response(text=e.text, status=e.status)
+        response.headers.add('Location', str(e.location))
+        return response
+    except web.HTTPMethodNotAllowed as e:
+        response = web.Response(text=e.text, status=e.status)
+        response.headers.add('Allow', ','.join(e.allowed_methods))
+        return response
     except web.HTTPException as e:
-        # For aiohttp HTTP exceptions, create a simple text response
-        # This response then goes through the remaining middleware chain
-        return web.Response(text=e.text, status=e.status)
+        response = web.Response(text=e.text, status=e.status)
+        return response
     except Exception:
-        # For unexpected exceptions, generate a 500 error response
-        # This response then goes through the remaining middleware chain
         response = web.Response(text="500 Internal Server Error", status=500)
         return response
