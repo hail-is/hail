@@ -18,6 +18,9 @@
 /grafana/ @hail-is/appsec
 /letsencrypt/ @hail-is/appsec
 
+# Base docker image used by the services
+/docker/hail-ubuntu/ @hail-is/appsec
+
 # Other directories with indirect production impact:
 /admin-pod/ @hail-is/appsec
 /gear/ @hail-is/appsec

@@ -1,5 +1,5 @@
 ARG DOCKER_PREFIX={{ global.docker_prefix }}
-FROM $DOCKER_PREFIX/ubuntu:noble-20250714
+FROM $DOCKER_PREFIX/ubuntu:noble-20250925
 
 ENV LANG=C.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
