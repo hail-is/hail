@@ -256,6 +256,10 @@ resource "google_container_cluster" "vdc" {
     state    = "ENCRYPTED"
     key_name = google_kms_crypto_key.k8s_secrets_key.id
   }
+
+  private_cluster_config {
+    enable_private_nodes = true
+  }
   
   workload_identity_config {
     workload_pool = "${var.gcp_project}.svc.id.goog"
