@@ -398,7 +398,7 @@ case class DenseContexts(nRows: TrivialIR, nCols: TrivialIR, contexts: TrivialIR
 
   def groupedByCol(ib: IRBuilder): DenseContexts = {
     val groupedContexts = ToArray(mapIR(rangeIR(nCols)) { col =>
-      sliceArrayIR(contexts, col * nRows, col * (nRows + 1))
+      sliceArrayIR(contexts, col * nRows, (col + 1) * nRows)
     })
     DenseContexts(I32(1), nCols, ib.memoize(groupedContexts))
   }
