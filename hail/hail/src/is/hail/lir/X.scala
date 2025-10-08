@@ -69,7 +69,11 @@ class Classx[C](val name: String, val superName: String, var sourceFile: Option[
     val shortName = name.take(50)
     if (writeIRs) saveToFile(s"/tmp/hail/$shortName.lir")
 
-    for (m <- methods) {
+    // SplitMethod adds methods to this class thus invalidating iterators
+    // Iterate from 0 until current length to avoid a potentially unnecessary array copy
+    val len = methods.length
+    for (i <- 0 until len) {
+      val m = methods(i)
       if (
         m.name != "<init>"
         && m.approxByteCodeSize() > SplitMethod.TargetMethodSize
@@ -79,11 +83,8 @@ class Classx[C](val name: String, val superName: String, var sourceFile: Option[
         val blocks = m.findBlocks()
         val locals = m.findLocals(blocks)
 
-        val PSTResult(blocks2, cfg2, pst) = {
-          // this cfg is no longer valid after creating pst
-          val cfg = CFG(m, blocks)
-          PST(m, blocks, cfg)
-        }
+        val PSTResult(blocks2, cfg2, pst) =
+          PST(m, blocks, CFG(m, blocks))
 
         val liveness = Liveness(blocks2, locals, cfg2)
 
