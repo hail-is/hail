@@ -1,6 +1,6 @@
 package is.hail.services
 
-import scala.collection.compat.immutable.ArraySeq
+import is.hail.utils.compat.immutable.ArraySeq
 
 import java.io.StringWriter
 import java.text._

@@ -115,7 +115,7 @@ trait ShimRVDSpec extends AbstractRVDSpec {
 
   override def typedCodecSpec: AbstractTypedCodecSpec = shim.typedCodecSpec
 
-  override def partFiles: Array[String] = shim.partFiles
+  override def partFiles: IndexedSeq[String] = shim.partFiles
 
   override lazy val indexed: Boolean = shim.indexed
 
@@ -126,7 +126,7 @@ case class IndexedRVDSpec private (
   rvdType: String,
   codecSpec: PackCodecSpec,
   indexSpec: IndexSpec,
-  override val partFiles: Array[String],
+  override val partFiles: IndexedSeq[String],
   jRangeBounds: JValue,
 ) extends ShimRVDSpec {
   private val lRvdType = LegacyEncodedTypeParser.parseLegacyRVDType(rvdType)
@@ -144,7 +144,7 @@ case class IndexedRVDSpec private (
 case class UnpartitionedRVDSpec private (
   rowType: String,
   codecSpec: PackCodecSpec,
-  partFiles: Array[String],
+  partFiles: IndexedSeq[String],
 ) extends AbstractRVDSpec {
   private val (rowVType: TStruct, rowEType) = LegacyEncodedTypeParser.parseTypeAndEType(rowType)
 
@@ -162,7 +162,7 @@ case class UnpartitionedRVDSpec private (
 case class OrderedRVDSpec private (
   rvdType: String,
   codecSpec: PackCodecSpec,
-  partFiles: Array[String],
+  partFiles: IndexedSeq[String],
   jRangeBounds: JValue,
 ) extends AbstractRVDSpec {
   private val lRvdType = LegacyEncodedTypeParser.parseLegacyRVDType(rvdType)

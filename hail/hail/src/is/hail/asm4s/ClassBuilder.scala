@@ -189,7 +189,7 @@ class ModuleBuilder() {
   }
 
   var _objectsField: Settable[Array[AnyRef]] = _
-  var _objects: BoxedArrayBuilder[AnyRef] = _
+  var _objects: mutable.ArrayBuffer[AnyRef] = _
 
   def setObjects(cb: EmitCodeBuilder, objects: Code[Array[AnyRef]]): Unit =
     cb.assign(_objectsField, objects)
@@ -197,10 +197,10 @@ class ModuleBuilder() {
   def getObject[T <: AnyRef: TypeInfo](obj: T): Code[T] = {
     if (_objectsField == null) {
       _objectsField = genStaticField[Array[AnyRef]]()
-      _objects = new BoxedArrayBuilder[AnyRef]()
+      _objects = new mutable.ArrayBuffer()
     }
 
-    val i = _objects.size
+    val i = _objects.length
     _objects += obj
     Code.checkcast[T](toCodeArray(_objectsField).apply(i))
   }
