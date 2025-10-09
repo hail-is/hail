@@ -12,8 +12,8 @@ import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.{Locus, RegionValueVariant}
 
-import scala.collection.JavaConverters._
 import scala.collection.mutable
+import scala.jdk.CollectionConverters._
 
 import java.io.{FileInputStream, IOException}
 import java.util.Properties

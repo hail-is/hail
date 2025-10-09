@@ -4,7 +4,7 @@ import is.hail.expr.JSONAnnotationImpex
 import is.hail.io.fs.{FS, FileListEntry, FileStatus, SeekableDataInputStream}
 import is.hail.types.virtual.Type
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 import java.io.{InputStream, OutputStream}
 

@@ -5,6 +5,8 @@ import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructValue}
 import is.hail.types.virtual.{Field, TStruct}
 
+import scala.collection.compat._
+
 trait PStruct extends PBaseStruct {
   override lazy val virtualType: TStruct =
     TStruct(fields.map(f => Field(f.name, f.typ.virtualType, f.index)))
@@ -58,7 +60,7 @@ trait PStruct extends PBaseStruct {
 
   def setFieldMissing(cb: EmitCodeBuilder, offset: Code[Long], fieldName: String): Unit
 
-  def insertFields(fieldsToInsert: TraversableOnce[(String, PType)]): PStruct
+  def insertFields(fieldsToInsert: IterableOnce[(String, PType)]): PStruct
 
   def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructValue
 }

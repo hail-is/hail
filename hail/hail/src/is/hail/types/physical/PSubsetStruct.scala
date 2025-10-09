@@ -10,6 +10,8 @@ import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructValue}
 import is.hail.types.virtual.TStruct
 import is.hail.utils._
 
+import scala.collection.compat._
+
 object PSubsetStruct {
   def apply(ps: PStruct, fieldNames: String*): PSubsetStruct = {
     val f = fieldNames.toArray
@@ -101,7 +103,7 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: IndexedSeq[String]) ext
   override def setFieldPresent(cb: EmitCodeBuilder, structAddress: Code[Long], fieldIdx: Int)
     : Unit = ???
 
-  def insertFields(fieldsToInsert: TraversableOnce[(String, PType)]): PSubsetStruct = ???
+  def insertFields(fieldsToInsert: IterableOnce[(String, PType)]): PSubsetStruct = ???
 
   override def initialize(structAddress: Long, setMissing: Boolean): Unit =
     ps.initialize(structAddress, setMissing)
