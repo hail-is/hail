@@ -258,7 +258,14 @@ resource "google_container_cluster" "vdc" {
   }
 
   private_cluster_config {
-    enable_private_nodes = true
+    enable_private_nodes    = true
+    enable_private_endpoint = false
+  }
+
+  control_plane_endpoints_config {
+    dns_endpoint_config {
+      allow_external_traffic = true
+    }
   }
   
   workload_identity_config {

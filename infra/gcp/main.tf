@@ -3,7 +3,11 @@ terraform {
     google = {
       source = "hashicorp/google"
       # Updated 2024-08-08 to avoid race conditions during rapid service account creation
-      version = "5.40.0"
+      version = "7.2.0"
+    }
+    google-beta = {
+      source = "hashicorp/google-beta"
+      version = "7.2.0"
     }
     kubernetes = {
       source = "hashicorp/kubernetes"
@@ -199,7 +203,14 @@ resource "google_container_cluster" "vdc" {
   }
 
   private_cluster_config {
-    enable_private_nodes = true
+    enable_private_nodes    = true
+    enable_private_endpoint = false
+  }
+
+  control_plane_endpoints_config {
+    dns_endpoint_config {
+      allow_external_traffic = true
+    }
   }
   
   workload_identity_config {
@@ -332,10 +343,6 @@ resource "google_sql_database_instance" "db" {
     ip_configuration {
       ipv4_enabled = false
       private_network = google_compute_network.default.id
-      # These next two are equivalent, and require_ssl is going away, but
-      # if I remove it now, terraform tries to set it back to false, and
-      # that then collides with the ssl_mode option below it.
-      require_ssl = true
       ssl_mode = "TRUSTED_CLIENT_CERTIFICATE_REQUIRED"
     }
     database_flags {
