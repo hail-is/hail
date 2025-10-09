@@ -14,7 +14,7 @@ import is.hail.types.virtual._
 import is.hail.utils.compat._
 import is.hail.utils.compat.immutable.ArraySeq
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 import java.io.InputStream
 

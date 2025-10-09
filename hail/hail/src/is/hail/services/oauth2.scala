@@ -11,7 +11,7 @@ import is.hail.shadedazure.com.azure.identity.{
 }
 import is.hail.utils.{defaultJSONFormats, using}
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 import java.io.Serializable
 import java.nio.file.{Files, Path}

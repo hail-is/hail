@@ -1,7 +1,7 @@
 package is.hail.io
 
-import scala.collection.JavaConverters._
 import scala.collection.Map
+import scala.jdk.CollectionConverters._
 
 import org.apache.spark
 import org.elasticsearch.spark.sql._

@@ -14,9 +14,9 @@ import is.hail.shadedazure.com.azure.storage.blob.models.{
 import is.hail.shadedazure.com.azure.storage.blob.specialized.BlockBlobClient
 import is.hail.utils.FastSeq
 
-import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
+import scala.jdk.CollectionConverters._
 
 import java.io.{ByteArrayOutputStream, FileNotFoundException, OutputStream}
 import java.nio.file.{Path, Paths}

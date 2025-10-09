@@ -7,10 +7,9 @@ import is.hail.utils._
 import is.hail.utils.compat._
 import is.hail.utils.compat.immutable.ArraySeq
 
-import scala.collection.JavaConverters._
-import scala.collection.compat._
 import scala.collection.compat._
 import scala.collection.mutable
+import scala.jdk.CollectionConverters._
 
 import org.apache.spark.sql.Row
 import org.json4s.CustomSerializer
