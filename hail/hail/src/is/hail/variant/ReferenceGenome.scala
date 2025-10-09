@@ -14,7 +14,7 @@ import is.hail.types._
 import is.hail.types.virtual.{TLocus, Type}
 import is.hail.utils._
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.collection.mutable
 
 import java.io.{FileNotFoundException, InputStream}
