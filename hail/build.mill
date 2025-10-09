@@ -147,11 +147,6 @@ trait HailModule extends ScalaModule with ScalafmtModule with ScalafixModule { o
     if (scalaVersion().startsWith("2.13")) {
       finalOptions ++
       Seq(
-      // collection types
-        // object JavaConverters in package collection is deprecated (since 2.13.0): Use `scala.jdk.CollectionConverters` instead
-        "-Wconf:cat=deprecation&msg=object JavaConverters in package collection is deprecated:s",
-        // object ImplicitConversions in package convert is deprecated (since 2.13.0): Use `scala.jdk.CollectionConverters` instead
-        "-Wconf:cat=deprecation&msg=object ImplicitConversions in package convert is deprecated:s",
       // generic to immutable default
       // collection methods
         // method copyArrayToImmutableIndexedSeq in class LowPriorityImplicits2 is deprecated (since 2.13.0): implicit conversions from Array to immutable.IndexedSeq are implemented by copying; use `toIndexedSeq` explicitly if you want to copy, or use the more efficient non-copying ArraySeq.unsafeWrapArray

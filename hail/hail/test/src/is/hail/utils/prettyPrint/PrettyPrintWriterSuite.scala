@@ -2,7 +2,7 @@ package is.hail.utils.prettyPrint
 
 import is.hail.utils.toRichIterator
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 import org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.{DataProvider, Test}
