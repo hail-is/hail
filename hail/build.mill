@@ -148,10 +148,6 @@ trait HailModule extends ScalaModule with ScalafmtModule with ScalafixModule { o
       finalOptions ++
       Seq(
       // collection types
-        // trait MultiMap in package mutable is deprecated (since 2.13.0): Use a scala.collection.mutable.MultiDict in the scala-collection-contrib module
-        "-Wconf:cat=deprecation&msg=trait MultiMap in package mutable is deprecated:s",
-        // inheritance from class HashMap in package mutable is deprecated (since 2.13.0): HashMap will be made final; use .withDefault for the common use case of computing a default value
-        "-Wconf:cat=deprecation&msg=inheritance from class HashMap in package mutable is deprecated:s",
         // object JavaConverters in package collection is deprecated (since 2.13.0): Use `scala.jdk.CollectionConverters` instead
         "-Wconf:cat=deprecation&msg=object JavaConverters in package collection is deprecated:s",
         // object ImplicitConversions in package convert is deprecated (since 2.13.0): Use `scala.jdk.CollectionConverters` instead
@@ -305,7 +301,6 @@ trait RootHailModule extends CrossScalaModule with HailModule { outer =>
     Rule.Exclude("META-INF/INDEX.LIST"),
     Rule.ExcludePattern("scala/(?!collection/compat).*"),
     Rule.AppendPattern("META-INF/services/.*", "\n"),
-//    Rule.Relocate("scala.collection.compat.**", "is.hail.relocated.@0"),
     Rule.Relocate("breeze.**", "is.hail.relocated.@0"),
     Rule.Relocate("com.google.cloud.**", "is.hail.relocated.@0"),
     Rule.Relocate("com.google.common.**", "is.hail.relocated.@0"),
