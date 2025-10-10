@@ -21,6 +21,7 @@ object requests {
   class ClientResponseException(val status: Int, message: String) extends Exception(message)
 
   trait Requester extends AutoCloseable {
+    def url: URL
     def get(route: String): JValue
     def post(route: String, body: JValue): JValue
     def post(route: String, body: HttpEntity): JValue
@@ -77,6 +78,8 @@ object requests {
     }
 
     new Requester with Logging {
+      override val url: URL = baseUrl
+
       override def get(route: String): JValue =
         request(new HttpGet(s"$baseUrl$route"))
 
