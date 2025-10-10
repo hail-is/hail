@@ -741,13 +741,13 @@ case class BlockMatrixAgg(
     val sparsity = if (child.typ.isSparse) {
       axesToSumOut match {
         case IndexedSeq(0, 1) => BlockMatrixSparsity.dense
-        case IndexedSeq(0) => // col vector result; agg over row
-          BlockMatrixSparsity.constructFromShapeAndFunction(child.typ.nRowBlocks, 1) { (i, _) =>
-            (0 until child.typ.nColBlocks).exists(j => child.typ.hasBlock(i -> j))
-          }
-        case IndexedSeq(1) => // row vector result; agg over col
+        case IndexedSeq(0) => // row vector result; agg over col
           BlockMatrixSparsity.constructFromShapeAndFunction(1, child.typ.nColBlocks) { (_, j) =>
             (0 until child.typ.nRowBlocks).exists(i => child.typ.hasBlock(i -> j))
+          }
+        case IndexedSeq(1) => // col vector result; agg over row
+          BlockMatrixSparsity.constructFromShapeAndFunction(child.typ.nRowBlocks, 1) { (i, _) =>
+            (0 until child.typ.nColBlocks).exists(j => child.typ.hasBlock(i -> j))
           }
       }
     } else BlockMatrixSparsity.dense
