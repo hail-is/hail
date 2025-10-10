@@ -496,6 +496,25 @@ def test_block_matrix_elementwise_arithmetic(block_matrix_bindings, x, y):
 
 @pytest.mark.parametrize(
     'x, y',
+    [
+        (
+            np.array([[7.0], [15.0], [19.0]]),
+            np.array([[7.0, 8.0, 9.0]]),
+        ),
+        (
+            np.array([[7.0, 8.0, 9.0]]),
+            np.array([[7.0], [15.0], [19.0]]),
+        ),
+    ],
+)
+def test_sparse_broadcast_add(x, y):
+    bmx = BlockMatrix.from_ndarray(x, block_size=2)._sparsify_blocks([0, 1])
+    bmy = BlockMatrix.from_ndarray(y, block_size=2)
+    _assert_eq(bmx + bmy, x + y)
+
+
+@pytest.mark.parametrize(
+    'x, y',
     [  # division
         ('x / e', 'nx / e'),
         ('c / e', 'nc / e'),

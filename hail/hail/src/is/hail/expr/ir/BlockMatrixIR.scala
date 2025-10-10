@@ -643,12 +643,12 @@ case class BlockMatrixBroadcast(
           case IndexedSeq(0) => // broadcast col vector
             assert(Set(1, shape(0)) == Set(child.typ.nRows, child.typ.nCols))
             BlockMatrixSparsity.constructFromShapeAndFunction(nRowBlocks, nColBlocks)(
-              (i: Int, j: Int) => child.typ.hasBlock(0 -> j)
+              (i: Int, j: Int) => child.typ.hasBlock(i -> 0)
             )
           case IndexedSeq(1) => // broadcast row vector
             assert(Set(1, shape(1)) == Set(child.typ.nRows, child.typ.nCols))
             BlockMatrixSparsity.constructFromShapeAndFunction(nRowBlocks, nColBlocks)(
-              (i: Int, j: Int) => child.typ.hasBlock(i -> 0)
+              (i: Int, j: Int) => child.typ.hasBlock(0 -> j)
             )
           case IndexedSeq(0, 0) => // diagonal as col vector
             assert(shape(0) == 1L)
