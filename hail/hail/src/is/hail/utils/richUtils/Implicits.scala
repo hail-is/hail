@@ -5,8 +5,9 @@ import is.hail.asm4s.{Code, Value}
 import is.hail.io.{InputBuffer, OutputBuffer, RichContextRDDLong, RichContextRDDRegionValue}
 import is.hail.sparkextras._
 import is.hail.utils.{HailIterator, MultiArray2, Truncatable, WithContext}
+import is.hail.utils.compat.IterableOnce
 
-import scala.collection.{mutable, TraversableOnce}
+import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.util.matching.Regex
 
@@ -39,9 +40,8 @@ trait Implicits {
   implicit def toRichIndexedRowMatrix(irm: IndexedRowMatrix): RichIndexedRowMatrix =
     new RichIndexedRowMatrix(irm)
 
-  implicit def toRichIntPairTraversableOnce[V](t: TraversableOnce[(Int, V)])
-    : RichIntPairTraversableOnce[V] =
-    new RichIntPairTraversableOnce[V](t)
+  implicit def toRichIterableOnce[F[+X] <: IterableOnce[X], A](t: F[A]): RichIterableOnce[F, A] =
+    new RichIterableOnce[F, A](t)
 
   implicit def toRichIterable[T](i: Iterable[T]): RichIterable[T] = new RichIterable(i)
 
