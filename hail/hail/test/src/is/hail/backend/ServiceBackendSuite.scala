@@ -1,7 +1,7 @@
 package is.hail.backend
 
 import is.hail.HailSuite
-import is.hail.backend.service.{BatchJobConfig, ServiceBackend, Worker}
+import is.hail.backend.service.{BatchJobConfig, ServiceBackend, WireProtocol}
 import is.hail.services._
 import is.hail.services.JobGroupStates.{Cancelled, Failure, Success}
 import is.hail.utils.{handleForPython, tokenUrlSafe, using, FastSeq, HailWorkerException}
@@ -11,6 +11,7 @@ import scala.reflect.io.{Directory, Path}
 import scala.util.Random
 
 import java.io.Closeable
+import java.nio.charset.StandardCharsets
 
 import org.mockito.ArgumentMatchersSugar.any
 import org.mockito.IdiomaticMockito
@@ -76,7 +77,11 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
           val resultsDir = Path(ctx.tmpdir) / "mapCollectPartitions" / tokenUrlSafe
           resultsDir.createDirectory(): Unit
 
-          for (i <- contexts.indices) (resultsDir / f"result.$i").toFile.writeAll("11")
+          for (i <- contexts.indices)
+            ctx.fs.writePDOS((resultsDir / f"result.$i").toString()) {
+              os => WireProtocol.write(os, i, Right(Array.emptyByteArray))
+            }
+
           JobGroupResponse(
             batch_id = id,
             job_group_id = jobGroupId,
@@ -105,7 +110,7 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
 
   @Test def testFailedJobGroup(): Unit =
     runMock { (ctx, _, batchClient, backend) =>
-      val contexts = Array.tabulate(100)(_.toString.getBytes)
+      val contexts = (0 until 100).map(_ => Array.emptyByteArray)
       val startJobGroupId = 2356
       when(batchClient.newJobGroup(any[JobGroupRequest])) thenAnswer {
         _: JobGroupRequest => (backend.batchConfig.jobGroupId + 1, startJobGroupId)
@@ -119,20 +124,22 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
           resultsDir.createDirectory(): Unit
 
           for (i <- successes)
-            (resultsDir / f"result.$i").toFile.writeAll("11")
+            ctx.fs.writePDOS((resultsDir / f"result.$i").toString()) {
+              os => WireProtocol.write(os, i, Right(i.toString.getBytes(StandardCharsets.UTF_8)))
+            }
 
           for (i <- failures)
             ctx.fs.writePDOS((resultsDir / f"result.$i").toString()) {
-              os => Worker.writeException(os, expectedCause)
+              os => WireProtocol.write(os, i, Left(expectedCause))
             }
 
           JobGroupResponse(
             batch_id = id,
             job_group_id = jobGroupId,
             state = Failure,
-            complete = true,
+            complete = false,
             n_jobs = contexts.length,
-            n_completed = contexts.length,
+            n_completed = successes.length + failures.length,
             n_succeeded = successes.length,
             n_failed = failures.length,
             n_cancelled = contexts.length - failures.length - successes.length,
@@ -180,7 +187,9 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
           resultsDir.createDirectory(): Unit
 
           for (i <- successes)
-            (resultsDir / f"result.$i").toFile.writeAll("11")
+            ctx.fs.writePDOS((resultsDir / f"result.$i").toString()) {
+              os => WireProtocol.write(os, i, Right(Array.emptyByteArray))
+            }
 
           JobGroupResponse(
             batch_id = id,
@@ -239,7 +248,8 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
           name = "name",
           batchClient = batchClient,
           jarSpec = GitRevision("123"),
-          batchConfig = BatchConfig(batchId = Random.nextInt(), jobGroupId = Random.nextInt()),
+          batchConfig =
+            BatchConfig(batchId = Random.nextInt(100), jobGroupId = Random.nextInt(100)),
           jobConfig = jobConfig,
         )
 
