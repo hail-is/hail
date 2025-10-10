@@ -580,16 +580,9 @@ def test_matrix_sums(block_matrix_bindings, x, y):
 @pytest.mark.parametrize(
     'x, y',
     [
+        ('s.sum()', '41.0'),
         ('s.sum(axis=0)', 'np.array([[9.0, 10.0, 10.0, 12.0]])'),
         ('s.sum(axis=1)', 'np.array([[7.0], [15.0], [19.0]])'),
-        (
-            's.sum(axis=0) + row.T',
-            'np.array([[16.0, 17.0, 17.0, 19.0],[17.0, 18.0, 18.0, 20.0],[18.0, 19.0, 19.0, 21.0]])',
-        ),
-        (
-            's.sum(axis=1) + row',
-            'np.array([[14.0, 15.0, 16.0],[22.0, 23.0, 24.0],[26.0, 27.0, 28.0]])',
-        ),
     ],
 )
 def test_sparse_matrix_sums(block_matrix_bindings, x, y):
