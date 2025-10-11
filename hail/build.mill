@@ -7,12 +7,15 @@ import com.goyeau.mill.scalafix.ScalafixModule
 import org.typelevel.scalacoptions.*
 import mill.*
 import mill.api.{BuildCtx, Result}
+import mill.javalib.testrunner.TestResult
 import mill.scalalib.*
 import mill.scalalib.Assembly.*
 import mill.scalalib.TestModule.TestNg
 import mill.scalalib.scalafmt.ScalafmtModule
 import mill.util.{Jvm, VcsVersion}
 import upickle.default.ReadWriter
+
+import scala.collection.immutable.ArraySeq
 
 object Settings {
   val hailMajorMinorVersion = "0.2"
@@ -387,6 +390,28 @@ trait RootHailModule extends CrossScalaModule with HailModule { outer =>
 
     override def compileModuleDeps: Seq[JavaModule] =
       super.compileModuleDeps ++ outer.compileModuleDeps
+
+    val numCISplits: Int = 5
+
+    def ciTestGrouping: T[Seq[Seq[String]]] = Task {
+      val k = numCISplits
+      val classes: ArraySeq[String] = discoveredTestClasses().to(ArraySeq)
+      val n = classes.length
+      val shuffled = scala.util.Random(12345).shuffle(classes)
+      val offsets = Range(0, k).map(i => (n - i + k - 1) / k).scan(0)(_ + _)
+      assert(offsets.last == n)
+      Range(0, k).map { i =>
+        shuffled.slice(offsets(i), offsets(i + 1))
+      }
+    }
+
+    def testCISplit(args: String*): Task.Command[(msg: String, results: Seq[TestResult])] = {
+      require(args.length == 1)
+      val split = args.head.toInt
+      Task.Command {
+        testTask(Task.Anon { Seq.empty }, Task.Anon { ciTestGrouping()(split) })()
+      }
+    }
   }
 
   object shadedazure extends JavaModule {
