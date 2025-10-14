@@ -95,21 +95,6 @@ class Authenticator(abc.ABC):
 
         return wrapped
 
-    def authenticated_developers_only(self, redirect=True):
-        def wrap(fun: AuthenticatedAIOHTTPHandler):
-            @self.authenticated_users_only(redirect)
-            @wraps(fun)
-            async def wrapped(request: web.Request, userdata: UserData, *args, **kwargs):
-                if 'api_info' not in request:
-                    request['api_info'] = {}
-                request['api_info']['developers_only'] = True
-                if userdata['is_developer'] == 1:
-                    return await fun(request, userdata, *args, **kwargs)
-                raise web.HTTPUnauthorized()
-
-            return wrapped
-
-        return wrap
 
     def authenticated_users_with_permission(
         self, permission: SystemPermission, redirect: bool = True
@@ -118,6 +103,12 @@ class Authenticator(abc.ABC):
             @self.authenticated_users_only(redirect)
             @wraps(fun)
             async def wrapped(request: web.Request, userdata: UserData, *args, **kwargs):
+                if 'api_info' not in request:
+                    request['api_info'] = {}
+                request['api_info']['system_permission_check'] = True
+                if 'system_permissions_required' not in request['api_info']:
+                    request['api_info']['system_permissions_required'] = []
+                request['api_info']['system_permissions_required'].append(permission.value)
                 if await self._check_system_permission(request, permission):
                     return await fun(request, userdata, *args, **kwargs)
                 raise web.HTTPUnauthorized()

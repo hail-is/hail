@@ -68,7 +68,7 @@ class AccessLogger(AbstractAccessLogger):
         }
 
         userdata_maybe = request.get('userdata', {})
-        userdata_keys = ['username', 'login_id', 'is_developer', 'hail_identity']
+        userdata_keys = ['username', 'login_id', 'is_developer', 'hail_identity', 'system_permissions']
         extra.update({k: userdata_maybe[k] for k in userdata_keys if k in userdata_maybe})
 
         # Try to get formdata in various ways:

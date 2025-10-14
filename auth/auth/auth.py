@@ -28,12 +28,12 @@ from gear import (
     maybe_parse_bearer_header,
     monitor_endpoints_middleware,
     setup_aiohttp_session,
+    SystemPermission,
     transaction,
 )
 from gear.auth import AIOHTTPHandler, get_session_id
 from gear.cloud_config import get_global_config
 from gear.profiling import install_profiler_if_requested
-from gear.system_permissions import SystemPermission
 from hailtop import __version__, httpx, uvloopx
 from hailtop.auth import AzureFlow, Flow, GoogleFlow, IdentityProvider
 from hailtop.config import get_deploy_config
@@ -192,6 +192,19 @@ VALUES (%s, %s, %s, %s, %s, %s, %s);
                 hail_credentials_secret_name,
             ),
         )
+
+        # This is probably better to do based on request parameters in the future. 
+        # For now creating selecting is_developer in the API will give them all three developer-y roles, for backwards compatibility.
+        if is_developer:
+            for role in ['developer', 'billing_manager', 'sysadmin']:
+            await tx.execute_insertone(
+                """
+INSERT INTO users_system_roles (user_id, role_id)
+VALUES 
+  ((SELECT id FROM users WHERE username = '%s'), (SELECT id FROM system_roles WHERE name = '%s'));
+""",
+                (username, role),
+            )
 
     validate_credentials_secret_name_input(hail_credentials_secret_name)
     await _insert()
@@ -444,7 +457,7 @@ async def callback(request) -> web.Response:
 
 
 @routes.post('/api/v1alpha/users/{user}/create')
-@auth.authenticated_developers_only()
+@auth.authenticated_users_with_permission(SystemPermission.CREATE_USERS)
 async def create_user(request: web.Request, _) -> web.Response:
     db = request.app[AppKeys.DB]
     username = request.match_info['user']
@@ -564,26 +577,60 @@ async def get_roles(request: web.Request, userdata: UserData) -> web.Response:
 
 @routes.post('/roles')
 @web_security_headers
-@auth.authenticated_developers_only()
+@auth.authenticated_users_with_permission(SystemPermission.ASSIGN_SYSTEM_ROLES)
 async def post_create_role(request: web.Request, _) -> NoReturn:
     raise web.HTTPNotFound(
         text='The old unused role system has been replaced. Custom system roles are not yet implemented.'
     )
 
 
+async def _get_users(db: Database, username: Optional[str] = None) -> List[dict]:
+    _query = """
+SELECT id, username, login_id, state, is_developer, is_service_account, hail_identity, system_permissions.name AS permission_name
+FROM users
+JOIN users_system_roles ON users.id = users_system_roles.user_id
+JOIN system_roles_permissions ON users_system_roles.role_id = system_roles_permissions.role_id
+JOIN system_permissions ON system_roles_permissions.permission_id = system_permissions.id
+"""
+    if username is not None:
+        _query += "WHERE users.username = %s;"
+        params = (username,)
+    else:
+        _query += ";"
+        params = ()
+    resp = [x async for x in db.select_and_fetchall(_query, params)]
+    users = {}
+    for user in resp:
+        if user['id'] not in users:
+            users[user['id']] = {
+                'id': user['id'],
+                'username': user['username'],
+                'login_id': user['login_id'],
+                'state': user['state'],
+                'is_developer': user['is_developer'],
+                'is_service_account': user['is_service_account'],
+                'hail_identity': user['hail_identity'],
+                'system_permissions': [user['permission_name']],
+            }
+        else:
+            users[user['id']]['system_permissions'].append(user['permission_name'])
+    result = list(users.values()).sort(key=lambda x: x['id'])
+    return result
+
+
 @routes.get('/users')
 @web_security_headers
-@auth.authenticated_developers_only()
+@auth.authenticated_users_with_permission(SystemPermission.READ_USERS)
 async def get_users(request: web.Request, userdata: UserData) -> web.Response:
     db = request.app[AppKeys.DB]
-    users = [x async for x in db.select_and_fetchall('SELECT * FROM users;')]
+    users = await _get_users(db)
     page_context = {'users': users}
     return await render_template('auth', request, userdata, 'users.html', page_context)
 
 
 @routes.post('/users')
 @web_security_headers
-@auth.authenticated_developers_only()
+@auth.authenticated_users_with_permission(SystemPermission.CREATE_USERS)
 async def post_create_user(request: web.Request, _) -> NoReturn:
     session = await aiohttp_session.get_session(request)
     db = request.app[AppKeys.DB]
@@ -608,33 +655,25 @@ async def post_create_user(request: web.Request, _) -> NoReturn:
 
 
 @routes.get('/api/v1alpha/users')
-@auth.authenticated_users_only()
+@auth.authenticated_users_with_permission(SystemPermission.READ_USERS)
 async def rest_get_users(request: web.Request, userdata: UserData) -> web.Response:
-    if userdata['is_developer'] != 1 and userdata['username'] != 'ci':
-        raise web.HTTPUnauthorized()
-
     db = request.app[AppKeys.DB]
-    _query = """
-SELECT id, username, login_id, state, is_developer, is_service_account, hail_identity
-FROM users;
-"""
-    users = [x async for x in db.select_and_fetchall(_query)]
+    users = await _get_users(db)
+
     return json_response(users)
 
 
 @routes.get('/api/v1alpha/users/{user}')
-@auth.authenticated_developers_only()
+@auth.authenticated_users_with_permission(SystemPermission.READ_USERS)
 async def rest_get_user(request: web.Request, _) -> web.Response:
     db = request.app[AppKeys.DB]
     username = request.match_info['user']
 
-    user = await db.select_and_fetchone(
-        """
-SELECT id, username, login_id, state, is_developer, is_service_account, hail_identity FROM users
-WHERE username = %s;
-""",
-        (username,),
-    )
+    if username is None:
+        raise web.HTTPBadRequest(text='Username is required')
+
+    users = await _get_users(db, username)
+    user = next((u for u in users if u['username'] == username), None)
     if user is None:
         raise web.HTTPNotFound()
     return json_response(user)
@@ -669,7 +708,7 @@ async def _invalidate_all_sessions(db: Database):
 
 @routes.post('/users/delete')
 @web_security_headers
-@auth.authenticated_developers_only()
+@auth.authenticated_users_with_permission(SystemPermission.DELETE_USERS)
 async def delete_user(request: web.Request, _) -> NoReturn:
     session = await aiohttp_session.get_session(request)
     db = request.app[AppKeys.DB]
@@ -687,7 +726,7 @@ async def delete_user(request: web.Request, _) -> NoReturn:
 
 
 @routes.delete('/api/v1alpha/users/{user}')
-@auth.authenticated_developers_only()
+@auth.authenticated_users_with_permission(SystemPermission.DELETE_USERS)
 async def rest_delete_user(request: web.Request, _) -> web.Response:
     db = request.app[AppKeys.DB]
     username = request.match_info['user']
@@ -723,7 +762,7 @@ WHERE {' AND '.join(where_conditions)};
 
 @routes.post('/users/activate')
 @web_security_headers
-@auth.authenticated_developers_only()
+@auth.authenticated_users_with_permission(SystemPermission.UPDATE_USERS)
 async def activate_user(request: web.Request, _) -> NoReturn:
     session = await aiohttp_session.get_session(request)
     db = request.app[AppKeys.DB]
@@ -805,7 +844,7 @@ WHERE copy_paste_tokens.id = %s
 
 
 @routes.post('/api/v1alpha/invalidate_all_sessions')
-@auth.authenticated_developers_only()
+@auth.authenticated_users_with_permission(SystemPermission.UPDATE_USERS)
 async def rest_invalidate_all_sessions(request: web.Request, _) -> web.Response:
     db = request.app[AppKeys.DB]
     await _invalidate_all_sessions(db)
@@ -814,7 +853,7 @@ async def rest_invalidate_all_sessions(request: web.Request, _) -> web.Response:
 
 @routes.post('/users/invalidate_all_sessions')
 @web_security_headers
-@auth.authenticated_developers_only()
+@auth.authenticated_users_with_permission(SystemPermission.UPDATE_USERS)
 async def invalidate_all_sessions(request: web.Request, _) -> NoReturn:
     db = request.app[AppKeys.DB]
     await _invalidate_all_sessions(db)
@@ -972,14 +1011,6 @@ async def verify_dev_credentials(_, userdata: UserData) -> web.Response:
     return web.Response(status=200)
 
 
-@routes.route('*', '/api/v1alpha/verify_dev_or_sa_credentials', name='verify_dev_or_sa')
-@auth.authenticated_users_only()
-async def verify_dev_or_sa_credentials(_, userdata: UserData) -> web.Response:
-    if userdata['is_developer'] != 1 and userdata['is_service_account'] != 1:
-        raise web.HTTPUnauthorized()
-    return web.Response(status=200)
-
-
 @routes.get('/api/v1alpha/check_system_permission')
 @auth.authenticated_users_only()
 async def check_system_permission(request: web.Request, userdata: UserData) -> web.Response:
@@ -997,6 +1028,28 @@ async def check_system_permission(request: web.Request, userdata: UserData) -> w
     has_permission = await check_system_permission_from_userinfo(db, userdata, permission)
 
     return json_response({'has_permission': has_permission})
+
+
+@routes.get('/api/v1alpha/verify_system_permission')
+@auth.authenticated_users_only()
+async def verify_system_permission(request: web.Request, userdata: UserData) -> web.Response:
+    permission_name = request.query.get('permission')
+    if not permission_name:
+        raise web.HTTPBadRequest(text='Missing required query parameter: permission')
+
+    try:
+        permission = SystemPermission.from_string(permission_name)
+    except ValueError as exc:
+        raise web.HTTPBadRequest(text='Unknown system permission') from exc
+
+    db = request.app[AppKeys.DB]
+
+    has_permission = await check_system_permission_from_userinfo(db, userdata, permission)
+
+    if not has_permission:
+        raise web.HTTPUnauthorized()
+
+    return web.Response(status=200)
 
 
 async def check_system_permission_from_userinfo(db: Database, userinfo: UserData, permission: SystemPermission) -> bool:

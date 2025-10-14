@@ -35,6 +35,7 @@ from gear import (
     json_response,
     monitor_endpoints_middleware,
     setup_aiohttp_session,
+    SystemPermission,
     transaction,
 )
 from gear.auth import AIOHTTPHandler, UserData
@@ -205,7 +206,7 @@ async def get_healthcheck(_) -> web.Response:
 
 
 @routes.get('/check_invariants')
-@auth.authenticated_developers_only()
+@auth.authenticated_users_with_permission(SystemPermission.READ_DEPLOYED_SYSTEM_STATE)
 async def get_check_invariants(request: web.Request, _) -> web.Response:
     db: Database = request.app['db']
     incremental_result, resource_agg_result = await asyncio.gather(
@@ -302,7 +303,7 @@ async def deactivate_instance(_, instance: Instance) -> web.Response:
 
 
 @routes.post('/instances/{instance_name}/kill')
-@auth.authenticated_developers_only()
+@auth.authenticated_users_with_permission(SystemPermission.UPDATE_DEPLOYED_SYSTEM_STATE)
 async def kill_instance(request: web.Request, _) -> NoReturn:
     instance_name = request.match_info['instance_name']
 
@@ -447,7 +448,7 @@ async def billing_update(request, instance):
 @routes.get('/')
 @routes.get('')
 @web_security_headers
-@auth.authenticated_developers_only()
+@auth.authenticated_users_with_permission(SystemPermission.READ_DEPLOYED_SYSTEM_STATE)
 async def get_index(request, userdata):
     app = request.app
     db: Database = app['db']
@@ -483,7 +484,7 @@ FROM user_inst_coll_resources;
 
 @routes.get('/quotas')
 @web_security_headers_unsafe_eval
-@auth.authenticated_developers_only()
+@auth.authenticated_users_with_permission(SystemPermission.READ_DEPLOYED_SYSTEM_STATE)
 async def get_quotas(request, userdata):
     if CLOUD != 'gcp':
         return await render_template('batch-driver', request, userdata, 'quotas.html', {"plot_json": None})
@@ -572,7 +573,7 @@ def validate_int(session, name, value, predicate, description):
 
 
 @routes.post('/configure-feature-flags')
-@auth.authenticated_developers_only()
+@auth.authenticated_users_with_permission(SystemPermission.UPDATE_DEPLOYED_SYSTEM_STATE)
 async def configure_feature_flags(request: web.Request, _) -> NoReturn:
     app = request.app
     db: Database = app['db']
@@ -595,7 +596,7 @@ UPDATE feature_flags SET compact_billing_tables = %s, oms_agent = %s;
 
 
 @routes.post('/config-update/pool/{pool}')
-@auth.authenticated_developers_only()
+@auth.authenticated_users_with_permission(SystemPermission.UPDATE_DEPLOYED_SYSTEM_STATE)
 async def pool_config_update(request: web.Request, _) -> NoReturn:
     app = request.app
     db: Database = app['db']
@@ -800,7 +801,7 @@ async def pool_config_update(request: web.Request, _) -> NoReturn:
 
 
 @routes.post('/config-update/jpim')
-@auth.authenticated_developers_only()
+@auth.authenticated_users_with_permission(SystemPermission.UPDATE_DEPLOYED_SYSTEM_STATE)
 async def job_private_config_update(request: web.Request, _) -> NoReturn:
     app = request.app
     jpim: JobPrivateInstanceManager = app['driver'].job_private_inst_manager
@@ -879,7 +880,7 @@ async def job_private_config_update(request: web.Request, _) -> NoReturn:
 
 @routes.get('/inst_coll/pool/{pool}')
 @web_security_headers
-@auth.authenticated_developers_only()
+@auth.authenticated_users_with_permission(SystemPermission.READ_DEPLOYED_SYSTEM_STATE)
 async def get_pool(request, userdata):
     app = request.app
     inst_coll_manager: InstanceCollectionManager = app['driver'].inst_coll_manager
@@ -917,7 +918,7 @@ async def get_pool(request, userdata):
 
 @routes.get('/inst_coll/jpim')
 @web_security_headers
-@auth.authenticated_developers_only()
+@auth.authenticated_users_with_permission(SystemPermission.READ_DEPLOYED_SYSTEM_STATE)
 async def get_job_private_inst_manager(request, userdata):
     app = request.app
     jpim: JobPrivateInstanceManager = app['driver'].job_private_inst_manager
@@ -946,7 +947,7 @@ async def get_job_private_inst_manager(request, userdata):
 
 
 @routes.post('/freeze')
-@auth.authenticated_developers_only()
+@auth.authenticated_users_with_permission(SystemPermission.UPDATE_DEPLOYED_SYSTEM_STATE)
 async def freeze_batch(request: web.Request, _) -> NoReturn:
     app = request.app
     db: Database = app['db']
@@ -968,7 +969,7 @@ UPDATE globals SET frozen = 1;
 
 
 @routes.post('/unfreeze')
-@auth.authenticated_developers_only()
+@auth.authenticated_users_with_permission(SystemPermission.UPDATE_DEPLOYED_SYSTEM_STATE)
 async def unfreeze_batch(request: web.Request, _) -> NoReturn:
     app = request.app
     db: Database = app['db']
@@ -991,7 +992,7 @@ UPDATE globals SET frozen = 0;
 
 @routes.get('/user_resources')
 @web_security_headers
-@auth.authenticated_developers_only()
+@auth.authenticated_users_with_permission(SystemPermission.READ_DEPLOYED_SYSTEM_STATE)
 async def get_user_resources(request, userdata):
     app = request.app
     db: Database = app['db']

@@ -37,4 +37,5 @@ __all__ = [
     'resolve_test_db_endpoint',
     'setup_aiohttp_session',
     'transaction',
+    'SystemPermission',
 ]
