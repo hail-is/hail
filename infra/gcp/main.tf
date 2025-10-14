@@ -197,7 +197,7 @@ resource "google_container_cluster" "vdc" {
     state    = "ENCRYPTED"
     key_name = google_kms_crypto_key.k8s_secrets_key.id
   }
-  
+
   workload_identity_config {
     workload_pool = "${var.gcp_project}.svc.id.goog"
   }
@@ -523,12 +523,13 @@ resource "google_project_iam_custom_role" "auth_service_account_manager" {
   role_id     = "authServiceAccountManager"
   title       = "Auth Service Account Manager"
   description = "Custom role for auth service with minimal required permissions for service account management"
-  
+
   permissions = [
     "iam.serviceAccounts.create",
-    "iam.serviceAccounts.delete", 
+    "iam.serviceAccounts.delete",
     "iam.serviceAccounts.get",
     "iam.serviceAccounts.list",
+    "iam.serviceAccounts.setIamPolicy",
     "iam.serviceAccountKeys.create",
   ]
 }
@@ -557,7 +558,7 @@ resource "google_project_iam_custom_role" "batch_compute_manager" {
   role_id     = "batchComputeManager"
   title       = "Batch Compute Manager"
   description = "Custom role for batch service with specific compute permissions for instance management"
-  
+
   permissions = [
     "compute.disks.create",
     "compute.disks.delete",
@@ -759,7 +760,7 @@ resource "google_project_iam_custom_role" "batch2_agent_compute_ops" {
   role_id     = "batch2AgentComputeOps"
   title       = "Batch2 Agent Compute Ops"
   description = "Custom role for batch2-agent with minimal disk and instance management permissions"
-  
+
   permissions = [
     "compute.disks.create",
     "compute.disks.delete",
@@ -778,7 +779,6 @@ resource "google_service_account" "batch_agent" {
 
 resource "google_project_iam_member" "batch_agent_iam_member" {
   for_each = toset([
-    "iam.serviceAccountUser",
     "logging.logWriter",
     "storage.objectAdmin",
   ])
@@ -803,7 +803,7 @@ resource "google_service_account" "gke_node_pool" {
 resource "google_project_iam_member" "gke_node_pool_iam_member" {
   for_each = toset([
     "storage.objectViewer",
-    "logging.logWriter", 
+    "logging.logWriter",
     "monitoring.metricWriter",
     "monitoring.viewer",
     "autoscaling.metricsWriter",

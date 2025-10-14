@@ -11,8 +11,8 @@ if [ $# -eq 0 ]; then
 fi
 
 PROJECT=$1
-DB_POD=$(kfind1 admin-pod)
-ACCOUNTS=$(kubectl -n default exec -it $DB_POD -- mysql -NBe "SELECT hail_identity FROM auth.users WHERE state != 'deleted'" | grep -Eo "(\w|-)+@$PROJECT.iam.gserviceaccount.com" | awk '{print $1}')
+ADMIN_POD=$(kfind1 admin-pod)
+ACCOUNTS=$(kubectl -n default exec -it $ADMIN_POD -- mysql -NBe "SELECT hail_identity FROM auth.users WHERE state != 'deleted'" | grep -Eo "(\w|-)+@$PROJECT.iam.gserviceaccount.com" | awk '{print $1}')
 
 echo "Found the following user service accounts in $PROJECT:"
 for ACCOUNT in $ACCOUNTS; do
