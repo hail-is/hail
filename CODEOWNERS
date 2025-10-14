@@ -24,6 +24,7 @@
 # Other directories with indirect production impact:
 /admin-pod/ @hail-is/appsec
 /gear/ @hail-is/appsec
+/hail/python/hailtop/ @hail-is/appsec
 /letsencrypt/ @hail-is/appsec
 /tls/ @hail-is/appsec
 /website/ @hail-is/appsec
