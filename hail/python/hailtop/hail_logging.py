@@ -64,7 +64,7 @@ class AccessLogger(AbstractAccessLogger):
             'user_agent': request.headers.get("User-Agent"),
             'request_method': request.method,
             'request_scheme': request.scheme,
-            'query_params': request.query,
+            'query_params': dict(request.query),
         }
 
         userdata_maybe = request.get('userdata', {})
