@@ -453,7 +453,8 @@ async def _create_user(app, user, skip_trial_bp, cleanup):
         updates['hail_credentials_secret_name'] = hail_credentials_secret_name
 
     namespace_name = user['namespace_name']
-    # auth services in test namespaces cannot/should not be creating and deleting namespaces
+    # Namespace creation step if it doesn't exist yet and the user is a developer
+    # NB auth services in test namespaces cannot/should not be creating and deleting namespaces
     if namespace_name is None and user['is_developer'] == 1 and not is_test_deployment:
         namespace_name = ident
         namespace = K8sNamespaceResource(k8s_client)
