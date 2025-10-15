@@ -1617,7 +1617,7 @@ object Simplify {
         Some(BlockMatrixBroadcast(
           ValueToBlockMatrix(ir, FastSeq(1, 1), typ.blockSize),
           FastSeq(),
-          typ.shape,
+          FastSeq(typ.nRows, typ.nCols),
           typ.blockSize,
         ))
       case _ =>

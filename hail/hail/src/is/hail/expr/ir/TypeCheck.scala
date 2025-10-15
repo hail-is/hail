@@ -739,11 +739,8 @@ object TypeCheck {
           children.map(_.typ),
         )
       case BlockMatrixBroadcast(child, inIndexExpr, shape, _) =>
-        val (nRows, nCols) = BlockMatrixIR.tensorShapeToMatrixShape(child)
-        val childMatrixShape = IndexedSeq(nRows, nCols)
-
-        assert(inIndexExpr.zipWithIndex.forall { case (out: Int, in: Int) =>
-          !child.typ.shape.contains(in) || childMatrixShape(in) == shape(out)
+        assert(inIndexExpr.lazyZip(child.typ.tensorShape).forall { (index, childSize) =>
+          shape(index) == childSize
         })
       case BlockMatrixMap(child, _, _, needsDense) =>
         assert(!(needsDense && child.typ.isSparse))
