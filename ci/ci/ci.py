@@ -25,6 +25,7 @@ from gear import (
     Database,
     UserData,
     check_csrf_token,
+    error_handler_middleware,
     global_security_headers_middleware,
     json_request,
     json_response,
@@ -901,7 +902,12 @@ def run():
     install_profiler_if_requested('ci')
 
     app = web.Application(
-        middlewares=[check_csrf_token, monitor_endpoints_middleware, global_security_headers_middleware]
+        middlewares=[
+            global_security_headers_middleware,
+            error_handler_middleware,
+            check_csrf_token,
+            monitor_endpoints_middleware,
+        ]
     )
     setup_aiohttp_jinja2(app, 'ci')
     setup_aiohttp_session(app)

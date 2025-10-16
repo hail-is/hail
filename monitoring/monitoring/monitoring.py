@@ -17,6 +17,7 @@ from gear import (
     AuthServiceAuthenticator,
     CommonAiohttpAppKeys,
     Database,
+    error_handler_middleware,
     global_security_headers_middleware,
     json_response,
     setup_aiohttp_session,
@@ -405,7 +406,7 @@ async def openapi(request):
 
 
 def run():
-    app = web.Application(middlewares=[global_security_headers_middleware])
+    app = web.Application(middlewares=[global_security_headers_middleware, error_handler_middleware])
     setup_aiohttp_session(app)
 
     setup_aiohttp_jinja2(app, 'monitoring')
