@@ -1,4 +1,5 @@
 from enum import Enum
+from typing import Tuple
 
 
 class ConfigVariable(str, Enum):
@@ -20,3 +21,14 @@ class ConfigVariable(str, Enum):
     QUERY_NAME_PREFIX = 'query/name_prefix'
     QUERY_DISABLE_PROGRESS_BAR = 'query/disable_progress_bar'
     HTTP_TIMEOUT_IN_SECONDS = 'http/timeout_in_seconds'
+
+    def to_section_option(self) -> Tuple[str, str]:
+        if '/' in self.value:
+            section, option = self.value.split('/')
+            return section, option
+        return 'global', self.value
+
+    @property
+    def envvar(self) -> str:
+        section, option = self.to_section_option()
+        return f'HAIL_{section.upper()}_{option.upper()}'

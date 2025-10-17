@@ -246,7 +246,7 @@ class ServiceBackend(Backend):
         self._async_exit_stack = async_exit_stack
 
     def validate_file(self, uri: str) -> None:
-        async_to_blocking(validate_file(uri, self._async_fs, validate_scheme=True))
+        async_to_blocking(validate_file(uri, self._async_fs))
 
     def debug_info(self) -> Dict[str, Any]:
         return {
