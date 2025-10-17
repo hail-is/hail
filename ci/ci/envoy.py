@@ -102,13 +102,21 @@ def gateway_default_host(service: Service, domain: str) -> dict:
         'domains': domains,
         'routes': [
             {
+                'match': {'prefix': '/metrics'},
+                'route': route_to_cluster(service.name),
+                'typed_per_filter_config': {
+                    'envoy.filters.http.local_ratelimit': rate_limit_config(service),
+                    # No auth_check_exemption() - requires developer authentication
+                },
+            },
+            {
                 'match': {'prefix': '/'},
                 'route': route_to_cluster(service.name),
                 'typed_per_filter_config': {
                     'envoy.filters.http.local_ratelimit': rate_limit_config(service),
                     'envoy.filters.http.ext_authz': auth_check_exemption(),
                 },
-            }
+            },
         ],
     }
 
