@@ -618,7 +618,6 @@ module "batch_gsa_secret" {
   project = var.gcp_project
   iam_roles = [
     "projects/${var.gcp_project}/roles/batchComputeManager",
-    "iam.serviceAccountUser",
     "logging.viewer",
     "storage.admin",
     "cloudprofiler.agent",
@@ -637,7 +636,6 @@ module "testns_batch_gsa_secret" {
   project = var.gcp_project
   iam_roles = [
     "projects/${var.gcp_project}/roles/batchComputeManager",
-    "iam.serviceAccountUser",
     "logging.viewer",
     "cloudprofiler.agent",
   ]
@@ -824,6 +822,20 @@ resource "google_project_iam_member" "batch_agent_custom_role" {
   project = var.gcp_project
   role = "projects/${var.gcp_project}/roles/batch2AgentComputeOps"
   member = "serviceAccount:${google_service_account.batch_agent.email}"
+}
+
+# Grant batch service account permission to act as batch2-agent service account
+resource "google_service_account_iam_member" "batch_act_as_batch_agent" {
+  service_account_id = google_service_account.batch_agent.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${module.batch_gsa_secret.email}"
+}
+
+# Grant testns-batch service account permission to act as batch2-agent service account
+resource "google_service_account_iam_member" "testns_batch_act_as_batch_agent" {
+  service_account_id = google_service_account.batch_agent.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${module.testns_batch_gsa_secret.email}"
 }
 
 resource "google_service_account" "gke_node_pool" {
