@@ -62,6 +62,9 @@ class AccessLogger(AbstractAccessLogger):
             'response_status': response.status,
             'x_real_ip': request.headers.get("X-Real-IP"),
             'user_agent': request.headers.get("User-Agent"),
+            'request_method': request.method,
+            'request_scheme': request.scheme,
+            'query_params': dict(request.query),
         }
 
         userdata_maybe = request.get('userdata', {})
