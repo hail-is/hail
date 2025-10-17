@@ -131,7 +131,7 @@ def test_driver_and_worker_job_groups():
     worker_jobs = list(worker_stage.jobs())
     assert len(worker_jobs) == n_partitions
     for i, partition in enumerate(worker_jobs):
-        assert partition['name'] == f'execute(...)_stage0_table_force_count_job{i}'
+        assert partition['name'] == f'execute(...)_stage0_table_force_count_partition{i}'
 
 
 @pytest.mark.backend('batch')

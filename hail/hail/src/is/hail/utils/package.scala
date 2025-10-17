@@ -8,7 +8,6 @@ import is.hail.utils.compat.immutable.ArraySeq
 import scala.collection.{mutable, GenTraversableOnce, TraversableOnce}
 import scala.collection.compat._
 import scala.collection.mutable.ArrayBuffer
-import scala.concurrent.ExecutionException
 import scala.reflect.ClassTag
 import scala.util.control.NonFatal
 
@@ -98,6 +97,8 @@ package utils {
           case None => val a = f; option = Some(a); a
         }
       }
+
+    def force: A = apply()
 
     def isEvaluated: Boolean =
       synchronized {
@@ -1064,50 +1065,11 @@ package object utils
         res.result()
     }
 
-  /** Run tasks on the `executor`, returning some `F` of the failures and an `IndexedSeq` of the
-    * successes with their index in `tasks`.
-    */
-  def runAll[F[_], A](
-    executor: ExecutorService
-  )(
-    accum: (F[Throwable], Throwable) => F[Throwable]
-  )(
-    init: F[Throwable]
-  )(
-    tasks: IndexedSeq[(() => A, Int)]
-  ): (F[Throwable], IndexedSeq[(A, Int)]) = {
-
-    var err = init
-    val buffer = ArraySeq.newBuilder[(A, Int)]
-    buffer.sizeHint(tasks.length)
-    val completer = new ExecutorCompletionService[(A, Int)](executor)
-
-    val futures = tasks.map { case (t, k) => completer.submit(() => t() -> k) }
-    tasks.foreach { _ =>
-      try buffer += completer.take().get()
-      catch {
-        case e: ExecutionException =>
-          err = accum(err, e.getCause)
-        case NonFatal(ex) =>
-          err = accum(err, ex)
-        case _: InterruptedException =>
-          futures.foreach(_.cancel(true))
-          Thread.currentThread().interrupt()
-      }
-    }
-
-    (err, buffer.result().sortBy(_._2))
-  }
-
-  def runAllKeepFirstError[A](executor: ExecutorService)
-    : IndexedSeq[(() => A, Int)] => (Option[Throwable], IndexedSeq[(A, Int)]) =
-    runAll[Option, A](executor) { case (opt, e) => opt.orElse(Some(e)) }(None)
-
   def lazily[A](f: => A): Lazy[A] =
     new Lazy(f)
 
   implicit def evalLazy[A](f: Lazy[A]): A =
-    f()
+    f.force
 }
 
 class CancellingExecutorService(delegate: ExecutorService) extends AbstractExecutorService {
