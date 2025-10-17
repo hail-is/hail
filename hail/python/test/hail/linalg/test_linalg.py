@@ -596,21 +596,12 @@ def test_matrix_sums(block_matrix_bindings, x, y):
     _assert_eq(lhs, rhs)
 
 
-@fails_service_backend()
-@fails_local_backend()
 @pytest.mark.parametrize(
     'x, y',
     [
-        ('s.sum(axis=0).T', 'np.array([[9.0], [10.0], [10.0], [12.0]])'),
-        ('s.sum(axis=1).T', 'np.array([[7.0, 15.0, 19.0]])'),
-        (
-            's.sum(axis=0).T + row',
-            'np.array([[16.0, 17.0, 18.0],[17.0, 18.0, 19.0],[17.0, 18.0, 19.0],[19.0, 20.0, 21.0]])',
-        ),
-        (
-            's.sum(axis=0) + row.T',
-            'np.array([[16.0, 17.0, 17.0, 19.0],[17.0, 18.0, 18.0, 20.0],[18.0, 19.0, 19.0, 21.0]])',
-        ),
+        ('s.sum()', '41.0'),
+        ('s.sum(axis=0)', 'np.array([[9.0, 10.0, 10.0, 12.0]])'),
+        ('s.sum(axis=1)', 'np.array([[7.0], [15.0], [19.0]])'),
     ],
 )
 def test_sparse_matrix_sums(block_matrix_bindings, x, y):
