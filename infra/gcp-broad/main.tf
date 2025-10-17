@@ -4,6 +4,10 @@ terraform {
       source = "hashicorp/google"
       version = "7.2.0"
     }
+    google-beta = {
+      source = "hashicorp/google-beta"
+      version = "7.2.0"
+    }
     kubernetes = {
       source = "hashicorp/kubernetes"
       version = "2.8.0"
@@ -257,6 +261,17 @@ resource "google_container_cluster" "vdc" {
     key_name = google_kms_crypto_key.k8s_secrets_key.id
   }
 
+  private_cluster_config {
+    enable_private_nodes    = true
+    enable_private_endpoint = false
+  }
+
+  control_plane_endpoints_config {
+    dns_endpoint_config {
+      allow_external_traffic = true
+    }
+  }
+  
   workload_identity_config {
     workload_pool = "${var.gcp_project}.svc.id.goog"
   }
@@ -492,6 +507,28 @@ resource "google_compute_address" "internal_gateway" {
   address_type = "INTERNAL"
   region = var.gcp_region
 }
+
+# Cloud Router for GKE node outbound NAT
+resource "google_compute_router" "gke_node_outbound_router" {
+  name    = "gke-node-outbound-router"
+  region  = var.gcp_region
+  network = google_compute_network.default.id
+}
+
+# Cloud NAT Gateway for GKE private node outbound internet access
+resource "google_compute_router_nat" "gke_node_outbound_nat" {
+  name                               = "gke-node-outbound-nat"
+  router                            = google_compute_router.gke_node_outbound_router.name
+  region                            = var.gcp_region
+  nat_ip_allocate_option            = "AUTO_ONLY"
+  source_subnetwork_ip_ranges_to_nat = "ALL_SUBNETWORKS_ALL_IP_RANGES"
+  
+  log_config {
+    enable = true
+    filter = "ERRORS_ONLY"
+  }
+}
+
 
 provider "kubernetes" {
   host = "https://${google_container_cluster.vdc.endpoint}"
