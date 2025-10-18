@@ -4,6 +4,7 @@ import hail as hl
 from hail.utils.java import Env
 from hail.utils.misc import new_temp_file
 from hail.vds.combiner import load_combiner, new_combiner
+from hail.vds.combiner.combine import make_ref_entry_struct
 
 from ..helpers import qobtest, resource, skip_when_service_backend, test_timeout
 
@@ -297,3 +298,15 @@ def test_custom_call_fields():
 
         assert 'LPGT' in comb.variant_data.entry
         assert comb.variant_data.LPGT.dtype == hl.tstr
+
+
+def test_missing_ref_gt_does_not_drop_other_fields():
+    locus = hl.locus('1', 1, reference_genome='GRCh37')
+    entry = hl.struct(GT=hl.missing('tcall'), DP=10, GQ=20)
+    row = hl.struct(locus=locus, info=hl.struct(END=40))
+    result = hl.eval(make_ref_entry_struct(entry, set(entry), row))
+    assert result is not None
+    assert result.LGT is None
+    assert result.DP == 10
+    assert result.GQ == 20
+    assert result.LEN == 40
