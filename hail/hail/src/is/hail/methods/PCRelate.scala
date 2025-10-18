@@ -88,7 +88,7 @@ object PCRelate {
         val iOffset = i * blockSize
         val jOffset = j * blockSize
 
-        val pairs = new BoxedArrayBuilder[Row]()
+        val pairs = Array.newBuilder[Row]
         var jj = 0
         while (jj < lmPhi.cols) {
           var ii = 0

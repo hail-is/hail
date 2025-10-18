@@ -297,7 +297,7 @@ class PrimitiveRVAState(val vtypes: Array[VirtualTypeWithReq], val kb: EmitClass
   }
 }
 
-case class StateTuple(states: Array[AggregatorState]) {
+case class StateTuple(states: IndexedSeq[AggregatorState]) {
   val nStates: Int = states.length
   val storageType: PTuple = PCanonicalTuple(true, states.map(s => s.storageType): _*)
 

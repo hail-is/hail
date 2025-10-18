@@ -7,6 +7,7 @@ import is.hail.types.physical._
 import is.hail.types.physical.stypes.{EmitType, SType, SValue}
 import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructSettable, SBaseStructValue}
 import is.hail.types.virtual.{TBaseStruct, TStruct, TTuple, Type}
+import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.collection.compat._
 
@@ -15,7 +16,7 @@ object SStackStruct {
 
   def constructFromArgs(cb: EmitCodeBuilder, region: Value[Region], t: TBaseStruct, args: EmitCode*)
     : SBaseStructValue = {
-    val as = args.toArray
+    val as = ArraySeq.from(args)
     assert(t.size == args.size)
     if (region != null && as.length > MAX_FIELDS_FOR_CONSTRUCT) {
       val structType: PCanonicalBaseStruct = t match {

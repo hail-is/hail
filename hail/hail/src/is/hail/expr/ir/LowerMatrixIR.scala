@@ -5,6 +5,9 @@ import is.hail.expr.ir.defs._
 import is.hail.expr.ir.functions.{WrappedMatrixToTableFunction, WrappedMatrixToValueFunction}
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
+
+import scala.collection.generic.Growable
 
 object LowerMatrixIR {
   val entriesFieldName: String = MatrixType.entriesIdentifier
@@ -13,7 +16,7 @@ object LowerMatrixIR {
   val entriesField: Symbol = Symbol(entriesFieldName)
 
   def apply(ctx: ExecuteContext, ir: IR): IR = {
-    val ab = new BoxedArrayBuilder[(Name, IR)]
+    val ab = ArraySeq.newBuilder[(Name, IR)]
     val l1 = lower(ctx, ir, ab)
     ab.result().foldRight[IR](l1) { case ((ident, value), body) =>
       RelationalLet(ident, value, body)
@@ -21,7 +24,7 @@ object LowerMatrixIR {
   }
 
   def apply(ctx: ExecuteContext, tir: TableIR): TableIR = {
-    val ab = new BoxedArrayBuilder[(Name, IR)]
+    val ab = ArraySeq.newBuilder[(Name, IR)]
     val l1 = lower(ctx, tir, ab)
     ab.result().foldRight[TableIR](l1) { case ((ident, value), body) =>
       RelationalLetTable(ident, value, body)
@@ -29,7 +32,7 @@ object LowerMatrixIR {
   }
 
   def apply(ctx: ExecuteContext, mir: MatrixIR): TableIR = {
-    val ab = new BoxedArrayBuilder[(Name, IR)]
+    val ab = ArraySeq.newBuilder[(Name, IR)]
 
     val l1 = lower(ctx, mir, ab)
     ab.result().foldRight[TableIR](l1) { case ((ident, value), body) =>
@@ -38,7 +41,7 @@ object LowerMatrixIR {
   }
 
   def apply(ctx: ExecuteContext, bmir: BlockMatrixIR): BlockMatrixIR = {
-    val ab = new BoxedArrayBuilder[(Name, IR)]
+    val ab = ArraySeq.newBuilder[(Name, IR)]
 
     val l1 = lower(ctx, bmir, ab)
     assert(ab.result().isEmpty)
@@ -48,7 +51,7 @@ object LowerMatrixIR {
   private[this] def lowerChildren(
     ctx: ExecuteContext,
     ir: BaseIR,
-    ab: BoxedArrayBuilder[(Name, IR)],
+    ab: Growable[(Name, IR)],
   ): BaseIR = {
     ir.mapChildren {
       case tir: TableIR => lower(ctx, tir, ab)
@@ -112,7 +115,7 @@ object LowerMatrixIR {
   private[this] def lower(
     ctx: ExecuteContext,
     mir: MatrixIR,
-    liftedRelationalLets: BoxedArrayBuilder[(Name, IR)],
+    liftedRelationalLets: Growable[(Name, IR)],
   ): TableIR = {
     val lowered = mir match {
       case RelationalLetMatrixTable(name, value, body) =>
@@ -265,7 +268,7 @@ object LowerMatrixIR {
 
       case MatrixMapRows(child, newRow) =>
         def liftScans(ir: IR): IRProxy = {
-          def lift(ir: IR, builder: BoxedArrayBuilder[(Name, IR)]): IR = ir match {
+          def lift(ir: IR, builder: Growable[(Name, IR)]): IR = ir match {
             case a: ApplyScanOp =>
               val s = freshName()
               builder += ((s, a))
@@ -277,7 +280,7 @@ object LowerMatrixIR {
               Ref(s, a.typ)
 
             case AggFilter(filt, body, true) =>
-              val ab = new BoxedArrayBuilder[(Name, IR)]
+              val ab = ArraySeq.newBuilder[(Name, IR)]
               val liftedBody = lift(body, ab)
               val aggs = ab.result()
               val structResult = bindingsToStruct(aggs)
@@ -286,7 +289,7 @@ object LowerMatrixIR {
               Let(unwrapStruct(aggs, uid), liftedBody)
 
             case AggExplode(a, name, body, true) =>
-              val ab = new BoxedArrayBuilder[(Name, IR)]
+              val ab = ArraySeq.newBuilder[(Name, IR)]
               val liftedBody = lift(body, ab)
               val aggs = ab.result()
               val structResult = bindingsToStruct(aggs)
@@ -295,7 +298,7 @@ object LowerMatrixIR {
               Let(unwrapStruct(aggs, uid), liftedBody)
 
             case AggGroupBy(a, body, true) =>
-              val ab = new BoxedArrayBuilder[(Name, IR)]
+              val ab = ArraySeq.newBuilder[(Name, IR)]
               val liftedBody = lift(body, ab)
               val aggs = ab.result()
 
@@ -313,7 +316,7 @@ object LowerMatrixIR {
               })
 
             case AggArrayPerElement(a, elementName, indexName, body, knownLength, true) =>
-              val ab = new BoxedArrayBuilder[(Name, IR)]
+              val ab = ArraySeq.newBuilder[(Name, IR)]
               val liftedBody = lift(body, ab)
 
               val aggs = ab.result()
@@ -327,13 +330,13 @@ object LowerMatrixIR {
               })
 
             case Block(bindings, body) =>
-              val newBindings = new BoxedArrayBuilder[Binding]
-              def go(i: Int, builder: BoxedArrayBuilder[(Name, IR)]): IR = {
+              val newBindings = ArraySeq.newBuilder[Binding]
+              def go(i: Int, builder: Growable[(Name, IR)]): IR = {
                 if (i == bindings.length) {
                   lift(body, builder)
                 } else bindings(i) match {
                   case Binding(name, value, Scope.SCAN) =>
-                    val ab = new BoxedArrayBuilder[(Name, IR)]
+                    val ab = ArraySeq.newBuilder[(Name, IR)]
                     val liftedBody = go(i + 1, ab)
                     val aggs = ab.result()
                     val structResult = bindingsToStruct(aggs)
@@ -355,7 +358,7 @@ object LowerMatrixIR {
               MapIR(lift(_, builder))(ir)
           }
 
-          val ab = new BoxedArrayBuilder[(Name, IR)]
+          val ab = ArraySeq.newBuilder[(Name, IR)]
           val b0 = lift(ir, ab)
 
           val scans = ab.result().toFastSeq
@@ -389,11 +392,8 @@ object LowerMatrixIR {
       case MatrixMapCols(child, newCol, _) =>
         val loweredChild = lower(ctx, child, liftedRelationalLets)
 
-        def lift(
-          ir: IR,
-          scanBindings: BoxedArrayBuilder[(Name, IR)],
-          aggBindings: BoxedArrayBuilder[(Name, IR)],
-        ): IR = ir match {
+        def lift(ir: IR, scanBindings: Growable[(Name, IR)], aggBindings: Growable[(Name, IR)])
+          : IR = ir match {
           case a: ApplyScanOp =>
             val s = freshName()
             scanBindings += ((s, a))
@@ -414,7 +414,7 @@ object LowerMatrixIR {
             Ref(s, a.typ)
 
           case AggFilter(filt, body, isScan) =>
-            val ab = new BoxedArrayBuilder[(Name, IR)]
+            val ab = ArraySeq.newBuilder[(Name, IR)]
             val (liftedBody, builder) =
               if (isScan) (lift(body, ab, aggBindings), scanBindings)
               else (lift(body, scanBindings, ab), aggBindings)
@@ -427,7 +427,7 @@ object LowerMatrixIR {
             Let(aggs.map { case (name, _) => name -> GetField(uid, name.str) }, liftedBody)
 
           case AggExplode(a, name, body, isScan) =>
-            val ab = new BoxedArrayBuilder[(Name, IR)]
+            val ab = ArraySeq.newBuilder[(Name, IR)]
             val (liftedBody, builder) =
               if (isScan) (lift(body, ab, aggBindings), scanBindings)
               else (lift(body, scanBindings, ab), aggBindings)
@@ -439,7 +439,7 @@ object LowerMatrixIR {
             Let(aggs.map { case (name, _) => name -> GetField(uid, name.str) }, liftedBody)
 
           case AggGroupBy(a, body, isScan) =>
-            val ab = new BoxedArrayBuilder[(Name, IR)]
+            val ab = ArraySeq.newBuilder[(Name, IR)]
             val (liftedBody, builder) =
               if (isScan) (lift(body, ab, aggBindings), scanBindings)
               else (lift(body, scanBindings, ab), aggBindings)
@@ -467,7 +467,7 @@ object LowerMatrixIR {
             })
 
           case AggArrayPerElement(a, elementName, indexName, body, knownLength, isScan) =>
-            val ab = new BoxedArrayBuilder[(Name, IR)]
+            val ab = ArraySeq.newBuilder[(Name, IR)]
             val (liftedBody, builder) =
               if (isScan) (lift(body, ab, aggBindings), scanBindings)
               else (lift(body, scanBindings, ab), aggBindings)
@@ -484,11 +484,8 @@ object LowerMatrixIR {
 
           case Block(bindings, body) =>
             var newBindings = Seq[Binding]()
-            def go(
-              i: Int,
-              scanBindings: BoxedArrayBuilder[(Name, IR)],
-              aggBindings: BoxedArrayBuilder[(Name, IR)],
-            ): IR = {
+            def go(i: Int, scanBindings: Growable[(Name, IR)], aggBindings: Growable[(Name, IR)])
+              : IR = {
               if (i == bindings.length) {
                 lift(body, scanBindings, aggBindings)
               } else bindings(i) match {
@@ -498,7 +495,7 @@ object LowerMatrixIR {
                   newBindings = Binding(name, lifted, Scope.EVAL) +: newBindings
                   liftedBody
                 case Binding(name, value, scope) =>
-                  val ab = new BoxedArrayBuilder[(Name, IR)]
+                  val ab = ArraySeq.newBuilder[(Name, IR)]
                   val liftedBody = if (scope == Scope.SCAN)
                     go(i + 1, ab, aggBindings)
                   else
@@ -527,8 +524,8 @@ object LowerMatrixIR {
             MapIR(lift(_, scanBindings, aggBindings))(ir)
         }
 
-        val scanBuilder = new BoxedArrayBuilder[(Name, IR)]
-        val aggBuilder = new BoxedArrayBuilder[(Name, IR)]
+        val scanBuilder = ArraySeq.newBuilder[(Name, IR)]
+        val aggBuilder = ArraySeq.newBuilder[(Name, IR)]
 
         val b0 = lift(
           Subst(lower(ctx, newCol, liftedRelationalLets), matrixSubstEnvIR(child, loweredChild)),
@@ -930,11 +927,7 @@ object LowerMatrixIR {
     lowered
   }
 
-  private[this] def lower(
-    ctx: ExecuteContext,
-    tir: TableIR,
-    ab: BoxedArrayBuilder[(Name, IR)],
-  ): TableIR = {
+  private[this] def lower(ctx: ExecuteContext, tir: TableIR, ab: Growable[(Name, IR)]): TableIR = {
     val lowered = tir match {
       case CastMatrixToTable(child, entries, cols) =>
         lower(ctx, child, ab)
@@ -1064,11 +1057,8 @@ object LowerMatrixIR {
     lowered
   }
 
-  private[this] def lower(
-    ctx: ExecuteContext,
-    bmir: BlockMatrixIR,
-    ab: BoxedArrayBuilder[(Name, IR)],
-  ): BlockMatrixIR = {
+  private[this] def lower(ctx: ExecuteContext, bmir: BlockMatrixIR, ab: Growable[(Name, IR)])
+    : BlockMatrixIR = {
     val lowered = bmir match {
       case noMatrixChildren => lowerChildren(ctx, noMatrixChildren, ab).asInstanceOf[BlockMatrixIR]
     }
@@ -1076,11 +1066,7 @@ object LowerMatrixIR {
     lowered
   }
 
-  private[this] def lower(
-    ctx: ExecuteContext,
-    ir: IR,
-    ab: BoxedArrayBuilder[(Name, IR)],
-  ): IR = {
+  private[this] def lower(ctx: ExecuteContext, ir: IR, ab: Growable[(Name, IR)]): IR = {
     val lowered = ir match {
       case MatrixToValueApply(child, function) => TableToValueApply(
           lower(ctx, child, ab),

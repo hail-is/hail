@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.expr.ir.defs.{Let, Ref, TrivialIR}
-import is.hail.utils.BoxedArrayBuilder
+import is.hail.utils.compat.immutable.ArraySeq
 
 object IRBuilder {
   def scoped(f: IRBuilder => IR): IR = {
@@ -12,8 +12,7 @@ object IRBuilder {
 }
 
 class IRBuilder {
-  private val bindings: BoxedArrayBuilder[(Name, IR)] =
-    new BoxedArrayBuilder[(Name, IR)]()
+  private val bindings = ArraySeq.newBuilder[(Name, IR)]
 
   def getBindings: IndexedSeq[(Name, IR)] = bindings.result()
 
