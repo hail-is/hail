@@ -1,7 +1,7 @@
-*.o
-*~
-.*.crc
-*.pyc
+**/*.o
+**/*~
+**/.*.crc
+**/*.pyc
 **/.mypy_cache/
 **/hail-*.log
 **/__pycache__/
