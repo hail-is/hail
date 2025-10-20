@@ -342,14 +342,6 @@ case class BlockMatrixType(
 ) extends VType {
   require(blockSize >= 0)
 
-  def matrixShape: (Long, Long) = nRows -> nCols
-  def tensorShape: IndexedSeq[Long] = matrixShape match {
-    case (1, 1) => FastSeq()
-    case (1, n) => FastSeq(n)
-    case (n, 1) => FastSeq(n)
-    case (r, c) => FastSeq(r, c)
-  }
-
   lazy val nRowBlocks: Int = if (blockSize == 0) 0 else BlockMatrixType.numBlocks(nRows, blockSize)
   lazy val nColBlocks: Int = if (blockSize == 0) 0 else BlockMatrixType.numBlocks(nCols, blockSize)
   lazy val defaultBlockShape: (Int, Int) = (nRowBlocks, nColBlocks)

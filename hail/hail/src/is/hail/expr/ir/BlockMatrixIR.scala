@@ -42,15 +42,6 @@ object BlockMatrixIR {
       new DenseMatrix[Double](nRows, nCols, data, 0, nCols, isTranspose = true),
       blockSize,
     )
-
-  def matrixShapeToTensorShape(nRows: Long, nCols: Long): (IndexedSeq[Long], Boolean) = {
-    (nRows, nCols) match {
-      case (1, 1) => (FastSeq(), false)
-      case (_, 1) => (FastSeq(nRows), false)
-      case (1, _) => (FastSeq(nCols), true)
-      case _ => (FastSeq(nRows, nCols), false)
-    }
-  }
 }
 
 sealed abstract class BlockMatrixIR extends BaseIR {

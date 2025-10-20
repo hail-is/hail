@@ -1155,7 +1155,7 @@ object LowerBlockMatrixIR {
         )
       case _ =>
     }
-    if (bmir.typ.matrixShape == 0L -> 0L)
+    if (bmir.typ.nRows == 0L && bmir.typ.nCols == 0L)
       BlockMatrixStage2.empty(bmir.typ.elementType, ib)
     else lowerNonEmpty2(bmir, ib, typesToLower, ctx, analyses)
   }
