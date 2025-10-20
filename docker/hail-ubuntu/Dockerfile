@@ -24,8 +24,6 @@ RUN chmod 755 /bin/retry && \
         apt-transport-https \
         ca-certificates \
         curl \
-        g++ \
-        gcc \
         gnupg \
         jq \
         rsync \
