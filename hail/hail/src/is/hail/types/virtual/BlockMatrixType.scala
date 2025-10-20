@@ -314,22 +314,6 @@ case class BlockMatrixSparsity(definedBlocks: Option[IndexedSeq[(Int, Int)]]) {
 }
 
 object BlockMatrixType {
-  def tensorToMatrixShape(shape: IndexedSeq[Long], isRowVector: Boolean): (Long, Long) =
-    shape match {
-      case IndexedSeq() => (1, 1)
-      case IndexedSeq(vectorLength) => if (isRowVector) (1, vectorLength) else (vectorLength, 1)
-      case IndexedSeq(numRows, numCols) => (numRows, numCols)
-    }
-
-  def matrixToTensorShape(nRows: Long, nCols: Long): (IndexedSeq[Long], Boolean) = {
-    (nRows, nCols) match {
-      case (1, 1) => (FastSeq(), false)
-      case (_, 1) => (FastSeq(nRows), false)
-      case (1, _) => (FastSeq(nCols), true)
-      case _ => (FastSeq(nRows, nCols), false)
-    }
-  }
-
   def numBlocks(n: Long, blockSize: Int): Int =
     java.lang.Math.floorDiv(n - 1, blockSize).toInt + 1
 
