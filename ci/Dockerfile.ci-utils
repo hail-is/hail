@@ -1,5 +1,13 @@
 ARG BASE_IMAGE={{ base_image.image }}
-FROM $BASE_IMAGE
+FROM $BASE_IMAGE as wheel-builder
+RUN mkdir -p /tmp/wheels
+RUN hail-apt-get-install g++ gcc
+RUN hail-pip-install google-cloud-profiler
+RUN pip wheel --wheel-dir=/tmp/wheels google-cloud-profiler
+
+FROM $BASE_IMAGE as base
+COPY --from=wheel-builder /tmp/wheels/google_cloud_profiler*.whl /tmp/wheels/
+RUN hail-pip-install /tmp/wheels/google_cloud_profiler*.whl
 
 RUN hail-apt-get-install git google-cloud-cli kubectl mysql-client
 

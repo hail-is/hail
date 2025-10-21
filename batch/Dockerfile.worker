@@ -7,8 +7,8 @@ RUN hail-apt-get-install g++ gcc
 RUN hail-pip-install google-cloud-profiler
 RUN pip wheel --wheel-dir=/tmp/wheels google-cloud-profiler
 
-# Install the wheels and build the final image:
-FROM $BASE_IMAGE
+
+FROM $BASE_IMAGE AS base
 COPY --from=wheel-builder /tmp/wheels/google_cloud_profiler*.whl /tmp/wheels/
 RUN hail-pip-install /tmp/wheels/google_cloud_profiler*.whl
 
