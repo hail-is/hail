@@ -55,6 +55,7 @@ RUN if [ "$SKIP_GCLOUD_PROFILER" != "true" ]; then \
     fi
 
 FROM initializer
+ARG SKIP_GCLOUD_PROFILER=false
 # Copy google-cloud-profiler wheel if it exists
 COPY --from=wheel-builder /tmp/wheels/ /tmp/wheels/
 # Only install google-cloud-profiler if the wheel exists and SKIP_GCLOUD_PROFILER is not true
