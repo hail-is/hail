@@ -12,6 +12,7 @@ COPY docker/hail-ubuntu/pip.conf /root/.config/pip/pip.conf
 COPY docker/hail-ubuntu/retry /bin/retry
 COPY docker/hail-ubuntu/uv.toml /root/.config/uv/uv.toml
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+COPY gear/pinned-requirements.txt /tmp/gear-requirements.txt
 
 ARG PYTHON_VERSION=3.11
 RUN chmod 755 /bin/retry && \
@@ -44,10 +45,9 @@ FROM initializer AS wheel-builder
 
 RUN mkdir -p /tmp/wheels
 RUN hail-apt-get-install g++ gcc
-RUN hail-pip-install google-cloud-profiler
+RUN hail-pip-install google-cloud-profiler --constraint /tmp/gear-requirements.txt
 RUN pip wheel --wheel-dir=/tmp/wheels google-cloud-profiler
 
 FROM initializer
 COPY --from=wheel-builder /tmp/wheels/google_cloud_profiler*.whl /tmp/wheels/
-COPY gear/pinned-requirements.txt /tmp/gear-requirements.txt
 RUN hail-pip-install /tmp/wheels/google_cloud_profiler*.whl --constraint /tmp/gear-requirements.txt
