@@ -1,16 +1,16 @@
 ARG DOCKER_PREFIX={{ global.docker_prefix }}
-FROM $DOCKER_PREFIX/ubuntu:noble-20251001
+FROM $DOCKER_PREFIX/ubuntu:noble-20251001 AS initializer
 
 ENV LANG=C.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
 
-COPY controller.sh /
-COPY curlrc /root/.curlrc
-COPY hail-apt-get-install /bin/hail-apt-get-install
-COPY hail-pip-install /bin/hail-pip-install
-COPY pip.conf /root/.config/pip/pip.conf
-COPY retry /bin/retry
-COPY uv.toml /root/.config/uv/uv.toml
+COPY docker/hail-ubuntu/controller.sh /
+COPY docker/hail-ubuntu/curlrc /root/.curlrc
+COPY docker/hail-ubuntu/hail-apt-get-install /bin/hail-apt-get-install
+COPY docker/hail-ubuntu/hail-pip-install /bin/hail-pip-install
+COPY docker/hail-ubuntu/pip.conf /root/.config/pip/pip.conf
+COPY docker/hail-ubuntu/retry /bin/retry
+COPY docker/hail-ubuntu/uv.toml /root/.config/uv/uv.toml
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 ARG PYTHON_VERSION=3.11
@@ -39,3 +39,15 @@ RUN uv venv --seed $VIRTUAL_ENV && \
     command -v python3 && \
     python3 -m pip check && \
     python3 -m pip --version
+
+FROM initializer AS wheel-builder
+
+RUN mkdir -p /tmp/wheels
+RUN hail-apt-get-install g++ gcc
+RUN hail-pip-install google-cloud-profiler
+RUN pip wheel --wheel-dir=/tmp/wheels google-cloud-profiler
+
+FROM initializer
+COPY --from=wheel-builder /tmp/wheels/google_cloud_profiler*.whl /tmp/wheels/
+COPY gear/pinned-requirements.txt /tmp/gear-requirements.txt
+RUN hail-pip-install /tmp/wheels/google_cloud_profiler*.whl --constraint /tmp/gear-requirements.txt

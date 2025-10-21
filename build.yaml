@@ -94,22 +94,22 @@ steps:
   - kind: buildImage2
     name: hail_ubuntu_image
     dockerFile: /io/hail-ubuntu/Dockerfile
-    contextPath: /io/hail-ubuntu
+    contextPath: /io/repo
     publishAs: hail-ubuntu
     resources:
       storage: 10Gi
       cpu: "2"
       memory: standard
     inputs:
-      - from: /repo/docker/hail-ubuntu
-        to: /io/hail-ubuntu
+      - from: /repo
+        to: /io/repo
     dependsOn:
       - merge_code
       - copy_third_party_images
   - kind: buildImage2
     name: hail_ubuntu_image_python_3_10
     dockerFile: /io/hail-ubuntu/Dockerfile
-    contextPath: /io/hail-ubuntu
+    contextPath: /io/repo
     publishAs: hail-ubuntu-python-3-10
     buildArgs:
       - name: PYTHON_VERSION
@@ -119,15 +119,15 @@ steps:
       cpu: "2"
       memory: standard
     inputs:
-      - from: /repo/docker/hail-ubuntu
-        to: /io/hail-ubuntu
+      - from: /repo
+        to: /io/repo
     dependsOn:
       - merge_code
       - copy_third_party_images
   - kind: buildImage2
     name: hail_ubuntu_image_python_3_12
     dockerFile: /io/hail-ubuntu/Dockerfile
-    contextPath: /io/hail-ubuntu
+    contextPath: /io/repo
     publishAs: hail-ubuntu-python-3-12
     buildArgs:
       - name: PYTHON_VERSION
@@ -137,15 +137,15 @@ steps:
       cpu: "2"
       memory: standard
     inputs:
-      - from: /repo/docker/hail-ubuntu
-        to: /io/hail-ubuntu
+      - from: /repo
+        to: /io/repo
     dependsOn:
       - merge_code
       - copy_third_party_images
   - kind: buildImage2
     name: hail_ubuntu_image_python_3_13
     dockerFile: /io/hail-ubuntu/Dockerfile
-    contextPath: /io/hail-ubuntu
+    contextPath: /io/repo
     publishAs: hail-ubuntu-python-3-13
     buildArgs:
       - name: PYTHON_VERSION
@@ -155,8 +155,8 @@ steps:
       cpu: "2"
       memory: standard
     inputs:
-      - from: /repo/docker/hail-ubuntu
-        to: /io/hail-ubuntu
+      - from: /repo
+        to: /io/repo
     dependsOn:
       - merge_code
       - copy_third_party_images
@@ -1592,16 +1592,7 @@ steps:
       inline: |
         ARG BASE_IMAGE={{ hail_ubuntu_image.image }}
         # Build wheels using g++ / gcc that we don't want in the final image:
-        FROM $BASE_IMAGE as wheel-builder
-        RUN mkdir -p /tmp/wheels
-        RUN hail-apt-get-install g++ gcc
-        RUN hail-pip-install google-cloud-profiler
-        RUN pip wheel --wheel-dir=/tmp/wheels google-cloud-profiler
-        
-        # Install the wheels and build the final image:
         FROM $BASE_IMAGE
-        COPY --from=wheel-builder /tmp/wheels/google_cloud_profiler*.whl /tmp/wheels/
-        RUN hail-pip-install /tmp/wheels/google_cloud_profiler*.whl
 
         RUN hail-apt-get-install git make openjdk-11-jre-headless
         COPY hail/python/pinned-requirements.txt hail-requirements.txt
