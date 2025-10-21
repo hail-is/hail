@@ -9,7 +9,9 @@ RUN hail-apt-get-install \
     openjdk-11-jdk-headless \
     liblapack3 \
     liblz4-dev \
-    cmake
+    cmake \
+    g++ \
+    gcc
 
 RUN hail-apt-get-install maven
 RUN hail-pip-install build
