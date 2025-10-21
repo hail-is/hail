@@ -150,6 +150,8 @@ steps:
     buildArgs:
       - name: PYTHON_VERSION
         value: "3.13"
+      - name: SKIP_GCLOUD_PROFILER
+        value: "true" # Python 3.13 does not support google-cloud-profiler yet
     resources:
       storage: 10Gi
       cpu: "2"

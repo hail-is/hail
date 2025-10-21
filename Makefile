@@ -117,7 +117,7 @@ $(HAILTOP_VERSION):
 hailgenetics-%-image: IMAGE_NAME = hailgenetics/$(patsubst hailgenetics-%-image,%,$@):$(TOKEN)
 
 hail-ubuntu-image: $(shell git ls-files docker/hail-ubuntu gear/pinned-requirements.txt)
-	./docker-build.sh . docker/hail-ubuntu/Dockerfile $(IMAGE_NAME) --build-arg DOCKER_PREFIX=$(DOCKER_PREFIX)
+	./docker-build.sh . docker/hail-ubuntu/Dockerfile $(IMAGE_NAME) --build-arg DOCKER_PREFIX=$(DOCKER_PREFIX) --build-arg SKIP_GCLOUD_PROFILER=false
 	echo $(IMAGE_NAME) > $@
 
 base-image: hail-ubuntu-image docker/Dockerfile.base
