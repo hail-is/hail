@@ -1,6 +1,5 @@
 ARG BASE_IMAGE={{ base_image.image }}
 FROM $BASE_IMAGE
-RUN hail-apt-get-install g++ gcc
 
 RUN hail-apt-get-install git google-cloud-cli kubectl mysql-client
 
