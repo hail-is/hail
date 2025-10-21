@@ -43,6 +43,7 @@ RUN uv venv --seed $VIRTUAL_ENV && \
     python3 -m pip --version
 
 FROM initializer AS wheel-builder
+ARG SKIP_GCLOUD_PROFILER=false
 
 RUN mkdir -p /tmp/wheels
 RUN hail-apt-get-install g++ gcc
