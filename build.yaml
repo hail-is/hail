@@ -93,7 +93,7 @@ steps:
       - merge_code
   - kind: buildImage2
     name: hail_ubuntu_image
-    dockerFile: /io/hail-ubuntu/Dockerfile
+    dockerFile: /io/repo/docker/hail-ubuntu/Dockerfile
     contextPath: /io/repo
     publishAs: hail-ubuntu
     resources:
@@ -108,7 +108,7 @@ steps:
       - copy_third_party_images
   - kind: buildImage2
     name: hail_ubuntu_image_python_3_10
-    dockerFile: /io/hail-ubuntu/Dockerfile
+    dockerFile: /io/repo/docker/hail-ubuntu/Dockerfile
     contextPath: /io/repo
     publishAs: hail-ubuntu-python-3-10
     buildArgs:
@@ -126,7 +126,7 @@ steps:
       - copy_third_party_images
   - kind: buildImage2
     name: hail_ubuntu_image_python_3_12
-    dockerFile: /io/hail-ubuntu/Dockerfile
+    dockerFile: /io/repo/docker/hail-ubuntu/Dockerfile
     contextPath: /io/repo
     publishAs: hail-ubuntu-python-3-12
     buildArgs:
@@ -144,7 +144,7 @@ steps:
       - copy_third_party_images
   - kind: buildImage2
     name: hail_ubuntu_image_python_3_13
-    dockerFile: /io/hail-ubuntu/Dockerfile
+    dockerFile: /io/repo/docker/hail-ubuntu/Dockerfile
     contextPath: /io/repo
     publishAs: hail-ubuntu-python-3-13
     buildArgs:
@@ -1591,9 +1591,7 @@ steps:
     dockerFile:
       inline: |
         ARG BASE_IMAGE={{ hail_ubuntu_image.image }}
-        # Build wheels using g++ / gcc that we don't want in the final image:
         FROM $BASE_IMAGE
-
         RUN hail-apt-get-install git make openjdk-11-jre-headless
         COPY hail/python/pinned-requirements.txt hail-requirements.txt
         COPY hail/python/dev/pinned-requirements.txt dev-requirements.txt
