@@ -35,18 +35,20 @@ steps:
       - git_make_bash_image
   - kind: buildImage2
     name: hail_ubuntu_image
-    dockerFile: /io/hail-ubuntu/Dockerfile
-    contextPath: /io/hail-ubuntu
+    dockerFile: /io/repo/docker/hail-ubuntu/Dockerfile
+    contextPath: /io/repo
     publishAs: hail-ubuntu
     inputs:
       - from: /repo/docker/hail-ubuntu
-        to: /io/hail-ubuntu
+        to: /io/repo/docker/hail-ubuntu
+      - from: /repo/gear/pinned-requirements.txt
+        to: /io/repo/gear/pinned-requirements.txt
     dependsOn:
       - merge_code
   - kind: buildImage2
     name: hail_ubuntu_image_python_3_10
-    dockerFile: /io/hail-ubuntu/Dockerfile
-    contextPath: /io/hail-ubuntu
+    dockerFile: /io/repo/docker/hail-ubuntu/Dockerfile
+    contextPath: /io/repo
     buildArgs:
       - name: PYTHON_VERSION
         value: "3.10"
@@ -56,7 +58,9 @@ steps:
     publishAs: hail-ubuntu-py-3-10
     inputs:
       - from: /repo/docker/hail-ubuntu
-        to: /io/hail-ubuntu
+        to: /io/repo/docker/hail-ubuntu
+      - from: /repo/gear/pinned-requirements.txt
+        to: /io/repo/gear/pinned-requirements.txt
     dependsOn:
       - merge_code
   - kind: runImage
