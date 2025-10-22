@@ -1,5 +1,5 @@
 ARG BASE_IMAGE={{ base_image.image }}
-FROM $BASE_IMAGE as base
+FROM $BASE_IMAGE AS base
 
 RUN hail-apt-get-install git google-cloud-cli kubectl mysql-client
 
