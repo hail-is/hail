@@ -59,13 +59,28 @@
 </tr>
 {% endmacro %}
 
+{% macro incomplete_status_row(count, base_path, batch_id) %}
+<tr>
+  <td class='p-2'>Pending</td>
+  <td class='p-2 text-right'>
+    <div class='inline-flex items-center gap-1'>
+      {{ count }}
+      <a class='hover:text-sky-600' href="{{ base_path ~ '/batches/' ~ batch_id ~ '?q=state+%21%3D+running%0D%0Astate+%21%3D+success%0D%0Astate+%21%3D+failed%0D%0Astate+%21%3D+cancelled' }}" title="Filter to pending jobs">
+        <span class="material-symbols-outlined text-sm">filter_alt</span>
+      </a>
+      <a class='hover:text-sky-600' href="{{ base_path ~ '/batches/' ~ batch_id ~ '?q=state+%21%3D+pending%0D%0Astate+%21%3D+ready%0D%0Astate+%21%3D+creating%0D%0A' }}" title="Filter to non-pending jobs">
+        <span class="material-symbols-outlined text-sm">filter_alt_off</span>
+      </a>
+    </div>
+  </td>
+</tr>
+{% endmacro %}
+
 {% macro job_status_table(batch, base_path) %}
 <table class='w-full'>
   <tbody class='divide-y'>
-    <tr>
-      <td class='p-2'>Incomplete (Blocked, Queued or Running)</td>
-      <td class='p-2 text-right'>{{ batch['n_jobs'] - batch['n_completed'] }}</td>
-    </tr>
+    {{ incomplete_status_row(batch['n_jobs'] - batch['n_completed'] - (batch['n_running'] or 0), base_path, batch['id']) }}
+    {{ status_display_row('Running', batch['n_running'] or 0, 'running', base_path, batch['id']) }}
     {{ status_display_row('Succeeded', batch['n_succeeded'], 'success', base_path, batch['id']) }}
     {{ status_display_row('Failed', batch['n_failed'], 'failed', base_path, batch['id']) }}
     {{ status_display_row('Cancelled', batch['n_cancelled'], 'cancelled', base_path, batch['id']) }}
