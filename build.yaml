@@ -121,8 +121,10 @@ steps:
       cpu: "2"
       memory: standard
     inputs:
-      - from: /repo
-        to: /io/repo
+      - from: /repo/docker/hail-ubuntu
+        to: /io/repo/docker/hail-ubuntu
+      - from: /repo/gear/pinned-requirements.txt
+        to: /io/repo/gear/pinned-requirements.txt
     dependsOn:
       - merge_code
       - copy_third_party_images
@@ -139,8 +141,10 @@ steps:
       cpu: "2"
       memory: standard
     inputs:
-      - from: /repo
-        to: /io/repo
+      - from: /repo/docker/hail-ubuntu
+        to: /io/repo/docker/hail-ubuntu
+      - from: /repo/gear/pinned-requirements.txt
+        to: /io/repo/gear/pinned-requirements.txt
     dependsOn:
       - merge_code
       - copy_third_party_images
@@ -159,8 +163,10 @@ steps:
       cpu: "2"
       memory: standard
     inputs:
-      - from: /repo
-        to: /io/repo
+      - from: /repo/docker/hail-ubuntu
+        to: /io/repo/docker/hail-ubuntu
+      - from: /repo/gear/pinned-requirements.txt
+        to: /io/repo/gear/pinned-requirements.txt
     dependsOn:
       - merge_code
       - copy_third_party_images
