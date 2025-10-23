@@ -1,5 +1,5 @@
 import hail as hl
-from hail.expr.blockmatrix_type import tblockmatrix, _matrix_shape_to_tensor_shape
+from hail.expr.blockmatrix_type import _matrix_shape_to_tensor_shape, tblockmatrix
 from hail.expr.types import tarray
 from hail.typecheck import nullable, sequenceof, typecheck_method
 from hail.utils.java import Env
