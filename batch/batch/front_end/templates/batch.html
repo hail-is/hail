@@ -1,5 +1,5 @@
 {% from "table_search.html" import table_search with context %}
-{% from "components/metadata_tables.html" import kv_table, resource_cost_table, collapsible_li %}
+{% from "components/metadata_tables.html" import kv_table, resource_cost_table, collapsible_li, job_status_table %}
 {% from "utils.html" import
 batch_state_indicator, job_state_indicator, danger_button, submit_button, link
 %}
@@ -45,12 +45,7 @@ batch_state_indicator, job_state_indicator, danger_button, submit_button, link
       </li>
 
       {% call collapsible_li(true, 'Jobs', batch['n_jobs']) %}
-      {{ kv_table({
-      'Incomplete (Blocked, Queued or Running)': batch['n_jobs'] - batch['n_completed'],
-      'Succeeded': batch['n_succeeded'],
-      'Failed': batch['n_failed'],
-      'Cancelled': batch['n_cancelled']
-      })}}
+      {{ job_status_table(batch, base_path) }}
       {% endcall %}
 
       {% if 'attributes' in batch and batch['attributes'] %}

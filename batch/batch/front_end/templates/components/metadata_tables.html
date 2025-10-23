@@ -1,3 +1,5 @@
+{% from "utils.html" import link %}
+
 {% macro collapsible_li(starts_open, title_left, title_right) %}
 <li x-data='{open: {{ "true" if starts_open else "false" }}}'>
   <button class='w-full' x-on:click='open=!open'>
@@ -36,6 +38,59 @@
       <td class='p-2 text-right'>{{ v }}</td>
     </tr>
     {% endfor %}
+  </tbody>
+</table>
+{% endmacro %}
+
+{% macro job_status_table(batch, base_path) %}
+<table class='w-full'>
+  <tbody class='divide-y'>
+    <tr>
+      <td class='p-2'>Incomplete (Blocked, Queued or Running)</td>
+      <td class='p-2 text-right'>{{ batch['n_jobs'] - batch['n_completed'] }}</td>
+    </tr>
+    <tr>
+      <td class='p-2'>Succeeded</td>
+      <td class='p-2 text-right'>
+        <div class='inline-flex items-center gap-1'>
+          {{ batch['n_succeeded'] }}
+          <a class='hover:text-sky-600' href="{{ base_path ~ '/batches/' ~ batch['id'] ~ '?q=state+%3D+success' }}" title="Filter to succeeded jobs">
+            <span class="material-symbols-outlined text-sm">filter_alt</span>
+          </a>
+          <a class='hover:text-sky-600' href="{{ base_path ~ '/batches/' ~ batch['id'] ~ '?q=state+%21%3D+success' }}" title="Filter to non-succeeded jobs">
+            <span class="material-symbols-outlined text-sm">filter_alt_off</span>
+          </a>
+        </div>
+      </td>
+    </tr>
+    <tr>
+      <td class='p-2'>Failed</td>
+      <td class='p-2 text-right'>
+        <div class='inline-flex items-center gap-1'>
+          {{ batch['n_failed'] }}
+          <a class='hover:text-sky-600' href="{{ base_path ~ '/batches/' ~ batch['id'] ~ '?q=state+%3D+failed' }}" title="Filter to failed jobs">
+            <span class="material-symbols-outlined text-sm">filter_alt</span>
+          </a>
+          <a class='hover:text-sky-600' href="{{ base_path ~ '/batches/' ~ batch['id'] ~ '?q=state+%21%3D+failed' }}" title="Filter to non-failed jobs">
+            <span class="material-symbols-outlined text-sm">filter_alt_off</span>
+          </a>
+        </div>
+      </td>
+    </tr>
+    <tr>
+      <td class='p-2'>Cancelled</td>
+      <td class='p-2 text-right'>
+        <div class='inline-flex items-center gap-1'>
+          {{ batch['n_cancelled'] }}
+          <a class='hover:text-sky-600' href="{{ base_path ~ '/batches/' ~ batch['id'] ~ '?q=state+%3D+cancelled' }}" title="Filter to cancelled jobs">
+            <span class="material-symbols-outlined text-sm">filter_alt</span>
+          </a>
+          <a class='hover:text-sky-600' href="{{ base_path ~ '/batches/' ~ batch['id'] ~ '?q=state+%21%3D+cancelled' }}" title="Filter to non-cancelled jobs">
+            <span class="material-symbols-outlined text-sm">filter_alt_off</span>
+          </a>
+        </div>
+      </td>
+    </tr>
   </tbody>
 </table>
 {% endmacro %}
