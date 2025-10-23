@@ -42,6 +42,23 @@
 </table>
 {% endmacro %}
 
+{% macro status_display_row(status_name, count, state_value, base_path, batch_id) %}
+<tr>
+  <td class='p-2'>{{ status_name }}</td>
+  <td class='p-2 text-right'>
+    <div class='inline-flex items-center gap-1'>
+      {{ count }}
+      <a class='hover:text-sky-600' href="{{ base_path ~ '/batches/' ~ batch_id ~ '?q=state+%3D+' ~ state_value }}" title="Filter to {{ status_name.lower() }} jobs">
+        <span class="material-symbols-outlined text-sm">filter_alt</span>
+      </a>
+      <a class='hover:text-sky-600' href="{{ base_path ~ '/batches/' ~ batch_id ~ '?q=state+%21%3D+' ~ state_value }}" title="Filter to non-{{ status_name.lower() }} jobs">
+        <span class="material-symbols-outlined text-sm">filter_alt_off</span>
+      </a>
+    </div>
+  </td>
+</tr>
+{% endmacro %}
+
 {% macro job_status_table(batch, base_path) %}
 <table class='w-full'>
   <tbody class='divide-y'>
@@ -49,48 +66,9 @@
       <td class='p-2'>Incomplete (Blocked, Queued or Running)</td>
       <td class='p-2 text-right'>{{ batch['n_jobs'] - batch['n_completed'] }}</td>
     </tr>
-    <tr>
-      <td class='p-2'>Succeeded</td>
-      <td class='p-2 text-right'>
-        <div class='inline-flex items-center gap-1'>
-          {{ batch['n_succeeded'] }}
-          <a class='hover:text-sky-600' href="{{ base_path ~ '/batches/' ~ batch['id'] ~ '?q=state+%3D+success' }}" title="Filter to succeeded jobs">
-            <span class="material-symbols-outlined text-sm">filter_alt</span>
-          </a>
-          <a class='hover:text-sky-600' href="{{ base_path ~ '/batches/' ~ batch['id'] ~ '?q=state+%21%3D+success' }}" title="Filter to non-succeeded jobs">
-            <span class="material-symbols-outlined text-sm">filter_alt_off</span>
-          </a>
-        </div>
-      </td>
-    </tr>
-    <tr>
-      <td class='p-2'>Failed</td>
-      <td class='p-2 text-right'>
-        <div class='inline-flex items-center gap-1'>
-          {{ batch['n_failed'] }}
-          <a class='hover:text-sky-600' href="{{ base_path ~ '/batches/' ~ batch['id'] ~ '?q=state+%3D+failed' }}" title="Filter to failed jobs">
-            <span class="material-symbols-outlined text-sm">filter_alt</span>
-          </a>
-          <a class='hover:text-sky-600' href="{{ base_path ~ '/batches/' ~ batch['id'] ~ '?q=state+%21%3D+failed' }}" title="Filter to non-failed jobs">
-            <span class="material-symbols-outlined text-sm">filter_alt_off</span>
-          </a>
-        </div>
-      </td>
-    </tr>
-    <tr>
-      <td class='p-2'>Cancelled</td>
-      <td class='p-2 text-right'>
-        <div class='inline-flex items-center gap-1'>
-          {{ batch['n_cancelled'] }}
-          <a class='hover:text-sky-600' href="{{ base_path ~ '/batches/' ~ batch['id'] ~ '?q=state+%3D+cancelled' }}" title="Filter to cancelled jobs">
-            <span class="material-symbols-outlined text-sm">filter_alt</span>
-          </a>
-          <a class='hover:text-sky-600' href="{{ base_path ~ '/batches/' ~ batch['id'] ~ '?q=state+%21%3D+cancelled' }}" title="Filter to non-cancelled jobs">
-            <span class="material-symbols-outlined text-sm">filter_alt_off</span>
-          </a>
-        </div>
-      </td>
-    </tr>
+    {{ status_display_row('Succeeded', batch['n_succeeded'], 'success', base_path, batch['id']) }}
+    {{ status_display_row('Failed', batch['n_failed'], 'failed', base_path, batch['id']) }}
+    {{ status_display_row('Cancelled', batch['n_cancelled'], 'cancelled', base_path, batch['id']) }}
   </tbody>
 </table>
 {% endmacro %}
