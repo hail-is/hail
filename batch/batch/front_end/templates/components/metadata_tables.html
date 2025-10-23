@@ -68,10 +68,10 @@
     <div class='inline-flex items-center gap-1'>
       {{ count }}
       {% if count > 0 %}
-      <a class='hover:text-sky-600' href="{{ base_path ~ '/batches/' ~ batch_id ~ '?q=state+%21%3D+success%0D%0Astate+%21%3D+failed%0D%0Astate+%21%3D+cancelled' }}" title="Filter to pending jobs">
+      <a class='hover:text-sky-600' href="{{ base_path ~ '/batches/' ~ batch_id ~ '?q=state+%21%3D+success%0D%0Astate+%21%3D+failed%0D%0Astate+%21%3D+cancelled' }}" title="Filter to incomplete jobs">
         <span class="material-symbols-outlined text-sm">filter_alt</span>
       </a>
-      <a class='hover:text-sky-600' href="{{ base_path ~ '/batches/' ~ batch_id ~ '?q=state+%21%3D+pending%0D%0Astate+%21%3D+ready%0D%0Astate+%21%3D+creating%0D%0Astate+%21%3D+running' }}" title="Filter to non-pending jobs">
+      <a class='hover:text-sky-600' href="{{ base_path ~ '/batches/' ~ batch_id ~ '?q=state+%21%3D+pending%0D%0Astate+%21%3D+ready%0D%0Astate+%21%3D+creating%0D%0Astate+%21%3D+running' }}" title="Filter to non-incomplete jobs">
         <span class="material-symbols-outlined text-sm">filter_alt_off</span>
       </a>
       {% endif %}
