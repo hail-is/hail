@@ -48,12 +48,14 @@
   <td class='p-2 text-right'>
     <div class='inline-flex items-center gap-1'>
       {{ count }}
+      {% if count > 0 %}
       <a class='hover:text-sky-600' href="{{ base_path ~ '/batches/' ~ batch_id ~ '?q=state+%3D+' ~ state_value }}" title="Filter to {{ status_name.lower() }} jobs">
         <span class="material-symbols-outlined text-sm">filter_alt</span>
       </a>
       <a class='hover:text-sky-600' href="{{ base_path ~ '/batches/' ~ batch_id ~ '?q=state+%21%3D+' ~ state_value }}" title="Filter to non-{{ status_name.lower() }} jobs">
         <span class="material-symbols-outlined text-sm">filter_alt_off</span>
       </a>
+      {% endif %}
     </div>
   </td>
 </tr>
@@ -65,12 +67,14 @@
   <td class='p-2 text-right'>
     <div class='inline-flex items-center gap-1'>
       {{ count }}
+      {% if count > 0 %}
       <a class='hover:text-sky-600' href="{{ base_path ~ '/batches/' ~ batch_id ~ '?q=state+%21%3D+running%0D%0Astate+%21%3D+success%0D%0Astate+%21%3D+failed%0D%0Astate+%21%3D+cancelled' }}" title="Filter to pending jobs">
         <span class="material-symbols-outlined text-sm">filter_alt</span>
       </a>
       <a class='hover:text-sky-600' href="{{ base_path ~ '/batches/' ~ batch_id ~ '?q=state+%21%3D+pending%0D%0Astate+%21%3D+ready%0D%0Astate+%21%3D+creating%0D%0A' }}" title="Filter to non-pending jobs">
         <span class="material-symbols-outlined text-sm">filter_alt_off</span>
       </a>
+      {% endif %}
     </div>
   </td>
 </tr>
