@@ -2222,7 +2222,6 @@ async def ui_batch(request, userdata, batch_id):
         jobs = []
         last_job_id = None
 
-    batch['n_running'] = 0
     for j in jobs:
         j['duration'] = humanize_timedelta_msecs(j['duration'])  # type: ignore
         j['cost'] = cost_str(j['cost'])  # type: ignore
@@ -2231,8 +2230,6 @@ async def ui_batch(request, userdata, batch_id):
             if j['always_run'] and j['state'] not in {'Success', 'Failed', 'Error'}
             else j['state']
         )
-        if j['state'] == 'Running':
-            batch['n_running'] += 1
     batch['jobs'] = jobs
 
     batch['cost'] = cost_str(batch['cost'])
