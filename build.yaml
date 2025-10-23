@@ -93,8 +93,8 @@ steps:
       - merge_code
   - kind: buildImage2
     name: hail_ubuntu_image
-    dockerFile: /io/hail-ubuntu/Dockerfile
-    contextPath: /io/hail-ubuntu
+    dockerFile: /io/repo/docker/hail-ubuntu/Dockerfile
+    contextPath: /io/repo
     publishAs: hail-ubuntu
     resources:
       storage: 10Gi
@@ -102,14 +102,16 @@ steps:
       memory: standard
     inputs:
       - from: /repo/docker/hail-ubuntu
-        to: /io/hail-ubuntu
+        to: /io/repo/docker/hail-ubuntu
+      - from: /repo/gear/pinned-requirements.txt
+        to: /io/repo/gear/pinned-requirements.txt
     dependsOn:
       - merge_code
       - copy_third_party_images
   - kind: buildImage2
     name: hail_ubuntu_image_python_3_10
-    dockerFile: /io/hail-ubuntu/Dockerfile
-    contextPath: /io/hail-ubuntu
+    dockerFile: /io/repo/docker/hail-ubuntu/Dockerfile
+    contextPath: /io/repo
     publishAs: hail-ubuntu-python-3-10
     buildArgs:
       - name: PYTHON_VERSION
@@ -120,14 +122,16 @@ steps:
       memory: standard
     inputs:
       - from: /repo/docker/hail-ubuntu
-        to: /io/hail-ubuntu
+        to: /io/repo/docker/hail-ubuntu
+      - from: /repo/gear/pinned-requirements.txt
+        to: /io/repo/gear/pinned-requirements.txt
     dependsOn:
       - merge_code
       - copy_third_party_images
   - kind: buildImage2
     name: hail_ubuntu_image_python_3_12
-    dockerFile: /io/hail-ubuntu/Dockerfile
-    contextPath: /io/hail-ubuntu
+    dockerFile: /io/repo/docker/hail-ubuntu/Dockerfile
+    contextPath: /io/repo
     publishAs: hail-ubuntu-python-3-12
     buildArgs:
       - name: PYTHON_VERSION
@@ -138,25 +142,31 @@ steps:
       memory: standard
     inputs:
       - from: /repo/docker/hail-ubuntu
-        to: /io/hail-ubuntu
+        to: /io/repo/docker/hail-ubuntu
+      - from: /repo/gear/pinned-requirements.txt
+        to: /io/repo/gear/pinned-requirements.txt
     dependsOn:
       - merge_code
       - copy_third_party_images
   - kind: buildImage2
     name: hail_ubuntu_image_python_3_13
-    dockerFile: /io/hail-ubuntu/Dockerfile
-    contextPath: /io/hail-ubuntu
+    dockerFile: /io/repo/docker/hail-ubuntu/Dockerfile
+    contextPath: /io/repo
     publishAs: hail-ubuntu-python-3-13
     buildArgs:
       - name: PYTHON_VERSION
         value: "3.13"
+      - name: SKIP_GCLOUD_PROFILER
+        value: "true" # Python 3.13 does not support google-cloud-profiler yet
     resources:
       storage: 10Gi
       cpu: "2"
       memory: standard
     inputs:
       - from: /repo/docker/hail-ubuntu
-        to: /io/hail-ubuntu
+        to: /io/repo/docker/hail-ubuntu
+      - from: /repo/gear/pinned-requirements.txt
+        to: /io/repo/gear/pinned-requirements.txt
     dependsOn:
       - merge_code
       - copy_third_party_images
