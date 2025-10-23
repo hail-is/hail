@@ -13,8 +13,6 @@ COPY docker/hail-ubuntu/pip.conf /root/.config/pip/pip.conf
 COPY docker/hail-ubuntu/retry /bin/retry
 COPY docker/hail-ubuntu/uv.toml /root/.config/uv/uv.toml
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
-COPY gear/pinned-requirements.txt /tmp/gear-requirements.txt
-
 ARG PYTHON_VERSION=3.11
 RUN chmod 755 /bin/retry && \
     chmod 755 /bin/hail-apt-get-install && \
@@ -48,7 +46,8 @@ ARG SKIP_GCLOUD_PROFILER=false
 RUN mkdir -p /tmp/wheels
 RUN hail-apt-get-install g++ gcc
 # Only install google-cloud-profiler if SKIP_GCLOUD_PROFILER is not set to true
-RUN if [ "$SKIP_GCLOUD_PROFILER" != "true" ]; then \
+RUN --mount=type=bind,source=gear/pinned-requirements.txt,target=/tmp/gear-requirements.txt,readonly \
+    if [ "$SKIP_GCLOUD_PROFILER" != "true" ]; then \
         hail-pip-install google-cloud-profiler --constraint /tmp/gear-requirements.txt && \
         pip wheel --wheel-dir=/tmp/wheels google-cloud-profiler; \
     else \
@@ -60,6 +59,7 @@ ARG SKIP_GCLOUD_PROFILER=false
 # Copy google-cloud-profiler wheel if it exists
 COPY --from=wheel-builder /tmp/wheels/ /tmp/wheels/
 # Only install google-cloud-profiler if the wheel exists and SKIP_GCLOUD_PROFILER is not true
-RUN if [ "$SKIP_GCLOUD_PROFILER" != "true" ] && [ -f /tmp/wheels/google_cloud_profiler*.whl ]; then \
+RUN --mount=type=bind,source=gear/pinned-requirements.txt,target=/tmp/gear-requirements.txt,readonly \
+    if [ "$SKIP_GCLOUD_PROFILER" != "true" ] && [ -f /tmp/wheels/google_cloud_profiler*.whl ]; then \
         hail-pip-install /tmp/wheels/google_cloud_profiler*.whl --constraint /tmp/gear-requirements.txt; \
     fi
