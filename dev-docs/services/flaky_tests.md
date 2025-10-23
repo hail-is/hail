@@ -77,7 +77,7 @@ LEFT JOIN
 WHERE 
     b.user = 'ci'
     AND j.state = 'Failed'
-    AND JSON_EXTRACT(b.attributes, '$.pr') IS NOT NULL
+    AND (JSON_EXTRACT(b.attributes, '$.pr') IS NOT NULL OR JSON_EXTRACT(b.attributes, '$.deploy') IS NOT NULL)
     AND b.time_created > UNIX_TIMESTAMP(NOW() - INTERVAL 30 DAY) * 1000
 GROUP BY 
     job_name
@@ -86,3 +86,30 @@ ORDER BY
 LIMIT 20;
 ```
 
+### Find test suites with high failure rates during deploys
+
+Note: this should have a lower false positive rate because we've hopefully weeded out genuine test failures.
+But the sample size is a lot smaller
+
+```sql
+SELECT 
+    ja.value as job_name,
+    COUNT(*) as failure_count,
+    MAX(b.id) as latest_batch_id
+FROM 
+    batches b 
+JOIN 
+    jobs j ON b.id = j.batch_id 
+LEFT JOIN 
+    job_attributes ja ON j.batch_id = ja.batch_id AND j.job_id = ja.job_id AND ja.key = 'name' 
+WHERE 
+    b.user = 'ci'
+    AND j.state = 'Failed'
+    AND JSON_EXTRACT(b.attributes, '$.deploy') IS NOT NULL
+    AND b.time_created > UNIX_TIMESTAMP(NOW() - INTERVAL 30 DAY) * 1000
+GROUP BY 
+    job_name
+ORDER BY
+    failure_count DESC
+LIMIT 20;
+```
