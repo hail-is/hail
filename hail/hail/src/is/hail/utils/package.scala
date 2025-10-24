@@ -15,6 +15,7 @@ import scala.util.control.NonFatal
 import java.io._
 import java.lang.reflect.Method
 import java.net.{URI, URLClassLoader}
+import java.nio.charset.StandardCharsets
 import java.security.SecureRandom
 import java.text.SimpleDateFormat
 import java.util
@@ -31,9 +32,9 @@ import org.apache.hadoop.mapreduce.lib.input.{FileSplit => NewFileSplit}
 import org.apache.log4j.Level
 import org.apache.spark.{Partition, TaskContext}
 import org.apache.spark.sql.Row
-import org.json4s.{Extraction, Formats, JObject, NoTypeHints, Serializer}
+import org.json4s.{Extraction, Formats, JObject, JValue, NoTypeHints, Serializer}
 import org.json4s.JsonAST.{JArray, JString}
-import org.json4s.jackson.Serialization
+import org.json4s.jackson.{JsonMethods, Serialization}
 import org.json4s.reflect.TypeInfo
 
 package utils {
@@ -1072,6 +1073,9 @@ package object utils
 
   implicit def evalLazy[A](f: Lazy[A]): A =
     f()
+
+  def jsonToBytes(v: JValue): Array[Byte] =
+    JsonMethods.compact(v).getBytes(StandardCharsets.UTF_8)
 }
 
 class CancellingExecutorService(delegate: ExecutorService) extends AbstractExecutorService {
