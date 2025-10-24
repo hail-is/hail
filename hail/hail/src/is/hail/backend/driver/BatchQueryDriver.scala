@@ -135,8 +135,6 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
 
     log.info(f"${getClass.getName} $HAIL_PRETTY_VERSION")
 
-    val deployConfig = DeployConfig.fromConfigFile("/deploy-config/deploy-config.json")
-    DeployConfig.set(deployConfig)
     sys.env.get("HAIL_SSL_CONFIG_DIR").foreach(tls.setSSLConfigFromDir)
 
     val (rpcConfig, jobConfig, action, payload) = {
@@ -187,7 +185,10 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
     val backend =
       new ServiceBackend(
         name,
-        BatchClient(deployConfig, Path.of(scratchDir, "secrets/gsa-key/key.json")),
+        BatchClient(
+          DeployConfig.fromConfigFile("/deploy-config/deploy-config.json"),
+          Path.of(scratchDir, "secrets/gsa-key/key.json"),
+        ),
         JarUrl(jarLocation),
         BatchConfig.fromConfigFile(Path.of(scratchDir, "batch-config/batch-config.json")),
         jobConfig,
