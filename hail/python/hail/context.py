@@ -591,7 +591,7 @@ def init_local(
     tmpdir = _get_tmpdir(tmpdir)
 
     jvm_heap_size = get_env_or_default(jvm_heap_size, 'HAIL_LOCAL_BACKEND_HEAP_SIZE', None)
-    backend = LocalBackend(
+    backend = LocalBackend.create(
         tmpdir,
         log,
         quiet,

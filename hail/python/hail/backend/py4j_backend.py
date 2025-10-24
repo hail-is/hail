@@ -21,7 +21,7 @@ from py4j.java_gateway import (
 )
 
 from hail.expr import construct_expr
-from hail.ir import JavaIR
+from hail.ir import CSERenderer, JavaIR
 from hail.utils.java import Env, FatalError, scala_package_object
 from hail.version import __version__
 from hailtop.utils import find_spark_home, sync_retry_transient_errors
@@ -232,7 +232,6 @@ class Py4JBackend(Backend):
         self.remote_tmpdir = remote_tmpdir
 
         self._jhttp_server = self._jbackend.pyHttpServer()
-
         self._gcs_requester_pays_config = None
         self._logger = Log4jLogger(self._utils_package_object)
 
@@ -333,7 +332,10 @@ class Py4JBackend(Backend):
     def remove_liftover(self, name, dest_reference_genome):
         self._jbackend.pyRemoveLiftover(name, dest_reference_genome)
 
-    def _register_ir_function(self, name, type_parameters, argument_names, argument_types, return_type, code):
+    def register_ir_function(self, name, type_parameters, argument_names, argument_types, return_type, body):
+        r = CSERenderer()
+        assert not body._ir.uses_randomness
+        code = r(body._ir)
         self._registered_ir_function_names.add(name)
         self._jbackend.pyRegisterIR(
             name,
