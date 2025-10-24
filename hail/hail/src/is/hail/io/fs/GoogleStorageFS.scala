@@ -44,8 +44,8 @@ object GoogleStorageFS {
 
   private[this] val GCS_URI_REGEX = "^gs:\\/\\/([a-z0-9_\\-\\.]+)(\\/.*)?".r
 
-  val RequiredOAuthScopes: IndexedSeq[String] =
-    FastSeq("https://www.googleapis.com/auth/devstorage.read_write")
+  val RequiredOAuthScopes: Array[String] =
+    Array("https://www.googleapis.com/auth/devstorage.read_write")
 
   def parseUrl(filename: String): GoogleStorageFSURL = {
     val scheme = filename.split(":")(0)
