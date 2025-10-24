@@ -138,10 +138,16 @@ class ServiceBackend(
           )
 
         stageCount += 1
-
-        Thread.sleep(600) // it is not possible for the batch to be finished in less than 600ms
-        val response = batchClient.waitForJobGroup(batchConfig.batchId, jobGroupId)
-        (response, startJobId)
+        try {
+          Thread.sleep(600) // it is not possible for the batch to be finished in less than 600ms
+          val response = batchClient.waitForJobGroup(batchConfig.batchId, jobGroupId)
+          (response, startJobId)
+        } catch {
+          case _: InterruptedException =>
+            batchClient.cancelJobGroup(batchConfig.batchId, jobGroupId)
+            Thread.currentThread().interrupt()
+            throw new CancellationException()
+        }
       }
 
       private[this] def readPartitionResult(fs: FS, root: String, i: Int): Array[Byte] = {

@@ -124,8 +124,6 @@ object Worker {
     val n = argv(6).toInt
     val timer = new WorkerTimer()
 
-    val deployConfig = DeployConfig.fromConfigFile("/deploy-config/deploy-config.json")
-    DeployConfig.set(deployConfig)
     sys.env.get("HAIL_SSL_CONFIG_DIR").foreach(tls.setSSLConfigFromDir)
 
     log.info(s"is.hail.backend.service.Worker $HAIL_REVISION")
