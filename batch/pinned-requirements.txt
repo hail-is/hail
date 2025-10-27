@@ -9,7 +9,7 @@ aiohappyeyeballs==2.6.1
     #   -c batch/../hail/python/pinned-requirements.txt
     #   -c batch/../web_common/pinned-requirements.txt
     #   aiohttp
-aiohttp==3.12.15
+aiohttp==3.13.1
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   -c batch/../hail/python/dev/pinned-requirements.txt
@@ -50,7 +50,7 @@ frozenlist==1.8.0
     #   -c batch/../web_common/pinned-requirements.txt
     #   aiohttp
     #   aiosignal
-idna==3.10
+idna==3.11
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   -c batch/../hail/python/dev/pinned-requirements.txt
@@ -83,7 +83,7 @@ plotly==5.24.1
     # via
     #   -c batch/../hail/python/pinned-requirements.txt
     #   -r batch/requirements.txt
-propcache==0.4.0
+propcache==0.4.1
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   -c batch/../hail/python/dev/pinned-requirements.txt
@@ -121,6 +121,7 @@ typing-extensions==4.15.0
     #   multidict
 tzdata==2025.2
     # via
+    #   -c batch/../hail/python/dev/pinned-requirements.txt
     #   -c batch/../hail/python/pinned-requirements.txt
     #   pandas
 yarl==1.22.0
