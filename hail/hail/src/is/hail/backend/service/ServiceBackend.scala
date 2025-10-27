@@ -10,20 +10,21 @@ import is.hail.expr.ir.{
 }
 import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.lowering._
-import is.hail.io.fs._
 import is.hail.services._
 import is.hail.services.JobGroupStates.{Cancelled, Failure, Success}
 import is.hail.types._
 import is.hail.types.physical._
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.collection.compat._
+import scala.concurrent.{Await, CancellationException, ExecutionContext, Future}
+import scala.concurrent.duration.Duration
 import scala.reflect.ClassTag
 import scala.util.control.NonFatal
 
 import java.io._
-import java.nio.charset.StandardCharsets
-import java.util.concurrent._
+import java.util.concurrent.Executors
 
 object ServiceBackend {
   val MaxAvailableGcsConnections = 1000
@@ -67,15 +68,8 @@ class ServiceBackend(
       override val executionCache: ExecutionCache =
         ExecutionCache.fromFlags(ctx.flags, ctx.fs, ctx.tmpdir)
 
-      private[this] def readString(in: DataInputStream): String = {
-        val n = in.readInt()
-        val bytes = new Array[Byte](n)
-        in.read(bytes)
-        new String(bytes, StandardCharsets.UTF_8)
-      }
-
       private[this] def submitJobGroupAndWait(
-        collection: IndexedSeq[Array[Byte]],
+        partitions: IndexedSeq[Int],
         token: String,
         root: String,
         stageIdentifier: String,
@@ -104,28 +98,18 @@ class ServiceBackend(
           )
 
         val jobs =
-          collection.indices.map { i =>
+          partitions.zipWithIndex.map { case (partitionId, idx) =>
             defaultJob.copy(
               attributes = Map(
-                "name" -> s"${name}_stage${stageCount}_${stageIdentifier}_job$i",
-                "idx" -> i.toString,
+                "name" -> s"${name}_stage${stageCount}_${stageIdentifier}_partition$partitionId",
+                "partition" -> partitionId.toString,
+                "outfile" -> s"$root/result.$idx",
               ),
               process = defaultProcess.copy(
-                command = Array(Main.WORKER, root, s"$i", s"${collection.length}")
+                command = Array(Main.WORKER, root, s"$partitionId", s"$idx")
               ),
             )
           }
-
-        /* When we create a JobGroup with n jobs, Batch gives us the absolute JobGroupId, and the
-         * startJobId for the first job.
-         * This means that all JobId's in the JobGroup will have values in range (startJobId,
-         * startJobId + n).
-         * Therefore, we know the partition index for a given job by using this startJobId offset.
-         *
-         * Why do we do this?
-         * Consider a situation where we're submitting thousands of jobs in a job group.
-         * If one of those jobs fails, we don't want to make thousands of requests to batch to get a
-         * partition index that that job corresponds to. */
 
         val (jobGroupId, startJobId) =
           batchClient.newJobGroup(
@@ -146,25 +130,6 @@ class ServiceBackend(
         (response, startJobId)
       }
 
-      private[this] def readPartitionResult(fs: FS, root: String, i: Int): Array[Byte] = {
-        val file = s"$root/result.$i"
-        val bytes = fs.readNoCompression(file)
-        assert(bytes(0) != 0, s"$file is not a valid result.")
-        bytes.slice(1, bytes.length)
-      }
-
-      private[this] def readPartitionError(fs: FS, root: String, i: Int): HailWorkerException = {
-        val file = s"$root/result.$i"
-        val bytes = fs.readNoCompression(file)
-        assert(bytes(0) == 0, s"$file did not contain an error")
-        val errorInformationBytes = bytes.slice(1, bytes.length)
-        val is = new DataInputStream(new ByteArrayInputStream(errorInformationBytes))
-        val shortMessage = readString(is)
-        val expandedMessage = readString(is)
-        val errorId = is.readInt()
-        HailWorkerException(i, shortMessage, expandedMessage, errorId)
-      }
-
       override def mapCollectPartitions(
         globals: Array[Byte],
         contexts: IndexedSeq[Array[Byte]],
@@ -181,7 +146,7 @@ class ServiceBackend(
                 (None, FastSeq(f(globals, contexts(k), htc, ctx.theHailClassLoader, ctx.fs) -> k))
               }
             catch {
-              case NonFatal(t) => (Some(t), IndexedSeq.empty)
+              case NonFatal(t) => (Some(t), ArraySeq.empty)
             } finally stageCount += 1
 
           case todo =>
@@ -189,104 +154,154 @@ class ServiceBackend(
             val root = s"${ctx.tmpdir}/mapCollectPartitions/$token"
             log.info(s"mapCollectPartitions: token='$token', nPartitions=${todo.length}")
 
-            val uploadGlobals =
-              executor.submit[Unit] { () =>
-                retryTransientErrors {
-                  ctx.fs.writePDOS(s"$root/globals")(_.write(globals))
-                  log.info(s"mapCollectPartitions: $token: uploaded globals")
-                }
+            implicit val ec: ExecutionContext =
+              ExecutionContext.fromExecutor(executor)
+
+            val uploadGlobals = Future {
+              retryTransientErrors {
+                ctx.fs.writePDOS(s"$root/globals")(_.write(globals))
+                log.info(s"mapCollectPartitions: $token: uploaded globals")
               }
+            }
 
-            val uploadFunction =
-              executor.submit[Unit] { () =>
-                val fsConfig: Any =
-                  ctx.fs.getConfiguration()
+            val uploadContexts = Future {
+              val partInputs = todo.map(contexts)
+              retryTransientErrors {
+                ctx.fs.writePDOS(s"$root/contexts") { os =>
+                  var o = 12L * partInputs.length // 12L = sizeof(Long) + sizeof(Int)
 
-                val partial: PartitionFn = {
-                  (globals, context, htc, hcl, fs) =>
-                    fs.setConfiguration(fsConfig)
-                    f(globals, context, htc, hcl, fs)
-                }
-
-                retryTransientErrors {
-                  ctx.fs.writePDOS(s"$root/f") { fos =>
-                    using(new ObjectOutputStream(fos))(_.writeObject(partial))
-                    log.info(s"mapCollectPartitions: $token: uploaded function")
+                  for (p <- partInputs) {
+                    val len = p.length
+                    os.writeLong(o)
+                    os.writeInt(len)
+                    o += len
                   }
+
+                  for (p <- partInputs) os.write(p)
+
+                  log.info(s"mapCollectPartitions: $token: wrote ${partInputs.length} contexts")
                 }
               }
+            }
 
-            val parts = todo.map(contexts(_))
+            val uploadPartFn = Future {
+              val fsConfig: Any =
+                ctx.fs.getConfiguration()
 
-            val uploadContexts =
-              executor.submit[Unit] { () =>
-                retryTransientErrors {
-                  ctx.fs.writePDOS(s"$root/contexts") { os =>
-                    var o = 12L * parts.length // 12L = sizeof(Long) + sizeof(Int)
-
-                    for (p <- parts) {
-                      val len = p.length
-                      os.writeLong(o)
-                      os.writeInt(len)
-                      o += len
-                    }
-
-                    for (p <- parts) os.write(p)
-
-                    log.info(s"mapCollectPartitions: $token: wrote ${parts.length} contexts")
-                  }
-                }
+              val partial: PartitionFn = {
+                (globals, context, htc, hcl, fs) =>
+                  fs.setConfiguration(fsConfig)
+                  f(globals, context, htc, hcl, fs)
               }
 
-            uploadGlobals.get()
-            uploadFunction.get()
-            uploadContexts.get()
+              retryTransientErrors {
+                ctx.fs.writePDOS(s"$root/f") { fos =>
+                  using(new ObjectOutputStream(fos))(_.writeObject(partial))
+                  log.info(s"mapCollectPartitions: $token: uploaded function")
+                }
+              }
+            }
 
-            val (jobGroup, startJobId) = submitJobGroupAndWait(parts, token, root, stageIdentifier)
+            Await.result(uploadGlobals zip uploadContexts zip uploadPartFn, Duration.Inf): Unit
+
+            val (jobGroup, startJobId) = submitJobGroupAndWait(todo, token, root, stageIdentifier)
             log.info(s"mapCollectPartitions: $token: reading results")
             val startTime = System.nanoTime()
 
-            def streamSuccessfulPartitionResults: Stream[(Array[Byte], Int)] =
-              for {
-                successes <- batchClient.getJobGroupJobs(
-                  jobGroup.batch_id,
-                  jobGroup.job_group_id,
-                  Some(JobStates.Success),
-                )
-                job <- successes
-                partIdx = job.job_id - startJobId
-              } yield (readPartitionResult(ctx.fs, root, partIdx), partIdx)
+            def readPartitionOutputs(indices: IndexedSeq[Int]) =
+              Future.traverse(indices) { idx =>
+                Future {
+                  val filename = s"$root/result.$idx"
+                  try using(ctx.fs.openNoCompression(filename))(WireProtocol.read)
+                  catch {
+                    case NonFatal(e) =>
+                      throw new HailException(
+                        msg = f"Failed to read partition output '$filename'." +
+                          f"See the batch ui at ${batchClient.req.url}/batches/${jobGroup.batch_id} for details.",
+                        logMsg = None,
+                        cause = e,
+                      )
+                  }
+                }
+              }
 
             val (failureOpt, results) =
               jobGroup.state match {
                 case Success =>
-                  runAllKeepFirstError(executor) {
-                    todo.lazyZip(parts.indices).map { (partIdx, jobIndex) =>
-                      (() => readPartitionResult(ctx.fs, root, jobIndex), partIdx)
-                    }
-                  }
+                  val (failures, successes) =
+                    Await.result(readPartitionOutputs(todo.indices), Duration.Inf).partitionMap(
+                      identity
+                    )
+
+                  if (failures.nonEmpty)
+                    log.error(
+                      f"Job group ${jobGroup.job_group_id} in batch ${jobGroup.batch_id} " +
+                        f"completed successfully yet found errors in partition outputs."
+                    )
+
+                  (failures.headOption, successes)
+
                 case Failure =>
-                  val failedEntries =
+                  val failedJobs =
                     batchClient.getJobGroupJobs(
                       jobGroup.batch_id,
                       jobGroup.job_group_id,
                       Some(JobStates.Failed),
                     )
 
-                  assert(
-                    failedEntries.nonEmpty,
-                    s"Job group ${jobGroup.job_group_id} for batch ${batchConfig.batchId} failed, but no failed jobs found.",
-                  )
-                  val error =
-                    readPartitionError(ctx.fs, root, failedEntries.head.head.job_id - startJobId)
-                  (Some(error), streamSuccessfulPartitionResults.toIndexedSeq)
+                  val succeededJobs =
+                    batchClient.getJobGroupJobs(
+                      jobGroup.batch_id,
+                      jobGroup.job_group_id,
+                      Some(JobStates.Success),
+                    )
+
+                  val (failures, successes) =
+                    Await.result(
+                      Future
+                        .traverse(failedJobs.map(_.take(1)) append succeededJobs) { jobs =>
+                          readPartitionOutputs(jobs.map(_.job_id - startJobId))
+                        },
+                      Duration.Inf,
+                    )
+                      .flatten
+                      .partitionMap(identity)
+
+                  val error: Throwable =
+                    failures.headOption.getOrElse {
+                      new HailException(
+                        f"An unknown error occurred. " +
+                          f"Job group ${jobGroup.job_group_id} in batch ${jobGroup.batch_id} failed " +
+                          f"yet found zero errors in partition outputs. " +
+                          f"See the batch ui at ${batchClient.req.url}/batches/${jobGroup.batch_id} for details."
+                      )
+                    }
+
+                  (Some(error), successes.to(ArraySeq))
                 case Cancelled =>
                   val error =
                     new CancellationException(
-                      s"Job group ${jobGroup.job_group_id} for batch ${batchConfig.batchId} was cancelled"
+                      s"Job group ${jobGroup.job_group_id} in batch ${batchConfig.batchId} was cancelled"
                     )
 
-                  (Some(error), streamSuccessfulPartitionResults.toIndexedSeq)
+                  val succeededJobs =
+                    batchClient.getJobGroupJobs(
+                      jobGroup.batch_id,
+                      jobGroup.job_group_id,
+                      Some(JobStates.Success),
+                    )
+
+                  val (_, successes) =
+                    Await.result(
+                      Future.traverse(succeededJobs) { jobs =>
+                        readPartitionOutputs(jobs.map(_.job_id - startJobId))
+                      },
+                      Duration.Inf,
+                    )
+                      .flatten
+                      .partitionMap(identity)
+
+                  (Some(error), successes.to(ArraySeq))
               }
 
             val end = (System.nanoTime() - startTime) / 1000000000.0
