@@ -99,12 +99,12 @@ const fieldConfigs = {
   'start_time': {
     operators: ['=', '!=', '>', '>=', '<', '<='],
     type: 'datetime',
-    placeholder: 'Enter date (ISO format, e.g., 2023-02-24T17:15:25Z)...'
+    placeholder: 'Enter date (ISO format, e.g., 2025-02-27T17:15:25Z)...'
   },
   'end_time': {
     operators: ['=', '!=', '>', '>=', '<', '<='],
     type: 'datetime',
-    placeholder: 'Enter date (ISO format, e.g., 2023-02-24T17:15:25Z)...'
+    placeholder: 'Enter date (ISO format, e.g., 2025-02-27T17:15:25Z)...'
   },
   'state': {
     operators: ['=', '!='],
@@ -390,10 +390,16 @@ function toggleInputMode(componentName) {
 
   // Add real-time sync for textbox changes
   if (currentMode === 'textbox') {
-    textbox.addEventListener('input', function() {
-      hiddenInput.value = textbox.value;
-    });
+    // Remove previous listener if any, then add
+    textbox.removeEventListener('input', syncTextboxToHiddenInput);
+    textbox.addEventListener('input', syncTextboxToHiddenInput);
   }
+}
+// Handler for syncing textbox to hidden input
+function syncTextboxToHiddenInput() {
+  const hiddenInput = document.getElementById("{{ component_name }}-query");
+  const textbox = document.getElementById("{{ component_name }}-input-box");
+  hiddenInput.value = textbox.value;
 }
 
 // Form submission handler
