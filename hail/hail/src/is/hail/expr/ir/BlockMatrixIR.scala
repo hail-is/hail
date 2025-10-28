@@ -954,9 +954,10 @@ case class BlockMatrixSlice(child: BlockMatrixIR, slices: IndexedSeq[IndexedSeq[
   }
 
   override lazy val typ: BlockMatrixType = {
-    val IndexedSeq(nRows, nCols): IndexedSeq[Long] = slices.map { case IndexedSeq(start, stop, step) =>
-      1 + (stop - start - 1) / step
-    }
+    val IndexedSeq(nRows, nCols): IndexedSeq[Long] =
+      slices.map { case IndexedSeq(start, stop, step) =>
+        1 + (stop - start - 1) / step
+      }
 
     val sparsity = child.typ.sparsity.condense(rowBlockDependents -> colBlockDependents)
 
