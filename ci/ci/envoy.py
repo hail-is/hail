@@ -46,6 +46,16 @@ def create_rds_response(
                         'append_action': 'OVERWRITE_IF_EXISTS_OR_ADD',
                     }
                 ],
+                'response_headers_to_add': [
+                    {
+                        'header': {'key': 'Strict-Transport-Security', 'value': 'max-age=63072000; includeSubDomains;'},
+                        'append_action': 'OVERWRITE_IF_EXISTS_OR_ADD',
+                    },
+                    {
+                        'header': {'key': 'X-Content-Type-Options', 'value': 'nosniff'},
+                        'append_action': 'OVERWRITE_IF_EXISTS_OR_ADD',
+                    },
+                ],
                 'virtual_hosts': hosts,
             }
         ],

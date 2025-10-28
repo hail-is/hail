@@ -35,9 +35,7 @@ from gear import (
     Transaction,
     UserData,
     check_csrf_token,
-    error_handler_middleware,
     get_authenticator,
-    global_security_headers_middleware,
     json_request,
     json_response,
     monitor_endpoints_middleware,
@@ -3615,8 +3613,6 @@ def run():
     app = web.Application(
         client_max_size=HTTP_CLIENT_MAX_SIZE,
         middlewares=[
-            global_security_headers_middleware,
-            error_handler_middleware,
             check_csrf_token,
             unavailable_if_frozen,
             monitor_endpoints_middleware,
