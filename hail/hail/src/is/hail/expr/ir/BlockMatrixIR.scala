@@ -611,33 +611,24 @@ case class BlockMatrixBroadcast(
       if (child.typ.isSparse)
         inIndexExpr match {
           case IndexedSeq() =>
-            assert(child.typ.nRows == 1 && child.typ.nCols == 1)
             BlockMatrixSparsity.dense
           case IndexedSeq(0) => // broadcast col vector
-            assert(Set(1, shape(0)) == Set(child.typ.nRows, child.typ.nCols))
             BlockMatrixSparsity.constructFromShapeAndFunction(nRowBlocks, nColBlocks)(
               (i: Int, j: Int) => child.typ.hasBlock(i -> 0)
             )
           case IndexedSeq(1) => // broadcast row vector
-            assert(Set(1, shape(1)) == Set(child.typ.nRows, child.typ.nCols))
             BlockMatrixSparsity.constructFromShapeAndFunction(nRowBlocks, nColBlocks)(
               (i: Int, j: Int) => child.typ.hasBlock(0 -> j)
             )
           case IndexedSeq(0, 0) => // diagonal as col vector
-            assert(shape(0) == 1L)
-            assert(shape(1) == java.lang.Math.min(child.typ.nRows, child.typ.nCols))
             BlockMatrixSparsity.constructFromShapeAndFunction(nRowBlocks, nColBlocks)((_, j: Int) =>
               child.typ.hasBlock(j -> j)
             )
           case IndexedSeq(1, 0) => // transpose
-            assert(child.typ.blockSize == blockSize)
-            assert(shape(0) == child.typ.nCols && shape(1) == child.typ.nRows)
             BlockMatrixSparsity(child.typ.sparsity.definedBlocks.map(seq =>
               seq.map { case (i, j) => (j, i) }
             ))
           case IndexedSeq(0, 1) =>
-            assert(child.typ.blockSize == blockSize)
-            assert(shape(0) == child.typ.nRows && shape(1) == child.typ.nCols)
             child.typ.sparsity
         }
       else BlockMatrixSparsity.dense
