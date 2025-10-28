@@ -6,7 +6,7 @@ aiohappyeyeballs==2.6.1
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
     #   aiohttp
-aiohttp==3.13.1
+aiohttp==3.13.2
     # via
     #   -c gear/../hail/python/dev/pinned-requirements.txt
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
@@ -60,11 +60,11 @@ frozenlist==1.8.0
     #   -c gear/../hail/python/pinned-requirements.txt
     #   aiohttp
     #   aiosignal
-google-api-core==2.27.0
+google-api-core==2.28.0
     # via google-api-python-client
 google-api-python-client==2.185.0
     # via google-cloud-profiler
-google-auth==2.41.1
+google-auth==2.42.0
     # via
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt

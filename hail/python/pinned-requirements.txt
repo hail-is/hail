@@ -8,7 +8,7 @@ aiohappyeyeballs==2.6.1
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   aiohttp
-aiohttp==3.13.1
+aiohttp==3.13.2
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
@@ -55,11 +55,11 @@ azure-storage-blob==12.27.0
     #   -r hail/python/hailtop/requirements.txt
 bokeh==3.4.3
     # via -r hail/python/requirements.txt
-boto3==1.40.60
+boto3==1.40.61
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
-botocore==1.40.60
+botocore==1.40.61
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
@@ -114,7 +114,7 @@ frozenlist==1.8.0
     #   -r hail/python/hailtop/requirements.txt
     #   aiohttp
     #   aiosignal
-google-auth==2.41.1
+google-auth==2.42.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
@@ -330,7 +330,7 @@ urllib3==2.5.0
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   botocore
     #   requests
-uvloop==0.22.1
+uvloop==0.21.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
