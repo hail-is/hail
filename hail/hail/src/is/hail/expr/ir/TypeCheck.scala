@@ -738,7 +738,7 @@ object TypeCheck {
           children.tail.forall(c => compatible(c.typ, children.head.typ)),
           children.map(_.typ),
         )
-      case BlockMatrixBroadcast(child, inIndexExpr, shape, _) =>
+      case BlockMatrixBroadcast(child, inIndexExpr, shape, blockSize) =>
         inIndexExpr match {
           case IndexedSeq() =>
             assert(child.typ.nRows == 1 && child.typ.nCols == 1)
