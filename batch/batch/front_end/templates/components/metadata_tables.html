@@ -85,7 +85,7 @@
   <tbody class='divide-y'>
     {{ incomplete_status_row(batch['n_jobs'] - batch['n_completed'] - (batch['n_running'] or 0), base_path, batch['id']) }}
     {{ status_display_row('Succeeded', batch['n_succeeded'], 'success', base_path, batch['id']) }}
-    {{ status_display_row('Failed', batch['n_failed'], 'bad', base_path, batch['id']) }}
+    {{ status_display_row('Failure or error', batch['n_failed'], 'bad', base_path, batch['id']) }}
     {{ status_display_row('Cancelled', batch['n_cancelled'], 'cancelled', base_path, batch['id']) }}
   </tbody>
 </table>
