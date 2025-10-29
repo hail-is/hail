@@ -26,7 +26,7 @@ azure-mgmt-core==1.6.0
     # via azure-mgmt-storage
 azure-mgmt-storage==20.1.0
     # via -r hail/python/hailtop/requirements.txt
-azure-storage-blob==12.27.0
+azure-storage-blob==12.27.1
     # via -r hail/python/hailtop/requirements.txt
 boto3==1.40.61
     # via -r hail/python/hailtop/requirements.txt

@@ -49,7 +49,7 @@ azure-mgmt-storage==20.1.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
-azure-storage-blob==12.27.0
+azure-storage-blob==12.27.1
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt

@@ -626,7 +626,7 @@ uv==0.8.24
     # via -r hail/python/dev/requirements.txt
 uv-build==0.8.24
     # via -r hail/python/dev/requirements.txt
-virtualenv==20.35.3
+virtualenv==20.35.4
     # via pre-commit
 watchfiles==1.1.1
     # via aiohttp-devtools

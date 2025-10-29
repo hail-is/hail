@@ -72,6 +72,7 @@ numpy==2.2.6
     #   pandas
 packaging==25.0
     # via
+    #   -c batch/../gear/pinned-requirements.txt
     #   -c batch/../hail/python/dev/pinned-requirements.txt
     #   -c batch/../hail/python/pinned-requirements.txt
     #   plotly

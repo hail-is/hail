@@ -16,7 +16,6 @@ aiohttp==3.13.2
 aiohttp-session==2.12.1
     # via -r gear/requirements.txt
 aiomysql==0.3.2
-aiomysql==0.3.2
     # via -r gear/requirements.txt
 aiosignal==1.4.0
     # via
