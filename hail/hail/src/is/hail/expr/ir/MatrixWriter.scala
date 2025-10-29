@@ -2507,8 +2507,8 @@ case class MatrixBlockMatrixWriter(
     val flatPaths = ToArray(mapIR(ToStream(sortedColMajorPairs))(GetTupleElement(_, 1)))
     val bmt = BlockMatrixType(
       elementType,
-      IndexedSeq(numRows, numCols.toLong),
-      numRows == 1,
+      numRows,
+      numCols.toLong,
       blockSize,
       BlockMatrixSparsity.dense,
     )

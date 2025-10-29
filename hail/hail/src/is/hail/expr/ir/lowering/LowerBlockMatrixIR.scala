@@ -1155,7 +1155,7 @@ object LowerBlockMatrixIR {
         )
       case _ =>
     }
-    if (bmir.typ.matrixShape == 0L -> 0L)
+    if (bmir.typ.nRows == 0L && bmir.typ.nCols == 0L)
       BlockMatrixStage2.empty(bmir.typ.elementType, ib)
     else lowerNonEmpty2(bmir, ib, typesToLower, ctx, analyses)
   }
@@ -1358,8 +1358,8 @@ object LowerBlockMatrixIR {
             ),
         )
 
-      case x @ BlockMatrixBroadcast(child, IndexedSeq(axis), _, _) =>
-        val len = child.typ.shape.max
+      case BlockMatrixBroadcast(child, IndexedSeq(axis), _, _) =>
+        val len = scala.math.max(child.typ.nRows, child.typ.nCols)
         val vector = NDArrayReshape(
           IRBuilder.scoped { ib =>
             lower(child, ib).collectLocal(ib, "block_matrix_broadcast_single_axis")
@@ -1367,7 +1367,7 @@ object LowerBlockMatrixIR {
           MakeTuple.ordered(FastSeq(I64(len))),
           ErrorIDs.NO_ERROR,
         )
-        BlockMatrixStage2.broadcastVector(vector, ib, x.typ, asRowVector = axis == 1)
+        BlockMatrixStage2.broadcastVector(vector, ib, bmir.typ, asRowVector = axis == 1)
 
       case x @ BlockMatrixBroadcast(child, IndexedSeq(axis, axis2), _, _)
           if (axis == axis2) => // diagonal as row/col vector

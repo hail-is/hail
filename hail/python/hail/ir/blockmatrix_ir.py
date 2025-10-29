@@ -1,5 +1,5 @@
 import hail as hl
-from hail.expr.blockmatrix_type import tblockmatrix
+from hail.expr.blockmatrix_type import _matrix_shape_to_tensor_shape, tblockmatrix
 from hail.expr.types import tarray
 from hail.typecheck import nullable, sequenceof, typecheck_method
 from hail.utils.java import Env
@@ -395,14 +395,3 @@ def tensor_shape_to_matrix_shape(bmir):
 
 def _serialize_list(xs):
     return "(" + ' '.join([str(x) for x in xs]) + ")"
-
-
-def _matrix_shape_to_tensor_shape(n_rows, n_cols):
-    if n_rows == 1 and n_cols == 1:
-        return [], False
-    elif n_rows == 1:
-        return [n_cols], True
-    elif n_cols == 1:
-        return [n_rows], False
-    else:
-        return [n_rows, n_cols], False

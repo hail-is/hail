@@ -6,7 +6,7 @@ import is.hail.linalg.BlockMatrix
 import is.hail.utils._
 
 import org.apache.spark.sql.Row
-import org.json4s.{JArray, JBool, JInt, JObject, JString, JValue}
+import org.json4s.{JInt, JObject, JString, JValue}
 
 object BlockMatrixSparsity {
   private val builder: BoxedArrayBuilder[(Int, Int)] = new BoxedArrayBuilder[(Int, Int)]
@@ -314,31 +314,13 @@ case class BlockMatrixSparsity(definedBlocks: Option[IndexedSeq[(Int, Int)]]) {
 }
 
 object BlockMatrixType {
-  def tensorToMatrixShape(shape: IndexedSeq[Long], isRowVector: Boolean): (Long, Long) =
-    shape match {
-      case IndexedSeq() => (1, 1)
-      case IndexedSeq(vectorLength) => if (isRowVector) (1, vectorLength) else (vectorLength, 1)
-      case IndexedSeq(numRows, numCols) => (numRows, numCols)
-    }
-
-  def matrixToTensorShape(nRows: Long, nCols: Long): (IndexedSeq[Long], Boolean) = {
-    (nRows, nCols) match {
-      case (1, 1) => (FastSeq(), false)
-      case (_, 1) => (FastSeq(nRows), false)
-      case (1, _) => (FastSeq(nCols), true)
-      case _ => (FastSeq(nRows, nCols), false)
-    }
-  }
-
   def numBlocks(n: Long, blockSize: Int): Int =
     java.lang.Math.floorDiv(n - 1, blockSize).toInt + 1
 
   def getBlockIdx(i: Long, blockSize: Int): Int = java.lang.Math.floorDiv(i, blockSize).toInt
 
-  def dense(elementType: Type, nRows: Long, nCols: Long, blockSize: Int): BlockMatrixType = {
-    val (shape, isRowVector) = matrixToTensorShape(nRows, nCols)
-    BlockMatrixType(elementType, shape, isRowVector, blockSize, BlockMatrixSparsity.dense)
-  }
+  def dense(elementType: Type, nRows: Long, nCols: Long, blockSize: Int): BlockMatrixType =
+    BlockMatrixType(elementType, nRows, nCols, blockSize, BlockMatrixSparsity.dense)
 
   def fromBlockMatrix(value: BlockMatrix): BlockMatrixType = {
     val sparsity = BlockMatrixSparsity.fromLinearBlocks(
@@ -347,22 +329,18 @@ object BlockMatrixType {
       value.blockSize,
       value.gp.partitionIndexToBlockIndex,
     )
-    val (shape, isRowVector) = matrixToTensorShape(value.nRows, value.nCols)
-    BlockMatrixType(TFloat64, shape, isRowVector, value.blockSize, sparsity)
+    BlockMatrixType(TFloat64, value.nRows, value.nCols, value.blockSize, sparsity)
   }
 }
 
 case class BlockMatrixType(
   elementType: Type,
-  shape: IndexedSeq[Long],
-  isRowVector: Boolean,
+  nRows: Long,
+  nCols: Long,
   blockSize: Int,
   sparsity: BlockMatrixSparsity,
 ) extends VType {
   require(blockSize >= 0)
-  lazy val (nRows: Long, nCols: Long) = BlockMatrixType.tensorToMatrixShape(shape, isRowVector)
-
-  def matrixShape: (Long, Long) = nRows -> nCols
 
   lazy val nRowBlocks: Int = if (blockSize == 0) 0 else BlockMatrixType.numBlocks(nRows, blockSize)
   lazy val nColBlocks: Int = if (blockSize == 0) 0 else BlockMatrixType.numBlocks(nCols, blockSize)
@@ -380,15 +358,7 @@ case class BlockMatrixType(
     if (isSparse) sparsity.hasBlock(idx)
     else idx._1 >= 0 && idx._1 < nRowBlocks && idx._2 >= 0 && idx._2 < nColBlocks
 
-  def transpose: BlockMatrixType = {
-    val newShape = shape match {
-      case Seq() => IndexedSeq()
-      case Seq(m) => IndexedSeq(m)
-      case Seq(m, n) => IndexedSeq(n, m)
-    }
-    val newIsRowVector = (shape.length == 1) && !isRowVector
-    BlockMatrixType(elementType, newShape, newIsRowVector, blockSize, sparsity.transpose)
-  }
+  def transpose: BlockMatrixType = copy(nRows = nCols, nCols = nRows, sparsity = sparsity.transpose)
 
   def allBlocksColMajor: IndexedSeq[(Int, Int)] = sparsity.allBlocksColMajor(nRowBlocks, nColBlocks)
   def allBlocksColMajorIR: IR = sparsity.allBlocksColMajorIR(nRowBlocks, nColBlocks)
@@ -443,10 +413,8 @@ case class BlockMatrixType(
     sb += ',' ++= newline: Unit
 
     sb ++= padding ++= "shape:" ++= space += '[': Unit
-    shape.foreachBetween(dimSize => sb ++= s"$dimSize")(sb += ',' ++= space: Unit)
-    sb ++= "]," ++= newline: Unit
+    sb ++= nRows.toString += ',' ++= space ++= nCols.toString ++= "]," ++= newline: Unit
 
-    sb ++= padding ++= "isRowVector:" ++= space ++= s"$isRowVector" += ',' ++= newline: Unit
     sb ++= padding ++= "blockSize:" ++= space ++= s"$blockSize" += ',' ++= newline: Unit
     sb ++= padding ++= "sparsity:" ++= space ++= s"$sparsity" += ',' ++= newline: Unit
 
@@ -456,8 +424,8 @@ case class BlockMatrixType(
   override def toJSON: JValue =
     JObject(
       "element_type" -> JString(elementType.toString),
-      "shape" -> JArray(shape.map(s => JInt(s)).toList),
-      "is_row_vector" -> JBool(isRowVector),
+      "n_rows" -> JInt(nRows),
+      "n_cols" -> JInt(nCols),
       "block_size" -> JInt(blockSize),
     )
 }
