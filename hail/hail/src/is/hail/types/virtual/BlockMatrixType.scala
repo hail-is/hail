@@ -358,14 +358,7 @@ case class BlockMatrixType(
     if (isSparse) sparsity.hasBlock(idx)
     else idx._1 >= 0 && idx._1 < nRowBlocks && idx._2 >= 0 && idx._2 < nColBlocks
 
-  def transpose: BlockMatrixType =
-    BlockMatrixType(
-      elementType,
-      nCols /* nRows */,
-      nRows /* nCols */,
-      blockSize,
-      sparsity.transpose,
-    )
+  def transpose: BlockMatrixType = copy(nRows = nCols, nCols = nRows, sparsity = sparsity.transpose)
 
   def allBlocksColMajor: IndexedSeq[(Int, Int)] = sparsity.allBlocksColMajor(nRowBlocks, nColBlocks)
   def allBlocksColMajorIR: IR = sparsity.allBlocksColMajorIR(nRowBlocks, nColBlocks)
