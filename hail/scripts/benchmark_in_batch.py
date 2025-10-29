@@ -9,10 +9,11 @@ from getpass import getuser
 from os import path as P
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 import benchmark
 import pytest
+import yaml
 from benchmark.tools import chunk, init_logging, maybe
 
 from hailtop import batch as hb
@@ -190,6 +191,36 @@ def run_combine(args: Namespace) -> None:
     combine(args.output, args.files)
 
 
+def build_configurations(
+    args: Namespace,
+    items: List[pytest.Item],
+    batch_config: Dict[str, Any | None],
+) -> List[Tuple[str, int, int, int]]:
+    benchmarks = []
+    for item in items:
+        nodeid = item.nodeid
+
+        conf = batch_config.get(nodeid)
+
+        nburn_in_iterations = (
+            args.burn_in_iterations
+            if args.burn_in_iterations is not None
+            else conf['burn-in-iterations']
+            if conf is not None
+            else None
+        )
+
+        conf = conf['config'][0] if conf is not None else None
+        ninstances, niteratations = [conf[k] for k in ('instances', 'iterations')] if conf is not None else [1, None]
+        ninstances = args.instances if args.instances is not None else ninstances
+        niterations = args.iterations if args.iterations is not None else niteratations
+
+        for instance_id in range(ninstances):
+            benchmarks.append((nodeid, instance_id, nburn_in_iterations, niterations))
+
+    return benchmarks
+
+
 def make_combine_job(b: Batch, this: Resource, context: str, files: List[Resource]) -> Resource:
     j = b.new_job(f'combine_output_{context}')
     j.command(f'PYTHONPATH=. python3 {this} combine -o {j.ofile} {" ".join(files)}')
@@ -217,12 +248,16 @@ def run_submit(args: Namespace) -> None:
     object_prefix = getattr(args, 'object-prefix')
     output_file = P.join(object_prefix, f'{timestamp}-{labelled_sha}.jsonl')
 
-    benchmarks: List[Tuple[str, int, int, int]] = [
-        (item.nodeid, instance_id, args.burn_in_iterations, args.iterations)
-        for item in list_benchmarks(args.include, args.exclude)
-        for instance_id in range(args.instances or 1)
-    ]
+    items = list_benchmarks(args.include, args.exclude)
+    batch_config = {
+        x['item']: {k: x[k] for k in ('burn-in-iterations', 'config')}
+        for f in set(item.path.parent / 'batch-config.yaml' for item in items)
+        if f.exists()
+        for entries in yaml.safe_load_all(f.read_text('utf-8'))
+        for x in entries
+    }
 
+    benchmarks = build_configurations(args, items, batch_config)
     assert len(benchmarks) > 0
 
     image = build_and_push_benchmark_image(args.image, args.artifact_uri, labelled_sha)
