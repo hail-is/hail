@@ -16,6 +16,7 @@ aiohttp==3.13.2
 aiohttp-session==2.12.1
     # via -r gear/requirements.txt
 aiomysql==0.3.2
+aiomysql==0.3.2
     # via -r gear/requirements.txt
 aiosignal==1.4.0
     # via
@@ -60,7 +61,7 @@ frozenlist==1.8.0
     #   -c gear/../hail/python/pinned-requirements.txt
     #   aiohttp
     #   aiosignal
-google-api-core==2.28.0
+google-api-core==2.28.1
     # via google-api-python-client
 google-api-python-client==2.185.0
     # via google-cloud-profiler
@@ -100,6 +101,11 @@ multidict==6.7.0
     #   -c gear/../hail/python/pinned-requirements.txt
     #   aiohttp
     #   yarl
+packaging==25.0
+    # via
+    #   -c gear/../hail/python/dev/pinned-requirements.txt
+    #   -c gear/../hail/python/pinned-requirements.txt
+    #   -r gear/requirements.txt
 prometheus-async==19.2.0
     # via -r gear/requirements.txt
 prometheus-client==0.23.1

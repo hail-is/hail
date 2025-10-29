@@ -10,6 +10,8 @@ aiohttp_session>=2.7,<2.13
 aiomysql>=0.3.0,<1
 google-cloud-profiler>=4.1.0,<5
 kubernetes-asyncio>=19.15.1,<20
+# Required by google-api-core but not declared properly in its metadata. Therefore add manually:
+packaging>=23.0
 prometheus_async>=19.2.0,<20
 prometheus_client>=0.11.0,<1
 PyMySQL>=1,<2
