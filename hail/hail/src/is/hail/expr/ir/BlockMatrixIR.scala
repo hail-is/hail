@@ -620,7 +620,7 @@ case class BlockMatrixBroadcast(
             BlockMatrixSparsity.constructFromShapeAndFunction(nRowBlocks, nColBlocks)(
               (i: Int, j: Int) => child.typ.hasBlock(0 -> j)
             )
-          case IndexedSeq(0, 0) => // diagonal as col vector
+          case IndexedSeq(0, 0) => // diagonal as row vector
             BlockMatrixSparsity.constructFromShapeAndFunction(nRowBlocks, nColBlocks)((_, j: Int) =>
               child.typ.hasBlock(j -> j)
             )
