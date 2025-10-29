@@ -25,6 +25,8 @@ tags:
     description: "Endpoints for GitHub webhook integration"
   - name: Documentation
     description: "Endpoints for API documentation"
+  - name: UI Pages
+    description: "Web UI pages and related helpers"
 
 components:
   schemas:
@@ -157,6 +159,158 @@ components:
       description: Developer authentication token
 
 paths:
+  '/':
+    get:
+      summary: "Home"
+      description: "Render the CI dashboard page, or (dev only) its supporting jinja context"
+      tags: [UI Pages]
+      parameters:
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: true
+      responses:
+        '200':
+          description: "Successfully rendered the CI dashboard or returned the jinja context."
+          content:
+            application/json:
+              schema:
+                type: object
+
+  '/watched_branches/{watched_branch_index}/pr/{pr_number}':
+    get:
+      summary: "PR details (UI)"
+      description: "Render a PR details page, or (dev only) its supporting jinja context"
+      tags: [UI Pages]
+      parameters:
+        - name: watched_branch_index
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: pr_number
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: true
+      responses:
+        '200':
+          description: "Successfully rendered the PR page or returned the jinja context."
+          content:
+            application/json:
+              schema:
+                type: object
+
+  '/watched_branches/{watched_branch_index}/pr/{pr_number}/retry':
+    post:
+      summary: "Retry PR build"
+      description: "Request a retry of the CI build for this PR"
+      tags: [Deployments]
+      security:
+        - developerAuth: []
+      parameters:
+        - name: watched_branch_index
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: pr_number
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: "Retry requested successfully"
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires developer privileges
+
+  '/batches':
+    get:
+      summary: "Batches (UI)"
+      description: "Render a list of batches, or (dev only) its supporting jinja context"
+      tags: [UI Pages]
+      parameters:
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: true
+      responses:
+        '200':
+          description: "Successfully rendered the batches page or returned the jinja context."
+          content:
+            application/json:
+              schema:
+                type: object
+
+  '/batches/{batch_id}':
+    get:
+      summary: "Batch details (UI)"
+      description: "Render a batch details page, or (dev only) its supporting jinja context"
+      tags: [UI Pages]
+      parameters:
+        - name: batch_id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: true
+      responses:
+        '200':
+          description: "Successfully rendered the batch page or returned the jinja context."
+          content:
+            application/json:
+              schema:
+                type: object
+
+  '/me':
+    get:
+      summary: "User page (UI)"
+      description: "Render the current user's page, or (dev only) its supporting jinja context"
+      tags: [UI Pages]
+      parameters:
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: true
+      responses:
+        '200':
+          description: "Successfully rendered the user page or returned the jinja context."
+          content:
+            application/json:
+              schema:
+                type: object
+
+  
   /api/v1alpha/deploy_status:
     get:
       summary: Get deployment status
@@ -339,6 +493,31 @@ paths:
         '403':
           description: Forbidden - requires developer privileges
 
+  /authorize_source_sha:
+    post:
+      summary: Authorize source SHA
+      description: Authorize a source SHA for deployment
+      tags: [Builds]
+      security:
+        - developerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                sha:
+                  type: string
+                  description: Git commit SHA to authorize
+      responses:
+        '200':
+          description: SHA authorized successfully
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires developer privileges
+
   /freeze_merge_deploy:
     post:
       summary: Freeze merges and deploys
@@ -371,24 +550,27 @@ paths:
 
   /namespaces:
     get:
-      summary: List namespaces
-      description: Get a list of active namespaces and their services
-      tags: [Namespaces]
+      summary: "Namespaces (UI)"
+      description: "Render the namespaces page, or (dev only) its supporting jinja context"
+      tags: [UI Pages]
       security:
         - developerAuth: []
+      parameters:
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: true
       responses:
         '200':
-          description: List of namespaces retrieved successfully
+          description: "Successfully rendered the namespaces page or returned the jinja context."
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/NamespaceInfo'
-        '401':
-          description: Unauthorized
-        '403':
-          description: Forbidden - requires developer privileges
+                type: object
 
   /namespaces/{namespace}/services/add:
     post:
@@ -461,28 +643,71 @@ paths:
         '403':
           description: Forbidden - requires developer privileges
 
+  /namespaces/add:
+    post:
+      summary: Add namespace
+      description: Add a new namespace
+      tags: [Namespaces]
+      security:
+        - developerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                namespace:
+                  type: string
+                  description: Namespace identifier to add
+      responses:
+        '200':
+          description: Namespace added successfully
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires developer privileges
+
   /swagger:
     get:
       summary: API Documentation UI
-      description: Interactive UI for exploring and testing the API
-      tags: [Documentation]
+      description: "Render the swagger UI page, or (dev only) its supporting jinja context"
+      tags: [UI Pages]
+      parameters:
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: true
       responses:
         '200':
-          description: Swagger UI HTML page
+          description: "Successfully retrieved the Swagger UI"
           content:
-            text/html:
+            application/json:
               schema:
-                type: string
+                type: object
 
   /openapi.yaml:
     get:
-      summary: OpenAPI Specification
-      description: Raw OpenAPI specification in YAML format
-      tags: [Documentation]
+      summary: "OpenAPI spec"
+      description: "Render the OpenAPI spec, or (dev only) its supporting jinja context"
+      tags: [UI Pages]
+      parameters:
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: true
       responses:
         '200':
-          description: OpenAPI specification
+          description: "Successfully retrieved the OpenAPI spec."
           content:
-            text/yaml:
+            application/json:
               schema:
-                type: string 
+                type: object 
