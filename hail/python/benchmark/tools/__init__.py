@@ -1,24 +1,27 @@
-import functools
 import logging
+from typing import Any, Callable, Generator, List, Optional, Sequence, TypeVar
 
-import pytest
-
-
-def benchmark(burn_in_iterations=1, iterations=5, batch_jobs=5):
-    def wrap(benchmark_fn):
-        @pytest.mark.benchmark(burn_in_iterations=burn_in_iterations, iterations=iterations, batch_jobs=batch_jobs)
-        @functools.wraps(benchmark_fn)
-        def runner(*args, **kwargs):
-            return benchmark_fn(*args, **kwargs)
-
-        return runner
-
-    return wrap
+A = TypeVar('A')
 
 
-def chunk(size, seq):
+def chunk(size: int, seq: Sequence[A]) -> Generator[Sequence[A], A, Any]:
     for pos in range(0, len(seq), size):
         yield seq[pos : pos + size]
+
+
+B = TypeVar('B')
+
+
+def maybe(f: Callable[[A], B], ma: Optional[A], default: Optional[B] = None) -> Optional[B]:
+    return f(ma) if ma is not None else default
+
+
+def prune(kvs: dict) -> dict:
+    return {k: v for k, v in kvs.items() if v is not None}
+
+
+def select(keys: List[str], **kwargs) -> List[Optional[Any]]:
+    return [kwargs.get(k) for k in keys]
 
 
 def init_logging(file=None):

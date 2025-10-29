@@ -1,26 +1,28 @@
-import contextlib
+import glob
 import logging
 import re
 import signal
 import timeit
 import traceback
 from contextlib import contextmanager
+from pathlib import Path
+from typing import NoReturn
 
 import hail as hl
 
 
-def init_hail_for_benchmarks(run_config):
+def init_hail_for_benchmarks(config):
     init_args = {
-        'master': f'local[{run_config.cores}]',
-        'quiet': not run_config.verbose,
-        'log': run_config.log,
+        'master': f'local[{config.getoption("cores")}]',
+        'quiet': config.getoption('verbose') < 0,
+        'log': config.getoption('log'),
     }
 
-    if run_config.profile is not None:
-        if run_config.profile_fmt == 'html':
+    if (profile := config.getoption('profile')) is not None:
+        if config.getoption('profile_fmt') == 'html':
             filetype = 'html'
             fmt_arg = 'tree=total'
-        elif run_config.profile_fmt == 'flame':
+        elif config.getoption('profile_fmt') == 'flame':
             filetype = 'svg'
             fmt_arg = 'svg=total'
         else:
@@ -28,10 +30,10 @@ def init_hail_for_benchmarks(run_config):
             fmt_arg = 'jfr'
 
         prof_args = (
-            f'-agentpath:{run_config.profiler_path}/build/libasyncProfiler.so=start,'
-            f'event={run_config.profile},'
+            f'-agentpath:{config.getoption("profiler_path")}/build/libasyncProfiler.so=start,'
+            f'event={profile},'
             f'{fmt_arg},'
-            f'file=bench-profile-{run_config.profile}-%t.{filetype},'
+            f'file=bench-profile-{profile}-%t.{filetype},'
             'interval=1ms,'
             'framebuf=15000000'
         )
@@ -48,50 +50,62 @@ def init_hail_for_benchmarks(run_config):
     logging.getLogger('py4j.java_gateway').setLevel(logging.CRITICAL)
 
 
-__timeout_state = False
+# Using a custom exception instead of TimeoutError allows explicit handling
+class __Timeout(BaseException):
+    pass
 
 
 # https://stackoverflow.com/questions/492519/timeout-on-a-function-call/494273#494273
-@contextlib.contextmanager
-def timeout_signal(run_config):
-    global __timeout_state
-    __timeout_state = False
-
-    def handler(signum, frame):
-        global __timeout_state
-        __timeout_state = True
+@contextmanager
+def timeout_signal(duration):
+    def handler(signum, frame) -> NoReturn:
         try:
-            hl.stop()
-            init_hail_for_benchmarks(run_config)
-        except Exception:
-            traceback.print_exc()  # we're fucked.
+            signal.siginterrupt(signal.SIGINT, True)
+        except KeyboardInterrupt:
+            pass
+        finally:
+            raise __Timeout()
 
-        raise TimeoutError(f'Timed out after {run_config.timeout}s')
-
-    signal.signal(signal.SIGALRM, handler)
-    signal.alarm(run_config.timeout)
-
+    restore = signal.signal(signal.SIGALRM, handler)
+    signal.alarm(duration)
     try:
         yield
     finally:
-
-        def no_op(signum, frame):
-            pass
-
-        signal.signal(signal.SIGALRM, no_op)
+        signal.signal(signal.SIGALRM, restore)
         signal.alarm(0)
 
 
+# Spark exposes the configuration parameter 'spark.worker.cleanup.enabled'.
+# When enabled, spark periodically cleans up temporary files. It's not clear
+# how to trigger a clean-up manually or how to configure which directory gets
+# used.
+def __hack_cleanup_spark_tmpfiles():
+    for tmpdir in glob.glob('/tmp/blockmgr*/**/*'):
+        Path(tmpdir).unlink()
+
+
 @contextmanager
-def run_with_timeout(run_config, fn, *args, **kwargs):
-    with timeout_signal(run_config):
+def run_with_timeout(max_duration, fn, *args, **kwargs):
+    try:
         try:
-            timer = timeit.Timer(lambda: fn(*args, **kwargs)).timeit(1)
-            yield timer, False, None
-        except Exception as e:
-            timed_out = isinstance(e, TimeoutError)
-            yield (run_config.timeout if timed_out else None, timed_out, traceback.format_exc())
-            raise e
+            timer = timeit.Timer(lambda: fn(*args, **kwargs))
+            with timeout_signal(max_duration):
+                duration = timer.timeit(1)
+        except __Timeout as _:
+            from hail.backend.spark_backend import SparkBackend
+
+            if isinstance(b := hl.current_backend(), SparkBackend):
+                b.sc.cancelAllJobs()
+
+            yield (max_duration, True, traceback.format_exc())
+            raise TimeoutError(f'Timed out after {max_duration}s')
+        except Exception:
+            yield (None, False, traceback.format_exc())
+            raise
+
+        yield duration, False, None
+    finally:
+        __hack_cleanup_spark_tmpfiles()
 
 
 __peak_mem_pattern = re.compile(r'.*TaskReport:.*peakBytes=(\d+),.*')
@@ -107,7 +121,3 @@ def get_peak_task_memory(log_path) -> int:
         return 0
 
     return max(task_peak_bytes)
-
-
-def select(keys, **kwargs):
-    return (kwargs.get(k, None) for k in keys)
