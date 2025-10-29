@@ -19,9 +19,21 @@
 </span>
 {% endmacro %}
 
+{% macro error_exclamation() %}
+<span class="material-symbols-outlined text-red-600">
+  error
+</span>
+{% endmacro %}
+
 {% macro cancel_circle() %}
 <span class="material-symbols-outlined text-yellow-600">
   block
+</span>
+{% endmacro %}
+
+{% macro pending_circle() %}
+<span class="material-symbols-outlined text-gray-300">
+  schedule
 </span>
 {% endmacro %}
 
@@ -44,8 +56,12 @@
 {{ success_check() }}
 {% elif job['state'] == 'Failed' %}
 {{ fail_cross() }}
+{% elif job['state'] == 'Error' %}
+{{ error_exclamation() }}
 {% elif job['state'] == 'Cancelled' %}
 {{ cancel_circle() }}
+{% else %}
+{{ pending_circle() }}
 {% endif %}
 {% endmacro %}
 
