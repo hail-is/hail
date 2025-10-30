@@ -19,6 +19,7 @@ from gear import (
     Authenticator,
     Database,
     K8sCache,
+    SystemPermission,
     Transaction,
     UserData,
     check_csrf_token,
@@ -28,7 +29,6 @@ from gear import (
     maybe_parse_bearer_header,
     monitor_endpoints_middleware,
     setup_aiohttp_session,
-    SystemPermission,
     transaction,
 )
 from gear.auth import AIOHTTPHandler, get_session_id
@@ -54,6 +54,7 @@ from .exceptions import (
     DuplicateLoginID,
     DuplicateUsername,
     EmptyLoginID,
+    InvalidRole,
     InvalidType,
     InvalidUsername,
     MultipleExistingUsers,
@@ -125,16 +126,25 @@ async def users_with_username_or_login_id(tx: Transaction, username: str, login_
     return existing_users
 
 
-async def check_valid_new_user(tx: Transaction, username, login_id, is_developer, is_service_account) -> Optional[dict]:
+async def check_valid_roles(tx: Transaction, roles: List[str]) -> None:
+    for role in roles:
+        if not isinstance(role, str):
+            raise InvalidType('role', role, 'str')
+        if not await tx.execute_and_fetchone("SELECT 1 FROM system_roles WHERE name = %s", (role,)):
+            raise InvalidRole(role)
+
+
+async def check_valid_new_user(tx: Transaction, username, login_id, roles, is_service_account) -> Optional[dict]:
     if not isinstance(username, str):
         raise InvalidType('username', username, 'str')
     if login_id is not None and not isinstance(login_id, str):
         raise InvalidType('login_id', login_id, 'str')
-    if not isinstance(is_developer, bool):
-        raise InvalidType('is_developer', is_developer, 'bool')
+    if not isinstance(roles, list):
+        raise InvalidType('roles', roles, 'list')
+    await check_valid_roles(tx, roles)
     if not isinstance(is_service_account, bool):
         raise InvalidType('is_service_account', is_service_account, 'bool')
-    if is_developer and is_service_account:
+    if len(roles) > 0 and is_service_account:
         raise MultipleUserTypes(username)
     if not is_service_account and not login_id:
         raise EmptyLoginID(username)
@@ -165,7 +175,7 @@ async def insert_new_user(
     db: Database,
     username: str,
     login_id: Optional[str],
-    is_developer: bool,
+    roles: List[str],
     is_service_account: bool,
     *,
     hail_identity: Optional[str] = None,
@@ -173,35 +183,31 @@ async def insert_new_user(
 ) -> bool:
     @transaction(db)
     async def _insert(tx):
-        existing_user = await check_valid_new_user(tx, username, login_id, is_developer, is_service_account)
+        existing_user = await check_valid_new_user(tx, username, login_id, roles, is_service_account)
         if existing_user is not None:
             return False
 
         await tx.execute_insertone(
             """
-INSERT INTO users (state, username, login_id, is_developer, is_service_account, hail_identity, hail_credentials_secret_name)
+INSERT INTO users (state, username, login_id, is_service_account, hail_identity, hail_credentials_secret_name)
 VALUES (%s, %s, %s, %s, %s, %s, %s);
 """,
             (
                 'creating',
                 username,
                 login_id,
-                is_developer,
                 is_service_account,
                 hail_identity,
                 hail_credentials_secret_name,
             ),
         )
 
-        # This is probably better to do based on request parameters in the future. 
-        # For now creating selecting is_developer in the API will give them all three developer-y roles, for backwards compatibility.
-        if is_developer:
-            for role in ['developer', 'billing_manager', 'sysadmin']:
+        for role in roles:
             await tx.execute_insertone(
                 """
 INSERT INTO users_system_roles (user_id, role_id)
-VALUES 
-  ((SELECT id FROM users WHERE username = '%s'), (SELECT id FROM system_roles WHERE name = '%s'));
+VALUES
+((SELECT id FROM users WHERE username = '%s'), (SELECT id FROM system_roles WHERE name = '%s'));
 """,
                 (username, role),
             )
@@ -425,7 +431,7 @@ async def callback(request) -> web.Response:
             raise web.HTTPUnauthorized()
 
         try:
-            await insert_new_user(db, username, login_id, is_developer=False, is_service_account=False)
+            await insert_new_user(db, username, login_id, roles=[], is_service_account=False)
         except AuthUserError as e:
             set_message(session, e.message, 'error')
             raise web.HTTPFound(deploy_config.external_url('auth', ''))
@@ -464,7 +470,7 @@ async def create_user(request: web.Request, _) -> web.Response:
 
     body = await json_request(request)
     login_id = body['login_id']
-    is_developer = body['is_developer']
+    roles = body.get('roles', [])
     is_service_account = body['is_service_account']
 
     hail_identity = body.get('hail_identity')
@@ -472,12 +478,15 @@ async def create_user(request: web.Request, _) -> web.Response:
     if (hail_identity or hail_credentials_secret_name) and not is_test_deployment:
         raise web.HTTPBadRequest(text='Cannot specify an existing hail identity for a new user')
 
+    if body.has_key('is_developer'):
+        raise web.HTTPBadRequest(text='is_developer is no longer supported. Use roles instead.')
+
     try:
         await insert_new_user(
             db,
             username,
             login_id,
-            is_developer,
+            roles,
             is_service_account,
             hail_identity=hail_identity,
             hail_credentials_secret_name=hail_credentials_secret_name,
@@ -586,7 +595,7 @@ async def post_create_role(request: web.Request, _) -> NoReturn:
 
 async def _get_users(db: Database, username: Optional[str] = None) -> List[dict]:
     _query = """
-SELECT id, username, login_id, state, is_developer, is_service_account, hail_identity, system_permissions.name AS permission_name
+SELECT id, username, login_id, state, is_service_account, hail_identity, system_permissions.name AS permission_name
 FROM users
 JOIN users_system_roles ON users.id = users_system_roles.user_id
 JOIN system_roles_permissions ON users_system_roles.role_id = system_roles_permissions.role_id
@@ -607,14 +616,14 @@ JOIN system_permissions ON system_roles_permissions.permission_id = system_permi
                 'username': user['username'],
                 'login_id': user['login_id'],
                 'state': user['state'],
-                'is_developer': user['is_developer'],
                 'is_service_account': user['is_service_account'],
                 'hail_identity': user['hail_identity'],
                 'system_permissions': [user['permission_name']],
             }
         else:
             users[user['id']]['system_permissions'].append(user['permission_name'])
-    result = list(users.values()).sort(key=lambda x: x['id'])
+    result = list(users.values())
+    result.sort(key=lambda x: x['id'])
     return result
 
 
@@ -637,11 +646,14 @@ async def post_create_user(request: web.Request, _) -> NoReturn:
     post = await request.post()
     username = str(post['username'])
     login_id = str(post['login_id']) if 'login_id' in post else None
-    is_developer = post.get('is_developer') == '1'
+    roles = post.get('roles', [])
     is_service_account = post.get('is_service_account') == '1'
 
+    if post.has_key('is_developer'):
+        raise web.HTTPBadRequest(text='is_developer is no longer supported. Use roles instead.')
+
     try:
-        created_user = await insert_new_user(db, username, login_id, is_developer, is_service_account)
+        created_user = await insert_new_user(db, username, login_id, roles, is_service_account)
     except AuthUserError as e:
         set_message(session, e.message, 'error')
         raise web.HTTPFound(deploy_config.external_url('auth', '/users'))

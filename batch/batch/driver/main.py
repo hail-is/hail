@@ -28,6 +28,7 @@ from gear import (
     CommonAiohttpAppKeys,
     Database,
     K8sCache,
+    SystemPermission,
     Transaction,
     check_csrf_token,
     get_authenticator,
@@ -35,7 +36,6 @@ from gear import (
     json_response,
     monitor_endpoints_middleware,
     setup_aiohttp_session,
-    SystemPermission,
     transaction,
 )
 from gear.auth import AIOHTTPHandler, UserData

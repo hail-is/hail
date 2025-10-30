@@ -32,6 +32,7 @@ from typing_extensions import ParamSpec
 from gear import (
     CommonAiohttpAppKeys,
     Database,
+    SystemPermission,
     Transaction,
     UserData,
     check_csrf_token,
@@ -40,7 +41,6 @@ from gear import (
     json_response,
     monitor_endpoints_middleware,
     setup_aiohttp_session,
-    SystemPermission,
     transaction,
 )
 from gear.auth import get_session_id, impersonate_user
@@ -3030,7 +3030,7 @@ async def ui_get_billing_projects(request, userdata):
 @auth.authenticated_users_only()
 async def get_billing_projects(request, userdata):
     db: Database = request.app['db']
-    
+
     if not userdata['system_permissions'][SystemPermission.READ_ALL_BILLING_PROJECTS]:
         user = userdata['username']
     else:

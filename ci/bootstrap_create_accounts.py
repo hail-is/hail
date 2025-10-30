@@ -59,7 +59,7 @@ async def insert_user_if_not_exists(app, username, login_id, is_developer, is_se
         else:
             namespace_name = None
 
-        return await tx.execute_insertone(
+        result = await tx.execute_insertone(
             """
     INSERT INTO users (state, username, login_id, is_developer, is_service_account, hail_identity, hail_credentials_secret_name, namespace_name)
     VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
@@ -75,6 +75,19 @@ async def insert_user_if_not_exists(app, username, login_id, is_developer, is_se
                 namespace_name,
             ),
         )
+
+        if result is not None and result > 0:
+            if is_developer:
+                for role in ['developer', 'billing_manager', 'sysadmin']:
+                await tx.execute_insertone(
+                    """
+    INSERT INTO users_system_roles (user_id, role_id)
+    VALUES 
+    ((SELECT id FROM users WHERE username = '%s'), (SELECT id FROM system_roles WHERE name = '%s'));
+    """,
+                    (username, role),
+                )
+        return result
 
     return await insert()
 
