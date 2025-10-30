@@ -81,10 +81,8 @@ class Env:
         from hail.backend.py4j_backend import Py4JBackend
 
         b = Env.backend()
-        if isinstance(b, Py4JBackend):
-            return b
-        else:
-            raise NotImplementedError(f"{b.__class__.__name__} doesn't support {op}, only Py4JBackend")
+        assert isinstance(b, Py4JBackend), f"{b.__class__.__name__} doesn't support {op}, only Py4JBackend"
+        return b
 
     @staticmethod
     def spark_backend(op):
@@ -102,7 +100,7 @@ class Env:
 
     @staticmethod
     def spark_session():
-        return Env.backend()._spark_session
+        return Env.spark_backend('Env.spark_session')._spark
 
     _dummy_table = None
 

@@ -40,19 +40,8 @@ object LocalBackend extends Backend {
 
   is.hail.linalg.registerImplOpMulMatrix_DMD_DVD_eq_DVD
 
-  def apply(
-    logFile: String = "hail.log",
-    quiet: Boolean = false,
-    append: Boolean = false,
-    skipLoggingConfiguration: Boolean = false,
-  ): LocalBackend.type =
-    synchronized {
-      if (!skipLoggingConfiguration) configureLogging(logFile, quiet, append)
-      logHailVersion()
-      this
-    }
-
-  def broadcast[T: ClassTag](value: T): BroadcastValue[T] = new LocalBroadcastValue[T](value)
+  def broadcast[T: ClassTag](value: T): BroadcastValue[T] =
+    new LocalBroadcastValue[T](value)
 
   private[this] var stageIdx: Int = 0
 
