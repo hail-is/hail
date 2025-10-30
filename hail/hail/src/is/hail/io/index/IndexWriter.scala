@@ -19,6 +19,8 @@ import is.hail.types.virtual.Type
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
 
+import scala.collection.mutable.ArrayBuffer
+
 import java.io.OutputStream
 
 import org.json4s.jackson.Serialization
@@ -252,7 +254,7 @@ class IndexWriterUtils(path: String, fs: FS, meta: StagedIndexMetadata) {
   def writeMetadata(height: Int, rootOffset: Long, nKeys: Long): Unit =
     using(fs.create(metadataPath))(os => meta.serialize(os, height, rootOffset, nKeys))
 
-  val rBuilder = new BoxedArrayBuilder[Region]()
+  val rBuilder = ArrayBuffer.empty[Region]
   val aBuilder = new LongArrayBuilder()
   val lBuilder = new IntArrayBuilder()
 
@@ -279,7 +281,7 @@ class IndexWriterUtils(path: String, fs: FS, meta: StagedIndexMetadata) {
   def getLength(idx: Int): Int = lBuilder(idx)
 
   def close(): Unit = {
-    rBuilder.result().foreach(r => r.close())
+    rBuilder.foreach(_.close())
     trackedOS.close()
   }
 }

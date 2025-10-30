@@ -3,6 +3,8 @@ package is.hail.annotations
 import is.hail.expr.ir.LongArrayBuilder
 import is.hail.utils._
 
+import scala.collection.mutable
+
 object RegionPool {
 
   def apply(strictMemoryCheck: Boolean = false): RegionPool = {
@@ -28,8 +30,8 @@ final class RegionPool private (strictMemoryCheck: Boolean, threadName: String, 
   protected[annotations] val freeBlocks: Array[LongArrayBuilder] =
     Array.fill[LongArrayBuilder](4)(new LongArrayBuilder(8))
 
-  protected[annotations] val regions = new BoxedArrayBuilder[RegionMemory]()
-  private[this] val freeRegions = new BoxedArrayBuilder[RegionMemory]()
+  protected[annotations] val regions = mutable.ArrayBuffer.empty[RegionMemory]
+  private[this] val freeRegions = mutable.ArrayStack.empty[RegionMemory]
   private[this] val blocks: Array[Long] = Array(0L, 0L, 0L, 0L)
   private[this] var totalAllocatedBytes: Long = 0L
   private[this] var allocationEchoThreshold: Long = 256 * 1024
@@ -103,7 +105,7 @@ final class RegionPool private (strictMemoryCheck: Boolean, threadName: String, 
     chunkCache.freeChunkToCache(chunkPointer)
 
   protected[annotations] def getMemory(size: Int): RegionMemory = {
-    if (freeRegions.size > 0) {
+    if (freeRegions.nonEmpty) {
       val rm = freeRegions.pop()
       rm.initialize(size)
       rm
