@@ -9,6 +9,7 @@ import is.hail.expr.ir.lowering.IrMetadata
 import is.hail.io.fs.{CloudStorageFSConfig, FS, RouterFS}
 import is.hail.io.reference.{IndexedFastaSequenceFile, LiftOver}
 import is.hail.services._
+import is.hail.services.oauth2.CloudCredentials
 import is.hail.types.virtual.Kinds._
 import is.hail.utils._
 import is.hail.utils.ExecutionTimer.Timings
@@ -187,7 +188,7 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
         name,
         BatchClient(
           DeployConfig.fromConfigFile("/deploy-config/deploy-config.json"),
-          Path.of(scratchDir, "secrets/gsa-key/key.json"),
+          CloudCredentials(Some(Path.of(scratchDir, "secrets/gsa-key/key.json"))),
         ),
         JarUrl(jarLocation),
         BatchConfig.fromConfigFile(Path.of(scratchDir, "batch-config/batch-config.json")),

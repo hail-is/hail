@@ -15,7 +15,6 @@ import scala.util.Random
 
 import java.net.{URL, URLEncoder}
 import java.nio.charset.StandardCharsets.UTF_8
-import java.nio.file.Path
 
 import org.apache.http.entity.ByteArrayEntity
 import org.apache.http.entity.ContentType.APPLICATION_JSON
@@ -116,31 +115,38 @@ case class JobListEntry(
 )
 
 object BatchClient {
+  object RequiredOAuth2Scopes {
+    private[this] val Google: Array[String] =
+      Array(
+        "https://www.googleapis.com/auth/userinfo.profile",
+        "https://www.googleapis.com/auth/userinfo.email",
+        "openid",
+      )
+
+    private[this] val Microsoft: Array[String] =
+      Array(".default")
+
+    def apply(env: Map[String, String] = sys.env): Array[String] =
+      env.get("HAIL_CLOUD") match {
+        case None | Some("gcp") => Google
+        case Some("azure") => env.get("HAIL_AZURE_OAUTH_SCOPE").map(Array(_)).getOrElse(Microsoft)
+        case None => throw new IllegalArgumentException(s"'HAIL_CLOUD' must be set.")
+      }
+  }
 
   val BunchMaxSizeBytes: Int = 1024 * 1024
 
-  def apply(deployConfig: DeployConfig, credentialsFile: Path, env: Map[String, String] = sys.env)
-    : BatchClient =
-    new BatchClient(Requester(
-      new URL(deployConfig.baseUrl("batch")),
-      CloudCredentials(credentialsFile, BatchServiceScopes(env), env),
-    ))
-
-  def BatchServiceScopes(env: Map[String, String]): Array[String] =
-    env.get("HAIL_CLOUD") match {
-      case Some("gcp") =>
-        Array(
-          "https://www.googleapis.com/auth/userinfo.profile",
-          "https://www.googleapis.com/auth/userinfo.email",
-          "openid",
-        )
-      case Some("azure") =>
-        env.get("HAIL_AZURE_OAUTH_SCOPE").toArray
-      case Some(cloud) =>
-        throw new IllegalArgumentException(s"Unknown cloud: '$cloud'.")
-      case None =>
-        throw new IllegalArgumentException(s"HAIL_CLOUD must be set.")
-    }
+  def apply(
+    deployConfig: DeployConfig,
+    credentials: CloudCredentials,
+    env: Map[String, String] = sys.env,
+  ): BatchClient =
+    new BatchClient(
+      Requester(
+        new URL(deployConfig.baseUrl("batch")),
+        credentials.scoped(RequiredOAuth2Scopes(env)),
+      )
+    )
 
   object JobProcessRequestSerializer extends CustomSerializer[JobProcess](implicit fmts =>
         (
