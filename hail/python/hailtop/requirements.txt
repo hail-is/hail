@@ -19,5 +19,5 @@ python-json-logger>=2.0.2,<3
 pyyaml>=6.0,<7.0
 sortedcontainers>=2.4.0,<3
 tabulate>=0.8.9,<1
-uvloop>=0.19.0,<1; sys_platform!='win32'
+uvloop>=0.19.0,<0.22.0; sys_platform!='win32' # non-trivial errors raising to 0.22.0; and exclude windows
 jproperties>=2.1.1,<3
