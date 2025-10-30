@@ -6,6 +6,7 @@ import is.hail.services._
 import is.hail.services.JobGroupStates.{Cancelled, Failure, Success}
 import is.hail.utils.{handleForPython, tokenUrlSafe, using, FastSeq, HailWorkerException}
 
+import scala.collection.compat.immutable.LazyList
 import scala.concurrent.CancellationException
 import scala.reflect.io.{Directory, Path}
 import scala.util.Random
@@ -149,12 +150,12 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
         (batchId: Int, _: Int, s: Option[JobState]) =>
           s match {
             case Some(JobStates.Failed) =>
-              Stream(failures.toIndexedSeq.map(i =>
+              LazyList(failures.toIndexedSeq.map(i =>
                 JobListEntry(batchId, i + startJobGroupId, JobStates.Failed, 1)
               ))
 
             case Some(JobStates.Success) =>
-              Stream(successes.toIndexedSeq.map(i =>
+              LazyList(successes.toIndexedSeq.map(i =>
                 JobListEntry(batchId, i + startJobGroupId, JobStates.Success, 1)
               ))
           }
@@ -208,7 +209,7 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
         (batchId: Int, _: Int, s: Option[JobState]) =>
           s match {
             case Some(JobStates.Success) =>
-              Stream(successes.map(i =>
+              LazyList(successes.map(i =>
                 JobListEntry(batchId, i + startJobGroupId, JobStates.Success, 1)
               ).toIndexedSeq)
           }

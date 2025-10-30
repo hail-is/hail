@@ -259,7 +259,7 @@ class ServiceBackend(
                   val (failures, successes) =
                     Await.result(
                       Future
-                        .traverse(failedJobs.map(_.take(1)) append succeededJobs) { jobs =>
+                        .traverse(failedJobs.map(_.take(1)) lazyAppendedAll succeededJobs) { jobs =>
                           readPartitionOutputs(jobs.map(_.job_id - startJobId))
                         },
                       Duration.Inf,

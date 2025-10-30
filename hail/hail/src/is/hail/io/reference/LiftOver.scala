@@ -5,7 +5,7 @@ import is.hail.io.reference.LiftOver.MinMatchDefault
 import is.hail.utils.{fatal, using, Interval}
 import is.hail.variant.{Locus, ReferenceGenome}
 
-import scala.collection.convert.ImplicitConversions.{`collection AsScalaIterable`, `map AsScala`}
+import scala.jdk.CollectionConverters._
 
 object LiftOver {
   def apply(fs: FS, chainFile: String): LiftOver = {
@@ -65,9 +65,9 @@ class LiftOver private (chainFile: String) extends Serializable {
   }
 
   def checkChainFile(srcRG: ReferenceGenome, destRG: ReferenceGenome): Unit =
-    asJava.getContigMap.foreach { case (srcContig, destContigs) =>
+    asJava.getContigMap.asScala.foreach { case (srcContig, destContigs) =>
       srcRG.checkContig(srcContig)
-      destContigs.foreach(destRG.checkContig)
+      destContigs.asScala.foreach(destRG.checkContig)
     }
 
   def restore(fs: FS): Unit = {

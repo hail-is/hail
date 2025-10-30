@@ -1,9 +1,8 @@
 package is.hail.utils
 
 import is.hail.HailSuite
-import is.hail.utils.compat.GrowableCompat
+import is.hail.utils.compat.mutable.Growable
 
-import scala.collection.generic.Growable
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.runtime.universe._
 
@@ -43,7 +42,7 @@ class FlipbookIteratorSuite extends HailSuite {
   }
 
   def boxBuffer[A: TypeTag]: Growable[Box[A]] with Iterable[Box[A]] =
-    new GrowableCompat[Box[A]] with Iterable[Box[A]] {
+    new Growable[Box[A]] with Iterable[Box[A]] {
       val buf = ArrayBuffer[A]()
       val box = Box[A]
 
