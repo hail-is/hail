@@ -663,7 +663,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false)
   ) = {
 
     val addr = cb.newLocal[Long]("pcarray_construct2_addr", allocate(region, length))
-    stagedInitialize(cb, addr, length, setMissing = false)
+    stagedInitialize(cb, addr, length, setMissing = true)
     val firstElementAddress =
       cb.newLocal[Long]("pcarray_construct2_first_addr", firstElementOffset(addr, length))
 

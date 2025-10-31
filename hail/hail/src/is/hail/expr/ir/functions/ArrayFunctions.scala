@@ -311,6 +311,46 @@ object ArrayFunctions extends RegistryFunctions {
       ToArray(flatMapIR(ToStream(a))(ToStream(_)))
     }
 
+    registerSCode3(
+      "scatter",
+      TArray(tv("T")),
+      TArray(TInt32),
+      TInt32,
+      TArray(tv("T")),
+      (_, a, _, _) => PCanonicalArray(a.asInstanceOf[SContainer].elementType.storageType()).sType,
+    ) {
+      case (
+            er,
+            cb,
+            rt: SIndexablePointer,
+            elts: SIndexableValue,
+            indices: SIndexableValue,
+            len: SInt32Value,
+            errorID,
+          ) =>
+        val pt = rt.pType.asInstanceOf[PCanonicalArray]
+        val (push, finish) =
+          pt.constructFromIndicesUnsafe(cb, er.region, len.value, deepCopy = false)
+        cb.if_(
+          elts.loadLength.cne(indices.loadLength),
+          cb._fatalWithError(errorID, "scatter: values and indices arrays have different lengths"),
+        )
+        indices.forEachDefined(cb) { case (cb, pos, idx: SInt32Value) =>
+          cb.if_(
+            idx.value < 0 || idx.value >= len.value,
+            cb._fatalWithError(
+              errorID,
+              "scatter: indices array contained index ",
+              idx.value.toS,
+              ", which is greater than result length ",
+              len.value.toS,
+            ),
+          )
+          push(cb, idx.value, elts.loadElement(cb, pos))
+        }
+        finish(cb)
+    }
+
     registerSCode4(
       "lowerBound",
       TArray(tv("T")),
