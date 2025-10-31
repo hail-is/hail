@@ -1866,7 +1866,7 @@ FOR UPDATE;
         )
 
         if record:
-            return (record['update_id'], record['start_job_id'], record['start_job_group_id'])
+            return (record['update_id'], record['start_job_group_id'], record['start_job_id'])
 
         # We use FOR UPDATE so that we serialize batch update insertions
         # This is necessary to reserve job id and job group id ranges.
