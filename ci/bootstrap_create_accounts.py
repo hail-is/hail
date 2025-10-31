@@ -33,6 +33,13 @@ async def insert_user_if_not_exists(app, username, login_id, is_developer, is_se
         if row:
             if row['state'] == 'active':
                 return None
+            if row['state'] == 'inactive':
+                # Inactive users don't need recreating, but we should reactivate before we move on
+                await tx.execute_update(
+                    'UPDATE users SET state = "active", last_activated = CURRENT_TIMESTAMP(3) WHERE id = %s;',
+                    (row['id'],),
+                )
+                return None
             return row['id']
 
         hail_credentials_secret_name = f'{username}-gsa-key'
