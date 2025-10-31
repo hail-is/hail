@@ -2,6 +2,8 @@ import re
 import sys
 from typing import Literal, Optional, Union
 
+from py4j.java_gateway import JavaClass, JavaGateway
+
 from hailtop.config import ConfigVariable, configuration_of
 
 BackendType = Literal['batch', 'local', 'spark']
@@ -130,6 +132,13 @@ def scala_object(jpackage, name):
 
 def scala_package_object(jpackage):
     return scala_object(jpackage, 'package')
+
+
+def array_of(gateway: JavaGateway, clazz: JavaClass, *elems):
+    array = gateway.new_array(clazz, len(elems))
+    for i, elem in enumerate(elems):
+        array[i] = elem
+    return array
 
 
 def jindexed_seq(x):
