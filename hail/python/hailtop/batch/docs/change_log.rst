@@ -15,6 +15,26 @@ versions. In particular, Hail officially supports:
 Change Log
 ==========
 
+**Version 0.2.137**
+
+- (`#15167 <https://github.com/hail-is/hail/pull/15167>`__) Fix login and simplify STS header process
+- (`#15152 <https://github.com/hail-is/hail/pull/15152>`__) Build hail-ubuntu without gcc and g++
+- (`#15144 <https://github.com/hail-is/hail/pull/15144>`__) Add http verb and query params to admin logs
+- (`#15128 <https://github.com/hail-is/hail/pull/15128>`__) New interface for batch submit
+- (`#15134 <https://github.com/hail-is/hail/pull/15134>`__) Ensure HSTS headers are added to error responses too
+- (`#15139 <https://github.com/hail-is/hail/pull/15139>`__) Scope down project-level ServiceAccountUser role for batch user
+- (`#15088 <https://github.com/hail-is/hail/pull/15088>`__) Fix SQL format specifier
+- (`#15135 <https://github.com/hail-is/hail/pull/15135>`__) hail-ubuntu bump to 20250925
+- (`#15102 <https://github.com/hail-is/hail/pull/15102>`__) parameterizing `build_python_image` to build from non-slim images
+- (`#15117 <https://github.com/hail-is/hail/pull/15117>`__) Block project SSH keys at instance level
+- (`#15065 <https://github.com/hail-is/hail/pull/15065>`__) Update swagger ui to 5.29.0
+- (`#15077 <https://github.com/hail-is/hail/pull/15077>`__) Upgrade dataproc to image version 2.2.64
+- (`#15071 <https://github.com/hail-is/hail/pull/15071>`__) roll back vm secure boot
+- (`#15048 <https://github.com/hail-is/hail/pull/15048>`__) Migrate editable install packages to uv_build
+- (`#15066 <https://github.com/hail-is/hail/pull/15066>`__) Fix invalid swagger reference
+- (`#15055 <https://github.com/hail-is/hail/pull/15055>`__) Shielded boot for worker vms
+- (`#15044 <https://github.com/hail-is/hail/pull/15044>`__) Stay on batch page after cancelling a batch
+
 **Version 0.2.136**
 
 - (`#14980 <https://github.com/hail-is/hail/pull/14980>`__)
