@@ -9,6 +9,7 @@ aiohappyeyeballs==2.6.1
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   aiohttp
 aiohttp==3.13.2
+aiohttp==3.13.2
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
@@ -25,11 +26,13 @@ attrs==25.4.0
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   aiohttp
 avro==1.11.5
+avro==1.11.5
     # via -r hail/python/requirements.txt
 azure-common==1.1.28
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   azure-mgmt-storage
+azure-core==1.36.0
 azure-core==1.36.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
@@ -50,21 +53,23 @@ azure-mgmt-storage==20.1.0
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
 azure-storage-blob==12.27.1
+azure-storage-blob==12.27.1
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
 bokeh==3.4.3
     # via -r hail/python/requirements.txt
-boto3==1.40.61
+boto3==1.40.64
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
-botocore==1.40.61
+botocore==1.40.64
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
     #   boto3
     #   s3transfer
+cachetools==6.2.1
 cachetools==6.2.1
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
@@ -114,7 +119,7 @@ frozenlist==1.8.0
     #   -r hail/python/hailtop/requirements.txt
     #   aiohttp
     #   aiosignal
-google-auth==2.42.0
+google-auth==2.42.1
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
@@ -257,7 +262,7 @@ pyyaml==6.0.3
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
     #   bokeh
-regex==2025.10.23
+regex==2025.11.3
     # via parsimonious
 requests==2.32.5
     # via
@@ -330,13 +335,13 @@ urllib3==2.5.0
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   botocore
     #   requests
-uvloop==0.21.0
+uvloop==0.22.1
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
 wrapt==1.17.3
     # via deprecated
-xyzservices==2025.4.0
+xyzservices==2025.10.0
     # via bokeh
 yarl==1.22.0
     # via
