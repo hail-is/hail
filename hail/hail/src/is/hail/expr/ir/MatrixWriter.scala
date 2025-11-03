@@ -12,7 +12,7 @@ import is.hail.expr.ir.lowering.TableStage
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io._
 import is.hail.io.bgen.BgenSettings
-import is.hail.io.fs.FS
+import is.hail.io.fs.{getCodecExtension, FS}
 import is.hail.io.gen.{BgenWriter, ExportGen}
 import is.hail.io.index.StagedIndexWriter
 import is.hail.io.plink.{BitPacker, ExportPlink}
@@ -758,7 +758,7 @@ case class MatrixVCFWriter(
 
     ExportVCF.checkFormatSignature(tm.entryType)
 
-    val ext = ctx.fs.getCodecExtension(path)
+    val ext = getCodecExtension(path)
 
     val folder = if (exportType == ExportType.CONCATENATED)
       ctx.createTmpPath("write-vcf-concatenated")
@@ -1278,7 +1278,7 @@ case class VCFExportFinalizer(
     region: Value[Region],
   ): Unit = {
     val ctx: ExecuteContext = cb.emb.ctx
-    val ext = ctx.fs.getCodecExtension(outputPath)
+    val ext = getCodecExtension(outputPath)
 
     val annotations = writeAnnotations.getOrAssert(cb).asBaseStruct
 

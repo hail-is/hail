@@ -3,7 +3,9 @@ package is.hail.expr.ir
 import is.hail.backend.spark.SparkBackend
 import is.hail.collection.implicits.toRichIterator
 import is.hail.io.compress.BGzipInputStream
-import is.hail.io.fs.{BGZipCompressionCodec, FS, FileStatus, Positioned, PositionedInputStream}
+import is.hail.io.fs.{
+  getCodecFromPath, BGZipCompressionCodec, FS, FileStatus, Positioned, PositionedInputStream,
+}
 import is.hail.io.tabix.{TabixLineIterator, TabixReader}
 import is.hail.types.virtual.{TBoolean, TInt32, TInt64, TString, TStruct, Type}
 import is.hail.utils._
@@ -12,7 +14,7 @@ import is.hail.variant.Locus
 import scala.annotation.meta.param
 
 import org.apache.commons.io.input.{BoundedInputStream, ProxyInputStream}
-import org.apache.hadoop.io.compress.SplittableCompressionCodec
+import org.apache.hadoop.io.compress.SplittableCompressionCodec.READ_MODE
 import org.apache.spark.{Partition, TaskContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
@@ -44,31 +46,31 @@ object GenericLines extends Logging {
         private var splitCompressed = false
         private val is: PositionedInputStream = {
           val rawIS = fs.openNoCompression(file)
-          val codec = fs.getCodecFromPath(file, gzAsBGZ)
-          if (codec == null) {
-            assert(split || filePerPartition)
-            rawIS.seek(start)
-            rawIS
-          } else if (codec == BGZipCompressionCodec) {
-            assert(split || filePerPartition)
-            splitCompressed = true
-            val bgzIS =
-              new BGzipInputStream(rawIS, start, end, SplittableCompressionCodec.READ_MODE.BYBLOCK)
-            new ProxyInputStream(bgzIS) with Positioned {
-              override def getPosition: Long = bgzIS.getVirtualOffset
-            }
-          } else {
-            assert(!split || filePerPartition)
+          getCodecFromPath(file, gzAsBGZ) match {
+            case None =>
+              assert(split || filePerPartition)
+              rawIS.seek(start)
+              rawIS
+            case Some(BGZipCompressionCodec) =>
+              assert(split || filePerPartition)
+              splitCompressed = true
+              val bgzIS =
+                new BGzipInputStream(rawIS, start, end, READ_MODE.BYBLOCK)
+              new ProxyInputStream(bgzIS) with Positioned {
+                override def getPosition: Long = bgzIS.getVirtualOffset
+              }
+            case Some(codec) =>
+              assert(!split || filePerPartition)
 
-            val delegate =
-              BoundedInputStream
-                .builder()
-                .setInputStream(codec.makeInputStream(rawIS))
-                .get()
+              val delegate =
+                BoundedInputStream
+                  .builder()
+                  .setInputStream(codec.makeInputStream(rawIS))
+                  .get()
 
-            new ProxyInputStream(delegate) with Positioned {
-              override def getPosition: Long = delegate.getCount
-            }
+              new ProxyInputStream(delegate) with Positioned {
+                override def getPosition: Long = delegate.getCount
+              }
           }
         }
 
@@ -292,9 +294,9 @@ object GenericLines extends Logging {
 
     val contexts = fileStatuses.flatMap { case (fileListEntry, fileNum) =>
       val size = fileListEntry.getLen
-      val codec = fs.getCodecFromPath(fileListEntry.getPath, gzAsBGZ)
+      val codec = getCodecFromPath(fileListEntry.getPath, gzAsBGZ)
 
-      val splittable = codec == null || codec == BGZipCompressionCodec
+      val splittable = codec.isEmpty || codec.contains(BGZipCompressionCodec)
       if (splittable && !filePerPartition) {
         var fileNParts = ((totalPartitions.toDouble * size) / totalSize + 0.5).toInt
         if (fileNParts == 0)
@@ -306,7 +308,7 @@ object GenericLines extends Logging {
           .map { i =>
             val start = partScan(i)
             var end = partScan(i + 1)
-            if (codec != null)
+            if (codec.isDefined)
               end = makeVirtualOffset(end, 0)
             Row(i, fileNum, fileListEntry.getPath, start, end, true)
           }

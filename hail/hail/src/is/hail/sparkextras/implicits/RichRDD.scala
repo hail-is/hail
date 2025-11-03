@@ -6,6 +6,7 @@ import is.hail.collection.implicits.{toRichIterable, toRichOrderedSeq}
 import is.hail.expr.ir.ExportType
 import is.hail.io.FileWriteMetadata
 import is.hail.io.compress.{BGzipCodec, ComposableBGzipCodec, ComposableBGzipOutputStream}
+import is.hail.io.fs.getCodecExtension
 import is.hail.sparkextras._
 import is.hail.utils._
 
@@ -92,7 +93,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     }
 
     if (exportType == ExportType.PARALLEL_SEPARATE_HEADER) {
-      val headerExt = fs.getCodecExtension(filename)
+      val headerExt = getCodecExtension(filename)
       using(new OutputStreamWriter(fs.create(parallelOutputPath + "/header" + headerExt))) { out =>
         header.foreach { h =>
           out.write(h)
@@ -102,7 +103,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     }
 
     if (exportType == ExportType.PARALLEL_COMPOSABLE) {
-      val ext = fs.getCodecExtension(filename)
+      val ext = getCodecExtension(filename)
       val headerPath = parallelOutputPath + "/header" + ext
       val headerOs = if (ext == ".bgz") {
         val os = fs.createNoCompression(headerPath)
