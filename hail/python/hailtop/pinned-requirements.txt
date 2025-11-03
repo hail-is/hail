@@ -174,7 +174,7 @@ urllib3==2.5.0
     # via
     #   botocore
     #   requests
-uvloop==0.22.1
+uvloop==0.21.0
     # via -r hail/python/hailtop/requirements.txt
 yarl==1.22.0
     # via aiohttp
