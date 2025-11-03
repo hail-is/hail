@@ -305,7 +305,7 @@ class SemanticHashSuite extends HailSuite {
     val fs =
       new FakeFS {
         override def eTag(url: FakeURL): Option[String] =
-          throw new FileNotFoundException(url.getPath)
+          throw new FileNotFoundException(url.path)
       }
 
     val ir = importMatrix("gs://fake-bucket/fake-matrix")
@@ -320,12 +320,12 @@ class SemanticHashSuite extends HailSuite {
   private[this] val fakeFs: FS =
     new FakeFS {
       override def eTag(url: FakeURL): Option[String] =
-        Some(url.getPath)
+        Some(url.path)
 
       override def glob(url: FakeURL): Array[FileListEntry] =
         Array(new FileListEntry {
-          override def getPath: String = url.getPath
-          override def getActualUrl: String = url.getPath
+          override def getPath: String = url.path
+          override def getActualUrl: String = url.path
           override def getModificationTime: lang.Long = ???
           override def getLen: Long = ???
           override def isDirectory: Boolean = ???

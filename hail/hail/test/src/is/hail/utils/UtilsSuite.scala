@@ -59,13 +59,6 @@ class UtilsSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(Array(1, 1).isSorted)
   }
 
-  @Test def testHadoopStripCodec(): Unit = {
-    assert(fs.stripCodecExtension("file.tsv") == "file.tsv")
-    assert(fs.stripCodecExtension("file.tsv.gz") == "file.tsv")
-    assert(fs.stripCodecExtension("file.tsv.bgz") == "file.tsv")
-    assert(fs.stripCodecExtension("file") == "file")
-  }
-
   @Test def testPairRDDNoDup(): Unit = {
     val answer1 =
       Array((1, (1, Option(1))), (2, (4, Option(2))), (3, (9, Option(3))), (4, (16, Option(4))))

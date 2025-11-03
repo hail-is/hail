@@ -9,19 +9,15 @@ import java.nio.file.Path
 
 import org.apache.hadoop.conf.Configuration
 
-object RouterFSURL {
-  def apply(fs: FS)(_url: fs.URL): RouterFSURL = RouterFSURL(_url, fs)
-}
+class RouterFSURL(val fs: FS, _url: FSURL[_]) extends FSURL[RouterFSURL] {
+  def url: fs.URL = _url.asInstanceOf[fs.URL]
 
-case class RouterFSURL private (_url: FSURL, val fs: FS) extends FSURL {
-  val url = _url.asInstanceOf[fs.URL]
+  override def path: String = _url.path
 
-  def getPath: String = url.getPath
+  override def /(component: String): RouterFSURL =
+    new RouterFSURL(fs, url / component)
 
-  def addPathComponent(component: String): RouterFSURL =
-    RouterFSURL(fs)(fs.urlAddPathComponent(url, component))
-
-  override def toString(): String = url.toString
+  override def toString: String = _url.toString
 }
 
 case class CloudStorageFSConfig(
@@ -86,27 +82,17 @@ class RouterFS(fss: IndexedSeq[FS]) extends FS {
 
   override def parseUrl(filename: String): URL = {
     val fs = lookupFS(filename)
-
-    RouterFSURL(fs)(fs.parseUrl(filename))
+    new RouterFSURL(fs, fs.parseUrl(filename))
   }
 
   override def validUrl(filename: String): Boolean =
     fss.exists(_.validUrl(filename))
 
-  def urlAddPathComponent(url: URL, component: String): URL = url.addPathComponent(component)
-
-  override def openCachedNoCompression(url: URL): SeekableDataInputStream =
-    url.fs.openCachedNoCompression(url.url)
-
-  override def createCachedNoCompression(url: URL): PositionedDataOutputStream =
-    url.fs.createCachedNoCompression(url.url)
-
-  def openNoCompression(url: URL): SeekableDataInputStream = url.fs.openNoCompression(url.url)
-
-  def createNoCompression(url: URL): PositionedDataOutputStream =
+  override def createNoCompression(url: RouterFSURL): PositionedDataOutputStream =
     url.fs.createNoCompression(url.url)
 
-  override def readNoCompression(url: URL): Array[Byte] = url.fs.readNoCompression(url.url)
+  def openNoCompression(url: URL): SeekableDataInputStream =
+    url.fs.openNoCompression(url.url)
 
   override def mkDir(url: URL): Unit = url.fs.mkDir(url.url)
 

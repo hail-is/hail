@@ -8,7 +8,7 @@ import scala.util.Try
 import java.io._
 
 import org.apache.hadoop
-import org.apache.hadoop.fs.{EtagSource, FSDataInputStream, FSDataOutputStream}
+import org.apache.hadoop.fs.{EtagSource, FSDataInputStream, FSDataOutputStream, Path}
 
 class HadoopFileListEntry(fs: hadoop.fs.FileStatus) extends FileListEntry {
   val normalizedPath = fs.getPath
@@ -72,26 +72,26 @@ object HadoopFS {
     }
 }
 
-case class HadoopFSURL(path: String, conf: SerializableHadoopConfiguration) extends FSURL {
-  private[this] val unqualifiedHadoopPath = new hadoop.fs.Path(path)
-  val hadoopFs = unqualifiedHadoopPath.getFileSystem(conf.value)
-  val hadoopPath = hadoopFs.makeQualified(unqualifiedHadoopPath)
+class HadoopFSURL(unqualified: Path, conf: SerializableHadoopConfiguration)
+    extends FSURL[HadoopFSURL] {
+  val hadoopFs = unqualified.getFileSystem(conf.value)
+  val hadoopPath: Path = hadoopFs.makeQualified(unqualified)
 
-  def addPathComponent(c: String): HadoopFSURL = HadoopFSURL(s"${hadoopPath.toString}/$c", conf)
-  def getPath: String = hadoopPath.toString
-  def fromString(s: String): HadoopFSURL = HadoopFSURL(s, conf)
-  override def toString(): String = hadoopPath.toString
+  override def /(c: String): HadoopFSURL =
+    new HadoopFSURL(new Path(unqualified, c), conf)
+
+  override def path: String = hadoopPath.toString
+  override def toString: String = hadoopPath.toString
 }
 
 class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends FS {
   type URL = HadoopFSURL
 
-  override def parseUrl(filename: String): URL = HadoopFSURL(filename, conf)
+  override def parseUrl(filename: String): URL =
+    new HadoopFSURL(new Path(filename), conf)
 
   override def validUrl(filename: String): Boolean =
     Try(getFileSystem(filename)).isSuccess
-
-  def urlAddPathComponent(url: URL, component: String): URL = url.addPathComponent(component)
 
   def getConfiguration(): SerializableHadoopConfiguration = conf
 
@@ -172,7 +172,7 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
   override def fileStatus(url: URL): FileStatus = {
     val fle = fileListEntry(url)
     if (fle.isDirectory) {
-      throw new FileNotFoundException(url.getPath)
+      throw new FileNotFoundException(url.path)
     }
     fle
   }
@@ -191,9 +191,6 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
     val pathFS = ppath.getFileSystem(conf.value)
     pathFS.makeQualified(ppath).toString
   }
-
-  override def deleteOnExit(url: URL): Unit =
-    url.hadoopFs.deleteOnExit(url.hadoopPath): Unit
 
   def supportsScheme(scheme: String): Boolean =
     (scheme == "") || {

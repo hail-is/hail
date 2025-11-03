@@ -2,7 +2,6 @@ package is.hail.io.fs
 
 import is.hail.io.compress.{BGzipInputStream, BGzipOutputStream}
 import is.hail.io.fs.FSUtil.{containsWildcard, dropTrailingSlash}
-import is.hail.services._
 import is.hail.utils._
 
 import scala.collection.mutable
@@ -48,8 +47,9 @@ class WrappedPositionOutputStream(os: OutputStream) extends OutputStream with Po
   def getPosition: Long = count
 }
 
-trait FSURL {
-  def getPath: String
+abstract class FSURL[URL <: FSURL[URL]] {
+  def path: String
+  def /(component: String): URL
 }
 
 trait FileStatus {
@@ -253,30 +253,13 @@ abstract class FSPositionedOutputStream(val capacity: Int) extends OutputStream 
 }
 
 trait FS extends Serializable with Logging {
-  type URL <: FSURL
+  type URL <: FSURL[URL]
 
   def parseUrl(filename: String): URL
 
   def validUrl(filename: String): Boolean
 
-  def urlAddPathComponent(url: URL, component: String): URL
-
-  final def openCachedNoCompression(filename: String): SeekableDataInputStream =
-    openNoCompression(filename)
-
-  def openCachedNoCompression(url: URL): SeekableDataInputStream = openNoCompression(url)
-
-  final def createCachedNoCompression(filename: String): PositionedDataOutputStream =
-    createNoCompression(filename)
-
-  def createCachedNoCompression(url: URL): PositionedDataOutputStream = createNoCompression(url)
-
-  final def writeCached(filename: String)(writer: PositionedDataOutputStream => Unit) =
-    writePDOS(filename)(writer)
-
-  def writeCached(url: URL)(writer: PositionedDataOutputStream => Unit) = writePDOS(url)(writer)
-
-  def getCodecFromExtension(extension: String, gzAsBGZ: Boolean = false): CompressionCodec = {
+  def getCodecFromExtension(extension: String, gzAsBGZ: Boolean = false): CompressionCodec =
     extension match {
       case ".gz" =>
         if (gzAsBGZ)
@@ -290,7 +273,6 @@ trait FS extends Serializable with Logging {
       case _ =>
         null
     }
-  }
 
   def getCodecFromPath(path: String, gzAsBGZ: Boolean = false): CompressionCodec =
     getCodecFromExtension(getExtension(path), gzAsBGZ)
@@ -316,11 +298,6 @@ trait FS extends Serializable with Logging {
     throw new AssertionError("unreachable")
   }
 
-  def stripCodecExtension(path: String): String = {
-    val ext = getCodecExtension(path)
-    path.dropRight(ext.length)
-  }
-
   def getCodecExtension(path: String): String = {
     val ext = getExtension(path)
     if (ext == ".gz" || ext == ".bgz" || ext == ".tbi")
@@ -333,12 +310,6 @@ trait FS extends Serializable with Logging {
     openNoCompression(parseUrl(filename))
 
   def openNoCompression(url: URL): SeekableDataInputStream
-
-  final def readNoCompression(filename: String): Array[Byte] = readNoCompression(parseUrl(filename))
-
-  def readNoCompression(url: URL): Array[Byte] = retryTransientErrors {
-    using(openNoCompression(url))(is => IOUtils.toByteArray(is))
-  }
 
   final def createNoCompression(filename: String): PositionedDataOutputStream =
     createNoCompression(parseUrl(filename))
@@ -399,7 +370,7 @@ trait FS extends Serializable with Logging {
             }
           }
         } else
-          f(urlAddPathComponent(prefix, c), null, i + 1)
+          f(prefix / c, null, i + 1)
       }
     }
 
@@ -499,13 +470,6 @@ trait FS extends Serializable with Logging {
 
   def makeQualified(path: String): String
 
-  final def deleteOnExit(filename: String): Unit = deleteOnExit(parseUrl(filename))
-
-  def deleteOnExit(url: URL): Unit =
-    Runtime.getRuntime.addShutdownHook(
-      new Thread(() => delete(url, recursive = false))
-    )
-
   final def open(filename: String, codec: CompressionCodec): InputStream =
     open(parseUrl(filename), codec)
 
@@ -515,7 +479,6 @@ trait FS extends Serializable with Logging {
       codec.makeInputStream(is)
     else
       is
-
   }
 
   final def open(filename: String): InputStream = open(parseUrl(filename))
@@ -527,14 +490,14 @@ trait FS extends Serializable with Logging {
     open(parseUrl(filename), gzAsBGZ)
 
   def open(url: URL, gzAsBGZ: Boolean): InputStream =
-    open(url, getCodecFromPath(url.getPath, gzAsBGZ))
+    open(url, getCodecFromPath(url.path, gzAsBGZ))
 
   final def create(filename: String): OutputStream = create(parseUrl(filename))
 
   def create(url: URL): OutputStream = {
     val os = createNoCompression(url)
 
-    val codec = getCodecFromPath(url.getPath, gzAsBGZ = false)
+    val codec = getCodecFromPath(url.path, gzAsBGZ = false)
     if (codec != null)
       codec.makeOutputStream(os)
     else
