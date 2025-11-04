@@ -949,7 +949,7 @@ steps:
 
       # See `build_hail_jar_and_wheel`
       time retry make shadowJar
-      if [ ! -f out/hail/2.12/assembly.dest/out.jar ]; then
+      if [ ! -f out/hail/2.12.13/assembly.dest/out.jar ]; then
           echo 'no out.jar found after mill assembly returned. going to sleep'
           sleep 5
       fi
