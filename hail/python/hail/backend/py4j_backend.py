@@ -2,11 +2,8 @@ import abc
 import glob
 import http.client
 import logging
-import socket
-import socketserver
 import sys
 import warnings
-from threading import Thread
 from typing import Dict, Mapping, Optional, Tuple
 
 import orjson
@@ -140,20 +137,6 @@ def handle_java_exception(f):
     return deco
 
 
-class SimpleServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
-    daemon_threads = True
-    allow_reuse_address = True
-
-    def __init__(self, server_address, handler_class):
-        socketserver.TCPServer.__init__(self, server_address, handler_class)
-
-
-class LoggingTCPHandler(socketserver.StreamRequestHandler):
-    def handle(self):
-        for line in self.rfile:
-            sys.stderr.write(line.decode("ISO-8859-1"))
-
-
 class Log4jLogger(Logger):
     def __init__(self, log_pkg):
         self._log_pkg = log_pkg
@@ -166,45 +149,6 @@ class Log4jLogger(Logger):
 
     def info(self, msg):
         self._log_pkg.info(msg)
-
-
-def connect_logger(utils_package_object, host, port):
-    """
-    This method starts a simple server which listens on a port for a
-    client to connect and start writing messages. Whenever a message
-    is received, it is written to sys.stderr. The server is run in
-    a daemon thread from the caller, which is killed when the caller
-    thread dies.
-
-    If the socket is in use, then the server tries to listen on the
-    next port (port + 1). After 25 tries, it gives up.
-
-    :param str host: Hostname for server.
-    :param int port: Port to listen on.
-    """
-    server = None
-    tries = 0
-    max_tries = 25
-    while not server:
-        try:
-            server = SimpleServer((host, port), LoggingTCPHandler)
-        except socket.error:
-            port += 1
-            tries += 1
-
-            if tries >= max_tries:
-                sys.stderr.write(
-                    'WARNING: Could not find a free port for logger, maximum retries {} exceeded.'.format(max_tries)
-                )
-                return
-
-    t = Thread(target=server.serve_forever, args=())
-
-    # The thread should be a daemon so that it shuts down when the parent thread is killed
-    t.daemon = True
-
-    t.start()
-    utils_package_object.addSocketAppender(host, port)
 
 
 action_routes = {

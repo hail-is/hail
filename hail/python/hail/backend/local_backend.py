@@ -6,7 +6,6 @@ from py4j.java_gateway import JavaGateway, JavaObject, Py4JJavaError
 from hail.backend.backend import fatal_error_from_java_error_triplet
 from hail.backend.py4j_backend import (
     Py4JBackend,
-    connect_logger,
     raise_when_mismatched_hail_versions,
     start_py4j_gateway,
 )
@@ -40,9 +39,6 @@ class LocalBackend(Py4JBackend):
             try:
                 if not skip_logging_configuration:
                     py4jutils.configureLogging(logfile, quiet, append)
-
-                if not quiet:
-                    connect_logger(py4jutils, 'localhost', 12888)
 
                 flags = {}
                 if branching_factor is not None:

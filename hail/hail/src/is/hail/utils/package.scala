@@ -23,12 +23,10 @@ import java.util.concurrent._
 import java.util.concurrent.atomic.AtomicBoolean
 
 import com.google.common.util.concurrent.AbstractFuture
-import org.apache.commons.io.output.TeeOutputStream
 import org.apache.commons.lang3.StringUtils
 import org.apache.hadoop.fs.PathIOException
 import org.apache.hadoop.mapred.FileSplit
 import org.apache.hadoop.mapreduce.lib.input.{FileSplit => NewFileSplit}
-import org.apache.log4j.Level
 import org.apache.spark.{Partition, TaskContext}
 import org.apache.spark.sql.Row
 import org.json4s.{Extraction, Formats, JObject, JValue, NoTypeHints, Serializer}
@@ -115,9 +113,6 @@ package object utils
   type UtilsType = this.type
 
   def utilsPackageClass = getClass
-
-  def getStderrAndLogOutputStream[T](implicit tct: ClassTag[T]): OutputStream =
-    new TeeOutputStream(new LoggerOutputStream(log, Level.ERROR), System.err)
 
   def format(s: String, substitutions: Any*): String =
     substitutions.zipWithIndex.foldLeft(s) { case (str, (value, i)) =>

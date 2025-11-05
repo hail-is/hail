@@ -52,6 +52,14 @@ object Deps {
     def core: Task[Dep] = Task.Anon(mvn"org.apache.spark::spark-core:${Env.sparkVersion()}")
     def mllib: Task[Dep] = Task.Anon(mvn"org.apache.spark::spark-mllib:${Env.sparkVersion()}")
   }
+  
+  object Log4j {
+    // have to forceVersion for reasons unknown?
+    val bom = mvn"org.apache.logging.log4j:log4j-bom:2.25.2".forceVersion()
+    val api = mvn"org.apache.logging.log4j:log4j-api"
+    val core = mvn"org.apache.logging.log4j:log4j-core"
+    val slf4j = mvn"org.apache.logging.log4j:log4j-slf4j2-impl"
+  }
 
   val samtools = mvn"com.github.samtools:htsjdk:3.0.5"
   val jdistlib = mvn"net.sourceforge.jdistlib:jdistlib:0.4.5"
@@ -65,8 +73,6 @@ object Deps {
   val netlib = mvn"com.github.fommil.netlib:all:1.1.2"
   val avro = mvn"org.apache.avro:avro:1.11.2"
   val junixsocket = mvn"com.kohlschutter.junixsocket:junixsocket-core:2.6.1"
-  val log4jApi = mvn"org.apache.logging.log4j:log4j-api:2.20.0"
-  val sfl4jNop = mvn"org.slf4j:slf4j-nop:1.7.36"
   val hadoopClient = mvn"org.apache.hadoop:hadoop-client:3.4.2"
   val jackson = mvn"com.fasterxml.jackson.core:jackson-core:2.15.2"
   val sourcecode = mvn"com.lihaoyi::sourcecode:0.4.2"
@@ -254,6 +260,7 @@ trait RootHailModule extends CrossScalaModule with HailModule { outer =>
 
   override def bomMvnDeps: T[Seq[Dep]] = Seq(
     Deps.Asm.bom,
+    Deps.Log4j.bom,
   )
 
   override def mvnDeps: T[Seq[Dep]] = Seq(
@@ -262,6 +269,7 @@ trait RootHailModule extends CrossScalaModule with HailModule { outer =>
     Deps.Asm.core,
     Deps.Asm.analysis,
     Deps.Asm.util,
+    Deps.Log4j.core,
     Deps.samtools.excludeOrg("*"),
     Deps.jdistlib.excludeOrg("*"),
     Deps.freemarker,
@@ -283,11 +291,11 @@ trait RootHailModule extends CrossScalaModule with HailModule { outer =>
     Deps.netlib,
     Deps.avro.excludeOrg("com.fasterxml.jackson.core"),
     Deps.junixsocket,
-    Deps.sfl4jNop,
+    Deps.Log4j.slf4j,
   )
 
   override def compileMvnDeps: T[Seq[Dep]] = Seq(
-    Deps.log4jApi,
+    Deps.Log4j.api,
     Deps.hadoopClient,
     Deps.Spark.core().excludeOrg("org.scalanlp"),  // Hail has an explicit dependency on Breeze 1.1
     Deps.Spark.mllib().excludeOrg("org.scalanlp"),  // Hail has an explicit dependency on Breeze 1.1
@@ -357,8 +365,6 @@ trait RootHailModule extends CrossScalaModule with HailModule { outer =>
   }
 
   object test extends HailTests {
-    override def resources: T[Seq[PathRef]] = outer.resources() ++ super.resources()
-
     override def assemblyRules: Seq[Rule] = outer.assemblyRules ++ Seq(
       Rule.Relocate("org.codehaus.jackson.**", "is.hail.relocated.@0")
     )

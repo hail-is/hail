@@ -7,9 +7,11 @@ import is.hail.types.virtual.Type
 import scala.jdk.CollectionConverters._
 
 import java.io.{InputStream, OutputStream}
-import java.util.Properties
 
-import org.apache.log4j.{LogManager, PropertyConfigurator}
+import org.apache.logging.log4j.Level
+import org.apache.logging.log4j.core.appender.ConsoleAppender
+import org.apache.logging.log4j.core.config.Configurator
+import org.apache.logging.log4j.core.config.builder.api.ConfigurationBuilderFactory
 import org.json4s.JsonAST._
 import org.json4s.jackson.JsonMethods
 
@@ -137,37 +139,57 @@ trait Py4jUtils extends Logging {
     "%d{yyyy-MM-dd HH:mm:ss.SSS} %c{1}: %p: %m%n"
 
   def configureLogging(logFile: String, quiet: Boolean, append: Boolean): Unit = {
-    org.apache.log4j.helpers.LogLog.setInternalDebugging(true)
-    org.apache.log4j.helpers.LogLog.setQuietMode(false)
-    val logProps = new Properties()
+    val configBuilder =
+      ConfigurationBuilderFactory
+        .newConfigurationBuilder()
+        .setConfigurationName("Hail")
 
-    // uncomment to see log4j LogLog output:
-    // logProps.put("log4j.debug", "true")
-    logProps.put("log4j.rootLogger", "INFO, logfile")
-    logProps.put("log4j.appender.logfile", "org.apache.log4j.FileAppender")
-    logProps.put("log4j.appender.logfile.append", append.toString)
-    logProps.put("log4j.appender.logfile.file", logFile)
-    logProps.put("log4j.appender.logfile.threshold", "INFO")
-    logProps.put("log4j.appender.logfile.layout", "org.apache.log4j.PatternLayout")
-    logProps.put("log4j.appender.logfile.layout.ConversionPattern", LogFormat)
+    val layout =
+      configBuilder
+        .newLayout("PatternLayout")
+        .addAttribute("pattern", LogFormat)
 
-    if (!quiet) {
-      logProps.put("log4j.logger.Hail", "INFO, HailConsoleAppender, HailSocketAppender")
-      logProps.put("log4j.appender.HailConsoleAppender", "org.apache.log4j.ConsoleAppender")
-      logProps.put("log4j.appender.HailConsoleAppender.target", "System.err")
-      logProps.put("log4j.appender.HailConsoleAppender.layout", "org.apache.log4j.PatternLayout")
-    } else
-      logProps.put("log4j.logger.Hail", "INFO, HailSocketAppender")
+    val fileAppender =
+      configBuilder
+        .newAppender("LOGFILE", "File")
+        .addAttribute("append", append.toString)
+        .addAttribute("fileName", logFile)
+        .add(layout)
 
-    logProps.put("log4j.appender.HailSocketAppender", "is.hail.utils.StringSocketAppender")
-    logProps.put("log4j.appender.HailSocketAppender.layout", "org.apache.log4j.PatternLayout")
+    val consoleAppender =
+      configBuilder
+        .newAppender("CONSOLE", "Console")
+        .addAttribute("target", ConsoleAppender.Target.SYSTEM_ERR)
+        .add(layout)
 
-    LogManager.resetConfiguration()
-    PropertyConfigurator.configure(logProps)
+    val rootLogger =
+      configBuilder
+        .newRootLogger(Level.INFO)
+        .add(
+          configBuilder
+            .newAppenderRef(fileAppender.getName)
+            .addAttribute("level", Level.INFO)
+        )
+        .add(
+          configBuilder
+            .newAppenderRef(consoleAppender.getName)
+            .addAttribute("level", if (!quiet) Level.WARN else Level.OFF)
+        )
+
+    val sparkLogger =
+      configBuilder
+        .newLogger("org.apache.spark", Level.WARN)
+        .add(configBuilder.newAppenderRef(fileAppender.getName))
+
+    Configurator.reconfigure(
+      configBuilder
+        .add(fileAppender)
+        .add(consoleAppender)
+        .add(rootLogger)
+        .add(sparkLogger)
+        .build(false)
+    )
   }
-
-  def addSocketAppender(hostname: String, port: Int): Unit =
-    StringSocketAppender.get().connect(hostname, port, LogFormat)
 
   def logWarn(msg: String): Unit =
     warn(msg)

@@ -52,7 +52,6 @@ class HailSuite extends TestNGSuite with TestUtils {
 
   @BeforeSuite
   def setupBackend(): Unit = {
-    configureLogging("/tmp/hail.log", quiet = false, append = false)
     RVD.CheckRvdKeyOrderingForTesting = true
     HailSuite.backend_ = SparkBackend(
       SparkSession
