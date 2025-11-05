@@ -67,6 +67,7 @@ log = logging.getLogger('auth')
 
 CLOUD = get_global_config()['cloud']
 DEFAULT_NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
+AUTH_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 is_test_deployment = DEFAULT_NAMESPACE != 'default'
 
@@ -1243,6 +1244,7 @@ def run():
     setup_aiohttp_session(app)
 
     setup_common_static_routes(routes)
+    routes.static('/auth/static/js', f'{AUTH_ROOT}/static/js')
     app.add_routes(routes)
     app.router.add_get("/metrics", server_stats)
 
