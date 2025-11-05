@@ -93,6 +93,8 @@ log = logging.getLogger('batch')
 
 log.info(f'REFRESH_INTERVAL_IN_SECONDS {REFRESH_INTERVAL_IN_SECONDS}')
 
+DRIVER_ROOT = os.path.dirname(os.path.abspath(__file__))
+
 routes = web.RouteTableDef()
 
 deploy_config = get_deploy_config()
@@ -1789,6 +1791,7 @@ def run():
 
     setup_aiohttp_jinja2(app, 'batch.driver')
     setup_common_static_routes(routes)
+    routes.static('/batch_driver/static/js', f'{DRIVER_ROOT}/static/js')
     app.add_routes(routes)
     app.router.add_get("/metrics", server_stats)
 

@@ -1,1 +1,2 @@
 recursive-include auth/templates *
+recursive-include auth/static *

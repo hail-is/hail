@@ -233,6 +233,6 @@
 </div>
 {% if plot_job_durations is not none or plot_resource_usage is not none %}
 <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-<script src="{{ base_path }}/common_static/js/job.js"></script>
+<script defer src="{{ base_path }}/batch/static/js/job.js"></script>
 {% endif %}
 {% endblock %}
