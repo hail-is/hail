@@ -21,7 +21,8 @@ object PSubsetStruct {
 
 // Semantics: PSubsetStruct is a non-constructible view of another PStruct, which is not allowed to mutate
 // that underlying PStruct's region data
-final case class PSubsetStruct(ps: PStruct, _fieldNames: IndexedSeq[String]) extends PStruct {
+final case class PSubsetStruct(ps: PStruct, _fieldNames: IndexedSeq[String])
+    extends PStruct with Logging {
   val fields: IndexedSeq[PField] = _fieldNames.zipWithIndex.map { case (name, i) =>
     PField(name, ps.fieldType(name), i)
   }
@@ -29,7 +30,7 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: IndexedSeq[String]) ext
   val required = ps.required
 
   if (fields == ps.fields) {
-    log.warn("PSubsetStruct used without subsetting input PStruct")
+    logger.warn("PSubsetStruct used without subsetting input PStruct")
   }
 
   private val idxMap: Array[Int] = _fieldNames.map(f => ps.fieldIdx(f)).toArray

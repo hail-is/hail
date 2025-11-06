@@ -82,7 +82,7 @@ class IndexReader(
   val internalPType: PStruct,
   val pool: RegionPool,
   val sm: HailStateManager,
-) extends AutoCloseable {
+) extends AutoCloseable with Logging {
   private[io] val metadata = IndexReader.readMetadata(fs, path, keyType, annotationType)
   val branchingFactor = metadata.branchingFactor
   val height = metadata.height
@@ -286,8 +286,8 @@ class IndexReader(
   def close(): Unit = {
     leafDecoder.close()
     internalDecoder.close()
-    log.info(s"Index reader cache queries: ${cacheHits + cacheMisses}")
-    log.info(s"Index reader cache hit rate: ${cacheHits.toDouble / (cacheHits + cacheMisses)}")
+    logger.info(s"Index reader cache queries: ${cacheHits + cacheMisses}")
+    logger.info(s"Index reader cache hit rate: ${cacheHits.toDouble / (cacheHits + cacheMisses)}")
   }
 }
 

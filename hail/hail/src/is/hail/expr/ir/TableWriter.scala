@@ -435,7 +435,7 @@ class TableSpecHelper(
   refRelPath: String,
   typ: TableType,
   log: Boolean,
-) extends Serializable {
+) extends Serializable with Logging {
   def write(fs: FS, partCounts: Array[Long], distinctlyKeyed: Boolean): Unit = {
     val spec = TableSpecParameters(
       FileFormat.version.rep,
@@ -455,7 +455,7 @@ class TableSpecHelper(
     spec.write(fs, path)
 
     val nRows = partCounts.sum
-    if (log) info(s"wrote table with $nRows ${plural(nRows, "row")} " +
+    if (log) logger.info(s"wrote table with $nRows ${plural(nRows, "row")} " +
       s"in ${partCounts.length} ${plural(partCounts.length, "partition")} " +
       s"to $path")
   }

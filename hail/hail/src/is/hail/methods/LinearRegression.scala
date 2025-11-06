@@ -19,7 +19,7 @@ case class LinearRegressionRowsSingle(
   covFields: Seq[String],
   rowBlockSize: Int,
   passThrough: Seq[String],
-) extends MatrixToTableFunction {
+) extends MatrixToTableFunction with Logging {
 
   override def typ(childType: MatrixType): TableType = {
     val passThroughType = TStruct(passThrough.map(f => f -> childType.rowType.field(f).typ): _*)
@@ -55,8 +55,10 @@ case class LinearRegressionRowsSingle(
         s"$n samples and ${k + 1} ${plural(k, "covariate")} (including x) implies $d degrees of freedom."
       )
 
-    info(s"linear_regression_rows: running on $n samples for ${y.cols} response ${plural(y.cols, "variable")} y,\n"
-      + s"    with input variable x, and $k additional ${plural(k, "covariate")}...")
+    logger.info(
+      s"linear_regression_rows: running on $n samples for ${y.cols} response ${plural(y.cols, "variable")} y,\n"
+        + s"    with input variable x, and $k additional ${plural(k, "covariate")}..."
+    )
 
     val Qt =
       if (k > 0)
@@ -197,7 +199,7 @@ case class LinearRegressionRowsChained(
   covFields: Seq[String],
   rowBlockSize: Int,
   passThrough: Seq[String],
-) extends MatrixToTableFunction {
+) extends MatrixToTableFunction with Logging {
 
   override def typ(childType: MatrixType): TableType = {
     val passThroughType = TStruct(passThrough.map(f => f -> childType.rowType.field(f).typ): _*)
@@ -234,7 +236,7 @@ case class LinearRegressionRowsChained(
           s"$n samples and ${k + 1} ${plural(k, "covariate")} (including x) implies $d degrees of freedom."
         )
 
-      info(
+      logger.info(
         s"linear_regression_rows[$i]: running on $n samples for ${y.cols} response ${plural(y.cols, "variable")} y,\n"
           + s"    with input variable x, and $k additional ${plural(k, "covariate")}..."
       )

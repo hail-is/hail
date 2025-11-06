@@ -1,24 +1,9 @@
 package is.hail.utils
 
-import org.apache.logging.log4j.{LogManager, Logger}
-
-object LogHelper {
-  // exposed more directly for generated code
-  def logInfo(msg: String): Unit = log.info(msg)
-  def warning(msg: String): Unit = log.warn(msg)
-  def consoleInfo(msg: String): Unit = info(msg)
-}
+import org.apache.logging.log4j.LogManager
+import org.apache.logging.log4j.scala.Logger
 
 trait Logging {
-  @transient lazy val log: Logger =
-    LogManager.getLogger(getClass.getName.stripSuffix("$"))
-
-  def info(msg: String): Unit =
-    log.info(msg)
-
-  def warn(msg: String): Unit =
-    log.warn(msg)
-
-  def error(msg: String): Unit =
-    log.error(msg)
+  @transient protected lazy val logger: Logger =
+    Logger(LogManager.getContext.getLogger(getClass))
 }

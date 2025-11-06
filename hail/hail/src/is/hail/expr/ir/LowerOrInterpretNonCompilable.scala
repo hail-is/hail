@@ -8,7 +8,7 @@ import is.hail.utils._
 
 import scala.collection.mutable
 
-object LowerOrInterpretNonCompilable {
+object LowerOrInterpretNonCompilable extends Logging {
 
   def apply(ctx: ExecuteContext, ir: BaseIR): BaseIR = {
 
@@ -16,21 +16,21 @@ object LowerOrInterpretNonCompilable {
       val preTime = System.nanoTime()
       val result = CanLowerEfficiently(ctx, value) match {
         case Some(failReason) =>
-          log.info(s"LowerOrInterpretNonCompilable: cannot efficiently lower query: $failReason")
-          log.info(s"interpreting non-compilable result: ${value.getClass.getSimpleName}")
+          logger.info(s"LowerOrInterpretNonCompilable: cannot efficiently lower query: $failReason")
+          logger.info(s"interpreting non-compilable result: ${value.getClass.getSimpleName}")
           val v = Interpret.alreadyLowered(ctx, value)
           if (value.typ == TVoid) {
             Begin(FastSeq())
           } else Literal.coerce(value.typ, v)
         case None =>
-          log.info(s"LowerOrInterpretNonCompilable: whole stage code generation is a go!")
-          log.info(s"lowering result: ${value.getClass.getSimpleName}")
+          logger.info(s"LowerOrInterpretNonCompilable: whole stage code generation is a go!")
+          logger.info(s"lowering result: ${value.getClass.getSimpleName}")
           val fullyLowered = LowerToDistributedArrayPass(DArrayLowering.All).transform(ctx, value)
             .asInstanceOf[IR]
-          log.info(s"compiling and evaluating result: ${value.getClass.getSimpleName}")
+          logger.info(s"compiling and evaluating result: ${value.getClass.getSimpleName}")
           CompileAndEvaluate.evalToIR(ctx, fullyLowered)
       }
-      log.info(s"took ${formatTime(System.nanoTime() - preTime)}")
+      logger.info(s"took ${formatTime(System.nanoTime() - preTime)}")
       assert(result.typ == value.typ)
       result
     }

@@ -43,7 +43,7 @@ splits = partition(n_splits, classes)
 for split_index, split in enumerate(splits):
     classes = '\n'.join(f'<class name="{name}"/>' for name in split)
     with open(f'testng-splits-{split_index}.xml', 'w', encoding='utf-8') as f:
-        xml = f"""
+        xml = f"""<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.1.dtd">
 <suite name="SuiteAll" allow-return-values="true" verbose="1">
     <test name="Split{split_index}">
       <classes>

@@ -214,7 +214,7 @@ class OnDiskBTreeIndexToValue(
   path: String,
   fs: FS,
   branchingFactor: Int = 1024,
-) extends AutoCloseable {
+) extends AutoCloseable with Logging {
   private[this] def numLayers(size: Long): Int =
     IndexBTree.calcDepth(size, branchingFactor)
 
@@ -233,7 +233,7 @@ class OnDiskBTreeIndexToValue(
 
   private[this] var is =
     try {
-      log.info("reading index file: " + path)
+      logger.info("reading index file: " + path)
       fs.openNoCompression(path)
     } catch {
       case e: Exception =>

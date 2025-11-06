@@ -71,13 +71,13 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
         val (shortMessage, expandedMessage, errorId) =
           t match {
             case t: HailWorkerException =>
-              log.error(
+              logger.error(
                 "A worker failed. The exception was written for Python but we will also throw an exception to fail this driver job.",
                 t,
               )
               (t.shortMessage, t.expandedMessage, t.errorId)
             case _ =>
-              log.error(
+              logger.error(
                 "An exception occurred in the driver. The exception was written for Python but we will re-throw to fail this driver job.",
                 t,
               )
@@ -134,7 +134,7 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
     val inputURL = argv(5)
     val outputURL = argv(6)
 
-    log.info(f"${getClass.getName} $HAIL_PRETTY_VERSION")
+    logger.info(f"${getClass.getName} $HAIL_PRETTY_VERSION")
 
     sys.env.get("HAIL_SSL_CONFIG_DIR").foreach(tls.setSSLConfigFromDir)
 

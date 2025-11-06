@@ -266,27 +266,26 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
   def newBatch(createRequest: BatchRequest): Int = {
     val response = req.post("/api/v1alpha/batches/create", Extraction.decompose(createRequest))
     val batchId = (response \ "id").extract[Int]
-    log.info(s"Created batch $batchId")
+    logger.info(s"Created batch $batchId")
     batchId
   }
 
   def newJobGroup(req: JobGroupRequest): (Int, Int) =
     retryable { attempts =>
       try {
+        val batchId = req.batch_id
         val nJobs = req.jobs.length
-        val (updateId, startJobGroupId, startJobId) = beginUpdate(req.batch_id, req.token, nJobs)
-        log.info(s"Began update '$updateId' for batch '${req.batch_id}'.")
+        val (updateId, startJobGroupId, startJobId) = beginUpdate(batchId, req.token, nJobs)
+        logger.info(s"Began update '$updateId' for batch '$batchId'.")
 
         createJobGroup(updateId, req)
-        log.info(s"Created job group '$startJobGroupId' for batch '${req.batch_id}'.")
+        logger.info(s"Created job group '$startJobGroupId' for batch '$batchId'.")
 
-        createJobsIncremental(req.batch_id, updateId, req.jobs)
-        log.info(
-          s"Submitted '$nJobs' jobs in job group '$startJobGroupId' for batch '${req.batch_id}'."
-        )
+        createJobsIncremental(batchId, updateId, req.jobs)
+        logger.info(s"Created '$nJobs' jobs in job group '$startJobGroupId' for batch '$batchId'.")
 
-        commitUpdate(req.batch_id, updateId)
-        log.info(s"Committed update '$updateId' for batch '${req.batch_id}'.")
+        commitUpdate(batchId, updateId)
+        logger.info(s"Committed update '$updateId' for batch '$batchId'.")
 
         (startJobGroupId, startJobId)
       } catch {
@@ -294,7 +293,7 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
             if e.status == 400
               && e.getMessage.contains("job group specs were not submitted in order") =>
           val delay = delayMsForTry(attempts + 1)
-          log.warn(
+          logger.warn(
             f"Tried to update batch '${req.batch_id}' before another process could commit " +
               "an earlier update. This is most likely caused by running parallel query pipelines " +
               "in the same batch. Batch does not yet support out-of-order updates. Sleeping for " +

@@ -36,7 +36,7 @@ package object tls extends Logging {
     if (!new File(configFile).isFile)
       throw new NoSSLConfigFound(s"no ssl config file found at $configFile")
 
-    log.info(s"ssl config file found at $configFile")
+    logger.info(s"ssl config file found at $configFile")
 
     using(new FileInputStream(configFile)) { is =>
       implicit val formats: Formats = DefaultFormats
@@ -57,7 +57,7 @@ package object tls extends Logging {
 
   def setSSLConfigFromDir(configDir: String) = {
     _getSSLConfig = sslConfigFromDir(configDir)
-    log.info("TLS configured.")
+    logger.info("TLS configured.")
   }
 
   def getSSLConfig(): SSLConfig = {

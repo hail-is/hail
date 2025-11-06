@@ -24,7 +24,7 @@ class LocalTaskContext(val partitionId: Int, val stageId: Int) extends HailTaskC
   override def attemptNumber(): Int = 0
 }
 
-object LocalBackend extends Backend {
+object LocalBackend extends Backend with Logging {
 
   // From https://github.com/hail-is/hail/issues/14580 :
   //   IR can get quite big, especially as it can contain an arbitrary
@@ -122,12 +122,12 @@ object LocalBackend extends Backend {
       TypeCheck(ctx, ir)
       Validate(ir)
       val queryID = Backend.nextID()
-      log.info(s"starting execution of query $queryID of initial size ${IRSize(ir)}")
+      logger.info(s"starting execution of query $queryID of initial size ${IRSize(ir)}")
       if (ctx.flags.isDefined(ExecutionCache.Flags.UseFastRestarts))
         ctx.irMetadata.semhash = SemanticHash(ctx, ir)
 
       val res = _jvmLowerAndExecute(ctx, ir)
-      log.info(s"finished execution of query $queryID")
+      logger.info(s"finished execution of query $queryID")
       res
     }
 

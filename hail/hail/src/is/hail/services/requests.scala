@@ -1,7 +1,7 @@
 package is.hail.services
 
 import is.hail.services.oauth2.CloudCredentials
-import is.hail.utils.{log, _}
+import is.hail.utils._
 
 import java.net.URL
 
@@ -16,7 +16,7 @@ import org.json4s.JValue
 import org.json4s.JsonAST.JNothing
 import org.json4s.jackson.JsonMethods
 
-object requests {
+object requests extends Logging {
 
   class ClientResponseException(val status: Int, message: String) extends Exception(message)
 
@@ -35,7 +35,7 @@ object requests {
   def Requester(baseUrl: URL, cred: CloudCredentials): Requester = {
 
     val httpClient: CloseableHttpClient = {
-      log.info("creating HttpClient")
+      logger.info("creating HttpClient")
       val requestConfig = RequestConfig.custom()
         .setConnectTimeout(TimeoutMs)
         .setConnectionRequestTimeout(TimeoutMs)
@@ -50,7 +50,7 @@ object requests {
           .build()
       } catch {
         case _: NoSSLConfigFound =>
-          log.info("creating HttpClient with no SSL Context")
+          logger.info("creating HttpClient with no SSL Context")
           HttpClients.custom()
             .setMaxConnPerRoute(MaxNumConnectionPerRoute)
             .setMaxConnTotal(MaxNumConnections)
@@ -67,17 +67,17 @@ object requests {
           val statusCode = resp.getStatusLine.getStatusCode
           val message = Option(resp.getEntity).map(EntityUtils.toString).filter(_.nonEmpty)
           if (statusCode < 200 || statusCode >= 300) {
-            log.warn(s"$statusCode ${req.getMethod} ${req.getURI}\n${message.orNull}")
+            logger.warn(s"$statusCode ${req.getMethod} ${req.getURI}\n${message.orNull}")
             throw new ClientResponseException(statusCode, message.orNull)
           }
 
-          log.info(s"$statusCode ${req.getMethod} ${req.getURI}")
+          logger.info(s"$statusCode ${req.getMethod} ${req.getURI}")
           message.map(JsonMethods.parse(_)).getOrElse(JNothing)
         }
       }
     }
 
-    new Requester with Logging {
+    new Requester {
       override val url: URL = baseUrl
 
       override def get(route: String): JValue =

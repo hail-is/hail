@@ -70,7 +70,7 @@ class TerraAzureStorageFS(credential: AzureCloudCredentials) extends AzureStorag
 
     val sasTokenUrl = using(httpClient.execute(req)) { resp =>
       val json = JsonMethods.parse(new String(EntityUtils.toString(resp.getEntity)))
-      log.info(s"Created sas token client for $containerResourceId")
+      logger.info(s"Created sas token client for $containerResourceId")
       (json \ "url").extract[String]
     }
 

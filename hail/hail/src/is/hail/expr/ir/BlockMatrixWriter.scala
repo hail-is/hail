@@ -98,7 +98,7 @@ case class BlockMatrixNativeMetadataWriter(
   path: String,
   stageLocally: Boolean,
   typ: BlockMatrixType,
-) extends MetadataWriter {
+) extends MetadataWriter with Logging {
 
   case class BMMetadataHelper(
     path: String,
@@ -121,7 +121,7 @@ case class BlockMatrixNativeMetadataWriter(
       }
       assert(nBlocks == partFiles.length, s"$nBlocks vs ${partFiles.mkString(", ")}")
 
-      info(s"wrote matrix with $nRows ${plural(nRows, "row")} " +
+      logger.info(s"wrote matrix with $nRows ${plural(nRows, "row")} " +
         s"and $nCols ${plural(nCols, "column")} " +
         s"as $nBlocks ${plural(nBlocks.toLong, "block")} " +
         s"of size $blockSize to $path")

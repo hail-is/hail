@@ -97,7 +97,7 @@ object TableReader {
   val uidFieldName = "__row_uid"
 }
 
-object LoweredTableReader {
+object LoweredTableReader extends Logging {
 
   type LoweredTableReaderCoercer =
     (ExecuteContext, IR, Type, IndexedSeq[Any], IR => IR) => TableStage
@@ -128,7 +128,7 @@ object LoweredTableReader {
     def selectPK(k: IR): IR =
       SelectFields(k, key.take(partitionKey))
 
-    info(s"scanning $context for sortedness...")
+    logger.info(s"scanning $context for sortedness...")
 
     val xType = TStruct(
       "key" -> keyType,
@@ -352,7 +352,7 @@ object LoweredTableReader {
     val sortedPartData = s.getAs[IndexedSeq[Row]](2)
 
     if (ksorted) {
-      info(s"Coerced sorted $context - no additional import work to do")
+      logger.info(s"Coerced sorted $context - no additional import work to do")
       (
         ctx: ExecuteContext,
         globals: IR,
@@ -385,7 +385,7 @@ object LoweredTableReader {
         )
       }
     } else if (pksorted) {
-      info(
+      logger.info(
         s"Coerced prefix-sorted $context, requiring additional sorting within data partitions on each query."
       )
 
@@ -439,7 +439,7 @@ object LoweredTableReader {
           }
       }
     } else {
-      info(
+      logger.info(
         s"$context is out of order..." +
           s"\n  Write the dataset to disk before running multiple queries to avoid multiple costly data shuffles."
       )

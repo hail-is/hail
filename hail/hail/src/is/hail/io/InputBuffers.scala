@@ -267,10 +267,10 @@ final class LEB128InputBuffer(in: InputBuffer) extends InputBuffer {
 
 final class TracingInputBuffer(
   private[this] val in: InputBuffer
-) extends InputBuffer {
+) extends InputBuffer with Logging {
   private[this] val filename = s"tracing-input-buffer-${UUID.randomUUID}"
   private[this] val logfile = new FileOutputStream(filename, true)
-  log.info(s"tracing to $filename")
+  logger.info(s"tracing to $filename")
 
   def close(): Unit = in.close()
 

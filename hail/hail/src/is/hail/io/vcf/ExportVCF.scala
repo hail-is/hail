@@ -12,7 +12,7 @@ import htsjdk.tribble.SimpleFeature
 import htsjdk.tribble.index.tabix.{TabixFormat, TabixIndexCreator}
 import is.hail
 
-object ExportVCF {
+object ExportVCF extends Logging {
   def infoNumber(t: Type): String = t match {
     case TBoolean => "0"
     case TArray(_) => "."
@@ -233,7 +233,7 @@ object ExportVCF {
         if (expectedTypeOpt.forall(t == _)) // FIXME: make sure this is right
           (true, idx)
         else {
-          warn(s"export_vcf found row field $fieldName with type '$t', but expected type ${expectedTypeOpt.get}. " +
+          logger.warn(s"export_vcf found row field $fieldName with type '$t', but expected type ${expectedTypeOpt.get}. " +
             s"Emitting missing $vcfColName.")
           (false, 0)
         }

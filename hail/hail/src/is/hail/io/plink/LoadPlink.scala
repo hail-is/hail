@@ -29,7 +29,7 @@ case class FamFileConfig(
   missingValue: String = "NA",
 )
 
-object LoadPlink {
+object LoadPlink extends Logging {
   def expectedBedSize(nSamples: Int, nVariants: Int): Long =
     3 + nVariants.toLong * ((nSamples + 3) / 4)
 
@@ -141,7 +141,7 @@ object LoadPlink {
               case ffConfig.missingValue => null
               case "-9" =>
                 if (!warnedAbout9) {
-                  warn(
+                  logger.warn(
                     s"""Interpreting value '-9' as a valid quantitative phenotype, which differs from default PLINK behavior.
                        |  Use missing='-9' to interpret '-9' as a missing value.""".stripMargin
                   )
@@ -181,7 +181,7 @@ object LoadPlink {
   }
 }
 
-object MatrixPLINKReader {
+object MatrixPLINKReader extends Logging {
   def fromJValue(ctx: ExecuteContext, jv: JValue): MatrixPLINKReader = {
     val fs = ctx.fs
 
@@ -224,8 +224,8 @@ object MatrixPLINKReader {
     if (nTotalVariants <= 0)
       fatal("BIM file does not contain any variants")
 
-    info(s"Found $nSamples samples in fam file.")
-    info(s"Found $nTotalVariants variants in bim file.")
+    logger.info(s"Found $nSamples samples in fam file.")
+    logger.info(s"Found $nTotalVariants variants in bim file.")
 
     using(fs.open(params.bed)) { dis =>
       val b1 = dis.read()
