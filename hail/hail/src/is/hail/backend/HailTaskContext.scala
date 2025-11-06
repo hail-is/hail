@@ -18,7 +18,7 @@ class TaskFinalizer {
     (0 until closeables.size).foreach(i => closeables(i).close())
 }
 
-abstract class HailTaskContext extends AutoCloseable {
+abstract class HailTaskContext extends AutoCloseable with Logging {
   def stageId(): Int
 
   def partitionId(): Int
@@ -44,7 +44,7 @@ abstract class HailTaskContext extends AutoCloseable {
   }
 
   def close(): Unit = {
-    log.info(
+    logger.info(
       s"TaskReport: stage=${stageId()}, partition=${partitionId()}, attempt=${attemptNumber()}, " +
         s"peakBytes=${thePool.getHighestTotalUsage}, peakBytesReadable=${formatSpace(thePool.getHighestTotalUsage)}, " +
         s"chunks requested=${thePool.getUsage._1}, cache hits=${thePool.getUsage._2}"

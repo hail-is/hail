@@ -170,7 +170,11 @@ class RichDenseMatrixDouble(val m: BDM[Double]) extends AnyVal {
       )
     }
 
-    info(s"wrote $nParts ${plural(nParts, "item")} in $nParts ${plural(nParts, "partition")}")
+    new Logging {
+      logger.info(
+        s"wrote $nParts ${plural(nParts, "item")} in $nParts ${plural(nParts, "partition")}"
+      )
+    }
 
     using(fs.create(path + "/_SUCCESS"))(out => ())
   }

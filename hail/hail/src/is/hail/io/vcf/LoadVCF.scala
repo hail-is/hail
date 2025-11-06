@@ -1304,17 +1304,13 @@ class ParseLineContext(
   }
 }
 
-object LoadVCF {
+object LoadVCF extends Logging {
   def warnDuplicates(ids: Array[String]): Unit = {
     val duplicates = ids.counter().filter(_._2 > 1)
     if (duplicates.nonEmpty) {
-      log.warn(
-        "Found {} duplicate {}:\n {}",
-        duplicates.size,
-        plural(duplicates.size, "sample ID"),
-        duplicates.toArray.sortBy(-_._2).map { case (id, count) =>
-          s"""($count) "$id""""
-        }.mkString("\n  "),
+      logger.warn(
+        s"Found ${duplicates.size} duplicate ${plural(duplicates.size, "sample ID")}:\n" +
+          s"${duplicates.toArray.sortBy(-_._2).map { case (id, count) => s"""($count) "$id"""" }.mkString("\n  ")}"
       )
     }
   }
@@ -1374,7 +1370,7 @@ object LoadVCF {
     )
       ((id, baseType), (id, attrs), isFlag)
     else if (isFlag) {
-      warn(
+      logger.warn(
         s"invalid VCF header: at INFO field '$id' of type 'Flag', expected 'Number=0', got 'Number=${headerNumberToString(line)}''" +
           s"\n  Interpreting as 'Number=0' regardless."
       )
@@ -1747,7 +1743,7 @@ class PartitionedVCFRDD(
   }
 }
 
-object MatrixVCFReader {
+object MatrixVCFReader extends Logging {
   def apply(
     ctx: ExecuteContext,
     files: Seq[String],
@@ -1788,7 +1784,7 @@ object MatrixVCFReader {
     val fileListEntries = fs.globAll(params.files)
     fileListEntries.map(_.getPath).foreach { path =>
       if (!(path.endsWith(".vcf") || path.endsWith(".vcf.bgz") || path.endsWith(".vcf.gz")))
-        warn(s"expected input file '$path' to end in .vcf[.bgz, .gz]")
+        logger.warn(s"expected input file '$path' to end in .vcf[.bgz, .gz]")
     }
     checkGzipOfGlobbedFiles(params.files, fileListEntries, params.forceGZ, params.gzAsBGZ)
 

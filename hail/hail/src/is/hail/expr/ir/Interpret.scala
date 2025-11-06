@@ -21,7 +21,7 @@ import scala.collection.mutable
 
 import org.apache.spark.sql.Row
 
-object Interpret {
+object Interpret extends Logging {
   type Agg = (IndexedSeq[Row], TStruct)
 
   def apply(tir: TableIR, ctx: ExecuteContext): TableValue = {
@@ -828,7 +828,7 @@ object Interpret {
         }
       case ConsoleLog(message, result) =>
         val message_ = interpret(message).asInstanceOf[String]
-        info(message_)
+        logger.info(message_)
         interpret(result)
       case ir @ ApplyIR(_, _, _, _, _) =>
         interpret(ir.explicitNode, env, args)
@@ -991,8 +991,8 @@ object Interpret {
 
           val useTreeAggregate = aggSigs.shouldTreeAggregate
           val isCommutative = aggSigs.isCommutative
-          log.info(s"Aggregate: useTreeAggregate=$useTreeAggregate")
-          log.info(s"Aggregate: commutative=$isCommutative")
+          logger.info(s"Aggregate: useTreeAggregate=$useTreeAggregate")
+          logger.info(s"Aggregate: commutative=$isCommutative")
 
           // A mutable reference to a byte array. If someone higher up the
           // call stack holds a WrappedByteArray, we can set the reference

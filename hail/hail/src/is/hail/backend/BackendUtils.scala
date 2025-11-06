@@ -13,7 +13,7 @@ object BackendUtils {
 
 class BackendUtils(
   mods: Array[(String, (HailClassLoader, FS, HailTaskContext, Region) => BackendUtils.F)]
-) {
+) extends Logging {
 
   import BackendUtils.F
 
@@ -46,7 +46,7 @@ class BackendUtils(
   ): Array[Array[Byte]] = {
 
     val cachedResults = ctx.executionCache.lookup(semhash)
-    log.info(s"$stageName: found ${cachedResults.length} entries for $semhash.")
+    logger.info(s"$stageName: found ${cachedResults.length} entries for $semhash.")
 
     val todo =
       contexts
@@ -65,7 +65,7 @@ class BackendUtils(
     val results = merge[(Array[Byte], Int)](cachedResults, successes, _._2 < _._2)
 
     ctx.executionCache.put(semhash, results)
-    log.info(s"$stageName: cached ${results.length} entries for $semhash.")
+    logger.info(s"$stageName: cached ${results.length} entries for $semhash.")
 
     failureOpt.foreach(throw _)
     Array.tabulate[Array[Byte]](results.length)(results(_)._1)
@@ -98,7 +98,7 @@ class BackendUtils(
 
     val elapsed = System.nanoTime() - start
     val nTasks = partitions.map(_.length).getOrElse(contexts.length)
-    log.info(s"$stageName: executed $nTasks tasks in ${formatTime(elapsed)}")
+    logger.info(s"$stageName: executed $nTasks tasks in ${formatTime(elapsed)}")
 
     r
   }

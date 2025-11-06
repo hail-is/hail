@@ -6,7 +6,7 @@ import is.hail.expr.ir.defs.EncodedLiteral
 import is.hail.io.{BufferSpec, Decoder, TypedCodecSpec}
 import is.hail.types.physical.{PArray, PStruct, PType}
 import is.hail.types.virtual.{TBaseStruct, TStruct}
-import is.hail.utils.{formatSpace, log, ArrayOfByteArrayOutputStream}
+import is.hail.utils.{formatSpace, ArrayOfByteArrayOutputStream, Logging}
 import is.hail.utils.prettyPrint.ArrayOfByteArrayInputStream
 
 import java.io.InputStream
@@ -36,7 +36,7 @@ object BroadcastRow {
   }
 }
 
-trait BroadcastRegionValue {
+trait BroadcastRegionValue extends Logging {
   def ctx: ExecuteContext
 
   def value: RegionValue
@@ -72,7 +72,7 @@ trait BroadcastRegionValue {
         if (broadcasted == null) {
           val arrays = encodeToByteArrays(theHailClassLoader)
           val totalSize = arrays.map(_.length).sum
-          log.info(
+          logger.info(
             s"BroadcastRegionValue.broadcast: broadcasting ${arrays.length} byte arrays of total size $totalSize (${formatSpace(totalSize.toLong)}"
           )
           val srv = SerializableRegionValue(arrays, decodedPType, makeDec)

@@ -407,7 +407,7 @@ case class BlockMatrixMap2(
   rightName: Name,
   f: IR,
   sparsityStrategy: SparsityStrategy,
-) extends BlockMatrixIR {
+) extends BlockMatrixIR with Logging {
   override lazy val typ: BlockMatrixType =
     left.typ.copy(sparsity = sparsityStrategy.mergeSparsity(left.typ.sparsity, right.typ.sparsity))
 
@@ -537,7 +537,8 @@ case class BlockMatrixMap2(
   }
 }
 
-case class BlockMatrixDot(left: BlockMatrixIR, right: BlockMatrixIR) extends BlockMatrixIR {
+case class BlockMatrixDot(left: BlockMatrixIR, right: BlockMatrixIR)
+    extends BlockMatrixIR with Logging {
   override lazy val typ: BlockMatrixType = {
     val blockSize = left.typ.blockSize
     assert(left.typ.nCols == right.typ.nRows)
@@ -573,14 +574,16 @@ case class BlockMatrixDot(left: BlockMatrixIR, right: BlockMatrixIR) extends Blo
     val fs = ctx.fs
     if (!left.blockCostIsLinear) {
       val path = ctx.createTmpPath("blockmatrix-dot-left", "bm")
-      info(s"BlockMatrix multiply: writing left input with ${leftBM.nRows} rows and ${leftBM.nCols} cols " +
-        s"(${leftBM.gp.nBlocks} blocks of size ${leftBM.blockSize}) to temporary file $path")
+      logger.info(
+        s"BlockMatrix multiply: writing left input with ${leftBM.nRows} rows and ${leftBM.nCols} cols " +
+          s"(${leftBM.gp.nBlocks} blocks of size ${leftBM.blockSize}) to temporary file $path"
+      )
       leftBM.write(ctx, path)
       leftBM = BlockMatrixNativeReader(fs, path).apply(ctx)
     }
     if (!right.blockCostIsLinear) {
       val path = ctx.createTmpPath("blockmatrix-dot-right", "bm")
-      info(
+      logger.info(
         s"BlockMatrix multiply: writing right input with ${rightBM.nRows} rows and ${rightBM.nCols} cols " +
           s"(${rightBM.gp.nBlocks} blocks of size ${rightBM.blockSize}) to temporary file $path"
       )

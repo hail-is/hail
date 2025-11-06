@@ -75,7 +75,7 @@ private case class FSExecutionCache(fs: FS, cacheDir: String) extends ExecutionC
         IndexedSeq.empty
 
       case NonFatal(t) =>
-        log.warn(s"Failed to read cache entry for $s", t)
+        logger.warn(s"Failed to read cache entry for $s", t)
         IndexedSeq.empty
     }
 

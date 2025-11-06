@@ -271,11 +271,11 @@ class LocalLDPruneSuite extends HailSuite {
         case (Some(x), Some(y)) =>
           val isSame = D_==(x, y)
           if (!isSame)
-            info(s"i=$i j=$j r2Computed=$x r2Expected=$y")
+            logger.info(s"i=$i j=$j r2Computed=$x r2Expected=$y")
           isSame
         case (None, None) => true
         case _ =>
-          info(s"i=$i j=$j r2Computed=$computed r2Expected=$expected")
+          logger.info(s"i=$i j=$j r2Computed=$computed r2Expected=$expected")
           false
       }
     }

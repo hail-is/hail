@@ -19,7 +19,7 @@ import org.apache.spark.sql.Row
 case class MatrixValue(
   typ: MatrixType,
   tv: TableValue,
-) {
+) extends Logging {
   val colFieldType = tv.globals.t.fieldType(LowerMatrixIR.colsFieldName).asInstanceOf[PArray]
   assert(colFieldType.required)
   assert(colFieldType.elementType.required)
@@ -236,7 +236,6 @@ case class MatrixValue(
     using(fs.create(path + "/_SUCCESS"))(_ => ())
 
     val nRows = partitionCounts.sum
-    val printer: String => Unit = if (consoleInfo) info else log.info
 
     val partitionBytesWritten = fileData.map(_.bytesWritten)
     val totalRowsEntriesBytes = partitionBytesWritten.sum
@@ -252,16 +251,18 @@ case class MatrixValue(
       (smallestStr, largestStr)
     }
 
-    printer(s"wrote matrix table with $nRows ${plural(nRows, "row")} " +
-      s"and $nCols ${plural(nCols, "column")} " +
-      s"in ${partitionCounts.length} ${plural(partitionCounts.length, "partition")} " +
-      s"to $path" +
-      s"\n    Total size: ${formatSpace(totalBytesWritten)}" +
-      s"\n    * Rows/entries: ${formatSpace(totalRowsEntriesBytes)}" +
-      s"\n    * Columns: ${formatSpace(colBytesWritten)}" +
-      s"\n    * Globals: ${formatSpace(globalBytesWritten)}" +
-      s"\n    * Smallest partition: $smallestStr" +
-      s"\n    * Largest partition:  $largestStr")
+    logger.info(
+      s"wrote matrix table with $nRows ${plural(nRows, "row")} " +
+        s"and $nCols ${plural(nCols, "column")} " +
+        s"in ${partitionCounts.length} ${plural(partitionCounts.length, "partition")} " +
+        s"to $path" +
+        s"\n    Total size: ${formatSpace(totalBytesWritten)}" +
+        s"\n    * Rows/entries: ${formatSpace(totalRowsEntriesBytes)}" +
+        s"\n    * Columns: ${formatSpace(colBytesWritten)}" +
+        s"\n    * Globals: ${formatSpace(globalBytesWritten)}" +
+        s"\n    * Smallest partition: $smallestStr" +
+        s"\n    * Largest partition:  $largestStr"
+    )
   }
 
   def toRowMatrix(ctx: ExecuteContext, entryField: String): RowMatrix = {

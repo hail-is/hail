@@ -22,8 +22,8 @@ object RegionPool {
 }
 
 final class RegionPool private (strictMemoryCheck: Boolean, threadName: String, threadID: Long)
-    extends AutoCloseable {
-  log.info(s"RegionPool: initialized for thread $threadID: $threadName")
+    extends AutoCloseable with Logging {
+  logger.info(s"initialized for thread $threadID: $threadName")
 
   protected[annotations] val freeBlocks: Array[LongArrayBuilder] =
     Array.fill[LongArrayBuilder](4)(new LongArrayBuilder(8))
@@ -140,7 +140,7 @@ final class RegionPool private (strictMemoryCheck: Boolean, threadName: String, 
 
     val freeBlockCounts = freeBlocks.map(_.size)
     val usedBlockCounts = blocks.zip(freeBlockCounts).map { case (tot, free) => tot - free }
-    info(
+    logger.info(
       s"""Region count for $context
          |    regions: $nRegions active, $nFree free
          |     blocks: $nBlocks
@@ -152,15 +152,15 @@ final class RegionPool private (strictMemoryCheck: Boolean, threadName: String, 
   def report(context: String): Unit = {
     val inBlocks = bytesInBlocks()
 
-    log.info(
+    logger.info(
       s"RegionPool: $context: ${readableBytes(totalAllocatedBytes)} allocated (${readableBytes(inBlocks)} blocks / " +
         s"${readableBytes(totalAllocatedBytes - inBlocks)} chunks), regions.size = ${regions.size}, " +
         s"$numJavaObjects current java objects, thread $threadID: $threadName"
     )
-//    log.info("-----------STACK_TRACES---------")
+//    logger.info("-----------STACK_TRACES---------")
 //    val stacks: String = regions.result().toIndexedSeq.flatMap(r => r.stackTrace.map((r.getTotalChunkMemory(), _))).foldLeft("")((a: String, b) => a + "\n" + b.toString())
-//    log.info(stacks)
-//    log.info("---------------END--------------")
+//    logger.info(stacks)
+//    logger.info("---------------END--------------")
   }
 
   def scopedRegion[T](f: Region => T): T = using(Region(pool = this))(f)
@@ -202,7 +202,7 @@ final class RegionPool private (strictMemoryCheck: Boolean, threadName: String, 
       if (strictMemoryCheck)
         fatal(msg)
       else
-        warn(msg)
+        logger.warn(msg)
     }
   }
 }

@@ -11,7 +11,7 @@ import org.objectweb.asm.{ClassReader, ClassVisitor, ClassWriter, Label}
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.util.{CheckClassAdapter, Textifier, TraceClassVisitor}
 
-object Emit {
+object Emit extends Logging {
   def emitMethod(cv: ClassVisitor, m: Method, debugInformation: Boolean): Int = {
     val blocks = m.findBlocks()
     val static = if (m.isStatic) ACC_STATIC else 0
@@ -215,9 +215,9 @@ object Emit {
     for (m <- c.methods) {
       val instructionCount = emitMethod(cv, m, c.sourceFile.isDefined)
       if (logMethodSizes) {
-        log.info(s"instruction count: $instructionCount: ${c.name}.${m.name}")
+        logger.info(s"instruction count: $instructionCount: ${c.name}.${m.name}")
         if (instructionCount > 8000)
-          log.warn(s"big method: $instructionCount: ${c.name}.${m.name}")
+          logger.warn(s"big method: $instructionCount: ${c.name}.${m.name}")
       }
     }
 
@@ -244,7 +244,7 @@ object Emit {
           val trace = new TraceClassVisitor(new PrintWriter(buffer))
           val check = new CheckClassAdapter(trace)
           val classJVMByteCodeAsEscapedStr = buffer.toString(StandardCharsets.UTF_8.name())
-          log.error(s"lir exception $e:\n" + classJVMByteCodeAsEscapedStr)
+          logger.error(s"lir exception $e:\n" + classJVMByteCodeAsEscapedStr)
           emitClass(c, check, logMethodSizes = false)
           throw e
       }

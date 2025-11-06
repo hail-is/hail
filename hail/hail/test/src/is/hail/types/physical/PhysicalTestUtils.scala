@@ -3,7 +3,7 @@ package is.hail.types.physical
 import is.hail.HailSuite
 import is.hail.annotations.{Region, ScalaToRegionValue, UnsafeRow}
 import is.hail.expr.ir.EmitFunctionBuilder
-import is.hail.utils.{log, HailException}
+import is.hail.utils.HailException
 
 abstract class PhysicalTestUtils extends HailSuite {
   def copyTestExecutor(
@@ -36,7 +36,7 @@ abstract class PhysicalTestUtils extends HailSuite {
         )
         val copy = UnsafeRow.read(destType, region, copyOff)
 
-        log.info(s"Copied value: $copy, Source value: $sourceValue")
+        logger.info(s"Copied value: $copy, Source value: $sourceValue")
 
         if (expectedValue != null) {
           assert(copy == expectedValue)
@@ -51,7 +51,7 @@ abstract class PhysicalTestUtils extends HailSuite {
           region.clear()
 
           if (expectCompileError || expectRuntimeError) {
-            log.info("OK: Caught expected compile-time error")
+            logger.info("OK: Caught expected compile-time error")
             return
           }
 
@@ -77,7 +77,7 @@ abstract class PhysicalTestUtils extends HailSuite {
         region.clear()
 
         if (expectCompileError) {
-          log.info("OK: Caught expected compile-time error")
+          logger.info("OK: Caught expected compile-time error")
           return
         }
 
@@ -98,14 +98,14 @@ abstract class PhysicalTestUtils extends HailSuite {
       } catch {
         case e: HailException =>
           if (expectRuntimeError) {
-            log.info("OK: Caught expected compile-time error")
+            logger.info("OK: Caught expected compile-time error")
             return
           }
 
           fail(e)
       }
 
-    log.info(s"Copied value: $copy, Source value: $sourceValue")
+    logger.info(s"Copied value: $copy, Source value: $sourceValue")
 
     if (expectedValue != null) {
       assert(copy == expectedValue)

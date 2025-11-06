@@ -37,7 +37,7 @@ object HailSuite {
   private var backend_ : SparkBackend = _
 }
 
-class HailSuite extends TestNGSuite with TestUtils {
+class HailSuite extends TestNGSuite with TestUtils with Logging {
 
   private[this] var ctx_ : ExecuteContext = _
 
@@ -185,7 +185,7 @@ class HailSuite extends TestNGSuite with TestUtils {
       if (backend.isInstanceOf[SparkBackend])
         execStrats
       else {
-        info("skipping interpret and non-lowering compile steps on non-spark backend")
+        logger.info("skipping interpret and non-lowering compile steps on non-spark backend")
         execStrats.intersect(ExecStrategy.backendOnly)
       }
 
@@ -204,7 +204,7 @@ class HailSuite extends TestNGSuite with TestUtils {
 
       } catch {
         case e: Exception =>
-          error(s"error from strategy $strat")
+          logger.error(s"error from strategy $strat")
           if (execStrats.contains(strat)) throw e
       }
 
@@ -289,7 +289,7 @@ class HailSuite extends TestNGSuite with TestUtils {
     val filteredExecStrats: Set[ExecStrategy] =
       if (backend.isInstanceOf[SparkBackend]) execStrats
       else {
-        info("skipping interpret and non-lowering compile steps on non-spark backend")
+        logger.info("skipping interpret and non-lowering compile steps on non-spark backend")
         execStrats.intersect(ExecStrategy.backendOnly)
       }
     filteredExecStrats.filter(ExecStrategy.interpretOnly).foreach { strat =>
@@ -306,7 +306,7 @@ class HailSuite extends TestNGSuite with TestUtils {
         assert(res.toBreezeMatrix() == expected)
       } catch {
         case e: Exception =>
-          error(s"error from strategy $strat")
+          logger.error(s"error from strategy $strat")
           if (execStrats.contains(strat)) throw e
       }
     }

@@ -437,7 +437,7 @@ trait FS extends Serializable with Logging {
         }
       } else {
         if (trailingSlashFle != null) {
-          log.warn(
+          logger.warn(
             s"Two blobs exist matching ${url.toString}: once with and once without a trailing slash. We will return the one without a trailing slash."
           )
         }
@@ -446,7 +446,7 @@ trait FS extends Serializable with Logging {
     } else {
       if (dirFle != null) {
         if (trailingSlashFle != null) {
-          log.warn(
+          logger.warn(
             s"A blob with a literal trailing slash exists as well as blobs with that prefix. We will treat this as a directory. ${url.toString}"
           )
         }
@@ -640,14 +640,14 @@ trait FS extends Serializable with Logging {
 
     val filesToMerge: Array[FileStatus] = headerFileListEntry ++ sortedPartFileStatuses
 
-    info(s"merging ${filesToMerge.length} files totalling " +
+    logger.info(s"merging ${filesToMerge.length} files totalling " +
       s"${readableBytes(filesToMerge.map(_.getLen).sum)}...")
 
     val (_, dt) = time {
       copyMergeList(filesToMerge, destinationFile, deleteSource)
     }
 
-    info(s"while writing:\n    $destinationFile\n  merge time: ${formatTime(dt)}")
+    logger.info(s"while writing:\n    $destinationFile\n  merge time: ${formatTime(dt)}")
 
     if (deleteSource) {
       delete(sourceFolder, recursive = true)
@@ -691,12 +691,12 @@ trait FS extends Serializable with Logging {
   def concatenateFiles(sourceNames: Array[String], destFilename: String): Unit = {
     val fileStatuses = sourceNames.map(fileStatus(_))
 
-    info(s"merging ${fileStatuses.length} files totalling " +
+    logger.info(s"merging ${fileStatuses.length} files totalling " +
       s"${readableBytes(fileStatuses.map(_.getLen).sum)}...")
 
     val (_, timing) = time(copyMergeList(fileStatuses, destFilename, deleteSource = false))
 
-    info(s"while writing:\n    $destFilename\n  merge time: ${formatTime(timing)}")
+    logger.info(s"while writing:\n    $destFilename\n  merge time: ${formatTime(timing)}")
   }
 
   final def touch(filename: String): Unit = touch(parseUrl(filename))

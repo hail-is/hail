@@ -22,7 +22,7 @@ import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.JsonMethods
 
-object Nirvana {
+object Nirvana extends Logging {
 
   // For Nirnava v2.0.8
 
@@ -410,7 +410,7 @@ object Nirvana {
 
     val rowKeyOrd = tv.typ.keyType.ordering(ctx.stateManager)
 
-    info("Running Nirvana")
+    logger.info("Running Nirvana")
 
     val prev = tv.rvd
 

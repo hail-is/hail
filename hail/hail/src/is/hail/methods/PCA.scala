@@ -15,7 +15,8 @@ import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 import org.apache.spark.sql.Row
 
-case class PCA(entryField: String, k: Int, computeLoadings: Boolean) extends MatrixToTableFunction {
+case class PCA(entryField: String, k: Int, computeLoadings: Boolean)
+    extends MatrixToTableFunction with Logging {
   override def typ(childType: MatrixType): TableType =
     TableType(
       childType.rowKeyStruct ++ TStruct("loadings" -> TArray(TFloat64)),
@@ -38,7 +39,7 @@ case class PCA(entryField: String, k: Int, computeLoadings: Boolean) extends Mat
       .cache()
     val irm = new IndexedRowMatrix(indexedRows, rowMatrix.nRows, rowMatrix.nCols)
 
-    info(s"pca: running PCA with $k components...")
+    logger.info(s"pca: running PCA with $k components...")
 
     val svd = irm.computeSVD(k, computeLoadings)
     if (svd.s.size < k)

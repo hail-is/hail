@@ -11,7 +11,7 @@ import scala.collection.compat._
 import breeze.linalg._
 import org.apache.spark.sql.Row
 
-object RegressionUtils {
+object RegressionUtils extends Logging {
   def setMeanImputedDoubles(
     data: Array[Double],
     offset: Int,
@@ -121,7 +121,7 @@ object RegressionUtils {
       majorStride = nCovs, isTranspose = true)
 
     if (n < nCols)
-      warn(s"${nCols - n} of $nCols samples have a missing phenotype or covariate.")
+      logger.warn(s"${nCols - n} of $nCols samples have a missing phenotype or covariate.")
 
     (y, cov, completeSamples.toArray)
   }

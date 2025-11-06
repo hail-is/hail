@@ -66,7 +66,7 @@ case class StaticField[T] private (lf: lir.StaticField) extends AnyVal {
   }
 }
 
-class ClassesBytes(classesBytes: Array[(String, Array[Byte])]) extends Serializable {
+class ClassesBytes(classesBytes: Array[(String, Array[Byte])]) extends Serializable with Logging {
   @transient @volatile var loaded: Boolean = false
 
   def load(hcl: HailClassLoader): Unit = {
@@ -81,7 +81,7 @@ class ClassesBytes(classesBytes: Array[(String, Array[Byte])]) extends Serializa
                 val buffer = new ByteArrayOutputStream()
                 FunctionBuilder.bytesToBytecodeString(bytes, buffer)
                 val classJVMByteCodeAsEscapedStr = buffer.toString(StandardCharsets.UTF_8.name())
-                log.error(s"Failed to load bytecode $e:\n" + classJVMByteCodeAsEscapedStr)
+                logger.error(s"Failed to load bytecode $e:\n" + classJVMByteCodeAsEscapedStr)
                 throw e
             }
           }

@@ -24,7 +24,7 @@ import org.apache.spark.sql.Row
 import org.json4s.JValue
 import org.json4s.JsonAST.JString
 
-object LowerDistributedSort {
+object LowerDistributedSort extends Logging {
   def localSort(
     ctx: ExecuteContext,
     inputStage: TableStage,
@@ -195,7 +195,7 @@ object LowerDistributedSort {
       trackTotalBytes = true,
     )
 
-    log.info("DISTRIBUTED SORT: PHASE 1: WRITE DATA")
+    logger.info("DISTRIBUTED SORT: PHASE 1: WRITE DATA")
     val initialStageDataRow = CompileAndEvaluate[Annotation](
       ctx,
       inputStage.mapCollectWithGlobals("shuffle_initial_write") { part =>
@@ -444,7 +444,7 @@ object LowerDistributedSort {
         }
       })
 
-      log.info(s"DISTRIBUTED SORT: PHASE ${i + 1}: STAGE 1: SAMPLE VALUES FROM PARTITIONS")
+      logger.info(s"DISTRIBUTED SORT: PHASE ${i + 1}: STAGE 1: SAMPLE VALUES FROM PARTITIONS")
       // Going to check now if it's fully sorted, as well as collect and sort all the samples.
       val pivotsWithEndpointsAndInfoGroupedBySegmentNumber = CompileAndEvaluate[Annotation](
         ctx,
@@ -468,7 +468,7 @@ object LowerDistributedSort {
         .sortBy(_._1)
         .map { case (nPivots, nSegments) => s"$nPivots pivots: $nSegments" }
 
-      log.info(
+      logger.info(
         s"DISTRIBUTED SORT: PHASE ${i + 1}: pivot counts:\n  ${pivotCounts.mkString("\n  ")}"
       )
 
@@ -571,7 +571,7 @@ object LowerDistributedSort {
                 ))
             }
 
-          log.info(s"DISTRIBUTED SORT: PHASE ${i + 1}: STAGE 2: DISTRIBUTE")
+          logger.info(s"DISTRIBUTED SORT: PHASE ${i + 1}: STAGE 2: DISTRIBUTE")
           val distributeResult = CompileAndEvaluate[Annotation](ctx, distribute)
             .asInstanceOf[IndexedSeq[Row]].map(row =>
               (
@@ -627,7 +627,7 @@ object LowerDistributedSort {
           }
         } else { (IndexedSeq.empty[SegmentResult], IndexedSeq.empty[SegmentResult]) }
 
-      log.info(
+      logger.info(
         s"DISTRIBUTED SORT: PHASE ${i + 1}: ${newSmallSegments.length}/${newSmallSegments.length + newBigUnsortedSegments.length} segments can be locally sorted"
       )
 
@@ -664,8 +664,8 @@ object LowerDistributedSort {
           WritePartition(sortedStream, UUID4(), writer)
       }
 
-    log.info(s"DISTRIBUTED SORT: PHASE ${i + 1}: LOCALLY SORT FILES")
-    log.info(s"DISTRIBUTED_SORT: ${needSortingFilenames.length} segments to sort")
+    logger.info(s"DISTRIBUTED SORT: PHASE ${i + 1}: LOCALLY SORT FILES")
+    logger.info(s"DISTRIBUTED_SORT: ${needSortingFilenames.length} segments to sort")
     val sortedFilenames =
       CompileAndEvaluate[Annotation](ctx, sortedFilenamesIR).asInstanceOf[IndexedSeq[Row]].map(
         _(0).asInstanceOf[String]

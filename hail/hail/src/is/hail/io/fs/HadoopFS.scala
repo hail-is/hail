@@ -154,7 +154,7 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
     filenames.flatMap { filename =>
       val fles = glob(filename)
       if (fles.isEmpty)
-        warn(s"'$filename' refers to no files")
+        logger.warn(s"'$filename' refers to no files")
       fles
     }.toArray
   }
@@ -163,7 +163,7 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
     var files = url.hadoopFs.globStatus(url.hadoopPath)
     if (files == null)
       files = Array.empty
-    log.info(
+    logger.info(
       s"globbing path $url returned ${files.length} files: ${files.map(_.getPath.getName).mkString(",")}"
     )
     files.map(fileListEntry => new HadoopFileListEntry(fileListEntry))
