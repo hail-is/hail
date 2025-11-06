@@ -7,11 +7,13 @@ import is.hail.types.virtual.Type
 import scala.collection.JavaConverters._
 
 import java.io.{InputStream, OutputStream}
+import java.util.Properties
 
+import org.apache.log4j.{LogManager, PropertyConfigurator}
 import org.json4s.JsonAST._
 import org.json4s.jackson.JsonMethods
 
-trait Py4jUtils {
+trait Py4jUtils extends Logging {
   def arrayToArrayList[T](arr: Array[T]): java.util.ArrayList[T] = {
     val list = new java.util.ArrayList[T]()
     for (elem <- arr)
@@ -129,6 +131,39 @@ trait Py4jUtils {
     if (exclusive && fs.exists(path))
       fatal(s"a file already exists at '$path'")
     new HadoopPyWriter(fs.create(path))
+  }
+
+  val LogFormat: String =
+    "%d{yyyy-MM-dd HH:mm:ss.SSS} %c{1}: %p: %m%n"
+
+  def configureLogging(logFile: String, quiet: Boolean, append: Boolean): Unit = {
+    org.apache.log4j.helpers.LogLog.setInternalDebugging(true)
+    org.apache.log4j.helpers.LogLog.setQuietMode(false)
+    val logProps = new Properties()
+
+    // uncomment to see log4j LogLog output:
+    // logProps.put("log4j.debug", "true")
+    logProps.put("log4j.rootLogger", "INFO, logfile")
+    logProps.put("log4j.appender.logfile", "org.apache.log4j.FileAppender")
+    logProps.put("log4j.appender.logfile.append", append.toString)
+    logProps.put("log4j.appender.logfile.file", logFile)
+    logProps.put("log4j.appender.logfile.threshold", "INFO")
+    logProps.put("log4j.appender.logfile.layout", "org.apache.log4j.PatternLayout")
+    logProps.put("log4j.appender.logfile.layout.ConversionPattern", LogFormat)
+
+    if (!quiet) {
+      logProps.put("log4j.logger.Hail", "INFO, HailConsoleAppender, HailSocketAppender")
+      logProps.put("log4j.appender.HailConsoleAppender", "org.apache.log4j.ConsoleAppender")
+      logProps.put("log4j.appender.HailConsoleAppender.target", "System.err")
+      logProps.put("log4j.appender.HailConsoleAppender.layout", "org.apache.log4j.PatternLayout")
+    } else
+      logProps.put("log4j.logger.Hail", "INFO, HailSocketAppender")
+
+    logProps.put("log4j.appender.HailSocketAppender", "is.hail.utils.StringSocketAppender")
+    logProps.put("log4j.appender.HailSocketAppender.layout", "org.apache.log4j.PatternLayout")
+
+    LogManager.resetConfiguration()
+    PropertyConfigurator.configure(logProps)
   }
 
   def addSocketAppender(hostname: String, port: Int): Unit =

@@ -21,7 +21,7 @@ import breeze.linalg.DenseMatrix
 import org.apache.hadoop
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.SparkContext
-import org.apache.spark.sql.Row
+import org.apache.spark.sql.{Row, SparkSession}
 import org.scalatest.Inspectors.forEvery
 import org.scalatestplus.testng.TestNGSuite
 import org.testng.ITestContext
@@ -55,16 +55,18 @@ class HailSuite extends TestNGSuite with TestUtils {
     configureLogging("/tmp/hail.log", quiet = false, append = false)
     RVD.CheckRvdKeyOrderingForTesting = true
     HailSuite.backend_ = SparkBackend(
-      sc = new SparkContext(
-        SparkBackend.createSparkConf(
-          appName = "Hail.TestNG",
-          master = System.getProperty("hail.master"),
-          local = "local[2]",
-          blockSize = 0,
+      SparkSession
+        .builder()
+        .config(
+          SparkBackend.createSparkConf(
+            appName = "Hail.TestNG",
+            master = System.getProperty("hail.master"),
+            local = "local[2]",
+            blockSize = 0,
+          )
         )
-          .set("spark.unsafe.exceptionOnMemoryLeak", "true")
-      ),
-      skipLoggingConfiguration = true,
+        .config("spark.unsafe.exceptionOnMemoryLeak", "true")
+        .getOrCreate()
     )
   }
 
@@ -107,6 +109,7 @@ class HailSuite extends TestNGSuite with TestUtils {
 
   @AfterSuite
   def tearDownBackend(): Unit = {
+    HailSuite.backend_.spark.stop()
     HailSuite.backend_.close()
     HailSuite.backend_ = null
     IRFunctionRegistry.clearUserFunctions()
