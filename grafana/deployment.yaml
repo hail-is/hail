@@ -203,6 +203,8 @@ spec:
               secretKeyRef:
                 name: global-config
                 key: gcp_project
+          - name: GOOGLE_APPLICATION_CREDENTIALS
+            value: /gsa-key/key.json
 {% endif %}
          volumeMounts:
           - mountPath: /var/lib/grafana
@@ -213,6 +215,8 @@ spec:
             name: grafana-datasources-configmap-volume
           - mountPath: /grafana-shared
             name: grafana-shared
+          - mountPath: /gsa-key
+            name: grafana-gsa-key
          resources:
            requests:
              cpu: "10m"

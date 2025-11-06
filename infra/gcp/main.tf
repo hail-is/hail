@@ -690,12 +690,18 @@ module "grafana_gsa_secret" {
   source = "./gsa_k8s_secret"
   name = "grafana"
   project = var.gcp_project
+  iam_roles = [
+    "monitoring.viewer",
+  ]
 }
 
 module "testns_grafana_gsa_secret" {
   source = "./gsa_k8s_secret"
   name = "testns-grafana"
   project = var.gcp_project
+  iam_roles = [
+    "monitoring.viewer",
+  ]
 }
 
 module "test_gsa_secret" {

@@ -717,12 +717,18 @@ module "grafana_gsa_secret" {
   source = "./gsa"
   name = "grafana"
   project = var.gcp_project
+  iam_roles = [
+    "monitoring.viewer",
+  ]
 }
 
 module "testns_grafana_gsa_secret" {
   source = "./gsa"
   name = "testns-grafana"
   project = var.gcp_project
+  iam_roles = [
+    "monitoring.viewer",
+  ]
 }
 
 module "test_gsa_secret" {
