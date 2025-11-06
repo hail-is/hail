@@ -27,10 +27,10 @@ object Deps {
   }
 
   object Asm {
-    val version: String = "9.8"
-    val core = mvn"org.ow2.asm:asm:$version"
-    val analysis = mvn"org.ow2.asm:asm-analysis:$version"
-    val util = mvn"org.ow2.asm:asm-util:$version"
+    val bom = mvn"org.ow2.asm:asm-bom:9.9"
+    val core = mvn"org.ow2.asm:asm"
+    val analysis = mvn"org.ow2.asm:asm-analysis"
+    val util = mvn"org.ow2.asm:asm-util"
   }
 
   object Breeze {
@@ -272,6 +272,10 @@ trait RootHailModule extends CrossScalaModule with HailModule { outer =>
     Jvm.createJar(jar, (resources() ++ Seq(compile().classes)).map(_.path).filter(os.exists), manifest())
     PathRef(jar)
   }
+
+  override def bomMvnDeps: T[Seq[Dep]] = Seq(
+    Deps.Asm.bom,
+  )
 
   override def mvnDeps: T[Seq[Dep]] = Seq(
     Deps.HTTPComponents.core,
