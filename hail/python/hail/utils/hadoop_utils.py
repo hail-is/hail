@@ -29,7 +29,8 @@ def hadoop_open(path: str, mode: str = 'r', buffer_size: int = 8192):
     this for themselves. Code such as the following should suffice for reading
     (writing is similar):
 
-    .. codeblock:: python
+    .. code-block:: python3
+
         import gzip
         import hailtop.fs
 
