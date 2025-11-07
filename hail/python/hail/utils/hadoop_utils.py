@@ -18,7 +18,29 @@ def hadoop_open(path: str, mode: str = 'r', buffer_size: int = 8192):
     file systems like hdfs, gs, and s3.
 
     .. deprecated:: 0.2.137
-        use :meth:`hailtop.fs.open` instead
+        use :func:`hailtop.fs.open` instead
+
+    Gzip and Deprecation
+    --------------------
+
+    This function transparently compresses/decompresses from gzip/bgzip when
+    the ``path`` has extenstion ``.gz`` or ``.bgz`` respectively. When using
+    the now recommended :func:`hailtop.fs.open`, users will need to implement
+    this for themselves. Code such as the following should suffice for reading
+    (writing is similar):
+
+    .. codeblock:: python
+        import gzip
+        import hailtop.fs
+
+        path = ...  # path is gzip data
+
+        with hailtop.fs.open(path, 'rb') as compressed_file:
+            with gzip.GzipFile(fileobj=compressed_file, mode='rt') as file:
+                ...  # use file here
+
+    See the documentation for the :mod:`gzip` module for more information on
+    handling gzip data in python.
 
     Warning
     -------
@@ -92,7 +114,7 @@ def hadoop_open(path: str, mode: str = 'r', buffer_size: int = 8192):
         return fs.legacy_open(path, mode, buffer_size)
     _, ext = os.path.splitext(path)
     if ext in ('.gz', '.bgz'):
-        binary_mode = 'wb' if mode[0] == 'w' else 'rb'
+        binary_mode = mode[0] + 'b'
         file = fs.open(path, binary_mode, buffer_size)
         file = gzip.GzipFile(fileobj=file, mode=mode)
         if 'b' not in mode:
@@ -109,7 +131,7 @@ def hadoop_copy(src, dest):
     Supports distributed file systems like hdfs, gs, and s3.
 
     .. deprecated:: 0.2.137
-        use :meth:`hailtop.fs.copy` instead
+        use :func:`hailtop.fs.copy` instead
 
     Examples
     --------
@@ -145,7 +167,7 @@ def hadoop_exists(path: str) -> bool:
     """Returns ``True`` if `path` exists.
 
     .. deprecated:: 0.2.137
-        use :meth:`hailtop.fs.exists` instead
+        use :func:`hailtop.fs.exists` instead
 
     Parameters
     ----------
@@ -163,7 +185,7 @@ def hadoop_is_file(path: str) -> bool:
     """Returns ``True`` if `path` both exists and is a file.
 
     .. deprecated:: 0.2.137
-        use :meth:`hailtop.fs.is_file` instead
+        use :func:`hailtop.fs.is_file` instead
 
     Parameters
     ----------
@@ -181,7 +203,7 @@ def hadoop_is_dir(path: str) -> bool:
     """Returns ``True`` if `path` both exists and is a directory.
 
     .. deprecated:: 0.2.137
-        use :meth:`hailtop.fs.is_dir` instead
+        use :func:`hailtop.fs.is_dir` instead
 
     Parameters
     ----------
@@ -199,7 +221,7 @@ def hadoop_stat(path: str) -> Dict[str, Any]:
     """Returns information about the file or directory at a given path.
 
     .. deprecated:: 0.2.137
-        use :meth:`hailtop.fs.stat` instead
+        use :func:`hailtop.fs.stat` instead
 
     Notes
     -----
@@ -230,7 +252,7 @@ def hadoop_ls(path: str) -> List[Dict[str, Any]]:
     """Returns information about files at `path`.
 
     .. deprecated:: 0.2.137
-        use :meth:`hailtop.fs.ls` instead
+        use :func:`hailtop.fs.ls` instead
 
     Notes
     -----
