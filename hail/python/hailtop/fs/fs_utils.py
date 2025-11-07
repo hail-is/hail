@@ -192,7 +192,7 @@ def stat(path: str, *, requester_pays_config: Optional[GCSRequesterPaysConfigura
 
     Returns
     -------
-    :obj:`FileListEntry`
+    :obj:`.FileListEntry`
     """
     return _fses[requester_pays_config].stat(path)
 
@@ -222,7 +222,7 @@ def ls(path: str, *, requester_pays_config: Optional[GCSRequesterPaysConfigurati
 
     Returns
     -------
-    :obj:`list` [:obj:`FileListEntry`]
+    :obj:`list` [:obj:`.FileListEntry`]
     """
     return _fses[requester_pays_config].ls(path)
 
