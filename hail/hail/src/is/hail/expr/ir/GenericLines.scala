@@ -10,7 +10,7 @@ import is.hail.variant.Locus
 
 import scala.annotation.meta.param
 
-import org.apache.commons.io.input.{CountingInputStream, ProxyInputStream}
+import org.apache.commons.io.input.{BoundedInputStream, ProxyInputStream}
 import org.apache.hadoop.io.compress.SplittableCompressionCodec
 import org.apache.spark.{Partition, TaskContext}
 import org.apache.spark.rdd.RDD
@@ -58,8 +58,14 @@ object GenericLines {
             }
           } else {
             assert(!split || filePerPartition)
-            new CountingInputStream(codec.makeInputStream(rawIS)) with Positioned {
-              def getPosition: Long = getByteCount
+
+            val delegate =
+              new BoundedInputStream.Builder()
+                .setInputStream(codec.makeInputStream(rawIS))
+                .get()
+
+            new ProxyInputStream(delegate) with Positioned {
+              override def getPosition: Long = delegate.getCount
             }
           }
         }

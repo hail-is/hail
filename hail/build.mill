@@ -67,7 +67,7 @@ object Deps {
   val junixsocket = mvn"com.kohlschutter.junixsocket:junixsocket-core:2.6.1"
   val log4jApi = mvn"org.apache.logging.log4j:log4j-api:2.20.0"
   val sfl4jNop = mvn"org.slf4j:slf4j-nop:1.7.36"
-  val hadoopClient = mvn"org.apache.hadoop:hadoop-client:3.3.4"
+  val hadoopClient = mvn"org.apache.hadoop:hadoop-client:3.4.2"
   val jackson = mvn"com.fasterxml.jackson.core:jackson-core:2.15.2"
   val sourcecode = mvn"com.lihaoyi::sourcecode:0.4.2"
   val collection_compat = mvn"org.scala-lang.modules::scala-collection-compat:2.13.0"
