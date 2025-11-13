@@ -54,7 +54,7 @@ final case class ERNGState(override val required: Boolean, staticInfo: Option[SR
       )
   }
 
-  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit =
+  override def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit =
     staticInfo match {
       case Some(staticInfo) =>
         for (_ <- 0 until (4 + staticInfo.numWordsInLastBlock))
@@ -67,11 +67,11 @@ final case class ERNGState(override val required: Boolean, staticInfo: Option[SR
         cb += in.skipInt()
     }
 
-  def _decodedSType(requestedType: Type): SRNGState = SRNGState(staticInfo)
+  override def _decodedSType(requestedType: Type): SRNGState = SRNGState(staticInfo)
 
-  def _asIdent = "rngstate"
+  override def _asIdent = "rngstate"
 
-  def _toPretty = "ERNGState"
+  override def _toPretty = "ERNGState"
 
-  def setRequired(newRequired: Boolean): ERNGState = ERNGState(newRequired, staticInfo)
+  override def setRequired(newRequired: Boolean): ERNGState = ERNGState(newRequired, staticInfo)
 }

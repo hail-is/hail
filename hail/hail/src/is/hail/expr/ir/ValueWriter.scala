@@ -39,7 +39,7 @@ abstract class ValueWriter {
 }
 
 final case class ETypeValueWriter(spec: AbstractTypedCodecSpec) extends ValueWriter {
-  def writeValue(cb: EmitCodeBuilder, value: SValue, os: Value[OutputStream]): Unit = {
+  override def writeValue(cb: EmitCodeBuilder, value: SValue, os: Value[OutputStream]): Unit = {
     val encoder = spec.encodedType.buildEncoder(value.st, cb.emb.ecb)
     val ob = cb.memoize(spec.buildCodeOutputBuffer(os))
     encoder.apply(cb, value, ob)

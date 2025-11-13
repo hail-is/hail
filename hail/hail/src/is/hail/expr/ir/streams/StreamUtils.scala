@@ -254,7 +254,7 @@ object StreamUtils {
 
     def implInit(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit
 
-    final def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
+    final override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
       implInit(cb, outerRegion)
       cb.assign(bracket, Code.newArray[Int](k))
       cb.assign(heads, Code.newArray[Long](k))
@@ -265,7 +265,7 @@ object StreamUtils {
 
     def implClose(cb: EmitCodeBuilder): Unit
 
-    final def close(cb: EmitCodeBuilder): Unit = {
+    final override def close(cb: EmitCodeBuilder): Unit = {
       implClose(cb)
       cb.assign(bracket, Code._null)
       cb.assign(heads, Code._null)

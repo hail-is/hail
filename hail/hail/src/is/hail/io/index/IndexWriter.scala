@@ -121,7 +121,7 @@ class IndexWriter(
 
   def trackedOS(): ByteTrackingOutputStream = comp.trackedOS()
 
-  def close(): Unit = {
+  override def close(): Unit = {
     region.close()
     comp.close()
   }

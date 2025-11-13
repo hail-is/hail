@@ -1082,7 +1082,7 @@ object Code {
   def _empty: Value[Unit] = Value.fromLIR[Unit](null: lir.ValueX)
 
   def _throwAny[T <: java.lang.Throwable]: Thrower[T] = new Thrower[T] {
-    def apply[U](cerr: Code[T])(implicit uti: TypeInfo[U]): Code[U] = {
+    override def apply[U](cerr: Code[T])(implicit uti: TypeInfo[U]): Code[U] = {
       if (uti eq UnitInfo) {
         cerr.end.append(lir.throwx(cerr.v))
         val newC = new VCode(cerr.start, cerr.end, null)
@@ -1214,7 +1214,7 @@ object Code {
       c.v match {
         case v: lir.LdcX =>
           val t = new Value[T] {
-            def get: Code[T] = Code(lir.ldcInsn(v.a, v.ti))
+            override def get: Code[T] = Code(lir.ldcInsn(v.a, v.ti))
           }
           return f(t)
         // You can't forward local references here because the local might have changed
@@ -1302,27 +1302,27 @@ class VCode[+T](
   // val stack = Thread.currentThread().getStackTrace
   // var clearStack: Array[StackTraceElement] = _
 
-  def start: lir.Block = {
+  override def start: lir.Block = {
     check()
     _start
   }
 
-  def end: lir.Block = {
+  override def end: lir.Block = {
     check()
     _end
   }
 
-  def v: lir.ValueX = {
+  override def v: lir.ValueX = {
     check()
     _v
   }
 
-  def check(): Unit =
+  override def check(): Unit =
     /* if (_start == null) { println(clearStack.mkString("\n")) println("-----")
      * println(stack.mkString("\n")) } */
     assert(_start != null)
 
-  def clear(): Unit = {
+  override def clear(): Unit = {
     /* if (clearStack != null) { println(clearStack.mkString("\n")) } assert(clearStack == null)
      * clearStack = Thread.currentThread().getStackTrace */
 
@@ -1364,17 +1364,17 @@ class CCode(
     _Lfalse
   }
 
-  def start: lir.Block = {
+  override def start: lir.Block = {
     checkV()
     _start
   }
 
-  def end: lir.Block = {
+  override def end: lir.Block = {
     checkV()
     _end
   }
 
-  def v: lir.ValueX = {
+  override def v: lir.ValueX = {
     checkV()
     _v
   }
@@ -1408,7 +1408,7 @@ class CCode(
     assert(_entry != null)
   }
 
-  def check(): Unit = {
+  override def check(): Unit = {
     if (_kind == null || _kind == CodeKind.C)
       assert(_entry != null)
     else {
@@ -1417,7 +1417,7 @@ class CCode(
     }
   }
 
-  def clear(): Unit = {
+  override def clear(): Unit = {
     _entry = null
     _Ltrue = null
     _Lfalse = null
@@ -1462,15 +1462,15 @@ class ConstCodeBoolean(val b: Boolean) extends Code[Boolean] {
 
   def toCCode: CCode = vc.toCCode
 
-  def start: lir.Block = vc.start
+  override def start: lir.Block = vc.start
 
-  def end: lir.Block = vc.end
+  override def end: lir.Block = vc.end
 
-  def v: lir.ValueX = vc.v
+  override def v: lir.ValueX = vc.v
 
-  def check(): Unit = vc.check()
+  override def check(): Unit = vc.check()
 
-  def clear(): Unit = vc.clear()
+  override def clear(): Unit = vc.clear()
 }
 
 class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
@@ -1851,27 +1851,27 @@ class CodeLabel(val L: lir.Block) extends Code[Unit] {
 
   def isImplemented: Boolean = L.wellFormed
 
-  def start: lir.Block = {
+  override def start: lir.Block = {
     check()
     _start
   }
 
-  def end: lir.Block = {
+  override def end: lir.Block = {
     check()
     _start
   }
 
-  def v: lir.ValueX = {
+  override def v: lir.ValueX = {
     check()
     null
   }
 
-  def check(): Unit =
+  override def check(): Unit =
     /* if (_start == null) { println(clearStack.mkString("\n")) println("-----")
      * println(stack.mkString("\n")) } */
     assert(_start != null)
 
-  def clear(): Unit =
+  override def clear(): Unit =
     /* if (clearStack != null) { println(clearStack.mkString("\n")) } assert(clearStack == null)
      * clearStack = Thread.currentThread().getStackTrace */
     _start = null
@@ -2004,7 +2004,7 @@ object FieldRef {
 
 object Value {
   def fromLIR[T](v: => lir.ValueX): Value[T] = new Value[T] {
-    def get: Code[T] = Code(v)
+    override def get: Code[T] = Code(v)
   }
 }
 
@@ -2040,23 +2040,23 @@ class ThisLazyFieldRef[T: TypeInfo](cb: ClassBuilder[_], name: String, setup: Co
 class ThisFieldRef[T: TypeInfo](cb: ClassBuilder[_], f: Field[T]) extends Settable[T] {
   def name: String = f.name
 
-  def get: Code[T] = f.get(cb.this_)
+  override def get: Code[T] = f.get(cb.this_)
 
-  def store(rhs: Code[T]): Code[Unit] = f.put(cb.this_, rhs)
+  override def store(rhs: Code[T]): Code[Unit] = f.put(cb.this_, rhs)
 }
 
 class StaticFieldRef[T: TypeInfo](f: StaticField[T]) extends Settable[T] {
   def name: String = f.name
 
-  def get: Code[T] = f.get()
+  override def get: Code[T] = f.get()
 
-  def store(rhs: Code[T]): Code[Unit] = f.put(rhs)
+  override def store(rhs: Code[T]): Code[Unit] = f.put(rhs)
 }
 
 class LocalRef[T](val l: lir.Local) extends Settable[T] {
-  def get: Code[T] = Code(lir.load(l))
+  override def get: Code[T] = Code(lir.load(l))
 
-  def store(rhs: Code[T]): Code[Unit] = {
+  override def store(rhs: Code[T]): Code[Unit] = {
     assert(rhs.v != null)
     rhs.end.append(lir.store(l, rhs.v))
     val newC = new VCode(rhs.start, rhs.end, null)
@@ -2090,7 +2090,7 @@ class FieldRef[T, S](f: reflect.Field)(implicit tct: ClassTag[T], sti: TypeInfo[
 
   def getField(lhs: Value[T]): Value[S] =
     new Value[S] {
-      def get: Code[S] = self.getField(if (lhs != null) lhs.get else null)
+      override def get: Code[S] = self.getField(if (lhs != null) lhs.get else null)
     }
 
   def getField(lhs: Code[T]): Code[S] =

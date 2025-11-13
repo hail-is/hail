@@ -286,7 +286,7 @@ trait CodeBuilderLike {
 }
 
 class CodeBuilder(val mb: MethodBuilder[_], var code: Code[Unit]) extends CodeBuilderLike {
-  def isOpenEnded: Boolean =
+  override def isOpenEnded: Boolean =
     code.isOpenEnded
 
   override def append(c: Code[Unit]): Unit = {
@@ -306,7 +306,7 @@ class CodeBuilder(val mb: MethodBuilder[_], var code: Code[Unit]) extends CodeBu
   def uncheckedAppend(c: Code[Unit]): Unit =
     code = Code(code, c)
 
-  def result(): Code[Unit] = {
+  override def result(): Code[Unit] = {
     val tmp = code
     code = Code._empty
     tmp

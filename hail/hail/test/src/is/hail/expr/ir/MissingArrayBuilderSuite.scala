@@ -11,7 +11,7 @@ import org.testng.annotations.{DataProvider, Test}
 class MissingArrayBuilderSuite extends TestNGSuite {
   def ordering[T <: AnyVal](f: (T, T) => Boolean): AsmFunction2[T, T, Boolean] =
     new AsmFunction2[T, T, Boolean] {
-      def apply(i: T, j: T): Boolean = f(i, j)
+      override def apply(i: T, j: T): Boolean = f(i, j)
     }
 
   def addToArrayBuilder[B <: MissingArrayBuilder, T](

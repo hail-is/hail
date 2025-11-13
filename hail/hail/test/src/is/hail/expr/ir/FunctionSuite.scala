@@ -25,7 +25,7 @@ class ScalaTestCompanion {
 }
 
 object TestRegisterFunctions extends RegistryFunctions {
-  def registerAll(): Unit = {
+  override def registerAll(): Unit = {
     registerIR1("addone", TInt32, TInt32)((_, a, _) => ApplyBinaryPrimOp(Add(), a, I32(1)))
     registerJavaStaticFunction("compare", Array(TInt32, TInt32), TInt32, null)(
       classOf[java.lang.Integer],

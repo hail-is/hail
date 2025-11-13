@@ -86,7 +86,8 @@ class SNDArraySliceValue(
   override def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): SValue =
     pt.elementType.loadCheapSCode(cb, loadElementAddress(indices, cb))
 
-  def coerceToShape(cb: EmitCodeBuilder, otherShape: IndexedSeq[SizeValue]): SNDArrayValue = {
+  override def coerceToShape(cb: EmitCodeBuilder, otherShape: IndexedSeq[SizeValue])
+    : SNDArrayValue = {
     cb.if_(!hasShape(cb, otherShape), cb._fatal("incompatible shapes"))
     new SNDArraySliceValue(st, otherShape, strides, firstDataAddress)
   }

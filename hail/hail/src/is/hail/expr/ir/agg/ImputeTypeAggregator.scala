@@ -168,20 +168,20 @@ class ImputeTypeAggregator() extends StagedAggregator {
 
   type State = ImputeTypeState
 
-  def resultEmitType = ImputeTypeState.resultEmitType
+  override def resultEmitType = ImputeTypeState.resultEmitType
 
-  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
+  override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     assert(init.length == 0)
     state.initialize(cb)
   }
 
-  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
+  override protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
     val Array(s) = seq
 
     state.seqOp(cb, s)
   }
 
-  protected def _combOp(
+  override protected def _combOp(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
     region: Value[Region],
@@ -190,7 +190,8 @@ class ImputeTypeAggregator() extends StagedAggregator {
   ): Unit =
     state.combOp(cb, other)
 
-  protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {
+  override protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region])
+    : IEmitCode = {
     val emitCodes = Array(
       state.getAnyNonMissing,
       state.getAllDefined,

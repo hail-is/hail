@@ -12,8 +12,12 @@ import is.hail.utils._
 import is.hail.variant._
 
 case object SCanonicalCall extends SCall {
-  def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean)
-    : SValue =
+  override def _coerceOrCopy(
+    cb: EmitCodeBuilder,
+    region: Value[Region],
+    value: SValue,
+    deepCopy: Boolean,
+  ): SValue =
     value.st match {
       case SCanonicalCall => value
     }
@@ -22,25 +26,25 @@ case object SCanonicalCall extends SCall {
 
   override def castRename(t: Type): SType = this
 
-  def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastSeq(IntInfo)
+  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastSeq(IntInfo)
 
-  def fromSettables(settables: IndexedSeq[Settable[_]]): SCanonicalCallSettable = {
+  override def fromSettables(settables: IndexedSeq[Settable[_]]): SCanonicalCallSettable = {
     val IndexedSeq(call: Settable[Int @unchecked]) = settables
     assert(call.ti == IntInfo)
     new SCanonicalCallSettable(call)
   }
 
-  def fromValues(values: IndexedSeq[Value[_]]): SCanonicalCallValue = {
+  override def fromValues(values: IndexedSeq[Value[_]]): SCanonicalCallValue = {
     val IndexedSeq(call: Value[Int @unchecked]) = values
     assert(call.ti == IntInfo)
     new SCanonicalCallValue(call)
   }
 
-  def storageType(): PType = PCanonicalCall(false)
+  override def storageType(): PType = PCanonicalCall(false)
 
-  def copiedType: SType = this
+  override def copiedType: SType = this
 
-  def containsPointers: Boolean = false
+  override def containsPointers: Boolean = false
 
   def constructFromIntRepr(cb: EmitCodeBuilder, c: Code[Int]): SCanonicalCallValue =
     new SCanonicalCallValue(cb.memoize(c))
@@ -59,7 +63,7 @@ class SCanonicalCallValue(val call: Value[Int]) extends SCallValue {
     new SCanonicalCallValue(repr)
   }
 
-  def containsAllele(cb: EmitCodeBuilder, allele: Value[Int]): Value[Boolean] =
+  override def containsAllele(cb: EmitCodeBuilder, allele: Value[Int]): Value[Boolean] =
     cb.memoize[Boolean](
       Code.invokeScalaObject2[Int, Int, Boolean](
         Call.getClass,

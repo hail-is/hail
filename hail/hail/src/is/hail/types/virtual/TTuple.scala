@@ -34,7 +34,7 @@ final case class TTuple(_types: IndexedSeq[TupleField]) extends TBaseStruct {
 
   override lazy val _isCanonical: Boolean = _types.indices.forall(i => i == _types(i).index)
 
-  def size: Int = types.length
+  override def size: Int = types.length
 
   override def truncate(newSize: Int): TTuple =
     TTuple(_types.take(newSize))

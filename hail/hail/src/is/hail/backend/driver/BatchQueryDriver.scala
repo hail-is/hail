@@ -239,7 +239,7 @@ private class HailSocketAPIOutputStream(
 
   def writeString(s: String): Unit = writeBytes(s.getBytes(StandardCharsets.UTF_8))
 
-  def close(): Unit =
+  override def close(): Unit =
     if (!closed) {
       out.close()
       closed = true

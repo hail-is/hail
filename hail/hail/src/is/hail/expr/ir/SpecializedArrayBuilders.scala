@@ -150,7 +150,7 @@ final class IntMissingArrayBuilder(initialCapacity: Int)
     b(i)
   }
 
-  def ensureCapacity(n: Int): Unit = {
+  override def ensureCapacity(n: Int): Unit = {
     if (b.length < n) {
       val newCapacity = math.max(n, b.length * 2)
       val newb = new Array[Int](newCapacity)
@@ -210,7 +210,7 @@ final class LongMissingArrayBuilder(initialCapacity: Int)
     b(i)
   }
 
-  def ensureCapacity(n: Int): Unit = {
+  override def ensureCapacity(n: Int): Unit = {
     if (b.length < n) {
       val newCapacity = math.max(n, b.length * 2)
       val newb = new Array[Long](newCapacity)
@@ -270,7 +270,7 @@ final class FloatMissingArrayBuilder(initialCapacity: Int)
     b(i)
   }
 
-  def ensureCapacity(n: Int): Unit = {
+  override def ensureCapacity(n: Int): Unit = {
     if (b.length < n) {
       val newCapacity = math.max(n, b.length * 2)
       val newb = new Array[Float](newCapacity)
@@ -330,7 +330,7 @@ final class DoubleMissingArrayBuilder(initialCapacity: Int)
     b(i)
   }
 
-  def ensureCapacity(n: Int): Unit = {
+  override def ensureCapacity(n: Int): Unit = {
     if (b.length < n) {
       val newCapacity = math.max(n, b.length * 2)
       val newb = new Array[Double](newCapacity)
@@ -390,7 +390,7 @@ final class BooleanMissingArrayBuilder(initialCapacity: Int)
     b(i)
   }
 
-  def ensureCapacity(n: Int): Unit = {
+  override def ensureCapacity(n: Int): Unit = {
     if (b.length < n) {
       val newCapacity = math.max(n, b.length * 2)
       val newb = new Array[Boolean](newCapacity)

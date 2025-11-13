@@ -204,7 +204,7 @@ class RichContextRDDLong(val crdd: ContextRDD[Long]) extends AnyVal {
       new Iterator[Long]() {
         private[this] var cleared: Boolean = false
 
-        def hasNext: Boolean = {
+        override def hasNext: Boolean = {
           if (!cleared) {
             cleared = true
             producerCtx.region.clear()
@@ -212,7 +212,7 @@ class RichContextRDDLong(val crdd: ContextRDD[Long]) extends AnyVal {
           it.hasNext
         }
 
-        def next(): Long = {
+        override def next(): Long = {
           if (!cleared) {
             producerCtx.region.clear()
           }
@@ -264,7 +264,7 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RegionValue]) extends AnyVa
       new Iterator[RegionValue]() {
         private[this] var cleared: Boolean = false
 
-        def hasNext: Boolean = {
+        override def hasNext: Boolean = {
           if (!cleared) {
             cleared = true
             producerCtx.region.clear()
@@ -272,7 +272,7 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RegionValue]) extends AnyVa
           it.hasNext
         }
 
-        def next(): RegionValue = {
+        override def next(): RegionValue = {
           if (!cleared) {
             producerCtx.region.clear()
           }
@@ -297,7 +297,7 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RegionValue]) extends AnyVa
       new Iterator[RegionValue]() {
         private[this] var cleared: Boolean = false
 
-        def hasNext: Boolean = {
+        override def hasNext: Boolean = {
           if (!cleared) {
             cleared = true
             ctx.region.clear()
@@ -305,7 +305,7 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RegionValue]) extends AnyVa
           it.hasNext
         }
 
-        def next(): RegionValue = {
+        override def next(): RegionValue = {
           if (!cleared) {
             ctx.region.clear()
           }

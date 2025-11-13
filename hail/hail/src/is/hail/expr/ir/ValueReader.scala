@@ -44,11 +44,15 @@ abstract class ValueReader {
 }
 
 final case class ETypeValueReader(spec: AbstractTypedCodecSpec) extends ValueReader {
-  def unionRequiredness(requestedType: Type, requiredness: TypeWithRequiredness): Unit =
+  override def unionRequiredness(requestedType: Type, requiredness: TypeWithRequiredness): Unit =
     requiredness.fromPType(spec.encodedType.decodedPType(requestedType))
 
-  def readValue(cb: EmitCodeBuilder, t: Type, region: Value[Region], is: Value[InputStream])
-    : SValue = {
+  override def readValue(
+    cb: EmitCodeBuilder,
+    t: Type,
+    region: Value[Region],
+    is: Value[InputStream],
+  ): SValue = {
     val decoder = spec.encodedType.buildDecoder(t, cb.emb.ecb)
     val ib = cb.memoize(spec.buildCodeInputBuffer(is))
     val ret = decoder.apply(cb, region, ib)

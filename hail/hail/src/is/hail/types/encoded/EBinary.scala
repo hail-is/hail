@@ -61,18 +61,18 @@ class EBinary(override val required: Boolean) extends EType {
     }
   }
 
-  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit =
+  override def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit =
     cb += in.skipBytes(in.readInt())
 
-  def _decodedSType(requestedType: Type): SType = requestedType match {
+  override def _decodedSType(requestedType: Type): SType = requestedType match {
     case TBinary => SBinaryPointer(PCanonicalBinary(false))
     case TString => SStringPointer(PCanonicalString(false))
   }
 
-  def _asIdent = "binary"
-  def _toPretty = "EBinary"
+  override def _asIdent = "binary"
+  override def _toPretty = "EBinary"
 
-  def setRequired(newRequired: Boolean): EBinary = EBinary(newRequired)
+  override def setRequired(newRequired: Boolean): EBinary = EBinary(newRequired)
 }
 
 object EBinary {

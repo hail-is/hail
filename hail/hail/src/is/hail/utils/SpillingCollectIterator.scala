@@ -70,7 +70,7 @@ class SpillingCollectIterator[T: ClassTag] private (
     }
   }
 
-  def hasNext: Boolean = {
+  override def hasNext: Boolean = {
     if (it == null || !it.hasNext) {
       if (i >= files.length) {
         it = null
@@ -100,7 +100,7 @@ class SpillingCollectIterator[T: ClassTag] private (
     it.hasNext
   }
 
-  def next(): T = {
+  override def next(): T = {
     hasNext: Unit
     it.next()
   }

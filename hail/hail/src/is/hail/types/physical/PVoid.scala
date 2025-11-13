@@ -11,21 +11,21 @@ case object PVoid extends PType with PUnrealizable {
 
   override def sType: SType = SVoid
 
-  def virtualType: Type = TVoid
+  override def virtualType: Type = TVoid
 
   override val required = true
 
-  def _asIdent = "void"
+  override def _asIdent = "void"
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit =
     sb ++= "PVoid"
 
-  def setRequired(required: Boolean) = PVoid
+  override def setRequired(required: Boolean) = PVoid
 
   override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering =
     throw new NotImplementedError()
 
-  def loadFromNested(addr: Code[Long]): Code[Long] = throw new NotImplementedError()
+  override def loadFromNested(addr: Code[Long]): Code[Long] = throw new NotImplementedError()
 
   override def unstagedLoadFromNested(addr: Long): Long = throw new NotImplementedError()
 }

@@ -20,11 +20,11 @@ class CollectAggState(val elemVType: VirtualTypeWithReq, val kb: EmitClassBuilde
   val region: Value[Region] = r
   val bll = new StagedBlockLinkedList(elemType, kb)
 
-  def storageType = bll.storageType
+  override def storageType = bll.storageType
 
   override def regionSize: Region.Size = Region.REGULAR
 
-  def createState(cb: EmitCodeBuilder): Unit =
+  override def createState(cb: EmitCodeBuilder): Unit =
     cb.if_(
       region.isNull, {
         cb.assign(r, Region.stagedCreate(regionSize, kb.pool()))
@@ -32,7 +32,8 @@ class CollectAggState(val elemVType: VirtualTypeWithReq, val kb: EmitClassBuilde
       },
     )
 
-  def newState(cb: EmitCodeBuilder, off: Value[Long]): Unit = cb += region.getNewRegion(regionSize)
+  override def newState(cb: EmitCodeBuilder, off: Value[Long]): Unit =
+    cb += region.getNewRegion(regionSize)
 
   override def load(
     cb: EmitCodeBuilder,
@@ -57,17 +58,17 @@ class CollectAggState(val elemVType: VirtualTypeWithReq, val kb: EmitClassBuilde
     )
   }
 
-  def copyFrom(cb: EmitCodeBuilder, src: Value[Long]): Unit = {
+  override def copyFrom(cb: EmitCodeBuilder, src: Value[Long]): Unit = {
     val copyBll = new StagedBlockLinkedList(elemType, kb)
     copyBll.load(cb, src)
     bll.initWithDeepCopy(cb, region, copyBll)
   }
 
-  def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
+  override def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
     (cb, ib) => bll.serialize(cb, region, ib)
   }
 
-  def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
+  override def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
     (cb, ib) =>
       bll.init(cb, region)
       bll.deserialize(cb, region, ib)
@@ -82,15 +83,15 @@ class CollectAggregator(val elemType: VirtualTypeWithReq) extends StagedAggregat
   val initOpTypes: Seq[Type] = Array[Type]()
   val seqOpTypes: Seq[Type] = Array[Type](elemType.t)
 
-  protected def _initOp(cb: EmitCodeBuilder, state: State, args: Array[EmitCode]): Unit = {
+  override protected def _initOp(cb: EmitCodeBuilder, state: State, args: Array[EmitCode]): Unit = {
     assert(args.isEmpty)
     state.bll.init(cb, state.region)
   }
 
-  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit =
+  override protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit =
     state.bll.push(cb, state.region, seq(0))
 
-  protected def _combOp(
+  override protected def _combOp(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
     region: Value[Region],
@@ -99,7 +100,8 @@ class CollectAggregator(val elemType: VirtualTypeWithReq) extends StagedAggregat
   ): Unit =
     state.bll.append(cb, state.region, other.bll)
 
-  protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode =
+  override protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region])
+    : IEmitCode =
     // deepCopy is handled by the blocked linked list
     IEmitCode.present(
       cb,

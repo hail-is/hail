@@ -117,7 +117,7 @@ case class StoredSTypePType(sType: SType, required: Boolean) extends PType {
 
   override def deepRename(t: Type): PType = StoredSTypePType(sType.castRename(t), required)
 
-  def byteSize: Long = ct.byteSize
+  override def byteSize: Long = ct.byteSize
 
   override def alignment: Long = ct.alignment
 
@@ -137,12 +137,13 @@ case class StoredSTypePType(sType: SType, required: Boolean) extends PType {
 
   override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering = unsupportedCanonicalMethod
 
-  def unstagedLoadFromNested(addr: Long): Long = unsupportedCanonicalMethod
+  override def unstagedLoadFromNested(addr: Long): Long = unsupportedCanonicalMethod
 
-  def unstagedStoreJavaObject(sm: HailStateManager, annotation: Annotation, region: Region): Long =
+  override def unstagedStoreJavaObject(sm: HailStateManager, annotation: Annotation, region: Region)
+    : Long =
     unsupportedCanonicalMethod
 
-  def unstagedStoreJavaObjectAtAddress(
+  override def unstagedStoreJavaObjectAtAddress(
     sm: HailStateManager,
     addr: Long,
     annotation: Annotation,

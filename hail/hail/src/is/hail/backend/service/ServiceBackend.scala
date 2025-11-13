@@ -112,11 +112,11 @@ class ServiceBackend(
       Executors.newFixedThreadPool(MaxAvailableGcsConnections)
     }
 
-  def defaultParallelism: Int = 4
+  override def defaultParallelism: Int = 4
 
-  def broadcast[T: ClassTag](_value: T): BroadcastValue[T] =
+  override def broadcast[T: ClassTag](_value: T): BroadcastValue[T] =
     new BroadcastValue[T] with Serializable {
-      def value: T = _value
+      override def value: T = _value
     }
 
   override def runtimeContext(ctx: ExecuteContext): DriverRuntimeContext =
@@ -409,7 +409,7 @@ class ServiceBackend(
   ): TableReader =
     LowerDistributedSort.distributedSort(ctx, inputStage, sortFields, rt, nPartitions)
 
-  def tableToTableStage(ctx: ExecuteContext, inputIR: TableIR, analyses: LoweringAnalyses)
+  override def tableToTableStage(ctx: ExecuteContext, inputIR: TableIR, analyses: LoweringAnalyses)
     : TableStage =
     LowerTableIR.applyTable(inputIR, DArrayLowering.All, ctx, analyses)
 }

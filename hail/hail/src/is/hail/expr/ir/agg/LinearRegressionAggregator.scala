@@ -134,7 +134,7 @@ class LinearRegressionAggregator() extends StagedAggregator {
     cb += Region.storeInt(stateType.loadField(state.off, 2), k0)
   }
 
-  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
+  override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     val Array(kt, k0t) = init
     kt.toI(cb)
       .consume(
@@ -254,7 +254,7 @@ class LinearRegressionAggregator() extends StagedAggregator {
     )
   }
 
-  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
+  override protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
     val Array(y, x) = seq
     y.toI(cb)
       .consume(
@@ -321,7 +321,7 @@ class LinearRegressionAggregator() extends StagedAggregator {
     )
   }
 
-  protected def _combOp(
+  override protected def _combOp(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
     region: Value[Region],
@@ -330,7 +330,8 @@ class LinearRegressionAggregator() extends StagedAggregator {
   ): Unit =
     combOpF(state, other)(cb)
 
-  protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {
+  override protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region])
+    : IEmitCode = {
     val resAddr = cb.newLocal[Long](
       "linear_regression_agg_res",
       Code.invokeScalaObject4[Region, Long, Long, Int, Long](

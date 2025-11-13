@@ -15,7 +15,7 @@ abstract class PInterval extends PType {
     new UnsafeOrdering {
       private val pOrd = pointType.unsafeOrdering(sm)
 
-      def compare(o1: Long, o2: Long): Int = {
+      override def compare(o1: Long, o2: Long): Int = {
         val sdef1 = startDefined(o1)
         if (sdef1 == startDefined(o2)) {
           val cmp = pOrd.compare(loadStart(o1), loadStart(o2))
@@ -47,7 +47,7 @@ abstract class PInterval extends PType {
     new UnsafeOrdering {
       private val pOrd = pointType.unsafeOrdering(sm)
 
-      def compare(o1: Long, o2: Long): Int = {
+      override def compare(o1: Long, o2: Long): Int = {
         val edef1 = endDefined(o1)
         if (edef1 == endDefined(o2)) {
           val cmp = pOrd.compare(loadEnd(o1), loadEnd(o2))

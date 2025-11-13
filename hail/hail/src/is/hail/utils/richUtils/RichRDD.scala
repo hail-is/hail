@@ -161,14 +161,14 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     new RDD[T](
       r.sparkContext,
       FastSeq(new NarrowDependency[T](r) {
-        def getParents(partitionId: Int): Seq[Int] = FastSeq(keep(partitionId))
+        override def getParents(partitionId: Int): Seq[Int] = FastSeq(keep(partitionId))
       }),
     ) {
-      def getPartitions: Array[Partition] = keep.indices.map { i =>
+      override def getPartitions: Array[Partition] = keep.indices.map { i =>
         SubsetRDDPartition(i, parentPartitions(keep(i)))
       }.toArray
 
-      def compute(split: Partition, context: TaskContext): Iterator[T] =
+      override def compute(split: Partition, context: TaskContext): Iterator[T] =
         r.compute(split.asInstanceOf[SubsetRDDPartition].parentPartition, context)
 
       @transient override val partitioner: Option[Partitioner] = newPartitioner
@@ -193,17 +193,17 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     new RDD[T](
       r.sparkContext,
       FastSeq(new NarrowDependency[T](r) {
-        def getParents(partitionId: Int): Seq[Int] = newToOldPI.get(partitionId) match {
+        override def getParents(partitionId: Int): Seq[Int] = newToOldPI.get(partitionId) match {
           case Some(oldPI) => Array(oldPI)
           case None => Array.empty[Int]
         }
       }),
     ) {
-      def getPartitions: Array[Partition] = Array.tabulate(newNPartitions) { i =>
+      override def getPartitions: Array[Partition] = Array.tabulate(newNPartitions) { i =>
         SupersetRDDPartition(i, newToOldPI.get(i).map(parentPartitions))
       }
 
-      def compute(split: Partition, context: TaskContext): Iterator[T] =
+      override def compute(split: Partition, context: TaskContext): Iterator[T] =
         split.asInstanceOf[SupersetRDDPartition].maybeParentPartition match {
           case Some(part) => r.compute(part, context)
           case None => newPIPartition(split.index)

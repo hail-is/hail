@@ -43,7 +43,7 @@ class RVDContext(val partitionRegion: Region, val r: Region) extends AutoCloseab
   def rvb = theRvb
 
   // frees the memory associated with this context
-  def close(): Unit = {
+  override def close(): Unit = {
     var e: Exception = null
     children.foreach { child =>
       try

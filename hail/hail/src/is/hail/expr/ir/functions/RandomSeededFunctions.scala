@@ -111,7 +111,7 @@ object RandomSeededFunctions extends RegistryFunctions {
     )
   }
 
-  def registerAll(): Unit = {
+  override def registerAll(): Unit = {
     registerSCode3(
       "rand_unif",
       TRNGState,

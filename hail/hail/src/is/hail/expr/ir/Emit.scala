@@ -2498,7 +2498,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
           val M = shapeArray(0)
           val N = shapeArray(1)
           val K = new Value[Long] {
-            def get: Code[Long] = (M < N).mux(M, N)
+            override def get: Code[Long] = (M < N).mux(M, N)
           }
           val LDA = new Value[Long] {
             override def get: Code[Long] =
@@ -3746,7 +3746,7 @@ object NDArrayEmitter {
     val notBroadcasted = 1L
     Array.tabulate(nDims)(dim =>
       new Value[Long] {
-        def get: Code[Long] =
+        override def get: Code[Long] =
           (shapeArray(dim) > 1L).mux(notBroadcasted, broadcasted) * loopVars(dim)
       }
     )
@@ -3757,7 +3757,7 @@ object NDArrayEmitter {
     val notBroadcasted = 1L
     shapeArray.map(shapeElement =>
       new Value[Long] {
-        def get: Code[Long] = (shapeElement > 1L).mux(notBroadcasted, broadcasted)
+        override def get: Code[Long] = (shapeElement > 1L).mux(notBroadcasted, broadcasted)
       }
     )
   }
@@ -3766,7 +3766,7 @@ object NDArrayEmitter {
     : IndexedSeq[Value[Long]] =
     indices.zip(broadcastMask).map { case (index, flag) =>
       new Value[Long] {
-        def get: Code[Long] = index * flag
+        override def get: Code[Long] = index * flag
       }
     }
 

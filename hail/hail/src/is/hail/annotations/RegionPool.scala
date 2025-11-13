@@ -173,7 +173,7 @@ final class RegionPool private (strictMemoryCheck: Boolean, threadName: String, 
 
   private[this] var closed: Boolean = false
 
-  def close(): Unit = {
+  override def close(): Unit = {
     if (closed)
       return
     closed = true

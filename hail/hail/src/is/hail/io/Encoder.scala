@@ -10,7 +10,7 @@ import java.io._
 trait Encoder extends Closeable {
   def flush(): Unit
 
-  def close(): Unit
+  override def close(): Unit
 
   def writeRegionValue(region: Region, offset: Long): Unit
 
@@ -28,10 +28,10 @@ final class CompiledEncoder(
   private[this] var partitionRegion: Region = _
   private[this] val compiled = f(theHailClassLoader)
 
-  def flush(): Unit =
+  override def flush(): Unit =
     out.flush()
 
-  def close(): Unit = {
+  override def close(): Unit = {
     compiled.asInstanceOf[FunctionWithPartitionRegion].setPool(null)
     compiled.asInstanceOf[FunctionWithPartitionRegion].addPartitionRegion(null)
     if (partitionRegion != null) partitionRegion.close()
@@ -45,7 +45,7 @@ final class CompiledEncoder(
     poolSet = true
   }
 
-  def writeRegionValue(r: Region, offset: Long): Unit = {
+  override def writeRegionValue(r: Region, offset: Long): Unit = {
     setScratchPool(r.pool)
     writeRegionValue(offset)
   }
@@ -55,10 +55,10 @@ final class CompiledEncoder(
     compiled(offset, out)
   }
 
-  def writeByte(b: Byte): Unit =
+  override def writeByte(b: Byte): Unit =
     out.writeByte(b)
 
-  def indexOffset(): Long = out.indexOffset()
+  override def indexOffset(): Long = out.indexOffset()
 }
 
 final class ByteArrayEncoder(
@@ -68,7 +68,7 @@ final class ByteArrayEncoder(
   private[this] val baos = new ByteArrayOutputStream()
   private[this] val enc = makeEnc(baos, theHailClassLoader)
 
-  def close(): Unit = {
+  override def close(): Unit = {
     enc.close()
     baos.close()
   }

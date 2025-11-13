@@ -97,13 +97,14 @@ class CallStatsState(val kb: EmitClassBuilder[_]) extends PointerBasedRVAState {
     cb += Region.storeInt(addr, updater(Region.loadInt(addr)))
   }
 
-  def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = { (cb, ob) =>
-    val codecSpec = TypedCodecSpec(kb.ctx, CallStatsState.stateType, codec)
-    codecSpec.encodedType.buildEncoder(CallStatsState.stateType.sType, kb)
-      .apply(cb, CallStatsState.stateType.loadCheapSCode(cb, off), ob)
+  override def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
+    (cb, ob) =>
+      val codecSpec = TypedCodecSpec(kb.ctx, CallStatsState.stateType, codec)
+      codecSpec.encodedType.buildEncoder(CallStatsState.stateType.sType, kb)
+        .apply(cb, CallStatsState.stateType.loadCheapSCode(cb, off), ob)
   }
 
-  def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
+  override def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
     (cb: EmitCodeBuilder, ib: Value[InputBuffer]) =>
       val codecSpec = TypedCodecSpec(kb.ctx, CallStatsState.stateType, codec)
       val decValue = codecSpec.encodedType.buildDecoder(CallStatsState.stateType.virtualType, kb)
@@ -113,7 +114,7 @@ class CallStatsState(val kb: EmitClassBuilder[_]) extends PointerBasedRVAState {
       loadNAlleles(cb)
   }
 
-  def copyFromAddress(cb: EmitCodeBuilder, src: Value[Long]): Unit = {
+  override def copyFromAddress(cb: EmitCodeBuilder, src: Value[Long]): Unit = {
     cb.assign(
       off,
       CallStatsState.stateType.store(
@@ -137,7 +138,7 @@ class CallStatsAggregator extends StagedAggregator {
   val initOpTypes: Seq[Type] = FastSeq(TInt32)
   val seqOpTypes: Seq[Type] = FastSeq(TCall)
 
-  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
+  override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     val Array(nAlleles) = init
     val addr = state.kb.genFieldThisRef[Long]()
     val n = state.kb.genFieldThisRef[Int]()
@@ -175,7 +176,7 @@ class CallStatsAggregator extends StagedAggregator {
       )
   }
 
-  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
+  override protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
     val Array(call) = seq
 
     call.toI(cb).consume(
@@ -203,7 +204,7 @@ class CallStatsAggregator extends StagedAggregator {
     )
   }
 
-  protected def _combOp(
+  override protected def _combOp(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
     region: Value[Region],
@@ -236,7 +237,8 @@ class CallStatsAggregator extends StagedAggregator {
     )
   }
 
-  protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {
+  override protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region])
+    : IEmitCode = {
     val rt = CallStatsState.resultPType
     val addr = cb.memoize(rt.allocate(region), "call_stats_aggregator_result_addr")
     rt.stagedInitialize(cb, addr, setMissing = false)

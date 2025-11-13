@@ -169,7 +169,8 @@ case object SUnreachableCall extends SUnreachable with SCall {
 class SUnreachableCallValue extends SUnreachableValue with SCallValue {
   override def unphase(cb: EmitCodeBuilder): SCallValue = this
 
-  def containsAllele(cb: EmitCodeBuilder, allele: Value[Int]): Value[Boolean] = const(false)
+  override def containsAllele(cb: EmitCodeBuilder, allele: Value[Int]): Value[Boolean] =
+    const(false)
 
   override def forEachAllele(cb: EmitCodeBuilder)(alleleCode: Value[Int] => Unit): Unit = {}
 

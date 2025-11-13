@@ -342,9 +342,9 @@ package object utils
 
   def rowIterator(r: Row): Iterator[Any] = new Iterator[Any] {
     var idx: Int = 0
-    def hasNext: Boolean = idx < r.size
+    override def hasNext: Boolean = idx < r.size
 
-    def next(): Any = {
+    override def next(): Any = {
       val a = r(idx)
       idx += 1
       a
@@ -439,7 +439,7 @@ package object utils
 
   def dictionaryOrdering[T](ords: Ordering[T]*): Ordering[T] = {
     new Ordering[T] {
-      def compare(x: T, y: T): Int = {
+      override def compare(x: T, y: T): Int = {
         var i = 0
         while (i < ords.size) {
           val v = ords(i).compare(x, y)

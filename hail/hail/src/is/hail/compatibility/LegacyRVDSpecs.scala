@@ -109,7 +109,7 @@ trait ShimRVDSpec extends AbstractRVDSpec {
 
   val shim: AbstractRVDSpec
 
-  final def key: IndexedSeq[String] = shim.key
+  final override def key: IndexedSeq[String] = shim.key
 
   override def partitioner(sm: HailStateManager): RVDPartitioner = shim.partitioner(sm)
 
@@ -148,12 +148,12 @@ case class UnpartitionedRVDSpec private (
 ) extends AbstractRVDSpec {
   private val (rowVType: TStruct, rowEType) = LegacyEncodedTypeParser.parseTypeAndEType(rowType)
 
-  def partitioner(sm: HailStateManager): RVDPartitioner =
+  override def partitioner(sm: HailStateManager): RVDPartitioner =
     RVDPartitioner.unkeyed(sm, partFiles.length)
 
-  def key: IndexedSeq[String] = FastSeq()
+  override def key: IndexedSeq[String] = FastSeq()
 
-  def typedCodecSpec: AbstractTypedCodecSpec =
+  override def typedCodecSpec: AbstractTypedCodecSpec =
     TypedCodecSpec(rowEType.setRequired(true), rowVType, codecSpec.child)
 
   val attrs: Map[String, String] = Map.empty
@@ -167,9 +167,9 @@ case class OrderedRVDSpec private (
 ) extends AbstractRVDSpec {
   private val lRvdType = LegacyEncodedTypeParser.parseLegacyRVDType(rvdType)
 
-  def key: IndexedSeq[String] = lRvdType.key
+  override def key: IndexedSeq[String] = lRvdType.key
 
-  def partitioner(sm: HailStateManager): RVDPartitioner = {
+  override def partitioner(sm: HailStateManager): RVDPartitioner = {
     val rangeBoundsType = TArray(TInterval(lRvdType.keyType))
     new RVDPartitioner(
       sm,

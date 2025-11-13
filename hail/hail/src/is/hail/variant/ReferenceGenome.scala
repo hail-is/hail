@@ -108,7 +108,8 @@ case class ReferenceGenome(
   val locusOrdering = {
     val localContigsIndex = contigsIndex
     new Ordering[Locus] {
-      def compare(x: Locus, y: Locus): Int = ReferenceGenome.compare(localContigsIndex, x, y)
+      override def compare(x: Locus, y: Locus): Int =
+        ReferenceGenome.compare(localContigsIndex, x, y)
     }
   }
 

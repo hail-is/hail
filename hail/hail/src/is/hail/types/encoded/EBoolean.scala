@@ -25,16 +25,16 @@ class EBoolean(override val required: Boolean) extends EType {
   ): SValue =
     new SBooleanValue(cb.memoize(in.readBoolean()))
 
-  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit =
+  override def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit =
     cb += in.skipBoolean()
 
-  def _decodedSType(requestedType: Type): SType = SBoolean
+  override def _decodedSType(requestedType: Type): SType = SBoolean
 
-  def _asIdent = "bool"
+  override def _asIdent = "bool"
 
-  def _toPretty = "EBoolean"
+  override def _toPretty = "EBoolean"
 
-  def setRequired(newRequired: Boolean): EBoolean = EBoolean(newRequired)
+  override def setRequired(newRequired: Boolean): EBoolean = EBoolean(newRequired)
 }
 
 object EBoolean {
