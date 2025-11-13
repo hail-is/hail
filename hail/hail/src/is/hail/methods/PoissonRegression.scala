@@ -30,9 +30,9 @@ case class PoissonRegression(
     )
   }
 
-  def preservesPartitionCounts: Boolean = true
+  override def preservesPartitionCounts: Boolean = true
 
-  def execute(ctx: ExecuteContext, mv: MatrixValue): TableValue = {
+  override def execute(ctx: ExecuteContext, mv: MatrixValue): TableValue = {
     val poisRegTest = PoissonRegressionTest.tests(test)
     val tableType = typ(mv.typ)
     val newRVDType = tableType.canonicalRVDType

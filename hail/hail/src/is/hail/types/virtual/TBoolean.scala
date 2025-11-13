@@ -4,12 +4,12 @@ import is.hail.annotations._
 import is.hail.backend.HailStateManager
 
 case object TBoolean extends Type {
-  def _toPretty = "Boolean"
+  override def _toPretty = "Boolean"
 
   override def pyString(sb: StringBuilder): Unit =
     sb ++= "bool"
 
-  def _typeCheck(a: Any): Boolean = a.isInstanceOf[Boolean]
+  override def _typeCheck(a: Any): Boolean = a.isInstanceOf[Boolean]
 
   override def _showStr(a: Annotation): String = if (a.asInstanceOf[Boolean]) "True" else "False"
 

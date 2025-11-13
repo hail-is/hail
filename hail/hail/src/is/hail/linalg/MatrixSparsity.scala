@@ -126,7 +126,7 @@ object MatrixSparsity {
       }
     }
 
-    def newToOldPosNonSubset(newSparsity: Sparse): IndexedSeq[Integer] = {
+    override def newToOldPosNonSubset(newSparsity: Sparse): IndexedSeq[Integer] = {
       if (newSparsity.isEmpty) return ArraySeq.empty
       var cur =
         definedCoords.search(newSparsity.definedCoords.head)(Ordering.by(_.swap)).insertionPoint

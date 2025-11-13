@@ -156,7 +156,7 @@ object CompileIterator {
     private var _stepped = false
     private var _hasNext = false
 
-    def hasNext: Boolean = {
+    override def hasNext: Boolean = {
       if (!_stepped) {
         _hasNext = step()
         _stepped = true
@@ -164,7 +164,7 @@ object CompileIterator {
       _hasNext
     }
 
-    def next(): java.lang.Long = {
+    override def next(): java.lang.Long = {
       if (!hasNext) Iterator.empty.next(): Unit // throw
       _stepped = false
       stepFunction.loadAddress()
@@ -309,7 +309,7 @@ object CompileIterator {
         new LongIteratorWrapper {
           val stepFunction: TMPStepFunction = outerStepFunction
 
-          def step(): Boolean = stepFunction.apply(null, v0, part)
+          override def step(): Boolean = stepFunction.apply(null, v0, part)
         }
       },
     )
@@ -345,7 +345,7 @@ object CompileIterator {
         new LongIteratorWrapper {
           val stepFunction: TableStageToRVDStepFunction = outerStepFunction
 
-          def step(): Boolean = stepFunction.apply(null, v0, v1)
+          override def step(): Boolean = stepFunction.apply(null, v0, v1)
         }
       },
     )

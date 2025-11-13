@@ -23,10 +23,10 @@ final case class PCanonicalDict(keyType: PType, valueType: PType, required: Bool
 
   val arrayRep: PCanonicalArray = PCanonicalArray(elementType, required)
 
-  def setRequired(required: Boolean) =
+  override def setRequired(required: Boolean) =
     if (required == this.required) this else PCanonicalDict(keyType, valueType, required)
 
-  def _asIdent = s"dict_of_${keyType.asIdent}AND${valueType.asIdent}"
+  override def _asIdent = s"dict_of_${keyType.asIdent}AND${valueType.asIdent}"
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false): Unit = {
     sb ++= "PCDict["

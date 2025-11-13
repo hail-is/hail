@@ -108,7 +108,7 @@ class IndexBTree(indexFileName: String, fs: FS, branchingFactor: Int = 1024) ext
         )
     }
 
-  def close(): Unit = is.close()
+  override def close(): Unit = is.close()
 
   def calcDepth(): Int =
     IndexBTree.calcDepth(fs.getFileSize(indexFileName) / 8, branchingFactor)

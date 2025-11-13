@@ -39,9 +39,9 @@ class AvroTableReader(
       RVDPartitioner.unkeyed(stateManager, paths.length)
     }
 
-  def pathsUsed: Seq[String] = paths
+  override def pathsUsed: Seq[String] = paths
 
-  def partitionCounts: Option[IndexedSeq[Long]] = None
+  override def partitionCounts: Option[IndexedSeq[Long]] = None
 
   override def uidType = TTuple(TInt64, TInt64)
 
@@ -66,7 +66,7 @@ class AvroTableReader(
     : VirtualTypeWithReq =
     VirtualTypeWithReq(PCanonicalStruct(required = true))
 
-  def renderShort(): String = defaultRender()
+  override def renderShort(): String = defaultRender()
 
   override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
     val globals = MakeStruct(FastSeq())

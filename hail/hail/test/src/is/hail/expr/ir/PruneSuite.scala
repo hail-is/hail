@@ -202,25 +202,25 @@ class PruneSuite extends HailSuite {
     false,
     false,
     new MatrixReader {
-      def pathsUsed: IndexedSeq[String] = FastSeq()
+      override def pathsUsed: IndexedSeq[String] = FastSeq()
 
       override def columnCount: Option[Int] = None
 
-      def partitionCounts: Option[IndexedSeq[Long]] = None
+      override def partitionCounts: Option[IndexedSeq[Long]] = None
 
-      def rowUIDType = TTuple(TInt64, TInt64)
-      def colUIDType = TTuple(TInt64, TInt64)
+      override def rowUIDType = TTuple(TInt64, TInt64)
+      override def colUIDType = TTuple(TInt64, TInt64)
 
-      def fullMatrixTypeWithoutUIDs: MatrixType = mat.typ
+      override def fullMatrixTypeWithoutUIDs: MatrixType = mat.typ
 
-      def lower(
+      override def lower(
         ctx: ExecuteContext,
         requestedType: MatrixType,
         dropCols: Boolean,
         dropRows: Boolean,
       ): TableIR = ???
 
-      def toJValue: JValue = ???
+      override def toJValue: JValue = ???
 
       override def renderShort(): String = "mr"
     },

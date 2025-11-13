@@ -66,5 +66,5 @@ class LongToRegionValueCache(capacity: Int) extends Closeable {
     m.clear()
   }
 
-  def close(): Unit = free()
+  override def close(): Unit = free()
 }

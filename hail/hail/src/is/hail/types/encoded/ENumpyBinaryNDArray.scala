@@ -17,10 +17,10 @@ final case class ENumpyBinaryNDArray(nRows: Long, nCols: Long, required: Boolean
   type DecodedPType = PCanonicalNDArray
   val elementType = EFloat64(true)
 
-  def setRequired(newRequired: Boolean): ENumpyBinaryNDArray =
+  override def setRequired(newRequired: Boolean): ENumpyBinaryNDArray =
     ENumpyBinaryNDArray(nRows, nCols, newRequired)
 
-  def _decodedSType(requestedType: Type): SType = {
+  override def _decodedSType(requestedType: Type): SType = {
     val elementPType = elementType.decodedPType(requestedType.asInstanceOf[TNDArray].elementType)
     SNDArrayPointer(PCanonicalNDArray(elementPType, 2, false))
   }
@@ -79,13 +79,13 @@ final case class ENumpyBinaryNDArray(nRows: Long, nCols: Long, required: Boolean
     tFinisher(cb)
   }
 
-  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit =
+  override def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit =
     ???
 
   override def _asIdent: String =
     s"${nRows}by${nCols}_numpy_array_of_${elementType.asIdent}"
 
-  def _toPretty = s"ENDArray[$elementType]"
+  override def _toPretty = s"ENDArray[$elementType]"
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false): Unit = {
     sb ++= "ENDArray["

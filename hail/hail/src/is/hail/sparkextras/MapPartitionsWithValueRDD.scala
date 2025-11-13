@@ -10,7 +10,7 @@ case class MapPartitionsWithValueRDDPartition[V](
   parentPartition: Partition,
   value: V,
 ) extends Partition {
-  def index: Int = parentPartition.index
+  override def index: Int = parentPartition.index
 }
 
 class MapPartitionsWithValueRDD[T: ClassTag, U: ClassTag, V](

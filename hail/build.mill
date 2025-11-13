@@ -59,6 +59,11 @@ trait HailScalaModule extends ScalaModule, HailJavaModule, ScalafmtModule, Scala
       `scala-collection-compat` :: "2.13.0",
     )
 
+  def scalacPluginMvnDeps = Seq(
+    mvn"org.wartremover::wartremover:3.4.1",
+    mvn"org.wartremover::wartremover-contrib:2.3.5",
+  )
+
   override def scalacOptions: T[Seq[String]] =
     Task {
       val scalaVersion = this.scalaVersion()
@@ -103,7 +108,8 @@ trait HailScalaModule extends ScalaModule, HailJavaModule, ScalafmtModule, Scala
         ScalacOptions.tokensForVersion(
           ScalaVersion.unsafeFromString(scalaVersion),
           base -- disabled ++ fromBuildMode,
-        )
+      ) :+ "-P:wartremover:only-warn-traverser:org.wartremover.contrib.warts.MissingOverride"
+      //      :+ "-P:wartremover:only-warn-traverser:org.wartremover.contrib.warts.UnsafeInheritance"
 
       val rawOptions =
         if scalaVersion < "2.12" || scalaVersion >= "3"

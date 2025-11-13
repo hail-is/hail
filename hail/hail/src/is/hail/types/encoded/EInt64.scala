@@ -25,16 +25,16 @@ class EInt64(override val required: Boolean) extends EType {
   ): SValue =
     new SInt64Value(cb.memoize(in.readLong()))
 
-  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit =
+  override def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit =
     cb += in.skipLong()
 
-  def _decodedSType(requestedType: Type): SType = SInt64
+  override def _decodedSType(requestedType: Type): SType = SInt64
 
-  def _asIdent = "int64"
+  override def _asIdent = "int64"
 
-  def _toPretty = "EInt64"
+  override def _toPretty = "EInt64"
 
-  def setRequired(newRequired: Boolean): EInt64 = EInt64(newRequired)
+  override def setRequired(newRequired: Boolean): EInt64 = EInt64(newRequired)
 }
 
 object EInt64 {

@@ -16,5 +16,5 @@ trait PTuple extends PBaseStruct {
 
   lazy val nFields: Int = fields.size
 
-  def identBase: String = "tuple"
+  override def identBase: String = "tuple"
 }

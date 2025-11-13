@@ -278,11 +278,11 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) extends Logg
     // booleans derived from key comparisons), we don't store top valued fields,
     // and let all missing fields be top implicitly.
     private case class ConcreteStruct(fields: Map[String, Value]) extends StructValue {
-      def apply(field: String): Value = fields.getOrElse(field, top)
+      override def apply(field: String): Value = fields.getOrElse(field, top)
 
-      def values: Iterable[Value] = fields.values
+      override def values: Iterable[Value] = fields.values
 
-      def isKeyPrefix: Boolean = fields.values.view.zipWithIndex.forall {
+      override def isKeyPrefix: Boolean = fields.values.view.zipWithIndex.forall {
         case (f: KeyField, i2) => f.idx == i2
         case _ => false
       }
@@ -505,10 +505,10 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) extends Logg
 
     private case class ConstantStruct(value: Row, t: TStruct)
         extends StructValue with ConstantValue {
-      def apply(field: String): Value = this(t.field(field))
-      def values: Iterable[Value] = t.fields.map(apply)
+      override def apply(field: String): Value = this(t.field(field))
+      override def values: Iterable[Value] = t.fields.map(apply)
       private def apply(field: Field): ConstantValue = ConstantValue(value(field.index), field.typ)
-      def isKeyPrefix: Boolean = false
+      override def isKeyPrefix: Boolean = false
     }
 
     private case class ConstantBool(value: Boolean, keySet: KeySet)
@@ -546,15 +546,15 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) extends Logg
     }
 
     private case class KeyFieldStruct(idx: Int) extends StructValue with KeyField {
-      def apply(field: String): Value = Top
-      def values: Iterable[Value] = Iterable.empty
-      def isKeyPrefix: Boolean = false
+      override def apply(field: String): Value = Top
+      override def values: Iterable[Value] = Iterable.empty
+      override def isKeyPrefix: Boolean = false
     }
 
     private case object Top extends StructValue with BoolValue {
-      def apply(field: String): Value = Top
-      def values: Iterable[Value] = Iterable.empty
-      def isKeyPrefix: Boolean = false
+      override def apply(field: String): Value = Top
+      override def values: Iterable[Value] = Iterable.empty
+      override def isKeyPrefix: Boolean = false
       override def trueBound: KeySet = KeySetLattice.top
       override def falseBound: KeySet = KeySetLattice.top
       override def naBound: KeySet = KeySetLattice.top
@@ -563,9 +563,9 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) extends Logg
     }
 
     private case object Bottom extends StructValue with BoolValue {
-      def apply(field: String): Value = ???
-      def values: Iterable[Value] = ???
-      def isKeyPrefix: Boolean = ???
+      override def apply(field: String): Value = ???
+      override def values: Iterable[Value] = ???
+      override def isKeyPrefix: Boolean = ???
       override def trueBound: KeySet = KeySetLattice.bottom
       override def falseBound: KeySet = KeySetLattice.bottom
       override def naBound: KeySet = KeySetLattice.bottom
@@ -573,10 +573,10 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) extends Logg
       override def isNA: BoolValue = Bottom
     }
 
-    def top: StructValue with BoolValue = Top
-    def bottom: StructValue with BoolValue = Bottom
+    override def top: StructValue with BoolValue = Top
+    override def bottom: StructValue with BoolValue = Bottom
 
-    def join(l: Value, r: Value): Value = (l, r) match {
+    override def join(l: Value, r: Value): Value = (l, r) match {
       case (Bottom, x) => x
       case (x, Bottom) => x
       case (l: ConstantValue, r: ConstantValue) if l.value == r.value => l
@@ -599,7 +599,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) extends Logg
       case _ => Top
     }
 
-    def meet(l: Value, r: Value): Value = (l, r) match {
+    override def meet(l: Value, r: Value): Value = (l, r) match {
       case (Top, x) => x
       case (x, Top) => x
       case (l: ConstantValue, r: ConstantValue) if l.value == r.value => l

@@ -137,12 +137,12 @@ abstract class FieldRef {
 
 class Field private[lir] (classx: Classx[_], val name: String, val ti: TypeInfo[_])
     extends FieldRef {
-  def owner: String = classx.name
+  override def owner: String = classx.name
 }
 
 class StaticField private[lir] (classx: Classx[_], val name: String, val ti: TypeInfo[_])
     extends FieldRef {
-  def owner: String = classx.name
+  override def owner: String = classx.name
 }
 
 class FieldLit(
@@ -176,11 +176,11 @@ class Method private[lir] (
 
   def nParameters: Int = parameterTypeInfo.length + (!isStatic).toInt
 
-  def owner: String = classx.name
+  override def owner: String = classx.name
 
-  def desc = s"(${parameterTypeInfo.map(_.desc).mkString})${returnTypeInfo.desc}"
+  override def desc = s"(${parameterTypeInfo.map(_.desc).mkString})${returnTypeInfo.desc}"
 
-  def isInterface: Boolean = false
+  override def isInterface: Boolean = false
 
   private var _entry: Block = _
 
@@ -520,7 +520,7 @@ abstract class StmtX extends X {
   var prev: StmtX = _
   var next: StmtX = _
 
-  def remove(): Unit = {
+  override def remove(): Unit = {
     assert(parent != null)
     if (parent.first == this)
       parent.first = next
@@ -602,7 +602,7 @@ abstract class ValueX extends X {
 
   def ti: TypeInfo[_]
 
-  def remove(): Unit = {
+  override def remove(): Unit = {
     var i = 0
     while (parent.children(i) ne this)
       i += 1
@@ -626,14 +626,14 @@ class GotoX(var lineNumber: Int = 0) extends ControlX {
 
   def setL(newL: Block): Unit = setTarget(0, newL)
 
-  def targetArity(): Int = 1
+  override def targetArity(): Int = 1
 
-  def target(i: Int): Block = {
+  override def target(i: Int): Block = {
     assert(i == 0)
     _L
   }
 
-  def setTarget(i: Int, b: Block): Unit = {
+  override def setTarget(i: Int, b: Block): Unit = {
     assert(i == 0)
     if (_L != null)
       _L.removeUse(this, 0)
@@ -655,9 +655,9 @@ class IfX(val op: Int, var lineNumber: Int = 0) extends ControlX {
 
   def setLfalse(newLfalse: Block): Unit = setTarget(1, newLfalse)
 
-  def targetArity(): Int = 2
+  override def targetArity(): Int = 2
 
-  def target(i: Int): Block = {
+  override def target(i: Int): Block = {
     if (i == 0)
       _Ltrue
     else {
@@ -666,7 +666,7 @@ class IfX(val op: Int, var lineNumber: Int = 0) extends ControlX {
     }
   }
 
-  def setTarget(i: Int, b: Block): Unit = {
+  override def setTarget(i: Int, b: Block): Unit = {
     if (i == 0) {
       if (_Ltrue != null)
         _Ltrue.removeUse(this, 0)
@@ -706,15 +706,15 @@ class SwitchX(var lineNumber: Int = 0) extends ControlX {
       if (block != null) block.addUse(this, i + 1)
   }
 
-  def targetArity(): Int = 1 + _Lcases.length
+  override def targetArity(): Int = 1 + _Lcases.length
 
-  def target(i: Int): Block =
+  override def target(i: Int): Block =
     if (i == 0)
       _Ldefault
     else
       _Lcases(i - 1)
 
-  def setTarget(i: Int, b: Block): Unit = {
+  override def setTarget(i: Int, b: Block): Unit = {
     if (i == 0) {
       if (_Ldefault != null)
         _Ldefault.removeUse(this, 0)
@@ -739,19 +739,19 @@ class PutFieldX(val op: Int, val f: FieldRef, var lineNumber: Int = 0) extends S
 class IincX(var l: Local, val i: Int, var lineNumber: Int = 0) extends StmtX
 
 class ReturnX(var lineNumber: Int = 0) extends ControlX {
-  def targetArity(): Int = 0
+  override def targetArity(): Int = 0
 
-  def target(i: Int): Block = throw new IndexOutOfBoundsException()
+  override def target(i: Int): Block = throw new IndexOutOfBoundsException()
 
-  def setTarget(i: Int, b: Block): Unit = throw new IndexOutOfBoundsException()
+  override def setTarget(i: Int, b: Block): Unit = throw new IndexOutOfBoundsException()
 }
 
 class ThrowX(var lineNumber: Int = 0) extends ControlX {
-  def targetArity(): Int = 0
+  override def targetArity(): Int = 0
 
-  def target(i: Int): Block = throw new IndexOutOfBoundsException()
+  override def target(i: Int): Block = throw new IndexOutOfBoundsException()
 
-  def setTarget(i: Int, b: Block): Unit = throw new IndexOutOfBoundsException()
+  override def setTarget(i: Int, b: Block): Unit = throw new IndexOutOfBoundsException()
 }
 
 class StmtOpX(val op: Int, var lineNumber: Int = 0) extends StmtX
@@ -761,7 +761,7 @@ class MethodStmtX(val op: Int, val method: MethodRef, var lineNumber: Int = 0) e
 class TypeInsnX(val op: Int, val ti: TypeInfo[_], var lineNumber: Int = 0) extends ValueX {}
 
 class InsnX(val op: Int, _ti: TypeInfo[_], var lineNumber: Int = 0) extends ValueX {
-  def ti: TypeInfo[_] = {
+  override def ti: TypeInfo[_] = {
     if (_ti != null)
       return _ti
 
@@ -838,15 +838,15 @@ class InsnX(val op: Int, _ti: TypeInfo[_], var lineNumber: Int = 0) extends Valu
 }
 
 class LoadX(var l: Local, var lineNumber: Int = 0) extends ValueX {
-  def ti: TypeInfo[_] = l.ti
+  override def ti: TypeInfo[_] = l.ti
 }
 
 class GetFieldX(val op: Int, val f: FieldRef, var lineNumber: Int = 0) extends ValueX {
-  def ti: TypeInfo[_] = f.ti
+  override def ti: TypeInfo[_] = f.ti
 }
 
 class NewArrayX(val eti: TypeInfo[_], var lineNumber: Int = 0) extends ValueX {
-  def ti: TypeInfo[_] = arrayInfo(eti)
+  override def ti: TypeInfo[_] = arrayInfo(eti)
 }
 
 class NewInstanceX(val ti: TypeInfo[_], val ctor: MethodRef, var lineNumber: Int = 0) extends ValueX
@@ -861,5 +861,5 @@ class LdcX(val a: Any, val ti: TypeInfo[_], var lineNumber: Int = 0) extends Val
 }
 
 class MethodX(val op: Int, val method: MethodRef, var lineNumber: Int = 0) extends ValueX {
-  def ti: TypeInfo[_] = method.returnTypeInfo
+  override def ti: TypeInfo[_] = method.returnTypeInfo
 }

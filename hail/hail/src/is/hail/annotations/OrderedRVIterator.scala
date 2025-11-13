@@ -95,7 +95,7 @@ case class OrderedRVIterator(
         }
       }
 
-      def advance(): Unit = {
+      override def advance(): Unit = {
         left.advance()
         setValue()
       }
@@ -190,9 +190,9 @@ case class OrderedRVIterator(
       private val rvb = new RegionValueBuilder(sm, consumerRegion)
       private val rv = RegionValue()
 
-      def hasNext: Boolean = bit.hasNext || q.nonEmpty
+      override def hasNext: Boolean = bit.hasNext || q.nonEmpty
 
-      def next(): RegionValue = {
+      override def next(): RegionValue = {
         if (q.isEmpty) {
           do {
             val rv = bit.next()

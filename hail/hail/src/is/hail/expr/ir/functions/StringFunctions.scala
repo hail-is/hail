@@ -283,7 +283,7 @@ object StringFunctions extends RegistryFunctions {
       .parse(timeStr)
       .getLong(ChronoField.INSTANT_SECONDS)
 
-  def registerAll(): Unit = {
+  override def registerAll(): Unit = {
     val thisClass = getClass
 
     registerSCode1("length", TString, TInt32, (_: Type, _: SType) => SInt32) {

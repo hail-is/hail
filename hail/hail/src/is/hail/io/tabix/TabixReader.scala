@@ -26,8 +26,7 @@ class Tabix(
 )
 
 case class TbiPair(var _1: Long, var _2: Long) extends java.lang.Comparable[TbiPair] {
-  @Override
-  def compareTo(other: TbiPair): Int = TbiOrd.compare(this, other)
+  override def compareTo(other: TbiPair): Int = TbiOrd.compare(this, other)
 }
 
 object TbiPair {
@@ -35,7 +34,7 @@ object TbiPair {
 }
 
 object TbiOrd extends Ordering[TbiPair] {
-  def compare(u: TbiPair, v: TbiPair): Int = if (u._1 == v._1) {
+  override def compare(u: TbiPair, v: TbiPair): Int = if (u._1 == v._1) {
     0
   } else if (less64(u._1, v._1)) {
     -1

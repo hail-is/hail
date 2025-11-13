@@ -8,7 +8,7 @@ case class TInterval(pointType: Type) extends Type {
 
   override def children = FastSeq(pointType)
 
-  def _toPretty = s"""Interval[$pointType]"""
+  override def _toPretty = s"""Interval[$pointType]"""
 
   override def pyString(sb: StringBuilder): Unit = {
     sb ++= "interval<"
@@ -22,7 +22,7 @@ case class TInterval(pointType: Type) extends Type {
     sb += ']'
   }
 
-  def _typeCheck(a: Any): Boolean = a.isInstanceOf[Interval] && {
+  override def _typeCheck(a: Any): Boolean = a.isInstanceOf[Interval] && {
     val i = a.asInstanceOf[Interval]
     pointType.typeCheck(i.start) && pointType.typeCheck(i.end)
   }

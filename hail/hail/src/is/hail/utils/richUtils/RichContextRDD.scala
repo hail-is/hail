@@ -69,7 +69,7 @@ class RichContextRDD[T: ClassTag](crdd: ContextRDD[T]) {
       new Iterator[T]() {
         private[this] var cleared: Boolean = false
 
-        def hasNext: Boolean = {
+        override def hasNext: Boolean = {
           if (!cleared) {
             cleared = true
             ctx.region.clear()
@@ -77,7 +77,7 @@ class RichContextRDD[T: ClassTag](crdd: ContextRDD[T]) {
           it.hasNext
         }
 
-        def next(): T = {
+        override def next(): T = {
           if (!cleared) {
             ctx.region.clear()
           }

@@ -417,7 +417,7 @@ final class Region protected[annotations] (
   def trackSharedChunk(addr: Long): Unit =
     memory.trackSharedChunk(addr)
 
-  def close(): Unit =
+  override def close(): Unit =
     invalidate()
 
   def addReferenceTo(r: Region): Unit =

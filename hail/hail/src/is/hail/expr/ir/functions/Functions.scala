@@ -1269,7 +1269,7 @@ abstract class UnseededMissingnessObliviousJVMFunction(
     args: SValue*
   ): SValue
 
-  def apply(
+  override def apply(
     r: EmitRegion,
     returnType: SType,
     typeParameters: Seq[Type],

@@ -17,7 +17,7 @@ trait SContainer extends SType {
 }
 
 trait SIndexableValue extends SValue {
-  def st: SContainer
+  override def st: SContainer
 
   def loadLength: Value[Int]
 

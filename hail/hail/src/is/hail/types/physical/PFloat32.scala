@@ -16,13 +16,13 @@ class PFloat32(override val required: Boolean) extends PNumeric with PPrimitive 
 
   override type NType = PFloat32
 
-  def _asIdent = "float32"
+  override def _asIdent = "float32"
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit =
     sb ++= "PFloat32"
 
   override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering = new UnsafeOrdering {
-    def compare(o1: Long, o2: Long): Int =
+    override def compare(o1: Long, o2: Long): Int =
       java.lang.Float.compare(Region.loadFloat(o1), Region.loadFloat(o2))
   }
 
@@ -38,7 +38,7 @@ class PFloat32(override val required: Boolean) extends PNumeric with PPrimitive 
 
   override def sType: SType = SFloat32
 
-  def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SValue): Unit =
+  override def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SValue): Unit =
     cb.append(Region.storeFloat(addr, value.asFloat.value))
 
   override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SFloat32Value =

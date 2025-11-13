@@ -453,7 +453,7 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     val compareGen =
       for {
         elt <- arbitrary[Type]
-        set: Set[Annotation] <- genNonMissingT(ctx, TSet(elt))
+        set <- genNonMissingT[Set[Annotation]](ctx, TSet(elt))
         v <- genNonMissing(ctx, elt)
       } yield (elt, set, v)
 
@@ -509,7 +509,7 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     val compareGen =
       for {
         tdict <- arbitrary[TDict]
-        dict: Map[Annotation, Annotation] <- genNonMissingT(ctx, tdict, innerRequired = false)
+        dict <- genNonMissingT[Map[Annotation, Annotation]](ctx, tdict, innerRequired = false)
         key <- genNonMissing(ctx, tdict.keyType, innerRequired = false)
       } yield (tdict, dict, key)
 

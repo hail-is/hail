@@ -29,13 +29,13 @@ sealed abstract class SortOrder {
 }
 
 case object Ascending extends SortOrder {
-  def serialize: Byte = 0.toByte
-  def parsableString(): String = "A"
+  override def serialize: Byte = 0.toByte
+  override def parsableString(): String = "A"
 }
 
 case object Descending extends SortOrder {
-  def serialize: Byte = 1.toByte
-  def parsableString(): String = "D"
+  override def serialize: Byte = 1.toByte
+  override def parsableString(): String = "D"
 }
 
 object SortField {
@@ -59,7 +59,7 @@ abstract class AbstractTableSpec extends RelationalSpec {
 
   def globalsSpec: AbstractRVDSpec
 
-  def indexed: Boolean = rowsSpec.indexed
+  override def indexed: Boolean = rowsSpec.indexed
 }
 
 object TableSpec {
@@ -99,16 +99,16 @@ class TableSpec(
   val globalsSpec: AbstractRVDSpec,
   val rowsSpec: AbstractRVDSpec,
 ) extends AbstractTableSpec {
-  def file_version: Int = params.file_version
+  override def file_version: Int = params.file_version
 
-  def hail_version: String = params.hail_version
+  override def hail_version: String = params.hail_version
 
-  def components: Map[String, ComponentSpec] = params.components
+  override def components: Map[String, ComponentSpec] = params.components
 
-  def references_rel_path: String = params.references_rel_path
+  override def references_rel_path: String = params.references_rel_path
 
-  def table_type: TableType = params.table_type
+  override def table_type: TableType = params.table_type
 
-  def toJValue: JValue =
+  override def toJValue: JValue =
     decomposeWithName(params, "TableSpec")(RelationalSpec.formats)
 }

@@ -12,7 +12,7 @@ final case class TStream(elementType: Type) extends TIterable {
     sb += '>'
   }
 
-  def _toPretty = s"Stream[$elementType]"
+  override def _toPretty = s"Stream[$elementType]"
 
   override def canCompare(other: Type): Boolean =
     throw new UnsupportedOperationException("Stream comparison is currently undefined.")
@@ -30,7 +30,7 @@ final case class TStream(elementType: Type) extends TIterable {
     sb += ']'
   }
 
-  def _typeCheck(a: Any): Boolean = a.isInstanceOf[IndexedSeq[_]] &&
+  override def _typeCheck(a: Any): Boolean = a.isInstanceOf[IndexedSeq[_]] &&
     a.asInstanceOf[IndexedSeq[_]].forall(elementType.typeCheck)
 
   override def str(a: Annotation): String = JsonMethods.compact(export(a))

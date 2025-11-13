@@ -11,13 +11,13 @@ object AbsoluteFuzzyComparable {
     afc.absoluteEq(tolerance, x, y)
 
   implicit object afcDoubles extends AbsoluteFuzzyComparable[Double] {
-    def absoluteEq(tolerance: Double, x: Double, y: Double) = Math.abs(x - y) <= tolerance
+    override def absoluteEq(tolerance: Double, x: Double, y: Double) = Math.abs(x - y) <= tolerance
   }
 
   implicit def afcMaps[K, V](implicit vRFC: AbsoluteFuzzyComparable[V])
     : AbsoluteFuzzyComparable[Map[K, V]] =
     new AbsoluteFuzzyComparable[Map[K, V]] {
-      def absoluteEq(tolerance: Double, x: Map[K, V], y: Map[K, V]) =
+      override def absoluteEq(tolerance: Double, x: Map[K, V], y: Map[K, V]) =
         x.keySet == y.keySet && x.keys.forall(k => vRFC.absoluteEq(tolerance, x(k), y(k)))
     }
 }

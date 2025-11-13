@@ -512,19 +512,19 @@ class MatrixBGENReader(
   filePartitionInfo: IndexedSeq[FilePartitionInfo],
   variants: Option[String],
 ) extends MatrixHybridReader {
-  def pathsUsed: Seq[String] = filePartitionInfo.map(_.metadata.path)
+  override def pathsUsed: Seq[String] = filePartitionInfo.map(_.metadata.path)
 
   lazy val nVariants: Long = filePartitionInfo.map(_.metadata.nVariants).sum
 
-  def rowUIDType = TTuple(TInt64, TInt64)
+  override def rowUIDType = TTuple(TInt64, TInt64)
 
-  def colUIDType = TInt64
+  override def colUIDType = TInt64
 
   private val nSamples = sampleIds.length
 
-  def columnCount: Option[Int] = Some(nSamples)
+  override def columnCount: Option[Int] = Some(nSamples)
 
-  def partitionCounts: Option[IndexedSeq[Long]] = None
+  override def partitionCounts: Option[IndexedSeq[Long]] = None
 
   private var _settings: BgenSettings = _
 
@@ -576,7 +576,7 @@ class MatrixBGENReader(
 
   override def toJValue: JValue = params.toJValue
 
-  def renderShort(): String = defaultRender()
+  override def renderShort(): String = defaultRender()
 
   override def hashCode(): Int = params.hashCode()
 
@@ -674,12 +674,12 @@ case class BgenPartitionReaderWithVariantFilter(
   lazy val uidType = TTuple(TInt64, TInt64)
   lazy val fullRowType: TStruct = MatrixBGENReader.fullTableType(rg).rowType
 
-  def rowRequiredness(requestedType: TStruct): RStruct =
+  override def rowRequiredness(requestedType: TStruct): RStruct =
     StagedBGENReader.rowRequiredness(requestedType)
 
-  def uidFieldName: String = TableReader.uidFieldName
+  override def uidFieldName: String = TableReader.uidFieldName
 
-  def emitStream(
+  override def emitStream(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
     mb: EmitMethodBuilder[_],
@@ -832,7 +832,7 @@ case class BgenPartitionReaderWithVariantFilter(
     }
   }
 
-  def toJValue: JValue = Extraction.decompose(this)(PartitionReader.formats)
+  override def toJValue: JValue = Extraction.decompose(this)(PartitionReader.formats)
 }
 
 case class BgenPartitionReader(fileMetadata: Array[BgenFileMetadata], rg: Option[String])
@@ -848,12 +848,12 @@ case class BgenPartitionReader(fileMetadata: Array[BgenFileMetadata], rg: Option
 
   lazy val fullRowType: TStruct = MatrixBGENReader.fullTableType(rg).rowType
 
-  def rowRequiredness(requestedType: TStruct): RStruct =
+  override def rowRequiredness(requestedType: TStruct): RStruct =
     StagedBGENReader.rowRequiredness(requestedType)
 
-  def uidFieldName: String = TableReader.uidFieldName
+  override def uidFieldName: String = TableReader.uidFieldName
 
-  def emitStream(
+  override def emitStream(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
     mb: EmitMethodBuilder[_],
@@ -975,5 +975,5 @@ case class BgenPartitionReader(fileMetadata: Array[BgenFileMetadata], rg: Option
     }
   }
 
-  def toJValue: JValue = Extraction.decompose(this)(PartitionReader.formats)
+  override def toJValue: JValue = Extraction.decompose(this)(PartitionReader.formats)
 }

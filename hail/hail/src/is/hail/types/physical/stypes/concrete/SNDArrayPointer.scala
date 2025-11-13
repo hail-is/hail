@@ -153,10 +153,10 @@ final class SNDArrayPointerSettable(
   override val firstDataAddress: Settable[Long],
 ) extends SNDArrayPointerValue(st, a, shape.map(SizeValueDyn.apply), strides, firstDataAddress)
     with SNDArraySettable {
-  def settableTuple(): IndexedSeq[Settable[_]] =
+  override def settableTuple(): IndexedSeq[Settable[_]] =
     FastSeq(a) ++ shape ++ strides ++ FastSeq(firstDataAddress)
 
-  def store(cb: EmitCodeBuilder, v: SValue): Unit = v match {
+  override def store(cb: EmitCodeBuilder, v: SValue): Unit = v match {
     case v: SNDArrayPointerValue =>
       cb.assign(a, v.a)
       shape.lazyZip(v.shapes).foreach(cb.assign(_, _))

@@ -10,11 +10,11 @@ class HadoopFSDataBinaryReader(fis: SeekableDataInputStream)
   override def read(byteArray: Array[Byte], hasRead: Int, toRead: Int): Int =
     fis.read(byteArray, hasRead, toRead)
 
-  def close(): Unit = fis.close()
+  override def close(): Unit = fis.close()
 
   def seek(pos: Long): Unit = fis.seek(pos)
 
-  def skipBytes(bytes: Long): Long = fis.skip(bytes)
+  override def skipBytes(bytes: Long): Long = fis.skip(bytes)
 
   def getPosition: Long = fis.getPosition
 }

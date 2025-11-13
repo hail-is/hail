@@ -16,7 +16,7 @@ object GenericTypeInfo {
 final class GenericTypeInfo[T: TypeInfo]() extends MaybeGenericTypeInfo[T] {
   val base = typeInfo[T]
 
-  def castFromGeneric(cb: CodeBuilderLike, _x: Value[_]): Value[T] = {
+  override def castFromGeneric(cb: CodeBuilderLike, _x: Value[_]): Value[T] = {
     val x = coerce[AnyRef](_x)
     base match {
       case _: IntInfo.type =>
@@ -44,7 +44,7 @@ final class GenericTypeInfo[T: TypeInfo]() extends MaybeGenericTypeInfo[T] {
     }
   }
 
-  def castToGeneric(cb: CodeBuilderLike, x: Value[T]): Value[_] = base match {
+  override def castToGeneric(cb: CodeBuilderLike, x: Value[T]): Value[_] = base match {
     case _: IntInfo.type =>
       cb.memoize(Code.boxInt(coerce[Int](x)))
     case _: LongInfo.type =>
@@ -78,8 +78,8 @@ object NotGenericTypeInfo {
 }
 
 final class NotGenericTypeInfo[T: TypeInfo]() extends MaybeGenericTypeInfo[T] {
-  def castFromGeneric(cb: CodeBuilderLike, x: Value[_]): Value[T] = coerce[T](x)
-  def castToGeneric(cb: CodeBuilderLike, x: Value[T]): Value[_] = x
+  override def castFromGeneric(cb: CodeBuilderLike, x: Value[_]): Value[T] = coerce[T](x)
+  override def castToGeneric(cb: CodeBuilderLike, x: Value[T]): Value[_] = x
 
   val base = typeInfo[T]
   val generic = base
