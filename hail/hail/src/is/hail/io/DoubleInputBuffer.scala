@@ -10,7 +10,7 @@ final class DoubleInputBuffer(in: InputStream, bufSize: Int) extends Closeable {
   private var end: Int = 0
   private var off: Int = 0
 
-  def close(): Unit =
+  override def close(): Unit =
     in.close()
 
   def readDoubles(to: Array[Double]): Unit = readDoubles(to, 0, to.length)
@@ -45,7 +45,7 @@ final class DoubleOutputBuffer(out: OutputStream, bufSize: Int) extends Closeabl
   private val buf: Array[Byte] = new Array[Byte](bufSize)
   private var off: Int = 0
 
-  def close(): Unit = {
+  override def close(): Unit = {
     flush()
     out.close()
   }

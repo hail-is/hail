@@ -27,19 +27,19 @@ object PCanonicalLocus {
 
 final case class PCanonicalLocus(rgName: String, required: Boolean = false) extends PLocus {
 
-  def byteSize: Long = representation.byteSize
+  override def byteSize: Long = representation.byteSize
   override def alignment: Long = representation.alignment
 
   override def copiedType: PType = this
 
-  def rg: String = rgName
+  override def rg: String = rgName
 
-  def _asIdent = s"locus_$rgName"
+  override def _asIdent = s"locus_$rgName"
 
   override def _pretty(sb: StringBuilder, indent: Call, compact: Boolean): Unit =
     sb ++= "PCLocus(" ++= rgName += ')': Unit
 
-  def setRequired(required: Boolean): PCanonicalLocus =
+  override def setRequired(required: Boolean): PCanonicalLocus =
     if (required == this.required) this else PCanonicalLocus(this.rgName, required)
 
   val representation: PCanonicalStruct = PCanonicalLocus.representation(required)
@@ -49,13 +49,14 @@ final case class PCanonicalLocus(rgName: String, required: Boolean = false) exte
 
   private[physical] def contigAddr(address: Long): Long = representation.loadField(address, 0)
 
-  def contig(address: Long): String = contigType.loadString(contigAddr(address))
-  def position(address: Long): Int = Region.loadInt(representation.fieldOffset(address, 1))
+  override def contig(address: Long): String = contigType.loadString(contigAddr(address))
+  override def position(address: Long): Int = Region.loadInt(representation.fieldOffset(address, 1))
 
   lazy val contigType: PCanonicalString =
     representation.field("contig").typ.asInstanceOf[PCanonicalString]
 
-  def position(off: Code[Long]): Code[Int] = Region.loadInt(representation.loadField(off, 1))
+  override def position(off: Code[Long]): Code[Int] =
+    Region.loadInt(representation.loadField(off, 1))
 
   lazy val positionType: PInt32 = representation.field("position").typ.asInstanceOf[PInt32]
 
@@ -65,7 +66,7 @@ final case class PCanonicalLocus(rgName: String, required: Boolean = false) exte
     val binaryOrd = representation.fieldType("contig").unsafeOrdering(sm)
 
     new UnsafeOrdering {
-      def compare(o1: Long, o2: Long): Int = {
+      override def compare(o1: Long, o2: Long): Int = {
         val cOff1 = representation.loadField(o1, 0)
         val cOff2 = representation.loadField(o2, 0)
 
@@ -115,14 +116,15 @@ final case class PCanonicalLocus(rgName: String, required: Boolean = false) exte
         representation._copyFromAddress(sm, region, pt.representation, srcAddress, deepCopy)
     }
 
-  def sType: SCanonicalLocusPointer = SCanonicalLocusPointer(setRequired(false))
+  override def sType: SCanonicalLocusPointer = SCanonicalLocusPointer(setRequired(false))
 
-  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SCanonicalLocusPointerValue = {
+  override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long])
+    : SCanonicalLocusPointerValue = {
     val a = cb.memoize(addr)
     new SCanonicalLocusPointerValue(sType, a, cb.memoize(contigAddr(a)), cb.memoize(position(a)))
   }
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean)
+  override def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean)
     : Value[Long] = {
     value.st match {
       case SCanonicalLocusPointer(pt) =>
@@ -139,7 +141,7 @@ final case class PCanonicalLocus(rgName: String, required: Boolean = false) exte
     }
   }
 
-  def storeAtAddress(
+  override def storeAtAddress(
     cb: EmitCodeBuilder,
     addr: Code[Long],
     region: Value[Region],
@@ -173,7 +175,7 @@ final case class PCanonicalLocus(rgName: String, required: Boolean = false) exte
     }
   }
 
-  def loadFromNested(addr: Code[Long]): Code[Long] = addr
+  override def loadFromNested(addr: Code[Long]): Code[Long] = addr
 
   override def unstagedLoadFromNested(addr: Long): Long = addr
 

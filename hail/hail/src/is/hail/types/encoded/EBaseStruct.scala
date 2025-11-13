@@ -55,7 +55,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
     )
   }
 
-  def _decodedSType(requestedType: Type): SType = requestedType match {
+  override def _decodedSType(requestedType: Type): SType = requestedType match {
     case t: TInterval =>
       val structPType = decodedPType(t.structRepresentation).asInstanceOf[PStruct]
       val pointType = structPType.field("start").typ
@@ -198,7 +198,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
     }
   }
 
-  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
+  override def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
     val mbytes = cb.newLocal[Long]("mbytes", r.allocate(const(1L), const(nMissingBytes.toLong)))
     cb += in.readBytes(r, mbytes, nMissingBytes)
     fields.foreach { f =>
@@ -210,7 +210,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
     }
   }
 
-  def _asIdent: String = {
+  override def _asIdent: String = {
     val sb = new StringBuilder
     sb ++= "struct_of_"
     types.foreachBetween(sb ++= _.asIdent)(sb ++= "AND")
@@ -218,7 +218,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
     sb.result()
   }
 
-  def _toPretty: String = {
+  override def _toPretty: String = {
     val sb = new StringBuilder
     _pretty(sb, 0, compact = true)
     sb.result()
@@ -237,5 +237,5 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
       sb += '\n' ++= " " * indent += '}': Unit
     }
 
-  def setRequired(newRequired: Boolean): EBaseStruct = EBaseStruct(fields, newRequired)
+  override def setRequired(newRequired: Boolean): EBaseStruct = EBaseStruct(fields, newRequired)
 }

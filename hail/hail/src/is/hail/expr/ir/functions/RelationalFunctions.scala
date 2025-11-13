@@ -48,7 +48,7 @@ case class WrappedMatrixToTableFunction(
     function.typ(mType) // MatrixType RVDTypes will go away
   }
 
-  def execute(ctx: ExecuteContext, tv: TableValue): TableValue =
+  override def execute(ctx: ExecuteContext, tv: TableValue): TableValue =
     function.execute(ctx, tv.toMatrixValue(colKey, colsFieldName, entriesFieldName))
 
   override def preservesPartitionCounts: Boolean = function.preservesPartitionCounts
@@ -82,13 +82,13 @@ case class WrappedMatrixToValueFunction(
   colKey: IndexedSeq[String],
 ) extends TableToValueFunction {
 
-  def typ(childType: TableType): Type =
+  override def typ(childType: TableType): Type =
     function.typ(MatrixType.fromTableType(childType, colsFieldName, entriesFieldName, colKey))
 
-  def unionRequiredness(childType: RTable, resultType: TypeWithRequiredness): Unit =
+  override def unionRequiredness(childType: RTable, resultType: TypeWithRequiredness): Unit =
     function.unionRequiredness(childType, resultType)
 
-  def execute(ctx: ExecuteContext, tv: TableValue): Any =
+  override def execute(ctx: ExecuteContext, tv: TableValue): Any =
     function.execute(ctx, tv.toMatrixValue(colKey, colsFieldName, entriesFieldName))
 }
 

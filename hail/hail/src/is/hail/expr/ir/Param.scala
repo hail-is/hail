@@ -10,13 +10,13 @@ sealed trait ParamType {
 }
 
 case class CodeParamType(ti: TypeInfo[_]) extends ParamType {
-  def nCodes: Int = 1
+  override def nCodes: Int = 1
 
   override def toString: String = s"CodeParam($ti)"
 }
 
 case class SCodeParamType(st: SType) extends ParamType {
-  def nCodes: Int = st.nSettables
+  override def nCodes: Int = st.nSettables
 
   override def toString: String = s"SCodeParam($st, $nCodes)"
 }
@@ -34,25 +34,25 @@ trait EmitParamType extends ParamType {
       ts :+ BooleanInfo
   }
 
-  final def nCodes: Int = valueTupleTypes.length
+  final override def nCodes: Int = valueTupleTypes.length
 
   protected def definedValueTupleTypes(): IndexedSeq[TypeInfo[_]]
 }
 
 case class SingleCodeEmitParamType(required: Boolean, sct: SingleCodeType) extends EmitParamType {
-  def virtualType: Type = sct.virtualType
+  override def virtualType: Type = sct.virtualType
 
-  def definedValueTupleTypes(): IndexedSeq[TypeInfo[_]] = FastSeq(sct.ti)
+  override def definedValueTupleTypes(): IndexedSeq[TypeInfo[_]] = FastSeq(sct.ti)
 
   override def toString: String = s"SingleCodeEmitParamType($required, $sct)"
 }
 
 case class SCodeEmitParamType(et: EmitType) extends EmitParamType {
-  def required: Boolean = et.required
+  override def required: Boolean = et.required
 
-  def virtualType: Type = et.st.virtualType
+  override def virtualType: Type = et.st.virtualType
 
-  def definedValueTupleTypes(): IndexedSeq[TypeInfo[_]] = et.st.settableTupleTypes()
+  override def definedValueTupleTypes(): IndexedSeq[TypeInfo[_]] = et.st.settableTupleTypes()
 }
 
 sealed trait Param

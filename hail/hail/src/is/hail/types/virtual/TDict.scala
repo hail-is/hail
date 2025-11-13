@@ -27,7 +27,7 @@ final case class TDict(keyType: Type, valueType: Type) extends TContainer {
 
   override def subst() = TDict(keyType.subst(), valueType.subst())
 
-  def _toPretty = s"Dict[$keyType, $valueType]"
+  override def _toPretty = s"Dict[$keyType, $valueType]"
 
   override def pyString(sb: StringBuilder): Unit = {
     sb ++= "dict<"
@@ -45,7 +45,7 @@ final case class TDict(keyType: Type, valueType: Type) extends TContainer {
     sb += ']'
   }
 
-  def _typeCheck(a: Any): Boolean = a == null || (a.isInstanceOf[Map[_, _]] &&
+  override def _typeCheck(a: Any): Boolean = a == null || (a.isInstanceOf[Map[_, _]] &&
     a.asInstanceOf[Map[_, _]].forall { case (k, v) =>
       keyType.typeCheck(k) && valueType.typeCheck(v)
     })

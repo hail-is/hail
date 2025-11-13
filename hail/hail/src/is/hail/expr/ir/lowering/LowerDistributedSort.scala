@@ -102,15 +102,17 @@ object LowerDistributedSort extends Logging {
 
     override def isDistinctlyKeyed: Boolean = false // FIXME: No default value
 
-    def rowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
+    override def rowRequiredness(ctx: ExecuteContext, requestedType: TableType)
+      : VirtualTypeWithReq =
       VirtualTypeWithReq.subset(requestedType.rowType, rt.rowType)
 
-    def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
+    override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType)
+      : VirtualTypeWithReq =
       VirtualTypeWithReq.subset(requestedType.globalType, rt.globalType)
 
     override def toJValue: JValue = JString("LocalSortReader")
 
-    def renderShort(): String = "LocalSortReader"
+    override def renderShort(): String = "LocalSortReader"
 
     override def defaultRender(): String = "LocalSortReader"
 
@@ -982,15 +984,16 @@ case class DistributionSortReader(
 
   override def isDistinctlyKeyed: Boolean = false // FIXME: No default value
 
-  def rowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
+  override def rowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
     VirtualTypeWithReq.subset(requestedType.rowType, rt.rowType)
 
-  def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
+  override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType)
+    : VirtualTypeWithReq =
     VirtualTypeWithReq.subset(requestedType.globalType, rt.globalType)
 
   override def toJValue: JValue = JString("DistributionSortReader")
 
-  def renderShort(): String = "DistributionSortReader"
+  override def renderShort(): String = "DistributionSortReader"
 
   override def defaultRender(): String = "DistributionSortReader"
 

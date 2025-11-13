@@ -85,7 +85,8 @@ private class EmptyPartitionIsAZeroMatrixRDD(blocks: RDD[((Int, Int), BDM[Double
     case Some(p: GridPartitioner) => p
   }
 
-  def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), BDM[Double])] = {
+  override def compute(split: Partition, context: TaskContext)
+    : Iterator[((Int, Int), BDM[Double])] = {
     val p = split.asInstanceOf[BlockPartition]
     val it = blocks.iterator(split, context)
     if (it.hasNext)
@@ -94,7 +95,7 @@ private class EmptyPartitionIsAZeroMatrixRDD(blocks: RDD[((Int, Int), BDM[Double
       Iterator.single(p.blockCoordinates -> BDM.zeros[Double](p.blockDims._1, p.blockDims._2))
   }
 
-  protected def getPartitions: Array[Partition] =
+  override protected def getPartitions: Array[Partition] =
     blocks.partitions.map { p =>
       new BlockPartition(p.index, gp.blockCoordinates(p.index), gp.blockDims(p.index))
     }.toArray

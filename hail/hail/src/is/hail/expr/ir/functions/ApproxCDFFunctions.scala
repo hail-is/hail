@@ -51,7 +51,7 @@ object ApproxCDFFunctions extends RegistryFunctions {
     unwrapReturn(cb, r, SBaseStructPointer(statePType), row).asBaseStruct
   }
 
-  def registerAll(): Unit = {
+  override def registerAll(): Unit = {
     registerSCode3(
       "approxCDFCombine",
       TInt32,

@@ -125,7 +125,7 @@ class RegionValuePriorityQueue(
     popped.region.close()
   }
 
-  def iterator: Iterator[RegionValue] = queue.iterator
+  override def iterator: Iterator[RegionValue] = queue.iterator
 }
 
 class RegionValueArrayBuffer(val t: PType, region: Region, sm: HailStateManager)
@@ -140,7 +140,7 @@ class RegionValueArrayBuffer(val t: PType, region: Region, sm: HailStateManager)
 
   override def knownSize: Int = idx.length
 
-  def addOne(rv: RegionValue): this.type =
+  override def addOne(rv: RegionValue): this.type =
     this.append(rv.region, rv.offset)
 
   def append(fromRegion: Region, fromOffset: Long): this.type = {
@@ -165,7 +165,7 @@ class RegionValueArrayBuffer(val t: PType, region: Region, sm: HailStateManager)
     this
   }
 
-  def clear(): Unit = {
+  override def clear(): Unit = {
     region.clear()
     idx.clear()
     rvb.clear() // remove
@@ -174,16 +174,16 @@ class RegionValueArrayBuffer(val t: PType, region: Region, sm: HailStateManager)
   private var itIdx = 0
 
   private val it = new Iterator[RegionValue] {
-    def next(): RegionValue = {
+    override def next(): RegionValue = {
       value.setOffset(idx(itIdx))
       itIdx += 1
       value
     }
 
-    def hasNext: Boolean = itIdx < idx.size
+    override def hasNext: Boolean = itIdx < idx.size
   }
 
-  def iterator: Iterator[RegionValue] = {
+  override def iterator: Iterator[RegionValue] = {
     itIdx = 0
     it
   }

@@ -5,7 +5,7 @@ import java.io.OutputStream
 class ByteTrackingOutputStream(base: OutputStream) extends OutputStream {
   var bytesWritten = 0L
 
-  def write(c: Int): Unit = {
+  override def write(c: Int): Unit = {
     bytesWritten += 1
     base.write(c)
   }

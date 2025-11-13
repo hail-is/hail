@@ -196,10 +196,10 @@ case class PartitionNativeWriter(
 ) extends PartitionWriter {
   val keyType = spec.encodedVirtualType.asInstanceOf[TStruct].select(keyFields)._1
 
-  def ctxType = PartitionNativeWriter.ctxType
+  override def ctxType = PartitionNativeWriter.ctxType
   val returnType = PartitionNativeWriter.returnType(keyType, trackTotalBytes)
 
-  def unionTypeRequiredness(
+  override def unionTypeRequiredness(
     r: TypeWithRequiredness,
     ctxType: TypeWithRequiredness,
     streamType: RIterable,
@@ -383,7 +383,7 @@ case class PartitionNativeWriter(
     }
   }
 
-  def consumeStream(
+  override def consumeStream(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
     stream: StreamProducer,
@@ -402,9 +402,9 @@ case class PartitionNativeWriter(
 }
 
 case class RVDSpecWriter(path: String, spec: RVDSpecMaker) extends MetadataWriter {
-  def annotationType: Type = TArray(TString)
+  override def annotationType: Type = TArray(TString)
 
-  def writeMetadata(
+  override def writeMetadata(
     writeAnnotations: => IEmitCode,
     cb: EmitCodeBuilder,
     region: Value[Region],
@@ -469,14 +469,14 @@ case class TableSpecWriter(
   refRelPath: String,
   log: Boolean,
 ) extends MetadataWriter {
-  def annotationType: Type = TArray(TStruct(
+  override def annotationType: Type = TArray(TStruct(
     "partitionCounts" -> TInt64,
     "distinctlyKeyed" -> TBoolean,
     "firstKey" -> typ.keyType,
     "lastKey" -> typ.keyType,
   ))
 
-  def writeMetadata(
+  override def writeMetadata(
     writeAnnotations: => IEmitCode,
     cb: EmitCodeBuilder,
     region: Value[Region],
@@ -576,9 +576,10 @@ case class RelationalSetup(path: String, overwrite: Boolean, refs: Option[TableT
     ))
   )
 
-  def annotationType: Type = TVoid
+  override def annotationType: Type = TVoid
 
-  def writeMetadata(ignored: => IEmitCode, cb: EmitCodeBuilder, region: Value[Region]): Unit = {
+  override def writeMetadata(ignored: => IEmitCode, cb: EmitCodeBuilder, region: Value[Region])
+    : Unit = {
     if (overwrite)
       cb += cb.emb.getFS.invoke[String, Boolean, Unit]("delete", path, true)
     else
@@ -605,9 +606,9 @@ case class RelationalSetup(path: String, overwrite: Boolean, refs: Option[TableT
 }
 
 case class RelationalCommit(path: String) extends MetadataWriter {
-  def annotationType: Type = TStruct()
+  override def annotationType: Type = TStruct()
 
-  def writeMetadata(
+  override def writeMetadata(
     writeAnnotations: => IEmitCode,
     cb: EmitCodeBuilder,
     region: Value[Region],
@@ -627,9 +628,9 @@ case class RelationalWriter(
   overwrite: Boolean,
   maybeRefs: Option[(String, Set[String])],
 ) extends MetadataWriter {
-  def annotationType: Type = TVoid
+  override def annotationType: Type = TVoid
 
-  def writeMetadata(
+  override def writeMetadata(
     writeAnnotations: => IEmitCode,
     cb: EmitCodeBuilder,
     region: Value[Region],
@@ -734,7 +735,7 @@ case class TableTextPartitionWriter(rowType: TStruct, delimiter: String, writeHe
     cb += os.invoke[Int, Unit]("write", '\n')
   }
 
-  def consumeElement(
+  override def consumeElement(
     cb: EmitCodeBuilder,
     element: EmitCode,
     os: Value[OutputStream],
@@ -808,10 +809,13 @@ case class TableTextFinalizer(
   header: Boolean = true,
   exportType: String = ExportType.CONCATENATED,
 ) extends MetadataWriter {
-  def annotationType: Type = TArray(TString)
+  override def annotationType: Type = TArray(TString)
 
-  def writeMetadata(writeAnnotations: => IEmitCode, cb: EmitCodeBuilder, region: Value[Region])
-    : Unit = {
+  override def writeMetadata(
+    writeAnnotations: => IEmitCode,
+    cb: EmitCodeBuilder,
+    region: Value[Region],
+  ): Unit = {
     val ctx: ExecuteContext = cb.emb.ctx
     val ext = ctx.fs.getCodecExtension(outputPath)
     val partPaths = writeAnnotations.getOrFatal(cb, "write annotations cannot be missing!")
@@ -1064,7 +1068,7 @@ case class TableNativeFanoutWriter(
 class PartitionNativeFanoutWriter(
   targets: IndexedSeq[FanoutWriterTarget]
 ) extends PartitionWriter {
-  def consumeStream(
+  override def consumeStream(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
     stream: StreamProducer,
@@ -1097,12 +1101,12 @@ class PartitionNativeFanoutWriter(
     )
   }
 
-  def ctxType = TString
+  override def ctxType = TString
 
-  def returnType: TTuple =
+  override def returnType: TTuple =
     TTuple(targets.map(target => target.rowWriter.returnType): _*)
 
-  def unionTypeRequiredness(
+  override def unionTypeRequiredness(
     returnType: TypeWithRequiredness,
     ctxType: TypeWithRequiredness,
     streamType: RIterable,

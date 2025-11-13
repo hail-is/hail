@@ -4,11 +4,11 @@ import is.hail.annotations._
 import is.hail.backend.HailStateManager
 
 case object TBinary extends Type {
-  def _toPretty = "Binary"
+  override def _toPretty = "Binary"
 
-  def _typeCheck(a: Any): Boolean = a.isInstanceOf[Array[Byte]]
+  override def _typeCheck(a: Any): Boolean = a.isInstanceOf[Array[Byte]]
 
-  def mkOrdering(sm: HailStateManager, _missingEqual: Boolean = true): ExtendedOrdering =
+  override def mkOrdering(sm: HailStateManager, _missingEqual: Boolean = true): ExtendedOrdering =
     ExtendedOrdering.iterableOrdering(new ExtendedOrdering {
       val missingEqual = _missingEqual
 

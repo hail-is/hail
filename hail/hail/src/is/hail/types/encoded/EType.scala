@@ -167,7 +167,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit
 
-  final def pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = {
+  final override def pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = {
     if (required)
       sb.append("+")
     _pretty(sb, indent, compact)

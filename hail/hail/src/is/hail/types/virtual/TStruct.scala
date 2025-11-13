@@ -65,7 +65,7 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
     }
   }
 
-  def size: Int = fields.length
+  override def size: Int = fields.length
 
   override def truncate(newSize: Int): TStruct = TStruct(fields.take(newSize))
 

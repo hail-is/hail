@@ -12,7 +12,7 @@ object BinarySearch {
       ltNeedle: IEmitCode => Code[Boolean],
       gtNeedle: IEmitCode => Code[Boolean],
     ): Comparator = new Comparator {
-      def apply(
+      override def apply(
         cb: EmitCodeBuilder,
         elt: IEmitCode,
         ifLtNeedle: => Unit,
@@ -29,7 +29,7 @@ object BinarySearch {
     }
 
     def fromCompare(compare: IEmitCode => Value[Int]): Comparator = new Comparator {
-      def apply(
+      override def apply(
         cb: EmitCodeBuilder,
         elt: IEmitCode,
         ifLtNeedle: => Unit,
@@ -42,7 +42,7 @@ object BinarySearch {
     }
 
     def fromPred(pred: IEmitCode => Code[Boolean]): Comparator = new Comparator {
-      def apply(
+      override def apply(
         cb: EmitCodeBuilder,
         elt: IEmitCode,
         ifLtNeedle: => Unit,

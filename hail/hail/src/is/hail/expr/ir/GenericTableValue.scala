@@ -136,7 +136,7 @@ class PartitionIteratorLongReader(
     }
   }
 
-  def toJValue: JValue =
+  override def toJValue: JValue =
     JObject(
       "category" -> JString("PartitionIteratorLongReader"),
       "fullRowType" -> Extraction.decompose(fullRowType)(PartitionReader.formats),

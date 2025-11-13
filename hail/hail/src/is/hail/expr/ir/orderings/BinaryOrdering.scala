@@ -13,7 +13,7 @@ object BinaryOrdering {
       val type1: SBinary = t1
       val type2: SBinary = t2
 
-      def _compareNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Int] = {
+      override def _compareNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Int] = {
         val xv: SBinaryValue = x.asBinary
         val yv: SBinaryValue = y.asBinary
         val xlen = xv.loadLength(cb)

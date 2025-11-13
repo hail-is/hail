@@ -17,19 +17,20 @@ object TypedCodecSpec {
 
 final case class TypedCodecSpec(_eType: EType, _vType: Type, _bufferSpec: BufferSpec)
     extends AbstractTypedCodecSpec {
-  def encodedType: EType = _eType
-  def encodedVirtualType: Type = _vType
+  override def encodedType: EType = _eType
+  override def encodedVirtualType: Type = _vType
 
-  def buildEncoder(ctx: ExecuteContext, t: PType): (OutputStream, HailClassLoader) => Encoder = {
+  override def buildEncoder(ctx: ExecuteContext, t: PType)
+    : (OutputStream, HailClassLoader) => Encoder = {
     val bufferToEncoder = encodedType.buildEncoder(ctx, t)
     (out: OutputStream, theHailClassLoader: HailClassLoader) =>
       bufferToEncoder(_bufferSpec.buildOutputBuffer(out), theHailClassLoader)
   }
 
-  def decodedPType(requestedType: Type): PType =
+  override def decodedPType(requestedType: Type): PType =
     encodedType.decodedPType(requestedType)
 
-  def buildDecoder(ctx: ExecuteContext, requestedType: Type)
+  override def buildDecoder(ctx: ExecuteContext, requestedType: Type)
     : (PType, (InputStream, HailClassLoader) => Decoder) = {
     val (rt, bufferToDecoder) = encodedType.buildDecoder(ctx, requestedType)
     (
@@ -45,9 +46,9 @@ final case class TypedCodecSpec(_eType: EType, _vType: Type, _bufferSpec: Buffer
     pType -> makeDec
   }
 
-  def buildCodeInputBuffer(is: Code[InputStream]): Code[InputBuffer] =
+  override def buildCodeInputBuffer(is: Code[InputStream]): Code[InputBuffer] =
     _bufferSpec.buildCodeInputBuffer(is)
 
-  def buildCodeOutputBuffer(os: Code[OutputStream]): Code[OutputBuffer] =
+  override def buildCodeOutputBuffer(os: Code[OutputStream]): Code[OutputBuffer] =
     _bufferSpec.buildCodeOutputBuffer(os)
 }

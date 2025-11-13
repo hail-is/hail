@@ -120,7 +120,7 @@ class EmitStreamSuite extends HailSuite {
         var _eltRegion: Region = _
         var eos: Boolean = _
 
-        def init(outerRegion: Region, eltRegion: Region): Unit = _eltRegion = eltRegion
+        override def init(outerRegion: Region, eltRegion: Region): Unit = _eltRegion = eltRegion
 
         override def next(): Long =
           if (eos || !it.hasNext) {

@@ -96,7 +96,7 @@ final case class RVDType(rowType: PStruct, key: IndexedSeq[String]) extends Seri
       // Left is a point, right is an interval.
       // Returns -1 if point is below interval, 0 if it is inside, and 1 if it
       // is above, always considering missing greatest.
-      def compare(o1: Long, o2: Long): Int = {
+      override def compare(o1: Long, o2: Long): Int = {
 
         val leftDefined = t1.isFieldDefined(o1, f1)
         val rightDefined = t2.isFieldDefined(o2, f2)
@@ -128,10 +128,10 @@ final case class RVDType(rowType: PStruct, key: IndexedSeq[String]) extends Seri
     val wrv = WritableRegionValue(sm, kType, region)
     val kRowOrdering = kRowOrd(sm)
 
-    def setFiniteValue(representative: RegionValue): Unit =
+    override def setFiniteValue(representative: RegionValue): Unit =
       wrv.setSelect(rowType, kFieldIdx, representative)
 
-    def compareFinite(rv: RegionValue): Int =
+    override def compareFinite(rv: RegionValue): Int =
       kRowOrdering.compare(wrv.value, rv)
   }
 
@@ -188,7 +188,7 @@ object RVDType {
     val nFields = fields1.length
 
     new UnsafeOrdering {
-      def compare(o1: Long, o2: Long): Int = {
+      override def compare(o1: Long, o2: Long): Int = {
         var i = 0
         var hasMissing = false
         while (i < nFields) {

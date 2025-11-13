@@ -40,7 +40,7 @@ object LocalBackend extends Backend with Logging {
 
   is.hail.linalg.registerImplOpMulMatrix_DMD_DVD_eq_DVD
 
-  def broadcast[T: ClassTag](value: T): BroadcastValue[T] =
+  override def broadcast[T: ClassTag](value: T): BroadcastValue[T] =
     new LocalBroadcastValue[T](value)
 
   private[this] var stageIdx: Int = 0
@@ -100,9 +100,9 @@ object LocalBackend extends Backend with Logging {
     }
   }
 
-  def defaultParallelism: Int = 1
+  override def defaultParallelism: Int = 1
 
-  def close(): Unit =
+  override def close(): Unit =
     synchronized { stageIdx = 0 }
 
   private[this] def _jvmLowerAndExecute(
@@ -140,7 +140,7 @@ object LocalBackend extends Backend with Logging {
   ): TableReader =
     LowerDistributedSort.distributedSort(ctx, stage, sortFields, rt, nPartitions)
 
-  def tableToTableStage(ctx: ExecuteContext, inputIR: TableIR, analyses: LoweringAnalyses)
+  override def tableToTableStage(ctx: ExecuteContext, inputIR: TableIR, analyses: LoweringAnalyses)
     : TableStage =
     LowerTableIR.applyTable(inputIR, DArrayLowering.All, ctx, analyses)
 }

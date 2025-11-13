@@ -34,10 +34,10 @@ class FlipbookIteratorSuite extends HailSuite {
   def boxOrdView[A: Ordering]: OrderingView[Box[A]] = new OrderingView[Box[A]] {
     var value: A = _
 
-    def setFiniteValue(a: Box[A]): Unit =
+    override def setFiniteValue(a: Box[A]): Unit =
       value = a.value
 
-    def compareFinite(a: Box[A]): Int =
+    override def compareFinite(a: Box[A]): Int =
       implicitly[Ordering[A]].compare(value, a.value)
   }
 
@@ -48,18 +48,18 @@ class FlipbookIteratorSuite extends HailSuite {
 
       override def knownSize: Int = buf.size
 
-      def clear(): Unit = buf.clear()
+      override def clear(): Unit = buf.clear()
 
-      def addOne(x: Box[A]) = {
+      override def addOne(x: Box[A]) = {
         buf += x.value
         this
       }
 
-      def iterator: Iterator[Box[A]] = new Iterator[Box[A]] {
+      override def iterator: Iterator[Box[A]] = new Iterator[Box[A]] {
         var i = 0
-        def hasNext = i < buf.size
+        override def hasNext = i < buf.size
 
-        def next() = {
+        override def next() = {
           box.value = buf(i)
           i += 1
           box
@@ -79,7 +79,7 @@ class FlipbookIteratorSuite extends HailSuite {
     val sm = new StateMachine[Box[A]] {
       val value: Box[A] = Box[A]
       var isValid = true
-      def advance(): Unit =
+      override def advance(): Unit =
         if (it.hasNext)
           value.value = it.next()
         else

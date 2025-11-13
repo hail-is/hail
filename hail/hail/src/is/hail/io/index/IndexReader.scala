@@ -250,7 +250,7 @@ class IndexReader(
     var localPos = 0
     var leafNode: LeafNode = _
 
-    def next(): LeafChild = {
+    override def next(): LeafChild = {
       assert(hasNext)
 
       if (leafNode == null || localPos >= leafNode.children.length) {
@@ -265,7 +265,7 @@ class IndexReader(
       child
     }
 
-    def hasNext: Boolean = pos < end
+    override def hasNext: Boolean = pos < end
 
     def seek(key: Annotation): Unit = {
       val newPos = lowerBound(key)
@@ -281,7 +281,7 @@ class IndexReader(
   def iterateUntil(key: Annotation): Iterator[LeafChild] =
     iterator(0, lowerBound(key))
 
-  def close(): Unit = {
+  override def close(): Unit = {
     leafDecoder.close()
     internalDecoder.close()
     logger.info(s"Index reader cache queries: ${cacheHits + cacheMisses}")

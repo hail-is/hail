@@ -37,10 +37,10 @@ object EmitCodeBuilder {
 }
 
 class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) extends CodeBuilderLike {
-  def isOpenEnded: Boolean =
+  override def isOpenEnded: Boolean =
     code.isOpenEnded
 
-  def mb: MethodBuilder[_] = emb.mb
+  override def mb: MethodBuilder[_] = emb.mb
 
   override def append(c: Code[Unit]): Unit =
     code = Code(code, c)
@@ -54,7 +54,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
       L.clear()
     }
 
-  def result(): Code[Unit] = {
+  override def result(): Code[Unit] = {
     val tmp = code
     code = Code._empty
     tmp

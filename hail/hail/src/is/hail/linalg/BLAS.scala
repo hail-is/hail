@@ -11,7 +11,7 @@ import com.sun.jna.ptr.{DoubleByReference, FloatByReference, IntByReference}
 
 object BLAS extends Logging {
   private[this] val libraryInstance = ThreadLocal.withInitial(new Supplier[BLASLibrary]() {
-    def get() = {
+    override def get() = {
       val standard = Native.load("blas", classOf[BLASLibrary]).asInstanceOf[BLASLibrary]
 
       verificationTest(standard) match {

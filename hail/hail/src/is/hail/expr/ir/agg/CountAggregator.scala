@@ -16,21 +16,21 @@ object CountAggregator extends StagedAggregator {
   val initOpTypes: Seq[Type] = Array[Type]()
   val seqOpTypes: Seq[Type] = Array[Type]()
 
-  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
+  override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     assert(init.length == 0)
     assert(state.vtypes.head.r.required)
     val ev = state.fields(0)
     cb.assign(ev, EmitCode.present(cb.emb, primitive(const(0L))))
   }
 
-  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
+  override protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
     assert(seq.length == 0)
     assert(state.vtypes.head.r.required)
     val ev = state.fields(0)
     cb.assign(ev, EmitCode.present(cb.emb, primitive(cb.memoize(ev.pv.asInt64.value + 1L))))
   }
 
-  protected def _combOp(
+  override protected def _combOp(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
     region: Value[Region],
@@ -46,7 +46,8 @@ object CountAggregator extends StagedAggregator {
     )
   }
 
-  protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {
+  override protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region])
+    : IEmitCode = {
     assert(state.vtypes.head.r.required)
     val ev = state.fields(0)
     ev.toI(cb).map(cb)(sv => sv.copyToRegion(cb, region, sv.st))

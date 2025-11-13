@@ -79,7 +79,7 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: IndexedSeq[String])
   override def fieldOffset(structAddress: Code[Long], fieldIdx: Int): Code[Long] =
     ps.fieldOffset(structAddress, idxMap(fieldIdx))
 
-  def loadField(structAddress: Code[Long], fieldName: String): Code[Long] =
+  override def loadField(structAddress: Code[Long], fieldName: String): Code[Long] =
     ps.loadField(structAddress, fieldName)
 
   override def loadField(structAddress: Long, fieldIdx: Int): Long =
@@ -104,7 +104,7 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: IndexedSeq[String])
   override def setFieldPresent(cb: EmitCodeBuilder, structAddress: Code[Long], fieldIdx: Int)
     : Unit = ???
 
-  def insertFields(fieldsToInsert: IterableOnce[(String, PType)]): PSubsetStruct = ???
+  override def insertFields(fieldsToInsert: IterableOnce[(String, PType)]): PSubsetStruct = ???
 
   override def initialize(structAddress: Long, setMissing: Boolean): Unit =
     ps.initialize(structAddress, setMissing)
@@ -113,10 +113,10 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: IndexedSeq[String])
     : Unit =
     ps.stagedInitialize(cb, structAddress, setMissing)
 
-  def allocate(region: Region): Long =
+  override def allocate(region: Region): Long =
     ps.allocate(region)
 
-  def allocate(region: Code[Region]): Code[Long] =
+  override def allocate(region: Code[Region]): Code[Long] =
     ps.allocate(region)
 
   override def setRequired(required: Boolean): PType =
@@ -140,14 +140,14 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: IndexedSeq[String])
   ): Long =
     throw new UnsupportedOperationException
 
-  def sType: SBaseStruct =
+  override def sType: SBaseStruct =
     SStructView.subset(_fieldNames, ps.sType)
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean)
+  override def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean)
     : Value[Long] =
     throw new UnsupportedOperationException
 
-  def storeAtAddress(
+  override def storeAtAddress(
     cb: EmitCodeBuilder,
     addr: Code[Long],
     region: Value[Region],
@@ -156,10 +156,10 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: IndexedSeq[String])
   ): Unit =
     throw new UnsupportedOperationException
 
-  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructValue =
+  override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructValue =
     throw new UnsupportedOperationException
 
-  def unstagedStoreAtAddress(
+  override def unstagedStoreAtAddress(
     sm: HailStateManager,
     addr: Long,
     region: Region,
@@ -169,7 +169,7 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: IndexedSeq[String])
   ): Unit =
     throw new UnsupportedOperationException
 
-  def loadFromNested(addr: Code[Long]): Code[Long] = addr
+  override def loadFromNested(addr: Code[Long]): Code[Long] = addr
 
   override def unstagedLoadFromNested(addr: Long): Long = addr
 

@@ -24,9 +24,9 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
     val bit = it.buffered
     StagingIterator(
       new StateMachine[T] {
-        def value: T = bit.head
-        def isValid = bit.hasNext
-        def advance(): Unit = bit.next(): Unit
+        override def value: T = bit.head
+        override def isValid = bit.hasNext
+        override def advance(): Unit = bit.next(): Unit
       }
     )
   }
@@ -45,9 +45,9 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
 
   def intersperse[S >: T](sep: S): Iterator[S] = new Iterator[S] {
     var nextIsSep = false
-    def hasNext = it.hasNext
+    override def hasNext = it.hasNext
 
-    def next() = {
+    override def next() = {
       val n = if (nextIsSep) sep else it.next()
       nextIsSep = !nextIsSep
       n
@@ -56,9 +56,9 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
 
   def intersperse[S >: T](start: S, sep: S, end: S): Iterator[S] = new Iterator[S] {
     var state = 0
-    def hasNext = state != 4
+    override def hasNext = state != 4
 
-    def next() = {
+    override def next() = {
       state match {
         case 0 =>
           state = if (it.hasNext) 1 else 3
@@ -117,9 +117,9 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
     new Iterator[Iterator[T]] {
       var prev: Iterator[T] = null
 
-      def hasNext: Boolean = it.hasNext
+      override def hasNext: Boolean = it.hasNext
 
-      def next(): Iterator[T] = {
+      override def next(): Iterator[T] = {
         if (!hasNext)
           throw new NoSuchElementException("next on empty iterator")
 
@@ -129,9 +129,9 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
         prev = new Iterator[T] {
           var i = 0
 
-          def hasNext: Boolean = it.hasNext && i < groupSize
+          override def hasNext: Boolean = it.hasNext && i < groupSize
 
-          def next(): T = {
+          override def next(): T = {
             if (!hasNext)
               throw new NoSuchElementException("next on empty iterator")
             i += 1

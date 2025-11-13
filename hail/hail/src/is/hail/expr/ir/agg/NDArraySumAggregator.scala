@@ -99,7 +99,8 @@ class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator 
     cb.invokeVoid(combOpMethod, cb.this_)
   }
 
-  protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode =
+  override protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region])
+    : IEmitCode =
     state.get(cb).map(cb)(sv => sv.copyToRegion(cb, region, sv.st))
 }
 

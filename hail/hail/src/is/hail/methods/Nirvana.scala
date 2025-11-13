@@ -504,8 +504,8 @@ case class Nirvana(config: String, blockSize: Int = 500000) extends TableToTable
     )
   }
 
-  def preservesPartitionCounts: Boolean = false
+  override def preservesPartitionCounts: Boolean = false
 
-  def execute(ctx: ExecuteContext, tv: TableValue): TableValue =
+  override def execute(ctx: ExecuteContext, tv: TableValue): TableValue =
     Nirvana.annotate(ctx, tv, config, blockSize)
 }

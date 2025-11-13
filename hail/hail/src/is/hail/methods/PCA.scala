@@ -27,9 +27,9 @@ case class PCA(entryField: String, k: Int, computeLoadings: Boolean)
       ),
     )
 
-  def preservesPartitionCounts: Boolean = false
+  override def preservesPartitionCounts: Boolean = false
 
-  def execute(ctx: ExecuteContext, mv: MatrixValue): TableValue = {
+  override def execute(ctx: ExecuteContext, mv: MatrixValue): TableValue = {
     if (k < 1)
       fatal(s"""requested invalid number of components: $k
                |  Expect componenents >= 1""".stripMargin)

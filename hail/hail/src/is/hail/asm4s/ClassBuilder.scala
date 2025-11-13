@@ -209,7 +209,7 @@ class ModuleBuilder() {
 trait WrappedClassBuilder[C] extends WrappedModuleBuilder {
   def cb: ClassBuilder[C]
 
-  def modb: ModuleBuilder = cb.modb
+  override def modb: ModuleBuilder = cb.modb
 
   def className: String = cb.className
 
@@ -499,7 +499,7 @@ class ClassBuilder[C](
     new (HailClassLoader => C) with java.io.Serializable {
       @transient @volatile private var theClass: Class[_] = null
 
-      def apply(hcl: HailClassLoader): C = {
+      override def apply(hcl: HailClassLoader): C = {
         if (theClass == null) {
           this.synchronized {
             if (theClass == null) {
@@ -518,7 +518,7 @@ class ClassBuilder[C](
     new LocalRef[C](new lir.Parameter(null, 0, ti))
 
   val fieldBuilder: SettableBuilder = new SettableBuilder {
-    def newSettable[T](name: String)(implicit tti: TypeInfo[T]): Settable[T] =
+    override def newSettable[T](name: String)(implicit tti: TypeInfo[T]): Settable[T] =
       genFieldThisRef[T](name)
   }
 
@@ -625,7 +625,7 @@ object FunctionBuilder {
 trait WrappedMethodBuilder[C] extends WrappedClassBuilder[C] {
   def mb: MethodBuilder[C]
 
-  def cb: ClassBuilder[C] = mb.cb
+  override def cb: ClassBuilder[C] = mb.cb
 
   def methodName: String = mb.methodName
 
@@ -673,7 +673,8 @@ class MethodBuilder[C](
     cb.lclass.newMethod(methodName, parameterTypeInfo, returnTypeInfo, isStatic)
 
   val localBuilder: SettableBuilder = new SettableBuilder {
-    def newSettable[T](name: String)(implicit tti: TypeInfo[T]): Settable[T] = newLocal[T](name)
+    override def newSettable[T](name: String)(implicit tti: TypeInfo[T]): Settable[T] =
+      newLocal[T](name)
   }
 
   def this_ : Value[C] =

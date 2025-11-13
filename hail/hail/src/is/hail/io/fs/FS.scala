@@ -18,14 +18,14 @@ import org.apache.hadoop
 
 class WrappedSeekableDataInputStream(is: SeekableInputStream)
     extends DataInputStream(is) with Seekable {
-  def getPosition: Long = is.getPosition
+  override def getPosition: Long = is.getPosition
 
-  def seek(pos: Long): Unit = is.seek(pos)
+  override def seek(pos: Long): Unit = is.seek(pos)
 }
 
 class WrappedPositionedDataOutputStream(os: PositionedOutputStream)
     extends DataOutputStream(os) with Positioned {
-  def getPosition: Long = os.getPosition
+  override def getPosition: Long = os.getPosition
 }
 
 class WrappedPositionOutputStream(os: OutputStream) extends OutputStream with Positioned {
@@ -44,7 +44,7 @@ class WrappedPositionOutputStream(os: OutputStream) extends OutputStream with Po
   override def close(): Unit =
     os.close()
 
-  def getPosition: Long = count
+  override def getPosition: Long = count
 }
 
 abstract class FSURL[URL <: FSURL[URL]] {
@@ -74,15 +74,15 @@ class BlobStorageFileStatus(
   size: Long,
 ) extends FileStatus {
   // NB: it is called getPath but it *must* return the URL *with* the scheme.
-  def getPath: String =
+  override def getPath: String =
     dropTrailingSlash(
       actualUrl
     ) // getPath is a backwards compatible method: in the past, Hail dropped trailing slashes
-  def getActualUrl: String = actualUrl
-  def getModificationTime: java.lang.Long = modificationTime
-  def getLen: Long = size
-  def isSymlink: Boolean = false
-  def getOwner: String = null
+  override def getActualUrl: String = actualUrl
+  override def getModificationTime: java.lang.Long = modificationTime
+  override def getLen: Long = size
+  override def isSymlink: Boolean = false
+  override def getOwner: String = null
 }
 
 class BlobStorageFileListEntry(
@@ -95,8 +95,8 @@ class BlobStorageFileListEntry(
       modificationTime,
       size,
     ) with FileListEntry {
-  def isDirectory: Boolean = isDir
-  def isFile: Boolean = !isDir
+  override def isDirectory: Boolean = isDir
+  override def isFile: Boolean = !isDir
   override def isFileOrFileAndDirectory = isFile
   override def toString: String = s"BSFLE($actualUrl $modificationTime $size $isDir)"
 
@@ -110,15 +110,16 @@ trait CompressionCodec {
 
 object GZipCompressionCodec extends CompressionCodec {
   // java.util.zip.GZIPInputStream does not support concatenated files/multiple blocks
-  def makeInputStream(is: InputStream): InputStream = new GzipCompressorInputStream(is, true)
+  override def makeInputStream(is: InputStream): InputStream =
+    new GzipCompressorInputStream(is, true)
 
-  def makeOutputStream(os: OutputStream): OutputStream = new GZIPOutputStream(os)
+  override def makeOutputStream(os: OutputStream): OutputStream = new GZIPOutputStream(os)
 }
 
 object BGZipCompressionCodec extends CompressionCodec {
-  def makeInputStream(is: InputStream): InputStream = new BGzipInputStream(is)
+  override def makeInputStream(is: InputStream): InputStream = new BGzipInputStream(is)
 
-  def makeOutputStream(os: OutputStream): OutputStream = new BGzipOutputStream(os)
+  override def makeOutputStream(os: OutputStream): OutputStream = new BGzipOutputStream(os)
 }
 
 class FileAndDirectoryException(message: String) extends RuntimeException(message)
@@ -203,7 +204,7 @@ abstract class FSSeekableInputStream extends InputStream with Seekable {
 
   protected def physicalSeek(newPos: Long): Unit
 
-  def seek(newPos: Long): Unit = {
+  override def seek(newPos: Long): Unit = {
     eof = false
     val distance = newPos - pos
     val bufferSeekPosition = bb.position() + distance
@@ -218,7 +219,7 @@ abstract class FSSeekableInputStream extends InputStream with Seekable {
     pos = newPos
   }
 
-  def getPosition: Long = pos
+  override def getPosition: Long = pos
 }
 
 abstract class FSPositionedOutputStream(val capacity: Int) extends OutputStream with Positioned {
@@ -226,9 +227,9 @@ abstract class FSPositionedOutputStream(val capacity: Int) extends OutputStream 
   protected[this] val bb: ByteBuffer = ByteBuffer.allocate(capacity)
   protected[this] var pos: Long = 0
 
-  def flush(): Unit
+  override def flush(): Unit
 
-  def write(i: Int): Unit = {
+  override def write(i: Int): Unit = {
     if (bb.remaining() == 0)
       flush()
     bb.put(i.toByte)
@@ -249,7 +250,7 @@ abstract class FSPositionedOutputStream(val capacity: Int) extends OutputStream 
     }
   }
 
-  def getPosition: Long = pos
+  override def getPosition: Long = pos
 }
 
 trait FS extends Serializable with Logging {

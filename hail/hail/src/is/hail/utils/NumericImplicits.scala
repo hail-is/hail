@@ -30,22 +30,22 @@ trait NumericImplicits {
   }
 
   implicit object subBVectorSVector extends OpSub.Impl2[BVector[Double], SVector, BVector[Double]] {
-    def apply(a: BVector[Double], b: SVector): BVector[Double] = a - toBVector(b)
+    override def apply(a: BVector[Double], b: SVector): BVector[Double] = a - toBVector(b)
   }
 
   implicit object subBVectorIndexedRow
       extends OpSub.Impl2[BVector[Double], IndexedRow, IndexedRow] {
-    def apply(a: BVector[Double], b: IndexedRow): IndexedRow =
+    override def apply(a: BVector[Double], b: IndexedRow): IndexedRow =
       IndexedRow(b.index, a - toBVector(b.vector))
   }
 
   implicit object addBVectorSVector extends OpAdd.Impl2[BVector[Double], SVector, BVector[Double]] {
-    def apply(a: BVector[Double], b: SVector): BVector[Double] = a + toBVector(b)
+    override def apply(a: BVector[Double], b: SVector): BVector[Double] = a + toBVector(b)
   }
 
   implicit object addBVectorIndexedRow
       extends OpAdd.Impl2[BVector[Double], IndexedRow, IndexedRow] {
-    def apply(a: BVector[Double], b: IndexedRow): IndexedRow =
+    override def apply(a: BVector[Double], b: IndexedRow): IndexedRow =
       IndexedRow(b.index, a + toBVector(b.vector))
   }
 

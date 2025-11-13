@@ -9,8 +9,6 @@ import is.hail.utils.RestartableByteArrayInputStream
 import java.io._
 
 trait Decoder extends Closeable {
-  def close(): Unit
-
   def ptype: PType
 
   def readRegionValue(region: Region): Long
@@ -26,17 +24,17 @@ final class CompiledDecoder(
   theHailClassLoader: HailClassLoader,
   f: (HailClassLoader) => DecoderAsmFunction,
 ) extends Decoder {
-  def close(): Unit =
+  override def close(): Unit =
     in.close()
 
-  def readByte(): Byte = in.readByte()
+  override def readByte(): Byte = in.readByte()
 
   private[this] val compiled = f(theHailClassLoader)
 
-  def readRegionValue(r: Region): Long =
+  override def readRegionValue(r: Region): Long =
     compiled(r, in)
 
-  def seek(offset: Long): Unit = in.seek(offset)
+  override def seek(offset: Long): Unit = in.seek(offset)
 }
 
 final class ByteArrayDecoder(

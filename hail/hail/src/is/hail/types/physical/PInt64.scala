@@ -14,7 +14,7 @@ case object PInt64Required extends PInt64(true)
 class PInt64(override val required: Boolean) extends PNumeric with PPrimitive {
   lazy val virtualType: TInt64.type = TInt64
 
-  def _asIdent = "int64"
+  override def _asIdent = "int64"
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit =
     sb ++= "PInt64"
@@ -22,7 +22,7 @@ class PInt64(override val required: Boolean) extends PNumeric with PPrimitive {
   override type NType = PInt64
 
   override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering = new UnsafeOrdering {
-    def compare(o1: Long, o2: Long): Int =
+    override def compare(o1: Long, o2: Long): Int =
       java.lang.Long.compare(Region.loadLong(o1), Region.loadLong(o2))
   }
 
@@ -38,7 +38,7 @@ class PInt64(override val required: Boolean) extends PNumeric with PPrimitive {
 
   override def sType: SType = SInt64
 
-  def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SValue): Unit =
+  override def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SValue): Unit =
     cb.append(Region.storeLong(addr, value.asLong.value))
 
   override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SInt64Value =

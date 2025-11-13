@@ -186,9 +186,9 @@ class RVD(
         new Iterator[Long] {
           var first = true
 
-          def hasNext: Boolean = it.hasNext
+          override def hasNext: Boolean = it.hasNext
 
-          def next(): Long = {
+          override def next(): Long = {
             val ptr = it.next()
 
             if (first)
@@ -1016,9 +1016,9 @@ class RVD(
     val sorted: RDD[((Int, Interval), Array[Byte])] = new ShuffledRDD(
       partitionKeyedIntervals,
       new Partitioner {
-        def getPartition(key: Any): Int = key.asInstanceOf[(Int, Interval)]._1
+        override def getPartition(key: Any): Int = key.asInstanceOf[(Int, Interval)]._1
 
-        def numPartitions: Int = nParts
+        override def numPartitions: Int = nParts
       },
     ).setKeyOrdering(Ordering.by[(Int, Interval), Interval](_._2)(intervalOrd))
 
@@ -1188,7 +1188,7 @@ object RVD extends Logging {
     type CRDD = ContextRDD[Long]
 
     val unkeyedCoercer: RVDCoercer = new RVDCoercer(fullType) {
-      def _coerce(typ: RVDType, crdd: CRDD): RVD = {
+      override def _coerce(typ: RVDType, crdd: CRDD): RVD = {
         assert(typ.key.isEmpty)
         unkeyed(typ.rowType, crdd)
       }
@@ -1198,7 +1198,7 @@ object RVD extends Logging {
       return unkeyedCoercer
 
     val emptyCoercer: RVDCoercer = new RVDCoercer(fullType) {
-      def _coerce(typ: RVDType, crdd: CRDD): RVD = empty(execCtx, typ)
+      override def _coerce(typ: RVDType, crdd: CRDD): RVD = empty(execCtx, typ)
     }
 
     val keyInfo = getKeyInfo(execCtx, fullType, partitionKey, keys)
@@ -1243,7 +1243,7 @@ object RVD extends Logging {
           bounds,
         )
 
-        def _coerce(typ: RVDType, crdd: CRDD): RVD =
+        override def _coerce(typ: RVDType, crdd: CRDD): RVD =
           RVD(typ, unfixedPartitioner, orderPartitions(crdd))
             .repartition(execCtx, newPartitioner, shuffle = false)
       }
@@ -1273,7 +1273,7 @@ object RVD extends Logging {
           pkBounds,
         )
 
-        def _coerce(typ: RVDType, crdd: CRDD): RVD = {
+        override def _coerce(typ: RVDType, crdd: CRDD): RVD = {
           RVD(
             typ.copy(key = typ.key.take(partitionKey)),
             unfixedPartitioner,
@@ -1292,7 +1292,7 @@ object RVD extends Logging {
         val newPartitioner =
           calculateKeyRanges(execCtx, this.fullType, keyInfo, keys.getNumPartitions, partitionKey)
 
-        def _coerce(typ: RVDType, crdd: CRDD): RVD =
+        override def _coerce(typ: RVDType, crdd: CRDD): RVD =
           RVD.unkeyed(typ.rowType, crdd)
             .repartition(execCtx, newPartitioner, shuffle = true, filter = false)
       }

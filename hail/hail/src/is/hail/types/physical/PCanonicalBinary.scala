@@ -13,7 +13,7 @@ case object PCanonicalBinaryOptional extends PCanonicalBinary(false)
 case object PCanonicalBinaryRequired extends PCanonicalBinary(true)
 
 class PCanonicalBinary(val required: Boolean) extends PBinary {
-  def _asIdent = "binary"
+  override def _asIdent = "binary"
 
   override def copiedType: PType = this
 
@@ -53,48 +53,48 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit =
     sb ++= "PCBinary"
 
-  def contentAlignment: Long = 4
+  override def contentAlignment: Long = 4
 
-  def lengthHeaderBytes: Long = 4
+  override def lengthHeaderBytes: Long = 4
 
-  def contentByteSize(length: Int): Long = 4L + length
+  override def contentByteSize(length: Int): Long = 4L + length
 
-  def contentByteSize(length: Code[Int]): Code[Long] = (const(4) + length).toL
+  override def contentByteSize(length: Code[Int]): Code[Long] = (const(4) + length).toL
 
-  def allocate(region: Region, length: Int): Long =
+  override def allocate(region: Region, length: Int): Long =
     region.allocate(contentAlignment, contentByteSize(length))
 
-  def allocate(region: Code[Region], length: Code[Int]): Code[Long] =
+  override def allocate(region: Code[Region], length: Code[Int]): Code[Long] =
     region.allocate(const(contentAlignment), contentByteSize(length))
 
-  def loadLength(boff: Long): Int = Region.loadInt(boff)
+  override def loadLength(boff: Long): Int = Region.loadInt(boff)
 
-  def loadLength(boff: Code[Long]): Code[Int] = Region.loadInt(boff)
+  override def loadLength(boff: Code[Long]): Code[Int] = Region.loadInt(boff)
 
-  def loadBytes(bAddress: Code[Long], length: Code[Int]): Code[Array[Byte]] =
+  override def loadBytes(bAddress: Code[Long], length: Code[Int]): Code[Array[Byte]] =
     Region.loadBytes(this.bytesAddress(bAddress), length)
 
-  def loadBytes(bAddress: Code[Long]): Code[Array[Byte]] =
+  override def loadBytes(bAddress: Code[Long]): Code[Array[Byte]] =
     Code.memoize(bAddress, "pcbin_load_bytes_addr") { bAddress =>
       loadBytes(bAddress, this.loadLength(bAddress))
     }
 
-  def loadBytes(bAddress: Long, length: Int): Array[Byte] =
+  override def loadBytes(bAddress: Long, length: Int): Array[Byte] =
     Region.loadBytes(this.bytesAddress(bAddress), length)
 
-  def loadBytes(bAddress: Long): Array[Byte] =
+  override def loadBytes(bAddress: Long): Array[Byte] =
     this.loadBytes(bAddress, this.loadLength(bAddress))
 
-  def storeLength(boff: Long, len: Int): Unit = Region.storeInt(boff, len)
+  override def storeLength(boff: Long, len: Int): Unit = Region.storeInt(boff, len)
 
-  def storeLength(cb: EmitCodeBuilder, boff: Code[Long], len: Code[Int]): Unit =
+  override def storeLength(cb: EmitCodeBuilder, boff: Code[Long], len: Code[Int]): Unit =
     cb += Region.storeInt(boff, len)
 
-  def bytesAddress(boff: Long): Long = boff + lengthHeaderBytes
+  override def bytesAddress(boff: Long): Long = boff + lengthHeaderBytes
 
-  def bytesAddress(boff: Code[Long]): Code[Long] = boff + lengthHeaderBytes
+  override def bytesAddress(boff: Code[Long]): Code[Long] = boff + lengthHeaderBytes
 
-  def store(addr: Long, bytes: Array[Byte]): Unit = {
+  override def store(addr: Long, bytes: Array[Byte]): Unit = {
     Region.storeInt(addr, bytes.length)
     Region.storeBytes(bytesAddress(addr), bytes)
   }
@@ -163,12 +163,12 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
     }
   }
 
-  def sType: SBinaryPointer = SBinaryPointer(setRequired(false))
+  override def sType: SBinaryPointer = SBinaryPointer(setRequired(false))
 
-  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SBinaryPointerValue =
+  override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SBinaryPointerValue =
     new SBinaryPointerValue(sType, cb.memoize(addr))
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean)
+  override def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean)
     : Value[Long] = {
     value.st match {
       case SBinaryPointer(PCanonicalBinary(_)) =>
@@ -191,7 +191,7 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
     }
   }
 
-  def storeAtAddress(
+  override def storeAtAddress(
     cb: EmitCodeBuilder,
     addr: Code[Long],
     region: Value[Region],
@@ -200,7 +200,7 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
   ): Unit =
     cb += Region.storeAddress(addr, store(cb, region, value, deepCopy))
 
-  def unstagedStoreAtAddress(
+  override def unstagedStoreAtAddress(
     sm: HailStateManager,
     addr: Long,
     region: Region,
@@ -212,10 +212,10 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
     Region.storeAddress(addr, copyFromAddress(sm, region, srcArray, srcAddress, deepCopy))
   }
 
-  def setRequired(required: Boolean): PCanonicalBinary =
+  override def setRequired(required: Boolean): PCanonicalBinary =
     if (required == this.required) this else PCanonicalBinary(required)
 
-  def loadFromNested(addr: Code[Long]): Code[Long] = Region.loadAddress(addr)
+  override def loadFromNested(addr: Code[Long]): Code[Long] = Region.loadAddress(addr)
 
   override def unstagedLoadFromNested(addr: Long): Long = Region.loadAddress(addr)
 

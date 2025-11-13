@@ -20,7 +20,7 @@ object SetFunctions extends RegistryFunctions {
     )
   }
 
-  def registerAll(): Unit = {
+  override def registerAll(): Unit = {
     registerIR1("toSet", TArray(tv("T")), TSet(tv("T")))((_, a, _) => ToSet(ToStream(a)))
 
     registerIR1("isEmpty", TSet(tv("T")), TBoolean) { (_, s, _) =>

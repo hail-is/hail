@@ -31,8 +31,8 @@ abstract class StateMachine[A] {
 object StateMachine {
   def terminal[A]: StateMachine[A] = new StateMachine[A] {
     val isValid = false
-    def value: A = ???
-    def advance(): Unit = {}
+    override def value: A = ???
+    override def advance(): Unit = {}
   }
 }
 
@@ -45,10 +45,10 @@ class StagingIterator[A] private (sm: StateMachine[A]) extends FlipbookIterator[
   private var isConsumed: Boolean = false
 
   // FlipbookIterator interface
-  def isValid: Boolean = sm.isValid
-  def value: A = { assert(isValid && !isConsumed); sm.value }
+  override def isValid: Boolean = sm.isValid
+  override def value: A = { assert(isValid && !isConsumed); sm.value }
 
-  def advance(): Unit = {
+  override def advance(): Unit = {
     assert(isValid)
     isConsumed = false
     sm.advance()
@@ -67,21 +67,21 @@ class StagingIterator[A] private (sm: StateMachine[A]) extends FlipbookIterator[
 
   // (Buffered)Iterator interface, not intended to be used directly, only for
   // passing a StagingIterator where an Iterator is expected
-  def head: A = { stage(); sm.value }
+  override def head: A = { stage(); sm.value }
 
-  def hasNext: Boolean =
+  override def hasNext: Boolean =
     if (isValid) {
       stage()
       isValid
     } else false
 
-  def next(): A = {
+  override def next(): A = {
     stage()
     assert(isValid)
     consume()
   }
 
-  def toStagingIterator: StagingIterator[A] = this
+  override def toStagingIterator: StagingIterator[A] = this
 }
 
 object FlipbookIterator {
@@ -95,7 +95,7 @@ object FlipbookIterator {
     ord: (A, A) => Int,
   ): FlipbookIterator[collection.IndexedSeq[(A, Int)]] = {
     object TmpOrd extends Ordering[(A, Int)] {
-      def compare(x: (A, Int), y: (A, Int)): Int = ord(y._1, x._1)
+      override def compare(x: (A, Int), y: (A, Int)): Int = ord(y._1, x._1)
     }
     val sm = new StateMachine[collection.IndexedSeq[(A, Int)]] {
       val q: mutable.PriorityQueue[(A, Int)] = new mutable.PriorityQueue()(TmpOrd)
@@ -109,7 +109,7 @@ object FlipbookIterator {
         i += 1
       }
 
-      def advance(): Unit = {
+      override def advance(): Unit = {
         var i = 0
         while (i < value.length) {
           val j = value(i)._2
@@ -158,10 +158,10 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
 
   override def filter(pred: A => Boolean): FlipbookIterator[A] = FlipbookIterator(
     new StateMachine[A] {
-      def value = self.value
-      def isValid = self.isValid
+      override def value = self.value
+      override def isValid = self.isValid
 
-      def advance(): Unit =
+      override def advance(): Unit =
         do self.advance() while (self.isValid && !pred(self.value))
 
       while (self.isValid && !pred(self.value)) self.advance()
@@ -174,9 +174,9 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
     new StateMachine[B] {
       var value: B = _
       if (self.isValid) value = f(self.value)
-      def isValid = self.isValid
+      override def isValid = self.isValid
 
-      def advance(): Unit = {
+      override def advance(): Unit = {
         self.advance()
         if (self.isValid) value = f(self.value)
       }
@@ -191,10 +191,10 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
         var it: FlipbookIterator[B] = _
         if (self.isValid) it = f(self.value).toIterator.toFlipbookIterator
         findNextValid()
-        def value: B = it.value
-        def isValid = self.isValid
+        override def value: B = it.value
+        override def isValid = self.isValid
 
-        def advance(): Unit = {
+        override def advance(): Unit = {
           it.advance()
           findNextValid()
         }
@@ -209,23 +209,23 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
 
   private[this] trait ValidityCachingStateMachine extends StateMachine[A] {
     private[this] var _isValid: Boolean = _
-    final def isValid = _isValid
+    final override def isValid = _isValid
 
     final def refreshValidity(): Unit =
       _isValid = calculateValidity
 
     def calculateValidity: Boolean
-    def value: A
-    def advance(): Unit
+    override def value: A
+    override def advance(): Unit
     refreshValidity()
   }
 
   def staircased(ord: OrderingView[A]): StagingIterator[FlipbookIterator[A]] = {
     ord.setBottom()
     val stepSM = new ValidityCachingStateMachine {
-      def value: A = self.value
-      def calculateValidity: Boolean = self.isValid && ord.isEquivalent(self.value)
-      def advance() = {
+      override def value: A = self.value
+      override def calculateValidity: Boolean = self.isValid && ord.isEquivalent(self.value)
+      override def advance() = {
         self.advance()
         refreshValidity()
       }
@@ -234,7 +234,7 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
     val sm = new StateMachine[FlipbookIterator[A]] {
       var isValid: Boolean = true
       val value: FlipbookIterator[A] = stepIterator
-      def advance() = {
+      override def advance() = {
         stepIterator.exhaust()
         if (self.isValid) {
           ord.setValue(self.value)
@@ -276,7 +276,7 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
     val sm = new StateMachine[Muple[A, B]] {
       val value = Muple(leftDefault, rightDefault)
       var isValid = true
-      def advance(): Unit = {
+      override def advance(): Unit = {
         left.stage()
         right.stage()
         val c = {
@@ -342,7 +342,7 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
         }
       }
 
-      def advance(): Unit = {
+      override def advance(): Unit = {
         left.advance()
         setValue()
       }
@@ -440,7 +440,7 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
     class MergeStateMachine extends StateMachine[A] {
       var value: A = _
       var isValid = true
-      def advance(): Unit = {
+      override def advance(): Unit = {
         left.stage()
         right.stage()
         val c = {
@@ -476,7 +476,7 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
 
   // head, next, and hasNext are not meant to be used directly, only to enable
   // FlipbookIterator to be used where an Iterator is expected.
-  def head: A
-  def next(): A
-  def hasNext: Boolean
+  override def head: A
+  override def next(): A
+  override def hasNext: Boolean
 }
