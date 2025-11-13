@@ -42,8 +42,7 @@ object IRFunctionRegistry {
   val irRegistry: mutable.Map[String, mutable.Map[IRFunctionSignature, IRFunctionImplementation]] =
     new mutable.HashMap()
 
-  val jvmRegistry: mutable.MultiMap[String, JVMFunction] =
-    new mutable.HashMap[String, mutable.Set[JVMFunction]] with mutable.MultiMap[String, JVMFunction]
+  val jvmRegistry: mutable.Map[String, mutable.Set[JVMFunction]] = mutable.HashMap.empty
 
   private[this] def requireJavaIdentifier(name: String): Unit =
     if (!isJavaIdentifier(name))
@@ -51,7 +50,7 @@ object IRFunctionRegistry {
 
   def addJVMFunction(f: JVMFunction): Unit = {
     requireJavaIdentifier(f.name)
-    jvmRegistry.addBinding(f.name, f)
+    jvmRegistry.getOrElseUpdate(f.name, mutable.Set.empty) += f
   }
 
   def addIR(

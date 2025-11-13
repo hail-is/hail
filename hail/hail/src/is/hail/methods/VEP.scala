@@ -14,8 +14,8 @@ import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.{Locus, RegionValueVariant, VariantMethods}
 
-import scala.collection.JavaConverters._
 import scala.collection.mutable
+import scala.jdk.CollectionConverters._
 
 import com.fasterxml.jackson.core.JsonParseException
 import org.apache.spark.sql.Row

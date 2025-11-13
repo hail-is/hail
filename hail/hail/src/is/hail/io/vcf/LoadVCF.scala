@@ -27,8 +27,9 @@ import is.hail.variant._
 
 import scala.annotation.meta.param
 import scala.annotation.switch
-import scala.collection.JavaConverters._
+import scala.collection.BufferedIterator
 import scala.collection.compat._
+import scala.jdk.CollectionConverters._
 
 import htsjdk.variant.vcf._
 import org.apache.spark.{Partition, TaskContext}

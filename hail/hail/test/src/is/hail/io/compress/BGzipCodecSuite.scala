@@ -5,9 +5,9 @@ import is.hail.expr.ir.GenericLines
 import is.hail.scalacheck.ApplicativeGenOps
 import is.hail.utils._
 
-import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.io.Source
+import scala.jdk.CollectionConverters._
 
 import htsjdk.samtools.util.BlockCompressedFilePointerUtil
 import org.apache.{hadoop => hd}

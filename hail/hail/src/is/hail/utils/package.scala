@@ -5,8 +5,8 @@ import is.hail.expr.ir.ByteArrayBuilder
 import is.hail.io.fs.{FS, FileListEntry}
 import is.hail.utils.compat.immutable.ArraySeq
 
-import scala.collection.{mutable, GenTraversableOnce, TraversableOnce}
 import scala.collection.compat._
+import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 import scala.util.control.NonFatal
@@ -388,81 +388,6 @@ package object utils
   def mapAccumulate[C[_], U] =
     mapAccumulateInstance.asInstanceOf[MapAccumulate[C, U]]
 
-  /** An abstraction for building an {@code Array} of known size. Guarantees a left-to-right
-    * traversal
-    *
-    * @param xs
-    *   the thing to iterate over
-    * @param size
-    *   the size of array to allocate
-    * @param key
-    *   given the source value and its source index, yield the target index
-    * @param combine
-    *   given the target value, the target index, the source value, and the source index, compute
-    *   the new target value
-    * @tparam A
-    * @tparam B
-    */
-  def coalesce[A, B: ClassTag](
-    xs: GenTraversableOnce[A]
-  )(
-    size: Int,
-    key: (A, Int) => Int,
-    z: B,
-  )(
-    combine: (B, A) => B
-  ): Array[B] = {
-    val a = Array.fill(size)(z)
-
-    for ((x, idx) <- xs.toIterator.zipWithIndex) {
-      val k = key(x, idx)
-      a(k) = combine(a(k), x)
-    }
-
-    a
-  }
-
-  def mapSameElements[K, V](l: Map[K, V], r: Map[K, V], valueEq: (V, V) => Boolean): Boolean = {
-    def entryMismatchMessage(failures: TraversableOnce[(K, V, V)]): String = {
-      require(failures.nonEmpty)
-      val newline = System.lineSeparator()
-      val sb = new StringBuilder
-      sb ++= "The maps do not have the same entries:" + newline
-      for (failure <- failures)
-        sb ++= s"  At key ${failure._1}, the left map has ${failure._2} and the right map has ${failure._3}" + newline
-      sb ++= s"  The left map is: $l" + newline
-      sb ++= s"  The right map is: $r" + newline
-      sb.result()
-    }
-
-    if (l.keySet != r.keySet) {
-      println(
-        s"""The maps do not have the same keys.
-           |  These keys are unique to the left-hand map: ${l.keySet -- r.keySet}
-           |  These keys are unique to the right-hand map: ${r.keySet -- l.keySet}
-           |  The left map is: $l
-           |  The right map is: $r
-      """.stripMargin
-      )
-      false
-    } else {
-      val fs = Array.newBuilder[(K, V, V)]
-      for ((k, lv) <- l) {
-        val rv = r(k)
-        if (!valueEq(lv, rv))
-          fs += ((k, lv, rv))
-      }
-      val failures = fs.result()
-
-      if (!failures.isEmpty) {
-        println(entryMismatchMessage(failures))
-        false
-      } else {
-        true
-      }
-    }
-  }
-
   def getIteratorSize[T](iterator: Iterator[T]): Long = {
     var count = 0L
     while (iterator.hasNext) {
@@ -787,20 +712,20 @@ package object utils
     else
       right
 
-  def makeJavaMap[K, V](x: TraversableOnce[(K, V)]): java.util.HashMap[K, V] = {
+  def makeJavaMap[K, V](x: IterableOnce[(K, V)]): java.util.HashMap[K, V] = {
     val m = new java.util.HashMap[K, V]
     x.foreach { case (k, v) => m.put(k, v) }
     m
   }
 
-  def makeJavaSet[K](x: TraversableOnce[K]): java.util.HashSet[K] = {
+  def makeJavaSet[K](x: IterableOnce[K]): java.util.HashSet[K] = {
     val m = new java.util.HashSet[K]
     x.foreach(m.add)
     m
   }
 
   def toMapFast[T, K, V](
-    ts: TraversableOnce[T]
+    ts: IterableOnce[T]
   )(
     key: T => K,
     value: T => V,
@@ -815,10 +740,10 @@ package object utils
   }
 
   def toMapIfUnique[K, K2, V](
-    kvs: Traversable[(K, V)]
+    kvs: Iterable[(K, V)]
   )(
     keyBy: K => K2
-  ): Either[Map[K2, Traversable[K]], Map[K2, V]] = {
+  ): Either[Map[K2, Iterable[K]], Map[K2, V]] = {
     val grouped = kvs.groupBy(x => keyBy(x._1))
 
     val dupes = grouped.filter { case (_, m) => m.size != 1 }

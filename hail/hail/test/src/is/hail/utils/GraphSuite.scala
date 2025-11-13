@@ -59,7 +59,7 @@ class GraphSuite {
   @Test def totallyDisconnected(): Unit = {
     val expected = 0 until 10
 
-    val m = new mutable.HashMap[Int, mutable.Set[Int]]() with mutable.MultiMap[Int, Int]
+    val m = mutable.HashMap.empty[Int, mutable.Set[Int]]
     for (i <- expected)
       m.put(i, mutable.Set())
 

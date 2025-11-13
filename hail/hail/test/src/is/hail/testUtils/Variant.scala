@@ -3,7 +3,7 @@ package is.hail.testUtils
 import is.hail.annotations.Annotation
 import is.hail.variant._
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 import org.apache.spark.sql.Row
 

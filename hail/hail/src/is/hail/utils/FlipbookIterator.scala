@@ -1,9 +1,13 @@
 package is.hail.utils
 
-import scala.collection.GenTraversableOnce
-import scala.collection.generic.Growable
+import is.hail.utils.compat.mutable.Growable
+
+import scala.collection.BufferedIterator
+import scala.collection.compat._
 import scala.collection.mutable.PriorityQueue
 import scala.reflect.ClassTag
+
+import org.typelevel.scalaccompat.annotation.nowarn213
 
 /** A StateMachine has the same primary interface as FlipbookIterator, but the implementations are
   * not expected to be checked (for instance, value does not need to assert isValid). The only
@@ -179,7 +183,8 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
     }
   )
 
-  override def flatMap[B](f: A => GenTraversableOnce[B]): FlipbookIterator[B] =
+  @nowarn213("msg=GenTraversableOnce in package collection is deprecated")
+  override def flatMap[B](f: A => scala.collection.GenTraversableOnce[B]): FlipbookIterator[B] =
     FlipbookIterator(
       new StateMachine[B] {
         var it: FlipbookIterator[B] = _

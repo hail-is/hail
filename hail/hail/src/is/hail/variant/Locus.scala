@@ -4,7 +4,7 @@ import is.hail.annotations.Annotation
 import is.hail.expr.Parser
 import is.hail.utils._
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.{IntegerType, StringType, StructField, StructType}

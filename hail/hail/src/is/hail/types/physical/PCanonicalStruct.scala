@@ -5,8 +5,8 @@ import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.virtual.{TStruct, Type}
 import is.hail.utils._
 
-import scala.collection.JavaConverters._
 import scala.collection.compat._
+import scala.jdk.CollectionConverters._
 
 object PCanonicalStruct {
   private val requiredEmpty = PCanonicalStruct(Array.empty[PField], true)
@@ -102,7 +102,7 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
   override def setFieldMissing(cb: EmitCodeBuilder, offset: Code[Long], field: String): Unit =
     setFieldMissing(cb, offset, fieldIdx(field))
 
-  override def insertFields(fieldsToInsert: TraversableOnce[(String, PType)]): PStruct = {
+  override def insertFields(fieldsToInsert: IterableOnce[(String, PType)]): PStruct = {
     val ab = new BoxedArrayBuilder[PField](fields.length)
     var i = 0
     while (i < fields.length) {

@@ -6,6 +6,7 @@ import is.hail.io.{InputBuffer, OutputBuffer, RichContextRDDLong, RichContextRDD
 import is.hail.sparkextras._
 import is.hail.utils.{HailIterator, MultiArray2, Truncatable, WithContext}
 
+import scala.collection.compat._
 import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.util.matching.Regex
