@@ -1308,11 +1308,13 @@ object LoadVCF {
   def warnDuplicates(ids: Array[String]): Unit = {
     val duplicates = ids.counter().filter(_._2 > 1)
     if (duplicates.nonEmpty) {
-      warn(
-        s"Found ${duplicates.size} duplicate ${plural(duplicates.size, "sample ID")}:\n  @1",
+      log.warn(
+        "Found {} duplicate {}:\n {}",
+        duplicates.size,
+        plural(duplicates.size, "sample ID"),
         duplicates.toArray.sortBy(-_._2).map { case (id, count) =>
           s"""($count) "$id""""
-        }.truncatable("\n  "),
+        }.mkString("\n  "),
       )
     }
   }

@@ -22,7 +22,7 @@ from hailtop.utils import async_to_blocking
 
 from ..fs.hadoop_fs import HadoopFS
 from .backend import local_jar_information
-from .py4j_backend import Py4JBackend, connect_logger, raise_when_mismatched_hail_versions
+from .py4j_backend import Py4JBackend, raise_when_mismatched_hail_versions
 
 
 def _modify_spark_conf(conf: pyspark.SparkConf, key: str, update: Callable[[str | None], str]):
@@ -128,8 +128,6 @@ class SparkBackend(Py4JBackend):
             py4jutils.configureLogging(log, quiet, append)
 
         if not quiet:
-            connect_logger(py4jutils, 'localhost', 12888)
-
             sys.stderr.write(f'Running on Apache Spark version {self._spark.version}\n')
             if (uiUrl := self._spark.sparkContext.uiWebUrl) is not None:
                 sys.stderr.write(f'SparkUI available at {uiUrl}\n')
