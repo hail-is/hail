@@ -1,6 +1,7 @@
 package is.hail.utils
 
-import scala.collection.compat.immutable.ArraySeq
+import is.hail.utils.compat.immutable.ArraySeq
+
 import scala.collection.mutable
 
 object Bitstring {

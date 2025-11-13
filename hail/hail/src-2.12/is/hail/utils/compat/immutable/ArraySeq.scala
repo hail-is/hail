@@ -5,6 +5,7 @@ import scala.collection.mutable
 import scala.reflect.ClassTag
 
 object ArraySeq {
+  // scalafix:off ForbiddenSymbol
   import scala.collection.compat.immutable.{ArraySeq => A}
 
   def empty[T <: AnyRef]: ArraySeq[T] = A.empty
