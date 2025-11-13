@@ -1,4 +1,4 @@
-//| mill-version: 1.0.4
+//| mill-version: 1.0.6-114-ed0e74
 //| mill-jvm-version: 11
 
 package build
@@ -95,7 +95,7 @@ object Env extends Module {
   val buildMode: BuildMode = BuildMode.valueOf(millbuild.BuildConfig.buildMode)
 }
 
-trait HailModule extends ScalaModule with ScalafmtModule with ScalafixModule { outer =>
+trait HailScalaModule extends ScalaModule with ScalafmtModule with ScalafixModule { outer =>
   // crossValue is defined by the RootHailModule#CrossValue trait, which this will be mixed with.
   // It propagates the cross value from the root `hail` module.
   def crossValue: String
@@ -212,9 +212,16 @@ trait HailModule extends ScalaModule with ScalafmtModule with ScalafixModule { o
   }
 }
 
-object hail extends Cross[RootHailModule](millbuild.BuildConfig.enabledScalaVersions)
+object hail extends Cross[RootHailModule](IndexedSeq("2.12", "2.12.13", "2.13"))
 
-trait RootHailModule extends CrossScalaModule with HailModule { outer =>
+trait RootHailModule extends CrossScalaModule with HailScalaModule { outer =>
+  override def enableBsp: Boolean =
+    millbuild.BuildConfig.enabledScalaVersions.contains(crossValue)
+    
+  trait HailSubmodule extends JavaModule {
+    override def enableBsp: Boolean = outer.enableBsp
+  }
+  
   def buildInfo: T[PathRef] = Task {
     val revision = VcsVersion.vcsState().currentRevision
     os.write(
@@ -323,7 +330,7 @@ trait RootHailModule extends CrossScalaModule with HailModule { outer =>
     PathRef(Task.dest)
   }
 
-  object `ir-gen` extends HailModule with DefaultTaskModule with CrossValue {
+  object `ir-gen` extends HailScalaModule with HailSubmodule with DefaultTaskModule with CrossValue {
     override def defaultTask(): String = "generate"
 
     override def mvnDeps = Seq(
@@ -338,7 +345,7 @@ trait RootHailModule extends CrossScalaModule with HailModule { outer =>
     }
   }
 
-  object memory extends JavaModule with CrossValue {
+  object memory extends HailSubmodule with CrossValue {
     override def zincIncrementalCompilation: T[Boolean] = false
 
     override def javacOptions: T[Seq[String]] =
@@ -356,7 +363,7 @@ trait RootHailModule extends CrossScalaModule with HailModule { outer =>
     }
   }
 
-  object test extends HailTests {
+  object test extends HailTests with HailSubmodule {
     override def resources: T[Seq[PathRef]] = outer.resources() ++ super.resources()
 
     override def assemblyRules: Seq[Rule] = outer.assemblyRules ++ Seq(
@@ -371,7 +378,7 @@ trait RootHailModule extends CrossScalaModule with HailModule { outer =>
       super.compileModuleDeps ++ outer.compileModuleDeps
   }
 
-  object shadedazure extends JavaModule {
+  object shadedazure extends HailSubmodule {
     override def mvnDeps: T[Seq[Dep]] = Seq(
       mvn"com.azure:azure-storage-blob:12.22.0",
       mvn"com.azure:azure-core-http-netty:1.13.7",
