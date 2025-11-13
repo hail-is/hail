@@ -101,6 +101,10 @@ trait HailModule extends ScalaModule with ScalafmtModule with ScalafixModule { o
   def crossValue: String
   override def scalaVersion: T[String] = Task { Settings.scalaMinorVersions(crossValue) }
 
+  override def scalafixIvyDeps: T[Seq[Dep]] = Seq(
+    mvn"io.github.tanin47::scalafix-forbidden-symbol:1.0.0",
+  )
+
   override def javacOptions: T[Seq[String]] = Seq(
     "-Xlint:all",
     "-Werror",
@@ -220,6 +224,10 @@ trait HailModule extends ScalaModule with ScalafmtModule with ScalafixModule { o
 
   trait HailTests extends ScalaTests with TestNg with ScalafmtModule with ScalafixModule {
     override def forkArgs: T[Seq[String]] = Seq("-Xss4m", "-Xmx4096M")
+
+    override def scalafixIvyDeps: T[Seq[Dep]] = Seq(
+      mvn"io.github.tanin47::scalafix-forbidden-symbol:1.0.0",
+    )
 
     override def mvnDeps: T[Seq[Dep]] =
       super.mvnDeps() ++ outer.compileMvnDeps() ++ Seq(

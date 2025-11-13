@@ -11,8 +11,8 @@ import is.hail.rvd.RVD
 import is.hail.types._
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
-import scala.collection.compat.immutable.ArraySeq
 import scala.collection.mutable
 
 import org.apache.spark.sql.Row

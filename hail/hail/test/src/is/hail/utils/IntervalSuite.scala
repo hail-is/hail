@@ -5,8 +5,7 @@ import is.hail.annotations.ExtendedOrdering
 import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.virtual.{TInt32, TStruct}
-
-import scala.collection.compat.immutable.ArraySeq
+import is.hail.utils.compat.immutable.ArraySeq
 
 import org.apache.spark.sql.Row
 import org.scalatest.Inspectors.forAll

@@ -8,10 +8,10 @@ import is.hail.rvd.{AbstractRVDSpec, RVD}
 import is.hail.types.physical.{PArray, PCanonicalStruct, PStruct, PType}
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 import is.hail.variant._
 
 import scala.collection.compat._
-import scala.collection.compat.immutable.ArraySeq
 
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.Row
