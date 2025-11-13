@@ -16,8 +16,8 @@ import org.json4s.jackson.JsonMethods
 object TerraAzureStorageFS {
   private val TEN_MINUTES_IN_MS = 10 * 60 * 1000
 
-  val RequiredOAuthScopes: IndexedSeq[String] =
-    FastSeq("https://management.azure.com/.default")
+  val RequiredOAuthScopes: Array[String] =
+    Array("https://management.azure.com/.default")
 }
 
 class TerraAzureStorageFS(credential: AzureCloudCredentials) extends AzureStorageFS(credential) {

@@ -3,6 +3,7 @@ package is.hail.services
 import is.hail.{services, HAIL_REVISION}
 import is.hail.backend.service.Main
 import is.hail.services.JobGroupStates.Failure
+import is.hail.services.oauth2.CloudCredentials
 import is.hail.utils._
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -28,7 +29,7 @@ class BatchClientSuite extends TestNGSuite {
     client =
       BatchClient(
         DeployConfig.default,
-        Path.of("/test-gsa-key/key.json"),
+        CloudCredentials(Some(Path.of("/test-gsa-key/key.json"))),
       )
 
     batchId =
