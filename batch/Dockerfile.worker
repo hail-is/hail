@@ -82,5 +82,5 @@ COPY batch/batch /batch/batch/
 
 RUN hail-pip-install /hailtop /gear /batch
 
-COPY batch/jvm-entryway/build/libs/jvm-entryway.jar /jvm-entryway/
+COPY batch/jvm-entryway/out/assembly.dest/out.jar /jvm-entryway/jvm-entryway.jar
 COPY letsencrypt/subdomains.txt /

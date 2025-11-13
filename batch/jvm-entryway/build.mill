@@ -1,0 +1,69 @@
+//| mill-version: 1.0.4
+//| mill-jvm-version: 11
+//| mvnDeps:
+//| - com.goyeau::mill-scalafix::0.6.0
+//| - org.typelevel::scalac-options:0.1.8
+
+package build
+
+import com.goyeau.mill.scalafix.ScalafixModule
+import mill.*
+import mill.scalalib.*
+import mill.scalalib.Assembly.Rule
+import mill.scalalib.scalafmt.ScalafmtModule
+import org.typelevel.scalacoptions.*
+
+object `package` extends ScalafixModule with ScalafmtModule {
+
+  override def scalaVersion: T[String] =
+    "2.12.18"
+
+  override def bomMvnDeps: T[Seq[Dep]] =
+    Seq(
+      mvn"org.apache.logging.log4j:log4j-bom:2.25.2",
+    )
+
+  override def scalafixIvyDeps: T[Seq[Dep]] =
+    Seq(
+      mvn"io.github.tanin47::scalafix-forbidden-symbol:1.0.0",
+    )
+
+  override def compileMvnDeps: T[Seq[Dep]] =
+    Seq(
+      mvn"org.apache.logging.log4j:log4j-api",
+      mvn"com.google.code.findbugs:annotations:3.0.1",
+      mvn"com.kohlschutter:compiler-annotations:1.8.2",
+    )
+    
+  override def mvnDeps: T[Seq[Dep]] =
+    Seq(
+      mvn"org.apache.logging.log4j:log4j-core",
+      mvn"com.kohlschutter.junixsocket:junixsocket-core:2.6.2",
+    )
+
+  override def javacOptions: T[Seq[String]] =
+    Seq(
+      "-Xlint:all",
+      "-source",
+      "11",
+      "-target",
+      "11",
+    )
+
+  override def scalacOptions: T[Seq[String]] = 
+    ScalacOptions.tokensForVersion(
+      ScalaVersion.unsafeFromString(scalaVersion()),
+      ScalacOptions.default +
+        ScalacOptions.warnAll +
+        ScalacOptions.optimizerInline +
+        ScalacOptions.optimizerInlineFrom("is.hail.**"),
+    )
+
+  override def mainClass: T[Option[String]] =
+    Some("is.hail.JVMEntryway")
+
+  override def assemblyRules: Seq[Assembly.Rule] =
+    Seq(
+      Rule.ExcludePattern("^scala")
+    )
+}

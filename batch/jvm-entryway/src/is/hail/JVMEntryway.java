@@ -1,17 +1,14 @@
 package is.hail;
 
-import is.hail.QoBOutputStreamManager;
 import java.io.*;
 import java.lang.reflect.*;
 import java.net.*;
-import java.nio.*;
 import java.nio.charset.*;
 import java.util.*;
 import java.util.concurrent.*;
 import org.newsclub.net.unix.*;
 import org.apache.logging.log4j.*;
 import org.apache.logging.log4j.core.LoggerContext;
-import org.apache.logging.log4j.core.config.Configurator;
 
 class JVMEntryway {
   private static final Logger log = LogManager.getLogger(JVMEntryway.class); // this will initialize log4j which is required for us to access the QoBAppender in main
@@ -25,16 +22,16 @@ class JVMEntryway {
     }
   }
 
-  private static int FINISH_USER_EXCEPTION = 0;
-  private static int FINISH_ENTRYWAY_EXCEPTION = 1;
-  private static int FINISH_NORMAL = 2;
-  private static int FINISH_CANCELLED = 3;
-  private static int FINISH_JVM_EOS = 4;  // NEVER USED ON JVM SIDE
+  private static final int FINISH_USER_EXCEPTION = 0;
+  private static final int FINISH_ENTRYWAY_EXCEPTION = 1;
+  private static final int FINISH_NORMAL = 2;
+  private static final int FINISH_CANCELLED = 3;
+  private static final int FINISH_JVM_EOS = 4;  // NEVER USED ON JVM SIDE
 
   public static void main(String[] args) throws Exception {
     assert args.length == 1;
     AFUNIXServerSocket server = AFUNIXServerSocket.newInstance();
-    server.bind(new AFUNIXSocketAddress(new File(args[0])));
+    server.bind(AFUNIXSocketAddress.of(new File(args[0])));
     System.err.println("listening on " + args[0]);
     try (AFUNIXSocket socket = server.accept()) {
       System.err.println("negotiating start up with worker");
@@ -73,15 +70,15 @@ class JVMEntryway {
           System.err.println("no extant classLoader for " + classPath);
           String[] urlStrings = classPath.split(",");
           ArrayList<URL> urls = new ArrayList<>();
-          for (int i = 0; i < urlStrings.length; ++i) {
-            File file = new File(urlStrings[i]);
-            urls.add(file.toURI().toURL());
-            if (file.isDirectory()) {
-              for (final File f : file.listFiles()) {
-                urls.add(f.toURI().toURL());
-              }
+            for (String urlString : urlStrings) {
+                File file = new File(urlString);
+                urls.add(file.toURI().toURL());
+                if (file.isDirectory()) {
+                    for (File f : file.listFiles()) {
+                        urls.add(f.toURI().toURL());
+                    }
+                }
             }
-          }
           cl = new URLClassLoader(urls.toArray(new URL[0]));
           classLoaders.put(classPath, cl);
         } else {
@@ -97,7 +94,7 @@ class JVMEntryway {
         QoBOutputStreamManager.changeFileInAllAppenders(logFile);
         log.info("is.hail.JVMEntryway received arguments:");
         for (int i = 0; i < nRealArgs; ++i) {
-          log.info(i + ": " + realArgs[i]);
+            log.info("{}: {}", i, realArgs[i]);
         }
         log.info("Yielding control to the QoB Job.");
 
@@ -209,9 +206,9 @@ class JVMEntryway {
   private static void finishFutures(DataOutputStream out,
                                     int finishedNormalType,
                                     int finishedExceptionType,
-                                    Future finished,
+                                    Future<?> finished,
                                     int secondaryExceptionType,
-                                    Future secondary) throws IOException {
+                                    Future<?> secondary) throws IOException {
     Throwable finishedException = retrieveException(finished);
     Throwable secondaryException = cancelThreadRetrieveException(secondary);
 
@@ -243,15 +240,15 @@ class JVMEntryway {
     out.write(bytes);
   }
 
-  private static Throwable cancelThreadRetrieveException(Future f) {
+  private static Throwable cancelThreadRetrieveException(Future<?> f) {
     f.cancel(true);
     return retrieveException(f);
   }
 
-  private static Throwable retrieveException(Future f) {
+  private static Throwable retrieveException(Future<?> f) {
     try {
       f.get();
-    } catch (CancellationException e) {
+    } catch (CancellationException ignored) {
     } catch (Throwable t) {
       return t;
     }
