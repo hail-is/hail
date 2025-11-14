@@ -17,7 +17,7 @@ def open(
     *,
     requester_pays_config: Optional[GCSRequesterPaysConfiguration] = None,
 ) -> io.IOBase:
-    """Open a file from the local filesystem of from blob storage. Supported
+    """Open a file from the local filesystem or from blob storage. Supported
     blob storage providers are GCS, S3 and ABS.
 
     Examples
@@ -178,11 +178,10 @@ def stat(path: str, *, requester_pays_config: Optional[GCSRequesterPaysConfigura
     -----
     Raises an error if `path` does not exist.
 
-    The resulting dictionary contains the following data:
+    The resulting named tuple contains the following data:
 
     - is_dir (:obj:`bool`) -- Path is a directory.
-    - size_bytes (:obj:`int`) -- Size in bytes.
-    - size (:class:`str`) -- Size as a readable string.
+    - size (:class:`int`) -- Size in bytes
     - modification_time (:class:`str`) -- Time of last file modification.
     - owner (:class:`str`) -- Owner.
     - path (:class:`str`) -- Path.
@@ -193,7 +192,7 @@ def stat(path: str, *, requester_pays_config: Optional[GCSRequesterPaysConfigura
 
     Returns
     -------
-    :obj:`dict`
+    :class:`.FileListEntry`
     """
     return _fses[requester_pays_config].stat(path)
 
@@ -209,12 +208,11 @@ def ls(path: str, *, requester_pays_config: Optional[GCSRequesterPaysConfigurati
     directory, returns an element for each file contained in `path` (does not
     search recursively).
 
-    Each dict element of the result list contains the following data:
+    Each element of the result list is a named tuple containing the following data:
 
     - is_dir (:obj:`bool`) -- Path is a directory.
-    - size_bytes (:obj:`int`) -- Size in bytes.
-    - size (:class:`str`) -- Size as a readable string.
-    - modification_time (:class:`str`) -- Time of last file modification.
+    - size (:obj:`int`) -- Size in bytes.
+    - modification_time (:obj:`float`) -- Time of last file modification.
     - owner (:class:`str`) -- Owner.
     - path (:class:`str`) -- Path.
 
@@ -224,7 +222,7 @@ def ls(path: str, *, requester_pays_config: Optional[GCSRequesterPaysConfigurati
 
     Returns
     -------
-    :obj:`list` [:obj:`dict`]
+    :obj:`list` [:class:`.FileListEntry`]
     """
     return _fses[requester_pays_config].ls(path)
 

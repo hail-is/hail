@@ -16,6 +16,7 @@ Top-Level Functions
 
 .. autosummary::
 
+    FileListEntry
     copy
     exists
     is_dir
@@ -37,3 +38,4 @@ Top-Level Functions
 .. autofunction:: remove
 .. autofunction:: rmtree
 .. autofunction:: stat
+.. autoclass:: FileListEntry
