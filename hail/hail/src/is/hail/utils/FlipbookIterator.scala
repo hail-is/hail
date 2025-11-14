@@ -2,9 +2,8 @@ package is.hail.utils
 
 import is.hail.utils.compat.mutable.Growable
 
-import scala.collection.BufferedIterator
+import scala.collection.{mutable, BufferedIterator}
 import scala.collection.compat._
-import scala.collection.mutable.PriorityQueue
 import scala.reflect.ClassTag
 
 import org.typelevel.scalaccompat.annotation.nowarn213
@@ -94,23 +93,24 @@ object FlipbookIterator {
   def multiZipJoin[A: ClassTag](
     its: Array[FlipbookIterator[A]],
     ord: (A, A) => Int,
-  ): FlipbookIterator[BoxedArrayBuilder[(A, Int)]] = {
+  ): FlipbookIterator[collection.IndexedSeq[(A, Int)]] = {
     object TmpOrd extends Ordering[(A, Int)] {
       def compare(x: (A, Int), y: (A, Int)): Int = ord(y._1, x._1)
     }
-    val sm = new StateMachine[BoxedArrayBuilder[(A, Int)]] {
-      val q: PriorityQueue[(A, Int)] = new PriorityQueue()(TmpOrd)
-      val value = new BoxedArrayBuilder[(A, Int)](its.length)
+    val sm = new StateMachine[collection.IndexedSeq[(A, Int)]] {
+      val q: mutable.PriorityQueue[(A, Int)] = new mutable.PriorityQueue()(TmpOrd)
+      val value = mutable.ArrayBuffer.empty[(A, Int)]
+      value.sizeHint(its.length)
       var isValid = true
 
-      var i = 0;
+      var i = 0
       while (i < its.length) {
         if (its(i).isValid) q.enqueue(its(i).value -> i)
         i += 1
       }
 
       def advance(): Unit = {
-        var i = 0;
+        var i = 0
         while (i < value.length) {
           val j = value(i)._2
           its(j).advance()

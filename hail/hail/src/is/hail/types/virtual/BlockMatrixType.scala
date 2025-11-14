@@ -4,12 +4,13 @@ import is.hail.expr.ir._
 import is.hail.expr.ir.defs.{I64, If, Literal, ToStream}
 import is.hail.linalg.BlockMatrix
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 import org.apache.spark.sql.Row
 import org.json4s.{JInt, JObject, JString, JValue}
 
 object BlockMatrixSparsity {
-  private val builder: BoxedArrayBuilder[(Int, Int)] = new BoxedArrayBuilder[(Int, Int)]
+  private val builder = ArraySeq.newBuilder[(Int, Int)]
 
   val dense: BlockMatrixSparsity = new BlockMatrixSparsity(None: Option[IndexedSeq[(Int, Int)]])
 
