@@ -993,14 +993,13 @@ steps:
       set -ex
 
       cd /io/batch/jvm-entryway
-
-      chmod 755 ./gradlew
-      ./gradlew shadowJar
+      time retry sh mill --no-daemon --version
+      sh mill --no-daemon assembly
     inputs:
       - from: /repo/batch
         to: /io/batch
     outputs:
-      - from: /io/batch/jvm-entryway/build/libs/jvm-entryway.jar
+      - from: /io/batch/jvm-entryway/out/assembly.dest/out.jar
         to: /jvm-entryway.jar
     dependsOn:
       - base_image
@@ -1028,7 +1027,7 @@ steps:
       - from: /repo/web_common
         to: /io/repo/web_common
       - from: /jvm-entryway.jar
-        to: /io/repo/batch/jvm-entryway/build/libs/jvm-entryway.jar
+        to: /io/repo/batch/jvm-entryway/out/assembly.dest/out.jar
     dependsOn:
       - merge_code
       - hail_ubuntu_image
