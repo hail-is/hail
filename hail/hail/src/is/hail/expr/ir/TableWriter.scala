@@ -286,12 +286,7 @@ case class PartitionNativeWriter(
       }
 
       val os = mb.newLocal[ByteTrackingOutputStream]("write_os")
-      cb.assign(
-        os,
-        Code.newInstance[ByteTrackingOutputStream, OutputStream](
-          mb.create(stagingFile.getOrElse(filename).get)
-        ),
-      )
+      cb.assign(os, mb.create(stagingFile.getOrElse(filename).get).buffer.trackBytes)
       cb.assign(ob, spec.buildCodeOutputBuffer(Code.checkcast[OutputStream](os)))
       cb.assign(n, 0L)
     }
@@ -842,7 +837,7 @@ case class TableTextFinalizer(
         val jFiles = if (header) {
           val headerFilePath = ctx.createTmpPath("header", ext)
           val headerStr = rowType.fields.map(_.name).mkString(delimiter)
-          val os = cb.memoize(cb.emb.create(const(headerFilePath)))
+          val os = cb.memoize(cb.emb.create(const(headerFilePath)).buffer)
           cb += os.invoke[Array[Byte], Unit](
             "write",
             const(headerStr).invoke[Array[Byte]]("getBytes"),
@@ -909,7 +904,7 @@ case class TableTextFinalizer(
         val headerPath = if (header) {
           val headerFilePath = const(s"$outputPath/header$ext")
           val headerStr = rowType.fields.map(_.name).mkString(delimiter)
-          val os = cb.memoize(cb.emb.create(headerFilePath))
+          val os = cb.memoize(cb.emb.create(headerFilePath).buffer)
           cb += os.invoke[Array[Byte], Unit](
             "write",
             const(headerStr).invoke[Array[Byte]]("getBytes"),

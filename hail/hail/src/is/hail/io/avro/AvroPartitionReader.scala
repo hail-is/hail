@@ -81,7 +81,7 @@ case class AvroPartitionReader(schema: Schema, uidFieldName: String) extends Par
           val mb = cb.emb
           val codeSchema = cb.newLocal("schema", mb.getObject(schema))
           cb.assign(record, Code.newInstance[GenericData.Record, Schema](codeSchema))
-          val is = mb.open(pathString, false)
+          val is = mb.open(pathString, false).buffer
           val datumReader = Code.newInstance[GenericDatumReader[GenericRecord], Schema](codeSchema)
           val dataFileStream = Code.newInstance[
             DataFileStream[GenericRecord],

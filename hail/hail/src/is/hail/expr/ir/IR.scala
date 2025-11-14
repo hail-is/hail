@@ -436,7 +436,7 @@ package defs {
     ): IEmitCode = {
       context.toI(cb).map(cb) { case ctx: SStringValue =>
         val filename = ctx.loadString(cb)
-        val os = cb.memoize(cb.emb.create(filename))
+        val os = cb.memoize(cb.emb.create(filename).buffer)
 
         preConsume(cb, os)
         stream.memoryManagedConsume(region, cb) { cb =>
