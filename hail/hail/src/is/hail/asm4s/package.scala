@@ -1,6 +1,10 @@
 package is.hail
 
+import is.hail.utils.richUtils.ByteTrackingOutputStream
+
 import scala.reflect.ClassTag
+
+import java.io.{BufferedInputStream, BufferedOutputStream, InputStream, OutputStream}
 
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.tree._
@@ -386,4 +390,17 @@ package object asm4s {
   implicit def charToCode(c: Char): Code[Char] = const(c)
 
   implicit def byteToCode(b: Byte): Code[Byte] = const(b)
+
+  implicit class RichCodeInputStream(private val c: Code[_ <: InputStream]) extends AnyVal {
+    def buffer: Code[BufferedInputStream] =
+      Code.newInstance[BufferedInputStream, InputStream](c)
+  }
+
+  implicit class RichCodeOutputStream(private val c: Code[_ <: OutputStream]) extends AnyVal {
+    def buffer: Code[BufferedOutputStream] =
+      Code.newInstance[BufferedOutputStream, OutputStream](c)
+
+    def trackBytes: Code[ByteTrackingOutputStream] =
+      Code.newInstance[ByteTrackingOutputStream, OutputStream](c)
+  }
 }

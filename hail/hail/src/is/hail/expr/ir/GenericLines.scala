@@ -2,7 +2,9 @@ package is.hail.expr.ir
 
 import is.hail.backend.spark.SparkBackend
 import is.hail.io.compress.BGzipInputStream
-import is.hail.io.fs.{getCodecFromPath, BGZipCompressionCodec, FS, FileStatus, Positioned, PositionedInputStream}
+import is.hail.io.fs.{
+  getCodecFromPath, BGZipCompressionCodec, FS, FileStatus, Positioned, PositionedInputStream,
+}
 import is.hail.io.tabix.{TabixLineIterator, TabixReader}
 import is.hail.types.virtual.{TBoolean, TInt32, TInt64, TString, TStruct, Type}
 import is.hail.utils._

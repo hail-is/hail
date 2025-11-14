@@ -475,12 +475,7 @@ case class SplitPartitionNativeWriter(
             }
 
             val ostream = mb.newLocal[ByteTrackingOutputStream](s"write_os$i")
-            cb.assign(
-              ostream,
-              Code.newInstance[ByteTrackingOutputStream, OutputStream](
-                mb.createUnbuffered(stagingFile.getOrElse(filename).get)
-              ),
-            )
+            cb.assign(ostream, mb.create(stagingFile.getOrElse(filename).get).trackBytes)
 
             val buffer = mb.newLocal[OutputBuffer](s"write_ob$i")
             cb.assign(buffer, spec1.buildCodeOutputBuffer(Code.checkcast[OutputStream](ostream)))
@@ -874,7 +869,7 @@ case class VCFPartitionWriter(
           "partFile can't be missing",
         ).asString.loadString(cb)
 
-      val os = cb.memoize(cb.emb.create(filename))
+      val os = cb.memoize(cb.emb.create(filename).buffer)
       if (writeHeader) {
         val sampleIds = ctx.loadField(cb, "cols").getOrAssert(cb).asIndexable
         val stringSampleIds = cb.memoize(Code.newArray[String](sampleIds.loadLength))
@@ -1314,7 +1309,7 @@ case class VCFExportFinalizer(
         val headerStr = header(cb, annotations)
 
         val headerFilePath = ctx.createTmpPath("header", ext)
-        val os = cb.memoize(cb.emb.create(const(headerFilePath)))
+        val os = cb.memoize(cb.emb.create(const(headerFilePath)).buffer)
         cb += os.invoke[Array[Byte], Unit]("write", headerStr.invoke[Array[Byte]]("getBytes"))
         cb += os.invoke[Int, Unit]("write", '\n')
         cb += os.invoke[Unit]("close")
@@ -1382,7 +1377,7 @@ case class VCFExportFinalizer(
         val headerFilePath = s"$outputPath/header$ext"
         val headerStr = header(cb, annotations)
 
-        val os = cb.memoize(cb.emb.create(const(headerFilePath)))
+        val os = cb.memoize(cb.emb.create(const(headerFilePath)).buffer)
         cb += os.invoke[Array[Byte], Unit]("write", headerStr.invoke[Array[Byte]]("getBytes"))
         cb += os.invoke[Int, Unit]("write", '\n')
         cb += os.invoke[Unit]("close")
@@ -1699,7 +1694,7 @@ case class BGENPartitionWriter(
           "partFile can't be missing",
         ).asString.loadString(cb)
 
-      val os = cb.memoize(cb.emb.create(filename))
+      val os = cb.memoize(cb.emb.create(filename).buffer)
       val colValues = ctx.loadField(cb, "cols").getOrAssert(cb).asIndexable
       val nSamples = colValues.loadLength
 
@@ -2023,7 +2018,7 @@ case class BGENExportFinalizer(typ: MatrixType, path: String, exportType: String
 
       val headerStr = if (exportType == ExportType.PARALLEL_SEPARATE_HEADER) {
         val headerStr = cb.memoize(const(path + ".bgen").concat("/header"))
-        val os = cb.memoize(cb.emb.create(headerStr))
+        val os = cb.memoize(cb.emb.create(headerStr).buffer)
         val header = Code.invokeScalaObject3[Array[String], Long, Int, Array[Byte]](
           BgenWriter.getClass,
           "headerBlock",
@@ -2054,7 +2049,7 @@ case class BGENExportFinalizer(typ: MatrixType, path: String, exportType: String
     }
 
     if (exportType == ExportType.CONCATENATED) {
-      val os = cb.memoize(cb.emb.create(const(path + ".bgen")))
+      val os = cb.memoize(cb.emb.create(const(path + ".bgen")).buffer)
       val header = Code.invokeScalaObject3[Array[String], Long, Int, Array[Byte]](
         BgenWriter.getClass,
         "headerBlock",
@@ -2070,7 +2065,7 @@ case class BGENExportFinalizer(typ: MatrixType, path: String, exportType: String
             cb,
             { /* do nothing */ },
             { case pf: SStringValue =>
-              val f = cb.memoize(cb.emb.open(pf.loadString(cb), false))
+              val f = cb.memoize(cb.emb.open(pf.loadString(cb), false).buffer)
               cb += Code.invokeStatic3[
                 org.apache.hadoop.io.IOUtils,
                 InputStream,
@@ -2181,8 +2176,8 @@ case class PLINKPartitionWriter(typ: MatrixType, entriesFieldName: String) exten
       val bedFile = context.loadField(cb, "bedFile").getOrAssert(cb).asString.loadString(cb)
       val bimFile = context.loadField(cb, "bimFile").getOrAssert(cb).asString.loadString(cb)
 
-      val bedOs = cb.memoize(cb.emb.create(bedFile))
-      val bimOs = cb.memoize(cb.emb.create(bimFile))
+      val bedOs = cb.memoize(cb.emb.create(bedFile).buffer)
+      val bimOs = cb.memoize(cb.emb.create(bimFile).buffer)
       val bp = cb.memoize(Code.newInstance[BitPacker, Int, OutputStream](2, bedOs))
 
       stream.memoryManagedConsume(region, cb) { cb =>
