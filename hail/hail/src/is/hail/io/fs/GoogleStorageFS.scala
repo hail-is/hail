@@ -21,23 +21,17 @@ import com.google.cloud.storage.Storage.{
   BlobGetOption, BlobListOption, BlobSourceOption, BlobWriteOption,
 }
 
-case class GoogleStorageFSURL(bucket: String, path: String) extends FSURL {
-  def addPathComponent(c: String): GoogleStorageFSURL =
-    if (path == "")
-      withPath(c)
-    else
-      withPath(s"$path/$c")
+class GoogleStorageFSURL(val bucket: String, override val path: String)
+    extends FSURL[GoogleStorageFSURL] {
+  override def /(c: String): GoogleStorageFSURL =
+    new GoogleStorageFSURL(bucket, if (path == "") c else s"$path/$c")
 
-  def withPath(newPath: String): GoogleStorageFSURL = GoogleStorageFSURL(bucket, newPath)
-  def fromString(s: String): GoogleStorageFSURL = GoogleStorageFS.parseUrl(s)
+  def withPath(p: String): GoogleStorageFSURL =
+    new GoogleStorageFSURL(bucket, p)
 
-  def getPath: String = path
-
-  override def toString(): String = if (path.isEmpty) {
-    s"gs://$bucket"
-  } else {
-    s"gs://$bucket/$path"
-  }
+  override def toString: String =
+    if (path.isEmpty) s"gs://$bucket"
+    else s"gs://$bucket/$path"
 }
 
 object GoogleStorageFS {
@@ -58,7 +52,7 @@ object GoogleStorageFS {
         val bucket = m.group(1)
         val maybePath = m.group(2)
         val path = Paths.get(if (maybePath == null) "" else maybePath.stripPrefix("/"))
-        GoogleStorageFSURL(bucket, path.normalize().toString)
+        new GoogleStorageFSURL(bucket, path.normalize().toString)
       case None => throw new IllegalArgumentException(
           s"GCS URI must be of the form: gs://bucket/path, found $filename"
         )
@@ -149,8 +143,6 @@ class GoogleStorageFS(
 
   override def validUrl(filename: String): Boolean =
     filename.startsWith("gs://")
-
-  def urlAddPathComponent(url: URL, component: String): URL = url.addPathComponent(component)
 
   def getConfiguration(): Option[RequesterPaysConfig] =
     requesterPaysConfig
@@ -254,10 +246,6 @@ class GoogleStorageFS(
     }
 
     new WrappedSeekableDataInputStream(is)
-  }
-
-  override def readNoCompression(url: URL): Array[Byte] = retryTransientErrors {
-    storage.readAllBytes(url.bucket, url.path)
   }
 
   def createNoCompression(url: URL): PositionedDataOutputStream = retryTransientErrors {
@@ -482,7 +470,7 @@ class GoogleStorageFS(
   }
 
   override def fileListEntry(url: URL): FileListEntry = {
-    if (url.getPath == "") {
+    if (url.path == "") {
       return GoogleStorageFileListEntry.dir(url)
     }
 
@@ -502,17 +490,15 @@ class GoogleStorageFS(
     fileListEntryFromIterator(url, it)
   }
 
-  override def eTag(url: URL): Some[String] = {
-    val GoogleStorageFSURL(bucket, blob) = url
+  override def eTag(url: URL): Some[String] =
     handleRequesterPays(
       (options: Seq[BlobGetOption]) =>
         retryTransientErrors {
-          Some(storage.get(bucket, blob, options: _*).getEtag)
+          Some(storage.get(url.bucket, url.path, options: _*).getEtag)
         },
       BlobGetOption.userProject,
-      bucket,
+      url.bucket,
     )
-  }
 
   def makeQualified(filename: String): String = {
     if (!filename.startsWith("gs://"))

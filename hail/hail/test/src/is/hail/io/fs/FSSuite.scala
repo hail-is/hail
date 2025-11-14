@@ -291,9 +291,6 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
   @Test def testGetCodecExtension(): Unit =
     assert(fs.getCodecExtension("foo.vcf.bgz") == ".bgz")
 
-  @Test def testStripCodecExtension(): Unit =
-    assert(fs.stripCodecExtension("foo.vcf.bgz") == "foo.vcf")
-
   @Test def testReadWriteBytes(): Unit = {
     val f = t()
 
@@ -436,7 +433,7 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
   @Test def testSeekAfterEOF(): Unit = {
     val prefix = s"$tmpdir/fs-suite/delete-many-files/${java.util.UUID.randomUUID()}"
     val p = s"$prefix/seek_file"
-    using(fs.createCachedNoCompression(p)) { os =>
+    using(fs.createNoCompression(p)) { os =>
       os.write(1)
       os.write(2)
       os.write(3)
