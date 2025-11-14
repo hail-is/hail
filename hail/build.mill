@@ -16,7 +16,7 @@ import upickle.default.ReadWriter
 
 object Settings {
   val hailMajorMinorVersion = "0.2"
-  val hailPatchVersion = "136"
+  val hailPatchVersion = "137"
   val scalaMinorVersions = Map("2.12" -> "2.12.20", "2.12.13" -> "2.12.13", "2.13" -> "2.13.13")
 }
 

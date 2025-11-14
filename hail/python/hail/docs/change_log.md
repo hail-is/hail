@@ -52,6 +52,46 @@ supports.
 policy. Their functionality or even existence may change without notice. Please contact us if you
 critically depend on experimental functionality.**
 
+## Version 0.2.137 
+
+Released 2025-11-01 
+
+- (hail#14761) Various Benchmark Suite Improvements
+- (hail#15151) Change BlockMatrixType to always be 2 dimensional
+- (hail#15141) read successful partition results in parallel
+- (hail#15130) Update pip lockfiles
+- (hail#15126) Don't filter entries with missing reference GT in combiner
+- (hail#15095) Lower BlockMatrixAgg with BlockMatrixStage2
+- (hail#15140) Fix defined block calculation for BlockMatrixBroadcast.typ
+- (hail#15107) remove global `Backend` field
+- (hail#15136) avoid iterator invalidation when splitting methods
+- (hail#15108) Add Gamma distribution functions
+- (hail#15104) vanquish `HailContext`
+- (hail#15091) Remove RelationalLetBlockMatrix
+- (hail#15101) `HailContext` is not required in batch
+- (hail#15032) enable no implicit numeric widenings warning
+- (hail#15031) enable a few easy 2.13 warnings
+- (hail#15124) fix flaky batch client scala test
+- (hail#15033) Enable 2.13 value discard warnings
+- (hail#15103) Use pure python for test class finding in generate_splits.py
+- (hail#15100) remove `Backend` from `HailContext`
+- (hail#15113) Use list for pip_dependencies in deploy.yaml
+- (hail#15086) Port ValueToBlockMatrix to BlockMatrixStage2 lowering
+- (hail#15119) fix job group state polling
+- (hail#15034) don't use deprecated `zipped` method
+- (hail#15035) enable 2.13 nullary args warnings
+- (hail#15109) invoke mill using `SCALA_VERSION` env var in Makefile
+- (hail#15098) move `configureLogging` and `version` out of `HailContext`
+- (hail#15096) move block matrix read out of `HailContext`
+- (hail#15110) fix src-2.12 and src-2.13 package name mismatch
+- (hail#14964) remove uses of `HailContext.backend` 
+- (hail#15029) initial support for cross compiling with scala 2.13
+- (hail#15080) implement `HailContext.checkRVDKeys` via flags
+- (hail#14963) remove `branchingFactor` from `HailContext`
+- (hail#14952) Configure Optimiser via Flags, not HailContext
+- (hail#15064) fix hl.init with batch backend and explicit regions
+- (hail#14748) make local and remote tmp settable on backend
+
 ## Version 0.2.136
 
 Released 2025-08-26
