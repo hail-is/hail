@@ -512,6 +512,8 @@ package defs {
     def <=(other: IR): IR = ApplyComparisonOp(LTEQ, self, other)
 
     def >=(other: IR): IR = ApplyComparisonOp(GTEQ, self, other)
+
+    def log(messages: AnyRef*): IR = logIR(self, messages: _*)
   }
 
   object ErrorIDs {

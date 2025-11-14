@@ -5,36 +5,14 @@ import is.hail.expr.Nat
 import is.hail.expr.ir._
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.functions.GetElement
+import is.hail.linalg.MatrixSparsity
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.{tcoerce, TypeWithRequiredness}
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
-object BlockMatrixStage {
-  def empty(eltType: Type): BlockMatrixStage =
-    EmptyBlockMatrixStage(eltType)
-}
-
-case class EmptyBlockMatrixStage(eltType: Type) extends BlockMatrixStage(FastSeq(), TInt32) {
-  def blockContext(idx: (Int, Int)): IR =
-    throw new LowererUnsupportedOperation("empty stage has no block contexts!")
-
-  def blockBody(ctxRef: Ref): IR = NA(TNDArray(eltType, Nat(2)))
-
-  override def collectBlocks(
-    staticID: String,
-    dynamicID: IR = NA(TString),
-  )(
-    f: (IR, IR) => IR,
-    blocksToCollect: Array[(Int, Int)],
-  ): IR = {
-    assert(blocksToCollect.isEmpty)
-    MakeArray(
-      FastSeq(),
-      TArray(f(Ref(freshName(), ctxType), blockBody(Ref(freshName(), ctxType))).typ),
-    )
-  }
-}
+import org.apache.spark.sql.Row
 
 abstract class BlockMatrixStage(val broadcastVals: IndexedSeq[Ref], val ctxType: Type) {
   def blockContext(idx: (Int, Int)): IR
@@ -63,7 +41,7 @@ abstract class BlockMatrixStage(val broadcastVals: IndexedSeq[Ref], val ctxType:
 
   def collectLocal(typ: BlockMatrixType, staticID: String, dynamicID: IR = NA(TString)): IR = {
     val blocksRowMajor = Array.range(0, typ.nRowBlocks).flatMap { i =>
-      Array.tabulate(typ.nColBlocks)(j => i -> j).filter(typ.hasBlock)
+      Array.tabulate(typ.nColBlocks)(j => i -> j).filter((typ.hasBlock _).tupled)
     }
     val cda = collectBlocks(staticID, dynamicID)((_, b) => b, blocksRowMajor)
     val blockResults = Ref(freshName(), cda.typ)
@@ -123,8 +101,8 @@ abstract class BlockMatrixStage(val broadcastVals: IndexedSeq[Ref], val ctxType:
 
   def condenseBlocks(
     typ: BlockMatrixType,
-    rowBlocks: Array[Array[Int]],
-    colBlocks: Array[Array[Int]],
+    rowBlocks: IndexedSeq[IndexedSeq[Int]],
+    colBlocks: IndexedSeq[IndexedSeq[Int]],
   ): BlockMatrixStage = {
     val outer = this
     val ctxType = TArray(TArray(TTuple(TTuple(TInt64, TInt64), outer.ctxType)))
@@ -134,9 +112,8 @@ abstract class BlockMatrixStage(val broadcastVals: IndexedSeq[Ref], val ctxType:
         val j = idx._2
         MakeArray(rowBlocks(i).map { ii =>
           MakeArray(colBlocks(j).map { jj =>
-            val idx2 = ii -> jj
-            if (typ.hasBlock(idx2))
-              MakeTuple.ordered(FastSeq(NA(TTuple(TInt64, TInt64)), outer.blockContext(idx2)))
+            if (typ.hasBlock(ii, jj))
+              MakeTuple.ordered(FastSeq(NA(TTuple(TInt64, TInt64)), outer.blockContext(ii -> jj)))
             else {
               val (nRows, nCols) = typ.blockShape(ii, jj)
               MakeTuple.ordered(FastSeq(
@@ -180,12 +157,495 @@ abstract class BlockMatrixStage(val broadcastVals: IndexedSeq[Ref], val ctxType:
   }
 }
 
+abstract class DynamicBMSContexts {
+  def apply(row: IR, col: IR): IR
+  def map(ib: IRBuilder)(f: (IR, IR, IR, IR) => IR): DynamicBMSContexts
+  def collect(makeBlock: (Ref, Ref, Ref) => IR): IR
+}
+
+object DynamicDenseContexts {
+  def apply(irValue: IR, ib: IRBuilder): DynamicDenseContexts = {
+    val irValueRef = ib.memoize(irValue)
+    DynamicDenseContexts(
+      ib.memoize(GetField(irValueRef, "nRows")),
+      ib.memoize(GetField(irValueRef, "nCols")),
+      ib.memoize(GetField(irValueRef, "contexts")),
+    )
+  }
+}
+
+case class DynamicDenseContexts(nRows: TrivialIR, nCols: TrivialIR, contexts: TrivialIR)
+    extends DynamicBMSContexts {
+  def irValue: IR = makestruct("nRows" -> nRows, "nCols" -> nCols, "contexts" -> contexts)
+
+  override def apply(row: IR, col: IR): IR = ArrayRef(contexts, (col * nRows) + row)
+
+  override def map(ib: IRBuilder)(f: (IR, IR, IR, IR) => IR): DynamicDenseContexts = {
+    DynamicDenseContexts(
+      nRows,
+      nCols,
+      ib.memoize(ToArray(flatMapIR(rangeIR(nCols)) { j =>
+        mapIR(rangeIR(nRows)) { i =>
+          bindIR((j * nRows) + i) { pos =>
+            bindIR(ArrayRef(contexts, pos))(old => f(i, j, pos, old))
+          }
+        }
+      })),
+    )
+  }
+
+  override def collect(makeBlock: (Ref, Ref, Ref) => IR): IR = {
+    NDArrayConcat(
+      ToArray(mapIR(rangeIR(nCols)) { j =>
+        val colBlocks = mapIR(rangeIR(nRows)) { i =>
+          bindIR(ArrayRef(contexts, j * nRows + i))(ctx => makeBlock(i, j, ctx))
+        }
+        NDArrayConcat(ToArray(colBlocks), 0)
+      }),
+      1,
+    )
+  }
+}
+
+object DynamicSparseContexts {
+  def apply(irValue: IR, ib: IRBuilder): DynamicSparseContexts = {
+    val irValueRef = ib.memoize(irValue)
+    new DynamicSparseContexts(
+      ib.memoize(GetField(irValueRef, "nRows")),
+      ib.memoize(GetField(irValueRef, "nCols")),
+      ib.memoize(GetField(irValueRef, "rowPos")),
+      ib.memoize(GetField(irValueRef, "rowIdx")),
+      ib.memoize(GetField(irValueRef, "contexts")),
+    )
+  }
+
+  def apply(sparsity: MatrixSparsity.Sparse, contexts: IR, ib: IRBuilder): DynamicSparseContexts = {
+    val csc = sparsity.toCSC
+    val rowPosIR = Literal(TArray(TInt32), csc.rowPos)
+    val rowIdxIR = Literal(TArray(TInt32), csc.rowIdx)
+    new DynamicSparseContexts(
+      sparsity.nRows,
+      sparsity.nCols,
+      ib.memoize(rowPosIR),
+      ib.memoize(rowIdxIR),
+      ib.memoize(contexts),
+    )
+  }
+}
+
+class DynamicSparseContexts(
+  nRows: TrivialIR,
+  nCols: TrivialIR,
+  rowPos: TrivialIR,
+  rowIdx: TrivialIR,
+  val contexts: TrivialIR,
+) extends DynamicBMSContexts {
+  val elementType: Type = contexts.typ.asInstanceOf[TArray].elementType
+
+  def withNewContexts(newContexts: TrivialIR): DynamicSparseContexts =
+    new DynamicSparseContexts(nRows, nCols, rowPos, rowIdx, newContexts)
+
+  override def apply(row: IR, col: IR): IR = {
+    val startPos = ArrayRef(rowPos, col)
+    val endPos = ArrayRef(rowPos, col + 1)
+    bindIR(
+      Apply("lowerBound", Seq(), FastSeq(rowIdx, row, startPos, endPos), TInt32, ErrorIDs.NO_ERROR)
+    ) { pos =>
+      If(
+        ArrayRef(rowIdx, pos).ceq(row),
+        ArrayRef(contexts, pos),
+        Die(
+          strConcat("Internal Error, tried to load missing BlockMatrix context: (row = ", row,
+            ", col = ",
+            col, ", pos = ", pos, ", rowPos = ", rowPos, ", rowIdx = ", rowIdx, ")"),
+          elementType,
+          ErrorIDs.NO_ERROR,
+        ),
+      )
+    }
+  }
+
+  override def map(ib: IRBuilder)(f: (IR, IR, IR, IR) => IR): DynamicSparseContexts = {
+    val colIdx = flatMapIR(rangeIR(nCols)) { j =>
+      mapIR(rangeIR(ArrayRef(rowPos, j), ArrayRef(rowPos, j + 1)))(_ => j)
+    }
+    val newContexts = ToArray(zipIR(
+      ArraySeq(ToStream(rowIdx), colIdx, iota(0, 1), ToStream(contexts)),
+      ArrayZipBehavior.TakeMinLength,
+    ) { case Seq(i, j, pos, oldCtx) =>
+      f(i, j, pos, oldCtx)
+    })
+    new DynamicSparseContexts(nRows, nCols, rowPos, rowIdx, ib.memoize(newContexts))
+  }
+
+  override def collect(makeBlock: (Ref, Ref, Ref) => IR): IR = {
+    NDArrayConcat(
+      ToArray(mapIR(rangeIR(nCols)) { j =>
+        val allIdxs = mapIR(rangeIR(nRows))(i => makestruct("idx" -> i))
+        val startPos = ArrayRef(rowPos, j)
+        val endPos = ArrayRef(rowPos, j + 1)
+        val idxedExisting = mapIR(rangeIR(startPos, endPos)) { pos =>
+          makestruct("idx" -> ArrayRef(rowIdx, pos), "ctx" -> ArrayRef(contexts, pos))
+        }
+        val colBlocks =
+          joinRightDistinctIR(allIdxs, idxedExisting, FastSeq("idx"), FastSeq("idx"), "left") {
+            (l, struct) =>
+              bindIRs(GetField(l, "idx"), GetField(struct, "ctx")) { case Seq(i, ctx) =>
+                makeBlock(i, j, ctx)
+              }
+          }
+        NDArrayConcat(ToArray(colBlocks), 0)
+      }),
+      1,
+    )
+  }
+}
+
+object BMSContexts {
+  def apply(sparsity: MatrixSparsity, contexts: IR, ib: IRBuilder): BMSContexts =
+    sparsity match {
+      case sparse: MatrixSparsity.Sparse => SparseContexts(sparse, contexts, ib)
+      case dense: MatrixSparsity.Dense => DenseContexts(dense, contexts, ib)
+    }
+
+  def tabulate(sparsity: MatrixSparsity, ib: IRBuilder)(f: (IR, IR) => IR): BMSContexts = {
+    val definedCoordsIR = sparsity match {
+      case MatrixSparsity.Dense(nRows, nCols) =>
+        flatMapIR(rangeIR(nCols))(j => mapIR(rangeIR(nRows))(i => maketuple(i, j)))
+      case sparsity: MatrixSparsity.Sparse =>
+        ToStream(Literal(TArray(TTuple(TInt32, TInt32)), sparsity.definedCoords.map(Row.fromTuple)))
+    }
+    val contexts =
+      ToArray(mapIR(definedCoordsIR) {
+        coords =>
+          bindIRs(GetTupleElement(coords, 0), GetTupleElement(coords, 1)) { case Seq(i, j) =>
+            f(i, j)
+          }
+      })
+    BMSContexts(sparsity, contexts, ib)
+  }
+}
+
+abstract class BMSContexts {
+  def sparsity: MatrixSparsity
+
+  def dynamic: DynamicBMSContexts
+
+  def elementType: Type
+
+  def nRows: Int = sparsity.nRows
+
+  def nCols: Int = sparsity.nCols
+
+  def contexts: IR
+
+  def transpose(ib: IRBuilder): BMSContexts
+
+  def withNewSparsity(newSparsity: MatrixSparsity, ib: IRBuilder): BMSContexts
+
+  // body args: (rowIdx, colIdx, position, old context)
+  def map(ib: IRBuilder)(f: (IR, IR, IR, IR) => IR): BMSContexts
+
+  def zip(other: BMSContexts, ib: IRBuilder): BMSContexts
+
+  def grouped(
+    rowDeps: IndexedSeq[IndexedSeq[Int]],
+    colDeps: IndexedSeq[IndexedSeq[Int]],
+    typ: BlockMatrixType,
+    ib: IRBuilder,
+  ): BMSContexts
+
+  def groupedByCol(ib: IRBuilder): BMSContexts
+
+  def collect(makeBlock: (Ref, Ref, Ref) => IR): IR
+
+  def print(ctx: ExecuteContext): Unit
+}
+
+object DenseContexts {
+  def apply(sparsity: MatrixSparsity.Dense, contexts: IR, ib: IRBuilder): DenseContexts =
+    DenseContexts(
+      sparsity,
+      DynamicDenseContexts(sparsity.nRows, sparsity.nCols, ib.memoize(contexts)),
+    )
+}
+
+case class DenseContexts(sparsity: MatrixSparsity.Dense, dynamic: DynamicDenseContexts)
+    extends BMSContexts {
+  override val elementType: Type = contexts.typ.asInstanceOf[TArray].elementType
+
+  override def contexts: TrivialIR = dynamic.contexts
+
+  override def print(ctx: ExecuteContext): Unit =
+    println(
+      s"DenseContexts:\n  nRows = ${Pretty(ctx, nRows)}\n  nCols = ${Pretty(ctx, nCols)}\n  contexts = ${Pretty(ctx, contexts)}"
+    )
+
+  override def transpose(ib: IRBuilder): DenseContexts = DenseContexts(
+    sparsity.transpose,
+    ToArray(flatMapIR(rangeIR(nRows)) { i =>
+      mapIR(rangeIR(nCols))(j => ArrayRef(contexts, (j * nRows) + i))
+    }),
+    ib,
+  )
+
+  override def map(ib: IRBuilder)(f: (IR, IR, IR, IR) => IR): DenseContexts =
+    DenseContexts(sparsity, dynamic.map(ib)(f))
+
+  override def zip(other: BMSContexts, ib: IRBuilder): BMSContexts = {
+    val newContexts = ToArray(zip2(
+      ToStream(this.contexts),
+      ToStream(other.contexts),
+      ArrayZipBehavior.AssertSameLength,
+    )((l, r) => maketuple(l, r)))
+    DenseContexts(sparsity, newContexts, ib)
+  }
+
+  def sparsify(newSparsity: MatrixSparsity.Sparse, ib: IRBuilder): BMSContexts = {
+    val newToOldPos = Literal(TArray(TInt32), sparsity.newToOldPos(newSparsity))
+    val newContexts = ToArray(mapIR(ToStream(newToOldPos))(pos => ArrayRef(contexts, pos)))
+    SparseContexts(newSparsity, newContexts, ib)
+  }
+
+  def withNewSparsity(
+    newSparsity: MatrixSparsity,
+    ib: IRBuilder,
+  ): BMSContexts = {
+    require(newSparsity.nRows == sparsity.nRows && newSparsity.nCols == sparsity.nCols)
+    newSparsity match {
+      case sparse: MatrixSparsity.Sparse =>
+        val newToOld = Literal(TArray(TInt32), sparsity.newToOldPos(sparse))
+        val newContexts = ToArray(mapIR(ToStream(newToOld))(ArrayRef(contexts, _)))
+        SparseContexts(sparse, newContexts, ib)
+      case _: MatrixSparsity.Dense =>
+        this
+    }
+  }
+
+  def groupedByCol(ib: IRBuilder): DenseContexts = {
+    val groupedContexts = ToArray(mapIR(rangeIR(nCols)) { col =>
+      sliceArrayIR(contexts, col * nRows, (col + 1) * nRows)
+    })
+    DenseContexts(MatrixSparsity.dense(1, nCols), ib.memoize(groupedContexts), ib)
+  }
+
+  override def grouped(
+    rowDeps: IndexedSeq[IndexedSeq[Int]],
+    colDeps: IndexedSeq[IndexedSeq[Int]],
+    typ: BlockMatrixType,
+    ib: IRBuilder,
+  ): DenseContexts = {
+    val rowDepsLit = Literal(TArray(TArray(TInt32)), rowDeps)
+    val colDepsLit = Literal(TArray(TArray(TInt32)), colDeps)
+    assert(rowDeps.nonEmpty || colDeps.nonEmpty)
+    if (rowDeps.isEmpty) {
+      val newContexts = ToArray(flatMapIR(ToStream(colDepsLit)) { localColDeps =>
+        mapIR(rangeIR(nRows)) { i =>
+          IRBuilder.scoped { ib =>
+            val localContexts = ToArray(mapIR(ToStream(localColDeps))(jl => dynamic(i, jl)))
+            DynamicDenseContexts(
+              1,
+              ib.memoize(ArrayLen(localColDeps)),
+              ib.memoize(localContexts),
+            ).irValue
+          }
+        }
+      })
+      return DenseContexts(sparsity.copy(nCols = colDeps.length), newContexts, ib)
+    }
+    if (colDeps.isEmpty) {
+      val newContexts = ToArray(flatMapIR(rangeIR(nCols)) { j =>
+        mapIR(ToStream(rowDepsLit)) { localRowDeps =>
+          IRBuilder.scoped { ib =>
+            val localContexts = ToArray(mapIR(ToStream(localRowDeps))(il => dynamic(il, j)))
+            DynamicDenseContexts(
+              ib.memoize(ArrayLen(localRowDeps)),
+              1,
+              ib.memoize(localContexts),
+            ).irValue
+          }
+        }
+      })
+      return DenseContexts(sparsity.copy(nRows = rowDeps.length), newContexts, ib)
+    }
+    val newContexts = ToArray(flatMapIR(ToStream(colDepsLit)) { localColDeps =>
+      mapIR(ToStream(rowDepsLit)) { localRowDeps =>
+        IRBuilder.scoped { ib =>
+          val localContexts = ToArray(flatMapIR(ToStream(localColDeps)) { jl =>
+            mapIR(ToStream(localRowDeps))(il => dynamic(il, jl))
+          })
+          DynamicDenseContexts(
+            ib.memoize(ArrayLen(localRowDeps)),
+            ib.memoize(ArrayLen(localColDeps)),
+            ib.memoize(localContexts),
+          ).irValue
+        }
+      }
+    })
+    DenseContexts(
+      MatrixSparsity.Dense(rowDeps.length, colDeps.length),
+      newContexts,
+      ib,
+    )
+  }
+
+  def collect(makeBlock: (Ref, Ref, Ref) => IR): IR = {
+    NDArrayConcat(
+      ToArray(mapIR(rangeIR(nCols)) { j =>
+        val colBlocks = mapIR(rangeIR(nRows)) { i =>
+          bindIR(ArrayRef(contexts, j * nRows + i))(ctx => makeBlock(i, j, ctx))
+        }
+        NDArrayConcat(ToArray(colBlocks), 0)
+      }),
+      1,
+    )
+  }
+}
+
+object SparseContexts {
+  def apply(sparsity: MatrixSparsity.Sparse, contexts: IR, ib: IRBuilder): SparseContexts =
+    new SparseContexts(sparsity, DynamicSparseContexts(sparsity, contexts, ib))
+}
+
+case class SparseContexts(
+  sparsity: MatrixSparsity.Sparse,
+  dynamic: DynamicSparseContexts,
+) extends BMSContexts {
+  override val elementType: Type = contexts.typ.asInstanceOf[TArray].elementType
+
+  override def contexts: TrivialIR = dynamic.contexts
+
+  override def print(ctx: ExecuteContext): Unit =
+    println(
+      s"SparseContexts:\n  nRows = ${Pretty(ctx, nRows)}\n  nCols = ${Pretty(ctx, nCols)}\n  contexts = ${Pretty(ctx, contexts)}"
+    )
+
+  override def transpose(ib: IRBuilder): SparseContexts = {
+    val newToOldPos = sparsity.transposeNewToOld
+    val newToOldPosIR = Literal(TArray(TInt32), newToOldPos)
+    val newContexts =
+      ToArray(mapIR(ToStream(newToOldPosIR))(oldPos => ArrayRef(contexts, oldPos)))
+    SparseContexts(sparsity.transpose, newContexts, ib)
+  }
+
+  override def map(ib: IRBuilder)(f: (IR, IR, IR, IR) => IR): SparseContexts =
+    new SparseContexts(sparsity, dynamic.map(ib)(f))
+
+  def withNewSparsity(
+    newSparsity: MatrixSparsity,
+    ib: IRBuilder,
+  ): BMSContexts = {
+    require(newSparsity.nRows == sparsity.nRows && newSparsity.nCols == sparsity.nCols)
+    newSparsity match {
+      case sparse: MatrixSparsity.Sparse =>
+        val newToOld = Literal(TArray(TInt32), sparsity.newToOldPosNonSubset(sparse))
+        val newContexts = ToArray(mapIR(ToStream(newToOld))(ArrayRef(contexts, _)))
+        SparseContexts(sparse, newContexts, ib)
+      case dense: MatrixSparsity.Dense =>
+        val indices = Literal(TArray(TInt32), sparsity.definedBlocksColMajorLinear)
+        val contextType = contexts.typ.asInstanceOf[TContainer].elementType
+        val scatteredContexts = invoke(
+          "scatter",
+          TArray(contextType),
+          typeArgs = ArraySeq(contextType),
+          contexts,
+          indices,
+          sparsity.nRows * sparsity.nCols,
+        )
+        DenseContexts(dense, scatteredContexts, ib)
+    }
+  }
+
+  override def zip(other: BMSContexts, ib: IRBuilder): BMSContexts = {
+    assert(sparsity == other.sparsity)
+    val newContexts = ib.memoize(ToArray(zip2(
+      this.contexts,
+      other.contexts,
+      ArrayZipBehavior.AssertSameLength,
+    )((l, r) => maketuple(l, r))))
+    new SparseContexts(sparsity, dynamic.withNewContexts(newContexts))
+  }
+
+  override def groupedByCol(ib: IRBuilder): SparseContexts = {
+    val rowPos = sparsity.toDCSC.rowPos
+    val rowPosIR = Literal(TArray(TInt32), rowPos)
+    val groupedContexts = ToArray(mapIR(rangeIR(rowPos.length - 1)) { colPos =>
+      sliceArrayIR(contexts, ArrayRef(rowPosIR, colPos), ArrayRef(rowPosIR, colPos + 1))
+    })
+    SparseContexts(sparsity.condenseCols, groupedContexts, ib)
+  }
+
+  override def grouped(
+    rowDeps: IndexedSeq[IndexedSeq[Int]],
+    colDeps: IndexedSeq[IndexedSeq[Int]],
+    typ: BlockMatrixType,
+    ib: IRBuilder,
+  ): SparseContexts = {
+    val newSparsity = typ.sparsity.asInstanceOf[MatrixSparsity.Sparse]
+    val blockSparsities = newSparsity.definedCoords.map { coords =>
+      sparsity.filter(rowDeps(coords._1), colDeps(coords._2))
+    }
+    val blockSparsitiesTuples = blockSparsities.map { sparsity =>
+      val csc = sparsity.toCSC
+      Row(sparsity.nRows, sparsity.nCols, csc.rowPos, csc.rowIdx)
+    }
+    val blockNewToOld = blockSparsities.map(sparsity.newToOldPos)
+    val blockSparsityType = TStruct(
+      "nRows" -> TInt32,
+      "nCols" -> TInt32,
+      "rowPos" -> TArray(TInt32),
+      "rowIdx" -> TArray(TInt32),
+    )
+    val blockSparsitiesIR = Literal(TArray(blockSparsityType), blockSparsitiesTuples)
+    val blockNewToOldIR = Literal(TArray(TArray(TInt32)), blockNewToOld)
+    val newContexts = ToArray(zipIR(
+      ArraySeq(ToStream(blockSparsitiesIR), ToStream(blockNewToOldIR)),
+      ArrayZipBehavior.AssertSameLength,
+    ) { case Seq(blockSparsity, newToOld) =>
+      InsertFields(
+        blockSparsity,
+        ArraySeq("contexts" -> mapIR(ToStream(newToOld))(ArrayRef(contexts, _))),
+      )
+    })
+
+    new SparseContexts(newSparsity, DynamicSparseContexts(newSparsity, newContexts, ib))
+  }
+
+  override def collect(makeBlock: (Ref, Ref, Ref) => IR): IR =
+    dynamic.collect(makeBlock)
+}
+
 object BlockMatrixStage2 {
+  private def allBlocksColMajor(sparsity: MatrixSparsity): IndexedSeq[(Int, Int)] =
+    sparsity match {
+      case sparse: MatrixSparsity.Sparse =>
+        sparse.definedCoords
+      case MatrixSparsity.Dense(nRows, nCols) =>
+        val foo = Array.fill[(Int, Int)](nRows * nCols)(null)
+        var idx = 0
+        var j = 0
+        while (j < nCols) {
+          var i = 0
+          while (i < nRows) {
+            foo(idx) = i -> j
+            i += 1
+            idx += 1
+          }
+          j += 1
+        }
+        foo
+    }
+
   def fromOldBMS(bms: BlockMatrixStage, typ: BlockMatrixType, ib: IRBuilder): BlockMatrixStage2 = {
-    val blocks = typ.allBlocksColMajor
+    val blocks = allBlocksColMajor(typ.sparsity)
     val ctxsArray = MakeArray(blocks.map(idx => bms.blockContext(idx)), TArray(bms.ctxType))
 
-    BlockMatrixStage2(bms.broadcastVals, typ, BMSContexts(typ, ctxsArray, ib), bms.blockBody)
+    BlockMatrixStage2(
+      bms.broadcastVals,
+      typ,
+      BMSContexts(typ.sparsity, ctxsArray, ib),
+      bms.blockBody,
+    )
   }
 
   def empty(eltType: Type, ib: IRBuilder) = {
@@ -193,7 +653,11 @@ object BlockMatrixStage2 {
     BlockMatrixStage2(
       IndexedSeq(),
       BlockMatrixType.dense(eltType, 0, 0, 0),
-      DenseContexts(0, 0, ib.memoize(MakeArray(FastSeq(), TArray(ctxType)))),
+      DenseContexts(
+        MatrixSparsity.Dense(0, 0),
+        MakeArray(FastSeq(), TArray(ctxType)),
+        ib,
+      ),
       _ => NA(ctxType),
     )
   }
@@ -201,7 +665,7 @@ object BlockMatrixStage2 {
   def broadcastVector(vector: IR, ib: IRBuilder, typ: BlockMatrixType, asRowVector: Boolean)
     : BlockMatrixStage2 = {
     val v: Ref = ib.strictMemoize(vector)
-    val contexts = BMSContexts.tabulate(typ, ib) { (i, j) =>
+    val contexts = BMSContexts.tabulate(typ.sparsity, ib) { (i, j) =>
       val (m, n) = typ.blockShapeIR(i, j)
       val start = (if (asRowVector) j.toL else i.toL) * typ.blockSize.toLong
       makestruct("start" -> start, "shape" -> MakeTuple.ordered(FastSeq[IR](m, n)))
@@ -247,432 +711,6 @@ object BlockMatrixStage2 {
   }
 }
 
-object BMSContexts {
-  def apply(typ: BlockMatrixType, contexts: IR, ib: IRBuilder): BMSContexts = {
-    if (typ.isSparse) {
-      val (rowPos, rowIdx) = typ.sparsity.definedBlocksCSCIR(typ.nColBlocks).get
-      val rowPosRef = ib.memoize(rowPos)
-      val rowIdxRef = ib.memoize(rowIdx)
-      SparseContexts(typ.nRowBlocks, typ.nColBlocks, rowPosRef, rowIdxRef, ib.memoize(contexts))
-    } else {
-      DenseContexts(typ.nRowBlocks, typ.nColBlocks, ib.memoize(contexts))
-    }
-  }
-
-  def tabulate(typ: BlockMatrixType, ib: IRBuilder)(f: (IR, IR) => IR): BMSContexts = {
-    val contexts =
-      ib.memoize(ToArray(mapIR(typ.sparsity.allBlocksColMajorIR(typ.nRowBlocks, typ.nColBlocks)) {
-        coords =>
-          bindIRs(GetTupleElement(coords, 0), GetTupleElement(coords, 1)) { case Seq(i, j) =>
-            f(i, j)
-          }
-      }))
-    typ.sparsity.definedBlocksCSCIR(typ.nColBlocks) match {
-      case Some((pos, idx)) =>
-        SparseContexts(typ.nRowBlocks, typ.nColBlocks, ib.memoize(pos), ib.memoize(idx), contexts)
-      case None =>
-        DenseContexts(typ.nRowBlocks, typ.nColBlocks, contexts)
-    }
-  }
-
-  def transpose(contexts: BMSContexts, ib: IRBuilder, typ: BlockMatrixType): BMSContexts =
-    contexts match {
-      case dense: DenseContexts => DenseContexts(
-          dense.nCols,
-          dense.nRows,
-          ib.memoize(ToArray(flatMapIR(rangeIR(dense.nRows)) { i =>
-            mapIR(rangeIR(dense.nCols))(j => ArrayRef(dense.contexts, (j * dense.nRows) + i))
-          })),
-        )
-      case sparse: SparseContexts =>
-        val (staticRowPos, staticRowIdx) = typ.sparsity.definedBlocksCSC(typ.nColBlocks).get
-        val (newRowPos, newRowIdx, newToOldPos) =
-          BlockMatrixSparsity.transposeCSCSparsityIR(
-            typ.nRowBlocks,
-            typ.nColBlocks,
-            staticRowPos,
-            staticRowIdx,
-          )
-        val newContexts =
-          ToArray(mapIR(ToStream(newToOldPos))(oldPos => ArrayRef(contexts.contexts, oldPos)))
-        SparseContexts(
-          sparse.nCols,
-          sparse.nRows,
-          ib.memoize(newRowPos),
-          ib.memoize(newRowIdx),
-          ib.memoize(newContexts),
-        )
-    }
-}
-
-abstract class BMSContexts {
-  def elementType: Type
-
-  def nRows: IR
-
-  def nCols: IR
-
-  def contexts: IR
-
-  def irValue: IR
-
-  def apply(row: IR, col: IR): IR
-
-  // body args: (rowIdx, colIdx, position, old context)
-  def map(ib: IRBuilder)(f: (IR, IR, IR, IR) => IR): BMSContexts
-
-  def zip(other: BMSContexts, ib: IRBuilder): BMSContexts
-
-  def grouped(
-    rowDeps: IndexedSeq[IndexedSeq[Int]],
-    colDeps: IndexedSeq[IndexedSeq[Int]],
-    typ: BlockMatrixType,
-    ib: IRBuilder,
-  ): BMSContexts
-
-  def groupedByCol(ib: IRBuilder): BMSContexts
-
-  def collect(makeBlock: (Ref, Ref, Ref) => IR): IR
-
-  def print(ctx: ExecuteContext): Unit
-}
-
-object DenseContexts {
-  def apply(irValue: IR, ib: IRBuilder): DenseContexts = {
-    val irValueRef = ib.memoize(irValue)
-    DenseContexts(
-      ib.memoize(GetField(irValueRef, "nRows")),
-      ib.memoize(GetField(irValueRef, "nCols")),
-      ib.memoize(GetField(irValueRef, "contexts")),
-    )
-  }
-}
-
-case class DenseContexts(nRows: TrivialIR, nCols: TrivialIR, contexts: TrivialIR)
-    extends BMSContexts {
-  val elementType = contexts.typ.asInstanceOf[TArray].elementType
-
-  def irValue: IR = makestruct("nRows" -> nRows, "nCols" -> nCols, "contexts" -> contexts)
-
-  def print(ctx: ExecuteContext): Unit =
-    println(
-      s"DenseContexts:\n  nRows = ${Pretty(ctx, nRows)}\n  nCols = ${Pretty(ctx, nCols)}\n  contexts = ${Pretty(ctx, contexts)}"
-    )
-
-  def apply(row: IR, col: IR): IR = ArrayRef(contexts, (col * nRows) + row)
-
-  def map(ib: IRBuilder)(f: (IR, IR, IR, IR) => IR): DenseContexts = {
-    DenseContexts(
-      nRows,
-      nCols,
-      ib.memoize(ToArray(flatMapIR(rangeIR(nCols)) { j =>
-        mapIR(rangeIR(nRows)) { i =>
-          bindIR((j * nRows) + i) { pos =>
-            bindIR(ArrayRef(contexts, pos))(old => f(i, j, pos, old))
-          }
-        }
-      })),
-    )
-  }
-
-  def zip(other: BMSContexts, ib: IRBuilder): BMSContexts = {
-    val newContexts = ib.memoize(ToArray(zip2(
-      ToStream(this.contexts),
-      ToStream(other.contexts),
-      ArrayZipBehavior.AssertSameLength,
-    )((l, r) => maketuple(l, r))))
-    DenseContexts(nRows, nCols, newContexts)
-  }
-
-  def sparsify(rowPos: TrivialIR, rowIdx: TrivialIR, ib: IRBuilder): BMSContexts = {
-    val newContexts = ib.memoize(ToArray(flatMapIR(rangeIR(nCols)) { j =>
-      bindIRs(ArrayRef(rowPos, j), ArrayRef(rowPos, j + 1), j * nRows) {
-        case Seq(start, end, basePos) =>
-          mapIR(rangeIR(start, end)) { pos =>
-            bindIR(ArrayRef(rowIdx, pos))(i => ArrayRef(contexts, basePos + i))
-          }
-      }
-    }))
-    SparseContexts(nRows, nCols, rowPos, rowIdx, newContexts)
-  }
-
-  def groupedByCol(ib: IRBuilder): DenseContexts = {
-    val groupedContexts = ToArray(mapIR(rangeIR(nCols)) { col =>
-      sliceArrayIR(contexts, col * nRows, (col + 1) * nRows)
-    })
-    DenseContexts(I32(1), nCols, ib.memoize(groupedContexts))
-  }
-
-  def grouped(
-    rowDeps: IndexedSeq[IndexedSeq[Int]],
-    colDeps: IndexedSeq[IndexedSeq[Int]],
-    typ: BlockMatrixType,
-    ib: IRBuilder,
-  ): DenseContexts = {
-    val rowDepsLit = Literal(TArray(TArray(TInt32)), rowDeps)
-    val colDepsLit = Literal(TArray(TArray(TInt32)), colDeps)
-    assert(rowDeps.nonEmpty || colDeps.nonEmpty)
-    if (rowDeps.isEmpty) {
-      val newContexts = ToArray(flatMapIR(ToStream(colDepsLit)) { localColDeps =>
-        mapIR(rangeIR(nRows)) { i =>
-          IRBuilder.scoped { ib =>
-            val localContexts = ToArray(mapIR(ToStream(localColDeps))(jl => this(i, jl)))
-            DenseContexts(1, ib.memoize(ArrayLen(localColDeps)), ib.memoize(localContexts)).irValue
-          }
-        }
-      })
-      return DenseContexts(nRows, colDeps.length, ib.memoize(newContexts))
-    }
-    if (colDeps.isEmpty) {
-      val newContexts = ToArray(flatMapIR(rangeIR(nCols)) { j =>
-        mapIR(ToStream(rowDepsLit)) { localRowDeps =>
-          IRBuilder.scoped { ib =>
-            val localContexts = ToArray(mapIR(ToStream(localRowDeps))(il => this(il, j)))
-            DenseContexts(ib.memoize(ArrayLen(localRowDeps)), 1, ib.memoize(localContexts)).irValue
-          }
-        }
-      })
-      return DenseContexts(rowDeps.length, nCols, ib.memoize(newContexts))
-    }
-    val newContexts = ToArray(flatMapIR(ToStream(colDepsLit)) { localColDeps =>
-      mapIR(ToStream(rowDepsLit)) { localRowDeps =>
-        IRBuilder.scoped { ib =>
-          val localContexts = ToArray(flatMapIR(ToStream(localColDeps)) { jl =>
-            mapIR(ToStream(localRowDeps))(il => this(il, jl))
-          })
-          DenseContexts(
-            ib.memoize(ArrayLen(localRowDeps)),
-            ib.memoize(ArrayLen(localColDeps)),
-            ib.memoize(localContexts),
-          ).irValue
-        }
-      }
-    })
-    DenseContexts(rowDeps.length, colDeps.length, ib.memoize(newContexts))
-  }
-
-  def collect(makeBlock: (Ref, Ref, Ref) => IR): IR = {
-    NDArrayConcat(
-      ToArray(mapIR(rangeIR(nCols)) { j =>
-        val colBlocks = mapIR(rangeIR(nRows)) { i =>
-          bindIR(ArrayRef(contexts, j * nRows + i))(ctx => makeBlock(i, j, ctx))
-        }
-        NDArrayConcat(ToArray(colBlocks), 0)
-      }),
-      1,
-    )
-  }
-}
-
-object SparseContexts {
-  def apply(irValue: IR, ib: IRBuilder): SparseContexts = {
-    val irValueRef = ib.memoize(irValue)
-    SparseContexts(
-      ib.memoize(GetField(irValueRef, "nRows")),
-      ib.memoize(GetField(irValueRef, "nCols")),
-      ib.memoize(GetField(irValueRef, "rowPos")),
-      ib.memoize(GetField(irValueRef, "rowIdx")),
-      ib.memoize(GetField(irValueRef, "contexts")),
-    )
-  }
-}
-
-case class SparseContexts(
-  nRows: TrivialIR,
-  nCols: TrivialIR,
-  rowPos: TrivialIR,
-  rowIdx: TrivialIR,
-  contexts: TrivialIR,
-) extends BMSContexts {
-  val elementType = contexts.typ.asInstanceOf[TArray].elementType
-
-  def irValue: IR = makestruct("nRows" -> nRows, "nCols" -> nCols, "contexts" -> contexts)
-
-  def print(ctx: ExecuteContext): Unit =
-    println(
-      s"SparseContexts:\n  nRows = ${Pretty(ctx, nRows)}\n  nCols = ${Pretty(ctx, nCols)}\n  contexts = ${Pretty(ctx, contexts)}"
-    )
-
-  def apply(row: IR, col: IR): IR = {
-    val startPos = ArrayRef(rowPos, col)
-    val endPos = ArrayRef(rowPos, col + 1)
-    bindIR(
-      Apply("lowerBound", Seq(), FastSeq(rowIdx, row, startPos, endPos), TInt32, ErrorIDs.NO_ERROR)
-    ) { pos =>
-      If(
-        ArrayRef(rowIdx, pos).ceq(row),
-        ArrayRef(contexts, pos),
-        Die(
-          strConcat("Internal Error, tried to load missing BlockMatrix context: (row = ", row,
-            ", col = ",
-            col, ", pos = ", pos, ", rowPos = ", rowPos, ", rowIdx = ", rowIdx, ")"),
-          elementType,
-          ErrorIDs.NO_ERROR,
-        ),
-      )
-    }
-  }
-
-  def map(ib: IRBuilder)(f: (IR, IR, IR, IR) => IR): SparseContexts = {
-    SparseContexts(
-      nRows,
-      nCols,
-      rowPos,
-      rowIdx,
-      ib.memoize(ToArray(flatMapIR(rangeIR(nCols)) { j =>
-        bindIRs(ArrayRef(rowPos, j), ArrayRef(rowPos, j + 1)) { case Seq(start, end) =>
-          mapIR(rangeIR(start, end)) { pos =>
-            bindIRs(ArrayRef(rowIdx, pos), ArrayRef(contexts, pos)) { case Seq(i, old) =>
-              f(i, j, pos, old)
-            }
-          }
-        }
-      })),
-    )
-  }
-
-  def mapDense(ib: IRBuilder)(f: (IR, IR, IR) => IR): DenseContexts = {
-    val newContexts = ib.memoize(ToArray(flatMapIR(rangeIR(nCols)) { j =>
-      bindIRs(ArrayRef(rowPos, j), ArrayRef(rowPos, j + 1)) { case Seq(start, end) =>
-        val allIdxs = mapIR(rangeIR(nRows))(i => makestruct("idx" -> i))
-        val idxedExisting = mapIR(rangeIR(start, end)) { pos =>
-          makestruct("idx" -> ArrayRef(rowIdx, pos), "context" -> ArrayRef(contexts, pos))
-        }
-        joinRightDistinctIR(allIdxs, idxedExisting, FastSeq("idx"), FastSeq("idx"), "left") {
-          (idx, struct) =>
-            val i = GetField(idx, "idx")
-            val context = GetField(struct, "context")
-            f(i, j, context)
-        }
-      }
-    }))
-    DenseContexts(nRows, nCols, newContexts)
-  }
-
-  def mapWithNewSparsity(
-    newRowPos: TrivialIR,
-    newRowIdx: TrivialIR,
-    ib: IRBuilder,
-  )(
-    f: (IR, IR, IR) => IR
-  ): SparseContexts = {
-    val newContexts = ib.memoize(ToArray(flatMapIR(rangeIR(nCols)) { j =>
-      bindIRs(
-        ArrayRef(rowPos, j),
-        ArrayRef(rowPos, j + 1),
-        ArrayRef(newRowPos, j),
-        ArrayRef(newRowPos, j + 1),
-      ) { case Seq(oldStart, oldEnd, newStart, newEnd) =>
-        val newIdxs = mapIR(rangeIR(newStart, newEnd)) { pos =>
-          makestruct("idx" -> ArrayRef(newRowIdx, pos))
-        }
-        val idxedExisting = mapIR(rangeIR(oldStart, oldEnd)) { pos =>
-          makestruct("idx" -> ArrayRef(rowIdx, pos), "context" -> ArrayRef(contexts, pos))
-        }
-        joinRightDistinctIR(newIdxs, idxedExisting, FastSeq("idx"), FastSeq("idx"), "left") {
-          (idx, struct) =>
-            val i = GetField(idx, "idx")
-            val context = GetField(struct, "context")
-            f(i, j, context)
-        }
-      }
-    }))
-    SparseContexts(nRows, nCols, newRowPos, newRowIdx, newContexts)
-  }
-
-  def zip(other: BMSContexts, ib: IRBuilder): BMSContexts = {
-    val newContexts = ib.memoize(zip2(
-      this.contexts,
-      other.contexts,
-      ArrayZipBehavior.AssertSameLength,
-    )((l, r) => maketuple(l, r)))
-    SparseContexts(nRows, nCols, rowPos, rowIdx, newContexts)
-  }
-
-  def groupedByCol(ib: IRBuilder): SparseContexts = {
-    val groupedStream = mapIR(rangeIR(nCols)) { col =>
-      sliceArrayIR(contexts, ArrayRef(rowPos, col), ArrayRef(rowPos, col + 1))
-    }
-    val groupedContexts =
-      ib.memoize(ToArray(filterIR(groupedStream)(slice => ArrayLen(slice).cne(0))))
-    val newRowPos = ib.memoize(ToArray(streamScanIR(rangeIR(nCols), I32(0)) { (accum, elt) =>
-      accum + If(ArrayRef(rowPos, elt).ceq(ArrayRef(rowPos, elt + 1)), 0, 1)
-    }))
-    val newRowIdx = ib.memoize(ToArray(mapIR(rangeIR(ArrayLen(groupedContexts)))(_ => 0)))
-
-    SparseContexts(
-      I32(1),
-      nCols,
-      newRowPos,
-      newRowIdx,
-      groupedContexts,
-    )
-  }
-
-  def grouped(
-    rowDeps: IndexedSeq[IndexedSeq[Int]],
-    colDeps: IndexedSeq[IndexedSeq[Int]],
-    typ: BlockMatrixType,
-    ib: IRBuilder,
-  ): SparseContexts = {
-    val newNRows = rowDeps.length
-    val newNCols = colDeps.length
-    val rowBlockSizes = Literal(TArray(TInt32), rowDeps.map(_.length))
-    val colBlockSizes = Literal(TArray(TInt32), colDeps.map(_.length))
-    val (staticRowPos, staticRowIdx) = typ.sparsity.definedBlocksCSC(typ.nColBlocks).get
-    val (newRowPos, newRowIdx, nestedSparsities) =
-      BlockMatrixSparsity.groupedCSCSparsityIR(staticRowPos, staticRowIdx, rowDeps, colDeps)
-    val newContexts = ToArray(flatMapIR(rangeIR(newNCols)) { j =>
-      bindIRs(ArrayRef(newRowPos, j), ArrayRef(newRowPos, j + 1)) { case Seq(start, end) =>
-        mapIR(rangeIR(start, end)) { pos =>
-          IRBuilder.scoped { ib =>
-            val i = ib.memoize(ArrayRef(newRowIdx, pos))
-            val nested = ib.memoize(ArrayRef(nestedSparsities, pos))
-            val nRows = ib.memoize(ArrayRef(rowBlockSizes, i))
-            val nCols = ib.memoize(ArrayRef(colBlockSizes, j))
-            val nestedRowPos = ib.memoize(GetTupleElement(nested, 0))
-            val nestedRowIdx = ib.memoize(GetTupleElement(nested, 1))
-            val nestedContexts = ib.memoize(mapIR(ToStream(GetTupleElement(nested, 2))) { oldPos =>
-              ArrayRef(contexts, oldPos)
-            })
-            SparseContexts(nRows, nCols, nestedRowPos, nestedRowIdx, nestedContexts).irValue
-          }
-        }
-      }
-    })
-
-    SparseContexts(
-      newNRows,
-      newNCols,
-      ib.memoize(newRowPos),
-      ib.memoize(newRowIdx),
-      ib.memoize(newContexts),
-    )
-  }
-
-  def collect(makeBlock: (Ref, Ref, Ref) => IR): IR = {
-    NDArrayConcat(
-      ToArray(mapIR(rangeIR(nCols)) { j =>
-        val allIdxs = mapIR(rangeIR(nRows))(i => makestruct("idx" -> i))
-        val startPos = ArrayRef(rowPos, j)
-        val endPos = ArrayRef(rowPos, j + 1)
-        val idxedExisting = mapIR(rangeIR(startPos, endPos)) { pos =>
-          makestruct("idx" -> ArrayRef(rowIdx, pos), "ctx" -> ArrayRef(contexts, pos))
-        }
-        val colBlocks =
-          joinRightDistinctIR(allIdxs, idxedExisting, FastSeq("idx"), FastSeq("idx"), "left") {
-            (l, struct) =>
-              bindIRs(GetField(l, "idx"), GetField(struct, "ctx")) { case Seq(i, ctx) =>
-                makeBlock(i, j, ctx)
-              }
-          }
-        NDArrayConcat(ToArray(colBlocks), 0)
-      }),
-      1,
-    )
-  }
-}
-
 class BlockMatrixStage2 private (
   val broadcastVals: IndexedSeq[Ref],
   val typ: BlockMatrixType,
@@ -680,6 +718,8 @@ class BlockMatrixStage2 private (
   private val ctxRefName: Name,
   private val _blockIR: IR,
 ) {
+  assert(typ.sparsity == contexts.sparsity, s"${typ.sparsity}\n${contexts.sparsity}")
+
   assert {
     def literalOrRef(x: IR) = x.isInstanceOf[Literal] || x.isInstanceOf[Ref]
     contexts.contexts match {
@@ -697,21 +737,19 @@ class BlockMatrixStage2 private (
     else
       Let(FastSeq(ctxRefName -> ctx), _blockIR)
 
-  def ctxType: Type = contexts.elementType
-
-  def ctxRef: TrivialIR = Ref(ctxRefName, ctxType)
+  private def ctxType: Type = contexts.elementType
 
   def toOldBMS: BlockMatrixStage = {
     new BlockMatrixStage(broadcastVals, ctxType) {
-      override def blockContext(idx: (Int, Int)): IR = contexts(idx._1, idx._2)
+      override def blockContext(idx: (Int, Int)): IR = contexts.dynamic(idx._1, idx._2)
 
       override def blockBody(ctxRef: Ref): IR =
         Let(FastSeq(ctxRefName -> ctxRef), _blockIR)
     }
   }
 
-  def getBlock(i: IR, j: IR): IR =
-    Let(FastSeq(ctxRefName -> contexts(i, j)), _blockIR)
+  private def getBlock(i: IR, j: IR): IR =
+    Let(FastSeq(ctxRefName -> contexts.dynamic(i, j)), _blockIR)
 
   def getElement(i: IR, j: IR): IR = {
     assert(i.typ == TInt64)
@@ -732,7 +770,7 @@ class BlockMatrixStage2 private (
     new BlockMatrixStage2(
       broadcastVals,
       typ.transpose,
-      BMSContexts.transpose(contexts, ib, typ),
+      contexts.transpose(ib),
       ctxRefName,
       newBlockIR,
     )
@@ -741,10 +779,12 @@ class BlockMatrixStage2 private (
   def densify(ib: IRBuilder): BlockMatrixStage2 = contexts match {
     case _: DenseContexts => this
     case contexts: SparseContexts =>
-      val newContexts = contexts.mapDense(ib) { (i, j, oldContext) =>
-        val (m, n) = typ.blockShapeIR(i, j)
-        makestruct("oldContext" -> oldContext, "nRows" -> m, "nCols" -> n)
-      }
+      val newContexts = contexts
+        .withNewSparsity(contexts.sparsity.toDense, ib)
+        .map(ib) { (i, j, pos, oldContext) =>
+          val (m, n) = typ.blockShapeIR(i, j)
+          makestruct("oldContext" -> oldContext, "nRows" -> m, "nCols" -> n)
+        }
       def newBlock(context: Ref): IR = {
         bindIR(GetField(context, "oldContext")) { oldContext =>
           If(
@@ -758,51 +798,43 @@ class BlockMatrixStage2 private (
           )
         }
       }
-      BlockMatrixStage2(broadcastVals, typ, newContexts, newBlock)
+      BlockMatrixStage2(broadcastVals, typ.densify, newContexts, newBlock)
   }
 
   def withSparsity(
-    rowPos: TrivialIR,
-    rowIdx: TrivialIR,
     ib: IRBuilder,
-    newType: BlockMatrixType,
+    newSparsity: MatrixSparsity.Sparse,
     isSubset: Boolean = false,
   ): BlockMatrixStage2 = {
-    if (newType.sparsity.definedBlocksColMajor == typ.sparsity.definedBlocksColMajor) return this
+    if (newSparsity == typ.sparsity)
+      return this
 
-    contexts match {
-      case contexts: SparseContexts =>
-        if (isSubset) {
-          val newContexts = contexts.mapWithNewSparsity(rowPos, rowIdx, ib) { (i, j, oldContext) =>
-            oldContext
-          }
-          BlockMatrixStage2(broadcastVals, newType, newContexts, blockIR)
-        } else {
-          val newContexts = contexts.mapWithNewSparsity(rowPos, rowIdx, ib) { (i, j, oldContext) =>
-            val (m, n) = typ.blockShapeIR(i, j)
-            makestruct("oldContext" -> oldContext, "nRows" -> m, "nCols" -> n)
-          }
-
-          def newBlock(context: Ref): IR = {
-            bindIR(GetField(context, "oldContext")) { oldContext =>
-              If(
-                IsNA(oldContext),
-                MakeNDArray.fill(
-                  zero(typ.elementType),
-                  FastSeq(GetField(context, "nRows"), GetField(context, "nCols")),
-                  False(),
-                ),
-                blockIR(oldContext),
-              )
-            }
-          }
-
-          BlockMatrixStage2(broadcastVals, newType, newContexts, newBlock)
+    val newType = typ.copy(sparsity = newSparsity)
+    if (newSparsity.isSubsetOf(contexts.sparsity)) {
+      val newContexts = contexts.withNewSparsity(newSparsity, ib)
+      new BlockMatrixStage2(broadcastVals, newType, newContexts, ctxRefName, _blockIR)
+    } else {
+      val newContexts =
+        contexts.withNewSparsity(newSparsity, ib).map(ib) { (i, j, pos, oldContext) =>
+          val (m, n) = typ.blockShapeIR(i, j)
+          makestruct("oldContext" -> oldContext, "nRows" -> m, "nCols" -> n)
         }
 
-      case contexts: DenseContexts =>
-        val newContexts = contexts.sparsify(rowPos, rowIdx, ib)
-        BlockMatrixStage2(broadcastVals, newType, newContexts, blockIR)
+      def newBlock(context: Ref): IR = {
+        bindIR(GetField(context, "oldContext")) { oldContext =>
+          If(
+            IsNA(oldContext),
+            MakeNDArray.fill(
+              zero(typ.elementType),
+              FastSeq(GetField(context, "nRows"), GetField(context, "nCols")),
+              False(),
+            ),
+            blockIR(oldContext),
+          )
+        }
+      }
+
+      BlockMatrixStage2(broadcastVals, newType, newContexts, newBlock)
     }
   }
 
@@ -827,29 +859,17 @@ class BlockMatrixStage2 private (
       case (_: SparseContexts, _: DenseContexts, UnionBlocks) =>
         (this.densify(ib), other)
       case (_: SparseContexts, _: SparseContexts, UnionBlocks) =>
-        val newType =
-          typ.copy(sparsity = UnionBlocks.mergeSparsity(typ.sparsity, other.typ.sparsity))
-        val (unionPos, unionIdx) = newType.sparsity.definedBlocksCSCIR(newType.nColBlocks).get
-        val unionPosRef = ib.memoize(unionPos)
-        val unionIdxRef = ib.memoize(unionIdx)
-        (
-          this.withSparsity(unionPosRef, unionIdxRef, ib, newType),
-          other.withSparsity(unionPosRef, unionIdxRef, ib, newType),
-        )
+        val newSparsity = UnionBlocks.mergeSparsity(typ.sparsity, other.typ.sparsity)
+          .asInstanceOf[MatrixSparsity.Sparse]
+        (this.withSparsity(ib, newSparsity), other.withSparsity(ib, newSparsity))
       case (_: DenseContexts, sparse: SparseContexts, IntersectionBlocks) =>
-        (this.withSparsity(sparse.rowPos, sparse.rowIdx, ib, other.typ), other)
+        (this.withSparsity(ib, sparse.sparsity), other)
       case (sparse: SparseContexts, _: DenseContexts, IntersectionBlocks) =>
-        (this, other.withSparsity(sparse.rowPos, sparse.rowIdx, ib, this.typ))
+        (this, other.withSparsity(ib, sparse.sparsity))
       case (_: SparseContexts, _: SparseContexts, IntersectionBlocks) =>
-        val newType =
-          typ.copy(sparsity = IntersectionBlocks.mergeSparsity(typ.sparsity, other.typ.sparsity))
-        val (unionPos, unionIdx) = newType.sparsity.definedBlocksCSCIR(newType.nColBlocks).get
-        val unionPosRef = ib.memoize(unionPos)
-        val unionIdxRef = ib.memoize(unionIdx)
-        (
-          this.withSparsity(unionPosRef, unionIdxRef, ib, newType),
-          other.withSparsity(unionPosRef, unionIdxRef, ib, newType),
-        )
+        val newSparsity = IntersectionBlocks.mergeSparsity(typ.sparsity, other.typ.sparsity)
+          .asInstanceOf[MatrixSparsity.Sparse]
+        (this.withSparsity(ib, newSparsity), other.withSparsity(ib, newSparsity))
     }
 
     alignedLeft.mapBody2Aligned(alignedRight, ib)(f)
@@ -880,9 +900,9 @@ class BlockMatrixStage2 private (
     ib: IRBuilder,
   ): BlockMatrixStage2 = {
     val rowBlockDependents =
-      keepRows.grouped(typ.blockSize).map(_.map(i => (i / typ.blockSize).toInt).distinct).toFastSeq
+      BlockMatrixType.getBlockDependencies(keepRows.grouped(typ.blockSize), typ.blockSize)
     val colBlockDependents =
-      keepCols.grouped(typ.blockSize).map(_.map(i => (i / typ.blockSize).toInt).distinct).toFastSeq
+      BlockMatrixType.getBlockDependencies(keepCols.grouped(typ.blockSize), typ.blockSize)
 
     def localIndices(idxs: IndexedSeq[Long]): IndexedSeq[IndexedSeq[Long]] = {
       val result = new AnyRefArrayBuilder[IndexedSeq[Long]]()
@@ -917,14 +937,15 @@ class BlockMatrixStage2 private (
     def newBody(ctx: Ref): IR = {
       IRBuilder.scoped { ib =>
         val localContexts = contexts match {
-          case _: DenseContexts => DenseContexts(GetTupleElement(ctx, 0), ib)
-          case _: SparseContexts => SparseContexts(GetTupleElement(ctx, 0), ib)
+          case _: DenseContexts => DynamicDenseContexts(GetTupleElement(ctx, 0), ib)
+          case _: SparseContexts => DynamicSparseContexts(GetTupleElement(ctx, 0), ib)
         }
         val localKeepRows = GetTupleElement(ctx, 1)
         val localKeepCols = GetTupleElement(ctx, 2)
         localContexts.collect { (i, j, localContext) =>
           bindIRs(ArrayRef(localKeepRows, i), ArrayRef(localKeepCols, j)) { case Seq(rows, cols) =>
             Coalesce(FastSeq(
+              // FIXME: assumes blockIR is strict (preserves missing)
               NDArrayFilter(blockIR(localContext), FastSeq(rows, cols)),
               MakeNDArray.fill(
                 zero(typ.elementType),
@@ -1070,10 +1091,10 @@ class BlockMatrixStage2 private (
   }
 
   def collectLocal(ib: IRBuilder, staticID: String, dynamicID: IR = NA(TString)): IR = {
-    val blockResults = ib.memoize(collectBlocks(ib, staticID, dynamicID)((_, _, b) => b))
+    val blockResults = collectBlocks(ib, staticID, dynamicID)((_, _, b) => b)
     val blocks = contexts match {
-      case x: DenseContexts => DenseContexts(x.nRows, x.nCols, blockResults)
-      case x: SparseContexts => SparseContexts(x.nRows, x.nCols, x.rowPos, x.rowIdx, blockResults)
+      case x: DenseContexts => DenseContexts(x.sparsity, blockResults, ib)
+      case x: SparseContexts => SparseContexts(x.sparsity, blockResults, ib)
     }
 
     blocks.collect { (i, j, block) =>
@@ -1189,7 +1210,7 @@ object LowerBlockMatrixIR {
         BlockMatrixStage2(
           FastSeq(),
           bmir.typ,
-          BMSContexts(bmir.typ, contextsIR, ib),
+          BMSContexts(bmir.typ.sparsity, contextsIR, ib),
           blockIR,
         )
 
@@ -1204,7 +1225,7 @@ object LowerBlockMatrixIR {
             )
           case _: TNDArray => lowered
         })
-        val contexts = BMSContexts.tabulate(x.typ, ib) { (rowBlockIdx, colBlockIdx) =>
+        val contexts = BMSContexts.tabulate(x.typ.sparsity, ib) { (rowBlockIdx, colBlockIdx) =>
           val rowStartIdx = rowBlockIdx.toL * I64(x.typ.blockSize.toLong)
           val colStartIdx = colBlockIdx.toL * I64(x.typ.blockSize.toLong)
           val (numRowsBlock, numColsBlock) = x.typ.blockShapeIR(rowBlockIdx, colBlockIdx)
@@ -1227,15 +1248,10 @@ object LowerBlockMatrixIR {
           }
         }
 
-        BlockMatrixStage2(
-          FastSeq(),
-          x.typ,
-          contexts,
-          (ctxRef) => ctxRef,
-        )
+        BlockMatrixStage2(FastSeq(), x.typ, contexts, identity)
 
       case x @ BlockMatrixRandom(staticUID, gaussian, _, _) =>
-        val contexts = BMSContexts.tabulate(x.typ, ib) { (rowIdx, colIdx) =>
+        val contexts = BMSContexts.tabulate(x.typ.sparsity, ib) { (rowIdx, colIdx) =>
           val (m, n) = x.typ.blockShapeIR(rowIdx, colIdx)
           MakeTuple.ordered(FastSeq(m, n, rowIdx * x.typ.nColBlocks + colIdx))
         }
@@ -1266,14 +1282,9 @@ object LowerBlockMatrixIR {
         val aggResult = NDArrayAgg(ndArrayResults, IndexedSeq(0, 1))
         val newBlockIR =
           NDArrayReshape(aggResult, MakeTuple.ordered(FastSeq(I64(1), I64(1))), ErrorIDs.NO_ERROR)
-        val contextsIR = MakeArray(newBlockIR)
+        val contexts = BMSContexts.tabulate(bmir.typ.sparsity, ib)((_, _) => newBlockIR)
 
-        BlockMatrixStage2(
-          FastSeq(),
-          bmir.typ,
-          BMSContexts(bmir.typ, contextsIR, ib),
-          (ctxRef) => ctxRef,
-        )
+        BlockMatrixStage2(FastSeq(), bmir.typ, contexts, identity)
 
       case BlockMatrixAgg(child, IndexedSeq(0) /* axesToSumOut */ ) =>
         // Number of rows goes to 1. Number of cols remains the same.
@@ -1303,8 +1314,7 @@ object LowerBlockMatrixIR {
         // Number of cols goes to 1. Number of rows remains the same.
         val loweredChild = lower(child)
 
-        val contextsT = BMSContexts.transpose(loweredChild.contexts, ib, child.typ).groupedByCol(ib)
-        val contexts = BMSContexts.transpose(contextsT, ib, bmir.typ.transpose)
+        val contexts = loweredChild.contexts.transpose(ib).groupedByCol(ib).transpose(ib)
 
         BlockMatrixStage2(
           loweredChild.broadcastVals,
@@ -1341,7 +1351,7 @@ object LowerBlockMatrixIR {
           lowered.getElement(0L, 0L)
         })
 
-        val contexts = BMSContexts.tabulate(x.typ, ib) { (rowIdx, colIdx) =>
+        val contexts = BMSContexts.tabulate(x.typ.sparsity, ib) { (rowIdx, colIdx) =>
           val (i, j) = x.typ.blockShapeIR(rowIdx, colIdx)
           maketuple(i, j)
         }
@@ -1372,17 +1382,15 @@ object LowerBlockMatrixIR {
       case x @ BlockMatrixBroadcast(child, IndexedSeq(axis, axis2), _, _)
           if (axis == axis2) => // diagonal as row/col vector
         val diagLen = math.min(child.typ.nRowBlocks, child.typ.nColBlocks)
-        val diagType = x.typ.copy(sparsity =
-          BlockMatrixSparsity(Some(IndexedSeq.tabulate(diagLen)(i => (i, i))))
+        val diagSparsity = MatrixSparsity.Sparse.sorted(
+          child.typ.nRowBlocks,
+          child.typ.nColBlocks,
+          ArraySeq.tabulate(diagLen)(i => (i, i)),
         )
-        val rowPos = if (child.typ.nColBlocks > diagLen)
-          ToArray(mapIR(rangeIR(child.typ.nColBlocks + 1))(i => minIR(i, diagLen)))
-        else
-          ToArray(rangeIR(child.typ.nColBlocks + 1))
 
         val diagArray = IRBuilder.scoped { ib =>
           lower(child, ib)
-            .withSparsity(ib.memoize(rowPos), ib.memoize(ToArray(rangeIR(diagLen))), ib, diagType)
+            .withSparsity(ib, diagSparsity)
             .collectBlocks(ib, "block_matrix_broadcast_diagonal") { (ctx, idx, block) =>
               bindIR(NDArrayShape(block)) { shape =>
                 val blockDiagLen = minIR(GetTupleElement(shape, 0), GetTupleElement(shape, 1))
@@ -1413,25 +1421,24 @@ object LowerBlockMatrixIR {
 
       case BlockMatrixDensify(child) =>
         lower(child).densify(ib)
+
       case x @ BlockMatrixSparsify(child, sparsifier) =>
-        val Some((rowPos, rowIdx)) = x.typ.sparsity.definedBlocksCSCIR(x.typ.nColBlocks)
         val loweredChild = lower(child).withSparsity(
-          ib.memoize(rowPos),
-          ib.memoize(rowIdx),
           ib,
-          x.typ,
+          x.typ.sparsity.asInstanceOf[MatrixSparsity.Sparse],
           isSubset = true,
         )
         sparsifier match {
-          // these cases are all handled at the type level
-          case BandSparsifier(blocksOnly, _, _) if (blocksOnly) => loweredChild
-          case RowIntervalSparsifier(blocksOnly, _, _) if (blocksOnly) => loweredChild
+          // these cases are all handled at the block level
+          case BandSparsifier(blocksOnly, _, _) if blocksOnly => loweredChild
+          case RowIntervalSparsifier(blocksOnly, _, _) if blocksOnly => loweredChild
           case PerBlockSparsifier(_) | RectangleSparsifier(_) => loweredChild
 
           case BandSparsifier(_, l, u) => loweredChild.zeroBand(l, u, x.typ, ib)
           case RowIntervalSparsifier(_, starts, stops) =>
             loweredChild.zeroRowIntervals(starts, stops, x.typ, ib)
         }
+
       case _ =>
         BlockMatrixStage2.fromOldBMS(
           lowerNonEmpty(bmir, ib, typesToLower, ctx, analyses),
@@ -1512,7 +1519,7 @@ object LowerBlockMatrixIR {
             val (i, j) = idx
             MakeArray(
               Array.tabulate[Option[IR]](leftIR.typ.nColBlocks) { k =>
-                if (leftIR.typ.hasBlock(i -> k) && rightIR.typ.hasBlock(k -> j))
+                if (leftIR.typ.hasBlock(i, k) && rightIR.typ.hasBlock(k, j))
                   Some(MakeTuple.ordered(FastSeq(
                     left.blockContext(i -> k),
                     right.blockContext(k -> j),
