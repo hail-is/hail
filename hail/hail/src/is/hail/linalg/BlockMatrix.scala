@@ -510,7 +510,7 @@ class BlockMatrix(
   val blockSize: Int,
   val nRows: Long,
   val nCols: Long,
-) extends Serializable {
+) extends Serializable with Logging {
 
   import BlockMatrix._
 
@@ -1035,7 +1035,7 @@ class BlockMatrix(
 
     val nBlocks = fileData.length
     assert(nBlocks == fileData.map(_.rowsWritten).sum)
-    info(s"wrote matrix with $nRows ${plural(nRows, "row")} " +
+    logger.info(s"wrote matrix with $nRows ${plural(nRows, "row")} " +
       s"and $nCols ${plural(nCols, "column")} " +
       s"as $nBlocks ${plural(nBlocks, "block")} " +
       s"of size $blockSize to $uri")
@@ -1646,15 +1646,15 @@ object BlockMatrixFilterRDD {
 
 // checked in Python: keepRows and keepCols non-empty, increasing, valid range
 private class BlockMatrixFilterRDD(bm: BlockMatrix, keepRows: Array[Long], keepCols: Array[Long])
-    extends RDD[((Int, Int), BDM[Double])](bm.blocks.sparkContext, Nil) {
-  log.info("Constructing BlockMatrixFilterRDD")
+    extends RDD[((Int, Int), BDM[Double])](bm.blocks.sparkContext, Nil) with Logging {
+  logger.info("Constructing BlockMatrixFilterRDD")
 
   val t0 = System.nanoTime()
 
   private val originalGP = bm.gp
 
   if (bm.isSparse) {
-    log.info("Filtering a sparse matrix")
+    logger.info("Filtering a sparse matrix")
   }
 
   private val blockSize = originalGP.blockSize
@@ -1693,7 +1693,7 @@ private class BlockMatrixFilterRDD(bm: BlockMatrix, keepRows: Array[Long], keepC
 
   private val newGP = tempDenseGP.copy(partitionIndexToBlockIndex = newGPMaybeBlocks)
 
-  log.info(
+  logger.info(
     s"Finished constructing block matrix filter RDD. Total time ${(System.nanoTime() - t0).toDouble / 1000000000}"
   )
 
@@ -1728,7 +1728,7 @@ private class BlockMatrixFilterRDD(bm: BlockMatrix, keepRows: Array[Long], keepC
     val parentZeroBlock = BDM.zeros[Double](originalGP.blockSize, originalGP.blockSize)
     val newBlock = BDM.zeros[Double](newBlockNRows, newBlockNCols)
 
-    log.info(s"Computing partition for FilterRDD $part")
+    logger.info(s"Computing partition for FilterRDD $part")
 
     var jCol = 0
     var kCol = 0
@@ -2514,7 +2514,7 @@ class BlockMatrixCachedPartFile(
   private[this] val fs: FS,
   path: String,
   pFile: String,
-) {
+) extends Logging {
   private[this] val cacheCapacity = math.min(_cacheCapacity, BlockMatrix.bufferSpecBlockSize)
   private[this] val cache = new Array[Double](cacheCapacity)
   private[this] var cacheIndex = cacheCapacity
@@ -2541,7 +2541,7 @@ class BlockMatrixCachedPartFile(
     cacheIndex = 0
     cacheEnd = doublesToRead
     fileIndex = startRow * cols + doublesToRead
-    log.info(s"fileIndex 1 $fileIndex")
+    logger.info(s"fileIndex 1 $fileIndex")
   }
 
   private[this] def fillCache(): Unit = {

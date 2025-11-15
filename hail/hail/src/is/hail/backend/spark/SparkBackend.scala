@@ -63,7 +63,7 @@ class SparkTaskContext private[spark] (ctx: TaskContext) extends HailTaskContext
   override def attemptNumber(): Int = ctx.attemptNumber()
 }
 
-object SparkBackend {
+object SparkBackend extends Logging {
   object Flags {
     val MaxStageParallelism = "spark_max_stage_parallelism"
   }
@@ -99,7 +99,7 @@ object SparkBackend {
           s"  The major and minor versions must agree, though the patch version can differ."
       )
     else if (jarVersion != sparkVersion)
-      warn(
+      logger.warn(
         s"This Hail JAR was compiled for Spark $jarVersion, running with Spark $sparkVersion.\n" +
           s"  Compatibility is not guaranteed."
       )
@@ -139,10 +139,10 @@ object SparkBackend {
       for (p <- hailSparkProperties.split(",")) {
         p.split("=") match {
           case Array(k, v) =>
-            log.info(s"set Spark property from HAIL_SPARK_PROPERTIES: $k=$v")
+            logger.info(s"set Spark property from HAIL_SPARK_PROPERTIES: $k=$v")
             conf.set(k, v)
           case _ =>
-            warn(s"invalid key-value property pair in HAIL_SPARK_PROPERTIES: $p")
+            logger.warn(s"invalid key-value property pair in HAIL_SPARK_PROPERTIES: $p")
         }
       }
     }
@@ -213,7 +213,7 @@ object SparkBackend {
       val sc = session.sparkContext
       sc.hadoopConfiguration.set("io.compression.codecs", CompressionCodecs.mkString(","))
       checkSparkConfiguration(sc.getConf)
-      sc.uiWebUrl.foreach(ui => info(s"SparkUI: $ui"))
+      sc.uiWebUrl.foreach(ui => logger.info(s"SparkUI: $ui"))
       theSparkBackend = new SparkBackend(session)
       theSparkBackend
     }
@@ -225,7 +225,7 @@ class AnonymousDependency[T](val _rdd: RDD[T]) extends NarrowDependency[T](_rdd)
   override def getParents(partitionId: Int): Seq[Int] = Seq.empty
 }
 
-class SparkBackend(val spark: SparkSession) extends Backend {
+class SparkBackend(val spark: SparkSession) extends Backend with Logging {
 
   // cached for convenience
   val sc: SparkContext =
@@ -428,7 +428,7 @@ class SparkBackend(val spark: SparkSession) extends Backend {
     : TableStage =
     CanLowerEfficiently(ctx, inputIR) match {
       case Some(failReason) =>
-        log.info(s"SparkBackend: could not lower IR to table stage: $failReason")
+        logger.info(s"SparkBackend: could not lower IR to table stage: $failReason")
         ExecuteRelational(ctx, inputIR).asTableStage(ctx)
       case None =>
         LowerTableIR.applyTable(inputIR, DArrayLowering.All, ctx, analyses)

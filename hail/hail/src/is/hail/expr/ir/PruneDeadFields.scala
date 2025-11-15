@@ -12,7 +12,7 @@ import is.hail.utils._
 import scala.collection.compat._
 import scala.collection.mutable
 
-object PruneDeadFields {
+object PruneDeadFields extends Logging {
 
   case class ComputeMutableState(
     requestedType: Memo[BaseType],
@@ -2247,7 +2247,7 @@ object PruneDeadFields {
           if (depFields.contains(f))
             Some(f -> rebuildIR(ctx, fir, env, memo))
           else {
-            log.info(s"Prune: MakeStruct: eliminating field '$f'")
+            logger.info(s"Prune: MakeStruct: eliminating field '$f'")
             None
           }
         })
@@ -2289,7 +2289,7 @@ object PruneDeadFields {
             if (depFields.contains(f))
               Some(f -> rebuildIR(ctx, fir, env, memo))
             else {
-              log.info(s"Prune: InsertFields: eliminating field '$f'")
+              logger.info(s"Prune: InsertFields: eliminating field '$f'")
               None
             }
           },

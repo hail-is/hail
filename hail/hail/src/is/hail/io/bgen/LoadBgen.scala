@@ -59,7 +59,7 @@ case class BgenFileMetadata(
   def path: String = header.path
 }
 
-object LoadBgen {
+object LoadBgen extends Logging {
   def readSamples(fs: FS, file: String): Array[String] = {
     val bState = readState(fs, file)
     if (bState.hasIds) {
@@ -79,7 +79,7 @@ object LoadBgen {
         (0 until nSamples).map(i => is.readLengthAndString(2)).toArray
       }
     } else {
-      warn(s"BGEN file '$file' contains no sample ID block and no sample ID file given.\n" +
+      logger.warn(s"BGEN file '$file' contains no sample ID block and no sample ID file given.\n" +
         s"  Using _0, _1, ..., _N as sample IDs.")
       (0 until bState.nSamples).map(i => s"_$i").toArray
     }
@@ -166,7 +166,7 @@ object LoadBgen {
       matches.flatMap { fileListEntry =>
         val file = fileListEntry.getPath
         if (!file.endsWith(".bgen"))
-          warn(s"input file does not have .bgen extension: $file")
+          logger.warn(s"input file does not have .bgen extension: $file")
 
         if (fileListEntry.isDirectory)
           fs.listDirectory(file)
@@ -318,7 +318,7 @@ object LoadBgen {
   }
 }
 
-object MatrixBGENReader {
+object MatrixBGENReader extends Logging {
   def fullMatrixTypeWithoutUIDs(rg: Option[String]): MatrixType = {
     MatrixType(
       globalType = TStruct.empty,
@@ -421,9 +421,11 @@ object MatrixBGENReader {
 
     val nVariants = fileMetadata.map(_.nVariants).sum
 
-    info(s"Number of BGEN files parsed: ${fileMetadata.length}")
-    info(s"Number of samples in BGEN files: $nSamples")
-    info(s"Number of variants across all BGEN files: $nVariants")
+    logger.info(
+      s"""Number of BGEN files parsed: ${fileMetadata.length}
+         |Number of samples in BGEN files: $nSamples
+         |Number of variants across all BGEN files: $nVariants""".stripMargin
+    )
 
     val referenceGenome = LoadBgen.getReferenceGenome(fileMetadata)
 

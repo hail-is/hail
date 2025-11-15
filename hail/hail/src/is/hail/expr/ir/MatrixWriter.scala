@@ -650,7 +650,7 @@ class MatrixSpecHelper(
   refRelPath: String,
   typ: MatrixType,
   log: Boolean,
-) extends Serializable {
+) extends Logging with Serializable {
   def write(fs: FS, nCols: Long, partCounts: Array[Long]): Unit = {
     val spec = MatrixTableSpecParameters(
       FileFormat.version.rep,
@@ -669,7 +669,7 @@ class MatrixSpecHelper(
     spec.write(fs, path)
 
     val nRows = partCounts.sum
-    info(s"wrote matrix table with $nRows ${plural(nRows, "row")} " +
+    logger.info(s"wrote matrix table with $nRows ${plural(nRows, "row")} " +
       s"and $nCols ${plural(nCols, "column")} " +
       s"in ${partCounts.length} ${plural(partCounts.length, "partition")} " +
       s"to $path")
@@ -725,7 +725,7 @@ case class MatrixVCFWriter(
   exportType: String = ExportType.CONCATENATED,
   metadata: Option[VCFMetadata] = None,
   tabix: Boolean = false,
-) extends MatrixWriter {
+) extends MatrixWriter with Logging {
   override def lower(
     colsFieldName: String,
     entriesFieldName: String,
@@ -745,12 +745,12 @@ case class MatrixVCFWriter(
         case tinfo: TStruct =>
           ExportVCF.checkInfoSignature(tinfo)
         case t =>
-          warn(
+          logger.warn(
             s"export_vcf found row field 'info' of type $t, but expected type 'tstruct'. Emitting no INFO fields."
           )
       }
     } else {
-      warn(s"export_vcf found no row field 'info'. Emitting no INFO fields.")
+      logger.warn(s"export_vcf found no row field 'info'. Emitting no INFO fields.")
     }
 
     ExportVCF.checkFormatSignature(tm.entryType)

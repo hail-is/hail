@@ -191,15 +191,6 @@ trait Py4jUtils extends Logging {
     )
   }
 
-  def logWarn(msg: String): Unit =
-    warn(msg)
-
-  def logInfo(msg: String): Unit =
-    info(msg)
-
-  def logError(msg: String): Unit =
-    error(msg)
-
   def makeJSON(t: Type, value: Any): String = {
     val jv = JSONAnnotationImpex.exportAnnotation(value, t)
     JsonMethods.compact(jv)

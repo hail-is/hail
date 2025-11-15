@@ -18,7 +18,7 @@ case class PoissonRegression(
   passThrough: Seq[String],
   maxIterations: Int,
   tolerance: Double,
-) extends MatrixToTableFunction {
+) extends MatrixToTableFunction with Logging {
 
   override def typ(childType: MatrixType): TableType = {
     val poisRegTest = PoissonRegressionTest.tests(test)
@@ -54,7 +54,7 @@ case class PoissonRegression(
         s"$n samples and ${k + 1} ${plural(k, "covariate")} (including x) implies $d degrees of freedom."
       )
 
-    info(s"poisson_regression_rows: running $test on $n samples for response variable y,\n"
+    logger.info(s"poisson_regression_rows: running $test on $n samples for response variable y,\n"
       + s"    with input variable x, and $k additional ${plural(k, "covariate")}...")
 
     val nullModel = new PoissonRegressionModel(cov, y)

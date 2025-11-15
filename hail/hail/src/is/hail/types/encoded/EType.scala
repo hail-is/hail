@@ -197,7 +197,7 @@ trait DecoderAsmFunction { def apply(r: Region, in: InputBuffer): Long }
 
 trait EncoderAsmFunction { def apply(off: Long, out: OutputBuffer): Unit }
 
-object EType {
+object EType extends Logging {
 
   protected[encoded] def lowBitMask(n: Int): Byte = (0xff >>> ((-n) & 0x7)).toByte
   protected[encoded] def lowBitMask(n: Code[Int]): Code[Byte] = (const(0xff) >>> ((-n) & 0x7)).toB
@@ -224,11 +224,11 @@ object EType {
     val k = (et, pt)
     if (encoderCache.containsKey(k)) {
       encoderCacheHits += 1
-      log.info(s"encoder cache hit")
+      logger.info(s"encoder cache hit")
       encoderCache.get(k)
     } else {
       encoderCacheMisses += 1
-      log.info(s"encoder cache miss ($encoderCacheHits hits, $encoderCacheMisses misses, " +
+      logger.info(s"encoder cache miss ($encoderCacheHits hits, $encoderCacheMisses misses, " +
         s"${formatDouble(encoderCacheHits.toDouble / (encoderCacheHits + encoderCacheMisses), 3)})")
       val fb = EmitFunctionBuilder[EncoderAsmFunction](
         ctx,
@@ -271,11 +271,11 @@ object EType {
     val k = (et, t)
     if (decoderCache.containsKey(k)) {
       decoderCacheHits += 1
-      log.info(s"decoder cache hit")
+      logger.info(s"decoder cache hit")
       decoderCache.get(k)
     } else {
       decoderCacheMisses += 1
-      log.info(s"decoder cache miss ($decoderCacheHits hits, $decoderCacheMisses misses, " +
+      logger.info(s"decoder cache miss ($decoderCacheHits hits, $decoderCacheMisses misses, " +
         s"${formatDouble(decoderCacheHits.toDouble / (decoderCacheHits + decoderCacheMisses), 3)}")
       val fb = EmitFunctionBuilder[DecoderAsmFunction](
         ctx,

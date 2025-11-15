@@ -107,8 +107,8 @@ package utils {
 }
 
 package object utils
-    extends Logging with richUtils.Implicits with NumericPairImplicits with utils.NumericImplicits
-    with Py4jUtils with ErrorHandling {
+    extends richUtils.Implicits with NumericPairImplicits with utils.NumericImplicits with Py4jUtils
+    with ErrorHandling {
 
   type UtilsType = this.type
 
@@ -161,7 +161,7 @@ package object utils
     else if (!gzAsBGZ) {
       val fileSize = fileListEntry.getLen
       if (fileSize > 1024 * 1024 * maxSizeMB)
-        warn(
+        logger.warn(
           s"""file '${fileListEntry.getPath}' is ${readableBytes(fileSize)}
              |  It will be loaded serially (on one core) due to usage of the 'force' argument.
              |  If it is actually block-gzipped, either rename to .bgz or use the 'force_bgz'
@@ -611,7 +611,7 @@ package object utils
         catch {
           case duringClose: Exception =>
             if (original == duringClose) {
-              log.info(
+              logger.info(
                 s"""The exact same exception object, $original, was thrown by both
                    |the consumer and the close method. I will throw the original.""".stripMargin
               )

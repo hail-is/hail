@@ -5,7 +5,7 @@ import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.defs._
 import is.hail.rvd.PartitionBoundOrdering
 import is.hail.types.virtual._
-import is.hail.utils.{Interval, IntervalEndpoint, _}
+import is.hail.utils._
 import is.hail.variant.{Locus, ReferenceGenome}
 
 import scala.Option.option2Iterable
@@ -21,7 +21,7 @@ trait Lattice {
   def meet(l: Value, r: Value): Value
 }
 
-object ExtractIntervalFilters {
+object ExtractIntervalFilters extends Logging {
 
   val MAX_LITERAL_SIZE = 4096
 
@@ -38,7 +38,7 @@ object ExtractIntervalFilters {
               child.typ.key,
             )
               .map { case (newCond, intervals) =>
-                log.info(
+                logger.info(
                   s"generated TableFilterIntervals node with ${intervals.length} intervals:\n  " +
                     s"Intervals: ${intervals.mkString(", ")}\n  " +
                     s"Predicate: ${Pretty(ctx, pred)}\n " + s"Post: ${Pretty(ctx, newCond)}"
@@ -55,7 +55,7 @@ object ExtractIntervalFilters {
               child.typ.rowKey,
             )
               .map { case (newCond, intervals) =>
-                log.info(
+                logger.info(
                   s"generated MatrixFilterIntervals node with ${intervals.length} intervals:\n  " +
                     s"Intervals: ${intervals.mkString(", ")}\n  " +
                     s"Predicate: ${Pretty(ctx, pred)}\n " + s"Post: ${Pretty(ctx, newCond)}"
@@ -188,7 +188,7 @@ class KeySetLattice(ctx: ExecuteContext, keyType: TStruct) extends Lattice {
   }
 }
 
-class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
+class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) extends Logging {
   import ExtractIntervalFilters._
 
   object KeySetLattice extends is.hail.expr.ir.KeySetLattice(ctx, keyType)
@@ -745,10 +745,10 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
     if (rg.contigsSet.contains(c))
       Some(Interval(Row(Locus(c, 1)), Row(Locus(c, rg.contigLength(c))), true, false))
     else if (c == null) {
-      warn(s"Filtered with null contig")
+      logger.warn(s"Filtered with null contig")
       Some(Interval(Row(null), Row(), true, true))
     } else {
-      warn(
+      logger.warn(
         s"Filtered with contig '$c', but '$c' is not a valid contig in reference genome ${rg.name}"
       )
       None

@@ -52,13 +52,15 @@ object Deps {
     def core: Task[Dep] = Task.Anon(mvn"org.apache.spark::spark-core:${Env.sparkVersion()}")
     def mllib: Task[Dep] = Task.Anon(mvn"org.apache.spark::spark-mllib:${Env.sparkVersion()}")
   }
-  
+
   object Log4j {
     // have to forceVersion for reasons unknown?
     val bom = mvn"org.apache.logging.log4j:log4j-bom:2.25.2".forceVersion()
     val api = mvn"org.apache.logging.log4j:log4j-api"
     val core = mvn"org.apache.logging.log4j:log4j-core"
     val slf4j = mvn"org.apache.logging.log4j:log4j-slf4j2-impl"
+
+    val scala = mvn"org.apache.logging.log4j::log4j-api-scala:13.1.0"
   }
 
   val samtools = mvn"com.github.samtools:htsjdk:3.0.5"
@@ -278,6 +280,7 @@ trait RootHailModule extends CrossScalaModule with HailModule { outer =>
     Deps.Asm.analysis,
     Deps.Asm.util,
     Deps.Log4j.core,
+    Deps.Log4j.scala,
     Deps.samtools.excludeOrg("*"),
     Deps.jdistlib.excludeOrg("*"),
     Deps.freemarker,
@@ -314,7 +317,7 @@ trait RootHailModule extends CrossScalaModule with HailModule { outer =>
 
   override def assemblyRules: Seq[Rule] = super.assemblyRules ++ Seq(
     Rule.Exclude("META-INF/INDEX.LIST"),
-    Rule.ExcludePattern("scala/(?!collection/compat).*"),
+    Rule.ExcludePattern("^scala/(?!collection/compat).*"),
     Rule.AppendPattern("META-INF/services/.*", "\n"),
     Rule.Relocate("breeze.**", "is.hail.relocated.@0"),
     Rule.Relocate("com.google.cloud.**", "is.hail.relocated.@0"),

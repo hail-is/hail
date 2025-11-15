@@ -311,7 +311,7 @@ class RVDPartitioner(
     )
 }
 
-object RVDPartitioner {
+object RVDPartitioner extends Logging {
   def empty(ctx: ExecuteContext, typ: TStruct): RVDPartitioner =
     RVDPartitioner.empty(ctx.stateManager, typ)
 
@@ -425,7 +425,7 @@ object RVDPartitioner {
           right.left,
         )
       if (!r)
-        log.info(
+        logger.info(
           s"invalid partitioner: !lteqWithOverlap($allowedOverlap)($left.right, $right.left)"
         )
       r

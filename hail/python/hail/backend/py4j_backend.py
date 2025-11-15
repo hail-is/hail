@@ -139,16 +139,16 @@ def handle_java_exception(f):
 
 class Log4jLogger(Logger):
     def __init__(self, log_pkg):
-        self._log_pkg = log_pkg
+        self._logger = log_pkg.logger()
 
     def error(self, msg):
-        self._log_pkg.error(msg)
+        self._logger.error(msg)
 
     def warning(self, msg):
-        self._log_pkg.warn(msg)
+        self._logger.warn(msg)
 
     def info(self, msg):
-        self._log_pkg.info(msg)
+        self._logger.info(msg)
 
 
 action_routes = {

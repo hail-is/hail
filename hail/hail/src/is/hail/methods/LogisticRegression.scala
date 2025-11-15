@@ -18,7 +18,7 @@ case class LogisticRegression(
   passThrough: Seq[String],
   maxIterations: Int,
   tolerance: Double,
-) extends MatrixToTableFunction {
+) extends MatrixToTableFunction with Logging {
 
   override def typ(childType: MatrixType): TableType = {
     val logRegTest = LogisticRegressionTest.tests(test)
@@ -60,7 +60,7 @@ case class LogisticRegression(
         s"$n samples and ${k + 1} ${plural(k, "covariate")} (including x) implies $d degrees of freedom."
       )
 
-    info(s"logistic_regression_rows: running $test on $n samples for response variable y,\n"
+    logger.info(s"logistic_regression_rows: running $test on $n samples for response variable y,\n"
       + s"    with input variable x, and $k additional ${plural(k, "covariate")}...")
 
     val nullFits = (0 until yVecs.cols).map { col =>

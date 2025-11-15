@@ -38,7 +38,7 @@ class WorkerTimer extends Logging {
     val startTime = startTimes.get(label)
     startTime.foreach { s =>
       val durationMS = "%.6f".format((endTime - s).toDouble / 1000000.0)
-      log.info(s"$label took $durationMS ms.")
+      logger.info(s"$label took $durationMS ms.")
     }
   }
 
@@ -177,8 +177,8 @@ object Worker extends Logging {
 
     sys.env.get("HAIL_SSL_CONFIG_DIR").foreach(tls.setSSLConfigFromDir)
 
-    log.info(s"${getClass.getName} $HAIL_REVISION")
-    log.info(s"running partition $partition root '$root' with scratch directory '$scratchDir'")
+    logger.info(s"${getClass.getName} $HAIL_REVISION")
+    logger.info(s"running partition $partition root '$root' with scratch directory '$scratchDir'")
 
     timer.start(s"partition $partition")
 
@@ -266,10 +266,10 @@ object Worker extends Logging {
     }
 
     timer.end(s"partition $partition")
-    log.info(s"finished job $index at root $root")
+    logger.info(s"finished job $index at root $root")
 
     result.left.foreach { throwableWhileExecutingUserCode =>
-      log.info("throwing the exception so that this Worker job is marked as failed.")
+      logger.info("throwing the exception so that this Worker job is marked as failed.")
       throw throwableWhileExecutingUserCode
     }
   }
