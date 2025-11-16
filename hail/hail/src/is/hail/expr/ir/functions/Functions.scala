@@ -7,7 +7,6 @@ import is.hail.experimental.ExperimentalFunctions
 import is.hail.expr.ir._
 import is.hail.expr.ir.defs.{Apply, ApplyIR, ApplySeeded, ApplySpecial}
 import is.hail.io.bgen.BGENFunctions
-import is.hail.macros.void
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.{EmitType, SType, SValue}
 import is.hail.types.physical.stypes.concrete._
@@ -17,6 +16,7 @@ import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.{Locus, ReferenceGenome}
 
+import scala.collection.compat._
 import scala.collection.mutable
 import scala.reflect._
 
@@ -42,8 +42,7 @@ object IRFunctionRegistry {
   val irRegistry: mutable.Map[String, mutable.Map[IRFunctionSignature, IRFunctionImplementation]] =
     new mutable.HashMap()
 
-  val jvmRegistry: mutable.MultiMap[String, JVMFunction] =
-    new mutable.HashMap[String, mutable.Set[JVMFunction]] with mutable.MultiMap[String, JVMFunction]
+  val jvmRegistry: mutable.Map[String, mutable.Set[JVMFunction]] = mutable.HashMap.empty
 
   private[this] def requireJavaIdentifier(name: String): Unit =
     if (!isJavaIdentifier(name))
@@ -51,7 +50,7 @@ object IRFunctionRegistry {
 
   def addJVMFunction(f: JVMFunction): Unit = {
     requireJavaIdentifier(f.name)
-    jvmRegistry.addBinding(f.name, f)
+    jvmRegistry.getOrElseUpdate(f.name, mutable.Set.empty) += f
   }
 
   def addIR(
@@ -118,7 +117,7 @@ object IRFunctionRegistry {
     valueParameterTypes: Seq[Type],
   ): Unit = {
     val m = irRegistry(name)
-    void(m.remove((typeParameters, valueParameterTypes, returnType, false)))
+    m -= ((typeParameters, valueParameterTypes, returnType, false))
   }
 
   private[this] def lookupFunction(
@@ -172,10 +171,10 @@ object IRFunctionRegistry {
       case ((typeParametersFound: Seq[Type], valueParameterTypesFound: Seq[Type], _, _), _) =>
         typeParametersFound.length == typeParameters.length && {
           typeParametersFound.foreach(_.clear())
-          (typeParametersFound, typeParameters).zipped.forall(_.unify(_))
+          typeParametersFound.lazyZip(typeParameters).forall(_.unify(_))
         } && valueParameterTypesFound.length == valueParameterTypes.length && {
           valueParameterTypesFound.foreach(_.clear())
-          (valueParameterTypesFound, valueParameterTypes).zipped.forall(_.unify(_))
+          valueParameterTypesFound.lazyZip(valueParameterTypes).forall(_.unify(_))
         }
     }.toSeq match {
       case Seq() => None
@@ -561,7 +560,7 @@ abstract class RegistryFunctions {
           val res = impl(cb, r, rpt, errorID, args.toArray)
           if (res.emitType != calculateReturnType(rpt.virtualType, args.map(_.emitType)))
             throw new RuntimeException(
-              s"type mismatch while registering $name" +
+              s"type mismatch while registering ${this.name}" +
                 s"\n  got ${res.emitType}, got ${calculateReturnType(rpt.virtualType, args.map(_.emitType))}"
             )
           res
@@ -634,7 +633,7 @@ abstract class RegistryFunctions {
               val sv = code.asIndexable
               val arr = cb.newLocal[Array[String]](
                 "scode_array_string",
-                Code.newArray[String](sv.loadLength()),
+                Code.newArray[String](sv.loadLength),
               )
               sv.forEachDefined(cb) { case (cb, idx, elt) =>
                 cb += (arr(idx) = elt.asString.loadString(cb))

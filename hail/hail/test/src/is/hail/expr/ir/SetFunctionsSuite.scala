@@ -1,20 +1,20 @@
 package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
+import is.hail.ExecStrategy.ExecStrategy
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.defs.{I32, NA, ToSet, ToStream}
 import is.hail.types.virtual._
 
-import org.scalatest
 import org.testng.annotations.Test
 
 class SetFunctionsSuite extends HailSuite {
   val naa = NA(TArray(TInt32))
   val nas = NA(TSet(TInt32))
 
-  implicit val execStrats = ExecStrategy.javaOnly
+  implicit val execStrats: Set[ExecStrategy] = ExecStrategy.javaOnly
 
-  @Test def toSet(): scalatest.Assertion = {
+  @Test def toSet(): Unit = {
     assertEvalsTo(IRSet(3, 7), Set(3, 7))
     assertEvalsTo(IRSet(3, null, 7), Set(null, 3, 7))
     assertEvalsTo(nas, null)
@@ -24,7 +24,7 @@ class SetFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("toSet", TSet(TInt32), naa), null)
   }
 
-  @Test def isEmpty(): scalatest.Assertion = {
+  @Test def isEmpty(): Unit = {
     assertEvalsTo(invoke("isEmpty", TBoolean, IRSet(3, 7)), false)
     assertEvalsTo(invoke("isEmpty", TBoolean, IRSet(3, null, 7)), false)
     assertEvalsTo(invoke("isEmpty", TBoolean, IRSet()), true)
@@ -32,7 +32,7 @@ class SetFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("isEmpty", TBoolean, nas), null)
   }
 
-  @Test def contains(): scalatest.Assertion = {
+  @Test def contains(): Unit = {
     val s = IRSet(3, null, 7)
     val swoutna = IRSet(3, 7)
 
@@ -46,7 +46,7 @@ class SetFunctionsSuite extends HailSuite {
     assert(eval(invoke("contains", TBoolean, IRSet(), 3)) == false)
   }
 
-  @Test def remove(): scalatest.Assertion = {
+  @Test def remove(): Unit = {
     val s = IRSet(3, null, 7)
     assertEvalsTo(invoke("remove", TSet(TInt32), s, I32(3)), Set(null, 7))
     assertEvalsTo(invoke("remove", TSet(TInt32), s, I32(4)), Set(null, 3, 7))
@@ -54,7 +54,7 @@ class SetFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("remove", TSet(TInt32), IRSet(3, 7), NA(TInt32)), Set(3, 7))
   }
 
-  @Test def add(): scalatest.Assertion = {
+  @Test def add(): Unit = {
     val s = IRSet(3, null, 7)
     assertEvalsTo(invoke("add", TSet(TInt32), s, I32(3)), Set(null, 3, 7))
     assertEvalsTo(invoke("add", TSet(TInt32), s, I32(4)), Set(null, 3, 4, 7))
@@ -63,7 +63,7 @@ class SetFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("add", TSet(TInt32), IRSet(3, 7), NA(TInt32)), Set(null, 3, 7))
   }
 
-  @Test def isSubset(): scalatest.Assertion = {
+  @Test def isSubset(): Unit = {
     val s = IRSet(3, null, 7)
     assertEvalsTo(invoke("isSubset", TBoolean, s, invoke("add", TSet(TInt32), s, I32(4))), true)
     assertEvalsTo(
@@ -82,12 +82,12 @@ class SetFunctionsSuite extends HailSuite {
     )
   }
 
-  @Test def union(): scalatest.Assertion = {
+  @Test def union(): Unit = {
     assertEvalsTo(invoke("union", TSet(TInt32), IRSet(3, null, 7), IRSet(3, 8)), Set(null, 3, 7, 8))
     assertEvalsTo(invoke("union", TSet(TInt32), IRSet(3, 7), IRSet(3, 8, null)), Set(null, 3, 7, 8))
   }
 
-  @Test def intersection(): scalatest.Assertion = {
+  @Test def intersection(): Unit = {
     assertEvalsTo(invoke("intersection", TSet(TInt32), IRSet(3, null, 7), IRSet(3, 8)), Set(3))
     assertEvalsTo(
       invoke("intersection", TSet(TInt32), IRSet(3, null, 7), IRSet(3, 8, null)),
@@ -95,12 +95,12 @@ class SetFunctionsSuite extends HailSuite {
     )
   }
 
-  @Test def difference(): scalatest.Assertion = {
+  @Test def difference(): Unit = {
     assertEvalsTo(invoke("difference", TSet(TInt32), IRSet(3, null, 7), IRSet(3, 8)), Set(null, 7))
     assertEvalsTo(invoke("difference", TSet(TInt32), IRSet(3, null, 7), IRSet(3, 8, null)), Set(7))
   }
 
-  @Test def median(): scalatest.Assertion = {
+  @Test def median(): Unit = {
     assertEvalsTo(invoke("median", TInt32, IRSet(5)), 5)
     assertEvalsTo(invoke("median", TInt32, IRSet(5, null)), 5)
     assertEvalsTo(invoke("median", TInt32, IRSet(3, 7)), 5)

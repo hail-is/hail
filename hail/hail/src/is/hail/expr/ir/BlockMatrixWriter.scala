@@ -123,7 +123,7 @@ case class BlockMatrixNativeMetadataWriter(
 
       info(s"wrote matrix with $nRows ${plural(nRows, "row")} " +
         s"and $nCols ${plural(nCols, "column")} " +
-        s"as $nBlocks ${plural(nBlocks, "block")} " +
+        s"as $nBlocks ${plural(nBlocks.toLong, "block")} " +
         s"of size $blockSize to $path")
     }
   }
@@ -140,7 +140,7 @@ case class BlockMatrixNativeMetadataWriter(
 
     val pc = writeAnnotations.getOrFatal(cb, "write annotations can't be missing!").asIndexable
     val partFiles = cb.newLocal[Array[String]]("partFiles")
-    val n = cb.newLocal[Int]("n", pc.loadLength())
+    val n = cb.newLocal[Int]("n", pc.loadLength)
     val i = cb.newLocal[Int]("i", 0)
     cb.assign(partFiles, Code.newArray[String](n))
     cb.while_(
@@ -164,7 +164,12 @@ case class BlockMatrixBinaryWriter(path: String) extends BlockMatrixWriter {
   def pathOpt: Option[String] = Some(path)
 
   def apply(ctx: ExecuteContext, bm: BlockMatrix): String = {
-    RichDenseMatrixDouble.exportToDoubles(ctx.fs, path, bm.toBreezeMatrix(), forceRowMajor = true)
+    RichDenseMatrixDouble.exportToDoubles(
+      ctx.fs,
+      path,
+      bm.toBreezeMatrix(),
+      forceRowMajor = true,
+    ): Unit
     path
   }
 
@@ -220,7 +225,7 @@ case class BlockMatrixBinaryMultiWriter(
 ) extends BlockMatrixMultiWriter {
 
   def apply(ctx: ExecuteContext, bms: IndexedSeq[BlockMatrix]): Unit =
-    BlockMatrix.binaryWriteBlockMatrices(ctx.fs, bms, prefix, overwrite)
+    BlockMatrix.binaryWriteBlockMatrices(ctx, bms, prefix, overwrite)
 
   def loweredTyp: Type = TVoid
 }
@@ -237,7 +242,7 @@ case class BlockMatrixTextMultiWriter(
 
   def apply(ctx: ExecuteContext, bms: IndexedSeq[BlockMatrix]): Unit =
     BlockMatrix.exportBlockMatrices(
-      ctx.fs,
+      ctx,
       bms,
       prefix,
       overwrite,

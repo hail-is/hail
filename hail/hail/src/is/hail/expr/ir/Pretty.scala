@@ -11,6 +11,7 @@ import is.hail.utils.{space => _, _}
 import is.hail.utils.prettyPrint._
 import is.hail.utils.richUtils.RichIterable
 
+import scala.collection.compat._
 import scala.collection.mutable
 
 import org.json4s.DefaultFormats
@@ -170,7 +171,7 @@ class Pretty(
           case None => text(Pretty.prettyClass(state)) +: state.t.view.map(typ =>
               text(typ.canonicalPType.toString)
             )
-          case Some(nested) => text(Pretty.prettyClass(state)) +: state.t.view.map(typ =>
+          case Some(nested) => text(Pretty.prettyClass(state)) +: state.t.map(typ =>
               text(typ.canonicalPType.toString)
             ) :+ prettyAggStateSignatures(nested)
         })
@@ -621,7 +622,6 @@ class Pretty(
       )
     case RelationalLetTable(name, _, _) => single(prettyName(name))
     case RelationalLetMatrixTable(name, _, _) => single(prettyName(name))
-    case RelationalLetBlockMatrix(name, _, _) => single(prettyName(name))
     case ReadPartition(_, rowType, reader) =>
       FastSeq(rowType.parsableString(), prettyStringLiteral(JsonMethods.compact(reader.toJValue)))
     case WritePartition(_, _, writer) =>
@@ -941,12 +941,8 @@ class Pretty(
         val (valueDoc, valueIdent) = prettyWithIdent(value, bindings, "%", Some(name))
         val (bodyPre, bodyHead) = pretty(body, bindings.bind(name, valueIdent))
         (concat(valueDoc, bodyPre), bodyHead)
-      case RelationalLetBlockMatrix(name, value, body) =>
-        val (valueDoc, valueIdent) = prettyWithIdent(value, bindings, "%", Some(name))
-        val (bodyPre, bodyHead) = pretty(body, bindings.bind(name, valueIdent))
-        (concat(valueDoc, bodyPre), bodyHead)
       case _ =>
-        val strictChildBodies = mutable.ArrayBuilder.make[Doc]()
+        val strictChildBodies = mutable.ArrayBuilder.make[Doc]
         val strictChildIdents = for {
           (child, i) <- ir.children.zipWithIndex
           if childIsStrict(ir, i)
@@ -983,12 +979,12 @@ class Pretty(
 
         val head = ir match {
           case MakeStruct(fields) =>
-            val args = (fields.map(_._1), strictChildIdents).zipped.map { (field, value) =>
+            val args = fields.map(_._1).lazyZip(strictChildIdents).map { (field, value) =>
               s"$field: $value"
             }.mkString("(", ", ", ")")
             hsep(text(Pretty.prettyClass(ir) + args) +: (attributes ++ nestedBlocks))
           case InsertFields(_, fields, _) =>
-            val newFields = (fields.map(_._1), strictChildIdents.tail).zipped.map {
+            val newFields = fields.map(_._1).lazyZip(strictChildIdents.tail).map {
               (field, value) => s"$field: $value"
             }.mkString("(", ", ", ")")
             val args = s" ${strictChildIdents.head} $newFields"

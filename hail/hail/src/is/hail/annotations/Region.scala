@@ -53,7 +53,7 @@ object Region {
 
   def loadBytes(addr: Long, n: Int): Array[Byte] = {
     val a = new Array[Byte](n)
-    Memory.copyToArray(a, 0, addr, n)
+    Memory.copyToArray(a, 0, addr, n.toLong)
     a
   }
 
@@ -61,7 +61,7 @@ object Region {
     Memory.copyToArray(dst, dstOff, addr, n)
 
   def storeBytes(addr: Long, src: Array[Byte]): Unit =
-    Memory.copyFromArray(addr, src, 0, src.length)
+    Memory.copyFromArray(addr, src, 0, src.length.toLong)
 
   def storeBytes(addr: Long, src: Array[Byte], srcOff: Long, n: Long): Unit =
     Memory.copyFromArray(addr, src, srcOff, n)
@@ -428,7 +428,7 @@ final class Region protected[annotations] (
     memory = pool.getMemory(blockSize)
   }
 
-  def nReferencedRegions(): Long = memory.nReferencedRegions()
+  def nReferencedRegions(): Int = memory.nReferencedRegions()
 
   def getNewRegion(blockSize: Region.Size): Unit = {
     if (memory != null)

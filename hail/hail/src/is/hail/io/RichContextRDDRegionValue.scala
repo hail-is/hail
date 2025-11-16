@@ -29,7 +29,7 @@ object RichContextRDDRegionValue {
     os: OutputStream,
     iw: IndexWriter,
   ): (Long, Long) = {
-    val context = TaskContext.get
+    val context = TaskContext.get()
     val outputMetrics =
       if (context != null)
         context.taskMetrics().outputMetrics
@@ -89,7 +89,7 @@ object RichContextRDDRegionValue {
   ): FileWriteMetadata = {
     val fullRowType = t.rowType
 
-    val context = TaskContext.get
+    val context = TaskContext.get()
     val f = partFile(partDigits, idx, context)
     val outputMetrics = context.taskMetrics().outputMetrics
     val finalRowsPartPath = path + "/rows/rows/parts/" + f
@@ -106,7 +106,7 @@ object RichContextRDDRegionValue {
           fs.delete(rowsPartPath, recursive = false)
           fs.delete(entriesPartPath, recursive = false)
           fs.delete(idxPath, recursive = true)
-        }
+        }: Unit
         (rowsPartPath, entriesPartPath, idxPath)
       } else
         (finalRowsPartPath, finalEntriesPartPath, finalIdxPath)
@@ -199,7 +199,7 @@ object RichContextRDDRegionValue {
 class RichContextRDDLong(val crdd: ContextRDD[Long]) extends AnyVal {
   def boundary: ContextRDD[Long] =
     crdd.cmapPartitionsAndContext { (consumerCtx, part) =>
-      val producerCtx = consumerCtx.freshContext
+      val producerCtx = consumerCtx.freshContext()
       val it = part.flatMap(_(producerCtx))
       new Iterator[Long]() {
         private[this] var cleared: Boolean = false
@@ -212,12 +212,12 @@ class RichContextRDDLong(val crdd: ContextRDD[Long]) extends AnyVal {
           it.hasNext
         }
 
-        def next: Long = {
+        def next(): Long = {
           if (!cleared) {
             producerCtx.region.clear()
           }
           cleared = false
-          it.next
+          it.next()
         }
       }
     }
@@ -259,7 +259,7 @@ class RichContextRDDLong(val crdd: ContextRDD[Long]) extends AnyVal {
 class RichContextRDDRegionValue(val crdd: ContextRDD[RegionValue]) extends AnyVal {
   def boundary: ContextRDD[RegionValue] =
     crdd.cmapPartitionsAndContext { (consumerCtx, part) =>
-      val producerCtx = consumerCtx.freshContext
+      val producerCtx = consumerCtx.freshContext()
       val it = part.flatMap(_(producerCtx))
       new Iterator[RegionValue]() {
         private[this] var cleared: Boolean = false
@@ -272,12 +272,12 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RegionValue]) extends AnyVa
           it.hasNext
         }
 
-        def next: RegionValue = {
+        def next(): RegionValue = {
           if (!cleared) {
             producerCtx.region.clear()
           }
           cleared = false
-          it.next
+          it.next()
         }
       }
     }
@@ -305,12 +305,12 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RegionValue]) extends AnyVa
           it.hasNext
         }
 
-        def next: RegionValue = {
+        def next(): RegionValue = {
           if (!cleared) {
             ctx.region.clear()
           }
           cleared = false
-          it.next
+          it.next()
         }
       }
     }

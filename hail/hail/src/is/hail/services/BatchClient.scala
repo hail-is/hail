@@ -1,21 +1,20 @@
 package is.hail.services
 
 import is.hail.expr.ir.ByteArrayBuilder
-import is.hail.macros.void
 import is.hail.services.BatchClient.{
   BunchMaxSizeBytes, JarSpecSerializer, JobGroupResponseDeserializer, JobGroupStateDeserializer,
   JobListEntryDeserializer, JobProcessRequestSerializer, JobStateDeserializer,
 }
+import is.hail.services.JobGroupStates.isTerminal
 import is.hail.services.oauth2.CloudCredentials
 import is.hail.services.requests.Requester
 import is.hail.utils._
 
-import scala.collection.immutable.Stream.cons
+import scala.collection.compat.immutable.LazyList
 import scala.util.Random
 
 import java.net.{URL, URLEncoder}
 import java.nio.charset.StandardCharsets.UTF_8
-import java.nio.file.Path
 
 import org.apache.http.entity.ByteArrayEntity
 import org.apache.http.entity.ContentType.APPLICATION_JSON
@@ -90,6 +89,9 @@ object JobGroupStates {
   case object Cancelled extends JobGroupState
   case object Success extends JobGroupState
   case object Running extends JobGroupState
+
+  def isTerminal(s: JobGroupState): Boolean =
+    s != Running
 }
 
 sealed trait JobState extends Product with Serializable
@@ -113,31 +115,38 @@ case class JobListEntry(
 )
 
 object BatchClient {
+  object RequiredOAuth2Scopes {
+    private[this] val Google: Array[String] =
+      Array(
+        "https://www.googleapis.com/auth/userinfo.profile",
+        "https://www.googleapis.com/auth/userinfo.email",
+        "openid",
+      )
+
+    private[this] val Microsoft: Array[String] =
+      Array(".default")
+
+    def apply(env: Map[String, String] = sys.env): Array[String] =
+      env.get("HAIL_CLOUD") match {
+        case None | Some("gcp") => Google
+        case Some("azure") => env.get("HAIL_AZURE_OAUTH_SCOPE").map(Array(_)).getOrElse(Microsoft)
+        case None => throw new IllegalArgumentException(s"'HAIL_CLOUD' must be set.")
+      }
+  }
 
   val BunchMaxSizeBytes: Int = 1024 * 1024
 
-  def apply(deployConfig: DeployConfig, credentialsFile: Path, env: Map[String, String] = sys.env)
-    : BatchClient =
-    new BatchClient(Requester(
-      new URL(deployConfig.baseUrl("batch")),
-      CloudCredentials(credentialsFile, BatchServiceScopes(env), env),
-    ))
-
-  def BatchServiceScopes(env: Map[String, String]): Array[String] =
-    env.get("HAIL_CLOUD") match {
-      case Some("gcp") =>
-        Array(
-          "https://www.googleapis.com/auth/userinfo.profile",
-          "https://www.googleapis.com/auth/userinfo.email",
-          "openid",
-        )
-      case Some("azure") =>
-        env.get("HAIL_AZURE_OAUTH_SCOPE").toArray
-      case Some(cloud) =>
-        throw new IllegalArgumentException(s"Unknown cloud: '$cloud'.")
-      case None =>
-        throw new IllegalArgumentException(s"HAIL_CLOUD must be set.")
-    }
+  def apply(
+    deployConfig: DeployConfig,
+    credentials: CloudCredentials,
+    env: Map[String, String] = sys.env,
+  ): BatchClient =
+    new BatchClient(
+      Requester(
+        new URL(deployConfig.baseUrl("batch")),
+        credentials.scoped(RequiredOAuth2Scopes(env)),
+      )
+    )
 
   object JobProcessRequestSerializer extends CustomSerializer[JobProcess](implicit fmts =>
         (
@@ -249,9 +258,9 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
       JobStateDeserializer +
       JobListEntryDeserializer
 
-  private[this] def paginated[S, A](s0: S)(f: S => (A, S)): Stream[A] = {
+  private[this] def paginated[S, A](s0: S)(f: S => (A, S)): LazyList[A] = {
     val (a, s1) = f(s0)
-    cons(a, paginated(s1)(f))
+    LazyList.cons(a, paginated(s1)(f))
   }
 
   def newBatch(createRequest: BatchRequest): Int = {
@@ -284,7 +293,7 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
       .extract[JobGroupResponse]
 
   def getJobGroupJobs(batchId: Int, jobGroupId: Int, status: Option[JobState] = None)
-    : Stream[IndexedSeq[JobListEntry]] = {
+    : LazyList[IndexedSeq[JobListEntry]] = {
     val q = status.map(s => s"state=${s.toString.toLowerCase}").getOrElse("")
     paginated(Some(0): Option[Int]) {
       case Some(jobId) =>
@@ -303,14 +312,16 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
       .takeWhile(_.nonEmpty)
   }
 
+  def cancelJobGroup(batchId: Int, jobGroupId: Int): Unit =
+    req.patch(s"/api/v1alpha/batches/$batchId/job-groups/$jobGroupId/cancel"): Unit
+
   def waitForJobGroup(batchId: Int, jobGroupId: Int): JobGroupResponse = {
     val start = System.nanoTime()
 
     while (true) {
       val jobGroup = getJobGroup(batchId, jobGroupId)
 
-      if (jobGroup.complete)
-        return jobGroup
+      if (isTerminal(jobGroup.state)) return jobGroup
 
       // wait 10% of duration so far
       // at least, 50ms
@@ -324,7 +335,7 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
         ),
         50,
       )
-      Thread.sleep(d)
+      Thread.sleep(d.toLong)
     }
 
     throw new AssertionError("unreachable")
@@ -346,7 +357,7 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
       req.post(
         s"/api/v1alpha/batches/$batchId/updates/$updateId/jobs/create",
         new ByteArrayEntity(buff.result(), APPLICATION_JSON),
-      )
+      ): Unit
       buff.clear()
       sym = "["
     }
@@ -402,23 +413,20 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
       }
 
   private[this] def commitUpdate(batchId: Int, updateId: Int): Unit =
-    void(req.patch(s"/api/v1alpha/batches/$batchId/updates/$updateId/commit"))
+    req.patch(s"/api/v1alpha/batches/$batchId/updates/$updateId/commit"): Unit
 
   private[this] def createJobGroup(updateId: Int, jobGroup: JobGroupRequest): Unit =
-    void {
-      req.post(
-        s"/api/v1alpha/batches/${jobGroup.batch_id}/updates/$updateId/job-groups/create",
-        JArray(List(
-          JObject(
-            "job_group_id" -> JInt(1), // job group id relative to the update
-            "absolute_parent_id" -> JInt(jobGroup.absolute_parent_id),
-            "cancel_after_n_failures" -> jobGroup.cancel_after_n_failures.map(JInt(_)).getOrElse(
-              JNull
-            ),
-            "attributes" -> Extraction.decompose(jobGroup.attributes),
-          )
-        )),
-      )
-    }
-
+    req.post(
+      s"/api/v1alpha/batches/${jobGroup.batch_id}/updates/$updateId/job-groups/create",
+      JArray(List(
+        JObject(
+          "job_group_id" -> JInt(1), // job group id relative to the update
+          "absolute_parent_id" -> JInt(jobGroup.absolute_parent_id),
+          "cancel_after_n_failures" -> jobGroup.cancel_after_n_failures.map(JInt(_)).getOrElse(
+            JNull
+          ),
+          "attributes" -> Extraction.decompose(jobGroup.attributes),
+        )
+      )),
+    ): Unit
 }

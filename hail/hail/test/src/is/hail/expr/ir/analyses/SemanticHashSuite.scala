@@ -13,7 +13,6 @@ import java.io.FileNotFoundException
 import java.lang
 
 import org.json4s.JValue
-import org.scalatest
 import org.testng.annotations.{DataProvider, Test}
 
 class SemanticHashSuite extends HailSuite {
@@ -291,8 +290,7 @@ class SemanticHashSuite extends HailSuite {
     )
 
   @Test(dataProvider = "isBaseIRSemanticallyEquivalent")
-  def testSemanticEquivalence(a: BaseIR, b: BaseIR, isEqual: Boolean, comment: String)
-    : scalatest.Assertion =
+  def testSemanticEquivalence(a: BaseIR, b: BaseIR, isEqual: Boolean, comment: String): Unit =
     ctx.local(fs = fakeFs) { ctx =>
       assertResult(
         isEqual,
@@ -303,11 +301,11 @@ class SemanticHashSuite extends HailSuite {
     }
 
   @Test
-  def testFileNotFoundExceptions(): scalatest.Assertion = {
+  def testFileNotFoundExceptions(): Unit = {
     val fs =
       new FakeFS {
         override def eTag(url: FakeURL): Option[String] =
-          throw new FileNotFoundException(url.getPath)
+          throw new FileNotFoundException(url.path)
       }
 
     val ir = importMatrix("gs://fake-bucket/fake-matrix")
@@ -322,12 +320,12 @@ class SemanticHashSuite extends HailSuite {
   private[this] val fakeFs: FS =
     new FakeFS {
       override def eTag(url: FakeURL): Option[String] =
-        Some(url.getPath)
+        Some(url.path)
 
       override def glob(url: FakeURL): Array[FileListEntry] =
         Array(new FileListEntry {
-          override def getPath: String = url.getPath
-          override def getActualUrl: String = url.getPath
+          override def getPath: String = url.path
+          override def getActualUrl: String = url.path
           override def getModificationTime: lang.Long = ???
           override def getLen: Long = ???
           override def isDirectory: Boolean = ???

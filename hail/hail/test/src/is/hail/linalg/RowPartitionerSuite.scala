@@ -9,7 +9,7 @@ import org.testng.annotations.Test
 
 class RowPartitionerSuite extends TestNGSuite with ScalaCheckDrivenPropertyChecks {
   @Test
-  def testGetPartition(): scalatest.Assertion = {
+  def testGetPartition(): Unit = {
     val partitionStarts = Array[Long](0, 0, 0, 4, 5, 5, 8, 10, 10)
     val partitionCounts = Array(0, 0, 4, 1, 0, 3, 2, 0)
     val keyPart = partitionCounts.zipWithIndex.flatMap { case (count, pi) => Array.fill(count)(pi) }
@@ -19,7 +19,7 @@ class RowPartitionerSuite extends TestNGSuite with ScalaCheckDrivenPropertyCheck
     assert((0 until 10).forall(i => keyPart(i) == rp.getPartition(i.toLong)))
   }
 
-  @Test def testFindInterval(): scalatest.Assertion = {
+  @Test def testFindInterval(): Unit = {
     def naiveFindInterval(a: Array[Long], key: Long): Int = {
       if (a.length == 0 || key < a(0))
         -1

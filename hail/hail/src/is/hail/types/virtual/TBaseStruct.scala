@@ -4,6 +4,8 @@ import is.hail.annotations._
 import is.hail.backend.HailStateManager
 import is.hail.utils._
 
+import scala.collection.compat._
+
 import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods
 
@@ -79,7 +81,7 @@ abstract class TBaseStruct extends Type {
     forallZippedFields(other)(_.typ == _.typ)
 
   private def forallZippedFields(s: TBaseStruct)(p: (Field, Field) => Boolean): Boolean =
-    (fields, s.fields).zipped.forall(p)
+    fields.lazyZip(s.fields).forall(p)
 
   def truncate(newSize: Int): TBaseStruct
 

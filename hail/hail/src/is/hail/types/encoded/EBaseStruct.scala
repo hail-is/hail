@@ -4,7 +4,6 @@ import is.hail.annotations.{Region, UnsafeUtils}
 import is.hail.asm4s.{Field => _, _}
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.io.{InputBuffer, OutputBuffer}
-import is.hail.macros.void
 import is.hail.types.BaseStruct
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.{SType, SValue}
@@ -97,7 +96,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
           cb += out.writeBytes(addr, missingBytes - 1)
         if (nMissingBytes > 0)
           cb += out.writeByte((Region.loadByte(addr + (missingBytes.toLong - 1)).toI & const(
-            EType.lowBitMask(st.nMissing & 0x7)
+            EType.lowBitMask(st.nMissing & 0x7).toInt
           )).toB)
 
       case _ =>
@@ -159,7 +158,8 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
       case t: PCanonicalInterval => t.representation
       case t: PCanonicalBaseStruct => t
     }
-    val mbytes = cb.newLocal[Long]("mbytes", region.allocate(const(1), const(nMissingBytes)))
+    val mbytes =
+      cb.newLocal[Long]("mbytes", region.allocate(const(1L), const(nMissingBytes.toLong)))
     var midx = 0
     var byteIdx = 0L
     cb += in.readBytes(region, mbytes, nMissingBytes)
@@ -199,7 +199,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
   }
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
-    val mbytes = cb.newLocal[Long]("mbytes", r.allocate(const(1), const(nMissingBytes)))
+    val mbytes = cb.newLocal[Long]("mbytes", r.allocate(const(1L), const(nMissingBytes.toLong)))
     cb += in.readBytes(r, mbytes, nMissingBytes)
     fields.foreach { f =>
       val skip = f.typ.buildSkip(cb.emb.ecb)
@@ -231,10 +231,10 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
       sb += '}'
     } else if (fields.isEmpty) {
       sb ++= "EBaseStruct { }"
-    } else void {
+    } else {
       sb ++= "EBaseStruct {\n"
       fields.foreachBetween(_.pretty(sb, indent + 4, compact))(sb ++= ",\n")
-      sb += '\n' ++= " " * indent += '}'
+      sb += '\n' ++= " " * indent += '}': Unit
     }
 
   def setRequired(newRequired: Boolean): EBaseStruct = EBaseStruct(fields, newRequired)

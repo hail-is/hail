@@ -1,6 +1,7 @@
 package is.hail.backend
 
 import is.hail.asm4s.HailClassLoader
+import is.hail.backend.Backend.PartitionFn
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.{IR, LoweringAnalyses, SortField, TableIR, TableReader}
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
@@ -43,32 +44,32 @@ object Backend {
     assert(t.isFieldDefined(off, 0))
     codec.encode(ctx, elementType, t.loadField(off, 0), os)
   }
+
+  type PartitionFn = (Array[Byte], Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
 }
 
 abstract class BroadcastValue[T] { def value: T }
 
-trait BackendContext {
+abstract class DriverRuntimeContext {
+
   def executionCache: ExecutionCache
+
+  def mapCollectPartitions(
+    globals: Array[Byte],
+    contexts: IndexedSeq[Array[Byte]],
+    stageIdentifier: String,
+    dependency: Option[TableStageDependency] = None,
+    partitions: Option[IndexedSeq[Int]] = None,
+  )(
+    f: PartitionFn
+  ): (Option[Throwable], IndexedSeq[(Array[Byte], Int)])
 }
 
 abstract class Backend extends Closeable {
 
   def defaultParallelism: Int
 
-  def canExecuteParallelTasksOnDriver: Boolean = true
-
   def broadcast[T: ClassTag](value: T): BroadcastValue[T]
-
-  def parallelizeAndComputeWithIndex(
-    backendContext: BackendContext,
-    fs: FS,
-    contexts: IndexedSeq[Array[Byte]],
-    stageIdentifier: String,
-    dependency: Option[TableStageDependency] = None,
-    partitions: Option[IndexedSeq[Int]] = None,
-  )(
-    f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
-  ): (Option[Throwable], IndexedSeq[(Array[Byte], Int)])
 
   def asSpark(implicit E: Enclosing): SparkBackend =
     fatal(s"${getClass.getSimpleName}: ${E.value} requires SparkBackend")
@@ -106,5 +107,5 @@ abstract class Backend extends Closeable {
 
   def execute(ctx: ExecuteContext, ir: IR): Either[Unit, (PTuple, Long)]
 
-  def backendContext(ctx: ExecuteContext): BackendContext
+  def runtimeContext(ctx: ExecuteContext): DriverRuntimeContext
 }

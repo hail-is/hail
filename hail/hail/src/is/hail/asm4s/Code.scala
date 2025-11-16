@@ -1333,8 +1333,8 @@ class VCode[+T](
 }
 
 object CodeKind extends Enumeration {
-  type Kind = Value
-  val V, C = Value
+  type Kind = this.Value
+  val V, C = this.Value
 }
 
 class CCode(
@@ -1426,7 +1426,7 @@ class CCode(
     _v = null
   }
 
-  def unary_!(): CCode = {
+  def unary_! : CCode = {
     val newC = new CCode(entry, Lfalse, Ltrue)
     clear()
     newC
@@ -1497,7 +1497,7 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
       newC
   }
 
-  def unary_!(): Code[Boolean] = lhs match {
+  def unary_! : Code[Boolean] = lhs match {
     case const: ConstCodeBoolean => new ConstCodeBoolean(!const.b)
     case _ => !lhs.toCCode
   }
@@ -1542,7 +1542,7 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
 }
 
 class CodeInt(val lhs: Code[Int]) extends AnyVal {
-  def unary_-(): Code[Int] = Code(lhs, lir.insn1(INEG))
+  def unary_- : Code[Int] = Code(lhs, lir.insn1(INEG))
 
   def +(rhs: Code[Int]): Code[Int] = Code(lhs, rhs, lir.insn2(IADD))
 
@@ -1601,7 +1601,7 @@ class CodeInt(val lhs: Code[Int]) extends AnyVal {
 
   def ^(rhs: Code[Int]): Code[Int] = Code(lhs, rhs, lir.insn2(IXOR))
 
-  def unary_~(): Code[Int] = lhs ^ const(-1)
+  def unary_~ : Code[Int] = lhs ^ const(-1)
 
   def ceq(rhs: Code[Int]): Code[Boolean] = lhs.compare(IF_ICMPEQ, rhs)
 
@@ -1626,7 +1626,7 @@ class CodeInt(val lhs: Code[Int]) extends AnyVal {
 }
 
 class CodeLong(val lhs: Code[Long]) extends AnyVal {
-  def unary_-(): Code[Long] = Code(lhs, lir.insn1(LNEG))
+  def unary_- : Code[Long] = Code(lhs, lir.insn1(LNEG))
 
   def +(rhs: Code[Long]): Code[Long] = Code(lhs, rhs, lir.insn2(LADD))
 
@@ -1670,7 +1670,7 @@ class CodeLong(val lhs: Code[Long]) extends AnyVal {
 
   def ^(rhs: Code[Long]): Code[Long] = Code(lhs, rhs, lir.insn2(LXOR))
 
-  def unary_~(): Code[Long] = lhs ^ const(-1L)
+  def unary_~ : Code[Long] = lhs ^ const(-1L)
 
   def toI: Code[Int] = Code(lhs, lir.insn1(L2I))
 
@@ -1694,7 +1694,7 @@ class CodeLong(val lhs: Code[Long]) extends AnyVal {
 }
 
 class CodeFloat(val lhs: Code[Float]) extends AnyVal {
-  def unary_-(): Code[Float] = Code(lhs, lir.insn1(FNEG))
+  def unary_- : Code[Float] = Code(lhs, lir.insn1(FNEG))
 
   def +(rhs: Code[Float]): Code[Float] = Code(lhs, rhs, lir.insn2(FADD))
 
@@ -1728,7 +1728,7 @@ class CodeFloat(val lhs: Code[Float]) extends AnyVal {
 }
 
 class CodeDouble(val lhs: Code[Double]) extends AnyVal {
-  def unary_-(): Code[Double] = Code(lhs, lir.insn1(DNEG))
+  def unary_- : Code[Double] = Code(lhs, lir.insn1(DNEG))
 
   def +(rhs: Code[Double]): Code[Double] = Code(lhs, rhs, lir.insn2(DADD))
 
@@ -2072,7 +2072,7 @@ class LocalRefInt(val v: LocalRef[Int]) extends AnyRef {
     new VCode(L, L, null)
   }
 
-  def ++(): Code[Unit] = +=(1)
+  def ++ : Code[Unit] = +=(1)
 }
 
 class FieldRef[T, S](f: reflect.Field)(implicit tct: ClassTag[T], sti: TypeInfo[S]) {

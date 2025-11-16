@@ -73,7 +73,7 @@ object LocalLDPruneSuite {
     for ((call, i) <- calls.zipWithIndex) {
       if (call != null) {
         val gt = Call.unphasedDiploidGtIndex(call)
-        vals(i) = gt
+        vals(i) = gt.toDouble
         (gt: @unchecked) match {
           case 0 =>
           case 1 =>
@@ -111,14 +111,15 @@ object LocalLDPruneSuite {
 }
 
 class LocalLDPruneSuite extends HailSuite {
-  val memoryPerCoreBytes = 256 * 1024 * 1024
+  val memoryPerCoreBytes = 256L * 1024 * 1024
   val nCores = 4
 
-  lazy val mt = Interpret(
-    importVCF(ctx, getTestResource("sample.vcf.bgz"), nPartitions = Option(10)),
-    ctx,
-    false,
-  ).toMatrixValue(Array("s"))
+  lazy val mt = unoptimized { ctx =>
+    Interpret(
+      importVCF(ctx, getTestResource("sample.vcf.bgz"), nPartitions = Option(10)),
+      ctx,
+    ).toMatrixValue(Array("s"))
+  }
 
   lazy val maxQueueSize = LocalLDPruneSuite.estimateMemoryRequirements(
     mt.rvd.count(),
@@ -165,7 +166,7 @@ class LocalLDPruneSuite extends HailSuite {
     val r2Matrix = LocalLDPruneSuite.correlationMatrixGT(locallyPrunedRDD.map {
       case (_, _, gs) => gs
     }.collect())
-    val variantMap = locallyPrunedRDD.zipWithIndex.map { case ((locus, _, _), i) =>
+    val variantMap = locallyPrunedRDD.zipWithIndex().map { case ((locus, _, _), i) =>
       (i.toInt, locus)
     }.collectAsMap()
 
@@ -229,7 +230,7 @@ class LocalLDPruneSuite extends HailSuite {
     locallyUncorrelated.fold(true)((bool1, bool2) => bool1 && bool2)
   }
 
-  @Test def testBitPackUnpack(): scalatest.Assertion = {
+  @Test def testBitPackUnpack(): Unit = {
     val calls1 = Array(-1, 0, 1, 2, 1, 1, 0, 0, 0, 0, 2, 2, -1, -1, -1, -1).map(toC2)
     val calls2 = Array(0, 1, 2, 2, 2, 0, -1, -1).map(toC2)
     val calls3 = calls1 ++ Array.ofDim[Int](32 - calls1.length).map(toC2) ++ calls2
@@ -241,7 +242,7 @@ class LocalLDPruneSuite extends HailSuite {
     }
   }
 
-  @Test def testR2(): scalatest.Assertion = {
+  @Test def testR2(): Unit = {
     val calls = Array(
       Array(1, 0, 0, 0, 0, 0, 0, 0).map(toC2),
       Array(1, 1, 1, 1, 1, 1, 1, 1).map(toC2),
@@ -296,7 +297,7 @@ class LocalLDPruneSuite extends HailSuite {
         v2: Array[BoxedCall] <- containerOfN[Array, BoxedCall](nSamples, choose(-1, 2).map(toC2))
       } yield (nSamples, v1, v2)
 
-    property("bitPacked pack and unpack give same as orig") =
+    (property("bitPacked pack and unpack give same as orig") =
       forAll(vectorGen) { case (_: Int, v1: Array[BoxedCall], _) =>
         val bpv = LocalLDPruneSuite.fromCalls(v1)
 
@@ -304,9 +305,9 @@ class LocalLDPruneSuite extends HailSuite {
           case Some(x) => LocalLDPruneSuite.fromCalls(x.unpack().map(toC2)).get.gs sameElements x.gs
           case None => true
         }
-      }
+      }): Unit
 
-    property("R2 bitPacked same as BVector") =
+    (property("R2 bitPacked same as BVector") =
       forAll(vectorGen) { case (nSamples: Int, v1: Array[BoxedCall], v2: Array[BoxedCall]) =>
         val bv1 = LocalLDPruneSuite.fromCalls(v1)
         val bv2 = LocalLDPruneSuite.fromCalls(v2)
@@ -330,12 +331,12 @@ class LocalLDPruneSuite extends HailSuite {
             isSame
           case _ => true
         }
-      }
+      }): Unit
   }
 
-  @Test def testRandom(): scalatest.Assertion = { Spec.check(); succeed }
+  @Test def testRandom(): Unit = Spec.check()
 
-  @Test def testIsLocallyUncorrelated(): scalatest.Assertion = {
+  @Test def testIsLocallyUncorrelated(): Unit = {
     val locallyPrunedVariantsTable =
       LocalLDPrune(ctx, mt, r2Threshold = 0.2, windowSize = 1000000, maxQueueSize = maxQueueSize)
     assert(isLocallyUncorrelated(mt, locallyPrunedVariantsTable, 0.2, 1000000))

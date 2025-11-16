@@ -1,11 +1,13 @@
 package is.hail.utils
 
-import is.hail.macros.void
+import is.hail.utils.compat.mutable.Growable
 
-import scala.collection.GenTraversableOnce
-import scala.collection.generic.Growable
+import scala.collection.BufferedIterator
+import scala.collection.compat._
 import scala.collection.mutable.PriorityQueue
 import scala.reflect.ClassTag
+
+import org.typelevel.scalaccompat.annotation.nowarn213
 
 /** A StateMachine has the same primary interface as FlipbookIterator, but the implementations are
   * not expected to be checked (for instance, value does not need to assert isValid). The only
@@ -181,18 +183,19 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
     }
   )
 
-  override def flatMap[B](f: A => GenTraversableOnce[B]): FlipbookIterator[B] =
+  @nowarn213("msg=GenTraversableOnce in package collection is deprecated")
+  override def flatMap[B](f: A => scala.collection.GenTraversableOnce[B]): FlipbookIterator[B] =
     FlipbookIterator(
       new StateMachine[B] {
         var it: FlipbookIterator[B] = _
         if (self.isValid) it = f(self.value).toIterator.toFlipbookIterator
-        findNextValid
+        findNextValid()
         def value: B = it.value
         def isValid = self.isValid
 
         def advance(): Unit = {
           it.advance()
-          findNextValid
+          findNextValid()
         }
 
         def findNextValid(): Unit =
@@ -213,7 +216,7 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
     def calculateValidity: Boolean
     def value: A
     def advance(): Unit
-    refreshValidity
+    refreshValidity()
   }
 
   def staircased(ord: OrderingView[A]): StagingIterator[FlipbookIterator[A]] = {
@@ -223,7 +226,7 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
       def calculateValidity: Boolean = self.isValid && ord.isEquivalent(self.value)
       def advance() = {
         self.advance()
-        refreshValidity
+        refreshValidity()
       }
     }
     val stepIterator: FlipbookIterator[A] = FlipbookIterator(stepSM)
@@ -234,10 +237,10 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
         stepIterator.exhaust()
         if (self.isValid) {
           ord.setValue(self.value)
-          stepSM.refreshValidity
+          stepSM.refreshValidity()
         } else {
           ord.setBottom()
-          stepSM.refreshValidity
+          stepSM.refreshValidity()
           isValid = false
         }
       }
@@ -289,11 +292,9 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
           }
         }
 
-        void {
-          if (c == 0) value.set(left.consume(), right.consume())
-          else if (c < 0) value.set(left.consume(), rightDefault)
-          else value.set(leftDefault, right.consume())
-        }
+        if (c == 0) value.set(left.consume(), right.consume())
+        else if (c < 0) value.set(left.consume(), rightDefault)
+        else value.set(leftDefault, right.consume())
       }
     }
 

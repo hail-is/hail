@@ -413,7 +413,7 @@ object EType {
   def eTypeParser(it: TokenIterator): EType = {
     val req = it.head match {
       case x: PunctuationToken if x.value == "+" =>
-        IRParser.consumeToken(it)
+        IRParser.punctuation(it, "+")
         true
       case _ => false
     }
@@ -451,7 +451,7 @@ object EType {
         IRParser.punctuation(it, "[")
         val structReq = it.head match {
           case x: PunctuationToken if x.value == "+" =>
-            IRParser.consumeToken(it)
+            IRParser.punctuation(it, "+")
             true
           case _ => false
         }

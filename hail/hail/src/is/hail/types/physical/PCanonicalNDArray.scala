@@ -6,7 +6,6 @@ import is.hail.backend.HailStateManager
 import is.hail.expr.ir.{
   CodeParam, CodeParamType, EmitCode, EmitCodeBuilder, Param, ParamType, SCodeParam,
 }
-import is.hail.macros.void
 import is.hail.types.physical.stypes.SValue
 import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces._
@@ -30,9 +29,9 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   override def containsPointers: Boolean = true
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false): Unit = {
-    void(sb ++= "PCNDArray[")
+    sb ++= "PCNDArray["
     elementType.pretty(sb, indent, compact)
-    void(sb ++= s"," ++= s"$nDims" += ']')
+    sb ++= s"," ++= s"$nDims" += ']': Unit
   }
 
   lazy val shapeType: PCanonicalTuple =
@@ -254,13 +253,13 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
             cb += Region.copyFrom(
               dataValue.asInstanceOf[SIndexablePointerValue].elementsAddress,
               result.firstDataAddress,
-              dataValue.loadLength().toL * elementType.byteSize,
+              dataValue.loadLength.toL * elementType.byteSize,
             )
           case _ =>
             val loopCtr = cb.newLocal[Long]("pcanonical_ndarray_construct_by_copying_loop_idx")
             cb.for_(
               cb.assign(loopCtr, 0L),
-              loopCtr < dataValue.loadLength().toL,
+              loopCtr < dataValue.loadLength.toL,
               cb.assign(loopCtr, loopCtr + 1L),
               elementType.storeAtAddress(
                 cb,

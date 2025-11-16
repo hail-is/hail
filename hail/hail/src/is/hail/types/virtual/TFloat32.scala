@@ -27,7 +27,7 @@ case object TFloat32 extends TNumeric {
         if (absolute)
           math.abs(f1 - f2) <= tolerance
         else
-          D_==(f1, f2, tolerance)
+          D_==(f1.toDouble, f2.toDouble, tolerance)
 
       f1 == f2 || withinTol || (f1.isNaN && f2.isNaN)
     })

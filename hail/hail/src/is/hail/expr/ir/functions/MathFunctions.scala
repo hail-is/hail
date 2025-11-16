@@ -39,11 +39,11 @@ object MathFunctions extends RegistryFunctions {
 
   def gamma(x: Double): Double = Gamma.gamma(x)
 
-  def floor(x: Float): Float = math.floor(x).toFloat
+  def floor(x: Float): Float = math.floor(x.toDouble).toFloat
 
   def floor(x: Double): Double = math.floor(x)
 
-  def ceil(x: Float): Float = math.ceil(x).toFloat
+  def ceil(x: Float): Float = math.ceil(x.toDouble).toFloat
 
   def ceil(x: Double): Double = math.ceil(x)
 
@@ -73,11 +73,11 @@ object MathFunctions extends RegistryFunctions {
     if (t < 0) t + y else t
   }
 
-  def pow(x: Int, y: Int): Double = math.pow(x, y)
+  def pow(x: Int, y: Int): Double = math.pow(x.toDouble, y.toDouble)
 
-  def pow(x: Long, y: Long): Double = math.pow(x, y)
+  def pow(x: Long, y: Long): Double = math.pow(x.toDouble, y.toDouble)
 
-  def pow(x: Float, y: Float): Double = math.pow(x, y)
+  def pow(x: Float, y: Float): Double = math.pow(x.toDouble, y.toDouble)
 
   def pow(x: Double, y: Double): Double = math.pow(x, y)
 
@@ -93,7 +93,7 @@ object MathFunctions extends RegistryFunctions {
     java.lang.Math.floorDiv(x, y)
   }
 
-  def floorDiv(x: Float, y: Float): Float = math.floor(x / y).toFloat
+  def floorDiv(x: Float, y: Float): Float = math.floor(x.toDouble / y).toFloat
 
   def floorDiv(x: Double, y: Double): Double = math.floor(x / y)
 
@@ -215,6 +215,25 @@ object MathFunctions extends RegistryFunctions {
       statsPackageClass,
       "qpois",
     )
+
+    registerScalaFunction("dgamma", Array(TFloat64, TFloat64, TFloat64, TBoolean), TFloat64, null)(
+      statsPackageClass,
+      "dgamma",
+    )
+
+    registerScalaFunction(
+      "pgamma",
+      Array(TFloat64, TFloat64, TFloat64, TBoolean, TBoolean),
+      TFloat64,
+      null,
+    )(statsPackageClass, "pgamma")
+
+    registerScalaFunction(
+      "qgamma",
+      Array(TFloat64, TFloat64, TFloat64, TBoolean, TBoolean),
+      TFloat64,
+      null,
+    )(statsPackageClass, "qgamma")
 
     registerScalaFunction("dchisq", Array(TFloat64, TFloat64), TFloat64, null)(
       statsPackageClass,

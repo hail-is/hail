@@ -1,6 +1,5 @@
 package is.hail.methods
 
-import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{IntArrayBuilder, MatrixValue, TableValue}
@@ -67,7 +66,7 @@ case class LinearRegressionRowsSingle(
 
     val Qty = Qt * y
 
-    val backend = HailContext.backend
+    val backend = ctx.backend
     val completeColIdxBc = backend.broadcast(completeColIdx)
     val yBc = backend.broadcast(y)
     val QtBc = backend.broadcast(Qt)
@@ -92,7 +91,7 @@ case class LinearRegressionRowsSingle(
     val newRVD = mv.rvd.mapPartitionsWithContext(
       rvdType
     ) { (consumerCtx, it) =>
-      val producerCtx = consumerCtx.freshContext
+      val producerCtx = consumerCtx.freshContext()
       val rvb = new RegionValueBuilder(sm)
 
       val missingCompleteCols = new IntArrayBuilder()
@@ -147,14 +146,14 @@ case class LinearRegressionRowsSingle(
           val b = xyp
           i = 0
           while (i < blockLength) {
-            xyp(::, i) :*= xxpRec(i)
+            xyp(::, i) :*= xxpRec(i): Unit
             i += 1
           }
 
           val se = sqrt(dRec * (yyp * xxpRec.t - (b *:* b)))
 
           val t = b /:/ se
-          val p = t.map(s => 2 * T.cumulative(-math.abs(s), d, true, false))
+          val p = t.map(s => 2 * T.cumulative(-math.abs(s), d.toDouble, true, false))
 
           (0 until blockLength).iterator.map { i =>
             val wrv = blockWRVs(i)
@@ -251,7 +250,7 @@ case class LinearRegressionRowsChained(
       ChainedLinregInput(n, y, completeColIdx, Qt, Qty, yyp, d)
     }
 
-    val bc = HailContext.backend.broadcast(bcData)
+    val bc = ctx.backend.broadcast(bcData)
     val nGroups = bcData.length
 
     val fullRowType = mv.rvd.rowPType
@@ -271,7 +270,7 @@ case class LinearRegressionRowsChained(
     val newRVD = mv.rvd.mapPartitionsWithContext(
       rvdType
     ) { (consumerCtx, it) =>
-      val producerCtx = consumerCtx.freshContext
+      val producerCtx = consumerCtx.freshContext()
       val rvb = new RegionValueBuilder(sm)
 
       val inputData = bc.value
@@ -332,13 +331,13 @@ case class LinearRegressionRowsChained(
             val b = xyp
             i = 0
             while (i < blockLength) {
-              xyp(::, i) :*= xxpRec(i)
+              xyp(::, i) :*= xxpRec(i): Unit
               i += 1
             }
             val se = sqrt((1d / cri.d) * (yyp * xxpRec.t - (b *:* b)))
 
             val t = b /:/ se
-            val p = t.map(s => 2 * T.cumulative(-math.abs(s), cri.d, true, false))
+            val p = t.map(s => 2 * T.cumulative(-math.abs(s), cri.d.toDouble, true, false))
 
             ChainedLinregResult(cri.n, AC, ytx, b, se, t, p)
           }

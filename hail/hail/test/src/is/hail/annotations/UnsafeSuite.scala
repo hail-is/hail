@@ -18,7 +18,6 @@ import org.json4s.jackson.Serialization
 import org.scalacheck._
 import org.scalacheck.Arbitrary.arbitrary
 import org.scalacheck.Gen._
-import org.scalatest
 import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
 import org.testng.annotations.{DataProvider, Test}
 
@@ -70,7 +69,7 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     )))
       .map(x => Array[Any](x))
 
-  @Test(dataProvider = "codecs") def testCodecSerialization(codec: Spec): scalatest.Assertion = {
+  @Test(dataProvider = "codecs") def testCodecSerialization(codec: Spec): Unit = {
     implicit val formats = AbstractRVDSpec.formats
     assert(Serialization.read[Spec](codec.toString) == codec)
 
@@ -199,7 +198,7 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     }
   }
 
-  @Test def testRegionValue(): scalatest.Assertion = {
+  @Test def testRegionValue(): Unit = {
     val region = Region(pool = pool)
     val region2 = Region(pool = pool)
     val rvb = new RegionValueBuilder(sm, region)
@@ -214,11 +213,11 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
     forAll(g) { case (t, a, n, n2) =>
       val pt = PType.canonical(t)
-      t.typeCheck(a)
+      assert(t.typeCheck(a))
 
       // test addAnnotation
       region.clear()
-      region.allocate(1, n) // preallocate
+      region.allocate(1, n.toLong): Unit // preallocate
 
       val offset = pt.unstagedStoreJavaObject(sm, a, region)
 
@@ -227,11 +226,11 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
       // test visitor
       val rv = RegionValue(region, offset)
-      rv.pretty(pt)
+      rv.pretty(pt): Unit
 
       // test addAnnotation from ur
       region2.clear()
-      region2.allocate(1, n2) // preallocate
+      region2.allocate(1, n2.toLong): Unit // preallocate
       val offset2 = pt.unstagedStoreJavaObject(sm, ur, region2)
 
       val ur2 = UnsafeRow.read(pt, region2, offset2)
@@ -239,7 +238,7 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
       // test addRegionValue
       region2.clear()
-      region2.allocate(1, n2) // preallocate
+      region2.allocate(1, n2.toLong): Unit // preallocate
       rvb2.start(pt)
       rvb2.addRegionValue(pt, region, offset)
       val offset3 = rvb2.end()
@@ -251,11 +250,12 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         case t: TStruct =>
           val ps = pt.asInstanceOf[PStruct]
           region2.clear()
-          region2.allocate(1, n) // preallocate
+          region2.allocate(1, n.toLong): Unit // preallocate
           val offset4 =
             ps.unstagedStoreJavaObject(sm, Row.fromSeq(a.asInstanceOf[Row].toSeq), region2)
           val ur4 = new UnsafeRow(ps, region2, offset4)
           assert(t.valuesSimilar(a, ur4))
+          ()
         case _ =>
       }
 
@@ -273,13 +273,12 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
           val offset6 =
             ps.unstagedStoreJavaObject(sm, Row.fromSeq(a.asInstanceOf[Row].toSeq), region)
           val ur6 = new UnsafeRow(ps, region, offset6)
-          assert(t.valuesSimilar(a, ur6))
+          assert(t.valuesSimilar(a, ur6)): Unit
         case _ =>
       }
 
       true
     }
-    scalatest.Succeeded
   }
 
   val g: Gen[(TStruct, Annotation)] =
@@ -294,7 +293,7 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       if v != null
     } yield (t, v)
 
-  @Test def testPacking(): scalatest.Assertion = {
+  @Test def testPacking(): Unit = {
 
     def makeStruct(types: PType*): PCanonicalStruct =
       PCanonicalStruct(types.zipWithIndex.map { case (t, i) => (s"f$i", t) }: _*)
@@ -337,10 +336,10 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(t4.byteSize == 256 * 4 / 8 + 256 * 4 * 2 + 256 * 8 + 256)
   }
 
-  @Test def testEmptySize(): scalatest.Assertion =
+  @Test def testEmptySize(): Unit =
     assert(PCanonicalStruct().byteSize == 0)
 
-  @Test def testUnsafeOrdering(): scalatest.Assertion = {
+  @Test def testUnsafeOrdering(): Unit = {
     val region = Region(pool = pool)
     val region2 = Region(pool = pool)
 
@@ -352,8 +351,8 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     forAll(resize(10, g)) { case (t, a1, a2) =>
       val tv = t.virtualType
 
-      tv.typeCheck(a1)
-      tv.typeCheck(a2)
+      assert(tv.typeCheck(a1))
+      assert(tv.typeCheck(a2))
 
       region.clear()
       val offset = t.unstagedStoreJavaObject(sm, a1, region)
@@ -385,6 +384,5 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         println(s"c1=$c1, c2=$c2, c3=$c3")
       }
     }
-    scalatest.Succeeded
   }
 }

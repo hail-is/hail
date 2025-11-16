@@ -1,12 +1,11 @@
 package is.hail.annotations
 
 import is.hail.backend.HailStateManager
-import is.hail.macros.void
 import is.hail.rvd.{RVDContext, RVDType}
 import is.hail.types.physical.PInterval
 import is.hail.utils._
+import is.hail.utils.compat.mutable.Growable
 
-import scala.collection.generic.Growable
 import scala.collection.mutable
 
 object OrderedRVIterator {
@@ -29,7 +28,7 @@ case class OrderedRVIterator(
   iterator: Iterator[RegionValue],
   ctx: RVDContext,
   sm: HailStateManager,
-) {
+) { outer =>
 
   def staircase: StagingIterator[FlipbookIterator[RegionValue]] =
     iterator.toFlipbookIterator.staircased(t.kRowOrdView(sm, ctx.freshRegion()))
@@ -90,7 +89,7 @@ case class OrderedRVIterator(
             }
             right.advance()
           }
-          void(value.set(left.value, buffer))
+          value.set(left.value, buffer)
         } else {
           isValid = false
         }
@@ -182,7 +181,7 @@ case class OrderedRVIterator(
     val consumerRegion = ctx.region
 
     new Iterator[RegionValue] {
-      private val bit = iterator.buffered
+      private val bit = outer.iterator.buffered
 
       private val q = new mutable.PriorityQueue[RegionValue]()(
         t.copy(key = newKey).kInRowOrd(sm).toRVOrdering.reverse

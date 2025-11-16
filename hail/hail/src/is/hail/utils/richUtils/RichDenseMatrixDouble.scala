@@ -1,9 +1,12 @@
 package is.hail.utils.richUtils
 
+import is.hail.backend.ExecuteContext
 import is.hail.io._
 import is.hail.io.fs.FS
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, GridPartitioner}
 import is.hail.utils._
+
+import scala.collection.parallel.CollectionConverters._
 
 import java.io.{DataInputStream, DataOutputStream, InputStream, OutputStream}
 
@@ -69,12 +72,12 @@ object RichDenseMatrixDouble {
 
 class RichDenseMatrixDouble(val m: BDM[Double]) extends AnyVal {
   // dot is overloaded in Breeze
-  def matrixMultiply(bm: BlockMatrix): BlockMatrix = {
+  def matrixMultiply(ctx: ExecuteContext, bm: BlockMatrix): BlockMatrix = {
     require(
       m.cols == bm.nRows,
       s"incompatible matrix dimensions: ${m.rows} x ${m.cols} and ${bm.nRows} x ${bm.nCols} ",
     )
-    BlockMatrix.fromBreezeMatrix(m, bm.blockSize).dot(bm)
+    BlockMatrix.fromBreezeMatrix(ctx, m, bm.blockSize).dot(bm)
   }
 
   def forceSymmetry(): Unit = {
@@ -133,7 +136,7 @@ class RichDenseMatrixDouble(val m: BDM[Double]) extends AnyVal {
 
     fs.mkDir(path)
 
-    val gp = GridPartitioner(blockSize, m.rows, m.cols)
+    val gp = GridPartitioner(blockSize, m.rows.toLong, m.cols.toLong)
     val nParts = gp.numPartitions
     val d = digitsNeeded(nParts)
 
@@ -156,7 +159,13 @@ class RichDenseMatrixDouble(val m: BDM[Double]) extends AnyVal {
     using(new DataOutputStream(fs.create(path + BlockMatrix.metadataRelativePath))) { os =>
       implicit val formats = defaultJSONFormats
       jackson.Serialization.write(
-        BlockMatrixMetadata(blockSize, m.rows, m.cols, gp.partitionIndexToBlockIndex, partFiles),
+        BlockMatrixMetadata(
+          blockSize,
+          m.rows.toLong,
+          m.cols.toLong,
+          gp.partitionIndexToBlockIndex,
+          partFiles,
+        ),
         os,
       )
     }

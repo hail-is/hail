@@ -2,6 +2,7 @@ package is.hail
 
 import is.hail.backend.ExecutionCache
 import is.hail.backend.spark.SparkBackend
+import is.hail.expr.ir.{agg, Optimize}
 import is.hail.io.fs.RequesterPaysConfig
 import is.hail.types.encoded.EType
 import is.hail.utils._
@@ -36,6 +37,7 @@ object HailFeatureFlags {
     ("use_new_shuffle", ("HAIL_USE_NEW_SHUFFLE" -> null)),
     ("use_ssa_logs", "HAIL_USE_SSA_LOGS" -> "1"),
     ("write_ir_files", ("HAIL_WRITE_IR_FILES" -> null)),
+    (agg.Flags.BranchingFactor, "HAIL_BRANCHING_FACTOR" -> null),
     (EType.Flags.UseUnstableEncodings, EType.Flags.UseUnstableEncodingsVar -> null),
     (ExecutionCache.Flags.Cachedir, "HAIL_CACHE_DIR" -> null),
     (ExecutionCache.Flags.UseFastRestarts, "HAIL_USE_FAST_RESTARTS" -> null),
@@ -45,6 +47,8 @@ object HailFeatureFlags {
       SparkBackend.Flags.MaxStageParallelism,
       "HAIL_SPARK_MAX_STAGE_PARALLELISM" -> Integer.MAX_VALUE.toString,
     ),
+    (Optimize.Flags.MaxOptimizerIterations, "HAIL_OPTIMIZER_ITERATIONS" -> null),
+    (Optimize.Flags.Optimize, "HAIL_QUERY_OPTIMIZE" -> "1"),
   )
 
   def fromEnv(m: Map[String, String] = sys.env): HailFeatureFlags =
@@ -58,7 +62,7 @@ object HailFeatureFlags {
 }
 
 class HailFeatureFlags private (
-  val flags: mutable.Map[String, String]
+  private[this] val flags: mutable.Map[String, String]
 ) extends Serializable {
   val available: java.util.ArrayList[String] =
     new java.util.ArrayList[String](java.util.Arrays.asList[String](flags.keys.toSeq: _*))
@@ -71,12 +75,22 @@ class HailFeatureFlags private (
   def +(feature: (String, String)): HailFeatureFlags =
     new HailFeatureFlags(flags + (feature._1 -> feature._2))
 
+  def define(feature: String): HailFeatureFlags =
+    new HailFeatureFlags(flags + (feature -> "1"))
+
+  def -(feature: String): HailFeatureFlags =
+    new HailFeatureFlags(flags - feature)
+
   def get(flag: String): String = flags(flag)
 
   def lookup(flag: String): Option[String] =
-    Option(flags(flag)).filter(_.nonEmpty)
+    flags.get(flag).flatMap(Option(_))
 
-  def exists(flag: String): Boolean = flags.contains(flag)
+  def isDefined(flag: String): Boolean =
+    lookup(flag).isDefined
+
+  def exists(flag: String): Boolean =
+    flags.contains(flag)
 
   def toJSONEnv: JArray =
     JArray(flags.filter { case (_, v) =>

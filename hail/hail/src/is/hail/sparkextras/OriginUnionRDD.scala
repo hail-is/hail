@@ -1,6 +1,7 @@
 package is.hail.sparkextras
 
-import scala.collection.mutable.ArrayBuffer
+import is.hail.utils.compat.immutable.ArraySeq
+
 import scala.reflect.ClassTag
 
 import org.apache.spark.{Dependency, Partition, RangeDependency, SparkContext, TaskContext}
@@ -31,13 +32,14 @@ class OriginUnionRDD[T: ClassTag, S: ClassTag](
   }
 
   override def getDependencies: Seq[Dependency[_]] = {
-    val deps = new ArrayBuffer[Dependency[_]]
+    val deps = ArraySeq.newBuilder[Dependency[_]]
+    deps.sizeHint(rdds)
     var i = 0
     for (rdd <- rdds) {
       deps += new RangeDependency(rdd, 0, i, rdd.partitions.length)
       i += rdd.partitions.length
     }
-    deps
+    deps.result()
   }
 
   override def compute(s: Partition, tc: TaskContext): Iterator[S] = {

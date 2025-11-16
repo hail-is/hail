@@ -36,7 +36,6 @@ from gear import (
     UserData,
     check_csrf_token,
     get_authenticator,
-    global_security_headers_middleware,
     json_request,
     json_response,
     monitor_endpoints_middleware,
@@ -2094,7 +2093,7 @@ FOR UPDATE;
         )
 
         if record:
-            return (record['update_id'], record['start_job_id'], record['start_job_group_id'])
+            return (record['update_id'], record['start_job_group_id'], record['start_job_id'])
 
         # We use FOR UPDATE so that we serialize batch update insertions
         # This is necessary to reserve job id and job group id ranges.
@@ -2427,7 +2426,7 @@ async def delete_batch(request: web.Request, _, batch_id: int) -> web.Response:
     return web.Response()
 
 
-@routes.get('/batches/{batch_id}')
+@routes.get('/batches/{batch_id}', name='batch_details_page')
 @web_security_headers_unsafe_eval
 @billing_project_users_only()
 @catch_ui_error_in_dev
@@ -2488,7 +2487,7 @@ async def ui_cancel_batch(request: web.Request, _, batch_id: int) -> NoReturn:
         await _handle_ui_error(session, _cancel_job_group, request.app, batch_id, ROOT_JOB_GROUP_ID)
         set_message(session, f'Batch {batch_id} cancelled.', 'info')
     finally:
-        location = request.app.router['batches'].url_for().with_query(params)
+        location = request.app.router['batch_details_page'].url_for(batch_id=str(batch_id)).with_query(params)
         raise web.HTTPFound(location=location)  # pylint: disable=lost-exception
 
 
@@ -3678,7 +3677,7 @@ async def index(request: web.Request, _) -> NoReturn:
 @web_security_headers_swagger
 async def swagger(request):
     page_context = {'service': 'batch', 'base_path': deploy_config.base_path('batch')}
-    return await render_template('batch', request, None, 'swagger.html', page_context)
+    return await render_template('batch', request, None, 'swagger/index.html', page_context)
 
 
 @routes.get('/openapi.yaml')
@@ -3845,7 +3844,6 @@ def run():
             check_csrf_token,
             unavailable_if_frozen,
             monitor_endpoints_middleware,
-            global_security_headers_middleware,
         ],
     )
     setup_aiohttp_session(app)

@@ -2,7 +2,11 @@ terraform {
   required_providers {
     google = {
       source = "hashicorp/google"
-      version = "5.15.0"
+      version = "7.2.0"
+    }
+    google-beta = {
+      source = "hashicorp/google-beta"
+      version = "7.2.0"
     }
     kubernetes = {
       source = "hashicorp/kubernetes"
@@ -62,6 +66,8 @@ locals {
 
 provider "google" {
   project = var.gcp_project
+  billing_project = var.gcp_project
+  user_project_override = true
   region = var.gcp_region
   zone = var.gcp_zone
 }
@@ -74,6 +80,10 @@ provider "google-beta" {
 
 data "google_client_config" "provider" {}
 
+data "google_project" "current" {
+  project_id = var.gcp_project
+}
+
 resource "google_project_service" "service_networking" {
   disable_on_destroy = false
   service = "servicenetworking.googleapis.com"
@@ -84,6 +94,25 @@ resource "google_compute_project_metadata" "oslogin" {
   metadata = {
     enable-oslogin = "TRUE"
     block-project-ssh-keys = "TRUE"
+  }
+}
+
+# KMS Key Ring for Kubernetes secrets encryption
+resource "google_kms_key_ring" "k8s_secrets" {
+  name     = "k8s-secrets"
+  location = var.gcp_region
+}
+
+# KMS Key for Kubernetes secrets encryption with 90-day rotation
+resource "google_kms_crypto_key" "k8s_secrets_key" {
+  name     = "k8s-secrets-key"
+  key_ring = google_kms_key_ring.k8s_secrets.id
+  purpose  = "ENCRYPT_DECRYPT"
+
+  rotation_period = "7776000s" # 90 days in seconds
+
+  lifecycle {
+    prevent_destroy = true
   }
 }
 
@@ -143,7 +172,7 @@ resource "google_container_cluster" "vdc" {
   name = "vdc"
   location = var.gcp_zone
   network = google_compute_network.default.name
-  enable_shielded_nodes = false
+  enable_shielded_nodes = true
 
   # We can't create a cluster with no node pool defined, but we want to only use
   # separately managed node pools. So we create the smallest possible default
@@ -163,6 +192,38 @@ resource "google_container_cluster" "vdc" {
   master_auth {
     client_certificate_config {
       issue_client_certificate = false
+    }
+  }
+
+  master_authorized_networks_config {
+    # Broad Institute ranges from https://ipinfo.io/AS46964
+    cidr_blocks {
+      cidr_block   = "69.173.64.0/18"
+      display_name = "Broad Institute Range 1"
+    }
+    cidr_blocks {
+      cidr_block   = "69.173.64.0/19"
+      display_name = "Broad Institute Range 2"
+    }
+    cidr_blocks {
+      cidr_block   = "69.173.96.0/19"
+      display_name = "Broad Institute Range 3"
+    }
+    cidr_blocks {
+      cidr_block   = "69.173.95.0/24"
+      display_name = "Broad Institute Range 4"
+    }
+    cidr_blocks {
+      cidr_block   = "69.173.97.0/24"
+      display_name = "Broad Institute Range 5"
+    }
+    cidr_blocks {
+      cidr_block   = "10.0.0.0/8"
+      display_name = "VDC Internal Networks"
+    }
+    cidr_blocks {
+      cidr_block   = "10.128.0.0/9"
+      display_name = "GKE Control Plane and Nodes"
     }
   }
 
@@ -193,6 +254,27 @@ resource "google_container_cluster" "vdc" {
     enabled = true
     provider = "CALICO"
   }
+
+  # Enable secrets encryption using CloudKMS
+  database_encryption {
+    state    = "ENCRYPTED"
+    key_name = google_kms_crypto_key.k8s_secrets_key.id
+  }
+
+  private_cluster_config {
+    enable_private_nodes    = true
+    enable_private_endpoint = false
+  }
+
+  control_plane_endpoints_config {
+    dns_endpoint_config {
+      allow_external_traffic = true
+    }
+  }
+  
+  workload_identity_config {
+    workload_pool = "${var.gcp_project}.svc.id.goog"
+  }
 }
 
 resource "google_container_node_pool" "vdc_preemptible_pool" {
@@ -211,6 +293,13 @@ resource "google_container_node_pool" "vdc_preemptible_pool" {
   node_config {
     spot = true
     machine_type = "n1-standard-2"
+    service_account = google_service_account.gke_node_pool.email
+
+    kubelet_config {
+      cpu_manager_policy = ""
+      cpu_cfs_quota = false
+      pod_pids_limit = 0
+    }
 
     labels = {
       "preemptible" = "true"
@@ -226,19 +315,15 @@ resource "google_container_node_pool" "vdc_preemptible_pool" {
       disable-legacy-endpoints = "true"
     }
 
-    oauth_scopes = [
-      "https://www.googleapis.com/auth/devstorage.read_only",
-      "https://www.googleapis.com/auth/logging.write",
-      "https://www.googleapis.com/auth/monitoring",
-      "https://www.googleapis.com/auth/service.management.readonly",
-      "https://www.googleapis.com/auth/servicecontrol",
-      "https://www.googleapis.com/auth/trace.append",
-    ]
     tags = []
 
     shielded_instance_config {
       enable_integrity_monitoring = true
-      enable_secure_boot          = false
+      enable_secure_boot          = true
+    }
+
+    workload_metadata_config {
+      mode = "GKE_METADATA"
     }
   }
 
@@ -271,6 +356,13 @@ resource "google_container_node_pool" "vdc_nonpreemptible_pool" {
   node_config {
     preemptible = false
     machine_type = "n1-standard-2"
+    service_account = google_service_account.gke_node_pool.email
+
+    kubelet_config {
+      cpu_manager_policy = ""
+      cpu_cfs_quota = false
+      pod_pids_limit = 0
+    }
 
     labels = {
       preemptible = "false"
@@ -280,20 +372,15 @@ resource "google_container_node_pool" "vdc_nonpreemptible_pool" {
       disable-legacy-endpoints = "true"
     }
 
-    oauth_scopes = [
-      "https://www.googleapis.com/auth/devstorage.read_only",
-      "https://www.googleapis.com/auth/logging.write",
-      "https://www.googleapis.com/auth/monitoring",
-      "https://www.googleapis.com/auth/service.management.readonly",
-      "https://www.googleapis.com/auth/servicecontrol",
-      "https://www.googleapis.com/auth/trace.append",
-    ]
-
     tags = []
 
     shielded_instance_config {
       enable_integrity_monitoring = true
-      enable_secure_boot          = false
+      enable_secure_boot          = true
+    }
+
+    workload_metadata_config {
+      mode = "GKE_METADATA"
     }
   }
 
@@ -347,7 +434,7 @@ resource "google_sql_database_instance" "db" {
     ip_configuration {
       ipv4_enabled = false
       private_network = google_compute_network.default.id
-      require_ssl = true
+      ssl_mode = "TRUSTED_CLIENT_CERTIFICATE_REQUIRED"
     }
 
     backup_configuration {
@@ -421,6 +508,28 @@ resource "google_compute_address" "internal_gateway" {
   region = var.gcp_region
 }
 
+# Cloud Router for GKE node outbound NAT
+resource "google_compute_router" "gke_node_outbound_router" {
+  name    = "gke-node-outbound-router"
+  region  = var.gcp_region
+  network = google_compute_network.default.id
+}
+
+# Cloud NAT Gateway for GKE private node outbound internet access
+resource "google_compute_router_nat" "gke_node_outbound_nat" {
+  name                               = "gke-node-outbound-nat"
+  router                            = google_compute_router.gke_node_outbound_router.name
+  region                            = var.gcp_region
+  nat_ip_allocate_option            = "AUTO_ONLY"
+  source_subnetwork_ip_ranges_to_nat = "ALL_SUBNETWORKS_ALL_IP_RANGES"
+  
+  log_config {
+    enable = true
+    filter = "ERRORS_ONLY"
+  }
+}
+
+
 provider "kubernetes" {
   host = "https://${google_container_cluster.vdc.endpoint}"
   token = data.google_client_config.provider.access_token
@@ -479,13 +588,27 @@ module "ukbb" {
   source = "../k8s/ukbb"
 }
 
+resource "google_project_iam_custom_role" "auth_service_account_manager" {
+  role_id     = "authServiceAccountManager"
+  title       = "Auth Service Account Manager"
+  description = "Custom role for auth service with minimal required permissions for service account management"
+
+  permissions = [
+    "iam.serviceAccounts.create",
+    "iam.serviceAccounts.delete",
+    "iam.serviceAccounts.get",
+    "iam.serviceAccounts.list",
+    "iam.serviceAccounts.setIamPolicy",
+    "iam.serviceAccountKeys.create",
+  ]
+}
+
 module "auth_gsa_secret" {
   source = "./gsa"
   name = "auth"
   project = var.gcp_project
   iam_roles = [
-    "iam.serviceAccountAdmin",
-    "iam.serviceAccountKeyAdmin",
+    "projects/${var.gcp_project}/roles/authServiceAccountManager",
     "cloudprofiler.agent",
   ]
 }
@@ -500,13 +623,38 @@ module "testns_auth_gsa_secret" {
   ]
 }
 
+resource "google_project_iam_custom_role" "batch_compute_manager" {
+  role_id     = "batchComputeManager"
+  title       = "Batch Compute Manager"
+  description = "Custom role for batch service with specific compute permissions for instance management"
+
+  permissions = [
+    "compute.disks.create",
+    "compute.disks.delete",
+    "compute.disks.list",
+    "compute.images.useReadOnly",
+    "compute.instances.create",
+    "compute.instances.delete",
+    "compute.instances.get",
+    "compute.instances.list",
+    "compute.instances.setLabels",
+    "compute.instances.setMetadata",
+    "compute.instances.setServiceAccount",
+    "compute.instances.setTags",
+    "compute.machineTypes.list",
+    "compute.regions.get",
+    "compute.subnetworks.use",
+    "compute.subnetworks.useExternalIp",
+    "compute.zoneOperations.get",
+  ]
+}
+
 module "batch_gsa_secret" {
   source = "./gsa"
   name = "batch"
   project = var.gcp_project
   iam_roles = [
-    "compute.instanceAdmin.v1",
-    "iam.serviceAccountUser",
+    "projects/${var.gcp_project}/roles/batchComputeManager",
     "logging.viewer",
     "cloudprofiler.agent",
   ]
@@ -523,8 +671,7 @@ module "testns_batch_gsa_secret" {
   name = "testns-batch"
   project = var.gcp_project
   iam_roles = [
-    "compute.instanceAdmin.v1",
-    "iam.serviceAccountUser",
+    "projects/${var.gcp_project}/roles/batchComputeManager",
     "logging.viewer",
     "cloudprofiler.agent",
   ]
@@ -570,24 +717,25 @@ module "grafana_gsa_secret" {
   source = "./gsa"
   name = "grafana"
   project = var.gcp_project
+  iam_roles = [
+    "monitoring.viewer",
+  ]
 }
 
 module "testns_grafana_gsa_secret" {
   source = "./gsa"
   name = "testns-grafana"
   project = var.gcp_project
+  iam_roles = [
+    "monitoring.viewer",
+  ]
 }
 
-# FIXME Now that there are test identities for each service, the test user no longer
-# needs this many permissions. Perform an audit to see which can be removed
 module "test_gsa_secret" {
   source = "./gsa"
   name = "test"
   project = var.gcp_project
   iam_roles = [
-    "compute.instanceAdmin.v1",
-    "iam.serviceAccountUser",
-    "logging.viewer",
     "serviceusage.serviceUsageConsumer",
   ]
 }
@@ -685,6 +833,23 @@ resource "google_artifact_registry_repository_iam_member" "artifact_registry_tes
   member = "serviceAccount:${module.testns_test_dev_gsa_secret.email}"
 }
 
+resource "google_project_iam_custom_role" "batch2_agent_compute_ops" {
+  role_id     = "batch2AgentComputeOps"
+  title       = "Batch2 Agent Compute Ops"
+  description = "Custom role for batch2-agent with minimal disk and instance management permissions"
+
+  permissions = [
+    "compute.disks.create",
+    "compute.disks.delete",
+    "compute.disks.setLabels",
+    "compute.disks.use",
+    "compute.instances.attachDisk",
+    "compute.instances.delete",
+    "compute.instances.detachDisk",
+    "compute.zoneOperations.get",
+  ]
+}
+
 resource "google_service_account" "batch_agent" {
   description  = "Delete instances and pull images"
   display_name = "batch2-agent"
@@ -693,8 +858,6 @@ resource "google_service_account" "batch_agent" {
 
 resource "google_project_iam_member" "batch_agent_iam_member" {
   for_each = toset([
-    "compute.instanceAdmin.v1",
-    "iam.serviceAccountUser",
     "logging.logWriter",
     "storage.objectCreator",
     "storage.objectViewer",
@@ -703,6 +866,57 @@ resource "google_project_iam_member" "batch_agent_iam_member" {
   project = var.gcp_project
   role = "roles/${each.key}"
   member = "serviceAccount:${google_service_account.batch_agent.email}"
+}
+
+resource "google_project_iam_member" "batch_agent_custom_role" {
+  project = var.gcp_project
+  role = "projects/${var.gcp_project}/roles/batch2AgentComputeOps"
+  member = "serviceAccount:${google_service_account.batch_agent.email}"
+}
+
+# Grant batch service account permission to act as batch2-agent service account
+resource "google_service_account_iam_member" "batch_act_as_batch_agent" {
+  service_account_id = google_service_account.batch_agent.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${module.batch_gsa_secret.email}"
+}
+
+# Grant testns-batch service account permission to act as batch2-agent service account
+resource "google_service_account_iam_member" "testns_batch_act_as_batch_agent" {
+  service_account_id = google_service_account.batch_agent.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${module.testns_batch_gsa_secret.email}"
+}
+
+resource "google_service_account" "gke_node_pool" {
+  description  = "Service account for GKE node pools"
+  display_name = "gke-node-pool"
+  account_id = "gke-node-pool"
+}
+
+resource "google_project_iam_member" "gke_node_pool_iam_member" {
+  for_each = toset([
+    "storage.objectViewer",
+    "logging.logWriter",
+    "monitoring.metricWriter",
+    "monitoring.viewer",
+    "autoscaling.metricsWriter",
+    "artifactregistry.reader",
+  ])
+
+  project = var.gcp_project
+  role = "roles/${each.key}"
+  member = "serviceAccount:${google_service_account.gke_node_pool.email}"
+}
+
+# Grant CloudKMS permissions to GKE service account for secrets encryption
+resource "google_kms_crypto_key_iam_binding" "gke_service_account_kms_encrypter_decrypter" {
+  crypto_key_id = google_kms_crypto_key.k8s_secrets_key.id
+  role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
+
+  members = [
+    "serviceAccount:service-${data.google_project.current.number}@container-engine-robot.iam.gserviceaccount.com",
+  ]
 }
 
 resource "google_compute_firewall" "default_allow_internal" {

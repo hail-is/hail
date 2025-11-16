@@ -4,9 +4,12 @@ import is.hail.annotations._
 import is.hail.backend.HailStateManager
 import is.hail.expr.ir.{Env, IRParser, IntArrayBuilder, Name}
 import is.hail.utils._
+import is.hail.utils.compat._
+import is.hail.utils.compat.immutable.ArraySeq
 
-import scala.collection.JavaConverters._
+import scala.collection.compat._
 import scala.collection.mutable
+import scala.jdk.CollectionConverters._
 
 import org.apache.spark.sql.Row
 import org.json4s.CustomSerializer
@@ -24,10 +27,10 @@ object TStruct {
 
   def apply(args: (String, Type)*): TStruct =
     TStruct(args
-      .iterator
+      .view
       .zipWithIndex
       .map { case ((n, t), i) => Field(n, t, i) }
-      .toArray)
+      .to(ArraySeq))
 
   def apply(names: java.util.List[String], types: java.util.List[Type]): TStruct = {
     val sNames = names.asScala.toArray
@@ -79,7 +82,7 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
   override def unify(concrete: Type): Boolean = concrete match {
     case TStruct(cfields) =>
       fields.length == cfields.length &&
-      (fields, cfields).zipped.forall { case (f, cf) =>
+      fields.lazyZip(cfields).forall { case (f, cf) =>
         f.unify(cf)
       }
     case _ => false
@@ -285,7 +288,7 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
     newStruct -> annotator
   }
 
-  def insertFields(fieldsToInsert: TraversableOnce[(String, Type)]): TStruct = {
+  def insertFields(fieldsToInsert: IterableOnce[(String, Type)]): TStruct = {
     val ab = new BoxedArrayBuilder[Field](fields.length)
     var i = 0
     while (i < fields.length) {
@@ -294,7 +297,7 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
     }
     val it = fieldsToInsert.toIterator
     while (it.hasNext) {
-      val (name, typ) = it.next
+      val (name, typ) = it.next()
       if (fieldIdx.contains(name)) {
         val j = fieldIdx(name)
         ab(j) = Field(name, typ, j)
@@ -376,7 +379,7 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
   override def pyString(sb: StringBuilder): Unit = {
     sb ++= "struct{"
     fields.foreachBetween({ field =>
-      sb ++= prettyIdentifier(field.name) ++= ": "
+      sb ++= prettyIdentifier(field.name) ++= ": ": Unit
       field.typ.pyString(sb)
     })(sb ++= ", ")
     sb += '}'

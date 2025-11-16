@@ -9,7 +9,6 @@ from .auth import (
 from .auth_utils import create_session, insert_user
 from .csrf import check_csrf_token, new_csrf_token
 from .database import Database, Transaction, create_database_pool, resolve_test_db_endpoint, transaction
-from .global_security_headers import global_security_headers_middleware
 from .http_server_utils import json_request, json_response
 from .k8s_cache import K8sCache
 from .metrics import monitor_endpoints_middleware
@@ -29,7 +28,6 @@ __all__ = [
     'create_database_pool',
     'create_session',
     'get_authenticator',
-    'global_security_headers_middleware',
     'insert_user',
     'json_request',
     'json_response',

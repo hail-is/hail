@@ -369,7 +369,7 @@ object EmitNDArray {
 
           case x @ NDArrayConcat(nds, axis) =>
             emitI(nds, cb).flatMap(cb) { case ndsArraySValue: SIndexableValue =>
-              val arrLength = ndsArraySValue.loadLength()
+              val arrLength = ndsArraySValue.loadLength
               cb.if_(arrLength ceq 0, cb._fatal("need at least one ndarray to concatenate"))
 
               IEmitCode(
@@ -485,7 +485,7 @@ object EmitNDArray {
                                 )
                                 cb.assign(currentNDArrayIdx, currentNDArrayIdx + 1)
                                 cb.if_(
-                                  currentNDArrayIdx < stagedArrayOfSizes.loadLength(),
+                                  currentNDArrayIdx < stagedArrayOfSizes.loadLength,
                                   cb.assign(
                                     shouldLoop,
                                     curIdxVar >= stagedArrayOfSizes.loadElement(
@@ -583,7 +583,7 @@ object EmitNDArray {
                         childProducer.initAll(cb)
                         // Need to get the indexingIndices to the right starting points
                         indexingIndices.zipWithIndex.foreach { case (childIdx, ordinalIdx) =>
-                          childProducer.initAxis(childIdx)
+                          childProducer.initAxis(childIdx)(cb)
                           childProducer.stepAxis(childIdx)(cb, indexingValues(ordinalIdx))
                         }
                       }
@@ -635,7 +635,7 @@ object EmitNDArray {
                   {
                     case filtArrayPValue: SIndexableValue =>
                       filtPValues(i) = filtArrayPValue
-                      cb.assign(outputShape(i), filtArrayPValue.loadLength().toL)
+                      cb.assign(outputShape(i), filtArrayPValue.loadLength.toL)
                       cb.assign(filterWasMissing(i), false)
                   },
                 )

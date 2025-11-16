@@ -4,6 +4,8 @@ import is.hail.backend.ExecuteContext
 import is.hail.types.virtual._
 import is.hail.utils._
 
+import scala.collection.compat._
+
 case class FilePartitionInfo(
   metadata: BgenFileMetadata,
   intervals: Array[Interval],
@@ -81,10 +83,10 @@ object BgenRDDPartitions extends Logging {
     val getKeysFromFile = StagedBGENReader.queryIndexByPosition(ctx, indexSpec)
 
     nonEmptyFilesAfterFilter.zipWithIndex.map { case (file, fileIndex) =>
-      val nPartitions = math.min(fileNPartitions(fileIndex), file.nVariants).toInt
+      val nPartitions = math.min(fileNPartitions(fileIndex).toLong, file.nVariants).toInt
       val partNVariants: Array[Long] = partition(file.nVariants, nPartitions)
       val partFirstVariantIndex = partNVariants.scan(0L)(_ + _).init
-      val partLastVariantIndex = (partFirstVariantIndex, partNVariants).zipped.map { (idx, n) =>
+      val partLastVariantIndex = partFirstVariantIndex.lazyZip(partNVariants).map { (idx, n) =>
         idx + n
       }
 

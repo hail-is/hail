@@ -6,8 +6,7 @@ import is.hail.sparkextras._
 import is.hail.types.physical.PStruct
 import is.hail.types.virtual.TInterval
 import is.hail.utils._
-
-import scala.collection.generic.Growable
+import is.hail.utils.compat.mutable.Growable
 
 class KeyedRVD(val rvd: RVD, val key: Int) {
   require(key <= rvd.typ.key.length && key >= 0)

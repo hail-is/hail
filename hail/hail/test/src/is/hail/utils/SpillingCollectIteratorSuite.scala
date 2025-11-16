@@ -2,11 +2,10 @@ package is.hail.utils
 
 import is.hail.HailSuite
 
-import org.scalatest
 import org.testng.annotations.Test
 
 class SpillingCollectIteratorSuite extends HailSuite {
-  @Test def addOneElement(): scalatest.Assertion = {
+  @Test def addOneElement(): Unit = {
     val array = (0 to 1234).toArray
     val sci = SpillingCollectIterator(ctx.localTmpdir, fs, sc.parallelize(array, 99), 100)
     assert(sci.hasNext)

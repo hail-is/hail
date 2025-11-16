@@ -55,7 +55,7 @@ package object experimental {
 
     // Needs some non-ref samples to compute
     if (_gtCounts(0) >= nSamples) {
-      return FastSeq(_gtCounts(0), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+      return FastSeq(_gtCounts(0).toDouble, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     }
 
     val nHaplotypes = 2.0 * nSamples.toDouble

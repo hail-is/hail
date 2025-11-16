@@ -1,12 +1,12 @@
 package is.hail.rvd
 
-import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s.{theHailClassLoaderForSparkWorkers, HailClassLoader}
 import is.hail.backend.{ExecuteContext, HailStateManager, HailTaskContext}
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
 import is.hail.expr.ir.InferPType
 import is.hail.expr.ir.PruneDeadFields.isSupertype
+import is.hail.expr.ir.agg.AggExecuteContextExtensions
 import is.hail.io._
 import is.hail.io.index.IndexWriter
 import is.hail.sparkextras._
@@ -15,6 +15,7 @@ import is.hail.types.virtual.{MatrixType, TInterval, TStruct}
 import is.hail.utils._
 import is.hail.utils.PartitionCounts.{getPCSubsetOffset, incrementalPCSubsetOffset, PCSubsetOffset}
 
+import scala.collection.parallel.CollectionConverters._
 import scala.reflect.ClassTag
 
 import java.util
@@ -98,7 +99,7 @@ class RVD(
     val localRowPType = rowPType
     crdd.cmapPartitions { (ctx, it) =>
       val encoder = new ByteArrayEncoder(theHailClassLoaderForSparkWorkers, makeEnc)
-      TaskContext.get.addTaskCompletionListener[Unit](_ => encoder.close())
+      TaskContext.get().addTaskCompletionListener[Unit](_ => encoder.close()): Unit
       it.map { ptr =>
         val keys: Any = SafeRow.selectFields(localRowPType, ctx.r, ptr)(kFieldIdx)
         val bytes = encoder.regionValueToBytes(ctx.r, ptr)
@@ -621,7 +622,7 @@ class RVD(
     val crdd: ContextRDD[Long] =
       this.crdd.cmapPartitionsWithContextAndIndex { (i, consumerCtx, iteratorToFilter) =>
         val c = makeContext(i, consumerCtx)
-        val producerCtx = consumerCtx.freshContext
+        val producerCtx = consumerCtx.freshContext()
         iteratorToFilter(producerCtx).filter { ptr =>
           val b = f(c, consumerCtx, ptr)
           if (b) {
@@ -722,9 +723,9 @@ class RVD(
     }
 
     if (tree) {
-      val depth = treeAggDepth(getNumPartitions, HailContext.get.branchingFactor)
+      val depth = treeAggDepth(getNumPartitions, execCtx.branchingFactor)
       val scale = math.max(
-        math.ceil(math.pow(getNumPartitions, 1.0 / depth)).toInt,
+        math.ceil(math.pow(getNumPartitions.toDouble, 1.0 / depth)).toInt,
         2,
       )
 
@@ -992,7 +993,7 @@ class RVD(
     val sm = ctx.stateManager
     val partitionKeyedIntervals = that.crdd.cmapPartitions { (ctx, it) =>
       val encoder = new ByteArrayEncoder(theHailClassLoaderForSparkWorkers, makeEnc)
-      TaskContext.get.addTaskCompletionListener[Unit](_ => encoder.close())
+      TaskContext.get().addTaskCompletionListener[Unit](_ => encoder.close()): Unit
       it.flatMap { ptr =>
         val r = SafeRow(rightTyp.rowType, ptr)
         val interval = r.getAs[Interval](rightTyp.kFieldIdx(0))
@@ -1060,6 +1061,9 @@ class RVD(
 }
 
 object RVD {
+
+  var CheckRvdKeyOrderingForTesting: Boolean = false
+
   def empty(ctx: ExecuteContext, typ: RVDType): RVD =
     RVD.empty(ctx.stateManager, typ)
 
@@ -1082,7 +1086,7 @@ object RVD {
     val localType = typ
     val sm = ctx.stateManager
     crdd.cmapPartitionsWithContext { (consumerCtx, it) =>
-      val producerCtx = consumerCtx.freshContext
+      val producerCtx = consumerCtx.freshContext()
       val wrv = WritableRegionValue(sm, localType.kType, consumerCtx.region)
       it(producerCtx).map { ptr =>
         wrv.setSelect(localType.rowType, localType.kFieldIdx, ptr, deepCopy = true)
@@ -1230,11 +1234,11 @@ object RVD {
 
       new RVDCoercer(fullType) {
         val unfixedPartitioner =
-          new RVDPartitioner(execCtx.stateManager, fullType.kType.virtualType, bounds)
+          new RVDPartitioner(execCtx.stateManager, this.fullType.kType.virtualType, bounds)
         val newPartitioner = RVDPartitioner.generate(
           execCtx.stateManager,
-          fullType.key.take(partitionKey),
-          fullType.kType.virtualType,
+          this.fullType.key.take(partitionKey),
+          this.fullType.kType.virtualType,
           bounds,
         )
 
@@ -1258,13 +1262,13 @@ object RVD {
       new RVDCoercer(fullType) {
         val unfixedPartitioner = new RVDPartitioner(
           execCtx.stateManager,
-          fullType.kType.virtualType.truncate(partitionKey),
+          this.fullType.kType.virtualType.truncate(partitionKey),
           pkBounds,
         )
         val newPartitioner = RVDPartitioner.generate(
           execCtx.stateManager,
-          fullType.key.take(partitionKey),
-          fullType.kType.virtualType.truncate(partitionKey),
+          this.fullType.key.take(partitionKey),
+          this.fullType.kType.virtualType.truncate(partitionKey),
           pkBounds,
         )
 
@@ -1285,7 +1289,7 @@ object RVD {
 
       new RVDCoercer(fullType) {
         val newPartitioner =
-          calculateKeyRanges(execCtx, fullType, keyInfo, keys.getNumPartitions, partitionKey)
+          calculateKeyRanges(execCtx, this.fullType, keyInfo, keys.getNumPartitions, partitionKey)
 
         def _coerce(typ: RVDType, crdd: CRDD): RVD =
           RVD.unkeyed(typ.rowType, crdd)
@@ -1312,15 +1316,10 @@ object RVD {
     RVDPartitioner.fromKeySamples(ctx, typ, min, max, samples, nPartitions, partitionKey)
   }
 
-  def apply(
-    typ: RVDType,
-    partitioner: RVDPartitioner,
-    crdd: ContextRDD[Long],
-  ): RVD =
-    if (!HailContext.get.checkRVDKeys)
-      new RVD(typ, partitioner, crdd)
-    else
-      new RVD(typ, partitioner, crdd).checkKeyOrdering()
+  def apply(typ: RVDType, partitioner: RVDPartitioner, crdd: ContextRDD[Long]): RVD = {
+    val rvd = new RVD(typ, partitioner, crdd)
+    if (CheckRvdKeyOrderingForTesting) rvd.checkKeyOrdering() else rvd
+  }
 
   def unify(execCtx: ExecuteContext, rvds: Seq[RVD]): Seq[RVD] = {
     if (rvds.length == 1 || rvds.forall(_.rowPType == rvds.head.rowPType))
@@ -1380,7 +1379,6 @@ object RVD {
     val sc = SparkBackend.sparkContext
     val localTmpdir = execCtx.localTmpdir
     val fs = execCtx.fs
-    val fsBc = fs.broadcast
 
     val nRVDs = rvds.length
     val partitioner = first.partitioner
@@ -1412,6 +1410,7 @@ object RVD {
       fs.mkDir(path + "/index")
     }
 
+    val fsBc = execCtx.fsBc
     val partF = {
       (originIdx: Int, originPartIdx: Int, it: Iterator[RVDContext => Iterator[Long]]) =>
         Iterator.single { ctx: RVDContext =>

@@ -19,13 +19,13 @@ COPY hail/python/setup-hailtop.py /hailtop/setup.py
 COPY hail/python/MANIFEST.in /hailtop/MANIFEST.in
 COPY hail/python/hailtop /hailtop/hailtop/
 
-COPY gear/setup.py /gear/setup.py
+COPY gear/pyproject.toml /gear/pyproject.toml
 COPY gear/gear /gear/gear/
 
-COPY web_common/setup.py web_common/MANIFEST.in web_common/input.css web_common/tailwind.config.js /web_common/
+COPY web_common/pyproject.toml web_common/MANIFEST.in web_common/input.css web_common/tailwind.config.js /web_common/
 COPY web_common/web_common /web_common/web_common/
 
-COPY batch/setup.py /batch/MANIFEST.in /batch/
+COPY batch/pyproject.toml /batch/MANIFEST.in /batch/
 COPY batch/batch /batch/batch/
 
 RUN cd web_common && \

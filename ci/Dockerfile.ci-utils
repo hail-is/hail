@@ -8,7 +8,7 @@ COPY gear/pinned-requirements.txt gear-requirements.txt
 RUN hail-pip-install \
       -r hailtop-requirements.txt \
       -r gear-requirements.txt \
-      twine==1.11.0 \
+      'twine>=6.2.0,<7' \
       'Jinja2>3,<4'
 
 FROM golang:1.18 AS skopeo-build
@@ -29,7 +29,7 @@ COPY hail/python/setup-hailtop.py /hailtop/setup.py
 COPY hail/python/MANIFEST.in /hailtop/MANIFEST.in
 COPY hail/python/hailtop /hailtop/hailtop/
 
-COPY gear/setup.py /gear/setup.py
+COPY gear/pyproject.toml /gear/pyproject.toml
 COPY gear/gear /gear/gear/
 
 RUN hail-pip-install /hailtop /gear

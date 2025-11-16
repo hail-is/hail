@@ -23,7 +23,6 @@ from gear import (
     UserData,
     check_csrf_token,
     create_session,
-    global_security_headers_middleware,
     json_request,
     json_response,
     maybe_parse_bearer_header,
@@ -234,7 +233,7 @@ async def get_healthcheck(_) -> web.Response:
 @web_security_headers_swagger
 async def swagger(request):
     page_context = {'service': 'auth', 'base_path': deploy_config.base_path('auth')}
-    return await render_template('auth', request, None, 'swagger.html', page_context)
+    return await render_template('auth', request, None, 'swagger/index.html', page_context)
 
 
 @routes.get('/openapi.yaml')
@@ -1234,7 +1233,10 @@ def run():
     install_profiler_if_requested('auth')
 
     app = web.Application(
-        middlewares=[auth_check_csrf_token, monitor_endpoints_middleware, global_security_headers_middleware]
+        middlewares=[
+            auth_check_csrf_token,
+            monitor_endpoints_middleware,
+        ]
     )
 
     setup_aiohttp_jinja2(app, 'auth')

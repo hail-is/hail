@@ -2,7 +2,6 @@ package is.hail.utils
 
 import scala.collection.mutable
 
-import org.scalatest
 import org.scalatest.matchers.should.Matchers._
 import org.testng.annotations.Test
 
@@ -15,7 +14,7 @@ class GraphSuite {
     x.forall(x => g(x).intersect(s).isEmpty)
   }
 
-  @Test def simple(): scalatest.Assertion = {
+  @Test def simple(): Unit = {
     {
       val actual = maximalIndependentSet(Array((0 -> 1)))
       actual should ((contain theSameElementsAs Array(0)) or (contain theSameElementsAs Array(1)))
@@ -41,7 +40,7 @@ class GraphSuite {
     }
   }
 
-  @Test def longCycle(): scalatest.Assertion = {
+  @Test def longCycle(): Unit = {
     val g = mkGraph(0 -> 1, 1 -> 2, 2 -> 3, 3 -> 4, 4 -> 5, 5 -> 6, 6 -> 0)
     val actual = maximalIndependentSet(g)
 
@@ -49,7 +48,7 @@ class GraphSuite {
     assert(actual.length == 3)
   }
 
-  @Test def twoPopularNodes(): scalatest.Assertion = {
+  @Test def twoPopularNodes(): Unit = {
     val g = mkGraph(0 -> 1, 0 -> 2, 0 -> 3, 4 -> 5, 4 -> 6, 4 -> 0)
     val actual = maximalIndependentSet(g)
 
@@ -57,10 +56,10 @@ class GraphSuite {
     assert(actual.length == 5)
   }
 
-  @Test def totallyDisconnected(): scalatest.Assertion = {
+  @Test def totallyDisconnected(): Unit = {
     val expected = 0 until 10
 
-    val m = new mutable.HashMap[Int, mutable.Set[Int]]() with mutable.MultiMap[Int, Int]
+    val m = mutable.HashMap.empty[Int, mutable.Set[Int]]
     for (i <- expected)
       m.put(i, mutable.Set())
 
@@ -69,7 +68,7 @@ class GraphSuite {
     actual should contain theSameElementsAs expected
   }
 
-  @Test def disconnected(): scalatest.Assertion = {
+  @Test def disconnected(): Unit = {
     val g = mkGraph(for (i <- 0 until 10) yield (i, i + 10))
 
     val actual = maximalIndependentSet(g)
@@ -78,7 +77,7 @@ class GraphSuite {
     assert(actual.length == 10)
   }
 
-  @Test def selfEdge(): scalatest.Assertion = {
+  @Test def selfEdge(): Unit = {
     val g = mkGraph(0 -> 0, 1 -> 2, 1 -> 3)
 
     val actual = maximalIndependentSet(g)
@@ -87,7 +86,7 @@ class GraphSuite {
     actual should contain theSameElementsAs Array(2, 3)
   }
 
-  @Test def emptyGraph(): scalatest.Assertion = {
+  @Test def emptyGraph(): Unit = {
     val g = mkGraph[Int]()
 
     val actual = maximalIndependentSet(g)
@@ -95,7 +94,7 @@ class GraphSuite {
     assert(actual === Array[Int]())
   }
 
-  @Test def tieBreakingOfBipartiteGraphWorks(): scalatest.Assertion = {
+  @Test def tieBreakingOfBipartiteGraphWorks(): Unit = {
     val g = mkGraph(for (i <- 0 until 10) yield (i, i + 10))
     // prefer to remove big numbers
     val actual = maximalIndependentSet(g, Some((l: Int, r: Int) => (l - r).toDouble))
@@ -105,7 +104,7 @@ class GraphSuite {
     assert(actual.forall(_ < 10))
   }
 
-  @Test def tieBreakingInLongCycleWorks(): scalatest.Assertion = {
+  @Test def tieBreakingInLongCycleWorks(): Unit = {
     val g = mkGraph(0 -> 1, 1 -> 2, 2 -> 3, 3 -> 4, 4 -> 5, 5 -> 6, 6 -> 0)
     // prefers to remove small numbers
     val actual = maximalIndependentSet(g, Some((l: Int, r: Int) => (r - l).toDouble))

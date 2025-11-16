@@ -7,37 +7,40 @@ import is.hail.io.fs.FS
 import is.hail.types.physical.PTuple
 import is.hail.variant.ReferenceGenome
 
+import scala.collection.compat._
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
 import org.apache.spark.sql.Row
 
 object Graph {
-  def mkGraph[T](edges: (T, T)*): mutable.MultiMap[T, T] =
+  private type MultiMap[A, B] = mutable.Map[A, mutable.Set[B]]
+
+  def mkGraph[T](edges: (T, T)*): MultiMap[T, T] =
     mkGraph(edges.toArray)
 
-  def mkGraph[T](edges: Array[(T, T)]): mutable.MultiMap[T, T] = {
-    val m = new mutable.HashMap[T, mutable.Set[T]]() with mutable.MultiMap[T, T]
+  def mkGraph[T](edges: Array[(T, T)]): MultiMap[T, T] = {
+    val m: MultiMap[T, T] = mutable.HashMap.empty
     var i = 0
     while (i < edges.length) {
-      m.addBinding(edges(i)._1, edges(i)._2)
-      m.addBinding(edges(i)._2, edges(i)._1)
+      m.getOrElseUpdate(edges(i)._1, mutable.Set.empty) += edges(i)._2
+      m.getOrElseUpdate(edges(i)._2, mutable.Set.empty) += edges(i)._1
       i += 1
     }
     m
   }
 
-  def mkGraph[T](edges: TraversableOnce[(T, T)]): mutable.MultiMap[T, T] = {
-    val m = new mutable.HashMap[T, mutable.Set[T]]() with mutable.MultiMap[T, T]
-    edges.foreach { case (i, j) =>
-      m.addBinding(i, j)
-      m.addBinding(j, i)
+  def mkGraph[T](edges: IterableOnce[(T, T)]): MultiMap[T, T] = {
+    val m: MultiMap[T, T] = mutable.HashMap.empty.withDefault(_ => mutable.Set.empty)
+    edges.iterator.foreach { case (i, j) =>
+      m.getOrElseUpdate(i, mutable.Set.empty) += j
+      m.getOrElseUpdate(j, mutable.Set.empty) += i
     }
     m
   }
 
   def maximalIndependentSet(edges: UnsafeIndexedSeq): IndexedSeq[Any] =
-    maximalIndependentSet(mkGraph(edges.map { case Row(i, j) => i -> j }))
+    maximalIndependentSet(mkGraph(edges.view.map { case Row(i, j) => i -> j }))
 
   def maximalIndependentSet(
     rgs: Map[String, ReferenceGenome],
@@ -92,19 +95,21 @@ object Graph {
     maximalIndependentSet(mkGraph(edges), Some(tieBreaker))
 
   def maximalIndependentSet[T: ClassTag](
-    g: mutable.MultiMap[T, T],
+    g: MultiMap[T, T],
     maybeTieBreaker: Option[(T, T) => Double] = None,
   ): IndexedSeq[T] = {
     val verticesByDegree = new BinaryHeap[T](maybeTieBreaker = maybeTieBreaker.orNull)
 
     g.foreach { case (v, neighbors) =>
-      verticesByDegree.insert(v, neighbors.size)
+      verticesByDegree.insert(v, neighbors.size.toLong)
     }
 
     while (verticesByDegree.nonEmpty && verticesByDegree.maxPriority() > 0) {
       val current = verticesByDegree.extractMax()
-      val neighbors = g(current) - current
-      neighbors.foreach { x =>
+      for {
+        x <- g(current)
+        if x != current
+      } {
         g(x) -= current
         verticesByDegree.decreasePriority(x, _ - 1)
       }

@@ -1,8 +1,8 @@
 package is.hail.expr.ir.lowering
 
-import is.hail.HailContext
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{agg, TableNativeWriter, _}
+import is.hail.expr.ir.agg.AggExecuteContextExtensions
 import is.hail.expr.ir.analyses.PartitionCounts
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.defs.ArrayZipBehavior.AssertSameLength
@@ -14,6 +14,8 @@ import is.hail.types._
 import is.hail.types.physical.{PCanonicalBinary, PCanonicalTuple}
 import is.hail.types.virtual._
 import is.hail.utils._
+
+import scala.collection.compat._
 
 import org.apache.spark.sql.Row
 
@@ -499,7 +501,7 @@ class TableStage(
       )
     } else {
       val location = ec.createTmpPath(genUID())
-      CompileAndEvaluate(
+      CompileAndEvaluate[Unit](
         ec,
         TableNativeWriter(location).lower(ec, this, RTable.fromTableStage(ec, this)),
       )
@@ -618,7 +620,7 @@ class TableStage(
     require(joinKey <= right.kType.size)
 
     val leftKeyToRightKeyMap =
-      (kType.fieldNames.take(joinKey), right.kType.fieldNames.take(joinKey)).zipped.toMap
+      (kType.fieldNames.take(joinKey) lazyZip right.kType.fieldNames.take(joinKey)).toMap
     val newRightPartitioner = partitioner.coarsen(joinKey).rename(leftKeyToRightKeyMap)
     val repartitionedRight =
       right.repartitionNoShuffle(ec, newRightPartitioner, allowDuplication = true)
@@ -825,7 +827,7 @@ object LowerTableIR {
 
         val initFromSerializedStates = aggSigs.initFromSerializedValueOp(initStateRef)
 
-        val branchFactor = HailContext.get.branchingFactor
+        val branchFactor = ctx.branchingFactor
         val useTreeAggregate = aggSigs.shouldTreeAggregate && branchFactor < lc.numPartitions
         val isCommutative = aggSigs.isCommutative
         log.info(s"Aggregate: useTreeAggregate=$useTreeAggregate")
@@ -1432,7 +1434,7 @@ object LowerTableIR {
 
         val bindRelationLetsNewCtx = Let(loweredChild.letBindings, ToArray(newCtxs))
         val newCtxSeq =
-          CompileAndEvaluate(ctx, bindRelationLetsNewCtx).asInstanceOf[IndexedSeq[Any]]
+          CompileAndEvaluate[IndexedSeq[Any]](ctx, bindRelationLetsNewCtx)
         val numNewParts = newCtxSeq.length
         val newIntervals = loweredChild.partitioner.rangeBounds.slice(0, numNewParts)
         val newPartitioner = loweredChild.partitioner.copy(rangeBounds = newIntervals)
@@ -1581,7 +1583,7 @@ object LowerTableIR {
         }
 
         val letBindNewCtx = Let(loweredChild.letBindings, ToArray(newCtxs))
-        val newCtxSeq = CompileAndEvaluate(ctx, letBindNewCtx).asInstanceOf[IndexedSeq[Any]]
+        val newCtxSeq = CompileAndEvaluate[IndexedSeq[Any]](ctx, letBindNewCtx)
         val numNewParts = newCtxSeq.length
         val oldParts = loweredChild.partitioner.rangeBounds
         val newIntervals = oldParts.slice(oldParts.length - numNewParts, oldParts.length)
@@ -1625,7 +1627,7 @@ object LowerTableIR {
           )
 
           val initFromSerializedStates = aggSigs.initFromSerializedValueOp(initStateRef)
-          val branchFactor = HailContext.get.branchingFactor
+          val branchFactor = ctx.branchingFactor
           val big = aggSigs.shouldTreeAggregate && branchFactor < lc.numPartitions
           val (partitionPrefixSumValues, transformPrefixSum): (IR, IR => IR) = if (big) {
             val tmpDir = ctx.createTmpPath("aggregate_intermediates/")

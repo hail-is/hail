@@ -8,8 +8,10 @@ import pytest
 
 import hail as hl
 from hail.backend.service_backend import ServiceBackend
+from hail.utils import ANY_REGION
 from hailtop.batch_client.client import Batch, BatchClient, Job, JobGroup
 from hailtop.config import ConfigVariable, configuration_of
+from hailtop.utils import async_to_blocking
 
 
 @dataclass
@@ -129,7 +131,7 @@ def test_driver_and_worker_job_groups():
     worker_jobs = list(worker_stage.jobs())
     assert len(worker_jobs) == n_partitions
     for i, partition in enumerate(worker_jobs):
-        assert partition['name'] == f'execute(...)_stage0_table_force_count_job{i}'
+        assert partition['name'] == f'execute(...)_stage0_table_force_count_partition{i}'
 
 
 @pytest.mark.backend('batch')
@@ -151,3 +153,33 @@ def test_attach_to_existing_batch(request):
 
     status = batch.status()
     assert status['n_jobs'] > 0, repr(batch.debug_info())
+
+
+@pytest.mark.backend('batch')
+@pytest.mark.uninitialized
+def test_explicit_regions():
+    hl.init(backend='batch', regions=['us-central1'])
+
+    backend = hl.current_backend()
+    assert isinstance(backend, ServiceBackend)
+    assert backend.regions == ['us-central1']
+
+
+@pytest.mark.backend('batch')
+@pytest.mark.uninitialized
+def test_any_region():
+    hl.init(backend='batch', regions=ANY_REGION)
+
+    backend = hl.current_backend()
+    assert isinstance(backend, ServiceBackend)
+    assert backend.regions == async_to_blocking(backend._batch_client.supported_regions())
+
+
+@pytest.mark.backend('batch')
+@pytest.mark.uninitialized
+def test_default_region():
+    hl.init(backend='batch')
+
+    backend = hl.current_backend()
+    assert isinstance(backend, ServiceBackend)
+    assert backend.regions == [async_to_blocking(backend._batch_client.default_region())]

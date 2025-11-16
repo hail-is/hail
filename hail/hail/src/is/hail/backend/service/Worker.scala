@@ -1,24 +1,24 @@
 package is.hail.backend.service
 
-import is.hail.{HAIL_REVISION, HailContext, HailFeatureFlags}
+import is.hail.{HAIL_REVISION, HailFeatureFlags}
 import is.hail.asm4s._
+import is.hail.backend.Backend.PartitionFn
 import is.hail.backend.HailTaskContext
 import is.hail.io.fs._
-import is.hail.macros.void
 import is.hail.services._
 import is.hail.utils._
 
 import scala.collection.mutable
-import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.{Await, ExecutionContext, ExecutionException, Future}
 import scala.concurrent.duration.Duration
 
 import java.io._
 import java.nio.charset._
 import java.nio.file.Path
 import java.util
-import java.util.{concurrent => javaConcurrent}
+import java.util.concurrent.Executors
 
-import org.apache.log4j.Logger
+import com.google.common.util.concurrent.ThreadFactoryBuilder
 
 class ServiceTaskContext(val partitionId: Int) extends HailTaskContext {
   override def stageId(): Int = 0
@@ -26,17 +26,12 @@ class ServiceTaskContext(val partitionId: Int) extends HailTaskContext {
   override def attemptNumber(): Int = 0
 }
 
-object WorkerTimer {
-  private val log = Logger.getLogger(getClass.getName())
-}
-
-class WorkerTimer() {
-  import WorkerTimer._
+class WorkerTimer extends Logging {
 
   var startTimes: mutable.Map[String, Long] = mutable.Map()
 
   def start(label: String): Unit =
-    void(startTimes.put(label, System.nanoTime()))
+    startTimes.update(label, System.nanoTime())
 
   def end(label: String): Unit = {
     val endTime = System.nanoTime()
@@ -45,6 +40,12 @@ class WorkerTimer() {
       val durationMS = "%.6f".format((endTime - s).toDouble / 1000000.0)
       log.info(s"$label took $durationMS ms.")
     }
+  }
+
+  def enter[A](label: String)(f: => A): A = {
+    start(label)
+    try f
+    finally end(label)
   }
 }
 
@@ -64,7 +65,9 @@ object ExplicitClassLoaderInputStream {
     m.put("long", Long.getClass)
     m.put("float", Float.getClass)
     m.put("double", Double.getClass)
-    m.put("void", Unit.getClass)
+    // FIXME: I (ps) don't understand what this code is doing. In Scala 2.13 the Unit object isn't
+    // allowed to be named anymore. Why are we loading scala companion objects here?
+    m.put("void", ().getClass)
     m
   }
 }
@@ -74,64 +77,113 @@ class ExplicitClassLoaderInputStream(is: InputStream, cl: ClassLoader)
 
   override def resolveClass(desc: ObjectStreamClass): Class[_] = {
     val name = desc.getName
-    try return Class.forName(name, false, cl)
+    try Class.forName(name, false, cl)
     catch {
       case ex: ClassNotFoundException =>
         val cl = ExplicitClassLoaderInputStream.primClasses.get(name)
-        if (cl != null) return cl
+        if (cl != null) cl
         else throw ex
     }
   }
 }
 
-object Worker {
-  private[this] val log = Logger.getLogger(getClass.getName())
-  private[this] val myRevision = HAIL_REVISION
+object WireProtocol {
 
-  implicit private[this] val ec = ExecutionContext.fromExecutorService(
-    javaConcurrent.Executors.newCachedThreadPool()
-  )
+  implicit class Write(private val os: DataOutputStream) extends AnyVal {
 
-  private[this] def writeString(out: DataOutputStream, s: String): Unit = {
-    val bytes = s.getBytes(StandardCharsets.UTF_8)
-    out.writeInt(bytes.length)
-    out.write(bytes)
+    def writeBytes(bs: Array[Byte]): Unit = {
+      os.writeInt(bs.length)
+      os.write(bs)
+    }
+
+    def writeString(s: String): Unit =
+      os.writeBytes(s.getBytes(StandardCharsets.UTF_8))
+
+    def writeSuccess(partId: Int, bs: Array[Byte]): Unit = {
+      os.writeInt(partId)
+      os.writeBytes(bs)
+    }
+
+    def writeFailure(partId: Int, e: Throwable): Unit = {
+      val (shortMessage, expandedMessage, errorId) = handleForPython(e)
+      os.writeInt(partId)
+      os.writeString(shortMessage)
+      os.writeString(expandedMessage)
+      os.writeInt(errorId)
+    }
   }
 
-  def writeException(out: DataOutputStream, e: Throwable): Unit = {
-    val (shortMessage, expandedMessage, errorId) = handleForPython(e)
-    out.writeBoolean(false)
-    writeString(out, shortMessage)
-    writeString(out, expandedMessage)
-    out.writeInt(errorId)
+  implicit class Read(private val is: DataInputStream) extends AnyVal {
+
+    def readBytes(): Array[Byte] = {
+      val length = is.readInt()
+      val bs = new Array[Byte](length)
+      is.readFully(bs)
+      bs
+    }
+
+    def readString(): String =
+      new String(is.readBytes(), StandardCharsets.UTF_8)
+
+    def readSuccess(): (Array[Byte], Int) = {
+      val partId = is.readInt()
+      val bytes = is.readBytes()
+      bytes -> partId
+    }
+
+    def readFailure(): HailWorkerException =
+      HailWorkerException(
+        partitionId = is.readInt(),
+        shortMessage = is.readString(),
+        expandedMessage = is.readString(),
+        errorId = is.readInt(),
+      )
   }
+
+  def write(os: DataOutputStream, partId: Int, result: Either[Throwable, Array[Byte]]): Unit =
+    result match {
+      case Left(throwable) =>
+        os.writeByte(0)
+        os.writeFailure(partId, throwable)
+
+      case Right(bytes) =>
+        os.writeByte(1)
+        os.writeSuccess(partId, bytes)
+    }
+
+  def read(is: DataInputStream): Either[HailWorkerException, (Array[Byte], Int)] =
+    is.readByte() match {
+      case 0 => Left(is.readFailure())
+      case 1 => Right(is.readSuccess())
+    }
+}
+
+object Worker extends Logging {
 
   def main(argv: Array[String]): Unit = {
-    val theHailClassLoader = new HailClassLoader(getClass().getClassLoader())
-
     if (argv.length != 7) {
       throw new IllegalArgumentException(s"expected seven arguments, not: ${argv.length}")
     }
+
     val scratchDir = argv(0)
     // val logFile = argv(1)
     // var jarLocation = argv(2)
     val kind = argv(3)
     assert(kind == Main.WORKER)
     val root = argv(4)
-    val i = argv(5).toInt
-    val n = argv(6).toInt
+    val partition = argv(5).toInt
+    val index = argv(6).toInt
     val timer = new WorkerTimer()
 
-    val deployConfig = DeployConfig.fromConfigFile("/deploy-config/deploy-config.json")
-    DeployConfig.set(deployConfig)
     sys.env.get("HAIL_SSL_CONFIG_DIR").foreach(tls.setSSLConfigFromDir)
 
-    log.info(s"is.hail.backend.service.Worker $myRevision")
-    log.info(s"running job $i/$n at root $root with scratch directory '$scratchDir'")
+    log.info(s"${getClass.getName} $HAIL_REVISION")
+    log.info(s"running partition $partition root '$root' with scratch directory '$scratchDir'")
 
-    timer.start(s"Job $i/$n")
+    timer.start(s"partition $partition")
 
-    timer.start("readInputs")
+    val hcl = new HailClassLoader(getClass.getClassLoader)
+
     val fs = RouterFS.buildRoutes(
       CloudStorageFSConfig.fromFlagsAndEnv(
         Some(Path.of(scratchDir, "secrets/gsa-key/key.json")),
@@ -139,74 +191,82 @@ object Worker {
       )
     )
 
+    implicit val ec: ExecutionContext =
+      ExecutionContext.fromExecutor(
+        Executors.newCachedThreadPool(
+          new ThreadFactoryBuilder()
+            .setDaemon(true)
+            .setNameFormat("hail-worker-thread-%d")
+            .build()
+        )
+      )
+
     def open(x: String): SeekableDataInputStream =
       fs.openNoCompression(x)
 
-    def write(x: String)(writer: PositionedDataOutputStream => Unit): Unit =
-      fs.writePDOS(x)(writer)
-
-    val fFuture = Future {
-      retryTransientErrors {
-        using(new ExplicitClassLoaderInputStream(open(s"$root/f"), theHailClassLoader)) { is =>
-          is.readObject().asInstanceOf[(Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[
-            Byte
-          ]]
-        }
-      }
-    }
-
-    val contextFuture = Future {
-      retryTransientErrors {
-        using(open(s"$root/contexts")) { is =>
-          is.seek(i * 12)
-          val offset = is.readLong()
-          val length = is.readInt()
-          is.seek(offset)
-          val context = new Array[Byte](length)
-          is.readFully(context)
-          context
-        }
-      }
-    }
-
-    val f = Await.result(fFuture, Duration.Inf)
-    val context = Await.result(contextFuture, Duration.Inf)
-
-    timer.end("readInputs")
-    timer.start("executeFunction")
-
-    // FIXME: workers should not have backends, but some things do need hail contexts
-    HailContext.getOrCreate(new ServiceBackend(null, null, null, null, null))
-    val result =
-      try
-        using(new ServiceTaskContext(i)) { htc =>
+    val inputs: Either[Throwable, (Array[Byte], Array[Byte], PartitionFn)] =
+      timer.enter("read inputs") {
+        val globals = Future {
           retryTransientErrors {
-            Right(f(context, htc, theHailClassLoader, fs))
+            using(open(s"$root/globals"))(_.readAllBytes())
           }
         }
-      catch {
-        case t: Throwable => Left(t)
-      } finally
-        HailContext.stop()
 
-    timer.end("executeFunction")
-    timer.start("writeOutputs")
-
-    retryTransientErrors {
-      write(s"$root/result.$i") { dos =>
-        result match {
-          case Right(bytes) =>
-            dos.writeBoolean(true)
-            dos.write(bytes)
-          case Left(throwableWhileExecutingUserCode) =>
-            writeException(dos, throwableWhileExecutingUserCode)
+        val context = Future {
+          retryTransientErrors {
+            using(open(s"$root/contexts")) { is =>
+              is.seek(index.toLong * 12)
+              val offset = is.readLong()
+              val length = is.readInt()
+              is.seek(offset)
+              val context = new Array[Byte](length)
+              is.readFully(context)
+              context
+            }
+          }
         }
+
+        val partitionFn = Future {
+          retryTransientErrors {
+            using(new ExplicitClassLoaderInputStream(open(s"$root/f"), hcl)) {
+              _.readObject().asInstanceOf[PartitionFn]
+            }
+          }
+        }
+
+        try Await.result(
+            globals.zip(context).zipWith(partitionFn)((gc, f) => Right((gc._1, gc._2, f))),
+            Duration.Inf,
+          )
+        catch {
+          case t: ExecutionException => Left(t.getCause)
+          case t: Throwable => Left(t)
+        }
+      }
+
+    val result: Either[Throwable, Array[Byte]] =
+      inputs.flatMap { case (globals, context, f) =>
+        timer.enter("execute") {
+          try
+            using(new ServiceTaskContext(partition)) { htc =>
+              retryTransientErrors {
+                Right(f(globals, context, htc, hcl, fs))
+              }
+            }
+          catch {
+            case t: Throwable => Left(t)
+          }
+        }
+      }
+
+    timer.enter("write outputs") {
+      retryTransientErrors {
+        fs.writePDOS(s"$root/result.$index")(dos => WireProtocol.write(dos, partition, result))
       }
     }
 
-    timer.end("writeOutputs")
-    timer.end(s"Job $i")
-    log.info(s"finished job $i at root $root")
+    timer.end(s"partition $partition")
+    log.info(s"finished job $index at root $root")
 
     result.left.foreach { throwableWhileExecutingUserCode =>
       log.info("throwing the exception so that this Worker job is marked as failed.")

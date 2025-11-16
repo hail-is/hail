@@ -1223,7 +1223,7 @@ class Tests(unittest.TestCase):
     def test_nested_union_100(self):
         self.nested_union(10, 100)
 
-    @pytest.mark.skip('causes intermitted stack overflow in compiler due ')
+    @pytest.mark.xfail(reason='causes intermittent stack overflow in compiler', strict=False)
     def test_nested_union_200(self):
         self.nested_union(10, 200)
 

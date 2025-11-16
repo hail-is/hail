@@ -32,17 +32,18 @@ object RowMatrix {
     partitionCounts
   }
 
-  def readBlockMatrix(fs: FS, uri: String, maybePartSize: java.lang.Integer): RowMatrix = {
+  def readBlockMatrix(ctx: ExecuteContext, uri: String, maybePartSize: java.lang.Integer)
+    : RowMatrix = {
     val BlockMatrixMetadata(blockSize, nRows, nCols, maybeFiltered, partFiles) =
-      BlockMatrix.readMetadata(fs, uri)
+      BlockMatrix.readMetadata(ctx.fs, uri)
     if (nCols >= Int.MaxValue) {
       fatal(s"Number of columns must be less than 2^31, found $nCols")
     }
     val gp = GridPartitioner(blockSize, nRows, nCols, maybeFiltered)
     val partSize: Int = if (maybePartSize != null) maybePartSize else blockSize
-    val partitionCounts = computePartitionCounts(partSize, gp.nRows)
+    val partitionCounts = computePartitionCounts(partSize.toLong, gp.nRows)
     RowMatrix(
-      new ReadBlocksAsRowsRDD(fs.broadcast, uri, partFiles, partitionCounts, gp),
+      new ReadBlocksAsRowsRDD(ctx.fsBc, uri, partFiles, partitionCounts, gp),
       gp.nCols.toInt,
       gp.nRows,
       partitionCounts,
@@ -114,7 +115,7 @@ class RowMatrix(
     new DenseMatrix[Double](nRowsInt, nCols, a.flatten, 0, nCols, isTranspose = true)
   }
 
-  def export(
+  def `export`(
     ctx: ExecuteContext,
     path: String,
     columnDelimiter: String,

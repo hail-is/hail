@@ -2,6 +2,8 @@ package is.hail.stats
 
 import is.hail.utils._
 
+import scala.collection.compat.immutable.LazyList
+
 import org.apache.commons.math3.distribution.AbstractIntegerDistribution
 import org.apache.commons.math3.random.RandomGenerator
 
@@ -12,8 +14,8 @@ class LeveneHaldane(
   val n: Int,
   val nA: Int,
   val mode: Int,
-  pRU: Stream[Double],
-  pLU: Stream[Double],
+  pRU: LazyList[Double],
+  pLU: LazyList[Double],
   pN: Double,
   rng: RandomGenerator,
 ) extends AbstractIntegerDistribution(rng) {
@@ -69,7 +71,7 @@ class LeveneHaldane(
       0.0
     else {
       val cutoff = p0U * 0.5e-16
-      def mpU(s: Stream[Double]): Double = {
+      def mpU(s: LazyList[Double]): Double = {
         val (sEq, sLess) =
           s.dropWhile(D_>(_, p0U, tolerance = 1.0e-12)).span(D_==(_, p0U, tolerance = 1.0e-12))
         0.5 * sEq.sum + sLess.takeWhile(_ > cutoff).sum
@@ -100,9 +102,9 @@ object LeveneHaldane {
       (nA + 1.0) * (nB + 1) / (2 * n + 3)
     ).toInt
 
-    def pRUfrom(nAB: Int, p: Double): Stream[Double] =
+    def pRUfrom(nAB: Int, p: Double): LazyList[Double] =
       p #:: pRUfrom(nAB + 2, p * (nA - nAB) * (nB - nAB) / ((nAB + 2.0) * (nAB + 1)))
-    def pLUfrom(nAB: Int, p: Double): Stream[Double] =
+    def pLUfrom(nAB: Int, p: Double): LazyList[Double] =
       p #:: pLUfrom(nAB - 2, p * nAB * (nAB - 1) / ((nA - nAB + 2.0) * (nB - nAB + 2)))
 
     // Unnormalized probability mass function going right, respectively left, from the mode by 2s

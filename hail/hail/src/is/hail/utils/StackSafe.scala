@@ -1,7 +1,7 @@
 package is.hail.utils
 
 import scala.annotation.tailrec
-import scala.collection.generic.{CanBuild, CanBuildFrom}
+import scala.collection.compat._
 
 object StackSafe {
 
@@ -84,9 +84,9 @@ object StackSafe {
   }
 
   implicit class RichIndexedSeq[A](private val s: IndexedSeq[A]) extends AnyVal {
-    def mapRecur[B, That](f: A => StackFrame[B])(implicit bf: CanBuildFrom[IndexedSeq[A], B, That])
+    def mapRecur[B, That](f: A => StackFrame[B])(implicit bf: BuildFrom[IndexedSeq[A], B, That])
       : StackFrame[That] = {
-      val builder = bf(s)
+      val builder = bf.newBuilder(s)
       builder.sizeHint(s)
       var i = 0
       var cont: B => StackFrame[That] = null
@@ -94,7 +94,7 @@ object StackSafe {
         if (i < s.size) {
           f(s(i)).flatMap(cont)
         } else {
-          done(builder.result)
+          done(builder.result())
         }
       cont = { b =>
         builder += b
@@ -106,9 +106,9 @@ object StackSafe {
   }
 
   implicit class RichArray[A](private val a: Array[A]) extends AnyVal {
-    def mapRecur[B](f: A => StackFrame[B])(implicit bf: CanBuildFrom[Array[A], B, Array[B]])
+    def mapRecur[B](f: A => StackFrame[B])(implicit bf: BuildFrom[Array[A], B, Array[B]])
       : StackFrame[Array[B]] = {
-      val builder = bf(a)
+      val builder = bf.newBuilder(a)
       builder.sizeHint(a)
       var i = 0
       var cont: B => StackFrame[Array[B]] = null
@@ -116,7 +116,7 @@ object StackSafe {
         if (i < a.size) {
           f(a(i)).flatMap(cont)
         } else {
-          done(builder.result)
+          done(builder.result())
         }
       cont = { b =>
         builder += b
@@ -149,8 +149,8 @@ object StackSafe {
   }
 
   implicit class RichIteratorStackFrame[A](private val i: Iterator[StackFrame[A]]) extends AnyVal {
-    def collectRecur(implicit bf: CanBuild[A, Array[A]]): StackFrame[IndexedSeq[A]] = {
-      val builder = bf()
+    def collectRecur(implicit bf: Factory[A, Array[A]]): StackFrame[IndexedSeq[A]] = {
+      val builder = bf.newBuilder
       var cont: A => StackFrame[IndexedSeq[A]] = null
       def loop(): StackFrame[IndexedSeq[A]] =
         if (i.hasNext) {
@@ -166,9 +166,9 @@ object StackSafe {
     }
   }
 
-  def fillArray[A](n: Int)(body: => StackFrame[A])(implicit bf: CanBuild[A, Array[A]])
+  def fillArray[A](n: Int)(body: => StackFrame[A])(implicit bf: Factory[A, Array[A]])
     : StackFrame[Array[A]] = {
-    val builder = bf()
+    val builder = bf.newBuilder
     builder.sizeHint(n)
     var i = 0
     var cont: A => StackFrame[Array[A]] = null
@@ -176,7 +176,7 @@ object StackSafe {
       if (i < n) {
         body.flatMap(cont)
       } else {
-        done(builder.result)
+        done(builder.result())
       }
     cont = { a =>
       builder += a

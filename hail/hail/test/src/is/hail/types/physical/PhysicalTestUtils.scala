@@ -5,8 +5,6 @@ import is.hail.annotations.{Region, ScalaToRegionValue, UnsafeRow}
 import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.utils.{log, HailException}
 
-import org.scalatest
-
 abstract class PhysicalTestUtils extends HailSuite {
   def copyTestExecutor(
     sourceType: PType,
@@ -17,7 +15,7 @@ abstract class PhysicalTestUtils extends HailSuite {
     deepCopy: Boolean = false,
     interpret: Boolean = false,
     expectedValue: Any = null,
-  ): scalatest.Assertion = {
+  ): Unit = {
 
     val srcRegion = Region(pool = pool)
     val region = Region(pool = pool)
@@ -54,13 +52,13 @@ abstract class PhysicalTestUtils extends HailSuite {
 
           if (expectCompileError || expectRuntimeError) {
             log.info("OK: Caught expected compile-time error")
-            return succeed
+            return
           }
 
-          return fail(e)
+          fail(e)
       }
 
-      return succeed
+      return
     }
 
     var compileSuccess = false
@@ -80,10 +78,10 @@ abstract class PhysicalTestUtils extends HailSuite {
 
         if (expectCompileError) {
           log.info("OK: Caught expected compile-time error")
-          return succeed
+          return
         }
 
-        return fail(e)
+        fail(e)
     }
 
     if (compileSuccess && expectCompileError) {
@@ -101,10 +99,10 @@ abstract class PhysicalTestUtils extends HailSuite {
         case e: HailException =>
           if (expectRuntimeError) {
             log.info("OK: Caught expected compile-time error")
-            return succeed
+            return
           }
 
-          return fail(e)
+          fail(e)
       }
 
     log.info(s"Copied value: $copy, Source value: $sourceValue")
@@ -116,6 +114,5 @@ abstract class PhysicalTestUtils extends HailSuite {
     }
     region.clear()
     srcRegion.clear()
-    succeed
   }
 }

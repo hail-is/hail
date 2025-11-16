@@ -1,21 +1,22 @@
 import logging
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
 import pytest
 
 import hail as hl
+from benchmark.tools import maybe
+from hailtop.utils import async_to_blocking, retry_transient_errors
 
 
 @pytest.fixture(scope='session')
 def resource_dir(request, tmpdir_factory):
-    run_config = request.config.run_config
-    if run_config.data_dir is not None:
-        resource_dir = Path(run_config.data_dir)
+    if (resource_dir := maybe(Path, request.config.getoption('data_dir'))) is not None:
         resource_dir.mkdir(parents=True, exist_ok=True)
     else:
-        resource_dir = tmpdir_factory.mktemp('hail_benchmark_resources')
+        resource_dir = Path(tmpdir_factory.mktemp('hail_benchmark_resources'))
 
     return resource_dir
 
@@ -23,22 +24,40 @@ def resource_dir(request, tmpdir_factory):
 gs_curl_root = 'https://storage.googleapis.com/hail-common/benchmark'
 
 
-def __download(data_dir, filename):
+async def __download(data_dir, filename):
     url = os.path.join(gs_curl_root, filename)
     logging.info(f'downloading: {filename}')
-    # Note: the below does not work on batch due to docker/ssl problems
-    # dest = os.path.join(data_dir, filename)
-    # urlretrieve(url, dest)
-    subprocess.check_call(['curl', url, '-Lfs', '--output', f'{data_dir / filename}'])
+    subprocess.check_call(['curl', url, '-Lfs', '-m', '200', '--output', f'{data_dir / filename}'])
     logging.info(f'done: {filename}')
 
 
-def localize(path: Path):
+def localize(path: Path) -> Path:
     if not path.exists():
-        path.parent.mkdir(exist_ok=True)
-        __download(path.parent, path.name)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        async_to_blocking(
+            retry_transient_errors(
+                __download,
+                path.parent,
+                path.name,
+            )
+        )
 
     return path
+
+
+@pytest.fixture(autouse=True, scope='function')
+def local_tmpdir(tmp_path):
+    # if hl.version() < '0.2.134':
+    #     yield
+    # else:
+    backend = hl.current_backend()
+    old = backend.local_tmpdir
+    backend.local_tmpdir = str(tmp_path)
+    try:
+        yield tmp_path
+    finally:
+        backend.local_tmpdir = old
+        shutil.rmtree(tmp_path)
 
 
 @pytest.fixture(scope='session')
@@ -332,3 +351,13 @@ def many_partitions_ht(resource_dir, request):
         hl.utils.range_table(10_000_000, n_partitions).write(str(path))
 
     return path
+
+
+@pytest.fixture(scope='session')
+def onethreetwo(resource_dir):
+    return localize(resource_dir / '0.2.132.jsonl')
+
+
+@pytest.fixture(scope='session')
+def onethreethree(resource_dir):
+    return localize(resource_dir / '0.2.133.jsonl')

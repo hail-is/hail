@@ -22,6 +22,10 @@ resource "kubernetes_secret" "ci_config" {
     watched_branches = jsonencode(var.watched_branches)
     github_context   = var.github_context
   }
+
+  lifecycle {
+    ignore_changes = [metadata.0.annotations]
+  }
 }
 
 resource "kubernetes_secret" "zulip_config" {
@@ -33,6 +37,10 @@ resource "kubernetes_secret" "zulip_config" {
   data = {
     ".zuliprc" = fileexists("~/.hail/.zuliprc") ? file("~/.hail/.zuliprc") : ""
   }
+
+  lifecycle {
+    ignore_changes = [metadata.0.annotations]
+  }
 }
 
 resource "kubernetes_secret" "hail_ci_0_1_github_oauth_token" {
@@ -43,6 +51,10 @@ resource "kubernetes_secret" "hail_ci_0_1_github_oauth_token" {
   data = {
     "oauth-token" = var.github_oauth_token
   }
+
+  lifecycle {
+    ignore_changes = [metadata.0.annotations]
+  }
 }
 
 resource "kubernetes_secret" "hail_ci_0_1_service_account_key" {
@@ -52,5 +64,9 @@ resource "kubernetes_secret" "hail_ci_0_1_service_account_key" {
 
   data = {
     "user1" = var.github_user1_oauth_token
+  }
+
+  lifecycle {
+    ignore_changes = [metadata.0.annotations]
   }
 }

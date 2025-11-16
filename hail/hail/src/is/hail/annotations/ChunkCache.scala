@@ -1,7 +1,6 @@
 package is.hail.annotations
 
 import is.hail.expr.ir.LongArrayBuilder
-import is.hail.macros.void
 
 import scala.collection.mutable
 
@@ -22,7 +21,7 @@ import java.util.function.BiConsumer
 
 private class ChunkCache(allocator: Long => Long, freer: Long => Unit) {
   private[this] val highestSmallChunkPowerOf2 = 24
-  private[this] val biggestSmallChunk = Math.pow(2, highestSmallChunkPowerOf2)
+  private[this] val biggestSmallChunk = 1L << highestSmallChunkPowerOf2
   private[this] val bigChunkCache = new TreeMap[Long, LongArrayBuilder]()
   private[this] val chunksEncountered = mutable.Map[Long, Long]()
   private[this] val minSpaceRequirements = .9
@@ -140,7 +139,7 @@ private class ChunkCache(allocator: Long => Long, freer: Long => Unit) {
       if (sameSizeEntries == null) {
         val newSize = new LongArrayBuilder()
         newSize += chunkPointer
-        void(bigChunkCache.put(chunkSize, newSize))
+        bigChunkCache.put(chunkSize, newSize): Unit
       } else sameSizeEntries += chunkPointer
     }
   }

@@ -30,7 +30,8 @@ case class FamFileConfig(
 )
 
 object LoadPlink {
-  def expectedBedSize(nSamples: Int, nVariants: Long): Long = 3 + nVariants * ((nSamples + 3) / 4)
+  def expectedBedSize(nSamples: Int, nVariants: Int): Long =
+    3 + nVariants.toLong * ((nSamples + 3) / 4)
 
   def parseBim(
     ctx: ExecuteContext,
@@ -317,8 +318,15 @@ object MatrixPLINKReader {
     )
     assert(locusAllelesType == fullMatrixType.rowKeyStruct)
 
-    new MatrixPLINKReader(params, referenceGenome, fullMatrixType, nVariants, sampleInfo, contexts,
-      partitioner)
+    new MatrixPLINKReader(
+      params,
+      referenceGenome,
+      fullMatrixType,
+      nVariants.toLong,
+      sampleInfo,
+      contexts,
+      partitioner,
+    )
   }
 }
 
@@ -364,7 +372,7 @@ class MatrixPLINKReader(
 
   val columnCount: Option[Int] = Some(nSamples)
 
-  val partitionCounts: Option[IndexedSeq[Long]] = None
+  def partitionCounts: Option[IndexedSeq[Long]] = None
 
   val globals = Row(sampleInfo.zipWithIndex.map { case (s, idx) =>
     Row((0 until s.length).map(s.apply) :+ idx.toLong: _*)
@@ -449,9 +457,11 @@ class MatrixPLINKReader(
           ]]
 
         val is = fs.open(bed)
-        if (TaskContext.get != null) {
+        if (TaskContext.get() != null) {
           // FIXME: need to close InputStream for other backends too
-          TaskContext.get.addTaskCompletionListener[Unit]((context: TaskContext) => is.close())
+          TaskContext.get().addTaskCompletionListener[Unit]((context: TaskContext) =>
+            is.close()
+          ): Unit
         }
         var offset: Long = 0
 
@@ -528,7 +538,7 @@ class MatrixPLINKReader(
             }
 
             if (hasRowUID)
-              rvb.addLong(i)
+              rvb.addLong(i.toLong)
 
             rvb.endStruct()
 

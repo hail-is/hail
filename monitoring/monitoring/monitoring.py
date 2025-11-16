@@ -17,7 +17,6 @@ from gear import (
     AuthServiceAuthenticator,
     CommonAiohttpAppKeys,
     Database,
-    global_security_headers_middleware,
     json_response,
     setup_aiohttp_session,
     transaction,
@@ -394,7 +393,7 @@ async def on_cleanup(app):
 @web_security_headers_swagger
 async def swagger(request):
     page_context = {'service': 'monitoring', 'base_path': deploy_config.base_path('monitoring')}
-    return await render_template('monitoring', request, None, 'swagger.html', page_context)
+    return await render_template('monitoring', request, None, 'swagger/index.html', page_context)
 
 
 @routes.get('/openapi.yaml')
@@ -405,7 +404,7 @@ async def openapi(request):
 
 
 def run():
-    app = web.Application(middlewares=[global_security_headers_middleware])
+    app = web.Application()
     setup_aiohttp_session(app)
 
     setup_aiohttp_jinja2(app, 'monitoring')

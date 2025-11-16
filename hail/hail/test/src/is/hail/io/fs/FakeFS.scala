@@ -1,15 +1,14 @@
 package is.hail.io.fs
 
-case class FakeURL(path: String) extends FSURL {
-  def getPath: String = path
-  def getActualUrl: String = path
+class FakeURL(override val path: String) extends FSURL[FakeURL] {
+  override def /(component: String): FakeURL =
+    new FakeURL(f"$path/$component")
 }
 
 abstract class FakeFS extends FS {
   override type URL = FakeURL
   override def validUrl(filename: String): Boolean = ???
-  override def parseUrl(filename: String): FakeURL = FakeURL(filename)
-  override def urlAddPathComponent(url: FakeURL, component: String): FakeURL = ???
+  override def parseUrl(filename: String): FakeURL = new FakeURL(filename)
   override def openNoCompression(url: FakeURL): SeekableDataInputStream = ???
   override def createNoCompression(url: FakeURL): PositionedDataOutputStream = ???
   override def delete(url: FakeURL, recursive: Boolean): Unit = ???

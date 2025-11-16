@@ -1,6 +1,6 @@
 package is.hail.services
 
-import scala.collection.mutable.ArrayBuffer
+import is.hail.utils.compat.immutable.ArraySeq
 
 import java.io.StringWriter
 import java.text._
@@ -43,7 +43,7 @@ class JSONLogLayout extends Layout {
     val ndc = event.getNDC();
     val throwableInfo = event.getThrowableInformation()
     val locationInfo = event.getLocationInformation()
-    val fields = new ArrayBuffer[JField]()
+    val fields = ArraySeq.newBuilder[JField]
     fields += JField("@version", JInt(1))
     fields += JField("@timestamp", JString(datefmt.get.format(timestamp)))
     fields += JField("message", JString(event.getRenderedMessage()))
@@ -53,12 +53,12 @@ class JSONLogLayout extends Layout {
     fields += JField("method", JString(locationInfo.getMethodName()))
     fields += JField("logger_name", JString(event.getLoggerName()))
 
-    val mdcFields = new ArrayBuffer[JField]()
+    val mdcFields = ArraySeq.newBuilder[JField]
     mdc.forEach(new BiConsumer[Any, Any]() {
       def accept(key: Any, value: Any): Unit =
         mdcFields += JField(key.toString, JString(value.toString))
     })
-    fields += JField("mdc", JObject(mdcFields: _*))
+    fields += JField("mdc", JObject(mdcFields.result(): _*))
 
     fields += JField("ndc", JString(ndc))
     fields += JField("severity", JString(event.getLevel().toString()))
@@ -75,7 +75,7 @@ class JSONLogLayout extends Layout {
         JString(formatException(throwableInfo.getThrowable())),
       )
     }
-    val jsonEvent = JObject(fields: _*)
+    val jsonEvent = JObject(fields.result(): _*)
 
     val sw = new StringWriter()
     JsonMethods.mapper.writeValue(sw, jsonEvent)

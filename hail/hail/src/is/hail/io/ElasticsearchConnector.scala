@@ -1,14 +1,14 @@
 package is.hail.io
 
-import scala.collection.JavaConverters._
 import scala.collection.Map
+import scala.jdk.CollectionConverters._
 
 import org.apache.spark
 import org.elasticsearch.spark.sql._
 
 object ElasticsearchConnector {
 
-  def export(
+  def `export`(
     df: spark.sql.DataFrame,
     host: String,
     port: Int,
@@ -30,7 +30,7 @@ object ElasticsearchConnector {
     )
   }
 
-  def export(
+  def `export`(
     df: spark.sql.DataFrame,
     host: String = "localhost",
     port: Int = 9200,

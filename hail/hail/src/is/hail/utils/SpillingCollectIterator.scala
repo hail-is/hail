@@ -100,8 +100,8 @@ class SpillingCollectIterator[T: ClassTag] private (
     it.hasNext
   }
 
-  def next: T = {
-    hasNext
-    it.next
+  def next(): T = {
+    hasNext: Unit
+    it.next()
   }
 }

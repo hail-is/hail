@@ -54,3 +54,4 @@ batch/jvm-entryway/bin
 _/
 .helix
 /hail/mill-build/config/hail-build-mode
+/hail/mill-build/config/scala-version

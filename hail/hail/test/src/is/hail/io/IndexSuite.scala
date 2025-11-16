@@ -25,7 +25,9 @@ class IndexSuite extends HailSuite {
     "skunk", "skunk", "skunk", "whale",
     "whale", "zebra", "zebra", "zebra")
 
-  val leafsWithDups = stringsWithDups.zipWithIndex.map { case (s, i) => LeafChild(s, i, Row()) }
+  val leafsWithDups = stringsWithDups.zipWithIndex.map { case (s, i) =>
+    LeafChild(s, i.toLong, Row())
+  }
 
   @DataProvider(name = "elements")
   def data(): Array[Array[Array[String]]] =
@@ -47,7 +49,7 @@ class IndexSuite extends HailSuite {
       pool,
     )
     data.zip(annotations).zipWithIndex.foreach { case ((s, a), offset) =>
-      iw.appendRow(s, offset, a)
+      iw.appendRow(s, offset.toLong, a)
     }
     iw.close()
   }
@@ -120,7 +122,7 @@ class IndexSuite extends HailSuite {
 
       data.zipWithIndex.foreach { case (s, i) =>
         assert({
-          val result = index.queryByIndex(i)
+          val result = index.queryByIndex(i.toLong)
           result.key == s && result.annotation == a(i)
         })
       }
@@ -135,7 +137,7 @@ class IndexSuite extends HailSuite {
     assert(fs.getFileSize(file + "/index") != 0)
     assert(fs.getFileSize(file + "/metadata.json.gz") != 0)
     val index = indexReader(file, TStruct("a" -> TBoolean))
-    intercept[IllegalArgumentException](index.queryByIndex(0L))
+    assertThrows[IllegalArgumentException](index.queryByIndex(0L))
     assert(index.queryByKey("moo").isEmpty)
     assert(index.queryByInterval("bear", "cat", includesStart = true, includesEnd = true).isEmpty)
     index.close()
@@ -222,11 +224,14 @@ class IndexSuite extends HailSuite {
 
       val bounds = stringsWithDups.indices.toArray.combinations(2).toArray
       bounds.foreach(b =>
-        index.iterator(b(0), b(1)).toArray sameElements leafsWithDups.slice(b(0), b(1))
+        index.iterator(b(0).toLong, b(1).toLong).toArray sameElements leafsWithDups.slice(
+          b(0),
+          b(1),
+        )
       )
 
       assert(index.iterator.toArray sameElements stringsWithDups.zipWithIndex.map { case (s, i) =>
-        LeafChild(s, i, a(i))
+        LeafChild(s, i.toLong, a(i))
       })
     }
   }
@@ -324,25 +329,25 @@ class IndexSuite extends HailSuite {
       ).toFastSeq == index.iterator(0, 9).toFastSeq)
 
       // illegal interval queries
-      intercept[IllegalArgumentException](index.queryByInterval(
+      assertThrows[IllegalArgumentException](index.queryByInterval(
         "bear",
         "bear",
         includesStart = false,
         includesEnd = false,
       ).toFastSeq)
-      intercept[IllegalArgumentException](index.queryByInterval(
+      assertThrows[IllegalArgumentException](index.queryByInterval(
         "bear",
         "bear",
         includesStart = false,
         includesEnd = true,
       ).toFastSeq)
-      intercept[IllegalArgumentException](index.queryByInterval(
+      assertThrows[IllegalArgumentException](index.queryByInterval(
         "bear",
         "bear",
         includesStart = true,
         includesEnd = false,
       ).toFastSeq)
-      intercept[IllegalArgumentException](index.queryByInterval(
+      assertThrows[IllegalArgumentException](index.queryByInterval(
         "cat",
         "bear",
         includesStart = true,
@@ -378,7 +383,7 @@ class IndexSuite extends HailSuite {
                 includesStart,
                 includesEnd,
               ).toFastSeq ==
-                index.iterator(lowerBoundIdx, upperBoundIdx).toFastSeq)
+                index.iterator(lowerBoundIdx.toLong, upperBoundIdx.toLong).toFastSeq)
 
               if (includesStart)
                 assert(index.iterateFrom(bounds(0)).toFastSeq ==
@@ -414,7 +419,7 @@ class IndexSuite extends HailSuite {
       )
 
       val leafChildren = stringsWithDups.zipWithIndex.map { case (s, i) =>
-        LeafChild(Row(s, i), i, Row())
+        LeafChild(Row(s, i), i.toLong, Row())
       }.toFastSeq
 
       val index = indexReader(

@@ -28,7 +28,7 @@ object LowerOrInterpretNonCompilable {
           val fullyLowered = LowerToDistributedArrayPass(DArrayLowering.All).transform(ctx, value)
             .asInstanceOf[IR]
           log.info(s"compiling and evaluating result: ${value.getClass.getSimpleName}")
-          CompileAndEvaluate.evalToIR(ctx, fullyLowered, true)
+          CompileAndEvaluate.evalToIR(ctx, fullyLowered)
       }
       log.info(s"took ${formatTime(System.nanoTime() - preTime)}")
       assert(result.typ == value.typ)
@@ -46,8 +46,6 @@ object LowerOrInterpretNonCompilable {
         case RelationalLetTable(name, value, body) =>
           rewrite(body, m += (name -> evaluate(rewrite(value, m).asInstanceOf[IR])))
         case RelationalLetMatrixTable(name, value, body) =>
-          rewrite(body, m += (name -> evaluate(rewrite(value, m).asInstanceOf[IR])))
-        case RelationalLetBlockMatrix(name, value, body) =>
           rewrite(body, m += (name -> evaluate(rewrite(value, m).asInstanceOf[IR])))
         case RelationalRef(name, t) =>
           m.get(name) match {

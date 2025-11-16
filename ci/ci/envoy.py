@@ -46,6 +46,16 @@ def create_rds_response(
                         'append_action': 'OVERWRITE_IF_EXISTS_OR_ADD',
                     }
                 ],
+                'response_headers_to_add': [
+                    {
+                        'header': {'key': 'Strict-Transport-Security', 'value': 'max-age=63072000; includeSubDomains;'},
+                        'append_action': 'OVERWRITE_IF_EXISTS_OR_ADD',
+                    },
+                    {
+                        'header': {'key': 'X-Content-Type-Options', 'value': 'nosniff'},
+                        'append_action': 'OVERWRITE_IF_EXISTS_OR_ADD',
+                    },
+                ],
                 'virtual_hosts': hosts,
             }
         ],
@@ -102,13 +112,21 @@ def gateway_default_host(service: Service, domain: str) -> dict:
         'domains': domains,
         'routes': [
             {
+                'match': {'prefix': '/metrics'},
+                'route': route_to_cluster(service.name),
+                'typed_per_filter_config': {
+                    'envoy.filters.http.local_ratelimit': rate_limit_config(service),
+                    # No auth_check_exemption() - requires developer authentication
+                },
+            },
+            {
                 'match': {'prefix': '/'},
                 'route': route_to_cluster(service.name),
                 'typed_per_filter_config': {
                     'envoy.filters.http.local_ratelimit': rate_limit_config(service),
                     'envoy.filters.http.ext_authz': auth_check_exemption(),
                 },
-            }
+            },
         ],
     }
 

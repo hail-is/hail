@@ -29,8 +29,8 @@ object EStructOfArrays {
   }
 
   def fromTypeAndRequiredness(t: TIterable, r: RIterable): EStructOfArrays = {
-    val et: TBaseStruct = tcoerce(t.elementType)
-    val ret: RBaseStruct = tcoerce(r.elementType)
+    val et = tcoerce[TBaseStruct](t.elementType)
+    val ret = tcoerce[RBaseStruct](r.elementType)
     val fields = et.fields.zip(ret.fields).map { case (TField(name, typ, index), r) =>
       val encodedType = typ match {
         case TBoolean => EArray(EBoolean(r.typ.required), required = true)
@@ -80,9 +80,9 @@ final case class EStructOfArrays(
 
   def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer])
     : SValue = {
-    val st: SIndexablePointer = tcoerce(decodedSType(t))
-    val pt: PCanonicalArray = tcoerce(st.pType)
-    val ept: PBaseStruct = tcoerce(pt.elementType)
+    val st = tcoerce[SIndexablePointer](decodedSType(t))
+    val pt = tcoerce[PCanonicalArray](st.pType)
+    val ept = tcoerce[PBaseStruct](pt.elementType)
     assert(
       pt.elementType.required == elementType.required,
       s"${pt.elementType.required} | ${elementType.required}",
@@ -111,18 +111,18 @@ final case class EStructOfArrays(
         field.typ.buildSkip(cb.emb.ecb)(cb, scratchRegion, in)
       } else {
         val pFieldIdx = ept.fieldIdx(field.name)
-        val pFieldType: PPrimitive = tcoerce(ept.types(pFieldIdx))
+        val pFieldType = tcoerce[PPrimitive](ept.types(pFieldIdx))
 
         val array = field.typ.buildDecoder(t, cb.emb.ecb)(cb, scratchRegion, in).asIndexable
         cb.if_(
-          array.loadLength().cne(length),
+          array.loadLength.cne(length),
           cb._fatal(
             "Mismatch in length for decoded array of field `",
             field.name,
             "` expected ",
             length.toS,
             ", was ",
-            array.loadLength().toS,
+            array.loadLength.toS,
           ),
         )
         cb.assign(i, 0)
@@ -192,7 +192,7 @@ final case class EStructOfArrays(
         if (arrayType.elementType.required) {
           sv.loadElement(cb, i).consumeI(
             cb, {
-              val elementSType: SBaseStruct = tcoerce(sv.st.elementType)
+              val elementSType = tcoerce[SBaseStruct](sv.st.elementType)
               val fieldSType = elementSType.fieldTypes(elementSType.fieldIdx(field.name))
               IEmitCode.present(
                 cb,

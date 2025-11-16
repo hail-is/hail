@@ -13,7 +13,6 @@ import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.lowering.IrMetadata
 import is.hail.io.fs._
 import is.hail.io.reference.{IndexedFastaSequenceFile, LiftOver}
-import is.hail.macros.void
 import is.hail.types.physical.PStruct
 import is.hail.types.virtual.{TArray, TInterval}
 import is.hail.types.virtual.Kinds.{BlockMatrix, Matrix, Table, Value}
@@ -23,7 +22,7 @@ import is.hail.variant.ReferenceGenome
 
 import scala.annotation.nowarn
 import scala.collection.mutable
-import scala.jdk.CollectionConverters.{asScalaBufferConverter, seqAsJavaListConverter}
+import scala.jdk.CollectionConverters._
 
 import java.io.Closeable
 import java.net.InetSocketAddress
@@ -70,8 +69,25 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable {
   def pySetRemoteTmp(tmp: String): Unit =
     synchronized { tmpdir = tmp }
 
+  def pyGetRemoteTmp: String =
+    synchronized(tmpdir)
+
   def pySetLocalTmp(tmp: String): Unit =
-    synchronized { localTmpdir = tmp }
+    synchronized {
+      localTmpdir = tmp
+      backend match {
+        case s: SparkBackend if tmp != "file://" + s.sc.getConf.get("spark.local.dir", "") =>
+          log.warn(
+            "Cannot modify Spark's local directory at runtime. " +
+              "Please stop and re-initialize hail with 'spark.local.dir' " +
+              "in your Spark configuration."
+          )
+        case _ =>
+      }
+    }
+
+  def pyGetLocalTmp: String =
+    synchronized(localTmpdir)
 
   def pySetGcsRequesterPaysConfig(project: String, buckets: util.List[String]): Unit =
     synchronized {
@@ -105,9 +121,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable {
     }
 
   def pyRemoveJavaIR(id: Int): Unit =
-    synchronized {
-      void(irCache.remove(id))
-    }
+    synchronized(irCache -= id: Unit)
 
   def pyAddSequence(name: String, fastaFile: String, indexFile: String): Unit =
     synchronized {
@@ -128,37 +142,35 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable {
     partitionSize: java.lang.Integer,
     entries: String,
   ): Unit = {
-    void {
-      withExecuteContext() { ctx =>
-        val rm = linalg.RowMatrix.readBlockMatrix(ctx.fs, pathIn, partitionSize)
-        entries match {
-          case "full" =>
-            rm.export(ctx, pathOut, delimiter, Option(header), addIndex, exportType)
-          case "lower" =>
-            rm.exportLowerTriangle(ctx, pathOut, delimiter, Option(header), addIndex, exportType)
-          case "strict_lower" =>
-            rm.exportStrictLowerTriangle(
-              ctx,
-              pathOut,
-              delimiter,
-              Option(header),
-              addIndex,
-              exportType,
-            )
-          case "upper" =>
-            rm.exportUpperTriangle(ctx, pathOut, delimiter, Option(header), addIndex, exportType)
-          case "strict_upper" =>
-            rm.exportStrictUpperTriangle(
-              ctx,
-              pathOut,
-              delimiter,
-              Option(header),
-              addIndex,
-              exportType,
-            )
-        }
+    withExecuteContext() { ctx =>
+      val rm = linalg.RowMatrix.readBlockMatrix(ctx, pathIn, partitionSize)
+      entries match {
+        case "full" =>
+          rm.export(ctx, pathOut, delimiter, Option(header), addIndex, exportType)
+        case "lower" =>
+          rm.exportLowerTriangle(ctx, pathOut, delimiter, Option(header), addIndex, exportType)
+        case "strict_lower" =>
+          rm.exportStrictLowerTriangle(
+            ctx,
+            pathOut,
+            delimiter,
+            Option(header),
+            addIndex,
+            exportType,
+          )
+        case "upper" =>
+          rm.exportUpperTriangle(ctx, pathOut, delimiter, Option(header), addIndex, exportType)
+        case "strict_upper" =>
+          rm.exportStrictUpperTriangle(
+            ctx,
+            pathOut,
+            delimiter,
+            Option(header),
+            addIndex,
+            exportType,
+          )
       }
-    }
+    }._1
   }
 
   def pyRegisterIR(
@@ -169,19 +181,17 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable {
     returnType: String,
     bodyStr: String,
   ): Unit =
-    void {
-      withExecuteContext() { ctx =>
-        IRFunctionRegistry.registerIR(
-          ctx,
-          name,
-          typeParamStrs.asScala.toArray,
-          argNameStrs.asScala.toArray,
-          argTypeStrs.asScala.toArray,
-          returnType,
-          bodyStr,
-        )
-      }
-    }
+    withExecuteContext() { ctx =>
+      IRFunctionRegistry.registerIR(
+        ctx,
+        name,
+        typeParamStrs.asScala.toArray,
+        argNameStrs.asScala.toArray,
+        argTypeStrs.asScala.toArray,
+        returnType,
+        bodyStr,
+      ): Unit
+    }._1
 
   def pyExecuteLiteral(irStr: String): Int =
     withExecuteContext(selfContainedExecution = false) { ctx =>
@@ -217,7 +227,8 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable {
   def pyToDF(s: String): DataFrame =
     withExecuteContext(selfContainedExecution = false) { ctx =>
       val tir = IRParser.parse_table_ir(ctx, s)
-      Interpret(tir, ctx).toDF()
+      val tv = Interpret(tir, ctx)
+      tv.toDF(ctx)
     }._1
 
   def pyReadMultipleMatrixTables(jsonQuery: String): util.List[MatrixIR] =
@@ -266,6 +277,34 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable {
       IRParser.parse_blockmatrix_ir(ctx, s)
     }._1
 
+  private[this] def fileAndLineCounts(
+    regex: String,
+    files: Seq[String],
+    maxLines: Int,
+  ): Map[String, Array[WithContext[String]]] =
+    synchronized {
+      val regexp = regex.r
+      backend.asSpark.sc
+        .textFilesLines(tmpFileManager.fs.globAll(files).map(_.getPath))
+        .filter(line => regexp.findFirstIn(line.value).isDefined)
+        .take(maxLines)
+        .groupBy(_.source.file)
+    }
+
+  def pyGrepPrint(regex: String, files: Seq[String], maxLines: Int): Unit =
+    fileAndLineCounts(regex, files, maxLines).foreach { case (file, lines) =>
+      info(s"$file: ${lines.length} ${plural(lines.length, "match", "matches")}:")
+      lines.map(_.value).foreach { line =>
+        val (screen, logged) = line.truncatable().strings
+        log.info("\t" + logged)
+        println(s"\t$screen")
+      }
+    }
+
+  def pyGrepReturn(regex: String, files: Seq[String], maxLines: Int)
+    : Array[(String, Array[String])] =
+    fileAndLineCounts(regex, files, maxLines).mapValues(_.map(_.value)).toArray
+
   private[this] def addReference(rg: ReferenceGenome): Unit =
     ReferenceGenome.addFatalOnCollision(references, FastSeq(rg))
 
@@ -275,6 +314,8 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable {
       compiledCodeCache.clear()
       irCache.clear()
       coercerCache.clear()
+      backend.close()
+      IRFunctionRegistry.clearUserFunctions()
     }
 
   private[this] def removeReference(name: String): Unit =
@@ -388,7 +429,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable {
           )
 
         private[this] def respond(req: HttpExchange, code: Int, payload: Array[Byte]): Unit = {
-          req.sendResponseHeaders(code, payload.length)
+          req.sendResponseHeaders(code, payload.length.toLong)
           using(req.getResponseBody)(_.write(payload))
         }
       }

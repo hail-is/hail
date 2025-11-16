@@ -1,18 +1,21 @@
 package is.hail.utils
 
-import is.hail.HailContext
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.io.fs.{FS, FileListEntry, FileStatus, SeekableDataInputStream}
 import is.hail.types.virtual.Type
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 import java.io.{InputStream, OutputStream}
 
+import org.apache.logging.log4j.Level
+import org.apache.logging.log4j.core.appender.ConsoleAppender
+import org.apache.logging.log4j.core.config.Configurator
+import org.apache.logging.log4j.core.config.builder.api.ConfigurationBuilderFactory
 import org.json4s.JsonAST._
 import org.json4s.jackson.JsonMethods
 
-trait Py4jUtils {
+trait Py4jUtils extends Logging {
   def arrayToArrayList[T](arr: Array[T]): java.util.ArrayList[T] = {
     val list = new java.util.ArrayList[T]()
     for (elem <- arr)
@@ -132,9 +135,61 @@ trait Py4jUtils {
     new HadoopPyWriter(fs.create(path))
   }
 
-  def addSocketAppender(hostname: String, port: Int): Unit =
-    StringSocketAppender.get()
-      .connect(hostname, port, HailContext.logFormat)
+  val LogFormat: String =
+    "%d{yyyy-MM-dd HH:mm:ss.SSS} %c{1}: %p: %m%n"
+
+  def configureLogging(logFile: String, quiet: Boolean, append: Boolean): Unit = {
+    val configBuilder =
+      ConfigurationBuilderFactory
+        .newConfigurationBuilder()
+        .setConfigurationName("Hail")
+
+    val layout =
+      configBuilder
+        .newLayout("PatternLayout")
+        .addAttribute("pattern", LogFormat)
+
+    val fileAppender =
+      configBuilder
+        .newAppender("LOGFILE", "File")
+        .addAttribute("append", append.toString)
+        .addAttribute("fileName", logFile)
+        .add(layout)
+
+    val consoleAppender =
+      configBuilder
+        .newAppender("CONSOLE", "Console")
+        .addAttribute("target", ConsoleAppender.Target.SYSTEM_ERR)
+        .add(layout)
+
+    val rootLogger =
+      configBuilder
+        .newRootLogger(Level.INFO)
+        .add(
+          configBuilder
+            .newAppenderRef(fileAppender.getName)
+            .addAttribute("level", Level.INFO)
+        )
+        .add(
+          configBuilder
+            .newAppenderRef(consoleAppender.getName)
+            .addAttribute("level", if (!quiet) Level.WARN else Level.OFF)
+        )
+
+    val sparkLogger =
+      configBuilder
+        .newLogger("org.apache.spark", Level.WARN)
+        .add(configBuilder.newAppenderRef(fileAppender.getName))
+
+    Configurator.reconfigure(
+      configBuilder
+        .add(fileAppender)
+        .add(consoleAppender)
+        .add(rootLogger)
+        .add(sparkLogger)
+        .build(false)
+    )
+  }
 
   def logWarn(msg: String): Unit =
     warn(msg)

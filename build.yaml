@@ -21,7 +21,7 @@ steps:
       mkdir -p repo
       cd repo
       {{ code.checkout_script }}
-      make -C hail python-version-info HAIL_BUILD_MODE=Release MILLOPTS=--no-server
+      make -C hail python-version-info HAIL_BUILD_MODE=Release MILLOPTS=--no-daemon
     outputs:
       - from: /io/repo/
         to: /repo
@@ -90,8 +90,8 @@ steps:
       - merge_code
   - kind: buildImage2
     name: hail_ubuntu_image
-    dockerFile: /io/hail-ubuntu/Dockerfile
-    contextPath: /io/hail-ubuntu
+    dockerFile: /io/repo/docker/hail-ubuntu/Dockerfile
+    contextPath: /io/repo
     publishAs: hail-ubuntu
     resources:
       storage: 10Gi
@@ -99,14 +99,16 @@ steps:
       memory: standard
     inputs:
       - from: /repo/docker/hail-ubuntu
-        to: /io/hail-ubuntu
+        to: /io/repo/docker/hail-ubuntu
+      - from: /repo/gear/pinned-requirements.txt
+        to: /io/repo/gear/pinned-requirements.txt
     dependsOn:
       - merge_code
       - copy_third_party_images
   - kind: buildImage2
     name: hail_ubuntu_image_python_3_10
-    dockerFile: /io/hail-ubuntu/Dockerfile
-    contextPath: /io/hail-ubuntu
+    dockerFile: /io/repo/docker/hail-ubuntu/Dockerfile
+    contextPath: /io/repo
     publishAs: hail-ubuntu-python-3-10
     buildArgs:
       - name: PYTHON_VERSION
@@ -117,14 +119,16 @@ steps:
       memory: standard
     inputs:
       - from: /repo/docker/hail-ubuntu
-        to: /io/hail-ubuntu
+        to: /io/repo/docker/hail-ubuntu
+      - from: /repo/gear/pinned-requirements.txt
+        to: /io/repo/gear/pinned-requirements.txt
     dependsOn:
       - merge_code
       - copy_third_party_images
   - kind: buildImage2
     name: hail_ubuntu_image_python_3_12
-    dockerFile: /io/hail-ubuntu/Dockerfile
-    contextPath: /io/hail-ubuntu
+    dockerFile: /io/repo/docker/hail-ubuntu/Dockerfile
+    contextPath: /io/repo
     publishAs: hail-ubuntu-python-3-12
     buildArgs:
       - name: PYTHON_VERSION
@@ -135,25 +139,31 @@ steps:
       memory: standard
     inputs:
       - from: /repo/docker/hail-ubuntu
-        to: /io/hail-ubuntu
+        to: /io/repo/docker/hail-ubuntu
+      - from: /repo/gear/pinned-requirements.txt
+        to: /io/repo/gear/pinned-requirements.txt
     dependsOn:
       - merge_code
       - copy_third_party_images
   - kind: buildImage2
     name: hail_ubuntu_image_python_3_13
-    dockerFile: /io/hail-ubuntu/Dockerfile
-    contextPath: /io/hail-ubuntu
+    dockerFile: /io/repo/docker/hail-ubuntu/Dockerfile
+    contextPath: /io/repo
     publishAs: hail-ubuntu-python-3-13
     buildArgs:
       - name: PYTHON_VERSION
         value: "3.13"
+      - name: SKIP_GCLOUD_PROFILER
+        value: "true" # Python 3.13 does not support google-cloud-profiler yet
     resources:
       storage: 10Gi
       cpu: "2"
       memory: standard
     inputs:
       - from: /repo/docker/hail-ubuntu
-        to: /io/hail-ubuntu
+        to: /io/repo/docker/hail-ubuntu
+      - from: /repo/gear/pinned-requirements.txt
+        to: /io/repo/gear/pinned-requirements.txt
     dependsOn:
       - merge_code
       - copy_third_party_images
@@ -760,8 +770,8 @@ steps:
       set -ex
       cd /io/repo/hail
 
-      export MILLOPTS='--no-server' HAIL_BUILD_MODE=Release
-      time retry sh mill --no-server --version
+      export MILLOPTS='--no-daemon' HAIL_BUILD_MODE=Release
+      time retry sh mill --no-daemon --version
 
       # We've encountered the following sporadic error in CI between `mill`
       # finishing assembling the jar and `Make` copying the jar:
@@ -772,7 +782,7 @@ steps:
       # This was likely from running mill in server mode; mill main exits before
       # the jar has finished being written.
       time retry make shadowJar
-      if [ ! -f out/hail/assembly.dest/out.jar ]; then
+      if [ ! -f out/hail/2.12/assembly.dest/out.jar ]; then
           echo 'no out.jar found after mill assembly returned. going to sleep'
           sleep 5
       fi
@@ -838,12 +848,12 @@ steps:
       set -ex
       cd /io/repo/hail
 
-      export MILLOPTS='--no-server' HAIL_BUILD_MODE=CI
-      time retry sh mill --no-server --version
+      export MILLOPTS='--no-daemon' HAIL_BUILD_MODE=CI
+      time retry sh mill --no-daemon --version
 
       # See `build_hail_jar_and_wheel`
       time retry make shadowJar
-      if [ ! -f out/hail/assembly.dest/out.jar ]; then
+      if [ ! -f out/hail/2.12/assembly.dest/out.jar ]; then
           echo 'no out.jar found after mill assembly returned. going to sleep'
           sleep 5
       fi
@@ -871,12 +881,12 @@ steps:
       set -ex
       cd /io/repo/hail
 
-      export MILLOPTS='--no-server' HAIL_BUILD_MODE=CI
-      time retry sh mill --no-server --version
+      export MILLOPTS='--no-daemon' HAIL_BUILD_MODE=CI
+      time retry sh mill --no-daemon --version
 
       # See `build_hail_jar_and_wheel`
       time retry make shadowTestJar
-      if [ ! -f out/hail/test/assembly.dest/out.jar ]; then
+      if [ ! -f out/hail/2.12/test/assembly.dest/out.jar ]; then
           echo 'no out.jar found after mill assembly returned. going to sleep'
           sleep 5
       fi
@@ -931,12 +941,12 @@ steps:
       set -ex
       cd /io/repo/hail
 
-      export SPARK_VERSION="3.0.2" SCALA_VERSION="2.12.13" HAIL_BUILD_MODE=Release MILLOPTS='--no-server'
-      time retry sh mill --no-server --version
+      export SPARK_VERSION="3.0.2" SCALA_VERSION="2.12.13" HAIL_BUILD_MODE=Release MILLOPTS='--no-daemon'
+      time retry sh mill --no-daemon --version
 
       # See `build_hail_jar_and_wheel`
       time retry make shadowJar
-      if [ ! -f out/hail/assembly.dest/out.jar ]; then
+      if [ ! -f out/hail/2.12/assembly.dest/out.jar ]; then
           echo 'no out.jar found after mill assembly returned. going to sleep'
           sleep 5
       fi
@@ -980,14 +990,13 @@ steps:
       set -ex
 
       cd /io/batch/jvm-entryway
-
-      chmod 755 ./gradlew
-      ./gradlew shadowJar
+      time retry sh mill --no-daemon --version
+      sh mill --no-daemon assembly
     inputs:
       - from: /repo/batch
         to: /io/batch
     outputs:
-      - from: /io/batch/jvm-entryway/build/libs/jvm-entryway.jar
+      - from: /io/batch/jvm-entryway/out/assembly.dest/out.jar
         to: /jvm-entryway.jar
     dependsOn:
       - base_image
@@ -1015,7 +1024,7 @@ steps:
       - from: /repo/web_common
         to: /io/repo/web_common
       - from: /jvm-entryway.jar
-        to: /io/repo/batch/jvm-entryway/build/libs/jvm-entryway.jar
+        to: /io/repo/batch/jvm-entryway/out/assembly.dest/out.jar
     dependsOn:
       - merge_code
       - hail_ubuntu_image
@@ -1069,7 +1078,7 @@ steps:
     inputs:
       - from: /resources.tar.gz
         to: /io/resources.tar.gz
-      - from: /derived/debug/hail/out/hail/test/assembly.dest/out.jar
+      - from: /derived/debug/hail/out/hail/2.12/test/assembly.dest/out.jar
         to: /io/hail-test.jar
       - from: /splits.tar.gz
         to: /io/splits.tar.gz
@@ -1117,6 +1126,7 @@ steps:
       export HAIL_DOCTEST_DATA_DIR=$(realpath ./data)
       export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
+      
       python3 -m pytest \
               -Werror:::hail -Werror::ResourceWarning \
               --log-cli-level=INFO \
@@ -1676,6 +1686,25 @@ steps:
         to: /io/repo/config.mk
     dependsOn:
       - hail_linting_image
+      - merge_code
+  - kind: runImage
+    name: compile_hail_213
+    image:
+      valueFrom: base_image.image
+    resources:
+      memory: standard
+      cpu: '2'
+    script: |
+      set -ex
+      cd /io/repo/hail
+
+      HAIL_BUILD_MODE='CI'
+      time retry sh mill --no-daemon hail[2.13].__.compile
+    inputs:
+      - from: /repo
+        to: /io/repo
+    dependsOn:
+      - base_image
       - merge_code
   - kind: runImage
     name: get_pip_versioned_docs
@@ -2543,7 +2572,7 @@ steps:
           valueFrom: default_ns.name
         mountPath: /batch-gsa-key
     inputs:
-      - from: /derived/release/hail/out/hail/assembly.dest/out.jar
+      - from: /derived/release/hail/out/hail/2.12/assembly.dest/out.jar
         to: /io/hail.jar
       - from: /repo/hail/env/REVISION
         to: /io/REVISION
@@ -3216,17 +3245,21 @@ steps:
       hl.init(app_name='test-hailctl-batch-submit-query')
       hl.utils.range_table(10).collect()
       EOF
+      
+      # https://stackoverflow.com/questions/3524978/logging-functions-in-bash-and-stdout 
+      exec 3>&1
+      
+      function log { echo "$@" 1>&3; }
+      
+      function submit {
+        local status=$(hailctl batch submit --quiet --output json --wait "$@")
+        log "$status"
+        log $(hailctl batch log -o json $(jq -jr '.batch_id' <<< "$status") 1)  # print the job log
+        test $(jq -jr '.state' <<< "$status") = "Success"
+      }
 
-      BATCH_ID=$(hailctl batch submit simple_hail.py --name=test-hailctl-batch-submit --files=foo -o json | jq '.id')
-      STATUS=$(hailctl batch wait -o json $BATCH_ID)
-      STATE=$(echo $STATUS | jq -jr '.state')
-      if [ "$STATE" == "success" ]; then
-          exit 0;
-      else
-          echo $STATUS;
-          exit 1;
-      fi
-
+      submit -v simple_hail.py:/ -v foo/:/foo/ --workdir / --name=test-hailctl-batch-submit python3 simple_hail.py
+      
       cat >hail_with_args.py <<EOF
       import hail as hl
       import sys
@@ -3238,51 +3271,25 @@ steps:
       assert hl.utils.range_table(int(sys.argv[1]))._force_count() == 100
       EOF
 
-      BATCH_ID=$(hailctl batch submit --name=test-hailctl-batch-submit --files=foo -o json hail_with_args.py 100 | jq '.id')
-      STATUS=$(hailctl batch wait -o json $BATCH_ID)
-      STATE=$(echo $STATUS | jq -jr '.state')
-      if [ "$STATE" == "success" ]; then
-          exit 0;
-      else
-          echo $STATUS;
-          exit 1;
-      fi
-
+      submit -v hail_with_args.py:/ -v foo/:/foo/ --workdir / --name=test-hailctl-batch-submit python3 hail_with_args.py 100
+      
       cat >file.sh <<EOF
       set -ex
 
-      cat foo
+      cat foo/baz.txt
       echo "Hello World!"
       EOF
 
-      BATCH_ID=$(hailctl batch submit --name=test-hailctl-batch-submit --files=foo -o json file.sh | jq '.id')
-      STATUS=$(hailctl batch wait -o json $BATCH_ID)
-      STATE=$(echo $STATUS | jq -jr '.state')
-      if [ "$STATE" == "success" ]; then
-          exit 0;
-      else
-          echo $STATUS;
-          exit 1;
-      fi
-
+      submit --shell /bin/sh --name=test-hailctl-batch-submit -v file.sh:/ -v foo/:/foo/ -o json --image busybox:latest sh file.sh
+      
       cat >file-with-args.sh <<EOF
-      set -ex
+      [ "$#" -eq 2 ]
 
-      [[ $# -eq 2 ]]
-
-      cat foo
+      cat foo/baz.txt
       echo "Hello World! $1 $2"
       EOF
 
-      BATCH_ID=$(hailctl batch submit --name=test-hailctl-batch-submit --files=foo -o json file-with-args.sh abc 123 | jq '.id')
-      STATUS=$(hailctl batch wait -o json $BATCH_ID)
-      STATE=$(echo $STATUS | jq -jr '.state')
-      if [ "$STATE" == "success" ]; then
-          exit 0;
-      else
-          echo $STATUS;
-          exit 1;
-      fi
+      submit --name=test-hailctl-batch-submit -v file-with-args.sh:/ -v foo/:/foo/ -o json --image ubuntu:latest sh file-with-args.sh abc 123
     secrets:
       - name: test-gsa-key
         namespace:
@@ -3485,7 +3492,7 @@ steps:
       # #14452 - must build wheel with release `hailtop/hailctl/deploy.yaml`
       # use `-o` to prevent `mill` from rebuilding the "SHADOW_JAR"
       make upload-artifacts HAIL_BUILD_MODE=Release DEPLOY_REMOTE=origin \
-        -o out/hail/assembly.dest/out.jar
+        -o out/hail/2.12/assembly.dest/out.jar
 
       echo Setting arguments and invoking release.sh.
 
@@ -3510,8 +3517,8 @@ steps:
     inputs:
       - from: /repo
         to: /io/repo
-      - from: /derived/release/hail/out/hail/assembly.dest/out.jar
-        to: /io/repo/hail/out/hail/assembly.dest/out.jar
+      - from: /derived/release/hail/out/hail/2.12/assembly.dest/out.jar
+        to: /io/repo/hail/out/hail/2.12/assembly.dest/out.jar
       - from: /azure-wheel
         to: /io/azure-wheel
       - from: /www.tar.gz
@@ -3800,7 +3807,7 @@ steps:
     inputs:
       - from: /resources.tar.gz
         to: /io/resources.tar.gz
-      - from: /derived/debug/hail/out/hail/test/assembly.dest/out.jar
+      - from: /derived/debug/hail/out/hail/2.12/test/assembly.dest/out.jar
         to: /io/hail-test.jar
       - from: /repo/hail/testng-fs.xml
         to: /io/testng-fs.xml
@@ -3842,7 +3849,7 @@ steps:
     inputs:
       - from: /resources.tar.gz
         to: /io/resources.tar.gz
-      - from: /derived/debug/hail/out/hail/test/assembly.dest/out.jar
+      - from: /derived/debug/hail/out/hail/2.12/test/assembly.dest/out.jar
         to: /io/hail-test.jar
       - from: /repo/hail/testng-services.xml
         to: /io/testng-services.xml
@@ -4160,8 +4167,6 @@ steps:
     dependsOn:
       - ci_utils_image
       - default_ns
-    scopes:
-      - deploy
   - kind: runImage
     name: test_gcp_ar_cleanup_policies
     resources:

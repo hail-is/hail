@@ -41,9 +41,8 @@ object LowerMatrixIR {
     val ab = new BoxedArrayBuilder[(Name, IR)]
 
     val l1 = lower(ctx, bmir, ab)
-    ab.result().foldRight[BlockMatrixIR](l1) { case ((ident, value), body) =>
-      RelationalLetBlockMatrix(ident, value, body)
-    }
+    assert(ab.result().isEmpty)
+    l1
   }
 
   private[this] def lowerChildren(
@@ -859,7 +858,7 @@ object LowerMatrixIR {
       case MatrixExplodeRows(child, path) =>
         TableExplode(lower(ctx, child, liftedRelationalLets), path)
 
-      case mr: MatrixRead => mr.lower()
+      case mr: MatrixRead => mr.lower(ctx)
 
       case MatrixAggregateColsByKey(child, entryExpr, colExpr) =>
         val colKey = child.typ.colKey
@@ -878,7 +877,8 @@ object LowerMatrixIR {
         val e2 = Env[IRProxy](
           MatrixIR.globalName -> 'global.selectFields(child.typ.globalType.fieldNames: _*)
         )
-        val ceSub = subst(lower(ctx, colExpr, liftedRelationalLets), BindingEnv(e2, agg = Some(e1)))
+        val ceSub =
+          subst(lower(ctx, colExpr, liftedRelationalLets), BindingEnv(e2, agg = Some(e2)))
         val eeSub =
           subst(lower(ctx, entryExpr, liftedRelationalLets), BindingEnv(e1, agg = Some(e1)))
 

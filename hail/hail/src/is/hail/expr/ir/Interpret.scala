@@ -24,49 +24,47 @@ import org.apache.spark.sql.Row
 object Interpret {
   type Agg = (IndexedSeq[Row], TStruct)
 
-  def apply(tir: TableIR, ctx: ExecuteContext): TableValue =
-    apply(tir, ctx, optimize = true)
-
-  def apply(tir: TableIR, ctx: ExecuteContext, optimize: Boolean): TableValue = {
+  def apply(tir: TableIR, ctx: ExecuteContext): TableValue = {
     val lowered =
-      LoweringPipeline.legacyRelationalLowerer(optimize)(ctx, tir).asInstanceOf[TableIR].noSharing(
+      LoweringPipeline.legacyRelationalLowerer(ctx, tir).asInstanceOf[TableIR].noSharing(
         ctx
       )
     ExecuteRelational(ctx, lowered).asTableValue(ctx)
   }
 
-  def apply(mir: MatrixIR, ctx: ExecuteContext, optimize: Boolean): TableValue = {
-    val lowered = LoweringPipeline.legacyRelationalLowerer(optimize)(ctx, mir).asInstanceOf[TableIR]
+  def apply(mir: MatrixIR, ctx: ExecuteContext): TableValue = {
+    val lowered = LoweringPipeline.legacyRelationalLowerer(ctx, mir).asInstanceOf[TableIR]
     ExecuteRelational(ctx, lowered).asTableValue(ctx)
   }
 
-  def apply(bmir: BlockMatrixIR, ctx: ExecuteContext, optimize: Boolean): BlockMatrix = {
+  def apply(bmir: BlockMatrixIR, ctx: ExecuteContext): BlockMatrix = {
     val lowered =
-      LoweringPipeline.legacyRelationalLowerer(optimize)(ctx, bmir).asInstanceOf[BlockMatrixIR]
+      LoweringPipeline.legacyRelationalLowerer(ctx, bmir).asInstanceOf[BlockMatrixIR]
     lowered.execute(ctx)
   }
 
   def apply[T](ctx: ExecuteContext, ir: IR): T =
-    apply(ctx, ir, Env.empty[(Any, Type)], FastSeq[(Any, Type)]()).asInstanceOf[T]
+    apply[T](ctx, ir, Env.empty[(Any, Type)], FastSeq[(Any, Type)]())
 
   def apply[T](
     ctx: ExecuteContext,
     ir0: IR,
     env: Env[(Any, Type)],
     args: IndexedSeq[(Any, Type)],
-    optimize: Boolean = true,
   ): T = {
     val bindings = env.m.view.map { case (k, (value, t)) =>
       k -> Literal.coerce(t, value)
     }.toFastSeq
     val lowered =
-      LoweringPipeline.relationalLowerer(optimize).apply(ctx, Let(bindings, ir0)).asInstanceOf[IR]
+      LoweringPipeline.relationalLowerer(ctx, Let(bindings, ir0)).asInstanceOf[IR]
     val result = run(ctx, lowered, Env.empty[Any], args, Memo.empty).asInstanceOf[T]
     result
   }
 
   def alreadyLowered(ctx: ExecuteContext, ir: IR): Any =
-    run(ctx, ir, Env.empty, FastSeq(), Memo.empty)
+    ctx.local(flags = ctx.flags - Optimize.Flags.Optimize) { ctx =>
+      run(ctx, ir, Env.empty, FastSeq(), Memo.empty)
+    }
 
   private def run(
     ctx: ExecuteContext,
@@ -202,7 +200,7 @@ object Interpret {
                 case Subtract() => ll - rr
                 case Multiply() => ll * rr
                 case FloatingPointDivide() => ll / rr
-                case RoundToNegInfDivide() => math.floor(ll / rr).toFloat
+                case RoundToNegInfDivide() => math.floor(ll.toDouble / rr).toFloat
               }
             case (TFloat64, TFloat64) =>
               val ll = lValue.asInstanceOf[Double]
@@ -867,17 +865,17 @@ object Interpret {
               val in = Ref(freshName(), argTuple.virtualType)
               val wrappedIR = ir.mapChildrenWithIndex { case (_, i) => GetTupleElement(in, i) }
 
-              val (rt, makeFunction) = Compile[AsmFunction2RegionLongLong](
-                ctx,
-                FastSeq((
-                  in.name,
-                  SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(argTuple)),
-                )),
-                FastSeq(classInfo[Region], LongInfo),
-                LongInfo,
-                MakeTuple.ordered(FastSeq(wrappedIR)),
-                optimize = false,
-              )
+              val (rt, makeFunction) =
+                Compile[AsmFunction2RegionLongLong](
+                  ctx,
+                  FastSeq((
+                    in.name,
+                    SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(argTuple)),
+                  )),
+                  FastSeq(classInfo[Region], LongInfo),
+                  LongInfo,
+                  MakeTuple.ordered(FastSeq(wrappedIR)),
+                )
               (rt.get, makeFunction(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, region))
             },
           )
@@ -1100,7 +1098,6 @@ object Interpret {
             FastSeq(classInfo[Region]),
             LongInfo,
             MakeTuple.ordered(FastSeq(child)),
-            optimize = false,
           )
         ctx.scopedExecution { (hcl, fs, htc, r) =>
           SafeRow.read(rt, makeFunction(hcl, fs, htc, r)(r)).asInstanceOf[Row](0)

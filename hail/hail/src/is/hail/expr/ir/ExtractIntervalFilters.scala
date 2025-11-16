@@ -80,7 +80,7 @@ object ExtractIntervalFilters {
         None
       else {
         val rw = extract.Rewrites(mutable.Set.empty, mutable.Set.empty)
-        extract.analyze(cond, ref.name, Some(rw), trueSet)
+        extract.analyze(cond, ref.name, Some(rw), trueSet): Unit
         Some((extract.rewrite(cond, rw), trueSet))
       }
     }
@@ -174,7 +174,7 @@ class KeySetLattice(ctx: ExecuteContext, keyType: TStruct) extends Lattice {
   def complement(v: Value): Value = {
     if (v.isEmpty) return top
 
-    val builder = mutable.ArrayBuilder.make[Interval]()
+    val builder = mutable.ArrayBuilder.make[Interval]
     if (v.head.left != IntervalEndpoint(Row(), -1)) {
       builder += Interval(IntervalEndpoint(Row(), -1), v.head.left)
     }
@@ -712,11 +712,11 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
   private def intervalsFromLiteral(lit: Any, ordering: Ordering[Any], wrapped: Boolean): KeySet =
     (lit: @unchecked) match {
       case x: Map[_, _] => intervalsFromCollection(x.keys, ordering, wrapped)
-      case x: Traversable[_] => intervalsFromCollection(x, ordering, wrapped)
+      case x: Iterable[_] => intervalsFromCollection(x, ordering, wrapped)
     }
 
   private def intervalsFromCollection(
-    lit: Traversable[Any],
+    lit: Iterable[Any],
     ordering: Ordering[Any],
     wrapped: Boolean,
   ): KeySet =
@@ -733,7 +733,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
             TInt32.ordering(null).toOrdering.asInstanceOf[Ordering[Integer]]
           )
           .flatMap(getIntervalFromContig(_, rg))
-      case x: Traversable[_] => x.asInstanceOf[Traversable[String]].toArray.toFastSeq
+      case x: Iterable[_] => x.asInstanceOf[Iterable[String]].toArray.toFastSeq
           .sortBy(rg.contigsIndex.get(_))(
             TInt32.ordering(null).toOrdering.asInstanceOf[Ordering[Integer]]
           )

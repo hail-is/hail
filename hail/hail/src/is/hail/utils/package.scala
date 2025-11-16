@@ -3,43 +3,41 @@ package is.hail
 import is.hail.annotations.ExtendedOrdering
 import is.hail.expr.ir.ByteArrayBuilder
 import is.hail.io.fs.{FS, FileListEntry}
-import is.hail.macros.void
+import is.hail.utils.compat.immutable.ArraySeq
 
-import scala.collection.{mutable, GenTraversableOnce, TraversableOnce}
-import scala.collection.generic.CanBuildFrom
+import scala.collection.compat._
+import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
-import scala.concurrent.ExecutionException
 import scala.reflect.ClassTag
 import scala.util.control.NonFatal
 
 import java.io._
 import java.lang.reflect.Method
 import java.net.{URI, URLClassLoader}
+import java.nio.charset.StandardCharsets
 import java.security.SecureRandom
 import java.text.SimpleDateFormat
 import java.util
 import java.util.{Base64, Date}
-import java.util.concurrent.{
-  AbstractExecutorService, Callable, CancellationException, ExecutorCompletionService,
-  ExecutorService, RunnableFuture, TimeUnit,
-}
+import java.util.concurrent._
 import java.util.concurrent.atomic.AtomicBoolean
 
 import com.google.common.util.concurrent.AbstractFuture
-import org.apache.commons.io.output.TeeOutputStream
 import org.apache.commons.lang3.StringUtils
 import org.apache.hadoop.fs.PathIOException
 import org.apache.hadoop.mapred.FileSplit
 import org.apache.hadoop.mapreduce.lib.input.{FileSplit => NewFileSplit}
-import org.apache.log4j.Level
 import org.apache.spark.{Partition, TaskContext}
 import org.apache.spark.sql.Row
-import org.json4s.{Extraction, Formats, JObject, NoTypeHints, Serializer}
+import org.json4s.{Extraction, Formats, JObject, JValue, NoTypeHints, Serializer}
 import org.json4s.JsonAST.{JArray, JString}
-import org.json4s.jackson.Serialization
+import org.json4s.jackson.{JsonMethods, Serialization}
 import org.json4s.reflect.TypeInfo
 
 package utils {
+
+  import scala.collection.compat.{Factory, IterableOnce}
+
   trait Truncatable {
     def truncate: String
 
@@ -58,9 +56,8 @@ package utils {
   }
 
   sealed trait AnyFailAllFail[C[_]] {
-    def apply[T](ts: TraversableOnce[Option[T]])(implicit cbf: CanBuildFrom[Nothing, T, C[T]])
-      : Option[C[T]] = {
-      val b = cbf()
+    def apply[T](ts: IterableOnce[Option[T]])(implicit cbf: Factory[T, C[T]]): Option[C[T]] = {
+      val b = cbf.newBuilder
       for (t <- ts)
         if (t.isEmpty)
           return None
@@ -76,13 +73,11 @@ package utils {
       z: S,
     )(
       f: (T, S) => (U, S)
-    )(implicit
-      uct: ClassTag[U],
-      cbf: CanBuildFrom[Nothing, U, C[U]],
+    )(implicit cbf: Factory[U, C[U]]
     ): C[U] = {
-      val b = cbf()
+      val b = cbf.newBuilder
       var acc = z
-      for ((x, i) <- a.zipWithIndex) {
+      a.foreach { x =>
         val (y, newAcc) = f(x, acc)
         b += y
         acc = newAcc
@@ -102,6 +97,8 @@ package utils {
         }
       }
 
+    def force: A = apply()
+
     def isEvaluated: Boolean =
       synchronized {
         option.isDefined
@@ -116,9 +113,6 @@ package object utils
   type UtilsType = this.type
 
   def utilsPackageClass = getClass
-
-  def getStderrAndLogOutputStream[T](implicit tct: ClassTag[T]): OutputStream =
-    new TeeOutputStream(new LoggerOutputStream(log, Level.ERROR), System.err)
 
   def format(s: String, substitutions: Any*): String =
     substitutions.zipWithIndex.foldLeft(s) { case (str, (value, i)) =>
@@ -176,6 +170,10 @@ package object utils
     }
   }
 
+  def plural(n: Int, sing: String): String = plural(n.toLong, sing)
+
+  def plural(n: Int, sing: String, plur: String): String = plural(n.toLong, sing, plur)
+
   def plural(n: Long, sing: String, plur: String = null): String =
     if (n == 1)
       sing
@@ -186,8 +184,6 @@ package object utils
 
   val noOp: () => Unit = () => ()
 
-  def square[T](d: T)(implicit ev: T => scala.math.Numeric[T]#Ops): T = d * d
-
   def triangle(n: Int): Int = (n * (n + 1)) / 2
 
   def treeAggDepth(nPartitions: Int, branchingFactor: Int): Int = {
@@ -197,7 +193,7 @@ package object utils
     if (nPartitions == 0)
       return 1
 
-    math.ceil(math.log(nPartitions) / math.log(branchingFactor)).toInt
+    math.ceil(math.log(nPartitions.toDouble) / math.log(branchingFactor.toDouble)).toInt
   }
 
   def simpleAssert(p: Boolean): Unit =
@@ -353,7 +349,7 @@ package object utils
     var idx: Int = 0
     def hasNext: Boolean = idx < r.size
 
-    def next: Any = {
+    def next(): Any = {
       val a = r(idx)
       idx += 1
       a
@@ -388,86 +384,11 @@ package object utils
   def mapAccumulate[C[_], U] =
     mapAccumulateInstance.asInstanceOf[MapAccumulate[C, U]]
 
-  /** An abstraction for building an {@code Array} of known size. Guarantees a left-to-right
-    * traversal
-    *
-    * @param xs
-    *   the thing to iterate over
-    * @param size
-    *   the size of array to allocate
-    * @param key
-    *   given the source value and its source index, yield the target index
-    * @param combine
-    *   given the target value, the target index, the source value, and the source index, compute
-    *   the new target value
-    * @tparam A
-    * @tparam B
-    */
-  def coalesce[A, B: ClassTag](
-    xs: GenTraversableOnce[A]
-  )(
-    size: Int,
-    key: (A, Int) => Int,
-    z: B,
-  )(
-    combine: (B, A) => B
-  ): Array[B] = {
-    val a = Array.fill(size)(z)
-
-    for ((x, idx) <- xs.toIterator.zipWithIndex) {
-      val k = key(x, idx)
-      a(k) = combine(a(k), x)
-    }
-
-    a
-  }
-
-  def mapSameElements[K, V](l: Map[K, V], r: Map[K, V], valueEq: (V, V) => Boolean): Boolean = {
-    def entryMismatchMessage(failures: TraversableOnce[(K, V, V)]): String = {
-      require(failures.nonEmpty)
-      val newline = System.lineSeparator()
-      val sb = new StringBuilder
-      sb ++= "The maps do not have the same entries:" + newline
-      for (failure <- failures)
-        sb ++= s"  At key ${failure._1}, the left map has ${failure._2} and the right map has ${failure._3}" + newline
-      sb ++= s"  The left map is: $l" + newline
-      sb ++= s"  The right map is: $r" + newline
-      sb.result()
-    }
-
-    if (l.keySet != r.keySet) {
-      println(
-        s"""The maps do not have the same keys.
-           |  These keys are unique to the left-hand map: ${l.keySet -- r.keySet}
-           |  These keys are unique to the right-hand map: ${r.keySet -- l.keySet}
-           |  The left map is: $l
-           |  The right map is: $r
-      """.stripMargin
-      )
-      false
-    } else {
-      val fs = Array.newBuilder[(K, V, V)]
-      for ((k, lv) <- l) {
-        val rv = r(k)
-        if (!valueEq(lv, rv))
-          fs += ((k, lv, rv))
-      }
-      val failures = fs.result()
-
-      if (!failures.isEmpty) {
-        println(entryMismatchMessage(failures))
-        false
-      } else {
-        true
-      }
-    }
-  }
-
   def getIteratorSize[T](iterator: Iterator[T]): Long = {
     var count = 0L
     while (iterator.hasNext) {
       count += 1L
-      iterator.next()
+      iterator.next(): Unit
     }
     count
   }
@@ -476,7 +397,7 @@ package object utils
     var count = 0L
     while (iterator.hasNext && count < max) {
       count += 1L
-      iterator.next()
+      iterator.next(): Unit
     }
     count
   }
@@ -787,20 +708,20 @@ package object utils
     else
       right
 
-  def makeJavaMap[K, V](x: TraversableOnce[(K, V)]): java.util.HashMap[K, V] = {
+  def makeJavaMap[K, V](x: IterableOnce[(K, V)]): java.util.HashMap[K, V] = {
     val m = new java.util.HashMap[K, V]
     x.foreach { case (k, v) => m.put(k, v) }
     m
   }
 
-  def makeJavaSet[K](x: TraversableOnce[K]): java.util.HashSet[K] = {
+  def makeJavaSet[K](x: IterableOnce[K]): java.util.HashSet[K] = {
     val m = new java.util.HashSet[K]
     x.foreach(m.add)
     m
   }
 
   def toMapFast[T, K, V](
-    ts: TraversableOnce[T]
+    ts: IterableOnce[T]
   )(
     key: T => K,
     value: T => V,
@@ -808,17 +729,17 @@ package object utils
     val it = ts.toIterator
     val m = mutable.Map[K, V]()
     while (it.hasNext) {
-      val t = it.next
-      m.put(key(t), value(t))
+      val t = it.next()
+      m.update(key(t), value(t))
     }
     m
   }
 
   def toMapIfUnique[K, K2, V](
-    kvs: Traversable[(K, V)]
+    kvs: Iterable[(K, V)]
   )(
     keyBy: K => K2
-  ): Either[Map[K2, Traversable[K]], Map[K2, V]] = {
+  ): Either[Map[K2, Iterable[K]], Map[K2, V]] = {
     val grouped = kvs.groupBy(x => keyBy(x._1))
 
     val dupes = grouped.filter { case (_, m) => m.size != 1 }
@@ -851,7 +772,7 @@ package object utils
     using(new OutputStreamWriter(fs.create(path + "/README.txt"))) { out =>
       out.write(
         s"""This folder comprises a Hail (www.hail.is) native Table or MatrixTable.
-           |  Written with version ${HailContext.get.version}
+           |  Written with version $HAIL_PRETTY_VERSION
            |  Created at ${dateFormat.format(new Date())}""".stripMargin
       )
     }
@@ -999,12 +920,14 @@ package object utils
   }
 
   /** Merge the sorted `IndexedSeq`s `xs` and `ys` using comparison function `lt`. */
-  def merge[A](xs: IndexedSeq[A], ys: IndexedSeq[A], lt: (A, A) => Boolean): IndexedSeq[A] =
+  def merge[A: ClassTag](xs: IndexedSeq[A], ys: IndexedSeq[A], lt: (A, A) => Boolean)
+    : IndexedSeq[A] =
     (xs.length, ys.length) match {
       case (0, _) => ys
       case (_, 0) => xs
       case (n, m) =>
-        val res = new ArrayBuffer[A](n + m)
+        val res = ArraySeq.newBuilder[A]
+        res.sizeHint(n + m)
 
         var i = 0
         var j = 0
@@ -1024,52 +947,17 @@ package object utils
         for (k <- j until m)
           res += ys(k)
 
-        res
+        res.result()
     }
-
-  /** Run tasks on the `executor`, returning some `F` of the failures and an `IndexedSeq` of the
-    * successes with their index in `tasks`.
-    */
-  def runAll[F[_], A](
-    executor: ExecutorService
-  )(
-    accum: (F[Throwable], Throwable) => F[Throwable]
-  )(
-    init: F[Throwable]
-  )(
-    tasks: IndexedSeq[(() => A, Int)]
-  ): (F[Throwable], IndexedSeq[(A, Int)]) = {
-
-    var err = init
-    val buffer = new mutable.ArrayBuffer[(A, Int)](tasks.length)
-    val completer = new ExecutorCompletionService[(A, Int)](executor)
-
-    val futures = tasks.map { case (t, k) => completer.submit(() => t() -> k) }
-    tasks.foreach { _ =>
-      try buffer += completer.take().get()
-      catch {
-        case e: ExecutionException =>
-          err = accum(err, e.getCause)
-        case NonFatal(ex) =>
-          err = accum(err, ex)
-        case _: InterruptedException =>
-          futures.foreach(_.cancel(true))
-          Thread.currentThread().interrupt()
-      }
-    }
-
-    (err, buffer.sortBy(_._2))
-  }
-
-  def runAllKeepFirstError[A](executor: ExecutorService)
-    : IndexedSeq[(() => A, Int)] => (Option[Throwable], IndexedSeq[(A, Int)]) =
-    runAll[Option, A](executor) { case (opt, e) => opt.orElse(Some(e)) }(None)
 
   def lazily[A](f: => A): Lazy[A] =
     new Lazy(f)
 
   implicit def evalLazy[A](f: Lazy[A]): A =
-    f()
+    f.force
+
+  def jsonToBytes(v: JValue): Array[Byte] =
+    JsonMethods.compact(v).getBytes(StandardCharsets.UTF_8)
 }
 
 class CancellingExecutorService(delegate: ExecutorService) extends AbstractExecutorService {
@@ -1082,13 +970,11 @@ class CancellingExecutorService(delegate: ExecutorService) extends AbstractExecu
     @volatile private[this] var isFailed = false
 
     override def run(): Unit =
-      void {
-        try set(f())
-        catch {
-          case NonFatal(e) =>
-            isFailed = true
-            setException(e)
-        }
+      try set(f())
+      catch {
+        case NonFatal(e) =>
+          isFailed = true
+          setException(e)
       }
 
     override def afterDone(): Unit =
@@ -1099,7 +985,7 @@ class CancellingExecutorService(delegate: ExecutorService) extends AbstractExecu
 
   final private[this] class CancelledFuture[A] extends AbstractFuture[A] with RunnableFuture[A] {
     override def run(): Unit =
-      void(setException(new CancellationException()))
+      setException(new CancellationException())
   }
 
   override def newTaskFor[T](runnable: Runnable, value: T): RunnableFuture[T] =

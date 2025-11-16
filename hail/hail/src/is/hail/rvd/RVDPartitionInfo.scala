@@ -112,7 +112,7 @@ object RVDPartitionInfo {
         i,
         safe(minF.value),
         safe(maxF.value),
-        Array.tabulate[Any](math.min(i, sampleSize).toInt)(i => safe(samples(i).value)),
+        Array.tabulate[Any](math.min(i, sampleSize.toLong).toInt)(i => safe(samples(i).value)),
         sortedness,
         contextStr,
       )

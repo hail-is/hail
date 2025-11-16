@@ -1,9 +1,7 @@
 package is.hail.methods
 
-import is.hail.HailContext
 import is.hail.annotations.{UnsafeIndexedSeq, UnsafeRow}
 import is.hail.backend.ExecuteContext
-import is.hail.backend.spark.SparkBackend
 import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.ir.MatrixValue
 import is.hail.expr.ir.functions.MatrixToValueFunction
@@ -69,13 +67,13 @@ case class MatrixExportEntriesByCol(
       val extension = if (bgzip) ".tsv.bgz" else ".tsv"
       val localHeaderJsonInFile = headerJsonInFile
 
-      val colValuesJSON = HailContext.backend.broadcast(
+      val colValuesJSON = ctx.backend.broadcast(
         (startIdx until endIdx)
           .map(allColValuesJSON)
           .toArray
       )
 
-      val fsBc = fs.broadcast
+      val fsBc = ctx.fsBc
       val localTempDir = ctx.localTmpdir
       val partFolders = mv.rvd.crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
         val partFolder = partFileBase + partFile(d, i, TaskContext.get())
@@ -163,7 +161,8 @@ case class MatrixExportEntriesByCol(
       val ns = endIdx - startIdx
       val newFiles = mv.sparkContext.parallelize(0 until ns, numSlices = ns)
         .map { sampleIdx =>
-          val partFilePath = path + "/" + partFile(digitsNeeded(nCols), sampleIdx, TaskContext.get)
+          val partFilePath =
+            path + "/" + partFile(digitsNeeded(nCols), sampleIdx, TaskContext.get())
           val fileStatuses =
             partFolders.map(pf => fsBc.value.fileStatus(pf + s"/$sampleIdx" + extension))
           fsBc.value.copyMergeList(fileStatuses, partFilePath, deleteSource = false)
@@ -196,8 +195,8 @@ case class MatrixExportEntriesByCol(
 
     // clean up temporary files
     val temps = tempFolders.result()
-    val fsBc = fs.broadcast
-    SparkBackend.sparkContext.parallelize(
+    val fsBc = ctx.fsBc
+    ctx.backend.asSpark.sc.parallelize(
       temps,
       (temps.length / 32).max(1),
     ).foreach(path => fsBc.value.delete(path, recursive = true))

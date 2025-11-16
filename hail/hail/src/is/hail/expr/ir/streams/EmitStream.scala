@@ -27,6 +27,7 @@ import is.hail.utils._
 import is.hail.variant.Locus
 
 import scala.annotation.nowarn
+import scala.collection.compat._
 
 import java.util
 
@@ -406,7 +407,7 @@ object EmitStream {
                   cb.assign(idx, -1)
 
                 override val length: Option[EmitCodeBuilder => Code[Int]] =
-                  Some(_ => container.loadLength())
+                  Some(_ => container.loadLength)
 
                 override val elementRegion: Settable[Region] = regionVar
 
@@ -415,7 +416,7 @@ object EmitStream {
 
                 override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
                   cb.assign(idx, idx + 1)
-                  cb.if_(idx >= container.loadLength(), cb.goto(LendOfStream))
+                  cb.if_(idx >= container.loadLength, cb.goto(LendOfStream))
                   cb.goto(LproduceElementDone)
                 }
 
@@ -2889,7 +2890,7 @@ object EmitStream {
                         case ArrayZipBehavior.AssumeSameLength =>
                           producers.flatMap(_.length).headOption
                         case ArrayZipBehavior.TakeMinLength =>
-                          anyFailAllFail((producers, as).zipped.flatMap { (producer, child) =>
+                          anyFailAllFail(producers.lazyZip(as).flatMap { (producer, child) =>
                             child match {
                               case _: StreamIota => None
                               case _ => Some(producer.length)
@@ -3400,7 +3401,7 @@ object EmitStream {
         case StreamZipJoinProducers(contexts, ctxName, makeProducer, key, keyRef, valsRef,
               joinIR) =>
           emit(contexts, cb).map(cb) { case contextsArray: SIndexableValue =>
-            val nStreams = cb.memoizeField(contextsArray.loadLength())
+            val nStreams = cb.memoizeField(contextsArray.loadLength)
             val iterArray = cb.memoizeField(Code.newArray[NoBoxLongIterator](nStreams), "iterArray")
             val idx = cb.newLocal[Int]("i", 0)
             val eltType = VirtualTypeWithReq(

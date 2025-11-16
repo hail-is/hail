@@ -1,6 +1,7 @@
 package is.hail.expr.ir.lowering
 
 import is.hail.{ExecStrategy, HailSuite, TestUtils}
+import is.hail.ExecStrategy.ExecStrategy
 import is.hail.expr.ir.{
   mapIR, Ascending, Descending, LoweringAnalyses, SortField, TableIR, TableMapRows, TableRange,
 }
@@ -14,13 +15,12 @@ import is.hail.types.virtual.{TArray, TInt32, TStruct}
 import is.hail.utils.FastSeq
 
 import org.apache.spark.sql.Row
-import org.scalatest
 import org.testng.annotations.Test
 
 class LowerDistributedSortSuite extends HailSuite with TestUtils {
-  implicit val execStrats = ExecStrategy.compileOnly
+  implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
-  @Test def testSamplePartition(): scalatest.Assertion = {
+  @Test def testSamplePartition(): Unit = {
     val dataKeys = IndexedSeq(
       (0, 0),
       (0, -1),
@@ -64,8 +64,7 @@ class LowerDistributedSortSuite extends HailSuite with TestUtils {
   }
 
   // Only does ascending for now
-  def testDistributedSortHelper(myTable: TableIR, sortFields: IndexedSeq[SortField])
-    : scalatest.Assertion =
+  def testDistributedSortHelper(myTable: TableIR, sortFields: IndexedSeq[SortField]): Unit =
     ctx.local(flags = ctx.flags + ("shuffle_cutoff_to_local_sort" -> "40")) { ctx =>
       val analyses: LoweringAnalyses = LoweringAnalyses.apply(myTable, ctx)
       val rt = analyses.requirednessAnalysis.lookup(myTable).asInstanceOf[RTable]
@@ -108,7 +107,7 @@ class LowerDistributedSortSuite extends HailSuite with TestUtils {
       assert(res == scalaSorted)
     }
 
-  @Test def testDistributedSort(): scalatest.Assertion = {
+  @Test def testDistributedSort(): Unit = {
     val tableRange = TableRange(100, 10)
     val rangeRow = Ref(TableIR.rowName, tableRange.typ.rowType)
     val tableWithExtraField = TableMapRows(
@@ -141,7 +140,7 @@ class LowerDistributedSortSuite extends HailSuite with TestUtils {
     )
   }
 
-  @Test def testDistributedSortEmpty(): scalatest.Assertion = {
+  @Test def testDistributedSortEmpty(): Unit = {
     val tableRange = TableRange(0, 1)
     testDistributedSortHelper(tableRange, IndexedSeq(SortField("idx", Ascending)))
   }

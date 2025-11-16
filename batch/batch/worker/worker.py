@@ -320,15 +320,17 @@ class NetworkAllocator:
         self.internet_interface = INTERNET_INTERFACE
 
     async def reserve(self):
-        public_ip_count = N_SLOTS + N_JVM_CONTAINERS
-        log.info(f'ipallocdebug: Reserving public ip addresses: {public_ip_count}')
-        for subnet_index in range(public_ip_count):
+        N_PUBLIC_INTERFACES = min(255, N_SLOTS + N_JVM_CONTAINERS)
+        log.info(f'ipallocdebug: Reserving public ip addresses: {N_PUBLIC_INTERFACES}')
+        for subnet_index in range(N_PUBLIC_INTERFACES):
             public = NetworkNamespace(subnet_index, private=False, internet_interface=self.internet_interface)
             await public.init()
             log.info(f'ipallocdebug: Adding public network: {public.network_ns_name} (subnet index: {subnet_index} job ip: {public.job_ip}, host ip {public.host_ip}) to list')
             self.public_networks.put_nowait(public)
-        log.info(f'ipallocdebug: Reserving private ip addresses: {N_SLOTS}')
-        for subnet_index in range(N_SLOTS):
+
+        N_PRIVATE_INTERFACES = min(255, N_SLOTS)
+        log.info(f'ipallocdebug: Reserving private ip addresses: {N_PRIVATE_INTERFACES}')
+        for subnet_index in range(N_PRIVATE_INTERFACES):
             private = NetworkNamespace(subnet_index, private=True, internet_interface=self.internet_interface)
 
             await private.init()

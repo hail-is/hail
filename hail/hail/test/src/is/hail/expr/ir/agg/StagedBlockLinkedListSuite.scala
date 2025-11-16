@@ -6,8 +6,7 @@ import is.hail.asm4s.Code
 import is.hail.expr.ir.{EmitCode, EmitFunctionBuilder}
 import is.hail.types.physical._
 import is.hail.utils._
-
-import scala.collection.generic.Growable
+import is.hail.utils.compat.mutable.Growable
 
 import org.testng.Assert._
 import org.testng.annotations.Test
@@ -128,7 +127,7 @@ class StagedBlockLinkedListSuite extends HailSuite {
     private var ptr = 0L
 
     def clear(): Unit = ptr = initF(region)
-    def +=(e: E): this.type = { pushF(region, ptr, e); this }
+    def addOne(e: E): this.type = { pushF(region, ptr, e); this }
     def ++=(other: BlockLinkedList[E]): this.type = { appendF(region, ptr, other); this }
     def toIndexedSeq: IndexedSeq[E] = materializeF(region, ptr)
 

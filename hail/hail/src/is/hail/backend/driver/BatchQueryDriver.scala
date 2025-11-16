@@ -1,6 +1,6 @@
 package is.hail.backend.driver
 
-import is.hail.{HailContext, HailFeatureFlags}
+import is.hail.{HAIL_PRETTY_VERSION, HailFeatureFlags}
 import is.hail.annotations.Memory
 import is.hail.asm4s.HailClassLoader
 import is.hail.backend.{Backend, ExecuteContext, OwningTempFileManager}
@@ -8,8 +8,8 @@ import is.hail.backend.service._
 import is.hail.expr.ir.lowering.IrMetadata
 import is.hail.io.fs.{CloudStorageFSConfig, FS, RouterFS}
 import is.hail.io.reference.{IndexedFastaSequenceFile, LiftOver}
-import is.hail.macros.void
 import is.hail.services._
+import is.hail.services.oauth2.CloudCredentials
 import is.hail.types.virtual.Kinds._
 import is.hail.utils._
 import is.hail.utils.ExecutionTimer.Timings
@@ -118,10 +118,8 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
       }
 
     override def putReferences(env: Env)(refs: Iterable[ReferenceGenome]): Unit =
-      void {
-        // evaluate for effects
-        ReferenceGenome.addFatalOnCollision(env.references, refs)
-      }
+      // evaluate for effects
+      ReferenceGenome.addFatalOnCollision(env.references, refs): Unit
   }
 
   def main(argv: Array[String]): Unit = {
@@ -136,8 +134,8 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
     val inputURL = argv(5)
     val outputURL = argv(6)
 
-    val deployConfig = DeployConfig.fromConfigFile("/deploy-config/deploy-config.json")
-    DeployConfig.set(deployConfig)
+    log.info(f"${getClass.getName} $HAIL_PRETTY_VERSION")
+
     sys.env.get("HAIL_SSL_CONFIG_DIR").foreach(tls.setSSLConfigFromDir)
 
     val (rpcConfig, jobConfig, action, payload) = {
@@ -188,14 +186,14 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
     val backend =
       new ServiceBackend(
         name,
-        BatchClient(deployConfig, Path.of(scratchDir, "secrets/gsa-key/key.json")),
+        BatchClient(
+          DeployConfig.fromConfigFile("/deploy-config/deploy-config.json"),
+          CloudCredentials(Some(Path.of(scratchDir, "secrets/gsa-key/key.json"))),
+        ),
         JarUrl(jarLocation),
         BatchConfig.fromConfigFile(Path.of(scratchDir, "batch-config/batch-config.json")),
         jobConfig,
       )
-
-    HailContext(backend)
-    log.info("HailContext initialized.")
 
     // FIXME: when can the classloader be shared? (optimizer benefits!)
     try runRpc(
@@ -211,7 +209,7 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
           payload,
         )
       )
-    finally HailContext.stop()
+    finally backend.close()
   }
 }
 

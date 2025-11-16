@@ -1,8 +1,8 @@
 package is.hail.backend.service
 
-import is.hail.HailFeatureFlags
-import is.hail.asm4s._
 import is.hail.backend._
+import is.hail.backend.Backend.PartitionFn
+import is.hail.backend.local.LocalTaskContext
 import is.hail.backend.service.ServiceBackend.MaxAvailableGcsConnections
 import is.hail.expr.Validate
 import is.hail.expr.ir.{
@@ -10,18 +10,21 @@ import is.hail.expr.ir.{
 }
 import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.lowering._
-import is.hail.io.fs._
 import is.hail.services._
 import is.hail.services.JobGroupStates.{Cancelled, Failure, Success}
 import is.hail.types._
 import is.hail.types.physical._
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
+import scala.collection.compat._
+import scala.concurrent.{Await, CancellationException, ExecutionContext, Future}
+import scala.concurrent.duration.Duration
 import scala.reflect.ClassTag
+import scala.util.control.NonFatal
 
 import java.io._
-import java.nio.charset.StandardCharsets
-import java.util.concurrent._
+import java.util.concurrent.Executors
 
 object ServiceBackend {
   val MaxAvailableGcsConnections = 1000
@@ -41,13 +44,7 @@ class ServiceBackend(
   jarSpec: JarSpec,
   val batchConfig: BatchConfig,
   jobConfig: BatchJobConfig,
-) extends Backend with Logging {
-
-  case class Context(
-    remoteTmpDir: String,
-    flags: HailFeatureFlags,
-    override val executionCache: ExecutionCache,
-  ) extends BackendContext
+) extends Backend {
 
   private[this] var stageCount = 0
 
@@ -63,213 +60,255 @@ class ServiceBackend(
       def value: T = _value
     }
 
-  override def backendContext(ctx: ExecuteContext): BackendContext =
-    Context(
-      remoteTmpDir = ctx.tmpdir,
-      flags = ctx.flags,
-      executionCache = ExecutionCache.fromFlags(ctx.flags, ctx.fs, ctx.tmpdir),
-    )
+  override def runtimeContext(ctx: ExecuteContext): DriverRuntimeContext =
+    new DriverRuntimeContext {
 
-  private[this] def readString(in: DataInputStream): String = {
-    val n = in.readInt()
-    val bytes = new Array[Byte](n)
-    in.read(bytes)
-    new String(bytes, StandardCharsets.UTF_8)
-  }
+      override val executionCache: ExecutionCache =
+        ExecutionCache.fromFlags(ctx.flags, ctx.fs, ctx.tmpdir)
 
-  private[this] def submitJobGroupAndWait(
-    ctx: Context,
-    collection: IndexedSeq[Array[Byte]],
-    token: String,
-    root: String,
-    stageIdentifier: String,
-  ): (JobGroupResponse, Int) = {
-    val defaultProcess =
-      JvmJob(
-        command = null,
-        spec = jarSpec,
-        profile = ctx.flags.get("profile") != null,
-      )
-
-    val defaultJob =
-      JobRequest(
-        always_run = false,
-        process = null,
-        resources = Some(
-          JobResources(
-            preemptible = true,
-            cpu = Some(jobConfig.worker_cores).filter(_ != "None"),
-            memory = Some(jobConfig.worker_memory).filter(_ != "None"),
-            storage = Some(jobConfig.storage).filter(_ != "0Gi"),
+      private[this] def submitJobGroupAndWait(
+        partitions: IndexedSeq[Int],
+        token: String,
+        root: String,
+        stageIdentifier: String,
+      ): (JobGroupResponse, Int) = {
+        val defaultProcess =
+          JvmJob(
+            command = null,
+            spec = jarSpec,
+            profile = ctx.flags.get("profile") != null,
           )
-        ),
-        regions = Some(jobConfig.regions).filter(_.nonEmpty),
-        cloudfuse = Some(jobConfig.cloudfuse_configs).filter(_.nonEmpty),
-      )
 
-    val jobs =
-      collection.indices.map { i =>
-        defaultJob.copy(
-          attributes = Map(
-            "name" -> s"${name}_stage${stageCount}_${stageIdentifier}_job$i",
-            "idx" -> i.toString,
-          ),
-          process = defaultProcess.copy(
-            command = Array(Main.WORKER, root, s"$i", s"${collection.length}")
-          ),
-        )
-      }
-
-    /* When we create a JobGroup with n jobs, Batch gives us the absolute JobGroupId, and the
-     * startJobId for the first job.
-     * This means that all JobId's in the JobGroup will have values in range (startJobId, startJobId
-     * + n).
-     * Therefore, we know the partition index for a given job by using this startJobId offset.
-     *
-     * Why do we do this?
-     * Consider a situation where we're submitting thousands of jobs in a job group.
-     * If one of those jobs fails, we don't want to make thousands of requests to batch to get a
-     * partition index that that job corresponds to. */
-
-    val (jobGroupId, startJobId) =
-      batchClient.newJobGroup(
-        JobGroupRequest(
-          batch_id = batchConfig.batchId,
-          absolute_parent_id = batchConfig.jobGroupId,
-          token = token,
-          cancel_after_n_failures = Some(1),
-          attributes = Map("name" -> stageIdentifier),
-          jobs = jobs,
-        )
-      )
-
-    stageCount += 1
-
-    Thread.sleep(600) // it is not possible for the batch to be finished in less than 600ms
-    val response = batchClient.waitForJobGroup(batchConfig.batchId, jobGroupId)
-    (response, startJobId)
-  }
-
-  private[this] def readPartitionResult(fs: FS, root: String, i: Int): Array[Byte] = {
-    val file = s"$root/result.$i"
-    val bytes = fs.readNoCompression(file)
-    assert(bytes(0) != 0, s"$file is not a valid result.")
-    bytes.slice(1, bytes.length)
-  }
-
-  private[this] def readPartitionError(fs: FS, root: String, i: Int): HailWorkerException = {
-    val file = s"$root/result.$i"
-    val bytes = fs.readNoCompression(file)
-    assert(bytes(0) == 0, s"$file did not contain an error")
-    val errorInformationBytes = bytes.slice(1, bytes.length)
-    val is = new DataInputStream(new ByteArrayInputStream(errorInformationBytes))
-    val shortMessage = readString(is)
-    val expandedMessage = readString(is)
-    val errorId = is.readInt()
-    HailWorkerException(i, shortMessage, expandedMessage, errorId)
-  }
-
-  override def parallelizeAndComputeWithIndex(
-    _backendContext: BackendContext,
-    fs: FS,
-    contexts: IndexedSeq[Array[Byte]],
-    stageIdentifier: String,
-    dependency: Option[TableStageDependency],
-    partitions: Option[IndexedSeq[Int]],
-  )(
-    f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
-  ): (Option[Throwable], IndexedSeq[(Array[Byte], Int)]) = {
-
-    val backendContext = _backendContext.asInstanceOf[Context]
-
-    val token = tokenUrlSafe
-    val root = s"${backendContext.remoteTmpDir}/parallelizeAndComputeWithIndex/$token"
-    log.info(s"parallelizeAndComputeWithIndex: token='$token', nPartitions=${contexts.length}")
-
-    val uploadFunction = executor.submit[Unit](() =>
-      retryTransientErrors {
-        fs.writePDOS(s"$root/f") { fos =>
-          using(new ObjectOutputStream(fos))(oos => oos.writeObject(f))
-          log.info(s"parallelizeAndComputeWithIndex: $token: uploaded f")
-        }
-      }
-    )
-
-    val (partIdxs, parts) =
-      partitions
-        .map(ps => (ps, ps.map(contexts)))
-        .getOrElse((contexts.indices, contexts))
-
-    val uploadContexts = executor.submit[Unit](() =>
-      retryTransientErrors {
-        fs.writePDOS(s"$root/contexts") { os =>
-          var o = 12L * parts.length // 12L = sizeof(Long) + sizeof(Int)
-          parts.foreach { context =>
-            val len = context.length
-            os.writeLong(o)
-            os.writeInt(len)
-            o += len
-          }
-          parts.foreach(os.write)
-          log.info(s"parallelizeAndComputeWithIndex: $token: wrote ${parts.length} contexts")
-        }
-      }
-    )
-
-    uploadFunction.get()
-    uploadContexts.get()
-
-    val (jobGroup, startJobId) =
-      submitJobGroupAndWait(backendContext, parts, token, root, stageIdentifier)
-    log.info(s"parallelizeAndComputeWithIndex: $token: reading results")
-    val startTime = System.nanoTime()
-
-    def streamSuccessfulPartitionResults: Stream[(Array[Byte], Int)] =
-      for {
-        successes <- batchClient.getJobGroupJobs(
-          jobGroup.batch_id,
-          jobGroup.job_group_id,
-          Some(JobStates.Success),
-        )
-        job <- successes
-        partIdx = job.job_id - startJobId
-      } yield (readPartitionResult(fs, root, partIdx), partIdx)
-
-    val r @ (_, results) =
-      jobGroup.state match {
-        case Success =>
-          runAllKeepFirstError(executor) {
-            (partIdxs, parts.indices).zipped.map { (partIdx, jobIndex) =>
-              (() => readPartitionResult(fs, root, jobIndex), partIdx)
-            }
-          }
-        case Failure =>
-          val failedEntries = batchClient.getJobGroupJobs(
-            jobGroup.batch_id,
-            jobGroup.job_group_id,
-            Some(JobStates.Failed),
+        val defaultJob =
+          JobRequest(
+            always_run = false,
+            process = null,
+            resources = Some(
+              JobResources(
+                preemptible = true,
+                cpu = Some(jobConfig.worker_cores).filter(_ != "None"),
+                memory = Some(jobConfig.worker_memory).filter(_ != "None"),
+                storage = Some(jobConfig.storage).filter(_ != "0Gi"),
+              )
+            ),
+            regions = Some(jobConfig.regions).filter(_.nonEmpty),
+            cloudfuse = Some(jobConfig.cloudfuse_configs).filter(_.nonEmpty),
           )
-          assert(
-            failedEntries.nonEmpty,
-            s"Job group ${jobGroup.job_group_id} for batch ${batchConfig.batchId} failed, but no failed jobs found.",
-          )
-          val error = readPartitionError(fs, root, failedEntries.head.head.job_id - startJobId)
-          (Some(error), streamSuccessfulPartitionResults.toIndexedSeq)
-        case Cancelled =>
-          val error =
-            new CancellationException(
-              s"Job group ${jobGroup.job_group_id} for batch ${batchConfig.batchId} was cancelled"
+
+        val jobs =
+          partitions.zipWithIndex.map { case (partitionId, idx) =>
+            defaultJob.copy(
+              attributes = Map(
+                "name" -> s"${name}_stage${stageCount}_${stageIdentifier}_partition$partitionId",
+                "partition" -> partitionId.toString,
+                "outfile" -> s"$root/result.$idx",
+              ),
+              process = defaultProcess.copy(
+                command = Array(Main.WORKER, root, s"$partitionId", s"$idx")
+              ),
             )
+          }
 
-          (Some(error), streamSuccessfulPartitionResults.toIndexedSeq)
+        val (jobGroupId, startJobId) =
+          batchClient.newJobGroup(
+            JobGroupRequest(
+              batch_id = batchConfig.batchId,
+              absolute_parent_id = batchConfig.jobGroupId,
+              token = token,
+              cancel_after_n_failures = Some(1),
+              attributes = Map("name" -> stageIdentifier),
+              jobs = jobs,
+            )
+          )
+
+        stageCount += 1
+
+        Thread.sleep(600) // it is not possible for the batch to be finished in less than 600ms
+        val response = batchClient.waitForJobGroup(batchConfig.batchId, jobGroupId)
+        (response, startJobId)
       }
 
-    val resultsReadingSeconds = (System.nanoTime() - startTime) / 1000000000.0
-    val rate = results.length / resultsReadingSeconds
-    val byterate = results.map(_._1.length).sum / resultsReadingSeconds / 1024 / 1024
-    log.info(s"all results read. $resultsReadingSeconds s. $rate result/s. $byterate MiB/s.")
-    r
-  }
+      override def mapCollectPartitions(
+        globals: Array[Byte],
+        contexts: IndexedSeq[Array[Byte]],
+        stageIdentifier: String,
+        dependency: Option[TableStageDependency],
+        partitions: Option[IndexedSeq[Int]],
+      )(
+        f: PartitionFn
+      ): (Option[Throwable], IndexedSeq[(Array[Byte], Int)]) =
+        partitions.getOrElse(contexts.indices) match {
+          case Seq(k) =>
+            try
+              using(new LocalTaskContext(k, stageCount)) { htc =>
+                (None, FastSeq(f(globals, contexts(k), htc, ctx.theHailClassLoader, ctx.fs) -> k))
+              }
+            catch {
+              case NonFatal(t) => (Some(t), ArraySeq.empty)
+            } finally stageCount += 1
+
+          case todo =>
+            val token = tokenUrlSafe
+            val root = s"${ctx.tmpdir}/mapCollectPartitions/$token"
+            log.info(s"mapCollectPartitions: token='$token', nPartitions=${todo.length}")
+
+            implicit val ec: ExecutionContext =
+              ExecutionContext.fromExecutor(executor)
+
+            val uploadGlobals = Future {
+              retryTransientErrors {
+                ctx.fs.writePDOS(s"$root/globals")(_.write(globals))
+                log.info(s"mapCollectPartitions: $token: uploaded globals")
+              }
+            }
+
+            val uploadContexts = Future {
+              val partInputs = todo.map(contexts)
+              retryTransientErrors {
+                ctx.fs.writePDOS(s"$root/contexts") { os =>
+                  var o = 12L * partInputs.length // 12L = sizeof(Long) + sizeof(Int)
+
+                  for (p <- partInputs) {
+                    val len = p.length
+                    os.writeLong(o)
+                    os.writeInt(len)
+                    o += len
+                  }
+
+                  for (p <- partInputs) os.write(p)
+
+                  log.info(s"mapCollectPartitions: $token: wrote ${partInputs.length} contexts")
+                }
+              }
+            }
+
+            val uploadPartFn = Future {
+              val fsConfig: Any =
+                ctx.fs.getConfiguration()
+
+              val partial: PartitionFn = {
+                (globals, context, htc, hcl, fs) =>
+                  fs.setConfiguration(fsConfig)
+                  f(globals, context, htc, hcl, fs)
+              }
+
+              retryTransientErrors {
+                ctx.fs.writePDOS(s"$root/f") { fos =>
+                  using(new ObjectOutputStream(fos))(_.writeObject(partial))
+                  log.info(s"mapCollectPartitions: $token: uploaded function")
+                }
+              }
+            }
+
+            Await.result(uploadGlobals zip uploadContexts zip uploadPartFn, Duration.Inf): Unit
+
+            val (jobGroup, startJobId) = submitJobGroupAndWait(todo, token, root, stageIdentifier)
+            log.info(s"mapCollectPartitions: $token: reading results")
+            val startTime = System.nanoTime()
+
+            def readPartitionOutputs(indices: IndexedSeq[Int]) =
+              Future.traverse(indices) { idx =>
+                Future {
+                  val filename = s"$root/result.$idx"
+                  try using(ctx.fs.openNoCompression(filename))(WireProtocol.read)
+                  catch {
+                    case NonFatal(e) =>
+                      throw new HailException(
+                        msg = f"Failed to read partition output '$filename'." +
+                          f"See the batch ui at ${batchClient.req.url}/batches/${jobGroup.batch_id} for details.",
+                        logMsg = None,
+                        cause = e,
+                      )
+                  }
+                }
+              }
+
+            val (failureOpt, results) =
+              jobGroup.state match {
+                case Success =>
+                  val (failures, successes) =
+                    Await.result(readPartitionOutputs(todo.indices), Duration.Inf).partitionMap(
+                      identity
+                    )
+
+                  if (failures.nonEmpty)
+                    log.error(
+                      f"Job group ${jobGroup.job_group_id} in batch ${jobGroup.batch_id} " +
+                        f"completed successfully yet found errors in partition outputs."
+                    )
+
+                  (failures.headOption, successes)
+
+                case Failure =>
+                  val failedJobs =
+                    batchClient.getJobGroupJobs(
+                      jobGroup.batch_id,
+                      jobGroup.job_group_id,
+                      Some(JobStates.Failed),
+                    )
+
+                  val succeededJobs =
+                    batchClient.getJobGroupJobs(
+                      jobGroup.batch_id,
+                      jobGroup.job_group_id,
+                      Some(JobStates.Success),
+                    )
+
+                  val (failures, successes) =
+                    Await.result(
+                      Future
+                        .traverse(failedJobs.map(_.take(1)) lazyAppendedAll succeededJobs) { jobs =>
+                          readPartitionOutputs(jobs.map(_.job_id - startJobId))
+                        },
+                      Duration.Inf,
+                    )
+                      .flatten
+                      .partitionMap(identity)
+
+                  val error: Throwable =
+                    failures.headOption.getOrElse {
+                      new HailException(
+                        f"An unknown error occurred. " +
+                          f"Job group ${jobGroup.job_group_id} in batch ${jobGroup.batch_id} failed " +
+                          f"yet found zero errors in partition outputs. " +
+                          f"See the batch ui at ${batchClient.req.url}/batches/${jobGroup.batch_id} for details."
+                      )
+                    }
+
+                  (Some(error), successes.to(ArraySeq))
+                case Cancelled =>
+                  val error =
+                    new CancellationException(
+                      s"Job group ${jobGroup.job_group_id} in batch ${batchConfig.batchId} was cancelled"
+                    )
+
+                  val succeededJobs =
+                    batchClient.getJobGroupJobs(
+                      jobGroup.batch_id,
+                      jobGroup.job_group_id,
+                      Some(JobStates.Success),
+                    )
+
+                  val (_, successes) =
+                    Await.result(
+                      Future.traverse(succeededJobs) { jobs =>
+                        readPartitionOutputs(jobs.map(_.job_id - startJobId))
+                      },
+                      Duration.Inf,
+                    )
+                      .flatten
+                      .partitionMap(identity)
+
+                  (Some(error), successes.to(ArraySeq))
+              }
+
+            val end = (System.nanoTime() - startTime) / 1000000000.0
+            val rate = results.length / end
+            val byterate = results.view.map(_._1.length).sum / end / 1024 / 1024
+            log.info(s"all results read. $end s. $rate result/s. $byterate MiB/s.")
+            (failureOpt, results.sortBy(_._2))
+        }
+    }
 
   override def close(): Unit = {
     if (executor.isEvaluated) executor.shutdownNow()
@@ -282,7 +321,8 @@ class ServiceBackend(
       Validate(ir)
       val queryID = Backend.nextID()
       log.info(s"starting execution of query $queryID of initial size ${IRSize(ir)}")
-      ctx.irMetadata.semhash = SemanticHash(ctx, ir)
+      if (ctx.flags.isDefined(ExecutionCache.Flags.UseFastRestarts))
+        ctx.irMetadata.semhash = SemanticHash(ctx, ir)
       val res = _jvmLowerAndExecute(ctx, ir)
       log.info(s"finished execution of query $queryID")
       res
@@ -292,7 +332,7 @@ class ServiceBackend(
     CompileAndEvaluate._apply(
       ctx,
       ir,
-      lower = LoweringPipeline.darrayLowerer(true)(DArrayLowering.All),
+      lower = LoweringPipeline.darrayLowerer(DArrayLowering.All),
     )
 
   override def lowerDistributedSort(

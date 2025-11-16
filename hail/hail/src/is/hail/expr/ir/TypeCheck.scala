@@ -9,6 +9,7 @@ import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.utils.StackSafe._
 
+import scala.collection.compat._
 import scala.reflect.ClassTag
 
 object TypeCheck {
@@ -409,7 +410,7 @@ object TypeCheck {
           assert(lKeyTyp == rKeyTyp.pointType)
           assert((joinType == "left") || (joinType == "inner"))
         } else {
-          assert((lKey, rKey).zipped.forall { case (lk, rk) =>
+          assert(lKey.lazyZip(rKey).forall { case (lk, rk) =>
             lEltTyp.fieldType(lk) == rEltTyp.fieldType(rk)
           })
         }
@@ -605,8 +606,8 @@ object TypeCheck {
       case TableExplode(child, path) =>
         assert(!child.typ.key.contains(path.head))
       case TableGen(contexts, globals, _, _, body, partitioner, _) =>
-        TypeCheck.coerce[TStream]("contexts", contexts.typ)
-        TypeCheck.coerce[TStruct]("globals", globals.typ)
+        TypeCheck.coerce[TStream]("contexts", contexts.typ): Unit
+        TypeCheck.coerce[TStruct]("globals", globals.typ): Unit
         val bodyType = TypeCheck.coerce[TStream]("body", body.typ)
         val rowType = TypeCheck.coerce[TStruct]("body.elementType", bodyType.elementType)
 
@@ -737,13 +738,23 @@ object TypeCheck {
           children.tail.forall(c => compatible(c.typ, children.head.typ)),
           children.map(_.typ),
         )
-      case BlockMatrixBroadcast(child, inIndexExpr, shape, _) =>
-        val (nRows, nCols) = BlockMatrixIR.tensorShapeToMatrixShape(child)
-        val childMatrixShape = IndexedSeq(nRows, nCols)
-
-        assert(inIndexExpr.zipWithIndex.forall { case (out: Int, in: Int) =>
-          !child.typ.shape.contains(in) || childMatrixShape(in) == shape(out)
-        })
+      case BlockMatrixBroadcast(child, inIndexExpr, shape, blockSize) =>
+        inIndexExpr match {
+          case IndexedSeq() =>
+            assert(child.typ.nRows == 1 && child.typ.nCols == 1)
+          case IndexedSeq(0) => // broadcast col vector
+            assert(Set(1, shape(0)) == Set(child.typ.nRows, child.typ.nCols))
+          case IndexedSeq(1) => // broadcast row vector
+            assert(Set(1, shape(1)) == Set(child.typ.nRows, child.typ.nCols))
+          case IndexedSeq(0, 0) => // diagonal as row vector
+            assert(shape(0) == 1L)
+          case IndexedSeq(1, 0) => // transpose
+            assert(child.typ.blockSize == blockSize)
+            assert(shape(0) == child.typ.nCols && shape(1) == child.typ.nRows)
+          case IndexedSeq(0, 1) =>
+            assert(child.typ.blockSize == blockSize)
+            assert(shape(0) == child.typ.nRows && shape(1) == child.typ.nCols)
+        }
       case BlockMatrixMap(child, _, _, needsDense) =>
         assert(!(needsDense && child.typ.isSparse))
       case BlockMatrixMap2(left, right, _, _, _, _) =>

@@ -43,7 +43,7 @@ package object services {
     /* -
      * https://github.com/aws/aws-sdk-java/blob/master/aws-java-sdk-core/src/main/java/com/amazonaws/retry/PredefinedBackoffStrategies.java */
     val multiplier = 1L << math.min(tries, LOG_2_MAX_MULTIPLIER)
-    val ceilingForDelayMs = math.min(baseDelayMs * multiplier, maxDelayMs).toInt
+    val ceilingForDelayMs = math.min(baseDelayMs * multiplier, maxDelayMs.toLong).toInt
     val proposedDelayMs = ceilingForDelayMs / 2 + Random.nextInt(ceilingForDelayMs / 2 + 1)
     return proposedDelayMs
   }
@@ -53,7 +53,7 @@ package object services {
     baseDelayMs: Int = DEFAULT_BASE_DELAY_MS,
     maxDelayMs: Int = DEFAULT_MAX_DELAY_MS,
   ) =
-    Thread.sleep(delayMsForTry(tries, baseDelayMs, maxDelayMs))
+    Thread.sleep(delayMsForTry(tries, baseDelayMs, maxDelayMs).toLong)
 
   def isLimitedRetriesError(_e: Throwable): Boolean = {
     // An exception is a "retry once error" if a rare, known bug in a dependency or in a cloud
@@ -224,7 +224,7 @@ package object services {
           } else if (tries % 10 == 0) {
             log.warn(s"Encountered $tries transient errors, most recent one was $e.")
           }
-          Thread.sleep(delay)
+          Thread.sleep(delay.toLong)
       }
       reset.foreach(_())
     }

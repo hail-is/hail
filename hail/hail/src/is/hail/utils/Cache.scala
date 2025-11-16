@@ -1,24 +1,25 @@
 package is.hail.utils
 
 import is.hail.annotations.{Region, RegionMemory}
-import is.hail.macros.void
+import is.hail.utils.compat.mutable.{Growable, Shrinkable}
 
 import scala.collection.mutable
-import scala.jdk.CollectionConverters.asScalaIteratorConverter
+import scala.jdk.CollectionConverters._
 
 import java.io.Closeable
 import java.util
 import java.util.Map.Entry
 
-class Cache[K, V](capacity: Int) extends mutable.AbstractMap[K, V] {
+class Cache[K, V](capacity: Int)
+    extends mutable.AbstractMap[K, V] with Growable[(K, V)] with Shrinkable[K] {
   private[this] val m = new util.LinkedHashMap[K, V](capacity, 0.75f, true) {
     override def removeEldestEntry(eldest: Entry[K, V]): Boolean = size() > capacity
   }
 
-  override def +=(kv: (K, V)): Cache.this.type =
+  override def addOne(kv: (K, V)): this.type =
     synchronized { m.put(kv._1, kv._2); this }
 
-  override def -=(key: K): Cache.this.type =
+  override def subtractOne(key: K): this.type =
     synchronized { m.remove(key); this }
 
   override def get(key: K): Option[V] =
@@ -48,7 +49,7 @@ class LongToRegionValueCache(capacity: Int) extends Closeable {
     if (addr == 0L)
       throw new RuntimeException("tried to cache null pointer")
     val rm = region.getMemory()
-    void(m.put(key, (rm, addr)))
+    m.put(key, (rm, addr))
   }
 
   // returns -1 if not in cache

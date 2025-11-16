@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
+import is.hail.ExecStrategy.ExecStrategy
 import is.hail.asm4s._
 import is.hail.expr.ir.defs.{ApplyBinaryPrimOp, I32, In}
 import is.hail.expr.ir.functions.{IRFunctionRegistry, RegistryFunctions}
@@ -9,7 +10,6 @@ import is.hail.types.virtual._
 import is.hail.utils.FastSeq
 import is.hail.variant.Call2
 
-import org.scalatest
 import org.testng.annotations.Test
 
 object ScalaTestObject {
@@ -48,12 +48,12 @@ object TestRegisterFunctions extends RegistryFunctions {
 
 class FunctionSuite extends HailSuite {
 
-  implicit val execStrats = ExecStrategy.javaOnly
+  implicit val execStrats: Set[ExecStrategy] = ExecStrategy.javaOnly
 
   TestRegisterFunctions.registerAll()
 
   @Test
-  def testCodeFunction(): scalatest.Assertion =
+  def testCodeFunction(): Unit =
     assertEvalsTo(
       invoke("triangle", TInt32, In(0, TInt32)),
       FastSeq(5 -> TInt32),
@@ -61,7 +61,7 @@ class FunctionSuite extends HailSuite {
     )
 
   @Test
-  def testStaticFunction(): scalatest.Assertion =
+  def testStaticFunction(): Unit =
     assertEvalsTo(
       invoke("compare", TInt32, In(0, TInt32), I32(0)) > 0,
       FastSeq(5 -> TInt32),
@@ -69,19 +69,19 @@ class FunctionSuite extends HailSuite {
     )
 
   @Test
-  def testScalaFunction(): scalatest.Assertion =
+  def testScalaFunction(): Unit =
     assertEvalsTo(invoke("foobar1", TInt32), 1)
 
   @Test
-  def testIRConversion(): scalatest.Assertion =
+  def testIRConversion(): Unit =
     assertEvalsTo(invoke("addone", TInt32, In(0, TInt32)), FastSeq(5 -> TInt32), 6)
 
   @Test
-  def testScalaFunctionCompanion(): scalatest.Assertion =
+  def testScalaFunctionCompanion(): Unit =
     assertEvalsTo(invoke("foobar2", TInt32), 2)
 
   @Test
-  def testVariableUnification(): scalatest.Assertion = {
+  def testVariableUnification(): Unit = {
     assert(IRFunctionRegistry.lookupUnseeded(
       "testCodeUnification",
       TInt32,
@@ -105,7 +105,7 @@ class FunctionSuite extends HailSuite {
   }
 
   @Test
-  def testUnphasedDiploidGtIndexCall(): scalatest.Assertion =
+  def testUnphasedDiploidGtIndexCall(): Unit =
     assertEvalsTo(
       invoke("UnphasedDiploidGtIndexCall", TCall, In(0, TInt32)),
       FastSeq(0 -> TInt32),
@@ -113,7 +113,7 @@ class FunctionSuite extends HailSuite {
     )
 
   @Test
-  def testGetOrGenMethod(): scalatest.Assertion = {
+  def testGetOrGenMethod(): Unit = {
     val fb = EmitFunctionBuilder[Int](ctx, "foo")
     val i = fb.genFieldThisRef[Int]()
     val mb1 = fb.getOrGenEmitMethod("foo", "foo", FastSeq[ParamType](), UnitInfo) { mb =>

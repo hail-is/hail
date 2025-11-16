@@ -5,7 +5,7 @@ import struct
 import warnings
 from contextlib import AsyncExitStack
 from dataclasses import dataclass
-from typing import Any, Awaitable, Dict, List, Mapping, Optional, Set, Tuple, TypeVar, Union
+from typing import Any, Awaitable, Dict, List, Mapping, NoReturn, Optional, Set, Tuple, TypeVar, Union
 
 import orjson
 
@@ -117,6 +117,7 @@ class ServiceBackend(Backend):
         regions: Optional[List[str]] = None,
         gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
         gcs_bucket_allow_list: Optional[List[str]] = None,
+        branching_factor: Optional[int] = None,
     ):
         async_exit_stack = AsyncExitStack()
         billing_project = configuration_of(ConfigVariable.BATCH_BILLING_PROJECT, billing_project, None)
@@ -155,9 +156,11 @@ class ServiceBackend(Backend):
 
         if regions == ANY_REGION:
             regions = await batch_client.supported_regions()
-        else:
+        elif regions is None:
             fallback = await batch_client.default_region()
-            regions_from_conf = configuration_of(ConfigVariable.BATCH_REGIONS, regions, fallback)
+            regions_from_conf = configuration_of(
+                ConfigVariable.BATCH_REGIONS, explicit_argument=None, fallback=fallback
+            )
             regions = regions_from_conf.split(',')
 
         assert len(regions) > 0, regions
@@ -170,6 +173,9 @@ class ServiceBackend(Backend):
                 disable_progress_bar = len(disable_progress_bar_str) > 0
 
         flags = flags or {}
+        if branching_factor is not None:
+            flags['branching_factor'] = str(branching_factor)
+
         if 'gcs_requester_pays_project' in flags or 'gcs_requester_pays_buckets' in flags:
             raise ValueError(
                 'Specify neither gcs_requester_pays_project nor gcs_requester_'
@@ -230,7 +236,7 @@ class ServiceBackend(Backend):
         self._batch = batch
         self._job_group_was_submitted: bool = False
         self.disable_progress_bar = disable_progress_bar
-        self.remote_tmpdir = remote_tmpdir
+        self._remote_tmpdir = remote_tmpdir
         self.flags: Dict[str, str] = {}
         self._registered_ir_function_names: Set[str] = set()
         self.driver_cores = driver_cores
@@ -242,7 +248,7 @@ class ServiceBackend(Backend):
         self._async_exit_stack = async_exit_stack
 
     def validate_file(self, uri: str) -> None:
-        async_to_blocking(validate_file(uri, self._async_fs, validate_scheme=True))
+        async_to_blocking(validate_file(uri, self._async_fs))
 
     def debug_info(self) -> Dict[str, Any]:
         return {
@@ -502,3 +508,19 @@ class ServiceBackend(Backend):
     @property
     def requires_lowering(self):
         return True
+
+    @property
+    def local_tmpdir(self) -> NoReturn:
+        raise AttributeError('local tmp folders are not supported on the batch backend')
+
+    @local_tmpdir.setter
+    def local_tmpdir(self, tmpdir: str) -> NoReturn:
+        raise AttributeError('local tmp folders are not supported on the batch backend')
+
+    @property
+    def remote_tmpdir(self) -> str:
+        return self._remote_tmpdir
+
+    @remote_tmpdir.setter
+    def remote_tmpdir(self, tmpdir: str) -> None:
+        self._remote_tmpdir = tmpdir

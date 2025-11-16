@@ -114,7 +114,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false)
     aoff + lengthHeaderBytes + nMissingBytes(len).toL
 
   override def isElementDefined(aoff: Long, i: Int): Boolean =
-    elementRequired || !Region.loadBit(aoff + lengthHeaderBytes, i)
+    elementRequired || !Region.loadBit(aoff + lengthHeaderBytes, i.toLong)
 
   override def isElementDefined(aoff: Code[Long], i: Code[Int]): Code[Boolean] =
     if (elementRequired)
@@ -130,7 +130,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false)
 
   override def setElementMissing(aoff: Long, i: Int): Unit =
     if (!elementRequired)
-      Region.setBit(aoff + lengthHeaderBytes, i)
+      Region.setBit(aoff + lengthHeaderBytes, i.toLong)
 
   override def setElementMissing(cb: EmitCodeBuilder, aoff: Code[Long], i: Code[Int]): Unit = {
     assert(!elementRequired, s"Array elements of ptype '${elementType.asIdent}' cannot be missing.")
@@ -225,7 +225,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false)
     def value: Long =
       firstElementOffset + i * elementByteSize
 
-    def iterate: Unit = i += 1
+    def iterate(): Unit = i += 1
   }
 
   def elementIterator(aoff: Long, length: Int): Iterator = new Iterator(aoff, length)
@@ -237,7 +237,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false)
     region.allocate(contentsAlignment, contentsByteSize(length))
 
   private def writeMissingness(aoff: Long, length: Int, value: Byte): Unit =
-    Region.setMemory(aoff + lengthHeaderBytes, nMissingBytes(length), value)
+    Region.setMemory(aoff + lengthHeaderBytes, nMissingBytes(length).toLong, value)
 
   override def setAllMissingBits(aoff: Long, length: Int): Unit =
     if (!elementRequired)
@@ -453,7 +453,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false)
     indexable: SIndexableValue,
     deepCopy: Boolean,
   ): Unit = {
-    val length = indexable.loadLength()
+    val length = indexable.loadLength
     indexable.st match {
       case SIndexablePointer(PCanonicalArray(otherElementType, _))
           if otherElementType == elementType =>
@@ -472,7 +472,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false)
             cb._fatal("tried to copy array with missing values to array of required elements"),
           )
         }
-        stagedInitialize(cb, addr, indexable.loadLength(), setMissing = false)
+        stagedInitialize(cb, addr, indexable.loadLength, setMissing = false)
 
         cb += Region.copyFrom(
           otherType.firstElementOffset(indexable.asInstanceOf[SIndexablePointerValue].a),
@@ -516,7 +516,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false)
         value.asInstanceOf[SIndexablePointerValue].a
       case _ =>
         val idxValue = value.asIndexable
-        val newAddr = cb.memoize(allocate(region, idxValue.loadLength()))
+        val newAddr = cb.memoize(allocate(region, idxValue.loadLength))
         storeContentsAtAddress(cb, newAddr, region, idxValue, deepCopy)
         newAddr
     }

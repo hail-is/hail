@@ -13,7 +13,6 @@ import is.hail.types.physical.stypes.primitives.SInt32Value
 import is.hail.utils._
 
 import org.apache.spark.sql.Row
-import org.scalatest
 import org.scalatest.matchers.must.Matchers.{be, include}
 import org.scalatest.matchers.should.Matchers.convertToAnyShouldWrapper
 import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
@@ -26,7 +25,7 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
   def sm = ctx.stateManager
 
   @Test
-  def testCanonicalString(): scalatest.Assertion = {
+  def testCanonicalString(): Unit = {
     val rt = PCanonicalString()
     val input = "hello"
     val fb = EmitFunctionBuilder[Region, String, Long](ctx, "fb")
@@ -70,7 +69,7 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
   }
 
   @Test
-  def testInt(): scalatest.Assertion = {
+  def testInt(): Unit = {
     val rt = PInt32()
     val input = 3
     val fb = EmitFunctionBuilder[Region, Int, Long](ctx, "fb")
@@ -108,7 +107,7 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
   }
 
   @Test
-  def testArray(): scalatest.Assertion = {
+  def testArray(): Unit = {
     val rt = PCanonicalArray(PInt32())
     val input = 3
     val fb = EmitFunctionBuilder[Region, Int, Long](ctx, "fb")
@@ -146,7 +145,7 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
   }
 
   @Test
-  def testStruct(): scalatest.Assertion = {
+  def testStruct(): Unit = {
     val pstring = PCanonicalString()
     val rt = PCanonicalStruct("a" -> pstring, "b" -> PInt32())
     val input = 3
@@ -194,7 +193,7 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
   }
 
   @Test
-  def testArrayOfStruct(): scalatest.Assertion = {
+  def testArrayOfStruct(): Unit = {
     val structType = PCanonicalStruct("a" -> PInt32(), "b" -> PCanonicalString())
     val arrayType = PCanonicalArray(structType)
     val input = "hello"
@@ -260,7 +259,7 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
   }
 
   @Test
-  def testMissingRandomAccessArray(): scalatest.Assertion = {
+  def testMissingRandomAccessArray(): Unit = {
     val rt = PCanonicalArray(PCanonicalStruct("a" -> PInt32(), "b" -> PCanonicalString()))
     val intVal = 20
     val strVal = "a string with a partner of 20"
@@ -302,7 +301,7 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
   }
 
   @Test
-  def testSetFieldPresent(): scalatest.Assertion = {
+  def testSetFieldPresent(): Unit = {
     val rt = PCanonicalStruct("a" -> PInt32(), "b" -> PCanonicalString(), "c" -> PFloat64())
     val intVal = 30
     val floatVal = 39.273d
@@ -340,7 +339,7 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
   }
 
   @Test
-  def testStructWithArray(): scalatest.Assertion = {
+  def testStructWithArray(): Unit = {
     val tArray = PCanonicalArray(PInt32())
     val rt = PCanonicalStruct("a" -> PCanonicalString(), "b" -> tArray)
     val input = "hello"
@@ -410,7 +409,7 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
   }
 
   @Test
-  def testMissingArray(): scalatest.Assertion = {
+  def testMissingArray(): Unit = {
     val rt = PCanonicalArray(PInt32())
     val input = 3
     val fb = EmitFunctionBuilder[Region, Int, Long](ctx, "fb")
@@ -450,7 +449,7 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
     println(region.prettyBits())
 
   @Test
-  def testAddPrimitive(): scalatest.Assertion = {
+  def testAddPrimitive(): Unit = {
     val t = PCanonicalStruct("a" -> PInt32(), "b" -> PBoolean(), "c" -> PFloat64())
     val fb = EmitFunctionBuilder[Region, Int, Boolean, Double, Long](ctx, "fb")
 
@@ -498,7 +497,7 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
     fb.resultWithIndex()
   }
 
-  @Test def testShallowCopyOfPointersFailsAcrossRegions(): scalatest.Assertion = {
+  @Test def testShallowCopyOfPointersFailsAcrossRegions(): Unit = {
     val ptype = PCanonicalStruct(required = true, "a" -> PCanonicalArray(PInt32()))
     val value = genVal(ctx, ptype).sample.get
     val ShallowCopy = emitCopy(ctx, ptype, deepCopy = false)
@@ -521,7 +520,7 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
     ex.getMessage should include("invalid memory access")
   }
 
-  @Test def testDeepCopy(): scalatest.Assertion =
+  @Test def testDeepCopy(): Unit =
     forAll(genPTypeVal[PCanonicalStruct](ctx)) { case (t, a: Row) =>
       val DeepCopy = emitCopy(ctx, t, deepCopy = true)
 
@@ -541,7 +540,7 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
       copy should be(a)
     }
 
-  @Test def testUnstagedCopy(): scalatest.Assertion = {
+  @Test def testUnstagedCopy(): Unit = {
     val t1 = PCanonicalArray(
       PCanonicalStruct(
         true,
@@ -575,7 +574,7 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
     }
   }
 
-  @Test def testStagedCopy(): scalatest.Assertion = {
+  @Test def testStagedCopy(): Unit = {
     val t1 = PCanonicalStruct(
       false,
       "a" -> PCanonicalArray(

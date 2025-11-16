@@ -6,11 +6,11 @@ import is.hail.asm4s.HailClassLoader
 import is.hail.backend.{Backend, ExecuteContext, OwningTempFileManager}
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir._
-import is.hail.expr.ir.defs.{
-  BlockMatrixCollect, Cast, MakeTuple, NDArrayRef, Ref, StreamMap, ToArray,
-}
+import is.hail.expr.ir.defs._
+import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.lowering.IrMetadata
 import is.hail.io.fs.{FS, HadoopFS}
+import is.hail.rvd.RVD
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
@@ -21,21 +21,20 @@ import breeze.linalg.DenseMatrix
 import org.apache.hadoop
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.SparkContext
-import org.apache.spark.sql.Row
-import org.scalatest
+import org.apache.spark.sql.{Row, SparkSession}
 import org.scalatest.Inspectors.forEvery
 import org.scalatestplus.testng.TestNGSuite
 import org.testng.ITestContext
 import org.testng.annotations.{AfterClass, AfterSuite, BeforeClass, BeforeSuite}
 
 object HailSuite {
-  val theHailClassLoader: HailClassLoader =
+  private val hcl: HailClassLoader =
     new HailClassLoader(getClass.getClassLoader)
 
-  val flags: HailFeatureFlags =
+  private val flags: HailFeatureFlags =
     HailFeatureFlags.fromEnv(sys.env + ("lower" -> "1"))
 
-  private var hc_ : HailContext = _
+  private var backend_ : SparkBackend = _
 }
 
 class HailSuite extends TestNGSuite with TestUtils {
@@ -52,40 +51,39 @@ class HailSuite extends TestNGSuite with TestUtils {
   def getTestResource(localPath: String): String = s"hail/test/resources/$localPath"
 
   @BeforeSuite
-  def setupHailContext(): Unit = {
-    HailContext.configureLogging("/tmp/hail.log", quiet = false, append = false)
-    val backend = SparkBackend(
-      sc = new SparkContext(
-        SparkBackend.createSparkConf(
-          appName = "Hail.TestNG",
-          master = System.getProperty("hail.master"),
-          local = "local[2]",
-          blockSize = 0,
+  def setupBackend(): Unit = {
+    RVD.CheckRvdKeyOrderingForTesting = true
+    HailSuite.backend_ = SparkBackend(
+      SparkSession
+        .builder()
+        .config(
+          SparkBackend.createSparkConf(
+            appName = "Hail.TestNG",
+            master = System.getProperty("hail.master"),
+            local = "local[2]",
+            blockSize = 0,
+          )
         )
-          .set("spark.unsafe.exceptionOnMemoryLeak", "true")
-      ),
-      skipLoggingConfiguration = true,
+        .config("spark.unsafe.exceptionOnMemoryLeak", "true")
+        .getOrCreate()
     )
-    HailSuite.hc_ = HailContext(backend)
-    HailSuite.hc_.checkRVDKeys = true
   }
 
   @BeforeClass
   def setupExecuteContext(): Unit = {
-    val backend = HailSuite.hc_.backend.asSpark
-    val conf = new Configuration(backend.sc.hadoopConfiguration)
+    val conf = new Configuration(HailSuite.backend_.sc.hadoopConfiguration)
     val fs = new HadoopFS(new SerializableHadoopConfiguration(conf))
     val pool = RegionPool()
     ctx_ = new ExecuteContext(
       tmpdir = "/tmp",
       localTmpdir = "file:///tmp",
-      backend = backend,
+      backend = HailSuite.backend_,
       references = ReferenceGenome.builtinReferences(),
       fs = fs,
       r = Region(pool = pool),
       timer = new ExecutionTimer(getClass.getSimpleName),
       tempFileManager = new OwningTempFileManager(fs),
-      theHailClassLoader = HailSuite.theHailClassLoader,
+      theHailClassLoader = HailSuite.hcl,
       flags = HailSuite.flags,
       irMetadata = new IrMetadata(),
       BlockMatrixCache = ImmutableMap.empty,
@@ -104,14 +102,16 @@ class HailSuite extends TestNGSuite with TestUtils {
 
     hadoop.fs.FileSystem.closeAll()
 
-    if (HailSuite.hc_.backend.asSpark.sc.isStopped)
+    if (HailSuite.backend_.sc.isStopped)
       throw new RuntimeException(s"'${context.getName}' stopped spark context!")
   }
 
   @AfterSuite
-  def tearDownHailContext(): Unit = {
-    HailSuite.hc_.stop()
-    HailSuite.hc_ = null
+  def tearDownBackend(): Unit = {
+    HailSuite.backend_.spark.stop()
+    HailSuite.backend_.close()
+    HailSuite.backend_ = null
+    IRFunctionRegistry.clearUserFunctions()
   }
 
   def evaluate(
@@ -128,7 +128,7 @@ class HailSuite extends TestNGSuite with TestUtils {
         Interpret[Any](ctx, ir, env, args)
       case ExecStrategy.InterpretUnoptimized =>
         assert(agg.isEmpty)
-        Interpret[Any](ctx, ir, env, args, optimize = false)
+        unoptimized(ctx => Interpret[Any](ctx, ir, env, args))
       case ExecStrategy.JvmCompile =>
         assert(Forall(ir, node => Compilable(node)))
         eval(
@@ -143,26 +143,26 @@ class HailSuite extends TestNGSuite with TestUtils {
                 pw.print(s"/* JVM bytecode dump for IR:\n${Pretty(ctx, ir)}\n */\n\n")
                 pw
               },
-          true,
           ctx,
         )
       case ExecStrategy.JvmCompileUnoptimized =>
         assert(Forall(ir, node => Compilable(node)))
-        eval(
-          ir,
-          env,
-          args,
-          agg,
-          bytecodePrinter =
-            Option(ctx.getFlag("jvm_bytecode_dump"))
-              .map { path =>
-                val pw = new PrintWriter(new File(path))
-                pw.print(s"/* JVM bytecode dump for IR:\n${Pretty(ctx, ir)}\n */\n\n")
-                pw
-              },
-          optimize = false,
-          ctx,
-        )
+        unoptimized { ctx =>
+          eval(
+            ir,
+            env,
+            args,
+            agg,
+            bytecodePrinter =
+              Option(ctx.getFlag("jvm_bytecode_dump"))
+                .map { path =>
+                  val pw = new PrintWriter(new File(path))
+                  pw.print(s"/* JVM bytecode dump for IR:\n${Pretty(ctx, ir)}\n */\n\n")
+                  pw
+                },
+            ctx,
+          )
+        }
       case ExecStrategy.LoweredJVMCompile =>
         loweredExecute(ctx, ir, env, args, agg)
     }
@@ -174,7 +174,7 @@ class HailSuite extends TestNGSuite with TestUtils {
     agg: Option[(IndexedSeq[Row], TStruct)],
     expected: Any,
   )(implicit execStrats: Set[ExecStrategy]
-  ): scalatest.Assertion = {
+  ): Unit = {
 
     TypeCheck(ctx, x, BindingEnv(env.mapValues(_._2), agg = agg.map(_._2.toEnv)))
 
@@ -182,7 +182,7 @@ class HailSuite extends TestNGSuite with TestUtils {
     assert(t == TVoid || t.typeCheck(expected), s"$t, $expected")
 
     val filteredExecStrats: Set[ExecStrategy] =
-      if (HailContext.backend.isInstanceOf[SparkBackend])
+      if (backend.isInstanceOf[SparkBackend])
         execStrats
       else {
         info("skipping interpret and non-lowering compile steps on non-spark backend")
@@ -212,15 +212,14 @@ class HailSuite extends TestNGSuite with TestUtils {
     }
   }
 
-  def assertNDEvals(nd: IR, expected: Any)(implicit execStrats: Set[ExecStrategy])
-    : scalatest.Assertion =
+  def assertNDEvals(nd: IR, expected: Any)(implicit execStrats: Set[ExecStrategy]): Unit =
     assertNDEvals(nd, Env.empty, FastSeq(), None, expected)
 
   def assertNDEvals(
     nd: IR,
     expected: (Any, IndexedSeq[Long]),
   )(implicit execStrats: Set[ExecStrategy]
-  ): scalatest.Assertion =
+  ): Unit =
     if (expected == null)
       assertNDEvals(nd, Env.empty, FastSeq(), None, null, null)
     else
@@ -231,7 +230,7 @@ class HailSuite extends TestNGSuite with TestUtils {
     args: IndexedSeq[(Any, Type)],
     expected: Any,
   )(implicit execStrats: Set[ExecStrategy]
-  ): scalatest.Assertion =
+  ): Unit =
     assertNDEvals(nd, Env.empty, args, None, expected)
 
   def assertNDEvals(
@@ -239,7 +238,7 @@ class HailSuite extends TestNGSuite with TestUtils {
     agg: (IndexedSeq[Row], TStruct),
     expected: Any,
   )(implicit execStrats: Set[ExecStrategy]
-  ): scalatest.Assertion =
+  ): Unit =
     assertNDEvals(nd, Env.empty, FastSeq(), Some(agg), expected)
 
   def assertNDEvals(
@@ -249,7 +248,7 @@ class HailSuite extends TestNGSuite with TestUtils {
     agg: Option[(IndexedSeq[Row], TStruct)],
     expected: Any,
   )(implicit execStrats: Set[ExecStrategy]
-  ): scalatest.Assertion = {
+  ): Unit = {
     var e: IndexedSeq[Any] = expected.asInstanceOf[IndexedSeq[Any]]
     val dims = Array.fill(nd.typ.asInstanceOf[TNDArray].nDims) {
       val n = e.length
@@ -268,7 +267,7 @@ class HailSuite extends TestNGSuite with TestUtils {
     dims: IndexedSeq[Long],
     expected: Any,
   )(implicit execStrats: Set[ExecStrategy]
-  ): scalatest.Assertion = {
+  ): Unit = {
     val arrayIR = if (expected == null) nd
     else {
       val refs = Array.fill(nd.typ.asInstanceOf[TNDArray].nDims)(Ref(freshName(), TInt32))
@@ -286,21 +285,24 @@ class HailSuite extends TestNGSuite with TestUtils {
     bm: BlockMatrixIR,
     expected: DenseMatrix[Double],
   )(implicit execStrats: Set[ExecStrategy]
-  ): scalatest.Assertion = {
+  ): Unit = {
     val filteredExecStrats: Set[ExecStrategy] =
-      if (HailContext.backend.isInstanceOf[SparkBackend]) execStrats
+      if (backend.isInstanceOf[SparkBackend]) execStrats
       else {
         info("skipping interpret and non-lowering compile steps on non-spark backend")
         execStrats.intersect(ExecStrategy.backendOnly)
       }
     filteredExecStrats.filter(ExecStrategy.interpretOnly).foreach { strat =>
       try {
-        val res = strat match {
-          case ExecStrategy.Interpret =>
-            Interpret(bm, ctx, optimize = true)
-          case ExecStrategy.InterpretUnoptimized =>
-            Interpret(bm, ctx, optimize = false)
-        }
+        val res =
+          unoptimized { ctx =>
+            strat match {
+              case ExecStrategy.Interpret =>
+                Interpret(bm, ctx)
+              case ExecStrategy.InterpretUnoptimized =>
+                Interpret(bm, ctx)
+            }
+          }
         assert(res.toBreezeMatrix() == expected)
       } catch {
         case e: Exception =>
@@ -319,14 +321,14 @@ class HailSuite extends TestNGSuite with TestUtils {
   def assertAllEvalTo(
     xs: (IR, Any)*
   )(implicit execStrats: Set[ExecStrategy]
-  ): scalatest.Assertion =
+  ): Unit =
     assertEvalsTo(MakeTuple.ordered(xs.toArray.map(_._1)), Row.fromSeq(xs.map(_._2)))
 
   def assertEvalsTo(
     x: IR,
     expected: Any,
   )(implicit execStrats: Set[ExecStrategy]
-  ): scalatest.Assertion =
+  ): Unit =
     assertEvalsTo(x, Env.empty, FastSeq(), None, expected)
 
   def assertEvalsTo(
@@ -334,7 +336,7 @@ class HailSuite extends TestNGSuite with TestUtils {
     args: IndexedSeq[(Any, Type)],
     expected: Any,
   )(implicit execStrats: Set[ExecStrategy]
-  ): scalatest.Assertion =
+  ): Unit =
     assertEvalsTo(x, Env.empty, args, None, expected)
 
   def assertEvalsTo(
@@ -342,6 +344,6 @@ class HailSuite extends TestNGSuite with TestUtils {
     agg: (IndexedSeq[Row], TStruct),
     expected: Any,
   )(implicit execStrats: Set[ExecStrategy]
-  ): scalatest.Assertion =
+  ): Unit =
     assertEvalsTo(x, Env.empty, FastSeq(), Some(agg), expected)
 }

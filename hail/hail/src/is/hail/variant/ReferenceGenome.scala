@@ -14,8 +14,8 @@ import is.hail.types._
 import is.hail.types.virtual.{TLocus, Type}
 import is.hail.utils._
 
-import scala.collection.JavaConverters._
 import scala.collection.mutable
+import scala.jdk.CollectionConverters._
 
 import java.io.{FileNotFoundException, InputStream}
 
@@ -171,7 +171,7 @@ case class ReferenceGenome(
   def globalPosToContig(idx: Long): String = {
     if (globalContigEnds == null)
       globalContigEnds = getGlobalContigEnds
-    contigs(globalContigEnds.view.partitionPoint(_ > idx))
+    contigs(globalContigEnds.partitionPoint(_ > idx))
   }
 
   def globalPosToLocus(idx: Long): Locus = {
@@ -574,7 +574,7 @@ object ReferenceGenome {
   def writeReference(fs: FS, path: String, rg: ReferenceGenome): Unit = {
     val rgPath = path + "/" + rg.name + ".json.gz"
     if (!hailReferences.contains(rg.name) && !fs.isFile(rgPath))
-      rg.asInstanceOf[ReferenceGenome].write(fs, rgPath)
+      rg.write(fs, rgPath)
   }
 
   def getReferences(t: Type): Set[String] = {

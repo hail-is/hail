@@ -1,0 +1,18 @@
+[build-system]
+requires = [ "uv_build" ]
+build-backend = "uv_build"
+
+[project]
+name = "web_common"
+version = "0.0.1"
+authors = [ { name="Hail Team", email="hail@broadinstitute.org" } ]
+description = "Shared web support"
+
+[project.urls]
+Repository = "https://github.com/hail-is/hail.git"
+
+[tool.uv.build-backend]
+module-name = "web_common"
+module-root = ""
+namespace = true
+source-include = [ "py.typed" ]

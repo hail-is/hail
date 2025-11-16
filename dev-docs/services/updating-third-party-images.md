@@ -2,6 +2,9 @@
 
 This process updates third party images in cloud artifact registries after changes in [docker/third-party/images.txt](../../docker/third-party/images.txt) .
 
+>[!NOTE]
+> As of 2025-10-07 this process is run automatically in CI deploy builds but not during CI runs, so you will need to manually run the following steps to update the images for PRs using the new images to succeed.
+
 ## Prerequisites
 
 ### Install skopeo

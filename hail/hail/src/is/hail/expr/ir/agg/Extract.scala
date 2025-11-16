@@ -270,7 +270,7 @@ class AggSignatures(val sigs: Array[PhysicalAggSig]) {
       val hcl = theHailClassLoaderForSparkWorkers
       if (htc == null) {
         throw new UnsupportedOperationException(
-          s"Can't get htc. On worker = ${TaskContext.get != null}"
+          s"Can't get htc. On worker = ${TaskContext.get() != null}"
         )
       }
       (htc.getRegionPool(), hcl, htc)

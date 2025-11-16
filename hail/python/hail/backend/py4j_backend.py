@@ -1,27 +1,35 @@
 import abc
+import glob
 import http.client
-import socket
-import socketserver
+import logging
 import sys
-from threading import Thread
-from typing import Mapping, Optional, Tuple
+import warnings
+from typing import Dict, Mapping, Optional, Tuple
 
 import orjson
 import py4j
 import requests
-from py4j.java_gateway import JavaObject, JVMView
+from py4j.java_gateway import (
+    GatewayParameters,
+    JavaGateway,
+    JavaObject,
+    JavaPackage,
+    JVMView,
+    launch_gateway,
+)
 
-import hail
 from hail.expr import construct_expr
-from hail.fs.hadoop_fs import HadoopFS
-from hail.ir import JavaIR
+from hail.ir import CSERenderer, JavaIR
 from hail.utils.java import Env, FatalError, scala_package_object
 from hail.version import __version__
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
-from hailtop.utils import sync_retry_transient_errors
+from hailtop.aiotools.validators import validate_file
+from hailtop.fs.fs import FS
+from hailtop.fs.router_fs import RouterFS
+from hailtop.utils import async_to_blocking, find_spark_home, sync_retry_transient_errors
 
 from ..hail_logging import Logger
-from .backend import ActionTag, Backend, fatal_error_from_java_error_triplet
+from .backend import ActionTag, Backend, fatal_error_from_java_error_triplet, local_jar_information
 
 # This defaults to 65536 and fails if a header is longer than _MAXLINE
 # The timing json that we output can exceed 65536 bytes so we raise the limit
@@ -30,6 +38,55 @@ http.client._MAXLINE = 2**20
 
 _installed = False
 _original = None
+
+
+def start_py4j_gateway(*, max_heap_size: str | None = None) -> JavaGateway:
+    spark_home = find_spark_home()
+    _, hail_jar_path, extra_classpath = local_jar_information()
+    extra_classpath = ':'.join([f'{spark_home}/jars/*', hail_jar_path, *extra_classpath])
+
+    jvm_opts = []
+    if max_heap_size is not None:
+        jvm_opts.append(f'-Xmx{max_heap_size}')
+
+    py4j_jars = glob.glob(f'{spark_home}/jars/py4j-*.jar')
+    if len(py4j_jars) == 0:
+        raise ValueError(f'No py4j JAR found in {spark_home}/jars')
+
+    if len(py4j_jars) > 1:
+        logging.warning(f'found multiple p4yj jars arbitrarily choosing the first one: {py4j_jars}')
+
+    port = launch_gateway(
+        redirect_stdout=sys.stdout,
+        redirect_stderr=sys.stderr,
+        java_path=None,
+        javaopts=jvm_opts,
+        jarpath=py4j_jars[0],
+        classpath=extra_classpath,
+        die_on_exit=True,
+    )
+
+    return JavaGateway(gateway_parameters=GatewayParameters(port=port, auto_convert=True))
+
+
+def raise_when_mismatched_hail_versions(jvm: JVMView) -> None:
+    feature, *rest = jvm.System.getProperty('java.version').split('.')
+    if feature != '11':
+        warnings.warn(
+            message=(
+                'Hail was built and tested with Java 11. '
+                f'You are using Java {".".join([feature, *rest])} which is not supported. '
+                'This may lead to errors. '
+                'Consider installing Java 11 and setting the JAVA_HOME environment variable.'
+            )
+        )
+
+    _is = getattr(jvm, 'is')
+    jar_version = scala_package_object(_is.hail).HAIL_PRETTY_VERSION()
+    if jar_version != __version__:
+        raise RuntimeError(
+            f"Hail version mismatch between JAR and Python library\n  JAR:    {jar_version}\n  Python: {__version__}"
+        )
 
 
 def install_exception_handler():
@@ -74,24 +131,10 @@ def handle_java_exception(f):
             raise FatalError(
                 '%s\n\nJava stack trace:\n%s\n'
                 'Hail version: %s\n'
-                'Error summary: %s' % (e.desc, e.stackTrace, hail.__version__, e.desc)
+                'Error summary: %s' % (e.desc, e.stackTrace, __version__, e.desc)
             ) from None
 
     return deco
-
-
-class SimpleServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
-    daemon_threads = True
-    allow_reuse_address = True
-
-    def __init__(self, server_address, handler_class):
-        socketserver.TCPServer.__init__(self, server_address, handler_class)
-
-
-class LoggingTCPHandler(socketserver.StreamRequestHandler):
-    def handle(self):
-        for line in self.rfile:
-            sys.stderr.write(line.decode("ISO-8859-1"))
 
 
 class Log4jLogger(Logger):
@@ -106,45 +149,6 @@ class Log4jLogger(Logger):
 
     def info(self, msg):
         self._log_pkg.info(msg)
-
-
-def connect_logger(utils_package_object, host, port):
-    """
-    This method starts a simple server which listens on a port for a
-    client to connect and start writing messages. Whenever a message
-    is received, it is written to sys.stderr. The server is run in
-    a daemon thread from the caller, which is killed when the caller
-    thread dies.
-
-    If the socket is in use, then the server tries to listen on the
-    next port (port + 1). After 25 tries, it gives up.
-
-    :param str host: Hostname for server.
-    :param int port: Port to listen on.
-    """
-    server = None
-    tries = 0
-    max_tries = 25
-    while not server:
-        try:
-            server = SimpleServer((host, port), LoggingTCPHandler)
-        except socket.error:
-            port += 1
-            tries += 1
-
-            if tries >= max_tries:
-                sys.stderr.write(
-                    'WARNING: Could not find a free port for logger, maximum retries {} exceeded.'.format(max_tries)
-                )
-                return
-
-    t = Thread(target=server.serve_forever, args=())
-
-    # The thread should be a daemon so that it shuts down when the parent thread is killed
-    t.daemon = True
-
-    t.start()
-    utils_package_object.addSocketAppender(host, port)
 
 
 action_routes = {
@@ -178,77 +182,94 @@ class Py4JBackend(Backend):
         self,
         jvm: JVMView,
         jbackend: JavaObject,
-        jhc: JavaObject,
-        tmpdir: str,
-        remote_tmpdir: str,
+        flags: Dict[str, str],
     ):
         super().__init__()
         import base64
 
-        def decode_bytearray(encoded):
-            return base64.standard_b64decode(encoded)
-
         # By default, py4j's version of this function does extra
         # work to support python 2. This eliminates that.
-        py4j.protocol.decode_bytearray = decode_bytearray
+        py4j.protocol.decode_bytearray = base64.standard_b64decode
 
         self._jvm = jvm
-        self._hail_package = getattr(self._jvm, 'is').hail
-        self._utils_package_object = scala_package_object(self._hail_package.utils)
-        self._jhc = jhc
+        self._is = getattr(jvm, 'is')
+        self._utils_package_object = scala_package_object(self._is.hail.utils)
+        self._logger = Log4jLogger(self._utils_package_object)
 
-        self._jbackend = self._hail_package.backend.driver.Py4JQueryDriver(jbackend)
-        self._jbackend.pySetLocalTmp(tmpdir)
-        self._jbackend.pySetRemoteTmp(remote_tmpdir)
-
-        self._jhttp_server = self._jbackend.pyHttpServer()
-
-        self._gcs_requester_pays_config = None
+        self._jbackend = self._is.hail.backend.driver.Py4JQueryDriver(jbackend)
         self._fs = None
+        self._gcs_requester_pays_config = None
 
         # This has to go after creating the SparkSession. Unclear why.
         # Maybe it does its own patch?
         install_exception_handler()
 
-        jar_version = self._jhc.version()
-        if jar_version != __version__:
-            raise RuntimeError(
-                f"Hail version mismatch between JAR and Python library\n"
-                f"  JAR:    {jar_version}\n"
-                f"  Python: {__version__}"
-            )
+        self._initialize_flags(flags)
+        self._jhttp_server = self._jbackend.pyHttpServer()
 
-    def jvm(self):
+    def jvm(self) -> JVMView:
         return self._jvm
 
-    def hail_package(self):
-        return self._hail_package
+    def hail_package(self) -> JavaPackage:
+        return self._is.hail
 
-    def utils_package_object(self):
+    def utils_package_object(self) -> JavaObject:
         return self._utils_package_object
 
+    def validate_file(self, uri: str) -> None:
+        fs = self.fs
+        assert isinstance(fs, RouterFS)
+        async_to_blocking(validate_file(uri, fs.afs))
+
     @property
-    def gcs_requester_pays_configuration(self) -> Optional[GCSRequesterPaysConfiguration]:
+    def fs(self) -> FS:
+        if self._fs is None:
+            self._fs = RouterFS(
+                gcs_kwargs={"gcs_requester_pays_configuration": self.gcs_requester_pays_configuration},
+            )
+        return self._fs
+
+    @fs.setter
+    def fs(self, fs: FS) -> None:
+        if self._fs is not None:
+            self._fs.close()
+        self._fs = fs
+
+    @property
+    def logger(self) -> Logger:
+        return self._logger
+
+    @property
+    def local_tmpdir(self) -> str:
+        return self._jbackend.pyGetLocalTmp()
+
+    @local_tmpdir.setter
+    def local_tmpdir(self, tmpdir: str) -> None:
+        self._jbackend.pySetLocalTmp(tmpdir)
+
+    @property
+    def remote_tmpdir(self) -> str:
+        return self._jbackend.pyGetRemoteTmp()
+
+    @remote_tmpdir.setter
+    def remote_tmpdir(self, tmpdir: str) -> None:
+        self._jbackend.pySetRemoteTmp(tmpdir)
+
+    @property
+    def gcs_requester_pays_configuration(self) -> GCSRequesterPaysConfiguration | None:
         return self._gcs_requester_pays_config
 
     @gcs_requester_pays_configuration.setter
-    def gcs_requester_pays_configuration(self, config: Optional[GCSRequesterPaysConfiguration]):
+    def gcs_requester_pays_configuration(self, config: GCSRequesterPaysConfiguration | None):
         self._gcs_requester_pays_config = config
         project, buckets = (None, None) if config is None else (config, None) if isinstance(config, str) else config
         self._jbackend.pySetGcsRequesterPaysConfig(project, buckets)
-        self._fs = None  # stale
+        # invalidate fs to propagate requester-pays
+        self.fs = None
 
     @property
-    def fs(self):
-        if self._fs is None:
-            self._fs = HadoopFS(self._utils_package_object, self._jbackend.pyFs())
-        return self._fs
-
-    @property
-    def logger(self):
-        if self._logger is None:
-            self._logger = Log4jLogger(self._utils_package_object)
-        return self._logger
+    def requires_lowering(self):
+        return True
 
     def _rpc(self, action, payload) -> Tuple[bytes, Optional[dict]]:
         data = orjson.dumps(payload)
@@ -311,7 +332,10 @@ class Py4JBackend(Backend):
     def remove_liftover(self, name, dest_reference_genome):
         self._jbackend.pyRemoveLiftover(name, dest_reference_genome)
 
-    def _register_ir_function(self, name, type_parameters, argument_names, argument_types, return_type, code):
+    def register_ir_function(self, name, type_parameters, argument_names, argument_types, return_type, body):
+        r = CSERenderer()
+        assert not body._ir.uses_randomness
+        code = r(body._ir)
         self._registered_ir_function_names.add(name)
         self._jbackend.pyRegisterIR(
             name,
@@ -335,9 +359,8 @@ class Py4JBackend(Backend):
             pass
 
     def stop(self):
+        super().stop()
         self._stop_jhttp_server()
         self._jbackend.close()
-        self._jhc.stop()
-        self._jhc = None
         uninstall_exception_handler()
-        super().stop()
+        self.fs = None

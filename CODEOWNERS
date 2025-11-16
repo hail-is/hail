@@ -1,0 +1,37 @@
+# CODEOWNERS file for Hail
+# This file defines who should review changes to different parts of the codebase
+
+## Anything that could impact production infrastructure: require review from the appsec team
+
+# Infrastructure directory - could impact production infrastructure
+/infra/gcp-broad/ @hail-is/appsec
+
+# Service directories that run in production
+/auth/ @hail-is/appsec
+/batch/ @hail-is/appsec
+/gateway/ @hail-is/appsec
+/internal-gateway/ @hail-is/appsec
+/bootstrap-gateway/ @hail-is/appsec
+/ci/ @hail-is/appsec
+/monitoring/ @hail-is/appsec
+/prometheus/ @hail-is/appsec
+/grafana/ @hail-is/appsec
+/letsencrypt/ @hail-is/appsec
+
+# Base docker image used by the services
+/docker/hail-ubuntu/ @hail-is/appsec
+
+# Other directories with indirect production impact:
+/admin-pod/ @hail-is/appsec
+/gear/ @hail-is/appsec
+/hail/python/hailtop/ @hail-is/appsec
+/letsencrypt/ @hail-is/appsec
+/tls/ @hail-is/appsec
+/website/ @hail-is/appsec
+/web-common/ @hail-is/appsec
+
+
+# Files at the top level of the repository:
+/CODEOWNERS @hail-is/appsec
+/build.yaml @hail-is/appsec
+/Makefile @hail-is/appsec

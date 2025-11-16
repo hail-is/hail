@@ -9,7 +9,7 @@ aiohappyeyeballs==2.6.1
     #   -c batch/../hail/python/pinned-requirements.txt
     #   -c batch/../web_common/pinned-requirements.txt
     #   aiohttp
-aiohttp==3.12.15
+aiohttp==3.13.2
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   -c batch/../hail/python/dev/pinned-requirements.txt
@@ -33,7 +33,7 @@ async-timeout==5.0.1
     #   -c batch/../web_common/pinned-requirements.txt
     #   -r batch/requirements.txt
     #   aiohttp
-attrs==25.3.0
+attrs==25.4.0
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   -c batch/../hail/python/dev/pinned-requirements.txt
@@ -42,7 +42,7 @@ attrs==25.3.0
     #   aiohttp
 dictdiffer==0.9.0
     # via -r batch/requirements.txt
-frozenlist==1.7.0
+frozenlist==1.8.0
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   -c batch/../hail/python/dev/pinned-requirements.txt
@@ -50,14 +50,14 @@ frozenlist==1.7.0
     #   -c batch/../web_common/pinned-requirements.txt
     #   aiohttp
     #   aiosignal
-idna==3.10
+idna==3.11
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   -c batch/../hail/python/dev/pinned-requirements.txt
     #   -c batch/../hail/python/pinned-requirements.txt
     #   -c batch/../web_common/pinned-requirements.txt
     #   yarl
-multidict==6.6.4
+multidict==6.7.0
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   -c batch/../hail/python/dev/pinned-requirements.txt
@@ -72,10 +72,11 @@ numpy==2.2.6
     #   pandas
 packaging==25.0
     # via
+    #   -c batch/../gear/pinned-requirements.txt
     #   -c batch/../hail/python/dev/pinned-requirements.txt
     #   -c batch/../hail/python/pinned-requirements.txt
     #   plotly
-pandas==2.3.2
+pandas==2.3.3
     # via
     #   -c batch/../hail/python/pinned-requirements.txt
     #   -r batch/requirements.txt
@@ -83,7 +84,7 @@ plotly==5.24.1
     # via
     #   -c batch/../hail/python/pinned-requirements.txt
     #   -r batch/requirements.txt
-propcache==0.3.2
+propcache==0.4.1
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   -c batch/../hail/python/dev/pinned-requirements.txt
@@ -121,9 +122,10 @@ typing-extensions==4.15.0
     #   multidict
 tzdata==2025.2
     # via
+    #   -c batch/../hail/python/dev/pinned-requirements.txt
     #   -c batch/../hail/python/pinned-requirements.txt
     #   pandas
-yarl==1.20.1
+yarl==1.22.0
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   -c batch/../hail/python/dev/pinned-requirements.txt

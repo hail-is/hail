@@ -1,2 +1,4 @@
 .bloop
 .metals
+/.bsp
+/out

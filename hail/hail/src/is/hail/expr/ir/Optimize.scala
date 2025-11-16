@@ -1,21 +1,45 @@
 package is.hail.expr.ir
 
-import is.hail.HailContext
 import is.hail.backend.ExecuteContext
-import is.hail.utils.fatal
+import is.hail.utils.{fatal, HailException}
 
 import scala.util.control.Breaks.{break, breakable}
 import scala.util.control.NonFatal
 
 object Optimize {
+  object Flags {
+    val MaxOptimizerIterations: String = "max_optimizer_iterations"
+    val Optimize: String = "optimize"
+  }
+
+  private[this] val DefaultOptimizerIterations: Int = 3
 
   def apply[T <: BaseIR](ctx: ExecuteContext, ir0: T): T =
     ctx.time {
 
       var ir: BaseIR = ir0
 
+      val iters: Option[Int] =
+        ctx.flags.lookup(Flags.MaxOptimizerIterations).map { s =>
+          val iters =
+            try s.toInt
+            catch {
+              case _: NumberFormatException =>
+                throw new HailException(
+                  f"'${Flags.MaxOptimizerIterations}' must be a positive integer, got '$s'."
+                )
+            }
+
+          if (iters < 0)
+            throw new HailException(
+              f"'${Flags.MaxOptimizerIterations}' must be greater than 0, got '$iters'."
+            )
+
+          iters
+        }
+
       breakable {
-        for (iter <- 0 until HailContext.get.optimizerIterations) {
+        for (iter <- 0 until iters.getOrElse(DefaultOptimizerIterations)) {
           ctx.timer.time(f"iteration $iter") {
             val last = ir
 
@@ -52,7 +76,7 @@ object Optimize {
                   s"\n  After IR:\n  ---------\n${Pretty(ctx, ir)}"
               )
 
-            if (ir == last) break
+            if (ir == last) break()
           }
         }
       }

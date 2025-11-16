@@ -612,7 +612,7 @@ object Simplify {
         Some(xs.find(_._1 == idx).get._2)
 
       case TableCount(MatrixColsTable(ColumnCount(nCols))) =>
-        Some(I64(nCols))
+        Some(I64(nCols.toLong))
 
       case TableCount(PartitionCounts(counts)) =>
         Some(I64(counts.sum))
@@ -645,7 +645,7 @@ object Simplify {
         Some(TableCount(child))
 
       case TableCount(TableRange(n, _)) =>
-        Some(I64(n))
+        Some(I64(n.toLong))
 
       case TableCount(TableParallelize(rowsAndGlobal, _)) =>
         Some(Cast(ArrayLen(GetField(rowsAndGlobal, "rows")), TInt64))
@@ -1506,7 +1506,12 @@ object Simplify {
             t,
             dr,
             dc,
-            MatrixRangeReader(r.params.nRows, math.min(r.params.nCols, n), r.params.nPartitions),
+            MatrixRangeReader(
+              ctx,
+              r.params.nRows,
+              math.min(r.params.nCols, n),
+              r.params.nPartitions,
+            ),
           )
         )
       case MatrixColsHead(MatrixMapRows(child, newRow), n)
@@ -1612,7 +1617,7 @@ object Simplify {
         Some(BlockMatrixBroadcast(
           ValueToBlockMatrix(ir, FastSeq(1, 1), typ.blockSize),
           FastSeq(),
-          typ.shape,
+          FastSeq(typ.nRows, typ.nCols),
           typ.blockSize,
         ))
       case _ =>

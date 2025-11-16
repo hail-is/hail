@@ -1,3 +1,5 @@
+{% from "utils.html" import link %}
+
 {% macro collapsible_li(starts_open, title_left, title_right) %}
 <li x-data='{open: {{ "true" if starts_open else "false" }}}'>
   <button class='w-full' x-on:click='open=!open'>
@@ -36,6 +38,55 @@
       <td class='p-2 text-right'>{{ v }}</td>
     </tr>
     {% endfor %}
+  </tbody>
+</table>
+{% endmacro %}
+
+{% macro status_display_row(status_name, count, state_value, base_path, batch_id) %}
+<tr>
+  <td class='p-2'>{{ status_name }}</td>
+  <td class='p-2 text-right'>
+    <div class='inline-flex items-center gap-1'>
+      {{ count }}
+      {% if count > 0 %}
+      <a class='hover:text-sky-600' href="{{ base_path ~ '/batches/' ~ batch_id ~ '?q=state+%3D+' ~ state_value }}" title="Filter to {{ status_name.lower() }} jobs">
+        <span class="material-symbols-outlined text-sm">filter_alt</span>
+      </a>
+      <a class='hover:text-sky-600' href="{{ base_path ~ '/batches/' ~ batch_id ~ '?q=state+%21%3D+' ~ state_value }}" title="Filter to non-{{ status_name.lower() }} jobs">
+        <span class="material-symbols-outlined text-sm">filter_alt_off</span>
+      </a>
+      {% endif %}
+    </div>
+  </td>
+</tr>
+{% endmacro %}
+
+{% macro incomplete_status_row(count, base_path, batch_id) %}
+<tr>
+  <td class='p-2'>Incomplete (Blocked, Queued or Running)</td>
+  <td class='p-2 text-right'>
+    <div class='inline-flex items-center gap-1'>
+      {{ count }}
+      {% if count > 0 %}
+      <a class='hover:text-sky-600' href="{{ base_path ~ '/batches/' ~ batch_id ~ '?q=state+%21%3D+success%0D%0Astate+%21%3D+failed%0D%0Astate+%21%3D+cancelled' }}" title="Filter to incomplete jobs">
+        <span class="material-symbols-outlined text-sm">filter_alt</span>
+      </a>
+      <a class='hover:text-sky-600' href="{{ base_path ~ '/batches/' ~ batch_id ~ '?q=state+%21%3D+pending%0D%0Astate+%21%3D+ready%0D%0Astate+%21%3D+creating%0D%0Astate+%21%3D+running' }}" title="Filter to non-incomplete jobs">
+        <span class="material-symbols-outlined text-sm">filter_alt_off</span>
+      </a>
+      {% endif %}
+    </div>
+  </td>
+</tr>
+{% endmacro %}
+
+{% macro job_status_table(batch, base_path) %}
+<table class='w-full'>
+  <tbody class='divide-y'>
+    {{ incomplete_status_row(batch['n_jobs'] - batch['n_completed'] - (batch['n_running'] or 0), base_path, batch['id']) }}
+    {{ status_display_row('Succeeded', batch['n_succeeded'], 'success', base_path, batch['id']) }}
+    {{ status_display_row('Failure or error', batch['n_failed'], 'bad', base_path, batch['id']) }}
+    {{ status_display_row('Cancelled', batch['n_cancelled'], 'cancelled', base_path, batch['id']) }}
   </tbody>
 </table>
 {% endmacro %}

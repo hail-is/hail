@@ -41,17 +41,17 @@ object PoissonScoreTest extends GLMTest {
         val X0 = X(::, r0)
         val X1 = X(::, r1)
 
-        b(r0) := nullFit.b
+        b(r0) := nullFit.b: Unit
         val mu = exp(X * b)
-        score(r0) := nullFit.score.get
-        score(r1) := X1.t * (y - mu)
-        fisher(r0, r0) := nullFit.fisher.get
-        fisher(r0, r1) := X0.t * (X1(::, *) *:* mu)
-        fisher(r1, r0) := fisher(r0, r1).t
-        fisher(r1, r1) := X1.t * (X1(::, *) *:* mu)
+        score(r0) := nullFit.score.get: Unit
+        score(r1) := X1.t * (y - mu): Unit
+        fisher(r0, r0) := nullFit.fisher.get: Unit
+        fisher(r0, r1) := X0.t * (X1(::, *) *:* mu): Unit
+        fisher(r1, r0) := fisher(r0, r1).t: Unit
+        fisher(r1, r1) := X1.t * (X1(::, *) *:* mu): Unit
 
         val chi2 = score dot (fisher \ score)
-        val p = pchisqtail(chi2, m - m0)
+        val p = pchisqtail(chi2, m.toDouble - m0)
 
         Some(ScoreStats(chi2, p))
       } catch {
@@ -88,10 +88,10 @@ class PoissonRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double])
 
     optNullFit match {
       case None =>
-        b := bInterceptOnly()
-        mu := exp(X * b)
-        score := X.t * (y - mu)
-        fisher := X.t * (X(::, *) *:* mu)
+        b := bInterceptOnly(): Unit
+        mu := exp(X * b): Unit
+        score := X.t * (y - mu): Unit
+        fisher := X.t * (X(::, *) *:* mu): Unit
       case Some(nullFit) =>
         val m0 = nullFit.b.length
 
@@ -101,14 +101,14 @@ class PoissonRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double])
         val X0 = X(::, r0)
         val X1 = X(::, r1)
 
-        b(r0) := nullFit.b
-        mu := sigmoid(X * b)
-        score(r0) := nullFit.score.get
-        score(r1) := X1.t * (y - mu)
-        fisher(r0, r0) := nullFit.fisher.get
-        fisher(r0, r1) := X0.t * (X1(::, *) *:* mu)
-        fisher(r1, r0) := fisher(r0, r1).t
-        fisher(r1, r1) := X1.t * (X1(::, *) *:* mu)
+        b(r0) := nullFit.b: Unit
+        mu := sigmoid(X * b): Unit
+        score(r0) := nullFit.score.get: Unit
+        score(r1) := X1.t * (y - mu): Unit
+        fisher(r0, r0) := nullFit.fisher.get: Unit
+        fisher(r0, r1) := X0.t * (X1(::, *) *:* mu): Unit
+        fisher(r1, r0) := fisher(r0, r1).t: Unit
+        fisher(r1, r1) := X1.t * (X1(::, *) *:* mu): Unit
     }
 
     var iter = 0
@@ -120,17 +120,17 @@ class PoissonRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double])
     while (!converged && !exploded && iter < maxIter) {
       iter += 1
       try {
-        deltaB := fisher \ score
+        deltaB := fisher \ score: Unit
 
         if (deltaB(0).isNaN) {
           exploded = true
         } else if (max(abs(deltaB)) < tol) {
           converged = true
         } else {
-          b += deltaB
-          mu := exp(X * b)
-          score := X.t * (y - mu)
-          fisher := X.t * (X(::, *) *:* mu)
+          b += deltaB: Unit
+          mu := exp(X * b): Unit
+          score := X.t * (y - mu): Unit
+          fisher := X.t * (X(::, *) *:* mu): Unit
         }
       } catch {
         case _: breeze.linalg.MatrixSingularException => exploded = true

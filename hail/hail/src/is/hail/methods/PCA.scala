@@ -1,6 +1,5 @@
 package is.hail.methods
 
-import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{MatrixValue, TableValue}
@@ -34,7 +33,7 @@ case class PCA(entryField: String, k: Int, computeLoadings: Boolean) extends Mat
       fatal(s"""requested invalid number of components: $k
                |  Expect componenents >= 1""".stripMargin)
 
-    val rowMatrix = mv.toRowMatrix(entryField)
+    val rowMatrix = mv.toRowMatrix(ctx, entryField)
     val indexedRows = rowMatrix.rows.map { case (i, a) => IndexedRow(i, Vectors.dense(a)) }
       .cache()
     val irm = new IndexedRowMatrix(indexedRows, rowMatrix.nRows, rowMatrix.nCols)
@@ -63,7 +62,7 @@ case class PCA(entryField: String, k: Int, computeLoadings: Boolean) extends Mat
     ) ++ TStruct("loadings" -> TArray(TFloat64)))
       .setRequired(true)
       .asInstanceOf[PStruct]
-    val rowKeysBc = HailContext.backend.broadcast(collectRowKeys())
+    val rowKeysBc = ctx.backend.broadcast(collectRowKeys())
     val localRowKeySignature = mv.typ.rowKeyStruct.types
 
     val crdd: ContextRDD[Long] = if (computeLoadings) {

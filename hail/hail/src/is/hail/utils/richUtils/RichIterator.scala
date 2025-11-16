@@ -1,12 +1,11 @@
 package is.hail.utils.richUtils
 
 import is.hail.annotations.{Region, RegionValue}
-import is.hail.macros.void
 import is.hail.types.physical.PStruct
 import is.hail.utils.{FlipbookIterator, StagingIterator, StateMachine}
 
-import scala.collection.JavaConverters._
 import scala.io.Source
+import scala.jdk.CollectionConverters._
 import scala.reflect.ClassTag
 
 import java.io.PrintWriter
@@ -27,7 +26,7 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
       new StateMachine[T] {
         def value: T = bit.head
         def isValid = bit.hasNext
-        def advance(): Unit = void(bit.next())
+        def advance(): Unit = bit.next(): Unit
       }
     )
   }
@@ -93,7 +92,7 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
     // Start a thread capture the process stderr
     new Thread("stderr reader for " + command) {
       override def run(): Unit =
-        void(Source.fromInputStream(proc.getErrorStream).addString(error))
+        Source.fromInputStream(proc.getErrorStream).addString(error)
     }.start()
 
     // Start a thread to feed the process input from our parent's iterator

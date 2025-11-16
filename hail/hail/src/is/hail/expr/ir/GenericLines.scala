@@ -10,7 +10,7 @@ import is.hail.variant.Locus
 
 import scala.annotation.meta.param
 
-import org.apache.commons.io.input.{CountingInputStream, ProxyInputStream}
+import org.apache.commons.io.input.{BoundedInputStream, ProxyInputStream}
 import org.apache.hadoop.io.compress.SplittableCompressionCodec
 import org.apache.spark.{Partition, TaskContext}
 import org.apache.spark.rdd.RDD
@@ -22,7 +22,7 @@ object CloseableIterator {
   def empty[T]: CloseableIterator[T] = new CloseableIterator[T] {
     def close(): Unit = ()
     def hasNext: Boolean = false
-    def next: T = throw new NoSuchElementException
+    def next(): T = throw new NoSuchElementException
   }
 }
 
@@ -58,8 +58,14 @@ object GenericLines {
             }
           } else {
             assert(!split || filePerPartition)
-            new CountingInputStream(codec.makeInputStream(rawIS)) with Positioned {
-              def getPosition: Long = getByteCount
+
+            val delegate =
+              new BoundedInputStream.Builder()
+                .setInputStream(codec.makeInputStream(rawIS))
+                .get()
+
+            new ProxyInputStream(delegate) with Positioned {
+              override def getPosition: Long = delegate.getCount
             }
           }
         }
@@ -183,7 +189,7 @@ object GenericLines {
                 fatal(
                   s"GenericLines: line size reached: cannot read a line with more than 2^31-1 bytes"
                 )
-              val newSize = Math.min(copySize * 2, maxArraySize).toInt
+              val newSize = Math.min(copySize * 2, maxArraySize.toLong).toInt
               if (newSize > (1 << 20)) {
                 log.info(s"GenericLines: growing line buffer to $newSize")
               }
@@ -400,9 +406,9 @@ object GenericLines {
   }
 
   def collect(fs: FS, lines: GenericLines): IndexedSeq[String] =
-    lines.contexts.flatMap { context =>
-      using(lines.body(fs, context))(it => it.map(_.toString).toArray)
-    }
+    lines.contexts.flatMap(context =>
+      using(lines.body(fs, context))(it => it.map(_.toString).toFastSeq)
+    )
 }
 
 class GenericLine(
@@ -458,7 +464,7 @@ class GenericLinesRDD(
 
   def compute(split: Partition, context: TaskContext): Iterator[GenericLine] = {
     val it = body(split.asInstanceOf[GenericLinesRDDPartition].context)
-    TaskContext.get.addTaskCompletionListener[Unit](_ => it.close())
+    TaskContext.get().addTaskCompletionListener[Unit](_ => it.close()): Unit
     it
   }
 }

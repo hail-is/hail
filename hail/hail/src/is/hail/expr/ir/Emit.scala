@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.backend.{BackendContext, ExecuteContext, HailTaskContext}
+import is.hail.backend.{DriverRuntimeContext, ExecuteContext, HailTaskContext}
 import is.hail.expr.ir.agg.{AggStateSig, ArrayAggStateSig, GroupedStateSig}
 import is.hail.expr.ir.analyses.{
   ComputeMethodSplits, ControlFlowPreventsSplit, ParentPointers, SemanticHash,
@@ -26,6 +26,7 @@ import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 
 import scala.annotation.{nowarn, tailrec}
+import scala.collection.compat._
 import scala.collection.mutable
 
 import java.io._
@@ -72,7 +73,7 @@ case class EmitEnv(bindings: Env[EmitValue], inputValues: IndexedSeq[EmitValue])
     val paramTypes =
       bindingNames.map(name => m(name).emitType.paramType) ++ inputValues.map(_.emitType.paramType)
     val params =
-      bindingNames.flatMap(name => m(name).valueTuple()) ++ inputValues.flatMap(_.valueTuple())
+      bindingNames.flatMap(name => m(name).valueTuple) ++ inputValues.flatMap(_.valueTuple)
     val recreateFromMB = {
       (cb: EmitCodeBuilder, startIdx: Int) =>
         val emb = cb.emb
@@ -262,7 +263,7 @@ class EmitValue protected (missing: Option[Value[Boolean]], val v: SValue) {
 
   lazy val emitType: EmitType = EmitType(v.st, required)
 
-  def valueTuple(): IndexedSeq[Value[_]] = missing match {
+  def valueTuple: IndexedSeq[Value[_]] = missing match {
     case Some(m) => v.valueTuple :+ m
     case None => v.valueTuple
   }
@@ -538,7 +539,7 @@ object EmitCode {
 
   def apply(setup: Code[Unit], ec: EmitCode): EmitCode = {
     val Lstart = CodeLabel()
-    Code(Lstart, setup, ec.start.goto)
+    Code(Lstart, setup, ec.start.goto): Unit
     new EmitCode(Lstart, ec.iec)
   }
 
@@ -1295,7 +1296,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
         emitI(a).flatMap(cb) { case av: SIndexableValue =>
           emitI(i).flatMap(cb) { case ic: SInt32Value =>
             val iv = ic.value
-            cb.invokeVoid(boundsCheck, cb.this_, iv, av.loadLength(), const(errorID))
+            cb.invokeVoid(boundsCheck, cb.this_, iv, av.loadLength, const(errorID))
             av.loadElement(cb, iv)
           }
         }
@@ -1304,7 +1305,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
         emitI(a).flatMap(cb) { case arrayValue: SIndexableValue =>
           emitI(start).flatMap(cb) { startCode =>
             emitI(step).flatMap(cb) { stepCode =>
-              val arrayLength = arrayValue.loadLength()
+              val arrayLength = arrayValue.loadLength
               val realStep = cb.newLocal[Int]("array_slice_requestedStep", stepCode.asInt.value)
 
               cb.if_(
@@ -1383,7 +1384,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
         }
 
       case ArrayLen(a) =>
-        emitI(a).map(cb)(ac => primitive(ac.asIndexable.loadLength()))
+        emitI(a).map(cb)(ac => primitive(ac.asIndexable.loadLength))
 
       case GetField(o, name) =>
         emitI(o).flatMap(cb)(oc => oc.asBaseStruct.loadField(cb, name))
@@ -2915,12 +2916,12 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
               tmpRegion = mb.genFieldThisRef[Region]("streamfold_tmpregion")
               cb.assign(tmpRegion, Region.stagedCreate(Region.REGULAR, region.getPool()))
 
-              (accVars, acc).zipped.foreach { case (xAcc, (_, x)) =>
+              accVars.lazyZip(acc).foreach { case (xAcc, (_, x)) =>
                 cb.assign(xAcc, emitI(x, tmpRegion).map(cb)(_.castTo(cb, tmpRegion, xAcc.st)))
               }
             } else {
               cb.assign(producer.elementRegion, region)
-              (accVars, acc).zipped.foreach { case (xAcc, (_, x)) =>
+              accVars.lazyZip(acc).foreach { case (xAcc, (_, x)) =>
                 cb.assign(xAcc, emitI(x, region).map(cb)(_.castTo(cb, region, xAcc.st)))
               }
             }
@@ -2928,7 +2929,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
             producer.unmanagedConsume(cb, region) { cb =>
               cb.assign(xElt, producer.element)
               if (producer.requiresMemoryManagementPerElement) {
-                (accVars, seq).zipped.foreach { (accVar, ir) =>
+                accVars.lazyZip(seq).foreach { (accVar, ir) =>
                   cb.assign(
                     accVar,
                     emitI(ir, producer.elementRegion, env = seqEnv)
@@ -2941,7 +2942,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
                 cb.assign(producer.elementRegion, tmpRegion.load())
                 cb.assign(tmpRegion, swapRegion.load())
               } else {
-                (accVars, seq).zipped.foreach { (accVar, ir) =>
+                accVars.lazyZip(seq).foreach { (accVar, ir) =>
                   cb.assign(
                     accVar,
                     emitI(ir, producer.elementRegion, env = seqEnv)
@@ -3093,7 +3094,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
         )
 
         val argEnv = env
-          .bind((args.map(_._1), loopRef.loopArgs).zipped.toArray: _*)
+          .bind(args.map(_._1).lazyZip(loopRef.loopArgs).toArray: _*)
 
         val newLoopEnv = loopEnv.getOrElse(Env.empty)
 
@@ -3125,15 +3126,16 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
         val loopRef = loopEnv.get.lookup(name)
 
         // Need to emit into region 1, copy to region 2, then clear region 1, then swap them.
-        (loopRef.tmpLoopArgs, loopRef.loopTypes, args).zipped.map { case (tmpLoopArg, et, arg) =>
-          tmpLoopArg.store(
-            cb,
-            emitI(arg, loopEnv = None, region = loopRef.r1).map(cb)(_.copyToRegion(
+        (loopRef.tmpLoopArgs lazyZip loopRef.loopTypes lazyZip args).foreach {
+          case (tmpLoopArg, et, arg) =>
+            tmpLoopArg.store(
               cb,
-              loopRef.r2,
-              et.st,
-            )),
-          )
+              emitI(arg, loopEnv = None, region = loopRef.r1).map(cb)(_.copyToRegion(
+                cb,
+                loopRef.r2,
+                et.st,
+              )),
+            )
         }
 
         cb.append(loopRef.r1.clearRegion())
@@ -3310,83 +3312,80 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
           val stageName = cb.newLocal[String]("stagename")
           cb.assign(stageName, staticID)
 
-          val semhash = cb.newLocal[Option[SemanticHash.Type]](
-            "semhash",
-            Code.invokeScalaObject[Option[SemanticHash.Type]](
-              Option.getClass,
-              "empty",
-              Array(),
-              Array(),
-            ),
-          )
+          val rtx =
+            mb.getObject(ctx.executeContext.backend.runtimeContext(ctx.executeContext))
+
+          val encRes =
+            cb.newLocal[Array[Array[Byte]]]("encRes")
+
+          val dynV =
+            cb.newLocal[String]("dynamicId", "")
 
           emitI(dynamicID).consume(
             cb,
-            ctx.executeContext.irMetadata.nextHash.foreach { hash =>
-              cb.assign(
-                semhash,
-                Code.invokeScalaObject[Option[SemanticHash.Type]](
-                  SemanticHash.CodeGenSupport.getClass,
-                  "lift",
-                  Array(classOf[SemanticHash.Type]),
-                  Array(hash),
-                ),
-              )
-            },
-            { dynamicID =>
-              val dynV = dynamicID.asString.loadString(cb)
+            ifMissing = {},
+            ifPresent = { dynamicID =>
+              cb.assign(dynV, dynamicID.asString.loadString(cb))
               cb.assign(stageName, stageName.concat("|").concat(dynV))
-              ctx.executeContext.irMetadata.nextHash.foreach { staticHash =>
-                val dynamicHash =
-                  dynV.invoke[Array[Byte]]("getBytes")
-
-                val combined =
-                  Code.invokeScalaObject[SemanticHash.Type](
-                    SemanticHash.getClass,
-                    "extend",
-                    Array(classOf[SemanticHash.Type], classOf[Array[Byte]]),
-                    Array(staticHash, dynamicHash),
-                  )
-
-                cb.assign(
-                  semhash,
-                  Code.invokeScalaObject[Option[SemanticHash.Type]](
-                    SemanticHash.CodeGenSupport.getClass,
-                    "lift",
-                    Array(classOf[SemanticHash.Type]),
-                    Array(combined),
-                  ),
-                )
-              }
             },
           )
 
-          val encRes = cb.newLocal[Array[Array[Byte]]]("encRes")
           cb.assign(
             encRes,
-            backend.invoke[
-              BackendContext,
-              HailClassLoader,
-              FS,
-              String,
-              Array[Array[Byte]],
-              Array[Byte],
-              String,
-              Option[SemanticHash.Type],
-              Option[TableStageDependency],
-              Array[Array[Byte]],
-            ](
-              "collectDArray",
-              mb.getObject(ctx.executeContext.backend.backendContext(ctx.executeContext)),
-              mb.getHailClassLoader,
-              mb.getFS,
-              functionID,
-              ctxab.invoke[Array[Array[Byte]]]("result"),
-              baos.invoke[Array[Byte]]("toByteArray"),
-              stageName,
-              semhash,
-              mb.getObject(tsd),
-            ),
+            ctx.executeContext.irMetadata.nextHash match {
+              case Some(semhash) =>
+                val dynamicHash =
+                  dynV.invoke[Array[Byte]]("getBytes")
+
+                val combinedHash =
+                  cb.memoize(
+                    Code.invokeScalaObject[SemanticHash.Type](
+                      SemanticHash.getClass,
+                      "extend",
+                      Array(classOf[SemanticHash.Type], classOf[Array[Byte]]),
+                      Array(semhash, dynamicHash),
+                    )
+                  )
+
+                backend.invoke[
+                  DriverRuntimeContext,
+                  String,
+                  Array[Array[Byte]],
+                  Array[Byte],
+                  String,
+                  SemanticHash.Type,
+                  Option[TableStageDependency],
+                  Array[Array[Byte]],
+                ](
+                  "ccCollectDArray",
+                  rtx,
+                  functionID,
+                  ctxab.invoke[Array[Array[Byte]]]("result"),
+                  baos.invoke[Array[Byte]]("toByteArray"),
+                  stageName,
+                  combinedHash,
+                  mb.getObject(tsd),
+                )
+
+              case None =>
+                backend.invoke[
+                  DriverRuntimeContext,
+                  String,
+                  Array[Array[Byte]],
+                  Array[Byte],
+                  String,
+                  Option[TableStageDependency],
+                  Array[Array[Byte]],
+                ](
+                  "collectDArray",
+                  rtx,
+                  functionID,
+                  ctxab.invoke[Array[Array[Byte]]]("result"),
+                  baos.invoke[Array[Byte]]("toByteArray"),
+                  stageName,
+                  mb.getObject(tsd),
+                )
+            },
           )
 
           val len = cb.memoize(encRes.length())

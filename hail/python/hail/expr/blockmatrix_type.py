@@ -2,24 +2,30 @@ import pprint
 
 from hail.expr.types import dtype, hail_type
 from hail.typecheck import sequenceof, typecheck_method
-from hail.utils.java import jiterable_to_list
+
+
+def _matrix_shape_to_tensor_shape(n_rows: int, n_cols: int) -> tuple[list[int], bool]:
+    if n_rows == 1 and n_cols == 1:
+        return [], False
+    elif n_rows == 1:
+        return [n_cols], True
+    elif n_cols == 1:
+        return [n_rows], False
+    else:
+        return [n_rows, n_cols], False
 
 
 class tblockmatrix(object):
     __slots__ = 'block_size', 'element_type', 'is_row_vector', 'shape'
 
     @staticmethod
-    def _from_java(jtbm):
-        return tblockmatrix(
-            dtype(jtbm.elementType().toString()), jiterable_to_list(jtbm.shape()), jtbm.isRowVector(), jtbm.blockSize()
-        )
-
-    @staticmethod
     def _from_json(json):
+        shape, is_row_vector = _matrix_shape_to_tensor_shape(json['n_rows'], json['n_cols'])
+
         return tblockmatrix(
             element_type=dtype(json['element_type']),
-            shape=json['shape'],
-            is_row_vector=json['is_row_vector'],
+            shape=shape,
+            is_row_vector=is_row_vector,
             block_size=json['block_size'],
         )
 

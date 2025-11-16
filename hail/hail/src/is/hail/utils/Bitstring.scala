@@ -1,11 +1,13 @@
 package is.hail.utils
 
+import is.hail.utils.compat.immutable.ArraySeq
+
 import scala.collection.mutable
 
 object Bitstring {
   def apply(string: String): Bitstring = {
     assert(string.forall(c => c == '0' || c == '1'))
-    val bitstring = mutable.ArrayBuilder.make[Long]()
+    val bitstring = ArraySeq.newBuilder[Long]
     var pos: Int = 0
     while (string.length - pos > 64) {
       bitstring += java.lang.Long.parseUnsignedLong(string.slice(pos, pos + 64), 2)
@@ -39,7 +41,7 @@ case class Bitstring(contents: IndexedSeq[Long], bitsInLastWord: Int) {
       i += 1
     }
     result += ')'
-    result.result
+    result.result()
   }
 
   def ++(rhs: Bitstring): Bitstring = {

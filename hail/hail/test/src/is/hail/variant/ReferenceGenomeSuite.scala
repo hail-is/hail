@@ -10,12 +10,11 @@ import is.hail.utils._
 
 import htsjdk.samtools.reference.ReferenceSequenceFileFactory
 import org.scalacheck.Prop.forAll
-import org.scalatest
 import org.testng.annotations.Test
 
 class ReferenceGenomeSuite extends HailSuite {
 
-  @Test def testGRCh37(): scalatest.Assertion = {
+  @Test def testGRCh37(): Unit = {
     assert(ctx.references.contains(ReferenceGenome.GRCh37))
     val grch37 = ctx.references(ReferenceGenome.GRCh37)
 
@@ -31,7 +30,7 @@ class ReferenceGenomeSuite extends HailSuite {
     assert(!nonParXLocus.forall(grch37.inXPar) && !nonParYLocus.forall(grch37.inYPar))
   }
 
-  @Test def testGRCh38(): scalatest.Assertion = {
+  @Test def testGRCh38(): Unit = {
     assert(ctx.references.contains(ReferenceGenome.GRCh38))
     val grch38 = ctx.references(ReferenceGenome.GRCh38)
 
@@ -47,7 +46,7 @@ class ReferenceGenomeSuite extends HailSuite {
     assert(!nonParXLocus38.forall(grch38.inXPar) && !nonParYLocus38.forall(grch38.inYPar))
   }
 
-  @Test def testAssertions(): scalatest.Assertion = {
+  @Test def testAssertions(): Unit = {
     interceptFatal("Must have at least one contig in the reference genome.")(
       ReferenceGenome("test", Array.empty[String], Map.empty[String, Int])
     )
@@ -98,14 +97,14 @@ class ReferenceGenomeSuite extends HailSuite {
     ))
   }
 
-  @Test def testContigRemap(): scalatest.Assertion = {
+  @Test def testContigRemap(): Unit = {
     val mapping = Map("23" -> "foo")
     interceptFatal("have remapped contigs in reference genome")(
       ctx.references(ReferenceGenome.GRCh37).validateContigRemap(mapping)
     )
   }
 
-  @Test def testComparisonOps(): scalatest.Assertion = {
+  @Test def testComparisonOps(): Unit = {
     val rg = ctx.references(ReferenceGenome.GRCh37)
 
     // Test contigs
@@ -122,7 +121,7 @@ class ReferenceGenomeSuite extends HailSuite {
     assert(rg.compare("Y", "MT") < 0)
   }
 
-  @Test def testWriteToFile(): scalatest.Assertion = {
+  @Test def testWriteToFile(): Unit = {
     val tmpFile = ctx.createTmpPath("grWrite", "json")
 
     val rg = ctx.references(ReferenceGenome.GRCh37)
@@ -137,7 +136,7 @@ class ReferenceGenomeSuite extends HailSuite {
       (rg.parInput sameElements gr2.parInput))
   }
 
-  @Test def testFasta(): scalatest.Assertion = {
+  @Test def testFasta(): Unit = {
     val fastaFile = getTestResource("fake_reference.fasta")
     val fastaFileGzip = getTestResource("fake_reference.fasta.gz")
     val indexFile = getTestResource("fake_reference.fasta.fai")
@@ -162,8 +161,9 @@ class ReferenceGenomeSuite extends HailSuite {
         "cache gives same base as from file" |: forAll(genLocus(rg)) { l =>
           val contig = l.contig
           val pos = l.position
-          val expected = refReader.getSubsequenceAt(contig, pos, pos).getBaseString
-          val expectedGz = refReaderGz.getSubsequenceAt(contig, pos, pos).getBaseString
+          val expected = refReader.getSubsequenceAt(contig, pos.toLong, pos.toLong).getBaseString
+          val expectedGz =
+            refReaderGz.getSubsequenceAt(contig, pos.toLong, pos.toLong).getBaseString
           assert(expected == expectedGz, "wat: fasta files don't have the same data")
           fr.lookup(contig, pos, 0, 0) == expected && frGzip.lookup(contig, pos, 0, 0) == expectedGz
         }
@@ -185,7 +185,11 @@ class ReferenceGenomeSuite extends HailSuite {
               while (ordering.lteq(pos, end) && pos != null) {
                 val endPos =
                   if (pos.contig != end.contig) rg.contigLength(pos.contig) else end.position
-                sb ++= refReader.getSubsequenceAt(pos.contig, pos.position, endPos).getBaseString
+                sb ++= refReader.getSubsequenceAt(
+                  pos.contig,
+                  pos.position.toLong,
+                  endPos.toLong,
+                ).getBaseString
                 pos =
                   if (rg.contigsIndex.get(pos.contig) == rg.contigs.length - 1)
                     null
@@ -225,7 +229,7 @@ class ReferenceGenomeSuite extends HailSuite {
     }
   }
 
-  @Test def testSerializeOnFB(): scalatest.Assertion = {
+  @Test def testSerializeOnFB(): Unit = {
     val grch38 = ctx.references(ReferenceGenome.GRCh38)
     val fb = EmitFunctionBuilder[String, Boolean](ctx, "serialize_rg")
     val rgfield = fb.getReferenceGenome(grch38.name)
@@ -236,7 +240,7 @@ class ReferenceGenomeSuite extends HailSuite {
     }
   }
 
-  @Test def testSerializeWithLiftoverOnFB(): scalatest.Assertion =
+  @Test def testSerializeWithLiftoverOnFB(): Unit =
     ctx.local(references = ReferenceGenome.builtinReferences()) { ctx =>
       val grch37 = ctx.references(ReferenceGenome.GRCh37)
       val liftoverFile = getTestResource("grch37_to_grch38_chr20.over.chain.gz")

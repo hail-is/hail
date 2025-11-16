@@ -1010,6 +1010,43 @@ def dchisq(x, df, ncp=None, log_p=False) -> Float64Expression:
         return _func("dnchisq", tfloat64, x, df, ncp, log_p)
 
 
+@typecheck(x=expr_float64, shape=expr_float64, scale=expr_float64, log_p=expr_bool)
+def dgamma(x, shape, scale, log_p=False) -> Float64Expression:
+    """The probability density function of a gamma distribution with shape parameter
+    `shape` and scale parameter `scale`.
+
+    Examples
+    --------
+
+    >>> hl.eval(hl.dgamma(1.0, 2.0, 1.0))
+    0.3678794411714424
+
+    >>> hl.eval(hl.dgamma(2.0, 1.0, 2.0))
+    0.18393972058572117
+
+    Notes
+    -----
+    Returns probability density at `x` for a gamma random variable with shape
+    parameter `shape` and scale parameter `scale`.
+
+    Parameters
+    ----------
+    x : float or :class:`.Expression` of type :py:data:`.tfloat64`
+        Value at which to evaluate the PDF.
+    shape : float or :class:`.Expression` of type :py:data:`.tfloat64`
+        Shape parameter.
+    scale : float or :class:`.Expression` of type :py:data:`.tfloat64`
+        Scale parameter.
+    log_p : bool or :class:`.BooleanExpression`
+        If True, return log probability density.
+
+    Returns
+    -------
+    :class:`.Expression` of type :py:data:`.tfloat64`
+    """
+    return _func("dgamma", tfloat64, x, shape, scale, log_p)
+
+
 @typecheck(x=expr_float64, mu=expr_float64, sigma=expr_float64, log_p=expr_bool)
 def dnorm(x, mu=0, sigma=1, log_p=False) -> Float64Expression:
     """Compute the probability density at `x` of a normal distribution with mean
@@ -2500,6 +2537,45 @@ def pgenchisq(x, w, k, lam, mu, sigma, *, max_iterations=None, min_accuracy=None
     return _func("pgenchisq", PGENCHISQ_RETURN_TYPE, x - mu, w, k, lam, sigma, max_iterations, min_accuracy)
 
 
+@typecheck(x=expr_float64, shape=expr_float64, scale=expr_float64, lower_tail=expr_bool, log_p=expr_bool)
+def pgamma(x, shape, scale, lower_tail=True, log_p=False) -> Float64Expression:
+    """The cumulative distribution function of a gamma distribution with shape parameter
+    `shape` and scale parameter `scale`.
+
+    Examples
+    --------
+
+    >>> hl.eval(hl.pgamma(1.0, 2.0, 1.0))
+    0.26424111765711533
+
+    >>> hl.eval(hl.pgamma(2.0, 1.0, 2.0))
+    0.6321205588285577
+
+    Notes
+    -----
+    Returns cumulative probability p = Prob(X < x) with X a gamma random variable
+    with shape parameter `shape` and scale parameter `scale`.
+
+    Parameters
+    ----------
+    x : float or :class:`.Expression` of type :py:data:`.tfloat64`
+        Value at which to evaluate the CDF.
+    shape : float or :class:`.Expression` of type :py:data:`.tfloat64`
+        Shape parameter.
+    scale : float or :class:`.Expression` of type :py:data:`.tfloat64`
+        Scale parameter.
+    lower_tail : bool or :class:`.BooleanExpression`
+        If True, return Prob(X < x). If False, return Prob(X > x).
+    log_p : bool or :class:`.BooleanExpression`
+        If True, return log probability.
+
+    Returns
+    -------
+    :class:`.Expression` of type :py:data:`.tfloat64`
+    """
+    return _func("pgamma", tfloat64, x, shape, scale, lower_tail, log_p)
+
+
 @typecheck(x=expr_float64, mu=expr_float64, sigma=expr_float64, lower_tail=expr_bool, log_p=expr_bool)
 def pnorm(x, mu=0, sigma=1, lower_tail=True, log_p=False) -> Float64Expression:
     """The cumulative probability function of a normal distribution with mean
@@ -2751,6 +2827,45 @@ def qchisqtail(p, df, ncp=None, lower_tail=False, log_p=False) -> Float64Express
         return _func("qchisqtail", tfloat64, p, df, lower_tail, log_p)
     else:
         return _func("qnchisqtail", tfloat64, p, df, ncp, lower_tail, log_p)
+
+
+@typecheck(p=expr_float64, shape=expr_float64, scale=expr_float64, lower_tail=expr_bool, log_p=expr_bool)
+def qgamma(p, shape, scale, lower_tail=True, log_p=False) -> Float64Expression:
+    """The quantile function of a gamma distribution with shape parameter `shape` and
+    scale parameter `scale`.
+
+    Examples
+    --------
+
+    >>> hl.eval(hl.qgamma(0.5, 2.0, 1.0))
+    1.6783469900166605
+
+    >>> hl.eval(hl.qgamma(0.95, 1.0, 2.0))
+    5.99146454710798
+
+    Notes
+    -----
+    Returns quantile `x` for which p = Prob(X < x) with X a gamma random variable
+    with shape parameter `shape` and scale parameter `scale`.
+
+    Parameters
+    ----------
+    p : float or :class:`.Expression` of type :py:data:`.tfloat64`
+        Probability.
+    shape : float or :class:`.Expression` of type :py:data:`.tfloat64`
+        Shape parameter.
+    scale : float or :class:`.Expression` of type :py:data:`.tfloat64`
+        Scale parameter.
+    lower_tail : bool or :class:`.BooleanExpression`
+        If True, return Prob(X < x). If False, return Prob(X > x).
+    log_p : bool or :class:`.BooleanExpression`
+        If True, return log probability.
+
+    Returns
+    -------
+    :class:`.Expression` of type :py:data:`.tfloat64`
+    """
+    return _func("qgamma", tfloat64, p, shape, scale, lower_tail, log_p)
 
 
 @typecheck(p=expr_float64, mu=expr_float64, sigma=expr_float64, lower_tail=expr_bool, log_p=expr_bool)

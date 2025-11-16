@@ -14,11 +14,11 @@ import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.Locus
 
+import scala.collection.compat._
+
 import org.apache.spark.sql.Row
-import org.scalatest
 import org.scalatest.{Failed, Succeeded}
 import org.scalatest.Inspectors.forAll
-import org.scalatest.enablers.InspectorAsserting.assertingNatureOfAssertion
 import org.testng.annotations.{DataProvider, Test}
 
 class TableIRSuite extends HailSuite {
@@ -26,7 +26,7 @@ class TableIRSuite extends HailSuite {
   implicit val execStrats: Set[ExecStrategy] =
     Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.LoweredJVMCompile)
 
-  @Test def testRangeCount(): scalatest.Assertion = {
+  @Test def testRangeCount(): Unit = {
     val node1 = TableCount(TableRange(10, 2))
     val node2 = TableCount(TableRange(15, 5))
     val node = ApplyBinaryPrimOp(Add(), node1, node2)
@@ -35,14 +35,14 @@ class TableIRSuite extends HailSuite {
     assertEvalsTo(node, 25L)
   }
 
-  @Test def testForceCount(): scalatest.Assertion = {
+  @Test def testForceCount(): Unit = {
     implicit val execStrats = ExecStrategy.interpretOnly
     val tableRangeSize = Int.MaxValue / 20
     val forceCountRange = TableToValueApply(TableRange(tableRangeSize, 2), ForceCountTable())
     assertEvalsTo(forceCountRange, tableRangeSize.toLong)
   }
 
-  @Test def testRangeRead(): scalatest.Assertion = {
+  @Test def testRangeRead(): Unit = {
     implicit val execStrats = ExecStrategy.lowering
     val original = TableKeyBy(
       TableMapGlobals(TableRange(10, 3), MakeStruct(FastSeq("foo" -> I32(57)))),
@@ -59,20 +59,20 @@ class TableIRSuite extends HailSuite {
       (partSize, partIndex) <- partition(10, 3).zipWithIndex
       i <- 0 until partSize
     } yield Row(partIndex.toLong, i.toLong)
-    val expectedRows = (0 until 10, uids).zipped.map((i, uid) => Row(i, uid))
+    val expectedRows = (0 until 10).lazyZip(uids).map((i, uid) => Row(i, uid))
     val expectedGlobals = Row(57)
 
     assertEvalsTo(TableCollect(read), Row(expectedRows, expectedGlobals))
     assertEvalsTo(TableCollect(droppedRows), Row(FastSeq(), expectedGlobals))
   }
 
-  @Test def testCountRead(): scalatest.Assertion = {
+  @Test def testCountRead(): Unit = {
     implicit val execStrats = ExecStrategy.lowering
     val tir: TableIR = TableRead.native(fs, getTestResource("three_key.ht"))
     assertEvalsTo(TableCount(tir), 120L)
   }
 
-  @Test def testRangeCollect(): scalatest.Assertion = {
+  @Test def testRangeCollect(): Unit = {
     implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized)
     val t = TableRange(10, 2)
     val row = Ref(TableIR.rowName, t.typ.rowType)
@@ -81,7 +81,7 @@ class TableIRSuite extends HailSuite {
     assertEvalsTo(node, Row(Array.tabulate(10)(i => Row(i, i)).toFastSeq, Row()))
   }
 
-  @Test def testNestedRangeCollect(): scalatest.Assertion = {
+  @Test def testNestedRangeCollect(): Unit = {
     implicit val execStrats = ExecStrategy.allRelational
 
     val r = TableRange(2, 2)
@@ -103,7 +103,7 @@ class TableIRSuite extends HailSuite {
     )
   }
 
-  @Test def testRangeSum(): scalatest.Assertion = {
+  @Test def testRangeSum(): Unit = {
     implicit val execStrats = ExecStrategy.interpretOnly
     val t = TableRange(10, 2)
     val row = Ref(TableIR.rowName, t.typ.rowType)
@@ -120,7 +120,7 @@ class TableIRSuite extends HailSuite {
     )
   }
 
-  @Test def testGetGlobals(): scalatest.Assertion = {
+  @Test def testGetGlobals(): Unit = {
     implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized)
     val t = TableRange(10, 2)
     val newGlobals =
@@ -129,7 +129,7 @@ class TableIRSuite extends HailSuite {
     assertEvalsTo(node, Row(Row(Array.tabulate(10)(i => Row(i)).toFastSeq, Row())))
   }
 
-  @Test def testCollectGlobals(): scalatest.Assertion = {
+  @Test def testCollectGlobals(): Unit = {
     implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized)
     val t = TableRange(10, 2)
     val newGlobals =
@@ -148,7 +148,7 @@ class TableIRSuite extends HailSuite {
     assertEvalsTo(collect(node), Row(expected, Row(collectedT)))
   }
 
-  @Test def testRangeExplode(): scalatest.Assertion = {
+  @Test def testRangeExplode(): Unit = {
     implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized)
     val t = TableRange(10, 2)
     val row = Ref(TableIR.rowName, t.typ.rowType)
@@ -175,7 +175,7 @@ class TableIRSuite extends HailSuite {
     assertEvalsTo(collect(node2), Row(expected2, Row()))
   }
 
-  @Test def testFilter(): scalatest.Assertion = {
+  @Test def testFilter(): Unit = {
     implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized)
     val t = TableRange(10, 2)
     val node = TableFilter(
@@ -195,14 +195,14 @@ class TableIRSuite extends HailSuite {
     assertEvalsTo(collect(node), Row(expected, Row(4)))
   }
 
-  @Test def testFilterIntervals(): scalatest.Assertion = {
+  @Test def testFilterIntervals(): Unit = {
     implicit val execStrats = ExecStrategy.allRelational
 
     def assertFilterIntervals(
       intervals: IndexedSeq[Interval],
       keep: Boolean,
       expected: IndexedSeq[Int],
-    ): scalatest.Assertion = {
+    ): Unit = {
       var t: TableIR = TableRange(10, 5)
       t = TableFilterIntervals(
         t,
@@ -263,7 +263,7 @@ class TableIRSuite extends HailSuite {
     )
   }
 
-  @Test def testTableMapWithLiterals(): scalatest.Assertion = {
+  @Test def testTableMapWithLiterals(): Unit = {
     implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized)
     val t = TableRange(10, 2)
     val node = TableMapRows(
@@ -281,7 +281,7 @@ class TableIRSuite extends HailSuite {
     assertEvalsTo(collect(node), Row(expected, Row()))
   }
 
-  @Test def testScanCountBehavesLikeIndex(): scalatest.Assertion = {
+  @Test def testScanCountBehavesLikeIndex(): Unit = {
     implicit val execStrats = ExecStrategy.interpretOnly
     val t = rangeKT
     val oldRow = Ref(TableIR.rowName, t.typ.rowType)
@@ -298,7 +298,7 @@ class TableIRSuite extends HailSuite {
     )
   }
 
-  @Test def testScanCollectBehavesLikeRange(): scalatest.Assertion = {
+  @Test def testScanCollectBehavesLikeRange(): Unit = {
     implicit val execStrats = ExecStrategy.interpretOnly
     val t = rangeKT
     val oldRow = Ref(TableIR.rowName, t.typ.rowType)
@@ -560,7 +560,7 @@ class TableIRSuite extends HailSuite {
     pred: Row => Boolean,
     leftProject: Set[Int],
     rightProject: Set[Int],
-  ): scalatest.Assertion = {
+  ): Unit = {
     val (leftType, leftProjectF) = rowType.filter(f => !leftProject.contains(f.index))
     val left = TableKeyBy(
       TableParallelize(
@@ -614,7 +614,7 @@ class TableIRSuite extends HailSuite {
     } yield Array[Any](lParts, rParts)
 
   @Test(dataProvider = "union")
-  def testTableUnion(lParts: Int, rParts: Int): scalatest.Assertion = {
+  def testTableUnion(lParts: Int, rParts: Int): Unit = {
     val left = TableKeyBy(
       TableParallelize(
         Literal(
@@ -643,7 +643,7 @@ class TableIRSuite extends HailSuite {
   }
 
   @Test(dataProvider = "union")
-  def testTableMultiWayZipJoin(lParts: Int, rParts: Int): scalatest.Assertion = {
+  def testTableMultiWayZipJoin(lParts: Int, rParts: Int): Unit = {
     implicit val execStrats = Set(ExecStrategy.LoweredJVMCompile)
     val left = TableKeyBy(
       TableParallelize(
@@ -673,7 +673,7 @@ class TableIRSuite extends HailSuite {
   }
 
   // Catches a bug in the partitioner created by the importer.
-  @Test def testTableJoinOfImport(): scalatest.Assertion = {
+  @Test def testTableJoinOfImport(): Unit = {
     val mnr = MatrixNativeReader(fs, getTestResource("sample.vcf.mt"))
     val mt2 = MatrixRead(mnr.fullMatrixType, false, false, mnr)
     val t2 = MatrixRowsTable(mt2)
@@ -687,12 +687,12 @@ class TableIRSuite extends HailSuite {
     assertEvalsTo(TableCount(join), 346L)
   }
 
-  @Test def testNativeReaderWithOverlappingPartitions(): scalatest.Assertion = {
+  @Test def testNativeReaderWithOverlappingPartitions(): Unit = {
     val path = getTestResource("sample.vcf-20-partitions-with-overlap.mt/rows")
     // i1 overlaps the first two partitions
     val i1 = Interval(Row(Locus("20", 10200000)), Row(Locus("20", 10500000)), true, true)
 
-    def test(filterIntervals: Boolean, expectedNParts: Int): scalatest.Assertion = {
+    def test(filterIntervals: Boolean, expectedNParts: Int): Unit = {
       val opts = NativeReaderOptions(FastSeq(i1), TLocus("GRCh37"), filterIntervals)
       val tr = TableNativeReader(fs, TableNativeReaderParameters(path, Some(opts)))
       val tir = TableRead(tr.fullTypeWithoutUIDs, false, tr)
@@ -706,7 +706,7 @@ class TableIRSuite extends HailSuite {
     test(true, 2)
   }
 
-  @Test def testTableKeyBy(): scalatest.Assertion = {
+  @Test def testTableKeyBy(): Unit = {
     implicit val execStrats = ExecStrategy.interpretOnly
     val data = Array(Array("A", 1), Array("A", 2), Array("B", 1))
     val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
@@ -729,7 +729,7 @@ class TableIRSuite extends HailSuite {
     assertEvalsTo(distinctCount, 2L)
   }
 
-  @Test def testTableKeyByLowering(): scalatest.Assertion = {
+  @Test def testTableKeyByLowering(): Unit = {
     implicit val execStrats = ExecStrategy.lowering
     val t = TStruct(
       "rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)),
@@ -744,7 +744,7 @@ class TableIRSuite extends HailSuite {
     assertEvalsTo(TableCount(keyed), length.toLong)
   }
 
-  @Test def testTableParallelize(): scalatest.Assertion = {
+  @Test def testTableParallelize(): Unit = {
     implicit val execStrats = ExecStrategy.allRelational
     val t = TStruct(
       "rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)),
@@ -766,7 +766,7 @@ class TableIRSuite extends HailSuite {
     }
   }
 
-  @Test def testTableParallelizeCount(): scalatest.Assertion = {
+  @Test def testTableParallelizeCount(): Unit = {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.allRelational
     val t = TStruct(
       "rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)),
@@ -787,7 +787,7 @@ class TableIRSuite extends HailSuite {
     )
   }
 
-  @Test def testTableHead(): scalatest.Assertion = {
+  @Test def testTableHead(): Unit = {
     val t = TStruct(
       "rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)),
       "global" -> TStruct("x" -> TString),
@@ -809,7 +809,7 @@ class TableIRSuite extends HailSuite {
                 Literal(t, initialData),
                 Some(howManyInitialPartitions),
               ),
-              howManyRowsToTake,
+              howManyRowsToTake.toLong,
             )
           ),
           headData,
@@ -818,7 +818,7 @@ class TableIRSuite extends HailSuite {
     }
   }
 
-  @Test def testTableTail(): scalatest.Assertion = {
+  @Test def testTableTail(): Unit = {
     val t = TStruct(
       "rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)),
       "global" -> TStruct("x" -> TString),
@@ -845,7 +845,7 @@ class TableIRSuite extends HailSuite {
                 Literal(t, initialData),
                 Some(howManyInitialPartitions),
               ),
-              howManyRowsToTake,
+              howManyRowsToTake.toLong,
             )
           ),
           headData,
@@ -854,7 +854,7 @@ class TableIRSuite extends HailSuite {
     }
   }
 
-  @Test def testShuffleAndJoinDoesntMemoryLeak(): scalatest.Assertion = {
+  @Test def testShuffleAndJoinDoesntMemoryLeak(): Unit = {
     implicit val execStrats = Set(ExecStrategy.LoweredJVMCompile, ExecStrategy.Interpret)
     val row = Ref(TableIR.rowName, TStruct("idx" -> TInt32))
     val t1 = TableRename(TableRange(1, 1), Map("idx" -> "idx_"), Map.empty)
@@ -870,7 +870,7 @@ class TableIRSuite extends HailSuite {
     assertEvalsTo(TableCount(TableJoin(t1, t2, "left")), 1L)
   }
 
-  @Test def testTableRename(): scalatest.Assertion = {
+  @Test def testTableRename(): Unit = {
     implicit val execStrats = ExecStrategy.lowering
     val t = TStruct(
       "rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)),
@@ -912,7 +912,7 @@ class TableIRSuite extends HailSuite {
     )
   }
 
-  @Test def testTableMapGlobals(): scalatest.Assertion = {
+  @Test def testTableMapGlobals(): Unit = {
     val t = TStruct(
       "rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)),
       "global" -> TStruct("x" -> TString),
@@ -945,19 +945,19 @@ class TableIRSuite extends HailSuite {
     )
   }
 
-  @Test def testTableWrite(): scalatest.Assertion = {
+  @Test def testTableWrite(): Unit = {
     val table = TableRange(5, 4)
     val path = ctx.createTmpPath("test-table-write", "ht")
     Interpret[Unit](ctx, TableWrite(table, TableNativeWriter(path)))
     val before = ExecuteRelational(ctx, table).asTableValue(ctx)
     val read = TableIR.read(fs, path, requestedType = Some(table.typ))
     assert(read.isDistinctlyKeyed)
-    val after = Interpret(read, ctx, false)
+    val after = unoptimized(Interpret(read, _))
     assert(before.globals.javaValue == after.globals.javaValue)
     assert(before.rdd.collect().toFastSeq == after.rdd.collect().toFastSeq)
   }
 
-  @Test def testWriteKeyDistinctness(): scalatest.Assertion = {
+  @Test def testWriteKeyDistinctness(): Unit = {
     val rt = TableRange(40, 4)
     val idxRef = GetField(Ref(TableIR.rowName, rt.typ.rowType), "idx")
     val at = TableMapRows(
@@ -1008,7 +1008,7 @@ class TableIRSuite extends HailSuite {
     assert(!readTwoMissing.isDistinctlyKeyed)
   }
 
-  @Test def testPartitionCountsWithDropRows(): scalatest.Assertion = {
+  @Test def testPartitionCountsWithDropRows(): Unit = {
     val tr = new FakeTableReader {
       override def pathsUsed: Seq[String] = Seq.empty
       override def partitionCounts: Option[IndexedSeq[Long]] = Some(FastSeq(1, 2, 3, 4))
@@ -1018,7 +1018,7 @@ class TableIRSuite extends HailSuite {
     assert(PartitionCounts(tir).forall(_.sum == 0))
   }
 
-  @Test def testScanInAggInMapRows(): scalatest.Assertion = {
+  @Test def testScanInAggInMapRows(): Unit = {
     implicit val execStrats = ExecStrategy.interpretOnly
     var tr: TableIR = TableRange(10, 3)
     tr = TableKeyBy(tr, FastSeq(), false)
@@ -1048,7 +1048,7 @@ class TableIRSuite extends HailSuite {
     )
   }
 
-  @Test def testScanInAggInScanInMapRows(): scalatest.Assertion = {
+  @Test def testScanInAggInScanInMapRows(): Unit = {
     implicit val execStrats = ExecStrategy.interpretOnly
     var tr: TableIR = TableRange(10, 3)
     tr = TableKeyBy(tr, FastSeq(), false)
@@ -1081,7 +1081,7 @@ class TableIRSuite extends HailSuite {
     )
   }
 
-  @Test def testTableAggregateByKey(): scalatest.Assertion = {
+  @Test def testTableAggregateByKey(): Unit = {
     implicit val execStrats = ExecStrategy.allRelational
     var tir: TableIR = TableRead.native(fs, getTestResource("three_key.ht"))
     tir = TableKeyBy(tir, FastSeq("x", "y"), true)
@@ -1104,7 +1104,7 @@ class TableIRSuite extends HailSuite {
     )
   }
 
-  @Test def testTableDistinct(): scalatest.Assertion = {
+  @Test def testTableDistinct(): Unit = {
     val tir: TableIR = TableRead.native(fs, getTestResource("three_key.ht"))
     val keyedByX = TableKeyBy(tir, FastSeq("x"), true)
     val distinctByX = TableDistinct(keyedByX)
@@ -1119,7 +1119,7 @@ class TableIRSuite extends HailSuite {
     assertEvalsTo(TableCount(distinctByAll), 120L)
   }
 
-  @Test def testRangeOrderByDescending(): scalatest.Assertion = {
+  @Test def testRangeOrderByDescending(): Unit = {
     var tir: TableIR = TableRange(10, 3)
     tir = TableOrderBy(tir, FastSeq(SortField("idx", Descending)))
     val x = GetField(TableCollect(tir), "rows")
@@ -1127,7 +1127,7 @@ class TableIRSuite extends HailSuite {
     assertEvalsTo(x, (0 until 10).reverse.map(i => Row(i)))(ExecStrategy.allRelational)
   }
 
-  @Test def testTableLeftJoinRightDistinctRangeTables(): scalatest.Assertion = {
+  @Test def testTableLeftJoinRightDistinctRangeTables(): Unit = {
     forAll(IndexedSeq((1, 1), (3, 2), (10, 5), (5, 10))) { case (nParts1, nParts2) =>
       val rangeTable1 = TableRange(10, nParts1)
       var rangeTable2: TableIR = TableRange(5, nParts2)
@@ -1147,7 +1147,7 @@ class TableIRSuite extends HailSuite {
     }
   }
 
-  @Test def testNestedStreamInTable(): scalatest.Assertion = {
+  @Test def testNestedStreamInTable(): Unit = {
     var tir: TableIR = TableRange(1, 1)
     var ir: IR = rangeIR(5)
     ir = StreamGrouped(ir, 2)
@@ -1190,7 +1190,7 @@ class TableIRSuite extends HailSuite {
   val table2KeyedByA = TableKeyBy(table2, IndexedSeq("a2"))
   val joinedParKeyedByA = TableLeftJoinRightDistinct(table1KeyedByA, table2KeyedByA, "joinRoot")
 
-  @Test def testTableLeftJoinRightDistinctParallelizeSameKey(): scalatest.Assertion = {
+  @Test def testTableLeftJoinRightDistinctParallelizeSameKey(): Unit = {
     assertEvalsTo(TableCount(table1KeyedByA), parTable1Length.toLong)
     assertEvalsTo(TableCount(table2KeyedByA), parTable2Length.toLong)
 
@@ -1206,7 +1206,7 @@ class TableIRSuite extends HailSuite {
     )
   }
 
-  @Test def testTableLeftJoinRightDistinctParallelizePrefixKey(): scalatest.Assertion = {
+  @Test def testTableLeftJoinRightDistinctParallelizePrefixKey(): Unit = {
     val table1KeyedByAAndB = TableKeyBy(table1, IndexedSeq("a1", "b1"))
     val joinedParKeyedByAAndB =
       TableLeftJoinRightDistinct(table1KeyedByAAndB, table2KeyedByA, "joinRoot")
@@ -1223,7 +1223,7 @@ class TableIRSuite extends HailSuite {
     )
   }
 
-  @Test def testTableIntervalJoin(): scalatest.Assertion = {
+  @Test def testTableIntervalJoin(): Unit = {
     val intervals: IndexedSeq[Interval] =
       for {
         (start, end, includesStart, includesEnd) <- FastSeq(
@@ -1282,7 +1282,7 @@ class TableIRSuite extends HailSuite {
     )
   }
 
-  @Test def testTableKeyByAndAggregate(): scalatest.Assertion = {
+  @Test def testTableKeyByAndAggregate(): Unit = {
     val tir: TableIR = TableRead.native(fs, getTestResource("three_key.ht"))
     val unkeyed = TableKeyBy(tir, IndexedSeq[String]())
     val rowRef = Ref(TableIR.rowName, unkeyed.typ.rowType)
@@ -1362,7 +1362,7 @@ class TableIRSuite extends HailSuite {
     )
   }
 
-  @Test def testTableAggregateCollectAndTake(): scalatest.Assertion = {
+  @Test def testTableAggregateCollectAndTake(): Unit = {
     implicit val execStrats = ExecStrategy.allRelational
     var tir: TableIR = TableRange(10, 3)
     tir =
@@ -1387,7 +1387,7 @@ class TableIRSuite extends HailSuite {
     )
   }
 
-  @Test def testNDArrayMultiplyAddAggregator(): scalatest.Assertion = {
+  @Test def testNDArrayMultiplyAddAggregator(): Unit = {
     implicit val execStrats = ExecStrategy.allRelational
     var tir: TableIR = TableRange(6, 3)
     val nDArray1 = Literal(
@@ -1415,7 +1415,7 @@ class TableIRSuite extends HailSuite {
     assertEvalsTo(x, SafeNDArray(Vector(2, 2), IndexedSeq(24.0, 24.0, 24.0, 24.0)))
   }
 
-  @Test def testTableScanCollect(): scalatest.Assertion = {
+  @Test def testTableScanCollect(): Unit = {
     implicit val execStrats = ExecStrategy.allRelational
     var tir: TableIR = TableRange(5, 3)
     tir = TableMapRows(
@@ -1442,7 +1442,7 @@ class TableIRSuite extends HailSuite {
     )
   }
 
-  @Test def testIssue9016(): scalatest.Assertion = {
+  @Test def testIssue9016(): Unit = {
     val rows =
       mapIR(ToStream(MakeArray(makestruct("a" -> MakeTuple.ordered(FastSeq(I32(0), I32(1))))))) {
         row =>
@@ -1463,7 +1463,7 @@ class TableIRSuite extends HailSuite {
     assertEvalsTo(TableCollect(table), Row(FastSeq(Row(Row(1))), Row()))
   }
 
-  @Test def testTableNativeZippedReaderWithPrefixKey(): scalatest.Assertion = {
+  @Test def testTableNativeZippedReaderWithPrefixKey(): Unit = {
     /* This test is important because it tests that we can handle lowering with a
      * TableNativeZippedReader when elements of the original key get pruned away (so I copy key to
      * only be "locus" instead of "locus", "alleles") */
@@ -1487,11 +1487,10 @@ class TableIRSuite extends HailSuite {
     )
     val optimized = Optimize(ctx, irToLower)
     val analyses = LoweringAnalyses.apply(optimized, ctx)
-    LowerTableIR(optimized, DArrayLowering.All, ctx, analyses)
-    scalatest.Succeeded
+    LowerTableIR(optimized, DArrayLowering.All, ctx, analyses): Unit
   }
 
-  @Test def testTableMapPartitions(): scalatest.Assertion = {
+  @Test def testTableMapPartitions(): Unit = {
 
     val table =
       TableKeyBy(
@@ -1559,7 +1558,7 @@ class TableIRSuite extends HailSuite {
     )
   }
 
-  @Test def testRepartitionCostEstimate(): scalatest.Assertion = {
+  @Test def testRepartitionCostEstimate(): Unit = {
     val empty = RVDPartitioner.empty(ctx.stateManager, TStruct(Array.empty[Field]))
     val some = RVDPartitioner.unkeyed(ctx.stateManager, _)
 
@@ -1588,7 +1587,7 @@ class TableIRSuite extends HailSuite {
 
     forAll(data) { case (a, b, t, f) =>
       (if (LowerTableIR.isRepartitioningCheap(a, b)) t else f).toSucceeded.asInstanceOf[
-        scalatest.Assertion
+        Unit
       ]
     }
   }

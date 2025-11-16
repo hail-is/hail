@@ -10,12 +10,46 @@ resources:
     header:
       key: X-Real-IP
       value: '%DOWNSTREAM_REMOTE_ADDRESS%'
+  response_headers_to_add:
+  - append_action: OVERWRITE_IF_EXISTS_OR_ADD
+    header:
+      key: Strict-Transport-Security
+      value: 'max-age=63072000; includeSubDomains;'
+  - append_action: OVERWRITE_IF_EXISTS_OR_ADD
+    header:
+      key: X-Content-Type-Options
+      value: nosniff
   virtual_hosts:
     - '@type': type.googleapis.com/envoy.config.route.v3.VirtualHost
       domains:
       - foo.hail.is
       name: foo
       routes:
+      - match:
+          prefix: /metrics
+        route:
+          append_x_forwarded_host: true
+          auto_host_rewrite: true
+          cluster: foo
+          timeout: 0s
+        typed_per_filter_config:
+          envoy.filters.http.local_ratelimit:
+            '@type': type.googleapis.com/envoy.extensions.filters.http.local_ratelimit.v3.LocalRateLimit
+            filter_enabled:
+              default_value:
+                denominator: HUNDRED
+                numerator: 100
+              runtime_key: local_rate_limit_enabled
+            filter_enforced:
+              default_value:
+                denominator: HUNDRED
+                numerator: 100
+              runtime_key: local_rate_limit_enabled
+            stat_prefix: http_local_rate_limiter
+            token_bucket:
+              fill_interval: 1s
+              max_tokens: 200
+              tokens_per_fill: 200
       - match:
           prefix: /
         route:
@@ -50,6 +84,31 @@ resources:
       - hail.is
       name: www
       routes:
+      - match:
+          prefix: /metrics
+        route:
+          append_x_forwarded_host: true
+          auto_host_rewrite: true
+          cluster: www
+          timeout: 0s
+        typed_per_filter_config:
+          envoy.filters.http.local_ratelimit:
+            '@type': type.googleapis.com/envoy.extensions.filters.http.local_ratelimit.v3.LocalRateLimit
+            filter_enabled:
+              default_value:
+                denominator: HUNDRED
+                numerator: 100
+              runtime_key: local_rate_limit_enabled
+            filter_enforced:
+              default_value:
+                denominator: HUNDRED
+                numerator: 100
+              runtime_key: local_rate_limit_enabled
+            stat_prefix: http_local_rate_limiter
+            token_bucket:
+              fill_interval: 1s
+              max_tokens: 200
+              tokens_per_fill: 200
       - match:
           prefix: /
         route:

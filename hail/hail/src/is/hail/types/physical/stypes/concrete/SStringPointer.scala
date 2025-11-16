@@ -55,8 +55,8 @@ class SStringPointerValue(val st: SStringPointer, val a: Value[Long]) extends SS
 
   override lazy val valueTuple: IndexedSeq[Value[_]] = FastSeq(a)
 
-  def binaryRepr(): SBinaryPointerValue =
-    new SBinaryPointerValue(SBinaryPointer(st.pType.binaryRepresentation), a)
+  def binaryRepr: SBinaryPointerValue =
+    new SBinaryPointerValue(SBinaryPointer(pt.binaryRepresentation), a)
 
   def loadLength(cb: EmitCodeBuilder): Value[Int] =
     cb.memoize(pt.loadLength(a))
@@ -65,10 +65,10 @@ class SStringPointerValue(val st: SStringPointer, val a: Value[Long]) extends SS
     cb.memoize(pt.loadString(a))
 
   def toBytes(cb: EmitCodeBuilder): SBinaryPointerValue =
-    new SBinaryPointerValue(SBinaryPointer(pt.binaryRepresentation), a)
+    binaryRepr
 
   override def sizeToStoreInBytes(cb: EmitCodeBuilder): SInt64Value =
-    this.binaryRepr().sizeToStoreInBytes(cb)
+    this.binaryRepr.sizeToStoreInBytes(cb)
 }
 
 object SStringPointerSettable {
@@ -83,6 +83,6 @@ final class SStringPointerSettable(st: SStringPointer, override val a: Settable[
   override def store(cb: EmitCodeBuilder, v: SValue): Unit =
     cb.assign(a, v.asInstanceOf[SStringPointerValue].a)
 
-  override def binaryRepr(): SBinaryPointerSettable =
+  override def binaryRepr: SBinaryPointerSettable =
     new SBinaryPointerSettable(SBinaryPointer(st.pType.binaryRepresentation), a)
 }

@@ -1,16 +1,20 @@
 package is.hail.services
 
-import is.hail.HAIL_REVISION
+import is.hail.{services, HAIL_REVISION}
 import is.hail.backend.service.Main
 import is.hail.services.JobGroupStates.Failure
+import is.hail.services.oauth2.CloudCredentials
 import is.hail.utils._
+
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
 
 import java.lang.reflect.Method
 import java.nio.file.Path
 
-import org.scalatest
 import org.scalatest.Inspectors.forAll
 import org.scalatest.enablers.InspectorAsserting.assertingNatureOfAssertion
+import org.scalatest.matchers.should.Matchers.convertToAnyShouldWrapper
 import org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.{AfterClass, BeforeClass, BeforeMethod, Test}
 
@@ -22,15 +26,21 @@ class BatchClientSuite extends TestNGSuite {
 
   @BeforeClass
   def createClientAndBatch(): Unit = {
-    client = BatchClient(DeployConfig.get(), Path.of("/test-gsa-key/key.json"))
-    batchId = client.newBatch(
-      BatchRequest(
-        billing_project = "test",
-        n_jobs = 0,
-        token = tokenUrlSafe,
-        attributes = Map("name" -> s"${getClass.getName}"),
+    client =
+      BatchClient(
+        DeployConfig.default,
+        CloudCredentials(Some(Path.of("/test-gsa-key/key.json"))),
       )
-    )
+
+    batchId =
+      client.newBatch(
+        BatchRequest(
+          billing_project = "test",
+          n_jobs = 0,
+          token = tokenUrlSafe,
+          attributes = Map("name" -> s"${getClass.getName}"),
+        )
+      )
   }
 
   @BeforeMethod
@@ -51,7 +61,7 @@ class BatchClientSuite extends TestNGSuite {
     client.close()
 
   @Test
-  def testCancelAfterNFailures(): scalatest.Assertion = {
+  def testCancelAfterNFailures(): Unit = {
     val (jobGroupId, _) = client.newJobGroup(
       req = JobGroupRequest(
         batch_id = batchId,
@@ -83,7 +93,7 @@ class BatchClientSuite extends TestNGSuite {
   }
 
   @Test
-  def testGetJobGroupJobsByState(): scalatest.Assertion = {
+  def testGetJobGroupJobsByState(): Unit = {
     val (jobGroupId, _) = client.newJobGroup(
       req = JobGroupRequest(
         batch_id = batchId,
@@ -107,7 +117,7 @@ class BatchClientSuite extends TestNGSuite {
         ),
       )
     )
-    client.waitForJobGroup(batchId, jobGroupId)
+    client.waitForJobGroup(batchId, jobGroupId): Unit
     forAll(Array(JobStates.Failed, JobStates.Success)) { state =>
       forAll(client.getJobGroupJobs(batchId, jobGroupId, Some(state))) { jobs =>
         assert(jobs.length == 1)
@@ -117,7 +127,7 @@ class BatchClientSuite extends TestNGSuite {
   }
 
   @Test
-  def testNewJobGroup(): scalatest.Assertion =
+  def testNewJobGroup(): Unit =
     // The query driver submits a job group per stage with one job per partition
     forAll(1 to 2) { i =>
       val (jobGroupId, _) = client.newJobGroup(
@@ -143,7 +153,7 @@ class BatchClientSuite extends TestNGSuite {
     }
 
   @Test
-  def testJvmJob(): scalatest.Assertion = {
+  def testJvmJob(): Unit = {
     val (jobGroupId, _) = client.newJobGroup(
       req = JobGroupRequest(
         batch_id = batchId,
@@ -165,5 +175,35 @@ class BatchClientSuite extends TestNGSuite {
 
     val result = client.getJobGroup(batchId, jobGroupId)
     assert(result.n_jobs == 1)
+  }
+
+  @Test // #15118
+  def testWaitForCancelledJobGroup(): Unit = {
+    val (jobGroupId, _) = client.newJobGroup(
+      req = JobGroupRequest(
+        batch_id = batchId,
+        absolute_parent_id = parentJobGroupId,
+        cancel_after_n_failures = Some(1),
+        token = tokenUrlSafe,
+        jobs = 0 until 10 map { _ =>
+          JobRequest(
+            always_run = false,
+            process = BashJob(
+              image = "ubuntu:24.04",
+              command = Array("/bin/bash", "-c", "sleep 5s"),
+            ),
+            resources = Some(JobResources(preemptible = true)),
+          )
+        },
+      )
+    )
+
+    Future {
+      Thread.sleep(100)
+      client.cancelJobGroup(batchId, jobGroupId)
+    }: Unit
+
+    val jg = client.waitForJobGroup(batchId, jobGroupId)
+    jg.state shouldBe services.JobGroupStates.Cancelled
   }
 }

@@ -49,14 +49,14 @@ class BitPacker(nBitsPerItem: Int, os: OutputStream) extends Serializable {
 
   private def write(): Unit =
     while (nBitsStaged >= 8) {
-      os.write(data.toByte)
+      os.write(data.toInt)
       data = data >>> 8
       nBitsStaged -= 8
     }
 
   def flush(): Unit = {
     if (nBitsStaged > 0)
-      os.write(data.toByte)
+      os.write(data.toInt)
     data = 0L
     nBitsStaged = 0
   }

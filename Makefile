@@ -29,6 +29,11 @@ PYTHONPATH := $(PYTHONPATH):$(EXTRA_PYTHONPATH)
 endif
 PYTHON := PYTHONPATH="$(PYTHONPATH)" python3
 
+# mill integration
+
+MILL := sh mill
+MILLOPTS ?=
+
 default:
 	@echo Do not use this makefile to build hail, for information on how to \
 	     build hail see: https://hail.is/docs/0.2/
@@ -53,7 +58,11 @@ pylint-hailtop:
 
 .PHONY: check-hail
 check-hail: check-hail-fast pylint-hailtop
-	cd hail && HAIL_BUILD_MODE=Dev sh mill --no-server __.checkFormat + __.fix --check
+	cd hail && HAIL_BUILD_MODE=Dev SCALA_VERSION=2.13 $(MILL) $(MILLOPTS) hail[].__.checkFormat + hail[].__.fix --check
+
+.PHONY: check-batch
+check-batch: check-batch-fast pylint-batch
+	cd batch/jvm-entryway && $(MILL) $(MILLOPTS) checkFormat + fix --check
 
 .PHONY: check-services
 check-services: $(CHECK_SERVICES_MODULES)
@@ -116,8 +125,8 @@ $(HAILTOP_VERSION):
 %-image: IMAGE_NAME = $(patsubst %-image,%,$@):$(TOKEN)
 hailgenetics-%-image: IMAGE_NAME = hailgenetics/$(patsubst hailgenetics-%-image,%,$@):$(TOKEN)
 
-hail-ubuntu-image: $(shell git ls-files docker/hail-ubuntu)
-	./docker-build.sh docker/hail-ubuntu Dockerfile $(IMAGE_NAME) --build-arg DOCKER_PREFIX=$(DOCKER_PREFIX)
+hail-ubuntu-image: $(shell git ls-files docker/hail-ubuntu gear/pinned-requirements.txt)
+	./docker-build.sh . docker/hail-ubuntu/Dockerfile $(IMAGE_NAME) --build-arg DOCKER_PREFIX=$(DOCKER_PREFIX) --build-arg SKIP_GCLOUD_PROFILER=false
 	echo $(IMAGE_NAME) > $@
 
 base-image: hail-ubuntu-image docker/Dockerfile.base
@@ -172,10 +181,10 @@ hail-buildkit-image: ci/buildkit/Dockerfile
 	./docker-build.sh ci buildkit/Dockerfile $(IMAGE_NAME) --build-arg DOCKER_PREFIX=$(DOCKER_PREFIX)
 	echo $(IMAGE_NAME) > $@
 
-batch/jvm-entryway/build/libs/jvm-entryway.jar: $(shell git ls-files batch/jvm-entryway)
-	cd batch/jvm-entryway && ./gradlew shadowJar
+batch/jvm-entryway/out/assembly.dest/out.jar: $(shell git ls-files batch/jvm-entryway)
+	cd batch/jvm-entryway && $(MILL) $(MILLOPTS) assembly
 
-batch-worker-image: batch/jvm-entryway/build/libs/jvm-entryway.jar $(SERVICES_IMAGE_DEPS) $(shell git ls-files batch)
+batch-worker-image: batch/jvm-entryway/out/assembly.dest/out.jar $(SERVICES_IMAGE_DEPS) $(shell git ls-files batch)
 	python3 ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"'$$(cat hail-ubuntu-image)'"},"global":{"cloud":"$(CLOUD)"}}' batch/Dockerfile.worker batch/Dockerfile.worker.out
 	./docker-build.sh . batch/Dockerfile.worker.out $(IMAGE_NAME)
 	echo $(IMAGE_NAME) > $@
@@ -237,7 +246,7 @@ tailwind-compile-watch:
 
 .PHONY: run-dev-proxy
 run-dev-proxy:
-	SERVICE=$(SERVICE) adev runserver --root . devbin/dev_proxy.py
+	SERVICE=$(SERVICE) adev runserver --root . --static web_common/web_common/static devbin/dev_proxy.py
 
 .PHONY: devserver
 devserver:

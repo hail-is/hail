@@ -1,20 +1,20 @@
 package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
+import is.hail.ExecStrategy.ExecStrategy
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.defs.{NA, ToSet, ToStream}
 import is.hail.types.virtual._
 import is.hail.utils.FastSeq
 
 import org.apache.spark.sql.Row
-import org.scalatest
 import org.testng.annotations.{DataProvider, Test}
 
 class DictFunctionsSuite extends HailSuite {
   def tuplesToMap(a: IndexedSeq[(Integer, Integer)]): Map[Integer, Integer] =
     Option(a).map(_.filter(_ != null).toMap).orNull
 
-  implicit val execStrats = ExecStrategy.javaOnly
+  implicit val execStrats: Set[ExecStrategy] = ExecStrategy.javaOnly
 
   @DataProvider(name = "basic")
   def basicData(): Array[Array[Any]] = Array(
@@ -26,20 +26,20 @@ class DictFunctionsSuite extends HailSuite {
   )
 
   @Test(dataProvider = "basic")
-  def dictFromArray(a: IndexedSeq[(Integer, Integer)]): scalatest.Assertion = {
+  def dictFromArray(a: IndexedSeq[(Integer, Integer)]): Unit = {
     assertEvalsTo(invoke("dict", TDict(TInt32, TInt32), toIRPairArray(a)), tuplesToMap(a))
     assertEvalsTo(toIRDict(a), tuplesToMap(a))
   }
 
   @Test(dataProvider = "basic")
-  def dictFromSet(a: IndexedSeq[(Integer, Integer)]): scalatest.Assertion =
+  def dictFromSet(a: IndexedSeq[(Integer, Integer)]): Unit =
     assertEvalsTo(
       invoke("dict", TDict(TInt32, TInt32), ToSet(ToStream(toIRPairArray(a)))),
       tuplesToMap(a),
     )
 
   @Test(dataProvider = "basic")
-  def isEmpty(a: IndexedSeq[(Integer, Integer)]): scalatest.Assertion =
+  def isEmpty(a: IndexedSeq[(Integer, Integer)]): Unit =
     assertEvalsTo(
       invoke("isEmpty", TBoolean, toIRDict(a)),
       Option(a).map(_.forall(_ == null)).orNull,
@@ -58,8 +58,7 @@ class DictFunctionsSuite extends HailSuite {
   )
 
   @Test(dataProvider = "dictToArray")
-  def dictToArray(a: IndexedSeq[(Integer, Integer)], expected: IndexedSeq[Row])
-    : scalatest.Assertion = {
+  def dictToArray(a: IndexedSeq[(Integer, Integer)], expected: IndexedSeq[Row]): Unit = {
     implicit val execStrats = Set(ExecStrategy.JvmCompile)
     assertEvalsTo(invoke("dictToArray", TArray(TTuple(TInt32, TInt32)), toIRDict(a)), expected)
   }
@@ -82,7 +81,7 @@ class DictFunctionsSuite extends HailSuite {
     a: IndexedSeq[(Integer, Integer)],
     keys: IndexedSeq[Integer],
     values: IndexedSeq[Integer],
-  ): scalatest.Assertion =
+  ): Unit =
     assertEvalsTo(invoke("keySet", TSet(TInt32), toIRDict(a)), Option(keys).map(_.toSet).orNull)
 
   @Test(dataProvider = "keysAndValues")
@@ -90,7 +89,7 @@ class DictFunctionsSuite extends HailSuite {
     a: IndexedSeq[(Integer, Integer)],
     keys: IndexedSeq[Integer],
     values: IndexedSeq[Integer],
-  ): scalatest.Assertion =
+  ): Unit =
     assertEvalsTo(invoke("keys", TArray(TInt32), toIRDict(a)), keys)
 
   @Test(dataProvider = "keysAndValues")
@@ -98,14 +97,14 @@ class DictFunctionsSuite extends HailSuite {
     a: IndexedSeq[(Integer, Integer)],
     keys: IndexedSeq[Integer],
     values: IndexedSeq[Integer],
-  ): scalatest.Assertion =
+  ): Unit =
     assertEvalsTo(invoke("values", TArray(TInt32), toIRDict(a)), values)
 
   val d = IRDict((1, 3), (3, 7), (5, null), (null, 5))
   val dwoutna = IRDict((1, 3), (3, 7), (5, null))
   val na = NA(TInt32)
 
-  @Test def dictGet(): scalatest.Assertion = {
+  @Test def dictGet(): Unit = {
     assertEvalsTo(invoke("get", TInt32, NA(TDict(TInt32, TInt32)), 1, na), null)
     assertEvalsTo(invoke("get", TInt32, d, 0, na), null)
     assertEvalsTo(invoke("get", TInt32, d, 1, na), 3)
@@ -131,7 +130,7 @@ class DictFunctionsSuite extends HailSuite {
     assertFatal(invoke("index", TInt32, IRDict(), 100), "dictionary")
   }
 
-  @Test def dictContains(): scalatest.Assertion = {
+  @Test def dictContains(): Unit = {
     assertEvalsTo(invoke("contains", TBoolean, d, 0), false)
     assertEvalsTo(invoke("contains", TBoolean, d, 1), true)
     assertEvalsTo(invoke("contains", TBoolean, d, 2), false)
