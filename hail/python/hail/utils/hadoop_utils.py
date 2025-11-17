@@ -4,15 +4,44 @@ import os.path
 import sys
 from typing import Any, Dict, List
 
+from deprecated import deprecated
+
 from hail.fs.hadoop_fs import HadoopFS
 from hail.typecheck import enumeration, typecheck
 from hail.utils.java import Env, info
 
 
+@deprecated(version="0.2.137", reason="Prefer hailtop.fs.open")
 @typecheck(path=str, mode=enumeration('r', 'w', 'x', 'rb', 'wb', 'xb'), buffer_size=int)
 def hadoop_open(path: str, mode: str = 'r', buffer_size: int = 8192):
     """Open a file through the Hadoop filesystem API. Supports distributed
     file systems like hdfs, gs, and s3.
+
+    .. deprecated:: 0.2.137
+        use :func:`hailtop.fs.open` instead
+
+    Gzip and Deprecation
+    --------------------
+
+    This function transparently compresses/decompresses from gzip/bgzip when
+    the ``path`` has extenstion ``.gz`` or ``.bgz`` respectively. When using
+    the now recommended :func:`hailtop.fs.open`, users will need to implement
+    this for themselves. Code such as the following should suffice for reading
+    (writing is similar):
+
+    .. code-block:: python3
+
+        import gzip
+        import hailtop.fs
+
+        path = ...  # path is gzip data
+
+        with hailtop.fs.open(path, 'rb') as compressed_file:
+            with gzip.GzipFile(fileobj=compressed_file, mode='rt') as file:
+                ...  # use file here
+
+    See the documentation for the :mod:`gzip` module for more information on
+    handling gzip data in python.
 
     Warning
     -------
@@ -86,7 +115,7 @@ def hadoop_open(path: str, mode: str = 'r', buffer_size: int = 8192):
         return fs.legacy_open(path, mode, buffer_size)
     _, ext = os.path.splitext(path)
     if ext in ('.gz', '.bgz'):
-        binary_mode = 'wb' if mode[0] == 'w' else 'rb'
+        binary_mode = mode[0] + 'b'
         file = fs.open(path, binary_mode, buffer_size)
         file = gzip.GzipFile(fileobj=file, mode=mode)
         if 'b' not in mode:
@@ -96,10 +125,14 @@ def hadoop_open(path: str, mode: str = 'r', buffer_size: int = 8192):
     return file
 
 
+@deprecated(version="0.2.137", reason="Prefer hailtop.fs.copy")
 @typecheck(src=str, dest=str)
 def hadoop_copy(src, dest):
     """Copy a file through the Hadoop filesystem API.
     Supports distributed file systems like hdfs, gs, and s3.
+
+    .. deprecated:: 0.2.137
+        use :func:`hailtop.fs.copy` instead
 
     Examples
     --------
@@ -130,8 +163,12 @@ def hadoop_copy(src, dest):
     return Env.fs().copy(src, dest)
 
 
+@deprecated(version="0.2.137", reason="Prefer hailtop.fs.exists")
 def hadoop_exists(path: str) -> bool:
     """Returns ``True`` if `path` exists.
+
+    .. deprecated:: 0.2.137
+        use :func:`hailtop.fs.exists` instead
 
     Parameters
     ----------
@@ -144,8 +181,12 @@ def hadoop_exists(path: str) -> bool:
     return Env.fs().exists(path)
 
 
+@deprecated(version="0.2.137", reason="Prefer hailtop.fs.is_file")
 def hadoop_is_file(path: str) -> bool:
     """Returns ``True`` if `path` both exists and is a file.
+
+    .. deprecated:: 0.2.137
+        use :func:`hailtop.fs.is_file` instead
 
     Parameters
     ----------
@@ -158,8 +199,12 @@ def hadoop_is_file(path: str) -> bool:
     return Env.fs().is_file(path)
 
 
+@deprecated(version="0.2.137", reason="Prefer hailtop.fs.is_dir")
 def hadoop_is_dir(path: str) -> bool:
     """Returns ``True`` if `path` both exists and is a directory.
+
+    .. deprecated:: 0.2.137
+        use :func:`hailtop.fs.is_dir` instead
 
     Parameters
     ----------
@@ -172,8 +217,12 @@ def hadoop_is_dir(path: str) -> bool:
     return Env.fs().is_dir(path)
 
 
+@deprecated(version="0.2.137", reason="Prefer hailtop.fs.stat")
 def hadoop_stat(path: str) -> Dict[str, Any]:
     """Returns information about the file or directory at a given path.
+
+    .. deprecated:: 0.2.137
+        use :func:`hailtop.fs.stat` instead
 
     Notes
     -----
@@ -199,8 +248,12 @@ def hadoop_stat(path: str) -> Dict[str, Any]:
     return Env.fs().stat(path).to_legacy_dict()
 
 
+@deprecated(version="0.2.137", reason="Prefer hailtop.fs.ls")
 def hadoop_ls(path: str) -> List[Dict[str, Any]]:
     """Returns information about files at `path`.
+
+    .. deprecated:: 0.2.137
+        use :func:`hailtop.fs.ls` instead
 
     Notes
     -----
