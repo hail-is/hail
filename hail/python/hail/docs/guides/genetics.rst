@@ -56,6 +56,8 @@ Liftover variants from one coordinate system to another
     >>> rg38 = hl.get_reference('GRCh38')  # doctest: +SKIP
     >>> rg37.add_liftover('gs://hail-common/references/grch37_to_grch38.over.chain.gz', rg38)  # doctest: +SKIP
 
+    In order to use the above verbatim, you may need to :ref:`install the GCS connector <Reading from GCS>`.
+
     Then we can liftover the locus coordinates in a Table or MatrixTable (here, `ht`)
     from reference genome ``'GRCh37'`` to ``'GRCh38'``:
 
@@ -448,10 +450,3 @@ Polygenic Score Calculation
 
     :func:`.import_plink`, :func:`.variant_qc`, :func:`.import_table`,
     :func:`.coalesce`, :func:`.case`, :func:`.cond`, :meth:`.Call.n_alt_alleles`
-
-
-
-
-
-
-
