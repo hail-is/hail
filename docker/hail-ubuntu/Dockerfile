@@ -1,6 +1,6 @@
 ARG DOCKER_PREFIX={{ global.docker_prefix }}
 ARG SKIP_GCLOUD_PROFILER=false
-FROM $DOCKER_PREFIX/ubuntu:noble-20251001 AS initializer
+FROM $DOCKER_PREFIX/ubuntu:noble-20251013 AS initializer
 
 ENV LANG=C.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
