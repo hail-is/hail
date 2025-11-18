@@ -88,8 +88,8 @@ def uninitialized():
 
 
 @pytest.fixture(scope='session')
-def init_hail():
-    hl_init_for_test()
+def init_hail(request):
+    hl_init_for_test(app_name=request.node.name)
     try:
         yield
     finally:

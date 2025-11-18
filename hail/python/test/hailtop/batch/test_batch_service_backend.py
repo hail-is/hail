@@ -1,5 +1,6 @@
 import os
 import secrets
+import string
 import textwrap
 from configparser import ConfigParser
 from shlex import quote as shq
@@ -823,13 +824,15 @@ async def test_validate_cloud_storage_policy(service_backend: ServiceBackend, mo
     await _test_raises_no_bucket_error(fake_uri2, arg)
 
 
-def new_query_in_batch_job(b: Batch, name: str) -> Job:
+def new_query_in_batch_job(b: Batch, name: str, env: dict[str, str] | None = None) -> Job:
     # creates a query-on-batch job in the current batch
     backend = b._backend
     assert isinstance(backend, ServiceBackend)
 
     run_query_pipeline = textwrap.dedent(
         f"""
+        hailctl config set batch/backend service
+        hailctl config set batch/regions {' '.join(backend.regions or [])}
         hailctl config set batch/remote_tmpdir {backend.remote_tmpdir}
         hailctl config set batch/billing_project {backend._billing_project}
 
@@ -837,7 +840,8 @@ def new_query_in_batch_job(b: Batch, name: str) -> Job:
         from os import getenv
         import hail as hl
 
-        hl.init(backend='batch', batch_id=int(getenv('HAIL_BATCH_ID')))
+        batch_id = int(getenv('HAIL_BATCH_ID'))
+        hl.init(backend='batch', batch_id=batch_id, app_name='{name}')
         hl.utils.range_table(2356)._force_count()
         EOF
         """,
@@ -845,6 +849,8 @@ def new_query_in_batch_job(b: Batch, name: str) -> Job:
 
     j = b.new_bash_job(name=name)
     j.command(run_query_pipeline)
+    for k, v in (env or dict()).items():
+        j.env(k, v)
     return j
 
 
@@ -865,8 +871,28 @@ def test_submit_sequential_qob_pipelines(request, service_backend: ServiceBacken
 def test_race_qob_pipelines(request, service_backend: ServiceBackend):
     b = Batch(request.node.nodeid, service_backend, default_image=HAIL_GENETICS_HAIL_IMAGE)
 
-    for c in ['A', 'B', 'C']:
+    for c in string.ascii_uppercase[:3]:
         new_query_in_batch_job(b, f'Query Pipeline {c}')
+
+    r = b.run()
+    assert r is not None
+    status = r.status()
+    assert status['state'] == 'success', str((status, r.debug_info()))
+
+
+def test_race_local_qob_pipelines(request, service_backend: ServiceBackend):
+    b = Batch(request.node.nodeid, service_backend, default_image=HAIL_GENETICS_HAIL_IMAGE)
+
+    for c in string.ascii_uppercase[:3]:
+        j = new_query_in_batch_job(
+            b,
+            f'Query Pipeline {c}',
+            {
+                'HAIL_QUERY_USE_EXPERIMENTAL_BATCH_BACKEND': '1',
+                'HAIL_CLOUD': os.getenv('HAIL_CLOUD', 'gcp'),
+            },
+        )
+        j.spot(False)
 
     r = b.run()
     assert r is not None

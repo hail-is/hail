@@ -1,3 +1,4 @@
+from .context import init
 from .datasets import load_dataset
 from .db import DB
 from .export_entries_by_col import export_entries_by_col
@@ -35,6 +36,7 @@ __all__ = [
     'hail_metadata',
     'haplotype_freq_em',
     'import_gtf',
+    'init',
     'ld_score',
     'ld_score_regression',
     'load_dataset',
