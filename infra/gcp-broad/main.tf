@@ -271,7 +271,7 @@ resource "google_container_cluster" "vdc" {
       allow_external_traffic = true
     }
   }
-  
+
   workload_identity_config {
     workload_pool = "${var.gcp_project}.svc.id.goog"
   }
@@ -522,7 +522,7 @@ resource "google_compute_router_nat" "gke_node_outbound_nat" {
   region                            = var.gcp_region
   nat_ip_allocate_option            = "AUTO_ONLY"
   source_subnetwork_ip_ranges_to_nat = "ALL_SUBNETWORKS_ALL_IP_RANGES"
-  
+
   log_config {
     enable = true
     filter = "ERRORS_ONLY"
@@ -886,6 +886,13 @@ resource "google_service_account_iam_member" "testns_batch_act_as_batch_agent" {
   service_account_id = google_service_account.batch_agent.name
   role               = "roles/iam.serviceAccountUser"
   member             = "serviceAccount:${module.testns_batch_gsa_secret.email}"
+}
+
+# Grant batch2-agent service account permission to act as itself - required for some permission checks
+resource "google_service_account_iam_member" "batch_agent_act_as_batch_agent" {
+  service_account_id = google_service_account.batch_agent.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.batch_agent.email}"
 }
 
 resource "google_service_account" "gke_node_pool" {
