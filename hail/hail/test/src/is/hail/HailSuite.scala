@@ -47,7 +47,10 @@ class HailSuite extends TestNGSuite with TestUtils with Logging {
   def sc: SparkContext = ctx.backend.asSpark.sc
   def theHailClassLoader: HailClassLoader = ctx.theHailClassLoader
 
-  def getTestResource(localPath: String): String = s"hail/test/resources/$localPath"
+  private[this] lazy val resources: String =
+    sys.env.getOrElse("MILL_TEST_RESOURCE_DIR", "hail/test/resources")
+
+  def getTestResource(localPath: String): String = s"$resources/$localPath"
 
   @BeforeSuite
   def setupBackend(): Unit = {
