@@ -304,3 +304,10 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
       cs.reduce[Code[String]] { case (l, r) => (l.concat(r)) },
     )
 }
+
+object LogHelper extends Logging {
+  // exposed more directly for generated code
+  def logInfo(msg: String): Unit = logger.info(msg)
+  def warning(msg: String): Unit = logger.warn(msg)
+  def consoleInfo(msg: String): Unit = logger.info(msg)
+}

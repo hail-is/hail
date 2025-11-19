@@ -23,7 +23,7 @@ case class RVDPartitionInfo(
     s"partitionIndex=$partitionIndex,size=$size,min=$min,max=$max,samples=${samples.mkString(",")},sortedness=$sortedness"
 }
 
-object RVDPartitionInfo {
+object RVDPartitionInfo extends Logging {
   final val UNSORTED = 0
   final val TSORTED = 1
   final val KSORTED = 2
@@ -74,13 +74,13 @@ object RVDPartitionInfo {
           if (pkOrd.lt(f, prevF.value.offset)) {
             val curr = Region.pretty(typ.kType, f)
             val prev = prevF.pretty
-            log.info(s"unsorted: $curr, $prev")
+            logger.info(s"unsorted: $curr, $prev")
             contextStr = s"CURRENT=$curr, PREV=$prev"
             sortedness = UNSORTED
           } else if (sortedness > TSORTED) {
             val curr = Region.pretty(typ.kType, f)
             val prev = prevF.pretty
-            log.info(s"partition-key-sorted: $curr, $prev")
+            logger.info(s"partition-key-sorted: $curr, $prev")
             contextStr = s"CURRENT=$curr, PREV=$prev"
             sortedness = sortedness.min(TSORTED)
           }

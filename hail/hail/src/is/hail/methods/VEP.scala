@@ -18,6 +18,7 @@ import scala.collection.mutable
 import scala.jdk.CollectionConverters._
 
 import com.fasterxml.jackson.core.JsonParseException
+import org.apache.logging.log4j.LogManager
 import org.apache.spark.sql.Row
 import org.json4s.{Formats, JValue}
 import org.json4s.jackson.JsonMethods
@@ -29,6 +30,10 @@ case class VEPConfiguration(
 )
 
 object VEP {
+
+  // extends Logging causes some strange cyclic compilation failure
+  private[this] val logger = LogManager.getLogger(getClass)
+
   def readConfiguration(fs: FS, path: String): VEPConfiguration = {
     val jv = using(fs.open(path))(in => JsonMethods.parse(in))
     implicit val formats: Formats = defaultJSONFormats + new TStructSerializer
@@ -92,7 +97,7 @@ object VEP {
     if (csqHeader.hasNext)
       Some(csqHeader.next())
     else {
-      warn("could not get VEP CSQ header")
+      logger.warn("could not get VEP CSQ header")
       None
     }
   }
@@ -107,7 +112,7 @@ object VEP {
     VEP(fs, VEPParameters(config, csq, blockSize, tolerateParseError))
 
   def fromJValue(fs: FS, jv: JValue): VEP = {
-    log.info(s"vep config json: ${jv.toString}")
+    logger.info("vep config json: {}", jv)
     implicit val formats: Formats = RelationalFunctions.formats
     val params = jv.extract[VEPParameters]
     VEP(fs, params)
@@ -116,7 +121,8 @@ object VEP {
 
 case class VEPParameters(config: String, csq: Boolean, blockSize: Int, tolerateParseError: Boolean)
 
-class VEP(val params: VEPParameters, conf: VEPConfiguration) extends TableToTableFunction {
+class VEP(val params: VEPParameters, conf: VEPConfiguration)
+    extends TableToTableFunction with Logging {
   private def vepSignature = conf.vep_json_schema
 
   override def preservesPartitionCounts: Boolean = false
@@ -198,7 +204,7 @@ class VEP(val params: VEPParameters, conf: VEPConfiguration) extends TableToTabl
                         case Some(value) =>
                           value.substring(4).split(",").toFastSeq
                         case None =>
-                          warn(
+                          logger.warn(
                             s"No CSQ INFO field for VEP output variant ${VariantMethods.locusAllelesToString(vepLocus, vepAlleles)}.\nVEP output: $s."
                           )
                           null
@@ -234,7 +240,7 @@ class VEP(val params: VEPParameters, conf: VEPConfiguration) extends TableToTabl
                     }
                   } catch {
                     case e: JsonParseException if localTolerateParseError =>
-                      log.warn(s"VEP failed to produce parsable JSON!\n  json: $s\n  error: $e")
+                      logger.warn(s"VEP failed to produce parsable JSON!\n  json: $s\n  error: $e")
                       None
                   }
                 }

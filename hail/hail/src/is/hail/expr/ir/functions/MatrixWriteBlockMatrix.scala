@@ -9,7 +9,7 @@ import java.io.DataOutputStream
 
 import org.json4s.jackson
 
-object MatrixWriteBlockMatrix {
+object MatrixWriteBlockMatrix extends Logging {
   def apply(
     ctx: ExecuteContext,
     mv: MatrixValue,
@@ -65,7 +65,9 @@ object MatrixWriteBlockMatrix {
     }
 
     assert(blockCount == gp.numPartitions)
-    info(s"Wrote all $blockCount blocks of $nRows x $localNCols matrix with block size $blockSize.")
+    logger.info(
+      s"Wrote all $blockCount blocks of $nRows x $localNCols matrix with block size $blockSize."
+    )
 
     using(fs.create(path + "/_SUCCESS"))(out => ())
   }

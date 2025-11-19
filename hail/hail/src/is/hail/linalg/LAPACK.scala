@@ -17,7 +17,7 @@ class UnderscoreFunctionMapper extends FunctionMapper {
 
 // ALL LAPACK C function args must be passed by address, not value
 // see: https://software.intel.com/content/www/us/en/develop/documentation/mkl-linux-developer-guide/top/language-specific-usage-options/mixed-language-programming-with-the-intel-math-kernel-library/calling-lapack-blas-and-cblas-routines-from-c-c-language-environments.html
-object LAPACK {
+object LAPACK extends Logging {
   private[this] val libraryInstance = ThreadLocal.withInitial(new Supplier[LAPACKLibrary]() {
     def get() = {
       val mklEnvVar = "HAIL_MKL_PATH"
@@ -39,7 +39,9 @@ object LAPACK {
 
       versionTest(standard) match {
         case Success(version) =>
-          log.info(s"Imported LAPACK library $libraryName, version $version, with standard names")
+          logger.info(
+            s"Imported LAPACK library $libraryName, version $version, with standard names"
+          )
           standard
         case Failure(_) =>
           val underscoreAfterMap = new java.util.HashMap[String, FunctionMapper]()
@@ -47,7 +49,7 @@ object LAPACK {
           val underscoreAfter = Native.load(libraryName, classOf[LAPACKLibrary], underscoreAfterMap)
           versionTest(underscoreAfter) match {
             case Success(version) =>
-              log.info(
+              logger.info(
                 s"Imported LAPACK library $libraryName, version $version, with underscore names"
               )
               underscoreAfter

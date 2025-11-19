@@ -36,7 +36,7 @@ class CommutativeAndAssociativeCombiner[U](zero: => U, combine: (U, U) => U) ext
   def result(): U = state
 }
 
-class AssociativeCombiner[U](zero: => U, combine: (U, U) => U) extends Combiner[U] {
+class AssociativeCombiner[U](zero: => U, combine: (U, U) => U) extends Combiner[U] with Logging {
 
   case class TreeValue(var value: U, var end: Int)
 
@@ -45,7 +45,7 @@ class AssociativeCombiner[U](zero: => U, combine: (U, U) => U) extends Combiner[
   private val t = new java.util.TreeMap[Int, TreeValue]()
 
   def combine(i: Int, value0: U): Unit = {
-    log.info(s"at result $i, AssociativeCombiner contains ${t.size()} queued results")
+    logger.info(s"at result $i, AssociativeCombiner contains ${t.size()} queued results")
     var value = value0
     var end = i
 

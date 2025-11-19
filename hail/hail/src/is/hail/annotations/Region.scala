@@ -3,7 +3,7 @@ package is.hail.annotations
 import is.hail.asm4s
 import is.hail.asm4s.Code
 import is.hail.types.physical._
-import is.hail.utils._
+import is.hail.utils.Logging
 
 object Region {
   type Size = Int
@@ -475,7 +475,7 @@ final class Region protected[annotations] (
   def totalManagedBytes(): Long = memory.totalManagedBytes()
 }
 
-object RegionUtils {
+object RegionUtils extends Logging {
   def printAddr(off: Long, name: String): String = s"$name: ${"%016x".format(off)}"
 
   def printAddr(off: Code[Long], name: String): Code[String] =
@@ -512,7 +512,7 @@ object RegionUtils {
 
     val nReferenced = region.nReferencedRegions()
 
-    info(
+    logger.info(
       s"""
          |$header:
          |  block size: $size

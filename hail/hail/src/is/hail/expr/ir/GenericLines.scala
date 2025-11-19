@@ -26,7 +26,7 @@ object CloseableIterator {
   }
 }
 
-object GenericLines {
+object GenericLines extends Logging {
   def read(fs: FS, contexts: IndexedSeq[Any], gzAsBGZ: Boolean, filePerPartition: Boolean)
     : GenericLines = {
 
@@ -191,7 +191,7 @@ object GenericLines {
                 )
               val newSize = Math.min(copySize * 2, maxArraySize.toLong).toInt
               if (newSize > (1 << 20)) {
-                log.info(s"GenericLines: growing line buffer to $newSize")
+                logger.info(s"GenericLines: growing line buffer to $newSize")
               }
 
               val newLineData = new Array[Byte](newSize)

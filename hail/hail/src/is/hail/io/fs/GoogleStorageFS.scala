@@ -249,7 +249,7 @@ class GoogleStorageFS(
   }
 
   def createNoCompression(url: URL): PositionedDataOutputStream = retryTransientErrors {
-    log.info(f"createNoCompression: $url")
+    logger.info(f"createNoCompression: $url")
 
     val blobId = BlobId.of(url.bucket, url.path)
     val blobInfo = BlobInfo.newBuilder(blobId)
@@ -285,7 +285,7 @@ class GoogleStorageFS(
       }
 
       override def close(): Unit = {
-        log.info(f"close: $url")
+        logger.info(f"close: $url")
         if (!closed) {
           flush()
           retryTransientErrors {
@@ -295,7 +295,7 @@ class GoogleStorageFS(
           }
           closed = true
         }
-        log.info(f"closed: $url")
+        logger.info(f"closed: $url")
       }
     }
 

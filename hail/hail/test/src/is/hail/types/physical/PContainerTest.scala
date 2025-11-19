@@ -23,7 +23,7 @@ class PContainerTest extends PhysicalTestUtils {
     val srcRegion = Region(pool = pool)
     val src = ScalaToRegionValue(ctx.stateManager, srcRegion, sourceType, data)
 
-    log.info(s"Testing $data")
+    logger.info(s"Testing $data")
 
     val res =
       Region.containsNonZeroBits(
@@ -37,7 +37,7 @@ class PContainerTest extends PhysicalTestUtils {
     val srcRegion = Region(pool = pool)
     val src = ScalaToRegionValue(ctx.stateManager, srcRegion, sourceType, data)
 
-    log.info(s"Testing $data")
+    logger.info(s"Testing $data")
 
     val fb = EmitFunctionBuilder[Long, Boolean](ctx, "not_empty")
     val value = fb.getCodeParam[Long](1)
@@ -55,7 +55,7 @@ class PContainerTest extends PhysicalTestUtils {
     val srcRegion = Region(pool = pool)
     val src = ScalaToRegionValue(ctx.stateManager, srcRegion, sourceType, data)
 
-    log.info(s"\nTesting $data")
+    logger.info(s"\nTesting $data")
 
     val fb = EmitFunctionBuilder[Long, Boolean](ctx, "not_empty")
     val value = fb.getCodeParam[Long](1)

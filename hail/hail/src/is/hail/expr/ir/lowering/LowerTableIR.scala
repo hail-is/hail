@@ -128,7 +128,7 @@ class TableStage(
   val contexts: IR,
   val ctxRefName: Name,
   val partitionIR: IR,
-) {
+) extends Logging {
   self =>
 
   // useful for debugging, but should be disabled in production code due to N^2 complexity
@@ -390,7 +390,7 @@ class TableStage(
               newPartitioner,
             )
 
-        log.info(
+        logger.info(
           "repartitionNoShuffle - fast path," +
             s" generated ${oldPartIndices.length} partitions from ${partitioner.numPartitions}" +
             s" (dropped ${newPartitioner.numPartitions - oldPartIndices.length} empty output parts)"
@@ -721,7 +721,7 @@ class TableStage(
   }
 }
 
-object LowerTableIR {
+object LowerTableIR extends Logging {
   def apply(
     ir: IR,
     typesToLower: DArrayLowering.Type,
@@ -830,8 +830,8 @@ object LowerTableIR {
         val branchFactor = ctx.branchingFactor
         val useTreeAggregate = aggSigs.shouldTreeAggregate && branchFactor < lc.numPartitions
         val isCommutative = aggSigs.isCommutative
-        log.info(s"Aggregate: useTreeAggregate=$useTreeAggregate")
-        log.info(s"Aggregate: commutative=$isCommutative")
+        logger.info(s"Aggregate: useTreeAggregate=$useTreeAggregate")
+        logger.info(s"Aggregate: commutative=$isCommutative")
 
         if (useTreeAggregate) {
           val tmpDir = ctx.createTmpPath("aggregate_intermediates/")
@@ -2310,7 +2310,7 @@ object LowerTableIR {
           .map { intrvl => val (lo, hi) = original.intervalRange(intrvl); hi - lo }
           .sum
 
-    log.info(s"repartition cost: $cost")
+    logger.info(s"repartition cost: $cost")
     cost <= 1.0
   }
 

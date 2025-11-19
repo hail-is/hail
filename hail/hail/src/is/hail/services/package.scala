@@ -16,10 +16,8 @@ import com.google.cloud.storage.StorageException
 import javax.net.ssl.SSLException
 import org.apache.http.{ConnectionClosedException, NoHttpResponseException}
 import org.apache.http.conn.HttpHostConnectException
-import org.apache.log4j.{LogManager, Logger}
 
-package object services {
-  private lazy val log: Logger = LogManager.getLogger("is.hail.services")
+package object services extends Logging {
 
   val RETRYABLE_HTTP_STATUS_CODES: Set[Int] = {
     val s = Set(408, 429, 500, 502, 503, 504)
@@ -187,7 +185,7 @@ package object services {
         case e: Exception =>
           val delay = delayMsForTry(tries)
           if (tries <= 5 && isLimitedRetriesError(e)) {
-            log.warn(
+            logger.warn(
               s"A limited retry error has occured. We will automatically retry " +
                 s"${5 - tries} more times. Do not be alarmed. (next delay: " +
                 s"$delay). The most recent error was $e."
@@ -195,7 +193,7 @@ package object services {
           } else if (!isTransientError(e)) {
             throw e
           } else if (tries % 10 == 0) {
-            log.warn(s"Encountered $tries transient errors, most recent one was $e.")
+            logger.warn(s"Encountered $tries transient errors, most recent one was $e.")
           }
           Thread.sleep(delay)
           reset.foreach(_())

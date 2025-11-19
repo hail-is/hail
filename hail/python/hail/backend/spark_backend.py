@@ -114,6 +114,11 @@ class SparkBackend(Py4JBackend):
         raise_when_mismatched_hail_versions(jvm)
 
         _is = getattr(jvm, 'is')
+
+        py4jutils = scala_package_object(_is.hail.utils)
+        if not skip_logging_configuration:
+            py4jutils.configureLogging(log, quiet, append)
+
         JSparkBackend = _is.hail.backend.spark.SparkBackend
         if sc is not None:
             self._spark = pyspark.sql.SparkSession(sc)
@@ -122,10 +127,6 @@ class SparkBackend(Py4JBackend):
             jsc = jvm.JavaSparkContext(jspark_session.sparkContext())
             sc = pyspark.SparkContext(gateway=self._gateway, jsc=jsc)
             self._spark = pyspark.sql.SparkSession(sc, jspark_session)
-
-        py4jutils = scala_package_object(_is.hail.utils)
-        if not skip_logging_configuration:
-            py4jutils.configureLogging(log, quiet, append)
 
         if not quiet:
             sys.stderr.write(f'Running on Apache Spark version {self._spark.version}\n')

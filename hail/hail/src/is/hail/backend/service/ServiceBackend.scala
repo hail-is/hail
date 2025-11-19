@@ -103,7 +103,7 @@ class ServiceBackend(
   jarSpec: JarSpec,
   val batchConfig: BatchConfig,
   jobConfig: BatchJobConfig,
-) extends Backend {
+) extends Backend with Logging {
 
   private[this] var stageCount = 0
 
@@ -215,7 +215,7 @@ class ServiceBackend(
           case todo =>
             val token = tokenUrlSafe
             val root = s"${ctx.tmpdir}/mapCollectPartitions/$token"
-            log.info(s"mapCollectPartitions: token='$token', nPartitions=${todo.length}")
+            logger.info(s"mapCollectPartitions: token='$token', nPartitions=${todo.length}")
 
             implicit val ec: ExecutionContext =
               ExecutionContext.fromExecutor(executor)
@@ -223,7 +223,7 @@ class ServiceBackend(
             val uploadGlobals = Future {
               retryTransientErrors {
                 ctx.fs.writePDOS(s"$root/globals")(_.write(globals))
-                log.info(s"mapCollectPartitions: $token: uploaded globals")
+                logger.info(s"mapCollectPartitions: $token: uploaded globals")
               }
             }
 
@@ -242,7 +242,7 @@ class ServiceBackend(
 
                   for (p <- partInputs) os.write(p)
 
-                  log.info(s"mapCollectPartitions: $token: wrote ${partInputs.length} contexts")
+                  logger.info(s"mapCollectPartitions: $token: wrote ${partInputs.length} contexts")
                 }
               }
             }
@@ -260,7 +260,7 @@ class ServiceBackend(
               retryTransientErrors {
                 ctx.fs.writePDOS(s"$root/f") { fos =>
                   using(new ObjectOutputStream(fos))(_.writeObject(partial))
-                  log.info(s"mapCollectPartitions: $token: uploaded function")
+                  logger.info(s"mapCollectPartitions: $token: uploaded function")
                 }
               }
             }
@@ -268,7 +268,7 @@ class ServiceBackend(
             Await.result(uploadGlobals zip uploadContexts zip uploadPartFn, Duration.Inf): Unit
 
             val (jobGroup, startJobId) = submitJobGroupAndWait(todo, token, root, stageIdentifier)
-            log.info(s"mapCollectPartitions: $token: reading results")
+            logger.info(s"mapCollectPartitions: $token: reading results")
             val startTime = System.nanoTime()
 
             def readPartitionOutputs(indices: IndexedSeq[Int]) =
@@ -297,7 +297,7 @@ class ServiceBackend(
                     )
 
                   if (failures.nonEmpty)
-                    log.error(
+                    logger.error(
                       f"Job group ${jobGroup.job_group_id} in batch ${jobGroup.batch_id} " +
                         f"completed successfully yet found errors in partition outputs."
                     )
@@ -370,7 +370,7 @@ class ServiceBackend(
             val end = (System.nanoTime() - startTime) / 1000000000.0
             val rate = results.length / end
             val byterate = results.view.map(_._1.length).sum / end / 1024 / 1024
-            log.info(s"all results read. $end s. $rate result/s. $byterate MiB/s.")
+            logger.info(s"all results read. $end s. $rate result/s. $byterate MiB/s.")
             (failureOpt, results.sortBy(_._2))
         }
     }
@@ -385,11 +385,11 @@ class ServiceBackend(
       TypeCheck(ctx, ir)
       Validate(ir)
       val queryID = Backend.nextID()
-      log.info(s"starting execution of query $queryID of initial size ${IRSize(ir)}")
+      logger.info(s"starting execution of query $queryID of initial size ${IRSize(ir)}")
       if (ctx.flags.isDefined(ExecutionCache.Flags.UseFastRestarts))
         ctx.irMetadata.semhash = SemanticHash(ctx, ir)
       val res = _jvmLowerAndExecute(ctx, ir)
-      log.info(s"finished execution of query $queryID")
+      logger.info(s"finished execution of query $queryID")
       res
     }
 

@@ -31,7 +31,7 @@ case class FASTAReaderConfig(
   def reader: FASTAReader = new FASTAReader(this)
 }
 
-object FASTAReader {
+object FASTAReader extends Logging {
   private[this] val localFastaFiles: concurrent.Map[String, String] = new concurrent.TrieMap()
   private[this] val localFastaLock: Lock = new ReentrantLock()
 
@@ -51,7 +51,7 @@ object FASTAReader {
       fastaFile
     } else {
       val localPath = ExecuteContext.createTmpPathNoCleanup(tmpdir, "fasta-reader", "fasta")
-      log.info(s"copying FASTA file at $fastaFile to $localPath")
+      logger.info(s"copying FASTA file at $fastaFile to $localPath")
       fs.copyRecode(fastaFile, localPath)
       localPath
     }

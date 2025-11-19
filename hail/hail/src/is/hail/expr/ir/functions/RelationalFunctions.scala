@@ -6,7 +6,7 @@ import is.hail.linalg.BlockMatrix
 import is.hail.methods._
 import is.hail.types.{RTable, TypeWithRequiredness}
 import is.hail.types.virtual.{BlockMatrixType, MatrixType, TableType, Type}
-import is.hail.utils._
+import is.hail.utils.Logging
 
 import org.json4s.{Extraction, Formats, JValue, ShortTypeHints}
 import org.json4s.jackson.JsonMethods
@@ -108,7 +108,7 @@ abstract class BlockMatrixToValueFunction {
   def execute(ctx: ExecuteContext, bm: BlockMatrix): Any
 }
 
-object RelationalFunctions {
+object RelationalFunctions extends Logging {
   implicit val formats: Formats = RelationalSpec.formats + ShortTypeHints(
     List(
       classOf[LinearRegressionRowsSingle],
@@ -142,7 +142,7 @@ object RelationalFunctions {
     (jv \ "name").extract[String] match {
       case "VEP" => VEP.fromJValue(ctx.fs, jv).asInstanceOf[T]
       case _ =>
-        log.info("JSON: " + jv.toString)
+        logger.info("JSON: " + jv.toString)
         jv.extract[T]
     }
   }

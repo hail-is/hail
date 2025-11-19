@@ -43,11 +43,11 @@ case object SemanticHash extends Logging {
             hash = extend(hash, bytes)
           } catch {
             case error @ (_: UnsupportedOperationException | _: FileNotFoundException) =>
-              log.info(error)
+              logger.info(error)
               return None
 
             case NonFatal(error) =>
-              log.warn(
+              logger.warn(
                 """AN INTERNAL COMPILER ERROR OCCURRED.
                   |PLEASE REPORT THIS TO THE HAIL TEAM USING THE LINK BELOW,
                   |INCLUDING THE STACK TRACE AT THE END OF THIS MESSAGE.
@@ -63,7 +63,7 @@ case object SemanticHash extends Logging {
       }
 
       val semhash = go
-      log.info(s"IR Semantic Hash: $semhash")
+      logger.info(s"IR Semantic Hash: $semhash")
       semhash
     }
 

@@ -4,7 +4,7 @@ import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{BaseIR, IRSize, Pretty, TypeCheck}
 import is.hail.utils._
 
-case class LoweringPipeline(lowerings: LoweringPass*) {
+case class LoweringPipeline(lowerings: LoweringPass*) extends Logging {
   final def apply(ctx: ExecuteContext, ir: BaseIR): BaseIR = {
     if (lowerings.isEmpty) ir
     else ctx.time {
@@ -12,7 +12,7 @@ case class LoweringPipeline(lowerings: LoweringPass*) {
 
       def render(context: String): Unit =
         if (ctx.shouldLogIR())
-          log.info(s"$context: IR size ${IRSize(x)}: \n" + Pretty(ctx, x))
+          logger.info(s"$context: IR size ${IRSize(x)}: \n" + Pretty(ctx, x))
 
       render(s"initial IR")
 
@@ -22,7 +22,7 @@ case class LoweringPipeline(lowerings: LoweringPass*) {
           render(s"after ${l.context}")
         } catch {
           case e: Throwable =>
-            log.error(s"error while applying lowering '${l.context}'")
+            logger.error(s"error while applying lowering '${l.context}'", e)
             throw e
         }
         try

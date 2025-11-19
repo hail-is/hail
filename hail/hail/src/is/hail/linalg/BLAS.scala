@@ -9,14 +9,14 @@ import java.util.function._
 import com.sun.jna.{FunctionMapper, Library, Native}
 import com.sun.jna.ptr.{DoubleByReference, FloatByReference, IntByReference}
 
-object BLAS {
+object BLAS extends Logging {
   private[this] val libraryInstance = ThreadLocal.withInitial(new Supplier[BLASLibrary]() {
     def get() = {
       val standard = Native.load("blas", classOf[BLASLibrary]).asInstanceOf[BLASLibrary]
 
       verificationTest(standard) match {
         case Success(_) =>
-          log.info("Imported BLAS with standard names")
+          logger.info("Imported BLAS with standard names")
           standard
         case Failure(_) =>
           val underscoreAfterMap = new java.util.HashMap[String, FunctionMapper]()
@@ -25,7 +25,7 @@ object BLAS {
             Native.load("blas", classOf[BLASLibrary], underscoreAfterMap).asInstanceOf[BLASLibrary]
           verificationTest(underscoreAfter) match {
             case Success(_) =>
-              log.info("Imported BLAS with underscore names")
+              logger.info("Imported BLAS with underscore names")
               underscoreAfter
             case Failure(exception) =>
               throw exception
