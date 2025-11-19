@@ -58,6 +58,8 @@ Importantly, to shut down a cluster when done with it, use:
 
     hailctl dataproc stop CLUSTER_NAME
 
+.. _Reading From GCS:
+
 Reading from Google Cloud Storage
 ---------------------------------
 
