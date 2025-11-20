@@ -175,7 +175,7 @@ async def insert_new_user(
     db: Database,
     username: str,
     login_id: Optional[str],
-    roles: List[str],
+    system_roles: list[str],
     is_service_account: bool,
     *,
     hail_identity: Optional[str] = None,
@@ -183,7 +183,7 @@ async def insert_new_user(
 ) -> bool:
     @transaction(db)
     async def _insert(tx):
-        existing_user = await check_valid_new_user(tx, username, login_id, roles, is_service_account)
+        existing_user = await check_valid_new_user(tx, username, login_id, system_roles, is_service_account)
         if existing_user is not None:
             return False
 
@@ -202,7 +202,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s);
             ),
         )
 
-        for role in roles:
+        for role in system_roles:
             await tx.execute_insertone(
                 """
 INSERT INTO users_system_roles (user_id, role_id)
@@ -431,7 +431,7 @@ async def callback(request) -> web.Response:
             raise web.HTTPUnauthorized()
 
         try:
-            await insert_new_user(db, username, login_id, roles=[], is_service_account=False)
+            await insert_new_user(db, username, login_id, system_roles=[], is_service_account=False)
         except AuthUserError as e:
             set_message(session, e.message, 'error')
             raise web.HTTPFound(deploy_config.external_url('auth', ''))
@@ -470,7 +470,7 @@ async def create_user(request: web.Request, _) -> web.Response:
 
     body = await json_request(request)
     login_id = body['login_id']
-    roles = body.get('roles', [])
+    system_roles = body['system_roles'] if 'system_roles' in body else []
     is_service_account = body['is_service_account']
 
     hail_identity = body.get('hail_identity')
@@ -486,7 +486,7 @@ async def create_user(request: web.Request, _) -> web.Response:
             db,
             username,
             login_id,
-            roles,
+            system_roles,
             is_service_account,
             hail_identity=hail_identity,
             hail_credentials_secret_name=hail_credentials_secret_name,
@@ -646,14 +646,20 @@ async def post_create_user(request: web.Request, _) -> NoReturn:
     post = await request.post()
     username = str(post['username'])
     login_id = str(post['login_id']) if 'login_id' in post else None
-    roles = post.get('roles', [])
+    system_roles_raw = post.get('system_roles', [])
+    if isinstance(system_roles_raw, list):
+        system_roles = [str(role) for role in system_roles_raw]
+    elif system_roles_raw:
+        raise web.HTTPBadRequest(text='Invalid system_roles value. Must be a list of role name strings.')
+    else:
+        system_roles = []
     is_service_account = post.get('is_service_account') == '1'
 
-    if post.has_key('is_developer'):
+    if 'is_developer' in post:
         raise web.HTTPBadRequest(text='is_developer is no longer supported. Use roles instead.')
 
     try:
-        created_user = await insert_new_user(db, username, login_id, roles, is_service_account)
+        created_user = await insert_new_user(db, username, login_id, system_roles, is_service_account)
     except AuthUserError as e:
         set_message(session, e.message, 'error')
         raise web.HTTPFound(deploy_config.external_url('auth', '/users'))

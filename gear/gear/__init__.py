@@ -22,6 +22,7 @@ __all__ = [
     'Database',
     'K8sCache',
     'SystemPermission',
+    'SystemPermission',
     'Transaction',
     'UserData',
     'check_csrf_token',
@@ -37,5 +38,4 @@ __all__ = [
     'resolve_test_db_endpoint',
     'setup_aiohttp_session',
     'transaction',
-    'SystemPermission',
 ]

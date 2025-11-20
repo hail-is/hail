@@ -395,7 +395,7 @@ async def _create_user(app, user, skip_trial_bp, cleanup):
         token = secret_alnum_string(3, case='numbers')
         ident_token = f'{username}-{token}'
 
-    if user['is_developer'] == 1 or user['is_service_account'] == 1 or username == 'test':
+    if 'access_developer_environments' in user['system_roles'] or user['is_service_account'] == 1 or username == 'test':
         ident = username
     else:
         ident = ident_token
@@ -455,7 +455,7 @@ async def _create_user(app, user, skip_trial_bp, cleanup):
     namespace_name = user['namespace_name']
     # Namespace creation step if it doesn't exist yet and the user is a developer
     # NB auth services in test namespaces cannot/should not be creating and deleting namespaces
-    if namespace_name is None and user['is_developer'] == 1 and not is_test_deployment:
+    if namespace_name is None and 'access_developer_environments' in user['system_roles'] and not is_test_deployment:
         namespace_name = ident
         namespace = K8sNamespaceResource(k8s_client)
         cleanup.append(namespace.delete)
@@ -531,7 +531,11 @@ async def delete_user(app, user):
     namespace_name = user['namespace_name']
     # auth services in test namespaces cannot/should not be creating and deleting namespaces
     if namespace_name is not None and namespace_name != DEFAULT_NAMESPACE and not is_test_deployment:
-        assert user['is_developer'] == 1
+        if 'access_developer_environments' not in user['system_roles']:
+            # This should never happen, so let's log it, but if it does we should delete the namespace and finish deleting the user anyway
+            log.warning(
+                f'User {user["username"]} had a developer namespace without access_developer_environments permission, deleting namespace {namespace_name} anyway'
+            )
 
         # don't bother deleting database-server-config since we're
         # deleting the namespace
@@ -576,8 +580,10 @@ WHERE hail_identity = %s
 
 
 async def _users_in_state_with_roles(db: Database, state: str) -> List[dict]:
-    users = [x async for x in db.select_and_fetchall(
-        """
+    users = [
+        x
+        async for x in db.select_and_fetchall(
+            """
 SELECT users.*, GROUP_CONCAT(system_roles.name ORDER BY system_roles.name SEPARATOR ',') AS role_names
 FROM users
 JOIN users_system_roles ON users.id = users_system_roles.user_id
@@ -585,8 +591,9 @@ JOIN system_roles ON users_system_roles.role_id = system_roles.id
 WHERE users.state = %s
 GROUP BY users.id
 """,
-        (state,),
-    )]
+            (state,),
+        )
+    ]
 
     for user in users:
         user['system_roles'] = user['role_names'].split(',')

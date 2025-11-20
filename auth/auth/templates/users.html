@@ -26,13 +26,21 @@
           <input class='border rounded-sm p-1 text-sm w-48' name="login_id" />
         </div>
         <div class='space-y-1'>
-          <div><input type="checkbox" name="is_developer" value="1" /> Developer</div>
-          <div><input type="checkbox" name="is_service_account" value="1" /> Service Account</div>
+          {% for role in system_roles %}
+          <div>
+            <input type="checkbox" name="system_roles[]" value="{{ role }}" id="system_roles_{{ role }}" />
+            <label for="system_roles_{{ role }}">{{ role }}</label>
+          </div>
+          {% endfor %}
+          <div>
+            <input type="checkbox" name="is_service_account" value="1" id="is_service_account" />
+            <label for="is_service_account">Service Account</label>
+          </div>
         </div>
         <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
         <div class='mt-4'>
           {{ submit_button('Create') }}
-</div>
+        </div>
       </div>
     </form>
   </div>
@@ -104,10 +112,6 @@
     <input type="checkbox" id="show-active" class="form-checkbox" onchange="filterTable()">
     <span class="ml-2">Only Active</span>
   </label>
-  <label class="inline-flex items-center">
-    <input type="checkbox" id="show-developers" class="form-checkbox" onchange="filterTable()">
-    <span class="ml-2">Only Developers</span>
-  </label>
 </div>
 <table class="table-auto w-full" id="users-table">
   <thead>
@@ -118,7 +122,6 @@
       <th class='h-12 bg-slate-200 font-light text-left'>Hail Identity</th>
       <th class='h-12 bg-slate-200 font-light text-left'>State</th>
       <th class='h-12 bg-slate-200 font-light text-left'>Last Active</th>
-      <th class='h-12 bg-slate-200 font-light'>Developer</th>
       <th class='h-12 bg-slate-200 font-light rounded-tr pr-2'>Robot</th>
     </tr>
   </thead>
@@ -131,7 +134,6 @@
       <td>{{ user['hail_identity'] }}</td>
       <td class='text-center' data-state="{{ user['state'] }}">{{ user['state'] }}</td>
       <td class='text-center' data-state="{{ user['last_activated'] }}">{{ user['last_activated'] }}</td>
-      <td class='text-center' data-developer="{{ user['is_developer'] }}">{{ check_or_cross(user['is_developer']) }}</td>
       <td class='text-center'>{{ check_or_cross(user['is_service_account']) }}</td>
     </tr>
     {% endfor %}
@@ -147,11 +149,9 @@ function filterTable() {
 
   rows.forEach(row => {
     const state = row.querySelector('[data-state]').dataset.state.trim();
-    const isDeveloper = row.querySelector('[data-developer]').dataset.developer.trim();
 
     let show = true;
     if (showActive && state !== 'active') show = false;
-    if (showDevelopers && isDeveloper !== '1') show = false;
 
     row.style.display = show ? '' : 'none';
   });

@@ -23,13 +23,13 @@ from gear import (
     AuthServiceAuthenticator,
     CommonAiohttpAppKeys,
     Database,
+    SystemPermission,
     UserData,
     check_csrf_token,
     json_request,
     json_response,
     monitor_endpoints_middleware,
     setup_aiohttp_session,
-    SystemPermission,
 )
 from gear.profiling import install_profiler_if_requested
 from hailtop import __version__, aiotools, httpx, uvloopx
@@ -878,7 +878,9 @@ SELECT frozen_merge_deploy FROM globals;
         deploy_config.url('auth', '/api/v1alpha/users'),
         headers=headers,
     )
-    app[AppKeys.DEVELOPERS] = [u for u in users if SystemPermission.MANAGE_CI in u['system_permissions'] and u['state'] == 'active']
+    app[AppKeys.DEVELOPERS] = [
+        u for u in users if SystemPermission.MANAGE_CI in u['system_permissions'] and u['state'] == 'active'
+    ]
 
     global watched_branches
     watched_branches = [

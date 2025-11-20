@@ -2,7 +2,7 @@ import asyncio
 import json
 import sys
 from typing import Annotated as Ann
-from typing import Optional
+from typing import List, Optional
 
 import typer
 from typer import Argument as Arg
@@ -122,7 +122,7 @@ def user():
 def create_user(
     username: str,
     login_id: Ann[str, Arg(help="In Azure, the user's object ID in AAD. In GCP, the Google email")],
-    developer: bool = False,
+    system_roles: Ann[List[str], Arg(help="List of system roles to assign to the new user")] = [],
     service_account: bool = False,
     hail_identity: Optional[str] = None,
     hail_credentials_secret_name: Optional[str] = None,
@@ -135,7 +135,7 @@ def create_user(
 
     asyncio.run(
         polling_create_user(
-            username, login_id, developer, service_account, hail_identity, hail_credentials_secret_name, wait=wait
+            username, login_id, system_roles, service_account, hail_identity, hail_credentials_secret_name, wait=wait
         )
     )
 

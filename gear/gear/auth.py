@@ -36,7 +36,6 @@ class UserData(TypedDict):
     username: str
     login_id: str
     namespace_name: str
-    is_developer: bool
     is_service_account: bool
     hail_credentials_secret_name: str
     tokens_secret_name: str
@@ -94,7 +93,6 @@ class Authenticator(abc.ABC):
             return await fun(request, userdata)
 
         return wrapped
-
 
     def authenticated_users_with_permission(
         self, permission: SystemPermission, redirect: bool = True
@@ -172,7 +170,6 @@ class TrustedSingleTenantAuthenticator(Authenticator):
                 'username': 'user',
                 'login_id': 'user',
                 'namespace_name': 'default',
-                'is_developer': True,
                 'is_service_account': False,
                 'hail_credentials_secret_name': 'dummy',
                 'tokens_secret_name': 'dummy',

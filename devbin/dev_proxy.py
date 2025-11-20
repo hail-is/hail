@@ -49,8 +49,8 @@ async def render_html(request: web.Request, context: dict):
     # Make links point back to the local dev server and not use
     # the dev namespace path rewrite shenanigans.
     context['page_context']['base_path'] = ''
-    context['page_context']['is_developer'] = IS_DEVELOPER
-    context['userdata']['is_developer'] = IS_DEVELOPER
+    context['page_context']['system_roles'] = ['developer', 'billing_manager', 'sysadmin'] if IS_DEVELOPER else []
+    context['userdata']['system_roles'] = ['developer', 'billing_manager', 'sysadmin'] if IS_DEVELOPER else []
     return await render_template(SERVICE, request, **context)
 
 

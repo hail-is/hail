@@ -17,9 +17,9 @@ from gear import (
     AuthServiceAuthenticator,
     CommonAiohttpAppKeys,
     Database,
+    SystemPermission,
     json_response,
     setup_aiohttp_session,
-    SystemPermission,
     transaction,
 )
 from hailtop import __version__, aiotools, httpx
