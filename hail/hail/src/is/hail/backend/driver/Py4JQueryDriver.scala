@@ -28,7 +28,6 @@ import java.io.Closeable
 import java.net.InetSocketAddress
 import java.util
 
-import com.google.api.client.http.HttpStatusCodes
 import com.sun.net.httpserver.{HttpExchange, HttpServer}
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.sql.DataFrame
@@ -412,12 +411,12 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
         }
 
         override def result(req: HttpExchange, result: Array[Byte]): Unit =
-          respond(req, HttpStatusCodes.STATUS_CODE_OK, result)
+          respond(req, 200, result)
 
         override def failure(req: HttpExchange, t: Throwable): Unit =
           respond(
             req,
-            HttpStatusCodes.STATUS_CODE_SERVER_ERROR,
+            500,
             jsonToBytes {
               val (shortMessage, expandedMessage, errorId) = handleForPython(t)
               JObject(

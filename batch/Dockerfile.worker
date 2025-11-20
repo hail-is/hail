@@ -46,7 +46,7 @@ RUN hail-pip-install \
     -r hailtop-requirements.txt \
     -r gear-requirements.txt \
     -r batch-requirements.txt \
-    pyspark==3.5.0
+    pyspark==3.5.3
 
 ENV SPARK_HOME=$VIRTUAL_ENV/lib/python$UV_PYTHON/site-packages/pyspark
 ENV PATH="$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin"
