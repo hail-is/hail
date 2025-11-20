@@ -52,6 +52,29 @@ supports.
 policy. Their functionality or even existence may change without notice. Please contact us if you
 critically depend on experimental functionality.**
 
+## Version 0.2.137 
+
+Released 2025-11-19 
+
+### New Features
+
+- (hail#14984) Add `hl.experimental.init` to run the batch query driver locally via py4j.
+- (hail#15160) Support using credentials obtained via `hailctl auth login` with batch backend.
+- (hail#15095) Support for BlockMatrix sum in the 'batch' backend.
+- (hail#15108) Add `dgamma`, `qgamma` and `pgamma` providing density, quantile and cumulative distribution functionality for the gamma distribution.
+- (hail#14748) Configures local and remove tmpdir via properties on `Backend` within a hail session.
+
+### Bug Fixes
+
+- (hail#15126) Fix a bug in the VDS combiner that removed entries in reference rows if GT was missing.
+- (hail#15101) Fix a bug that caused failures if a batch worker previously ran older query-on-batch versions.
+- (hail#15119) Fix a bug that made query-on-batch pipelines hang when the batch was cancelled.
+- (hail#15064) Fix a bug in `hl.init` when `regions` was specified with the 'batch' backend.
+
+## Deprecations
+
+- (hail#15182) Deprecate `hl.hadoop_*` functions in favor of `hailtop.fs` functions. 
+
 ## Version 0.2.136
 
 Released 2025-08-26
