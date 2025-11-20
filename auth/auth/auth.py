@@ -1015,14 +1015,6 @@ async def userinfo(_, userdata: UserData) -> web.Response:
     return json_response(userdata)
 
 
-@routes.route('*', '/api/v1alpha/verify_dev_credentials', name='verify_dev')
-@auth.authenticated_users_only()
-async def verify_dev_credentials(_, userdata: UserData) -> web.Response:
-    if userdata['is_developer'] != 1:
-        raise web.HTTPUnauthorized()
-    return web.Response(status=200)
-
-
 @routes.get('/api/v1alpha/check_system_permission')
 @auth.authenticated_users_only()
 async def check_system_permission(request: web.Request, userdata: UserData) -> web.Response:

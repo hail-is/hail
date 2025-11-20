@@ -50,9 +50,11 @@ components:
           type: string
           enum: [creating, active, deleting, deleted]
           description: "Current state of the user account"
-        is_developer:
-          type: boolean
-          description: "Whether the user has developer privileges"
+        system_roles:
+          type: array
+          items:
+            type: string
+          description: "List of system roles assigned to the user"
         is_service_account:
           type: boolean
           description: "Whether this is a service account"
@@ -80,15 +82,17 @@ components:
       type: object
       required:
         - login_id
-        - is_developer
+        - system_roles
         - is_service_account
       properties:
         login_id:
           type: string
           description: "Login identifier for the new user"
-        is_developer:
-          type: boolean
-          description: "Whether the user should have developer privileges"
+        system_roles:
+          type: array
+          items:
+            type: string
+          description: "List of system roles to assign to the new user"
         is_service_account:
           type: boolean
           description: "Whether this is a service account"
@@ -279,19 +283,6 @@ paths:
           description: Successfully logged out
         '401':
           description: Not authenticated
-
-  /api/v1alpha/verify_dev_credentials:
-    get:
-      summary: Verify developer credentials
-      description: Verify that the authenticated user has developer credentials
-      tags: [Authentication]
-      security:
-        - developerAuth: []
-      responses:
-        '200':
-          description: User has valid developer credentials
-        '401':
-          description: Unauthorized or not a developer
 
 
   /api/v1alpha/verify_system_permission:
@@ -579,9 +570,11 @@ paths:
                   state:
                     type: string
                     description: User state
-                  is_developer:
-                    type: integer
-                    description: Whether user is a developer
+                  system_roles:
+                    type: array
+                    items:
+                      type: string
+                    description: List of system roles assigned to the user
                   is_service_account:
                     type: integer
                     description: Whether user is a service account

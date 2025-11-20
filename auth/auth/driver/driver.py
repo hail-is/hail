@@ -575,6 +575,26 @@ WHERE hail_identity = %s
     )
 
 
+async def _users_in_state_with_roles(db: Database, state: str) -> List[dict]:
+    users = [x async for x in db.select_and_fetchall(
+        """
+SELECT users.*, GROUP_CONCAT(system_roles.name ORDER BY system_roles.name SEPARATOR ',') AS role_names
+FROM users
+JOIN users_system_roles ON users.id = users_system_roles.user_id
+JOIN system_roles ON users_system_roles.role_id = system_roles.id
+WHERE users.state = %s
+GROUP BY users.id
+""",
+        (state,),
+    )]
+
+    for user in users:
+        user['system_roles'] = user['role_names'].split(',')
+        del user['role_names']
+
+    return users
+
+
 async def update_users(app):
     log.info('in update_users')
 

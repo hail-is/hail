@@ -18,6 +18,7 @@ class SystemPermission(str, Enum):
     READ_DEVELOPER_ENVIRONMENTS = 'read_developer_environments'
     UPDATE_DEVELOPER_ENVIRONMENTS = 'update_developer_environments'
     DELETE_DEVELOPER_ENVIRONMENTS = 'delete_developer_environments'
+    ACCESS_DEVELOPER_ENVIRONMENTS = 'access_developer_environments'
     # Developer Activities
     READ_PRERENDERED_JINJA2_CONTEXT = 'read_prerendered_jinja2_context'
     # CI

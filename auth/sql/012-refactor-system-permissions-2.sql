@@ -59,3 +59,9 @@ INSERT INTO `users_system_roles` (`user_id`, `role_id`)
 SELECT `id`, (SELECT `id` FROM `system_roles` WHERE `name` = 'developer')
 FROM `users`
 WHERE `username` = 'grafana';
+
+-- Add access_developer_environments permission to the developer role:
+INSERT INTO `system_role_permissions` (`role_id`, `permission_id`)
+SELECT (SELECT `id` FROM `system_roles` WHERE `name` = 'developer'), `id`
+FROM `system_permissions`
+WHERE `name` = 'access_developer_environments';
