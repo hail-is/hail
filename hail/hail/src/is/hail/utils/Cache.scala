@@ -1,7 +1,7 @@
 package is.hail.utils
 
 import is.hail.annotations.{Region, RegionMemory}
-import is.hail.utils.compat.mutable.{Growable, Shrinkable}
+import is.hail.utils.compat.mutable.{GrowableCompat, ShrinkableCompat}
 
 import scala.collection.mutable
 import scala.jdk.CollectionConverters._
@@ -11,7 +11,7 @@ import java.util
 import java.util.Map.Entry
 
 class Cache[K, V](capacity: Int)
-    extends mutable.AbstractMap[K, V] with Growable[(K, V)] with Shrinkable[K] {
+    extends mutable.AbstractMap[K, V] with GrowableCompat[(K, V)] with ShrinkableCompat[K] {
   private[this] val m = new util.LinkedHashMap[K, V](capacity, 0.75f, true) {
     override def removeEldestEntry(eldest: Entry[K, V]): Boolean = size() > capacity
   }

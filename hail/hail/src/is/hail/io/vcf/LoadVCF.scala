@@ -1305,7 +1305,7 @@ class ParseLineContext(
 }
 
 object LoadVCF extends Logging {
-  def warnDuplicates(ids: Array[String]): Unit = {
+  def warnDuplicates(ids: IndexedSeq[String]): Unit = {
     val duplicates = ids.counter().filter(_._2 > 1)
     if (duplicates.nonEmpty) {
       logger.warn(

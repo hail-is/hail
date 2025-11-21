@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.defs.{BaseRef, Binding, Block, In, Ref, Str}
 import is.hail.types.virtual.TVoid
-import is.hail.utils.BoxedArrayBuilder
+import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.collection.Set
 
@@ -31,7 +31,7 @@ object ForwardLets {
       def rewrite(ir: BaseIR, env: BindingEnv[IR]): BaseIR =
         ir match {
           case l: Block if l.bindings.nonEmpty =>
-            val keep = new BoxedArrayBuilder[Binding]
+            val keep = ArraySeq.newBuilder[Binding]
             val refs = uses(l)
             val newEnv = l.bindings.foldLeft(env) {
               case (env, Binding(name, value, scope)) =>
@@ -48,8 +48,9 @@ object ForwardLets {
             }
 
             val newBody = rewrite(l.body, newEnv).asInstanceOf[IR]
-            if (keep.isEmpty) newBody
-            else Block(keep.result(), newBody)
+            val newBindings = keep.result()
+            if (newBindings.isEmpty) newBody
+            else Block(newBindings, newBody)
 
           case x @ Ref(name, _) =>
             env.eval

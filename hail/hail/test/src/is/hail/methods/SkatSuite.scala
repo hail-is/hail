@@ -1,13 +1,10 @@
 package is.hail.methods
 
 import is.hail.HailSuite
-import is.hail.expr.ir.DoubleArrayBuilder
 import is.hail.utils._
 
 import breeze.linalg._
 import org.testng.annotations.Test
-
-case class SkatAggForR(xs: BoxedArrayBuilder[DenseVector[Double]], weights: DoubleArrayBuilder)
 
 class SkatSuite extends HailSuite {
 

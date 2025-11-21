@@ -4,8 +4,10 @@ import is.hail.asm4s.{Code, Value}
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.virtual.{TStruct, Type}
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.collection.compat._
+import scala.collection.mutable
 import scala.jdk.CollectionConverters._
 
 object PCanonicalStruct {
@@ -60,7 +62,7 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
     if (required == this.required) this else PCanonicalStruct(fields, required)
 
   override def rename(m: Map[String, String]): PStruct = {
-    val newFieldsBuilder = new BoxedArrayBuilder[(String, PType)]()
+    val newFieldsBuilder = ArraySeq.newBuilder[(String, PType)]
     fields.foreach { fd =>
       val n = fd.name
       newFieldsBuilder += (m.getOrElse(n, n) -> fd.typ)
@@ -103,7 +105,8 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
     setFieldMissing(cb, offset, fieldIdx(field))
 
   override def insertFields(fieldsToInsert: IterableOnce[(String, PType)]): PStruct = {
-    val ab = new BoxedArrayBuilder[PField](fields.length)
+    val ab = mutable.ArrayBuffer.empty[PField]
+    ab.sizeHint(fields.length)
     var i = 0
     while (i < fields.length) {
       ab += fields(i)
@@ -118,7 +121,7 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
       } else
         ab += PField(name, typ, ab.length)
     }
-    PCanonicalStruct(ab.result(), required)
+    PCanonicalStruct(ab.to(ArraySeq), required)
   }
 
   override def deepRename(t: Type): PType = deepRenameStruct(t.asInstanceOf[TStruct])

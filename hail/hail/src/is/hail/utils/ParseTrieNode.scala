@@ -28,7 +28,7 @@ class ParseTrieNode(
 
 object ParseTrieNode {
 
-  def generate(data: Array[String]): ParseTrieNode = {
+  def generate(data: IndexedSeq[String]): ParseTrieNode = {
     class ParseTrieNodeBuilder(
       var value: String,
       var children: ArrayBuffer[ParseTrieNodeBuilder],

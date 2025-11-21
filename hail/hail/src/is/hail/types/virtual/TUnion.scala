@@ -4,6 +4,7 @@ import is.hail.annotations.ExtendedOrdering
 import is.hail.backend.HailStateManager
 import is.hail.expr.ir.IRParser
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.collection.compat._
 
@@ -79,7 +80,7 @@ final case class TUnion(cases: IndexedSeq[Case]) extends Type {
   def fieldType(name: String): Type = types(caseIdx(name))
 
   def rename(m: Map[String, String]): TUnion = {
-    val newFieldsBuilder = new BoxedArrayBuilder[(String, Type)]()
+    val newFieldsBuilder = ArraySeq.newBuilder[(String, Type)]
     cases.foreach { fd =>
       val n = fd.name
       newFieldsBuilder += (m.getOrElse(n, n) -> fd.typ)

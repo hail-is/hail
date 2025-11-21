@@ -1596,7 +1596,7 @@ object BlockMatrixFilterRDD {
     : Array[Array[(Int, Array[Int], Array[Int])]] = {
 
     val blockSize = gp.blockSize
-    val ab = new BoxedArrayBuilder[(Int, Array[Int], Array[Int])]()
+    val ab = Array.newBuilder[(Int, Array[Int], Array[Int])]
     val startIndices = new IntArrayBuilder()
     val endIndices = new IntArrayBuilder()
 

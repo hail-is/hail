@@ -17,6 +17,7 @@ import is.hail.types.encoded.ETypeSerializer
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.collection.compat._
 
@@ -225,9 +226,9 @@ abstract class AbstractRVDSpec {
 
   def key: IndexedSeq[String]
 
-  def partFiles: Array[String]
+  def partFiles: IndexedSeq[String]
 
-  def absolutePartPaths(path: String): Array[String] = partFiles.map(path + "/parts/" + _)
+  def absolutePartPaths(path: String): IndexedSeq[String] = partFiles.map(path + "/parts/" + _)
 
   def typedCodecSpec: AbstractTypedCodecSpec
 
@@ -366,7 +367,7 @@ object IndexSpec {
 object MakeRVDSpec {
   def apply(
     codecSpec: AbstractTypedCodecSpec,
-    partFiles: Array[String],
+    partFiles: IndexedSeq[String],
     partitioner: RVDPartitioner,
     indexSpec: AbstractIndexSpec = null,
     attrs: Map[String, String] = Map.empty,
@@ -399,7 +400,7 @@ case class RVDSpecMaker(
   indexSpec: AbstractIndexSpec,
   attrs: Map[String, String],
 ) {
-  def apply(partFiles: Array[String]): AbstractRVDSpec =
+  def apply(partFiles: IndexedSeq[String]): AbstractRVDSpec =
     Option(indexSpec) match {
       case Some(ais) => IndexedRVDSpec2(
           key,
@@ -416,6 +417,9 @@ case class RVDSpecMaker(
           attrs,
         )
     }
+
+  def applyFromCodegen(partFiles: Array[String]): AbstractRVDSpec =
+    apply(ArraySeq.unsafeWrapArray(partFiles))
 }
 
 object IndexedRVDSpec2 {
@@ -423,7 +427,7 @@ object IndexedRVDSpec2 {
     key: IndexedSeq[String],
     codecSpec: AbstractTypedCodecSpec,
     indexSpec: AbstractIndexSpec,
-    partFiles: Array[String],
+    partFiles: IndexedSeq[String],
     partitioner: RVDPartitioner,
     attrs: Map[String, String],
   ): AbstractRVDSpec = {
@@ -445,7 +449,7 @@ case class IndexedRVDSpec2(
   _key: IndexedSeq[String],
   _codecSpec: AbstractTypedCodecSpec,
   _indexSpec: AbstractIndexSpec,
-  _partFiles: Array[String],
+  _partFiles: IndexedSeq[String],
   _jRangeBounds: JValue,
   _attrs: Map[String, String],
 ) extends AbstractRVDSpec with Indexed {
@@ -476,7 +480,7 @@ case class IndexedRVDSpec2(
     )
   }
 
-  def partFiles: Array[String] = _partFiles
+  def partFiles: IndexedSeq[String] = _partFiles
 
   def key: IndexedSeq[String] = _key
 
@@ -580,7 +584,7 @@ case class IndexedRVDSpec2(
 case class OrderedRVDSpec2(
   _key: IndexedSeq[String],
   _codecSpec: AbstractTypedCodecSpec,
-  _partFiles: Array[String],
+  _partFiles: IndexedSeq[String],
   _jRangeBounds: JValue,
   _attrs: Map[String, String],
 ) extends AbstractRVDSpec {
@@ -607,7 +611,7 @@ case class OrderedRVDSpec2(
     )
   }
 
-  def partFiles: Array[String] = _partFiles
+  def partFiles: IndexedSeq[String] = _partFiles
 
   def key: IndexedSeq[String] = _key
 

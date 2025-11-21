@@ -15,6 +15,8 @@ import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.utils.StringEscapeUtils._
+import is.hail.utils.compat._
+import is.hail.utils.compat.immutable.ArraySeq
 import is.hail.variant._
 
 import java.io.{ObjectInputStream, ObjectOutputStream}
@@ -43,7 +45,7 @@ object LoadPlink extends Logging {
     locusAllelesType: TStruct,
     skipInvalidLoci: Boolean,
   ): (Int, Array[PlinkVariant]) = {
-    val vs = new BoxedArrayBuilder[PlinkVariant]()
+    val vs = Array.newBuilder[PlinkVariant]
     var n = 0
     fs.readLines(bimPath) { lines =>
       lines.foreach { cline =>
@@ -72,8 +74,10 @@ object LoadPlink extends Logging {
         n += 1
       }
     }
-    val variants = vs.result()
-    (n, variants.sortBy(_.locusAlleles)(locusAllelesType.ordering(ctx.stateManager).toOrdering))
+    val variants = vs.result().sortInPlaceBy(_.locusAlleles)(
+      locusAllelesType.ordering(ctx.stateManager).toOrdering
+    ).array
+    (n, variants)
   }
 
   val numericRegex =
@@ -111,8 +115,8 @@ object LoadPlink extends Logging {
       phenoSig,
     )
 
-    val idBuilder = new BoxedArrayBuilder[String]
-    val structBuilder = new BoxedArrayBuilder[Row]
+    val idBuilder = ArraySeq.newBuilder[String]
+    val structBuilder = ArraySeq.newBuilder[Row]
 
     fs.readLines(filename) {
       _.foreachLine { line =>
@@ -264,8 +268,8 @@ object MatrixPLINKReader extends Logging {
     val partSize = partition(nVariants, nPartitions)
     val partScan = partSize.scanLeft(0)(_ + _)
 
-    val cb = new BoxedArrayBuilder[Row]()
-    val ib = new BoxedArrayBuilder[Interval]()
+    val cb = ArraySeq.newBuilder[Row]
+    val ib = ArraySeq.newBuilder[Interval]
 
     var p = 0
     var prevEnd = 0
@@ -359,7 +363,7 @@ class MatrixPLINKReader(
   val fullMatrixTypeWithoutUIDs: MatrixType,
   val nVariants: Long,
   sampleInfo: IndexedSeq[Row],
-  contexts: Array[Row],
+  contexts: IndexedSeq[Row],
   partitioner: RVDPartitioner,
 ) extends MatrixHybridReader {
 

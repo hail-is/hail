@@ -534,7 +534,7 @@ class TableIRSuite extends HailSuite {
     val defaultLeftProject = Set(1, 2)
     val defaultRightProject = Set(1, 2)
 
-    val ab = new BoxedArrayBuilder[Array[Any]]()
+    val ab = Array.newBuilder[Array[Any]]
     for ((j, p) <- joinTypes) {
       for {
         lParts <- Array[Integer](1, 2, 3)

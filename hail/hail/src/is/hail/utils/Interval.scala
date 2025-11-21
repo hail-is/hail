@@ -2,6 +2,7 @@ package is.hail.utils
 
 import is.hail.annotations._
 import is.hail.types.virtual.TBoolean
+import is.hail.utils.compat.immutable.ArraySeq
 
 import org.apache.spark.sql.Row
 import org.json4s.JValue
@@ -225,11 +226,11 @@ object Interval {
     }
   }
 
-  def union(xs: IndexedSeq[Interval], ord: IntervalEndpointOrdering): Array[Interval] = {
+  def union(xs: IndexedSeq[Interval], ord: IntervalEndpointOrdering): IndexedSeq[Interval] = {
 
     val sorted = xs.sortBy(_.left: Any)(ord.toOrdering)
 
-    val ab = new BoxedArrayBuilder[Interval]()
+    val ab = ArraySeq.newBuilder[Interval]
     var i = 0
     while (i < sorted.length) {
       var interval = sorted(i)
@@ -249,11 +250,11 @@ object Interval {
     x1: IndexedSeq[Interval],
     x2: IndexedSeq[Interval],
     ord: IntervalEndpointOrdering,
-  ): Array[Interval] = {
+  ): IndexedSeq[Interval] = {
 
     var i = 0
     var j = 0
-    val ab = new BoxedArrayBuilder[Interval]()
+    val ab = ArraySeq.newBuilder[Interval]
 
     while (!(i >= x1.length || j >= x2.length)) {
       val l = x1(i)

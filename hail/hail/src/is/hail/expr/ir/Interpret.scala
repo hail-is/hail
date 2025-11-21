@@ -16,6 +16,7 @@ import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeTy
 import is.hail.types.tcoerce
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.collection.mutable
 
@@ -466,8 +467,8 @@ object Interpret extends Logging {
           if (seq.isEmpty)
             FastSeq[IndexedSeq[Row]]()
           else {
-            val outer = new BoxedArrayBuilder[IndexedSeq[Row]]()
-            val inner = new BoxedArrayBuilder[Row]()
+            val outer = ArraySeq.newBuilder[IndexedSeq[Row]]
+            val inner = ArraySeq.newBuilder[Row]
             val (kType, getKey) = structType.select(key)
             val keyOrd = TBaseStruct.getJoinOrdering(ctx.stateManager, kType.types, missingEqual)
             var curKey: Row = getKey(seq.head)
@@ -552,14 +553,14 @@ object Interpret extends Logging {
 
           for (i <- 0 until k) advance(i)
 
-          val builder = new BoxedArrayBuilder[Row]()
+          val builder = ArraySeq.newBuilder[Row]
           while (tournament(0) != k) {
             val i = tournament(0)
             val elt = streams(i)(heads(i))
             advance(i)
             builder += elt
           }
-          builder.result().toFastSeq
+          builder.result()
         }
       case StreamZipJoin(as, key, curKeyName, curValsName, joinF) =>
         val streams = as.map(interpret(_, env, args).asInstanceOf[IndexedSeq[Row]])

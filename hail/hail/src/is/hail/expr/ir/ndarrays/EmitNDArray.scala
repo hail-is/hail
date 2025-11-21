@@ -12,6 +12,7 @@ import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 abstract class NDArrayProducer {
   outer =>
@@ -530,7 +531,7 @@ object EmitNDArray {
                     cb.newLocal("ndarray_slice_indexer", sCode.asInt64.value)
                   )
                   val slicingValueTriplesBuilder =
-                    new BoxedArrayBuilder[(Value[Long], Value[Long], Value[Long])]()
+                    ArraySeq.newBuilder[(Value[Long], Value[Long], Value[Long])]
                   val outputShape = {
                     IEmitCode.multiFlatMap[Int, SValue, IndexedSeq[Value[Long]]](
                       slicingIndices,
@@ -549,7 +550,7 @@ object EmitNDArray {
                                 val stop = stopC.asLong.value
                                 val step = stepC.asLong.value
 
-                                slicingValueTriplesBuilder.push((start, stop, step))
+                                slicingValueTriplesBuilder += ((start, stop, step))
 
                                 val newDimSize = cb.newLocal[Long]("new_dim_size")
                                 cb.if_(

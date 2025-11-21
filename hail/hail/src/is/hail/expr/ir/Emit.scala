@@ -101,7 +101,7 @@ object Emit {
     fb: EmitFunctionBuilder[C],
     rti: TypeInfo[_],
     nParams: Int,
-    aggs: Option[Array[AggStateSig]] = None,
+    aggs: Option[IndexedSeq[AggStateSig]] = None,
   ): Option[SingleCodeType] =
     ctx.executeContext.time {
       TypeCheck(ctx.executeContext, ir)
@@ -214,11 +214,10 @@ object AggContainer {
 }
 
 case class AggContainer(
-  aggs: Array[AggStateSig],
+  aggs: IndexedSeq[AggStateSig],
   container: agg.TupleAggregatorState,
   cleanup: () => Unit,
 ) {
-
   def nested(i: Int, init: Boolean): Option[AggContainer] = {
     aggs(i).n.map { nested =>
       val c = aggs(i) match {
@@ -229,7 +228,7 @@ case class AggContainer(
           val state = container.states(i).asInstanceOf[agg.ArrayElementState]
           if (init) state.initContainer else state.container
       }
-      AggContainer(nested.toArray, c, () => ())
+      AggContainer(nested, c, () => ())
     }
   }
 }

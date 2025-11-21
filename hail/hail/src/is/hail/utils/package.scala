@@ -569,30 +569,6 @@ package object utils
 
   def partFile(d: Int, i: Int, ctx: TaskContext): String = s"${partFile(d, i)}-${partSuffix(ctx)}"
 
-  def mangle(strs: Array[String], formatter: Int => String = "_%d".format(_))
-    : (Array[String], Array[(String, String)]) = {
-    val b = new BoxedArrayBuilder[String]
-
-    val uniques = new mutable.HashSet[String]()
-    val mapping = new BoxedArrayBuilder[(String, String)]
-
-    strs.foreach { s =>
-      var smod = s
-      var i = 0
-      while (uniques.contains(smod)) {
-        i += 1
-        smod = s + formatter(i)
-      }
-
-      if (smod != s)
-        mapping += s -> smod
-      uniques += smod
-      b += smod
-    }
-
-    b.result() -> mapping.result()
-  }
-
   def lift[T, S](pf: PartialFunction[T, S]): (T) => Option[S] = pf.lift
 
   def flatLift[T, S](pf: PartialFunction[T, Option[S]]): (T) => Option[S] = pf.flatLift

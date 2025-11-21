@@ -13,6 +13,7 @@ import is.hail.io.reference.{
 import is.hail.types._
 import is.hail.types.virtual.{TLocus, Type}
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.collection.mutable
 import scala.jdk.CollectionConverters._
@@ -24,12 +25,12 @@ import org.json4s.jackson.{JsonMethods, Serialization}
 
 case class ReferenceGenome(
   name: String,
-  contigs: Array[String],
+  contigs: IndexedSeq[String],
   lengths: Map[String, Int],
   xContigs: Set[String] = Set.empty[String],
   yContigs: Set[String] = Set.empty[String],
   mtContigs: Set[String] = Set.empty[String],
-  parInput: Array[(Locus, Locus)] = Array.empty[(Locus, Locus)],
+  parInput: IndexedSeq[(Locus, Locus)] = IndexedSeq.empty[(Locus, Locus)],
 ) extends Serializable {
 
   val nContigs = contigs.length
@@ -74,7 +75,7 @@ case class ReferenceGenome(
   private val jLengths: java.util.HashMap[String, java.lang.Integer] =
     makeJavaMap(lengths.iterator.map { case (c, i) => (c, box(i)) })
 
-  val lengthsByIndex: Array[Int] = contigs.map(lengths)
+  val lengthsByIndex: IndexedSeq[Int] = contigs.map(lengths)
 
   lengths.foreach { case (n, l) =>
     if (l <= 0)
@@ -159,9 +160,10 @@ case class ReferenceGenome(
 
   val nBases = lengths.map(_._2.toLong).sum
 
-  @transient private var globalContigEnds: Array[Long] = _
+  @transient private var globalContigEnds: IndexedSeq[Long] = _
 
-  def getGlobalContigEnds: Array[Long] = contigs.map(contigLength(_).toLong).scan(0L)(_ + _).tail
+  def getGlobalContigEnds: IndexedSeq[Long] =
+    contigs.map(contigLength(_).toLong).scan(0L)(_ + _).tail
 
   def locusToGlobalPos(contig: String, pos: Int): Long =
     globalPosContigStarts(contig) + (pos - 1)
@@ -530,8 +532,8 @@ object ReferenceGenome {
     if (!fs.isFile(fastaFile))
       fatal(s"FASTA file '$fastaFile' does not exist, is not a file, or you do not have access.")
 
-    val contigs = new BoxedArrayBuilder[String]
-    val lengths = new BoxedArrayBuilder[(String, Int)]
+    val contigs = ArraySeq.newBuilder[String]
+    val lengths = ArraySeq.newBuilder[(String, Int)]
 
     FastaSequenceIndex(fs, indexFile).foreach { entry =>
       val contig = entry.getContig
@@ -608,18 +610,18 @@ object ReferenceGenome {
 
   def apply(
     name: String,
-    contigs: Array[String],
+    contigs: IndexedSeq[String],
     lengths: Map[String, Int],
-    xContigs: Array[String],
-    yContigs: Array[String],
-    mtContigs: Array[String],
-    parInput: Array[String],
+    xContigs: IndexedSeq[String],
+    yContigs: IndexedSeq[String],
+    mtContigs: IndexedSeq[String],
+    parInput: IndexedSeq[String],
   ): ReferenceGenome = {
     val parRegex = """(\w+):(\d+)-(\d+)""".r
 
     val par = parInput.map {
       case parRegex(contig, start, end) =>
-        (Locus(contig.toString, start.toInt), Locus(contig.toString, end.toInt))
+        (Locus(contig, start.toInt), Locus(contig, end.toInt))
       case _ => fatal("expected PAR input of form contig:start-end")
     }
 
