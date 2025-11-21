@@ -128,6 +128,7 @@ async def main():
 
             if user_id is not None:
                 db_user = await db.execute_and_fetchone('SELECT * FROM users where id = %s;', (user_id,))
+                db_user['system_roles'] = system_roles
                 await create_user(app, db_user, skip_trial_bp=True)
     finally:
         await k8s_client.api_client.rest_client.pool_manager.close()

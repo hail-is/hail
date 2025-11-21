@@ -607,13 +607,11 @@ async def update_users(app):
 
     db = app['db']
 
-    creating_users = [x async for x in db.execute_and_fetchall('SELECT * FROM users WHERE state = %s;', 'creating')]
-
+    creating_users = await _users_in_state_with_roles(db, 'creating')
     for user in creating_users:
         await create_user(app, user)
 
-    deleting_users = [x async for x in db.execute_and_fetchall('SELECT * FROM users WHERE state = %s;', 'deleting')]
-
+    deleting_users = await _users_in_state_with_roles(db, 'deleting')
     for user in deleting_users:
         await delete_user(app, user)
 
