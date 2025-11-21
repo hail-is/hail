@@ -634,15 +634,13 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false)
     }
 
     def finish(cb: EmitCodeBuilder): SIndexablePointerValue = {
-      cb.if_(
-        currentElementIndex cne length,
-        cb._fatal(
-          "PCanonicalArray.constructFromFunctions push was called the wrong number of times",
-          ": len=",
-          length.toS,
-          ", calls=",
-          currentElementIndex.toS,
-        ),
+      cb._assert(
+        currentElementIndex ceq length,
+        "PCanonicalArray.constructFromFunctions push was called the wrong number of times",
+        ": len=",
+        length.toS,
+        ", calls=",
+        currentElementIndex.toS,
       )
       new SIndexablePointerValue(sType, addr, length, firstElementAddress)
     }
@@ -663,7 +661,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false)
   ) = {
 
     val addr = cb.newLocal[Long]("pcarray_construct2_addr", allocate(region, length))
-    stagedInitialize(cb, addr, length, setMissing = false)
+    stagedInitialize(cb, addr, length, setMissing = true)
     val firstElementAddress =
       cb.newLocal[Long]("pcarray_construct2_first_addr", firstElementOffset(addr, length))
 

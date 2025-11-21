@@ -311,6 +311,54 @@ object ArrayFunctions extends RegistryFunctions {
       ToArray(flatMapIR(ToStream(a))(ToStream(_)))
     }
 
+    /* Construct an array of length `len`, with the values in `elts` copied to the positions in
+     * `indices` */
+    registerSCode3t(
+      "scatter",
+      Array(tv("T")),
+      TArray(tv("T")), // elts
+      TArray(TInt32), // indices
+      TInt32, // len
+      TArray(tv("T")),
+      (_, a, _, _) => PCanonicalArray(a.asInstanceOf[SContainer].elementType.storageType()).sType,
+    ) {
+      case (
+            er,
+            cb,
+            _,
+            rt: SIndexablePointer,
+            elts: SIndexableValue,
+            indices: SIndexableValue,
+            len: SInt32Value,
+            errorID,
+          ) =>
+        cb.if_(
+          elts.loadLength.cne(indices.loadLength),
+          cb._fatalWithError(errorID, "scatter: values and indices arrays have different lengths"),
+        )
+        cb.if_(
+          elts.loadLength > len.value,
+          cb._fatalWithError(errorID, "scatter: values array is larger than result length"),
+        )
+        val pt = rt.pType.asInstanceOf[PCanonicalArray]
+        val (push, finish) =
+          pt.constructFromIndicesUnsafe(cb, er.region, len.value, deepCopy = false)
+        indices.forEachDefined(cb) { case (cb, pos, idx: SInt32Value) =>
+          cb.if_(
+            idx.value < 0 || idx.value >= len.value,
+            cb._fatalWithError(
+              errorID,
+              "scatter: indices array contained index ",
+              idx.value.toS,
+              ", which is greater than result length ",
+              len.value.toS,
+            ),
+          )
+          push(cb, idx.value, elts.loadElement(cb, pos))
+        }
+        finish(cb)
+    }
+
     registerSCode4(
       "lowerBound",
       TArray(tv("T")),

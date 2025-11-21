@@ -44,7 +44,7 @@ package object ir {
     IRFunctionRegistry.lookupUnseeded(name, rt, typeArgs, args.map(_.typ)) match {
       case Some(f) => f(args, errorID)
       case None => fatal(
-          s"no conversion found for $name(${typeArgs.mkString(", ")}, ${args.map(_.typ).mkString(", ")}) => $rt"
+          s"no conversion found for $name[${typeArgs.mkString(", ")}](${args.map(_.typ).mkString(", ")}) => $rt"
         )
     }
 
@@ -409,15 +409,15 @@ package object ir {
         case x: String => Str(x)
       }
 
+      val xstr = if (x.typ == TString)
+        x
+      else
+        invoke("str", TString, x)
+
       if (s == null)
-        s = x
-      else {
-        val xstr = if (x.typ == TString)
-          x
-        else
-          invoke("str", TString, x)
+        s = xstr
+      else
         s = invoke("concat", TString, s, xstr)
-      }
     }
     s
   }
