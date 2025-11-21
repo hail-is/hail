@@ -85,7 +85,7 @@ async def insert_user_if_not_exists(app, username, login_id, system_roles, is_se
                     """
     INSERT INTO users_system_roles (user_id, role_id)
     VALUES
-    ((SELECT id FROM users WHERE username = '%s'), (SELECT id FROM system_roles WHERE name = '%s'));
+    ((SELECT id FROM users WHERE username = %s), (SELECT id FROM system_roles WHERE name = %s));
     """,
                     (username, role),
                 )
