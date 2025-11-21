@@ -58,7 +58,7 @@ bleach==6.3.0
     # via nbconvert
 build==1.1.1
     # via -r hail/python/dev/requirements.txt
-certifi==2025.10.5
+certifi==2025.11.12
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   httpcore
@@ -68,13 +68,13 @@ cffi==2.0.0
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   argon2-cffi-bindings
-cfgv==3.4.0
+cfgv==3.5.0
     # via pre-commit
 charset-normalizer==3.4.4
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   requests
-click==8.3.0
+click==8.3.1
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   -r hail/python/dev/requirements.txt
@@ -120,7 +120,7 @@ exceptiongroup==1.3.0
     #   anyio
     #   ipython
     #   pytest
-execnet==2.1.1
+execnet==2.1.2
     # via pytest-xdist
 executing==2.2.1
     # via
@@ -242,7 +242,7 @@ jupyter-server==2.17.0
     #   notebook-shim
 jupyter-server-terminals==0.5.3
     # via jupyter-server
-jupyterlab==4.4.10
+jupyterlab==4.5.0
     # via jupyter
 jupyterlab-pygments==0.3.0
     # via nbconvert
@@ -307,7 +307,7 @@ nodeenv==1.9.1
     # via
     #   pre-commit
     #   pyright
-nodejs-wheel-binaries==22.20.0
+nodejs-wheel-binaries==24.11.1
     # via pyright
 notebook==6.5.7
     # via
@@ -476,7 +476,7 @@ rfc3986-validator==0.1.1
     #   jupyter-events
 rfc3987-syntax==1.1.0
     # via jsonschema
-rpds-py==0.28.0
+rpds-py==0.29.0
     # via
     #   jsonschema
     #   referencing
@@ -535,7 +535,7 @@ terminado==0.18.1
     #   jupyter-server
     #   jupyter-server-terminals
     #   notebook
-tinycss2==1.4.0
+tinycss2==1.5.0
     # via nbconvert
 toml==0.10.2
     # via curlylint
@@ -581,7 +581,7 @@ types-deprecated==1.3.1.20251101
     # via -r hail/python/dev/requirements.txt
 types-pymysql==1.1.0.20250916
     # via -r hail/python/dev/requirements.txt
-types-python-dateutil==2.9.0.20251008
+types-python-dateutil==2.9.0.20251115
     # via -r hail/python/dev/requirements.txt
 types-pyyaml==6.0.12.20250915
     # via -r hail/python/dev/requirements.txt
@@ -622,9 +622,9 @@ urllib3==2.5.0
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   requests
-uv==0.9.7
+uv==0.9.10
     # via -r hail/python/dev/requirements.txt
-uv-build==0.9.7
+uv-build==0.9.10
     # via -r hail/python/dev/requirements.txt
 virtualenv==20.35.4
     # via pre-commit
