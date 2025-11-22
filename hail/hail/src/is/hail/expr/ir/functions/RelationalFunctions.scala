@@ -140,9 +140,11 @@ object RelationalFunctions extends Logging {
   def extractTo[T: Manifest](ctx: ExecuteContext, config: String): T = {
     val jv = JsonMethods.parse(config)
     (jv \ "name").extract[String] match {
-      case "VEP" => VEP.fromJValue(ctx.fs, jv).asInstanceOf[T]
+      case "VEP" =>
+        logger.info(f"vep config json: $jv")
+        VEP.fromJValue(ctx.fs, jv).asInstanceOf[T]
       case _ =>
-        logger.info("JSON: " + jv.toString)
+        logger.info(f"JSON: $jv")
         jv.extract[T]
     }
   }

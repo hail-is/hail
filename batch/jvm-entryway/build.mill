@@ -20,7 +20,7 @@ object `package` extends ScalafixModule with ScalafmtModule {
 
   override def bomMvnDeps: T[Seq[Dep]] =
     Seq(
-      mvn"org.apache.logging.log4j:log4j-bom:2.25.2",
+      mvn"org.apache.logging.log4j:log4j-bom:2.22.0",
     )
 
   override def scalafixIvyDeps: T[Seq[Dep]] =

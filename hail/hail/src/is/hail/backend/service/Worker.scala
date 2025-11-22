@@ -17,8 +17,7 @@ import java.nio.charset._
 import java.nio.file.Path
 import java.util
 import java.util.concurrent.Executors
-
-import com.google.common.util.concurrent.ThreadFactoryBuilder
+import java.util.concurrent.atomic.AtomicInteger
 
 class ServiceTaskContext(val partitionId: Int) extends HailTaskContext {
   override def stageId(): Int = 0
@@ -193,12 +192,15 @@ object Worker extends Logging {
 
     implicit val ec: ExecutionContext =
       ExecutionContext.fromExecutor(
-        Executors.newCachedThreadPool(
-          new ThreadFactoryBuilder()
-            .setDaemon(true)
-            .setNameFormat("hail-worker-thread-%d")
-            .build()
-        )
+        Executors.newCachedThreadPool {
+          val threadFactory = Executors.defaultThreadFactory()
+          val counter = new AtomicInteger(0)
+          task =>
+            val thread = threadFactory.newThread(task)
+            thread.setName(f"hail-worker-thread-${counter.getAndIncrement()}")
+            thread.setDaemon(true)
+            thread
+        }
       )
 
     def open(x: String): SeekableDataInputStream =

@@ -14,6 +14,9 @@ object VariantMethods {
     (Locus(contig, elts(size - 3).toInt, rg), elts(size - 2) +: elts(size - 1).split(","))
   }
 
+  def locusAllelesToString(la: (Locus, IndexedSeq[String])): String =
+    locusAllelesToString(la._1, la._2)
+
   def locusAllelesToString(locus: Locus, alleles: IndexedSeq[String]): String =
     s"$locus:${alleles(0)}:${alleles.tail.mkString(",")}"
 

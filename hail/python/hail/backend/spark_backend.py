@@ -185,9 +185,9 @@ class SparkBackend(Py4JBackend):
         self.router_fs = None
 
     def stop(self):
-        super().stop()
         if self._hail_managed_spark:
             self._spark.stop()
+            super().stop()
             self._gateway.shutdown()
 
             # clean up pyspark's global state to support
@@ -195,6 +195,8 @@ class SparkBackend(Py4JBackend):
             with pyspark.SparkContext._lock:
                 pyspark.SparkContext._gateway = None
                 pyspark.SparkContext._jvm = None
+        else:
+            super().stop()
 
         self.router_fs = None
 
