@@ -3,14 +3,18 @@
     <b>/</b>
   </a>
 
-  {% if userdata['is_developer'] == 1 %}
+  {% if userdata['system_permissions']['read_system_roles'] or userdata['system_permissions']['read_users'] %}
   <div class="header-dropdown">
     <div class="header-dropdown-item-margin">
       <span class="disabled-header-dropdown-item">Auth</span>
       <div class="header-dropdown-menu">
         <div class="auth-caret header-dropdown-menu-caret"></div>
+        {% if userdata['system_permissions']['read_system_roles'] %}
         <a class="header-dropdown-menu-link" href="{{ auth_base_url }}/roles">Roles</a>
+        {% endif %}
+        {% if userdata['system_permissions']['read_users'] %}
         <a class="header-dropdown-menu-link" href="{{ auth_base_url }}/users">Users</a>
+        {% endif %}
       </div>
     </div>
   </div>
@@ -21,17 +25,16 @@
       <a href="{{ batch_base_url }}" class="header-dropdown-link">Batch</a>
       <div class="header-dropdown-menu">
         <div class="batch-caret header-dropdown-menu-caret"></div>
-        {% if userdata['is_developer'] == 1 %}
+        {% if userdata['system_permissions']['read_deployed_system_state'] %}
         <a class="header-dropdown-menu-link" href="{{ batch_driver_base_url }}">Driver</a>
-        <a class="header-dropdown-menu-link" href="{{ batch_base_url }}/billing_projects">Billing Projects</a>
         {% endif %}
-
         {% if userdata['username'] %}
+        <a class="header-dropdown-menu-link" href="{{ batch_base_url }}/billing_projects">Billing Projects</a>
         <a class="header-dropdown-menu-link" href="{{ batch_base_url}}/billing_limits">Billing Limits</a>
         <a class="header-dropdown-menu-link" href="{{ batch_base_url }}/billing">Billing</a>
         {% endif %}
 
-        {% if userdata['is_developer'] == 1 %}
+        {% if userdata['system_permissions']['read_deployed_system_state'] %}
         <a class="header-dropdown-menu-link" href="{{ batch_driver_base_url }}/user_resources">User Resources</a>
         <a class="header-dropdown-menu-link" href="{{ batch_driver_base_url }}/quotas">Quotas</a>
         {% endif %}
@@ -40,7 +43,7 @@
     </div>
   </div>
 
-  {% if userdata['is_developer'] == 1 %}
+  {% if userdata['system_permissions']['read_ci'] %}
   <div class="header-dropdown">
     <div class="header-dropdown-item-margin">
       <a href="{{ ci_base_url }}" class="header-dropdown-link">CI</a>
@@ -53,7 +56,7 @@
   </div>
   {% endif %}
 
-  {% if userdata['is_developer'] == 1 %}
+  {% if userdata['system_permissions']['view_monitoring_dashboards'] %}
   <div class="header-dropdown">
     <div class="header-dropdown-item-margin">
       <span class="disabled-header-dropdown-item">Monitoring</span>

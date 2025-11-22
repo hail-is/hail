@@ -50,9 +50,11 @@ components:
           type: string
           enum: [creating, active, deleting, deleted]
           description: "Current state of the user account"
-        is_developer:
-          type: boolean
-          description: "Whether the user has developer privileges"
+        system_roles:
+          type: array
+          items:
+            type: string
+          description: "List of system roles assigned to the user"
         is_service_account:
           type: boolean
           description: "Whether this is a service account"
@@ -80,15 +82,17 @@ components:
       type: object
       required:
         - login_id
-        - is_developer
+        - system_roles
         - is_service_account
       properties:
         login_id:
           type: string
           description: "Login identifier for the new user"
-        is_developer:
-          type: boolean
-          description: "Whether the user should have developer privileges"
+        system_roles:
+          type: array
+          items:
+            type: string
+          description: "List of system roles to assign to the new user"
         is_service_account:
           type: boolean
           description: "Whether this is a service account"
@@ -280,36 +284,30 @@ paths:
         '401':
           description: Not authenticated
 
-  /api/v1alpha/verify_dev_credentials:
-    get:
-      summary: Verify developer credentials
-      description: Verify that the authenticated user has developer credentials
-      tags: [Authentication]
-      security:
-        - developerAuth: []
-      responses:
-        '200':
-          description: User has valid developer credentials
-        '401':
-          description: Unauthorized or not a developer
 
-  /api/v1alpha/verify_dev_or_sa_credentials:
+  /api/v1alpha/verify_system_permission:
     get:
-      summary: Verify developer or service account credentials
-      description: Verify that the authenticated user has developer or service account credentials
+      summary: Verify system permission
+      description: Verify that the authenticated user has a specific system permission
       tags: [Authentication]
       security:
         - developerAuth: []
+      parameters:
+        - name: permission
+          in: query
+          required: true
+          schema:
+            type: string
       responses:
         '200':
-          description: User has valid developer or service account credentials
+          description: User has the requested system permission
         '401':
-          description: Unauthorized or not a developer/service account
+          description: Unauthorized
 
   /api/v1alpha/check_system_permission:
     get:
       summary: Check system permission
-      description: Check if the authenticated user has a specific system permission
+      description: Verify that the authenticated user has a specific system permission. Otherwise returns a 401.
       tags: [Authentication]
       parameters:
         - name: permission
@@ -321,18 +319,10 @@ paths:
       responses:
         '200':
           description: Permission check completed successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  has_permission:
-                    type: boolean
-                    description: Whether the user has the requested permission
         '400':
           description: Invalid permission parameter
         '401':
-          description: Unauthorized
+          description: The caller does not have the specified system permission
 
   /api/v1alpha/system_roles/me:
     get:
@@ -580,9 +570,11 @@ paths:
                   state:
                     type: string
                     description: User state
-                  is_developer:
-                    type: integer
-                    description: Whether user is a developer
+                  system_roles:
+                    type: array
+                    items:
+                      type: string
+                    description: List of system roles assigned to the user
                   is_service_account:
                     type: integer
                     description: Whether user is a service account

@@ -5,6 +5,7 @@
 <h1>{{ pool.name }}</h1>
 
 <h2>Configuration</h2>
+{% if userdata['system_permissions']['update_deployed_system_state'] %}
 <div class="attributes">
   <form action="{{ base_path }}/config-update/pool/{{ pool.name }}" method="POST">
     <div>Worker type: {{ pool.worker_type }}</div>
@@ -36,6 +37,25 @@
     </button>
   </form>
 </div>
+{% else %}
+<div class="attributes">
+  <div>Worker type: {{ pool.worker_type }}</div>
+  <div>Worker preemptible: {{ pool.preemptible }}</div>
+  <div>Worker cores: {{ pool.worker_cores }}</div>
+  <div>Worker boot disk size (in GB): {{ pool.boot_disk_size_gb }}</div>
+  <div>Worker should use a Local SSD: {{ pool.worker_local_ssd_data_disk }}</div>
+  <div>Worker External SSD data disk size (in GB): {{ pool.worker_external_ssd_data_disk_size_gb }}</div>
+  <div>Standing worker cores: {{ pool.standing_worker_cores }}</div>
+  <div>Min instances: {{ pool.min_instances }}</div>
+  <div>Max instances: {{ pool.max_instances }}</div>
+  <div>Max live instances: {{ pool.max_live_instances }}</div>
+  <div>Max new instances per autoscaler loop: {{ pool.max_new_instances_per_autoscaler_loop }}</div>
+  <div>Autoscaler loop period in seconds: {{ pool.autoscaler_loop_period_secs }}</div>
+  <div>Worker max idle time in seconds: {{ pool.worker_max_idle_time_secs }}</div>
+  <div>Standing worker max idle time in seconds: {{ pool.standing_worker_max_idle_time_secs }}</div>
+  <div>Job queue scheduling window in seconds: {{ pool.job_queue_scheduling_window_secs }}</div>
+</div>
+{% endif %}
 
 <h2>User Resources</h2>
 <table class="data-table" id="user_resources">
@@ -140,12 +160,14 @@
     <td class="numeric-cell">{{ instance.failed_request_count }}</td>
     <td>{{ instance.time_created_str() }}</td>
     <td>{{ instance.last_updated_str() }} ago</td>
+    {% if userdata['system_permissions']['update_deployed_system_state'] %}
     <td>
       <form action="{{ base_path }}/instances/{{ instance.name }}/kill" method="post">
         <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
         <button>Delete</button>
       </form>
     </td>
+    {% endif %}
   </tr>
   {% endfor %}
   </tbody>
