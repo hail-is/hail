@@ -60,7 +60,8 @@ object GenericLines extends Logging {
             assert(!split || filePerPartition)
 
             val delegate =
-              new BoundedInputStream.Builder()
+              BoundedInputStream
+                .builder()
                 .setInputStream(codec.makeInputStream(rawIS))
                 .get()
 

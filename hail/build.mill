@@ -24,7 +24,7 @@ object Deps {
 
   object Asm {
     val `asm-bom` = mvn"org.ow2.asm:asm-bom:9.9"
-    val core = mvn"org.ow2.asm:asm"
+    val asm = mvn"org.ow2.asm:asm"
     val `asm-analysis` = mvn"org.ow2.asm:asm-analysis"
     val `asm-util` = mvn"org.ow2.asm:asm-util"
   }
@@ -34,14 +34,14 @@ object Deps {
     // Before changing the breeze version review:
     // - https://hail.zulipchat.com/#narrow/stream/123011-Hail-Query-Dev/topic/new.20spark.20ndarray.20failures/near/41645
     // - https://github.com/hail-is/hail/pull/11555
-    val core = mvn"org.scalanlp::breeze:1.1"
-    val natives = mvn"org.scalanlp::breeze-natives:1.1".excludeOrg("org.apache.commons.math3")
+    val breeze = mvn"org.scalanlp::breeze:1.1"
+    val `breeze-natives` = mvn"org.scalanlp::breeze-natives:1.1"
   }
 
   object GoogleCloud {
     val `libraries-bom` = mvn"com.google.cloud:libraries-bom:26.66.0"
     val `google-auth-library-oauth2-http` = mvn"com.google.auth:google-auth-library-oauth2-http"
-    val `google-cloud-storage` = mvn"com.google.cloud:google-cloud-storage".excludeOrg("com.fasterxml.jackson.core")
+    val `google-cloud-storage` = mvn"com.google.cloud:google-cloud-storage"
   }
 
   object Spark {
@@ -65,13 +65,13 @@ object Deps {
     val `zstd-jni` = mvn"com.github.luben:zstd-jni:1.5.5-4"
   }
 
-  val `elasticsearch-spark` = mvn"org.elasticsearch::elasticsearch-spark-30:8.4.3".excludeOrg("org.apache.spark")
+  val `elasticsearch-spark` = mvn"org.elasticsearch::elasticsearch-spark-30:9.2.1"
   val freemarker = mvn"org.freemarker:freemarker:2.3.31"
-  val htsjdk = mvn"com.github.samtools:htsjdk:3.0.5".excludeOrg("*")
-  val jdistlib = mvn"net.sourceforge.jdistlib:jdistlib:0.4.5".excludeOrg("*")
+  val htsjdk = mvn"com.github.samtools:htsjdk:3.0.5"
+  val jdistlib = mvn"net.sourceforge.jdistlib:jdistlib:0.4.5"
   val jna = mvn"net.java.dev.jna:jna:5.13.0"
   val `junixsocket-core` = mvn"com.kohlschutter.junixsocket:junixsocket-core:2.6.1"
-  val `log4j-api-scala` = mvn"org.apache.logging.log4j::log4j-api-scala:13.1.0".excludeOrg("*")
+  val `log4j-api-scala` = mvn"org.apache.logging.log4j::log4j-api-scala:13.1.0"
   val netlib = mvn"com.github.fommil.netlib:all:1.1.2"
   val `scala-collection-compat` = mvn"org.scala-lang.modules::scala-collection-compat:2.13.0"
   // provides @nowarn212 and @nowarn213
@@ -261,29 +261,48 @@ trait RootHailModule extends CrossScalaModule with HailModule { outer =>
   )
 
   override def mvnDeps: T[Seq[Dep]] = Seq(
-    Deps.Asm.core,
+    Deps.Asm.asm,
     Deps.Asm.`asm-analysis`,
     Deps.Asm.`asm-util`,
-    Deps.GoogleCloud.`google-auth-library-oauth2-http`,
-    Deps.GoogleCloud.`google-cloud-storage`,
-    Deps.`elasticsearch-spark`,
+    Deps.GoogleCloud.`google-auth-library-oauth2-http`
+      .excludeOrg(
+        "commons-codec",
+        "org.apache.httpcomponents",
+        "org.slf4j",
+      ),
+    Deps.GoogleCloud.`google-cloud-storage`
+      .excludeOrg(
+        "com.fasterxml.jackson.core",
+        "commons-codec",
+        "org.slf4j",
+      ),
+    Deps.`elasticsearch-spark`
+      .excludeOrg(
+        "commons-logging",
+        "org.apache.spark",
+        "org.slf4j",
+      ),
     Deps.freemarker,
-    Deps.htsjdk,
-    Deps.jdistlib,
-    Deps.`log4j-api-scala`,
+    Deps.htsjdk.excludeOrg("*"),
+    Deps.jdistlib.excludeOrg("*"),
+    Deps.`log4j-api-scala`.excludeOrg("*"),
     Deps.jna,
     Deps.`scala-collection-compat`,
     Deps.sourcecode,
   )
 
   override def runMvnDeps: T[Seq[Dep]] = Seq(
-    Deps.Breeze.natives,
+    Deps.Breeze.`breeze-natives`
+      .excludeOrg(
+        "org.apache.commons",
+        "org.slf4j",
+      ),
     Deps.netlib,
     Deps.`junixsocket-core`,
   )
 
   override def compileMvnDeps: T[Seq[Dep]] = Seq(
-    Deps.Breeze.core,
+    Deps.Breeze.breeze,
     Deps.Spark.core().excludeOrg("org.scalanlp"),  // Hail has an explicit dependency on Breeze 1.1
     Deps.Spark.mllib().excludeOrg("org.scalanlp"),  // Hail has an explicit dependency on Breeze 1.1
     Deps.Spark.avro,

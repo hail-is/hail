@@ -2545,7 +2545,7 @@ class JVMContainer:
             'java',
             f'-Xmx{heap_memory_mib}M',
             '-cp',
-            f'/jvm-entryway/jvm-entryway.jar:{JVM.SPARK_HOME}/jars/*',
+            f'{JVM.SPARK_HOME}/jars/*:/jvm-entryway/jvm-entryway.jar',
             'is.hail.JVMEntryway',
             socket_file,
         ]
