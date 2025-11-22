@@ -6,8 +6,8 @@ hail_pip_specifier=$1
 hail_pip_version=$2
 cluster_name=$3
 
-/usr/bin/anaconda/bin/conda create -n py37 python=3.7 --yes
-source /usr/bin/anaconda/bin/activate py37
+/usr/bin/anaconda/bin/conda create -n py311 python=3.11 --yes
+source /usr/bin/anaconda/bin/activate py311
 python3 -m pip install "$hail_pip_specifier" --no-dependencies
 site_packages=$(python3 -m pip show hail| grep -E 'Location:' | sed -E 's/^Location: //')
 # https://www.python.org/dev/peps/pep-0440/#version-specifiers
@@ -33,4 +33,4 @@ echo "c.InteractiveShellApp.extensions.append('sparkmonitor.kernelextension')" \
 
 chown -R spark:spark /home/spark
 
-mv /usr/bin/anaconda/envs/py37/bin/python /usr/bin/anaconda/envs/py37/bin/python.bak
+mv /usr/bin/anaconda/envs/py311/bin/python /usr/bin/anaconda/envs/py311/bin/python.bak

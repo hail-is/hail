@@ -24,7 +24,7 @@ import scala.collection.compat._
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.Row
 import org.json4s.{DefaultFormats, Formats, JValue, ShortTypeHints}
-import org.json4s.jackson.{JsonMethods, Serialization}
+import org.json4s.jackson.{parseJson, Serialization}
 
 object AbstractRVDSpec {
   implicit val formats: Formats =
@@ -54,7 +54,7 @@ object AbstractRVDSpec {
   def read(fs: FS, path: String): AbstractRVDSpec = {
     try {
       val metadataFile = path + "/metadata.json.gz"
-      using(fs.open(metadataFile))(in => JsonMethods.parse(in))
+      using(fs.open(metadataFile))(parseJson(_))
         .transformField { case ("orvdType", value) => ("rvdType", value) } // ugh
         .extract[AbstractRVDSpec]
     } catch {

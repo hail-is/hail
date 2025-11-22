@@ -7,7 +7,7 @@ import is.hail.utils._
 import scala.collection.compat._
 
 import org.apache.spark.sql.Row
-import org.json4s.jackson.JsonMethods
+import org.json4s.jackson.compactJson
 
 object TBaseStruct {
 
@@ -94,7 +94,7 @@ abstract class TBaseStruct extends Type {
     }
   }
 
-  override def str(a: Annotation): String = JsonMethods.compact(export(a))
+  override def str(a: Annotation): String = compactJson(export(a))
 
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double, absolute: Boolean)
     : Boolean =

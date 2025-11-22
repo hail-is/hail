@@ -7,7 +7,7 @@ import is.hail.expr.ir.defs.{F32, I32, I64, MakeTuple, NA, Str}
 import is.hail.types.virtual._
 import is.hail.utils.FastSeq
 
-import org.json4s.jackson.JsonMethods
+import org.json4s.jackson.compactJson
 import org.testng.annotations.{DataProvider, Test}
 
 class StringFunctionsSuite extends HailSuite {
@@ -127,7 +127,7 @@ class StringFunctionsSuite extends HailSuite {
   def json(annotation: IR, typ: Type): Unit =
     assertEvalsTo(
       invoke("json", TString, annotation),
-      JsonMethods.compact(typ.export(eval(annotation))),
+      compactJson(typ.export(eval(annotation))),
     )
 
   @DataProvider(name = "time")

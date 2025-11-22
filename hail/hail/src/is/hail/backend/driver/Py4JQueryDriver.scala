@@ -32,7 +32,7 @@ import com.sun.net.httpserver.{HttpExchange, HttpServer}
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.sql.DataFrame
 import org.json4s._
-import org.json4s.jackson.{JsonMethods, Serialization}
+import org.json4s.jackson.{compactJson, parseJson, Serialization}
 import sourcecode.Enclosing
 
 final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
@@ -220,7 +220,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
         ctx.theHailClassLoader,
       )
       val id = addJavaIR(ctx, tir)
-      (id, JsonMethods.compact(tir.typ.toJSON))
+      (id, compactJson(tir.typ.toJSON))
     }._1
 
   def pyToDF(s: String): DataFrame =
@@ -235,7 +235,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
       implicit val fmts: Formats = DefaultFormats
       logger.info("pyReadMultipleMatrixTables: got query")
 
-      val kvs = JsonMethods.parse(jsonQuery).extract[Map[String, JValue]]
+      val kvs = parseJson(jsonQuery).extract[Map[String, JValue]]
       val paths = kvs("paths").extract[IndexedSeq[String]]
       val intervalPointType = parseType(kvs("intervalPointType").extract[String])
       val intervalObjects =
@@ -403,7 +403,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
           }
 
         override def payload(req: HttpExchange): JValue =
-          using(req.getRequestBody)(JsonMethods.parse(_))
+          using(req.getRequestBody)(parseJson(_))
 
         override def timings(req: HttpExchange, t: Timings): Unit = {
           val ts = Serialization.write(Map("timings" -> t))

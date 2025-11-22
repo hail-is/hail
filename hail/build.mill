@@ -1,5 +1,5 @@
-//| mill-version: 1.0.4
-//| mill-jvm-version: 11
+//| mill-version: 1.1.0-RC3
+//| mill-jvm-version: 17
 package build
 
 import mill.*
@@ -17,14 +17,7 @@ import org.typelevel.scalacoptions.*
 object Settings:
   val hailMajorMinorVersion = "0.2"
   val hailPatchVersion = "137"
-  val scalaMinorVersions = Map("2.12" -> "2.12.20", "2.12.13" -> "2.12.13", "2.13" -> "2.13.13")
-
-
-object Env extends Module:
-  def sparkVersion: T[String] =
-    Task.Input {
-      Task.env.getOrElse("SPARK_VERSION", "3.5.3")
-    }
+  val scalaMinorVersions = Map("2.12" -> "2.12.20", "2.13" -> "2.13.18")
 
 
 trait HailJavaModule extends JavaModule:
@@ -35,7 +28,7 @@ trait HailJavaModule extends JavaModule:
       else Seq()
 
     val `optim?` =
-      if buildMode == Release
+      if BuildMode == Release
       then Seq("-O")
       else Seq("-g")
 
@@ -85,10 +78,10 @@ trait HailScalaModule extends ScalaModule, HailJavaModule, ScalafmtModule, Scala
         )
 
       val fromBuildMode =
-        buildMode match {
+        BuildMode match {
           case Dev =>
             ScalacOptions.verboseOptions
-  //            + ScalacOptions.checkInit // enable to help debug accessing uninitialized fields
+//              + ScalacOptions.checkInit // enable to help debug accessing uninitialized fields
           case CI =>
             Set(ScalacOptions.fatalWarnings)
           case Release =>
@@ -163,5 +156,6 @@ trait HailScalaModule extends ScalaModule, HailJavaModule, ScalafmtModule, Scala
       richOptions ++ rawOptions
     }
 
-  trait HailScalaTests extends ScalaTests, HailScalaModule
-
+  trait HailScalaTests extends ScalaTests, HailScalaModule:
+    override def enableBsp: Boolean =
+      outer.enableBsp

@@ -21,7 +21,7 @@ import scala.jdk.CollectionConverters._
 import com.fasterxml.jackson.core.JsonParseException
 import org.apache.spark.sql.Row
 import org.json4s.{Formats, JValue}
-import org.json4s.jackson.JsonMethods
+import org.json4s.jackson.parseJson
 
 case class VEPConfiguration(
   command: Array[String],
@@ -32,7 +32,7 @@ case class VEPConfiguration(
 object VEP {
 
   def readConfiguration(fs: FS, path: String): VEPConfiguration = {
-    val jv = using(fs.open(path))(in => JsonMethods.parse(in))
+    val jv = using(fs.open(path))(in => parseJson(in))
     implicit val formats: Formats = defaultJSONFormats + new TStructSerializer
     jv.extract[VEPConfiguration]
   }
@@ -141,7 +141,7 @@ class VEP(private val params: VEPParameters, conf: VEPConfiguration)
                     Some((Annotation(locus, alleles), a))
                   } else {
                     val jsonOpt =
-                      try Some(JsonMethods.parse(s))
+                      try Some(parseJson(s))
                       catch {
                         case e: JsonParseException if params.tolerateParseError =>
                           logger.warn(

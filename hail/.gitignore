@@ -1,3 +1,6 @@
+.bsp/
+env/
+mill-build/config
 python/.eggs
 python/README.md
 python/dist
@@ -75,6 +78,4 @@ src/main/c/lib
 src/main/c/libsimdpp-2*
 src/main/resources/build-info.properties
 src/main/resources/include/catch.hpp
-env/
 www/docs
-.bsp/
