@@ -14,7 +14,7 @@ import org.apache.http.impl.client.{CloseableHttpClient, HttpClients}
 import org.apache.http.util.EntityUtils
 import org.json4s.JValue
 import org.json4s.JsonAST.JNothing
-import org.json4s.jackson.JsonMethods
+import org.json4s.jackson.{compactJson, parseJson}
 
 object requests extends Logging {
 
@@ -72,7 +72,7 @@ object requests extends Logging {
           }
 
           logger.info(s"$statusCode ${req.getMethod} ${req.getURI}")
-          message.map(JsonMethods.parse(_)).getOrElse(JNothing)
+          message.map(parseJson(_)).getOrElse(JNothing)
         }
       }
     }
@@ -84,7 +84,7 @@ object requests extends Logging {
         request(new HttpGet(s"$baseUrl$route"))
 
       override def post(route: String, body: JValue): JValue =
-        post(route, new StringEntity(JsonMethods.compact(body), APPLICATION_JSON))
+        post(route, new StringEntity(compactJson(body), APPLICATION_JSON))
 
       override def post(route: String, body: HttpEntity): JValue =
         request(new HttpPost(s"$baseUrl$route"), Some(body))

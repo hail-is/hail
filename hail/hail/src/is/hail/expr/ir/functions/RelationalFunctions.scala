@@ -9,7 +9,7 @@ import is.hail.types.virtual.{BlockMatrixType, MatrixType, TableType, Type}
 import is.hail.utils.Logging
 
 import org.json4s.{Extraction, Formats, JValue, ShortTypeHints}
-import org.json4s.jackson.JsonMethods
+import org.json4s.jackson.parseJson
 
 abstract class MatrixToMatrixFunction {
   def typ(childType: MatrixType): MatrixType
@@ -138,7 +138,7 @@ object RelationalFunctions extends Logging {
   )
 
   def extractTo[T: Manifest](ctx: ExecuteContext, config: String): T = {
-    val jv = JsonMethods.parse(config)
+    val jv = parseJson(config)
     (jv \ "name").extract[String] match {
       case "VEP" =>
         logger.info(f"vep config json: $jv")

@@ -18,7 +18,7 @@ import java.time.OffsetDateTime
 
 import com.google.auth.oauth2.GoogleCredentials
 import org.json4s.{DefaultFormats, Formats, JValue}
-import org.json4s.jackson.JsonMethods
+import org.json4s.jackson.{parseJson, parseJsonOpt}
 
 object oauth2 {
 
@@ -40,7 +40,7 @@ object oauth2 {
       identity = config.resolve("hail/identity.json").toFile
       if identity.exists()
 
-      jvalue <- JsonMethods.parseOpt(identity)
+      jvalue <- parseJsonOpt(identity)
     } yield (jvalue \ "idp").extract[String] match {
       case "Google" => GoogleCloudCredentials.fromJson(jvalue \ "credentials")
       case "Microsoft" => AzureCloudCredentials.fromJson(jvalue \ "credentials")
@@ -135,9 +135,7 @@ object oauth2 {
     def apply(keyPath: Option[Path], env: Map[String, String] = sys.env): AzureCloudCredentials =
       keyPath.orElse(env.get(AzureApplicationCredentials).map(Path.of(_))) match {
         case Some(path) =>
-          using(Files.newInputStream(path)) { in =>
-            fromJson(JsonMethods.parse(in), DefaultOAuth2Scopes)
-          }
+          using(Files.newInputStream(path))(in => fromJson(parseJson(in), DefaultOAuth2Scopes))
         case None =>
           AzureDefaultCredentials(DefaultOAuth2Scopes)
       }

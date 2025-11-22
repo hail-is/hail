@@ -15,7 +15,7 @@ import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 import org.json4s
 import org.json4s._
-import org.json4s.jackson.{JsonMethods, Serialization}
+import org.json4s.jackson.{compactJson, parseJson, Serialization}
 
 object SparkAnnotationImpex {
   val invalidCharacters: Set[Char] = " ,;{}()\n\t=".toSet
@@ -177,7 +177,7 @@ object JSONAnnotationImpex extends Logging {
   def irImportAnnotation(s: String, t: Type, warnContext: mutable.HashSet[String]): Row = {
     try
       // wraps in a Row to handle returned missingness
-      Row(importAnnotation(JsonMethods.parse(s), t, true, warnContext))
+      Row(importAnnotation(parseJson(s), t, true, warnContext))
     catch {
       case e: Throwable =>
         fatal(s"Error parsing JSON:\n  type: $t\n  value: $s", e)
@@ -363,9 +363,9 @@ object TableAnnotationImpex {
       t match {
         case TFloat64 => "%.4e".format(a.asInstanceOf[Double])
         case TString => a.asInstanceOf[String]
-        case t: TContainer => JsonMethods.compact(t.export(a))
-        case t: TBaseStruct => JsonMethods.compact(t.export(a))
-        case t: TNDArray => JsonMethods.compact(t.export(a))
+        case t: TContainer => compactJson(t.export(a))
+        case t: TBaseStruct => compactJson(t.export(a))
+        case t: TNDArray => compactJson(t.export(a))
         case TInterval(TLocus(_)) =>
           val i = a.asInstanceOf[Interval]
           val bounds = if (i.start.asInstanceOf[Locus].contig == i.end.asInstanceOf[Locus].contig)
@@ -374,7 +374,7 @@ object TableAnnotationImpex {
             s"${i.start}-${i.end}"
           s"${if (i.includesStart) "[" else "("}$bounds${if (i.includesEnd) "]" else ")"}"
         case _: TInterval =>
-          JsonMethods.compact(t.export(a))
+          compactJson(t.export(a))
         case TCall => Call.toString(a.asInstanceOf[Call])
         case _ => a.toString
       }

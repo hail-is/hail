@@ -20,7 +20,7 @@ import java.util.Properties
 
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
-import org.json4s.jackson.JsonMethods
+import org.json4s.jackson.parseJson
 
 object Nirvana extends Logging {
 
@@ -436,7 +436,7 @@ object Nirvana extends Logging {
             // The filter is because every other output line is a comma.
             val kt = jt.filter(_.startsWith("{\"chromosome")).map { s =>
               val a = JSONAnnotationImpex.importAnnotation(
-                JsonMethods.parse(s),
+                parseJson(s),
                 nirvanaSignature,
                 warnContext = warnContext,
               )

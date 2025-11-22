@@ -31,7 +31,7 @@ import java.io.{Closeable, InputStream}
 import org.apache.spark.sql.Row
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 import org.json4s.JsonAST.JString
-import org.json4s.jackson.JsonMethods
+import org.json4s.jackson.compactJson
 
 object TableIR {
   def read(fs: FS, path: String, dropRows: Boolean = false, requestedType: Option[TableType] = None)
@@ -563,7 +563,7 @@ abstract class TableReader {
   def renderShort(): String
 
   def defaultRender(): String =
-    StringEscapeUtils.escapeString(JsonMethods.compact(toJValue))
+    StringEscapeUtils.escapeString(compactJson(toJValue))
 
   def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR
 

@@ -9,8 +9,7 @@ import is.hail.types.virtual._
 import is.hail.utils.StringEscapeUtils._
 
 import org.apache.spark.sql.Row
-import org.json4s._
-import org.json4s.jackson.JsonMethods._
+import org.json4s.jackson._
 import org.scalacheck.Arbitrary._
 import org.scalacheck.Gen
 import org.scalatestplus.scalacheck.CheckerAsserting.assertingNatureOfAssertion
@@ -72,17 +71,19 @@ class ExprSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   }
 
   @Test def testImportEmptyJSONObjectAsStruct(): Unit =
-    assert(JSONAnnotationImpex.importAnnotation(parse("{}"), TStruct()) == Row())
+    assert(JSONAnnotationImpex.importAnnotation(parseJson("{}"), TStruct()) == Row())
 
   @Test def testExportEmptyJSONObjectAsStruct(): Unit =
-    assert(compact(render(JSONAnnotationImpex.exportAnnotation(Row(), TStruct()))) == "{}")
+    assert(
+      compactJson(renderJValue(JSONAnnotationImpex.exportAnnotation(Row(), TStruct()))) == "{}"
+    )
 
   @Test def testRoundTripEmptyJSONObject(): Unit = {
     val actual = JSONAnnotationImpex.exportAnnotation(
-      JSONAnnotationImpex.importAnnotation(parse("{}"), TStruct()),
+      JSONAnnotationImpex.importAnnotation(parseJson("{}"), TStruct()),
       TStruct(),
     )
-    assert(compact(render(actual)) == "{}")
+    assert(compactJson(renderJValue(actual)) == "{}")
   }
 
   @Test def testRoundTripEmptyStruct(): Unit = {
@@ -108,8 +109,8 @@ class ExprSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     }
 
     forAll(g) { case (t, a) =>
-      val string = compact(JSONAnnotationImpex.exportAnnotation(a, t))
-      assert(JSONAnnotationImpex.importAnnotation(parse(string), t) == a)
+      val string = compactJson(JSONAnnotationImpex.exportAnnotation(a, t))
+      assert(JSONAnnotationImpex.importAnnotation(parseJson(string), t) == a)
     }
   }
 

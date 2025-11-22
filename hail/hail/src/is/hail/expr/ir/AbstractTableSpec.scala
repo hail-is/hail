@@ -8,7 +8,7 @@ import is.hail.utils._
 import java.io.OutputStreamWriter
 
 import org.json4s.{Formats, JValue}
-import org.json4s.jackson.JsonMethods
+import org.json4s.jackson.compactJson
 
 object SortOrder {
   def deserialize(b: Byte): SortOrder =
@@ -90,7 +90,7 @@ case class TableSpecParameters(
 
   def write(fs: FS, path: String): Unit =
     using(new OutputStreamWriter(fs.create(path + "/metadata.json.gz"))) { out =>
-      out.write(JsonMethods.compact(decomposeWithName(this, "TableSpec")(RelationalSpec.formats)))
+      out.write(compactJson(decomposeWithName(this, "TableSpec")(RelationalSpec.formats)))
     }
 }
 

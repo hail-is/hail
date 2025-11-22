@@ -23,7 +23,6 @@ import java.util.regex.{Matcher, Pattern}
 
 import org.apache.spark.sql.Row
 import org.json4s.JValue
-import org.json4s.jackson.JsonMethods
 
 object StringFunctions extends RegistryFunctions {
   def reverse(s: String): String = {
@@ -423,7 +422,7 @@ object StringFunctions extends RegistryFunctions {
           },
         )
         val json = cb.emb.getType(a.st.virtualType).invoke[Any, JValue]("export", inputJavaValue)
-        val str = Code.invokeScalaObject1[JValue, String](JsonMethods.getClass, "compact", json)
+        val str = Code.invokeScalaObject1[JValue, String](this.getClass, "compactJson", json)
         IEmitCode.present(cb, st.construct(cb, str))
     }
 
@@ -804,4 +803,7 @@ object StringFunctions extends RegistryFunctions {
       unwrapReturn(cb, er.region, resultType, row)
     }
   }
+
+  def compactJson(jv: JValue): String =
+    org.json4s.jackson.compactJson(jv)
 }

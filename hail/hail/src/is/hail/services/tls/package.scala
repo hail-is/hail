@@ -8,7 +8,7 @@ import java.security.KeyStore
 import javax.net.ssl.{KeyManagerFactory, SSLContext, TrustManagerFactory}
 import org.json4s.{DefaultFormats, Formats}
 import org.json4s.JsonAST.JString
-import org.json4s.jackson.JsonMethods
+import org.json4s.jackson.parseJson
 
 class NoSSLConfigFound(
   message: String,
@@ -40,7 +40,7 @@ package object tls extends Logging {
 
     using(new FileInputStream(configFile)) { is =>
       implicit val formats: Formats = DefaultFormats
-      JsonMethods.parse(is).mapField { case (k, JString(v)) =>
+      parseJson(is).mapField { case (k, JString(v)) =>
         (k, JString(s"$configDir/$v"))
       }.extract[SSLConfig]
     }

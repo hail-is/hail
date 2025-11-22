@@ -37,7 +37,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.json4s.{DefaultFormats, Formats, JValue}
 import org.json4s.JsonAST.{JArray, JObject, JString}
-import org.json4s.jackson.JsonMethods
+import org.json4s.jackson.parseJson
 
 class BufferedLineIterator(bit: BufferedIterator[String])
     extends htsjdk.tribble.readers.LineIterator {
@@ -1969,7 +1969,7 @@ class MatrixVCFReader(
   def partitioner(sm: HailStateManager): Option[RVDPartitioner] =
     params.partitionsJSON.map { partitionsJSON =>
       val indexedPartitionsType = IRParser.parseType(params.partitionsTypeStr.get)
-      val jv = JsonMethods.parse(partitionsJSON)
+      val jv = parseJson(partitionsJSON)
       val rangeBounds = JSONAnnotationImpex.importAnnotation(jv, indexedPartitionsType)
         .asInstanceOf[IndexedSeq[Interval]]
 
