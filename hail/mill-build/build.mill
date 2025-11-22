@@ -1,25 +1,31 @@
-package build
+//| mill-version: 1.0.4
+//| mill-jvm-version: 11
 
-import mill.*, scalalib.*
+import mill.*
 import mill.meta.MillBuildRootModule
+import mill.scalalib.*
+
 
 object `package` extends MillBuildRootModule {
-  def mvnDeps = Seq(
-    mvn"com.goyeau::mill-scalafix::0.6.0",
-    mvn"org.typelevel::scalac-options:0.1.8",
-  )
+
+  def mvnDeps: T[Seq[Dep]] =
+    Seq(
+      mvn"com.goyeau::mill-scalafix::0.6.0",
+      mvn"org.typelevel::scalac-options:0.1.8",
+    )
 
   def generatedSources: T[Seq[PathRef]] = Task {
     os.write(
       Task.dest / "BuildConfig.scala",
-      s"""
-         |package millbuild
-         |object BuildConfig{
+      s"""package millbuild
+         |
+         |object BuildConfig {
          |  def buildMode = "${buildMode()}"
          |  def enabledScalaVersions = IndexedSeq(${enabledScalaVersions().map(v => s"\"$v\"").mkString(", ")})
          |}
-      """.stripMargin
+         |""".stripMargin
     )
+
     super.generatedSources() ++ Seq(PathRef(Task.dest))
   }
 
