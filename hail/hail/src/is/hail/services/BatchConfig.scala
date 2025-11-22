@@ -5,11 +5,11 @@ import is.hail.utils._
 import java.nio.file.{Files, Path}
 
 import org.json4s._
-import org.json4s.jackson.JsonMethods
+import org.json4s.jackson.parseJson
 
 object BatchConfig {
   def fromConfigFile(file: Path): BatchConfig =
-    using(Files.newInputStream(file))(in => fromConfig(JsonMethods.parse(in)))
+    using(Files.newInputStream(file))(in => fromConfig(parseJson(in)))
 
   def fromConfig(config: JValue): BatchConfig = {
     implicit val formats: Formats = DefaultFormats

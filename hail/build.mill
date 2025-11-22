@@ -1,439 +1,164 @@
-//| mill-version: 1.0.4
-//| mill-jvm-version: 11
-
+//| mill-version: 1.1.0-RC3
+//| mill-jvm-version: 17
 package build
 
-import com.goyeau.mill.scalafix.ScalafixModule
 import mill.*
-import mill.api.{BuildCtx, Result}
+import mill.api.Result
 import mill.scalalib.*
-import mill.scalalib.Assembly.*
-import mill.scalalib.TestModule.TestNg
 import mill.scalalib.scalafmt.ScalafmtModule
-import mill.util.{Jvm, VcsVersion}
-import org.typelevel.scalacoptions.*
-import upickle.default.ReadWriter
 
-object Settings {
+import millbuild.BuildConfig.BuildMode
+import millbuild.BuildMode.*
+import millbuild.MvnCoordinate.*
+
+import com.goyeau.mill.scalafix.ScalafixModule
+import org.typelevel.scalacoptions.*
+
+object Settings:
   val hailMajorMinorVersion = "0.2"
   val hailPatchVersion = "137"
-  val scalaMinorVersions = Map("2.12" -> "2.12.20", "2.12.13" -> "2.12.13", "2.13" -> "2.13.13")
-}
+  val scalaMinorVersions = Map("2.12" -> "2.12.20", "2.13" -> "2.13.18")
 
-object Deps {
+trait HailJavaModule extends JavaModule:
+  override def javacOptions: T[Seq[String]] = {
+    val `1.8-options` =
+      if System.getProperty("java.version").startsWith("1.8")
+      then Seq("-Xlint:-processing")
+      else Seq()
 
-  object Asm {
-    val `asm-bom` = mvn"org.ow2.asm:asm-bom:9.9"
-    val asm = mvn"org.ow2.asm:asm"
-    val `asm-analysis` = mvn"org.ow2.asm:asm-analysis"
-    val `asm-util` = mvn"org.ow2.asm:asm-util"
+    val `optim?` =
+      if BuildMode == Release
+      then Seq("-O")
+      else Seq("-g")
+
+    `1.8-options` ++ `optim?` ++ Seq(
+      "-Xlint:all",
+      "-Werror",
+    )
   }
 
-  object Breeze {
-    // WARNING WARNING WARNING
-    // Before changing the breeze version review:
-    // - https://hail.zulipchat.com/#narrow/stream/123011-Hail-Query-Dev/topic/new.20spark.20ndarray.20failures/near/41645
-    // - https://github.com/hail-is/hail/pull/11555
-    val breeze = mvn"org.scalanlp::breeze:1.1"
-    val `breeze-natives` = mvn"org.scalanlp::breeze-natives:1.1"
-  }
+trait HailScalaModuleBase extends HailJavaModule, ScalafmtModule, ScalafixModule:
 
-  object GoogleCloud {
-    val `libraries-bom` = mvn"com.google.cloud:libraries-bom:26.66.0"
-    val `google-auth-library-oauth2-http` = mvn"com.google.auth:google-auth-library-oauth2-http"
-    val `google-cloud-storage` = mvn"com.google.cloud:google-cloud-storage"
-  }
+  override def scalafixIvyDeps: T[Seq[Dep]] =
+    Seq(
+      `scalafix-forbidden-symbol` :: "1.0.0",
+    )
 
-  object Spark {
-    def core: Task[Dep] = Task.Anon(mvn"org.apache.spark::spark-core:${Env.sparkVersion()}")
-    def mllib: Task[Dep] = Task.Anon(mvn"org.apache.spark::spark-mllib:${Env.sparkVersion()}")
 
-    // direct dependencies provided by Spark at runtime
-    val avro = mvn"org.apache.avro:avro:1.11.2"
-    val `commons-codec` = mvn"commons-codec:commons-codec:1.16.1"
-    val `commons-io` = mvn"commons-io:commons-io:2.16.1"
-    val `commons-lang3` = mvn"org.apache.commons:commons-lang3:3.12.0"
-    val `commons-math3` = mvn"org.apache.commons:commons-math3:3.6.1"
-    val `hadoop-client-api` = mvn"org.apache.hadoop:hadoop-client-api:3.3.4"
-    val httpclient = mvn"org.apache.httpcomponents:httpclient:4.5.14"
-    val `jackson-core` = mvn"com.fasterxml.jackson.core:jackson-core:2.15.2"
-    val `json4s-jackson` = mvn"org.json4s::json4s-jackson:3.7.0-M11"
-    val `l4z-java` = mvn"org.lz4:lz4-java:1.8.0"
-    val `log4j-bom` = mvn"org.apache.logging.log4j:log4j-bom:2.22.0"
-    val `logj4-api` = mvn"org.apache.logging.log4j:log4j-api"
-    val `log4j-core` = mvn"org.apache.logging.log4j:log4j-core"
-    val `zstd-jni` = mvn"com.github.luben:zstd-jni:1.5.5-4"
-  }
-
-  val `elasticsearch-spark` = mvn"org.elasticsearch::elasticsearch-spark-30:9.2.1"
-  val freemarker = mvn"org.freemarker:freemarker:2.3.31"
-  val htsjdk = mvn"com.github.samtools:htsjdk:3.0.5"
-  val jdistlib = mvn"net.sourceforge.jdistlib:jdistlib:0.4.5"
-  val jna = mvn"net.java.dev.jna:jna:5.13.0"
-  val `junixsocket-core` = mvn"com.kohlschutter.junixsocket:junixsocket-core:2.6.1"
-  val `log4j-api-scala` = mvn"org.apache.logging.log4j::log4j-api-scala:13.1.0"
-  val netlib = mvn"com.github.fommil.netlib:all:1.1.2"
-  val `scala-collection-compat` = mvn"org.scala-lang.modules::scala-collection-compat:2.13.0"
-  // provides @nowarn212 and @nowarn213
-  val `scalac-compat-annotation` = mvn"org.typelevel::scalac-compat-annotation:0.1.4"
-  val sourcecode = mvn"com.lihaoyi::sourcecode:0.4.2"
-
-  object Plugins {
-    val `better-monadic-for` = mvn"com.olegpy::better-monadic-for:0.3.1"
-  }
-}
-
-enum BuildMode derives ReadWriter {
-  case dev, ci, release
-}
-
-object Env extends Module {
-  def javaVersion: T[String] = Task.Input {
-    System.getProperty("java.version")
-  }
-
-  def sparkVersion: T[String] = Task.Input {
-    Result.Success(Task.env.getOrElse("SPARK_VERSION", "3.5.3"))
-  }
-
-  val buildMode: BuildMode = BuildMode.valueOf(millbuild.BuildConfig.buildMode)
-}
-
-trait HailModule extends ScalaModule with ScalafmtModule with ScalafixModule { outer =>
-  // crossValue is defined by the RootHailModule#CrossValue trait, which this will be mixed with.
-  // It propagates the cross value from the root `hail` module.
-  def crossValue: String
-  override def scalaVersion: T[String] = Task { Settings.scalaMinorVersions(crossValue) }
-
-  override def scalafixIvyDeps: T[Seq[Dep]] = Seq(
-    mvn"io.github.tanin47::scalafix-forbidden-symbol:1.0.0",
-  )
+trait HailScalaModule extends ScalaModule, HailScalaModuleBase:
+  outer =>
 
   override def depManagement: T[Seq[Dep]] =
     Seq(
-      Deps.`scala-collection-compat`,
+      `scala-collection-compat` :: "2.13.0",
     )
 
-  override def javacOptions: T[Seq[String]] = Seq(
-    "-Xlint:all",
-    "-Werror",
-    if (Env.buildMode == BuildMode.release) "-O" else "-g",
-  ) ++ (if (!Env.javaVersion().startsWith("1.8")) Seq("-Xlint:-processing") else Seq())
-
-  override def scalacOptions: T[Seq[String]] = Task {
-    val disabledOptions = Set(
-      ScalacOptions.warnUnusedParams, ScalacOptions.privateWarnUnusedParams,
-      ScalacOptions.warnUnusedImplicits, ScalacOptions.privateWarnUnusedImplicits,
-      ScalacOptions.warnUnusedExplicits,
-      // we don't enable the unused imports warning in 2.12, as the wconf origin filter doesn't work
-      ScalacOptions.privateWarnUnusedImports,
-      // 2.13 added the -Wnonunit-discard flag, which is a stronger check than -Wvalue-discard
-      ScalacOptions.warnValueDiscard, ScalacOptions.privateWarnValueDiscard,
-
-      ScalacOptions.lintInferAny,
-      ScalacOptions.languageExperimentalMacros,
-    )
-    
-    val baseOptions = ScalacOptions.default +
-      ScalacOptions.source213 +
-      ScalacOptions.advancedOption("no-patmat-analysis")
-    
-    val additionalOptions = Env.buildMode match {
-      case BuildMode.`dev` =>
-        ScalacOptions.verboseOptions
-      // enable to help debug accessing unitialized fields
-      //     + ScalacOptions.checkInit
-      case BuildMode.`ci` =>
-        Set(ScalacOptions.fatalWarnings)
-      case BuildMode.`release` =>
+  override def scalacOptions: T[Seq[String]] =
+    Task {
+      val disabledOptions =
         Set(
-          ScalacOptions.fatalWarnings,
-          ScalacOptions.optimizerMethodLocal,
-          ScalacOptions.optimizerOption(":-closure-invocations"),
+          ScalacOptions.warnUnusedParams, ScalacOptions.privateWarnUnusedParams,
+          ScalacOptions.warnUnusedImplicits, ScalacOptions.privateWarnUnusedImplicits,
+          ScalacOptions.warnUnusedExplicits,
+          // we don't enable the unused imports warning in 2.12, as the wconf origin filter doesn't work
+          ScalacOptions.privateWarnUnusedImports,
+          // 2.13 added the -Wnonunit-discard flag, which is a stronger check than -Wvalue-discard
+          ScalacOptions.warnValueDiscard, ScalacOptions.privateWarnValueDiscard,
+
+          ScalacOptions.lintInferAny,
+          ScalacOptions.languageExperimentalMacros,
         )
-    }
 
-    val finalOptions = ScalacOptions.tokensForVersion(
-      ScalaVersion.unsafeFromString(scalaVersion()),
-      baseOptions -- disabledOptions ++ additionalOptions
-    )
-    if (scalaVersion().startsWith("2.13")) {
-      finalOptions ++
-      Seq(
-       // collection types
-        // value ArrayStack in package mutable is deprecated (since 2.13.0): Use Stack instead of ArrayStack; it now uses an array-based implementation
-        "-Wconf:cat=deprecation&msg=value ArrayStack in package mutable is deprecated:s",
-      // generic to immutable default
-      // collection methods
-        // method copyArrayToImmutableIndexedSeq in class LowPriorityImplicits2 is deprecated (since 2.13.0): implicit conversions from Array to immutable.IndexedSeq are implemented by copying; use `toIndexedSeq` explicitly if you want to copy, or use the more efficient non-copying ArraySeq.unsafeWrapArray
-        "-Wconf:cat=deprecation&msg=method copyArrayToImmutableIndexedSeq in class LowPriorityImplicits2 is deprecated:s",
-        // Passing an explicit array value to a Scala varargs method is deprecated (since 2.13.0) and will result in a defensive copy; Use the more efficient non-copying ArraySeq.unsafeWrapArray or an explicit toIndexedSeq call
-        "-Wconf:cat=deprecation&msg=Passing an explicit array value to a Scala varargs method is deprecated:s",
-        // method any2stringadd in object Predef is deprecated (since 2.13.0): Implicit injection of + is deprecated. Convert to String to call +
-        "-Wconf:cat=deprecation&msg=any2stringadd:s",
-        // method + in class Char is deprecated (since 2.13.0): Adding a number and a String is deprecated. Use the string interpolation `s"$num$str"`
-        raw"-Wconf:cat=deprecation&msg=method \+ in class Char is deprecated:s",
-        // method toIterable in trait Iterable is deprecated (since 2.13.7): toIterable is internal and will be made protected; its name is similar to `toList` or `toSeq`, but it doesn't copy non-immutable collections
-        "-Wconf:cat=deprecation&msg=method toIterable in trait Iterable is deprecated:s",
-        // method toIterator in class IterableOnceExtensionMethods is deprecated (since 2.13.0): Use .iterator instead
-        "-Wconf:cat=deprecation&msg=toIterator:s",
-        // method foreach in class IterableOnceExtensionMethods is deprecated (since 2.13.0): Use .iterator.foreach(...) instead
-        "-Wconf:cat=deprecation&msg=foreach:s",
-        // method nonEmpty in class IterableOnceExtensionMethods is deprecated (since 2.13.0): Use .iterator.nonEmpty instead
-        "-Wconf:cat=deprecation&msg=method nonEmpty in class IterableOnceExtensionMethods is deprecated:s",
-        // method view in trait IndexedSeqOps is deprecated (since 2.13.0): Use .view.slice(from, until) instead of .view(from, until)
-        "-Wconf:cat=deprecation&msg=method view in trait IndexedSeqOps is deprecated:s",
-        // method reverseContents in class StringBuilder is deprecated (since 2.13.0): Use reverseInPlace instead
-        "-Wconf:cat=deprecation&msg=method reverseContents in class StringBuilder is deprecated:s",
-        // method + in trait MapOps is deprecated (since 2.13.0): Consider requiring an immutable Map or fall back to Map.concat.
-        raw"-Wconf:cat=deprecation&msg=method \+ in trait MapOps is deprecated:s",
-        "-Wconf:cat=deprecation&msg=method - in trait MapOps is deprecated:s",
-        // method mapValues in trait MapOps is deprecated (since 2.13.0): Use .view.mapValues(f). A future version will include a strict version of this method (for now, .view.mapValues(f).toMap).
-        "-Wconf:cat=deprecation&msg=method mapValues in trait MapOps is deprecated:s",
-        // method filterKeys in trait MapOps is deprecated (since 2.13.0): Use .view.filterKeys(f). A future version will include a strict version of this method (for now, .view.filterKeys(p).toMap).
-        "-Wconf:cat=deprecation&msg=method filterKeys in trait MapOps is deprecated:s",
-        // method - in trait SetOps is deprecated (since 2.13.0): Consider requiring an immutable Set or fall back to Set.diff
-        "-Wconf:cat=deprecation&msg=method - in trait SetOps is deprecated:s",
-        // method reverseMap in trait SeqOps is deprecated (since 2.13.0): Use .reverseIterator.map(f).to(...) instead of .reverseMap(f)
-        "-Wconf:cat=deprecation&msg=method reverseMap in trait SeqOps is deprecated:s",
-        // method transform in trait SeqOps is deprecated (since 2.13.0): Use `mapInPlace` on an `IndexedSeq` instead
-        "-Wconf:cat=deprecation&msg=method transform in trait SeqOps is deprecated:s",
-      // other
-        // Widening conversion from Long to Double is deprecated because it loses precision. Write `.toDouble` instead.
-        "-Wconf:cat=deprecation&msg=Widening conversion from Long to Double:s",
-        "-Wconf:cat=deprecation&msg=symbol literal is deprecated:s",
-        raw"-Wconf:cat=unused-imports&origin=scala\.collection\.compat\._:s",
-        raw"-Wconf:cat=unused-imports&origin=scala\.Option\.option2Iterable:s",
-        raw"-Wconf:cat=unused-imports&origin=is\.hail\.utils\.compat\._:s",
-        raw"-Wconf:msg=unused value of type org\.scalatest\..*Assertion:s",
-        raw"-Wconf:msg=unused value of type org\.mockito\.stubbing\.ScalaOngoingStubbing:s",
-      )
-    } else {
-      finalOptions :+ "-Wconf:msg=legacy-binding:s"
-    }
-  }
-}
+      val baseOptions =
+        ScalacOptions.default +
+          ScalacOptions.source213 +
+          ScalacOptions.advancedOption("no-patmat-analysis")
 
-object hail extends Cross[RootHailModule](millbuild.BuildConfig.enabledScalaVersions)
+      val additionalOptions =
+        BuildMode match {
+          case Dev =>
+            ScalacOptions.verboseOptions
+          // enable to help debug accessing unitialized fields
+          //     + ScalacOptions.checkInit
+          case CI =>
+            Set(ScalacOptions.fatalWarnings)
+          case Release =>
+            Set(
+              ScalacOptions.fatalWarnings,
+              ScalacOptions.optimizerMethodLocal,
+              ScalacOptions.optimizerOption(":-closure-invocations"),
+            )
+        }
 
-trait RootHailModule extends CrossScalaModule with HailModule { outer =>
-  def buildInfo: T[PathRef] = Task {
-    val revision = VcsVersion.vcsState().currentRevision
-    os.write(
-      Task.dest / "build-info.properties",
-      s"""[Build Metadata]
-         |revision=$revision
-         |sparkVersion=${Env.sparkVersion()}
-         |hailPipVersion=${Settings.hailMajorMinorVersion}.${Settings.hailPatchVersion}
-         |hailBuildConfiguration=${Env.buildMode}
-         |""".stripMargin,
-    )
-    PathRef(Task.dest)
-  }
+      val scVersion = ScalaVersion.unsafeFromString(scalaVersion())
 
-  override def moduleDeps: Seq[JavaModule] = Seq(memory)
-
-  override def resources: T[Seq[PathRef]] = super.resources() ++ Seq(
-    BuildCtx.withFilesystemCheckerDisabled {
-      PathRef(BuildCtx.workspaceRoot / "prebuilt" / "lib")
-    },
-    buildInfo(),
-  )
-
-  override def generatedSources: T[Seq[PathRef]] = Task {
-    Seq(`ir-gen`.generate())
-  }
-
-  override def unmanagedClasspath: T[Seq[PathRef]] =
-    Seq(shadedazure.assembly())
-
-  // omit unmanagedClasspath from the jar
-  override def jar: T[PathRef] = Task {
-    val jar = Task.dest / "out.jar"
-    Jvm.createJar(jar, (resources() ++ Seq(compile().classes)).map(_.path).filter(os.exists), manifest())
-    PathRef(jar)
-  }
-
-  override def bomMvnDeps: T[Seq[Dep]] = Seq(
-    Deps.Asm.`asm-bom`,
-    Deps.GoogleCloud.`libraries-bom`,
-    Deps.Spark.`log4j-bom`,
-  )
-
-  override def mvnDeps: T[Seq[Dep]] = Seq(
-    Deps.Asm.asm,
-    Deps.Asm.`asm-analysis`,
-    Deps.Asm.`asm-util`,
-    Deps.GoogleCloud.`google-auth-library-oauth2-http`
-      .excludeOrg(
-        "commons-codec",
-        "org.apache.httpcomponents",
-        "org.slf4j",
-      ),
-    Deps.GoogleCloud.`google-cloud-storage`
-      .excludeOrg(
-        "com.fasterxml.jackson.core",
-        "commons-codec",
-        "org.slf4j",
-      ),
-    Deps.`elasticsearch-spark`
-      .excludeOrg(
-        "commons-logging",
-        "org.apache.spark",
-        "org.slf4j",
-      ),
-    Deps.freemarker,
-    Deps.htsjdk.excludeOrg("*"),
-    Deps.jdistlib.excludeOrg("*"),
-    Deps.`log4j-api-scala`.excludeOrg("*"),
-    Deps.jna,
-    Deps.`scala-collection-compat`,
-    Deps.sourcecode,
-  )
-
-  override def runMvnDeps: T[Seq[Dep]] = Seq(
-    Deps.Breeze.`breeze-natives`
-      .excludeOrg(
-        "org.apache.commons",
-        "org.slf4j",
-      ),
-    Deps.netlib,
-    Deps.`junixsocket-core`,
-  )
-
-  override def compileMvnDeps: T[Seq[Dep]] = Seq(
-    Deps.Breeze.breeze,
-    Deps.Spark.core().excludeOrg("org.scalanlp"),  // Hail has an explicit dependency on Breeze 1.1
-    Deps.Spark.mllib().excludeOrg("org.scalanlp"),  // Hail has an explicit dependency on Breeze 1.1
-    Deps.Spark.avro,
-    Deps.Spark.`commons-codec`,
-    Deps.Spark.`commons-io`,
-    Deps.Spark.`commons-lang3`,
-    Deps.Spark.`commons-math3`,
-    Deps.Spark.httpclient,
-    Deps.Spark.`hadoop-client-api`,
-    Deps.Spark.`jackson-core`,
-    Deps.Spark.`json4s-jackson`,
-    Deps.Spark.`l4z-java`,
-    Deps.Spark.`logj4-api`,
-    Deps.Spark.`log4j-core`,
-    Deps.Spark.`zstd-jni`,
-    Deps.`scalac-compat-annotation`,
-  )
-
-  override def assemblyRules: Seq[Rule] = super.assemblyRules ++ Seq(
-    Rule.Exclude("META-INF/INDEX.LIST"),
-    Rule.ExcludePattern("^scala/(?!collection/compat).*"),
-    Rule.AppendPattern("META-INF/services/.*", "\n"),
-    Rule.Relocate("breeze.**", "is.hail.relocated.@0"),
-    Rule.Relocate("com.google.**", "is.hail.relocated.@0"),
-    Rule.Relocate("scala.collection.compat.**", "is.hail.relocated.@0"),
-  )
-
-  override def scalacPluginMvnDeps: T[Seq[Dep]] = Seq(
-    Deps.Plugins.`better-monadic-for`,
-  )
-
-  def writeRunClasspath: T[PathRef] = Task {
-    os.write(
-      Task.dest / "runClasspath",
-      runClasspath().map(_.path).mkString(":"),
-    )
-    PathRef(Task.dest)
-  }
-
-  object `ir-gen` extends HailModule with DefaultTaskModule with CrossValue {
-    override def defaultTask(): String = "generate"
-
-    override def mvnDeps = Seq(
-      mvn"com.lihaoyi::mainargs:0.7.7",
-      mvn"com.lihaoyi::os-lib:0.10.7",
-      mvn"com.lihaoyi::sourcecode:0.4.2",
-    )
-
-    def generate: T[PathRef] = Task {
-      runner().run(Args("--path", Task.dest).value)
-      PathRef(Task.dest)
-    }
-  }
-
-  object memory extends JavaModule with CrossValue {
-    override def zincIncrementalCompilation: T[Boolean] = false
-
-    override def javacOptions: T[Seq[String]] =
-      outer.javacOptions() ++ (
-        if (Env.javaVersion().startsWith("1.8")) Seq(
-          "-XDenableSunApiLintControl",
-          "-Xlint:-sunapi",
+      val finalOptions =
+        ScalacOptions.tokensForVersion(
+          scVersion,
+          baseOptions -- disabledOptions ++ additionalOptions
         )
-        else Seq()
-      )
 
-    override def sources: T[Seq[PathRef]] = Task.Sources {
-      val debugOrRelease = if (Env.buildMode == BuildMode.ci) "debug" else "release"
-      os.sub / debugOrRelease / "src"
+      scVersion match {
+        case ScalaVersion(2, 12, _) =>
+          finalOptions :+ "-Wconf:msg=legacy-binding:s"
+
+        case ScalaVersion(2, 13, _) =>
+          finalOptions ++
+            Seq(
+              // collection types
+              // value ArrayStack in package mutable is deprecated (since 2.13.0): Use Stack instead of ArrayStack; it now uses an array-based implementation
+              "-Wconf:cat=deprecation&msg=value ArrayStack in package mutable is deprecated:s",
+              // generic to immutable default
+              // collection methods
+              // method copyArrayToImmutableIndexedSeq in class LowPriorityImplicits2 is deprecated (since 2.13.0): implicit conversions from Array to immutable.IndexedSeq are implemented by copying; use `toIndexedSeq` explicitly if you want to copy, or use the more efficient non-copying ArraySeq.unsafeWrapArray
+              "-Wconf:cat=deprecation&msg=method copyArrayToImmutableIndexedSeq in class LowPriorityImplicits2 is deprecated:s",
+              // Passing an explicit array value to a Scala varargs method is deprecated (since 2.13.0) and will result in a defensive copy; Use the more efficient non-copying ArraySeq.unsafeWrapArray or an explicit toIndexedSeq call
+              "-Wconf:cat=deprecation&msg=Passing an explicit array value to a Scala varargs method is deprecated:s",
+              // method any2stringadd in object Predef is deprecated (since 2.13.0): Implicit injection of + is deprecated. Convert to String to call +
+              "-Wconf:cat=deprecation&msg=any2stringadd:s",
+              // method + in class Char is deprecated (since 2.13.0): Adding a number and a String is deprecated. Use the string interpolation `s"$num$str"`
+              raw"-Wconf:cat=deprecation&msg=method \+ in class Char is deprecated:s",
+              // method toIterable in trait Iterable is deprecated (since 2.13.7): toIterable is internal and will be made protected; its name is similar to `toList` or `toSeq`, but it doesn't copy non-immutable collections
+              "-Wconf:cat=deprecation&msg=method toIterable in trait Iterable is deprecated:s",
+              // method toIterator in class IterableOnceExtensionMethods is deprecated (since 2.13.0): Use .iterator instead
+              "-Wconf:cat=deprecation&msg=toIterator:s",
+              // method foreach in class IterableOnceExtensionMethods is deprecated (since 2.13.0): Use .iterator.foreach(...) instead
+              "-Wconf:cat=deprecation&msg=foreach:s",
+              // method nonEmpty in class IterableOnceExtensionMethods is deprecated (since 2.13.0): Use .iterator.nonEmpty instead
+              "-Wconf:cat=deprecation&msg=method nonEmpty in class IterableOnceExtensionMethods is deprecated:s",
+              // method view in trait IndexedSeqOps is deprecated (since 2.13.0): Use .view.slice(from, until) instead of .view(from, until)
+              "-Wconf:cat=deprecation&msg=method view in trait IndexedSeqOps is deprecated:s",
+              // method reverseContents in class StringBuilder is deprecated (since 2.13.0): Use reverseInPlace instead
+              "-Wconf:cat=deprecation&msg=method reverseContents in class StringBuilder is deprecated:s",
+              // method + in trait MapOps is deprecated (since 2.13.0): Consider requiring an immutable Map or fall back to Map.concat.
+              raw"-Wconf:cat=deprecation&msg=method \+ in trait MapOps is deprecated:s",
+              "-Wconf:cat=deprecation&msg=method - in trait MapOps is deprecated:s",
+              // method mapValues in trait MapOps is deprecated (since 2.13.0): Use .view.mapValues(f). A future version will include a strict version of this method (for now, .view.mapValues(f).toMap).
+              "-Wconf:cat=deprecation&msg=method mapValues in trait MapOps is deprecated:s",
+              // method filterKeys in trait MapOps is deprecated (since 2.13.0): Use .view.filterKeys(f). A future version will include a strict version of this method (for now, .view.filterKeys(p).toMap).
+              "-Wconf:cat=deprecation&msg=method filterKeys in trait MapOps is deprecated:s",
+              // method - in trait SetOps is deprecated (since 2.13.0): Consider requiring an immutable Set or fall back to Set.diff
+              "-Wconf:cat=deprecation&msg=method - in trait SetOps is deprecated:s",
+              // method reverseMap in trait SeqOps is deprecated (since 2.13.0): Use .reverseIterator.map(f).to(...) instead of .reverseMap(f)
+              "-Wconf:cat=deprecation&msg=method reverseMap in trait SeqOps is deprecated:s",
+              // method transform in trait SeqOps is deprecated (since 2.13.0): Use `mapInPlace` on an `IndexedSeq` instead
+              "-Wconf:cat=deprecation&msg=method transform in trait SeqOps is deprecated:s",
+              // other
+              // Widening conversion from Long to Double is deprecated because it loses precision. Write `.toDouble` instead.
+              "-Wconf:cat=deprecation&msg=Widening conversion from Long to Double:s",
+              "-Wconf:cat=deprecation&msg=symbol literal is deprecated:s",
+              raw"-Wconf:cat=unused-imports&origin=scala\.collection\.compat\._:s",
+              raw"-Wconf:cat=unused-imports&origin=scala\.Option\.option2Iterable:s",
+              raw"-Wconf:cat=unused-imports&origin=is\.hail\.utils\.compat\._:s",
+              raw"-Wconf:msg=unused value of type org\.scalatest\..*Assertion:s",
+              raw"-Wconf:msg=unused value of type org\.mockito\.stubbing\.ScalaOngoingStubbing:s",
+            )
+        case _ =>
+          throw new UnsupportedOperationException(s"Unsupported scala version: '$scVersion'.")
+      }
     }
-  }
 
-  object test extends ScalaTests with TestNg with ScalafmtModule with ScalafixModule {
-    override def forkArgs: T[Seq[String]] =
-      Seq("-Xss4m", "-Xmx4096M")
+  trait HailScalaTests extends ScalaTests, HailScalaModuleBase:
 
-    override def scalafixIvyDeps: T[Seq[Dep]] =
-      outer.scalafixIvyDeps()
-
-    override def compileMvnDeps: T[Seq[Dep]] =
-       outer.compileMvnDeps()
-
-    override def mvnDeps: T[Seq[Dep]] =
-      outer.mvnDeps() ++ Seq(
-        mvn"com.google.inject:guice:5.1.0",
-        mvn"org.scalacheck::scalacheck:1.18.1",
-        mvn"org.scalatest::scalatest:3.2.19",
-        mvn"org.scalatest::scalatest-shouldmatchers:3.2.19",
-        mvn"org.scalatestplus::scalacheck-1-18:3.2.19.0",
-        mvn"org.scalatestplus::testng-7-10:3.2.19.0",
-        mvn"org.mockito::mockito-scala:1.17.31",
-      )
-
-    override def runMvnDeps: T[Seq[Dep]] =
-      outer.runMvnDeps()
-
-    override def assemblyRules: Seq[Rule] =
-      outer.assemblyRules
-  }
-
-  object shadedazure extends JavaModule {
-    override def mvnDeps: T[Seq[Dep]] = Seq(
-      mvn"com.azure:azure-storage-blob:12.22.0",
-      mvn"com.azure:azure-core-http-netty:1.13.7",
-      mvn"com.azure:azure-identity:1.8.3",
-    )
-
-    override def assemblyRules: Seq[Rule] = Seq(
-      Rule.ExcludePattern("META-INF/*.RSA"),
-      Rule.ExcludePattern("META-INF/*.SF"),
-      Rule.ExcludePattern("META-INF/*.DSA"),
-      Rule.Relocate("com.azure.**", "is.hail.shadedazure.@0"),
-      Rule.Relocate("com.ctc.**", "is.hail.shadedazure.@0"),
-      Rule.Relocate("com.fasterxml.**", "is.hail.shadedazure.@0"),
-      Rule.Relocate("com.microsoft.**", "is.hail.shadedazure.@0"),
-      Rule.Relocate("com.nimbusds.**", "is.hail.shadedazure.@0"),
-      Rule.Relocate("com.sun.**", "is.hail.shadedazure.@0"),
-      Rule.Relocate("io.netty.**", "is.hail.shadedazure.@0"),
-      Rule.Relocate("is.hail.**", "is.hail.shadedazure.@0"),
-      Rule.Relocate("net.jcip.**", "is.hail.shadedazure.@0"),
-      Rule.Relocate("net.minidev.**", "is.hail.shadedazure.@0"),
-      Rule.Relocate("org.apache.**", "is.hail.shadedazure.@0"),
-      Rule.Relocate("org.codehaus.**", "is.hail.shadedazure.@0"),
-      Rule.Relocate("org.objectweb.**", "is.hail.shadedazure.@0"),
-      Rule.Relocate("org.reactivestreams.**", "is.hail.shadedazure.@0"),
-      Rule.Relocate("org.slf4j.**", "is.hail.shadedazure.@0"),
-      Rule.Relocate("reactor.adapter.**", "is.hail.shadedazure.@0"),
-      Rule.Relocate("reactor.core.**", "is.hail.shadedazure.@0"),
-      Rule.Relocate("reactor.netty.**", "is.hail.shadedazure.@0"),
-      Rule.Relocate("reactor.util.**", "is.hail.shadedazure.@0"),
-    )
-  }
-
-}
+    override def enableBsp: Boolean =
+      outer.enableBsp

@@ -5,7 +5,7 @@ import is.hail.utils._
 import java.io.{File, FileInputStream}
 
 import org.json4s._
-import org.json4s.jackson.JsonMethods
+import org.json4s.jackson.parseJson
 
 object DeployConfig {
   lazy val default: DeployConfig = fromConfigFile()
@@ -29,7 +29,7 @@ object DeployConfig {
     }
 
     if (file != null) {
-      using(new FileInputStream(file))(in => fromConfig(JsonMethods.parse(in)))
+      using(new FileInputStream(file))(in => fromConfig(parseJson(in)))
     } else
       fromConfig("external", "default", "hail.is", None)
   }

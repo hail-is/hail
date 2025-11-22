@@ -1,0 +1,273 @@
+package build.hail
+
+import mill.*
+import mill.api.{BuildCtx, Result}
+import mill.scalalib.*
+import mill.scalalib.Assembly.*
+import mill.scalalib.TestModule.TestNg
+import mill.scalalib.scalafmt.ScalafmtModule
+import mill.util.{Jvm, VcsVersion}
+
+import build.Settings.*
+import millbuild.BuildConfig.*
+import millbuild.BuildMode.*
+import millbuild.DeployTarget
+import millbuild.MvnCoordinate.*
+
+import scala.language.implicitConversions
+
+object `package` extends Cross[RootHailModule](AllTargets)
+
+trait RootHailModule extends build.HailScalaModule, CrossScalaModule:
+  outer =>
+
+  override def scalaVersion: Task.Simple[String] =
+    scalaMinorVersions.getOrElse(crossScalaVersion, crossScalaVersion)
+
+  override def crossScalaVersion: String =
+    DeployTarget.read(crossValue).scalaVersion
+
+  def crossSparkVersion: String =
+    DeployTarget.read(crossValue).sparkVersion
+
+  override def enableBsp: Boolean =
+    EnabledTargets `contains` crossValue
+
+  def buildInfo: T[PathRef] =
+    Task {
+      val revision = VcsVersion.vcsState().currentRevision
+      os.write(
+        Task.dest / "build-info.properties",
+        s"""[Build Metadata]
+           |revision=$revision
+           |sparkVersion=$crossSparkVersion
+           |hailPipVersion=$hailMajorMinorVersion.$hailPatchVersion
+           |hailBuildConfiguration=$BuildMode
+           |""".stripMargin,
+      )
+      PathRef(Task.dest)
+    }
+
+  override def moduleDeps: Seq[JavaModule] =
+    Seq(
+      build.hail.shadedazure,
+      build.hail.memory(if BuildMode == CI then "debug" else "release"),
+    )
+
+  override def resources: T[Seq[PathRef]] =
+    super.resources() ++ Seq(
+      BuildCtx.withFilesystemCheckerDisabled {
+        PathRef(BuildCtx.workspaceRoot / "prebuilt" / "lib")
+      },
+      buildInfo(),
+    )
+
+  override def generatedSources: T[Seq[PathRef]] =
+    Task {
+      Seq(build.hail.`ir-gen`.generate())
+    }
+
+  override def unmanagedClasspath: T[Seq[PathRef]] =
+    Seq(
+      build.hail.shadedazure.assembly(),
+    )
+
+  // omit unmanagedClasspath from the jar
+  override def jar: T[PathRef] =
+    Task {
+      val jar = Task.dest / "out.jar"
+      Jvm.createJar(jar, (resources() ++ Seq(compile().classes)).map(_.path).filter(os.exists), manifest())
+      PathRef(jar)
+    }
+
+  override def repositories: T[Seq[String]] =
+    Seq("central", "m2Local")
+
+  override def bomMvnDeps: T[Seq[Dep]] = {
+    val base =
+      Seq(
+        `asm-bom` :: "9.9",
+        `libraries-bom` :: "26.66.0",
+        `pyspark-bom` :: crossSparkVersion,
+      )
+
+    val `spark>=3.4.x` =
+      if crossSparkVersion >= "3.4"
+      then Seq()
+      else Seq(`log4j-bom` :: "2.20.0")
+
+    base ++ `spark>=3.4.x`
+  }
+
+  override def compileMvnDeps: T[Seq[Dep]] = {
+    val base: Seq[Dep] =
+      Seq(
+        // ### WARNING WARNING WARNING ###
+        // Hail has an explicit dependency on Breeze 1.1
+        // Before changing the breeze version review:
+        // - https://hail.zulipchat.com/#narrow/stream/123011-Hail-Query-Dev/topic/new.20spark.20ndarray.20failures/near/41645
+        // - https://github.com/hail-is/hail/pull/11555
+        `breeze` :: "1.1",
+        `avro`,
+        `commons-codec`,
+        `commons-compress`,
+        `commons-io`,
+        `commons-lang3`,
+        `commons-math3`,
+        `kryo-shaded`,
+        `httpclient`,
+        `httpcore`,
+        `json4s-ast`,
+        `json4s-core`,
+        `json4s-jackson`,
+        `jackson-core`,
+        `jackson-databind`,
+        `lz4-java`,
+        `javassist`,
+        `scala-parser-combinators`,
+        `spark-core`,
+        `spark-mllib`,
+        `spark-sql`,
+        `spark-tags`,
+        `slf4j-api`,
+        `zstd-jni`,
+        `scalac-compat-annotation` :: "0.1.4",
+        `shapeless` :: "2.3.3",
+      )
+
+    val `scala>=2.13.x`: Seq[Dep] =
+      if crossScalaVersion >= "2.13"
+      then Seq(`scala-parallel-collections`)
+      else Seq()
+
+    val `spark>=3.4.x`: Seq[Dep] =
+      if crossSparkVersion >= "3.4"
+      then
+        Seq(
+          `hadoop-client-api`,
+          `log4j-api`,
+          `log4j-core`,
+          `netty-transport-classes-epoll`,
+          `netty-transport-native-unix-common`,
+        )
+      else
+        Seq(
+          `hadoop-client`,
+          `hadoop-common`,
+          `netty-all`,
+        )
+
+    val `spark>=3.5.x`: Seq[Dep] =
+      if crossSparkVersion >= "3.5"
+      then
+        Seq(
+          `spark-common-utils`,
+          `spark-sql-api`,
+        )
+      else
+        Seq(
+          `spark-catalyst`,
+        )
+
+    (base ++ `scala>=2.13.x` ++ `spark>=3.4.x` ++ `spark>=3.5.x`) map { _.excludeOrg("*") }
+  }
+
+  override def mvnDeps: T[Seq[Dep]] = {
+    val base: Seq[Dep] =
+      Seq(
+        `all` :: "1.1.2",
+        `asm`,
+        `asm-analysis`,
+        `asm-util`,
+        `google-auth-library-oauth2-http`
+          .mvn
+          .excludeOrg(
+            "commons-codec",
+            "org.apache.httpcomponents",
+            "org.slf4j",
+          ),
+        `google-cloud-storage`
+          .mvn
+          .excludeOrg(
+            "com.fasterxml.jackson.core",
+            "commons-codec",
+            "org.slf4j",
+          ),
+        (`elasticsearch-spark` :: "9.2.1")
+          .excludeOrg(
+            "commons-logging",
+            "org.apache.spark",
+            "org.slf4j",
+          ),
+        `freemarker` :: "2.3.31",
+        (`htsjdk` :: "3.0.5").excludeOrg("*"),
+        (`jdistlib` :: "0.4.5").excludeOrg("*"),
+        (`log4j-api-scala` :: "13.1.0").excludeOrg("*"),
+        `jna` :: "5.13.0",
+        `scala-collection-compat`,
+        `sourcecode` :: "0.4.2",
+      )
+
+    val `spark>=3.4.x`: Seq[Dep] =
+      if crossSparkVersion >= "3.4"
+      then Seq()
+      else Seq(`log4j-api`, `log4j-core`)
+
+    base ++ `spark>=3.4.x`
+  }
+
+  override def runMvnDeps: T[Seq[Dep]] =
+    Seq[Dep](
+      (`breeze-natives` :: "1.1")
+        .excludeOrg(
+          "org.apache.commons",
+          "org.slf4j",
+        ),
+      `junixsocket-core` :: "2.6.1",
+    )
+
+  override def assemblyRules: Seq[Rule] =
+    super.assemblyRules ++ Seq(
+      Rule.Exclude("META-INF/INDEX.LIST"),
+      Rule.ExcludePattern("^scala/(?!collection/compat).*"),
+      Rule.AppendPattern("META-INF/services/.*", "\n"),
+      Rule.Relocate("breeze.**", "is.hail.relocated.@0"),
+      Rule.Relocate("com.google.**", "is.hail.relocated.@0"),
+      Rule.Relocate("scala.collection.compat.**", "is.hail.relocated.@0"),
+    )
+
+  override def scalacPluginMvnDeps: T[Seq[Dep]] =
+    Seq(
+      `better-monadic-for` :: "0.3.1",
+    )
+
+  def writeRunClasspath: T[PathRef] =
+    Task {
+      os.write(
+        Task.dest / "runClasspath",
+        runClasspath().map(_.path).mkString(":"),
+      )
+      PathRef(Task.dest)
+    }
+
+  object test extends HailScalaTests, TestNg, CrossValue:
+
+    override def forkArgs: T[Seq[String]] =
+      Seq("-Xss4m", "-Xmx4096M")
+
+    override def compileMvnDeps: T[Seq[Dep]] =
+      outer.compileMvnDeps
+
+    override def mvnDeps: T[Seq[Dep]] =
+      super.mvnDeps() ++ Seq[Dep](
+        `guice` :: "5.1.0",
+        `scalacheck` :: "1.18.1",
+        `scalacheck-1-18` :: "3.2.19.0",
+        `scalatest` :: "3.2.19",
+        `scalatest-shouldmatchers` :: "3.2.19",
+        `testng-7-10` :: "3.2.19.0",
+        `mockito-scala` :: "1.17.31",
+      )
+
+    override def assemblyRules: Seq[Rule] =
+      outer.assemblyRules

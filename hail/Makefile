@@ -19,8 +19,7 @@ HAIL_PATCH_VERSION := 137
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
 HAIL_VERSION := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
 
-SCALA_VERSION ?= 2.12
-SPARK_VERSION ?= 3.5.3
+HAIL_DEPLOY_TARGET ?= dataproc-2.3.x
 
 include env_var.mk
 
@@ -64,7 +63,7 @@ CLOUD_HAIL_DOCTEST_DATA_DIR = $(CLOUD_HAIL_TEST_RESOURCES_PREFIX)/doctest/data/
 
 # mill integration
 
-MILL := SCALA_VERSION=$(SCALA_VERSION) bash mill
+MILL := bash mill
 MILLOPTS ?=
 
 .PHONY: mill-clean
@@ -77,7 +76,7 @@ mill-clean:
 # be recomputed.
 FORCE:
 
-SHADOW_JAR := out/hail/$(SCALA_VERSION)/assembly.dest/out.jar
+SHADOW_JAR := out/hail/$(HAIL_DEPLOY_TARGET)/assembly.dest/out.jar
 ifdef HAIL_COMPILE_NATIVES
 $(SHADOW_JAR): native-lib-prebuilt
 endif
@@ -87,14 +86,14 @@ $(SHADOW_JAR): FORCE
 .PHONY: shadowJar
 shadowJar: $(SHADOW_JAR)
 
-NON_SHADOW_JAR := out/hail/$(SCALA_VERSION)/jar.dest/out.jar
+NON_SHADOW_JAR := out/hail/$(HAIL_DEPLOY_TARGET)/jar.dest/out.jar
 ifdef HAIL_COMPILE_NATIVES
 $(NON_SHADOW_JAR): native-lib-prebuilt
 endif
 $(NON_SHADOW_JAR): FORCE
 	$(MILL) $(MILLOPTS) hail[].jar
 
-SHADOW_TEST_JAR := out/hail/$(SCALA_VERSION)/test/assembly.dest/out.jar
+SHADOW_TEST_JAR := out/hail/$(HAIL_DEPLOY_TARGET)/test/assembly.dest/out.jar
 ifdef HAIL_COMPILE_NATIVES
 $(SHADOW_TEST_JAR): native-lib-prebuilt
 endif
@@ -104,7 +103,7 @@ $(SHADOW_TEST_JAR): FORCE
 .PHONY: shadowTestJar
 shadowTestJar: $(SHADOW_TEST_JAR)
 
-EXTRA_CLASSPATH := out/hail/$(SCALA_VERSION)/writeRunClasspath.dest/runClasspath
+EXTRA_CLASSPATH := out/hail/$(HAIL_DEPLOY_TARGET)/writeRunClasspath.dest/runClasspath
 $(EXTRA_CLASSPATH): FORCE
 	$(MILL) $(MILLOPTS) hail[].writeRunClasspath
 

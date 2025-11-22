@@ -1,61 +1,147 @@
 package build
 
-import mill.*, scalalib.*
+import mill.*
+import mill.api.{BuildCtx, Logger, TaskCtx, Result}
 import mill.meta.MillBuildRootModule
+import mill.scalalib.*
 
-object `package` extends MillBuildRootModule {
-  def mvnDeps = Seq(
-    mvn"com.goyeau::mill-scalafix::0.6.0",
-    mvn"org.typelevel::scalac-options:0.1.8",
-  )
 
-  def generatedSources: T[Seq[PathRef]] = Task {
-    os.write(
-      Task.dest / "BuildConfig.scala",
-      s"""
-         |package millbuild
-         |object BuildConfig{
-         |  def buildMode = "${buildMode()}"
-         |  def enabledScalaVersions = IndexedSeq(${enabledScalaVersions().map(v => s"\"$v\"").mkString(", ")})
-         |}
-      """.stripMargin
+import millbuild.{BuildMode, DeployTarget}
+import millbuild.DeployTarget.*
+import millbuild.MvnCoordinate.*
+
+import scala.collection.immutable.ArraySeq
+
+
+extension [A, F[+X] <: Iterable[X]] (as: F[A])
+  def quoted: Iterable[String] =
+    as.map(i => s"\"$i\"")
+
+  infix def <|>[B >: A](alternative: => F[B]): F[B] =
+    if as.nonEmpty then as else alternative
+
+
+lazy val AllTargets: Seq[DeployTarget] = {
+  val `managed-spark-environments` =
+    ArraySeq(
+      DeployTarget.`dataproc-2.3.x`,
+      DeployTarget.`dataproc-3.0.x`,
+      DeployTarget.`hdinsight-5.1`,
     )
-    super.generatedSources() ++ Seq(PathRef(Task.dest))
-  }
 
-  def configDir: T[PathRef] = Task.Source("config")
+  val `generic-spark-environments` =
+    build.`pyspark-bom`.items.map { item =>
+      val List(scalaVersion, sparkVersion) = item.crossSegments
+      DeployTarget.Generic(scalaVersion, sparkVersion)
+    }
 
-  def envScalaVersion: T[Option[String]] = Task.Input {
-    Task.env.get("SCALA_VERSION")
-  }
-
-  def enabledScalaVersions: T[Seq[String]] = Task {
-    val path = configDir().path / "scala-version"
-    val supportedScalaVersions = IndexedSeq("2.12", "2.12.13", "2.13")
-    envScalaVersion()
-      .orElse(Option.when(os.exists(path))(os.read(path).strip))
-      .map { scalaVersion =>
-        require(
-          supportedScalaVersions.contains(scalaVersion),
-          s"SCALA_VERSION must be set to one of 2.12.13, 2.12, or 2.13; found $scalaVersion"
-        )
-        IndexedSeq(scalaVersion)
-      }.getOrElse(supportedScalaVersions)
-  }
-
-  def envBuildMode: T[Option[String]] = Task.Input {
-    Task.env.get("HAIL_BUILD_MODE")
-  }
-
-  def buildMode: T[String] = Task {
-    val path = configDir().path / "hail-build-mode"
-    val raw = envBuildMode().orElse(Option.when(os.exists(path))(os.read(path).strip))
-      .getOrElse("Release")
-    val supportedBuildModes = IndexedSeq("dev", "ci", "release")
-    require(
-      supportedBuildModes.contains(raw.toLowerCase),
-      s"HAIL_BUILD_MODE must be set to one of 'dev', 'ci' or 'release'; found '$raw'"
-    )
-    raw.toLowerCase
-  }
+  `managed-spark-environments` ++ `generic-spark-environments`
 }
+
+lazy val SupportedScalaVersions: Set[String] =
+  Set.from(AllTargets.map(_.scalaVersion))
+
+lazy val SupportedSparkVersions: Set[String] =
+  Set.from(AllTargets.map(_.sparkVersion))
+
+
+object `package` extends MillBuildRootModule:
+
+  override def mvnDeps: T[Seq[Dep]] =
+    ArraySeq(
+      `mill-scalafix` :::: "0.6.0",
+      `scalac-options` :: "0.1.8",
+    )
+
+  override def sources: T[Seq[PathRef]] =
+    Task.Sources("mill-build/src")
+
+  override def generatedSources: T[Seq[PathRef]] =
+    Task {
+      os.write(
+        Task.dest / "BuildConfig.scala",
+        s"""package millbuild
+           |
+           |import scala.collection.immutable._
+           |
+           |object BuildConfig:
+           |  val BuildMode = millbuild.BuildMode.${buildMode().getOrElse(BuildMode.Release)}
+           |  val AllTargets = ${AllTargets.quoted}
+           |  val EnabledTargets = ${Set.from(enabledDeployTargets() <|> AllTargets).quoted}
+           |""".stripMargin
+      )
+
+      publishedLocalMvnBoms()
+
+      super.generatedSources() ++ Iterable(PathRef(Task.dest))
+    }
+
+  def publishedLocalMvnBoms: T[Seq[Seq[PathRef]]] =
+    Task {
+      given TaskCtx.Log with
+        def log: Logger = Logger.DummyLogger
+
+      Task
+        .sequence {
+          for {m: PublishModule <- build.`pyspark-bom`.crossModules}
+            yield m.publishM2LocalCached
+        }
+        .apply()
+    }
+
+  def configDir: T[PathRef] =
+    Task.Source("config")
+
+  def getConfig(name: String)(implicit ctx: TaskCtx): Seq[String] =
+    ctx.env
+      .get(name map { case '-' => '_'; case c => c.toUpper })
+      .orElse {
+        val path = configDir.evaluate(ctx).get.path / name
+        Option.when(os.exists(path))(os.read(path))
+      }
+      .to(ArraySeq)
+      .flatMap(_.split(',').map(_.strip))
+
+  def buildMode: Task[Option[BuildMode]] =
+    Task.Input {
+      getConfig("hail-build-mode").headOption.map { raw =>
+        try
+          BuildMode.valueOf(raw)
+        catch {
+          case _: Throwable =>
+            throw new IllegalArgumentException(
+              s"HAIL_BUILD_MODE must be set to one of ${BuildMode.values.mkString("{", ", ", "}")}; found '$raw'"
+            )
+        }
+      }
+    }
+
+  def enabledDeployTargets: T[Seq[DeployTarget]] =
+    Task.Input {
+      Result.Success {
+        val (named, generic) =
+          getConfig("hail-deploy-target").partitionMap {
+            DeployTarget.read(_) match {
+              case generic: DeployTarget.Generic => Right(generic)
+              case named: DeployTarget => Left(named)
+            }
+          }
+
+        val fromEnv =
+          for {
+            scala <- getConfig("scala-version")
+            spark <- getConfig("spark-version")
+          } yield DeployTarget.Generic(scala, spark)
+
+        named ++ (generic ++ fromEnv).tapEach { t =>
+          require(
+            SupportedScalaVersions `contains` t.scalaVersion,
+            s"scala version may be one of ${SupportedScalaVersions.quoted.mkString(",")}; got '${t.scalaVersion}'."
+          )
+          require(
+            SupportedSparkVersions `contains` t.sparkVersion,
+            s"SPARK_VERSION may be one of ${SupportedSparkVersions.quoted.mkString(",")}; found '${t.sparkVersion}'."
+          )
+        }
+      }
+    }
