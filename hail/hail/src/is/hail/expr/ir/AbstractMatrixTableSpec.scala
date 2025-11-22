@@ -11,8 +11,7 @@ import scala.collection.mutable
 import java.io.{FileNotFoundException, OutputStreamWriter}
 
 import org.json4s._
-import org.json4s.jackson.JsonMethods
-import org.json4s.jackson.JsonMethods.parse
+import org.json4s.jackson.{compactJson, parseJson}
 
 abstract class ComponentSpec
 
@@ -39,7 +38,7 @@ object RelationalSpec {
     val metadataFile = path + "/metadata.json.gz"
     val jv =
       try
-        using(fs.open(metadataFile))(in => parse(in))
+        using(fs.open(metadataFile))(parseJson(_))
       catch {
         case _: FileNotFoundException =>
           if (fs.isFile(path)) {
@@ -206,7 +205,7 @@ case class MatrixTableSpecParameters(
   def write(fs: FS, path: String): Unit =
     using(new OutputStreamWriter(fs.create(path + "/metadata.json.gz"))) { out =>
       out.write(
-        JsonMethods.compact(decomposeWithName(this, "MatrixTableSpec")(RelationalSpec.formats))
+        compactJson(decomposeWithName(this, "MatrixTableSpec")(RelationalSpec.formats))
       )
     }
 

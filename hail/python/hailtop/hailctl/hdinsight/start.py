@@ -60,8 +60,6 @@ def start(
         resource_group,
         '--type',
         'spark',
-        '--component-version',
-        'Spark=3.0',
         '--http-password',
         http_password,
         '--http-user',
@@ -79,7 +77,7 @@ def start(
         '--storage-container',
         cluster_name,
         '--version',
-        '4.0',
+        '5.1',
         *pass_through_args,
     )
 

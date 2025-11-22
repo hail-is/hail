@@ -4,7 +4,7 @@ import is.hail.annotations.{Annotation, ExtendedOrdering}
 import is.hail.backend.HailStateManager
 import is.hail.utils._
 
-import org.json4s.jackson.JsonMethods
+import org.json4s.jackson.compactJson
 
 final case class TDict(keyType: Type, valueType: Type) extends TContainer {
   lazy val elementType: TBaseStruct =
@@ -53,7 +53,7 @@ final case class TDict(keyType: Type, valueType: Type) extends TContainer {
       .map { case (k, v) => s"${keyType.showStr(k)}:${valueType.showStr(v)}" }
       .mkString("{", ",", "}")
 
-  override def str(a: Annotation): String = JsonMethods.compact(export(a))
+  override def str(a: Annotation): String = compactJson(export(a))
 
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double, absolute: Boolean)
     : Boolean =

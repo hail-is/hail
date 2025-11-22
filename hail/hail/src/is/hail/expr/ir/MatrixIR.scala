@@ -17,7 +17,7 @@ import is.hail.utils._
 
 import org.apache.spark.sql.Row
 import org.json4s._
-import org.json4s.jackson.JsonMethods
+import org.json4s.jackson.compactJson
 
 object MatrixIR {
   def read(
@@ -149,7 +149,7 @@ trait MatrixReader {
   def renderShort(): String
 
   def defaultRender(): String =
-    StringEscapeUtils.escapeString(JsonMethods.compact(toJValue))
+    StringEscapeUtils.escapeString(compactJson(toJValue))
 
   final def matrixToTableType(mt: MatrixType, includeColsArray: Boolean = true): TableType = {
     TableType(

@@ -21,8 +21,7 @@ import java.io.OutputStream
 import java.nio.charset.StandardCharsets
 import java.nio.file.Path
 
-import org.json4s.JsonAST.JValue
-import org.json4s.jackson.JsonMethods
+import org.json4s.{jackson, JValue}
 
 object BatchQueryDriver extends HttpLikeRpc with Logging {
 
@@ -148,7 +147,7 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
         )
 
       using(bootstrapFs.openNoCompression(inputURL)) { is =>
-        val input = JsonMethods.parse(is)
+        val input = jackson.parseJson(is)
         (
           (input \ "rpc_config").extract[ServiceBackendRPCPayload],
           (input \ "job_config").extract[BatchJobConfig],

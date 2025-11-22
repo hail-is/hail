@@ -773,23 +773,18 @@ steps:
       set -ex
       cd /io/repo/hail
 
-      export MILLOPTS='--no-daemon' HAIL_BUILD_MODE=Release
-      time retry sh mill --no-daemon --version
-
       # We've encountered the following sporadic error in CI between `mill`
       # finishing assembling the jar and `Make` copying the jar:
       #
       # cp -f out/assembly.dest/out.jar python/hail/backend/hail-all-spark.jar
       # cp: cannot stat 'out/assembly.dest/out.jar': No such file or directory
       #
-      # This was likely from running mill in server mode; mill main exits before
+      # This was caused by running mill in daemon mode; mill main exits before
       # the jar has finished being written.
-      time retry make shadowJar
-      if [ ! -f out/hail/2.12/assembly.dest/out.jar ]; then
-          echo 'no out.jar found after mill assembly returned. going to sleep'
-          sleep 5
-      fi
+      export MILLOPTS='--no-daemon'
 
+      export HAIL_DEPLOY_TARGET=dataproc-2.3.x HAIL_BUILD_MODE=Release       
+      time retry sh mill --no-daemon --version
       time retry make DEV_CLARIFIER=hail-ci-build wheel
 
       # Check wheel size is small enough for pypi (< 200 MiB)
@@ -851,12 +846,12 @@ steps:
       set -ex
       cd /io/repo/hail
 
-      export MILLOPTS='--no-daemon' HAIL_BUILD_MODE=CI
+      export HAIL_DEPLOY_TARGET=dataproc-2.3.x HAIL_BUILD_MODE=CI MILLOPTS='--no-daemon'
       time retry sh mill --no-daemon --version
 
       # See `build_hail_jar_and_wheel`
       time retry make shadowJar
-      if [ ! -f out/hail/2.12/assembly.dest/out.jar ]; then
+      if [ ! -f "out/hail/${HAIL_DEPLOY_TARGET}/assembly.dest/out.jar" ]; then
           echo 'no out.jar found after mill assembly returned. going to sleep'
           sleep 5
       fi
@@ -884,12 +879,12 @@ steps:
       set -ex
       cd /io/repo/hail
 
-      export MILLOPTS='--no-daemon' HAIL_BUILD_MODE=CI
+      export HAIL_DEPLOY_TARGET=dataproc-2.3.x MILLOPTS='--no-daemon' HAIL_BUILD_MODE=CI
       time retry sh mill --no-daemon --version
 
       # See `build_hail_jar_and_wheel`
       time retry make shadowTestJar
-      if [ ! -f out/hail/2.12/test/assembly.dest/out.jar ]; then
+      if [ ! -f "out/hail/${HAIL_DEPLOY_TARGET}/test/assembly.dest/out.jar" ]; then
           echo 'no out.jar found after mill assembly returned. going to sleep'
           sleep 5
       fi
@@ -944,16 +939,11 @@ steps:
       set -ex
       cd /io/repo/hail
 
-      export SPARK_VERSION="3.0.2" SCALA_VERSION="2.12.13" HAIL_BUILD_MODE=Release MILLOPTS='--no-daemon'
+      export SPARK_VERSION="3.3.1" SCALA_VERSION="2.12.13"
+      
+      export MILLOPTS='--no-daemon'
+      export HAIL_DEPLOY_TARGET=hdinsight-5.1 HAIL_BUILD_MODE=Release
       time retry sh mill --no-daemon --version
-
-      # See `build_hail_jar_and_wheel`
-      time retry make shadowJar
-      if [ ! -f out/hail/2.12/assembly.dest/out.jar ]; then
-          echo 'no out.jar found after mill assembly returned. going to sleep'
-          sleep 5
-      fi
-
       time retry make wheel
     inputs:
       - from: /repo
@@ -1081,7 +1071,7 @@ steps:
     inputs:
       - from: /resources.tar.gz
         to: /io/resources.tar.gz
-      - from: /derived/debug/hail/out/hail/2.12/test/assembly.dest/out.jar
+      - from: /derived/debug/hail/out/hail/dataproc-2.3.x/test/assembly.dest/out.jar
         to: /io/hail-test.jar
       - from: /splits.tar.gz
         to: /io/splits.tar.gz
@@ -1691,7 +1681,7 @@ steps:
       - hail_linting_image
       - merge_code
   - kind: runImage
-    name: compile_hail_213
+    name: compile_hail_dataproc_3_0_x
     image:
       valueFrom: base_image.image
     resources:
@@ -1701,8 +1691,8 @@ steps:
       set -ex
       cd /io/repo/hail
 
-      HAIL_BUILD_MODE='CI'
-      time retry sh mill --no-daemon hail[2.13].__.compile
+      export HAIL_BUILD_MODE='CI' 
+      time retry sh mill --no-daemon 'hail[dataproc-3.0.x].__.compile'
     inputs:
       - from: /repo
         to: /io/repo
@@ -2573,7 +2563,7 @@ steps:
           valueFrom: default_ns.name
         mountPath: /batch-gsa-key
     inputs:
-      - from: /derived/release/hail/out/hail/2.12/assembly.dest/out.jar
+      - from: /derived/release/hail/out/hail/dataproc-2.3.x/assembly.dest/out.jar
         to: /io/hail.jar
       - from: /repo/hail/env/REVISION
         to: /io/REVISION
@@ -3499,7 +3489,7 @@ steps:
       # #14452 - must build wheel with release `hailtop/hailctl/deploy.yaml`
       # use `-o` to prevent `mill` from rebuilding the "SHADOW_JAR"
       make upload-artifacts HAIL_BUILD_MODE=Release DEPLOY_REMOTE=origin \
-        -o out/hail/2.12/assembly.dest/out.jar
+        -o shadowJar
 
       echo Setting arguments and invoking release.sh.
 
@@ -3524,8 +3514,8 @@ steps:
     inputs:
       - from: /repo
         to: /io/repo
-      - from: /derived/release/hail/out/hail/2.12/assembly.dest/out.jar
-        to: /io/repo/hail/out/hail/2.12/assembly.dest/out.jar
+      - from: /derived/release/hail/out/hail/dataproc-2.3.x/assembly.dest/out.jar
+        to: /io/repo/hail/out/hail/dataproc-2.3.x/assembly.dest/out.jar
       - from: /azure-wheel
         to: /io/azure-wheel
       - from: /www.tar.gz
@@ -3769,7 +3759,7 @@ steps:
     inputs:
       - from: /resources.tar.gz
         to: /io/resources.tar.gz
-      - from: /derived/debug/hail/out/hail/2.12/test/assembly.dest/out.jar
+      - from: /derived/debug/hail/out/hail/dataproc-2.3.x/test/assembly.dest/out.jar
         to: /io/hail-test.jar
       - from: /repo/hail/testng-fs.xml
         to: /io/testng-fs.xml
@@ -3811,7 +3801,7 @@ steps:
     inputs:
       - from: /resources.tar.gz
         to: /io/resources.tar.gz
-      - from: /derived/debug/hail/out/hail/2.12/test/assembly.dest/out.jar
+      - from: /derived/debug/hail/out/hail/dataproc-2.3.x/test/assembly.dest/out.jar
         to: /io/hail-test.jar
       - from: /repo/hail/testng-services.xml
         to: /io/testng-services.xml

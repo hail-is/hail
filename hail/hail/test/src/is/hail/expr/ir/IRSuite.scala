@@ -28,7 +28,7 @@ import scala.collection.compat._
 import scala.collection.mutable
 
 import org.apache.spark.sql.Row
-import org.json4s.jackson.{JsonMethods, Serialization}
+import org.json4s.jackson.{compactJson, Serialization}
 import org.scalatest.Inspectors.forAll
 import org.scalatest.enablers.InspectorAsserting.assertingNatureOfAssertion
 import org.testng.annotations.{DataProvider, Test}
@@ -4092,7 +4092,7 @@ class IRSuite extends HailSuite {
       case x: MatrixToValueFunction =>
         assert(RelationalFunctions.lookupMatrixToValue(ctx, Serialization.write(x)) == x)
       case x: TableToTableFunction =>
-        assert(RelationalFunctions.lookupTableToTable(ctx, JsonMethods.compact(x.toJValue)) == x)
+        assert(RelationalFunctions.lookupTableToTable(ctx, compactJson(x.toJValue)) == x)
       case x: TableToValueFunction =>
         assert(RelationalFunctions.lookupTableToValue(ctx, Serialization.write(x)) == x)
       case x: BlockMatrixToTableFunction =>

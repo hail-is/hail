@@ -57,8 +57,10 @@ pylint-hailtop:
 	$(PYTHON) -m pylint --rcfile pylintrc hail/python/hailtop --score=n
 
 .PHONY: check-hail
+check-hail: export HAIL_BUILD_MODE=Dev
+check-hail: HAIL_DEPLOY_TARGET='spark_2.13:3.5.3'
 check-hail: check-hail-fast pylint-hailtop
-	cd hail && HAIL_BUILD_MODE=Dev SCALA_VERSION=2.13 $(MILL) $(MILLOPTS) hail[].__.checkFormat + hail[].__.fix --check
+	cd hail && $(MILL) $(MILLOPTS) hail[].__.checkFormat + hail[].__.fix --check
 
 .PHONY: check-batch
 check-batch: check-batch-fast pylint-batch

@@ -26,7 +26,7 @@ import java.util.Base64
 
 import org.apache.spark.sql.Row
 import org.json4s.{Formats, JObject}
-import org.json4s.jackson.{JsonMethods, Serialization}
+import org.json4s.jackson.{parseJson, Serialization}
 
 abstract class Token extends Positional {
   def value: Any
@@ -242,7 +242,7 @@ object IRParser {
   def partitioner_literal(ctx: ExecuteContext)(it: TokenIterator): RVDPartitioner = {
     identifier(it, "Partitioner")
     val keyType = type_expr(it).asInstanceOf[TStruct]
-    val vJSON = JsonMethods.parse(string_literal(it))
+    val vJSON = parseJson(string_literal(it))
     val rangeBounds = JSONAnnotationImpex.importAnnotation(vJSON, TArray(TInterval(keyType)))
     new RVDPartitioner(
       ctx.stateManager,
@@ -744,7 +744,7 @@ object IRParser {
   def ir_value(it: TokenIterator): (Type, Any) = {
     val typ = type_expr(it)
     val s = string_literal(it)
-    val vJSON = JsonMethods.parse(s)
+    val vJSON = parseJson(s)
     val v = JSONAnnotationImpex.importAnnotation(vJSON, typ)
     (typ, v)
   }
@@ -1475,7 +1475,7 @@ object IRParser {
           case _ =>
             Right(type_expr(it))
         }
-        val reader = PartitionReader.extract(ctx, JsonMethods.parse(string_literal(it)))
+        val reader = PartitionReader.extract(ctx, parseJson(string_literal(it)))
         ir_value_expr(ctx)(it).map { context =>
           ReadPartition(
             context,
@@ -1489,23 +1489,23 @@ object IRParser {
         }
       case "WritePartition" =>
         import PartitionWriter.formats
-        val writer = JsonMethods.parse(string_literal(it)).extract[PartitionWriter]
+        val writer = parseJson(string_literal(it)).extract[PartitionWriter]
         for {
           stream <- ir_value_expr(ctx)(it)
           ctx <- ir_value_expr(ctx)(it)
         } yield WritePartition(stream, ctx, writer)
       case "WriteMetadata" =>
         import MetadataWriter.formats
-        val writer = JsonMethods.parse(string_literal(it)).extract[MetadataWriter]
+        val writer = parseJson(string_literal(it)).extract[MetadataWriter]
         ir_value_expr(ctx)(it).map(ctx => WriteMetadata(ctx, writer))
       case "ReadValue" =>
         import ValueReader.formats
-        val reader = JsonMethods.parse(string_literal(it)).extract[ValueReader]
+        val reader = parseJson(string_literal(it)).extract[ValueReader]
         val typ = type_expr(it)
         ir_value_expr(ctx)(it).map(path => ReadValue(path, reader, typ))
       case "WriteValue" =>
         import ValueWriter.formats
-        val writer = JsonMethods.parse(string_literal(it)).extract[ValueWriter]
+        val writer = parseJson(string_literal(it)).extract[ValueWriter]
         ir_value_children(ctx)(it).map {
           case Array(value, path) => WriteValue(value, path, writer)
           case Array(value, path, stagingFile) => WriteValue(value, path, writer, Some(stagingFile))
@@ -1556,7 +1556,7 @@ object IRParser {
         val dropRows = boolean_literal(it)
         val readerStr = string_literal(it)
         val reader =
-          TableReader.fromJValue(ctx.fs, JsonMethods.parse(readerStr).asInstanceOf[JObject])
+          TableReader.fromJValue(ctx.fs, parseJson(readerStr).asInstanceOf[JObject])
         val requestedType = requestedTypeRaw match {
           case Left("None") => reader.fullType
           case Left("DropRowUIDs") =>
@@ -1694,7 +1694,7 @@ object IRParser {
           TableFilterIntervals(
             child,
             JSONAnnotationImpex.importAnnotation(
-              JsonMethods.parse(intervals),
+              parseJson(intervals),
               TArray(TInterval(keyType)),
               padNulls = false,
             ).asInstanceOf[IndexedSeq[Interval]],
@@ -1806,7 +1806,7 @@ object IRParser {
         val dropCols = boolean_literal(it)
         val dropRows = boolean_literal(it)
         val readerStr = string_literal(it)
-        val reader = MatrixReader.fromJson(ctx, JsonMethods.parse(readerStr).asInstanceOf[JObject])
+        val reader = MatrixReader.fromJson(ctx, parseJson(readerStr).asInstanceOf[JObject])
         val fullType = reader.fullMatrixType
         val requestedType = requestedTypeRaw match {
           case Left("None") => fullType
@@ -1901,7 +1901,7 @@ object IRParser {
           MatrixFilterIntervals(
             child,
             JSONAnnotationImpex.importAnnotation(
-              JsonMethods.parse(intervals),
+              parseJson(intervals),
               TArray(TInterval(keyType)),
               padNulls = false,
             ).asInstanceOf[IndexedSeq[Interval]],
@@ -1984,7 +1984,7 @@ object IRParser {
     identifier(it) match {
       case "BlockMatrixRead" =>
         val readerStr = string_literal(it)
-        val reader = BlockMatrixReader.fromJValue(ctx, JsonMethods.parse(readerStr))
+        val reader = BlockMatrixReader.fromJValue(ctx, parseJson(readerStr))
         done(BlockMatrixRead(reader))
       case "BlockMatrixMap" =>
         val n = name(it)
