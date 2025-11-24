@@ -22,6 +22,7 @@ __all__ = [
     'Database',
     'K8sCache',
     'SystemPermission',
+    'SystemPermission',
     'Transaction',
     'UserData',
     'check_csrf_token',
