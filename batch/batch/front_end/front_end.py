@@ -145,6 +145,8 @@ deploy_config = get_deploy_config()
 
 auth = get_authenticator()
 
+FRONT_END_ROOT = os.path.dirname(__file__)
+
 BATCH_JOB_DEFAULT_CPU = os.environ.get('HAIL_BATCH_JOB_DEFAULT_CPU', '1')
 BATCH_JOB_DEFAULT_MEMORY = os.environ.get('HAIL_BATCH_JOB_DEFAULT_MEMORY', 'standard')
 BATCH_JOB_DEFAULT_STORAGE = os.environ.get('HAIL_BATCH_JOB_DEFAULT_STORAGE', '0Gi')
@@ -3622,6 +3624,7 @@ def run():
 
     setup_aiohttp_jinja2(app, 'batch.front_end')
     setup_common_static_routes(routes)
+    routes.static('/batch/static/js', f'{FRONT_END_ROOT}/static/js')
     app.add_routes(routes)
     app.router.add_get("/metrics", server_stats)
 

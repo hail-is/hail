@@ -5,7 +5,7 @@ from hailtop.config import get_deploy_config
 from hailtop.auth import hail_credentials
 from hailtop.aiocloud.common import Session
 
-from web_common import render_template, setup_aiohttp_jinja2, setup_common_static_routes
+from web_common import render_template, setup_aiohttp_jinja2, setup_common_static_routes, web_security_headers
 
 from aiohttp import web
 import aiohttp_session
@@ -23,11 +23,13 @@ BC = web.AppKey('backend_client', Session)
 
 
 @routes.view('/api/{route:.*}')
+@web_security_headers
 async def default_proxied_api_route(request: web.Request):
     return web.json_response(await proxy(request))
 
 
 @routes.view('/{route:.*}')
+@web_security_headers
 async def default_proxied_web_route(request: web.Request):
     return await render_html(request, await proxy(request))
 
