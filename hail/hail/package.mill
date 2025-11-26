@@ -1,0 +1,225 @@
+package build.hail
+
+import mill.*
+import mill.api.{BuildCtx, Result}
+import mill.scalalib.*
+import mill.scalalib.Assembly.*
+import mill.scalalib.TestModule.TestNg
+import mill.scalalib.scalafmt.ScalafmtModule
+import mill.util.{Jvm, VcsVersion}
+
+import millbuild.BuildConfig.{buildMode, enabledScalaVersions}
+import millbuild.BuildMode.*
+import millbuild.MvnCoordinate.*
+
+import com.goyeau.mill.scalafix.ScalafixModule
+import org.typelevel.scalacoptions.*
+
+import scala.Ordering.Implicits.*
+import scala.language.implicitConversions
+
+object `package` extends Cross[RootHailModule](enabledScalaVersions)
+
+trait RootHailModule extends build.HailScalaModule with CrossScalaModule { outer =>
+
+  override def crossScalaVersion: String =
+    build.Settings.scalaMinorVersions(crossValue)
+
+  def buildInfo: T[PathRef] = Task {
+    val revision = VcsVersion.vcsState().currentRevision
+    os.write(
+      Task.dest / "build-info.properties",
+      s"""[Build Metadata]
+         |revision=$revision
+         |sparkVersion=${build.Env.sparkVersion()}
+         |hailPipVersion=${build.Settings.hailMajorMinorVersion}.${build.Settings.hailPatchVersion}
+         |hailBuildConfiguration=$buildMode
+         |""".stripMargin,
+    )
+    PathRef(Task.dest)
+  }
+
+  override def moduleDeps: Seq[JavaModule] =
+    Seq(build.hail.memory(if buildMode == CI then "debug" else "release"))
+
+  override def resources: T[Seq[PathRef]] = super.resources() ++ Seq(
+    BuildCtx.withFilesystemCheckerDisabled {
+      PathRef(BuildCtx.workspaceRoot / "prebuilt" / "lib")
+    },
+    buildInfo(),
+  )
+
+  override def generatedSources: T[Seq[PathRef]] = Task {
+    Seq(build.hail.`ir-gen`.generate())
+  }
+
+  override def unmanagedClasspath: T[Seq[PathRef]] =
+    Seq(build.hail.shadeazure.assembly())
+
+  // omit unmanagedClasspath from the jar
+  override def jar: T[PathRef] =
+    Task {
+      val jar = Task.dest / "out.jar"
+      Jvm.createJar(jar, (resources() ++ Seq(compile().classes)).map(_.path).filter(os.exists), manifest())
+      PathRef(jar)
+    }
+
+  override def bomModuleDeps: Seq[BomModule] =
+    Seq(
+      build.pyspark.`pyspark-bom:3.5.3`(crossValue),
+    )
+
+  override def bomMvnDeps: T[Seq[Dep]] =
+    Seq(
+      `asm-bom` :: "9.9",
+      `libraries-bom` :: "26.66.0",
+    )
+
+  override def compileMvnDeps: T[Seq[Dep]] = {
+    val deps: Seq[Dep] =
+      Seq(
+        // ### WARNING WARNING WARNING ###
+        // Hail has an explicit dependency on Breeze 1.1
+        // Before changing the breeze version review:
+        // - https://hail.zulipchat.com/#narrow/stream/123011-Hail-Query-Dev/topic/new.20spark.20ndarray.20failures/near/41645
+        // - https://github.com/hail-is/hail/pull/11555
+        `breeze` :: "1.1",
+        `avro`,
+        `commons-codec`,
+        `commons-compress`,
+        `commons-io`,
+        `commons-lang3`,
+        `commons-logging`,
+        `commons-math3`,
+        `kryo-shaded`,
+        `hadoop-client-api`,
+        `httpclient`,
+        `httpcore`,
+        `json4s-ast`,
+        `json4s-core`,
+        `json4s-jackson`,
+        `jackson-core`,
+        `jackson-databind`,
+        `lz4-java`,
+        `javassist`,
+        `log4j-api`,
+        `log4j-core`,
+        `netty-transport-classes-epoll`,
+        `netty-transport-native-unix-common`,
+        `scala-parser-combinators`,
+        `spark-common-utils`,
+        `spark-core`,
+        `spark-mllib`,
+        `spark-sql-api`,
+        `spark-sql`,
+        `spark-tags`,
+        `slf4j-api`,
+        `zstd-jni`,
+        `scalac-compat-annotation` :: "0.1.4",
+        `shapeless` :: "2.3.3",
+      )
+
+    val `deps_2.13`: Seq[Dep] =
+      if (crossScalaVersion >= "2.13")
+        Seq(`scala-parallel-collections`)
+      else
+        Seq()
+
+    (deps ++ `deps_2.13`) map { _.excludeOrg("*") }
+  }
+
+  override def mvnDeps: T[Seq[Dep]] =
+    Seq[Dep](
+      `all` :: "1.1.2",
+      `asm`,
+      `asm-analysis`,
+      `asm-util`,
+      `google-auth-library-oauth2-http`
+        .mvn
+        .excludeOrg(
+          "commons-codec",
+          "org.apache.httpcomponents",
+          "org.slf4j",
+        ),
+      `google-cloud-storage`
+        .mvn
+        .excludeOrg(
+          "com.fasterxml.jackson.core",
+          "commons-codec",
+          "org.slf4j",
+        ),
+      (`elasticsearch-spark` :: "9.2.1")
+        .excludeOrg(
+          "commons-logging",
+          "org.apache.spark",
+          "org.slf4j",
+        ),
+      `freemarker` :: "2.3.31",
+      (`htsjdk` :: "3.0.5").excludeOrg("*"),
+      (`jdistlib` :: "0.4.5").excludeOrg("*"),
+      (`log4j-api-scala` :: "13.1.0").excludeOrg("*"),
+      `jna` :: "5.13.0",
+      `scala-collection-compat`,
+      `sourcecode` :: "0.4.2",
+    )
+
+  override def runMvnDeps: T[Seq[Dep]] =
+    Seq[Dep](
+      (`breeze-natives` :: "1.1")
+        .excludeOrg(
+          "org.apache.commons",
+          "org.slf4j",
+        ),
+      `junixsocket-core` :: "2.6.1",
+    )
+
+  override def assemblyRules: Seq[Rule] = super.assemblyRules ++ Seq(
+    Rule.Exclude("META-INF/INDEX.LIST"),
+    Rule.ExcludePattern("^scala/(?!collection/compat).*"),
+    Rule.AppendPattern("META-INF/services/.*", "\n"),
+    Rule.Relocate("breeze.**", "is.hail.relocated.@0"),
+    Rule.Relocate("com.google.**", "is.hail.relocated.@0"),
+    Rule.Relocate("scala.collection.compat.**", "is.hail.relocated.@0"),
+  )
+
+  override def scalacPluginMvnDeps: T[Seq[Dep]] =
+    Seq(
+      `better-monadic-for` :: "0.3.1",
+    )
+
+  def writeRunClasspath: T[PathRef] = Task {
+    os.write(
+      Task.dest / "runClasspath",
+      runClasspath().map(_.path).mkString(":"),
+    )
+    PathRef(Task.dest)
+  }
+
+  object test extends ScalaTests with TestNg with ScalafmtModule with ScalafixModule {
+    override def forkArgs: T[Seq[String]] =
+      Seq("-Xss4m", "-Xmx4096M")
+
+    override def scalafixIvyDeps: T[Seq[Dep]] =
+      outer.scalafixIvyDeps()
+
+    override def compileMvnDeps: T[Seq[Dep]] =
+       outer.compileMvnDeps()
+
+    override def mvnDeps: T[Seq[Dep]] =
+      outer.mvnDeps() ++ Seq(
+        `guice` :: "5.1.0",
+        `scalacheck` :: "1.18.1",
+        `scalacheck-1-18` :: "3.2.19.0",
+        `scalatest` :: "3.2.19",
+        `scalatest-shouldmatchers` :: "3.2.19",
+        `testng-7-10` :: "3.2.19.0",
+        `mockito-scala` :: "1.17.31",
+      )
+
+    override def runMvnDeps: T[Seq[Dep]] =
+      outer.runMvnDeps()
+
+    override def assemblyRules: Seq[Rule] =
+      outer.assemblyRules
+  }
+}

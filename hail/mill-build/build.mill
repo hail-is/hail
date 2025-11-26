@@ -1,61 +1,84 @@
 package build
 
-import mill.*, scalalib.*
+import mill.*
+import mill.api.BuildCtx
 import mill.meta.MillBuildRootModule
+import mill.scalalib.*
 
-object `package` extends MillBuildRootModule {
-  def mvnDeps = Seq(
-    mvn"com.goyeau::mill-scalafix::0.6.0",
-    mvn"org.typelevel::scalac-options:0.1.8",
-  )
+import millbuild.BuildMode
+import millbuild.MvnCoordinate.*
 
-  def generatedSources: T[Seq[PathRef]] = Task {
-    os.write(
-      Task.dest / "BuildConfig.scala",
-      s"""
-         |package millbuild
-         |object BuildConfig{
-         |  def buildMode = "${buildMode()}"
-         |  def enabledScalaVersions = IndexedSeq(${enabledScalaVersions().map(v => s"\"$v\"").mkString(", ")})
-         |}
-      """.stripMargin
+object `package` extends MillBuildRootModule:
+
+  def mvnDeps: T[Seq[Dep]] =
+    Seq(
+      `mill-scalafix` :::: "0.6.0",
+      `scalac-options` :: "0.1.8",
     )
-    super.generatedSources() ++ Seq(PathRef(Task.dest))
-  }
 
-  def configDir: T[PathRef] = Task.Source("config")
+  def generatedSources: T[Seq[PathRef]] =
+    Task {
+      os.write(
+        Task.dest / "BuildConfig.scala",
+        s"""package millbuild
+           |
+           |object BuildConfig:
+           |  val buildMode = BuildMode.${buildMode()}
+           |  val enabledScalaVersions = IndexedSeq(${enabledScalaVersions().map(v => s"\"$v\"").mkString(", ")})
+           |""".stripMargin
+      )
 
-  def envScalaVersion: T[Option[String]] = Task.Input {
-    Task.env.get("SCALA_VERSION")
-  }
+      BuildCtx.withFilesystemCheckerDisabled {
+        os.copy(moduleDir / "mill-build" / "src", Task.dest, mergeFolders = true)
+      }
 
-  def enabledScalaVersions: T[Seq[String]] = Task {
-    val path = configDir().path / "scala-version"
-    val supportedScalaVersions = IndexedSeq("2.12", "2.12.13", "2.13")
-    envScalaVersion()
-      .orElse(Option.when(os.exists(path))(os.read(path).strip))
-      .map { scalaVersion =>
-        require(
-          supportedScalaVersions.contains(scalaVersion),
-          s"SCALA_VERSION must be set to one of 2.12.13, 2.12, or 2.13; found $scalaVersion"
-        )
-        IndexedSeq(scalaVersion)
-      }.getOrElse(supportedScalaVersions)
-  }
+      super.generatedSources() ++ Seq(PathRef(Task.dest))
+    }
 
-  def envBuildMode: T[Option[String]] = Task.Input {
-    Task.env.get("HAIL_BUILD_MODE")
-  }
+  def configDir: T[PathRef] =
+    Task.Source("config")
 
-  def buildMode: T[String] = Task {
-    val path = configDir().path / "hail-build-mode"
-    val raw = envBuildMode().orElse(Option.when(os.exists(path))(os.read(path).strip))
-      .getOrElse("Release")
-    val supportedBuildModes = IndexedSeq("dev", "ci", "release")
-    require(
-      supportedBuildModes.contains(raw.toLowerCase),
-      s"HAIL_BUILD_MODE must be set to one of 'dev', 'ci' or 'release'; found '$raw'"
-    )
-    raw.toLowerCase
-  }
-}
+  def envScalaVersion: T[Option[String]] =
+    Task.Input {
+      Task.env.get("SCALA_VERSION")
+    }
+
+  def enabledScalaVersions: T[Seq[String]] =
+    Task {
+      val path = configDir().path / "scala-version"
+      val supportedScalaVersions = IndexedSeq("2.12", "2.12.13", "2.13")
+      envScalaVersion()
+        .orElse(Option.when(os.exists(path))(os.read(path).strip))
+        .map { scalaVersion =>
+          require(
+            supportedScalaVersions.contains(scalaVersion),
+            s"SCALA_VERSION must be set to one of 2.12.13, 2.12, or 2.13; found $scalaVersion"
+          )
+          IndexedSeq(scalaVersion)
+        }.getOrElse(supportedScalaVersions)
+    }
+
+  def envBuildMode: T[Option[String]] =
+    Task.Input {
+      Task.env.get("HAIL_BUILD_MODE")
+    }
+
+  def buildMode: T[BuildMode] =
+    Task {
+      val path = configDir().path / "hail-build-mode"
+
+      val raw =
+        envBuildMode()
+          .orElse { Option.when(os.exists(path))(os.read(path).strip) }
+          .map(_.capitalize)
+          .getOrElse(BuildMode.Release.toString)
+
+      try
+        BuildMode.valueOf(raw)
+      catch {
+        case _: Throwable =>
+          throw new IllegalArgumentException(
+            s"HAIL_BUILD_MODE must be set to one of ${BuildMode.values.mkString("{", ", ", "}")}; found '$raw'"
+          )
+      }
+    }
