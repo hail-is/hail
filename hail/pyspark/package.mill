@@ -1,17 +1,15 @@
-package build.pyspark.`pyspark-3.5.3-bom`
+package build.pyspark
 
-import mill.*, scalalib.*
+import mill.{Cross, T}
+import mill.scalalib.{BomModule, CrossScalaModule, Dep}
 
-import millbuild.BuildInfo.enabledScalaVersions
 import millbuild.MvnCoordinate._
 
-object `pyspark-3.5.3-bom` extends Cross[`pyspark-3.5.3-bom`](enabledScalaVersions)
 
-trait `pyspark-3.5.3-bom` extends CrossScalaModule with BomModule {
+object `pyspark-bom:3.5.3` extends Cross[`pyspark-bom:3.5.3`]("2.12", "2.13")
+trait `pyspark-bom:3.5.3` extends CrossScalaModule with BomModule {
 
-  override def crossValue: String
-
-  override def depManagement: T[Seq[Dep]] =
+  override def depManagement: T[Seq[Dep]] = {
     val base =
       Seq[Dep](
         `activation` :: "1.1.1",
@@ -265,7 +263,7 @@ trait `pyspark-3.5.3-bom` extends CrossScalaModule with BomModule {
       )
 
     val `2.13` =
-      if (ScalaVersion.unsafeFromString(crossScalaVersion) >= ScalaVersion.V2_13_0)
+      if (crossScalaVersion >= "2.13")
         Seq(
           `scala-parallel-collections` :: "1.0.4",
         )
@@ -273,4 +271,5 @@ trait `pyspark-3.5.3-bom` extends CrossScalaModule with BomModule {
         Seq()
 
     base ++ `2.13`
+  }
 }
