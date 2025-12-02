@@ -674,7 +674,7 @@ async def post_create_user(request: web.Request, _) -> NoReturn:
 
 @routes.get('/api/v1alpha/users')
 @auth.authenticated_users_with_permission(SystemPermission.READ_USERS)
-async def rest_get_users(request: web.Request, userdata: UserData) -> web.Response:
+async def rest_get_users(request: web.Request, _: UserData) -> web.Response:
     db = request.app[AppKeys.DB]
     users = await _get_users(db)
 
