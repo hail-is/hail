@@ -478,8 +478,6 @@ steps:
         script: /io/sql/010-refactor-roles.sql
       - name: refactor-system-permissions
         script: /io/sql/011-refactor-system-permissions.sql
-      - name: refactor-system-permissions-2
-        script: /io/sql/012-refactor-system-permissions-2.sql
     inputs:
       - from: /repo/auth/sql
         to: /io/sql
