@@ -1327,7 +1327,7 @@ async def auth_check_csrf_token(request: web.Request, handler: AIOHTTPHandler):
     # These auth endpoints are not CSRF-vulnerable so we opt out of CSRF-token
     # validation.
     # See: https://github.com/envoyproxy/envoy/issues/5357
-    envoy_auth_endpoints = {request.app.router[name].canonical for name in ('verify_dev', 'verify_dev_or_sa')}
+    envoy_auth_endpoints = {request.app.router[name].canonical for name in ('check_system_permission')}
     if request.path in envoy_auth_endpoints:
         return await handler(request)
 
