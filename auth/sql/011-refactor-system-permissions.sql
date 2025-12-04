@@ -35,12 +35,12 @@ WHERE r.name = 'admin' AND p.name = 'view_monitoring_dashboards';
 -- Remove namespace management permissions from the developer role:
 DELETE FROM `system_role_permissions` 
 WHERE `role_id` = (SELECT `id` FROM `system_roles` WHERE `name` = 'developer') 
-AND `permission_id` = (SELECT `id` FROM `system_permissions` WHERE `name` like '%_developer_namespaces%');
+AND `permission_id` IN (SELECT `id` FROM `system_permissions` WHERE `name` like '%_developer_environments%');
 
 -- Add namespace management permissions to the admin role:
 INSERT INTO `system_role_permissions` (`role_id`, `permission_id`) 
 SELECT r.id, p.id FROM `system_roles` r, `system_permissions` p 
-WHERE r.name = 'admin' AND p.name like '%_developer_namespaces%';
+WHERE r.name = 'admin' AND p.name like '%_developer_environments%';
 
 -- Rename the admin role to sysadmin
 UPDATE `system_roles` SET `name` = 'sysadmin' WHERE `name` = 'admin';
@@ -70,12 +70,10 @@ SELECT (SELECT `id` FROM `system_roles` WHERE `name` = 'sysadmin-readonly'), `id
 FROM `system_permissions`
 WHERE `name` = 'read_developer_environments';
 
-
 INSERT INTO `system_role_permissions` (`role_id`, `permission_id`)
 SELECT (SELECT `id` FROM `system_roles` WHERE `name` = 'sysadmin-readonly'), `id`
 FROM `system_permissions`
 WHERE `name` = 'read_ci';
-
 
 INSERT INTO `system_role_permissions` (`role_id`, `permission_id`)
 SELECT (SELECT `id` FROM `system_roles` WHERE `name` = 'sysadmin-readonly'), `id`
@@ -96,6 +94,8 @@ FROM `users`
 WHERE `username` = 'ci';
 
 -- Add read_prerendered_jinja2_context permission to the developer role:
+INSERT INTO `system_permissions` (`name`) VALUES ('read_prerendered_jinja2_context');
+
 INSERT INTO `system_role_permissions` (`role_id`, `permission_id`)
 SELECT (SELECT `id` FROM `system_roles` WHERE `name` = 'developer'), `id`
 FROM `system_permissions`
@@ -108,6 +108,8 @@ FROM `users`
 WHERE `username` = 'grafana';
 
 -- Add access_developer_environments permission to the developer role:
+INSERT INTO `system_permissions` (`name`) VALUES ('access_developer_environments');
+
 INSERT INTO `system_role_permissions` (`role_id`, `permission_id`)
 SELECT (SELECT `id` FROM `system_roles` WHERE `name` = 'developer'), `id`
 FROM `system_permissions`
