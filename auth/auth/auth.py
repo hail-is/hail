@@ -598,8 +598,8 @@ async def _get_users(db: Database, username: Optional[str] = None) -> List[dict]
 SELECT id, username, login_id, state, is_service_account, hail_identity, system_permissions.name AS permission_name
 FROM users
 JOIN users_system_roles ON users.id = users_system_roles.user_id
-JOIN system_roles_permissions ON users_system_roles.role_id = system_roles_permissions.role_id
-JOIN system_permissions ON system_roles_permissions.permission_id = system_permissions.id
+JOIN system_role_permissions ON users_system_roles.role_id = system_role_permissions.role_id
+JOIN system_permissions ON system_role_permissions.permission_id = system_permissions.id
 """
     if username is not None:
         _query += "WHERE users.username = %s;"
