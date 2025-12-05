@@ -190,7 +190,7 @@ async def insert_new_user(
         await tx.execute_insertone(
             """
 INSERT INTO users (state, username, login_id, is_service_account, hail_identity, hail_credentials_secret_name)
-VALUES (%s, %s, %s, %s, %s, %s, %s);
+VALUES (%s, %s, %s, %s, %s, %s);
 """,
             (
                 'creating',
@@ -633,7 +633,8 @@ JOIN system_permissions ON system_role_permissions.permission_id = system_permis
 async def get_users(request: web.Request, userdata: UserData) -> web.Response:
     db = request.app[AppKeys.DB]
     users = await _get_users(db)
-    page_context = {'users': users}
+    system_roles = [x['name'] async for x in db.select_and_fetchall('SELECT name FROM system_roles ORDER BY name;')]
+    page_context = {'users': users, 'system_roles': system_roles}
     return await render_template('auth', request, userdata, 'users.html', page_context)
 
 

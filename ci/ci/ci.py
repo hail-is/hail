@@ -879,7 +879,7 @@ SELECT frozen_merge_deploy FROM globals;
         headers=headers,
     )
     app[AppKeys.DEVELOPERS] = [
-        u for u in users if SystemPermission.MANAGE_CI in u['system_permissions'] and u['state'] == 'active'
+        u for u in users if u['system_permissions'].get(SystemPermission.MANAGE_CI, False) and u['state'] == 'active'
     ]
 
     global watched_branches
