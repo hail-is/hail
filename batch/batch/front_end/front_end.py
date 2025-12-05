@@ -3016,11 +3016,17 @@ async def ui_get_billing(request, userdata):
 
 @routes.get('/billing_projects')
 @web_security_headers_unsafe_eval
-@auth.authenticated_users_with_permission(SystemPermission.READ_ALL_BILLING_PROJECTS)
+@auth.authenticated_users_only()
 @catch_ui_error_in_dev
 async def ui_get_billing_projects(request, userdata):
     db: Database = request.app['db']
-    billing_projects = await query_billing_projects_without_cost(db)
+
+    if not userdata['system_permissions'][SystemPermission.READ_ALL_BILLING_PROJECTS]:
+        user = userdata['username']
+    else:
+        user = None
+
+    billing_projects = await query_billing_projects_without_cost(db, user=user)
     page_context = {
         'billing_projects': [{**p, 'size': len(p['users'])} for p in billing_projects if p['status'] == 'open'],
         'closed_projects': [p for p in billing_projects if p['status'] == 'closed'],
