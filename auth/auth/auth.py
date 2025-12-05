@@ -595,9 +595,9 @@ async def post_create_role(request: web.Request, _) -> NoReturn:
 
 async def _get_users(db: Database, username: Optional[str] = None) -> List[dict]:
     _query = """
-SELECT id, username, login_id, state, is_service_account, hail_identity, system_permissions.name AS permission_name
+SELECT users.id AS user_id, username, login_id, state, is_service_account, hail_identity, system_permissions.name AS permission_name
 FROM users
-JOIN users_system_roles ON users.id = users_system_roles.user_id
+JOIN users_system_roles ON user_id = users_system_roles.user_id
 JOIN system_role_permissions ON users_system_roles.role_id = system_role_permissions.role_id
 JOIN system_permissions ON system_role_permissions.permission_id = system_permissions.id
 """
@@ -610,9 +610,9 @@ JOIN system_permissions ON system_role_permissions.permission_id = system_permis
     resp = [x async for x in db.select_and_fetchall(_query, params)]
     users = {}
     for user in resp:
-        if user['id'] not in users:
-            users[user['id']] = {
-                'id': user['id'],
+        if user['user_id'] not in users:
+            users[user['user_id']] = {
+                'id': user['user_id'],
                 'username': user['username'],
                 'login_id': user['login_id'],
                 'state': user['state'],
@@ -621,7 +621,7 @@ JOIN system_permissions ON system_role_permissions.permission_id = system_permis
                 'system_permissions': [user['permission_name']],
             }
         else:
-            users[user['id']]['system_permissions'].append(user['permission_name'])
+            users[user['user_id']]['system_permissions'].append(user['permission_name'])
     result = list(users.values())
     result.sort(key=lambda x: x['id'])
     return result
