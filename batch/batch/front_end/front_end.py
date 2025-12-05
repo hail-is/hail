@@ -2807,7 +2807,7 @@ async def ui_get_billing_limits(request, userdata):
     app = request.app
     db: Database = app['db']
 
-    if not userdata['system_permissions'][SystemPermission.READ_ALL_BILLING_PROJECTS]:
+    if not userdata['system_permissions'].get(SystemPermission.READ_ALL_BILLING_PROJECTS, False):
         user = userdata['username']
     else:
         user = None
@@ -2971,9 +2971,10 @@ GROUP BY billing_project, `user`;
 @auth.authenticated_users_only()
 @catch_ui_error_in_dev
 async def ui_get_billing(request, userdata):
-    user = (
-        userdata['username'] if not userdata['system_permissions'][SystemPermission.READ_ALL_BILLING_PROJECTS] else None
-    )
+    if not userdata['system_permissions'].get(SystemPermission.READ_ALL_BILLING_PROJECTS, False):
+        user = userdata['username']
+    else:
+        user = None
     billing, start, end = await _query_billing(request, user=user)
 
     billing_by_user: Dict[str, int] = {}
@@ -3021,7 +3022,7 @@ async def ui_get_billing(request, userdata):
 async def ui_get_billing_projects(request, userdata):
     db: Database = request.app['db']
 
-    if not userdata['system_permissions'][SystemPermission.READ_ALL_BILLING_PROJECTS]:
+    if not userdata['system_permissions'].get(SystemPermission.READ_ALL_BILLING_PROJECTS, False):
         user = userdata['username']
     else:
         user = None
@@ -3039,7 +3040,7 @@ async def ui_get_billing_projects(request, userdata):
 async def get_billing_projects(request, userdata):
     db: Database = request.app['db']
 
-    if not userdata['system_permissions'][SystemPermission.READ_ALL_BILLING_PROJECTS]:
+    if not userdata['system_permissions'].get(SystemPermission.READ_ALL_BILLING_PROJECTS, False):
         user = userdata['username']
     else:
         user = None
@@ -3054,7 +3055,7 @@ async def get_billing_project(request, userdata):
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
 
-    if not userdata['system_permissions'][SystemPermission.READ_ALL_BILLING_PROJECTS]:
+    if not userdata['system_permissions'].get(SystemPermission.READ_ALL_BILLING_PROJECTS, False):
         user = userdata['username']
     else:
         user = None
