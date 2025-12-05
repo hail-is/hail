@@ -1021,7 +1021,7 @@ async def userinfo(_, userdata: UserData) -> web.Response:
     return json_response(userdata)
 
 
-@routes.get('/api/v1alpha/check_system_permission')
+@routes.get('/api/v1alpha/check_system_permission', name='check_system_permission')
 @auth.authenticated_users_only()
 async def check_system_permission(request: web.Request, userdata: UserData) -> web.Response:
     permission_name = request.query.get('permission')
@@ -1040,7 +1040,7 @@ async def check_system_permission(request: web.Request, userdata: UserData) -> w
     return json_response({'has_permission': has_permission})
 
 
-@routes.get('/api/v1alpha/verify_system_permission')
+@routes.get('/api/v1alpha/verify_system_permission', name='verify_system_permission')
 @auth.authenticated_users_only()
 async def verify_system_permission(request: web.Request, userdata: UserData) -> web.Response:
     permission_name = request.query.get('permission')
@@ -1327,8 +1327,10 @@ async def auth_check_csrf_token(request: web.Request, handler: AIOHTTPHandler):
     # These auth endpoints are not CSRF-vulnerable so we opt out of CSRF-token
     # validation.
     # See: https://github.com/envoyproxy/envoy/issues/5357
-    envoy_auth_endpoint = request.app.router['check_system_permission'].canonical
-    if request.path == envoy_auth_endpoint:
+    envoy_auth_endpoints = {
+        request.app.router[name].canonical for name in ('check_system_permission', 'verify_system_permission')
+    }
+    if request.path in envoy_auth_endpoints:
         return await handler(request)
 
     return await check_csrf_token(request, handler)
