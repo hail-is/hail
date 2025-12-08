@@ -64,7 +64,7 @@ uritemplate==4.2.0
     # via
     #   -c ci/../gear/pinned-requirements.txt
     #   gidgethub
-urllib3==2.5.0
+urllib3==2.6.1
     # via
     #   -c ci/../gear/pinned-requirements.txt
     #   -c ci/../hail/python/dev/pinned-requirements.txt
