@@ -28,9 +28,9 @@ azure-mgmt-storage==20.1.0
     # via -r hail/python/hailtop/requirements.txt
 azure-storage-blob==12.27.1
     # via -r hail/python/hailtop/requirements.txt
-boto3==1.41.0
+boto3==1.42.4
     # via -r hail/python/hailtop/requirements.txt
-botocore==1.41.0
+botocore==1.42.4
     # via
     #   -r hail/python/hailtop/requirements.txt
     #   boto3
@@ -104,7 +104,7 @@ nest-asyncio==1.6.0
     # via -r hail/python/hailtop/requirements.txt
 oauthlib==3.3.1
     # via requests-oauthlib
-orjson==3.11.4
+orjson==3.11.5
     # via -r hail/python/hailtop/requirements.txt
 propcache==0.4.1
     # via
@@ -146,7 +146,7 @@ rich==12.6.0
     #   typer
 rsa==4.9.1
     # via google-auth
-s3transfer==0.14.0
+s3transfer==0.16.0
     # via boto3
 shellingham==1.5.4
     # via typer
@@ -170,7 +170,7 @@ typing-extensions==4.15.0
     #   janus
     #   multidict
     #   typer
-urllib3==2.5.0
+urllib3==2.6.1
     # via
     #   botocore
     #   requests

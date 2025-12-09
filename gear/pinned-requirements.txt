@@ -121,7 +121,7 @@ propcache==0.4.1
     #   yarl
 proto-plus==1.26.1
     # via google-api-core
-protobuf==6.33.1
+protobuf==6.33.2
     # via
     #   google-api-core
     #   google-cloud-profiler
@@ -195,7 +195,7 @@ typing-extensions==4.15.0
     #   multidict
 uritemplate==4.2.0
     # via google-api-python-client
-urllib3==2.5.0
+urllib3==2.6.1
     # via
     #   -c gear/../hail/python/dev/pinned-requirements.txt
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
