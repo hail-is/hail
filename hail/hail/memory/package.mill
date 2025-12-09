@@ -1,0 +1,16 @@
+package build.hail.memory
+
+import mill.{Cross, T}
+
+object `package` extends Cross[Memory]("debug", "release")
+trait Memory extends build.HailJavaModule, Cross.Module[String]:
+
+  override def moduleDir: os.Path =
+    super.moduleDir / crossValue
+
+  override def javacOptions: T[Seq[String]] =
+    super.javacOptions() ++ (
+      if scala.util.Properties.versionString.startsWith("1.8")
+        then Seq("-XDenableSunApiLintControl", "-Xlint:-sunapi")
+        else Seq()
+      )
