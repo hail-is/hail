@@ -1,0 +1,50 @@
+package build.`pyspark-bom`
+
+import mill.api.daemon.internal.bsp.BspBuildTarget
+import mill.{Cross, Module, PathRef, T}
+import mill.scalalib.{BomModule, Dep, PublishModule, ScalaModule}
+import mill.scalalib.publish.{Developer, License, PomSettings, VersionControl}
+
+val crossValues: Seq[(String, String)] =
+  Seq("3.3.1", "3.5.3").map { "2.12" -> _ } ++
+    Seq("3.3.1", "3.5.3", "4.0.0").map { "2.13" -> _ }
+
+trait ScalaBomModule extends ScalaModule, BomModule, Cross.Module[String]
+
+object `package` extends Cross[`pyspark-bom`](crossValues)
+trait `pyspark-bom` extends ScalaBomModule, PublishModule, Cross.Module2[String, String]:
+
+  override def artifactName: T[String] =
+    "pyspark-bom"
+
+  override def publishVersion: T[String] =
+    crossValue2
+
+  override def pomSettings: T[PomSettings] =
+    PomSettings(
+      description = s"PySpark ${publishVersion()} Bill of Materials (BoM)",
+      organization = "org.apache.spark",
+      url = "https://spark.apache.org/",
+      licenses = Seq(License.`Apache-2.0`),
+      versionControl = VersionControl.github("apache", "spark"),
+      developers = Seq(),
+    )
+
+  private lazy val crossModule: Cross[? <: ScalaBomModule] =
+    crossValue2 match {
+      case "3.3.1" => new Module with Cross[`pyspark-bom-3-3-1`]("2.12", "2.13")
+      case "3.5.3" => new Module with Cross[`pyspark-bom-3-5-3`]("2.12", "2.13")
+      case "4.0.0" => new Module with Cross[`pyspark-bom-4-0-0`]("2.13")
+    }
+
+  override def scalaVersion: T[String] =
+    crossModule(crossValue).scalaVersion
+
+  override def depManagement: T[Seq[Dep]] =
+    crossModule(crossValue).depManagement
+
+  override def resources: T[Seq[PathRef]] =
+    Seq.empty
+
+  override def allSourceFiles: T[Seq[PathRef]] =
+    Seq.empty

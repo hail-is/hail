@@ -11,7 +11,7 @@ import org.apache.http.client.utils.URIBuilder
 import org.apache.http.impl.client.HttpClients
 import org.apache.http.util.EntityUtils
 import org.json4s.{DefaultFormats, Formats}
-import org.json4s.jackson.JsonMethods
+import org.json4s.jackson.parseJson
 
 object TerraAzureStorageFS {
   private val TEN_MINUTES_IN_MS = 10 * 60 * 1000
@@ -69,7 +69,7 @@ class TerraAzureStorageFS(credential: AzureCloudCredentials) extends AzureStorag
     req.setURI(uri)
 
     val sasTokenUrl = using(httpClient.execute(req)) { resp =>
-      val json = JsonMethods.parse(new String(EntityUtils.toString(resp.getEntity)))
+      val json = parseJson(new String(EntityUtils.toString(resp.getEntity)))
       logger.info(s"Created sas token client for $containerResourceId")
       (json \ "url").extract[String]
     }
