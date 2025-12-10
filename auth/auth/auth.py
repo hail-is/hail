@@ -207,7 +207,7 @@ VALUES (%s, %s, %s, %s, %s, %s);
                 """
 INSERT INTO users_system_roles (user_id, role_id)
 VALUES
-((SELECT id FROM users WHERE username = '%s'), (SELECT id FROM system_roles WHERE name = '%s'));
+((SELECT id FROM users WHERE username = %s), (SELECT id FROM system_roles WHERE name = %s));
 """,
                 (username, role),
             )
@@ -597,16 +597,14 @@ async def _get_users(db: Database, username: Optional[str] = None) -> List[dict]
     _query = """
 SELECT users.id AS user_id, username, login_id, state, is_service_account, hail_identity, system_permissions.name AS permission_name
 FROM users
-JOIN users_system_roles ON user_id = users_system_roles.user_id
-JOIN system_role_permissions ON users_system_roles.role_id = system_role_permissions.role_id
-JOIN system_permissions ON system_role_permissions.permission_id = system_permissions.id
+LEFT JOIN users_system_roles ON users.id = users_system_roles.user_id
+LEFT JOIN system_role_permissions ON users_system_roles.role_id = system_role_permissions.role_id
+LEFT JOIN system_permissions ON system_role_permissions.permission_id = system_permissions.id
 """
     if username is not None:
-        _query += "WHERE users.username = %s;"
-        params = (username,)
-    else:
-        _query += ";"
-        params = ()
+        _query += "WHERE users.username = %s"
+    _query += " ORDER BY users.id;"
+    params = (username,) if username is not None else ()
     resp = [x async for x in db.select_and_fetchall(_query, params)]
     users = {}
     for user in resp:
@@ -618,9 +616,9 @@ JOIN system_permissions ON system_role_permissions.permission_id = system_permis
                 'state': user['state'],
                 'is_service_account': user['is_service_account'],
                 'hail_identity': user['hail_identity'],
-                'system_permissions': [user['permission_name']],
+                'system_permissions': [user['permission_name']] if user['permission_name'] else [],
             }
-        else:
+        elif user['permission_name']:
             users[user['user_id']]['system_permissions'].append(user['permission_name'])
     result = list(users.values())
     result.sort(key=lambda x: x['id'])
