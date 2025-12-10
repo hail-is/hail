@@ -1,0 +1,42 @@
+package build.hail.shadeazure
+
+import mill.T
+import mill.javalib.{Dep, JavaModule}
+import mill.javalib.Assembly.Rule
+
+import millbuild.MvnCoordinate.*
+
+object `package` extends JavaModule:
+
+  override def mvnDeps: T[Seq[Dep]] =
+    Seq(
+      `azure-core-http-netty` :: "1.13.7",
+      `azure-identity` :: "1.8.3",
+      `azure-storage-blob` :: "12.22.0",
+    )
+
+  override def assemblyRules: Seq[Rule] =
+    Seq(
+      Rule.ExcludePattern("META-INF/*.RSA"),
+      Rule.ExcludePattern("META-INF/*.SF"),
+      Rule.ExcludePattern("META-INF/*.DSA"),
+      Rule.Relocate("com.azure.**", "is.hail.shadedazure.@0"),
+      Rule.Relocate("com.ctc.**", "is.hail.shadedazure.@0"),
+      Rule.Relocate("com.fasterxml.**", "is.hail.shadedazure.@0"),
+      Rule.Relocate("com.microsoft.**", "is.hail.shadedazure.@0"),
+      Rule.Relocate("com.nimbusds.**", "is.hail.shadedazure.@0"),
+      Rule.Relocate("com.sun.**", "is.hail.shadedazure.@0"),
+      Rule.Relocate("io.netty.**", "is.hail.shadedazure.@0"),
+      Rule.Relocate("is.hail.**", "is.hail.shadedazure.@0"),
+      Rule.Relocate("net.jcip.**", "is.hail.shadedazure.@0"),
+      Rule.Relocate("net.minidev.**", "is.hail.shadedazure.@0"),
+      Rule.Relocate("org.apache.**", "is.hail.shadedazure.@0"),
+      Rule.Relocate("org.codehaus.**", "is.hail.shadedazure.@0"),
+      Rule.Relocate("org.objectweb.**", "is.hail.shadedazure.@0"),
+      Rule.Relocate("org.reactivestreams.**", "is.hail.shadedazure.@0"),
+      Rule.Relocate("org.slf4j.**", "is.hail.shadedazure.@0"),
+      Rule.Relocate("reactor.adapter.**", "is.hail.shadedazure.@0"),
+      Rule.Relocate("reactor.core.**", "is.hail.shadedazure.@0"),
+      Rule.Relocate("reactor.netty.**", "is.hail.shadedazure.@0"),
+      Rule.Relocate("reactor.util.**", "is.hail.shadedazure.@0"),
+    )
