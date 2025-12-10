@@ -14,6 +14,7 @@ import kubernetes_asyncio.config
 from gear import Database, create_session
 from gear.clients import get_identity_client
 from gear.cloud_config import get_gcp_config, get_global_config
+from gear.system_permissions import SystemPermission
 from hailtop import aiotools, httpx
 from hailtop import batch_client as bc
 from hailtop.aiocloud.aioazure import AzureGraphClient
@@ -395,7 +396,20 @@ async def _create_user(app, user, skip_trial_bp, cleanup):
         token = secret_alnum_string(3, case='numbers')
         ident_token = f'{username}-{token}'
 
-    if 'access_developer_environments' in user['system_roles'] or user['is_service_account'] == 1 or username == 'test':
+    system_permissions = []
+    if len(user['system_roles']) > 0:
+        # Fetch system permissions for the user's system roles
+        system_permissions = await db.select_and_fetchall(
+            'SELECT system_permissions.name FROM system_permissions JOIN system_role_permissions ON system_permissions.id = system_role_permissions.permission_id JOIN users_system_roles ON system_role_permissions.role_id = users_system_roles.role_id WHERE users_system_roles.user_id = %s',
+            (user['id'],),
+        )
+        system_permissions = [x['name'] for x in system_permissions]
+
+    if (
+        SystemPermission.ACCESS_DEVELOPER_ENVIRONMENTS.value in system_permissions
+        or user['is_service_account'] == 1
+        or username == 'test'
+    ):
         ident = username
     else:
         ident = ident_token
@@ -455,7 +469,11 @@ async def _create_user(app, user, skip_trial_bp, cleanup):
     namespace_name = user['namespace_name']
     # Namespace creation step if it doesn't exist yet and the user is a developer
     # NB auth services in test namespaces cannot/should not be creating and deleting namespaces
-    if namespace_name is None and 'access_developer_environments' in user['system_roles'] and not is_test_deployment:
+    if (
+        namespace_name is None
+        and SystemPermission.ACCESS_DEVELOPER_ENVIRONMENTS.value in system_permissions
+        and not is_test_deployment
+    ):
         namespace_name = ident
         namespace = K8sNamespaceResource(k8s_client)
         cleanup.append(namespace.delete)
