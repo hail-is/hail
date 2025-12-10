@@ -478,7 +478,7 @@ async def create_user(request: web.Request, _) -> web.Response:
     if (hail_identity or hail_credentials_secret_name) and not is_test_deployment:
         raise web.HTTPBadRequest(text='Cannot specify an existing hail identity for a new user')
 
-    if body.has_key('is_developer'):
+    if 'is_developer' in body:
         raise web.HTTPBadRequest(text='is_developer is no longer supported. Use roles instead.')
 
     try:
