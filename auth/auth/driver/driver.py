@@ -549,11 +549,9 @@ async def delete_user(app, user):
     namespace_name = user['namespace_name']
     # auth services in test namespaces cannot/should not be creating and deleting namespaces
     if namespace_name is not None and namespace_name != DEFAULT_NAMESPACE and not is_test_deployment:
-        if 'access_developer_environments' not in user['system_roles']:
-            # This should never happen, so let's log it, but if it does we should delete the namespace and finish deleting the user anyway
-            log.warning(
-                f'User {user["username"]} had a developer namespace without access_developer_environments permission, deleting namespace {namespace_name} anyway'
-            )
+        # Previously we asserted is_developer here. But it's easier to get a namespace without the right permission
+        # as roles are shuffled, and we would want to delete a floating developer namespace anyway...
+        # so let's just delete it.
 
         # don't bother deleting database-server-config since we're
         # deleting the namespace
