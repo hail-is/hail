@@ -85,7 +85,7 @@ async def render_template(
     page_context: Dict[str, Any],
 ) -> web.Response:
     if request.headers.get('x-hail-return-jinja-context'):
-        if userdata and userdata['system_permissions'][SystemPermission.READ_PRERENDERED_JINJA2_CONTEXT]:
+        if userdata and userdata.get('system_permissions', {}).get(SystemPermission.READ_PRERENDERED_JINJA2_CONTEXT):
             return web.json_response({'file': file, 'page_context': page_context, 'userdata': userdata})
         raise ValueError('Only developers can request the jinja context')
 
