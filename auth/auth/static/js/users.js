@@ -1,3 +1,11 @@
+const showActiveCheckbox = document.getElementById('show-active');
+showActiveCheckbox.addEventListener('change', (e) => { filterTable(); })
+const showDevelopersCheckbox = document.getElementById('show-developers');
+showDevelopersCheckbox.addEventListener('change', (e) => { filterTable(); })
+
+const reactivateUserForm = document.getElementById('reactivate-user-form');
+reactivateUserForm.addEventListener('submit', (e) => { validateReactivateForm(); })
+
 function filterTable() {
     const showActive = document.getElementById('show-active').checked;
     const showDevelopers = document.getElementById('show-developers').checked;

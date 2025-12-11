@@ -3,6 +3,8 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8">
+    <meta name="csrf" value="{{ csrf_token }}" />
+    <meta name="base-path" value="{{ base_path }}" />
     <title>Swagger UI</title>
     <link rel="stylesheet" type="text/css" href="{{ base_path }}/common_static/lib/swagger/swagger-ui.css" />
     <link rel="stylesheet" type="text/css" href="{{ base_path }}/common_static/lib/swagger/index.css" />
@@ -14,8 +16,6 @@
     <div id="swagger-ui"></div>
     <script src="{{ base_path }}/common_static/lib/swagger/swagger-ui-bundle.js" charset="UTF-8"> </script>
     <script src="{{ base_path }}/common_static/lib/swagger/swagger-ui-standalone-preset.js" charset="UTF-8"> </script>
-    <input type="hidden" id="_csrf" value="{{ csrf_token }}" />
-    <input type="hidden" id="_base_path" value="{{ base_path }}" />
     <script defer src="{{ base_path }}/common_static/js/swagger/index.js"></script>
   </body>
 </html>

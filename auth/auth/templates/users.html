@@ -37,7 +37,7 @@
   </div>
   <div class='w-full md:w-2/5'>
     <h1 class='text-2xl font-light mb-4'>Reactivate User</h1>
-    <form action="{{ base_path }}/users/activate" method="POST" onsubmit="validateReactivateForm()">
+    <form action="{{ base_path }}/users/activate" method="POST" id="reactivate-user-form">
       <div class='flex-col space-y-2'>
         <div class='flex items-center space-x-4'>
           <span class='w-32'>User ID</span>
@@ -93,11 +93,11 @@
 <h1 class='text-2xl font-light mb-4'>Users</h1>
 <div class="mb-4 flex space-x-4">
   <label class="inline-flex items-center">
-    <input type="checkbox" id="show-active" class="form-checkbox" onchange="filterTable()">
+    <input type="checkbox" id="show-active" class="form-checkbox">
     <span class="ml-2">Only Active</span>
   </label>
   <label class="inline-flex items-center">
-    <input type="checkbox" id="show-developers" class="form-checkbox" onchange="filterTable()">
+    <input type="checkbox" id="show-developers" class="form-checkbox">
     <span class="ml-2">Only Developers</span>
   </label>
 </div>
@@ -130,5 +130,5 @@
   </tbody>
 </table>
 
-<script src="{{auth_base_url}}/auth/static/js/users.js"></script>
+<script defer src="{{auth_base_url}}/auth/static/js/users.js"></script>
 {% endblock %}

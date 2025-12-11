@@ -1,12 +1,11 @@
-const csrfToken = document.getElementById('_csrf').value;
-const basePath = document.getElementById('_base_path').value;
+const csrfToken = document.head.querySelector('meta[name="csrf"]')?.content || '';
 
 document.getElementsByName('remove-role-button').forEach(button => {
         button.addEventListener('click', (e) => { removeRole(button.dataset.user, button.dataset.role); })
 });
 
 document.getElementsByName('add-role-button').forEach(button => {
-        button.addEventListener('click', (e) => { addRole(button.dataset.role); })
+        button.addEventListener('click', (e) => { addRole(button.dataset['username-input-id'], button.dataset.role); })
 });
 
 async function removeRole(username, roleName) {
@@ -15,7 +14,7 @@ async function removeRole(username, roleName) {
     }
 
     try {
-        const response = await fetch(`${basePath}/api/v1alpha/system_roles/${username}`, {
+        const response = await fetch("{{ base_path }}/api/v1alpha/system_roles/${username}", {
             method: 'PATCH',
             headers: {
                 'Content-Type': 'application/json',
@@ -39,9 +38,8 @@ async function removeRole(username, roleName) {
     }
 }
 
-async function addRole(roleName) {
-    const inputId = `add-user-${roleName}`;
-    const username = document.getElementById(inputId).value.trim();
+async function addRole(usernameInputId, roleName) {
+    const username = document.getElementById(usernameInputId).value.trim();
 
     if (!username) {
         alert('Please enter a username');
@@ -49,7 +47,7 @@ async function addRole(roleName) {
     }
 
     try {
-        const response = await fetch(`${basePath}/api/v1alpha/system_roles/${username}`, {
+        const response = await fetch("{{ base_path }}/api/v1alpha/system_roles/${username}", {
             method: 'PATCH',
             headers: {
                 'Content-Type': 'application/json',
@@ -62,7 +60,7 @@ async function addRole(roleName) {
 
         if (response.ok) {
             // Clear the input and refresh the page
-            document.getElementById(inputId).value = '';
+            document.getElementById(usernameInputId).value = '';
             window.location.reload();
         } else {
             const errorData = await response.json().catch(() => ({}));

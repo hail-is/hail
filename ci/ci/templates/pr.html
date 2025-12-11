@@ -2,7 +2,7 @@
 {% extends "layout.html" %}
 {% block title %}PR {{ number }}{% endblock %}
 {% block head %}
-    <script src="{{ base_path }}/common_static/focus_on_keyup.js"></script>
+    <script defer src="{{ base_path }}/common_static/focus_on_keyup.js"></script>
 {% endblock %}
 {% block content %}
     <h1>{{ pr.title }} <a rel="noopener" href="https://github.com/{{ repo }}/pull/{{ pr.number }}"><span class="gh-number">#{{ pr.number }}</span></a></h1>

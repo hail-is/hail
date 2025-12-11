@@ -3,10 +3,10 @@
 <!-- Determine search context based on component_name (see table search, in batches.html and batch.html) -->
 {% set is_job_search = component_name == "job-search" %}
 
-<form id='{{ component_name }}-form' class='min-h-48 flex space-x-4' method="GET" action="{{ endpoint }}" data-is-job-search="{{ 'true' if is_job_search else 'false' }}">
+<form id='search-form' class='min-h-48 flex space-x-4' method="GET" action="{{ endpoint }}" data-is-job-search="{{ 'true' if is_job_search else 'false' }}">
   <div class='basis-2/3'>
     <!-- Search criteria container -->
-    <div id='{{ component_name }}-criteria-container' class='min-h-24 w-full p-4 bg-slate-200 rounded space-y-3'>
+    <div id='search-criteria-container' class='min-h-24 w-full p-4 bg-slate-200 rounded space-y-3'>
       <!-- Initial search criterion -->
       <div class='search-criterion flex space-x-2 items-center'>
         <select name='criterion-select' class='criterion-select p-2 bg-white rounded border'>
@@ -48,18 +48,18 @@
     </div>
 
     <!-- Textbox mode (hidden by default) -->
-    <div id='{{ component_name }}-textbox-container' class='min-h-32 w-full p-4 bg-slate-200 rounded' style='display: none;'>
-      <textarea id='{{ component_name }}-input-box' class='h-32 w-full p-4 bg-white rounded resize whitespace-pre border'
+    <div id='search-textbox-container' class='min-h-32 w-full p-4 bg-slate-200 rounded' style='display: none;'>
+      <textarea id='search-input-box' class='h-32 w-full p-4 bg-white rounded resize whitespace-pre border'
         spellcheck="false" autocorrect="off" placeholder='Enter search query (e.g., "cost > 5.00")'>{% if q %}{{ q }}{% endif %}</textarea>
     </div>
 
     <!-- Buttons below search box container -->
     <div class='flex justify-between items-center mt-3'>
       <div class='flex space-x-2'>
-        <button type='button' id='{{ component_name }}-add-criterion' class='px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600'>
+        <button type='button' id='search-add-criterion' class='px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600'>
           Add Search Criterion
         </button>
-        <button type='button' id='{{ component_name }}-toggle-mode' class='px-3 py-1 bg-gray-500 text-white rounded text-sm hover:bg-gray-600'>
+        <button type='button' id='search-toggle-mode' class='px-3 py-1 bg-gray-500 text-white rounded text-sm hover:bg-gray-600'>
           Switch to textbox query input
         </button>
       </div>
@@ -67,8 +67,7 @@
     </div>
 
     <!-- Hidden input to store the built query -->
-    <input type='hidden' id='{{ component_name }}-query' name='q' value='{% if q %}{{ q }}{% endif %}'>
-    <input type='hidden' id='_component_name' value='{{ component_name }}'>
+    <input type='hidden' id='search-query' name='q' value='{% if q %}{{ q }}{% endif %}'>
   </div>
 
   <div class='flex items-start'>

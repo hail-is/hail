@@ -1,5 +1,3 @@
-const component_name = document.getElementById('_component_name').value;
-
 document.getElementsByName("table-search-input-box").forEach(input => {
     input.addEventListener("keydown", function (e) {
         if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
@@ -141,8 +139,8 @@ function updateOperators(selectElement) {
 }
 
 // Add new search criterion
-function addCriterion(componentName) {
-    const container = document.getElementById(componentName + '-criteria-container');
+function addCriterion() {
+    const container = document.getElementById('search-criteria-container');
     const newCriterion = container.querySelector('.search-criterion').cloneNode(true);
 
     // Reset values
@@ -190,8 +188,8 @@ function removeCriterion(button) {
 }
 
 // Build query string from criteria
-function buildQuery(componentName) {
-    const container = document.getElementById(componentName + '-criteria-container');
+function buildQuery() {
+    const container = document.getElementById('search-criteria-container');
     const criteria = container.querySelectorAll('.search-criterion');
     const queryParts = [];
 
@@ -215,10 +213,10 @@ function buildQuery(componentName) {
 }
 
 // Parse existing query and populate dropdowns
-function parseQuery(componentName, query) {
+function parseQuery(query) {
     if (!query) return;
 
-    const container = document.getElementById(componentName + '-criteria-container');
+    const container = document.getElementById('search-criteria-container');
     const existingCriteria = container.querySelectorAll('.search-criterion');
 
     // Remove extra criteria, keeping only the first one
@@ -236,7 +234,7 @@ function parseQuery(componentName, query) {
             criterion = container.querySelector('.search-criterion');
         } else {
             // Add additional criteria
-            addCriterion(componentName);
+            addCriterion();
             const criteria = container.querySelectorAll('.search-criterion');
             criterion = criteria[criteria.length - 1];
         }
@@ -266,17 +264,17 @@ function parseQuery(componentName, query) {
 }
 
 // Toggle between dropdown and textbox input modes
-function toggleInputMode(componentName) {
-    const dropdownContainer = document.getElementById(componentName + '-criteria-container');
-    const textboxContainer = document.getElementById(componentName + '-textbox-container');
-    const toggleButton = document.getElementById(componentName + '-toggle-mode');
-    const addButton = document.getElementById(componentName + '-add-criterion');
-    const textbox = document.getElementById(componentName + '-input-box');
-    const hiddenInput = document.getElementById(componentName + '-query');
+function toggleInputMode() {
+    const dropdownContainer = document.getElementById('search-criteria-container');
+    const textboxContainer = document.getElementById('search-textbox-container');
+    const toggleButton = document.getElementById('search-toggle-mode');
+    const addButton = document.getElementById('search-add-criterion');
+    const textbox = document.getElementById('search-input-box');
+    const hiddenInput = document.getElementById('search-query');
 
     if (currentMode === 'dropdown') {
         // Switch to textbox mode and sync dropdown to textbox
-        const query = buildQuery(componentName);
+        const query = buildQuery();
         textbox.value = query;
         hiddenInput.value = query;
 
@@ -298,10 +296,10 @@ function toggleInputMode(componentName) {
 
         // Parse the textbox query back into dropdowns
         if (query) {
-            parseQuery(componentName, query);
+            parseQuery(query);
         } else {
             // If textbox is empty, reset to single empty criterion
-            const container = document.getElementById(componentName + '-criteria-container');
+            const container = document.getElementById('search-criteria-container');
             const criteria = container.querySelectorAll('.search-criterion');
             // Remove extra criteria, keep only first one
             for (let i = criteria.length - 1; i > 0; i--) {
@@ -331,31 +329,31 @@ function toggleInputMode(componentName) {
 }
 // Handler for syncing textbox to hidden input
 function syncTextboxToHiddenInput() {
-    const hiddenInput = document.getElementById(`${component_name}-query`);
-    const textbox = document.getElementById(`${component_name}-input-box`);
+    const hiddenInput = document.getElementById('search-query');
+    const textbox = document.getElementById('search-input-box');
     hiddenInput.value = textbox.value;
 }
 
 // Form submission handler
-document.getElementById(`${component_name}-form`).addEventListener('submit', function(e) {
+document.getElementById('search-form').addEventListener('submit', function(e) {
     let query;
     if (currentMode === 'dropdown') {
-        query = buildQuery(component_name);
+        query = buildQuery();
     } else {
-        query = document.getElementById(`${component_name}-input-box`).value;
+        query = document.getElementById('search-input-box').value;
     }
-    document.getElementById(`${component_name}-query`).value = query;
+    document.getElementById('search-query').value = query;
 });
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize search context
-    isJobSearch = document.getElementById(`${component_name}-form`).getAttribute('data-is-job-search') === 'true';
+    isJobSearch = document.getElementById('search-form').getAttribute('data-is-job-search') === 'true';
 
-    const container = document.getElementById(`${component_name}-criteria-container`);
-    const existingQuery = document.getElementById(`${component_name}-query`).value;
+    const container = document.getElementById('search-criteria-container');
+    const existingQuery = document.getElementById('search-query').value;
     if (existingQuery) {
-        parseQuery(component_name, existingQuery);
+        parseQuery(existingQuery);
     } else {
         // Update remove button visibility on initial load
         updateRemoveButtonsVisibility(container);
@@ -368,12 +366,12 @@ document.addEventListener("keydown", function (e) {
         e.preventDefault();
         let query;
         if (currentMode === 'dropdown') {
-            query = buildQuery(component_name);
+            query = buildQuery();
         } else {
-            query = document.getElementById(`${component_name}-input-box`).value;
+            query = document.getElementById('search-input-box').value;
         }
-        document.getElementById(`${component_name}-query`).value = query;
-        document.getElementById(`${component_name}-form`).submit();
+        document.getElementById('search-query').value = query;
+        document.getElementById('search-form').submit();
     }
 });
 
@@ -384,5 +382,5 @@ document.getElementsByName('remove-criterion').forEach(button => {
 document.getElementsByName('criterion-select').forEach(selector => {
     selector.addEventListener('change', function (e) { updateOperators(this) });
 } );
-document.getElementById(`${component_name}-add-criterion`).addEventListener('click', e => addCriterion(component_name));
-document.getElementById(`${component_name}-toggle-mode`).addEventListener('click', e => toggleInputMode(component_name));
+document.getElementById('search-add-criterion').addEventListener('click', e => addCriterion());
+document.getElementById('search-toggle-mode').addEventListener('click', e => toggleInputMode());
