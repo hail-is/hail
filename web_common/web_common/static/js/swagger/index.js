@@ -1,5 +1,5 @@
-const csrfToken = document.getElementById('_csrf').value;
-const basePath = document.getElementById('_base_path').value;
+const csrfToken = document.head.querySelector('meta[name="csrf"]')?.content || '';
+const basePath = document.head.querySelector('meta[name="base-path"]')?.content || '';
 
 window.onload = function() {
     window.ui = SwaggerUIBundle({

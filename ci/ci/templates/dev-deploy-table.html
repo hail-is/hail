@@ -1,10 +1,10 @@
 {% macro dev_deploy_table(dev_deploys) %}
 {% block head %}
-    <script src="{{ base_path }}/common_static/search_bar.js"></script>
-    <script src="{{ base_path }}/common_static/focus_on_keyup.js"></script>
+    <script defer src="{{ base_path }}/common_static/search_bar.js"></script>
+    <script defer src="{{ base_path }}/common_static/focus_on_keyup.js"></script>
 {% endblock %}
 <div class="searchbar-table">
-  <input type="text" id="devDepSearchBar" onkeyup="searchTable('dev-deploys', 'devDepSearchBar')" placeholder="Search terms...">
+  <input type="text" id="devDepSearchBar" name="searchbar-input" data-table-id="dev-deploys" placeholder="Search terms...">
   <table id="dev-deploys" class="data-table">
     <thead>
       <th>ID</th>

@@ -1,12 +1,12 @@
 {% extends "layout.html" %}
 {% block title %}Roles{% endblock %}
+{% block head %}
+    <meta name="csrf" value="{{ csrf_token }}" />
+{% endblock %}
 {% block content %}
 
-{% if all_system_role_assignments.keys().__len__() > 0 %}
+{% if all_system_role_assignments.keys().__len__() >= 0 %}
 <h1 class='text-2xl font-light mb-4'>System role assignments</h1>
-
-<input type="hidden" id="_csrf" value="{{ csrf_token }}" />
-<input type="hidden" id="_base_path" value="{{ base_path }}" />
 
 <table class='table-auto w-full border border-slate-300 border-collapse font-inter'>
   <thead>
@@ -31,7 +31,7 @@
         <ul class='list-none pl-0'>
           {% for user in all_system_role_assignments[role]['users'] %}
           <li class='flex items-center mb-1'>
-            <button 
+            <button
               name='remove-role-button'
               data-user='{{ user }}'
               data-role='{{ role }}'
@@ -53,17 +53,18 @@
               <path fill-rule='evenodd' d='M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z' clip-rule='evenodd'/>
             </svg>
           </span>
-          <input 
-            type='text' 
+          <input
+            type='text'
             id='add-user-{{ role }}'
             placeholder='Enter username'
             autocomplete='off'
             data-lpignore='true'
             class='flex-1 border border-slate-300 rounded px-2 py-1 text-sm mr-2'
           />
-          <button 
+          <button
             name='add-role-button'
             data-role='{{ role }}'
+            data-username-input-id="add-user-{{ role }}"
             class='bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 transition-colors duration-200'
             title='Add {{ role }} role to user'
           >
@@ -76,6 +77,6 @@
   </tbody>
 </table>
 
-<script src='{{ auth_base_url }}/auth/static/js/roles.js'></script>
+<script defer src='{{ auth_base_url }}/auth/static/js/roles.js'></script>
 {% endif %}
 {% endblock %}
