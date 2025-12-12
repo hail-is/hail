@@ -476,6 +476,8 @@ steps:
         script: /io/sql/009-add-users-last-active.sql
       - name: refactor-roles
         script: /io/sql/010-refactor-roles.sql
+      - name: refactor-system-permissions
+        script: /io/sql/011-refactor-system-permissions.sql
     inputs:
       - from: /repo/auth/sql
         to: /io/sql
