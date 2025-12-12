@@ -399,11 +399,13 @@ async def _create_user(app, user, skip_trial_bp, cleanup):
     system_permissions = []
     if len(user['system_roles']) > 0:
         # Fetch system permissions for the user's system roles
-        system_permissions = await db.select_and_fetchall(
-            'SELECT system_permissions.name FROM system_permissions JOIN system_role_permissions ON system_permissions.id = system_role_permissions.permission_id JOIN users_system_roles ON system_role_permissions.role_id = users_system_roles.role_id WHERE users_system_roles.user_id = %s',
-            (user['id'],),
-        )
-        system_permissions = [x['name'] for x in system_permissions]
+        system_permissions = [
+            x['name']
+            async for x in db.select_and_fetchall(
+                'SELECT system_permissions.name FROM system_permissions JOIN system_role_permissions ON system_permissions.id = system_role_permissions.permission_id JOIN users_system_roles ON system_role_permissions.role_id = users_system_roles.role_id WHERE users_system_roles.user_id = %s',
+                (user['id'],),
+            )
+        ]
 
     if (
         SystemPermission.ACCESS_DEVELOPER_ENVIRONMENTS.value in system_permissions
