@@ -1,6 +1,6 @@
 package is.hail.services
 
-import is.hail.{services, HAIL_REVISION}
+import is.hail.{services, Revision}
 import is.hail.backend.service.Main
 import is.hail.services.JobGroupStates.Failure
 import is.hail.services.oauth2.CloudCredentials
@@ -165,7 +165,7 @@ class BatchClientSuite extends TestNGSuite {
             always_run = false,
             process = JvmJob(
               command = Array(Main.TEST),
-              spec = GitRevision(HAIL_REVISION),
+              spec = GitRevision(Revision),
               profile = false,
             ),
           )

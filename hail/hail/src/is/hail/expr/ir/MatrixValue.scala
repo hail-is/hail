@@ -107,7 +107,7 @@ case class MatrixValue(
 
     val colsSpec = TableSpecParameters(
       FileFormat.version.rep,
-      is.hail.HAIL_PRETTY_VERSION,
+      is.hail.PrettyVersion,
       "../references",
       typ.colsTableType.copy(key = FastSeq[String]()),
       Map(
@@ -144,7 +144,7 @@ case class MatrixValue(
 
     val globalsSpec = TableSpecParameters(
       FileFormat.version.rep,
-      is.hail.HAIL_PRETTY_VERSION,
+      is.hail.PrettyVersion,
       "../references",
       TableType(typ.globalType, FastSeq(), TStruct.empty),
       Map(
@@ -175,7 +175,7 @@ case class MatrixValue(
 
     val rowsSpec = TableSpecParameters(
       FileFormat.version.rep,
-      is.hail.HAIL_PRETTY_VERSION,
+      is.hail.PrettyVersion,
       "../references",
       typ.rowsTableType,
       Map(
@@ -190,7 +190,7 @@ case class MatrixValue(
 
     val entriesSpec = TableSpecParameters(
       FileFormat.version.rep,
-      is.hail.HAIL_PRETTY_VERSION,
+      is.hail.PrettyVersion,
       "../references",
       TableType(entriesRVType, FastSeq(), typ.globalType),
       Map(
@@ -218,7 +218,7 @@ case class MatrixValue(
 
     val spec = MatrixTableSpecParameters(
       FileFormat.version.rep,
-      is.hail.HAIL_PRETTY_VERSION,
+      is.hail.PrettyVersion,
       "references",
       typ,
       Map(

@@ -1,6 +1,6 @@
 package is.hail.backend.service
 
-import is.hail.{HAIL_REVISION, HailFeatureFlags}
+import is.hail.{HailFeatureFlags, Revision}
 import is.hail.asm4s._
 import is.hail.backend.Backend.PartitionFn
 import is.hail.backend.HailTaskContext
@@ -176,7 +176,7 @@ object Worker extends Logging {
 
     sys.env.get("HAIL_SSL_CONFIG_DIR").foreach(tls.setSSLConfigFromDir)
 
-    logger.info(s"${getClass.getName} $HAIL_REVISION")
+    logger.info(s"${getClass.getName} $Revision")
     logger.info(s"running partition $partition root '$root' with scratch directory '$scratchDir'")
 
     timer.start(s"partition $partition")
