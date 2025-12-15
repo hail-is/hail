@@ -1,61 +1,88 @@
 package build
 
-import mill.*, scalalib.*
+import mill.T
+import mill.api.{PathRef, Task, TaskCtx}
 import mill.meta.MillBuildRootModule
+import mill.scalalib.Dep
 
-object `package` extends MillBuildRootModule {
-  def mvnDeps = Seq(
-    mvn"com.goyeau::mill-scalafix::0.6.0",
-    mvn"org.typelevel::scalac-options:0.1.8",
-  )
+import millbuild.BuildMode
+import millbuild.MvnCoordinate.*
+
+import scala.collection.immutable.ArraySeq
+
+extension [A, F[+X] <: Iterable[X]] (as: F[A])
+  def quoted: Iterable[String] =
+    as.map(i => s"\"$i\"")
+
+  infix def or[B >: A](alternative: => F[B]): F[B] =
+    if as.nonEmpty then as else alternative
+
+
+object `package` extends MillBuildRootModule:
+
+  private val SupportedScalaVersions =
+    Set("2.12", "2.12.13", "2.13")
+
+  override def mvnDeps: T[Seq[Dep]] =
+    Seq(
+      `mill-scalafix` :::: "0.6.0",
+      `scalac-options` :: "0.1.8",
+    )
+    
+  private def customSources: T[Seq[PathRef]] =
+    Task.Sources("mill-build/src")
+
+  override def sources: T[Seq[PathRef]] =
+    super.sources() ++ customSources()
 
   def generatedSources: T[Seq[PathRef]] = Task {
     os.write(
       Task.dest / "BuildConfig.scala",
-      s"""
-         |package millbuild
-         |object BuildConfig{
-         |  def buildMode = "${buildMode()}"
-         |  def enabledScalaVersions = IndexedSeq(${enabledScalaVersions().map(v => s"\"$v\"").mkString(", ")})
+      s"""package millbuild
+         |
+         |import scala.collection.immutable.*
+         |
+         |object BuildConfig {
+         |  val buildMode =
+         |    BuildMode.${buildMode().getOrElse(BuildMode.Release)}
+         |  val enabledScalaVersions =
+         |    ${(enabledScalaVersions() or SupportedScalaVersions.to(ArraySeq)).quoted}
          |}
       """.stripMargin
     )
     super.generatedSources() ++ Seq(PathRef(Task.dest))
   }
 
-  def configDir: T[PathRef] = Task.Source("config")
+  def getConfig(name: String)(implicit ctx: TaskCtx.Env): Seq[String] =
+    ctx.env
+      .get(name map { case '-' => '_'; case c => c.toUpper })
+      .orElse {
+        val path = moduleDir / "config" / name
+        Option.when(os.exists(path))(os.read(path))
+      }
+      .to(ArraySeq)
+      .flatMap(_.split(',').map(_.strip))
 
-  def envScalaVersion: T[Option[String]] = Task.Input {
-    Task.env.get("SCALA_VERSION")
-  }
-
-  def enabledScalaVersions: T[Seq[String]] = Task {
-    val path = configDir().path / "scala-version"
-    val supportedScalaVersions = IndexedSeq("2.12", "2.12.13", "2.13")
-    envScalaVersion()
-      .orElse(Option.when(os.exists(path))(os.read(path).strip))
-      .map { scalaVersion =>
+  def enabledScalaVersions: T[Seq[String]] =
+    Task.Input {
+      getConfig("scala-version").tapEach { ver =>
         require(
-          supportedScalaVersions.contains(scalaVersion),
-          s"SCALA_VERSION must be set to one of 2.12.13, 2.12, or 2.13; found $scalaVersion"
+          SupportedScalaVersions `contains` ver,
+          s"SCALA_VERSION may be one of ${SupportedScalaVersions.quoted.mkString(",")}; found '$ver'."
         )
-        IndexedSeq(scalaVersion)
-      }.getOrElse(supportedScalaVersions)
-  }
+      }
+    }
 
-  def envBuildMode: T[Option[String]] = Task.Input {
-    Task.env.get("HAIL_BUILD_MODE")
-  }
-
-  def buildMode: T[String] = Task {
-    val path = configDir().path / "hail-build-mode"
-    val raw = envBuildMode().orElse(Option.when(os.exists(path))(os.read(path).strip))
-      .getOrElse("Release")
-    val supportedBuildModes = IndexedSeq("dev", "ci", "release")
-    require(
-      supportedBuildModes.contains(raw.toLowerCase),
-      s"HAIL_BUILD_MODE must be set to one of 'dev', 'ci' or 'release'; found '$raw'"
-    )
-    raw.toLowerCase
-  }
-}
+  def buildMode: T[Option[BuildMode]] =
+    Task.Input {
+      getConfig("hail-build-mode").headOption.map { raw =>
+        try
+          BuildMode.valueOf(raw)
+        catch {
+          case _: Throwable =>
+            sys.error(
+              s"HAIL_BUILD_MODE must be set to one of ${BuildMode.values.mkString("{", ", ", "}")}; found '$raw'"
+            )
+        }
+      }
+    }

@@ -1,0 +1,28 @@
+package build.hail.`ir-gen`
+
+import mill.{Args, DefaultTaskModule, PathRef, T, Task}
+import mill.scalalib.Dep
+
+import millbuild.MvnCoordinate.*
+
+object `package` extends build.HailScalaModule, DefaultTaskModule:
+
+  override def scalaVersion: T[String] =
+    "2.13.18"
+
+  override def defaultTask(): String =
+    "generate"
+
+  override def mvnDeps: T[Seq[Dep]] =
+    Seq[Dep](
+      `mainargs` :: "0.7.7",
+      `os-lib` :: "0.10.7",
+      `sourcecode` :: "0.4.2",
+      `scala-collection-compat`,
+    )
+
+  def generate: T[PathRef] =
+    Task {
+      runner().run(Args("--path", Task.dest).value)
+      PathRef(Task.dest)
+    }
