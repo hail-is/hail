@@ -6,10 +6,13 @@
   <title>Hail | {% block title %}{% endblock %}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="shortcut icon" href="{{ base_path }}/common_static/hail_logo_sq.ico" type="image/x-icon" />
-  <link href="https://fonts.googleapis.com/css?family=Open+Sans:400,700" rel="stylesheet" />
-  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+  <link href="{{ base_path }}/common_static/lib/fonts.googleapis.com/opensans.css" rel="stylesheet"
+    integrity="sha384-bhIbQGHlxN8znQaFY5n4eiUfVHvuPf7LSRqL12Yu5U1BkRZE4MgdqW0qqHBaxvIL" crossorigin="anonymous" />
+  <link href="{{ base_path }}/common_static/lib/fonts.googleapis.com/material-icons.css" rel="stylesheet"
+    integrity="sha384-/QMbOqgtfY6kCnXqN4VJBcyXs6KHIsjaURnYhVr62pvf0d1ifgJRxSujpHKuF9cD" crossorigin="anonymous" />
   <link rel="stylesheet"
-    href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
+    href="{{ base_path }}/common_static/lib/fonts.googleapis.com/material-symbols-outlined.css"
+    integrity="sha384-auDWq7FwyV5Lz6oO8X1ecO1bMG9cLJXuM8K7rINEM7cLo/ZgYCap3gAIN+AXHV38" crossorigin="anonymous" />
   {% if use_tailwind %}
   <link rel="stylesheet" type="text/css" href="{{ base_path }}/common_static/css/output.css" />
   <script defer src="{{ base_path }}/common_static/lib/alpinejs/cdn.min.js"></script>
