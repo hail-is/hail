@@ -184,6 +184,7 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
   )
 
   @nowarn213("msg=GenTraversableOnce in package collection is deprecated")
+  @nowarn213("msg=toIterator in class IterableOnceExtensionMethods is deprecated")
   override def flatMap[B](f: A => scala.collection.GenTraversableOnce[B]): FlipbookIterator[B] =
     FlipbookIterator(
       new StateMachine[B] {

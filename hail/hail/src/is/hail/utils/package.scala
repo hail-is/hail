@@ -53,7 +53,7 @@ package utils {
   sealed trait AnyFailAllFail[C[_]] {
     def apply[T](ts: IterableOnce[Option[T]])(implicit cbf: Factory[T, C[T]]): Option[C[T]] = {
       val b = cbf.newBuilder
-      for (t <- ts)
+      for (t <- ts.iterator)
         if (t.isEmpty)
           return None
         else
@@ -683,13 +683,13 @@ package object utils
 
   def makeJavaMap[K, V](x: IterableOnce[(K, V)]): java.util.HashMap[K, V] = {
     val m = new java.util.HashMap[K, V]
-    x.foreach { case (k, v) => m.put(k, v) }
+    x.iterator.foreach { case (k, v) => m.put(k, v) }
     m
   }
 
   def makeJavaSet[K](x: IterableOnce[K]): java.util.HashSet[K] = {
     val m = new java.util.HashSet[K]
-    x.foreach(m.add)
+    x.iterator.foreach(m.add)
     m
   }
 
@@ -699,7 +699,7 @@ package object utils
     key: T => K,
     value: T => V,
   ): collection.Map[K, V] = {
-    val it = ts.toIterator
+    val it = ts.iterator
     val m = mutable.Map[K, V]()
     while (it.hasNext) {
       val t = it.next()
