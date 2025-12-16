@@ -420,9 +420,11 @@ async def callback(request) -> web.Response:
 
         raise web.HTTPFound(creating_url)
 
-    if user['state'] in ('deleting', 'deleted'):
+    if user['state'] in ('deleting', 'deleted', 'inactive'):
         page_context = {'username': user['username'], 'state': user['state'], 'login_id': user['login_id']}
-        return await render_template('auth', request, user, 'account-error.html', page_context)
+        return await render_template(
+            'auth', request, user, 'account-error.html', page_context, status_code=web.HTTPUnauthorized.status_code
+        )
 
     if user['state'] == 'creating':
         if caller == 'signup':
