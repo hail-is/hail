@@ -83,6 +83,8 @@ async def render_template(
     userdata: Optional[UserData],
     file: str,
     page_context: Dict[str, Any],
+    *,
+    status_code: int = 200,
 ) -> web.Response:
     if request.headers.get('x-hail-return-jinja-context'):
         if userdata and userdata['is_developer']:
@@ -100,7 +102,7 @@ async def render_template(
     context['use_tailwind'] = service in TAILWIND_SERVICES
     context['csrf_token'] = csrf_token
 
-    response = aiohttp_jinja2.render_template(file, request, context)
+    response = aiohttp_jinja2.render_template(file, request, context, status=status_code)
     response.set_cookie('_csrf', csrf_token, secure=True, httponly=True, samesite='strict')
     return response
 
