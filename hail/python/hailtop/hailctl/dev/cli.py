@@ -60,7 +60,7 @@ async def _deploy(branch: str, steps: List[str], excluded_steps: List[str], extr
     extra_config_dict = unpack_key_value_inputs(extra_config)
     async with CIClient(deploy_config) as ci_client:
         batch_id = await ci_client.dev_deploy_branch(branch, steps, excluded_steps, extra_config_dict)
-        url = deploy_config.url('ci', f'/batches/{batch_id}')
+        url = deploy_config.url('batch', f'/batches/{batch_id}')
         print(f'Created deploy batch, see {url}')
         if open:
             webbrowser.open(url)
