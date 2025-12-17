@@ -17,7 +17,7 @@ import java.util.Map.Entry
 
 import org.apache.spark.sql.Row
 import org.json4s.Formats
-import org.json4s.jackson.JsonMethods
+import org.json4s.jackson.parseJson
 
 object IndexReaderBuilder {
   def fromSpec(ctx: ExecuteContext, spec: AbstractIndexSpec)
@@ -50,7 +50,7 @@ object IndexReaderBuilder {
 object IndexReader {
   def readUntyped(fs: FS, path: String): IndexMetadataUntypedJSON = {
     val jv = using(fs.open(path + "/metadata.json.gz")) { in =>
-      JsonMethods.parse(in)
+      parseJson(in)
         .removeField { case (f, _) => f == "keyType" || f == "annotationType" }
     }
     implicit val formats: Formats = defaultJSONFormats
@@ -63,7 +63,7 @@ object IndexReader {
   }
 
   def readTypes(fs: FS, path: String): (Type, Type) = {
-    val jv = using(fs.open(path + "/metadata.json.gz"))(in => JsonMethods.parse(in))
+    val jv = using(fs.open(path + "/metadata.json.gz"))(in => parseJson(in))
     implicit val formats: Formats = defaultJSONFormats + new TypeSerializer
     val metadata = jv.extract[IndexMetadata]
     metadata.keyType -> metadata.annotationType

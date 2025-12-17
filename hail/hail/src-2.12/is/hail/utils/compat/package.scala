@@ -8,8 +8,7 @@ import scala.reflect.ClassTag
 
 package compat {
   class ArrayOps[A: ClassTag](val a: WrappedArray[A]) {
-    def sortInPlace[B >: A]()(implicit ct: ClassTag[B], ord: Ordering[B])
-      : WrappedArray[A] = {
+    def sortInPlace[B >: A]()(implicit ct: ClassTag[B], ord: Ordering[B]): WrappedArray[A] = {
       scala.util.Sorting.stableSort(a.array.asInstanceOf[Array[B]])
       a
     }

@@ -21,7 +21,7 @@ import scala.jdk.CollectionConverters._
 import java.io.{FileNotFoundException, InputStream}
 
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue}
-import org.json4s.jackson.{JsonMethods, Serialization}
+import org.json4s.jackson.{parseJson, Serialization}
 
 case class ReferenceGenome(
   name: String,
@@ -497,12 +497,12 @@ object ReferenceGenome {
 
   def read(is: InputStream): ReferenceGenome = {
     implicit val formats = defaultJSONFormats
-    JsonMethods.parse(is).extract[JSONExtractReferenceGenome].toReferenceGenome
+    parseJson(is).extract[JSONExtractReferenceGenome].toReferenceGenome
   }
 
   def parse(str: String): ReferenceGenome = {
     implicit val formats = defaultJSONFormats
-    JsonMethods.parse(str).extract[JSONExtractReferenceGenome].toReferenceGenome
+    parseJson(str).extract[JSONExtractReferenceGenome].toReferenceGenome
   }
 
   def fromResource(file: String): ReferenceGenome =

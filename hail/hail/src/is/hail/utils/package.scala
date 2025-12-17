@@ -26,7 +26,7 @@ import org.apache.spark.{Partition, TaskContext}
 import org.apache.spark.sql.Row
 import org.json4s.{Extraction, Formats, JObject, JValue, NoTypeHints, Serializer}
 import org.json4s.JsonAST.{JArray, JString}
-import org.json4s.jackson.{JsonMethods, Serialization}
+import org.json4s.jackson.{compactJson, Serialization}
 import org.json4s.reflect.TypeInfo
 
 package utils {
@@ -930,7 +930,7 @@ package object utils
     f.force
 
   def jsonToBytes(v: JValue): Array[Byte] =
-    JsonMethods.compact(v).getBytes(StandardCharsets.UTF_8)
+    compactJson(v).getBytes(StandardCharsets.UTF_8)
 
   private[this] object Retry extends ControlThrowable
 

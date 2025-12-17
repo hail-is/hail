@@ -36,7 +36,7 @@ import java.util.UUID
 
 import org.apache.spark.sql.Row
 import org.json4s.{DefaultFormats, Formats, ShortTypeHints}
-import org.json4s.jackson.JsonMethods
+import org.json4s.jackson.parseJson
 
 object MatrixWriter {
   implicit val formats: Formats = new DefaultFormats() {
@@ -110,7 +110,7 @@ object MatrixNativeWriter {
     val lowered =
       if (partitions != null) {
         val partitionsType = IRParser.parseType(partitionsTypeStr)
-        val jv = JsonMethods.parse(partitions)
+        val jv = parseJson(partitions)
         val rangeBounds = JSONAnnotationImpex.importAnnotation(jv, partitionsType)
           .asInstanceOf[IndexedSeq[Interval]]
         tablestage.repartitionNoShuffle(

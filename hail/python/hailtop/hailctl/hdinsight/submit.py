@@ -33,8 +33,8 @@ def submit(
             'file': f'wasbs://{name}@{storage_account}.blob.core.windows.net/{os.path.basename(script)}',
             'conf': {
                 # NB: Only the local protocol is permitted, the file protocol is banned #security
-                'spark.jars': 'local:/usr/bin/anaconda/envs/py37/lib/python3.7/site-packages/hail/backend/hail-all-spark.jar',
-                'spark.pyspark.driver.python': '/usr/bin/anaconda/envs/py37/bin/python3',
+                'spark.jars': 'local:/usr/bin/anaconda/envs/py311/lib/python3.7/site-packages/hail/backend/hail-all-spark.jar',
+                'spark.pyspark.driver.python': '/usr/bin/anaconda/envs/py311/bin/python3',
             },
             'args': pass_through_args,
         },
