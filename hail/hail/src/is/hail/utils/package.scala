@@ -745,7 +745,7 @@ package object utils
     using(new OutputStreamWriter(fs.create(path + "/README.txt"))) { out =>
       out.write(
         s"""This folder comprises a Hail (www.hail.is) native Table or MatrixTable.
-           |  Written with version $HAIL_PRETTY_VERSION
+           |  Written with version $PrettyVersion
            |  Created at ${dateFormat.format(new Date())}""".stripMargin
       )
     }

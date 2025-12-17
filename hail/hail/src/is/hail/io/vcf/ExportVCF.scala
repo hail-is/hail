@@ -149,7 +149,7 @@ object ExportVCF extends Logging {
     val sb = new StringBuilder()
 
     sb.append("##fileformat=VCFv4.2\n")
-    sb.append(s"##hailversion=${hail.HAIL_PRETTY_VERSION}\n")
+    sb.append(s"##hailversion=${hail.PrettyVersion}\n")
 
     entryType.fields.foreach { f =>
       val attrs = getAttributes("format", f.name, metadata).getOrElse(Map.empty[String, String])

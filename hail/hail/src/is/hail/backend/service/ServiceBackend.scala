@@ -1,6 +1,6 @@
 package is.hail.backend.service
 
-import is.hail.HAIL_REVISION
+import is.hail.Revision
 import is.hail.backend._
 import is.hail.backend.Backend.PartitionFn
 import is.hail.backend.local.LocalTaskContext
@@ -82,7 +82,7 @@ object ServiceBackend {
     new ServiceBackend(
       name,
       client,
-      GitRevision(HAIL_REVISION),
+      GitRevision(Revision),
       BatchConfig(batchId, 0),
       workerConfig,
     )

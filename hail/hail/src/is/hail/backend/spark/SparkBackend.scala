@@ -109,7 +109,7 @@ object SparkBackend extends Logging {
     : SparkConf = {
     require(blockSize >= 0)
 
-    checkSparkCompatibility(is.hail.HAIL_SPARK_VERSION, org.apache.spark.SPARK_VERSION)
+    checkSparkCompatibility(is.hail.SparkVersion, org.apache.spark.SPARK_VERSION)
 
     val conf = new SparkConf().setAppName(appName)
 

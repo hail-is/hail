@@ -23,36 +23,42 @@ trait RootHailModule extends CrossScalaModule, HailScalaModule:
   override def crossScalaVersion: String =
     Settings.scalaMinorVersions(crossValue)
 
-  def buildInfo: T[PathRef] = Task {
-    val revision = VcsVersion.vcsState().currentRevision
-    os.write(
-      Task.dest / "build-info.properties",
-      s"""[Build Metadata]
-         |revision=$revision
-         |sparkVersion=${Env.sparkVersion()}
-         |hailPipVersion=${Settings.hailMajorMinorVersion}.${Settings.hailPatchVersion}
-         |hailBuildConfiguration=${buildMode.toString.toLowerCase}
-         |""".stripMargin,
-    )
-    PathRef(Task.dest)
-  }
-
   override def moduleDeps: Seq[JavaModule] =
     Seq(
       build.hail.memory(if buildMode == CI then "debug" else "release"),
     )
-
+    
   override def resources: T[Seq[PathRef]] =
     super.resources() ++ Seq(
       BuildCtx.withFilesystemCheckerDisabled {
         PathRef(BuildCtx.workspaceRoot / "prebuilt" / "lib")
       },
-      buildInfo(),
     )
 
   override def generatedSources: T[Seq[PathRef]] =
     Task {
-      Seq(build.hail.`ir-gen`.generate())
+      os.write(
+        Task.dest / "is" / "hail" / "package.scala",
+        f"""package is
+          |
+          |package object hail {
+          |  // FIXME: This should be a compiler switch/flag
+          |  val EmitTracebackInAssertions = ${buildMode != Release}
+          |  
+          |  val PipVersion = "${Settings.hailMajorMinorVersion}.${Settings.hailPatchVersion}"
+          |  val Revision = "${VcsVersion.vcsState().currentRevision}"
+          |  val SparkVersion = "${Env.sparkVersion()}"
+          |  
+          |  // FIXME: probably should use tags or something to choose English name
+          |  val PrettyVersion = PipVersion + "-" + Revision.substring(0, 12)
+          |}""".stripMargin,
+        createFolders = true,
+      )
+      
+      Seq(
+        PathRef(Task.dest),
+        build.hail.`ir-gen`.generate(),
+      )
     }
 
   override def unmanagedClasspath: T[Seq[PathRef]] =

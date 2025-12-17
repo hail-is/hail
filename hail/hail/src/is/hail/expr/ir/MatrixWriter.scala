@@ -654,7 +654,7 @@ class MatrixSpecHelper(
   def write(fs: FS, nCols: Long, partCounts: Array[Long]): Unit = {
     val spec = MatrixTableSpecParameters(
       FileFormat.version.rep,
-      is.hail.HAIL_PRETTY_VERSION,
+      is.hail.PrettyVersion,
       "references",
       typ,
       Map(
