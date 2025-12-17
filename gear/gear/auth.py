@@ -4,7 +4,7 @@ import logging
 import os
 import urllib.parse
 from functools import wraps
-from typing import Awaitable, Callable, Optional, Tuple, TypedDict, cast
+from typing import Awaitable, Callable, Dict, Optional, Tuple, TypedDict, cast
 
 import aiohttp
 import aiohttp_session
@@ -36,10 +36,10 @@ class UserData(TypedDict):
     username: str
     login_id: str
     namespace_name: str
-    is_developer: bool
     is_service_account: bool
     hail_credentials_secret_name: str
     tokens_secret_name: str
+    system_permissions: Dict[str, bool]
 
 
 def maybe_parse_bearer_header(value: str) -> Optional[str]:
@@ -94,22 +94,6 @@ class Authenticator(abc.ABC):
 
         return wrapped
 
-    def authenticated_developers_only(self, redirect=True):
-        def wrap(fun: AuthenticatedAIOHTTPHandler):
-            @self.authenticated_users_only(redirect)
-            @wraps(fun)
-            async def wrapped(request: web.Request, userdata: UserData, *args, **kwargs):
-                if 'api_info' not in request:
-                    request['api_info'] = {}
-                request['api_info']['developers_only'] = True
-                if userdata['is_developer'] == 1:
-                    return await fun(request, userdata, *args, **kwargs)
-                raise web.HTTPUnauthorized()
-
-            return wrapped
-
-        return wrap
-
     def authenticated_users_with_permission(
         self, permission: SystemPermission, redirect: bool = True
     ) -> Callable[[AuthenticatedAIOHTTPHandler], AIOHTTPHandler]:
@@ -117,6 +101,12 @@ class Authenticator(abc.ABC):
             @self.authenticated_users_only(redirect)
             @wraps(fun)
             async def wrapped(request: web.Request, userdata: UserData, *args, **kwargs):
+                if 'api_info' not in request:
+                    request['api_info'] = {}
+                request['api_info']['system_permission_check'] = True
+                if 'system_permissions_required' not in request['api_info']:
+                    request['api_info']['system_permissions_required'] = []
+                request['api_info']['system_permissions_required'].append(permission.value)
                 if await self._check_system_permission(request, permission):
                     return await fun(request, userdata, *args, **kwargs)
                 raise web.HTTPUnauthorized()
@@ -175,10 +165,36 @@ class TrustedSingleTenantAuthenticator(Authenticator):
         return cast(
             UserData,
             {
-                'is_developer': True,
+                'id': 1,
+                'state': 'active',
                 'username': 'user',
+                'login_id': 'user',
+                'namespace_name': 'default',
+                'is_service_account': False,
                 'hail_credentials_secret_name': 'dummy',
                 'tokens_secret_name': 'dummy',
+                'system_permissions': {
+                    'create_users': True,
+                    'read_users': True,
+                    'update_users': True,
+                    'delete_users': True,
+                    'assign_system_roles': True,
+                    'read_system_roles': True,
+                    'create_developer_environments': True,
+                    'read_developer_environments': True,
+                    'update_developer_environments': True,
+                    'delete_developer_environments': True,
+                    'view_monitoring_dashboards': True,
+                    'create_billing_projects': True,
+                    'read_all_billing_projects': True,
+                    'update_all_billing_projects': True,
+                    'delete_all_billing_projects': True,
+                    'assign_users_to_all_billing_projects': True,
+                    'read_ci': True,
+                    'manage_ci': True,
+                    'read_deployed_system_state': True,
+                    'update_deployed_system_state': True,
+                },
             },
         )
 

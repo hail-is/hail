@@ -31,9 +31,9 @@
     <div class='text-xl m-4'>
       Total spend: <span class='font-light text-lg'>{{ total_cost }}</span>
     </div>
-    <div class='bg-white' x-data='{ tab: "{{ "by-bp" if is_developer else "by-bp-user"}}" }'>
+    <div class='bg-white' x-data='{ tab: "{{ "by-bp" if userdata["system_permissions"]["read_all_billing_projects"] else "by-bp-user"}}" }'>
       <div class='flex border-b text-lg'>
-        {% if is_developer %}
+        {% if userdata['system_permissions']['read_all_billing_projects'] %}
         <div class='px-4 pt-4 pb-2 hover:opacity-100 hover:cursor-pointer hover:border-b border-black'
           :class='{"border-b": tab == "by-bp", "opacity-50": tab != "by-bp"}' x-on:click='tab = "by-bp"'>
           By Billing Project
@@ -48,7 +48,7 @@
           By Billing Project and User
         </div>
       </div>
-      {% if is_developer %}
+      {% if userdata['system_permissions']['read_all_billing_projects'] %}
       <div class='relative overflow-hidden transition-all' x-show='tab == "by-bp"'>
         <table class='w-full overflow-auto'>
           <tbody>

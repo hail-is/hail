@@ -34,6 +34,7 @@
       </div>
     </div>
 
+    {% if userdata['system_permissions']['manage_ci'] %}
     <div>
       {% if not frozen_merge_deploy %}
       <form action="{{ base_path }}/freeze_merge_deploy" method="POST">
@@ -51,6 +52,9 @@
       </form>
       {% endif %}
     </div>
+    {% else %}
+    <div>Merges and Deploys frozen status: {{ frozen_merge_deploy }}</div>
+    {% endif %}
 
     <h2>PRs</h2>
     {% if wb.prs is not none %}
@@ -64,6 +68,7 @@
     {% endif %}
     {% endfor %}
 
+    {% if userdata['system_permissions']['manage_ci'] %}
     <h2>Authorize SHA</h2>
     <form action="{{ base_path }}/authorize_source_sha" method="post">
       <label for="sha">SHA:</label>
@@ -71,6 +76,7 @@
       <input type="text" name="sha" id="sha">
       <button type="submit">Authorize</button>
     </form>
+    {% endif %}
     <script type="text/javascript">
       focusOnSlash("prsSearchBar");
     </script>
