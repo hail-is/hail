@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 import re
 import secrets
@@ -10,6 +11,8 @@ from hailtop.batch_client import aioclient
 from hailtop.batch_client.client import BatchClient, Job
 
 from .utils import DOCKER_ROOT_IMAGE, batch_status_job_counter, create_batch, legacy_batch_status
+
+log = logging.getLogger('test_dag')
 
 
 @pytest.fixture
@@ -313,6 +316,9 @@ def test_input_dependency_wildcard(client, remote_tmpdir):
         parents=[head],
     )
     batch.submit()
+    log.info(f'Wilcard test: batch.debug_info(): {batch.debug_info()}')
+    log.info(f'Wilcard test: head.debug_info(): {head.debug_info()}')
+    log.info(f'Wilcard test: tail.debug_info(): {tail.debug_info()}')
     tail.wait()
     head_status = head.status()
     assert head._get_exit_code(head_status, 'input') != 0, str((head_status, batch.debug_info()))
