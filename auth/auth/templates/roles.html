@@ -1,8 +1,11 @@
 {% extends "layout.html" %}
 {% block title %}Roles{% endblock %}
+{% block head %}
+    <meta name="csrf" value="{{ csrf_token }}" />
+{% endblock %}
 {% block content %}
 
-{% if all_system_role_assignments.keys().__len__() > 0 %}
+{% if all_system_role_assignments.keys().__len__() >= 0 %}
 <h1 class='text-2xl font-light mb-4'>System role assignments</h1>
 
 <table class='table-auto w-full border border-slate-300 border-collapse font-inter'>
@@ -28,8 +31,10 @@
         <ul class='list-none pl-0'>
           {% for user in all_system_role_assignments[role]['users'] %}
           <li class='flex items-center mb-1'>
-            <button 
-              onclick="removeRole('{{ user }}', '{{ role }}')"
+            <button
+              name='remove-role-button'
+              data-user='{{ user }}'
+              data-role='{{ role }}'
               class='mr-2 w-6 flex-shrink-0 text-red-600 hover:text-red-800 transition-colors duration-200 flex items-center justify-center'
               title='Remove {{ role }} role from {{ user }}'
             >
@@ -48,16 +53,18 @@
               <path fill-rule='evenodd' d='M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z' clip-rule='evenodd'/>
             </svg>
           </span>
-          <input 
-            type='text' 
+          <input
+            type='text'
             id='add-user-{{ role }}'
             placeholder='Enter username'
             autocomplete='off'
             data-lpignore='true'
             class='flex-1 border border-slate-300 rounded px-2 py-1 text-sm mr-2'
           />
-          <button 
-            onclick="addRole('{{ role }}')"
+          <button
+            name='add-role-button'
+            data-role='{{ role }}'
+            data-username-input-id="add-user-{{ role }}"
             class='bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 transition-colors duration-200'
             title='Add {{ role }} role to user'
           >
@@ -69,72 +76,7 @@
     {% endfor %}
   </tbody>
 </table>
+
+<script defer src='{{ auth_base_url }}/auth/static/js/roles.js'></script>
 {% endif %}
-
-<script>
-async function removeRole(username, roleName) {
-  if (!confirm(`Are you sure you want to remove the '${roleName}' role from user '${username}'?`)) {
-    return;
-  }
-
-  try {
-    const response = await fetch(`{{ base_path }}/api/v1alpha/system_roles/${username}`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': '{{ csrf_token }}'
-      },
-      body: JSON.stringify({
-        role_removal: roleName
-      })
-    });
-
-    if (response.ok) {
-      // Refresh the page to show updated data
-      window.location.reload();
-    } else {
-      const errorData = await response.json().catch(() => ({}));
-      alert(`Failed to remove role: ${errorData.message || response.statusText}`);
-    }
-  } catch (error) {
-    console.error('Error removing role:', error);
-    alert('Failed to remove role. Please try again.');
-  }
-}
-
-async function addRole(roleName) {
-  const inputId = `add-user-${roleName}`;
-  const username = document.getElementById(inputId).value.trim();
-  
-  if (!username) {
-    alert('Please enter a username');
-    return;
-  }
-
-  try {
-    const response = await fetch(`{{ base_path }}/api/v1alpha/system_roles/${username}`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': '{{ csrf_token }}'
-      },
-      body: JSON.stringify({
-        role_addition: roleName
-      })
-    });
-
-    if (response.ok) {
-      // Clear the input and refresh the page
-      document.getElementById(inputId).value = '';
-      window.location.reload();
-    } else {
-      const errorData = await response.json().catch(() => ({}));
-      alert(`Failed to add role: ${errorData.message || response.statusText}`);
-    }
-  } catch (error) {
-    console.error('Error adding role:', error);
-    alert('Failed to add role. Please try again.');
-  }
-}
-</script>
 {% endblock %}

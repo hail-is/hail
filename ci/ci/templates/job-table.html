@@ -1,9 +1,9 @@
 {% macro job_table(jobs, id, searchBarId) %}
 {% block head %}
-    <script src="{{ base_path }}/common_static/search_bar.js"></script>
+    <script defer src="{{ base_path }}/common_static/search_bar.js"></script>
 {% endblock %}
 <div class="searchbar-table">
-  <input type="text" id="{{ searchBarId }}" onkeyup="searchTable('{{ id }}', '{{ searchBarId }}')" placeholder="Search terms...">
+  <input type="text" id="{{ searchBarId }}" name="searchbar-input" data-table-id="{{ id }}" placeholder="Search terms...">
   <table id="{{ id }}" class="data-table" style="line-height: 175%">
     <thead>
       <tr>

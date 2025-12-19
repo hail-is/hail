@@ -3,6 +3,8 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8">
+    <meta name="csrf" value="{{ csrf_token }}" />
+    <meta name="base-path" value="{{ base_path }}" />
     <title>Swagger UI</title>
     <link rel="stylesheet" type="text/css" href="{{ base_path }}/common_static/lib/swagger/swagger-ui.css" />
     <link rel="stylesheet" type="text/css" href="{{ base_path }}/common_static/lib/swagger/index.css" />
@@ -14,36 +16,6 @@
     <div id="swagger-ui"></div>
     <script src="{{ base_path }}/common_static/lib/swagger/swagger-ui-bundle.js" charset="UTF-8"> </script>
     <script src="{{ base_path }}/common_static/lib/swagger/swagger-ui-standalone-preset.js" charset="UTF-8"> </script>
-    <script>
-      window.onload = function() {
-        window.ui = SwaggerUIBundle({
-          url: '{{ base_path }}/openapi.yaml',
-          dom_id: '#swagger-ui',
-          deepLinking: true,
-          presets: [
-            SwaggerUIBundle.presets.apis,
-            SwaggerUIStandalonePreset
-          ],
-          plugins: [
-            SwaggerUIBundle.plugins.DownloadUrl
-          ],
-          layout: "StandaloneLayout",
-          requestInterceptor: function(request) {
-            // Get CSRF token from template variable
-            const csrfToken = "{{ csrf_token }}";
-
-            if (csrfToken) {
-              // Add CSRF token to request headers
-              if (!request.headers) {
-                request.headers = {};
-              }
-              request.headers['X-CSRF-Token'] = csrfToken;
-            }
-
-            return request;
-          }
-        });
-      };
-    </script>
+    <script defer src="{{ base_path }}/common_static/js/swagger/index.js"></script>
   </body>
 </html>
