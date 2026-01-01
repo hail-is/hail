@@ -15,6 +15,11 @@ versions. In particular, Hail officially supports:
 Change Log
 ==========
 
+**Version 0.2.138**
+
+- (`#15210 <https://github.com/hail-is/hail/pull/15210>`__) Add 'inactive' status to the list of account errors
+- (`#15213 <https://github.com/hail-is/hail/pull/15213>`__) Remove low-risk reflected xss finding
+
 **Version 0.2.137**
 
 - (`#15199 <https://github.com/hail-is/hail/pull/15199>`__)

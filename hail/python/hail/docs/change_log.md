@@ -52,6 +52,12 @@ supports.
 policy. Their functionality or even existence may change without notice. Please contact us if you
 critically depend on experimental functionality.**
 
+## Version 0.2.138 
+
+Released 2026-01-01 
+
+- (hail#15207) mill multi-file builds
+
 ## Version 0.2.137 
 
 Released 2025-11-24
