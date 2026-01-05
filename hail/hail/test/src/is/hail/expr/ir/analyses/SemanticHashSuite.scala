@@ -1,6 +1,6 @@
 package is.hail.expr.ir.analyses
 
-import is.hail.{HAIL_PRETTY_VERSION, HailSuite}
+import is.hail.{HailSuite, PrettyVersion}
 import is.hail.expr.ir._
 import is.hail.expr.ir.defs._
 import is.hail.io.fs.{FS, FakeFS, FakeURL, FileListEntry}
@@ -365,7 +365,7 @@ class SemanticHashSuite extends HailSuite {
           override def file_version: Int =
             1
           override def hail_version: String =
-            HAIL_PRETTY_VERSION
+            PrettyVersion
           override def components: Map[String, ComponentSpec] =
             Map.empty
           override def toJValue: JValue = ???

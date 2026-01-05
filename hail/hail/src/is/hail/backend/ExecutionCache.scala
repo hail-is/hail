@@ -27,7 +27,7 @@ case object ExecutionCache {
     if (Option(flags.get(Flags.UseFastRestarts)).isEmpty) noCache
     else fsCache(
       fs,
-      Option(flags.get(Flags.Cachedir)).getOrElse(s"$tmpdir/hail/${is.hail.HAIL_PIP_VERSION}"),
+      Option(flags.get(Flags.Cachedir)).getOrElse(s"$tmpdir/hail/${is.hail.PipVersion}"),
     )
 
   def fsCache(fs: FS, cachedir: String): ExecutionCache = {

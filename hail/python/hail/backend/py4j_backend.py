@@ -82,7 +82,7 @@ def raise_when_mismatched_hail_versions(jvm: JVMView) -> None:
         )
 
     _is = getattr(jvm, 'is')
-    jar_version = scala_package_object(_is.hail).HAIL_PRETTY_VERSION()
+    jar_version = scala_package_object(_is.hail).PrettyVersion()
     if jar_version != __version__:
         raise RuntimeError(
             f"Hail version mismatch between JAR and Python library\n  JAR:    {jar_version}\n  Python: {__version__}"

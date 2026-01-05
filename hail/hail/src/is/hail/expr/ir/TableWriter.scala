@@ -439,7 +439,7 @@ class TableSpecHelper(
   def write(fs: FS, partCounts: Array[Long], distinctlyKeyed: Boolean): Unit = {
     val spec = TableSpecParameters(
       FileFormat.version.rep,
-      is.hail.HAIL_PRETTY_VERSION,
+      is.hail.PrettyVersion,
       refRelPath,
       typ,
       Map(
