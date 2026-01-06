@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import pprint
 import re
 import secrets
 
@@ -316,9 +317,8 @@ def test_input_dependency_wildcard(client, remote_tmpdir):
         parents=[head],
     )
     batch.submit()
-    log.info(f'Wilcard test: batch.debug_info(): {batch.debug_info()}')
-    log.info(f'Wilcard test: head.debug_info(): {head.debug_info()}')
-    log.info(f'Wilcard test: tail.debug_info(): {tail.debug_info()}')
+    # Pretty print debug_info:
+    log.info(f'TODO REMOVE ME: Wildcard test: batch.debug_info(): {pprint.pformat(batch.debug_info())}')
     tail.wait()
     head_status = head.status()
     assert head._get_exit_code(head_status, 'input') != 0, str((head_status, batch.debug_info()))
