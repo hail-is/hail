@@ -5,10 +5,10 @@ import is.hail.backend.ExecuteContext
 import is.hail.expr.Nat
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.lowering.{BMSContexts, BlockMatrixStage2, LowererUnsupportedOperation}
-import is.hail.io.{StreamBufferSpec, TypedCodecSpec}
+import is.hail.io.TypedCodecSpec
 import is.hail.io.fs.FS
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, MatrixSparsity}
-import is.hail.types.encoded.{EBlockMatrixNDArray, EFloat64, ENumpyBinaryNDArray}
+import is.hail.types.encoded.{EBlockMatrixNDArray, EFloat64}
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.utils.compat.immutable.ArraySeq
@@ -216,11 +216,7 @@ case class BlockMatrixBinaryReader(path: String, shape: IndexedSeq[Long], blockS
   }
 
   override def lower(ctx: ExecuteContext, evalCtx: IRBuilder): BlockMatrixStage2 = {
-    // FIXME numpy should be it's own value reader
-    val readFromNumpyEType = ENumpyBinaryNDArray(nRows, nCols, true)
-    val readFromNumpySpec =
-      TypedCodecSpec(readFromNumpyEType, TNDArray(TFloat64, Nat(2)), new StreamBufferSpec())
-    val reader = ETypeValueReader(readFromNumpySpec)
+    val reader = NumpyBinaryValueReader(nRows, nCols)
     val nd = evalCtx.memoize(ReadValue(Str(path), reader, TNDArray(TFloat64, nDimsBase = Nat(2))))
 
     val typ = fullType
