@@ -7,7 +7,8 @@ github_organization = "hail-is"
 
 # batch_gcp_regions is a JSON array of string, the names of the gcp
 # regions to schedule over in Batch. E.g. "[\"us-central1\"]"
-batch_gcp_regions = "[\"us-central1\"]"
+# Note: doesn't update the k8s secret in gcp-broad, but does impact which cloudnat resources are created.
+batch_gcp_regions = "[\"us-central1\",\"us-east1\",\"us-east4\",\"us-west1\",\"us-west2\",\"us-west3\",\"us-west4\"]"
 
 gcp_project = "hail-vdc"
 

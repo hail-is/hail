@@ -380,21 +380,31 @@ resource "google_compute_address" "internal_gateway" {
   region = var.gcp_region
 }
 
-# Cloud Router for GKE node outbound NAT
-resource "google_compute_router" "gke_node_outbound_router" {
-  name    = "gke-node-outbound-router"
-  region  = var.gcp_region
-  network = google_compute_network.default.id
+# Parse batch_gcp_regions to create Cloud NAT for all regions where batch instances can be created
+locals {
+  batch_regions = jsondecode(var.batch_gcp_regions)
 }
 
-# Cloud NAT Gateway for GKE private node outbound internet access
-resource "google_compute_router_nat" "gke_node_outbound_nat" {
-  name                               = "gke-node-outbound-nat"
-  router                            = google_compute_router.gke_node_outbound_router.name
-  region                            = var.gcp_region
+# Cloud Routers for outbound NAT in all batch regions
+resource "google_compute_router" "outbound_router" {
+  for_each = toset(local.batch_regions)
+  name     = "outbound-router-${each.key}"
+  region   = each.key
+  network  = google_compute_network.default.id
+}
+
+# Cloud NAT Gateways for outbound internet access in all batch regions
+resource "google_compute_router_nat" "outbound_nat" {
+  for_each = google_compute_router.outbound_router
+  name                               = "outbound-nat-${each.key}"
+  router                            = each.value.name
+  region                            = each.key
   nat_ip_allocate_option            = "AUTO_ONLY"
   source_subnetwork_ip_ranges_to_nat = "ALL_SUBNETWORKS_ALL_IP_RANGES"
-  
+  enable_dynamic_port_allocation     = true
+  min_ports_per_vm                  = 500
+  max_ports_per_vm                  = 8000
+
   log_config {
     enable = true
     filter = "ERRORS_ONLY"
