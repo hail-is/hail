@@ -4,6 +4,7 @@ import os
 import pprint
 import re
 import secrets
+import time
 
 import pytest
 from aiohttp import web
@@ -309,16 +310,25 @@ def test_input_dependency_wildcard(client, remote_tmpdir):
         DOCKER_ROOT_IMAGE,
         command=['/bin/sh', '-c', 'echo head1 > /io/data1 ; echo head2 > /io/data2'],
         output_files=[('/io/data1', f'{remote_tmpdir}/data1'), ('/io/data2', f'{remote_tmpdir}/data2')],
+        name='head',
     )
     tail = batch.create_job(
         DOCKER_ROOT_IMAGE,
         command=['/bin/sh', '-c', 'cat /io/data1 ; cat /io/data2'],
         input_files=[(f'{remote_tmpdir}/data1', '/io/data1'), (f'{remote_tmpdir}/data2', '/io/data2')],
         parents=[head],
+        name='tail',
     )
     batch.submit()
     # Pretty print debug_info:
     log.info(f'TODO REMOVE ME: Wildcard test: batch.debug_info(): {pprint.pformat(batch.debug_info())}')
+    head.wait()
+    log.info(f'TODO REMOVE ME: Wildcard test: batch.debug_info() after head wait: {pprint.pformat(batch.debug_info())}')
+    # Wait 20 seconds
+    time.sleep(20)
+    log.info(
+        f'TODO REMOVE ME: Wildcard test: batch.debug_info() after 20 seconds: {pprint.pformat(batch.debug_info())}'
+    )
     tail.wait()
     head_status = head.status()
     assert head._get_exit_code(head_status, 'input') != 0, str((head_status, batch.debug_info()))
