@@ -99,7 +99,7 @@ class NormalizeNames(freeVariables: Set[Name]) {
       }
       Recur(newName, args, typ).mapChildrenStackSafe(normalizeIR(_, env))
     case ir =>
-      val bindingsMap = mutable.AnyRefMap.empty[Name, Name]
+      val bindingsMap = mutable.HashMap.empty[Name, Name]
       val updateEnv: (BindingEnv[Name], Bindings[Type]) => BindingEnv[Name] =
         if (needsRenaming(ir)) { (env, bindings) =>
           val bindingsNames = bindings.map((name, _) => bindingsMap.getOrElseUpdate(name, gen()))
