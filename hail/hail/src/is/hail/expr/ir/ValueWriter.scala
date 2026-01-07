@@ -48,7 +48,7 @@ final case class ETypeValueWriter(spec: AbstractTypedCodecSpec) extends ValueWri
 }
 
 final case class NumpyBinaryValueWriter(nRows: Long, nCols: Long) extends ValueWriter {
-  def writeValue(cb: EmitCodeBuilder, value: SValue, os: Value[OutputStream]): Unit = {
+  override def writeValue(cb: EmitCodeBuilder, value: SValue, os: Value[OutputStream]): Unit = {
     val ob = cb.memoize(new StreamBufferSpec().buildCodeOutputBuffer(os))
     val ndarray = value.asNDArray
     assert(ndarray.st.elementType == SFloat64)

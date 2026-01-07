@@ -59,10 +59,10 @@ final case class ETypeValueReader(spec: AbstractTypedCodecSpec) extends ValueRea
 final case class NumpyBinaryValueReader(nRows: Long, nCols: Long) extends ValueReader {
   final private val st = SNDArrayPointer(PCanonicalNDArray(PFloat64(true), 2, false))
 
-  def unionRequiredness(requestedType: Type, requiredness: TypeWithRequiredness): Unit =
+  override def unionRequiredness(requestedType: Type, requiredness: TypeWithRequiredness): Unit =
     requiredness.fromPType(st.pType.setRequired(true))
 
-  def readValue(cb: EmitCodeBuilder, t: Type, region: Value[Region], is: Value[InputStream])
+  override def readValue(cb: EmitCodeBuilder, t: Type, region: Value[Region], is: Value[InputStream])
     : SValue = {
     val pt = st.pType
 
@@ -78,7 +78,7 @@ final case class NumpyBinaryValueReader(nRows: Long, nCols: Long) extends ValueR
     val i = cb.newLocal[Long]("i")
     cb.for_(
       cb.assign(i, 0L),
-      i < cb.memoize(nRows * nCols),
+      i < nRows * nCols,
       cb.assign(i, i + 1L), {
         val elem = SFloat64Value(cb.memoize(in.readDouble()))
         pt.elementType.storeAtAddress(cb, currElementAddress, region, elem, false)
