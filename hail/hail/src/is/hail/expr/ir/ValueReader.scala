@@ -69,8 +69,6 @@ final case class NumpyBinaryValueReader(nRows: Long, nCols: Long) extends ValueR
     val stride0 = cb.newLocal[Long]("stride0", nCols * pt.elementType.byteSize)
     val stride1 = cb.newLocal[Long]("stride1", pt.elementType.byteSize)
 
-    val n = cb.newLocal[Long]("length", nRows * nCols)
-
     val in = cb.memoize(new StreamBufferSpec().buildCodeInputBuffer(is))
     val (tFirstElementAddress, tFinisher) =
       pt.constructDataFunction(IndexedSeq(nRows, nCols), IndexedSeq(stride0, stride1), cb, region)
@@ -80,7 +78,7 @@ final case class NumpyBinaryValueReader(nRows: Long, nCols: Long) extends ValueR
     val i = cb.newLocal[Long]("i")
     cb.for_(
       cb.assign(i, 0L),
-      i < n,
+      i < cb.memoize(nRows * nCols),
       cb.assign(i, i + 1L), {
         val elem = SFloat64Value(cb.memoize(in.readDouble()))
         pt.elementType.storeAtAddress(cb, currElementAddress, region, elem, false)
