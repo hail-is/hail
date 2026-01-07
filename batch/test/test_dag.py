@@ -308,20 +308,37 @@ def test_input_dependency_wildcard(client, remote_tmpdir):
     batch = create_batch(client)
     head = batch.create_job(
         DOCKER_ROOT_IMAGE,
-        command=['/bin/sh', '-c', 'echo head1 > /io/data1 ; echo head2 > /io/data2'],
-        output_files=[('/io/data1', f'{remote_tmpdir}/data1'), ('/io/data2', f'{remote_tmpdir}/data2')],
+        command=[
+            '/bin/sh',
+            '-c',
+            'echo wildcard-head1 > /io/wildcard-data1 ; echo wildcard-head2 > /io/wildcard-data2',
+        ],
+        output_files=[
+            ('/io/wildcard-data1', f'{remote_tmpdir}/wildcard-data1'),
+            ('/io/wildcard-data2', f'{remote_tmpdir}/wildcard-data2'),
+        ],
         attributes={'name': 'head'},
     )
     tail = batch.create_job(
         DOCKER_ROOT_IMAGE,
-        command=['/bin/sh', '-c', 'cat /io/data1 ; cat /io/data2'],
-        input_files=[(f'{remote_tmpdir}/data1', '/io/data1'), (f'{remote_tmpdir}/data2', '/io/data2')],
+        command=['/bin/sh', '-c', 'cat /io/wildcard-data1 ; cat /io/wildcard-data2'],
+        input_files=[
+            (f'{remote_tmpdir}/wildcard-data1', '/io/wildcard-data1'),
+            (f'{remote_tmpdir}/wildcard-data2', '/io/wildcard-data2'),
+        ],
         parents=[head],
         attributes={'name': 'tail'},
     )
     batch.submit()
     # Pretty print debug_info:
     log.info(f'TODO REMOVE ME: Wildcard test: batch.debug_info(): {pprint.pformat(batch.debug_info())}')
+    time.sleep(10)
+    log.info(
+        f'TODO REMOVE ME: Wildcard test: batch.debug_info() after 10 seconds: {pprint.pformat(batch.debug_info())}'
+    )
+    head_log = head.container_log('main')
+    log.info(f'TODO REMOVE ME: Wildcard test: head_log: {head_log}')
+    log.info('Waiting for head job to complete...')
     head.wait()
     log.info(f'TODO REMOVE ME: Wildcard test: batch.debug_info() after head wait: {pprint.pformat(batch.debug_info())}')
     # Wait 20 seconds
