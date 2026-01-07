@@ -4,8 +4,8 @@ import is.hail.asm4s._
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, StreamBufferSpec, TypedCodecSpec}
 import is.hail.types.encoded._
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.primitives.SFloat64
 import is.hail.types.physical.stypes.SValue
+import is.hail.types.physical.stypes.primitives.SFloat64
 import is.hail.types.virtual._
 import is.hail.utils._
 
@@ -63,7 +63,7 @@ final case class NumpyBinaryValueWriter(nRows: Long, nCols: Long) extends ValueW
         cb.assign(j, 0L),
         j < nCols,
         cb.assign(j, j + 1L),
-        cb += ob.writeDouble(ndarray.loadElement(FastSeq(i, j), cb).asFloat64.value)
+        cb += ob.writeDouble(ndarray.loadElement(FastSeq(i, j), cb).asFloat64.value),
       ),
     )
 

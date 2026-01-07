@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, TypedCodecSpec, StreamBufferSpec}
+import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, StreamBufferSpec, TypedCodecSpec}
 import is.hail.types.TypeWithRequiredness
 import is.hail.types.encoded._
 import is.hail.types.physical._
@@ -57,7 +57,7 @@ final case class ETypeValueReader(spec: AbstractTypedCodecSpec) extends ValueRea
 }
 
 final case class NumpyBinaryValueReader(nRows: Long, nCols: Long) extends ValueReader {
-  private final val st = SNDArrayPointer(PCanonicalNDArray(PFloat64(true), 2, false))
+  final private val st = SNDArrayPointer(PCanonicalNDArray(PFloat64(true), 2, false))
 
   def unionRequiredness(requestedType: Type, requiredness: TypeWithRequiredness): Unit =
     requiredness.fromPType(st.pType.setRequired(true))
