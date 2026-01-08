@@ -22,7 +22,7 @@ import org.json4s.{
   CustomSerializer, DefaultFormats, Extraction, Formats, JInt, JNull, JObject, JString,
 }
 import org.json4s.JsonAST.{JArray, JBool}
-import org.json4s.jackson.JsonMethods
+import org.json4s.jackson.compactJson
 
 case class BatchRequest(
   billing_project: String,
@@ -315,15 +315,15 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
     val q = status.map(s => s"state=${s.toString.toLowerCase}").getOrElse("")
     paginated(Some(0): Option[Int]) {
       case Some(jobId) =>
-        req.get(
-          s"/api/v2alpha/batches/$batchId/job-groups/$jobGroupId/jobs?q=${URLEncoder.encode(q, UTF_8)}&last_job_id=$jobId"
+        val response =
+          req.get(
+            s"/api/v2alpha/batches/$batchId/job-groups/$jobGroupId/jobs?q=${URLEncoder.encode(q, UTF_8)}&last_job_id=$jobId"
+          )
+
+        (
+          (response \ "jobs").extract[IndexedSeq[JobListEntry]],
+          (response \ "last_job_id").extract[Option[Int]],
         )
-          .as { case obj: JObject =>
-            (
-              (obj \ "jobs").extract[IndexedSeq[JobListEntry]],
-              (obj \ "last_job_id").extract[Option[Int]],
-            )
-          }
       case None =>
         (IndexedSeq.empty, None)
     }
@@ -396,7 +396,7 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
   }
 
   private[this] def jobToJson(j: JobRequest, jobIdx: Int): String =
-    JsonMethods.compact {
+    compactJson {
       Extraction.decompose(j)
         .asInstanceOf[JObject]
         .merge(
@@ -412,9 +412,9 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
         )
     }
 
-  private[this] def beginUpdate(batchId: Int, token: String, nJobs: Int): (Int, Int, Int) =
-    req
-      .post(
+  private[this] def beginUpdate(batchId: Int, token: String, nJobs: Int): (Int, Int, Int) = {
+    val response =
+      req.post(
         s"/api/v1alpha/batches/$batchId/updates/create",
         JObject(
           "token" -> JString(token),
@@ -422,13 +422,13 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
           "n_job_groups" -> JInt(1),
         ),
       )
-      .as { case obj: JObject =>
-        (
-          (obj \ "update_id").extract[Int],
-          (obj \ "start_job_group_id").extract[Int],
-          (obj \ "start_job_id").extract[Int],
-        )
-      }
+
+    (
+      (response \ "update_id").extract[Int],
+      (response \ "start_job_group_id").extract[Int],
+      (response \ "start_job_id").extract[Int],
+    )
+  }
 
   private[this] def commitUpdate(batchId: Int, updateId: Int): Unit =
     req.patch(s"/api/v1alpha/batches/$batchId/updates/$updateId/commit"): Unit

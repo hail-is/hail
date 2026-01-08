@@ -16,7 +16,7 @@ import scala.collection.compat._
 import scala.collection.mutable
 
 import org.json4s.DefaultFormats
-import org.json4s.jackson.{JsonMethods, Serialization}
+import org.json4s.jackson.{compactJson, Serialization}
 
 object Pretty {
   def apply(
@@ -239,7 +239,7 @@ class Pretty(
       FastSeq(
         typ.parsableString(),
         if (!elideLiterals)
-          prettyStringLiteral(JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(value, typ)))
+          prettyStringLiteral(compactJson(JSONAnnotationImpex.exportAnnotation(value, typ)))
         else
           "<literal value>",
       )
@@ -439,7 +439,7 @@ class Pretty(
         Pretty.prettyBooleanLiteral(dropCols),
         Pretty.prettyBooleanLiteral(dropRows),
         if (elideLiterals) reader.renderShort()
-        else '"' + StringEscapeUtils.escapeString(JsonMethods.compact(reader.toJValue)) + '"',
+        else '"' + StringEscapeUtils.escapeString(compactJson(reader.toJValue)) + '"',
       )
     case MatrixWrite(_, writer) =>
       single('"' + StringEscapeUtils.escapeString(
@@ -450,7 +450,7 @@ class Pretty(
         Serialization.write(writer)(MatrixNativeMultiWriter.formats)
       ) + '"')
     case BlockMatrixRead(reader) =>
-      single('"' + StringEscapeUtils.escapeString(JsonMethods.compact(reader.toJValue)) + '"')
+      single('"' + StringEscapeUtils.escapeString(compactJson(reader.toJValue)) + '"')
     case BlockMatrixWrite(_, writer) =>
       single('"' + StringEscapeUtils.escapeString(
         Serialization.write(writer)(BlockMatrixWriter.formats)
@@ -515,7 +515,7 @@ class Pretty(
         if (typ == tr.fullType) "None" else typ.parsableString(),
         Pretty.prettyBooleanLiteral(dropRows),
         if (elideLiterals) tr.renderShort()
-        else '"' + StringEscapeUtils.escapeString(JsonMethods.compact(tr.toJValue)) + '"',
+        else '"' + StringEscapeUtils.escapeString(compactJson(tr.toJValue)) + '"',
       )
     case TableWrite(_, writer) =>
       single(
@@ -561,7 +561,7 @@ class Pretty(
     case MatrixToTableApply(_, function) =>
       single(prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats)))
     case TableToTableApply(_, function) =>
-      single(prettyStringLiteral(JsonMethods.compact(function.toJValue)))
+      single(prettyStringLiteral(compactJson(function.toJValue)))
     case TableToValueApply(_, function) =>
       single(prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats)))
     case MatrixToValueApply(_, function) =>
@@ -626,15 +626,15 @@ class Pretty(
     case RelationalLetTable(name, _, _) => single(prettyName(name))
     case RelationalLetMatrixTable(name, _, _) => single(prettyName(name))
     case ReadPartition(_, rowType, reader) =>
-      FastSeq(rowType.parsableString(), prettyStringLiteral(JsonMethods.compact(reader.toJValue)))
+      FastSeq(rowType.parsableString(), prettyStringLiteral(compactJson(reader.toJValue)))
     case WritePartition(_, _, writer) =>
-      single(prettyStringLiteral(JsonMethods.compact(writer.toJValue)))
+      single(prettyStringLiteral(compactJson(writer.toJValue)))
     case WriteMetadata(_, writer) =>
-      single(prettyStringLiteral(JsonMethods.compact(writer.toJValue), elide = elideLiterals))
+      single(prettyStringLiteral(compactJson(writer.toJValue), elide = elideLiterals))
     case ReadValue(_, reader, reqType) =>
-      FastSeq(prettyStringLiteral(JsonMethods.compact(reader.toJValue)), reqType.parsableString())
+      FastSeq(prettyStringLiteral(compactJson(reader.toJValue)), reqType.parsableString())
     case WriteValue(_, _, writer, _) =>
-      single(prettyStringLiteral(JsonMethods.compact(writer.toJValue)))
+      single(prettyStringLiteral(compactJson(writer.toJValue)))
     case MakeNDArray(_, _, _, errorId) => FastSeq(errorId.toString)
 
     case _ => Iterable.empty

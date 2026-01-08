@@ -12,7 +12,7 @@ import org.apache.logging.log4j.Level
 import org.apache.logging.log4j.core.appender.ConsoleAppender
 import org.apache.logging.log4j.core.config.builder.api.ConfigurationBuilderFactory
 import org.json4s.JsonAST._
-import org.json4s.jackson.JsonMethods
+import org.json4s.jackson.compactJson
 
 trait Py4jUtils extends Logging {
   def arrayToArrayList[T](arr: Array[T]): java.util.ArrayList[T] = {
@@ -56,17 +56,17 @@ trait Py4jUtils extends Logging {
 
   def ls(fs: FS, path: String): String = {
     val statuses = fs.listDirectory(path)
-    JsonMethods.compact(JArray(statuses.map(fs => fileListEntryToJson(fs)).toList))
+    compactJson(JArray(statuses.map(fs => fileListEntryToJson(fs)).toList))
   }
 
   def fileStatus(fs: FS, path: String): String = {
     val stat = fs.fileStatus(path)
-    JsonMethods.compact(fileStatusToJson(stat))
+    compactJson(fileStatusToJson(stat))
   }
 
   def fileListEntry(fs: FS, path: String): String = {
     val stat = fs.fileListEntry(path)
-    JsonMethods.compact(fileListEntryToJson(stat))
+    compactJson(fileListEntryToJson(stat))
   }
 
   private def fileStatusToJson(fs: FileStatus): JObject = {
@@ -192,7 +192,7 @@ trait Py4jUtils extends Logging {
 
   def makeJSON(t: Type, value: Any): String = {
     val jv = JSONAnnotationImpex.exportAnnotation(value, t)
-    JsonMethods.compact(jv)
+    compactJson(jv)
   }
 }
 

@@ -3,7 +3,7 @@ package is.hail.types.virtual
 import is.hail.annotations.{Annotation, ExtendedOrdering}
 import is.hail.backend.HailStateManager
 
-import org.json4s.jackson.JsonMethods
+import org.json4s.jackson.compactJson
 
 final case class TArray(elementType: Type) extends TContainer {
   override def pyString(sb: StringBuilder): Unit = {
@@ -40,7 +40,7 @@ final case class TArray(elementType: Type) extends TContainer {
       .map(elt => elementType.showStr(elt))
       .mkString("[", ",", "]")
 
-  override def str(a: Annotation): String = JsonMethods.compact(export(a))
+  override def str(a: Annotation): String = compactJson(export(a))
 
   def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =
     ExtendedOrdering.iterableOrdering(elementType.ordering(sm), missingEqual)

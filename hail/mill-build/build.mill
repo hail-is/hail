@@ -1,30 +1,55 @@
 package build
 
-import mill.T
-import mill.api.{PathRef, Task, TaskCtx}
+import mill.*
+import mill.api.{BuildCtx, Logger, TaskCtx, Result}
 import mill.meta.MillBuildRootModule
-import mill.scalalib.Dep
+import mill.scalalib.*
 
-import millbuild.BuildMode
+import millbuild.{BuildMode, DeployEnvironment}
+import millbuild.DeployEnvironment.*
 import millbuild.MvnCoordinate.*
 
+import scala.collection.{IterableOps, SeqOps}
 import scala.collection.immutable.ArraySeq
 
-extension [A, F[+X] <: Iterable[X]] (as: F[A])
-  def quoted: Iterable[String] =
+
+extension [A, F[+X] <: IterableOps[X, F, F[X]]] (as: F[A])
+  def quoted: F[String] =
     as.map(i => s"\"$i\"")
 
   infix def or[B >: A](alternative: => F[B]): F[B] =
     if as.nonEmpty then as else alternative
 
+  def --[T[+X] <: SeqOps[X, T, T[X]]](excluded: T[A]): F[A] =
+    as.filterNot(excluded `contains` _)
+
+
+lazy val AllEnvironments: Seq[DeployEnvironment] =
+  val `managed-spark-environments` =
+    ArraySeq(
+      `dataproc-2.3.x`,
+      `dataproc-3.0.x`,
+      `hdinsight-5.1`,
+    )
+
+  val `generic-spark-environments` =
+    build.`pyspark-bom`.items.map { item =>
+      val List(scalaVersion, sparkVersion) = item.crossSegments
+      Generic(scalaVersion, sparkVersion)
+    }
+
+  `managed-spark-environments` ++ `generic-spark-environments`
+
+lazy val SupportedScalaVersions: Seq[String] =
+  AllEnvironments.map(_.scalaVersion).distinct.sorted
+
+lazy val SupportedSparkVersions: Seq[String] =
+  AllEnvironments.map(_.sparkVersion).distinct
 
 object `package` extends MillBuildRootModule:
 
-  private val SupportedScalaVersions =
-    Set("2.12", "2.12.13", "2.13")
-
   override def mvnDeps: T[Seq[Dep]] =
-    Seq(
+    ArraySeq(
       `mill-scalafix` :::: "0.6.0",
       `scalac-options` :: "0.1.8",
     )
@@ -35,45 +60,56 @@ object `package` extends MillBuildRootModule:
   override def sources: T[Seq[PathRef]] =
     super.sources() ++ customSources()
 
-  def generatedSources: T[Seq[PathRef]] = Task {
-    os.write(
-      Task.dest / "BuildConfig.scala",
-      s"""package millbuild
-         |
-         |import scala.collection.immutable.*
-         |
-         |object BuildConfig {
-         |  val buildMode =
-         |    BuildMode.${buildMode().getOrElse(BuildMode.Release)}
-         |  val enabledScalaVersions =
-         |    ${(enabledScalaVersions() or SupportedScalaVersions.to(ArraySeq)).quoted}
-         |}
-      """.stripMargin
-    )
-    super.generatedSources() ++ Seq(PathRef(Task.dest))
-  }
+  override def generatedSources: T[Seq[PathRef]] =
+    Task {
+      val enabled = enabledDeployEnvironments()
 
-  def getConfig(name: String)(implicit ctx: TaskCtx.Env): Seq[String] =
+      os.write(
+        Task.dest / "BuildConfig.scala",
+        s"""package millbuild
+           |
+           |import scala.collection.immutable._
+           |
+           |object BuildConfig:
+           |  val BuildMode = millbuild.BuildMode.${buildMode().getOrElse(BuildMode.Release)}
+           |  val DeployEnvironments = ${(enabled ++ (AllEnvironments -- enabled)).quoted}
+           |  val BspEnableEnvironments = ${(enabled or AllEnvironments).quoted}
+           |""".stripMargin
+      )
+
+      publishedLocalMvnBoms()
+
+      super.generatedSources() :+ PathRef(Task.dest)
+    }
+
+  def publishedLocalMvnBoms: T[Seq[PathRef]] =
+    Task {
+      given TaskCtx.Log with
+        def log: Logger = Logger.DummyLogger
+
+      Task
+        .sequence {
+          for {m: PublishModule <- build.`pyspark-bom`.crossModules}
+            yield m.publishM2LocalCached
+        }
+        .apply()
+        .flatten
+    }
+
+  def configDir: T[PathRef] =
+    Task.Source("config")
+
+  def getConfig(name: String)(implicit ctx: TaskCtx): Seq[String] =
     ctx.env
       .get(name map { case '-' => '_'; case c => c.toUpper })
       .orElse {
-        val path = moduleDir / "config" / name
+        val path = configDir.evaluate(ctx).get.path / name
         Option.when(os.exists(path))(os.read(path))
       }
       .to(ArraySeq)
       .flatMap(_.split(',').map(_.strip))
 
-  def enabledScalaVersions: T[Seq[String]] =
-    Task.Input {
-      getConfig("scala-version").tapEach { ver =>
-        require(
-          SupportedScalaVersions `contains` ver,
-          s"SCALA_VERSION may be one of ${SupportedScalaVersions.quoted.mkString(",")}; found '$ver'."
-        )
-      }
-    }
-
-  def buildMode: T[Option[BuildMode]] =
+  def buildMode: Task[Option[BuildMode]] =
     Task.Input {
       getConfig("hail-build-mode").headOption.map { raw =>
         try
@@ -81,8 +117,37 @@ object `package` extends MillBuildRootModule:
         catch {
           case _: Throwable =>
             sys.error(
-              s"HAIL_BUILD_MODE must be set to one of ${BuildMode.values.mkString("{", ", ", "}")}; found '$raw'"
+              s"HAIL_BUILD_MODE may be one of ${BuildMode.values.mkString("{", ", ", "}")}; found '$raw'"
             )
+        }
+      }
+    }
+
+  def enabledDeployEnvironments: T[Seq[DeployEnvironment]] =
+    Task.Input {
+      Result.Success {
+        val (named, generic) =
+          getConfig("hail-deploy-environment").partitionMap {
+            DeployEnvironment.read(_) match
+              case generic: Generic => Right(generic)
+              case named: DeployEnvironment => Left(named)
+          }
+
+        val fromEnv =
+          for {
+            scala <- getConfig("scala-version")
+            spark <- getConfig("spark-version")
+          } yield DeployEnvironment.Generic(scala, spark)
+
+        named ++ (generic ++ fromEnv).tapEach { t =>
+          require(
+            SupportedScalaVersions `exists` (_ `startsWith` t.scalaVersion),
+            s"scala version may be a prefix of ${SupportedScalaVersions.quoted.mkString(",")}; got '${t.scalaVersion}'."
+          )
+          require(
+            SupportedSparkVersions `contains` t.sparkVersion,
+            s"SPARK_VERSION may be one of ${SupportedSparkVersions.quoted.mkString(",")}; found '${t.sparkVersion}'."
+          )
         }
       }
     }

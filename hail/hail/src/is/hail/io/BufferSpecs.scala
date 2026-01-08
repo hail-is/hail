@@ -8,7 +8,7 @@ import is.hail.rvd.AbstractRVDSpec
 import java.io._
 
 import org.json4s.{JValue, ShortTypeHints}
-import org.json4s.jackson.JsonMethods
+import org.json4s.jackson.parseJson
 
 object BufferSpec {
   val zstdCompressionLEB: BufferSpec = LEB128BufferSpec(
@@ -52,7 +52,7 @@ object BufferSpec {
 
   def parse(s: String): BufferSpec = {
     import AbstractRVDSpec.formats
-    JsonMethods.parse(s).extract[BufferSpec]
+    parseJson(s).extract[BufferSpec]
   }
 
   def parseOrDefault(

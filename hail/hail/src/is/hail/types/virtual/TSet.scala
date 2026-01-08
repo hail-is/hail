@@ -3,7 +3,7 @@ package is.hail.types.virtual
 import is.hail.annotations.{Annotation, ExtendedOrdering}
 import is.hail.backend.HailStateManager
 
-import org.json4s.jackson.JsonMethods
+import org.json4s.jackson.compactJson
 
 final case class TSet(elementType: Type) extends TContainer {
   def _toPretty = s"Set[$elementType]"
@@ -43,7 +43,7 @@ final case class TSet(elementType: Type) extends TContainer {
       .map { case elt => elementType.showStr(elt) }
       .mkString("{", ",", "}")
 
-  override def str(a: Annotation): String = JsonMethods.compact(export(a))
+  override def str(a: Annotation): String = compactJson(export(a))
 
   override def valueSubsetter(subtype: Type): Any => Any = {
     assert(elementType == subtype.asInstanceOf[TSet].elementType)

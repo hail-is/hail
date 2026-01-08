@@ -1,0 +1,50 @@
+package build.`pyspark-bom`
+
+import mill.{Cross, PathRef, T}
+import mill.scalalib.{BomModule, CrossScalaModule, Dep, PublishModule}
+import mill.scalalib.publish.{Developer, License, PomSettings, VersionControl}
+
+import scala.collection.immutable.ArraySeq
+
+lazy val crossDepManagement: Map[(String, String), Seq[Dep]] =
+  (`pyspark-3-3-1` ++ `pyspark-3-5-3` ++ `pyspark-4-0-0`)
+    .map { d => (d.scalaVersion -> d.sparkVersion) -> d.depManagement }
+    .toMap
+
+object `package` extends Cross[PySparkBom](crossDepManagement.keySet.to(ArraySeq).sorted)
+trait PySparkBom extends CrossScalaModule, BomModule, PublishModule, Cross.Module2[String, String]:
+
+  override def enableBsp: Boolean =
+    false
+
+  override def artifactName: T[String] =
+    "pyspark-bom"
+
+  override def publishVersion: T[String] =
+    crossValue2
+
+  override def pomSettings: T[PomSettings] =
+    PomSettings(
+      description = s"PySpark ${publishVersion()} Bill of Materials (BoM)",
+      organization = "org.apache.spark",
+      url = "https://spark.apache.org/",
+      licenses = Seq(License.`Apache-2.0`),
+      versionControl = VersionControl.github("apache", "spark/tree/master/python"),
+      developers = Seq(),
+    )
+
+  override def depManagement: T[Seq[Dep]] =
+    crossDepManagement(crossValue -> crossValue2)
+
+  override def resources: T[Seq[PathRef]] =
+    Seq.empty
+
+  override def allSourceFiles: T[Seq[PathRef]] =
+    Seq.empty
+
+
+case class PySparkDistribution(
+  sparkVersion: String,
+  scalaVersion: String,
+  depManagement: Seq[Dep],
+)

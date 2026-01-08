@@ -15,7 +15,7 @@ import is.hail.utils._
 import scala.collection.compat._
 
 import org.apache.spark.sql.Row
-import org.json4s.jackson.JsonMethods
+import org.json4s.jackson.compactJson
 import org.scalatest.Inspectors.forAll
 import org.scalatest.enablers.InspectorAsserting.assertingNatureOfAssertion
 import org.testng.annotations.{DataProvider, Test}
@@ -39,7 +39,7 @@ class MatrixIRSuite extends HailSuite {
 
     val writer1 = MatrixNativeWriter(path, overwrite = true)
     val partType = TArray(TInterval(TStruct("row_idx" -> TInt32)))
-    val parts = JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(
+    val parts = compactJson(JSONAnnotationImpex.exportAnnotation(
       FastSeq(Interval(Row(0), Row(10), true, false)),
       partType,
     ))
