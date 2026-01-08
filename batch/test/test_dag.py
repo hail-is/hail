@@ -1,10 +1,8 @@
 import asyncio
 import logging
 import os
-import pprint
 import re
 import secrets
-import time
 
 import pytest
 from aiohttp import web
@@ -330,30 +328,11 @@ def test_input_dependency_wildcard(client, remote_tmpdir):
         attributes={'name': 'tail'},
     )
     batch.submit()
-    # Pretty print debug_info:
-    log.info(f'TODO REMOVE ME: Wildcard test: batch.debug_info(): {pprint.pformat(batch.debug_info())}')
-    time.sleep(10)
-    log.info(
-        f'TODO REMOVE ME: Wildcard test: batch.debug_info() after 10 seconds: {pprint.pformat(batch.debug_info())}'
-    )
-    head_log = head.container_log('main')
-    log.info(f'TODO REMOVE ME: Wildcard test: head_log: {head_log}')
-    log.info('Waiting for head job to complete...')
-    head.wait()
-    log.info(f'TODO REMOVE ME: Wildcard test: batch.debug_info() after head wait: {pprint.pformat(batch.debug_info())}')
-    # Wait 20 seconds
-    time.sleep(20)
-    log.info(
-        f'TODO REMOVE ME: Wildcard test: batch.debug_info() after 20 seconds: {pprint.pformat(batch.debug_info())}'
-    )
-    # Get container logs from the tail job:
-    tail_log = tail.container_log('main')
-    log.info(f'TODO REMOVE ME: Wildcard test: tail_log: {tail_log}')
     tail.wait()
     head_status = head.status()
     assert head._get_exit_code(head_status, 'input') != 0, str((head_status, batch.debug_info()))
     tail_log = tail.log()
-    assert tail_log['main'] == 'head1\nhead2\n', str((tail_log, batch.debug_info()))
+    assert tail_log['main'] == 'wildcard-head1\nwildcard-head2\n', str((tail_log, batch.debug_info()))
 
 
 def test_input_dependency_directory(client, remote_tmpdir):
