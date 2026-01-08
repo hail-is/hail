@@ -62,8 +62,12 @@ final case class NumpyBinaryValueReader(nRows: Long, nCols: Long) extends ValueR
   override def unionRequiredness(requestedType: Type, requiredness: TypeWithRequiredness): Unit =
     requiredness.fromPType(st.pType.setRequired(true))
 
-  override def readValue(cb: EmitCodeBuilder, t: Type, region: Value[Region], is: Value[InputStream])
-    : SValue = {
+  override def readValue(
+    cb: EmitCodeBuilder,
+    t: Type,
+    region: Value[Region],
+    is: Value[InputStream],
+  ): SValue = {
     val pt = st.pType
 
     val stride0 = cb.newLocal[Long]("stride0", nCols * pt.elementType.byteSize)
