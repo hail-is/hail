@@ -70,8 +70,8 @@ final case class NumpyBinaryValueReader(nRows: Long, nCols: Long) extends ValueR
   ): SValue = {
     val pt = st.pType
 
-    val stride0 = cb.newLocal[Long]("stride0", nCols * pt.elementType.byteSize)
-    val stride1 = cb.newLocal[Long]("stride1", pt.elementType.byteSize)
+    val stride0 = const(nCols * pt.elementType.byteSize)
+    val stride1 = const(pt.elementType.byteSize)
 
     val in = cb.memoize(new StreamBufferSpec().buildCodeInputBuffer(is))
     val (tFirstElementAddress, tFinisher) =
