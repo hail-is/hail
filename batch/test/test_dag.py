@@ -1,8 +1,10 @@
 import asyncio
 import logging
 import os
+import pprint
 import re
 import secrets
+import time
 
 import pytest
 from aiohttp import web
@@ -306,33 +308,33 @@ def test_input_dependency_wildcard(client, remote_tmpdir):
     batch = create_batch(client)
     head = batch.create_job(
         DOCKER_ROOT_IMAGE,
-        command=[
-            '/bin/sh',
-            '-c',
-            'echo wildcard-head1 > /io/wildcard-data1 ; echo wildcard-head2 > /io/wildcard-data2',
-        ],
-        output_files=[
-            ('/io/wildcard-data1', f'{remote_tmpdir}/wildcard-data1'),
-            ('/io/wildcard-data2', f'{remote_tmpdir}/wildcard-data2'),
-        ],
+        command=['/bin/sh', '-c', 'echo head1 > /io/data1 ; echo head2 > /io/data2'],
+        output_files=[('/io/data1', f'{remote_tmpdir}/data2-1'), ('/io/data2', f'{remote_tmpdir}/data2-2')],
         attributes={'name': 'head'},
     )
     tail = batch.create_job(
         DOCKER_ROOT_IMAGE,
-        command=['/bin/sh', '-c', 'cat /io/wildcard-data1 ; cat /io/wildcard-data2'],
-        input_files=[
-            (f'{remote_tmpdir}/wildcard-data1', '/io/wildcard-data1'),
-            (f'{remote_tmpdir}/wildcard-data2', '/io/wildcard-data2'),
-        ],
+        command=['/bin/sh', '-c', 'cat /io/data1 ; cat /io/data2'],
+        input_files=[(f'{remote_tmpdir}/data2-1', '/io/data1'), (f'{remote_tmpdir}/data2-2', '/io/data2')],
         parents=[head],
         attributes={'name': 'tail'},
     )
     batch.submit()
+
+    time.sleep(30)
+    head_log = head.log()
+    log.info(f'TODO REMOVE ME: head logs after 30 seconds: {pprint.pformat(head_log)}')
+    head.wait()
+
+    time.sleep(30)
+    tail_log = tail.log()
+    log.info(f'TODO REMOVE ME: tail logs after 60 seconds: {pprint.pformat(tail_log)}')
     tail.wait()
+
     head_status = head.status()
     assert head._get_exit_code(head_status, 'input') != 0, str((head_status, batch.debug_info()))
     tail_log = tail.log()
-    assert tail_log['main'] == 'wildcard-head1\nwildcard-head2\n', str((tail_log, batch.debug_info()))
+    assert tail_log['main'] == 'head1\nhead2\n', str((tail_log, batch.debug_info()))
 
 
 def test_input_dependency_directory(client, remote_tmpdir):
