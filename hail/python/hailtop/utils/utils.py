@@ -739,7 +739,9 @@ def delay_ms_for_try(
 async def sleep_before_try(
     tries: int, base_delay_ms: int = DEFAULT_BASE_DELAY_MS, max_delay_ms: int = DEFAULT_MAX_DELAY_MS
 ):
-    await asyncio.sleep(delay_ms_for_try(tries, base_delay_ms, max_delay_ms) / 1000.0)
+    delay_seconds = delay_ms_for_try(tries, base_delay_ms, max_delay_ms) / 1000.0
+    await asyncio.sleep(delay_seconds)
+    return delay_seconds
 
 
 def sync_sleep_before_try(
