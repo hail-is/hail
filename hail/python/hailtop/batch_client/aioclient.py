@@ -524,8 +524,8 @@ class JobGroup:
                 progress_task.update(None, total=status['n_jobs'], completed=status['n_completed'], cost=status['cost'])
                 if status['complete']:
                     return status
-                delay_seconds = 0.100 * random.randrange(math.floor(1.1**i))
-                await asyncio.sleep(delay_seconds)
+                j = random.randrange(math.floor(1.1**i))
+                await asyncio.sleep(0.100 * j)
                 # max 44.5s
                 if i < 64:
                     i = i + 1

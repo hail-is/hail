@@ -2812,7 +2812,7 @@ steps:
       - hail_ubuntu_image
   - kind: runImage
     name: test_batch
-    numSplits: 5
+    numSplits: 8
     image:
       valueFrom: batch_image.image
     script: |
