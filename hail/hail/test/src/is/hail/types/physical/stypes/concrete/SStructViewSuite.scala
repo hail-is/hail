@@ -1,11 +1,11 @@
 package is.hail.types.physical.stypes.concrete
 
 import is.hail.HailSuite
+import is.hail.collection.FastSeq
 import is.hail.types.physical.stypes.SType
 import is.hail.types.physical.stypes.interfaces.SBaseStruct
 import is.hail.types.tcoerce
 import is.hail.types.virtual.{TInt32, TInt64, TStruct}
-import is.hail.utils.FastSeq
 
 import org.testng.annotations.Test
 

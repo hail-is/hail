@@ -2,12 +2,12 @@ package is.hail.annotations
 
 import is.hail.HailSuite
 import is.hail.backend.ExecuteContext
+import is.hail.collection.FastSeq
 import is.hail.io._
 import is.hail.rvd.AbstractRVDSpec
 import is.hail.scalacheck._
 import is.hail.types.physical._
 import is.hail.types.virtual.{TArray, TStruct, Type}
-import is.hail.utils._
 
 import scala.util.Random
 

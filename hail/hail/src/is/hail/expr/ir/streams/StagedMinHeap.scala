@@ -2,12 +2,12 @@ package is.hail.expr.ir.streams
 
 import is.hail.annotations.{Region, RegionPool}
 import is.hail.asm4s._
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.{EmitClassBuilder, EmitCodeBuilder, EmitMethodBuilder, EmitModuleBuilder}
 import is.hail.expr.ir.agg.StagedArrayBuilder
 import is.hail.types.physical.PCanonicalArray
 import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.physical.stypes.interfaces.SIndexableValue
-import is.hail.utils.FastSeq
 
 sealed trait StagedMinHeap {
   def arraySType: SType

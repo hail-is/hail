@@ -1,12 +1,14 @@
 package is.hail.expr.ir
 
 import is.hail.backend.ExecuteContext
+import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
+import is.hail.collection.compat.mutable.Growable
+import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.functions.{WrappedMatrixToTableFunction, WrappedMatrixToValueFunction}
 import is.hail.types.virtual._
 import is.hail.utils._
-import is.hail.utils.compat.immutable.ArraySeq
-import is.hail.utils.compat.mutable.Growable
 
 object LowerMatrixIR {
   val entriesFieldName: String = MatrixType.entriesIdentifier

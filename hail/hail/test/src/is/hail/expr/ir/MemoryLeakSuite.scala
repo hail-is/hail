@@ -1,6 +1,8 @@
 package is.hail.expr.ir
 
 import is.hail.HailSuite
+import is.hail.collection.FastSeq
+import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir
 import is.hail.expr.ir.defs.{Literal, ToArray, ToStream}
 import is.hail.types.virtual.{TArray, TBoolean, TSet, TString}

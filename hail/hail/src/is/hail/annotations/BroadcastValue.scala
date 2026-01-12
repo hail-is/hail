@@ -6,8 +6,9 @@ import is.hail.expr.ir.defs.EncodedLiteral
 import is.hail.io.{BufferSpec, Decoder, TypedCodecSpec}
 import is.hail.types.physical.{PArray, PStruct, PType}
 import is.hail.types.virtual.{TBaseStruct, TStruct}
-import is.hail.utils.{formatSpace, ArrayOfByteArrayOutputStream, Logging}
-import is.hail.utils.prettyPrint.ArrayOfByteArrayInputStream
+import is.hail.utils.{
+  formatSpace, ArrayOfByteArrayInputStream, ArrayOfByteArrayOutputStream, Logging,
+}
 
 import java.io.InputStream
 

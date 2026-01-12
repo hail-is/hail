@@ -20,7 +20,7 @@ from py4j.java_gateway import (
 
 from hail.expr import construct_expr
 from hail.ir import CSERenderer, JavaIR
-from hail.utils.java import Env, FatalError, scala_package_object
+from hail.utils.java import Env, FatalError, scala_object, scala_package_object
 from hail.version import __version__
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
 from hailtop.aiotools.validators import validate_file
@@ -193,8 +193,8 @@ class Py4JBackend(Backend):
 
         self._jvm = jvm
         self._is = getattr(jvm, 'is')
-        self._utils_package_object = scala_package_object(self._is.hail.utils)
-        self._logger = Log4jLogger(self._utils_package_object)
+        self._py4jutils = scala_object(self._is.hail.utils, 'py4jutils')
+        self._logger = Log4jLogger(self._py4jutils)
 
         self._jbackend = self._is.hail.backend.driver.Py4JQueryDriver(jbackend)
         self._fs = None
@@ -213,8 +213,8 @@ class Py4JBackend(Backend):
     def hail_package(self) -> JavaPackage:
         return self._is.hail
 
-    def utils_package_object(self) -> JavaObject:
-        return self._utils_package_object
+    def py4jutils(self) -> JavaObject:
+        return self._py4jutils
 
     def validate_file(self, uri: str) -> None:
         fs = self.fs

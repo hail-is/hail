@@ -2,6 +2,7 @@ package is.hail.rvd
 
 import is.hail.annotations._
 import is.hail.backend.HailStateManager
+import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.IRParser
 import is.hail.types.physical.{PInterval, PStruct}
 import is.hail.utils._

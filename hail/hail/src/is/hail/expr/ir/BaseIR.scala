@@ -1,8 +1,8 @@
 package is.hail.expr.ir
 
 import is.hail.backend.ExecuteContext
+import is.hail.collection.implicits.toRichIndexedSeqAnyRef
 import is.hail.types.virtual.{Type, VType}
-import is.hail.utils._
 import is.hail.utils.StackSafe._
 
 case class Name(str: String) {

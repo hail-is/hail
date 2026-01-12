@@ -3,6 +3,7 @@ package is.hail.methods
 import is.hail.HailSuite
 import is.hail.annotations.Annotation
 import is.hail.expr.ir.{Interpret, MatrixValue, TableValue}
+import is.hail.sparkextras.implicits.toRichRDD
 import is.hail.utils._
 import is.hail.variant._
 
