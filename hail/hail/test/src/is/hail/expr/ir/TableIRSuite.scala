@@ -3,6 +3,8 @@ package is.hail.expr.ir
 import is.hail.{ExecStrategy, HailSuite}
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.annotations.SafeNDArray
+import is.hail.collection.FastSeq
+import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.Nat
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.analyses.PartitionCounts

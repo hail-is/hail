@@ -1,12 +1,12 @@
 package is.hail.expr.ir
 
+import is.hail.collection.compat.immutable.ArraySeq
+import is.hail.collection.compat.mutable.Growable
 import is.hail.expr.ir.defs.{
   BlockMatrixCollect, BlockMatrixToValueApply, LiftMeOut, RelationalLet, RelationalRef,
   TableAggregate, TableCollect, TableCount, TableGetGlobals, TableToValueApply,
 }
 import is.hail.types.virtual.TVoid
-import is.hail.utils.compat.immutable.ArraySeq
-import is.hail.utils.compat.mutable.Growable
 
 import scala.collection.mutable
 

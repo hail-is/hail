@@ -1,6 +1,7 @@
 package is.hail.expr.ir.functions
 
 import is.hail.asm4s._
+import is.hail.collection.FastSeq
 import is.hail.expr.ir._
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.orderings.CodeOrdering
@@ -11,7 +12,6 @@ import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SBooleanValue, SFloat64, SInt32, SInt32Value}
 import is.hail.types.tcoerce
 import is.hail.types.virtual._
-import is.hail.utils._
 
 object ArrayFunctions extends RegistryFunctions {
   val arrayOps: Array[(String, Type, Type, (IR, IR, Int) => IR)] =

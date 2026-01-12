@@ -2,6 +2,9 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.asm4s.implicits.{
+  valueToRichCodeInputBuffer, valueToRichCodeOutputBuffer, valueToRichCodeRegion,
+}
 import is.hail.expr.ir._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.types.VirtualTypeWithReq

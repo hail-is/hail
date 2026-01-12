@@ -1,7 +1,7 @@
 package is.hail.expr.ir.lowering
 
+import is.hail.collection.FastSeq
 import is.hail.rvd.RVD
-import is.hail.utils.FastSeq
 
 trait DependencySource
 

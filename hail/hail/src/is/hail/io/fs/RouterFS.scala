@@ -1,8 +1,9 @@
 package is.hail.io.fs
 
 import is.hail.HailFeatureFlags
+import is.hail.collection.FastSeq
 import is.hail.services.oauth2.{AzureCloudCredentials, GoogleCloudCredentials}
-import is.hail.utils.{FastSeq, SerializableHadoopConfiguration}
+import is.hail.utils.SerializableHadoopConfiguration
 
 import java.io.Serializable
 import java.nio.file.Path

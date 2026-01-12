@@ -1,6 +1,7 @@
 package is.hail.types.physical
 
 import is.hail.HailSuite
+import is.hail.collection.FastSeq
 import is.hail.rvd.AbstractRVDSpec
 import is.hail.types.virtual._
 import is.hail.utils._

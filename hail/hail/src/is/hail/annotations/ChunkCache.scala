@@ -1,6 +1,6 @@
 package is.hail.annotations
 
-import is.hail.expr.ir.LongArrayBuilder
+import is.hail.collection.LongArrayBuilder
 
 import scala.collection.mutable
 

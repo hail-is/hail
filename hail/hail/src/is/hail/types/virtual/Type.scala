@@ -2,10 +2,10 @@ package is.hail.types.virtual
 
 import is.hail.annotations._
 import is.hail.backend.HailStateManager
+import is.hail.collection.FastSeq
 import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex}
 import is.hail.expr.ir._
 import is.hail.utils
-import is.hail.utils._
 
 import org.apache.spark.sql.types.DataType
 import org.json4s.{CustomSerializer, JValue}
