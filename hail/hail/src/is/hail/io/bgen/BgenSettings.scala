@@ -1,5 +1,6 @@
 package is.hail.io.bgen
 
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.PruneDeadFields
 import is.hail.io._
 import is.hail.rvd.AbstractIndexSpec

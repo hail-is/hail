@@ -25,6 +25,7 @@ trait RootHailModule extends CrossScalaModule, HailScalaModule:
 
   override def moduleDeps: Seq[JavaModule] =
     Seq(
+      build.hail.utils(crossValue),
       build.hail.memory(if buildMode == CI then "debug" else "release"),
     )
     

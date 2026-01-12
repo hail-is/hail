@@ -1,5 +1,7 @@
 package is.hail.types.virtual
 
+import is.hail.collection.FastSeq
+import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir._
 import is.hail.rvd.RVDType
 import is.hail.types.physical.{PStruct, PType}

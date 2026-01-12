@@ -56,7 +56,7 @@ class Env:
 
     @staticmethod
     def jutils():
-        return Env.py4j_backend('Env.jutils').utils_package_object()
+        return Env.py4j_backend('Env.jutils').py4jutils()
 
     @staticmethod
     def hc() -> 'hail.context.HailContext':
@@ -142,7 +142,7 @@ def array_of(gateway: JavaGateway, clazz: JavaClass, *elems):
 
 
 def jindexed_seq(x):
-    return Env.jutils().arrayListToISeq(x)
+    return Env.jutils().pyArrayListToISeq(x)
 
 
 def jindexed_seq_args(x):
@@ -152,7 +152,7 @@ def jindexed_seq_args(x):
 
 def jiterable_to_list(it):
     if it is not None:
-        return list(Env.jutils().iterableToArrayList(it))
+        return list(Env.jutils().pyIterableToArrayList(it))
     else:
         return None
 

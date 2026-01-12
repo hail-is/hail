@@ -3,6 +3,7 @@ package is.hail.utils
 import is.hail.annotations.{Region, RegionValueBuilder, UnsafeIndexedSeq}
 import is.hail.asm4s._
 import is.hail.backend.{HailStateManager, HailTaskContext}
+import is.hail.collection.BinaryHeap
 import is.hail.io.fs.FS
 import is.hail.types.physical.PTuple
 import is.hail.variant.ReferenceGenome

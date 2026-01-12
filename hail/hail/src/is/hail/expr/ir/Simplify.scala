@@ -1,6 +1,9 @@
 package is.hail.expr.ir
 
 import is.hail.backend.ExecuteContext
+import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
+import is.hail.collection.implicits.{toRichIndexedSeq, toRichIterable, toRichMap}
 import is.hail.expr.ir.analyses.{ColumnCount, PartitionCounts, PartitionCountsOrColumnCount}
 import is.hail.expr.ir.defs._
 import is.hail.io.bgen.MatrixBGENReader
@@ -8,7 +11,6 @@ import is.hail.rvd.PartitionBoundOrdering
 import is.hail.types.tcoerce
 import is.hail.types.virtual._
 import is.hail.utils._
-import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.collection.mutable
 

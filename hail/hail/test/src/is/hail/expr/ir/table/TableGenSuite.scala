@@ -2,6 +2,7 @@ package is.hail.expr.ir.table
 
 import is.hail.{ExecStrategy, HailSuite}
 import is.hail.ExecStrategy.ExecStrategy
+import is.hail.collection.FastSeq
 import is.hail.expr.ir._
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.defs.{
@@ -11,7 +12,7 @@ import is.hail.expr.ir.defs.{
 import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR}
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.virtual._
-import is.hail.utils.{FastSeq, HailException, Interval}
+import is.hail.utils.{HailException, Interval}
 
 import org.apache.spark.SparkException
 import org.apache.spark.sql.Row

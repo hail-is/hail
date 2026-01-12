@@ -1,13 +1,13 @@
 package is.hail.expr.ir.analyses
 
 import is.hail.{HailSuite, PrettyVersion}
+import is.hail.collection.FastSeq
 import is.hail.expr.ir._
 import is.hail.expr.ir.defs._
 import is.hail.io.fs.{FS, FakeFS, FakeURL, FileListEntry}
 import is.hail.linalg.BlockMatrixMetadata
 import is.hail.rvd.AbstractRVDSpec
 import is.hail.types.virtual._
-import is.hail.utils.FastSeq
 
 import java.io.FileNotFoundException
 import java.lang

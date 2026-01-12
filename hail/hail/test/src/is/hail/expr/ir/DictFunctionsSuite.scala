@@ -2,10 +2,10 @@ package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
 import is.hail.ExecStrategy.ExecStrategy
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.defs.{NA, ToSet, ToStream}
 import is.hail.types.virtual._
-import is.hail.utils.FastSeq
 
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}

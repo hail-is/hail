@@ -1,6 +1,6 @@
 package is.hail.sparkextras
 
-import is.hail.utils.compat.immutable.ArraySeq
+import is.hail.collection.compat.immutable.ArraySeq
 
 import scala.reflect.ClassTag
 

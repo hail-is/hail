@@ -2,9 +2,10 @@ package is.hail.io
 
 import is.hail.{ExecStrategy, HailSuite}
 import is.hail.ExecStrategy.ExecStrategy
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.defs.{I64, MakeStruct, ReadPartition, Str, ToArray}
 import is.hail.io.avro.AvroPartitionReader
-import is.hail.utils.{fatal, using, FastSeq}
+import is.hail.utils.{fatal, using}
 
 import org.apache.avro.SchemaBuilder
 import org.apache.avro.file.DataFileWriter

@@ -2,10 +2,10 @@ package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
 import is.hail.ExecStrategy.ExecStrategy
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.defs.{ArraySlice, F32, F64, I32, In, MakeArray, NA, Str}
 import is.hail.types.virtual._
-import is.hail.utils.FastSeq
 
 import org.testng.annotations.{DataProvider, Test}
 

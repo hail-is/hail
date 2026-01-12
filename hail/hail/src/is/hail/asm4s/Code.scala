@@ -1,9 +1,10 @@
 package is.hail.asm4s
 
+import is.hail.collection.FastSeq
+import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.lir
 import is.hail.lir.{Block, ControlX, ValueX}
-import is.hail.utils._
 
 import scala.reflect.ClassTag
 

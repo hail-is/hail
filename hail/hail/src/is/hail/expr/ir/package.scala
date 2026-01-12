@@ -1,10 +1,13 @@
 package is.hail.expr
 
 import is.hail.asm4s._
+import is.hail.collection.FastSeq
+import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.lowering.TableStageDependency
 import is.hail.rvd.RVDPartitioner
+import is.hail.sparkextras.implicits._
 import is.hail.types.physical.stypes.SValue
 import is.hail.types.tcoerce
 import is.hail.types.virtual._
@@ -14,6 +17,9 @@ import is.hail.utils._
 import scala.collection.BufferedIterator
 
 import java.util.UUID
+
+import org.apache.commons.lang3.StringUtils
+import org.apache.spark.TaskContext
 
 package object ir {
   type TokenIterator = BufferedIterator[Token]
@@ -416,6 +422,15 @@ package object ir {
   }
 
   def logIR(result: IR, messages: AnyRef*): IR = ConsoleLog(strConcat(messages: _*), result)
+
+  def partFile(numDigits: Int, i: Int): String = {
+    val is = i.toString
+    assert(is.length <= numDigits)
+    "part-" + StringUtils.leftPad(is, numDigits, "0")
+  }
+
+  def partFile(d: Int, i: Int, ctx: TaskContext): String =
+    s"${partFile(d, i)}-${ctx.partSuffix}"
 
   implicit def toRichIndexedSeqEmitSettable(s: IndexedSeq[EmitSettable])
     : RichIndexedSeqEmitSettable = new RichIndexedSeqEmitSettable(s)

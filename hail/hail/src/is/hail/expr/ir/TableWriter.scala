@@ -1,9 +1,12 @@
 package is.hail.expr.ir
 
-import is.hail.GenericIndexedSeqSerializer
+import is.hail.PrettyVersion
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.asm4s.implicits.{valueToRichCodeOutputBuffer, valueToRichCodeRegion}
 import is.hail.backend.ExecuteContext
+import is.hail.collection.FastSeq
+import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.functions.StringFunctions
@@ -24,12 +27,13 @@ import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SBooleanValue, SInt64, SInt64Value}
 import is.hail.types.virtual._
 import is.hail.utils._
-import is.hail.utils.richUtils.ByteTrackingOutputStream
+import is.hail.utils.implicits.ByteTrackingOutputStream
 import is.hail.variant.ReferenceGenome
 
-import java.io.{BufferedOutputStream, OutputStream}
+import java.io.{BufferedOutputStream, OutputStream, OutputStreamWriter}
 import java.nio.file.{FileSystems, Path}
-import java.util.UUID
+import java.text.SimpleDateFormat
+import java.util.{Date, UUID}
 
 import org.json4s.{DefaultFormats, Formats, JBool, JObject, ShortTypeHints}
 
@@ -144,6 +148,17 @@ object TableNativeWriter {
         }
       }
     )
+  }
+
+  def writeFileReadMe(fs: FS, path: String): Unit = {
+    val dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss")
+    using(new OutputStreamWriter(fs.create(path + "/README.txt"))) { out =>
+      out.write(
+        s"""This folder comprises a Hail (www.hail.is) native Table or MatrixTable.
+           |  Written with version $PrettyVersion
+           |  Created at ${dateFormat.format(new Date())}""".stripMargin
+      )
+    }
   }
 }
 
@@ -614,8 +629,8 @@ case class RelationalCommit(path: String) extends MetadataWriter {
     region: Value[Region],
   ): Unit = {
     cb += Code.invokeScalaObject2[FS, String, Unit](
-      Class.forName("is.hail.utils.package$"),
-      "writeNativeFileReadMe",
+      Class.forName("is.hail.expr.ir.TableNativeWriter$"),
+      "writeFileReadMe",
       cb.emb.getFS,
       path,
     )
@@ -665,8 +680,8 @@ case class RelationalWriter(
     ) // PVoidCode.code is Code._empty
 
     cb += Code.invokeScalaObject2[FS, String, Unit](
-      Class.forName("is.hail.utils.package$"),
-      "writeNativeFileReadMe",
+      Class.forName("is.hail.expr.ir.TableNativeWriter$"),
+      "writeFileReadMe",
       cb.emb.getFS,
       path,
     )
@@ -1121,8 +1136,7 @@ class PartitionNativeFanoutWriter(
 
 object WrappedMatrixNativeMultiWriter {
   implicit val formats: Formats = MatrixNativeMultiWriter.formats +
-    ShortTypeHints(List(classOf[WrappedMatrixNativeMultiWriter])) +
-    GenericIndexedSeqSerializer
+    ShortTypeHints(List(classOf[WrappedMatrixNativeMultiWriter]))
 }
 
 case class WrappedMatrixNativeMultiWriter(

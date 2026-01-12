@@ -1,6 +1,6 @@
 package is.hail.io.gen
 
-import is.hail.expr.ir.ByteArrayBuilder
+import is.hail.collection.ByteArrayBuilder
 import is.hail.io.fs.FS
 
 object BgenWriter {

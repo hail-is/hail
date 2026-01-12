@@ -1,5 +1,6 @@
 package is.hail.io.vcf
 
+import is.hail.collection.implicits.toRichIterable
 import is.hail.io.{VCFAttributes, VCFFieldAttributes, VCFMetadata}
 import is.hail.io.compress.{BGzipLineReader, BGzipOutputStream}
 import is.hail.io.fs.FS

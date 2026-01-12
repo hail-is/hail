@@ -1,8 +1,8 @@
 package is.hail.linalg
 
 import is.hail.HailSuite
+import is.hail.expr.ir.ExportType
 import is.hail.scalacheck._
-import is.hail.utils._
 
 import breeze.linalg.DenseMatrix
 import org.scalatest

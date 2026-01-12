@@ -2,9 +2,9 @@ package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
 import is.hail.ExecStrategy.ExecStrategy
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.TestUtils._
 import is.hail.types.virtual.TFloat64
-import is.hail.utils.FastSeq
 
 import org.testng.annotations.{DataProvider, Test}
 

@@ -3,19 +3,20 @@ package is.hail.expr.ir.lowering
 import is.hail.annotations.{Annotation, ExtendedOrdering, Region, SafeRow}
 import is.hail.asm4s.{classInfo, AsmFunction1RegionLong, LongInfo}
 import is.hail.backend.{ExecuteContext, HailStateManager}
+import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir._
 import is.hail.expr.ir.compile.Compile
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.functions.{ArrayFunctions, IRRandomness, UtilFunctions}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.rvd.RVDPartitioner
+import is.hail.sparkextras.implicits.toRichRow
 import is.hail.types.{tcoerce, RTable, VirtualTypeWithReq}
 import is.hail.types.physical.{PArray, PStruct}
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.virtual._
 import is.hail.utils._
-import is.hail.utils.compat._
-import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag

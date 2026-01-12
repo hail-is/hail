@@ -3,6 +3,8 @@ package is.hail.expr.ir
 import is.hail.{ExecStrategy, HailSuite}
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.annotations.BroadcastRow
+import is.hail.collection.FastSeq
+import is.hail.collection.implicits.{toRichIterable, toRichOrderedArray}
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.defs.{

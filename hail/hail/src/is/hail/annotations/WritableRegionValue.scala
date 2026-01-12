@@ -1,9 +1,9 @@
 package is.hail.annotations
 
 import is.hail.backend.HailStateManager
+import is.hail.collection.compat.mutable.GrowableCompat
 import is.hail.rvd.RVDContext
 import is.hail.types.physical.{PStruct, PType}
-import is.hail.utils.compat.mutable.GrowableCompat
 
 import scala.collection.mutable.{ArrayBuffer, PriorityQueue}
 

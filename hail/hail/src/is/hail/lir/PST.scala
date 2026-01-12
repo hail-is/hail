@@ -1,6 +1,6 @@
 package is.hail.lir
 
-import is.hail.expr.ir.{BooleanArrayBuilder, IntArrayBuilder}
+import is.hail.collection.{BooleanArrayBuilder, IntArrayBuilder}
 
 import scala.collection.mutable
 

@@ -2,7 +2,9 @@ package is.hail.types.physical
 
 import is.hail.annotations.{Annotation, NDArray, Region, UnsafeOrdering}
 import is.hail.asm4s.{Code, _}
+import is.hail.asm4s.implicits.valueToRichCodeRegion
 import is.hail.backend.HailStateManager
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.{
   CodeParam, CodeParamType, EmitCode, EmitCodeBuilder, Param, ParamType, SCodeParam,
 }
@@ -10,7 +12,6 @@ import is.hail.types.physical.stypes.SValue
 import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual.{TNDArray, Type}
-import is.hail.utils._
 
 import org.apache.spark.sql.Row
 

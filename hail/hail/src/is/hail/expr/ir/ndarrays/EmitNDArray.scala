@@ -2,6 +2,8 @@ package is.hail.expr.ir.ndarrays
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir._
 import is.hail.expr.ir.defs.{
   NDArrayAgg, NDArrayConcat, NDArrayFilter, NDArrayMap, NDArrayMap2, NDArrayReindex, NDArrayReshape,
@@ -11,8 +13,6 @@ import is.hail.types.physical._
 import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual._
-import is.hail.utils._
-import is.hail.utils.compat.immutable.ArraySeq
 
 abstract class NDArrayProducer {
   outer =>

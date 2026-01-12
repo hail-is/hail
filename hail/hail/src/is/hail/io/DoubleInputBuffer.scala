@@ -1,7 +1,7 @@
 package is.hail.io
 
 import is.hail.annotations.Memory
-import is.hail.utils._
+import is.hail.utils.implicits.toRichInputStream
 
 import java.io.{Closeable, InputStream, OutputStream}
 

@@ -3,11 +3,11 @@ package is.hail.expr.ir
 import is.hail.{ExecStrategy, HailSuite}
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.asm4s._
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.defs.{ApplyBinaryPrimOp, I32, In}
 import is.hail.expr.ir.functions.{IRFunctionRegistry, RegistryFunctions}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual._
-import is.hail.utils.FastSeq
 import is.hail.variant.Call2
 
 import org.testng.annotations.Test

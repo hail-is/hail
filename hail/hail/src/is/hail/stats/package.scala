@@ -1,5 +1,6 @@
 package is.hail
 
+import is.hail.collection.implicits.toRichIterable
 import is.hail.types.physical.{PCanonicalStruct, PFloat64}
 import is.hail.utils._
 

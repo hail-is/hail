@@ -3,6 +3,7 @@ package is.hail.types.encoded
 import is.hail.annotations.Region
 import is.hail.asm4s.{coerce => _, _}
 import is.hail.backend.ExecuteContext
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.{
   EmitClassBuilder, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, IRParser, ParamType,
   PunctuationToken, TokenIterator,

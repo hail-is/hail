@@ -1,6 +1,7 @@
 package is.hail.expr.ir.functions
 
 import is.hail.asm4s._
+import is.hail.collection.FastSeq
 import is.hail.expr.Nat
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical.{PCanonicalArray, PCanonicalNDArray, PFloat64, PInt32}
@@ -9,7 +10,6 @@ import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SNDArrayPointe
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives._
 import is.hail.types.virtual._
-import is.hail.utils.FastSeq
 
 import net.sourceforge.jdistlib.{Beta, Gamma, HyperGeometric, Poisson}
 import net.sourceforge.jdistlib.rng.MersenneTwister

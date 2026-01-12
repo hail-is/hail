@@ -2,7 +2,8 @@ package is.hail.types.virtual
 
 import is.hail.annotations.ExtendedOrdering
 import is.hail.backend.HailStateManager
-import is.hail.utils.{FastSeq, Interval}
+import is.hail.collection.FastSeq
+import is.hail.utils.Interval
 
 case class TInterval(pointType: Type) extends Type {
 

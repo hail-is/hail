@@ -2,6 +2,7 @@ package is.hail.io
 
 import is.hail.HailSuite
 import is.hail.annotations.Annotation
+import is.hail.collection.implicits.{toRichIterable, toRichIterator}
 import is.hail.io.index._
 import is.hail.types.physical.{PCanonicalString, PCanonicalStruct, PInt32, PType}
 import is.hail.types.virtual._

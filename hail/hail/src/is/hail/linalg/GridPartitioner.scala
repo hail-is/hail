@@ -1,5 +1,6 @@
 package is.hail.linalg
 
+import is.hail.collection.implicits.toRichOrderedSeq
 import is.hail.utils._
 
 import scala.collection.mutable

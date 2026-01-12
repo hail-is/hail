@@ -1,5 +1,6 @@
 package is.hail.annotations
 
+import is.hail.collection.implicits.toRichIterable
 import is.hail.utils._
 
 import org.apache.spark.sql.Row

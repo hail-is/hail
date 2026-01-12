@@ -2,10 +2,10 @@ package is.hail.expr.ir
 
 import is.hail.HailSuite
 import is.hail.backend.ExecuteContext
+import is.hail.collection.FastSeq
 import is.hail.expr.Nat
 import is.hail.expr.ir.defs._
 import is.hail.types.virtual._
-import is.hail.utils._
 
 import org.testng.annotations.{BeforeMethod, DataProvider, Test}
 

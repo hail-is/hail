@@ -1,7 +1,7 @@
 package is.hail.utils
 
 import is.hail.annotations.{Region, RegionMemory}
-import is.hail.utils.compat.mutable.{GrowableCompat, ShrinkableCompat}
+import is.hail.collection.compat.mutable.{GrowableCompat, ShrinkableCompat}
 
 import scala.collection.mutable
 import scala.jdk.CollectionConverters._
