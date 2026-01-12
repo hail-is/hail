@@ -7,7 +7,7 @@ import is.hail.utils._
 
 import java.io.DataOutputStream
 
-import org.json4s.jackson
+import org.json4s.{jackson, DefaultFormats}
 
 object MatrixWriteBlockMatrix extends Logging {
   def apply(
@@ -51,7 +51,7 @@ object MatrixWriteBlockMatrix extends Logging {
 
     // write metadata
     using(new DataOutputStream(fs.create(path + BlockMatrix.metadataRelativePath))) { os =>
-      implicit val formats = defaultJSONFormats
+      implicit val formats = DefaultFormats
       jackson.Serialization.write(
         BlockMatrixMetadata(
           blockSize,

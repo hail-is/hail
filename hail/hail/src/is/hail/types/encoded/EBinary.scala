@@ -2,6 +2,7 @@ package is.hail.types.encoded
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.asm4s.implicits.{valueToRichCodeInputBuffer, valueToRichCodeOutputBuffer}
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types.physical._
@@ -9,7 +10,6 @@ import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces.{SBinary, SBinaryValue, SString}
 import is.hail.types.virtual._
-import is.hail.utils._
 
 case object EBinaryOptional extends EBinary(false)
 case object EBinaryRequired extends EBinary(true)

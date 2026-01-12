@@ -2,11 +2,11 @@ package is.hail.types.physical.stypes.primitives
 
 import is.hail.annotations.Region
 import is.hail.asm4s.{Code, FloatInfo, Settable, SettableBuilder, TypeInfo, Value}
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.{PFloat32, PType}
 import is.hail.types.physical.stypes.{SSettable, SType, SValue}
 import is.hail.types.virtual.{TFloat32, Type}
-import is.hail.utils.FastSeq
 
 case object SFloat32 extends SPrimitive {
   override def ti: TypeInfo[_] = FloatInfo

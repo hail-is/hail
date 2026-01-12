@@ -1,6 +1,7 @@
 package is.hail.expr.ir.functions
 
 import is.hail.asm4s._
+import is.hail.collection.FastSeq
 import is.hail.expr.ir._
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.types.physical._
@@ -9,7 +10,6 @@ import is.hail.types.physical.stypes.concrete.{SIntervalPointer, SStackStruct, S
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SBoolean, SBooleanValue, SInt32}
 import is.hail.types.virtual._
-import is.hail.utils.FastSeq
 
 object IntervalFunctions extends RegistryFunctions {
 

@@ -9,11 +9,11 @@ import is.hail.expr.ir.lowering.{BlockMatrixStage2, LowererUnsupportedOperation}
 import is.hail.io.TypedCodecSpec
 import is.hail.io.fs.FS
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, MatrixSparsity}
+import is.hail.linalg.implicits.RichDenseMatrixDouble
 import is.hail.types.TypeWithRequiredness
 import is.hail.types.encoded.{EBlockMatrixNDArray, EType}
 import is.hail.types.virtual._
 import is.hail.utils._
-import is.hail.utils.richUtils.RichDenseMatrixDouble
 
 import java.io.DataOutputStream
 
@@ -110,7 +110,7 @@ case class BlockMatrixNativeMetadataWriter(
     def write(fs: FS, rawPartFiles: Array[String]): Unit = {
       val partFiles = rawPartFiles.map(_.split('/').last)
       using(new DataOutputStream(fs.create(s"$path/metadata.json"))) { os =>
-        implicit val formats = defaultJSONFormats
+        implicit val formats = DefaultFormats
         jackson.Serialization.write(
           BlockMatrixMetadata(blockSize, nRows, nCols, partIdxToBlockIdx, partFiles),
           os,

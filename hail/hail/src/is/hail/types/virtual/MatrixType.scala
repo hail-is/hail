@@ -1,6 +1,8 @@
 package is.hail.types.virtual
 
 import is.hail.annotations.Annotation
+import is.hail.collection.FastSeq
+import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.{Env, IRParser, LowerMatrixIR, MatrixIR, Name}
 import is.hail.types.physical.{PArray, PStruct}
 import is.hail.utils._

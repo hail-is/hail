@@ -2615,7 +2615,7 @@ def _jarray_from_ndarray(nd):
     with with_local_temp_file() as path:
         uri = local_path_uri(path)
         nd.tofile(path)
-        return Env.hail().utils.richUtils.RichArray.importFromDoubles(
+        return Env.hail().io.ArrayImpex.importFromDoubles(
             Env.spark_backend('_jarray_from_ndarray').fs._jfs, uri, nd.size
         )
 
@@ -2623,14 +2623,14 @@ def _jarray_from_ndarray(nd):
 def _ndarray_from_jarray(ja):
     with with_local_temp_file() as path:
         uri = local_path_uri(path)
-        Env.hail().utils.richUtils.RichArray.exportToDoubles(Env.spark_backend('_ndarray_from_jarray').fs._jfs, uri, ja)
+        Env.hail().io.ArrayImpex.exportToDoubles(Env.spark_backend('_ndarray_from_jarray').fs._jfs, uri, ja)
         return np.fromfile(path)
 
 
 def _breeze_fromfile(uri, n_rows, n_cols):
     _check_entries_size(n_rows, n_cols)
 
-    return Env.hail().utils.richUtils.RichDenseMatrixDouble.importFromDoubles(
+    return Env.hail().linalg.implicits.RichDenseMatrixDouble.importFromDoubles(
         Env.spark_backend('_breeze_fromfile').fs._jfs, uri, n_rows, n_cols, True
     )
 

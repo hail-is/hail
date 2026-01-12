@@ -2,10 +2,10 @@ package is.hail.expr.ir
 
 import is.hail.HailSuite
 import is.hail.asm4s._
+import is.hail.collection.FastSeq
 import is.hail.types.physical.stypes.concrete.{
   SCanonicalRNGStateSettable, SCanonicalRNGStateValue, SRNGState, SRNGStateStaticSizeValue,
 }
-import is.hail.utils.FastSeq
 
 import org.apache.commons.math3.distribution.ChiSquaredDistribution
 import org.testng.annotations.Test
