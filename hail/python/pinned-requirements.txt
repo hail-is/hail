@@ -30,7 +30,7 @@ azure-common==1.1.28
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   azure-mgmt-storage
-azure-core==1.37.0
+azure-core==1.38.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   azure-identity
@@ -49,26 +49,22 @@ azure-mgmt-storage==20.1.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
-azure-storage-blob==12.27.1
+azure-storage-blob==12.28.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
 bokeh==3.4.3
     # via -r hail/python/requirements.txt
-boto3==1.42.22
+boto3==1.42.26
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
-botocore==1.42.22
+botocore==1.42.26
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
     #   boto3
     #   s3transfer
-cachetools==6.2.4
-    # via
-    #   -c hail/python/hailtop/pinned-requirements.txt
-    #   google-auth
 certifi==2026.1.4
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
@@ -114,7 +110,7 @@ frozenlist==1.8.0
     #   -r hail/python/hailtop/requirements.txt
     #   aiohttp
     #   aiosignal
-google-auth==2.46.0
+google-auth==2.47.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
@@ -325,7 +321,7 @@ typing-extensions==4.15.0
     #   typer
 tzdata==2025.3
     # via pandas
-urllib3==2.6.2
+urllib3==2.6.3
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   botocore

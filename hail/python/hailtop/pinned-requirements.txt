@@ -14,7 +14,7 @@ attrs==25.4.0
     # via aiohttp
 azure-common==1.1.28
     # via azure-mgmt-storage
-azure-core==1.37.0
+azure-core==1.38.0
     # via
     #   azure-identity
     #   azure-mgmt-core
@@ -26,17 +26,15 @@ azure-mgmt-core==1.6.0
     # via azure-mgmt-storage
 azure-mgmt-storage==20.1.0
     # via -r hail/python/hailtop/requirements.txt
-azure-storage-blob==12.27.1
+azure-storage-blob==12.28.0
     # via -r hail/python/hailtop/requirements.txt
-boto3==1.42.22
+boto3==1.42.26
     # via -r hail/python/hailtop/requirements.txt
-botocore==1.42.22
+botocore==1.42.26
     # via
     #   -r hail/python/hailtop/requirements.txt
     #   boto3
     #   s3transfer
-cachetools==6.2.4
-    # via google-auth
 certifi==2026.1.4
     # via
     #   msrest
@@ -64,7 +62,7 @@ frozenlist==1.8.0
     #   -r hail/python/hailtop/requirements.txt
     #   aiohttp
     #   aiosignal
-google-auth==2.46.0
+google-auth==2.47.0
     # via
     #   -r hail/python/hailtop/requirements.txt
     #   google-auth-oauthlib
@@ -170,7 +168,7 @@ typing-extensions==4.15.0
     #   janus
     #   multidict
     #   typer
-urllib3==2.6.2
+urllib3==2.6.3
     # via
     #   botocore
     #   requests
