@@ -2,13 +2,13 @@ package is.hail.types.physical.stypes.interfaces
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.types.{RIterable, TypeWithRequiredness}
 import is.hail.types.physical.PType
 import is.hail.types.physical.stypes._
 import is.hail.types.virtual.{TStream, Type}
-import is.hail.utils.FastSeq
 
 trait MissingnessAsMethod {
   def isMissing: Boolean

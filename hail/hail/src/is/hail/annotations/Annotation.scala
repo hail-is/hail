@@ -1,5 +1,6 @@
 package is.hail.annotations
 
+import is.hail.collection.implicits.toRichIterable
 import is.hail.types.virtual._
 import is.hail.utils._
 

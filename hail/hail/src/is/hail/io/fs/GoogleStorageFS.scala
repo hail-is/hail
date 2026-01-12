@@ -1,6 +1,7 @@
 package is.hail.io.fs
 
 import is.hail.HailFeatureFlags
+import is.hail.collection.FastSeq
 import is.hail.io.fs.FSUtil.dropTrailingSlash
 import is.hail.io.fs.GoogleStorageFS.RequesterPaysFailure
 import is.hail.services.{isTransientError, retryTransientErrors}

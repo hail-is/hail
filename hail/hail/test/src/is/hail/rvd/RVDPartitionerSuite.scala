@@ -1,8 +1,9 @@
 package is.hail.rvd
 
 import is.hail.HailSuite
+import is.hail.collection.FastSeq
 import is.hail.types.virtual.{TInt32, TStruct}
-import is.hail.utils.{FastSeq, Interval}
+import is.hail.utils.Interval
 
 import org.apache.spark.sql.Row
 import org.testng.ITestContext

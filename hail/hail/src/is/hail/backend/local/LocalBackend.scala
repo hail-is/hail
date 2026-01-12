@@ -2,6 +2,7 @@ package is.hail.backend.local
 
 import is.hail.backend._
 import is.hail.backend.Backend.PartitionFn
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.Validate
 import is.hail.expr.ir._
 import is.hail.expr.ir.analyses.SemanticHash
@@ -9,7 +10,6 @@ import is.hail.expr.ir.lowering._
 import is.hail.types._
 import is.hail.types.physical.PTuple
 import is.hail.utils._
-import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.reflect.ClassTag
 import scala.util.control.NonFatal

@@ -12,7 +12,7 @@ from hail.expr.table_type import ttable
 from hail.ir import BaseIR
 from hail.table import Table
 from hail.utils import copy_log
-from hail.utils.java import scala_package_object
+from hail.utils.java import scala_object
 from hail.version import __version__
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
 from hailtop.aiotools.validators import validate_file
@@ -115,9 +115,9 @@ class SparkBackend(Py4JBackend):
 
         _is = getattr(jvm, 'is')
 
-        py4jutils = scala_package_object(_is.hail.utils)
+        py4jutils = scala_object(_is.hail.utils, 'py4jutils')
         if not skip_logging_configuration:
-            py4jutils.configureLogging(log, quiet, append)
+            py4jutils.pyConfigureLogging(log, quiet, append)
 
         JSparkBackend = _is.hail.backend.spark.SparkBackend
         if sc is not None:
@@ -156,7 +156,7 @@ class SparkBackend(Py4JBackend):
     @property
     def fs(self) -> FS:
         if self._fs is None:
-            self._fs = HadoopFS(self._utils_package_object, self._jbackend.pyFs())
+            self._fs = HadoopFS(self._py4jutils, self._jbackend.pyFs())
         return self._fs
 
     @fs.setter

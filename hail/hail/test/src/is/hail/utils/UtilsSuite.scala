@@ -1,7 +1,9 @@
 package is.hail.utils
 
 import is.hail.HailSuite
+import is.hail.collection.implicits.{toRichIterable, toRichOrderedArray, toRichOrderedSeq}
 import is.hail.io.fs.HadoopFS
+import is.hail.sparkextras.implicits._
 
 import org.apache.spark.storage.StorageLevel
 import org.scalacheck.Gen
@@ -84,9 +86,11 @@ class UtilsSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     val fs = new HadoopFS(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
 
     val partFileNames = fs.glob(getTestResource("part-*"))
-      .sortBy(fileListEntry => getPartNumber(fileListEntry.getPath)).map(_.getPath.split(
-        "/"
-      ).last)
+      .sortBy(fileListEntry => is.hail.io.fs.getPartNumber(fileListEntry.getPath)).map(
+        _.getPath.split(
+          "/"
+        ).last
+      )
 
     assert(partFileNames(0) == "part-40001" && partFileNames(1) == "part-100001")
   }

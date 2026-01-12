@@ -2,6 +2,8 @@ package is.hail.expr.ir
 
 import is.hail.annotations.{ExtendedOrdering, IntervalEndpointOrdering, SafeRow}
 import is.hail.backend.ExecuteContext
+import is.hail.collection.FastSeq
+import is.hail.collection.implicits.{toRichIndexedSeq, toRichIterable}
 import is.hail.expr.ir.defs._
 import is.hail.rvd.PartitionBoundOrdering
 import is.hail.types.virtual._

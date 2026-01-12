@@ -2,13 +2,13 @@ package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.{EmitCodeBuilder, EmitValue}
 import is.hail.types.physical.{PCanonicalNDArray, PType}
 import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.SInt64
 import is.hail.types.virtual.{TNDArray, Type}
-import is.hail.utils.toRichIterable
 
 import scala.collection.compat._
 

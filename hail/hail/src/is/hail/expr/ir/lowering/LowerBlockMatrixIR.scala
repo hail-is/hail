@@ -1,6 +1,9 @@
 package is.hail.expr.ir.lowering
 
 import is.hail.backend.ExecuteContext
+import is.hail.collection.{AnyRefArrayBuilder, FastSeq, LongArrayBuilder}
+import is.hail.collection.compat.immutable.ArraySeq
+import is.hail.collection.implicits.toRichIterator
 import is.hail.expr.Nat
 import is.hail.expr.ir._
 import is.hail.expr.ir.defs._
@@ -9,8 +12,6 @@ import is.hail.linalg.MatrixSparsity
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.{tcoerce, TypeWithRequiredness}
 import is.hail.types.virtual._
-import is.hail.utils._
-import is.hail.utils.compat.immutable.ArraySeq
 
 import org.apache.spark.sql.Row
 

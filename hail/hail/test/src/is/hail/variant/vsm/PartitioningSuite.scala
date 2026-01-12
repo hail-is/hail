@@ -2,11 +2,11 @@ package is.hail.variant.vsm
 
 import is.hail.HailSuite
 import is.hail.annotations.BroadcastRow
+import is.hail.collection.FastSeq
 import is.hail.expr.ir
 import is.hail.expr.ir.{Interpret, MatrixAnnotateRowsTable, TableLiteral, TableValue}
 import is.hail.rvd.RVD
 import is.hail.types.virtual.{TInt32, TStruct, TableType}
-import is.hail.utils.FastSeq
 
 import org.testng.annotations.Test
 

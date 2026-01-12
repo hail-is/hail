@@ -7,7 +7,7 @@ import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.SValue
 import is.hail.types.physical.stypes.primitives.{SBoolean, SBooleanValue}
 import is.hail.types.virtual.TBoolean
-import is.hail.utils.toRichBoolean
+import is.hail.utils.implicits.toRichBoolean
 
 case object PBooleanOptional extends PBoolean(false)
 case object PBooleanRequired extends PBoolean(true)

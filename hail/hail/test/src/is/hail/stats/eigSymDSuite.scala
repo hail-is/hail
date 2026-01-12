@@ -1,6 +1,7 @@
 package is.hail.stats
 
 import is.hail.HailSuite
+import is.hail.linalg.implicits._
 import is.hail.utils._
 
 import breeze.linalg.{eigSym, svd, DenseMatrix, DenseVector}

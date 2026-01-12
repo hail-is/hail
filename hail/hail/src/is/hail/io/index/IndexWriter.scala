@@ -1,11 +1,13 @@
 package is.hail.io.index
 
 import is.hail.annotations.{Annotation, Region, RegionPool}
-import is.hail.asm4s.{HailClassLoader, _}
+import is.hail.asm4s._
+import is.hail.asm4s.implicits.valueToRichCodeOutputBuffer
 import is.hail.backend.{ExecuteContext, HailStateManager, HailTaskContext}
+import is.hail.collection.{FastSeq, IntArrayBuilder, LongArrayBuilder}
 import is.hail.expr.ir.{
   CodeParam, EmitClassBuilder, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, IEmitCode,
-  IntArrayBuilder, LongArrayBuilder, ParamType,
+  ParamType,
 }
 import is.hail.io._
 import is.hail.io.fs.FS
@@ -17,7 +19,7 @@ import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPo
 import is.hail.types.physical.stypes.interfaces.SBaseStructValue
 import is.hail.types.virtual.Type
 import is.hail.utils._
-import is.hail.utils.richUtils.ByteTrackingOutputStream
+import is.hail.utils.implicits.ByteTrackingOutputStream
 
 import scala.collection.mutable.ArrayBuffer
 

@@ -1,7 +1,8 @@
 package is.hail.scalacheck
 
 import is.hail.annotations.Annotation
-import is.hail.utils.{toRichIterable, triangle, uniqueMaxIndex}
+import is.hail.collection.implicits.toRichIterable
+import is.hail.utils.{triangle, uniqueMaxIndex}
 import is.hail.variant._
 import is.hail.variant.Genotype.gqFromPL
 import is.hail.variant.Sex.Sex

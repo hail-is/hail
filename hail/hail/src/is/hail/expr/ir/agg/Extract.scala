@@ -1,9 +1,13 @@
 package is.hail.expr.ir.agg
 
 import is.hail.annotations.{Region, RegionPool, RegionValue}
-import is.hail.asm4s.{HailClassLoader, _}
+import is.hail.asm4s._
 import is.hail.backend.{ExecuteContext, HailTaskContext}
 import is.hail.backend.spark.SparkTaskContext
+import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
+import is.hail.collection.compat.mutable.Growable
+import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir
 import is.hail.expr.ir._
 import is.hail.expr.ir.compile.CompileWithAggregators
@@ -12,10 +16,6 @@ import is.hail.io.BufferSpec
 import is.hail.types.{tcoerce, TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.virtual._
-import is.hail.utils._
-import is.hail.utils.compat._
-import is.hail.utils.compat.immutable.ArraySeq
-import is.hail.utils.compat.mutable.Growable
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer

@@ -1,8 +1,10 @@
 package is.hail
 
 import is.hail.annotations.{Region, RegionPool, RegionValueBuilder, SafeRow}
-import is.hail.asm4s._
+import is.hail.asm4s.{implicits => _, _}
 import is.hail.backend.ExecuteContext
+import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{
   freshName, streamAggIR, BindingEnv, Env, IR, Interpret, MapIR, MatrixIR, MatrixRead, Name,
   SingleCodeEmitParamType, Subst,
@@ -16,7 +18,6 @@ import is.hail.types.physical.{PBaseStruct, PCanonicalArray, PType}
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.virtual._
 import is.hail.utils._
-import is.hail.utils.compat.immutable.ArraySeq
 import is.hail.variant._
 
 import java.io.PrintWriter

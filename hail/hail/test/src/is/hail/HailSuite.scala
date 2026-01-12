@@ -5,6 +5,8 @@ import is.hail.annotations._
 import is.hail.asm4s.HailClassLoader
 import is.hail.backend.{Backend, ExecuteContext, OwningTempFileManager}
 import is.hail.backend.spark.SparkBackend
+import is.hail.collection.{FastSeq, ImmutableMap}
+import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir._
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.functions.IRFunctionRegistry

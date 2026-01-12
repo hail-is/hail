@@ -3,20 +3,21 @@ package is.hail.linalg
 import is.hail.annotations._
 import is.hail.backend.{BroadcastValue, ExecuteContext, HailStateManager}
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
-import is.hail.expr.ir.{IntArrayBuilder, TableReader, TableValue, ThreefryRandomEngine}
+import is.hail.collection.{FastSeq, IntArrayBuilder}
+import is.hail.collection.compat.immutable.ArraySeq
+import is.hail.collection.implicits.toRichIterable
+import is.hail.expr.ir.{partFile, TableReader, TableValue, ThreefryRandomEngine}
 import is.hail.io._
 import is.hail.io.fs.FS
 import is.hail.io.index.IndexWriter
+import is.hail.linalg.implicits._
 import is.hail.rvd.{RVD, RVDContext}
 import is.hail.sparkextras.{ContextRDD, OriginUnionPartition, OriginUnionRDD}
+import is.hail.sparkextras.implicits._
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.utils._
-import is.hail.utils.compat._
-import is.hail.utils.compat.immutable.ArraySeq
-import is.hail.utils.richUtils.{
-  ByteTrackingOutputStream, RichArray, RichContextRDD, RichDenseMatrixDouble,
-}
+import is.hail.utils.implicits.ByteTrackingOutputStream
 
 import scala.collection.immutable.NumericRange
 
@@ -205,7 +206,7 @@ object BlockMatrix {
 
   def readMetadata(fs: FS, uri: String): BlockMatrixMetadata =
     using(fs.open(uri + metadataRelativePath)) { is =>
-      implicit val formats = defaultJSONFormats
+      implicit val formats = DefaultFormats
       jackson.Serialization.read[BlockMatrixMetadata](is)
     }
 
@@ -485,7 +486,7 @@ object BlockMatrix {
       val fileData = numberedPartFiles.map { case (partFileName, _) => partFileName }
       val metadataPath = blockMatrixURI(rddIndex.toInt) + metadataRelativePath
       using(new DataOutputStream(fs.create(metadataPath))) { os =>
-        implicit val formats = defaultJSONFormats
+        implicit val formats = DefaultFormats
         val (blockSize, nRows, nCols, maybeBlocks) = blockMatrixMetadataFields(rddIndex.toInt)
         jackson.Serialization.write(
           BlockMatrixMetadata(blockSize, nRows, nCols, maybeBlocks, fileData.map(_.path)),
@@ -738,7 +739,7 @@ class BlockMatrix(
   ): Unit = {
 
     val writeRectangleBinary = (uos: OutputStream, dm: BDM[Double]) => {
-      val os = new DoubleOutputBuffer(uos, RichArray.defaultBufSize)
+      val os = new DoubleOutputBuffer(uos, ArrayImpex.DefaultBuffSize)
       os.writeDoubles(dm.t.toArray)
       os.close()
     }
@@ -1020,7 +1021,7 @@ class BlockMatrix(
     val fileData = blocks.writePartitions(ctx, uri, stageLocally, writeBlock)
 
     using(new DataOutputStream(fs.create(uri + metadataRelativePath))) { os =>
-      implicit val formats = defaultJSONFormats
+      implicit val formats = DefaultFormats
       jackson.Serialization.write(
         BlockMatrixMetadata(
           blockSize,
@@ -1513,7 +1514,8 @@ class BlockMatrix(
 
         for (k <- 0 until lm.rows)
           yield (k + iOffset, (jOffset, lm(k, ::).inner.toArray))
-      }.aggregateByKey(new Array[Double](nColsInt))(seqOp, combOp)
+      }
+        .aggregateByKey(new Array[Double](nColsInt))(seqOp, combOp)
         .map { case (i, a) => IndexedRow(i.toLong, BDV(a)) },
       nRows,
       nColsInt,
@@ -1953,7 +1955,7 @@ private class BlockMatrixFilterRowsRDD(bm: BlockMatrix, keep: Array[Long])
         val blockForPartition = newGP.partitionToBlock(partitionId)
         val blockParents = blockParentMap(blockForPartition)
         val partitionParents =
-          blockParents.map(blockId => originalGP.blockToPartition(blockId)).toSet.toArray.sorted
+          blockParents.map(blockId => originalGP.blockToPartition(blockId)).distinct.sorted
         partitionParents
       }
     }

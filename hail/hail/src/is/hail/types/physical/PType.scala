@@ -3,6 +3,7 @@ package is.hail.types.physical
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.{ExecuteContext, HailStateManager}
+import is.hail.collection.{BooleanArrayBuilder, FastSeq, IntArrayBuilder}
 import is.hail.expr.ir._
 import is.hail.types.{tcoerce, Requiredness}
 import is.hail.types.physical.stypes.{SType, SValue}

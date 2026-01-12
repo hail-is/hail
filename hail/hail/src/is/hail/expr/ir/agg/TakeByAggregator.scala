@@ -2,7 +2,12 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.Region
 import is.hail.asm4s.{Code, _}
+import is.hail.asm4s.implicits.{
+  codeToRichCodeRegion, valueToRichCodeInputBuffer, valueToRichCodeOutputBuffer,
+  valueToRichCodeRegion,
+}
 import is.hail.backend.ExecuteContext
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.{
   Ascending, EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitValue, IEmitCode, ParamType, SortOrder,
 }
@@ -16,7 +21,6 @@ import is.hail.types.physical.stypes.concrete.{
 }
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual.{TInt32, Type}
-import is.hail.utils._
 
 object TakeByRVAS {
   val END_SERIALIZATION: Int = 0x1324

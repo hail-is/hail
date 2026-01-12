@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.asm4s._
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.functions.StringFunctions
 import is.hail.types.physical.stypes.{SSettable, SType, SValue}
 import is.hail.types.physical.stypes.interfaces.{SStream, SStreamValue}

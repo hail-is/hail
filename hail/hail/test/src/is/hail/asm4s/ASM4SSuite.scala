@@ -2,7 +2,7 @@ package is.hail.asm4s
 
 import is.hail.HailSuite
 import is.hail.asm4s.Code._
-import is.hail.utils.FastSeq
+import is.hail.collection.FastSeq
 
 import scala.language.postfixOps
 
