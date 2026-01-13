@@ -1385,7 +1385,7 @@ object PruneDeadFields extends Logging {
         recurMax(ir, 0)
 
       case Block(bindings, _) =>
-        val typeStates = mutable.AnyRefMap.empty[Name, TypeState]
+        val typeStates = is.hail.utils.compat.mutable.AnyRefMap.empty[Name, TypeState]
         recurWithTypeStates(ir, bindings.length, requestedType, typeStates)
         for (i <- bindings.indices.reverse)
           recurWithTypeStates(ir, i, typeStates(bindings(i).name).newType, typeStates)
@@ -1497,7 +1497,7 @@ object PruneDeadFields extends Logging {
 
       case StreamFold2(_, accum, valueName, seq, _) =>
         recur(ir, 2 * accum.length + 1, requestedType)
-        val seqBindings = mutable.AnyRefMap.empty[Name, TypeState]
+        val seqBindings = is.hail.utils.compat.mutable.AnyRefMap.empty[Name, TypeState]
         seq.indices.foreach(i => recurMaxWithTypeStates(ir, accum.length + 1 + i, seqBindings))
         accum.indices.foreach(i => recurMax(ir, i + 1))
         recur(ir, 0, TStream(seqBindings(valueName).newType))
@@ -1607,7 +1607,7 @@ object PruneDeadFields extends Logging {
         recur(ir, 1, requestedType)
 
       case RunAggScan(_, name, _, _, _, _) =>
-        val bindings = mutable.AnyRefMap.empty[Name, TypeState]
+        val bindings = is.hail.utils.compat.mutable.AnyRefMap.empty[Name, TypeState]
 
         recurWithTypeStates(ir, 3, TIterable.elementType(requestedType), bindings)
         recurMaxWithTypeStates(ir, 2, bindings)
