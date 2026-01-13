@@ -829,14 +829,14 @@ async def retry_transient_errors_with_debug_string(
                 if log_warnings and tries == 2:
                     log.warning(
                         f'A transient error occured. We will automatically retry. Do not be alarmed. '
-                        f'We have thus far seen {tries} transient errors (next delay: '
+                        f'We have thus far seen {tries} transient errors over {time_msecs() - start_time}ms (next delay: '
                         f'{delay}s). The most recent error was {type(e)} {e}. {debug_string}'
                     )
-                elif log_warnings and tries % 10 == 0:
+                elif log_warnings and tries % 4 == 0:
                     st = ''.join(traceback.format_stack())
                     log.warning(
                         f'A transient error occured. We will automatically retry. '
-                        f'We have thus far seen {tries} transient errors (next delay: '
+                        f'We have thus far seen {tries} transient errors over {time_msecs() - start_time}ms (next delay: '
                         f'{delay}s). The stack trace for this call is {st}. The most recent error was {type(e)} {e}. {debug_string}',
                         exc_info=True,
                     )
