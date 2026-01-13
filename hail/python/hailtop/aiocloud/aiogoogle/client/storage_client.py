@@ -27,6 +27,8 @@ from hailtop.aiotools.fs import (
 )
 from hailtop.utils import OnlineBoundedGather2, TransientError, retry_transient_errors, secret_alnum_string
 
+from google.cloud.storage import Client, transfer_manager
+
 from ...common.session import BaseSession
 from ..credentials import GoogleCredentials
 from ..user_config import GCSRequesterPaysConfiguration, get_gcs_requester_pays_configuration
@@ -319,10 +321,19 @@ class GoogleStorageClient(GoogleBaseClient):
         if 'timeout' not in kwargs and 'http_session' not in kwargs:
             # Around May 2022, GCS started timing out a lot with our default 5s timeout
             kwargs['timeout'] = aiohttp.ClientTimeout(total=20)
+
+        if isinstance(kwargs['timeout'], aiohttp.ClientTimeout):
+            self._timeout = kwargs['timeout'].total
+        elif isinstance(kwargs['timeout'], (int, float)):
+            self._timeout = kwargs['timeout']
+        else:
+            self._timeout = 20
+
         super().__init__('https://storage.googleapis.com/storage/v1', **kwargs)
         self._gcs_requester_pays_configuration = get_gcs_requester_pays_configuration(
             gcs_requester_pays_configuration=gcs_requester_pays_configuration
         )
+        self._client = Client()
 
     async def bucket_info(self, bucket: str) -> Dict[str, Any]:
         """
@@ -414,6 +425,29 @@ class GoogleStorageClient(GoogleBaseClient):
     async def list_objects(self, bucket: str, **kwargs) -> PageIterator:
         self._update_params_with_user_project(kwargs, bucket)
         return PageIterator(self, f'/b/{bucket}/o', kwargs)
+
+    async def download_to_file(self, bucket: str, src: str, dest: str, **kwargs) -> None:
+        if isinstance(self._gcs_requester_pays_configuration, str):
+            user_project = self._gcs_requester_pays_configuration
+        elif isinstance(self._gcs_requester_pays_configuration, tuple):
+            project, buckets = self._gcs_requester_pays_configuration
+            if bucket in buckets:
+                user_project = project
+            else:
+                user_project = None
+        else:
+            user_project = None
+
+        bucket_instance = self._client.bucket(bucket, user_project=user_project)
+        blob = bucket_instance.blob(src)
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        transfer_manager.download_chunks_concurrently(
+            blob=blob,
+            filename=dest,
+            chunk_size=128 * 1024 * 1024,
+            download_kwargs={ 'timeout' : self._timeout },
+            max_workers=32
+        )
 
     async def compose(self, bucket: str, names: List[str], destination: str, **kwargs) -> None:
         assert destination
@@ -740,6 +774,13 @@ class GoogleStorageAsyncFS(AsyncFS):
             assert length >= 1
             range_str += str(start + length - 1)
         return await self._storage_client.get_object(fsurl._bucket, fsurl._path, headers={'Range': range_str})
+
+    async def copy_to(self, url: str, dest):
+        if dest.startswith('file://') or '://' not in dest:
+            fsurl = self.parse_url(url, error_if_bucket=True)
+            return await self._storage_client.download_to_file(fsurl._bucket, fsurl._path, dest)
+        else:
+            raise NotImplementedError
 
     async def create(self, url: str, *, retry_writes: bool = True) -> WritableStream:
         fsurl = self.parse_url(url, error_if_bucket=True)

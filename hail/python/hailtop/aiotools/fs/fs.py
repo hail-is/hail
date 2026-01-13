@@ -303,6 +303,9 @@ class AsyncFS(abc.ABC):
     async def _open_from(self, url: str, start: int, *, length: Optional[int] = None) -> ReadableStream:
         pass
 
+    async def copy_to(self, url: str, dest: str):
+        raise NotImplementedError
+
     @abc.abstractmethod
     async def create(self, url: str, *, retry_writes: bool = True) -> AsyncContextManager[WritableStream]:
         pass
