@@ -431,7 +431,14 @@ def docker_call_retry(timeout, name, f, *args, **kwargs):
     debug_string = f'In docker call to {f.__name__} for {name}'
 
     async def timed_out_f(*args, **kwargs):
-        return await asyncio.wait_for(f(*args, **kwargs), timeout)
+        try:
+            return await asyncio.wait_for(f(*args, **kwargs), timeout)
+        except asyncio.TimeoutError:
+            log.error(
+                f'Docker operation {f.__name__} timed out after {timeout}s for {name}. '
+                f'This may indicate network issues, registry problems, or a slow connection.'
+            )
+            raise
 
     return retry_transient_errors_with_debug_string(debug_string, 0, timed_out_f, *args, **kwargs)
 
@@ -503,23 +510,31 @@ class Image:
         return f'/host/rootfs/{self.image_id}'
 
     async def _pull_image(self):
+        log.info(f'Starting to pull image: {self.image_ref_str}')
         n_pull_attempts = 1
+        pull_start_time = time_msecs()
 
         async def pull():
             assert docker
             nonlocal n_pull_attempts
             try:
                 if not self.is_cloud_image:
+                    log.info(f'Pulling non-cloud image: {self.image_ref_str}')
                     await self._ensure_image_is_pulled()
                 elif self.is_public_image:
+                    log.info(f'Pulling public image: {self.image_ref_str}')
                     await self._ensure_image_is_pulled(auth=self._batch_worker_registry_credentials)
                 elif self.image_ref_str == BATCH_WORKER_IMAGE and self.credentials is None:
+                    log.info(f'Skipping pull for batch worker image: {self.image_ref_str}')
                     pass
                 else:
                     # Pull to verify this user has access to this
                     # image.
                     # FIXME improve the performance of this with a
                     # per-user image cache.
+                    log.info(
+                        f'Pulling user image with auth: {self.image_ref_str} (timeout: {MAX_DOCKER_IMAGE_PULL_SECS}s)'
+                    )
                     await docker_call_retry(
                         MAX_DOCKER_IMAGE_PULL_SECS,
                         str(self),
@@ -529,15 +544,21 @@ class Image:
                     )
             except DockerError as e:
                 if e.status == 404 and 'pull access denied' in e.message:
+                    log.error(f'Pull access denied for image {self.image_ref_str}: {e.message}')
                     raise ImageCannotBePulled from e
                 if e.status == 500 and (
                     'Permission "artifactregistry.repositories.downloadArtifacts" denied on resource' in e.message
                     or 'Caller does not have permission' in e.message
                     or 'unauthorized' in e.message
                 ):
+                    log.error(f'Permission denied pulling image {self.image_ref_str}: {e.message}')
                     raise ImageCannotBePulled from e
                 if e.status == 500 and 'denied: retrieving permissions failed' in e.message:
                     if n_pull_attempts <= 2:
+                        log.warning(
+                            f'Permission retrieval failed for {self.image_ref_str} (attempt {n_pull_attempts}), '
+                            f'deleting and retrying pull'
+                        )
                         await docker_call_retry(
                             MAX_DOCKER_OTHER_OPERATION_SECS,
                             str(self),
@@ -546,22 +567,36 @@ class Image:
                         )
                         await pull()
                     else:
+                        log.error(
+                            f'Failed to pull image {self.image_ref_str} after {n_pull_attempts} attempts '
+                            f'due to permission retrieval failure: {e.message}'
+                        )
                         log.exception(f'error pulling image {self.image_ref_str}', exc_info=True)
                         raise ImageCannotBePulled from e
                 if 'Invalid repository name' in e.message:
+                    log.error(f'Invalid repository name for image {self.image_ref_str}: {e.message}')
                     raise InvalidImageRepository from e
                 if 'unknown' in e.message or 'not found or deleted' in e.message:
+                    log.error(f'Image not found: {self.image_ref_str}: {e.message}')
                     raise ImageNotFound from e
+                log.error(
+                    f'Unexpected DockerError pulling image {self.image_ref_str}: status={e.status}, message={e.message}'
+                )
                 raise
             finally:
                 n_pull_attempts += 1
 
         await pull()
+        pull_duration = time_msecs() - pull_start_time
+        log.info(
+            f'Successfully pulled image: {self.image_ref_str} (took {pull_duration}ms, {n_pull_attempts - 1} attempts)'
+        )
 
         try:
             image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
         except:
             # inspect non-deterministically fails sometimes
+            log.warning(f'docker inspect failed for {self.image_ref_str}, retrying pull')
             await asyncio.sleep(1)
             await pull()
             image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
@@ -573,13 +608,19 @@ class Image:
         assert docker
 
         try:
+            log.info(f'Checking if image exists locally: {self.image_ref_str}')
             await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, str(self), docker.images.get, self.image_ref_str)
+            log.info(f'Image found locally: {self.image_ref_str}')
         except DockerError as e:
             if e.status == 404:
+                log.info(
+                    f'Image not found locally, pulling from registry: {self.image_ref_str} (timeout: {MAX_DOCKER_IMAGE_PULL_SECS}s)'
+                )
                 await docker_call_retry(
                     MAX_DOCKER_IMAGE_PULL_SECS, str(self), self._pull_with_auth_refresh, self.image_ref_str, auth
                 )
             else:
+                log.error(f'Error checking for image {self.image_ref_str}: {e.status} - {e.message}')
                 raise
 
     async def _batch_worker_registry_credentials(self) -> ContainerRegistryCredentials:
@@ -813,7 +854,9 @@ class Container:
         self.state = 'creating'
         try:
             with self._step('pulling'):
+                log.info(f'Entering pulling state for container {self.name}, image: {self.image.image_ref_str}')
                 await self._run_until_done_or_deleted(self.image.pull)
+                log.info(f'Completed pulling for container {self.name}, image: {self.image.image_ref_str}')
 
             with self._step('setting up overlay'):
                 await self._run_until_done_or_deleted(self._setup_overlay)
@@ -825,16 +868,24 @@ class Container:
         except Exception as e:
             if isinstance(e, ImageNotFound):
                 self.short_error = 'image not found'
+                log.error(f'Image not found while creating container {self.name}: {self.image.image_ref_str}')
             elif isinstance(e, ImageCannotBePulled):
                 self.short_error = 'image cannot be pulled'
+                log.error(f'Image cannot be pulled while creating container {self.name}: {self.image.image_ref_str}')
             elif isinstance(e, InvalidImageRepository):
                 self.short_error = 'image repository is invalid'
+                log.error(f'Invalid image repository while creating container {self.name}: {self.image.image_ref_str}')
+            elif isinstance(e, asyncio.TimeoutError):
+                log.error(
+                    f'Timeout while pulling image for container {self.name}: {self.image.image_ref_str}. '
+                    f'This may indicate network issues or registry problems.'
+                )
 
             self.state = 'error'
             self.error = traceback.format_exc()
 
             if not isinstance(e, ContainerDeletedError) and not user_error(e):
-                log.exception(f'while creating {self}')
+                log.exception(f'while creating {self} (image: {self.image.image_ref_str})')
                 raise ContainerCreateError from e
             raise
 
