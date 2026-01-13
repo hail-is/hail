@@ -6,6 +6,7 @@ import errno
 import json
 import logging
 import os
+import pprint
 import random
 import re
 import shutil
@@ -470,15 +471,19 @@ class Image:
         credentials: Optional[Dict[str, str]],
         client_session: httpx.ClientSession,
         pool: concurrent.futures.ThreadPoolExecutor,
+        batch_id: Optional[int] = None,
+        job_id: Optional[int] = None,
     ):
         self.image_name = name
         self.credentials = credentials
         self.client_session = client_session
         self.pool = pool
+        self.batch_id = batch_id
+        self.job_id = job_id
 
         image_ref = parse_docker_image_reference(name)
         if image_ref.tag is None and image_ref.digest is None:
-            log.info(f'adding latest tag to image {name} for {self}')
+            log.info(f'adding latest tag to image {name} for {self}', extra=self._log_metadata())
             image_ref.tag = 'latest'
 
         if image_ref.name() in HAIL_GENETICS_IMAGES:
@@ -493,6 +498,15 @@ class Image:
         self.image_ref_str = str(image_ref)
         self.image_config: Optional[Dict[str, Any]] = None
         self.image_id: Optional[str] = None
+
+    def _log_metadata(self) -> Dict[str, Any]:
+        """Return metadata dict for structured logging."""
+        metadata = {}
+        if self.batch_id is not None:
+            metadata['batch_id'] = self.batch_id
+        if self.job_id is not None:
+            metadata['job_id'] = self.job_id
+        return metadata
 
     @property
     def is_cloud_image(self):
@@ -510,7 +524,7 @@ class Image:
         return f'/host/rootfs/{self.image_id}'
 
     async def _pull_image(self):
-        log.info(f'Starting to pull image: {self.image_ref_str}')
+        log.info(f'Starting to pull image: {self.image_ref_str}', extra=self._log_metadata())
         n_pull_attempts = 1
         pull_start_time = time_msecs()
 
@@ -519,13 +533,13 @@ class Image:
             nonlocal n_pull_attempts
             try:
                 if not self.is_cloud_image:
-                    log.info(f'Pulling non-cloud image: {self.image_ref_str}')
+                    log.info(f'Pulling non-cloud image: {self.image_ref_str}', extra=self._log_metadata())
                     await self._ensure_image_is_pulled()
                 elif self.is_public_image:
-                    log.info(f'Pulling public image: {self.image_ref_str}')
+                    log.info(f'Pulling public image: {self.image_ref_str}', extra=self._log_metadata())
                     await self._ensure_image_is_pulled(auth=self._batch_worker_registry_credentials)
                 elif self.image_ref_str == BATCH_WORKER_IMAGE and self.credentials is None:
-                    log.info(f'Skipping pull for batch worker image: {self.image_ref_str}')
+                    log.info(f'Skipping pull for batch worker image: {self.image_ref_str}', extra=self._log_metadata())
                     pass
                 else:
                     # Pull to verify this user has access to this
@@ -533,7 +547,8 @@ class Image:
                     # FIXME improve the performance of this with a
                     # per-user image cache.
                     log.info(
-                        f'Pulling user image with auth: {self.image_ref_str} (timeout: {MAX_DOCKER_IMAGE_PULL_SECS}s)'
+                        f'Pulling user image with auth: {self.image_ref_str} (timeout: {MAX_DOCKER_IMAGE_PULL_SECS}s)',
+                        extra=self._log_metadata(),
                     )
                     await docker_call_retry(
                         MAX_DOCKER_IMAGE_PULL_SECS,
@@ -544,20 +559,25 @@ class Image:
                     )
             except DockerError as e:
                 if e.status == 404 and 'pull access denied' in e.message:
-                    log.error(f'Pull access denied for image {self.image_ref_str}: {e.message}')
+                    log.error(
+                        f'Pull access denied for image {self.image_ref_str}: {e.message}', extra=self._log_metadata()
+                    )
                     raise ImageCannotBePulled from e
                 if e.status == 500 and (
                     'Permission "artifactregistry.repositories.downloadArtifacts" denied on resource' in e.message
                     or 'Caller does not have permission' in e.message
                     or 'unauthorized' in e.message
                 ):
-                    log.error(f'Permission denied pulling image {self.image_ref_str}: {e.message}')
+                    log.error(
+                        f'Permission denied pulling image {self.image_ref_str}: {e.message}', extra=self._log_metadata()
+                    )
                     raise ImageCannotBePulled from e
                 if e.status == 500 and 'denied: retrieving permissions failed' in e.message:
                     if n_pull_attempts <= 2:
                         log.warning(
                             f'Permission retrieval failed for {self.image_ref_str} (attempt {n_pull_attempts}), '
-                            f'deleting and retrying pull'
+                            f'deleting and retrying pull',
+                            extra=self._log_metadata(),
                         )
                         await docker_call_retry(
                             MAX_DOCKER_OTHER_OPERATION_SECS,
@@ -569,18 +589,25 @@ class Image:
                     else:
                         log.error(
                             f'Failed to pull image {self.image_ref_str} after {n_pull_attempts} attempts '
-                            f'due to permission retrieval failure: {e.message}'
+                            f'due to permission retrieval failure: {e.message}',
+                            extra=self._log_metadata(),
                         )
-                        log.exception(f'error pulling image {self.image_ref_str}', exc_info=True)
+                        log.exception(
+                            f'error pulling image {self.image_ref_str}', exc_info=True, extra=self._log_metadata()
+                        )
                         raise ImageCannotBePulled from e
                 if 'Invalid repository name' in e.message:
-                    log.error(f'Invalid repository name for image {self.image_ref_str}: {e.message}')
+                    log.error(
+                        f'Invalid repository name for image {self.image_ref_str}: {e.message}',
+                        extra=self._log_metadata(),
+                    )
                     raise InvalidImageRepository from e
                 if 'unknown' in e.message or 'not found or deleted' in e.message:
-                    log.error(f'Image not found: {self.image_ref_str}: {e.message}')
+                    log.error(f'Image not found: {self.image_ref_str}: {e.message}', extra=self._log_metadata())
                     raise ImageNotFound from e
                 log.error(
-                    f'Unexpected DockerError pulling image {self.image_ref_str}: status={e.status}, message={e.message}'
+                    f'Unexpected DockerError pulling image {self.image_ref_str}: status={e.status}, message={e.message}',
+                    extra=self._log_metadata(),
                 )
                 raise
             finally:
@@ -589,14 +616,15 @@ class Image:
         await pull()
         pull_duration = time_msecs() - pull_start_time
         log.info(
-            f'Successfully pulled image: {self.image_ref_str} (took {pull_duration}ms, {n_pull_attempts - 1} attempts)'
+            f'Successfully pulled image: {self.image_ref_str} (took {pull_duration}ms, {n_pull_attempts - 1} attempts)',
+            extra=self._log_metadata(),
         )
 
         try:
             image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
         except:
             # inspect non-deterministically fails sometimes
-            log.warning(f'docker inspect failed for {self.image_ref_str}, retrying pull')
+            log.warning(f'docker inspect failed for {self.image_ref_str}, retrying pull', extra=self._log_metadata())
             await asyncio.sleep(1)
             await pull()
             image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
@@ -608,19 +636,23 @@ class Image:
         assert docker
 
         try:
-            log.info(f'Checking if image exists locally: {self.image_ref_str}')
+            log.info(f'Checking if image exists locally: {self.image_ref_str}', extra=self._log_metadata())
             await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, str(self), docker.images.get, self.image_ref_str)
-            log.info(f'Image found locally: {self.image_ref_str}')
+            log.info(f'Image found locally: {self.image_ref_str}', extra=self._log_metadata())
         except DockerError as e:
             if e.status == 404:
                 log.info(
-                    f'Image not found locally, pulling from registry: {self.image_ref_str} (timeout: {MAX_DOCKER_IMAGE_PULL_SECS}s)'
+                    f'Image not found locally, pulling from registry: {self.image_ref_str} (timeout: {MAX_DOCKER_IMAGE_PULL_SECS}s)',
+                    extra=self._log_metadata(),
                 )
                 await docker_call_retry(
                     MAX_DOCKER_IMAGE_PULL_SECS, str(self), self._pull_with_auth_refresh, self.image_ref_str, auth
                 )
             else:
-                log.error(f'Error checking for image {self.image_ref_str}: {e.status} - {e.message}')
+                log.error(
+                    f'Error checking for image {self.image_ref_str}: {e.status} - {e.message}',
+                    extra=self._log_metadata(),
+                )
                 raise
 
     async def _batch_worker_registry_credentials(self) -> ContainerRegistryCredentials:
@@ -658,11 +690,17 @@ class Image:
                     try:
                         await self._extract_rootfs()
                         image_data.extracted = True
-                        log.info(f'Added expanded image to cache: {self.image_ref_str}, ID: {self.image_id}')
+                        log.info(
+                            f'Added expanded image to cache: {self.image_ref_str}, ID: {self.image_id}',
+                            extra=self._log_metadata(),
+                        )
                     except asyncio.CancelledError:
                         raise
                     except Exception:
-                        log.exception(f'while extracting image {self.image_ref_str}, ID: {self.image_id}')
+                        log.exception(
+                            f'while extracting image {self.image_ref_str}, ID: {self.image_id}',
+                            extra=self._log_metadata(),
+                        )
                         await blocking_to_async(self.pool, shutil.rmtree, self.rootfs_path)
                         raise
 
@@ -795,6 +833,8 @@ class Container:
         env: Optional[List[str]] = None,
         stdin: Optional[str] = None,
         log_path: Optional[str] = None,
+        batch_id: Optional[int] = None,
+        job_id: Optional[int] = None,
     ):
         self.task_manager = task_manager
         self.fs = fs
@@ -850,13 +890,31 @@ class Container:
 
         self.metadata_app_runner: Optional[web.AppRunner] = None
 
+        self.batch_id = batch_id
+        self.job_id = job_id
+
+    def _log_metadata(self) -> Dict[str, Any]:
+        """Return metadata dict for structured logging."""
+        metadata = {}
+        if self.batch_id is not None:
+            metadata['batch_id'] = self.batch_id
+        if self.job_id is not None:
+            metadata['job_id'] = self.job_id
+        return metadata
+
     async def create(self):
         self.state = 'creating'
         try:
             with self._step('pulling'):
-                log.info(f'Entering pulling state for container {self.name}, image: {self.image.image_ref_str}')
+                log.info(
+                    f'Entering pulling state for container {self.name}, image: {self.image.image_ref_str}',
+                    extra=self._log_metadata(),
+                )
                 await self._run_until_done_or_deleted(self.image.pull)
-                log.info(f'Completed pulling for container {self.name}, image: {self.image.image_ref_str}')
+                log.info(
+                    f'Completed pulling for container {self.name}, image: {self.image.image_ref_str}',
+                    extra=self._log_metadata(),
+                )
 
             with self._step('setting up overlay'):
                 await self._run_until_done_or_deleted(self._setup_overlay)
@@ -868,24 +926,34 @@ class Container:
         except Exception as e:
             if isinstance(e, ImageNotFound):
                 self.short_error = 'image not found'
-                log.error(f'Image not found while creating container {self.name}: {self.image.image_ref_str}')
+                log.error(
+                    f'Image not found while creating container {self.name}: {self.image.image_ref_str}',
+                    extra=self._log_metadata(),
+                )
             elif isinstance(e, ImageCannotBePulled):
                 self.short_error = 'image cannot be pulled'
-                log.error(f'Image cannot be pulled while creating container {self.name}: {self.image.image_ref_str}')
+                log.error(
+                    f'Image cannot be pulled while creating container {self.name}: {self.image.image_ref_str}',
+                    extra=self._log_metadata(),
+                )
             elif isinstance(e, InvalidImageRepository):
                 self.short_error = 'image repository is invalid'
-                log.error(f'Invalid image repository while creating container {self.name}: {self.image.image_ref_str}')
+                log.error(
+                    f'Invalid image repository while creating container {self.name}: {self.image.image_ref_str}',
+                    extra=self._log_metadata(),
+                )
             elif isinstance(e, asyncio.TimeoutError):
                 log.error(
                     f'Timeout while pulling image for container {self.name}: {self.image.image_ref_str}. '
-                    f'This may indicate network issues or registry problems.'
+                    f'This may indicate network issues or registry problems.',
+                    extra=self._log_metadata(),
                 )
 
             self.state = 'error'
             self.error = traceback.format_exc()
 
             if not isinstance(e, ContainerDeletedError) and not user_error(e):
-                log.exception(f'while creating {self} (image: {self.image.image_ref_str})')
+                log.exception(f'while creating {self} (image: {self.image.image_ref_str})', extra=self._log_metadata())
                 raise ContainerCreateError from e
             raise
 
@@ -918,7 +986,7 @@ class Container:
                 self.error = traceback.format_exc()
 
                 if not isinstance(e, ContainerTimeoutError) and not user_error(e):
-                    log.exception(f'while running {self}')
+                    log.exception(f'while running {self}', extra=self._log_metadata())
                     raise ContainerStartError from e
                 raise
 
@@ -965,7 +1033,7 @@ class Container:
                 if self.container_is_running():
                     assert self.process is not None
                     try:
-                        log.info(f'{self} container is still running, killing crun process')
+                        log.info(f'{self} container is still running, killing crun process', extra=self._log_metadata())
                         try:
                             await check_exec_output('crun', 'kill', '--all', self.name, 'SIGKILL')
                         except CalledProcessError as e:
@@ -975,7 +1043,9 @@ class Container:
                                 + b'/status`: No such file or directory'
                             )
                             if not (e.returncode == 1 and not_extant_message in e.stderr):
-                                log.exception(f'while deleting container {self}', exc_info=True)
+                                log.exception(
+                                    f'while deleting container {self}', exc_info=True, extra=self._log_metadata()
+                                )
                     finally:
                         try:
                             await send_signal_and_wait(self.process, 'SIGTERM', timeout=5)
@@ -985,7 +1055,9 @@ class Container:
                             except asyncio.CancelledError:
                                 raise
                             except Exception:
-                                log.exception(f'could not kill process for container {self}')
+                                log.exception(
+                                    f'could not kill process for container {self}', extra=self._log_metadata()
+                                )
                         finally:
                             self.process = None
             finally:
@@ -995,7 +1067,7 @@ class Container:
                 self._killed = True
 
     async def _cleanup(self):
-        log.info(f'Cleaning up {self}')
+        log.info(f'Cleaning up {self}', extra=self._log_metadata())
         if self._cleaned_up:
             return
 
@@ -1011,7 +1083,7 @@ class Container:
                 except asyncio.CancelledError:
                     raise
                 except Exception:
-                    log.exception(f'while unmounting overlay in {self}', exc_info=True)
+                    log.exception(f'while unmounting overlay in {self}', exc_info=True, extra=self._log_metadata())
 
             if self.host_port is not None:
                 assert port_allocator
@@ -1021,7 +1093,7 @@ class Container:
             if self.netns:
                 assert network_allocator
                 network_allocator.free(self.netns)
-                log.info(f'Freed the network namespace for {self}')
+                log.info(f'Freed the network namespace for {self}', extra=self._log_metadata())
                 self.netns = None
         finally:
             try:
@@ -1497,7 +1569,7 @@ def copy_container(
         task_manager=job.task_manager,
         fs=job.worker.fs,
         name=job.container_name(task_name),
-        image=Image(BATCH_WORKER_IMAGE, None, client_session, job.pool),
+        image=Image(BATCH_WORKER_IMAGE, None, client_session, job.pool, batch_id=job.batch_id, job_id=job.job_id),
         scratch_dir=f'{scratch}/{task_name}',
         command=command,
         cpu_in_mcpu=cpu_in_mcpu,
@@ -1505,6 +1577,8 @@ def copy_container(
         volume_mounts=volume_mounts,
         user_credentials=job.credentials,
         stdin=json.dumps(files),
+        batch_id=job.batch_id,
+        job_id=job.job_id,
     )
 
 
@@ -1647,7 +1721,11 @@ class Job(abc.ABC):
 
     @property
     def job_id(self):
-        return self.job_spec['job_id']
+        if 'job_id' in self.job_spec:
+            return self.job_spec['job_id']
+        else:
+            log.error(f'job_id not found in job_spec: {pprint.pformat(self.job_spec)}', extra=self._log_metadata())
+            return -1
 
     @property
     def job_group_id(self):
@@ -1700,7 +1778,9 @@ class Job(abc.ABC):
             except asyncio.CancelledError:
                 raise
             except Exception:
-                log.exception(f'Encountered error while writing status file for job {self.id}')
+                log.exception(
+                    f'Encountered error while writing status file for job {self.id}', extra=self._log_metadata()
+                )
 
         if not self.deleted:
             self.task_manager.ensure_future(self.worker.post_job_complete(self, mjs_fut, full_status))
@@ -1749,6 +1829,10 @@ class Job(abc.ABC):
 
     def __str__(self):
         return f'job {self.id}'
+
+    def _log_metadata(self) -> Dict[str, Any]:
+        """Return metadata dict for structured logging."""
+        return {'batch_id': self.batch_id, 'job_id': self.job_id}
 
 
 class FakeJob(Job):
@@ -1881,7 +1965,14 @@ class DockerJob(Job):
             task_manager=self.task_manager,
             fs=self.worker.fs,
             name=self.container_name('main'),
-            image=Image(job_spec['process']['image'], self.credentials, client_session, pool),
+            image=Image(
+                job_spec['process']['image'],
+                self.credentials,
+                client_session,
+                pool,
+                batch_id=self.batch_id,
+                job_id=self.job_id,
+            ),
             scratch_dir=f'{self.scratch}/main',
             command=job_spec['process']['command'],
             cpu_in_mcpu=self.cpu_in_mcpu,
@@ -1893,6 +1984,8 @@ class DockerJob(Job):
             unconfined=job_spec.get('unconfined'),
             volume_mounts=self.main_volume_mounts,
             env=[f'{var["name"]}={var["value"]}' for var in self.env],
+            batch_id=self.batch_id,
+            job_id=self.job_id,
         )
 
         if output_files:
@@ -1937,12 +2030,13 @@ class DockerJob(Job):
                 )
                 labels = {'namespace': NAMESPACE, 'batch': '1', 'instance-name': NAME, 'uid': uid}
                 await self.disk.create(labels=labels)
-                log.info(f'created disk {self.disk.name} for job {self.id}')
+                log.info(f'created disk {self.disk.name} for job {self.id}', extra=self._log_metadata())
                 return
 
             self.worker.data_disk_space_remaining -= self.external_storage_in_gib
             log.info(
-                f'acquired {self.external_storage_in_gib}Gi from worker data disk storage with {self.worker.data_disk_space_remaining}Gi remaining'
+                f'acquired {self.external_storage_in_gib}Gi from worker data disk storage with {self.worker.data_disk_space_remaining}Gi remaining',
+                extra=self._log_metadata(),
             )
 
         assert self.disk is None, self.disk
@@ -1980,10 +2074,10 @@ class DockerJob(Job):
         except asyncio.CancelledError:
             raise
         except ContainerDeletedError as exc:
-            log.info(f'Container {container} was deleted while running.', exc)
+            log.info(f'Container {container} was deleted while running.', exc, extra=self._log_metadata())
         except Exception as e:
             if not user_error(e):
-                log.exception(f'While running container: {container}')
+                log.exception(f'While running container: {container}', extra=self._log_metadata())
 
     async def run(self):
         async with self.worker.cpu_sem(self.cpu_in_mcpu):
@@ -2075,7 +2169,7 @@ class DockerJob(Job):
                 self.state = 'cancelled'
             except Exception as e:
                 if not user_error(e):
-                    log.exception(f'while running {self}')
+                    log.exception(f'while running {self}', extra=self._log_metadata())
 
                 self.state = 'error'
                 self.error = traceback.format_exc()
@@ -2101,11 +2195,13 @@ class DockerJob(Job):
             try:
                 async with async_timeout.timeout(300):
                     await self.disk.delete()
-                    log.info(f'deleted disk {self.disk.name} for {self.id}')
+                    log.info(f'deleted disk {self.disk.name} for {self.id}', extra=self._log_metadata())
             except asyncio.CancelledError:
                 raise
             except Exception:
-                log.exception(f'while detaching and deleting disk {self.disk.name} for job {self.id}')
+                log.exception(
+                    f'while detaching and deleting disk {self.disk.name} for job {self.id}', extra=self._log_metadata()
+                )
         else:
             self.worker.data_disk_space_remaining += self.external_storage_in_gib
 
@@ -2120,13 +2216,16 @@ class DockerJob(Job):
                         assert CLOUD_WORKER_API
                         async with async_timeout.timeout(120):
                             await CLOUD_WORKER_API.unmount_cloudfuse(mount_path)
-                            log.info(f'unmounted fuse blob storage {bucket} from {mount_path}')
+                            log.info(
+                                f'unmounted fuse blob storage {bucket} from {mount_path}', extra=self._log_metadata()
+                            )
                             config['mounted'] = False
                     except asyncio.CancelledError:
                         raise
                     except Exception:
                         log.exception(
-                            f'while unmounting fuse blob storage {bucket} from {mount_path} for job {self.id}'
+                            f'while unmounting fuse blob storage {bucket} from {mount_path} for job {self.id}',
+                            extra=self._log_metadata(),
                         )
                         raise
 
@@ -2141,7 +2240,9 @@ class DockerJob(Job):
         except asyncio.CancelledError:
             raise
         except Exception:
-            log.exception(f'while resetting xfs_quota project {self.project_id} for job {self.id}')
+            log.exception(
+                f'while resetting xfs_quota project {self.project_id} for job {self.id}', extra=self._log_metadata()
+            )
 
         try:
             async with async_timeout.timeout(120):
@@ -2149,7 +2250,7 @@ class DockerJob(Job):
         except asyncio.CancelledError:
             raise
         except Exception:
-            log.exception(f'while deleting scratch dir for job {self.id}')
+            log.exception(f'while deleting scratch dir for job {self.id}', extra=self._log_metadata())
 
     def get_container_log_path(self, container_name: str) -> str:
         return self.containers[container_name].log_path
