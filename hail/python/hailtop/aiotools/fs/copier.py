@@ -320,9 +320,7 @@ class SourceCopier:
             try:
                 await self.router_fs.copy_to(srcfile, destfile)
             except NotImplementedError:
-                await self._copy_file_multi_part_main(
-                    sema, source_report, srcfile, srcstat, destfile, return_exceptions
-                )
+                await self._copy_file_multi_part_main(sema, source_report, srcfile, srcstat, destfile, return_exceptions)
             success = True
         except Exception as e:
             if return_exceptions:
