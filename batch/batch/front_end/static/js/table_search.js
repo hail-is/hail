@@ -96,7 +96,7 @@ function updateOperators(selectElement) {
     // Clear existing options
     operatorSelect.innerHTML = '<option value="">Select operator...</option>';
 
-    if (field && fieldConfigs[field]) {
+    if (field && Object.hasOwn(fieldConfigs, field)) {
         const config = fieldConfigs[field];
 
         // Add operator options
@@ -220,7 +220,7 @@ function parseQuery(query) {
     const existingCriteria = container.querySelectorAll('.search-criterion');
 
     // Remove extra criteria, keeping only the first one
-    for (let i = existingCriteria.length - 1; i > 0; i--) {
+    for (let i = Number(existingCriteria.length - 1); i > 0; i--) {
         existingCriteria[i].remove();
     }
 

@@ -1,4 +1,4 @@
-const csrfToken = document.head.querySelector('meta[name="csrf"]')?.content || '';
+const csrfToken = document.head.querySelector('meta[name="csrf"]')?.getAttribute('value') || '';
 
 document.getElementsByName('remove-role-button').forEach(button => {
         button.addEventListener('click', (e) => { removeRole(button.dataset.user, button.dataset.role); })
