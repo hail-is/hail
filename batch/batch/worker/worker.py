@@ -540,7 +540,6 @@ class Image:
                     await self._ensure_image_is_pulled(auth=self._batch_worker_registry_credentials)
                 elif self.image_ref_str == BATCH_WORKER_IMAGE and self.credentials is None:
                     log.info(f'Skipping pull for batch worker image: {self.image_ref_str}', extra=self._log_metadata())
-                    pass
                 else:
                     # Pull to verify this user has access to this
                     # image.
