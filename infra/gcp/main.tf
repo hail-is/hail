@@ -402,8 +402,8 @@ resource "google_compute_router_nat" "outbound_nat" {
   nat_ip_allocate_option            = "AUTO_ONLY"
   source_subnetwork_ip_ranges_to_nat = "ALL_SUBNETWORKS_ALL_IP_RANGES"
   enable_dynamic_port_allocation     = true
-  min_ports_per_vm                  = 500
-  max_ports_per_vm                  = 8000
+  min_ports_per_vm                  = 512
+  max_ports_per_vm                  = 16384
 
   log_config {
     enable = true
