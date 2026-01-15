@@ -26,6 +26,6 @@ function searchTable(table_name, search_bar_name) {
 document.getElementsByName("searchbar-input").forEach(searchBarInput => {
     var tableId = searchBarInput.dataset.tableId;
     if (tableId && searchBarInput.id) {
-        searchBarInput.addEventListener("keyup", (e) => searchTable(tableId, searchBarInput.id));
+        searchBarInput.addEventListener("keyup", (_e) => searchTable(tableId, searchBarInput.id));
     }
 });

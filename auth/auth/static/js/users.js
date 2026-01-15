@@ -1,10 +1,10 @@
 const showActiveCheckbox = document.getElementById('show-active');
-showActiveCheckbox.addEventListener('change', (e) => { filterTable(); })
+showActiveCheckbox.addEventListener('change', (_e) => { filterTable(); })
 const showDevelopersCheckbox = document.getElementById('show-developers');
-showDevelopersCheckbox.addEventListener('change', (e) => { filterTable(); })
+showDevelopersCheckbox.addEventListener('change', (_e) => { filterTable(); })
 
 const reactivateUserForm = document.getElementById('reactivate-user-form');
-reactivateUserForm.addEventListener('submit', (e) => { validateReactivateForm(); })
+reactivateUserForm.addEventListener('submit', (_e) => { validateReactivateForm(); })
 
 function filterTable() {
     const showActive = document.getElementById('show-active').checked;

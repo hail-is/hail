@@ -1,11 +1,11 @@
 const csrfToken = document.head.querySelector('meta[name="csrf"]')?.getAttribute('value') || '';
 
 document.getElementsByName('remove-role-button').forEach(button => {
-        button.addEventListener('click', (e) => { removeRole(button.dataset.user, button.dataset.role); })
+        button.addEventListener('click', (_e) => { removeRole(button.dataset.user, button.dataset.role); })
 });
 
 document.getElementsByName('add-role-button').forEach(button => {
-        button.addEventListener('click', (e) => { addRole(button.dataset['username-input-id'], button.dataset.role); })
+        button.addEventListener('click', (_e) => { addRole(button.dataset['username-input-id'], button.dataset.role); })
 });
 
 async function removeRole(username, roleName) {
