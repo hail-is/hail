@@ -1,6 +1,8 @@
+/*eslint no-unused-vars: ["error", { "varsIgnorePattern": "^_", "argsIgnorePattern": "^_" }]*/
+
 const tosCheckbox = document.getElementById('tosCheckbox');
-tosCheckbox.addEventListener('load', (e) => { updateButtons(); })
-tosCheckbox.addEventListener('change', (e) => { updateButtons(); })
+tosCheckbox.addEventListener('load', (_e) => { updateButtons(); })
+tosCheckbox.addEventListener('change', (_e) => { updateButtons(); })
 
 function updateButtons() {
     const checkbox = document.getElementById('tosCheckbox');

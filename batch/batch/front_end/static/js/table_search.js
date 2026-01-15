@@ -1,3 +1,6 @@
+/*eslint no-unused-vars: ["error", { "varsIgnorePattern": "^_", "argsIgnorePattern": "^_" }]*/
+/*@typescript-eslint/no-unused-vars: ["error", { "varsIgnorePattern": "^_", "argsIgnorePattern": "^_" }]*/
+
 document.getElementsByName("table-search-input-box").forEach(input => {
     input.addEventListener("keydown", function (e) {
         if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
@@ -145,11 +148,11 @@ function addCriterion() {
 
     // Reset values
     newCriterion.querySelector('.criterion-select').value = '';
-    newCriterion.querySelector('.criterion-select').addEventListener('change', function (e) { updateOperators(this); });
+    newCriterion.querySelector('.criterion-select').addEventListener('change', function (_e) { updateOperators(this); });
     newCriterion.querySelector('.operator-select').innerHTML = '<option value="">Select operator...</option>';
     newCriterion.querySelector('.value-input').value = '';
     newCriterion.querySelector('.value-input').placeholder = 'Enter value...';
-    newCriterion.querySelector('.remove-criterion').addEventListener('click', function (e) { removeCriterion(this); });
+    newCriterion.querySelector('.remove-criterion').addEventListener('click', function (_e) { removeCriterion(this); });
 
     // Remove any state select
     const stateSelect = newCriterion.querySelector('.state-select');
@@ -335,7 +338,7 @@ function syncTextboxToHiddenInput() {
 }
 
 // Form submission handler
-document.getElementById('search-form').addEventListener('submit', function(e) {
+document.getElementById('search-form').addEventListener('submit', function(_e) {
     let query;
     if (currentMode === 'dropdown') {
         query = buildQuery();
@@ -377,10 +380,10 @@ document.addEventListener("keydown", function (e) {
 
 // Add initial event listeners
 document.getElementsByName('remove-criterion').forEach(button => {
-    button.addEventListener('click', function (e) { removeCriterion(this) });
+    button.addEventListener('click', function (_e) { removeCriterion(this) });
 } );
 document.getElementsByName('criterion-select').forEach(selector => {
-    selector.addEventListener('change', function (e) { updateOperators(this) });
+    selector.addEventListener('change', function (_e) { updateOperators(this) });
 } );
-document.getElementById('search-add-criterion').addEventListener('click', e => addCriterion());
-document.getElementById('search-toggle-mode').addEventListener('click', e => toggleInputMode());
+document.getElementById('search-add-criterion').addEventListener('click', _e => addCriterion());
+document.getElementById('search-toggle-mode').addEventListener('click', _e => toggleInputMode());

@@ -1,5 +1,7 @@
+/*eslint no-unused-vars: ["error", { "varsIgnorePattern": "^_", "argsIgnorePattern": "^_" }]*/
+
 let protocol = location.protocol.replace("http", "ws")
 let sock = new WebSocket(protocol + location.host + "{{ base_path }}/creating/wait");
-sock.onmessage = function (event) {
+sock.onmessage = function (_event) {
     window.location.reload()
 }

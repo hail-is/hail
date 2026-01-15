@@ -253,8 +253,8 @@ async def fetch_js_file(request):
             response = await render_template('auth', request, None, f'js/{filename}', page_context)
             response.content_type = 'application/javascript'
             return response
-        except jinja2.exceptions.TemplateNotFound:
-            raise web.HTTPNotFound()
+        except jinja2.exceptions.TemplateNotFound as error:
+            raise web.HTTPNotFound() from error
     else:
         raise web.HTTPNotFound()
 
