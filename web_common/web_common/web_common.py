@@ -9,7 +9,7 @@ import jinja2
 import sass
 from aiohttp import web
 
-from gear import UserData, new_csrf_token
+from gear import SystemPermission, UserData, new_csrf_token
 from hailtop.config import get_deploy_config
 
 deploy_config = get_deploy_config()
@@ -87,7 +87,7 @@ async def render_template(
     status_code: int = 200,
 ) -> web.Response:
     if request.headers.get('x-hail-return-jinja-context'):
-        if userdata and userdata['is_developer']:
+        if userdata and userdata.get('system_permissions', {}).get(SystemPermission.READ_PRERENDERED_JINJA2_CONTEXT):
             return web.json_response({'file': file, 'page_context': page_context, 'userdata': userdata})
         raise ValueError('Only developers can request the jinja context')
 

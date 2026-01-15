@@ -13,39 +13,42 @@
       <b>/</b>
     </a>
 
-    {% if userdata['is_developer'] == 1 %}
+    {% if userdata and (userdata['system_permissions']['read_system_roles'] or userdata['system_permissions']['read_users']) %}
     {% call header_item('Auth', auth_base_url) %}
+    {% if userdata['system_permissions']['read_system_roles'] %}
     <a class=" block hover:bg-slate-100 px-2 py-1" href="{{ auth_base_url }}/roles">Roles</a>
+    {% endif %}
+    {% if userdata['system_permissions']['read_users'] %}
     <a class="block hover:bg-slate-100 px-2 py-1" href="{{ auth_base_url }}/users">Users</a>
+    {% endif %}
     {% endcall %}
     {% endif %}
 
     {% call header_item('Batch', batch_base_url) %}
-    {% if userdata['is_developer'] == 1 %}
+    {% if userdata and userdata['system_permissions']['read_deployed_system_state'] %}
     <a class="block hover:bg-slate-100 px-2 py-1" href="{{ batch_driver_base_url }}">Driver</a>
-    <a class="block hover:bg-slate-100 px-2 py-1" href="{{ batch_base_url }}/billing_projects">Billing Projects</a>
     {% endif %}
-
     {% if userdata['username'] %}
+    <a class="block hover:bg-slate-100 px-2 py-1" href="{{ batch_base_url }}/billing_projects">Billing Projects</a>
     <a class="block hover:bg-slate-100 px-2 py-1" href="{{ batch_base_url}}/billing_limits">Billing Limits</a>
     <a class="block hover:bg-slate-100 px-2 py-1" href="{{ batch_base_url }}/billing">Billing</a>
     {% endif %}
 
-    {% if userdata['is_developer'] == 1 %}
+    {% if userdata and userdata['system_permissions']['read_deployed_system_state'] %}
     <a class="block hover:bg-slate-100 px-2 py-1" href="{{ batch_driver_base_url }}/user_resources">User Resources</a>
     <a class="block hover:bg-slate-100 px-2 py-1" href="{{ batch_driver_base_url }}/quotas">Quotas</a>
     {% endif %}
     <a class="block hover:bg-slate-100 px-2 py-1" href="{{ www_base_url }}/docs/batch/">Docs</a>
     {% endcall %}
 
-    {% if userdata['is_developer'] == 1 %}
+    {% if userdata and userdata['system_permissions']['read_ci'] %}
     {% call header_item("CI", ci_base_url) %}
     <a class="block hover:bg-slate-100 px-2 py-1" href="{{ ci_base_url }}/me">Me</a>
     <a class="block hover:bg-slate-100 px-2 py-1" href="{{ ci_base_url }}/namespaces">Namespaces</a>
     {% endcall %}
     {% endif %}
 
-    {% if userdata['is_developer'] == 1 %}
+    {% if userdata and userdata['system_permissions']['view_monitoring_dashboards'] %}
     {% call header_item("Monitoring", monitoring_base_url) %}
     <a class="block hover:bg-slate-100 px-2 py-1" href="{{ grafana_base_url }}">Grafana</a>
     <a target="_blank" class="block hover:bg-slate-100 px-2 py-1" href="https://console.cloud.google.com/logs">
@@ -62,9 +65,9 @@
       <b class='font-semibold'>{{ userdata["username"] }}</b>
     </a>
     {% else %}
-  <a class="header-link" href="{{ auth_base_url }}/user">
-    Log in or sign up
-  </a>
+    <a class="header-link" href="{{ auth_base_url }}/user">
+      Log in or sign up
+    </a>
     {% endif %}
   </div>
 </div>
