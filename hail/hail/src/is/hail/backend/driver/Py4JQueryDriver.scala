@@ -21,6 +21,7 @@ import is.hail.utils.ExecutionTimer.Timings
 import is.hail.variant.ReferenceGenome
 
 import scala.annotation.nowarn
+import scala.collection.compat._
 import scala.collection.mutable
 import scala.jdk.CollectionConverters._
 
@@ -302,7 +303,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
 
   def pyGrepReturn(regex: String, files: Seq[String], maxLines: Int)
     : Array[(String, Array[String])] =
-    fileAndLineCounts(regex, files, maxLines).mapValues(_.map(_.value)).toArray
+    fileAndLineCounts(regex, files, maxLines).view.mapValues(_.map(_.value)).toArray
 
   private[this] def addReference(rg: ReferenceGenome): Unit =
     ReferenceGenome.addFatalOnCollision(references, FastSeq(rg))

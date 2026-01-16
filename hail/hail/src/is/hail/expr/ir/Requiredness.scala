@@ -805,9 +805,9 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         lookup(old) match {
           case oldReq: RStruct =>
             requiredness.union(oldReq.required)
-            val fieldMap = fields.toMap.mapValues(lookup)
+            val fieldMap = fields.toMap
             tcoerce[RStruct](requiredness).fields.foreach { f =>
-              f.typ.unionFrom(fieldMap.getOrElse(f.name, oldReq.field(f.name)))
+              f.typ.unionFrom(fieldMap.get(f.name).map(lookup).getOrElse(oldReq.field(f.name)))
             }
           case _ => fields.foreach { case (n, f) =>
               tcoerce[RStruct](requiredness).field(n).unionFrom(lookup(f))

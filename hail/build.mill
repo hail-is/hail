@@ -120,38 +120,9 @@ trait HailScalaModule extends ScalaModule, HailJavaModule, ScalafmtModule, Scala
           "-Wconf:cat=deprecation&msg=method copyArrayToImmutableIndexedSeq in class LowPriorityImplicits2 is deprecated:s",
           // Passing an explicit array value to a Scala varargs method is deprecated (since 2.13.0) and will result in a defensive copy; Use the more efficient non-copying ArraySeq.unsafeWrapArray or an explicit toIndexedSeq call
           "-Wconf:cat=deprecation&msg=Passing an explicit array value to a Scala varargs method is deprecated:s",
-          // method any2stringadd in object Predef is deprecated (since 2.13.0): Implicit injection of + is deprecated. Convert to String to call +
-          "-Wconf:cat=deprecation&msg=any2stringadd:s",
-          // method + in class Char is deprecated (since 2.13.0): Adding a number and a String is deprecated. Use the string interpolation `s"$num$str"`
-          raw"-Wconf:cat=deprecation&msg=method \+ in class Char is deprecated:s",
-          // method toIterable in trait Iterable is deprecated (since 2.13.7): toIterable is internal and will be made protected; its name is similar to `toList` or `toSeq`, but it doesn't copy non-immutable collections
-          "-Wconf:cat=deprecation&msg=method toIterable in trait Iterable is deprecated:s",
-          // method toIterator in class IterableOnceExtensionMethods is deprecated (since 2.13.0): Use .iterator instead
-          "-Wconf:cat=deprecation&msg=toIterator:s",
-          // method foreach in class IterableOnceExtensionMethods is deprecated (since 2.13.0): Use .iterator.foreach(...) instead
-          "-Wconf:cat=deprecation&msg=foreach:s",
-          // method nonEmpty in class IterableOnceExtensionMethods is deprecated (since 2.13.0): Use .iterator.nonEmpty instead
-          "-Wconf:cat=deprecation&msg=method nonEmpty in class IterableOnceExtensionMethods is deprecated:s",
-          // method view in trait IndexedSeqOps is deprecated (since 2.13.0): Use .view.slice(from, until) instead of .view(from, until)
-          "-Wconf:cat=deprecation&msg=method view in trait IndexedSeqOps is deprecated:s",
-          // method reverseContents in class StringBuilder is deprecated (since 2.13.0): Use reverseInPlace instead
-          "-Wconf:cat=deprecation&msg=method reverseContents in class StringBuilder is deprecated:s",
-          // method + in trait MapOps is deprecated (since 2.13.0): Consider requiring an immutable Map or fall back to Map.concat.
-          raw"-Wconf:cat=deprecation&msg=method \+ in trait MapOps is deprecated:s",
-          "-Wconf:cat=deprecation&msg=method - in trait MapOps is deprecated:s",
-          // method mapValues in trait MapOps is deprecated (since 2.13.0): Use .view.mapValues(f). A future version will include a strict version of this method (for now, .view.mapValues(f).toMap).
-          "-Wconf:cat=deprecation&msg=method mapValues in trait MapOps is deprecated:s",
-          // method filterKeys in trait MapOps is deprecated (since 2.13.0): Use .view.filterKeys(f). A future version will include a strict version of this method (for now, .view.filterKeys(p).toMap).
-          "-Wconf:cat=deprecation&msg=method filterKeys in trait MapOps is deprecated:s",
-          // method - in trait SetOps is deprecated (since 2.13.0): Consider requiring an immutable Set or fall back to Set.diff
-          "-Wconf:cat=deprecation&msg=method - in trait SetOps is deprecated:s",
-          // method reverseMap in trait SeqOps is deprecated (since 2.13.0): Use .reverseIterator.map(f).to(...) instead of .reverseMap(f)
-          "-Wconf:cat=deprecation&msg=method reverseMap in trait SeqOps is deprecated:s",
           // method transform in trait SeqOps is deprecated (since 2.13.0): Use `mapInPlace` on an `IndexedSeq` instead
           "-Wconf:cat=deprecation&msg=method transform in trait SeqOps is deprecated:s",
           // other
-          // Widening conversion from Long to Double is deprecated because it loses precision. Write `.toDouble` instead.
-          "-Wconf:cat=deprecation&msg=Widening conversion from Long to Double:s",
           "-Wconf:cat=deprecation&msg=symbol literal is deprecated:s",
           raw"-Wconf:cat=unused-imports&origin=scala\.collection\.compat\._:s",
           raw"-Wconf:cat=unused-imports&origin=scala\.Option\.option2Iterable:s",
@@ -164,4 +135,3 @@ trait HailScalaModule extends ScalaModule, HailJavaModule, ScalafmtModule, Scala
     }
 
   trait HailScalaTests extends ScalaTests, HailScalaModule
-

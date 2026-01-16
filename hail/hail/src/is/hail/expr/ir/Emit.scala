@@ -23,6 +23,7 @@ import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives._
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 import is.hail.variant.ReferenceGenome
 
 import scala.annotation.{nowarn, tailrec}
@@ -68,8 +69,8 @@ case class EmitEnv(bindings: Env[EmitValue], inputValues: IndexedSeq[EmitValue])
 
   def asParams(freeVariables: Env[Unit])
     : (IndexedSeq[ParamType], IndexedSeq[Value[_]], (EmitCodeBuilder, Int) => EmitEnv) = {
-    val m = bindings.m.filterKeys(freeVariables.contains)
-    val bindingNames = m.keys.toArray
+    val m = bindings.m
+    val bindingNames = m.keys.filter(freeVariables.contains).to(ArraySeq)
     val paramTypes =
       bindingNames.map(name => m(name).emitType.paramType) ++ inputValues.map(_.emitType.paramType)
     val params =

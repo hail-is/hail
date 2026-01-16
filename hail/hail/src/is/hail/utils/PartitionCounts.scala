@@ -35,7 +35,7 @@ object PartitionCounts {
   def getTailPCs(original: IndexedSeq[Long], n: Long): IndexedSeq[Long] =
     getPCSubsetOffset(n, original.reverseIterator) match {
       case Some(PCSubsetOffset(lastIdx, nKeep, _)) =>
-        (0 to lastIdx).reverseMap { i =>
+        (0 to lastIdx).reverse.map { i =>
           if (i == lastIdx)
             nKeep
           else

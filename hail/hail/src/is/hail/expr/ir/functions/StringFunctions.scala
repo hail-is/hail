@@ -26,11 +26,7 @@ import org.json4s.JValue
 import org.json4s.jackson.JsonMethods
 
 object StringFunctions extends RegistryFunctions {
-  def reverse(s: String): String = {
-    val sb = new StringBuilder
-    sb.append(s)
-    sb.reverseContents().result()
-  }
+  def reverse(s: String): String = s.reverse
 
   def upper(s: String): String = s.toUpperCase
 

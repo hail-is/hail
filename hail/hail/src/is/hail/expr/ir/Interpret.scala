@@ -18,6 +18,7 @@ import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.utils.compat.immutable.ArraySeq
 
+import scala.collection.compat._
 import scala.collection.mutable
 
 import org.apache.spark.sql.Row
@@ -426,7 +427,9 @@ object Interpret extends Logging {
       case GroupByKey(collection) =>
         interpret(collection, env, args).asInstanceOf[IndexedSeq[Row]]
           .groupBy { case Row(k, _) => k }
+          .view
           .mapValues { elt: IndexedSeq[Row] => elt.map { case Row(_, v) => v } }
+          .toMap
       case StreamTake(a, len) =>
         val aValue = interpret(a, env, args)
         val lenValue = interpret(len, env, args)
@@ -780,11 +783,13 @@ object Interpret extends Logging {
         if (struct != null)
           fieldOrder match {
             case Some(fds) =>
-              val newValues = fields.toMap.mapValues(interpret(_, env, args))
+              val m = fields.toMap
               val oldIndices =
                 old.typ.asInstanceOf[TStruct].fields.map(f => f.name -> f.index).toMap
               Row.fromSeq(fds.map(name =>
-                newValues.getOrElse(name, struct.asInstanceOf[Row].get(oldIndices(name)))
+                m.get(name).map(interpret(_, env, args)).getOrElse(
+                  struct.asInstanceOf[Row].get(oldIndices(name))
+                )
               ))
             case None =>
               var t = old.typ.asInstanceOf[TStruct]

@@ -2108,7 +2108,7 @@ object IRParser {
   }
 
   def parse[T](s: String, f: (TokenIterator) => T): T = {
-    val it = IRLexer.parse(s).toIterator.buffered
+    val it = IRLexer.parse(s).iterator.buffered
     f(it)
   }
 

@@ -607,7 +607,7 @@ case class SplitPartitionNativeWriter(
         cb += buff.close()
       }
 
-      stages.flatMap(_.toIterable).zip(filenames).foreach { case (source, destination) =>
+      stages.flatten.zip(filenames).foreach { case (source, destination) =>
         cb += mb.getFS.invoke[String, String, Boolean, Unit](
           "copy",
           source,

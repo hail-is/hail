@@ -192,7 +192,7 @@ object IRDSL_Impl extends IRDSL {
 
     override def copyWithNewChildren(newChildren: SeqRepr[Child]): Repr[Child] = {
       assert(newChildren.hasStaticLen(1))
-      ChildRepr(typ, newChildren(0) + s".asInstanceOf[$typ]")
+      ChildRepr(typ, s"${newChildren(0)}.asInstanceOf[$typ]")
     }
   }
 
@@ -247,7 +247,7 @@ object IRDSL_Impl extends IRDSL {
         case (SeqRepr.Static(Seq(), _), r) => r
         case (l, SeqRepr.Static(Seq(), _)) => l
         case (SeqRepr.Static(l, t), SeqRepr.Static(r, _)) => SeqRepr.Static(l ++ r, t)
-        case _ => SeqRepr.Dynamic(this + " ++ " + other, eltType)
+        case _ => SeqRepr.Dynamic(s"$this ++ $other", eltType)
       }
     }
 

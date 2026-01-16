@@ -126,7 +126,7 @@ class Pretty(
 
   def prettyLongs(x: IndexedSeq[Long], elideLiterals: Boolean): Doc = {
     val truncate = elideLiterals && x.length > MAX_VALUES_TO_LOG
-    val view = if (truncate) x.view else x.view(0, MAX_VALUES_TO_LOG)
+    val view = if (truncate) x.view else x.view.slice(0, MAX_VALUES_TO_LOG)
     val docs = view.map(i => text(i.toString))
     concat(docs.intersperse[Doc](
       "(",
@@ -137,7 +137,7 @@ class Pretty(
 
   def prettyInts(x: IndexedSeq[Int], elideLiterals: Boolean): Doc = {
     val truncate = elideLiterals && x.length > MAX_VALUES_TO_LOG
-    val view = if (truncate) x.view else x.view(0, MAX_VALUES_TO_LOG)
+    val view = if (truncate) x.view else x.view.slice(0, MAX_VALUES_TO_LOG)
     val docs = view.map(i => text(i.toString))
     concat(docs.intersperse[Doc](
       "(",
@@ -439,26 +439,26 @@ class Pretty(
         Pretty.prettyBooleanLiteral(dropCols),
         Pretty.prettyBooleanLiteral(dropRows),
         if (elideLiterals) reader.renderShort()
-        else '"' + StringEscapeUtils.escapeString(JsonMethods.compact(reader.toJValue)) + '"',
+        else s""""${StringEscapeUtils.escapeString(JsonMethods.compact(reader.toJValue))}"""",
       )
     case MatrixWrite(_, writer) =>
-      single('"' + StringEscapeUtils.escapeString(
-        Serialization.write(writer)(MatrixWriter.formats)
-      ) + '"')
+      single(
+        s""""${StringEscapeUtils.escapeString(Serialization.write(writer)(MatrixWriter.formats))}""""
+      )
     case MatrixMultiWrite(_, writer) =>
-      single('"' + StringEscapeUtils.escapeString(
-        Serialization.write(writer)(MatrixNativeMultiWriter.formats)
-      ) + '"')
+      single(
+        s""""${StringEscapeUtils.escapeString(Serialization.write(writer)(MatrixNativeMultiWriter.formats))}""""
+      )
     case BlockMatrixRead(reader) =>
-      single('"' + StringEscapeUtils.escapeString(JsonMethods.compact(reader.toJValue)) + '"')
+      single(s""""${StringEscapeUtils.escapeString(JsonMethods.compact(reader.toJValue))}"""")
     case BlockMatrixWrite(_, writer) =>
-      single('"' + StringEscapeUtils.escapeString(
-        Serialization.write(writer)(BlockMatrixWriter.formats)
-      ) + '"')
+      single(
+        s""""${StringEscapeUtils.escapeString(Serialization.write(writer)(BlockMatrixWriter.formats))}""""
+      )
     case BlockMatrixMultiWrite(_, writer) =>
-      single('"' + StringEscapeUtils.escapeString(
-        Serialization.write(writer)(BlockMatrixWriter.formats)
-      ) + '"')
+      single(
+        s""""${StringEscapeUtils.escapeString(Serialization.write(writer)(BlockMatrixWriter.formats))}""""
+      )
     case BlockMatrixBroadcast(_, inIndexExpr, shape, blockSize) =>
       FastSeq(
         prettyInts(inIndexExpr, elideLiterals),
@@ -515,16 +515,16 @@ class Pretty(
         if (typ == tr.fullType) "None" else typ.parsableString(),
         Pretty.prettyBooleanLiteral(dropRows),
         if (elideLiterals) tr.renderShort()
-        else '"' + StringEscapeUtils.escapeString(JsonMethods.compact(tr.toJValue)) + '"',
+        else s""""${StringEscapeUtils.escapeString(JsonMethods.compact(tr.toJValue))}"""",
       )
     case TableWrite(_, writer) =>
       single(
-        '"' + StringEscapeUtils.escapeString(Serialization.write(writer)(TableWriter.formats)) + '"'
+        s""""${StringEscapeUtils.escapeString(Serialization.write(writer)(TableWriter.formats))}""""
       )
     case TableMultiWrite(_, writer) =>
-      single('"' + StringEscapeUtils.escapeString(
-        Serialization.write(writer)(WrappedMatrixNativeMultiWriter.formats)
-      ) + '"')
+      single(
+        s""""${StringEscapeUtils.escapeString(Serialization.write(writer)(WrappedMatrixNativeMultiWriter.formats))}""""
+      )
     case TableKeyBy(_, keys, isSorted) =>
       FastSeq(prettyIdentifiers(keys), Pretty.prettyBooleanLiteral(isSorted))
     case TableRange(n, nPartitions) => FastSeq(n.toString, nPartitions.toString)

@@ -4428,11 +4428,11 @@ class IRSuite extends HailSuite {
       assert(interval1.isDisjointFrom(kord, interval2))
     }
 
-    val splitterValueDuplicated = splitters.counter().mapValues(_ > 1)
+    val splitterValueCounts = splitters.counter()
     val intBuilder = new IntArrayBuilder()
     splitters.toSet.toIndexedSeq.sorted.foreach { e =>
       intBuilder.add(e)
-      if (splitterValueDuplicated(e)) {
+      if (splitterValueCounts(e) > 1) {
         intBuilder.add(e)
       }
     }

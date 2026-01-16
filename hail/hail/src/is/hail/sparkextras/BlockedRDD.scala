@@ -2,6 +2,7 @@ package is.hail.sparkextras
 
 import is.hail.utils._
 
+import scala.collection.compat._
 import scala.reflect.ClassTag
 
 import org.apache.spark.{Dependency, NarrowDependency, Partition, TaskContext}
@@ -54,15 +55,12 @@ class BlockedRDD[T](
     val locationAvail = range.flatMap(i =>
       prev.preferredLocations(prevPartitions(i))
     )
-      .groupBy(identity)
-      .mapValues(_.length)
+      .counter()
 
     if (locationAvail.isEmpty)
       return FastSeq.empty[String]
 
     val m = locationAvail.values.max
-    locationAvail.filter(_._2 == m)
-      .keys
-      .toFastSeq
+    locationAvail.filter(_._2 == m).keys.toFastSeq
   }
 }

@@ -73,13 +73,13 @@ class HailFeatureFlags private (
   }
 
   def +(feature: (String, String)): HailFeatureFlags =
-    new HailFeatureFlags(flags + (feature._1 -> feature._2))
+    new HailFeatureFlags(flags.clone() += feature._1 -> feature._2)
 
   def define(feature: String): HailFeatureFlags =
-    new HailFeatureFlags(flags + (feature -> "1"))
+    new HailFeatureFlags(flags.clone() += feature -> "1")
 
   def -(feature: String): HailFeatureFlags =
-    new HailFeatureFlags(flags - feature)
+    new HailFeatureFlags(flags.clone() -= feature)
 
   def get(flag: String): String = flags(flag)
 

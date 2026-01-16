@@ -296,7 +296,7 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
       ab += fields(i)
       i += 1
     }
-    val it = fieldsToInsert.toIterator
+    val it = fieldsToInsert.iterator
     while (it.hasNext) {
       val (name, typ) = it.next()
       if (fieldIdx.contains(name)) {
