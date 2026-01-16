@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.asm4s.implicits.toRichCodeIterator
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.LoweredTableReader.LoweredTableReaderCoercer
 import is.hail.expr.ir.defs.{Literal, PartitionReader, ReadPartition, ToStream}
@@ -17,7 +18,6 @@ import is.hail.types.physical.stypes.concrete.{SStackStruct, SStackStructValue}
 import is.hail.types.physical.stypes.interfaces.{primitive, SBaseStructValue, SStreamValue}
 import is.hail.types.physical.stypes.primitives.SInt64
 import is.hail.types.virtual.{TArray, TInt32, TInt64, TStruct, TTuple, TableType, Type}
-import is.hail.utils._
 
 import org.apache.spark.sql.Row
 import org.json4s.{Extraction, JValue}

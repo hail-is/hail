@@ -3,6 +3,8 @@ package is.hail.expr.ir
 import is.hail.{ExecStrategy, HailSuite}
 import is.hail.annotations._
 import is.hail.asm4s._
+import is.hail.collection.FastSeq
+import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.agg._
 import is.hail.expr.ir.compile.CompileWithAggregators
 import is.hail.expr.ir.defs._
@@ -11,7 +13,6 @@ import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.virtual._
-import is.hail.utils._
 import is.hail.variant.{Call0, Call1, Call2}
 
 import org.apache.spark.sql.Row

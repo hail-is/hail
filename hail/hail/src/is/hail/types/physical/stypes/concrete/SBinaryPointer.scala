@@ -2,12 +2,12 @@ package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.{PBinary, PType}
 import is.hail.types.physical.stypes.{SSettable, SType, SValue}
 import is.hail.types.physical.stypes.interfaces.{SBinary, SBinaryValue}
 import is.hail.types.virtual.Type
-import is.hail.utils._
 
 final case class SBinaryPointer(pType: PBinary) extends SBinary {
   require(!pType.required)

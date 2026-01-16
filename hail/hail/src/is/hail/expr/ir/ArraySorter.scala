@@ -2,10 +2,10 @@ package is.hail.expr.ir
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.collection.FastSeq
 import is.hail.types.physical.{PCanonicalArray, PCanonicalDict, PCanonicalSet}
 import is.hail.types.physical.stypes.interfaces.SIndexableValue
 import is.hail.types.virtual.{TArray, TDict, TSet, Type}
-import is.hail.utils.FastSeq
 
 class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
   val ti: TypeInfo[_] = array.elt.ti

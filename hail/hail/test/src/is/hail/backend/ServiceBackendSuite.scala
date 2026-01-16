@@ -2,9 +2,10 @@ package is.hail.backend
 
 import is.hail.HailSuite
 import is.hail.backend.service.{BatchJobConfig, ServiceBackend, WireProtocol}
+import is.hail.collection.FastSeq
 import is.hail.services._
 import is.hail.services.JobGroupStates.{Cancelled, Failure, Success}
-import is.hail.utils.{handleForPython, tokenUrlSafe, using, FastSeq, HailWorkerException}
+import is.hail.utils.{handleForPython, tokenUrlSafe, using, HailWorkerException}
 
 import scala.collection.compat.immutable.LazyList
 import scala.concurrent.CancellationException

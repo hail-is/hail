@@ -1,8 +1,10 @@
 package is.hail.asm4s
 
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.lir
 import is.hail.utils._
+import is.hail.utils.implicits.toRichBoolean
 
 import scala.collection.mutable
 

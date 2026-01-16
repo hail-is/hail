@@ -1,7 +1,8 @@
 package is.hail.io.reference
 
+import is.hail.collection.implicits.toRichIterable
 import is.hail.io.fs.FS
-import is.hail.utils.{fatal, toRichIterable}
+import is.hail.utils.fatal
 import is.hail.variant.ReferenceGenome
 
 object IndexedFastaSequenceFile {

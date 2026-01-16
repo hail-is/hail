@@ -2,9 +2,10 @@ package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
 import is.hail.ExecStrategy.ExecStrategy
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.defs.{Apply, ErrorIDs, False, I32, I64, MakeArray, MakeTuple, NA, Str, True}
 import is.hail.types.virtual._
-import is.hail.utils.{FastSeq, Interval}
+import is.hail.utils.Interval
 import is.hail.variant.{Locus, ReferenceGenome}
 
 import org.apache.spark.sql.Row

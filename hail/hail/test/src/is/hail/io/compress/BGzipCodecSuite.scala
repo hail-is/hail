@@ -1,9 +1,12 @@
 package is.hail.io.compress
 
 import is.hail.HailSuite
+import is.hail.collection.implicits.toRichIterator
 import is.hail.expr.ir.GenericLines
 import is.hail.scalacheck.ApplicativeGenOps
+import is.hail.sparkextras.implicits._
 import is.hail.utils._
+import is.hail.utils.implicits.toRichInputStream
 
 import scala.collection.mutable
 import scala.io.Source

@@ -3,6 +3,7 @@ package is.hail.sparkextras
 import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
 import is.hail.rvd.RVDContext
+import is.hail.sparkextras.implicits.{toRichContextRDD, toRichRDD, toRichSC}
 import is.hail.utils._
 
 import scala.collection.compat._

@@ -2,12 +2,12 @@ package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical.{PCanonicalArray, PCanonicalString, PString, PType}
 import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.interfaces.{SContainer, SIndexableValue, SStringValue}
 import is.hail.types.virtual.{TArray, TString, Type}
-import is.hail.utils.FastSeq
 
 object SJavaArrayHelpers {
   def hasNulls(a: Array[String]): Boolean = {

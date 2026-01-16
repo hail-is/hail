@@ -64,11 +64,11 @@ def init(
     try:
         raise_when_mismatched_hail_versions(gateway.jvm)
         _is = getattr(gateway.jvm, 'is')
-        py4jutils = scala_package_object(_is.hail.utils)
+        py4jutils = scala_package_object(_is.hail.utils.py4jutils)
 
         try:
             if not skip_logging_configuration:
-                py4jutils.configureLogging(log, quiet, append)
+                py4jutils.pyConfigureLogging(log, quiet, append)
 
             jbackend = __init_batch_backend(
                 gateway=gateway,

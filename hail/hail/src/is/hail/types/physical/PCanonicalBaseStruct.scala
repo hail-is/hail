@@ -2,6 +2,7 @@ package is.hail.types.physical
 
 import is.hail.annotations.{Annotation, Region, UnsafeRow, UnsafeUtils}
 import is.hail.asm4s._
+import is.hail.asm4s.implicits.codeToRichCodeRegion
 import is.hail.backend.HailStateManager
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
 import is.hail.types.BaseStruct

@@ -3,6 +3,7 @@ package is.hail.annotations
 import is.hail.HailSuite
 import is.hail.asm4s._
 import is.hail.backend.{ExecuteContext, HailTaskContext}
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.{EmitCode, EmitFunctionBuilder, IEmitCode, RequirednessSuite}
 import is.hail.io.fs.FS
 import is.hail.scalacheck._
