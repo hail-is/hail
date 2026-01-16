@@ -241,8 +241,8 @@ class BGzipCodecSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
           assert(decompIS.getVirtualOffset() == vOff);
           uncompIS.seek(uOff.toLong + extra)
 
-          val decompRead = decompIS.readRepeatedly(decompData)
-          val uncompRead = uncompIS.readRepeatedly(uncompData)
+          val decompRead = decompIS.readNBytes(decompData, 0, decompData.length)
+          val uncompRead = uncompIS.readNBytes(uncompData, 0, uncompData.length)
 
           assert(
             decompRead == uncompRead,
