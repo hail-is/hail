@@ -5,3 +5,5 @@ function focusOnSlash(name) {
     }
   }
 }
+
+focusOnSlash("prsSearchBar");

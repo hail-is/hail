@@ -9,6 +9,7 @@ from typing import List, NoReturn, Optional, Union
 from urllib.parse import urlparse
 
 import aiohttp_session
+import jinja2
 import kubernetes_asyncio.client
 import kubernetes_asyncio.client.rest
 import kubernetes_asyncio.config
@@ -67,6 +68,7 @@ log = logging.getLogger('auth')
 
 CLOUD = get_global_config()['cloud']
 DEFAULT_NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
+AUTH_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 is_test_deployment = DEFAULT_NAMESPACE != 'default'
 
@@ -239,6 +241,22 @@ async def swagger(request):
 async def openapi(request):
     page_context = {'base_path': deploy_config.base_path('auth'), 'spec_version': __version__}
     return await render_template('auth', request, None, 'openapi.yaml', page_context)
+
+
+@routes.get('/auth/static/js/{filename}')
+@web_security_headers
+async def fetch_js_file(request):
+    filename = request.match_info['filename']
+    if filename.endswith('.js'):
+        page_context = {'base_path': deploy_config.base_path('auth')}
+        try:
+            response = await render_template('auth', request, None, f'js/{filename}', page_context)
+            response.content_type = 'application/javascript'
+            return response
+        except jinja2.exceptions.TemplateNotFound as error:
+            raise web.HTTPNotFound() from error
+    else:
+        raise web.HTTPNotFound()
 
 
 @routes.get('')
@@ -1239,7 +1257,7 @@ def run():
         ]
     )
 
-    setup_aiohttp_jinja2(app, 'auth')
+    setup_aiohttp_jinja2(app, 'auth', jinja2.FileSystemLoader(f'{AUTH_ROOT}/static/'))
     setup_aiohttp_session(app)
 
     setup_common_static_routes(routes)

@@ -1,3 +1,5 @@
+/*@typescript-eslint no-unused-vars: ["error", { "varsIgnorePattern": "^_", "argsIgnorePattern": "^_" }]*/
+
 function searchTable(table_name, search_bar_name) {
   var searchTerms = document.getElementById(search_bar_name);
   var filter = searchTerms.value.toLowerCase();
@@ -22,3 +24,10 @@ function searchTable(table_name, search_bar_name) {
     }
   }
 }
+
+document.getElementsByName("searchbar-input").forEach(searchBarInput => {
+    var tableId = searchBarInput.dataset.tableId;
+    if (tableId && searchBarInput.id) {
+        searchBarInput.addEventListener("keyup", (_e) => searchTable(tableId, searchBarInput.id));
+    }
+});
