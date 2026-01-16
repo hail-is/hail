@@ -6,11 +6,11 @@ import is.hail.backend.ExecuteContext
 import is.hail.expr.Nat
 import is.hail.expr.ir.defs.{MetadataWriter, Str, UUID4, WriteMetadata, WriteValue}
 import is.hail.expr.ir.lowering.{BlockMatrixStage2, LowererUnsupportedOperation}
-import is.hail.io.{StreamBufferSpec, TypedCodecSpec}
+import is.hail.io.TypedCodecSpec
 import is.hail.io.fs.FS
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, MatrixSparsity}
 import is.hail.types.TypeWithRequiredness
-import is.hail.types.encoded.{EBlockMatrixNDArray, ENumpyBinaryNDArray, EType}
+import is.hail.types.encoded.{EBlockMatrixNDArray, EType}
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.utils.richUtils.RichDenseMatrixDouble
@@ -185,11 +185,7 @@ case class BlockMatrixBinaryWriter(path: String) extends BlockMatrixWriter {
     eltR: TypeWithRequiredness,
   ): IR = {
     val nd = s.collectLocal(evalCtx, "block_matrix_binary_writer")
-
-    // FIXME remove numpy encoder
-    val etype = ENumpyBinaryNDArray(s.typ.nRows, s.typ.nCols, true)
-    val spec = TypedCodecSpec(etype, TNDArray(s.typ.elementType, Nat(2)), new StreamBufferSpec())
-    val writer = ETypeValueWriter(spec)
+    val writer = NumpyBinaryValueWriter(s.typ.nRows, s.typ.nCols)
     WriteValue(nd, Str(path), writer)
   }
 }
