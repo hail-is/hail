@@ -17,6 +17,7 @@ import is.hail.types.physical.stypes.{
 import is.hail.types.physical.stypes.interfaces.{NoBoxLongIterator, SStreamValue}
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 import is.hail.variant.Call2
 
 import org.apache.spark.sql.Row
@@ -239,7 +240,7 @@ class EmitStreamSuite extends HailSuite {
       step <- 1 to 3
     }
       assert(
-        range(Row(start, stop, step)) == Array.range(start, stop, step).toFastSeq,
+        range(Row(start, stop, step)) == ArraySeq.range(start, stop, step),
         s"($start, $stop, $step)",
       )
     assert(range(Row(null, 10, 1)) == null)
@@ -662,13 +663,13 @@ class EmitStreamSuite extends HailSuite {
 
     def lElts(xs: (Int, String)*): IR =
       MakeStream(
-        xs.toArray.map { case (a, b) => MakeStruct(IndexedSeq("k" -> I32(a), "v" -> Str(b))) },
+        xs.toFastSeq.map { case (a, b) => MakeStruct(IndexedSeq("k" -> I32(a), "v" -> Str(b))) },
         TStream(lEltType),
       )
 
     def rElts(xs: ((Char, Any, Any, Char), String)*): IR =
       MakeStream(
-        xs.toArray.map {
+        xs.toFastSeq.map {
           case ((is, s, e, ie), v) =>
             val start = if (s == null) NA(TInt32) else I32(s.asInstanceOf[Int])
             val end = if (e == null) NA(TInt32) else I32(e.asInstanceOf[Int])

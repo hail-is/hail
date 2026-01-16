@@ -5,8 +5,10 @@ import is.hail.io._
 import is.hail.io.fs.FS
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, GridPartitioner}
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.collection.parallel.CollectionConverters._
+import scala.util.chaining.scalaUtilChainingOps
 
 import java.io.{DataInputStream, DataOutputStream, InputStream, OutputStream}
 
@@ -153,8 +155,7 @@ class RichDenseMatrixDouble(val m: BDM[Double]) extends AnyVal {
       block.write(fs, filename, forceRowMajor, BlockMatrix.bufferSpec)
 
       f
-    }
-      .toArray
+    }.toArray.pipe(ArraySeq.unsafeWrapArray)
 
     using(new DataOutputStream(fs.create(path + BlockMatrix.metadataRelativePath))) { os =>
       implicit val formats = defaultJSONFormats

@@ -11,6 +11,7 @@ import is.hail.types.physical.stypes.concrete.{
 }
 import is.hail.types.physical.stypes.interfaces.SIndexableValue
 import is.hail.types.virtual.{TArray, TFloat64, TInt32, Type}
+import is.hail.utils.compat.immutable.ArraySeq
 
 import breeze.linalg.{diag, inv, DenseMatrix, DenseVector}
 
@@ -110,8 +111,8 @@ class LinearRegressionAggregator() extends StagedAggregator {
   override def resultEmitType: EmitType =
     EmitType(SBaseStructPointer(LinearRegressionAggregator.resultPType), true)
 
-  val initOpTypes: Seq[Type] = Array(TInt32, TInt32)
-  val seqOpTypes: Seq[Type] = Array(TFloat64, TArray(TFloat64))
+  val initOpTypes: IndexedSeq[Type] = ArraySeq(TInt32, TInt32)
+  val seqOpTypes: IndexedSeq[Type] = ArraySeq(TFloat64, TArray(TFloat64))
 
   def initOpF(state: State)(cb: EmitCodeBuilder, kc: Code[Int], k0c: Code[Int]): Unit = {
     val k = cb.newLocal[Int]("lra_init_k", kc)

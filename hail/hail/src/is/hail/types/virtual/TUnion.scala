@@ -46,7 +46,7 @@ object TUnion {
       .iterator
       .zipWithIndex
       .map { case ((n, t), i) => Case(n, t, i) }
-      .toArray)
+      .to(ArraySeq))
 }
 
 final case class TUnion(cases: IndexedSeq[Case]) extends Type {

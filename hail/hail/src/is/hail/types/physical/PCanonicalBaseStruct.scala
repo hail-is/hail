@@ -11,26 +11,23 @@ import is.hail.utils._
 
 import org.apache.spark.sql.Row
 
-abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct {
+abstract class PCanonicalBaseStruct(val types: IndexedSeq[PType]) extends PBaseStruct {
   if (!types.forall(_.isRealizable)) {
     throw new AssertionError(
       s"found non realizable type(s) ${types.filter(!_.isRealizable).mkString(", ")} in ${types.mkString(", ")}"
     )
   }
 
-  override val (missingIdx: Array[Int], nMissing: Int) =
+  override val (missingIdx: IndexedSeq[Int], nMissing: Int) =
     BaseStruct.getMissingIndexAndCount(types.map(_.required))
 
   val nMissingBytes: Int = UnsafeUtils.packBitsToBytes(nMissing)
-  val byteOffsets: Array[Long] = new Array[Long](size)
 
-  override val byteSize: Long =
-    getByteSizeAndOffsets(
-      types.map(_.byteSize),
-      types.map(_.alignment),
-      nMissingBytes.toLong,
-      byteOffsets,
-    )
+  val (byteOffsets, byteSize) = getByteSizeAndOffsets(
+    types.map(_.byteSize),
+    types.map(_.alignment),
+    nMissingBytes.toLong,
+  )
 
   override val alignment: Long = PBaseStruct.alignment(types)
 

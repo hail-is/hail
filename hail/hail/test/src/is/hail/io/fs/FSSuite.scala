@@ -28,14 +28,14 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
   def t(extension: String = null): String =
     ExecuteContext.createTmpPathNoCleanup(tmpdir, "fs-suite-tmp", extension)
 
-  def pathsRelRoot(root: String, statuses: Array[FileListEntry]): Set[String] =
+  def pathsRelRoot(root: String, statuses: IndexedSeq[FileListEntry]): Set[String] =
     statuses.map { status =>
       val p = status.getPath
       assert(p.startsWith(root), s"$p $root")
       p.drop(root.length)
     }.toSet
 
-  def pathsRelResourcesRoot(statuses: Array[FileListEntry]): Set[String] =
+  def pathsRelResourcesRoot(statuses: IndexedSeq[FileListEntry]): Set[String] =
     pathsRelRoot(fsResourcesRoot, statuses)
 
   @Test def testExistsOnDirectory(): Unit = {

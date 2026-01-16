@@ -5,6 +5,7 @@ import is.hail.backend.service.{BatchJobConfig, ServiceBackend, WireProtocol}
 import is.hail.services._
 import is.hail.services.JobGroupStates.{Cancelled, Failure, Success}
 import is.hail.utils.{handleForPython, tokenUrlSafe, using, FastSeq, HailWorkerException}
+import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.collection.compat.immutable.LazyList
 import scala.concurrent.CancellationException
@@ -25,7 +26,7 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
 
   @Test def testExecutesSinglePartitionLocally(): Unit =
     runMock { (ctx, _, batchClient, backend) =>
-      val contexts = Array.tabulate(10)(_.toString.getBytes)
+      val contexts = ArraySeq.tabulate(10)(_.toString.getBytes)
 
       val (failure, _) =
         backend.runtimeContext(ctx).mapCollectPartitions(
@@ -42,7 +43,7 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
 
   @Test def testCreateJobPayload(): Unit =
     runMock { (ctx, jobConfig, batchClient, backend) =>
-      val contexts = Array.tabulate(2)(_.toString.getBytes)
+      val contexts = ArraySeq.tabulate(2)(_.toString.getBytes)
 
       // verify that
       // - the number of jobs matches the number of partitions, and
@@ -175,7 +176,7 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
 
   @Test def testCancelledJobGroup(): Unit =
     runMock { (ctx, _, batchClient, backend) =>
-      val contexts = Array.tabulate(100)(_.toString.getBytes)
+      val contexts = ArraySeq.tabulate(100)(_.toString.getBytes)
       val startJobGroupId = 2356
       when(batchClient.newJobGroup(any[JobGroupRequest])) thenAnswer {
         _: JobGroupRequest => (backend.batchConfig.jobGroupId + 1, startJobGroupId)

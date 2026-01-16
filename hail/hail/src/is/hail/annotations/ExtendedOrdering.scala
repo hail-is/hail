@@ -1,6 +1,7 @@
 package is.hail.annotations
 
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 import org.apache.spark.sql.Row
 
@@ -95,26 +96,26 @@ object ExtendedOrdering {
 
       def compareNonnull(x: T, y: T): Int =
         itOrd.compareNonnull(
-          x.asInstanceOf[Array[T]].sorted(elemOrd).toFastSeq,
-          y.asInstanceOf[Array[T]].sorted(elemOrd).toFastSeq,
+          ArraySeq.unsafeWrapArray(x.asInstanceOf[Array[T]]).sorted(elemOrd),
+          ArraySeq.unsafeWrapArray(y.asInstanceOf[Array[T]]).sorted(elemOrd),
         )
 
       override def ltNonnull(x: T, y: T): Boolean =
         itOrd.ltNonnull(
-          x.asInstanceOf[Array[T]].sorted(elemOrd).toFastSeq,
-          y.asInstanceOf[Array[T]].sorted(elemOrd).toFastSeq,
+          ArraySeq.unsafeWrapArray(x.asInstanceOf[Array[T]]).sorted(elemOrd),
+          ArraySeq.unsafeWrapArray(y.asInstanceOf[Array[T]]).sorted(elemOrd),
         )
 
       override def lteqNonnull(x: T, y: T): Boolean =
         itOrd.lteqNonnull(
-          x.asInstanceOf[Array[T]].sorted(elemOrd).toFastSeq,
-          y.asInstanceOf[Array[T]].sorted(elemOrd).toFastSeq,
+          ArraySeq.unsafeWrapArray(x.asInstanceOf[Array[T]]).sorted(elemOrd),
+          ArraySeq.unsafeWrapArray(y.asInstanceOf[Array[T]]).sorted(elemOrd),
         )
 
       override def equivNonnull(x: T, y: T): Boolean =
         itOrd.equivNonnull(
-          x.asInstanceOf[Array[T]].sorted(elemOrd).toFastSeq,
-          y.asInstanceOf[Array[T]].sorted(elemOrd).toFastSeq,
+          ArraySeq.unsafeWrapArray(x.asInstanceOf[Array[T]]).sorted(elemOrd),
+          ArraySeq.unsafeWrapArray(y.asInstanceOf[Array[T]]).sorted(elemOrd),
         )
     }
 
@@ -183,7 +184,7 @@ object ExtendedOrdering {
         )
     }
 
-  def rowOrdering(fieldOrd: Array[ExtendedOrdering], _missingEqual: Boolean = true)
+  def rowOrdering(fieldOrd: IndexedSeq[ExtendedOrdering], _missingEqual: Boolean = true)
     : ExtendedOrdering =
     new ExtendedOrdering {
       outer =>
@@ -393,7 +394,7 @@ abstract class ExtendedOrdering extends Serializable {
     override def equivNonnull(x: T, y: T): Boolean = outer.equivNonnull(y, x)
   }
 
-  def toOrdering: Ordering[T] = new Ordering[T] {
+  def toOrdering: Ordering[Any] = new Ordering[Any] {
     def compare(x: T, y: T): Int = outer.compare(x, y)
 
     override def lt(x: T, y: T): Boolean = outer.lt(x, y)

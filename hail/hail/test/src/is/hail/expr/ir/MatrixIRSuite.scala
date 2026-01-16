@@ -11,6 +11,7 @@ import is.hail.expr.ir.defs.{
 }
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.collection.compat._
 
@@ -50,13 +51,13 @@ class MatrixIRSuite extends HailSuite {
       partitionsTypeStr = partType.parsableString(),
     )
 
-    forAll(Array(writer1, writer2)) { writer =>
+    forAll(ArraySeq(writer1, writer2)) { writer =>
       assertEvalsTo(MatrixWrite(original, writer), ())
 
       val read = MatrixIR.read(fs, path, dropCols = false, dropRows = false, None)
       val droppedRows = MatrixIR.read(fs, path, dropCols = false, dropRows = true, None)
 
-      val expectedCols = Array.tabulate(10)(i => Row(i, Row(0L, i.toLong))).toFastSeq
+      val expectedCols = ArraySeq.tabulate(10)(i => Row(i, Row(0L, i.toLong)))
       val expectedRows = if (writer eq writer1) {
         val uids = for {
           (partSize, partIndex) <- partition(10, 3).zipWithIndex
@@ -66,9 +67,9 @@ class MatrixIRSuite extends HailSuite {
           Row(i, uid, expectedCols.map { case Row(j, _) => Row(i, j) })
         }
       } else
-        Array.tabulate(10)(i =>
+        ArraySeq.tabulate(10)(i =>
           Row(i, Row(0L, i.toLong), expectedCols.map { case Row(j, _) => Row(i, j) })
-        ).toFastSeq
+        )
       val expectedGlobals = Row(0, expectedCols);
       {
         implicit val execStrats: Set[ExecStrategy] =
@@ -249,14 +250,14 @@ class MatrixIRSuite extends HailSuite {
 
     val q = annotated.typ.rowType.query(path: _*)
     val exploded =
-      getRows(MatrixExplodeRows(annotated, path.toFastSeq)).map(q(_).asInstanceOf[Integer])
+      getRows(MatrixExplodeRows(annotated, path)).map(q(_).asInstanceOf[Integer])
 
     val expected = if (collection == null) Array[Integer]() else Array.fill(5)(collection).flatten
     assert(exploded sameElements expected)
   }
 
   // these two items are helper for UnlocalizedEntries testing,
-  def makeLocalizedTable(rdata: Array[Row], cdata: Array[Row]): TableIR = {
+  def makeLocalizedTable(rdata: IndexedSeq[Row], cdata: IndexedSeq[Row]): TableIR = {
     val rowRdd = sc.parallelize(rdata)
     val rowSig = TStruct(
       "row_idx" -> TInt32,
@@ -270,24 +271,24 @@ class MatrixIRSuite extends HailSuite {
     var tv = TableValue(ctx, rowSig, keyNames, rowRdd)
     tv = tv.copy(
       typ = tv.typ.copy(globalType = globalType),
-      globals = BroadcastRow(ctx, Row(cdata.toFastSeq), globalType),
+      globals = BroadcastRow(ctx, Row(cdata), globalType),
     )
     TableLiteral(tv, theHailClassLoader)
   }
 
   @Test def testCastTableToMatrix(): Unit = {
-    val rdata = Array(
+    val rdata = ArraySeq(
       Row(1, "fish", FastSeq(Row("a", 1.0), Row("x", 2.0))),
       Row(2, "cat", FastSeq(Row("b", 0.0), Row("y", 0.1))),
       Row(3, "dog", FastSeq(Row("c", -1.0), Row("z", 30.0))),
     )
-    val cdata = Array(
+    val cdata = ArraySeq(
       Row(1, "atag"),
       Row(2, "btag"),
     )
     val rowTab = makeLocalizedTable(rdata, cdata)
 
-    val mir = CastTableToMatrix(rowTab, "__entries", "__cols", Array("col_idx"))
+    val mir = CastTableToMatrix(rowTab, "__entries", "__cols", ArraySeq("col_idx"))
     // cols are same
     val mtCols = Interpret(MatrixColsTable(mir), ctx).rdd.collect()
     assert(mtCols sameElements cdata)
@@ -305,18 +306,18 @@ class MatrixIRSuite extends HailSuite {
   }
 
   @Test def testCastTableToMatrixErrors(): Unit = {
-    val rdata = Array(
+    val rdata = ArraySeq(
       Row(1, "fish", FastSeq(Row("x", 2.0))),
       Row(2, "cat", FastSeq(Row("b", 0.0), Row("y", 0.1))),
       Row(3, "dog", FastSeq(Row("c", -1.0), Row("z", 30.0))),
     )
-    val cdata = Array(
+    val cdata = ArraySeq(
       Row(1, "atag"),
       Row(2, "btag"),
     )
     val rowTab = makeLocalizedTable(rdata, cdata)
 
-    val mir = CastTableToMatrix(rowTab, "__entries", "__cols", Array("col_idx"))
+    val mir = CastTableToMatrix(rowTab, "__entries", "__cols", ArraySeq("col_idx"))
 
     // All rows must have the same number of elements in the entry field as colTab has rows
     interceptSpark("length mismatch between entry array and column array") {
@@ -325,16 +326,16 @@ class MatrixIRSuite extends HailSuite {
 
     // The entry field must be an array
     interceptFatal("") {
-      TypeCheck(ctx, CastTableToMatrix(rowTab, "animal", "__cols", Array("col_idx")))
+      TypeCheck(ctx, CastTableToMatrix(rowTab, "animal", "__cols", ArraySeq("col_idx")))
     }
 
-    val rdata2 = Array(
+    val rdata2 = ArraySeq(
       Row(1, "fish", null),
       Row(2, "cat", FastSeq(Row("b", 0.0), Row("y", 0.1))),
       Row(3, "dog", FastSeq(Row("c", -1.0), Row("z", 30.0))),
     )
     val rowTab2 = makeLocalizedTable(rdata2, cdata)
-    val mir2 = CastTableToMatrix(rowTab2, "__entries", "__cols", Array("col_idx"))
+    val mir2 = CastTableToMatrix(rowTab2, "__entries", "__cols", ArraySeq("col_idx"))
 
     interceptSpark("missing")(Interpret(mir2, ctx).rvd.count())
   }

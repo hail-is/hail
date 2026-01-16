@@ -18,6 +18,7 @@ import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual.{TInt64, TTuple}
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 import java.io.{Closeable, InputStream}
 
@@ -478,7 +479,7 @@ class StagedIndexReader(
   private[this] def getFirstLeaf(cb: EmitCodeBuilder, internalChild: SBaseStructValue): SValue =
     new SStackStructValue(
       leafChildLocalType,
-      Array(
+      ArraySeq(
         EmitValue.present(internalChild.loadField(cb, "first_key").getOrAssert(cb)),
         EmitValue.present(internalChild.loadField(cb, "first_record_offset").getOrAssert(cb)),
         EmitValue.present(internalChild.loadField(cb, "first_annotation").getOrAssert(cb)),

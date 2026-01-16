@@ -15,7 +15,7 @@ object RowPartitioner {
     * Returns interval containing key: -1 iff a is empty or key < a(0) j iff a(j) <= key < a(j + 1)
     * len-1 iff a(len - 1) < key
     */
-  def findInterval(a: Array[Long], key: Long): Int = {
+  def findInterval(a: IndexedSeq[Long], key: Long): Int = {
     var lo = 0
     var hi = a.length - 1
     while (lo <= hi) {
@@ -29,7 +29,7 @@ object RowPartitioner {
   }
 }
 
-case class RowPartitioner(partitionStarts: Array[Long]) extends Partitioner {
+case class RowPartitioner(partitionStarts: IndexedSeq[Long]) extends Partitioner {
   override val numPartitions: Int = partitionStarts.length - 1
 
   override def getPartition(key: Any): Int = key match {

@@ -26,6 +26,7 @@ import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.collection.mutable
 import scala.io.Source
+import scala.util.chaining.scalaUtilChainingOps
 
 import org.apache.spark.sql.Row
 import org.json4s.{DefaultFormats, Extraction, Formats, JObject, JValue}
@@ -61,7 +62,7 @@ case class BgenFileMetadata(
 }
 
 object LoadBgen extends Logging {
-  def readSamples(fs: FS, file: String): Array[String] = {
+  def readSamples(fs: FS, file: String): IndexedSeq[String] = {
     val bState = readState(fs, file)
     if (bState.hasIds) {
       using(new HadoopFSDataBinaryReader(fs.openNoCompression(file))) { is =>
@@ -77,16 +78,16 @@ object LoadBgen extends Logging {
         if (sampleIdSize + bState.headerLength > bState.dataStart - 4)
           fatal("BGEN file is malformed -- offset is smaller than length of header")
 
-        (0 until nSamples).map(i => is.readLengthAndString(2)).toArray
+        ArraySeq.tabulate(nSamples)(_ => is.readLengthAndString(2))
       }
     } else {
       logger.warn(s"BGEN file '$file' contains no sample ID block and no sample ID file given.\n" +
         s"  Using _0, _1, ..., _N as sample IDs.")
-      (0 until bState.nSamples).map(i => s"_$i").toArray
+      ArraySeq.tabulate(bState.nSamples)(i => s"_$i")
     }
   }
 
-  def readSampleFile(fs: FS, file: String): Array[String] = {
+  def readSampleFile(fs: FS, file: String): IndexedSeq[String] = {
     using(fs.open(file)) { s =>
       Source.fromInputStream(s)
         .getLines()
@@ -96,7 +97,7 @@ object LoadBgen extends Logging {
           val arr = line.split("\\s+")
           arr(0)
         }
-        .toArray
+        .to(ArraySeq)
     }
   }
 
@@ -115,7 +116,7 @@ object LoadBgen extends Logging {
     val nVariants = is.readInt()
     val nSamples = is.readInt()
 
-    val magicNumber = is.readBytes(4).map(_.toInt).toFastSeq
+    val magicNumber = is.readBytes(4).map(_.toInt)
 
     if (magicNumber != FastSeq(0, 0, 0, 0) && magicNumber != FastSeq(98, 103, 101, 110))
       fatal(s"expected magic number [0000] or [bgen], got [${magicNumber.mkString}]")
@@ -147,16 +148,16 @@ object LoadBgen extends Logging {
     )
   }
 
-  def checkVersionTwo(headers: Array[BgenHeader]): Unit = {
+  def checkVersionTwo(headers: IndexedSeq[BgenHeader]): Unit = {
     val notVersionTwo = headers.filter(_.version != 2).map(x => x.path -> x.version)
-    if (notVersionTwo.length > 0)
+    if (notVersionTwo.nonEmpty)
       fatal(
         s"""The following BGEN files are not BGENv2:
            |  ${notVersionTwo.mkString("\n  ")}""".stripMargin
       )
   }
 
-  def getAllFileListEntries(fs: FS, files: Array[String]): Array[FileListEntry] = {
+  def getAllFileListEntries(fs: FS, files: IndexedSeq[String]): IndexedSeq[FileListEntry] = {
     val badFiles = ArraySeq.newBuilder[String]
 
     val fileListEntries = files.flatMap { file =>
@@ -192,14 +193,14 @@ object LoadBgen extends Logging {
     fileListEntries
   }
 
-  def getAllFilePaths(fs: FS, files: Array[String]): Array[String] =
-    getAllFileListEntries(fs, files).map(_.getPath.toString)
+  def getAllFilePaths(fs: FS, files: IndexedSeq[String]): IndexedSeq[String] =
+    getAllFileListEntries(fs, files).map(_.getPath)
 
   def getBgenFileMetadata(
     ctx: ExecuteContext,
-    files: Array[FileListEntry],
-    indexFilePaths: Array[String],
-  ): Array[BgenFileMetadata] = {
+    files: IndexedSeq[FileListEntry],
+    indexFilePaths: IndexedSeq[String],
+  ): IndexedSeq[BgenFileMetadata] = {
     val fs = ctx.fs
     require(files.length == indexFilePaths.length)
     val headers = getFileHeaders(fs, files.map(_.getPath))
@@ -250,8 +251,8 @@ object LoadBgen extends Logging {
     }
   }
 
-  def getIndexFileNames(fs: FS, files: Array[FileListEntry], indexFileMap: Map[String, String])
-    : Array[String] = {
+  def getIndexFileNames(fs: FS, files: IndexedSeq[FileListEntry], indexFileMap: Map[String, String])
+    : IndexedSeq[String] = {
     def absolutePath(rel: String): String = fs.fileStatus(rel).getPath
 
     val fileMapping = Option(indexFileMap)
@@ -268,8 +269,8 @@ object LoadBgen extends Logging {
     files.map(f => fileMapping.getOrElse(f.getPath, f.getPath + ".idx2"))
   }
 
-  def getIndexFiles(fs: FS, files: Array[FileListEntry], indexFileMap: Map[String, String])
-    : Array[String] = {
+  def getIndexFiles(fs: FS, files: IndexedSeq[FileListEntry], indexFileMap: Map[String, String])
+    : IndexedSeq[String] = {
     val indexFiles = getIndexFileNames(fs, files, indexFileMap)
 
     val bgenFilesWhichAreMisssingIdx2Files = files.zip(indexFiles).filterNot {
@@ -286,22 +287,20 @@ object LoadBgen extends Logging {
     indexFiles
   }
 
-  def getFileHeaders(fs: FS, files: Seq[String]): Array[BgenHeader] =
-    files.map(LoadBgen.readState(fs, _)).toArray
+  def getFileHeaders(fs: FS, files: IndexedSeq[String]): IndexedSeq[BgenHeader] =
+    files.map(LoadBgen.readState(fs, _))
 
-  def getReferenceGenome(fileMetadata: Array[BgenFileMetadata]): Option[String] =
-    getReferenceGenome(fileMetadata.map(_.rg))
-
-  def getReferenceGenome(rgs: Array[Option[String]]): Option[String] = {
-    if (rgs.distinct.length != 1)
+  def getReferenceGenome(fileMetadata: IndexedSeq[BgenFileMetadata]): Option[String] = {
+    val distinct = fileMetadata.view.map(_.rg).distinct
+    if (distinct.size != 1)
       fatal(
         s"""Found multiple reference genomes were specified in the BGEN index files:
-           |  ${rgs.distinct.map(_.getOrElse("None")).mkString("\n  ")}""".stripMargin
+           |  ${distinct.map(_.getOrElse("None")).mkString("\n  ")}""".stripMargin
       )
-    rgs.head
+    fileMetadata.head.rg
   }
 
-  def getIndexTypes(fileMetadata: Array[BgenFileMetadata]): (Type, Type) = {
+  def getIndexTypes(fileMetadata: IndexedSeq[BgenFileMetadata]): (Type, Type) = {
     val indexKeyTypes = fileMetadata.map(_.indexKeyType).distinct
     val indexAnnotationTypes = fileMetadata.map(_.indexAnnotationType).distinct
 
@@ -328,7 +327,7 @@ object MatrixBGENReader extends Logging {
       colType = TStruct(
         "s" -> TString
       ),
-      colKey = Array("s"),
+      colKey = ArraySeq("s"),
       rowType = TStruct(
         "locus" -> TLocus.schemaFromRG(rg),
         "alleles" -> TArray(TString),
@@ -337,7 +336,7 @@ object MatrixBGENReader extends Logging {
         "offset" -> TInt64,
         "file_idx" -> TInt32,
       ),
-      rowKey = Array("locus", "alleles"),
+      rowKey = ArraySeq("locus", "alleles"),
       entryType = TStruct(
         "GT" -> TCall,
         "GP" -> TArray(TFloat64),
@@ -369,7 +368,7 @@ object MatrixBGENReader extends Logging {
 
   def apply(
     ctx: ExecuteContext,
-    files: Seq[String],
+    files: IndexedSeq[String],
     sampleFile: Option[String],
     indexFileMap: Map[String, String],
     nPartitions: Option[Int],
@@ -385,7 +384,7 @@ object MatrixBGENReader extends Logging {
   def apply(ctx: ExecuteContext, params: MatrixBGENReaderParameters): MatrixBGENReader = {
     val fs = ctx.fs
 
-    val allFiles = LoadBgen.getAllFileListEntries(fs, params.files.toArray)
+    val allFiles = LoadBgen.getAllFileListEntries(fs, params.files)
     val indexFilePaths = LoadBgen.getIndexFiles(fs, allFiles, params.indexFileMap)
     val fileMetadata = LoadBgen.getBgenFileMetadata(ctx, allFiles, indexFilePaths)
     assert(fileMetadata.nonEmpty)
@@ -464,7 +463,7 @@ object MatrixBGENReader extends Logging {
 object MatrixBGENReaderParameters {
   def fromJValue(jv: JValue): MatrixBGENReaderParameters = {
     implicit val foramts: Formats = DefaultFormats
-    val files = (jv \ "files").extract[Array[String]]
+    val files = (jv \ "files").extract[Array[String]].pipe(ArraySeq.unsafeWrapArray)
     val sampleFile = (jv \ "sampleFile").extractOpt[String]
     val indexFileMap = (jv \ "indexFileMap").extract[Map[String, String]]
     val nPartitions = (jv \ "nPartitions").extractOpt[Int]
@@ -479,7 +478,7 @@ object MatrixBGENReaderParameters {
 }
 
 case class MatrixBGENReaderParameters(
-  files: Seq[String],
+  files: IndexedSeq[String],
   sampleFile: Option[String],
   indexFileMap: Map[String, String],
   nPartitions: Option[Int],
@@ -508,7 +507,7 @@ class MatrixBGENReader(
   val fullMatrixTypeWithoutUIDs: MatrixType,
   indexKeyType: Type,
   indexAnnotationType: Type,
-  sampleIds: Array[String],
+  sampleIds: IndexedSeq[String],
   filePartitionInfo: IndexedSeq[FilePartitionInfo],
   variants: Option[String],
 ) extends MatrixHybridReader {

@@ -3,6 +3,7 @@ package is.hail.types.virtual
 import is.hail.annotations.{Annotation, ExtendedOrdering, NDArray}
 import is.hail.backend.HailStateManager
 import is.hail.expr.{Nat, NatBase}
+import is.hail.utils.compat.immutable.ArraySeq
 
 object TNDArray {
   def matMulNDims(l: Int, r: Int): Int = {
@@ -112,7 +113,7 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase) extends Type {
 
   override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering = null
 
-  lazy val shapeType: TTuple = TTuple(Array.fill(nDims)(TInt64): _*)
+  lazy val shapeType: TTuple = TTuple(ArraySeq.fill(nDims)(TInt64): _*)
 
   override def isIsomorphicTo(t: Type): Boolean =
     t match {

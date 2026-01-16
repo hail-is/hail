@@ -6,6 +6,7 @@ import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.defs._
 import is.hail.types.virtual._
 import is.hail.utils.{FastSeq, Interval}
+import is.hail.utils.compat.immutable.ArraySeq
 import is.hail.variant.Locus
 
 import org.apache.spark.sql.Row
@@ -53,7 +54,7 @@ class SimplifySuite extends HailSuite {
 
   @Test def testTableMultiWayZipJoinGlobalsRewrite(): Unit = {
     val tmwzj = TableGetGlobals(TableMultiWayZipJoin(
-      Array(TableRange(10, 10), TableRange(10, 10), TableRange(10, 10)),
+      ArraySeq(TableRange(10, 10), TableRange(10, 10), TableRange(10, 10)),
       "rowField",
       "globalField",
     ))

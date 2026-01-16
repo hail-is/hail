@@ -1,5 +1,7 @@
 package is.hail.io
 
+import is.hail.utils.compat.immutable.ArraySeq
+
 import java.io._
 
 abstract class AbstractBinaryReader {
@@ -20,10 +22,10 @@ abstract class AbstractBinaryReader {
     hasRead
   }
 
-  def readBytes(length: Int): Array[Byte] = {
+  def readBytes(length: Int): IndexedSeq[Byte] = {
     val arr = new Array[Byte](length)
     readBytes(arr, 0, length): Unit
-    arr
+    ArraySeq.unsafeWrapArray(arr)
   }
 
   def readLong(): Long =
