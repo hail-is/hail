@@ -492,7 +492,7 @@ class MatrixPLINKReader(
               offset = newOffset
             }
 
-            is.readFully(input, 0, input.length)
+            is.readFully(input)
 
             rvb.start(requestedPType)
             rvb.startStruct()
