@@ -254,6 +254,16 @@ def test_block_matrix_from_file():
         _assert_eq(array, data)
 
 
+def test_block_matrix_persist_unpersist():
+    data = np.random.rand(10, 11)
+    bm = BlockMatrix.from_numpy(data, block_size=5)
+    bm_persist = bm.persist()
+    _assert_eq(data, bm_persist.to_numpy())
+
+    bm_unpersist = bm_persist.unpersist()
+    _assert_eq(data, bm_unpersist.to_numpy())
+
+
 @fails_service_backend()
 @fails_local_backend()
 def test_numpy_round_trip_force_blocking():
