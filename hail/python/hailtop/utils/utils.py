@@ -682,7 +682,8 @@ def is_transient_error(e: BaseException) -> bool:
             return False
         if (
             e.status == 500
-            and 'Permission "artifactregistry.repositories.downloadArtifacts" denied on resource' in e.message
+            and 'artifactregistry.repositories.downloadArtifacts' in e.message
+            and 'denied on resource' in e.message
         ):
             return False
         if e.status == 500 and 'denied: retrieving permissions failed' in e.message:
