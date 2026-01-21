@@ -53,12 +53,6 @@ object BaseTypeWithRequiredness {
           assert(rf.index == f.index)
           check(rf.typ, f.typ)
         }
-      case r: RUnion =>
-        val union = typ.asInstanceOf[TUnion]
-        r.cases.lazyZip(union.cases).foreach { (rc, c) =>
-          assert(rc._1 == c.name)
-          check(rc._2, c.typ)
-        }
     }
   }
 }
@@ -74,7 +68,6 @@ object TypeWithRequiredness {
     case t: TInterval => RInterval(apply(t.pointType), apply(t.pointType))
     case t: TStruct => RStruct.fromNamesAndTypes(t.fields.map(f => f.name -> apply(f.typ)))
     case t: TTuple => RTuple.fromNamesAndTypes(t.fields.map(f => f.name -> apply(f.typ)))
-    case t: TUnion => RUnion(t.cases.map(c => c.name -> apply(c.typ)))
   }
 }
 
@@ -568,26 +561,6 @@ case class RTuple(fields: IndexedSeq[RField]) extends RBaseStruct {
 
   def _toString: String =
     s"RTuple[${fields.map(f => s"${f.index}: ${f.typ.toString}").mkString(",")}]"
-}
-
-case class RUnion(cases: IndexedSeq[(String, TypeWithRequiredness)]) extends TypeWithRequiredness {
-  val children: IndexedSeq[TypeWithRequiredness] = cases.map(_._2)
-  def _unionLiteral(a: Annotation): Unit = ???
-  def _matchesPType(pt: PType): Boolean = ???
-  def _unionPType(pType: PType): Unit = ???
-  def _unionEmitType(emitType: EmitType): Unit = ???
-
-  def copy(newChildren: IndexedSeq[BaseTypeWithRequiredness]): RUnion = {
-    assert(newChildren.length == cases.length)
-    RUnion(Array.tabulate(cases.length)(i =>
-      cases(i)._1 -> tcoerce[TypeWithRequiredness](newChildren(i))
-    ))
-  }
-
-  def canonicalPType(t: Type): PType = ???
-
-  def _toString: String =
-    s"RStruct[${cases.map { case (n, t) => s"$n: ${t.toString}" }.mkString(",")}]"
 }
 
 object RTable {

@@ -538,12 +538,6 @@ object IRParser {
         punctuation(it, "}")
         val fields = args.zipWithIndex.map { case ((id, t), i) => Field(id, t, i) }
         TStruct(fields)
-      case "Union" =>
-        punctuation(it, "{")
-        val args = repsepUntil(it, type_field, PunctuationToken(","), PunctuationToken("}"))
-        punctuation(it, "}")
-        val cases = args.zipWithIndex.map { case ((id, t), i) => Case(id, t, i) }
-        TUnion(cases)
       case "Void" => TVoid
     }
     typ
@@ -2150,8 +2144,6 @@ object IRParser {
   def parsePType(code: String): PType = parse(code, ptype_expr)
 
   def parseStructType(code: String): TStruct = tcoerce[TStruct](parse(code, type_expr))
-
-  def parseUnionType(code: String): TUnion = tcoerce[TUnion](parse(code, type_expr))
 
   def parseRVDType(code: String): RVDType = parse(code, rvd_type_expr)
 
