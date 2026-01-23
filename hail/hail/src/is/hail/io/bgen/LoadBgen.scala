@@ -156,6 +156,9 @@ object LoadBgen extends Logging {
       )
   }
 
+  private[this] lazy val EntryPattern =
+    ".*part-[0-9]+(-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?".r.pattern
+
   def getAllFileListEntries(fs: FS, files: Array[String]): Array[FileListEntry] = {
     val badFiles = ArraySeq.newBuilder[String]
 
@@ -172,9 +175,7 @@ object LoadBgen extends Logging {
         if (fileListEntry.isDirectory)
           fs.listDirectory(file)
             .filter(fileListEntry =>
-              ".*part-[0-9]+(-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?".r.matches(
-                fileListEntry.getPath
-              )
+              EntryPattern.matcher(fileListEntry.getPath).matches()
             )
         else
           Array(fileListEntry)
@@ -191,9 +192,6 @@ object LoadBgen extends Logging {
 
     fileListEntries
   }
-
-  def getAllFilePaths(fs: FS, files: Array[String]): Array[String] =
-    getAllFileListEntries(fs, files).map(_.getPath.toString)
 
   def getBgenFileMetadata(
     ctx: ExecuteContext,
