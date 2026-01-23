@@ -10,7 +10,6 @@ import is.hail.utils.compat.immutable.ArraySeq
 import scala.collection.compat._
 import scala.collection.mutable
 import scala.reflect.ClassTag
-import scala.util.matching.Regex
 
 import java.io.InputStream
 
@@ -91,8 +90,6 @@ trait Implicits {
 
   implicit def toRichContextRDDLong(r: ContextRDD[Long]): RichContextRDDLong =
     new RichContextRDDLong(r)
-
-  implicit def toRichRegex(r: Regex): RichRegex = new RichRegex(r)
 
   implicit def toRichRow(r: Row): RichRow = new RichRow(r)
 
