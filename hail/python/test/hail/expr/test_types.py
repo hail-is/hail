@@ -21,7 +21,6 @@ from hail.expr.types import (
     tstr,
     tstruct,
     ttuple,
-    tunion,
 )
 from hail.utils.java import Env
 
@@ -59,9 +58,6 @@ class Tests(unittest.TestCase):
             tstruct(a=tfloat64, bb=tint32, c=tbool),
             tstruct(a=tint32, b=tint32),
             tstruct(**{'___': tint32, '_ . _': tint32}),
-            tunion(),
-            tunion(a=tint32, b=tstr),
-            tunion(**{'!@#$%^&({[': tstr}),
             ttuple(tstr, tint32),
             ttuple(tarray(tint32), tstr, tstr, tint32, tbool),
             ttuple(),
@@ -141,8 +137,6 @@ class Tests(unittest.TestCase):
                     tndarray(tstr, 1),
                     tstruct(),
                     tstruct(x=tint32, y=tint64, z=tarray(tset(tstr))),
-                    tunion(),
-                    tunion(a=tint32, b=tstr),
                     ttuple(tstr, tint32),
                     ttuple(),
                 ],
@@ -157,7 +151,6 @@ class Tests(unittest.TestCase):
                     tinterval(tl1),
                     tset(tinterval(tl1)),
                     tstruct(a=tint32, b=tint32, c=tarray(tl1)),
-                    tunion(a=tint32, b=tl1),
                     ttuple(tarray(tint32), tl1, tstr, tint32, tbool),
                 ],
                 {"GRCh37"},

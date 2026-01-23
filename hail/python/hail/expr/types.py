@@ -51,7 +51,6 @@ __all__ = [
     'tstream',
     'tstruct',
     'ttuple',
-    'tunion',
     'tvariable',
     'tvoid',
     'types_match',
@@ -1505,97 +1504,6 @@ class tstruct(HailType, Mapping):
         return HailTypeContext.union(*self.values())
 
 
-class tunion(HailType, Mapping):
-    @typecheck_method(case_types=hail_type)
-    def __init__(self, **case_types):
-        """Tagged union type.  Values of type union represent one of several
-        heterogenous, named cases.
-
-        Parameters
-        ----------
-        cases : keyword args of :class:`.HailType`
-            The union cases.
-
-        """
-
-        super(tunion, self).__init__()
-        self._case_types = case_types
-        self._cases = tuple(case_types)
-
-    @property
-    def cases(self):
-        """Return union case names.
-
-        Returns
-        -------
-        :obj:`tuple` of :class:`str`
-            Tuple of union case names
-        """
-        return self._cases
-
-    @typecheck_method(item=oneof(int, str))
-    def __getitem__(self, item):
-        if isinstance(item, int):
-            item = self._cases[item]
-        return self._case_types[item]
-
-    def __iter__(self):
-        return iter(self._case_types)
-
-    def __len__(self):
-        return len(self._cases)
-
-    def __str__(self):
-        return "union{{{}}}".format(', '.join('{}: {}'.format(escape_parsable(f), str(t)) for f, t in self.items()))
-
-    def _eq(self, other):
-        return (
-            isinstance(other, tunion) and self._cases == other._cases and all(self[c] == other[c] for c in self._cases)
-        )
-
-    def _pretty(self, b, indent, increment):
-        if not self._cases:
-            b.append('union {}')
-            return
-
-        pre_indent = indent
-        indent += increment
-        b.append('union {')
-        for i, (f, t) in enumerate(self.items()):
-            if i > 0:
-                b.append(', ')
-            b.append('\n')
-            b.append(' ' * indent)
-            b.append('{}: '.format(escape_parsable(f)))
-            t._pretty(b, indent, increment)
-        b.append('\n')
-        b.append(' ' * pre_indent)
-        b.append('}')
-
-    def _parsable_string(self):
-        return "Union{{{}}}".format(
-            ','.join('{}:{}'.format(escape_parsable(f), t._parsable_string()) for f, t in self.items())
-        )
-
-    def unify(self, t):
-        if not (isinstance(t, tunion) and len(self) == len(t)):
-            return False
-        for (f1, t1), (f2, t2) in zip(self.items(), t.items()):
-            if not (f1 == f2 and t1.unify(t2)):
-                return False
-        return True
-
-    def subst(self):
-        return tunion(**{f: t.subst() for f, t in self.items()})
-
-    def clear(self):
-        for f, t in self.items():
-            t.clear()
-
-    def _get_context(self):
-        return HailTypeContext.union(*self.values())
-
-
 class ttuple(HailType, Sequence):
     """Hail type for tuples.
 
@@ -2267,7 +2175,7 @@ def is_container(t) -> bool:
 
 @typecheck(t=HailType)
 def is_compound(t) -> bool:
-    return is_container(t) or isinstance(t, (tstruct, tunion, ttuple, tndarray))
+    return is_container(t) or isinstance(t, (tstruct, ttuple, tndarray))
 
 
 def types_match(left, right) -> bool:
@@ -2334,7 +2242,6 @@ class tvariable(HailType):
         'float64': lambda x: x == tfloat64,
         'locus': lambda x: isinstance(x, tlocus),
         'struct': lambda x: isinstance(x, tstruct),
-        'union': lambda x: isinstance(x, tunion),
         'tuple': lambda x: isinstance(x, ttuple),
     }
 

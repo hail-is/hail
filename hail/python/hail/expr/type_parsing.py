@@ -6,7 +6,7 @@ from hail.utils.java import unescape_parsable
 from . import types
 
 type_grammar_str = r"""
-    type = _ ( array / bool / call / dict / interval / int64 / int32 / float32 / float64 / locus / ndarray / rng_state / set / stream / struct / str / tuple / union / void / variable ) _
+    type = _ ( array / bool / call / dict / interval / int64 / int32 / float32 / float64 / locus / ndarray / rng_state / set / stream / struct / str / tuple / void / variable ) _
     variable = "?" simple_identifier (":" simple_identifier)?
     void = "void" / "tvoid"
     int64 = "int64" / "tint64"
@@ -23,7 +23,6 @@ type_grammar_str = r"""
     stream = ("tstream" / "stream") _ "<" type ">"
     dict = ("tdict" / "dict") _ "<" type "," type ">"
     struct = ("tstruct" / "struct") _ "{" (fields / _) "}"
-    union = ("tunion" / "union") _ "{" (fields / _) "}"
     tuple = ("ttuple" / "tuple") _ "(" ((type ("," type)*) / _) ")"
     fields = field ("," field)*
     field = identifier ":" type
@@ -111,14 +110,6 @@ class TypeConstructor(NodeVisitor):
         else:
             fields = maybe_fields[0]
             return types.tstruct(**dict(fields))
-
-    def visit_union(self, node, visited_children):
-        tunion, _, brace, maybe_fields, brace = visited_children  # noqa: PLW0128
-        if not maybe_fields:
-            return types.tunion()
-        else:
-            fields = maybe_fields[0]
-            return types.tunion(**dict(fields))
 
     def visit_tuple(self, node, visited_children):
         ttuple, _, paren, [maybe_types], paren = visited_children  # noqa: PLW0128
