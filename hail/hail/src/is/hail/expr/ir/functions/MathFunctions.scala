@@ -9,6 +9,7 @@ import is.hail.types.physical.stypes.interfaces.primitive
 import is.hail.types.physical.stypes.primitives._
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 import org.apache.commons.math3.special.Gamma
 
@@ -125,174 +126,194 @@ object MathFunctions extends RegistryFunctions {
     registerIR1("toFloat32", tnum("T"), TFloat32)((_, x, _) => Cast(x, TFloat32))
     registerIR1("toFloat64", tnum("T"), TFloat64)((_, x, _) => Cast(x, TFloat64))
 
-    registerScalaFunction("abs", Array(TInt32), TInt32, null)(mathPackageClass, "abs")
-    registerScalaFunction("abs", Array(TInt64), TInt64, null)(mathPackageClass, "abs")
-    registerScalaFunction("abs", Array(TFloat32), TFloat32, null)(mathPackageClass, "abs")
-    registerScalaFunction("abs", Array(TFloat64), TFloat64, null)(mathPackageClass, "abs")
+    registerScalaFunction("abs", ArraySeq(TInt32), TInt32, null)(mathPackageClass, "abs")
+    registerScalaFunction("abs", ArraySeq(TInt64), TInt64, null)(mathPackageClass, "abs")
+    registerScalaFunction("abs", ArraySeq(TFloat32), TFloat32, null)(mathPackageClass, "abs")
+    registerScalaFunction("abs", ArraySeq(TFloat64), TFloat64, null)(mathPackageClass, "abs")
 
-    registerScalaFunction("pow", Array(TInt32, TInt32), TFloat64, null)(thisClass, "pow")
-    registerScalaFunction("pow", Array(TInt64, TInt64), TFloat64, null)(thisClass, "pow")
-    registerScalaFunction("pow", Array(TFloat32, TFloat32), TFloat64, null)(thisClass, "pow")
-    registerScalaFunction("pow", Array(TFloat64, TFloat64), TFloat64, null)(thisClass, "pow")
+    registerScalaFunction("pow", ArraySeq(TInt32, TInt32), TFloat64, null)(thisClass, "pow")
+    registerScalaFunction("pow", ArraySeq(TInt64, TInt64), TFloat64, null)(thisClass, "pow")
+    registerScalaFunction("pow", ArraySeq(TFloat32, TFloat32), TFloat64, null)(thisClass, "pow")
+    registerScalaFunction("pow", ArraySeq(TFloat64, TFloat64), TFloat64, null)(thisClass, "pow")
 
-    registerScalaFunction("exp", Array(TFloat64), TFloat64, null)(mathPackageClass, "exp")
-    registerScalaFunction("log10", Array(TFloat64), TFloat64, null)(mathPackageClass, "log10")
-    registerScalaFunction("sqrt", Array(TFloat64), TFloat64, null)(mathPackageClass, "sqrt")
-    registerScalaFunction("log", Array(TFloat64), TFloat64, null)(mathPackageClass, "log")
-    registerScalaFunction("log", Array(TFloat64, TFloat64), TFloat64, null)(thisClass, "log")
-    registerScalaFunction("log2", Array(TInt32), TInt32, null)(thisClass, "log2")
-    registerScalaFunction("roundToNextPowerOf2", Array(TInt32), TInt32, null)(
+    registerScalaFunction("exp", ArraySeq(TFloat64), TFloat64, null)(mathPackageClass, "exp")
+    registerScalaFunction("log10", ArraySeq(TFloat64), TFloat64, null)(mathPackageClass, "log10")
+    registerScalaFunction("sqrt", ArraySeq(TFloat64), TFloat64, null)(mathPackageClass, "sqrt")
+    registerScalaFunction("log", ArraySeq(TFloat64), TFloat64, null)(mathPackageClass, "log")
+    registerScalaFunction("log", ArraySeq(TFloat64, TFloat64), TFloat64, null)(thisClass, "log")
+    registerScalaFunction("log2", ArraySeq(TInt32), TInt32, null)(thisClass, "log2")
+    registerScalaFunction("roundToNextPowerOf2", ArraySeq(TInt32), TInt32, null)(
       thisClass,
       "roundToNextPowerOf2",
     )
-    registerScalaFunction("gamma", Array(TFloat64), TFloat64, null)(thisClass, "gamma")
-    registerScalaFunction("binomTest", Array(TInt32, TInt32, TFloat64, TInt32), TFloat64, null)(
+    registerScalaFunction("gamma", ArraySeq(TFloat64), TFloat64, null)(thisClass, "gamma")
+    registerScalaFunction("binomTest", ArraySeq(TInt32, TInt32, TFloat64, TInt32), TFloat64, null)(
       statsPackageClass,
       "binomTest",
     )
 
-    registerScalaFunction("dbeta", Array(TFloat64, TFloat64, TFloat64), TFloat64, null)(
+    registerScalaFunction("dbeta", ArraySeq(TFloat64, TFloat64, TFloat64), TFloat64, null)(
       statsPackageClass,
       "dbeta",
     )
 
-    registerScalaFunction("dnorm", Array(TFloat64), TFloat64, null)(statsPackageClass, "dnorm")
-    registerScalaFunction("dnorm", Array(TFloat64, TFloat64, TFloat64, TBoolean), TFloat64, null)(
+    registerScalaFunction("dnorm", ArraySeq(TFloat64), TFloat64, null)(statsPackageClass, "dnorm")
+    registerScalaFunction(
+      "dnorm",
+      ArraySeq(TFloat64, TFloat64, TFloat64, TBoolean),
+      TFloat64,
+      null,
+    )(
       statsPackageClass,
       "dnorm",
     )
 
-    registerScalaFunction("pnorm", Array(TFloat64), TFloat64, null)(statsPackageClass, "pnorm")
+    registerScalaFunction("pnorm", ArraySeq(TFloat64), TFloat64, null)(statsPackageClass, "pnorm")
     registerScalaFunction(
       "pnorm",
-      Array(TFloat64, TFloat64, TFloat64, TBoolean, TBoolean),
+      ArraySeq(TFloat64, TFloat64, TFloat64, TBoolean, TBoolean),
       TFloat64,
       null,
     )(statsPackageClass, "pnorm")
 
-    registerScalaFunction("qnorm", Array(TFloat64), TFloat64, null)(statsPackageClass, "qnorm")
+    registerScalaFunction("qnorm", ArraySeq(TFloat64), TFloat64, null)(statsPackageClass, "qnorm")
     registerScalaFunction(
       "qnorm",
-      Array(TFloat64, TFloat64, TFloat64, TBoolean, TBoolean),
+      ArraySeq(TFloat64, TFloat64, TFloat64, TBoolean, TBoolean),
       TFloat64,
       null,
     )(statsPackageClass, "qnorm")
 
-    registerScalaFunction("pT", Array(TFloat64, TFloat64, TBoolean, TBoolean), TFloat64, null)(
+    registerScalaFunction("pT", ArraySeq(TFloat64, TFloat64, TBoolean, TBoolean), TFloat64, null)(
       statsPackageClass,
       "pT",
     )
     registerScalaFunction(
       "pF",
-      Array(TFloat64, TFloat64, TFloat64, TBoolean, TBoolean),
+      ArraySeq(TFloat64, TFloat64, TFloat64, TBoolean, TBoolean),
       TFloat64,
       null,
     )(statsPackageClass, "pF")
 
-    registerScalaFunction("dpois", Array(TFloat64, TFloat64), TFloat64, null)(
+    registerScalaFunction("dpois", ArraySeq(TFloat64, TFloat64), TFloat64, null)(
       statsPackageClass,
       "dpois",
     )
-    registerScalaFunction("dpois", Array(TFloat64, TFloat64, TBoolean), TFloat64, null)(
+    registerScalaFunction("dpois", ArraySeq(TFloat64, TFloat64, TBoolean), TFloat64, null)(
       statsPackageClass,
       "dpois",
     )
 
-    registerScalaFunction("ppois", Array(TFloat64, TFloat64), TFloat64, null)(
+    registerScalaFunction("ppois", ArraySeq(TFloat64, TFloat64), TFloat64, null)(
       statsPackageClass,
       "ppois",
     )
-    registerScalaFunction("ppois", Array(TFloat64, TFloat64, TBoolean, TBoolean), TFloat64, null)(
+    registerScalaFunction(
+      "ppois",
+      ArraySeq(TFloat64, TFloat64, TBoolean, TBoolean),
+      TFloat64,
+      null,
+    )(
       statsPackageClass,
       "ppois",
     )
 
-    registerScalaFunction("qpois", Array(TFloat64, TFloat64), TInt32, null)(
+    registerScalaFunction("qpois", ArraySeq(TFloat64, TFloat64), TInt32, null)(
       statsPackageClass,
       "qpois",
     )
-    registerScalaFunction("qpois", Array(TFloat64, TFloat64, TBoolean, TBoolean), TInt32, null)(
+    registerScalaFunction("qpois", ArraySeq(TFloat64, TFloat64, TBoolean, TBoolean), TInt32, null)(
       statsPackageClass,
       "qpois",
     )
 
-    registerScalaFunction("dgamma", Array(TFloat64, TFloat64, TFloat64, TBoolean), TFloat64, null)(
+    registerScalaFunction(
+      "dgamma",
+      ArraySeq(TFloat64, TFloat64, TFloat64, TBoolean),
+      TFloat64,
+      null,
+    )(
       statsPackageClass,
       "dgamma",
     )
 
     registerScalaFunction(
       "pgamma",
-      Array(TFloat64, TFloat64, TFloat64, TBoolean, TBoolean),
+      ArraySeq(TFloat64, TFloat64, TFloat64, TBoolean, TBoolean),
       TFloat64,
       null,
     )(statsPackageClass, "pgamma")
 
     registerScalaFunction(
       "qgamma",
-      Array(TFloat64, TFloat64, TFloat64, TBoolean, TBoolean),
+      ArraySeq(TFloat64, TFloat64, TFloat64, TBoolean, TBoolean),
       TFloat64,
       null,
     )(statsPackageClass, "qgamma")
 
-    registerScalaFunction("dchisq", Array(TFloat64, TFloat64), TFloat64, null)(
+    registerScalaFunction("dchisq", ArraySeq(TFloat64, TFloat64), TFloat64, null)(
       statsPackageClass,
       "dchisq",
     )
-    registerScalaFunction("dchisq", Array(TFloat64, TFloat64, TBoolean), TFloat64, null)(
+    registerScalaFunction("dchisq", ArraySeq(TFloat64, TFloat64, TBoolean), TFloat64, null)(
       statsPackageClass,
       "dchisq",
     )
 
-    registerScalaFunction("dnchisq", Array(TFloat64, TFloat64, TFloat64), TFloat64, null)(
+    registerScalaFunction("dnchisq", ArraySeq(TFloat64, TFloat64, TFloat64), TFloat64, null)(
       statsPackageClass,
       "dnchisq",
     )
-    registerScalaFunction("dnchisq", Array(TFloat64, TFloat64, TFloat64, TBoolean), TFloat64, null)(
+    registerScalaFunction(
+      "dnchisq",
+      ArraySeq(TFloat64, TFloat64, TFloat64, TBoolean),
+      TFloat64,
+      null,
+    )(
       statsPackageClass,
       "dnchisq",
     )
 
-    registerScalaFunction("pchisqtail", Array(TFloat64, TFloat64), TFloat64, null)(
+    registerScalaFunction("pchisqtail", ArraySeq(TFloat64, TFloat64), TFloat64, null)(
       statsPackageClass,
       "pchisqtail",
     )
     registerScalaFunction(
       "pchisqtail",
-      Array(TFloat64, TFloat64, TBoolean, TBoolean),
+      ArraySeq(TFloat64, TFloat64, TBoolean, TBoolean),
       TFloat64,
       null,
     )(statsPackageClass, "pchisqtail")
 
-    registerScalaFunction("pnchisqtail", Array(TFloat64, TFloat64, TFloat64), TFloat64, null)(
+    registerScalaFunction("pnchisqtail", ArraySeq(TFloat64, TFloat64, TFloat64), TFloat64, null)(
       statsPackageClass,
       "pnchisqtail",
     )
     registerScalaFunction(
       "pnchisqtail",
-      Array(TFloat64, TFloat64, TFloat64, TBoolean, TBoolean),
+      ArraySeq(TFloat64, TFloat64, TFloat64, TBoolean, TBoolean),
       TFloat64,
       null,
     )(statsPackageClass, "pnchisqtail")
 
-    registerScalaFunction("qchisqtail", Array(TFloat64, TFloat64), TFloat64, null)(
+    registerScalaFunction("qchisqtail", ArraySeq(TFloat64, TFloat64), TFloat64, null)(
       statsPackageClass,
       "qchisqtail",
     )
     registerScalaFunction(
       "qchisqtail",
-      Array(TFloat64, TFloat64, TBoolean, TBoolean),
+      ArraySeq(TFloat64, TFloat64, TBoolean, TBoolean),
       TFloat64,
       null,
     )(statsPackageClass, "qchisqtail")
 
-    registerScalaFunction("qnchisqtail", Array(TFloat64, TFloat64, TFloat64), TFloat64, null)(
+    registerScalaFunction("qnchisqtail", ArraySeq(TFloat64, TFloat64, TFloat64), TFloat64, null)(
       statsPackageClass,
       "qnchisqtail",
     )
     registerScalaFunction(
       "qnchisqtail",
-      Array(TFloat64, TFloat64, TFloat64, TBoolean, TBoolean),
+      ArraySeq(TFloat64, TFloat64, TFloat64, TBoolean, TBoolean),
       TFloat64,
       null,
     )(statsPackageClass, "qnchisqtail")
@@ -365,51 +386,51 @@ object MathFunctions extends RegistryFunctions {
 
     registerScalaFunction(
       "phyper",
-      Array(TInt32, TInt32, TInt32, TInt32, TBoolean),
+      ArraySeq(TInt32, TInt32, TInt32, TInt32, TBoolean),
       TFloat64,
       null,
     )(statsPackageClass, "phyper")
 
-    registerScalaFunction("floor", Array(TFloat32), TFloat32, null)(thisClass, "floor")
-    registerScalaFunction("floor", Array(TFloat64), TFloat64, null)(thisClass, "floor")
+    registerScalaFunction("floor", ArraySeq(TFloat32), TFloat32, null)(thisClass, "floor")
+    registerScalaFunction("floor", ArraySeq(TFloat64), TFloat64, null)(thisClass, "floor")
 
-    registerScalaFunction("ceil", Array(TFloat32), TFloat32, null)(thisClass, "ceil")
-    registerScalaFunction("ceil", Array(TFloat64), TFloat64, null)(thisClass, "ceil")
+    registerScalaFunction("ceil", ArraySeq(TFloat32), TFloat32, null)(thisClass, "ceil")
+    registerScalaFunction("ceil", ArraySeq(TFloat64), TFloat64, null)(thisClass, "ceil")
 
-    registerScalaFunction("mod", Array(TInt32, TInt32), TInt32, null)(thisClass, "mod")
-    registerScalaFunction("mod", Array(TInt64, TInt64), TInt64, null)(thisClass, "mod")
-    registerScalaFunction("mod", Array(TFloat32, TFloat32), TFloat32, null)(thisClass, "mod")
-    registerScalaFunction("mod", Array(TFloat64, TFloat64), TFloat64, null)(thisClass, "mod")
+    registerScalaFunction("mod", ArraySeq(TInt32, TInt32), TInt32, null)(thisClass, "mod")
+    registerScalaFunction("mod", ArraySeq(TInt64, TInt64), TInt64, null)(thisClass, "mod")
+    registerScalaFunction("mod", ArraySeq(TFloat32, TFloat32), TFloat32, null)(thisClass, "mod")
+    registerScalaFunction("mod", ArraySeq(TFloat64, TFloat64), TFloat64, null)(thisClass, "mod")
 
-    registerJavaStaticFunction("isnan", Array(TFloat32), TBoolean, null)(jFloatClass, "isNaN")
-    registerJavaStaticFunction("isnan", Array(TFloat64), TBoolean, null)(jDoubleClass, "isNaN")
+    registerJavaStaticFunction("isnan", ArraySeq(TFloat32), TBoolean, null)(jFloatClass, "isNaN")
+    registerJavaStaticFunction("isnan", ArraySeq(TFloat64), TBoolean, null)(jDoubleClass, "isNaN")
 
-    registerJavaStaticFunction("is_finite", Array(TFloat32), TBoolean, null)(
+    registerJavaStaticFunction("is_finite", ArraySeq(TFloat32), TBoolean, null)(
       jFloatClass,
       "isFinite",
     )
-    registerJavaStaticFunction("is_finite", Array(TFloat64), TBoolean, null)(
+    registerJavaStaticFunction("is_finite", ArraySeq(TFloat64), TBoolean, null)(
       jDoubleClass,
       "isFinite",
     )
 
-    registerJavaStaticFunction("is_infinite", Array(TFloat32), TBoolean, null)(
+    registerJavaStaticFunction("is_infinite", ArraySeq(TFloat32), TBoolean, null)(
       jFloatClass,
       "isInfinite",
     )
-    registerJavaStaticFunction("is_infinite", Array(TFloat64), TBoolean, null)(
+    registerJavaStaticFunction("is_infinite", ArraySeq(TFloat64), TBoolean, null)(
       jDoubleClass,
       "isInfinite",
     )
 
-    registerJavaStaticFunction("sign", Array(TInt32), TInt32, null)(jIntegerClass, "signum")
-    registerScalaFunction("sign", Array(TInt64), TInt64, null)(mathPackageClass, "signum")
-    registerJavaStaticFunction("sign", Array(TFloat32), TFloat32, null)(jMathClass, "signum")
-    registerJavaStaticFunction("sign", Array(TFloat64), TFloat64, null)(jMathClass, "signum")
+    registerJavaStaticFunction("sign", ArraySeq(TInt32), TInt32, null)(jIntegerClass, "signum")
+    registerScalaFunction("sign", ArraySeq(TInt64), TInt64, null)(mathPackageClass, "signum")
+    registerJavaStaticFunction("sign", ArraySeq(TFloat32), TFloat32, null)(jMathClass, "signum")
+    registerJavaStaticFunction("sign", ArraySeq(TFloat64), TFloat64, null)(jMathClass, "signum")
 
     registerScalaFunction(
       "approxEqual",
-      Array(TFloat64, TFloat64, TFloat64, TBoolean, TBoolean),
+      ArraySeq(TFloat64, TFloat64, TFloat64, TBoolean, TBoolean),
       TBoolean,
       null,
     )(thisClass, "approxEqual")

@@ -6,6 +6,7 @@ import is.hail.expr.Nat
 import is.hail.expr.ir.defs._
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 import org.testng.annotations.{BeforeMethod, DataProvider, Test}
 
@@ -147,7 +148,7 @@ class ForwardLetsSuite extends HailSuite {
   def testForwardingOps(ir: IR): Unit = {
     val after = ForwardLets(ctx, ir)
     assert(!after.isInstanceOf[Block])
-    assertEvalSame(ir, args = Array(5 -> TInt32))
+    assertEvalSame(ir, args = ArraySeq(5 -> TInt32))
   }
 
   @Test(dataProvider = "forwardingAggOps")

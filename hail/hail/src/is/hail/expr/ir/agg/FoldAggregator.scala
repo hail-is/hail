@@ -9,6 +9,7 @@ import is.hail.expr.ir.{
 }
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.virtual.Type
+import is.hail.utils.compat.immutable.ArraySeq
 
 // (IR => T), seq op (IR T => T), and comb op (IR (T,T) => T)
 
@@ -20,9 +21,8 @@ class FoldAggregator(
 ) extends StagedAggregator {
   override type State = TypedRegionBackedAggState
 
-  override val initOpTypes: Seq[Type] = IndexedSeq(resultEmitType.virtualType)
-
-  override val seqOpTypes: Seq[Type] = IndexedSeq(resultEmitType.virtualType)
+  override val initOpTypes: IndexedSeq[Type] = ArraySeq(resultEmitType.virtualType)
+  override val seqOpTypes: IndexedSeq[Type] = ArraySeq(resultEmitType.virtualType)
 
   override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     val Array(initEC) = init

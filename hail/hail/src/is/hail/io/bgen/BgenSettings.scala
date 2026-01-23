@@ -7,6 +7,7 @@ import is.hail.types.encoded._
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 object BgenSettings {
   val UNCOMPRESSED: Int = 0
@@ -141,7 +142,7 @@ case class BgenSettings(
 
   val rowPType: PCanonicalStruct = PCanonicalStruct(
     required = true,
-    Array(
+    ArraySeq(
       "locus" -> PCanonicalLocus.schemaFromRG(rg, required = false),
       "alleles" -> PCanonicalArray(PCanonicalString(false), false),
       "rsid" -> PCanonicalString(),
@@ -149,7 +150,7 @@ case class BgenSettings(
       "offset" -> PInt64(),
       "file_idx" -> PInt32(),
       MatrixType.entriesIdentifier -> PCanonicalArray(PCanonicalStruct(
-        Array(
+        ArraySeq(
           "GT" -> PCanonicalCall(),
           "GP" -> PCanonicalArray(PFloat64Required, required = true),
           "dosage" -> PFloat64Required,
@@ -165,7 +166,7 @@ case class BgenSettings(
   )
 
   val indexKeyType: PStruct =
-    rowPType.selectFields(Array("locus", "alleles")).setRequired(false).asInstanceOf[PStruct]
+    rowPType.selectFields(ArraySeq("locus", "alleles")).setRequired(false).asInstanceOf[PStruct]
 
   def hasField(name: String): Boolean = requestedType.rowType.hasField(name)
 

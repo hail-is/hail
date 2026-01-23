@@ -2,6 +2,7 @@ package is.hail.io.gen
 
 import is.hail.types.physical.{PString, PStruct}
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 import is.hail.variant.{Locus, VariantMethods, View}
 
 object ExportGen {
@@ -26,23 +27,23 @@ object ExportGen {
   ): Unit = {
     if (spaceRegex.findFirstIn(contig).isDefined)
       fatal(
-        s"Invalid contig found at '${VariantMethods.locusAllelesToString(Locus(contig, position), Array(a0, a1))}' -- no white space allowed: '$contig'"
+        s"Invalid contig found at '${VariantMethods.locusAllelesToString(Locus(contig, position), ArraySeq(a0, a1))}' -- no white space allowed: '$contig'"
       )
     if (spaceRegex.findFirstIn(a0).isDefined)
       fatal(
-        s"Invalid allele found at '${VariantMethods.locusAllelesToString(Locus(contig, position), Array(a0, a1))}' -- no white space allowed: '$a0'"
+        s"Invalid allele found at '${VariantMethods.locusAllelesToString(Locus(contig, position), ArraySeq(a0, a1))}' -- no white space allowed: '$a0'"
       )
     if (spaceRegex.findFirstIn(a1).isDefined)
       fatal(
-        s"Invalid allele found at '${VariantMethods.locusAllelesToString(Locus(contig, position), Array(a0, a1))}' -- no white space allowed: '$a1'"
+        s"Invalid allele found at '${VariantMethods.locusAllelesToString(Locus(contig, position), ArraySeq(a0, a1))}' -- no white space allowed: '$a1'"
       )
     if (spaceRegex.findFirstIn(varid).isDefined)
       fatal(
-        s"Invalid 'varid' found at '${VariantMethods.locusAllelesToString(Locus(contig, position), Array(a0, a1))}' -- no white space allowed: '$varid'"
+        s"Invalid 'varid' found at '${VariantMethods.locusAllelesToString(Locus(contig, position), ArraySeq(a0, a1))}' -- no white space allowed: '$varid'"
       )
     if (spaceRegex.findFirstIn(rsid).isDefined)
       fatal(
-        s"Invalid 'rsid' found at '${VariantMethods.locusAllelesToString(Locus(contig, position), Array(a0, a1))}' -- no white space allowed: '$rsid'"
+        s"Invalid 'rsid' found at '${VariantMethods.locusAllelesToString(Locus(contig, position), ArraySeq(a0, a1))}' -- no white space allowed: '$rsid'"
       )
   }
 }

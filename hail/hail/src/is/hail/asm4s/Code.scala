@@ -4,6 +4,7 @@ import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.lir
 import is.hail.lir.{Block, ControlX, ValueX}
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.reflect.ClassTag
 
@@ -173,28 +174,27 @@ object Code {
   ): Code[T] =
     sequence1(FastSeq(c1, c2, c3, c4, c5, c6, c7, c8), c9)
 
-  def apply(cs: Seq[Code[Unit]]): Code[Unit] = {
+  def apply(cs: IndexedSeq[Code[Unit]]): Code[Unit] = {
     if (cs.isEmpty)
       Code(null: lir.ValueX)
     else {
       assert(cs.forall(_.v == null))
-      val fcs = cs.toFastSeq
-      sequence1(fcs.init, fcs.last)
+      sequence1(cs.init, cs.last)
     }
   }
 
-  def foreach[A](it: Seq[A])(f: A => Code[Unit]): Code[Unit] = Code(it.map(f))
+  def foreach[A](it: IndexedSeq[A])(f: A => Code[Unit]): Code[Unit] = Code(it.map(f))
 
   def newInstance[T <: AnyRef](
-    parameterTypes: Array[Class[_]],
-    args: Array[Code[_]],
+    parameterTypes: IndexedSeq[Class[_]],
+    args: IndexedSeq[Code[_]],
   )(implicit tct: ClassTag[T]
   ): Code[T] =
     newInstance(parameterTypes, args, 0)
 
   def newInstance[T <: AnyRef](
-    parameterTypes: Array[Class[_]],
-    args: Array[Code[_]],
+    parameterTypes: IndexedSeq[Class[_]],
+    args: IndexedSeq[Code[_]],
     lineNumber: Int,
   )(implicit tct: ClassTag[T]
   ): Code[T] = {
@@ -236,7 +236,7 @@ object Code {
   }
 
   def newInstance[T <: AnyRef]()(implicit tct: ClassTag[T], tti: TypeInfo[T]): Code[T] =
-    newInstance[T](Array[Class[_]](), Array[Code[_]]())
+    newInstance[T](ArraySeq[Class[_]](), ArraySeq[Code[_]]())
 
   def newInstance[T <: AnyRef, A1](
     a1: Code[A1]
@@ -245,7 +245,7 @@ object Code {
     tct: ClassTag[T],
     tti: TypeInfo[T],
   ): Code[T] =
-    newInstance[T](Array[Class[_]](a1ct.runtimeClass), Array[Code[_]](a1))
+    newInstance[T](ArraySeq[Class[_]](a1ct.runtimeClass), ArraySeq[Code[_]](a1))
 
   def newInstance[T <: AnyRef, A1, A2](
     a1: Code[A1],
@@ -256,7 +256,10 @@ object Code {
     tct: ClassTag[T],
     tti: TypeInfo[T],
   ): Code[T] =
-    newInstance[T](Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass), Array[Code[_]](a1, a2))
+    newInstance[T](
+      ArraySeq[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass),
+      ArraySeq[Code[_]](a1, a2),
+    )
 
   def newInstance[T <: AnyRef, A1, A2, A3](
     a1: Code[A1],
@@ -284,8 +287,8 @@ object Code {
     tti: TypeInfo[T],
   ): Code[T] =
     newInstance[T](
-      Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass),
-      Array[Code[_]](a1, a2, a3),
+      ArraySeq[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass),
+      ArraySeq[Code[_]](a1, a2, a3),
       lineNumber,
     )
 
@@ -303,8 +306,13 @@ object Code {
     tti: TypeInfo[T],
   ): Code[T] =
     newInstance[T](
-      Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass),
-      Array[Code[_]](a1, a2, a3, a4),
+      ArraySeq[Class[_]](
+        a1ct.runtimeClass,
+        a2ct.runtimeClass,
+        a3ct.runtimeClass,
+        a4ct.runtimeClass,
+      ),
+      ArraySeq[Code[_]](a1, a2, a3, a4),
     )
 
   def newInstance[T <: AnyRef, A1, A2, A3, A4, A5](
@@ -323,14 +331,14 @@ object Code {
     tti: TypeInfo[T],
   ): Code[T] =
     newInstance[T](
-      Array[Class[_]](
+      ArraySeq[Class[_]](
         a1ct.runtimeClass,
         a2ct.runtimeClass,
         a3ct.runtimeClass,
         a4ct.runtimeClass,
         a5ct.runtimeClass,
       ),
-      Array[Code[_]](a1, a2, a3, a4, a5),
+      ArraySeq[Code[_]](a1, a2, a3, a4, a5),
     )
 
   def newInstance7[T <: AnyRef, A1, A2, A3, A4, A5, A6, A7](
@@ -353,7 +361,7 @@ object Code {
     tti: TypeInfo[T],
   ): Code[T] =
     newInstance[T](
-      Array[Class[_]](
+      ArraySeq[Class[_]](
         a1ct.runtimeClass,
         a2ct.runtimeClass,
         a3ct.runtimeClass,
@@ -362,7 +370,7 @@ object Code {
         a6ct.runtimeClass,
         a7ct.runtimeClass,
       ),
-      Array[Code[_]](a1, a2, a3, a4, a5, a6, a7),
+      ArraySeq[Code[_]](a1, a2, a3, a4, a5, a6, a7),
     )
 
   def newInstance8[T <: AnyRef, A1, A2, A3, A4, A5, A6, A7, A8](
@@ -387,7 +395,7 @@ object Code {
     tti: TypeInfo[T],
   ): Code[T] =
     newInstance[T](
-      Array[Class[_]](
+      ArraySeq[Class[_]](
         a1ct.runtimeClass,
         a2ct.runtimeClass,
         a3ct.runtimeClass,
@@ -397,7 +405,7 @@ object Code {
         a7ct.runtimeClass,
         a8ct.runtimeClass,
       ),
-      Array[Code[_]](a1, a2, a3, a4, a5, a6, a7, a8),
+      ArraySeq[Code[_]](a1, a2, a3, a4, a5, a6, a7, a8),
     )
 
   def newInstance11[T <: AnyRef, A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11](
@@ -428,7 +436,7 @@ object Code {
     tti: TypeInfo[T],
   ): Code[T] =
     newInstance[T](
-      Array[Class[_]](
+      ArraySeq[Class[_]](
         a1ct.runtimeClass,
         a2ct.runtimeClass,
         a3ct.runtimeClass,
@@ -441,7 +449,7 @@ object Code {
         a10ct.runtimeClass,
         a11ct.runtimeClass,
       ),
-      Array[Code[_]](a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11),
+      ArraySeq[Code[_]](a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11),
     )
 
   def newArray[T](size: Code[Int])(implicit tti: TypeInfo[T]): Code[Array[T]] =
@@ -450,8 +458,8 @@ object Code {
   def invokeScalaObject[S](
     cls: Class[_],
     method: String,
-    parameterTypes: Array[Class[_]],
-    args: Array[Code[_]],
+    parameterTypes: IndexedSeq[Class[_]],
+    args: IndexedSeq[Code[_]],
   )(implicit sct: ClassTag[S]
   ): Code[S] = {
     val m = Invokeable.lookupMethod(cls, method, parameterTypes)(sct)
@@ -460,7 +468,7 @@ object Code {
   }
 
   def invokeScalaObject0[S](cls: Class[_], method: String)(implicit sct: ClassTag[S]): Code[S] =
-    invokeScalaObject[S](cls, method, Array[Class[_]](), Array[Code[_]]())
+    invokeScalaObject[S](cls, method, ArraySeq.empty[Class[_]], ArraySeq.empty[Code[_]])
 
   def invokeScalaObject1[A1, S](
     cls: Class[_],
@@ -470,7 +478,7 @@ object Code {
     a1ct: ClassTag[A1],
     sct: ClassTag[S],
   ): Code[S] =
-    invokeScalaObject[S](cls, method, Array[Class[_]](a1ct.runtimeClass), Array[Code[_]](a1))
+    invokeScalaObject[S](cls, method, ArraySeq(a1ct.runtimeClass), ArraySeq(a1))
 
   def invokeScalaObject2[A1, A2, S](
     cls: Class[_],
@@ -485,8 +493,8 @@ object Code {
     invokeScalaObject[S](
       cls,
       method,
-      Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass),
-      Array(a1, a2),
+      ArraySeq(a1ct.runtimeClass, a2ct.runtimeClass),
+      ArraySeq(a1, a2),
     )
 
   def invokeScalaObject3[A1, A2, A3, S](
@@ -504,8 +512,8 @@ object Code {
     invokeScalaObject[S](
       cls,
       method,
-      Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass),
-      Array(a1, a2, a3),
+      ArraySeq(a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass),
+      ArraySeq(a1, a2, a3),
     )
 
   def invokeScalaObject4[A1, A2, A3, A4, S](
@@ -525,8 +533,8 @@ object Code {
     invokeScalaObject[S](
       cls,
       method,
-      Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass),
-      Array(a1, a2, a3, a4),
+      ArraySeq(a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass),
+      ArraySeq(a1, a2, a3, a4),
     )
 
   def invokeScalaObject5[A1, A2, A3, A4, A5, S](
@@ -548,14 +556,14 @@ object Code {
     invokeScalaObject[S](
       cls,
       method,
-      Array[Class[_]](
+      ArraySeq(
         a1ct.runtimeClass,
         a2ct.runtimeClass,
         a3ct.runtimeClass,
         a4ct.runtimeClass,
         a5ct.runtimeClass,
       ),
-      Array(a1, a2, a3, a4, a5),
+      ArraySeq(a1, a2, a3, a4, a5),
     )
 
   def invokeScalaObject6[A1, A2, A3, A4, A5, A6, S](
@@ -579,7 +587,7 @@ object Code {
     invokeScalaObject[S](
       cls,
       method,
-      Array[Class[_]](
+      ArraySeq(
         a1ct.runtimeClass,
         a2ct.runtimeClass,
         a3ct.runtimeClass,
@@ -587,7 +595,7 @@ object Code {
         a5ct.runtimeClass,
         a6ct.runtimeClass,
       ),
-      Array(a1, a2, a3, a4, a5, a6),
+      ArraySeq(a1, a2, a3, a4, a5, a6),
     )
 
   def invokeScalaObject7[A1, A2, A3, A4, A5, A6, A7, S](
@@ -613,7 +621,7 @@ object Code {
     invokeScalaObject[S](
       cls,
       method,
-      Array[Class[_]](
+      ArraySeq(
         a1ct.runtimeClass,
         a2ct.runtimeClass,
         a3ct.runtimeClass,
@@ -622,7 +630,7 @@ object Code {
         a6ct.runtimeClass,
         a7ct.runtimeClass,
       ),
-      Array(a1, a2, a3, a4, a5, a6, a7),
+      ArraySeq(a1, a2, a3, a4, a5, a6, a7),
     )
 
   def invokeScalaObject8[A1, A2, A3, A4, A5, A6, A7, A8, S](
@@ -650,7 +658,7 @@ object Code {
     invokeScalaObject[S](
       cls,
       method,
-      Array[Class[_]](
+      ArraySeq(
         a1ct.runtimeClass,
         a2ct.runtimeClass,
         a3ct.runtimeClass,
@@ -660,7 +668,7 @@ object Code {
         a7ct.runtimeClass,
         a8ct.runtimeClass,
       ),
-      Array(a1, a2, a3, a4, a5, a6, a7, a8),
+      ArraySeq(a1, a2, a3, a4, a5, a6, a7, a8),
     )
 
   def invokeScalaObject9[A1, A2, A3, A4, A5, A6, A7, A8, A9, S](
@@ -690,7 +698,7 @@ object Code {
     invokeScalaObject[S](
       cls,
       method,
-      Array[Class[_]](
+      ArraySeq(
         a1ct.runtimeClass,
         a2ct.runtimeClass,
         a3ct.runtimeClass,
@@ -701,7 +709,7 @@ object Code {
         a8ct.runtimeClass,
         a9ct.runtimeClass,
       ),
-      Array(a1, a2, a3, a4, a5, a6, a7, a8, a9),
+      ArraySeq(a1, a2, a3, a4, a5, a6, a7, a8, a9),
     )
 
   def invokeScalaObject11[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, S](
@@ -735,7 +743,7 @@ object Code {
     invokeScalaObject[S](
       cls,
       method,
-      Array[Class[_]](
+      ArraySeq(
         a1ct.runtimeClass,
         a2ct.runtimeClass,
         a3ct.runtimeClass,
@@ -748,7 +756,7 @@ object Code {
         a10ct.runtimeClass,
         a11ct.runtimeClass,
       ),
-      Array(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11),
+      ArraySeq(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11),
     )
 
   def invokeScalaObject13[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, S](
@@ -786,7 +794,7 @@ object Code {
     invokeScalaObject[S](
       cls,
       method,
-      Array[Class[_]](
+      ArraySeq(
         a1ct.runtimeClass,
         a2ct.runtimeClass,
         a3ct.runtimeClass,
@@ -801,7 +809,7 @@ object Code {
         a12ct.runtimeClass,
         a13ct.runtimeClass,
       ),
-      Array(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13),
+      ArraySeq(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13),
     )
 
   def invokeScalaObject16[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, S](
@@ -845,7 +853,7 @@ object Code {
     invokeScalaObject[S](
       cls,
       method,
-      Array[Class[_]](
+      ArraySeq(
         a1ct.runtimeClass,
         a2ct.runtimeClass,
         a3ct.runtimeClass,
@@ -863,7 +871,7 @@ object Code {
         a15ct.runtimeClass,
         a16ct.runtimeClass,
       ),
-      Array(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16),
+      ArraySeq(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16),
     )
 
   def invokeScalaObject19[
@@ -934,7 +942,7 @@ object Code {
     invokeScalaObject[S](
       cls,
       method,
-      Array[Class[_]](
+      ArraySeq(
         a1ct.runtimeClass,
         a2ct.runtimeClass,
         a3ct.runtimeClass,
@@ -955,14 +963,14 @@ object Code {
         a18ct.runtimeClass,
         a19ct.runtimeClass,
       ),
-      Array(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19),
+      ArraySeq(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19),
     )
 
   def invokeStatic[S](
     cls: Class[_],
     method: String,
-    parameterTypes: Array[Class[_]],
-    args: Array[Code[_]],
+    parameterTypes: IndexedSeq[Class[_]],
+    args: IndexedSeq[Code[_]],
   )(implicit sct: ClassTag[S]
   ): Code[S] = {
     val m = Invokeable.lookupMethod(cls, method, parameterTypes)(sct)
@@ -971,7 +979,7 @@ object Code {
   }
 
   def invokeStatic0[T, S](method: String)(implicit tct: ClassTag[T], sct: ClassTag[S]): Code[S] =
-    invokeStatic[S](tct.runtimeClass, method, Array[Class[_]](), Array[Code[_]]())
+    invokeStatic[S](tct.runtimeClass, method, ArraySeq.empty[Class[_]], ArraySeq.empty[Code[_]])
 
   def invokeStatic1[T, A1, S](
     method: String,
@@ -984,8 +992,8 @@ object Code {
     invokeStatic[S](
       tct.runtimeClass,
       method,
-      Array[Class[_]](a1ct.runtimeClass),
-      Array[Code[_]](a1),
+      ArraySeq(a1ct.runtimeClass),
+      ArraySeq(a1),
     )(sct)
 
   def invokeStatic2[T, A1, A2, S](
@@ -1001,8 +1009,8 @@ object Code {
     invokeStatic[S](
       tct.runtimeClass,
       method,
-      Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass),
-      Array[Code[_]](a1, a2),
+      ArraySeq(a1ct.runtimeClass, a2ct.runtimeClass),
+      ArraySeq(a1, a2),
     )(sct)
 
   def invokeStatic3[T, A1, A2, A3, S](
@@ -1020,8 +1028,8 @@ object Code {
     invokeStatic[S](
       tct.runtimeClass,
       method,
-      Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass),
-      Array[Code[_]](a1, a2, a3),
+      ArraySeq(a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass),
+      ArraySeq(a1, a2, a3),
     )(sct)
 
   def invokeStatic4[T, A1, A2, A3, A4, S](
@@ -1041,8 +1049,8 @@ object Code {
     invokeStatic[S](
       tct.runtimeClass,
       method,
-      Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass),
-      Array[Code[_]](a1, a2, a3, a4),
+      ArraySeq(a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass),
+      ArraySeq(a1, a2, a3, a4),
     )(sct)
 
   def invokeStatic5[T, A1, A2, A3, A4, A5, S](
@@ -1064,14 +1072,14 @@ object Code {
     invokeStatic[S](
       tct.runtimeClass,
       method,
-      Array[Class[_]](
+      ArraySeq(
         a1ct.runtimeClass,
         a2ct.runtimeClass,
         a3ct.runtimeClass,
         a4ct.runtimeClass,
         a5ct.runtimeClass,
       ),
-      Array[Code[_]](a1, a2, a3, a4, a5),
+      ArraySeq(a1, a2, a3, a4, a5),
     )(sct)
 
   def _null[T >: Null](implicit tti: TypeInfo[T]): Value[T] =
@@ -1918,7 +1926,7 @@ object Invokeable {
   def lookupMethod[T, S](
     cls: Class[T],
     method: String,
-    parameterTypes: Array[Class[_]],
+    parameterTypes: IndexedSeq[Class[_]],
   )(implicit sct: ClassTag[S]
   ): Invokeable[T, S] = {
     val m = cls.getMethod(method, parameterTypes: _*)
@@ -1947,7 +1955,7 @@ class Invokeable[T, S](
   val concreteReturnType: Class[_],
 )(implicit sct: ClassTag[S]
 ) {
-  def invoke(lhs: Code[T], args: Array[Code[_]]): Code[S] = {
+  def invoke(lhs: Code[T], args: IndexedSeq[Code[_]]): Code[S] = {
     val (start, end, argvs) = Code.sequenceValues(
       if (isStatic)
         args
@@ -2115,8 +2123,8 @@ class CodeObject[T <: AnyRef: ClassTag](val lhs: Code[T]) {
 
   def invoke[S](
     method: String,
-    parameterTypes: Array[Class[_]],
-    args: Array[Code[_]],
+    parameterTypes: IndexedSeq[Class[_]],
+    args: IndexedSeq[Code[_]],
   )(implicit sct: ClassTag[S]
   ): Code[S] =
     Invokeable.lookupMethod[T, S](
@@ -2126,11 +2134,11 @@ class CodeObject[T <: AnyRef: ClassTag](val lhs: Code[T]) {
     ).invoke(lhs, args)
 
   def invoke[S](method: String)(implicit sct: ClassTag[S]): Code[S] =
-    invoke[S](method, Array[Class[_]](), Array[Code[_]]())
+    invoke[S](method, ArraySeq.empty[Class[_]], ArraySeq.empty[Code[_]])
 
   def invoke[A1, S](method: String, a1: Code[A1])(implicit a1ct: ClassTag[A1], sct: ClassTag[S])
     : Code[S] =
-    invoke[S](method, Array[Class[_]](a1ct.runtimeClass), Array[Code[_]](a1))
+    invoke[S](method, ArraySeq(a1ct.runtimeClass), ArraySeq(a1))
 
   def invoke[A1, A2, S](
     method: String,
@@ -2141,7 +2149,7 @@ class CodeObject[T <: AnyRef: ClassTag](val lhs: Code[T]) {
     a2ct: ClassTag[A2],
     sct: ClassTag[S],
   ): Code[S] =
-    invoke[S](method, Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass), Array[Code[_]](a1, a2))
+    invoke[S](method, ArraySeq(a1ct.runtimeClass, a2ct.runtimeClass), ArraySeq(a1, a2))
 
   def invoke[A1, A2, A3, S](
     method: String,
@@ -2156,8 +2164,8 @@ class CodeObject[T <: AnyRef: ClassTag](val lhs: Code[T]) {
   ): Code[S] =
     invoke[S](
       method,
-      Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass),
-      Array[Code[_]](a1, a2, a3),
+      ArraySeq(a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass),
+      ArraySeq(a1, a2, a3),
     )
 
   def invoke[A1, A2, A3, A4, S](
@@ -2175,8 +2183,8 @@ class CodeObject[T <: AnyRef: ClassTag](val lhs: Code[T]) {
   ): Code[S] =
     invoke[S](
       method,
-      Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass),
-      Array[Code[_]](a1, a2, a3, a4),
+      ArraySeq(a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass),
+      ArraySeq(a1, a2, a3, a4),
     )
 
   def invoke[A1, A2, A3, A4, A5, S](
@@ -2196,14 +2204,14 @@ class CodeObject[T <: AnyRef: ClassTag](val lhs: Code[T]) {
   ): Code[S] =
     invoke[S](
       method,
-      Array[Class[_]](
+      ArraySeq(
         a1ct.runtimeClass,
         a2ct.runtimeClass,
         a3ct.runtimeClass,
         a4ct.runtimeClass,
         a5ct.runtimeClass,
       ),
-      Array[Code[_]](a1, a2, a3, a4, a5),
+      ArraySeq(a1, a2, a3, a4, a5),
     )
 
   def invoke[A1, A2, A3, A4, A5, A6, S](
@@ -2225,7 +2233,7 @@ class CodeObject[T <: AnyRef: ClassTag](val lhs: Code[T]) {
   ): Code[S] =
     invoke[S](
       method,
-      Array[Class[_]](
+      ArraySeq(
         a1ct.runtimeClass,
         a2ct.runtimeClass,
         a3ct.runtimeClass,
@@ -2233,7 +2241,7 @@ class CodeObject[T <: AnyRef: ClassTag](val lhs: Code[T]) {
         a5ct.runtimeClass,
         a6ct.runtimeClass,
       ),
-      Array[Code[_]](a1, a2, a3, a4, a5, a6),
+      ArraySeq(a1, a2, a3, a4, a5, a6),
     )
 
   def invoke[A1, A2, A3, A4, A5, A6, A7, S](
@@ -2257,7 +2265,7 @@ class CodeObject[T <: AnyRef: ClassTag](val lhs: Code[T]) {
   ): Code[S] =
     invoke[S](
       method,
-      Array[Class[_]](
+      ArraySeq(
         a1ct.runtimeClass,
         a2ct.runtimeClass,
         a3ct.runtimeClass,
@@ -2266,7 +2274,7 @@ class CodeObject[T <: AnyRef: ClassTag](val lhs: Code[T]) {
         a6ct.runtimeClass,
         a7ct.runtimeClass,
       ),
-      Array[Code[_]](a1, a2, a3, a4, a5, a6, a7),
+      ArraySeq(a1, a2, a3, a4, a5, a6, a7),
     )
 
   def invoke[A1, A2, A3, A4, A5, A6, A7, A8, S](
@@ -2292,7 +2300,7 @@ class CodeObject[T <: AnyRef: ClassTag](val lhs: Code[T]) {
   ): Code[S] =
     invoke[S](
       method,
-      Array[Class[_]](
+      ArraySeq(
         a1ct.runtimeClass,
         a2ct.runtimeClass,
         a3ct.runtimeClass,
@@ -2302,7 +2310,7 @@ class CodeObject[T <: AnyRef: ClassTag](val lhs: Code[T]) {
         a7ct.runtimeClass,
         a8ct.runtimeClass,
       ),
-      Array[Code[_]](a1, a2, a3, a4, a5, a6, a7, a8),
+      ArraySeq(a1, a2, a3, a4, a5, a6, a7, a8),
     )
 
   def invoke[A1, A2, A3, A4, A5, A6, A7, A8, A9, S](
@@ -2330,7 +2338,7 @@ class CodeObject[T <: AnyRef: ClassTag](val lhs: Code[T]) {
   ): Code[S] =
     invoke[S](
       method,
-      Array[Class[_]](
+      ArraySeq(
         a1ct.runtimeClass,
         a2ct.runtimeClass,
         a3ct.runtimeClass,
@@ -2341,7 +2349,7 @@ class CodeObject[T <: AnyRef: ClassTag](val lhs: Code[T]) {
         a8ct.runtimeClass,
         a9ct.runtimeClass,
       ),
-      Array[Code[_]](a1, a2, a3, a4, a5, a6, a7, a8, a9),
+      ArraySeq(a1, a2, a3, a4, a5, a6, a7, a8, a9),
     )
 }
 

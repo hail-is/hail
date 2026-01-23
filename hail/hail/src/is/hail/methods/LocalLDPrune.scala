@@ -7,6 +7,7 @@ import is.hail.expr.ir.functions.MatrixToTableFunction
 import is.hail.methods.BitPackedVector._
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 import is.hail.variant._
 
 import java.util
@@ -99,7 +100,14 @@ class BitPackedVectorBuilder(nSamples: Int) {
       val gtSumSqAll = gtSumSq + nMissing * gtMean * gtMean
       val gtCenteredLengthRec = 1d / math.sqrt(gtSumSqAll - (gtSumAll * gtSumAll / nSamples))
 
-      BitPackedVector(locus, alleles, packs.result(), nSamples, gtMean, gtCenteredLengthRec)
+      BitPackedVector(
+        locus,
+        ArraySeq.unsafeWrapArray(alleles),
+        packs.result(),
+        nSamples,
+        gtMean,
+        gtCenteredLengthRec,
+      )
     }
   }
 }
@@ -117,7 +125,7 @@ case class BitPackedVector(
   def getPack(idx: Int): Long = gs(idx)
 
   // for testing
-  private[methods] def unpack(): Array[Int] = {
+  private[methods] def unpack(): IndexedSeq[Int] = {
     val gts = Array.ofDim[Int](nSamples)
 
     var packIndex = 0
@@ -138,7 +146,7 @@ case class BitPackedVector(
       packIndex += 1
     }
 
-    gts
+    ArraySeq.unsafeWrapArray(gts)
   }
 }
 

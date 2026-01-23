@@ -5,6 +5,7 @@ import is.hail.backend.HailStateManager
 import is.hail.expr.ir.IRParser
 import is.hail.types.physical.{PInterval, PStruct}
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.collection.compat._
 
@@ -30,11 +31,10 @@ final case class RVDType(rowType: PStruct, key: IndexedSeq[String]) extends Seri
   val kType: PStruct = rowType.typeAfterSelect(key.map(rowType.fieldIdx))
   val valueType: PStruct = rowType.dropFields(keySet)
 
-  val kFieldIdx: Array[Int] = key.map(n => rowType.fieldIdx(n)).toArray
+  val kFieldIdx: IndexedSeq[Int] = key.map(n => rowType.fieldIdx(n))
 
-  val valueFieldIdx: Array[Int] = (0 until rowType.size)
-    .filter(i => !keySet.contains(rowType.fields(i).name))
-    .toArray
+  val valueFieldIdx: IndexedSeq[Int] = (0 until rowType.size).view
+    .filter(i => !keySet.contains(rowType.fields(i).name)).to(ArraySeq)
 
   @transient private var _kInRowOrd: UnsafeOrdering = _
   @transient private var _kRowOrd: UnsafeOrdering = _
@@ -48,7 +48,7 @@ final case class RVDType(rowType: PStruct, key: IndexedSeq[String]) extends Seri
 
   def kRowOrd(sm: HailStateManager): UnsafeOrdering = {
     if (_kRowOrd == null) _kRowOrd =
-      RVDType.selectUnsafeOrdering(sm, kType, Array.range(0, kType.size), rowType, kFieldIdx)
+      RVDType.selectUnsafeOrdering(sm, kType, Range(0, kType.size), rowType, kFieldIdx)
     _kRowOrd
   }
 
@@ -160,24 +160,24 @@ object RVDType {
   def selectUnsafeOrdering(
     sm: HailStateManager,
     t1: PStruct,
-    fields1: Array[Int],
+    fields1: IndexedSeq[Int],
     t2: PStruct,
-    fields2: Array[Int],
+    fields2: IndexedSeq[Int],
     missingEqual: Boolean = true,
   ): UnsafeOrdering = {
-    val fieldOrderings = Range(0, fields1.length).map { i =>
+    val fieldOrderings = ArraySeq.tabulate(fields1.length) { i =>
       t1.types(fields1(i)).unsafeOrdering(sm, t2.types(fields2(i)))
-    }.toArray
+    }
 
     selectUnsafeOrdering(t1, fields1, t2, fields2, fieldOrderings, missingEqual)
   }
 
   def selectUnsafeOrdering(
     t1: PStruct,
-    fields1: Array[Int],
+    fields1: IndexedSeq[Int],
     t2: PStruct,
-    fields2: Array[Int],
-    fieldOrderings: Array[UnsafeOrdering],
+    fields2: IndexedSeq[Int],
+    fieldOrderings: IndexedSeq[UnsafeOrdering],
     missingEqual: Boolean,
   ): UnsafeOrdering = {
     require(fields1.length == fields2.length)

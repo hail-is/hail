@@ -15,7 +15,7 @@ class MemoryLeakSuite extends HailSuite {
 
     def run(size: Int): Long = {
       val lit = Literal(TSet(TString), (0 until litSize).map(_.toString).toSet)
-      val queries = Literal(TArray(TString), (0 until size).map(_.toString).toFastSeq)
+      val queries = Literal(TArray(TString), (0 until size).map(_.toString))
 
       val (_, memUsed) =
         measuringHighestTotalMemoryUsage { ctx =>

@@ -1,6 +1,7 @@
 package is.hail.variant
 
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 object VariantMethods {
 
@@ -11,7 +12,10 @@ object VariantMethods {
       fatal(s"Invalid string for Variant. Expecting contig:pos:ref:alt1,alt2 -- found '$str'.")
 
     val contig = elts.take(size - 3).mkString(":")
-    (Locus(contig, elts(size - 3).toInt, rg), elts(size - 2) +: elts(size - 1).split(","))
+    (
+      Locus(contig, elts(size - 3).toInt, rg),
+      elts(size - 2) +: ArraySeq.unsafeWrapArray(elts(size - 1).split(",")),
+    )
   }
 
   def locusAllelesToString(la: (Locus, IndexedSeq[String])): String =
@@ -61,7 +65,7 @@ object VariantMethods {
         (
           Locus(locus.contig, locus.position + ns),
           ref.substring(ns, ref.length - ne) +:
-            altAlleles.map(a => if (a == "*") a else a.substring(ns, a.length - ne)).toArray,
+            altAlleles.map(a => if (a == "*") a else a.substring(ns, a.length - ne)),
         )
       }
     }

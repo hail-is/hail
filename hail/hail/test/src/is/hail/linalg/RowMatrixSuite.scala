@@ -3,6 +3,7 @@ package is.hail.linalg
 import is.hail.HailSuite
 import is.hail.scalacheck._
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 import breeze.linalg.DenseMatrix
 import org.scalatest
@@ -10,32 +11,37 @@ import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
 import org.testng.annotations.Test
 
 class RowMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
-  private def rowArrayToRowMatrix(a: Array[Array[Double]], nPartitions: Int = sc.defaultParallelism)
-    : RowMatrix = {
-    require(a.length > 0)
+  private def rowArrayToRowMatrix(
+    a: IndexedSeq[Array[Double]],
+    nPartitions: Int = sc.defaultParallelism,
+  ): RowMatrix = {
+    require(a.nonEmpty)
     val nRows = a.length
     val nCols = a(0).length
 
     RowMatrix(
-      sc.parallelize(a.zipWithIndex.map { case (row, i) => (i.toLong, row) }, nPartitions),
+      sc.parallelize(
+        a.zipWithIndex.map { case (row, i) => (i.toLong, row) },
+        nPartitions,
+      ),
       nCols,
       nRows.toLong,
     )
   }
 
-  private def rowArrayToLocalMatrix(a: Array[Array[Double]]): DenseMatrix[Double] = {
-    require(a.length > 0)
+  private def rowArrayToLocalMatrix(a: IndexedSeq[Array[Double]]): DenseMatrix[Double] = {
+    require(a.nonEmpty)
     val nRows = a.length
     val nCols = a(0).length
 
-    new DenseMatrix[Double](nRows, nCols, a.flatten, 0, nCols, isTranspose = true)
+    new DenseMatrix[Double](nRows, nCols, a.view.flatten.toArray, 0, nCols, isTranspose = true)
   }
 
   @Test
   def localizeRowMatrix(): Unit = {
     val fname = ctx.createTmpPath("test")
 
-    val rowArrays = Array(
+    val rowArrays = ArraySeq(
       Array(1.0, 2.0, 3.0),
       Array(4.0, 5.0, 6.0),
     )
@@ -100,14 +106,14 @@ class RowMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
   @Test
   def exportWithIndex(): Unit = {
-    val rowArrays = Array(
+    val rowArrays = ArraySeq(
       Array(1.0, 2.0, 3.0),
       Array(4.0, 5.0, 6.0),
       Array(7.0, 8.0, 9.0),
     )
     val rowMatrix = rowArrayToRowMatrix(rowArrays, nPartitions = 2)
 
-    val rowArraysWithIndex = Array(
+    val rowArraysWithIndex = ArraySeq(
       Array(0.0, 1.0, 2.0, 3.0),
       Array(1.0, 4.0, 5.0, 6.0),
       Array(2.0, 7.0, 8.0, 9.0),
@@ -128,7 +134,7 @@ class RowMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
   @Test
   def exportSquare(): Unit = {
-    val rowArrays = Array(
+    val rowArrays = ArraySeq(
       Array(1.0, 2.0, 3.0),
       Array(4.0, 5.0, 6.0),
       Array(7.0, 8.0, 9.0),
@@ -204,7 +210,7 @@ class RowMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
   @Test
   def exportWide(): Unit = {
-    val rowArrays = Array(
+    val rowArrays = ArraySeq(
       Array(1.0, 2.0, 3.0),
       Array(4.0, 5.0, 6.0),
     )
@@ -276,7 +282,7 @@ class RowMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
   @Test
   def exportTall(): Unit = {
-    val rowArrays = Array(
+    val rowArrays = ArraySeq(
       Array(1.0, 2.0),
       Array(4.0, 5.0),
       Array(7.0, 8.0),
@@ -350,8 +356,8 @@ class RowMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
   @Test
   def exportBig(): Unit = {
-    val rowArrays: Array[Array[Double]] =
-      Array.tabulate(20)(r => Array.tabulate(30)(c => 30.0 * c + r))
+    val rowArrays: ArraySeq[Array[Double]] =
+      ArraySeq.tabulate(20)(r => Array.tabulate(30)(c => 30.0 * c + r))
     val rowMatrix = rowArrayToRowMatrix(rowArrays)
 
     exportImportAssert(
@@ -378,8 +384,7 @@ class RowMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       rowArrays.zipWithIndex
         .map { case (a, i) =>
           a.zipWithIndex.filter { case (_, j) => j <= i }.map(_._1)
-        }
-        .toArray[Array[Double]]: _*
+        }: _*
     )
 
     exportImportAssert(
@@ -395,8 +400,7 @@ class RowMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         .map { case (a, i) =>
           a.zipWithIndex.filter { case (_, j) => j < i }.map(_._1)
         }
-        .filter(_.nonEmpty)
-        .toArray[Array[Double]]: _*
+        .filter(_.nonEmpty): _*
     )
 
     exportImportAssert(
@@ -411,8 +415,7 @@ class RowMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       rowArrays.zipWithIndex
         .map { case (a, i) =>
           a.zipWithIndex.filter { case (_, j) => j >= i }.map(_._1)
-        }
-        .toArray[Array[Double]]: _*
+        }: _*
     )
 
     exportImportAssert(
@@ -428,8 +431,7 @@ class RowMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         .map { case (a, i) =>
           a.zipWithIndex.filter { case (_, j) => j > i }.map(_._1)
         }
-        .filter(_.nonEmpty)
-        .toArray[Array[Double]]: _*
+        .filter(_.nonEmpty): _*
     )
   }
 }
