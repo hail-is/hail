@@ -2,11 +2,11 @@ package is.hail.types.physical.stypes.primitives
 
 import is.hail.annotations.Region
 import is.hail.asm4s.{BooleanInfo, Settable, SettableBuilder, TypeInfo, Value}
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.{PBoolean, PType}
 import is.hail.types.physical.stypes.{SSettable, SType, SValue}
 import is.hail.types.virtual.{TBoolean, Type}
-import is.hail.utils.FastSeq
 
 case object SBoolean extends SPrimitive {
   override def ti: TypeInfo[_] = BooleanInfo

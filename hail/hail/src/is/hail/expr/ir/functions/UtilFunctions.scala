@@ -13,6 +13,7 @@ import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives._
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.utils.implicits.toRichString
 
 import scala.reflect.ClassTag
 

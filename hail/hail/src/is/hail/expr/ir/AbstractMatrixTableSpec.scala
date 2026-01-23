@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.collection.FastSeq
 import is.hail.io.fs.FS
 import is.hail.rvd._
 import is.hail.types.virtual.{MatrixType, MatrixTypeSerializer, TableType, TableTypeSerializer}

@@ -2,12 +2,12 @@ package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
 import is.hail.asm4s.{BooleanInfo, LongInfo, Settable, SettableBuilder, TypeInfo, Value}
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical.{PInterval, PType}
 import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.interfaces.{SInterval, SIntervalValue}
 import is.hail.types.virtual.Type
-import is.hail.utils.FastSeq
 
 final case class SIntervalPointer(pType: PInterval) extends SInterval {
   require(!pType.required)

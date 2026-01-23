@@ -2,6 +2,8 @@ package is.hail.types.encoded
 
 import is.hail.annotations.{Region, UnsafeUtils}
 import is.hail.asm4s.{Field => _, _}
+import is.hail.asm4s.implicits._
+import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types.BaseStruct
@@ -11,6 +13,7 @@ import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SLocus, SLocusValue}
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.utils.implicits.{toRichBoolean, toTruncatable}
 
 final case class EField(name: String, typ: EType, index: Int) {
   def pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = {

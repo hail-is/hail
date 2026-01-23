@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.HailSuite
+import is.hail.collection.FastSeq
 import is.hail.expr.Nat
 import is.hail.expr.ir.agg.CallStatsState
 import is.hail.expr.ir.defs._
@@ -13,7 +14,6 @@ import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.interfaces.SStream
 import is.hail.types.physical.stypes.primitives.SInt32
 import is.hail.types.virtual._
-import is.hail.utils.FastSeq
 
 import scala.collection.mutable.ArrayBuffer
 

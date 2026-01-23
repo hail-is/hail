@@ -2,13 +2,17 @@ package is.hail.expr.ir
 
 import is.hail.annotations._
 import is.hail.backend.{ExecuteContext, HailStateManager}
+import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
+import is.hail.collection.implicits.toRichIterable
+import is.hail.expr.ir.TableNativeWriter.writeFileReadMe
 import is.hail.io.{BufferSpec, FileWriteMetadata}
 import is.hail.linalg.RowMatrix
 import is.hail.rvd.{AbstractRVDSpec, RVD}
+import is.hail.sparkextras.implicits.toRichRDD
 import is.hail.types.physical.{PArray, PCanonicalStruct, PStruct, PType}
 import is.hail.types.virtual._
 import is.hail.utils._
-import is.hail.utils.compat.immutable.ArraySeq
 import is.hail.variant._
 
 import scala.collection.compat._
@@ -231,7 +235,7 @@ case class MatrixValue(
     )
     spec.write(fs, path)
 
-    writeNativeFileReadMe(fs, path)
+    writeFileReadMe(fs, path)
 
     using(fs.create(path + "/_SUCCESS"))(_ => ())
 

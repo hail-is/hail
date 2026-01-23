@@ -2,7 +2,7 @@ package is.hail.types.virtual
 
 import is.hail.HailSuite
 import is.hail.annotations.{Annotation, Inserter}
-import is.hail.utils.FastSeq
+import is.hail.collection.FastSeq
 
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}

@@ -3,11 +3,11 @@ package is.hail.expr.ir.agg
 import is.hail.HailSuite
 import is.hail.annotations.{Region, SafeRow, ScalaToRegionValue}
 import is.hail.asm4s.Code
+import is.hail.asm4s.implicits.valueToRichCodeRegion
+import is.hail.collection.compat.immutable.ArraySeq
+import is.hail.collection.compat.mutable.GrowableCompat
 import is.hail.expr.ir.{EmitCode, EmitFunctionBuilder}
 import is.hail.types.physical._
-import is.hail.utils._
-import is.hail.utils.compat.immutable.ArraySeq
-import is.hail.utils.compat.mutable.GrowableCompat
 
 import org.testng.Assert._
 import org.testng.annotations.Test

@@ -3,9 +3,10 @@ package is.hail.utils
 import is.hail.HailSuite
 import is.hail.annotations.ExtendedOrdering
 import is.hail.backend.{ExecuteContext, HailStateManager}
+import is.hail.collection.compat.immutable.ArraySeq
+import is.hail.collection.implicits.toRichIterable
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.virtual.{TInt32, TStruct}
-import is.hail.utils.compat.immutable.ArraySeq
 
 import org.apache.spark.sql.Row
 import org.scalatest.Inspectors.forAll
