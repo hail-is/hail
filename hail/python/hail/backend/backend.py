@@ -339,9 +339,9 @@ class Backend(abc.ABC):
         return orjson.loads(fam_json_bytes)
 
     def persist(self, dataset: Dataset) -> Dataset:
-        from hail.context import TemporaryFilename
+        from hail.context import TemporaryDirectory
 
-        tempfile = TemporaryFilename(prefix=f'persist_{type(dataset).__name__}')
+        tempfile = TemporaryDirectory(prefix=f'persist_{type(dataset).__name__}', ensure_exists=False)
         persisted = dataset.checkpoint(tempfile.__enter__())
         self._persisted_locations[persisted] = (tempfile, dataset)
         return persisted
