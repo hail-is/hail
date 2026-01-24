@@ -739,7 +739,9 @@ def delay_ms_for_try(
 async def sleep_before_try(
     tries: int, base_delay_ms: int = DEFAULT_BASE_DELAY_MS, max_delay_ms: int = DEFAULT_MAX_DELAY_MS
 ):
-    await asyncio.sleep(delay_ms_for_try(tries, base_delay_ms, max_delay_ms) / 1000.0)
+    delay_seconds = delay_ms_for_try(tries, base_delay_ms, max_delay_ms) / 1000.0
+    await asyncio.sleep(delay_seconds)
+    return delay_seconds
 
 
 def sync_sleep_before_try(
@@ -827,14 +829,14 @@ async def retry_transient_errors_with_debug_string(
                 if log_warnings and tries == 2:
                     log.warning(
                         f'A transient error occured. We will automatically retry. Do not be alarmed. '
-                        f'We have thus far seen {tries} transient errors (next delay: '
+                        f'We have thus far seen {tries} transient errors over {time_msecs() - start_time}ms (next delay: '
                         f'{delay}s). The most recent error was {type(e)} {e}. {debug_string}'
                     )
-                elif log_warnings and tries % 10 == 0:
+                elif log_warnings and tries % 4 == 0:
                     st = ''.join(traceback.format_stack())
                     log.warning(
                         f'A transient error occured. We will automatically retry. '
-                        f'We have thus far seen {tries} transient errors (next delay: '
+                        f'We have thus far seen {tries} transient errors over {time_msecs() - start_time}ms (next delay: '
                         f'{delay}s). The stack trace for this call is {st}. The most recent error was {type(e)} {e}. {debug_string}',
                         exc_info=True,
                     )
