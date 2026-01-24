@@ -293,29 +293,23 @@ def test_input_dependency(client, remote_tmpdir):
     )
     batch.submit()
     tail.wait()
-    head_status = head.status()
-    assert head._get_exit_code(head_status, 'main') == 0, str((head_status, batch.debug_info()))
-    tail_log = tail.log()
-    assert tail_log['main'] == 'head1\nhead2\n', str((tail_log, batch.debug_info()))
 
-
-def test_input_dependency_wildcard(client, remote_tmpdir):
-    batch = create_batch(client)
-    head = batch.create_job(
-        DOCKER_ROOT_IMAGE,
-        command=['/bin/sh', '-c', 'echo head1 > /io/data1 ; echo head2 > /io/data2'],
-        output_files=[('/io/data1', f'{remote_tmpdir}/data1'), ('/io/data2', f'{remote_tmpdir}/data2')],
-    )
-    tail = batch.create_job(
-        DOCKER_ROOT_IMAGE,
-        command=['/bin/sh', '-c', 'cat /io/data1 ; cat /io/data2'],
-        input_files=[(f'{remote_tmpdir}/data1', '/io/data1'), (f'{remote_tmpdir}/data2', '/io/data2')],
-        parents=[head],
-    )
-    batch.submit()
-    tail.wait()
     head_status = head.status()
+    # The input container doesn't exist so the exit code isn't 0.
     assert head._get_exit_code(head_status, 'input') != 0, str((head_status, batch.debug_info()))
+    # The main container exists and the exit code is 0.
+    assert head._get_exit_code(head_status, 'main') == 0, str((head_status, batch.debug_info()))
+    # The output container for head does not exist and the exit code should be 0.
+    assert head._get_exit_code(head_status, 'output') == 0, str((head_status, batch.debug_info()))
+
+    tail_status = tail.status()
+    # The input container for tail does exist so the exit code should be 0.
+    assert tail._get_exit_code(tail_status, 'input') == 0, str((tail_status, batch.debug_info()))
+    # The main container for tail exists and the exit code is 0.
+    assert tail._get_exit_code(tail_status, 'main') == 0, str((tail_status, batch.debug_info()))
+    # The output container for tail doesn't exists and the exit code shouldn't be 0.
+    assert tail._get_exit_code(tail_status, 'output') != 0, str((tail_status, batch.debug_info()))
+
     tail_log = tail.log()
     assert tail_log['main'] == 'head1\nhead2\n', str((tail_log, batch.debug_info()))
 
