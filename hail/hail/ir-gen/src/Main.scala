@@ -25,7 +25,7 @@ trait IRDSL {
   protected def oneOrMore[T](x: Type[T]): Type[Seq[T]]
   protected def optional[T](x: Type[T]): Type[Option[T]]
 
-  def name: Type[Name] = att("Name").asInstanceOf[Type[Name]]
+  final def name: Type[Name] = att("Name").asInstanceOf[Type[Name]]
   def child: Type[Child]
   def tableChild: Type[Child]
   def matrixChild: Type[Child]
@@ -81,10 +81,10 @@ trait IRDSL {
 
   // Implicits for common names
 
-  implicit def nameDefaultName(t: Type[Name]): Declaration[Name] =
+  final implicit def nameDefaultName(t: Type[Name]): Declaration[Name] =
     in("name", t)
 
-  implicit def childDefaultName(t: Type[Child]): Declaration[Child] =
+  final implicit def childDefaultName(t: Type[Child]): Declaration[Child] =
     in("child", t)
 }
 
@@ -558,7 +558,7 @@ object IRDSL_Impl extends IRDSL {
       s"object $name extends ${name}CompanionExt\n"
     else ""
 
-    def generateDef: String = companionDef + classDef + "\n"
+    override def generateDef: String = companionDef + classDef + "\n"
   }
 }
 

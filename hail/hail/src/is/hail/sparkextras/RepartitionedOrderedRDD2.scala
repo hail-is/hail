@@ -46,7 +46,7 @@ class RepartitionedOrderedRDD2 private (
   val typ: RVDType = prev.typ
   val kOrd: ExtendedOrdering = PartitionBoundOrdering(sm, typ.kType.virtualType)
 
-  def getPartitions: Array[Partition] = {
+  override def getPartitions: Array[Partition] = {
     require(newRangeBounds.forall { i =>
       typ.kType.virtualType.relaxedTypeCheck(i.start) && typ.kType.virtualType.relaxedTypeCheck(
         i.end
@@ -109,7 +109,7 @@ class RepartitionedOrderedRDD2 private (
           innerRegion.clear()
         }
 
-        def hasNext: Boolean = {
+        override def hasNext: Boolean = {
           if (pulled)
             return true
 
@@ -126,7 +126,7 @@ class RepartitionedOrderedRDD2 private (
           true
         }
 
-        def next(): Long = {
+        override def next(): Long = {
           // hasNext() must be called before next() to fill `current`
           if (!hasNext)
             throw new NoSuchElementException

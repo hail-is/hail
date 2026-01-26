@@ -13,7 +13,7 @@ import is.hail.utils._
 
 final case class EArray(val elementType: EType, override val required: Boolean = false)
     extends EContainer {
-  def _decodedSType(requestedType: Type): SType = {
+  override def _decodedSType(requestedType: Type): SType = {
     val elementPType = elementType.decodedPType(requestedType.asInstanceOf[TContainer].elementType)
     requestedType match {
       case _: TSet =>
@@ -193,7 +193,7 @@ final case class EArray(val elementType: EType, override val required: Boolean =
     new SIndexablePointerValue(st, array, len, cb.memoize(arrayType.firstElementOffset(array, len)))
   }
 
-  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
+  override def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
     val skip = elementType.buildSkip(cb.emb.ecb)
     val len = cb.newLocal[Int]("len", in.readInt())
     val i = cb.newLocal[Int]("i")
@@ -212,8 +212,8 @@ final case class EArray(val elementType: EType, override val required: Boolean =
     }
   }
 
-  def _asIdent = s"array_of_${elementType.asIdent}"
-  def _toPretty = s"EArray[$elementType]"
+  override def _asIdent = s"array_of_${elementType.asIdent}"
+  override def _toPretty = s"EArray[$elementType]"
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false): Unit = {
     sb ++= "EArray["
@@ -221,5 +221,5 @@ final case class EArray(val elementType: EType, override val required: Boolean =
     sb += ']'
   }
 
-  def setRequired(newRequired: Boolean): EArray = EArray(elementType, newRequired)
+  override def setRequired(newRequired: Boolean): EArray = EArray(elementType, newRequired)
 }

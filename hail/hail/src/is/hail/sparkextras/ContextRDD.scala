@@ -31,9 +31,9 @@ abstract class Combiner[U] {
 class CommutativeAndAssociativeCombiner[U](zero: => U, combine: (U, U) => U) extends Combiner[U] {
   var state: U = zero
 
-  def combine(i: Int, value0: U): Unit = state = combine(state, value0)
+  override def combine(i: Int, value0: U): Unit = state = combine(state, value0)
 
-  def result(): U = state
+  override def result(): U = state
 }
 
 class AssociativeCombiner[U](zero: => U, combine: (U, U) => U) extends Combiner[U] with Logging {
@@ -44,7 +44,7 @@ class AssociativeCombiner[U](zero: => U, combine: (U, U) => U) extends Combiner[
   // U it holds.
   private val t = new java.util.TreeMap[Int, TreeValue]()
 
-  def combine(i: Int, value0: U): Unit = {
+  override def combine(i: Int, value0: U): Unit = {
     logger.info(s"at result $i, AssociativeCombiner contains ${t.size()} queued results")
     var value = value0
     var end = i
@@ -69,7 +69,7 @@ class AssociativeCombiner[U](zero: => U, combine: (U, U) => U) extends Combiner[
     t.put(i, TreeValue(value, end))
   }
 
-  def result(): U = {
+  override def result(): U = {
     // after 'result' returns, 't' owns no values.
     val n = t.size()
     if (n > 0) {
@@ -295,13 +295,13 @@ class ContextRDD[T: ClassTag](
     f: (RVDContext, T, U) => V
   ): ContextRDD[V] = czipPartitions(that, preservesPartitioning) { (ctx, l, r) =>
     new Iterator[V] {
-      def hasNext = {
+      override def hasNext = {
         val lhn = l.hasNext
         val rhn = r.hasNext
         assert(lhn == rhn)
         lhn
       }
-      def next(): V =
+      override def next(): V =
         f(ctx, l.next(), r.next())
     }
   }
@@ -420,7 +420,7 @@ class ContextRDD[T: ClassTag](
 }
 
 private class CRDDCoalescer(partEnds: Array[Int]) extends PartitionCoalescer with Serializable {
-  def coalesce(maxPartitions: Int, prev: RDD[_]): Array[PartitionGroup] = {
+  override def coalesce(maxPartitions: Int, prev: RDD[_]): Array[PartitionGroup] = {
     assert(maxPartitions == partEnds.length)
     val groups = Array.fill(maxPartitions)(new PartitionGroup())
     val parts = prev.partitions

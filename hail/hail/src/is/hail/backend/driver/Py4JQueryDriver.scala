@@ -474,7 +474,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
       // Note that simply calling httpServer.start() from a non-daemon thread will spawn a
       // non-daemon thread itself.
       private[this] val thread = new Thread(new Runnable() {
-        def run(): Unit = httpServer.start()
+        override def run(): Unit = httpServer.start()
       })
 
       thread.setDaemon(true)

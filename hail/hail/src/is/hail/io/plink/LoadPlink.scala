@@ -367,16 +367,16 @@ class MatrixPLINKReader(
   partitioner: RVDPartitioner,
 ) extends MatrixHybridReader {
 
-  def rowUIDType = TInt64
-  def colUIDType = TInt64
+  override def rowUIDType = TInt64
+  override def colUIDType = TInt64
 
-  def pathsUsed: Seq[String] = FastSeq(params.bed, params.bim, params.fam)
+  override def pathsUsed: Seq[String] = FastSeq(params.bed, params.bim, params.fam)
 
   def nSamples: Int = sampleInfo.length
 
   val columnCount: Option[Int] = Some(nSamples)
 
-  def partitionCounts: Option[IndexedSeq[Long]] = None
+  override def partitionCounts: Option[IndexedSeq[Long]] = None
 
   val globals = Row(sampleInfo.zipWithIndex.map { case (s, idx) =>
     Row((0 until s.length).map(s.apply) :+ idx.toLong: _*)
@@ -582,7 +582,7 @@ class MatrixPLINKReader(
     decomposeWithName(params, "MatrixPLINKReader")
   }
 
-  def renderShort(): String = defaultRender()
+  override def renderShort(): String = defaultRender()
 
   override def hashCode(): Int = params.hashCode()
 

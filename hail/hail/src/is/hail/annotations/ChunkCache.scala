@@ -87,7 +87,7 @@ private class ChunkCache(allocator: Long => Long, freer: Long => Unit) {
       }
       // BiConsumer needed to work with scala 2.11.12
       bigChunkCache.forEach(new BiConsumer[Long, LongArrayBuilder]() {
-        def accept(key: Long, value: LongArrayBuilder): Unit =
+        override def accept(key: Long, value: LongArrayBuilder): Unit =
           while (value.size > 0) freeChunkFromMemory(pool, value.pop())
       })
     }

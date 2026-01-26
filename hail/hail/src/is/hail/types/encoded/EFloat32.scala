@@ -25,16 +25,16 @@ class EFloat32(override val required: Boolean) extends EType {
   ): SValue =
     new SFloat32Value(cb.memoize(in.readFloat()))
 
-  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit =
+  override def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit =
     cb += in.skipFloat()
 
-  def _decodedSType(requestedType: Type): SType = SFloat32
+  override def _decodedSType(requestedType: Type): SType = SFloat32
 
-  def _asIdent = "float32"
+  override def _asIdent = "float32"
 
-  def _toPretty = "EFloat32"
+  override def _toPretty = "EFloat32"
 
-  def setRequired(newRequired: Boolean): EFloat32 = EFloat32(newRequired)
+  override def setRequired(newRequired: Boolean): EFloat32 = EFloat32(newRequired)
 }
 
 object EFloat32 {

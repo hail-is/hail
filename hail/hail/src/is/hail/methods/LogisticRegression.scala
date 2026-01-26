@@ -31,9 +31,9 @@ case class LogisticRegression(
     )
   }
 
-  def preservesPartitionCounts: Boolean = true
+  override def preservesPartitionCounts: Boolean = true
 
-  def execute(ctx: ExecuteContext, mv: MatrixValue): TableValue = {
+  override def execute(ctx: ExecuteContext, mv: MatrixValue): TableValue = {
     val logRegTest = LogisticRegressionTest.tests(test)
     val tableType = typ(mv.typ)
     val newRVDType = tableType.canonicalRVDType

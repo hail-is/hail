@@ -144,10 +144,10 @@ class GoogleStorageFS(
   override def validUrl(filename: String): Boolean =
     filename.startsWith("gs://")
 
-  def getConfiguration(): Option[RequesterPaysConfig] =
+  override def getConfiguration(): Option[RequesterPaysConfig] =
     requesterPaysConfig
 
-  def setConfiguration(config: Any): Unit =
+  override def setConfiguration(config: Any): Unit =
     requesterPaysConfig = config.asInstanceOf[Option[RequesterPaysConfig]]
 
   private[this] def requesterPaysOptions[T](bucket: String, makeUserProjectOption: String => T)
@@ -186,7 +186,7 @@ class GoogleStorageFS(
       .getService
   }
 
-  def openNoCompression(url: URL): SeekableDataInputStream = retryTransientErrors {
+  override def openNoCompression(url: URL): SeekableDataInputStream = retryTransientErrors {
     val is: SeekableInputStream = new FSSeekableInputStream {
       private[this] var reader: ReadChannel = null
       private[this] var options: Option[Seq[BlobSourceOption]] = None
@@ -248,7 +248,7 @@ class GoogleStorageFS(
     new WrappedSeekableDataInputStream(is)
   }
 
-  def createNoCompression(url: URL): PositionedDataOutputStream = retryTransientErrors {
+  override def createNoCompression(url: URL): PositionedDataOutputStream = retryTransientErrors {
     logger.info(f"createNoCompression: $url")
 
     val blobId = BlobId.of(url.bucket, url.path)
@@ -376,7 +376,7 @@ class GoogleStorageFS(
     if (deleteSource) storage.delete(srcId): Unit
   }
 
-  def delete(url: URL, recursive: Boolean): Unit =
+  override def delete(url: URL, recursive: Boolean): Unit =
     retryTransientErrors[Unit] {
       if (recursive) {
         var page = retryTransientErrors {
@@ -418,7 +418,7 @@ class GoogleStorageFS(
       }
     }
 
-  def glob(url: URL): Array[FileListEntry] = retryTransientErrors {
+  override def glob(url: URL): Array[FileListEntry] = retryTransientErrors {
     globWithPrefix(url.withPath(""), path = dropTrailingSlash(url.path))
   }
 
@@ -500,7 +500,7 @@ class GoogleStorageFS(
       url.bucket,
     )
 
-  def makeQualified(filename: String): String = {
+  override def makeQualified(filename: String): String = {
     if (!filename.startsWith("gs://"))
       throw new IllegalArgumentException(s"Invalid path, expected gs://bucket/path $filename")
     filename

@@ -86,7 +86,7 @@ object Parser extends JavaTokenParsers {
   def oneOfLiteral(a: IndexedSeq[String]): Parser[String] = new Parser[String] {
     private[this] val root = ParseTrieNode.generate(a)
 
-    def apply(in: Input): ParseResult[String] = {
+    override def apply(in: Input): ParseResult[String] = {
 
       var _in = in
       var node = root

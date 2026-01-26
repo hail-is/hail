@@ -72,13 +72,13 @@ final case class EStructOfArrays(
       )
   }
 
-  def _decodedSType(requestedType: Type): SType = {
+  override def _decodedSType(requestedType: Type): SType = {
     require(requestedType.isInstanceOf[TArray])
     val elementPType = elementType.decodedPType(requestedType.asInstanceOf[TContainer].elementType)
     SIndexablePointer(PCanonicalArray(elementPType, required = false))
   }
 
-  def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer])
+  override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer])
     : SValue = {
     val st = tcoerce[SIndexablePointer](decodedSType(t))
     val pt = tcoerce[PCanonicalArray](st.pType)
@@ -157,7 +157,7 @@ final case class EStructOfArrays(
     )
   }
 
-  def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit = v match {
+  override def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit = v match {
     case sv: SIndexablePointerValue =>
       val pArray = sv.st.pType.asInstanceOf[PCanonicalArrayBackedContainer].arrayRep
       val r: Value[Region] = // scratch region
@@ -217,7 +217,7 @@ final case class EStructOfArrays(
     arrayEncoder(cb, arrayValue, out)
   }
 
-  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
+  override def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
     val length = cb.memoize(in.readInt())
     val nMissingBytes =
       cb.memoize(UnsafeUtils.packBitsToBytes(length)) // valid for all top level arrays
@@ -227,12 +227,12 @@ final case class EStructOfArrays(
     fields.foreach(field => field.typ.buildSkip(cb.emb.ecb)(cb, r, in))
   }
 
-  def setRequired(newRequired: Boolean): EStructOfArrays =
+  override def setRequired(newRequired: Boolean): EStructOfArrays =
     EStructOfArrays(fields, required = newRequired, structRequired = structRequired)
 
-  def _asIdent: String = s"struct_of_arrays_from_${elementType.asIdent}"
+  override def _asIdent: String = s"struct_of_arrays_from_${elementType.asIdent}"
 
-  def _toPretty: String = {
+  override def _toPretty: String = {
     val sb = new StringBuilder
     _pretty(sb, 0, compact = true)
     sb.result()

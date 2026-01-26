@@ -10,7 +10,7 @@ case object TFloat64 extends TNumeric {
   override def pyString(sb: StringBuilder): Unit =
     sb ++= "float64"
 
-  def _typeCheck(a: Any): Boolean = a.isInstanceOf[Double]
+  override def _typeCheck(a: Any): Boolean = a.isInstanceOf[Double]
 
   override def _showStr(a: Annotation): String = "%.02e".format(a.asInstanceOf[Double])
 

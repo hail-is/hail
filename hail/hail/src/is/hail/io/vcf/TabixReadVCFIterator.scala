@@ -48,9 +48,9 @@ class TabixReadVCFIterator(
       private[this] var l = lines.next()
       private[this] var curIdx: Long = lines.getCurIdx()
       private[this] val inner = new Iterator[GenericLine] {
-        def hasNext: Boolean = l != null
+        override def hasNext: Boolean = l != null
 
-        def next(): GenericLine = {
+        override def next(): GenericLine = {
           assert(l != null)
           try {
             val n = l
@@ -85,11 +85,11 @@ class TabixReadVCFIterator(
         start <= pos && pos <= end
       }
 
-      def hasNext: Boolean = inner.hasNext
+      override def hasNext: Boolean = inner.hasNext
 
-      def next(): GenericLine = inner.next()
+      override def next(): GenericLine = inner.next()
 
-      def close(): Unit = lines.close()
+      override def close(): Unit = lines.close()
     }
   }
 

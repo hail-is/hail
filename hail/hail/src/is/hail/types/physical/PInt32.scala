@@ -13,7 +13,7 @@ case object PInt32Required extends PInt32(true)
 
 class PInt32(override val required: Boolean) extends PNumeric with PPrimitive {
   lazy val virtualType: TInt32.type = TInt32
-  def _asIdent = "int32"
+  override def _asIdent = "int32"
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit =
     sb ++= "PInt32"
@@ -21,7 +21,7 @@ class PInt32(override val required: Boolean) extends PNumeric with PPrimitive {
   override type NType = PInt32
 
   override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering = new UnsafeOrdering {
-    def compare(o1: Long, o2: Long): Int =
+    override def compare(o1: Long, o2: Long): Int =
       Integer.compare(Region.loadInt(o1), Region.loadInt(o2))
   }
 
@@ -37,7 +37,7 @@ class PInt32(override val required: Boolean) extends PNumeric with PPrimitive {
 
   override def sType: SType = SInt32
 
-  def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SValue): Unit =
+  override def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SValue): Unit =
     cb.append(Region.storeInt(addr, value.asInt.value))
 
   override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SInt32Value =

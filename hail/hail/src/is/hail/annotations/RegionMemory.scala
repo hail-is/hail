@@ -226,7 +226,7 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
     offsetWithinBlock = 0L
   }
 
-  def close(): Unit =
+  override def close(): Unit =
     free()
 
   def numChunks: Int = bigChunks.size

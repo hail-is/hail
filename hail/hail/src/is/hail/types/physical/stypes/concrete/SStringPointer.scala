@@ -58,13 +58,13 @@ class SStringPointerValue(val st: SStringPointer, val a: Value[Long]) extends SS
   def binaryRepr: SBinaryPointerValue =
     new SBinaryPointerValue(SBinaryPointer(pt.binaryRepresentation), a)
 
-  def loadLength(cb: EmitCodeBuilder): Value[Int] =
+  override def loadLength(cb: EmitCodeBuilder): Value[Int] =
     cb.memoize(pt.loadLength(a))
 
-  def loadString(cb: EmitCodeBuilder): Value[String] =
+  override def loadString(cb: EmitCodeBuilder): Value[String] =
     cb.memoize(pt.loadString(a))
 
-  def toBytes(cb: EmitCodeBuilder): SBinaryPointerValue =
+  override def toBytes(cb: EmitCodeBuilder): SBinaryPointerValue =
     binaryRepr
 
   override def sizeToStoreInBytes(cb: EmitCodeBuilder): SInt64Value =

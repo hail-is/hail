@@ -96,10 +96,10 @@ trait PArrayBackedContainer extends PContainer {
   override def clearMissingBits(aoff: Long, length: Int) =
     arrayRep.clearMissingBits(aoff, length)
 
-  def contentsByteSize(length: Int): Long =
+  override def contentsByteSize(length: Int): Long =
     arrayRep.contentsByteSize(length)
 
-  def contentsByteSize(length: Code[Int]): Code[Long] =
+  override def contentsByteSize(length: Code[Int]): Code[Long] =
     arrayRep.contentsByteSize(length)
 
   override def initialize(aoff: Long, length: Int, setMissing: Boolean = false) =
@@ -215,5 +215,5 @@ trait PArrayBackedContainer extends PContainer {
 }
 
 trait PCanonicalArrayBackedContainer extends PArrayBackedContainer {
-  def arrayRep: PCanonicalArray
+  override def arrayRep: PCanonicalArray
 }

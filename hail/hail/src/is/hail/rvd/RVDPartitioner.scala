@@ -114,9 +114,9 @@ class RVDPartitioner(
     val selfBc = broadcast(sc)
 
     new Partitioner {
-      def numPartitions: Int = selfBc.value.numPartitions
+      override def numPartitions: Int = selfBc.value.numPartitions
 
-      def getPartition(key: Any): Int = selfBc.value.lowerBound(key)
+      override def getPartition(key: Any): Int = selfBc.value.lowerBound(key)
     }
   }
 

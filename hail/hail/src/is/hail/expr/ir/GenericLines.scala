@@ -20,9 +20,9 @@ trait CloseableIterator[T] extends Iterator[T] with AutoCloseable
 
 object CloseableIterator {
   def empty[T]: CloseableIterator[T] = new CloseableIterator[T] {
-    def close(): Unit = ()
-    def hasNext: Boolean = false
-    def next(): T = throw new NoSuchElementException
+    override def close(): Unit = ()
+    override def hasNext: Boolean = false
+    override def next(): T = throw new NoSuchElementException
   }
 }
 
@@ -54,7 +54,7 @@ object GenericLines extends Logging {
             val bgzIS =
               new BGzipInputStream(rawIS, start, end, SplittableCompressionCodec.READ_MODE.BYBLOCK)
             new ProxyInputStream(bgzIS) with Positioned {
-              def getPosition: Long = bgzIS.getVirtualOffset
+              override def getPosition: Long = bgzIS.getVirtualOffset
             }
           } else {
             assert(!split || filePerPartition)
@@ -222,7 +222,7 @@ object GenericLines extends Logging {
 
         private var consumed = false
 
-        def hasNext: Boolean = {
+        override def hasNext: Boolean = {
           if (consumed) {
             readLine()
             consumed = false
@@ -230,7 +230,7 @@ object GenericLines extends Logging {
           line != null
         }
 
-        def next(): GenericLine = {
+        override def next(): GenericLine = {
           if (consumed)
             readLine()
           assert(line != null)
@@ -240,7 +240,7 @@ object GenericLines extends Logging {
           line
         }
 
-        def close(): Unit =
+        override def close(): Unit =
           if (!closed) {
             is.close()
             closed = true
@@ -364,8 +364,8 @@ object GenericLines extends Logging {
           private[this] var l = lines.next()
           private[this] var curIdx: Long = lines.getCurIdx()
           private[this] val inner = new Iterator[GenericLine] {
-            def hasNext: Boolean = l != null
-            def next(): GenericLine = {
+            override def hasNext: Boolean = l != null
+            override def next(): GenericLine = {
               assert(l != null)
               val n = l
               val idx = curIdx
@@ -390,9 +390,9 @@ object GenericLines extends Logging {
             start <= pos && pos <= end
           }
 
-          def hasNext: Boolean = inner.hasNext
-          def next(): GenericLine = inner.next()
-          def close(): Unit = lines.close()
+          override def hasNext: Boolean = inner.hasNext
+          override def next(): GenericLine = inner.next()
+          override def close(): Unit = lines.close()
         }
       }
     }
@@ -458,12 +458,12 @@ class GenericLinesRDD(
   body: (Any) => CloseableIterator[GenericLine],
 ) extends RDD[GenericLine](SparkBackend.sparkContext, Seq()) {
 
-  protected def getPartitions: Array[Partition] =
+  override protected def getPartitions: Array[Partition] =
     contexts.iterator.zipWithIndex.map { case (c, i) =>
       new GenericLinesRDDPartition(i, c)
     }.toArray
 
-  def compute(split: Partition, context: TaskContext): Iterator[GenericLine] = {
+  override def compute(split: Partition, context: TaskContext): Iterator[GenericLine] = {
     val it = body(split.asInstanceOf[GenericLinesRDDPartition].context)
     TaskContext.get().addTaskCompletionListener[Unit](_ => it.close()): Unit
     it

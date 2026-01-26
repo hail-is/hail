@@ -11,13 +11,13 @@ object RelativeFuzzyComparable {
     afc.relativeEq(tolerance, x, y)
 
   implicit object rfcDoubles extends RelativeFuzzyComparable[Double] {
-    def relativeEq(tolerance: Double, x: Double, y: Double) = D_==(x, y, tolerance)
+    override def relativeEq(tolerance: Double, x: Double, y: Double) = D_==(x, y, tolerance)
   }
 
   implicit def rfcMaps[K, V](implicit vRFC: RelativeFuzzyComparable[V])
     : RelativeFuzzyComparable[Map[K, V]] =
     new RelativeFuzzyComparable[Map[K, V]] {
-      def relativeEq(tolerance: Double, x: Map[K, V], y: Map[K, V]) =
+      override def relativeEq(tolerance: Double, x: Map[K, V], y: Map[K, V]) =
         x.keySet == y.keySet && x.keys.forall(k => vRFC.relativeEq(tolerance, x(k), y(k)))
     }
 }

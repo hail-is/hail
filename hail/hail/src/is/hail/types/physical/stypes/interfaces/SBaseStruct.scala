@@ -33,7 +33,7 @@ object SBaseStruct {
 }
 
 trait SBaseStruct extends SType {
-  def virtualType: TBaseStruct
+  override def virtualType: TBaseStruct
 
   def size: Int
 
@@ -42,7 +42,7 @@ trait SBaseStruct extends SType {
 
   def fieldIdx(fieldName: String): Int
 
-  def _typeWithRequiredness: TypeWithRequiredness = {
+  override def _typeWithRequiredness: TypeWithRequiredness = {
     virtualType match {
       case ts: TStruct => RStruct.fromNamesAndTypes(ts.fieldNames.zip(fieldEmitTypes).map {
           case (name, et) => (name, et.typeWithRequiredness.r)
@@ -57,7 +57,7 @@ trait SBaseStruct extends SType {
 trait SBaseStructSettable extends SBaseStructValue with SSettable
 
 trait SBaseStructValue extends SValue {
-  def st: SBaseStruct
+  override def st: SBaseStruct
 
   def isFieldMissing(cb: EmitCodeBuilder, fieldIdx: Int): Value[Boolean]
 

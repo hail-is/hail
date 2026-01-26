@@ -2,7 +2,7 @@ package is.hail.types.physical
 
 import is.hail.asm4s.{Code, Value}
 import is.hail.expr.ir.EmitCodeBuilder
-import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructValue}
+import is.hail.types.physical.stypes.interfaces.SBaseStruct
 import is.hail.types.virtual.{Field, TStruct}
 
 import scala.collection.compat._
@@ -35,7 +35,7 @@ trait PStruct extends PBaseStruct {
 
   def rename(m: Map[String, String]): PStruct
 
-  def identBase: String = "struct"
+  override def identBase: String = "struct"
 
   final def selectFields(names: Seq[String]): PCanonicalStruct =
     PCanonicalStruct(required, names.map(f => f -> field(f).typ): _*)
@@ -61,6 +61,4 @@ trait PStruct extends PBaseStruct {
   def setFieldMissing(cb: EmitCodeBuilder, offset: Code[Long], fieldName: String): Unit
 
   def insertFields(fieldsToInsert: IterableOnce[(String, PType)]): PStruct
-
-  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructValue
 }

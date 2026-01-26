@@ -15,7 +15,7 @@ object PoissonScoreTest extends GLMTest {
     ("p_value", TFloat64),
   )
 
-  def test(
+  override def test(
     X: DenseMatrix[Double],
     y: DenseVector[Double],
     nullFit: GLMFit,
@@ -71,7 +71,7 @@ class PoissonRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double])
   val n: Int = X.rows
   val m: Int = X.cols
 
-  def bInterceptOnly(): DenseVector[Double] = {
+  override def bInterceptOnly(): DenseVector[Double] = {
     require(m > 0)
     val b = DenseVector.zeros[Double](m)
     val avg = sum(y) / n
@@ -79,7 +79,7 @@ class PoissonRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double])
     b
   }
 
-  def fit(optNullFit: Option[GLMFit] = None, maxIter: Int, tol: Double): GLMFit = {
+  override def fit(optNullFit: Option[GLMFit] = None, maxIter: Int, tol: Double): GLMFit = {
 
     val b = DenseVector.zeros[Double](m)
     val mu = DenseVector.zeros[Double](n)

@@ -306,7 +306,7 @@ object IntervalFunctions extends RegistryFunctions {
     BinarySearch.equalRange(cb, array, compare, ltNeedle, gtNeedle, 0, array.loadLength)
   }
 
-  def registerAll(): Unit = {
+  override def registerAll(): Unit = {
     registerIEmitCode4(
       "Interval",
       tv("T"),

@@ -83,19 +83,19 @@ abstract class BlockMatrixStage(val broadcastVals: IndexedSeq[Ref], val ctxType:
     val outer = this
     val newCtxType = TStruct("old" -> ctxType, "new" -> newTyp)
     new BlockMatrixStage(broadcastVals, newCtxType) {
-      def blockContext(idx: (Int, Int)): IR =
+      override def blockContext(idx: (Int, Int)): IR =
         makestruct("old" -> outer.blockContext(idx), "new" -> newCtx(idx))
 
-      def blockBody(ctxRef: Ref): IR = bindIR(GetField(ctxRef, "old"))(outer.blockBody)
+      override def blockBody(ctxRef: Ref): IR = bindIR(GetField(ctxRef, "old"))(outer.blockBody)
     }
   }
 
   def mapBody(f: (IR, IR) => IR): BlockMatrixStage = {
     val outer = this
     new BlockMatrixStage(broadcastVals, outer.ctxType) {
-      def blockContext(idx: (Int, Int)): IR = outer.blockContext(idx)
+      override def blockContext(idx: (Int, Int)): IR = outer.blockContext(idx)
 
-      def blockBody(ctxRef: Ref): IR = f(ctxRef, outer.blockBody(ctxRef))
+      override def blockBody(ctxRef: Ref): IR = f(ctxRef, outer.blockBody(ctxRef))
     }
   }
 
@@ -107,7 +107,7 @@ abstract class BlockMatrixStage(val broadcastVals: IndexedSeq[Ref], val ctxType:
     val outer = this
     val ctxType = TArray(TArray(TTuple(TTuple(TInt64, TInt64), outer.ctxType)))
     new BlockMatrixStage(outer.broadcastVals, ctxType) {
-      def blockContext(idx: (Int, Int)): IR = {
+      override def blockContext(idx: (Int, Int)): IR = {
         val i = idx._1
         val j = idx._2
         MakeArray(rowBlocks(i).map { ii =>
@@ -125,7 +125,7 @@ abstract class BlockMatrixStage(val broadcastVals: IndexedSeq[Ref], val ctxType:
         }: _*)
       }
 
-      def blockBody(ctxRef: Ref): IR = {
+      override def blockBody(ctxRef: Ref): IR = {
         NDArrayConcat(
           ToArray(mapIR(ToStream(ctxRef)) { ctxRows =>
             NDArrayConcat(
@@ -401,7 +401,7 @@ case class DenseContexts(sparsity: MatrixSparsity.Dense, dynamic: DynamicDenseCo
     DenseContexts(ib, sparsity, newContexts)
   }
 
-  def withNewSparsity(ib: IRBuilder, newSparsity: MatrixSparsity): BMSContexts = {
+  override def withNewSparsity(ib: IRBuilder, newSparsity: MatrixSparsity): BMSContexts = {
     require(newSparsity.nRows == sparsity.nRows && newSparsity.nCols == sparsity.nCols)
     newSparsity match {
       case sparse: MatrixSparsity.Sparse =>
@@ -413,7 +413,7 @@ case class DenseContexts(sparsity: MatrixSparsity.Dense, dynamic: DynamicDenseCo
     }
   }
 
-  def groupedByCol(ib: IRBuilder): DenseContexts = {
+  override def groupedByCol(ib: IRBuilder): DenseContexts = {
     val groupedContexts = ToArray(mapIR(rangeIR(nCols)) { col =>
       sliceArrayIR(contexts, col * nRows, (col + 1) * nRows)
     })
@@ -476,7 +476,7 @@ case class DenseContexts(sparsity: MatrixSparsity.Dense, dynamic: DynamicDenseCo
     DenseContexts(ib, MatrixSparsity.Dense(rowDeps.length, colDeps.length), newContexts)
   }
 
-  def collect(makeBlock: (Ref, Ref, Ref) => IR): IR = {
+  override def collect(makeBlock: (Ref, Ref, Ref) => IR): IR = {
     NDArrayConcat(
       ToArray(mapIR(rangeIR(nCols)) { j =>
         val colBlocks = mapIR(rangeIR(nRows)) { i =>
@@ -518,7 +518,7 @@ case class SparseContexts(
   override def map(ib: IRBuilder)(f: (IR, IR, IR, IR) => IR): SparseContexts =
     new SparseContexts(sparsity, dynamic.map(ib)(f))
 
-  def withNewSparsity(ib: IRBuilder, newSparsity: MatrixSparsity): BMSContexts = {
+  override def withNewSparsity(ib: IRBuilder, newSparsity: MatrixSparsity): BMSContexts = {
     require(newSparsity.nRows == sparsity.nRows && newSparsity.nCols == sparsity.nCols)
     newSparsity match {
       case sparse: MatrixSparsity.Sparse =>
@@ -1474,7 +1474,7 @@ object LowerBlockMatrixIR {
         val right = lower(rightIR)
         val newCtxType = TArray(TTuple(left.ctxType, right.ctxType))
         new BlockMatrixStage(left.broadcastVals ++ right.broadcastVals, newCtxType) {
-          def blockContext(idx: (Int, Int)): IR = {
+          override def blockContext(idx: (Int, Int)): IR = {
             val (i, j) = idx
             MakeArray(
               Array.tabulate[Option[IR]](leftIR.typ.nColBlocks) { k =>
@@ -1489,7 +1489,7 @@ object LowerBlockMatrixIR {
             )
           }
 
-          def blockBody(ctxRef: Ref): IR = {
+          override def blockBody(ctxRef: Ref): IR = {
             val tupleNDArrayStream = ToStream(ctxRef)
             val streamElementName = freshName()
             val streamElementRef =
