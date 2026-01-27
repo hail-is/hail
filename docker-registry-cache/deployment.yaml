@@ -1,0 +1,95 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: docker-registry-cache
+  labels:
+    app: docker-registry-cache
+    hail.is/sha: "{{ code.sha }}"
+spec:
+  selector:
+    matchLabels:
+      app: docker-registry-cache
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: docker-registry-cache
+        hail.is/sha: "{{ code.sha }}"
+    spec:
+      priorityClassName: infrastructure
+      nodeSelector:
+        preemptible: "true"
+      tolerations:
+       - key: preemptible
+         value: "true"
+       - key: "kubernetes.azure.com/scalesetpriority"
+         value: "spot"
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: "app"
+                      operator: In
+                      values:
+                      - docker-registry-cache
+                topologyKey: "kubernetes.io/hostname"
+      containers:
+       - name: registry
+         image: registry:2
+         env:
+         - name: REGISTRY_PROXY_REMOTEURL
+           value: "https://registry-1.docker.io"
+         - name: REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY
+           value: "/var/lib/registry"
+         - name: REGISTRY_HTTP_ADDR
+           value: ":5000"
+         - name: REGISTRY_HTTP_HEADERS
+           value: 'X-Forwarded-Proto=[https],X-Forwarded-For=[%a]'
+         resources:
+           requests:
+             cpu: "100m"
+             memory: "256Mi"
+           limits:
+             cpu: "2"
+             memory: "4Gi"
+         ports:
+          - containerPort: 5000
+            protocol: TCP
+         volumeMounts:
+          - name: registry-storage
+            mountPath: /var/lib/registry
+      volumes:
+        - name: registry-storage
+          emptyDir: {}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: docker-registry-cache
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: docker-registry-cache
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+   - type: Resource
+     resource:
+       name: cpu
+       target:
+         type: Utilization
+         averageUtilization: 70
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: docker-registry-cache
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: docker-registry-cache

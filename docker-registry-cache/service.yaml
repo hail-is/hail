@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: docker-registry-cache
+  labels:
+    app: docker-registry-cache
+  annotations:
+    cloud.google.com/load-balancer-type: "Internal"
+    networking.gke.io/internal-load-balancer-allow-global-access: "true"
+    service.beta.kubernetes.io/azure-load-balancer-internal: "true"
+    service.beta.kubernetes.io/azure-load-balancer-internal-subnet: "batch-worker-subnet"
+spec:
+  ports:
+  - name: registry
+    port: 5000
+    protocol: TCP
+    targetPort: 5000
+  selector:
+    app: docker-registry-cache
+  type: LoadBalancer
