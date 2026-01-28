@@ -135,10 +135,13 @@ class Pretty(
     ))
   }
 
+  def prettyInt(x: Int): Doc =
+    text(x.toString)
+
   def prettyInts(x: IndexedSeq[Int], elideLiterals: Boolean): Doc = {
     val truncate = elideLiterals && x.length > MAX_VALUES_TO_LOG
     val view = if (truncate) x.view else x.view.slice(0, MAX_VALUES_TO_LOG)
-    val docs = view.map(i => text(i.toString))
+    val docs = view.map(prettyInt)
     concat(docs.intersperse[Doc](
       "(",
       softline,
@@ -277,6 +280,8 @@ class Pretty(
     case MakeArray(_, typ) => single(typ.parsableString())
     case MakeStream(_, typ, requiresMemoryManagementPerElement) =>
       FastSeq(typ.parsableString(), Pretty.prettyBooleanLiteral(requiresMemoryManagementPerElement))
+    case StreamBufferedAggregate(_, _, _, _, name, sigs, size) =>
+      ArraySeq(prettyName(name), prettyPhysicalAggSigs(sigs), prettyInt(size))
     case StreamIota(_, _, requiresMemoryManagementPerElement) =>
       FastSeq(Pretty.prettyBooleanLiteral(requiresMemoryManagementPerElement))
     case StreamRange(_, _, _, requiresMemoryManagementPerElement, errorID) =>
@@ -777,6 +782,9 @@ class Pretty(
           else None
         case StreamAggScan(_, name, _) =>
           if (i == 1) some(name -> "elt")
+          else None
+        case s: StreamBufferedAggregate =>
+          if (i >= 2) some(s.name -> "elt")
           else None
         case StreamDropWhile(_, name, _) =>
           if (i == 1) some(name -> "elt")
