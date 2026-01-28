@@ -208,14 +208,11 @@ sudo service docker stop
 sudo mv /var/lib/docker /mnt/disks/$WORKER_DATA_DISK_NAME/docker
 sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/docker /var/lib/docker
 
-# configure docker registry mirror to use internal cache
-DOCKER_REGISTRY_CACHE_IP=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/docker_registry_cache_ip" || echo "")
-if [ -n "$DOCKER_REGISTRY_CACHE_IP" ]; then
-    sudo mkdir -p /etc/docker
-    [ -f /etc/docker/daemon.json ] || echo "{{}}" > /etc/docker/daemon.json
-    sudo jq ". + {{\"registry-mirrors\": [\"http://$DOCKER_REGISTRY_CACHE_IP:5000\"]}}" /etc/docker/daemon.json > /tmp/daemon.json.tmp
-    sudo mv /tmp/daemon.json.tmp /etc/docker/daemon.json
-fi
+# configure docker registry mirror to use GCP's mirror
+sudo mkdir -p /etc/docker
+[ -f /etc/docker/daemon.json ] || echo "{{}}" > /etc/docker/daemon.json
+sudo jq ". + {{\"registry-mirrors\": [\"https://mirror.gcr.io\"]}}" /etc/docker/daemon.json > /tmp/daemon.json.tmp
+sudo mv /tmp/daemon.json.tmp /etc/docker/daemon.json
 
 sudo service docker start
 
