@@ -147,16 +147,6 @@ XFS_DEVICE=$(xfs_info /mnt/disks/$WORKER_DATA_DISK_NAME | head -n 1 | awk '{{ pr
 sudo service docker stop
 sudo mv /var/lib/docker /mnt/disks/$WORKER_DATA_DISK_NAME/docker
 sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/docker /var/lib/docker
-
-# configure docker registry mirror to use internal cache
-DOCKER_REGISTRY_CACHE_IP=$(jq -r '.docker_registry_cache_ip // empty' userdata)
-if [ -n "$DOCKER_REGISTRY_CACHE_IP" ]; then
-    sudo mkdir -p /etc/docker
-    [ -f /etc/docker/daemon.json ] || echo "{{}}" > /etc/docker/daemon.json
-    sudo jq ". + {{\"registry-mirrors\": [\"http://$DOCKER_REGISTRY_CACHE_IP:5000\"]}}" /etc/docker/daemon.json > /tmp/daemon.json.tmp
-    sudo mv /tmp/daemon.json.tmp /etc/docker/daemon.json
-fi
-
 sudo service docker start
 
 # reconfigure /batch and /logs to use data disk
