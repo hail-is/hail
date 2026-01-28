@@ -719,6 +719,9 @@ class Pretty(
           else None
         case _: Coalesce =>
           some()
+        case _: ConsoleLog =>
+          if (i == 1) some()
+          else None
         case BlockMatrixMap(_, eltName, _, _) =>
           if (i == 1) some(eltName -> "elt")
           else None
