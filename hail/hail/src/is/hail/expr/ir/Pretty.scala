@@ -729,6 +729,8 @@ class Pretty(
         if (i == 2) Some(Array(l -> "l_elt", r -> "r_elt")) else None
       case StreamLeftIntervalJoin(_, _, _, _, l, r, _) =>
         if (i == 2) Some(Array(l -> "l_elt", r -> "r_elts")) else None
+      case _: Trap =>
+        Some(ArraySeq.empty)
       case ArraySort(_, left, right, _) =>
         if (i == 1) Some(Array(left -> "l", right -> "r")) else None
       case AggArrayPerElement(_, elementName, indexName, _, _, _) =>
