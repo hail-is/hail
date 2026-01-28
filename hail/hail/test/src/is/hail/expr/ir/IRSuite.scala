@@ -22,6 +22,7 @@ import is.hail.types.physical.stypes.primitives.SInt32
 import is.hail.types.virtual._
 import is.hail.types.virtual.TIterable.elementType
 import is.hail.utils.{FastSeq, _}
+import is.hail.utils.compat.immutable.ArraySeq
 import is.hail.variant.{Call2, Locus}
 
 import scala.collection.compat._
@@ -3429,6 +3430,15 @@ class IRSuite extends HailSuite {
       },
       forIR(st)(_ => Void()) -> Array(st),
       streamAggIR(st)(x => ApplyAggOp(Sum())(Cast(x, TInt64))) -> Array(st),
+      StreamBufferedAggregate(
+        st,
+        Void(),
+        MakeStruct(ArraySeq("l" -> l)),
+        Void(),
+        l.name,
+        ArraySeq(pCollectSig),
+        27,
+      ) -> Array(st),
       streamAggScanIR(st)(x => ApplyScanOp(Sum())(Cast(x, TInt64))) -> Array(st),
       RunAgg(
         Begin(FastSeq(
