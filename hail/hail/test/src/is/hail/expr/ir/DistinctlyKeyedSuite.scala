@@ -1,12 +1,9 @@
 package is.hail.expr.ir
 
 import is.hail.HailSuite
-import is.hail.expr.ir.defs.{
-  ApplyComparisonOp, GetField, I32, If, InsertFields, MakeStruct, Ref, StreamRange, TableCollect,
-  TableWrite, ToArray,
-}
+import is.hail.expr.ir.defs.{ApplyComparisonOp, GetField, I32, If, InsertFields, MakeStruct, Ref, StreamRange, TableCollect, TableWrite, ToArray}
 import is.hail.utils.FastSeq
-
+import is.hail.utils.compat.immutable.ArraySeq
 import org.testng.annotations.Test
 
 class DistinctlyKeyedSuite extends HailSuite {
@@ -113,7 +110,8 @@ class DistinctlyKeyedSuite extends HailSuite {
       ),
     )
     val tableDistinct = TableDistinct(tableFilter)
-    val tableCollect = TableCollect(tableDistinct)
+    val tableUnkeyed = TableKeyBy(tableDistinct, ArraySeq.empty)
+    val tableCollect = TableCollect(tableUnkeyed)
     val distinctlyKeyedAnalysis = DistinctlyKeyed.apply(tableCollect)
     assert(distinctlyKeyedAnalysis.contains(tableDistinct))
     assert(!distinctlyKeyedAnalysis.contains(tableCollect))

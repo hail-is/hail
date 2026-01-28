@@ -43,7 +43,7 @@ class SemanticHashSuite extends HailSuite {
   def isLetSemanticallyEquivalent: Array[Array[Any]] = {
     val x = freshName()
     val y = freshName()
-    Array((Let(_, _), Ref), (mkRelationalLet _, RelationalRef)).flatMap { case (let, ref) =>
+    Array((Let, Ref), (mkRelationalLet _, RelationalRef)).flatMap { case (let, ref) =>
       Array(
         Array(
           let(FastSeq(x -> I32(0)), ref(x, TInt32)),

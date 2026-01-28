@@ -332,7 +332,7 @@ object Simplify {
       case ArraySlice(z @ ToArray(s), x @ I32(i), Some(I32(j)), I32(1), _) if i > 0 && j > 0 =>
         Some(
           if (j > i) ToArray(StreamTake(StreamDrop(s, x), I32(j - i)))
-          else new MakeArray(FastSeq(), z.typ.asInstanceOf[TArray])
+          else MakeArray(FastSeq(), z.typ.asInstanceOf[TArray])
         )
 
       case ArraySlice(ToArray(s), x @ I32(i), None, I32(1), _) if i >= 0 =>
@@ -594,7 +594,10 @@ object Simplify {
         Some(x2)
 
       case x @ InsertFields(SelectFields(struct, selectFields), insertFields, _) if
-            insertFields.exists { case (name, f) => f == GetField(struct, name) } =>
+            insertFields.exists {
+              case (name, GetField(`struct`, name2)) => name == name2
+              case _ => false
+            } =>
         val fields = x.typ.fieldNames
         val insertNames = insertFields.map(_._1).toSet
         val (oldFields, newFields) =
@@ -998,7 +1001,7 @@ object Simplify {
       case TableMapRows(child, MakeStruct(fields))
           if fields.length == child.typ.rowType.size
             && fields.zip(child.typ.rowType.fields).forall { case ((_, ir), field) =>
-              ir == GetField(Ref(TableIR.rowName, field.typ), field.name)
+              ir == GetField(Ref(TableIR.rowName, child.typ.rowType), field.name)
             } =>
         val renamedPairs = for {
           (oldName, (newName, _)) <- child.typ.rowType.fieldNames zip fields

@@ -697,11 +697,14 @@ object IRParser {
         GroupedStateSig(kt, nested)
       case "ApproxCDFStateSig" => ApproxCDFStateSig()
       case "FoldStateSig" =>
-        val vtwr = vtwr_expr(it)
+        val emitType = vtwr_expr(it).canonicalEmitType
+        val vType = emitType.virtualType
         val accumName = name(it)
         val otherAccumName = name(it)
         val combIR = ir_value_expr(ctx)(it).run()
-        FoldStateSig(vtwr.canonicalEmitType, accumName, otherAccumName, combIR)
+        val env = BindingEnv.empty.bindEval(accumName -> vType, otherAccumName -> vType)
+        val typedCombIR = annotateTypes(ctx, combIR, env).asInstanceOf[IR]
+        FoldStateSig(emitType, accumName, otherAccumName, typedCombIR)
     }
     punctuation(it, ")")
     sig
@@ -743,10 +746,11 @@ object IRParser {
     (typ, v)
   }
 
-  def named_value_irs(ctx: ExecuteContext)(it: TokenIterator): StackFrame[Array[(String, IR)]] =
+  def named_value_irs(ctx: ExecuteContext)(it: TokenIterator)
+    : StackFrame[Array[(String, UntypedIR)]] =
     repUntil(it, named_value_ir(ctx), PunctuationToken(")"))
 
-  def named_value_ir(ctx: ExecuteContext)(it: TokenIterator): StackFrame[(String, IR)] = {
+  def named_value_ir(ctx: ExecuteContext)(it: TokenIterator): StackFrame[(String, UntypedIR)] = {
     punctuation(it, "(")
     val name = identifier(it)
     ir_value_expr(ctx)(it).map { value =>
@@ -755,7 +759,7 @@ object IRParser {
     }
   }
 
-  def ir_value_exprs(ctx: ExecuteContext)(it: TokenIterator): StackFrame[Array[IR]] = {
+  def ir_value_exprs(ctx: ExecuteContext)(it: TokenIterator): StackFrame[Array[UntypedIR]] = {
     punctuation(it, "(")
     for {
       irs <- ir_value_children(ctx)(it)
@@ -763,10 +767,10 @@ object IRParser {
     } yield irs
   }
 
-  def ir_value_children(ctx: ExecuteContext)(it: TokenIterator): StackFrame[Array[IR]] =
+  def ir_value_children(ctx: ExecuteContext)(it: TokenIterator): StackFrame[Array[UntypedIR]] =
     repUntil(it, ir_value_expr(ctx), PunctuationToken(")"))
 
-  def ir_value_expr(ctx: ExecuteContext)(it: TokenIterator): StackFrame[IR] = {
+  def ir_value_expr(ctx: ExecuteContext)(it: TokenIterator): StackFrame[UntypedIR] = {
     punctuation(it, "(")
     for {
       ir <- call(ir_value_expr_1(ctx)(it))
@@ -776,10 +780,10 @@ object IRParser {
 
   def apply_like(
     ctx: ExecuteContext,
-    cons: (String, Seq[Type], IndexedSeq[IR], Type, Int) => IR,
+    cons: (String, Seq[Type], IndexedSeq[UntypedIR], Type, Int) => UntypedIR,
   )(
     it: TokenIterator
-  ): StackFrame[IR] = {
+  ): StackFrame[UntypedIR] = {
     val errorID = int32_literal(it)
     val function = identifier(it)
     val typeArgs = type_exprs(it)
@@ -787,7 +791,7 @@ object IRParser {
     ir_value_children(ctx)(it).map(args => cons(function, typeArgs, args, rt, errorID))
   }
 
-  def ir_value_expr_1(ctx: ExecuteContext)(it: TokenIterator): StackFrame[IR] = {
+  def ir_value_expr_1(ctx: ExecuteContext)(it: TokenIterator): StackFrame[UntypedIR] = {
     identifier(it) match {
       case "I32" => done(I32(int32_literal(it)))
       case "I64" => done(I64(int64_literal(it)))
@@ -812,33 +816,33 @@ object IRParser {
       case "Void" => done(Void())
       case "Cast" =>
         val typ = type_expr(it)
-        ir_value_expr(ctx)(it).map(Cast(_, typ))
+        ir_value_expr(ctx)(it).map(Cast.untyped(_, typ))
       case "CastRename" =>
         val typ = type_expr(it)
-        ir_value_expr(ctx)(it).map(CastRename(_, typ))
+        ir_value_expr(ctx)(it).map(CastRename.untyped(_, typ))
       case "NA" => done(NA(type_expr(it)))
-      case "IsNA" => ir_value_expr(ctx)(it).map(IsNA)
+      case "IsNA" => ir_value_expr(ctx)(it).map(IsNA.untyped)
       case "Coalesce" =>
         for {
           children <- ir_value_children(ctx)(it)
           _ = require(children.nonEmpty)
-        } yield Coalesce(children)
+        } yield Coalesce.untyped(children)
       case "If" =>
         for {
           cond <- ir_value_expr(ctx)(it)
           consq <- ir_value_expr(ctx)(it)
           altr <- ir_value_expr(ctx)(it)
-        } yield If(cond, consq, altr)
+        } yield If.untyped(cond, consq, altr)
       case "Switch" =>
         for {
           x <- ir_value_expr(ctx)(it)
           default <- ir_value_expr(ctx)(it)
           cases <- ir_value_children(ctx)(it)
-        } yield Switch(x, default, cases)
+        } yield Switch.untyped(x, default, cases)
       case "Let" | "Block" =>
         val names =
           repUntilNonStackSafe(it, it => (identifier(it), name(it)), PunctuationToken("("))
-        val values = new Array[IR](names.length)
+        val values = new Array[UntypedIR](names.length)
         for {
           _ <- names.indices.foldLeft(done(())) { case (update, i) =>
             for {
@@ -854,9 +858,9 @@ object IRParser {
               case "agg" => Scope.AGG
               case "scan" => Scope.SCAN
             }
-            Binding(name, value, scope)
+            Binding.untyped(name, value, scope)
           }
-          Block(bindings, body)
+          Block.untyped(bindings, body)
         }
       case "AggLet" =>
         val n = name(it)
@@ -864,7 +868,7 @@ object IRParser {
         for {
           value <- ir_value_expr(ctx)(it)
           body <- ir_value_expr(ctx)(it)
-        } yield AggLet(n, value, body, isScan)
+        } yield AggLet.untyped(n, value, body, isScan)
       case "TailLoop" =>
         val n = name(it)
         val paramNames = names(it)
@@ -873,58 +877,59 @@ object IRParser {
           paramIRs <- fillArray(paramNames.length)(ir_value_expr(ctx)(it))
           params = paramNames.zip(paramIRs)
           body <- ir_value_expr(ctx)(it)
-        } yield TailLoop(n, params, resultType, body)
+        } yield TailLoop.untyped(n, params, resultType, body)
       case "Recur" =>
         val n = name(it)
-        ir_value_children(ctx)(it).map(args => Recur(n, args, null))
+        ir_value_children(ctx)(it).map(args => Recur.untyped(n, args, null))
       case "Ref" =>
         val id = name(it)
-        done(Ref(id, null))
+        done(Ref.untyped(id, null))
       case "RelationalRef" =>
         val id = name(it)
         val t = type_expr(it)
-        done(RelationalRef(id, t))
+        done(RelationalRef.untyped(id, t))
       case "RelationalLet" =>
         val n = name(it)
         for {
           value <- ir_value_expr(ctx)(it)
           body <- ir_value_expr(ctx)(it)
-        } yield RelationalLet(n, value, body)
+        } yield RelationalLet.untyped(n, value, body)
       case "ApplyBinaryPrimOp" =>
         val op = BinaryOp.fromString(identifier(it))
         for {
           l <- ir_value_expr(ctx)(it)
           r <- ir_value_expr(ctx)(it)
-        } yield ApplyBinaryPrimOp(op, l, r)
+        } yield ApplyBinaryPrimOp.untyped(op, l, r)
       case "ApplyUnaryPrimOp" =>
         val op = UnaryOp.fromString(identifier(it))
-        ir_value_expr(ctx)(it).map(ApplyUnaryPrimOp(op, _))
+        ir_value_expr(ctx)(it).map(ApplyUnaryPrimOp.untyped(op, _))
       case "ApplyComparisonOp" =>
         val opName = identifier(it)
         for {
           l <- ir_value_expr(ctx)(it)
           r <- ir_value_expr(ctx)(it)
-        } yield ApplyComparisonOp(ComparisonOp.fromString(opName), l, r)
+        } yield ApplyComparisonOp.untyped(ComparisonOp.fromString(opName), l, r)
       case "MakeArray" =>
         val typ = opt(it, type_expr).map(_.asInstanceOf[TArray]).orNull
-        ir_value_children(ctx)(it).map(args => MakeArray(args, typ))
+        ir_value_children(ctx)(it).map(args => MakeArray.untyped(args, typ))
       case "MakeStream" =>
         val typ = opt(it, type_expr).map(_.asInstanceOf[TStream]).orNull
         val requiresMemoryManagementPerElement = boolean_literal(it)
         ir_value_children(ctx)(it).map { args =>
-          MakeStream(args, typ, requiresMemoryManagementPerElement)
+          MakeStream.untyped(args, typ, requiresMemoryManagementPerElement)
         }
       case "ArrayRef" =>
         val errorID = int32_literal(it)
         for {
           a <- ir_value_expr(ctx)(it)
           i <- ir_value_expr(ctx)(it)
-        } yield ArrayRef(a, i, errorID)
+        } yield ArrayRef.untyped(a, i, errorID)
       case "ArraySlice" =>
         val errorID = int32_literal(it)
         ir_value_children(ctx)(it).map {
-          case Array(a, start, step) => ArraySlice(a, start, None, step, errorID)
-          case Array(a, start, stop, step) => ArraySlice(a, start, Some(stop), step, errorID)
+          case Array(a, start, step) => ArraySlice.untyped(a, start, None, step, errorID)
+          case Array(a, start, stop, step) =>
+            ArraySlice.untyped(a, start, Some(stop), step, errorID)
         }
       case "RNGStateLiteral" =>
         done(RNGStateLiteral())
@@ -932,15 +937,15 @@ object IRParser {
         for {
           state <- ir_value_expr(ctx)(it)
           dynBitstring <- ir_value_expr(ctx)(it)
-        } yield RNGSplit(state, dynBitstring)
-      case "ArrayLen" => ir_value_expr(ctx)(it).map(ArrayLen)
-      case "StreamLen" => ir_value_expr(ctx)(it).map(StreamLen)
+        } yield RNGSplit.untyped(state, dynBitstring)
+      case "ArrayLen" => ir_value_expr(ctx)(it).map(ArrayLen.untyped)
+      case "StreamLen" => ir_value_expr(ctx)(it).map(StreamLen.untyped)
       case "StreamIota" =>
         val requiresMemoryManagementPerElement = boolean_literal(it)
         for {
           start <- ir_value_expr(ctx)(it)
           step <- ir_value_expr(ctx)(it)
-        } yield StreamIota(start, step, requiresMemoryManagementPerElement)
+        } yield StreamIota.untyped(start, step, requiresMemoryManagementPerElement)
       case "StreamRange" =>
         val errorID = int32_literal(it)
         val requiresMemoryManagementPerElement = boolean_literal(it)
@@ -948,20 +953,20 @@ object IRParser {
           start <- ir_value_expr(ctx)(it)
           stop <- ir_value_expr(ctx)(it)
           step <- ir_value_expr(ctx)(it)
-        } yield StreamRange(start, stop, step, requiresMemoryManagementPerElement, errorID)
+        } yield StreamRange.untyped(start, stop, step, requiresMemoryManagementPerElement, errorID)
       case "StreamGrouped" =>
         for {
           s <- ir_value_expr(ctx)(it)
           groupSize <- ir_value_expr(ctx)(it)
-        } yield StreamGrouped(s, groupSize)
-      case "ArrayZeros" => ir_value_expr(ctx)(it).map(ArrayZeros)
+        } yield StreamGrouped.untyped(s, groupSize)
+      case "ArrayZeros" => ir_value_expr(ctx)(it).map(ArrayZeros.untyped)
       case "ArraySort" =>
         val l = name(it)
         val r = name(it)
         for {
           a <- ir_value_expr(ctx)(it)
           lessThan <- ir_value_expr(ctx)(it)
-        } yield ArraySort(a, l, r, lessThan)
+        } yield ArraySort.untyped(a, l, r, lessThan)
       case "ArrayMaximalIndependentSet" =>
         val hasTieBreaker = boolean_literal(it)
         val bindings = if (hasTieBreaker) Some(name(it) -> name(it)) else None
@@ -973,30 +978,30 @@ object IRParser {
           } else {
             done(None)
           }
-        } yield ArrayMaximalIndependentSet(edges, tieBreaker)
+        } yield ArrayMaximalIndependentSet.untyped(edges, tieBreaker)
       case "MakeNDArray" =>
         val errorID = int32_literal(it)
         for {
           data <- ir_value_expr(ctx)(it)
           shape <- ir_value_expr(ctx)(it)
           rowMajor <- ir_value_expr(ctx)(it)
-        } yield MakeNDArray(data, shape, rowMajor, errorID)
-      case "NDArrayShape" => ir_value_expr(ctx)(it).map(NDArrayShape)
+        } yield MakeNDArray.untyped(data, shape, rowMajor, errorID)
+      case "NDArrayShape" => ir_value_expr(ctx)(it).map(NDArrayShape.untyped)
       case "NDArrayReshape" =>
         val errorID = int32_literal(it)
         for {
           nd <- ir_value_expr(ctx)(it)
           shape <- ir_value_expr(ctx)(it)
-        } yield NDArrayReshape(nd, shape, errorID)
+        } yield NDArrayReshape.untyped(nd, shape, errorID)
       case "NDArrayConcat" =>
         val axis = int32_literal(it)
-        ir_value_expr(ctx)(it).map(nds => NDArrayConcat(nds, axis))
+        ir_value_expr(ctx)(it).map(nds => NDArrayConcat.untyped(nds, axis))
       case "NDArrayMap" =>
         val n = name(it)
         for {
           nd <- ir_value_expr(ctx)(it)
           body <- ir_value_expr(ctx)(it)
-        } yield NDArrayMap(nd, n, body)
+        } yield NDArrayMap.untyped(nd, n, body)
       case "NDArrayMap2" =>
         val errorID = int32_literal(it)
         val lName = name(it)
@@ -1005,86 +1010,86 @@ object IRParser {
           l <- ir_value_expr(ctx)(it)
           r <- ir_value_expr(ctx)(it)
           body <- ir_value_expr(ctx)(it)
-        } yield NDArrayMap2(l, r, lName, rName, body, errorID)
+        } yield NDArrayMap2.untyped(l, r, lName, rName, body, errorID)
       case "NDArrayReindex" =>
         val indexExpr = int32_literals(it)
-        ir_value_expr(ctx)(it).map(nd => NDArrayReindex(nd, indexExpr))
+        ir_value_expr(ctx)(it).map(nd => NDArrayReindex.untyped(nd, indexExpr))
       case "NDArrayAgg" =>
         val axes = int32_literals(it)
-        ir_value_expr(ctx)(it).map(nd => NDArrayAgg(nd, axes))
+        ir_value_expr(ctx)(it).map(nd => NDArrayAgg.untyped(nd, axes))
       case "NDArrayRef" =>
         val errorID = int32_literal(it)
         for {
           nd <- ir_value_expr(ctx)(it)
           idxs <- ir_value_children(ctx)(it)
-        } yield NDArrayRef(nd, idxs, errorID)
+        } yield NDArrayRef.untyped(nd, idxs, errorID)
       case "NDArraySlice" =>
         for {
           nd <- ir_value_expr(ctx)(it)
           slices <- ir_value_expr(ctx)(it)
-        } yield NDArraySlice(nd, slices)
+        } yield NDArraySlice.untyped(nd, slices)
       case "NDArrayFilter" =>
         for {
           nd <- ir_value_expr(ctx)(it)
           filters <- repUntil(it, ir_value_expr(ctx), PunctuationToken(")"))
-        } yield NDArrayFilter(nd, filters.toFastSeq)
+        } yield NDArrayFilter.untyped(nd, filters.toFastSeq)
       case "NDArrayMatMul" =>
         val errorID = int32_literal(it)
         for {
           l <- ir_value_expr(ctx)(it)
           r <- ir_value_expr(ctx)(it)
-        } yield NDArrayMatMul(l, r, errorID)
+        } yield NDArrayMatMul.untyped(l, r, errorID)
       case "NDArrayWrite" =>
         for {
           nd <- ir_value_expr(ctx)(it)
           path <- ir_value_expr(ctx)(it)
-        } yield NDArrayWrite(nd, path)
+        } yield NDArrayWrite.untyped(nd, path)
       case "NDArrayQR" =>
         val errorID = int32_literal(it)
         val mode = string_literal(it)
-        ir_value_expr(ctx)(it).map(nd => NDArrayQR(nd, mode, errorID))
+        ir_value_expr(ctx)(it).map(nd => NDArrayQR.untyped(nd, mode, errorID))
       case "NDArraySVD" =>
         val errorID = int32_literal(it)
         val fullMatrices = boolean_literal(it)
         val computeUV = boolean_literal(it)
-        ir_value_expr(ctx)(it).map(nd => NDArraySVD(nd, fullMatrices, computeUV, errorID))
+        ir_value_expr(ctx)(it).map(nd => NDArraySVD.untyped(nd, fullMatrices, computeUV, errorID))
       case "NDArrayEigh" =>
         val errorID = int32_literal(it)
         val eigvalsOnly = boolean_literal(it)
-        ir_value_expr(ctx)(it).map(nd => NDArrayEigh(nd, eigvalsOnly, errorID))
+        ir_value_expr(ctx)(it).map(nd => NDArrayEigh.untyped(nd, eigvalsOnly, errorID))
       case "NDArrayInv" =>
         val errorID = int32_literal(it)
-        ir_value_expr(ctx)(it).map(nd => NDArrayInv(nd, errorID))
-      case "ToSet" => ir_value_expr(ctx)(it).map(ToSet)
-      case "ToDict" => ir_value_expr(ctx)(it).map(ToDict)
-      case "ToArray" => ir_value_expr(ctx)(it).map(ToArray)
-      case "CastToArray" => ir_value_expr(ctx)(it).map(CastToArray)
+        ir_value_expr(ctx)(it).map(nd => NDArrayInv.untyped(nd, errorID))
+      case "ToSet" => ir_value_expr(ctx)(it).map(ToSet.untyped)
+      case "ToDict" => ir_value_expr(ctx)(it).map(ToDict.untyped)
+      case "ToArray" => ir_value_expr(ctx)(it).map(ToArray.untyped)
+      case "CastToArray" => ir_value_expr(ctx)(it).map(CastToArray.untyped)
       case "ToStream" =>
         val requiresMemoryManagementPerElement = boolean_literal(it)
-        ir_value_expr(ctx)(it).map(a => ToStream(a, requiresMemoryManagementPerElement))
+        ir_value_expr(ctx)(it).map(a => ToStream.untyped(a, requiresMemoryManagementPerElement))
       case "LowerBoundOnOrderedCollection" =>
         val onKey = boolean_literal(it)
         for {
           col <- ir_value_expr(ctx)(it)
           elem <- ir_value_expr(ctx)(it)
-        } yield LowerBoundOnOrderedCollection(col, elem, onKey)
-      case "GroupByKey" => ir_value_expr(ctx)(it).map(GroupByKey)
+        } yield LowerBoundOnOrderedCollection.untyped(col, elem, onKey)
+      case "GroupByKey" => ir_value_expr(ctx)(it).map(GroupByKey.untyped)
       case "StreamMap" =>
         val n = name(it)
         for {
           a <- ir_value_expr(ctx)(it)
           body <- ir_value_expr(ctx)(it)
-        } yield StreamMap(a, n, body)
+        } yield StreamMap.untyped(a, n, body)
       case "StreamTake" =>
         for {
           a <- ir_value_expr(ctx)(it)
           num <- ir_value_expr(ctx)(it)
-        } yield StreamTake(a, num)
+        } yield StreamTake.untyped(a, num)
       case "StreamDrop" =>
         for {
           a <- ir_value_expr(ctx)(it)
           num <- ir_value_expr(ctx)(it)
-        } yield StreamDrop(a, num)
+        } yield StreamDrop.untyped(a, num)
       case "StreamZip" =>
         val errorID = int32_literal(it)
         val behavior = identifier(it) match {
@@ -1097,7 +1102,7 @@ object IRParser {
         for {
           as <- ns.mapRecur(_ => ir_value_expr(ctx)(it))
           body <- ir_value_expr(ctx)(it)
-        } yield StreamZip(as, ns, body, behavior, errorID)
+        } yield StreamZip.untyped(as, ns, body, behavior, errorID)
       case "StreamZipJoinProducers" =>
         val key = identifiers(it)
         val ctxName = name(it)
@@ -1108,7 +1113,8 @@ object IRParser {
           makeProducer <- ir_value_expr(ctx)(it)
           body <-
             ir_value_expr(ctx)(it)
-        } yield StreamZipJoinProducers(ctxs, ctxName, makeProducer, key, curKey, curVals, body)
+        } yield StreamZipJoinProducers.untyped(ctxs, ctxName, makeProducer, key, curKey, curVals,
+          body)
       case "StreamZipJoin" =>
         val nStreams = int32_literal(it)
         val key = identifiers(it)
@@ -1118,36 +1124,36 @@ object IRParser {
           streams <- (0 until nStreams).mapRecur(_ => ir_value_expr(ctx)(it))
           body <-
             ir_value_expr(ctx)(it)
-        } yield StreamZipJoin(streams, key, curKey, curVals, body)
+        } yield StreamZipJoin.untyped(streams, key, curKey, curVals, body)
       case "StreamMultiMerge" =>
         val key = identifiers(it)
         for {
           streams <- ir_value_exprs(ctx)(it)
-        } yield StreamMultiMerge(streams, key)
+        } yield StreamMultiMerge.untyped(streams, key)
       case "StreamFilter" =>
         val n = name(it)
         for {
           a <- ir_value_expr(ctx)(it)
           body <- ir_value_expr(ctx)(it)
-        } yield StreamFilter(a, n, body)
+        } yield StreamFilter.untyped(a, n, body)
       case "StreamTakeWhile" =>
         val n = name(it)
         for {
           a <- ir_value_expr(ctx)(it)
           body <- ir_value_expr(ctx)(it)
-        } yield StreamTakeWhile(a, n, body)
+        } yield StreamTakeWhile.untyped(a, n, body)
       case "StreamDropWhile" =>
         val n = name(it)
         for {
           a <- ir_value_expr(ctx)(it)
           body <- ir_value_expr(ctx)(it)
-        } yield StreamDropWhile(a, n, body)
+        } yield StreamDropWhile.untyped(a, n, body)
       case "StreamFlatMap" =>
         val n = name(it)
         for {
           a <- ir_value_expr(ctx)(it)
           body <- ir_value_expr(ctx)(it)
-        } yield StreamFlatMap(a, n, body)
+        } yield StreamFlatMap.untyped(a, n, body)
       case "StreamFold" =>
         val accumName = name(it)
         val valueName = name(it)
@@ -1155,7 +1161,7 @@ object IRParser {
           a <- ir_value_expr(ctx)(it)
           zero <- ir_value_expr(ctx)(it)
           body <- ir_value_expr(ctx)(it)
-        } yield StreamFold(a, zero, accumName, valueName, body)
+        } yield StreamFold.untyped(a, zero, accumName, valueName, body)
       case "StreamFold2" =>
         val accumNames = names(it)
         val valueName = name(it)
@@ -1165,7 +1171,7 @@ object IRParser {
           accs = accumNames.zip(accIRs)
           seqs <- fillArray(accs.length)(ir_value_expr(ctx)(it))
           res <- ir_value_expr(ctx)(it)
-        } yield StreamFold2(a, accs, valueName, seqs, res)
+        } yield StreamFold2.untyped(a, accs, valueName, seqs, res)
       case "StreamScan" =>
         val accumName = name(it)
         val valueName = name(it)
@@ -1173,7 +1179,7 @@ object IRParser {
           a <- ir_value_expr(ctx)(it)
           zero <- ir_value_expr(ctx)(it)
           body <- ir_value_expr(ctx)(it)
-        } yield StreamScan(a, zero, accumName, valueName, body)
+        } yield StreamScan.untyped(a, zero, accumName, valueName, body)
       case "StreamWhiten" =>
         val newChunk = identifier(it)
         val prevWindow = identifier(it)
@@ -1184,7 +1190,7 @@ object IRParser {
         val normalizeAfterWhitening = boolean_literal(it)
         for {
           stream <- ir_value_expr(ctx)(it)
-        } yield StreamWhiten(stream, newChunk, prevWindow, vecSize, windowSize, chunkSize,
+        } yield StreamWhiten.untyped(stream, newChunk, prevWindow, vecSize, windowSize, chunkSize,
           blockSize, normalizeAfterWhitening)
       case "StreamJoinRightDistinct" =>
         val lKey = identifiers(it)
@@ -1196,7 +1202,7 @@ object IRParser {
           left <- ir_value_expr(ctx)(it)
           right <- ir_value_expr(ctx)(it)
           join <- ir_value_expr(ctx)(it)
-        } yield StreamJoinRightDistinct(left, right, lKey, rKey, l, r, join, joinType)
+        } yield StreamJoinRightDistinct.untyped(left, right, lKey, rKey, l, r, join, joinType)
       case "StreamLeftIntervalJoin" =>
         val lKeyFieldName = identifier(it)
         val rIntervalName = identifier(it)
@@ -1206,7 +1212,8 @@ object IRParser {
           left <- ir_value_expr(ctx)(it)
           right <- ir_value_expr(ctx)(it)
           body <- ir_value_expr(ctx)(it)
-        } yield StreamLeftIntervalJoin(left, right, lKeyFieldName, rIntervalName, lname, rname,
+        } yield StreamLeftIntervalJoin.untyped(left, right, lKeyFieldName, rIntervalName, lname,
+          rname,
           body)
 
       case "StreamFor" =>
@@ -1214,25 +1221,25 @@ object IRParser {
         for {
           a <- ir_value_expr(ctx)(it)
           body <- ir_value_expr(ctx)(it)
-        } yield StreamFor(a, n, body)
+        } yield StreamFor.untyped(a, n, body)
       case "StreamAgg" =>
         val n = name(it)
         for {
           a <- ir_value_expr(ctx)(it)
           query <- ir_value_expr(ctx)(it)
-        } yield StreamAgg(a, n, query)
+        } yield StreamAgg.untyped(a, n, query)
       case "StreamAggScan" =>
         val n = name(it)
         for {
           a <- ir_value_expr(ctx)(it)
           query <- ir_value_expr(ctx)(it)
-        } yield StreamAggScan(a, n, query)
+        } yield StreamAggScan.untyped(a, n, query)
       case "RunAgg" =>
         val signatures = agg_state_signatures(ctx)(it)
         for {
           body <- ir_value_expr(ctx)(it)
           result <- ir_value_expr(ctx)(it)
-        } yield RunAgg(body, result, signatures)
+        } yield RunAgg.untyped(body, result, signatures)
       case "RunAggScan" =>
         val n = name(it)
         val signatures = agg_state_signatures(ctx)(it)
@@ -1241,26 +1248,26 @@ object IRParser {
           init <- ir_value_expr(ctx)(it)
           seq <- ir_value_expr(ctx)(it)
           result <- ir_value_expr(ctx)(it)
-        } yield RunAggScan(array, n, init, seq, result, signatures)
+        } yield RunAggScan.untyped(array, n, init, seq, result, signatures)
       case "AggFilter" =>
         val isScan = boolean_literal(it)
         for {
           cond <- ir_value_expr(ctx)(it)
           aggIR <- ir_value_expr(ctx)(it)
-        } yield AggFilter(cond, aggIR, isScan)
+        } yield AggFilter.untyped(cond, aggIR, isScan)
       case "AggExplode" =>
         val n = name(it)
         val isScan = boolean_literal(it)
         for {
           a <- ir_value_expr(ctx)(it)
           aggBody <- ir_value_expr(ctx)(it)
-        } yield AggExplode(a, n, aggBody, isScan)
+        } yield AggExplode.untyped(a, n, aggBody, isScan)
       case "AggGroupBy" =>
         val isScan = boolean_literal(it)
         for {
           key <- ir_value_expr(ctx)(it)
           aggIR <- ir_value_expr(ctx)(it)
-        } yield AggGroupBy(key, aggIR, isScan)
+        } yield AggGroupBy.untyped(key, aggIR, isScan)
       case "AggArrayPerElement" =>
         val elementName = name(it)
         val indexName = name(it)
@@ -1270,19 +1277,19 @@ object IRParser {
           a <- ir_value_expr(ctx)(it)
           aggBody <- ir_value_expr(ctx)(it)
           knownLength <- if (hasKnownLength) ir_value_expr(ctx)(it).map(Some(_)) else done(None)
-        } yield AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, isScan)
+        } yield AggArrayPerElement.untyped(a, elementName, indexName, aggBody, knownLength, isScan)
       case "ApplyAggOp" =>
         val aggOp = agg_op(it)
         for {
           initOpArgs <- ir_value_exprs(ctx)(it)
           seqOpArgs <- ir_value_exprs(ctx)(it)
-        } yield ApplyAggOp(initOpArgs, seqOpArgs, aggOp)
+        } yield ApplyAggOp.untyped(initOpArgs, seqOpArgs, aggOp)
       case "ApplyScanOp" =>
         val aggOp = agg_op(it)
         for {
           initOpArgs <- ir_value_exprs(ctx)(it)
           seqOpArgs <- ir_value_exprs(ctx)(it)
-        } yield ApplyScanOp(initOpArgs, seqOpArgs, aggOp)
+        } yield ApplyScanOp.untyped(initOpArgs, seqOpArgs, aggOp)
       case "AggFold" =>
         val accumName = name(it)
         val otherAccumName = name(it)
@@ -1291,79 +1298,79 @@ object IRParser {
           zero <- ir_value_expr(ctx)(it)
           seqOp <- ir_value_expr(ctx)(it)
           combOp <- ir_value_expr(ctx)(it)
-        } yield AggFold(zero, seqOp, combOp, accumName, otherAccumName, isScan)
+        } yield AggFold.untyped(zero, seqOp, combOp, accumName, otherAccumName, isScan)
       case "InitOp" =>
         val i = int32_literal(it)
         val aggSig = p_agg_sig(ctx)(it)
-        ir_value_exprs(ctx)(it).map(args => InitOp(i, args, aggSig))
+        ir_value_exprs(ctx)(it).map(args => InitOp.untyped(i, args, aggSig))
       case "SeqOp" =>
         val i = int32_literal(it)
         val aggSig = p_agg_sig(ctx)(it)
-        ir_value_exprs(ctx)(it).map(args => SeqOp(i, args, aggSig))
+        ir_value_exprs(ctx)(it).map(args => SeqOp.untyped(i, args, aggSig))
       case "CombOp" =>
         val i1 = int32_literal(it)
         val i2 = int32_literal(it)
         val aggSig = p_agg_sig(ctx)(it)
-        done(CombOp(i1, i2, aggSig))
+        done(CombOp.untyped(i1, i2, aggSig))
       case "ResultOp" =>
         val i = int32_literal(it)
         val aggSig = p_agg_sig(ctx)(it)
-        done(ResultOp(i, aggSig))
+        done(ResultOp.untyped(i, aggSig))
       case "AggStateValue" =>
         val i = int32_literal(it)
         val sig = agg_state_signature(ctx)(it)
-        done(AggStateValue(i, sig))
+        done(AggStateValue.untyped(i, sig))
       case "InitFromSerializedValue" =>
         val i = int32_literal(it)
         val sig = agg_state_signature(ctx)(it)
-        ir_value_expr(ctx)(it).map(value => InitFromSerializedValue(i, value, sig))
+        ir_value_expr(ctx)(it).map(value => InitFromSerializedValue.untyped(i, value, sig))
       case "CombOpValue" =>
         val i = int32_literal(it)
         val sig = p_agg_sig(ctx)(it)
-        ir_value_expr(ctx)(it).map(value => CombOpValue(i, value, sig))
+        ir_value_expr(ctx)(it).map(value => CombOpValue.untyped(i, value, sig))
       case "SerializeAggs" =>
         val i = int32_literal(it)
         val i2 = int32_literal(it)
         val spec = BufferSpec.parse(string_literal(it))
         val aggSigs = agg_state_signatures(ctx)(it)
-        done(SerializeAggs(i, i2, spec, aggSigs))
+        done(SerializeAggs.untyped(i, i2, spec, aggSigs))
       case "DeserializeAggs" =>
         val i = int32_literal(it)
         val i2 = int32_literal(it)
         val spec = BufferSpec.parse(string_literal(it))
         val aggSigs = agg_state_signatures(ctx)(it)
-        done(DeserializeAggs(i, i2, spec, aggSigs))
-      case "Begin" => ir_value_children(ctx)(it).map(Begin(_))
-      case "MakeStruct" => named_value_irs(ctx)(it).map(MakeStruct(_))
+        done(DeserializeAggs.untyped(i, i2, spec, aggSigs))
+      case "Begin" => ir_value_children(ctx)(it).map(Begin.untyped(_))
+      case "MakeStruct" => named_value_irs(ctx)(it).map(MakeStruct.untyped(_))
       case "SelectFields" =>
         val fields = identifiers(it)
-        ir_value_expr(ctx)(it).map(old => SelectFields(old, fields))
+        ir_value_expr(ctx)(it).map(old => SelectFields.untyped(old, fields))
       case "InsertFields" =>
         for {
           old <- ir_value_expr(ctx)(it)
           fieldOrder = opt(it, string_literals)
           fields <- named_value_irs(ctx)(it)
-        } yield InsertFields(old, fields, fieldOrder.map(_.toFastSeq))
+        } yield InsertFields.untyped(old, fields, fieldOrder.map(_.toFastSeq))
       case "GetField" =>
         val name = identifier(it)
-        ir_value_expr(ctx)(it).map(s => GetField(s, name))
+        ir_value_expr(ctx)(it).map(s => GetField.untyped(s, name))
       case "MakeTuple" =>
         val indices = int32_literals(it)
-        ir_value_children(ctx)(it).map(args => MakeTuple(indices.zip(args)))
+        ir_value_children(ctx)(it).map(args => MakeTuple.untyped(indices.zip(args)))
       case "GetTupleElement" =>
         val idx = int32_literal(it)
-        ir_value_expr(ctx)(it).map(tuple => GetTupleElement(tuple, idx))
+        ir_value_expr(ctx)(it).map(tuple => GetTupleElement.untyped(tuple, idx))
       case "Die" =>
         val typ = type_expr(it)
         val errorID = int32_literal(it)
-        ir_value_expr(ctx)(it).map(msg => Die(msg, typ, errorID))
+        ir_value_expr(ctx)(it).map(msg => Die.untyped(msg, typ, errorID))
       case "Trap" =>
-        ir_value_expr(ctx)(it).map(child => Trap(child))
+        ir_value_expr(ctx)(it).map(child => Trap.untyped(child))
       case "ConsoleLog" =>
         for {
           msg <- ir_value_expr(ctx)(it)
           result <- ir_value_expr(ctx)(it)
-        } yield ConsoleLog(msg, result)
+        } yield ConsoleLog.untyped(msg, result)
       case "ApplySeeded" =>
         val function = identifier(it)
         val staticUID = int64_literal(it)
@@ -1371,82 +1378,84 @@ object IRParser {
         for {
           rngState <- ir_value_expr(ctx)(it)
           args <- ir_value_children(ctx)(it)
-        } yield ApplySeeded(function, args, rngState, staticUID, rt)
+        } yield ApplySeeded.untyped(function, args, rngState, staticUID, rt)
       case "ApplyIR" =>
-        apply_like(ctx, ApplyIR.apply)(it)
+        apply_like(ctx, ApplyIR.untyped)(it)
       case "ApplySpecial" =>
-        apply_like(ctx, ApplySpecial)(it)
+        apply_like(ctx, ApplySpecial.untyped)(it)
       case "Apply" =>
-        apply_like(ctx, Apply)(it)
+        apply_like(ctx, Apply.untyped)(it)
       case "MatrixCount" =>
-        matrix_ir(ctx)(it).map(MatrixCount)
+        matrix_ir(ctx)(it).map(MatrixCount.untyped)
       case "TableCount" =>
-        table_ir(ctx)(it).map(TableCount)
+        table_ir(ctx)(it).map(TableCount.untyped)
       case "TableGetGlobals" =>
-        table_ir(ctx)(it).map(TableGetGlobals)
+        table_ir(ctx)(it).map(TableGetGlobals.untyped)
       case "TableCollect" =>
-        table_ir(ctx)(it).map(TableCollect)
+        table_ir(ctx)(it).map(TableCollect.untyped)
       case "TableAggregate" =>
         for {
           child <- table_ir(ctx)(it)
           query <- ir_value_expr(ctx)(it)
-        } yield TableAggregate(child, query)
+        } yield TableAggregate.untyped(child, query)
       case "TableToValueApply" =>
         val config = string_literal(it)
         table_ir(ctx)(it).map { child =>
-          TableToValueApply(child, RelationalFunctions.lookupTableToValue(ctx, config))
+          TableToValueApply.untyped(child, RelationalFunctions.lookupTableToValue(ctx, config))
         }
       case "MatrixToValueApply" =>
         val config = string_literal(it)
         matrix_ir(ctx)(it).map { child =>
-          MatrixToValueApply(child, RelationalFunctions.lookupMatrixToValue(ctx, config))
+          MatrixToValueApply.untyped(child, RelationalFunctions.lookupMatrixToValue(ctx, config))
         }
       case "BlockMatrixToValueApply" =>
         val config = string_literal(it)
         blockmatrix_ir(ctx)(it).map { child =>
-          BlockMatrixToValueApply(
+          BlockMatrixToValueApply.untyped(
             child,
             RelationalFunctions.lookupBlockMatrixToValue(ctx, config),
           )
         }
       case "BlockMatrixCollect" =>
-        blockmatrix_ir(ctx)(it).map(BlockMatrixCollect)
+        blockmatrix_ir(ctx)(it).map(BlockMatrixCollect.untyped)
       case "TableWrite" =>
         implicit val formats = TableWriter.formats
         val writerStr = string_literal(it)
-        table_ir(ctx)(it).map(child => TableWrite(child, deserialize[TableWriter](writerStr)))
+        table_ir(ctx)(it).map(child =>
+          TableWrite.untyped(child, deserialize[TableWriter](writerStr))
+        )
       case "TableMultiWrite" =>
         implicit val formats = WrappedMatrixNativeMultiWriter.formats
         val writerStr = string_literal(it)
         table_ir_children(ctx)(it).map { children =>
-          TableMultiWrite(children, deserialize[WrappedMatrixNativeMultiWriter](writerStr))
+          TableMultiWrite.untyped(children, deserialize[WrappedMatrixNativeMultiWriter](writerStr))
         }
       case "MatrixAggregate" =>
         for {
           child <- matrix_ir(ctx)(it)
           query <- ir_value_expr(ctx)(it)
-        } yield MatrixAggregate(child, query)
+        } yield MatrixAggregate.untyped(child, query)
       case "MatrixWrite" =>
         val writerStr = string_literal(it)
         implicit val formats: Formats = MatrixWriter.formats
         val writer = deserialize[MatrixWriter](writerStr)
-        matrix_ir(ctx)(it).map(child => MatrixWrite(child, writer))
+        matrix_ir(ctx)(it).map(child => MatrixWrite.untyped(child, writer))
       case "MatrixMultiWrite" =>
         val writerStr = string_literal(it)
-        implicit val formats = MatrixNativeMultiWriter.formats
+        implicit val formats: Formats = MatrixNativeMultiWriter.formats
         val writer = deserialize[MatrixNativeMultiWriter](writerStr)
-        matrix_ir_children(ctx)(it).map(children => MatrixMultiWrite(children, writer))
+        matrix_ir_children(ctx)(it).map(children => MatrixMultiWrite.untyped(children, writer))
       case "BlockMatrixWrite" =>
         val writerStr = string_literal(it)
         implicit val formats: Formats = BlockMatrixWriter.formats
         val writer = deserialize[BlockMatrixWriter](writerStr)
-        blockmatrix_ir(ctx)(it).map(child => BlockMatrixWrite(child, writer))
+        blockmatrix_ir(ctx)(it).map(child => BlockMatrixWrite.untyped(child, writer))
       case "BlockMatrixMultiWrite" =>
         val writerStr = string_literal(it)
         implicit val formats: Formats = BlockMatrixWriter.formats
         val writer = deserialize[BlockMatrixMultiWriter](writerStr)
         repUntil(it, blockmatrix_ir(ctx), PunctuationToken(")")).map { blockMatrices =>
-          BlockMatrixMultiWrite(blockMatrices.toFastSeq, writer)
+          BlockMatrixMultiWrite.untyped(blockMatrices.toFastSeq, writer)
         }
       case "CollectDistributedArray" =>
         val staticID = identifier(it)
@@ -1457,7 +1466,8 @@ object IRParser {
           globals <- ir_value_expr(ctx)(it)
           body <- ir_value_expr(ctx)(it)
           dynamicID <- ir_value_expr(ctx)(it)
-        } yield CollectDistributedArray(ctxs, globals, cname, gname, body, dynamicID, staticID)
+        } yield CollectDistributedArray.untyped(ctxs, globals, cname, gname, body, dynamicID,
+          staticID)
       case "JavaIR" =>
         val id = int32_literal(it)
         done(ctx.PersistedIrCache(id).asInstanceOf[IR])
@@ -1471,7 +1481,7 @@ object IRParser {
         }
         val reader = PartitionReader.extract(ctx, JsonMethods.parse(string_literal(it)))
         ir_value_expr(ctx)(it).map { context =>
-          ReadPartition(
+          ReadPartition.untyped(
             context,
             requestedTypeRaw match {
               case Left("None") => reader.fullRowType
@@ -1487,28 +1497,30 @@ object IRParser {
         for {
           stream <- ir_value_expr(ctx)(it)
           ctx <- ir_value_expr(ctx)(it)
-        } yield WritePartition(stream, ctx, writer)
+        } yield WritePartition.untyped(stream, ctx, writer)
       case "WriteMetadata" =>
         import MetadataWriter.formats
         val writer = JsonMethods.parse(string_literal(it)).extract[MetadataWriter]
-        ir_value_expr(ctx)(it).map(ctx => WriteMetadata(ctx, writer))
+        ir_value_expr(ctx)(it).map(ctx => WriteMetadata.untyped(ctx, writer))
       case "ReadValue" =>
         import ValueReader.formats
         val reader = JsonMethods.parse(string_literal(it)).extract[ValueReader]
         val typ = type_expr(it)
-        ir_value_expr(ctx)(it).map(path => ReadValue(path, reader, typ))
+        ir_value_expr(ctx)(it).map(path => ReadValue.untyped(path, reader, typ))
       case "WriteValue" =>
         import ValueWriter.formats
         val writer = JsonMethods.parse(string_literal(it)).extract[ValueWriter]
         ir_value_children(ctx)(it).map {
-          case Array(value, path) => WriteValue(value, path, writer)
-          case Array(value, path, stagingFile) => WriteValue(value, path, writer, Some(stagingFile))
+          case Array(value, path) => WriteValue.untyped(value, path, writer)
+          case Array(value, path, stagingFile) =>
+            WriteValue.untyped(value, path, writer, Some(stagingFile))
         }
-      case "LiftMeOut" => ir_value_expr(ctx)(it).map(LiftMeOut)
+      case "LiftMeOut" => ir_value_expr(ctx)(it).map(LiftMeOut.untyped)
     }
   }
 
-  def table_irs(ctx: ExecuteContext)(it: TokenIterator): StackFrame[Array[TableIR]] = {
+  def table_irs(ctx: ExecuteContext)(it: TokenIterator)
+    : StackFrame[Array[UntypedBaseIR[TableIR]]] = {
     punctuation(it, "(")
     for {
       tirs <- table_ir_children(ctx)(it)
@@ -1516,10 +1528,11 @@ object IRParser {
     } yield tirs
   }
 
-  def table_ir_children(ctx: ExecuteContext)(it: TokenIterator): StackFrame[Array[TableIR]] =
+  def table_ir_children(ctx: ExecuteContext)(it: TokenIterator)
+    : StackFrame[Array[UntypedBaseIR[TableIR]]] =
     repUntil(it, table_ir(ctx), PunctuationToken(")"))
 
-  def table_ir(ctx: ExecuteContext)(it: TokenIterator): StackFrame[TableIR] = {
+  def table_ir(ctx: ExecuteContext)(it: TokenIterator): StackFrame[UntypedBaseIR[TableIR]] = {
     punctuation(it, "(")
     for {
       ir <- call(table_ir_1(ctx)(it))
@@ -1527,18 +1540,18 @@ object IRParser {
     } yield ir
   }
 
-  def table_ir_1(ctx: ExecuteContext)(it: TokenIterator): StackFrame[TableIR] = {
+  def table_ir_1(ctx: ExecuteContext)(it: TokenIterator): StackFrame[UntypedBaseIR[TableIR]] = {
     identifier(it) match {
       case "TableKeyBy" =>
         val keys = identifiers(it)
         val isSorted = boolean_literal(it)
-        table_ir(ctx)(it).map(child => TableKeyBy(child, keys, isSorted))
-      case "TableDistinct" => table_ir(ctx)(it).map(TableDistinct)
+        table_ir(ctx)(it).map(child => TableKeyBy(child.get, keys, isSorted))
+      case "TableDistinct" => table_ir(ctx)(it).map(child => TableDistinct(child.get))
       case "TableFilter" =>
         for {
           child <- table_ir(ctx)(it)
           pred <- ir_value_expr(ctx)(it)
-        } yield TableFilter(child, pred)
+        } yield TableFilter(child.get, pred.get)
       case "TableRead" =>
         val requestedTypeRaw = it.head match {
           case x: IdentifierToken if x.value == "None" || x.value == "DropRowUIDs" =>
@@ -1558,14 +1571,14 @@ object IRParser {
           case Right(t) => t
         }
         done(TableRead(requestedType, dropRows, reader))
-      case "MatrixColsTable" => matrix_ir(ctx)(it).map(MatrixColsTable)
-      case "MatrixRowsTable" => matrix_ir(ctx)(it).map(MatrixRowsTable)
-      case "MatrixEntriesTable" => matrix_ir(ctx)(it).map(MatrixEntriesTable)
+      case "MatrixColsTable" => matrix_ir(ctx)(it).map(child => MatrixColsTable(child.get))
+      case "MatrixRowsTable" => matrix_ir(ctx)(it).map(child => MatrixRowsTable(child.get))
+      case "MatrixEntriesTable" => matrix_ir(ctx)(it).map(child => MatrixEntriesTable(child.get))
       case "TableAggregateByKey" =>
         for {
           child <- table_ir(ctx)(it)
           expr <- ir_value_expr(ctx)(it)
-        } yield TableAggregateByKey(child, expr)
+        } yield TableAggregateByKey(child.get, expr.get)
       case "TableKeyByAndAggregate" =>
         val nPartitions = opt(it, int32_literal)
         val bufferSize = int32_literal(it)
@@ -1573,80 +1586,83 @@ object IRParser {
           child <- table_ir(ctx)(it)
           expr <- ir_value_expr(ctx)(it)
           newKey <- ir_value_expr(ctx)(it)
-        } yield TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize)
+        } yield TableKeyByAndAggregate(child.get, expr.get, newKey.get, nPartitions, bufferSize)
       case "TableRepartition" =>
         val n = int32_literal(it)
         val strategy = int32_literal(it)
-        table_ir(ctx)(it).map(child => TableRepartition(child, n, strategy))
+        table_ir(ctx)(it).map(child => TableRepartition(child.get, n, strategy))
       case "TableHead" =>
         val n = int64_literal(it)
-        table_ir(ctx)(it).map(child => TableHead(child, n))
+        table_ir(ctx)(it).map(child => TableHead(child.get, n))
       case "TableTail" =>
         val n = int64_literal(it)
-        table_ir(ctx)(it).map(child => TableTail(child, n))
+        table_ir(ctx)(it).map(child => TableTail(child.get, n))
       case "TableJoin" =>
         val joinType = identifier(it)
         val joinKey = int32_literal(it)
         for {
           left <- table_ir(ctx)(it)
           right <- table_ir(ctx)(it)
-        } yield TableJoin(left, right, joinType, joinKey)
+        } yield TableJoin(left.get, right.get, joinType, joinKey)
       case "TableLeftJoinRightDistinct" =>
         val root = identifier(it)
         for {
           left <- table_ir(ctx)(it)
           right <- table_ir(ctx)(it)
-        } yield TableLeftJoinRightDistinct(left, right, root)
+        } yield TableLeftJoinRightDistinct(left.get, right.get, root)
       case "TableIntervalJoin" =>
         val root = identifier(it)
         val product = boolean_literal(it)
         for {
           left <- table_ir(ctx)(it)
           right <- table_ir(ctx)(it)
-        } yield TableIntervalJoin(left, right, root, product)
+        } yield TableIntervalJoin(left.get, right.get, root, product)
       case "TableMultiWayZipJoin" =>
         val dataName = string_literal(it)
         val globalsName = string_literal(it)
         table_ir_children(ctx)(it).map { children =>
-          TableMultiWayZipJoin(children, dataName, globalsName)
+          TableMultiWayZipJoin(children.map(_.get), dataName, globalsName)
         }
       case "TableParallelize" =>
         val nPartitions = opt(it, int32_literal)
-        ir_value_expr(ctx)(it).map(rowsAndGlobal => TableParallelize(rowsAndGlobal, nPartitions))
+        ir_value_expr(ctx)(it).map(rowsAndGlobal =>
+          TableParallelize(rowsAndGlobal.get, nPartitions)
+        )
       case "TableMapRows" =>
         for {
           child <- table_ir(ctx)(it)
           newRow <- ir_value_expr(ctx)(it)
-        } yield TableMapRows(child, newRow)
+        } yield TableMapRows(child.get, newRow.get)
       case "TableMapGlobals" =>
         for {
           child <- table_ir(ctx)(it)
           newRow <- ir_value_expr(ctx)(it)
-        } yield TableMapGlobals(child, newRow)
+        } yield TableMapGlobals(child.get, newRow.get)
       case "TableRange" =>
         val n = int32_literal(it)
         val nPartitions = opt(it, int32_literal)
         done(TableRange(n, nPartitions.getOrElse(ctx.backend.defaultParallelism)))
-      case "TableUnion" => table_ir_children(ctx)(it).map(TableUnion(_))
+      case "TableUnion" =>
+        table_ir_children(ctx)(it).map(children => TableUnion(children.map(_.get)))
       case "TableOrderBy" =>
         val sortFields = sort_fields(it)
-        table_ir(ctx)(it).map(child => TableOrderBy(child, sortFields))
+        table_ir(ctx)(it).map(child => TableOrderBy(child.get, sortFields))
       case "TableExplode" =>
         val path = string_literals(it)
-        table_ir(ctx)(it).map(child => TableExplode(child, path))
+        table_ir(ctx)(it).map(child => TableExplode(child.get, path))
       case "CastMatrixToTable" =>
         val entriesField = string_literal(it)
         val colsField = string_literal(it)
-        matrix_ir(ctx)(it).map(child => CastMatrixToTable(child, entriesField, colsField))
+        matrix_ir(ctx)(it).map(child => CastMatrixToTable(child.get, entriesField, colsField))
       case "MatrixToTableApply" =>
         val config = string_literal(it)
         matrix_ir(ctx)(it).map { child =>
-          MatrixToTableApply(child, RelationalFunctions.lookupMatrixToTable(ctx, config))
+          MatrixToTableApply(child.get, RelationalFunctions.lookupMatrixToTable(ctx, config))
         }
       case "TableToTableApply" =>
         val config = string_literal(it)
         table_ir(ctx)(it).map { child =>
-          TableToTableApply(child, RelationalFunctions.lookupTableToTable(ctx, config))
+          TableToTableApply(child.get, RelationalFunctions.lookupTableToTable(ctx, config))
         }
       case "BlockMatrixToTableApply" =>
         val config = string_literal(it)
@@ -1654,18 +1670,19 @@ object IRParser {
           bm <- blockmatrix_ir(ctx)(it)
           aux <- ir_value_expr(ctx)(it)
         } yield BlockMatrixToTableApply(
-          bm,
-          aux,
+          bm.get,
+          aux.get,
           RelationalFunctions.lookupBlockMatrixToTable(ctx, config),
         )
-      case "BlockMatrixToTable" => blockmatrix_ir(ctx)(it).map(BlockMatrixToTable)
+      case "BlockMatrixToTable" =>
+        blockmatrix_ir(ctx)(it).map(child => BlockMatrixToTable(child.get))
       case "TableRename" =>
         val rowK = string_literals(it)
         val rowV = string_literals(it)
         val globalK = string_literals(it)
         val globalV = string_literals(it)
         table_ir(ctx)(it).map { child =>
-          TableRename(child, rowK.zip(rowV).toMap, globalK.zip(globalV).toMap)
+          TableRename(child.get, rowK.zip(rowV).toMap, globalK.zip(globalV).toMap)
         }
 
       case "TableGen" =>
@@ -1678,7 +1695,7 @@ object IRParser {
           contexts <- ir_value_expr(ctx)(it)
           globals <- ir_value_expr(ctx)(it)
           body <- ir_value_expr(ctx)(it)
-        } yield TableGen(contexts, globals, cname, gname, body, partitioner, errorId)
+        } yield TableGen(contexts.get, globals.get, cname, gname, body.get, partitioner, errorId)
 
       case "TableFilterIntervals" =>
         val keyType = type_expr(it)
@@ -1686,7 +1703,7 @@ object IRParser {
         val keep = boolean_literal(it)
         table_ir(ctx)(it).map { child =>
           TableFilterIntervals(
-            child,
+            child.get,
             JSONAnnotationImpex.importAnnotation(
               JsonMethods.parse(intervals),
               TArray(TInterval(keyType)),
@@ -1703,24 +1720,31 @@ object IRParser {
         for {
           child <- table_ir(ctx)(it)
           body <- ir_value_expr(ctx)(it)
-        } yield TableMapPartitions(child, globalsName, partitionStreamName, body, requestedKey,
-          allowedOverlap)
+        } yield TableMapPartitions(
+          child.get,
+          globalsName,
+          partitionStreamName,
+          body.get,
+          requestedKey,
+          allowedOverlap,
+        )
       case "RelationalLetTable" =>
         val n = name(it)
         for {
           value <- ir_value_expr(ctx)(it)
           body <- table_ir(ctx)(it)
-        } yield RelationalLetTable(n, value, body)
+        } yield RelationalLetTable(n, value.get, body.get)
       case "JavaTable" =>
         val id = int32_literal(it)
         done(ctx.PersistedIrCache(id).asInstanceOf[TableIR])
     }
   }
 
-  def matrix_ir_children(ctx: ExecuteContext)(it: TokenIterator): StackFrame[Array[MatrixIR]] =
+  def matrix_ir_children(ctx: ExecuteContext)(it: TokenIterator)
+    : StackFrame[Array[UntypedBaseIR[MatrixIR]]] =
     repUntil(it, matrix_ir(ctx), PunctuationToken(")"))
 
-  def matrix_ir(ctx: ExecuteContext)(it: TokenIterator): StackFrame[MatrixIR] = {
+  def matrix_ir(ctx: ExecuteContext)(it: TokenIterator): StackFrame[UntypedBaseIR[MatrixIR]] = {
     punctuation(it, "(")
     for {
       ir <- call(matrix_ir_1(ctx)(it))
@@ -1728,66 +1752,66 @@ object IRParser {
     } yield ir
   }
 
-  def matrix_ir_1(ctx: ExecuteContext)(it: TokenIterator): StackFrame[MatrixIR] = {
+  def matrix_ir_1(ctx: ExecuteContext)(it: TokenIterator): StackFrame[UntypedBaseIR[MatrixIR]] = {
     identifier(it) match {
       case "MatrixFilterCols" =>
         for {
           child <- matrix_ir(ctx)(it)
           pred <- ir_value_expr(ctx)(it)
-        } yield MatrixFilterCols(child, pred)
+        } yield MatrixFilterCols(child.get, pred.get)
       case "MatrixFilterRows" =>
         for {
           child <- matrix_ir(ctx)(it)
           pred <- ir_value_expr(ctx)(it)
-        } yield MatrixFilterRows(child, pred)
+        } yield MatrixFilterRows(child.get, pred.get)
       case "MatrixFilterEntries" =>
         for {
           child <- matrix_ir(ctx)(it)
           pred <- ir_value_expr(ctx)(it)
-        } yield MatrixFilterEntries(child, pred)
+        } yield MatrixFilterEntries(child.get, pred.get)
       case "MatrixMapCols" =>
         val newKey = opt(it, string_literals)
         for {
           child <- matrix_ir(ctx)(it)
           newCol <- ir_value_expr(ctx)(it)
-        } yield MatrixMapCols(child, newCol, newKey.map(_.toFastSeq))
+        } yield MatrixMapCols(child.get, newCol.get, newKey.map(_.toFastSeq))
       case "MatrixKeyRowsBy" =>
         val key = identifiers(it)
         val isSorted = boolean_literal(it)
-        matrix_ir(ctx)(it).map(child => MatrixKeyRowsBy(child, key, isSorted))
+        matrix_ir(ctx)(it).map(child => MatrixKeyRowsBy(child.get, key, isSorted))
       case "MatrixMapRows" =>
         for {
           child <- matrix_ir(ctx)(it)
           newRow <- ir_value_expr(ctx)(it)
-        } yield MatrixMapRows(child, newRow)
+        } yield MatrixMapRows(child.get, newRow.get)
       case "MatrixMapEntries" =>
         for {
           child <- matrix_ir(ctx)(it)
           newEntry <- ir_value_expr(ctx)(it)
-        } yield MatrixMapEntries(child, newEntry)
+        } yield MatrixMapEntries(child.get, newEntry.get)
       case "MatrixUnionCols" =>
         val joinType = identifier(it)
         for {
           left <- matrix_ir(ctx)(it)
           right <- matrix_ir(ctx)(it)
-        } yield MatrixUnionCols(left, right, joinType)
+        } yield MatrixUnionCols(left.get, right.get, joinType)
       case "MatrixMapGlobals" =>
         for {
           child <- matrix_ir(ctx)(it)
           newGlobals <- ir_value_expr(ctx)(it)
-        } yield MatrixMapGlobals(child, newGlobals)
+        } yield MatrixMapGlobals(child.get, newGlobals.get)
       case "MatrixAggregateColsByKey" =>
         for {
           child <- matrix_ir(ctx)(it)
           entryExpr <- ir_value_expr(ctx)(it)
           colExpr <- ir_value_expr(ctx)(it)
-        } yield MatrixAggregateColsByKey(child, entryExpr, colExpr)
+        } yield MatrixAggregateColsByKey(child.get, entryExpr.get, colExpr.get)
       case "MatrixAggregateRowsByKey" =>
         for {
           child <- matrix_ir(ctx)(it)
           entryExpr <- ir_value_expr(ctx)(it)
           rowExpr <- ir_value_expr(ctx)(it)
-        } yield MatrixAggregateRowsByKey(child, entryExpr, rowExpr)
+        } yield MatrixAggregateRowsByKey(child.get, entryExpr.get, rowExpr.get)
       case "MatrixRead" =>
         val requestedTypeRaw = it.head match {
           case x: IdentifierToken
@@ -1823,51 +1847,54 @@ object IRParser {
         for {
           child <- matrix_ir(ctx)(it)
           table <- table_ir(ctx)(it)
-        } yield MatrixAnnotateRowsTable(child, table, root, product)
+        } yield MatrixAnnotateRowsTable(child.get, table.get, root, product)
       case "MatrixAnnotateColsTable" =>
         val root = string_literal(it)
         for {
           child <- matrix_ir(ctx)(it)
           table <- table_ir(ctx)(it)
-        } yield MatrixAnnotateColsTable(child, table, root)
+        } yield MatrixAnnotateColsTable(child.get, table.get, root)
       case "MatrixExplodeRows" =>
         val path = identifiers(it)
-        matrix_ir(ctx)(it).map(child => MatrixExplodeRows(child, path))
+        matrix_ir(ctx)(it).map(child => MatrixExplodeRows(child.get, path))
       case "MatrixExplodeCols" =>
         val path = identifiers(it)
-        matrix_ir(ctx)(it).map(child => MatrixExplodeCols(child, path))
+        matrix_ir(ctx)(it).map(child => MatrixExplodeCols(child.get, path))
       case "MatrixChooseCols" =>
         val oldIndices = int32_literals(it)
-        matrix_ir(ctx)(it).map(child => MatrixChooseCols(child, oldIndices))
+        matrix_ir(ctx)(it).map(child => MatrixChooseCols(child.get, oldIndices))
       case "MatrixCollectColsByKey" =>
-        matrix_ir(ctx)(it).map(MatrixCollectColsByKey)
+        matrix_ir(ctx)(it).map(child => MatrixCollectColsByKey(child.get))
       case "MatrixRepartition" =>
         val n = int32_literal(it)
         val strategy = int32_literal(it)
-        matrix_ir(ctx)(it).map(child => MatrixRepartition(child, n, strategy))
-      case "MatrixUnionRows" => matrix_ir_children(ctx)(it).map(MatrixUnionRows(_))
-      case "MatrixDistinctByRow" => matrix_ir(ctx)(it).map(MatrixDistinctByRow)
+        matrix_ir(ctx)(it).map(child => MatrixRepartition(child.get, n, strategy))
+      case "MatrixUnionRows" =>
+        matrix_ir_children(ctx)(it).map(children => MatrixUnionRows(children.map(_.get)))
+      case "MatrixDistinctByRow" => matrix_ir(ctx)(it).map(child => MatrixDistinctByRow(child.get))
       case "MatrixRowsHead" =>
         val n = int64_literal(it)
-        matrix_ir(ctx)(it).map(child => MatrixRowsHead(child, n))
+        matrix_ir(ctx)(it).map(child => MatrixRowsHead(child.get, n))
       case "MatrixColsHead" =>
         val n = int32_literal(it)
-        matrix_ir(ctx)(it).map(child => MatrixColsHead(child, n))
+        matrix_ir(ctx)(it).map(child => MatrixColsHead(child.get, n))
       case "MatrixRowsTail" =>
         val n = int64_literal(it)
-        matrix_ir(ctx)(it).map(child => MatrixRowsTail(child, n))
+        matrix_ir(ctx)(it).map(child => MatrixRowsTail(child.get, n))
       case "MatrixColsTail" =>
         val n = int32_literal(it)
-        matrix_ir(ctx)(it).map(child => MatrixColsTail(child, n))
+        matrix_ir(ctx)(it).map(child => MatrixColsTail(child.get, n))
       case "CastTableToMatrix" =>
         val entriesField = identifier(it)
         val colsField = identifier(it)
         val colKey = identifiers(it)
-        table_ir(ctx)(it).map(child => CastTableToMatrix(child, entriesField, colsField, colKey))
+        table_ir(ctx)(it).map(child =>
+          CastTableToMatrix(child.get, entriesField, colsField, colKey)
+        )
       case "MatrixToMatrixApply" =>
         val config = string_literal(it)
         matrix_ir(ctx)(it).map { child =>
-          MatrixToMatrixApply(child, RelationalFunctions.lookupMatrixToMatrix(ctx, config))
+          MatrixToMatrixApply(child.get, RelationalFunctions.lookupMatrixToMatrix(ctx, config))
         }
       case "MatrixRename" =>
         val globalK = string_literals(it)
@@ -1880,7 +1907,7 @@ object IRParser {
         val entryV = string_literals(it)
         matrix_ir(ctx)(it).map { child =>
           MatrixRename(
-            child,
+            child.get,
             globalK.zip(globalV).toMap,
             colK.zip(colV).toMap,
             rowK.zip(rowV).toMap,
@@ -1893,7 +1920,7 @@ object IRParser {
         val keep = boolean_literal(it)
         matrix_ir(ctx)(it).map { child =>
           MatrixFilterIntervals(
-            child,
+            child.get,
             JSONAnnotationImpex.importAnnotation(
               JsonMethods.parse(intervals),
               TArray(TInterval(keyType)),
@@ -1907,7 +1934,7 @@ object IRParser {
         for {
           value <- ir_value_expr(ctx)(it)
           body <- matrix_ir(ctx)(it)
-        } yield RelationalLetMatrixTable(n, value, body)
+        } yield RelationalLetMatrixTable(n, value.get, body.get)
     }
   }
 
@@ -1920,7 +1947,7 @@ object IRParser {
         val blocksOnly = boolean_literal(it)
         punctuation(it, ")")
         ir_value_expr(ctx)(it).map { ir_ =>
-          val ir = annotateTypes(ctx, ir_, BindingEnv.empty).asInstanceOf[IR]
+          val ir = annotateTypes(ctx, ir_, BindingEnv.empty[Type])
           val Row(starts: IndexedSeq[Long @unchecked], stops: IndexedSeq[Long @unchecked]) =
             CompileAndEvaluate[Row](ctx, ir, lower = lower)
           RowIntervalSparsifier(blocksOnly, starts, stops)
@@ -1929,21 +1956,21 @@ object IRParser {
         val blocksOnly = boolean_literal(it)
         punctuation(it, ")")
         ir_value_expr(ctx)(it).map { ir_ =>
-          val ir = annotateTypes(ctx, ir_, BindingEnv.empty).asInstanceOf[IR]
+          val ir = annotateTypes(ctx, ir_, BindingEnv.empty[Type])
           val Row(l: Long, u: Long) = CompileAndEvaluate[Row](ctx, ir, lower = lower)
           BandSparsifier(blocksOnly, l, u)
         }
       case "PyPerBlockSparsifier" =>
         punctuation(it, ")")
         ir_value_expr(ctx)(it).map { ir_ =>
-          val ir = annotateTypes(ctx, ir_, BindingEnv.empty).asInstanceOf[IR]
+          val ir = annotateTypes(ctx, ir_, BindingEnv.empty[Type])
           val indices = CompileAndEvaluate[IndexedSeq[Int]](ctx, ir, lower = lower)
           PerBlockSparsifier(indices)
         }
       case "PyRectangleSparsifier" =>
         punctuation(it, ")")
         ir_value_expr(ctx)(it).map { ir_ =>
-          val ir = annotateTypes(ctx, ir_, BindingEnv.empty).asInstanceOf[IR]
+          val ir = annotateTypes(ctx, ir_, BindingEnv.empty[Type])
           val rectangles = CompileAndEvaluate[IndexedSeq[Long]](ctx, ir, lower = lower)
           RectangleSparsifier(rectangles.grouped(4).toIndexedSeq)
         }
@@ -1966,7 +1993,8 @@ object IRParser {
     }
   }
 
-  def blockmatrix_ir(ctx: ExecuteContext)(it: TokenIterator): StackFrame[BlockMatrixIR] = {
+  def blockmatrix_ir(ctx: ExecuteContext)(it: TokenIterator)
+    : StackFrame[UntypedBaseIR[BlockMatrixIR]] = {
     punctuation(it, "(")
     for {
       ir <- call(blockmatrix_ir1(ctx)(it))
@@ -1974,7 +2002,8 @@ object IRParser {
     } yield ir
   }
 
-  def blockmatrix_ir1(ctx: ExecuteContext)(it: TokenIterator): StackFrame[BlockMatrixIR] = {
+  def blockmatrix_ir1(ctx: ExecuteContext)(it: TokenIterator)
+    : StackFrame[UntypedBaseIR[BlockMatrixIR]] = {
     identifier(it) match {
       case "BlockMatrixRead" =>
         val readerStr = string_literal(it)
@@ -1986,7 +2015,7 @@ object IRParser {
         for {
           child <- blockmatrix_ir(ctx)(it)
           f <- ir_value_expr(ctx)(it)
-        } yield BlockMatrixMap(child, n, f, needs_dense)
+        } yield BlockMatrixMap(child.get, n, f.get, needs_dense)
       case "BlockMatrixMap2" =>
         val lName = name(it)
         val rName = name(it)
@@ -1995,41 +2024,41 @@ object IRParser {
           left <- blockmatrix_ir(ctx)(it)
           right <- blockmatrix_ir(ctx)(it)
           f <- ir_value_expr(ctx)(it)
-        } yield BlockMatrixMap2(left, right, lName, rName, f, sparsityStrategy)
+        } yield BlockMatrixMap2(left.get, right.get, lName, rName, f.get, sparsityStrategy)
       case "BlockMatrixDot" =>
         for {
           left <- blockmatrix_ir(ctx)(it)
           right <- blockmatrix_ir(ctx)(it)
-        } yield BlockMatrixDot(left, right)
+        } yield BlockMatrixDot(left.get, right.get)
       case "BlockMatrixBroadcast" =>
         val inIndexExpr = int32_literals(it)
         val shape = int64_literals(it)
         val blockSize = int32_literal(it)
         blockmatrix_ir(ctx)(it).map { child =>
-          BlockMatrixBroadcast(child, inIndexExpr, shape, blockSize)
+          BlockMatrixBroadcast(child.get, inIndexExpr, shape, blockSize)
         }
       case "BlockMatrixAgg" =>
         val outIndexExpr = int32_literals(it)
-        blockmatrix_ir(ctx)(it).map(child => BlockMatrixAgg(child, outIndexExpr))
+        blockmatrix_ir(ctx)(it).map(child => BlockMatrixAgg(child.get, outIndexExpr))
       case "BlockMatrixFilter" =>
         val indices = literals(literals(int64_literal))(it)
-        blockmatrix_ir(ctx)(it).map(child => BlockMatrixFilter(child, indices))
+        blockmatrix_ir(ctx)(it).map(child => BlockMatrixFilter(child.get, indices))
       case "BlockMatrixDensify" =>
-        blockmatrix_ir(ctx)(it).map(BlockMatrixDensify)
+        blockmatrix_ir(ctx)(it).map(child => BlockMatrixDensify(child.get))
       case "BlockMatrixSparsify" =>
         for {
           sparsifier <- blockmatrix_sparsifier(ctx)(it)
           child <- blockmatrix_ir(ctx)(it)
-        } yield BlockMatrixSparsify(child, sparsifier)
+        } yield BlockMatrixSparsify(child.get, sparsifier)
       case "BlockMatrixSlice" =>
         val slices = literals(literals(int64_literal))(it)
         blockmatrix_ir(ctx)(it).map { child =>
-          BlockMatrixSlice(child, slices.map(_.toFastSeq).toFastSeq)
+          BlockMatrixSlice(child.get, slices.map(_.toFastSeq).toFastSeq)
         }
       case "ValueToBlockMatrix" =>
         val shape = int64_literals(it)
         val blockSize = int32_literal(it)
-        ir_value_expr(ctx)(it).map(child => ValueToBlockMatrix(child, shape, blockSize))
+        ir_value_expr(ctx)(it).map(child => ValueToBlockMatrix(child.get, shape, blockSize))
       case "BlockMatrixRandom" =>
         val staticUID = int64_literal(it)
         val gaussian = boolean_literal(it)
@@ -2039,67 +2068,9 @@ object IRParser {
     }
   }
 
-  def annotateTypes(ctx: ExecuteContext, ir: BaseIR, env: BindingEnv[Type]): BaseIR = {
-    def run(ir: BaseIR, env: BindingEnv[Type]): BaseIR = {
-      val rw = ir.mapChildrenWithEnv(env)(run)
-      rw match {
-        case x: Ref =>
-          x._typ = env.eval(x.name)
-          x
-        case x: Recur =>
-          val TTuple(IndexedSeq(_, TupleField(_, rt))) = env.eval.lookup(x.name)
-          x._typ = rt
-          x
-        case MakeArray(args, typ) =>
-          MakeArray.unify(ctx, args, typ)
-        case x @ InitOp(
-              _,
-              _,
-              BasicPhysicalAggSig(_, FoldStateSig(t, accumName, otherAccumName, combIR)),
-            ) =>
-          run(
-            combIR,
-            BindingEnv.empty.bindEval(accumName -> t.virtualType, otherAccumName -> t.virtualType),
-          ): Unit
-          x
-        case x @ SeqOp(
-              _,
-              _,
-              BasicPhysicalAggSig(_, FoldStateSig(t, accumName, otherAccumName, combIR)),
-            ) =>
-          run(
-            combIR,
-            BindingEnv.empty.bindEval(accumName -> t.virtualType, otherAccumName -> t.virtualType),
-          ): Unit
-          x
-        case x @ CombOp(
-              _,
-              _,
-              BasicPhysicalAggSig(_, FoldStateSig(t, accumName, otherAccumName, combIR)),
-            ) =>
-          run(
-            combIR,
-            BindingEnv.empty.bindEval(accumName -> t.virtualType, otherAccumName -> t.virtualType),
-          ): Unit
-          x
-        case x @ ResultOp(
-              _,
-              BasicPhysicalAggSig(_, FoldStateSig(t, accumName, otherAccumName, combIR)),
-            ) =>
-          run(
-            combIR,
-            BindingEnv.empty.bindEval(accumName -> t.virtualType, otherAccumName -> t.virtualType),
-          ): Unit
-          x
-        case Apply(name, typeArgs, args, rt, errorID) =>
-          invoke(name, rt, typeArgs, errorID, args: _*)
-        case _ =>
-          rw
-      }
-    }
-
-    run(ir, env)
-  }
+  def annotateTypes[T <: BaseIR](ctx: ExecuteContext, ir: UntypedBaseIR[T], env: BindingEnv[Type])
+    : T =
+    ir.annotateTypes(ctx, env)
 
   def parse[T](s: String, f: (TokenIterator) => T): T = {
     val it = IRLexer.parse(s).iterator.buffered
@@ -2109,32 +2080,32 @@ object IRParser {
   def parse_value_ir(ctx: ExecuteContext, s: String, typeEnv: BindingEnv[Type] = BindingEnv.empty)
     : IR =
     ctx.time {
-      var ir = parse(s, ir_value_expr(ctx)(_).run())
-      ir = annotateTypes(ctx, ir, typeEnv).asInstanceOf[IR]
+      val untyped = parse(s, ir_value_expr(ctx)(_).run())
+      val ir = annotateTypes(ctx, untyped, typeEnv)
       TypeCheck(ctx, ir, typeEnv)
       ir
     }
 
   def parse_table_ir(ctx: ExecuteContext, s: String): TableIR =
     ctx.time {
-      var ir = parse(s, table_ir(ctx)(_).run())
-      ir = annotateTypes(ctx, ir, BindingEnv.empty).asInstanceOf[TableIR]
+      val untyped = parse(s, table_ir(ctx)(_).run())
+      val ir = annotateTypes(ctx, untyped, BindingEnv.empty[Type])
       TypeCheck(ctx, ir)
       ir
     }
 
   def parse_matrix_ir(ctx: ExecuteContext, s: String): MatrixIR =
     ctx.time {
-      var ir = parse(s, matrix_ir(ctx)(_).run())
-      ir = annotateTypes(ctx, ir, BindingEnv.empty).asInstanceOf[MatrixIR]
+      val untyped = parse(s, matrix_ir(ctx)(_).run())
+      val ir = annotateTypes(ctx, untyped, BindingEnv.empty[Type])
       TypeCheck(ctx, ir)
       ir
     }
 
   def parse_blockmatrix_ir(ctx: ExecuteContext, s: String): BlockMatrixIR =
     ctx.time {
-      var ir = parse(s, blockmatrix_ir(ctx)(_).run())
-      ir = annotateTypes(ctx, ir, BindingEnv.empty).asInstanceOf[BlockMatrixIR]
+      val untyped = parse(s, blockmatrix_ir(ctx)(_).run())
+      val ir = annotateTypes(ctx, untyped, BindingEnv.empty[Type])
       TypeCheck(ctx, ir)
       ir
     }

@@ -54,6 +54,10 @@ sealed abstract class MatrixIR extends BaseIR {
   def typ: MatrixType
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): MatrixIR
+
+  final override protected def copyWithNewChildrenUntyped(newChildren: IndexedSeq[BaseIR])
+  : UntypedBaseIR[MatrixIR] =
+    UntypedBaseIR(copyWithNewChildren(newChildren))
 }
 
 object MatrixLiteral {
