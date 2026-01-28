@@ -700,6 +700,10 @@ class Pretty(
           Some(Array(curKey -> "key", curVals -> "elts"))
         else
           None
+      case StreamZipJoinProducers(_, cname, _, _, k, v, _) =>
+        if (i == 1) Some(ArraySeq(cname -> "elt"))
+        else if (i == 2) Some(ArraySeq(k -> "key", v -> "val"))
+        else None
       case StreamFor(_, name, _) =>
         if (i == 1) Some(Array(name -> "elt")) else None
       case StreamFlatMap(_, name, _) =>
