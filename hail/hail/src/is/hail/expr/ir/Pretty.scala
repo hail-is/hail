@@ -710,6 +710,9 @@ class Pretty(
         case AggExplode(_, name, _, _) =>
           if (i == 1) some(name -> "elt")
           else None
+        case _: AggFilter =>
+          if (i == 1) some()
+          else None
         case AggFold(_, _, _, accumName, otherAccumName, _) =>
           if (i == 1) some(accumName -> "accum")
           else if (i == 2) some(accumName -> "l", otherAccumName -> "r")
