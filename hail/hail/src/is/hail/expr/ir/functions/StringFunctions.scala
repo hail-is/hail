@@ -287,7 +287,7 @@ object StringFunctions extends RegistryFunctions {
     val thisClass = getClass
 
     registerSCode1("length", TString, TInt32, (_: Type, _: SType) => SInt32) {
-      case (_: EmitRegion, cb, _, s: SStringValue, _) =>
+      case (_, cb, _, s: SStringValue, _) =>
         primitive(cb.memoize(s.loadString(cb).invoke[Int]("length")))
     }
 
@@ -299,7 +299,7 @@ object StringFunctions extends RegistryFunctions {
       TString,
       (_: Type, _: SType, _: SType, _: SType) => SJavaString,
     ) {
-      case (_: EmitRegion, cb, st: SJavaString.type, s, start, end, _) =>
+      case (_, cb, st: SJavaString.type, s, start, end, _) =>
         val str = s.asString.loadString(cb).invoke[Int, Int, String](
           "substring",
           start.asInt.value,
@@ -354,7 +354,7 @@ object StringFunctions extends RegistryFunctions {
 
     registerSCode1("str", tv("T"), TString, (_: Type, _: SType) => SJavaString) {
       case (r, cb, st: SJavaString.type, a, _) =>
-        val annotation = svalueToJavaValue(cb, r.region, a)
+        val annotation = svalueToJavaValue(cb, r, a)
         val str = cb.emb.getType(a.st.virtualType).invoke[Any, String]("str", annotation)
         st.construct(cb, str)
     }
@@ -715,8 +715,8 @@ object StringFunctions extends RegistryFunctions {
       {
         case (_: Type, _: EmitType, _: EmitType) => EmitType(SInt32, false)
       },
-    ) { case (r: EmitRegion, _, _, e1: EmitCode, e2: EmitCode) =>
-      EmitCode.fromI(r.mb) { cb =>
+    ) { case (mb, _, _, _, e1, e2) =>
+      EmitCode.fromI(mb) { cb =>
         e1.toI(cb).flatMap(cb) { case sc1: SStringValue =>
           e2.toI(cb).flatMap(cb) { case sc2: SStringValue =>
             val n = cb.newLocal("hamming_n", 0)
@@ -785,7 +785,7 @@ object StringFunctions extends RegistryFunctions {
       TTuple(tv("T")),
       (rType: Type, _: Seq[SType]) => SType.canonical(rType),
       typeParameters = Array(tv("T")),
-    ) { case (er, cb, _, resultType, Array(s: SStringValue), _) =>
+    ) { case (r, cb, _, resultType, Array(s: SStringValue), _) =>
       val warnCtx = cb.emb.genFieldThisRef[mutable.HashSet[String]]("parse_json_context")
       cb.if_(warnCtx.load().isNull, cb.assign(warnCtx, Code.newInstance[mutable.HashSet[String]]()))
 
@@ -793,11 +793,11 @@ object StringFunctions extends RegistryFunctions {
         JSONAnnotationImpex.getClass,
         "irImportAnnotation",
         s.loadString(cb),
-        er.mb.ecb.getType(resultType.virtualType.asInstanceOf[TTuple].types(0)),
+        cb.emb.ecb.getType(resultType.virtualType.asInstanceOf[TTuple].types(0)),
         warnCtx,
       )
 
-      unwrapReturn(cb, er.region, resultType, row)
+      unwrapReturn(cb, r, resultType, row)
     }
   }
 }

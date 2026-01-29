@@ -61,12 +61,12 @@ object ApproxCDFFunctions extends RegistryFunctions {
       (_, _, _, _) => SBaseStructPointer(statePType),
     ) {
       case (r, cb, _, k: SInt32Value, left: SBaseStructValue, right: SBaseStructValue, _) =>
-        val leftState = makeStateManager(cb, r.region, k.value, left)
-        val rightState = makeStateManager(cb, r.region, k.value, right)
+        val leftState = makeStateManager(cb, r, k.value, left)
+        val rightState = makeStateManager(cb, r, k.value, right)
 
         cb += leftState.invoke[ApproxCDFStateManager, Unit]("combOp", rightState)
 
-        fromStateManager(cb, r.region, leftState)
+        fromStateManager(cb, r, leftState)
     }
   }
 }

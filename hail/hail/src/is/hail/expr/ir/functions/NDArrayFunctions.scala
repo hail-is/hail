@@ -212,9 +212,9 @@ object NDArrayFunctions extends RegistryFunctions {
       TNDArray(TFloat64, Nat(2)),
       (t, p1, p2) => PCanonicalNDArray(PFloat64Required, 2, true).sType,
     ) {
-      case (er, cb, SNDArrayPointer(pt), apc, bpc, errorID) =>
+      case (r, cb, SNDArrayPointer(pt), apc, bpc, errorID) =>
         val (resPCode, info) =
-          linear_solve(apc.asNDArray, bpc.asNDArray, pt, cb, er.region, errorID)
+          linear_solve(apc.asNDArray, bpc.asNDArray, pt, cb, r, errorID)
         cb.if_(
           info cne 0,
           cb._fatalWithError(
@@ -287,14 +287,14 @@ object NDArrayFunctions extends RegistryFunctions {
       TNDArray(TFloat64, Nat(2)),
       (t, p1, p2, p3) => PCanonicalNDArray(PFloat64Required, 2, true).sType,
     ) {
-      case (er, cb, SNDArrayPointer(pt), apc, bpc, lower, errorID) =>
+      case (r, cb, SNDArrayPointer(pt), apc, bpc, lower, errorID) =>
         val (resPCode, info) = linear_triangular_solve(
           apc.asNDArray,
           bpc.asNDArray,
           lower.asBoolean,
           pt,
           cb,
-          er.region,
+          r,
           errorID,
         )
         cb.if_(
@@ -317,7 +317,7 @@ object NDArrayFunctions extends RegistryFunctions {
       (_, _, _, _) => PCanonicalNDArray(PFloat64Required, 2, true).sType,
     ) {
       case (
-            er,
+            r,
             cb,
             rst: SNDArrayPointer,
             block: SNDArrayValue,
@@ -325,7 +325,7 @@ object NDArrayFunctions extends RegistryFunctions {
             upper: SInt64Value,
             _,
           ) =>
-        val newBlock = rst.coerceOrCopy(cb, er.region, block, deepCopy = false).asInstanceOf[
+        val newBlock = rst.coerceOrCopy(cb, r, block, deepCopy = false).asInstanceOf[
           SNDArrayPointerValue
         ]
         val IndexedSeq(nRows, nCols) = newBlock.shapes
@@ -351,13 +351,11 @@ object NDArrayFunctions extends RegistryFunctions {
                 cb.assign(j, j + 1L)
               },
               // block(i to i, 0 until j) := 0.0
-              newBlock.slice(cb, i, (null, j)).coiterateMutate(cb, er.region) { _ =>
-                primitive(0.0d)
-              },
+              newBlock.slice(cb, i, (null, j)).coiterateMutate(cb, r)(_ => primitive(0.0d)),
             )
 
             // block(iRight until nRows, ::) := 0.0
-            newBlock.slice(cb, (iRight, null), ColonIndex).coiterateMutate(cb, er.region) { _ =>
+            newBlock.slice(cb, (iRight, null), ColonIndex).coiterateMutate(cb, r) { _ =>
               primitive(0.0d)
             }
           },
@@ -369,7 +367,7 @@ object NDArrayFunctions extends RegistryFunctions {
             cb.assign(iRight, (nCols.get - upper.value).min(nRows.get))
 
             // block(0 util iLeft, ::) := 0.0
-            newBlock.slice(cb, (null, iLeft), ColonIndex).coiterateMutate(cb, er.region) { _ =>
+            newBlock.slice(cb, (null, iLeft), ColonIndex).coiterateMutate(cb, r) { _ =>
               primitive(0.0d)
             }
 
@@ -383,9 +381,7 @@ object NDArrayFunctions extends RegistryFunctions {
                 cb.assign(j, j + 1)
               },
               // block(i to i, j to nCols) := 0.0
-              newBlock.slice(cb, i, (j, null)).coiterateMutate(cb, er.region) { _ =>
-                primitive(0.0d)
-              },
+              newBlock.slice(cb, i, (j, null)).coiterateMutate(cb, r)(_ => primitive(0.0d)),
             )
           },
         )
@@ -402,7 +398,7 @@ object NDArrayFunctions extends RegistryFunctions {
       (_, _, _, _) => PCanonicalNDArray(PFloat64Required, 2, true).sType,
     ) {
       case (
-            er,
+            r,
             cb,
             rst: SNDArrayPointer,
             block: SNDArrayValue,
@@ -410,7 +406,7 @@ object NDArrayFunctions extends RegistryFunctions {
             stops: SIndexableValue,
             _,
           ) =>
-        val newBlock = rst.coerceOrCopy(cb, er.region, block, deepCopy = false).asInstanceOf[
+        val newBlock = rst.coerceOrCopy(cb, r, block, deepCopy = false).asInstanceOf[
           SNDArrayPointerValue
         ]
         val row = cb.newLocal[Long]("rowIdx")
@@ -421,12 +417,8 @@ object NDArrayFunctions extends RegistryFunctions {
           cb.assign(row, row + 1L), {
             val start = starts.loadElement(cb, row.toI).getOrAssert(cb).asInt64.value
             val stop = stops.loadElement(cb, row.toI).getOrAssert(cb).asInt64.value
-            newBlock.slice(cb, row, (null, start)).coiterateMutate(cb, er.region) { _ =>
-              primitive(0.0d)
-            }
-            newBlock.slice(cb, row, (stop, null)).coiterateMutate(cb, er.region) { _ =>
-              primitive(0.0d)
-            }
+            newBlock.slice(cb, row, (null, start)).coiterateMutate(cb, r)(_ => primitive(0.0d))
+            newBlock.slice(cb, row, (stop, null)).coiterateMutate(cb, r)(_ => primitive(0.0d))
           },
         )
 

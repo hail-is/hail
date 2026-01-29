@@ -341,9 +341,9 @@ object MathFunctions extends RegistryFunctions {
             statsPackageClass,
             "pgenchisq",
             x.value,
-            Code.checkcast[IndexedSeq[Double]](svalueToJavaValue(cb, r.region, w)),
-            Code.checkcast[IndexedSeq[Int]](svalueToJavaValue(cb, r.region, k)),
-            Code.checkcast[IndexedSeq[Double]](svalueToJavaValue(cb, r.region, lam)),
+            Code.checkcast[IndexedSeq[Double]](svalueToJavaValue(cb, r, w)),
+            Code.checkcast[IndexedSeq[Int]](svalueToJavaValue(cb, r, k)),
+            Code.checkcast[IndexedSeq[Double]](svalueToJavaValue(cb, r, lam)),
             sigma.value,
             maxIterations.value,
             minAccuracy.value,
@@ -352,7 +352,7 @@ object MathFunctions extends RegistryFunctions {
 
         DaviesAlgorithm.pType.constructFromFields(
           cb,
-          r.region,
+          r,
           FastSeq(
             EmitValue.present(primitive(cb.memoize(res.invoke[Double]("value")))),
             EmitValue.present(primitive(cb.memoize(res.invoke[Int]("nIterations")))),
@@ -439,7 +439,7 @@ object MathFunctions extends RegistryFunctions {
 
       fetStruct.constructFromFields(
         cb,
-        r.region,
+        r,
         FastSeq(
           EmitValue.present(primitive(cb.memoize(res(0)))),
           EmitValue.present(primitive(cb.memoize(res(1)))),
@@ -473,7 +473,7 @@ object MathFunctions extends RegistryFunctions {
 
       chisqStruct.constructFromFields(
         cb,
-        r.region,
+        r,
         FastSeq(
           EmitValue.present(primitive(cb.memoize(res(0)))),
           EmitValue.present(primitive(cb.memoize(res(1)))),
@@ -518,7 +518,7 @@ object MathFunctions extends RegistryFunctions {
 
         chisqStruct.constructFromFields(
           cb,
-          r.region,
+          r,
           FastSeq(
             EmitValue.present(primitive(cb.memoize(res(0)))),
             EmitValue.present(primitive(cb.memoize(res(1)))),
@@ -560,7 +560,7 @@ object MathFunctions extends RegistryFunctions {
 
         hweStruct.constructFromFields(
           cb,
-          r.region,
+          r,
           FastSeq(
             EmitValue.present(primitive(cb.memoize(res(0)))),
             EmitValue.present(primitive(cb.memoize(res(1)))),
