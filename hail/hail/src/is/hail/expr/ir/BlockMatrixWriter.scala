@@ -13,6 +13,7 @@ import is.hail.types.TypeWithRequiredness
 import is.hail.types.encoded.{EBlockMatrixNDArray, EType}
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 import is.hail.utils.richUtils.RichDenseMatrixDouble
 
 import java.io.DataOutputStream
@@ -108,7 +109,7 @@ case class BlockMatrixNativeMetadataWriter(
     partIdxToBlockIdx: Option[IndexedSeq[Int]],
   ) {
     def write(fs: FS, rawPartFiles: Array[String]): Unit = {
-      val partFiles = rawPartFiles.map(_.split('/').last)
+      val partFiles = ArraySeq.unsafeWrapArray(rawPartFiles).map(_.split('/').last)
       using(new DataOutputStream(fs.create(s"$path/metadata.json"))) { os =>
         implicit val formats = defaultJSONFormats
         jackson.Serialization.write(
@@ -201,7 +202,7 @@ case class BlockMatrixPersistWriter(id: String, storageLevel: String) extends Bl
 
 case class BlockMatrixRectanglesWriter(
   path: String,
-  rectangles: Array[Array[Long]],
+  rectangles: IndexedSeq[IndexedSeq[Long]],
   delimiter: String,
   binary: Boolean,
 ) extends BlockMatrixWriter {

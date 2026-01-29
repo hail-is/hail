@@ -15,7 +15,7 @@ object PCanonicalTuple {
 final case class PCanonicalTuple(
   _types: IndexedSeq[PTupleField],
   override val required: Boolean = false,
-) extends PCanonicalBaseStruct(_types.map(_.typ).toArray) with PTuple {
+) extends PCanonicalBaseStruct(_types.map(_.typ)) with PTuple {
   lazy val fieldIndex: Map[Int, Int] = _types.zipWithIndex.map { case (tf, idx) =>
     tf.index -> idx
   }.toMap

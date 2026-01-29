@@ -129,7 +129,7 @@ class VEP(private val params: VEPParameters, conf: VEPConfiguration)
                     val a: Annotation =
                       csqPattern
                         .findFirstIn(s)
-                        .map(_.substring(4).split(",").to(ArraySeq))
+                        .map(v => ArraySeq.unsafeWrapArray(v.substring(4).split(",")))
                         .getOrElse {
                           logger.warn(
                             s"""No CSQ INFO field for VEP output variant ${locusAllelesToString(vepv)}.
@@ -261,7 +261,7 @@ class VEP(private val params: VEPParameters, conf: VEPConfiguration)
   def variantFromInput(input: String): (Locus, IndexedSeq[String]) =
     try {
       val a = input.split("\t")
-      (Locus(a(0), a(1).toInt), a(3) +: a(4).split(","))
+      (Locus(a(0), a(1).toInt), ArraySeq.unsafeWrapArray(a(3) +: a(4).split(",")))
     } catch {
       case e: Throwable => fatal(s"VEP returned invalid variant '$input'", e)
     }

@@ -10,7 +10,8 @@ import is.hail.expr.ir.defs.{
 }
 import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR}
 import is.hail.types.virtual._
-import is.hail.utils.{toRichIterable, FastSeq}
+import is.hail.utils.FastSeq
+import is.hail.utils.compat.immutable.ArraySeq
 import is.hail.variant.Call2
 
 import org.apache.spark.sql.Row
@@ -1258,7 +1259,7 @@ class AggregatorsSuite extends HailSuite {
     assertEvalsTo(getAgg(10, 10, Some(1)), FastSeq(0L))
     assertEvalsTo(
       getAgg(10, 10, Some(GetField(Ref(TableIR.globalName, TStruct("m" -> TInt32)), "m"))),
-      Array.fill(10)(0L).toFastSeq,
+      ArraySeq.fill(10)(0L),
     )
   }
 

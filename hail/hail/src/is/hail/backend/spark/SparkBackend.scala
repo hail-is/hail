@@ -14,6 +14,7 @@ import is.hail.rvd.RVD
 import is.hail.types._
 import is.hail.types.physical.{PStruct, PTuple}
 import is.hail.utils._
+import is.hail.utils.compat._
 import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.collection.mutable
@@ -282,7 +283,7 @@ class SparkBackend(val spark: SparkSession) extends Backend with Logging {
         val todo: IndexedSeq[Int] =
           partitions.getOrElse(contexts.indices)
 
-        val buffer = ArraySeq.newBuilder[(Array[Byte], Int)]
+        val buffer = ArraySeq.newSortedByBuilder[(Array[Byte], Int)](_._2)
         buffer.sizeHint(todo.length)
 
         var failure: Option[Throwable] =
@@ -312,7 +313,7 @@ class SparkBackend(val spark: SparkSession) extends Backend with Logging {
             throw new CancellationException()
         } finally sc.clearJobGroup()
 
-        (failure, buffer.result().sortBy(_._2))
+        (failure, buffer.result())
       }
     }
 
@@ -409,7 +410,7 @@ class SparkBackend(val spark: SparkSession) extends Backend with Logging {
       val f = rowType.fields(i)
       val fo = f.typ.ordering(ctx.stateManager)
       if (so == Ascending) fo else fo.reverse
-    }.toArray
+    }
 
     val ord: Ordering[Annotation] = ExtendedOrdering.rowOrdering(sortColIndexOrd).toOrdering
 

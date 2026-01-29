@@ -106,8 +106,8 @@ abstract class RelationalSpec {
 
   def globalsComponent: RVDComponentSpec = getComponent[RVDComponentSpec]("globals")
 
-  def partitionCounts: Array[Long] =
-    getComponent[PartitionCountsComponentSpec]("partition_counts").counts.toArray
+  def partitionCounts: IndexedSeq[Long] =
+    getComponent[PartitionCountsComponentSpec]("partition_counts").counts
 
   def isDistinctlyKeyed: Boolean = getOptionalComponent[PropertiesSpec]("properties").flatMap(
     _.properties.values.get("distinctlyKeyed").map(_.asInstanceOf[Boolean])
@@ -131,7 +131,7 @@ case class RVDComponentSpec(rel_path: String) extends ComponentSpec {
   def indexed(fs: FS, path: String): Boolean = rvdSpec(fs, path).indexed
 }
 
-case class PartitionCountsComponentSpec(counts: Seq[Long]) extends ComponentSpec
+case class PartitionCountsComponentSpec(counts: IndexedSeq[Long]) extends ComponentSpec
 
 case class PropertiesSpec(properties: JObject) extends ComponentSpec
 

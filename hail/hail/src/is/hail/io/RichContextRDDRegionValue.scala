@@ -21,7 +21,7 @@ import org.apache.spark.sql.Row
 object RichContextRDDRegionValue {
   def writeRowsPartition(
     makeEnc: (OutputStream, HailClassLoader) => Encoder,
-    indexKeyFieldIndices: Array[Int] = null,
+    indexKeyFieldIndices: IndexedSeq[Int] = null,
     rowType: PStruct = null,
   )(
     ctx: RVDContext,
@@ -235,7 +235,7 @@ class RichContextRDDLong(val crdd: ContextRDD[Long]) extends AnyVal {
     t: RVDType,
     stageLocally: Boolean,
     encoding: AbstractTypedCodecSpec,
-  ): Array[FileWriteMetadata] = {
+  ): IndexedSeq[FileWriteMetadata] = {
     crdd.writePartitions(
       ctx,
       path,

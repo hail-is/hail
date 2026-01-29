@@ -7,6 +7,7 @@ import is.hail.types.physical.{
 }
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 import is.hail.variant._
 
 import scala.collection.mutable
@@ -42,7 +43,7 @@ object SparkAnnotationImpex {
     case StructType(fields) =>
       PCanonicalStruct(fields.map { f =>
         (f.name, importType(f.dataType).setRequired(!f.nullable))
-      }: _*)
+      }.unsafeToArraySeq: _*)
   }
 
   def exportType(t: Type): DataType = (t: @unchecked) match {
@@ -286,23 +287,17 @@ object JSONAnnotationImpex extends Logging {
             }
           }
 
-          Annotation.fromSeq(a)
+          Annotation.fromSeq(ArraySeq.unsafeWrapArray(a))
         }
       case (JArray(elts), t: TTuple) =>
         if (t.size == 0)
           Annotation.empty
         else {
-          val annotationSize =
-            if (padNulls) t.size
-            else elts.length
-          val a = Array.fill[Any](annotationSize)(null)
-          var i = 0
-          for (jvelt <- elts) {
-            a(i) = imp(jvelt, t.types(i), parent)
-            i += 1
-          }
-
-          Annotation.fromSeq(a)
+          val b = ArraySeq.newBuilder[Any]
+          b.sizeHint(t.size)
+          b ++= elts
+          for (_ <- elts.length until t.size) b += null
+          b.result()
         }
       case (_, TLocus(_)) =>
         jv.extract[Locus]
@@ -338,9 +333,7 @@ object JSONAnnotationImpex extends Logging {
       case (JString(x), TCall) => Call.parse(x)
 
       case (JArray(a), TArray(elementType)) =>
-        a.iterator.map(jv2 => imp(jv2, elementType, parent + "[element]")).toArray[Any]: IndexedSeq[
-          Any
-        ]
+        a.view.map(jv2 => imp(jv2, elementType, parent + "[element]")).to(ArraySeq)
 
       case (JArray(a), TSet(elementType)) =>
         a.iterator.map(jv2 => imp(jv2, elementType, parent + "[element]")).toSet[Any]
