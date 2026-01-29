@@ -717,17 +717,20 @@ class Pretty(
           if (i == 1) some(accumName -> "accum")
           else if (i == 2) some(accumName -> "l", otherAccumName -> "r")
           else None
+        case _: AggGroupBy =>
+          if (i == 1) some()
+          else None
         case ArraySort(_, left, right, _) =>
           if (i == 1) some(left -> "l", right -> "r")
           else None
-        case _: Coalesce =>
-          some()
         case BlockMatrixMap(_, eltName, _, _) =>
           if (i == 1) some(eltName -> "elt")
           else None
         case BlockMatrixMap2(_, _, lName, rName, _, _) =>
           if (i == 2) some(lName -> "l", rName -> "r")
           else None
+        case _: Coalesce =>
+          some()
         case CollectDistributedArray(_, _, cname, gname, _, _, _, _) =>
           if (i == 2) some(cname -> "ctx", gname -> "g")
           else None
