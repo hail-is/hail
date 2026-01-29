@@ -683,6 +683,9 @@ class Pretty(
     def childIsStrict(ir: BaseIR, i: Int): Boolean = blockArgs(ir, i).isEmpty
 
     def blockArgs(ir: BaseIR, i: Int): Option[IndexedSeq[(Name, String)]] = ir match {
+      case ApplyAggOp(initOpArgs, _, _) =>
+        if (i >= initOpArgs.length) Some(ArraySeq.empty)
+        else None
       case If(_, _, _) =>
         if (i > 0) Some(FastSeq()) else None
       case _: Switch =>
