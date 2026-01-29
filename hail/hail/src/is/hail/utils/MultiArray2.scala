@@ -17,23 +17,23 @@ class MultiArray2[@specialized(Int, Long, Float, Double, Boolean) T](
   class Row(val i: Int) extends IndexedSeq[T] {
     require(i >= 0 && i < n1)
 
-    def apply(j: Int): T = {
+    override def apply(j: Int): T = {
       if (j < 0 || j >= length) throw new ArrayIndexOutOfBoundsException
       a(i * n2 + j)
     }
 
-    def length: Int = n2
+    override def length: Int = n2
   }
 
   class Column(val j: Int) extends IndexedSeq[T] {
     require(j >= 0 && j < n2)
 
-    def apply(i: Int): T = {
+    override def apply(i: Int): T = {
       if (i < 0 || i >= length) throw new ArrayIndexOutOfBoundsException
       a(i * n2 + j)
     }
 
-    def length: Int = n1
+    override def length: Int = n1
   }
 
   def row(i: Int) = new Row(i)
@@ -73,7 +73,7 @@ class MultiArray2[@specialized(Int, Long, Float, Double, Boolean) T](
     new MultiArray2(n1, n2, a.zip(other.a))
   }
 
-  def iterator: Iterator[T] = a.iterator
+  override def iterator: Iterator[T] = a.iterator
 }
 
 object MultiArray2 {

@@ -7,9 +7,9 @@ class Locals(
 
   def nLocals: Int = locals.length
 
-  def length: Int = locals.length
+  override def length: Int = locals.length
 
-  def apply(i: Int): Local = locals(i)
+  override def apply(i: Int): Local = locals(i)
 
   def getIndex(l: Local): Option[Int] = {
     l match {

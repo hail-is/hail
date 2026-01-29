@@ -39,9 +39,9 @@ case class LinearRegressionRowsSingle(
     )
   }
 
-  def preservesPartitionCounts: Boolean = true
+  override def preservesPartitionCounts: Boolean = true
 
-  def execute(ctx: ExecuteContext, mv: MatrixValue): TableValue = {
+  override def execute(ctx: ExecuteContext, mv: MatrixValue): TableValue = {
     val (y, cov, completeColIdx) =
       RegressionUtils.getPhenosCovCompleteSamples(mv, yFields.toArray, covFields.toArray)
 
@@ -219,9 +219,9 @@ case class LinearRegressionRowsChained(
     )
   }
 
-  def preservesPartitionCounts: Boolean = true
+  override def preservesPartitionCounts: Boolean = true
 
-  def execute(ctx: ExecuteContext, mv: MatrixValue): TableValue = {
+  override def execute(ctx: ExecuteContext, mv: MatrixValue): TableValue = {
 
     val localData = yFields.map(y =>
       RegressionUtils.getPhenosCovCompleteSamples(mv, y.toArray, covFields.toArray)

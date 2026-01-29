@@ -9,7 +9,7 @@ import is.hail.types.virtual.{MatrixType, TInt64, TableType, Type}
 case class ForceCountTable() extends TableToValueFunction {
   override def typ(childType: TableType): Type = TInt64
 
-  def unionRequiredness(childType: RTable, resultType: TypeWithRequiredness): Unit = ()
+  override def unionRequiredness(childType: RTable, resultType: TypeWithRequiredness): Unit = ()
 
   override def execute(ctx: ExecuteContext, tv: TableValue): Any = tv.rvd.count()
 }
@@ -17,7 +17,7 @@ case class ForceCountTable() extends TableToValueFunction {
 case class ForceCountMatrixTable() extends MatrixToValueFunction {
   override def typ(childType: MatrixType): Type = TInt64
 
-  def unionRequiredness(childType: RTable, resultType: TypeWithRequiredness): Unit = ()
+  override def unionRequiredness(childType: RTable, resultType: TypeWithRequiredness): Unit = ()
 
   override def execute(ctx: ExecuteContext, mv: MatrixValue): Any =
     throw new UnsupportedOperationException

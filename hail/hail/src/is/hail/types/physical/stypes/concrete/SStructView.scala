@@ -106,7 +106,7 @@ final class SStructView(
       ct
     }
 
-  def storageType(): PType = {
+  override def storageType(): PType = {
     val pt = PCanonicalStruct(
       required = false,
       args = rename.fieldNames.zip(fieldEmitTypes.map(_.copiedType.storageType)): _*,

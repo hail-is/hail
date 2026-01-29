@@ -9,7 +9,7 @@ abstract class PDict extends PContainer {
   val keyType: PType
   val valueType: PType
 
-  def sType: SContainer
+  override def sType: SContainer
 
-  def elementType: PStruct
+  override def elementType: PStruct
 }

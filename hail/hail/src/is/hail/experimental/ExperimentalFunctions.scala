@@ -8,7 +8,7 @@ import is.hail.types.virtual.{TArray, TFloat64, TInt32, Type}
 
 object ExperimentalFunctions extends RegistryFunctions {
 
-  def registerAll(): Unit = {
+  override def registerAll(): Unit = {
     val experimentalPackageClass = Class.forName("is.hail.experimental.package$")
 
     registerScalaFunction(

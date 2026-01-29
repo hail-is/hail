@@ -4,7 +4,7 @@ import java.util.function._
 
 final case class Box[T](
   b: ThreadLocal[Option[T]] = ThreadLocal.withInitial(
-    new Supplier[Option[T]] { def get = None }
+    new Supplier[Option[T]] { override def get = None }
   ),
   matchCond: (T, T) => Boolean = { (a: T, b: T) => a == b },
 ) {

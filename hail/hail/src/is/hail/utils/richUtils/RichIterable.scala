@@ -30,40 +30,40 @@ class RichIterable[T](val i: Iterable[T]) extends Serializable {
     i.iterator.foreachBetween(f)(g)
 
   def intersperse[S >: T](sep: S): Iterable[S] = new Iterable[S] {
-    def iterator = i.iterator.intersperse(sep)
+    override def iterator = i.iterator.intersperse(sep)
   }
 
   def intersperse[S >: T](start: S, sep: S, end: S): Iterable[S] = new Iterable[S] {
-    def iterator = i.iterator.intersperse(start, sep, end)
+    override def iterator = i.iterator.intersperse(start, sep, end)
   }
 
   def +:[S >: T](elt: S): Iterable[S] = new Iterable[S] {
-    def iterator = Iterator.single(elt) ++ i
+    override def iterator = Iterator.single(elt) ++ i
   }
 
   def lazyMapWith[T2, S](i2: Iterable[T2], f: (T, T2) => S): Iterable[S] =
     new Iterable[S] with Serializable {
-      def iterator: Iterator[S] = new Iterator[S] {
+      override def iterator: Iterator[S] = new Iterator[S] {
         val it: Iterator[T] = i.iterator
         val it2: Iterator[T2] = i2.iterator
 
-        def hasNext: Boolean = it.hasNext && it2.hasNext
+        override def hasNext: Boolean = it.hasNext && it2.hasNext
 
-        def next(): S = f(it.next(), it2.next())
+        override def next(): S = f(it.next(), it2.next())
       }
     }
 
   def lazyMapWith2[T2, T3, S](i2: Iterable[T2], i3: Iterable[T3], f: (T, T2, T3) => S)
     : Iterable[S] =
     new Iterable[S] with Serializable {
-      def iterator: Iterator[S] = new Iterator[S] {
+      override def iterator: Iterator[S] = new Iterator[S] {
         val it: Iterator[T] = i.iterator
         val it2: Iterator[T2] = i2.iterator
         val it3: Iterator[T3] = i3.iterator
 
-        def hasNext: Boolean = it.hasNext && it2.hasNext && it3.hasNext
+        override def hasNext: Boolean = it.hasNext && it2.hasNext && it3.hasNext
 
-        def next(): S = f(it.next(), it2.next(), it3.next())
+        override def next(): S = f(it.next(), it2.next(), it3.next())
       }
     }
 
@@ -89,12 +89,12 @@ class RichIterable[T](val i: Iterable[T]) extends Serializable {
   }
 
   def truncatable(delim: String = ", ", toTake: Int = 10): Truncatable = new Truncatable {
-    def truncate: String = if (i.size > toTake)
+    override def truncate: String = if (i.size > toTake)
       i.take(toTake).mkString(delim) + delim + "..."
     else
       i.mkString(delim)
 
-    def strings: (String, String) = (truncate, i.mkString(delim))
+    override def strings: (String, String) = (truncate, i.mkString(delim))
   }
 
   def counter(): Map[T, Int] = {

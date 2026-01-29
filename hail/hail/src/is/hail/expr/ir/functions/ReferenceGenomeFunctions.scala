@@ -14,7 +14,7 @@ object ReferenceGenomeFunctions extends RegistryFunctions {
   def rgCode(mb: EmitMethodBuilder[_], rg: String): Code[ReferenceGenome] =
     mb.getReferenceGenome(rg)
 
-  def registerAll(): Unit = {
+  override def registerAll(): Unit = {
     registerSCode1t(
       "isValidContig",
       Array(LocusFunctions.tlocus("R")),

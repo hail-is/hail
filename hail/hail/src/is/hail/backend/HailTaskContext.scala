@@ -44,7 +44,7 @@ abstract class HailTaskContext extends AutoCloseable with Logging {
     f
   }
 
-  def close(): Unit = {
+  override def close(): Unit = {
     logger.info(
       s"TaskReport: stage=${stageId()}, partition=${partitionId()}, attempt=${attemptNumber()}, " +
         s"peakBytes=${thePool.getHighestTotalUsage}, peakBytesReadable=${formatSpace(thePool.getHighestTotalUsage)}, " +

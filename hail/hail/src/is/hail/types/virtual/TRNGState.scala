@@ -8,9 +8,9 @@ case object TRNGState extends Type {
   override def pyString(sb: StringBuilder): Unit =
     sb ++= "rng_state"
 
-  def _typeCheck(a: Any): Boolean = ???
+  override def _typeCheck(a: Any): Boolean = ???
 
-  def mkOrdering(sm: HailStateManager, missingEqual: Boolean)
+  override def mkOrdering(sm: HailStateManager, missingEqual: Boolean)
     : is.hail.annotations.ExtendedOrdering = ???
 
   override def isIsomorphicTo(t: Type): Boolean =

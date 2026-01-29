@@ -22,11 +22,11 @@ case class MatrixExportEntriesByCol(
   headerJsonInFile: Boolean,
   useStringKeyAsFileName: Boolean,
 ) extends MatrixToValueFunction with Logging {
-  def typ(childType: MatrixType): Type = TVoid
+  override def typ(childType: MatrixType): Type = TVoid
 
-  def unionRequiredness(childType: RTable, resultType: TypeWithRequiredness): Unit = ()
+  override def unionRequiredness(childType: RTable, resultType: TypeWithRequiredness): Unit = ()
 
-  def execute(ctx: ExecuteContext, mv: MatrixValue): Any = {
+  override def execute(ctx: ExecuteContext, mv: MatrixValue): Any = {
     val fs = ctx.fs
 
     fs.delete(path, recursive = true) // overwrite by default

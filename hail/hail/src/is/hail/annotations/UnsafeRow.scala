@@ -13,10 +13,10 @@ import org.apache.spark.sql.Row
 import sun.reflect.generics.reflectiveObjects.NotImplementedException
 
 trait UnKryoSerializable extends KryoSerializable {
-  def write(kryo: Kryo, output: Output): Unit =
+  override def write(kryo: Kryo, output: Output): Unit =
     throw new NotImplementedException()
 
-  def read(kryo: Kryo, input: Input): Unit =
+  override def read(kryo: Kryo, input: Input): Unit =
     throw new NotImplementedException()
 }
 
@@ -28,7 +28,7 @@ class UnsafeIndexedSeq(
 
   val length: Int = t.loadLength(aoff)
 
-  def apply(i: Int): Annotation = {
+  override def apply(i: Int): Annotation = {
     if (i < 0 || i >= length)
       throw new IndexOutOfBoundsException(i.toString)
     if (t.isElementDefined(aoff, i)) {
@@ -156,19 +156,19 @@ class UnsafeRow(val t: PBaseStruct, var region: Region, var offset: Long)
 
   def set(rv: RegionValue): Unit = set(rv.region, rv.offset)
 
-  def length: Int = t.size
+  override def length: Int = t.size
 
   private def assertDefined(i: Int): Unit =
     if (isNullAt(i))
       throw new NullPointerException(s"null value at index $i")
 
-  def get(i: Int): Any =
+  override def get(i: Int): Any =
     if (isNullAt(i))
       null
     else
       UnsafeRow.read(t.types(i), region, t.loadField(offset, i))
 
-  def copy(): Row = new UnsafeRow(t, region, offset)
+  override def copy(): Row = new UnsafeRow(t, region, offset)
 
   def pretty(): String = Region.pretty(t, offset)
 
@@ -328,12 +328,12 @@ class UnsafeNDArray(val pnd: PNDArray, val region: Region, val ndAddr: Long) ext
   val elementType = pnd.elementType.virtualType
   val coordStorageArray = new Array[Long](shape.size)
 
-  def lookupElement(indices: IndexedSeq[Long]): Annotation = {
+  override def lookupElement(indices: IndexedSeq[Long]): Annotation = {
     val elementAddress = pnd.getElementAddress(indices, ndAddr)
     UnsafeRow.read(pnd.elementType, region, pnd.elementType.unstagedLoadFromNested(elementAddress))
   }
 
-  def getRowMajorElements(): IndexedSeq[Annotation] = {
+  override def getRowMajorElements(): IndexedSeq[Annotation] = {
     val indices = (0 until pnd.nDims).map(_ => 0L).toArray
     var curIdx = indices.size - 1
     var idxIntoFlat = 0

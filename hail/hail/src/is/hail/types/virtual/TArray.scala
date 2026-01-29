@@ -12,7 +12,7 @@ final case class TArray(elementType: Type) extends TContainer {
     sb += '>'
   }
 
-  def _toPretty = s"Array[$elementType]"
+  override def _toPretty = s"Array[$elementType]"
 
   override def canCompare(other: Type): Boolean = other match {
     case TArray(otherType) => elementType.canCompare(otherType)
@@ -32,7 +32,7 @@ final case class TArray(elementType: Type) extends TContainer {
     sb += ']'
   }
 
-  def _typeCheck(a: Any): Boolean = a.isInstanceOf[IndexedSeq[_]] &&
+  override def _typeCheck(a: Any): Boolean = a.isInstanceOf[IndexedSeq[_]] &&
     a.asInstanceOf[IndexedSeq[_]].forall(elementType.typeCheck)
 
   override def _showStr(a: Annotation): String =
@@ -42,7 +42,7 @@ final case class TArray(elementType: Type) extends TContainer {
 
   override def str(a: Annotation): String = JsonMethods.compact(export(a))
 
-  def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =
+  override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =
     ExtendedOrdering.iterableOrdering(elementType.ordering(sm), missingEqual)
 
   override def valueSubsetter(subtype: Type): Any => Any = {

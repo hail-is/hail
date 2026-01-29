@@ -154,7 +154,7 @@ case class MatrixType(
     "g" -> entryType,
   )
 
-  def pretty(sb: StringBuilder, indent0: Int = 0, compact: Boolean = false): Unit = {
+  override def pretty(sb: StringBuilder, indent0: Int = 0, compact: Boolean = false): Unit = {
 
     val space: String = if (compact) "" else " "
     val newline: String = if (compact) "" else "\n"

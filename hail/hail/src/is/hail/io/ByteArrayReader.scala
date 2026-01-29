@@ -27,7 +27,7 @@ class ByteArrayReader(val arr: Array[Byte]) extends AbstractBinaryReader {
   def seek(pos: Int): Unit =
     position = pos
 
-  def skipBytes(bytes: Long): Long = {
+  override def skipBytes(bytes: Long): Long = {
     require(bytes < Integer.MAX_VALUE)
     position += bytes.toInt
     if (position < length)

@@ -19,10 +19,10 @@ final case class PCanonicalSet(elementType: PType, required: Boolean = false)
     extends PSet with PCanonicalArrayBackedContainer {
   val arrayRep = PCanonicalArray(elementType, required)
 
-  def setRequired(required: Boolean) =
+  override def setRequired(required: Boolean) =
     if (required == this.required) this else PCanonicalSet(elementType, required)
 
-  def _asIdent = s"set_of_${elementType.asIdent}"
+  override def _asIdent = s"set_of_${elementType.asIdent}"
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false): Unit = {
     sb ++= "PCSet["

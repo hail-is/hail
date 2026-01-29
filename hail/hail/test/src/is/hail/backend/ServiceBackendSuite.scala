@@ -241,6 +241,8 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
           regions = Array("lunar1"),
         )
 
+      // no idea why this trigger the missing override rule
+      @SuppressWarnings(Array("org.wartremover.contrib.warts.MissingOverride"))
       val batchClient =
         mock[BatchClient]
 

@@ -44,18 +44,18 @@ abstract class IndexedBinaryBlockReader[T](job: Configuration, split: FileSplit)
     )
   }
 
-  def createKey(): LongWritable = new LongWritable()
+  override def createKey(): LongWritable = new LongWritable()
 
-  def createValue(): T
+  override def createValue(): T
 
-  def getPos: Long = pos
+  override def getPos: Long = pos
 
-  def getProgress: Float =
+  override def getProgress: Float =
     if (partitionStart == end)
       0.0f
     else
       Math.min(1.0f, (pos - partitionStart) / (end - partitionStart).toFloat)
 
-  def close() = bfis.close()
+  override def close() = bfis.close()
 
 }

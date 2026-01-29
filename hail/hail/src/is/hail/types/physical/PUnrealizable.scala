@@ -14,7 +14,7 @@ trait PUnrealizable extends PType {
 
   override def alignment: Long = unsupported
 
-  protected[physical] def _copyFromAddress(
+  override protected[physical] def _copyFromAddress(
     sm: HailStateManager,
     region: Region,
     srcPType: PType,
@@ -32,7 +32,7 @@ trait PUnrealizable extends PType {
   ): Long =
     unsupported
 
-  def unstagedStoreAtAddress(
+  override def unstagedStoreAtAddress(
     sm: HailStateManager,
     addr: Long,
     region: Region,

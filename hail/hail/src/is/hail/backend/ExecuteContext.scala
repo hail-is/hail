@@ -161,7 +161,7 @@ class ExecuteContext(
 
   def shouldLogIR(): Boolean = !shouldNotLogIR()
 
-  def close(): Unit = {
+  override def close(): Unit = {
     tempFileManager.close()
     taskContext.close()
   }

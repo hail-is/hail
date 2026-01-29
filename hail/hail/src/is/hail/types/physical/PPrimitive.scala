@@ -8,13 +8,11 @@ import is.hail.types.physical.stypes.SValue
 import is.hail.utils._
 
 trait PPrimitive extends PType {
-  def byteSize: Long
-
   def _construct(mb: EmitMethodBuilder[_], region: Value[Region], pc: SValue): SValue = pc
 
   override def containsPointers: Boolean = false
 
-  def _copyFromAddress(
+  override def _copyFromAddress(
     sm: HailStateManager,
     region: Region,
     srcPType: PType,
@@ -30,7 +28,7 @@ trait PPrimitive extends PType {
     addr
   }
 
-  def unstagedStoreAtAddress(
+  override def unstagedStoreAtAddress(
     sm: HailStateManager,
     addr: Long,
     region: Region,
@@ -42,7 +40,7 @@ trait PPrimitive extends PType {
     Region.copyFrom(srcAddress, addr, byteSize)
   }
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean)
+  override def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean)
     : Value[Long] = {
     val newAddr = cb.memoize(region.allocate(alignment, byteSize))
     storeAtAddress(cb, newAddr, region, value, deepCopy)
@@ -67,7 +65,7 @@ trait PPrimitive extends PType {
     addr
   }
 
-  def setRequired(required: Boolean): PPrimitive = {
+  override def setRequired(required: Boolean): PPrimitive = {
     if (required == this.required)
       this
     else
@@ -80,7 +78,7 @@ trait PPrimitive extends PType {
       }
   }
 
-  def loadFromNested(addr: Code[Long]): Code[Long] = addr
+  override def loadFromNested(addr: Code[Long]): Code[Long] = addr
 
   override def unstagedLoadFromNested(addr: Long): Long = addr
 

@@ -53,7 +53,7 @@ final case class TVariable(name: String, cond: String = null) extends Type {
 
   override def isRealizable = false
 
-  def _typeCheck(a: Any): Boolean =
+  override def _typeCheck(a: Any): Boolean =
     throw new RuntimeException("TVariable is not realizable")
 
   override def unify(concrete: Type): Boolean =

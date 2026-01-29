@@ -6,7 +6,7 @@ import is.hail.backend.HailStateManager
 import org.json4s.jackson.JsonMethods
 
 final case class TSet(elementType: Type) extends TContainer {
-  def _toPretty = s"Set[$elementType]"
+  override def _toPretty = s"Set[$elementType]"
 
   override def pyString(sb: StringBuilder): Unit = {
     sb ++= "set<"
@@ -26,7 +26,7 @@ final case class TSet(elementType: Type) extends TContainer {
 
   override def subst() = TSet(elementType.subst())
 
-  def _typeCheck(a: Any): Boolean =
+  override def _typeCheck(a: Any): Boolean =
     a.isInstanceOf[Set[_]] && a.asInstanceOf[Set[_]].forall(elementType.typeCheck)
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false): Unit = {

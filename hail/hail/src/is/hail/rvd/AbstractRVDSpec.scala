@@ -308,15 +308,15 @@ case class IndexSpec2(
   _annotationType: Type,
   _offsetField: Option[String] = None,
 ) extends AbstractIndexSpec {
-  def relPath: String = _relPath
+  override def relPath: String = _relPath
 
-  def leafCodec: AbstractTypedCodecSpec = _leafCodec
+  override def leafCodec: AbstractTypedCodecSpec = _leafCodec
 
-  def internalNodeCodec: AbstractTypedCodecSpec = _internalNodeCodec
+  override def internalNodeCodec: AbstractTypedCodecSpec = _internalNodeCodec
 
-  def keyType: Type = _keyType
+  override def keyType: Type = _keyType
 
-  def annotationType: Type = _annotationType
+  override def annotationType: Type = _annotationType
 
   override def offsetField: Option[String] = _offsetField
 }
@@ -462,11 +462,11 @@ case class IndexedRVDSpec2(
 
   require(codecSpec2.encodedType.required)
 
-  def typedCodecSpec: AbstractTypedCodecSpec = codecSpec2
+  override def typedCodecSpec: AbstractTypedCodecSpec = codecSpec2
 
-  def indexSpec: AbstractIndexSpec = _indexSpec
+  override def indexSpec: AbstractIndexSpec = _indexSpec
 
-  def partitioner(sm: HailStateManager): RVDPartitioner = {
+  override def partitioner(sm: HailStateManager): RVDPartitioner = {
     val keyType = codecSpec2.encodedVirtualType.asInstanceOf[TStruct].select(key)._1
     val rangeBoundsType = TArray(TInterval(keyType))
     new RVDPartitioner(
@@ -480,9 +480,9 @@ case class IndexedRVDSpec2(
     )
   }
 
-  def partFiles: IndexedSeq[String] = _partFiles
+  override def partFiles: IndexedSeq[String] = _partFiles
 
-  def key: IndexedSeq[String] = _key
+  override def key: IndexedSeq[String] = _key
 
   val attrs: Map[String, String] = _attrs
 
@@ -597,7 +597,7 @@ case class OrderedRVDSpec2(
 
   require(codecSpec2.encodedType.required)
 
-  def partitioner(sm: HailStateManager): RVDPartitioner = {
+  override def partitioner(sm: HailStateManager): RVDPartitioner = {
     val keyType = codecSpec2.encodedVirtualType.asInstanceOf[TStruct].select(key)._1
     val rangeBoundsType = TArray(TInterval(keyType))
     new RVDPartitioner(
@@ -611,11 +611,11 @@ case class OrderedRVDSpec2(
     )
   }
 
-  def partFiles: IndexedSeq[String] = _partFiles
+  override def partFiles: IndexedSeq[String] = _partFiles
 
-  def key: IndexedSeq[String] = _key
+  override def key: IndexedSeq[String] = _key
 
-  def attrs: Map[String, String] = _attrs
+  override def attrs: Map[String, String] = _attrs
 
-  def typedCodecSpec: AbstractTypedCodecSpec = codecSpec2
+  override def typedCodecSpec: AbstractTypedCodecSpec = codecSpec2
 }

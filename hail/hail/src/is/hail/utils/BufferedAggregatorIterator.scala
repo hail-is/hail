@@ -31,10 +31,10 @@ class BufferedAggregatorIterator[T, V, U, K](
       } else false
   }
 
-  def hasNext: Boolean =
+  override def hasNext: Boolean =
     fb.isValid || buffer.size() > 0
 
-  def next(): (K, U) = {
+  override def next(): (K, U) = {
     if (!hasNext)
       throw new NoSuchElementException
     while (fb.isValid) {

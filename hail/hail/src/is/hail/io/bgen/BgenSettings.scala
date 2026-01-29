@@ -115,7 +115,7 @@ object BgenSettings {
     ))
 
     new AbstractIndexSpec {
-      def relPath = fatal("relPath called for bgen index spec")
+      override def relPath = fatal("relPath called for bgen index spec")
       val leafCodec = TypedCodecSpec(leafEType, leafVType, bufferSpec)
       val internalNodeCodec = TypedCodecSpec(internalNodeEType, internalNodeVType, bufferSpec)
       val keyType = keyVType

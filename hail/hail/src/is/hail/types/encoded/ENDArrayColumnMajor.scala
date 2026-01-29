@@ -62,7 +62,7 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
     pndFinisher(cb)
   }
 
-  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
+  override def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
     val skip = elementType.buildSkip(cb.emb.ecb)
 
     val numElements = cb.newLocal[Long](
@@ -73,7 +73,7 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
     cb.for_(cb.assign(i, 0L), i < numElements, cb.assign(i, i + 1L), skip(cb, r, in))
   }
 
-  def _decodedSType(requestedType: Type): SType = {
+  override def _decodedSType(requestedType: Type): SType = {
     val requestedTNDArray = requestedType.asInstanceOf[TNDArray]
     val elementPType = elementType.decodedPType(requestedTNDArray.elementType)
     SNDArrayPointer(PCanonicalNDArray(elementPType, requestedTNDArray.nDims, false))
