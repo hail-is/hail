@@ -531,7 +531,10 @@ class Image:
                 if e.status == 404 and 'pull access denied' in e.message:
                     raise ImageCannotBePulled from e
                 if e.status == 500 and (
-                    ('artifactregistry.repositories.downloadArtifacts' in e.message and 'denied on resource' in e.message)
+                    (
+                        'artifactregistry.repositories.downloadArtifacts' in e.message
+                        and 'denied on resource' in e.message
+                    )
                     or 'Caller does not have permission' in e.message
                     or 'unauthorized' in e.message
                 ):
