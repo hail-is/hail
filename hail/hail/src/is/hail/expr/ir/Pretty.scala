@@ -429,8 +429,6 @@ class Pretty(
       FastSeq(s"$errorID", prettyIdentifier(function), prettyTypes(typeArgs), t.parsableString())
     case ApplySeeded(function, _, _, staticUID, t) =>
       FastSeq(prettyIdentifier(function), staticUID.toString, t.parsableString())
-    case ApplySpecial(function, typeArgs, _, t, errorID) =>
-      FastSeq(s"$errorID", prettyIdentifier(function), prettyTypes(typeArgs), t.parsableString())
     case SelectFields(_, fields) =>
       single(fillList(fields.view.map(f => text(prettyIdentifier(f)))))
     case LowerBoundOnOrderedCollection(_, _, onKey) => single(Pretty.prettyBooleanLiteral(onKey))

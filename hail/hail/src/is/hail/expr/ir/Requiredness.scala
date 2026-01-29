@@ -822,7 +822,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.union(oldReq.required)
         requiredness.unionFrom(oldReq.field(idx))
       case x: ApplyIR => requiredness.unionFrom(lookup(x.body))
-      case x: AbstractApplyNode[_] => // FIXME: round-tripping via PTypes.
+      case x: AbstractApplyNode => // FIXME: round-tripping via PTypes.
         val argP = x.args.map { a =>
           val pt = lookup(a).canonicalPType(a.typ)
           EmitType(pt.sType, pt.required)

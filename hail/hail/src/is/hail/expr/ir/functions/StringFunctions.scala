@@ -707,7 +707,7 @@ object StringFunctions extends RegistryFunctions {
         }
     }
 
-    registerEmitCode2(
+    registerIEmitCode2(
       "hamming",
       TString,
       TString,
@@ -715,39 +715,37 @@ object StringFunctions extends RegistryFunctions {
       {
         case (_: Type, _: EmitType, _: EmitType) => EmitType(SInt32, false)
       },
-    ) { case (mb, _, _, _, e1, e2) =>
-      EmitCode.fromI(mb) { cb =>
-        e1.toI(cb).flatMap(cb) { case sc1: SStringValue =>
-          e2.toI(cb).flatMap(cb) { case sc2: SStringValue =>
-            val n = cb.newLocal("hamming_n", 0)
-            val i = cb.newLocal("hamming_i", 0)
+    ) { case (cb, _, _, _, e1, e2) =>
+      e1.toI(cb).flatMap(cb) { case sc1: SStringValue =>
+        e2.toI(cb).flatMap(cb) { case sc2: SStringValue =>
+          val n = cb.newLocal("hamming_n", 0)
+          val i = cb.newLocal("hamming_i", 0)
 
-            val v1 = cb.newLocal[String]("hamming_str_1", sc1.loadString(cb))
-            val v2 = cb.newLocal[String]("hamming_str_2", sc2.loadString(cb))
+          val v1 = cb.newLocal[String]("hamming_str_1", sc1.loadString(cb))
+          val v2 = cb.newLocal[String]("hamming_str_2", sc2.loadString(cb))
 
-            val l1 = cb.newLocal[Int]("hamming_len_1", v1.invoke[Int]("length"))
-            val l2 = cb.newLocal[Int]("hamming_len_2", v2.invoke[Int]("length"))
-            val m = l1.cne(l2)
+          val l1 = cb.newLocal[Int]("hamming_len_1", v1.invoke[Int]("length"))
+          val l2 = cb.newLocal[Int]("hamming_len_2", v2.invoke[Int]("length"))
+          val m = l1.cne(l2)
 
-            IEmitCode(
-              cb,
-              m, {
-                cb.while_(
-                  i < l1, {
-                    cb.if_(
-                      v1.invoke[Int, Char]("charAt", i).toI.cne(v2.invoke[Int, Char](
-                        "charAt",
-                        i,
-                      ).toI),
-                      cb.assign(n, n + 1),
-                    )
-                    cb.assign(i, i + 1)
-                  },
-                )
-                primitive(n)
-              },
-            )
-          }
+          IEmitCode(
+            cb,
+            m, {
+              cb.while_(
+                i < l1, {
+                  cb.if_(
+                    v1.invoke[Int, Char]("charAt", i).toI.cne(v2.invoke[Int, Char](
+                      "charAt",
+                      i,
+                    ).toI),
+                    cb.assign(n, n + 1),
+                  )
+                  cb.assign(i, i + 1)
+                },
+              )
+              primitive(n)
+            },
+          )
         }
       }
     }
@@ -779,13 +777,13 @@ object StringFunctions extends RegistryFunctions {
       },
     )(thisClass, "strptime")
 
-    registerSCode(
+    registerSCode1t(
       "parse_json",
-      Array(TString),
+      typeParams = Array(tv("T")),
+      TString,
       TTuple(tv("T")),
-      (rType: Type, _: Seq[SType]) => SType.canonical(rType),
-      typeParameters = Array(tv("T")),
-    ) { case (r, cb, _, resultType, Array(s: SStringValue), _) =>
+      (rType, _) => SType.canonical(rType),
+    ) { case (r, cb, _, resultType, s: SStringValue, _) =>
       val warnCtx = cb.emb.genFieldThisRef[mutable.HashSet[String]]("parse_json_context")
       cb.if_(warnCtx.load().isNull, cb.assign(warnCtx, Code.newInstance[mutable.HashSet[String]]()))
 

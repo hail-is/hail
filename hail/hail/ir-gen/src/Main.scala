@@ -76,8 +76,7 @@ trait IRDSL {
   val BaseRef: Trait
   def TypedIR(t: String): Trait
   val NDArrayIR: Trait
-  // AbstractApplyNodeUnseededMissingness{Aware, Oblivious}JVMFunction
-  def ApplyNode(missingnessAware: Boolean = false): Trait
+  val ApplyNode: Trait
 
   // Implicits for common names
 
@@ -121,12 +120,7 @@ object IRDSL_Impl extends IRDSL {
   override val BaseRef: Trait = Trait("BaseRef")
   override def TypedIR(typ: String): Trait = Trait(s"TypedIR[$typ]")
   override val NDArrayIR: Trait = Trait("NDArrayIR")
-
-  override def ApplyNode(missingnessAware: Boolean = false): Trait = {
-    val t =
-      s"AbstractApplyNode[UnseededMissingness${if (missingnessAware) "Aware" else "Oblivious"}JVMFunction]"
-    Trait(t)
-  }
+  override val ApplyNode: Trait = Trait("AbstractApplyNode")
 
   trait Repr[+T] {
     def typ: Type[T]
@@ -1109,7 +1103,7 @@ object Main {
       in("args", child.*),
       in("returnType", att("Type")),
       errorID,
-    ).withTraits(ApplyNode())
+    ).withTraits(ApplyNode)
 
     r += node(
       "ApplySeeded",
@@ -1118,18 +1112,9 @@ object Main {
       in("rngState", child),
       in("staticUID", att("Long")),
       in("returnType", att("Type")),
-    ).withTraits(ApplyNode())
+    ).withTraits(ApplyNode)
       .withPreamble("val args = rngState +: _args")
       .withPreamble("val typeArgs: Seq[Type] = Seq.empty[Type]")
-
-    r += node(
-      "ApplySpecial",
-      in("function", att("String")),
-      in("typeArgs", att("Seq[Type]")),
-      in("args", child.*),
-      in("returnType", att("Type")),
-      errorID,
-    ).withTraits(ApplyNode(missingnessAware = true))
 
     r += node("LiftMeOut", in("child", child))
 
@@ -1222,8 +1207,8 @@ object Main {
         "BlockMatrixMultiWriter, ValueReader, ValueWriter}",
       "is.hail.expr.ir.lowering.TableStageDependency",
       "is.hail.expr.ir.agg.{PhysicalAggSig, AggStateSig}",
-      "is.hail.expr.ir.functions.{UnseededMissingnessAwareJVMFunction, " +
-        "UnseededMissingnessObliviousJVMFunction, TableToValueFunction, MatrixToValueFunction, " +
+      "is.hail.expr.ir.functions.{MissingnessAwareJVMFunction, " +
+        "MissingnessObliviousJVMFunction, TableToValueFunction, MatrixToValueFunction, " +
         "BlockMatrixToValueFunction}",
       "is.hail.expr.ir.defs.exts._",
       "scala.collection.compat._",

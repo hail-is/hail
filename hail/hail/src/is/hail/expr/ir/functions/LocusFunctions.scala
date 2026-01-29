@@ -10,6 +10,7 @@ import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives._
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 import is.hail.variant._
 
 object LocusFunctions extends RegistryFunctions {
@@ -530,50 +531,43 @@ object LocusFunctions extends RegistryFunctions {
             invalidMissing: EmitCode,
           ) =>
         val plocus = rt.pointType.asInstanceOf[PLocus]
+        IEmitCode.multiFlatMap(
+          cb,
+          ArraySeq(
+            locusString.toI,
+            pos1.toI,
+            pos2.toI,
+            include1.toI,
+            include2.toI,
+            invalidMissing.toI,
+          ),
+        ) {
+          case Seq(locusString, pos1, pos2, include1, include2, invalidMissing) =>
+            val interval = cb.newLocal[Interval](
+              "locus_interval_interval",
+              Code.invokeScalaObject7[
+                String,
+                Int,
+                Int,
+                Boolean,
+                Boolean,
+                ReferenceGenome,
+                Boolean,
+                Interval,
+              ](
+                locusClass,
+                "makeInterval",
+                locusString.asString.loadString(cb),
+                pos1.asInt.value,
+                pos2.asInt.value,
+                include1.asBoolean.value,
+                include2.asBoolean.value,
+                rgCode(cb.emb, plocus.rg),
+                invalidMissing.asBoolean.value,
+              ),
+            )
 
-        locusString.toI(cb).flatMap(cb) { locusString =>
-          pos1.toI(cb).flatMap(cb) { pos1 =>
-            pos2.toI(cb).flatMap(cb) { pos2 =>
-              include1.toI(cb).flatMap(cb) { include1 =>
-                include2.toI(cb).flatMap(cb) { include2 =>
-                  invalidMissing.toI(cb).flatMap(cb) { invalidMissing =>
-                    val Lmissing = CodeLabel()
-                    val Ldefined = CodeLabel()
-
-                    val interval = cb.newLocal[Interval](
-                      "locus_interval_interval",
-                      Code.invokeScalaObject7[
-                        String,
-                        Int,
-                        Int,
-                        Boolean,
-                        Boolean,
-                        ReferenceGenome,
-                        Boolean,
-                        Interval,
-                      ](
-                        locusClass,
-                        "makeInterval",
-                        locusString.asString.loadString(cb),
-                        pos1.asInt.value,
-                        pos2.asInt.value,
-                        include1.asBoolean.value,
-                        include2.asBoolean.value,
-                        rgCode(cb.emb, plocus.rg),
-                        invalidMissing.asBoolean.value,
-                      ),
-                    )
-
-                    cb.if_(interval.isNull, cb.goto(Lmissing))
-
-                    val intervalCode = emitLocusInterval(cb, r, interval, rt)
-                    cb.goto(Ldefined)
-                    IEmitCode(Lmissing, Ldefined, intervalCode, false)
-                  }
-                }
-              }
-            }
-          }
+            IEmitCode.apply(cb, interval.isNull, emitLocusInterval(cb, r, interval, rt))
         }
     }
 

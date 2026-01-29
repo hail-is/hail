@@ -231,10 +231,10 @@ object UtilFunctions extends RegistryFunctions {
         ]("valuesSimilar", lb, rb, tol.asDouble.value, abs.asBoolean.value)))
     }
 
-    registerCode1("triangle", TInt32, TInt32, (_: Type, _: SType) => SInt32) {
-      case (cb, _, _, nn) =>
+    registerSCode1("triangle", TInt32, TInt32, (_: Type, _: SType) => SInt32) {
+      case (_, cb, _, nn, _) =>
         val n = nn.asInt.value
-        cb.memoize((n * (n + 1)) / 2)
+        primitive(cb.memoize((n * (n + 1)) / 2))
     }
 
     registerSCode1("toInt32", TBoolean, TInt32, (_: Type, _: SType) => SInt32) {
@@ -313,58 +313,70 @@ object UtilFunctions extends RegistryFunctions {
     }
 
     Array("min", "max").foreach { name =>
-      registerCode2(name, TFloat32, TFloat32, TFloat32, (_: Type, _: SType, _: SType) => SFloat32) {
-        case (cb, _, _, v1, v2) =>
-          cb.memoize(Code.invokeStatic2[Math, Float, Float, Float](
+      registerSCode2(
+        name,
+        TFloat32,
+        TFloat32,
+        TFloat32,
+        (_: Type, _: SType, _: SType) => SFloat32,
+      ) {
+        case (_, cb, _, v1, v2, _) =>
+          primitive(cb.memoize(Code.invokeStatic2[Math, Float, Float, Float](
             name,
             v1.asFloat.value,
             v2.asFloat.value,
-          ))
+          )))
       }
 
-      registerCode2(name, TFloat64, TFloat64, TFloat64, (_: Type, _: SType, _: SType) => SFloat64) {
-        case (cb, _, _, v1, v2) =>
-          cb.memoize(Code.invokeStatic2[Math, Double, Double, Double](
+      registerSCode2(
+        name,
+        TFloat64,
+        TFloat64,
+        TFloat64,
+        (_: Type, _: SType, _: SType) => SFloat64,
+      ) {
+        case (_, cb, _, v1, v2, _) =>
+          primitive(cb.memoize(Code.invokeStatic2[Math, Double, Double, Double](
             name,
             v1.asDouble.value,
             v2.asDouble.value,
-          ))
+          )))
       }
 
       val ignoreMissingName = name + "_ignore_missing"
       val ignoreNanName = "nan" + name
       val ignoreBothName = ignoreNanName + "_ignore_missing"
 
-      registerCode2(
+      registerSCode2(
         ignoreNanName,
         TFloat32,
         TFloat32,
         TFloat32,
         (_: Type, _: SType, _: SType) => SFloat32,
       ) {
-        case (cb, _, _, v1, v2) =>
-          cb.memoize(Code.invokeScalaObject2[Float, Float, Float](
+        case (_, cb, _, v1, v2, _) =>
+          primitive(cb.memoize(Code.invokeScalaObject2[Float, Float, Float](
             thisClass,
             ignoreNanName,
             v1.asFloat.value,
             v2.asFloat.value,
-          ))
+          )))
       }
 
-      registerCode2(
+      registerSCode2(
         ignoreNanName,
         TFloat64,
         TFloat64,
         TFloat64,
         (_: Type, _: SType, _: SType) => SFloat64,
       ) {
-        case (cb, _, _, v1, v2) =>
-          cb.memoize(Code.invokeScalaObject2[Double, Double, Double](
+        case (_, cb, _, v1, v2, _) =>
+          primitive(cb.memoize(Code.invokeScalaObject2[Double, Double, Double](
             thisClass,
             ignoreNanName,
             v1.asDouble.value,
             v2.asDouble.value,
-          ))
+          )))
       }
 
       def ignoreMissingTriplet[T](

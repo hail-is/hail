@@ -9,6 +9,7 @@ import is.hail.expr.ir.analyses.{
 }
 import is.hail.expr.ir.compile.Compile
 import is.hail.expr.ir.defs._
+import is.hail.expr.ir.functions.{MissingnessAwareJVMFunction, MissingnessObliviousJVMFunction}
 import is.hail.expr.ir.lowering.TableStageDependency
 import is.hail.expr.ir.ndarrays.EmitNDArray
 import is.hail.expr.ir.streams.{EmitStream, StreamProducer, StreamUtils}
@@ -2771,6 +2772,45 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
         val rvAgg = agg.Extract.getAgg(sig)
         rvAgg.result(cb, sc.states(idx), region)
 
+      case ir @ Apply(fn, typeArgs, args, rt, errorID) =>
+        ir.implementation match {
+          case impl: MissingnessObliviousJVMFunction =>
+            val unified = impl.unify(typeArgs, args.map(_.typ), rt)
+            assert(unified)
+
+            IEmitCode.multiMap(
+              cb,
+              args.map(arg => (cb: EmitCodeBuilder) => emitInNewBuilder(cb, arg)),
+            ) { codeArgs =>
+              val argSTypes = codeArgs.map(_.st)
+              val retType = impl.computeStrictReturnEmitType(ir.typ, argSTypes)
+              val k = (fn, typeArgs, argSTypes, retType)
+              val meth =
+                methods.get(k) match {
+                  case Some(funcMB) =>
+                    funcMB
+                  case None =>
+                    val funcMB = impl.getAsMethod(mb.ecb, retType, typeArgs, argSTypes: _*)
+                    methods.update(k, funcMB)
+                    funcMB
+                }
+              cb.invokeSCode(
+                meth,
+                FastSeq[Param](cb.this_, CodeParam(region), CodeParam(errorID)) ++ codeArgs.map(
+                  pc =>
+                    pc: Param
+                ): _*
+              )
+            }
+
+          case impl: MissingnessAwareJVMFunction =>
+            val codeArgs = args.map(a => EmitCode.fromI(cb.emb)(emitInNewBuilder(_, a)))
+            val unified = impl.unify(typeArgs, args.map(_.typ), rt)
+            assert(unified)
+            val retType = impl.computeReturnEmitType(ir.typ, codeArgs.map(_.emitType))
+            impl.apply(cb, region, retType.st, typeArgs, errorID, codeArgs: _*)
+        }
+
       case x @ ApplySeeded(_, args, rngState, staticUID, rt) =>
         val codeArgs = args.map(a => EmitCode.fromI(cb.emb)(emitInNewBuilder(_, a)))
         val codeArgsMem = codeArgs.map(_.memoize(cb, "ApplySeeded_arg"))
@@ -2778,7 +2818,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
         val impl = x.implementation
         assert(impl.unify(Array.empty[Type], x.argTypes, rt))
         val newState = EmitCode.present(mb, state.asRNGState.splitStatic(cb, staticUID))
-        impl.applyI(
+        impl.asInstanceOf[MissingnessObliviousJVMFunction].applyI(
           region,
           cb,
           impl.computeReturnEmitType(x.typ, newState.emitType +: codeArgs.map(_.emitType)).st,
@@ -3496,45 +3536,6 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
             s"emit value type did not match specified type:\n name: $name\n  ev: ${ev.st.virtualType}\n  ir: ${ir.typ}"
           )
         ev.load
-
-      case ir @ Apply(fn, typeArgs, args, rt, errorID) =>
-        val impl = ir.implementation
-        val unified = impl.unify(typeArgs, args.map(_.typ), rt)
-        assert(unified)
-
-        val emitArgs = args.map(a => EmitCode.fromI(mb)(emitI(a, _))).toFastSeq
-
-        val argSTypes = emitArgs.map(_.st)
-        val retType = impl.computeStrictReturnEmitType(ir.typ, argSTypes)
-        val k = (fn, typeArgs, argSTypes, retType)
-        val meth =
-          methods.get(k) match {
-            case Some(funcMB) =>
-              funcMB
-            case None =>
-              val funcMB = impl.getAsMethod(mb.ecb, retType, typeArgs, argSTypes: _*)
-              methods.update(k, funcMB)
-              funcMB
-          }
-        EmitCode.fromI(mb) { cb =>
-          val emitArgs = args.map(a => EmitCode.fromI(cb.emb)(emitI(a, _))).toFastSeq
-          IEmitCode.multiMapEmitCodes(cb, emitArgs) { codeArgs =>
-            cb.invokeSCode(
-              meth,
-              FastSeq[Param](cb.this_, CodeParam(region), CodeParam(errorID)) ++ codeArgs.map(pc =>
-                pc: Param
-              ): _*
-            )
-          }
-        }
-
-      case x @ ApplySpecial(_, typeArgs, args, rt, errorID) =>
-        val codeArgs = args.map(a => emit(a))
-        val impl = x.implementation
-        val unified = impl.unify(typeArgs, args.map(_.typ), rt)
-        assert(unified)
-        val retType = impl.computeReturnEmitType(x.typ, codeArgs.map(_.emitType))
-        impl.apply(mb, region, retType.st, typeArgs, errorID, codeArgs: _*)
 
       case WritePartition(stream, pctx, writer) =>
         val ctxCode = emit(pctx)

@@ -5,8 +5,8 @@ import is.hail.ExecStrategy.ExecStrategy
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.defs.{
-  ApplyComparisonOp, ApplySpecial, ArraySort, ErrorIDs, GetField, I32, In, IsNA, Literal,
-  MakeStream, NA, ToArray, ToDict, ToSet, ToStream, True,
+  Apply, ApplyComparisonOp, ArraySort, ErrorIDs, GetField, I32, In, IsNA, Literal, MakeStream, NA,
+  ToArray, ToDict, ToSet, ToStream, True,
 }
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.scalacheck._
@@ -569,7 +569,7 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     val set2 = ToSet(MakeStream(IndexedSeq(I32(9), I32(1), I32(4)), TStream(TInt32)))
     assertEvalsTo(
       foldIR(ToStream(set1), True()) { (acc, elt) =>
-        ApplySpecial(
+        Apply(
           "land",
           FastSeq(),
           FastSeq(

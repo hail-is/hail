@@ -809,12 +809,12 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) extends Logg
           },
           x.typ,
         )
-      case ApplySpecial("lor", _, _, _, _) => children match {
+      case Apply("lor", _, _, _, _) => children match {
           case Seq(ConstantValue(l: Boolean), ConstantValue(r: Boolean)) =>
             ConstantValue(l || r, TBoolean)
           case _ => AbstractLattice.top
         }
-      case ApplySpecial("land", _, _, _, _) => children match {
+      case Apply("land", _, _, _, _) => children match {
           case Seq(ConstantValue(l: Boolean), ConstantValue(r: Boolean)) =>
             ConstantValue(l && r, TBoolean)
           case _ => AbstractLattice.top
@@ -842,7 +842,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) extends Logg
         .restrict(keySet)
     case (IsNA(_), Seq(b: BoolValue)) => b.isNA.restrict(keySet)
     // collection contains
-    case (ApplySpecial("contains", _, _, _, _), Seq(ConstantValue(intervalVal), queryVal)) =>
+    case (Apply("contains", _, _, _, _), Seq(ConstantValue(intervalVal), queryVal)) =>
       (intervalVal: @unchecked) match {
         case null => BoolValue.allNA(keySet)
         case i: Interval => queryVal match {
@@ -891,9 +891,9 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) extends Logg
       }
     case (ApplyComparisonOp(op, _, _), Seq(l, r)) =>
       AbstractLattice.compare(l, r, op, keySet)
-    case (ApplySpecial("lor", _, _, _, _), Seq(l: BoolValue, r: BoolValue)) =>
+    case (Apply("lor", _, _, _, _), Seq(l: BoolValue, r: BoolValue)) =>
       BoolValue.or(l, r)
-    case (ApplySpecial("land", _, _, _, _), Seq(l: BoolValue, r: BoolValue)) =>
+    case (Apply("land", _, _, _, _), Seq(l: BoolValue, r: BoolValue)) =>
       BoolValue.and(l, r)
     case (ApplyUnaryPrimOp(Bang, _), Seq(x: BoolValue)) =>
       BoolValue.not(x)
