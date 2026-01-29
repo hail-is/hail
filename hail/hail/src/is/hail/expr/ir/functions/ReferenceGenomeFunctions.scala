@@ -22,12 +22,12 @@ object ReferenceGenomeFunctions extends RegistryFunctions {
       TBoolean,
       (_: Type, _: SType) => SBoolean,
     ) {
-      case (r, cb, Seq(tlocus: TLocus), _, contig, _) =>
+      case (_, cb, Seq(tlocus: TLocus), _, contig, _) =>
         val scontig = contig.asString.loadString(cb)
-        primitive(cb.memoize(rgCode(r.mb, tlocus.asInstanceOf[TLocus].rg).invoke[String, Boolean](
-          "isValidContig",
-          scontig,
-        )))
+        primitive(cb.memoize(
+          rgCode(cb.emb, tlocus.rg)
+            .invoke[String, Boolean]("isValidContig", scontig)
+        ))
     }
 
     registerSCode2t(
@@ -38,9 +38,9 @@ object ReferenceGenomeFunctions extends RegistryFunctions {
       TBoolean,
       (_: Type, _: SType, _: SType) => SBoolean,
     ) {
-      case (r, cb, Seq(tlocus: TLocus), _, contig, pos, _) =>
+      case (_, cb, Seq(tlocus: TLocus), _, contig, pos, _) =>
         val scontig = contig.asString.loadString(cb)
-        primitive(cb.memoize(rgCode(r.mb, tlocus.rg).invoke[String, Int, Boolean](
+        primitive(cb.memoize(rgCode(cb.emb, tlocus.rg).invoke[String, Int, Boolean](
           "isValidLocus",
           scontig,
           pos.asInt.value,
@@ -61,7 +61,7 @@ object ReferenceGenomeFunctions extends RegistryFunctions {
         val scontig = contig.asString.loadString(cb)
         unwrapReturn(
           cb,
-          r.region,
+          r,
           st,
           rgCode(cb.emb, typeParam.rg).invoke[String, Int, Int, Int, String](
             "getSequence",
@@ -80,9 +80,12 @@ object ReferenceGenomeFunctions extends RegistryFunctions {
       TInt32,
       (_: Type, _: SType) => SInt32,
     ) {
-      case (r, cb, Seq(tlocus: TLocus), _, contig, _) =>
+      case (_, cb, Seq(tlocus: TLocus), _, contig, _) =>
         val scontig = contig.asString.loadString(cb)
-        primitive(cb.memoize(rgCode(r.mb, tlocus.rg).invoke[String, Int]("contigLength", scontig)))
+        primitive(cb.memoize(rgCode(cb.emb, tlocus.rg).invoke[String, Int](
+          "contigLength",
+          scontig,
+        )))
     }
 
     registerIR(

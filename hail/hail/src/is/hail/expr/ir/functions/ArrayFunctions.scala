@@ -342,7 +342,7 @@ object ArrayFunctions extends RegistryFunctions {
         )
         val pt = rt.pType.asInstanceOf[PCanonicalArray]
         val (push, finish) =
-          pt.constructFromIndicesUnsafe(cb, er.region, len.value, deepCopy = false)
+          pt.constructFromIndicesUnsafe(cb, er, len.value, deepCopy = false)
         indices.forEachDefined(cb) { case (cb, pos, idx: SInt32Value) =>
           cb.if_(
             idx.value < 0 || idx.value >= len.value,
