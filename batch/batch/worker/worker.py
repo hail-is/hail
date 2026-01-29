@@ -145,6 +145,7 @@ BATCH_LOGS_STORAGE_URI = os.environ['BATCH_LOGS_STORAGE_URI']
 INSTANCE_ID = os.environ['INSTANCE_ID']
 REGION = os.environ['REGION']
 DOCKER_PREFIX = os.environ['DOCKER_PREFIX']
+DOCKERHUB_PREFIX = os.environ.get('DOCKERHUB_PREFIX', '')
 PUBLIC_IMAGES = publicly_available_images(DOCKER_PREFIX)
 INSTANCE_CONFIG = json.loads(base64.b64decode(os.environ['INSTANCE_CONFIG']).decode())
 MAX_IDLE_TIME_MSECS = int(os.environ['MAX_IDLE_TIME_MSECS'])
@@ -167,6 +168,7 @@ log.info(f'IP_ADDRESS {IP_ADDRESS}')
 log.info(f'BATCH_LOGS_STORAGE_URI {BATCH_LOGS_STORAGE_URI}')
 log.info(f'INSTANCE_ID {INSTANCE_ID}')
 log.info(f'DOCKER_PREFIX {DOCKER_PREFIX}')
+log.info(f'DOCKERHUB_PREFIX {DOCKERHUB_PREFIX}')
 log.info(f'INSTANCE_CONFIG {INSTANCE_CONFIG}')
 log.info(f'MAX_IDLE_TIME_MSECS {MAX_IDLE_TIME_MSECS}')
 log.info(f'BATCH_WORKER_IMAGE {BATCH_WORKER_IMAGE}')
@@ -481,6 +483,41 @@ class Image:
             image_ref.path = image_ref.name()
             image_ref.domain = DOCKER_PREFIX.split('/', maxsplit=1)[0]
             image_ref.path = '/'.join(DOCKER_PREFIX.split('/')[1:] + [image_ref.path])
+
+        # If configured, rewrite Docker Hub images to use a GAR Remote Repository proxy.
+        #
+        # Note: our parse function treats the first path segment as "domain" even when it is
+        # actually a Docker Hub namespace (e.g. "myorg/myimage"). We therefore use Docker's
+        # heuristic: a registry domain contains a '.' or ':' or is 'localhost'. Anything else
+        # (except explicit 'docker.io') is treated as a Docker Hub namespace.
+        if DOCKERHUB_PREFIX:
+            domain = image_ref.domain
+
+            def is_registry_domain(d: Optional[str]) -> bool:
+                return d is not None and (d == 'localhost' or '.' in d or ':' in d)
+
+            is_dockerhub = (
+                (domain is None)
+                or (domain == 'docker.io')
+                or (
+                    domain is not None
+                    and not is_registry_domain(domain)
+                    and not domain.endswith('docker.pkg.dev')
+                    and not domain.endswith('azurecr.io')
+                    and domain != 'gcr.io'
+                )
+            )
+
+            if is_dockerhub:
+                # Reconstruct the Docker Hub repo path.
+                if domain is None or domain == 'docker.io':
+                    dockerhub_path = f'library/{image_ref.path}'
+                else:
+                    dockerhub_path = f'{domain}/{image_ref.path}'
+
+                gar_domain, _, gar_base = DOCKERHUB_PREFIX.partition('/')
+                image_ref.domain = gar_domain
+                image_ref.path = f'{gar_base}/{dockerhub_path}' if gar_base else dockerhub_path
 
         self.image_ref = image_ref
         self.image_ref_str = str(image_ref)

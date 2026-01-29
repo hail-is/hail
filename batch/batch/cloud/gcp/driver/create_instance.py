@@ -8,7 +8,13 @@ from typing import Dict, Optional
 from gear.cloud_config import get_global_config
 from hailtop.config import get_deploy_config
 
-from ....batch_configuration import DEFAULT_NAMESPACE, DOCKER_PREFIX, DOCKER_ROOT_IMAGE, INTERNAL_GATEWAY_IP
+from ....batch_configuration import (
+    DEFAULT_NAMESPACE,
+    DOCKER_PREFIX,
+    DOCKER_ROOT_IMAGE,
+    DOCKERHUB_PREFIX,
+    INTERNAL_GATEWAY_IP,
+)
 from ....file_store import FileStore
 from ....instance_config import InstanceConfig
 from ...resource_utils import unreserved_worker_data_disk_size_gib
@@ -193,6 +199,7 @@ ZONE=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/zone 
 BATCH_WORKER_IMAGE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/batch_worker_image")
 DOCKER_ROOT_IMAGE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/docker_root_image")
 DOCKER_PREFIX=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/docker_prefix")
+DOCKERHUB_PREFIX=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/dockerhub_prefix")
 
 INTERNAL_GATEWAY_IP=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/internal_ip")
 
@@ -207,13 +214,6 @@ XFS_DEVICE=$(xfs_info /mnt/disks/$WORKER_DATA_DISK_NAME | head -n 1 | awk '{{ pr
 sudo service docker stop
 sudo mv /var/lib/docker /mnt/disks/$WORKER_DATA_DISK_NAME/docker
 sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/docker /var/lib/docker
-
-# configure docker registry mirror to use GCP's mirror
-sudo mkdir -p /etc/docker
-[ -f /etc/docker/daemon.json ] || echo "{{}}" > /etc/docker/daemon.json
-sudo jq ". + {{\"registry-mirrors\": [\"https://mirror.gcr.io\"]}}" /etc/docker/daemon.json > /tmp/daemon.json.tmp
-sudo mv /tmp/daemon.json.tmp /etc/docker/daemon.json
-
 sudo service docker start
 
 # reconfigure /batch and /logs and /gcsfuse to use local SSD
@@ -330,6 +330,7 @@ docker run \
 -e ZONE=$ZONE \
 -e REGION=$REGION \
 -e DOCKER_PREFIX=$DOCKER_PREFIX \
+-e DOCKERHUB_PREFIX=$DOCKERHUB_PREFIX \
 -e DOCKER_ROOT_IMAGE=$DOCKER_ROOT_IMAGE \
 -e INSTANCE_CONFIG=$INSTANCE_CONFIG \
 -e MAX_IDLE_TIME_MSECS=$MAX_IDLE_TIME_MSECS \
@@ -386,6 +387,7 @@ journalctl -u docker.service > dockerd.log
                 {'key': 'batch_worker_image', 'value': BATCH_WORKER_IMAGE},
                 {'key': 'docker_root_image', 'value': DOCKER_ROOT_IMAGE},
                 {'key': 'docker_prefix', 'value': DOCKER_PREFIX},
+                {'key': 'dockerhub_prefix', 'value': DOCKERHUB_PREFIX},
                 {'key': 'namespace', 'value': DEFAULT_NAMESPACE},
                 {'key': 'internal_ip', 'value': INTERNAL_GATEWAY_IP},
                 {'key': 'batch_logs_storage_uri', 'value': file_store.batch_logs_storage_uri},
