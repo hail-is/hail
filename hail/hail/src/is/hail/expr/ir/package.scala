@@ -19,6 +19,8 @@ package object ir {
   type TokenIterator = BufferedIterator[Token]
   type IEmitCode = IEmitCodeGen[SValue]
 
+  type UntypedIR = UntypedBaseIR[IR]
+
   var uidCounter: Long = 0
 
   def genUID(): String = {

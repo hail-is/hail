@@ -53,6 +53,10 @@ sealed abstract class BlockMatrixIR extends BaseIR {
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): BlockMatrixIR
 
+  final override protected def copyWithNewChildrenUntyped(newChildren: IndexedSeq[BaseIR])
+    : UntypedBaseIR[BlockMatrixIR] =
+    UntypedBaseIR(copyWithNewChildren(newChildren))
+
   def blockCostIsLinear: Boolean
 }
 

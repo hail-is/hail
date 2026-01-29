@@ -753,12 +753,12 @@ class RequirednessSuite extends HailSuite {
   }
 
   @Test def testSubsettedTuple(): Unit = {
-    val node = MakeTuple(FastSeq(0 -> I32(0), 4 -> NA(TInt32), 2 -> NA(TArray(TInt32))))
+    val node = MakeTuple(FastSeq(0 -> I32(0), 2 -> NA(TInt32), 4 -> NA(TArray(TInt32))))
     val expected = PCanonicalTuple(
       FastSeq(
         PTupleField(0, PInt32(required)),
-        PTupleField(4, PInt32(optional)),
-        PTupleField(2, PCanonicalArray(PInt32(required), optional)),
+        PTupleField(2, PInt32(optional)),
+        PTupleField(4, PCanonicalArray(PInt32(required), optional)),
       ),
       required,
     )

@@ -4,6 +4,9 @@ import is.hail.backend.ExecuteContext
 import is.hail.types.virtual.{Type, VType}
 import is.hail.utils._
 import is.hail.utils.StackSafe._
+import is.hail.utils.compat.immutable.ArraySeq
+
+import scala.collection.mutable
 
 case class Name(str: String) {
   override def toString: String = str
@@ -20,11 +23,17 @@ abstract class BaseIR {
 
   protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): BaseIR
 
+  protected def copyWithNewChildrenUntyped(newChildren: IndexedSeq[BaseIR]): UntypedBaseIR[BaseIR]
+
   def deepCopy(): this.type =
     copyWithNewChildren(newChildren = childrenSeq.map(_.deepCopy())).asInstanceOf[this.type]
 
   def noSharing(ctx: ExecuteContext): this.type =
     if (HasIRSharing(ctx)(this)) this.deepCopy() else this
+
+  def annotateTypes(ctx: ExecuteContext, env: BindingEnv[Type]): Unit = {
+    forEachChildWithEnv(env)(_.annotateTypes(ctx, _))
+  }
 
   // For use as a boolean flag by IR passes. Each pass uses a different sentinel value to encode
   // "true" (and anything else is false). As long as we maintain the global invariant that no
@@ -45,6 +54,14 @@ abstract class BaseIR {
       this
     else
       copyWithNewChildren(newChildren)
+  }
+
+  def mapChildrenWithIndexUntyped(f: (BaseIR, Int) => UntypedBaseIR[BaseIR]): UntypedBaseIR[BaseIR] = {
+    val newChildren = childrenSeq.view.zipWithIndex.map(t => f(t._1, t._2).get).toFastSeq
+    if (childrenSeq elementsSameObjects newChildren)
+      this
+    else
+      copyWithNewChildrenUntyped(newChildren)
   }
 
   def mapChildren(f: (BaseIR) => BaseIR): BaseIR = {
@@ -88,18 +105,18 @@ abstract class BaseIR {
   )(
     f: (BaseIR, E) => BaseIR
   ): BaseIR = {
-    val newChildren = Array(childrenSeq: _*)
-    var res = this
+    val newChildren = childrenSeq.toArray
+    var res = UntypedBaseIR(this)
     for (i <- newChildren.indices) {
-      val childEnv = update(env, Bindings.get(res, i))
+      val childEnv = update(env, Bindings.get(res.get, i))
       val child = newChildren(i)
       val newChild = f(child, childEnv)
       if (!(newChild eq child)) {
         newChildren(i) = newChild
-        res = res.copyWithNewChildren(newChildren)
+        res = res.get.copyWithNewChildrenUntyped(ArraySeq.from(newChildren))
       }
     }
-    res
+    copyWithNewChildren(ArraySeq.unsafeWrapArray(newChildren))
   }
 
   def mapChildrenWithEnvStackSafe[E](
@@ -131,6 +148,31 @@ abstract class BaseIR {
       val childEnv = env.extend(Bindings.get(this, i))
       f(child, i, childEnv)
     }
+}
+
+object UntypedIR {
+  def apply(x: IR): UntypedIR = new UntypedIR(x)
+}
+
+object UntypedBaseIR {
+  implicit def apply[T <: BaseIR](x: T): UntypedBaseIR[T] = new UntypedBaseIR[T](x)
+
+  def mapChildrenWithIndex(x: IR)(f: (IR, Int) => UntypedIR): UntypedIR =
+    UntypedIR(x.mapChildrenWithIndex { (child, i) =>
+      child match {
+        case child: IR => f(child, i).get
+        case child => child
+      }
+    })
+}
+
+class UntypedBaseIR[+T <: BaseIR](val untyped: BaseIR) extends AnyVal {
+  def get: T = untyped.asInstanceOf[T]
+
+  def annotateTypes(ctx: ExecuteContext, env: BindingEnv[Type]): T = {
+    untyped.annotateTypes(ctx, env)
+    untyped.asInstanceOf[T]
+  }
 }
 
 trait PreservesRowsOrCols extends BaseIR {
