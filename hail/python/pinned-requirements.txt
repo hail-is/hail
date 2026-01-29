@@ -8,7 +8,7 @@ aiohappyeyeballs==2.6.1
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   aiohttp
-aiohttp==3.13.2
+aiohttp==3.13.3
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
@@ -30,7 +30,7 @@ azure-common==1.1.28
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   azure-mgmt-storage
-azure-core==1.36.0
+azure-core==1.38.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   azure-identity
@@ -49,27 +49,23 @@ azure-mgmt-storage==20.1.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
-azure-storage-blob==12.27.1
+azure-storage-blob==12.28.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
 bokeh==3.4.3
     # via -r hail/python/requirements.txt
-boto3==1.42.4
+boto3==1.42.26
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
-botocore==1.42.4
+botocore==1.42.26
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
     #   boto3
     #   s3transfer
-cachetools==6.2.2
-    # via
-    #   -c hail/python/hailtop/pinned-requirements.txt
-    #   google-auth
-certifi==2025.11.12
+certifi==2026.1.4
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   msrest
@@ -114,7 +110,7 @@ frozenlist==1.8.0
     #   -r hail/python/hailtop/requirements.txt
     #   aiohttp
     #   aiosignal
-google-auth==2.43.0
+google-auth==2.47.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
@@ -123,7 +119,7 @@ google-auth-oauthlib==0.8.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
-humanize==4.14.0
+humanize==4.15.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
@@ -201,7 +197,7 @@ pandas==2.3.3
     #   bokeh
 parsimonious==0.11.0
     # via -r hail/python/requirements.txt
-pillow==12.0.0
+pillow==12.1.0
     # via bokeh
 plotly==5.24.1
     # via -r hail/python/requirements.txt
@@ -221,7 +217,7 @@ pyasn1-modules==0.4.2
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   google-auth
-pycares==4.11.0
+pycares==5.0.1
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   aiodns
@@ -306,9 +302,9 @@ tabulate==0.9.0
     #   -r hail/python/hailtop/requirements.txt
 tenacity==9.1.2
     # via plotly
-tornado==6.5.2
+tornado==6.5.4
     # via bokeh
-typer==0.20.0
+typer==0.21.1
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
@@ -323,9 +319,9 @@ typing-extensions==4.15.0
     #   janus
     #   multidict
     #   typer
-tzdata==2025.2
+tzdata==2025.3
     # via pandas
-urllib3==2.6.1
+urllib3==2.6.3
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   botocore
