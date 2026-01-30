@@ -37,7 +37,7 @@
   </div>
   <div class='w-full md:w-2/5'>
     <h1 class='text-2xl font-light mb-4'>Reactivate User</h1>
-    <form action="{{ base_path }}/users/activate" method="POST" onsubmit="validateReactivateForm()">
+    <form action="{{ base_path }}/users/activate" method="POST" id="reactivate-user-form">
       <div class='flex-col space-y-2'>
         <div class='flex items-center space-x-4'>
           <span class='w-32'>User ID</span>
@@ -93,11 +93,11 @@
 <h1 class='text-2xl font-light mb-4'>Users</h1>
 <div class="mb-4 flex space-x-4">
   <label class="inline-flex items-center">
-    <input type="checkbox" id="show-active" class="form-checkbox" onchange="filterTable()">
+    <input type="checkbox" id="show-active" class="form-checkbox">
     <span class="ml-2">Only Active</span>
   </label>
   <label class="inline-flex items-center">
-    <input type="checkbox" id="show-developers" class="form-checkbox" onchange="filterTable()">
+    <input type="checkbox" id="show-developers" class="form-checkbox">
     <span class="ml-2">Only Developers</span>
   </label>
 </div>
@@ -130,33 +130,5 @@
   </tbody>
 </table>
 
-<script>
-function filterTable() {
-  const showActive = document.getElementById('show-active').checked;
-  const showDevelopers = document.getElementById('show-developers').checked;
-
-  const rows = document.querySelectorAll('#users-table tbody tr');
-
-  rows.forEach(row => {
-    const state = row.querySelector('[data-state]').dataset.state.trim();
-    const isDeveloper = row.querySelector('[data-developer]').dataset.developer.trim();
-
-    let show = true;
-    if (showActive && state !== 'active') show = false;
-    if (showDevelopers && isDeveloper !== '1') show = false;
-
-    row.style.display = show ? '' : 'none';
-  });
-}
-function validateReactivateForm() {
-  const userId = document.getElementById('inactive-id').value.trim();
-  const username = document.getElementById('inactive-username').value.trim();
-
-  if (!userId && !username) {
-    alert('Please provide either a User ID or a Username.');
-    return false;
-  }
-  return true;
-}
-</script>
+<script defer src="{{auth_base_url}}/auth/static/js/users.js"></script>
 {% endblock %}

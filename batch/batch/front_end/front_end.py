@@ -19,6 +19,7 @@ import aiohttp
 import aiohttp.web_exceptions
 import aiohttp_session
 import humanize
+import jinja2
 import pandas as pd
 import plotly
 import plotly.express as px
@@ -144,6 +145,8 @@ routes = web.RouteTableDef()
 deploy_config = get_deploy_config()
 
 auth = get_authenticator()
+
+FRONT_END_ROOT = os.path.dirname(__file__)
 
 BATCH_JOB_DEFAULT_CPU = os.environ.get('HAIL_BATCH_JOB_DEFAULT_CPU', '1')
 BATCH_JOB_DEFAULT_MEMORY = os.environ.get('HAIL_BATCH_JOB_DEFAULT_MEMORY', 'standard')
@@ -3471,6 +3474,22 @@ async def privacy(request):
     return await render_template('batch', request, None, 'privacy.html', {})
 
 
+@routes.get('/batch/static/js/{filename}')
+@web_security_headers
+async def fetch_js_file(request):
+    filename = request.match_info['filename']
+    if filename.endswith('.js'):
+        page_context = {'base_path': deploy_config.base_path('batch')}
+        try:
+            response = await render_template('batch', request, None, f'js/{filename}', page_context)
+            response.content_type = 'application/javascript'
+            return response
+        except jinja2.exceptions.TemplateNotFound as error:
+            raise web.HTTPNotFound() from error
+    else:
+        raise web.HTTPNotFound()
+
+
 async def cancel_batch_loop_body(app):
     client_session = app[CommonAiohttpAppKeys.CLIENT_SESSION]
     await retry_transient_errors(
@@ -3620,7 +3639,7 @@ def run():
     )
     setup_aiohttp_session(app)
 
-    setup_aiohttp_jinja2(app, 'batch.front_end')
+    setup_aiohttp_jinja2(app, 'batch.front_end', jinja2.FileSystemLoader(f'{FRONT_END_ROOT}/static/'))
     setup_common_static_routes(routes)
     app.add_routes(routes)
     app.router.add_get("/metrics", server_stats)
