@@ -685,6 +685,8 @@ class Pretty(
     def blockArgs(ir: BaseIR, i: Int): Option[IndexedSeq[(Name, String)]] = ir match {
       case If(_, _, _) =>
         if (i > 0) Some(FastSeq()) else None
+      case _: LiftMeOut =>
+        Some(ArraySeq.empty)
       case _: Switch =>
         if (i > 0) Some(FastSeq()) else None
       case TailLoop(name, args, _, _) => if (i == args.length)
