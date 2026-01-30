@@ -1069,6 +1069,16 @@ object IRParser {
           elem <- ir_value_expr(ctx)(it)
         } yield LowerBoundOnOrderedCollection(col, elem, onKey)
       case "GroupByKey" => ir_value_expr(ctx)(it).map(GroupByKey)
+      case "StreamBufferedAggregate" =>
+        val n = name(it)
+        val aggSigs = p_agg_sigs(ctx)(it)
+        val size = int32_literal(it)
+        for {
+          stream <- ir_value_expr(ctx)(it)
+          init <- ir_value_expr(ctx)(it)
+          key <- ir_value_expr(ctx)(it)
+          seq <- ir_value_expr(ctx)(it)
+        } yield StreamBufferedAggregate(stream, init, key, seq, n, aggSigs, size)
       case "StreamMap" =>
         val n = name(it)
         for {
