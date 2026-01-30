@@ -4,7 +4,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{
-  EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitRegion, EmitValue, IEmitCode, ParamType,
+  EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitValue, IEmitCode, ParamType,
 }
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
@@ -38,7 +38,7 @@ class DownsampleBTreeKey(binType: PBaseStruct, pointType: PBaseStruct, kb: EmitC
   override def copy(cb: EmitCodeBuilder, src: Code[Long], dest: Code[Long]): Unit =
     cb += Region.copyFrom(src, dest, storageType.byteSize)
 
-  override def deepCopy(cb: EmitCodeBuilder, er: EmitRegion, srcc: Code[Long], dest: Code[Long])
+  override def deepCopy(cb: EmitCodeBuilder, r: Value[Region], srcc: Code[Long], dest: Code[Long])
     : Unit = {
     val src = cb.newLocal[Long]("dsa_deep_copy_src", srcc)
     cb.if_(
@@ -48,7 +48,7 @@ class DownsampleBTreeKey(binType: PBaseStruct, pointType: PBaseStruct, kb: EmitC
     storageType.storeAtAddress(
       cb,
       dest,
-      er.region,
+      r,
       storageType.loadCheapSCode(cb, src),
       deepCopy = true,
     )

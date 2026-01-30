@@ -156,11 +156,11 @@ object RandomSeededFunctions extends RegistryFunctions {
         val result = rt.pType.constructUninitialized(
           FastSeq(SizeValueDyn(nRows.value), SizeValueDyn(nCols.value)),
           cb,
-          r.region,
+          r,
         )
         val rng = cb.emb.getThreefryRNG()
         rngState.copyIntoEngine(cb, rng)
-        result.coiterateMutate(cb, r.region) { _ =>
+        result.coiterateMutate(cb, r) { _ =>
           primitive(cb.memoize(rng.invoke[Double, Double, Double](
             "runif",
             min.asDouble.value,
@@ -236,11 +236,11 @@ object RandomSeededFunctions extends RegistryFunctions {
         val result = rt.pType.constructUninitialized(
           FastSeq(SizeValueDyn(nRows.value), SizeValueDyn(nCols.value)),
           cb,
-          r.region,
+          r,
         )
         val rng = cb.emb.getThreefryRNG()
         rngState.copyIntoEngine(cb, rng)
-        result.coiterateMutate(cb, r.region) { _ =>
+        result.coiterateMutate(cb, r) { _ =>
           primitive(cb.memoize(rng.invoke[Double, Double, Double](
             "rnorm",
             mean.asDouble.value,
@@ -314,7 +314,7 @@ object RandomSeededFunctions extends RegistryFunctions {
           ) =>
         val rng = cb.emb.getThreefryRNG()
         rngState.copyIntoEngine(cb, rng)
-        rt.constructFromElements(cb, r.region, n.value, deepCopy = false) { case (cb, _) =>
+        rt.constructFromElements(cb, r, n.value, deepCopy = false) { case (cb, _) =>
           IEmitCode.present(
             cb,
             primitive(cb.memoize(rng.invoke[Double, Double]("rpois", lambda.value))),
@@ -436,7 +436,7 @@ object RandomSeededFunctions extends RegistryFunctions {
         val rng = cb.emb.getThreefryRNG()
         rngState.copyIntoEngine(cb, rng)
         val (push, finish) = PCanonicalArray(PInt32(required = true))
-          .constructFromFunctions(cb, r.region, colors.loadLength, deepCopy = false)
+          .constructFromFunctions(cb, r, colors.loadLength, deepCopy = false)
         cb.if_(
           colors.hasMissingValues(cb),
           cb._fatal("rand_multi_hyper: colors may not contain missing values"),
@@ -556,7 +556,7 @@ object RandomSeededFunctions extends RegistryFunctions {
         val arrayRt = rt.asInstanceOf[SIndexablePointer]
         val (push, finish) = arrayRt.pType.asInstanceOf[PCanonicalArray].constructFromFunctions(
           cb,
-          r.region,
+          r,
           resultSize,
           false,
         )

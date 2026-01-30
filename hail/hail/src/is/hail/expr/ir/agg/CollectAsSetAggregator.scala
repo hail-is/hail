@@ -3,9 +3,7 @@ package is.hail.expr.ir.agg
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.{
-  EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitRegion, EmitValue, IEmitCode,
-}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitValue, IEmitCode}
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.io._
 import is.hail.types.VirtualTypeWithReq
@@ -50,7 +48,7 @@ class TypedKey(typ: PType, kb: EmitClassBuilder[_], region: Value[Region]) exten
   override def copy(cb: EmitCodeBuilder, src: Code[Long], dest: Code[Long]): Unit =
     cb += Region.copyFrom(src, dest, storageType.byteSize)
 
-  override def deepCopy(cb: EmitCodeBuilder, er: EmitRegion, dest: Code[Long], src: Code[Long])
+  override def deepCopy(cb: EmitCodeBuilder, r: Value[Region], dest: Code[Long], src: Code[Long])
     : Unit =
     storageType.storeAtAddress(
       cb,

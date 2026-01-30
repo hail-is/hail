@@ -619,7 +619,7 @@ object BGENFunctions extends RegistryFunctions {
       Array(TVariable("locusType")),
     ) {
       case (
-            er,
+            r,
             cb,
             Seq(locType),
             _,
@@ -634,7 +634,7 @@ object BGENFunctions extends RegistryFunctions {
         val path = _path.asString.loadString(cb)
         val idxPath = _idxPath.asString.loadString(cb)
         val recoding =
-          cb.memoize(coerce[Map[String, String]](svalueToJavaValue(cb, er.region, _recoding)))
+          cb.memoize(coerce[Map[String, String]](svalueToJavaValue(cb, r, _recoding)))
         val skipInvalidLoci = _skipInvalidLoci.asBoolean.value
         val bufferSize = _bufferSize.asInt.value
 
@@ -712,11 +712,11 @@ object BGENFunctions extends RegistryFunctions {
           BufferSpec.wireSpec,
         )
 
-        def dumpBuffer(cb: EmitCodeBuilder) = {
-          val sorter = new ArraySorter(er, buffer)
+        def dumpBuffer() = {
+          val sorter = new ArraySorter(cb.emb, r, buffer)
           sorter.sort(
             cb,
-            er.region,
+            r,
             { case (cb, _, l, r) =>
               val lv = bufferSct.loadToSValue(cb, l).asBaseStruct.subset("locus", "alleles")
               val rv = bufferSct.loadToSValue(cb, r).asBaseStruct.subset("locus", "alleles")
@@ -757,7 +757,7 @@ object BGENFunctions extends RegistryFunctions {
           nRead < nVariants, {
             StagedBGENReader.decodeRow(
               cb,
-              er.region,
+              r,
               cbfis,
               nSamples,
               fileIdx,
@@ -771,8 +771,8 @@ object BGENFunctions extends RegistryFunctions {
                 // do nothing if missing (invalid locus)
               },
               { case row: SBaseStructValue =>
-                cb.if_(currSize ceq bufferSize, dumpBuffer(cb))
-                buffer.add(cb, bufferSct.coerceSCode(cb, row, er.region, false).code)
+                cb.if_(currSize ceq bufferSize, dumpBuffer())
+                buffer.add(cb, bufferSct.coerceSCode(cb, row, r, false).code)
                 cb.assign(currSize, currSize + 1)
                 cb.assign(nWritten, nWritten + 1)
               },
@@ -780,7 +780,7 @@ object BGENFunctions extends RegistryFunctions {
             cb.assign(nRead, nRead + 1)
           },
         )
-        cb.if_(currSize > 0, dumpBuffer(cb))
+        cb.if_(currSize > 0, dumpBuffer())
 
         val ecb = cb.emb.genEmitClass[Unit]("buffer_stream")
         ecb.cb.addInterface(typeInfo[NoBoxLongIterator].iname)
@@ -906,7 +906,7 @@ object BGENFunctions extends RegistryFunctions {
         )
 
         val nAdded = cb.newLocal[Long]("nAdded", 0)
-        mergedStream.memoryManagedConsume(er.region, cb) { cb =>
+        mergedStream.memoryManagedConsume(r, cb) { cb =>
           val row = mergedStream.element.toI(cb).getOrAssert(cb).asBaseStruct
           val key = row.subset("locus", "alleles")
           val offset = row.loadField(cb, "offset").getOrAssert(cb).asInt64.value
@@ -915,7 +915,7 @@ object BGENFunctions extends RegistryFunctions {
             cb,
             IEmitCode.present(cb, key),
             offset,
-            IEmitCode.present(cb, SStackStruct.constructFromArgs(cb, er.region, TStruct())),
+            IEmitCode.present(cb, SStackStruct.constructFromArgs(cb, r, TStruct())),
           )
         }
         cb.if_(
