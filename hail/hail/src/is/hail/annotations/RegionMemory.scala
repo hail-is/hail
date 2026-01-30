@@ -1,7 +1,7 @@
 package is.hail.annotations
 
-import is.hail.expr.ir.{AnyRefArrayBuilder, LongArrayBuilder}
-import is.hail.utils._
+import is.hail.collection.{AnyRefArrayBuilder, LongArrayBuilder}
+import is.hail.utils.implicits.toRichBoolean
 
 final class RegionMemory(pool: RegionPool) extends AutoCloseable {
   private[this] val usedBlocks = new LongArrayBuilder(4)

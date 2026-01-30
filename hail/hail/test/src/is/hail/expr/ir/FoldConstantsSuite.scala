@@ -1,11 +1,11 @@
 package is.hail.expr.ir
 
 import is.hail.HailSuite
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.defs.{
   AggLet, ApplyAggOp, ApplyScanOp, ApplySeeded, F64, I32, I64, RNGStateLiteral, Str,
 }
 import is.hail.types.virtual.{TFloat64, TInt32}
-import is.hail.utils.FastSeq
 
 import org.testng.annotations.{DataProvider, Test}
 

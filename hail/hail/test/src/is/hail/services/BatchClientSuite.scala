@@ -2,6 +2,7 @@ package is.hail.services
 
 import is.hail.{services, Revision}
 import is.hail.backend.service.Main
+import is.hail.collection.FastSeq
 import is.hail.services.JobGroupStates.Failure
 import is.hail.services.oauth2.CloudCredentials
 import is.hail.utils._

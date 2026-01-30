@@ -1,6 +1,6 @@
 package is.hail.sparkextras
 
-import is.hail.utils.FastSeq
+import is.hail.collection.FastSeq
 
 import scala.reflect.ClassTag
 

@@ -1,7 +1,8 @@
 package is.hail
 
+import is.hail.collection.FastSeq
+import is.hail.collection.implicits.toRichIterable
 import is.hail.stats._
-import is.hail.utils._
 
 import breeze.linalg.{max, sum, DenseVector}
 import breeze.numerics._
@@ -91,7 +92,7 @@ package object experimental {
 
     }
 
-    return (p_next *:* nHaplotypes).toArray.toFastSeq
+    (p_next *:* nHaplotypes).toArray.toFastSeq
   }
 
 }

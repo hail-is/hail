@@ -1,10 +1,10 @@
 package is.hail.compatibility
 
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.{IRParser, PunctuationToken, TokenIterator}
 import is.hail.expr.ir.IRParser._
 import is.hail.types.encoded._
 import is.hail.types.virtual._
-import is.hail.utils.FastSeq
 
 object LegacyEncodedTypeParser {
 

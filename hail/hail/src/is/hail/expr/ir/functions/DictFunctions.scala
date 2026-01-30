@@ -1,10 +1,10 @@
 package is.hail.expr.ir.functions
 
+import is.hail.collection.FastSeq
 import is.hail.expr.ir._
 import is.hail.expr.ir.defs._
 import is.hail.types
 import is.hail.types.virtual._
-import is.hail.utils.FastSeq
 
 object DictFunctions extends RegistryFunctions {
   def contains(dict: IR, key: IR) = {

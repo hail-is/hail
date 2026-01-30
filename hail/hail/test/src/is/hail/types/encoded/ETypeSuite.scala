@@ -3,11 +3,11 @@ package is.hail.types.encoded
 import is.hail.HailSuite
 import is.hail.annotations.{Annotation, Region, SafeNDArray, SafeRow}
 import is.hail.asm4s.Code
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.io._
 import is.hail.rvd.AbstractRVDSpec
 import is.hail.types.physical._
-import is.hail.utils._
 
 import org.apache.spark.sql.Row
 import org.json4s.jackson.Serialization

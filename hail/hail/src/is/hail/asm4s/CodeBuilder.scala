@@ -1,7 +1,8 @@
 package is.hail.asm4s
 
 import is.hail.{lir, EmitTracebackInAssertions}
-import is.hail.utils.{toRichIterable, Traceback}
+import is.hail.collection.implicits.toRichIterable
+import is.hail.utils.Traceback
 
 import scala.collection.compat._
 

@@ -1,6 +1,7 @@
 package is.hail.lir
 
 import is.hail.utils._
+import is.hail.utils.implicits.toRichBoolean
 
 import scala.collection.mutable
 

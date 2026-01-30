@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.backend.ExecuteContext
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.defs.{Begin, Literal, RelationalLet, RelationalRef}
 import is.hail.expr.ir.lowering.{CanLowerEfficiently, DArrayLowering, LowerToDistributedArrayPass}
 import is.hail.types.virtual.TVoid

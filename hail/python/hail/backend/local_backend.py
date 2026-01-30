@@ -9,7 +9,7 @@ from hail.backend.py4j_backend import (
     raise_when_mismatched_hail_versions,
     start_py4j_gateway,
 )
-from hail.utils.java import scala_object, scala_package_object
+from hail.utils.java import scala_object
 from hail.version import __version__
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
 
@@ -35,10 +35,10 @@ class LocalBackend(Py4JBackend):
             raise_when_mismatched_hail_versions(gateway.jvm)
 
             _is = getattr(gateway.jvm, 'is')
-            py4jutils = scala_package_object(_is.hail.utils)
+            py4jutils = scala_object(_is.hail.utils, 'py4jutils')
             try:
                 if not skip_logging_configuration:
-                    py4jutils.configureLogging(logfile, quiet, append)
+                    py4jutils.pyConfigureLogging(logfile, quiet, append)
 
                 flags = {}
                 if branching_factor is not None:
@@ -54,7 +54,7 @@ class LocalBackend(Py4JBackend):
 
                 return backend
             except Py4JJavaError as e:
-                tpl = py4jutils.handleForPython(e.java_exception)
+                tpl = py4jutils.pyHandleException(e.java_exception)
                 deepest, full, error_id = tpl._1(), tpl._2(), tpl._3()
                 raise fatal_error_from_java_error_triplet(deepest, full, error_id) from None
         except:

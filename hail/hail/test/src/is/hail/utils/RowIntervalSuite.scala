@@ -1,6 +1,7 @@
 package is.hail.utils
 
 import is.hail.{ExecStrategy, HailSuite}
+import is.hail.collection.FastSeq
 import is.hail.expr.ir
 import is.hail.expr.ir.defs.In
 import is.hail.rvd.{PartitionBoundOrdering, RVDPartitioner}

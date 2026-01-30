@@ -8,7 +8,8 @@ import is.hail.io.fs.FS
 import is.hail.io.vcf.MatrixVCFReader
 import is.hail.methods._
 import is.hail.types.virtual._
-import is.hail.utils.{toRichBoolean, Logging, TreeTraversal}
+import is.hail.utils.{Logging, TreeTraversal}
+import is.hail.utils.implicits.toRichBoolean
 
 import scala.collection.mutable
 import scala.util.control.NonFatal
