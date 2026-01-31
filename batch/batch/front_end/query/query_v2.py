@@ -294,7 +294,7 @@ def parse_job_group_jobs_query_v2(
         attempts_table_join_str = ''
 
     sql = f"""
-SELECT jobs.*, batches.user, batches.billing_project, batches.format_version, job_attributes.value AS name, cost_t.cost,
+SELECT STRAIGHT_JOIN jobs.*, batches.user, batches.billing_project, batches.format_version, job_attributes.value AS name, cost_t.cost,
   cost_t.cost_breakdown
 FROM jobs
 INNER JOIN batches ON jobs.batch_id = batches.id
