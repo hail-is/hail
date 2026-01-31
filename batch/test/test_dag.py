@@ -1,7 +1,10 @@
 import asyncio
+import logging
 import os
+import pprint
 import re
 import secrets
+import time
 
 import pytest
 from aiohttp import web
@@ -10,6 +13,8 @@ from hailtop.batch_client import aioclient
 from hailtop.batch_client.client import BatchClient, Job
 
 from .utils import DOCKER_ROOT_IMAGE, batch_status_job_counter, create_batch, legacy_batch_status
+
+log = logging.getLogger('test_dag')
 
 
 @pytest.fixture
@@ -304,16 +309,28 @@ def test_input_dependency_wildcard(client, remote_tmpdir):
     head = batch.create_job(
         DOCKER_ROOT_IMAGE,
         command=['/bin/sh', '-c', 'echo head1 > /io/data1 ; echo head2 > /io/data2'],
-        output_files=[('/io/data1', f'{remote_tmpdir}/data1'), ('/io/data2', f'{remote_tmpdir}/data2')],
+        output_files=[('/io/data1', f'{remote_tmpdir}/data2-1'), ('/io/data2', f'{remote_tmpdir}/data2-2')],
+        attributes={'name': 'head'},
     )
     tail = batch.create_job(
         DOCKER_ROOT_IMAGE,
         command=['/bin/sh', '-c', 'cat /io/data1 ; cat /io/data2'],
-        input_files=[(f'{remote_tmpdir}/data1', '/io/data1'), (f'{remote_tmpdir}/data2', '/io/data2')],
+        input_files=[(f'{remote_tmpdir}/data2-1', '/io/data1'), (f'{remote_tmpdir}/data2-2', '/io/data2')],
         parents=[head],
+        attributes={'name': 'tail'},
     )
     batch.submit()
+
+    time.sleep(30)
+    head_log = head.log()
+    log.info(f'TODO REMOVE ME: head logs after 30 seconds: {pprint.pformat(head_log)}')
+    head.wait()
+
+    time.sleep(30)
+    tail_log = tail.log()
+    log.info(f'TODO REMOVE ME: tail logs after 60 seconds: {pprint.pformat(tail_log)}')
     tail.wait()
+
     head_status = head.status()
     assert head._get_exit_code(head_status, 'input') != 0, str((head_status, batch.debug_info()))
     tail_log = tail.log()

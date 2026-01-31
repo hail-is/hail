@@ -3,6 +3,7 @@ import functools
 import json
 import logging
 import math
+import pprint
 import random
 import secrets
 import warnings
@@ -277,12 +278,20 @@ class Job:
 
     async def _wait_for_states(self, *states: str) -> GetJobResponseV1Alpha:
         tries = 0
+        total_delay_seconds = 0
         while True:
             if await self._is_job_in_state(states) or await self.is_complete():
                 assert self._status
                 return self._status
             tries += 1
-            await sleep_before_try(tries)
+
+            total_delay_seconds += await sleep_before_try(tries)
+            if total_delay_seconds > 450:
+                # TODO: REMOVE ME!
+                log.info(f'total_delay_seconds is now: {total_delay_seconds}')
+                log.info(f'status is currently: {pprint.pformat(self._status)}')
+                logs = await self.log()
+                log.info(f'logs are currently: {pprint.pformat(logs)}')
 
     async def container_log(self, container_name: str) -> bytes:
         self._raise_if_not_submitted()

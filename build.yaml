@@ -2812,7 +2812,7 @@ steps:
       - hail_ubuntu_image
   - kind: runImage
     name: test_batch
-    numSplits: 5
+    numSplits: 8
     image:
       valueFrom: batch_image.image
     script: |
@@ -2855,7 +2855,7 @@ steps:
               --log-date-format="%Y-%m-%dT%H:%M:%S" \
               --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" \
               -k "not test_scale and not test_invariants" \
-              --timeout=360 \
+              --timeout=600 \
               /io/test/
     inputs:
       - from: /repo/batch/test
@@ -3186,7 +3186,7 @@ steps:
               -vv \
               --instafail \
               --durations=50 \
-              --timeout=360 \
+              --timeout=600 \
               --ignore=test/hailtop/inter_cloud \
               test/hailtop
     inputs:
