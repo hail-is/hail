@@ -17,6 +17,7 @@ from gear import (
     AuthServiceAuthenticator,
     CommonAiohttpAppKeys,
     Database,
+    SystemPermission,
     json_response,
     setup_aiohttp_session,
     transaction,
@@ -149,7 +150,7 @@ async def _billing(request: web.Request):
 
 
 @routes.get('/api/v1alpha/billing')
-@auth.authenticated_developers_only()
+@auth.authenticated_users_with_permission(SystemPermission.VIEW_MONITORING_DASHBOARDS)
 async def get_billing(request: web.Request, _) -> web.Response:
     cost_by_service, compute_cost_breakdown, cost_by_sku_label, time_period_query = await _billing(request)
     resp = {
@@ -163,7 +164,7 @@ async def get_billing(request: web.Request, _) -> web.Response:
 
 @routes.get('/billing')
 @web_security_headers
-@auth.authenticated_developers_only()
+@auth.authenticated_users_with_permission(SystemPermission.VIEW_MONITORING_DASHBOARDS)
 async def billing(request: web.Request, userdata) -> web.Response:  # pylint: disable=unused-argument
     cost_by_service, compute_cost_breakdown, cost_by_sku_label, time_period_query = await _billing(request)
     context = {

@@ -5,6 +5,7 @@
 <h1>{{ jpim.name }}</h1>
 
 <h2>Configuration</h2>
+{% if userdata['system_permissions']['update_deployed_system_state'] %}
 <div class="attributes">
   <form action="{{ base_path }}/config-update/jpim" method="POST">
     <div>Boot disk size (in GB): <input name="boot_disk_size_gb" value="{{ jpim.boot_disk_size_gb }}" /></div>
@@ -19,6 +20,16 @@
     </button>
   </form>
 </div>
+{% else %}
+<div class="attributes">
+  <div>Boot disk size (in GB): {{ jpim.boot_disk_size_gb }}</div>
+  <div>Max instances: {{ jpim.max_instances }}</div>
+  <div>Max live instances: {{ jpim.max_live_instances }}</div>
+  <div>Max new instances per autoscaler loop: {{ jpim.max_new_instances_per_autoscaler_loop }}</div>
+  <div>Autoscaler loop period in seconds: {{ jpim.autoscaler_loop_period_secs }}</div>
+  <div>Worker max idle time in seconds: {{ jpim.worker_max_idle_time_secs }}</div>
+</div>
+{% endif %}
 
 <h2>User Resources</h2>
 <table class="data-table" id="user_resources">
