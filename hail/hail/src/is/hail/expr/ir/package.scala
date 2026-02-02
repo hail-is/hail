@@ -41,7 +41,7 @@ package object ir {
     }
 
   def invoke(name: String, rt: Type, typeArgs: Seq[Type], errorID: Int, args: IR*): IR =
-    IRFunctionRegistry.lookupUnseeded(name, rt, typeArgs, args.map(_.typ)) match {
+    IRFunctionRegistry.lookup(name, rt, typeArgs, args.map(_.typ)) match {
       case Some(f) => f(args, errorID)
       case None => fatal(
           s"no conversion found for $name[${typeArgs.mkString(", ")}](${args.map(_.typ).mkString(", ")}) => $rt"
@@ -56,13 +56,6 @@ package object ir {
 
   def invoke(name: String, rt: Type, errorID: Int, args: IR*): IR =
     invoke(name, rt, Array.empty[Type], errorID, args: _*)
-
-  def invokeSeeded(name: String, staticUID: Long, rt: Type, rngState: IR, args: IR*): IR =
-    IRFunctionRegistry.lookupSeeded(name, staticUID, rt, args.map(_.typ)) match {
-      case Some(f) => f(args, rngState)
-      case None =>
-        fatal(s"no seeded function found for $name(${args.map(_.typ).mkString(", ")}) => $rt")
-    }
 
   implicit def irToPrimitiveIR(ir: IR): PrimitiveIR = new PrimitiveIR(ir)
 

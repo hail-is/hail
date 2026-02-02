@@ -5,7 +5,7 @@ import is.hail.asm4s._
 import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.experimental.ExperimentalFunctions
 import is.hail.expr.ir._
-import is.hail.expr.ir.defs.{Apply, ApplyIR, ApplySeeded, ApplySpecial}
+import is.hail.expr.ir.defs.{Apply, ApplyIR, ApplySpecial}
 import is.hail.io.bgen.BGENFunctions
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.{EmitType, SType, SValue}
@@ -184,18 +184,11 @@ object IRFunctionRegistry {
     }
   }
 
-  def lookupSeeded(name: String, staticUID: Long, returnType: Type, arguments: Seq[Type])
-    : Option[(Seq[IR], IR) => IR] =
-    lookupFunction(name, returnType, Array.empty[Type], TRNGState +: arguments)
-      .map { f => (irArguments: Seq[IR], rngState: IR) =>
-        ApplySeeded(name, irArguments.toFastSeq, rngState, staticUID, f.returnType.subst())
-      }
-
-  def lookupUnseeded(name: String, returnType: Type, arguments: Seq[Type])
+  def lookup(name: String, returnType: Type, arguments: Seq[Type])
     : Option[ConcreteIRFunctionImplementation] =
-    lookupUnseeded(name, returnType, Array.empty[Type], arguments)
+    lookup(name, returnType, Array.empty[Type], arguments)
 
-  def lookupUnseeded(
+  def lookup(
     name: String,
     returnType: Type,
     typeParameters: Seq[Type],

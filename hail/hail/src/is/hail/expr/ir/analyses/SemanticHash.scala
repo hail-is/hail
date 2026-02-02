@@ -110,12 +110,6 @@ case object SemanticHash extends Logging {
         buffer ++= fname.getBytes
         tyArgs.foreach(buffer ++= EncodeTypename(_))
 
-      case ApplySeeded(fname, _, _, staticUID, retTy) =>
-        buffer ++=
-          fname.getBytes ++=
-          Bytes.fromLong(staticUID) ++=
-          EncodeTypename(retTy): Unit
-
       case ApplySpecial(fname, tyArgs, _, retTy, _) =>
         buffer ++= fname.getBytes
         tyArgs.foreach(buffer ++= EncodeTypename(_))
@@ -218,6 +212,9 @@ case object SemanticHash extends Logging {
 
       case RelationalRef(name, _) =>
         buffer ++= name.str.getBytes
+
+      case RNGSplitStatic(_, staticUid) =>
+        buffer ++= Bytes.fromLong(staticUid)
 
       case SelectFields(struct, names) =>
         val getFieldIndex = struct.typ.asInstanceOf[TStruct].fieldIdx

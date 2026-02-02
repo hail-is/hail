@@ -157,11 +157,10 @@ object LoweredTableReader extends Logging {
           keyRef.name,
           MakeStruct(FastSeq(
             "key" -> keyRef,
-            "token" -> invokeSeeded(
+            "token" -> invoke(
               "rand_unif",
-              1,
               TFloat64,
-              RNGStateLiteral(),
+              RNGSplitStatic(RNGStateLiteral(), 1L),
               F64(0.0),
               F64(1.0),
             ),

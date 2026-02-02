@@ -6,8 +6,8 @@ import is.hail.annotations.BroadcastRow
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.defs.{
-  ApplySeeded, GetField, I32, InsertFields, MakeTuple, MatrixMultiWrite, MatrixWrite, RNGSplit,
-  RNGStateLiteral, Ref, TableCollect,
+  Apply, GetField, I32, InsertFields, MakeTuple, MatrixMultiWrite, MatrixWrite, RNGSplit,
+  RNGSplitStatic, RNGStateLiteral, Ref, TableCollect,
 }
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -342,7 +342,7 @@ class MatrixIRSuite extends HailSuite {
   @Test def testMatrixFiltersWorkWithRandomness(): Unit = {
     val range = rangeMatrix(20, 20, Some(4), uids = true)
     def rand(rng: IR): IR =
-      ApplySeeded("rand_bool", FastSeq(0.5), rng, 0, TBoolean)
+      Apply("rand_bool", FastSeq.empty, FastSeq(RNGSplitStatic(rng, 0), 0.5), TBoolean)
 
     val colUID = GetField(Ref(MatrixIR.colName, range.typ.colType), MatrixReader.colUIDFieldName)
     val colRNG = RNGSplit(RNGStateLiteral(), colUID)

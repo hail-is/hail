@@ -81,10 +81,10 @@ trait IRDSL {
 
   // Implicits for common names
 
-  final implicit def nameDefaultName(t: Type[Name]): Declaration[Name] =
+  implicit final def nameDefaultName(t: Type[Name]): Declaration[Name] =
     in("name", t)
 
-  final implicit def childDefaultName(t: Type[Child]): Declaration[Child] =
+  implicit final def childDefaultName(t: Type[Child]): Declaration[Child] =
     in("child", t)
 }
 
@@ -737,8 +737,9 @@ object Main {
       in("onKey", att("Boolean")),
     )
 
-    r += node("RNGStateLiteral")
     r += node("RNGSplit", in("state", child), in("dynBitstring", child))
+    r += node("RNGSplitStatic", in("state", child), in("staticUid", att("Long")))
+    r += node("RNGStateLiteral")
 
     val key = in("key", att("String").*)
 
@@ -1110,17 +1111,6 @@ object Main {
       in("returnType", att("Type")),
       errorID,
     ).withTraits(ApplyNode())
-
-    r += node(
-      "ApplySeeded",
-      in("function", att("String")),
-      in("_args", child.*),
-      in("rngState", child),
-      in("staticUID", att("Long")),
-      in("returnType", att("Type")),
-    ).withTraits(ApplyNode())
-      .withPreamble("val args = rngState +: _args")
-      .withPreamble("val typeArgs: Seq[Type] = Seq.empty[Type]")
 
     r += node(
       "ApplySpecial",

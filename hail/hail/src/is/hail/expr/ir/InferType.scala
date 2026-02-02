@@ -114,9 +114,7 @@ object InferType {
       case ToStream(a, _) =>
         val elt = tcoerce[TIterable](a.typ).elementType
         TStream(elt)
-      case RNGStateLiteral() =>
-        TRNGState
-      case RNGSplit(_, _) =>
+      case _: RNGSplit | _: RNGSplitStatic | _: RNGStateLiteral =>
         TRNGState
       case StreamLen(_) => TInt32
       case GroupByKey(collection) =>

@@ -124,10 +124,13 @@ class Pretty(
   def prettyIntOpt(x: Option[Int]): String =
     x.map(_.toString).getOrElse("None")
 
+  def prettyLong(x: Long): Doc =
+    text(x.toString)
+
   def prettyLongs(x: IndexedSeq[Long], elideLiterals: Boolean): Doc = {
     val truncate = elideLiterals && x.length > MAX_VALUES_TO_LOG
     val view = if (truncate) x.view else x.view.slice(0, MAX_VALUES_TO_LOG)
-    val docs = view.map(i => text(i.toString))
+    val docs = view.map(prettyLong)
     concat(docs.intersperse[Doc](
       "(",
       softline,
@@ -271,6 +274,7 @@ class Pretty(
       else
         FastSeq(prettyName(name), t.parsableString())
     case RelationalLet(name, _, _) if !elideBindings => single(prettyName(name))
+    case RNGSplitStatic(_, staticUid) => single(prettyLong(staticUid))
     case ApplyBinaryPrimOp(op, _, _) => single(Pretty.prettyClass(op))
     case ApplyUnaryPrimOp(op, _) => single(Pretty.prettyClass(op))
     case ApplyComparisonOp(op, _, _) => single(op.render())
@@ -427,8 +431,6 @@ class Pretty(
       )
     case Apply(function, typeArgs, _, t, errorID) =>
       FastSeq(s"$errorID", prettyIdentifier(function), prettyTypes(typeArgs), t.parsableString())
-    case ApplySeeded(function, _, _, staticUID, t) =>
-      FastSeq(prettyIdentifier(function), staticUID.toString, t.parsableString())
     case ApplySpecial(function, typeArgs, _, t, errorID) =>
       FastSeq(s"$errorID", prettyIdentifier(function), prettyTypes(typeArgs), t.parsableString())
     case SelectFields(_, fields) =>

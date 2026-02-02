@@ -1697,7 +1697,8 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
         }
 
       case RNGStateLiteral() =>
-        IEmitCode.present(cb, SRNGStateStaticSizeValue(cb))
+        val state = SRNGStateStaticSizeValue(cb)
+        IEmitCode.present(cb, state)
 
       case RNGSplit(state, dynBitstring) =>
         val stateValue = emitI(state).getOrAssert(cb)
@@ -1716,6 +1717,15 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
         var result = stateValue.asRNGState
         longs.foreach(l => result = result.splitDyn(cb, l))
         presentPC(result)
+
+      case RNGSplitStatic(rngState, staticUid) =>
+        val newState =
+          emitI(rngState)
+            .getOrAssert(cb)
+            .asRNGState
+            .splitStatic(cb, staticUid)
+
+        IEmitCode.present(cb, newState)
 
       case StreamLen(a) =>
         emitStream(a, cb, region).map(cb) { case stream: SStreamValue =>
@@ -2770,22 +2780,6 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
 
         val rvAgg = agg.Extract.getAgg(sig)
         rvAgg.result(cb, sc.states(idx), region)
-
-      case x @ ApplySeeded(_, args, rngState, staticUID, rt) =>
-        val codeArgs = args.map(a => EmitCode.fromI(cb.emb)(emitInNewBuilder(_, a)))
-        val codeArgsMem = codeArgs.map(_.memoize(cb, "ApplySeeded_arg"))
-        val state = emitI(rngState).getOrAssert(cb)
-        val impl = x.implementation
-        assert(impl.unify(Array.empty[Type], x.argTypes, rt))
-        val newState = EmitCode.present(mb, state.asRNGState.splitStatic(cb, staticUID))
-        impl.applyI(
-          region,
-          cb,
-          impl.computeReturnEmitType(x.typ, newState.emitType +: codeArgs.map(_.emitType)).st,
-          Seq[Type](),
-          const(0),
-          newState +: codeArgsMem.map(_.load): _*
-        )
 
       case AggStateValue(i, _) =>
         val AggContainer(_, sc, _) = container.get
