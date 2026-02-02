@@ -37,37 +37,6 @@ from .blockmatrix_writer import (
     BlockMatrixWriter,
 )
 from .export_type import ExportType
-from .matrix_ir import (
-    CastTableToMatrix,
-    MatrixAggregateColsByKey,
-    MatrixAggregateRowsByKey,
-    MatrixAnnotateColsTable,
-    MatrixAnnotateRowsTable,
-    MatrixChooseCols,
-    MatrixCollectColsByKey,
-    MatrixColsHead,
-    MatrixColsTail,
-    MatrixDistinctByRow,
-    MatrixExplodeCols,
-    MatrixExplodeRows,
-    MatrixFilterCols,
-    MatrixFilterEntries,
-    MatrixFilterIntervals,
-    MatrixFilterRows,
-    MatrixKeyRowsBy,
-    MatrixMapCols,
-    MatrixMapEntries,
-    MatrixMapGlobals,
-    MatrixMapRows,
-    MatrixRead,
-    MatrixRename,
-    MatrixRepartition,
-    MatrixRowsHead,
-    MatrixRowsTail,
-    MatrixToMatrixApply,
-    MatrixUnionCols,
-    MatrixUnionRows,
-)
 from .ir import (
     F32,
     F64,
@@ -192,6 +161,37 @@ from .ir import (
     toStream,
     udf,
 )
+from .matrix_ir import (
+    CastTableToMatrix,
+    MatrixAggregateColsByKey,
+    MatrixAggregateRowsByKey,
+    MatrixAnnotateColsTable,
+    MatrixAnnotateRowsTable,
+    MatrixChooseCols,
+    MatrixCollectColsByKey,
+    MatrixColsHead,
+    MatrixColsTail,
+    MatrixDistinctByRow,
+    MatrixExplodeCols,
+    MatrixExplodeRows,
+    MatrixFilterCols,
+    MatrixFilterEntries,
+    MatrixFilterIntervals,
+    MatrixFilterRows,
+    MatrixKeyRowsBy,
+    MatrixMapCols,
+    MatrixMapEntries,
+    MatrixMapGlobals,
+    MatrixMapRows,
+    MatrixRead,
+    MatrixRename,
+    MatrixRepartition,
+    MatrixRowsHead,
+    MatrixRowsTail,
+    MatrixToMatrixApply,
+    MatrixUnionCols,
+    MatrixUnionRows,
+)
 from .matrix_reader import (
     MatrixBGENReader,
     MatrixNativeReader,
@@ -269,7 +269,6 @@ from .table_reader import (
 )
 from .table_writer import TableNativeFanoutWriter, TableNativeWriter, TableTextWriter, TableWriter
 from .utils import filter_predicate_with_keep, finalize_randomness, make_filter_and_replace
-
 
 __all__ = [
     'F32',

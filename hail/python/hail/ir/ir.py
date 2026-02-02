@@ -3261,8 +3261,8 @@ class RNGSplitStatic(IR):
     def head_str(self):
         return str(self.static_uid)
 
-    def copy(self, rng_state, static_uid):
-        return RNGSplitStatic(rng_state, static_uid)
+    def copy(self, rng_state):
+        return RNGSplitStatic(rng_state, self.static_uid)
 
     def _compute_type(self, env, agg_env, deep_typecheck):
         self.rng_state.compute_type(env, agg_env, deep_typecheck)

@@ -181,7 +181,7 @@ def value_irs():
     ]
 
 
-static_len_value_irs = 81
+static_len_value_irs = 82
 
 
 @pytest.fixture(params=range(static_len_value_irs))

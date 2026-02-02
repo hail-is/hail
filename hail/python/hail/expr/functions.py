@@ -129,9 +129,15 @@ def _seeded_func(name, ret_type, seed, *args):
                 'addition to the local seed in each random function.'
             )
         static_rng_uid = -seed - 1
+    indices, aggregations = unify_all(*args)
     rng_state = ir.Ref('__rng_state', trngstate)
     rng_state = ir.RNGSplitStatic(rng_state, static_rng_uid)
-    return _func(name, ret_type, rng_state, args)
+    return construct_expr(
+        ir.Apply(name, ret_type, rng_state, *(a._ir for a in args)),
+        ret_type,
+        indices,
+        aggregations,
+    )
 
 
 def ndarray_broadcasting(func):
