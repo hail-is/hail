@@ -25,18 +25,19 @@ class DateFormatter {
 
 object JSONLogLayout {
   private val datefmt = ThreadLocal.withInitial(new Supplier[DateFormatter]() {
-    def get() = new DateFormatter()
+    override def get() = new DateFormatter()
   })
 }
 
 class JSONLogLayout extends Layout {
   import JSONLogLayout._
 
-  def ignoresThrowable(): Boolean = false
+  override def ignoresThrowable(): Boolean = false
 
+  @SuppressWarnings(Array("org.wartremover.contrib.warts.MissingOverride"))
   def activateOptions(): Unit = ()
 
-  def format(event: LoggingEvent): String = {
+  override def format(event: LoggingEvent): String = {
     val threadName = event.getThreadName();
     val timestamp = event.getTimeStamp();
     val mdc = event.getProperties();
@@ -55,7 +56,7 @@ class JSONLogLayout extends Layout {
 
     val mdcFields = ArraySeq.newBuilder[JField]
     mdc.forEach(new BiConsumer[Any, Any]() {
-      def accept(key: Any, value: Any): Unit =
+      override def accept(key: Any, value: Any): Unit =
         mdcFields += JField(key.toString, JString(value.toString))
     })
     fields += JField("mdc", JObject(mdcFields.result(): _*))

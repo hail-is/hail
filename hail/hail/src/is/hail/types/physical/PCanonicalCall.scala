@@ -10,7 +10,7 @@ import is.hail.types.physical.stypes.interfaces.SCall
 import is.hail.utils._
 
 final case class PCanonicalCall(required: Boolean = false) extends PCall {
-  def _asIdent = "call"
+  override def _asIdent = "call"
 
   override def copiedType: PType = this
 
@@ -19,13 +19,13 @@ final case class PCanonicalCall(required: Boolean = false) extends PCall {
 
   val representation: PInt32 = PInt32(required)
 
-  def byteSize: Long = representation.byteSize
+  override def byteSize: Long = representation.byteSize
   override def alignment: Long = representation.alignment
 
   override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering =
     representation.unsafeOrdering(sm) // this was a terrible idea
 
-  def setRequired(required: Boolean) =
+  override def setRequired(required: Boolean) =
     if (required == this.required) this else PCanonicalCall(required)
 
   override def unstagedStoreAtAddress(
@@ -62,12 +62,12 @@ final case class PCanonicalCall(required: Boolean = false) extends PCall {
         representation._copyFromAddress(sm, region, pt.representation, srcAddress, deepCopy)
     }
 
-  def sType: SCall = SCanonicalCall
+  override def sType: SCall = SCanonicalCall
 
-  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SCanonicalCallValue =
+  override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SCanonicalCallValue =
     new SCanonicalCallValue(cb.memoize(Region.loadInt(addr)))
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean)
+  override def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean)
     : Value[Long] = {
     value.st match {
       case SCanonicalCall =>
@@ -77,7 +77,7 @@ final case class PCanonicalCall(required: Boolean = false) extends PCall {
     }
   }
 
-  def storeAtAddress(
+  override def storeAtAddress(
     cb: EmitCodeBuilder,
     addr: Code[Long],
     region: Value[Region],
@@ -86,7 +86,7 @@ final case class PCanonicalCall(required: Boolean = false) extends PCall {
   ): Unit =
     cb += Region.storeInt(addr, value.asCall.canonicalCall(cb))
 
-  def loadFromNested(addr: Code[Long]): Code[Long] = representation.loadFromNested(addr)
+  override def loadFromNested(addr: Code[Long]): Code[Long] = representation.loadFromNested(addr)
 
   override def unstagedLoadFromNested(addr: Long): Long =
     representation.unstagedLoadFromNested(addr)

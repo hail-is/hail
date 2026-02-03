@@ -11,7 +11,7 @@ trait SPrimitive extends SType {
 
   override def copiedType: SType = this
 
-  def containsPointers: Boolean = false
+  override def containsPointers: Boolean = false
 }
 
 abstract class SPrimitiveValue extends SValue {

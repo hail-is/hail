@@ -127,8 +127,8 @@ class StagedBlockLinkedListSuite extends HailSuite {
 
     private var ptr = 0L
 
-    def clear(): Unit = ptr = initF(region)
-    def addOne(e: E): this.type = { pushF(region, ptr, e); this }
+    override def clear(): Unit = ptr = initF(region)
+    override def addOne(e: E): this.type = { pushF(region, ptr, e); this }
     def ++=(other: BlockLinkedList[E]): this.type = { appendF(region, ptr, other); this }
     def toIndexedSeq: IndexedSeq[E] = materializeF(region, ptr)
 

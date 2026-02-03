@@ -1243,7 +1243,7 @@ object SizeValueStatic {
 }
 
 final class SizeValueDyn(val v: Value[Long]) extends SizeValue {
-  def get: Code[Long] = v.get
+  override def get: Code[Long] = v.get
 
   override def equals(other: Any): Boolean = other match {
     case SizeValueDyn(v2) => v eq v2
@@ -1252,7 +1252,7 @@ final class SizeValueDyn(val v: Value[Long]) extends SizeValue {
 }
 
 final class SizeValueStatic(val v: Long) extends SizeValue {
-  def get: Code[Long] = const(v)
+  override def get: Code[Long] = const(v)
 
   override def equals(other: Any): Boolean = other match {
     case SizeValueStatic(v2) => v == v2
@@ -1261,7 +1261,7 @@ final class SizeValueStatic(val v: Long) extends SizeValue {
 }
 
 trait SNDArrayValue extends SValue {
-  def st: SNDArray
+  override def st: SNDArray
 
   def pt: PNDArray
 

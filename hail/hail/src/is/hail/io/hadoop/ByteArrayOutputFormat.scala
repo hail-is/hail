@@ -12,11 +12,11 @@ class ByteArrayOutputFormat extends FileOutputFormat[NullWritable, BytesOnlyWrit
   class ByteArrayRecordWriter(out: DataOutputStream)
       extends RecordWriter[NullWritable, BytesOnlyWritable] {
 
-    def write(key: NullWritable, value: BytesOnlyWritable): Unit =
+    override def write(key: NullWritable, value: BytesOnlyWritable): Unit =
       if (value != null)
         value.write(out)
 
-    def close(reporter: Reporter): Unit =
+    override def close(reporter: Reporter): Unit =
       out.close()
   }
 

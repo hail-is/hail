@@ -12,7 +12,7 @@ case object PCanonicalStringOptional extends PCanonicalString(false)
 case object PCanonicalStringRequired extends PCanonicalString(true)
 
 class PCanonicalString(val required: Boolean) extends PString {
-  def _asIdent = "string"
+  override def _asIdent = "string"
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit =
     sb ++= "PCString"
@@ -40,26 +40,26 @@ class PCanonicalString(val required: Boolean) extends PString {
 
   override def containsPointers: Boolean = true
 
-  def loadLength(boff: Long): Int =
+  override def loadLength(boff: Long): Int =
     this.binaryRepresentation.loadLength(boff)
 
-  def loadLength(boff: Code[Long]): Code[Int] =
+  override def loadLength(boff: Code[Long]): Code[Int] =
     this.binaryRepresentation.loadLength(boff)
 
-  def loadString(bAddress: Long): String =
+  override def loadString(bAddress: Long): String =
     new String(this.binaryRepresentation.loadBytes(bAddress))
 
-  def loadString(bAddress: Code[Long]): Code[String] =
+  override def loadString(bAddress: Code[Long]): Code[String] =
     Code.newInstance[String, Array[Byte]](this.binaryRepresentation.loadBytes(bAddress))
 
-  def allocateAndStoreString(region: Region, str: String): Long = {
+  override def allocateAndStoreString(region: Region, str: String): Long = {
     val byteRep = str.getBytes()
     val dstAddrss = this.binaryRepresentation.allocate(region, byteRep.length)
     this.binaryRepresentation.store(dstAddrss, byteRep)
     dstAddrss
   }
 
-  def allocateAndStoreString(cb: EmitCodeBuilder, region: Value[Region], str: Code[String])
+  override def allocateAndStoreString(cb: EmitCodeBuilder, region: Value[Region], str: Code[String])
     : Value[Long] = {
     val dstAddress = cb.newField[Long]("pcanonical_string_alloc_dst_address")
     val byteRep = cb.newField[Array[Byte]]("pcanonical_string_alloc_byte_rep")
@@ -86,15 +86,15 @@ class PCanonicalString(val required: Boolean) extends PString {
       deepCopy,
     )
 
-  def setRequired(required: Boolean): PCanonicalString =
+  override def setRequired(required: Boolean): PCanonicalString =
     if (required == this.required) this else PCanonicalString(required)
 
-  def sType: SStringPointer = SStringPointer(setRequired(false))
+  override def sType: SStringPointer = SStringPointer(setRequired(false))
 
-  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SStringPointerValue =
+  override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SStringPointerValue =
     new SStringPointerValue(sType, cb.memoize(addr))
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean)
+  override def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean)
     : Value[Long] = {
     value.st match {
       case SStringPointer(t) if t.equalModuloRequired(this) && !deepCopy =>
@@ -104,7 +104,7 @@ class PCanonicalString(val required: Boolean) extends PString {
     }
   }
 
-  def storeAtAddress(
+  override def storeAtAddress(
     cb: EmitCodeBuilder,
     addr: Code[Long],
     region: Value[Region],
@@ -113,7 +113,8 @@ class PCanonicalString(val required: Boolean) extends PString {
   ): Unit =
     cb += Region.storeAddress(addr, store(cb, region, value, deepCopy))
 
-  def loadFromNested(addr: Code[Long]): Code[Long] = binaryRepresentation.loadFromNested(addr)
+  override def loadFromNested(addr: Code[Long]): Code[Long] =
+    binaryRepresentation.loadFromNested(addr)
 
   override def unstagedLoadFromNested(addr: Long): Long =
     binaryRepresentation.unstagedLoadFromNested(addr)

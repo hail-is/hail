@@ -95,7 +95,7 @@ object SStreamValue {
 }
 
 trait SStreamValue extends SUnrealizableValue {
-  def st: SStream
+  override def st: SStream
 
   def getProducer(mb: EmitMethodBuilder[_]): StreamProducer
 
@@ -160,7 +160,7 @@ case class SStreamControlFlow(st: SimpleSStream, producer: StreamProducer) exten
     producer
   }
 
-  def valueTuple: IndexedSeq[Value[_]] = throw new NotImplementedError()
+  override def valueTuple: IndexedSeq[Value[_]] = throw new NotImplementedError()
 
   override def defineUnusedLabels(mb: EmitMethodBuilder[_]): Unit = {
     (producer.LendOfStream.isImplemented, producer.LproduceElementDone.isImplemented) match {

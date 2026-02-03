@@ -46,7 +46,7 @@ object BlockMatrixIR {
 }
 
 sealed abstract class BlockMatrixIR extends BaseIR {
-  def typ: BlockMatrixType
+  override def typ: BlockMatrixType
 
   protected[ir] def execute(ctx: ExecuteContext): BlockMatrix =
     fatal("tried to execute unexecutable IR:\n" + Pretty(ctx, this))
@@ -126,7 +126,7 @@ class BlockMatrixNativeReader(
   val params: BlockMatrixNativeReaderParameters,
   val metadata: BlockMatrixMetadata,
 ) extends BlockMatrixReader {
-  def pathsUsed: Seq[String] = Array(params.path)
+  override def pathsUsed: Seq[String] = Array(params.path)
 
   lazy val fullType: BlockMatrixType = {
     val sparsity = MatrixSparsity.fromLinearCoords(
@@ -137,7 +137,7 @@ class BlockMatrixNativeReader(
     BlockMatrixType(TFloat64, metadata.nRows, metadata.nCols, metadata.blockSize, sparsity)
   }
 
-  def apply(ctx: ExecuteContext): BlockMatrix = {
+  override def apply(ctx: ExecuteContext): BlockMatrix = {
     val key = ("BlockMatrixNativeReader.apply", params.path)
     if (ctx.memo.contains(key)) {
       ctx.memo(key).asInstanceOf[BlockMatrix]
@@ -195,7 +195,7 @@ class BlockMatrixNativeReader(
 
 case class BlockMatrixBinaryReader(path: String, shape: IndexedSeq[Long], blockSize: Int)
     extends BlockMatrixReader {
-  def pathsUsed: Seq[String] = Array(path)
+  override def pathsUsed: Seq[String] = Array(path)
 
   val IndexedSeq(nRows, nCols) = shape
   BlockMatrixIR.checkFitsIntoArray(nRows, nCols)
@@ -203,7 +203,7 @@ case class BlockMatrixBinaryReader(path: String, shape: IndexedSeq[Long], blockS
   lazy val fullType: BlockMatrixType =
     BlockMatrixType.dense(TFloat64, nRows, nCols, blockSize)
 
-  def apply(ctx: ExecuteContext): BlockMatrix = {
+  override def apply(ctx: ExecuteContext): BlockMatrix = {
     val breezeMatrix =
       RichDenseMatrixDouble.importFromDoubles(
         ctx.fs,
@@ -258,9 +258,9 @@ object BlockMatrixPersistReader {
 }
 
 case class BlockMatrixPersistReader(id: String, typ: BlockMatrixType) extends BlockMatrixReader {
-  def pathsUsed: Seq[String] = FastSeq()
+  override def pathsUsed: Seq[String] = FastSeq()
   lazy val fullType: BlockMatrixType = typ
-  def apply(ctx: ExecuteContext): BlockMatrix = ctx.BlockMatrixCache(id)
+  override def apply(ctx: ExecuteContext): BlockMatrix = ctx.BlockMatrixCache(id)
 }
 
 case class BlockMatrixMap(child: BlockMatrixIR, eltName: Name, f: IR, needsDense: Boolean)
@@ -368,23 +368,23 @@ abstract class SparsityStrategy {
 }
 
 case object UnionBlocks extends SparsityStrategy {
-  def exists(leftBlock: Boolean, rightBlock: Boolean): Boolean = leftBlock || rightBlock
+  override def exists(leftBlock: Boolean, rightBlock: Boolean): Boolean = leftBlock || rightBlock
 
-  def mergeSparsity(left: MatrixSparsity, right: MatrixSparsity): MatrixSparsity =
+  override def mergeSparsity(left: MatrixSparsity, right: MatrixSparsity): MatrixSparsity =
     MatrixSparsity.union(left, right)
 }
 
 case object IntersectionBlocks extends SparsityStrategy {
-  def exists(leftBlock: Boolean, rightBlock: Boolean): Boolean = leftBlock && rightBlock
+  override def exists(leftBlock: Boolean, rightBlock: Boolean): Boolean = leftBlock && rightBlock
 
-  def mergeSparsity(left: MatrixSparsity, right: MatrixSparsity): MatrixSparsity =
+  override def mergeSparsity(left: MatrixSparsity, right: MatrixSparsity): MatrixSparsity =
     MatrixSparsity.intersection(left, right)
 }
 
 case object NeedsDense extends SparsityStrategy {
-  def exists(leftBlock: Boolean, rightBlock: Boolean): Boolean = true
+  override def exists(leftBlock: Boolean, rightBlock: Boolean): Boolean = true
 
-  def mergeSparsity(left: MatrixSparsity, right: MatrixSparsity): MatrixSparsity = {
+  override def mergeSparsity(left: MatrixSparsity, right: MatrixSparsity): MatrixSparsity = {
     assert(left.nRows == right.nRows && left.nCols == right.nCols)
     assert(!left.isSparse && !right.isSparse)
     left
@@ -782,7 +782,7 @@ case class BlockMatrixFilter(
 case class BlockMatrixDensify(child: BlockMatrixIR) extends BlockMatrixIR {
   override lazy val typ: BlockMatrixType = child.typ.densify
 
-  def blockCostIsLinear: Boolean = child.blockCostIsLinear
+  override def blockCostIsLinear: Boolean = child.blockCostIsLinear
 
   val childrenSeq: IndexedSeq[BaseIR] = FastSeq(child)
 
@@ -806,7 +806,7 @@ sealed abstract class BlockMatrixSparsifier {
 case class BandSparsifier(blocksOnly: Boolean, l: Long, u: Long) extends BlockMatrixSparsifier {
   val typ: Type = TTuple(TInt64, TInt64)
 
-  def definedBlocks(childType: BlockMatrixType): MatrixSparsity = {
+  override def definedBlocks(childType: BlockMatrixType): MatrixSparsity = {
     val lowerBlock = java.lang.Math.floorDiv(l, childType.blockSize).toInt
     val upperBlock = java.lang.Math.floorDiv(u + childType.blockSize - 1, childType.blockSize).toInt
 
@@ -826,7 +826,7 @@ case class BandSparsifier(blocksOnly: Boolean, l: Long, u: Long) extends BlockMa
   override def sparsify(ctx: ExecuteContext, bm: BlockMatrix): BlockMatrix =
     bm.filterBand(l, u, blocksOnly)
 
-  def pretty(): String =
+  override def pretty(): String =
     s"(BandSparsifier ${Pretty.prettyBooleanLiteral(blocksOnly)} $l $u)"
 }
 
@@ -838,7 +838,7 @@ case class RowIntervalSparsifier(
 ) extends BlockMatrixSparsifier {
   val typ: Type = TTuple(TArray(TInt64), TArray(TInt64))
 
-  def definedBlocks(childType: BlockMatrixType): MatrixSparsity = {
+  override def definedBlocks(childType: BlockMatrixType): MatrixSparsity = {
     val blockStarts =
       starts.grouped(childType.blockSize).map(idxs => childType.getBlockIdx(idxs.min)).toArray
     val blockStops =
@@ -852,7 +852,7 @@ case class RowIntervalSparsifier(
   override def sparsify(ctx: ExecuteContext, bm: BlockMatrix): BlockMatrix =
     bm.filterRowIntervals(ctx, starts.toArray, stops.toArray, blocksOnly)
 
-  def pretty(): String =
+  override def pretty(): String =
     s"(RowIntervalSparsifier ${Pretty.prettyBooleanLiteral(blocksOnly)} ${starts.mkString("(", " ", ")")} ${stops.mkString("(", " ", ")")})"
 }
 
@@ -861,7 +861,7 @@ case class RectangleSparsifier(rectangles: IndexedSeq[IndexedSeq[Long]])
     extends BlockMatrixSparsifier {
   val typ: Type = TArray(TInt64)
 
-  def definedBlocks(childType: BlockMatrixType): MatrixSparsity = {
+  override def definedBlocks(childType: BlockMatrixType): MatrixSparsity = {
     val definedBlocks = rectangles.flatMap { case IndexedSeq(rowStart, rowEnd, colStart, colEnd) =>
       val rs = childType.getBlockIdx(java.lang.Math.max(rowStart, 0))
       val re = childType.getBlockIdx(java.lang.Math.min(rowEnd - 1, childType.nRows)) + 1
@@ -880,7 +880,7 @@ case class RectangleSparsifier(rectangles: IndexedSeq[IndexedSeq[Long]])
   override def sparsify(ctx: ExecuteContext, bm: BlockMatrix): BlockMatrix =
     bm.filterRectangles(rectangles.flatten.toArray)
 
-  def pretty(): String =
+  override def pretty(): String =
     s"(RectangleSparsifier ${rectangles.flatten.mkString("(", " ", ")")})"
 }
 
@@ -908,7 +908,7 @@ case class BlockMatrixSparsify(
   override lazy val typ: BlockMatrixType =
     child.typ.copy(sparsity = sparsifier.definedBlocks(child.typ))
 
-  def blockCostIsLinear: Boolean = child.blockCostIsLinear
+  override def blockCostIsLinear: Boolean = child.blockCostIsLinear
 
   val childrenSeq: IndexedSeq[BaseIR] = Array(child)
 

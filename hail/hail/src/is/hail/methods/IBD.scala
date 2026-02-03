@@ -388,12 +388,12 @@ case class IBD(
     }
   }
 
-  def preservesPartitionCounts: Boolean = false
+  override def preservesPartitionCounts: Boolean = false
 
-  def typ(childType: MatrixType): TableType =
+  override def typ(childType: MatrixType): TableType =
     TableType(IBD.ibdPType.virtualType, IBD.ibdKey, TStruct.empty)
 
-  def execute(ctx: ExecuteContext, input: MatrixValue): TableValue = {
+  override def execute(ctx: ExecuteContext, input: MatrixValue): TableValue = {
     input.requireUniqueSamples("ibd")
     val computeMaf = mafFieldName.map(IBD.generateComputeMaf(input, _))
     val crdd =

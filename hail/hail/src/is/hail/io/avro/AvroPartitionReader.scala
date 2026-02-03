@@ -25,7 +25,7 @@ import org.apache.avro.io.DatumReader
 import org.json4s.{Extraction, JValue}
 
 case class AvroPartitionReader(schema: Schema, uidFieldName: String) extends PartitionReader {
-  def contextType: Type = TStruct("partitionPath" -> TString, "partitionIndex" -> TInt64)
+  override def contextType: Type = TStruct("partitionPath" -> TString, "partitionIndex" -> TInt64)
 
   def fullRowTypeWithoutUIDs: TStruct = AvroReader.schemaToType(schema)
 
@@ -78,7 +78,7 @@ case class AvroPartitionReader(schema: Schema, uidFieldName: String) extends Par
         override def method: EmitMethodBuilder[_] = cb.emb
         val length: Option[EmitCodeBuilder => Code[Int]] = None
 
-        def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
+        override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
           val mb = cb.emb
           val codeSchema = cb.newLocal("schema", mb.getObject(schema))
           cb.assign(record, Code.newInstance[GenericData.Record, Schema](codeSchema))
@@ -121,14 +121,14 @@ case class AvroPartitionReader(schema: Schema, uidFieldName: String) extends Par
           }
         }
 
-        def close(cb: EmitCodeBuilder): Unit = cb += it.invoke[Unit]("close")
+        override def close(cb: EmitCodeBuilder): Unit = cb += it.invoke[Unit]("close")
       }
 
       SStreamValue(producer)
     }
   }
 
-  def toJValue: JValue = Extraction.decompose(this)(PartitionReader.formats)
+  override def toJValue: JValue = Extraction.decompose(this)(PartitionReader.formats)
 }
 
 object AvroReader {

@@ -21,7 +21,7 @@ class LeveneHaldane(
 ) extends AbstractIntegerDistribution(rng) {
 
   // The probability mass function P(nAB), computing no more than necessary
-  def probability(nAB: Int): Double =
+  override def probability(nAB: Int): Double =
     if (nAB < 0 || nAB > nA || nAB % 2 != nA % 2)
       0.0
     else if (nAB >= mode)
@@ -47,7 +47,7 @@ class LeveneHaldane(
     }
 
   // P(nAB <= n1)
-  def cumulativeProbability(n1: Int): Double =
+  override def cumulativeProbability(n1: Int): Double =
     cumulativeProbability(-1, n1)
 
   // P(nAB > n0)
@@ -81,14 +81,15 @@ class LeveneHaldane(
   }
 
   def nB: Int = 2 * n - nA
-  def getNumericalMean: Double = 1.0 * nA * nB / (2 * n - 1)
+  override def getNumericalMean: Double = 1.0 * nA * nB / (2 * n - 1)
 
-  def getNumericalVariance: Double =
+  override def getNumericalVariance: Double =
     1.0 * nA * nB / (2 * n - 1) * (1 + (nA - 1.0) * (nB - 1) / (2 * n - 3) - 1.0 * nA * nB / (2 * n - 1))
 
-  def isSupportConnected: Boolean = true // interpreted as restricted to the even or odd integers,
-  def getSupportUpperBound: Int = nA
-  def getSupportLowerBound: Int = nA % 2
+  override def isSupportConnected: Boolean =
+    true // interpreted as restricted to the even or odd integers,
+  override def getSupportUpperBound: Int = nA
+  override def getSupportLowerBound: Int = nA % 2
 }
 
 object LeveneHaldane {

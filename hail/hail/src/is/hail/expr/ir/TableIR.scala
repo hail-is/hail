@@ -50,7 +50,7 @@ object TableIR {
 }
 
 sealed abstract class TableIR extends BaseIR {
-  def typ: TableType
+  override def typ: TableType
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): TableIR
 }
@@ -612,7 +612,7 @@ case class PartitionRVDReader(rvd: RVD, uidFieldName: String) extends PartitionR
     tr
   }
 
-  def emitStream(
+  override def emitStream(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
     mb: EmitMethodBuilder[_],
@@ -736,12 +736,12 @@ case class PartitionRVDReader(rvd: RVD, uidFieldName: String) extends PartitionR
     }
   }
 
-  def toJValue: JValue =
+  override def toJValue: JValue =
     JString("<PartitionRVDReader>") // cannot be parsed, but need a printout for Pretty
 }
 
 trait AbstractNativeReader extends PartitionReader {
-  def uidFieldName: String
+  override def uidFieldName: String
 
   def spec: AbstractTypedCodecSpec
 
@@ -758,16 +758,16 @@ trait AbstractNativeReader extends PartitionReader {
     tr
   }
 
-  def fullRowType: TStruct = spec.encodedVirtualType.asInstanceOf[TStruct]
+  override def fullRowType: TStruct = spec.encodedVirtualType.asInstanceOf[TStruct]
     .insertFields(Array(uidFieldName -> TTuple(TInt64, TInt64)))
 }
 
 case class PartitionNativeReader(spec: AbstractTypedCodecSpec, uidFieldName: String)
     extends AbstractNativeReader {
 
-  def contextType: Type = TStruct("partitionIndex" -> TInt64, "partitionPath" -> TString)
+  override def contextType: Type = TStruct("partitionIndex" -> TInt64, "partitionPath" -> TString)
 
-  def emitStream(
+  override def emitStream(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
     mb: EmitMethodBuilder[_],
@@ -857,7 +857,7 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec, uidFieldName: Str
     }
   }
 
-  def toJValue: JValue = Extraction.decompose(this)(PartitionReader.formats)
+  override def toJValue: JValue = Extraction.decompose(this)(PartitionReader.formats)
 }
 
 case class PartitionNativeIntervalReader(
@@ -876,9 +876,9 @@ case class PartitionNativeIntervalReader(
   lazy val contextType: Type = RVDPartitioner.intervalIRRepresentation(partitioner.kType)
   require(partitioner.kType.size > 0)
 
-  def toJValue: JValue = Extraction.decompose(this)(PartitionReader.formats)
+  override def toJValue: JValue = Extraction.decompose(this)(PartitionReader.formats)
 
-  def emitStream(
+  override def emitStream(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
     mb: EmitMethodBuilder[_],
@@ -1177,7 +1177,7 @@ case class PartitionNativeReaderIndexed(
   key: IndexedSeq[String],
   uidFieldName: String,
 ) extends AbstractNativeReader {
-  def contextType: Type = TStruct(
+  override def contextType: Type = TStruct(
     "partitionIndex" -> TInt64,
     "partitionPath" -> TString,
     "indexPath" -> TString,
@@ -1186,7 +1186,7 @@ case class PartitionNativeReaderIndexed(
     ),
   )
 
-  def emitStream(
+  override def emitStream(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
     mb: EmitMethodBuilder[_],
@@ -1315,7 +1315,7 @@ case class PartitionNativeReaderIndexed(
     }
   }
 
-  def toJValue: JValue = Extraction.decompose(this)(PartitionReader.formats)
+  override def toJValue: JValue = Extraction.decompose(this)(PartitionReader.formats)
 }
 
 // Result uses the uid field name and values from the right input, and ignores
@@ -1323,9 +1323,9 @@ case class PartitionNativeReaderIndexed(
 case class PartitionZippedNativeReader(left: PartitionReader, right: PartitionReader)
     extends PartitionReader {
 
-  def uidFieldName = right.uidFieldName
+  override def uidFieldName = right.uidFieldName
 
-  def contextType: Type = TStruct(
+  override def contextType: Type = TStruct(
     "leftContext" -> left.contextType,
     "rightContext" -> right.contextType,
   )
@@ -1356,7 +1356,7 @@ case class PartitionZippedNativeReader(left: PartitionReader, right: PartitionRe
     TStruct.concat(leftStruct, rightStruct)
   }
 
-  def toJValue: JValue = Extraction.decompose(this)(PartitionReader.formats)
+  override def toJValue: JValue = Extraction.decompose(this)(PartitionReader.formats)
 
   override def emitStream(
     ctx: ExecuteContext,
@@ -1460,12 +1460,15 @@ case class PartitionZippedNativeIntervalReader(
 
   private lazy val zippedReader = PartitionZippedNativeReader(rowsReader, entriesReader)
 
-  def contextType = rowsReader.contextType
-  def fullRowType = zippedReader.fullRowType
-  def rowRequiredness(requestedType: TStruct): RStruct = zippedReader.rowRequiredness(requestedType)
-  def toJValue: JValue = Extraction.decompose(this)(PartitionReader.formats)
+  override def contextType = rowsReader.contextType
+  override def fullRowType = zippedReader.fullRowType
 
-  def emitStream(
+  override def rowRequiredness(requestedType: TStruct): RStruct =
+    zippedReader.rowRequiredness(requestedType)
+
+  override def toJValue: JValue = Extraction.decompose(this)(PartitionReader.formats)
+
+  override def emitStream(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
     mb: EmitMethodBuilder[_],
@@ -1491,7 +1494,7 @@ case class PartitionZippedIndexedNativeReader(
   uidFieldName: String,
 ) extends PartitionReader {
 
-  def contextType: Type = {
+  override def contextType: Type = {
     TStruct(
       "partitionIndex" -> TInt64,
       "leftPartitionPath" -> TString,
@@ -1518,7 +1521,7 @@ case class PartitionZippedIndexedNativeReader(
     (leftStruct, rightStruct)
   }
 
-  def rowRequiredness(requestedType: TStruct): RStruct = {
+  override def rowRequiredness(requestedType: TStruct): RStruct = {
     val (leftStruct, rightStruct) = splitRequestedTypes(requestedType)
     val rt = TypeWithRequiredness(requestedType).asInstanceOf[RStruct]
     val pt = specLeft.decodedPType(leftStruct).asInstanceOf[PStruct].insertFields(
@@ -1538,13 +1541,13 @@ case class PartitionZippedIndexedNativeReader(
     ),
   )
 
-  def fullRowType: TStruct =
+  override def fullRowType: TStruct =
     (specLeft.encodedVirtualType.asInstanceOf[TStruct] ++ specRight.encodedVirtualType.asInstanceOf[
       TStruct
     ])
       .insertFields(Array(uidFieldName -> TTuple(TInt64, TInt64, TInt64, TInt64)))
 
-  def emitStream(
+  override def emitStream(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
     mb: EmitMethodBuilder[_],
@@ -1697,7 +1700,7 @@ case class PartitionZippedIndexedNativeReader(
     }
   }
 
-  def toJValue: JValue = Extraction.decompose(this)(PartitionReader.formats)
+  override def toJValue: JValue = Extraction.decompose(this)(PartitionReader.formats)
 }
 
 case class TableNativeReaderParameters(
@@ -1709,25 +1712,25 @@ class TableNativeReader(
   val params: TableNativeReaderParameters,
   val spec: AbstractTableSpec,
 ) extends TableReaderWithExtraUID {
-  def pathsUsed: Seq[String] = Array(params.path)
+  override def pathsUsed: Seq[String] = Array(params.path)
 
   val filterIntervals: Boolean = params.options.map(_.filterIntervals).getOrElse(false)
 
-  def partitionCounts: Option[IndexedSeq[Long]] =
+  override def partitionCounts: Option[IndexedSeq[Long]] =
     if (params.options.isDefined) None else Some(spec.partitionCounts)
 
   override def isDistinctlyKeyed: Boolean = spec.isDistinctlyKeyed
 
-  def uidType = TTuple(TInt64, TInt64)
+  override def uidType = TTuple(TInt64, TInt64)
 
-  def fullTypeWithoutUIDs = spec.table_type
+  override def fullTypeWithoutUIDs = spec.table_type
 
   override def concreteRowRequiredness(ctx: ExecuteContext, requestedType: TableType)
     : VirtualTypeWithReq =
     VirtualTypeWithReq(tcoerce[PStruct](spec.rowsComponent.rvdSpec(ctx.fs, params.path)
       .typedCodecSpec.encodedType.decodedPType(requestedType.rowType)))
 
-  protected def uidRequiredness: VirtualTypeWithReq =
+  override protected def uidRequiredness: VirtualTypeWithReq =
     VirtualTypeWithReq(PCanonicalTuple(true, PInt64Required, PInt64Required))
 
   override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType)
@@ -1813,7 +1816,7 @@ case class TableNativeZippedReader(
   specLeft: AbstractTableSpec,
   specRight: AbstractTableSpec,
 ) extends TableReaderWithExtraUID {
-  def pathsUsed: Seq[String] = FastSeq(pathLeft, pathRight)
+  override def pathsUsed: Seq[String] = FastSeq(pathLeft, pathRight)
 
   override def renderShort(): String =
     s"(TableNativeZippedReader $pathLeft $pathRight ${options.map(_.renderShort()).getOrElse("")})"
@@ -1830,7 +1833,7 @@ case class TableNativeZippedReader(
   require(specLeft.partitionCounts sameElements specRight.partitionCounts)
   require(specLeft.version == specRight.version)
 
-  def partitionCounts: Option[IndexedSeq[Long]] =
+  override def partitionCounts: Option[IndexedSeq[Long]] =
     if (intervals.isEmpty) Some(specLeft.partitionCounts) else None
 
   override def uidType = TTuple(TInt64, TInt64)
@@ -1974,7 +1977,7 @@ case class TableFromBlockMatrixNativeReader(
   params: TableFromBlockMatrixNativeReaderParameters,
   metadata: BlockMatrixMetadata,
 ) extends TableReaderWithExtraUID {
-  def pathsUsed: Seq[String] = FastSeq(params.path)
+  override def pathsUsed: Seq[String] = FastSeq(params.path)
 
   val partitionRanges = (0 until params.nPartitions).map { i =>
     val nRows = metadata.nRows
@@ -2040,7 +2043,7 @@ case class TableFromBlockMatrixNativeReader(
   override def toJValue: JValue =
     decomposeWithName(params, "TableFromBlockMatrixNativeReader")(TableReader.formats)
 
-  def renderShort(): String = defaultRender()
+  override def renderShort(): String = defaultRender()
 }
 
 object TableRead {
@@ -2192,7 +2195,7 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
 case class TableFilter(child: TableIR, pred: IR) extends TableIR with PreservesOrRemovesRows {
   val childrenSeq: IndexedSeq[BaseIR] = Array(child, pred)
 
-  def typ: TableType = child.typ
+  override def typ: TableType = child.typ
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): TableFilter = {
     assert(newChildren.length == 2)
@@ -2205,7 +2208,7 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR with PreservesO
 case class TableHead(child: TableIR, n: Long) extends TableIR {
   require(n >= 0, fatal(s"TableHead: n must be non-negative! Found '$n'."))
   lazy val childrenSeq: IndexedSeq[BaseIR] = FastSeq(child)
-  def typ: TableType = child.typ
+  override def typ: TableType = child.typ
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): TableHead = {
     val IndexedSeq(newChild: TableIR) = newChildren
@@ -2216,7 +2219,7 @@ case class TableHead(child: TableIR, n: Long) extends TableIR {
 case class TableTail(child: TableIR, n: Long) extends TableIR {
   require(n >= 0, fatal(s"TableTail: n must be non-negative! Found '$n'."))
   lazy val childrenSeq: IndexedSeq[BaseIR] = FastSeq(child)
-  def typ: TableType = child.typ
+  override def typ: TableType = child.typ
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): TableTail = {
     val IndexedSeq(newChild: TableIR) = newChildren
@@ -2232,7 +2235,7 @@ object RepartitionStrategy {
 
 case class TableRepartition(child: TableIR, n: Int, strategy: Int)
     extends TableIR with PreservesRows {
-  def typ: TableType = child.typ
+  override def typ: TableType = child.typ
 
   lazy val childrenSeq: IndexedSeq[BaseIR] = FastSeq(child)
 
@@ -2466,7 +2469,7 @@ case class TableUnion(childrenSeq: IndexedSeq[TableIR]) extends TableIR {
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): TableUnion =
     TableUnion(newChildren.map(_.asInstanceOf[TableIR]))
 
-  def typ: TableType = childrenSeq(0).typ
+  override def typ: TableType = childrenSeq(0).typ
 }
 
 case class MatrixRowsTable(child: MatrixIR) extends TableIR with PreservesRows {
@@ -2477,7 +2480,7 @@ case class MatrixRowsTable(child: MatrixIR) extends TableIR with PreservesRows {
     MatrixRowsTable(newChildren(0).asInstanceOf[MatrixIR])
   }
 
-  def typ: TableType = child.typ.rowsTableType
+  override def typ: TableType = child.typ.rowsTableType
 
   override def preservesRowsOrColsFrom: BaseIR = child
 }
@@ -2490,7 +2493,7 @@ case class MatrixColsTable(child: MatrixIR) extends TableIR {
     MatrixColsTable(newChildren(0).asInstanceOf[MatrixIR])
   }
 
-  def typ: TableType = child.typ.colsTableType
+  override def typ: TableType = child.typ.colsTableType
 }
 
 case class MatrixEntriesTable(child: MatrixIR) extends TableIR {
@@ -2502,7 +2505,7 @@ case class MatrixEntriesTable(child: MatrixIR) extends TableIR {
     MatrixEntriesTable(newChildren(0).asInstanceOf[MatrixIR])
   }
 
-  def typ: TableType = child.typ.entriesTableType
+  override def typ: TableType = child.typ.entriesTableType
 }
 
 case class TableDistinct(child: TableIR) extends TableIR with PreservesOrRemovesRows {
@@ -2513,7 +2516,7 @@ case class TableDistinct(child: TableIR) extends TableIR with PreservesOrRemoves
     TableDistinct(newChild.asInstanceOf[TableIR])
   }
 
-  def typ: TableType = child.typ
+  override def typ: TableType = child.typ
 
   override def preservesRowsOrColsFrom: BaseIR = child
 }
@@ -2715,14 +2718,14 @@ case class BlockMatrixToTable(child: BlockMatrixIR) extends TableIR {
 
 case class RelationalLetTable(name: Name, value: IR, body: TableIR)
     extends TableIR with PreservesRows {
-  def typ: TableType = body.typ
+  override def typ: TableType = body.typ
 
-  def childrenSeq: IndexedSeq[BaseIR] = Array(value, body)
+  override def childrenSeq: IndexedSeq[BaseIR] = Array(value, body)
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): TableIR = {
     val IndexedSeq(newValue: IR, newBody: TableIR) = newChildren
     RelationalLetTable(name, newValue, newBody)
   }
 
-  def preservesRowsOrColsFrom: BaseIR = body
+  override def preservesRowsOrColsFrom: BaseIR = body
 }

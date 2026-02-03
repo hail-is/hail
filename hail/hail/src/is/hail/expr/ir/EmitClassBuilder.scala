@@ -135,7 +135,7 @@ trait WrappedEmitModuleBuilder {
 trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
   def ecb: EmitClassBuilder[C]
 
-  def emodb: EmitModuleBuilder = ecb.emodb
+  override def emodb: EmitModuleBuilder = ecb.emodb
 
   def cb: ClassBuilder[C] = ecb.cb
 
@@ -944,7 +944,8 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
       new ((HailClassLoader, FS, HailTaskContext, Region) => C) with java.io.Serializable {
         @transient @volatile private var theClass: Class[_] = null
 
-        def apply(hcl: HailClassLoader, fs: FS, htc: HailTaskContext, region: Region): C = {
+        override def apply(hcl: HailClassLoader, fs: FS, htc: HailTaskContext, region: Region)
+          : C = {
           if (theClass == null) {
             this.synchronized {
               if (theClass == null) {
@@ -1438,7 +1439,7 @@ class EmitMethodBuilder[C](
 trait WrappedEmitMethodBuilder[C] extends WrappedEmitClassBuilder[C] {
   def emb: EmitMethodBuilder[C]
 
-  def ecb: EmitClassBuilder[C] = emb.ecb
+  override def ecb: EmitClassBuilder[C] = emb.ecb
 
   // wrapped MethodBuilder methods
   def mb: MethodBuilder[C] = emb.mb

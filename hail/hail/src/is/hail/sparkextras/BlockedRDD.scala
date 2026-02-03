@@ -39,7 +39,7 @@ class BlockedRDD[T](
 
   override def getDependencies: Seq[Dependency[_]] =
     FastSeq(new NarrowDependency(prev) {
-      def getParents(id: Int): Seq[Int] =
+      override def getParents(id: Int): Seq[Int] =
         partitions(id).asInstanceOf[BlockedRDDPartition].range
     })
 

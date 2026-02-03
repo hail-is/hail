@@ -444,9 +444,9 @@ object Call extends Serializable {
     }
 
     new IndexedSeq[Int] with Serializable {
-      def length: Int = nAlleles
+      override def length: Int = nAlleles
 
-      def apply(idx: Int): Int = {
+      override def apply(idx: Int): Int = {
         if (idx < 0 || idx >= nAlleles)
           throw new ArrayIndexOutOfBoundsException(idx)
 

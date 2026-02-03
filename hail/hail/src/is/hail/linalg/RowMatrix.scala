@@ -303,11 +303,12 @@ class ReadBlocksAsRowsRDD(
   private val nBlockCols = gp.nBlockCols
   private val blockSize = gp.blockSize
 
-  protected def getPartitions: Array[Partition] = Array.tabulate(partitionStarts.length - 1)(pi =>
-    ReadBlocksAsRowsRDDPartition(pi, partitionStarts(pi), partitionStarts(pi + 1))
-  )
+  override protected def getPartitions: Array[Partition] =
+    Array.tabulate(partitionStarts.length - 1)(pi =>
+      ReadBlocksAsRowsRDDPartition(pi, partitionStarts(pi), partitionStarts(pi + 1))
+    )
 
-  def compute(split: Partition, context: TaskContext): Iterator[(Long, Array[Double])] = {
+  override def compute(split: Partition, context: TaskContext): Iterator[(Long, Array[Double])] = {
     val ReadBlocksAsRowsRDDPartition(_, start, end) =
       split.asInstanceOf[ReadBlocksAsRowsRDDPartition]
 
@@ -315,9 +316,9 @@ class ReadBlocksAsRowsRDD(
     var i = start
 
     new Iterator[(Long, Array[Double])] {
-      def hasNext: Boolean = i < end
+      override def hasNext: Boolean = i < end
 
-      def next(): (Long, Array[Double]) = {
+      override def next(): (Long, Array[Double]) = {
         if (i == start || i % blockSize == 0) {
           val blockRow = (i / blockSize).toInt
           val nRowsInBlock = gp.blockRowNRows(blockRow)

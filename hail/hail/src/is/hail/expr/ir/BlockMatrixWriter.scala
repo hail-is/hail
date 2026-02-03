@@ -56,12 +56,12 @@ case class BlockMatrixNativeWriter(
   forceRowMajor: Boolean,
   stageLocally: Boolean,
 ) extends BlockMatrixWriter {
-  def pathOpt: Option[String] = Some(path)
+  override def pathOpt: Option[String] = Some(path)
 
-  def apply(ctx: ExecuteContext, bm: BlockMatrix): Unit =
+  override def apply(ctx: ExecuteContext, bm: BlockMatrix): Unit =
     bm.write(ctx, path, overwrite, forceRowMajor, stageLocally)
 
-  def loweredTyp: Type = TVoid
+  override def loweredTyp: Type = TVoid
 
   override def lower(
     ctx: ExecuteContext,
@@ -128,9 +128,9 @@ case class BlockMatrixNativeMetadataWriter(
     }
   }
 
-  def annotationType: Type = TArray(TString)
+  override def annotationType: Type = TArray(TString)
 
-  def writeMetadata(
+  override def writeMetadata(
     writeAnnotations: => IEmitCode,
     cb: EmitCodeBuilder,
     region: Value[Region],
@@ -164,9 +164,9 @@ case class BlockMatrixNativeMetadataWriter(
 }
 
 case class BlockMatrixBinaryWriter(path: String) extends BlockMatrixWriter {
-  def pathOpt: Option[String] = Some(path)
+  override def pathOpt: Option[String] = Some(path)
 
-  def apply(ctx: ExecuteContext, bm: BlockMatrix): String = {
+  override def apply(ctx: ExecuteContext, bm: BlockMatrix): String = {
     RichDenseMatrixDouble.exportToDoubles(
       ctx.fs,
       path,
@@ -176,7 +176,7 @@ case class BlockMatrixBinaryWriter(path: String) extends BlockMatrixWriter {
     path
   }
 
-  def loweredTyp: Type = TString
+  override def loweredTyp: Type = TString
 
   override def lower(
     ctx: ExecuteContext,
@@ -191,12 +191,12 @@ case class BlockMatrixBinaryWriter(path: String) extends BlockMatrixWriter {
 }
 
 case class BlockMatrixPersistWriter(id: String, storageLevel: String) extends BlockMatrixWriter {
-  def pathOpt: Option[String] = None
+  override def pathOpt: Option[String] = None
 
-  def apply(ctx: ExecuteContext, bm: BlockMatrix): Unit =
+  override def apply(ctx: ExecuteContext, bm: BlockMatrix): Unit =
     ctx.BlockMatrixCache += id -> bm.persist(storageLevel)
 
-  def loweredTyp: Type = TVoid
+  override def loweredTyp: Type = TVoid
 }
 
 case class BlockMatrixRectanglesWriter(
@@ -206,12 +206,12 @@ case class BlockMatrixRectanglesWriter(
   binary: Boolean,
 ) extends BlockMatrixWriter {
 
-  def pathOpt: Option[String] = Some(path)
+  override def pathOpt: Option[String] = Some(path)
 
-  def apply(ctx: ExecuteContext, bm: BlockMatrix): Unit =
+  override def apply(ctx: ExecuteContext, bm: BlockMatrix): Unit =
     bm.exportRectangles(ctx, path, rectangles, delimiter, binary)
 
-  def loweredTyp: Type = TVoid
+  override def loweredTyp: Type = TVoid
 }
 
 abstract class BlockMatrixMultiWriter {
@@ -223,7 +223,7 @@ case class BlockMatrixBinaryMultiWriter(
   overwrite: Boolean,
 ) extends BlockMatrixMultiWriter {
 
-  def apply(ctx: ExecuteContext, bms: IndexedSeq[BlockMatrix]): Unit =
+  override def apply(ctx: ExecuteContext, bms: IndexedSeq[BlockMatrix]): Unit =
     BlockMatrix.binaryWriteBlockMatrices(ctx, bms, prefix, overwrite)
 
   def loweredTyp: Type = TVoid
@@ -239,7 +239,7 @@ case class BlockMatrixTextMultiWriter(
   customFilenames: Option[Array[String]],
 ) extends BlockMatrixMultiWriter {
 
-  def apply(ctx: ExecuteContext, bms: IndexedSeq[BlockMatrix]): Unit =
+  override def apply(ctx: ExecuteContext, bms: IndexedSeq[BlockMatrix]): Unit =
     BlockMatrix.exportBlockMatrices(
       ctx,
       bms,
@@ -261,7 +261,7 @@ case class BlockMatrixNativeMultiWriter(
   forceRowMajor: Boolean,
 ) extends BlockMatrixMultiWriter {
 
-  def apply(ctx: ExecuteContext, bms: IndexedSeq[BlockMatrix]): Unit =
+  override def apply(ctx: ExecuteContext, bms: IndexedSeq[BlockMatrix]): Unit =
     BlockMatrix.writeBlockMatrices(ctx, bms, prefix, overwrite, forceRowMajor)
 
   def loweredTyp: Type = TVoid

@@ -19,7 +19,7 @@ class UnderscoreFunctionMapper extends FunctionMapper {
 // see: https://software.intel.com/content/www/us/en/develop/documentation/mkl-linux-developer-guide/top/language-specific-usage-options/mixed-language-programming-with-the-intel-math-kernel-library/calling-lapack-blas-and-cblas-routines-from-c-c-language-environments.html
 object LAPACK extends Logging {
   private[this] val libraryInstance = ThreadLocal.withInitial(new Supplier[LAPACKLibrary]() {
-    def get() = {
+    override def get() = {
       val mklEnvVar = "HAIL_MKL_PATH"
       val openblasEnvVar = "HAIL_OPENBLAS_PATH"
       val libraryName = if (sys.env.contains(mklEnvVar)) {

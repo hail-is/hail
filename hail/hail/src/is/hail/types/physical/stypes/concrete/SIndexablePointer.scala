@@ -134,9 +134,9 @@ final class SIndexablePointerSettable(
   override val length: Settable[Int],
   override val elementsAddress: Settable[Long],
 ) extends SIndexablePointerValue(st, a, length, elementsAddress) with SSettable {
-  def settableTuple(): IndexedSeq[Settable[_]] = FastSeq(a, length, elementsAddress)
+  override def settableTuple(): IndexedSeq[Settable[_]] = FastSeq(a, length, elementsAddress)
 
-  def store(cb: EmitCodeBuilder, v: SValue): Unit = v match {
+  override def store(cb: EmitCodeBuilder, v: SValue): Unit = v match {
     case v: SIndexablePointerValue =>
       cb.assign(a, v.a)
       cb.assign(length, v.length)

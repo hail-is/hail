@@ -168,9 +168,9 @@ case class Skat(
     TableType(skatSchema, FastSeq("id"), TStruct.empty)
   }
 
-  def preservesPartitionCounts: Boolean = false
+  override def preservesPartitionCounts: Boolean = false
 
-  def execute(ctx: ExecuteContext, mv: MatrixValue): TableValue = {
+  override def execute(ctx: ExecuteContext, mv: MatrixValue): TableValue = {
 
     if (maxSize <= 0 || maxSize > 46340)
       fatal(s"Maximum group size must be in [1, 46340], got $maxSize")

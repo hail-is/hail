@@ -17,13 +17,13 @@ class PFloat64(override val required: Boolean) extends PNumeric with PPrimitive 
 
   override type NType = PFloat64
 
-  def _asIdent = "float64"
+  override def _asIdent = "float64"
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit =
     sb ++= "PFloat64"
 
   override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering = new UnsafeOrdering {
-    def compare(o1: Long, o2: Long): Int =
+    override def compare(o1: Long, o2: Long): Int =
       java.lang.Double.compare(Region.loadDouble(o1), Region.loadDouble(o2))
   }
 
@@ -39,7 +39,7 @@ class PFloat64(override val required: Boolean) extends PNumeric with PPrimitive 
 
   override def sType: SType = SFloat64
 
-  def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SValue): Unit =
+  override def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SValue): Unit =
     cb.append(Region.storeDouble(addr, value.asDouble.value))
 
   override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SFloat64Value =

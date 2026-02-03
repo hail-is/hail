@@ -81,15 +81,16 @@ case class RVDTableReader(rvd: RVD, globals: IR, rt: RTable) extends TableReader
 
   override def isDistinctlyKeyed: Boolean = false
 
-  def rowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
+  override def rowRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
     VirtualTypeWithReq.subset(requestedType.rowType, rt.rowType)
 
-  def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
+  override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType)
+    : VirtualTypeWithReq =
     VirtualTypeWithReq.subset(requestedType.globalType, rt.globalType)
 
   override def toJValue: JValue = JString("RVDTableReader")
 
-  def renderShort(): String = "RVDTableReader"
+  override def renderShort(): String = "RVDTableReader"
 
   override def defaultRender(): String = "RVDTableReader"
 

@@ -60,7 +60,7 @@ class GenAnnotationView(rowType: PStruct) extends View {
   private var cachedVarid: String = _
   private var cachedRsid: String = _
 
-  def set(offset: Long): Unit = {
+  override def set(offset: Long): Unit = {
     assert(rowType.isFieldDefined(offset, varidIdx))
     assert(rowType.isFieldDefined(offset, rsidIdx))
     this.rsidOffset = rowType.loadField(offset, rsidIdx)

@@ -32,7 +32,7 @@ import org.apache.spark.sql.SparkSession
 import sourcecode.Enclosing
 
 class SparkBroadcastValue[T](bc: Broadcast[T]) extends BroadcastValue[T] with Serializable {
-  def value: T = bc.value
+  override def value: T = bc.value
 }
 
 object SparkTaskContext {
@@ -231,7 +231,7 @@ class SparkBackend(val spark: SparkSession) extends Backend with Logging {
   val sc: SparkContext =
     spark.sparkContext
 
-  def broadcast[T: ClassTag](value: T): BroadcastValue[T] =
+  override def broadcast[T: ClassTag](value: T): BroadcastValue[T] =
     new SparkBroadcastValue[T](sc.broadcast(value))
 
   override def runtimeContext(ctx: ExecuteContext): DriverRuntimeContext =
@@ -316,12 +316,12 @@ class SparkBackend(val spark: SparkSession) extends Backend with Logging {
       }
     }
 
-  def defaultParallelism: Int =
+  override def defaultParallelism: Int =
     sc.defaultParallelism
 
   override def asSpark(implicit E: Enclosing): SparkBackend = this
 
-  def close(): Unit =
+  override def close(): Unit =
     SparkBackend.synchronized {
       assert(this eq SparkBackend.theSparkBackend)
       SparkBackend.theSparkBackend = null
@@ -424,7 +424,7 @@ class SparkBackend(val spark: SparkSession) extends Backend with Logging {
     RVDTableReader(RVD.unkeyed(rowPType, orderedCRDD), globalsLit, rt)
   }
 
-  def tableToTableStage(ctx: ExecuteContext, inputIR: TableIR, analyses: LoweringAnalyses)
+  override def tableToTableStage(ctx: ExecuteContext, inputIR: TableIR, analyses: LoweringAnalyses)
     : TableStage =
     CanLowerEfficiently(ctx, inputIR) match {
       case Some(failReason) =>

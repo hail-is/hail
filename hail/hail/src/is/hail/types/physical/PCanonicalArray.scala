@@ -15,9 +15,9 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false)
     extends PArray with PCanonicalArrayBackedContainer {
   assert(elementType.isRealizable)
 
-  def arrayRep = this
+  override def arrayRep = this
 
-  def _asIdent = s"array_of_${elementType.asIdent}"
+  override def _asIdent = s"array_of_${elementType.asIdent}"
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false): Unit = {
     sb ++= "PCArray["
@@ -55,7 +55,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false)
 
   override val byteSize: Long = 8
 
-  def setRequired(required: Boolean): PCanonicalArray =
+  override def setRequired(required: Boolean): PCanonicalArray =
     if (required == this.required) this else PCanonicalArray(elementType, required)
 
   override def loadLength(aoff: Long): Int =
@@ -219,16 +219,16 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false)
       length,
     )
 
-    def hasNext: Boolean = i != length
-    def isDefined: Boolean = isElementDefined(aoff, i)
+    override def hasNext: Boolean = i != length
+    override def isDefined: Boolean = isElementDefined(aoff, i)
 
-    def value: Long =
+    override def value: Long =
       firstElementOffset + i * elementByteSize
 
-    def iterate(): Unit = i += 1
+    override def iterate(): Unit = i += 1
   }
 
-  def elementIterator(aoff: Long, length: Int): Iterator = new Iterator(aoff, length)
+  override def elementIterator(aoff: Long, length: Int): Iterator = new Iterator(aoff, length)
 
   override def allocate(region: Region, length: Int): Long =
     region.allocate(contentsAlignment, contentsByteSize(length))

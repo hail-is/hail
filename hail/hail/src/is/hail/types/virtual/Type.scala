@@ -53,7 +53,7 @@ abstract class Type extends VType with Serializable {
     else
       (this, identity[Annotation])
 
-  final def pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit =
+  final override def pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit =
     _pretty(sb, indent, compact)
 
   def _toPretty: String

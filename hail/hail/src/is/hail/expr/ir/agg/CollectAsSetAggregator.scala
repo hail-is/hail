@@ -137,14 +137,14 @@ class AppendOnlySetState(val kb: EmitClassBuilder[_], vt: VirtualTypeWithReq)
       )
     }
 
-  def copyFromAddress(cb: EmitCodeBuilder, src: Value[Long]): Unit = {
+  override def copyFromAddress(cb: EmitCodeBuilder, src: Value[Long]): Unit = {
     cb.assign(off, region.allocate(typ.alignment, typ.byteSize))
     cb.assign(size, Region.loadInt(typ.loadField(src, 0)))
     tree.init(cb)
     tree.deepCopy(cb, cb.memoize(Region.loadAddress(typ.loadField(src, 1))))
   }
 
-  def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
+  override def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
     (cb: EmitCodeBuilder, ob: Value[OutputBuffer]) =>
       tree.bulkStore(cb, ob) { (cb, ob, srcCode) =>
         val src = cb.newLocal("aoss_ser_src", srcCode)
@@ -159,7 +159,7 @@ class AppendOnlySetState(val kb: EmitClassBuilder[_], vt: VirtualTypeWithReq)
       }
   }
 
-  def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
+  override def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
     val kDec = et.buildDecoder(t.virtualType, kb)
 
     { (cb: EmitCodeBuilder, ib: Value[InputBuffer]) =>
@@ -184,17 +184,17 @@ class CollectAsSetAggregator(elem: VirtualTypeWithReq) extends StagedAggregator 
   val initOpTypes: Seq[Type] = Array[Type]()
   val seqOpTypes: Seq[Type] = Array[Type](elem.t)
 
-  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
+  override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     assert(init.length == 0)
     state.init(cb)
   }
 
-  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
+  override protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
     val Array(elt) = seq
     state.insert(cb, elt)
   }
 
-  protected def _combOp(
+  override protected def _combOp(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
     region: Value[Region],
@@ -203,7 +203,8 @@ class CollectAsSetAggregator(elem: VirtualTypeWithReq) extends StagedAggregator 
   ): Unit =
     other.foreach(cb)((cb, k) => state.insert(cb, k))
 
-  protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {
+  override protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region])
+    : IEmitCode = {
     val (pushElement, finish) =
       arrayRep.constructFromFunctions(cb, region, state.size, deepCopy = true)
     state.foreach(cb)((cb, elt) => pushElement(cb, elt.toI(cb)))

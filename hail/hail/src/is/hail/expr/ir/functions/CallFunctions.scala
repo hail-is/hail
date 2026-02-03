@@ -12,7 +12,7 @@ import is.hail.variant._
 import scala.reflect.classTag
 
 object CallFunctions extends RegistryFunctions {
-  def registerAll(): Unit = {
+  override def registerAll(): Unit = {
     registerWrappedScalaFunction1("Call", TString, TCall, (rt: Type, st: SType) => SCanonicalCall)(
       Call.getClass,
       "parse",

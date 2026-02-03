@@ -21,7 +21,7 @@ final case class SRNGStateStaticInfo(
 }
 
 final case class SRNGState(staticInfo: Option[SRNGStateStaticInfo]) extends SType {
-  def virtualType: Type = TRNGState
+  override def virtualType: Type = TRNGState
 
   override protected[stypes] def _typeWithRequiredness: TypeWithRequiredness =
     RPrimitive()
@@ -130,7 +130,7 @@ class SCanonicalRNGStateValue(
   override def sizeToStoreInBytes(cb: EmitCodeBuilder): SInt64Value =
     new SInt64Value(4 * 8 + 4 * 8 + 4 + 4 + 4)
 
-  def splitStatic(cb: EmitCodeBuilder, idx: Long): SCanonicalRNGStateValue = {
+  override def splitStatic(cb: EmitCodeBuilder, idx: Long): SCanonicalRNGStateValue = {
     cb.if_(hasStaticSplit, cb._fatal("RNGState received two static splits"))
     val x = Array.ofDim[Long](4)
     x(0) = cb.emb.ctx.rngNonce
@@ -149,7 +149,7 @@ class SCanonicalRNGStateValue(
     )
   }
 
-  def splitDyn(cb: EmitCodeBuilder, idx: Value[Long]): SCanonicalRNGStateValue = {
+  override def splitDyn(cb: EmitCodeBuilder, idx: Value[Long]): SCanonicalRNGStateValue = {
     val newRunningSum =
       Array.tabulate[Settable[Long]](4)(i => cb.newLocal[Long](s"splitDyn_x$i", runningSum(i)))
     val newLastDynBlock =
@@ -180,7 +180,7 @@ class SCanonicalRNGStateValue(
       hasStaticSplit, newNumDynBlocks)
   }
 
-  def rand(cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = {
+  override def rand(cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = {
     cb.if_(!hasStaticSplit, cb._fatal("RNGState never received static split"))
     val x = Array.tabulate[Settable[Long]](4)(i => cb.newLocal[Long](s"rand_x$i", runningSum(i)))
     val key = Threefry.defaultKey
@@ -204,7 +204,7 @@ class SCanonicalRNGStateValue(
     x
   }
 
-  def copyIntoEngine(cb: EmitCodeBuilder, tf: Value[ThreefryRandomEngine]): Unit = {
+  override def copyIntoEngine(cb: EmitCodeBuilder, tf: Value[ThreefryRandomEngine]): Unit = {
     cb.if_(!hasStaticSplit, cb._fatal("RNGState never received static split"))
     val x = Array.tabulate[Settable[Long]](4)(i => cb.newLocal[Long](s"cie_x$i", runningSum(i)))
     val finalTweak =
@@ -282,7 +282,7 @@ class SRNGStateStaticSizeValue(
   override def sizeToStoreInBytes(cb: EmitCodeBuilder): SInt64Value =
     new SInt64Value(4 * 8 + staticInfo.numWordsInLastBlock * 8)
 
-  def splitStatic(cb: EmitCodeBuilder, idx: Long): SRNGStateStaticSizeValue = {
+  override def splitStatic(cb: EmitCodeBuilder, idx: Long): SRNGStateStaticSizeValue = {
     assert(!staticInfo.hasStaticSplit)
     val x = Array.ofDim[Long](4)
     x(0) = cb.emb.ctx.rngNonce
@@ -302,7 +302,7 @@ class SRNGStateStaticSizeValue(
     )
   }
 
-  def splitDyn(cb: EmitCodeBuilder, idx: Value[Long]): SRNGStateStaticSizeValue = {
+  override def splitDyn(cb: EmitCodeBuilder, idx: Value[Long]): SRNGStateStaticSizeValue = {
     if (staticInfo.numWordsInLastBlock < 4) {
       return new SRNGStateStaticSizeValue(
         st = SRNGState(Some(SRNGStateStaticInfo(
@@ -331,7 +331,7 @@ class SRNGStateStaticSizeValue(
     )
   }
 
-  def rand(cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = {
+  override def rand(cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = {
     assert(staticInfo.hasStaticSplit)
     val x = Array.tabulate[Settable[Long]](4)(i => cb.newLocal[Long](s"rand_x$i", runningSum(i)))
     val key = Threefry.defaultKey
@@ -346,7 +346,7 @@ class SRNGStateStaticSizeValue(
     x
   }
 
-  def copyIntoEngine(cb: EmitCodeBuilder, tf: Value[ThreefryRandomEngine]): Unit = {
+  override def copyIntoEngine(cb: EmitCodeBuilder, tf: Value[ThreefryRandomEngine]): Unit = {
     val x = Array.tabulate[Settable[Long]](4)(i => cb.newLocal[Long](s"cie_x$i", runningSum(i)))
     for (i <- lastDynBlock.indices) cb.assign(x(i), x(i) ^ lastDynBlock(i))
     val finalTweak = if (staticInfo.numWordsInLastBlock < 4) {

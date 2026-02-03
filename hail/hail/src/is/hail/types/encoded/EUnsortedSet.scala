@@ -14,7 +14,7 @@ final case class EUnsortedSet(val elementType: EType, override val required: Boo
     extends EContainer {
   private[this] val arrayRepr = EArray(elementType, required)
 
-  def _decodedSType(requestedType: Type): SType = {
+  override def _decodedSType(requestedType: Type): SType = {
     val elementPType = elementType.decodedPType(requestedType.asInstanceOf[TContainer].elementType)
     requestedType match {
       case _: TSet =>
@@ -22,13 +22,17 @@ final case class EUnsortedSet(val elementType: EType, override val required: Boo
     }
   }
 
-  def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit =
+  override def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit =
     // Anything we have to encode from a region should already be sorted so we don't
     // have to do anything else
     arrayRepr._buildEncoder(cb, v, out)
 
-  def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer])
-    : SValue = {
+  override def _buildDecoder(
+    cb: EmitCodeBuilder,
+    t: Type,
+    region: Value[Region],
+    in: Value[InputBuffer],
+  ): SValue = {
     val tmpRegion = cb.memoize(Region.stagedCreate(Region.REGULAR, region.getPool()), "tmp_region")
 
     val arrayDecoder = arrayRepr.buildDecoder(t, cb.emb.ecb)
@@ -55,10 +59,10 @@ final case class EUnsortedSet(val elementType: EType, override val required: Boo
     ret
   }
 
-  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit =
+  override def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit =
     arrayRepr._buildSkip(cb, r, in)
 
-  def _asIdent = s"set_of_${elementType.asIdent}"
-  def _toPretty = s"EUnsortedSet[$elementType]"
-  def setRequired(newRequired: Boolean): EType = EUnsortedSet(elementType, newRequired)
+  override def _asIdent = s"set_of_${elementType.asIdent}"
+  override def _toPretty = s"EUnsortedSet[$elementType]"
+  override def setRequired(newRequired: Boolean): EType = EUnsortedSet(elementType, newRequired)
 }

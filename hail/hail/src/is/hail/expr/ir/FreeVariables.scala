@@ -27,7 +27,7 @@ case class FreeVariableBindingEnv(
   aggVars: Option[FreeVariableEnv],
   scanVars: Option[FreeVariableEnv],
 ) extends GenericBindingEnv[FreeVariableBindingEnv, Type] {
-  def extend(bindings: Bindings[Type]): FreeVariableBindingEnv = {
+  override def extend(bindings: Bindings[Type]): FreeVariableBindingEnv = {
     val Bindings(all, eval, agg, scan, relational, dropEval) = bindings
     var newEnv = this
     if (dropEval) newEnv = newEnv.noEval

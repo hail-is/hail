@@ -18,7 +18,7 @@ trait SInterval extends SType {
 }
 
 trait SIntervalValue extends SValue {
-  def st: SInterval
+  override def st: SInterval
 
   def includesStart: Value[Boolean]
 

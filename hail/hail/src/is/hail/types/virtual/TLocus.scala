@@ -21,14 +21,14 @@ object TLocus {
 
 case class TLocus(rgName: String) extends Type {
 
-  def _toPretty = s"Locus($rgName)"
+  override def _toPretty = s"Locus($rgName)"
 
   def rg: String = rgName
 
   override def pyString(sb: StringBuilder): Unit =
     sb ++= "locus<" ++= prettyIdentifier(rgName) += '>': Unit
 
-  def _typeCheck(a: Any): Boolean = a.isInstanceOf[Locus]
+  override def _typeCheck(a: Any): Boolean = a.isInstanceOf[Locus]
 
   override def mkOrdering(sm: HailStateManager, missingEqual: Boolean = true): ExtendedOrdering =
     sm.referenceGenomes(rgName).extendedLocusOrdering

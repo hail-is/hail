@@ -11,9 +11,9 @@ class Blocks(
 
   def nBlocks: Int = blocks.length
 
-  def length: Int = blocks.length
+  override def length: Int = blocks.length
 
-  def apply(i: Int): Block = blocks(i)
+  override def apply(i: Int): Block = blocks(i)
 
   def index(block: Block): Int = blockIdx.get(block)
 }

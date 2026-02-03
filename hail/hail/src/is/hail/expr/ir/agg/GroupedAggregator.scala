@@ -51,7 +51,7 @@ class GroupedBTreeKey(
   }
 
   val regionIdx: Value[Int] = new Value[Int] {
-    def get: Code[Int] = Region.loadInt(storageType.fieldOffset(offset, 1))
+    override def get: Code[Int] = Region.loadInt(storageType.fieldOffset(offset, 1))
   }
 
   val container = new TupleAggregatorState(kb, states, region, containerOffset(offset), regionIdx)
@@ -89,7 +89,7 @@ class GroupedBTreeKey(
     cb += Region.storeInt(storageType.fieldOffset(off, 1), idx)
 
   def containerOffset(off: Value[Long]): Value[Long] = new Value[Long] {
-    def get: Code[Long] = storageType.fieldOffset(off, 2)
+    override def get: Code[Long] = storageType.fieldOffset(off, 2)
   }
 
   override def isEmpty(cb: EmitCodeBuilder, off: Code[Long]): Value[Boolean] =
@@ -153,7 +153,7 @@ class DictState(
   private val _elt = kb.genFieldThisRef[Long]()
 
   private val initStatesOffset: Value[Long] = new Value[Long] {
-    def get: Code[Long] = typ.loadField(off, 0)
+    override def get: Code[Long] = typ.loadField(off, 0)
   }
 
   val initContainer: TupleAggregatorState =
@@ -246,13 +246,13 @@ class DictState(
       )
     }
 
-  def copyFromAddress(cb: EmitCodeBuilder, src: Value[Long]): Unit = {
+  override def copyFromAddress(cb: EmitCodeBuilder, src: Value[Long]): Unit = {
     init(cb, cb => initContainer.copyFrom(cb, cb.memoize(typ.loadField(src, 0))))
     cb.assign(size, Region.loadInt(typ.loadField(src, 1)))
     tree.deepCopy(cb, cb.memoize(Region.loadAddress(typ.loadField(src, 2))))
   }
 
-  def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
+  override def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
     val serializers = nested.states.map(_.serialize(codec))
 
     { (cb: EmitCodeBuilder, ob: Value[OutputBuffer]) =>
@@ -275,7 +275,7 @@ class DictState(
     }
   }
 
-  def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
+  override def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
     val deserializers = nested.states.map(_.deserialize(codec))
 
     { (cb: EmitCodeBuilder, ib: Value[InputBuffer]) =>
@@ -314,17 +314,17 @@ class GroupedAggregator(ktV: VirtualTypeWithReq, nestedAggs: Array[StagedAggrega
   val initOpTypes: Seq[Type] = Array(TVoid)
   val seqOpTypes: Seq[Type] = Array(ktV.t, TVoid)
 
-  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
+  override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     val Array(inits) = init
     state.init(cb, cb => cb += inits.asVoid())
   }
 
-  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
+  override protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
     val Array(key, seqs) = seq
     state.withContainer(cb, key, (cb) => cb += seqs.asVoid())
   }
 
-  protected def _combOp(
+  override protected def _combOp(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
     region: Value[Region],

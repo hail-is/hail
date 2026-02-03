@@ -17,7 +17,7 @@ object eigSymD extends UFunc {
   type DenseEigSymD = EigSymD[DenseVector[Double], DenseMatrix[Double]]
 
   implicit object eigSymD_DM_Impl extends Impl[DenseMatrix[Double], DenseEigSymD] {
-    def apply(X: DenseMatrix[Double]): DenseEigSymD =
+    override def apply(X: DenseMatrix[Double]): DenseEigSymD =
       doeigSymD(X, rightEigenvectors = true) match {
         case (ev, Some(rev)) => EigSymD(ev, rev)
         case _ => throw new RuntimeException("Shouldn't be here!")
@@ -27,7 +27,7 @@ object eigSymD extends UFunc {
 
   object justEigenvalues extends UFunc {
     implicit object eigSymD_DM_Impl extends Impl[DenseMatrix[Double], DenseVector[Double]] {
-      def apply(X: DenseMatrix[Double]): DenseVector[Double] =
+      override def apply(X: DenseMatrix[Double]): DenseVector[Double] =
         doeigSymD(X, rightEigenvectors = false)._1
     }
 
@@ -84,7 +84,7 @@ object eigSymR extends UFunc {
   type DenseeigSymR = EigSymR[DenseVector[Double], DenseMatrix[Double]]
 
   implicit object eigSymR_DM_Impl extends Impl[DenseMatrix[Double], DenseeigSymR] {
-    def apply(X: DenseMatrix[Double]): DenseeigSymR =
+    override def apply(X: DenseMatrix[Double]): DenseeigSymR =
       doeigSymR(X, rightEigenvectors = true) match {
         case (ev, Some(rev)) => EigSymR(ev, rev)
         case _ => throw new RuntimeException("Shouldn't be here!")
@@ -94,7 +94,7 @@ object eigSymR extends UFunc {
 
   object justEigenvalues extends UFunc {
     implicit object eigSymR_DM_Impl extends Impl[DenseMatrix[Double], DenseVector[Double]] {
-      def apply(X: DenseMatrix[Double]): DenseVector[Double] =
+      override def apply(X: DenseMatrix[Double]): DenseVector[Double] =
         doeigSymR(X, rightEigenvectors = false)._1
     }
 

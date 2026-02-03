@@ -422,7 +422,7 @@ object EmitStream {
 
                 val element: EmitCode = EmitCode.fromI(mb)(cb => container.loadElement(cb, idx))
 
-                def close(cb: EmitCodeBuilder): Unit = {}
+                override def close(cb: EmitCodeBuilder): Unit = {}
               }
             )
 
@@ -669,7 +669,7 @@ object EmitStream {
 
                 val element: EmitCode = eltField.load
 
-                def close(cb: EmitCodeBuilder): Unit = {}
+                override def close(cb: EmitCodeBuilder): Unit = {}
               }
             ),
           )
@@ -793,7 +793,7 @@ object EmitStream {
 
                 val element: EmitCode = EmitCode.present(mb, new SInt32Value(curr))
 
-                def close(cb: EmitCodeBuilder): Unit = {}
+                override def close(cb: EmitCodeBuilder): Unit = {}
               }
               SStreamValue(producer)
 
@@ -864,7 +864,7 @@ object EmitStream {
 
                 val element: EmitCode = EmitCode.present(mb, new SInt32Value(curr))
 
-                def close(cb: EmitCodeBuilder): Unit = {}
+                override def close(cb: EmitCodeBuilder): Unit = {}
               }
 
               SStreamValue(producer)
@@ -940,7 +940,7 @@ object EmitStream {
 
                   val element: EmitCode = EmitCode.present(mb, new SInt32Value(curr))
 
-                  def close(cb: EmitCodeBuilder): Unit = {}
+                  override def close(cb: EmitCodeBuilder): Unit = {}
                 }
 
                 SStreamValue(producer)
@@ -1074,7 +1074,7 @@ object EmitStream {
 
                 val element: EmitCode = elementField
 
-                def close(cb: EmitCodeBuilder): Unit = {
+                override def close(cb: EmitCodeBuilder): Unit = {
                   childProducer.close(cb)
                   if (requiresMemoryManagementPerElement)
                     cb += childProducer.elementRegion.invalidate()
@@ -1339,7 +1339,7 @@ object EmitStream {
 
                 val element: EmitCode = bodyResult
 
-                def close(cb: EmitCodeBuilder): Unit = childProducer.close(cb)
+                override def close(cb: EmitCodeBuilder): Unit = childProducer.close(cb)
               }
 
               mb.implementLabel(childProducer.LendOfStream)(cb => cb.goto(producer.LendOfStream))
@@ -1725,7 +1725,7 @@ object EmitStream {
               }
               val element: EmitCode = innerProducer.element
 
-              def close(cb: EmitCodeBuilder): Unit = {
+              override def close(cb: EmitCodeBuilder): Unit = {
                 cb.if_(
                   innerUnclosed, {
                     cb.assign(innerUnclosed, false)
@@ -2935,7 +2935,7 @@ object EmitStream {
 
                     val element: EmitCode = bodyCode
 
-                    def close(cb: EmitCodeBuilder): Unit =
+                    override def close(cb: EmitCodeBuilder): Unit =
                       producers.foreach(_.close(cb))
                   }
 
@@ -3028,7 +3028,7 @@ object EmitStream {
 
                     val element: EmitCode = bodyCode
 
-                    def close(cb: EmitCodeBuilder): Unit =
+                    override def close(cb: EmitCodeBuilder): Unit =
                       producers.foreach(_.close(cb))
                   }
 
@@ -3107,7 +3107,7 @@ object EmitStream {
 
                     val element: EmitCode = bodyCode
 
-                    def close(cb: EmitCodeBuilder): Unit =
+                    override def close(cb: EmitCodeBuilder): Unit =
                       producers.foreach(_.close(cb))
                   }
 
@@ -3854,7 +3854,7 @@ object EmitStream {
               val elementField = mb.newEmitField(elementType)
 
               val producer = new StreamProducer {
-                def method: EmitMethodBuilder[_] = mb
+                override def method: EmitMethodBuilder[_] = mb
 
                 val length: Option[EmitCodeBuilder => Code[Int]] = None
 
@@ -3865,7 +3865,7 @@ object EmitStream {
                 val requiresMemoryManagementPerElement: Boolean =
                   childProducer.requiresMemoryManagementPerElement
 
-                def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
+                override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
                   cb.assign(queueSize, emit(maxQueueSize, cb).getOrAssert(cb).asInt32.value)
                   cb.assign(
                     queue,
@@ -3955,7 +3955,7 @@ object EmitStream {
                   cb.goto(childProducer.LproduceElement)
                 }
 
-                def close(cb: EmitCodeBuilder): Unit = childProducer.close(cb)
+                override def close(cb: EmitCodeBuilder): Unit = childProducer.close(cb)
               }
 
               mb.implementLabel(childProducer.LendOfStream)(cb => cb.goto(producer.LendOfStream))

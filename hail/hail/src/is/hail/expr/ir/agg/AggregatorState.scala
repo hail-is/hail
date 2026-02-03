@@ -75,19 +75,19 @@ trait RegionBackedAggState extends AggregatorState {
   protected val r: Settable[Region] = kb.genFieldThisRef[Region]()
   val region: Value[Region] = r
 
-  def newState(cb: EmitCodeBuilder, off: Value[Long]): Unit =
+  override def newState(cb: EmitCodeBuilder, off: Value[Long]): Unit =
     cb += region.getNewRegion(const(regionSize))
 
-  def createState(cb: EmitCodeBuilder): Unit =
+  override def createState(cb: EmitCodeBuilder): Unit =
     cb.if_(region.isNull, cb.assign(r, Region.stagedCreate(regionSize, kb.pool())))
 
-  def load(
+  override def load(
     cb: EmitCodeBuilder,
     regionLoader: (EmitCodeBuilder, Value[Region]) => Unit,
     src: Value[Long],
   ): Unit = regionLoader(cb, r)
 
-  def store(
+  override def store(
     cb: EmitCodeBuilder,
     regionStorer: (EmitCodeBuilder, Value[Region]) => Unit,
     dest: Value[Long],
@@ -127,7 +127,7 @@ trait PointerBasedRVAState extends RegionBackedAggState {
       },
     )
 
-  def copyFrom(cb: EmitCodeBuilder, src: Value[Long]): Unit =
+  override def copyFrom(cb: EmitCodeBuilder, src: Value[Long]): Unit =
     copyFromAddress(cb, cb.memoize(Region.loadAddress(src)))
 
   def copyFromAddress(cb: EmitCodeBuilder, src: Value[Long]): Unit
@@ -189,7 +189,7 @@ abstract class AbstractTypedRegionBackedAggState(val ptype: PType) extends Regio
       ptype.loadCheapSCode(cb, storageType.loadField(off, 0)),
     )
 
-  def copyFrom(cb: EmitCodeBuilder, src: Value[Long]): Unit = {
+  override def copyFrom(cb: EmitCodeBuilder, src: Value[Long]): Unit = {
     newState(cb, off)
     storageType.storeAtAddress(
       cb,
@@ -200,13 +200,13 @@ abstract class AbstractTypedRegionBackedAggState(val ptype: PType) extends Regio
     )
   }
 
-  def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
+  override def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
     val codecSpec = TypedCodecSpec(kb.ctx, storageType, codec)
     val enc = codecSpec.encodedType.buildEncoder(storageType.sType, kb)
     (cb, ob: Value[OutputBuffer]) => enc(cb, storageType.loadCheapSCode(cb, off), ob)
   }
 
-  def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
+  override def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
     val codecSpec = TypedCodecSpec(kb.ctx, storageType, codec)
 
     val dec = codecSpec.encodedType.buildDecoder(storageType.virtualType, kb)
@@ -232,23 +232,23 @@ class PrimitiveRVAState(val vtypes: Array[VirtualTypeWithReq], val kb: EmitClass
   def foreachField(f: (Int, EmitSettable) => Unit): Unit =
     (0 until nFields).foreach(i => f(i, fields(i)))
 
-  def newState(cb: EmitCodeBuilder, off: Value[Long]): Unit = {}
+  override def newState(cb: EmitCodeBuilder, off: Value[Long]): Unit = {}
 
-  def createState(cb: EmitCodeBuilder): Unit = {}
+  override def createState(cb: EmitCodeBuilder): Unit = {}
 
   private[this] def loadVarsFromRegion(cb: EmitCodeBuilder, srcc: Code[Long]): Unit = {
     val pv = storageType.loadCheapSCode(cb, srcc)
     foreachField((i, es) => cb.assign(es, pv.loadField(cb, i)))
   }
 
-  def load(
+  override def load(
     cb: EmitCodeBuilder,
     regionLoader: (EmitCodeBuilder, Value[Region]) => Unit,
     src: Value[Long],
   ): Unit =
     loadVarsFromRegion(cb, src)
 
-  def store(
+  override def store(
     cb: EmitCodeBuilder,
     regionStorer: (EmitCodeBuilder, Value[Region]) => Unit,
     dest: Value[Long],
@@ -261,9 +261,9 @@ class PrimitiveRVAState(val vtypes: Array[VirtualTypeWithReq], val kb: EmitClass
       false,
     )
 
-  def copyFrom(cb: EmitCodeBuilder, src: Value[Long]): Unit = loadVarsFromRegion(cb, src)
+  override def copyFrom(cb: EmitCodeBuilder, src: Value[Long]): Unit = loadVarsFromRegion(cb, src)
 
-  def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
+  override def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
     (cb, ob: Value[OutputBuffer]) =>
       foreachField { case (_, es) =>
         if (es.emitType.required) {
@@ -281,7 +281,7 @@ class PrimitiveRVAState(val vtypes: Array[VirtualTypeWithReq], val kb: EmitClass
       }
   }
 
-  def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
+  override def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
     (cb, ib: Value[InputBuffer]) =>
       foreachField { case (_, es) =>
         if (es.emitType.required) {

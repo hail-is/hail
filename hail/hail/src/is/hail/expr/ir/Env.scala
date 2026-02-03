@@ -99,7 +99,7 @@ case class BindingEnv[V](
     newEnv
   }
 
-  def extend(bindings: Bindings[V]): BindingEnv[V] = {
+  override def extend(bindings: Bindings[V]): BindingEnv[V] = {
     val Bindings(all, eval, agg, scan, relational, _) = bindings
     var newEnv = modifyWithoutNewBindings(bindings)
     if (all.nonEmpty) {
@@ -150,9 +150,9 @@ case class BindingEnv[V](
   def allEmpty: Boolean =
     eval.isEmpty && agg.forall(_.isEmpty) && scan.forall(_.isEmpty) && relational.isEmpty
 
-  def promoteAgg: BindingEnv[V] = copy(eval = agg.get, agg = None)
+  override def promoteAgg: BindingEnv[V] = copy(eval = agg.get, agg = None)
 
-  def promoteScan: BindingEnv[V] = copy(eval = scan.get, scan = None)
+  override def promoteScan: BindingEnv[V] = copy(eval = scan.get, scan = None)
 
   def promoteScope(scope: Int): BindingEnv[V] = scope match {
     case Scope.EVAL => this
@@ -160,17 +160,17 @@ case class BindingEnv[V](
     case Scope.SCAN => promoteScan
   }
 
-  def noAgg: BindingEnv[V] = copy(agg = None)
+  override def noAgg: BindingEnv[V] = copy(agg = None)
 
-  def noScan: BindingEnv[V] = copy(scan = None)
+  override def noScan: BindingEnv[V] = copy(scan = None)
 
-  def createAgg: BindingEnv[V] =
+  override def createAgg: BindingEnv[V] =
     copy(agg = Some(eval), scan = scan.map(_ => Env.empty))
 
-  def createScan: BindingEnv[V] =
+  override def createScan: BindingEnv[V] =
     copy(scan = Some(eval), agg = agg.map(_ => Env.empty))
 
-  def onlyRelational(keepAggCapabilities: Boolean = false): BindingEnv[V] =
+  override def onlyRelational(keepAggCapabilities: Boolean = false): BindingEnv[V] =
     BindingEnv(
       agg = if (keepAggCapabilities) agg.map(_ => Env.empty) else None,
       scan = if (keepAggCapabilities) scan.map(_ => Env.empty) else None,
@@ -180,18 +180,18 @@ case class BindingEnv[V](
   def bindEval(name: Name, v: V): BindingEnv[V] =
     copy(eval = eval.bind(name, v))
 
-  def bindEval(bindings: (Name, V)*): BindingEnv[V] =
+  override def bindEval(bindings: (Name, V)*): BindingEnv[V] =
     copy(eval = eval.bindIterable(bindings))
 
   def deleteEval(name: Name): BindingEnv[V] = copy(eval = eval.delete(name))
   def deleteEval(names: IndexedSeq[Name]): BindingEnv[V] = copy(eval = eval.delete(names))
 
-  def noEval: BindingEnv[V] = copy(eval = Env.empty)
+  override def noEval: BindingEnv[V] = copy(eval = Env.empty)
 
   def bindAgg(name: Name, v: V): BindingEnv[V] =
     copy(agg = Some(agg.get.bind(name, v)))
 
-  def bindAgg(bindings: (Name, V)*): BindingEnv[V] =
+  override def bindAgg(bindings: (Name, V)*): BindingEnv[V] =
     copy(agg = Some(agg.get.bindIterable(bindings)))
 
   def aggOrEmpty: Env[V] = agg.getOrElse(Env.empty)
@@ -199,13 +199,13 @@ case class BindingEnv[V](
   def bindScan(name: Name, v: V): BindingEnv[V] =
     copy(scan = Some(scan.get.bind(name, v)))
 
-  def bindScan(bindings: (Name, V)*): BindingEnv[V] =
+  override def bindScan(bindings: (Name, V)*): BindingEnv[V] =
     copy(scan = Some(scan.get.bindIterable(bindings)))
 
   def bindRelational(name: Name, v: V): BindingEnv[V] =
     copy(relational = relational.bind(name, v))
 
-  def bindRelational(bindings: (Name, V)*): BindingEnv[V] =
+  override def bindRelational(bindings: (Name, V)*): BindingEnv[V] =
     copy(relational = relational.bind(bindings: _*))
 
   def scanOrEmpty: Env[V] = scan.getOrElse(Env.empty)

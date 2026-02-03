@@ -61,7 +61,7 @@ case object LowerMatrixToTablePass extends LoweringPass {
   val after: Invariant = NoMatrixIR
   val context: String = "LowerMatrixToTable"
 
-  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = ir match {
+  override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = ir match {
     case x: IR => LowerMatrixIR(ctx, x)
     case x: TableIR => LowerMatrixIR(ctx, x)
     case x: MatrixIR => LowerMatrixIR(ctx, x)
@@ -74,7 +74,7 @@ case object LiftRelationalValuesToRelationalLets extends LoweringPass {
   val after: Invariant = NoMatrixIR
   val context: String = "LiftRelationalValuesToRelationalLets"
 
-  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = LiftRelationalValues(ir)
+  override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = LiftRelationalValues(ir)
 }
 
 case object LegacyInterpretNonCompilablePass extends LoweringPass {
@@ -82,7 +82,8 @@ case object LegacyInterpretNonCompilablePass extends LoweringPass {
   val after: Invariant = NoMatrixIR and NoRelationalLets and CompilableValueIRs
   val context: String = "InterpretNonCompilable"
 
-  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = LowerOrInterpretNonCompilable(ctx, ir)
+  override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR =
+    LowerOrInterpretNonCompilable(ctx, ir)
 }
 
 case object LowerOrInterpretNonCompilablePass extends LoweringPass {
@@ -90,7 +91,8 @@ case object LowerOrInterpretNonCompilablePass extends LoweringPass {
   val after: Invariant = CompilableIR
   val context: String = "LowerOrInterpretNonCompilable"
 
-  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = LowerOrInterpretNonCompilable(ctx, ir)
+  override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR =
+    LowerOrInterpretNonCompilable(ctx, ir)
 }
 
 case class LowerToDistributedArrayPass(t: DArrayLowering.Type) extends LoweringPass {
@@ -98,7 +100,8 @@ case class LowerToDistributedArrayPass(t: DArrayLowering.Type) extends LoweringP
   val after: Invariant = CompilableIR
   val context: String = "LowerToDistributedArray"
 
-  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = LowerToCDA(ir.asInstanceOf[IR], t, ctx)
+  override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR =
+    LowerToCDA(ir.asInstanceOf[IR], t, ctx)
 }
 
 case object InlineApplyIR extends LoweringPass {
@@ -123,7 +126,7 @@ case object LowerArrayAggsToRunAggsPass extends LoweringPass {
   val after: Invariant = EmittableIR
   val context: String = "LowerArrayAggsToRunAggs"
 
-  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR =
+  override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR =
     ctx.time {
       val x = ir.noSharing(ctx)
       val r = Requiredness(x, ctx)
