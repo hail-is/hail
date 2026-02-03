@@ -82,7 +82,7 @@ steps:
       {% endif %}
 
       cd /io/docker/third-party
-      DOCKER_PREFIX={{ global.docker_prefix }} retry bash copy_images.sh
+      DOCKER_PREFIX={{ global.docker_prefix }} {% if global.dockerhub_prefix %}DOCKERHUB_PREFIX={{ global.dockerhub_prefix }} {% endif %}retry bash copy_images.sh
     inputs:
       - from: /repo/docker
         to: /io/docker
