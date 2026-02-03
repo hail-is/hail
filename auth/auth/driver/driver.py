@@ -18,6 +18,7 @@ from hailtop import aiotools, httpx
 from hailtop import batch_client as bc
 from hailtop.aiocloud.aioazure import AzureGraphClient
 from hailtop.aiocloud.aiogoogle import GoogleIAmClient
+from hailtop.aiocloud.aiogoogle.client.base_client import GoogleBaseClient
 from hailtop.utils import periodically_call, secret_alnum_string, time_msecs
 
 log = logging.getLogger('auth.driver')
@@ -208,7 +209,51 @@ class GSAResource:
         }
         await self.iam_client.post(f'/serviceAccounts/{self.gsa_email}:setIamPolicy', json={"policy": policy_body})
 
+        # Add service account to pet_service_accounts group
+        try:
+            await self._add_to_pet_service_accounts_group(gsa_email, project)
+        except Exception as e:
+            log.warning(f'Failed to add {gsa_email} to pet_service_accounts group: {e}')
+
         return (self.gsa_email, key)
+
+    async def _add_to_pet_service_accounts_group(self, gsa_email: str, project: str):
+        """Add a service account to the pet_service_accounts Cloud Identity group."""
+        global_config = get_global_config()
+        organization_domain = global_config.get('organization_domain')
+        if not organization_domain:
+            log.warning('organization_domain not found in global config, skipping group membership')
+            return
+
+        group_email = f'pet_service_accounts@{organization_domain}'
+
+        # Use Cloud Identity API v1
+        cloud_identity_client = GoogleBaseClient('https://cloudidentity.googleapis.com/v1')
+
+        try:
+            # Look up the group by email to get its resource name
+            # The API requires the group's unique resource name, not just the email
+            lookup_response = await cloud_identity_client.get(f'/groups?query=email=={group_email}')
+
+            if 'groups' not in lookup_response or len(lookup_response['groups']) == 0:
+                log.warning(f'Group {group_email} not found, skipping group membership')
+                return
+
+            group_name = lookup_response['groups'][0]['name']  # Format: groups/{unique_id}
+
+            # Add the service account as a member
+            membership_body = {"preferredMemberKey": {"id": gsa_email}, "roles": [{"name": "MEMBER"}]}
+            await cloud_identity_client.post(f'/{group_name}/memberships', json=membership_body)
+            log.info(f'Added {gsa_email} to group {group_email}')
+        except aiohttp.ClientResponseError as e:
+            if e.status == 409:
+                # Already a member, that's fine
+                log.info(f'{gsa_email} is already a member of {group_email}')
+            elif e.status == 404:
+                log.warning(f'Group {group_email} not found, skipping group membership')
+            else:
+                log.warning(f'Failed to add {gsa_email} to group {group_email}: {e.status} {e.message}')
+                # Don't fail user creation if group addition fails
 
     async def _delete(self, gsa_email):
         try:

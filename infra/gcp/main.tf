@@ -47,6 +47,7 @@ variable "use_artifact_registry" {
   description = "pull the ubuntu image from Artifact Registry. Otherwise, GCR"
 }
 
+
 variable deploy_ukbb {
   type = bool
   description = "Run the UKBB Genetic Correlation browser"
@@ -103,6 +104,21 @@ data "google_client_config" "provider" {}
 data "google_project" "current" {
   project_id = var.gcp_project
 }
+
+# Google Cloud Identity Group for pet service accounts
+resource "google_cloud_identity_group" "pet_service_accounts" {
+  provider = google-beta
+  display_name = "Pet Service Accounts"
+  description  = "Group containing user shadow service accounts (pet service accounts)"
+  parent       = "customers/${data.google_project.current.number}"
+  group_key {
+    id = "pet_service_accounts@${var.organization_domain}"
+  }
+  labels = {
+    "cloudidentity.googleapis.com/groups.discussion_forum" = ""
+  }
+}
+
 
 resource "google_project_service" "service_networking" {
   service = "servicenetworking.googleapis.com"
@@ -555,6 +571,15 @@ resource "google_artifact_registry_repository_iam_member" "artifact_registry_bat
   location  = var.gcp_location
   role      = "roles/artifactregistry.reader"
   member    = "serviceAccount:${google_service_account.batch_agent.email}"
+}
+
+resource "google_artifact_registry_repository_iam_member" "artifact_registry_pet_sas_dockerhub_viewer" {
+  provider  = google-beta
+  project   = var.gcp_project
+  repository = google_artifact_registry_repository.dockerhub_remote.name
+  location  = var.gcp_location
+  role      = "roles/artifactregistry.reader"
+  member    = "group:${google_cloud_identity_group.pet_service_accounts.group_key[0].id}"
 }
 
 resource "google_artifact_registry_repository_iam_member" "artifact_registry_ci_admin" {

@@ -62,6 +62,7 @@ locals {
     "gcr.io/${var.gcp_project}"
   )
   docker_root_image = "${local.docker_prefix}/ubuntu:24.04"
+  dockerhub_prefix  = "${var.gcp_region}-docker.pkg.dev/${var.gcp_project}/dockerhubproxy"
 }
 
 provider "google" {
@@ -83,6 +84,21 @@ data "google_client_config" "provider" {}
 data "google_project" "current" {
   project_id = var.gcp_project
 }
+
+# Google Cloud Identity Group for pet service accounts
+resource "google_cloud_identity_group" "pet_service_accounts" {
+  provider = google-beta
+  display_name = "Pet Service Accounts"
+  description  = "Group containing user shadow service accounts (pet service accounts)"
+  parent       = "customers/${data.google_project.current.number}"
+  group_key {
+    id = "pet_service_accounts@${var.organization_domain}"
+  }
+  labels = {
+    "cloudidentity.googleapis.com/groups.discussion_forum" = ""
+  }
+}
+
 
 resource "google_project_service" "service_networking" {
   disable_on_destroy = false
@@ -561,6 +577,21 @@ resource "google_artifact_registry_repository" "repository" {
   }
 }
 
+resource "google_artifact_registry_repository" "dockerhub_remote" {
+  provider      = google-beta
+  format        = "DOCKER"
+  mode          = "REMOTE"
+  repository_id = "dockerhubproxy"
+  location      = var.artifact_registry_location
+
+  remote_repository_config {
+    description = "Docker Hub remote repository for Batch worker images"
+    docker_repository {
+      public_repository = "DOCKER_HUB"
+    }
+  }
+}
+
 resource "google_service_account" "gcr_push" {
   account_id = "gcr-push"
   display_name = "push to gcr.io"
@@ -573,6 +604,24 @@ resource "google_artifact_registry_repository_iam_member" "artifact_registry_bat
   location = var.artifact_registry_location
   role = "roles/artifactregistry.reader"
   member = "serviceAccount:${google_service_account.batch_agent.email}"
+}
+
+resource "google_artifact_registry_repository_iam_member" "artifact_registry_batch_agent_dockerhub_viewer" {
+  provider  = google-beta
+  project   = var.gcp_project
+  repository = google_artifact_registry_repository.dockerhub_remote.name
+  location  = var.artifact_registry_location
+  role      = "roles/artifactregistry.reader"
+  member    = "serviceAccount:${google_service_account.batch_agent.email}"
+}
+
+resource "google_artifact_registry_repository_iam_member" "artifact_registry_pet_sas_dockerhub_viewer" {
+  provider  = google-beta
+  project   = var.gcp_project
+  repository = google_artifact_registry_repository.dockerhub_remote.name
+  location  = var.artifact_registry_location
+  role      = "roles/artifactregistry.reader"
+  member    = "group:${google_cloud_identity_group.pet_service_accounts.group_key[0].id}"
 }
 
 resource "google_artifact_registry_repository_iam_member" "artifact_registry_ci_admin" {
