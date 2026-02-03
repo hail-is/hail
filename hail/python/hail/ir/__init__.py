@@ -211,7 +211,6 @@ from .matrix_writer import (
     MatrixWriter,
 )
 from .register_aggregators import register_aggregators
-from .register_functions import register_functions
 from .renderer import (
     CSERenderer,
     ParensRenderer,
@@ -528,7 +527,6 @@ __all__ = [
     'finalize_randomness',
     'make_filter_and_replace',
     'register_aggregators',
-    'register_functions',
     'subst',
     'tensor_shape_to_matrix_shape',
     'toArray',

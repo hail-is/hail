@@ -3235,10 +3235,21 @@ def index_bgen(
         info(f"indexed {n} sites in {path} at {idx_path}")
 
 
+vcf_header_type_str = (
+    "struct{"
+    "sampleIDs: array<str>, "
+    "infoFields: array<tuple(str, str)>, "
+    "formatFields: array<tuple(str, str)>, "
+    "filterAttrs: dict<str, dict<str, str>>, "
+    "infoAttrs: dict<str, dict<str, str>>, "
+    "formatAttrs: dict<str, dict<str, str>>, "
+    "infoFlagFields: array<str>"
+    "}"
+)
+
+
 @typecheck(path=expr_str, filter=nullable(expr_str), find=nullable(expr_str), replace=nullable(expr_str))
 def get_vcf_header_info(path, filter=None, find=None, replace=None):
-    from hail.ir.register_functions import vcf_header_type_str
-
     return hl.expr.functions._func(
         "getVCFHeader",
         hl.dtype(vcf_header_type_str),
