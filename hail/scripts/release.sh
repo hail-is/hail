@@ -24,7 +24,6 @@ usage: $(basename "$0")
         HAIL_GENETICS_HAILTOP_IMAGE=docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/hailtop:deploy-123abc
         HAIL_GENETICS_VEP_GRCH37_85_IMAGE=docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/vep-grch37-85:deploy-123abc
         HAIL_GENETICS_VEP_GRCH38_95_IMAGE=docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/vep-grch38-95:deploy-123abc
-        AZURE_WHEEL=/path/to/wheel/for/azure
         WEBSITE_TAR=/path/to/www.tar.gz
         bash $(basename "$0")
 EOF
@@ -36,8 +35,7 @@ retry() {
         (sleep 5 && "$@");
 }
 
-arguments="AZURE_WHEEL \
-           GITHUB_OAUTH_HEADER_FILE \
+arguments="GITHUB_OAUTH_HEADER_FILE \
            GIT_VERSION \
            HAIL_GENETICS_HAILTOP_IMAGE \
            HAIL_GENETICS_HAIL_IMAGE \
@@ -86,11 +84,6 @@ if [ ! -f $WHEEL ]
 then
     echo "wheel not found at $WHEEL"
     exit 1
-fi
-
-if [ ! -f $WHEEL_FOR_AZURE ]
-then
-    echo "wheel for azure not found $WHEEL_FOR_AZURE"
 fi
 
 if [ ! -f python/hail/experimental/datasets.json ]
@@ -168,11 +161,6 @@ retry skopeo copy $HAIL_GENETICS_VEP_GRCH38_95_IMAGE docker://us-docker.pkg.dev/
 
 # deploy to PyPI
 twine upload $WHEEL
-
-# deploy wheel for Azure HDInsight
-azure_wheel_url=gs://hail-common/azure-hdinsight-wheels/$(basename $AZURE_WHEEL)
-gcloud storage cp $AZURE_WHEEL $azure_wheel_url
-gcloud storage objects update $azure_wheel_url --temporary-hold
 
 # deploy datasets (annotation db) json
 datasets_json_url=gs://hail-common/annotationdb/$HAIL_VERSION/datasets.json
