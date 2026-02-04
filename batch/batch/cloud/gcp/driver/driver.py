@@ -64,7 +64,7 @@ ON DUPLICATE KEY UPDATE region = region;
         zone_monitor = await ZoneMonitor.create(compute_client, regions, zone)
         billing_manager = await GCPBillingManager.create(db, regions)
         inst_coll_manager = InstanceCollectionManager(db, machine_name_prefix, zone_monitor, region, regions)
-        resource_manager = GCPResourceManager(project, compute_client, billing_manager, app)
+        resource_manager = GCPResourceManager(project, compute_client, billing_manager)
 
         task_manager = aiotools.BackgroundTaskManager()
 
