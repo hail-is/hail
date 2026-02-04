@@ -37,10 +37,12 @@ class GCPResourceManager(CloudResourceManager):
         project: str,
         compute_client: aiogoogle.GoogleComputeClient,  # BORROWED
         billing_manager: GCPBillingManager,  # BORROWED
+        app: dict,  # BORROWED
     ):
         self.compute_client = compute_client
         self.project = project
         self.billing_manager = billing_manager
+        self.app = app
 
     async def delete_vm(self, instance: Instance):
         try:
@@ -130,6 +132,7 @@ class GCPResourceManager(CloudResourceManager):
             job_private,
             self.project,
             instance_config,
+            self.app['feature_flags'],
         )
 
         cores, memory_in_bytes = gcp_machine_type_to_cores_and_memory_bytes(machine_type)

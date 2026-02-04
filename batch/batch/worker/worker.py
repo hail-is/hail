@@ -146,6 +146,7 @@ INSTANCE_ID = os.environ['INSTANCE_ID']
 REGION = os.environ['REGION']
 DOCKER_PREFIX = os.environ['DOCKER_PREFIX']
 DOCKERHUB_PREFIX = os.environ.get('DOCKERHUB_PREFIX', '')
+DOCKERHUB_PROXY_ENABLED = os.environ.get('DOCKERHUB_PROXY_ENABLED', 'False').lower() == 'true'
 PUBLIC_IMAGES = publicly_available_images(DOCKER_PREFIX)
 INSTANCE_CONFIG = json.loads(base64.b64decode(os.environ['INSTANCE_CONFIG']).decode())
 MAX_IDLE_TIME_MSECS = int(os.environ['MAX_IDLE_TIME_MSECS'])
@@ -490,7 +491,7 @@ class Image:
         # actually a Docker Hub namespace (e.g. "myorg/myimage"). We therefore use Docker's
         # heuristic: a registry domain contains a '.' or ':' or is 'localhost'. Anything else
         # (except explicit 'docker.io') is treated as a Docker Hub namespace.
-        if DOCKERHUB_PREFIX:
+        if DOCKERHUB_PREFIX and DOCKERHUB_PROXY_ENABLED:
             domain = image_ref.domain
 
             def is_registry_domain(d: Optional[str]) -> bool:

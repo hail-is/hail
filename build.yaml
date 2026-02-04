@@ -2477,6 +2477,10 @@ steps:
         online: true
       - name: is-job-cancelled
         script: /io/sql/119-is-job-cancelled.sql
+        online: true
+      - name: add-dockerhub-proxy-flag
+        script: /io/sql/120-add-dockerhub-proxy-flag.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql

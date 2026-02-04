@@ -45,6 +45,7 @@ def create_vm_config(
     job_private: bool,
     project: str,
     instance_config: InstanceConfig,
+    feature_flags: dict,
     gpu_config: Optional[GPUConfig] = None,
 ) -> dict:
     if gpu_config is not None:
@@ -200,6 +201,7 @@ BATCH_WORKER_IMAGE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.googl
 DOCKER_ROOT_IMAGE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/docker_root_image")
 DOCKER_PREFIX=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/docker_prefix")
 DOCKERHUB_PREFIX=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/dockerhub_prefix")
+DOCKERHUB_PROXY_ENABLED=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/dockerhub_proxy_enabled")
 
 INTERNAL_GATEWAY_IP=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/internal_ip")
 
@@ -331,6 +333,7 @@ docker run \
 -e REGION=$REGION \
 -e DOCKER_PREFIX=$DOCKER_PREFIX \
 -e DOCKERHUB_PREFIX=$DOCKERHUB_PREFIX \
+-e DOCKERHUB_PROXY_ENABLED=$DOCKERHUB_PROXY_ENABLED \
 -e DOCKER_ROOT_IMAGE=$DOCKER_ROOT_IMAGE \
 -e INSTANCE_CONFIG=$INSTANCE_CONFIG \
 -e MAX_IDLE_TIME_MSECS=$MAX_IDLE_TIME_MSECS \
@@ -388,6 +391,7 @@ journalctl -u docker.service > dockerd.log
                 {'key': 'docker_root_image', 'value': DOCKER_ROOT_IMAGE},
                 {'key': 'docker_prefix', 'value': DOCKER_PREFIX},
                 {'key': 'dockerhub_prefix', 'value': DOCKERHUB_PREFIX},
+                {'key': 'dockerhub_proxy_enabled', 'value': str(feature_flags.get('dockerhub_proxy', False))},
                 {'key': 'namespace', 'value': DEFAULT_NAMESPACE},
                 {'key': 'internal_ip', 'value': INTERNAL_GATEWAY_IP},
                 {'key': 'batch_logs_storage_uri', 'value': file_store.batch_logs_storage_uri},

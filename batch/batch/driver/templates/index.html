@@ -41,6 +41,12 @@
              name="oms_agent"
              {% if feature_flags['oms_agent'] %}checked{% endif %}
       value="true" />
+      <label for="dockerhub_proxy">dockerhub_proxy: </label>
+      <input type="checkbox"
+             id="dockerhub_proxy"
+             name="dockerhub_proxy"
+             {% if feature_flags['dockerhub_proxy'] %}checked{% endif %}
+      value="true" />
       <div>
         <button>Update</button>
       </div>
