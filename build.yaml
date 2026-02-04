@@ -42,6 +42,9 @@ steps:
       - name: test-aws-key
         clouds:
           - gcp
+      - name: test-azure-key
+        clouds:
+          - gcp
       - name: zulip-config
       - name: billing-monitor-gsa-key
         clouds:
@@ -1136,9 +1139,17 @@ steps:
 
       export HAIL_TEST_GCS_BUCKET={{ global.hail_test_gcs_bucket }}
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
 
       export HAIL_TEST_S3_BUCKET=hail-test-dy5rg
       export AWS_SHARED_CREDENTIALS_FILE=/test-aws-key/credentials
+
+      export HAIL_TEST_AZURE_ACCOUNT=hailtest
+      export HAIL_TEST_AZURE_CONTAINER=hail-test-4nxei
+      # Required for SAS testing on Azure
+      export HAIL_TEST_AZURE_RESGRP=hail-dev
+      export HAIL_TEST_AZURE_SUBID=22cd45fe-f996-4c51-af67-ef329d977519
+      export AZURE_APPLICATION_CREDENTIALS=/test-azure-key/credentials.json
 
       python3 -m pytest \
               -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
@@ -1165,6 +1176,10 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-aws-key
+      - name: test-azure-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-azure-key
     dependsOn:
       - default_ns
       - hailgenetics_hailtop_image
