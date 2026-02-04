@@ -8,11 +8,17 @@ from benchmark.tools.statistics import analyze_benchmarks, laaber_mds, schultz_m
 
 
 def test_analyze_benchmarks(local_tmpdir, onethreetwo, onethreethree):
-    tables = (import_benchmarks(v, local_tmpdir) for v in (onethreetwo, onethreethree))
-    tables = (t.select(instances=t.instances.iterations.time) for t in tables)
-    tables = (t._key_by_assert_sorted(*t.key.drop('version')) for t in tables)
-    tables = (t.checkpoint(tempfile.mktemp(suffix='.ht', dir=local_tmpdir)) for t in tables)
-    analyze_benchmarks(*tables, n_bootstrap_iterations=1000, confidence=0.95)._force_count()
+    ts = (import_benchmarks(v, local_tmpdir) for v in (onethreetwo, onethreethree))
+    ts = (t.select(instances=t.instances.iterations.time) for t in ts)
+    control, test = [t._key_by_assert_sorted('path', 'name') for t in ts]
+    analyze_benchmarks(
+        ht=control.select(
+            control=control.instances,
+            test=test[control.key].instances,
+        ).checkpoint(tempfile.mktemp(suffix='.ht', dir=local_tmpdir)),
+        n_bootstrap_iterations=1000,
+        confidence=0.95,
+    )._force_count()
 
 
 @pytest.fixture(scope='session')

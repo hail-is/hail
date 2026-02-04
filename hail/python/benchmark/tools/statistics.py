@@ -24,7 +24,7 @@ def variability(ht: hl.Table) -> hl.StructExpression:
 
 def boostrap_confidence_interval(
     ht: hl.Table,
-    statistic: Callable[[hl.Table], hl.NumericExpression],
+    statistics: Callable[[hl.Table], hl.StructExpression],
     n_bootstrap_iterations: int,
     confidence: float,
 ) -> hl.Table:
@@ -32,22 +32,32 @@ def boostrap_confidence_interval(
         raise ValueError(f'Confidence must fall within interval (0, 1), got {confidence}.')
 
     endpoints = (lower := (1 - confidence) / 2, 1 - lower)
+    endpoints = [hl.int(p * n_bootstrap_iterations) for p in endpoints]
 
-    ht = ht.annotate(__bootstrap=hl.range(n_bootstrap_iterations))
-    ht = ht.explode('__bootstrap')
-    ht = ht.select(__bootstrap=statistic(ht))
-    ht = ht.group_by(*ht.key).aggregate(__results=hl.agg.collect(ht.__bootstrap))
-
-    return ht.select(
-        **hl.bind(
+    def confidence_interval(statistic: hl.ArrayExpression) -> hl.StructExpression:
+        return hl.bind(
             lambda results: hl.bind(
                 lambda lo, hi: hl.struct(
                     ci=hl.interval(lo, hi, includes_end=True),
                     radius=hl.rbind((hi + lo) / 2, lambda mid: (hi - mid) / mid),
                 ),
-                *[results[hl.int(p * n_bootstrap_iterations)] for p in endpoints],
+                *[results[p] for p in endpoints],
             ),
-            hl.sorted(ht.__results),
+            hl.sorted(statistic),
+        )
+
+    ht = ht.select(
+        __statistics=(
+            hl.range(n_bootstrap_iterations)
+            .map(lambda _: statistics(ht))
+            .aggregate(lambda stats: hl.struct(**{k: hl.agg.collect(v) for k, v in stats.items()}))
+        ),
+    )
+
+    return ht.select(
+        **hl.bind(
+            lambda stats: hl.struct(**{k: confidence_interval(v) for k, v in stats.items()}),
+            ht.__statistics,
         ),
     )
 
@@ -84,60 +94,14 @@ def bootstrap_mean_confidence_interval(
     """
     return boostrap_confidence_interval(
         ht=ht,
-        statistic=lambda t: __agg_randomized_mean(t.instances),
-        n_bootstrap_iterations=n_bootstrap_iterations,
-        confidence=confidence,
-    )
-
-
-def bootstrap_ib_difference_confidence_interval(
-    ht: hl.Table,
-    n_bootstrap_iterations: int,
-    confidence: float,
-) -> hl.Table:
-    """
-    Approximate confidence interval of difference in mean execution time of
-    control and test groups of benchmark iterations on different instances via
-    bootstrap simulations.
-    """
-    return boostrap_confidence_interval(
-        ht=ht,
-        statistic=lambda t: __agg_randomized_mean(t.control) / __agg_randomized_mean(t.test),
-        n_bootstrap_iterations=n_bootstrap_iterations,
-        confidence=confidence,
-    )
-
-
-def bootstrap_tb_difference_confidence_interval(
-    ht: hl.Table,
-    n_bootstrap_iterations: int,
-    confidence: float,
-) -> hl.Table:
-    """
-    Approximate confidence interval of difference in mean execution time of
-    control and test groups of benchmark iterations on same instances via
-    bootstrap simulations.
-    """
-
-    def agg_mean(iterations: hl.ArrayNumericExpression) -> hl.NumericExpression:
-        return hl.agg.explode(hl.agg.mean, __randomize_with_replacement(iterations))
-
-    def ratio_of_means(ht: hl.Table) -> hl.NumericExpression:
-        return __randomize_with_replacement(ht.instances).aggregate(
-            lambda instance: agg_mean(instance.control) / agg_mean(instance.test)
-        )
-
-    return boostrap_confidence_interval(
-        ht=ht,
-        statistic=ratio_of_means,
+        statistics=lambda t: hl.struct(mean=__agg_randomized_mean(t.instances)),
         n_bootstrap_iterations=n_bootstrap_iterations,
         confidence=confidence,
     )
 
 
 def overlapping_confidence_interval_test(
-    control: hl.Table,
-    test: hl.Table,
+    ht: hl.Table,
     n_bootstrap_iterations: int,
     confidence: float,
 ) -> hl.Table:
@@ -145,14 +109,20 @@ def overlapping_confidence_interval_test(
     Test for performance changes by comparing overlapping confidence intervals
     of mean execution time between a control and test set of benchmark timings
     """
-    control = bootstrap_mean_confidence_interval(control, n_bootstrap_iterations, confidence)
-    test = bootstrap_mean_confidence_interval(test, n_bootstrap_iterations, confidence)
-    return control.select(overlaps=test[control.key].ci.overlaps(control.ci))
+    result = boostrap_confidence_interval(
+        ht=ht,
+        statistics=lambda t: hl.struct(
+            control=__agg_randomized_mean(t.control),
+            test=__agg_randomized_mean(t.test),
+        ),
+        n_bootstrap_iterations=n_bootstrap_iterations,
+        confidence=confidence,
+    )
+    return result.select(overlaps=result.control.ci.overlaps(result.test.ci))
 
 
 def analyze_benchmarks(
-    control: hl.Table,
-    test: hl.Table,
+    ht: hl.Table,
     n_bootstrap_iterations: int,
     confidence: float,
 ) -> hl.Table:
@@ -178,8 +148,7 @@ def analyze_benchmarks(
     ]
 
     results = analyze_benchmarks(
-        control,
-        test,
+        control.select(control=control.instances, test=test[control.key].instances),
         n_bootstrap_iterations=10_000,
         confidence=.95,
     )
@@ -187,28 +156,24 @@ def analyze_benchmarks(
     results.show()
     """
 
-    results = overlapping_confidence_interval_test(
-        control,
-        test,
-        n_bootstrap_iterations,
-        confidence,
+    results = boostrap_confidence_interval(
+        ht=ht,
+        statistics=lambda t: hl.bind(
+            lambda a, b: hl.struct(
+                control=a,
+                test=b,
+                relative_change=a / b,
+            ),
+            __agg_randomized_mean(t.control),
+            __agg_randomized_mean(t.test),
+        ),
+        n_bootstrap_iterations=n_bootstrap_iterations,
+        confidence=confidence,
     )
 
-    diffs = bootstrap_ib_difference_confidence_interval(
-        control.select(
-            control=control.instances,
-            test=test[control.key].instances,
-        ),
-        n_bootstrap_iterations,
-        confidence,
-    )
-
-    return hl.Table.parallelize(
-        key=control.key.dtype.fields,
-        rows=hl.sorted(
-            results.select(changed=~results.overlaps, relative_change=diffs[results.key].ci).collect(_localize=False),
-            key=lambda r: (r.path, r.name),
-        ),
+    return results.select(
+        changed=~results.control.ci.overlaps(results.test.ci),
+        relative_chage=results.relative_change,
     )
 
 
@@ -307,13 +272,12 @@ def laaber_mds(
 
     ib = __sel(__ibs, __extend_key(s, strategy='ibs'), n_experiments)
     tb = __sel(__tbs, __extend_key(s, strategy='tbs'), n_experiments)
+
     s = ib.union(tb)
     s = s.annotate(test=__scale(s.test, s.slowdown))
-    s = s.checkpoint(hl.utils.new_temp_file())
 
     mds = overlapping_confidence_interval_test(
-        s.select(instances=s.control),
-        s.select(instances=s.test),
+        s.checkpoint(hl.utils.new_temp_file()),
         n_bootstrap_iterations,
         confidence,
     )
@@ -346,27 +310,37 @@ def schultz_mds(
     )
 
     ib = __sel(__ibs, s, n_experiments)
-    ib = bootstrap_ib_difference_confidence_interval(
-        ib.annotate(test=__scale(ib.test, ib.slowdown)),
-        n_bootstrap_iterations,
-        confidence,
+    ib = boostrap_confidence_interval(
+        ht=ib.annotate(test=__scale(ib.test, ib.slowdown)),
+        statistics=lambda t: hl.struct(diff=__agg_randomized_mean(t.control) / __agg_randomized_mean(t.test)),
+        n_bootstrap_iterations=n_bootstrap_iterations,
+        confidence=confidence,
     )
 
-    ib = ib.group_by(*ib.key.drop('experiment')).aggregate(rate=hl.agg.fraction(~ib.ci.contains(1.0)))
+    ib = ib.group_by(*ib.key.drop('experiment')).aggregate(rate=hl.agg.fraction(~ib.diff.ci.contains(1.0)))
+
+    def ratio_of_means(ht: hl.Table) -> hl.NumericExpression:
+        def agg_mean(iterations: hl.ArrayNumericExpression) -> hl.NumericExpression:
+            return hl.agg.explode(hl.agg.mean, __randomize_with_replacement(iterations))
+
+        return __randomize_with_replacement(ht.instances).aggregate(
+            lambda instance: agg_mean(instance.control) / agg_mean(instance.test)
+        )
 
     tb = __sel(__tbs, s, n_experiments)
-    tb = bootstrap_tb_difference_confidence_interval(
-        tb.select(
+    tb = boostrap_confidence_interval(
+        ht=tb.select(
             instances=hl.map(
                 lambda control, test: hl.struct(control=control, test=test),
                 tb.control,
                 __scale(tb.test, tb.slowdown),
             ),
         ),
-        n_bootstrap_iterations,
-        confidence,
+        statistics=lambda t: hl.struct(ratio=ratio_of_means(t)),
+        n_bootstrap_iterations=n_bootstrap_iterations,
+        confidence=confidence,
     )
 
-    tb = tb.group_by(*tb.key.drop('experiment')).aggregate(rate=hl.agg.fraction(~tb.ci.contains(1.0)))
+    tb = tb.group_by(*tb.key.drop('experiment')).aggregate(rate=hl.agg.fraction(~tb.ratio.ci.contains(1.0)))
 
     return ib.select(ibs=ib.rate, tbs=tb[ib.key].rate)
