@@ -51,10 +51,10 @@ def __flatten_to_tsv(jsonl: PathLike | str, tsv: PathLike | str) -> None:
         Path(jsonl).open(encoding='utf-8') as in_,
         Path(tsv).open('w', encoding='utf-8') as out,
     ):
-        __write_tsv_row(out, [n for n in __tflattened.trow])
+        __write_tsv_row(out, list(__tflattened.trow))
         for line in in_:
-            trial = json.loads(line)
-            for row in flatten(trial):
+            instance = json.loads(line)
+            for row in flatten(instance):
                 __write_tsv_row(out, row)
 
 

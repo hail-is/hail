@@ -38,7 +38,8 @@ def plot_mean_time_per_instance(
 ) -> Generator[GGPlot, Any, Any]:
     for name in names or __agg_names(ht):
         k = ht.filter(ht.name == name)
+        k = k.annotate(instances=annotate_index(k.instances))
         k = k.explode(k.instances, name='__instance')
         k = k.select(**k.__instance)
-        k = k.annotate(s=k.trials.aggregate(lambda t: hl.agg.stats(t.time)))
-        yield (ggplot(k, aes(x=k.instance, y=k.s.mean)) + geom_point() + ggtitle(name))
+        k = k.annotate(s=k.iterations.aggregate(lambda t: hl.agg.stats(t.time)))
+        yield (ggplot(k, aes(x=k.idx, y=k.s.mean)) + geom_point() + ggtitle(name))

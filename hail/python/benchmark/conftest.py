@@ -31,7 +31,7 @@ def pytest_addoption(parser):
     group.addoption(
         '--max-duration',
         type=int,
-        help='Maximum permitted duration for any benchmark trial in seconds, not to be confused with pytest-timeout',
+        help='Maximum permitted duration for any benchmark iteration in seconds, not to be confused with pytest-timeout',
         default=200,
     )
     group.addoption('--max-failures', type=int, help='Stop benchmarking item after this many failures', default=3)
