@@ -117,6 +117,7 @@ from ..utils import (
     query_billing_projects_with_cost,
     query_billing_projects_without_cost,
     regions_to_bits_rep,
+    rewrite_dockerhub_image,
     unavailable_if_frozen,
 )
 from .query import (
@@ -904,26 +905,6 @@ async def create_jobs_for_update(request: web.Request, userdata: UserData) -> we
 NON_HEX_DIGIT = re.compile('[^A-Fa-f0-9]')
 
 
-def _rewrite_dockerhub_image(image: str, dockerhub_prefix: str) -> Optional[str]:
-    """
-    Rewrite a Docker Hub image reference to use a GAR Remote Repository proxy.
-
-    Only rewrites if there's no explicit registry (no '.' or ':' in the first part).
-    Returns the rewritten image if it was rewritten, None otherwise.
-    """
-    # Check if there's an explicit registry by looking for '.' or ':' in the first part
-    # Split by '/' to get the first component
-    parts = image.split('/', 1)
-    first_part = parts[0]
-
-    # If the first part contains '.' or ':', it's a registry domain, so don't rewrite
-    if '.' in first_part or ':' in first_part:
-        return None
-
-    # No explicit registry, so prepend the dockerhub prefix
-    return f'{dockerhub_prefix}/{image}'
-
-
 def assert_is_sha_1_hex_string(revision: str):
     if len(revision) != 40 or NON_HEX_DIGIT.search(revision):
         raise web.HTTPBadRequest(reason=f'revision must be 40 character hexadecimal encoded SHA-1, got: {revision}')
@@ -1206,7 +1187,7 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
             and app['feature_flags'].get('dockerhub_proxy', False)
         ):
             original_image = spec['process']['image']
-            rewritten_image = _rewrite_dockerhub_image(original_image, DOCKERHUB_PREFIX)
+            rewritten_image = rewrite_dockerhub_image(original_image, DOCKERHUB_PREFIX)
             if rewritten_image is not None:
                 spec['process']['image'] = rewritten_image
                 log.info(f'Rewrote Docker Hub image {original_image} to {rewritten_image} for job {batch_id}/{job_id}')

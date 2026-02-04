@@ -5,6 +5,7 @@ from batch.cloud.gcp.resource_utils import MACHINE_TYPE_TO_PARTS as MACHINE_TYPE
 from batch.cloud.gcp.resource_utils import gcp_worker_memory_per_core_mib, machine_type_to_gpu_num
 from batch.cloud.gcp.resources import GCPAcceleratorResource, gcp_resource_from_dict
 from batch.cloud.resource_utils import adjust_cores_for_packability
+from batch.utils import rewrite_dockerhub_image
 from hailtop.batch_client.parse import parse_memory_in_bytes
 
 
@@ -117,3 +118,40 @@ def test_gcp_accelerator_to_from_dict():
     assert version_2_resource
     version_2_remade_dict = version_2_resource.to_dict()
     assert version_2_remade_dict == version_2_dict
+
+
+def test_rewrite_dockerhub_image():
+    dockerhub_prefix = "us-central1-docker.pkg.dev/my-project/dockerhubproxy"
+
+    # Test bare images (should be rewritten)
+    assert rewrite_dockerhub_image("ubuntu:20.04", dockerhub_prefix) == f"{dockerhub_prefix}/library/ubuntu:20.04"
+    assert rewrite_dockerhub_image("ubuntu", dockerhub_prefix) == f"{dockerhub_prefix}/library/ubuntu"
+    assert rewrite_dockerhub_image("python:3.9", dockerhub_prefix) == f"{dockerhub_prefix}/library/python:3.9"
+
+    # Test namespaced images (should be rewritten)
+    assert rewrite_dockerhub_image("myorg/myimage:tag", dockerhub_prefix) == f"{dockerhub_prefix}/myorg/myimage:tag"
+    assert (
+        rewrite_dockerhub_image("envoyproxy/envoy:v1.33.0", dockerhub_prefix)
+        == f"{dockerhub_prefix}/envoyproxy/envoy:v1.33.0"
+    )
+
+    # Test images with explicit registry (should NOT be rewritten)
+    assert rewrite_dockerhub_image("gcr.io/myproject/image:tag", dockerhub_prefix) is None
+    assert rewrite_dockerhub_image("us-central1-docker.pkg.dev/project/repo/image", dockerhub_prefix) is None
+    assert rewrite_dockerhub_image("myregistry.io/image:tag", dockerhub_prefix) is None
+    assert rewrite_dockerhub_image("localhost:5000/image", dockerhub_prefix) is None
+    assert rewrite_dockerhub_image("registry.example.com:8080/image", dockerhub_prefix) is None
+
+    # Test edge cases
+    assert (
+        rewrite_dockerhub_image("image.with.dots:tag", dockerhub_prefix)
+        == f"{dockerhub_prefix}/library/image.with.dots:tag"
+    )  # dots in first part
+    assert (
+        rewrite_dockerhub_image("image:with:colons", dockerhub_prefix)
+        == f"{dockerhub_prefix}/library/image:with:colons"
+    )  # colons in first part
+    assert (
+        rewrite_dockerhub_image("my-org/my-image:1.0.0", dockerhub_prefix)
+        == f"{dockerhub_prefix}/my-org/my-image:1.0.0"
+    )  # hyphens OK

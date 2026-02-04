@@ -40,15 +40,10 @@ GROUP_EMAIL="pet_service_accounts@${ORGANIZATION_DOMAIN}"
 for ACCOUNT in $ACCOUNTS; do
   echo "Processing $ACCOUNT..."
   
-  # Grant batch2-agent act as permissions
-  gcloud iam service-accounts --project $PROJECT add-iam-policy-binding $ACCOUNT --member "serviceAccount:batch2-agent@$PROJECT.iam.gserviceaccount.com" --role "roles/iam.serviceAccountUser"
-  
   # Add to pet_service_accounts group
-  gcloud identity groups memberships add --group-email=$GROUP_EMAIL --member-email=$ACCOUNT --roles=MEMBER || {
-    if [ $? -eq 1 ]; then
-      echo "  Warning: Failed to add $ACCOUNT to group (may already be a member or group not found)"
-    fi
-  }
+  if ! gcloud identity groups memberships add --group-email=$GROUP_EMAIL --member-email=$ACCOUNT --roles=MEMBER; then
+    echo "  Warning: Failed to add $ACCOUNT to group (may already be a member or group not found)"
+  fi
   
   sleep 1
 done

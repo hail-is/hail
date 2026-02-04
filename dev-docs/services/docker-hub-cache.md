@@ -16,29 +16,7 @@ When worker VMs or CI/CD processes pull Docker images, they can encounter Docker
 
 ### Terraform Setup
 
-The Docker Hub proxy repo is created in Terraform (`infra/gcp/main.tf` and `infra/gcp-broad/main.tf`):
-
-```hcl
-resource "google_artifact_registry_repository" "dockerhub_remote" {
-  provider      = google-beta
-  format        = "DOCKER"
-  mode          = "REMOTE"
-  repository_id = "dockerhubproxy"
-  location      = var.gcp_location
-
-  remote_repository_config {
-    description = "Docker Hub remote repository for Batch worker images"
-    docker_repository {
-      public_repository = "DOCKER_HUB"
-    }
-  }
-}
-```
-
-The repository ID is hardcoded as `dockerhubproxy` and the prefix is automatically derived as:
-```
-{region}-docker.pkg.dev/{project}/dockerhubproxy
-```
+The Docker Hub proxy repo is created in Terraform (`infra/gcp/main.tf` and `infra/gcp-broad/main.tf`) as an Artifact Registry repository with the mode set to `REMOTE` and the target set to `DOCKER_HUB`.
 
 Note: By default the repository is configured to pull anonymously from Docker Hub. That setup is very likely to run into the toomanyrequests error from dockerhub because AR, as a global service, reuses the same IP address for multiple requests across multiple users and projects. To avoid this is it recommended to create a docker hub account, create a personal access token, and configure the repository to pull from Docker Hub using that token manually in the google cloud console.
 
@@ -53,8 +31,7 @@ The following IAM bindings grant access:
 
 The `dockerhub_prefix` is stored in the `global-config` Kubernetes secret and made available to:
 
-- Worker VMs via VM metadata
-- Batch service via environment variables (`HAIL_DOCKERHUB_PREFIX`)
+- Batch services via environment variables (`DOCKERHUB_PREFIX`)
 - CI/CD processes via build configuration
 - Makefile targets via the `DOCKERHUB_PREFIX` variable from config.mk
 
@@ -74,9 +51,9 @@ The rewriting rules are:
 - Organization images are rewritten to `{dockerhub_prefix}/{organization}/{image_name}` (eg `us-central1-docker.pkg.dev/my-project/dockerhubproxy/envoyproxy/envoy:v1.33.0`)
 - Registry images are not rewritten (eg `us-central1-docker.pkg.dev/my-project/my-repo/my-image:latest`)
 
-### Worker VMs
+### Job Submission
 
-When a worker VM needs to pull a Docker image, the `batch/batch/worker/worker.py` code automatically rewrites Docker Hub image references using the `DOCKERHUB_PREFIX` variable from its environment.
+At job submission time, if the `dockerhub_proxy` feature flag is enabled and the global-config `dockerhub_prefix` variable is set, the image name is rewritten to use the `DOCKERHUB_PREFIX` variable.
 
 ### CI/CD Processes
 
@@ -105,7 +82,7 @@ Some examples of Makefile targets which have been updated to use `DOCKERHUB_PREF
 ### System
 
 So long as the `DOCKERHUB_PREFIX` variable is set, the rewriting rules will be applied to the image name before pulling the image in all of:
-- Worker VMs
+- Batch services (at job submission time)
 - CI/CD builds
 - Makefile targets
 

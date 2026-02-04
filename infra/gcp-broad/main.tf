@@ -62,7 +62,7 @@ locals {
     "gcr.io/${var.gcp_project}"
   )
   docker_root_image = "${local.docker_prefix}/ubuntu:24.04"
-  dockerhub_prefix  = "${var.gcp_region}-docker.pkg.dev/${var.gcp_project}/dockerhubproxy"
+  dockerhub_prefix  = "${var.artifact_registry_location}-docker.pkg.dev/${var.gcp_project}/dockerhubproxy"
 }
 
 provider "google" {
@@ -85,12 +85,16 @@ data "google_project" "current" {
   project_id = var.gcp_project
 }
 
+data "google_organization" "org" {
+  organization = data.google_project.current.org_id
+}
+
 # Google Cloud Identity Group for pet service accounts
 resource "google_cloud_identity_group" "pet_service_accounts" {
   provider = google-beta
   display_name = "Pet Service Accounts"
   description  = "Group containing user shadow service accounts (pet service accounts)"
-  parent       = "customers/${data.google_project.current.number}"
+  parent       = "customers/${data.google_organization.org.directory_customer_id}"
   group_key {
     id = "pet_service_accounts@${var.organization_domain}"
   }
