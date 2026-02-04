@@ -2,7 +2,7 @@ package is.hail.types.encoded
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.expr.ir.{ArraySorter, EmitCodeBuilder, EmitRegion, StagedArrayBuilder}
+import is.hail.expr.ir.{ArraySorter, EmitCodeBuilder, StagedArrayBuilder}
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.{SType, SValue, SingleCodeType}
@@ -50,7 +50,7 @@ final case class EDictAsUnsortedArrayOfPairs(
       ab.add(cb, ab.elt.coerceSCode(cb, res, region, false).code)
     }
 
-    val sorter = new ArraySorter(EmitRegion(cb.emb, region), ab)
+    val sorter = new ArraySorter(cb.emb, region, ab)
     def lessThan(cb: EmitCodeBuilder, region: Value[Region], l: Value[_], r: Value[_])
       : Value[Boolean] = {
       val lk = cb.memoize(sct.loadToSValue(cb, l).asBaseStruct.loadField(cb, 0))

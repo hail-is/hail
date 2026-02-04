@@ -4,7 +4,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{
-  EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitRegion, EmitValue, IEmitCode, ParamType,
+  EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitValue, IEmitCode, ParamType,
 }
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.io._
@@ -107,8 +107,12 @@ class GroupedBTreeKey(
       deepCopy = false,
     )
 
-  override def deepCopy(cb: EmitCodeBuilder, er: EmitRegion, dest: Code[Long], srcCode: Code[Long])
-    : Unit = {
+  override def deepCopy(
+    cb: EmitCodeBuilder,
+    r: Value[Region],
+    dest: Code[Long],
+    srcCode: Code[Long],
+  ): Unit = {
     val src = cb.newLocal("ga_deep_copy_src", srcCode)
     storageType.storeAtAddress(
       cb,

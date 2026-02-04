@@ -234,14 +234,6 @@ case class AggContainer(
   }
 }
 
-object EmitRegion {
-  def default(mb: EmitMethodBuilder[_]): EmitRegion = EmitRegion(mb, mb.getCodeParam[Region](1))
-}
-
-case class EmitRegion(mb: EmitMethodBuilder[_], region: Value[Region]) {
-  def baseRegion: Value[Region] = mb.getCodeParam[Region](1)
-}
-
 object EmitValue {
   def apply(missing: Option[Value[Boolean]], v: SValue): EmitValue =
     new EmitValue(
@@ -1424,7 +1416,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
 
           val vab = new StagedArrayBuilder(cb, sct, producer.element.required, 0)
           StreamUtils.writeToArrayBuilder(cb, producer, vab, region)
-          val sorter = new ArraySorter(EmitRegion(mb, region), vab)
+          val sorter = new ArraySorter(mb, region, vab)
           sorter.sort(
             cb,
             region,
@@ -1524,7 +1516,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
 
           val vab = new StagedArrayBuilder(cb, sct, producer.element.required, 0)
           StreamUtils.writeToArrayBuilder(cb, producer, vab, region)
-          val sorter = new ArraySorter(EmitRegion(mb, region), vab)
+          val sorter = new ArraySorter(mb, region, vab)
 
           def lessThan(cb: EmitCodeBuilder, region: Value[Region], l: Value[_], r: Value[_])
             : Value[Boolean] =
@@ -1550,7 +1542,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
 
           val vab = new StagedArrayBuilder(cb, sct, producer.element.required, 0)
           StreamUtils.writeToArrayBuilder(cb, producer, vab, region)
-          val sorter = new ArraySorter(EmitRegion(mb, region), vab)
+          val sorter = new ArraySorter(mb, region, vab)
 
           def lessThan(cb: EmitCodeBuilder, region: Value[Region], l: Value[_], r: Value[_])
             : Value[Boolean] = {
@@ -1590,7 +1582,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
           val sct = SingleCodeType.fromSType(producer.element.st)
           val sortedElts = new StagedArrayBuilder(cb, sct, producer.element.required, 16)
           StreamUtils.writeToArrayBuilder(cb, producer, sortedElts, region)
-          val sorter = new ArraySorter(EmitRegion(mb, region), sortedElts)
+          val sorter = new ArraySorter(mb, region, sortedElts)
 
           def lt(cb: EmitCodeBuilder, region: Value[Region], l: Value[_], r: Value[_])
             : Value[Boolean] = {
@@ -2787,7 +2779,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
         assert(impl.unify(Array.empty[Type], x.argTypes, rt))
         val newState = EmitCode.present(mb, state.asRNGState.splitStatic(cb, staticUID))
         impl.applyI(
-          EmitRegion(cb.emb, region),
+          region,
           cb,
           impl.computeReturnEmitType(x.typ, newState.emitType +: codeArgs.map(_.emitType)).st,
           Seq[Type](),
@@ -3542,7 +3534,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
         val unified = impl.unify(typeArgs, args.map(_.typ), rt)
         assert(unified)
         val retType = impl.computeReturnEmitType(x.typ, codeArgs.map(_.emitType))
-        impl.apply(EmitRegion(mb, region), retType.st, typeArgs, errorID, codeArgs: _*)
+        impl.apply(mb, region, retType.st, typeArgs, errorID, codeArgs: _*)
 
       case WritePartition(stream, pctx, writer) =>
         val ctxCode = emit(pctx)

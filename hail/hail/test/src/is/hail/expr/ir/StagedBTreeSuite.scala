@@ -48,7 +48,7 @@ class TestBTreeKey(mb: EmitMethodBuilder[_]) extends BTreeKey {
   override def copy(cb: EmitCodeBuilder, src: Code[Long], dest: Code[Long]): Unit =
     cb += Region.copyFrom(src, dest, storageType.byteSize)
 
-  override def deepCopy(cb: EmitCodeBuilder, er: EmitRegion, src: Code[Long], dest: Code[Long])
+  override def deepCopy(cb: EmitCodeBuilder, r: Value[Region], src: Code[Long], dest: Code[Long])
     : Unit =
     copy(cb, src, dest)
 

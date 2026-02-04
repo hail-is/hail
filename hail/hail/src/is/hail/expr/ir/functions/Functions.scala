@@ -465,13 +465,13 @@ abstract class RegistryFunctions {
     calculateReturnType: (Type, Seq[SType]) => SType,
     typeParameters: Array[Type] = Array.empty,
   )(
-    impl: (EmitRegion, EmitCodeBuilder, Seq[Type], SType, Array[SValue], Value[Int]) => SValue
+    impl: (Value[Region], EmitCodeBuilder, Seq[Type], SType, Array[SValue], Value[Int]) => SValue
   ): Unit = {
     IRFunctionRegistry.addJVMFunction(
       new UnseededMissingnessObliviousJVMFunction(name, typeParameters, valueParameterTypes,
         returnType, calculateReturnType) {
         override def apply(
-          r: EmitRegion,
+          r: Value[Region],
           cb: EmitCodeBuilder,
           returnSType: SType,
           typeParameters: Seq[Type],
@@ -490,13 +490,13 @@ abstract class RegistryFunctions {
     calculateReturnType: (Type, Seq[SType]) => SType,
     typeParameters: Array[Type] = Array.empty,
   )(
-    impl: (EmitRegion, EmitCodeBuilder, SType, Array[Type], Array[SValue]) => Value[_]
+    impl: (Value[Region], EmitCodeBuilder, SType, Array[Type], Array[SValue]) => Value[_]
   ): Unit = {
     IRFunctionRegistry.addJVMFunction(
       new UnseededMissingnessObliviousJVMFunction(name, typeParameters, valueParameterTypes,
         returnType, calculateReturnType) {
         override def apply(
-          r: EmitRegion,
+          r: Value[Region],
           cb: EmitCodeBuilder,
           returnSType: SType,
           typeParameters: Seq[Type],
@@ -518,20 +518,21 @@ abstract class RegistryFunctions {
     calculateReturnType: (Type, Seq[EmitType]) => EmitType,
     typeParameters: Array[Type] = Array.empty,
   )(
-    impl: (EmitRegion, SType, Value[Int], Array[EmitCode]) => EmitCode
+    impl: (EmitMethodBuilder[_], Value[Region], SType, Value[Int], Array[EmitCode]) => EmitCode
   ): Unit = {
     IRFunctionRegistry.addJVMFunction(
       new UnseededMissingnessAwareJVMFunction(name, typeParameters, valueParameterTypes, returnType,
         calculateReturnType) {
         override def apply(
-          r: EmitRegion,
+          mb: EmitMethodBuilder[_],
+          region: Value[Region],
           rpt: SType,
           typeParameters: Seq[Type],
           errorID: Value[Int],
           args: EmitCode*
         ): EmitCode = {
           assert(unify(typeParameters, args.map(_.st.virtualType), rpt.virtualType))
-          impl(r, rpt, errorID, args.toArray)
+          impl(mb, region, rpt, errorID, args.toArray)
         }
       }
     )
@@ -566,13 +567,14 @@ abstract class RegistryFunctions {
           res
         }
         override def apply(
-          r: EmitRegion,
+          mb: EmitMethodBuilder[_],
+          region: Value[Region],
           rpt: SType,
           typeParameters: Seq[Type],
           errorID: Value[Int],
           args: EmitCode*
         ): EmitCode =
-          EmitCode.fromI(r.mb)(cb => apply(cb, r.region, rpt, typeParameters, errorID, args: _*))
+          EmitCode.fromI(mb)(cb => apply(cb, region, rpt, typeParameters, errorID, args: _*))
       }
     )
   }
@@ -646,16 +648,12 @@ abstract class RegistryFunctions {
     registerSCode(name, valueParameterTypes, returnType, calculateReturnType) {
       case (r, cb, _, rt, args, _) =>
         val cts = valueParameterTypes.map(ct(_).runtimeClass)
-        try
-          unwrapReturn(
-            cb,
-            r.region,
-            rt,
-            Code.invokeScalaObject(cls, method, cts, args.map(a => wrap(cb, r.region, a).get))(
-              ct(returnType)
-            ),
+        try {
+          val ret = Code.invokeScalaObject(cls, method, cts, args.map(a => wrap(cb, r, a).get))(
+            ct(returnType)
           )
-        catch {
+          unwrapReturn(cb, r, rt, ret)
+        } catch {
           case e: Throwable =>
             throw new RuntimeException(s"error while registering function $name", e)
         }
@@ -754,7 +752,7 @@ abstract class RegistryFunctions {
     rt: Type,
     pt: (Type, SType) => SType,
   )(
-    impl: (EmitRegion, EmitCodeBuilder, SType, SValue, Value[Int]) => SValue
+    impl: (Value[Region], EmitCodeBuilder, SType, SValue, Value[Int]) => SValue
   ): Unit =
     registerSCode(name, Array(mt1), rt, unwrappedApply(pt)) {
       case (r, cb, _, rt, Array(a1), errorID) => impl(r, cb, rt, a1, errorID)
@@ -767,7 +765,7 @@ abstract class RegistryFunctions {
     rt: Type,
     pt: (Type, SType) => SType,
   )(
-    impl: (EmitRegion, EmitCodeBuilder, Seq[Type], SType, SValue, Value[Int]) => SValue
+    impl: (Value[Region], EmitCodeBuilder, Seq[Type], SType, SValue, Value[Int]) => SValue
   ): Unit =
     registerSCode(name, Array(mt1), rt, unwrappedApply(pt), typeParameters = typeParams) {
       case (r, cb, typeParams, rt, Array(a1), errorID) => impl(r, cb, typeParams, rt, a1, errorID)
@@ -780,7 +778,7 @@ abstract class RegistryFunctions {
     rt: Type,
     pt: (Type, SType, SType) => SType,
   )(
-    impl: (EmitRegion, EmitCodeBuilder, SType, SValue, SValue, Value[Int]) => SValue
+    impl: (Value[Region], EmitCodeBuilder, SType, SValue, SValue, Value[Int]) => SValue
   ): Unit =
     registerSCode(name, Array(mt1, mt2), rt, unwrappedApply(pt)) {
       case (r, cb, _, rt, Array(a1, a2), errorID) => impl(r, cb, rt, a1, a2, errorID)
@@ -794,7 +792,7 @@ abstract class RegistryFunctions {
     rt: Type,
     pt: (Type, SType, SType) => SType,
   )(
-    impl: (EmitRegion, EmitCodeBuilder, Seq[Type], SType, SValue, SValue, Value[Int]) => SValue
+    impl: (Value[Region], EmitCodeBuilder, Seq[Type], SType, SValue, SValue, Value[Int]) => SValue
   ): Unit =
     registerSCode(name, Array(mt1, mt2), rt, unwrappedApply(pt), typeParameters = typeParams) {
       case (r, cb, typeParams, rt, Array(a1, a2), errorID) =>
@@ -809,7 +807,7 @@ abstract class RegistryFunctions {
     rt: Type,
     pt: (Type, SType, SType, SType) => SType,
   )(
-    impl: (EmitRegion, EmitCodeBuilder, SType, SValue, SValue, SValue, Value[Int]) => SValue
+    impl: (Value[Region], EmitCodeBuilder, SType, SValue, SValue, SValue, Value[Int]) => SValue
   ): Unit =
     registerSCode(name, Array(mt1, mt2, mt3), rt, unwrappedApply(pt)) {
       case (r, cb, _, rt, Array(a1, a2, a3), errorID) => impl(r, cb, rt, a1, a2, a3, errorID)
@@ -825,7 +823,7 @@ abstract class RegistryFunctions {
     pt: (Type, SType, SType, SType) => SType,
   )(
     impl: (
-      EmitRegion,
+      Value[Region],
       EmitCodeBuilder,
       Seq[Type],
       SType,
@@ -849,7 +847,16 @@ abstract class RegistryFunctions {
     rt: Type,
     pt: (Type, SType, SType, SType, SType) => SType,
   )(
-    impl: (EmitRegion, EmitCodeBuilder, SType, SValue, SValue, SValue, SValue, Value[Int]) => SValue
+    impl: (
+      Value[Region],
+      EmitCodeBuilder,
+      SType,
+      SValue,
+      SValue,
+      SValue,
+      SValue,
+      Value[Int],
+    ) => SValue
   ): Unit =
     registerSCode(name, Array(mt1, mt2, mt3, mt4), rt, unwrappedApply(pt)) {
       case (r, cb, _, rt, Array(a1, a2, a3, a4), errorID) =>
@@ -867,7 +874,7 @@ abstract class RegistryFunctions {
     pt: (Type, SType, SType, SType, SType) => SType,
   )(
     impl: (
-      EmitRegion,
+      Value[Region],
       EmitCodeBuilder,
       Seq[Type],
       SType,
@@ -894,7 +901,7 @@ abstract class RegistryFunctions {
     pt: (Type, SType, SType, SType, SType, SType) => SType,
   )(
     impl: (
-      EmitRegion,
+      Value[Region],
       EmitCodeBuilder,
       SType,
       SValue,
@@ -922,7 +929,7 @@ abstract class RegistryFunctions {
     pt: (Type, SType, SType, SType, SType, SType, SType) => SType,
   )(
     impl: (
-      EmitRegion,
+      Value[Region],
       EmitCodeBuilder,
       SType,
       SValue,
@@ -952,7 +959,7 @@ abstract class RegistryFunctions {
     pt: (Type, SType, SType, SType, SType, SType, SType, SType) => SType,
   )(
     impl: (
-      EmitRegion,
+      Value[Region],
       EmitCodeBuilder,
       SType,
       SValue,
@@ -976,7 +983,7 @@ abstract class RegistryFunctions {
     rt: Type,
     pt: (Type, SType) => SType,
   )(
-    impl: (EmitCodeBuilder, EmitRegion, SType, SValue) => Value[_]
+    impl: (EmitCodeBuilder, Value[Region], SType, SValue) => Value[_]
   ): Unit =
     registerCode(name, Array(mt1), rt, unwrappedApply(pt)) {
       case (r, cb, rt, _, Array(a1)) => impl(cb, r, rt, a1)
@@ -989,7 +996,7 @@ abstract class RegistryFunctions {
     rt: Type,
     pt: (Type, SType, SType) => SType,
   )(
-    impl: (EmitCodeBuilder, EmitRegion, SType, SValue, SValue) => Value[_]
+    impl: (EmitCodeBuilder, Value[Region], SType, SValue, SValue) => Value[_]
   ): Unit =
     registerCode(name, Array(mt1, mt2), rt, unwrappedApply(pt)) {
       case (r, cb, rt, _, Array(a1, a2)) => impl(cb, r, rt, a1, a2)
@@ -1133,10 +1140,10 @@ abstract class RegistryFunctions {
     rt: Type,
     pt: (Type, EmitType, EmitType) => EmitType,
   )(
-    impl: (EmitRegion, SType, Value[Int], EmitCode, EmitCode) => EmitCode
+    impl: (EmitMethodBuilder[_], Value[Region], SType, Value[Int], EmitCode, EmitCode) => EmitCode
   ): Unit =
     registerEmitCode(name, Array(mt1, mt2), rt, unwrappedApply(pt)) {
-      case (r, rt, errorID, Array(a1, a2)) => impl(r, rt, errorID, a1, a2)
+      case (mb, r, rt, errorID, Array(a1, a2)) => impl(mb, r, rt, errorID, a1, a2)
     }
 
   def registerIR1(
@@ -1206,7 +1213,8 @@ sealed abstract class JVMFunction {
   def computeReturnEmitType(returnType: Type, valueParameterTypes: Seq[EmitType]): EmitType
 
   def apply(
-    mb: EmitRegion,
+    mb: EmitMethodBuilder[_],
+    region: Value[Region],
     returnType: SType,
     typeParameters: Seq[Type],
     errorID: Value[Int],
@@ -1261,7 +1269,7 @@ abstract class UnseededMissingnessObliviousJVMFunction(
     )
 
   def apply(
-    r: EmitRegion,
+    r: Value[Region],
     cb: EmitCodeBuilder,
     returnSType: SType,
     typeParameters: Seq[Type],
@@ -1270,20 +1278,21 @@ abstract class UnseededMissingnessObliviousJVMFunction(
   ): SValue
 
   override def apply(
-    r: EmitRegion,
+    mb: EmitMethodBuilder[_],
+    region: Value[Region],
     returnType: SType,
     typeParameters: Seq[Type],
     errorID: Value[Int],
     args: EmitCode*
   ): EmitCode =
-    EmitCode.fromI(r.mb)(cb =>
+    EmitCode.fromI(mb)(cb =>
       IEmitCode.multiMapEmitCodes(cb, args.toFastSeq) { args =>
-        apply(r, cb, returnType, typeParameters, errorID, args: _*)
+        apply(region, cb, returnType, typeParameters, errorID, args: _*)
       }
     )
 
   def applyI(
-    r: EmitRegion,
+    r: Value[Region],
     cb: EmitCodeBuilder,
     returnType: SType,
     typeParameters: Seq[Type],
@@ -1305,12 +1314,12 @@ abstract class UnseededMissingnessObliviousJVMFunction(
     )
     methodbuilder.emitSCode(cb =>
       apply(
-        EmitRegion.default(methodbuilder),
+        methodbuilder.getCodeParam[Region](1),
         cb,
         rpt,
         typeParameters,
         methodbuilder.getCodeParam[Int](2),
-        (0 until args.length).map(i => methodbuilder.getSCodeParam(i + 3)): _*
+        args.indices.map(i => methodbuilder.getSCodeParam(i + 3)): _*
       )
     )
     methodbuilder

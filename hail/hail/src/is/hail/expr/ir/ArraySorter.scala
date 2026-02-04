@@ -7,9 +7,8 @@ import is.hail.types.physical.stypes.interfaces.SIndexableValue
 import is.hail.types.virtual.{TArray, TDict, TSet, Type}
 import is.hail.utils.FastSeq
 
-class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
+class ArraySorter(mb: EmitMethodBuilder[_], r: Value[Region], array: StagedArrayBuilder) {
   val ti: TypeInfo[_] = array.elt.ti
-  val mb: EmitMethodBuilder[_] = r.mb
 
   private[this] var prunedMissing: Boolean = false
 
@@ -191,8 +190,8 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
           array.elt.loadedSType.storageType().setRequired(this.prunedMissing || array.eltRequired)
         )
 
-        arrayType.constructFromElements(cb, r.region, len, deepCopy = false) { (cb, idx) =>
-          array.loadFromIndex(cb, r.region, idx)
+        arrayType.constructFromElements(cb, r, len, deepCopy = false) { (cb, idx) =>
+          array.loadFromIndex(cb, r, idx)
         }
       case td: TDict =>
         PCanonicalDict.coerceArrayCode(toRegion(cb, TArray(td.elementType)))
