@@ -100,7 +100,7 @@ object TableValue extends Logging {
     )
   }
 
-  def multiWayZipJoin(childValues: Seq[TableValue], fieldName: String, globalName: String)
+  def multiWayZipJoin(childValues: IndexedSeq[TableValue], fieldName: String, globalName: String)
     : TableValue = {
     def newGlobalType = TStruct(globalName -> TArray(childValues.head.typ.globalType))
     def newValueType = TStruct(fieldName -> TArray(childValues.head.typ.valueType))
@@ -112,7 +112,7 @@ object TableValue extends Logging {
     val ctx = childValues.head.ctx
     val sm = ctx.stateManager
 
-    val childRVDs = RVD.unify(ctx, childValues.map(_.rvd)).toFastSeq
+    val childRVDs = RVD.unify(ctx, childValues.map(_.rvd))
     assert(childRVDs.forall(_.typ.key.startsWith(typ.key)))
 
     val repartitionedRVDs =
@@ -217,7 +217,7 @@ object TableValue extends Logging {
 
     val bae = new ByteArrayEncoder(ctx.theHailClassLoader, makeEnc)
     var idx = 0
-    val encRows = Array.tabulate(nSplits) { splitIdx =>
+    val encRows = ArraySeq.tabulate(nSplits) { splitIdx =>
       val n = parts(splitIdx)
       bae.reset()
       val stop = idx + n
@@ -264,7 +264,7 @@ object TableValue extends Logging {
     val nPartitions = partCounts.length
     val typ: TableType = TableType(
       TStruct("idx" -> TInt32),
-      Array("idx"),
+      ArraySeq("idx"),
       TStruct.empty,
     )
     val rowType = PCanonicalStruct(true, "idx" -> PInt32Required)
@@ -273,12 +273,12 @@ object TableValue extends Logging {
       typ,
       BroadcastRow.empty(ctx),
       new RVD(
-        RVDType(rowType, Array("idx")),
+        RVDType(rowType, ArraySeq("idx")),
         new RVDPartitioner(
           ctx.stateManager,
           Array("idx"),
           typ.rowType,
-          Array.tabulate(nPartitions) { i =>
+          ArraySeq.tabulate(nPartitions) { i =>
             val start = partStarts(i)
             val end = partStarts(i + 1)
             Interval(Row(start), Row(end), includesStart = true, includesEnd = false)
@@ -1198,7 +1198,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
       val fsBc = ctx.fsBc
       val tmpBase = ctx.createTmpPath("table-map-rows-distributed-scan")
       val d = digitsNeeded(rvd.getNumPartitions)
-      val files = rvd.mapPartitionsWithIndex { (i, ctx, it) =>
+      val files = ArraySeq.unsafeWrapArray(rvd.mapPartitionsWithIndex { (i, ctx, it) =>
         val path = tmpBase + "/" + partFile(d, i, TaskContext.get())
         val globalRegion = ctx.freshRegion()
         val globals = if (scanSeqNeedsGlobals)
@@ -1224,10 +1224,10 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
           }
           Iterator.single(path)
         }
-      }.collect()
+      }.collect())
 
       val fileStack = ArraySeq.newBuilder[IndexedSeq[String]]
-      var filesToMerge: Array[String] = files
+      var filesToMerge: IndexedSeq[String] = files
       while (filesToMerge.length > 1) {
         val nToMerge = filesToMerge.length / 2
         logger.info(s"Running distributed combine stage with $nToMerge tasks")
@@ -1433,7 +1433,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
       val f = rowType.fields(i)
       val fo = f.typ.ordering(ctx.stateManager)
       if (so == Ascending) fo else fo.reverse
-    }.toArray
+    }
 
     val ord: Ordering[Annotation] = ExtendedOrdering.rowOrdering(sortColIndexOrd).toOrdering
 

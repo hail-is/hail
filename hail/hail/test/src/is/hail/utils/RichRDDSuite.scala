@@ -1,6 +1,7 @@
 package is.hail.utils
 
 import is.hail.HailSuite
+import is.hail.utils.compat.immutable.ArraySeq
 
 import org.testng.annotations.Test
 
@@ -9,7 +10,7 @@ class RichRDDSuite extends HailSuite {
     def read(file: String): Array[String] = fs.readLines(file)(_.map(_.value).toArray)
 
     val header = "my header is awesome!"
-    val data = Array("the cat jumped over the moon.", "all creatures great and small")
+    val data = ArraySeq("the cat jumped over the moon.", "all creatures great and small")
     val r = sc.parallelize(data, numSlices = 2)
     assert(r.getNumPartitions == 2)
 
@@ -37,7 +38,7 @@ class RichRDDSuite extends HailSuite {
     assert(read(separateHeader + "/part-00001.gz") sameElements Array(data(1)))
 
     val merged = ctx.createTmpPath("merged", ".gz")
-    val mergeList = Array(
+    val mergeList = ArraySeq(
       separateHeader + "/header.gz",
       separateHeader + "/part-00000.gz",
       separateHeader + "/part-00001.gz",

@@ -3,6 +3,7 @@ package is.hail.utils.richUtils
 import is.hail.io.{DoubleInputBuffer, DoubleOutputBuffer}
 import is.hail.io.fs.FS
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 object RichArray {
   val defaultBufSize: Int = 4096 << 3
@@ -35,4 +36,6 @@ object RichArray {
 
 class RichArray[T](val a: Array[T]) extends AnyVal {
   def index: Map[T, Int] = a.zipWithIndex.toMap
+
+  def unsafeToArraySeq: ArraySeq[T] = ArraySeq.unsafeWrapArray(a)
 }

@@ -30,7 +30,8 @@ trait Implicits {
   implicit def toRichIndexedSeqAnyRef[T <: AnyRef](s: IndexedSeq[T]): RichIndexedSeqAnyRef[T] =
     new RichIndexedSeqAnyRef(s)
 
-  implicit def arrayToRichIndexedSeq[T](s: Array[T]): RichIndexedSeq[T] = new RichIndexedSeq(s)
+  implicit def arrayToRichIndexedSeq[T](s: Array[T]): RichIndexedSeq[T] =
+    new RichIndexedSeq(ArraySeq.unsafeWrapArray(s))
 
   implicit def toRichBoolean(b: Boolean): RichBoolean = new RichBoolean(b)
 

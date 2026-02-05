@@ -127,7 +127,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
           req.union(true)
           req
         } else eltReq
-        uses.foreach(u => defs.bind(u, Array(req)))
+        uses.foreach(u => defs.bind(u, ArraySeq(req)))
         dependents.getOrElseUpdate(d, mutable.Set[RefEquality[BaseIR]]()) ++= uses
       }
     }
@@ -142,28 +142,28 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
           optional.union(false)
           optional
         } else eltReq
-        uses.foreach(u => defs.bind(u, Array(req)))
+        uses.foreach(u => defs.bind(u, ArraySeq(req)))
         dependents.getOrElseUpdate(d, mutable.Set[RefEquality[BaseIR]]()) ++= uses
       }
 
     def addBindings(name: Name, ds: IndexedSeq[IR]): Unit =
       if (refMap.contains(name)) {
         val uses = refMap(name)
-        uses.foreach(u => defs.bind(u, ds.map(lookup).toArray[BaseTypeWithRequiredness]))
+        uses.foreach(u => defs.bind(u, ds.map(lookup)))
         ds.foreach { d =>
           dependents.getOrElseUpdate(d, mutable.Set[RefEquality[BaseIR]]()) ++= uses
         }
       }
 
     def addBinding(name: Name, ds: IR): Unit =
-      addBindings(name, Array(ds))
+      addBindings(name, ArraySeq(ds))
 
     def addTableBinding(table: TableIR): Unit = {
       refMap.get(TableIR.rowName).foreach(_.foreach { u =>
-        defs.bind(u, Array[BaseTypeWithRequiredness](lookup(table).rowType))
+        defs.bind(u, ArraySeq(lookup(table).rowType))
       })
       refMap.get(TableIR.globalName).foreach(_.foreach { u =>
-        defs.bind(u, Array[BaseTypeWithRequiredness](lookup(table).globalType))
+        defs.bind(u, ArraySeq(lookup(table).globalType))
       })
       val refs = refMap.getOrElse(TableIR.rowName, FastSeq()) ++
         refMap.getOrElse(TableIR.globalName, FastSeq())
@@ -200,8 +200,8 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
             tcoerce[TypeWithRequiredness](tcoerce[RIterable](lookup(a)).elementType.children.head)
           val req = RTuple.fromNamesAndTypes(FastSeq("0" -> eltReq))
           req.union(true)
-          refMap(left).foreach(u => defs.bind(u, Array(req)))
-          refMap(right).foreach(u => defs.bind(u, Array(req)))
+          refMap(left).foreach(u => defs.bind(u, ArraySeq(req)))
+          refMap(right).foreach(u => defs.bind(u, ArraySeq(req)))
         }
       case StreamMap(a, name, _) =>
         addElementBinding(name, a)
@@ -238,7 +238,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         val ctxType = tcoerce[RIterable](lookup(contexts)).elementType
         if (refMap.contains(ctxName)) {
           val uses = refMap(ctxName)
-          uses.foreach(u => defs.bind(u, Array(ctxType)))
+          uses.foreach(u => defs.bind(u, ArraySeq(ctxType)))
           dependents.getOrElseUpdate(contexts, mutable.Set[RefEquality[BaseIR]]()) ++= uses
         }
 
@@ -248,14 +248,14 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
           val uses = refMap(curKey)
           val keyType =
             RStruct.fromNamesAndTypes(key.map(k => k -> producerElementType.fieldType(k)))
-          uses.foreach(u => defs.bind(u, Array(keyType)))
+          uses.foreach(u => defs.bind(u, ArraySeq(keyType)))
           dependents.getOrElseUpdate(makeProducer, mutable.Set[RefEquality[BaseIR]]()) ++= uses
         }
         if (refMap.contains(curVals)) {
           val uses = refMap(curVals)
           val optional = producerElementType.copy(producerElementType.children)
           optional.union(false)
-          uses.foreach(u => defs.bind(u, Array(RIterable(optional))))
+          uses.foreach(u => defs.bind(u, ArraySeq(RIterable(optional))))
           dependents.getOrElseUpdate(makeProducer, mutable.Set[RefEquality[BaseIR]]()) ++= uses
         }
 
@@ -266,10 +266,10 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case StreamFor(a, name, _) => addElementBinding(name, a)
       case StreamFold(a, zero, accumName, valueName, body) =>
         addElementBinding(valueName, a)
-        addBindings(accumName, Array[IR](zero, body))
+        addBindings(accumName, ArraySeq(zero, body))
         states.bind(
           node,
-          Array[TypeWithRequiredness](lookup(
+          ArraySeq(lookup(
             refMap.get(accumName)
               .flatMap(refs => refs.headOption.map(_.t.asInstanceOf[IR]))
               .getOrElse(zero)
@@ -277,26 +277,22 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         )
       case StreamScan(a, zero, accumName, valueName, body) =>
         addElementBinding(valueName, a)
-        addBindings(accumName, Array[IR](zero, body))
+        addBindings(accumName, ArraySeq(zero, body))
         states.bind(
           node,
-          Array[TypeWithRequiredness](lookup(
+          ArraySeq(lookup(
             refMap.get(accumName)
               .flatMap(refs => refs.headOption.map(_.t.asInstanceOf[IR]))
               .getOrElse(zero)
           )),
         )
-      case StreamFold2(a, accums, valueName, seq, _) =>
+      case StreamFold2(a, accums, valueName, seqs, _) =>
         addElementBinding(valueName, a)
-        val s = Array.fill[TypeWithRequiredness](accums.length)(null)
-        var i = 0
-        while (i < accums.length) {
-          val (n, z) = accums(i)
-          addBindings(n, Array[IR](z, seq(i)))
-          s(i) = lookup(refMap.get(n).flatMap(refs =>
+        val s = accums.lazyZip(seqs).map { case ((n, z), seq) =>
+          addBindings(n, ArraySeq(z, seq))
+          lookup(refMap.get(n).flatMap(refs =>
             refs.headOption.map(_.t.asInstanceOf[IR])
           ).getOrElse(z))
-          i += 1
         }
         states.bind(node, s)
       case StreamJoinRightDistinct(left, right, _, _, l, r, _, joinType) =>
@@ -305,8 +301,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case StreamLeftIntervalJoin(left, right, _, _, lname, rname, _) =>
         addElementBinding(lname, left)
         val uses = refMap(rname)
-        val rtypes = Array(lookup(right))
-        uses.foreach(u => defs.bind(u, rtypes))
+        uses.foreach(u => defs.bind(u, ArraySeq(lookup(right))))
         dependents.getOrElseUpdate(right, mutable.Set[RefEquality[BaseIR]]()) ++= uses
       case StreamAgg(a, name, _) =>
         addElementBinding(name, a)
@@ -317,17 +312,17 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case RunAggScan(a, name, _, _, _, _) =>
         addElementBinding(name, a)
       case AggFold(zero, seqOp, combOp, accumName, otherAccumName, _) =>
-        addBindings(accumName, Array(zero, seqOp, combOp))
-        addBindings(otherAccumName, Array(zero, seqOp, combOp))
+        addBindings(accumName, ArraySeq(zero, seqOp, combOp))
+        addBindings(otherAccumName, ArraySeq(zero, seqOp, combOp))
       case AggExplode(a, name, _, _) =>
         addElementBinding(name, a)
       case AggArrayPerElement(a, elt, idx, _, _, _) =>
         addElementBinding(elt, a)
         // idx is always required Int32
-        if (refMap.contains(idx))
-          refMap(idx).foreach { use =>
-            defs.bind(use, Array[BaseTypeWithRequiredness](RPrimitive()))
-          }
+        if (refMap.contains(idx)) {
+          val prim = ArraySeq(RPrimitive())
+          refMap(idx).foreach(use => defs.bind(use, prim))
+        }
       case NDArrayMap(nd, name, _) =>
         addElementBinding(name, nd)
       case NDArrayMap2(left, right, l, r, _, _) =>
@@ -354,12 +349,10 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         addTableBinding(child)
       case TableMapPartitions(child, globalName, partitionStreamName, _, _, _) =>
         if (refMap.contains(globalName))
-          refMap(globalName).foreach { u =>
-            defs.bind(u, Array[BaseTypeWithRequiredness](lookup(child).globalType))
-          }
+          refMap(globalName).foreach(u => defs.bind(u, ArraySeq(lookup(child).globalType)))
         if (refMap.contains(partitionStreamName))
           refMap(partitionStreamName).foreach { u =>
-            defs.bind(u, Array[BaseTypeWithRequiredness](RIterable(lookup(child).rowType)))
+            defs.bind(u, ArraySeq(RIterable(lookup(child).rowType)))
           }
         val refs = refMap.getOrElse(globalName, FastSeq()) ++ refMap.getOrElse(
           partitionStreamName,

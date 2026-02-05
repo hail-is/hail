@@ -523,10 +523,10 @@ object ReferenceGenome {
     name: String,
     fastaFile: String,
     indexFile: String,
-    xContigs: Array[String] = Array.empty[String],
-    yContigs: Array[String] = Array.empty[String],
-    mtContigs: Array[String] = Array.empty[String],
-    parInput: Array[String] = Array.empty[String],
+    xContigs: IndexedSeq[String] = ArraySeq.empty[String],
+    yContigs: IndexedSeq[String] = ArraySeq.empty[String],
+    mtContigs: IndexedSeq[String] = ArraySeq.empty[String],
+    parInput: IndexedSeq[String] = ArraySeq.empty[String],
   ): ReferenceGenome = {
     val fs = ctx.fs
 
@@ -640,12 +640,12 @@ object ReferenceGenome {
   ): ReferenceGenome =
     ReferenceGenome(
       name,
-      contigs.asScala.toArray,
+      contigs.asScala.to(ArraySeq),
       lengths.asScala.toMap,
-      xContigs.asScala.toArray,
-      yContigs.asScala.toArray,
-      mtContigs.asScala.toArray,
-      parInput.asScala.toArray,
+      xContigs.asScala.to(ArraySeq),
+      yContigs.asScala.to(ArraySeq),
+      mtContigs.asScala.to(ArraySeq),
+      parInput.asScala.to(ArraySeq),
     )
 
   def getMapFromArray(arr: Array[ReferenceGenome]): Map[String, ReferenceGenome] =
@@ -660,7 +660,7 @@ object ReferenceGenome {
         fatal(
           s"Cannot add reference genome '${rg.name}', a different reference with that name already exists. " ++
             "Choose a reference name NOT in the following list:" ++
-            existing.keys.toFastSeq.sorted.mkString(start = "\n  ", sep = "\n  ", end = "")
+            ArraySeq.sorted(existing.keys).mkString(start = "\n  ", sep = "\n  ", end = "")
         )
 
       existing += (rg.name -> rg)

@@ -15,6 +15,7 @@ import is.hail.types.physical.stypes.{EmitType, SValue}
 import is.hail.types.physical.stypes.concrete.SIndexablePointer
 import is.hail.types.virtual.{TVoid, Type}
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 class GroupedBTreeKey(
   kt: PType,
@@ -302,7 +303,7 @@ class DictState(
   }
 }
 
-class GroupedAggregator(ktV: VirtualTypeWithReq, nestedAggs: Array[StagedAggregator])
+class GroupedAggregator(ktV: VirtualTypeWithReq, nestedAggs: IndexedSeq[StagedAggregator])
     extends StagedAggregator {
   type State = DictState
 
@@ -315,8 +316,8 @@ class GroupedAggregator(ktV: VirtualTypeWithReq, nestedAggs: Array[StagedAggrega
   override val resultEmitType = EmitType(SIndexablePointer(resultPType), true)
   private[this] val arrayRep = resultPType.arrayRep
   private[this] val dictElt = arrayRep.elementType.asInstanceOf[PCanonicalStruct]
-  val initOpTypes: Seq[Type] = Array(TVoid)
-  val seqOpTypes: Seq[Type] = Array(ktV.t, TVoid)
+  val initOpTypes: IndexedSeq[Type] = ArraySeq(TVoid)
+  val seqOpTypes: IndexedSeq[Type] = ArraySeq(ktV.t, TVoid)
 
   override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     val Array(inits) = init

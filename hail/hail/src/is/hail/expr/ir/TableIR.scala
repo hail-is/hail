@@ -25,6 +25,7 @@ import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SInt64, SInt64Value}
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 import java.io.{Closeable, InputStream}
 
@@ -71,7 +72,7 @@ case class TableLiteral(
   enc: AbstractTypedCodecSpec,
   encodedGlobals: Array[Array[Byte]],
 ) extends TableIR {
-  val childrenSeq: IndexedSeq[BaseIR] = Array.empty[BaseIR]
+  val childrenSeq: IndexedSeq[BaseIR] = ArraySeq.empty
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): TableLiteral = {
     assert(newChildren.isEmpty)
@@ -389,15 +390,8 @@ object LoweredTableReader extends Logging {
         s"Coerced prefix-sorted $context, requiring additional sorting within data partitions on each query."
       )
 
-      def selectPK(r: Row): Row = {
-        val a = new Array[Any](partitionKey)
-        var i = 0
-        while (i < partitionKey) {
-          a(i) = r.get(i)
-          i += 1
-        }
-        Row.fromSeq(a)
-      }
+      def selectPK(r: Row): Row =
+        Row.fromSeq(ArraySeq.tabulate(partitionKey)(r.get))
 
       (
         ctx: ExecuteContext,
@@ -786,13 +780,13 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec, uidFieldName: Str
     val concreteSType = spec.encodedType.decodedSType(concreteType).asInstanceOf[SBaseStruct]
     val uidSType: SStackStruct = SStackStruct(
       TTuple(TInt64, TInt64),
-      Array(EmitType(SInt64, true), EmitType(SInt64, true)),
+      ArraySeq(EmitType(SInt64, true), EmitType(SInt64, true)),
     )
     val elementSType = if (insertUID)
       SInsertFieldsStruct(
         requestedType,
         concreteSType,
-        Array(uidFieldName -> EmitType(uidSType, true)),
+        ArraySeq(uidFieldName -> EmitType(uidSType, true)),
       )
     else
       concreteSType
@@ -836,7 +830,7 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec, uidFieldName: Str
             val uid = EmitValue.present(
               new SStackStructValue(
                 uidSType,
-                Array(
+                ArraySeq(
                   EmitValue.present(partIdx),
                   EmitValue.present(new SInt64Value(rowIdx)),
                 ),
@@ -895,13 +889,13 @@ case class PartitionNativeIntervalReader(
       spec.encodedType.decodedSType(concreteType).asInstanceOf[SBaseStruct]
     val uidSType: SStackStruct = SStackStruct(
       TTuple(TInt64, TInt64),
-      Array(EmitType(SInt64, true), EmitType(SInt64, true)),
+      ArraySeq(EmitType(SInt64, true), EmitType(SInt64, true)),
     )
     val eltSType: SBaseStruct = if (insertUID)
       SInsertFieldsStruct(
         requestedType,
         concreteSType,
-        Array(uidFieldName -> EmitType(uidSType, true)),
+        ArraySeq(uidFieldName -> EmitType(uidSType, true)),
       )
     else
       concreteSType
@@ -922,7 +916,7 @@ case class PartitionNativeIntervalReader(
       val pathsType = VirtualTypeWithReq.fullyRequired(TArray(TString))
       val rowsPath = tableSpec.rowsComponent.absolutePath(tablePath)
       val partitionPathsRuntime = cb.memoizeField(
-        mb.addLiteral(cb, rowsSpec.absolutePartPaths(rowsPath).toFastSeq, pathsType),
+        mb.addLiteral(cb, rowsSpec.absolutePartPaths(rowsPath), pathsType),
         "partitionPathsRuntime",
       )
         .asIndexable
@@ -931,7 +925,7 @@ case class PartitionNativeIntervalReader(
           cb,
           rowsSpec.partFiles.map(partPath =>
             s"$rowsPath/${indexSpec.relPath}/$partPath.idx"
-          ).toFastSeq,
+          ),
           pathsType,
         ),
         "indexPathsRuntime",
@@ -1203,13 +1197,13 @@ case class PartitionNativeReaderIndexed(
       spec.encodedType.decodedSType(concreteType).asInstanceOf[SBaseStructPointer]
     val uidSType: SStackStruct = SStackStruct(
       TTuple(TInt64, TInt64),
-      Array(EmitType(SInt64, true), EmitType(SInt64, true)),
+      ArraySeq(EmitType(SInt64, true), EmitType(SInt64, true)),
     )
     val eltSType: SBaseStruct = if (insertUID)
       SInsertFieldsStruct(
         requestedType,
         concreteSType,
-        Array(uidFieldName -> EmitType(uidSType, true)),
+        ArraySeq(uidFieldName -> EmitType(uidSType, true)),
       )
     else
       concreteSType
@@ -1290,10 +1284,10 @@ case class PartitionNativeReaderIndexed(
               new SInsertFieldsStructValue(
                 eltSType.asInstanceOf[SInsertFieldsStruct],
                 base,
-                Array(EmitValue.present(
+                ArraySeq(EmitValue.present(
                   new SStackStructValue(
                     uidSType,
-                    Array(
+                    ArraySeq(
                       EmitValue.present(partIdx),
                       EmitValue.present(primitive(curIdx)),
                     ),
@@ -1533,7 +1527,7 @@ case class PartitionZippedIndexedNativeReader(
 
   val uidSType: SStackStruct = SStackStruct(
     TTuple(TInt64, TInt64, TInt64, TInt64),
-    Array(
+    ArraySeq(
       EmitType(SInt64, true),
       EmitType(SInt64, true),
       EmitType(SInt64, true),
@@ -1712,7 +1706,7 @@ class TableNativeReader(
   val params: TableNativeReaderParameters,
   val spec: AbstractTableSpec,
 ) extends TableReaderWithExtraUID {
-  override def pathsUsed: Seq[String] = Array(params.path)
+  override def pathsUsed: Seq[String] = ArraySeq(params.path)
 
   val filterIntervals: Boolean = params.options.map(_.filterIntervals).getOrElse(false)
 
@@ -1761,7 +1755,7 @@ class TableNativeReader(
     assert(!requestedGlobalsType.hasField(uidFieldName))
     ArrayRef(
       ToArray(ReadPartition(
-        MakeStruct(Array(
+        MakeStruct(ArraySeq(
           "partitionIndex" -> I64(0),
           "partitionPath" -> Str(globalsSpec.absolutePartPaths(globalsPath).head),
         )),
@@ -1898,7 +1892,7 @@ case class TableNativeZippedReader(
     val globalsPath = specLeft.globalsComponent.absolutePath(pathLeft)
     ArrayRef(
       ToArray(ReadPartition(
-        MakeStruct(Array(
+        MakeStruct(ArraySeq(
           "partitionIndex" -> I64(0),
           "partitionPath" -> Str(globalsSpec.absolutePartPaths(globalsPath).head),
         )),
@@ -1993,7 +1987,7 @@ case class TableFromBlockMatrixNativeReader(
 
   override def fullTypeWithoutUIDs: TableType = TableType(
     TStruct("row_idx" -> TInt64, "entries" -> TArray(TFloat64)),
-    Array("row_idx"),
+    ArraySeq("row_idx"),
     TStruct.empty,
   )
 
@@ -2069,7 +2063,7 @@ case class TableRead(typ: TableType, dropRows: Boolean, tr: TableReader) extends
 
   def isDistinctlyKeyed: Boolean = tr.isDistinctlyKeyed
 
-  val childrenSeq: IndexedSeq[BaseIR] = Array.empty[BaseIR]
+  val childrenSeq: IndexedSeq[BaseIR] = ArraySeq.empty
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): TableRead = {
     assert(newChildren.isEmpty)
@@ -2110,7 +2104,7 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
   */
 case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], isSorted: Boolean = false)
     extends TableIR with PreservesRows {
-  val childrenSeq: IndexedSeq[BaseIR] = Array(child)
+  val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child)
 
   lazy val typ: TableType = child.typ.copy(key = keys)
 
@@ -2176,24 +2170,24 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
   require(n >= 0)
   require(nPartitions > 0)
   private val nPartitionsAdj = math.max(math.min(n, nPartitions), 1)
-  val childrenSeq: IndexedSeq[BaseIR] = Array.empty[BaseIR]
+  val childrenSeq: IndexedSeq[BaseIR] = ArraySeq.empty
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): TableRange = {
     assert(newChildren.isEmpty)
     TableRange(n, nPartitions)
   }
 
-  val partitionCounts: IndexedSeq[Int] = partition(n, nPartitionsAdj).toFastSeq
+  val partitionCounts: IndexedSeq[Int] = partition(n, nPartitionsAdj)
 
   val typ: TableType = TableType(
     TStruct("idx" -> TInt32),
-    Array("idx"),
+    ArraySeq("idx"),
     TStruct.empty,
   )
 }
 
 case class TableFilter(child: TableIR, pred: IR) extends TableIR with PreservesOrRemovesRows {
-  val childrenSeq: IndexedSeq[BaseIR] = Array(child, pred)
+  val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child, pred)
 
   override def typ: TableType = child.typ
 
@@ -2275,7 +2269,7 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
     joinType == "right" ||
     joinType == "outer")
 
-  val childrenSeq: IndexedSeq[BaseIR] = Array(left, right)
+  val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(left, right)
 
   lazy val typ: TableType = {
     val leftRowType = left.typ.rowType
@@ -2319,7 +2313,7 @@ case class TableIntervalJoin(
   root: String,
   product: Boolean,
 ) extends TableIR with PreservesRows {
-  lazy val childrenSeq: IndexedSeq[BaseIR] = Array(left, right)
+  lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(left, right)
 
   lazy val typ: TableType = {
     val rightType: Type = if (product) TArray(right.typ.valueType) else right.typ.valueType
@@ -2366,7 +2360,7 @@ case class TableMultiWayZipJoin(
 
 case class TableLeftJoinRightDistinct(left: TableIR, right: TableIR, root: String)
     extends TableIR with PreservesRows {
-  lazy val childrenSeq: IndexedSeq[BaseIR] = Array(left, right)
+  lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(left, right)
 
   lazy val typ: TableType = left.typ.copy(
     rowType = left.typ.rowType.structInsert(right.typ.valueType, FastSeq(root))
@@ -2399,7 +2393,7 @@ case class TableMapPartitions(
     rowType = body.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]
   )
 
-  lazy val childrenSeq: IndexedSeq[BaseIR] = Array(child, body)
+  lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child, body)
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR])
     : TableMapPartitions = {
@@ -2417,7 +2411,7 @@ case class TableMapPartitions(
 
 // Must leave key fields unchanged.
 case class TableMapRows(child: TableIR, newRow: IR) extends TableIR with PreservesRows {
-  val childrenSeq: IndexedSeq[BaseIR] = Array(child, newRow)
+  val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child, newRow)
 
   lazy val typ: TableType = child.typ.copy(rowType = newRow.typ.asInstanceOf[TStruct])
 
@@ -2430,7 +2424,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR with Preserv
 }
 
 case class TableMapGlobals(child: TableIR, newGlobals: IR) extends TableIR with PreservesRows {
-  val childrenSeq: IndexedSeq[BaseIR] = Array(child, newGlobals)
+  val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child, newGlobals)
 
   lazy val typ: TableType =
     child.typ.copy(globalType = newGlobals.typ.asInstanceOf[TStruct])
@@ -2446,7 +2440,7 @@ case class TableMapGlobals(child: TableIR, newGlobals: IR) extends TableIR with 
 case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableIR {
   assert(path.nonEmpty)
 
-  lazy val childrenSeq: IndexedSeq[BaseIR] = Array(child)
+  lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child)
 
   private def childRowType = child.typ.rowType
 
@@ -2473,7 +2467,7 @@ case class TableUnion(childrenSeq: IndexedSeq[TableIR]) extends TableIR {
 }
 
 case class MatrixRowsTable(child: MatrixIR) extends TableIR with PreservesRows {
-  val childrenSeq: IndexedSeq[BaseIR] = Array(child)
+  val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child)
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): MatrixRowsTable = {
     assert(newChildren.length == 1)
@@ -2486,7 +2480,7 @@ case class MatrixRowsTable(child: MatrixIR) extends TableIR with PreservesRows {
 }
 
 case class MatrixColsTable(child: MatrixIR) extends TableIR {
-  val childrenSeq: IndexedSeq[BaseIR] = Array(child)
+  val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child)
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): MatrixColsTable = {
     assert(newChildren.length == 1)
@@ -2497,7 +2491,7 @@ case class MatrixColsTable(child: MatrixIR) extends TableIR {
 }
 
 case class MatrixEntriesTable(child: MatrixIR) extends TableIR {
-  val childrenSeq: IndexedSeq[BaseIR] = Array(child)
+  val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child)
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR])
     : MatrixEntriesTable = {
@@ -2509,7 +2503,7 @@ case class MatrixEntriesTable(child: MatrixIR) extends TableIR {
 }
 
 case class TableDistinct(child: TableIR) extends TableIR with PreservesOrRemovesRows {
-  lazy val childrenSeq: IndexedSeq[BaseIR] = Array(child)
+  lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child)
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): TableDistinct = {
     val IndexedSeq(newChild) = newChildren
@@ -2530,7 +2524,7 @@ case class TableKeyByAndAggregate(
 ) extends TableIR with PreservesOrRemovesRows {
   assert(bufferSize > 0)
 
-  lazy val childrenSeq: IndexedSeq[BaseIR] = Array(child, expr, newKey)
+  lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child, expr, newKey)
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR])
     : TableKeyByAndAggregate = {
@@ -2554,7 +2548,7 @@ case class TableKeyByAndAggregate(
 // follows key_by non-empty key
 case class TableAggregateByKey(child: TableIR, expr: IR)
     extends TableIR with PreservesOrRemovesRows {
-  lazy val childrenSeq: IndexedSeq[BaseIR] = Array(child, expr)
+  lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child, expr)
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR])
     : TableAggregateByKey = {
@@ -2641,7 +2635,7 @@ case class TableRename(child: TableIR, rowMap: Map[String, String], globalMap: M
 
 case class TableFilterIntervals(child: TableIR, intervals: IndexedSeq[Interval], keep: Boolean)
     extends TableIR with PreservesOrRemovesRows {
-  lazy val childrenSeq: IndexedSeq[BaseIR] = Array(child)
+  lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child)
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): TableIR = {
     val IndexedSeq(newChild: TableIR) = newChildren
@@ -2655,7 +2649,7 @@ case class TableFilterIntervals(child: TableIR, intervals: IndexedSeq[Interval],
 
 case class MatrixToTableApply(child: MatrixIR, function: MatrixToTableFunction)
     extends TableIR with PreservesRows {
-  lazy val childrenSeq: IndexedSeq[BaseIR] = Array(child)
+  lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child)
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): TableIR = {
     val IndexedSeq(newChild: MatrixIR) = newChildren
@@ -2670,7 +2664,7 @@ case class MatrixToTableApply(child: MatrixIR, function: MatrixToTableFunction)
 
 case class TableToTableApply(child: TableIR, function: TableToTableFunction)
     extends TableIR with PreservesRows {
-  lazy val childrenSeq: IndexedSeq[BaseIR] = Array(child)
+  lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child)
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): TableIR = {
     val IndexedSeq(newChild: TableIR) = newChildren
@@ -2690,7 +2684,7 @@ case class BlockMatrixToTableApply(
   function: BlockMatrixToTableFunction,
 ) extends TableIR {
 
-  override lazy val childrenSeq: IndexedSeq[BaseIR] = Array(bm, aux)
+  override lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(bm, aux)
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): TableIR =
     BlockMatrixToTableApply(
@@ -2703,7 +2697,7 @@ case class BlockMatrixToTableApply(
 }
 
 case class BlockMatrixToTable(child: BlockMatrixIR) extends TableIR {
-  lazy val childrenSeq: IndexedSeq[BaseIR] = Array(child)
+  lazy val childrenSeq: IndexedSeq[BaseIR] = ArraySeq(child)
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): TableIR = {
     val IndexedSeq(newChild: BlockMatrixIR) = newChildren
@@ -2712,7 +2706,7 @@ case class BlockMatrixToTable(child: BlockMatrixIR) extends TableIR {
 
   override val typ: TableType = {
     val rvType = TStruct("i" -> TInt64, "j" -> TInt64, "entry" -> TFloat64)
-    TableType(rvType, Array[String](), TStruct.empty)
+    TableType(rvType, ArraySeq.empty, TStruct.empty)
   }
 }
 
@@ -2720,7 +2714,7 @@ case class RelationalLetTable(name: Name, value: IR, body: TableIR)
     extends TableIR with PreservesRows {
   override def typ: TableType = body.typ
 
-  override def childrenSeq: IndexedSeq[BaseIR] = Array(value, body)
+  override def childrenSeq: IndexedSeq[BaseIR] = ArraySeq(value, body)
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): TableIR = {
     val IndexedSeq(newValue: IR, newBody: TableIR) = newChildren

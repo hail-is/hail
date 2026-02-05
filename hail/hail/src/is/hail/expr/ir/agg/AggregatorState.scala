@@ -10,6 +10,7 @@ import is.hail.types.physical.stypes.SValue
 import is.hail.types.physical.stypes.concrete.SStackStruct
 import is.hail.types.physical.stypes.interfaces.SBinaryValue
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 trait AggregatorState {
   def kb: EmitClassBuilder[_]
@@ -215,14 +216,14 @@ abstract class AbstractTypedRegionBackedAggState(val ptype: PType) extends Regio
   }
 }
 
-class PrimitiveRVAState(val vtypes: Array[VirtualTypeWithReq], val kb: EmitClassBuilder[_])
+class PrimitiveRVAState(val vtypes: IndexedSeq[VirtualTypeWithReq], val kb: EmitClassBuilder[_])
     extends AggregatorState {
   private[this] val emitTypes = vtypes.map(_.canonicalEmitType)
   assert(emitTypes.forall(_.st.isPrimitive))
 
   val nFields: Int = emitTypes.length
 
-  val fields: Array[EmitSettable] = Array.tabulate(nFields) { i =>
+  val fields: IndexedSeq[EmitSettable] = ArraySeq.tabulate(nFields) { i =>
     kb.newEmitField(s"primitiveRVA_${i}_v", emitTypes(i))
   }
 

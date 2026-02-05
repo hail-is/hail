@@ -13,6 +13,7 @@ import is.hail.types.physical.stypes.{EmitType, SValue}
 import is.hail.types.physical.stypes.concrete.SIndexablePointer
 import is.hail.types.virtual.Type
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 class TypedKey(typ: PType, kb: EmitClassBuilder[_], region: Value[Region]) extends BTreeKey {
   override val storageType: PTuple = PCanonicalTuple(false, typ, PCanonicalTuple(false))
@@ -179,8 +180,8 @@ class CollectAsSetAggregator(elem: VirtualTypeWithReq) extends StagedAggregator 
   val setSType = SIndexablePointer(setPType)
   val resultEmitType: EmitType = EmitType(setSType, true)
   private[this] val arrayRep = resultEmitType.storageType.asInstanceOf[PCanonicalSet].arrayRep
-  val initOpTypes: Seq[Type] = Array[Type]()
-  val seqOpTypes: Seq[Type] = Array[Type](elem.t)
+  val initOpTypes: IndexedSeq[Type] = ArraySeq.empty
+  val seqOpTypes: IndexedSeq[Type] = ArraySeq(elem.t)
 
   override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     assert(init.length == 0)

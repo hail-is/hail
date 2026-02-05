@@ -6,6 +6,7 @@ import is.hail.expr.ir.defs._
 import is.hail.rvd.PartitionBoundOrdering
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 import is.hail.variant.{Locus, ReferenceGenome}
 
 import scala.Option.option2Iterable
@@ -174,7 +175,7 @@ class KeySetLattice(ctx: ExecuteContext, keyType: TStruct) extends Lattice {
   def complement(v: Value): Value = {
     if (v.isEmpty) return top
 
-    val builder = mutable.ArrayBuilder.make[Interval]
+    val builder = ArraySeq.newBuilder[Interval]
     if (v.head.left != IntervalEndpoint(Row(), -1)) {
       builder += Interval(IntervalEndpoint(Row(), -1), v.head.left)
     }

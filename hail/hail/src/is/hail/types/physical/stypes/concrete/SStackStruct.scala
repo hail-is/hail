@@ -8,6 +8,7 @@ import is.hail.types.physical.stypes.{EmitType, SType, SValue}
 import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructSettable, SBaseStructValue}
 import is.hail.types.virtual.{TBaseStruct, TStruct, TTuple, Type}
 import is.hail.utils.compat.immutable.ArraySeq
+import is.hail.utils.toRichIterable
 
 import scala.collection.compat._
 
@@ -139,7 +140,7 @@ final case class SStackStruct(virtualType: TBaseStruct, fieldEmitTypes: IndexedS
         val sv = value.asBaseStruct
         new SStackStructValue(
           this,
-          Array.tabulate[EmitValue](size) { i =>
+          ArraySeq.tabulate[EmitValue](size) { i =>
             val newType = fieldEmitTypes(i)
             val ec = EmitCode.fromI(cb.emb) { cb =>
               sv.loadField(cb, i).map(cb) { field =>
@@ -182,7 +183,7 @@ class SStackStructValue(val st: SStackStruct, val values: IndexedSeq[EmitValue])
     values(fieldIdx).m
 
   override def subset(fieldNames: String*): SBaseStructValue = {
-    val newToOld = fieldNames.map(st.fieldIdx).toArray
+    val newToOld = fieldNames.toFastSeq.map(st.fieldIdx)
     val oldVType = st.virtualType.asInstanceOf[TStruct]
     val newVirtualType = TStruct(newToOld.map(i => (oldVType.fieldNames(i), oldVType.types(i))): _*)
     new SStackStructValue(

@@ -7,6 +7,7 @@ import is.hail.types.physical.{PCanonicalStruct, PType}
 import is.hail.types.physical.stypes.{EmitType, SType, SValue}
 import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructSettable, SBaseStructValue}
 import is.hail.types.virtual.{TBaseStruct, TStruct, Type}
+import is.hail.utils.compat.immutable.ArraySeq
 
 object SStructView {
   def subset(fieldnames: IndexedSeq[String], struct: SBaseStruct): SStructView =
@@ -48,14 +49,14 @@ final class SStructView(
     restrict.view.zipWithIndex.map { case (f, i) => i -> parent.fieldIdx(f) }.toMap
 
   override lazy val fieldTypes: IndexedSeq[SType] =
-    Array.tabulate(size) { i =>
+    ArraySeq.tabulate(size) { i =>
       parent
         .fieldTypes(newToOldFieldMapping(i))
         .castRename(rename.fields(i).typ)
     }
 
   override lazy val fieldEmitTypes: IndexedSeq[EmitType] =
-    Array.tabulate(size) { i =>
+    ArraySeq.tabulate(size) { i =>
       parent
         .fieldEmitTypes(newToOldFieldMapping(i))
         .copy(st = fieldTypes(i))

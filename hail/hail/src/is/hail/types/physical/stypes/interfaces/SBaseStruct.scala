@@ -10,6 +10,7 @@ import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.primitives.{SInt32Value, SInt64Value}
 import is.hail.types.virtual.{TBaseStruct, TStruct, TTuple}
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 object SBaseStruct {
   def merge(cb: EmitCodeBuilder, s1: SBaseStructValue, s2: SBaseStructValue): SBaseStructValue = {
@@ -102,7 +103,7 @@ trait SBaseStructValue extends SValue {
   def toStackStruct(cb: EmitCodeBuilder): SStackStructValue =
     new SStackStructValue(
       SStackStruct(st.virtualType, st.fieldEmitTypes),
-      Array.tabulate(st.size)(i => cb.memoize(loadField(cb, i))),
+      ArraySeq.tabulate(st.size)(i => cb.memoize(loadField(cb, i))),
     )
 
   def _insert(newType: TStruct, fields: (String, EmitValue)*): SBaseStructValue =
@@ -110,10 +111,10 @@ trait SBaseStructValue extends SValue {
       SInsertFieldsStruct(
         newType,
         st,
-        fields.map { case (name, ec) => (name, ec.emitType) }.toFastSeq,
+        fields.toFastSeq.map { case (name, ec) => (name, ec.emitType) },
       ),
       this,
-      fields.map(_._2).toFastSeq,
+      fields.toFastSeq.map(_._2),
     )
 
   def insert(

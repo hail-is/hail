@@ -23,6 +23,7 @@ import is.hail.types.physical._
 import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SStreamValue}
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 import is.hail.variant._
 
 import scala.annotation.meta.param
@@ -66,14 +67,14 @@ object VCFHeaderInfo {
 
   def fromJSON(jv: JValue): VCFHeaderInfo = {
     val sampleIDs =
-      (jv \ "sampleIDs").asInstanceOf[JArray].arr.map(_.asInstanceOf[JString].s).toArray
+      (jv \ "sampleIDs").asInstanceOf[JArray].arr.map(_.asInstanceOf[JString].s).to(ArraySeq)
     val infoFlagFields =
       (jv \ "infoFlagFields").asInstanceOf[JArray].arr.map(_.asInstanceOf[JString].s).toSet
 
     def lookupFields(name: String) = (jv \ name).asInstanceOf[JArray].arr.map { case elt: JArray =>
       val List(name: JString, typeStr: JString) = elt.arr
       name.s -> IRParser.parseType(typeStr.s)
-    }.toArray
+    }.to(ArraySeq)
 
     val infoFields = lookupFields("infoFields")
     val formatFields = lookupFields("formatFields")
@@ -92,9 +93,9 @@ object VCFHeaderInfo {
 }
 
 case class VCFHeaderInfo(
-  sampleIds: Array[String],
-  infoFields: Array[(String, Type)],
-  formatFields: Array[(String, Type)],
+  sampleIds: IndexedSeq[String],
+  infoFields: IndexedSeq[(String, Type)],
+  formatFields: IndexedSeq[(String, Type)],
   filtersAttrs: VCFAttributes,
   infoAttrs: VCFAttributes,
   formatAttrs: VCFAttributes,
@@ -161,7 +162,7 @@ case class VCFHeaderInfo(
     )
 
     val vaSignature = PCanonicalStruct(
-      Array(
+      ArraySeq(
         PField("rsid", PCanonicalString(), 0),
         PField("qual", PFloat64(), 1),
         PField("filters", PCanonicalSet(PCanonicalString(true)), 2),
@@ -193,8 +194,9 @@ case class VCFHeaderInfo(
   }
 
   def toJSON: JValue = {
-    def fieldsJson(fields: Array[(String, Type)]): JValue = JArray(fields.map { case (name, t) =>
-      JArray(List(JString(name), JString(t.parsableString())))
+    def fieldsJson(fields: IndexedSeq[(String, Type)]): JValue = JArray(fields.map {
+      case (name, t) =>
+        JArray(List(JString(name), JString(t.parsableString())))
     }.toList)
 
     def attrsJson(attrs: Map[String, Map[String, String]]): JValue = JObject(attrs.map {
@@ -1280,7 +1282,7 @@ class ParseLineContext(
   val infoFields: java.util.HashMap[String, Int] =
     if (infoSignature != null) makeJavaMap(infoSignature.fieldIdx) else null
 
-  val infoFieldTypes: Array[Type] = if (infoSignature != null) infoSignature.types else null
+  val infoFieldTypes: IndexedSeq[Type] = if (infoSignature != null) infoSignature.types else null
 
   val infoFieldFlagIndices: Array[Int] = if (infoSignature != null) {
     infoSignature.fields
@@ -1383,7 +1385,7 @@ object LoadVCF extends Logging {
 
   def headerSignature[T <: VCFCompoundHeaderLine](
     lines: java.util.Collection[T]
-  ): (Array[(String, Type)], VCFAttributes, Set[String]) = {
+  ): (IndexedSeq[(String, Type)], VCFAttributes, Set[String]) = {
     val (fields, attrs, flags) = lines.asScala
       .map(line => headerField(line))
       .unzip3
@@ -1392,7 +1394,7 @@ object LoadVCF extends Logging {
       .flatMap { case ((f, _), isFlag) => if (isFlag) Some(f) else None }
       .toSet
 
-    (fields.toArray, attrs.toMap, flagFieldNames)
+    (fields.to(ArraySeq), attrs.toMap, flagFieldNames)
   }
 
   def parseHeader(
@@ -1427,7 +1429,7 @@ object LoadVCF extends Logging {
         headerLine,
       )
 
-    val sampleIds: Array[String] = headerLine.split("\t").drop(9)
+    val sampleIds = ArraySeq.unsafeWrapArray(headerLine.split("\t").drop(9))
 
     VCFHeaderInfo(
       sampleIds,
@@ -1750,7 +1752,7 @@ object MatrixVCFReader extends Logging {
     callFields: Set[String],
     entryFloatTypeName: String,
     headerFile: Option[String],
-    sampleIDs: Option[Seq[String]],
+    sampleIDs: Option[IndexedSeq[String]],
     nPartitions: Option[Int],
     blockSizeInMB: Option[Int],
     minPartitions: Option[Int],
@@ -1857,7 +1859,7 @@ object MatrixVCFReader extends Logging {
       }
     }
 
-    val sampleIDs = params.sampleIDs.map(_.toArray).getOrElse(header1.sampleIds)
+    val sampleIDs = params.sampleIDs.getOrElse(header1.sampleIds)
 
     LoadVCF.warnDuplicates(sampleIDs)
 
@@ -1882,7 +1884,7 @@ case class MatrixVCFReaderParameters(
   callFields: Set[String],
   entryFloatTypeName: String,
   headerFile: Option[String],
-  sampleIDs: Option[Seq[String]],
+  sampleIDs: Option[IndexedSeq[String]],
   nPartitions: Option[Int],
   blockSizeInMB: Option[Int],
   minPartitions: Option[Int],
@@ -1913,7 +1915,7 @@ class MatrixVCFReader(
     "reading with partitions can currently only read a single path",
   )
 
-  val sampleIDs = params.sampleIDs.map(_.toArray).getOrElse(header.sampleIds)
+  val sampleIDs = params.sampleIDs.getOrElse(header.sampleIds)
 
   LoadVCF.warnDuplicates(sampleIDs)
 
@@ -1929,15 +1931,15 @@ class MatrixVCFReader(
   override def fullMatrixTypeWithoutUIDs: MatrixType = MatrixType(
     globalType = TStruct.empty,
     colType = TStruct("s" -> TString),
-    colKey = Array("s"),
+    colKey = ArraySeq("s"),
     rowType = TStruct(
-      Array(
+      ArraySeq(
         "locus" -> TLocus.schemaFromRG(referenceGenome.map(_.name)),
         "alleles" -> TArray(TString),
       )
         ++ rowValuePType.fields.map(f => f.name -> f.typ.virtualType): _*
     ),
-    rowKey = Array("locus", "alleles"),
+    rowKey = ArraySeq("locus", "alleles"),
     // rowKey = Array.empty[String],
     entryType = formatPType.virtualType,
   )
@@ -2240,7 +2242,7 @@ case class GVCFPartitionReader(
           cb.assign(
             iter,
             Code.newInstance[TabixReadVCFIterator](
-              Array[Class[_]](
+              ArraySeq[Class[_]](
                 classOf[FS],
                 classOf[String],
                 classOf[Map[String, String]],
@@ -2261,7 +2263,7 @@ case class GVCFPartitionReader(
                 classOf[String],
                 classOf[String],
               ),
-              Array[Code[_]](
+              ArraySeq[Code[_]](
                 mb.getFS,
                 filePath,
                 mb.getObject(contigRecoding),

@@ -5,8 +5,7 @@ import is.hail.types.tcoerce
 import is.hail.types.virtual._
 import is.hail.types.virtual.TIterable.elementType
 import is.hail.utils.FastSeq
-
-import scala.collection.mutable
+import is.hail.utils.compat.immutable.ArraySeq
 
 sealed abstract class AggEnv {
   def empty: AggEnv = this match {
@@ -225,10 +224,10 @@ object Bindings {
   private def childEnvValue(ir: IR, i: Int): Bindings[Type] =
     ir match {
       case Block(bindings, _) =>
-        val bindingsTypes = bindings.view.take(i).map(b => b.name -> b.value.typ).toArray
-        val eval = mutable.ArrayBuilder.make[Int]
-        val agg = mutable.ArrayBuilder.make[Int]
-        val scan = mutable.ArrayBuilder.make[Int]
+        val bindingsTypes = bindings.view.take(i).map(b => b.name -> b.value.typ).to(ArraySeq)
+        val eval = ArraySeq.newBuilder[Int]
+        val agg = ArraySeq.newBuilder[Int]
+        val scan = ArraySeq.newBuilder[Int]
         for (k <- 0 until i) bindings(k) match {
           case Binding(_, _, Scope.EVAL) =>
             eval += k

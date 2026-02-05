@@ -8,6 +8,7 @@ import is.hail.expr.ir.functions.{IRFunctionRegistry, RegistryFunctions}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual._
 import is.hail.utils.FastSeq
+import is.hail.utils.compat.immutable.ArraySeq
 import is.hail.variant.Call2
 
 import org.testng.annotations.Test
@@ -27,15 +28,15 @@ class ScalaTestCompanion {
 object TestRegisterFunctions extends RegistryFunctions {
   override def registerAll(): Unit = {
     registerIR1("addone", TInt32, TInt32)((_, a, _) => ApplyBinaryPrimOp(Add(), a, I32(1)))
-    registerJavaStaticFunction("compare", Array(TInt32, TInt32), TInt32, null)(
+    registerJavaStaticFunction("compare", ArraySeq(TInt32, TInt32), TInt32, null)(
       classOf[java.lang.Integer],
       "compare",
     )
-    registerScalaFunction("foobar1", Array(), TInt32, null)(
+    registerScalaFunction("foobar1", ArraySeq(), TInt32, null)(
       ScalaTestObject.getClass,
       "testFunction",
     )
-    registerScalaFunction("foobar2", Array(), TInt32, null)(
+    registerScalaFunction("foobar2", ArraySeq(), TInt32, null)(
       ScalaTestCompanion.getClass,
       "testFunction",
     )

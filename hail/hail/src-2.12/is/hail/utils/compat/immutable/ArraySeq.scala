@@ -2,6 +2,7 @@ package is.hail.utils.compat.immutable
 
 import scala.collection.compat.IterableOnce
 import scala.collection.generic.CanBuildFrom
+import scala.collection.immutable.NumericRange
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
@@ -28,6 +29,12 @@ object ArraySeq {
 
   implicit def canBuildFrom[T: ClassTag]: CanBuildFrom[ArraySeq[_], T, ArraySeq[T]] =
     A.canBuildFrom
+
+  def range[T: Integral: ClassTag](start: T, stop: T): ArraySeq[T] =
+    range(start, stop, implicitly[Integral[T]].one)
+
+  def range[T: Integral: ClassTag](start: T, stop: T, step: T): ArraySeq[T] =
+    from(NumericRange(start, stop, step))
 
   def fill[T: ClassTag](n: Int)(elem: => T): ArraySeq[T] =
     unsafeWrapArray(Array.fill(n)(elem))

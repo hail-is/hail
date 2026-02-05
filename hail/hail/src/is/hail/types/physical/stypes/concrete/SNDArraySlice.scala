@@ -8,6 +8,7 @@ import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.SInt64
 import is.hail.types.virtual.{TNDArray, Type}
+import is.hail.utils.compat.immutable.ArraySeq
 import is.hail.utils.toRichIterable
 
 import scala.collection.compat._
@@ -39,7 +40,8 @@ final case class SNDArraySlice(pType: PCanonicalNDArray) extends SNDArray {
       case SNDArraySlice(`pType`) if !deepCopy => value
     }
 
-  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = Array.fill(2 * nDims + 1)(LongInfo)
+  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] =
+    ArraySeq.fill(2 * nDims + 1)(LongInfo)
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SNDArraySliceSettable = {
     assert(settables.length == 2 * nDims + 1)
@@ -73,7 +75,7 @@ class SNDArraySliceValue(
 
   override def shapeStruct(cb: EmitCodeBuilder): SStackStructValue = {
     val shapeType =
-      SStackStruct(st.virtualType.shapeType, Array.fill(st.nDims)(EmitType(SInt64, true)))
+      SStackStruct(st.virtualType.shapeType, ArraySeq.fill(st.nDims)(EmitType(SInt64, true)))
     new SStackStructValue(shapeType, shapes.map(x => EmitValue.present(primitive(x))))
   }
 
@@ -103,7 +105,7 @@ class SNDArraySliceValue(
     body: IndexedSeq[SValue] => SValue
   ): Unit = {
     SNDArray._coiterate(cb, indexVars, (this, destIndices, "dest") +: arrays: _*) { ptrs =>
-      val codes = (this +: arrays.map(_._1)).zip(ptrs).toFastSeq.map { case (array, ptr) =>
+      val codes = (this +: arrays.toFastSeq.map(_._1)).zip(ptrs).map { case (array, ptr) =>
         val pt: PType = array.st.pType.elementType
         pt.loadCheapSCode(cb, pt.loadFromNested(ptr))
       }
@@ -116,8 +118,8 @@ object SNDArraySliceSettable {
   def apply(sb: SettableBuilder, st: SNDArraySlice, name: String): SNDArraySliceSettable =
     new SNDArraySliceSettable(
       st,
-      Array.tabulate(st.pType.nDims)(i => sb.newSettable[Long](s"${name}_nd_shape_$i")),
-      Array.tabulate(st.pType.nDims)(i => sb.newSettable[Long](s"${name}_nd_strides_$i")),
+      ArraySeq.tabulate(st.pType.nDims)(i => sb.newSettable[Long](s"${name}_nd_shape_$i")),
+      ArraySeq.tabulate(st.pType.nDims)(i => sb.newSettable[Long](s"${name}_nd_strides_$i")),
       sb.newSettable[Long](s"${name}_nd_first_element"),
     )
 }

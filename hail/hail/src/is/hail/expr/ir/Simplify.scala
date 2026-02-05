@@ -517,16 +517,16 @@ object Simplify {
                   }
             }
 
-            allRefsCanBePassedThrough(Block(after.toFastSeq, body))
+            allRefsCanBePassedThrough(Block(after, body))
           } =>
-        val fieldNames = newFields.map(_._1).toArray
+        val fieldNames = newFields.map(_._1)
         val newFieldMap = newFields.toMap
         val newFieldRefs = newFieldMap.map { case (k, ir) =>
           (k, Ref(freshName(), ir.typ))
         } // cannot be mapValues, or genUID() gets run for every usage!
 
         def copiedNewFieldRefs(): IndexedSeq[(String, IR)] =
-          fieldNames.map(name => (name, newFieldRefs(name).deepCopy())).toFastSeq
+          fieldNames.map(name => (name, newFieldRefs(name).deepCopy()))
 
         def rewrite(ir1: IR): IR = ir1 match {
           case GetField(Ref(`name`, _), fd) => newFieldRefs.get(fd) match {
@@ -539,7 +539,7 @@ object Simplify {
               Ref(name, old.typ),
               copiedNewFieldRefs().filter { case (name, _) => !newFieldSet.contains(name) }
                 ++ fields.map { case (name, ir) => (name, rewrite(ir)) },
-              Some(ins.typ.fieldNames.toFastSeq),
+              Some(ins.typ.fieldNames),
             )
 
           case SelectFields(Ref(`name`, _), fds) =>
@@ -547,7 +547,7 @@ object Simplify {
               InsertFields(
                 Ref(name, old.typ),
                 copiedNewFieldRefs(),
-                Some(x.typ.fieldNames.toFastSeq),
+                Some(x.typ.fieldNames),
               ),
               fds,
             )
@@ -559,15 +559,12 @@ object Simplify {
             }
         }
 
+        val bindings = ArraySeq.newBuilder[Binding]
+        bindings ++= before
+        fieldNames.foreach(f => bindings += Binding(newFieldRefs(f).name, newFieldMap(f)))
+        bindings += Binding(name, old)
         Some(
-          Block(
-            before.toFastSeq ++ fieldNames.map(f =>
-              Binding(newFieldRefs(f).name, newFieldMap(f))
-            ) ++ FastSeq(
-              Binding(name, old)
-            ),
-            rewrite(Block(after.toFastSeq, body)),
-          )
+          Block(bindings.result(), rewrite(Block(after, body)))
         )
 
       case SelectFields(old, fields) if tcoerce[TStruct](old.typ).fieldNames sameElements fields =>
@@ -588,7 +585,7 @@ object Simplify {
         val x2 = InsertFields(
           SelectFields(struct, selectFields2),
           insertFields2,
-          Some(selectFields.toFastSeq),
+          Some(selectFields),
         )
         assert(x2.typ == x.typ)
         Some(x2)
@@ -601,7 +598,7 @@ object Simplify {
           insertFields.partition { case (name, f) => f == GetField(struct, name) }
         val preservedFields =
           selectFields.filter(f => !insertNames.contains(f)) ++ oldFields.map(_._1)
-        Some(InsertFields(SelectFields(struct, preservedFields), newFields, Some(fields.toFastSeq)))
+        Some(InsertFields(SelectFields(struct, preservedFields), newFields, Some(fields)))
 
       case MakeStructOfGetField(o, newNames) =>
         val select = SelectFields(o, newNames.map(_._1))
@@ -933,7 +930,7 @@ object Simplify {
       case TableFilter(TableFilter(t, p1), p2) =>
         Some(TableFilter(
           t,
-          ApplySpecial("land", Array.empty[Type], Array(p1, p2), TBoolean, ErrorIDs.NO_ERROR),
+          ApplySpecial("land", ArraySeq.empty, ArraySeq(p1, p2), TBoolean, ErrorIDs.NO_ERROR),
         ))
 
       case TableFilter(TableKeyBy(child, key, isSorted), p) =>
@@ -1144,7 +1141,7 @@ object Simplify {
               MakeStruct(FastSeq(
                 "row" -> ApplyAggOp(
                   FastSeq(I32(n.toInt)),
-                  Array(row, keyStruct),
+                  ArraySeq(row, keyStruct),
                   TakeBy(),
                 )
               )),
@@ -1248,15 +1245,15 @@ object Simplify {
       case TableFilterIntervals(TableFilterIntervals(child, _i1, keep1), _i2, keep2)
           if keep1 == keep2 =>
         val ord = PartitionBoundOrdering(ctx, child.typ.keyType).intervalEndpointOrdering
-        val i1 = Interval.union(_i1.toArray[Interval], ord)
-        val i2 = Interval.union(_i2.toArray[Interval], ord)
+        val i1 = Interval.union(_i1, ord)
+        val i2 = Interval.union(_i2, ord)
         val intervals = if (keep1)
           // keep means intersect intervals
           Interval.intersection(i1, i2, ord)
         else
           // remove means union intervals
           Interval.union(i1 ++ i2, ord)
-        Some(TableFilterIntervals(child, intervals.toFastSeq, keep1))
+        Some(TableFilterIntervals(child, intervals, keep1))
 
       // FIXME: Can try to serialize intervals shorter than the key
       /* case TableFilterIntervals(k@TableKeyBy(child, keys, isSorted), intervals, keep) if

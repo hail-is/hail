@@ -8,6 +8,7 @@ import is.hail.types.physical.stypes.concrete.SJavaString
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SBoolean, SInt32}
 import is.hail.types.virtual._
+import is.hail.utils.compat.immutable.ArraySeq
 import is.hail.variant.ReferenceGenome
 
 object ReferenceGenomeFunctions extends RegistryFunctions {
@@ -17,7 +18,7 @@ object ReferenceGenomeFunctions extends RegistryFunctions {
   override def registerAll(): Unit = {
     registerSCode1t(
       "isValidContig",
-      Array(LocusFunctions.tlocus("R")),
+      ArraySeq(LocusFunctions.tlocus("R")),
       TString,
       TBoolean,
       (_: Type, _: SType) => SBoolean,
@@ -32,7 +33,7 @@ object ReferenceGenomeFunctions extends RegistryFunctions {
 
     registerSCode2t(
       "isValidLocus",
-      Array(LocusFunctions.tlocus("R")),
+      ArraySeq(LocusFunctions.tlocus("R")),
       TString,
       TInt32,
       TBoolean,
@@ -49,7 +50,7 @@ object ReferenceGenomeFunctions extends RegistryFunctions {
 
     registerSCode4t(
       "getReferenceSequenceFromValidLocus",
-      Array(LocusFunctions.tlocus("R")),
+      ArraySeq(LocusFunctions.tlocus("R")),
       TString,
       TInt32,
       TInt32,
@@ -75,7 +76,7 @@ object ReferenceGenomeFunctions extends RegistryFunctions {
 
     registerSCode1t(
       "contigLength",
-      Array(LocusFunctions.tlocus("R")),
+      ArraySeq(LocusFunctions.tlocus("R")),
       TString,
       TInt32,
       (_: Type, _: SType) => SInt32,
@@ -90,9 +91,9 @@ object ReferenceGenomeFunctions extends RegistryFunctions {
 
     registerIR(
       "getReferenceSequence",
-      Array(TString, TInt32, TInt32, TInt32),
+      ArraySeq(TString, TInt32, TInt32, TInt32),
       TString,
-      typeParameters = Array(LocusFunctions.tlocus("R")),
+      typeParameters = ArraySeq(LocusFunctions.tlocus("R")),
     ) {
       case (tl, Seq(contig, pos, before, after), _) =>
         val r = invoke("isValidLocus", TBoolean, tl, contig, pos)

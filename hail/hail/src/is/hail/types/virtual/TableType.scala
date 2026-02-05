@@ -51,9 +51,9 @@ case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStr
   def isCanonical: Boolean = rowType.isCanonical && globalType.isCanonical
 
   lazy val keyType: TStruct = TableType.keyType(rowType, key)
-  def keyFieldIdx: Array[Int] = canonicalRVDType.kFieldIdx
+  def keyFieldIdx: IndexedSeq[Int] = canonicalRVDType.kFieldIdx
   lazy val valueType: TStruct = TableType.valueType(rowType, key)
-  def valueFieldIdx: Array[Int] = canonicalRVDType.valueFieldIdx
+  def valueFieldIdx: IndexedSeq[Int] = canonicalRVDType.valueFieldIdx
 
   override def pretty(sb: StringBuilder, indent0: Int = 0, compact: Boolean = false): Unit = {
 

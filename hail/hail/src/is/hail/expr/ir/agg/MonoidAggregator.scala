@@ -8,6 +8,7 @@ import is.hail.expr.ir.functions.UtilFunctions
 import is.hail.types.physical.stypes.{EmitType, SType}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual._
+import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.reflect.ClassTag
 
@@ -24,8 +25,8 @@ class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
   val sType = SType.canonical(monoid.typ)
   override def resultEmitType = EmitType(sType, monoid.neutral.isDefined)
 
-  val initOpTypes: Seq[Type] = Array[Type]()
-  val seqOpTypes: Seq[Type] = Array[Type](monoid.typ)
+  val initOpTypes: IndexedSeq[Type] = ArraySeq.empty
+  val seqOpTypes: IndexedSeq[Type] = ArraySeq(monoid.typ)
 
   override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     assert(init.length == 0)

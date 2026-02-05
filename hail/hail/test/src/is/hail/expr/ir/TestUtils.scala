@@ -5,7 +5,7 @@ import is.hail.expr.ir.defs.{
   TableAggregate, TableCollect, ToDict, ToSet, ToStream,
 }
 import is.hail.types.virtual._
-import is.hail.utils.FastSeq
+import is.hail.utils.{toRichIterable, FastSeq}
 import is.hail.variant.Call
 
 object TestUtils {
@@ -46,7 +46,7 @@ object TestUtils {
     else
       MakeArray(a.map(toIRInt), TArray(TInt32))
 
-  def IRArray(a: Integer*): IR = toIRArray(a.toArray[Integer])
+  def IRArray(a: Integer*): IR = toIRArray(a.toFastSeq)
 
   def toIRStream(a: IndexedSeq[Integer]): IR =
     if (a == null)
@@ -54,7 +54,7 @@ object TestUtils {
     else
       MakeStream(a.map(toIRInt), TStream(TInt32))
 
-  def IRStream(a: Integer*): IR = toIRStream(a.toArray[Integer])
+  def IRStream(a: Integer*): IR = toIRStream(a.toFastSeq)
 
   def toIRStringArray(a: IndexedSeq[String]): IR =
     if (a == null)
@@ -72,7 +72,7 @@ object TestUtils {
     else
       MakeArray(a.map(toIRDouble), TArray(TFloat64))
 
-  def IRDoubleArray(a: java.lang.Double*): IR = toIRDoubleArray(a.toArray[java.lang.Double])
+  def IRDoubleArray(a: java.lang.Double*): IR = toIRDoubleArray(a.toFastSeq)
 
   def toIRPairArray(a: IndexedSeq[(Integer, Integer)]): IR =
     if (a == null)
@@ -86,7 +86,7 @@ object TestUtils {
     else
       ToDict(ToStream(MakeArray(a.map(toIRPair), TArray(TTuple(TInt32, TInt32)))))
 
-  def IRDict(a: (Integer, Integer)*): IR = toIRDict(a.toArray[(Integer, Integer)])
+  def IRDict(a: (Integer, Integer)*): IR = toIRDict(a.toFastSeq)
 
   def toIRSet(a: IndexedSeq[Integer]): IR =
     if (a == null)
@@ -94,7 +94,7 @@ object TestUtils {
     else
       ToSet(ToStream(toIRArray(a)))
 
-  def IRSet(a: Integer*): IR = toIRSet(a.toArray[Integer])
+  def IRSet(a: Integer*): IR = toIRSet(a.toFastSeq)
 
   def IRCall(c: Call): IR = invoke("callFromRepr", TCall, I32(c))
 
@@ -107,5 +107,5 @@ object TestUtils {
   def IRScanCollect(ir: IR): IR = ApplyScanOp(Collect())(ir)
 
   def IRStruct(fields: (String, IR)*): IR =
-    MakeStruct(fields.toArray[(String, IR)])
+    MakeStruct(fields.toFastSeq)
 }

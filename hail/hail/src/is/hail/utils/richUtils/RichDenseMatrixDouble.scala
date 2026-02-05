@@ -153,8 +153,7 @@ class RichDenseMatrixDouble(val m: BDM[Double]) extends AnyVal {
       block.write(fs, filename, forceRowMajor, BlockMatrix.bufferSpec)
 
       f
-    }
-      .toArray
+    }.toArray.unsafeToArraySeq
 
     using(new DataOutputStream(fs.create(path + BlockMatrix.metadataRelativePath))) { os =>
       implicit val formats = defaultJSONFormats

@@ -77,7 +77,7 @@ class PruneSuite extends HailSuite {
   def checkMemo(
     ir: BaseIR,
     requestedType: BaseType,
-    expected: Array[BaseType],
+    expected: IndexedSeq[BaseType],
     env: BindingEnv[Type] = BindingEnv.empty,
   ): Unit = {
     TypeCheck(ctx, ir, env)
@@ -288,7 +288,7 @@ class PruneSuite extends HailSuite {
       key = k,
       rowType = PruneDeadFields.unify(
         tt.rowType,
-        Array(PruneDeadFields.selectKey(tt.rowType, k)) ++ rowFields.result(): _*
+        ArraySeq(PruneDeadFields.selectKey(tt.rowType, k)) ++ rowFields.result(): _*
       ),
       globalType = PruneDeadFields.unify(tt.globalType, globalFields.result(): _*),
     )
@@ -326,11 +326,11 @@ class PruneSuite extends HailSuite {
       globalType = PruneDeadFields.unify(mt.globalType, globalFields.result(): _*),
       colType = PruneDeadFields.unify(
         mt.colType,
-        Array(PruneDeadFields.selectKey(mt.colType, ck)) ++ colFields.result(): _*
+        ArraySeq(PruneDeadFields.selectKey(mt.colType, ck)) ++ colFields.result(): _*
       ),
       rowType = PruneDeadFields.unify(
         mt.rowType,
-        Array(PruneDeadFields.selectKey(mt.rowType, rk)) ++ rowFields.result(): _*
+        ArraySeq(PruneDeadFields.selectKey(mt.rowType, rk)) ++ rowFields.result(): _*
       ),
       entryType = PruneDeadFields.unify(mt.entryType, entryFields.result(): _*),
     )
@@ -344,26 +344,26 @@ class PruneSuite extends HailSuite {
     )
 
   @Test def testTableJoinMemo(): Unit = {
-    val tk1 = TableKeyBy(tab, Array("1"))
-    val tk2 = mangle(TableKeyBy(tab, Array("3")))
+    val tk1 = TableKeyBy(tab, ArraySeq("1"))
+    val tk2 = mangle(TableKeyBy(tab, ArraySeq("3")))
     val tj = TableJoin(tk1, tk2, "inner", 1)
     checkMemo(
       tj,
       subsetTable(tj.typ, "row.1", "row.4", "row.1_"),
-      Array(
+      ArraySeq(
         subsetTable(tk1.typ, "row.1", "row.4"),
         subsetTable(tk2.typ, "row.1_", "row.3_"),
       ),
     )
 
-    val tk3 = TableKeyBy(tab, Array("1", "2"))
-    val tk4 = mangle(TableKeyBy(tab, Array("1", "2")))
+    val tk3 = TableKeyBy(tab, ArraySeq("1", "2"))
+    val tk4 = mangle(TableKeyBy(tab, ArraySeq("1", "2")))
 
     val tj2 = TableJoin(tk3, tk4, "inner", 1)
     checkMemo(
       tj2,
       subsetTable(tj2.typ, "row.3_"),
-      Array(
+      ArraySeq(
         subsetTable(tk3.typ, "row.1", "row.2"),
         subsetTable(tk4.typ, "row.1_", "row.2_", "row.3_"),
       ),
@@ -372,11 +372,15 @@ class PruneSuite extends HailSuite {
     checkMemo(
       tj2,
       subsetTable(tj2.typ, "row.3_", "NO_KEY"),
-      Array(
-        TableType(globalType = TStruct.empty, key = Array("1"), rowType = TStruct("1" -> TString)),
+      ArraySeq(
         TableType(
           globalType = TStruct.empty,
-          key = Array("1_"),
+          key = ArraySeq("1"),
+          rowType = TStruct("1" -> TString),
+        ),
+        TableType(
+          globalType = TStruct.empty,
+          key = ArraySeq("1_"),
           rowType = TStruct("1_" -> TString, "3_" -> TString),
         ),
       ),
@@ -384,13 +388,13 @@ class PruneSuite extends HailSuite {
   }
 
   @Test def testTableLeftJoinRightDistinctMemo(): Unit = {
-    val tk1 = TableKeyBy(tab, Array("1"))
-    val tk2 = TableKeyBy(tab, Array("3"))
+    val tk1 = TableKeyBy(tab, ArraySeq("1"))
+    val tk2 = TableKeyBy(tab, ArraySeq("3"))
     val tj = TableLeftJoinRightDistinct(tk1, tk2, "foo")
     checkMemo(
       tj,
       subsetTable(tj.typ, "row.1", "row.4", "row.foo"),
-      Array(
+      ArraySeq(
         subsetTable(tk1.typ, "row.1", "row.4"),
         subsetTable(tk2.typ),
       ),
@@ -398,13 +402,13 @@ class PruneSuite extends HailSuite {
   }
 
   @Test def testTableIntervalJoinMemo(): Unit = {
-    val tk1 = TableKeyBy(tab, Array("1"))
-    val tk2 = TableKeyBy(tab, Array("3"))
+    val tk1 = TableKeyBy(tab, ArraySeq("1"))
+    val tk2 = TableKeyBy(tab, ArraySeq("3"))
     val tj = TableIntervalJoin(tk1, tk2, "foo", product = false)
     checkMemo(
       tj,
       subsetTable(tj.typ, "row.1", "row.4", "row.foo"),
-      Array(
+      ArraySeq(
         subsetTable(tk1.typ, "row.1", "row.4"),
         subsetTable(tk2.typ),
       ),
@@ -412,8 +416,8 @@ class PruneSuite extends HailSuite {
   }
 
   @Test def testTableMultiWayZipJoinMemo(): Unit = {
-    val tk1 = TableKeyBy(tab, Array("1"))
-    val ts = Array(tk1, tk1, tk1)
+    val tk1 = TableKeyBy(tab, ArraySeq("1"))
+    val ts = ArraySeq(tk1, tk1, tk1)
     val tmwzj = TableMultiWayZipJoin(ts, "data", "gbls")
     checkMemo(
       tmwzj,
@@ -423,33 +427,33 @@ class PruneSuite extends HailSuite {
   }
 
   @Test def testTableExplodeMemo(): Unit = {
-    val te = TableExplode(tab, Array("2"))
-    checkMemo(te, subsetTable(te.typ), Array(subsetTable(tab.typ, "row.2")))
+    val te = TableExplode(tab, ArraySeq("2"))
+    checkMemo(te, subsetTable(te.typ), ArraySeq(subsetTable(tab.typ, "row.2")))
   }
 
   @Test def testTableFilterMemo(): Unit = {
     checkMemo(
       TableFilter(tab, tableRefBoolean(tab.typ, "row.2")),
       subsetTable(tab.typ, "row.3"),
-      Array(subsetTable(tab.typ, "row.2", "row.3"), null),
+      ArraySeq(subsetTable(tab.typ, "row.2", "row.3"), null),
     )
     checkMemo(
       TableFilter(tab, False()),
       subsetTable(tab.typ, "row.1"),
-      Array(subsetTable(tab.typ, "row.1"), TBoolean),
+      ArraySeq(subsetTable(tab.typ, "row.1"), TBoolean),
     )
   }
 
   @Test def testTableKeyByMemo(): Unit = {
-    val tk = TableKeyBy(tab, Array("1"))
+    val tk = TableKeyBy(tab, ArraySeq("1"))
     checkMemo(
       tk,
       subsetTable(tk.typ, "row.2"),
-      Array(subsetTable(tab.typ, "row.1", "row.2", "NO_KEY")),
+      ArraySeq(subsetTable(tab.typ, "row.1", "row.2", "NO_KEY")),
     )
 
-    val tk2 = TableKeyBy(tab, Array("3"), isSorted = true)
-    checkMemo(tk2, subsetTable(tk2.typ, "row.2"), Array(subsetTable(tab.typ, "row.2")))
+    val tk2 = TableKeyBy(tab, ArraySeq("3"), isSorted = true)
+    checkMemo(tk2, subsetTable(tk2.typ, "row.2"), ArraySeq(subsetTable(tab.typ, "row.2")))
 
   }
 
@@ -458,14 +462,14 @@ class PruneSuite extends HailSuite {
     checkMemo(
       tmr,
       subsetTable(tmr.typ, "row.foo"),
-      Array(subsetTable(tab.typ, "row.1", "row.2"), null),
+      ArraySeq(subsetTable(tab.typ, "row.1", "row.2"), null),
     )
 
     val tmr2 = TableMapRows(tab, tableRefStruct(tab.typ, "row.1", "row.2"))
     checkMemo(
       tmr2,
       subsetTable(tmr2.typ, "row.foo", "NO_KEY"),
-      Array(subsetTable(tab.typ, "row.1", "row.2", "NO_KEY"), null),
+      ArraySeq(subsetTable(tab.typ, "row.1", "row.2", "NO_KEY"), null),
     )
   }
 
@@ -474,7 +478,7 @@ class PruneSuite extends HailSuite {
     checkMemo(
       tmg,
       subsetTable(tmg.typ, "global.foo"),
-      Array(subsetTable(tab.typ, "global.g1"), null),
+      ArraySeq(subsetTable(tab.typ, "global.g1"), null),
     )
   }
 
@@ -483,7 +487,7 @@ class PruneSuite extends HailSuite {
     checkMemo(
       mct,
       subsetTable(mct.typ, "global.g1", "row.c2"),
-      Array(subsetMatrixTable(mat.typ, "global.g1", "sa.c2", "NO_ROW_KEY")),
+      ArraySeq(subsetMatrixTable(mat.typ, "global.g1", "sa.c2", "NO_ROW_KEY")),
     )
   }
 
@@ -492,7 +496,7 @@ class PruneSuite extends HailSuite {
     checkMemo(
       mrt,
       subsetTable(mrt.typ, "global.g1", "row.r2"),
-      Array(subsetMatrixTable(mat.typ, "global.g1", "va.r2", "NO_COL_KEY")),
+      ArraySeq(subsetMatrixTable(mat.typ, "global.g1", "va.r2", "NO_COL_KEY")),
     )
   }
 
@@ -501,7 +505,7 @@ class PruneSuite extends HailSuite {
     checkMemo(
       met,
       subsetTable(met.typ, "global.g1", "row.r2", "row.c2", "row.e2"),
-      Array(subsetMatrixTable(mat.typ, "global.g1", "va.r2", "sa.c2", "g.e2")),
+      ArraySeq(subsetMatrixTable(mat.typ, "global.g1", "va.r2", "sa.c2", "g.e2")),
     )
   }
 
@@ -517,9 +521,13 @@ class PruneSuite extends HailSuite {
     checkMemo(
       tka,
       subsetTable(tka.typ, "row.foo"),
-      Array(subsetTable(tab.typ, "row.2", "row.3", "NO_KEY"), null, null),
+      ArraySeq(subsetTable(tab.typ, "row.2", "row.3", "NO_KEY"), null, null),
     )
-    checkMemo(tka, subsetTable(tka.typ), Array(subsetTable(tab.typ, "row.3", "NO_KEY"), null, null))
+    checkMemo(
+      tka,
+      subsetTable(tka.typ),
+      ArraySeq(subsetTable(tab.typ, "row.3", "NO_KEY"), null, null),
+    )
   }
 
   @Test def testTableAggregateByKeyMemo(): Unit = {
@@ -533,7 +541,7 @@ class PruneSuite extends HailSuite {
     checkMemo(
       tabk,
       requestedType = subsetTable(tabk.typ, "row.3", "row.5"),
-      Array(subsetTable(tabk.typ, "row.3", "row.5"), TStruct(("5", TString))),
+      ArraySeq(subsetTable(tabk.typ, "row.3", "row.5"), TStruct(("5", TString))),
     )
   }
 
@@ -541,15 +549,19 @@ class PruneSuite extends HailSuite {
     checkMemo(
       TableUnion(FastSeq(tab, tab)),
       subsetTable(tab.typ, "row.1", "global.g1"),
-      Array(subsetTable(tab.typ, "row.1", "global.g1"), subsetTable(tab.typ, "row.1")),
+      ArraySeq(subsetTable(tab.typ, "row.1", "global.g1"), subsetTable(tab.typ, "row.1")),
     )
 
   @Test def testTableOrderByMemo(): Unit = {
-    val tob = TableOrderBy(tab, Array(SortField("2", Ascending)))
-    checkMemo(tob, subsetTable(tob.typ), Array(subsetTable(tab.typ, "row.2", "row.2.2A", "NO_KEY")))
+    val tob = TableOrderBy(tab, ArraySeq(SortField("2", Ascending)))
+    checkMemo(
+      tob,
+      subsetTable(tob.typ),
+      ArraySeq(subsetTable(tab.typ, "row.2", "row.2.2A", "NO_KEY")),
+    )
 
-    val tob2 = TableOrderBy(tab, Array(SortField("3", Ascending)))
-    checkMemo(tob2, subsetTable(tob2.typ), Array(subsetTable(tab.typ)))
+    val tob2 = TableOrderBy(tab, ArraySeq(SortField("3", Ascending)))
+    checkMemo(tob2, subsetTable(tob2.typ), ArraySeq(subsetTable(tab.typ)))
   }
 
   @Test def testCastMatrixToTableMemo(): Unit = {
@@ -557,7 +569,7 @@ class PruneSuite extends HailSuite {
     checkMemo(
       m2t,
       subsetTable(m2t.typ, "row.r2", "global.__cols.c2", "global.g2", "row.__entries.e2"),
-      Array(subsetMatrixTable(mat.typ, "va.r2", "global.g2", "sa.c2", "g.e2", "NO_COL_KEY")),
+      ArraySeq(subsetMatrixTable(mat.typ, "va.r2", "global.g2", "sa.c2", "g.e2", "NO_COL_KEY")),
     )
   }
 
@@ -566,7 +578,7 @@ class PruneSuite extends HailSuite {
     checkMemo(
       mfc,
       subsetMatrixTable(mfc.typ, "sa.c3"),
-      Array(subsetMatrixTable(mat.typ, "global.g1", "sa.c2", "sa.c3"), null),
+      ArraySeq(subsetMatrixTable(mat.typ, "global.g1", "sa.c2", "sa.c3"), null),
     )
   }
 
@@ -575,7 +587,7 @@ class PruneSuite extends HailSuite {
     checkMemo(
       mfr,
       subsetMatrixTable(mfr.typ, "sa.c3", "va.r3"),
-      Array(subsetMatrixTable(mat.typ, "global.g1", "va.r2", "sa.c3", "va.r3"), null),
+      ArraySeq(subsetMatrixTable(mat.typ, "global.g1", "va.r2", "sa.c3", "va.r3"), null),
     )
   }
 
@@ -585,7 +597,7 @@ class PruneSuite extends HailSuite {
     checkMemo(
       mfe,
       subsetMatrixTable(mfe.typ, "sa.c3", "va.r3"),
-      Array(
+      ArraySeq(
         subsetMatrixTable(mat.typ, "global.g1", "va.r2", "sa.c3", "sa.c2", "va.r3", "g.e2"),
         null,
       ),
@@ -601,7 +613,7 @@ class PruneSuite extends HailSuite {
     checkMemo(
       mmc,
       subsetMatrixTable(mmc.typ, "va.r3", "sa.foo"),
-      Array(
+      ArraySeq(
         subsetMatrixTable(mat.typ, "global.g1", "sa.c2", "va.r2", "g.e2", "va.r3", "NO_COL_KEY"),
         null,
       ),
@@ -617,13 +629,17 @@ class PruneSuite extends HailSuite {
     checkMemo(
       mmc2,
       subsetMatrixTable(mmc2.typ, "va.r3", "sa.foo.foo"),
-      Array(subsetMatrixTable(mat.typ, "global.g1", "sa.c2", "va.r2", "g.e2", "va.r3"), null),
+      ArraySeq(subsetMatrixTable(mat.typ, "global.g1", "sa.c2", "va.r2", "g.e2", "va.r3"), null),
     )
   }
 
   @Test def testMatrixKeyRowsByMemo(): Unit = {
     val mkr = MatrixKeyRowsBy(mat, FastSeq("rk"))
-    checkMemo(mkr, subsetMatrixTable(mkr.typ, "va.rk"), Array(subsetMatrixTable(mat.typ, "va.rk")))
+    checkMemo(
+      mkr,
+      subsetMatrixTable(mkr.typ, "va.rk"),
+      ArraySeq(subsetMatrixTable(mat.typ, "va.rk")),
+    )
   }
 
   @Test def testMatrixMapRowsMemo(): Unit = {
@@ -634,7 +650,7 @@ class PruneSuite extends HailSuite {
     checkMemo(
       mmr,
       subsetMatrixTable(mmr.typ, "sa.c3", "va.foo"),
-      Array(
+      ArraySeq(
         subsetMatrixTable(
           mat.typ.copy(rowKey = IndexedSeq.empty),
           "global.g1",
@@ -653,7 +669,7 @@ class PruneSuite extends HailSuite {
     checkMemo(
       mmg,
       subsetMatrixTable(mmg.typ, "global.foo", "va.r3", "sa.c3"),
-      Array(subsetMatrixTable(mat.typ, "global.g1", "va.r3", "sa.c3"), null),
+      ArraySeq(subsetMatrixTable(mat.typ, "global.g1", "va.r3", "sa.c3"), null),
     )
   }
 
@@ -663,7 +679,7 @@ class PruneSuite extends HailSuite {
     checkMemo(
       mart,
       subsetMatrixTable(mart.typ, "va.foo.r3", "va.r3"),
-      Array(subsetMatrixTable(mat.typ, "va.r3"), subsetTable(tl.typ, "row.r3")),
+      ArraySeq(subsetMatrixTable(mat.typ, "va.r3"), subsetTable(tl.typ, "row.r3")),
     )
   }
 
@@ -672,7 +688,7 @@ class PruneSuite extends HailSuite {
     checkMemo(
       ccbk,
       subsetMatrixTable(ccbk.typ, "g.e2", "sa.c2", "NO_COL_KEY"),
-      Array(subsetMatrixTable(mat.typ, "g.e2", "sa.c2")),
+      ArraySeq(subsetMatrixTable(mat.typ, "g.e2", "sa.c2")),
     )
   }
 
@@ -681,7 +697,7 @@ class PruneSuite extends HailSuite {
     checkMemo(
       mer,
       subsetMatrixTable(mer.typ, "va.r2"),
-      Array(subsetMatrixTable(mat.typ, "va.r2", "va.r3")),
+      ArraySeq(subsetMatrixTable(mat.typ, "va.r2", "va.r3")),
     )
   }
 
@@ -689,7 +705,7 @@ class PruneSuite extends HailSuite {
     checkMemo(
       MatrixRepartition(mat, 10, RepartitionStrategy.SHUFFLE),
       subsetMatrixTable(mat.typ, "va.r2", "global.g1"),
-      Array(
+      ArraySeq(
         subsetMatrixTable(mat.typ, "va.r2", "global.g1"),
         subsetMatrixTable(mat.typ, "va.r2", "global.g1"),
       ),
@@ -700,7 +716,7 @@ class PruneSuite extends HailSuite {
     checkMemo(
       MatrixUnionRows(FastSeq(mat, mat)),
       subsetMatrixTable(mat.typ, "va.r2", "global.g1"),
-      Array(
+      ArraySeq(
         subsetMatrixTable(mat.typ, "va.r2", "global.g1"),
         subsetMatrixTable(mat.typ, "va.r2", "global.g1"),
       ),
@@ -711,7 +727,7 @@ class PruneSuite extends HailSuite {
     checkMemo(
       MatrixDistinctByRow(mat),
       subsetMatrixTable(mat.typ, "va.r2", "global.g1"),
-      Array(
+      ArraySeq(
         subsetMatrixTable(mat.typ, "va.r2", "global.g1"),
         subsetMatrixTable(mat.typ, "va.r2", "global.g1"),
       ),
@@ -723,7 +739,7 @@ class PruneSuite extends HailSuite {
     checkMemo(
       mer,
       subsetMatrixTable(mer.typ, "va.r2"),
-      Array(subsetMatrixTable(mat.typ, "va.r2", "sa.c3")),
+      ArraySeq(subsetMatrixTable(mat.typ, "va.r2", "sa.c3")),
     )
   }
 
@@ -733,7 +749,7 @@ class PruneSuite extends HailSuite {
     checkMemo(
       t2m,
       subsetMatrixTable(mat.typ, "va.r2", "sa.c2", "global.g2", "g.e2"),
-      Array(subsetTable(
+      ArraySeq(subsetTable(
         m2t.typ,
         "row.r2",
         "global.g2",
@@ -753,7 +769,7 @@ class PruneSuite extends HailSuite {
     checkMemo(
       magg,
       subsetMatrixTable(magg.typ, "sa.c3", "g.foo", "va.foo"),
-      Array(
+      ArraySeq(
         subsetMatrixTable(mat.typ, "sa.c3", "g.e2", "va.r2", "sa.c2", "global.g1", "va.r3"),
         null,
         null,
@@ -770,7 +786,7 @@ class PruneSuite extends HailSuite {
     checkMemo(
       magg,
       subsetMatrixTable(magg.typ, "va.r3", "g.foo", "sa.foo"),
-      Array(
+      ArraySeq(
         subsetMatrixTable(mat.typ, "sa.c2", "va.r2", "va.r3", "g.e2", "global.g1", "sa.c3"),
         null,
         null,
@@ -792,22 +808,22 @@ class PruneSuite extends HailSuite {
   val justBRequired = TStruct("b" -> TInt32)
 
   @Test def testIfMemo(): Unit =
-    checkMemo(If(True(), ref, ref), justA, Array(TBoolean, justA, justA), refEnv)
+    checkMemo(If(True(), ref, ref), justA, ArraySeq(TBoolean, justA, justA), refEnv)
 
   @Test def testSwitchMemo(): Unit =
     checkMemo(
       Switch(I32(0), ref, FastSeq(ref)),
       justA,
-      Array(TInt32, justA, justA),
+      ArraySeq(TInt32, justA, justA),
       refEnv,
     )
 
   @Test def testCoalesceMemo(): Unit =
-    checkMemo(Coalesce(FastSeq(ref, ref)), justA, Array(justA, justA), refEnv)
+    checkMemo(Coalesce(FastSeq(ref, ref)), justA, ArraySeq(justA, justA), refEnv)
 
   @Test def testLetMemo(): Unit = {
-    checkMemo(bindIR(ref)(x => x), justA, Array(justA, null), refEnv)
-    checkMemo(bindIR(ref)(_ => True()), TBoolean, Array(empty, null), refEnv)
+    checkMemo(bindIR(ref)(x => x), justA, ArraySeq(justA, null), refEnv)
+    checkMemo(bindIR(ref)(_ => True()), TBoolean, ArraySeq(empty, null), refEnv)
   }
 
   @Test def testAggLetMemo(): Unit = {
@@ -815,32 +831,32 @@ class PruneSuite extends HailSuite {
     checkMemo(
       aggBindIR(ref)(foo => ApplyAggOp(Collect())(SelectFields(foo, IndexedSeq("a")))),
       TArray(justA),
-      Array(justA, null),
+      ArraySeq(justA, null),
       env,
     )
-    checkMemo(aggBindIR(ref)(_ => True()), TBoolean, Array(empty, null), env)
+    checkMemo(aggBindIR(ref)(_ => True()), TBoolean, ArraySeq(empty, null), env)
   }
 
   @Test def testMakeArrayMemo(): Unit =
-    checkMemo(arr, TArray(justB), Array(justB, justB), refEnv)
+    checkMemo(arr, TArray(justB), ArraySeq(justB, justB), refEnv)
 
   @Test def testArrayRefMemo(): Unit =
-    checkMemo(ArrayRef(arr, I32(0)), justB, Array(TArray(justB), null, null), refEnv)
+    checkMemo(ArrayRef(arr, I32(0)), justB, ArraySeq(TArray(justB), null, null), refEnv)
 
   @Test def testArrayLenMemo(): Unit =
-    checkMemo(ArrayLen(arr), TInt32, Array(TArray(empty)), refEnv)
+    checkMemo(ArrayLen(arr), TInt32, ArraySeq(TArray(empty)), refEnv)
 
   @Test def testStreamTakeMemo(): Unit =
-    checkMemo(StreamTake(st, I32(2)), TStream(justA), Array(TStream(justA), null), refEnv)
+    checkMemo(StreamTake(st, I32(2)), TStream(justA), ArraySeq(TStream(justA), null), refEnv)
 
   @Test def testStreamDropMemo(): Unit =
-    checkMemo(StreamDrop(st, I32(2)), TStream(justA), Array(TStream(justA), null), refEnv)
+    checkMemo(StreamDrop(st, I32(2)), TStream(justA), ArraySeq(TStream(justA), null), refEnv)
 
   @Test def testStreamMapMemo(): Unit =
     checkMemo(
       mapIR(st)(x => x),
       TStream(justB),
-      Array(TStream(justB), null),
+      ArraySeq(TStream(justB), null),
       refEnv,
     )
 
@@ -848,7 +864,7 @@ class PruneSuite extends HailSuite {
     checkMemo(
       StreamGrouped(st, I32(2)),
       TStream(TStream(justB)),
-      Array(TStream(justB), null),
+      ArraySeq(TStream(justB), null),
       refEnv,
     )
 
@@ -856,7 +872,7 @@ class PruneSuite extends HailSuite {
     checkMemo(
       StreamGroupByKey(st, FastSeq("a"), false),
       TStream(TStream(justB)),
-      Array(TStream(TStruct("a" -> TInt32, "b" -> TInt32)), null),
+      ArraySeq(TStream(TStruct("a" -> TInt32, "b" -> TInt32)), null),
       refEnv,
     )
 
@@ -868,7 +884,7 @@ class PruneSuite extends HailSuite {
         FastSeq("a"),
       ),
       TStream(justB),
-      Array(TStream(aAndB), TStream(aAndB)),
+      ArraySeq(TStream(aAndB), TStream(aAndB)),
       refEnv,
     )
   }
@@ -888,7 +904,7 @@ class PruneSuite extends HailSuite {
           bindIRs(GetField(foo, "b"), GetField(bar, "a"))(_ => False())
         },
         TStream(TBoolean),
-        Array(TStream(justB), TStream(justA), TStream(empty), null),
+        ArraySeq(TStream(justB), TStream(justA), TStream(empty), null),
         refEnv,
       )
     }
@@ -901,7 +917,7 @@ class PruneSuite extends HailSuite {
         bindIRs(GetField(foo, "b"), GetField(bar, "a"))(_ => False())
       },
       TStream(TBoolean),
-      Array(TStream(justB), TStream(justA), null, null),
+      ArraySeq(TStream(justB), TStream(justA), null, null),
       refEnv,
     )
   }
@@ -910,18 +926,18 @@ class PruneSuite extends HailSuite {
     checkMemo(
       filterIR(st)(foo => bindIR(GetField(foo, "b"))(_ => False())),
       TStream(empty),
-      Array(TStream(justB), null),
+      ArraySeq(TStream(justB), null),
       refEnv,
     )
-    checkMemo(filterIR(st)(_ => False()), TStream(empty), Array(TStream(empty), null), refEnv)
-    checkMemo(filterIR(st)(_ => False()), TStream(justB), Array(TStream(justB), null), refEnv)
+    checkMemo(filterIR(st)(_ => False()), TStream(empty), ArraySeq(TStream(empty), null), refEnv)
+    checkMemo(filterIR(st)(_ => False()), TStream(justB), ArraySeq(TStream(justB), null), refEnv)
   }
 
   @Test def testStreamFlatMapMemo(): Unit =
     checkMemo(
       flatMapIR(st)(foo => MakeStream(FastSeq(foo), TStream(ref.typ))),
       TStream(justA),
-      Array(TStream(justA), null),
+      ArraySeq(TStream(justA), null),
       refEnv,
     )
 
@@ -929,7 +945,7 @@ class PruneSuite extends HailSuite {
     checkMemo(
       foldIR(st, I32(0))((_, foo) => GetField(foo, "a")),
       TInt32,
-      Array(TStream(justA), null, null),
+      ArraySeq(TStream(justA), null, null),
       refEnv,
     )
 
@@ -937,7 +953,7 @@ class PruneSuite extends HailSuite {
     checkMemo(
       streamScanIR(st, I32(0))((_, foo) => GetField(foo, "a")),
       TStream(TInt32),
-      Array(TStream(justA), null, null),
+      ArraySeq(TStream(justA), null, null),
       refEnv,
     )
 
@@ -959,7 +975,7 @@ class PruneSuite extends HailSuite {
         ))
       },
       TStream(TStruct("b" -> TInt32, "d" -> TInt32)),
-      Array(
+      ArraySeq(
         TStream(TStruct("a" -> TInt32, "b" -> TInt32)),
         TStream(TStruct("a" -> TInt32, "b" -> TInt32)),
         TStruct("b" -> TInt32, "d" -> TInt32),
@@ -994,7 +1010,7 @@ class PruneSuite extends HailSuite {
     checkMemo(
       join,
       TStream(requestedElemType),
-      Array(
+      ArraySeq(
         TStream(prunedLElemType),
         TStream(prunedRElemType),
         requestedElemType,
@@ -1015,7 +1031,7 @@ class PruneSuite extends HailSuite {
     checkMemo(
       forIR(st)(foo => Die(invoke("str", TString, GetField(foo, "a")), TVoid, ErrorIDs.NO_ERROR)),
       TVoid,
-      Array(TStream(justA), null),
+      ArraySeq(TStream(justA), null),
       refEnv,
     )
   }
@@ -1026,7 +1042,7 @@ class PruneSuite extends HailSuite {
     checkMemo(
       MakeNDArray(x, y, True(), ErrorIDs.NO_ERROR),
       TNDArray(TStruct("a" -> TInt32), Nat(2)),
-      Array(
+      ArraySeq(
         TArray(TStruct("a" -> TInt32)),
         TTuple(TInt64, TInt64),
         TBoolean,
@@ -1039,7 +1055,7 @@ class PruneSuite extends HailSuite {
     checkMemo(
       ndMap(ndArr)(x => x),
       TNDArray(justBRequired, Nat(1)),
-      Array(TNDArray(justBRequired, Nat(1)), null),
+      ArraySeq(TNDArray(justBRequired, Nat(1)), null),
       refEnv,
     )
 
@@ -1047,13 +1063,13 @@ class PruneSuite extends HailSuite {
     checkMemo(
       ndMap2(ndArr, ndArr)((l, _) => l),
       TNDArray(justBRequired, Nat(1)),
-      Array(TNDArray(justBRequired, Nat(1)), TNDArray(TStruct.empty, Nat(1)), null),
+      ArraySeq(TNDArray(justBRequired, Nat(1)), TNDArray(TStruct.empty, Nat(1)), null),
       refEnv,
     )
     checkMemo(
       ndMap2(ndArr, ndArr)((_, r) => r),
       TNDArray(justBRequired, Nat(1)),
-      Array(TNDArray(TStruct.empty, Nat(1)), TNDArray(justBRequired, Nat(1)), null),
+      ArraySeq(TNDArray(TStruct.empty, Nat(1)), TNDArray(justBRequired, Nat(1)), null),
       refEnv,
     )
     checkMemo(
@@ -1061,7 +1077,7 @@ class PruneSuite extends HailSuite {
         ApplyBinaryPrimOp(Add(), GetField(l, "a"), GetField(r, "b"))
       },
       TNDArray(TInt32, Nat(1)),
-      Array(TNDArray(justARequired, Nat(1)), TNDArray(justBRequired, Nat(1)), null),
+      ArraySeq(TNDArray(justARequired, Nat(1)), TNDArray(justBRequired, Nat(1)), null),
       refEnv,
     )
   }
@@ -1070,13 +1086,13 @@ class PruneSuite extends HailSuite {
     checkMemo(
       MakeStruct(IndexedSeq("a" -> ref, "b" -> I32(10))),
       TStruct("a" -> justA),
-      Array(justA, null),
+      ArraySeq(justA, null),
       refEnv,
     )
     checkMemo(
       MakeStruct(IndexedSeq("a" -> ref, "b" -> I32(10))),
       TStruct.empty,
-      Array(null, null),
+      ArraySeq(null, null),
       refEnv,
     )
   }
@@ -1085,26 +1101,26 @@ class PruneSuite extends HailSuite {
     checkMemo(
       InsertFields(ref, IndexedSeq("d" -> ref)),
       justA ++ TStruct("d" -> justB),
-      Array(justA, justB),
+      ArraySeq(justA, justB),
       refEnv,
     )
 
   @Test def testSelectFieldsMemo(): Unit = {
-    checkMemo(SelectFields(ref, IndexedSeq("a", "b")), justA, Array(justA), refEnv)
-    checkMemo(SelectFields(ref, IndexedSeq("b", "a")), bAndA, Array(aAndB), refEnv)
+    checkMemo(SelectFields(ref, IndexedSeq("a", "b")), justA, ArraySeq(justA), refEnv)
+    checkMemo(SelectFields(ref, IndexedSeq("b", "a")), bAndA, ArraySeq(aAndB), refEnv)
   }
 
   @Test def testGetFieldMemo(): Unit =
-    checkMemo(GetField(ref, "a"), TInt32, Array(justA), refEnv)
+    checkMemo(GetField(ref, "a"), TInt32, ArraySeq(justA), refEnv)
 
   @Test def testMakeTupleMemo(): Unit =
-    checkMemo(MakeTuple(IndexedSeq(0 -> ref)), TTuple(justA), Array(justA), refEnv)
+    checkMemo(MakeTuple(IndexedSeq(0 -> ref)), TTuple(justA), ArraySeq(justA), refEnv)
 
   @Test def testGetTupleElementMemo(): Unit =
     checkMemo(
       GetTupleElement(MakeTuple.ordered(IndexedSeq(ref, ref)), 1),
       justB,
-      Array(TTuple(FastSeq(TupleField(1, justB)))),
+      ArraySeq(TTuple(FastSeq(TupleField(1, justB)))),
       refEnv,
     )
 
@@ -1113,7 +1129,7 @@ class PruneSuite extends HailSuite {
     checkMemo(
       CastRename(x, TArray(TStruct("y" -> TInt32, "z" -> TString))),
       TArray(TStruct("z" -> TString)),
-      Array(TArray(TStruct("y" -> TString))),
+      ArraySeq(TArray(TStruct("y" -> TString))),
       BindingEnv.empty.bindEval(x.name -> x.typ),
     )
   }
@@ -1128,7 +1144,7 @@ class PruneSuite extends HailSuite {
         false,
       ),
       TArray(TStruct("c" -> TString)),
-      Array(null, TArray(TStruct("c" -> TString))),
+      ArraySeq(null, TArray(TStruct("c" -> TString))),
       BindingEnv.empty.createAgg.bindAgg(x.name -> t),
     )
   }
@@ -1139,7 +1155,7 @@ class PruneSuite extends HailSuite {
     checkMemo(
       aggExplodeIR(x)(foo => ApplyAggOp(Collect())(SelectFields(foo, IndexedSeq("a")))),
       TArray(TStruct("a" -> TInt32)),
-      Array(TStream(TStruct("a" -> TInt32)), TArray(TStruct("a" -> TInt32))),
+      ArraySeq(TStream(TStruct("a" -> TInt32)), TArray(TStruct("a" -> TInt32))),
       BindingEnv.empty.createAgg.bindAgg(x.name -> t),
     )
   }
@@ -1152,7 +1168,7 @@ class PruneSuite extends HailSuite {
         ApplyAggOp(Collect())(SelectFields(foo, IndexedSeq("a")))
       },
       TArray(TArray(TStruct("a" -> TInt32))),
-      Array(TArray(TStruct("a" -> TInt32)), TArray(TStruct("a" -> TInt32))),
+      ArraySeq(TArray(TStruct("a" -> TInt32)), TArray(TStruct("a" -> TInt32))),
       BindingEnv.empty.createAgg.bindAgg(x.name -> t),
     )
   }
@@ -1166,10 +1182,13 @@ class PruneSuite extends HailSuite {
 
     checkMemo(
       x,
-      TArray(TTuple(ctxT.typeAfterSelectNames(Array("a")), globT.typeAfterSelectNames(Array("c")))),
-      Array(
-        TStream(ctxT.typeAfterSelectNames(Array("a"))),
-        globT.typeAfterSelectNames(Array("c")),
+      TArray(TTuple(
+        ctxT.typeAfterSelectNames(ArraySeq("a")),
+        globT.typeAfterSelectNames(ArraySeq("c")),
+      )),
+      ArraySeq(
+        TStream(ctxT.typeAfterSelectNames(ArraySeq("a"))),
+        globT.typeAfterSelectNames(ArraySeq("c")),
         null,
         TString,
       ),
@@ -1177,62 +1196,62 @@ class PruneSuite extends HailSuite {
   }
 
   @Test def testTableCountMemo(): Unit =
-    checkMemo(TableCount(tab), TInt64, Array(subsetTable(tab.typ, "NO_KEY")))
+    checkMemo(TableCount(tab), TInt64, ArraySeq(subsetTable(tab.typ, "NO_KEY")))
 
   @Test def testTableGetGlobalsMemo(): Unit =
     checkMemo(
       TableGetGlobals(tab),
       TStruct("g1" -> TInt32),
-      Array(subsetTable(tab.typ, "global.g1", "NO_KEY")),
+      ArraySeq(subsetTable(tab.typ, "global.g1", "NO_KEY")),
     )
 
   @Test def testTableCollectMemo(): Unit =
     checkMemo(
       TableCollect(TableKeyBy(tab, FastSeq())),
       TStruct("rows" -> TArray(TStruct("3" -> TString)), "global" -> TStruct("g2" -> TInt32)),
-      Array(subsetTable(tab.typ.copy(key = FastSeq()), "row.3", "global.g2")),
+      ArraySeq(subsetTable(tab.typ.copy(key = FastSeq()), "row.3", "global.g2")),
     )
 
   @Test def testTableHeadMemo(): Unit =
     checkMemo(
       TableHead(tab, 10L),
       subsetTable(tab.typ.copy(key = FastSeq()), "global.g1"),
-      Array(subsetTable(tab.typ, "row.3", "global.g1")),
+      ArraySeq(subsetTable(tab.typ, "row.3", "global.g1")),
     )
 
   @Test def testTableTailMemo(): Unit =
     checkMemo(
       TableTail(tab, 10L),
       subsetTable(tab.typ.copy(key = FastSeq()), "global.g1"),
-      Array(subsetTable(tab.typ, "row.3", "global.g1")),
+      ArraySeq(subsetTable(tab.typ, "row.3", "global.g1")),
     )
 
   @Test def testTableToValueApplyMemo(): Unit =
     checkMemo(
       TableToValueApply(tab, ForceCountTable()),
       TInt64,
-      Array(tab.typ),
+      ArraySeq(tab.typ),
     )
 
   @Test def testMatrixToValueApplyMemo(): Unit =
     checkMemo(
       MatrixToValueApply(mat, ForceCountMatrixTable()),
       TInt64,
-      Array(mat.typ),
+      ArraySeq(mat.typ),
     )
 
   @Test def testTableAggregateMemo(): Unit =
     checkMemo(
       TableAggregate(tab, tableRefBoolean(tab.typ, "global.g1")),
       TBoolean,
-      Array(subsetTable(tab.typ, "global.g1"), null),
+      ArraySeq(subsetTable(tab.typ, "global.g1"), null),
     )
 
   @Test def testMatrixAggregateMemo(): Unit =
     checkMemo(
       MatrixAggregate(mat, matrixRefBoolean(mat.typ, "global.g1")),
       TBoolean,
-      Array(subsetMatrixTable(mat.typ, "global.g1", "NO_COL_KEY"), null),
+      ArraySeq(subsetMatrixTable(mat.typ, "global.g1", "NO_COL_KEY"), null),
     )
 
   @Test def testPipelineLetMemo(): Unit = {
@@ -1240,7 +1259,7 @@ class PruneSuite extends HailSuite {
     checkMemo(
       relationalBindIR(NA(t))(x => x),
       TStruct.empty,
-      Array(TStruct.empty, TStruct.empty),
+      ArraySeq(TStruct.empty, TStruct.empty),
     )
   }
 
@@ -1301,8 +1320,8 @@ class PruneSuite extends HailSuite {
   }
 
   @Test def testTableLeftJoinRightDistinctRebuild(): Unit = {
-    val tk1 = TableKeyBy(tab, Array("1"))
-    val tk2 = TableKeyBy(tab, Array("3"))
+    val tk1 = TableKeyBy(tab, ArraySeq("1"))
+    val tk2 = TableKeyBy(tab, ArraySeq("3"))
     val tj = TableLeftJoinRightDistinct(tk1, tk2, "foo")
 
     checkRebuild(
@@ -1314,8 +1333,8 @@ class PruneSuite extends HailSuite {
   }
 
   @Test def testTableIntervalJoinRebuild(): Unit = {
-    val tk1 = TableKeyBy(tab, Array("1"))
-    val tk2 = TableKeyBy(tab, Array("3"))
+    val tk1 = TableKeyBy(tab, ArraySeq("1"))
+    val tk2 = TableKeyBy(tab, ArraySeq("3"))
     val tj = TableIntervalJoin(tk1, tk2, "foo", product = false)
 
     checkRebuild(
@@ -1351,10 +1370,10 @@ class PruneSuite extends HailSuite {
   }
 
   @Test def testTableMultiWayZipJoinRebuildUnifiesRowTypes(): Unit = {
-    val t1 = TableKeyBy(tab, Array("1"))
+    val t1 = TableKeyBy(tab, ArraySeq("1"))
     val t2 = TableFilter(t1, tableRefBoolean(t1.typ, "row.2"))
     val t3 = TableFilter(t1, tableRefBoolean(t1.typ, "row.3"))
-    val ts = Array(t1, t2, t3)
+    val ts = ArraySeq(t1, t2, t3)
     val tmwzj = TableMultiWayZipJoin(ts, "data", "gbls")
     val childRType = subsetTable(t1.typ, "row.2", "global.g1")
     checkRebuild(
@@ -1909,8 +1928,8 @@ class PruneSuite extends HailSuite {
       NA(TString),
     )((ctx, glob) => MakeTuple.ordered(FastSeq(ctx, glob)))
 
-    val selectedCtxT = ctxT.typeAfterSelectNames(Array("a"))
-    val selectedGlobT = globT.typeAfterSelectNames(Array("c"))
+    val selectedCtxT = ctxT.typeAfterSelectNames(ArraySeq("a"))
+    val selectedGlobT = globT.typeAfterSelectNames(ArraySeq("c"))
     checkRebuild(
       x,
       TArray(TTuple(selectedCtxT, selectedGlobT)),

@@ -4,6 +4,7 @@ import is.hail.backend.ExecuteContext
 import is.hail.types.virtual.{Type, VType}
 import is.hail.utils._
 import is.hail.utils.StackSafe._
+import is.hail.utils.compat.immutable.ArraySeq
 
 case class Name(str: String) {
   override def toString: String = str
@@ -40,7 +41,7 @@ abstract class BaseIR {
   }
 
   def mapChildrenWithIndex(f: (BaseIR, Int) => BaseIR): BaseIR = {
-    val newChildren = childrenSeq.view.zipWithIndex.map(f.tupled).toArray
+    val newChildren = childrenSeq.view.zipWithIndex.map(f.tupled).to(ArraySeq)
     if (childrenSeq.elementsSameObjects(newChildren))
       this
     else
@@ -88,7 +89,7 @@ abstract class BaseIR {
   )(
     f: (BaseIR, E) => BaseIR
   ): BaseIR = {
-    val newChildren = Array(childrenSeq: _*)
+    val newChildren = childrenSeq.toArray
     var res = this
     for (i <- newChildren.indices) {
       val childEnv = update(env, Bindings.get(res, i))
@@ -96,7 +97,7 @@ abstract class BaseIR {
       val newChild = f(child, childEnv)
       if (!(newChild eq child)) {
         newChildren(i) = newChild
-        res = res.copyWithNewChildren(newChildren)
+        res = res.copyWithNewChildren(ArraySeq.unsafeWrapArray(newChildren))
       }
     }
     res
@@ -108,7 +109,7 @@ abstract class BaseIR {
   )(
     f: (BaseIR, E) => StackFrame[BaseIR]
   ): StackFrame[BaseIR] = {
-    val newChildren = Array(childrenSeq: _*)
+    val newChildren = childrenSeq.toArray
     var res = this
     newChildren.indices.foreachRecur { i =>
       val childEnv = update(env, Bindings.get(res, i))
@@ -116,7 +117,7 @@ abstract class BaseIR {
       f(child, childEnv).map { newChild =>
         if (!(newChild eq child)) {
           newChildren(i) = newChild
-          res = res.copyWithNewChildren(newChildren)
+          res = res.copyWithNewChildren(ArraySeq.unsafeWrapArray(newChildren))
         }
       }
     }.map(_ => res)

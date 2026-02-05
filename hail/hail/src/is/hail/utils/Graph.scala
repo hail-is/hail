@@ -115,6 +115,6 @@ object Graph {
       }
     }
 
-    verticesByDegree.toArray
+    verticesByDegree.toIndexedSeq
   }
 }

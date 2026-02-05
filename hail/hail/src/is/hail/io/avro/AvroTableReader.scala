@@ -12,6 +12,7 @@ import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical.{PCanonicalStruct, PCanonicalTuple, PInt64Required}
 import is.hail.types.virtual._
 import is.hail.utils.{plural, FastSeq}
+import is.hail.utils.compat.immutable.ArraySeq
 
 import org.json4s.{Formats, JValue}
 
@@ -75,7 +76,7 @@ class AvroTableReader(
       StreamIota(I32(0), I32(1)),
       ArrayZipBehavior.TakeMinLength,
     ) { (path, idx) =>
-      MakeStruct(Array("partitionPath" -> path, "partitionIndex" -> Cast(idx, TInt64)))
+      MakeStruct(ArraySeq("partitionPath" -> path, "partitionIndex" -> Cast(idx, TInt64)))
     }
     TableStage(
       globals,

@@ -6,6 +6,7 @@ import is.hail.scalacheck
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.utils.Interval
+import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.collection.compat._
 
@@ -59,7 +60,7 @@ private[scalacheck] trait GenVal {
         case _: PInt64 =>
           arbitrary[Long]
         case t: PInterval =>
-          distribute(2, genVal(ctx, t.pointType)) flatMap { case Array(a, b) =>
+          distribute(2, genVal(ctx, t.pointType)) flatMap { case Seq(a, b) =>
             t.pointType.virtualType.mkOrdering(ctx.stateManager).compare(a, b) match {
               case 0 => const(Interval(a, b, true, true))
               case n =>
@@ -72,7 +73,7 @@ private[scalacheck] trait GenVal {
         case t: PNDArray =>
           for {
             shape <- partition(t.nDims)
-            data <- containerOfN[Array, An](shape.sum, smaller(ctx, t.elementType))
+            data <- containerOfN[ArraySeq, An](shape.sum, smaller(ctx, t.elementType))
           } yield SafeNDArray(shape.map(_.toLong), data)
         case p: PSet =>
           containerOf[Set, An](smaller(ctx, p.elementType))

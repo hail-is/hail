@@ -5,6 +5,7 @@ import is.hail.io.FileWriteMetadata
 import is.hail.io.compress.{BGzipCodec, ComposableBGzipCodec, ComposableBGzipOutputStream}
 import is.hail.sparkextras._
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.collection.mutable
 import scala.reflect.ClassTag
@@ -22,7 +23,7 @@ case class SupersetRDDPartition(index: Int, maybeParentPartition: Option[Partiti
     extends Partition
 
 class RichRDD[T](val r: RDD[T]) extends AnyVal {
-  def reorderPartitions(oldIndices: Array[Int])(implicit tct: ClassTag[T]): RDD[T] =
+  def reorderPartitions(oldIndices: IndexedSeq[Int])(implicit tct: ClassTag[T]): RDD[T] =
     new ReorderedPartitionsRDD[T](r, oldIndices)
 
   def forall(p: T => Boolean)(implicit tct: ClassTag[T]): Boolean = !exists(x => !p(x))
@@ -194,8 +195,8 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
       r.sparkContext,
       FastSeq(new NarrowDependency[T](r) {
         override def getParents(partitionId: Int): Seq[Int] = newToOldPI.get(partitionId) match {
-          case Some(oldPI) => Array(oldPI)
-          case None => Array.empty[Int]
+          case Some(oldPI) => ArraySeq(oldPI)
+          case None => ArraySeq[Int]()
         }
       }),
     ) {
@@ -213,9 +214,9 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     }
   }
 
-  def countPerPartition()(implicit ct: ClassTag[T]): Array[Long] = {
+  def countPerPartition()(implicit ct: ClassTag[T]): IndexedSeq[Long] = {
     val sc = r.sparkContext
-    sc.runJob(r, getIteratorSize _)
+    ArraySeq.unsafeWrapArray(sc.runJob(r, getIteratorSize _))
   }
 
   def writePartitions(
@@ -224,7 +225,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     stageLocally: Boolean,
     write: (Iterator[T], OutputStream) => (Long, Long),
   )(implicit tct: ClassTag[T]
-  ): (Array[FileWriteMetadata]) =
+  ): IndexedSeq[FileWriteMetadata] =
     ContextRDD.weaken(r).writePartitions(
       ctx,
       path,

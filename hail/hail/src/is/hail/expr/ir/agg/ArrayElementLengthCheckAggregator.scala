@@ -10,6 +10,7 @@ import is.hail.types.physical.stypes.{EmitType, SValue}
 import is.hail.types.physical.stypes.concrete.SIndexablePointer
 import is.hail.types.virtual.{TInt32, TVoid, Type}
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 // initOp args: initOps for nestedAgg, length if knownLength = true
 // seqOp args: array, other non-elt args for nestedAgg
@@ -174,8 +175,10 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple)
   }
 }
 
-class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], knownLength: Boolean)
-    extends StagedAggregator {
+class ArrayElementLengthCheckAggregator(
+  nestedAggs: IndexedSeq[StagedAggregator],
+  knownLength: Boolean,
+) extends StagedAggregator {
   type State = ArrayElementState
 
   val resultEltType: PCanonicalTuple =
@@ -184,8 +187,8 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
   val resultPType: PCanonicalArray = PCanonicalArray(resultEltType)
   override def resultEmitType = EmitType(SIndexablePointer(resultPType), knownLength)
 
-  val initOpTypes: Seq[Type] = if (knownLength) FastSeq(TInt32, TVoid) else FastSeq(TVoid)
-  val seqOpTypes: Seq[Type] = FastSeq(TInt32)
+  val initOpTypes: IndexedSeq[Type] = if (knownLength) ArraySeq(TInt32, TVoid) else ArraySeq(TVoid)
+  val seqOpTypes: IndexedSeq[Type] = ArraySeq(TInt32)
 
   // inits all things
   override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
@@ -301,11 +304,12 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
   }
 }
 
-class ArrayElementwiseOpAggregator(nestedAggs: Array[StagedAggregator]) extends StagedAggregator {
+class ArrayElementwiseOpAggregator(nestedAggs: IndexedSeq[StagedAggregator])
+    extends StagedAggregator {
   type State = ArrayElementState
 
-  val initOpTypes: Seq[Type] = Array[Type]()
-  val seqOpTypes: Seq[Type] = Array[Type](TInt32, TVoid)
+  val initOpTypes: IndexedSeq[Type] = ArraySeq.empty
+  val seqOpTypes: IndexedSeq[Type] = ArraySeq(TInt32, TVoid)
 
   val resultPType =
     PCanonicalArray(PCanonicalTuple(false, nestedAggs.map(_.resultEmitType.storageType): _*))

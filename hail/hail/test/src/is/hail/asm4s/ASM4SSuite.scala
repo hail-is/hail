@@ -3,6 +3,7 @@ package is.hail.asm4s
 import is.hail.HailSuite
 import is.hail.asm4s.Code._
 import is.hail.utils.FastSeq
+import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.language.postfixOps
 
@@ -20,7 +21,7 @@ class ASM4SSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   @Test def not(): Unit = {
     val notb = FunctionBuilder[Z2Z](
       "is/hail/asm4s/Z2Z",
-      Array(NotGenericTypeInfo[Boolean]),
+      ArraySeq(NotGenericTypeInfo[Boolean]),
       NotGenericTypeInfo[Boolean],
     )
     notb.emit(!notb.getArg[Boolean](1))

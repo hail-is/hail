@@ -11,6 +11,7 @@ import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.interfaces.{SNDArray, SNDArrayValue}
 import is.hail.types.virtual.Type
 import is.hail.utils.{valueToRichCodeRegion, FastSeq}
+import is.hail.utils.compat.immutable.ArraySeq
 
 class NDArrayMultiplyAddAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator {
   override type State = TypedRegionBackedAggState
@@ -20,9 +21,8 @@ class NDArrayMultiplyAddAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAgg
   private val ndTyp =
     resultEmitType.storageType.asInstanceOf[PCanonicalNDArray] // TODO: Set required false?
 
-  override def initOpTypes: Seq[Type] = Array[Type]()
-
-  override def seqOpTypes: Seq[Type] = Array(ndTyp.virtualType, ndTyp.virtualType)
+  override def initOpTypes: IndexedSeq[Type] = ArraySeq.empty
+  override def seqOpTypes: IndexedSeq[Type] = ArraySeq(ndTyp.virtualType, ndTyp.virtualType)
 
   val ndarrayFieldNumber = 0
 

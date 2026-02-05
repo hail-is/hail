@@ -25,16 +25,10 @@ trait Requiredness {
 }
 
 object BaseStruct {
-  def getMissingIndexAndCount(req: Array[Boolean]): (Array[Int], Int) = {
-    val missingIdx = new Array[Int](req.length)
-    var i = 0
-    var j = 0
-    while (i < req.length) {
-      missingIdx(i) = j
-      if (!req(i))
-        j += 1
-      i += 1
+  def getMissingIndexAndCount(req: IndexedSeq[Boolean]): (IndexedSeq[Int], Int) = {
+    val scan = req.scanLeft(0) { case (j, r) =>
+      j + (if (r) 0 else 1)
     }
-    (missingIdx, j)
+    (scan.init, scan.last)
   }
 }

@@ -8,6 +8,7 @@ import is.hail.types.physical.PCanonicalArray
 import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.physical.stypes.interfaces.SIndexableValue
 import is.hail.utils.FastSeq
+import is.hail.utils.compat.immutable.ArraySeq
 
 sealed trait StagedMinHeap {
   def arraySType: SType
@@ -53,7 +54,7 @@ object StagedMinHeap {
         val poolRef = mb.getCodeParam[RegionPool](1)
 
         mb.voidWithBuilder { cb =>
-          cb += classBuilder.cb.super_.invoke(coerce[Object](cb.this_), Array())
+          cb += classBuilder.cb.super_.invoke(coerce[Object](cb.this_), ArraySeq.empty)
           cb.assign(pool, poolRef)
           cb.assign(region, Region.stagedCreate(Region.REGULAR, poolRef))
           cb.assign(garbage, 0L)

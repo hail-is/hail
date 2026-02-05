@@ -13,10 +13,8 @@ import is.hail.utils._
 import scala.collection.compat._
 
 object PSubsetStruct {
-  def apply(ps: PStruct, fieldNames: String*): PSubsetStruct = {
-    val f = fieldNames.toArray
-    PSubsetStruct(ps, f)
-  }
+  def apply(ps: PStruct, fieldNames: String*): PSubsetStruct =
+    PSubsetStruct(ps, fieldNames.toFastSeq)
 }
 
 // Semantics: PSubsetStruct is a non-constructible view of another PStruct, which is not allowed to mutate
@@ -33,13 +31,13 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: IndexedSeq[String])
     logger.warn("PSubsetStruct used without subsetting input PStruct")
   }
 
-  private val idxMap: Array[Int] = _fieldNames.map(f => ps.fieldIdx(f)).toArray
+  private val idxMap: IndexedSeq[Int] = _fieldNames.map(f => ps.fieldIdx(f))
 
-  lazy val missingIdx: Array[Int] = idxMap.map(i => ps.missingIdx(i))
+  lazy val missingIdx: IndexedSeq[Int] = idxMap.map(i => ps.missingIdx(i))
   lazy val nMissing: Int = missingIdx.length
 
   override lazy val virtualType = TStruct(fields.map(f => (f.name -> f.typ.virtualType)): _*)
-  override val types: Array[PType] = fields.map(_.typ).toArray
+  override val types: IndexedSeq[PType] = fields.map(_.typ)
 
   override val byteSize: Long = 8
 

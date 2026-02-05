@@ -8,6 +8,7 @@ import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual.Type
 import is.hail.utils.{toRichIterable, FastSeq}
+import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.collection.compat._
 
@@ -44,7 +45,8 @@ final case class SNDArrayPointer(pType: PCanonicalNDArray) extends SNDArray {
         )
     }
 
-  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = Array.fill(2 + nDims * 2)(LongInfo)
+  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] =
+    ArraySeq.fill(2 + nDims * 2)(LongInfo)
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SNDArrayPointerSettable = {
     val a = settables(0).asInstanceOf[Settable[Long @unchecked]]
@@ -125,7 +127,7 @@ class SNDArrayPointerValue(
     body: IndexedSeq[SValue] => SValue
   ): Unit = {
     SNDArray._coiterate(cb, indexVars, (this, destIndices, "dest") +: arrays: _*) { ptrs =>
-      val codes = (this +: arrays.map(_._1)).zip(ptrs).toFastSeq.map { case (array, ptr) =>
+      val codes = (this +: arrays.toFastSeq.map(_._1)).zip(ptrs).map { case (array, ptr) =>
         val pt: PType = array.st.pType.elementType
         pt.loadCheapSCode(cb, pt.loadFromNested(ptr))
       }
@@ -139,8 +141,8 @@ object SNDArrayPointerSettable {
     new SNDArrayPointerSettable(
       st,
       sb.newSettable[Long](name),
-      Array.tabulate(st.pType.nDims)(i => sb.newSettable[Long](s"${name}_nd_shape_$i")),
-      Array.tabulate(st.pType.nDims)(i => sb.newSettable[Long](s"${name}_nd_strides_$i")),
+      ArraySeq.tabulate(st.pType.nDims)(i => sb.newSettable[Long](s"${name}_nd_shape_$i")),
+      ArraySeq.tabulate(st.pType.nDims)(i => sb.newSettable[Long](s"${name}_nd_strides_$i")),
       sb.newSettable[Long](s"${name}_nd_first_element"),
     )
 }

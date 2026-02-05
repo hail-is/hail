@@ -2,6 +2,7 @@ package is.hail.variant
 
 import is.hail.expr.Parser
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.annotation.switch
 import scala.jdk.CollectionConverters._
@@ -135,10 +136,10 @@ object Call extends Serializable {
       alleleRepr(c)
   }
 
-  def alleles(c: Call): Array[Int] = {
+  def alleles(c: Call): IndexedSeq[Int] = {
     (ploidy(c): @switch) match {
-      case 0 => Array.empty[Int]
-      case 1 => Array(alleleByIndex(c, 0))
+      case 0 => ArraySeq()
+      case 1 => ArraySeq(alleleByIndex(c, 0))
       case 2 => AllelePair.alleleIndices(allelePair(c))
       case _ => throw new UnsupportedOperationException
     }

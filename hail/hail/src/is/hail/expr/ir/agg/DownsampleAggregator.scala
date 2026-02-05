@@ -16,6 +16,7 @@ import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePoin
 import is.hail.types.physical.stypes.interfaces.SBaseStructValue
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 class DownsampleBTreeKey(binType: PBaseStruct, pointType: PBaseStruct, kb: EmitClassBuilder[_])
     extends BTreeKey {
@@ -719,8 +720,8 @@ class DownsampleAggregator(arrayType: VirtualTypeWithReq) extends StagedAggregat
 
   val resultEmitType = EmitType(SIndexablePointer(resultPType), true)
 
-  val initOpTypes: Seq[Type] = Array(TInt32)
-  val seqOpTypes: Seq[Type] = Array(TFloat64, TFloat64, arrayType.t)
+  val initOpTypes: IndexedSeq[Type] = ArraySeq(TInt32)
+  val seqOpTypes: IndexedSeq[Type] = ArraySeq(TFloat64, TFloat64, arrayType.t)
 
   override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     val Array(nDivisions) = init

@@ -6,6 +6,7 @@ import is.hail.expr.ir._
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types.physical._
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 trait BTreeKey {
   def storageType: PType
@@ -45,7 +46,7 @@ class AppendOnlyBTree(
   private val eltType: PTuple = PCanonicalTuple(false, key.storageType, PInt64(true))
 
   private val elementsType: PTuple =
-    PCanonicalTuple(required = true, Array.fill[PType](maxElements)(eltType): _*)
+    PCanonicalTuple(required = true, ArraySeq.fill[PType](maxElements)(eltType): _*)
 
   private val storageType: PStruct = PCanonicalStruct(
     required = true,

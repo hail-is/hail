@@ -1,6 +1,7 @@
 package is.hail.io.fs
 
 import is.hail.utils._
+import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.collection.parallel.CollectionConverters._
 import scala.util.Try
@@ -126,7 +127,7 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
   def getFileSystem(filename: String): hadoop.fs.FileSystem =
     new hadoop.fs.Path(filename).getFileSystem(conf.value)
 
-  override def listDirectory(url: URL): Array[FileListEntry] = {
+  override def listDirectory(url: URL): IndexedSeq[FileListEntry] = {
     val statuses = url.hadoopFs.globStatus(url.hadoopPath)
     if (statuses == null) {
       throw new FileNotFoundException(url.toString)
@@ -135,6 +136,7 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
         .flatMap(url.hadoopFs.listStatus(_))
         .map(new HadoopFileListEntry(_))
         .toArray
+        .unsafeToArraySeq
     }
   }
 
@@ -150,19 +152,19 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
   override def delete(url: URL, recursive: Boolean): Unit =
     url.hadoopFs.delete(url.hadoopPath, recursive): Unit
 
-  override def globAll(filenames: Iterable[String]): Array[FileListEntry] = {
+  override def globAll(filenames: Iterable[String]): IndexedSeq[FileListEntry] = {
     filenames.flatMap { filename =>
       val fles = glob(filename)
       if (fles.isEmpty)
         logger.warn(s"'$filename' refers to no files")
       fles
-    }.toArray
+    }.to(ArraySeq)
   }
 
-  override def glob(url: URL): Array[FileListEntry] = {
-    var files = url.hadoopFs.globStatus(url.hadoopPath)
+  override def glob(url: URL): IndexedSeq[FileListEntry] = {
+    var files = ArraySeq.unsafeWrapArray(url.hadoopFs.globStatus(url.hadoopPath))
     if (files == null)
-      files = Array.empty
+      files = ArraySeq.empty
     logger.info(
       s"globbing path $url returned ${files.length} files: ${files.map(_.getPath.getName).mkString(",")}"
     )

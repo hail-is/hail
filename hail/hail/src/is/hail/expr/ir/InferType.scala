@@ -4,7 +4,6 @@ import is.hail.expr.Nat
 import is.hail.expr.ir.defs._
 import is.hail.types.tcoerce
 import is.hail.types.virtual._
-import is.hail.utils._
 
 object InferType {
   def apply(ir: IR): Type = {
@@ -260,7 +259,7 @@ object InferType {
         }: _*)
       case SelectFields(old, fields) =>
         val tbs = tcoerce[TStruct](old.typ)
-        tbs.select(fields.toFastSeq)._1
+        tbs.select(fields)._1
       case InsertFields(old, fields, fieldOrder) =>
         val tbs = tcoerce[TStruct](old.typ)
         val s = tbs.insertFields(fields.map(f => (f._1, f._2.typ)))
@@ -274,7 +273,7 @@ object InferType {
           throw new RuntimeException(s"$name not in $t")
         t.field(name).typ
       case MakeTuple(values) =>
-        TTuple(values.map { case (i, value) => TupleField(i, value.typ) }.toFastSeq)
+        TTuple(values.map { case (i, value) => TupleField(i, value.typ) })
       case GetTupleElement(o, idx) =>
         val t = tcoerce[TTuple](o.typ)
         val fd = t.fields(t.fieldIndex(idx)).typ
