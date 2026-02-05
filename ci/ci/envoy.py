@@ -214,9 +214,7 @@ def clusters(
 ) -> List[dict]:
     clusters = []
     for service in default_services:
-        clusters.append(
-            make_cluster(service.name, f'{service.name}.default.svc.cluster.local', proxy, verify_ca=True)
-        )
+        clusters.append(make_cluster(service.name, f'{service.name}.default.svc.cluster.local', proxy, verify_ca=True))
 
     for namespace, services in internal_services_per_namespace.items():
         for service in services:
