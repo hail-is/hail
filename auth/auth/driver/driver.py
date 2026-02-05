@@ -252,7 +252,7 @@ class GSAResource:
             elif e.status == 404:
                 log.warning(f'Group {group_email} not found, skipping group membership')
             else:
-                log.warning(f'Failed to add {gsa_email} to group {group_email}: {e.status} {e.message}')
+                log.warning(f'Failed to add {gsa_email} to group {group_email}: {e.status} {e}')
                 # Don't fail user creation if group addition fails
 
     async def _delete(self, gsa_email):

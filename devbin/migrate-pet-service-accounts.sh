@@ -1,8 +1,7 @@
 #!/bin/bash
-# One-time script to read existing user service accounts from the database &:
-# 1. Grant the batch user access to them (act as permissions)
-# 2. Add them to the pet_service_accounts group
-# Should only be run once per project.
+# One-time script to read existing user service accounts from the database and add them to the pet_service_accounts group
+# Only needed once per project, as part of switching over to adding all user service accounts to the pet_service_accounts group.
+# For new users, the pet_service_accounts group is automatically added to when the user is created.
 
 set -e
 source $HAIL/devbin/functions.sh

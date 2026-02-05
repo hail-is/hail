@@ -18,7 +18,7 @@ When worker VMs or CI/CD processes pull Docker images, they can encounter Docker
 
 The Docker Hub proxy repo is created in Terraform (`infra/gcp/main.tf` and `infra/gcp-broad/main.tf`) as an Artifact Registry repository with the mode set to `REMOTE` and the target set to `DOCKER_HUB`.
 
-Note: By default the repository is configured to pull anonymously from Docker Hub. That setup is very likely to run into the toomanyrequests error from dockerhub because AR, as a global service, reuses the same IP address for multiple requests across multiple users and projects. To avoid this is it recommended to create a docker hub account, create a personal access token, and configure the repository to pull from Docker Hub using that token manually in the google cloud console.
+Note: By default the repository is configured to pull anonymously from Docker Hub. That setup is very likely to run into the toomanyrequests error from dockerhub because AR, as a global service, reuses the same IP address for multiple requests across multiple users and projects. To avoid this, it is recommended to create a "hail system" docker hub account, create a personal access token, and configure the repository to pull from Docker Hub using that token manually in the google cloud console.
 
 ### IAM Permissions
 
