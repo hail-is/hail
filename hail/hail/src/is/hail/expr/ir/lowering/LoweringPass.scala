@@ -72,7 +72,7 @@ case object LowerMatrixToTablePass extends LoweringPass {
 
 case object LiftRelationalValuesToRelationalLets extends LoweringPass {
   val before: Invariant = NoMatrixIR
-  val after: Invariant = NoMatrixIR
+  val after: Invariant = NoMatrixIR and NoLiftMeOuts
   val context: String = "LiftRelationalValuesToRelationalLets"
 
   override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = LiftRelationalValues(ir)
@@ -176,8 +176,8 @@ case object LowerArrayAggsToRunAggsPass extends LoweringPass {
 }
 
 case class EvalRelationalLetsPass(passesBelow: LoweringPipeline) extends LoweringPass {
-  val before: Invariant = NoMatrixIR
-  val after: Invariant = NoMatrixIR and NoRelationalLets
+  val before: Invariant = NoMatrixIR and NoLiftMeOuts
+  val after: Invariant = before and NoRelationalLets
   val context: String = "EvalRelationalLets"
 
   override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR =
