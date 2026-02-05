@@ -1,10 +1,10 @@
 # Docker Hub Cache/Proxy
 
-Hail uses a Google Artifact Registry (GAR) remote repository as a proxy/cache for Docker Hub images to mitigate rate limiting issues when pulling images from Docker Hub.
+Hail in GCP provides the option of using a Google Artifact Registry (GAR) remote repository as a proxy/cache for Docker Hub images to mitigate rate limiting issues when pulling images from Docker Hub.
 
 ## Overview
 
-When worker VMs or CI/CD processes pull Docker images, they can encounter Docker Hub rate limits, especially when multiple VMs share the same outbound IP (e.g., behind CloudNAT). To address this, we use a GAR remote repository that acts as a pull-through cache for Docker Hub.
+When worker VMs or CI/CD processes pull Docker images, they can encounter Docker Hub rate limits, especially when multiple VMs share the same outbound IP (e.g., behind CloudNAT). To address this, we use a GAR set up with a remote origin targeting Docker Hub, that acts as a pull-through cache.
 
 ### How It Works
 
@@ -35,15 +35,25 @@ This means:
 
 ### Global Config
 
-The `dockerhub_prefix` is stored in the `global-config` Kubernetes secret and made available to:
+A value called `dockerhub_prefix` is stored in the `global-config` Kubernetes secret by Terraform. Its value is the URI prefix for the Docker Hub proxy repository and made available to:
 
 - Batch services via environment variables (`DOCKERHUB_PREFIX`)
 - CI/CD processes via build configuration
 - Makefile targets via the `DOCKERHUB_PREFIX` variable from config.mk
 
+If the `dockerhub_prefix` value is not set, no rewriting is done and images are pulled from Docker Hub directly regardless of the `dockerhub_proxy` feature flag value (see below).
+
+### Feature Flag
+
+There is a feature flag called `dockerhub_proxy` that is stored in the `feature_flags` table in the database. Its value determines whether user job requests are rewritten to use the Docker Hub proxy repository. This allows us to enable or disable the Docker Hub proxy for all user jobs at runtime without having to rebuild the system or manually update global-config.
+
+Because batch instances read the feature flag value only once at startup, switching the feature flag value will not take effect until the batch instances are restarted (eg `kubectl rollout restart deployment batch`).
+
+Note that CI/CD build jobs and makefile targets are independently implemented and do not look at the `dockerhub_proxy` feature flag.
+
 ## Image Rewriting
 
-In general, image names are still specified in code in their natural form. Before pulling an image therefore, we should update or rewrite the image to make sure it is pulled from the proxy registry (if configured).
+In general, image names in code are still specified in their natural form. Before pulling an image, we update or rewrite the image name to make sure it is pulled from the proxy registry (if configured).
 
 Image names can be specified as:
 
@@ -87,10 +97,11 @@ Some examples of Makefile targets which have been updated to use `DOCKERHUB_PREF
 
 ### System
 
-So long as the `DOCKERHUB_PREFIX` variable is set, the rewriting rules will be applied to the image name before pulling the image in all of:
-- Batch services (at job submission time)
-- CI/CD builds
-- Makefile targets
+The rewriting rules are applied to the image name before pulling the image in the following contexts:
+
+- **Batch services (user jobs)**: At job submission time, if both `DOCKERHUB_PREFIX` is set and the `dockerhub_proxy` feature flag is enabled
+- **CI/CD builds**: Automatically if `DOCKERHUB_PREFIX` is set (does not depend on feature flag)
+- **Makefile targets**: Automatically if `DOCKERHUB_PREFIX` is set (does not depend on feature flag)
 
 ### Manual Image Pulls
 
