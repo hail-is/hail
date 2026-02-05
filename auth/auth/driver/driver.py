@@ -198,16 +198,6 @@ class GSAResource:
 
         key = await self.iam_client.post(f'/serviceAccounts/{self.gsa_email}/keys')
 
-        # Grant batch2-agent permission to act as this service account
-        try:
-            await self._grant_batch_agent_access(gsa_email, project)
-        except Exception as e:
-            log.warning(f'Failed to grant batch2-agent access to {gsa_email}: {e}')
-
-        return (self.gsa_email, key)
-
-    async def _grant_batch_agent_access(self, gsa_email: str, project: str):
-        """Grant batch2-agent permission to act as this service account."""
         policy_body = {
             "bindings": [
                 {
@@ -216,8 +206,8 @@ class GSAResource:
                 }
             ]
         }
-        await self.iam_client.post(f'/serviceAccounts/{gsa_email}:setIamPolicy', json={"policy": policy_body})
-        log.info(f'Granted batch2-agent permission to act as {gsa_email}')
+        await self.iam_client.post(f'/serviceAccounts/{self.gsa_email}:setIamPolicy', json={"policy": policy_body})
+        return (self.gsa_email, key)
 
     async def _delete(self, gsa_email):
         try:
