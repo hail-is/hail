@@ -83,29 +83,6 @@ def gateway_default_host(service: Service, domain: str) -> dict:
     if service.name == 'www':
         domains.append(domain)
 
-    if service.name == 'ukbb-rg':
-        return {
-            '@type': 'type.googleapis.com/envoy.config.route.v3.VirtualHost',
-            'name': service.name,
-            'domains': domains,
-            'routes': [
-                {
-                    'match': {'prefix': '/rg_browser'},
-                    'route': route_to_cluster('ukbb-rg-browser'),
-                    'typed_per_filter_config': {
-                        'envoy.filters.http.ext_authz': auth_check_exemption(),
-                    },
-                },
-                {
-                    'match': {'prefix': '/'},
-                    'route': route_to_cluster('ukbb-rg-static'),
-                    'typed_per_filter_config': {
-                        'envoy.filters.http.ext_authz': auth_check_exemption(),
-                    },
-                },
-            ],
-        }
-
     return {
         '@type': 'type.googleapis.com/envoy.config.route.v3.VirtualHost',
         'name': service.name,
@@ -237,15 +214,7 @@ def clusters(
 ) -> List[dict]:
     clusters = []
     for service in default_services:
-        if service.name == 'ukbb-rg':
-            browser_cluster = make_cluster('ukbb-rg-browser', 'ukbb-rg-browser.ukbb-rg', proxy, verify_ca=True)
-            static_cluster = make_cluster('ukbb-rg-static', 'ukbb-rg-static.ukbb-rg', proxy, verify_ca=True)
-            clusters.append(browser_cluster)
-            clusters.append(static_cluster)
-        else:
-            clusters.append(
-                make_cluster(service.name, f'{service.name}.default.svc.cluster.local', proxy, verify_ca=True)
-            )
+        clusters.append(make_cluster(service.name, f'{service.name}.default.svc.cluster.local', proxy, verify_ca=True))
 
     for namespace, services in internal_services_per_namespace.items():
         for service in services:

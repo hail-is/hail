@@ -13,7 +13,6 @@ communications between it and the outside world.
 Currently, all traffic in our cluster should be encrypted except for:
 - from the batch-driver to the batch workers
 - from the batch workers to the internal-gateway
-- to ukbb-rg
 - from the notebook service to the notebook workers
 - to letsencrypt (oh the irony)
 
