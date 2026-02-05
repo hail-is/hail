@@ -3568,6 +3568,9 @@ SELECT instance_id, n_tokens, frozen FROM globals;
 
     app['frozen'] = row['frozen']
 
+    row = await db.select_and_fetchone('SELECT * FROM feature_flags')
+    app['feature_flags'] = row
+
     regions: Dict[str, int] = {
         record['region']: record['region_id']
         async for record in db.select_and_fetchall('SELECT region_id, region from regions')
