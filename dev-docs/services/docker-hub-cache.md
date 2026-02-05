@@ -22,10 +22,16 @@ Note: By default the repository is configured to pull anonymously from Docker Hu
 
 ### IAM Permissions
 
-The following IAM bindings grant access:
+Access to the `dockerhubproxy` repository is granted via a single Terraform IAM binding that uses a `principalSet` to grant `roles/artifactregistry.reader` to all service accounts in the project:
 
-1. **Batch Agent**: The `batch2-agent` service account has `roles/artifactregistry.reader` on the `dockerhubproxy` repository.
-2. **Pet Service Accounts**: A Google Cloud Identity group (`pet_service_accounts@{organization_domain}`) has `roles/artifactregistry.reader` on the repository. User shadow service accounts are automatically added to this group when created.
+```
+principalSet://cloudresourcemanager.googleapis.com/projects/{project_number}/type/ServiceAccount
+```
+
+This means:
+- All existing service accounts in the project automatically have read access
+- All newly created service accounts automatically have read access
+- No individual permission grants are needed when creating service accounts
 
 ### Global Config
 

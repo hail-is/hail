@@ -85,25 +85,6 @@ data "google_project" "current" {
   project_id = var.gcp_project
 }
 
-data "google_organization" "org" {
-  organization = data.google_project.current.org_id
-}
-
-# Google Cloud Identity Group for pet service accounts
-resource "google_cloud_identity_group" "pet_service_accounts" {
-  provider = google-beta
-  display_name = "Pet Service Accounts"
-  description  = "Group containing user shadow service accounts (pet service accounts)"
-  parent       = "customers/${data.google_organization.org.directory_customer_id}"
-  group_key {
-    id = "pet_service_accounts@${var.organization_domain}"
-  }
-  labels = {
-    "cloudidentity.googleapis.com/groups.discussion_forum" = ""
-  }
-}
-
-
 resource "google_project_service" "service_networking" {
   disable_on_destroy = false
   service = "servicenetworking.googleapis.com"
@@ -610,23 +591,16 @@ resource "google_artifact_registry_repository_iam_member" "artifact_registry_bat
   member = "serviceAccount:${google_service_account.batch_agent.email}"
 }
 
-resource "google_artifact_registry_repository_iam_member" "artifact_registry_batch_agent_dockerhub_viewer" {
+# Grant all service accounts in the project read access to dockerhubproxy
+resource "google_artifact_registry_repository_iam_member" "artifact_registry_all_service_accounts_dockerhub_viewer" {
   provider  = google-beta
   project   = var.gcp_project
   repository = google_artifact_registry_repository.dockerhub_remote.name
   location  = var.artifact_registry_location
   role      = "roles/artifactregistry.reader"
-  member    = "serviceAccount:${google_service_account.batch_agent.email}"
+  member    = "principalSet://cloudresourcemanager.googleapis.com/projects/${data.google_project.current.number}/type/ServiceAccount"
 }
 
-resource "google_artifact_registry_repository_iam_member" "artifact_registry_pet_sas_dockerhub_viewer" {
-  provider  = google-beta
-  project   = var.gcp_project
-  repository = google_artifact_registry_repository.dockerhub_remote.name
-  location  = var.artifact_registry_location
-  role      = "roles/artifactregistry.reader"
-  member    = "group:${google_cloud_identity_group.pet_service_accounts.group_key[0].id}"
-}
 
 resource "google_artifact_registry_repository_iam_member" "artifact_registry_ci_admin" {
   provider = google-beta
