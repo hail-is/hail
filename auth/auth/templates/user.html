@@ -32,10 +32,10 @@
   {% else %}
     <p>You must sign up or log in to continue</p>
   {% endif %}
-  
+
   <div class="mb-4">
     <label class="flex items-center">
-      <input type="checkbox" id="tosCheckbox" class="mr-2" onchange="updateButtons()">
+      <input type="checkbox" id="tosCheckbox" class="mr-2">
       <span>I have reviewed and agree to the <a href="https://batch.hail.is/tos" target="_blank" class="text-blue-600 hover:underline">Terms of Service</a>
         and have read the <a href="https://batch.hail.is/privacy" target="_blank" class="text-blue-600 hover:underline">Privacy Policy</a>
       </span>
@@ -63,30 +63,7 @@
     </div>
   </div>
 
-  <script>
-    function updateButtons() {
-      const checkbox = document.getElementById('tosCheckbox');
-      const signupButton = document.getElementById('signupButton');
-      const loginButton = document.getElementById('loginButton');
-      
-      signupButton.disabled = !checkbox.checked;
-      loginButton.disabled = !checkbox.checked;
-      
-      // Update button styles based on state
-      [signupButton, loginButton].forEach(button => {
-        if (button.disabled) {
-          button.classList.add('opacity-50', 'cursor-not-allowed');
-          button.classList.remove('hover:bg-blue-700');
-        } else {
-          button.classList.remove('opacity-50', 'cursor-not-allowed');
-          button.classList.add('hover:bg-blue-700');
-        }
-      });
-    }
-
-    // Initialize button states
-    updateButtons();
-  </script>
+  <script defer src="{{ auth_base_url }}/auth/static/js/user.js"></script>
   {% endif %}
 
   <p>

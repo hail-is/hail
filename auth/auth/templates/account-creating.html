@@ -5,11 +5,7 @@
   <div class="spinner"></div>
   <b>Creating account for {{ username }}</b>
 </div>
-<script>
-  let protocol = location.protocol.replace("http", "ws")
-  let sock = new WebSocket(protocol + location.host + "{{ base_path }}/creating/wait");
-  sock.onmessage = function (event) {
-      window.location.reload()
-  }
+
+<script defer src='{{ auth_base_url }}/auth/static/js/account-creating.js'>
 </script>
 {% endblock %}

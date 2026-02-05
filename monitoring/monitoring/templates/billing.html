@@ -1,8 +1,8 @@
 {% extends "layout.html" %}
 {% block title %}Billing{% endblock %}
 {% block head %}
-    <script src="{{ base_path }}/common_static/search_bar.js"></script>
-    <script src="{{ base_path }}/common_static/focus_on_keyup.js"></script>
+    <script defer src="{{ base_path }}/common_static/search_bar.js"></script>
+    <script defer src="{{ base_path }}/common_static/focus_on_keyup.js"></script>
 {% endblock %}
 {% block content %}
 <div class="flex-col-align-left">
@@ -57,7 +57,7 @@
 
 <h1>Costs by Product</h1>
 <div class="searchbar-table">
-  <input type="text" id="searchBar" onkeyup="searchTable('productCost', 'searchBar')" placeholder="Search terms...">
+  <input type="text" id="searchBar" name="searchbar-input" data-table-id="productCost" placeholder="Search terms...">
   <table id="productCost" class="data-table">
       <thead>
       <tr>

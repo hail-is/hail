@@ -6,7 +6,7 @@ batch_state_indicator, job_state_indicator, danger_button, submit_button, link
 {% extends "layout.html" %}
 {% block title %}Batch {{ batch['id'] }}{% endblock %}
 {% block head %}
-<script src="{{ base_path }}/common_static/focus_on_keyup.js"></script>
+<script defer src="{{ base_path }}/common_static/focus_on_keyup.js"></script>
 {% endblock %}
 {% block content %}
 <div class='flex flex-wrap justify-around pt-8 gap-y-4'>

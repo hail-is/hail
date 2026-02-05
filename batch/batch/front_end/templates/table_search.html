@@ -3,13 +3,13 @@
 <!-- Determine search context based on component_name (see table search, in batches.html and batch.html) -->
 {% set is_job_search = component_name == "job-search" %}
 
-<form id='{{ component_name }}-form' class='min-h-48 flex space-x-4' method="GET" action="{{ endpoint }}" data-is-job-search="{{ 'true' if is_job_search else 'false' }}">
+<form id='search-form' class='min-h-48 flex space-x-4' method="GET" action="{{ endpoint }}" data-is-job-search="{{ 'true' if is_job_search else 'false' }}">
   <div class='basis-2/3'>
     <!-- Search criteria container -->
-    <div id='{{ component_name }}-criteria-container' class='min-h-24 w-full p-4 bg-slate-200 rounded space-y-3'>
+    <div id='search-criteria-container' class='min-h-24 w-full p-4 bg-slate-200 rounded space-y-3'>
       <!-- Initial search criterion -->
       <div class='search-criterion flex space-x-2 items-center'>
-        <select class='criterion-select p-2 bg-white rounded border' onchange='updateOperators(this)'>
+        <select name='criterion-select' class='criterion-select p-2 bg-white rounded border'>
           <option value="">Select a field...</option>
           <optgroup label="General">
             <option value="name">Name</option>
@@ -41,25 +41,25 @@
 
         <input type='text' class='value-input p-2 bg-white rounded border flex-grow' placeholder='Enter value...'>
 
-        <button type='button' class='remove-criterion text-red-500 hover:text-red-700' onclick='removeCriterion(this)' title='Remove criterion'>
+        <button type='button' name='remove-criterion' class='remove-criterion text-red-500 hover:text-red-700' title='Remove criterion'>
           <span class="material-symbols-outlined text-sm">close</span>
         </button>
       </div>
     </div>
 
     <!-- Textbox mode (hidden by default) -->
-    <div id='{{ component_name }}-textbox-container' class='min-h-32 w-full p-4 bg-slate-200 rounded' style='display: none;'>
-      <textarea id='{{ component_name }}-input-box' class='h-32 w-full p-4 bg-white rounded resize whitespace-pre border'
+    <div id='search-textbox-container' class='min-h-32 w-full p-4 bg-slate-200 rounded' style='display: none;'>
+      <textarea id='search-input-box' class='h-32 w-full p-4 bg-white rounded resize whitespace-pre border'
         spellcheck="false" autocorrect="off" placeholder='Enter search query (e.g., "cost > 5.00")'>{% if q %}{{ q }}{% endif %}</textarea>
     </div>
 
     <!-- Buttons below search box container -->
     <div class='flex justify-between items-center mt-3'>
       <div class='flex space-x-2'>
-        <button type='button' id='{{ component_name }}-add-criterion' class='px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600' onclick='addCriterion("{{ component_name }}")'>
+        <button type='button' id='search-add-criterion' class='px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600'>
           Add Search Criterion
         </button>
-        <button type='button' id='{{ component_name }}-toggle-mode' class='px-3 py-1 bg-gray-500 text-white rounded text-sm hover:bg-gray-600' onclick='toggleInputMode("{{ component_name }}")'>
+        <button type='button' id='search-toggle-mode' class='px-3 py-1 bg-gray-500 text-white rounded text-sm hover:bg-gray-600'>
           Switch to textbox query input
         </button>
       </div>
@@ -67,7 +67,7 @@
     </div>
 
     <!-- Hidden input to store the built query -->
-    <input type='hidden' id='{{ component_name }}-query' name='q' value='{% if q %}{{ q }}{% endif %}'>
+    <input type='hidden' id='search-query' name='q' value='{% if q %}{{ q }}{% endif %}'>
   </div>
 
   <div class='flex items-start'>
@@ -77,370 +77,5 @@
   </div>
 </form>
 
-<script>
-// Field configurations with their allowed operators and value types
-const fieldConfigs = {
-  // General fields
-  'name': {
-    operators: ['=', '!=', '=~', '!~'],
-    type: 'string',
-    placeholder: 'Enter name...'
-  },
-  'cost': {
-    operators: ['=', '!=', '>', '>=', '<', '<='],
-    type: 'number',
-    placeholder: 'Enter cost (e.g., 5.00)...'
-  },
-  'duration': {
-    operators: ['=', '!=', '>', '>=', '<', '<='],
-    type: 'number',
-    placeholder: 'Enter duration in seconds...'
-  },
-  'start_time': {
-    operators: ['=', '!=', '>', '>=', '<', '<='],
-    type: 'datetime',
-    placeholder: 'Enter date (ISO format, e.g., 2025-02-27T17:15:25Z)...'
-  },
-  'end_time': {
-    operators: ['=', '!=', '>', '>=', '<', '<='],
-    type: 'datetime',
-    placeholder: 'Enter date (ISO format, e.g., 2025-02-27T17:15:25Z)...'
-  },
-  'state': {
-    operators: ['=', '!='],
-    type: 'string',
-    placeholder: 'Select state...'
-  },
-
-  // Batch-specific fields
-  'batch_id': {
-    operators: ['=', '!=', '>', '>=', '<', '<='],
-    type: 'number',
-    placeholder: 'Enter batch ID...'
-  },
-  'user': {
-    operators: ['=', '!='],
-    type: 'string',
-    placeholder: 'Enter username...'
-  },
-  'billing_project': {
-    operators: ['=', '!='],
-    type: 'string',
-    placeholder: 'Enter billing project...'
-  },
-
-  // Job-specific fields
-  'job_id': {
-    operators: ['=', '!=', '>', '>=', '<', '<='],
-    type: 'number',
-    placeholder: 'Enter job ID...'
-  },
-  'instance': {
-    operators: ['=', '!=', '=~', '!~'],
-    type: 'string',
-    placeholder: 'Enter instance name...'
-  },
-  'instance_collection': {
-    operators: ['=', '!=', '=~', '!~'],
-    type: 'string',
-    placeholder: 'Enter instance collection...'
-  }
-};
-
-// Special state values
-const stateValues = {
-  batch: ['running', 'complete', 'success', 'failure', 'cancelled', 'open', 'closed'],
-  job: ['pending', 'ready', 'creating', 'running', 'live', 'cancelled', 'error', 'failed', 'bad', 'success', 'done']
-};
-
-// Global variable for search context
-let isJobSearch;
-let currentMode = 'dropdown'; // 'dropdown' or 'textbox'
-
-// Update operators based on selected field
-function updateOperators(selectElement) {
-  const field = selectElement.value;
-  const operatorSelect = selectElement.parentElement.querySelector('.operator-select');
-  const valueInput = selectElement.parentElement.querySelector('.value-input');
-
-  // Clear existing options
-  operatorSelect.innerHTML = '<option value="">Select operator...</option>';
-
-  if (field && fieldConfigs[field]) {
-    const config = fieldConfigs[field];
-
-    // Add operator options
-    config.operators.forEach(op => {
-      const option = document.createElement('option');
-      option.value = op;
-      option.textContent = op;
-      operatorSelect.appendChild(option);
-    });
-
-    // Update value input
-    valueInput.placeholder = config.placeholder;
-
-    // Handle state fields via dropdown
-    if (field === 'state') {
-      valueInput.style.display = 'none';
-      if (!selectElement.parentElement.querySelector('.state-select')) {
-        const stateSelect = document.createElement('select');
-        stateSelect.className = 'state-select p-2 bg-white rounded border';
-        stateSelect.innerHTML = '<option value="">Select state...</option>';
-
-        const values = isJobSearch ? stateValues.job : stateValues.batch;
-        values.forEach(state => {
-          const option = document.createElement('option');
-          option.value = state;
-          option.textContent = state;
-          stateSelect.appendChild(option);
-        });
-
-        valueInput.parentElement.insertBefore(stateSelect, valueInput);
-      }
-    } else {
-      valueInput.style.display = 'block';
-      const stateSelect = selectElement.parentElement.querySelector('.state-select');
-      if (stateSelect) {
-        stateSelect.remove();
-      }
-    }
-  }
-}
-
-// Add new search criterion
-function addCriterion(componentName) {
-  const container = document.getElementById(componentName + '-criteria-container');
-  const newCriterion = container.querySelector('.search-criterion').cloneNode(true);
-
-  // Reset values
-  newCriterion.querySelector('.criterion-select').value = '';
-  newCriterion.querySelector('.operator-select').innerHTML = '<option value="">Select operator...</option>';
-  newCriterion.querySelector('.value-input').value = '';
-  newCriterion.querySelector('.value-input').placeholder = 'Enter value...';
-
-  // Remove any state select
-  const stateSelect = newCriterion.querySelector('.state-select');
-  if (stateSelect) {
-    stateSelect.remove();
-  }
-
-  container.appendChild(newCriterion);
-  updateRemoveButtonsVisibility(container);
-}
-
-// Update visibility of remove buttons based on criteria count
-function updateRemoveButtonsVisibility(container) {
-  const criteria = container.querySelectorAll('.search-criterion');
-  const removeButtons = container.querySelectorAll('.remove-criterion');
-
-  removeButtons.forEach(button => {
-    if (criteria.length <= 1) {
-      button.style.display = 'none';
-    } else {
-      button.style.display = 'block';
-    }
-  });
-}
-
-// Remove search criterion
-function removeCriterion(button) {
-  const container = button.closest('[id$="-criteria-container"]');
-  const criteria = container.querySelectorAll('.search-criterion');
-
-  // Don't remove if it's the last criterion
-  if (criteria.length > 1) {
-    button.closest('.search-criterion').remove();
-    updateRemoveButtonsVisibility(container);
-  }
-}
-
-// Build query string from criteria
-function buildQuery(componentName) {
-  const container = document.getElementById(componentName + '-criteria-container');
-  const criteria = container.querySelectorAll('.search-criterion');
-  const queryParts = [];
-
-  criteria.forEach(criterion => {
-    const field = criterion.querySelector('.criterion-select').value;
-    const operator = criterion.querySelector('.operator-select').value;
-    let value = criterion.querySelector('.value-input').value;
-
-    // Check for state select
-    const stateSelect = criterion.querySelector('.state-select');
-    if (stateSelect && stateSelect.style.display !== 'none') {
-      value = stateSelect.value;
-    }
-
-    if (field && operator && value) {
-      queryParts.push(`${field} ${operator} ${value}`);
-    }
-  });
-
-  return queryParts.join('\n');
-}
-
-// Parse existing query and populate dropdowns
-function parseQuery(componentName, query) {
-  if (!query) return;
-
-  const container = document.getElementById(componentName + '-criteria-container');
-  const existingCriteria = container.querySelectorAll('.search-criterion');
-
-  // Remove extra criteria, keeping only the first one
-  for (let i = existingCriteria.length - 1; i > 0; i--) {
-    existingCriteria[i].remove();
-  }
-
-  const lines = query.split('\n').filter(line => line.trim());
-
-  lines.forEach((line, index) => {
-    let criterion;
-
-    if (index === 0) {
-      // Use the existing first criterion
-      criterion = container.querySelector('.search-criterion');
-    } else {
-      // Add additional criteria
-      addCriterion(componentName);
-      const criteria = container.querySelectorAll('.search-criterion');
-      criterion = criteria[criteria.length - 1];
-    }
-
-    // Parse line and populate the criterion
-    const parts = line.trim().match(/^(\w+)\s*(=~|!~|<=|>=|!=|==|=|<|>)\s*(.+)$/);
-
-    if (parts && criterion) {
-      const [, field, operator, value] = parts;
-
-      criterion.querySelector('.criterion-select').value = field;
-      updateOperators(criterion.querySelector('.criterion-select'));
-      criterion.querySelector('.operator-select').value = operator;
-
-      if (field === 'state') {
-        const stateSelect = criterion.querySelector('.state-select');
-        if (stateSelect) {
-          stateSelect.value = value;
-        }
-      } else {
-        criterion.querySelector('.value-input').value = value;
-      }
-    }
-  });
-
-  updateRemoveButtonsVisibility(container);
-}
-
-// Toggle between dropdown and textbox input modes
-function toggleInputMode(componentName) {
-  const dropdownContainer = document.getElementById(componentName + '-criteria-container');
-  const textboxContainer = document.getElementById(componentName + '-textbox-container');
-  const toggleButton = document.getElementById(componentName + '-toggle-mode');
-  const addButton = document.getElementById(componentName + '-add-criterion');
-  const textbox = document.getElementById(componentName + '-input-box');
-  const hiddenInput = document.getElementById(componentName + '-query');
-
-  if (currentMode === 'dropdown') {
-    // Switch to textbox mode and sync dropdown to textbox
-    const query = buildQuery(componentName);
-    textbox.value = query;
-    hiddenInput.value = query;
-
-    dropdownContainer.style.display = 'none';
-    textboxContainer.style.display = 'block';
-    toggleButton.textContent = 'Switch to drop-down query input';
-    addButton.style.display = 'none';
-
-    currentMode = 'textbox';
-  } else {
-    // Switch to dropdown mode and sync textbox to dropdown
-    const query = textbox.value.trim();
-    hiddenInput.value = query;
-
-    dropdownContainer.style.display = 'block';
-    textboxContainer.style.display = 'none';
-    toggleButton.textContent = 'Switch to textbox query input';
-    addButton.style.display = 'block';
-
-    // Parse the textbox query back into dropdowns
-    if (query) {
-      parseQuery(componentName, query);
-    } else {
-      // If textbox is empty, reset to single empty criterion
-      const container = document.getElementById(componentName + '-criteria-container');
-      const criteria = container.querySelectorAll('.search-criterion');
-      // Remove extra criteria, keep only first one
-      for (let i = criteria.length - 1; i > 0; i--) {
-        criteria[i].remove();
-      }
-      // Reset first criterion
-      const firstCriterion = container.querySelector('.search-criterion');
-      if (firstCriterion) {
-        firstCriterion.querySelector('.criterion-select').value = '';
-        firstCriterion.querySelector('.operator-select').innerHTML = '<option value="">Select operator...</option>';
-        firstCriterion.querySelector('.value-input').value = '';
-        const stateSelect = firstCriterion.querySelector('.state-select');
-        if (stateSelect) stateSelect.remove();
-      }
-      updateRemoveButtonsVisibility(container);
-    }
-
-    currentMode = 'dropdown';
-  }
-
-  // Add real-time sync for textbox changes
-  if (currentMode === 'textbox') {
-    // Remove previous listener if any, then add
-    textbox.removeEventListener('input', syncTextboxToHiddenInput);
-    textbox.addEventListener('input', syncTextboxToHiddenInput);
-  }
-}
-// Handler for syncing textbox to hidden input
-function syncTextboxToHiddenInput() {
-  const hiddenInput = document.getElementById("{{ component_name }}-query");
-  const textbox = document.getElementById("{{ component_name }}-input-box");
-  hiddenInput.value = textbox.value;
-}
-
-// Form submission handler
-document.getElementById("{{ component_name }}-form").addEventListener('submit', function(e) {
-  let query;
-  if (currentMode === 'dropdown') {
-    query = buildQuery("{{ component_name }}");
-  } else {
-    query = document.getElementById("{{ component_name }}-input-box").value;
-  }
-  document.getElementById("{{ component_name }}-query").value = query;
-});
-
-// Initialize on page load
-document.addEventListener('DOMContentLoaded', function() {
-  // Initialize search context
-  isJobSearch = document.getElementById("{{ component_name }}-form").getAttribute('data-is-job-search') === 'true';
-
-  const container = document.getElementById("{{ component_name }}-criteria-container");
-  const existingQuery = document.getElementById("{{ component_name }}-query").value;
-  if (existingQuery) {
-    parseQuery("{{ component_name }}", existingQuery);
-  } else {
-    // Update remove button visibility on initial load
-    updateRemoveButtonsVisibility(container);
-  }
-});
-
-// Keyboard shortcut support
-document.addEventListener("keydown", function (e) {
-  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-    e.preventDefault();
-    let query;
-    if (currentMode === 'dropdown') {
-      query = buildQuery("{{ component_name }}");
-    } else {
-      query = document.getElementById("{{ component_name }}-input-box").value;
-    }
-    document.getElementById("{{ component_name }}-query").value = query;
-    document.getElementById("{{ component_name }}-form").submit();
-  }
-});
-</script>
+<script defer src='{{ base_path }}/batch/static/js/table_search.js'></script>
 {% endmacro %}
