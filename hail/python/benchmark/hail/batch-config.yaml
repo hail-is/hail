@@ -1,0 +1,1219 @@
+- item: benchmark/hail/benchmark_analysis.py::test_analyze_benchmarks
+  burn-in-iterations: 5
+  mean: 11.41
+  cv: 0.18
+  config:
+  - { slowdown: 1.2, instances: 15, iterations: 15 }
+  - { slowdown: 1.3, instances: 10, iterations: 10 }
+
+
+- item: benchmark/hail/benchmark_analysis.py::test_minimal_detectable_slowdown[laaber_mds]
+  burn-in-iterations: 5
+  mean: 120.767
+  cv: 0.114
+  config:
+  - { slowdown: 1.1, instances: 30, iterations: 10 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+
+- item: benchmark/hail/benchmark_analysis.py::test_minimal_detectable_slowdown[schultz_mds]
+  burn-in-iterations: 6
+  mean: 56.735
+  cv: 0.114
+  config:
+  - { slowdown: 1.1, instances: 25, iterations: 10 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+
+- item: benchmark/hail/benchmark_combiner.py::test_import_and_transform_gvcf
+  burn-in-iterations: 2
+  mean: 3.832
+  cv: 0.122
+  config:
+  - { slowdown: 1.1, instances: 25, iterations: 20 }
+  - { slowdown: 1.2, instances: 10, iterations: 20 }
+
+
+- item: benchmark/hail/benchmark_combiner.py::test_import_gvcf_force_count
+  burn-in-iterations: 2
+  mean: 1.511
+  cv: 0.157
+  config:
+  - { slowdown: 1.2, instances: 20, iterations: 10 }
+  - { slowdown: 1.3, instances: 10, iterations: 10 }
+
+
+- item: benchmark/hail/benchmark_combiner.py::test_python_only_10k_combine
+  burn-in-iterations: 6
+  mean: 61.616
+  cv: 0.086
+  config:
+  - { slowdown: 1.1, instances: 15, iterations: 10 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+
+- item: benchmark/hail/benchmark_combiner.py::test_python_only_10k_transform
+  burn-in-iterations: 10
+  mean: 244.980
+  cv: 0.093
+  config:
+  - { slowdown: 1.1, instances: 20, iterations: 20 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+
+- item: benchmark/hail/benchmark_combiner.py::test_vds_combiner_chr22
+  burn-in-iterations: 10
+  mean: 186.468
+  cv: 0.091
+  config:
+  - { slowdown: 1.1, instances: 25, iterations: 15 }
+  - { slowdown: 1.2, instances: 15, iterations:  5 }
+
+
+- item: benchmark/hail/benchmark_linalg.py::test_block_matrix_to_matrix_table_row_major
+  burn-in-iterations: 4
+  mean: 249.871
+  cv: 0.060
+  config:
+  - { slowdown: 1.1, instances: 15, iterations:  5 }
+
+- item: benchmark/hail/benchmark_linalg.py::test_blockmatrix_write_from_entry_expr_range_mt
+  burn-in-iterations: 10
+  mean: 235.800
+  cv: 0.103
+  config:
+  - { slowdown: 1.2, instances: 15, iterations:  5 }
+  - { slowdown: 1.3, instances: 10, iterations:  5 }
+
+
+- item: benchmark/hail/benchmark_linalg.py::test_make_ndarray
+  burn-in-iterations: 5
+  mean: 41.210
+  cv: 0.127
+  config:
+  - { slowdown: 1.2, instances: 15, iterations: 10 }
+  - { slowdown: 1.3, instances: 10, iterations:  5 }
+
+
+- item: benchmark/hail/benchmark_linalg.py::test_ndarray_addition
+  burn-in-iterations: 10
+  mean: 1.067
+  cv: 0.152
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 20 }
+  - { slowdown: 1.3, instances: 10, iterations:  5 }
+
+
+- item: benchmark/hail/benchmark_linalg.py::test_ndarray_matmul_float64
+  burn-in-iterations: 6
+  mean: 2.195
+  cv: 0.135
+  config:
+  - { slowdown: 1.2, instances: 15, iterations: 10 }
+  - { slowdown: 1.3, instances: 10, iterations:  5 }
+
+
+- item: benchmark/hail/benchmark_linalg.py::test_ndarray_matmul_int64
+  burn-in-iterations: 10
+  mean: 19.232
+  cv: 0.150
+  config:
+  - { slowdown: 1.2, instances: 20, iterations: 15 }
+  - { slowdown: 1.3, instances: 15, iterations:  5 }
+
+
+- item: benchmark/hail/benchmark_linalg.py::test_sum_table_of_ndarrays
+  burn-in-iterations: 5
+  mean: 241.880
+  cv: 0.069
+  config:
+  - { slowdown: 1.1, instances: 20, iterations:  5 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+
+- item: benchmark/hail/benchmark_matrix_table.py::test_export_range_matrix_table_col_p100
+  burn-in-iterations: 15
+  mean: 0.255
+  cv: 0.272
+  config:
+  - { slowdown: 1.2, instances: 20, iterations: 20 }
+  - { slowdown: 1.3, instances: 15, iterations: 20 }
+
+
+- item: benchmark/hail/benchmark_matrix_table.py::test_export_range_matrix_table_entry_field_p100
+  burn-in-iterations: 3
+  mean: 5.080
+  cv: 0.095
+  config:
+  - { slowdown: 1.1, instances: 20, iterations: 20 }
+  - { slowdown: 1.2, instances: 15, iterations:  5 }
+
+
+- item: benchmark/hail/benchmark_matrix_table.py::test_export_range_matrix_table_row_p100
+  burn-in-iterations: 8
+  mean: 1.548
+  cv: 0.128
+  config:
+  - { slowdown: 1.2, instances: 15, iterations: 10 }
+  - { slowdown: 1.3, instances: 10, iterations: 25 }
+
+
+- item: benchmark/hail/benchmark_matrix_table.py::test_gnomad_coverage_stats
+  burn-in-iterations: 5
+  mean: 89.667
+  cv: 0.072
+  config:
+  - { slowdown: 1.1, instances: 10, iterations: 20 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+
+- item: benchmark/hail/benchmark_matrix_table.py::test_gnomad_coverage_stats_optimized
+  burn-in-iterations: 5
+  mean: 30.953
+  cv: 0.071
+  config:
+  - { slowdown: 1.1, instances: 15, iterations: 10 }
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+
+- item: benchmark/hail/benchmark_matrix_table.py::test_import_bgen_filter_count
+  burn-in-iterations: 18
+  mean: 174.157
+  cv: 0.065
+  config:
+  - { slowdown: 1.1, instances: 15, iterations: 10 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+
+- item: benchmark/hail/benchmark_matrix_table.py::test_import_bgen_force_count_all
+  burn-in-iterations: 4
+  mean: 174.834
+  cv: 0.065
+  config:
+  - { slowdown: 1.1, instances: 15, iterations: 15 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+
+- item: benchmark/hail/benchmark_matrix_table.py::test_import_bgen_force_count_just_gp
+  burn-in-iterations: 20
+  mean: 174.0148
+  cv: 0.059
+  config:
+  - { slowdown: 1.1, instances: 15, iterations: 10 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+
+- item: benchmark/hail/benchmark_matrix_table.py::test_import_bgen_info_score
+  burn-in-iterations: 12
+  mean: 202.083
+  cv: 0.064
+  config:
+  - { slowdown: 1.1, instances: 10, iterations: 15 }
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+
+- item: benchmark/hail/benchmark_matrix_table.py::test_kyle_sex_specific_qc
+  burn-in-iterations: 6
+  mean: 10.784
+  cv: 0.086
+  config:
+  - { slowdown: 1.1, instances: 20, iterations:  5 }
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+
+- item: benchmark/hail/benchmark_matrix_table.py::test_large_range_matrix_table_sum
+  burn-in-iterations: 5
+  mean: 280.836
+  cv: 0.112
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 15 }
+  - { slowdown: 1.3, instances: 10, iterations: 10 }
+
+
+- item: benchmark/hail/benchmark_matrix_table.py::test_matrix_table_aggregate_entries
+  burn-in-iterations: 8
+  mean: 7.181
+  cv: 0.094
+  config:
+  - { slowdown: 1.1, instances: 20, iterations: 15 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+
+- item: benchmark/hail/benchmark_matrix_table.py::test_matrix_table_array_arithmetic
+  burn-in-iterations: 20
+  mean: 13.160
+  cv: 0.088
+  config:
+  - { slowdown: 1.1, instances: 15, iterations: 25 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+
+- item: benchmark/hail/benchmark_matrix_table.py::test_matrix_table_call_stats_star_star
+  burn-in-iterations: 8
+  mean: 8.894
+  cv: 0.094
+  config:
+  - { slowdown: 1.1, instances: 25, iterations: 15 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+
+- item: benchmark/hail/benchmark_matrix_table.py::test_matrix_table_cols_show
+  burn-in-iterations: 5
+  mean: 0.679
+  cv: 0.159
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 15 }
+  - { slowdown: 1.3, instances: 10, iterations:  5 }
+
+
+- item: benchmark/hail/benchmark_matrix_table.py::test_matrix_table_decode_and_count
+  burn-in-iterations: 8
+  mean: 7.678
+  cv: 0.091
+  config:
+  - { slowdown: 1.1, instances: 20, iterations: 20 }
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+
+- item: benchmark/hail/benchmark_matrix_table.py::test_matrix_table_decode_and_count_just_gt
+  burn-in-iterations: 5
+  mean: 5.518
+  cv: 0.105
+  config:
+  - { slowdown: 1.1, instances: 25, iterations: 15 }
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+
+- item: benchmark/hail/benchmark_matrix_table.py::test_matrix_table_entries_show
+  burn-in-iterations: 4
+  mean: 1.200
+  cv: 0.140
+  config:
+  - { slowdown: 1.1, instances: 25, iterations: 20 } # stretch
+  - { slowdown: 1.2, instances: 15, iterations: 10 }
+  - { slowdown: 1.3, instances: 10, iterations: 10 }
+
+
+- item: benchmark/hail/benchmark_matrix_table.py::test_matrix_table_entries_table
+  burn-in-iterations: 10
+  mean: 29.274
+  cv: 0.090
+  config:
+  - { slowdown: 1.1, instances: 25, iterations:  5 }
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+  - { slowdown: 1.3, instances:  5, iterations:  5 }
+
+
+- item: benchmark/hail/benchmark_matrix_table.py::test_matrix_table_entries_table_no_key
+  burn-in-iterations: 4
+  mean: 17.459
+  cv: 0.088
+  config:
+  - { slowdown: 1.1, instances: 20, iterations: 15 }
+  - { slowdown: 1.2, instances: 10, iterations: 15 }
+
+
+- item: benchmark/hail/benchmark_matrix_table.py::test_matrix_table_filter_entries
+  burn-in-iterations: 6
+  mean: 8.889
+  cv: 0.084
+  config:
+  - { slowdown: 1.1, instances: 20, iterations: 15 }
+  - { slowdown: 1.2, instances: 15, iterations:  5 }
+
+
+- item: benchmark/hail/benchmark_matrix_table.py::test_matrix_table_filter_entries_unfilter
+  burn-in-iterations: 8
+  mean: 8.864
+  cv: 0.092
+  config:
+  - { slowdown: 1.1, instances: 25, iterations: 15 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+
+- item: benchmark/hail/benchmark_matrix_table.py::test_matrix_table_many_aggs_col_wise
+  burn-in-iterations: 3
+  mean: 29.596
+  cv: 0.083
+  config:
+  - { slowdown: 1.1, instances: 20, iterations: 10 }
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+
+- item: benchmark/hail/benchmark_matrix_table.py::test_matrix_table_many_aggs_row_wise
+  burn-in-iterations: 2
+  mean: 16.887
+  cv: 0.087
+  config:
+  - { slowdown: 1.1, instances: 20, iterations: 10 }
+  - { slowdown: 1.2, instances:  5, iterations: 20 }
+
+
+- item: benchmark/hail/benchmark_matrix_table.py::test_matrix_table_nested_annotate_rows_annotate_entries
+  burn-in-iterations: 4
+  mean: 16.037
+  cv: 0.091
+  config:
+  - { slowdown: 1.1, instances: 20, iterations: 10 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+
+- item: benchmark/hail/benchmark_matrix_table.py::test_matrix_table_rows_force_count
+  burn-in-iterations: 20
+  mean: 0.346
+  cv: 0.186
+  config:
+  - { slowdown: 1.2, instances: 20, iterations: 15 }
+  - { slowdown: 1.3, instances: 15, iterations: 15 }
+  - { slowdown: 1.4, instances: 10, iterations: 10 }
+
+
+- item: benchmark/hail/benchmark_matrix_table.py::test_matrix_table_rows_is_transition
+  burn-in-iterations: 5
+  mean: 0.724
+  cv: 0.161
+  config:
+  - { slowdown: 1.2, instances: 15, iterations: 10 }
+  - { slowdown: 1.3, instances: 10, iterations:  5 }
+
+
+- item: benchmark/hail/benchmark_matrix_table.py::test_matrix_table_rows_show
+  burn-in-iterations: 10
+  mean: 0.584
+  cv: 0.138
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 15 }
+  - { slowdown: 1.3, instances: 10, iterations:  5 }
+
+
+- item: benchmark/hail/benchmark_matrix_table.py::test_matrix_table_scan_count_cols_2
+  burn-in-iterations: 20
+  mean: 0.226
+  cv: 0.354
+  config:
+  - { slowdown: 1.3, instances: 15, iterations: 20 }
+  - { slowdown: 1.4, instances: 10, iterations: 25 }
+
+
+- item: benchmark/hail/benchmark_matrix_table.py::test_matrix_table_scan_count_rows_2
+  burn-in-iterations: 5
+  mean: 12.463
+  cv: 0.088
+  config:
+  - { slowdown: 1.1, instances: 20, iterations: 10 }
+  - { slowdown: 1.2, instances:  5, iterations: 15 }
+
+
+- item: benchmark/hail/benchmark_matrix_table.py::test_matrix_table_show
+  burn-in-iterations: 7
+  mean: 0.765
+  cv: 0.133
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+  - { slowdown: 1.3, instances:  5, iterations:  5 }
+
+
+- item: benchmark/hail/benchmark_matrix_table.py::test_matrix_table_take_col
+  burn-in-iterations: 10
+  mean: 0.172
+  cv: 0.221
+  config:
+  - { slowdown: 1.2, instances: 25, iterations: 15 }
+  - { slowdown: 1.3, instances: 15, iterations: 10 }
+  - { slowdown: 1.4, instances: 10, iterations: 10 }
+
+
+- item: benchmark/hail/benchmark_matrix_table.py::test_matrix_table_take_entry
+  burn-in-iterations: 8
+  mean: 0.606
+  cv: 0.161
+  config:
+  - { slowdown: 1.2, instances: 15, iterations: 10 }
+  - { slowdown: 1.3, instances: 10, iterations: 15 }
+
+
+- item: benchmark/hail/benchmark_matrix_table.py::test_matrix_table_take_row
+  burn-in-iterations: 10
+  mean: 0.684
+  cv: 0.125
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+  - { slowdown: 1.3, instances:  5, iterations: 10 }
+
+
+- item: benchmark/hail/benchmark_matrix_table.py::test_mt_group_by_memory_usage
+  burn-in-iterations: 5
+  mean: 26.496
+  cv: 0.08
+  config:
+  - { slowdown: 1.1, instances: 20, iterations:  5 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+
+- item: benchmark/hail/benchmark_matrix_table.py::test_mt_localize_and_collect
+  burn-in-iterations: 5
+  mean: 7.152
+  cv: 0.089
+  config:
+  - { slowdown: 1.1, instances: 20, iterations: 10 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+
+- item: benchmark/hail/benchmark_matrix_table.py::test_per_row_stats_star_star
+  burn-in-iterations: 10
+  mean: 6.436
+  cv: 0.103
+  config:
+  - { slowdown: 1.1, instances: 25, iterations: 10 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+
+- item: benchmark/hail/benchmark_matrix_table.py::test_read_decode_gnomad_coverage
+  burn-in-iterations: 10
+  mean: 2.782
+  cv: 0.106
+  config:
+  - { slowdown: 1.1, instances: 25, iterations: 20 }
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+
+- item: benchmark/hail/benchmark_matrix_table.py::test_write_profile_mt
+  burn-in-iterations: 8
+  mean: 17.696
+  cv: 0.082
+  config:
+  - { slowdown: 1.1, instances: 15, iterations: 15 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+
+- item: benchmark/hail/benchmark_matrix_table.py::test_write_range_matrix_table_p100
+  burn-in-iterations: 2
+  mean: 4.886
+  cv: 0.092
+  config:
+  - { slowdown: 1.1, instances: 25, iterations: 10 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+
+- item: benchmark/hail/benchmark_methods.py::test_concordance
+  burn-in-iterations: 2
+  mean: 40.419
+  cv: 0.088
+  config:
+  - { slowdown: 1.1, instances: 25, iterations:  5 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+
+- item: benchmark/hail/benchmark_methods.py::test_export_vcf
+  burn-in-iterations: 8
+  mean: 64.108
+  cv: 0.076
+  config:
+  - { slowdown: 1.1, instances: 20, iterations:  5 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+- item: benchmark/hail/benchmark_methods.py::test_genetics_pipeline
+  burn-in-iterations: 4
+  mean: 110.924
+  cv: 0.083
+  config:
+  - { slowdown: 1.1, instances: 20, iterations:  5 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+- item: benchmark/hail/benchmark_methods.py::test_hwe_normalized_pca_blanczos_small_data_0_iterations
+  burn-in-iterations: 8
+  mean: 31.815
+  cv: 0.082
+  config:
+  - { slowdown: 1.1, instances: 20, iterations: 15 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+
+- item: benchmark/hail/benchmark_methods.py::test_hwe_normalized_pca_blanczos_small_data_10_iterations
+  burn-in-iterations: 8
+  mean: 84.876
+  cv: 0.087
+  config:
+  - { slowdown: 1.1, instances: 20, iterations: 15 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+- item: benchmark/hail/benchmark_methods.py::test_import_vcf_count_rows
+  burn-in-iterations: 1
+  mean: 7.501
+  cv: 0.071
+  config:
+  - { slowdown: 1.1, instances: 15, iterations: 15 }
+  - { slowdown: 1.2, instances:  5, iterations: 20 }
+
+- item: benchmark/hail/benchmark_methods.py::test_import_vcf_write
+  burn-in-iterations: 5
+  mean: 59.599
+  cv: 0.092
+  config:
+  - { slowdown: 1.1, instances: 25, iterations: 10 }
+  - { slowdown: 1.2, instances: 15, iterations:  5 }
+
+- item: benchmark/hail/benchmark_methods.py::test_linear_regression_rows
+  burn-in-iterations: 10
+  mean: 67.541
+  cv: 0.069
+  config:
+  - { slowdown: 1.1, instances: 20, iterations:  5 }
+  - { slowdown: 1.2, instances: 15, iterations:  5 }
+
+- item: benchmark/hail/benchmark_methods.py::test_logistic_regression_rows_wald
+  burn-in-iterations: 5
+  mean: 17.191
+  cv: 0.07
+  config:
+  - { slowdown: 1.1, instances: 20, iterations:  5 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+- item: benchmark/hail/benchmark_methods.py::test_sample_qc
+  burn-in-iterations: 3
+  mean: 23.875
+  cv: 0.086
+  config:
+  - { slowdown: 1.1, instances: 20, iterations:  5 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+- item: benchmark/hail/benchmark_methods.py::test_split_multi
+  burn-in-iterations: 8
+  mean: 15.948
+  cv: 0.093
+  config:
+  - { slowdown: 1.1, instances: 25, iterations: 15 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+- item: benchmark/hail/benchmark_methods.py::test_split_multi_hts
+  burn-in-iterations: 10
+  mean: 34.055
+  cv: 0.084
+  config:
+  - { slowdown: 1.1, instances: 20, iterations:  5 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+- item: benchmark/hail/benchmark_methods.py::test_variant_and_sample_qc
+  burn-in-iterations: 10
+  mean: 36.176
+  cv: 0.086
+  config:
+  - { slowdown: 1.1, instances: 25, iterations: 10 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+  - { slowdown: 1.3, instances:  5, iterations:  5 }
+
+- item: benchmark/hail/benchmark_methods.py::test_variant_and_sample_qc_nested_with_filters_2
+  burn-in-iterations: 2
+  mean: 23.797
+  cv: 0.09
+  config:
+  - { slowdown: 1.1, instances: 20, iterations:  5 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+- item: benchmark/hail/benchmark_methods.py::test_variant_and_sample_qc_nested_with_filters_4
+  burn-in-iterations: 10
+  mean: 44.613
+  cv: 0.097
+  config:
+  - { slowdown: 1.1, instances: 25, iterations: 25 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+- item: benchmark/hail/benchmark_methods.py::test_variant_and_sample_qc_nested_with_filters_4_counts
+  burn-in-iterations: 8
+  mean: 108.611
+  cv: 0.098
+  config:
+  - { slowdown: 1.2, instances: 15, iterations:  5 }
+  - { slowdown: 1.3, instances: 10, iterations:  5 }
+
+- item: benchmark/hail/benchmark_methods.py::test_variant_qc
+  burn-in-iterations: 5
+  mean: 11.262
+  cv: 0.093
+  config:
+  - { slowdown: 1.1, instances: 20, iterations: 20 }
+  - { slowdown: 1.2, instances:  5, iterations: 10 }
+
+- item: benchmark/hail/benchmark_sentinel.py::test_sentinel_cpu_hash_1
+  burn-in-iterations: 5
+  mean: 22.651
+  cv: 0.094
+  config:
+  - { slowdown: 1.1, instances: 25, iterations: 10 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+- item: benchmark/hail/benchmark_sentinel.py::test_sentinel_read_gunzip
+  burn-in-iterations: 10
+  mean: 28.708
+  cv: 0.056
+  config:
+  - { slowdown: 1.1, instances: 10, iterations: 5 }
+
+- item: benchmark/hail/benchmark_shuffle.py::test_shuffle_key_by_aggregate_bad_locality
+  burn-in-iterations: 8
+  mean: 59.875
+  cv: 0.079
+  config:
+  - { slowdown: 1.1, instances: 15, iterations: 10 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+- item: benchmark/hail/benchmark_shuffle.py::test_shuffle_key_by_aggregate_good_locality
+  burn-in-iterations: 5
+  mean: 21.635
+  cv: 0.077
+  config:
+  - { slowdown: 1.1, instances: 20, iterations: 10 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+- item: benchmark/hail/benchmark_shuffle.py::test_shuffle_key_rows_by_4096_byte_rows
+  burn-in-iterations: 2
+  mean: 9.612
+  cv: 0.087
+  config:
+  - { slowdown: 1.1, instances: 20, iterations: 10 }
+  - { slowdown: 1.2, instances:  5, iterations: 20 }
+
+- item: benchmark/hail/benchmark_shuffle.py::test_shuffle_key_rows_by_65k_byte_rows
+  burn-in-iterations: 4
+  mean: 13.216
+  cv: 0.099
+  config:
+  - { slowdown: 1.1, instances: 25, iterations: 15 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+- item: benchmark/hail/benchmark_shuffle.py::test_shuffle_key_rows_by_mt
+  burn-in-iterations: 10
+  mean: 32.887
+  cv: 0.096
+  config:
+  - { slowdown: 1.1, instances: 25, iterations: 15 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+- item: benchmark/hail/benchmark_shuffle.py::test_shuffle_order_by_10m_int
+  burn-in-iterations: 10
+  mean: 47.444
+  cv: 0.103
+  config:
+  - { slowdown: 1.1, instances: 25, iterations: 15 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+- item: benchmark/hail/benchmark_table.py::test_group_by_collect_per_row
+  burn-in-iterations: 5
+  mean: 3.068
+  cv: 0.094
+  config:
+  - { slowdown: 1.1, instances: 15, iterations: 20 }
+  - { slowdown: 1.1, instances:  5, iterations: 10 }
+
+- item: benchmark/hail/benchmark_table.py::test_group_by_take_rekey
+  burn-in-iterations: 10
+  mean: 7.132
+  cv: 0.09
+  config:
+  - { slowdown: 1.1, instances: 25, iterations: 5 }
+  - { slowdown: 1.2, instances: 10, iterations: 5 }
+
+- item: benchmark/hail/benchmark_table.py::test_join_partitions_table[10-1000]
+  burn-in-iterations: 5
+  mean: 17.699
+  cv: 0.083
+  config:
+  - { slowdown: 1.1, instances: 25, iterations:  5 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+- item: benchmark/hail/benchmark_table.py::test_join_partitions_table[10-100]
+  burn-in-iterations: 2
+  mean: 10.531
+  cv: 0.113
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+  - { slowdown: 1.3, instances: 10, iterations:  5 }
+
+- item: benchmark/hail/benchmark_table.py::test_join_partitions_table[10-10]
+  burn-in-iterations: 4
+  mean: 2.241
+  cv: 0.132
+  config:
+  - { slowdown: 1.1, instances: 25, iterations: 20 }
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+- item: benchmark/hail/benchmark_table.py::test_join_partitions_table[100-1000]
+  burn-in-iterations: 8
+  mean: 17.455
+  cv: 0.111
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 15 }
+  - { slowdown: 1.3, instances:  5, iterations: 20 }
+
+- item: benchmark/hail/benchmark_table.py::test_join_partitions_table[100-100]
+  burn-in-iterations: 10
+  mean: 2.585
+  cv: 0.128
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 20 }
+  - { slowdown: 1.3, instances:  5, iterations: 15 }
+
+- item: benchmark/hail/benchmark_table.py::test_join_partitions_table[100-10]
+  burn-in-iterations: 10
+  mean: 10.102
+  cv: 0.106
+  config:
+  - { slowdown: 1.1, instances: 25, iterations: 25 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+- item: benchmark/hail/benchmark_table.py::test_join_partitions_table[1000-1000]
+  burn-in-iterations: 8
+  mean: 8.389
+  cv: 0.094
+  config:
+  - { slowdown: 1.1, instances: 25, iterations: 25 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+- item: benchmark/hail/benchmark_table.py::test_join_partitions_table[1000-100]
+  burn-in-iterations: 10
+  mean: 18.146
+  cv: 0.104
+  config:
+  - { slowdown: 1.2, instances: 15, iterations:  5 }
+  - { slowdown: 1.3, instances: 10, iterations:  5 }
+
+- item: benchmark/hail/benchmark_table.py::test_join_partitions_table[1000-10]
+  burn-in-iterations: 12
+  mean: 17.174
+  cv: 0.091
+  config:
+  - { slowdown: 1.1, instances: 25, iterations: 10 }
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+- item: benchmark/hail/benchmark_table.py::test_read_force_count_partitions[1000]
+  burn-in-iterations: 10
+  mean: 6.43
+  cv: 0.088
+  config:
+  - { slowdown: 1.1, instances: 25, iterations: 15 }
+  - { slowdown: 1.2, instances: 15, iterations:  5 }
+
+- item: benchmark/hail/benchmark_table.py::test_read_force_count_partitions[100]
+  burn-in-iterations: 8
+  mean: 1.335
+  cv: 0.12
+  config:
+  - { slowdown: 1.1, instances: 25, iterations: 25 }
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+- item: benchmark/hail/benchmark_table.py::test_read_force_count_partitions[10]
+  burn-in-iterations: 10
+  mean: 0.918
+  cv: 0.144
+  config:
+  - { slowdown: 1.2, instances: 15, iterations: 10 }
+  - { slowdown: 1.3, instances:  5, iterations: 15 }
+
+- item: benchmark/hail/benchmark_table.py::test_read_with_index[1000]
+  burn-in-iterations: 8
+  mean: 9.923
+  cv: 0.085
+  config:
+  - { slowdown: 1.1, instances: 25, iterations: 10 }
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+- item: benchmark/hail/benchmark_table.py::test_table_aggregate_approx_cdf
+  burn-in-iterations: 4
+  mean: 61.809
+  cv: 0.06
+  config:
+  - { slowdown: 1.05, instances: 25, iterations: 10 }
+  - { slowdown: 1.10, instances: 10, iterations: 10 }
+
+- item: benchmark/hail/benchmark_table.py::test_table_aggregate_array_sum
+  burn-in-iterations: 5
+  mean: 11.871
+  cv: 0.108
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+  - { slowdown: 1.3, instances: 10, iterations:  5 }
+
+
+- item: benchmark/hail/benchmark_table.py::test_table_aggregate_counter
+  burn-in-iterations: 10
+  mean: 20.821
+  cv: 0.092
+  config:
+  - { slowdown: 1.1, instances: 25, iterations: 10 }
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+- item: benchmark/hail/benchmark_table.py::test_table_aggregate_downsample_dense
+  burn-in-iterations: 5
+  mean: 50.587
+  cv: 0.148
+  config:
+  - { slowdown: 1.2, instances: 15, iterations: 15 }
+  - { slowdown: 1.3, instances: 10, iterations: 15 }
+
+
+- item: benchmark/hail/benchmark_table.py::test_table_aggregate_downsample_worst_case
+  burn-in-iterations: 10
+  mean: 22.245
+  cv: 0.095
+  config:
+  - { slowdown: 1.1, instances: 25, iterations:  5 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+- item: benchmark/hail/benchmark_table.py::test_table_aggregate_int_stats
+  burn-in-iterations: 5
+  mean: 14.329
+  cv: 0.085
+  config:
+  - { slowdown: 1.1, instances: 25, iterations:  5 }
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+- item: benchmark/hail/benchmark_table.py::test_table_aggregate_linreg
+  burn-in-iterations: 8
+  mean: 87.441
+  cv: 0.1
+  config:
+  - { slowdown: 1.1, instances: 20, iterations: 15 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+- item: benchmark/hail/benchmark_table.py::test_table_aggregate_take_by_strings
+  burn-in-iterations: 10
+  mean: 9.961
+  cv: 0.09
+  config:
+  - { slowdown: 1.1, instances: 20, iterations: 10 }
+  - { slowdown: 1.2, instances:  5, iterations: 10 }
+
+- item: benchmark/hail/benchmark_table.py::test_table_annotate_many_flat
+  burn-in-iterations: 5
+  mean: 0.835
+  cv: 0.156
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 15 }
+  - { slowdown: 1.3, instances: 10, iterations:  5 }
+
+- item: benchmark/hail/benchmark_table.py::test_table_big_aggregate_compilation
+  burn-in-iterations: 4
+  mean: 121.192
+  cv: 0.084
+  config:
+  - { slowdown: 1.1, instances: 25, iterations: 15 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+- item: benchmark/hail/benchmark_table.py::test_table_big_aggregate_compile_and_execute
+  burn-in-iterations: 2
+  mean: 123.948
+  cv: 0.094
+  config:
+  - { slowdown: 1.1, instances: 25, iterations: 15 }
+  - { slowdown: 1.2, instances: 15, iterations:  5 }
+  - { slowdown: 1.3, instances: 10, iterations:  5 }
+
+- item: benchmark/hail/benchmark_table.py::test_table_expr_take
+  burn-in-iterations: 25
+  mean: 0.279
+  cv: 0.148
+  config:
+  - { slowdown: 1.2, instances: 15, iterations: 5 }
+  - { slowdown: 1.3, instances: 10, iterations: 5 }
+
+- item: benchmark/hail/benchmark_table.py::test_table_foreign_key_join[1000000-1000000]
+  burn-in-iterations: 3
+  mean: 10.693
+  cv: 0.097
+  config:
+  - { slowdown: 1.1, instances: 20, iterations: 15 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+- item: benchmark/hail/benchmark_table.py::test_table_foreign_key_join[1000000-1000]
+  burn-in-iterations: 3
+  mean: 11.019
+  cv: 0.101
+  config:
+  - { slowdown: 1.1, instances: 25, iterations: 25 }
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+- item: benchmark/hail/benchmark_table.py::test_table_group_by_aggregate_sorted
+  burn-in-iterations: 8
+  mean: 1.974
+  cv: 0.125
+  config:
+  - { slowdown: 1.1, instances: 25, iterations: 15 }
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+- item: benchmark/hail/benchmark_table.py::test_table_group_by_aggregate_unsorted
+  burn-in-iterations: 7
+  mean: 1.773
+  cv: 0.128
+  config:
+  - { slowdown: 1.1, instances: 25, iterations: 15 }
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+- item: benchmark/hail/benchmark_table.py::test_table_import_ints
+  burn-in-iterations: 4
+  mean: 110.841
+  cv: 0.074
+  config:
+  - { slowdown: 1.05, instances: 30, iterations: 20 }
+  - { slowdown: 1.10, instances: 15, iterations:  5 }
+  - { slowdown: 1.20, instances:  5, iterations:  5 }
+
+- item: benchmark/hail/benchmark_table.py::test_table_import_ints_impute
+  burn-in-iterations: 8
+  mean: 92.554
+  cv: 0.067
+  config:
+  - { slowdown: 1.05, instances: 30, iterations: 15 }
+  - { slowdown: 1.10, instances: 15, iterations:  5 }
+  - { slowdown: 1.20, instances:  5, iterations:  5 }
+
+- item: benchmark/hail/benchmark_table.py::test_table_import_strings
+  burn-in-iterations: 3
+  mean: 23.211
+  cv: 0.09
+  config:
+  - { slowdown: 1.1, instances: 15, iterations:  5 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+- item: benchmark/hail/benchmark_table.py::test_table_key_by_shuffle
+  burn-in-iterations: 3
+  mean: 4.359
+  cv: 0.121
+  config:
+   - { slowdown: 1.2, instances: 10, iterations: 15 }
+   - { slowdown: 1.3, instances: 10, iterations:  5 }
+
+- item: benchmark/hail/benchmark_table.py::test_table_key_by_shuffle
+  burn-in-iterations: 3
+  mean: 4.359
+  cv: 0.121
+  config:
+  - { slowdown: 1.2, instances: 15, iterations: 10 }
+  - { slowdown: 1.3, instances: 10, iterations: 10 }
+  - { slowdown: 1.3, instances:  5, iterations: 10 }
+
+- item: benchmark/hail/benchmark_table.py::test_table_python_construction
+  burn-in-iterations: 10
+  mean: 0.958
+  cv: 0.162
+  config:
+  - { slowdown: 1.2, instances: 15, iterations: 10 }
+  - { slowdown: 1.3, instances: 10, iterations:  5 }
+
+- item: benchmark/hail/benchmark_table.py::test_table_range_array_range_force_count
+  burn-in-iterations: 6
+  mean: 6.455
+  cv: 0.082
+  config:
+  - { slowdown: 1.1, instances: 15, iterations: 10 }
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+- item: benchmark/hail/benchmark_table.py::test_table_range_force_count
+  burn-in-iterations: 10
+  mean: 2.037
+  cv: 0.137
+  config:
+  - { slowdown: 1.2, instances: 15, iterations:  5 }
+  - { slowdown: 1.3, instances: 10, iterations:  5 }
+
+- item: benchmark/hail/benchmark_table.py::test_table_range_join[1000000000-1000000000]
+  burn-in-iterations: 10
+  mean: 0.213
+  cv: 0.417
+  config:
+  - { slowdown: 1.3, instances: 25, iterations: 20 }
+  - { slowdown: 1.4, instances: 15, iterations: 20 }
+  - { slowdown: 1.5, instances: 10, iterations: 15 }
+
+- item: benchmark/hail/benchmark_table.py::test_table_range_join[1000000000-1000]
+  burn-in-iterations: 20
+  mean: 47.356
+  cv: 0.065
+  config:
+  - { slowdown: 1.1, instances: 15, iterations:  5 }
+  - { slowdown: 1.2, instances:  5, iterations:  5 }
+
+- item: benchmark/hail/benchmark_table.py::test_table_range_means
+  burn-in-iterations: 10
+  mean: 3.299
+  cv: 0.071
+  config:
+  - { slowdown: 1.1, instances: 15, iterations: 15 }
+  - { slowdown: 1.2, instances:  5, iterations: 10 }
+
+- item: benchmark/hail/benchmark_table.py::test_table_read_force_count_ints
+  burn-in-iterations: 5
+  mean: 8.303
+  cv: 0.083
+  config:
+  - { slowdown: 1.1, instances: 20, iterations: 15 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+- item: benchmark/hail/benchmark_table.py::test_table_read_force_count_strings
+  burn-in-iterations: 4
+  mean: 5.422
+  cv: 0.102
+  config:
+  - { slowdown: 1.1, instances: 25, iterations: 10 }
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+- item: benchmark/hail/benchmark_table.py::test_table_scan_prev_non_null
+  burn-in-iterations: 20
+  mean: 24.931
+  cv: 0.093
+  config:
+  - { slowdown: 1.1, instances: 25, iterations: 5 }
+  - { slowdown: 1.2, instances: 10, iterations: 5 }
+
+- item: benchmark/hail/benchmark_table.py::test_table_scan_sum_1k_partitions
+  burn-in-iterations: 2
+  mean: 10.027
+  cv: 0.106
+  config:
+  - { slowdown: 1.2, instances: 15, iterations: 15 }
+  - { slowdown: 1.3, instances: 10, iterations: 10 }
+
+- item: benchmark/hail/benchmark_table.py::test_table_show
+  burn-in-iterations: 12
+  mean: 0.491
+  cv: 0.143
+  config:
+  - { slowdown: 1.2, instances: 15, iterations: 20 }
+  - { slowdown: 1.3, instances: 10, iterations: 10 }
+
+- item: benchmark/hail/benchmark_table.py::test_table_take
+  burn-in-iterations: 20
+  mean: 0.267
+  cv: 0.135
+  config:
+  - { slowdown: 1.1, instances: 25, iterations: 25 }
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+  - { slowdown: 1.3, instances:  5, iterations:  5 }
+
+- item: benchmark/hail/benchmark_table.py::test_test_head_and_tail_region_memory
+  burn-in-iterations: 10
+  mean: 1.843
+  cv: 0.055
+  config:
+  - { slowdown: 1.1, instances: 15, iterations:  5 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+- item: benchmark/hail/benchmark_table.py::test_test_inner_join_region_memory
+  burn-in-iterations: 10
+  mean: 1.906
+  cv: 0.053
+  config:
+  - { slowdown: 1.05, instances: 30, iterations: 20 }
+  - { slowdown: 1.10, instances: 10, iterations:  5 }
+
+- item: benchmark/hail/benchmark_table.py::test_test_left_join_region_memory
+  burn-in-iterations: 10
+  mean: 1.888
+  cv: 0.054
+  config:
+  - { slowdown: 1.05, instances: 30, iterations: 30 }
+  - { slowdown: 1.10, instances: 10, iterations:  5 }
+
+- item: benchmark/hail/benchmark_table.py::test_test_map_filter_region_memory
+  burn-in-iterations: 10
+  mean: 1.867
+  cv: 0.052
+  config:
+  - { slowdown: 1.05, instances: 30, iterations: 25 }
+  - { slowdown: 1.10, instances: 10, iterations:  5 }
+
+- item: benchmark/hail/benchmark_table.py::test_union_partitions_table[10-1000]
+  burn-in-iterations: 8
+  mean: 19.364
+  cv: 0.094
+  config:
+  - { slowdown: 1.1, instances: 15, iterations: 25 }
+  - { slowdown: 1.2, instances: 15, iterations:  5 }
+  - { slowdown: 1.3, instances:  5, iterations:  5 }
+
+- item: benchmark/hail/benchmark_table.py::test_union_partitions_table[10-100]
+  burn-in-iterations: 5
+  mean: 12.008
+  cv: 0.116
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+  - { slowdown: 1.3, instances:  5, iterations: 15 }
+
+- item: benchmark/hail/benchmark_table.py::test_union_partitions_table[10-10]
+  burn-in-iterations: 4
+  mean: 3.498
+  cv: 0.12
+  config:
+  - { slowdown: 1.1, instances: 25, iterations: 15 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+- item: benchmark/hail/benchmark_table.py::test_union_partitions_table[100-1000]
+  burn-in-iterations: 15
+  mean: 19.207
+  cv: 0.096
+  config:
+  - { slowdown: 1.1, instances: 25, iterations: 10 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+- item: benchmark/hail/benchmark_table.py::test_union_partitions_table[100-100]
+  burn-in-iterations: 5
+  mean: 4.113
+  cv: 0.11
+  config:
+  - { slowdown: 1.1, instances: 10, iterations: 15 }
+  - { slowdown: 1.2, instances:  5, iterations: 10 }
+
+- item: benchmark/hail/benchmark_table.py::test_union_partitions_table[100-10]
+  burn-in-iterations: 16
+  mean: 11.358
+  cv: 0.107
+  config:
+  - { slowdown: 1.1, instances: 25, iterations: 15 }
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+  - { slowdown: 1.3, instances:  5, iterations:  5 }
+
+- item: benchmark/hail/benchmark_table.py::test_union_partitions_table[1000-1000]
+  burn-in-iterations: 15
+  mean: 10.002
+  cv: 0.087
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+- item: benchmark/hail/benchmark_table.py::test_union_partitions_table[1000-100]
+  burn-in-iterations: 6
+  mean: 18.976
+  cv: 0.107
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 5 }
+
+- item: benchmark/hail/benchmark_table.py::test_union_partitions_table[1000-10]
+  burn-in-iterations: 10
+  mean: 19.082
+  cv: 0.097
+  config:
+  - { slowdown: 1.2, instances: 10, iterations: 20 }
+  - { slowdown: 1.3, instances:  5, iterations: 10 }
+
+- item: benchmark/hail/benchmark_table.py::test_write_range_table[10000000-1000]
+  burn-in-iterations: 6
+  mean: 31.184
+  cv: 0.088
+  config:
+  - { slowdown: 1.1, instances: 25, iterations: 15 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+
+- item: benchmark/hail/benchmark_table.py::test_write_range_table[10000000-100]
+  burn-in-iterations: 3
+  mean: 5.64
+  cv: 0.09
+  config:
+  - { slowdown: 1.1, instances: 25, iterations: 15 }
+  - { slowdown: 1.2, instances: 10, iterations: 10 }
+
+- item: benchmark/hail/benchmark_table.py::test_write_range_table[10000000-10]
+  burn-in-iterations: 3
+  mean: 3.431
+  cv: 0.11
+  config:
+  - { slowdown: 1.1, instances: 20, iterations: 20 }
+  - { slowdown: 1.2, instances: 10, iterations:  5 }
+  - { slowdown: 1.2, instances:  5, iterations:  5 }
