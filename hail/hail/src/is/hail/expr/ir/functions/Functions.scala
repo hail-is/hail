@@ -2,7 +2,10 @@ package is.hail.expr.ir.functions
 
 import is.hail.annotations._
 import is.hail.asm4s._
+import is.hail.asm4s.implicits.valueToRichCodeRegion
 import is.hail.backend.{ExecuteContext, HailStateManager}
+import is.hail.collection.FastSeq
+import is.hail.collection.implicits.toRichIterable
 import is.hail.experimental.ExperimentalFunctions
 import is.hail.expr.ir._
 import is.hail.expr.ir.defs.{Apply, ApplyIR, ApplySpecial}

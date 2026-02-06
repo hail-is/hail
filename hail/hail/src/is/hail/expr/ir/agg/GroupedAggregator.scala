@@ -2,7 +2,11 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.asm4s.implicits.{
+  valueToRichCodeInputBuffer, valueToRichCodeOutputBuffer, valueToRichCodeRegion,
+}
 import is.hail.backend.ExecuteContext
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.{
   EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitValue, IEmitCode, ParamType,
 }
@@ -14,7 +18,6 @@ import is.hail.types.physical._
 import is.hail.types.physical.stypes.{EmitType, SValue}
 import is.hail.types.physical.stypes.concrete.SIndexablePointer
 import is.hail.types.virtual.{TVoid, Type}
-import is.hail.utils._
 
 class GroupedBTreeKey(
   kt: PType,

@@ -1,6 +1,7 @@
 package is.hail.io.avro
 
 import is.hail.backend.{ExecuteContext, HailStateManager}
+import is.hail.collection.FastSeq
 import is.hail.expr.ir._
 import is.hail.expr.ir.defs.{
   ArrayZipBehavior, Cast, I32, Literal, MakeStruct, PartitionReader, ReadPartition, StreamIota,
@@ -11,7 +12,7 @@ import is.hail.rvd.RVDPartitioner
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical.{PCanonicalStruct, PCanonicalTuple, PInt64Required}
 import is.hail.types.virtual._
-import is.hail.utils.{plural, FastSeq}
+import is.hail.utils.plural
 
 import org.json4s.{Formats, JValue}
 

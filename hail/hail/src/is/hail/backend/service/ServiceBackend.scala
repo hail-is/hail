@@ -5,6 +5,8 @@ import is.hail.backend._
 import is.hail.backend.Backend.PartitionFn
 import is.hail.backend.local.LocalTaskContext
 import is.hail.backend.service.ServiceBackend.MaxAvailableGcsConnections
+import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.Validate
 import is.hail.expr.ir.{
   CompileAndEvaluate, IR, IRSize, LoweringAnalyses, SortField, TableIR, TableReader, TypeCheck,
@@ -17,7 +19,6 @@ import is.hail.services.oauth2.{CloudCredentials, HailCredentials}
 import is.hail.types._
 import is.hail.types.physical._
 import is.hail.utils._
-import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.collection.compat._
 import scala.concurrent.{Await, CancellationException, ExecutionContext, Future}

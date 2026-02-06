@@ -4,17 +4,21 @@ import is.hail.annotations._
 import is.hail.asm4s.{theHailClassLoaderForSparkWorkers, HailClassLoader}
 import is.hail.backend.{ExecuteContext, HailStateManager, HailTaskContext}
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
+import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
+import is.hail.collection.implicits.{arrayToRichIndexedSeq, toRichIterable, toRichOrderedArray}
 import is.hail.expr.ir.InferPType
 import is.hail.expr.ir.PruneDeadFields.isSupertype
 import is.hail.expr.ir.agg.AggExecuteContextExtensions
 import is.hail.io._
 import is.hail.io.index.IndexWriter
+import is.hail.rvd.RVD.RichIteratorLong
 import is.hail.sparkextras._
+import is.hail.sparkextras.implicits._
 import is.hail.types.physical.{PCanonicalStruct, PInt64, PStruct}
 import is.hail.types.virtual.{MatrixType, TInterval, TStruct}
 import is.hail.utils._
 import is.hail.utils.PartitionCounts.{getPCSubsetOffset, incrementalPCSubsetOffset, PCSubsetOffset}
-import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.collection.parallel.CollectionConverters._
 import scala.reflect.ClassTag
@@ -1469,6 +1473,13 @@ object RVD extends Logging {
     )
 
     fileData
+  }
+
+  implicit class RichIteratorLong(private val it: Iterator[Long]) extends AnyVal {
+    def toIteratorRV(region: Region): Iterator[RegionValue] = {
+      val rv = RegionValue(region)
+      it.map { ptr => rv.setOffset(ptr); rv }
+    }
   }
 }
 

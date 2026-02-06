@@ -2,6 +2,7 @@ package is.hail.types
 
 import is.hail.annotations.{Annotation, NDArray}
 import is.hail.backend.ExecuteContext
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.{ComputeUsesAndDefs, Env, IR}
 import is.hail.expr.ir.lowering.TableStage
 import is.hail.types.physical._
@@ -9,7 +10,7 @@ import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.concrete.SIndexablePointer
 import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SInterval, SNDArray, SStream}
 import is.hail.types.virtual._
-import is.hail.utils.{toMapFast, FastSeq, Interval}
+import is.hail.utils.{toMapFast, Interval}
 
 import scala.collection.compat._
 

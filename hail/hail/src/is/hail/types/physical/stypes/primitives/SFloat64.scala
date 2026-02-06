@@ -3,11 +3,11 @@ package is.hail.types.physical.stypes.primitives
 import is.hail.annotations.Region
 import is.hail.asm4s.{DoubleInfo, Settable, SettableBuilder, TypeInfo, Value}
 import is.hail.asm4s.Code.invokeStatic1
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.{PFloat64, PType}
 import is.hail.types.physical.stypes.{SSettable, SType, SValue}
 import is.hail.types.virtual.{TFloat64, Type}
-import is.hail.utils.FastSeq
 
 case object SFloat64 extends SPrimitive {
   override def ti: TypeInfo[_] = DoubleInfo

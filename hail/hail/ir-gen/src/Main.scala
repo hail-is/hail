@@ -1203,9 +1203,10 @@ object Main {
     val pack = "package is.hail.expr.ir.defs"
     val imports = Seq(
       "is.hail.annotations.Annotation",
+      "is.hail.collection.FastSeq",
       "is.hail.io.{AbstractTypedCodecSpec, BufferSpec}",
       "is.hail.types.virtual.{Type, TArray, TStream, TVoid, TStruct, TTuple}",
-      "is.hail.utils.{FastSeq, StringEscapeUtils}",
+      "is.hail.utils.StringEscapeUtils",
       "is.hail.expr.ir.{AggOp, BaseIR, IR, TableIR, MatrixIR, BlockMatrixIR, Name, UnaryOp, BinaryOp, " +
         "ComparisonOp, CanEmit, EmitParamType, TableWriter, " +
         "WrappedMatrixNativeMultiWriter, MatrixWriter, MatrixNativeMultiWriter, BlockMatrixWriter, " +

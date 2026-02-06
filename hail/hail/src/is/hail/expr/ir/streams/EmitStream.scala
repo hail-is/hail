@@ -3,6 +3,9 @@ package is.hail.expr.ir.streams
 import is.hail.annotations.{Region, RegionPool}
 import is.hail.annotations.Region.REGULAR
 import is.hail.asm4s._
+import is.hail.asm4s.implicits.valueToRichCodeRegion
+import is.hail.collection.FastSeq
+import is.hail.collection.implicits.toRichOption
 import is.hail.expr.ir._
 import is.hail.expr.ir.agg.{AggStateSig, DictState, PhysicalAggSig, StateTuple}
 import is.hail.expr.ir.defs._
@@ -24,6 +27,7 @@ import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SFloat64Value, SInt32Value}
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.utils.implicits.toRichBoolean
 import is.hail.variant.Locus
 
 import scala.annotation.nowarn

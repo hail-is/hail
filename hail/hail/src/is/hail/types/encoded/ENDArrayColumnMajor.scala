@@ -2,6 +2,7 @@ package is.hail.types.encoded
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.asm4s.implicits.{valueToRichCodeInputBuffer, valueToRichCodeOutputBuffer}
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types.physical.PCanonicalNDArray
@@ -9,7 +10,6 @@ import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.physical.stypes.concrete.SNDArrayPointer
 import is.hail.types.physical.stypes.interfaces.{SNDArray, SNDArrayValue}
 import is.hail.types.virtual.{TNDArray, Type}
-import is.hail.utils._
 
 case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean = false)
     extends EContainer {

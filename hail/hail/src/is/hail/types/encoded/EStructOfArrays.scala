@@ -2,6 +2,10 @@ package is.hail.types.encoded
 
 import is.hail.annotations.{Region, UnsafeUtils}
 import is.hail.asm4s._
+import is.hail.asm4s.implicits.{
+  valueToRichCodeInputBuffer, valueToRichCodeOutputBuffer, valueToRichCodeRegion,
+}
+import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types._
@@ -10,7 +14,6 @@ import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual.{Field => TField, _}
-import is.hail.utils._
 
 object EStructOfArrays {
   // expand this as more types are supported

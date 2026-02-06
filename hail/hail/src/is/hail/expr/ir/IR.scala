@@ -63,6 +63,8 @@ trait IR extends BaseIR {
 
 package defs {
 
+  import is.hail.collection.FastSeq
+
   trait TypedIR[T <: Type] extends IR {
     override def typ: T = tcoerce[T](super.typ)
   }
@@ -524,6 +526,8 @@ package defs {
   }
 
   package exts {
+
+    import is.hail.collection.implicits.toRichIterable
 
     abstract class UUID4CompanionExt {
       def apply(): UUID4 = UUID4(genUID())

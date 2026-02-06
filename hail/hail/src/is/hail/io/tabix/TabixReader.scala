@@ -1,10 +1,11 @@
 package is.hail.io.tabix
 
-import is.hail.expr.ir.IntArrayBuilder
+import is.hail.collection.IntArrayBuilder
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.io.compress.BGzipLineReader
 import is.hail.io.fs.FS
 import is.hail.utils._
-import is.hail.utils.compat.immutable.ArraySeq
+import is.hail.utils.implicits.toRichInputStream
 
 import scala.collection.mutable
 

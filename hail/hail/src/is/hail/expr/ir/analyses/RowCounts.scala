@@ -1,7 +1,8 @@
 package is.hail.expr.ir.analyses
 
+import is.hail.collection.FastSeq
+import is.hail.collection.implicits.toRichOption
 import is.hail.expr.ir._
-import is.hail.utils.{toRichOption, FastSeq}
 import is.hail.utils.PartitionCounts.{getHeadPCs, getTailPCs}
 
 object PartitionCounts {

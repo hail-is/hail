@@ -1,7 +1,9 @@
 package is.hail.variant
 
+import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.Parser
 import is.hail.utils._
+import is.hail.utils.implicits.toRichBoolean
 
 import scala.annotation.switch
 import scala.jdk.CollectionConverters._

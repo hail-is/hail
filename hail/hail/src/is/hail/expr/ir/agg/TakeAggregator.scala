@@ -2,6 +2,9 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.Region
 import is.hail.asm4s.{Code, _}
+import is.hail.asm4s.implicits.{
+  valueToRichCodeInputBuffer, valueToRichCodeOutputBuffer, valueToRichCodeRegion,
+}
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
@@ -10,7 +13,6 @@ import is.hail.types.physical._
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerValue}
 import is.hail.types.virtual.{TInt32, Type}
-import is.hail.utils._
 
 class TakeRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuilder[_])
     extends AggregatorState {

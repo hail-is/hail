@@ -1,8 +1,9 @@
 package is.hail.utils
 
 import is.hail.annotations._
+import is.hail.collection.compat.immutable.ArraySeq
+import is.hail.sparkextras.implicits.toRichRow
 import is.hail.types.virtual.TBoolean
-import is.hail.utils.compat.immutable.ArraySeq
 
 import org.apache.spark.sql.Row
 import org.json4s.JValue
@@ -275,4 +276,12 @@ object Interval {
     }
     ab.result()
   }
+
+  def ordMax[T](left: T, right: T, ord: ExtendedOrdering): T =
+    if (ord.gt(left, right)) left
+    else right
+
+  def ordMin[T](left: T, right: T, ord: ExtendedOrdering): T =
+    if (ord.lt(left, right)) left
+    else right
 }

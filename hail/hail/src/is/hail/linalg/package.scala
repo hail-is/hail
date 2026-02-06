@@ -13,4 +13,5 @@ package object linalg {
     ]].register(
       DenseMatrix.implOpMulMatrix_DMD_DVD_eq_DVD
     )
+
 }

@@ -7,8 +7,7 @@ import is.hail.sparkextras.ContextRDD
 import is.hail.types.encoded.EType
 import is.hail.types.physical.PType
 import is.hail.types.virtual.Type
-import is.hail.utils.{using, ArrayOfByteArrayOutputStream}
-import is.hail.utils.prettyPrint.ArrayOfByteArrayInputStream
+import is.hail.utils.{using, ArrayOfByteArrayInputStream, ArrayOfByteArrayOutputStream}
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream, InputStream, OutputStream}
 

@@ -2,10 +2,12 @@ package is.hail.rvd
 
 import is.hail.annotations._
 import is.hail.backend.{ExecuteContext, HailStateManager}
+import is.hail.collection.compat.immutable.ArraySeq
+import is.hail.collection.implicits.toRichIterable
 import is.hail.compatibility
 import is.hail.expr.{ir, JSONAnnotationImpex}
 import is.hail.expr.ir.{
-  flatMapIR, IR, PartitionNativeReader, PartitionZippedIndexedNativeReader,
+  flatMapIR, partFile, IR, PartitionNativeReader, PartitionZippedIndexedNativeReader,
   PartitionZippedNativeReader,
 }
 import is.hail.expr.ir.defs.{Literal, ReadPartition, Ref, ToStream}
@@ -13,11 +15,11 @@ import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.io._
 import is.hail.io.fs.FS
 import is.hail.io.index.{InternalNodeBuilder, LeafNodeBuilder}
+import is.hail.sparkextras.implicits.RichContextRDDRegionValue
 import is.hail.types.encoded.ETypeSerializer
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.utils._
-import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.collection.compat._
 

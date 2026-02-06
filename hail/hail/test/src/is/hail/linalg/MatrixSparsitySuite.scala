@@ -1,6 +1,6 @@
 package is.hail.linalg
 
-import is.hail.utils.compat.immutable.ArraySeq
+import is.hail.collection.compat.immutable.ArraySeq
 
 import org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.{DataProvider, Test}

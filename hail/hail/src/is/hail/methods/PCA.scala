@@ -2,6 +2,8 @@ package is.hail.methods
 
 import is.hail.annotations._
 import is.hail.backend.ExecuteContext
+import is.hail.collection.FastSeq
+import is.hail.collection.implicits.{toRichIterable, toRichIterator}
 import is.hail.expr.ir.{MatrixValue, TableValue}
 import is.hail.expr.ir.functions.MatrixToTableFunction
 import is.hail.rvd.{RVD, RVDType}

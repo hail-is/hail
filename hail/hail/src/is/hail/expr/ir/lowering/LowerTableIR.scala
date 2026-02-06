@@ -1,6 +1,8 @@
 package is.hail.expr.ir.lowering
 
 import is.hail.backend.ExecuteContext
+import is.hail.collection.FastSeq
+import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.{agg, TableNativeWriter, _}
 import is.hail.expr.ir.agg.AggExecuteContextExtensions
 import is.hail.expr.ir.analyses.PartitionCounts

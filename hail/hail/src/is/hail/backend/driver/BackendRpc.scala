@@ -1,6 +1,7 @@
 package is.hail.backend.driver
 
 import is.hail.backend.{Backend, ExecuteContext}
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.IRParser
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.functions.IRFunctionRegistry.UserDefinedFnKey
@@ -9,7 +10,7 @@ import is.hail.io.plink.LoadPlink
 import is.hail.io.vcf.LoadVCF
 import is.hail.types.virtual.{Kind, TFloat64}
 import is.hail.types.virtual.Kinds._
-import is.hail.utils.{jsonToBytes, using, ExecutionTimer, FastSeq}
+import is.hail.utils.{jsonToBytes, using, ExecutionTimer}
 import is.hail.utils.ExecutionTimer.Timings
 import is.hail.variant.ReferenceGenome
 

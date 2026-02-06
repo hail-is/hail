@@ -2,7 +2,10 @@ package is.hail.expr.ir
 
 import is.hail.annotations._
 import is.hail.asm4s._
+import is.hail.asm4s.implicits.valueToRichCodeInputBuffer
 import is.hail.backend.{ExecuteContext, HailStateManager, HailTaskContext, TaskFinalizer}
+import is.hail.collection.FastSeq
+import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.compile.Compile
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.functions.{

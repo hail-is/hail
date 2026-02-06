@@ -2,6 +2,8 @@ package is.hail.methods
 
 import is.hail.annotations._
 import is.hail.backend.ExecuteContext
+import is.hail.collection.FastSeq
+import is.hail.collection.implicits.toRichIterator
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.TableValue
 import is.hail.expr.ir.functions.TableToTableFunction

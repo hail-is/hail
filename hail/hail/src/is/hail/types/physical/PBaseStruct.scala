@@ -3,9 +3,9 @@ package is.hail.types.physical
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.HailStateManager
+import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.interfaces.SBaseStructValue
-import is.hail.utils._
 
 object PBaseStruct {
   def alignment(types: Array[PType]): Long =

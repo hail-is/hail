@@ -1,6 +1,6 @@
 package is.hail.services
 
-import is.hail.expr.ir.ByteArrayBuilder
+import is.hail.collection.{ByteArrayBuilder, FastSeq}
 import is.hail.services.BatchClient.{
   BunchMaxSizeBytes, JarSpecSerializer, JobGroupResponseDeserializer, JobGroupStateDeserializer,
   JobListEntryDeserializer, JobProcessRequestSerializer, JobStateDeserializer,
