@@ -15,7 +15,6 @@ import is.hail.types.physical.stypes.{
 }
 import is.hail.types.physical.stypes.interfaces.{NoBoxLongIterator, SStream}
 import is.hail.utils._
-import is.hail.utils.compat.immutable.ArraySeq
 
 import java.io.PrintWriter
 
@@ -23,7 +22,7 @@ import sourcecode.Enclosing
 
 case class CodeCacheKey(
   aggSigs: IndexedSeq[AggStateSig],
-  args: Seq[(Name, EmitParamType)],
+  args: Seq[EmitParamType],
   body: IR,
 )
 
@@ -90,29 +89,34 @@ object compile {
     N: sourcecode.Name,
   ): (Option[SingleCodeType], (HailClassLoader, FS, HailTaskContext, Region) => F with Mixin) =
     ctx.time {
-      val normalizedBody = NormalizeNames(allowFreeVariables = true)(ctx, body)
-      ctx.CodeCache.getOrElseUpdate(
-        CodeCacheKey(aggSigs.getOrElse(ArraySeq.empty).toFastSeq, params, normalizedBody), {
-          var ir = Subst(
+      val ir =
+        NormalizeNames()(
+          ctx,
+          Subst(
             body,
             BindingEnv(Env.fromSeq(params.zipWithIndex.map { case ((n, t), i) => n -> In(i, t) })),
-          )
-          ir = LoweringPipeline.compileLowerer(ctx, ir).asInstanceOf[IR].noSharing(ctx)
-          TypeCheck(ctx, ir)
+          ),
+        )
 
-          val fb = EmitFunctionBuilder[F](
-            ctx,
-            N.value,
-            CodeParamType(typeInfo[Region]) +: params.map(_._2),
-            CodeParamType(SingleCodeType.typeInfoFromType(ir.typ)),
-            Some("Emit.scala"),
-          )
+      val key =
+        CodeCacheKey(
+          aggSigs.getOrElse(IndexedSeq.empty),
+          params.map(_._2),
+          ir,
+        )
 
-          /* { def visit(x: IR): Unit = { println(f"${ System.identityHashCode(x) }%08x ${
-           * x.getClass.getSimpleName } ${ x.pType }") Children(x).foreach { case c: IR => visit(c)
-           * } }
-           *
-           * visit(ir) } */
+      ctx.CodeCache.getOrElseUpdate(
+        key, {
+          val lowered = LoweringPipeline.compileLowerer(ctx, ir).asInstanceOf[IR]
+
+          val fb =
+            EmitFunctionBuilder[F](
+              ctx,
+              N.value,
+              CodeParamType(typeInfo[Region]) +: params.map(_._2),
+              CodeParamType(SingleCodeType.typeInfoFromType(lowered.typ)),
+              Some("Emit.scala"),
+            )
 
           assert(
             fb.mb.parameterTypeInfo == expectedCodeParamTypes,
@@ -123,8 +127,8 @@ object compile {
             s"expected $expectedCodeReturnType, got ${fb.mb.returnTypeInfo}",
           )
 
-          val emitContext = EmitContext.analyze(ctx, ir)
-          val rt = Emit(emitContext, ir, fb, expectedCodeReturnType, params.length, aggSigs)
+          val emitContext = EmitContext.analyze(ctx, lowered)
+          val rt = Emit(emitContext, lowered, fb, expectedCodeReturnType, params.length, aggSigs)
           CompiledFunction(rt, fb.resultWithIndex(print))
         },
       ).asInstanceOf[CompiledFunction[F with Mixin]].tuple
