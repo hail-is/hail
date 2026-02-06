@@ -3223,36 +3223,6 @@ class Apply(IR):
         return self.return_type
 
 
-class ApplySeeded(IR):
-    @typecheck_method(function=str, static_rng_uid=int, rng_state=IR, return_type=hail_type, args=IR)
-    def __init__(self, function, static_rng_uid, rng_state, return_type, *args):
-        super().__init__(rng_state, *args)
-        self.function = function
-        self.args = args
-        self.rng_state = rng_state
-        self.static_rng_uid = static_rng_uid
-        self.return_type = return_type
-
-    def copy(self, rng_state, *args):
-        return ApplySeeded(self.function, self.static_rng_uid, rng_state, self.return_type, *args)
-
-    def head_str(self):
-        return f'{escape_id(self.function)} {self.static_rng_uid} {self.return_type._parsable_string()}'
-
-    def _eq(self, other):
-        return (
-            other.function == self.function
-            and other.static_rng_uid == self.static_rng_uid
-            and other.return_type == self.return_type
-        )
-
-    def _compute_type(self, env, agg_env, deep_typecheck):
-        for arg in self.args:
-            arg.compute_type(env, agg_env, deep_typecheck)
-
-        return self.return_type
-
-
 class RNGStateLiteral(IR):
     @typecheck_method()
     def __init__(self):
@@ -3278,6 +3248,24 @@ class RNGSplit(IR):
     def _compute_type(self, env, agg_env, deep_typecheck):
         self.parent_state.compute_type(env, agg_env, deep_typecheck)
         self.dyn_bitstring.compute_type(env, agg_env, deep_typecheck)
+        return trngstate
+
+
+class RNGSplitStatic(IR):
+    @typecheck_method(rng_state=IR, static_uid=int)
+    def __init__(self, rng_state, static_uid):
+        super().__init__(rng_state)
+        self.rng_state = rng_state
+        self.static_uid = static_uid
+
+    def head_str(self):
+        return str(self.static_uid)
+
+    def copy(self, rng_state):
+        return RNGSplitStatic(rng_state, self.static_uid)
+
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.rng_state.compute_type(env, agg_env, deep_typecheck)
         return trngstate
 
 

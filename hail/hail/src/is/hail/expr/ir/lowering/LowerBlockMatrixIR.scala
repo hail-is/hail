@@ -1220,8 +1220,8 @@ object LowerBlockMatrixIR {
           val n = GetTupleElement(ctx, 1)
           val i = GetTupleElement(ctx, 2)
           val f = if (gaussian) "rand_norm_nd" else "rand_unif_nd"
-          val rngState = RNGSplit(RNGStateLiteral(), Cast(i, TInt64))
-          invokeSeeded(f, staticUID, TNDArray(TFloat64, Nat(2)), rngState, m, n, F64(0.0), F64(1.0))
+          val rngState = RNGSplit(RNGSplitStatic(RNGStateLiteral(), staticUID), Cast(i, TInt64))
+          invoke(f, TNDArray(TFloat64, Nat(2)), rngState, m, n, F64(0.0), F64(1.0))
         }
 
         BlockMatrixStage2(FastSeq(), x.typ, contexts, bodyIR)

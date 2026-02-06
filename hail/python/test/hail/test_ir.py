@@ -113,6 +113,7 @@ def value_irs():
         ir.NDArrayMatMul(nd, nd),
         ir.LowerBoundOnOrderedCollection(a, i, False),
         ir.GroupByKey(da),
+        ir.RNGSplitStatic(rngState, -1),
         ir.RNGSplit(rngState, ir.MakeTuple([ir.I64(1), ir.I64(2), ir.I64(3)])),
         ir.StreamMap(st, 'unused', v),
         ir.StreamZip([st, st], ['a', 'b'], ir.TrueIR(), 'ExtendNA'),
@@ -180,7 +181,7 @@ def value_irs():
     ]
 
 
-static_len_value_irs = 81
+static_len_value_irs = 82
 
 
 @pytest.fixture(params=range(static_len_value_irs))

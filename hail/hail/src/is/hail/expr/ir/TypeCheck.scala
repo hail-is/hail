@@ -323,6 +323,8 @@ object TypeCheck {
           case t => t == TInt64
         }
         assert(isValid(dynBitstring.typ))
+      case RNGSplitStatic(state, _) =>
+        assert(state.typ == TRNGState)
       case StreamLen(a) =>
         assert(a.typ.isInstanceOf[TStream])
       case x @ StreamTake(a, num) =>

@@ -40,19 +40,18 @@ class IRSuite extends HailSuite {
   @Test def testRandDifferentLengthUIDStrings(): Unit = {
     implicit val execStrats = ExecStrategy.lowering
     val staticUID: Long = 112233
-    var rng: IR = RNGStateLiteral()
-    rng = RNGSplit(rng, I64(12345))
+    var rng = RNGSplit(RNGSplitStatic(RNGStateLiteral(), staticUID), I64(12345))
     val expected1 = Threefry.pmac(ctx.rngNonce, staticUID, Array(12345L))
-    assertEvalsTo(ApplySeeded("rand_int64", IndexedSeq(), rng, staticUID, TInt64), expected1(0))
+    assertEvalsTo(Apply("rand_int64", ArraySeq.empty, ArraySeq(rng), TInt64), expected1(0))
 
     rng = RNGSplit(rng, I64(0))
     val expected2 = Threefry.pmac(ctx.rngNonce, staticUID, Array(12345L, 0L))
-    assertEvalsTo(ApplySeeded("rand_int64", IndexedSeq(), rng, staticUID, TInt64), expected2(0))
+    assertEvalsTo(Apply("rand_int64", ArraySeq.empty, ArraySeq(rng), TInt64), expected2(0))
 
     rng = RNGSplit(rng, I64(0))
     rng = RNGSplit(rng, I64(0))
     val expected3 = Threefry.pmac(ctx.rngNonce, staticUID, Array(12345L, 0L, 0L, 0L))
-    assertEvalsTo(ApplySeeded("rand_int64", IndexedSeq(), rng, staticUID, TInt64), expected3(0))
+    assertEvalsTo(Apply("rand_int64", ArraySeq.empty, ArraySeq(rng), TInt64), expected3(0))
     assert(expected1 != expected2)
     assert(expected2 != expected3)
     assert(expected1 != expected3)

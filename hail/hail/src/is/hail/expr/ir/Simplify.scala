@@ -64,7 +64,6 @@ object Simplify {
   private[this] def hasMissingStrictChild(x: IR): Boolean = {
     x match {
       case _: Apply |
-          _: ApplySeeded |
           _: ApplyUnaryPrimOp |
           _: ApplyBinaryPrimOp |
           _: ArrayRef |

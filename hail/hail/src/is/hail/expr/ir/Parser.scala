@@ -933,6 +933,9 @@ object IRParser {
           state <- ir_value_expr(ctx)(it)
           dynBitstring <- ir_value_expr(ctx)(it)
         } yield RNGSplit(state, dynBitstring)
+      case "RNGSplitStatic" =>
+        val staticUid = int64_literal(it)
+        ir_value_expr(ctx)(it) map { RNGSplitStatic(_, staticUid) }
       case "ArrayLen" => ir_value_expr(ctx)(it).map(ArrayLen)
       case "StreamLen" => ir_value_expr(ctx)(it).map(StreamLen)
       case "StreamIota" =>
@@ -1374,14 +1377,6 @@ object IRParser {
           msg <- ir_value_expr(ctx)(it)
           result <- ir_value_expr(ctx)(it)
         } yield ConsoleLog(msg, result)
-      case "ApplySeeded" =>
-        val function = identifier(it)
-        val staticUID = int64_literal(it)
-        val rt = type_expr(it)
-        for {
-          rngState <- ir_value_expr(ctx)(it)
-          args <- ir_value_children(ctx)(it)
-        } yield ApplySeeded(function, args, rngState, staticUID, rt)
       case "ApplyIR" =>
         apply_like(ctx, ApplyIR.apply)(it)
       case "ApplySpecial" =>

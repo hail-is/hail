@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.HailSuite
 import is.hail.expr.ir.defs.{
-  AggLet, ApplyAggOp, ApplyScanOp, ApplySeeded, F64, I32, I64, RNGStateLiteral, Str,
+  AggLet, Apply, ApplyAggOp, ApplyScanOp, F64, I32, I64, RNGSplitStatic, RNGStateLiteral, Str,
 }
 import is.hail.types.virtual.{TFloat64, TInt32}
 import is.hail.utils.FastSeq
@@ -11,7 +11,12 @@ import org.testng.annotations.{DataProvider, Test}
 
 class FoldConstantsSuite extends HailSuite {
   @Test def testRandomBlocksFolding(): Unit = {
-    val x = ApplySeeded("rand_norm", FastSeq(F64(0d), F64(0d)), RNGStateLiteral(), 0L, TFloat64)
+    val x = Apply(
+      "rand_norm",
+      FastSeq.empty,
+      FastSeq(RNGSplitStatic(RNGStateLiteral(), 0L), F64(0d), F64(0d)),
+      TFloat64,
+    )
     assert(FoldConstants(ctx, x) == x)
   }
 

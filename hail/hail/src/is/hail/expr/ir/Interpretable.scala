@@ -43,6 +43,8 @@ object Interpretable {
           _: NDArrayWrite |
           _: StreamZipJoinProducers |
           _: ArrayMaximalIndependentSet |
+          _: RNGSplit |
+          _: RNGSplitStatic |
           _: RNGStateLiteral => false
       case Block(bindings, _) =>
         bindings.forall(_.scope == Scope.EVAL)
