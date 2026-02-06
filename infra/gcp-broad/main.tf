@@ -577,6 +577,7 @@ resource "google_artifact_registry_repository" "dockerhub_remote" {
   }
 
   lifecycle {
+    # Allow users to specify the upstream credentials manually without Terraform resetting it.
     ignore_changes = [remote_repository_config[0].upstream_credentials]
   }
 }
