@@ -304,6 +304,24 @@ class JobDurationQuery(Query):
         return (sql, [self.time_msecs])
 
 
+class JobExitCodeQuery(Query):
+    @staticmethod
+    def parse(op: str, maybe_exit_code: str) -> 'JobExitCodeQuery':
+        operator = get_operator(op)
+        if not isinstance(operator, ComparisonOperator):
+            raise QueryError(f'unexpected operator "{op}" expected one of {ComparisonOperator.symbols}')
+        exit_code = parse_int(maybe_exit_code)
+        return JobExitCodeQuery(exit_code, operator)
+
+    def __init__(self, exit_code: int, operator: ComparisonOperator):
+        self.exit_code = exit_code
+        self.operator = operator
+
+    def query(self) -> Tuple[str, List[int]]:
+        op = self.operator.to_sql()
+        return (f'(CAST(JSON_EXTRACT(jobs.status, \'$[0]\') AS SIGNED) {op} %s)', [self.exit_code])
+
+
 class JobCostQuery(Query):
     @staticmethod
     def parse(op: str, cost_str: str) -> 'JobCostQuery':
