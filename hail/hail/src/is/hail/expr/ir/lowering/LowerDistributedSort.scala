@@ -426,7 +426,7 @@ object LowerDistributedSort extends Logging {
                     ArrayFunctions.extend(minArray, sortedSampling),
                     maxArray,
                   ),
-                  "isSorted" -> ApplySpecial(
+                  "isSorted" -> Apply(
                     "land",
                     Seq.empty[Type],
                     FastSeq(GetField(aggResults, "eachPartSorted"), tuplesInSortedOrder),
@@ -931,7 +931,7 @@ object LowerDistributedSort extends Logging {
       },
       True(),
     ) { case (accum, elt) =>
-      ApplySpecial("land", Seq.empty[Type], FastSeq(accum, elt), TBoolean, ErrorIDs.NO_ERROR)
+      Apply("land", Seq.empty[Type], FastSeq(accum, elt), TBoolean, ErrorIDs.NO_ERROR)
     }
   }
 }

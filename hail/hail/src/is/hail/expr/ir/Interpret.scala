@@ -838,7 +838,7 @@ object Interpret extends Logging {
         interpret(result)
       case ir @ ApplyIR(_, _, _, _, _) =>
         interpret(ir.explicitNode, env, args)
-      case ApplySpecial("lor", _, Seq(left_, right_), _, _) =>
+      case Apply("lor", _, Seq(left_, right_), _, _) =>
         val left = interpret(left_)
         if (left == true)
           true
@@ -850,7 +850,7 @@ object Interpret extends Logging {
             null
           else false
         }
-      case ApplySpecial("land", _, Seq(left_, right_), _, _) =>
+      case Apply("land", _, Seq(left_, right_), _, _) =>
         val left = interpret(left_)
         if (left == false)
           false
@@ -862,7 +862,7 @@ object Interpret extends Logging {
             null
           else true
         }
-      case ir: AbstractApplyNode[_] =>
+      case ir: AbstractApplyNode =>
         val argTuple =
           PType.canonical(TTuple(ir.args.map(_.typ): _*)).setRequired(true).asInstanceOf[PTuple]
         ctx.r.pool.scopedRegion { region =>

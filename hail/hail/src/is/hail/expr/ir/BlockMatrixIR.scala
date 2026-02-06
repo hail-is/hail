@@ -163,14 +163,7 @@ class BlockMatrixNativeReader(
     val reader = ETypeValueReader(spec)
 
     def blockIR(ctx: IR): IR = {
-      val path = Apply(
-        "concat",
-        FastSeq(),
-        FastSeq(Str(s"${params.path}/parts/"), ctx),
-        TString,
-        ErrorIDs.NO_ERROR,
-      )
-
+      val path = invoke("concat", TString, Str(s"${params.path}/parts/"), ctx)
       ReadValue(path, reader, vType)
     }
 

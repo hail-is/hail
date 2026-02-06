@@ -63,14 +63,13 @@ object Simplify {
     */
   private[this] def hasMissingStrictChild(x: IR): Boolean = {
     x match {
-      case _: Apply |
-          _: ApplySeeded |
-          _: ApplyUnaryPrimOp |
+      case _: ApplyUnaryPrimOp |
           _: ApplyBinaryPrimOp |
           _: ArrayRef |
           _: ArrayLen |
           _: GetField |
           _: GetTupleElement => x.children.exists(_.isInstanceOf[NA])
+      case x: AbstractApplyNode if x.strictArgs => x.children.exists(_.isInstanceOf[NA])
       case ApplyComparisonOp(op, _, _) if op.strict => x.children.exists(_.isInstanceOf[NA])
       case _ => false
     }
@@ -933,7 +932,7 @@ object Simplify {
       case TableFilter(TableFilter(t, p1), p2) =>
         Some(TableFilter(
           t,
-          ApplySpecial("land", Array.empty[Type], Array(p1, p2), TBoolean, ErrorIDs.NO_ERROR),
+          Apply("land", Array.empty[Type], Array(p1, p2), TBoolean, ErrorIDs.NO_ERROR),
         ))
 
       case TableFilter(TableKeyBy(child, key, isSorted), p) =>
@@ -1400,7 +1399,7 @@ object Simplify {
         Some(
           MatrixFilterRows(
             child,
-            ApplySpecial("land", FastSeq(), FastSeq(pred1, pred2), TBoolean, ErrorIDs.NO_ERROR),
+            Apply("land", FastSeq(), FastSeq(pred1, pred2), TBoolean, ErrorIDs.NO_ERROR),
           )
         )
 
@@ -1408,14 +1407,14 @@ object Simplify {
         Some(
           MatrixFilterCols(
             child,
-            ApplySpecial("land", FastSeq(), FastSeq(pred1, pred2), TBoolean, ErrorIDs.NO_ERROR),
+            Apply("land", FastSeq(), FastSeq(pred1, pred2), TBoolean, ErrorIDs.NO_ERROR),
           )
         )
 
       case MatrixFilterEntries(MatrixFilterEntries(child, pred1), pred2) =>
         Some(MatrixFilterEntries(
           child,
-          ApplySpecial("land", FastSeq(), FastSeq(pred1, pred2), TBoolean, ErrorIDs.NO_ERROR),
+          Apply("land", FastSeq(), FastSeq(pred1, pred2), TBoolean, ErrorIDs.NO_ERROR),
         ))
 
       case MatrixMapGlobals(MatrixMapGlobals(child, ng1), ng2) =>

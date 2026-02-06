@@ -65,7 +65,7 @@ object SetFunctions extends RegistryFunctions {
     registerIR2("isSubset", TSet(tv("T")), TSet(tv("T")), TBoolean) { (_, s, w, errorID) =>
       foldIR(ToStream(s), True()) { (a, x) =>
         // FIXME short circuit
-        ApplySpecial(
+        Apply(
           "land",
           FastSeq(),
           FastSeq(a, contains(w, x)),

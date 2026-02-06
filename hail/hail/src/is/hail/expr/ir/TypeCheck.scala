@@ -543,7 +543,7 @@ object TypeCheck {
       case Trap(_) =>
       case ConsoleLog(msg, _) => assert(msg.typ == TString)
       case ApplyIR(_, _, _, _, _) =>
-      case x: AbstractApplyNode[_] =>
+      case x: AbstractApplyNode =>
         assert(x.implementation.unify(x.typeArgs, x.args.map(_.typ), x.returnType))
       case MatrixWrite(_, _) =>
       case MatrixMultiWrite(children, _) =>

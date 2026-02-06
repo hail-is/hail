@@ -79,7 +79,7 @@ object InferType {
           case _ => TBoolean
         }
       case a: ApplyIR => a.returnType
-      case a: AbstractApplyNode[_] =>
+      case a: AbstractApplyNode =>
         val typeArgs = a.typeArgs
         val argTypes = a.args.map(_.typ)
         assert(a.implementation.unify(typeArgs, argTypes, a.returnType))

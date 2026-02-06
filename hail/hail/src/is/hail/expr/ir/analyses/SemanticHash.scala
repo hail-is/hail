@@ -116,11 +116,6 @@ case object SemanticHash extends Logging {
           Bytes.fromLong(staticUID) ++=
           EncodeTypename(retTy): Unit
 
-      case ApplySpecial(fname, tyArgs, _, retTy, _) =>
-        buffer ++= fname.getBytes
-        tyArgs.foreach(buffer ++= EncodeTypename(_))
-        buffer ++= EncodeTypename(retTy)
-
       case ApplyUnaryPrimOp(op, _) =>
         buffer ++= Bytes.fromClass(op.getClass)
 

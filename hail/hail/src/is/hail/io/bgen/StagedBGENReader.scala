@@ -611,19 +611,27 @@ object BGENFunctions extends RegistryFunctions {
   def uuid(): String = uuid4()
 
   override def registerAll(): Unit = {
-    registerSCode(
+    registerSCode5t(
       "index_bgen",
-      Array(TString, TString, TDict(TString, TString), TBoolean, TInt32),
-      TInt64,
-      (_, _) => SInt64,
       Array(TVariable("locusType")),
+      TString,
+      TString,
+      TDict(TString, TString),
+      TBoolean,
+      TInt32,
+      TInt64,
+      (_, _, _, _, _, _) => SInt64,
     ) {
       case (
             r,
             cb,
             Seq(locType),
             _,
-            Array(_path, _idxPath, _recoding, _skipInvalidLoci, _bufferSize),
+            _path,
+            _idxPath,
+            _recoding,
+            _skipInvalidLoci,
+            _bufferSize,
             err,
           ) =>
         val mb = cb.emb

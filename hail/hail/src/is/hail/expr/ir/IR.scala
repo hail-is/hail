@@ -220,7 +220,7 @@ package defs {
       }
   }
 
-  trait AbstractApplyNode[F <: JVMFunction] extends IR {
+  trait AbstractApplyNode extends IR {
     def function: String
 
     def args: Seq[IR]
@@ -231,9 +231,10 @@ package defs {
 
     def argTypes: Seq[Type] = args.map(_.typ)
 
-    lazy val implementation: F =
+    lazy val implementation: JVMFunction =
       IRFunctionRegistry.lookupFunctionOrFail(function, returnType, typeArgs, argTypes)
-        .asInstanceOf[F]
+
+    def strictArgs: Boolean = implementation.isInstanceOf[MissingnessObliviousJVMFunction]
   }
 
   object PartitionReader {
@@ -779,7 +780,7 @@ package defs {
 
       def all(element: IR): IR =
         aggFoldIR(True()) { accum =>
-          ApplySpecial(
+          Apply(
             "land",
             Seq.empty[Type],
             FastSeq(accum, element),
@@ -787,7 +788,7 @@ package defs {
             ErrorIDs.NO_ERROR,
           )
         } { (accum1, accum2) =>
-          ApplySpecial(
+          Apply(
             "land",
             Seq.empty[Type],
             FastSeq(accum1, accum2),

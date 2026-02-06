@@ -1384,8 +1384,6 @@ object IRParser {
         } yield ApplySeeded(function, args, rngState, staticUID, rt)
       case "ApplyIR" =>
         apply_like(ctx, ApplyIR.apply)(it)
-      case "ApplySpecial" =>
-        apply_like(ctx, ApplySpecial)(it)
       case "Apply" =>
         apply_like(ctx, Apply)(it)
       case "MatrixCount" =>

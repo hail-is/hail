@@ -674,13 +674,8 @@ class EmitStreamSuite extends HailSuite {
             val end = if (e == null) NA(TInt32) else I32(e.asInstanceOf[Int])
             val includesStart = is == '['
             val includesEnd = ie == ']'
-            val interval = ApplySpecial(
-              "Interval",
-              FastSeq(),
-              FastSeq(start, end, includesStart, includesEnd),
-              TInterval(TInt32),
-              0,
-            )
+            val interval =
+              invoke("Interval", TInterval(TInt32), start, end, includesStart, includesEnd)
             MakeStruct(IndexedSeq("k" -> interval, "v" -> Str(v)))
         },
         TStream(rEltType),
