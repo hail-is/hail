@@ -575,6 +575,10 @@ resource "google_artifact_registry_repository" "dockerhub_remote" {
       public_repository = "DOCKER_HUB"
     }
   }
+
+  lifecycle {
+    ignore_changes = [remote_repository_config[0].upstream_credentials]
+  }
 }
 
 resource "google_service_account" "gcr_push" {
