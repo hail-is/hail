@@ -1096,18 +1096,6 @@ object Interpret extends Logging {
         }
 
         wrapped.get(0)
-      case LiftMeOut(child) =>
-        val (Some(PTypeReferenceSingleCodeType(rt)), makeFunction) =
-          Compile[AsmFunction1RegionLong](
-            ctx,
-            FastSeq(),
-            FastSeq(classInfo[Region]),
-            LongInfo,
-            MakeTuple.ordered(FastSeq(child)),
-          )
-        ctx.scopedExecution { (hcl, fs, htc, r) =>
-          SafeRow.read(rt, makeFunction(hcl, fs, htc, r)(r)).asInstanceOf[Row](0)
-        }
       case UUID4(_) =>
         uuid4()
     }
