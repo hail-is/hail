@@ -1,0 +1,1 @@
+ALTER TABLE `feature_flags` ADD COLUMN `dockerhub_proxy` BOOLEAN NOT NULL DEFAULT FALSE;
