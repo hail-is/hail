@@ -329,7 +329,10 @@ class JobExitCodeQuery(Query):
                 return ("(JSON_EXTRACT(jobs.status, '$[0]') IS NOT NULL)", [])
             return ("(JSON_EXTRACT(jobs.status, '$[0]') IS NULL)", [])
         op = self.operator.to_sql()
-        return (f'(CAST(JSON_EXTRACT(jobs.status, \'$[0]\') AS SIGNED) {op} %s)', [self.exit_code])
+        extract = "CAST(JSON_EXTRACT(jobs.status, '$[0]') AS SIGNED)"
+        if isinstance(self.operator, NotEqualExactMatchOperator):
+            return (f'({extract} {op} %s OR JSON_EXTRACT(jobs.status, \'$[0]\') IS NULL)', [self.exit_code])
+        return (f'({extract} {op} %s)', [self.exit_code])
 
 
 class JobCostQuery(Query):
