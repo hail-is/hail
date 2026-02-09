@@ -1,6 +1,6 @@
 import abc
 from enum import Enum
-from typing import Any, List, Tuple
+from typing import Any, List, Optional, Tuple
 
 from hailtop.utils import parse_timestamp_msecs
 
@@ -310,14 +310,24 @@ class JobExitCodeQuery(Query):
         operator = get_operator(op)
         if not isinstance(operator, ComparisonOperator):
             raise QueryError(f'unexpected operator "{op}" expected one of {ComparisonOperator.symbols}')
+        if maybe_exit_code.upper() == 'NULL':
+            if not isinstance(operator, ExactMatchOperator):
+                raise QueryError(
+                    f'unexpected operator "{op}" for NULL exit code, expected one of {ExactMatchOperator.symbols}'
+                )
+            return JobExitCodeQuery(None, operator)
         exit_code = parse_int(maybe_exit_code)
         return JobExitCodeQuery(exit_code, operator)
 
-    def __init__(self, exit_code: int, operator: ComparisonOperator):
+    def __init__(self, exit_code: Optional[int], operator: ComparisonOperator):
         self.exit_code = exit_code
         self.operator = operator
 
-    def query(self) -> Tuple[str, List[int]]:
+    def query(self) -> Tuple[str, List[Any]]:
+        if self.exit_code is None:
+            if isinstance(self.operator, NotEqualExactMatchOperator):
+                return ("(JSON_EXTRACT(jobs.status, '$[0]') IS NOT NULL)", [])
+            return ("(JSON_EXTRACT(jobs.status, '$[0]') IS NULL)", [])
         op = self.operator.to_sql()
         return (f'(CAST(JSON_EXTRACT(jobs.status, \'$[0]\') AS SIGNED) {op} %s)', [self.exit_code])
 
