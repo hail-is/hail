@@ -200,6 +200,7 @@ spec:
              secretKeyRef:
                name: global-config
                key: dockerhub_prefix
+               optional: true
          - name: KUBERNETES_SERVER_URL
            valueFrom:
              secretKeyRef:
@@ -395,6 +396,7 @@ spec:
              secretKeyRef:
                name: global-config
                key: dockerhub_prefix
+               optional: true
          - name: KUBERNETES_SERVER_URL
            valueFrom:
              secretKeyRef:
