@@ -58,7 +58,7 @@ markupsafe==3.0.3
     #   -c web_common/../hail/python/dev/pinned-requirements.txt
     #   -c web_common/../hail/python/pinned-requirements.txt
     #   jinja2
-multidict==6.7.0
+multidict==6.7.1
     # via
     #   -c web_common/../gear/pinned-requirements.txt
     #   -c web_common/../hail/python/dev/pinned-requirements.txt

@@ -35,7 +35,7 @@ asttokens==2.4.1
     # via
     #   devtools
     #   stack-data
-async-lru==2.0.5
+async-lru==2.1.0
     # via jupyterlab
 async-timeout==5.0.1
     # via
@@ -48,7 +48,7 @@ attrs==25.4.0
     #   curlylint
     #   jsonschema
     #   referencing
-babel==2.17.0
+babel==2.18.0
     # via
     #   jupyterlab-server
     #   sphinx
@@ -92,7 +92,7 @@ curlylint==0.13.1
     # via -r hail/python/dev/requirements.txt
 cycler==0.12.1
     # via matplotlib
-debugpy==1.8.19
+debugpy==1.8.20
     # via ipykernel
 decorator==4.4.2
     # via
@@ -102,7 +102,7 @@ defusedxml==0.7.1
     # via nbconvert
 devtools==0.12.2
     # via aiohttp-devtools
-dill==0.4.0
+dill==0.4.1
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   pylint
@@ -240,9 +240,9 @@ jupyter-server==2.17.0
     #   jupyterlab
     #   jupyterlab-server
     #   notebook-shim
-jupyter-server-terminals==0.5.3
+jupyter-server-terminals==0.5.4
     # via jupyter-server
-jupyterlab==4.5.2
+jupyterlab==4.5.3
     # via jupyter
 jupyterlab-pygments==0.3.0
     # via nbconvert
@@ -271,7 +271,7 @@ mistune==3.2.0
     # via nbconvert
 mock==5.1.0
     # via -r hail/python/dev/requirements.txt
-multidict==6.7.0
+multidict==6.7.1
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   aiohttp
@@ -307,7 +307,7 @@ nodeenv==1.10.0
     # via
     #   pre-commit
     #   pyright
-nodejs-wheel-binaries==24.12.0
+nodejs-wheel-binaries==24.13.0
     # via pyright
 notebook==6.5.7
     # via
@@ -324,7 +324,7 @@ numpy==2.2.6
     #   matplotlib
 overrides==7.7.0
     # via jupyter-server
-packaging==25.0
+packaging==26.0
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   build
@@ -339,7 +339,7 @@ packaging==25.0
     #   sphinx
 pandocfilters==1.5.1
     # via nbconvert
-parso==0.8.5
+parso==0.8.6
     # via jedi
 parsy==1.1.0
     # via curlylint
@@ -361,7 +361,7 @@ pluggy==1.6.0
     # via pytest
 pre-commit==3.8.0
     # via -r hail/python/dev/requirements.txt
-prometheus-client==0.24.0
+prometheus-client==0.24.1
     # via
     #   jupyter-server
     #   notebook
@@ -374,7 +374,7 @@ propcache==0.4.1
     #   -c hail/python/dev/../pinned-requirements.txt
     #   aiohttp
     #   yarl
-psutil==7.2.1
+psutil==7.2.2
     # via ipykernel
 ptyprocess==0.7.0
     # via
@@ -384,7 +384,7 @@ pure-eval==0.2.3
     # via stack-data
 py==1.11.0
     # via pytest-forked
-pycparser==2.23
+pycparser==3.0
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   cffi
@@ -399,7 +399,7 @@ pygments==2.19.2
     #   sphinx
 pylint==3.3.9
     # via -r hail/python/dev/requirements.txt
-pyparsing==3.3.1
+pyparsing==3.3.2
     # via matplotlib
 pyproject-hooks==1.2.0
     # via build
@@ -482,11 +482,11 @@ rpds-py==0.30.0
     #   referencing
 ruff==0.11.13
     # via -r hail/python/dev/requirements.txt
-send2trash==2.0.0
+send2trash==2.1.0
     # via
     #   jupyter-server
     #   notebook
-setuptools==80.9.0
+setuptools==82.0.0
     # via jupyterlab
 six==1.17.0
     # via
@@ -496,7 +496,7 @@ six==1.17.0
     #   rfc3339-validator
 snowballstemmer==3.0.1
     # via sphinx
-soupsieve==2.8.1
+soupsieve==2.8.3
     # via beautifulsoup4
 sphinx==6.2.1
     # via
@@ -543,7 +543,7 @@ tomli==2.4.0
     #   jupyterlab
     #   pylint
     #   pytest
-tomlkit==0.13.3
+tomlkit==0.14.0
     # via pylint
 tornado==6.5.4
     # via
@@ -575,17 +575,17 @@ types-chardet==5.0.4.6
     # via -r hail/python/dev/requirements.txt
 types-decorator==5.2.0.20251101
     # via -r hail/python/dev/requirements.txt
-types-deprecated==1.3.1.20251101
+types-deprecated==1.3.1.20260130
     # via -r hail/python/dev/requirements.txt
 types-pymysql==1.1.0.20251220
     # via -r hail/python/dev/requirements.txt
-types-python-dateutil==2.9.0.20251115
+types-python-dateutil==2.9.0.20260124
     # via -r hail/python/dev/requirements.txt
 types-pyyaml==6.0.12.20250915
     # via -r hail/python/dev/requirements.txt
 types-requests==2.31.0.6
     # via -r hail/python/dev/requirements.txt
-types-setuptools==80.9.0.20251223
+types-setuptools==82.0.0.20260210
     # via -r hail/python/dev/requirements.txt
 types-six==1.17.0.20251009
     # via -r hail/python/dev/requirements.txt
@@ -620,15 +620,15 @@ urllib3==2.6.3
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   requests
-uv==0.9.24
+uv==0.9.30
     # via -r hail/python/dev/requirements.txt
-uv-build==0.9.24
+uv-build==0.9.30
     # via -r hail/python/dev/requirements.txt
 virtualenv==20.36.1
     # via pre-commit
 watchfiles==1.1.1
     # via aiohttp-devtools
-wcwidth==0.2.14
+wcwidth==0.6.0
     # via prompt-toolkit
 webcolors==25.10.0
     # via jsonschema
