@@ -108,7 +108,7 @@ class TakeByAggregatorSuite extends HailSuite {
           new TakeByRVAS(VirtualTypeWithReq(PInt32Required), VirtualTypeWithReq(PInt32Required), kb)
         val ab = new agg.StagedArrayBuilder(PInt32Required, kb, argR)
         val rt = PCanonicalArray(tba.valueType)
-        val rng = fb.apply_method.newRNG(0)
+        val rng = fb.apply_method.threefryRandomEngine
 
         fb.emitWithBuilder { cb =>
           tba.createState(cb)

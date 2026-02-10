@@ -55,7 +55,11 @@ class PNDArraySuite extends PhysicalTestUtils {
         val T = vecType.constructUninitialized(FastSeq(btwpn), cb, region)
 
         A.coiterateMutate(cb, region) { case Seq(_) =>
-          primitive(cb.memoize(cb.emb.newRNG(0L).invoke[Double]("rnorm")))
+          primitive(cb.memoize(cb.emb.threefryRandomEngine.invoke[Double, Double, Double](
+            "rnorm",
+            0,
+            1,
+          )))
         }
         Acopy.coiterateMutate(cb, region, (A, "A")) { case Seq(_, a) => a }
 
@@ -118,7 +122,11 @@ class PNDArraySuite extends PhysicalTestUtils {
         val T = vecType.constructUninitialized(FastSeq(btn), FastSeq(8), cb, region)
 
         A.coiterateMutate(cb, region) { case Seq(_) =>
-          primitive(cb.memoize(cb.emb.newRNG(0L).invoke[Double]("rnorm")))
+          primitive(cb.memoize(cb.emb.threefryRandomEngine.invoke[Double, Double, Double](
+            "rnorm",
+            0,
+            1,
+          )))
         }
         Acopy.coiterateMutate(cb, region, (A, "A")) { case Seq(_, a) => a }
         SNDArray.geqrt_full(cb, Acopy, Q, R, T, work, blocksize)
@@ -235,7 +243,11 @@ class PNDArraySuite extends PhysicalTestUtils {
         val state = new LocalWhitening(cb, m, w, n, blocksize, region, false)
 
         Aorig.coiterateMutate(cb, region) { case Seq(_) =>
-          primitive(cb.memoize(cb.emb.newRNG(0L).invoke[Double]("rnorm")))
+          primitive(cb.memoize(cb.emb.threefryRandomEngine.invoke[Double, Double, Double](
+            "rnorm",
+            0,
+            1,
+          )))
         }
         A.coiterateMutate(cb, region, (Aorig.slice(cb, Colon, (w, null)), "Aorig")) {
           case Seq(_, a) => a
@@ -323,7 +335,11 @@ class PNDArraySuite extends PhysicalTestUtils {
         val A = matType.constructUninitialized(FastSeq(m, n), cb, region)
 
         Aorig.coiterateMutate(cb, region) { case Seq(_) =>
-          primitive(cb.memoize(cb.emb.newRNG(0L).invoke[Double]("rnorm")))
+          primitive(cb.memoize(cb.emb.threefryRandomEngine.invoke[Double, Double, Double](
+            "rnorm",
+            0,
+            1,
+          )))
         }
         SNDArray.copyMatrix(cb, " ", Aorig, A)
 
