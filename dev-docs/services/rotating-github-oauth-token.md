@@ -7,9 +7,15 @@ commenting on PRs, creating releases, and pushing to DSP repositories).
 This token has an expiration date set at creation time and must be rotated before it
 expires.
 
+Reminder of the setup: 
+- The token is stored in a sops-encrypted JSON file in the repository.
+- The JSON file is read in as a configuration for Terraform.
+- Terraform updates the `hail-ci-0-1-github-oauth-token` Kubernetes secret with the new token value.
+- CI loads the token from the Kubernetes secret in order to interact with GitHub.
+
 ## Prerequisites
 
-- A GitHub account with permission to create fine-grained PATs for the `hail-is` organization
+- A GitHub account with permission to create fine-grained PATs for the Github organization holding the repository being managed by CI
 - Access to the sops encryption key (GCP KMS) for the target deployment
 - Terraform access for the target infra directory
 - `kubectl` access to the cluster
@@ -20,14 +26,15 @@ Go to GitHub **Settings > Developer settings > Personal access tokens > Fine-gra
 and create a new token.
 
 Key settings:
-- **Resource owner**: must be `hail-is` (this is fixed at creation time and cannot be
-  changed later; see the [GitHub docs on PATs](https://github.com/github/docs/blob/main/content/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens.md))
+- **Resource owner**: the Github organization holding the repository being managed by CI
 - **Expiration**: set an appropriate expiration (note the date so you know when to rotate next)
 - **Repository access and permissions**: match the scopes of the existing token
 
 ## 2. Update the Sops-Encrypted Config
 
-For GCP deployments (e.g. `gcp-broad`), the token lives in a sops-encrypted JSON file.
+> [!NOTE]
+> The examples below are for the GCP deployment managed in the `gcp-broad` directory. 
+> The process is similar for other deployments, but the config file path will be different.
 
 ```sh
 # Ensure you're authenticated with the correct GCP project so sops can access the KMS key
