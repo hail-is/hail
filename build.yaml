@@ -69,6 +69,7 @@ steps:
 
       {% if global.cloud == "gcp" %}
       cat $GOOGLE_APPLICATION_CREDENTIALS | base64 -w 0 | skopeo login -u _json_key_base64 --password-stdin $REGISTRY
+      {% else %}
       echo "unknown cloud {{ global.cloud }}"
       exit 1
       {% endif %}
