@@ -4,7 +4,6 @@ import is.hail.Revision
 import is.hail.backend._
 import is.hail.backend.Backend.PartitionFn
 import is.hail.backend.ExecutionCache.Flags.UseFastRestarts
-import is.hail.backend.local.LocalTaskContext
 import is.hail.backend.service.ServiceBackend.Flags._
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
@@ -361,10 +360,8 @@ class ServiceBackend(
         partitions.getOrElse(contexts.indices) match {
           case Seq(k) =>
             try
-              using(new LocalTaskContext(k, stageCount)) { htc =>
-                None -> htc.getRegionPool().scopedRegion { r =>
-                  FastSeq(f(ctx.theHailClassLoader, ctx.fs, htc, r)(globals, contexts(k)) -> k)
-                }
+              ctx.scopedExecution { (hcl, fs, htc, r) =>
+                (None, FastSeq(f(hcl, fs, htc, r)(globals, contexts(k)) -> k))
               }
             catch {
               case NonFatal(t) => Some(t) -> ArraySeq.empty

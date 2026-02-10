@@ -1,8 +1,6 @@
 package is.hail.sparkextras.implicits
-
-import is.hail.annotations.RegionPool
 import is.hail.asm4s.HailClassLoader
-import is.hail.backend.ExecuteContext
+import is.hail.backend.{ExecuteContext, HailTaskContext}
 import is.hail.expr.ir.partFile
 import is.hail.io.FileWriteMetadata
 import is.hail.io.fs.FS
@@ -24,7 +22,7 @@ object RichContextRDD {
     rootPath: String,
     f: String,
     idxRelPath: String,
-    mkIdxWriter: (String, HailClassLoader, RegionPool) => IndexWriter,
+    mkIdxWriter: (String, HailClassLoader, HailTaskContext) => IndexWriter,
     stageLocally: Boolean,
     fs: FS,
     localTmpdir: String,
@@ -36,18 +34,17 @@ object RichContextRDD {
       if (idxRelPath != null) rootPath + "/" + idxRelPath + "/" + f + ".idx" else null
     val (filename, idxFilename) =
       if (stageLocally) {
-        val context = TaskContext.get()
         val partPath = ExecuteContext.createTmpPathNoCleanup(localTmpdir, "write-partitions-part")
         val idxPath = partPath + ".idx"
-        context.addTaskCompletionListener[Unit] { (context: TaskContext) =>
+        ctx.onClose { () =>
           fs.delete(partPath, recursive = false)
           fs.delete(idxPath, recursive = true)
-        }: Unit
+        }
         partPath -> idxPath
       } else
         finalFilename -> finalIdxFilename
     val os = fs.create(filename)
-    val iw = mkIdxWriter(idxFilename, hcl, ctx.r.pool)
+    val iw = mkIdxWriter(idxFilename, hcl, ctx)
 
     // write must close `os` and `iw`
     val (rowCount, bytesWritten) = write(hcl, ctx, it, os, iw)
@@ -97,7 +94,7 @@ class RichContextRDD[T](val crdd: ContextRDD[T]) extends AnyVal {
     path: String,
     idxRelPath: String,
     stageLocally: Boolean,
-    mkIdxWriter: (String, HailClassLoader, RegionPool) => IndexWriter,
+    mkIdxWriter: (String, HailClassLoader, HailTaskContext) => IndexWriter,
     write: (HailClassLoader, RVDContext, Iterator[T], OutputStream, IndexWriter) => (Long, Long),
   ): Array[FileWriteMetadata] = {
     val localTmpdir = ctx.localTmpdir

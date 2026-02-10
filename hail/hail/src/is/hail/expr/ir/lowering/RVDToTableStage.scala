@@ -3,7 +3,7 @@ package is.hail.expr.ir.lowering
 import is.hail.annotations.{BroadcastRow, Region, RegionValue}
 import is.hail.asm4s._
 import is.hail.backend.{BroadcastValue, ExecuteContext}
-import is.hail.backend.spark.{AnonymousDependency, SparkTaskContext}
+import is.hail.backend.spark.AnonymousDependency
 import is.hail.collection.FastSeq
 import is.hail.expr.ir._
 import is.hail.expr.ir.defs.{
@@ -47,7 +47,7 @@ case class RVDTableReader(rvd: RVD, globals: IR, rt: RTable) extends TableReader
         LongInfo,
         PruneDeadFields.upcast(ctx, globals, requestedType.globalType),
       )
-    val gbAddr = f(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, ctx.r)(ctx.r)
+    val gbAddr = f(ctx.theHailClassLoader, ctx.fs, ctx, ctx.r)(ctx.r)
 
     val globRow = BroadcastRow(ctx, RegionValue(ctx.r, gbAddr), globType)
 
@@ -70,10 +70,10 @@ case class RVDTableReader(rvd: RVD, globals: IR, rt: RTable) extends TableReader
         val partF = rowF(
           hcl,
           fsBc.value,
-          SparkTaskContext.get(),
-          ctx.partitionRegion,
+          ctx,
+          ctx.r,
         )
-        it.map(elt => partF(ctx.r, elt))
+        it.map(elt => partF(ctx.region, elt))
       },
     ))
   }
@@ -138,14 +138,16 @@ object TableStageToRVD {
         )),
       )
 
-    val (Some(PTypeReferenceSingleCodeType(gbPType: PStruct)), f) = Compile[AsmFunction1RegionLong](
-      ctx,
-      FastSeq(),
-      FastSeq(classInfo[Region]),
-      LongInfo,
-      globalsAndBroadcastVals,
-    )
-    val gbAddr = f(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, ctx.r)(ctx.r)
+    val (Some(PTypeReferenceSingleCodeType(gbPType: PStruct)), f) =
+      Compile[AsmFunction1RegionLong](
+        ctx,
+        FastSeq(),
+        FastSeq(classInfo[Region]),
+        LongInfo,
+        globalsAndBroadcastVals,
+      )
+
+    val gbAddr = f(ctx.theHailClassLoader, ctx.fs, ctx, ctx.r)(ctx.r)
 
     val globPType = gbPType.fieldType("globals").asInstanceOf[PStruct]
     val globRow = BroadcastRow(ctx, RegionValue(ctx.r, gbPType.loadField(gbAddr, 0)), globPType)
@@ -209,16 +211,15 @@ object TableStageToRVD {
           new ByteArrayInputStream(encodedContext),
           hcl,
         )
-          .readRegionValue(rvdContext.partitionRegion)
+          .readRegionValue(rvdContext.r)
         val decodedBroadcastVals = makeBcDec(
           new ByteArrayInputStream(encodedBcVals.value),
           hcl,
         )
-          .readRegionValue(rvdContext.partitionRegion)
+          .readRegionValue(rvdContext.r)
         makeIterator(
           hcl,
           fsBc.value,
-          SparkTaskContext.get(),
           rvdContext,
           decodedContext,
           decodedBroadcastVals,

@@ -108,8 +108,8 @@ class Aggregators2Suite extends HailSuite {
             ResultOp.makeTuple(Array(aggSig)),
           )
 
-        val init = initF(theHailClassLoader, ctx.fs, ctx.taskContext, region)
-        val res = resOneF(theHailClassLoader, ctx.fs, ctx.taskContext, region)
+        val init = initF(theHailClassLoader, ctx.fs, taskContext, region)
+        val res = resOneF(theHailClassLoader, ctx.fs, taskContext, region)
 
         pool.scopedSmallRegion { aggRegion =>
           init.newAggState(aggRegion)
@@ -122,9 +122,9 @@ class Aggregators2Suite extends HailSuite {
 
       val serializedParts =
         seqOps.grouped(math.ceil(seqOps.length / nPartitions.toDouble).toInt).map { seqs =>
-          val init = initF(theHailClassLoader, ctx.fs, ctx.taskContext, region)
-          val seq = withArgs(Begin(seqs))(theHailClassLoader, ctx.fs, ctx.taskContext, region)
-          val write = writeF(theHailClassLoader, ctx.fs, ctx.taskContext, region)
+          val init = initF(theHailClassLoader, ctx.fs, taskContext, region)
+          val seq = withArgs(Begin(seqs))(theHailClassLoader, ctx.fs, taskContext, region)
+          val write = writeF(theHailClassLoader, ctx.fs, taskContext, region)
           pool.scopedSmallRegion { aggRegion =>
             init.newAggState(aggRegion)
             init(region, argOff)
@@ -139,13 +139,13 @@ class Aggregators2Suite extends HailSuite {
         }.toArray
 
       pool.scopedSmallRegion { aggRegion =>
-        val combOp = combAndDuplicate(theHailClassLoader, ctx.fs, ctx.taskContext, region)
+        val combOp = combAndDuplicate(theHailClassLoader, ctx.fs, taskContext, region)
         combOp.newAggState(aggRegion)
         serializedParts.zipWithIndex.foreach { case (s, i) =>
           combOp.setSerializedAgg(i, s)
         }
         combOp(region)
-        val res = resF(theHailClassLoader, ctx.fs, ctx.taskContext, region)
+        val res = resF(theHailClassLoader, ctx.fs, taskContext, region)
         res.setAggState(aggRegion, combOp.getAggOffset())
         val double = SafeRow(rt, res(region))
         transformResult match {
