@@ -120,38 +120,37 @@ def test_gcp_accelerator_to_from_dict():
     assert version_2_remade_dict == version_2_dict
 
 
-def test_rewrite_dockerhub_image():
+@pytest.mark.parametrize(
+    "image,expected",
+    [
+        # Bare images (should be rewritten)
+        ("ubuntu:20.04", "us-central1-docker.pkg.dev/my-project/dockerhubproxy/library/ubuntu:20.04"),
+        ("ubuntu", "us-central1-docker.pkg.dev/my-project/dockerhubproxy/library/ubuntu"),
+        ("python:3.9", "us-central1-docker.pkg.dev/my-project/dockerhubproxy/library/python:3.9"),
+        # Namespaced images (should be rewritten)
+        ("myorg/myimage:tag", "us-central1-docker.pkg.dev/my-project/dockerhubproxy/myorg/myimage:tag"),
+        ("envoyproxy/envoy:v1.33.0", "us-central1-docker.pkg.dev/my-project/dockerhubproxy/envoyproxy/envoy:v1.33.0"),
+        # Images with explicit registry (should NOT be rewritten)
+        ("gcr.io/myproject/image:tag", None),
+        ("us-central1-docker.pkg.dev/project/repo/image", None),
+        ("myregistry.io/image:tag", None),
+        ("localhost:5000/image", None),
+        ("registry.example.com:8080/image", None),
+        # Edge cases
+        (
+            "image.with.dots:tag",
+            "us-central1-docker.pkg.dev/my-project/dockerhubproxy/library/image.with.dots:tag",
+        ),  # dots in first part
+        (
+            "image:with:colons",
+            "us-central1-docker.pkg.dev/my-project/dockerhubproxy/library/image:with:colons",
+        ),  # colons in first part
+        (
+            "my-org/my-image:1.0.0",
+            "us-central1-docker.pkg.dev/my-project/dockerhubproxy/my-org/my-image:1.0.0",
+        ),  # hyphens OK
+    ],
+)
+def test_rewrite_dockerhub_image(image, expected):
     dockerhub_prefix = "us-central1-docker.pkg.dev/my-project/dockerhubproxy"
-
-    # Test bare images (should be rewritten)
-    assert rewrite_dockerhub_image("ubuntu:20.04", dockerhub_prefix) == f"{dockerhub_prefix}/library/ubuntu:20.04"
-    assert rewrite_dockerhub_image("ubuntu", dockerhub_prefix) == f"{dockerhub_prefix}/library/ubuntu"
-    assert rewrite_dockerhub_image("python:3.9", dockerhub_prefix) == f"{dockerhub_prefix}/library/python:3.9"
-
-    # Test namespaced images (should be rewritten)
-    assert rewrite_dockerhub_image("myorg/myimage:tag", dockerhub_prefix) == f"{dockerhub_prefix}/myorg/myimage:tag"
-    assert (
-        rewrite_dockerhub_image("envoyproxy/envoy:v1.33.0", dockerhub_prefix)
-        == f"{dockerhub_prefix}/envoyproxy/envoy:v1.33.0"
-    )
-
-    # Test images with explicit registry (should NOT be rewritten)
-    assert rewrite_dockerhub_image("gcr.io/myproject/image:tag", dockerhub_prefix) is None
-    assert rewrite_dockerhub_image("us-central1-docker.pkg.dev/project/repo/image", dockerhub_prefix) is None
-    assert rewrite_dockerhub_image("myregistry.io/image:tag", dockerhub_prefix) is None
-    assert rewrite_dockerhub_image("localhost:5000/image", dockerhub_prefix) is None
-    assert rewrite_dockerhub_image("registry.example.com:8080/image", dockerhub_prefix) is None
-
-    # Test edge cases
-    assert (
-        rewrite_dockerhub_image("image.with.dots:tag", dockerhub_prefix)
-        == f"{dockerhub_prefix}/library/image.with.dots:tag"
-    )  # dots in first part
-    assert (
-        rewrite_dockerhub_image("image:with:colons", dockerhub_prefix)
-        == f"{dockerhub_prefix}/library/image:with:colons"
-    )  # colons in first part
-    assert (
-        rewrite_dockerhub_image("my-org/my-image:1.0.0", dockerhub_prefix)
-        == f"{dockerhub_prefix}/my-org/my-image:1.0.0"
-    )  # hyphens OK
+    assert rewrite_dockerhub_image(image, dockerhub_prefix) == expected
