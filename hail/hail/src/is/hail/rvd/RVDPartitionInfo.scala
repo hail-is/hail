@@ -1,7 +1,7 @@
 package is.hail.rvd
 
 import is.hail.annotations.{Region, RegionValue, SafeRow, WritableRegionValue}
-import is.hail.backend.HailStateManager
+import is.hail.backend.{HailStateManager, HailTaskContext}
 import is.hail.types.virtual.Type
 import is.hail.utils._
 
@@ -29,6 +29,7 @@ object RVDPartitionInfo extends Logging {
   final val KSORTED = 2
 
   def apply(
+    ctx: HailTaskContext,
     sm: HailStateManager,
     typ: RVDType,
     partitionKey: Int,
@@ -36,9 +37,8 @@ object RVDPartitionInfo extends Logging {
     partitionIndex: Int,
     it: Iterator[Long],
     seed: Long,
-    producerContext: RVDContext,
-  ): RVDPartitionInfo = {
-    using(RVDContext.default(producerContext.r.pool)) { localctx =>
+  ): RVDPartitionInfo =
+    using(RVDContext.default(ctx)) { localctx =>
       val kPType = typ.kType
       val pkOrd = typ.copy(key = typ.key.take(partitionKey)).kOrd(sm)
       val minF = WritableRegionValue(sm, kPType, localctx.freshRegion())
@@ -65,7 +65,6 @@ object RVDPartitionInfo extends Logging {
         i += 1
       }
 
-      producerContext.region.clear()
       while (it.hasNext) {
         val f = it.next()
 
@@ -101,7 +100,6 @@ object RVDPartitionInfo extends Logging {
             samples(j.toInt).set(f, deepCopy = true)
         }
 
-        producerContext.region.clear()
         i += 1
       }
 
@@ -117,5 +115,4 @@ object RVDPartitionInfo extends Logging {
         contextStr,
       )
     }
-  }
 }

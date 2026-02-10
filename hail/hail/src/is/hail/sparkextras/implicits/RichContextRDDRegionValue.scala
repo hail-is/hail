@@ -3,7 +3,6 @@ package is.hail.sparkextras.implicits
 import is.hail.annotations._
 import is.hail.asm4s.{theHailClassLoaderForSparkWorkers, HailClassLoader}
 import is.hail.backend.ExecuteContext
-import is.hail.backend.spark.SparkTaskContext
 import is.hail.expr.ir.partFile
 import is.hail.io.{AbstractTypedCodecSpec, Encoder, FileWriteMetadata}
 import is.hail.io.fs.FS
@@ -44,7 +43,7 @@ object RichContextRDDRegionValue {
     it.foreach { ptr =>
       if (iw != null) {
         val off = en.indexOffset()
-        val key = SafeRow.selectFields(rowType, ctx.r, ptr)(indexKeyFieldIndices)
+        val key = SafeRow.selectFields(rowType, ctx.region, ptr)(indexKeyFieldIndices)
         iw.appendRow(key, off, Row())
       }
       en.writeByte(1)
@@ -85,7 +84,7 @@ object RichContextRDDRegionValue {
     ctx: RVDContext,
     partDigits: Int,
     stageLocally: Boolean,
-    makeIndexWriter: (String, RegionPool) => IndexWriter,
+    makeIndexWriter: String => IndexWriter,
     makeRowsEnc: (OutputStream) => Encoder,
     makeEntriesEnc: (OutputStream) => Encoder,
   ): FileWriteMetadata = {
@@ -119,20 +118,20 @@ object RichContextRDDRegionValue {
         using(fs.create(entriesPartPath)) { entriesOS =>
           val trackedEntriesOS = new ByteTrackingOutputStream(entriesOS)
           using(makeEntriesEnc(trackedEntriesOS)) { entriesEN =>
-            using(makeIndexWriter(idxPath, ctx.r.pool)) { iw =>
+            using(makeIndexWriter(idxPath)) { iw =>
               var rowCount = 0L
 
               it.foreach { ptr =>
                 val rows_off = rowsEN.indexOffset()
                 val ents_off = entriesEN.indexOffset()
-                val key = SafeRow.selectFields(fullRowType, ctx.r, ptr)(t.kFieldIdx)
+                val key = SafeRow.selectFields(fullRowType, ctx.region, ptr)(t.kFieldIdx)
                 iw.appendRow(key, rows_off, Row(ents_off))
 
                 rowsEN.writeByte(1)
-                rowsEN.writeRegionValue(ctx.r, ptr)
+                rowsEN.writeRegionValue(ctx.region, ptr)
 
                 entriesEN.writeByte(1)
-                entriesEN.writeRegionValue(ctx.r, ptr)
+                entriesEN.writeRegionValue(ctx.region, ptr)
 
                 ctx.region.clear()
 
@@ -226,7 +225,7 @@ class RichContextRDDLong(val crdd: ContextRDD[Long]) extends AnyVal {
 
   def toCRDDRegionValue: ContextRDD[RegionValue] =
     boundary.cmapPartitionsWithContext { (ctx, part) =>
-      val rv = RegionValue(ctx.r)
+      val rv = RegionValue(ctx.region)
       part(ctx).map { ptr => rv.setOffset(ptr); rv }
     }
 
@@ -244,7 +243,7 @@ class RichContextRDDLong(val crdd: ContextRDD[Long]) extends AnyVal {
       idxRelPath,
       stageLocally, {
         val f1 = IndexWriter.builder(ctx, t.kType, +PCanonicalStruct())
-        f1(_, theHailClassLoaderForSparkWorkers, SparkTaskContext.get(), _)
+        (ctx, path) => f1(path, theHailClassLoaderForSparkWorkers, ctx)
       },
       RichContextRDDRegionValue.writeRowsPartition(
         encoding.buildEncoder(ctx, t.rowType),

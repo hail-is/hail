@@ -129,7 +129,7 @@ class FunctionSuite extends HailSuite {
       i
     }
     pool.scopedRegion { r =>
-      assert(fb.resultWithIndex().apply(theHailClassLoader, ctx.fs, ctx.taskContext, r)() == 2)
+      assert(fb.resultWithIndex().apply(theHailClassLoader, ctx.fs, taskContext, r)() == 2)
     }
   }
 }

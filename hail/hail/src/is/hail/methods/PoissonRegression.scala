@@ -112,7 +112,7 @@ case class PoissonRegression(
 
         rvb.start(newRVDType.rowType)
         rvb.startStruct()
-        rvb.addFields(fullRowType, ctx.r, ptr, copiedFieldIndices)
+        rvb.addFields(fullRowType, ctx.region, ptr, copiedFieldIndices)
         poisRegTestBc.value
           .test(X, yBc.value, nullFitBc.value, "poisson", maxIter = maxIterations, tol = tolerance)
           .addToRVB(rvb)

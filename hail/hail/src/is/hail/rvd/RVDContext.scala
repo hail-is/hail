@@ -1,32 +1,28 @@
 package is.hail.rvd
 
-import is.hail.annotations.{Region, RegionPool, RegionValueBuilder}
-import is.hail.backend.HailStateManager
+import is.hail.annotations.{Region, RegionValueBuilder}
+import is.hail.backend.{HailStateManager, HailTaskContext}
 
 import scala.collection.mutable
 
 object RVDContext {
-
-  def default(pool: RegionPool) = {
-    val partRegion = Region(pool = pool)
-    val ctx = new RVDContext(partRegion, Region(pool = pool))
-    ctx.own(partRegion)
-    ctx
-  }
+  def default(tc: HailTaskContext) =
+    new RVDContext(tc.r, Region(pool = tc.r.pool))
 }
 
-class RVDContext(val partitionRegion: Region, val r: Region) extends AutoCloseable {
-  private[this] val children = new mutable.HashSet[AutoCloseable]()
+class RVDContext(override val r: Region, val region: Region)
+    extends HailTaskContext with AutoCloseable {
+  private[this] val children = mutable.HashSet.empty[AutoCloseable]
 
   private def own(child: AutoCloseable): Unit = children += child
 
   private[this] def disown(child: AutoCloseable): Unit =
     assert(children.remove(child))
 
-  own(r)
+  own(region)
 
   def freshContext(): RVDContext = {
-    val ctx = new RVDContext(partitionRegion, Region(pool = r.pool))
+    val ctx = RVDContext.default(this)
     own(ctx)
     ctx
   }
@@ -37,9 +33,10 @@ class RVDContext(val partitionRegion: Region, val r: Region) extends AutoCloseab
     r2
   }
 
-  def region: Region = r
+  override def onClose(f: () => Unit): Unit =
+    own(() => f())
 
-  private[this] val theRvb = new RegionValueBuilder(HailStateManager(Map.empty), r)
+  private[this] val theRvb = new RegionValueBuilder(HailStateManager(Map.empty), region)
   def rvb = theRvb
 
   // frees the memory associated with this context

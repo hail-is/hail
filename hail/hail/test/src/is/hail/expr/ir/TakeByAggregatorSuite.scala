@@ -48,7 +48,7 @@ class TakeByAggregatorSuite extends HailSuite {
           tba.result(cb, argR, rt).a
         }
 
-        val o = fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, r)(r)
+        val o = fb.resultWithIndex()(theHailClassLoader, ctx.fs, taskContext, r)(r)
         val result = SafeRow.read(rt, o)
         assert(
           result == ((n - 1) to 0 by -1)
@@ -86,7 +86,7 @@ class TakeByAggregatorSuite extends HailSuite {
         tba.result(cb, argR, rt).a
       }
 
-      val o = fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, r)(r)
+      val o = fb.resultWithIndex()(theHailClassLoader, ctx.fs, taskContext, r)(r)
       val result = SafeRow.read(rt, o)
       assert(result == FastSeq(0, 1, 2, 3, null, null, null))
     }
@@ -131,7 +131,7 @@ class TakeByAggregatorSuite extends HailSuite {
           resultOff
         }
 
-        val o = fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, r)(r)
+        val o = fb.resultWithIndex()(theHailClassLoader, ctx.fs, taskContext, r)(r)
         val pqOffset = Region.loadAddress(o)
         val pq = SafeRow.read(rt, pqOffset)
         val collOffset = Region.loadAddress(o + 8)

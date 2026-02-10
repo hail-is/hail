@@ -94,7 +94,7 @@ object BgenRDDPartitions extends Logging {
       }
 
       val allPositions = partFirstVariantIndex ++ partLastVariantIndex.map(_ - 1L)
-      val keys = getKeysFromFile(file.indexPath, allPositions)
+      val keys = getKeysFromFile(ctx, file.indexPath, allPositions)
       val rangeBounds = (0 until nPartitions).map { i =>
         Interval(
           keys(i),

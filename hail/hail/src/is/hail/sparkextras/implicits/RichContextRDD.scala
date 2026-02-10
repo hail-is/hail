@@ -1,6 +1,5 @@
 package is.hail.sparkextras.implicits
 
-import is.hail.annotations.RegionPool
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.partFile
 import is.hail.io.FileWriteMetadata
@@ -22,7 +21,7 @@ object RichContextRDD {
     rootPath: String,
     f: String,
     idxRelPath: String,
-    mkIdxWriter: (String, RegionPool) => IndexWriter,
+    mkIdxWriter: (RVDContext, String) => IndexWriter,
     stageLocally: Boolean,
     fs: FS,
     localTmpdir: String,
@@ -45,7 +44,7 @@ object RichContextRDD {
       } else
         finalFilename -> finalIdxFilename
     val os = fs.create(filename)
-    val iw = mkIdxWriter(idxFilename, ctx.r.pool)
+    val iw = mkIdxWriter(ctx, idxFilename)
 
     // write must close `os` and `iw`
     val (rowCount, bytesWritten) = write(ctx, it, os, iw)
@@ -95,7 +94,7 @@ class RichContextRDD[T](val crdd: ContextRDD[T]) extends AnyVal {
     path: String,
     idxRelPath: String,
     stageLocally: Boolean,
-    mkIdxWriter: (String, RegionPool) => IndexWriter,
+    mkIdxWriter: (RVDContext, String) => IndexWriter,
     write: (RVDContext, Iterator[T], OutputStream, IndexWriter) => (Long, Long),
   ): Array[FileWriteMetadata] = {
     val localTmpdir = ctx.localTmpdir

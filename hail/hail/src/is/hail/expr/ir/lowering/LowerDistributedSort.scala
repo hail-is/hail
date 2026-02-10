@@ -6,7 +6,6 @@ import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir._
-import is.hail.expr.ir.compile.Compile
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.functions.{ArrayFunctions, UtilFunctions}
 import is.hail.io.{BufferSpec, TypedCodecSpec}

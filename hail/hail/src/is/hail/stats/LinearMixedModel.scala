@@ -105,7 +105,7 @@ class LinearMixedModel(lmmData: LMMData) {
       val r0 = 0 to 0
       val r1 = 1 until f
 
-      val region = Region(pool = SparkTaskContext.get().getRegionPool())
+      val region = Region(pool = SparkTaskContext.get.r.pool)
       val rv = RegionValue(region)
       val rvb = new RegionValueBuilder(ctx.stateManager, region)
 
@@ -177,7 +177,7 @@ class LinearMixedModel(lmmData: LMMData) {
       val r0 = 0 to 0
       val r1 = 1 until f
 
-      val region = Region(pool = SparkTaskContext.get().getRegionPool())
+      val region = Region(pool = SparkTaskContext.get.r.pool)
       val rv = RegionValue(region)
       val rvb = new RegionValueBuilder(ctx.stateManager, region)
 

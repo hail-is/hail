@@ -2,7 +2,7 @@ package is.hail.backend.spark
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.backend._
+import is.hail.backend.{PartitionContext, _}
 import is.hail.backend.Backend.PartitionFn
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.Validate
@@ -36,31 +36,23 @@ class SparkBroadcastValue[T](bc: Broadcast[T]) extends BroadcastValue[T] with Se
 }
 
 object SparkTaskContext {
-  def get(): SparkTaskContext = taskContext.get
+  def get: HailTaskContext = taskContext.get
 
-  private[this] val taskContext: ThreadLocal[SparkTaskContext] =
-    new ThreadLocal[SparkTaskContext]() {
-      override def initialValue(): SparkTaskContext = {
+  private[this] val taskContext: ThreadLocal[HailTaskContext] =
+    new ThreadLocal[HailTaskContext]() {
+      override def initialValue(): HailTaskContext = {
         val sparkTC = TaskContext.get()
         assert(sparkTC != null, "Spark Task Context was null, maybe this ran on the driver?")
-        sparkTC.addTaskCompletionListener[Unit]((_: TaskContext) => SparkTaskContext.finish()): Unit
 
-        // this must be the only place where SparkTaskContext classes are created
-        new SparkTaskContext(sparkTC)
+        val htc = new PartitionContext(sparkTC.stageId())
+        sparkTC.addTaskCompletionListener[Unit] { _ => htc.close(); remove(); }: Unit
+
+        htc
       }
     }
 
-  def finish(): Unit = {
-    taskContext.get().close()
+  def finish(): Unit =
     taskContext.remove()
-  }
-}
-
-class SparkTaskContext private[spark] (ctx: TaskContext) extends HailTaskContext {
-  self =>
-  override def stageId(): Int = ctx.stageId()
-  override def partitionId(): Int = ctx.partitionId()
-  override def attemptNumber(): Int = ctx.attemptNumber()
 }
 
 object SparkBackend extends Logging {
@@ -267,16 +259,11 @@ class SparkBackend(val spark: SparkSession) extends Backend with Logging {
               Array.tabulate(contexts.length)(index => RDDPartition(contexts(index), index))
 
             override def compute(partition: Partition, context: TaskContext)
-              : Iterator[Array[Byte]] =
-              Iterator.single(
-                f(
-                  globals,
-                  partition.asInstanceOf[RDDPartition].data,
-                  SparkTaskContext.get(),
-                  theHailClassLoaderForSparkWorkers,
-                  new HadoopFS(fsConfig),
-                )
-              )
+              : Iterator[Array[Byte]] = {
+              val ctx = SparkTaskContext.get
+              val g = f(theHailClassLoaderForSparkWorkers, new HadoopFS(fsConfig), ctx, ctx.r)
+              Iterator.single(g(globals, partition.asInstanceOf[RDDPartition].data))
+            }
           }
 
         val todo: IndexedSeq[Int] =
