@@ -1635,81 +1635,6 @@ steps:
       - merge_code
       - hail_ubuntu_image
   - kind: runImage
-    name: check_pip_requirements
-    image:
-      valueFrom: hail_linting_image.image
-    script: |
-      set -ex
-      cd /io/repo
-      chmod 755 ./check_pip_requirements.sh
-      make check-pip-requirements
-    inputs:
-      - from: /repo
-        to: /io/repo
-    dependsOn:
-      - hail_linting_image
-      - merge_code
-  - kind: runImage
-    name: check_services
-    image:
-      valueFrom: hail_linting_image.image
-    script: |
-      set -ex
-      cd /io/repo
-      {% if 'target_sha' in code %}
-      export HAIL_TARGET_SHA={{ code.target_sha }}
-      {% endif %}
-      make -k check-services
-    inputs:
-      - from: /repo
-        to: /io/repo
-    dependsOn:
-      - hail_linting_image
-      - merge_code
-  - kind: runImage
-    name: check_hail
-    image:
-      valueFrom: hail_linting_image.image
-    resources:
-      memory: 8G
-    script: |
-      set -ex
-      cd /io/repo
-      make check-hail
-    inputs:
-      - from: /repo/Makefile
-        to: /io/repo/Makefile
-      - from: /repo/pylintrc
-        to: /io/repo/pylintrc
-      - from: /repo/pyproject.toml
-        to: /io/repo/pyproject.toml
-      - from: /repo/hail
-        to: /io/repo/hail
-      - from: /repo/config.mk
-        to: /io/repo/config.mk
-    dependsOn:
-      - hail_linting_image
-      - merge_code
-  - kind: runImage
-    name: compile_hail_213
-    image:
-      valueFrom: base_image.image
-    resources:
-      memory: standard
-      cpu: '2'
-    script: |
-      set -ex
-      cd /io/repo/hail
-
-      HAIL_BUILD_MODE='CI'
-      time retry sh mill --no-daemon hail[2.13].__.compile
-    inputs:
-      - from: /repo
-        to: /io/repo
-    dependsOn:
-      - base_image
-      - merge_code
-  - kind: runImage
     name: get_pip_versioned_docs
     image:
       valueFrom: hailgenetics_hail_image.image
@@ -3070,37 +2995,6 @@ steps:
       - create_certs
       - hail_buildkit_image
   - kind: runImage
-    name: test_ci_unit
-    resources:
-      memory: standard
-      cpu: '0.25'
-    image:
-      valueFrom: ci_image.image
-    script: |
-      set -ex
-      hail-pip-install -r /io/dev-requirements.txt
-      python3 -m pytest \
-              -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
-              --log-cli-level=INFO \
-              -s \
-              -r A \
-              -vv \
-              --instafail \
-              --durations=50 \
-              /io/ci/unit-test
-    timeout: 1200
-    inputs:
-      - from: /repo/ci
-        to: /io/ci
-      - from: /repo/hail/python/dev/pinned-requirements.txt
-        to: /io/dev-requirements.txt
-    scopes:
-      - test
-      - dev
-    dependsOn:
-      - merge_code
-      - ci_image
-  - kind: runImage
     name: test_ci
     resources:
       memory: standard
@@ -4160,6 +4054,8 @@ steps:
         to: /io/repo/docker
       - from: /repo/ci/test/resources
         to: /io/repo/ci/test/resources
+    scopes:
+      - deploy
     clouds:
       - gcp
     dependsOn:

@@ -69,9 +69,13 @@ jobs:
         run: make -k check-services
 
   check-hail:
+    # Runs ruff, pyright, pylint on hail Python code, plus Scala format and
+    # scalafix checks via Mill. The Mill checkFormat/fix targets compile all
+    # cross-build Scala versions (2.12, 2.12.13, 2.13) as a prerequisite,
+    # so this job subsumes the standalone compile_hail_213 build.yaml step.
     name: Check hail
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -138,31 +142,6 @@ jobs:
             exit 1
           }
 
-  compile-hail-213:
-    name: Compile Hail (Scala 2.13)
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '11'
-
-      - name: Cache Mill
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/mill
-            hail/out
-          key: mill-${{ runner.os }}-${{ hashFiles('hail/build.mill') }}
-          restore-keys: mill-${{ runner.os }}-
-
-      - name: Compile Scala 2.13
-        working-directory: hail
-        run: HAIL_BUILD_MODE=CI SCALA_VERSION=2.13 sh mill --no-daemon hail[2.13].__.compile
-
   test-ci-unit:
     name: Test CI unit
     runs-on: ubuntu-latest
@@ -219,7 +198,6 @@ jobs:
       - check-services
       - check-hail
       - test-gcp-ar-cleanup
-      - compile-hail-213
       - test-ci-unit
     runs-on: ubuntu-latest
     timeout-minutes: 1
@@ -231,7 +209,6 @@ jobs:
             "${{ needs.check-services.result }}" \
             "${{ needs.check-hail.result }}" \
             "${{ needs.test-gcp-ar-cleanup.result }}" \
-            "${{ needs.compile-hail-213.result }}" \
             "${{ needs.test-ci-unit.result }}" \
           )
           for r in "${results[@]}"; do
