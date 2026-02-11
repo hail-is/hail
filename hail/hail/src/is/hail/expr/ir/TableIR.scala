@@ -940,6 +940,7 @@ case class PartitionNativeIntervalReader(
       val currIdxInPartition = mb.genFieldThisRef[Long]("n_to_read")
       val stopIdxInPartition = mb.genFieldThisRef[Long]("n_to_read")
       val finalizer = mb.genFieldThisRef[TaskFinalizer]("finalizer")
+      cb.assign(finalizer, cb.emb.ecb.getTaskContext.invoke[TaskFinalizer]("newFinalizer"))
 
       val startPartitionIndex = mb.genFieldThisRef[Int]("start_part")
       val currPartitionIdx = mb.genFieldThisRef[Int]("curr_part")
@@ -995,8 +996,6 @@ case class PartitionNativeIntervalReader(
           cb.assign(streamFirst, true)
           cb.assign(currIdxInPartition, 0L)
           cb.assign(stopIdxInPartition, 0L)
-
-          cb.assign(finalizer, cb.emb.ecb.getTaskContext.invoke[TaskFinalizer]("newFinalizer"))
         }
 
         override val elementRegion: Settable[Region] = region
