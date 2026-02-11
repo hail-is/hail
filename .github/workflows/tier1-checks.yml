@@ -52,6 +52,9 @@ jobs:
           cache: pip
           cache-dependency-path: '**/pinned-requirements.txt'
 
+      - name: Generate version files
+        run: make -C hail python-version-info
+
       - name: Install Python dependencies
         run: |
           pip install \
@@ -91,6 +94,9 @@ jobs:
             hail/out
           key: mill-${{ runner.os }}-${{ hashFiles('hail/build.mill') }}
           restore-keys: mill-${{ runner.os }}-
+
+      - name: Generate version files
+        run: make -C hail python-version-info
 
       - name: Install Python dependencies
         run: |
@@ -169,6 +175,9 @@ jobs:
           python-version: '3.11'
           cache: pip
           cache-dependency-path: '**/pinned-requirements.txt'
+
+      - name: Generate version files
+        run: make -C hail python-version-info
 
       - name: Install Python dependencies
         run: |
