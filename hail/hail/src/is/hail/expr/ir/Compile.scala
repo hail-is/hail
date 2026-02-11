@@ -4,7 +4,6 @@ import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.{ExecuteContext, HailTaskContext}
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.agg.AggStateSig
 import is.hail.expr.ir.defs.In
@@ -95,7 +94,7 @@ object compile {
         NormalizeNames()(
           ctx,
           Subst(
-            body,
+            body.noSharing(ctx),
             BindingEnv(Env.fromSeq(params.zipWithIndex.map { case ((n, t), i) => n -> In(i, t) })),
           ),
         )
@@ -109,7 +108,10 @@ object compile {
 
       ctx.CodeCache.getOrElseUpdate(
         key, {
-          val lowered = LoweringPipeline.compileLowerer(ctx, ir).asInstanceOf[IR]
+          val lowered =
+            LoweringPipeline.compileLowerer(ctx, ir)
+              .asInstanceOf[IR]
+              .noSharing(ctx)
 
           val fb =
             EmitFunctionBuilder[F](
