@@ -163,6 +163,9 @@ jobs:
           distribution: temurin
           java-version: '11'
 
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y liblapack3
+
       - name: Download release wheel
         uses: actions/download-artifact@v4
         with:
@@ -234,6 +237,9 @@ jobs:
             -r hail/python/pinned-requirements.txt \
             -r hail/python/dev/pinned-requirements.txt
           pip install --no-deps release-wheel/*.whl
+
+      - name: Generate version files
+        run: make -C hail python-version-info
 
       - name: Build Sphinx docs
         env:
@@ -319,10 +325,13 @@ jobs:
 
       - name: Install plink
         run: |
-          curl -sSL -o plink.zip https://storage.googleapis.com/hail-common/plink_linux_x86_64_20181202.zip
-          unzip plink.zip
-          sudo mv plink /usr/local/bin/
-          rm plink.zip
+          mkdir -p plink && \
+          cd plink && \
+          curl -sSL >plink_linux_x86_64.zip https://storage.googleapis.com/hail-common/plink_linux_x86_64_20181202.zip && \
+          unzip plink_linux_x86_64.zip && \
+          sudo mv plink /usr/local/bin && \
+          cd .. && \
+          rm -rf plink
 
       - name: Download debug wheel
         uses: actions/download-artifact@v4
