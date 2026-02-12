@@ -339,6 +339,9 @@ jobs:
           name: debug-wheel
           path: debug-wheel
 
+      - name: Generate version files
+        run: make -C hail python-version-info
+
       - name: Install dependencies
         run: |
           pip install \
