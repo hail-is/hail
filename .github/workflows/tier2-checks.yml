@@ -179,6 +179,14 @@ jobs:
             -r hail/python/dev/pinned-requirements.txt
           pip install --no-deps release-wheel/*.whl
 
+      - name: Install GCS connector
+        run: |
+          SPARK_HOME=$(python3 -c "import pyspark; import os; print(os.path.dirname(os.path.dirname(pyspark.__file__)))")
+          mkdir -p "$SPARK_HOME/jars"
+          curl --fail --silent --show-error --location \
+            https://repo1.maven.org/maven2/com/google/cloud/bigdataoss/gcs-connector/3.1.3/gcs-connector-3.1.3-shaded.jar \
+            -o "$SPARK_HOME/jars/gcs-connector-3.1.3-shaded.jar"
+
       - name: Run doctest
         env:
           PYSPARK_SUBMIT_ARGS: '--driver-memory 4g pyspark-shell'
@@ -240,6 +248,14 @@ jobs:
 
       - name: Generate version files
         run: make -C hail python-version-info
+
+      - name: Install GCS connector
+        run: |
+          SPARK_HOME=$(python3 -c "import pyspark; import os; print(os.path.dirname(os.path.dirname(pyspark.__file__)))")
+          mkdir -p "$SPARK_HOME/jars"
+          curl --fail --silent --show-error --location \
+            https://repo1.maven.org/maven2/com/google/cloud/bigdataoss/gcs-connector/3.1.3/gcs-connector-3.1.3-shaded.jar \
+            -o "$SPARK_HOME/jars/gcs-connector-3.1.3-shaded.jar"
 
       - name: Build Sphinx docs
         env:
