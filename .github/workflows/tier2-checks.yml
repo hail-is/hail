@@ -389,6 +389,11 @@ jobs:
           HAIL_TEST_RESOURCES_DIR: ${{ github.workspace }}/hail/hail/test/resources
           HAIL_DOCTEST_DATA_DIR: ${{ github.workspace }}/hail/python/hail/docs/data
         run: |
+          # Clear cloud credential environment variables - not needed for local backend
+          export GOOGLE_APPLICATION_CREDENTIALS=""
+          export AZURE_APPLICATION_CREDENTIALS=""
+          export HAIL_CLOUD=""
+          
           export HAIL_TEST_STORAGE_URI=$(mktemp -d)
 
           cd hail/python
