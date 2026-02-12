@@ -11,7 +11,7 @@ RUN hail-pip-install \
       'twine>=6.2.0,<7' \
       'Jinja2>3,<4'
 
-FROM golang:1.18 AS skopeo-build
+FROM {% if global.dockerhub_prefix %}{{ global.dockerhub_prefix }}/library/{% endif %}golang:1.18 AS skopeo-build
 
 WORKDIR /usr/src/skopeo
 

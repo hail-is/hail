@@ -195,6 +195,12 @@ spec:
              secretKeyRef:
                name: global-config
                key: docker_prefix
+         - name: HAIL_DOCKERHUB_PREFIX
+           valueFrom:
+             secretKeyRef:
+               name: global-config
+               key: dockerhub_prefix
+               optional: true
          - name: KUBERNETES_SERVER_URL
            valueFrom:
              secretKeyRef:
@@ -385,6 +391,12 @@ spec:
              secretKeyRef:
                name: global-config
                key: docker_prefix
+         - name: HAIL_DOCKERHUB_PREFIX
+           valueFrom:
+             secretKeyRef:
+               name: global-config
+               key: dockerhub_prefix
+               optional: true
          - name: KUBERNETES_SERVER_URL
            valueFrom:
              secretKeyRef:

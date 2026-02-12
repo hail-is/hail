@@ -75,7 +75,7 @@ steps:
       {% endif %}
 
       cd /io/docker/third-party
-      DOCKER_PREFIX={{ global.docker_prefix }} retry bash copy_images.sh
+      DOCKER_PREFIX={{ global.docker_prefix }} {% if global.dockerhub_prefix %}DOCKERHUB_PREFIX={{ global.dockerhub_prefix }} {% endif %}retry bash copy_images.sh
     inputs:
       - from: /repo/docker
         to: /io/docker
@@ -2435,6 +2435,10 @@ steps:
         online: true
       - name: is-job-cancelled
         script: /io/sql/119-is-job-cancelled.sql
+        online: true
+      - name: add-dockerhub-proxy-flag
+        script: /io/sql/120-add-dockerhub-proxy-flag.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
@@ -3508,6 +3512,7 @@ steps:
       cd /io/docker/hailgenetics
       export HAIL_PIP_VERSION=$(cat /io/HAIL_PIP_VERSION)
       export DOCKER_PREFIX={{ global.docker_prefix }}
+      {% if global.dockerhub_prefix %}export DOCKERHUB_PREFIX={{ global.dockerhub_prefix }}{% endif %}
       bash mirror_images.sh
     inputs:
       - from: /repo/hail/env/HAIL_PIP_VERSION

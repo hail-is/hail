@@ -83,7 +83,7 @@ from web_common import (
 )
 
 from ..batch import batch_record_to_dict, cancel_job_group_in_db, job_group_record_to_dict, job_record_to_dict
-from ..batch_configuration import BATCH_STORAGE_URI, CLOUD, DEFAULT_NAMESPACE, SCOPE
+from ..batch_configuration import BATCH_STORAGE_URI, CLOUD, DEFAULT_NAMESPACE, DOCKERHUB_PREFIX, SCOPE
 from ..batch_format_version import BatchFormatVersion
 from ..cloud.azure.resource_utils import azure_cores_mcpu_to_memory_bytes
 from ..cloud.gcp.resource_utils import GCP_MACHINE_FAMILY, gcp_cores_mcpu_to_memory_bytes
@@ -118,6 +118,7 @@ from ..utils import (
     query_billing_projects_with_cost,
     query_billing_projects_without_cost,
     regions_to_bits_rep,
+    rewrite_dockerhub_image,
     unavailable_if_frozen,
 )
 from .query import (
@@ -1181,6 +1182,18 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
 
         if machine_type and ('cpu' in resources or 'memory' in resources):
             raise web.HTTPBadRequest(reason='cannot specify cpu and memory with machine_type')
+
+        # Rewrite Docker Hub images if feature flag is enabled
+        if (
+            spec['process']['type'] == 'docker'
+            and DOCKERHUB_PREFIX
+            and app['feature_flags'].get('dockerhub_proxy', False)
+        ):
+            original_image = spec['process']['image']
+            rewritten_image = rewrite_dockerhub_image(original_image, DOCKERHUB_PREFIX)
+            if rewritten_image is not None:
+                spec['process']['image'] = rewritten_image
+                log.info(f'Rewrote Docker Hub image {original_image} to {rewritten_image} for job {batch_id}/{job_id}')
 
         if spec['process']['type'] == 'jvm':
             jvm_requested_cpu = parse_cpu_in_mcpu(resources.get('cpu', BATCH_JOB_DEFAULT_CPU))
@@ -3573,6 +3586,9 @@ SELECT instance_id, n_tokens, frozen FROM globals;
         app['default_region'] = get_azure_config().region
 
     app['frozen'] = row['frozen']
+
+    row = await db.select_and_fetchone('SELECT * FROM feature_flags')
+    app['feature_flags'] = row
 
     regions: Dict[str, int] = {
         record['region']: record['region_id']

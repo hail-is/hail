@@ -258,6 +258,20 @@ rm -rf .terraform terraform.lock.hcl terraform.tfstate terraform.tfstate.backup
     - `<domain>`
     - `*.<domain>`
 
+## Add a docker login for the dockerhubproxy repository (Recommended)
+
+**Note**: This step is optional but highly recommended. The repository works without authentication, but Docker Hub rate limits are likely to be hit when pulling anonymously because Artifact Registry, as a global service, reuses the same IP address across multiple users and projects.
+
+- Identify a Docker Hub account to use for upstream authentication to Docker Hub for the proxy.
+- Create a personal access token for the Docker Hub account.
+  - It can be readonly
+  - You can choose whether to allow it to pull private repositories or just use it for public repositories.
+- Add the personal access token to a Google Secret Manager secret.
+- In the Google Cloud Console, navigate to Artifact Registry → Repositories → `dockerhubproxy` → Edit → Remote repository settings.
+- Configure the repository to use the Docker Hub username and the Secret Manager secret containing the personal access token.
+
+**Note**: Terraform is configured to ignore changes to upstream credentials (via `lifecycle.ignore_changes`), so manually configured credentials will not be overwritten by subsequent Terraform runs.
+
 ## Deploy Hail to Kubernetes
 
 We can now deploy Hail to the kubernetes cluster that terraform created.

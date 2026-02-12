@@ -47,6 +47,7 @@ variable "use_artifact_registry" {
   description = "pull the ubuntu image from Artifact Registry. Otherwise, GCR"
 }
 
+
 variable deploy_ukbb {
   type = bool
   description = "Run the UKBB Genetic Correlation browser"
@@ -75,6 +76,7 @@ locals {
     "gcr.io/${var.gcp_project}"
   )
   docker_root_image = "${local.docker_prefix}/ubuntu:24.04"
+  dockerhub_prefix  = "${var.gcp_location}-docker.pkg.dev/${var.gcp_project}/dockerhubproxy"
 }
 
 data "sops_file" "terraform_sa_key_sops" {
@@ -440,6 +442,7 @@ resource "kubernetes_secret" "global_config" {
     gcp_region = var.gcp_region
     gcp_zone = var.gcp_zone
     docker_prefix = local.docker_prefix
+    dockerhub_prefix = local.dockerhub_prefix
     internal_ip = google_compute_address.internal_gateway.address
     ip = google_compute_address.gateway.address
     kubernetes_server_url = "https://${google_container_cluster.vdc.endpoint}"
@@ -513,6 +516,26 @@ resource "google_artifact_registry_repository" "repository" {
   location = var.gcp_location
 }
 
+resource "google_artifact_registry_repository" "dockerhub_remote" {
+  provider      = google-beta
+  format        = "DOCKER"
+  mode          = "REMOTE"
+  repository_id = "dockerhubproxy"
+  location      = var.gcp_location
+
+  remote_repository_config {
+    description = "Docker Hub remote repository for Batch worker images"
+    docker_repository {
+      public_repository = "DOCKER_HUB"
+    }
+  }
+
+  lifecycle {
+    # Allow users to specify the upstream credentials manually without Terraform resetting it.
+    ignore_changes = [remote_repository_config[0].upstream_credentials]
+  }
+}
+
 resource "google_service_account" "gcr_push" {
   account_id = "gcr-push"
   display_name = "push to gcr.io"
@@ -530,6 +553,17 @@ resource "google_artifact_registry_repository_iam_member" "artifact_registry_bat
   role = "roles/artifactregistry.reader"
   member = "serviceAccount:${google_service_account.batch_agent.email}"
 }
+
+# Grant all service accounts in the project read access to dockerhubproxy
+resource "google_artifact_registry_repository_iam_member" "artifact_registry_all_service_accounts_dockerhub_viewer" {
+  provider  = google-beta
+  project   = var.gcp_project
+  repository = google_artifact_registry_repository.dockerhub_remote.name
+  location  = var.gcp_location
+  role      = "roles/artifactregistry.reader"
+  member    = "principalSet://cloudresourcemanager.googleapis.com/projects/${data.google_project.current.number}/type/ServiceAccount"
+}
+
 
 resource "google_artifact_registry_repository_iam_member" "artifact_registry_ci_admin" {
   provider = google-beta

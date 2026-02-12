@@ -47,6 +47,33 @@ def add_metadata_to_request(fun):
     return wrapped
 
 
+def rewrite_dockerhub_image(image: str, dockerhub_prefix: str) -> Optional[str]:
+    """
+    Rewrite a Docker Hub image reference to use a GAR Remote Repository proxy.
+
+    Only rewrites if there's no explicit registry. A registry is indicated by:
+    - Multiple parts separated by '/' where the first part contains '.' or ':'
+    - If there's only one part (no '/'), it's definitely not a registry
+    Returns the rewritten image if it was rewritten, None otherwise.
+    """
+    # Split by '/' to check if there are multiple parts
+    parts = image.split('/', 1)
+
+    # If there's only one part (no '/'), it is a bare image - prepend /library/ and the prefix
+    if len(parts) == 1:
+        return f'{dockerhub_prefix}/library/{image}'
+
+    # Multiple parts - check if the first part looks like a registry
+    first_part = parts[0]
+
+    # If the first part contains '.' or ':', it's a registry domain
+    if '.' in first_part or ':' in first_part:
+        return None
+
+    # No explicit registry, so prepend the dockerhub prefix
+    return f'{dockerhub_prefix}/{image}'
+
+
 def coalesce(x, default):
     if x is not None:
         return x

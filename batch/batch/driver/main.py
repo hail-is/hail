@@ -582,12 +582,13 @@ async def configure_feature_flags(request: web.Request, _) -> NoReturn:
 
     compact_billing_tables = 'compact_billing_tables' in post
     oms_agent = 'oms_agent' in post
+    dockerhub_proxy = 'dockerhub_proxy' in post
 
     await db.execute_update(
         """
-UPDATE feature_flags SET compact_billing_tables = %s, oms_agent = %s;
+UPDATE feature_flags SET compact_billing_tables = %s, oms_agent = %s, dockerhub_proxy = %s;
 """,
-        (compact_billing_tables, oms_agent),
+        (compact_billing_tables, oms_agent, dockerhub_proxy),
     )
 
     row = await db.select_and_fetchone('SELECT * FROM feature_flags')

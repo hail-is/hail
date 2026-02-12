@@ -5,6 +5,7 @@ from batch.cloud.gcp.resource_utils import MACHINE_TYPE_TO_PARTS as MACHINE_TYPE
 from batch.cloud.gcp.resource_utils import gcp_worker_memory_per_core_mib, machine_type_to_gpu_num
 from batch.cloud.gcp.resources import GCPAcceleratorResource, gcp_resource_from_dict
 from batch.cloud.resource_utils import adjust_cores_for_packability
+from batch.utils import rewrite_dockerhub_image
 from hailtop.batch_client.parse import parse_memory_in_bytes
 
 
@@ -117,3 +118,39 @@ def test_gcp_accelerator_to_from_dict():
     assert version_2_resource
     version_2_remade_dict = version_2_resource.to_dict()
     assert version_2_remade_dict == version_2_dict
+
+
+@pytest.mark.parametrize(
+    "image,expected",
+    [
+        # Bare images (should be rewritten)
+        ("ubuntu:20.04", "us-central1-docker.pkg.dev/my-project/dockerhubproxy/library/ubuntu:20.04"),
+        ("ubuntu", "us-central1-docker.pkg.dev/my-project/dockerhubproxy/library/ubuntu"),
+        ("python:3.9", "us-central1-docker.pkg.dev/my-project/dockerhubproxy/library/python:3.9"),
+        # Namespaced images (should be rewritten)
+        ("myorg/myimage:tag", "us-central1-docker.pkg.dev/my-project/dockerhubproxy/myorg/myimage:tag"),
+        ("envoyproxy/envoy:v1.33.0", "us-central1-docker.pkg.dev/my-project/dockerhubproxy/envoyproxy/envoy:v1.33.0"),
+        # Images with explicit registry (should NOT be rewritten)
+        ("gcr.io/myproject/image:tag", None),
+        ("us-central1-docker.pkg.dev/project/repo/image", None),
+        ("myregistry.io/image:tag", None),
+        ("localhost:5000/image", None),
+        ("registry.example.com:8080/image", None),
+        # Edge cases
+        (
+            "image.with.dots:tag",
+            "us-central1-docker.pkg.dev/my-project/dockerhubproxy/library/image.with.dots:tag",
+        ),  # dots in first part
+        (
+            "image:with:colons",
+            "us-central1-docker.pkg.dev/my-project/dockerhubproxy/library/image:with:colons",
+        ),  # colons in first part
+        (
+            "my-org/my-image:1.0.0",
+            "us-central1-docker.pkg.dev/my-project/dockerhubproxy/my-org/my-image:1.0.0",
+        ),  # hyphens OK
+    ],
+)
+def test_rewrite_dockerhub_image(image, expected):
+    dockerhub_prefix = "us-central1-docker.pkg.dev/my-project/dockerhubproxy"
+    assert rewrite_dockerhub_image(image, dockerhub_prefix) == expected

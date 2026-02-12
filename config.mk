@@ -4,9 +4,12 @@
 
 ifdef NAMESPACE
 DOCKER_PREFIX = $(eval DOCKER_PREFIX := $$(shell kubectl -n $(NAMESPACE) get secret global-config --template={{.data.docker_prefix}} | base64 --decode))$(DOCKER_PREFIX)
+DOCKERHUB_PREFIX = $(eval DOCKERHUB_PREFIX := $$(shell kubectl -n $(NAMESPACE) get secret global-config --template={{.data.dockerhub_prefix}} 2>/dev/null | base64 --decode || echo))$(DOCKERHUB_PREFIX)
 else
 DOCKER_PREFIX = docker.io
+DOCKERHUB_PREFIX =
 endif
+
 
 DOMAIN = $(eval DOMAIN := $$(shell kubectl -n $(NAMESPACE) get secret global-config --template={{.data.domain}} | base64 --decode))$(DOMAIN)
 CLOUD = $(eval CLOUD := $$(shell kubectl -n $(NAMESPACE) get secret global-config --template={{.data.cloud}} | base64 --decode))$(CLOUD)
