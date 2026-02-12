@@ -1,0 +1,425 @@
+name: CI / Tier 2 Checks
+
+on:
+  workflow_run:
+    workflows: ["CI / Tier 1 Checks"]
+    types:
+      - completed
+    branches: [main]
+
+# Cancel in-progress runs for the same PR
+# Note: pull_requests array may be empty for non-PR runs, so we use workflow_run.id as fallback
+concurrency:
+  group: tier2-${{ github.event.workflow_run.pull_requests[0].number || format('run-{0}', github.event.workflow_run.id) }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Build jobs (prerequisites)
+  # ---------------------------------------------------------------------------
+  build-release-wheel:
+    name: Build release wheel
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '11'
+
+      - name: Cache Mill
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/mill
+            hail/out
+          key: mill-release-${{ runner.os }}-${{ hashFiles('hail/build.mill') }}
+          restore-keys: mill-release-${{ runner.os }}-
+
+      - name: Generate version files
+        run: make -C hail python-version-info
+
+      - name: Build release shadow JAR and wheel
+        run: HAIL_BUILD_MODE=Release make -C hail shadowJar wheel
+
+      - name: Upload release wheel
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-wheel
+          path: hail/build/deploy/dist/
+          retention-days: 1
+
+  build-debug-wheel:
+    name: Build debug wheel
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '11'
+
+      - name: Cache Mill
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/mill
+            hail/out
+          key: mill-debug-${{ runner.os }}-${{ hashFiles('hail/build.mill') }}
+          restore-keys: mill-debug-${{ runner.os }}-
+
+      - name: Generate version files
+        run: make -C hail python-version-info
+
+      - name: Build debug shadow JAR and wheel
+        run: HAIL_BUILD_MODE=CI make -C hail shadowJar wheel
+
+      - name: Upload debug wheel
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-wheel
+          path: hail/build/deploy/dist/
+          retention-days: 1
+
+  # ---------------------------------------------------------------------------
+  # Test jobs (depend on build jobs)
+  # ---------------------------------------------------------------------------
+  test-requester-pays:
+    name: Test requester pays parsing
+    if: github.event.workflow_run.conclusion == 'success'
+    needs: build-release-wheel
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: '**/pinned-requirements.txt'
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '11'
+
+      - name: Download release wheel
+        uses: actions/download-artifact@v4
+        with:
+          name: release-wheel
+          path: release-wheel
+
+      - name: Install dependencies
+        run: |
+          pip install \
+            -r hail/python/pinned-requirements.txt \
+            -r hail/python/dev/pinned-requirements.txt
+          pip install --no-deps release-wheel/*.whl
+
+      - name: Run requester pays tests
+        env:
+          YOU_MAY_OVERWRITE_MY_SPARK_DEFAULTS_CONF_AND_HAILCTL_SETTINGS: '1'
+        run: |
+          python3 -m pytest \
+            -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
+            --log-cli-level=INFO \
+            -s \
+            -r A \
+            -vv \
+            --instafail \
+            --durations=50 \
+            hail/scripts/test_requester_pays_parsing.py
+
+  test-python-docs:
+    name: Test Python docs
+    if: github.event.workflow_run.conclusion == 'success'
+    needs: build-release-wheel
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: '**/pinned-requirements.txt'
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '11'
+
+      - name: Download release wheel
+        uses: actions/download-artifact@v4
+        with:
+          name: release-wheel
+          path: release-wheel
+
+      - name: Install dependencies
+        run: |
+          pip install \
+            -r hail/python/pinned-requirements.txt \
+            -r hail/python/dev/pinned-requirements.txt
+          pip install --no-deps release-wheel/*.whl
+
+      - name: Run doctest
+        env:
+          PYSPARK_SUBMIT_ARGS: '--driver-memory 4g pyspark-shell'
+        run: |
+          HAIL_LOCATION=$(dirname $(python3 -c 'import hail; print(hail.__file__)'))
+          cp -r hail/python/hail/docs "$HAIL_LOCATION/docs"
+
+          python3 -m pytest \
+            -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
+            --log-cli-level=INFO \
+            -s \
+            -r A \
+            -vv \
+            --instafail \
+            --durations=50 \
+            --doctest-modules \
+            --doctest-glob='*.rst' \
+            --doctest-continue-on-failure \
+            --ignore="$HAIL_LOCATION/test" \
+            --ignore="$HAIL_LOCATION/docs/conf.py" \
+            --ignore="$HAIL_LOCATION/docs/doctest_write_data.py" \
+            --rootdir "$HAIL_LOCATION" \
+            "$HAIL_LOCATION"
+
+  make-docs:
+    name: Build docs
+    if: github.event.workflow_run.conclusion == 'success'
+    needs: build-release-wheel
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: '**/pinned-requirements.txt'
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '11'
+
+      - name: Install pandoc
+        run: sudo apt-get update && sudo apt-get install -y pandoc
+
+      - name: Download release wheel
+        uses: actions/download-artifact@v4
+        with:
+          name: release-wheel
+          path: release-wheel
+
+      - name: Install dependencies
+        run: |
+          pip install \
+            -r hail/python/pinned-requirements.txt \
+            -r hail/python/dev/pinned-requirements.txt
+          pip install --no-deps release-wheel/*.whl
+
+      - name: Build Sphinx docs
+        env:
+          HAIL_USE_PRIVATE_LENS_DATA: '1'
+          HAIL_SHORT_VERSION: '0.2'
+          SPHINXOPTS: '-tgenerate_notebook_outputs'
+        run: |
+          sed -E "s/\(hail\#([0-9]+)\)/(\[#\1](https:\/\/github.com\/hail-is\/hail\/pull\/\1))/g" \
+            < hail/python/hail/docs/change_log.md \
+            | pandoc -o hail/python/hail/docs/change_log.rst --fail-if-warnings --verbose
+
+          make -C hail/python/hail/docs BUILDDIR=_build clean html
+          make -C hail/python/hailtop/batch/docs BUILDDIR=_build clean html
+
+  test-hailgenetics-images:
+    name: Test hailgenetics (${{ matrix.python-version }})
+    if: github.event.workflow_run.conclusion == 'success'
+    needs: build-release-wheel
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.11', '3.12', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: '**/pinned-requirements.txt'
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '11'
+
+      - name: Download release wheel
+        uses: actions/download-artifact@v4
+        with:
+          name: release-wheel
+          path: release-wheel
+
+      - name: Install dependencies
+        run: |
+          pip install \
+            -r hail/python/pinned-requirements.txt \
+            scikit-learn
+          pip install --no-deps release-wheel/*.whl
+
+      - name: Smoke test
+        run: |
+          python3 -c 'import sys; major, minor = "${{ matrix.python-version }}".split("."); assert sys.version_info[:2] == (int(major), int(minor)), sys.version_info'
+          python3 -c 'import hail as hl; hl.balding_nichols_model(3, 100, 100)._force_count_rows()'
+          python3 -c 'import numpy; import pandas; import sklearn; import scipy'
+
+  test-local-backend:
+    name: Test local backend (${{ matrix.split }})
+    if: github.event.workflow_run.conclusion == 'success'
+    needs: build-debug-wheel
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        split: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+                10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+                20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
+                30, 31, 32, 33, 34, 35, 36, 37, 38, 39,
+                40, 41, 42, 43, 44, 45, 46, 47]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: '**/pinned-requirements.txt'
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '11'
+
+      - name: Install plink
+        run: |
+          curl -sSL -o plink.zip https://storage.googleapis.com/hail-common/plink_linux_x86_64_20181202.zip
+          unzip plink.zip
+          sudo mv plink /usr/local/bin/
+          rm plink.zip
+
+      - name: Download debug wheel
+        uses: actions/download-artifact@v4
+        with:
+          name: debug-wheel
+          path: debug-wheel
+
+      - name: Install dependencies
+        run: |
+          pip install \
+            -r hail/python/pinned-requirements.txt \
+            -r hail/python/dev/pinned-requirements.txt
+          pip install --no-deps debug-wheel/*.whl
+
+      - name: Configure hail
+        run: hailctl config set query/backend local
+
+      - name: Run tests
+        env:
+          HAIL_RUN_IMAGE_SPLITS: '48'
+          HAIL_RUN_IMAGE_SPLIT_INDEX: ${{ matrix.split }}
+          HAIL_LOCAL_BACKEND_HEAP_SIZE: 3G
+          HAIL_QUERY_N_CORES: '2'
+          OMP_NUM_THREADS: '2'
+          OPENBLAS_NUM_THREADS: '2'
+          MKL_NUM_THREADS: '2'
+          VECLIB_MAXIMUM_THREADS: '2'
+          NUMEXPR_NUM_THREADS: '2'
+          HAIL_TEST_RESOURCES_DIR: ${{ github.workspace }}/hail/hail/test/resources
+          HAIL_DOCTEST_DATA_DIR: ${{ github.workspace }}/hail/python/hail/docs/data
+        run: |
+          export HAIL_TEST_STORAGE_URI=$(mktemp -d)
+
+          cd hail/python
+          python3 -m pytest \
+            -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
+            --log-cli-level=INFO \
+            -s \
+            -r A \
+            -vv \
+            --instafail \
+            --durations=50 \
+            --ignore=test/hailtop/ \
+            --timeout=120 \
+            test
+
+  # ---------------------------------------------------------------------------
+  # Gate job
+  # ---------------------------------------------------------------------------
+  tier2-result:
+    name: Tier 2 Result
+    if: github.event.workflow_run.conclusion == 'success'
+    needs:
+      - build-release-wheel
+      - build-debug-wheel
+      - test-requester-pays
+      - test-python-docs
+      - make-docs
+      - test-hailgenetics-images
+      - test-local-backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: Verify all checks passed
+        run: |
+          results=( \
+            "${{ needs.build-release-wheel.result }}" \
+            "${{ needs.build-debug-wheel.result }}" \
+            "${{ needs.test-requester-pays.result }}" \
+            "${{ needs.test-python-docs.result }}" \
+            "${{ needs.make-docs.result }}" \
+            "${{ needs.test-hailgenetics-images.result }}" \
+            "${{ needs.test-local-backend.result }}" \
+          )
+          for r in "${results[@]}"; do
+            if [[ "$r" != "success" ]]; then
+              echo "One or more Tier 2 checks failed or were cancelled."
+              exit 1
+            fi
+          done
+          echo "All Tier 2 checks passed."

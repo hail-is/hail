@@ -190,6 +190,144 @@ jobs:
             --durations=50 \
             ci/unit-test
 
+  test-auth:
+    name: Test auth
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: '**/pinned-requirements.txt'
+
+      - name: Generate version files
+        run: make -C hail python-version-info
+
+      - name: Install Python dependencies
+        run: |
+          pip install \
+            -r hail/python/hailtop/pinned-requirements.txt \
+            -r hail/python/dev/pinned-requirements.txt \
+            -r gear/pinned-requirements.txt \
+            -r web_common/pinned-requirements.txt
+
+      - name: Install packages
+        run: |
+          pip install uv_build
+          tmp_hailtop=$(mktemp -d)
+          cp hail/python/setup-hailtop.py "$tmp_hailtop/setup.py"
+          cp hail/python/MANIFEST.in "$tmp_hailtop/MANIFEST.in"
+          ln -s "$PWD/hail/python/hailtop" "$tmp_hailtop/hailtop"
+          pip install --no-deps "$tmp_hailtop" ./gear ./web_common ./auth
+
+      - name: Run auth unit tests
+        run: |
+          python3 -m pytest \
+            -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
+            --log-cli-level=INFO \
+            -s \
+            -r A \
+            -vv \
+            --instafail \
+            --durations=50 \
+            auth/test/test_auth_utils.py
+
+  test-batch-unit:
+    name: Test batch unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: '**/pinned-requirements.txt'
+
+      - name: Generate version files
+        run: make -C hail python-version-info
+
+      - name: Install Python dependencies
+        run: |
+          pip install \
+            -r hail/python/hailtop/pinned-requirements.txt \
+            -r hail/python/dev/pinned-requirements.txt \
+            -r gear/pinned-requirements.txt \
+            -r web_common/pinned-requirements.txt \
+            -r batch/pinned-requirements.txt
+
+      - name: Install packages
+        run: |
+          pip install uv_build
+          tmp_hailtop=$(mktemp -d)
+          cp hail/python/setup-hailtop.py "$tmp_hailtop/setup.py"
+          cp hail/python/MANIFEST.in "$tmp_hailtop/MANIFEST.in"
+          ln -s "$PWD/hail/python/hailtop" "$tmp_hailtop/hailtop"
+          pip install --no-deps "$tmp_hailtop" ./gear ./web_common ./batch
+
+      - name: Run batch unit tests
+        run: |
+          python3 -m pytest \
+            -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
+            --log-cli-level=INFO \
+            -s \
+            -r A \
+            -vv \
+            --instafail \
+            --durations=50 \
+            batch/test/test_utils.py \
+            batch/test/test_time_limited_max_size_cache.py
+
+  test-ci-envoy:
+    name: Test CI envoy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: '**/pinned-requirements.txt'
+
+      - name: Generate version files
+        run: make -C hail python-version-info
+
+      - name: Install Python dependencies
+        run: |
+          pip install \
+            -r hail/python/hailtop/pinned-requirements.txt \
+            -r hail/python/dev/pinned-requirements.txt \
+            -r gear/pinned-requirements.txt \
+            -r web_common/pinned-requirements.txt \
+            -r ci/pinned-requirements.txt
+
+      - name: Install packages
+        run: |
+          pip install uv_build
+          tmp_hailtop=$(mktemp -d)
+          cp hail/python/setup-hailtop.py "$tmp_hailtop/setup.py"
+          cp hail/python/MANIFEST.in "$tmp_hailtop/MANIFEST.in"
+          ln -s "$PWD/hail/python/hailtop" "$tmp_hailtop/hailtop"
+          pip install --no-deps "$tmp_hailtop" ./gear ./web_common ./ci
+
+      - name: Run CI envoy tests
+        run: |
+          python3 -m pytest \
+            -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
+            --log-cli-level=INFO \
+            -s \
+            -r A \
+            -vv \
+            --instafail \
+            --durations=50 \
+            ci/test/test_envoy.py
+
   tier1-result:
     name: Tier 1 Result
     if: always()
@@ -199,6 +337,9 @@ jobs:
       - check-hail
       - test-gcp-ar-cleanup
       - test-ci-unit
+      - test-auth
+      - test-batch-unit
+      - test-ci-envoy
     runs-on: ubuntu-latest
     timeout-minutes: 1
     steps:
@@ -210,6 +351,9 @@ jobs:
             "${{ needs.check-hail.result }}" \
             "${{ needs.test-gcp-ar-cleanup.result }}" \
             "${{ needs.test-ci-unit.result }}" \
+            "${{ needs.test-auth.result }}" \
+            "${{ needs.test-batch-unit.result }}" \
+            "${{ needs.test-ci-envoy.result }}" \
           )
           for r in "${results[@]}"; do
             if [[ "$r" != "success" ]]; then
