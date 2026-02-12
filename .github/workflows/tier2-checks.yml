@@ -41,6 +41,9 @@ jobs:
       - name: Generate version files
         run: make -C hail python-version-info
 
+      - name: Install build package
+        run: pip install build
+
       - name: Build release shadow JAR and wheel
         run: HAIL_BUILD_MODE=Release make -C hail shadowJar wheel
 
@@ -78,6 +81,9 @@ jobs:
 
       - name: Generate version files
         run: make -C hail python-version-info
+
+      - name: Install build package
+        run: pip install build
 
       - name: Build debug shadow JAR and wheel
         run: HAIL_BUILD_MODE=CI make -C hail shadowJar wheel
