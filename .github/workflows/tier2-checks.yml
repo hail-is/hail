@@ -181,7 +181,8 @@ jobs:
 
       - name: Install GCS connector
         run: |
-          SPARK_HOME=$(python3 -c "import pyspark; import os; print(os.path.dirname(os.path.dirname(pyspark.__file__)))")
+          export SPARK_HOME=$(python3 -c "import pyspark; import os; print(os.path.dirname(os.path.dirname(pyspark.__file__)))")
+          echo "SPARK_HOME=$SPARK_HOME" >> $GITHUB_ENV
           mkdir -p "$SPARK_HOME/jars"
           mkdir -p "$SPARK_HOME/conf"
           curl --fail --silent --show-error --location \
@@ -271,7 +272,8 @@ jobs:
 
       - name: Install GCS connector
         run: |
-          SPARK_HOME=$(python3 -c "import pyspark; import os; print(os.path.dirname(os.path.dirname(pyspark.__file__)))")
+          export SPARK_HOME=$(python3 -c "import pyspark; import os; print(os.path.dirname(os.path.dirname(pyspark.__file__)))")
+          echo "SPARK_HOME=$SPARK_HOME" >> $GITHUB_ENV
           mkdir -p "$SPARK_HOME/jars"
           mkdir -p "$SPARK_HOME/conf"
           curl --fail --silent --show-error --location \
