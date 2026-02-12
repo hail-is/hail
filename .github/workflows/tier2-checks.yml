@@ -365,6 +365,13 @@ jobs:
             -r hail/python/dev/pinned-requirements.txt
           pip install --no-deps debug-wheel/*.whl
 
+      - name: Copy JAR to source tree
+        run: |
+          # Copy the JAR from installed package to source tree for tests running from source
+          HAIL_PACKAGE_DIR=$(python3 -c "import hail; import os; print(os.path.dirname(hail.__file__))")
+          mkdir -p hail/python/hail/backend
+          cp "$HAIL_PACKAGE_DIR/backend/hail-all-spark.jar" hail/python/hail/backend/
+
       - name: Configure hail
         run: hailctl config set query/backend local
 
