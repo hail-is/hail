@@ -4,6 +4,8 @@ import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.{BroadcastValue, ExecuteContext, HailStateManager}
 import is.hail.backend.spark.SparkBackend
+import is.hail.collection.{FastSeq, MissingArrayBuilder}
+import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.{
   CloseableIterator, EmitCode, EmitCodeBuilder, EmitMethodBuilder, GenericLine, GenericLines,
@@ -12,7 +14,7 @@ import is.hail.expr.ir.{
 import is.hail.expr.ir.defs.{Literal, PartitionReader}
 import is.hail.expr.ir.lowering.TableStage
 import is.hail.expr.ir.streams.StreamProducer
-import is.hail.io.{VCFAttributes, VCFMetadata}
+import is.hail.io.{checkGzipOfGlobbedFiles, VCFAttributes, VCFMetadata}
 import is.hail.io.fs.{FS, FileListEntry}
 import is.hail.io.tabix._
 import is.hail.io.vcf.LoadVCF.{getHeaderLines, parseHeader}
@@ -23,6 +25,7 @@ import is.hail.types.physical._
 import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SStreamValue}
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.utils.implicits.toTruncatable
 import is.hail.variant._
 
 import scala.annotation.meta.param

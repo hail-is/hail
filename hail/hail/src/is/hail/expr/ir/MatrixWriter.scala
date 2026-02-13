@@ -2,7 +2,10 @@ package is.hail.expr.ir
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.asm4s.implicits.{valueToRichCodeOutputBuffer, valueToRichCodeRegion}
 import is.hail.backend.ExecuteContext
+import is.hail.collection.{ByteArrayBuilder, FastSeq}
+import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.{JSONAnnotationImpex, Nat}
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.lowering.TableStage
@@ -27,7 +30,7 @@ import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives._
 import is.hail.types.virtual._
 import is.hail.utils._
-import is.hail.utils.richUtils.ByteTrackingOutputStream
+import is.hail.utils.implicits.ByteTrackingOutputStream
 import is.hail.variant.{Call, ReferenceGenome}
 
 import java.io.{InputStream, OutputStream}

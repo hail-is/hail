@@ -2,10 +2,10 @@ package is.hail.types.physical
 
 import is.hail.annotations.{Region, SafeNDArray, UnsafeRow}
 import is.hail.asm4s._
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.{EmitCodeBuilder, EmitFunctionBuilder}
 import is.hail.methods.LocalWhitening
 import is.hail.types.physical.stypes.interfaces.{ColonIndex => Colon, _}
-import is.hail.utils._
 
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test

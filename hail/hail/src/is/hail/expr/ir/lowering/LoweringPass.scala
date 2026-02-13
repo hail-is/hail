@@ -1,6 +1,7 @@
 package is.hail.expr.ir.lowering
 
 import is.hail.backend.ExecuteContext
+import is.hail.collection.FastSeq
 import is.hail.expr.ir._
 import is.hail.expr.ir.agg.Extract
 import is.hail.expr.ir.analyses.SemanticHash
@@ -8,7 +9,7 @@ import is.hail.expr.ir.defs.{
   ApplyIR, Begin, Let, RunAgg, RunAggScan, StreamAgg, StreamAggScan, StreamFor,
 }
 import is.hail.expr.ir.lowering.Invariant._
-import is.hail.utils._
+import is.hail.utils.implicits.toRichPredicate
 
 final class IrMetadata() {
   private[this] var hashCounter: Int = 0

@@ -1,10 +1,9 @@
 package is.hail.types.virtual
 
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir._
 import is.hail.expr.ir.defs.{I64, If}
 import is.hail.linalg.{BlockMatrix, MatrixSparsity}
-import is.hail.utils.compat._
-import is.hail.utils.compat.immutable.ArraySeq
 import is.hail.utils.fatal
 
 import scala.collection.compat._

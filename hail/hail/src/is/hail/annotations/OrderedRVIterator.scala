@@ -1,10 +1,12 @@
 package is.hail.annotations
 
 import is.hail.backend.HailStateManager
+import is.hail.collection.{FlipbookIterator, StagingIterator, StateMachine}
+import is.hail.collection.compat.mutable.Growable
+import is.hail.collection.implicits.toRichIterator
 import is.hail.rvd.{RVDContext, RVDType}
 import is.hail.types.physical.PInterval
 import is.hail.utils._
-import is.hail.utils.compat.mutable.Growable
 
 import scala.collection.mutable
 

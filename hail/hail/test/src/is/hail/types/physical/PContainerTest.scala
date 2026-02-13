@@ -2,8 +2,8 @@ package is.hail.types.physical
 
 import is.hail.annotations.{Annotation, Region, ScalaToRegionValue}
 import is.hail.asm4s._
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.EmitFunctionBuilder
-import is.hail.utils._
 
 import org.scalatest.Inspectors.forAll
 import org.scalatest.enablers.InspectorAsserting.assertingNatureOfAssertion

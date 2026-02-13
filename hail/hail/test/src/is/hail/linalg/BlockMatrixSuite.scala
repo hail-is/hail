@@ -1,10 +1,12 @@
 package is.hail.linalg
 
 import is.hail.HailSuite
+import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.{CompileAndEvaluate, TableLiteral}
 import is.hail.expr.ir.defs.{GetField, TableCollect}
 import is.hail.expr.ir.lowering.LoweringPipeline
 import is.hail.linalg.BlockMatrix.ops._
+import is.hail.linalg.implicits._
 import is.hail.scalacheck._
 import is.hail.types.virtual.{TFloat64, TInt64, TStruct}
 import is.hail.utils._

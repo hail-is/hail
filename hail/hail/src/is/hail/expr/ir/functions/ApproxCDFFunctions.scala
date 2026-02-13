@@ -2,13 +2,13 @@ package is.hail.expr.ir.functions
 
 import is.hail.annotations.Region
 import is.hail.asm4s.{valueToCodeObject, Code, Value}
+import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.expr.ir.agg.{ApproxCDFStateManager, QuantilesAggregator}
 import is.hail.types.physical.stypes.concrete.SBaseStructPointer
 import is.hail.types.physical.stypes.interfaces.SBaseStructValue
 import is.hail.types.physical.stypes.primitives.SInt32Value
 import is.hail.types.virtual.TInt32
-import is.hail.utils.toRichIterable
 
 import org.apache.spark.sql.Row
 

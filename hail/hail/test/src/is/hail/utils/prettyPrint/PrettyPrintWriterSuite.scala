@@ -1,6 +1,6 @@
 package is.hail.utils.prettyPrint
 
-import is.hail.utils.toRichIterator
+import is.hail.collection.implicits.toRichIterator
 
 import scala.jdk.CollectionConverters._
 

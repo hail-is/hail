@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.asm4s.implicits._
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, StreamBufferSpec, TypedCodecSpec}
 import is.hail.types.TypeWithRequiredness
 import is.hail.types.encoded._
@@ -10,7 +11,6 @@ import is.hail.types.physical.stypes.SValue
 import is.hail.types.physical.stypes.concrete.SNDArrayPointer
 import is.hail.types.physical.stypes.primitives.SFloat64Value
 import is.hail.types.virtual._
-import is.hail.utils._
 
 import java.io.InputStream
 

@@ -1,10 +1,10 @@
 package is.hail.expr.ir
 
+import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.Nat
 import is.hail.expr.ir.defs._
 import is.hail.types.tcoerce
 import is.hail.types.virtual._
-import is.hail.utils._
 
 object InferType {
   def apply(ir: IR): Type = {

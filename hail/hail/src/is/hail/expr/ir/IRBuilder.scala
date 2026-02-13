@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.defs.{Let, Ref, TrivialIR}
-import is.hail.utils.compat.immutable.ArraySeq
 
 object IRBuilder {
   def scoped(f: IRBuilder => IR): IR = {

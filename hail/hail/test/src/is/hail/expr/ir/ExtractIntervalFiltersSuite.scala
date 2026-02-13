@@ -1,10 +1,11 @@
 package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.defs._
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.virtual._
-import is.hail.utils.{FastSeq, Interval, IntervalEndpoint}
+import is.hail.utils.{Interval, IntervalEndpoint}
 import is.hail.variant.{Locus, ReferenceGenome}
 
 import org.apache.spark.sql.Row

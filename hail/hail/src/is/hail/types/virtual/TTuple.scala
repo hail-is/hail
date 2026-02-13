@@ -2,7 +2,7 @@ package is.hail.types.virtual
 
 import is.hail.annotations.ExtendedOrdering
 import is.hail.backend.HailStateManager
-import is.hail.utils._
+import is.hail.collection.implicits.toRichIterable
 
 import scala.collection.compat._
 

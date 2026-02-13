@@ -2,12 +2,13 @@ package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.collection.FastSeq
+import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.{PCanonicalNDArray, PType}
 import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual.Type
-import is.hail.utils.{toRichIterable, FastSeq}
 
 import scala.collection.compat._
 

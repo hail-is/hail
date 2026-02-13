@@ -2,9 +2,9 @@ package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
 import is.hail.ExecStrategy.ExecStrategy
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.defs.{I32, In, NA, Str}
 import is.hail.types.virtual.TString
-import is.hail.utils._
 
 import org.scalatest.Inspectors.forEvery
 import org.testng.annotations.Test

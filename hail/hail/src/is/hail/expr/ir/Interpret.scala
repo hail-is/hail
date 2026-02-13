@@ -4,6 +4,9 @@ import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.{ExecuteContext, HailTaskContext}
 import is.hail.backend.spark.SparkTaskContext
+import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
+import is.hail.collection.implicits.{toRichIterable, toRichIterator}
 import is.hail.expr.ir.analyses.PartitionCounts
 import is.hail.expr.ir.compile.{Compile, CompileWithAggregators}
 import is.hail.expr.ir.defs._
@@ -16,7 +19,6 @@ import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeTy
 import is.hail.types.tcoerce
 import is.hail.types.virtual._
 import is.hail.utils._
-import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.collection.compat._
 import scala.collection.mutable

@@ -1,8 +1,8 @@
 package is.hail.expr.ir
 
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.agg._
 import is.hail.types.virtual._
-import is.hail.utils.FastSeq
 
 sealed trait AggOp {}
 final case class ApproxCDF() extends AggOp

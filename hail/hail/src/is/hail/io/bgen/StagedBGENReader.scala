@@ -3,6 +3,8 @@ package is.hail.io.bgen
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
+import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{
   uuid4, ArraySorter, EmitCode, EmitCodeBuilder, EmitFunctionBuilder, EmitSettable, IEmitCode,
   LowerMatrixIR, ParamType, StagedArrayBuilder,
@@ -21,8 +23,7 @@ import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces.{primitive, NoBoxLongIterator, SBaseStructValue}
 import is.hail.types.physical.stypes.primitives.SInt64
 import is.hail.types.virtual._
-import is.hail.utils.{CompressionUtils, FastSeq}
-import is.hail.utils.compat.immutable.ArraySeq
+import is.hail.utils.CompressionUtils
 import is.hail.variant.Call2
 
 import org.objectweb.asm.Opcodes._

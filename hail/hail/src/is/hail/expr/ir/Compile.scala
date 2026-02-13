@@ -3,6 +3,9 @@ package is.hail.expr.ir
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.{ExecuteContext, HailTaskContext}
+import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
+import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.agg.AggStateSig
 import is.hail.expr.ir.defs.In
 import is.hail.expr.ir.lowering.LoweringPipeline
@@ -14,8 +17,6 @@ import is.hail.types.physical.stypes.{
   PTypeReferenceSingleCodeType, SingleCodeType, StreamSingleCodeType,
 }
 import is.hail.types.physical.stypes.interfaces.{NoBoxLongIterator, SStream}
-import is.hail.utils._
-import is.hail.utils.compat.immutable.ArraySeq
 
 import java.io.PrintWriter
 

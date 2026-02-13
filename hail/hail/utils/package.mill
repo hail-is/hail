@@ -1,0 +1,36 @@
+package build.hail.utils
+
+import mill.T
+import mill.api.Cross
+import mill.scalalib.{CrossScalaModule, Dep}
+
+import build.Settings
+import build.HailScalaModule
+
+import millbuild.BuildConfig.*
+import millbuild.MvnCoordinate.*
+
+object `package` extends Cross[HailUtils](enabledScalaVersions)
+trait HailUtils extends HailScalaModule, CrossScalaModule:
+  override def crossScalaVersion: String =
+    Settings.scalaMinorVersions(crossValue)
+
+  override def bomMvnDeps: T[Seq[Dep]] =
+    Seq(
+      `log4j-bom` :: "2.22.0",
+    )
+
+  override def compileMvnDeps: T[Seq[Dep]] =
+    Vector[Dep](
+      `json4s-jackson` :: "3.7.0-M11",
+      `log4j-core`,
+      `zstd-jni` :: "1.5.5-4",
+      `scalac-compat-annotation` :: "0.1.4",
+    )
+
+  override def mvnDeps: T[Seq[Dep]] =
+    Vector[Dep](
+      (`log4j-api-scala` :: "13.1.0").excludeOrg("*"),
+      `scala-collection-compat`,
+      `sourcecode` :: "0.4.2",
+    )

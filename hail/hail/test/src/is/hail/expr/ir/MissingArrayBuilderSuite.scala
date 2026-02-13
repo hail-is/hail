@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.asm4s.AsmFunction2
-import is.hail.utils.FastSeq
+import is.hail.collection.FastSeq
 
 import scala.reflect.ClassTag
 

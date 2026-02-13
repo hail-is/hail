@@ -1,11 +1,11 @@
 package is.hail.expr.ir.functions
 
 import is.hail.backend.ExecuteContext
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.TableValue
 import is.hail.rvd.RVD
 import is.hail.types
 import is.hail.types.virtual._
-import is.hail.utils._
 
 case class TableCalculateNewPartitions(
   nPartitions: Int

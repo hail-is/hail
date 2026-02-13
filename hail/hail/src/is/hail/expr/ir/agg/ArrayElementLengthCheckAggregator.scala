@@ -2,14 +2,17 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.Region
 import is.hail.asm4s.{coerce => _, _}
+import is.hail.asm4s.implicits.{
+  valueToRichCodeInputBuffer, valueToRichCodeOutputBuffer, valueToRichCodeRegion,
+}
 import is.hail.backend.ExecuteContext
+import is.hail.collection.FastSeq
 import is.hail.expr.ir._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.{EmitType, SValue}
 import is.hail.types.physical.stypes.concrete.SIndexablePointer
 import is.hail.types.virtual.{TInt32, TVoid, Type}
-import is.hail.utils._
 
 // initOp args: initOps for nestedAgg, length if knownLength = true
 // seqOp args: array, other non-elt args for nestedAgg

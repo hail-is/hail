@@ -2,6 +2,9 @@ package is.hail.methods
 
 import is.hail.annotations._
 import is.hail.backend.ExecuteContext
+import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
+import is.hail.collection.implicits.toRichIterator
 import is.hail.expr._
 import is.hail.expr.ir.TableValue
 import is.hail.expr.ir.functions.{RelationalFunctions, TableToTableFunction}
@@ -11,7 +14,6 @@ import is.hail.sparkextras.ContextRDD
 import is.hail.types.physical.PType
 import is.hail.types.virtual._
 import is.hail.utils._
-import is.hail.utils.compat.immutable.ArraySeq
 import is.hail.variant.{Locus, RegionValueVariant}
 import is.hail.variant.VariantMethods.locusAllelesToString
 
@@ -20,7 +22,7 @@ import scala.jdk.CollectionConverters._
 
 import com.fasterxml.jackson.core.JsonParseException
 import org.apache.spark.sql.Row
-import org.json4s.{Formats, JValue}
+import org.json4s.{DefaultFormats, Formats, JValue}
 import org.json4s.jackson.JsonMethods
 
 case class VEPConfiguration(
@@ -33,7 +35,7 @@ object VEP {
 
   def readConfiguration(fs: FS, path: String): VEPConfiguration = {
     val jv = using(fs.open(path))(in => JsonMethods.parse(in))
-    implicit val formats: Formats = defaultJSONFormats + new TStructSerializer
+    implicit val formats: Formats = DefaultFormats + new TStructSerializer
     jv.extract[VEPConfiguration]
   }
 

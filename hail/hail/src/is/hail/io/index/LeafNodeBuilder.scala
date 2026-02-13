@@ -2,6 +2,7 @@ package is.hail.io.index
 
 import is.hail.annotations.Region
 import is.hail.asm4s.{Code, SettableBuilder, Value}
+import is.hail.asm4s.implicits.valueToRichCodeRegion
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
 import is.hail.io.OutputBuffer
 import is.hail.types.encoded.EType
@@ -10,7 +11,6 @@ import is.hail.types.physical.stypes.SValue
 import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerSettable}
 import is.hail.types.physical.stypes.interfaces.{primitive, SBaseStructValue}
 import is.hail.types.virtual.{TStruct, Type}
-import is.hail.utils._
 
 object LeafNodeBuilder {
   def virtualType(keyType: Type, annotationType: Type): TStruct =

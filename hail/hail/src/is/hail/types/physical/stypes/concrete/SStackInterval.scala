@@ -2,12 +2,12 @@ package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.{EmitCodeBuilder, EmitSettable, EmitValue, IEmitCode}
 import is.hail.types.physical.PType
 import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.interfaces.{SInterval, SIntervalValue}
 import is.hail.types.virtual.{TInterval, Type}
-import is.hail.utils.FastSeq
 
 object SStackInterval {
   def construct(

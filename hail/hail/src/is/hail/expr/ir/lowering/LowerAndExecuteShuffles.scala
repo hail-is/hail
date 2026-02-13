@@ -1,12 +1,12 @@
 package is.hail.expr.ir.lowering
 
 import is.hail.backend.ExecuteContext
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.{Requiredness, _}
 import is.hail.expr.ir.agg.{Extract, PhysicalAggSig, TakeStateSig}
 import is.hail.expr.ir.defs._
 import is.hail.types._
 import is.hail.types.virtual._
-import is.hail.utils.FastSeq
 
 object LowerAndExecuteShuffles {
 

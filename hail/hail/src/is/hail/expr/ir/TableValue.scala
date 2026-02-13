@@ -4,6 +4,9 @@ import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
+import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
+import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.ir.agg.IndependentExtractedAggs
 import is.hail.expr.ir.compile.{Compile, CompileWithAggregators}
@@ -12,6 +15,7 @@ import is.hail.expr.ir.lowering.{RVDToTableStage, TableStage, TableStageToRVD}
 import is.hail.io.{exportTypes, BufferSpec, ByteArrayDecoder, ByteArrayEncoder, TypedCodecSpec}
 import is.hail.rvd.{RVD, RVDContext, RVDPartitioner, RVDType}
 import is.hail.sparkextras.ContextRDD
+import is.hail.sparkextras.implicits._
 import is.hail.types.physical.{
   PArray, PCanonicalArray, PCanonicalStruct, PInt32Required, PStruct, PType,
 }
@@ -22,7 +26,6 @@ import is.hail.types.physical.stypes.interfaces.NoBoxLongIterator
 import is.hail.types.tcoerce
 import is.hail.types.virtual.{Field, MatrixType, TArray, TInt32, TStream, TStruct, TableType}
 import is.hail.utils._
-import is.hail.utils.compat.immutable.ArraySeq
 
 import scala.reflect.ClassTag
 

@@ -2,12 +2,12 @@ package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical.{PBaseStruct, PType}
 import is.hail.types.physical.stypes.{EmitType, SType, SValue}
 import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructSettable, SBaseStructValue}
 import is.hail.types.virtual.{TBaseStruct, Type}
-import is.hail.utils.FastSeq
 
 final case class SBaseStructPointer(pType: PBaseStruct) extends SBaseStruct {
   require(!pType.required)

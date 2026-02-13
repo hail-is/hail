@@ -5,6 +5,7 @@ import is.hail.backend.spark.SparkBackend
 import is.hail.io.InputBuffer
 import is.hail.io.fs.FS
 import is.hail.rvd.RVDPartitioner
+import is.hail.sparkextras.implicits._
 import is.hail.types.virtual.{TInt64, TStruct}
 import is.hail.utils._
 

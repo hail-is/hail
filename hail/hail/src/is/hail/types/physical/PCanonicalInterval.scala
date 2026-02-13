@@ -3,6 +3,7 @@ package is.hail.types.physical
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.HailStateManager
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
 import is.hail.types.physical.stypes.SValue
 import is.hail.types.physical.stypes.concrete.{
@@ -11,7 +12,7 @@ import is.hail.types.physical.stypes.concrete.{
 import is.hail.types.physical.stypes.interfaces.primitive
 import is.hail.types.physical.stypes.primitives.SBooleanValue
 import is.hail.types.virtual.{TInterval, Type}
-import is.hail.utils.{FastSeq, Interval}
+import is.hail.utils.Interval
 
 import org.apache.spark.sql.Row
 

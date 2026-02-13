@@ -4,6 +4,7 @@ import is.hail.HailSuite
 import is.hail.annotations.{Region, SafeIndexedSeq}
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.functions.LocusFunctions
 import is.hail.expr.ir.streams.StagedMinHeap
 import is.hail.scalacheck._
@@ -11,7 +12,7 @@ import is.hail.types.physical.{PCanonicalArray, PCanonicalLocus, PInt32Required}
 import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.physical.stypes.concrete.SIndexablePointerValue
 import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Value}
-import is.hail.utils.{using, FastSeq}
+import is.hail.utils.using
 import is.hail.variant.{Locus, ReferenceGenome}
 
 import org.scalacheck.Arbitrary.arbitrary

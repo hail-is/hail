@@ -3,10 +3,12 @@ package is.hail.stats
 import is.hail.annotations.{BroadcastRow, Region, RegionValue, RegionValueBuilder}
 import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.SparkTaskContext
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.{TableIR, TableLiteral, TableValue}
 import is.hail.linalg.RowMatrix
 import is.hail.rvd.{RVD, RVDType}
 import is.hail.sparkextras.ContextRDD
+import is.hail.sparkextras.implicits.toRichContextRDDRegionValue
 import is.hail.types.physical.{PCanonicalStruct, PFloat64, PInt64}
 import is.hail.types.virtual.{TStruct, TableType}
 import is.hail.utils._

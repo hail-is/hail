@@ -2,11 +2,11 @@ package is.hail.methods
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.{PCanonicalNDArray, PFloat64Required}
 import is.hail.types.physical.stypes.interfaces.{ColonIndex => Colon, _}
 import is.hail.types.physical.stypes.interfaces.SNDArray.assertColMajor
-import is.hail.utils.FastSeq
 
 class LocalWhitening(
   cb: EmitCodeBuilder,

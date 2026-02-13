@@ -2,6 +2,7 @@ package is.hail.backend
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.collection.implicits.toRichIndexedSeq
 import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.lowering.TableStageDependency
 import is.hail.io.fs._

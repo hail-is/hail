@@ -4,6 +4,9 @@ import is.hail.{ExecStrategy, HailSuite}
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.annotations.{BroadcastRow, ExtendedOrdering, SafeNDArray}
 import is.hail.backend.ExecuteContext
+import is.hail.collection.{FastSeq, IntArrayBuilder}
+import is.hail.collection.compat.immutable.ArraySeq
+import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.Nat
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.agg._
@@ -21,8 +24,7 @@ import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.primitives.SInt32
 import is.hail.types.virtual._
 import is.hail.types.virtual.TIterable.elementType
-import is.hail.utils.{FastSeq, _}
-import is.hail.utils.compat.immutable.ArraySeq
+import is.hail.utils._
 import is.hail.variant.{Call2, Locus}
 
 import scala.collection.compat._

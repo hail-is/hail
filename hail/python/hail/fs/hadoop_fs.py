@@ -36,8 +36,8 @@ def _file_list_entry_scala_to_python(file_list_entry: Dict[str, Any]) -> FileLis
 
 
 class HadoopFS(FS):
-    def __init__(self, utils_package_object, jfs):
-        self._utils_package_object = utils_package_object
+    def __init__(self, py4jutils, jfs):
+        self._py4jutils = py4jutils
         self._jfs = jfs
 
     def open(self, path: str, mode: str = 'r', buffer_size: int = 8192):
@@ -86,17 +86,15 @@ class HadoopFS(FS):
         does not affect the behaviors of this method.
 
         """
-        file_status_dict = json.loads(self._utils_package_object.fileStatus(self._jfs, path))
+        file_status_dict = json.loads(self._py4jutils.pyFileStatus(self._jfs, path))
         return _file_status_scala_to_python(file_status_dict)
 
     def stat(self, path: str) -> FileListEntry:
-        file_list_entry_dict = json.loads(self._utils_package_object.fileListEntry(self._jfs, path))
+        file_list_entry_dict = json.loads(self._py4jutils.pyFileListEntry(self._jfs, path))
         return _file_list_entry_scala_to_python(file_list_entry_dict)
 
     def ls(self, path: str) -> List[FileListEntry]:
-        return [
-            _file_list_entry_scala_to_python(st) for st in json.loads(self._utils_package_object.ls(self._jfs, path))
-        ]
+        return [_file_list_entry_scala_to_python(st) for st in json.loads(self._py4jutils.pyLs(self._jfs, path))]
 
     def mkdir(self, path: str) -> None:
         return self._jfs.mkDir(path)
@@ -119,9 +117,9 @@ class HadoopReader(io.RawIOBase):
         super(HadoopReader, self).__init__()
         self._seekable = not use_codec
         if use_codec:
-            self._jfile = hfs._utils_package_object.readFileCodec(hfs._jfs, path, buffer_size)
+            self._jfile = hfs._py4jutils.pyReadFileCodec(hfs._jfs, path, buffer_size)
         else:
-            self._jfile = hfs._utils_package_object.readFile(hfs._jfs, path, buffer_size)
+            self._jfile = hfs._py4jutils.pyReadFile(hfs._jfs, path, buffer_size)
         self.mode = 'rb'
 
     def close(self):
@@ -152,9 +150,9 @@ class HadoopWriter(io.RawIOBase):
     def __init__(self, hfs, path, exclusive=False, use_codec=False):
         super(HadoopWriter, self).__init__()
         if use_codec:
-            self._jfile = hfs._utils_package_object.writeFileCodec(hfs._jfs, path, exclusive)
+            self._jfile = hfs._py4jutils.pyWriteFileCodec(hfs._jfs, path, exclusive)
         else:
-            self._jfile = hfs._utils_package_object.writeFile(hfs._jfs, path, exclusive)
+            self._jfile = hfs._py4jutils.pyWriteFile(hfs._jfs, path, exclusive)
         if exclusive:
             self.mode = 'xb'
         else:

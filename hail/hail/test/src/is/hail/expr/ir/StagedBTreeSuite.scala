@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.HailSuite
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.asm4s.implicits.{valueToRichCodeInputBuffer, valueToRichCodeOutputBuffer}
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.agg.{AppendOnlyBTree, BTreeKey}
 import is.hail.expr.ir.orderings.CodeOrdering
@@ -11,7 +12,6 @@ import is.hail.types.physical._
 import is.hail.types.physical.stypes.Int64SingleCodeType
 import is.hail.types.physical.stypes.interfaces.primitive
 import is.hail.types.physical.stypes.primitives.SInt64
-import is.hail.utils._
 
 import scala.collection.mutable
 

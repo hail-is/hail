@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.annotations.Region
 import is.hail.asm4s.{const, Code, Value, _}
+import is.hail.asm4s.implicits.valueToRichCodeOutputBuffer
 import is.hail.expr.ir.functions.MathFunctions
 import is.hail.io.{AbstractTypedCodecSpec, OutputBuffer}
 import is.hail.types.physical._
@@ -12,7 +13,6 @@ import is.hail.types.physical.stypes.interfaces.{
 }
 import is.hail.types.physical.stypes.primitives.{SBooleanValue, SInt32, SInt32Value}
 import is.hail.types.virtual.TBaseStruct
-import is.hail.utils._
 
 object EmitStreamDistribute {
 

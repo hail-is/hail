@@ -2,12 +2,11 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations._
 import is.hail.backend.HailStateManager
-import is.hail.expr.ir.{DoubleArrayBuilder, IntArrayBuilder, LongArrayBuilder}
+import is.hail.collection.{DoubleArrayBuilder, IntArrayBuilder, LongArrayBuilder}
+import is.hail.collection.compat.immutable.ArraySeq
+import is.hail.collection.implicits.toRichArraySeqCompanion
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types.physical.{PCanonicalArray, PCanonicalStruct, PFloat64, PInt32}
-import is.hail.utils._
-import is.hail.utils.compat._
-import is.hail.utils.compat.immutable.ArraySeq
 
 object ApproxCDFHelper {
   def sort(a: Array[Double], begin: Int, end: Int): Unit = java.util.Arrays.sort(a, begin, end)

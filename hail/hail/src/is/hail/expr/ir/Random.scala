@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.asm4s._
-import is.hail.utils.FastSeq
+import is.hail.collection.FastSeq
 
 import net.sourceforge.jdistlib.{Beta, Gamma, HyperGeometric, Poisson}
 import net.sourceforge.jdistlib.rng.RandomEngine

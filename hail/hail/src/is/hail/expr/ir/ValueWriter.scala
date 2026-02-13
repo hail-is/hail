@@ -1,13 +1,14 @@
 package is.hail.expr.ir
 
 import is.hail.asm4s._
+import is.hail.asm4s.implicits._
+import is.hail.collection.FastSeq
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, StreamBufferSpec, TypedCodecSpec}
 import is.hail.types.encoded._
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.SValue
 import is.hail.types.physical.stypes.primitives.SFloat64
 import is.hail.types.virtual._
-import is.hail.utils._
 
 import java.io.OutputStream
 

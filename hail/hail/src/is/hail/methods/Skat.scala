@@ -2,8 +2,10 @@ package is.hail.methods
 
 import is.hail.annotations.{Annotation, Region, UnsafeRow}
 import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.{IntArrayBuilder, MatrixValue, TableValue}
+import is.hail.collection.{FastSeq, IntArrayBuilder}
+import is.hail.expr.ir.{MatrixValue, TableValue}
 import is.hail.expr.ir.functions.MatrixToTableFunction
+import is.hail.linalg.implicits._
 import is.hail.stats.{
   eigSymD, GeneralizedChiSquaredDistribution, LogisticRegressionModel, RegressionUtils,
 }

@@ -2,7 +2,9 @@ package is.hail.io.index
 
 import is.hail.annotations._
 import is.hail.asm4s._
+import is.hail.asm4s.implicits.valueToRichCodeInputBuffer
 import is.hail.backend.TaskFinalizer
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.{
   BinarySearch, EmitCode, EmitCodeBuilder, EmitMethodBuilder, EmitValue, IEmitCode,
 }

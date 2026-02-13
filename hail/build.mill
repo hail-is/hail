@@ -132,7 +132,7 @@ trait HailScalaModule extends ScalaModule, HailJavaModule, ScalafmtModule, Scala
           "-Wconf:cat=deprecation&msg=symbol literal is deprecated:s",
           raw"-Wconf:cat=unused-imports&origin=scala\.collection\.compat\._:s",
           raw"-Wconf:cat=unused-imports&origin=scala\.Option\.option2Iterable:s",
-          raw"-Wconf:cat=unused-imports&origin=is\.hail\.utils\.compat\._:s",
+          raw"-Wconf:cat=unused-imports&origin=is\.hail\.collection\.compat\._:s",
           raw"-Wconf:msg=unused value of type org\.scalatest\..*Assertion:s",
           raw"-Wconf:msg=unused value of type org\.mockito\.stubbing\.ScalaOngoingStubbing:s",
         )

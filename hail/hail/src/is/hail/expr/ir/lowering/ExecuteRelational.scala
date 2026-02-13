@@ -6,8 +6,7 @@ import is.hail.expr.ir._
 import is.hail.expr.ir.analyses.PartitionCounts
 import is.hail.rvd.{RVD, RVDPartitioner}
 import is.hail.types.physical.PStruct
-import is.hail.utils.fatal
-import is.hail.utils.prettyPrint.ArrayOfByteArrayInputStream
+import is.hail.utils.{fatal, ArrayOfByteArrayInputStream}
 
 object ExecuteRelational {
   def apply(ctx: ExecuteContext, ir: TableIR): TableExecuteIntermediate =

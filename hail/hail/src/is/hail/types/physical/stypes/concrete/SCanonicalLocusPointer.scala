@@ -2,12 +2,12 @@ package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.{PCanonicalLocus, PType}
 import is.hail.types.physical.stypes.{SSettable, SType, SValue}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual.Type
-import is.hail.utils.FastSeq
 
 final case class SCanonicalLocusPointer(pType: PCanonicalLocus) extends SLocus {
   require(!pType.required)

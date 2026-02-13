@@ -1,6 +1,7 @@
 package is.hail.sparkextras
 
-import is.hail.utils._
+import is.hail.collection.FastSeq
+import is.hail.collection.implicits.toRichIterable
 
 import scala.collection.compat._
 import scala.reflect.ClassTag

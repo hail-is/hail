@@ -2,6 +2,7 @@ package is.hail.expr.ir.functions
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.collection.{FastSeq, StringArrayBuilder}
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir._
 import is.hail.expr.ir.defs._

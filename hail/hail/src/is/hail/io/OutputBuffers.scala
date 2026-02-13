@@ -2,8 +2,7 @@ package is.hail.io
 
 import is.hail.annotations.{Memory, Region}
 import is.hail.io.compress.LZ4
-import is.hail.utils._
-import is.hail.utils.richUtils.ByteTrackingOutputStream
+import is.hail.utils.implicits.{toRichBoolean, ByteTrackingOutputStream}
 
 import java.io._
 import java.util.function.Supplier

@@ -2,6 +2,7 @@ package is.hail.expr.ir.lowering
 
 import is.hail.{ExecStrategy, HailSuite, TestUtils}
 import is.hail.ExecStrategy.ExecStrategy
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.{
   mapIR, Ascending, Descending, LoweringAnalyses, SortField, TableIR, TableMapRows, TableRange,
 }
@@ -12,7 +13,6 @@ import is.hail.expr.ir.defs.{
 import is.hail.expr.ir.lowering.LowerDistributedSort.samplePartition
 import is.hail.types.RTable
 import is.hail.types.virtual.{TArray, TInt32, TStruct}
-import is.hail.utils.FastSeq
 
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test

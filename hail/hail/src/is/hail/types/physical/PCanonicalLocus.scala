@@ -3,13 +3,13 @@ package is.hail.types.physical
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.HailStateManager
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
 import is.hail.types.physical.stypes.SValue
 import is.hail.types.physical.stypes.concrete.{
   SCanonicalLocusPointer, SCanonicalLocusPointerValue, SStackStruct,
 }
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.utils.FastSeq
 import is.hail.variant._
 
 object PCanonicalLocus {

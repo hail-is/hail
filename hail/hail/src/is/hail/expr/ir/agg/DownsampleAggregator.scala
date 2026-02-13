@@ -2,7 +2,11 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.asm4s.implicits.{
+  valueToRichCodeInputBuffer, valueToRichCodeOutputBuffer, valueToRichCodeRegion,
+}
 import is.hail.backend.ExecuteContext
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.{
   EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitValue, IEmitCode, ParamType,
 }
@@ -15,7 +19,6 @@ import is.hail.types.physical.stypes.{EmitType, SingleCodeSCode}
 import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerValue}
 import is.hail.types.physical.stypes.interfaces.SBaseStructValue
 import is.hail.types.virtual._
-import is.hail.utils._
 
 class DownsampleBTreeKey(binType: PBaseStruct, pointType: PBaseStruct, kb: EmitClassBuilder[_])
     extends BTreeKey {

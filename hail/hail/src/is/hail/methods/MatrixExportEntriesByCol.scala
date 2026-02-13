@@ -2,13 +2,14 @@ package is.hail.methods
 
 import is.hail.annotations.{UnsafeIndexedSeq, UnsafeRow}
 import is.hail.backend.ExecuteContext
+import is.hail.collection.compat.immutable.ArraySeq
+import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.TableAnnotationImpex
-import is.hail.expr.ir.MatrixValue
+import is.hail.expr.ir.{partFile, MatrixValue}
 import is.hail.expr.ir.functions.MatrixToValueFunction
 import is.hail.types.{RTable, TypeWithRequiredness}
 import is.hail.types.virtual.{MatrixType, TVoid, Type}
 import is.hail.utils._
-import is.hail.utils.compat.immutable.ArraySeq
 
 import java.io.{BufferedOutputStream, OutputStreamWriter}
 

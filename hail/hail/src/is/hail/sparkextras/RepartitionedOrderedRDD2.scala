@@ -2,6 +2,7 @@ package is.hail.sparkextras
 
 import is.hail.annotations._
 import is.hail.backend.HailStateManager
+import is.hail.collection.FastSeq
 import is.hail.rvd.{PartitionBoundOrdering, RVD, RVDContext, RVDPartitioner, RVDType}
 import is.hail.utils._
 
