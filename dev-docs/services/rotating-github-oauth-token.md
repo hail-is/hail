@@ -7,6 +7,9 @@ commenting on PRs, creating releases, and pushing to DSP repositories).
 This token has an expiration date set at creation time and must be rotated before it
 expires.
 
+This guide walks through the process of rotating the token. Initial creation is similar, as part
+of the initial rollout (see infra/gcp-broad/README.md or infra/gcp/README.md for details).
+
 Reminder of the setup: 
 - The token is stored in a sops-encrypted JSON file in the repository.
 - The JSON file is read in as a configuration for Terraform.
@@ -23,12 +26,23 @@ Reminder of the setup:
 ## 1. Create a New Fine-Grained PAT
 
 Go to GitHub **Settings > Developer settings > Personal access tokens > Fine-grained tokens**
-and create a new token.
+(https://github.com/settings/personal-access-tokens) and create a new token.
+
+Assuming this is a rotation, the token should already have been created. You can use the same token settings 
+by selecting "Regenerate token" and copying the new token. 
+
+Otherwise, you can create a new token with the following settings.
 
 Key settings:
-- **Resource owner**: the Github organization holding the repository being managed by CI
-- **Expiration**: set an appropriate expiration (note the date so you know when to rotate next)
-- **Repository access and permissions**: match the scopes of the existing token
+- **Resource owner**: the Github organization holding the repository being managed by CI (ie "hail")
+- **Expiration**: set an appropriate expiration, eg 1 year (note the date so you know when to rotate next)
+- **Repository access and permissions**: 
+  - Actions: read only
+  - Commit statuses: read/write
+  - Contents: read/write
+  - Metadata: read only
+  - Pull requests: read/write
+
 
 ## 2. Update the Sops-Encrypted Config
 
