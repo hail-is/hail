@@ -203,7 +203,7 @@ jobs:
             </property>
             <property>
               <name>google.cloud.auth.type</name>
-              <value>APPLICATION_DEFAULT</value>
+              <value>UNAUTHENTICATED</value>
             </property>
           </configuration>
           EOF
@@ -294,14 +294,13 @@ jobs:
             </property>
             <property>
               <name>google.cloud.auth.type</name>
-              <value>APPLICATION_DEFAULT</value>
+              <value>UNAUTHENTICATED</value>
             </property>
           </configuration>
           EOF
 
       - name: Build Sphinx docs
         env:
-          HAIL_USE_PRIVATE_LENS_DATA: '0'
           HAIL_SHORT_VERSION: '0.2'
           SPHINXOPTS: '-tgenerate_notebook_outputs'
         run: |
