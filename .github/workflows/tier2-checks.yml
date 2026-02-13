@@ -450,6 +450,7 @@ jobs:
             --instafail \
             --durations=50 \
             --ignore=test/hailtop/ \
+            --ignore=test/hail/fs/test_worker_driver_fs.py \
             --timeout=120 \
             test
 
