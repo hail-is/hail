@@ -12,7 +12,7 @@ import is.hail.types.physical.stypes.SValue
 import is.hail.types.tcoerce
 import is.hail.types.virtual._
 import is.hail.types.virtual.TIterable.elementType
-import is.hail.utils._
+import is.hail.utils.fatal
 
 import scala.collection.BufferedIterator
 
@@ -36,8 +36,6 @@ package object ir {
   def freshName(): Name = Name(genUID())
 
   def uuid4(): String = UUID.randomUUID().toString
-
-  def genSym(base: String): Sym = Sym.gen(base)
 
   // Build consistent expression for a filter-condition with keep polarity,
   // using Let to manage missing-ness.
