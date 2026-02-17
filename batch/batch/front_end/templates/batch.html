@@ -1,12 +1,13 @@
 {% from "table_search.html" import table_search with context %}
 {% from "components/metadata_tables.html" import kv_table, resource_cost_table, collapsible_li, job_status_table %}
 {% from "utils.html" import
-batch_state_indicator, job_state_indicator, danger_button, submit_button, link
+batch_state_indicator, job_state_indicator, danger_button, submit_button, link, auto_refresh
 %}
 {% extends "layout.html" %}
 {% block title %}Batch {{ batch['id'] }}{% endblock %}
 {% block head %}
 <script defer src="{{ base_path }}/common_static/focus_on_keyup.js"></script>
+<script defer src="{{ base_path }}/batch/static/js/auto_refresh.js"></script>
 {% endblock %}
 {% block content %}
 <div class='flex flex-wrap justify-around pt-8 gap-y-4'>
@@ -22,6 +23,9 @@ batch_state_indicator, job_state_indicator, danger_button, submit_button, link
           {{ batch['attributes']['name'] }}
           {% endif %}
         </div>
+        {% if not batch['complete'] %}
+        {{ auto_refresh() }}
+        {% endif %}
         <div class='flex justify-between items-center'>
           <div>
             <div class='font-light text-zinc-500'>Submitted by {{ batch['user'] }}</div>
