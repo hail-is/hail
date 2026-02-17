@@ -54,7 +54,7 @@ charset-normalizer==3.4.4
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
     #   requests
-cryptography==46.0.4
+cryptography==46.0.5
     # via
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
@@ -68,7 +68,7 @@ frozenlist==1.8.0
     #   aiosignal
 google-api-core==2.29.0
     # via google-api-python-client
-google-api-python-client==2.189.0
+google-api-python-client==2.190.0
     # via google-cloud-profiler
 google-auth==2.48.0
     # via
@@ -182,9 +182,11 @@ rsa==4.9.1
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
     #   google-auth
-setuptools==82.0.0
+setuptools==81.0.0
     # via
     #   -c gear/../hail/python/dev/pinned-requirements.txt
+    #   -c gear/../hail/python/hailtop/pinned-requirements.txt
+    #   -c gear/../hail/python/pinned-requirements.txt
     #   kubernetes-asyncio
 six==1.17.0
     # via

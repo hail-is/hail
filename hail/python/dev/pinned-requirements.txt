@@ -128,7 +128,7 @@ executing==2.2.1
     #   stack-data
 fastjsonschema==2.21.2
     # via nbformat
-filelock==3.20.3
+filelock==3.24.2
     # via virtualenv
 fonttools==4.61.1
     # via matplotlib
@@ -242,7 +242,7 @@ jupyter-server==2.17.0
     #   notebook-shim
 jupyter-server-terminals==0.5.4
     # via jupyter-server
-jupyterlab==4.5.3
+jupyterlab==4.5.4
     # via jupyter
 jupyterlab-pygments==0.3.0
     # via nbconvert
@@ -307,7 +307,7 @@ nodeenv==1.10.0
     # via
     #   pre-commit
     #   pyright
-nodejs-wheel-binaries==24.13.0
+nodejs-wheel-binaries==24.13.1
     # via pyright
 notebook==6.5.7
     # via
@@ -347,12 +347,12 @@ pathspec==0.12.1
     # via curlylint
 pexpect==4.9.0
     # via ipython
-pillow==12.1.0
+pillow==12.1.1
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   -r hail/python/dev/requirements.txt
     #   matplotlib
-platformdirs==4.5.1
+platformdirs==4.9.2
     # via
     #   jupyter-core
     #   pylint
@@ -486,8 +486,10 @@ send2trash==2.1.0
     # via
     #   jupyter-server
     #   notebook
-setuptools==82.0.0
-    # via jupyterlab
+setuptools==81.0.0
+    # via
+    #   -c hail/python/dev/../pinned-requirements.txt
+    #   jupyterlab
 six==1.17.0
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
@@ -624,7 +626,7 @@ uv==0.9.30
     # via -r hail/python/dev/requirements.txt
 uv-build==0.9.30
     # via -r hail/python/dev/requirements.txt
-virtualenv==20.36.1
+virtualenv==20.37.0
     # via pre-commit
 watchfiles==1.1.1
     # via aiohttp-devtools
