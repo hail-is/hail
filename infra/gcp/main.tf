@@ -47,13 +47,6 @@ variable "use_artifact_registry" {
   description = "pull the ubuntu image from Artifact Registry. Otherwise, GCR"
 }
 
-
-variable deploy_ukbb {
-  type = bool
-  description = "Run the UKBB Genetic Correlation browser"
-  default = false
-}
-
 variable "enable_master_authorized_networks" {
   type = bool
   description = "Enable master authorized networks configuration for GKE cluster"
@@ -519,20 +512,35 @@ resource "google_artifact_registry_repository" "repository" {
 resource "google_artifact_registry_repository" "dockerhub_remote" {
   provider      = google-beta
   format        = "DOCKER"
-  mode          = "REMOTE"
+  mode          = "REMOTE_REPOSITORY"
   repository_id = "dockerhubproxy"
   location      = var.gcp_location
+  cleanup_policy_dry_run = false
 
   remote_repository_config {
     description = "Docker Hub remote repository for Batch worker images"
-    docker_repository {
-      public_repository = "DOCKER_HUB"
+    common_repository {
+      uri = "https://registry-1.docker.io"
+    }
+  }
+
+  cleanup_policies {
+    id     = "Delete after 6h"
+    action = "DELETE"
+    condition {
+      older_than            = "21600s"
+      package_name_prefixes = []
+      tag_prefixes          = []
+      tag_state             = "ANY"
+      version_name_prefixes  = []
     }
   }
 
   lifecycle {
-    # Allow users to specify the upstream credentials manually without Terraform resetting it.
-    ignore_changes = [remote_repository_config[0].upstream_credentials]
+    # Ignore fields that are managed outside Terraform or have different representations
+    ignore_changes = [
+      remote_repository_config[0].upstream_credentials,
+    ]
   }
 }
 
@@ -588,11 +596,6 @@ resource "google_artifact_registry_repository_iam_member" "artifact_registry_pus
   location = var.gcp_location
   role = "roles/artifactregistry.admin"
   member = "serviceAccount:${google_service_account.gcr_push.email}"
-}
-
-module "ukbb" {
-  count = var.deploy_ukbb ? 1 : 0
-  source = "../k8s/ukbb"
 }
 
 resource "google_project_iam_custom_role" "auth_service_account_manager" {
