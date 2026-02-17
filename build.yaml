@@ -3322,6 +3322,9 @@ steps:
         to: /io/repo/gear
       - from: /repo/web_common
         to: /io/repo/web_common
+    scopes:
+      - deploy
+      - dev
     dependsOn:
       - hail_ubuntu_image
       - get_pip_versioned_docs
@@ -3340,6 +3343,9 @@ steps:
       - kind: Service
         name: www
         for: alive
+    scopes:
+      - deploy
+      - dev
     dependsOn:
       - default_ns
       - website_image
@@ -3365,6 +3371,9 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
+    scopes:
+      - deploy
+      - dev
     dependsOn:
       - default_ns
       - create_accounts
