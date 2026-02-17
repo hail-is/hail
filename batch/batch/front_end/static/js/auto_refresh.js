@@ -2,14 +2,13 @@
     var container = document.getElementById('auto-refresh');
     if (!container) return;
 
-    var timeSpan = document.getElementById('auto-refresh-time');
+    var detail = document.getElementById('auto-refresh-detail');
     var checkbox = document.getElementById('auto-refresh-toggle');
     var timer = null;
 
     function scheduleRefresh() {
         var target = new Date(Date.now() + 60000);
-        timeSpan.textContent = target.toLocaleTimeString();
-        timeSpan.style.display = '';
+        detail.textContent = '(at ' + target.toLocaleTimeString() + ')';
         timer = setTimeout(function () {
             location.reload();
         }, 60000);
@@ -21,8 +20,7 @@
         } else {
             clearTimeout(timer);
             timer = null;
-            timeSpan.textContent = '';
-            timeSpan.style.display = 'none';
+            detail.textContent = '(every minute)';
         }
     });
 

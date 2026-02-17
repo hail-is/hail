@@ -93,9 +93,9 @@
 
 {% macro auto_refresh() %}
 <div id="auto-refresh" class="flex items-center space-x-1 text-sm text-zinc-500 pt-1">
-    <span>Auto-refresh at </span>
-    <span id="auto-refresh-time"></span>
-    <input type="checkbox" id="auto-refresh-toggle" checked class="ml-1 cursor-pointer">
+  <input type="checkbox" id="auto-refresh-toggle" checked class="cursor-pointer">
+  <span>Auto-refresh page </span>
+  <span id="auto-refresh-detail"></span>
 </div>
 {% endmacro %}
 
