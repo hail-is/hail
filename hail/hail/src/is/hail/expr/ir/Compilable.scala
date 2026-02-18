@@ -4,7 +4,6 @@ import is.hail.expr.ir.defs._
 
 object InterpretableButNotCompilable {
   def apply(x: IR): Boolean = x match {
-    case _: LiftMeOut => true
     case _: TableCount => true
     case _: TableGetGlobals => true
     case _: TableCollect => true
