@@ -2,14 +2,23 @@
 {% block title %}Account Error{% endblock %}
 {% block content %}
 <div class="vcentered">
- <div><b>Account is in a bad state!</b></div>
+{% if state == 'inactive' %}
+  <div><b>Your account is inactive</b></div>
+  <br>
+  <div>
+    Accounts that haven't been logged into for {{ inactive_timeout_days }} days are automatically marked as inactive.
+    Contact <a href="mailto:hail-team@broadinstitute.org?subject=Reactivate%20account%3A%20{{ username | urlencode }}&body=Hello%2C%0A%0APlease%20reactivate%20my%20Hail%20account.%0A%0AUsername%3A%20{{ username | urlencode }}%0ALogin%20ID%3A%20{{ login_id | urlencode }}%0A%0AThank%20you">hail-team@broadinstitute.org</a> to reactivate.
+  </div>
+{% else %}
+  <div><b>Account is in a bad state!</b></div>
   <br>
   <div>
     Please contact <a href="mailto:hail-team@broadinstitute.org">hail-team@broadinstitute.org</a>
-    <br>
-    <div class="small">Username: <b>{{ username }}</b></div>
-    <div class="small">Login ID: <b>{{ login_id }}</b></div>
     <div class="small">State: <b>{{ state }}</b></div>
   </div>
+{% endif %}
+  <br>
+  <div class="small">Username: <b>{{ username }}</b></div>
+  <div class="small">Login ID: <b>{{ login_id }}</b></div>
 </div>
 {% endblock %}
