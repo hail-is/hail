@@ -10,6 +10,7 @@ import sass
 from aiohttp import web
 
 from gear import UserData, new_csrf_token
+from gear.cloud_config import get_global_config
 from hailtop.config import get_deploy_config
 
 deploy_config = get_deploy_config()
@@ -60,6 +61,12 @@ def set_message(session, text, type):
 
 
 def base_context(session, userdata, service):
+    try:
+        global_config = get_global_config()
+        support_email = global_config.get('support_email', '')
+    except (FileNotFoundError, OSError):
+        # Fallback to empty if global config is not available (e.g., local development)
+        support_email = ''
     context = {
         'base_path': deploy_config.base_path(service),
         'base_url': deploy_config.external_url(service, ''),
@@ -70,6 +77,7 @@ def base_context(session, userdata, service):
         'ci_base_url': deploy_config.external_url('ci', ''),
         'grafana_base_url': deploy_config.external_url('grafana', ''),
         'monitoring_base_url': deploy_config.external_url('monitoring', ''),
+        'support_email': support_email,
         'userdata': userdata,
     }
     if 'message' in session:

@@ -62,6 +62,12 @@ variable "master_authorized_networks" {
   default = []
 }
 
+variable "support_email" {
+  type        = string
+  description = "Support email address to display in error pages and user-facing messages"
+  default     = ""
+}
+
 locals {
   docker_prefix = (
     var.use_artifact_registry ?
@@ -419,7 +425,7 @@ resource "kubernetes_secret" "global_config" {
     name = "global-config"
   }
 
-  data = {
+  data = merge({
     cloud = "gcp"
     batch_gcp_regions = var.batch_gcp_regions
     batch_logs_bucket = module.batch_logs.name  # Deprecated
@@ -440,7 +446,9 @@ resource "kubernetes_secret" "global_config" {
     ip = google_compute_address.gateway.address
     kubernetes_server_url = "https://${google_container_cluster.vdc.endpoint}"
     organization_domain = var.organization_domain
-  }
+  }, var.support_email != "" ? {
+    support_email = var.support_email
+  } : {})
 }
 
 resource "google_sql_ssl_cert" "root_client_cert" {

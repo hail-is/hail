@@ -125,6 +125,11 @@ export GCP_PROJECT=<gcp project name>
        display_name = "GKE Control Plane and Nodes"
      }
    ]
+
+   # Optional: Support email address to display in error pages and user-facing messages
+   # If not set, error pages will display "email support" without a link
+   # If set, error pages will display a clickable mailto link
+   support_email = "<support-email@example.com>"
    ```
 
 - You can optionally create a `/tmp/ci_config.json` file to enable CI triggered by GitHub
