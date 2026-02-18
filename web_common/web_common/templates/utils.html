@@ -91,6 +91,14 @@
 </a>
 {% endmacro %}
 
+{% macro auto_refresh() %}
+<div id="auto-refresh" class="flex items-center space-x-1 text-sm text-zinc-500 pt-1">
+  <input type="checkbox" id="auto-refresh-toggle" checked class="cursor-pointer">
+  <span>Auto-refresh page </span>
+  <span id="auto-refresh-detail"></span>
+</div>
+{% endmacro %}
+
 {% macro truncated_link(href, text) %}
 <a class='block hover:cursor-pointer hover:text-sky-600 hover:underline underline-offset-2 truncating-text'  href="{{ href }}">
   {{ text }}
