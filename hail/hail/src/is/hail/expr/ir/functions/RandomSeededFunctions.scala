@@ -11,65 +11,6 @@ import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives._
 import is.hail.types.virtual._
 
-import net.sourceforge.jdistlib.{Beta, Gamma, HyperGeometric, Poisson}
-import net.sourceforge.jdistlib.rng.MersenneTwister
-
-class IRRandomness(seed: Long) {
-
-  /* org.apache.commons has no way to statically sample from distributions without creating objects
-   * :( */
-  private[this] val random = new MersenneTwister()
-  private[this] val poisState = Poisson.create_random_state()
-
-  // FIXME: these are just combined with some large primes, so probably should be fixed up
-  private[this] def hash(pidx: Int): Long =
-    seed ^ java.lang.Math.floorMod(pidx * 11399L, 2147483647L)
-
-  def reset(partitionIdx: Int): Unit = {
-    val combinedSeed = hash(partitionIdx)
-    random.setSeed(combinedSeed)
-  }
-
-  def runif(min: Double, max: Double): Double = min + (max - min) * random.nextDouble()
-
-  def rint32(n: Int): Int = random.nextInt(n)
-
-  def rint64(): Long = random.nextLong()
-
-  def rint64(n: Long): Long = random.nextLong(n)
-
-  def rcoin(p: Double): Boolean = random.nextDouble() < p
-
-  def rpois(lambda: Double): Double = Poisson.random(lambda, random, poisState)
-
-  def rnorm(mean: Double, sd: Double): Double = mean + sd * random.nextGaussian()
-
-  def rnorm(): Double = rnorm(0, 1)
-
-  def rbeta(a: Double, b: Double): Double = Beta.random(a, b, random)
-
-  def rgamma(shape: Double, scale: Double): Double = Gamma.random(shape, scale, random)
-
-  def rhyper(numSuccessStates: Double, numFailureStates: Double, numToDraw: Double): Double =
-    HyperGeometric.random(numSuccessStates, numFailureStates, numToDraw, random)
-
-  def rcat(prob: Array[Double]): Int = {
-    var i = 0
-    var sum = 0.0
-    while (i < prob.length) {
-      sum += prob(i)
-      i += 1
-    }
-    var draw = random.nextDouble() * sum
-    i = 0
-    while (draw > prob(i)) {
-      draw -= prob(i)
-      i += 1
-    }
-    i
-  }
-}
-
 object RandomSeededFunctions extends RegistryFunctions {
 
   def rand_unif(cb: EmitCodeBuilder, rand_longs: IndexedSeq[Value[Long]]): Code[Double] = {
@@ -158,7 +99,7 @@ object RandomSeededFunctions extends RegistryFunctions {
           cb,
           r,
         )
-        val rng = cb.emb.getThreefryRNG()
+        val rng = cb.emb.threefryRandomEngine
         rngState.copyIntoEngine(cb, rng)
         result.coiterateMutate(cb, r) { _ =>
           primitive(cb.memoize(rng.invoke[Double, Double, Double](
@@ -179,7 +120,7 @@ object RandomSeededFunctions extends RegistryFunctions {
         case (_: Type, _: SType, _: SType) => SInt32
       },
     ) { case (_, cb, _, rngState: SRNGStateValue, n: SInt32Value, _) =>
-      val rng = cb.emb.getThreefryRNG()
+      val rng = cb.emb.threefryRandomEngine
       rngState.copyIntoEngine(cb, rng)
       primitive(cb.memoize(rng.invoke[Int, Int]("nextInt", n.value)))
     }
@@ -193,7 +134,7 @@ object RandomSeededFunctions extends RegistryFunctions {
         case (_: Type, _: SType, _: SType) => SInt64
       },
     ) { case (_, cb, _, rngState: SRNGStateValue, n: SInt64Value, _) =>
-      val rng = cb.emb.getThreefryRNG()
+      val rng = cb.emb.threefryRandomEngine
       rngState.copyIntoEngine(cb, rng)
       primitive(cb.memoize(rng.invoke[Long, Long]("nextLong", n.value)))
     }
@@ -238,7 +179,7 @@ object RandomSeededFunctions extends RegistryFunctions {
           cb,
           r,
         )
-        val rng = cb.emb.getThreefryRNG()
+        val rng = cb.emb.threefryRandomEngine
         rngState.copyIntoEngine(cb, rng)
         result.coiterateMutate(cb, r) { _ =>
           primitive(cb.memoize(rng.invoke[Double, Double, Double](
@@ -261,7 +202,7 @@ object RandomSeededFunctions extends RegistryFunctions {
       },
     ) {
       case (_, cb, _, rngState: SRNGStateValue, mean: SFloat64Value, sd: SFloat64Value, _) =>
-        val rng = cb.emb.getThreefryRNG()
+        val rng = cb.emb.threefryRandomEngine
         rngState.copyIntoEngine(cb, rng)
         primitive(cb.memoize(rng.invoke[Double, Double, Double]("rnorm", mean.value, sd.value)))
     }
@@ -288,7 +229,7 @@ object RandomSeededFunctions extends RegistryFunctions {
         case (_: Type, _: SType, _: SType) => SFloat64
       },
     ) { case (_, cb, _, rngState: SRNGStateValue, lambda: SFloat64Value, _) =>
-      val rng = cb.emb.getThreefryRNG()
+      val rng = cb.emb.threefryRandomEngine
       rngState.copyIntoEngine(cb, rng)
       primitive(cb.memoize(rng.invoke[Double, Double]("rpois", lambda.value)))
     }
@@ -312,7 +253,7 @@ object RandomSeededFunctions extends RegistryFunctions {
             lambda: SFloat64Value,
             _,
           ) =>
-        val rng = cb.emb.getThreefryRNG()
+        val rng = cb.emb.threefryRandomEngine
         rngState.copyIntoEngine(cb, rng)
         rt.constructFromElements(cb, r, n.value, deepCopy = false) { case (cb, _) =>
           IEmitCode.present(
@@ -332,7 +273,7 @@ object RandomSeededFunctions extends RegistryFunctions {
         case (_: Type, _: SType, _: SType, _: SType) => SFloat64
       },
     ) { case (_, cb, _, rngState: SRNGStateValue, a: SFloat64Value, b: SFloat64Value, _) =>
-      val rng = cb.emb.getThreefryRNG()
+      val rng = cb.emb.threefryRandomEngine
       rngState.copyIntoEngine(cb, rng)
       primitive(cb.memoize(rng.invoke[Double, Double, Double]("rbeta", a.value, b.value)))
     }
@@ -360,7 +301,7 @@ object RandomSeededFunctions extends RegistryFunctions {
             max: SFloat64Value,
             _,
           ) =>
-        val rng = cb.emb.getThreefryRNG()
+        val rng = cb.emb.threefryRandomEngine
         rngState.copyIntoEngine(cb, rng)
         val value = cb.newLocal[Double](
           "value",
@@ -384,7 +325,7 @@ object RandomSeededFunctions extends RegistryFunctions {
       },
     ) {
       case (_, cb, _, rngState: SRNGStateValue, a: SFloat64Value, scale: SFloat64Value, _) =>
-        val rng = cb.emb.getThreefryRNG()
+        val rng = cb.emb.threefryRandomEngine
         rngState.copyIntoEngine(cb, rng)
         primitive(cb.memoize(rng.invoke[Double, Double, Double]("rgamma", a.value, scale.value)))
     }
@@ -410,7 +351,7 @@ object RandomSeededFunctions extends RegistryFunctions {
             nSample: SInt32Value,
             _,
           ) =>
-        val rng = cb.emb.getThreefryRNG()
+        val rng = cb.emb.threefryRandomEngine
         rngState.copyIntoEngine(cb, rng)
         val nBad = popSize.value - nGood.value
         primitive(cb.memoize(rng.invoke[Double, Double, Double, Double](
@@ -433,7 +374,7 @@ object RandomSeededFunctions extends RegistryFunctions {
       },
     ) {
       case (r, cb, _, rngState: SRNGStateValue, colors: SIndexableValue, nSample: SInt32Value, _) =>
-        val rng = cb.emb.getThreefryRNG()
+        val rng = cb.emb.threefryRandomEngine
         rngState.copyIntoEngine(cb, rng)
         val (push, finish) = PCanonicalArray(PInt32(required = true))
           .constructFromFunctions(cb, r, colors.loadLength, deepCopy = false)
@@ -521,7 +462,7 @@ object RandomSeededFunctions extends RegistryFunctions {
             partitionCounts: SIndexableValue,
             _,
           ) =>
-        val rng = cb.emb.getThreefryRNG()
+        val rng = cb.emb.threefryRandomEngine
         rngState.copyIntoEngine(cb, rng)
 
         val totalNumberOfRecords = cb.newLocal[Int]("scnspp_total_number_of_records", 0)

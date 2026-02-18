@@ -8,7 +8,7 @@ import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir._
 import is.hail.expr.ir.compile.Compile
 import is.hail.expr.ir.defs._
-import is.hail.expr.ir.functions.{ArrayFunctions, IRRandomness, UtilFunctions}
+import is.hail.expr.ir.functions.{ArrayFunctions, UtilFunctions}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.rvd.RVDPartitioner
 import is.hail.sparkextras.implicits.toRichRow
@@ -168,7 +168,6 @@ object LowerDistributedSort extends Logging {
   ): TableReader = {
 
     val oversamplingNum = 3
-    val seed = 7L
     val maxBranchingFactor = ctx.getFlag("shuffle_max_branch_factor").toInt
     val defaultBranchingFactor = if (inputStage.numPartitions < maxBranchingFactor) {
       Math.max(2, inputStage.numPartitions)
@@ -246,7 +245,7 @@ object LowerDistributedSort extends Logging {
     )
 
     var i = 0
-    val rand = new IRRandomness(seed)
+    val rand = ThreefryRandomEngine()
 
     /* Loop state keeps track of three things. largeSegments are too big to sort locally so have to
      * broken up.
@@ -786,7 +785,7 @@ object LowerDistributedSort extends Logging {
   }
 
   def howManySamplesPerPartition(
-    rand: IRRandomness,
+    rand: ThreefryRandomEngine,
     totalNumberOfRecords: Long,
     initialNumSamplesToSelect: Int,
     partitionCounts: IndexedSeq[Long],

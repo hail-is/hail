@@ -22,7 +22,7 @@ class DownsampleSuite extends HailSuite {
 
     val stagedPool = fb.newLocal[RegionPool]("pool")
 
-    val rng = fb.newRNG(0)
+    val rng = fb.threefryRandomEngine
     val i = fb.newLocal[Int]()
 
     val x = fb.newLocal[Double]()
