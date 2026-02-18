@@ -199,19 +199,21 @@ LIMIT %s;
             batch_id = record['batch_id']
             job_id = record['job_id']
             instance_name = record['instance_name']
-            id = (batch_id, job_id)
-            log.info(f'scheduling job {id}')
+            log.info(f'scheduling job {(batch_id, job_id)}')
 
             instance = self.name_instance[instance_name]
             n_records_seen += 1
 
-            async def schedule_with_error_handling(app, record, id, instance):
+            async def schedule_with_error_handling(app, record, instance):
                 try:
                     await schedule_job(app, record, instance)
                 except Exception:
-                    log.info(f'scheduling job {id} on {instance} for {self}', exc_info=True)
+                    log.info(
+                        f'scheduling job {(record["batch_id"], record["job_id"])} on {instance} for {self}',
+                        exc_info=True,
+                    )
 
-            await waitable_pool.call(schedule_with_error_handling, self.app, record, id, instance)
+            await waitable_pool.call(schedule_with_error_handling, self.app, record, instance)
 
         await waitable_pool.wait()
 
@@ -427,13 +429,14 @@ LIMIT %s
             async for record in user_runnable_jobs(user, remaining):
                 batch_id = record['batch_id']
                 job_id = record['job_id']
-                id = (batch_id, job_id)
                 attempt_id = secret_alnum_string(6)
                 record['attempt_id'] = attempt_id
                 job_group_id = record['job_group_id']
                 n_prior_attempts = record['n_prior_attempts']
                 n_max_attempts = record['n_max_attempts']
-                log.info(f'Job {id}: {n_prior_attempts} prior attempts out of a maximum of {n_max_attempts}')
+                log.info(
+                    f'Job {(batch_id, job_id)}: {n_prior_attempts} prior attempts out of a maximum of {n_max_attempts}'
+                )
 
                 if n_prior_attempts >= n_max_attempts:
                     await mark_job_errored(
@@ -459,10 +462,10 @@ LIMIT %s
                 n_user_instances_created += 1
                 should_wait = False
 
-                log.info(f'creating job private instance for job {id}')
+                log.info(f'creating job private instance for job {(batch_id, job_id)}')
 
                 async def create_instance_with_error_handling(
-                    batch_id: int, job_id: int, attempt_id: str, job_group_id: int, record: dict, id: Tuple[int, int]
+                    batch_id: int, job_id: int, attempt_id: str, job_group_id: int, record: dict
                 ):
                     try:
                         batch_format_version = BatchFormatVersion(record['format_version'])
@@ -493,10 +496,12 @@ LIMIT %s
                             traceback.format_exc(),
                         )
                     except Exception:
-                        log.exception(f'while creating job private instance for job {id}', exc_info=True)
+                        log.exception(
+                            f'while creating job private instance for job {(batch_id, job_id)}', exc_info=True
+                        )
 
                 await waitable_pool.call(
-                    create_instance_with_error_handling, batch_id, job_id, attempt_id, job_group_id, record, id
+                    create_instance_with_error_handling, batch_id, job_id, attempt_id, job_group_id, record
                 )
 
                 remaining.value -= 1

@@ -706,7 +706,9 @@ LIMIT 300;
 
                 n_prior_attempts = record['n_prior_attempts']
                 n_max_attempts = record['n_max_attempts']
-                log.info(f'Job {id}: {n_prior_attempts} prior attempts out of a maximum of {n_max_attempts}')
+                log.info(
+                    f'Job {(record["batch_id"], record["job_id"])}: {n_prior_attempts} prior attempts out of a maximum of {n_max_attempts}'
+                )
 
                 if n_prior_attempts >= n_max_attempts:
                     await mark_job_errored(
