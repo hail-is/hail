@@ -8,6 +8,7 @@ certifi==2026.1.4
     #   requests
 cffi==2.0.0
     # via
+    #   -c ci/../gear/pinned-requirements.txt
     #   -c ci/../hail/python/dev/pinned-requirements.txt
     #   -c ci/../hail/python/pinned-requirements.txt
     #   cryptography
@@ -22,8 +23,9 @@ click==8.3.1
     #   -c ci/../hail/python/dev/pinned-requirements.txt
     #   -c ci/../hail/python/pinned-requirements.txt
     #   zulip
-cryptography==46.0.3
+cryptography==46.0.5
     # via
+    #   -c ci/../gear/pinned-requirements.txt
     #   -c ci/../hail/python/pinned-requirements.txt
     #   pyjwt
 distro==1.9.0
@@ -37,12 +39,13 @@ idna==3.11
     #   -c ci/../hail/python/pinned-requirements.txt
     #   -c ci/../web_common/pinned-requirements.txt
     #   requests
-pycparser==2.23
+pycparser==3.0
     # via
+    #   -c ci/../gear/pinned-requirements.txt
     #   -c ci/../hail/python/dev/pinned-requirements.txt
     #   -c ci/../hail/python/pinned-requirements.txt
     #   cffi
-pyjwt==2.10.1
+pyjwt==2.11.0
     # via
     #   -c ci/../hail/python/pinned-requirements.txt
     #   gidgethub

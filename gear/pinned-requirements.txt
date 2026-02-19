@@ -42,12 +42,23 @@ certifi==2026.1.4
     #   -c gear/../hail/python/pinned-requirements.txt
     #   kubernetes-asyncio
     #   requests
+cffi==2.0.0
+    # via
+    #   -c gear/../hail/python/dev/pinned-requirements.txt
+    #   -c gear/../hail/python/hailtop/pinned-requirements.txt
+    #   -c gear/../hail/python/pinned-requirements.txt
+    #   cryptography
 charset-normalizer==3.4.4
     # via
     #   -c gear/../hail/python/dev/pinned-requirements.txt
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
     #   requests
+cryptography==46.0.5
+    # via
+    #   -c gear/../hail/python/hailtop/pinned-requirements.txt
+    #   -c gear/../hail/python/pinned-requirements.txt
+    #   google-auth
 frozenlist==1.8.0
     # via
     #   -c gear/../hail/python/dev/pinned-requirements.txt
@@ -57,9 +68,9 @@ frozenlist==1.8.0
     #   aiosignal
 google-api-core==2.29.0
     # via google-api-python-client
-google-api-python-client==2.187.0
+google-api-python-client==2.190.0
     # via google-cloud-profiler
-google-auth==2.47.0
+google-auth==2.48.0
     # via
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
@@ -75,7 +86,7 @@ google-cloud-profiler==4.1.0
     # via -r gear/requirements.txt
 googleapis-common-protos==1.72.0
     # via google-api-core
-httplib2==0.31.0
+httplib2==0.31.2
     # via
     #   google-api-python-client
     #   google-auth-httplib2
@@ -88,21 +99,21 @@ idna==3.11
     #   yarl
 kubernetes-asyncio==19.15.1
     # via -r gear/requirements.txt
-multidict==6.7.0
+multidict==6.7.1
     # via
     #   -c gear/../hail/python/dev/pinned-requirements.txt
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
     #   aiohttp
     #   yarl
-packaging==25.0
+packaging==26.0
     # via
     #   -c gear/../hail/python/dev/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
     #   -r gear/requirements.txt
 prometheus-async==19.2.0
     # via -r gear/requirements.txt
-prometheus-client==0.24.0
+prometheus-client==0.24.1
     # via
     #   -c gear/../hail/python/dev/pinned-requirements.txt
     #   -r gear/requirements.txt
@@ -114,15 +125,15 @@ propcache==0.4.1
     #   -c gear/../hail/python/pinned-requirements.txt
     #   aiohttp
     #   yarl
-proto-plus==1.27.0
+proto-plus==1.27.1
     # via google-api-core
-protobuf==6.33.4
+protobuf==6.33.5
     # via
     #   google-api-core
     #   google-cloud-profiler
     #   googleapis-common-protos
     #   proto-plus
-pyasn1==0.6.1
+pyasn1==0.6.2
     # via
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
@@ -133,11 +144,17 @@ pyasn1-modules==0.4.2
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
     #   google-auth
+pycparser==3.0
+    # via
+    #   -c gear/../hail/python/dev/pinned-requirements.txt
+    #   -c gear/../hail/python/hailtop/pinned-requirements.txt
+    #   -c gear/../hail/python/pinned-requirements.txt
+    #   cffi
 pymysql==1.1.2
     # via
     #   -r gear/requirements.txt
     #   aiomysql
-pyparsing==3.3.1
+pyparsing==3.3.2
     # via
     #   -c gear/../hail/python/dev/pinned-requirements.txt
     #   httplib2
@@ -165,9 +182,11 @@ rsa==4.9.1
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
     #   google-auth
-setuptools==80.9.0
+setuptools==81.0.0
     # via
     #   -c gear/../hail/python/dev/pinned-requirements.txt
+    #   -c gear/../hail/python/hailtop/pinned-requirements.txt
+    #   -c gear/../hail/python/pinned-requirements.txt
     #   kubernetes-asyncio
 six==1.17.0
     # via
@@ -187,6 +206,7 @@ typing-extensions==4.15.0
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
     #   aiosignal
+    #   cryptography
     #   multidict
 uritemplate==4.2.0
     # via google-api-python-client
