@@ -3033,7 +3033,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
 
       case ReadValue(path, reader, requestedType) =>
         emitI(path).map(cb) { pv =>
-          val is = cb.memoize(mb.openUnbuffered(pv.asString.loadString(cb), checkCodec = true))
+          val is = cb.memoize(mb.open(pv.asString.loadString(cb), checkCodec = true))
           val decoded = reader.readValue(cb, requestedType, region, is)
           cb += is.invoke[Unit]("close")
           decoded
@@ -3043,7 +3043,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
         emitI(path).flatMap(cb) { case pv: SStringValue =>
           emitI(value).map(cb) { v =>
             val s = stagingFile.map(emitI(_).getOrAssert(cb).asString)
-            val os = cb.memoize(mb.createUnbuffered(s.getOrElse(pv).loadString(cb)))
+            val os = cb.memoize(mb.create(s.getOrElse(pv).loadString(cb)))
             writer.writeValue(cb, v, os)
             cb += os.invoke[Unit]("close")
             s.foreach { stage =>

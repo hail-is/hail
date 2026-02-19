@@ -90,7 +90,7 @@ class StagedIndexReader(
      * but propagated. */
     cb.assign(
       is,
-      Code.newInstance[ByteTrackingInputStream, InputStream](cb.emb.openUnbuffered(
+      Code.newInstance[ByteTrackingInputStream, InputStream](cb.emb.open(
         indexPath.concat("/index"),
         false,
       )),

@@ -731,7 +731,10 @@ object BGENFunctions extends RegistryFunctions {
               .concat("-").concat(Code.invokeScalaObject0[String](BGENFunctions.getClass, "uuid")),
           )
           val ob =
-            cb.newLocal[OutputBuffer]("currFile", spec.buildCodeOutputBuffer(mb.create(path)))
+            cb.newLocal[OutputBuffer](
+              "currFile",
+              spec.buildCodeOutputBuffer(mb.create(path).buffer),
+            )
 
           val i = cb.newLocal[Int]("i", 0)
           cb.while_(
@@ -811,7 +814,7 @@ object BGENFunctions extends RegistryFunctions {
           val path = cb.memoize(ctor.getCodeParam[String](1))
           val _size = cb.memoize(ctor.getCodeParam[Int](2))
 
-          cb.assign(ib, spec.buildCodeInputBuffer(mb.open(path, false)))
+          cb.assign(ib, spec.buildCodeInputBuffer(mb.open(path, false).buffer))
           cb.assign(iterSize, _size)
           cb.assign(iterCurrIdx, 0)
         }

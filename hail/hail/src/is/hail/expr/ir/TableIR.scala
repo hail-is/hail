@@ -818,7 +818,7 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec, uidFieldName: Str
         override def initialize(cb: EmitCodeBuilder, partitionRegion: Value[Region]): Unit = {
           cb.assign(
             xRowBuf,
-            spec.buildCodeInputBuffer(mb.openUnbuffered(pathString, checkCodec = true)),
+            spec.buildCodeInputBuffer(mb.open(pathString, checkCodec = true)),
           )
           cb.assign(rowIdx, -1L)
         }
@@ -1053,7 +1053,7 @@ case class PartitionNativeIntervalReader(
                     ib,
                     spec.buildCodeInputBuffer(
                       Code.newInstance[ByteTrackingInputStream, InputStream](
-                        cb.emb.openUnbuffered(partPath, false)
+                        cb.emb.open(partPath, false)
                       )
                     ),
                   )
@@ -1264,7 +1264,7 @@ case class PartitionNativeReaderIndexed(
             ib,
             spec.buildCodeInputBuffer(
               Code.newInstance[ByteTrackingInputStream, InputStream](
-                cb.emb.openUnbuffered(partitionPath, false)
+                cb.emb.open(partitionPath, false)
               )
             ),
           )
@@ -1615,7 +1615,7 @@ case class PartitionZippedIndexedNativeReader(
             leftBuffer,
             specLeft.buildCodeInputBuffer(
               Code.newInstance[ByteTrackingInputStream, InputStream](
-                mb.openUnbuffered(
+                mb.open(
                   ctxStruct.loadField(cb, "leftPartitionPath")
                     .getOrAssert(cb)
                     .asString
@@ -1629,7 +1629,7 @@ case class PartitionZippedIndexedNativeReader(
             rightBuffer,
             specRight.buildCodeInputBuffer(
               Code.newInstance[ByteTrackingInputStream, InputStream](
-                mb.openUnbuffered(
+                mb.open(
                   ctxStruct.loadField(cb, "rightPartitionPath")
                     .getOrAssert(cb)
                     .asString
