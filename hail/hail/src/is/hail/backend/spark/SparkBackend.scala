@@ -267,16 +267,13 @@ class SparkBackend(val spark: SparkSession) extends Backend with Logging {
               Array.tabulate(contexts.length)(index => RDDPartition(contexts(index), index))
 
             override def compute(partition: Partition, context: TaskContext)
-              : Iterator[Array[Byte]] =
-              Iterator.single(
-                f(
-                  globals,
-                  partition.asInstanceOf[RDDPartition].data,
-                  SparkTaskContext.get(),
-                  theHailClassLoaderForSparkWorkers,
-                  new HadoopFS(fsConfig),
-                )
-              )
+              : Iterator[Array[Byte]] = {
+              val htc = SparkTaskContext.get()
+              htc.getRegionPool().scopedRegion { r =>
+                val g = f(theHailClassLoaderForSparkWorkers, new HadoopFS(fsConfig), htc, r)
+                Iterator.single(g(globals, partition.asInstanceOf[RDDPartition].data))
+              }
+            }
           }
 
         val todo: IndexedSeq[Int] =

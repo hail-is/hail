@@ -17,25 +17,23 @@ import is.hail.types.physical.stypes.{
 }
 import is.hail.types.physical.stypes.interfaces.{NoBoxLongIterator, SStream}
 
+import scala.collection.mutable
+
 import java.io.PrintWriter
 
 import sourcecode.Enclosing
 
-case class CodeCacheKey(
+case class CompileCacheKey(
   aggSigs: IndexedSeq[AggStateSig],
   args: Seq[EmitParamType],
   body: IR,
 )
 
-case class CompiledFunction[T](
-  typ: Option[SingleCodeType],
-  f: (HailClassLoader, FS, HailTaskContext, Region) => T,
-) {
-  def tuple: (Option[SingleCodeType], (HailClassLoader, FS, HailTaskContext, Region) => T) =
-    (typ, f)
-}
+private[ir] trait CompileOps {
 
-object compile {
+  type Compiled[A] = (HailClassLoader, FS, HailTaskContext, Region) => A
+  type CompiledFunction[A] = (Option[SingleCodeType], Compiled[A])
+  type CompileCache = mutable.Map[CompileCacheKey, CompiledFunction[_]]
 
   def Compile[F: TypeInfo](
     ctx: ExecuteContext,
@@ -44,8 +42,8 @@ object compile {
     expectedCodeReturnType: TypeInfo[_],
     body: IR,
     print: Option[PrintWriter] = None,
-  ): (Option[SingleCodeType], (HailClassLoader, FS, HailTaskContext, Region) => F) =
-    Impl[F, AnyVal](
+  ): (Option[SingleCodeType], Compiled[F]) =
+    Impl[F, Any](
       ctx,
       params,
       None,
@@ -65,7 +63,7 @@ object compile {
     print: Option[PrintWriter] = None,
   ): (
     Option[SingleCodeType],
-    (HailClassLoader, FS, HailTaskContext, Region) => F with FunctionWithAggRegion,
+    Compiled[F with FunctionWithAggRegion],
   ) =
     Impl[F, FunctionWithAggRegion](
       ctx,
@@ -88,7 +86,7 @@ object compile {
   )(implicit
     E: Enclosing,
     N: sourcecode.Name,
-  ): (Option[SingleCodeType], (HailClassLoader, FS, HailTaskContext, Region) => F with Mixin) =
+  ): (Option[SingleCodeType], Compiled[F with Mixin]) =
     ctx.time {
       val ir =
         NormalizeNames()(
@@ -100,13 +98,13 @@ object compile {
         )
 
       val key =
-        CodeCacheKey(
+        CompileCacheKey(
           aggSigs.getOrElse(IndexedSeq.empty),
           params.map(_._2),
           ir,
         )
 
-      ctx.CodeCache.getOrElseUpdate(
+      ctx.CompileCache.getOrElseUpdate(
         key, {
           val lowered =
             LoweringPipeline.compileLowerer(ctx, ir)
@@ -133,9 +131,9 @@ object compile {
 
           val emitContext = EmitContext.analyze(ctx, lowered)
           val rt = Emit(emitContext, lowered, fb, expectedCodeReturnType, params.length, aggSigs)
-          CompiledFunction(rt, fb.resultWithIndex(print))
+          (rt, fb.resultWithIndex(print))
         },
-      ).asInstanceOf[CompiledFunction[F with Mixin]].tuple
+      ).asInstanceOf[CompiledFunction[F with Mixin]]
     }
 }
 
@@ -184,7 +182,7 @@ object CompileIterator {
     body: IR,
     argTypeInfo: Array[ParamType],
     printWriter: Option[PrintWriter],
-  ): (PType, (HailClassLoader, FS, HailTaskContext, Region) => F) = {
+  ): (PType, Compiled[F]) = {
 
     val fb = EmitFunctionBuilder.apply[F](
       ctx,

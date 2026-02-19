@@ -46,7 +46,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
   private[this] val hcl = new HailClassLoader(getClass.getClassLoader)
   private[this] val references = mutable.Map(ReferenceGenome.builtinReferences().toSeq: _*)
   private[this] val blockMatrixCache = mutable.Map[String, linalg.BlockMatrix]()
-  private[this] val compiledCodeCache = new Cache[CodeCacheKey, CompiledFunction[_]](50)
+  private[this] val compiledCodeCache = new Cache[CompileCacheKey, CompiledFunction[_]](50)
   private[this] val irCache = mutable.Map[Int, BaseIR]()
   private[this] val coercerCache = new Cache[Any, LoweredTableReaderCoercer](32)
   private[this] var irID: Int = 0
@@ -347,7 +347,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
           flags = flags,
           irMetadata = new IrMetadata(),
           blockMatrixCache = blockMatrixCache,
-          codeCache = compiledCodeCache,
+          compileCache = compiledCodeCache,
           irCache = irCache,
           coercerCache = coercerCache,
         )(f)

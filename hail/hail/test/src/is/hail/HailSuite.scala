@@ -93,7 +93,7 @@ class HailSuite extends TestNGSuite with TestUtils with Logging {
       flags = HailSuite.flags,
       irMetadata = new IrMetadata(),
       BlockMatrixCache = ImmutableMap.empty,
-      CodeCache = ImmutableMap.empty,
+      CompileCache = ImmutableMap.empty,
       PersistedIrCache = ImmutableMap.empty,
       PersistedCoercerCache = ImmutableMap.empty,
     )

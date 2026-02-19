@@ -6,7 +6,6 @@ import is.hail.asm4s.implicits.valueToRichCodeInputBuffer
 import is.hail.backend.{ExecuteContext, HailStateManager, HailTaskContext, TaskFinalizer}
 import is.hail.collection.FastSeq
 import is.hail.collection.implicits.toRichIterable
-import is.hail.expr.ir.compile.Compile
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.functions.{
   BlockMatrixToTableFunction, IntervalFunctions, MatrixToTableFunction, TableToTableFunction,
@@ -1877,7 +1876,7 @@ case class TableNativeZippedReader(
       .typedCodecSpec.encodedType.decodedPType(requestedType.globalType))
 
   def fieldInserter(ctx: ExecuteContext, pLeft: PStruct, pRight: PStruct)
-    : (PStruct, (HailClassLoader, FS, HailTaskContext, Region) => AsmFunction3RegionLongLongLong) = {
+    : (PStruct, Compiled[AsmFunction3RegionLongLongLong]) = {
     val leftRef = Ref(freshName(), pLeft.virtualType)
     val rightRef = Ref(freshName(), pRight.virtualType)
     val (Some(PTypeReferenceSingleCodeType(t: PStruct)), mk) =
