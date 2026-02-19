@@ -65,12 +65,31 @@ frozenlist==1.8.0
     #   -r hail/python/hailtop/requirements.txt
     #   aiohttp
     #   aiosignal
+google-api-core==2.30.0
+    # via
+    #   google-cloud-core
+    #   google-cloud-storage
 google-auth==2.48.0
     # via
     #   -r hail/python/hailtop/requirements.txt
+    #   google-api-core
     #   google-auth-oauthlib
+    #   google-cloud-core
+    #   google-cloud-storage
 google-auth-oauthlib==0.8.0
     # via -r hail/python/hailtop/requirements.txt
+google-cloud-core==2.5.0
+    # via google-cloud-storage
+google-cloud-storage==3.9.0
+    # via -r hail/python/hailtop/requirements.txt
+google-crc32c==1.8.0
+    # via
+    #   google-cloud-storage
+    #   google-resumable-media
+google-resumable-media==2.8.0
+    # via google-cloud-storage
+googleapis-common-protos==1.72.0
+    # via google-api-core
 humanize==4.15.0
     # via -r hail/python/hailtop/requirements.txt
 idna==3.11
@@ -111,6 +130,13 @@ propcache==0.4.1
     # via
     #   aiohttp
     #   yarl
+proto-plus==1.27.1
+    # via google-api-core
+protobuf==6.33.5
+    # via
+    #   google-api-core
+    #   googleapis-common-protos
+    #   proto-plus
 pyasn1==0.6.2
     # via
     #   pyasn1-modules
@@ -134,6 +160,8 @@ pyyaml==6.0.3
 requests==2.32.5
     # via
     #   azure-core
+    #   google-api-core
+    #   google-cloud-storage
     #   msal
     #   msrest
     #   requests-oauthlib
