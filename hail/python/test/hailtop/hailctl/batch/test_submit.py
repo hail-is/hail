@@ -456,3 +456,5 @@ def test_hail_config_in_environment(submit, tmp_path, client):
 
     for k, v in propagated_config_vars:
         assert configuration_of(k, None, None) == v, str(job_status)
+
+
