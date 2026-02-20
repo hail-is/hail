@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from contextlib import AsyncExitStack
 from typing import Any, AsyncContextManager, AsyncIterator, Callable, ClassVar, Dict, List, Optional, Set, Type
 
@@ -8,6 +9,8 @@ from ..aiocloud import aioaws, aioazure, aiogoogle
 from ..aiocloud.aioterra import azure as aioterra_azure
 from .fs import AsyncFS, AsyncFSURL, FileListEntry, FileStatus, MultiPartCreate, ReadableStream, WritableStream
 from .local_fs import LocalAsyncFS
+
+log = logging.getLogger(__name__)
 
 
 class RouterAsyncFS(AsyncFS):
@@ -79,6 +82,7 @@ class RouterAsyncFS(AsyncFS):
     async def _get_fs(self, url: str):
         if LocalAsyncFS.valid_url(url):
             if self._local_fs is None:
+                log.info('RouterAsyncFS._get_fs: creating LocalAsyncFS for url=%s kwargs=%s', url, self._local_kwargs)
                 self._local_fs = LocalAsyncFS(**self._local_kwargs)
                 self._exit_stack.push_async_callback(self._local_fs.close)
             return self._local_fs

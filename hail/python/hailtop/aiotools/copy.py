@@ -68,7 +68,23 @@ async def copy(
     transfers: List[Transfer],
     verbose: bool = False,
 ) -> None:
+    import threading
+
+    copy_log = logging.getLogger(__name__)
+    copy_log.info(
+        'copy: START %d transfers, thread=%s',
+        len(transfers),
+        threading.current_thread().name,
+    )
+    for i, t in enumerate(transfers):
+        copy_log.info('copy: transfer[%d] src=%s dest=%s treat_dest_as=%s', i, t.src, t.dest, t.treat_dest_as)
+
     with ThreadPoolExecutor() as thread_pool:
+        copy_log.info(
+            'copy: ThreadPoolExecutor created pool=%s _shutdown=%s',
+            thread_pool,
+            thread_pool._shutdown,
+        )
         if max_simultaneous_transfers is None:
             max_simultaneous_transfers = 75
         if local_kwargs is None:
@@ -99,6 +115,7 @@ async def copy(
                 ) as sema:
                     file_tid = progress.add_task(description='files', total=0, visible=verbose)
                     bytes_tid = progress.add_task(description='bytes', total=0, visible=verbose)
+                    copy_log.info('copy: calling Copier.copy')
                     copy_report = await Copier.copy(
                         fs,
                         sema,
@@ -106,8 +123,11 @@ async def copy(
                         files_listener=make_listener(progress, file_tid),
                         bytes_listener=make_listener(progress, bytes_tid),
                     )
+                    copy_log.info('copy: Copier.copy done')
                 if verbose:
                     copy_report.summarize()
+        copy_log.info('copy: RouterAsyncFS closed')
+    copy_log.info('copy: ThreadPoolExecutor closed, DONE')
 
 
 def make_transfer(json_object: Dict[str, str]) -> Transfer:
