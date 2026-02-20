@@ -19,12 +19,6 @@ import java.util
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 
-class ServiceTaskContext(val partitionId: Int) extends HailTaskContext {
-  override def stageId(): Int = 0
-
-  override def attemptNumber(): Int = 0
-}
-
 class WorkerTimer extends Logging {
 
   var startTimes: mutable.Map[String, Long] = mutable.Map()
@@ -250,10 +244,11 @@ object Worker extends Logging {
       inputs.flatMap { case (globals, context, f) =>
         timer.enter("execute") {
           try
-            using(new ServiceTaskContext(partition)) { htc =>
-              retryTransientErrors {
-                Right(f(globals, context, htc, hcl, fs))
-              }
+            HailTaskContext.runPartition(partition) { htc =>
+              retryTransientErrors(
+                Right(f(hcl, fs, htc, htc.r)(globals, context)),
+                Some(() => htc.r.clear()),
+              )
             }
           catch {
             case t: Throwable => Left(t)

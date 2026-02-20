@@ -565,7 +565,7 @@ object StagedBGENReader {
   def queryIndexByPosition(
     ctx: ExecuteContext,
     indexSpec: AbstractIndexSpec,
-  ): (String, Array[Long]) => Array[AnyRef] = {
+  ): (ExecuteContext, String, Array[Long]) => Array[AnyRef] = {
     val fb = EmitFunctionBuilder[String, Array[Long], Array[AnyRef]](ctx, "bgen_query_index")
 
     fb.emitWithBuilder { cb =>
@@ -597,11 +597,8 @@ object StagedBGENReader {
     }
 
     val res = fb.resultWithIndex();
-    { (path: String, indices: Array[Long]) =>
-      ctx.r.pool.scopedRegion { r =>
-        res.apply(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, r)
-          .apply(path, indices)
-      }
+    { (ctx, path: String, indices: Array[Long]) =>
+      ctx.scopedExecution((hcl, fs, tc, r) => res(hcl, fs, tc, r)(path, indices))
     }
   }
 

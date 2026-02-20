@@ -89,7 +89,7 @@ object BTreeBackedSet {
 
     val inputBuffer = new StreamBufferSpec().buildInputBuffer(new ByteArrayInputStream(serialized))
     val set = new BTreeBackedSet(ctx, region, n)
-    set.root = fb.resultWithIndex()(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, region)(
+    set.root = fb.resultWithIndex()(ctx.theHailClassLoader, ctx.fs, ctx, region)(
       region,
       inputBuffer,
     )
@@ -115,7 +115,7 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
       root
     }
 
-    fb.resultWithIndex()(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, region)
+    fb.resultWithIndex()(ctx.theHailClassLoader, ctx.fs, ctx, region)
   }
 
   private val getF = {
@@ -138,7 +138,7 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
       cb.if_(key.isEmpty(cb, elt), key.storeKey(cb, elt, m, v))
       root
     }
-    fb.resultWithIndex()(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, region)
+    fb.resultWithIndex()(ctx.theHailClassLoader, ctx.fs, ctx, region)
   }
 
   private val getResultsF = {
@@ -177,7 +177,7 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
       )
       returnArray
     }
-    fb.resultWithIndex()(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, region)
+    fb.resultWithIndex()(ctx.theHailClassLoader, ctx.fs, ctx, region)
   }
 
   private val bulkStoreF = {
@@ -204,7 +204,7 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
       ob2.flush()
     }
 
-    fb.resultWithIndex()(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, region)
+    fb.resultWithIndex()(ctx.theHailClassLoader, ctx.fs, ctx, region)
   }
 
   def clear(): Unit = {

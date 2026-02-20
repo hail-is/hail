@@ -3,10 +3,9 @@ package is.hail.expr.ir
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.asm4s.implicits.valueToRichCodeInputBuffer
-import is.hail.backend.{ExecuteContext, HailStateManager, HailTaskContext, TaskFinalizer}
+import is.hail.backend.{ExecuteContext, HailStateManager, HailTaskContext}
 import is.hail.collection.FastSeq
 import is.hail.collection.implicits.toRichIterable
-import is.hail.expr.ir.compile.Compile
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.functions.{
   BlockMatrixToTableFunction, IntervalFunctions, MatrixToTableFunction, TableToTableFunction,
@@ -28,6 +27,8 @@ import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SInt64, SInt64Value}
 import is.hail.types.virtual._
 import is.hail.utils._
+
+import scala.collection.mutable
 
 import java.io.{Closeable, InputStream}
 
@@ -862,6 +863,13 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec, uidFieldName: Str
   override def toJValue: JValue = Extraction.decompose(this)(PartitionReader.formats)
 }
 
+class TaskFinalizer extends (() => Unit) {
+  private[this] val closeables = mutable.ArrayBuffer.empty[Closeable]
+  override def apply(): Unit = closeables.foreach(_.close())
+  def addCloseable(c: Closeable): Unit = closeables += c
+  def clear(): Unit = closeables.clear()
+}
+
 case class PartitionNativeIntervalReader(
   sm: HailStateManager,
   tablePath: String,
@@ -942,8 +950,10 @@ case class PartitionNativeIntervalReader(
 
       val currIdxInPartition = mb.genFieldThisRef[Long]("n_to_read")
       val stopIdxInPartition = mb.genFieldThisRef[Long]("n_to_read")
+
       val finalizer = mb.genFieldThisRef[TaskFinalizer]("finalizer")
-      cb.assign(finalizer, cb.emb.ecb.getTaskContext.invoke[TaskFinalizer]("newFinalizer"))
+      cb.assign(finalizer, Code.newInstance[TaskFinalizer]())
+      cb += mb.getTaskContext.invoke[() => Unit, Unit]("onClose", finalizer)
 
       val startPartitionIndex = mb.genFieldThisRef[Int]("start_part")
       val currPartitionIdx = mb.genFieldThisRef[Int]("curr_part")
@@ -1877,7 +1887,7 @@ case class TableNativeZippedReader(
       .typedCodecSpec.encodedType.decodedPType(requestedType.globalType))
 
   def fieldInserter(ctx: ExecuteContext, pLeft: PStruct, pRight: PStruct)
-    : (PStruct, (HailClassLoader, FS, HailTaskContext, Region) => AsmFunction3RegionLongLongLong) = {
+    : (PStruct, Compiled[AsmFunction3RegionLongLongLong]) = {
     val leftRef = Ref(freshName(), pLeft.virtualType)
     val rightRef = Ref(freshName(), pRight.virtualType)
     val (Some(PTypeReferenceSingleCodeType(t: PStruct)), mk) =

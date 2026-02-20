@@ -17,6 +17,7 @@ import is.hail.io.fs._
 import is.hail.io.reference.{IndexedFastaSequenceFile, LiftOver}
 import is.hail.sparkextras.implicits._
 import is.hail.types.physical.PStruct
+import is.hail.types.physical.stypes.SingleCodeType
 import is.hail.types.virtual.{TArray, TInterval}
 import is.hail.types.virtual.Kinds.{BlockMatrix, Matrix, Table, Value}
 import is.hail.utils._
@@ -46,7 +47,10 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
   private[this] val hcl = new HailClassLoader(getClass.getClassLoader)
   private[this] val references = mutable.Map(ReferenceGenome.builtinReferences().toSeq: _*)
   private[this] val blockMatrixCache = mutable.Map[String, linalg.BlockMatrix]()
-  private[this] val compiledCodeCache = new Cache[CodeCacheKey, CompiledFunction[_]](50)
+
+  private[this] val compiledCodeCache =
+    new Cache[CompileCacheKey, (Option[SingleCodeType], Compiled[_])](50)
+
   private[this] val irCache = mutable.Map[Int, BaseIR]()
   private[this] val coercerCache = new Cache[Any, LoweredTableReaderCoercer](32)
   private[this] var irID: Int = 0
@@ -347,7 +351,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
           flags = flags,
           irMetadata = new IrMetadata(),
           blockMatrixCache = blockMatrixCache,
-          codeCache = compiledCodeCache,
+          compileCache = compiledCodeCache,
           irCache = irCache,
           coercerCache = coercerCache,
         )(f)

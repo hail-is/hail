@@ -4,8 +4,7 @@ import is.hail.annotations.{Region, SafeRow}
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
-import is.hail.expr.ir.compile.Compile
-import is.hail.expr.ir.defs.{Begin, EncodedLiteral, Literal, MakeTuple, NA}
+import is.hail.expr.ir.defs._
 import is.hail.expr.ir.lowering.LoweringPipeline
 import is.hail.types.physical.PTuple
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
@@ -79,11 +78,8 @@ object CompileAndEvaluate {
               print,
             )
 
-          val res = ctx.scopedExecution { (hcl, fs, htc, r) =>
-            val execute = f(hcl, fs, htc, r)
-            ctx.time(execute(r))
-          }
-
+          val execute = f(ctx.theHailClassLoader, ctx.fs, ctx, ctx.r)
+          val res = ctx.time(execute(ctx.r))
           Right((resType, res))
       }
     }

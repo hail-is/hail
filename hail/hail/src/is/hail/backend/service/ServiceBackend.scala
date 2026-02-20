@@ -3,7 +3,6 @@ package is.hail.backend.service
 import is.hail.Revision
 import is.hail.backend._
 import is.hail.backend.Backend.PartitionFn
-import is.hail.backend.local.LocalTaskContext
 import is.hail.backend.service.ServiceBackend.MaxAvailableGcsConnections
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
@@ -206,8 +205,8 @@ class ServiceBackend(
         partitions.getOrElse(contexts.indices) match {
           case Seq(k) =>
             try
-              using(new LocalTaskContext(k, stageCount)) { htc =>
-                (None, FastSeq(f(globals, contexts(k), htc, ctx.theHailClassLoader, ctx.fs) -> k))
+              ctx.scopedExecution { (hcl, fs, htc, r) =>
+                (None, FastSeq(f(hcl, fs, htc, r)(globals, contexts(k)) -> k))
               }
             catch {
               case NonFatal(t) => (Some(t), ArraySeq.empty)
@@ -253,9 +252,9 @@ class ServiceBackend(
                 ctx.fs.getConfiguration()
 
               val partial: PartitionFn = {
-                (globals, context, htc, hcl, fs) =>
+                (hcl, fs, htc, r) =>
                   fs.setConfiguration(fsConfig)
-                  f(globals, context, htc, hcl, fs)
+                  f(hcl, fs, htc, r)
               }
 
               retryTransientErrors {

@@ -11,7 +11,6 @@ import is.hail.expr.ir.agg.{AggStateSig, ArrayAggStateSig, GroupedStateSig}
 import is.hail.expr.ir.analyses.{
   ComputeMethodSplits, ControlFlowPreventsSplit, ParentPointers, SemanticHash,
 }
-import is.hail.expr.ir.compile.Compile
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.lowering.TableStageDependency
 import is.hail.expr.ir.ndarrays.EmitNDArray
@@ -1472,7 +1471,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
                 Region,
                 PTuple,
                 PTuple,
-                (HailClassLoader, FS, HailTaskContext, Region) => AsmFunction3RegionLongLongLong,
+                Compiled[AsmFunction3RegionLongLongLong],
                 IndexedSeq[Any],
               ](
                 Graph.getClass,
@@ -3182,17 +3181,28 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
           var bodySpec: TypedCodecSpec = null
           bodyFB.emitWithBuilder { cb =>
             val region = bodyFB.getCodeParam[Region](1)
-            val ctxIB = cb.newLocal[InputBuffer](
-              "cda_ctx_ib",
-              contextSpec.buildCodeInputBuffer(
+
+            val gIB = cb.newLocal[InputBuffer](
+              "cda_globals_input_buffer",
+              globalSpec.buildCodeInputBuffer(
                 Code.newInstance[ByteArrayInputStream, Array[Byte]](
                   bodyFB.getCodeParam[Array[Byte]](2)
                 )
               ),
             )
-            val gIB = cb.newLocal[InputBuffer](
-              "cda_g_ib",
-              globalSpec.buildCodeInputBuffer(
+
+            val decodedGlobal =
+              globalSpec
+                .encodedType
+                .buildDecoder(globalSpec.encodedVirtualType, bodyFB.ecb)
+                .apply(cb, region, gIB)
+                .asBaseStruct
+                .loadField(cb, 0)
+                .memoizeField(cb, "decoded_global")
+
+            val ctxIB = cb.newLocal[InputBuffer](
+              "cda_context_input_buffer",
+              contextSpec.buildCodeInputBuffer(
                 Code.newInstance[ByteArrayInputStream, Array[Byte]](
                   bodyFB.getCodeParam[Array[Byte]](3)
                 )
@@ -3200,23 +3210,18 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
             )
 
             val decodedContext =
-              contextSpec.encodedType.buildDecoder(contextSpec.encodedVirtualType, bodyFB.ecb)
+              contextSpec
+                .encodedType
+                .buildDecoder(contextSpec.encodedVirtualType, bodyFB.ecb)
                 .apply(cb, region, ctxIB)
                 .asBaseStruct
                 .loadField(cb, 0)
                 .memoizeField(cb, "decoded_context")
 
-            val decodedGlobal =
-              globalSpec.encodedType.buildDecoder(globalSpec.encodedVirtualType, bodyFB.ecb)
-                .apply(cb, region, gIB)
-                .asBaseStruct
-                .loadField(cb, 0)
-                .memoizeField(cb, "decoded_global")
-
             val env = EmitEnv(
               Env[EmitValue](
-                (cname, decodedContext),
-                (gname, decodedGlobal),
+                gname -> decodedGlobal,
+                cname -> decodedContext,
               ),
               FastSeq(),
             )

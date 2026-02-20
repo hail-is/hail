@@ -7,7 +7,6 @@ import is.hail.asm4s._
 import is.hail.collection.FastSeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.agg.{CollectStateSig, PhysicalAggSig, TypedStateSig}
-import is.hail.expr.ir.compile.Compile
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.lowering.LoweringPipeline
 import is.hail.expr.ir.streams.{EmitStream, StreamUtils}
@@ -82,7 +81,7 @@ class EmitStreamSuite extends HailSuite {
     val f = fb.resultWithIndex()
     (arg: T) =>
       pool.scopedRegion { r =>
-        val off = call(f(theHailClassLoader, ctx.fs, ctx.taskContext, r), r, arg)
+        val off = call(f(theHailClassLoader, ctx.fs, taskContext, r), r, arg)
         if (off == 0L)
           null
         else
@@ -188,7 +187,7 @@ class EmitStreamSuite extends HailSuite {
     }
     val f = fb.resultWithIndex()
     pool.scopedRegion { r =>
-      val len = f(theHailClassLoader, ctx.fs, ctx.taskContext, r)(r)
+      val len = f(theHailClassLoader, ctx.fs, taskContext, r)(r)
       if (len < 0) None else Some(len)
     }
   }
@@ -924,7 +923,7 @@ class EmitStreamSuite extends HailSuite {
       )
 
       assert(
-        SafeRow.read(pt, f(theHailClassLoader, ctx.fs, ctx.taskContext, r)(r, input)) == Row(null)
+        SafeRow.read(pt, f(theHailClassLoader, ctx.fs, taskContext, r)(r, input)) == Row(null)
       )
     }
   }

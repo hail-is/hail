@@ -1,16 +1,14 @@
 package is.hail.expr.ir.agg
 
-import is.hail.annotations.{Region, RegionPool, RegionValue}
+import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.backend.{ExecuteContext, HailTaskContext}
-import is.hail.backend.spark.SparkTaskContext
+import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.compat.mutable.Growable
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir
 import is.hail.expr.ir._
-import is.hail.expr.ir.compile.CompileWithAggregators
 import is.hail.expr.ir.defs._
 import is.hail.io.BufferSpec
 import is.hail.types.{tcoerce, TypeWithRequiredness, VirtualTypeWithReq}
@@ -19,8 +17,6 @@ import is.hail.types.virtual._
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
-
-import org.apache.spark.TaskContext
 
 class UnsupportedExtraction(msg: String) extends Exception(msg)
 
@@ -230,122 +226,96 @@ class AggSignatures(val sigs: IndexedSeq[PhysicalAggSig]) {
   }
 
   def deserialize(ctx: ExecuteContext, spec: BufferSpec)
-    : ((HailClassLoader, HailTaskContext, Region, Array[Byte]) => Long) = {
-    val (_, f) = CompileWithAggregators[AsmFunction1RegionUnit](
-      ctx,
-      states,
-      FastSeq(),
-      FastSeq(classInfo[Region]),
-      UnitInfo,
-      DeserializeAggs(0, 0, spec, states),
-    )
+    : Compiled[(Region, Array[Byte]) => Long] = {
+    val (_, loadFn) =
+      CompileWithAggregators[AsmFunction1RegionUnit](
+        ctx,
+        states,
+        FastSeq(),
+        FastSeq(classInfo[Region]),
+        UnitInfo,
+        DeserializeAggs(0, 0, spec, states),
+      )
 
-    val fsBc = ctx.fsBc;
-    { (hcl: HailClassLoader, htc: HailTaskContext, aggRegion: Region, bytes: Array[Byte]) =>
-      val f2 = f(hcl, fsBc.value, htc, aggRegion)
-      f2.newAggState(aggRegion)
-      f2.setSerializedAgg(0, bytes)
-      f2(aggRegion)
-      f2.getAggOffset()
+    loadFn map { fn => (aggRegion, bytes) =>
+      fn.newAggState(aggRegion)
+      fn.setSerializedAgg(0, bytes)
+      fn(aggRegion)
+      fn.getAggOffset()
     }
   }
 
-  def serialize(ctx: ExecuteContext, spec: BufferSpec)
-    : (HailClassLoader, HailTaskContext, Region, Long) => Array[Byte] = {
-    val (_, f) = CompileWithAggregators[AsmFunction1RegionUnit](
-      ctx,
-      states,
-      FastSeq(),
-      FastSeq(classInfo[Region]),
-      UnitInfo,
-      SerializeAggs(0, 0, spec, states),
-    )
+  def serialize(ctx: ExecuteContext, spec: BufferSpec): Compiled[(Region, Long) => Array[Byte]] = {
+    val (_, loadFn) =
+      CompileWithAggregators[AsmFunction1RegionUnit](
+        ctx,
+        states,
+        FastSeq(),
+        FastSeq(classInfo[Region]),
+        UnitInfo,
+        SerializeAggs(0, 0, spec, states),
+      )
 
-    val fsBc = ctx.fsBc;
-    { (hcl: HailClassLoader, htc: HailTaskContext, aggRegion: Region, off: Long) =>
-      val f2 = f(hcl, fsBc.value, htc, aggRegion)
-      f2.setAggState(aggRegion, off)
-      f2(aggRegion)
-      f2.storeAggsToRegion()
-      f2.getSerializedAgg(0)
-    }
-  }
-
-  def combOpFSerializedWorkersOnly(ctx: ExecuteContext, spec: BufferSpec)
-    : (Array[Byte], Array[Byte]) => Array[Byte] = {
-    combOpFSerializedFromRegionPool(ctx, spec) { () =>
-      val htc = SparkTaskContext.get()
-      val hcl = theHailClassLoaderForSparkWorkers
-      if (htc == null) {
-        throw new UnsupportedOperationException(
-          s"Can't get htc. On worker = ${TaskContext.get() != null}"
-        )
-      }
-      (htc.getRegionPool(), hcl, htc)
+    loadFn map { fn => (aggRegion, off) =>
+      fn.setAggState(aggRegion, off)
+      fn(aggRegion)
+      fn.storeAggsToRegion()
+      fn.getSerializedAgg(0)
     }
   }
 
   def combOpFSerializedFromRegionPool(ctx: ExecuteContext, spec: BufferSpec)
-    : (() => (RegionPool, HailClassLoader, HailTaskContext)) => (
-      (Array[Byte], Array[Byte]) => Array[Byte],
-    ) = {
-    val (_, f) = CompileWithAggregators[AsmFunction1RegionUnit](
-      ctx,
-      states ++ states,
-      FastSeq(),
-      FastSeq(classInfo[Region]),
-      UnitInfo,
-      Begin(FastSeq(
-        DeserializeAggs(0, 0, spec, states),
-        DeserializeAggs(nAggs, 1, spec, states),
-        Begin(sigs.zipWithIndex.map { case (sig, i) => CombOp(i, i + nAggs, sig) }),
-        SerializeAggs(0, 0, spec, states),
-      )),
-    )
+    : Compiled[(Array[Byte], Array[Byte]) => Array[Byte]] = {
+    val (_, loadFn) =
+      CompileWithAggregators[AsmFunction1RegionUnit](
+        ctx,
+        states ++ states,
+        FastSeq(),
+        FastSeq(classInfo[Region]),
+        UnitInfo,
+        Begin(FastSeq(
+          DeserializeAggs(0, 0, spec, states),
+          DeserializeAggs(nAggs, 1, spec, states),
+          Begin(sigs.zipWithIndex.map { case (sig, i) => CombOp(i, i + nAggs, sig) }),
+          SerializeAggs(0, 0, spec, states),
+        )),
+      )
 
-    val fsBc = ctx.fsBc
-    poolGetter: (() => (RegionPool, HailClassLoader, HailTaskContext)) => {
-      (bytes1: Array[Byte], bytes2: Array[Byte]) =>
-        val (pool, hcl, htc) = poolGetter()
-        pool.scopedSmallRegion { r =>
-          val f2 = f(hcl, fsBc.value, htc, r)
-          f2.newAggState(r)
-          f2.setSerializedAgg(0, bytes1)
-          f2.setSerializedAgg(1, bytes2)
-          f2(r)
-          f2.storeAggsToRegion()
-          f2.getSerializedAgg(0)
+    (hcl, fs, htc, r) =>
+      val fn = loadFn(hcl, fs, htc, r)
+      (bytes1, bytes2) =>
+        htc.r.pool.scopedSmallRegion { r =>
+          fn.newAggState(r)
+          fn.setSerializedAgg(0, bytes1)
+          fn.setSerializedAgg(1, bytes2)
+          fn(r)
+          fn.storeAggsToRegion()
+          fn.getSerializedAgg(0)
         }
-    }
   }
 
-  // Takes ownership of both input regions, and returns ownership of region in
-  // resulting RegionValue.
-  def combOpF(ctx: ExecuteContext, spec: BufferSpec)
-    : (HailClassLoader, HailTaskContext, RegionValue, RegionValue) => RegionValue = {
-    val fb = ir.EmitFunctionBuilder[AsmFunction4RegionLongRegionLongLong](
+  def combOpF(ctx: ExecuteContext, spec: BufferSpec): Compiled[(Region, Long, Long) => Long] = {
+    val fb = ir.EmitFunctionBuilder[(Region, Long, Long) => Long](
       ctx,
       "combOpF3",
-      FastSeq[ParamType](classInfo[Region], LongInfo, classInfo[Region], LongInfo),
+      FastSeq[ParamType](classInfo[Region], LongInfo, LongInfo),
       LongInfo,
     )
 
-    val leftAggRegion = fb.genFieldThisRef[Region]("agg_combine_left_top_region")
+    val combRegion = fb.genFieldThisRef[Region]("agg_combine_region")
     val leftAggOff = fb.genFieldThisRef[Long]("agg_combine_left_off")
     val rightAggRegion = fb.genFieldThisRef[Region]("agg_combine_right_top_region")
     val rightAggOff = fb.genFieldThisRef[Long]("agg_combine_right_off")
 
     fb.emit(EmitCodeBuilder.scopedCode(fb.emb) { cb =>
-      cb.assign(leftAggRegion, fb.getCodeParam[Region](1))
+      cb.assign(combRegion, fb.getCodeParam[Region](1))
       cb.assign(leftAggOff, fb.getCodeParam[Long](2))
-      cb.assign(rightAggRegion, fb.getCodeParam[Region](3))
-      cb.assign(rightAggOff, fb.getCodeParam[Long](4))
+      cb.assign(rightAggOff, fb.getCodeParam[Long](3))
 
       val leftStates = StateTuple(states.map(s => AggStateSig.getState(s, fb.ecb)))
-      val leftAggState = new TupleAggregatorState(fb.ecb, leftStates, leftAggRegion, leftAggOff)
+      val leftAggState = new TupleAggregatorState(fb.ecb, leftStates, combRegion, leftAggOff)
       val rightStates = StateTuple(states.map(s => AggStateSig.getState(s, fb.ecb)))
-      val rightAggState =
-        new TupleAggregatorState(fb.ecb, rightStates, rightAggRegion, rightAggOff)
+      val rightAggState = new TupleAggregatorState(fb.ecb, rightStates, rightAggRegion, rightAggOff)
 
       leftStates.createStates(cb)
       leftAggState.load(cb)
@@ -355,7 +325,7 @@ class AggSignatures(val sigs: IndexedSeq[PhysicalAggSig]) {
 
       for (i <- 0 until nAggs) {
         val rvAgg = Extract.getAgg(sigs(i))
-        rvAgg.combOp(ctx, cb, leftAggRegion, leftAggState.states(i), rightAggState.states(i))
+        rvAgg.combOp(ctx, cb, combRegion, leftAggState.states(i), rightAggState.states(i))
       }
 
       leftAggState.store(cb)
@@ -363,15 +333,7 @@ class AggSignatures(val sigs: IndexedSeq[PhysicalAggSig]) {
       leftAggOff
     })
 
-    val f = fb.resultWithIndex()
-    val fsBc = ctx.fsBc
-
-    { (hcl: HailClassLoader, htc: HailTaskContext, l: RegionValue, r: RegionValue) =>
-      val comb = f(hcl, fsBc.value, htc, l.region)
-      l.setOffset(comb(l.region, l.offset, r.region, r.offset))
-      r.region.invalidate()
-      l
-    }
+    fb.resultWithIndex()
   }
 }
 

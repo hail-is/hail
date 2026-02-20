@@ -145,7 +145,7 @@ case class LogisticRegression(
 
         rvb.start(newRVDType.rowType)
         rvb.startStruct()
-        rvb.addFields(fullRowType, ctx.r, ptr, copiedFieldIndices)
+        rvb.addFields(fullRowType, ctx.region, ptr, copiedFieldIndices)
         rvb.startArray(_yVecs.cols)
         logregAnnotations.foreach { stats =>
           rvb.startStruct()

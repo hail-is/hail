@@ -20,10 +20,6 @@ import com.fasterxml.jackson.core.StreamReadConstraints
 
 class LocalBroadcastValue[T](val value: T) extends BroadcastValue[T] with Serializable
 
-class LocalTaskContext(val partitionId: Int, val stageId: Int) extends HailTaskContext {
-  override def attemptNumber(): Int = 0
-}
-
 object LocalBackend extends Backend with Logging {
 
   // From https://github.com/hail-is/hail/issues/14580 :
@@ -43,16 +39,7 @@ object LocalBackend extends Backend with Logging {
   override def broadcast[T: ClassTag](value: T): BroadcastValue[T] =
     new LocalBroadcastValue[T](value)
 
-  private[this] var stageIdx: Int = 0
-
-  private[this] def nextStageId(): Int =
-    synchronized {
-      val current = stageIdx
-      stageIdx += 1
-      current
-    }
-
-  override def runtimeContext(ctx: ExecuteContext): DriverRuntimeContext = {
+  override def runtimeContext(ctx: ExecuteContext): DriverRuntimeContext =
     new DriverRuntimeContext {
 
       override val executionCache: ExecutionCache =
@@ -77,19 +64,11 @@ object LocalBackend extends Backend with Logging {
         var failure: Option[Throwable] =
           None
 
-        val stageId = nextStageId()
-
         try
-          for (idx <- todo) {
-            using(new LocalTaskContext(idx, stageId)) { tx =>
-              results += {
-                (
-                  f(globals, contexts(idx), tx, ctx.theHailClassLoader, ctx.fs),
-                  idx,
-                )
-              }
+          for (idx <- todo)
+            results += ctx.scopedExecution { (hcl, fs, ctx, r) =>
+              (f(hcl, fs, ctx, r)(globals, contexts(idx)), idx)
             }
-          }
         catch {
           case NonFatal(t) =>
             failure = Some(t)
@@ -98,12 +77,10 @@ object LocalBackend extends Backend with Logging {
         (failure, results.result())
       }
     }
-  }
 
   override def defaultParallelism: Int = 1
 
-  override def close(): Unit =
-    synchronized { stageIdx = 0 }
+  override def close(): Unit = {}
 
   private[this] def _jvmLowerAndExecute(
     ctx: ExecuteContext,
