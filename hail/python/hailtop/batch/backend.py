@@ -3,6 +3,7 @@ import asyncio
 import collections
 import copy
 import functools
+import logging
 import os
 import subprocess as sp
 import time
@@ -35,6 +36,8 @@ from . import batch, resource  # pylint: disable=unused-import
 from .exceptions import BatchException
 from .globals import DEFAULT_SHELL
 from .job import PythonJob
+
+log = logging.getLogger(__name__)
 
 HAIL_GENETICS_HAILTOP_IMAGE = os.environ.get('HAIL_GENETICS_HAILTOP_IMAGE', f'hailgenetics/hailtop:{__pip_version__}')
 HAIL_GENETICS_HAIL_IMAGE = (
@@ -654,9 +657,14 @@ class ServiceBackend(Backend[bc.Batch]):
         async_to_blocking(self._async_close())
 
     async def _async_close(self):
+        log.info('ServiceBackend._async_close: starting')
         if self.__batch_client is not None:
+            log.info('ServiceBackend._async_close: closing batch client')
             await self.__batch_client.close()
+            log.info('ServiceBackend._async_close: batch client closed')
+        log.info('ServiceBackend._async_close: closing fs')
         await self._fs.close()
+        log.info('ServiceBackend._async_close: fs closed, done')
 
     async def _async_run(
         self,
@@ -921,10 +929,22 @@ class ServiceBackend(Backend[bc.Batch]):
         if verbose:
             print(f'Built DAG with {n_jobs_submitted} jobs in {round(time.time() - build_dag_start, 3)} seconds.')
 
+        log.info(
+            'ServiceBackend._async_run: copy_from_dict starting, %d transfers: %s',
+            len(local_input_file_transfers),
+            local_input_file_transfers,
+        )
+        copy_start = time.time()
         await copy_from_dict(files=local_input_file_transfers)
+        log.info(
+            'ServiceBackend._async_run: copy_from_dict done in %.3fs',
+            time.time() - copy_start,
+        )
 
         submit_batch_start = time.time()
+        log.info('ServiceBackend._async_run: submitting batch')
         await async_batch.submit(disable_progress_bar=disable_progress_bar)
+        log.info('ServiceBackend._async_run: batch submitted in %.3fs', time.time() - submit_batch_start)
 
         batch_id = async_batch.id
 

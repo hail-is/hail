@@ -1,9 +1,11 @@
 import asyncio
 import datetime
 import io
+import logging
 import os
 import os.path
 import stat
+import threading
 import urllib.parse
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import AbstractContextManager
@@ -22,6 +24,8 @@ from .fs import (
     blocking_readable_stream_to_async,
     blocking_writable_stream_to_async,
 )
+
+log = logging.getLogger(__name__)
 
 
 class LocalStatFileStatus(FileStatus):
@@ -241,6 +245,9 @@ class LocalAsyncFS(AsyncFS):
     def __init__(self, thread_pool: Optional[ThreadPoolExecutor] = None, max_workers: Optional[int] = None):
         if not thread_pool:
             thread_pool = ThreadPoolExecutor(max_workers=max_workers)
+            log.info('LocalAsyncFS: created own ThreadPoolExecutor %s', thread_pool)
+        else:
+            log.info('LocalAsyncFS: using provided ThreadPoolExecutor %s', thread_pool)
         self._thread_pool = thread_pool
 
     @staticmethod
@@ -302,7 +309,16 @@ class LocalAsyncFS(AsyncFS):
 
     async def statfile(self, url: str) -> LocalStatFileStatus:
         path = self._get_path(url)
+        log.info(
+            'LocalAsyncFS.statfile: path=%s pool=%s pool._shutdown=%s threads=%d thread=%s',
+            path,
+            self._thread_pool,
+            self._thread_pool._shutdown,
+            len(self._thread_pool._threads),
+            threading.current_thread().name,
+        )
         stat_result = await blocking_to_async(self._thread_pool, os.stat, path)
+        log.info('LocalAsyncFS.statfile: done path=%s', path)
         if stat.S_ISDIR(stat_result.st_mode):
             raise FileNotFoundError(f'is directory: {url}')
         return LocalStatFileStatus(stat_result, path)
@@ -343,7 +359,17 @@ class LocalAsyncFS(AsyncFS):
     ) -> AsyncIterator[FileListEntry]:
         del exclude_trailing_slash_files  # such files do not exist on local file systems
         path = self._get_path(url)
+        log.info(
+            'LocalAsyncFS.listfiles: path=%s recursive=%s pool=%s pool._shutdown=%s threads=%d thread=%s',
+            path,
+            recursive,
+            self._thread_pool,
+            self._thread_pool._shutdown,
+            len(self._thread_pool._threads),
+            threading.current_thread().name,
+        )
         entries = await blocking_to_async(self._thread_pool, os.scandir, path)
+        log.info('LocalAsyncFS.listfiles: scandir done path=%s', path)
         if recursive:
             return self._listfiles_recursive(url, entries)
         return self._listfiles_flat(url, entries)
