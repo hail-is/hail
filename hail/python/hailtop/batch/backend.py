@@ -527,24 +527,21 @@ class ServiceBackend(Backend[bc.Batch]):
     ANY_REGION: ClassVar[List[str]] = ['any_region']
     """A special value that indicates a job may run in any region."""
 
-    @staticmethod
-    def supported_regions():
+    def supported_regions(self):
         """
         Get the supported cloud regions
 
         Examples
         --------
-        >>> regions = ServiceBackend.supported_regions()
+        >>> regions = service_backend.supported_regions()
 
         Returns
         -------
         A list of the supported cloud regions
         """
-        with BatchClient('dummy') as dummy_client:
-            return dummy_client.supported_regions()
+        return async_to_blocking(async_to_blocking(self._batch_client()).supported_regions())
 
-    @staticmethod
-    def default_region():
+    def default_region(self):
         """
         Get the default cloud region
 
@@ -552,14 +549,13 @@ class ServiceBackend(Backend[bc.Batch]):
 
         Examples
         --------
-        >>> region = ServiceBackend.default_region()
+        >>> region = service_backend.default_region()
 
         Returns
         -------
         The default region jobs run in when no regions are specified
         """
-        with BatchClient('dummy') as dummy_client:
-            return dummy_client.default_region()
+        return async_to_blocking(async_to_blocking(self._batch_client()).default_region())
 
     def __init__(
         self,
@@ -573,6 +569,8 @@ class ServiceBackend(Backend[bc.Batch]):
         gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
         gcs_bucket_allow_list: Optional[List[str]] = None,
     ):
+        self.__batch_client: Optional[AioBatchClient] = None
+
         if len(args) > 2:
             raise TypeError(f'ServiceBackend() takes 2 positional arguments but {len(args)} were given')
         if len(args) >= 1:
@@ -634,12 +632,11 @@ class ServiceBackend(Backend[bc.Batch]):
                 assert isinstance(regions_from_conf, str)
                 regions = regions_from_conf.split(',')
             else:
-                regions = [ServiceBackend.default_region()]
+                regions = [self.default_region()]
         elif regions == ServiceBackend.ANY_REGION:
             regions = None
 
         self.regions = regions
-        self.__batch_client: Optional[AioBatchClient] = None
 
     async def _batch_client(self) -> AioBatchClient:
         if self.__batch_client is None:
