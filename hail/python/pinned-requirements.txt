@@ -34,7 +34,7 @@ azure-common==1.1.28
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   azure-mgmt-storage
-azure-core==1.38.1
+azure-core==1.38.2
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   azure-identity
@@ -59,11 +59,11 @@ azure-storage-blob==12.28.0
     #   -r hail/python/hailtop/requirements.txt
 bokeh==3.4.3
     # via -r hail/python/requirements.txt
-boto3==1.42.50
+boto3==1.42.53
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
-botocore==1.42.50
+botocore==1.42.53
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
@@ -258,7 +258,7 @@ pyyaml==6.0.3
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
     #   bokeh
-regex==2026.1.15
+regex==2026.2.19
     # via parsimonious
 requests==2.32.5
     # via

@@ -128,7 +128,7 @@ executing==2.2.1
     #   stack-data
 fastjsonschema==2.21.2
     # via nbformat
-filelock==3.24.2
+filelock==3.24.3
     # via virtualenv
 fonttools==4.61.1
     # via matplotlib
@@ -626,7 +626,7 @@ uv==0.9.30
     # via -r hail/python/dev/requirements.txt
 uv-build==0.9.30
     # via -r hail/python/dev/requirements.txt
-virtualenv==20.37.0
+virtualenv==20.38.0
     # via pre-commit
 watchfiles==1.1.1
     # via aiohttp-devtools
