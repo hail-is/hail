@@ -1,5 +1,7 @@
 package is.hail
 
+import is.hail.backend.spark.SparkTaskContext
+
 import scala.reflect.ClassTag
 
 import org.objectweb.asm.Opcodes._
@@ -72,9 +74,14 @@ package asm4s {
 }
 
 package object asm4s {
-  lazy val theHailClassLoaderForSparkWorkers =
-    // FIXME: how do I ensure this is only created in Spark workers?
+
+  private[this] lazy val _theHailClassLoaderForSparkWorkers =
     new HailClassLoader(getClass().getClassLoader())
+
+  def theHailClassLoaderForSparkWorkers: HailClassLoader = {
+    val _ = SparkTaskContext.get()
+    _theHailClassLoaderForSparkWorkers
+  }
 
   def genName(tag: String, baseName: String): String = lir.genName(tag, baseName)
 
