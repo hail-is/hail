@@ -11,6 +11,7 @@ import secrets
 import socket
 import subprocess
 import sys
+import threading
 import time
 import traceback
 import urllib.parse
@@ -197,8 +198,6 @@ def ait_to_blocking(ait: AsyncIterator[T]) -> Iterator[T]:
 
 
 async def blocking_to_async(thread_pool: concurrent.futures.Executor, fun: Callable[..., T], *args, **kwargs) -> T:
-    import threading
-
     _bta_log = logging.getLogger('hailtop.utils.blocking_to_async')
     pool_shutdown = getattr(thread_pool, '_shutdown', 'unknown')
     pool_threads = len(getattr(thread_pool, '_threads', []))

@@ -4,6 +4,7 @@ import json
 import logging
 import subprocess
 import sys
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from typing import AsyncContextManager, Dict, List, Optional, Tuple
 
@@ -68,8 +69,6 @@ async def copy(
     transfers: List[Transfer],
     verbose: bool = False,
 ) -> None:
-    import threading
-
     copy_log = logging.getLogger(__name__)
     copy_log.info(
         'copy: START %d transfers, thread=%s',
