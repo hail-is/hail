@@ -6,11 +6,10 @@ import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{
-  freshName, streamAggIR, BindingEnv, Env, IR, Interpret, MapIR, MatrixIR, MatrixRead, Name,
-  SingleCodeEmitParamType, Subst,
+  freshName, streamAggIR, BindingEnv, Compile, Env, IR, Interpret, MapIR, MatrixIR, MatrixRead,
+  Name, SingleCodeEmitParamType, Subst,
 }
 import is.hail.expr.ir.Optimize.Flags.Optimize
-import is.hail.expr.ir.compile.Compile
 import is.hail.expr.ir.defs.{GetField, GetTupleElement, In, MakeTuple, Ref, ToStream}
 import is.hail.expr.ir.lowering.LowererUnsupportedOperation
 import is.hail.io.vcf.MatrixVCFReader

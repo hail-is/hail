@@ -1,12 +1,10 @@
 package is.hail.backend
 
-import is.hail.asm4s.HailClassLoader
 import is.hail.backend.Backend.PartitionFn
 import is.hail.backend.spark.SparkBackend
-import is.hail.expr.ir.{IR, LoweringAnalyses, SortField, TableIR, TableReader}
+import is.hail.expr.ir.{Compiled, IR, LoweringAnalyses, SortField, TableIR, TableReader}
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
-import is.hail.io.fs.FS
 import is.hail.types.RTable
 import is.hail.types.encoded.EType
 import is.hail.types.physical.PTuple
@@ -45,7 +43,7 @@ object Backend {
     codec.encode(ctx, elementType, t.loadField(off, 0), os)
   }
 
-  type PartitionFn = (Array[Byte], Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
+  type PartitionFn = Compiled[(Array[Byte], Array[Byte]) => Array[Byte]]
 }
 
 abstract class BroadcastValue[T] { def value: T }
