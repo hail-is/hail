@@ -456,15 +456,25 @@ class GoogleStorageClient(GoogleBaseClient):
             local_dest = urllib.parse.urlparse(dest).path
         else:
             local_dest = dest
-        os.makedirs(os.path.dirname(local_dest), exist_ok=True)
-        await asyncio.to_thread(
-            transfer_manager.download_chunks_concurrently,
-            blob=blob,
-            filename=dest,
-            chunk_size=128 * 1024 * 1024,
-            download_kwargs={'timeout': self._timeout},
-            max_workers=32,
-        )
+        try:
+            await asyncio.to_thread(
+                transfer_manager.download_chunks_concurrently,
+                blob=blob,
+                filename=dest,
+                chunk_size=128 * 1024 * 1024,
+                download_kwargs={'timeout': self._timeout},
+                max_workers=32,
+            )
+        except FileNotFoundError:
+            os.makedirs(os.path.dirname(local_dest), exist_ok=True)
+            await asyncio.to_thread(
+                transfer_manager.download_chunks_concurrently,
+                blob=blob,
+                filename=dest,
+                chunk_size=128 * 1024 * 1024,
+                download_kwargs={'timeout': self._timeout},
+                max_workers=32,
+            )
 
     async def compose(self, bucket: str, names: List[str], destination: str, **kwargs) -> None:
         assert destination
