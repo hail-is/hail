@@ -263,44 +263,14 @@ async def post_retry_pr(request: web.Request, _) -> NoReturn:
 
 
 @routes.get('/batches')
-@web_security_headers
-@auth.authenticated_developers_only()
-async def get_batches(request: web.Request, userdata: UserData):
-    batch_client = request.app[AppKeys.BATCH_CLIENT]
-    batches = [b async for b in batch_client.list_batches()]
-    statuses = [await b.last_known_status() for b in batches]
-    page_context = {'batches': statuses}
-    return await render_template('ci', request, userdata, 'batches.html', page_context)
+async def get_batches(request: web.Request) -> NoReturn:
+    raise web.HTTPFound(deploy_config.external_url('batch', '/batches'))
 
 
 @routes.get('/batches/{batch_id}')
-@web_security_headers
-@auth.authenticated_developers_only()
-async def get_batch(request: web.Request, userdata: UserData):
+async def get_batch(request: web.Request) -> NoReturn:
     batch_id = int(request.match_info['batch_id'])
-    batch_client = request.app[AppKeys.BATCH_CLIENT]
-    b = await batch_client.get_batch(batch_id)
-    status = await b.last_known_status()
-    jobs = await collect_aiter(b.jobs())
-    for j in jobs:
-        j['duration'] = humanize_timedelta_msecs(j['duration'])  # type: ignore
-    wb = get_maybe_wb_for_batch(b)
-    page_context = {'batch': status, 'wb': wb}
-    page_context.update(filter_jobs(jobs))
-    return await render_template('ci', request, userdata, 'batch.html', page_context)
-
-
-def get_maybe_wb_for_batch(b: Batch):
-    if 'target_branch' in b.attributes and 'pr' in b.attributes:
-        branch = b.attributes['target_branch']
-        wbs = [wb for wb in watched_branches if wb.branch.short_str() == branch]
-        if len(wbs) == 0:
-            pr = b.attributes['pr']
-            log.exception(f"Attempted to load PR {pr} for unwatched branch {branch}")
-        else:
-            assert len(wbs) == 1
-            return wbs[0].index
-    return None
+    raise web.HTTPFound(deploy_config.external_url('batch', f'/batches/{batch_id}'))
 
 
 def filter_wbs(wbs: List[WatchedBranchConfig], pred: Callable[[PRConfig], bool]):
