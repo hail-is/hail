@@ -931,7 +931,7 @@ async def _create_job_group(
 SELECT 1 AS cancelled
 FROM job_group_self_and_ancestors
 INNER JOIN job_groups_cancelled
-  ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
+  ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.batch_id AND
      job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
 WHERE job_group_self_and_ancestors.batch_id = %s AND job_group_self_and_ancestors.job_group_id = %s;
 """,
@@ -1893,10 +1893,10 @@ FOR UPDATE;
 SELECT cancelled_t.cancelled IS NOT NULL AS cancelled
 FROM batches
 LEFT JOIN (
-  SELECT id, 1 AS cancelled
+  SELECT batch_id, 1 AS cancelled
   FROM job_groups_cancelled
-  WHERE id = %s AND job_group_id = %s
-) AS cancelled_t ON batches.id = cancelled_t.id
+  WHERE batch_id = %s AND job_group_id = %s
+) AS cancelled_t ON batches.id = cancelled_t.batch_id
 WHERE batches.id = %s AND batches.user = %s AND NOT deleted
 FOR UPDATE;
 """,
@@ -1972,10 +1972,10 @@ LEFT JOIN batches ON batches.id = job_groups.batch_id
 LEFT JOIN job_groups_n_jobs_in_complete_states
        ON job_groups.batch_id = job_groups_n_jobs_in_complete_states.id AND job_groups.job_group_id = job_groups_n_jobs_in_complete_states.job_group_id
 LEFT JOIN (
-  SELECT id, 1 AS cancelled
+  SELECT batch_id, 1 AS cancelled
   FROM job_groups_cancelled
-  WHERE id = %s AND job_group_id = %s
-) AS cancelled_t ON batches.id = cancelled_t.id
+  WHERE batch_id = %s AND job_group_id = %s
+) AS cancelled_t ON batches.id = cancelled_t.batch_id
 LEFT JOIN LATERAL (
   SELECT COALESCE(SUM(`usage` * rate), 0) AS cost, JSON_OBJECTAGG(resources.resource, COALESCE(`usage` * rate, 0)) AS cost_breakdown
   FROM (
@@ -2020,7 +2020,7 @@ LEFT JOIN LATERAL (
   SELECT 1 AS cancelled
   FROM job_group_self_and_ancestors
   INNER JOIN job_groups_cancelled
-    ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
+    ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.batch_id AND
       job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
   WHERE job_groups.batch_id = job_group_self_and_ancestors.batch_id AND
     job_groups.job_group_id = job_group_self_and_ancestors.job_group_id
@@ -2122,7 +2122,7 @@ LEFT JOIN LATERAL (
   SELECT 1 AS cancelled
   FROM job_group_self_and_ancestors
   INNER JOIN job_groups_cancelled
-    ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
+    ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.batch_id AND
       job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
   WHERE job_groups.batch_id = job_group_self_and_ancestors.batch_id AND
     job_groups.job_group_id = job_group_self_and_ancestors.job_group_id
@@ -2165,10 +2165,10 @@ SELECT start_job_id, start_job_group_id, cancelled_t.cancelled IS NOT NULL AS ca
 FROM batches
 LEFT JOIN batch_updates ON batches.id = batch_updates.batch_id
 LEFT JOIN (
-  SELECT id, 1 AS cancelled
+  SELECT batch_id, 1 AS cancelled
   FROM job_groups_cancelled
-  WHERE id = %s AND job_group_id = %s
-) AS cancelled_t ON batches.id = cancelled_t.id
+  WHERE batch_id = %s AND job_group_id = %s
+) AS cancelled_t ON batches.id = cancelled_t.batch_id
 WHERE batches.user = %s AND batches.id = %s AND batch_updates.update_id = %s AND NOT deleted;
 """,
         (batch_id, ROOT_JOB_GROUP_ID, user, batch_id, update_id),
