@@ -4,6 +4,8 @@ import is.hail.collection.implicits.toRichIterable
 import is.hail.types.physical.{PCanonicalStruct, PFloat64}
 import is.hail.utils._
 
+import scala.annotation.tailrec
+
 import net.sourceforge.jdistlib.{Beta, ChiSquare, Gamma, NonCentralChiSquare, Normal, Poisson}
 import net.sourceforge.jdistlib.disttest.{DistributionTest, TestKind}
 import org.apache.commons.math3.distribution.HypergeometricDistribution
@@ -163,45 +165,28 @@ package object stats {
   )
 
   def fisherExactTest(a: Int, b: Int, c: Int, d: Int): Array[Double] =
-    fisherExactTest(a, b, c, d, 1.0, 0.95, "two.sided")
+    fisherExactTest(a, b, c, d, 0.95)
 
-  def fisherExactTest(
-    a: Int,
-    b: Int,
-    c: Int,
-    d: Int,
-    oddsRatio: Double = 1d,
-    confidenceLevel: Double = 0.95,
-    alternative: String = "two.sided",
-  ): Array[Double] = {
-
+  def fisherExactTest(a: Int, b: Int, c: Int, d: Int, confidenceLevel: Double): Array[Double] = {
     if (!(a >= 0 && b >= 0 && c >= 0 && d >= 0))
       fatal(s"fisher_exact_test: all arguments must be non-negative, got $a, $b, $c, $d")
 
     if (confidenceLevel < 0d || confidenceLevel > 1d)
       fatal("Confidence level must be between 0 and 1")
 
-    if (oddsRatio < 0d)
-      fatal("Odds ratio must be non-negative")
-
-    if (alternative != "greater" && alternative != "less" && alternative != "two.sided")
-      fatal("Did not recognize test type string. Use one of greater, less, two.sided")
-
     val popSize = a + b + c + d
-    val numSuccessPopulation = a + c
-    val sampleSize = a + b
+    val nGood = a + c
+    val nSample = a + b
     val numSuccessSample = a
 
-    if (
-      !(popSize > 0 && sampleSize > 0 && sampleSize < popSize && numSuccessPopulation > 0 && numSuccessPopulation < popSize)
-    )
+    if (!(popSize > 0 && nSample > 0 && nSample < popSize && nGood > 0 && nGood < popSize))
       return Array(Double.NaN, Double.NaN, Double.NaN, Double.NaN)
 
     val low = math.max(0, (a + b) - (b + d))
     val high = math.min(a + b, a + c)
     val support = (low to high).toArray
 
-    val hgd = new HypergeometricDistribution(null, popSize, numSuccessPopulation, sampleSize)
+    val hgd = new HypergeometricDistribution(null, popSize, nGood, nSample)
     val epsilon = 2.220446e-16
 
     def dhyper(k: Int, logProb: Boolean): Double =
@@ -321,34 +306,72 @@ package object stats {
       }
     }
 
-    val pvalue: Double = (alternative: @unchecked) match {
-      case "less" => pnhyper(numSuccessSample, oddsRatio)
-      case "greater" => pnhyper(numSuccessSample, oddsRatio, upper_tail = true)
-      case "two.sided" =>
-        if (oddsRatio == 0)
-          if (low == numSuccessSample) 1d else 0d
-        else if (oddsRatio == Double.PositiveInfinity)
-          if (high == numSuccessSample) 1d else 0d
-        else {
-          val relErr = 1d + 1e-7
-          val d = dnhyper(oddsRatio)
-          d.filter(_ <= d(numSuccessSample - low) * relErr).sum
-        }
+    val pvalue = fisherExactTestPValueOnly(a, b, c, d)
+
+    val oddsRatioEstimate = mle(numSuccessSample.toDouble)
+
+    val confInterval = {
+      val alpha = (1 - confidenceLevel) / 2d
+      (ncpLower(numSuccessSample, alpha), ncpUpper(numSuccessSample, alpha))
+    }
+
+    Array(pvalue, oddsRatioEstimate, confInterval._1, confInterval._2)
+  }
+
+  def fisherExactTestPValueOnly(a: Int, b: Int, c: Int, d: Int): Double = {
+    val popSize = a + b + c + d
+    val nGood = a + c
+    val nSample = a + b
+    val numSuccessSample = a
+
+    if (!(a >= 0 && b >= 0 && c >= 0 && d >= 0))
+      fatal(s"fisher_exact_test: all arguments must be non-negative, got $a, $b, $c, $d")
+
+    if (!(popSize > 0 && nSample > 0 && nSample < popSize && nGood > 0 && nGood < popSize))
+      return Double.NaN
+
+    val hgd = new HypergeometricDistribution(null, popSize, nGood, nSample)
+
+    // Returns i in [start, end] such that a([start, i)) is <= d, and a([i, end)) is > d
+    @tailrec def upperBoundIncreasing(a: Int => Double, d: Double, start: Int, end: Int): Int = {
+      if (start >= end) return start
+      val mid = (start + end) >>> 1
+      val elt = a(mid)
+      if (elt <= d) upperBoundIncreasing(a, d, mid + 1, end)
+      else upperBoundIncreasing(a, d, start, mid)
+    }
+
+    // Returns i in [start, end] such that a([start, i)) is > d, and a([i, end)) is <= d
+    @tailrec def lowerBoundDecreasing(a: Int => Double, d: Double, start: Int, end: Int): Int = {
+      if (start >= end) return start
+      val mid = (start + end) >>> 1
+      val elt = a(mid)
+      if (elt > d) lowerBoundDecreasing(a, d, mid + 1, end)
+      else lowerBoundDecreasing(a, d, start, mid)
+    }
+
+    val epsilon = 1e-14
+    val gamma = 1 + epsilon
+
+    val mode = ((nSample + 1.0) * (nGood + 1.0) / (popSize + 2.0)).toInt
+    val pexact = hgd.probability(numSuccessSample)
+    val pmode = hgd.probability(mode)
+
+    val pvalue = if (math.abs(pexact - pmode) / math.max(pexact, pmode) <= epsilon) {
+      1.0
+    } else if (numSuccessSample < mode) {
+      val plower = hgd.cumulativeProbability(numSuccessSample)
+      val bound = lowerBoundDecreasing(hgd.probability, pexact * gamma, mode + 1, nSample + 1)
+      plower + hgd.upperCumulativeProbability(bound)
+    } else {
+      val pupper = hgd.upperCumulativeProbability(numSuccessSample)
+      val bound = upperBoundIncreasing(hgd.probability, pexact * gamma, 0, mode)
+      pupper + hgd.cumulativeProbability(bound - 1)
     }
 
     assert(pvalue >= 0d && pvalue <= 1.000000000002)
 
-    val oddsRatioEstimate = mle(numSuccessSample.toDouble)
-
-    val confInterval = alternative match {
-      case "less" => (0d, ncpUpper(numSuccessSample, 1 - confidenceLevel))
-      case "greater" => (ncpLower(numSuccessSample, 1 - confidenceLevel), Double.PositiveInfinity)
-      case "two.sided" =>
-        val alpha = (1 - confidenceLevel) / 2d
-        (ncpLower(numSuccessSample, alpha), ncpUpper(numSuccessSample, alpha))
-    }
-
-    Array(pvalue, oddsRatioEstimate, confInterval._1, confInterval._2)
+    pvalue
   }
 
   def dnorm(x: Double, mu: Double, sigma: Double, logP: Boolean): Double =
