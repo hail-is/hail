@@ -1,6 +1,6 @@
 import abc
 from enum import Enum
-from typing import Any, List, Tuple
+from typing import Any, List, Optional, Tuple
 
 from hailtop.utils import parse_timestamp_msecs
 
@@ -302,6 +302,37 @@ class JobDurationQuery(Query):
   WHERE end_time - start_time {op} %s))
 """
         return (sql, [self.time_msecs])
+
+
+class JobExitCodeQuery(Query):
+    @staticmethod
+    def parse(op: str, maybe_exit_code: str) -> 'JobExitCodeQuery':
+        operator = get_operator(op)
+        if not isinstance(operator, ComparisonOperator):
+            raise QueryError(f'unexpected operator "{op}" expected one of {ComparisonOperator.symbols}')
+        if maybe_exit_code.upper() == 'NULL':
+            if not isinstance(operator, ExactMatchOperator):
+                raise QueryError(
+                    f'unexpected operator "{op}" for NULL exit code, expected one of {ExactMatchOperator.symbols}'
+                )
+            return JobExitCodeQuery(None, operator)
+        exit_code = parse_int(maybe_exit_code)
+        return JobExitCodeQuery(exit_code, operator)
+
+    def __init__(self, exit_code: Optional[int], operator: ComparisonOperator):
+        self.exit_code = exit_code
+        self.operator = operator
+
+    def query(self) -> Tuple[str, List[Any]]:
+        if self.exit_code is None:
+            if isinstance(self.operator, NotEqualExactMatchOperator):
+                return ("(JSON_EXTRACT(jobs.status, '$[0]') IS NOT NULL)", [])
+            return ("(JSON_EXTRACT(jobs.status, '$[0]') IS NULL)", [])
+        op = self.operator.to_sql()
+        extract = "CAST(JSON_EXTRACT(jobs.status, '$[0]') AS SIGNED)"
+        if isinstance(self.operator, NotEqualExactMatchOperator):
+            return (f'({extract} {op} %s OR JSON_EXTRACT(jobs.status, \'$[0]\') IS NULL)', [self.exit_code])
+        return (f'({extract} {op} %s)', [self.exit_code])
 
 
 class JobCostQuery(Query):

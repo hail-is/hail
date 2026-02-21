@@ -18,6 +18,7 @@ from .query import (
     JobCostQuery,
     JobDurationQuery,
     JobEndTimeQuery,
+    JobExitCodeQuery,
     JobGroupCostQuery,
     JobGroupDurationQuery,
     JobGroupEndTimeQuery,
@@ -171,7 +172,7 @@ LIMIT 51;
 # <jobs-query-list> ::= "" | <jobs-query> "\n" <jobs-query-list>
 # <jobs-query> ::= <instance-query> | <instance-collection-query> | <job-id-query> | <state-query> |
 #                  <start-time-query> | <end-time-query> | <duration-query> | <cost-query> |
-#                  <quoted-exact-match-query> | <unquoted-partial-match-query>
+#                  <exit-code-query> | <quoted-exact-match-query> | <unquoted-partial-match-query>
 # <exact-match-operator> ::= "=" | "==" | "!="
 # <partial-match-operator> ::= "!~" | "=~"
 # <match-operator> ::= <exact-match-operator> | <partial-match-operator>
@@ -184,6 +185,7 @@ LIMIT 51;
 # <end-time-query> ::= "end_time" <comparison-operator> <datetime_str>
 # <duration-query> ::= "duration" <comparison-operator> <float>
 # <cost-query> ::= "cost" <comparison-operator> <float>
+# <exit-code-query> ::= "exit_code" <comparison-operator> <int>
 # <quoted-exact-match-query> ::= \" <str> \"
 # <unquoted-partial-match-query> ::= <str>
 
@@ -236,6 +238,8 @@ def parse_job_group_jobs_query_v2(
                     queries.append(JobDurationQuery.parse(op, right))
                 elif left == 'cost':
                     queries.append(JobCostQuery.parse(op, right))
+                elif left == 'exit_code':
+                    queries.append(JobExitCodeQuery.parse(op, right))
                 else:
                     queries.append(JobKeywordQuery.parse(op, left, right))
             else:
