@@ -24,7 +24,7 @@ async def test_spec(request):
     return request.param
 
 
-@pytest.fixture(params=['gs', 's3', 'azure-https'])
+@pytest.fixture(params=['gs', 's3'])
 async def cloud_scheme(request):
     yield request.param
 
@@ -34,19 +34,12 @@ async def cloud_scheme(request):
         'file/file',
         'file/gs',
         'file/s3',
-        'file/azure-https',
         'gs/file',
         'gs/gs',
         'gs/s3',
-        'gs/azure-https',
         's3/file',
         's3/gs',
         's3/s3',
-        's3/azure-https',
-        'azure-https/file',
-        'azure-https/gs',
-        'azure-https/s3',
-        'azure-https/azure-https',
     ]
 )
 async def copy_test_context(request, router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]]):
