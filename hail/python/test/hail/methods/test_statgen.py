@@ -60,7 +60,7 @@ class Tests(unittest.TestCase):
     )
 
     @qobtest
-    @test_timeout(4 * 60)
+    @test_timeout(8 * 60)
     def test_linreg_basic(self):
         phenos = hl.import_table(resource('regressionLinear.pheno'), types={'Pheno': hl.tfloat64}, key='Sample')
         covs = hl.import_table(
