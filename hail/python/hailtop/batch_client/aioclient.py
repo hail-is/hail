@@ -578,7 +578,7 @@ class BatchAlreadyCreatedError(Exception):
 class BatchNotAuthenticatedError(Exception):
     def __init__(self):
         super().__init__(
-            "Not authenticated with Hail Batch.\n\nPlease run:\n\n    hailctl auth login\n\nto obtain credentials."
+            "Not authenticated with Hail Batch.\n\nPlease run:\n\n    hailctl auth login\n\nto obtain credentials. If problems persist, try logging in to the web UI to check account status."
         )
 
 
