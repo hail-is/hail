@@ -176,12 +176,11 @@ def value_irs():
             ir.MatrixNativeMultiWriter([new_temp_file(), new_temp_file()], False, False, None),
         ),
         ir.BlockMatrixWrite(block_matrix_read, ir.BlockMatrixNativeWriter('fake.bm', False, False, False)),
-        ir.LiftMeOut(ir.I32(1)),
         ir.BlockMatrixWrite(block_matrix_read, ir.BlockMatrixPersistWriter('x', 'MEMORY_ONLY')),
     ]
 
 
-static_len_value_irs = 82
+static_len_value_irs = 81
 
 
 @pytest.fixture(params=range(static_len_value_irs))

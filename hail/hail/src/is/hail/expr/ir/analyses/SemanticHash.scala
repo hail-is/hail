@@ -305,7 +305,6 @@ case object SemanticHash extends Logging {
           _: InsertFields |
           _: IsNA |
           _: Block |
-          _: LiftMeOut |
           _: MakeArray |
           _: MakeNDArray |
           _: MakeStream |
