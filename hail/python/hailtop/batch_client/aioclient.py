@@ -1329,9 +1329,8 @@ class BatchClient:
             resp = await getattr(self._session, method)(self.url + path, headers=self._headers, **kwargs)
         except httpx.ClientResponseError as err:
             if err.status == 401:
+                # Replace the generic 401 error with our custom BatchNotAuthenticatedError to give better feedback:
                 raise BatchNotAuthenticatedError() from None
-            if err.status == 403:
-                raise PermissionError(err.body) from None
             raise
         return await self._warn_if_deprecated(resp)
 
