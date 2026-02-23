@@ -545,6 +545,7 @@ class ServiceBackend(Backend[bc.Batch]):
             with BatchClient('dummy') as dummy_client:
                 return dummy_client.supported_regions()
         except (BatchNotAuthenticatedError, PermissionError) as e:
+            # Reduce stack trace here. Users won't care where this came from. They care they're not authenticated.
             raise e.with_traceback(None) from None
 
     @staticmethod
@@ -566,6 +567,7 @@ class ServiceBackend(Backend[bc.Batch]):
             with BatchClient('dummy') as dummy_client:
                 return dummy_client.default_region()
         except (BatchNotAuthenticatedError, PermissionError) as e:
+            # Reduce stack trace here. Users won't care where this came from. They care they're not authenticated.
             raise e.with_traceback(None) from None
 
     def __init__(
