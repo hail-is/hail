@@ -909,8 +909,6 @@ object Simplify {
           case TNDArray(_, _) => Some(NDArrayRef(child, IndexedSeq(i, j), ErrorIDs.NO_ERROR))
           case TFloat64 => Some(child)
         }
-      case LiftMeOut(child) if IsConstant(child) =>
-        Some(child)
 
       case _ =>
         None

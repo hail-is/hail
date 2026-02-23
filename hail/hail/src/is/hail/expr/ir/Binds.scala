@@ -450,12 +450,6 @@ object Bindings {
             scan = AggEnv.Drop,
             dropEval = true,
           )
-      case _: LiftMeOut =>
-        Bindings(
-          agg = AggEnv.Drop,
-          scan = AggEnv.Drop,
-          dropEval = true,
-        )
       case _ =>
         if (UsesAggEnv(ir, i))
           Bindings(agg = AggEnv.Promote)

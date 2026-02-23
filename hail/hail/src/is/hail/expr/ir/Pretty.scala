@@ -743,8 +743,6 @@ class Pretty(
         case _: If =>
           if (i > 0) some()
           else None
-        case _: LiftMeOut =>
-          some()
         case _: MatrixAggregate =>
           if (i == 1) matrixBlockArgs
           else None

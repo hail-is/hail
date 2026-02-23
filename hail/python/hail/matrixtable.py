@@ -2228,7 +2228,7 @@ class MatrixTable(BaseTable):
         if _localize:
             return Env.backend().execute(ir.MakeTuple([agg_ir]))[0]
         else:
-            return construct_expr(ir.LiftMeOut(agg_ir), expr.dtype)
+            return construct_expr(agg_ir, expr.dtype)
 
     @typecheck_method(expr=expr_any, _localize=bool)
     def aggregate_cols(self, expr, _localize=True) -> Any:
@@ -2336,7 +2336,7 @@ class MatrixTable(BaseTable):
         if _localize:
             return Env.backend().execute(ir.MakeTuple([agg_ir]))[0]
         else:
-            return construct_expr(ir.LiftMeOut(agg_ir), expr.dtype)
+            return construct_expr(agg_ir, expr.dtype)
 
     @typecheck_method(field_expr=oneof(str, Expression))
     def explode_rows(self, field_expr) -> 'MatrixTable':
@@ -2643,7 +2643,7 @@ class MatrixTable(BaseTable):
         if _localize:
             return Env.backend().execute(count_ir)
         else:
-            return construct_expr(ir.LiftMeOut(count_ir), hl.tint64)
+            return construct_expr(count_ir, hl.tint64)
 
     def _force_count_rows(self):
         return Env.backend().execute(ir.MatrixToValueApply(self._mir, {'name': 'ForceCountMatrixTable'}))
@@ -2671,7 +2671,7 @@ class MatrixTable(BaseTable):
         if _localize:
             return Env.backend().execute(count_ir)
         else:
-            return construct_expr(ir.LiftMeOut(count_ir), hl.tint64)
+            return construct_expr(count_ir, hl.tint64)
 
     def count(self) -> Tuple[int, int]:
         """Count the number of rows and columns in the matrix.
