@@ -17,6 +17,7 @@ from hail.utils import get_env_or_default
 from hail.utils.java import BackendType, Env, choose_backend, warning
 from hail.version import __version__
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration, get_gcs_requester_pays_configuration
+from hailtop.batch_client.aioclient import BatchNotAuthenticatedError
 from hailtop.fs.fs import FS
 from hailtop.hail_event_loop import hail_event_loop
 from hailtop.utils import secret_alnum_string
@@ -387,8 +388,6 @@ def init(
                 branching_factor=branching_factor,
             )
         else:
-            from hailtop.batch_client.aioclient import BatchNotAuthenticatedError  # pylint: disable=import-outside-toplevel  # noqa: I001
-
             try:
                 return hail_event_loop().run_until_complete(
                     init_batch(
