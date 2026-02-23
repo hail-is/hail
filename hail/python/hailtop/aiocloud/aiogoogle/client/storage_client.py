@@ -805,7 +805,7 @@ class GoogleStorageAsyncFS(AsyncFS):
     async def copy_to(self, url: str, dest):
         if dest.startswith('file://') or '://' not in dest:
             fsurl = self.parse_url(url, error_if_bucket=True)
-            return await self._storage_client.download_to_file(fsurl._bucket, fsurl._path, dest)
+            return await retry_transient_errors(self._storage_client.download_to_file, fsurl._bucket, fsurl._path, dest)
         else:
             raise NotImplementedError
 
