@@ -575,6 +575,13 @@ class BatchAlreadyCreatedError(Exception):
     pass
 
 
+class BatchNotAuthenticatedError(Exception):
+    def __init__(self):
+        super().__init__(
+            "Not authenticated with Hail Batch.\n\nPlease run:\n\n    hailctl auth login\n\nto obtain credentials."
+        )
+
+
 class BatchDebugInfo(TypedDict):
     status: Dict[str, Any]
     jobs: List[JobListEntryV1Alpha]
@@ -1317,21 +1324,28 @@ class BatchClient:
             warnings.warn(f"DEPRECATED: {deprecation_message}")
         return response
 
+    async def _request(self, method: str, path: str, **kwargs) -> aiohttp.ClientResponse:
+        try:
+            resp = await getattr(self._session, method)(self.url + path, headers=self._headers, **kwargs)
+        except httpx.ClientResponseError as err:
+            if err.status == 401:
+                raise BatchNotAuthenticatedError() from None
+            if err.status == 403:
+                raise PermissionError(err.body) from None
+            raise
+        return await self._warn_if_deprecated(resp)
+
     async def _get(self, path, params=None) -> aiohttp.ClientResponse:
-        return await self._warn_if_deprecated(
-            await self._session.get(self.url + path, params=params, headers=self._headers)
-        )
+        return await self._request('get', path, params=params)
 
     async def _post(self, path, data=None, json=None) -> aiohttp.ClientResponse:
-        return await self._warn_if_deprecated(
-            await self._session.post(self.url + path, data=data, json=json, headers=self._headers)
-        )
+        return await self._request('post', path, data=data, json=json)
 
     async def _patch(self, path) -> aiohttp.ClientResponse:
-        return await self._warn_if_deprecated(await self._session.patch(self.url + path, headers=self._headers))
+        return await self._request('patch', path)
 
     async def _delete(self, path) -> aiohttp.ClientResponse:
-        return await self._warn_if_deprecated(await self._session.delete(self.url + path, headers=self._headers))
+        return await self._request('delete', path)
 
     def reset_billing_project(self, billing_project):
         self.billing_project = billing_project
