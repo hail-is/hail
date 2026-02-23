@@ -387,26 +387,31 @@ def init(
                 branching_factor=branching_factor,
             )
         else:
-            return hail_event_loop().run_until_complete(
-                init_batch(
-                    log=log,
-                    quiet=quiet,
-                    append=append,
-                    tmpdir=tmp_dir,
-                    default_reference=default_reference,
-                    global_seed=global_seed,
-                    driver_cores=driver_cores,
-                    driver_memory=driver_memory,
-                    worker_cores=worker_cores,
-                    worker_memory=worker_memory,
-                    batch_id=batch_id,
-                    name_prefix=app_name,
-                    gcs_requester_pays_configuration=gcs_requester_pays_configuration,
-                    regions=regions,
-                    gcs_bucket_allow_list=gcs_bucket_allow_list,
-                    branching_factor=branching_factor,
+            from hailtop.batch_client.aioclient import BatchNotAuthenticatedError  # pylint: disable=import-outside-toplevel  # noqa: I001
+
+            try:
+                return hail_event_loop().run_until_complete(
+                    init_batch(
+                        log=log,
+                        quiet=quiet,
+                        append=append,
+                        tmpdir=tmp_dir,
+                        default_reference=default_reference,
+                        global_seed=global_seed,
+                        driver_cores=driver_cores,
+                        driver_memory=driver_memory,
+                        worker_cores=worker_cores,
+                        worker_memory=worker_memory,
+                        batch_id=batch_id,
+                        name_prefix=app_name,
+                        gcs_requester_pays_configuration=gcs_requester_pays_configuration,
+                        regions=regions,
+                        gcs_bucket_allow_list=gcs_bucket_allow_list,
+                        branching_factor=branching_factor,
+                    )
                 )
-            )
+            except (BatchNotAuthenticatedError, PermissionError) as e:
+                raise e.with_traceback(None) from None
     if backend == 'spark':
         return init_spark(
             sc=sc,
