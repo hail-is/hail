@@ -9,8 +9,7 @@ object CFG {
     val pred = Array.fill(nBlocks)(mutable.Set[Int]())
     val succ = Array.fill(nBlocks)(mutable.Set[Int]())
 
-    for (b <- blocks) {
-      val i = blocks.index(b)
+    for (i <- blocks.indices) {
 
       def edgeTo(L: Block): Unit = {
         val j = blocks.index(L)
@@ -19,17 +18,9 @@ object CFG {
         pred(j) += i
       }
 
-      b.last match {
-        case x: GotoX => edgeTo(x.L)
-        case x: IfX =>
-          edgeTo(x.Ltrue)
-          edgeTo(x.Lfalse)
-        case x: SwitchX =>
-          edgeTo(x.Ldefault)
-          x.Lcases.foreach(edgeTo)
-        case _: ReturnX =>
-        case _: ThrowX =>
-      }
+      val x = blocks(i).last.asInstanceOf[ControlX]
+      for (i <- x.targetIndices)
+        edgeTo(x.target(i))
     }
 
     new CFG(blocks.index(m.entry), pred, succ)
