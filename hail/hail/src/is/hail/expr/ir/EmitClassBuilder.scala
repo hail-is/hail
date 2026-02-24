@@ -22,7 +22,6 @@ import is.hail.variant.ReferenceGenome
 import scala.collection.mutable
 
 import java.io._
-import java.lang.reflect.InvocationTargetException
 
 import org.apache.spark.TaskContext
 
@@ -574,14 +573,6 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
     assert(i < _nSerialized)
     _aggSerialized.load().update(i, Code._null[Array[Byte]])
   }
-
-  def runMethodWithHailExceptionHandler(mname: String): Code[(String, java.lang.Integer)] =
-    Code.invokeScalaObject2[AnyRef, String, (String, java.lang.Integer)](
-      CodeExceptionHandler.getClass,
-      "handleUserException",
-      cb.this_.get.asInstanceOf[Code[AnyRef]],
-      mname,
-    )
 
   def backend(): Code[BackendUtils] = {
     if (_backendField == null) {
@@ -1217,25 +1208,6 @@ trait FunctionWithLiterals {
 
 trait FunctionWithBackend {
   def setBackend(spark: BackendUtils): Unit
-}
-
-object CodeExceptionHandler {
-
-  /** This method assumes that the method referred to by `methodName` is a -argument class method
-    * (only takes the class itself as an arg) which returns void.
-    */
-  def handleUserException(obj: AnyRef, methodName: String): (String, java.lang.Integer) = {
-    try {
-      obj.getClass.getMethod(methodName).invoke(obj)
-      null
-    } catch {
-      case e: InvocationTargetException =>
-        e.getTargetException match {
-          case ue: HailException => (ue.msg, ue.errorId)
-          case e => throw e
-        }
-    }
-  }
 }
 
 class EmitMethodBuilder[C](

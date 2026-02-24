@@ -3496,7 +3496,6 @@ class IRSuite extends HailSuite {
       MakeTuple(FastSeq(2 -> i, 4 -> b)),
       GetTupleElement(t, 1) -> Array(t),
       Die("mumblefoo", TFloat64),
-      Trap(Die("mumblefoo", TFloat64)),
       invoke("land", TBoolean, b, c) -> Array(c), // ApplySpecial
       invoke("toFloat64", TFloat64, i), // Apply
       Literal(TStruct("x" -> TInt32), Row(1)),

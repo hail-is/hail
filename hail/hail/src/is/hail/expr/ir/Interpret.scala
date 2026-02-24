@@ -828,12 +828,6 @@ object Interpret extends Logging {
       case Die(message, _, errorId) =>
         val message_ = interpret(message).asInstanceOf[String]
         fatal(if (message_ != null) message_ else "<exception message missing>", errorId)
-      case Trap(child) =>
-        try
-          Row(null, interpret(child))
-        catch {
-          case e: HailException => Row(Row(e.msg, e.errorId), null)
-        }
       case ConsoleLog(message, result) =>
         val message_ = interpret(message).asInstanceOf[String]
         logger.info(message_)

@@ -1084,13 +1084,6 @@ object Main {
       .withDocstring("Function input").withCompanionExtension
 
     r += node("Die", in("message", child), in("_typ", att("Type")), errorID).withCompanionExtension
-    r += node("Trap", in("child", child)).withDocstring(
-      """The Trap node runs the `child` node with an exception handler. If the child throws a
-        |HailException (user exception), then we return the tuple ((msg, errorId), NA). If the child
-        |throws any other exception, we raise that exception. If the child does not throw, then we
-        |return the tuple (NA, child value).
-        |""".stripMargin
-    )
     r += node("ConsoleLog", in("message", child), in("result", child))
 
     r += node(
