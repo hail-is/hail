@@ -267,31 +267,10 @@ def parse_job_group_jobs_query_v2(
         where_conditions.append('(jobs.job_id > %s)')
         where_args.append(last_job_id)
 
-    uses_attempts_table = False
     for query in queries:
         cond, args = query.query()
-        if isinstance(
-            query,
-            (
-                JobStartTimeQuery,
-                JobEndTimeQuery,
-                JobDurationQuery,
-                JobInstanceQuery,
-                JobQuotedExactMatchQuery,
-                JobUnquotedPartialMatchQuery,
-            ),
-        ):
-            uses_attempts_table = True
-
         where_conditions.append(f'({cond})')
         where_args += args
-
-    if uses_attempts_table:
-        attempts_table_join_str = (
-            'LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id'
-        )
-    else:
-        attempts_table_join_str = ''
 
     sql = f"""
 SELECT STRAIGHT_JOIN jobs.*, batches.user, batches.billing_project, batches.format_version, job_attributes.value AS name, cost_t.cost,
@@ -303,7 +282,6 @@ LEFT JOIN job_attributes
   ON jobs.batch_id = job_attributes.batch_id AND
     jobs.job_id = job_attributes.job_id AND
     job_attributes.`key` = 'name'
-{attempts_table_join_str}
 LEFT JOIN LATERAL (
 SELECT COALESCE(SUM(`usage` * rate), 0) AS cost, JSON_OBJECTAGG(resources.resource, COALESCE(`usage` * rate, 0)) AS cost_breakdown
 FROM (SELECT resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
