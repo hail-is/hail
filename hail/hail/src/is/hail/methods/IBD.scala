@@ -248,7 +248,7 @@ object IBD {
     val sm = ctx.stateManager
 
     val rowPType = input.rvRowPType
-    val unnormalizedIbse = input.rvd.mapPartitions { (ctx, it) =>
+    val unnormalizedIbse = input.rvd.mapPartitions { (_, ctx, it) =>
       val rv = RegionValue(ctx.r)
       val view = HardCallView(rowPType)
       it.map { ptr =>
@@ -260,7 +260,7 @@ object IBD {
 
     val ibse = unnormalizedIbse.normalized
 
-    val chunkedGenotypeMatrix = input.rvd.mapPartitions { (_, it) =>
+    val chunkedGenotypeMatrix = input.rvd.mapPartitions { (_, _, it) =>
       val view = HardCallView(rowPType)
       it.map { ptr =>
         view.set(ptr)
@@ -310,7 +310,7 @@ object IBD {
       })
 
     joined
-      .cmapPartitions { (ctx, it) =>
+      .cmapPartitions { (_, ctx, it) =>
         val rvb = new RegionValueBuilder(sm, ctx.region)
         for {
           ((iChunk, jChunk), ibses) <- it
