@@ -407,7 +407,13 @@ class PR(Code):
         assert self.source_sha is not None
 
         log.info(f'{self.short_str()}: notify github state: {gh_status}')
-        target_url = deploy_config.external_url('ci', f'/watched_branches/{self.target_branch.index}/pr/{self.number}')
+        if self.batch is None or isinstance(self.batch, MergeFailureBatch):
+            target_url = deploy_config.external_url(
+                'ci', f'/watched_branches/{self.target_branch.index}/pr/{self.number}'
+            )
+        else:
+            assert self.batch.id is not None
+            target_url = deploy_config.external_url('ci', f'/batches/{self.batch.id}')
         data = {
             'state': gh_status.value,
             'target_url': target_url,

@@ -268,8 +268,26 @@ async def get_batches(request: web.Request) -> NoReturn:
 
 
 @routes.get('/batches/{batch_id}')
-async def get_batch(request: web.Request) -> NoReturn:
+@web_security_headers
+@auth.authenticated_developers_only()
+async def get_batch(request: web.Request, userdata: UserData) -> NoReturn:
     batch_id = int(request.match_info['batch_id'])
+    batch_client = request.app[AppKeys.BATCH_CLIENT]
+    try:
+        b = await batch_client.get_batch(batch_id)
+        attrs = b.attributes
+        if 'target_branch' in attrs and 'pr' in attrs:
+            pr_number = int(attrs['pr'])
+            branch = attrs['target_branch']
+            wbs = [wb for wb in watched_branches if wb.branch.short_str() == branch]
+            if wbs and wbs[0].prs and pr_number in wbs[0].prs:
+                raise web.HTTPFound(
+                    deploy_config.external_url('ci', f'/watched_branches/{wbs[0].index}/pr/{pr_number}')
+                )
+    except web.HTTPFound:
+        raise
+    except Exception:
+        pass
     raise web.HTTPFound(deploy_config.external_url('batch', f'/batches/{batch_id}'))
 
 
