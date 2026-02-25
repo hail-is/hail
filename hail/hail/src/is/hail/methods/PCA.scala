@@ -69,7 +69,7 @@ case class PCA(entryField: String, k: Int, computeLoadings: Boolean)
     val localRowKeySignature = mv.typ.rowKeyStruct.types
 
     val crdd: ContextRDD[Long] = if (computeLoadings) {
-      ContextRDD.weaken(svd.U.rows).cmapPartitions { (ctx, it) =>
+      ContextRDD.weaken(svd.U.rows).cmapPartitions { (_, ctx, it) =>
         val rvb = ctx.rvb
         it.map { ir =>
           rvb.start(rowType)

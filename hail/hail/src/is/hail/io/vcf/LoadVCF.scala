@@ -1511,7 +1511,7 @@ object LoadVCF extends Logging {
     skipInvalidLoci: Boolean,
   ): ContextRDD[Long] = {
     val hasRSID = rowPType.hasField("rsid")
-    lines.cmapPartitions { (ctx, it) =>
+    lines.cmapPartitions { (_, ctx, it) =>
       new Iterator[Long] {
         val rvb = ctx.rvb
         var ptr: Long = 0

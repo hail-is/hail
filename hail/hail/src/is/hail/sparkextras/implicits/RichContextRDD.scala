@@ -1,6 +1,7 @@
 package is.hail.sparkextras.implicits
 
 import is.hail.annotations.RegionPool
+import is.hail.asm4s.HailClassLoader
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.partFile
 import is.hail.io.FileWriteMetadata
@@ -18,16 +19,17 @@ import org.apache.spark.TaskContext
 
 object RichContextRDD {
   def writeParts[T](
+    hcl: HailClassLoader,
     ctx: RVDContext,
     rootPath: String,
     f: String,
     idxRelPath: String,
-    mkIdxWriter: (String, RegionPool) => IndexWriter,
+    mkIdxWriter: (String, HailClassLoader, RegionPool) => IndexWriter,
     stageLocally: Boolean,
     fs: FS,
     localTmpdir: String,
     it: Iterator[T],
-    write: (RVDContext, Iterator[T], OutputStream, IndexWriter) => (Long, Long),
+    write: (HailClassLoader, RVDContext, Iterator[T], OutputStream, IndexWriter) => (Long, Long),
   ): Iterator[FileWriteMetadata] = {
     val finalFilename = rootPath + "/parts/" + f
     val finalIdxFilename =
@@ -45,10 +47,10 @@ object RichContextRDD {
       } else
         finalFilename -> finalIdxFilename
     val os = fs.create(filename)
-    val iw = mkIdxWriter(idxFilename, ctx.r.pool)
+    val iw = mkIdxWriter(idxFilename, hcl, ctx.r.pool)
 
     // write must close `os` and `iw`
-    val (rowCount, bytesWritten) = write(ctx, it, os, iw)
+    val (rowCount, bytesWritten) = write(hcl, ctx, it, os, iw)
 
     if (stageLocally) {
       fs.copy(filename, finalFilename)
@@ -65,8 +67,8 @@ object RichContextRDD {
 class RichContextRDD[T](val crdd: ContextRDD[T]) extends AnyVal {
 
   def cleanupRegions(implicit CT: ClassTag[T]): ContextRDD[T] = {
-    crdd.cmapPartitionsAndContext { (ctx, part) =>
-      val it = part.flatMap(_(ctx))
+    crdd.cmapPartitionsAndContext { (hcl, ctx, part) =>
+      val it = part.flatMap(_(hcl, ctx))
       new Iterator[T]() {
         private[this] var cleared: Boolean = false
 
@@ -95,8 +97,8 @@ class RichContextRDD[T](val crdd: ContextRDD[T]) extends AnyVal {
     path: String,
     idxRelPath: String,
     stageLocally: Boolean,
-    mkIdxWriter: (String, RegionPool) => IndexWriter,
-    write: (RVDContext, Iterator[T], OutputStream, IndexWriter) => (Long, Long),
+    mkIdxWriter: (String, HailClassLoader, RegionPool) => IndexWriter,
+    write: (HailClassLoader, RVDContext, Iterator[T], OutputStream, IndexWriter) => (Long, Long),
   ): Array[FileWriteMetadata] = {
     val localTmpdir = ctx.localTmpdir
     val fs = ctx.fs
@@ -109,9 +111,9 @@ class RichContextRDD[T](val crdd: ContextRDD[T]) extends AnyVal {
 
     val d = digitsNeeded(nPartitions)
 
-    val fileData = crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
+    val fileData = crdd.cmapPartitionsWithIndex { (i, hcl, ctx, it) =>
       val f = partFile(d, i, TaskContext.get())
-      RichContextRDD.writeParts(ctx, path, f, idxRelPath, mkIdxWriter, stageLocally, fs,
+      RichContextRDD.writeParts(hcl, ctx, path, f, idxRelPath, mkIdxWriter, stageLocally, fs,
         localTmpdir, it, write)
     }
       .collect()

@@ -3,7 +3,7 @@ package is.hail.expr.ir.agg
 import is.hail.annotations.{Region, RegionPool, RegionValue}
 import is.hail.asm4s._
 import is.hail.backend.{ExecuteContext, HailTaskContext}
-import is.hail.backend.spark.SparkTaskContext
+import is.hail.backend.spark.{unsafeHailClassLoaderForSparkWorkers, SparkTaskContext}
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.compat.mutable.Growable
@@ -274,7 +274,7 @@ class AggSignatures(val sigs: IndexedSeq[PhysicalAggSig]) {
     : (Array[Byte], Array[Byte]) => Array[Byte] = {
     combOpFSerializedFromRegionPool(ctx, spec) { () =>
       val htc = SparkTaskContext.get()
-      val hcl = theHailClassLoaderForSparkWorkers
+      val hcl = unsafeHailClassLoaderForSparkWorkers
       if (htc == null) {
         throw new UnsupportedOperationException(
           s"Can't get htc. On worker = ${TaskContext.get() != null}"

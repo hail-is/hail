@@ -1,7 +1,6 @@
 package is.hail.backend.spark
 
 import is.hail.annotations._
-import is.hail.asm4s._
 import is.hail.backend._
 import is.hail.backend.Backend.PartitionFn
 import is.hail.collection.compat.immutable.ArraySeq
@@ -270,7 +269,7 @@ class SparkBackend(val spark: SparkSession) extends Backend with Logging {
               : Iterator[Array[Byte]] = {
               val htc = SparkTaskContext.get()
               htc.getRegionPool().scopedRegion { r =>
-                val g = f(theHailClassLoaderForSparkWorkers, new HadoopFS(fsConfig), htc, r)
+                val g = f(unsafeHailClassLoaderForSparkWorkers, new HadoopFS(fsConfig), htc, r)
                 Iterator.single(g(globals, partition.asInstanceOf[RDDPartition].data))
               }
             }

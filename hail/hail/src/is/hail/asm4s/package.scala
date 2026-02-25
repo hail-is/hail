@@ -72,10 +72,6 @@ package asm4s {
 }
 
 package object asm4s {
-  lazy val theHailClassLoaderForSparkWorkers =
-    // FIXME: how do I ensure this is only created in Spark workers?
-    new HailClassLoader(getClass().getClassLoader())
-
   def genName(tag: String, baseName: String): String = lir.genName(tag, baseName)
 
   def typeInfo[T](implicit tti: TypeInfo[T]): TypeInfo[T] = tti
