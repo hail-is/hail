@@ -9,11 +9,12 @@ from contextlib import AsyncExitStack
 from typing import Any, Callable, Dict, List, NoReturn, Optional, Set, Tuple, TypedDict
 
 import aiohttp_session  # type: ignore
+import gidgethub
 import kubernetes_asyncio
 import kubernetes_asyncio.client
 import kubernetes_asyncio.config
 import yaml
-from aiohttp import web
+from aiohttp import ClientError, web
 from gidgethub import aiohttp as gh_aiohttp
 from gidgethub import routing as gh_routing
 from gidgethub import sansio as gh_sansio
@@ -173,48 +174,92 @@ def filter_jobs(jobs):
     return {"jobs": filtered}
 
 
-@routes.get('/watched_branches/{watched_branch_index}/pr/{pr_number}')
-@web_security_headers
-@auth.authenticated_developers_only()
-async def get_pr(request: web.Request, userdata: UserData) -> web.Response:
-    wb, pr = wb_and_pr_from_request(request)
+async def _populate_batch_context(page_context: Dict[str, Any], batch: Batch) -> None:
+    status = await batch.last_known_status()
+    jobs = await collect_aiter(batch.jobs())
+    for j in jobs:
+        j['duration'] = humanize_timedelta_msecs(j['duration'])  # type: ignore
+    page_context['batch'] = status
+    page_context.update(filter_jobs(jobs))
+    artifacts_uri = f'{STORAGE_URI}/build/{batch.attributes["token"]}'
+    page_context['artifacts_uri'] = artifacts_uri
+    page_context['artifacts_url'] = storage_uri_to_url(artifacts_uri)
+    if CLOUD == 'gcp':
+        start_time = status['time_created']
+        end_time = status['time_completed']
+        assert start_time is not None
+        page_context['logging_queries'] = gcp_logging_queries(batch.attributes['namespace'], start_time, end_time)
+    else:
+        page_context['logging_queries'] = None
 
-    page_context: Dict[str, Any] = {}
-    page_context['repo'] = wb.branch.repo.short_str()
-    page_context['wb'] = wb
+
+async def _populate_active_pr_context(page_context: Dict[str, Any], wb: WatchedBranch, pr_number: int) -> None:
+    pr = wb.prs[pr_number]
     page_context['pr'] = pr
-    # FIXME
+    page_context['active_pr'] = True
     batch = pr.batch
     if batch:
         if isinstance(batch, Batch):
-            status = await batch.last_known_status()
-            jobs = await collect_aiter(batch.jobs())
-            for j in jobs:
-                j['duration'] = humanize_timedelta_msecs(j['duration'])  # type: ignore
-            page_context['batch'] = status
-            page_context.update(filter_jobs(jobs))
-            artifacts_uri = f'{STORAGE_URI}/build/{batch.attributes["token"]}'
-            page_context['artifacts_uri'] = artifacts_uri
-            page_context['artifacts_url'] = storage_uri_to_url(artifacts_uri)
-
-            if CLOUD == 'gcp':
-                start_time = status['time_created']
-                end_time = status['time_completed']
-                assert start_time is not None
-                page_context['logging_queries'] = gcp_logging_queries(
-                    batch.attributes['namespace'], start_time, end_time
-                )
-            else:
-                page_context['logging_queries'] = None
+            await _populate_batch_context(page_context, batch)
         else:
             page_context['exception'] = '\n'.join(
                 traceback.format_exception(None, batch.exception, batch.exception.__traceback__)
             )
 
+
+async def _populate_historical_pr_context(
+    page_context: Dict[str, Any], gh_client: gh_aiohttp.GitHubAPI, wb: WatchedBranch, pr_number: int
+) -> None:
+    try:
+        gh_pr = await gh_client.getitem(f'/repos/{wb.branch.repo.short_str()}/pulls/{pr_number}')
+        page_context['pr'] = {
+            'title': gh_pr['title'],
+            'number': gh_pr['number'],
+            'labels': [label['name'] for label in gh_pr.get('labels', [])],
+            'merged': gh_pr['merged'],
+        }
+    except gidgethub.HTTPException as e:
+        if e.status_code == 404:
+            raise web.HTTPNotFound()
+        log.warning(f'GitHub API error fetching PR {pr_number}: {e}')
+        page_context['pr'] = {'title': '', 'number': pr_number, 'labels': [], 'merged': None}
+    except ClientError as e:
+        log.warning(f'GitHub connectivity error fetching PR {pr_number}: {e}')
+        page_context['pr'] = {'title': '', 'number': pr_number, 'labels': [], 'merged': None}
+    page_context['active_pr'] = False
+
+
+@routes.get('/watched_branches/{watched_branch_index}/pr/{pr_number}')
+@web_security_headers
+@auth.authenticated_developers_only()
+async def get_pr(request: web.Request, userdata: UserData) -> web.Response:
+    watched_branch_index = int(request.match_info['watched_branch_index'])
+    pr_number = int(request.match_info['pr_number'])
+
+    if watched_branch_index < 0 or watched_branch_index >= len(watched_branches):
+        raise web.HTTPNotFound()
+    wb = watched_branches[watched_branch_index]
+
+    page_context: Dict[str, Any] = {'repo': wb.branch.repo.short_str(), 'wb': wb}
+
+    if wb.prs and pr_number in wb.prs:
+        await _populate_active_pr_context(page_context, wb, pr_number)
+    else:
+        await _populate_historical_pr_context(page_context, request.app[AppKeys.GH_CLIENT], wb, pr_number)
+
     batch_client = request.app[AppKeys.BATCH_CLIENT]
-    target_branch = wb.branch.short_str()
-    batches = batch_client.list_batches(f'test=1 pr={pr.number} target_branch={target_branch} user:ci')
-    batches = sorted([b async for b in batches], key=lambda b: b.id, reverse=True)
+    batches = sorted(
+        [
+            b
+            async for b in batch_client.list_batches(
+                f'test=1 pr={pr_number} target_branch={wb.branch.short_str()} user:ci'
+            )
+        ],
+        key=lambda b: b.id,
+        reverse=True,
+    )
+    if not page_context['active_pr'] and batches:
+        await _populate_batch_context(page_context, batches[0])
     page_context['history'] = [await b.last_known_status() for b in batches]
 
     return await render_template('ci', request, userdata, 'pr.html', page_context)
@@ -268,9 +313,24 @@ async def get_batches(request: web.Request) -> NoReturn:
 
 
 @routes.get('/batches/{batch_id}')
-async def get_batch(request: web.Request) -> NoReturn:
+@web_security_headers
+@auth.authenticated_developers_only()
+async def get_batch(request: web.Request, _: UserData) -> NoReturn:
     batch_id = int(request.match_info['batch_id'])
-    raise web.HTTPFound(deploy_config.external_url('batch', f'/batches/{batch_id}'))
+    batch_client = request.app[AppKeys.BATCH_CLIENT]
+    pr_url = None
+    try:
+        b = await batch_client.get_batch(batch_id)
+        attrs = b.attributes
+        if 'target_branch' in attrs and 'pr' in attrs:
+            pr_number = int(attrs['pr'])
+            branch = attrs['target_branch']
+            wbs = [wb for wb in watched_branches if wb.branch.short_str() == branch]
+            if wbs and wbs[0].prs and pr_number in wbs[0].prs:
+                pr_url = deploy_config.external_url('ci', f'/watched_branches/{wbs[0].index}/pr/{pr_number}')
+    except Exception:  # pylint: disable=broad-except
+        log.warning(f'Failed to look up batch {batch_id} for PR redirect; falling back to batch page', exc_info=True)
+    raise web.HTTPFound(pr_url or deploy_config.external_url('batch', f'/batches/{batch_id}'))
 
 
 def filter_wbs(wbs: List[WatchedBranchConfig], pred: Callable[[PRConfig], bool]):

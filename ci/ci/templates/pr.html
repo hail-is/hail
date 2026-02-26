@@ -6,6 +6,19 @@
 {% endblock %}
 {% block content %}
     <h1>{{ pr.title }} <a rel="noopener" href="https://github.com/{{ repo }}/pull/{{ pr.number }}"><span class="gh-number">#{{ pr.number }}</span></a></h1>
+    <div class="attributes">
+      <div>PR <a rel="noopener" href="https://github.com/{{ repo }}/pull/{{ pr.number }}">#{{ pr.number }}</a> status:
+        {% if active_pr %}
+        <span class="material-symbols-outlined" style="color: green; vertical-align: middle; font-size: 1rem; font-variation-settings: 'FILL' 1, 'wght' 700;">merge</span> open (live)
+        {% elif pr.merged %}
+        <span class="material-symbols-outlined" style="color: purple; vertical-align: middle; font-size: 1rem; font-variation-settings: 'FILL' 1, 'wght' 700;">merge</span> merged
+        {% elif pr.merged is none %}
+        <span class="material-symbols-outlined" style="color: grey; vertical-align: middle; font-size: 1rem; font-variation-settings: 'FILL' 1, 'wght' 700;">question_mark</span> closed
+        {% else %}
+        <span class="material-symbols-outlined" style="color: red; vertical-align: middle; font-size: 1rem; font-variation-settings: 'FILL' 1, 'wght' 700;">block</span> closed without merging
+        {% endif %}
+      </div>
+    </div>
 
     {% if batch is defined %}
     <div class="attributes">
@@ -20,10 +33,12 @@
       {% endfor %}
       <div>labels: {{ pr.labels|join(", ") }}</div>
     </div>
+    {% if active_pr %}
     <form action="{{ base_path }}/watched_branches/{{ wb.index }}/pr/{{ pr.number }}/retry" method="post">
       <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
       <button type="submit">Retry</button>
     </form>
+    {% endif %}
 
     {% if logging_queries is not none %}
     <h2>Logging Queries</h2>
@@ -42,7 +57,11 @@
       {{ exception }}
     </pre>
     {% else %}
-    No build running.
+    {% if active_pr %}
+    <p>Build queued — waiting for a build slot. <a href="{{ ci_base_url }}">View CI dashboard</a>.</p>
+    {% else %}
+    <p>No builds found.</p>
+    {% endif %}
     {% endif %}
 
     <h2>Build History</h2>
