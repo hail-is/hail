@@ -7,7 +7,7 @@
 {% block content %}
     <h1>{{ pr.title }} <a rel="noopener" href="https://github.com/{{ repo }}/pull/{{ pr.number }}"><span class="gh-number">#{{ pr.number }}</span></a></h1>
     <div class="attributes">
-      <div>PR status:
+      <div>PR <a rel="noopener" href="https://github.com/{{ repo }}/pull/{{ pr.number }}">#{{ pr.number }}</a> status:
         {% if active_pr %}
         <span class="material-symbols-outlined" style="color: green; vertical-align: middle; font-size: 1rem; font-variation-settings: 'FILL' 1, 'wght' 700;">merge</span> open (live)
         {% elif pr.merged %}
