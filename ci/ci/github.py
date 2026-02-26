@@ -395,11 +395,7 @@ class PR(Code):
     def github_status_from_build_state(self) -> GithubStatus:
         if self.build_state in ('failure', 'error'):
             return GithubStatus.FAILURE
-        if (
-            self.build_state == 'success'
-            and self.batch
-            and self.batch.attributes['target_sha'] == self.target_branch.sha
-        ):
+        if self.build_state == 'success' and self.batch:
             return GithubStatus.SUCCESS
         return GithubStatus.PENDING
 
