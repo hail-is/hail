@@ -6,6 +6,19 @@
 {% endblock %}
 {% block content %}
     <h1>{{ pr.title }} <a rel="noopener" href="https://github.com/{{ repo }}/pull/{{ pr.number }}"><span class="gh-number">#{{ pr.number }}</span></a></h1>
+    <div class="attributes">
+      <div>PR status:
+        {% if active_pr %}
+        <span class="material-symbols-outlined" style="color: green; vertical-align: middle; font-size: 1rem;">rebase</span> open (live)
+        {% elif pr.merged %}
+        <span class="material-symbols-outlined" style="color: purple; vertical-align: middle; font-size: 1rem;">merge</span> merged
+        {% elif pr.merged is none %}
+        <span class="material-symbols-outlined" style="color: grey; vertical-align: middle; font-size: 1rem;">question_mark</span> closed
+        {% else %}
+        <span class="material-symbols-outlined" style="color: grey; vertical-align: middle; font-size: 1rem;">do_not_disturb_on</span> closed without merging
+        {% endif %}
+      </div>
+    </div>
 
     {% if batch is defined %}
     <div class="attributes">

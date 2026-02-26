@@ -216,15 +216,16 @@ async def _populate_historical_pr_context(
             'title': gh_pr['title'],
             'number': gh_pr['number'],
             'labels': [label['name'] for label in gh_pr.get('labels', [])],
+            'merged': gh_pr['merged'],
         }
     except gidgethub.HTTPException as e:
         if e.status_code == 404:
             raise web.HTTPNotFound()
         log.warning(f'GitHub API error fetching PR {pr_number}: {e}')
-        page_context['pr'] = {'title': '', 'number': pr_number, 'labels': []}
+        page_context['pr'] = {'title': '', 'number': pr_number, 'labels': [], 'merged': None}
     except ClientError as e:
         log.warning(f'GitHub connectivity error fetching PR {pr_number}: {e}')
-        page_context['pr'] = {'title': '', 'number': pr_number, 'labels': []}
+        page_context['pr'] = {'title': '', 'number': pr_number, 'labels': [], 'merged': None}
     page_context['active_pr'] = False
 
 
