@@ -317,6 +317,7 @@ async def get_batches(request: web.Request) -> NoReturn:
 async def get_batch(request: web.Request, userdata: UserData) -> NoReturn:
     batch_id = int(request.match_info['batch_id'])
     batch_client = request.app[AppKeys.BATCH_CLIENT]
+    pr_url = None
     try:
         b = await batch_client.get_batch(batch_id)
         attrs = b.attributes
@@ -325,14 +326,10 @@ async def get_batch(request: web.Request, userdata: UserData) -> NoReturn:
             branch = attrs['target_branch']
             wbs = [wb for wb in watched_branches if wb.branch.short_str() == branch]
             if wbs and wbs[0].prs and pr_number in wbs[0].prs:
-                raise web.HTTPFound(
-                    deploy_config.external_url('ci', f'/watched_branches/{wbs[0].index}/pr/{pr_number}')
-                )
-    except web.HTTPFound:
-        raise
-    except Exception:
-        pass
-    raise web.HTTPFound(deploy_config.external_url('batch', f'/batches/{batch_id}'))
+                pr_url = deploy_config.external_url('ci', f'/watched_branches/{wbs[0].index}/pr/{pr_number}')
+    except Exception:  # pylint: disable=broad-except
+        log.warning(f'Failed to look up batch {batch_id} for PR redirect; falling back to batch page', exc_info=True)
+    raise web.HTTPFound(pr_url or deploy_config.external_url('batch', f'/batches/{batch_id}'))
 
 
 def filter_wbs(wbs: List[WatchedBranchConfig], pred: Callable[[PRConfig], bool]):
