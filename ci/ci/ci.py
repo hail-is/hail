@@ -14,7 +14,7 @@ import kubernetes_asyncio
 import kubernetes_asyncio.client
 import kubernetes_asyncio.config
 import yaml
-from aiohttp import web
+from aiohttp import ClientError, web
 from gidgethub import aiohttp as gh_aiohttp
 from gidgethub import routing as gh_routing
 from gidgethub import sansio as gh_sansio
@@ -212,15 +212,19 @@ async def _populate_historical_pr_context(
 ) -> None:
     try:
         gh_pr = await gh_client.getitem(f'/repos/{wb.branch.repo.short_str()}/pulls/{pr_number}')
+        page_context['pr'] = {
+            'title': gh_pr['title'],
+            'number': gh_pr['number'],
+            'labels': [label['name'] for label in gh_pr.get('labels', [])],
+        }
     except gidgethub.HTTPException as e:
         if e.status_code == 404:
             raise web.HTTPNotFound()
-        raise
-    page_context['pr'] = {
-        'title': gh_pr['title'],
-        'number': gh_pr['number'],
-        'labels': [label['name'] for label in gh_pr.get('labels', [])],
-    }
+        log.warning(f'GitHub API error fetching PR {pr_number}: {e}')
+        page_context['pr'] = {'title': '', 'number': pr_number, 'labels': []}
+    except ClientError as e:
+        log.warning(f'GitHub connectivity error fetching PR {pr_number}: {e}')
+        page_context['pr'] = {'title': '', 'number': pr_number, 'labels': []}
     page_context['active_pr'] = False
 
 
