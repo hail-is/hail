@@ -9,13 +9,13 @@
     <div class="attributes">
       <div>PR status:
         {% if active_pr %}
-        <span class="material-symbols-outlined" style="color: green; vertical-align: middle; font-size: 1rem;">rebase</span> open (live)
+        <span class="material-symbols-outlined" style="color: green; vertical-align: middle; font-size: 1rem; font-variation-settings: 'FILL' 1, 'wght' 700;">merge</span> open (live)
         {% elif pr.merged %}
-        <span class="material-symbols-outlined" style="color: purple; vertical-align: middle; font-size: 1rem;">merge</span> merged
+        <span class="material-symbols-outlined" style="color: purple; vertical-align: middle; font-size: 1rem; font-variation-settings: 'FILL' 1, 'wght' 700;">merge</span> merged
         {% elif pr.merged is none %}
-        <span class="material-symbols-outlined" style="color: grey; vertical-align: middle; font-size: 1rem;">question_mark</span> closed
+        <span class="material-symbols-outlined" style="color: grey; vertical-align: middle; font-size: 1rem; font-variation-settings: 'FILL' 1, 'wght' 700;">question_mark</span> closed
         {% else %}
-        <span class="material-symbols-outlined" style="color: grey; vertical-align: middle; font-size: 1rem;">do_not_disturb_on</span> closed without merging
+        <span class="material-symbols-outlined" style="color: red; vertical-align: middle; font-size: 1rem; font-variation-settings: 'FILL' 1, 'wght' 700;">block</span> closed without merging
         {% endif %}
       </div>
     </div>
