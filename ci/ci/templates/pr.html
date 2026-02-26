@@ -57,7 +57,11 @@
       {{ exception }}
     </pre>
     {% else %}
-    No build running.
+    {% if active_pr %}
+    Build queued — waiting for a build slot. <a href="{{ ci_base_url }}">View CI dashboard</a>.
+    {% else %}
+    No builds found.
+    {% endif %}
     {% endif %}
 
     <h2>Build History</h2>
