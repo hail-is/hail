@@ -46,6 +46,9 @@ object Invariant {
       case _ => true
     }
 
+  lazy val NoTableKeyByAndAggregate: Invariant =
+    Invariant(!_.isInstanceOf[TableKeyByAndAggregate])
+
   lazy val NoLiftMeOuts: Invariant =
     Invariant(!_.isInstanceOf[LiftMeOut])
 
