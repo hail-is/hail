@@ -373,6 +373,7 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
           batchConfig =
             BatchConfig(batchId = Random.nextInt(100), jobGroupId = Random.nextInt(100)),
           jobConfig = jobConfig,
+          maxReadParallelism = 2,
         )
 
       def localTmpDirectory: Directory with Closeable =

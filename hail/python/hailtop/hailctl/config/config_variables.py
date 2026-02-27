@@ -119,6 +119,13 @@ def config_variables():
                     'should be a valid string specifying memory "[+]?((?:[0-9]*[.])?[0-9]+)([KMGTP][i]?)?B?" or one of standard, lowmem, highmem',
                 ),
             ),
+            ConfigVariable.QUERY_BATCH_DRIVER_MAX_READ_PARALLELISM: ConfigVariableInfo(
+                help_msg='Maximum number of parallel reads of partition results',
+                validation=(
+                    lambda x: re.fullmatch(r'[1-9]\d*', x) is not None,
+                    'should be a positive integer',
+                ),
+            ),
             ConfigVariable.QUERY_NAME_PREFIX: ConfigVariableInfo(
                 help_msg='Name used when displaying query progress in a progress bar',
                 validation=(lambda x: re.fullmatch(r'[^\s]+', x) is not None, 'should be single word without spaces'),

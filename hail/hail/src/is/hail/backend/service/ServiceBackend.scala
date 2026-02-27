@@ -5,7 +5,7 @@ import is.hail.backend._
 import is.hail.backend.Backend.PartitionFn
 import is.hail.backend.ExecutionCache.Flags.UseFastRestarts
 import is.hail.backend.local.LocalTaskContext
-import is.hail.backend.service.ServiceBackend.MaxConcurrentPartitionReads
+import is.hail.backend.service.ServiceBackend.Flags._
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.Validate
@@ -33,12 +33,14 @@ import java.util.concurrent.{ExecutorCompletionService, Executors, Future => JFu
 import com.fasterxml.jackson.core.StreamReadConstraints
 
 object ServiceBackend {
+  object Flags {
+    val UseAsyncProfiler = "profile"
+  }
 
   // Chosen (somewhat arbitrarily) to limit the amount of memory the driver
   // needs to execute range_table(10_000).repartition(10_000)._force_count()
   // so that it can run on "standard" workers without performance overhead.
-  // TODO: make user configurable.
-  val MaxConcurrentPartitionReads = 50
+  val DefaultMaxReadParallelism = 50
 
   // See https://github.com/hail-is/hail/issues/14580
   StreamReadConstraints.overrideDefaultStreamReadConstraints(
@@ -55,6 +57,7 @@ object ServiceBackend {
     storage: String,
     cloudfuse: Array[CloudfuseConfig],
     regions: Array[String],
+    maxReadParallelism: String,
   ): ServiceBackend = {
     val credentials: CloudCredentials =
       HailCredentials().getOrElse(CloudCredentials(keyPath = None))
@@ -92,6 +95,7 @@ object ServiceBackend {
       GitRevision(Revision),
       BatchConfig(batchId, 0),
       workerConfig,
+      Option(maxReadParallelism).map(_.toInt).getOrElse(DefaultMaxReadParallelism),
     )
   }
 }
@@ -110,6 +114,7 @@ class ServiceBackend(
   jarSpec: JarSpec,
   val batchConfig: BatchConfig,
   jobConfig: BatchJobConfig,
+  maxReadParallelism: Int,
 ) extends Backend with Logging {
 
   private[this] val batchId = batchConfig.batchId
@@ -117,7 +122,7 @@ class ServiceBackend(
 
   private[this] val executor =
     lazily {
-      Executors.newFixedThreadPool(MaxConcurrentPartitionReads)
+      Executors.newFixedThreadPool(maxReadParallelism)
     }
 
   override def defaultParallelism: Int = 4
@@ -143,7 +148,7 @@ class ServiceBackend(
           JvmJob(
             command = null,
             spec = jarSpec,
-            profile = ctx.flags.get("profile") != null,
+            profile = ctx.flags.get(UseAsyncProfiler) != null,
           )
 
         val defaultJob =
@@ -255,7 +260,7 @@ class ServiceBackend(
 
           // Fill the window
           var inFlight = 0
-          while (inFlight < MaxConcurrentPartitionReads && iter.hasNext) {
+          while (inFlight < maxReadParallelism && iter.hasNext) {
             push()
             inFlight += 1
           }
@@ -439,7 +444,7 @@ class ServiceBackend(
 
   override def close(): Unit = {
     if (executor.isEvaluated) executor.shutdownNow()
-    if (batchClient != null) batchClient.close() // see Worker
+    batchClient.close()
   }
 
   override def execute(ctx: ExecuteContext, ir: IR): Either[Unit, (PTuple, Long)] =
