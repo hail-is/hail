@@ -26,9 +26,11 @@
       <ul style="list-style: none; padding: 0; margin: 0;">
         <li>
           {% if review_approved %}
-          <span class="material-symbols-outlined" style="color: green; vertical-align: middle; font-size: 1.3rem; font-variation-settings: 'FILL' 1, 'wght' 700;">check_circle</span> Approved
+          <span class="material-symbols-outlined" style="color: green; vertical-align: middle; font-size: 1.3rem; font-variation-settings: 'FILL' 1, 'wght' 700;">check_circle</span> PR approved
+          {% elif pr.review_state == 'changes_requested' %}
+          <span class="material-symbols-outlined" style="color: red; vertical-align: middle; font-size: 1.3rem; font-variation-settings: 'FILL' 1, 'wght' 700;">block</span> Changes requested
           {% else %}
-          <span class="material-symbols-outlined" style="color: grey; vertical-align: middle; font-size: 1.3rem; font-variation-settings: 'FILL' 1, 'wght' 700;">pending</span> Not yet approved ({{ pr.review_state or 'pending' }})
+          <span class="material-symbols-outlined" style="color: grey; vertical-align: middle; font-size: 1.3rem; font-variation-settings: 'FILL' 1, 'wght' 700;">pending</span> Awaiting review
           {% endif %}
         </li>
         <li>
@@ -68,7 +70,7 @@
       </p>
       {% else %}
       {% if prs_ahead_in_queue %}
-      <p>{{ prs_ahead_in_queue | length }} approved PR(s) ahead:</p>
+      <p>{{ prs_ahead_in_queue | length }} PR(s) ahead in queue:</p>
       <ul>
         {% for ahead_pr in prs_ahead_in_queue %}
         <li><a href="{{ base_path }}/watched_branches/{{ wb.index }}/pr/{{ ahead_pr['number'] }}">#{{ ahead_pr['number'] }}</a> — {{ ahead_pr['title'] }}{% if ahead_pr['is_merge_candidate'] %} <em>(merge candidate)</em>{% endif %}</li>
