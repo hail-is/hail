@@ -34,9 +34,6 @@
         <li>
           {% if checks_all_pass %}
           <span class="material-symbols-outlined" style="color: green; vertical-align: middle; font-size: 1.3rem; font-variation-settings: 'FILL' 1, 'wght' 700;">check_circle</span> All checks passing
-            {% if not is_up_to_date %}
-            <span style="color: darkorange;"> — built against an older target SHA, success may be stale</span>
-            {% endif %}
           {% elif pr.build_state is none %}
           <span class="material-symbols-outlined" style="color: grey; vertical-align: middle; font-size: 1.3rem; font-variation-settings: 'FILL' 1, 'wght' 700;">pending</span> Build in progress
           {% else %}
