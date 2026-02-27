@@ -197,6 +197,27 @@ async def _populate_active_pr_context(page_context: Dict[str, Any], wb: WatchedB
     pr = wb.prs[pr_number]
     page_context['pr'] = pr
     page_context['active_pr'] = True
+
+    # Merge eligibility checklist
+    page_context['review_approved'] = pr.review_state == 'approved'
+    page_context['checks_all_pass'] = len(pr.last_known_github_status) > 0 and pr.build_succeeding_on_all_platforms()
+    page_context['is_up_to_date'] = pr.is_up_to_date()
+    page_context['blocking_labels'] = [label for label in pr.labels if label in ('WIP', 'stacked PR')]
+    page_context['is_mergeable'] = pr.is_mergeable()
+
+    # Merge queue: mergeable PRs with higher priority than this one
+    page_context['prs_ahead_in_queue'] = [
+        {'number': p.number, 'title': p.title}
+        for p in wb.prs_in_merge_priority_order()
+        if p.number != pr.number and p.merge_priority() > pr.merge_priority() and p.is_mergeable()
+    ]
+
+    # Deploy batch blocking next merge (running but not yet complete)
+    deploy_batch = wb.deploy_batch
+    page_context['blocking_deploy_batch_id'] = (
+        deploy_batch.id if deploy_batch and isinstance(deploy_batch, Batch) and wb.deploy_state is None else None
+    )
+
     batch = pr.batch
     if batch:
         if isinstance(batch, Batch):
