@@ -78,6 +78,8 @@
       <p>No approved PRs ahead — this PR is next to merge.</p>
       {% elif is_merge_candidate %}
       <p>This PR is the current merge candidate.</p>
+      {% else %}
+      <p>Not yet in the merge queue — awaiting build results.</p>
       {% endif %}
       {% if blocking_deploy_batch_id %}
       <p>
