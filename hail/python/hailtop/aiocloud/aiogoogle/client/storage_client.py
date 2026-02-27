@@ -8,13 +8,9 @@ from types import TracebackType
 from typing import Any, AsyncIterator, Callable, Coroutine, Dict, List, MutableMapping, Optional, Set, Tuple, Type, cast
 
 import aiohttp
-from google.auth.aio.credentials import AnonymousCredentials
-from google.cloud.storage import Client, transfer_manager
-from google.oauth2.credentials import Credentials
 from multidict import CIMultiDictProxy  # pylint: disable=unused-import  # pylint: disable=unused-import
 
 from hailtop import timex
-from hailtop.aiocloud.common import AnonymousCloudCredentials
 from hailtop.aiotools import FeedableAsyncIterable, WriteBuffer
 from hailtop.aiotools.fs import (
     AsyncFS,
@@ -323,29 +319,10 @@ class GoogleStorageClient(GoogleBaseClient):
         if 'timeout' not in kwargs and 'http_session' not in kwargs:
             # Around May 2022, GCS started timing out a lot with our default 5s timeout
             kwargs['timeout'] = aiohttp.ClientTimeout(total=20)
-
-        timeout = kwargs.get('timeout')
-        if isinstance(timeout, aiohttp.ClientTimeout):
-            self._timeout = timeout.total
-        elif isinstance(timeout, (int, float)):
-            self._timeout = timeout
-        else:
-            self._timeout = 20
-
         super().__init__('https://storage.googleapis.com/storage/v1', **kwargs)
         self._gcs_requester_pays_configuration = get_gcs_requester_pays_configuration(
             gcs_requester_pays_configuration=gcs_requester_pays_configuration
         )
-        credentials = kwargs.get('credentials')
-        if isinstance(credentials, GoogleCredentials):
-            access_token = credentials.access_token
-            gcp_credentials = Credentials(token=access_token)
-        elif isinstance(credentials, AnonymousCloudCredentials):
-            gcp_credentials = AnonymousCredentials()
-        else:
-            gcp_credentials = None
-
-        self._client = Client(credentials=gcp_credentials)
 
     async def bucket_info(self, bucket: str) -> Dict[str, Any]:
         """
@@ -437,44 +414,6 @@ class GoogleStorageClient(GoogleBaseClient):
     async def list_objects(self, bucket: str, **kwargs) -> PageIterator:
         self._update_params_with_user_project(kwargs, bucket)
         return PageIterator(self, f'/b/{bucket}/o', kwargs)
-
-    async def download_to_file(self, bucket: str, src: str, dest: str) -> None:
-        if isinstance(self._gcs_requester_pays_configuration, str):
-            user_project = self._gcs_requester_pays_configuration
-        elif isinstance(self._gcs_requester_pays_configuration, tuple):
-            project, buckets = self._gcs_requester_pays_configuration
-            if bucket in buckets:
-                user_project = project
-            else:
-                user_project = None
-        else:
-            user_project = None
-
-        bucket_instance = self._client.bucket(bucket, user_project=user_project)
-        blob = bucket_instance.blob(src)
-        if dest.startswith('file://'):
-            local_dest = urllib.parse.urlparse(dest).path
-        else:
-            local_dest = dest
-        try:
-            await asyncio.to_thread(
-                transfer_manager.download_chunks_concurrently,
-                blob=blob,
-                filename=dest,
-                chunk_size=128 * 1024 * 1024,
-                download_kwargs={'timeout': self._timeout},
-                max_workers=32,
-            )
-        except FileNotFoundError:
-            os.makedirs(os.path.dirname(local_dest), exist_ok=True)
-            await asyncio.to_thread(
-                transfer_manager.download_chunks_concurrently,
-                blob=blob,
-                filename=dest,
-                chunk_size=128 * 1024 * 1024,
-                download_kwargs={'timeout': self._timeout},
-                max_workers=32,
-            )
 
     async def compose(self, bucket: str, names: List[str], destination: str, **kwargs) -> None:
         assert destination
@@ -801,13 +740,6 @@ class GoogleStorageAsyncFS(AsyncFS):
             assert length >= 1
             range_str += str(start + length - 1)
         return await self._storage_client.get_object(fsurl._bucket, fsurl._path, headers={'Range': range_str})
-
-    async def copy_to(self, url: str, dest):
-        if dest.startswith('file://') or '://' not in dest:
-            fsurl = self.parse_url(url, error_if_bucket=True)
-            return await retry_transient_errors(self._storage_client.download_to_file, fsurl._bucket, fsurl._path, dest)
-        else:
-            raise NotImplementedError
 
     async def create(self, url: str, *, retry_writes: bool = True) -> WritableStream:
         fsurl = self.parse_url(url, error_if_bucket=True)

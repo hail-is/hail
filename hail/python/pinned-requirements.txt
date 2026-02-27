@@ -115,44 +115,15 @@ frozenlist==1.8.0
     #   -r hail/python/hailtop/requirements.txt
     #   aiohttp
     #   aiosignal
-google-api-core==2.30.0
-    # via
-    #   -c hail/python/hailtop/pinned-requirements.txt
-    #   google-cloud-core
-    #   google-cloud-storage
 google-auth==2.48.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
-    #   google-api-core
     #   google-auth-oauthlib
-    #   google-cloud-core
-    #   google-cloud-storage
 google-auth-oauthlib==0.8.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
-google-cloud-core==2.5.0
-    # via
-    #   -c hail/python/hailtop/pinned-requirements.txt
-    #   google-cloud-storage
-google-cloud-storage==3.9.0
-    # via
-    #   -c hail/python/hailtop/pinned-requirements.txt
-    #   -r hail/python/hailtop/requirements.txt
-google-crc32c==1.8.0
-    # via
-    #   -c hail/python/hailtop/pinned-requirements.txt
-    #   google-cloud-storage
-    #   google-resumable-media
-google-resumable-media==2.8.0
-    # via
-    #   -c hail/python/hailtop/pinned-requirements.txt
-    #   google-cloud-storage
-googleapis-common-protos==1.72.0
-    # via
-    #   -c hail/python/hailtop/pinned-requirements.txt
-    #   google-api-core
 humanize==4.15.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
@@ -240,16 +211,6 @@ propcache==0.4.1
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   aiohttp
     #   yarl
-proto-plus==1.27.1
-    # via
-    #   -c hail/python/hailtop/pinned-requirements.txt
-    #   google-api-core
-protobuf==6.33.5
-    # via
-    #   -c hail/python/hailtop/pinned-requirements.txt
-    #   google-api-core
-    #   googleapis-common-protos
-    #   proto-plus
 py4j==0.10.9.7
     # via pyspark
 pyasn1==0.6.2
@@ -304,8 +265,6 @@ requests==2.32.5
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/requirements.txt
     #   azure-core
-    #   google-api-core
-    #   google-cloud-storage
     #   msal
     #   msrest
     #   requests-oauthlib
