@@ -142,9 +142,10 @@ def web_security_header_generator(fun, extra_script: str = '', extra_style: str 
         script_src = f'script-src \'self\' {extra_script} cdn.jsdelivr.net cdn.plot.ly;'
         img_src = f'img-src \'self\' {extra_img};'
         frame_ancestors = 'frame-ancestors \'self\';'
+        form_action = 'form-action \'self\';'
 
         response.headers['Content-Security-Policy'] = (
-            f'{default_src} {font_src} {style_src} {script_src} {img_src} {frame_ancestors}'
+            f'{default_src} {font_src} {style_src} {script_src} {img_src} {frame_ancestors} {form_action}'
         )
         return response
 
