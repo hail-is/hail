@@ -44,11 +44,11 @@
         </li>
         <li>
           {% if is_up_to_date %}
-          <span class="material-symbols-outlined" style="color: green; vertical-align: middle; font-size: 1.3rem; font-variation-settings: 'FILL' 1, 'wght' 700;">check_circle</span> Built against current target SHA
+          <span class="material-symbols-outlined" style="color: green; vertical-align: middle; font-size: 1.3rem; font-variation-settings: 'FILL' 1, 'wght' 700;">check_circle</span> Target SHA matches HEAD
           {% elif is_merge_candidate %}
-          <span class="material-symbols-outlined" style="color: orange; vertical-align: middle; font-size: 1.3rem; font-variation-settings: 'FILL' 1, 'wght' 700;">warning</span> Built against an older target SHA — rebuild starting shortly
+          <span class="material-symbols-outlined" style="color: orange; vertical-align: middle; font-size: 1.3rem; font-variation-settings: 'FILL' 1, 'wght' 700;">warning</span> Target SHA does not match HEAD - rebuild starting shortly
           {% else %}
-          <span class="material-symbols-outlined" style="color: orange; vertical-align: middle; font-size: 1.3rem; font-variation-settings: 'FILL' 1, 'wght' 700;">warning</span> Built against an older target SHA — waiting to become merge candidate
+          <span class="material-symbols-outlined" style="color: orange; vertical-align: middle; font-size: 1.3rem; font-variation-settings: 'FILL' 1, 'wght' 700;">warning</span> Target SHA does not match HEAD - will rebuild once merge candidate
           {% endif %}
         </li>
         {% if blocking_labels %}
@@ -62,7 +62,7 @@
     <div class="attributes">
       <h2>Merge Queue</h2>
       {% if build_failing or not review_approved %}
-      <p>Not in the merge queue —
+      <p>Not in the merge queue -
         {% if build_failing and not review_approved %}needs approval and build is failing.
         {% elif not review_approved %}needs approval.
         {% else %}build is failing.
@@ -73,20 +73,20 @@
       <p>{{ prs_ahead_in_queue | length }} PR(s) ahead in queue:</p>
       <ul>
         {% for ahead_pr in prs_ahead_in_queue %}
-        <li><a href="{{ base_path }}/watched_branches/{{ wb.index }}/pr/{{ ahead_pr['number'] }}">#{{ ahead_pr['number'] }}</a> — {{ ahead_pr['title'] }}{% if ahead_pr['is_merge_candidate'] %} <em>(merge candidate)</em>{% endif %}</li>
+        <li><a href="{{ base_path }}/watched_branches/{{ wb.index }}/pr/{{ ahead_pr['number'] }}">#{{ ahead_pr['number'] }}</a> - {{ ahead_pr['title'] }}{% if ahead_pr['is_merge_candidate'] %} <em>(merge candidate)</em>{% endif %}</li>
         {% endfor %}
       </ul>
       {% elif is_mergeable %}
-      <p>No approved PRs ahead — this PR is next to merge.</p>
+      <p>No approved PRs ahead - this PR is next to merge.</p>
       {% elif is_merge_candidate %}
       <p>This PR is the current merge candidate.</p>
       {% else %}
-      <p>Not yet in the merge queue — awaiting build results.</p>
+      <p>Not yet in the merge queue - awaiting build results.</p>
       {% endif %}
       {% if blocking_deploy_batch_id %}
       <p>
         <span class="material-symbols-outlined" style="color: orange; vertical-align: middle; font-size: 1.3rem; font-variation-settings: 'FILL' 1, 'wght' 700;">hourglass_top</span>
-        Deploy batch <a rel="noopener" href="{{ batch_base_url }}/batches/{{ blocking_deploy_batch_id }}">{{ blocking_deploy_batch_id }}</a> is running — merge blocked until it completes.
+        Deploy batch <a rel="noopener" href="{{ batch_base_url }}/batches/{{ blocking_deploy_batch_id }}">{{ blocking_deploy_batch_id }}</a> is running - merge blocked until it completes.
       </p>
       {% endif %}
       {% endif %}
@@ -132,7 +132,7 @@
     </pre>
     {% else %}
     {% if active_pr %}
-    <p>Build queued — waiting for a build slot. <a href="{{ ci_base_url }}">View CI dashboard</a>.</p>
+    <p>Build queued - waiting for a build slot. <a href="{{ ci_base_url }}">View CI dashboard</a>.</p>
     {% else %}
     <p>No builds found.</p>
     {% endif %}
