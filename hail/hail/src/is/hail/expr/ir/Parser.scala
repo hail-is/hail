@@ -1538,7 +1538,8 @@ object IRParser {
       case "TableKeyBy" =>
         val keys = identifiers(it)
         val isSorted = boolean_literal(it)
-        table_ir(ctx)(it).map(child => TableKeyBy(child, keys, isSorted))
+        val nPartitions = opt(it, int32_literal)
+        table_ir(ctx)(it).map(child => TableKeyBy(child, keys, isSorted, nPartitions))
       case "TableDistinct" => table_ir(ctx)(it).map(TableDistinct)
       case "TableFilter" =>
         for {

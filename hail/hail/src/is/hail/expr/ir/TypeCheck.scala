@@ -631,7 +631,7 @@ object TypeCheck {
             .intersect(right.typ.globalType.fieldNames.toSet)
             .isEmpty
         )
-      case TableKeyBy(child, keys, _) =>
+      case TableKeyBy(child, keys, _, _) =>
         val fields = child.typ.rowType.fieldNames.toSet
         assert(
           keys.forall(fields.contains),
