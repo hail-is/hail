@@ -3577,7 +3577,6 @@ class IRSuite extends HailSuite {
         ETypeValueWriter(TypedCodecSpec(ctx, PInt32(), BufferSpec.default)),
         Some(Str("/tmp/uid/part")),
       ),
-      LiftMeOut(I32(1)),
       relationalBindIR(I32(0))(_ => I32(0)), {
         val y = freshName()
         TailLoop(y, IndexedSeq(freshName() -> I32(0)), TInt32, Recur(y, FastSeq(I32(4)), TInt32))

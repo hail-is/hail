@@ -1121,8 +1121,6 @@ object Main {
       errorID,
     ).withTraits(ApplyNode(missingnessAware = true))
 
-    r += node("LiftMeOut", in("child", child))
-
     r += node("TableCount", tableChild)
     r += node("MatrixCount", matrixChild)
     r += node("TableAggregate", tableChild, in("query", child))

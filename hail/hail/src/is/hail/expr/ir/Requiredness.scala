@@ -858,7 +858,6 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
           case SingleCodeEmitParamType(required, _) =>
             requiredness.union(required)
         }
-      case LiftMeOut(f) => requiredness.unionFrom(lookup(f))
       case ResultOp(_, sig) =>
         val r = requiredness
         r.fromEmitType(sig.emitResultType)

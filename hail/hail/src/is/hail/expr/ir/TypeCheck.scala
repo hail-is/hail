@@ -601,7 +601,6 @@ object TypeCheck {
       case WriteValue(_, path, _, stagingFile) =>
         assert(path.typ == TString)
         assert(stagingFile.forall(_.typ == TString))
-      case LiftMeOut(_) =>
       case Consume(_) =>
 
       case TableAggregateByKey(child, _) =>
