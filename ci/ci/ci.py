@@ -205,12 +205,19 @@ async def _populate_active_pr_context(page_context: Dict[str, Any], wb: WatchedB
     page_context['blocking_labels'] = [label for label in pr.labels if label in ('WIP', 'stacked PR')]
     page_context['is_mergeable'] = pr.is_mergeable()
 
-    # Merge queue: mergeable PRs with higher priority than this one
+    # Merge queue: approved, non-blocked, non-failing PRs with higher priority
+    _do_not_merge = frozenset(('WIP', 'stacked PR'))
+    page_context['build_failing'] = pr.build_failed_on_at_least_one_platform()
     page_context['prs_ahead_in_queue'] = [
-        {'number': p.number, 'title': p.title}
+        {'number': p.number, 'title': p.title, 'is_merge_candidate': p is wb.merge_candidate}
         for p in wb.prs_in_merge_priority_order()
-        if p.number != pr.number and p.merge_priority() > pr.merge_priority() and p.is_mergeable()
+        if p.number != pr.number
+        and p.merge_priority() > pr.merge_priority()
+        and p.review_state == 'approved'
+        and not any(label in _do_not_merge for label in p.labels)
+        and not p.build_failed_on_at_least_one_platform()
     ]
+    page_context['is_merge_candidate'] = wb.merge_candidate is not None and wb.merge_candidate.number == pr.number
 
     # Deploy batch blocking next merge (running but not yet complete)
     deploy_batch = wb.deploy_batch
