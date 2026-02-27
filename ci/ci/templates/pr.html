@@ -60,9 +60,16 @@
       </ul>
     </div>
 
-    {% if not build_failing and (prs_ahead_in_queue or is_merge_candidate or is_mergeable or blocking_deploy_batch_id) %}
     <div class="attributes">
       <h2>Merge Queue</h2>
+      {% if build_failing or not review_approved %}
+      <p>Not in the merge queue —
+        {% if build_failing and not review_approved %}needs approval and build is failing.
+        {% elif not review_approved %}needs approval.
+        {% else %}build is failing.
+        {% endif %}
+      </p>
+      {% else %}
       {% if prs_ahead_in_queue %}
       <p>{{ prs_ahead_in_queue | length }} approved PR(s) ahead:</p>
       <ul>
@@ -81,10 +88,11 @@
         Deploy batch <a rel="noopener" href="{{ batch_base_url }}/batches/{{ blocking_deploy_batch_id }}">{{ blocking_deploy_batch_id }}</a> is running — merge blocked until it completes.
       </p>
       {% endif %}
+      {% endif %}
     </div>
     {% endif %}
-    {% endif %}
 
+    <h2>Current Build</h2>
     {% if batch is defined %}
     <div class="attributes">
       <div>batch: <a rel="noopener" href="{{ batch_base_url }}/batches/{{ batch['id'] }}">{{ batch['id'] }}</a></div>
@@ -106,7 +114,7 @@
     {% endif %}
 
     {% if logging_queries is not none %}
-    <h2>Logging Queries</h2>
+    <h3>Logging Queries</h3>
     <div class="logging-queries">
     {% for name, link in logging_queries.items() %}
     <div><a href="{{ link }}">{{ name }}</a></div>
@@ -114,7 +122,7 @@
     </div>
     {% endif %}
 
-    <h2>Jobs</h2>
+    <h3>Jobs</h3>
     {{ filtered_jobs(running, failed, pending, completed) }}
     {% elif exception is defined %}
     <p>Build error:</p>
