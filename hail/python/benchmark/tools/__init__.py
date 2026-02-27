@@ -1,22 +1,8 @@
 import logging
-from typing import Any, Callable, Generator, List, Optional, Sequence, TypeVar
+from typing import Any, List, Optional
 
 from hail.expr import ArrayStructExpression
 from hail.expr import enumerate as hl_enumerate
-
-A = TypeVar('A')
-
-
-def chunk(size: int, seq: Sequence[A]) -> Generator[Sequence[A], A, Any]:
-    for pos in range(0, len(seq), size):
-        yield seq[pos : pos + size]
-
-
-B = TypeVar('B')
-
-
-def maybe(f: Callable[[A], B], ma: Optional[A], default: Optional[B] = None) -> Optional[B]:
-    return f(ma) if ma is not None else default
 
 
 def prune(kvs: dict) -> dict:

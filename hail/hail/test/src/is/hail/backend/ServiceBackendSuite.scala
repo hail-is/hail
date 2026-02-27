@@ -71,12 +71,12 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
           val jobs = jobGroup.jobs
           jobs.length shouldEqual contexts.length
           jobs.foreach { payload =>
-            payload.regions.value shouldBe jobConfig.regions
+            payload.regions shouldBe jobConfig.regions
             payload.resources.value shouldBe JobResources(
               preemptible = true,
-              cpu = Some(jobConfig.worker_cores),
-              memory = Some(jobConfig.worker_memory),
-              storage = Some(jobConfig.storage),
+              cpu = jobConfig.worker_cores,
+              memory = jobConfig.worker_memory,
+              storage = jobConfig.storage,
             )
           }
 
@@ -353,11 +353,11 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
 
       val jobConfig =
         BatchJobConfig(
-          worker_cores = "128",
-          worker_memory = "a lot.",
-          storage = "a big ssd?",
-          cloudfuse_configs = Array(),
-          regions = Array("lunar1"),
+          worker_cores = Some("128"),
+          worker_memory = Some("a lot."),
+          storage = Some("a big ssd?"),
+          cloudfuse_configs = None,
+          regions = Some(Array("lunar1")),
         )
 
       // no idea why this trigger the missing override rule
@@ -373,6 +373,7 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
           batchConfig =
             BatchConfig(batchId = Random.nextInt(100), jobGroupId = Random.nextInt(100)),
           jobConfig = jobConfig,
+          maxReadParallelism = 2,
         )
 
       def localTmpDirectory: Directory with Closeable =

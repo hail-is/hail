@@ -178,6 +178,7 @@ class HailContext(object):
     worker_cores=nullable(oneof(str, int)),
     worker_memory=nullable(str),
     batch_id=nullable(int),
+    max_read_parallelism=nullable(int),
     gcs_requester_pays_configuration=nullable(oneof(str, sized_tupleof(str, sequenceof(str)))),
     regions=nullable(sequenceof(str)),
     gcs_bucket_allow_list=nullable(dictof(str, sequenceof(str))),
@@ -207,6 +208,7 @@ def init(
     worker_cores=None,
     worker_memory=None,
     batch_id=None,
+    max_read_parallelism: int | None = None,
     gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
     regions: Optional[List[str]] = None,
     gcs_bucket_allow_list: Optional[Dict[str, List[str]]] = None,
@@ -322,6 +324,8 @@ def init(
         highmem. Default is standard.
     batch_id: :class:`int`, optional
         Batch backend only. An existing batch id to add jobs to.
+    max_read_parallelism: :class:`int`, optional
+        Batch backend only. Maximum number of partition results that the driver may read in parallel
     gcs_requester_pays_configuration : either :class:`str` or :class:`tuple` of :class:`str` and :class:`list` of :class:`str`, optional
         If a string is provided, configure the Google Cloud Storage file system to bill usage to the
         project identified by that string. If a tuple is provided, configure the Google Cloud
@@ -385,6 +389,7 @@ def init(
                 regions=regions,
                 gcs_bucket_allow_list=gcs_bucket_allow_list,
                 branching_factor=branching_factor,
+                max_read_parallelism=max_read_parallelism,
             )
         else:
             return hail_event_loop().run_until_complete(
@@ -405,6 +410,7 @@ def init(
                     regions=regions,
                     gcs_bucket_allow_list=gcs_bucket_allow_list,
                     branching_factor=branching_factor,
+                    max_read_parallelism=max_read_parallelism,
                 )
             )
     if backend == 'spark':
@@ -534,6 +540,7 @@ def init_spark(
     regions=nullable(sequenceof(str)),
     gcs_bucket_allow_list=nullable(sequenceof(str)),
     branching_factor=nullable(int),
+    max_read_parallelism=nullable(int),
 )
 async def init_batch(
     *,
@@ -557,6 +564,7 @@ async def init_batch(
     regions: Optional[List[str]] = None,
     gcs_bucket_allow_list: Optional[List[str]] = None,
     branching_factor: Optional[int] = None,
+    max_read_parallelism: int | None = None,
 ):
     from hail.backend.service_backend import ServiceBackend
 
@@ -576,6 +584,7 @@ async def init_batch(
         gcs_requester_pays_configuration=gcs_requester_pays_configuration,
         gcs_bucket_allow_list=gcs_bucket_allow_list,
         branching_factor=branching_factor,
+        max_read_parallelism=max_read_parallelism,
     )
 
     log = _get_log(log)

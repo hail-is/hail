@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 import hail as hl
-from benchmark.tools import maybe
+from hail.utils.misc import maybe
 from hailtop.utils import async_to_blocking, retry_transient_errors
 
 

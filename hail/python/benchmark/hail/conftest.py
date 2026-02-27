@@ -88,7 +88,8 @@ from benchmark.hail.utils import (
     init_hail_for_benchmarks,
     run_with_timeout,
 )
-from benchmark.tools import maybe, prune
+from benchmark.tools import prune
+from hail.utils import maybe
 from hail.utils.java import Env
 
 
