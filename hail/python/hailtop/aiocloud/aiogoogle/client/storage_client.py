@@ -438,7 +438,7 @@ class GoogleStorageClient(GoogleBaseClient):
         self._update_params_with_user_project(kwargs, bucket)
         return PageIterator(self, f'/b/{bucket}/o', kwargs)
 
-    async def download_to_file(self, bucket: str, src: str, dest: str) -> None:
+    async def download_to_file(self, bucket: str, src: str, dest: str, *, size: Optional[int] = None) -> None:
         if isinstance(self._gcs_requester_pays_configuration, str):
             user_project = self._gcs_requester_pays_configuration
         elif isinstance(self._gcs_requester_pays_configuration, tuple):
@@ -456,25 +456,37 @@ class GoogleStorageClient(GoogleBaseClient):
             local_dest = urllib.parse.urlparse(dest).path
         else:
             local_dest = dest
-        try:
-            await asyncio.to_thread(
-                transfer_manager.download_chunks_concurrently,
-                blob=blob,
-                filename=dest,
-                chunk_size=128 * 1024 * 1024,
-                download_kwargs={'timeout': self._timeout},
-                max_workers=32,
-            )
-        except FileNotFoundError:
-            os.makedirs(os.path.dirname(local_dest), exist_ok=True)
-            await asyncio.to_thread(
-                transfer_manager.download_chunks_concurrently,
-                blob=blob,
-                filename=dest,
-                chunk_size=128 * 1024 * 1024,
-                download_kwargs={'timeout': self._timeout},
-                max_workers=32,
-            )
+
+        chunk_size = 128 * 1024 * 1024
+        timeout = int(self._timeout) if self._timeout is not None else 60
+        if size is not None and size >= chunk_size:
+            # Large file: parallel chunked download via transfer_manager
+            try:
+                await asyncio.to_thread(
+                    transfer_manager.download_chunks_concurrently,
+                    blob=blob,
+                    filename=local_dest,
+                    chunk_size=chunk_size,
+                    download_kwargs={'timeout': timeout},
+                    max_workers=32,
+                )
+            except FileNotFoundError:
+                os.makedirs(os.path.dirname(local_dest), exist_ok=True)
+                await asyncio.to_thread(
+                    transfer_manager.download_chunks_concurrently,
+                    blob=blob,
+                    filename=local_dest,
+                    chunk_size=chunk_size,
+                    download_kwargs={'timeout': timeout},
+                    max_workers=32,
+                )
+        else:
+            # Small or unknown size: single streaming download, minimal thread overhead
+            try:
+                await asyncio.to_thread(blob.download_to_filename, local_dest, timeout=timeout)
+            except FileNotFoundError:
+                os.makedirs(os.path.dirname(local_dest), exist_ok=True)
+                await asyncio.to_thread(blob.download_to_filename, local_dest, timeout=timeout)
 
     async def compose(self, bucket: str, names: List[str], destination: str, **kwargs) -> None:
         assert destination
@@ -802,10 +814,12 @@ class GoogleStorageAsyncFS(AsyncFS):
             range_str += str(start + length - 1)
         return await self._storage_client.get_object(fsurl._bucket, fsurl._path, headers={'Range': range_str})
 
-    async def copy_to(self, url: str, dest):
+    async def copy_to(self, url: str, dest: str, *, size: Optional[int] = None):
         if dest.startswith('file://') or '://' not in dest:
             fsurl = self.parse_url(url, error_if_bucket=True)
-            return await retry_transient_errors(self._storage_client.download_to_file, fsurl._bucket, fsurl._path, dest)
+            return await retry_transient_errors(
+                self._storage_client.download_to_file, fsurl._bucket, fsurl._path, dest, size=size
+            )
         else:
             raise NotImplementedError
 

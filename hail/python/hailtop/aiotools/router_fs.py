@@ -114,9 +114,9 @@ class RouterAsyncFS(AsyncFS):
         fs = await self._get_fs(url)
         return await fs.open_from(url, start, length=length)
 
-    async def copy_to(self, url: str, dest: str):
+    async def copy_to(self, url: str, dest: str, *, size: Optional[int] = None):
         fs = await self._get_fs(url)
-        return await fs.copy_to(url, dest)
+        return await fs.copy_to(url, dest, size=size)
 
     async def create(self, url: str, *, retry_writes: bool = True) -> AsyncContextManager[WritableStream]:
         fs = await self._get_fs(url)
