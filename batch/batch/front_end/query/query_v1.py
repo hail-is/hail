@@ -267,11 +267,19 @@ def parse_job_group_jobs_query_v1(
     sql = f"""
 WITH base_t AS
 (
-  SELECT jobs.*, batches.user, batches.billing_project, batches.format_version,
-    job_attributes.value AS name
+  SELECT jobs.*
+       , batches.user
+       , batches.billing_project
+       , batches.format_version
+       , job_attributes.value AS name
+       , attempts.end_time
   FROM jobs
   INNER JOIN batches ON jobs.batch_id = batches.id
   INNER JOIN batch_updates ON jobs.batch_id = batch_updates.batch_id AND jobs.update_id = batch_updates.update_id
+  LEFT JOIN attempts
+    ON  jobs.batch_id = attempts.batch_id
+    AND jobs.job_id = attempts.job_id
+    AND jobs.attempt_id = attempts.attempt_id
   LEFT JOIN job_attributes
   ON jobs.batch_id = job_attributes.batch_id AND
     jobs.job_id = job_attributes.job_id AND
