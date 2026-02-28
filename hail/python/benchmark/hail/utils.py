@@ -95,7 +95,7 @@ def run_with_timeout(max_duration, fn, *args, **kwargs):
             from hail.backend.spark_backend import SparkBackend
 
             if isinstance(b := hl.current_backend(), SparkBackend):
-                b.sc.cancelAllJobs()
+                b._spark._sc.cancelAllJobs()
 
             yield (max_duration, True, traceback.format_exc())
             raise TimeoutError(f'Timed out after {max_duration}s')

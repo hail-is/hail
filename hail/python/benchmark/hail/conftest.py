@@ -72,6 +72,8 @@ from benchmark.hail.fixtures import (
     many_strings_ht,
     many_strings_tsv,
     onekg_chr22,
+    onethreethree,
+    onethreetwo,
     profile25_mt,
     profile25_vcf,
     random_doubles_mt,
@@ -119,20 +121,18 @@ def pytest_runtest_protocol(item, nextitem):
     # - each benchmark runs in a clean hail session
     # - our means of getting max task memory is quite crude (regex on logs)
     #   and a fresh session provides a new log
-    with init_hail(item.config):
-        if (num_iterations := item.config.getoption('iterations')) is not None:
-            burn_in_iterations = 0
-            logging.info(
-                msg=(
-                    f'Picked up iterations override. Config: '
-                    f'burn_in_iterations: {burn_in_iterations}, '
-                    f'iterations: {num_iterations}.'
-                )
-            )
 
-        else:
-            burn_in_iterations = 1
-            num_iterations = 5
+    nburn_in_iterations = maybe(lambda x: x, item.config.getoption('burn_in_iterations'), 1)
+    niterations = maybe(lambda x: x, item.config.getoption('iterations'), 3)
+
+    with init_hail(item.config):
+        logging.info(
+            msg=(
+                f'Executing "{item.nodeid}" with '
+                f'{nburn_in_iterations} burn in iterations and '
+                f'{niterations} timed iterations.'
+            ),
+        )
 
         s = item.stash
         s[start] = datetime.now(timezone.utc).isoformat()
@@ -140,18 +140,10 @@ def pytest_runtest_protocol(item, nextitem):
         s[consecutive_fail_count] = 0
         s[end] = None
 
-        logging.info(
-            msg=(
-                f'Executing "{item.nodeid}" with '
-                f'{burn_in_iterations} burn in iterations and '
-                f'{num_iterations} timed iterations.'
-            )
-        )
-
         max_failures = item.config.getoption('max_failures')
 
         s[context] = 'burn_in'
-        for k in range(burn_in_iterations):
+        for k in range(nburn_in_iterations):
             if max_failures and s[consecutive_fail_count] >= max_failures:
                 break
 
@@ -165,8 +157,8 @@ def pytest_runtest_protocol(item, nextitem):
             runner.pytest_runtest_protocol(item, nextitem=item.parent)
 
         s[context] = 'benchmark'
-        total_iterations = burn_in_iterations + num_iterations
-        for k in range(burn_in_iterations, total_iterations):
+        total_iterations = nburn_in_iterations + niterations
+        for k in range(nburn_in_iterations, total_iterations):
             if max_failures and s[consecutive_fail_count] >= max_failures:
                 break
 
@@ -179,7 +171,7 @@ def pytest_runtest_protocol(item, nextitem):
 
         if max_failures and s[consecutive_fail_count] >= max_failures:
             logging.error(
-                msg=(f'Benchmarking "{item.nodeid}" aborted due to too many consecutive failures (max={max_failures})')
+                msg=f'Benchmarking "{item.nodeid}" aborted due to too many consecutive failures (max={max_failures})',
             )
 
     # prevent other plugins running that might invoke the benchmark again
@@ -333,6 +325,8 @@ __all__ = [
     'many_strings_tsv',
     'new_query_tmpdir',
     'onekg_chr22',
+    'onethreethree',
+    'onethreetwo',
     'profile25_mt',
     'profile25_vcf',
     'random_doubles_mt',
