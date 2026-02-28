@@ -7,7 +7,6 @@ from .web_common import (
     setup_common_static_routes,
     web_security_headers,
     web_security_headers_swagger,
-    web_security_headers_unsafe_eval,
 )
 
 __all__ = [
@@ -19,5 +18,4 @@ __all__ = [
     'setup_common_static_routes',
     'web_security_headers',
     'web_security_headers_swagger',
-    'web_security_headers_unsafe_eval',
 ]

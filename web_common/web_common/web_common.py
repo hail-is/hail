@@ -127,10 +127,6 @@ def web_security_headers_swagger(fun):
     )
 
 
-def web_security_headers_unsafe_eval(fun):
-    return web_security_header_generator(fun, extra_script='\'unsafe-eval\'')
-
-
 def web_security_header_generator(fun, extra_script: str = '', extra_style: str = '', extra_img: str = ''):
     @wraps(fun)
     async def wrapped(request, *args, **kwargs):
