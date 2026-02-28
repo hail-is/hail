@@ -289,7 +289,7 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
   }
 
   @Test def testGetCodecExtension(): Unit =
-    assert(fs.getCodecExtension("foo.vcf.bgz") == ".bgz")
+    assert(getCodecExtension("foo.vcf.bgz") == ".bgz")
 
   @Test def testReadWriteBytes(): Unit = {
     val f = t()
@@ -375,7 +375,7 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
 
     assert(fs.exists(f))
 
-    using(fs.open(f, fs.getCodecFromPath(f))) { is =>
+    using(fs.open(f)) { is =>
       is match {
         case base: Seekable => base.seek(Int.MaxValue + 2.toLong)
         case base: org.apache.hadoop.fs.Seekable => base.seek(Int.MaxValue + 2.toLong)
