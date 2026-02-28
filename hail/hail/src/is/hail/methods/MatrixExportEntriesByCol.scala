@@ -77,7 +77,7 @@ case class MatrixExportEntriesByCol(
 
       val fsBc = ctx.fsBc
       val localTempDir = ctx.localTmpdir
-      val partFolders = mv.rvd.crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
+      val partFolders = mv.rvd.crdd.cmapPartitionsWithIndex { (i, _, ctx, it) =>
         val partFolder = partFileBase + partFile(d, i, TaskContext.get())
 
         val filePaths = Array.tabulate(endIdx - startIdx) { j =>

@@ -1,7 +1,7 @@
 package is.hail.io
 
 import is.hail.annotations.{Region, RegionValue}
-import is.hail.asm4s.{theHailClassLoaderForSparkWorkers, Code, HailClassLoader}
+import is.hail.asm4s.{Code, HailClassLoader}
 import is.hail.backend.ExecuteContext
 import is.hail.sparkextras.ContextRDD
 import is.hail.types.encoded.EType
@@ -72,8 +72,8 @@ trait AbstractTypedCodecSpec extends Spec {
     val (pt, dec) = buildDecoder(ctx, requestedType)
     (
       pt,
-      ContextRDD.weaken(bytes).cmapPartitions { (ctx, it) =>
-        RegionValue.fromBytes(theHailClassLoaderForSparkWorkers, dec, ctx.region, it)
+      ContextRDD.weaken(bytes).cmapPartitions { (hcl, ctx, it) =>
+        RegionValue.fromBytes(hcl, dec, ctx.region, it)
       },
     )
   }

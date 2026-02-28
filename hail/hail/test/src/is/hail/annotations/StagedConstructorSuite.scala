@@ -2,10 +2,9 @@ package is.hail.annotations
 
 import is.hail.HailSuite
 import is.hail.asm4s._
-import is.hail.backend.{ExecuteContext, HailTaskContext}
+import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
-import is.hail.expr.ir.{EmitCode, EmitFunctionBuilder, IEmitCode, RequirednessSuite}
-import is.hail.io.fs.FS
+import is.hail.expr.ir.{Compiled, EmitCode, EmitFunctionBuilder, IEmitCode, RequirednessSuite}
 import is.hail.scalacheck._
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.concrete.SStringPointer
@@ -487,7 +486,7 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
   }
 
   def emitCopy(ctx: ExecuteContext, ptype: PType, deepCopy: Boolean)
-    : (HailClassLoader, FS, HailTaskContext, Region) => AsmFunction2[Region, Long, Long] = {
+    : Compiled[AsmFunction2[Region, Long, Long]] = {
     val fb = EmitFunctionBuilder[Region, Long, Long](ctx, "copy")
     fb.emitWithBuilder { cb =>
       val region = fb.getCodeParam[Region](1)

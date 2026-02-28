@@ -6,10 +6,7 @@ import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.compatibility
 import is.hail.expr.{ir, JSONAnnotationImpex}
-import is.hail.expr.ir.{
-  flatMapIR, partFile, IR, PartitionNativeReader, PartitionZippedIndexedNativeReader,
-  PartitionZippedNativeReader,
-}
+import is.hail.expr.ir.{flatMapIR, partFile, IR, PartitionNativeReader, PartitionZippedIndexedNativeReader, PartitionZippedNativeReader}
 import is.hail.expr.ir.defs.{Literal, ReadPartition, Ref, ToStream}
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.io._
@@ -87,6 +84,7 @@ object AbstractRVDSpec {
       using(fs.create(partsPath + "/" + filePath)) { os =>
         using(RVDContext.default(execCtx.r.pool)) { ctx =>
           RichContextRDDRegionValue.writeRowsPartition(codecSpec.buildEncoder(execCtx, rowType))(
+            execCtx.theHailClassLoader,
             ctx,
             rows.iterator.map { a =>
               rowType.unstagedStoreJavaObject(execCtx.stateManager, a, ctx.r)

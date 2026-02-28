@@ -286,7 +286,7 @@ case class MatrixValue(
     val fieldIdx = entryType.fieldIdx(entryField)
     val numColsLocal = nCols
 
-    val rows = rvd.mapPartitionsWithIndex { (pi, _, it) =>
+    val rows = rvd.mapPartitionsWithIndex { (pi, _, _, it) =>
       var i = partStartsBc.value(pi)
       it.map { ptr =>
         val data = new Array[Double](numColsLocal)

@@ -34,7 +34,7 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
           contexts,
           "stage1",
           partitions = Some(FastSeq(0)),
-        )((_, bytes, _, _, _) => bytes)
+        )((_, _, _, _) => (_, bytes) => bytes)
 
       failure.foreach(throw _)
 
@@ -102,7 +102,7 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
           Array.emptyByteArray,
           contexts,
           "stage1",
-        )((_, bytes, _, _, _) => bytes)
+        )((_, _, _, _) => (_, bytes) => bytes)
 
       failure.foreach(throw _)
 
@@ -167,7 +167,7 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
           Array.emptyByteArray,
           contexts,
           "stage1",
-        )((_, bytes, _, _, _) => bytes)
+        )((_, _, _, _) => (_, bytes) => bytes)
 
       val (shortMessage, expanded, id) = handleForPython(expectedCause)
       failure.value shouldBe HailWorkerException(failures.head, shortMessage, expanded, id)
@@ -221,7 +221,7 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
           Array.emptyByteArray,
           contexts,
           "stage1",
-        )((_, bytes, _, _, _) => bytes)
+        )((_, _, _, _) => (_, bytes) => bytes)
 
       failure.value shouldBe a[CancellationException]
       result.map(_._2) shouldBe successes

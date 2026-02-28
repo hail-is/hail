@@ -226,14 +226,13 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     path: String,
     stageLocally: Boolean,
     write: (Iterator[T], OutputStream) => (Long, Long),
-  )(implicit tct: ClassTag[T]
-  ): (Array[FileWriteMetadata]) =
+  ): Array[FileWriteMetadata] =
     ContextRDD.weaken(r).writePartitions(
       ctx,
       path,
       null,
       stageLocally,
-      (_, _) => null,
-      (_, it, os, _) => write(it, os),
+      (_, _, _) => null,
+      (_, _, it, os, _) => write(it, os),
     )
 }

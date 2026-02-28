@@ -7,5 +7,5 @@ import org.apache.spark.sql.Row
 
 class RichContextRDDRow(crdd: ContextRDD[Row]) {
   def toRegionValues(rowType: PStruct): ContextRDD[Long] =
-    crdd.cmapPartitions((ctx, it) => it.copyToRegion(ctx.region, rowType))
+    crdd.cmapPartitions((_, ctx, it) => it.copyToRegion(ctx.region, rowType))
 }

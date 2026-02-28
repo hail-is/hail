@@ -1,8 +1,9 @@
 package is.hail.linalg
 
 import is.hail.annotations._
+import is.hail.asm4s.HailClassLoader
 import is.hail.backend.{BroadcastValue, ExecuteContext, HailStateManager}
-import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
+import is.hail.backend.spark.{unsafeHailClassLoaderForSparkWorkers, SparkBackend, SparkTaskContext}
 import is.hail.collection.{FastSeq, IntArrayBuilder}
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
@@ -422,6 +423,7 @@ object BlockMatrix {
     }
 
     def writeBlock(
+      hcl: HailClassLoader,
       ctx: RVDContext,
       it: Iterator[((Int, Int), BDM[Double])],
       os: OutputStream,
@@ -460,17 +462,18 @@ object BlockMatrix {
       (oup.index, (oup.originIdx, oup.originPart.index))
     ).toMap
 
-    val writerRDD = ContextRDD.weaken(ordd).cmapPartitionsWithContextAndIndex { (i, ctx, it) =>
+    val writerRDD = ContextRDD.weaken(ordd).cmapPartitionsWithContextAndIndex { (i, hcl, ctx, it) =>
       val (rddIndex, partIndex) = partMap(i)
-      val trueIt = it(ctx)
+      val trueIt = it(hcl, ctx)
       val rootPath = blockMatrixURI(rddIndex)
       val fileName = partFile(numDigits, partIndex, TaskContext.get())
       val fileDataIterator = RichContextRDD.writeParts(
+        hcl,
         ctx,
         rootPath,
         fileName,
         null,
-        (_, _) => null,
+        (_, _, _) => null,
         false,
         fs,
         tmpdir,
@@ -1563,7 +1566,7 @@ class BlockMatrix(
 
     val sm = ctx.stateManager
     val entriesRDD =
-      ContextRDD.weaken(blocks).cflatMap { case (rvdContext, ((blockRow, blockCol), block)) =>
+      ContextRDD.weaken(blocks).cflatMap { case (_, rvdContext, ((blockRow, blockCol), block)) =>
         val rowOffset = blockRow * blockSize.toLong
         val colOffset = blockCol * blockSize.toLong
 
@@ -2352,7 +2355,7 @@ class WriteBlocksRDD(
     val start = writeBlocksPart.start
     writeBlocksPart.range.zip(writeBlocksPart.parentPartitions).foreach { case (pi, pPart) =>
       using(RVDContext.default(SparkTaskContext.get().getRegionPool())) { ctx =>
-        val it = crdd.iterator(pPart, context, ctx)
+        val it = crdd.iterator(pPart, context, unsafeHailClassLoaderForSparkWorkers, ctx)
 
         if (pi == start) {
           var j = 0
@@ -2424,7 +2427,7 @@ class BlockMatrixReadRowBlockedRDD(
   requestedType: TStruct,
   metadata: BlockMatrixMetadata,
   maybeMaximumCacheMemoryInBytes: Option[Int],
-) extends RDD[RVDContext => Iterator[Long]](
+) extends RDD[ContextRDD.Element[Long]](
       SparkBackend.sparkContext,
       Nil,
     ) {
@@ -2446,7 +2449,7 @@ class BlockMatrixReadRowBlockedRDD(
   )
 
   override def compute(split: Partition, context: TaskContext)
-    : Iterator[RVDContext => Iterator[Long]] = {
+    : Iterator[ContextRDD.Element[Long]] = {
     val pi = split.index
     val rowsForPartition = partitionRanges(pi)
     val createRowIdx = requestedType.fieldNames.contains("row_idx")
@@ -2460,56 +2463,56 @@ class BlockMatrixReadRowBlockedRDD(
       ).flatten: _*
     )
 
-    if (rowsForPartition.isEmpty) {
-      return Iterator.single(ctx => Iterator.empty)
-    }
-    Iterator.single { ctx =>
-      val region = ctx.region
-      val rvb = new RegionValueBuilder(HailStateManager(Map.empty), region)
-      val firstRow = rowsForPartition(0)
-      var blockRow = (firstRow / blockSize).toInt
-      val fs = fsBc.value
-      var pfs = Array.tabulate(gp.nBlockCols) { blockCol =>
-        new BlockMatrixCachedPartFile(
-          (firstRow % blockSize).toInt,
-          doublesPerFile,
-          fs,
-          path,
-          partFiles(gp.coordinatesBlock(blockRow, blockCol)),
-        )
-      }
+    ContextRDD.inCtx { (hcl, ctx) =>
+      if (rowsForPartition.isEmpty) Iterator.empty
+      else {
+        val region = ctx.region
+        val rvb = new RegionValueBuilder(HailStateManager(Map.empty), region)
+        val firstRow = rowsForPartition(0)
+        var blockRow = (firstRow / blockSize).toInt
+        val fs = fsBc.value
+        var pfs = Array.tabulate(gp.nBlockCols) { blockCol =>
+          new BlockMatrixCachedPartFile(
+            (firstRow % blockSize).toInt,
+            doublesPerFile,
+            fs,
+            path,
+            partFiles(gp.coordinatesBlock(blockRow, blockCol)),
+          )
+        }
 
-      rowsForPartition.iterator.map { row =>
-        val nextBlockRow = (row / blockSize).toInt
-        if (nextBlockRow != blockRow) {
-          assert(row % blockSize == 0)
-          blockRow = nextBlockRow
-          pfs = Array.tabulate(gp.nBlockCols) { blockCol =>
-            new BlockMatrixCachedPartFile(
-              0,
-              doublesPerFile,
-              fs,
-              path,
-              partFiles(gp.coordinatesBlock(blockRow, blockCol)),
-            )
+        rowsForPartition.iterator.map { row =>
+          val nextBlockRow = (row / blockSize).toInt
+          if (nextBlockRow != blockRow) {
+            assert(row % blockSize == 0)
+            blockRow = nextBlockRow
+            pfs = Array.tabulate(gp.nBlockCols) { blockCol =>
+              new BlockMatrixCachedPartFile(
+                0,
+                doublesPerFile,
+                fs,
+                path,
+                partFiles(gp.coordinatesBlock(blockRow, blockCol)),
+              )
+            }
           }
-        }
 
-        rvb.start(rowPType)
-        rvb.startStruct()
-        if (createRowIdx) rvb.addLong(row)
-        assert(nCols < Int.MaxValue)
-        rvb.startArray(nCols.toInt)
-        var colsRemaining = nCols.toInt
-        pfs.foreach { pf =>
-          val colsAdded = pf.addRow(rvb, colsRemaining)
-          colsRemaining -= colsAdded
+          rvb.start(rowPType)
+          rvb.startStruct()
+          if (createRowIdx) rvb.addLong(row)
+          assert(nCols < Int.MaxValue)
+          rvb.startArray(nCols.toInt)
+          var colsRemaining = nCols.toInt
+          pfs.foreach { pf =>
+            val colsAdded = pf.addRow(rvb, colsRemaining)
+            colsRemaining -= colsAdded
+          }
+          assert(colsRemaining == 0)
+          rvb.endArray()
+          if (createRowUID) rvb.addLong(row)
+          rvb.endStruct()
+          rvb.end()
         }
-        assert(colsRemaining == 0)
-        rvb.endArray()
-        if (createRowUID) rvb.addLong(row)
-        rvb.endStruct()
-        rvb.end()
       }
     }
   }

@@ -6,7 +6,6 @@ import is.hail.asm4s._
 import is.hail.collection.FastSeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.agg._
-import is.hail.expr.ir.compile.CompileWithAggregators
 import is.hail.expr.ir.defs._
 import is.hail.io.BufferSpec
 import is.hail.types.VirtualTypeWithReq
