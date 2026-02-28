@@ -1049,7 +1049,7 @@ FROM
       SELECT 1 AS cancelled
       FROM job_group_self_and_ancestors
       INNER JOIN job_groups_cancelled
-        ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
+        ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.batch_id AND
            job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
       WHERE job_groups.batch_id = job_group_self_and_ancestors.batch_id AND
             job_groups.job_group_id = job_group_self_and_ancestors.job_group_id
@@ -1327,7 +1327,7 @@ LEFT JOIN LATERAL (
   SELECT 1 AS cancelled
   FROM job_group_self_and_ancestors
   INNER JOIN job_groups_cancelled
-    ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
+    ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.batch_id AND
       job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
   WHERE job_groups.batch_id = job_group_self_and_ancestors.batch_id AND
     job_groups.job_group_id = job_group_self_and_ancestors.job_group_id
@@ -1486,7 +1486,7 @@ INNER JOIN LATERAL (
     1
   FROM job_group_self_and_ancestors AS descendant
   INNER JOIN job_groups_cancelled AS cancelled
-     ON descendant.batch_id = cancelled.id
+     ON descendant.batch_id = cancelled.batch_id
     AND descendant.ancestor_id = cancelled.job_group_id
   WHERE descendant.batch_id = group_resources.batch_id
     AND descendant.job_group_id = group_resources.job_group_id

@@ -2427,6 +2427,9 @@ steps:
       - name: add-dockerhub-proxy-flag
         script: /io/sql/120-add-dockerhub-proxy-flag.sql
         online: true
+      - name: rename-job-groups-cancelled-column
+        script: /io/sql/rename-job-groups-cancelled-column.sql
+        online: false
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
