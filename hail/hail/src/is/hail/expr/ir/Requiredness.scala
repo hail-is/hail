@@ -558,15 +558,6 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       // always required
       case _: I32 | _: I64 | _: F32 | _: F64 | _: Str | True() | False() | _: IsNA | _: Die | _: UUID4 | _: RNGSplit | _: RNGSplitStatic | _: RNGStateLiteral =>
       case _: CombOpValue | _: AggStateValue =>
-      case Trap(child) =>
-        // error message field is missing if the child runs without error
-        requiredness.asInstanceOf[RTuple].field(0).union(false)
-
-        val childField = requiredness.asInstanceOf[RTuple].field(1)
-        // trap can return optional if child throws exception
-        childField.union(false)
-
-        childField.unionFrom(lookup(child))
       case ConsoleLog(_, result) =>
         requiredness.unionFrom(lookup(result))
       case x if x.typ == TVoid =>

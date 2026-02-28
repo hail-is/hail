@@ -35,7 +35,6 @@ object FoldConstants {
             _: NDArrayAgg |
             _: NDArrayWrite |
             _: NDArrayMatMul |
-            _: Trap |
             _: Die |
             _: RNGSplitStatic |
             _: RNGStateLiteral => None
