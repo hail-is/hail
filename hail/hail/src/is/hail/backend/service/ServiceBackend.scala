@@ -207,10 +207,12 @@ class ServiceBackend(
           case Seq(k) =>
             try
               using(new LocalTaskContext(k, stageCount)) { htc =>
-                (None, FastSeq(f(globals, contexts(k), htc, ctx.theHailClassLoader, ctx.fs) -> k))
+                None -> htc.getRegionPool().scopedRegion { r =>
+                  FastSeq(f(ctx.theHailClassLoader, ctx.fs, htc, r)(globals, contexts(k)) -> k)
+                }
               }
             catch {
-              case NonFatal(t) => (Some(t), ArraySeq.empty)
+              case NonFatal(t) => Some(t) -> ArraySeq.empty
             } finally stageCount += 1
 
           case todo =>
@@ -252,10 +254,9 @@ class ServiceBackend(
               val fsConfig: Any =
                 ctx.fs.getConfiguration()
 
-              val partial: PartitionFn = {
-                (globals, context, htc, hcl, fs) =>
-                  fs.setConfiguration(fsConfig)
-                  f(globals, context, htc, hcl, fs)
+              val partial: PartitionFn = { (hcl, fs, htc, r) =>
+                fs.setConfiguration(fsConfig)
+                f(hcl, fs, htc, r)
               }
 
               retryTransientErrors {

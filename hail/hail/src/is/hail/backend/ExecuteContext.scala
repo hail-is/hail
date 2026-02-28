@@ -4,7 +4,7 @@ import is.hail.HailFeatureFlags
 import is.hail.annotations.{Region, RegionPool}
 import is.hail.asm4s.HailClassLoader
 import is.hail.backend.local.LocalTaskContext
-import is.hail.expr.ir.{BaseIR, CodeCacheKey, CompiledFunction}
+import is.hail.expr.ir.{BaseIR, CompileCache, Compiled}
 import is.hail.expr.ir.LoweredTableReader.LoweredTableReaderCoercer
 import is.hail.expr.ir.lowering.IrMetadata
 import is.hail.io.fs.FS
@@ -67,7 +67,7 @@ object ExecuteContext {
     flags: HailFeatureFlags,
     irMetadata: IrMetadata,
     blockMatrixCache: mutable.Map[String, BlockMatrix],
-    codeCache: mutable.Map[CodeCacheKey, CompiledFunction[_]],
+    compileCache: CompileCache,
     irCache: mutable.Map[Int, BaseIR],
     coercerCache: mutable.Map[Any, LoweredTableReaderCoercer],
   )(
@@ -88,7 +88,7 @@ object ExecuteContext {
           flags,
           irMetadata,
           blockMatrixCache,
-          codeCache,
+          compileCache,
           irCache,
           coercerCache,
         ))(f(_))
@@ -120,7 +120,7 @@ class ExecuteContext(
   val flags: HailFeatureFlags,
   val irMetadata: IrMetadata,
   val BlockMatrixCache: mutable.Map[String, BlockMatrix],
-  val CodeCache: mutable.Map[CodeCacheKey, CompiledFunction[_]],
+  val CompileCache: CompileCache,
   val PersistedIrCache: mutable.Map[Int, BaseIR],
   val PersistedCoercerCache: mutable.Map[Any, LoweredTableReaderCoercer],
 ) extends Closeable {
@@ -144,10 +144,7 @@ class ExecuteContext(
 
   val taskContext: HailTaskContext = new LocalTaskContext(0, 0)
 
-  def scopedExecution[T](
-    f: (HailClassLoader, FS, HailTaskContext, Region) => T
-  )(implicit E: Enclosing
-  ): T =
+  def scopedExecution[T](f: Compiled[T])(implicit E: Enclosing): T =
     using(new LocalTaskContext(0, 0))(tc => time(f(theHailClassLoader, fs, tc, r)))
 
   def createTmpPath(prefix: String, extension: String = null, local: Boolean = false): String =
@@ -182,7 +179,7 @@ class ExecuteContext(
     flags: HailFeatureFlags = this.flags,
     irMetadata: IrMetadata = this.irMetadata,
     blockMatrixCache: mutable.Map[String, BlockMatrix] = this.BlockMatrixCache,
-    codeCache: mutable.Map[CodeCacheKey, CompiledFunction[_]] = this.CodeCache,
+    codeCache: CompileCache = this.CompileCache,
     persistedIrCache: mutable.Map[Int, BaseIR] = this.PersistedIrCache,
     persistedCoercerCache: mutable.Map[Any, LoweredTableReaderCoercer] = this.PersistedCoercerCache,
   )(
