@@ -23,8 +23,7 @@ class SimplifyControl(m: Method) {
     val last = L.last.asInstanceOf[ControlX]
 
     if (L.uses.isEmpty && (L ne m.entry)) {
-      var i = 0
-      while (i < last.targetArity()) {
+      for (i <- last.targetIndices) {
         val M = last.target(i)
         last.setTarget(i, null)
 
@@ -34,14 +33,12 @@ class SimplifyControl(m: Method) {
           q += u.parent
         }
 
-        i += 1
       }
 
       return
     }
 
-    var i = 0
-    while (i < last.targetArity()) {
+    for (i <- last.targetIndices) {
       val M = last.target(i)
       val newM = finalTarget(M)
       if (M ne newM) {
@@ -54,7 +51,6 @@ class SimplifyControl(m: Method) {
         }
         q += L
       }
-      i += 1
     }
 
     last match {
@@ -129,11 +125,8 @@ class SimplifyControl(m: Method) {
 
     for (b <- blocks) {
       val last = b.last.asInstanceOf[ControlX]
-      var i = 0
-      while (i < last.targetArity()) {
+      for (i <- last.targetIndices)
         last.setTarget(i, rootFinalTarget(u.find(blocks.index(last.target(i)))))
-        i += 1
-      }
     }
 
     m.setEntry(finalTarget(m.entry))

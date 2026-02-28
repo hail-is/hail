@@ -207,8 +207,7 @@ class SplitMethod(
       b.last match {
         case x: SwitchX =>
           var Lunreachable: Block = null
-          var i = 0
-          while (i < x.targetArity()) {
+          for (i <- x.targetIndices) {
             if (x.target(i) == null) {
               if (Lunreachable == null) {
                 Lunreachable = new Block()
@@ -217,7 +216,6 @@ class SplitMethod(
               }
               x.setTarget(i, Lunreachable)
             }
-            i += 1
           }
         case _ =>
       }
@@ -434,15 +432,13 @@ class SplitMethod(
         Lreturn.method = splitM
         Lreturn.append(returnx(load(lidx)))
         val newSwitch = switch(splitMReturnValue, x.Ldefault, x.Lcases)
-        var i = 0
-        while (i < x.targetArity()) {
+        for (i <- x.targetIndices) {
           val L = x.target(i)
           if (regionBlocks(L))
             // null is replaced with throw new SplitUnreachable
             newSwitch.setTarget(i, null)
           else
             x.setTarget(i, Lreturn)
-          i += 1
         }
         newL.append(newSwitch)
       case _: ReturnX =>
