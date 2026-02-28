@@ -64,7 +64,7 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       fb.ecb.getOrderingFunction(cv1.st, cv2.st, op)
         .apply(cb, EmitValue.present(cv1), EmitValue.present(cv2))
     }
-    fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, r)
+    fb.resultWithIndex()(theHailClassLoader, ctx.fs, taskContext, r)
   }
 
   @Test def testMissingNonequalComparisons(): Unit = {
@@ -87,7 +87,7 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         fb.ecb.getOrderingFunction(ev1.st, ev2.st, op)
           .apply(cb, ev1, ev2)
       }
-      fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, r)
+      fb.resultWithIndex()(theHailClassLoader, ctx.fs, taskContext, r)
     }
 
     forAll(genTypeVal[TStruct](ctx)) { case (t, a) =>
@@ -492,7 +492,7 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
         val asArray = SafeIndexedSeq(pArray, soff)
 
-        val f = fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, region)
+        val f = fb.resultWithIndex()(theHailClassLoader, ctx.fs, taskContext, region)
         val i = f(region, soff, eoff)
         val ordering = t.ordering(sm)
 
@@ -550,7 +550,7 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         val asArray =
           SafeIndexedSeq(PCanonicalArray(pDict.elementType), soff).map(_.asInstanceOf[Row])
 
-        val f = fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, region)
+        val f = fb.resultWithIndex()(theHailClassLoader, ctx.fs, taskContext, region)
         val i = f(region, soff, eoff)
         val ordering = pDict.keyType.virtualType.ordering(sm)
 

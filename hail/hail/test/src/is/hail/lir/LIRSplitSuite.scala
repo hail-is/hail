@@ -21,6 +21,6 @@ class LIRSplitSuite extends HailSuite {
       cb.invokeVoid(mb, cb.this_, const(1L))
       Code._empty
     }
-    f.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, ctx.r)()
+    f.resultWithIndex()(theHailClassLoader, ctx.fs, taskContext, ctx.r)()
   }
 }

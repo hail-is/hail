@@ -1,50 +1,35 @@
 package is.hail.backend
 
-import is.hail.annotations.RegionPool
-import is.hail.utils._
+import is.hail.annotations.{Region, RegionPool}
+import is.hail.utils.using
 
 import scala.collection.mutable
 
-import java.io.Closeable
+trait HailTaskContext {
 
-class TaskFinalizer {
-  val closeables = mutable.ArrayBuffer.empty[Closeable]
+  /** region whose lifetime is at least as long as this task */
+  def r: Region
 
-  def clear(): Unit =
-    closeables.clear()
-
-  def addCloseable(c: Closeable): Unit =
-    closeables += c
-
-  def closeAll(): Unit = closeables.foreach(_.close())
+  /** register an action that will be called when this task completes */
+  def onClose(f: () => Unit): Unit
 }
 
-abstract class HailTaskContext extends AutoCloseable with Logging {
-  def stageId(): Int
+object HailTaskContext {
+  def runPartition[A](partId: Int)(f: HailTaskContext => A): A =
+    using(new PartitionContext(partId))(f)
+}
 
-  def partitionId(): Int
+class PartitionContext(partId: Int) extends HailTaskContext with AutoCloseable {
+  private[this] val onCloseTasks = mutable.ArrayBuffer.empty[() => Unit]
 
-  def attemptNumber(): Int
-
-  private lazy val thePool = RegionPool()
-
-  def getRegionPool(): RegionPool = thePool
-
-  val finalizers = mutable.ArrayBuffer.empty[TaskFinalizer]
-
-  def newFinalizer(): TaskFinalizer = {
-    val f = new TaskFinalizer
-    finalizers += f
-    f
-  }
+  private[this] val pool = RegionPool()
+  override val r: Region = Region(pool = pool)
+  override def onClose(f: () => Unit): Unit = onCloseTasks += f
 
   override def close(): Unit = {
-    logger.info(
-      s"TaskReport: stage=${stageId()}, partition=${partitionId()}, attempt=${attemptNumber()}, " +
-        s"peakBytes=${thePool.getHighestTotalUsage}, peakBytesReadable=${formatSpace(thePool.getHighestTotalUsage)}, " +
-        s"chunks requested=${thePool.getUsage._1}, cache hits=${thePool.getUsage._2}"
-    )
-    finalizers.foreach(_.closeAll())
-    thePool.close()
+    onCloseTasks.foreach(_())
+    r.close()
+    pool.logStats(s"Partition $partId")
+    pool.close()
   }
 }

@@ -249,7 +249,7 @@ object IBD {
 
     val rowPType = input.rvRowPType
     val unnormalizedIbse = input.rvd.mapPartitions { (ctx, it) =>
-      val rv = RegionValue(ctx.r)
+      val rv = RegionValue(ctx.region)
       val view = HardCallView(rowPType)
       it.map { ptr =>
         rv.setOffset(ptr)

@@ -3,25 +3,18 @@ package is.hail.backend
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.collection.implicits.toRichIndexedSeq
+import is.hail.expr.ir.Compiled
 import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.lowering.TableStageDependency
-import is.hail.io.fs._
 import is.hail.utils._
 
 object BackendUtils {
   type F = AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]]
 }
 
-class BackendUtils(
-  mods: Array[(String, (HailClassLoader, FS, HailTaskContext, Region) => BackendUtils.F)]
-) extends Logging {
+class BackendUtils(mods: Array[(String, Compiled[BackendUtils.F])]) extends Logging {
 
-  import BackendUtils.F
-
-  private[this] val loadedModules
-    : Map[String, (HailClassLoader, FS, HailTaskContext, Region) => F] = mods.toMap
-
-  def getModule(id: String): (HailClassLoader, FS, HailTaskContext, Region) => F = loadedModules(id)
+  private[this] val getModule = mods.toMap
 
   def collectDArray(
     ctx: DriverRuntimeContext,
@@ -82,7 +75,7 @@ class BackendUtils(
     tsd: Option[TableStageDependency],
   ): (Option[Throwable], IndexedSeq[(Array[Byte], Int)]) = {
 
-    val mod = getModule(modID)
+    val loadFn = getModule(modID)
     val start = System.nanoTime()
 
     val r = rtx.mapCollectPartitions(
@@ -91,10 +84,10 @@ class BackendUtils(
       stageName,
       tsd,
       partitions,
-    ) { (gs, ctx, htc, theHailClassLoader, fs) =>
-      htc.getRegionPool().scopedRegion { region =>
-        mod(theHailClassLoader, fs, htc, region)(region, ctx, gs)
-      }
+    ) {
+      (hcl, fs, htc, r) =>
+        val fn = loadFn(hcl, fs, htc, r)
+        fn(r, _, _)
     }
 
     val elapsed = System.nanoTime() - start

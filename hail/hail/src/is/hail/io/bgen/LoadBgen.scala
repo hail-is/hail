@@ -205,7 +205,8 @@ object LoadBgen extends Logging {
     require(files.length == indexFilePaths.length)
     val headers = getFileHeaders(fs, files.map(_.getPath))
 
-    val cacheByRG: mutable.Map[Option[String], (String, Array[Long]) => Array[AnyRef]] =
+    val cacheByRG
+      : mutable.Map[Option[String], (ExecuteContext, String, Array[Long]) => Array[AnyRef]] =
       mutable.Map.empty
 
     headers.zip(indexFilePaths).map { case (h, indexFilePath) =>
@@ -232,7 +233,7 @@ object LoadBgen extends Logging {
       val nVariants = metadata.nKeys
 
       val rangeBounds = if (nVariants > 0) {
-        val Array(start, end) = getKeys(indexFilePath, Array[Long](0L, nVariants - 1))
+        val Array(start, end) = getKeys(ctx, indexFilePath, Array[Long](0L, nVariants - 1))
         Interval(start, end, includesStart = true, includesEnd = true)
       } else null
 

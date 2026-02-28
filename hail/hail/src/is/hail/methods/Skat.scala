@@ -363,7 +363,7 @@ case class Skat(
               fatal(s"Row weights must be non-negative, got $weight")
             val key = Annotation.copy(
               keyType.virtualType,
-              UnsafeRow.read(keyType, ctx.r, fullRowType.loadField(ptr, keyIndex)),
+              UnsafeRow.read(keyType, ctx.region, fullRowType.loadField(ptr, keyIndex)),
             )
             val data = new Array[Double](n)
 

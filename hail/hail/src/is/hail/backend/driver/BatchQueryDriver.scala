@@ -113,7 +113,7 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
           flags = env.flags,
           irMetadata = new IrMetadata(),
           blockMatrixCache = ImmutableMap.empty,
-          codeCache = ImmutableMap.empty,
+          compileCache = ImmutableMap.empty,
           irCache = ImmutableMap.empty,
           coercerCache = ImmutableMap.empty,
         )(f)

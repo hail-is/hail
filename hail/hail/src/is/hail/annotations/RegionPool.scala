@@ -118,9 +118,7 @@ final class RegionPool private (strictMemoryCheck: Boolean, threadName: String, 
     }
   }
 
-  def getRegion(): Region = getRegion(Region.REGULAR)
-
-  def getRegion(size: Int): Region = {
+  def getRegion(size: Int = Region.REGULAR): Region = {
     val r = new Region(size, this)
     r.memory = getMemory(size)
     r
@@ -154,11 +152,29 @@ final class RegionPool private (strictMemoryCheck: Boolean, threadName: String, 
 
   def report(context: String): Unit = {
     val inBlocks = bytesInBlocks()
+    val (chunksAllocated, cacheHits) = chunkCache.getUsage()
 
     logger.info(
-      s"RegionPool: $context: ${readableBytes(totalAllocatedBytes)} allocated (${readableBytes(inBlocks)} blocks / " +
-        s"${readableBytes(totalAllocatedBytes - inBlocks)} chunks), regions.size = ${regions.size}, " +
-        s"$numJavaObjects current java objects, thread $threadID: $threadName"
+      s"""RegionPool: $context
+         |  thread:
+         |    id:   $threadID
+         |    name: $threadName
+         |  objects:  $numJavaObjects
+         |  allocations:
+         |    peak:     $getHighestTotalUsage
+         |    total:    ${readableBytes(totalAllocatedBytes)}
+         |    blocks:   ${readableBytes(inBlocks)}
+         |    chunks:   ${readableBytes(totalAllocatedBytes - inBlocks)}
+         |  regions:
+         |    total:  ${regions.size}
+         |    free:   ${freeRegions.size}
+         |  blocks:
+         |    total:  ${blocks.sum}
+         |    free:   ${freeBlocks.view.map(_.size).sum}
+         |  chunks:
+         |    total:  $chunksAllocated
+         |    reused: $cacheHits
+         | """.stripMargin
     )
 //    logger.info("-----------STACK_TRACES---------")
 //    val stacks: String = regions.result().toIndexedSeq.flatMap(r => r.stackTrace.map((r.getTotalChunkMemory(), _))).foldLeft("")((a: String, b) => a + "\n" + b.toString())
@@ -169,8 +185,6 @@ final class RegionPool private (strictMemoryCheck: Boolean, threadName: String, 
   def scopedRegion[T](f: Region => T): T = using(Region(pool = this))(f)
   def scopedSmallRegion[T](f: Region => T): T = using(Region(Region.SMALL, pool = this))(f)
   def scopedTinyRegion[T](f: Region => T): T = using(Region(Region.TINY, pool = this))(f)
-
-  override def finalize(): Unit = close()
 
   private[this] var closed: Boolean = false
 

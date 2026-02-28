@@ -163,7 +163,7 @@ class ContextRDD[T: ClassTag](
   type ElementType = ContextRDD.ElementType[T]
 
   private[this] def sparkManagedContext[U](func: RVDContext => U): U = {
-    val c = RVDContext.default(SparkTaskContext.get().getRegionPool())
+    val c = RVDContext.default(SparkTaskContext.get)
     TaskContext.get().addTaskCompletionListener[Unit]((_: TaskContext) => c.close()): Unit
     func(c)
   }
@@ -235,18 +235,6 @@ class ContextRDD[T: ClassTag](
         x => inCtx(consumerCtx => f(i, consumerCtx, x))
       }
     ))
-
-  // Gives consumer ownership of the context. Consumer is responsible for freeing
-  // resources per element.
-  def crunJobWithIndex[U: ClassTag](f: (Int, RVDContext, Iterator[T]) => U): Array[U] =
-    sparkContext.runJob(
-      rdd,
-      { (taskContext, it: Iterator[RVDContext => Iterator[T]]) =>
-        val c = RVDContext.default(SparkTaskContext.get().getRegionPool())
-        val ans = f(taskContext.partitionId(), c, it.flatMap(_(c)))
-        ans
-      },
-    )
 
   def cmapPartitionsAndContext[U: ClassTag](
     f: (RVDContext, (Iterator[RVDContext => Iterator[T]])) => Iterator[U],

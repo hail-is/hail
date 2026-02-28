@@ -2351,7 +2351,7 @@ class WriteBlocksRDD(
     val writeBlocksPart = split.asInstanceOf[WriteBlocksRDDPartition]
     val start = writeBlocksPart.start
     writeBlocksPart.range.zip(writeBlocksPart.parentPartitions).foreach { case (pi, pPart) =>
-      using(RVDContext.default(SparkTaskContext.get().getRegionPool())) { ctx =>
+      using(RVDContext.default(SparkTaskContext.get)) { ctx =>
         val it = crdd.iterator(pPart, context, ctx)
 
         if (pi == start) {

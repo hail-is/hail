@@ -93,7 +93,7 @@ class PNDArraySuite extends PhysicalTestUtils {
         Code.invokeStatic1[java.lang.Math, Double, Double]("sqrt", normDiff / normA)
       }
 
-      val f = fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, region)
+      val f = fb.resultWithIndex()(theHailClassLoader, ctx.fs, taskContext, region)
 
       assert(f(region) < 1e-14)
     }
@@ -178,7 +178,7 @@ class PNDArraySuite extends PhysicalTestUtils {
         Code.invokeStatic1[java.lang.Math, Double, Double]("sqrt", normDiff / normA)
       }
 
-      val f = fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, region)
+      val f = fb.resultWithIndex()(theHailClassLoader, ctx.fs, taskContext, region)
 
       assert(f(region) < 1e-14)
     }
@@ -312,7 +312,7 @@ class PNDArraySuite extends PhysicalTestUtils {
         Code._empty
       }
 
-      val f = fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, region)
+      val f = fb.resultWithIndex()(theHailClassLoader, ctx.fs, taskContext, region)
 
       f(region)
       succeed
@@ -374,7 +374,7 @@ class PNDArraySuite extends PhysicalTestUtils {
         Code._empty
       }
 
-      val f = fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, region)
+      val f = fb.resultWithIndex()(theHailClassLoader, ctx.fs, taskContext, region)
 
       f(region)
       succeed

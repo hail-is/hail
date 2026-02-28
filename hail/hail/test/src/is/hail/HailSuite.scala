@@ -3,7 +3,7 @@ package is.hail
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.annotations._
 import is.hail.asm4s.HailClassLoader
-import is.hail.backend.{Backend, ExecuteContext, OwningTempFileManager}
+import is.hail.backend.{Backend, ExecuteContext, HailTaskContext, OwningTempFileManager}
 import is.hail.backend.spark.SparkBackend
 import is.hail.collection.{FastSeq, ImmutableMap}
 import is.hail.collection.implicits.toRichIterable
@@ -48,6 +48,7 @@ class HailSuite extends TestNGSuite with TestUtils with Logging {
   def pool: RegionPool = ctx.r.pool
   def sc: SparkContext = ctx.backend.asSpark.sc
   def theHailClassLoader: HailClassLoader = ctx.theHailClassLoader
+  def taskContext: HailTaskContext = ctx_
 
   private[this] lazy val resources: String =
     sys.env.getOrElse("MILL_TEST_RESOURCE_DIR", "hail/test/resources")
@@ -93,7 +94,7 @@ class HailSuite extends TestNGSuite with TestUtils with Logging {
       flags = HailSuite.flags,
       irMetadata = new IrMetadata(),
       BlockMatrixCache = ImmutableMap.empty,
-      CodeCache = ImmutableMap.empty,
+      CompileCache = ImmutableMap.empty,
       PersistedIrCache = ImmutableMap.empty,
       PersistedCoercerCache = ImmutableMap.empty,
     )
