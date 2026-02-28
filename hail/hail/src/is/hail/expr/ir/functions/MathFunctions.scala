@@ -426,8 +426,7 @@ object MathFunctions extends RegistryFunctions {
       fetStruct.virtualType,
       (_, _, _, _, _) => fetStruct.sType,
     ) { case (r, cb, _, a: SInt32Value, b: SInt32Value, c: SInt32Value, d: SInt32Value, _) =>
-      val res = cb.newLocal[Array[Double]](
-        "fisher_exact_test_res",
+      val res = cb.memoize[Array[Double]](
         Code.invokeScalaObject4[Int, Int, Int, Int, Array[Double]](
           statsPackageClass,
           "fisherExactTest",
@@ -435,7 +434,7 @@ object MathFunctions extends RegistryFunctions {
           b.value,
           c.value,
           d.value,
-        ),
+        )
       )
 
       fetStruct.constructFromFields(
@@ -449,6 +448,29 @@ object MathFunctions extends RegistryFunctions {
         ),
         deepCopy = false,
       )
+    }
+
+    // FIXME: delete when PruneDeadField can optimize fisher_exact_test when only
+    // the pvalue is used from the result struct
+    registerSCode4(
+      "fisher_exact_test_pvalue_only",
+      TInt32,
+      TInt32,
+      TInt32,
+      TInt32,
+      TFloat64,
+      (_, _, _, _, _) => SFloat64,
+    ) { case (_, cb, _, a: SInt32Value, b: SInt32Value, c: SInt32Value, d: SInt32Value, _) =>
+      primitive(cb.memoize[Double](
+        Code.invokeScalaObject4[Int, Int, Int, Int, Double](
+          statsPackageClass,
+          "fisherExactTestPValueOnly",
+          a.value,
+          b.value,
+          c.value,
+          d.value,
+        )
+      ))
     }
 
     registerSCode4(
