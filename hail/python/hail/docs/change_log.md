@@ -52,6 +52,36 @@ supports.
 policy. Their functionality or even existence may change without notice. Please contact us if you
 critically depend on experimental functionality.**
 
+## Version 0.2.138 
+
+Released 2026-03-01 
+
+- (hail#15271) delete legacy IRandomness
+- (hail#15263) LiftMeOut is uninterpretable
+- (hail#15262) Cache Alpha-Equivalent Compiled Functions
+- (hail#15282) Sym is unused
+- (hail#15223) extract `utils` into new module
+- (hail#15274) use one finalizer in PartitionNativeIntervalReader
+- (hail#15270) Fix all-ref case in haplotypeFreqEM
+- (hail#15254) replace ApplySeeded with RNGSplitStatic + Apply
+- (hail#15257) delete unused function registry from python client
+- (hail#15248) delete EmitRegion
+- (hail#15238) enforce use of `override` keyword using wartremover
+- (hail#15249) AggGroupBy blockargs
+- (hail#15250) AggFilter blockargs
+- (hail#15241) printer/parser rules for StreamBufferedAggregate
+- (hail#15247) sort block args matching
+- (hail#15245) fix LiftMeOut blockargs
+- (hail#15236) remove `RichRegex`
+- (hail#15233) Fix BlockMatrix persist
+- (hail#15219) Remove ENumpyBinaryNDArray
+- (hail#15232) remove tunion
+- (hail#15231) replace `readRepeatedly` with built-in  `readNBytes`
+- (hail#15226) misc 2.13 deprecation fixes
+- (hail#15221) Replace Deprecated `AnyRefMap` with `HashMap`
+- (hail#15211) supplant `build-info.properties` with cgen
+- (hail#15207) mill multi-file builds
+
 ## Version 0.2.137 
 
 Released 2025-11-24
