@@ -52,6 +52,32 @@ supports.
 policy. Their functionality or even existence may change without notice. Please contact us if you
 critically depend on experimental functionality.**
 
+## Version 0.2.138
+
+Released 2026-04-13
+
+### New Features
+
+- (hail#15316) The 'batch' query backend now collects partition results as they complete, reducing latency for long-running pipelines.
+- (hail#15322) Add a `max_read_parallelism` parameter to `hl.init` to configure the maximum number of partition results the 'batch' query backend reads in parallel. This can also be set via `hailctl config set query/batch_backend_max_read_parallelism`.
+- (hail#15330) `hl.vds.new_combiner` now accepts a `gvcf_save_filters` parameter. When set, GVCF filter fields are saved as the entry field `gvcf_filters` on both reference and variant data.
+- (hail#15386) `hl.gq_from_pl` now supports missing elements in the PL array.
+
+### Bug Fixes
+
+- (hail#15233) Fix a bug where `BlockMatrix.persist()` failed due to calling a non-existent method.
+- (hail#15270) Fix a bug that returned the wrong number of haplotypes in `haplotypeFreqEM`.
+- (hail#15274) Fix a bug in generated code that could cause incorrect results.
+- (hail#15337) Fix a bug in `hl.vep` where a parameter was incorrectly bound, causing incorrect results.
+- (hail#15361) Fix a bug where user-defined Spark configuration (including the progress bar) was silently ignored when running Hail on Dataproc via `hailctl dataproc submit`.
+- (hail#15369) Fix a bug where NDArray slices with equal start and stop produced a length-1 result instead of an empty array.
+- (hail#15347) Fix a performance regression on spark where liftover chain files and FASTA sequence indexes were re-read on every worker task.
+- (hail#15387) Fix a bug where `hl.split_multi_hts` crashed when applied to haploid genotypes.
+
+### Deprecations
+
+- (hail#15361) The `copy_spark_log_on_error` parameter in `hl.init` is deprecated. Use `copy_log_on_error` instead.
+
 ## Version 0.2.137 
 
 Released 2025-11-24
