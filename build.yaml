@@ -327,8 +327,8 @@ steps:
 
           # Extract the latest timestamp from managed fields
           set +x
-          echo "Running: LATEST_TIME=\$(echo \"\$SECRET_JSON\" | jq -r '.metadata.creationTimestamp')"
-          LATEST_TIME=$(echo "$SECRET_JSON" | jq -r '.metadata.creationTimestamp')
+          echo "Running: LATEST_TIME=\$(echo \"\$SECRET_JSON\" | jq -r '.metadata.managedFields[] | .time' | sort -r | head -n1)"
+          LATEST_TIME=$(echo "$SECRET_JSON" | jq -r '.metadata.managedFields[] | .time' | sort -r | head -n1)
           set -x
 
           echo "Latest secret modification time: $LATEST_TIME"
@@ -340,7 +340,7 @@ steps:
 
           echo "Secret age: $AGE_DAYS days"
 
-          if [ "$AGE_DAYS" -gt 365 ]; then
+          if [ "$AGE_DAYS" -gt 5 ]; then
               echo "Secret is over 1 year old, regenerating certificates while preserving password..."
 
               # Turn off set -x to avoid logging password:
