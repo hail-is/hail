@@ -355,8 +355,7 @@ case object SemanticHash extends Logging {
           _: ToArray |
           _: ToDict |
           _: ToSet |
-          _: ToStream |
-          _: Trap =>
+          _: ToStream =>
         ()
 
       // Discrete values

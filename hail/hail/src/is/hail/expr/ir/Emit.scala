@@ -2956,61 +2956,6 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
             emitI(res, env = resEnv)
           }
 
-      case t @ Trap(child) =>
-        val (ev, mb) = emitSplitMethod("trap", cb, child, region, env, container, loopEnv)
-        val maybeException = cb.newLocal[(String, java.lang.Integer)](
-          "trap_msg",
-          cb.emb.ecb.runMethodWithHailExceptionHandler(mb.mb.methodName),
-        )
-        val sst = SStringPointer(PCanonicalString(false))
-
-        val tt = t.typ.asInstanceOf[TTuple]
-        val errTupleType = tt.types(0).asInstanceOf[TTuple]
-        val errTuple =
-          SStackStruct(errTupleType, FastSeq(EmitType(sst, true), EmitType(SInt32, true)))
-        val tv = cb.emb.newEmitField("trap_errTuple", EmitType(errTuple, false))
-
-        val maybeMissingEV = cb.emb.newEmitField("trap_value", ev.emitType.copy(required = false))
-        cb.if_(
-          maybeException.isNull, {
-            cb.assign(tv, EmitCode.missing(cb.emb, errTuple))
-            cb.assign(maybeMissingEV, ev)
-          }, {
-            val str = EmitCode.fromI(cb.emb)(cb =>
-              IEmitCode.present(
-                cb,
-                sst.constructFromString(cb, region, maybeException.invoke[String]("_1")),
-              )
-            )
-            val errorId = EmitCode.fromI(cb.emb)(cb =>
-              IEmitCode.present(
-                cb,
-                primitive(
-                  cb.memoize(maybeException.invoke[java.lang.Integer]("_2").invoke[Int]("intValue"))
-                ),
-              )
-            )
-            cb.assign(
-              tv,
-              IEmitCode.present(
-                cb,
-                SStackStruct.constructFromArgs(cb, region, errTupleType, str, errorId),
-              ),
-            )
-            cb.assign(maybeMissingEV, EmitCode.missing(cb.emb, ev.st))
-          },
-        )
-        IEmitCode.present(
-          cb,
-          SStackStruct.constructFromArgs(
-            cb,
-            region,
-            t.typ.asInstanceOf[TBaseStruct],
-            tv,
-            maybeMissingEV,
-          ),
-        )
-
       case Die(m, typ, errorId) =>
         val cm = emitI(m)
         val msg = cb.newLocal[String]("die_msg")

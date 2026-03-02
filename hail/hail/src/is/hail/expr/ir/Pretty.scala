@@ -870,8 +870,6 @@ class Pretty(
             name -> "loopvar"
           } :+ name -> "loop")
           else None
-        case _: Trap =>
-          some()
         case _ =>
           None
       }
