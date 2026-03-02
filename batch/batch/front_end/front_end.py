@@ -79,7 +79,6 @@ from web_common import (
     setup_common_static_routes,
     web_security_headers,
     web_security_headers_swagger,
-    web_security_headers_unsafe_eval,
 )
 
 from ..batch import batch_record_to_dict, cancel_job_group_in_db, job_group_record_to_dict, job_record_to_dict
@@ -2216,7 +2215,7 @@ async def delete_batch(request: web.Request, _, batch_id: int) -> web.Response:
 
 
 @routes.get('/batches/{batch_id}', name='batch_details_page')
-@web_security_headers_unsafe_eval
+@web_security_headers
 @billing_project_users_only()
 @catch_ui_error_in_dev
 async def ui_batch(request, userdata, batch_id):
@@ -2696,7 +2695,7 @@ async def ui_get_jvm_profile(request: web.Request, _, batch_id: int) -> web.Resp
 
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}')
-@web_security_headers_unsafe_eval
+@web_security_headers
 @billing_project_users_only()
 @catch_ui_error_in_dev
 async def ui_get_job(request, userdata, batch_id):
@@ -2994,7 +2993,7 @@ GROUP BY billing_project, `user`;
 
 
 @routes.get('/billing')
-@web_security_headers_unsafe_eval
+@web_security_headers
 @auth.authenticated_users_only()
 @catch_ui_error_in_dev
 async def ui_get_billing(request, userdata):
@@ -3042,7 +3041,7 @@ async def ui_get_billing(request, userdata):
 
 
 @routes.get('/billing_projects')
-@web_security_headers_unsafe_eval
+@web_security_headers
 @auth.authenticated_developers_only()
 @catch_ui_error_in_dev
 async def ui_get_billing_projects(request, userdata):

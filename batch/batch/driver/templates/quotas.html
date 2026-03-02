@@ -5,7 +5,7 @@
 <h1>Quotas by Region</h1>
 {% if plot_json is not none %}
 <div id="plotly-timeseries" data-graph='{{ plot_json | safe}}'></div>
-<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<script src="https://cdn.plot.ly/plotly-2.35.3.min.js"></script>
 <script defer src="{{ base_path }}/batch_driver/static/js/quotas.js"></script>
 
 <style>
