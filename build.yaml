@@ -327,22 +327,22 @@ steps:
 
           # Extract the latest timestamp from managed fields
           set +x
-          echo "Running: LATEST_TIME=\$(echo \"\$SECRET_JSON\" | jq -r '.metadata.managedFields[] | .time' | sort -r | head -n1)"
-          LATEST_TIME=$(echo "$SECRET_JSON" | jq -r '.metadata.managedFields[] | .time' | sort -r | head -n1)
+          echo "Running: LATEST_TIME=\$(echo \"\$SECRET_JSON\" | jq -r '.metadata.creationTimestamp')"
+          LATEST_TIME=$(echo "$SECRET_JSON" | jq -r '.metadata.creationTimestamp')
           set -x
-          
+
           echo "Latest secret modification time: $LATEST_TIME"
-          
+
           # Convert to timestamp and check if over 1 year old (365 days)
           TIMESTAMP=$(date -d "$LATEST_TIME" +%s 2>/dev/null || echo "0")
           CURRENT_TIME=$(date +%s)
           AGE_DAYS=$(( (CURRENT_TIME - TIMESTAMP) / 86400 ))
-          
+
           echo "Secret age: $AGE_DAYS days"
-          
+
           if [ "$AGE_DAYS" -gt 365 ]; then
               echo "Secret is over 1 year old, regenerating certificates while preserving password..."
-              
+
               # Turn off set -x to avoid logging password:
               set +x
               echo "Running: EXISTING_PASSWORD=\$(echo \"\$SECRET_JSON\" | jq -r '.data[\"db-root-password\"]' | base64 -d)"
@@ -1130,7 +1130,7 @@ steps:
       export HAIL_DOCTEST_DATA_DIR=$(realpath ./data)
       export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
-      
+
       python3 -m pytest \
               -Werror:::hail -Werror::ResourceWarning \
               --log-cli-level=INFO \
@@ -3248,12 +3248,12 @@ steps:
       hl.init(app_name='test-hailctl-batch-submit-query')
       hl.utils.range_table(10).collect()
       EOF
-      
-      # https://stackoverflow.com/questions/3524978/logging-functions-in-bash-and-stdout 
+
+      # https://stackoverflow.com/questions/3524978/logging-functions-in-bash-and-stdout
       exec 3>&1
-      
+
       function log { echo "$@" 1>&3; }
-      
+
       function submit {
         local status=$(hailctl batch submit --quiet --output json --wait "$@")
         log "$status"
@@ -3262,7 +3262,7 @@ steps:
       }
 
       submit -v simple_hail.py:/ -v foo/:/foo/ --workdir / --name=test-hailctl-batch-submit python3 simple_hail.py
-      
+
       cat >hail_with_args.py <<EOF
       import hail as hl
       import sys
@@ -3275,7 +3275,7 @@ steps:
       EOF
 
       submit -v hail_with_args.py:/ -v foo/:/foo/ --workdir / --name=test-hailctl-batch-submit python3 hail_with_args.py 100
-      
+
       cat >file.sh <<EOF
       set -ex
 
@@ -3284,7 +3284,7 @@ steps:
       EOF
 
       submit --shell /bin/sh --name=test-hailctl-batch-submit -v file.sh:/ -v foo/:/foo/ -o json --image busybox:latest sh file.sh
-      
+
       cat >file-with-args.sh <<EOF
       [ "$#" -eq 2 ]
 
