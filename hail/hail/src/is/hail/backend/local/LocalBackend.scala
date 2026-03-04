@@ -80,16 +80,12 @@ object LocalBackend extends Backend with Logging {
         val stageId = nextStageId()
 
         try
-          for (idx <- todo) {
-            using(new LocalTaskContext(idx, stageId)) { tx =>
-              results += {
-                (
-                  f(globals, contexts(idx), tx, ctx.theHailClassLoader, ctx.fs),
-                  idx,
-                )
+          for (idx <- todo)
+            results += using(new LocalTaskContext(idx, stageId)) { htc =>
+              htc.getRegionPool().scopedRegion { r =>
+                f(ctx.theHailClassLoader, ctx.fs, htc, r)(globals, contexts(idx)) -> idx
               }
             }
-          }
         catch {
           case NonFatal(t) =>
             failure = Some(t)
