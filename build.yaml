@@ -313,46 +313,37 @@ steps:
     image:
       valueFrom: create_certs_image.image
     script: |
-      # Check if secret exists and get its age
+      # Check if secret exists and whether its certificate has expired
       # First, set +ex to (e) allow the command to fail, (x) avoid logging the password
       set +ex
-      echo 'Running: SECRET_JSON=$(kubectl get secret database-server-config -n {{ default_ns.name }} -o json --show-managed-fields)'
-      SECRET_JSON=$(kubectl get secret database-server-config -n {{ default_ns.name }} -o json --show-managed-fields)
+      echo 'Running: SECRET_JSON=$(kubectl get secret database-server-config -n {{ default_ns.name }} -o json)'
+      SECRET_JSON=$(kubectl get secret database-server-config -n {{ default_ns.name }} -o json)
       SECRET_EXISTS_EXIT_CODE=$?
       echo "SECRET_EXISTS_EXIT_CODE=$SECRET_EXISTS_EXIT_CODE"
       set -ex
 
       if [ "$SECRET_EXISTS_EXIT_CODE" -eq 0 ]; then
-          echo "Secret exists, checking age..."
+          echo "Secret exists, checking certificate expiration..."
 
-          # Extract the latest timestamp from managed fields
           set +x
-          echo "Running: LATEST_TIME=\$(echo \"\$SECRET_JSON\" | jq -r '.metadata.managedFields[] | .time' | sort -r | head -n1)"
-          LATEST_TIME=$(echo "$SECRET_JSON" | jq -r '.metadata.managedFields[] | .time' | sort -r | head -n1)
+          CERT_PEM=$(echo "$SECRET_JSON" | jq -r '.data["server-ca.pem"]' | base64 -d)
           set -x
 
-          echo "Latest secret modification time: $LATEST_TIME"
+          EXPIRY_DATE=$(echo "$CERT_PEM" | openssl x509 -enddate -noout)
+          echo "Certificate expiration: $EXPIRY_DATE"
 
-          # Convert to timestamp and check if over 1 year old (365 days)
-          TIMESTAMP=$(date -d "$LATEST_TIME" +%s 2>/dev/null || echo "0")
-          CURRENT_TIME=$(date +%s)
-          AGE_DAYS=$(( (CURRENT_TIME - TIMESTAMP) / 86400 ))
+          # openssl x509 -checkend 0: exit code 0 = not expired, 1 = expired
+          if echo "$CERT_PEM" | openssl x509 -checkend 0 -noout 2>/dev/null; then
+              echo "Certificate is still valid, skipping regeneration"
+          else
+              echo "Certificate has expired, regenerating certificates while preserving password..."
 
-          echo "Secret age: $AGE_DAYS days"
-
-          if [ "$AGE_DAYS" -gt 5 ]; then
-              echo "Secret is over 1 year old, regenerating certificates while preserving password..."
-
-              # Turn off set -x to avoid logging password:
               set +x
               echo "Running: EXISTING_PASSWORD=\$(echo \"\$SECRET_JSON\" | jq -r '.data[\"db-root-password\"]' | base64 -d)"
               EXISTING_PASSWORD=$(echo "$SECRET_JSON" | jq -r '.data["db-root-password"]' | base64 -d)
-              # Regenerate certificates with existing password (disable set -x to avoid logging password)
               echo "Running: NAMESPACE={{ default_ns.name }} KEEP_PASSWORD=\"\$EXISTING_PASSWORD\" bash /create_test_db_config.sh"
               NAMESPACE={{ default_ns.name }} KEEP_PASSWORD="$EXISTING_PASSWORD" bash /create_test_db_config.sh
               set -x
-          else
-              echo "Secret is less than 1 year old, skipping regeneration"
           fi
       else
           echo "Secret does not exist, creating new one..."
