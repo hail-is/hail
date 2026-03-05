@@ -327,7 +327,6 @@ steps:
 
           set +x
           CERT_PEM=$(echo "$SECRET_JSON" | jq -r '.data["server-ca.pem"]' | base64 -d)
-          set -x
 
           EXPIRY_DATE=$(echo "$CERT_PEM" | openssl x509 -enddate -noout)
           echo "Certificate expiration: $EXPIRY_DATE"
@@ -338,13 +337,12 @@ steps:
           else
               echo "Certificate has expired, regenerating certificates while preserving password..."
 
-              set +x
               echo "Running: EXISTING_PASSWORD=\$(echo \"\$SECRET_JSON\" | jq -r '.data[\"db-root-password\"]' | base64 -d)"
               EXISTING_PASSWORD=$(echo "$SECRET_JSON" | jq -r '.data["db-root-password"]' | base64 -d)
               echo "Running: NAMESPACE={{ default_ns.name }} KEEP_PASSWORD=\"\$EXISTING_PASSWORD\" bash /create_test_db_config.sh"
               NAMESPACE={{ default_ns.name }} KEEP_PASSWORD="$EXISTING_PASSWORD" bash /create_test_db_config.sh
-              set -x
           fi
+          set -x
       else
           echo "Secret does not exist, creating new one..."
           NAMESPACE={{ default_ns.name }} bash /create_test_db_config.sh
