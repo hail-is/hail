@@ -328,13 +328,13 @@ steps:
           set +x
           # Any failure here (missing field, invalid base64, malformed PEM) is intentional:
           # set -e will abort the script so the error is surfaced rather than silently regenerating.
-          CERT_PEM=$(echo "$SECRET_JSON" | jq -r '.data["server-ca.pem"]' | base64 -d)
+          CERT_FILE=$(mktemp)
+          echo "$SECRET_JSON" | jq -r '.data["server-ca.pem"]' | base64 -d > "$CERT_FILE"
 
-          EXPIRY_DATE=$(echo "$CERT_PEM" | openssl x509 -enddate -noout)
-          echo "Certificate expiration: $EXPIRY_DATE"
+          echo "Certificate expiration: $(openssl x509 -enddate -noout -in "$CERT_FILE")"
 
           # openssl x509 -checkend 0: exit code 0 = not expired, 1 = expired
-          if echo "$CERT_PEM" | openssl x509 -checkend 0 -noout; then
+          if openssl x509 -checkend 0 -noout -in "$CERT_FILE"; then
               echo "Certificate is still valid, skipping regeneration"
           else
               echo "Certificate has expired, regenerating certificates while preserving password..."
@@ -343,6 +343,7 @@ steps:
               echo "Running: NAMESPACE={{ default_ns.name }} KEEP_PASSWORD=\"\$EXISTING_PASSWORD\" bash /create_test_db_config.sh"
               NAMESPACE={{ default_ns.name }} KEEP_PASSWORD="$EXISTING_PASSWORD" bash /create_test_db_config.sh
           fi
+          rm -f "$CERT_FILE"
           set -x
       else
           echo "Secret does not exist, creating new one..."
