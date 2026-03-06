@@ -1,5 +1,5 @@
-import datetime
 import time
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Union, overload
 
 import dateutil.parser
@@ -16,7 +16,7 @@ def time_ns() -> int:
 
 
 def time_msecs_str(t: Union[int, float]) -> str:
-    return datetime.datetime.utcfromtimestamp(t / 1000).strftime('%Y-%m-%dT%H:%M:%SZ')
+    return datetime.utcfromtimestamp(t / 1000).isoformat(timespec='milliseconds') + 'Z'
 
 
 @overload
@@ -33,8 +33,8 @@ def humanize_timedelta_msecs(delta_msecs: Optional[Union[int, float]]) -> Option
     return naturaldelta_msec(delta_msecs)
 
 
-_EPOCH = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
-_MS = datetime.timedelta(milliseconds=1)
+_EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
+_MS = timedelta(milliseconds=1)
 
 
 @overload
