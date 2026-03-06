@@ -9,17 +9,91 @@
     <div class="attributes">
       <div>PR <a rel="noopener" href="https://github.com/{{ repo }}/pull/{{ pr.number }}">#{{ pr.number }}</a> status:
         {% if active_pr %}
-        <span class="material-symbols-outlined" style="color: green; vertical-align: middle; font-size: 1rem; font-variation-settings: 'FILL' 1, 'wght' 700;">merge</span> open (live)
+        <span class="material-symbols-outlined" style="color: green; vertical-align: middle; font-size: 1.3rem; font-variation-settings: 'FILL' 1, 'wght' 700;">merge</span> open (live)
         {% elif pr.merged %}
-        <span class="material-symbols-outlined" style="color: purple; vertical-align: middle; font-size: 1rem; font-variation-settings: 'FILL' 1, 'wght' 700;">merge</span> merged
+        <span class="material-symbols-outlined" style="color: purple; vertical-align: middle; font-size: 1.3rem; font-variation-settings: 'FILL' 1, 'wght' 700;">merge</span> merged
         {% elif pr.merged is none %}
-        <span class="material-symbols-outlined" style="color: grey; vertical-align: middle; font-size: 1rem; font-variation-settings: 'FILL' 1, 'wght' 700;">question_mark</span> closed
+        <span class="material-symbols-outlined" style="color: grey; vertical-align: middle; font-size: 1.3rem; font-variation-settings: 'FILL' 1, 'wght' 700;">question_mark</span> closed
         {% else %}
-        <span class="material-symbols-outlined" style="color: red; vertical-align: middle; font-size: 1rem; font-variation-settings: 'FILL' 1, 'wght' 700;">block</span> closed without merging
+        <span class="material-symbols-outlined" style="color: red; vertical-align: middle; font-size: 1.3rem; font-variation-settings: 'FILL' 1, 'wght' 700;">block</span> closed without merging
         {% endif %}
       </div>
     </div>
 
+    {% if active_pr %}
+    <div class="attributes">
+      <h2>Merge Eligibility</h2>
+      <ul style="list-style: none; padding: 0; margin: 0;">
+        <li>
+          {% if review_approved %}
+          <span class="material-symbols-outlined" style="color: green; vertical-align: middle; font-size: 1.3rem; font-variation-settings: 'FILL' 1, 'wght' 700;">check_circle</span> PR approved
+          {% elif pr.review_state == 'changes_requested' %}
+          <span class="material-symbols-outlined" style="color: red; vertical-align: middle; font-size: 1.3rem; font-variation-settings: 'FILL' 1, 'wght' 700;">block</span> Changes requested
+          {% else %}
+          <span class="material-symbols-outlined" style="color: grey; vertical-align: middle; font-size: 1.3rem; font-variation-settings: 'FILL' 1, 'wght' 700;">pending</span> Awaiting review
+          {% endif %}
+        </li>
+        <li>
+          {% if checks_all_pass %}
+          <span class="material-symbols-outlined" style="color: green; vertical-align: middle; font-size: 1.3rem; font-variation-settings: 'FILL' 1, 'wght' 700;">check_circle</span> All checks passing
+          {% elif pr.build_state is none %}
+          <span class="material-symbols-outlined" style="color: grey; vertical-align: middle; font-size: 1.3rem; font-variation-settings: 'FILL' 1, 'wght' 700;">pending</span> Build in progress
+          {% else %}
+          <span class="material-symbols-outlined" style="color: red; vertical-align: middle; font-size: 1.3rem; font-variation-settings: 'FILL' 1, 'wght' 700;">cancel</span> Checks not passing ({{ pr.build_state }})
+          {% endif %}
+        </li>
+        <li>
+          {% if is_up_to_date %}
+          <span class="material-symbols-outlined" style="color: green; vertical-align: middle; font-size: 1.3rem; font-variation-settings: 'FILL' 1, 'wght' 700;">check_circle</span> Target SHA matches HEAD
+          {% elif is_merge_candidate %}
+          <span class="material-symbols-outlined" style="color: orange; vertical-align: middle; font-size: 1.3rem; font-variation-settings: 'FILL' 1, 'wght' 700;">warning</span> Target SHA does not match HEAD - rebuild starting shortly
+          {% else %}
+          <span class="material-symbols-outlined" style="color: orange; vertical-align: middle; font-size: 1.3rem; font-variation-settings: 'FILL' 1, 'wght' 700;">warning</span> Target SHA does not match HEAD - will rebuild once merge candidate
+          {% endif %}
+        </li>
+        {% if blocking_labels %}
+        <li>
+          <span class="material-symbols-outlined" style="color: red; vertical-align: middle; font-size: 1.3rem; font-variation-settings: 'FILL' 1, 'wght' 700;">cancel</span> Blocked by label: {{ blocking_labels | join(', ') }}
+        </li>
+        {% endif %}
+      </ul>
+    </div>
+
+    <div class="attributes">
+      <h2>Merge Queue</h2>
+      {% if build_failing or not review_approved %}
+      <p>Not in the merge queue -
+        {% if build_failing and not review_approved %}needs approval and build is failing.
+        {% elif not review_approved %}needs approval.
+        {% else %}build is failing.
+        {% endif %}
+      </p>
+      {% else %}
+      {% if prs_ahead_in_queue %}
+      <p>{{ prs_ahead_in_queue | length }} PR(s) ahead in queue:</p>
+      <ul>
+        {% for ahead_pr in prs_ahead_in_queue %}
+        <li><a href="{{ base_path }}/watched_branches/{{ wb.index }}/pr/{{ ahead_pr['number'] }}">#{{ ahead_pr['number'] }}</a> - {{ ahead_pr['title'] }}{% if ahead_pr['is_merge_candidate'] %} <em>(merge candidate)</em>{% endif %}</li>
+        {% endfor %}
+      </ul>
+      {% elif is_mergeable %}
+      <p>No approved PRs ahead - this PR is next to merge.</p>
+      {% elif is_merge_candidate %}
+      <p>This PR is the current merge candidate.</p>
+      {% else %}
+      <p>Not yet in the merge queue - awaiting build results.</p>
+      {% endif %}
+      {% if blocking_deploy_batch_id %}
+      <p>
+        <span class="material-symbols-outlined" style="color: orange; vertical-align: middle; font-size: 1.3rem; font-variation-settings: 'FILL' 1, 'wght' 700;">hourglass_top</span>
+        Deploy batch <a rel="noopener" href="{{ batch_base_url }}/batches/{{ blocking_deploy_batch_id }}">{{ blocking_deploy_batch_id }}</a> is running - merge blocked until it completes.
+      </p>
+      {% endif %}
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <h2>Current Build</h2>
     {% if batch is defined %}
     <div class="attributes">
       <div>batch: <a rel="noopener" href="{{ batch_base_url }}/batches/{{ batch['id'] }}">{{ batch['id'] }}</a></div>
@@ -41,7 +115,7 @@
     {% endif %}
 
     {% if logging_queries is not none %}
-    <h2>Logging Queries</h2>
+    <h3>Logging Queries</h3>
     <div class="logging-queries">
     {% for name, link in logging_queries.items() %}
     <div><a href="{{ link }}">{{ name }}</a></div>
@@ -49,7 +123,7 @@
     </div>
     {% endif %}
 
-    <h2>Jobs</h2>
+    <h3>Jobs</h3>
     {{ filtered_jobs(running, failed, pending, completed) }}
     {% elif exception is defined %}
     <p>Build error:</p>
@@ -58,7 +132,7 @@
     </pre>
     {% else %}
     {% if active_pr %}
-    <p>Build queued — waiting for a build slot. <a href="{{ ci_base_url }}">View CI dashboard</a>.</p>
+    <p>Build queued - waiting for a build slot. <a href="{{ ci_base_url }}">View CI dashboard</a>.</p>
     {% else %}
     <p>No builds found.</p>
     {% endif %}
