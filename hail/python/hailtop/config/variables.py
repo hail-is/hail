@@ -18,6 +18,7 @@ class ConfigVariable(str, Enum):
     QUERY_BATCH_WORKER_CORES = 'query/batch_worker_cores'
     QUERY_BATCH_DRIVER_MEMORY = 'query/batch_driver_memory'
     QUERY_BATCH_WORKER_MEMORY = 'query/batch_worker_memory'
+    QUERY_BATCH_DRIVER_MAX_READ_PARALLELISM = 'query/batch_driver_max_read_parallelism'
     QUERY_NAME_PREFIX = 'query/name_prefix'
     QUERY_DISABLE_PROGRESS_BAR = 'query/disable_progress_bar'
     HTTP_TIMEOUT_IN_SECONDS = 'http/timeout_in_seconds'

@@ -83,6 +83,7 @@ class ServiceBackendRPCConfig:
     custom_references: List[str]
     liftovers: Dict[str, Dict[str, str]]
     sequences: Dict[str, SequenceConfig]
+    max_read_parallelism: str | None
 
 
 @dataclass
@@ -118,6 +119,7 @@ class ServiceBackend(Backend):
         gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
         gcs_bucket_allow_list: Optional[List[str]] = None,
         branching_factor: Optional[int] = None,
+        max_read_parallelism: int | None = None,
     ):
         async_exit_stack = AsyncExitStack()
         billing_project = configuration_of(ConfigVariable.BATCH_BILLING_PROJECT, billing_project, None)
@@ -153,6 +155,9 @@ class ServiceBackend(Backend):
         driver_memory = configuration_of(ConfigVariable.QUERY_BATCH_DRIVER_MEMORY, driver_memory, None)
         worker_cores = configuration_of(ConfigVariable.QUERY_BATCH_WORKER_CORES, worker_cores, None)
         worker_memory = configuration_of(ConfigVariable.QUERY_BATCH_WORKER_MEMORY, worker_memory, None)
+        max_read_parallelism = configuration_of(
+            ConfigVariable.QUERY_BATCH_DRIVER_MAX_READ_PARALLELISM, str(max_read_parallelism), None
+        )
 
         if regions == ANY_REGION:
             regions = await batch_client.supported_regions()
@@ -206,6 +211,7 @@ class ServiceBackend(Backend):
             worker_cores=worker_cores,
             worker_memory=worker_memory,
             regions=regions,
+            max_read_parallelism=max_read_parallelism,
             async_exit_stack=async_exit_stack,
         )
         sb._initialize_flags(flags)
@@ -226,6 +232,7 @@ class ServiceBackend(Backend):
         worker_cores: Optional[Union[int, str]],
         worker_memory: Optional[str],
         regions: List[str],
+        max_read_parallelism: int | None,
         async_exit_stack: AsyncExitStack,
     ):
         super(ServiceBackend, self).__init__()
@@ -244,6 +251,7 @@ class ServiceBackend(Backend):
         self.worker_cores = worker_cores
         self.worker_memory = worker_memory
         self.regions = regions
+        self.max_read_parallelism = max_read_parallelism
         self._job_group: Optional[JobGroup] = None
         self._async_exit_stack = async_exit_stack
 
@@ -440,6 +448,7 @@ class ServiceBackend(Backend):
                 ],
                 liftovers={rg.name: rg._liftovers for rg in self._references.values() if len(rg._liftovers) > 0},
                 sequences=sequence_file_mounts,
+                max_read_parallelism=self.max_read_parallelism,
             ),
             job_config=BatchJobConfig(
                 worker_cores=str(self.worker_cores),
