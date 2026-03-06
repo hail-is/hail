@@ -57,6 +57,7 @@ trait HailScalaModule extends ScalaModule, HailJavaModule, ScalafmtModule, Scala
   override def depManagement: T[Seq[Dep]] =
     Seq(
       `scala-collection-compat` :: "2.13.0",
+      `jackson-core` :: "2.15.2",
     )
 
   def scalacPluginMvnDeps = Seq(
