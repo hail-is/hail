@@ -15,6 +15,27 @@ versions. In particular, Hail officially supports:
 Change Log
 ==========
 
+**Version 0.2.138**
+
+- (`#15308 <https://github.com/hail-is/hail/pull/15308>`__) fix erroneous `--files` switch in batch submit doc
+Revert "- (`#15310 <https://github.com/hail-is/hail/pull/15310>`__) Use gcloud storage to download input files from GCP (#15273)"
+- (`#15273 <https://github.com/hail-is/hail/pull/15273>`__) Use gcloud storage to download input files from GCP
+- (`#15266 <https://github.com/hail-is/hail/pull/15266>`__) Allow filter by exit code
+- (`#15295 <https://github.com/hail-is/hail/pull/15295>`__) Fix test_submit during deploy - part 2
+- (`#15287 <https://github.com/hail-is/hail/pull/15287>`__) Remove duplicate job rows
+- (`#15286 <https://github.com/hail-is/hail/pull/15286>`__) More helpful inactive account message
+- (`#15284 <https://github.com/hail-is/hail/pull/15284>`__) Fixes a bad use of id in a log message
+- (`#15293 <https://github.com/hail-is/hail/pull/15293>`__) refresh requirements, fixing check_pip_requirements
+- (`#15268 <https://github.com/hail-is/hail/pull/15268>`__) Bump pip dependencies
+- (`#15283 <https://github.com/hail-is/hail/pull/15283>`__) Refresh incomplete batch status pages
+- (`#15281 <https://github.com/hail-is/hail/pull/15281>`__) Fix test_submit during deploy
+- (`#15260 <https://github.com/hail-is/hail/pull/15260>`__) Use dockerhub proxy to reduce total requests to dockerhub
+- (`#15191 <https://github.com/hail-is/hail/pull/15191>`__) Refactor js to remove unsafe-inline CSP
+- (`#15256 <https://github.com/hail-is/hail/pull/15256>`__) ensure worker VMs are ipv4 only
+- (`#15214 <https://github.com/hail-is/hail/pull/15214>`__) Direct to the batch ui for dev deploy builds
+- (`#15210 <https://github.com/hail-is/hail/pull/15210>`__) Add 'inactive' status to the list of account errors
+- (`#15213 <https://github.com/hail-is/hail/pull/15213>`__) Remove low-risk reflected xss finding
+
 **Version 0.2.137**
 
 - (`#15199 <https://github.com/hail-is/hail/pull/15199>`__)
