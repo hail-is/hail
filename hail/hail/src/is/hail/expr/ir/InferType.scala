@@ -301,7 +301,6 @@ object InferType {
       case _: WriteMetadata => TVoid
       case ReadValue(_, _, typ) => typ
       case _: WriteValue => TString
-      case LiftMeOut(child) => child.typ
     }
   }
 }
