@@ -278,7 +278,7 @@ class TableKeyBy(TableIR):
         return TableKeyBy(self.child.handle_randomness(uid_field_name), self.keys, self.is_sorted)
 
     def head_str(self):
-        return '({}) {}'.format(' '.join([escape_id(x) for x in self.keys]), self.is_sorted)
+        return '({}) {} {}'.format(' '.join([escape_id(x) for x in self.keys]), self.is_sorted, 'None')
 
     def _eq(self, other):
         return self.keys == other.keys and self.is_sorted == other.is_sorted

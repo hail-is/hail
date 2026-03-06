@@ -533,8 +533,8 @@ class Pretty(
       single(
         s""""${StringEscapeUtils.escapeString(Serialization.write(writer)(WrappedMatrixNativeMultiWriter.formats))}""""
       )
-    case TableKeyBy(_, keys, isSorted) =>
-      FastSeq(prettyIdentifiers(keys), Pretty.prettyBooleanLiteral(isSorted))
+    case TableKeyBy(_, keys, isSorted, nPartitions) =>
+      FastSeq(prettyIdentifiers(keys), Pretty.prettyBooleanLiteral(isSorted), prettyIntOpt(nPartitions))
     case TableRange(n, nPartitions) => FastSeq(n.toString, nPartitions.toString)
     case TableRepartition(_, n, strategy) => FastSeq(n.toString, strategy.toString)
     case TableHead(_, n) => single(n.toString)

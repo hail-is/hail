@@ -398,7 +398,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case TableRange(_, _) =>
 
       // pass through TableIR child
-      case TableKeyBy(child, _, _) => requiredness.unionFrom(lookup(child))
+      case TableKeyBy(child, _, _, _) => requiredness.unionFrom(lookup(child))
       case TableFilter(child, _) => requiredness.unionFrom(lookup(child))
       case TableHead(child, _) => requiredness.unionFrom(lookup(child))
       case TableTail(child, _) => requiredness.unionFrom(lookup(child))
