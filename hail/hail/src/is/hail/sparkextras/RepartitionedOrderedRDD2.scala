@@ -3,7 +3,7 @@ package is.hail.sparkextras
 import is.hail.annotations._
 import is.hail.backend.HailStateManager
 import is.hail.collection.FastSeq
-import is.hail.rvd.{PartitionBoundOrdering, RVD, RVDContext, RVDPartitioner, RVDType}
+import is.hail.rvd.{PartitionBoundOrdering, RVD, RVDPartitioner, RVDType}
 import is.hail.utils._
 
 import scala.annotation.tailrec
@@ -41,7 +41,7 @@ class RepartitionedOrderedRDD2 private (
   sm: HailStateManager,
   @transient val prev: RVD,
   @transient val newRangeBounds: IndexedSeq[Interval],
-) extends RDD[ContextRDD.ElementType[Long]](prev.crdd.sparkContext, Nil) { // Nil since we implement getDependencies
+) extends RDD[ContextRDD.Element[Long]](prev.crdd.sparkContext, Nil) { // Nil since we implement getDependencies
 
   val prevCRDD: ContextRDD[Long] = prev.crdd
   val typ: RVDType = prev.typ
@@ -63,18 +63,18 @@ class RepartitionedOrderedRDD2 private (
   }
 
   override def compute(partition: Partition, context: TaskContext)
-    : Iterator[RVDContext => Iterator[Long]] = {
+    : Iterator[ContextRDD.Element[Long]] = {
     val ordPartition = partition.asInstanceOf[RepartitionedOrderedRDD2Partition]
     val pord = kOrd.intervalEndpointOrdering
     val range = ordPartition.range
 
-    Iterator.single { (outerCtx: RVDContext) =>
+    ContextRDD.inCtx { (hcl, outerCtx) =>
       new Iterator[Long] {
         private[this] val innerCtx = outerCtx.freshContext()
         private[this] val outerRegion = outerCtx.region
         private[this] val innerRegion = innerCtx.region
         private[this] val parentIterator = ordPartition.parents.iterator.flatMap(p =>
-          prevCRDD.iterator(p, context).flatMap(_.apply(innerCtx))
+          prevCRDD.iterator(p, context).flatMap(_.apply(hcl, innerCtx))
         )
         private[this] var pulled: Boolean = false
         private[this] var current: Long = _

@@ -66,9 +66,9 @@ case class RVDTableReader(rvd: RVD, globals: IR, rt: RTable) extends TableReader
       ctx,
       requestedType,
       globRow,
-      rvd.mapPartitionsWithIndex(RVDType(newRowType, requestedType.key)) { case (_, ctx, it) =>
+      rvd.mapPartitionsWithIndex(RVDType(newRowType, requestedType.key)) { case (_, hcl, ctx, it) =>
         val partF = rowF(
-          theHailClassLoaderForSparkWorkers,
+          hcl,
           fsBc.value,
           SparkTaskContext.get(),
           ctx.partitionRegion,
@@ -204,19 +204,19 @@ object TableStageToRVD {
     val rdd = new TableStageToRDD(fsBc, sparkContext, encodedContexts, sparkDeps)
 
     val crdd = ContextRDD.weaken(rdd)
-      .cflatMap { case (rvdContext, (encodedContext, _)) =>
+      .cflatMap { case (hcl, rvdContext, (encodedContext, _)) =>
         val decodedContext = makeContextDec(
           new ByteArrayInputStream(encodedContext),
-          theHailClassLoaderForSparkWorkers,
+          hcl,
         )
           .readRegionValue(rvdContext.partitionRegion)
         val decodedBroadcastVals = makeBcDec(
           new ByteArrayInputStream(encodedBcVals.value),
-          theHailClassLoaderForSparkWorkers,
+          hcl,
         )
           .readRegionValue(rvdContext.partitionRegion)
         makeIterator(
-          theHailClassLoaderForSparkWorkers,
+          hcl,
           fsBc.value,
           SparkTaskContext.get(),
           rvdContext,

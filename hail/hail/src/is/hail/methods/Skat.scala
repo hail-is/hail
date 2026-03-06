@@ -352,7 +352,7 @@ case class Skat(
     /* I believe no `boundary` is needed here because `mapPartitions` calls `run` which calls
      * `cleanupRegions`. */
     (
-      mv.rvd.mapPartitions { (ctx, it) =>
+      mv.rvd.mapPartitions { (_, ctx, it) =>
         it.flatMap { ptr =>
           val keyIsDefined = fullRowType.isFieldDefined(ptr, keyIndex)
           val weightIsDefined = fullRowType.isFieldDefined(ptr, weightIndex)
