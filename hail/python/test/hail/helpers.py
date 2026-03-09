@@ -18,17 +18,18 @@ def hl_init_for_test(**kwargs):
     backend_name = choose_backend(kwargs.get('backend'))
 
     init_kwargs = {
-        **kwargs,
+        'gcs_requester_pays_configuration': GCS_REQUESTER_PAYS_PROJECT,
         'backend': backend_name,
         'global_seed': 0,
+        **kwargs,
     }
 
     if backend_name == 'spark':
         init_kwargs = {
-            **init_kwargs,
             'master': f'local[{HAIL_QUERY_N_CORES}]',
             'min_block_size': 0,
             'quiet': True,
+            **init_kwargs,
         }
 
     hl.init(**init_kwargs)
@@ -223,12 +224,6 @@ def with_flags(**flags):
             hl._set_flags(**prev_flags)
 
     return wrapper
-
-
-def set_gcs_requester_pays_configuration(gcs_project):
-    if gcs_project is not None:
-        return with_flags(gcs_requester_pays_project=gcs_project)
-    return with_flags()
 
 
 def lower_only():

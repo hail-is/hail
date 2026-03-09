@@ -1,6 +1,6 @@
 package is.hail.backend.service
 
-import is.hail.{HailFeatureFlags, Revision}
+import is.hail.Revision
 import is.hail.asm4s._
 import is.hail.backend.Backend.PartitionFn
 import is.hail.backend.HailTaskContext
@@ -184,9 +184,8 @@ object Worker extends Logging {
     val hcl = new HailClassLoader(getClass.getClassLoader)
 
     val fs = RouterFS.buildRoutes(
-      CloudStorageFSConfig.fromFlagsAndEnv(
-        Some(Path.of(scratchDir, "secrets/gsa-key/key.json")),
-        HailFeatureFlags.fromEnv(),
+      CloudStorageConfig.readEnv(
+        Some(Path.of(scratchDir, "secrets/gsa-key/key.json"))
       )
     )
 

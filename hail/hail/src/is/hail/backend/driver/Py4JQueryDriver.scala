@@ -55,7 +55,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
   private[this] var localTmpdir: String = _
 
   private[this] var tmpFileManager = new OwningTempFileManager(
-    newFs(CloudStorageFSConfig.fromFlagsAndEnv(None, flags))
+    newFs(CloudStorageConfig.readEnv(None))
   )
 
   def pyFs: FS =
@@ -97,7 +97,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
     synchronized {
       tmpFileManager.close()
 
-      val cloudfsConf = CloudStorageFSConfig.fromFlagsAndEnv(None, flags)
+      val cloudfsConf = CloudStorageConfig.readEnv(None)
 
       val rpConfig: Option[RequesterPaysConfig] =
         (
@@ -115,7 +115,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
         cloudfsConf.copy(
           google = (cloudfsConf.google, rpConfig) match {
             case (Some(gconf), _) => Some(gconf.copy(requester_pays_config = rpConfig))
-            case (None, Some(_)) => Some(GoogleStorageFSConfig(None, rpConfig))
+            case (None, Some(_)) => Some(GoogleStorageConfig(None, rpConfig))
             case _ => None
           }
         )
@@ -354,7 +354,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
       }
     }
 
-  private[this] def newFs(cloudfsConfig: CloudStorageFSConfig): FS =
+  private[this] def newFs(cloudfsConfig: CloudStorageConfig): FS =
     backend match {
       case s: SparkBackend =>
         val conf = new Configuration(s.sc.hadoopConfiguration)

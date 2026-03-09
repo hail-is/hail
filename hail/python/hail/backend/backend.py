@@ -9,6 +9,7 @@ from typing import AbstractSet, Any, ClassVar, Dict, List, Mapping, Optional, Se
 
 import orjson
 
+from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
 from hailtop.config.user_config import unchecked_configuration_of
 from hailtop.fs.fs import FS
 
@@ -175,8 +176,6 @@ class Backend(abc.ABC):
         "branching_factor": ("HAIL_BRANCHING_FACTOR", None),
         "cachedir": ("HAIL_CACHE_DIR", None),
         "distributed_scan_comb_op": ("HAIL_DEV_DISTRIBUTED_SCAN_COMB_OP", None),
-        "gcs_requester_pays_buckets": ("HAIL_GCS_REQUESTER_PAYS_BUCKETS", None),
-        "gcs_requester_pays_project": ("HAIL_GCS_REQUESTER_PAYS_PROJECT", None),
         "grouped_aggregate_buffer_size": ("HAIL_GROUPED_AGGREGATE_BUFFER_SIZE", "50"),
         "index_branching_factor": ("HAIL_INDEX_BRANCHING_FACTOR", None),
         "jvm_bytecode_dump": ("HAIL_DEV_JVM_BYTECODE_DUMP", None),
@@ -417,4 +416,14 @@ class Backend(abc.ABC):
     @remote_tmpdir.setter
     @abc.abstractmethod
     def remote_tmpdir(self, dir: str) -> None:
+        pass
+
+    @property
+    @abc.abstractmethod
+    def requester_pays_config(self) -> GCSRequesterPaysConfiguration | None:
+        pass
+
+    @requester_pays_config.setter
+    @abc.abstractmethod
+    def requester_pays_config(self, config: GCSRequesterPaysConfiguration | None):
         pass
