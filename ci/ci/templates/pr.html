@@ -132,7 +132,16 @@
     </pre>
     {% else %}
     {% if active_pr %}
-    <p>Build queued - waiting for a build slot. <a href="{{ ci_base_url }}">View CI dashboard</a>.</p>
+      {% if pr_authorized %}
+      <p>Build queued - waiting for a build slot. <a href="{{ ci_base_url }}">View CI dashboard</a>.</p>
+      {% else %}
+      <p>Build blocked: this PR's SHA is not yet authorized.</p>
+      <form action="{{ base_path }}/authorize_source_sha" method="post">
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
+        <input type="hidden" name="sha" value="{{ pr.source_sha }}"/>
+        <button type="submit">Authorize now</button>
+      </form>
+      {% endif %}
     {% else %}
     <p>No builds found.</p>
     {% endif %}
