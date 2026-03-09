@@ -4,6 +4,42 @@
 {% block head %}
     <script defer src="{{ base_path }}/common_static/focus_on_keyup.js"></script>
 {% endblock %}
+
+{% macro batch_state_icon(state) %}
+{% if state == 'success' %}
+<span class="material-symbols-outlined" style="color: green; vertical-align: middle; font-size: 1.3rem; font-variation-settings: 'FILL' 1, 'wght' 700;">check_circle</span>
+{% elif state in ('failure', 'error') %}
+<span class="material-symbols-outlined" style="color: red; vertical-align: middle; font-size: 1.3rem; font-variation-settings: 'FILL' 1, 'wght' 700;">cancel</span>
+{% elif state == 'cancelled' %}
+<span class="material-symbols-outlined" style="color: grey; vertical-align: middle; font-size: 1.3rem; font-variation-settings: 'FILL' 1, 'wght' 700;">block</span>
+{% endif %}
+{% endmacro %}
+
+{% macro batch_history_table(batches) %}
+<table class="data-table">
+  <thead>
+    <tr>
+      <th>id</th>
+      <th>state</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for batch in batches %}
+    <tr>
+      <td class="numeric-cell">
+        <a rel="noopener" href="{{ batch_base_url }}/batches/{{ batch['id'] }}">{{ batch['id'] }}</a>
+      </td>
+      <td>
+        {% if 'state' in batch and batch['state'] %}
+        {{ batch_state_icon(batch['state']) }} {{ batch['state'] }}
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endmacro %}
+
 {% block content %}
     <h1>{{ pr.title }} <a rel="noopener" href="https://github.com/{{ repo }}/pull/{{ pr.number }}"><span class="gh-number">#{{ pr.number }}</span></a></h1>
     <div class="attributes">
@@ -93,6 +129,7 @@
     </div>
     {% endif %}
 
+    {% if active_pr %}
     <h2>Current Build</h2>
     {% if batch is defined %}
     <div class="attributes">
@@ -131,7 +168,6 @@
       {{ exception }}
     </pre>
     {% else %}
-    {% if active_pr %}
       {% if pr_authorized %}
       <p>Build queued - waiting for a build slot. <a href="{{ ci_base_url }}">View CI dashboard</a>.</p>
       {% else %}
@@ -142,35 +178,20 @@
         <button type="submit">Authorize now</button>
       </form>
       {% endif %}
+    {% endif %}
+
+    {% if not active_pr and pr.merged %}
+    <h2>Deploy Batch History</h2>
+    {% if deploy_batches %}
+    {{ batch_history_table(deploy_batches) }}
     {% else %}
-    <p>No builds found.</p>
+    <p>No deploy batch found.</p>
     {% endif %}
     {% endif %}
 
-    <h2>Build History</h2>
+    <h2>Build Batch History</h2>
     {% if history %}
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>id</th>
-          <th>state</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for batch in history %}
-        <tr>
-          <td class="numeric-cell">
-            <a rel="noopener" href="{{ batch_base_url }}/batches/{{ batch['id'] }}">{{ batch['id'] }}</a>
-          </td>
-          <td>
-            {% if 'state' in batch and batch['state'] %}
-            {{ batch['state'] }}
-            {% endif %}
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+    {{ batch_history_table(history) }}
     {% else %}
     No builds.
     {% endif %}
