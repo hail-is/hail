@@ -10,11 +10,8 @@ from hail.methods.qc import VEPConfigGRCh37Version85, VEPConfigGRCh38Version95
 from ..helpers import (
     get_dataset,
     resource,
-    set_gcs_requester_pays_configuration,
     test_timeout,
 )
-
-GCS_REQUESTER_PAYS_PROJECT = os.environ.get('GCS_REQUESTER_PAYS_PROJECT')
 
 
 class Tests(unittest.TestCase):
@@ -336,7 +333,6 @@ class Tests(unittest.TestCase):
 
     @pytest.mark.backend('batch')
     @pytest.mark.cloud('gcp')
-    @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
     @test_timeout(batch=5 * 60)
     def test_vep_grch37_consequence_true(self):
         gnomad_vep_result = hl.import_vcf(
@@ -359,7 +355,6 @@ class Tests(unittest.TestCase):
 
     @pytest.mark.backend('batch')
     @pytest.mark.cloud('gcp')
-    @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
     @test_timeout(batch=5 * 60)
     def test_vep_grch38_consequence_true(self):
         gnomad_vep_result = hl.import_vcf(
@@ -384,7 +379,6 @@ class Tests(unittest.TestCase):
 
     @pytest.mark.backend('batch')
     @pytest.mark.cloud('gcp')
-    @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
     @test_timeout(batch=5 * 60)
     def test_vep_grch37_consequence_false(self):
         mt = hl.import_vcf(
@@ -398,7 +392,6 @@ class Tests(unittest.TestCase):
 
     @pytest.mark.backend('batch')
     @pytest.mark.cloud('gcp')
-    @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
     @test_timeout(batch=5 * 60)
     def test_vep_grch38_consequence_false(self):
         mt = hl.import_vcf(
@@ -412,7 +405,6 @@ class Tests(unittest.TestCase):
 
     @pytest.mark.backend('batch')
     @pytest.mark.cloud('gcp')
-    @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
     @test_timeout(batch=5 * 60)
     def test_vep_grch37_against_dataproc(self):
         mt = hl.import_vcf(resource('sample.vcf.gz'), reference_genome='GRCh37', force_bgz=True, n_partitions=4)
@@ -466,7 +458,6 @@ class Tests(unittest.TestCase):
 
     @pytest.mark.backend('batch')
     @pytest.mark.cloud('gcp')
-    @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
     @test_timeout(batch=5 * 60)
     def test_vep_grch38_against_dataproc(self):
         dataproc_result = hl.import_table(
@@ -520,7 +511,6 @@ class Tests(unittest.TestCase):
 
     @pytest.mark.backend('batch')
     @pytest.mark.cloud('gcp')
-    @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
     @test_timeout(batch=5 * 60)
     def test_vep_grch38_with_large_positions(self):
         bad_variants = hl.import_table(

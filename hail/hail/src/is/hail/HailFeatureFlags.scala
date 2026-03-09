@@ -5,7 +5,6 @@ import is.hail.backend.service.ServiceBackend
 import is.hail.backend.spark.SparkBackend
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.{agg, Optimize}
-import is.hail.io.fs.RequesterPaysConfig
 import is.hail.types.encoded.EType
 
 import scala.collection.mutable
@@ -43,8 +42,6 @@ object HailFeatureFlags {
     (ExecutionCache.Flags.UseFastRestarts, "HAIL_USE_FAST_RESTARTS" -> null),
     (Optimize.Flags.MaxOptimizerIterations, "HAIL_OPTIMIZER_ITERATIONS" -> null),
     (Optimize.Flags.Optimize, "HAIL_QUERY_OPTIMIZE" -> "1"),
-    (RequesterPaysConfig.Flags.RequesterPaysBuckets, "HAIL_GCS_REQUESTER_PAYS_BUCKETS" -> null),
-    (RequesterPaysConfig.Flags.RequesterPaysProject, "HAIL_GCS_REQUESTER_PAYS_PROJECT" -> null),
     (ServiceBackend.Flags.UseAsyncProfiler, "HAIL_PROFILE" -> null),
     (
       SparkBackend.Flags.MaxStageParallelism,

@@ -15,13 +15,12 @@ from hail.experimental import read_expression, write_expression
 from hail.utils import FatalError, maybe
 from hail.version import __revision__, __version__
 from hailtop import yamlx
-from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration, get_gcs_requester_pays_configuration
+from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
 from hailtop.aiotools.fs.exceptions import UnexpectedEOFError
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiotools.validators import validate_file
 from hailtop.batch_client.aioclient import Batch, BatchClient, JobGroup
 from hailtop.config import ConfigVariable, configuration_of, get_remote_tmpdir
-from hailtop.fs.fs import FS
 from hailtop.fs.router_fs import RouterFS
 from hailtop.hail_event_loop import hail_event_loop
 from hailtop.utils import Timings, am_i_interactive, async_to_blocking, retry_transient_errors
@@ -79,7 +78,8 @@ class SequenceConfig:
 @dataclass
 class ServiceBackendRPCConfig:
     tmp_dir: str
-    flags: Dict[str, str]
+    flags: dict[str, str]
+    requester_pays_config: tuple[str, list[str] | None] | None
     custom_references: List[str]
     liftovers: Dict[str, Dict[str, str]]
     sequences: Dict[str, SequenceConfig]
@@ -116,7 +116,7 @@ class ServiceBackend(Backend):
         name_prefix: Optional[str] = None,
         credentials_token: Optional[str] = None,
         regions: Optional[List[str]] = None,
-        gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
+        requester_pays_config: GCSRequesterPaysConfiguration | None = None,
         gcs_bucket_allow_list: Optional[List[str]] = None,
         branching_factor: Optional[int] = None,
         max_read_parallelism: int | None = None,
@@ -129,15 +129,7 @@ class ServiceBackend(Backend):
                 "project or run 'hailctl config set batch/billing_project "
                 "MY_BILLING_PROJECT'"
             )
-        gcs_requester_pays_configuration = get_gcs_requester_pays_configuration(
-            gcs_requester_pays_configuration=gcs_requester_pays_configuration,
-        )
-        async_fs = RouterAsyncFS(
-            gcs_kwargs={'gcs_requester_pays_configuration': gcs_requester_pays_configuration},
-            gcs_bucket_allow_list=gcs_bucket_allow_list,
-        )
-        async_exit_stack.push_async_callback(async_fs.close)
-        sync_fs = RouterFS(async_fs)
+
         if batch_client is None:
             batch_client = await BatchClient.create(billing_project, _token=credentials_token)
             async_exit_stack.push_async_callback(batch_client.close)
@@ -181,23 +173,9 @@ class ServiceBackend(Backend):
         if branching_factor is not None:
             flags['branching_factor'] = str(branching_factor)
 
-        if 'gcs_requester_pays_project' in flags or 'gcs_requester_pays_buckets' in flags:
-            raise ValueError(
-                'Specify neither gcs_requester_pays_project nor gcs_requester_'
-                'pays_buckets in the flags argument to ServiceBackend.create'
-            )
-        if gcs_requester_pays_configuration is not None:
-            if isinstance(gcs_requester_pays_configuration, str):
-                flags['gcs_requester_pays_project'] = gcs_requester_pays_configuration
-            else:
-                assert isinstance(gcs_requester_pays_configuration, tuple)
-                flags['gcs_requester_pays_project'] = gcs_requester_pays_configuration[0]
-                flags['gcs_requester_pays_buckets'] = ','.join(gcs_requester_pays_configuration[1])
-
         sb = ServiceBackend(
             billing_project=billing_project,
-            sync_fs=sync_fs,
-            async_fs=async_fs,
+            bucket_allow_list=gcs_bucket_allow_list,
             batch_client=batch_client,
             batch=(
                 (await batch_client.get_batch(batch_id))
@@ -214,6 +192,7 @@ class ServiceBackend(Backend):
             max_read_parallelism=max_read_parallelism,
             async_exit_stack=async_exit_stack,
         )
+        sb.requester_pays_config = requester_pays_config
         sb._initialize_flags(flags)
         return sb
 
@@ -221,8 +200,7 @@ class ServiceBackend(Backend):
         self,
         *,
         billing_project: str,
-        sync_fs: FS,
-        async_fs: RouterAsyncFS,
+        bucket_allow_list: list[str] | None = None,
         batch_client: BatchClient,
         batch: Batch,
         disable_progress_bar: bool,
@@ -237,8 +215,9 @@ class ServiceBackend(Backend):
     ):
         super(ServiceBackend, self).__init__()
         self.billing_project = billing_project
-        self._sync_fs = sync_fs
-        self._async_fs = async_fs
+        self._router_fs: RouterFS | None = None
+        self._bucket_allow_list = bucket_allow_list
+        self._requester_pays_config = None
         self._batch_client = batch_client
         self._batch = batch
         self._job_group_was_submitted: bool = False
@@ -256,7 +235,7 @@ class ServiceBackend(Backend):
         self._async_exit_stack = async_exit_stack
 
     def validate_file(self, uri: str) -> None:
-        async_to_blocking(validate_file(uri, self._async_fs))
+        async_to_blocking(validate_file(uri, self.fs.afs))
 
     def debug_info(self) -> Dict[str, Any]:
         return {
@@ -273,8 +252,15 @@ class ServiceBackend(Backend):
         }
 
     @property
-    def fs(self) -> FS:
-        return self._sync_fs
+    def fs(self) -> RouterFS:
+        if self._router_fs is None:
+            self._router_fs = RouterFS(
+                RouterAsyncFS(
+                    gcs_kwargs={'gcs_requester_pays_configuration': self._requester_pays_config},
+                    gcs_bucket_allow_list=self._bucket_allow_list,
+                )
+            )
+        return self._router_fs
 
     @property
     def jar_spec(self) -> dict:
@@ -285,11 +271,11 @@ class ServiceBackend(Backend):
         return log
 
     def stop(self):
-        hail_event_loop().run_until_complete(self._stop())
-        super().stop()
+        if self._router_fs is not None:
+            self._router_fs.close()
 
-    async def _stop(self):
-        await self._async_exit_stack.aclose()
+        hail_event_loop().run_until_complete(self._async_exit_stack.aclose())
+        super().stop()
 
     async def _run_on_batch(
         self,
@@ -306,7 +292,7 @@ class ServiceBackend(Backend):
         timings = Timings()
         async with TemporaryDirectory(ensure_exists=False) as iodir:
             with timings.step("write input"):
-                async with await self._async_fs.create(iodir + '/in') as infile:
+                async with await self.fs.afs.create(iodir + '/in') as infile:
                     await infile.write(
                         orjson.dumps({
                             'rpc_config': service_backend_config,
@@ -371,14 +357,14 @@ class ServiceBackend(Backend):
 
     async def _read_output(self, output_uri: str, input_uri: str) -> bytes:
         try:
-            driver_output = await self._async_fs.open(output_uri)
+            driver_output = await self.fs.afs.open(output_uri)
         except FileNotFoundError as exc:
             raise FatalError(
                 'Hail internal error. Please contact the Hail team and provide the following information.\n\n'
                 + yamlx.dump({
                     'service_backend_debug_info': self.debug_info(),
                     'batch_debug_info': await self._batch.debug_info(_jobs_query_string='bad', _max_jobs=10),
-                    'input_uri': await self._async_fs.read(input_uri),
+                    'input_uri': await self.fs.afs.read(input_uri),
                 })
             ) from exc
 
@@ -399,8 +385,8 @@ class ServiceBackend(Backend):
                 + yamlx.dump({
                     'service_backend_debug_info': self.debug_info(),
                     'batch_debug_info': await self._batch.debug_info(_jobs_query_string='bad', _max_jobs=10),
-                    'in': await self._async_fs.read(input_uri),
-                    'out': await self._async_fs.read(output_uri),
+                    'in': await self.fs.afs.read(input_uri),
+                    'out': await self.fs.afs.read(output_uri),
                 })
             ) from exc
 
@@ -426,11 +412,11 @@ class ServiceBackend(Backend):
         }
         sequence_file_mounts = {}
         for rg_name, (fasta_file, index_file) in added_sequences.items():
-            fasta_bucket, fasta_path = self._get_bucket_and_path(fasta_file)
-            index_bucket, index_path = self._get_bucket_and_path(index_file)
+            fasta_bucket, fasta_path = await self._get_bucket_and_path(fasta_file)
+            index_bucket, index_path = await self._get_bucket_and_path(index_file)
             for bucket, blob in [(fasta_bucket, fasta_file), (index_bucket, index_file)]:
                 readonly_fuse_buckets.add(bucket)
-                storage_requirement_bytes += await (await self._async_fs.statfile(blob)).size()
+                storage_requirement_bytes += await (await self.fs.afs.statfile(blob)).size()
             sequence_file_mounts[rg_name] = SequenceConfig(
                 f'/cloudfuse/{fasta_bucket}/{fasta_path}',
                 f'/cloudfuse/{index_bucket}/{index_path}',
@@ -441,6 +427,10 @@ class ServiceBackend(Backend):
             service_backend_config=ServiceBackendRPCConfig(
                 tmp_dir=self.remote_tmpdir,
                 flags=self.flags,
+                requester_pays_config=maybe(
+                    lambda conf: (conf, None) if isinstance(conf, str) else conf,
+                    self._requester_pays_config,
+                ),
                 custom_references=[
                     orjson.dumps(rg._config).decode('utf-8')
                     for rg in self._references.values()
@@ -478,8 +468,8 @@ class ServiceBackend(Backend):
     def remove_sequence(self, name):  # pylint: disable=unused-argument
         pass
 
-    def _get_bucket_and_path(self, blob_uri):
-        url = self._async_fs.parse_url(blob_uri)
+    async def _get_bucket_and_path(self, blob_uri):
+        url = self.fs.afs.parse_url(blob_uri)
         return '/'.join(url.bucket_parts), url.path
 
     def add_liftover(self, name: str, chain_file: str, dest_reference_genome: str):  # pylint: disable=unused-argument
@@ -498,12 +488,6 @@ class ServiceBackend(Backend):
         unknown_flags = set(flags) - self._valid_flags()
         if unknown_flags:
             raise ValueError(f'unknown flags: {", ".join(unknown_flags)}')
-        if 'gcs_requester_pays_project' in flags or 'gcs_requester_pays_buckets' in flags:
-            warnings.warn(
-                'Modifying the requester pays project or buckets at runtime '
-                'using flags is deprecated. Expect this behavior to become '
-                'unsupported soon.'
-            )
         self.flags.update(flags)
 
     def get_flags(self, *flags: str) -> Mapping[str, str]:
@@ -537,3 +521,15 @@ class ServiceBackend(Backend):
     @remote_tmpdir.setter
     def remote_tmpdir(self, tmpdir: str) -> None:
         self._remote_tmpdir = tmpdir
+
+    @property
+    def requester_pays_config(self) -> GCSRequesterPaysConfiguration | None:
+        return self._requester_pays_config
+
+    @requester_pays_config.setter
+    def requester_pays_config(self, config: GCSRequesterPaysConfiguration | None):
+        if self._router_fs is not None:
+            self._router_fs.close()
+            self._router_fs = None
+
+        self._requester_pays_config = config

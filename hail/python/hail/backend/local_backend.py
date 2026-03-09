@@ -25,7 +25,7 @@ class LocalBackend(Py4JBackend):
         branching_factor: int | None = None,
         skip_logging_configuration: bool = False,
         jvm_heap_size: str | None = None,
-        gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
+        requester_pays_config: Optional[GCSRequesterPaysConfiguration] = None,
     ) -> Py4JBackend:
         max_heap_size = jvm_heap_size or os.getenv('HAIL_LOCAL_BACKEND_HEAP_SIZE')
 
@@ -49,7 +49,7 @@ class LocalBackend(Py4JBackend):
 
                 backend.local_tmpdir = tmpdir
                 backend.remote_tmpdir = tmpdir
-                backend.gcs_requester_pays_configuration = gcs_requester_pays_configuration
+                backend.requester_pays_config = requester_pays_config
                 backend.logger.info(f'Hail {__version__}')
 
                 return backend

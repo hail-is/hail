@@ -1,7 +1,7 @@
 import os
 import sys
 from collections.abc import Callable
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 import orjson
 import pyspark
@@ -102,7 +102,7 @@ class SparkBackend(Py4JBackend):
         local_tmpdir: str,
         skip_logging_configuration: bool,
         *,
-        gcs_requester_pays_config: Optional[GCSRequesterPaysConfiguration] = None,
+        requester_pays_config: GCSRequesterPaysConfiguration | None = None,
         copy_log_on_error: bool = False,
     ):
         sc = sc or pyspark.SparkContext._active_spark_context
@@ -145,7 +145,7 @@ class SparkBackend(Py4JBackend):
 
         self.remote_tmpdir = tmpdir
         self.local_tmpdir = local_tmpdir
-        self.gcs_requester_pays_configuration = gcs_requester_pays_config
+        self.requester_pays_config = requester_pays_config
         self._copy_log_on_error = copy_log_on_error
 
         self.logger.info(f'Hail {__version__}')
@@ -168,7 +168,7 @@ class SparkBackend(Py4JBackend):
     def router_fs(self) -> RouterFS:
         if self._router_fs is None:
             self._router_fs = RouterFS(
-                gcs_kwargs={"gcs_requester_pays_configuration": self.gcs_requester_pays_configuration},
+                gcs_kwargs={"gcs_requester_pays_configuration": self.requester_pays_config},
             )
         return self._router_fs
 
@@ -179,9 +179,9 @@ class SparkBackend(Py4JBackend):
 
         self._router_fs = router_fs
 
-    @Py4JBackend.gcs_requester_pays_configuration.setter
-    def gcs_requester_pays_configuration(self, config: GCSRequesterPaysConfiguration | None):
-        Py4JBackend.gcs_requester_pays_configuration.__set__(self, config)
+    @Py4JBackend.requester_pays_config.setter
+    def requester_pays_config(self, config: GCSRequesterPaysConfiguration | None):
+        Py4JBackend.requester_pays_config.__set__(self, config)
         self.router_fs = None
 
     def stop(self):
