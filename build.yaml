@@ -337,8 +337,8 @@ steps:
               echo "Certificate is still valid, skipping regeneration"
           else
               echo "Certificate has expired, regenerating certificates while preserving password..."
-              set +x
               echo "Running: EXISTING_PASSWORD=\$(echo \"\$SECRET_JSON\" | jq -r '.data[\"db-root-password\"]' | base64 -d)"
+              set +x
               EXISTING_PASSWORD=$(echo "$SECRET_JSON" | jq -r '.data["db-root-password"]' | base64 -d)
               echo "Running: NAMESPACE={{ default_ns.name }} KEEP_PASSWORD=\"\$EXISTING_PASSWORD\" bash /create_test_db_config.sh"
               NAMESPACE={{ default_ns.name }} KEEP_PASSWORD="$EXISTING_PASSWORD" bash /create_test_db_config.sh
