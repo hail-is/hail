@@ -248,6 +248,7 @@ async def _populate_historical_pr_context(
             'number': gh_pr['number'],
             'labels': [label['name'] for label in gh_pr.get('labels', [])],
             'merged': gh_pr['merged'],
+            'merge_commit_sha': gh_pr.get('merge_commit_sha') if gh_pr['merged'] else None,
         }
     except gidgethub.HTTPException as e:
         if e.status_code == 404:
@@ -292,6 +293,27 @@ async def get_pr(request: web.Request, userdata: UserData) -> web.Response:
     if not page_context['active_pr'] and batches:
         await _populate_batch_context(page_context, batches[0])
     page_context['history'] = [await b.last_known_status() for b in batches]
+
+    deploy_batches = []
+    pr_data = page_context.get('pr')
+    if (
+        not page_context['active_pr']
+        and isinstance(pr_data, dict)
+        and pr_data.get('merged')
+        and pr_data.get('merge_commit_sha')
+    ):
+        merge_commit_sha = pr_data['merge_commit_sha']
+        deploy_batches = sorted(
+            [
+                b
+                async for b in batch_client.list_batches(
+                    f'deploy=1 target_branch={wb.branch.short_str()} sha={merge_commit_sha} user:ci'
+                )
+            ],
+            key=lambda b: b.id,
+            reverse=True,
+        )
+    page_context['deploy_batches'] = [await b.last_known_status() for b in deploy_batches]
 
     return await render_template('ci', request, userdata, 'pr.html', page_context)
 
