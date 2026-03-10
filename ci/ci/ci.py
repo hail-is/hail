@@ -303,7 +303,7 @@ def storage_uri_to_url(uri: str) -> str:
     return uri
 
 
-async def retry_pr(wb: WatchedBranch, pr: PR, request: web.Request):
+async def retry_pr(wb: WatchedBranch, pr: PR, request: web.Request, userdata: UserData):
     app = request.app
     session = await aiohttp_session.get_session(request)
 
@@ -324,8 +324,8 @@ async def retry_pr(wb: WatchedBranch, pr: PR, request: web.Request):
         if job['state'] in ('Failed', 'Error'):
             await db.execute_insertone(
                 '''INSERT INTO retried_tests
-                   (batch_id, job_id, job_name, state, exit_code, pr_number, target_branch, source_sha)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s)''',
+                   (batch_id, job_id, job_name, state, exit_code, pr_number, target_branch, source_branch, source_sha, retried_by)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)''',
                 (
                     job['batch_id'],
                     job['job_id'],
@@ -334,7 +334,9 @@ async def retry_pr(wb: WatchedBranch, pr: PR, request: web.Request):
                     job.get('exit_code'),
                     pr.number,
                     wb.branch.short_str(),
+                    pr.source_branch.name,
                     pr.source_sha,
+                    userdata['username'],
                 ),
             )
 
@@ -350,10 +352,10 @@ async def retry_pr(wb: WatchedBranch, pr: PR, request: web.Request):
 @routes.post('/watched_branches/{watched_branch_index}/pr/{pr_number}/retry')
 @web_security_headers
 @auth.authenticated_developers_only(redirect=False)
-async def post_retry_pr(request: web.Request, _) -> NoReturn:
+async def post_retry_pr(request: web.Request, userdata: UserData) -> NoReturn:
     wb, pr = wb_and_pr_from_request(request)
 
-    await asyncio.shield(retry_pr(wb, pr, request))
+    await asyncio.shield(retry_pr(wb, pr, request, userdata))
     raise web.HTTPFound(deploy_config.external_url('ci', f'/watched_branches/{wb.index}/pr/{pr.number}'))
 
 
