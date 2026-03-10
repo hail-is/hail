@@ -714,6 +714,36 @@ steps:
     dependsOn:
       - merge_code
       - hail_ubuntu_image
+  - kind: runImage
+    name: build_batch_react_app
+    image: node:20-slim
+    script: |
+      set -ex
+      cd /io/repo/batch/batch/front_end/react
+      mkdir -p /io/repo/batch/batch/front_end/static/compiled-js
+      npm ci
+      npm run build
+    inputs:
+      - from: /repo/batch/batch/front_end/react
+        to: /io/repo/batch/batch/front_end/react
+    outputs:
+      - from: /io/repo/batch/batch/front_end/static/compiled-js
+        to: /compiled-js
+    dependsOn:
+      - merge_code
+  - kind: runImage
+    name: check_batch_ts
+    image: node:20-slim
+    script: |
+      set -ex
+      cd /io/repo/batch/batch/front_end/react
+      npm ci
+      npm run check
+    inputs:
+      - from: /repo/batch/batch/front_end/react
+        to: /io/repo/batch/batch/front_end/react
+    dependsOn:
+      - merge_code
   - kind: buildImage2
     name: ci_image
     dockerFile: /io/repo/ci/Dockerfile
@@ -732,9 +762,13 @@ steps:
         to: /io/repo/gear
       - from: /repo/web_common
         to: /io/repo/web_common
+      - from: /compiled-js
+        to: /io/repo/ci/ci/static/compiled-js
     dependsOn:
       - hail_ubuntu_image
       - merge_code
+      - build_batch_react_app
+      - check_batch_ts
   - kind: buildImage2
     name: hail_buildkit_image
     dockerFile: /io/repo/ci/buildkit/Dockerfile

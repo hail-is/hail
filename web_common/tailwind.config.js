@@ -4,6 +4,7 @@ module.exports = {
     "./web_common/**/*.{html,js}",
     "../auth/**/*.{html,js}",
     "../batch/**/*.{html,js}",
+    "../ci/**/*.{html,js}",
   ],
   theme: {
     extend: {
