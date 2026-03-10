@@ -193,10 +193,13 @@ async def _populate_batch_context(page_context: Dict[str, Any], batch: Batch) ->
         page_context['logging_queries'] = None
 
 
-async def _populate_active_pr_context(page_context: Dict[str, Any], wb: WatchedBranch, pr_number: int) -> None:
+async def _populate_active_pr_context(
+    page_context: Dict[str, Any], wb: WatchedBranch, pr_number: int, db: Database
+) -> None:
     pr = wb.prs[pr_number]
     page_context['pr'] = pr
     page_context['active_pr'] = True
+    page_context['pr_authorized'] = await pr.authorized(db)
 
     # Merge eligibility checklist
     page_context['review_approved'] = pr.review_state == 'approved'
@@ -271,7 +274,7 @@ async def get_pr(request: web.Request, userdata: UserData) -> web.Response:
     page_context: Dict[str, Any] = {'repo': wb.branch.repo.short_str(), 'wb': wb}
 
     if wb.prs and pr_number in wb.prs:
-        await _populate_active_pr_context(page_context, wb, pr_number)
+        await _populate_active_pr_context(page_context, wb, pr_number, request.app[AppKeys.DB])
     else:
         await _populate_historical_pr_context(page_context, request.app[AppKeys.GH_CLIENT], wb, pr_number)
 
