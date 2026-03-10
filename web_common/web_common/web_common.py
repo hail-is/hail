@@ -18,7 +18,7 @@ deploy_config = get_deploy_config()
 WEB_COMMON_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 
-TAILWIND_SERVICES = {'auth', 'batch'}
+TAILWIND_SERVICES = {'auth', 'batch', 'ci'}
 
 
 def sass_compile(module_name):

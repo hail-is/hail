@@ -58,6 +58,8 @@ with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r',
 
 log = logging.getLogger('ci')
 
+CI_ROOT = os.path.dirname(__file__)
+
 deploy_config = get_deploy_config()
 
 watched_branches: List[WatchedBranch] = []
@@ -850,6 +852,46 @@ async def get_envoy_configs(request: web.Request, _) -> web.Response:
     return json_response({'cds': cds, 'rds': rds})
 
 
+@routes.get('/flaky_tests')
+@web_security_headers
+@auth.authenticated_developers_only()
+async def get_flaky_tests(request: web.Request, userdata: UserData) -> web.Response:
+    return await render_template('ci', request, userdata, 'flaky_tests.html', {})
+
+
+@routes.get('/api/v1alpha/flaky_tests')
+@auth.authenticated_developers_only(redirect=False)
+async def api_flaky_tests(request: web.Request, _) -> web.Response:
+    db = request.app[AppKeys.DB]
+    rows = [
+        row
+        async for row in db.execute_and_fetchall(
+            """
+SELECT
+    job_name,
+    COUNT(*) AS retry_count,
+    COUNT(DISTINCT pr_number) AS distinct_prs,
+    MAX(retried_at) AS last_retried_at
+FROM retried_tests
+WHERE retried_at >= NOW() - INTERVAL 14 DAY
+  AND job_name IS NOT NULL
+GROUP BY job_name
+ORDER BY retry_count DESC
+LIMIT 50
+"""
+        )
+    ]
+    return json_response([
+        {
+            'job_name': r['job_name'],
+            'retry_count': r['retry_count'],
+            'distinct_prs': r['distinct_prs'],
+            'last_retried_at': r['last_retried_at'].isoformat() if r['last_retried_at'] else None,
+        }
+        for r in rows
+    ])
+
+
 async def cleanup_expired_namespaces(db: Database):
     assert DEFAULT_NAMESPACE == 'default'
     expired_namespaces = [
@@ -1016,6 +1058,7 @@ def run():
     app.on_cleanup.append(on_cleanup)
 
     setup_common_static_routes(routes)
+    routes.static('/ci/static/compiled-js', f'{CI_ROOT}/static/compiled-js')
     app.add_routes(routes)
     app.router.add_get("/metrics", server_stats)
 

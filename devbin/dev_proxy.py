@@ -14,6 +14,12 @@ from aiohttp_session.cookie_storage import EncryptedCookieStorage
 routes = web.RouteTableDef()
 setup_common_static_routes(routes)
 
+STATIC_DIRS: dict[str, list[tuple[str, str]]] = {
+    'ci': [('/ci/static/compiled-js', 'ci/ci/static/compiled-js')],
+}
+for _path, _directory in STATIC_DIRS.get(SERVICE, []):
+    routes.static(_path, _directory)
+
 deploy_config = get_deploy_config()
 
 SERVICE = os.environ['SERVICE']
