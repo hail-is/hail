@@ -319,6 +319,25 @@ async def retry_pr(wb: WatchedBranch, pr: PR, request: web.Request):
 
     batch_id = pr.batch.id
     db = app[AppKeys.DB]
+
+    async for job in pr.batch.jobs():
+        if job['state'] in ('Failed', 'Error'):
+            await db.execute_insertone(
+                '''INSERT INTO retried_tests
+                   (batch_id, job_id, job_name, state, exit_code, pr_number, target_branch, source_sha)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s)''',
+                (
+                    job['batch_id'],
+                    job['job_id'],
+                    job.get('name'),
+                    job['state'],
+                    job.get('exit_code'),
+                    pr.number,
+                    wb.branch.short_str(),
+                    pr.source_sha,
+                ),
+            )
+
     await db.execute_insertone('INSERT INTO invalidated_batches (batch_id) VALUES (%s);', batch_id)
     await wb.notify_batch_changed(
         db, app[AppKeys.BATCH_CLIENT], app[AppKeys.GH_CLIENT], app[AppKeys.FROZEN_MERGE_DEPLOY]
