@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
-import { PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from 'recharts';
+import { PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
 
 interface RetriedTest {
   id: number;
@@ -31,6 +31,16 @@ interface AggregatedTest {
   instances: RetriedTest[];
 }
 
+function retryHeatColor(ratio: number): string {
+  if (ratio > 0.66) return 'rgb(239 68 68 / 0.25)';   // red
+  if (ratio > 0.33) return 'rgb(249 115 22 / 0.25)';  // orange
+  return 'rgb(14 165 233 / 0.25)';                     // blue
+}
+
+function familyName(jobName: string): string {
+  return jobName.replace(/_\d+$/, '');
+}
+
 const COLORS = ['#0ea5e9', '#f97316', '#a855f7', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#ec4899', '#14b8a6', '#84cc16'];
 
 function Spinner() {
@@ -59,10 +69,11 @@ function ChevronRight({ className }: { className?: string }) {
   );
 }
 
-function aggregate(rows: RetriedTest[]): AggregatedTest[] {
+function aggregate(rows: RetriedTest[], groupByFamily: boolean): AggregatedTest[] {
   const byJob = new Map<string, AggregatedTest>();
   for (const row of rows) {
-    const key = row.job_name ?? '(unknown)';
+    const rawName = row.job_name ?? '(unknown)';
+    const key = groupByFamily ? familyName(rawName) : rawName;
     const existing = byJob.get(key);
     if (existing) {
       existing.retry_count += 1;
@@ -87,38 +98,25 @@ function aggregate(rows: RetriedTest[]): AggregatedTest[] {
 function RetryCharts({ tests }: { tests: AggregatedTest[] }) {
   const total = tests.reduce((s, t) => s + t.retry_count, 0);
 
-  const stateCounts = tests.flatMap((t) => t.instances).reduce<Record<string, number>>((acc, r) => {
+  const instances = tests.flatMap((t) => t.instances);
+
+  const stateCounts = instances.reduce<Record<string, number>>((acc, r) => {
     acc[r.state] = (acc[r.state] ?? 0) + 1;
     return acc;
   }, {});
   const STATE_COLORS: Record<string, string> = { Failed: '#ef4444', Error: '#f97316' };
   const statePieData = Object.entries(stateCounts).map(([name, value]) => ({ name, value }));
 
-  // tests is already sorted descending; recharts puts first item at top, so longest bar is first = top
-  const mainBarJobs = tests.filter((t) => t.retry_count / total >= 0.1);
-  const otherBarCount = tests.filter((t) => t.retry_count / total < 0.1).reduce((s, t) => s + t.retry_count, 0);
-  const barData = mainBarJobs.map((t) => ({ name: t.job_name, value: t.retry_count }));
-  if (otherBarCount > 0) barData.push({ name: 'Other', value: otherBarCount });
+  const retriedByCounts = instances.reduce<Record<string, number>>((acc, r) => {
+    acc[r.retried_by] = (acc[r.retried_by] ?? 0) + 1;
+    return acc;
+  }, {});
+  const retriedByPieData = Object.entries(retriedByCounts)
+    .sort((a, b) => b[1] - a[1])
+    .map(([name, value]) => ({ name, value }));
 
   return (
     <div className="flex flex-wrap gap-8 mb-8 items-start">
-      <div className="flex-1" style={{ minWidth: 380 }}>
-        <p className="text-xs font-medium text-slate-500 mb-1">Retries per job</p>
-        <ResponsiveContainer width="100%" height={Math.max(260, barData.length * 28)}>
-          <BarChart data={barData} layout="vertical" margin={{ right: 24 }}>
-            <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-            <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
-            <YAxis type="category" dataKey="name" width={200} tick={{ fontSize: 11 }} />
-            <Tooltip formatter={(v) => [String(v ?? ''), 'retries']} />
-            <Bar dataKey="value" radius={[0, 3, 3, 0]}>
-              {barData.map((entry, i) => (
-                <Cell key={i} fill={entry.name === 'Other' ? '#94a3b8' : '#0ea5e9'} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-
       <div>
         <p className="text-xs font-medium text-slate-500 mb-1">By failure type</p>
         <PieChart width={300} height={300}>
@@ -127,7 +125,20 @@ function RetryCharts({ tests }: { tests: AggregatedTest[] }) {
               <Cell key={i} fill={STATE_COLORS[entry.name] ?? COLORS[i % COLORS.length]} />
             ))}
           </Pie>
-          <Tooltip formatter={(v) => [String(v ?? ''), 'retries']} />
+          <Tooltip formatter={(v, name) => [String(v ?? ''), String(name ?? '')]} />
+          <Legend iconSize={10} wrapperStyle={{ fontSize: '11px' }} />
+        </PieChart>
+      </div>
+
+      <div>
+        <p className="text-xs font-medium text-slate-500 mb-1">By who retried</p>
+        <PieChart width={300} height={300}>
+          <Pie data={retriedByPieData} dataKey="value" cx="50%" cy="50%" outerRadius={95}>
+            {retriedByPieData.map((_, i) => (
+              <Cell key={i} fill={COLORS[i % COLORS.length]} />
+            ))}
+          </Pie>
+          <Tooltip formatter={(v, name) => [String(v ?? ''), String(name ?? '')]} />
           <Legend iconSize={10} wrapperStyle={{ fontSize: '11px' }} />
         </PieChart>
       </div>
@@ -165,7 +176,8 @@ function InstanceRows({ instances, batchBaseUrl }: { instances: RetriedTest[]; b
 }
 
 function FlakyTests({ basePath, batchBaseUrl }: { basePath: string; batchBaseUrl: string }) {
-  const [tests, setTests] = useState<AggregatedTest[]>([]);
+  const [rawRows, setRawRows] = useState<RetriedTest[]>([]);
+  const [groupByFamily, setGroupByFamily] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
@@ -178,12 +190,14 @@ function FlakyTests({ basePath, batchBaseUrl }: { basePath: string; batchBaseUrl
         return resp.json() as Promise<ApiResponse>;
       })
       .then((data) => {
-        setTests(aggregate(data.rows));
+        setRawRows(data.rows);
         setHasMore(data.has_more);
       })
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false));
   }, [basePath]);
+
+  const tests = aggregate(rawRows, groupByFamily);
 
   function toggleExpanded(jobName: string) {
     setExpanded((prev) => {
@@ -214,18 +228,37 @@ function FlakyTests({ basePath, batchBaseUrl }: { basePath: string; batchBaseUrl
     return <div className="mt-4 text-slate-500">No retried tests in the last 14 days.</div>;
   }
 
+  const maxCount = tests[0]?.retry_count ?? 1;
+
   return (
     <div className="mt-4">
+      <div className="mb-4 flex items-center gap-2.5">
+        <button
+          type="button"
+          role="switch"
+          aria-checked={groupByFamily}
+          onClick={() => { setGroupByFamily(v => !v); setExpanded(new Set()); }}
+          className={`relative h-5 w-9 flex-shrink-0 rounded-full p-0 transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 ${groupByFamily ? 'bg-sky-600' : 'bg-slate-300'}`}
+        >
+          <span
+            className="absolute h-4 w-4 rounded-full bg-white shadow-sm"
+            style={{ top: '2px', left: groupByFamily ? '18px' : '2px', transition: 'left 200ms ease-in-out' }}
+          />
+        </button>
+        <span className="text-sm text-slate-600 cursor-pointer select-none" onClick={() => { setGroupByFamily(v => !v); setExpanded(new Set()); }}>
+          Group test families
+        </span>
+      </div>
       <h2 className="text-base font-semibold text-slate-700 mb-2">Leaderboard</h2>
       <div className="overflow-x-auto">
-        <table className="min-w-full text-sm border-collapse">
+        <table className="w-full table-fixed text-sm border-collapse">
           <thead>
             <tr className="border-b border-slate-200 text-left text-slate-600">
-              <th className="py-2 pr-4 font-medium">#</th>
+              <th className="py-2 pr-4 font-medium w-8">#</th>
               <th className="py-2 pr-4 font-medium">Job Name</th>
-              <th className="py-2 pr-4 font-medium text-right">Retries (14 d)</th>
-              <th className="py-2 pr-4 font-medium text-right">Distinct PRs</th>
-              <th className="py-2 font-medium">Last Retried</th>
+              <th className="py-2 pr-4 font-medium text-right w-20">Retries (14 d)</th>
+              <th className="py-2 pr-4 font-medium text-right w-20">Distinct PRs</th>
+              <th className="py-2 font-medium w-28">Last Retried</th>
             </tr>
           </thead>
           <tbody>
@@ -237,7 +270,7 @@ function FlakyTests({ basePath, batchBaseUrl }: { basePath: string; batchBaseUrl
                   onClick={() => toggleExpanded(t.job_name)}
                 >
                   <td className="py-2 pr-4 text-slate-400">{i + 1}</td>
-                  <td className="py-2 pr-4 font-mono">
+                  <td className="py-2 pr-4 font-mono" style={{ background: `linear-gradient(to right, ${retryHeatColor(t.retry_count / maxCount)} ${(t.retry_count / maxCount) * 100}%, transparent ${(t.retry_count / maxCount) * 100}%)` }}>
                     <span className="inline-flex items-center gap-1">
                       <ChevronRight className={`h-3.5 w-3.5 text-slate-400 transition-transform ${expanded.has(t.job_name) ? 'rotate-90' : ''}`} />
                       {t.job_name}
