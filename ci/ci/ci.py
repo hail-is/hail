@@ -859,37 +859,76 @@ async def get_flaky_tests(request: web.Request, userdata: UserData) -> web.Respo
     return await render_template('ci', request, userdata, 'flaky_tests.html', {})
 
 
-@routes.get('/api/v1alpha/flaky_tests')
+@routes.get('/api/v1alpha/retried_tests')
 @auth.authenticated_developers_only(redirect=False)
-async def api_flaky_tests(request: web.Request, _) -> web.Response:
+async def api_retried_tests(request: web.Request, _) -> web.Response:
     db = request.app[AppKeys.DB]
+
+    after = request.rel_url.query.get('after')
+    cursor = request.rel_url.query.get('cursor')
+    try:
+        limit = min(int(request.rel_url.query.get('limit', 500)), 500)
+    except ValueError:
+        raise web.HTTPBadRequest(text='limit must be an integer')
+
+    conditions = []
+    args: list = []
+
+    if after is not None:
+        conditions.append('retried_at >= %s')
+        args.append(after)
+    else:
+        conditions.append('retried_at >= NOW() - INTERVAL 14 DAY')
+
+    if cursor is not None:
+        try:
+            conditions.append('id < %s')
+            args.append(int(cursor))
+        except ValueError:
+            raise web.HTTPBadRequest(text='cursor must be an integer')
+
+    where = 'WHERE ' + ' AND '.join(conditions)
+
     rows = [
         row
         async for row in db.execute_and_fetchall(
-            """
-SELECT
-    job_name,
-    COUNT(*) AS retry_count,
-    COUNT(DISTINCT pr_number) AS distinct_prs,
-    MAX(retried_at) AS last_retried_at
+            f"""
+SELECT id, batch_id, job_id, job_name, state, exit_code, pr_number,
+       target_branch, source_branch, source_sha, retried_by, retried_at
 FROM retried_tests
-WHERE retried_at >= NOW() - INTERVAL 14 DAY
-  AND job_name IS NOT NULL
-GROUP BY job_name
-ORDER BY retry_count DESC
-LIMIT 50
-"""
+{where}
+ORDER BY id DESC
+LIMIT %s
+""",
+            [*args, limit + 1],
         )
     ]
-    return json_response([
-        {
-            'job_name': r['job_name'],
-            'retry_count': r['retry_count'],
-            'distinct_prs': r['distinct_prs'],
-            'last_retried_at': r['last_retried_at'].isoformat() if r['last_retried_at'] else None,
-        }
-        for r in rows
-    ])
+
+    has_more = len(rows) > limit
+    if has_more:
+        rows = rows[:limit]
+
+    return json_response({
+        'rows': [
+            {
+                'id': r['id'],
+                'batch_id': r['batch_id'],
+                'job_id': r['job_id'],
+                'job_name': r['job_name'],
+                'state': r['state'],
+                'exit_code': r['exit_code'],
+                'pr_number': r['pr_number'],
+                'target_branch': r['target_branch'],
+                'source_branch': r['source_branch'],
+                'source_sha': r['source_sha'],
+                'retried_by': r['retried_by'],
+                'retried_at': r['retried_at'].isoformat(),
+            }
+            for r in rows
+        ],
+        'cursor': rows[-1]['id'] if has_more else None,
+        'has_more': has_more,
+    })
 
 
 async def cleanup_expired_namespaces(db: Database):
