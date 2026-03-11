@@ -293,9 +293,9 @@ LEFT JOIN job_attributes
     jobs.job_id = job_attributes.job_id AND
     job_attributes.`key` = 'name'
 LEFT JOIN attempts AS latest_attempt
-    ON  jobs.batch_id = attempts.batch_id
-    AND jobs.job_id = attempts.job_id
-    AND jobs.attempt_id = attempts.attempt_id
+    ON  jobs.batch_id   = latest_attempt.batch_id
+    AND jobs.job_id     = latest_attempt.job_id
+    AND jobs.attempt_id = latest_attempt.attempt_id
 LEFT JOIN LATERAL (
 SELECT COALESCE(SUM(`usage` * rate), 0) AS cost, JSON_OBJECTAGG(resources.resource, COALESCE(`usage` * rate, 0)) AS cost_breakdown
 FROM (SELECT resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
