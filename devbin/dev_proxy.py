@@ -45,6 +45,7 @@ if SERVICE == 'ci':
 
         @routes.get('/api/v1alpha/retried_tests')
         async def retried_tests_mock(request: web.Request):
+            from datetime import datetime, timedelta, timezone
             rows = [
                 {'id': 120, 'batch_id': 9001, 'job_id': 3, 'job_name': 'test_hail_python_1',                    'state': 'Failed', 'exit_code': 1, 'pr_number': 15310, 'target_branch': 'main', 'source_branch': 'fix-something', 'source_sha': 'aabbcc1', 'retried_by': 'ci', 'retried_at': '2026-03-10T11:03:00'},
                 {'id': 119, 'batch_id': 9001, 'job_id': 3, 'job_name': 'test_hail_python_1',                    'state': 'Failed',  'exit_code': 1, 'pr_number': 15308, 'target_branch': 'main', 'source_branch': 'other-fix',    'source_sha': 'aabbcc2', 'retried_by': 'ci', 'retried_at': '2026-03-10T09:45:00'},
@@ -75,6 +76,12 @@ if SERVICE == 'ci':
                 {'id':  95, 'batch_id': 8760, 'job_id': 7, 'job_name': 'test_hailtop_fs_1',                     'state': 'Failed',  'exit_code': 1, 'pr_number': 15252, 'target_branch': 'main', 'source_branch': 'fs-patch',    'source_sha': 'aa0013', 'retried_by': 'ci', 'retried_at': '2026-03-01T11:00:00'},
                 {'id':  94, 'batch_id': 8750, 'job_id': 2, 'job_name': 'test_ci_1',                             'state': 'Failed',  'exit_code': 1, 'pr_number': 15249, 'target_branch': 'main', 'source_branch': 'ci-tweak',    'source_sha': 'aa0014', 'retried_by': 'ci', 'retried_at': '2026-02-28T17:40:00'},
             ]
+            after_str = request.rel_url.query.get('after')
+            if after_str is not None:
+                after_dt = datetime.fromisoformat(after_str)
+            else:
+                after_dt = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=14)
+            rows = [r for r in rows if datetime.fromisoformat(r['retried_at']) >= after_dt]
             return web.json_response({'rows': rows, 'cursor': None, 'has_more': False})
 
 
