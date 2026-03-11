@@ -6,6 +6,7 @@ from hail.backend.local_backend import LocalBackend
 from hail.backend.py4j_backend import raise_when_mismatched_hail_versions, start_py4j_gateway
 from hail.context import HailContext, _get_log
 from hail.context import init as init_
+from hail.utils import maybe
 from hail.utils.java import BackendType, array_of, choose_backend, scala_object
 from hail.version import __version__
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
@@ -24,7 +25,7 @@ def init(
     _optimizer_iterations: int | None = None,
     *,
     backend: BackendType | None = None,
-    worker_cores: int | None = None,
+    worker_cores: int | str | None = None,
     worker_memory: str | None = None,
     batch_id: int | None = None,
     gcs_requester_pays_configuration: GCSRequesterPaysConfiguration | None = None,
@@ -32,6 +33,7 @@ def init(
     gcs_bucket_allow_list: dict[str, list[str]] | None = None,
     jvm_heap_size: str | None = None,
     skip_logging_configuration: bool = False,
+    max_read_parallelism: int | None = None,
     **kwargs,
 ) -> None:
     backend = choose_backend(backend)
@@ -54,6 +56,7 @@ def init(
             regions=regions,
             gcs_bucket_allow_list=gcs_bucket_allow_list,
             skip_logging_configuration=skip_logging_configuration,
+            max_read_parallelism=max_read_parallelism,
             **kwargs,
         )
 
@@ -77,6 +80,7 @@ def init(
                 worker_cores=worker_cores,
                 worker_memory=worker_memory,
                 regions=regions,
+                max_read_parallelism=max_read_parallelism,
             )
 
             flags = {}
@@ -109,11 +113,12 @@ def __init_batch_backend(
     batch_id: int | None = None,
     billing_project: str | None = None,
     deploy_config_file: str | None = None,
-    worker_cores: str | None = None,
+    worker_cores: int | str | None = None,
     worker_memory: str | None = None,
     storage: str | None = None,
     cloudfuse_configs: list[str] | None = None,
     regions: list[str] | None = None,
+    max_read_parallelism: int | None = None,
 ) -> JavaObject:
     jvm = gateway.jvm
     _is = getattr(jvm, 'is')
@@ -137,9 +142,10 @@ def __init_batch_backend(
         batch_id,
         billing_project,
         deploy_config_file,
-        configuration_of(ConfigVariable.QUERY_BATCH_WORKER_CORES, worker_cores, str(1)),
-        configuration_of(ConfigVariable.QUERY_BATCH_WORKER_MEMORY, worker_memory, 'standard'),
-        storage or '0Gi',
+        configuration_of(ConfigVariable.QUERY_BATCH_WORKER_CORES, maybe(str, worker_cores), None),
+        configuration_of(ConfigVariable.QUERY_BATCH_WORKER_MEMORY, worker_memory, None),
+        storage,
         array_of(gateway, _is.hail.services.CloudfuseConfig),
         array_of(gateway, jvm.String, *regions),
+        configuration_of(ConfigVariable.QUERY_BATCH_BACKEND_MAX_READ_PARALLELISM, max_read_parallelism, None),
     )

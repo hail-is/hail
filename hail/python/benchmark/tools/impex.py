@@ -5,7 +5,8 @@ from pathlib import Path
 from typing import Any, Generator, List, Sequence
 
 import hail as hl
-from benchmark.tools import maybe, prune
+from benchmark.tools import prune
+from hail.utils.misc import maybe
 
 
 class __tflattened:
