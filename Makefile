@@ -181,12 +181,12 @@ hail-buildkit-image: ci/buildkit/Dockerfile
 	./docker-build.sh ci buildkit/Dockerfile $(IMAGE_NAME) --build-arg DOCKER_PREFIX=$(DOCKER_PREFIX)
 	echo $(IMAGE_NAME) > $@
 
-batch/batch/front_end/static/compiled-js/flaky_tests.js: $(shell git ls-files batch/batch/front_end/react)
-	cd batch/batch/front_end/react && npm ci && npm run build
+services/ui/dist/ci/flaky_tests.js: $(shell git ls-files services/ui)
+	cd services/ui && npm ci && npm run build
 
-ci/ci/static/compiled-js/flaky_tests.js: batch/batch/front_end/static/compiled-js/flaky_tests.js
+ci/ci/static/compiled-js/flaky_tests.js: services/ui/dist/ci/flaky_tests.js
 	mkdir -p ci/ci/static/compiled-js
-	cp batch/batch/front_end/static/compiled-js/flaky_tests.js $@
+	cp services/ui/dist/ci/flaky_tests.js $@
 
 ci-image: ci/ci/static/compiled-js/flaky_tests.js
 

@@ -51,5 +51,6 @@ batch/jvm-entryway/bin
 .helix
 /hail/mill-build/config/hail-build-mode
 /hail/mill-build/config/scala-version
-batch/batch/front_end/static/compiled-js/*.js
-ci/ci/static/compiled-js/*.js
+services/ui/dist/
+services/ui/node_modules/
+**/static/compiled-js/

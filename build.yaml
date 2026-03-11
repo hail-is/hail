@@ -724,33 +724,32 @@ steps:
       - merge_code
       - hail_ubuntu_image
   - kind: runImage
-    name: build_batch_react_app
+    name: build_ui
     image: node:20-slim
     script: |
       set -ex
-      cd /io/repo/batch/batch/front_end/react
-      mkdir -p /io/repo/batch/batch/front_end/static/compiled-js
+      cd /io/repo/services/ui
       npm ci
       npm run build
     inputs:
-      - from: /repo/batch/batch/front_end/react
-        to: /io/repo/batch/batch/front_end/react
+      - from: /repo/services/ui
+        to: /io/repo/services/ui
     outputs:
-      - from: /io/repo/batch/batch/front_end/static/compiled-js
-        to: /compiled-js
+      - from: /io/repo/services/ui/dist/ci
+        to: /compiled-js/ci
     dependsOn:
       - merge_code
   - kind: runImage
-    name: check_batch_ts
+    name: check_ui
     image: node:20-slim
     script: |
       set -ex
-      cd /io/repo/batch/batch/front_end/react
+      cd /io/repo/services/ui
       npm ci
       npm run check
     inputs:
-      - from: /repo/batch/batch/front_end/react
-        to: /io/repo/batch/batch/front_end/react
+      - from: /repo/services/ui
+        to: /io/repo/services/ui
     dependsOn:
       - merge_code
   - kind: buildImage2
@@ -771,13 +770,13 @@ steps:
         to: /io/repo/gear
       - from: /repo/web_common
         to: /io/repo/web_common
-      - from: /compiled-js
+      - from: /compiled-js/ci
         to: /io/repo/ci/ci/static/compiled-js
     dependsOn:
       - hail_ubuntu_image
       - merge_code
-      - build_batch_react_app
-      - check_batch_ts
+      - build_ui
+      - check_ui
   - kind: buildImage2
     name: hail_buildkit_image
     dockerFile: /io/repo/ci/buildkit/Dockerfile
