@@ -6,7 +6,7 @@
 {% block content %}
 <h1 class="text-2xl font-light mb-2">Flaky Test Dashboard</h1>
 <p class="text-slate-500 mb-4">Most-retried test jobs in the last 14 days.</p>
-<div id="flaky-tests-root" data-base-path="{{ base_path }}">
+<div id="flaky-tests-root" data-base-path="{{ base_path }}" data-batch-base-url="{{ batch_base_url }}">
   <div class="flex items-center gap-2 mt-4 text-slate-500">
     <svg class="animate-spin h-5 w-5 text-sky-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
       <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
