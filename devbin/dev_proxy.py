@@ -11,6 +11,10 @@ from aiohttp import web
 import aiohttp_session
 from aiohttp_session.cookie_storage import EncryptedCookieStorage
 
+SERVICE = os.environ['SERVICE']
+
+deploy_config = get_deploy_config()
+
 routes = web.RouteTableDef()
 setup_common_static_routes(routes)
 
@@ -19,10 +23,6 @@ STATIC_DIRS: dict[str, list[tuple[str, str]]] = {
 }
 for _path, _directory in STATIC_DIRS.get(SERVICE, []):
     routes.static(_path, _directory)
-
-deploy_config = get_deploy_config()
-
-SERVICE = os.environ['SERVICE']
 IS_DEVELOPER = bool(os.getenv('IS_DEVELOPER', True))
 MODULES = {'batch': 'batch.front_end', 'batch-driver': 'batch.driver'}
 BC = web.AppKey('backend_client', Session)
