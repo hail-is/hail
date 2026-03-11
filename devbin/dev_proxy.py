@@ -27,11 +27,19 @@ IS_DEVELOPER = bool(os.getenv('IS_DEVELOPER', True))
 MODULES = {'batch': 'batch.front_end', 'batch-driver': 'batch.driver'}
 BC = web.AppKey('backend_client', Session)
 
-
 @routes.view('/api/{route:.*}')
 @web_security_headers
 async def default_proxied_api_route(request: web.Request):
     return web.json_response(await proxy(request))
+
+
+if SERVICE == 'ci':
+
+    @routes.get('/flaky_tests')
+    @web_security_headers
+    async def flaky_tests_local(request: web.Request):
+        fake_userdata = {'username': 'dev', 'is_developer': IS_DEVELOPER}
+        return await render_template('ci', request, fake_userdata, 'flaky_tests.html', {})
 
 
 @routes.view('/{route:.*}')
