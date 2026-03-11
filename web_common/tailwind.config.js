@@ -5,6 +5,7 @@ module.exports = {
     "../auth/**/*.{html,js}",
     "../batch/**/*.{html,js}",
     "../ci/**/*.{html,js}",
+    "!../**/node_modules/**",
   ],
   theme: {
     extend: {
