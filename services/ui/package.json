@@ -1,9 +1,9 @@
 {
-  "name": "batch-react",
+  "name": "hail-ui",
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "esbuild src/flaky_tests.tsx --bundle --jsx=automatic --format=esm --outdir=../static/compiled-js --minify",
+    "build": "esbuild src/ci/flaky_tests.tsx --bundle --jsx=automatic --format=esm --outdir=dist/ci --minify",
     "check": "tsc --noEmit"
   },
   "dependencies": {
