@@ -671,9 +671,10 @@ case class PartitionRVDReader(rvd: RVD, uidFieldName: String) extends PartitionR
           cb.assign(curIdx, 0L)
           cb.assign(
             iterator,
-            broadcastRVD.invoke[Int, Region, Region, Iterator[Long]](
+            broadcastRVD.invoke[Int, HailClassLoader, Region, Region, Iterator[Long]](
               "computePartition",
               partIdx.asInt.value,
+              cb.emb.getHailClassLoader,
               region,
               partitionRegion,
             ),

@@ -112,7 +112,7 @@ case class LogisticRegression(
 
     val copiedFieldIndices = (mv.typ.rowKey ++ passThrough).map(mv.rvRowType.fieldIdx(_)).toArray
 
-    val newRVD = mv.rvd.mapPartitions(newRVDType) { (ctx, it) =>
+    val newRVD = mv.rvd.mapPartitions(newRVDType) { (_, ctx, it) =>
       val rvb = ctx.rvb
 
       val missingCompleteCols = new IntArrayBuilder()
