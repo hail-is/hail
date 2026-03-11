@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
+import { PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from 'recharts';
 
 interface RetriedTest {
   id: number;
@@ -29,6 +30,8 @@ interface AggregatedTest {
   last_retried_at: string;
   instances: RetriedTest[];
 }
+
+const COLORS = ['#0ea5e9', '#f97316', '#a855f7', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#ec4899', '#14b8a6', '#84cc16'];
 
 function Spinner() {
   return (
@@ -79,6 +82,57 @@ function aggregate(rows: RetriedTest[]): AggregatedTest[] {
     }
   }
   return Array.from(byJob.values()).sort((a, b) => b.retry_count - a.retry_count);
+}
+
+function RetryCharts({ tests }: { tests: AggregatedTest[] }) {
+  const total = tests.reduce((s, t) => s + t.retry_count, 0);
+
+  const stateCounts = tests.flatMap((t) => t.instances).reduce<Record<string, number>>((acc, r) => {
+    acc[r.state] = (acc[r.state] ?? 0) + 1;
+    return acc;
+  }, {});
+  const STATE_COLORS: Record<string, string> = { Failed: '#ef4444', Error: '#f97316' };
+  const statePieData = Object.entries(stateCounts).map(([name, value]) => ({ name, value }));
+
+  // tests is already sorted descending; recharts puts first item at top, so longest bar is first = top
+  const mainBarJobs = tests.filter((t) => t.retry_count / total >= 0.1);
+  const otherBarCount = tests.filter((t) => t.retry_count / total < 0.1).reduce((s, t) => s + t.retry_count, 0);
+  const barData = mainBarJobs.map((t) => ({ name: t.job_name, value: t.retry_count }));
+  if (otherBarCount > 0) barData.push({ name: 'Other', value: otherBarCount });
+
+  return (
+    <div className="flex flex-wrap gap-8 mb-8 items-start">
+      <div className="flex-1" style={{ minWidth: 380 }}>
+        <p className="text-xs font-medium text-slate-500 mb-1">Retries per job</p>
+        <ResponsiveContainer width="100%" height={Math.max(260, barData.length * 28)}>
+          <BarChart data={barData} layout="vertical" margin={{ right: 24 }}>
+            <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+            <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
+            <YAxis type="category" dataKey="name" width={200} tick={{ fontSize: 11 }} />
+            <Tooltip formatter={(v) => [String(v ?? ''), 'retries']} />
+            <Bar dataKey="value" radius={[0, 3, 3, 0]}>
+              {barData.map((entry, i) => (
+                <Cell key={i} fill={entry.name === 'Other' ? '#94a3b8' : '#0ea5e9'} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div>
+        <p className="text-xs font-medium text-slate-500 mb-1">By failure type</p>
+        <PieChart width={300} height={300}>
+          <Pie data={statePieData} dataKey="value" cx="50%" cy="50%" outerRadius={95}>
+            {statePieData.map((entry, i) => (
+              <Cell key={i} fill={STATE_COLORS[entry.name] ?? COLORS[i % COLORS.length]} />
+            ))}
+          </Pie>
+          <Tooltip formatter={(v) => [String(v ?? ''), 'retries']} />
+          <Legend iconSize={10} wrapperStyle={{ fontSize: '11px' }} />
+        </PieChart>
+      </div>
+    </div>
+  );
 }
 
 function InstanceRows({ instances, batchBaseUrl }: { instances: RetriedTest[]; batchBaseUrl: string }) {
@@ -162,6 +216,7 @@ function FlakyTests({ basePath, batchBaseUrl }: { basePath: string; batchBaseUrl
 
   return (
     <div className="mt-4">
+      <h2 className="text-base font-semibold text-slate-700 mb-2">Leaderboard</h2>
       <div className="overflow-x-auto">
         <table className="min-w-full text-sm border-collapse">
           <thead>
@@ -205,6 +260,8 @@ function FlakyTests({ basePath, batchBaseUrl }: { basePath: string; batchBaseUrl
           Results truncated — showing most recent 500 retries only. Aggregations may be incomplete.
         </p>
       )}
+      <h2 className="text-base font-semibold text-slate-700 mt-6 mb-2">Charts</h2>
+      <RetryCharts tests={tests} />
     </div>
   );
 }
