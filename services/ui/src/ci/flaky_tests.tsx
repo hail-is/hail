@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Fragment } from 'react';
 import { createRoot } from 'react-dom/client';
 import { PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
 
@@ -315,9 +315,8 @@ function FlakyTests({ basePath, batchBaseUrl }: { basePath: string; batchBaseUrl
           </thead>
           <tbody>
             {tests.map((t, i) => (
-              <>
+              <Fragment key={t.job_name}>
                 <tr
-                  key={t.job_name}
                   className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer select-none"
                   onClick={() => toggleExpanded(t.job_name)}
                 >
@@ -335,7 +334,7 @@ function FlakyTests({ basePath, batchBaseUrl }: { basePath: string; batchBaseUrl
                 {expanded.has(t.job_name) && (
                   <InstanceRows instances={t.instances} batchBaseUrl={batchBaseUrl} />
                 )}
-              </>
+              </Fragment>
             ))}
           </tbody>
         </table>
