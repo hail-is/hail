@@ -5,13 +5,12 @@ import is.hail.services.BatchClient.{
   BunchMaxSizeBytes, JarSpecSerializer, JobGroupResponseDeserializer, JobGroupStateDeserializer,
   JobListEntryDeserializer, JobProcessRequestSerializer, JobStateDeserializer,
 }
-import is.hail.services.JobGroupStates.isTerminal
+import is.hail.services.JobGroupStates.Running
 import is.hail.services.oauth2.CloudCredentials
 import is.hail.services.requests.{ClientResponseException, Requester}
 import is.hail.utils._
 
 import scala.collection.compat.immutable.LazyList
-import scala.util.Random
 
 import java.net.{URL, URLEncoder}
 import java.nio.charset.StandardCharsets.UTF_8
@@ -89,9 +88,6 @@ object JobGroupStates {
   case object Cancelled extends JobGroupState
   case object Success extends JobGroupState
   case object Running extends JobGroupState
-
-  def isTerminal(s: JobGroupState): Boolean =
-    s != Running
 }
 
 sealed trait JobState extends Product with Serializable
@@ -111,7 +107,8 @@ case class JobListEntry(
   batch_id: Int,
   job_id: Int,
   state: JobState,
-  exit_code: Int,
+  exit_code: Option[Int],
+  end_time: Option[String],
 )
 
 object BatchClient {
@@ -239,7 +236,8 @@ object BatchClient {
                 batch_id = (o \ "batch_id").extract[Int],
                 job_id = (o \ "job_id").extract[Int],
                 state = (o \ "state").extract[JobState],
-                exit_code = (o \ "exit_code").extract[Int],
+                exit_code = (o \ "exit_code").extractOpt[Int],
+                end_time = (o \ "end_time").extractOpt[String],
               )
           },
           PartialFunction.empty,
@@ -259,8 +257,8 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
       JobListEntryDeserializer
 
   private[this] def paginated[S, A](s0: S)(f: S => (A, S)): LazyList[A] = {
-    val (a, s1) = f(s0)
-    LazyList.cons(a, paginated(s1)(f))
+    lazy val s = f(s0)
+    LazyList.cons(s._1, paginated(s._2)(f))
   }
 
   def newBatch(createRequest: BatchRequest): Int = {
@@ -276,16 +274,16 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
         val batchId = req.batch_id
         val nJobs = req.jobs.length
         val (updateId, startJobGroupId, startJobId) = beginUpdate(batchId, req.token, nJobs)
-        logger.info(s"Began update '$updateId' for batch '$batchId'.")
+        logger.info(s"Began update $updateId of batch $batchId.")
 
         createJobGroup(updateId, req)
-        logger.info(s"Created job group '$startJobGroupId' for batch '$batchId'.")
+        logger.info(s"Created job group $startJobGroupId in batch $batchId.")
 
-        createJobsIncremental(batchId, updateId, req.jobs)
-        logger.info(s"Created '$nJobs' jobs in job group '$startJobGroupId' for batch '$batchId'.")
+        createJobs(batchId, updateId, req.jobs)
+        logger.info(s"Created $nJobs jobs in job group $startJobGroupId in batch $batchId.")
 
         commitUpdate(batchId, updateId)
-        logger.info(s"Committed update '$updateId' for batch '$batchId'.")
+        logger.info(s"Committed update $updateId of batch $batchId.")
 
         (startJobGroupId, startJobId)
       } catch {
@@ -300,7 +298,7 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
               f"'$delay' ms to allow the other update complete.",
             e,
           )
-          Thread.sleep(delay.toLong)
+          Thread.sleep(delay)
           retry
       }
     }
@@ -310,13 +308,28 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
       .get(s"/api/v1alpha/batches/$batchId/job-groups/$jobGroupId")
       .extract[JobGroupResponse]
 
-  def getJobGroupJobs(batchId: Int, jobGroupId: Int, status: Option[JobState] = None)
-    : LazyList[IndexedSeq[JobListEntry]] = {
-    val q = status.map(s => s"state=${s.toString.toLowerCase}").getOrElse("")
+  def getJobGroupJobs(
+    batchId: Int,
+    jobGroupId: Int,
+    status: Option[JobState] = None,
+    endAfter: Option[String] = None,
+  ): LazyList[IndexedSeq[JobListEntry]] = {
+
+    val q =
+      URLEncoder.encode(
+        FastSeq(
+          status.map(s => s"state=${s.toString.toLowerCase}"),
+          endAfter.map(t => s"end_time>$t"),
+        )
+          .flatten
+          .mkString("\n"),
+        UTF_8,
+      )
+
     paginated(Some(0): Option[Int]) {
       case Some(jobId) =>
         req.get(
-          s"/api/v2alpha/batches/$batchId/job-groups/$jobGroupId/jobs?q=${URLEncoder.encode(q, UTF_8)}&last_job_id=$jobId"
+          s"/api/v2alpha/batches/$batchId/job-groups/$jobGroupId/jobs?q=$q&last_job_id=$jobId"
         )
           .as { case obj: JObject =>
             (
@@ -333,36 +346,18 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
   def cancelJobGroup(batchId: Int, jobGroupId: Int): Unit =
     req.patch(s"/api/v1alpha/batches/$batchId/job-groups/$jobGroupId/cancel"): Unit
 
-  def waitForJobGroup(batchId: Int, jobGroupId: Int): JobGroupResponse = {
-    val start = System.nanoTime()
-
-    while (true) {
+  def waitForJobGroup(batchId: Int, jobGroupId: Int): JobGroupResponse =
+    retryable { attempts =>
       val jobGroup = getJobGroup(batchId, jobGroupId)
-
-      if (isTerminal(jobGroup.state)) return jobGroup
-
-      // wait 10% of duration so far
-      // at least, 50ms
-      // at most, 5s
-      val now = System.nanoTime()
-      val elapsed = now - start
-      val d = math.max(
-        math.min(
-          (0.1 * (0.8 + Random.nextFloat() * 0.4) * (elapsed / 1000.0 / 1000)).toInt,
-          5000,
-        ),
-        50,
-      )
-      Thread.sleep(d.toLong)
+      if (jobGroup.state != Running) return jobGroup
+      Thread.sleep(delayMsForTry(attempts, 50, 5000))
+      retry
     }
-
-    unreachable
-  }
 
   override def close(): Unit =
     req.close()
 
-  private[this] def createJobsIncremental(
+  private[this] def createJobs(
     batchId: Int,
     updateId: Int,
     jobs: IndexedSeq[JobRequest],
@@ -374,17 +369,19 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
       buff ++= "]".getBytes(UTF_8)
       req.post(
         s"/api/v1alpha/batches/$batchId/updates/$updateId/jobs/create",
-        new ByteArrayEntity(buff.result(), APPLICATION_JSON),
+        new ByteArrayEntity(buff.b, 0, buff.size, APPLICATION_JSON),
       ): Unit
       buff.clear()
       sym = "["
     }
 
-    for ((job, idx) <- jobs.zipWithIndex) {
-      val jobPayload = jobToJson(job, idx).getBytes(UTF_8)
+    val total = jobs.length
+    for (i <- jobs.indices) {
+      val jobPayload = jobToJson(jobs(i), i).getBytes(UTF_8)
 
       if (buff.size + jobPayload.length > BunchMaxSizeBytes) {
         flush()
+        logger.info(s"Created $i of $total jobs in update $updateId of batch $batchId")
       }
 
       buff ++= sym.getBytes(UTF_8)

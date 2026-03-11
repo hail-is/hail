@@ -71,7 +71,7 @@ object requests extends Logging {
             throw new ClientResponseException(statusCode, message.orNull)
           }
 
-          logger.info(s"$statusCode ${req.getMethod} ${req.getURI}")
+          logger.debug(s"$statusCode ${req.getMethod} ${req.getURI}")
           message.map(JsonMethods.parse(_)).getOrElse(JNothing)
         }
       }

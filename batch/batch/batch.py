@@ -138,8 +138,11 @@ def job_record_to_dict(record: Dict[str, Any], name: Optional[str]) -> JobListEn
         exit_code = None
         duration = None
 
-    if record['cost_breakdown'] is not None:
-        record['cost_breakdown'] = cost_breakdown_to_dict(json.loads(record['cost_breakdown']))
+    cost_breakdown = record['cost_breakdown']
+    cost_breakdown = cost_breakdown_to_dict(json.loads(cost_breakdown)) if cost_breakdown is not None else None
+
+    end_time = record['end_time']
+    end_time = time_msecs_str(end_time) if end_time is not None else None
 
     return cast(
         JobListEntryV1Alpha,
@@ -151,10 +154,11 @@ def job_record_to_dict(record: Dict[str, Any], name: Optional[str]) -> JobListEn
             'billing_project': record['billing_project'],
             'state': record['state'],
             'exit_code': exit_code,
+            'end_time': end_time,
             'duration': duration,
             'cost': coalesce(record['cost'], 0),
             'msec_mcpu': record['msec_mcpu'],
-            'cost_breakdown': record['cost_breakdown'],
+            'cost_breakdown': cost_breakdown,
             'always_run': bool(record['always_run']),
             'display_state': None,
         },
