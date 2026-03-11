@@ -1409,7 +1409,8 @@ object LowerBlockMatrixIR {
 
         val rowSlices = rowDependents.zipWithIndex.map { case (dep, i) =>
           val blockAlignedRowStartIdx = dep.head.toLong * x.typ.blockSize
-          val blockAlignedRowEndIdx = math.min(child.typ.nRows, (dep.last + 1L) * x.typ.blockSize * rStep)
+          val blockAlignedRowEndIdx =
+            math.min(child.typ.nRows, (dep.last + 1L) * x.typ.blockSize * rStep)
           val rStartPlusSeenAlready = rStart + i * x.typ.blockSize * rStep
           val rowTrueStart = rStartPlusSeenAlready - blockAlignedRowStartIdx
           val rowTrueEnd = math.min(
@@ -1421,7 +1422,8 @@ object LowerBlockMatrixIR {
 
         val colSlices = colDependents.zipWithIndex.map { case (dep, i) =>
           val blockAlignedColStartIdx = dep.head.toLong * x.typ.blockSize
-          val blockAlignedColEndIdx = math.min(child.typ.nCols, (dep.last + 1L) * x.typ.blockSize * rStep)
+          val blockAlignedColEndIdx =
+            math.min(child.typ.nCols, (dep.last + 1L) * x.typ.blockSize * rStep)
           val cStartPlusSeenAlready = cStart + i * x.typ.blockSize * cStep
           val colTrueStart = cStartPlusSeenAlready - blockAlignedColStartIdx
           val colTrueEnd = math.min(
