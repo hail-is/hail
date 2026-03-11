@@ -17,6 +17,7 @@ class GetJobResponseV1Alpha(TypedDict):
     billing_project: str
     state: Literal['Pending', 'Ready', 'Creating', 'Running', 'Failed', 'Cancelled', 'Error', 'Success']
     exit_code: Optional[int]
+    end_time: Optional[str]
     duration: Optional[int]
     cost: Optional[float]
     msec_mcpu: int
@@ -38,6 +39,7 @@ class JobListEntryV1Alpha(TypedDict):
     billing_project: str
     state: Literal['Pending', 'Ready', 'Creating', 'Running', 'Failed', 'Cancelled', 'Error', 'Success']
     exit_code: Optional[int]
+    end_time: Optional[str]
     duration: Optional[int]
     cost: Optional[float]
     msec_mcpu: int

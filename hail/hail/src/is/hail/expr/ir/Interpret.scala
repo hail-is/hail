@@ -8,7 +8,6 @@ import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.{toRichIterable, toRichIterator}
 import is.hail.expr.ir.analyses.PartitionCounts
-import is.hail.expr.ir.compile.{Compile, CompileWithAggregators}
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.lowering.{ExecuteRelational, LoweringPipeline}
 import is.hail.io.BufferSpec

@@ -2327,7 +2327,13 @@ async def _get_job(app, batch_id, job_id) -> GetJobResponseV1Alpha:
     record = await db.select_and_fetchone(
         """
 WITH base_t AS (
-SELECT jobs.*, user, billing_project, ip_address, format_version, t.attempt_id AS last_cancelled_attempt_id
+SELECT jobs.*
+     , user
+     , billing_project
+     , ip_address
+     , format_version
+     , t.attempt_id AS last_cancelled_attempt_id
+     , attempts.end_time
 FROM jobs
 INNER JOIN batches
   ON jobs.batch_id = batches.id

@@ -91,6 +91,13 @@ def config_variables():
                     'should be one of "local", "spark", or "batch"',
                 ),
             ),
+            ConfigVariable.QUERY_BATCH_BACKEND_MAX_READ_PARALLELISM: ConfigVariableInfo(
+                help_msg='Maximum number of parallel reads of partition results',
+                validation=(
+                    lambda x: re.fullmatch(r'[1-9]\d*', x) is not None,
+                    'should be a positive integer',
+                ),
+            ),
             ConfigVariable.QUERY_BATCH_DRIVER_CORES: ConfigVariableInfo(
                 help_msg='Cores specification for the query driver',
                 validation=(

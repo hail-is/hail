@@ -2,7 +2,7 @@ import pytest
 from test.hail.helpers import with_flags
 
 import hail as hl
-from benchmark.tools import chunk
+from hail.utils import chunk
 from hail.vds.combiner import combine_variant_datasets, new_combiner, transform_gvcf
 
 COMBINE_GVCF_MAX = 100

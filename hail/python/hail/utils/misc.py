@@ -11,7 +11,7 @@ import tempfile
 from collections import Counter, defaultdict
 from contextlib import contextmanager
 from io import StringIO
-from typing import Literal, Optional
+from typing import Any, Callable, Generator, Literal, Optional, Sequence, TypeVar
 from urllib.parse import urlparse
 
 import hail
@@ -672,3 +672,15 @@ def no_service_backend(unsupported_feature):
 
 
 ANY_REGION = ['any_region']
+
+A = TypeVar('A')
+B = TypeVar('B')
+
+
+def chunk(size: int, seq: Sequence[A]) -> Generator[Sequence[A], A, Any]:
+    for pos in range(0, len(seq), size):
+        yield seq[pos : pos + size]
+
+
+def maybe(f: Callable[[A], B], ma: Optional[A], default: Optional[B] = None) -> Optional[B]:
+    return f(ma) if ma is not None else default

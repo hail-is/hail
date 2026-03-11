@@ -252,7 +252,9 @@ object Worker extends Logging {
           try
             using(new ServiceTaskContext(partition)) { htc =>
               retryTransientErrors {
-                Right(f(globals, context, htc, hcl, fs))
+                htc.getRegionPool().scopedRegion { r =>
+                  Right(f(hcl, fs, htc, r)(globals, context))
+                }
               }
             }
           catch {

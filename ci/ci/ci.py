@@ -193,10 +193,41 @@ async def _populate_batch_context(page_context: Dict[str, Any], batch: Batch) ->
         page_context['logging_queries'] = None
 
 
-async def _populate_active_pr_context(page_context: Dict[str, Any], wb: WatchedBranch, pr_number: int) -> None:
+async def _populate_active_pr_context(
+    page_context: Dict[str, Any], wb: WatchedBranch, pr_number: int, db: Database
+) -> None:
     pr = wb.prs[pr_number]
     page_context['pr'] = pr
     page_context['active_pr'] = True
+    page_context['pr_authorized'] = await pr.authorized(db)
+
+    # Merge eligibility checklist
+    page_context['review_approved'] = pr.review_state == 'approved'
+    page_context['checks_all_pass'] = len(pr.last_known_github_status) > 0 and pr.build_succeeding_on_all_platforms()
+    page_context['is_up_to_date'] = pr.is_up_to_date()
+    page_context['blocking_labels'] = [label for label in pr.labels if label in ('WIP', 'stacked PR')]
+    page_context['is_mergeable'] = pr.is_mergeable()
+
+    # Merge queue: approved, non-blocked, non-failing PRs with higher priority
+    _do_not_merge = frozenset(('WIP', 'stacked PR'))
+    page_context['build_failing'] = pr.build_failed_on_at_least_one_platform()
+    page_context['prs_ahead_in_queue'] = [
+        {'number': p.number, 'title': p.title, 'is_merge_candidate': p is wb.merge_candidate}
+        for p in wb.prs_in_merge_priority_order()
+        if p.number != pr.number
+        and p.merge_priority() > pr.merge_priority()
+        and p.review_state == 'approved'
+        and not any(label in _do_not_merge for label in p.labels)
+        and not p.build_failed_on_at_least_one_platform()
+    ]
+    page_context['is_merge_candidate'] = wb.merge_candidate is not None and wb.merge_candidate.number == pr.number
+
+    # Deploy batch blocking next merge (running but not yet complete)
+    deploy_batch = wb.deploy_batch
+    page_context['blocking_deploy_batch_id'] = (
+        deploy_batch.id if deploy_batch and isinstance(deploy_batch, Batch) and wb.deploy_state is None else None
+    )
+
     batch = pr.batch
     if batch:
         if isinstance(batch, Batch):
@@ -217,6 +248,7 @@ async def _populate_historical_pr_context(
             'number': gh_pr['number'],
             'labels': [label['name'] for label in gh_pr.get('labels', [])],
             'merged': gh_pr['merged'],
+            'merge_commit_sha': gh_pr.get('merge_commit_sha') if gh_pr['merged'] else None,
         }
     except gidgethub.HTTPException as e:
         if e.status_code == 404:
@@ -243,7 +275,7 @@ async def get_pr(request: web.Request, userdata: UserData) -> web.Response:
     page_context: Dict[str, Any] = {'repo': wb.branch.repo.short_str(), 'wb': wb}
 
     if wb.prs and pr_number in wb.prs:
-        await _populate_active_pr_context(page_context, wb, pr_number)
+        await _populate_active_pr_context(page_context, wb, pr_number, request.app[AppKeys.DB])
     else:
         await _populate_historical_pr_context(page_context, request.app[AppKeys.GH_CLIENT], wb, pr_number)
 
@@ -261,6 +293,27 @@ async def get_pr(request: web.Request, userdata: UserData) -> web.Response:
     if not page_context['active_pr'] and batches:
         await _populate_batch_context(page_context, batches[0])
     page_context['history'] = [await b.last_known_status() for b in batches]
+
+    deploy_batches = []
+    pr_data = page_context.get('pr')
+    if (
+        not page_context['active_pr']
+        and isinstance(pr_data, dict)
+        and pr_data.get('merged')
+        and pr_data.get('merge_commit_sha')
+    ):
+        merge_commit_sha = pr_data['merge_commit_sha']
+        deploy_batches = sorted(
+            [
+                b
+                async for b in batch_client.list_batches(
+                    f'deploy=1 target_branch={wb.branch.short_str()} sha={merge_commit_sha} user:ci'
+                )
+            ],
+            key=lambda b: b.id,
+            reverse=True,
+        )
+    page_context['deploy_batches'] = [await b.last_known_status() for b in deploy_batches]
 
     return await render_template('ci', request, userdata, 'pr.html', page_context)
 

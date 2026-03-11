@@ -10,7 +10,6 @@ import is.hail.collection.compat.mutable.Growable
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir
 import is.hail.expr.ir._
-import is.hail.expr.ir.compile.CompileWithAggregators
 import is.hail.expr.ir.defs._
 import is.hail.io.BufferSpec
 import is.hail.types.{tcoerce, TypeWithRequiredness, VirtualTypeWithReq}

@@ -3,8 +3,9 @@ package is.hail.backend.service
 import is.hail.Revision
 import is.hail.backend._
 import is.hail.backend.Backend.PartitionFn
+import is.hail.backend.ExecutionCache.Flags.UseFastRestarts
 import is.hail.backend.local.LocalTaskContext
-import is.hail.backend.service.ServiceBackend.MaxAvailableGcsConnections
+import is.hail.backend.service.ServiceBackend.Flags._
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.Validate
@@ -14,25 +15,32 @@ import is.hail.expr.ir.{
 import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.lowering._
 import is.hail.services._
-import is.hail.services.JobGroupStates.{Cancelled, Failure, Success}
+import is.hail.services.JobGroupStates.{Cancelled, Failure, Running, Success}
 import is.hail.services.oauth2.{CloudCredentials, HailCredentials}
 import is.hail.types._
 import is.hail.types.physical._
 import is.hail.utils._
 
-import scala.collection.compat._
-import scala.concurrent.{Await, CancellationException, ExecutionContext, Future}
+import scala.concurrent._
 import scala.concurrent.duration.Duration
+import scala.math.Ordered.orderingToOrdered
 import scala.reflect.ClassTag
 import scala.util.control.NonFatal
 
 import java.io._
-import java.util.concurrent.Executors
+import java.util.concurrent.{ExecutorCompletionService, Executors}
 
 import com.fasterxml.jackson.core.StreamReadConstraints
 
 object ServiceBackend {
-  val MaxAvailableGcsConnections = 1000
+  object Flags {
+    val UseAsyncProfiler = "profile"
+  }
+
+  // Chosen (somewhat arbitrarily) to limit the amount of memory the driver
+  // needs to execute range_table(10_000).repartition(10_000)._force_count()
+  // so that it can run on "standard" workers without performance overhead.
+  val DefaultMaxReadParallelism = 50
 
   // See https://github.com/hail-is/hail/issues/14580
   StreamReadConstraints.overrideDefaultStreamReadConstraints(
@@ -49,6 +57,7 @@ object ServiceBackend {
     storage: String,
     cloudfuse: Array[CloudfuseConfig],
     regions: Array[String],
+    maxReadParallelism: Integer,
   ): ServiceBackend = {
     val credentials: CloudCredentials =
       HailCredentials().getOrElse(CloudCredentials(keyPath = None))
@@ -73,11 +82,11 @@ object ServiceBackend {
 
     val workerConfig =
       BatchJobConfig(
-        workerCores,
-        workerMemory,
-        storage,
-        cloudfuse,
-        regions,
+        Option(workerCores),
+        Option(workerMemory),
+        Option(storage),
+        Option(cloudfuse),
+        Option(regions),
       )
 
     new ServiceBackend(
@@ -86,16 +95,17 @@ object ServiceBackend {
       GitRevision(Revision),
       BatchConfig(batchId, 0),
       workerConfig,
+      Option(maxReadParallelism).map(_.toInt).getOrElse(DefaultMaxReadParallelism),
     )
   }
 }
 
 case class BatchJobConfig(
-  worker_cores: String,
-  worker_memory: String,
-  storage: String,
-  cloudfuse_configs: Array[CloudfuseConfig],
-  regions: Array[String],
+  worker_cores: Option[String],
+  worker_memory: Option[String],
+  storage: Option[String],
+  cloudfuse_configs: Option[Array[CloudfuseConfig]],
+  regions: Option[Array[String]],
 )
 
 class ServiceBackend(
@@ -104,13 +114,15 @@ class ServiceBackend(
   jarSpec: JarSpec,
   val batchConfig: BatchConfig,
   jobConfig: BatchJobConfig,
+  maxReadParallelism: Int,
 ) extends Backend with Logging {
 
+  private[this] val batchId = batchConfig.batchId
   private[this] var stageCount = 0
 
   private[this] val executor =
     lazily {
-      Executors.newFixedThreadPool(MaxAvailableGcsConnections)
+      Executors.newFixedThreadPool(maxReadParallelism)
     }
 
   override def defaultParallelism: Int = 4
@@ -126,17 +138,17 @@ class ServiceBackend(
       override val executionCache: ExecutionCache =
         ExecutionCache.fromFlags(ctx.flags, ctx.fs, ctx.tmpdir)
 
-      private[this] def submitJobGroupAndWait(
+      private[this] def submitJobGroup(
         partitions: IndexedSeq[Int],
         token: String,
         root: String,
         stageIdentifier: String,
-      ): (JobGroupResponse, Int) = {
+      ): (Int, Int) = {
         val defaultProcess =
           JvmJob(
             command = null,
             spec = jarSpec,
-            profile = ctx.flags.get("profile") != null,
+            profile = ctx.flags.get(UseAsyncProfiler) != null,
           )
 
         val defaultJob =
@@ -146,13 +158,13 @@ class ServiceBackend(
             resources = Some(
               JobResources(
                 preemptible = true,
-                cpu = Some(jobConfig.worker_cores).filter(_ != "None"),
-                memory = Some(jobConfig.worker_memory).filter(_ != "None"),
-                storage = Some(jobConfig.storage).filter(_ != "0Gi"),
+                cpu = jobConfig.worker_cores,
+                memory = jobConfig.worker_memory,
+                storage = jobConfig.storage,
               )
             ),
-            regions = Some(jobConfig.regions).filter(_.nonEmpty),
-            cloudfuse = Some(jobConfig.cloudfuse_configs).filter(_.nonEmpty),
+            regions = jobConfig.regions,
+            cloudfuse = jobConfig.cloudfuse_configs,
           )
 
         val jobs =
@@ -169,28 +181,171 @@ class ServiceBackend(
             )
           }
 
-        val (jobGroupId, startJobId) =
-          batchClient.newJobGroup(
-            JobGroupRequest(
-              batch_id = batchConfig.batchId,
-              absolute_parent_id = batchConfig.jobGroupId,
-              token = token,
-              cancel_after_n_failures = Some(1),
-              attributes = Map("name" -> stageIdentifier),
-              jobs = jobs,
-            )
-          )
-
         stageCount += 1
-        try {
-          Thread.sleep(600) // it is not possible for the batch to be finished in less than 600ms
-          val response = batchClient.waitForJobGroup(batchConfig.batchId, jobGroupId)
-          (response, startJobId)
-        } catch {
-          case _: InterruptedException =>
-            batchClient.cancelJobGroup(batchConfig.batchId, jobGroupId)
-            Thread.currentThread().interrupt()
-            throw new CancellationException()
+
+        batchClient.newJobGroup(
+          JobGroupRequest(
+            batch_id = batchId,
+            absolute_parent_id = batchConfig.jobGroupId,
+            token = token,
+            cancel_after_n_failures = Some(1),
+            attributes = Map("name" -> stageIdentifier),
+            jobs = jobs,
+          )
+        )
+      }
+
+      private[this] def readPartitionResult(root: String, partition: Int) = {
+        val filename = s"$root/result.$partition"
+        try using(ctx.fs.openNoCompression(filename))(WireProtocol.read)
+        catch {
+          case t: Throwable =>
+            throw new HailException(
+              msg = f"Failed to read partition output '$filename'." +
+                f"See the batch ui at ${batchClient.req.url}/batches/$batchId for details.",
+              logMsg = None,
+              cause = t,
+            )
+        }
+      }
+
+      private[this] def collect(root: String, jobGroupId: Int, startJobId: Int, nJobs: Int)
+        : (Option[Throwable], IndexedSeq[(Array[Byte], Int)]) = {
+
+        // #15288 Write partition results directly to avoid copying unnecessarily.
+        // We'll clean up nulls if the stage fails and the user has enabled call-caching.
+        val results = new Array[(Array[Byte], Int)](nJobs)
+
+        // While the job group is running, we'll poll the batch service for jobs
+        // that have finished after this time. As we collect jobs, we'll update
+        // this var to be that of the last job to finish.
+        var endTime = Option.empty[String]
+
+        // Delays in the cloud are inevitable and batch doesn't enforce end_time
+        // ordering when jobs are marked complete. Consider the following timeline:
+        //
+        // 1. [query] request completed jobs from batch. let T = max(jobs.end_time).
+        // 2. [batch] mark job(s) complete with an end_time < T due to some latency
+        // 3. [query] request jobs that have completed after T
+        //
+        // In this case, we miss the jobs from 2. Recording the number of jobs
+        // we've processed gives a cheap way to test if we've missed any.
+        var read = 0
+
+        def drain(jobs: Iterable[(Int, Option[String])]): Unit = {
+          // Important: an ExecutorCompletionService maintains its own queue of
+          // complete jobs. It's unsafe to reuse cs since `drain` throws before
+          // emptying queue.
+          val cs = new ExecutorCompletionService[Unit](executor)
+          val iter = jobs.iterator
+
+          def push(): Unit = {
+            val (partId, time) = iter.next()
+            if (time > endTime) endTime = time
+            cs.submit { () =>
+              readPartitionResult(root, partId) match {
+                case Left(t) => throw t
+                case Right(r) => results(r._2) = r
+              }
+            }
+          }
+
+          // The sliding window maintains min(MaxConcurrentPartitionReads, remainingJobs)
+          // concurrent reads of partition results. It reduces peak memory consumption
+          // by limiting the number of tasks that can added to the executor's queue.
+          var inFlight = 0
+          while (inFlight < maxReadParallelism && iter.hasNext) {
+            push()
+            inFlight += 1
+          }
+
+          while (inFlight > 0) {
+            cs.take().get()
+            read += 1
+            if (iter.hasNext) push() else inFlight -= 1
+          }
+        }
+
+        def nextSuccesses =
+          batchClient
+            .getJobGroupJobs(batchId, jobGroupId, Some(JobStates.Success), endTime)
+            .flatMap(_.view.map(e => (e.job_id - startJobId, e.end_time)))
+
+        def gather: IndexedSeq[(Array[Byte], Int)] =
+          retryable { attempt =>
+            batchClient.getJobGroup(batchId, jobGroupId).state match {
+              case Running =>
+                drain(nextSuccesses)
+                logger.info(f"Read $read of $nJobs partition results")
+                Thread.sleep(delayMsForTry(attempt, 1000, 10000))
+                retry
+              case Success =>
+                drain(nextSuccesses)
+
+                if (read < nJobs) {
+                  logger.info(s"Reading ${nJobs - read} missed partition results")
+                  val stragglers = results.indices.view.filter(results(_) == null)
+                  drain(stragglers.map((_, endTime)))
+                }
+
+                assert(read == nJobs, f"Read $read of $nJobs partition results")
+                ArraySeq.unsafeWrapArray(results)
+              case Failure =>
+                drain(
+                  batchClient
+                    .getJobGroupJobs(batchId, jobGroupId, Some(JobStates.Failed))
+                    .flatMap(_.view.map(e => (e.job_id - startJobId, e.end_time)))
+                    .take(3) // should only need one failure, but to be safe...
+                ): Unit
+
+                throw new HailException(
+                  f"An unknown error occurred. " +
+                    f"Job group $jobGroupId in batch $batchId failed " +
+                    f"yet found zero errors in partition outputs. " +
+                    f"See the batch ui at ${batchClient.req.url}/batches/$batchId for details."
+                )
+              case Cancelled =>
+                val msg = s"Job group $jobGroupId in batch $batchId was cancelled."
+                throw new CancellationException(msg)
+            }
+          }
+
+        try ((Option.empty, gather)) // scala 2.12 needs these seemingly-redundant parens
+        catch {
+          case t: Throwable =>
+            try
+              batchClient.cancelJobGroup(batchId, jobGroupId)
+            catch {
+              case NonFatal(f) =>
+                logger.warn(s"Failed to cancel job group $jobGroupId in batch $batchId", f)
+            }
+
+            val failure =
+              t match {
+                case _: InterruptedException =>
+                  new CancellationException("Cancelled by user").fillInStackTrace()
+                case e: ExecutionException =>
+                  e.getCause
+                case _ =>
+                  t
+              }
+
+            val successes =
+              if (!ctx.flags.isDefined(UseFastRestarts)) ArraySeq.empty
+              else {
+                try drain(nextSuccesses)
+                catch {
+                  case t: Throwable =>
+                    logger.warn(s"Failed to collect final successful partition results", t)
+                }
+
+                val pruned = ArraySeq.newBuilder[(Array[Byte], Int)]
+                pruned.sizeHint(read)
+                for (r <- results) if (r != null) pruned += r
+                pruned.result()
+              }
+
+            (Some(failure), successes)
         }
       }
 
@@ -207,10 +362,12 @@ class ServiceBackend(
           case Seq(k) =>
             try
               using(new LocalTaskContext(k, stageCount)) { htc =>
-                (None, FastSeq(f(globals, contexts(k), htc, ctx.theHailClassLoader, ctx.fs) -> k))
+                None -> htc.getRegionPool().scopedRegion { r =>
+                  FastSeq(f(ctx.theHailClassLoader, ctx.fs, htc, r)(globals, contexts(k)) -> k)
+                }
               }
             catch {
-              case NonFatal(t) => (Some(t), ArraySeq.empty)
+              case NonFatal(t) => Some(t) -> ArraySeq.empty
             } finally stageCount += 1
 
           case todo =>
@@ -224,7 +381,7 @@ class ServiceBackend(
             val uploadGlobals = Future {
               retryTransientErrors {
                 ctx.fs.writePDOS(s"$root/globals")(_.write(globals))
-                logger.info(s"mapCollectPartitions: $token: uploaded globals")
+                logger.info("uploaded globals")
               }
             }
 
@@ -243,7 +400,7 @@ class ServiceBackend(
 
                   for (p <- partInputs) os.write(p)
 
-                  logger.info(s"mapCollectPartitions: $token: wrote ${partInputs.length} contexts")
+                  logger.info(s"wrote ${partInputs.length} contexts")
                 }
               }
             }
@@ -252,133 +409,37 @@ class ServiceBackend(
               val fsConfig: Any =
                 ctx.fs.getConfiguration()
 
-              val partial: PartitionFn = {
-                (globals, context, htc, hcl, fs) =>
-                  fs.setConfiguration(fsConfig)
-                  f(globals, context, htc, hcl, fs)
+              val partial: PartitionFn = { (hcl, fs, htc, r) =>
+                fs.setConfiguration(fsConfig)
+                f(hcl, fs, htc, r)
               }
 
               retryTransientErrors {
                 ctx.fs.writePDOS(s"$root/f") { fos =>
                   using(new ObjectOutputStream(fos))(_.writeObject(partial))
-                  logger.info(s"mapCollectPartitions: $token: uploaded function")
+                  logger.info("uploaded function")
                 }
               }
             }
 
             Await.result(uploadGlobals zip uploadContexts zip uploadPartFn, Duration.Inf): Unit
 
-            val (jobGroup, startJobId) = submitJobGroupAndWait(todo, token, root, stageIdentifier)
-            logger.info(s"mapCollectPartitions: $token: reading results")
+            val (jobGroupId, startJobId) = submitJobGroup(todo, token, root, stageIdentifier)
+
+            logger.info("reading results")
             val startTime = System.nanoTime()
-
-            def readPartitionOutputs(indices: IndexedSeq[Int]) =
-              Future.traverse(indices) { idx =>
-                Future {
-                  val filename = s"$root/result.$idx"
-                  try using(ctx.fs.openNoCompression(filename))(WireProtocol.read)
-                  catch {
-                    case NonFatal(e) =>
-                      throw new HailException(
-                        msg = f"Failed to read partition output '$filename'." +
-                          f"See the batch ui at ${batchClient.req.url}/batches/${jobGroup.batch_id} for details.",
-                        logMsg = None,
-                        cause = e,
-                      )
-                  }
-                }
-              }
-
-            val (failureOpt, results) =
-              jobGroup.state match {
-                case Success =>
-                  val (failures, successes) =
-                    Await.result(readPartitionOutputs(todo.indices), Duration.Inf).partitionMap(
-                      identity
-                    )
-
-                  if (failures.nonEmpty)
-                    logger.error(
-                      f"Job group ${jobGroup.job_group_id} in batch ${jobGroup.batch_id} " +
-                        f"completed successfully yet found errors in partition outputs."
-                    )
-
-                  (failures.headOption, successes)
-
-                case Failure =>
-                  val failedJobs =
-                    batchClient.getJobGroupJobs(
-                      jobGroup.batch_id,
-                      jobGroup.job_group_id,
-                      Some(JobStates.Failed),
-                    )
-
-                  val succeededJobs =
-                    batchClient.getJobGroupJobs(
-                      jobGroup.batch_id,
-                      jobGroup.job_group_id,
-                      Some(JobStates.Success),
-                    )
-
-                  val (failures, successes) =
-                    Await.result(
-                      Future
-                        .traverse(failedJobs.map(_.take(1)) lazyAppendedAll succeededJobs) { jobs =>
-                          readPartitionOutputs(jobs.map(_.job_id - startJobId))
-                        },
-                      Duration.Inf,
-                    )
-                      .flatten
-                      .partitionMap(identity)
-
-                  val error: Throwable =
-                    failures.headOption.getOrElse {
-                      new HailException(
-                        f"An unknown error occurred. " +
-                          f"Job group ${jobGroup.job_group_id} in batch ${jobGroup.batch_id} failed " +
-                          f"yet found zero errors in partition outputs. " +
-                          f"See the batch ui at ${batchClient.req.url}/batches/${jobGroup.batch_id} for details."
-                      )
-                    }
-
-                  (Some(error), successes.to(ArraySeq))
-                case Cancelled =>
-                  val error =
-                    new CancellationException(
-                      s"Job group ${jobGroup.job_group_id} in batch ${batchConfig.batchId} was cancelled"
-                    )
-
-                  val succeededJobs =
-                    batchClient.getJobGroupJobs(
-                      jobGroup.batch_id,
-                      jobGroup.job_group_id,
-                      Some(JobStates.Success),
-                    )
-
-                  val (_, successes) =
-                    Await.result(
-                      Future.traverse(succeededJobs) { jobs =>
-                        readPartitionOutputs(jobs.map(_.job_id - startJobId))
-                      },
-                      Duration.Inf,
-                    )
-                      .flatten
-                      .partitionMap(identity)
-
-                  (Some(error), successes.to(ArraySeq))
-              }
-
+            val results @ (_, bytes) = collect(root, jobGroupId, startJobId, todo.length)
             val end = (System.nanoTime() - startTime) / 1000000000.0
-            val rate = results.length / end
-            val byterate = results.view.map(_._1.length).sum / end / 1024 / 1024
+            val rate = bytes.length / end
+            val byterate = bytes.view.map(_._1.length).sum / end / 1024 / 1024
             logger.info(s"all results read. $end s. $rate result/s. $byterate MiB/s.")
-            (failureOpt, results.sortBy(_._2))
+            results
         }
     }
 
   override def close(): Unit = {
     if (executor.isEvaluated) executor.shutdownNow()
-    if (batchClient != null) batchClient.close() // see Worker
+    batchClient.close()
   }
 
   override def execute(ctx: ExecuteContext, ir: IR): Either[Unit, (PTuple, Long)] =

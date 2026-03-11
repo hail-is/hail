@@ -21,7 +21,7 @@ import java.util.UUID
 import org.apache.commons.lang3.StringUtils
 import org.apache.spark.TaskContext
 
-package object ir {
+package object ir extends CompileOps {
   type TokenIterator = BufferedIterator[Token]
   type IEmitCode = IEmitCodeGen[SValue]
 
