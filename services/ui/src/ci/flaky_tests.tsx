@@ -26,6 +26,7 @@ interface ApiResponse {
 interface AggregatedTest {
   job_name: string;
   retry_count: number;
+  distinct_builds: Set<number>;
   distinct_prs: Set<number>;
   last_retried_at: string;
   instances: RetriedTest[];
@@ -77,6 +78,7 @@ function aggregate(rows: RetriedTest[], groupByFamily: boolean): AggregatedTest[
     const existing = byJob.get(key);
     if (existing) {
       existing.retry_count += 1;
+      existing.distinct_builds.add(row.batch_id);
       existing.distinct_prs.add(row.pr_number);
       if (row.retried_at > existing.last_retried_at) {
         existing.last_retried_at = row.retried_at;
@@ -86,6 +88,7 @@ function aggregate(rows: RetriedTest[], groupByFamily: boolean): AggregatedTest[
       byJob.set(key, {
         job_name: key,
         retry_count: 1,
+        distinct_builds: new Set([row.batch_id]),
         distinct_prs: new Set([row.pr_number]),
         last_retried_at: row.retried_at,
         instances: [row],
@@ -98,7 +101,7 @@ function aggregate(rows: RetriedTest[], groupByFamily: boolean): AggregatedTest[
 function TotalCounter({ value, color }: { value: number; color: string }) {
   return (
     <div className="flex items-center justify-center" style={{ height: '100%' }}>
-      <span className="text-8xl font-black tracking-tight leading-none" style={{ color, fontFamily: "'Fredoka One', 'Chalkboard SE', 'Comic Sans MS', cursive" }}>
+      <span className="text-8xl tracking-tight leading-none" style={{ color, fontFamily: "'Fredoka One', sans-serif" }}>
         {value}
       </span>
     </div>
@@ -160,7 +163,7 @@ function RetryCharts({ tests, days }: { tests: AggregatedTest[]; days: number })
   const totalValue = barMetric === 'retries' ? instances.length
     : barMetric === 'batches' ? new Set(instances.map((r) => r.batch_id)).size
     : new Set(instances.map((r) => r.pr_number)).size;
-  const totalLabel = barMetric === 'retries' ? 'Total job retries' : barMetric === 'batches' ? 'Total batches' : 'Total PRs affected';
+  const totalLabel = barMetric === 'retries' ? 'Total job retries' : barMetric === 'batches' ? 'Total builds retried' : 'Total PRs affected';
 
   return (
     <div className="mb-8" style={{ display: 'grid', gridTemplateColumns: 'max-content max-content max-content max-content', columnGap: '2rem' }}>
@@ -178,7 +181,7 @@ function RetryCharts({ tests, days }: { tests: AggregatedTest[]; days: number })
               className={`px-2 py-0.5 ${m === barMetric ? 'text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
               style={m === barMetric ? { backgroundColor: barColor } : undefined}
             >
-              {m === 'retries' ? 'jobs' : m === 'batches' ? 'batches' : 'prs'}
+              {m === 'retries' ? 'jobs' : m === 'batches' ? 'builds' : 'prs'}
             </button>
           ))}
         </div>
@@ -208,7 +211,7 @@ function RetryCharts({ tests, days }: { tests: AggregatedTest[]; days: number })
         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
         <XAxis dataKey="date" tick={{ fontSize: 10 }} interval="preserveStartEnd" angle={-45} textAnchor="end" />
         <YAxis tick={{ fontSize: 10 }} allowDecimals={false} width={30} />
-        <Tooltip formatter={(v) => [String(v), barMetric === 'retries' ? 'job retries' : barMetric === 'batches' ? 'batches retried' : 'PRs affected']} />
+        <Tooltip formatter={(v) => [String(v), barMetric === 'retries' ? 'job retries' : barMetric === 'batches' ? 'builds affected' : 'PRs affected']} />
         <Bar dataKey={barMetric} fill={barColor} isAnimationActive={false} radius={[2, 2, 0, 0]} />
       </BarChart>
       <TotalCounter value={totalValue} color={barColor} />
@@ -228,7 +231,7 @@ function InstanceRows({ instances, batchBaseUrl }: { instances: RetriedTest[]; b
               target="_blank"
               rel="noopener noreferrer"
             >
-              batch {r.batch_id} / job {r.job_id}
+              build {r.batch_id} / job {r.job_id}
             </a>
             <span className="ml-2 text-slate-400">PR #{r.pr_number}</span>
             <span className="ml-2 text-slate-400">{r.source_branch}</span>
@@ -237,6 +240,7 @@ function InstanceRows({ instances, batchBaseUrl }: { instances: RetriedTest[]; b
             <span className={r.state === 'Success' ? 'text-green-600' : 'text-red-500'}>{r.state}</span>
             {r.exit_code !== null && <span className="ml-1 text-slate-400">(exit {r.exit_code})</span>}
           </td>
+          <td className="py-1.5 pr-4 text-right text-slate-400">—</td>
           <td className="py-1.5 pr-4 text-right text-slate-400">—</td>
           <td className="py-1.5 pr-4 text-slate-400">{new Date(r.retried_at).toLocaleString()}</td>
         </tr>
@@ -384,8 +388,9 @@ function FlakyTests({ basePath, batchBaseUrl }: { basePath: string; batchBaseUrl
             <tr className="bg-sky-100 text-slate-600 text-xs font-semibold uppercase tracking-wider">
               <th className="px-4 py-2.5 text-left w-10">#</th>
               <th className="px-4 py-2.5 text-left">Job Name</th>
-              <th className="px-4 py-2.5 text-right w-28">Retries</th>
-              <th className="px-4 py-2.5 text-right w-28"># PRs</th>
+              <th className="px-4 py-2.5 text-right w-24"># Jobs</th>
+              <th className="px-4 py-2.5 text-right w-24"># Builds</th>
+              <th className="px-4 py-2.5 text-right w-24"># PRs</th>
               <th className="px-4 py-2.5 text-left w-40">Last Retried</th>
             </tr>
           </thead>
@@ -403,8 +408,9 @@ function FlakyTests({ basePath, batchBaseUrl }: { basePath: string; batchBaseUrl
                       {t.job_name}
                     </span>
                   </td>
-                  <td className="px-4 py-2 text-right font-semibold text-sky-700">{t.retry_count}</td>
-                  <td className="px-4 py-2 text-right text-slate-600">{t.distinct_prs.size}</td>
+                  <td className="px-4 py-2 text-right font-semibold" style={{ color: '#a855f7' }}>{t.retry_count}</td>
+                  <td className="px-4 py-2 text-right font-semibold" style={{ color: '#0ea5e9' }}>{t.distinct_builds.size}</td>
+                  <td className="px-4 py-2 text-right font-semibold" style={{ color: '#10b981' }}>{t.distinct_prs.size}</td>
                   <td className="px-4 py-2 text-slate-500">{new Date(t.last_retried_at).toLocaleString()}</td>
                 </tr>
                 {expanded.has(t.job_name) && (
