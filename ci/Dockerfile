@@ -28,7 +28,7 @@ COPY gear/gear /gear/gear/
 COPY web_common/pyproject.toml web_common/MANIFEST.in web_common/input.css web_common/tailwind.config.js /web_common/
 COPY web_common/web_common /web_common/web_common/
 
-COPY ci/setup.py ci/MANIFEST.in /ci/
+COPY ci/pyproject.toml /ci/
 COPY ci/ci /ci/ci/
 
 RUN cd /web_common && \
