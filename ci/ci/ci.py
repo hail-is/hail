@@ -869,8 +869,8 @@ async def api_retried_tests(request: web.Request, _) -> web.Response:
     cursor = request.rel_url.query.get('cursor')
     try:
         limit = min(int(request.rel_url.query.get('limit', 500)), 500)
-    except ValueError:
-        raise web.HTTPBadRequest(text='limit must be an integer')
+    except ValueError as exc:
+        raise web.HTTPBadRequest(text='limit must be an integer') from exc
     if limit <= 0:
         raise web.HTTPBadRequest(text='limit must be a positive integer')
 
@@ -881,10 +881,10 @@ async def api_retried_tests(request: web.Request, _) -> web.Response:
         after_str = after.replace('Z', '+00:00')
         try:
             after_dt = datetime.fromisoformat(after_str)
-        except ValueError:
+        except ValueError as exc:
             raise web.HTTPBadRequest(
                 text='after must be an ISO 8601 timestamp with timezone (e.g. 2026-02-24T00:00:00Z)'
-            )
+            ) from exc
         if after_dt.tzinfo is None:
             raise web.HTTPBadRequest(text='after must include timezone info (e.g. 2026-02-24T00:00:00Z)')
         after_utc = after_dt.astimezone(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
@@ -897,8 +897,8 @@ async def api_retried_tests(request: web.Request, _) -> web.Response:
         try:
             conditions.append('id < %s')
             args.append(int(cursor))
-        except ValueError:
-            raise web.HTTPBadRequest(text='cursor must be an integer')
+        except ValueError as exc:
+            raise web.HTTPBadRequest(text='cursor must be an integer') from exc
 
     where = 'WHERE ' + ' AND '.join(conditions)
 
