@@ -95,6 +95,16 @@ function aggregate(rows: RetriedTest[], groupByFamily: boolean): AggregatedTest[
   return Array.from(byJob.values()).sort((a, b) => b.retry_count - a.retry_count);
 }
 
+function TotalCounter({ value, color }: { value: number; color: string }) {
+  return (
+    <div className="flex items-center justify-center" style={{ height: '100%' }}>
+      <span className="text-8xl font-black tracking-tight leading-none" style={{ color, fontFamily: "'Fredoka One', 'Chalkboard SE', 'Comic Sans MS', cursive" }}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
 function RetryCharts({ tests, days }: { tests: AggregatedTest[]; days: number }) {
   const [barMetric, setBarMetric] = useState<'retries' | 'batches' | 'prs'>('batches');
   const barColor = barMetric === 'retries' ? '#a855f7' : barMetric === 'batches' ? '#0ea5e9' : '#10b981';
@@ -147,59 +157,61 @@ function RetryCharts({ tests, days }: { tests: AggregatedTest[]; days: number })
     };
   });
 
+  const totalValue = barMetric === 'retries' ? instances.length
+    : barMetric === 'batches' ? new Set(instances.map((r) => r.batch_id)).size
+    : new Set(instances.map((r) => r.pr_number)).size;
+  const totalLabel = barMetric === 'retries' ? 'Total job retries' : barMetric === 'batches' ? 'Total batches' : 'Total PRs affected';
+
   return (
-    <div className="flex flex-wrap gap-8 mb-8 items-start">
-      <div>
-        <p className="text-xs font-medium text-slate-500 mb-1">By failure type</p>
-        <PieChart width={300} height={300}>
-          <Pie data={statePieData} dataKey="value" cx="50%" cy="50%" outerRadius={95} isAnimationActive={false}>
-            {statePieData.map((entry, i) => (
-              <Cell key={i} fill={STATE_COLORS[entry.name] ?? COLORS[i % COLORS.length]} />
-            ))}
-          </Pie>
-          <Tooltip formatter={(v, name) => [String(v ?? ''), String(name ?? '')]} />
-          <Legend iconSize={10} wrapperStyle={{ fontSize: '11px' }} />
-        </PieChart>
-      </div>
-
-      <div>
-        <p className="text-xs font-medium text-slate-500 mb-1">By who retried</p>
-        <PieChart width={300} height={300}>
-          <Pie data={retriedByPieData} dataKey="value" cx="50%" cy="50%" outerRadius={95} isAnimationActive={false}>
-            {retriedByPieData.map((_, i) => (
-              <Cell key={i} fill={COLORS[i % COLORS.length]} />
-            ))}
-          </Pie>
-          <Tooltip formatter={(v, name) => [String(v ?? ''), String(name ?? '')]} />
-          <Legend iconSize={10} wrapperStyle={{ fontSize: '11px' }} />
-        </PieChart>
-      </div>
-
-      <div>
-        <div className="flex items-center gap-3 mb-1">
-          <p className="text-xs font-medium text-slate-500">Retries per day</p>
-          <div className="flex rounded overflow-hidden border border-slate-200 text-xs">
-            {(['retries', 'batches', 'prs'] as const).map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => setBarMetric(m)}
-                className={`px-2 py-0.5 ${m === barMetric ? 'text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
-                style={m === barMetric ? { backgroundColor: barColor } : undefined}
-              >
-                {m === 'retries' ? 'jobs' : m === 'batches' ? 'batches' : 'prs'}
-              </button>
-            ))}
-          </div>
+    <div className="mb-8" style={{ display: 'grid', gridTemplateColumns: 'max-content max-content max-content max-content', columnGap: '2rem' }}>
+      {/* Row 1: titles */}
+      <p className="text-xs font-medium text-slate-500 mb-1">By failure type</p>
+      <p className="text-xs font-medium text-slate-500 mb-1">By who retried</p>
+      <div className="flex items-center gap-3 mb-1">
+        <p className="text-xs font-medium text-slate-500">Retries per day</p>
+        <div className="flex rounded overflow-hidden border border-slate-200 text-xs">
+          {(['retries', 'batches', 'prs'] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setBarMetric(m)}
+              className={`px-2 py-0.5 ${m === barMetric ? 'text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+              style={m === barMetric ? { backgroundColor: barColor } : undefined}
+            >
+              {m === 'retries' ? 'jobs' : m === 'batches' ? 'batches' : 'prs'}
+            </button>
+          ))}
         </div>
-        <BarChart width={600} height={300} data={barData} margin={{ top: 5, right: 10, left: 0, bottom: 20 }}>
-          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-          <XAxis dataKey="date" tick={{ fontSize: 10 }} interval="preserveStartEnd" angle={-45} textAnchor="end" />
-          <YAxis tick={{ fontSize: 10 }} allowDecimals={false} width={30} />
-          <Tooltip formatter={(v) => [String(v), barMetric === 'retries' ? 'job retries' : barMetric === 'batches' ? 'batches retried' : 'PRs affected']} />
-          <Bar dataKey={barMetric} fill={barColor} isAnimationActive={false} radius={[2, 2, 0, 0]} />
-        </BarChart>
       </div>
+      <p className="text-xs font-medium text-slate-500 mb-1">{totalLabel}</p>
+
+      {/* Row 2: charts */}
+      <PieChart width={300} height={300}>
+        <Pie data={statePieData} dataKey="value" cx="50%" cy="50%" outerRadius={95} isAnimationActive={false}>
+          {statePieData.map((entry, i) => (
+            <Cell key={i} fill={STATE_COLORS[entry.name] ?? COLORS[i % COLORS.length]} />
+          ))}
+        </Pie>
+        <Tooltip formatter={(v, name) => [String(v ?? ''), String(name ?? '')]} />
+        <Legend iconSize={10} wrapperStyle={{ fontSize: '11px' }} />
+      </PieChart>
+      <PieChart width={300} height={300}>
+        <Pie data={retriedByPieData} dataKey="value" cx="50%" cy="50%" outerRadius={95} isAnimationActive={false}>
+          {retriedByPieData.map((_, i) => (
+            <Cell key={i} fill={COLORS[i % COLORS.length]} />
+          ))}
+        </Pie>
+        <Tooltip formatter={(v, name) => [String(v ?? ''), String(name ?? '')]} />
+        <Legend iconSize={10} wrapperStyle={{ fontSize: '11px' }} />
+      </PieChart>
+      <BarChart width={600} height={300} data={barData} margin={{ top: 5, right: 10, left: 0, bottom: 20 }}>
+        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+        <XAxis dataKey="date" tick={{ fontSize: 10 }} interval="preserveStartEnd" angle={-45} textAnchor="end" />
+        <YAxis tick={{ fontSize: 10 }} allowDecimals={false} width={30} />
+        <Tooltip formatter={(v) => [String(v), barMetric === 'retries' ? 'job retries' : barMetric === 'batches' ? 'batches retried' : 'PRs affected']} />
+        <Bar dataKey={barMetric} fill={barColor} isAnimationActive={false} radius={[2, 2, 0, 0]} />
+      </BarChart>
+      <TotalCounter value={totalValue} color={barColor} />
     </div>
   );
 }
