@@ -1,19 +1,8 @@
 import logging
-from typing import Any, Callable, Generator, List, Optional, Sequence, TypeVar
+from typing import Any, List, Optional
 
-A = TypeVar('A')
-
-
-def chunk(size: int, seq: Sequence[A]) -> Generator[Sequence[A], A, Any]:
-    for pos in range(0, len(seq), size):
-        yield seq[pos : pos + size]
-
-
-B = TypeVar('B')
-
-
-def maybe(f: Callable[[A], B], ma: Optional[A], default: Optional[B] = None) -> Optional[B]:
-    return f(ma) if ma is not None else default
+from hail.expr import ArrayStructExpression
+from hail.expr import enumerate as hl_enumerate
 
 
 def prune(kvs: dict) -> dict:
@@ -22,6 +11,10 @@ def prune(kvs: dict) -> dict:
 
 def select(keys: List[str], **kwargs) -> List[Optional[Any]]:
     return [kwargs.get(k) for k in keys]
+
+
+def annotate_index(arr: ArrayStructExpression) -> ArrayStructExpression:
+    return hl_enumerate(arr).map(lambda t: t[1].annotate(idx=t[0]))
 
 
 def init_logging(file=None):

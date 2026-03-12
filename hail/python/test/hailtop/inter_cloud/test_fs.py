@@ -10,7 +10,6 @@ from typing import AsyncIterator, Tuple
 import pytest
 
 from hailtop.aiocloud.aioaws import S3AsyncFS
-from hailtop.aiocloud.aioazure import AzureAsyncFS
 from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS
 from hailtop.aiotools import AsyncFS, IsABucketError, LocalAsyncFS, UnexpectedEOFError
 from hailtop.aiotools.fs.fs import AsyncFSURL
@@ -24,12 +23,9 @@ from hailtop.utils import bounded_gather2, retry_transient_errors, secret_alnum_
         'file',
         'gs',
         's3',
-        'azure-https',
         'router/file',
         'router/gs',
         'router/s3',
-        'router/azure-https',
-        'sas/azure-https',
     ]
 )
 async def filesystem(request) -> AsyncIterator[Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL]]:
@@ -46,11 +42,9 @@ async def filesystem(request) -> AsyncIterator[Tuple[asyncio.Semaphore, AsyncFS,
             fs = LocalAsyncFS(thread_pool)
         elif request.param.endswith('gs'):
             fs = GoogleStorageAsyncFS()
-        elif request.param.endswith('s3'):
-            fs = S3AsyncFS(thread_pool)
         else:
-            assert request.param.endswith('azure-https')
-            fs = AzureAsyncFS()
+            assert request.param.endswith('s3')
+            fs = S3AsyncFS(thread_pool)
 
         async with fs:
             if request.param.endswith('file'):
@@ -58,21 +52,10 @@ async def filesystem(request) -> AsyncIterator[Tuple[asyncio.Semaphore, AsyncFS,
             elif request.param.endswith('gs'):
                 bucket = os.environ['HAIL_TEST_GCS_BUCKET']
                 base = fs.parse_url(f'gs://{bucket}/tmp/{token}/')
-            elif request.param.endswith('s3'):
+            else:
+                assert request.param.endswith('s3')
                 bucket = os.environ['HAIL_TEST_S3_BUCKET']
                 base = fs.parse_url(f's3://{bucket}/tmp/{token}/')
-            else:
-                assert request.param.endswith('azure-https')
-                account = os.environ['HAIL_TEST_AZURE_ACCOUNT']
-                container = os.environ['HAIL_TEST_AZURE_CONTAINER']
-                if request.param.startswith('sas'):
-                    sub_id = os.environ['HAIL_TEST_AZURE_SUBID']
-                    res_grp = os.environ['HAIL_TEST_AZURE_RESGRP']
-                    assert isinstance(fs, AzureAsyncFS)
-                    sas_token = await fs.generate_sas_token(sub_id, res_grp, account, "rwdlc")
-                    base = fs.parse_url(f'https://{account}.blob.core.windows.net/{container}/tmp/{token}/?{sas_token}')
-                else:
-                    base = fs.parse_url(f'https://{account}.blob.core.windows.net/{container}/tmp/{token}/')
 
             await fs.mkdir(str(base))
             sema = asyncio.Semaphore(50)

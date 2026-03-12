@@ -1371,8 +1371,6 @@ object IRParser {
         val typ = type_expr(it)
         val errorID = int32_literal(it)
         ir_value_expr(ctx)(it).map(msg => Die(msg, typ, errorID))
-      case "Trap" =>
-        ir_value_expr(ctx)(it).map(child => Trap(child))
       case "ConsoleLog" =>
         for {
           msg <- ir_value_expr(ctx)(it)

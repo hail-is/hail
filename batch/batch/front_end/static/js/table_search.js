@@ -74,6 +74,11 @@ const fieldConfigs = {
         operators: ['=', '!=', '=~', '!~'],
         type: 'string',
         placeholder: 'Enter instance collection...'
+    },
+    'exit_code': {
+        operators: ['=', '!=', '>', '>=', '<', '<='],
+        type: 'number',
+        placeholder: 'Enter exit code (e.g., 0, 1)...'
     }
 };
 

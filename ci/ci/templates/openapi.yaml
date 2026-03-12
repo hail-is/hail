@@ -241,30 +241,17 @@ paths:
 
   '/batches':
     get:
-      summary: "Batches (UI)"
-      description: "Render a list of batches, or (dev only) its supporting jinja context"
+      summary: "Batches redirect"
+      description: "Redirects to the Batch service batches page"
       tags: [UI Pages]
-      parameters:
-        - name: x-hail-return-jinja-context
-          in: header
-          description: "Do not render, and instead return the jinja context json."
-          required: false
-          schema:
-            type: boolean
-            default: false
-            example: true
       responses:
-        '200':
-          description: "Successfully rendered the batches page or returned the jinja context."
-          content:
-            application/json:
-              schema:
-                type: object
+        '302':
+          description: "Redirect to Batch service"
 
   '/batches/{batch_id}':
     get:
-      summary: "Batch details (UI)"
-      description: "Render a batch details page, or (dev only) its supporting jinja context"
+      summary: "Batch details redirect"
+      description: "Redirects to the Batch service batch details page"
       tags: [UI Pages]
       parameters:
         - name: batch_id
@@ -272,21 +259,9 @@ paths:
           required: true
           schema:
             type: integer
-        - name: x-hail-return-jinja-context
-          in: header
-          description: "Do not render, and instead return the jinja context json."
-          required: false
-          schema:
-            type: boolean
-            default: false
-            example: true
       responses:
-        '200':
-          description: "Successfully rendered the batch page or returned the jinja context."
-          content:
-            application/json:
-              schema:
-                type: object
+        '302':
+          description: "Redirect to Batch service"
 
   '/me':
     get:

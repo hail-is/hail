@@ -22,6 +22,7 @@ trait HailUtils extends HailScalaModule, CrossScalaModule:
 
   override def compileMvnDeps: T[Seq[Dep]] =
     Vector[Dep](
+      `jackson-databind` :: "2.15.2",
       `json4s-jackson` :: "3.7.0-M11",
       `log4j-core`,
       `zstd-jni` :: "1.5.5-4",

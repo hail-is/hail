@@ -1,6 +1,7 @@
 package is.hail
 
 import is.hail.backend.ExecutionCache
+import is.hail.backend.service.ServiceBackend
 import is.hail.backend.spark.SparkBackend
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.{agg, Optimize}
@@ -30,7 +31,6 @@ object HailFeatureFlags {
     ("no_whole_stage_codegen", ("HAIL_DEV_NO_WHOLE_STAGE_CODEGEN" -> null)),
     ("print_inputs_on_worker", ("HAIL_DEV_PRINT_INPUTS_ON_WORKER" -> null)),
     ("print_ir_on_worker", ("HAIL_DEV_PRINT_IR_ON_WORKER" -> null)),
-    ("profile", "HAIL_PROFILE" -> null),
     ("rng_nonce", "HAIL_RNG_NONCE" -> "0x0"),
     ("shuffle_cutoff_to_local_sort", ("HAIL_SHUFFLE_CUTOFF" -> "512000000")), // This is in bytes
     ("shuffle_max_branch_factor", ("HAIL_SHUFFLE_MAX_BRANCH" -> "64")),
@@ -41,14 +41,15 @@ object HailFeatureFlags {
     (EType.Flags.UseUnstableEncodings, EType.Flags.UseUnstableEncodingsVar -> null),
     (ExecutionCache.Flags.Cachedir, "HAIL_CACHE_DIR" -> null),
     (ExecutionCache.Flags.UseFastRestarts, "HAIL_USE_FAST_RESTARTS" -> null),
+    (Optimize.Flags.MaxOptimizerIterations, "HAIL_OPTIMIZER_ITERATIONS" -> null),
+    (Optimize.Flags.Optimize, "HAIL_QUERY_OPTIMIZE" -> "1"),
     (RequesterPaysConfig.Flags.RequesterPaysBuckets, "HAIL_GCS_REQUESTER_PAYS_BUCKETS" -> null),
     (RequesterPaysConfig.Flags.RequesterPaysProject, "HAIL_GCS_REQUESTER_PAYS_PROJECT" -> null),
+    (ServiceBackend.Flags.UseAsyncProfiler, "HAIL_PROFILE" -> null),
     (
       SparkBackend.Flags.MaxStageParallelism,
       "HAIL_SPARK_MAX_STAGE_PARALLELISM" -> Integer.MAX_VALUE.toString,
     ),
-    (Optimize.Flags.MaxOptimizerIterations, "HAIL_OPTIMIZER_ITERATIONS" -> null),
-    (Optimize.Flags.Optimize, "HAIL_QUERY_OPTIMIZE" -> "1"),
   )
 
   def fromEnv(m: Map[String, String] = sys.env): HailFeatureFlags =

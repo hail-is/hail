@@ -9,7 +9,7 @@ from hailtop.aiotools.fs import AsyncFS
 from .utils import fresh_dir
 
 
-@pytest.fixture(params=['file', 'gs', 's3', 'azure-https'])
+@pytest.fixture(params=['file', 'gs', 's3'])
 async def test_delete_one_file(request, router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]]):
     sema, fs, bases = router_filesystem
     scheme = request.param
@@ -22,7 +22,7 @@ async def test_delete_one_file(request, router_filesystem: Tuple[asyncio.Semapho
     assert not await fs.isfile(url)
 
 
-@pytest.fixture(params=['file', 'gs', 's3', 'azure-https'])
+@pytest.fixture(params=['file', 'gs', 's3'])
 async def test_delete_folder(request, router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]]):
     sema, fs, bases = router_filesystem
     scheme = request.param

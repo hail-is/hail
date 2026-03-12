@@ -127,11 +127,17 @@ def web_security_headers_swagger(fun):
     )
 
 
-def web_security_headers_unsafe_eval(fun):
-    return web_security_header_generator(fun, extra_script='\'unsafe-eval\'')
+def web_security_headers_login_page(fun):
+    # Login/signup forms redirect through auth.hail.is/login to the OAuth provider. Chrome follows
+    # the redirect chain when enforcing form-action, so OAuth domains must be allowed.
+    return web_security_header_generator(
+        fun, extra_form_action='https://accounts.google.com https://login.microsoftonline.com'
+    )
 
 
-def web_security_header_generator(fun, extra_script: str = '', extra_style: str = '', extra_img: str = ''):
+def web_security_header_generator(
+    fun, extra_script: str = '', extra_style: str = '', extra_img: str = '', extra_form_action: str = ''
+):
     @wraps(fun)
     async def wrapped(request, *args, **kwargs):
         response = await fun(request, *args, **kwargs)
@@ -142,9 +148,10 @@ def web_security_header_generator(fun, extra_script: str = '', extra_style: str 
         script_src = f'script-src \'self\' {extra_script} cdn.jsdelivr.net cdn.plot.ly;'
         img_src = f'img-src \'self\' {extra_img};'
         frame_ancestors = 'frame-ancestors \'self\';'
+        form_action = f"form-action 'self'{' ' + extra_form_action if extra_form_action else ''};"
 
         response.headers['Content-Security-Policy'] = (
-            f'{default_src} {font_src} {style_src} {script_src} {img_src} {frame_ancestors}'
+            f'{default_src} {font_src} {style_src} {script_src} {img_src} {frame_ancestors} {form_action}'
         )
         return response
 

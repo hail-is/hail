@@ -15,19 +15,12 @@ from .utils import fresh_dir
         'file/file',
         'file/gs',
         'file/s3',
-        'file/azure-https',
         'gs/file',
         'gs/gs',
         'gs/s3',
-        'gs/azure-https',
         's3/file',
         's3/gs',
         's3/s3',
-        's3/azure-https',
-        'azure-https/file',
-        'azure-https/gs',
-        'azure-https/s3',
-        'azure-https/azure-https',
     ]
 )
 async def diff_test_context(request, router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]]):

@@ -543,7 +543,6 @@ object TypeCheck {
         }
       case Die(msg, _, _) =>
         assert(msg.typ == TString)
-      case Trap(_) =>
       case ConsoleLog(msg, _) => assert(msg.typ == TString)
       case ApplyIR(_, _, _, _, _) =>
       case x: AbstractApplyNode[_] =>

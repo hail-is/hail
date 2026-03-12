@@ -229,15 +229,10 @@ class Method private[lir] (
 
         blocksb += L
 
-        assert(L.first != null)
         val x = L.last.asInstanceOf[ControlX]
-        var i = x.targetArity() - 1
-        while (i >= 0) {
-          val target = x.target(i)
-          assert(target != null)
-          s.push(target)
-          i -= 1
-        }
+        for (i <- x.targetIndices.reverse)
+          s.push(x.target(i))
+
         visited += L
       }
     }
@@ -351,16 +346,11 @@ class Block {
 
   val uses: mutable.Set[(ControlX, Int)] = mutable.Set[(ControlX, Int)]()
 
-  def wellFormed: Boolean = {
-    if (first == null)
-      return false
-
-    last match {
-      case ctrl: ControlX =>
-        (0 until ctrl.targetArity()).forall(ctrl.target(_) != null)
+  def wellFormed: Boolean =
+    first != null && (last match {
+      case ctrl: ControlX => ctrl.targetIndices.forall(ctrl.target(_) != null)
       case _ => false
-    }
-  }
+    })
 
   def addUse(x: ControlX, i: Int): Unit = {
     val added = uses.add(x -> i)
@@ -597,6 +587,15 @@ abstract class ControlX extends StmtX {
   def target(i: Int): Block
 
   def setTarget(i: Int, b: Block): Unit
+
+  def targetIndices: IndexedSeq[Int] =
+    0 until targetArity()
+
+  protected def setTargetHelper(i: Int, Lold: Block, Lnew: Block): Block = {
+    if (Lold != null) Lold.removeUse(this, i)
+    if (Lnew != null) Lnew.addUse(this, i)
+    Lnew
+  }
 }
 
 abstract class ValueX extends X {
@@ -637,11 +636,7 @@ class GotoX(var lineNumber: Int = 0) extends ControlX {
 
   override def setTarget(i: Int, b: Block): Unit = {
     assert(i == 0)
-    if (_L != null)
-      _L.removeUse(this, 0)
-    _L = b
-    if (b != null)
-      b.addUse(this, 0)
+    _L = setTargetHelper(i, _L, b)
   }
 }
 
@@ -659,31 +654,19 @@ class IfX(val op: Int, var lineNumber: Int = 0) extends ControlX {
 
   override def targetArity(): Int = 2
 
-  override def target(i: Int): Block = {
-    if (i == 0)
-      _Ltrue
+  override def target(i: Int): Block =
+    if (i == 0) _Ltrue
     else {
       assert(i == 1)
       _Lfalse
     }
-  }
 
-  override def setTarget(i: Int, b: Block): Unit = {
-    if (i == 0) {
-      if (_Ltrue != null)
-        _Ltrue.removeUse(this, 0)
-      _Ltrue = b
-      if (b != null)
-        b.addUse(this, 0)
-    } else {
+  override def setTarget(i: Int, b: Block): Unit =
+    if (i == 0) { _Ltrue = setTargetHelper(i, _Ltrue, b) }
+    else {
       assert(i == 1)
-      if (_Lfalse != null)
-        _Lfalse.removeUse(this, 1)
-      _Lfalse = b
-      if (b != null)
-        b.addUse(this, 1)
+      _Lfalse = setTargetHelper(i, _Lfalse, b)
     }
-  }
 }
 
 class SwitchX(var lineNumber: Int = 0) extends ControlX {
@@ -709,29 +692,11 @@ class SwitchX(var lineNumber: Int = 0) extends ControlX {
   }
 
   override def targetArity(): Int = 1 + _Lcases.length
+  override def target(i: Int): Block = if (i == 0) _Ldefault else _Lcases(i - 1)
 
-  override def target(i: Int): Block =
-    if (i == 0)
-      _Ldefault
-    else
-      _Lcases(i - 1)
-
-  override def setTarget(i: Int, b: Block): Unit = {
-    if (i == 0) {
-      if (_Ldefault != null)
-        _Ldefault.removeUse(this, 0)
-      _Ldefault = b
-      if (b != null)
-        b.addUse(this, 0)
-    } else {
-      val L = _Lcases(i - 1)
-      if (L != null)
-        L.removeUse(this, i)
-      _Lcases(i - 1) = b
-      if (b != null)
-        b.addUse(this, i)
-    }
-  }
+  override def setTarget(i: Int, b: Block): Unit =
+    if (i == 0) { _Ldefault = setTargetHelper(i, _Ldefault, b) }
+    else { _Lcases(i - 1) = setTargetHelper(i, _Lcases(i - 1), b) }
 }
 
 class StoreX(var l: Local, var lineNumber: Int = 0) extends StmtX
@@ -760,7 +725,7 @@ class StmtOpX(val op: Int, var lineNumber: Int = 0) extends StmtX
 
 class MethodStmtX(val op: Int, val method: MethodRef, var lineNumber: Int = 0) extends StmtX
 
-class TypeInsnX(val op: Int, val ti: TypeInfo[_], var lineNumber: Int = 0) extends ValueX {}
+class TypeInsnX(val op: Int, val ti: TypeInfo[_], var lineNumber: Int = 0) extends ValueX
 
 class InsnX(val op: Int, _ti: TypeInfo[_], var lineNumber: Int = 0) extends ValueX {
   override def ti: TypeInfo[_] = {

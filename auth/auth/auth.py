@@ -46,6 +46,7 @@ from web_common import (
     setup_aiohttp_jinja2,
     setup_common_static_routes,
     web_security_headers,
+    web_security_headers_login_page,
     web_security_headers_swagger,
 )
 
@@ -505,7 +506,7 @@ async def create_user(request: web.Request, _) -> web.Response:
 
 
 @routes.get('/user')
-@web_security_headers
+@web_security_headers_login_page
 @auth.maybe_authenticated_user
 async def user_page(request: web.Request, userdata: Optional[UserData]) -> web.Response:
     context_dict = {'cloud': CLOUD, **({'next_page': request.query['next']} if 'next' in request.query else {})}

@@ -18,6 +18,7 @@ from .query import (
     JobCostQuery,
     JobDurationQuery,
     JobEndTimeQuery,
+    JobExitCodeQuery,
     JobGroupCostQuery,
     JobGroupDurationQuery,
     JobGroupEndTimeQuery,
@@ -171,7 +172,7 @@ LIMIT 51;
 # <jobs-query-list> ::= "" | <jobs-query> "\n" <jobs-query-list>
 # <jobs-query> ::= <instance-query> | <instance-collection-query> | <job-id-query> | <state-query> |
 #                  <start-time-query> | <end-time-query> | <duration-query> | <cost-query> |
-#                  <quoted-exact-match-query> | <unquoted-partial-match-query>
+#                  <exit-code-query> | <quoted-exact-match-query> | <unquoted-partial-match-query>
 # <exact-match-operator> ::= "=" | "==" | "!="
 # <partial-match-operator> ::= "!~" | "=~"
 # <match-operator> ::= <exact-match-operator> | <partial-match-operator>
@@ -184,6 +185,7 @@ LIMIT 51;
 # <end-time-query> ::= "end_time" <comparison-operator> <datetime_str>
 # <duration-query> ::= "duration" <comparison-operator> <float>
 # <cost-query> ::= "cost" <comparison-operator> <float>
+# <exit-code-query> ::= "exit_code" <comparison-operator> <int>
 # <quoted-exact-match-query> ::= \" <str> \"
 # <unquoted-partial-match-query> ::= <str>
 
@@ -236,6 +238,8 @@ def parse_job_group_jobs_query_v2(
                     queries.append(JobDurationQuery.parse(op, right))
                 elif left == 'cost':
                     queries.append(JobCostQuery.parse(op, right))
+                elif left == 'exit_code':
+                    queries.append(JobExitCodeQuery.parse(op, right))
                 else:
                     queries.append(JobKeywordQuery.parse(op, left, right))
             else:
@@ -267,35 +271,20 @@ def parse_job_group_jobs_query_v2(
         where_conditions.append('(jobs.job_id > %s)')
         where_args.append(last_job_id)
 
-    uses_attempts_table = False
     for query in queries:
         cond, args = query.query()
-        if isinstance(
-            query,
-            (
-                JobStartTimeQuery,
-                JobEndTimeQuery,
-                JobDurationQuery,
-                JobInstanceQuery,
-                JobQuotedExactMatchQuery,
-                JobUnquotedPartialMatchQuery,
-            ),
-        ):
-            uses_attempts_table = True
-
         where_conditions.append(f'({cond})')
         where_args += args
 
-    if uses_attempts_table:
-        attempts_table_join_str = (
-            'LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id'
-        )
-    else:
-        attempts_table_join_str = ''
-
     sql = f"""
-SELECT STRAIGHT_JOIN jobs.*, batches.user, batches.billing_project, batches.format_version, job_attributes.value AS name, cost_t.cost,
-  cost_t.cost_breakdown
+SELECT STRAIGHT_JOIN jobs.*
+                   , batches.user
+                   , batches.billing_project
+                   , batches.format_version
+                   , job_attributes.value AS name
+                   , cost_t.cost
+                   , cost_t.cost_breakdown
+                   , latest_attempt.end_time
 FROM jobs
 INNER JOIN batches ON jobs.batch_id = batches.id
 INNER JOIN batch_updates ON jobs.batch_id = batch_updates.batch_id AND jobs.update_id = batch_updates.update_id
@@ -303,7 +292,10 @@ LEFT JOIN job_attributes
   ON jobs.batch_id = job_attributes.batch_id AND
     jobs.job_id = job_attributes.job_id AND
     job_attributes.`key` = 'name'
-{attempts_table_join_str}
+LEFT JOIN attempts AS latest_attempt
+    ON  jobs.batch_id   = latest_attempt.batch_id
+    AND jobs.job_id     = latest_attempt.job_id
+    AND jobs.attempt_id = latest_attempt.attempt_id
 LEFT JOIN LATERAL (
 SELECT COALESCE(SUM(`usage` * rate), 0) AS cost, JSON_OBJECTAGG(resources.resource, COALESCE(`usage` * rate, 0)) AS cost_breakdown
 FROM (SELECT resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`

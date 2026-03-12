@@ -1511,7 +1511,7 @@ object LoadVCF extends Logging {
     skipInvalidLoci: Boolean,
   ): ContextRDD[Long] = {
     val hasRSID = rowPType.hasField("rsid")
-    lines.cmapPartitions { (ctx, it) =>
+    lines.cmapPartitions { (_, ctx, it) =>
       new Iterator[Long] {
         val rvb = ctx.rvb
         var ptr: Long = 0
@@ -1811,7 +1811,7 @@ object MatrixVCFReader extends Logging {
             Array.emptyByteArray,
             files.tail.map(_.getBytes),
             "load_vcf_parse_header",
-          ) { (_, bytes, htc, _, fs) =>
+          ) { (_, fs, _, _) => (_, bytes) =>
             val file = new String(bytes)
 
             val hd = parseHeader(getHeaderLines(fs, file, localFilterAndReplace))

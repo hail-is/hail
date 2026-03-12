@@ -22,7 +22,6 @@ import is.hail.variant.ReferenceGenome
 import scala.collection.mutable
 
 import java.io._
-import java.lang.reflect.InvocationTargetException
 
 import org.apache.spark.TaskContext
 
@@ -199,15 +198,7 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def backend(): Code[BackendUtils] = ecb.backend()
 
-  def addModule(
-    name: String,
-    mod: (HailClassLoader, FS, HailTaskContext, Region) => AsmFunction3[
-      Region,
-      Array[Byte],
-      Array[Byte],
-      Array[Byte],
-    ],
-  ): Unit =
+  def addModule(name: String, mod: Compiled[BackendUtils.F]): Unit =
     ecb.addModule(name, mod)
 
   def partitionRegion: Settable[Region] = ecb.partitionRegion
@@ -250,8 +241,7 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def threefryRandomEngine: Value[ThreefryRandomEngine] = ecb.threefryRandomEngine
 
-  def resultWithIndex(print: Option[PrintWriter] = None)
-    : (HailClassLoader, FS, HailTaskContext, Region) => C =
+  def resultWithIndex(print: Option[PrintWriter] = None): Compiled[C] =
     ecb.resultWithIndex(print)
 
   def getOrGenEmitMethod(
@@ -465,16 +455,7 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
     Array[AnyRef](baos.toByteArray) ++ preEncodedLiterals.map(_._1.value.ba)
   }
 
-  private[this] val _mods = Array.newBuilder[(
-    String,
-    (HailClassLoader, FS, HailTaskContext, Region) => AsmFunction3[
-      Region,
-      Array[Byte],
-      Array[Byte],
-      Array[Byte],
-    ],
-  )]
-
+  private[this] val _mods = Array.newBuilder[(String, Compiled[BackendUtils.F])]
   private[this] var _backendField: Settable[BackendUtils] = _
 
   private[this] var _aggSigs: IndexedSeq[agg.AggStateSig] = _
@@ -575,14 +556,6 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
     _aggSerialized.load().update(i, Code._null[Array[Byte]])
   }
 
-  def runMethodWithHailExceptionHandler(mname: String): Code[(String, java.lang.Integer)] =
-    Code.invokeScalaObject2[AnyRef, String, (String, java.lang.Integer)](
-      CodeExceptionHandler.getClass,
-      "handleUserException",
-      cb.this_.get.asInstanceOf[Code[AnyRef]],
-      mname,
-    )
-
   def backend(): Code[BackendUtils] = {
     if (_backendField == null) {
       cb.addInterface(typeInfo[FunctionWithBackend].iname)
@@ -598,15 +571,7 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
   def pool(): Value[RegionPool] =
     poolField
 
-  def addModule(
-    name: String,
-    mod: (HailClassLoader, FS, HailTaskContext, Region) => AsmFunction3[
-      Region,
-      Array[Byte],
-      Array[Byte],
-      Array[Byte],
-    ],
-  ): Unit =
+  def addModule(name: String, mod: Compiled[BackendUtils.F]): Unit =
     _mods += name -> mod
 
   def getHailClassLoader: Code[HailClassLoader] = emodb.getHailClassLoader
@@ -857,8 +822,7 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
     rngField
   }
 
-  def resultWithIndex(print: Option[PrintWriter] = None)
-    : (HailClassLoader, FS, HailTaskContext, Region) => C =
+  def resultWithIndex(print: Option[PrintWriter] = None): Compiled[C] =
     ctx.time {
       makeAddPartitionRegion()
       makeAddHailClassLoader()
@@ -896,7 +860,7 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
       val n = cb.className.replace("/", ".")
       val classesBytes = modb.classesBytes(ctx.shouldWriteIRFiles(), print)
 
-      new ((HailClassLoader, FS, HailTaskContext, Region) => C) with java.io.Serializable {
+      new Compiled[C] with java.io.Serializable {
         @transient @volatile private var theClass: Class[_] = null
 
         override def apply(hcl: HailClassLoader, fs: FS, htc: HailTaskContext, region: Region)
@@ -1217,25 +1181,6 @@ trait FunctionWithLiterals {
 
 trait FunctionWithBackend {
   def setBackend(spark: BackendUtils): Unit
-}
-
-object CodeExceptionHandler {
-
-  /** This method assumes that the method referred to by `methodName` is a -argument class method
-    * (only takes the class itself as an arg) which returns void.
-    */
-  def handleUserException(obj: AnyRef, methodName: String): (String, java.lang.Integer) = {
-    try {
-      obj.getClass.getMethod(methodName).invoke(obj)
-      null
-    } catch {
-      case e: InvocationTargetException =>
-        e.getTargetException match {
-          case ue: HailException => (ue.msg, ue.errorId)
-          case e => throw e
-        }
-    }
-  }
 }
 
 class EmitMethodBuilder[C](

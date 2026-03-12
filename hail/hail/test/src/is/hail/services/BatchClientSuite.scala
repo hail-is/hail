@@ -123,6 +123,7 @@ class BatchClientSuite extends TestNGSuite {
       forAll(client.getJobGroupJobs(batchId, jobGroupId, Some(state))) { jobs =>
         assert(jobs.length == 1)
         assert(jobs(0).state == state)
+        assert(jobs.head.end_time.isDefined)
       }
     }
   }

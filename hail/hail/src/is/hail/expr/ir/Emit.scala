@@ -11,7 +11,6 @@ import is.hail.expr.ir.agg.{AggStateSig, ArrayAggStateSig, GroupedStateSig}
 import is.hail.expr.ir.analyses.{
   ComputeMethodSplits, ControlFlowPreventsSplit, ParentPointers, SemanticHash,
 }
-import is.hail.expr.ir.compile.Compile
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.lowering.TableStageDependency
 import is.hail.expr.ir.ndarrays.EmitNDArray
@@ -1472,7 +1471,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
                 Region,
                 PTuple,
                 PTuple,
-                (HailClassLoader, FS, HailTaskContext, Region) => AsmFunction3RegionLongLongLong,
+                Compiled[AsmFunction3RegionLongLongLong],
                 IndexedSeq[Any],
               ](
                 Graph.getClass,
@@ -2956,61 +2955,6 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
             emitI(res, env = resEnv)
           }
 
-      case t @ Trap(child) =>
-        val (ev, mb) = emitSplitMethod("trap", cb, child, region, env, container, loopEnv)
-        val maybeException = cb.newLocal[(String, java.lang.Integer)](
-          "trap_msg",
-          cb.emb.ecb.runMethodWithHailExceptionHandler(mb.mb.methodName),
-        )
-        val sst = SStringPointer(PCanonicalString(false))
-
-        val tt = t.typ.asInstanceOf[TTuple]
-        val errTupleType = tt.types(0).asInstanceOf[TTuple]
-        val errTuple =
-          SStackStruct(errTupleType, FastSeq(EmitType(sst, true), EmitType(SInt32, true)))
-        val tv = cb.emb.newEmitField("trap_errTuple", EmitType(errTuple, false))
-
-        val maybeMissingEV = cb.emb.newEmitField("trap_value", ev.emitType.copy(required = false))
-        cb.if_(
-          maybeException.isNull, {
-            cb.assign(tv, EmitCode.missing(cb.emb, errTuple))
-            cb.assign(maybeMissingEV, ev)
-          }, {
-            val str = EmitCode.fromI(cb.emb)(cb =>
-              IEmitCode.present(
-                cb,
-                sst.constructFromString(cb, region, maybeException.invoke[String]("_1")),
-              )
-            )
-            val errorId = EmitCode.fromI(cb.emb)(cb =>
-              IEmitCode.present(
-                cb,
-                primitive(
-                  cb.memoize(maybeException.invoke[java.lang.Integer]("_2").invoke[Int]("intValue"))
-                ),
-              )
-            )
-            cb.assign(
-              tv,
-              IEmitCode.present(
-                cb,
-                SStackStruct.constructFromArgs(cb, region, errTupleType, str, errorId),
-              ),
-            )
-            cb.assign(maybeMissingEV, EmitCode.missing(cb.emb, ev.st))
-          },
-        )
-        IEmitCode.present(
-          cb,
-          SStackStruct.constructFromArgs(
-            cb,
-            region,
-            t.typ.asInstanceOf[TBaseStruct],
-            tv,
-            maybeMissingEV,
-          ),
-        )
-
       case Die(m, typ, errorId) =>
         val cm = emitI(m)
         val msg = cb.newLocal[String]("die_msg")
@@ -3182,17 +3126,28 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
           var bodySpec: TypedCodecSpec = null
           bodyFB.emitWithBuilder { cb =>
             val region = bodyFB.getCodeParam[Region](1)
-            val ctxIB = cb.newLocal[InputBuffer](
-              "cda_ctx_ib",
-              contextSpec.buildCodeInputBuffer(
+
+            val gIB = cb.newLocal[InputBuffer](
+              "cda_globals_input_buffer",
+              globalSpec.buildCodeInputBuffer(
                 Code.newInstance[ByteArrayInputStream, Array[Byte]](
                   bodyFB.getCodeParam[Array[Byte]](2)
                 )
               ),
             )
-            val gIB = cb.newLocal[InputBuffer](
-              "cda_g_ib",
-              globalSpec.buildCodeInputBuffer(
+
+            val decodedGlobal =
+              globalSpec
+                .encodedType
+                .buildDecoder(globalSpec.encodedVirtualType, bodyFB.ecb)
+                .apply(cb, region, gIB)
+                .asBaseStruct
+                .loadField(cb, 0)
+                .memoizeField(cb, "decoded_global")
+
+            val ctxIB = cb.newLocal[InputBuffer](
+              "cda_context_input_buffer",
+              contextSpec.buildCodeInputBuffer(
                 Code.newInstance[ByteArrayInputStream, Array[Byte]](
                   bodyFB.getCodeParam[Array[Byte]](3)
                 )
@@ -3200,23 +3155,18 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
             )
 
             val decodedContext =
-              contextSpec.encodedType.buildDecoder(contextSpec.encodedVirtualType, bodyFB.ecb)
+              contextSpec
+                .encodedType
+                .buildDecoder(contextSpec.encodedVirtualType, bodyFB.ecb)
                 .apply(cb, region, ctxIB)
                 .asBaseStruct
                 .loadField(cb, 0)
                 .memoizeField(cb, "decoded_context")
 
-            val decodedGlobal =
-              globalSpec.encodedType.buildDecoder(globalSpec.encodedVirtualType, bodyFB.ecb)
-                .apply(cb, region, gIB)
-                .asBaseStruct
-                .loadField(cb, 0)
-                .memoizeField(cb, "decoded_global")
-
             val env = EmitEnv(
               Env[EmitValue](
-                (cname, decodedContext),
-                (gname, decodedGlobal),
+                gname -> decodedGlobal,
+                cname -> decodedContext,
               ),
               FastSeq(),
             )

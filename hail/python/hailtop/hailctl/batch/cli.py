@@ -333,17 +333,17 @@ def submit(
 
     Copy the local working directory to the root directory of the container:
 
-    $ hailctl batch submit --files ./:/ python3 my_script.py
+    $ hailctl batch submit -v ./:/ python3 my_script.py
 
 
     Copy the local working directory to a new subdirectory of the container:
 
-    $ hailctl batch submit --files ./:/workdir/ python3 /workdir/my_script.py
+    $ hailctl batch submit -v ./:/workdir/ python3 /workdir/my_script.py
 
 
     Copy the contents of a local directory into a new directory inside the container:
 
-    $ hailctl batch submit --workdir /myproject/ --files /Users/jdoe/my-project:/myproject python3 my_script.py
+    $ hailctl batch submit --workdir /myproject/ -v /Users/jdoe/my-project:/myproject python3 my_script.py
 
 
     Notes
