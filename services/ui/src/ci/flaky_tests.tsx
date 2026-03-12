@@ -34,7 +34,7 @@ interface AggregatedTest {
 function retryHeatColor(ratio: number): string {
   if (ratio > 0.66) return 'rgb(239 68 68 / 0.25)';   // red
   if (ratio > 0.33) return 'rgb(249 115 22 / 0.25)';  // orange
-  return 'rgb(14 165 233 / 0.25)';                     // blue
+  return 'rgb(253 224 71 / 0.25)';                      // yellow
 }
 
 function familyName(jobName: string): string {
@@ -96,6 +96,9 @@ function aggregate(rows: RetriedTest[], groupByFamily: boolean): AggregatedTest[
 }
 
 function RetryCharts({ tests, days }: { tests: AggregatedTest[]; days: number }) {
+  const [barMetric, setBarMetric] = useState<'retries' | 'batches' | 'prs'>('batches');
+  const barColor = barMetric === 'retries' ? '#a855f7' : barMetric === 'batches' ? '#0ea5e9' : '#10b981';
+
   const total = tests.reduce((s, t) => s + t.retry_count, 0);
 
   const instances = tests.flatMap((t) => t.instances);
@@ -118,14 +121,30 @@ function RetryCharts({ tests, days }: { tests: AggregatedTest[]; days: number })
   function localDateKey(d: Date): string {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
-  const dayCounts = instances.reduce<Record<string, number>>((acc, r) => {
+  const dayRetryCounts = instances.reduce<Record<string, number>>((acc, r) => {
     const day = localDateKey(new Date(r.retried_at));
     acc[day] = (acc[day] ?? 0) + 1;
     return acc;
   }, {});
+  const dayBatchSets = instances.reduce<Record<string, Set<number>>>((acc, r) => {
+    const day = localDateKey(new Date(r.retried_at));
+    (acc[day] ??= new Set()).add(r.batch_id);
+    return acc;
+  }, {});
+  const dayPrSets = instances.reduce<Record<string, Set<number>>>((acc, r) => {
+    const day = localDateKey(new Date(r.retried_at));
+    (acc[day] ??= new Set()).add(r.pr_number);
+    return acc;
+  }, {});
   const barData = Array.from({ length: days }, (_, i) => {
     const d = new Date(Date.now() - (days - 1 - i) * 24 * 60 * 60 * 1000);
-    return { date: `${d.getMonth() + 1}/${d.getDate()}`, retries: dayCounts[localDateKey(d)] ?? 0 };
+    const key = localDateKey(d);
+    return {
+      date: `${d.getMonth() + 1}/${d.getDate()}`,
+      retries: dayRetryCounts[key] ?? 0,
+      batches: dayBatchSets[key]?.size ?? 0,
+      prs: dayPrSets[key]?.size ?? 0,
+    };
   });
 
   return (
@@ -157,13 +176,28 @@ function RetryCharts({ tests, days }: { tests: AggregatedTest[]; days: number })
       </div>
 
       <div>
-        <p className="text-xs font-medium text-slate-500 mb-1">Retries per day</p>
+        <div className="flex items-center gap-3 mb-1">
+          <p className="text-xs font-medium text-slate-500">Retries per day</p>
+          <div className="flex rounded overflow-hidden border border-slate-200 text-xs">
+            {(['retries', 'batches', 'prs'] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setBarMetric(m)}
+                className={`px-2 py-0.5 ${m === barMetric ? 'text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+                style={m === barMetric ? { backgroundColor: barColor } : undefined}
+              >
+                {m === 'retries' ? 'jobs' : m === 'batches' ? 'batches' : 'prs'}
+              </button>
+            ))}
+          </div>
+        </div>
         <BarChart width={600} height={300} data={barData} margin={{ top: 5, right: 10, left: 0, bottom: 20 }}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
           <XAxis dataKey="date" tick={{ fontSize: 10 }} interval="preserveStartEnd" angle={-45} textAnchor="end" />
           <YAxis tick={{ fontSize: 10 }} allowDecimals={false} width={30} />
-          <Tooltip formatter={(v) => [String(v), 'retries']} />
-          <Bar dataKey="retries" fill="#0ea5e9" isAnimationActive={false} radius={[2, 2, 0, 0]} />
+          <Tooltip formatter={(v) => [String(v), barMetric === 'retries' ? 'job retries' : barMetric === 'batches' ? 'batches retried' : 'PRs affected']} />
+          <Bar dataKey={barMetric} fill={barColor} isAnimationActive={false} radius={[2, 2, 0, 0]} />
         </BarChart>
       </div>
     </div>
@@ -266,25 +300,28 @@ function FlakyTests({ basePath, batchBaseUrl }: { basePath: string; batchBaseUrl
   }
 
   const controls = (
-    <div className="mb-4 flex flex-col gap-2">
-      <div className="flex items-center gap-2.5">
-        <button
-          type="button"
-          role="switch"
-          aria-checked={groupByFamily}
-          onClick={() => { setGroupByFamily(v => !v); setExpanded(new Set()); }}
-          className={`relative h-5 w-9 flex-shrink-0 rounded-full p-0 transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 ${groupByFamily ? 'bg-sky-600' : 'bg-slate-300'}`}
-        >
-          <span
-            className="absolute h-4 w-4 rounded-full bg-white shadow-sm"
-            style={{ top: '2px', left: groupByFamily ? '18px' : '2px', transition: 'left 200ms ease-in-out' }}
-          />
-        </button>
-        <span className="text-sm text-slate-600 cursor-pointer select-none" onClick={() => { setGroupByFamily(v => !v); setExpanded(new Set()); }}>
-          Group test families
-        </span>
-      </div>
+    <div className="mb-4">
       <DaysSelector days={days} onChange={(d) => { setDays(d); setExpanded(new Set()); }} />
+    </div>
+  );
+
+  const groupByFamilyToggle = (
+    <div className="flex items-center gap-2.5">
+      <button
+        type="button"
+        role="switch"
+        aria-checked={groupByFamily}
+        onClick={() => { setGroupByFamily(v => !v); setExpanded(new Set()); }}
+        className={`relative h-5 w-9 flex-shrink-0 rounded-full p-0 transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 ${groupByFamily ? 'bg-sky-600' : 'bg-slate-300'}`}
+      >
+        <span
+          className="absolute h-4 w-4 rounded-full bg-white shadow-sm"
+          style={{ top: '2px', left: groupByFamily ? '18px' : '2px', transition: 'left 200ms ease-in-out' }}
+        />
+      </button>
+      <span className="text-sm text-slate-600 cursor-pointer select-none" onClick={() => { setGroupByFamily(v => !v); setExpanded(new Set()); }}>
+        Group test families
+      </span>
     </div>
   );
 
@@ -325,7 +362,10 @@ function FlakyTests({ basePath, batchBaseUrl }: { basePath: string; batchBaseUrl
       {controls}
       <h2 className="text-base font-semibold text-slate-700 mb-2">Charts</h2>
       <RetryCharts tests={tests} days={days} />
-      <h2 className="text-base font-semibold text-slate-700 mb-2">Leaderboard</h2>
+      <div className="flex items-center gap-4 mb-2">
+        <h2 className="text-base font-semibold text-slate-700">Leaderboard</h2>
+        {groupByFamilyToggle}
+      </div>
       <div className="overflow-x-auto rounded-lg border border-slate-200">
         <table className="w-full text-sm">
           <thead>
@@ -347,7 +387,7 @@ function FlakyTests({ basePath, batchBaseUrl }: { basePath: string; batchBaseUrl
                   <td className="px-4 py-2 text-slate-400">{i + 1}</td>
                   <td className="px-4 py-2 font-mono" style={{ background: `linear-gradient(to right, ${retryHeatColor(t.retry_count / maxCount)} ${(t.retry_count / maxCount) * 100}%, transparent ${(t.retry_count / maxCount) * 100}%)` }}>
                     <span className="inline-flex items-center gap-1">
-                      <ChevronRight className={`h-3.5 w-3.5 text-slate-400 transition-transform ${expanded.has(t.job_name) ? 'rotate-90' : ''}`} />
+                      <ChevronRight className={`h-5 w-5 text-slate-600 transition-transform ${expanded.has(t.job_name) ? 'rotate-90' : ''}`} />
                       {t.job_name}
                     </span>
                   </td>
