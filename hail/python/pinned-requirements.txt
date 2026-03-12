@@ -34,7 +34,7 @@ azure-common==1.1.28
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   azure-mgmt-storage
-azure-core==1.38.2
+azure-core==1.38.3
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   azure-identity
@@ -59,11 +59,11 @@ azure-storage-blob==12.28.0
     #   -r hail/python/hailtop/requirements.txt
 bokeh==3.4.3
     # via -r hail/python/requirements.txt
-boto3==1.42.66
+boto3==1.42.67
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
-botocore==1.42.66
+botocore==1.42.67
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
@@ -115,7 +115,7 @@ frozenlist==1.8.0
     #   -r hail/python/hailtop/requirements.txt
     #   aiohttp
     #   aiosignal
-google-auth==2.49.0
+google-auth==2.49.1
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
@@ -217,7 +217,6 @@ pyasn1==0.6.2
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   pyasn1-modules
-    #   rsa
 pyasn1-modules==0.4.2
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
@@ -234,7 +233,7 @@ pygments==2.19.2
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   rich
-pyjwt==2.11.0
+pyjwt==2.12.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   msal
@@ -278,10 +277,6 @@ rich==12.6.0
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
     #   typer
-rsa==4.9.1
-    # via
-    #   -c hail/python/hailtop/pinned-requirements.txt
-    #   google-auth
 s3transfer==0.16.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
