@@ -47,7 +47,7 @@ if SERVICE == 'ci':
         async def retried_tests_mock(request: web.Request):
             from datetime import datetime, timedelta, timezone
             def ago(days, time_str):
-                return (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d') + 'T' + time_str
+                return (datetime.now(timezone.utc) - timedelta(days=days)).strftime('%Y-%m-%d') + 'T' + time_str + '+00:00'
             rows = [
                 # today: PR 15315 triggered 3 separate batch runs (6 job retries, 3 batches, 1 PR)
                 {'id': 136, 'batch_id': 9052, 'job_id': 1, 'job_name': 'test_hail_python_1',                    'state': 'Failed', 'exit_code': 1,    'pr_number': 15315, 'target_branch': 'main', 'source_branch': 'big-pr', 'source_sha': 'ff0001', 'retried_by': 'ci', 'retried_at': ago(0, '14:55:00')},
@@ -92,9 +92,9 @@ if SERVICE == 'ci':
             ]
             after_str = request.rel_url.query.get('after')
             if after_str is not None:
-                after_dt = datetime.fromisoformat(after_str)
+                after_dt = datetime.fromisoformat(after_str.replace('Z', '+00:00'))
             else:
-                after_dt = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=14)
+                after_dt = datetime.now(timezone.utc) - timedelta(days=14)
             rows = [r for r in rows if datetime.fromisoformat(r['retried_at']) >= after_dt]
             return web.json_response({'rows': rows, 'cursor': None, 'has_more': False})
 

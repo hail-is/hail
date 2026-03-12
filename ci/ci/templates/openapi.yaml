@@ -737,11 +737,11 @@ paths:
         - name: after
           in: query
           required: false
-          description: "Lower bound on retried_at (ISO 8601). Defaults to 14 days ago."
+          description: "Lower bound on retried_at. Must be an ISO 8601 timestamp with explicit timezone. Defaults to 14 days ago."
           schema:
             type: string
             format: date-time
-            example: "2026-02-24T00:00:00"
+            example: "2026-02-24T00:00:00Z"
         - name: cursor
           in: query
           required: false

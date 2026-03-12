@@ -725,7 +725,7 @@ steps:
       - hail_ubuntu_image
   - kind: runImage
     name: build_ui
-    image: node:20-slim
+    image: node:20-slim@sha256:a82f40540f5959e0003fb7b3c0f80490def2927be8bdbee7e3e0ac65cce3be92
     script: |
       set -ex
       cd /io/repo/services/ui
@@ -741,7 +741,7 @@ steps:
       - merge_code
   - kind: runImage
     name: check_ui
-    image: node:20-slim
+    image: node:20-slim@sha256:a82f40540f5959e0003fb7b3c0f80490def2927be8bdbee7e3e0ac65cce3be92
     script: |
       set -ex
       cd /io/repo/services/ui
