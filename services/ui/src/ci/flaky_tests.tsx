@@ -150,7 +150,7 @@ function InstanceRows({ instances, batchBaseUrl }: { instances: RetriedTest[]; b
   return (
     <>
       {instances.map((r) => (
-        <tr key={r.id} className="bg-slate-50 border-b border-slate-100 text-xs text-slate-600">
+        <tr key={r.id} className="bg-slate-50 text-xs text-slate-600">
           <td className="py-1.5 pl-8 pr-4" colSpan={2}>
             <a
               href={`${batchBaseUrl}/batches/${r.batch_id}/jobs/${r.job_id}`}
@@ -168,7 +168,7 @@ function InstanceRows({ instances, batchBaseUrl }: { instances: RetriedTest[]; b
             {r.exit_code !== null && <span className="ml-1 text-slate-400">(exit {r.exit_code})</span>}
           </td>
           <td className="py-1.5 pr-4 text-right text-slate-400">—</td>
-          <td className="py-1.5 text-slate-400">{new Date(r.retried_at).toLocaleString()}</td>
+          <td className="py-1.5 pr-4 text-slate-400">{new Date(r.retried_at).toLocaleString()}</td>
         </tr>
       ))}
     </>
@@ -302,34 +302,34 @@ function FlakyTests({ basePath, batchBaseUrl }: { basePath: string; batchBaseUrl
       <h2 className="text-base font-semibold text-slate-700 mb-2">Charts</h2>
       <RetryCharts tests={tests} />
       <h2 className="text-base font-semibold text-slate-700 mb-2">Leaderboard</h2>
-      <div className="overflow-x-auto">
-        <table className="w-full table-fixed text-sm border-collapse">
+      <div className="overflow-x-auto rounded-lg border border-slate-200">
+        <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-slate-200 text-left text-slate-600">
-              <th className="py-2 pr-4 font-medium w-8">#</th>
-              <th className="py-2 pr-4 font-medium">Job Name</th>
-              <th className="py-2 pr-4 font-medium text-right w-20">Retries ({days} d)</th>
-              <th className="py-2 pr-4 font-medium text-right w-20">Distinct PRs</th>
-              <th className="py-2 font-medium w-28">Last Retried</th>
+            <tr className="bg-sky-100 text-slate-600 text-xs font-semibold uppercase tracking-wider">
+              <th className="px-4 py-2.5 text-left w-10">#</th>
+              <th className="px-4 py-2.5 text-left">Job Name</th>
+              <th className="px-4 py-2.5 text-right w-28">Retries</th>
+              <th className="px-4 py-2.5 text-right w-28"># PRs</th>
+              <th className="px-4 py-2.5 text-left w-40">Last Retried</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-slate-100">
             {tests.map((t, i) => (
               <Fragment key={t.job_name}>
                 <tr
-                  className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer select-none"
+                  className="hover:bg-sky-50 cursor-pointer select-none"
                   onClick={() => toggleExpanded(t.job_name)}
                 >
-                  <td className="py-2 pr-4 text-slate-400">{i + 1}</td>
-                  <td className="py-2 pr-4 font-mono" style={{ background: `linear-gradient(to right, ${retryHeatColor(t.retry_count / maxCount)} ${(t.retry_count / maxCount) * 100}%, transparent ${(t.retry_count / maxCount) * 100}%)` }}>
+                  <td className="px-4 py-2 text-slate-400">{i + 1}</td>
+                  <td className="px-4 py-2 font-mono" style={{ background: `linear-gradient(to right, ${retryHeatColor(t.retry_count / maxCount)} ${(t.retry_count / maxCount) * 100}%, transparent ${(t.retry_count / maxCount) * 100}%)` }}>
                     <span className="inline-flex items-center gap-1">
                       <ChevronRight className={`h-3.5 w-3.5 text-slate-400 transition-transform ${expanded.has(t.job_name) ? 'rotate-90' : ''}`} />
                       {t.job_name}
                     </span>
                   </td>
-                  <td className="py-2 pr-4 text-right font-semibold text-sky-700">{t.retry_count}</td>
-                  <td className="py-2 pr-4 text-right text-slate-600">{t.distinct_prs.size}</td>
-                  <td className="py-2 text-slate-500">{new Date(t.last_retried_at).toLocaleString()}</td>
+                  <td className="px-4 py-2 text-right font-semibold text-sky-700">{t.retry_count}</td>
+                  <td className="px-4 py-2 text-right text-slate-600">{t.distinct_prs.size}</td>
+                  <td className="px-4 py-2 text-slate-500">{new Date(t.last_retried_at).toLocaleString()}</td>
                 </tr>
                 {expanded.has(t.job_name) && (
                   <InstanceRows instances={t.instances} batchBaseUrl={batchBaseUrl} />
