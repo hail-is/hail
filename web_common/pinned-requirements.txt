@@ -79,7 +79,7 @@ typing-extensions==4.15.0
     #   -c web_common/../hail/python/pinned-requirements.txt
     #   aiosignal
     #   multidict
-yarl==1.22.0
+yarl==1.23.0
     # via
     #   -c web_common/../gear/pinned-requirements.txt
     #   -c web_common/../hail/python/dev/pinned-requirements.txt
