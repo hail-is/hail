@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Tuple
 
 import benchmark
 import pytest
+import yaml
 from benchmark.tools import init_logging
 
 from hail.utils import chunk, maybe
