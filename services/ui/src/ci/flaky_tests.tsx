@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, Fragment } from 'react';
 import { createRoot } from 'react-dom/client';
-import { PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
+import { PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 
 interface RetriedTest {
   id: number;
@@ -95,7 +95,7 @@ function aggregate(rows: RetriedTest[], groupByFamily: boolean): AggregatedTest[
   return Array.from(byJob.values()).sort((a, b) => b.retry_count - a.retry_count);
 }
 
-function RetryCharts({ tests }: { tests: AggregatedTest[] }) {
+function RetryCharts({ tests, days }: { tests: AggregatedTest[]; days: number }) {
   const total = tests.reduce((s, t) => s + t.retry_count, 0);
 
   const instances = tests.flatMap((t) => t.instances);
@@ -114,6 +114,19 @@ function RetryCharts({ tests }: { tests: AggregatedTest[] }) {
   const retriedByPieData = Object.entries(retriedByCounts)
     .sort((a, b) => b[1] - a[1])
     .map(([name, value]) => ({ name, value }));
+
+  function localDateKey(d: Date): string {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+  const dayCounts = instances.reduce<Record<string, number>>((acc, r) => {
+    const day = localDateKey(new Date(r.retried_at));
+    acc[day] = (acc[day] ?? 0) + 1;
+    return acc;
+  }, {});
+  const barData = Array.from({ length: days }, (_, i) => {
+    const d = new Date(Date.now() - (days - 1 - i) * 24 * 60 * 60 * 1000);
+    return { date: `${d.getMonth() + 1}/${d.getDate()}`, retries: dayCounts[localDateKey(d)] ?? 0 };
+  });
 
   return (
     <div className="flex flex-wrap gap-8 mb-8 items-start">
@@ -141,6 +154,17 @@ function RetryCharts({ tests }: { tests: AggregatedTest[] }) {
           <Tooltip formatter={(v, name) => [String(v ?? ''), String(name ?? '')]} />
           <Legend iconSize={10} wrapperStyle={{ fontSize: '11px' }} />
         </PieChart>
+      </div>
+
+      <div>
+        <p className="text-xs font-medium text-slate-500 mb-1">Retries per day</p>
+        <BarChart width={600} height={300} data={barData} margin={{ top: 5, right: 10, left: 0, bottom: 20 }}>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+          <XAxis dataKey="date" tick={{ fontSize: 10 }} interval="preserveStartEnd" angle={-45} textAnchor="end" />
+          <YAxis tick={{ fontSize: 10 }} allowDecimals={false} width={30} />
+          <Tooltip formatter={(v) => [String(v), 'retries']} />
+          <Bar dataKey="retries" fill="#0ea5e9" isAnimationActive={false} radius={[2, 2, 0, 0]} />
+        </BarChart>
       </div>
     </div>
   );
@@ -300,7 +324,7 @@ function FlakyTests({ basePath, batchBaseUrl }: { basePath: string; batchBaseUrl
     <div className="mt-4">
       {controls}
       <h2 className="text-base font-semibold text-slate-700 mb-2">Charts</h2>
-      <RetryCharts tests={tests} />
+      <RetryCharts tests={tests} days={days} />
       <h2 className="text-base font-semibold text-slate-700 mb-2">Leaderboard</h2>
       <div className="overflow-x-auto rounded-lg border border-slate-200">
         <table className="w-full text-sm">
