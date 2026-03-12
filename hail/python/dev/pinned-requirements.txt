@@ -52,6 +52,8 @@ babel==2.18.0
     # via
     #   jupyterlab-server
     #   sphinx
+backports-asyncio-runner==1.2.0
+    # via pytest-asyncio
 beautifulsoup4==4.14.3
     # via nbconvert
 bleach==6.3.0
@@ -399,6 +401,7 @@ pygments==2.19.2
     #   ipython
     #   jupyter-console
     #   nbconvert
+    #   pytest
     #   sphinx
 pylint==3.3.9
     # via -r hail/python/dev/requirements.txt
@@ -408,7 +411,7 @@ pyproject-hooks==1.2.0
     # via build
 pyright==1.1.408
     # via -r hail/python/dev/requirements.txt
-pytest==7.4.4
+pytest==9.0.2
     # via
     #   -r hail/python/dev/requirements.txt
     #   pytest-asyncio
@@ -419,7 +422,7 @@ pytest==7.4.4
     #   pytest-mock
     #   pytest-timeout
     #   pytest-xdist
-pytest-asyncio==0.21.2
+pytest-asyncio==1.3.0
     # via -r hail/python/dev/requirements.txt
 pytest-forked==1.6.0
     # via pytest-xdist
@@ -615,6 +618,7 @@ typing-extensions==4.15.0
     #   mistune
     #   multidict
     #   pyright
+    #   pytest-asyncio
     #   referencing
     #   virtualenv
 tzdata==2025.3

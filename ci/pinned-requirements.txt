@@ -45,7 +45,7 @@ pycparser==3.0
     #   -c ci/../hail/python/dev/pinned-requirements.txt
     #   -c ci/../hail/python/pinned-requirements.txt
     #   cffi
-pyjwt==2.11.0
+pyjwt==2.12.0
     # via
     #   -c ci/../hail/python/pinned-requirements.txt
     #   gidgethub

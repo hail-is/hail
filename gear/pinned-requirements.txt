@@ -70,7 +70,7 @@ google-api-core==2.30.0
     # via google-api-python-client
 google-api-python-client==2.192.0
     # via google-cloud-profiler
-google-auth==2.49.0
+google-auth==2.49.1
     # via
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
@@ -138,7 +138,6 @@ pyasn1==0.6.2
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
     #   pyasn1-modules
-    #   rsa
 pyasn1-modules==0.4.2
     # via
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
@@ -177,11 +176,6 @@ requests==2.32.5
     #   -c gear/../hail/python/pinned-requirements.txt
     #   google-api-core
     #   google-cloud-profiler
-rsa==4.9.1
-    # via
-    #   -c gear/../hail/python/hailtop/pinned-requirements.txt
-    #   -c gear/../hail/python/pinned-requirements.txt
-    #   google-auth
 setuptools==81.0.0
     # via
     #   -c gear/../hail/python/dev/pinned-requirements.txt
