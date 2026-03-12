@@ -6,6 +6,7 @@ import os
 import traceback
 from collections import defaultdict
 from contextlib import AsyncExitStack
+from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, NoReturn, Optional, Set, Tuple, TypedDict
 
 import aiohttp_session  # type: ignore
@@ -870,13 +871,25 @@ async def api_retried_tests(request: web.Request, _) -> web.Response:
         limit = min(int(request.rel_url.query.get('limit', 500)), 500)
     except ValueError:
         raise web.HTTPBadRequest(text='limit must be an integer')
+    if limit <= 0:
+        raise web.HTTPBadRequest(text='limit must be a positive integer')
 
     conditions = []
     args: list = []
 
     if after is not None:
+        after_str = after.replace('Z', '+00:00')
+        try:
+            after_dt = datetime.fromisoformat(after_str)
+        except ValueError:
+            raise web.HTTPBadRequest(
+                text='after must be an ISO 8601 timestamp with timezone (e.g. 2026-02-24T00:00:00Z)'
+            )
+        if after_dt.tzinfo is None:
+            raise web.HTTPBadRequest(text='after must include timezone info (e.g. 2026-02-24T00:00:00Z)')
+        after_utc = after_dt.astimezone(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
         conditions.append('retried_at >= %s')
-        args.append(after)
+        args.append(after_utc)
     else:
         conditions.append('retried_at >= NOW() - INTERVAL 14 DAY')
 
@@ -922,7 +935,7 @@ LIMIT %s
                 'source_branch': r['source_branch'],
                 'source_sha': r['source_sha'],
                 'retried_by': r['retried_by'],
-                'retried_at': r['retried_at'].isoformat(),
+                'retried_at': r['retried_at'].replace(tzinfo=timezone.utc).isoformat(),
             }
             for r in rows
         ],
