@@ -15,3 +15,7 @@ Repository = "https://github.com/hail-is/hail.git"
 module-name = "ci"
 module-root = ""
 namespace = true
+source-include = [
+  "ci/ci/templates/**",
+  "ci/ci/static/**",
+]
