@@ -255,6 +255,7 @@ tailwind-compile-watch:
 
 ifeq ($(SERVICE),ci)
 run-dev-proxy: ci/ci/static/compiled-js/flaky_tests.js
+tailwind-compile-watch: ci/ci/static/compiled-js/flaky_tests.js
 endif
 
 .PHONY: run-dev-proxy
