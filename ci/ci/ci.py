@@ -857,7 +857,7 @@ async def get_envoy_configs(request: web.Request, _) -> web.Response:
 @web_security_headers
 @auth.authenticated_developers_only()
 async def get_flaky_tests(request: web.Request, userdata: UserData) -> web.Response:
-    return await render_template('ci', request, userdata, 'flaky_tests.html', {})
+    return await render_template('ci', request, userdata, 'flaky_tests.html', {'use_tailwind': True})
 
 
 @routes.get('/api/v1alpha/retried_tests')
