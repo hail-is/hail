@@ -39,7 +39,7 @@ if SERVICE == 'ci':
     @web_security_headers
     async def flaky_tests_local(request: web.Request):
         fake_userdata = {'username': 'dev', 'is_developer': IS_DEVELOPER}
-        return await render_template('ci', request, fake_userdata, 'flaky_tests.html', {})
+        return await render_template('ci', request, fake_userdata, 'flaky_tests.html', {'use_tailwind': True})
 
     if os.getenv('MOCK_API_DATA'):
 
