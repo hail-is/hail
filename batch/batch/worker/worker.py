@@ -1829,13 +1829,29 @@ class DockerJob(Job):
             )
 
         assert self.worker.fs
+        command = job_spec['process']['command']
+        # On GCP, prepend a one-liner to each job script that replaces the Canonical Ubuntu
+        # mirror with the regional GCE internal mirror. This avoids CloudNAT egress and
+        # halves apt-get update traffic (no duplicate fetches from both sources).
+        # Only applies to shell-invoked commands ([shell, '-c', script]).
+        if CLOUD == 'gcp' and len(command) == 3 and command[1] == '-c':
+            gce_mirror = f'{REGION}.gce.archive.ubuntu.com'
+            # Back up originals first so jobs can restore with:
+            #   mv /etc/apt/sources.list.backup /etc/apt/sources.list
+            apt_redirect = (
+                f"cp /etc/apt/sources.list /etc/apt/sources.list.backup 2>/dev/null || true; "
+                f"for f in /etc/apt/sources.list.d/*.list; do cp \"$f\" \"$f.backup\" 2>/dev/null || true; done; "
+                f"sed -i 's|archive\\.ubuntu\\.com|{gce_mirror}|g' "
+                f"/etc/apt/sources.list /etc/apt/sources.list.d/*.list 2>/dev/null || true"
+            )
+            command = [command[0], command[1], apt_redirect + '\n' + command[2]]
         containers['main'] = Container(
             task_manager=self.task_manager,
             fs=self.worker.fs,
             name=self.container_name('main'),
             image=Image(job_spec['process']['image'], self.credentials, client_session, pool),
             scratch_dir=f'{self.scratch}/main',
-            command=job_spec['process']['command'],
+            command=command,
             cpu_in_mcpu=self.cpu_in_mcpu,
             memory_in_bytes=self.memory_in_bytes,
             user_credentials=self.credentials,
