@@ -9,7 +9,7 @@ from hail.context import init as init_
 from hail.utils import maybe
 from hail.utils.java import BackendType, array_of, choose_backend, scala_object
 from hail.version import __version__
-from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
+from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration, get_gcs_requester_pays_configuration
 from hailtop.config import ConfigVariable, configuration_of, get_remote_tmpdir
 
 
@@ -93,7 +93,9 @@ def init(
             backend = LocalBackend(gateway, jbackend, flags)
             backend.remote_tmpdir = remote_tmpdir
             backend.local_tmpdir = tmp_dir
-            backend.gcs_requester_pays_configuration = gcs_requester_pays_configuration
+            backend.requester_pays_config = get_gcs_requester_pays_configuration(
+                gcs_requester_pays_configuration=gcs_requester_pays_configuration,
+            )
 
             backend.logger.info(f'Hail {__version__}')
 

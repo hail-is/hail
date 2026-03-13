@@ -198,7 +198,7 @@ class Py4JBackend(Backend):
 
         self._jbackend = self._is.hail.backend.driver.Py4JQueryDriver(jbackend)
         self._fs = None
-        self._gcs_requester_pays_config = None
+        self._requester_pays_config = None
 
         # This has to go after creating the SparkSession. Unclear why.
         # Maybe it does its own patch?
@@ -225,7 +225,7 @@ class Py4JBackend(Backend):
     def fs(self) -> FS:
         if self._fs is None:
             self._fs = RouterFS(
-                gcs_kwargs={"gcs_requester_pays_configuration": self.gcs_requester_pays_configuration},
+                gcs_kwargs={"gcs_requester_pays_configuration": self.requester_pays_config},
             )
         return self._fs
 
@@ -256,12 +256,12 @@ class Py4JBackend(Backend):
         self._jbackend.pySetRemoteTmp(tmpdir)
 
     @property
-    def gcs_requester_pays_configuration(self) -> GCSRequesterPaysConfiguration | None:
-        return self._gcs_requester_pays_config
+    def requester_pays_config(self) -> GCSRequesterPaysConfiguration | None:
+        return self._requester_pays_config
 
-    @gcs_requester_pays_configuration.setter
-    def gcs_requester_pays_configuration(self, config: GCSRequesterPaysConfiguration | None):
-        self._gcs_requester_pays_config = config
+    @requester_pays_config.setter
+    def requester_pays_config(self, config: GCSRequesterPaysConfiguration | None):
+        self._requester_pays_config = config
         project, buckets = (None, None) if config is None else (config, None) if isinstance(config, str) else config
         self._jbackend.pySetGcsRequesterPaysConfig(project, buckets)
         # invalidate fs to propagate requester-pays
