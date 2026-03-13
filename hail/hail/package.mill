@@ -191,7 +191,7 @@ trait RootHailModule extends CrossScalaModule, HailScalaModule:
       )
 
     override def runMvnDeps: T[Seq[Dep]] =
-      outer.runMvnDeps()
+      outer.runMvnDeps() ++ outer.compileMvnDeps()
 
     override def assemblyRules: Seq[Rule] =
       outer.assemblyRules

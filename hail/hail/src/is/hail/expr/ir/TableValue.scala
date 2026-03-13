@@ -986,27 +986,22 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
     val rowPType = rvd.rowPType
     val globalPType = globals.t
 
-    val (newRowPType: PStruct, makeIterator) = CompileIterator.forTableMapPartitions(
-      ctx,
-      globalPType,
-      rowPType,
-      Subst(
-        body,
-        BindingEnv(Env(
-          globalName -> In(
-            0,
-            SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(globalPType)),
-          ),
-          partitionStreamName -> In(
-            1,
-            SingleCodeEmitParamType(
-              true,
-              StreamSingleCodeType(requiresMemoryManagementPerElement = true, rowPType, true),
-            ),
-          ),
-        )),
-      ),
+    val globalEmitType = SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(globalPType))
+    val streamEmitType = SingleCodeEmitParamType(
+      true,
+      StreamSingleCodeType(requiresMemoryManagementPerElement = true, rowPType, true),
     )
+    val (Some(PTypeReferenceSingleCodeType(newRowPType: PStruct)), makeStreamFn) =
+      Compile[AsmFunction3RegionLongNoBoxLongIteratorIteratorJLong](
+        ctx,
+        FastSeq(
+          (globalName, globalEmitType),
+          (partitionStreamName, streamEmitType),
+        ),
+        FastSeq(classInfo[Region], LongInfo, classInfo[NoBoxLongIterator]),
+        classInfo[Iterator[_]],
+        body,
+      )
 
     val globalsBc = globals.broadcast(ctx.theHailClassLoader)
 
@@ -1028,14 +1023,18 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
 
           override def close(): Unit = ()
         }
-        makeIterator(
+        val f = makeStreamFn(
           hcl,
           fsBc.value,
           SparkTaskContext.get(),
-          consumerCtx,
+          consumerCtx.partitionRegion,
+        )
+        f(
+          consumerCtx.region,
           globalsBc.value.readRegionValue(consumerCtx.partitionRegion, hcl),
           boxedPartition,
-        ).map(l => l.longValue())
+        )
+          .map(l => l.longValue())
     }
 
     val newRVD = rvd.repartition(ctx, rvd.partitioner.strictify(allowedOverlap))
