@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.backend.ExecuteContext
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.defs.{BaseRef, Binding, Block, In, Ref, Str}
-import is.hail.types.virtual.TVoid
+import is.hail.types.virtual.{TStream, TVoid}
 
 import scala.collection.Set
 
@@ -19,6 +19,7 @@ object ForwardLets {
         IsPure(value) && (
           value.isInstanceOf[Ref] ||
             value.isInstanceOf[In] ||
+            value.typ.isInstanceOf[TStream] ||
             (IsConstant(value) && !value.isInstanceOf[Str]) ||
             refs.isEmpty ||
             (refs.size == 1 &&
