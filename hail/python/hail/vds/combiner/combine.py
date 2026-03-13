@@ -156,7 +156,8 @@ def make_reference_stream(stream, entry_to_keep: Collection[str], save_filters: 
     if transform_row is None or not hl.current_backend()._is_registered_ir_function_name(transform_row._name):
         transform_row = hl.experimental.define_function(
             lambda row: hl.struct(
-                locus=row.locus, __entries=row.__entries.map(lambda e: make_ref_entry_struct(e, entry_to_keep, save_filters, row))
+                locus=row.locus,
+                __entries=row.__entries.map(lambda e: make_ref_entry_struct(e, entry_to_keep, save_filters, row)),
             ),
             row_type,
         )
@@ -164,7 +165,8 @@ def make_reference_stream(stream, entry_to_keep: Collection[str], save_filters: 
 
     return stream.map(
         lambda row: hl.struct(
-            locus=row.locus, __entries=row.__entries.map(lambda e: make_ref_entry_struct(e, entry_to_keep, save_filters, row))
+            locus=row.locus,
+            __entries=row.__entries.map(lambda e: make_ref_entry_struct(e, entry_to_keep, save_filters, row)),
         )
     )
 

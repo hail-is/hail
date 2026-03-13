@@ -816,7 +816,7 @@ def new_combiner(
             for name in vds.reference_data.entry
             if name not in ('LEN', 'gvcf_filters')
         )
-        vds_has_filters = 'gvcf_filters' in vds.reference_data.filters
+        vds_has_filters = 'gvcf_filters' in vds.reference_data.entry
         if gvcf_reference_entry_fields_to_keep is not None and vds_ref_entry != gvcf_reference_entry_fields_to_keep:
             warning(
                 "Mismatch between 'gvcf_reference_entry_fields' to keep and VDS reference data "
