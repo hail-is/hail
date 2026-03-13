@@ -1910,7 +1910,7 @@ class Table(BaseTable):
         if _localize:
             return Env.backend().execute(hl.ir.MakeTuple([agg_ir]))[0]
 
-        return construct_expr(ir.LiftMeOut(agg_ir), expr.dtype)
+        return construct_expr(agg_ir, expr.dtype)
 
     @typecheck_method(
         output=str,

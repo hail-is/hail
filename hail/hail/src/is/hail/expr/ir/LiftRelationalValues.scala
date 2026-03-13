@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.compat.mutable.Growable
 import is.hail.expr.ir.defs.{
-  BlockMatrixCollect, BlockMatrixToValueApply, LiftMeOut, RelationalLet, RelationalRef,
+  BlockMatrixCollect, BlockMatrixToValueApply, RelationalLet, RelationalRef,
   TableAggregate, TableCollect, TableCount, TableGetGlobals, TableToValueApply,
 }
 import is.hail.types.virtual.TVoid
@@ -40,29 +40,6 @@ object LiftRelationalValues {
               RelationalLetTable(name, value, acc)
             },
           )
-        case RelationalLetMatrixTable(name, value, body) =>
-          val value2 = rewrite(value, ab, memo).asInstanceOf[IR]
-          val ab2 = ArraySeq.newBuilder[(Name, IR)]
-          val memo2 = mutable.Map.empty[IR, Name]
-          val body2 = rewrite(body, ab2, memo2).asInstanceOf[MatrixIR]
-          RelationalLetMatrixTable(
-            name,
-            value2,
-            ab2.result().foldRight[MatrixIR](body2) { case ((name, value), acc) =>
-              RelationalLetMatrixTable(name, value, acc)
-            },
-          )
-        case LiftMeOut(child) =>
-          val name = memo.get(child) match {
-            case Some(name) => name
-            case None =>
-              val name = freshName()
-              val newChild = rewrite(child, ab, memo).asInstanceOf[IR]
-              ab += ((name, newChild))
-              memo(child) = name
-              name
-          }
-          RelationalRef(name, child.typ)
         case (_: TableAggregate
             | _: TableCount
             | _: TableToValueApply
@@ -70,10 +47,15 @@ object LiftRelationalValues {
             | _: TableCollect
             | _: BlockMatrixCollect
             | _: TableGetGlobals) if ir.typ != TVoid =>
-          val ref = RelationalRef(freshName(), ir.asInstanceOf[IR].typ)
-          val newChild = ir.mapChildren(rewrite(_, ab, memo))
-          ab += ((ref.name, newChild.asInstanceOf[IR]))
-          ref
+          val name = memo.get(ir.asInstanceOf[IR]) match {
+            case Some(name) => name
+            case None =>
+              val name = freshName()
+              val newChild = ir.mapChildren(rewrite(_, ab, memo))
+              ab += name -> newChild.asInstanceOf[IR]
+              name
+          }
+          RelationalRef(name, ir.asInstanceOf[IR].typ)
         case x =>
           x.mapChildren(rewrite(_, ab, memo))
       }
