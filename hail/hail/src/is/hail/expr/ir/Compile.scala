@@ -292,7 +292,7 @@ object CompileIterator {
     ir: IR,
   ): (
     PType,
-    (HailClassLoader, FS, HailTaskContext, RVDContext, Long, NoBoxLongIterator) => Iterator[java.lang.Long],
+    (HailClassLoader, FS, RVDContext, Long, NoBoxLongIterator) => Iterator[java.lang.Long],
   ) = {
     assert(typ0.required)
     assert(streamElementType.required)
@@ -308,10 +308,9 @@ object CompileIterator {
     )
     (
       eltPType,
-      (theHailClassLoader, fs, htc, consumerCtx, v0, part) => {
-        val outerStepFunction =
-          makeStepper(theHailClassLoader, fs, htc, consumerCtx.partitionRegion)
-        outerStepFunction.setRegions(consumerCtx.partitionRegion, consumerCtx.region)
+      (theHailClassLoader, fs, ctx, v0, part) => {
+        val outerStepFunction = makeStepper(theHailClassLoader, fs, ctx, ctx.r)
+        outerStepFunction.setRegions(ctx.r, ctx.region)
         new LongIteratorWrapper {
           val stepFunction: TMPStepFunction = outerStepFunction
 
@@ -328,7 +327,7 @@ object CompileIterator {
     ir: IR,
   ): (
     PType,
-    (HailClassLoader, FS, HailTaskContext, RVDContext, Long, Long) => Iterator[java.lang.Long],
+    (HailClassLoader, FS, RVDContext, Long, Long) => Iterator[java.lang.Long],
   ) = {
     assert(ctxType.required)
     assert(bcValsType.required)
@@ -344,10 +343,9 @@ object CompileIterator {
     )
     (
       eltPType,
-      (theHailClassLoader, fs, htc, consumerCtx, v0, v1) => {
-        val outerStepFunction =
-          makeStepper(theHailClassLoader, fs, htc, consumerCtx.partitionRegion)
-        outerStepFunction.setRegions(consumerCtx.partitionRegion, consumerCtx.region)
+      (theHailClassLoader, fs, ctx, v0, v1) => {
+        val outerStepFunction = makeStepper(theHailClassLoader, fs, ctx, ctx.r)
+        outerStepFunction.setRegions(ctx.r, ctx.region)
         new LongIteratorWrapper {
           val stepFunction: TableStageToRVDStepFunction = outerStepFunction
 

@@ -613,7 +613,7 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
           deepCopy = false,
         ).a
       }
-      val cp1 = f1.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, r)()
+      val cp1 = f1.resultWithIndex()(theHailClassLoader, ctx.fs, taskContext, r)()
       assert(SafeRow.read(t2, cp1) == Row(value))
 
       val f2 = EmitFunctionBuilder[Long](ctx, "stagedCopy2")
@@ -626,7 +626,7 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
           deepCopy = false,
         ).a
       }
-      val cp2 = f2.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, r)()
+      val cp2 = f2.resultWithIndex()(theHailClassLoader, ctx.fs, taskContext, r)()
       assert(SafeRow.read(t1, cp2) == Row(value))
     }
   }

@@ -3,7 +3,6 @@ package is.hail.backend
 import is.hail.HailFeatureFlags
 import is.hail.annotations.{Region, RegionPool}
 import is.hail.asm4s.HailClassLoader
-import is.hail.backend.local.LocalTaskContext
 import is.hail.expr.ir.{BaseIR, CompileCache, Compiled}
 import is.hail.expr.ir.LoweredTableReader.LoweredTableReaderCoercer
 import is.hail.expr.ir.lowering.IrMetadata
@@ -72,7 +71,7 @@ object ExecuteContext {
     coercerCache: mutable.Map[Any, LoweredTableReaderCoercer],
   )(
     f: ExecuteContext => T
-  ): T = {
+  ): T =
     RegionPool.scoped { pool =>
       pool.scopedRegion { region =>
         using(new ExecuteContext(
@@ -94,7 +93,6 @@ object ExecuteContext {
         ))(f(_))
       }
     }
-  }
 
   def createTmpPathNoCleanup(tmpdir: String, prefix: String, extension: String = null): String = {
     val random = new SecureRandom()
@@ -113,7 +111,7 @@ class ExecuteContext(
   val backend: Backend,
   val references: Map[String, ReferenceGenome],
   val fs: FS,
-  val r: Region,
+  override val r: Region,
   val timer: ExecutionTimer,
   val tempFileManager: TempFileManager,
   val theHailClassLoader: HailClassLoader,
@@ -123,7 +121,7 @@ class ExecuteContext(
   val CompileCache: CompileCache,
   val PersistedIrCache: mutable.Map[Int, BaseIR],
   val PersistedCoercerCache: mutable.Map[Any, LoweredTableReaderCoercer],
-) extends Closeable {
+) extends HailTaskContext with Closeable {
 
   val rngNonce: Long =
     try
@@ -142,10 +140,14 @@ class ExecuteContext(
 
   val memo: mutable.Map[Any, Any] = new mutable.HashMap[Any, Any]()
 
-  val taskContext: HailTaskContext = new LocalTaskContext(0, 0)
+  private[this] val onCloseTasks = mutable.ArrayBuffer.empty[() => Unit]
+  override def onClose(f: () => Unit): Unit = onCloseTasks += f
+
+  def run[A](f: Compiled[A])(implicit E: Enclosing): A =
+    time(f(theHailClassLoader, fs, this, r))
 
   def scopedExecution[T](f: Compiled[T])(implicit E: Enclosing): T =
-    using(new LocalTaskContext(0, 0))(tc => time(f(theHailClassLoader, fs, tc, r)))
+    r.pool.scopedRegion(r => local(r = r)(_.run(f)))
 
   def createTmpPath(prefix: String, extension: String = null, local: Boolean = false): String =
     tempFileManager.newTmpPath(if (local) localTmpdir else tmpdir, prefix, extension)
@@ -159,8 +161,8 @@ class ExecuteContext(
   def shouldLogIR(): Boolean = !shouldNotLogIR()
 
   override def close(): Unit = {
+    onCloseTasks.foreach(_())
     tempFileManager.close()
-    taskContext.close()
   }
 
   def time[A](block: => A)(implicit E: Enclosing): A =
@@ -179,7 +181,7 @@ class ExecuteContext(
     flags: HailFeatureFlags = this.flags,
     irMetadata: IrMetadata = this.irMetadata,
     blockMatrixCache: mutable.Map[String, BlockMatrix] = this.BlockMatrixCache,
-    codeCache: CompileCache = this.CompileCache,
+    compileCache: CompileCache = this.CompileCache,
     persistedIrCache: mutable.Map[Int, BaseIR] = this.PersistedIrCache,
     persistedCoercerCache: mutable.Map[Any, LoweredTableReaderCoercer] = this.PersistedCoercerCache,
   )(
@@ -198,7 +200,7 @@ class ExecuteContext(
       flags,
       irMetadata,
       blockMatrixCache,
-      codeCache,
+      compileCache,
       persistedIrCache,
       persistedCoercerCache,
     ))(f)

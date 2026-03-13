@@ -85,12 +85,12 @@ object AbstractRVDSpec {
 
     val (part0Count, bytesWritten) =
       using(fs.create(partsPath + "/" + filePath)) { os =>
-        using(RVDContext.default(execCtx.r.pool)) { ctx =>
+        using(RVDContext.default(execCtx)) { ctx =>
           RichContextRDDRegionValue.writeRowsPartition(codecSpec.buildEncoder(execCtx, rowType))(
             execCtx.theHailClassLoader,
             ctx,
             rows.iterator.map { a =>
-              rowType.unstagedStoreJavaObject(execCtx.stateManager, a, ctx.r)
+              rowType.unstagedStoreJavaObject(execCtx.stateManager, a, ctx.region)
             },
             os,
             null,

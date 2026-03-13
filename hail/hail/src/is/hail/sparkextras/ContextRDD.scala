@@ -154,7 +154,7 @@ object ContextRDD {
 class ContextRDD[T: ClassTag](val rdd: RDD[Element[T]]) extends Serializable {
 
   private[this] def sparkManagedContext[U](f: (HailClassLoader, RVDContext) => U): U = {
-    val c = RVDContext.default(SparkTaskContext.get().getRegionPool())
+    val c = RVDContext.default(SparkTaskContext.get)
     TaskContext.get().addTaskCompletionListener[Unit]((_: TaskContext) => c.close()): Unit
     f(unsafeHailClassLoaderForSparkWorkers, c)
   }
@@ -218,20 +218,6 @@ class ContextRDD[T: ClassTag](val rdd: RDD[Element[T]]) extends Serializable {
     new ContextRDD(rdd.mapPartitionsWithIndex { (i, part) =>
       part.flatMap(x => inCtx((hcl, ctx) => f(i, hcl, ctx, x)))
     })
-
-  // Gives consumer ownership of the context. Consumer is responsible for freeing
-  // resources per element.
-  def crunJobWithIndex[U: ClassTag](f: (Int, HailClassLoader, RVDContext, Iterator[T]) => U)
-    : Array[U] =
-    sparkContext.runJob(
-      rdd,
-      { (taskContext, it: Iterator[Element[T]]) =>
-        val c = RVDContext.default(SparkTaskContext.get().getRegionPool())
-        val hcl = unsafeHailClassLoaderForSparkWorkers
-        val ans = f(taskContext.partitionId(), hcl, c, it.flatMap(_(hcl, c)))
-        ans
-      },
-    )
 
   def cmapPartitionsAndContext[U: ClassTag](
     f: (HailClassLoader, RVDContext, Iterator[Element[T]]) => Iterator[U],

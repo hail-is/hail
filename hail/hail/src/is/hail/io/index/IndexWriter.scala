@@ -89,16 +89,16 @@ object IndexWriter {
     annotationType: PType,
     branchingFactor: Int = 4096,
     attributes: Map[String, Any] = Map.empty[String, Any],
-  ): (String, HailClassLoader, HailTaskContext, RegionPool) => IndexWriter = {
+  ): (String, HailClassLoader, HailTaskContext) => IndexWriter = {
     val sm = ctx.stateManager;
     val f = StagedIndexWriter.build(ctx, keyType, annotationType, branchingFactor);
-    { (path: String, hcl: HailClassLoader, htc: HailTaskContext, pool: RegionPool) =>
+    { (path: String, hcl: HailClassLoader, htc: HailTaskContext) =>
       new IndexWriter(
         sm,
         keyType,
         annotationType,
-        f(path, hcl, htc, pool, attributes),
-        pool,
+        f(path, hcl, htc, attributes),
+        htc.r.pool,
         attributes,
       )
     }
@@ -301,7 +301,7 @@ object StagedIndexWriter {
     keyType: PType,
     annotationType: PType,
     branchingFactor: Int = 4096,
-  ): (String, HailClassLoader, HailTaskContext, RegionPool, Map[String, Any]) => CompiledIndexWriter = {
+  ): (String, HailClassLoader, HailTaskContext, Map[String, Any]) => CompiledIndexWriter = {
     val fb = EmitFunctionBuilder[CompiledIndexWriter](
       ctx,
       "indexwriter",
@@ -344,10 +344,9 @@ object StagedIndexWriter {
         path: String,
         hcl: HailClassLoader,
         htc: HailTaskContext,
-        pool: RegionPool,
         attributes: Map[String, Any],
       ) =>
-        pool.scopedRegion { r =>
+        htc.r.pool.scopedRegion { r =>
           // FIXME: This seems wrong? But also, anywhere we use broadcasting for the FS is wrong.
           val f = makeFB(hcl, fsBc.value, htc, r)
           f.init(path, attributes)

@@ -3,11 +3,12 @@ package is.hail.expr.ir
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
-import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
+import is.hail.backend.spark.{unsafeHailClassLoaderForSparkWorkers, SparkBackend, SparkTaskContext}
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.TableAnnotationImpex
+import is.hail.expr.ir.TableValue.readToBytes
 import is.hail.expr.ir.agg.IndependentExtractedAggs
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.lowering.{RVDToTableStage, TableStage, TableStageToRVD}
@@ -303,6 +304,13 @@ object TableValue extends Logging {
       ),
     )
   }
+
+  private[TableValue] def readToBytes(is: DataInputStream): Array[Byte] = {
+    val len = is.readInt()
+    val b = new Array[Byte](len)
+    is.readFully(b)
+    b
+  }
 }
 
 case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow, rvd: RVD)
@@ -354,7 +362,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
       val sb = new StringBuilder()
 
       it.map { ptr =>
-        val ur = new UnsafeRow(localSignature, ctx.r, ptr)
+        val ur = new UnsafeRow(localSignature, ctx.region, ptr)
         sb.clear()
         localTypes.indices.foreachBetween { i =>
           sb ++= TableAnnotationImpex.exportAnnotation(ur.get(i), localTypes(i))
@@ -509,18 +517,18 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
       .repartition(ctx, prevRVD.partitioner.strictify())
       .boundary
       .mapPartitionsWithIndex(newRVDType) { (i, hcl, ctx, it) =>
-        val partRegion = ctx.partitionRegion
+        val partRegion = ctx.r
         val globalsOff =
           globalsBc.value.readRegionValue(partRegion, hcl)
 
         val initialize = makeInit(
           hcl,
           fsBc.value,
-          SparkTaskContext.get(),
+          ctx,
           partRegion,
         )
-        val sequence = makeSeq(hcl, fsBc.value, SparkTaskContext.get(), partRegion)
-        val newRowF = makeRow(hcl, fsBc.value, SparkTaskContext.get(), partRegion)
+        val sequence = makeSeq(hcl, fsBc.value, ctx, partRegion)
+        val newRowF = makeRow(hcl, fsBc.value, ctx, partRegion)
 
         val aggRegion = ctx.freshRegion()
 
@@ -548,11 +556,11 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
 
             aggRegion.clear()
             initialize.newAggState(aggRegion)
-            initialize(ctx.r, globalsOff)
+            initialize(ctx.region, globalsOff)
             sequence.setAggState(aggRegion, initialize.getAggOffset())
 
             do {
-              sequence(ctx.r, globalsOff, current)
+              sequence(ctx.region, globalsOff, current)
               current = 0
             } while (hasNext && keyOrd.equiv(rowKey.value.offset, current))
             newRowF.setAggState(aggRegion, sequence.getAggOffset())
@@ -632,9 +640,9 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
       typ.copy(rowType = newRow.typ),
       globals,
       rvd.boundary.mapPartitionsWithIndex(rvdType) { (i, hcl, ctx, it) =>
-        val globalRegion = ctx.partitionRegion
-        val lenF = l(hcl, fsBc.value, SparkTaskContext.get(), globalRegion)
-        val rowF = f(hcl, fsBc.value, SparkTaskContext.get(), globalRegion)
+        val globalRegion = ctx.r
+        val lenF = l(hcl, fsBc.value, ctx, globalRegion)
+        val rowF = f(hcl, fsBc.value, ctx, globalRegion)
         it.flatMap { ptr =>
           val len = lenF(ctx.region, ptr)
           new Iterator[Long] {
@@ -681,12 +689,12 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
     copy(rvd =
       rvd.filterWithContext[(AsmFunction3RegionLongLongBoolean, Long)](
         { (_, hcl, rvdCtx) =>
-          val globalRegion = rvdCtx.partitionRegion
+          val globalRegion = rvdCtx.r
           (
             f(
               hcl,
               fsBc.value,
-              SparkTaskContext.get(),
+              rvdCtx,
               globalRegion,
             ),
             localGlobals.value.readRegionValue(globalRegion, hcl),
@@ -858,15 +866,21 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
 
     val serialize = aggSigs.serialize(ctx, spec)
     val deserialize = aggSigs.deserialize(ctx, spec)
-    val combOp = aggSigs.combOpFSerializedWorkersOnly(ctx, spec)
+    val combOp = {
+      val loadFn = aggSigs.combOpFSerializedFromRegionPool(ctx, spec)
+      (as: Array[Byte], bs: Array[Byte]) =>
+        val htc = SparkTaskContext.get
+        val comb = loadFn(unsafeHailClassLoaderForSparkWorkers, fsBc.value, htc, htc.r)
+        comb(as, bs)
+    }
 
-    val tc = ctx.taskContext
-    val initF = makeInit(ctx.theHailClassLoader, fsBc.value, tc, ctx.r)
-    val globalsOffset = globals.value.offset
-    val initAggs = ctx.r.pool.scopedRegion { aggRegion =>
-      initF.newAggState(aggRegion)
-      initF(ctx.r, globalsOffset)
-      serialize(ctx.theHailClassLoader, tc, aggRegion, initF.getAggOffset())
+    val initAggs = ctx.scopedExecution { (hcl, fs, htc, r) =>
+      val initF = makeInit(hcl, fs, htc, htc.r)
+      val write = serialize(hcl, fs, htc, htc.r)
+
+      initF.newAggState(r)
+      initF(htc.r, globals.value.offset)
+      write(r, initF.getAggOffset())
     }
 
     val newRowType = PCanonicalStruct(
@@ -880,11 +894,10 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
     val rdd = rvd
       .boundary
       .mapPartitionsWithIndex { (i, hcl, ctx, it) =>
-        val partRegion = ctx.partitionRegion
-        val tc = SparkTaskContext.get()
+        val partRegion = ctx.r
         val globals = globalsBc.value.readRegionValue(partRegion, hcl)
         val makeKey = {
-          val f = makeKeyF(hcl, fsBc.value, tc, partRegion)
+          val f = makeKeyF(hcl, fsBc.value, ctx, partRegion)
           ptr: Long => {
             val keyOff = f(ctx.region, ptr, globals)
             SafeRow.read(localKeyPType, keyOff).asInstanceOf[Row]
@@ -892,11 +905,11 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
         }
         val makeAgg = { () =>
           val aggRegion = ctx.freshRegion()
-          RegionValue(aggRegion, deserialize(hcl, tc, aggRegion, initAggs))
+          RegionValue(aggRegion, deserialize(hcl, fsBc.value, ctx, ctx.r)(aggRegion, initAggs))
         }
 
         val seqOp = {
-          val f = makeSeq(hcl, fsBc.value, SparkTaskContext.get(), partRegion)
+          val f = makeSeq(hcl, fsBc.value, ctx, partRegion)
           (ptr: Long, agg: RegionValue) => {
             f.setAggState(agg.region, agg.offset)
             f(ctx.region, globals, ptr)
@@ -905,9 +918,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
           }
         }
         val serializeAndCleanupAggs = { rv: RegionValue =>
-          val a = serialize(hcl, tc, rv.region, rv.offset)
-          rv.region.close()
-          a
+          using(rv.region)(r => serialize(hcl, fsBc.value, ctx, r)(r, rv.offset))
         }
 
         new BufferedAggregatorIterator[Long, RegionValue, Array[Byte], Row](
@@ -916,7 +927,8 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
           makeKey,
           seqOp,
           serializeAndCleanupAggs,
-          localBufferSize)
+          localBufferSize,
+        )
       }.aggregateByKey(initAggs, nPartitions.getOrElse(rvd.getNumPartitions))(combOp, combOp)
 
     val keyType = tcoerce[TStruct](newKey.typ)
@@ -924,10 +936,9 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
       val region = ctx.region
 
       val rvb = new RegionValueBuilder(sm)
-      val partRegion = ctx.partitionRegion
-      val tc = SparkTaskContext.get()
+      val partRegion = ctx.r
       val globals = globalsBc.value.readRegionValue(partRegion, hcl)
-      val annotate = makeAnnotate(hcl, fsBc.value, tc, partRegion)
+      val annotate = makeAnnotate(hcl, fsBc.value, ctx, partRegion)
 
       it.map { case (key, aggs) =>
         rvb.set(region)
@@ -939,7 +950,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
           i += 1
         }
 
-        val aggOff = deserialize(hcl, tc, region, aggs)
+        val aggOff = deserialize(hcl, fsBc.value, ctx, ctx.r)(region, aggs)
         annotate.setAggState(region, aggOff)
         rvb.addAllFields(rTyp, region, annotate(region, globals))
         rvb.endStruct()
@@ -974,8 +985,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
         )),
       )
 
-    val resultOff =
-      f(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, ctx.r)(ctx.r, globals.value.offset)
+    val resultOff = f(ctx.theHailClassLoader, ctx.fs, ctx, ctx.r)(ctx.r, globals.value.offset)
     val newType = typ.copy(globalType = newGlobals.typ.asInstanceOf[TStruct])
 
     copy(typ = newType, globals = BroadcastRow(ctx, RegionValue(ctx.r, resultOff), resultPType))
@@ -1031,9 +1041,8 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
         makeIterator(
           hcl,
           fsBc.value,
-          SparkTaskContext.get(),
           consumerCtx,
-          globalsBc.value.readRegionValue(consumerCtx.partitionRegion, hcl),
+          globalsBc.value.readRegionValue(consumerCtx.r, hcl),
           boxedPartition,
         ).map(l => l.longValue())
     }
@@ -1057,18 +1066,14 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
     val newType = typ.copy(rowType = extracted.result.typ.asInstanceOf[TStruct])
 
     if (aggSigs.isEmpty) {
-      val (Some(PTypeReferenceSingleCodeType(rTyp)), f) =
+      val (Some(PTypeReferenceSingleCodeType(rTyp)), rowFn) =
         Compile[AsmFunction3RegionLongLongLong](
           ctx,
           FastSeq(
-            (
-              TableIR.globalName,
+            TableIR.globalName ->
               SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(globals.t)),
-            ),
-            (
-              TableIR.rowName,
+            TableIR.rowName ->
               SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(rvd.rowPType)),
-            ),
           ),
           FastSeq(classInfo[Region], LongInfo, LongInfo),
           LongInfo,
@@ -1078,28 +1083,23 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
           )),
         )
 
-      val rowIterationNeedsGlobals = Mentions(extracted.result, TableIR.globalName)
       val globalsBc =
-        if (rowIterationNeedsGlobals)
-          globals.broadcast(ctx.theHailClassLoader)
-        else
-          null
-
-      val fsBc = ctx.fsBc
-      val itF = { (i: Int, hcl: HailClassLoader, ctx: RVDContext, it: Iterator[Long]) =>
-        val globalRegion = ctx.partitionRegion
-        val globals = if (rowIterationNeedsGlobals)
-          globalsBc.value.readRegionValue(globalRegion, hcl)
-        else
-          0
-
-        val newRow = f(hcl, fsBc.value, SparkTaskContext.get(), globalRegion)
-        it.map(ptr => newRow(ctx.r, globals, ptr))
-      }
+        someIf(
+          Mentions(extracted.result, TableIR.globalName),
+          globals.broadcast(ctx.theHailClassLoader),
+        )
 
       return copy(
         typ = newType,
-        rvd = rvd.mapPartitionsWithIndex(RVDType(rTyp.asInstanceOf[PStruct], typ.key))(itF),
+        rvd = rvd.mapPartitions(RVDType(rTyp.asInstanceOf[PStruct], typ.key)) {
+          (hcl: HailClassLoader, ctx: RVDContext, it: Iterator[Long]) =>
+            val globals = globalsBc
+              .map(_.value.readRegionValue(ctx.r, hcl))
+              .getOrElse(0L)
+
+            val newRow = rowFn(hcl, fsBc.value, ctx, ctx.r)
+            it.map(ptr => newRow(ctx.region, globals, ptr))
+        },
       )
     }
 
@@ -1108,10 +1108,10 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
     val rowIterationNeedsGlobals = Mentions(extracted.result, TableIR.globalName)
 
     val globalsBc =
-      if (rowIterationNeedsGlobals || scanInitNeedsGlobals || scanSeqNeedsGlobals)
-        globals.broadcast(ctx.theHailClassLoader)
-      else
-        null
+      someIf(
+        rowIterationNeedsGlobals || scanInitNeedsGlobals || scanSeqNeedsGlobals,
+        globals.broadcast(ctx.theHailClassLoader),
+      )
 
     val spec = BufferSpec.blockedUncompressed
 
@@ -1121,53 +1121,47 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
     // 3. load in partition aggregations, comb op as necessary, serialize.
     // 4. load in partStarts, calculate newRow based on those results.
 
-    val (_, initF) = CompileWithAggregators[AsmFunction2RegionLongUnit](
-      ctx,
-      aggSigs.states,
-      FastSeq((
-        TableIR.globalName,
-        SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(globals.t)),
-      )),
-      FastSeq(classInfo[Region], LongInfo),
-      UnitInfo,
-      extracted.init,
-    )
-
-    val (_, eltSeqF) = CompileWithAggregators[AsmFunction3RegionLongLongUnit](
-      ctx,
-      aggSigs.states,
-      FastSeq(
-        (
-          TableIR.globalName,
-          SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(globals.t)),
+    val (_, initFn) =
+      CompileWithAggregators[AsmFunction2RegionLongUnit](
+        ctx,
+        aggSigs.states,
+        FastSeq(
+          TableIR.globalName ->
+            SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(globals.t))
         ),
-        (
-          TableIR.rowName,
-          SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(rvd.rowPType)),
+        FastSeq(classInfo[Region], LongInfo),
+        UnitInfo,
+        extracted.init,
+      )
+
+    val (_, eltSeqFn) =
+      CompileWithAggregators[AsmFunction3RegionLongLongUnit](
+        ctx,
+        aggSigs.states,
+        FastSeq(
+          TableIR.globalName ->
+            SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(globals.t)),
+          TableIR.rowName ->
+            SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(rvd.rowPType)),
         ),
-      ),
-      FastSeq(classInfo[Region], LongInfo, LongInfo),
-      UnitInfo,
-      extracted.seqPerElt,
-    )
+        FastSeq(classInfo[Region], LongInfo, LongInfo),
+        UnitInfo,
+        extracted.seqPerElt,
+      )
 
-    val read = aggSigs.deserialize(ctx, spec)
-    val write = aggSigs.serialize(ctx, spec)
-    val combOpFNeedsPool = aggSigs.combOpFSerializedFromRegionPool(ctx, spec)
+    val readFn = aggSigs.deserialize(ctx, spec)
+    val writeFn = aggSigs.serialize(ctx, spec)
+    val combOpFn = aggSigs.combOpFSerializedFromRegionPool(ctx, spec)
 
-    val (Some(PTypeReferenceSingleCodeType(rTyp)), f) =
+    val (Some(PTypeReferenceSingleCodeType(rTyp)), rowFn) =
       CompileWithAggregators[AsmFunction3RegionLongLongLong](
         ctx,
         aggSigs.states,
         FastSeq(
-          (
-            TableIR.globalName,
+          TableIR.globalName ->
             SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(globals.t)),
-          ),
-          (
-            TableIR.rowName,
+          TableIR.rowName ->
             SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(rvd.rowPType)),
-          ),
         ),
         FastSeq(classInfo[Region], LongInfo, LongInfo),
         LongInfo,
@@ -1178,43 +1172,49 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
       )
 
     // 1. init op on all aggs and write out to initPath
-    val initAgg = ctx.r.pool.scopedRegion { aggRegion =>
-      ctx.r.pool.scopedRegion { fRegion =>
-        val init = initF(ctx.theHailClassLoader, fsBc.value, ctx.taskContext, fRegion)
-        init.newAggState(aggRegion)
-        init(fRegion, globals.value.offset)
-        write(ctx.theHailClassLoader, ctx.taskContext, aggRegion, init.getAggOffset())
+    val initAgg = ctx.scopedExecution { (hcl, fs, htc, r) =>
+      val init = initFn(hcl, fs, htc, r)
+      val serialize = writeFn(hcl, fs, htc, r)
+      htc.r.pool.scopedRegion { inner =>
+        init.newAggState(r)
+        init(inner, globals.value.offset)
+        serialize(inner, init.getAggOffset())
       }
     }
 
     if (ctx.getFlag("distributed_scan_comb_op") != null && extracted.sigs.shouldTreeAggregate) {
-      val fsBc = ctx.fsBc
       val tmpBase = ctx.createTmpPath("table-map-rows-distributed-scan")
       val d = digitsNeeded(rvd.getNumPartitions)
       val files = rvd.mapPartitionsWithIndex { (i, hcl, ctx, it) =>
         val path = tmpBase + "/" + partFile(d, i, TaskContext.get())
+
+        val fs = fsBc.value
+
         val globalRegion = ctx.freshRegion()
-        val globals = if (scanSeqNeedsGlobals)
-          globalsBc.value.readRegionValue(globalRegion, hcl)
-        else 0
+        val globals =
+          someIf(scanSeqNeedsGlobals, globalsBc)
+            .flatten
+            .map(_.value.readRegionValue(globalRegion, hcl))
+            .getOrElse(0L)
+
+        val read = readFn(hcl, fs, ctx, globalRegion)
+        val seq = eltSeqFn(hcl, fs, ctx, globalRegion)
+        val write = writeFn(hcl, fs, ctx, globalRegion)
 
         ctx.r.pool.scopedSmallRegion { aggRegion =>
-          val tc = SparkTaskContext.get()
-          val seq = eltSeqF(hcl, fsBc.value, tc, globalRegion)
+          seq.setAggState(aggRegion, read(aggRegion, initAgg))
 
-          seq.setAggState(
-            aggRegion,
-            read(hcl, tc, aggRegion, initAgg),
-          )
           it.foreach { ptr =>
             seq(ctx.region, globals, ptr)
             ctx.region.clear()
           }
-          using(new DataOutputStream(fsBc.value.create(path))) { os =>
-            val bytes = write(hcl, tc, aggRegion, seq.getAggOffset())
+
+          using(new DataOutputStream(fs.create(path))) { os =>
+            val bytes = write(aggRegion, seq.getAggOffset())
             os.writeInt(bytes.length)
             os.write(bytes)
           }
+
           Iterator.single(path)
         }
       }.collect()
@@ -1238,82 +1238,78 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
               val file1 = filesToMerge(i * 2)
               val file2 = filesToMerge(i * 2 + 1)
 
-              def readToBytes(is: DataInputStream): Array[Byte] = {
-                val len = is.readInt()
-                val b = new Array[Byte](len)
-                is.readFully(b)
-                b
-              }
+              val fs = fsBc.value
 
-              val b1 = using(new DataInputStream(fsBc.value.open(file1)))(readToBytes)
-              val b2 = using(new DataInputStream(fsBc.value.open(file2)))(readToBytes)
-              using(new DataOutputStream(fsBc.value.create(path))) { os =>
-                val bytes = combOpFNeedsPool(() =>
-                  (ctx.r.pool, hcl, SparkTaskContext.get())
-                )(b1, b2)
+              val combine = combOpFn(hcl, fs, ctx, ctx.r)
+
+              val b1 = using(new DataInputStream(fs.open(file1)))(readToBytes)
+              val b2 = using(new DataInputStream(fs.open(file2)))(readToBytes)
+
+              using(new DataOutputStream(fs.create(path))) { os =>
+                val bytes = combine(b1, b2)
                 os.writeInt(bytes.length)
                 os.write(bytes)
               }
+
               Iterator.single(path)
+
             }.collect()
       }
+
       fileStack += filesToMerge
 
-      val itF = { (i: Int, hcl: HailClassLoader, ctx: RVDContext, it: Iterator[Long]) =>
-        val globalRegion = ctx.freshRegion()
-        val globals = if (rowIterationNeedsGlobals || scanSeqNeedsGlobals)
-          globalsBc.value.readRegionValue(globalRegion, hcl)
-        else
-          0
-        val partitionAggs = {
-          var x = i
-          val ab = ArraySeq.newBuilder[String]
-          fileStack.result().foreach { files =>
-            assert(x <= files.length)
-            if (x % 2 != 0) {
-              x -= 1
-              ab += files(x)
-            }
-            assert(x % 2 == 0)
-            x = x / 2
-          }
-          assert(x == 0)
-          var b = initAgg
-          ab.result().reverseIterator.foreach { path =>
-            def readToBytes(is: DataInputStream): Array[Byte] = {
-              val len = is.readInt()
-              val b = new Array[Byte](len)
-              is.readFully(b)
-              b
-            }
-
-            b = combOpFNeedsPool(() =>
-              (ctx.r.pool, hcl, SparkTaskContext.get())
-            )(b, using(new DataInputStream(fsBc.value.open(path)))(readToBytes))
-          }
-          b
-        }
-
-        val aggRegion = ctx.freshRegion()
-        val tc = SparkTaskContext.get()
-        val newRow = f(hcl, fsBc.value, tc, globalRegion)
-        val seq = eltSeqF(hcl, fsBc.value, tc, globalRegion)
-        var aggOff = read(hcl, tc, aggRegion, partitionAggs)
-
-        val res = it.map { ptr =>
-          newRow.setAggState(aggRegion, aggOff)
-          val newPtr = newRow(ctx.region, globals, ptr)
-          aggOff = newRow.getAggOffset()
-          seq.setAggState(aggRegion, aggOff)
-          seq(ctx.region, globals, ptr)
-          aggOff = seq.getAggOffset()
-          newPtr
-        }
-        res
-      }
       return copy(
         typ = newType,
-        rvd = rvd.mapPartitionsWithIndex(RVDType(rTyp.asInstanceOf[PStruct], typ.key))(itF),
+        rvd = rvd.mapPartitionsWithIndex(RVDType(rTyp.asInstanceOf[PStruct], typ.key)) {
+          (i: Int, hcl: HailClassLoader, ctx: RVDContext, it: Iterator[Long]) =>
+            val fs = fsBc.value
+
+            val globalRegion = ctx.freshRegion()
+            val globals =
+              someIf(rowIterationNeedsGlobals || scanSeqNeedsGlobals, globalsBc)
+                .flatten
+                .map(_.value.readRegionValue(globalRegion, hcl))
+                .getOrElse(0L)
+
+            val partitionAggs = {
+              var x = i
+              val ab = ArraySeq.newBuilder[String]
+              fileStack.result().foreach { files =>
+                assert(x <= files.length)
+                if (x % 2 != 0) {
+                  x -= 1
+                  ab += files(x)
+                }
+                assert(x % 2 == 0)
+                x = x / 2
+              }
+              assert(x == 0)
+
+              val combine = combOpFn(hcl, fs, ctx, globalRegion)
+
+              var acc = initAgg
+              for (path <- ab.result().reverseIterator)
+                acc = combine(acc, using(new DataInputStream(fs.open(path)))(readToBytes))
+
+              acc
+            }
+
+            val aggRegion = ctx.freshRegion()
+            val newRow = rowFn(hcl, fs, ctx, globalRegion)
+            val seq = eltSeqFn(hcl, fs, ctx, globalRegion)
+
+            var aggOff = readFn(hcl, fs, ctx, globalRegion)(aggRegion, partitionAggs)
+
+            it.map { ptr =>
+              newRow.setAggState(aggRegion, aggOff)
+              val newPtr = newRow(ctx.region, globals, ptr)
+              aggOff = newRow.getAggOffset()
+              seq.setAggState(aggRegion, aggOff)
+              seq(ctx.region, globals, ptr)
+              aggOff = seq.getAggOffset()
+              newPtr
+            }
+        },
       )
     }
 
@@ -1321,31 +1317,39 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
     val scanPartitionAggs = SpillingCollectIterator(
       ctx.localTmpdir,
       ctx.fs,
-      rvd.mapPartitionsWithIndex { (i, hcl, ctx, it) =>
-        val globalRegion = ctx.partitionRegion
-        val globals = if (scanSeqNeedsGlobals)
-          globalsBc.value.readRegionValue(globalRegion, hcl)
-        else 0
+      rvd.mapPartitions { (hcl, ctx, it) =>
+        val fs = fsBc.value
 
-        SparkTaskContext.get().getRegionPool().scopedSmallRegion { aggRegion =>
-          val tc = SparkTaskContext.get()
-          val seq = eltSeqF(hcl, fsBc.value, tc, globalRegion)
+        val globalRegion = ctx.freshRegion()
+        val globals =
+          someIf(scanSeqNeedsGlobals, globalsBc)
+            .flatten
+            .map(_.value.readRegionValue(globalRegion, hcl))
+            .getOrElse(0L)
 
-          seq.setAggState(aggRegion, read(hcl, tc, aggRegion, initAgg))
-          it.foreach { ptr =>
+        val read = readFn(hcl, fs, ctx, globalRegion)
+        val seq = eltSeqFn(hcl, fs, ctx, globalRegion)
+        val write = writeFn(hcl, fs, ctx, globalRegion)
+
+        ctx.r.pool.scopedSmallRegion { aggRegion =>
+          seq.setAggState(aggRegion, read(aggRegion, initAgg))
+
+          for (ptr <- it) {
             seq(ctx.region, globals, ptr)
             ctx.region.clear()
           }
-          Iterator.single(write(hcl, tc, aggRegion, seq.getAggOffset()))
+
+          Iterator.single(write(aggRegion, seq.getAggOffset()))
         }
       },
       ctx.getFlag("max_leader_scans").toInt,
     )
 
     // 3. load in partition aggregations, comb op as necessary, write back out.
-    val partAggs = scanPartitionAggs.scanLeft(initAgg)(combOpFNeedsPool(() =>
-      (ctx.r.pool, ctx.theHailClassLoader, ctx.taskContext)
-    ))
+    val partAggs =
+      scanPartitionAggs.scanLeft(initAgg)(
+        combOpFn(ctx.theHailClassLoader, ctx.fs, ctx, ctx.r)
+      )
     val scanAggCount = rvd.getNumPartitions
     val partitionIndices = new Array[Long](scanAggCount)
     val scanAggsPerPartitionFile = ctx.createTmpPath("table-map-rows-scan-aggs-part")
@@ -1361,14 +1365,22 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
     }
 
     // 4. load in partStarts, calculate newRow based on those results.
-    val itF = {
-      (i: Int, hcl: HailClassLoader, ctx: RVDContext, filePosition: Long, it: Iterator[Long]) =>
-        val globalRegion = ctx.partitionRegion
-        val globals = if (rowIterationNeedsGlobals || scanSeqNeedsGlobals)
-          globalsBc.value.readRegionValue(globalRegion, hcl)
-        else
-          0
-        val partitionAggs = using(fsBc.value.openNoCompression(scanAggsPerPartitionFile)) { is =>
+    copy(
+      typ = newType,
+      rvd = rvd.mapPartitionsWithIndexAndValue(
+        RVDType(rTyp.asInstanceOf[PStruct], typ.key),
+        partitionIndices,
+      ) { (_, hcl, ctx, filePosition, it) =>
+        val fs = fsBc.value
+
+        val globalRegion = ctx.r
+        val globals =
+          someIf(rowIterationNeedsGlobals || scanSeqNeedsGlobals, globalsBc)
+            .flatten
+            .map(_.value.readRegionValue(globalRegion, hcl))
+            .getOrElse(0L)
+
+        val partitionAggs = using(fs.openNoCompression(scanAggsPerPartitionFile)) { is =>
           is.seek(filePosition)
           val aggSize = is.readInt()
           val partAggs = new Array[Byte](aggSize)
@@ -1385,10 +1397,9 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
         }
 
         val aggRegion = ctx.freshRegion()
-        val tc = SparkTaskContext.get()
-        val newRow = f(hcl, fsBc.value, tc, globalRegion)
-        val seq = eltSeqF(hcl, fsBc.value, tc, globalRegion)
-        var aggOff = read(hcl, tc, aggRegion, partitionAggs)
+        val newRow = rowFn(hcl, fs, ctx, globalRegion)
+        val seq = eltSeqFn(hcl, fs, ctx, globalRegion)
+        var aggOff = readFn(hcl, fs, ctx, globalRegion)(aggRegion, partitionAggs)
 
         var idx = 0
         it.map { ptr =>
@@ -1400,14 +1411,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
           aggOff = seq.getAggOffset()
           off
         }
-    }
-
-    copy(
-      typ = newType,
-      rvd = rvd.mapPartitionsWithIndexAndValue(
-        RVDType(rTyp.asInstanceOf[PStruct], typ.key),
-        partitionIndices,
-      )(itF),
+      },
     )
   }
 
