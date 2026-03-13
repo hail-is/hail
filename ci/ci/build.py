@@ -1,4 +1,6 @@
 import abc
+import asyncio
+import base64
 import json
 import logging
 from collections import Counter, defaultdict
@@ -25,6 +27,12 @@ from .globals import is_test_deployment
 from .utils import generate_token
 
 log = logging.getLogger('ci')
+
+
+async def download_repo_file(gh, repo_ss: str, sha: str, path: str) -> str:
+    resp = await gh.getitem(f'/repos/{repo_ss}/contents/{path}?ref={sha}')
+    return base64.b64decode(resp['content']).decode('utf-8')
+
 
 pretty_print_log = "jq -Rr '. as $raw | try \
 (fromjson | if .hail_log == 1 then \
@@ -73,10 +81,6 @@ class Code(abc.ABC):
     @abc.abstractmethod
     def config(self) -> Dict[str, str]:
         pass
-
-    @abc.abstractmethod
-    def repo_dir(self) -> str:
-        """Path to repository on the ci (locally)."""
 
     @abc.abstractmethod
     def checkout_script(self) -> str:
@@ -164,6 +168,9 @@ class BuildConfiguration:
 
             if step.can_run_in_scope(scope):
                 step.cleanup(batch, scope, parent_jobs)
+
+    async def prefetch(self, gh, repo_ss: str, sha: str) -> None:
+        await asyncio.gather(*(step.prefetch(gh, repo_ss, sha) for step in self.steps))
 
     def namespace(self) -> Optional[str]:
         # build.yaml allows for multiple namespaces, but
@@ -260,6 +267,9 @@ class Step(abc.ABC):
 
     @abc.abstractmethod
     def wrapped_job(self) -> list:
+        pass
+
+    async def prefetch(self, gh, repo_ss: str, sha: str) -> None:
         pass
 
     @abc.abstractmethod
@@ -798,6 +808,7 @@ class DeployStep(Step):
         self.link = link
         self.wait = wait
         self.job = None
+        self._content: Optional[str] = None
 
     def wrapped_job(self):
         if self.job:
@@ -824,10 +835,15 @@ class DeployStep(Step):
     def config(self, scope):  # pylint: disable=unused-argument
         return {'token': self.token}
 
+    async def prefetch(self, gh, repo_ss: str, sha: str) -> None:
+        self._content = await download_repo_file(gh, repo_ss, sha, self.config_file)
+
     def build(self, batch, code, scope):
-        with open(f'{code.repo_dir()}/{self.config_file}', 'r', encoding='utf-8') as f:
-            template = jinja2.Template(f.read(), undefined=jinja2.StrictUndefined, trim_blocks=True, lstrip_blocks=True)
-            rendered_config = template.render(**self.input_config(code, scope))
+        assert self._content is not None, f'DeployStep {self.name}: prefetch() must be called before build()'
+        template = jinja2.Template(
+            self._content, undefined=jinja2.StrictUndefined, trim_blocks=True, lstrip_blocks=True
+        )
+        rendered_config = template.render(**self.input_config(code, scope))
 
         script = """\
 set -ex
