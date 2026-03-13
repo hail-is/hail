@@ -51,3 +51,7 @@ batch/jvm-entryway/bin
 .helix
 /hail/mill-build/config/hail-build-mode
 /hail/mill-build/config/scala-version
+services/ui/dist/
+services/ui/node_modules/
+**/static/compiled-js/
+.playwright-mcp/

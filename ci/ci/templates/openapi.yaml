@@ -27,6 +27,8 @@ tags:
     description: "Endpoints for API documentation"
   - name: UI Pages
     description: "Web UI pages and related helpers"
+  - name: Flaky Tests
+    description: "Endpoints for the flaky test dashboard"
 
 components:
   schemas:
@@ -151,6 +153,69 @@ components:
         rds:
           type: object
           description: "Route Discovery Service configuration"
+
+    RetriedTest:
+      type: object
+      required: [id, batch_id, job_id, job_name, state, exit_code, pr_number, target_branch, source_branch, source_sha, retried_by, retried_at]
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: "Auto-increment primary key"
+        batch_id:
+          type: integer
+          format: int64
+          description: "Batch job ID"
+        job_id:
+          type: integer
+          description: "Job ID within the batch"
+        job_name:
+          type: string
+          nullable: true
+          description: "Test job name"
+        state:
+          type: string
+          description: "Job state after retry"
+        exit_code:
+          type: integer
+          nullable: true
+          description: "Exit code of the retried job"
+        pr_number:
+          type: integer
+          description: "GitHub PR number"
+        target_branch:
+          type: string
+          description: "Target branch of the PR"
+        source_branch:
+          type: string
+          description: "Source branch of the PR"
+        source_sha:
+          type: string
+          description: "Source commit SHA"
+        retried_by:
+          type: string
+          description: "Who triggered the retry"
+        retried_at:
+          type: string
+          format: date-time
+          description: "When the retry was triggered"
+
+    RetriedTestsResponse:
+      type: object
+      required: [rows, cursor, has_more]
+      properties:
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/RetriedTest'
+        cursor:
+          type: integer
+          format: int64
+          nullable: true
+          description: "ID of the last row; pass as `cursor` to fetch the next page. Null when has_more is false."
+        has_more:
+          type: boolean
+          description: "Whether more rows exist beyond this page"
 
   securitySchemes:
     developerAuth:
@@ -638,6 +703,69 @@ paths:
       responses:
         '200':
           description: Namespace added successfully
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires developer privileges
+
+  /flaky_tests:
+    get:
+      summary: "Flaky Test Dashboard (UI)"
+      description: "Render the flaky test leaderboard page"
+      tags: [Flaky Tests, UI Pages]
+      security:
+        - developerAuth: []
+      responses:
+        '200':
+          description: "Successfully rendered the flaky test dashboard"
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires developer privileges
+
+  /api/v1alpha/retried_tests:
+    get:
+      summary: List retried tests
+      description: >
+        Returns raw retried_tests rows sorted by id DESC (most recent first),
+        with cursor-based pagination and an optional date filter.
+        The default window is the last 14 days.
+      tags: [Flaky Tests]
+      security:
+        - developerAuth: []
+      parameters:
+        - name: after
+          in: query
+          required: false
+          description: "Lower bound on retried_at. Must be an ISO 8601 timestamp with explicit timezone. Defaults to 14 days ago."
+          schema:
+            type: string
+            format: date-time
+            example: "2026-02-24T00:00:00Z"
+        - name: cursor
+          in: query
+          required: false
+          description: "Pagination cursor — the `id` of the last row from the previous page."
+          schema:
+            type: integer
+            format: int64
+        - name: limit
+          in: query
+          required: false
+          description: "Maximum rows to return. Capped at 500."
+          schema:
+            type: integer
+            default: 500
+            maximum: 500
+      responses:
+        '200':
+          description: "Retried test rows retrieved successfully"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RetriedTestsResponse'
+        '400':
+          description: "Invalid query parameter"
         '401':
           description: Unauthorized
         '403':

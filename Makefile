@@ -181,6 +181,15 @@ hail-buildkit-image: ci/buildkit/Dockerfile
 	./docker-build.sh ci buildkit/Dockerfile $(IMAGE_NAME) --build-arg DOCKER_PREFIX=$(DOCKER_PREFIX)
 	echo $(IMAGE_NAME) > $@
 
+services/ui/dist/ci/flaky_tests.js: $(shell git ls-files services/ui)
+	cd services/ui && npm ci && npm run build
+
+ci/ci/static/compiled-js/flaky_tests.js: services/ui/dist/ci/flaky_tests.js
+	mkdir -p ci/ci/static/compiled-js
+	cp services/ui/dist/ci/flaky_tests.js $@
+
+ci-image: ci/ci/static/compiled-js/flaky_tests.js
+
 batch/jvm-entryway/out/assembly.dest/out.jar: $(shell git ls-files batch/jvm-entryway)
 	cd batch/jvm-entryway && $(MILL) $(MILLOPTS) assembly
 
@@ -244,13 +253,25 @@ endif
 tailwind-compile-watch:
 	cd web_common && npx tailwindcss --watch -i input.css -o web_common/static/css/output.css
 
+ifeq ($(SERVICE),ci)
+run-dev-proxy: ci/ci/static/compiled-js/flaky_tests.js
+tailwind-compile-watch: ci/ci/static/compiled-js/flaky_tests.js
+DEVSERVER_TARGETS = tailwind-compile-watch run-dev-proxy ui-js-watch
+else
+DEVSERVER_TARGETS = tailwind-compile-watch run-dev-proxy
+endif
+
 .PHONY: run-dev-proxy
 run-dev-proxy:
 	SERVICE=$(SERVICE) adev runserver --root . --static web_common/web_common/static devbin/dev_proxy.py
 
+.PHONY: ui-js-watch
+ui-js-watch:
+	cd services/ui && npx esbuild src/ci/flaky_tests.tsx --bundle --jsx=automatic --format=esm --outfile=../../ci/ci/static/compiled-js/flaky_tests.js --minify --watch=forever
+
 .PHONY: devserver
 devserver:
-	$(MAKE) -j 2 tailwind-compile-watch run-dev-proxy
+	$(MAKE) -j 3 $(DEVSERVER_TARGETS)
 
 .PHONY: benchmark
 benchmark: hail-dev-image

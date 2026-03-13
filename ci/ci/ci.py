@@ -6,6 +6,7 @@ import os
 import traceback
 from collections import defaultdict
 from contextlib import AsyncExitStack
+from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, NoReturn, Optional, Set, Tuple, TypedDict
 
 import aiohttp_session  # type: ignore
@@ -57,6 +58,8 @@ with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r',
     oauth_token = f.read().strip()
 
 log = logging.getLogger('ci')
+
+CI_ROOT = os.path.dirname(__file__)
 
 deploy_config = get_deploy_config()
 
@@ -850,6 +853,97 @@ async def get_envoy_configs(request: web.Request, _) -> web.Response:
     return json_response({'cds': cds, 'rds': rds})
 
 
+@routes.get('/flaky_tests')
+@web_security_headers
+@auth.authenticated_developers_only()
+async def get_flaky_tests(request: web.Request, userdata: UserData) -> web.Response:
+    return await render_template('ci', request, userdata, 'flaky_tests.html', {'use_tailwind': True})
+
+
+@routes.get('/api/v1alpha/retried_tests')
+@auth.authenticated_developers_only(redirect=False)
+async def api_retried_tests(request: web.Request, _) -> web.Response:
+    db = request.app[AppKeys.DB]
+
+    after = request.rel_url.query.get('after')
+    cursor = request.rel_url.query.get('cursor')
+    try:
+        limit = min(int(request.rel_url.query.get('limit', 500)), 500)
+    except ValueError as exc:
+        raise web.HTTPBadRequest(text='limit must be an integer') from exc
+    if limit <= 0:
+        raise web.HTTPBadRequest(text='limit must be a positive integer')
+
+    conditions = []
+    args: list = []
+
+    if after is not None:
+        after_str = after.replace('Z', '+00:00')
+        try:
+            after_dt = datetime.fromisoformat(after_str)
+        except ValueError as exc:
+            raise web.HTTPBadRequest(
+                text='after must be an ISO 8601 timestamp with timezone (e.g. 2026-02-24T00:00:00Z)'
+            ) from exc
+        if after_dt.tzinfo is None:
+            raise web.HTTPBadRequest(text='after must include timezone info (e.g. 2026-02-24T00:00:00Z)')
+        after_utc = after_dt.astimezone(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+        conditions.append('retried_at >= %s')
+        args.append(after_utc)
+    else:
+        conditions.append('retried_at >= NOW() - INTERVAL 14 DAY')
+
+    if cursor is not None:
+        try:
+            conditions.append('id < %s')
+            args.append(int(cursor))
+        except ValueError as exc:
+            raise web.HTTPBadRequest(text='cursor must be an integer') from exc
+
+    where = 'WHERE ' + ' AND '.join(conditions)
+
+    rows = [
+        row
+        async for row in db.execute_and_fetchall(
+            f"""
+SELECT id, batch_id, job_id, job_name, state, exit_code, pr_number,
+       target_branch, source_branch, source_sha, retried_by, retried_at
+FROM retried_tests
+{where}
+ORDER BY id DESC
+LIMIT %s
+""",
+            [*args, limit + 1],
+        )
+    ]
+
+    has_more = len(rows) > limit
+    if has_more:
+        rows = rows[:limit]
+
+    return json_response({
+        'rows': [
+            {
+                'id': r['id'],
+                'batch_id': r['batch_id'],
+                'job_id': r['job_id'],
+                'job_name': r['job_name'],
+                'state': r['state'],
+                'exit_code': r['exit_code'],
+                'pr_number': r['pr_number'],
+                'target_branch': r['target_branch'],
+                'source_branch': r['source_branch'],
+                'source_sha': r['source_sha'],
+                'retried_by': r['retried_by'],
+                'retried_at': r['retried_at'].replace(tzinfo=timezone.utc).isoformat(),
+            }
+            for r in rows
+        ],
+        'cursor': rows[-1]['id'] if has_more else None,
+        'has_more': has_more,
+    })
+
+
 async def cleanup_expired_namespaces(db: Database):
     assert DEFAULT_NAMESPACE == 'default'
     expired_namespaces = [
@@ -1016,6 +1110,7 @@ def run():
     app.on_cleanup.append(on_cleanup)
 
     setup_common_static_routes(routes)
+    routes.static('/ci/static/compiled-js', f'{CI_ROOT}/static/compiled-js')
     app.add_routes(routes)
     app.router.add_get("/metrics", server_stats)
 
