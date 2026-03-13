@@ -54,3 +54,4 @@ batch/jvm-entryway/bin
 services/ui/dist/
 services/ui/node_modules/
 **/static/compiled-js/
+.playwright-mcp/
