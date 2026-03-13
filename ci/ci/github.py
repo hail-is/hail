@@ -31,6 +31,19 @@ repos_lock = asyncio.Lock()
 
 log = logging.getLogger('ci')
 
+
+async def prepare_build(gh, code: Code, repo_ss: str, sha: str, scope: str, **kwargs):
+    build_yaml, test_build_yaml = await asyncio.gather(
+        download_repo_file(gh, repo_ss, sha, 'build.yaml'),
+        download_repo_file(gh, repo_ss, sha, 'ci/test/resources/build.yaml'),
+    )
+    config = BuildConfiguration(code, build_yaml, scope=scope, **kwargs)
+    namespace = config.namespace()
+    services = config.deployed_services()
+    test_services = BuildConfiguration(code, test_build_yaml, scope=scope).deployed_services()
+    await config.prefetch(gh, repo_ss, sha)
+    return config, namespace, services, test_services
+
 deploy_config = get_deploy_config()
 
 CALLBACK_URL = deploy_config.url('ci', '/api/v1alpha/batch_callback')
@@ -558,17 +571,7 @@ class PR(Code):
                 raise Exception(f'PR {self.number} has no merge commit SHA (merge conflict?)')
             self.sha = merge_sha
 
-            build_yaml, test_build_yaml = await asyncio.gather(
-                download_repo_file(gh, repo_ss, merge_sha, 'build.yaml'),
-                download_repo_file(gh, repo_ss, merge_sha, 'ci/test/resources/build.yaml'),
-            )
-
-            config = BuildConfiguration(self, build_yaml, scope='test')
-            namespace = config.namespace()
-            services = config.deployed_services()
-            test_services = BuildConfiguration(self, test_build_yaml, scope='test').deployed_services()
-
-            await config.prefetch(gh, repo_ss, merge_sha)
+            config, namespace, services, test_services = await prepare_build(gh, self, repo_ss, merge_sha, 'test')
 
             services.extend(test_services)
             tomorrow = datetime.datetime.utcnow() + datetime.timedelta(days=1)
@@ -989,16 +992,9 @@ url: {url}
         assert self.sha is not None
         try:
             repo_ss = self.branch.repo.short_str()
-            build_yaml, test_build_yaml = await asyncio.gather(
-                download_repo_file(gh, repo_ss, self.sha, 'build.yaml'),
-                download_repo_file(gh, repo_ss, self.sha, 'ci/test/resources/build.yaml'),
+            config, namespace, services, test_services = await prepare_build(
+                gh, self, repo_ss, self.sha, 'deploy', requested_step_names=DEPLOY_STEPS
             )
-            config = BuildConfiguration(self, build_yaml, requested_step_names=DEPLOY_STEPS, scope='deploy')
-            namespace = config.namespace()
-            services = config.deployed_services()
-            test_services = BuildConfiguration(self, test_build_yaml, scope='deploy').deployed_services()
-
-            await config.prefetch(gh, repo_ss, self.sha)
 
             services.extend(test_services)
             assert namespace is not None
@@ -1101,18 +1097,9 @@ class UnwatchedBranch(Code):
         try:
             repo_ss = self.branch.repo.short_str()
             log.info(f'User {self.user} requested these steps for dev deploy: {steps}')
-            build_yaml, test_build_yaml = await asyncio.gather(
-                download_repo_file(gh, repo_ss, self.sha, 'build.yaml'),
-                download_repo_file(gh, repo_ss, self.sha, 'ci/test/resources/build.yaml'),
+            config, namespace, services, test_services = await prepare_build(
+                gh, self, repo_ss, self.sha, 'dev', requested_step_names=steps, excluded_step_names=excluded_steps
             )
-            config = BuildConfiguration(
-                self, build_yaml, scope='dev', requested_step_names=steps, excluded_step_names=excluded_steps
-            )
-            namespace = config.namespace()
-            services = config.deployed_services()
-            test_services = BuildConfiguration(self, test_build_yaml, scope='dev').deployed_services()
-
-            await config.prefetch(gh, repo_ss, self.sha)
 
             if namespace is not None:
                 services.extend(test_services)
