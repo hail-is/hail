@@ -24,6 +24,7 @@ from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiotools.validators import validate_file
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES, hailgenetics_hail_image_for_current_python_version
 from hailtop.batch_client.aioclient import BatchClient as AioBatchClient
+from hailtop.batch_client.aioclient import BatchNotAuthenticatedError
 from hailtop.batch_client.client import BatchClient
 from hailtop.batch_client.parse import parse_cpu_in_mcpu
 from hailtop.config import ConfigVariable, configuration_of, get_deploy_config, get_remote_tmpdir
@@ -540,8 +541,12 @@ class ServiceBackend(Backend[bc.Batch]):
         -------
         A list of the supported cloud regions
         """
-        with BatchClient('dummy') as dummy_client:
-            return dummy_client.supported_regions()
+        try:
+            with BatchClient('dummy') as dummy_client:
+                return dummy_client.supported_regions()
+        except (BatchNotAuthenticatedError, PermissionError) as e:
+            # Reduce stack trace here. Users won't care where this came from. They care they're not authenticated.
+            raise e.with_traceback(None) from None
 
     @staticmethod
     def default_region():
@@ -558,8 +563,12 @@ class ServiceBackend(Backend[bc.Batch]):
         -------
         The default region jobs run in when no regions are specified
         """
-        with BatchClient('dummy') as dummy_client:
-            return dummy_client.default_region()
+        try:
+            with BatchClient('dummy') as dummy_client:
+                return dummy_client.default_region()
+        except (BatchNotAuthenticatedError, PermissionError) as e:
+            # Reduce stack trace here. Users won't care where this came from. They care they're not authenticated.
+            raise e.with_traceback(None) from None
 
     def __init__(
         self,
@@ -625,6 +634,7 @@ class ServiceBackend(Backend[bc.Batch]):
         )
 
         self.__fs = self._requester_pays_fses[None]
+        self.__batch_client: Optional[AioBatchClient] = None
 
         async_to_blocking(self.validate_file(self.remote_tmpdir))
 
@@ -639,7 +649,6 @@ class ServiceBackend(Backend[bc.Batch]):
             regions = None
 
         self.regions = regions
-        self.__batch_client: Optional[AioBatchClient] = None
 
     async def _batch_client(self) -> AioBatchClient:
         if self.__batch_client is None:
