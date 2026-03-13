@@ -163,7 +163,18 @@ async def on_cleanup(app: web.Application):
     await app[BC].close()
 
 
-app = web.Application()
+@web.middleware
+async def dev_csp_middleware(request: web.Request, handler):
+    response = await handler(request)
+    csp = response.headers.get('Content-Security-Policy', '')
+    if csp:
+        csp = csp.replace('script-src ', 'script-src http://localhost:8001 ')
+        csp += ' connect-src \'self\' ws://localhost:8001;'
+        response.headers['Content-Security-Policy'] = csp
+    return response
+
+
+app = web.Application(middlewares=[dev_csp_middleware])
 setup_aiohttp_jinja2(app, MODULES.get(SERVICE, SERVICE))
 app.add_routes(routes)
 app.on_startup.append(on_startup)

@@ -256,15 +256,22 @@ tailwind-compile-watch:
 ifeq ($(SERVICE),ci)
 run-dev-proxy: ci/ci/static/compiled-js/flaky_tests.js
 tailwind-compile-watch: ci/ci/static/compiled-js/flaky_tests.js
+DEVSERVER_TARGETS = tailwind-compile-watch run-dev-proxy ui-js-watch
+else
+DEVSERVER_TARGETS = tailwind-compile-watch run-dev-proxy
 endif
 
 .PHONY: run-dev-proxy
 run-dev-proxy:
 	SERVICE=$(SERVICE) adev runserver --root . --static web_common/web_common/static devbin/dev_proxy.py
 
+.PHONY: ui-js-watch
+ui-js-watch:
+	cd services/ui && npx esbuild src/ci/flaky_tests.tsx --bundle --jsx=automatic --format=esm --outfile=../../ci/ci/static/compiled-js/flaky_tests.js --minify --watch=forever
+
 .PHONY: devserver
 devserver:
-	$(MAKE) -j 2 tailwind-compile-watch run-dev-proxy
+	$(MAKE) -j 3 $(DEVSERVER_TARGETS)
 
 .PHONY: benchmark
 benchmark: hail-dev-image
