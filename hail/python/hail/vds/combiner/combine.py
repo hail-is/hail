@@ -34,7 +34,7 @@ def get_lgt(gt, n_alleles, has_non_ref, row):
     )
 
 
-def make_var_entry_struct(e, info_to_keep, alleles_len, has_non_ref, row):
+def make_var_entry_struct(e, info_to_keep, alleles_len, has_non_ref, save_filters, row):
     handled_fields = dict()
     handled_names = {'LA', 'gvcf_info', 'LAD', 'AD', 'LGT', 'GT', 'LPL', 'PL', 'LPGT', 'PGT'}
 
@@ -77,10 +77,11 @@ def make_var_entry_struct(e, info_to_keep, alleles_len, has_non_ref, row):
     )
 
     pass_through_fields = {k: v for k, v in e.items() if k not in handled_names}
-    return hl.struct(**handled_fields, **pass_through_fields)
+    filters = {'gvcf_filters': row.filters} if save_filters else {}
+    return hl.struct(**handled_fields, **pass_through_fields, **filters)
 
 
-def make_ref_entry_struct(e, entry_to_keep, row):
+def make_ref_entry_struct(e, entry_to_keep, save_filters, row):
     handled_fields = {}
     # we drop PL/PGT by default, but if `entry_to_keep` has them, we need to
     # convert them to local versions for consistency.
@@ -96,17 +97,20 @@ def make_ref_entry_struct(e, entry_to_keep, row):
         handled_fields['LPL'] = e['PL'][:1]
 
     reference_fields = {k: v for k, v in e.items() if k in entry_to_keep and k not in handled_names}
+    filters = {'gvcf_filters': row.filters} if save_filters else {}
     return (
         hl.case()
         .when(
             hl.coalesce(e.GT.is_hom_ref(), True),
-            hl.struct(**reference_fields, **handled_fields, LEN=row.info.END - row.locus.position + 1),
+            hl.struct(**reference_fields, **handled_fields, LEN=row.info.END - row.locus.position + 1, **filters),
         )
         .or_error('found reference block with non reference-genotype at' + hl.str(row.locus))
     )
 
 
-def make_variants_matrix_table(mt: MatrixTable, info_to_keep: Optional[Collection[str]] = None) -> MatrixTable:
+def make_variants_matrix_table(
+    mt: MatrixTable, info_to_keep: Optional[Collection[str]] = None, save_filters: bool = False
+) -> MatrixTable:
     if info_to_keep is None:
         info_to_keep = []
     if not info_to_keep:
@@ -126,7 +130,7 @@ def make_variants_matrix_table(mt: MatrixTable, info_to_keep: Optional[Collectio
                     alleles=hl.if_else(has_non_ref, row.alleles[:-1], row.alleles),
                     **({'rsid': row.rsid} if 'rsid' in row else {}),
                     __entries=row.__entries.map(
-                        lambda e: make_var_entry_struct(e, info_to_keep, alleles_len, has_non_ref, row)
+                        lambda e: make_var_entry_struct(e, info_to_keep, alleles_len, has_non_ref, save_filters, row)
                     ),
                 ),
             ),
@@ -143,7 +147,7 @@ def defined_entry_fields(mt: MatrixTable, sample=None) -> Set[str]:
     return set(k for k in mt.entry if used[k])
 
 
-def make_reference_stream(stream, entry_to_keep: Collection[str]):
+def make_reference_stream(stream, entry_to_keep: Collection[str], save_filters: bool):
     stream = stream.filter(lambda elt: hl.is_defined(elt.info.END))
     entry_key = tuple(sorted(entry_to_keep))  # hashable stable value
 
@@ -152,7 +156,8 @@ def make_reference_stream(stream, entry_to_keep: Collection[str]):
     if transform_row is None or not hl.current_backend()._is_registered_ir_function_name(transform_row._name):
         transform_row = hl.experimental.define_function(
             lambda row: hl.struct(
-                locus=row.locus, __entries=row.__entries.map(lambda e: make_ref_entry_struct(e, entry_to_keep, row))
+                locus=row.locus,
+                __entries=row.__entries.map(lambda e: make_ref_entry_struct(e, entry_to_keep, save_filters, row)),
             ),
             row_type,
         )
@@ -160,12 +165,13 @@ def make_reference_stream(stream, entry_to_keep: Collection[str]):
 
     return stream.map(
         lambda row: hl.struct(
-            locus=row.locus, __entries=row.__entries.map(lambda e: make_ref_entry_struct(e, entry_to_keep, row))
+            locus=row.locus,
+            __entries=row.__entries.map(lambda e: make_ref_entry_struct(e, entry_to_keep, save_filters, row)),
         )
     )
 
 
-def make_variant_stream(stream, info_to_keep):
+def make_variant_stream(stream, info_to_keep, save_filters):
     info_t = stream.dtype.element_type['info']
     if info_to_keep is None:
         info_to_keep = []
@@ -187,7 +193,7 @@ def make_variant_stream(stream, info_to_keep):
                     alleles=hl.if_else(has_non_ref, row.alleles[:-1], row.alleles),
                     **({'rsid': row.rsid} if 'rsid' in row else {}),
                     __entries=row.__entries.map(
-                        lambda e: make_var_entry_struct(e, info_to_keep, alleles_len, has_non_ref, row)
+                        lambda e: make_var_entry_struct(e, info_to_keep, alleles_len, has_non_ref, save_filters, row)
                     ),
                 ),
             ),
@@ -208,7 +214,9 @@ def make_variant_stream(stream, info_to_keep):
     return construct_expr(map_ir, map_ir.typ, stream._indices, stream._aggregations)
 
 
-def make_reference_matrix_table(mt: MatrixTable, entry_to_keep: Collection[str]) -> MatrixTable:
+def make_reference_matrix_table(
+    mt: MatrixTable, entry_to_keep: Collection[str], save_filters: bool = False
+) -> MatrixTable:
     mt = mt.filter_rows(hl.is_defined(mt.info.END))
     entry_key = tuple(sorted(entry_to_keep))  # hashable stable value
 
@@ -217,7 +225,8 @@ def make_reference_matrix_table(mt: MatrixTable, entry_to_keep: Collection[str])
     if transform_row is None or not hl.current_backend()._is_registered_ir_function_name(transform_row._name):
         transform_row = hl.experimental.define_function(
             lambda row: hl.struct(
-                locus=row.locus, __entries=row.__entries.map(lambda e: make_ref_entry_struct(e, entry_to_keep, row))
+                locus=row.locus,
+                __entries=row.__entries.map(lambda e: make_ref_entry_struct(e, entry_to_keep, save_filters, row)),
             ),
             mt.row.dtype,
         )
@@ -227,7 +236,10 @@ def make_reference_matrix_table(mt: MatrixTable, entry_to_keep: Collection[str])
 
 
 def transform_gvcf(
-    mt: MatrixTable, reference_entry_fields_to_keep: Collection[str], info_to_keep: Optional[Collection[str]] = None
+    mt: MatrixTable,
+    reference_entry_fields_to_keep: Collection[str],
+    info_to_keep: Optional[Collection[str]] = None,
+    save_filters: bool = False,
 ) -> VariantDataset:
     """Transforms a GVCF into a single sample VariantDataSet
 
@@ -249,6 +261,8 @@ def transform_gvcf(
     info_to_keep : :class:`list` of :class:`str`
         Any ``INFO`` fields in the GVCF that are to be kept and put in the ``gvcf_info`` entry
         field. By default, all ``INFO`` fields except ``END`` and ``DP`` are kept.
+    save_filters : :obj:`bool`
+        preserve the ``FILTER`` field of the gvcf as ``gvcf_filters`` on its entries.
 
     Returns
     -------
@@ -268,8 +282,8 @@ def transform_gvcf(
         AS_VarDP
 
     """
-    ref_mt = make_reference_matrix_table(mt, reference_entry_fields_to_keep)
-    var_mt = make_variants_matrix_table(mt, info_to_keep)
+    ref_mt = make_reference_matrix_table(mt, reference_entry_fields_to_keep, save_filters)
+    var_mt = make_variants_matrix_table(mt, info_to_keep, save_filters)
     return VariantDataset(ref_mt, var_mt._key_rows_by_assert_sorted('locus', 'alleles'))
 
 
