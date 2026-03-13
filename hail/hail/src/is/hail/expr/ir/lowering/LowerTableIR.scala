@@ -2,6 +2,7 @@ package is.hail.expr.ir.lowering
 
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.{agg, TableNativeWriter, _}
 import is.hail.expr.ir.agg.AggExecuteContextExtensions
@@ -79,8 +80,8 @@ object TableStage {
           if (idx == idx2) ctx else NA(children(idx2).ctxType)
         })
       })
-    }
-    val ctxs = flatMapIR(MakeStream(ctxArrays.toFastSeq, TStream(TArray(ctxType)))) { ctxArray =>
+    }.toFastSeq
+    val ctxs = flatMapIR(MakeStream(ctxArrays, TStream(TArray(ctxType)))) { ctxArray =>
       ToStream(ctxArray)
     }
 
@@ -653,7 +654,7 @@ class TableStage(
         val interval = bindIR(GetField(row, right.key.head)) { interval =>
           invoke(
             "Interval",
-            TInterval(TTuple(kType.typeAfterSelect(Array(0)), TInt32)),
+            TInterval(TTuple(kType.typeAfterSelect(ArraySeq(0)), TInt32)),
             MakeTuple.ordered(FastSeq(
               MakeStruct(FastSeq(kType.fieldNames.head -> invoke(
                 "start",
@@ -709,7 +710,9 @@ class TableStage(
       ctx.stateManager,
       Some(1),
       TStruct.concat(TStruct("__partNum" -> TInt32), right.kType),
-      Array.tabulate[Interval](partitioner.numPartitions)(i => Interval(Row(i), Row(i), true, true)),
+      ArraySeq.tabulate[Interval](partitioner.numPartitions)(i =>
+        Interval(Row(i), Row(i), true, true)
+      ),
     )
     val repartitioned = sorted.repartitionNoShuffle(ctx, newRightPartitioner)
       .changePartitionerNoRepartition(RVDPartitioner.unkeyed(
@@ -1123,7 +1126,7 @@ object LowerTableIR extends Logging {
 
         val contextType = TStruct("start" -> TInt32, "end" -> TInt32)
 
-        val ranges = Array.tabulate(nPartitionsAdj)(i => partStarts(i) -> partStarts(i + 1))
+        val ranges = ArraySeq.tabulate(nPartitionsAdj)(i => partStarts(i) -> partStarts(i + 1))
 
         TableStage(
           MakeStruct(FastSeq()),
@@ -1137,7 +1140,7 @@ object LowerTableIR extends Logging {
             },
           ),
           TableStageDependency.none,
-          ToStream(Literal(TArray(contextType), ranges.map(Row.fromTuple).toFastSeq)),
+          ToStream(Literal(TArray(contextType), ranges.map(Row.fromTuple))),
           (ctxRef: Ref) =>
             mapIR(StreamRange(GetField(ctxRef, "start"), GetField(ctxRef, "end"), I32(1), true)) {
               i => MakeStruct(FastSeq("idx" -> i))
@@ -1285,11 +1288,11 @@ object LowerTableIR extends Logging {
             ToArray(loweredChild.contexts),
             Literal(
               TArray(TTuple(TInt32, TInt32)),
-              startAndEndInterval.map(Row.fromTuple).toFastSeq,
+              startAndEndInterval.map(Row.fromTuple),
             ),
           ) { case Seq(prevContexts, bounds) =>
             zip2(
-              ToStream(Literal(TArray(TInt32), includedIndices.toFastSeq)),
+              ToStream(Literal(TArray(TInt32), includedIndices)),
               ToStream(bounds),
               ArrayZipBehavior.AssumeSameLength,
             ) { (idx, bound) =>
@@ -1332,7 +1335,7 @@ object LowerTableIR extends Logging {
                 idx += 1
               }
               val partsToKeep = partCounts.slice(0, idx)
-              val finalParts = partsToKeep.map(partSize => partSize.toInt).toFastSeq
+              val finalParts = partsToKeep.map(partSize => partSize.toInt)
               Literal(TArray(TInt32), finalParts)
             case None =>
               val partitionSizeArrayFunc = freshName()
@@ -1461,15 +1464,13 @@ object LowerTableIR extends Logging {
         def partitionSizeArray(childContexts: Ref, totalNumPartitions: Ref): IR = {
           PartitionCounts(child) match {
             case Some(partCounts) =>
-              var idx = partCounts.length - 1
+              var idx = partCounts.length
               var sumSoFar = 0L
-              while (idx >= 0 && sumSoFar < targetNumRows) {
-                sumSoFar += partCounts(idx)
+              while (idx > 0 && sumSoFar < targetNumRows) {
                 idx -= 1
+                sumSoFar += partCounts(idx)
               }
-              val finalParts = (idx + 1 until partCounts.length).map { partIdx =>
-                partCounts(partIdx).toInt
-              }.toFastSeq
+              val finalParts = partCounts.view.drop(idx).map(_.toInt).to(ArraySeq)
               Literal(TArray(TInt32), finalParts)
 
             case None =>
@@ -2095,15 +2096,17 @@ object LowerTableIR extends Logging {
       case TableExplode(child, path) =>
         lower(child).mapPartition(Some(child.typ.key.takeWhile(k => k != path(0)))) { rows =>
           flatMapIR(rows) { row: Ref =>
-            val refs = Array.fill[Ref](path.length + 1)(null)
-            val roots = Array.fill[IR](path.length)(null)
+            val refsBuffer = Array.fill[Ref](path.length + 1)(null)
+            val rootsBuffer = Array.fill[IR](path.length)(null)
             var i = 0
-            refs(0) = row
+            refsBuffer(0) = row
             while (i < path.length) {
-              roots(i) = GetField(refs(i), path(i))
-              refs(i + 1) = Ref(freshName(), roots(i).typ)
+              rootsBuffer(i) = GetField(refsBuffer(i), path(i))
+              refsBuffer(i + 1) = Ref(freshName(), rootsBuffer(i).typ)
               i += 1
             }
+            val refs = ArraySeq.unsafeWrapArray(refsBuffer)
+            val roots = ArraySeq.unsafeWrapArray(rootsBuffer)
             Let(
               refs.tail.zip(roots).map { case (ref, root) => ref.name -> root },
               mapIR(ToStream(refs.last, true)) { elt =>
@@ -2127,8 +2130,8 @@ object LowerTableIR extends Logging {
             lc.partitioner
               .rangeBounds
               .grouped(groupSize)
-              .toArray
               .map(arr => Interval(arr.head.left, arr.last.right))
+              .to(ArraySeq)
           ),
           dependency = lc.dependency,
           contexts = mapIR(StreamGrouped(lc.contexts, groupSize))(group => ToArray(group)),
@@ -2170,7 +2173,7 @@ object LowerTableIR extends Logging {
       case TableToTableApply(child, TableFilterPartitions(seq, keep)) =>
         val lc = lower(child)
 
-        val arr = seq.sorted.toArray
+        val arr = seq.sorted
         val keptSet = seq.toSet
         val lit = Literal(TSet(TInt32), keptSet)
         if (keep) {

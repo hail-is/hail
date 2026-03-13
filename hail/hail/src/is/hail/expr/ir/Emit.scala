@@ -151,7 +151,7 @@ object Emit {
 object AggContainer {
   // FIXME remove this when EmitStream also has a codebuilder
   def fromVars(
-    aggs: Array[AggStateSig],
+    aggs: IndexedSeq[AggStateSig],
     mb: EmitMethodBuilder[_],
     region: Settable[Region],
     off: Settable[Long],
@@ -179,8 +179,11 @@ object AggContainer {
     (AggContainer(aggs, aggState, () => ()), (cb: EmitCodeBuilder) => cb += setup, cleanup)
   }
 
-  def fromMethodBuilder[C](aggs: Array[AggStateSig], mb: EmitMethodBuilder[C], varPrefix: String)
-    : (AggContainer, EmitCodeBuilder => Unit, EmitCodeBuilder => Unit) =
+  def fromMethodBuilder[C](
+    aggs: IndexedSeq[AggStateSig],
+    mb: EmitMethodBuilder[C],
+    varPrefix: String,
+  ): (AggContainer, EmitCodeBuilder => Unit, EmitCodeBuilder => Unit) =
     fromVars(
       aggs,
       mb,
@@ -188,7 +191,7 @@ object AggContainer {
       mb.genFieldThisRef[Long](s"${varPrefix}_off"),
     )
 
-  def fromBuilder[C](cb: EmitCodeBuilder, aggs: Array[AggStateSig], varPrefix: String)
+  def fromBuilder[C](cb: EmitCodeBuilder, aggs: IndexedSeq[AggStateSig], varPrefix: String)
     : AggContainer = {
     val off = cb.newField[Long](s"${varPrefix}_off")
     val region = cb.newField[Region](
@@ -2655,7 +2658,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
               val crPType = resultPType.asInstanceOf[PCanonicalTuple]
 
               val qPType = crPType.types(0).asInstanceOf[PCanonicalNDArray]
-              val qShapeArray = if (mode == "complete") Array(M, M) else Array(M, K)
+              val qShapeArray = if (mode == "complete") ArraySeq(M, M) else ArraySeq(M, K)
               val qStridesArray = qPType.makeColumnMajorStrides(qShapeArray, cb)
 
               val infoDORGQRResult = cb.newLocal[Int]("ndarray_qr_DORGQR_info")
@@ -2767,7 +2770,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
       case x: NDArrayAgg => emitDeforestedNDArrayI(x)
 
       case RunAgg(body, result, states) =>
-        val newContainer = AggContainer.fromBuilder(cb, states.toArray, "run_agg")
+        val newContainer = AggContainer.fromBuilder(cb, states, "run_agg")
         emitVoid(body, container = Some(newContainer))
         val codeRes = emitI(result, container = Some(newContainer))
 
@@ -3027,7 +3030,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
         )
 
         val argEnv = env
-          .bind(args.map(_._1).lazyZip(loopRef.loopArgs).toArray: _*)
+          .bind(args.map(_._1).zip(loopRef.loopArgs): _*)
 
         val newLoopEnv = loopEnv.getOrElse(Env.empty)
 
@@ -3281,8 +3284,8 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
                     Code.invokeScalaObject[SemanticHash.Type](
                       SemanticHash.getClass,
                       "extend",
-                      Array(classOf[SemanticHash.Type], classOf[Array[Byte]]),
-                      Array(semhash, dynamicHash),
+                      ArraySeq(classOf[SemanticHash.Type], classOf[Array[Byte]]),
+                      ArraySeq(semhash, dynamicHash),
                     )
                   )
 
@@ -3449,7 +3452,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
         val unified = impl.unify(typeArgs, args.map(_.typ), rt)
         assert(unified)
 
-        val emitArgs = args.map(a => EmitCode.fromI(mb)(emitI(a, _))).toFastSeq
+        val emitArgs = args.map(a => EmitCode.fromI(mb)(emitI(a, _)))
 
         val argSTypes = emitArgs.map(_.st)
         val retType = impl.computeStrictReturnEmitType(ir.typ, argSTypes)
@@ -3464,7 +3467,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
               funcMB
           }
         EmitCode.fromI(mb) { cb =>
-          val emitArgs = args.map(a => EmitCode.fromI(cb.emb)(emitI(a, _))).toFastSeq
+          val emitArgs = args.map(a => EmitCode.fromI(cb.emb)(emitI(a, _)))
           IEmitCode.multiMapEmitCodes(cb, emitArgs) { codeArgs =>
             cb.invokeSCode(
               meth,
@@ -3683,7 +3686,7 @@ object NDArrayEmitter {
   ): IndexedSeq[Value[Long]] = {
     val broadcasted = 0L
     val notBroadcasted = 1L
-    Array.tabulate(nDims)(dim =>
+    ArraySeq.tabulate(nDims)(dim =>
       new Value[Long] {
         override def get: Code[Long] =
           (shapeArray(dim) > 1L).mux(notBroadcasted, broadcasted) * loopVars(dim)

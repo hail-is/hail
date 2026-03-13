@@ -5,6 +5,7 @@ import is.hail.asm4s._
 import is.hail.asm4s.implicits.{
   valueToRichCodeInputBuffer, valueToRichCodeOutputBuffer, valueToRichCodeRegion,
 }
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.types.VirtualTypeWithReq
@@ -218,14 +219,14 @@ abstract class AbstractTypedRegionBackedAggState(val ptype: PType) extends Regio
   }
 }
 
-class PrimitiveRVAState(val vtypes: Array[VirtualTypeWithReq], val kb: EmitClassBuilder[_])
+class PrimitiveRVAState(val vtypes: IndexedSeq[VirtualTypeWithReq], val kb: EmitClassBuilder[_])
     extends AggregatorState {
   private[this] val emitTypes = vtypes.map(_.canonicalEmitType)
   assert(emitTypes.forall(_.st.isPrimitive))
 
   val nFields: Int = emitTypes.length
 
-  val fields: Array[EmitSettable] = Array.tabulate(nFields) { i =>
+  val fields: IndexedSeq[EmitSettable] = ArraySeq.tabulate(nFields) { i =>
     kb.newEmitField(s"primitiveRVA_${i}_v", emitTypes(i))
   }
 

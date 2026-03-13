@@ -3,6 +3,7 @@ package is.hail.expr.ir.agg
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir._
 import is.hail.expr.ir.functions.UtilFunctions
 import is.hail.types.physical.stypes.{EmitType, SType}
@@ -24,8 +25,8 @@ class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
   val sType = SType.canonical(monoid.typ)
   override def resultEmitType = EmitType(sType, monoid.neutral.isDefined)
 
-  val initOpTypes: Seq[Type] = Array[Type]()
-  val seqOpTypes: Seq[Type] = Array[Type](monoid.typ)
+  val initOpTypes: IndexedSeq[Type] = ArraySeq.empty
+  val seqOpTypes: IndexedSeq[Type] = ArraySeq(monoid.typ)
 
   override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     assert(init.length == 0)

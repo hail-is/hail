@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
 import is.hail.ExecStrategy.ExecStrategy
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.TestUtils.{IRArray, IRCall}
 import is.hail.expr.ir.defs.{False, I32, Str, True}
 import is.hail.types.virtual.{TArray, TBoolean, TCall, TInt32}
@@ -22,7 +23,7 @@ class CallFunctionsSuite extends HailSuite {
       Array(Call1(1, true)),
       Array(Call2(1, 0, true)),
       Array(Call2(0, 1, false)),
-      Array(CallN(Array(1, 1), false)),
+      Array(CallN(ArraySeq(1, 1), false)),
       Array(Call.parse("0|1")),
     )
   }
@@ -49,8 +50,8 @@ class CallFunctionsSuite extends HailSuite {
       Array(Call2(1, 0, true), 1),
       Array(Call2(0, 1, false), 0),
       Array(Call2(0, 1, false), 1),
-      Array(CallN(Array(1, 1), false), 0),
-      Array(CallN(Array(1, 1), false), 1),
+      Array(CallN(ArraySeq(1, 1), false), 0),
+      Array(CallN(ArraySeq(1, 1), false), 1),
       Array(Call.parse("0|1"), 0),
       Array(Call.parse("0|1"), 1),
     )
@@ -63,7 +64,7 @@ class CallFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("Call", TCall, I32(0), I32(0), False()), Call2(0, 0, false))
     assertEvalsTo(
       invoke("Call", TCall, IRArray(0, 1), False()),
-      CallN(Array(0, 1), false),
+      CallN(ArraySeq(0, 1), false),
     )
     assertEvalsTo(invoke("Call", TCall, Str("0|1")), Call2(0, 1, true))
   }

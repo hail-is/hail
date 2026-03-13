@@ -182,7 +182,7 @@ object TypeCheck {
         assert(edges.typ.isInstanceOf[TArray])
         val edgeType = tcoerce[TArray](edges.typ).elementType
         assert(edgeType.isInstanceOf[TBaseStruct])
-        val Array(leftType, rightType) = edgeType.asInstanceOf[TBaseStruct].types
+        val Seq(leftType, rightType) = edgeType.asInstanceOf[TBaseStruct].types
         assert(leftType == rightType)
         tieBreaker.foreach { case (_, _, tb) => assert(tb.typ == TFloat64) }
       case StreamIota(start, step, _) =>
@@ -530,7 +530,7 @@ object TypeCheck {
         val indices = fields.map(_._1)
         assert(indices.areDistinct())
         assert(indices.isSorted)
-        assert(x.typ == TTuple(fields.map { case (idx, f) => TupleField(idx, f.typ) }.toFastSeq))
+        assert(x.typ == TTuple(fields.map { case (idx, f) => TupleField(idx, f.typ) }))
       case x @ GetTupleElement(o, idx) =>
         val t = tcoerce[TTuple](o.typ)
         val fd = t.fields(t.fieldIndex(idx))
