@@ -1399,6 +1399,93 @@ object LowerBlockMatrixIR {
             loweredChild.zeroRowIntervals(ib, starts, stops, x.typ)
         }
 
+      case x @ BlockMatrixSlice(
+            child,
+            IndexedSeq(IndexedSeq(rStart, rEnd, rStep), IndexedSeq(cStart, cEnd, cStep)),
+          ) =>
+        val rowDependents = x.rowBlockDependents
+        val colDependents = x.colBlockDependents
+        val childBMS = lower(child, ib)
+
+        val rowSlices = rowDependents.zipWithIndex.map { case (dep, i) =>
+          val blockAlignedRowStartIdx = dep.head.toLong * x.typ.blockSize
+          val blockAlignedRowEndIdx =
+            math.min(child.typ.nRows, (dep.last + 1L) * x.typ.blockSize * rStep)
+          val rStartPlusSeenAlready = rStart + i * x.typ.blockSize * rStep
+          val rowTrueStart = rStartPlusSeenAlready - blockAlignedRowStartIdx
+          val rowTrueEnd = math.min(
+            math.min(rEnd, blockAlignedRowEndIdx) - blockAlignedRowStartIdx,
+            rowTrueStart + x.typ.blockSize * rStep,
+          )
+          Row(rowTrueStart, rowTrueEnd, rStep)
+        }
+
+        val colSlices = colDependents.zipWithIndex.map { case (dep, i) =>
+          val blockAlignedColStartIdx = dep.head.toLong * x.typ.blockSize
+          val blockAlignedColEndIdx =
+            math.min(child.typ.nCols, (dep.last + 1L) * x.typ.blockSize * rStep)
+          val cStartPlusSeenAlready = cStart + i * x.typ.blockSize * cStep
+          val colTrueStart = cStartPlusSeenAlready - blockAlignedColStartIdx
+          val colTrueEnd = math.min(
+            math.min(cEnd, blockAlignedColEndIdx) - blockAlignedColStartIdx,
+            colTrueStart + x.typ.blockSize * cStep,
+          )
+          Row(colTrueStart, colTrueEnd, cStep)
+        }
+
+        val sliceType = TTuple(TInt64, TInt64, TInt64)
+        val rowSlicesLit = Literal(TArray(sliceType), rowSlices)
+        val colSlicesLit = Literal(TArray(sliceType), colSlices)
+
+        val rowDependentsLit = Literal(TArray(TArray(TInt32)), rowDependents)
+        val colDependentsLit = Literal(TArray(TArray(TInt32)), colDependents)
+
+        val groupedContexts = childBMS.contexts.grouped(ib, rowDependents, colDependents, x.typ)
+        val groupedContextsWithSlices = groupedContexts.map(ib) { (i, j, pos, context) =>
+          maketuple(
+            context,
+            ArrayRef(rowDependentsLit, i),
+            ArrayRef(colDependentsLit, j),
+            ArrayRef(rowSlicesLit, i),
+            ArrayRef(colSlicesLit, j),
+          )
+        }
+
+        def newBody(ctxRef: Ref): IR = {
+          IRBuilder.scoped { ib =>
+            val localContexts = childBMS.contexts match {
+              case _: DenseContexts => DynamicDenseContexts(ib, GetTupleElement(ctxRef, 0))
+              case _: SparseContexts => DynamicSparseContexts(ib, GetTupleElement(ctxRef, 0))
+            }
+            val localRowDeps = GetTupleElement(ctxRef, 1)
+            val localColDeps = GetTupleElement(ctxRef, 2)
+            val rowSlice = GetTupleElement(ctxRef, 3)
+            val colSlice = GetTupleElement(ctxRef, 4)
+
+            val concatenatedBlock = localContexts.collect { (localI, localJ, localContext) =>
+              bindIRs(ArrayRef(localRowDeps, localI), ArrayRef(localColDeps, localJ)) {
+                case Seq(globalI, globalJ) =>
+                  val (nRowsInBlock, nColsInBlock) = child.typ.blockShapeIR(globalI, globalJ)
+                  Coalesce(FastSeq(
+                    childBMS.blockIR(localContext),
+                    MakeNDArray.fill(
+                      zero(child.typ.elementType),
+                      FastSeq(nRowsInBlock, nColsInBlock),
+                      False(),
+                    ),
+                  ))
+              }
+            }
+
+            NDArraySlice(
+              concatenatedBlock,
+              MakeTuple.ordered(FastSeq(rowSlice, colSlice)),
+            )
+          }
+        }
+
+        BlockMatrixStage2(childBMS.broadcastVals, x.typ, groupedContextsWithSlices, newBody)
+
       case _ =>
         BlockMatrixStage2.fromOldBMS(
           lowerNonEmpty(ib, bmir, typesToLower, ctx, analyses),
@@ -1419,56 +1506,6 @@ object LowerBlockMatrixIR {
       LowerBlockMatrixIR.lower(ib, ir, typesToLower, ctx, analyses).toOldBMS
 
     bmir match {
-
-      case x @ BlockMatrixSlice(
-            child,
-            IndexedSeq(IndexedSeq(rStart, rEnd, rStep), IndexedSeq(cStart, cEnd, cStep)),
-          ) =>
-        val rowDependents = x.rowBlockDependents
-        val colDependents = x.colBlockDependents
-
-        lower(child).condenseBlocks(child.typ, rowDependents, colDependents)
-          .addContext(TTuple(TTuple(TInt64, TInt64, TInt64), TTuple(TInt64, TInt64, TInt64))) {
-            idx =>
-              val (i, j) = idx
-
-              // Aligned with the edges of blocks in child BM.
-              val blockAlignedRowStartIdx = rowDependents(i).head.toLong * x.typ.blockSize
-              val blockAlignedColStartIdx = colDependents(j).head.toLong * x.typ.blockSize
-              val blockAlignedRowEndIdx =
-                math.min(child.typ.nRows, (rowDependents(i).last + 1L) * x.typ.blockSize * rStep)
-              val blockAlignedColEndIdx =
-                math.min(child.typ.nCols, (colDependents(j).last + 1L) * x.typ.blockSize * cStep)
-
-              /* condenseBlocks can give the same data to multiple partitions. Need to make sure we
-               * don't use data */
-              // that's already included in an earlier block.
-              val rStartPlusSeenAlready = rStart + i * x.typ.blockSize * rStep
-              val cStartPlusSeenAlready = cStart + j * x.typ.blockSize * cStep
-
-              val rowTrueStart = rStartPlusSeenAlready - blockAlignedRowStartIdx
-              val rowTrueEnd = math.min(
-                math.min(rEnd, blockAlignedRowEndIdx) - blockAlignedRowStartIdx,
-                rowTrueStart + x.typ.blockSize * rStep,
-              )
-              val rows = MakeTuple.ordered(FastSeq[IR](
-                rowTrueStart,
-                rowTrueEnd,
-                rStep,
-              ))
-
-              val colTrueStart = cStartPlusSeenAlready - blockAlignedColStartIdx
-              val colTrueEnd = math.min(
-                java.lang.Math.min(cEnd, blockAlignedColEndIdx) - blockAlignedColStartIdx,
-                colTrueStart + x.typ.blockSize * cStep,
-              )
-              val cols = MakeTuple.ordered(FastSeq[IR](
-                colTrueStart,
-                colTrueEnd,
-                cStep,
-              ))
-              MakeTuple.ordered(FastSeq(rows, cols))
-          }.mapBody((ctx, body) => NDArraySlice(body, GetField(ctx, "new")))
 
       case BlockMatrixDot(leftIR, rightIR) =>
         val left = lower(leftIR)
