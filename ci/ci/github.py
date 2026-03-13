@@ -44,6 +44,7 @@ async def prepare_build(gh, code: Code, repo_ss: str, sha: str, scope: str, **kw
     await config.prefetch(gh, repo_ss, sha)
     return config, namespace, services, test_services
 
+
 deploy_config = get_deploy_config()
 
 CALLBACK_URL = deploy_config.url('ci', '/api/v1alpha/batch_callback')
