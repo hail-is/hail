@@ -5,7 +5,6 @@ import is.hail.io.fs.FSUtil.{containsWildcard, dropTrailingSlash}
 import is.hail.utils._
 
 import scala.collection.mutable
-import scala.io.Source
 
 import java.io._
 import java.nio.ByteBuffer
@@ -14,7 +13,6 @@ import java.util.zip.GZIPOutputStream
 
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
 import org.apache.commons.io.IOUtils
-import org.apache.hadoop
 
 class WrappedSeekableDataInputStream(is: SeekableInputStream)
     extends DataInputStream(is) with Seekable {
@@ -260,53 +258,6 @@ trait FS extends Serializable with Logging {
 
   def validUrl(filename: String): Boolean
 
-  def getCodecFromExtension(extension: String, gzAsBGZ: Boolean = false): CompressionCodec =
-    extension match {
-      case ".gz" =>
-        if (gzAsBGZ)
-          BGZipCompressionCodec
-        else
-          GZipCompressionCodec
-      case ".bgz" =>
-        BGZipCompressionCodec
-      case ".tbi" =>
-        BGZipCompressionCodec
-      case _ =>
-        null
-    }
-
-  def getCodecFromPath(path: String, gzAsBGZ: Boolean = false): CompressionCodec =
-    getCodecFromExtension(getExtension(path), gzAsBGZ)
-
-  def getExtension(path: String): String = {
-    var i = path.length - 1
-    while (i >= 0) {
-      if (i == 0)
-        return ""
-
-      val c = path(i)
-      if (c == '.') {
-        if (path(i - 1) == '/')
-          return ""
-        else
-          return path.substring(i)
-      }
-      if (c == '/')
-        return ""
-      i -= 1
-    }
-
-    throw new AssertionError("unreachable")
-  }
-
-  def getCodecExtension(path: String): String = {
-    val ext = getExtension(path)
-    if (ext == ".gz" || ext == ".bgz" || ext == ".tbi")
-      ext
-    else
-      ""
-  }
-
   final def openNoCompression(filename: String): SeekableDataInputStream =
     openNoCompression(parseUrl(filename))
 
@@ -391,80 +342,6 @@ trait FS extends Serializable with Logging {
 
   def fileStatus(url: URL): FileStatus
 
-  protected def fileListEntryFromIterator(
-    url: URL,
-    it: Iterator[FileListEntry],
-  ): FileListEntry = {
-    val urlStr = url.toString
-    val noSlash = dropTrailingSlash(urlStr)
-    val withSlash = noSlash + "/"
-
-    var continue = it.hasNext
-    var fileFle: FileListEntry = null
-    var trailingSlashFle: FileListEntry = null
-    var dirFle: FileListEntry = null
-    while (continue) {
-      val fle = it.next()
-
-      if (fle.isFile) {
-        if (fle.getActualUrl == noSlash) {
-          fileFle = fle
-        } else if (fle.getActualUrl == withSlash) {
-          // This is a *blob* whose name has a trailing slash e.g. "gs://bucket/object/". Users
-          // really ought to avoid creating these.
-          trailingSlashFle = fle
-        }
-      } else if (fle.isDirectory && dropTrailingSlash(fle.getActualUrl) == noSlash) {
-        // In Google, "directory" entries always have a trailing slash.
-        //
-        // In Azure, "directory" entries never have a trailing slash.
-        dirFle = fle
-      }
-
-      continue =
-        it.hasNext && (fle.getActualUrl <= withSlash) // cloud storage APIs return blobs in alphabetical order, so we need not keep searching after withSlash
-    }
-
-    if (fileFle != null) {
-      if (dirFle != null) {
-        if (trailingSlashFle != null) {
-          throw new FileAndDirectoryException(
-            s"${url.toString} appears twice as a file (once with and once without a trailing slash) and once as a directory."
-          )
-        } else {
-          throw new FileAndDirectoryException(
-            s"${url.toString} appears as both file ${fileFle.getActualUrl} and directory ${dirFle.getActualUrl}."
-          )
-        }
-      } else {
-        if (trailingSlashFle != null) {
-          logger.warn(
-            s"Two blobs exist matching ${url.toString}: once with and once without a trailing slash. We will return the one without a trailing slash."
-          )
-        }
-        fileFle
-      }
-    } else {
-      if (dirFle != null) {
-        if (trailingSlashFle != null) {
-          logger.warn(
-            s"A blob with a literal trailing slash exists as well as blobs with that prefix. We will treat this as a directory. ${url.toString}"
-          )
-        }
-        dirFle
-      } else {
-        if (trailingSlashFle != null) {
-          throw new FileNotFoundException(
-            s"A blob with a literal trailing slash exists. These are sometimes uses to indicate empty directories. " +
-              s"Hail does not support this behavior. This folder is treated as if it does not exist. ${url.toString}"
-          )
-        } else {
-          throw new FileNotFoundException(url.toString)
-        }
-      }
-    }
-  }
-
   final def fileListEntry(filename: String): FileListEntry = fileListEntry(parseUrl(filename))
 
   def fileListEntry(url: URL): FileListEntry
@@ -476,13 +353,11 @@ trait FS extends Serializable with Logging {
 
   def open(url: URL, codec: CompressionCodec): InputStream = {
     val is = openNoCompression(url)
-    if (codec != null)
-      codec.makeInputStream(is)
-    else
-      is
+    codec.makeInputStream(is)
   }
 
-  final def open(filename: String): InputStream = open(parseUrl(filename))
+  final def open(filename: String): InputStream =
+    open(parseUrl(filename))
 
   def open(url: URL): InputStream =
     open(url, gzAsBGZ = false)
@@ -491,19 +366,19 @@ trait FS extends Serializable with Logging {
     open(parseUrl(filename), gzAsBGZ)
 
   def open(url: URL, gzAsBGZ: Boolean): InputStream =
-    open(url, getCodecFromPath(url.path, gzAsBGZ))
+    getCodecFromPath(url.path, gzAsBGZ) match {
+      case Some(codec) => open(url, codec)
+      case _ => openNoCompression(url)
+    }
 
-  final def create(filename: String): OutputStream = create(parseUrl(filename))
+  final def create(filename: String): OutputStream =
+    create(parseUrl(filename))
 
-  def create(url: URL): OutputStream = {
-    val os = createNoCompression(url)
-
-    val codec = getCodecFromPath(url.path, gzAsBGZ = false)
-    if (codec != null)
-      codec.makeOutputStream(os)
-    else
-      os
-  }
+  def create(url: URL): OutputStream =
+    getCodecFromPath(url.path) match {
+      case Some(codec) => codec.makeOutputStream(createNoCompression(url))
+      case None => createNoCompression(url)
+    }
 
   final def write(filename: String)(writer: OutputStream => Unit): Unit =
     write(parseUrl(filename))(writer)
@@ -572,132 +447,6 @@ trait FS extends Serializable with Logging {
     using(open(src))(is => using(create(dst))(os => IOUtils.copy(is, os): Unit))
     if (deleteSource)
       delete(src, recursive = false)
-  }
-
-  def readLines[T](
-    filename: String,
-    filtAndReplace: TextInputFilterAndReplace = TextInputFilterAndReplace(),
-  )(
-    reader: Iterator[WithContext[String]] => T
-  ): T = {
-    using(open(filename)) {
-      is =>
-        val lines = Source.fromInputStream(is)
-          .getLines()
-          .zipWithIndex
-          .map {
-            case (value, position) =>
-              val source = Context(value, filename, Some(position))
-              WithContext(value, source)
-          }
-        reader(filtAndReplace(lines))
-    }
-  }
-
-  def writeTable(filename: String, lines: Iterable[String], header: Option[String] = None): Unit = {
-    using(new OutputStreamWriter(create(filename))) { fw =>
-      header.foreach { h =>
-        fw.write(h)
-        fw.write('\n')
-      }
-      lines.foreach { line =>
-        fw.write(line)
-        fw.write('\n')
-      }
-    }
-  }
-
-  def copyMerge(
-    sourceFolder: String,
-    destinationFile: String,
-    numPartFilesExpected: Int,
-    deleteSource: Boolean = true,
-    header: Boolean = true,
-    partFilesOpt: Option[IndexedSeq[String]] = None,
-  ): Unit = {
-    if (!exists(sourceFolder + "/_SUCCESS"))
-      fatal("write failed: no success indicator found")
-
-    delete(destinationFile, recursive = true) // overwriting by default
-
-    val headerFileListEntry = glob(sourceFolder + "/header")
-
-    if (header && headerFileListEntry.isEmpty)
-      fatal(s"Missing header file")
-    else if (!header && headerFileListEntry.nonEmpty)
-      fatal(s"Found unexpected header file")
-
-    val partFileStatuses: Array[_ <: FileStatus] = partFilesOpt match {
-      case None => glob(sourceFolder + "/part-*")
-      case Some(files) => files.map(f => fileStatus(sourceFolder + "/" + f)).toArray
-    }
-
-    val sortedPartFileStatuses = partFileStatuses.sortBy { fileStatus =>
-      getPartNumber(fileStatus.getPath)
-    }
-
-    if (sortedPartFileStatuses.length != numPartFilesExpected)
-      fatal(s"Expected $numPartFilesExpected part files but found ${sortedPartFileStatuses.length}")
-
-    val filesToMerge: Array[FileStatus] = headerFileListEntry ++ sortedPartFileStatuses
-
-    logger.info(s"merging ${filesToMerge.length} files totalling " +
-      s"${readableBytes(filesToMerge.map(_.getLen).sum)}...")
-
-    val (_, dt) = time {
-      copyMergeList(filesToMerge, destinationFile, deleteSource)
-    }
-
-    logger.info(s"while writing:\n    $destinationFile\n  merge time: ${formatTime(dt)}")
-
-    if (deleteSource) {
-      delete(sourceFolder, recursive = true)
-      if (header)
-        delete(sourceFolder + ".header", recursive = false)
-    }
-  }
-
-  def copyMergeList(
-    srcFileStatuses: Array[_ <: FileStatus],
-    destFilename: String,
-    deleteSource: Boolean = true,
-  ): Unit = {
-    val codec = Option(getCodecFromPath(destFilename))
-    val isBGzip = codec.exists(_ == BGZipCompressionCodec)
-
-    require(srcFileStatuses.forall {
-      fileStatus => fileStatus.getPath != destFilename && fileStatus.isFileOrFileAndDirectory
-    })
-
-    using(createNoCompression(destFilename)) { os =>
-      var i = 0
-      while (i < srcFileStatuses.length) {
-        val fileListEntry = srcFileStatuses(i)
-        val lenAdjust: Long = if (isBGzip && i < srcFileStatuses.length - 1)
-          -28
-        else
-          0
-        using(openNoCompression(fileListEntry.getPath)) { is =>
-          hadoop.io.IOUtils.copyBytes(is, os, fileListEntry.getLen + lenAdjust, false)
-        }
-        i += 1
-      }
-    }
-
-    if (deleteSource) {
-      srcFileStatuses.foreach(fileStatus => delete(fileStatus.getPath, recursive = true))
-    }
-  }
-
-  def concatenateFiles(sourceNames: Array[String], destFilename: String): Unit = {
-    val fileStatuses = sourceNames.map(fileStatus(_))
-
-    logger.info(s"merging ${fileStatuses.length} files totalling " +
-      s"${readableBytes(fileStatuses.map(_.getLen).sum)}...")
-
-    val (_, timing) = time(copyMergeList(fileStatuses, destFilename, deleteSource = false))
-
-    logger.info(s"while writing:\n    $destFilename\n  merge time: ${formatTime(timing)}")
   }
 
   final def touch(filename: String): Unit = touch(parseUrl(filename))

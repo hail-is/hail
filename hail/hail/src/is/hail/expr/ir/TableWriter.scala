@@ -13,7 +13,7 @@ import is.hail.expr.ir.functions.StringFunctions
 import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage}
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, OutputBuffer, TypedCodecSpec}
-import is.hail.io.fs.FS
+import is.hail.io.fs.{getCodecExtension, FS}
 import is.hail.io.index.StagedIndexWriter
 import is.hail.rvd.{AbstractRVDSpec, IndexSpec, RVDPartitioner, RVDSpecMaker}
 import is.hail.types._
@@ -705,7 +705,7 @@ case class TableTextWriter(
   override def lower(ctx: ExecuteContext, ts: TableStage, r: RTable): IR = {
     require(exportType != ExportType.PARALLEL_COMPOSABLE)
 
-    val ext = ctx.fs.getCodecExtension(path)
+    val ext = getCodecExtension(path)
 
     val folder = if (exportType == ExportType.CONCATENATED)
       ctx.createTmpPath("write-table-concatenated")
@@ -832,7 +832,7 @@ case class TableTextFinalizer(
     region: Value[Region],
   ): Unit = {
     val ctx: ExecuteContext = cb.emb.ctx
-    val ext = ctx.fs.getCodecExtension(outputPath)
+    val ext = getCodecExtension(outputPath)
     val partPaths = writeAnnotations.getOrFatal(cb, "write annotations cannot be missing!")
     val files = partPaths.castTo(cb, region, SJavaArrayString(true), false).asInstanceOf[
       SJavaArrayStringValue
