@@ -487,7 +487,7 @@ class SimplifySuite extends HailSuite {
 
     val t2 = Simplify(ctx, t)
     assert(t2 match {
-      case TableKeyBy(TableFilter(child, _), _, _) =>
+      case TableKeyBy(TableFilter(child, _), _, _, _) =>
         !Exists(child, _.isInstanceOf[TableFilterIntervals])
       case _ => false
     })

@@ -632,7 +632,7 @@ object Simplify {
       case TableCount(TableUnion(children)) =>
         Some(children.map(TableCount(_): IR).treeReduce(ApplyBinaryPrimOp(Add(), _, _)))
 
-      case TableCount(TableKeyBy(child, _, _)) =>
+      case TableCount(TableKeyBy(child, _, _, _)) =>
         Some(TableCount(child))
 
       case TableCount(TableOrderBy(child, _)) =>
@@ -714,7 +714,7 @@ object Simplify {
       case TableGetGlobals(child) if child.typ.globalType == TStruct.empty =>
         Some(MakeStruct(FastSeq()))
 
-      case TableGetGlobals(TableKeyBy(child, _, _)) =>
+      case TableGetGlobals(TableKeyBy(child, _, _, _)) =>
         Some(TableGetGlobals(child))
 
       case TableGetGlobals(TableFilter(child, _)) =>
@@ -922,8 +922,8 @@ object Simplify {
         Some(child)
 
       // TODO: Write more rules like this to bubble 'TableRename' nodes towards the root.
-      case t @ TableRename(TableKeyBy(child, keys, isSorted), rowMap, globalMap) =>
-        Some(TableKeyBy(TableRename(child, rowMap, globalMap), keys.map(t.rowF), isSorted))
+      case t @ TableRename(TableKeyBy(child, keys, isSorted, nPartitions), rowMap, globalMap) =>
+        Some(TableKeyBy(TableRename(child, rowMap, globalMap), keys.map(t.rowF), isSorted, nPartitions))
 
       case TableFilter(t, True()) =>
         Some(t)
@@ -937,13 +937,13 @@ object Simplify {
           ApplySpecial("land", Array.empty[Type], Array(p1, p2), TBoolean, ErrorIDs.NO_ERROR),
         ))
 
-      case TableFilter(TableKeyBy(child, key, isSorted), p) =>
-        Some(TableKeyBy(TableFilter(child, p), key, isSorted))
+      case TableFilter(TableKeyBy(child, key, isSorted, nPartitions), p) =>
+        Some(TableKeyBy(TableFilter(child, p), key, isSorted, nPartitions))
 
       case TableFilter(TableRepartition(child, n, strategy), p) =>
         Some(TableRepartition(TableFilter(child, p), n, strategy))
 
-      case TableOrderBy(TableKeyBy(child, _, false), sortFields) =>
+      case TableOrderBy(TableKeyBy(child, _, false, _), sortFields) =>
         Some(TableOrderBy(child, sortFields))
 
       case TableFilter(TableOrderBy(child, sortFields), pred) =>
@@ -981,16 +981,16 @@ object Simplify {
         }
         Some(TableParallelize(newRowsAndGlobal, nPartitions))
 
-      case TableKeyBy(TableOrderBy(child, _), keys, false) =>
-        Some(TableKeyBy(child, keys, false))
+      case TableKeyBy(TableOrderBy(child, _), keys, false, nPartitions) =>
+        Some(TableKeyBy(child, keys, false, nPartitions))
 
-      case TableKeyBy(TableKeyBy(child, _, _), keys, false) =>
-        Some(TableKeyBy(child, keys, false))
+      case TableKeyBy(TableKeyBy(child, _, _, _), keys, false, nPartitions) =>
+        Some(TableKeyBy(child, keys, false, nPartitions))
 
-      case TableKeyBy(TableKeyBy(child, _, true), keys, true) =>
-        Some(TableKeyBy(child, keys, true))
+      case TableKeyBy(TableKeyBy(child, _, true, _), keys, true, nPartitions) =>
+        Some(TableKeyBy(child, keys, true, nPartitions))
 
-      case TableKeyBy(child, key, _) if key == child.typ.key =>
+      case TableKeyBy(child, key, _, _) if key == child.typ.key =>
         Some(child)
 
       case TableMapRows(child, Ref(n, _)) if n == TableIR.rowName =>
@@ -1188,13 +1188,14 @@ object Simplify {
             && child.typ.key.nonEmpty =>
         Some(TableAggregateByKey(child, expr))
 
-      case TableAggregateByKey(x @ TableKeyBy(child, keys, false), expr)
+      case TableAggregateByKey(x @ TableKeyBy(child, keys, false, nPartitions), expr)
           if !x.definitelyDoesNotShuffle =>
         Some(TableKeyByAndAggregate(
           child,
           expr,
           MakeStruct(keys.map(k => k -> GetField(Ref(TableIR.rowName, child.typ.rowType), k))),
           bufferSize = ctx.getFlag("grouped_aggregate_buffer_size").toInt,
+          nPartitions = nPartitions,
         ))
 
       case TableParallelize(TableCollect(child), _) =>

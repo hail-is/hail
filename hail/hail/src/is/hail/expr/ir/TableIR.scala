@@ -2109,7 +2109,7 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
   *     type to the new key. 'isSorted' is ignored.
   *   - Otherwise, if 'isSorted' is false and n < 'keys.length', then shuffle.
   */
-case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], isSorted: Boolean = false)
+case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], isSorted: Boolean = false, nPartitions: Option[Int] = None)
     extends TableIR with PreservesRows {
   val childrenSeq: IndexedSeq[BaseIR] = Array(child)
 

@@ -56,7 +56,7 @@ object ExecuteRelational {
         val leftTS = recur(left).asTableStage(ctx)
         val rightTS = recur(right).asTableStage(ctx)
         TableExecuteIntermediate(LowerTableIRHelpers.lowerTableJoin(ctx, r, ir, leftTS, rightTS))
-      case ir @ TableKeyBy(child, keys, isSorted) =>
+      case ir @ TableKeyBy(child, keys, isSorted, _) =>
         val tv = recur(child).asTableValue(ctx)
         TableValueIntermediate(tv.copy(typ = ir.typ, rvd = tv.rvd.enforceKey(ctx, keys, isSorted)))
       case TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize) =>
