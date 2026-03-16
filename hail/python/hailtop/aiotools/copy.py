@@ -76,6 +76,11 @@ async def copy(
         if 'thread_pool' not in local_kwargs:
             local_kwargs['thread_pool'] = thread_pool
 
+        if gcs_kwargs is None:
+            gcs_kwargs = {}
+        if 'thread_pool' not in gcs_kwargs:
+            gcs_kwargs['thread_pool'] = thread_pool
+
         if s3_kwargs is None:
             s3_kwargs = {}
         if 'thread_pool' not in s3_kwargs:

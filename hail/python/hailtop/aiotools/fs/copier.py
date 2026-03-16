@@ -317,12 +317,7 @@ class SourceCopier:
     ) -> None:
         success = False
         try:
-            try:
-                await self.router_fs.copy_to(srcfile, destfile)
-            except NotImplementedError:
-                await self._copy_file_multi_part_main(
-                    sema, source_report, srcfile, srcstat, destfile, return_exceptions
-                )
+            await self._copy_file_multi_part_main(sema, source_report, srcfile, srcstat, destfile, return_exceptions)
             success = True
         except Exception as e:
             if return_exceptions:
@@ -605,17 +600,51 @@ class Copier:
     ):
         transfer_report = copy_report._transfer_report
         try:
-            if isinstance(transfer, Transfer):
-                assert isinstance(transfer_report, TransferReport)
-                await self._copy_one_transfer(sema, transfer_report, transfer, return_exceptions)
-                return
+            google_to_local_transfers: List[Transfer] = []
+            google_to_local_reports: List[SourceReport] = []
+            copier_transfers: List[Transfer] = []
+            copier_reports: List[TransferReport] = []
+            for single_report, single_transfer in zip(
+                transfer_report if isinstance(transfer_report, list) else [transfer_report],
+                transfer if isinstance(transfer, list) else [transfer],
+            ):
+                if isinstance(single_transfer.src, str):
+                    if self.router_fs.valid_google_url(single_transfer.src):
+                        assert isinstance(single_report._source_report, SourceReport)
+                        google_to_local_transfers.append(single_transfer)
+                        google_to_local_reports.append(single_report._source_report)
+                    else:
+                        copier_transfers.append(single_transfer)
+                        copier_reports.append(single_report)
+                else:
+                    assert isinstance(single_transfer.src, list)
+                    assert isinstance(single_report._source_report, list)
+                    for source, source_report in zip(single_transfer.src, single_report._source_report):
+                        if self.router_fs.valid_google_url(source):
+                            google_to_local_transfers.append(
+                                Transfer(source, single_transfer.dest, treat_dest_as=single_transfer.treat_dest_as)
+                            )
+                            google_to_local_reports.append(source_report)
+                        else:
+                            copier_transfers.append(
+                                Transfer(source, single_transfer.dest, treat_dest_as=single_transfer.treat_dest_as)
+                            )
+                            copier_reports.append(single_report)
 
-            assert isinstance(transfer_report, list)
+            google_fs = await self.router_fs._get_fs('gs://')
+            await google_fs.copy_to_local(
+                sema,
+                self.xfer_sema,
+                google_to_local_transfers,
+                google_to_local_reports,
+                return_exceptions=return_exceptions,
+            )
+
             await bounded_gather2(
                 sema,
                 *[
                     functools.partial(self._copy_one_transfer, sema, r, t, return_exceptions)
-                    for r, t in zip(transfer_report, transfer)
+                    for r, t in zip(copier_reports, copier_transfers)
                 ],
                 return_exceptions=return_exceptions,
                 cancel_on_error=True,

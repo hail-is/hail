@@ -76,6 +76,10 @@ class RouterAsyncFS(AsyncFS):
             or aioaws.S3AsyncFS.valid_url(url)
         )
 
+    @staticmethod
+    def valid_google_url(url) -> bool:
+        return aiogoogle.GoogleStorageAsyncFS.valid_url(url)
+
     async def _get_fs(self, url: str):
         if LocalAsyncFS.valid_url(url):
             if self._local_fs is None:
@@ -113,10 +117,6 @@ class RouterAsyncFS(AsyncFS):
     async def _open_from(self, url: str, start: int, *, length: Optional[int] = None) -> ReadableStream:
         fs = await self._get_fs(url)
         return await fs.open_from(url, start, length=length)
-
-    async def copy_to(self, url: str, dest: str):
-        fs = await self._get_fs(url)
-        return await fs.copy_to(url, dest)
 
     async def create(self, url: str, *, retry_writes: bool = True) -> AsyncContextManager[WritableStream]:
         fs = await self._get_fs(url)
