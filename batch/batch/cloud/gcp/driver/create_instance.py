@@ -130,6 +130,7 @@ def create_vm_config(
                 'subnetwork': f'regions/{region}/subnetworks/default',
                 'networkTier': 'PREMIUM',
                 'stackType': 'IPV4_ONLY',
+                'accessConfigs': [{'type': 'ONE_TO_ONE_NAT', 'name': 'external-nat'}],
             }
         ],
         'scheduling': scheduling(),
