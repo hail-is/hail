@@ -68,7 +68,18 @@ class DeployConfig:
         self._base_path = base_path
 
     def with_default_namespace(self, default_namespace):
-        return DeployConfig(self._location, default_namespace, self._domain, self._base_path)
+        if self._base_path is None:
+            # Currently in the default namespace; domain is the base domain (e.g. 'hail.is').
+            if default_namespace == 'default':
+                return DeployConfig(self._location, default_namespace, self._domain, None)
+            return DeployConfig(
+                self._location, default_namespace, f'internal.{self._domain}', f'/{default_namespace}'
+            )
+        # Currently in a non-default namespace; domain is 'internal.{base_domain}'.
+        if default_namespace == 'default':
+            # Recover the base domain by stripping the 'internal.' prefix.
+            return DeployConfig(self._location, default_namespace, self._domain.removeprefix('internal.'), None)
+        return DeployConfig(self._location, default_namespace, self._domain, f'/{default_namespace}')
 
     def with_location(self, location):
         return DeployConfig(location, self._default_namespace, self._domain, self._base_path)
