@@ -155,8 +155,8 @@ class ServiceBackend(Backend):
         driver_memory = configuration_of(ConfigVariable.QUERY_BATCH_DRIVER_MEMORY, driver_memory, None)
         worker_cores = configuration_of(ConfigVariable.QUERY_BATCH_WORKER_CORES, worker_cores, None)
         worker_memory = configuration_of(ConfigVariable.QUERY_BATCH_WORKER_MEMORY, worker_memory, None)
-        max_read_parallelism = configuration_of(
-            ConfigVariable.QUERY_BATCH_BACKEND_MAX_READ_PARALLELISM, str(max_read_parallelism), None
+        max_read_parallelism = maybe(
+            int, configuration_of(ConfigVariable.QUERY_BATCH_BACKEND_MAX_READ_PARALLELISM, max_read_parallelism, None)
         )
 
         if regions == ANY_REGION:
