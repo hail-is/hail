@@ -159,7 +159,7 @@ function RetryCharts({ tests, days }: { tests: AggregatedTest[]; days: number })
   return (
     <div className="mb-8 flex flex-wrap gap-8 items-start">
       <div style={{ flexShrink: 0 }}>
-        <p className="text-xs font-medium text-slate-500 mb-1">By failure type</p>
+        <p className="text-xs font-medium text-slate-500 mb-1">Failure types</p>
         <PieChart width={260} height={280}>
           <Pie data={statePieData} dataKey="value" cx="50%" cy="50%" outerRadius={95} isAnimationActive={false}>
             {statePieData.map((entry, i) => (
@@ -171,7 +171,7 @@ function RetryCharts({ tests, days }: { tests: AggregatedTest[]; days: number })
         </PieChart>
       </div>
       <div style={{ flexShrink: 0 }}>
-        <p className="text-xs font-medium text-slate-500 mb-1">By who retried</p>
+        <p className="text-xs font-medium text-slate-500 mb-1">Retried by</p>
         <PieChart width={260} height={280}>
           <Pie data={retriedByPieData} dataKey="value" cx="50%" cy="50%" outerRadius={95} isAnimationActive={false}>
             {retriedByPieData.map((_, i) => (

@@ -269,8 +269,20 @@ run-dev-proxy:
 ui-js-watch:
 	cd services/ui && npx esbuild src/ci/flaky_tests.tsx --bundle --jsx=automatic --format=esm --outfile=../../ci/ci/static/compiled-js/flaky_tests.js --minify --watch=forever
 
+.PHONY: check-devserver-deps
+check-devserver-deps:
+	@SERVICE=$(SERVICE) python3 -c "\
+import importlib.metadata as m, sys, os; \
+svc = os.environ.get('SERVICE', ''); \
+pkgs = ['gear', 'web_common'] + ([svc] if svc else []); \
+installed = {d.name for d in m.distributions()}; \
+missing = [p for p in pkgs if p not in installed]; \
+(print('error: missing packages: ' + ', '.join(missing), file=sys.stderr), \
+ print('run: pip install ' + ' '.join('-e ' + p for p in missing), file=sys.stderr), \
+ sys.exit(1)) if missing else None"
+
 .PHONY: devserver
-devserver:
+devserver: check-devserver-deps
 	$(MAKE) -j 3 $(DEVSERVER_TARGETS)
 
 .PHONY: benchmark
