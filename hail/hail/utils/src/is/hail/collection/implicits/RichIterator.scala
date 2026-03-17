@@ -1,11 +1,12 @@
 package is.hail.collection.implicits
 
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.{FlipbookIterator, StagingIterator, StateMachine}
+import is.hail.collection.compat.immutable.ArraySeq
 
 import scala.io.Source
 import scala.jdk.CollectionConverters._
 import scala.reflect.ClassTag
+
 import java.io.PrintWriter
 
 class RichIterator[T](val it: Iterator[T]) extends AnyVal {

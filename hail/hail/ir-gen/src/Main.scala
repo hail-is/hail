@@ -1,8 +1,8 @@
 import scala.annotation.nowarn
 import scala.collection.compat._
-import mainargs.{ParserForMethods, main}
-
 import scala.collection.compat.immutable.ArraySeq
+
+import mainargs.{main, ParserForMethods}
 
 trait IRDSL {
   // Phantom types used to tag a ConstrainedType
