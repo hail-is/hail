@@ -84,3 +84,37 @@ class Test(unittest.TestCase):
         self.assertEqual(deploy_config.base_url('foo'), 'http://internal.hail/bar/foo')
         self.assertEqual(deploy_config.url('foo', '/moo'), 'http://internal.hail/bar/foo/moo')
         self.assertEqual(deploy_config.external_url('foo', '/moo'), 'https://internal.organization.tld/bar/foo/moo')
+
+    def test_with_default_namespace_from_default(self):
+        config = DeployConfig('external', 'default', 'organization.tld', None)
+        result = config.with_default_namespace('foo')
+        self.assertEqual(result.default_namespace(), 'foo')
+        self.assertEqual(result.url('svc', '/path'), 'https://internal.organization.tld/foo/svc/path')
+
+    def test_with_default_namespace_to_default(self):
+        config = DeployConfig('external', 'foo', 'internal.organization.tld', '/foo')
+        result = config.with_default_namespace('default')
+        self.assertEqual(result.default_namespace(), 'default')
+        self.assertEqual(result.url('svc', '/path'), 'https://svc.organization.tld/path')
+
+    def test_with_default_namespace_switch_non_default(self):
+        config = DeployConfig('external', 'foo', 'internal.organization.tld', '/foo')
+        result = config.with_default_namespace('bar')
+        self.assertEqual(result.default_namespace(), 'bar')
+        self.assertEqual(result.url('svc', '/path'), 'https://internal.organization.tld/bar/svc/path')
+
+    def test_namespace_domain_and_base_path_default(self):
+        domain, base_path = DeployConfig._namespace_domain_and_base_path('organization.tld', 'default')
+        self.assertEqual(domain, 'organization.tld')
+        self.assertIsNone(base_path)
+
+    def test_namespace_domain_and_base_path_non_default(self):
+        domain, base_path = DeployConfig._namespace_domain_and_base_path('organization.tld', 'foo')
+        self.assertEqual(domain, 'internal.organization.tld')
+        self.assertEqual(base_path, '/foo')
+
+    def test_namespace_domain_and_base_path_switch_namespaces(self):
+        # Handles 'internal.' prefix itself so callers pass domain as-is
+        domain, base_path = DeployConfig._namespace_domain_and_base_path('internal.organization.tld', 'bar')
+        self.assertEqual(domain, 'internal.organization.tld')
+        self.assertEqual(base_path, '/bar')
