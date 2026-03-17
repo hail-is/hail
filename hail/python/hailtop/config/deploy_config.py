@@ -71,7 +71,8 @@ class DeployConfig:
         base_domain = self._domain.removeprefix('internal.')
         if default_namespace == 'default':
             return DeployConfig(self._location, default_namespace, base_domain, None)
-        return DeployConfig(self._location, default_namespace, f'internal.{base_domain}', f'/{default_namespace}')
+        else:
+            return DeployConfig(self._location, default_namespace, f'internal.{base_domain}', f'/{default_namespace}')
 
     def with_location(self, location):
         return DeployConfig(location, self._default_namespace, self._domain, self._base_path)
