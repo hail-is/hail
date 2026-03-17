@@ -213,6 +213,66 @@ function RetryCharts({ tests, days }: { tests: AggregatedTest[]; days: number })
   );
 }
 
+function LeaderboardTable({ tests, maxCount, expanded, toggleExpanded, batchBaseUrl, hasMore }: {
+  tests: AggregatedTest[];
+  maxCount: number;
+  expanded: Set<string>;
+  toggleExpanded: (jobName: string) => void;
+  batchBaseUrl: string;
+  hasMore: boolean;
+}) {
+  return (
+    <>
+      <div className="overflow-x-auto rounded-lg border border-slate-200">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-sky-100 text-slate-600 text-xs font-semibold uppercase tracking-wider">
+              <th className="px-4 py-2.5 text-left w-10">#</th>
+              <th className="px-4 py-2.5 text-left">Job Name</th>
+              <th className="px-4 py-2.5 text-right w-24"># Jobs</th>
+              <th className="px-4 py-2.5 text-right w-24"># Builds</th>
+              <th className="px-4 py-2.5 text-right w-24"># PRs</th>
+              <th className="px-4 py-2.5 text-left w-40">Last Retried</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {tests.map((t, i) => (
+              <Fragment key={t.job_name}>
+                <tr className="hover:bg-sky-50 select-none">
+                  <td className="px-4 py-2 text-slate-400">{i + 1}</td>
+                  <td className="px-4 py-2 font-mono" style={{ background: `linear-gradient(to right, ${retryHeatColor(t.retry_count / maxCount)} ${(t.retry_count / maxCount) * 100}%, transparent ${(t.retry_count / maxCount) * 100}%)` }}>
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 cursor-pointer bg-transparent border-none p-0 focus:outline-none focus-visible:underline"
+                      aria-expanded={expanded.has(t.job_name)}
+                      onClick={() => { toggleExpanded(t.job_name); }}
+                    >
+                      <ChevronRight className={`h-5 w-5 text-slate-600 transition-transform ${expanded.has(t.job_name) ? 'rotate-90' : ''}`} />
+                      {t.job_name}
+                    </button>
+                  </td>
+                  <td className="px-4 py-2 text-right font-semibold" style={{ color: '#a855f7' }}>{t.retry_count}</td>
+                  <td className="px-4 py-2 text-right font-semibold" style={{ color: '#0ea5e9' }}>{t.distinct_builds.size}</td>
+                  <td className="px-4 py-2 text-right font-semibold" style={{ color: '#10b981' }}>{t.distinct_prs.size}</td>
+                  <td className="px-4 py-2 text-slate-500">{new Date(t.last_retried_at).toLocaleString()}</td>
+                </tr>
+                {expanded.has(t.job_name) && (
+                  <InstanceRows instances={t.instances} batchBaseUrl={batchBaseUrl} />
+                )}
+              </Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {hasMore && (
+        <p className="mt-3 text-sm text-amber-600">
+          Results truncated — showing most recent 500 retries only. Aggregations may be incomplete.
+        </p>
+      )}
+    </>
+  );
+}
+
 function InstanceRows({ instances, batchBaseUrl }: { instances: RetriedTest[]; batchBaseUrl: string }) {
   return (
     <>
@@ -329,9 +389,13 @@ function FlakyTests({ basePath, batchBaseUrl }: { basePath: string; batchBaseUrl
           style={{ top: '2px', left: groupByFamily ? '18px' : '2px', transition: 'left 200ms ease-in-out' }}
         />
       </button>
-      <span className="text-sm text-slate-600 cursor-pointer select-none" onClick={() => { setGroupByFamily(v => !v); setExpanded(new Set()); }}>
+      <button
+        type="button"
+        className="text-sm text-slate-600 bg-transparent border-none p-0 cursor-pointer select-none focus:outline-none focus-visible:underline"
+        onClick={() => { setGroupByFamily(v => !v); setExpanded(new Set()); }}
+      >
         Group test families
-      </span>
+      </button>
     </div>
   );
 
@@ -376,50 +440,14 @@ function FlakyTests({ basePath, batchBaseUrl }: { basePath: string; batchBaseUrl
         <h2 className="text-base font-semibold text-slate-700">Leaderboard</h2>
         {groupByFamilyToggle}
       </div>
-      <div className="overflow-x-auto rounded-lg border border-slate-200">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-sky-100 text-slate-600 text-xs font-semibold uppercase tracking-wider">
-              <th className="px-4 py-2.5 text-left w-10">#</th>
-              <th className="px-4 py-2.5 text-left">Job Name</th>
-              <th className="px-4 py-2.5 text-right w-24"># Jobs</th>
-              <th className="px-4 py-2.5 text-right w-24"># Builds</th>
-              <th className="px-4 py-2.5 text-right w-24"># PRs</th>
-              <th className="px-4 py-2.5 text-left w-40">Last Retried</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {tests.map((t, i) => (
-              <Fragment key={t.job_name}>
-                <tr
-                  className="hover:bg-sky-50 cursor-pointer select-none"
-                  onClick={() => { toggleExpanded(t.job_name); }}
-                >
-                  <td className="px-4 py-2 text-slate-400">{i + 1}</td>
-                  <td className="px-4 py-2 font-mono" style={{ background: `linear-gradient(to right, ${retryHeatColor(t.retry_count / maxCount)} ${(t.retry_count / maxCount) * 100}%, transparent ${(t.retry_count / maxCount) * 100}%)` }}>
-                    <span className="inline-flex items-center gap-1">
-                      <ChevronRight className={`h-5 w-5 text-slate-600 transition-transform ${expanded.has(t.job_name) ? 'rotate-90' : ''}`} />
-                      {t.job_name}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2 text-right font-semibold" style={{ color: '#a855f7' }}>{t.retry_count}</td>
-                  <td className="px-4 py-2 text-right font-semibold" style={{ color: '#0ea5e9' }}>{t.distinct_builds.size}</td>
-                  <td className="px-4 py-2 text-right font-semibold" style={{ color: '#10b981' }}>{t.distinct_prs.size}</td>
-                  <td className="px-4 py-2 text-slate-500">{new Date(t.last_retried_at).toLocaleString()}</td>
-                </tr>
-                {expanded.has(t.job_name) && (
-                  <InstanceRows instances={t.instances} batchBaseUrl={batchBaseUrl} />
-                )}
-              </Fragment>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {hasMore && (
-        <p className="mt-3 text-sm text-amber-600">
-          Results truncated — showing most recent 500 retries only. Aggregations may be incomplete.
-        </p>
-      )}
+      <LeaderboardTable
+        tests={tests}
+        maxCount={maxCount}
+        expanded={expanded}
+        toggleExpanded={toggleExpanded}
+        batchBaseUrl={batchBaseUrl}
+        hasMore={hasMore}
+      />
     </div>
   );
 }
