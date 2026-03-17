@@ -9,18 +9,21 @@ object CFG {
     val pred = Array.fill(nBlocks)(mutable.Set[Int]())
     val succ = Array.fill(nBlocks)(mutable.Set[Int]())
 
-    for (i <- blocks.indices) {
+    val N = blocks.length
+    var i = 0
+    while (i < N) {
+      val x = blocks(i).last.asInstanceOf[ControlX]
 
-      def edgeTo(L: Block): Unit = {
-        val j = blocks.index(L)
-
+      val T = x.targetArity()
+      var t = 0
+      while (t < T) {
+        val j = blocks.index(x.target(t))
         succ(i) += j
         pred(j) += i
+        t += 1
       }
 
-      val x = blocks(i).last.asInstanceOf[ControlX]
-      for (i <- x.targetIndices)
-        edgeTo(x.target(i))
+      i += 1
     }
 
     new CFG(blocks.index(m.entry), pred, succ)
