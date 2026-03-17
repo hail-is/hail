@@ -124,28 +124,14 @@ You don't need a deployed environment to work on a React page. The dev-proxy (`d
 
 For pages that have mock data handlers in the dev-proxy, set `MOCK_API_DATA=1`. For example, to work on the CI flaky tests dashboard:
 
-1. Build the JS bundle once (or after any change to `.tsx` files):
-   ```bash
-   make ci/ci/static/compiled-js/flaky_tests.js
-   ```
-2. Start the dev-proxy with mock API responses:
-   ```bash
-   SERVICE=ci MOCK_API_DATA=1 make run-dev-proxy
-   ```
-3. Open the page in the browser (e.g. `http://localhost:8080/flaky_tests`).
+```bash
+MOCK_API_DATA=1 SERVICE=ci make devserver
+```
+
+This single command installs npm deps if needed, starts esbuild in watch mode (recompiling `.tsx` on every save), and runs the dev-proxy — all in parallel. Open (eg) `http://localhost:8000/flaky_tests` in the browser. Changes to `.tsx` files are picked up automatically.
 
 `MOCK_API_DATA=1` activates hardcoded fixture data in the proxy, so the page renders fully without touching any real database or deployed cluster. When adding a new page, add a corresponding mock handler to `devbin/dev_proxy.py`.
 
 ### Against a real deployed service
 
 Omit `MOCK_API_DATA` and make sure you have valid Hail credentials configured. The proxy will forward API requests to the service at whatever namespace your deploy config points to.
-
-### Iterating on the React code
-
-The Makefile target is a file target, so `make` will only rebuild when sources change. For a tighter loop, run esbuild in watch mode directly:
-
-```bash
-cd services/ui && npx esbuild src/<service>/<page>.tsx --bundle --jsx=automatic --format=esm --outdir=dist/<service> --watch
-```
-
-Then in a separate terminal run the dev-proxy as above. Reload the browser after each rebuild.
