@@ -265,8 +265,12 @@ endif
 run-dev-proxy:
 	SERVICE=$(SERVICE) adev runserver --root . --static web_common/web_common/static devbin/dev_proxy.py
 
+services/ui/node_modules: services/ui/package.json services/ui/package-lock.json
+	npm install --prefix services/ui
+	@touch services/ui/node_modules
+
 .PHONY: ui-js-watch
-ui-js-watch:
+ui-js-watch: services/ui/node_modules
 	cd services/ui && npx esbuild src/ci/flaky_tests.tsx --bundle --jsx=automatic --format=esm --outfile=../../ci/ci/static/compiled-js/flaky_tests.js --minify --watch=forever
 
 .PHONY: check-devserver-deps
