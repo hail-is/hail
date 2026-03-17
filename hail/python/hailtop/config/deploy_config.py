@@ -18,13 +18,6 @@ def env_var_or_default(name: str, default: T) -> Union[str, T]:
 
 
 class DeployConfig:
-    @staticmethod
-    def _namespace_domain_and_base_path(domain: str, namespace: str) -> tuple:
-        base_domain = domain.removeprefix('internal.')
-        if namespace == 'default':
-            return base_domain, None
-        return f'internal.{base_domain}', f'/{namespace}'
-
     @classmethod
     def from_config(cls, config: Dict[str, str]) -> 'DeployConfig':
         location = env_var_or_default('location', config['location'])
@@ -32,7 +25,8 @@ class DeployConfig:
         ns = env_var_or_default('default_namespace', config['default_namespace'])
         base_path = env_var_or_default('base_path', config.get('base_path')) or None
         if base_path is None and ns != 'default':
-            domain, base_path = cls._namespace_domain_and_base_path(config['domain'], ns)
+            domain = f'internal.{config["domain"]}'
+            base_path = f'/{ns}'
 
         return cls(location, ns, domain, base_path)
 
@@ -74,8 +68,10 @@ class DeployConfig:
         self._base_path = base_path
 
     def with_default_namespace(self, default_namespace: str) -> 'DeployConfig':
-        domain, base_path = self._namespace_domain_and_base_path(self._domain, default_namespace)
-        return DeployConfig(self._location, default_namespace, domain, base_path)
+        base_domain = self._domain.removeprefix('internal.')
+        if default_namespace == 'default':
+            return DeployConfig(self._location, default_namespace, base_domain, None)
+        return DeployConfig(self._location, default_namespace, f'internal.{base_domain}', f'/{default_namespace}')
 
     def with_location(self, location):
         return DeployConfig(location, self._default_namespace, self._domain, self._base_path)
