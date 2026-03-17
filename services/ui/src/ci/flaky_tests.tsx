@@ -103,8 +103,6 @@ function RetryCharts({ tests, days }: { tests: AggregatedTest[]; days: number })
   const [barMetric, setBarMetric] = useState<'retries' | 'batches' | 'prs'>('batches');
   const barColor = barMetric === 'retries' ? '#a855f7' : barMetric === 'batches' ? '#0ea5e9' : '#10b981';
 
-  const total = tests.reduce((s, t) => s + t.retry_count, 0);
-
   const instances = tests.flatMap((t) => t.instances);
 
   const stateCounts = instances.reduce<Record<string, number>>((acc, r) => {
@@ -125,29 +123,25 @@ function RetryCharts({ tests, days }: { tests: AggregatedTest[]; days: number })
   function localDateKey(d: Date): string {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
-  const dayRetryCounts = instances.reduce<Record<string, number>>((acc, r) => {
+  const dayRetryCounts = new Map<string, number>();
+  const dayBatchSets = new Map<string, Set<number>>();
+  const dayPrSets = new Map<string, Set<number>>();
+  for (const r of instances) {
     const day = localDateKey(new Date(r.retried_at));
-    acc[day] = (acc[day] ?? 0) + 1;
-    return acc;
-  }, {});
-  const dayBatchSets = instances.reduce<Record<string, Set<number>>>((acc, r) => {
-    const day = localDateKey(new Date(r.retried_at));
-    (acc[day] ??= new Set()).add(r.batch_id);
-    return acc;
-  }, {});
-  const dayPrSets = instances.reduce<Record<string, Set<number>>>((acc, r) => {
-    const day = localDateKey(new Date(r.retried_at));
-    (acc[day] ??= new Set()).add(r.pr_number);
-    return acc;
-  }, {});
+    dayRetryCounts.set(day, (dayRetryCounts.get(day) ?? 0) + 1);
+    const bs = dayBatchSets.get(day);
+    if (bs) bs.add(r.batch_id); else dayBatchSets.set(day, new Set([r.batch_id]));
+    const ps = dayPrSets.get(day);
+    if (ps) ps.add(r.pr_number); else dayPrSets.set(day, new Set([r.pr_number]));
+  }
   const barData = Array.from({ length: days }, (_, i) => {
     const d = new Date(Date.now() - (days - 1 - i) * 24 * 60 * 60 * 1000);
     const key = localDateKey(d);
     return {
       date: `${d.getMonth() + 1}/${d.getDate()}`,
-      retries: dayRetryCounts[key] ?? 0,
-      batches: dayBatchSets[key]?.size ?? 0,
-      prs: dayPrSets[key]?.size ?? 0,
+      retries: dayRetryCounts.get(key) ?? 0,
+      batches: dayBatchSets.get(key)?.size ?? 0,
+      prs: dayPrSets.get(key)?.size ?? 0,
     };
   });
 
@@ -190,7 +184,7 @@ function RetryCharts({ tests, days }: { tests: AggregatedTest[]; days: number })
               <button
                 key={m}
                 type="button"
-                onClick={() => setBarMetric(m)}
+                onClick={() => { setBarMetric(m); }}
                 className={`px-2 py-0.5 ${m === barMetric ? 'text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
                 style={m === barMetric ? { backgroundColor: barColor } : undefined}
               >
@@ -251,7 +245,7 @@ function InstanceRows({ instances, batchBaseUrl }: { instances: RetriedTest[]; b
 
 const DAY_OPTIONS = [7, 14, 30, 90] as const;
 
-function DaysSelector({ days, onChange }: { days: number; onChange: (d: number) => void }) {
+function DaysSelector({ days, onChange }: { days: number; onChange: (newDays: number) => void }) {
   return (
     <div className="flex items-center gap-1.5">
       <span className="text-sm text-slate-500">History:</span>
@@ -260,7 +254,7 @@ function DaysSelector({ days, onChange }: { days: number; onChange: (d: number) 
           <button
             key={d}
             type="button"
-            onClick={() => onChange(d)}
+            onClick={() => { onChange(d); }}
             className={`px-2.5 py-0.5 ${d === days ? 'bg-sky-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
           >
             {d}d
@@ -297,8 +291,8 @@ function FlakyTests({ basePath, batchBaseUrl }: { basePath: string; batchBaseUrl
         setHasMore(data.has_more);
         hasLoadedRef.current = true;
       })
-      .catch((e: Error) => setError(e.message))
-      .finally(() => setLoading(false));
+      .catch((e: unknown) => { setError(e instanceof Error ? e.message : String(e)); })
+      .finally(() => { setLoading(false); });
   }, [basePath, days]);
 
   const tests = aggregate(rawRows, groupByFamily);
@@ -399,7 +393,7 @@ function FlakyTests({ basePath, batchBaseUrl }: { basePath: string; batchBaseUrl
               <Fragment key={t.job_name}>
                 <tr
                   className="hover:bg-sky-50 cursor-pointer select-none"
-                  onClick={() => toggleExpanded(t.job_name)}
+                  onClick={() => { toggleExpanded(t.job_name); }}
                 >
                   <td className="px-4 py-2 text-slate-400">{i + 1}</td>
                   <td className="px-4 py-2 font-mono" style={{ background: `linear-gradient(to right, ${retryHeatColor(t.retry_count / maxCount)} ${(t.retry_count / maxCount) * 100}%, transparent ${(t.retry_count / maxCount) * 100}%)` }}>
