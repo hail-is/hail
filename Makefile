@@ -274,6 +274,11 @@ ui-js-watch: services/ui/node_modules/.package-lock.json
 
 .PHONY: check-devserver-deps
 check-devserver-deps:
+	@if ! command -v adev > /dev/null 2>&1; then \
+		echo 'error: adev not found (aiohttp-devtools is not on PATH)' >&2; \
+		echo 'fix: run "make install-dev-requirements" (and/or "source .venv/bin/activate" if using a venv)' >&2; \
+		exit 1; \
+	fi
 	@SERVICE=$(SERVICE) python3 -c "\
 import importlib.metadata as m, sys, os; \
 svc = os.environ.get('SERVICE', ''); \
