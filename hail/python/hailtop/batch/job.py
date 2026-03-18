@@ -81,6 +81,7 @@ class Job:
         self._storage: Optional[str] = None
         self._image: Optional[str] = None
         self._always_run: bool = False
+        self._apt_rewrite: bool = True
         self._n_max_attempts: int = 20
         self._preemptible: Optional[bool] = None
         self._machine_type: Optional[str] = None
@@ -321,6 +322,30 @@ class Job:
         """
 
         self._cpu = opt_str(cores)
+        return self
+
+    def apt_rewrite(self, apt_rewrite: bool = True) -> Self:
+        """
+        Control whether apt sources are rewritten to use the regional GCE Ubuntu mirror.
+
+        On GCP, Hail Batch rewrites ``/etc/apt/sources.list`` to use the regional GCE Ubuntu
+        mirror (e.g. ``us-central1.gce.archive.ubuntu.com``) instead of the default Canonical
+        mirror. This reduces CloudNAT egress costs and improves apt-get performance. The rewrite
+        is visible in the Command section of the Batch UI.
+
+        Set to ``False`` if your job requires the canonical Canonical mirror specifically,
+        e.g. to access a package version not yet synced to the GCE mirror.
+
+        Parameters
+        ----------
+        apt_rewrite:
+            If True (default), rewrite apt sources to the regional GCE mirror on GCP.
+
+        Returns
+        -------
+        Same job object.
+        """
+        self._apt_rewrite = apt_rewrite
         return self
 
     def always_run(self, always_run: bool = True) -> Self:

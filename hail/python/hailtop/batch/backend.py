@@ -894,6 +894,7 @@ class ServiceBackend(Backend[bc.Batch]):
                 user_code=user_code,
                 regions=job._regions,
                 always_copy_output=job._always_copy_output,
+                apt_rewrite=job._apt_rewrite,
             )
 
             n_jobs_submitted += 1

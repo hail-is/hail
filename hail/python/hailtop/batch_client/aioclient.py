@@ -818,6 +818,7 @@ class Batch:
         unconfined: bool = False,
         user_code: Optional[str] = None,
         regions: Optional[List[str]] = None,
+        apt_rewrite: bool = True,
     ) -> Job:
         self._in_update_job_id += 1
 
@@ -908,6 +909,8 @@ class Batch:
             job_spec['user_code'] = user_code
         if regions:
             job_spec['regions'] = regions
+        if not apt_rewrite:
+            job_spec['apt_rewrite'] = False
 
         self._job_specs.append(job_spec)
 
