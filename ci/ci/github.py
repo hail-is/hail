@@ -625,34 +625,25 @@ mkdir -p {shq(repo_dir)}
             f'test=1 target_branch={self.target_branch.branch.short_str()} source_sha={self.source_sha} user:ci'
         )
 
-        # First pass: split into invalidated vs candidates, tracking the highest
-        # invalidated batch ID as a threshold. Any candidate older than the most
-        # recently-invalidated batch cannot be the result of a retry and should
-        # not be resurrected as the "current" build.
-        max_invalidated_id = None
-        candidates = []
-        async for b in batches:
-            if await self.is_invalidated_batch(b, db):
-                if max_invalidated_id is None or b.id > max_invalidated_id:
-                    max_invalidated_id = b.id
-            else:
-                candidates.append(b)
-
-        if max_invalidated_id is not None:
-            candidates = [b for b in candidates if b.id > max_invalidated_id]
-
+        # The batch service returns batches in descending ID order (newest first).
+        # Walk newest-first with two short-circuits:
+        #   - First invalidated batch → all remaining have lower IDs → excluded (retry fence)
+        #   - First non-cancelled, non-invalidated batch → that's the winner
+        # This prevents older successful batches from being resurrected after a retry.
         min_batch = None
         min_batch_status = None
-        for b in candidates:
+        async for b in batches:
+            if await self.is_invalidated_batch(b, db):
+                break
             try:
                 s = await b.status()
             except Exception:
                 log.exception(f'failed to get the status for batch {b.id}')
                 raise
             if s['state'] != 'cancelled':
-                if min_batch is None or b.id > min_batch.id:
-                    min_batch = b
-                    min_batch_status = s
+                min_batch = b
+                min_batch_status = s
+                break
         self.batch = min_batch
         self.source_sha_failed = None
 
