@@ -4,7 +4,7 @@ FROM $BASE_IMAGE
 RUN hail-apt-get-install git
 
 RUN curl -sLO https://github.com/tailwindlabs/tailwindcss/releases/download/v3.4.3/tailwindcss-linux-x64 && \
-    echo "3cea66f5fd87986538701a551c7342c29a0ae3e3139eed57c5bd9151f66dab96  tailwindcss-linux-x64" | sha256sum -c && \
+    echo "3cea66f5fd87986538701a551c7342c29a0ae3e3139eed57c5bd9151f66dab96  tailwindcss-linux-x64" | sha256sum --status -c && \
     chmod +x tailwindcss-linux-x64 && \
     mv tailwindcss-linux-x64 /usr/bin/tailwindcss
 
