@@ -20,14 +20,15 @@ class FastaSequenceIndex private (val path: String)
 
   @transient var asJava: htsjdk.samtools.reference.FastaSequenceIndex = _
 
-  def restore(fs: FS): Unit = {
-    if (!fs.isFile(path))
-      fatal(
-        s"FASTA index file '$path' does not exist, is not a file, or you do not have access."
-      )
+  def restore(fs: FS): Unit =
+    if (asJava == null) {
+      if (!fs.isFile(path))
+        fatal(
+          s"FASTA index file '$path' does not exist, is not a file, or you do not have access."
+        )
 
-    using(fs.open(path))(is => asJava = new htsjdk.samtools.reference.FastaSequenceIndex(is))
-  }
+      using(fs.open(path))(is => asJava = new htsjdk.samtools.reference.FastaSequenceIndex(is))
+    }
 
   override def iterator: Iterator[FastaSequenceIndexEntry] =
     asJava.asScala.iterator

@@ -70,12 +70,13 @@ class LiftOver private (chainFile: String) extends Serializable {
       destContigs.asScala.foreach(destRG.checkContig)
     }
 
-  def restore(fs: FS): Unit = {
-    if (!fs.isFile(chainFile))
-      fatal(s"Chain file '$chainFile' does not exist, is not a file, or you do not have access.")
+  def restore(fs: FS): Unit =
+    if (asJava == null) {
+      if (!fs.isFile(chainFile))
+        fatal(s"Chain file '$chainFile' does not exist, is not a file, or you do not have access.")
 
-    using(fs.open(chainFile)) { is =>
-      asJava = new htsjdk.samtools.liftover.LiftOver(is, chainFile)
+      using(fs.open(chainFile)) { is =>
+        asJava = new htsjdk.samtools.liftover.LiftOver(is, chainFile)
+      }
     }
-  }
 }
