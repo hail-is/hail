@@ -630,8 +630,8 @@ mkdir -p {shq(repo_dir)}
         #   - First invalidated batch → all remaining have lower IDs → excluded (retry fence)
         #   - First non-cancelled, non-invalidated batch → that's the winner
         # This prevents older successful batches from being resurrected after a retry.
-        min_batch = None
-        min_batch_status = None
+        latest_batch = None
+        latest_batch_status = None
         async for b in batches:
             if await self.is_invalidated_batch(b, db):
                 break
@@ -641,16 +641,16 @@ mkdir -p {shq(repo_dir)}
                 log.exception(f'failed to get the status for batch {b.id}')
                 raise
             if s['state'] != 'cancelled':
-                min_batch = b
-                min_batch_status = s
+                latest_batch = b
+                latest_batch_status = s
                 break
-        self.batch = min_batch
+        self.batch = latest_batch
         self.source_sha_failed = None
 
-        if min_batch_status is None:
+        if latest_batch_status is None:
             self.set_build_state(None)
-        elif min_batch_status['complete']:
-            if min_batch_status['state'] == 'success':
+        elif latest_batch_status['complete']:
+            if latest_batch_status['state'] == 'success':
                 self.set_build_state('success')
                 self.source_sha_failed = False
             else:
