@@ -90,7 +90,8 @@ class BatchClientSuite extends TestNGSuite {
     )
     val result = client.waitForJobGroup(batchId, jobGroupId)
     assert(result.state == Failure)
-    assert(result.n_cancelled == 1)
+    assert(result.n_jobs == 2)
+    assert(result.n_failed == 1)
   }
 
   @Test
