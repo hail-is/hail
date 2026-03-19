@@ -16,7 +16,7 @@ aiohttp==3.13.3
     #   -c batch/../hail/python/pinned-requirements.txt
     #   -c batch/../web_common/pinned-requirements.txt
     #   aiodocker
-aiorwlock==1.5.0
+aiorwlock==1.5.1
     # via -r batch/requirements.txt
 aiosignal==1.4.0
     # via
@@ -98,7 +98,7 @@ python-dateutil==2.9.0.post0
     #   -c batch/../hail/python/dev/pinned-requirements.txt
     #   -c batch/../hail/python/pinned-requirements.txt
     #   pandas
-pytz==2025.2
+pytz==2026.1.post1
     # via
     #   -c batch/../hail/python/pinned-requirements.txt
     #   pandas
@@ -125,7 +125,7 @@ tzdata==2025.3
     #   -c batch/../hail/python/dev/pinned-requirements.txt
     #   -c batch/../hail/python/pinned-requirements.txt
     #   pandas
-yarl==1.22.0
+yarl==1.23.0
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   -c batch/../hail/python/dev/pinned-requirements.txt
