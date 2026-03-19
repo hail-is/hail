@@ -2,6 +2,7 @@ package is.hail.types.physical.stypes.interfaces
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitValue, IEmitCode}
 import is.hail.types.{RStruct, RTuple, TypeWithRequiredness}
@@ -102,7 +103,7 @@ trait SBaseStructValue extends SValue {
   def toStackStruct(cb: EmitCodeBuilder): SStackStructValue =
     new SStackStructValue(
       SStackStruct(st.virtualType, st.fieldEmitTypes),
-      Array.tabulate(st.size)(i => cb.memoize(loadField(cb, i))),
+      ArraySeq.tabulate(st.size)(i => cb.memoize(loadField(cb, i))),
     )
 
   def _insert(newType: TStruct, fields: (String, EmitValue)*): SBaseStructValue =
@@ -110,10 +111,10 @@ trait SBaseStructValue extends SValue {
       SInsertFieldsStruct(
         newType,
         st,
-        fields.map { case (name, ec) => (name, ec.emitType) }.toFastSeq,
+        fields.toFastSeq.map { case (name, ec) => (name, ec.emitType) },
       ),
       this,
-      fields.map(_._2).toFastSeq,
+      fields.toFastSeq.map(_._2),
     )
 
   def insert(

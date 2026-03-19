@@ -7,14 +7,14 @@ import scala.collection.mutable.WrappedArray
 import scala.reflect.ClassTag
 
 package compat {
-  class ArrayOps[A](val a: WrappedArray[A]) extends AnyVal {
-    def sortInPlace()(implicit at: ClassTag[A], ord: Ordering[A]): WrappedArray[A] = {
+  class ArrayOps[A: ClassTag](val a: WrappedArray[A]) {
+    def sortInPlace()(implicit ord: Ordering[A]): WrappedArray[A] = {
       scala.util.Sorting.stableSort(a.array)
       a
     }
 
-    def sortInPlaceBy[B](f: A => B)(implicit at: ClassTag[A], ord: Ordering[B]): WrappedArray[A] =
-      sortInPlace()(at, ord = ord on f)
+    def sortInPlaceBy[B](f: A => B)(implicit ord: Ordering[B]): WrappedArray[A] =
+      sortInPlace()(ord = ord on f)
   }
 }
 

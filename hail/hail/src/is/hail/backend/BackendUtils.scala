@@ -2,6 +2,7 @@ package is.hail.backend
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIndexedSeq
 import is.hail.expr.ir.Compiled
 import is.hail.expr.ir.analyses.SemanticHash
@@ -25,7 +26,8 @@ class BackendUtils(mods: Array[(String, Compiled[BackendUtils.F])]) extends Logg
     stageName: String,
     tsd: Option[TableStageDependency],
   ): Array[Array[Byte]] = {
-    val (failureOpt, results) = runCDA(ctx, globals, contexts, None, modID, stageName, tsd)
+    val (failureOpt, results) =
+      runCDA(ctx, globals, ArraySeq.unsafeWrapArray(contexts), None, modID, stageName, tsd)
     failureOpt.foreach(throw _)
     Array.tabulate[Array[Byte]](results.length)(results(_)._1)
   }
@@ -51,10 +53,18 @@ class BackendUtils(mods: Array[(String, Compiled[BackendUtils.F])]) extends Logg
     val (failureOpt, successes) =
       todo match {
         case Seq() =>
-          (None, IndexedSeq.empty)
+          (None, ArraySeq.empty)
 
         case partitions =>
-          runCDA(ctx, globals, contexts, Some(partitions), modID, stageName, tsd)
+          runCDA(
+            ctx,
+            globals,
+            ArraySeq.unsafeWrapArray(contexts),
+            Some(partitions),
+            modID,
+            stageName,
+            tsd,
+          )
       }
 
     val results = merge[(Array[Byte], Int)](cachedResults, successes, _._2 < _._2)
@@ -69,7 +79,7 @@ class BackendUtils(mods: Array[(String, Compiled[BackendUtils.F])]) extends Logg
   private[this] def runCDA(
     rtx: DriverRuntimeContext,
     globals: Array[Byte],
-    contexts: Array[Array[Byte]],
+    contexts: IndexedSeq[Array[Byte]],
     partitions: Option[IndexedSeq[Int]],
     modID: String,
     stageName: String,

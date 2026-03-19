@@ -1,5 +1,7 @@
 package is.hail.sparkextras
 
+import is.hail.collection.compat.immutable.ArraySeq
+
 import scala.reflect.ClassTag
 
 import org.apache.spark.{OneToOneDependency, Partition, SparkContext, TaskContext}
@@ -9,7 +11,7 @@ object MultiWayZipPartitionsRDD {
   def apply[T: ClassTag, V: ClassTag](
     rdds: IndexedSeq[RDD[T]]
   )(
-    f: (Array[Iterator[T]]) => Iterator[V]
+    f: (IndexedSeq[Iterator[T]]) => Iterator[V]
   ): MultiWayZipPartitionsRDD[T, V] =
     new MultiWayZipPartitionsRDD(rdds.head.sparkContext, rdds, f)
 }
@@ -20,7 +22,7 @@ private case class MultiWayZipPartition(val index: Int, val partitions: IndexedS
 class MultiWayZipPartitionsRDD[T: ClassTag, V: ClassTag](
   sc: SparkContext,
   var rdds: IndexedSeq[RDD[T]],
-  var f: (Array[Iterator[T]]) => Iterator[V],
+  var f: (IndexedSeq[Iterator[T]]) => Iterator[V],
 ) extends RDD[V](sc, rdds.map(x => new OneToOneDependency(x))) {
   require(rdds.length > 0)
   private val numParts = rdds(0).partitions.length
@@ -35,7 +37,7 @@ class MultiWayZipPartitionsRDD[T: ClassTag, V: ClassTag](
 
   override def compute(s: Partition, tc: TaskContext) = {
     val partitions = s.asInstanceOf[MultiWayZipPartition].partitions
-    val arr = Array.tabulate(rdds.length)(i => rdds(i).iterator(partitions(i), tc))
+    val arr = ArraySeq.tabulate(rdds.length)(i => rdds(i).iterator(partitions(i), tc))
     f(arr)
   }
 

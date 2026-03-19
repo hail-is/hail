@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.HailSuite
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.Nat
 import is.hail.expr.ir.defs._
 import is.hail.types.virtual._
@@ -147,7 +148,7 @@ class ForwardLetsSuite extends HailSuite {
   def testForwardingOps(ir: IR): Unit = {
     val after = ForwardLets(ctx, ir)
     assert(!after.isInstanceOf[Block])
-    assertEvalSame(ir, args = Array(5 -> TInt32))
+    assertEvalSame(ir, args = ArraySeq(5 -> TInt32))
   }
 
   @Test(dataProvider = "forwardingAggOps")

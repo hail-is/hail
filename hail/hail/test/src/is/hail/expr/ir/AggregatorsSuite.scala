@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.{ExecStrategy, HailSuite}
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.collection.FastSeq
-import is.hail.collection.implicits.toRichIterable
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.DeprecatedIRBuilder._
 import is.hail.expr.ir.defs.{
   AggFilter, AggGroupBy, ApplyAggOp, ApplyBinaryPrimOp, ArrayRef, Cast, GetField, I32, InsertFields,
@@ -1259,7 +1259,7 @@ class AggregatorsSuite extends HailSuite {
     assertEvalsTo(getAgg(10, 10, Some(1)), FastSeq(0L))
     assertEvalsTo(
       getAgg(10, 10, Some(GetField(Ref(TableIR.globalName, TStruct("m" -> TInt32)), "m"))),
-      Array.fill(10)(0L).toFastSeq,
+      ArraySeq.fill(10)(0L),
     )
   }
 
