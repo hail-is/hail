@@ -47,6 +47,7 @@ if SERVICE == 'ci':
         async def retried_tests_mock(request: web.Request):
             import random
             from datetime import datetime, timedelta, timezone
+            from dateutil.parser import isoparse
             now = datetime.now(timezone.utc)
             rng = random.Random(42)
 
@@ -120,10 +121,10 @@ if SERVICE == 'ci':
             rows = [{'id': i + 1, **r} for i, r in enumerate(retries)]
             after_str = request.rel_url.query.get('after')
             if after_str is not None:
-                after_dt = datetime.fromisoformat(after_str.replace('Z', '+00:00'))
+                after_dt = isoparse(after_str)
             else:
                 after_dt = datetime.now(timezone.utc) - timedelta(days=14)
-            rows = [r for r in rows if datetime.fromisoformat(r['retried_at']) >= after_dt]
+            rows = [r for r in rows if isoparse(r['retried_at']) >= after_dt]
             return web.json_response({'rows': rows, 'cursor': None, 'has_more': False})
 
 

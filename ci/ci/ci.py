@@ -6,7 +6,7 @@ import os
 import traceback
 from collections import defaultdict
 from contextlib import AsyncExitStack
-from datetime import datetime, timezone
+from datetime import timezone
 from typing import Any, Callable, Dict, List, NoReturn, Optional, Set, Tuple, TypedDict
 
 import aiohttp_session  # type: ignore
@@ -16,6 +16,7 @@ import kubernetes_asyncio.client
 import kubernetes_asyncio.config
 import yaml
 from aiohttp import ClientError, web
+from dateutil.parser import isoparse
 from gidgethub import aiohttp as gh_aiohttp
 from gidgethub import routing as gh_routing
 from gidgethub import sansio as gh_sansio
@@ -878,9 +879,8 @@ async def api_retried_tests(request: web.Request, _) -> web.Response:
     args: list = []
 
     if after is not None:
-        after_str = after.replace('Z', '+00:00')
         try:
-            after_dt = datetime.fromisoformat(after_str)
+            after_dt = isoparse(after)
         except ValueError as exc:
             raise web.HTTPBadRequest(
                 text='after must be an ISO 8601 timestamp with timezone (e.g. 2026-02-24T00:00:00Z)'
