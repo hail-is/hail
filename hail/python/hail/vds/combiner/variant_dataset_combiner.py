@@ -816,7 +816,6 @@ def new_combiner(
             for name in vds.reference_data.entry
             if name not in ('LEN', 'gvcf_filters')
         )
-        vds_has_filters = 'gvcf_filters' in vds.reference_data.entry
         if gvcf_reference_entry_fields_to_keep is not None and vds_ref_entry != gvcf_reference_entry_fields_to_keep:
             warning(
                 "Mismatch between 'gvcf_reference_entry_fields' to keep and VDS reference data "
@@ -824,12 +823,15 @@ def new_combiner(
                 f"    VDS reference entry fields      : {sorted(vds_ref_entry)}\n"
                 f"    requested reference entry fields: {sorted(gvcf_reference_entry_fields_to_keep)}"
             )
+
+        vds_has_filters = 'gvcf_filters' in vds.reference_data.entry
         if vds_has_filters != gvcf_save_filters:
-            warning(
-                "mismatch between 'save_filters', and VDS data. Overwriting with VDS reference data "
-                f"({'keeping filters' if vds_has_filters else 'discarding filters'})."
+            raise ValueError(
+                "Mismatch between 'gvcf_save_filters', and VDS data, "
+                + "filters are present in VDS when gvcf FILTER would be discarded."
+                if vds_has_filters
+                else "filters are absent in VDS when gvcf FILTER would be saved."
             )
-            gvcf_save_filters = vds_has_filters
 
         gvcf_reference_entry_fields_to_keep = vds_ref_entry
 
