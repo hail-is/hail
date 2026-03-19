@@ -266,7 +266,7 @@ run-dev-proxy:
 	SERVICE=$(SERVICE) adev runserver --root . --static web_common/web_common/static devbin/dev_proxy.py
 
 services/ui/node_modules/.package-lock.json: services/ui/package.json services/ui/package-lock.json
-	npm install --prefix services/ui
+	npm ci --prefix services/ui
 
 .PHONY: ui-js-watch
 ui-js-watch: services/ui/node_modules/.package-lock.json
