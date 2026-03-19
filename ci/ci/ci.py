@@ -883,10 +883,12 @@ async def api_retried_tests(request: web.Request, _) -> web.Response:
             after_dt = isoparse(after)
         except ValueError as exc:
             raise web.HTTPBadRequest(
-                text='after must be an ISO 8601 timestamp with timezone (e.g. 2026-02-24T00:00:00Z)'
+                text=f'invalid value for after: {after!r} (expected ISO 8601 timestamp with timezone, e.g. 2026-02-24T00:00:00Z)'
             ) from exc
         if after_dt.tzinfo is None:
-            raise web.HTTPBadRequest(text='after must include timezone info (e.g. 2026-02-24T00:00:00Z)')
+            raise web.HTTPBadRequest(
+                text=f'invalid value for after: {after!r} (must include timezone info, e.g. 2026-02-24T00:00:00Z)'
+            )
         after_utc = after_dt.astimezone(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
         conditions.append('retried_at >= %s')
         args.append(after_utc)
