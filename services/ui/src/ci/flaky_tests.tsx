@@ -238,12 +238,12 @@ function LeaderboardTable({ tests, maxCount, expanded, toggleExpanded, batchBase
           <tbody className="divide-y divide-slate-100">
             {tests.map((t, i) => (
               <Fragment key={t.job_name}>
-                <tr className="hover:bg-sky-50 select-none">
+                <tr className="relative hover:bg-sky-50 select-none">
                   <td className="px-4 py-2 text-slate-400">{i + 1}</td>
                   <td className="px-4 py-2 font-mono" style={{ background: `linear-gradient(to right, ${retryHeatColor(t.retry_count / maxCount)} ${(t.retry_count / maxCount) * 100}%, transparent ${(t.retry_count / maxCount) * 100}%)` }}>
                     <button
                       type="button"
-                      className="inline-flex items-center gap-1 cursor-pointer bg-transparent border-none p-0 focus:outline-none focus-visible:underline"
+                      className="inline-flex items-center gap-1 cursor-pointer bg-transparent border-none p-0 focus:outline-none focus-visible:underline after:absolute after:inset-0"
                       aria-expanded={expanded.has(t.job_name)}
                       onClick={() => { toggleExpanded(t.job_name); }}
                     >
