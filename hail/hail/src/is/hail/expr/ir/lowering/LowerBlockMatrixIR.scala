@@ -1423,7 +1423,7 @@ object LowerBlockMatrixIR {
         val colSlices = colDependents.zipWithIndex.map { case (dep, i) =>
           val blockAlignedColStartIdx = dep.head.toLong * x.typ.blockSize
           val blockAlignedColEndIdx =
-            math.min(child.typ.nCols, (dep.last + 1L) * x.typ.blockSize * rStep)
+            math.min(child.typ.nCols, (dep.last + 1L) * x.typ.blockSize * cStep)
           val cStartPlusSeenAlready = cStart + i * x.typ.blockSize * cStep
           val colTrueStart = cStartPlusSeenAlready - blockAlignedColStartIdx
           val colTrueEnd = math.min(
