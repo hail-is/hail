@@ -5,6 +5,7 @@ import is.hail.utils.fatal
 
 import scala.collection.mutable
 import scala.reflect.ClassTag
+
 import java.lang.Math.signum
 
 class BinaryHeap[T: ClassTag](minimumCapacity: Int = 32, maybeTieBreaker: (T, T) => Double = null) {

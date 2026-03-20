@@ -3,11 +3,11 @@ package is.hail.collection.implicits
 import is.hail.collection.compat._
 import is.hail.collection.compat.immutable.ArraySeq
 
+import scala.collection.compat.IterableOnce
 import scala.collection.mutable
 import scala.reflect.ClassTag
-import org.typelevel.scalaccompat.annotation.nowarn213
 
-import scala.collection.compat.IterableOnce
+import org.typelevel.scalaccompat.annotation.nowarn213
 
 object RichArraySeqCompanion {
   @nowarn213("msg=method toArray in class IterableOnceExtensionMethods is deprecated")
@@ -31,7 +31,7 @@ object RichArraySeqCompanion {
 
   class SortedByBuilderFactory[A](val x: Unit) extends AnyVal {
     def apply[B](f: A => B)(implicit ct: ClassTag[A], ord: Ordering[B])
-    : mutable.Builder[A, ArraySeq[A]] =
+      : mutable.Builder[A, ArraySeq[A]] =
       Array.newBuilder[A].mapResult(a =>
         ArraySeq.unsafeWrapArray(a.sortInPlaceBy(f).array.asInstanceOf[Array[A]])
       )
