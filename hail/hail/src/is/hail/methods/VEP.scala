@@ -88,7 +88,7 @@ class VEP(private val params: VEPParameters, conf: VEPConfiguration)
 
     val csqPattern = "CSQ=[^;^\\t]+".r
     val annotations =
-      inRvd.mapPartitionsWithIndex { (_, partIdx, _, it) =>
+      inRvd.mapPartitionsWithIndex { (partIdx, _, _, it) =>
         val pb = new ProcessBuilder(cmd.toList.asJava)
         val env = pb.environment()
         for { (k, v) <- conf.env } env.put(k, v)
