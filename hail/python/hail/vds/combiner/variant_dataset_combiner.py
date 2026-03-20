@@ -175,7 +175,9 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         Genotype fields to keep in the reference table. If empty, the first 10,000 reference block
         rows of ``mt`` will be sampled and all fields found to be defined other than ``GT``, ``AD``,
         and ``PL`` will be entry fields in the resulting reference matrix in the dataset.
-
+    gvcf_save_filters : :class:`bool`
+        If true, the filters set will be preserved on both reference and variant data as the entry
+        field ``gvcf_filters``.
     """
 
     _default_gvcf_batch_size = 50
@@ -211,6 +213,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         '_gvcf_import_intervals',
         '_gvcf_info_to_keep',
         '_gvcf_reference_entry_fields_to_keep',
+        '_gvcf_save_filters',
         '_call_fields',
     ]
 
@@ -237,6 +240,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         gvcf_import_intervals: List[Interval],
         gvcf_info_to_keep: Optional[Collection[str]] = None,
         gvcf_reference_entry_fields_to_keep: Optional[Collection[str]] = None,
+        gvcf_save_filters: bool = False,
     ):
         if gvcf_import_intervals:
             interval = gvcf_import_intervals[0]
@@ -279,6 +283,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         self._gvcf_reference_entry_fields_to_keep = (
             set(gvcf_reference_entry_fields_to_keep) if gvcf_reference_entry_fields_to_keep is not None else None
         )
+        self._gvcf_save_filters = gvcf_save_filters
 
         self._uuid = uuid.uuid4()
         self._job_id = 1
@@ -568,6 +573,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
                             contig_recoding=self._contig_recoding,
                         ),
                         self._gvcf_reference_entry_fields_to_keep,
+                        self._gvcf_save_filters,
                     ),
                     ['locus'],
                     lambda k, v: k.annotate(data=v),
@@ -595,6 +601,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
                             contig_recoding=self._contig_recoding,
                         ),
                         self._gvcf_info_to_keep,
+                        self._gvcf_save_filters,
                     ),
                     ['locus'],
                     lambda k, v: k.annotate(data=v),
@@ -661,6 +668,7 @@ def new_combiner(
     gvcf_sample_names: Optional[List[str]] = None,
     gvcf_info_to_keep: Optional[Collection[str]] = None,
     gvcf_reference_entry_fields_to_keep: Optional[Collection[str]] = None,
+    gvcf_save_filters: bool = False,
     call_fields: Collection[str] = ['PGT'],
     branch_factor: int = VariantDatasetCombiner._default_branch_factor,
     target_records: int = VariantDatasetCombiner._default_target_records,
@@ -797,13 +805,16 @@ def new_combiner(
     # we need to compute the type that the combiner will have, this will allow us to read matrix
     # tables quickly, especially in an asynchronous environment like query on batch where typing
     # a read uses a blocking round trip.
+    # FIXME: read_vds doesn't actually do that yet. See PR #15002
     vds = None
     gvcf_type = None
     if vds_paths:
-        # sync up gvcf_reference_entry_fields_to_keep and they reference entry types from the VDS
+        # sync up gvcf_reference_entry_fields_to_keep and the reference entry types from the VDS
         vds = hl.vds.read_vds(vds_paths[0], _warn_no_ref_block_max_length=False, _drop_end=True)
         vds_ref_entry = set(
-            name[1:] if name in ('LGT', 'LPGT') else name for name in vds.reference_data.entry if name != 'LEN'
+            name[1:] if name in ('LGT', 'LPGT') else name
+            for name in vds.reference_data.entry
+            if name not in ('LEN', 'gvcf_filters')
         )
         if gvcf_reference_entry_fields_to_keep is not None and vds_ref_entry != gvcf_reference_entry_fields_to_keep:
             warning(
@@ -812,6 +823,16 @@ def new_combiner(
                 f"    VDS reference entry fields      : {sorted(vds_ref_entry)}\n"
                 f"    requested reference entry fields: {sorted(gvcf_reference_entry_fields_to_keep)}"
             )
+
+        vds_has_filters = 'gvcf_filters' in vds.reference_data.entry
+        if vds_has_filters != gvcf_save_filters:
+            raise ValueError(
+                "Mismatch between 'gvcf_save_filters', and VDS data, "
+                + "filters are present in VDS when gvcf FILTER would be discarded."
+                if vds_has_filters
+                else "filters are absent in VDS when gvcf FILTER would be saved."
+            )
+
         gvcf_reference_entry_fields_to_keep = vds_ref_entry
 
         # sync up call_fields and call fields present in the VDS
@@ -850,7 +871,10 @@ def new_combiner(
             info(f"Defined reference entry fields: {gvcf_reference_entry_fields_to_keep}")
         if vds is None:
             vds = transform_gvcf(
-                mt._key_rows_by_assert_sorted('locus'), gvcf_reference_entry_fields_to_keep, gvcf_info_to_keep
+                mt._key_rows_by_assert_sorted('locus'),
+                gvcf_reference_entry_fields_to_keep,
+                gvcf_info_to_keep,
+                gvcf_save_filters,
             )
 
     dataset_type = CombinerOutType(reference_type=vds.reference_data._type, variant_type=vds.variant_data._type)
@@ -878,6 +902,7 @@ def new_combiner(
         if gvcf_reference_entry_fields_to_keep is not None:
             for field in sorted(gvcf_reference_entry_fields_to_keep):
                 sha.update(field.encode())
+        sha.update(b'\1' if gvcf_save_filters else b'\0')
         for call_field in sorted(call_fields):
             sha.update(call_field.encode())
         if contig_recoding is not None:
@@ -928,6 +953,7 @@ def new_combiner(
         gvcf_sample_names=gvcf_sample_names,
         gvcf_info_to_keep=gvcf_info_to_keep,
         gvcf_reference_entry_fields_to_keep=gvcf_reference_entry_fields_to_keep,
+        gvcf_save_filters=gvcf_save_filters,
     )
     combiner._raise_if_output_exists()
     return combiner
