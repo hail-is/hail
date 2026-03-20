@@ -1,3 +1,7 @@
+---
+description: Work with Hail Batch — inspect status, logs, debug failures, write/improve scripts
+---
+
 You are helping a user work with Hail Batch — a job orchestration service for running analysis pipelines on cloud compute.
 
 ## What you can do
