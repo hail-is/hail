@@ -204,19 +204,27 @@ class SplitMethod(
     }
 
     val blocks = method.findBlocks()
-    for (b <- blocks) {
+
+    val N = blocks.length
+    var i = 0
+    while (i < N) {
+      val b = blocks(i)
+
       b.last match {
         case x: SwitchX =>
           var Lunreachable: Block = null
-          for (i <- x.targetIndices) {
-            if (x.target(i) == null) {
+          val T = x.targetArity()
+          var t = 0
+          while (t < T) {
+            if (x.target(t) == null) {
               if (Lunreachable == null) {
                 Lunreachable = new Block()
                 Lunreachable.method = method
                 Lunreachable.append(throwUnreachable())
               }
-              x.setTarget(i, Lunreachable)
+              x.setTarget(t, Lunreachable)
             }
+            t += 1
           }
         case _ =>
       }
@@ -227,6 +235,8 @@ class SplitMethod(
         spill(x)
         x = n
       }
+
+      i += 1
     }
   }
 
@@ -433,13 +443,14 @@ class SplitMethod(
         Lreturn.method = splitM
         Lreturn.append(returnx(load(lidx)))
         val newSwitch = switch(splitMReturnValue, x.Ldefault, x.Lcases)
-        for (i <- x.targetIndices) {
-          val L = x.target(i)
+        val T = x.targetArity()
+        var t = 0
+        while (t < T) {
+          val L = x.target(t)
           if (regionBlocks(L))
-            // null is replaced with throw new SplitUnreachable
-            newSwitch.setTarget(i, null)
-          else
-            x.setTarget(i, Lreturn)
+            newSwitch.setTarget(t, null) // null is replaced with throw new SplitUnreachable
+          else x.setTarget(t, Lreturn)
+          t += 1
         }
         newL.append(newSwitch)
       case _: ReturnX =>
