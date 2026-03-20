@@ -574,7 +574,15 @@ case class SparseContexts(
       val csc = sparsity.toCSC
       Row(sparsity.nRows, sparsity.nCols, csc.rowPos, csc.rowIdx)
     }
-    val blockNewToOld = blockSparsities.map(sparsity.newToOldPos)
+    val coordToPos = sparsity.definedCoords.zipWithIndex.toMap
+    val blockNewToOld = newSparsity.definedCoords.zip(blockSparsities).map {
+      case (coords, filteredSparsity) =>
+        val rows = rowDeps(coords._1)
+        val cols = colDeps(coords._2)
+        filteredSparsity.definedCoords.map { case (li, lj) =>
+          coordToPos((rows(li), cols(lj)))
+        }
+    }
     val blockSparsityType = TStruct(
       "nRows" -> TInt32,
       "nCols" -> TInt32,
@@ -589,7 +597,7 @@ case class SparseContexts(
     ) { case Seq(blockSparsity, newToOld) =>
       InsertFields(
         blockSparsity,
-        ArraySeq("contexts" -> mapIR(ToStream(newToOld))(ArrayRef(contexts, _))),
+        ArraySeq("contexts" -> mapArray(newToOld)(ArrayRef(contexts, _))),
       )
     })
 
