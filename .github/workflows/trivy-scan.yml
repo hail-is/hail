@@ -78,8 +78,8 @@ jobs:
         run: mkdir -p trivy-results
           
       - name: Run Trivy vulnerability scanner
-        # https://github.com/aquasecurity/trivy-action/releases/tag/0.30.0
-        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5
+        # https://github.com/aquasecurity/trivy-action/releases/tag/0.35.0
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
         env:
           IMAGE_TO_SCAN: ${{ matrix.image }}
         with:
@@ -88,8 +88,8 @@ jobs:
           output: 'trivy-results/scan.sarif'
 
       - name: Generate human-readable report
-        # https://github.com/aquasecurity/trivy-action/releases/tag/0.30.0
-        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5
+        # https://github.com/aquasecurity/trivy-action/releases/tag/0.35.0
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
         env:
           IMAGE_TO_SCAN: ${{ matrix.image }}
         with:
