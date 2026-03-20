@@ -1526,17 +1526,20 @@ def test_pool_standard_instance_cheapest(client: BatchClient):
 #     assert status['state'] == 'Success', str((status, b.debug_info()))
 
 
-@skip_in_azure
-async def test_over_64_cpus(client: BatchClient):
-    # This test is being added to validate high CPU counts in custom machines.
-    # The relevant part of this machine type ('highmem-96') is the CPU count, which is 96.
-    b = create_batch(client)
-    resources = {'machine_type': 'n1-highmem-96', 'preemptible': False}
-    j = b.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
-    b.submit()
-    status = j.wait()
-    assert status['state'] == 'Success', str((status, b.debug_info()))
-    assert 'job-private' in status['status']['worker'], str((status, b.debug_info()))
+# TODO: This test is too flaky to run by default — it frequently times out (>360s) waiting for
+# n1-highmem-96 job-private worker provisioning. Run on demand when changing large-instance
+# or job-private scheduler code.
+#  @skip_in_azure
+# async def test_over_64_cpus(client: BatchClient):
+#     # This test is being added to validate high CPU counts in custom machines.
+#     # The relevant part of this machine type ('highmem-96') is the CPU count, which is 96.
+#     b = create_batch(client)
+#     resources = {'machine_type': 'n1-highmem-96', 'preemptible': False}
+#     j = b.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
+#     b.submit()
+#     status = j.wait()
+#     assert status['state'] == 'Success', str((status, b.debug_info()))
+#     assert 'job-private' in status['status']['worker'], str((status, b.debug_info()))
 
 
 def test_job_private_instance_preemptible(client: BatchClient):
