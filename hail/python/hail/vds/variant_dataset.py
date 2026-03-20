@@ -386,7 +386,7 @@ class VariantDataset:
         if res.negative_len:
             raise _validate_err(
                 'found records in reference data with negative LEN\n  '
-                + '\n  '.join(str(x) for x in res.end_before_position)
+                + '\n  '.join(str(x) for x in res.negative_len)
             )
         blocks_too_long = res.get('blocks_too_long', [])
         if blocks_too_long:
