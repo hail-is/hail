@@ -682,5 +682,5 @@ def chunk(size: int, seq: Sequence[A]) -> Generator[Sequence[A], A, Any]:
         yield seq[pos : pos + size]
 
 
-def maybe(f: Callable[[A], B], ma: Optional[A], default: Optional[B] = None) -> Optional[B]:
+def maybe(f: Callable[[A], B], ma: A | None, default: B | None = None) -> B | None:
     return f(ma) if ma is not None else default

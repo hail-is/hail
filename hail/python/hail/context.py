@@ -369,6 +369,10 @@ def init(
         )
         backend = 'batch'
 
+    requester_pays_config = get_gcs_requester_pays_configuration(
+        gcs_requester_pays_configuration=gcs_requester_pays_configuration,
+    )
+
     if backend == 'batch':
         if os.getenv('HAIL_QUERY_USE_EXPERIMENTAL_BATCH_BACKEND') is not None:
             return hail.experimental.init(
@@ -385,7 +389,7 @@ def init(
                 worker_cores=worker_cores,
                 worker_memory=worker_memory,
                 batch_id=batch_id,
-                gcs_requester_pays_configuration=gcs_requester_pays_configuration,
+                gcs_requester_pays_configuration=requester_pays_config,
                 regions=regions,
                 gcs_bucket_allow_list=gcs_bucket_allow_list,
                 branching_factor=branching_factor,
@@ -406,7 +410,7 @@ def init(
                     worker_memory=worker_memory,
                     batch_id=batch_id,
                     name_prefix=app_name,
-                    gcs_requester_pays_configuration=gcs_requester_pays_configuration,
+                    requester_pays_config=requester_pays_config,
                     regions=regions,
                     gcs_bucket_allow_list=gcs_bucket_allow_list,
                     branching_factor=branching_factor,
@@ -430,7 +434,7 @@ def init(
             default_reference=default_reference,
             global_seed=global_seed,
             skip_logging_configuration=skip_logging_configuration,
-            gcs_requester_pays_configuration=gcs_requester_pays_configuration,
+            requester_pays_config=requester_pays_config,
             copy_log_on_error=copy_spark_log_on_error,
         )
     if backend == 'local':
@@ -442,7 +446,7 @@ def init(
             default_reference=default_reference,
             global_seed=global_seed,
             skip_logging_configuration=skip_logging_configuration,
-            gcs_requester_pays_configuration=gcs_requester_pays_configuration,
+            requester_pays_config=requester_pays_config,
         )
     raise ValueError(f'unknown Hail Query backend: {backend}')
 
@@ -463,7 +467,7 @@ def init(
     spark_conf=nullable(dictof(str, str)),
     skip_logging_configuration=bool,
     local_tmpdir=nullable(str),
-    gcs_requester_pays_configuration=nullable(oneof(str, sized_tupleof(str, sequenceof(str)))),
+    requester_pays_config=nullable(oneof(str, sized_tupleof(str, sequenceof(str)))),
     copy_log_on_error=nullable(bool),
 )
 def init_spark(
@@ -482,24 +486,18 @@ def init_spark(
     spark_conf=None,
     skip_logging_configuration=False,
     local_tmpdir=None,
-    gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
+    requester_pays_config: GCSRequesterPaysConfiguration | None = None,
     copy_log_on_error: bool = False,
 ):
     from hail.backend.spark_backend import SparkBackend
 
     log = _get_log(log)
     tmpdir = _get_tmpdir(tmp_dir)
-    local_tmpdir = _get_local_tmpdir(local_tmpdir)
-
-    app_name = app_name or 'Hail'
-    gcs_requester_pays_configuration = get_gcs_requester_pays_configuration(
-        gcs_requester_pays_configuration=gcs_requester_pays_configuration,
-    )
 
     backend = SparkBackend(
         sc,
         spark_conf,
-        app_name,
+        app_name or 'Hail',
         master,
         local,
         log,
@@ -508,11 +506,12 @@ def init_spark(
         min_block_size,
         branching_factor,
         tmpdir,
-        local_tmpdir,
+        _get_local_tmpdir(local_tmpdir),
         skip_logging_configuration,
-        gcs_requester_pays_config=gcs_requester_pays_configuration,
+        requester_pays_config=requester_pays_config,
         copy_log_on_error=copy_log_on_error,
     )
+
     if not backend.fs.exists(tmpdir):
         backend.fs.mkdir(tmpdir)
 
@@ -536,7 +535,7 @@ def init_spark(
     batch_id=nullable(int),
     name_prefix=nullable(str),
     token=nullable(str),
-    gcs_requester_pays_configuration=nullable(oneof(str, sized_tupleof(str, sequenceof(str)))),
+    requester_pays_config=nullable(oneof(str, sized_tupleof(str, sequenceof(str)))),
     regions=nullable(sequenceof(str)),
     gcs_bucket_allow_list=nullable(sequenceof(str)),
     branching_factor=nullable(int),
@@ -560,7 +559,7 @@ async def init_batch(
     batch_id: Optional[int] = None,
     name_prefix: Optional[str] = None,
     token: Optional[str] = None,
-    gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
+    requester_pays_config: Optional[GCSRequesterPaysConfiguration] = None,
     regions: Optional[List[str]] = None,
     gcs_bucket_allow_list: Optional[List[str]] = None,
     branching_factor: Optional[int] = None,
@@ -581,7 +580,7 @@ async def init_batch(
         name_prefix=name_prefix,
         credentials_token=token,
         regions=regions,
-        gcs_requester_pays_configuration=gcs_requester_pays_configuration,
+        requester_pays_config=requester_pays_config,
         gcs_bucket_allow_list=gcs_bucket_allow_list,
         branching_factor=branching_factor,
         max_read_parallelism=max_read_parallelism,
@@ -601,7 +600,7 @@ async def init_batch(
     global_seed=nullable(int),
     skip_logging_configuration=bool,
     jvm_heap_size=nullable(str),
-    gcs_requester_pays_configuration=nullable(oneof(str, sized_tupleof(str, sequenceof(str)))),
+    requester_pays_config=nullable(oneof(str, sized_tupleof(str, sequenceof(str)))),
 )
 def init_local(
     log=None,
@@ -613,7 +612,7 @@ def init_local(
     global_seed=None,
     skip_logging_configuration=False,
     jvm_heap_size=None,
-    gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
+    requester_pays_config: GCSRequesterPaysConfiguration | None = None,
 ):
     from hail.backend.local_backend import LocalBackend
 
@@ -629,7 +628,7 @@ def init_local(
         branching_factor,
         skip_logging_configuration,
         jvm_heap_size,
-        gcs_requester_pays_configuration,
+        requester_pays_config,
     )
 
     if not backend.fs.exists(tmpdir):

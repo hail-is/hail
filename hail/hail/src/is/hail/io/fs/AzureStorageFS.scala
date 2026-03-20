@@ -107,7 +107,7 @@ object AzureStorageFileListEntry {
     new BlobStorageFileListEntry(url.toString, null, 0, true)
 }
 
-case class AzureStorageFSConfig(credentials_file: Option[Path])
+case class AzureStorageConfig(credentials_file: Option[Path])
 
 class AzureStorageFS(val credential: AzureCloudCredentials) extends FS {
   type URL = AzureStorageFSURL
