@@ -1510,7 +1510,11 @@ def test_pool_standard_instance_cheapest(client: BatchClient):
 
 
 @skip_in_azure
-@pytest.mark.xfail(strict=False, reason="G2 instances are not always available within a CI-acceptable time window")
+@pytest.mark.xfail(
+    strict=False,
+    raises=pytest.fail.Exception,
+    reason="G2 instances are not always available within a CI-acceptable time window",
+)
 @pytest.mark.timeout(5 * 60)
 async def test_nvidia_driver_accesibility_usage(client: BatchClient):
     b = create_batch(client)._async_batch
@@ -1529,6 +1533,7 @@ async def test_nvidia_driver_accesibility_usage(client: BatchClient):
 @skip_in_azure
 @pytest.mark.xfail(
     strict=False,
+    raises=pytest.fail.Exception,
     reason="n1-highmem-96 job-private worker provisioning is not always available within a CI-acceptable time window",
 )
 @pytest.mark.timeout(5 * 60)
