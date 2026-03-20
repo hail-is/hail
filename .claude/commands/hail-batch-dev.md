@@ -1,3 +1,7 @@
+---
+description: Investigate Hail Batch infrastructure and develop service improvements (non-default namespaces, service internals)
+---
+
 You are helping a Hail service engineer investigate Hail Batch infrastructure or develop improvements to it.
 
 **For end-user batch investigation (logs, job status, writing scripts), also invoke `/hail-batch`.**
