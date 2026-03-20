@@ -6,6 +6,12 @@ You are helping a Hail service engineer investigate Hail Batch infrastructure or
 
 **For end-user batch investigation (logs, job status, writing scripts), also invoke `/hail-batch`.**
 
+## Running hailctl commands
+
+`hailctl` is likely in a virtual environment — if it isn't found, look for one and activate it. Once activated, it stays active for the session.
+
+**Never suppress stderr** when running hailctl or other Hail tools — important connection info and warnings appear there. Do not use `2>&1` or `2>/dev/null`.
+
 ## What this adds over /hail-batch
 
 - Namespace/deploy config targeting (non-default namespaces)
@@ -27,17 +33,6 @@ To check which namespaces you have tokens for and confirm your current identity:
 ```bash
 hailctl auth list    # lists namespaces (* = current)
 hailctl auth user    # shows current user identity
-```
-
-If `hailctl` is not found, it's likely installed in a virtual environment. Look for one and activate it first:
-
-```bash
-# Common locations in this repo
-source .venv/bin/activate
-# or
-source venv/bin/activate
-
-hailctl auth login
 ```
 
 To switch namespaces persistently:

@@ -11,6 +11,12 @@ You are helping a user work with Hail Batch — a job orchestration service for 
 - Diagnose failures (OOM, exit codes, dependency failures)
 - Advise on cost, parallelism, and resource requests
 
+## Running hailctl commands
+
+If `hailctl` isn't found, it may be in a virtual environment — look for one and activate it. Once activated, it stays active for the session.
+
+**Never suppress stderr** when running hailctl or other Hail tools — important connection info and warnings appear there. Do not use `2>&1` or `2>/dev/null`.
+
 ## Authentication
 
 Users need two things on GCP:
@@ -53,6 +59,13 @@ hailctl batch log BATCH_ID JOB_ID                       # all containers (yaml)
 hailctl batch log BATCH_ID JOB_ID --container main      # just main (raw text)
 hailctl batch log BATCH_ID JOB_ID --container input     # input sidecar
 hailctl batch log BATCH_ID JOB_ID --container output    # output sidecar
+```
+
+Note: `--container` requires a recent hailtop version. If it fails, fall back to the raw API (container is a path segment):
+```bash
+hailctl curl default batch /api/v1alpha/batches/BATCH_ID/jobs/JOB_ID/log/main
+hailctl curl default batch /api/v1alpha/batches/BATCH_ID/jobs/JOB_ID/log/input
+hailctl curl default batch /api/v1alpha/batches/BATCH_ID/jobs/JOB_ID/log/output
 ```
 
 ### Wait for a batch to complete
