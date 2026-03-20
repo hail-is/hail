@@ -191,7 +191,7 @@ object BatchClient {
                 n_completed = (o \ "n_completed").extract[Int],
                 n_succeeded = (o \ "n_succeeded").extract[Int],
                 n_failed = (o \ "n_failed").extract[Int],
-                n_cancelled = (o \ "n_failed").extract[Int],
+                n_cancelled = (o \ "n_cancelled").extract[Int],
               )
           },
           PartialFunction.empty,
