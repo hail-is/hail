@@ -368,8 +368,12 @@ class VariantDataset:
             )
 
         # check LEN field
+        # technically speaking, it's possible for the LEN field to be missing,
+        # (ex. if the VDS was created manually using its constructor), so,
+        # temporarily add it for validation (or no-op if it's already defined).
+        rd = VariantDataset._add_len(rd)
         len_exprs = {
-            'missing_end': hl.agg.filter(hl.is_missing(rd.LEN), hl.agg.take((rd.row_key, rd.col_key), 5)),
+            'missing_len': hl.agg.filter(hl.is_missing(rd.LEN), hl.agg.take((rd.row_key, rd.col_key), 5)),
             'negative_len': hl.agg.filter(rd.LEN < 0, hl.agg.take((rd.row_key, rd.col_key), 5)),
         }
         if VariantDataset.ref_block_max_length_field in rd.globals:
@@ -378,10 +382,10 @@ class VariantDataset:
 
         res = rd.aggregate_entries(hl.struct(**len_exprs))
 
-        if res.missing_end:
+        if res.missing_len:
             raise _validate_err(
                 'found records in reference data with missing LEN field\n  '
-                + '\n  '.join(str(x) for x in res.missing_end)
+                + '\n  '.join(str(x) for x in res.missing_len)
             )
         if res.negative_len:
             raise _validate_err(
