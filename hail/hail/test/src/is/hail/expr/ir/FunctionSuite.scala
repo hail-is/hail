@@ -11,8 +11,6 @@ import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual._
 import is.hail.variant.Call2
 
-import org.testng.annotations.Test
-
 object ScalaTestObject {
   def testFunction(): Int = 1
 }
@@ -53,36 +51,35 @@ class FunctionSuite extends HailSuite {
 
   TestRegisterFunctions.registerAll()
 
-  @Test
-  def testCodeFunction(): Unit =
+  test("CodeFunction") {
     assertEvalsTo(
       invoke("triangle", TInt32, In(0, TInt32)),
       FastSeq(5 -> TInt32),
       (5 * (5 + 1)) / 2,
     )
+  }
 
-  @Test
-  def testStaticFunction(): Unit =
+  test("StaticFunction") {
     assertEvalsTo(
       invoke("compare", TInt32, In(0, TInt32), I32(0)) > 0,
       FastSeq(5 -> TInt32),
       true,
     )
+  }
 
-  @Test
-  def testScalaFunction(): Unit =
+  test("ScalaFunction") {
     assertEvalsTo(invoke("foobar1", TInt32), 1)
+  }
 
-  @Test
-  def testIRConversion(): Unit =
+  test("IRConversion") {
     assertEvalsTo(invoke("addone", TInt32, In(0, TInt32)), FastSeq(5 -> TInt32), 6)
+  }
 
-  @Test
-  def testScalaFunctionCompanion(): Unit =
+  test("ScalaFunctionCompanion") {
     assertEvalsTo(invoke("foobar2", TInt32), 2)
+  }
 
-  @Test
-  def testVariableUnification(): Unit = {
+  test("VariableUnification") {
     assert(IRFunctionRegistry.lookup(
       "testCodeUnification",
       TInt32,
@@ -105,16 +102,15 @@ class FunctionSuite extends HailSuite {
     ).isDefined)
   }
 
-  @Test
-  def testUnphasedDiploidGtIndexCall(): Unit =
+  test("UnphasedDiploidGtIndexCall") {
     assertEvalsTo(
       invoke("UnphasedDiploidGtIndexCall", TCall, In(0, TInt32)),
       FastSeq(0 -> TInt32),
       Call2.fromUnphasedDiploidGtIndex(0),
     )
+  }
 
-  @Test
-  def testGetOrGenMethod(): Unit = {
+  test("GetOrGenMethod") {
     val fb = EmitFunctionBuilder[Int](ctx, "foo")
     val i = fb.genFieldThisRef[Int]()
     val mb1 = fb.getOrGenEmitMethod("foo", "foo", FastSeq[ParamType](), UnitInfo) { mb =>
@@ -130,7 +126,7 @@ class FunctionSuite extends HailSuite {
       i
     }
     pool.scopedRegion { r =>
-      assert(fb.resultWithIndex().apply(theHailClassLoader, ctx.fs, ctx.taskContext, r)() == 2)
+      assertEquals(fb.resultWithIndex().apply(theHailClassLoader, ctx.fs, ctx.taskContext, r)(), 2)
     }
   }
 }

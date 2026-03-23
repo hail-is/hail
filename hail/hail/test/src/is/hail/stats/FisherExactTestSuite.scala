@@ -2,11 +2,9 @@ package is.hail.stats
 
 import is.hail.HailSuite
 
-import org.testng.annotations.Test
-
 class FisherExactTestSuite extends HailSuite {
 
-  @Test def testPvalue(): Unit = {
+  test("Pvalue") {
     val a = 5
     val b = 10
     val c = 95

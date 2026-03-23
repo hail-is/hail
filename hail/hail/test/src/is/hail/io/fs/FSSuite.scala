@@ -5,17 +5,14 @@ import is.hail.backend.ExecuteContext
 import is.hail.io.fs.FSUtil.dropTrailingSlash
 import is.hail.utils._
 
+import scala.concurrent.duration.Duration
+
 import java.io.FileNotFoundException
 
 import org.apache.commons.io.IOUtils
 import org.apache.hadoop.fs.FileAlreadyExistsException
-import org.scalatest.Inspectors.forAll
-import org.scalatest.enablers.InspectorAsserting.assertingNatureOfAssertion
-import org.scalatestplus.testng.TestNGSuiteLike
-import org.testng.SkipException
-import org.testng.annotations.Test
 
-trait FSSuite extends TestNGSuiteLike with TestUtils {
+trait FSSuite extends munit.FunSuite with TestUtils {
   val root: String = System.getenv("HAIL_TEST_STORAGE_URI")
   def fsResourcesRoot: String = System.getenv("HAIL_FS_TEST_CLOUD_RESOURCES_URI")
   def tmpdir: String = System.getenv("HAIL_TEST_STORAGE_URI")
@@ -38,7 +35,7 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
   def pathsRelResourcesRoot(statuses: IndexedSeq[FileListEntry]): Set[String] =
     pathsRelRoot(fsResourcesRoot, statuses)
 
-  @Test def testExistsOnDirectory(): Unit = {
+  test("ExistsOnDirectory") {
     assert(fs.exists(r("/dir")))
     assert(fs.exists(r("/dir/")))
 
@@ -46,14 +43,14 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
     assert(!fs.exists(r("/does_not_exist_dir/")))
   }
 
-  @Test def testExistsOnFile(): Unit = {
+  test("ExistsOnFile") {
     assert(fs.exists(r("/a")))
 
     assert(fs.exists(r("/zzz")))
     assert(!fs.exists(r("/z"))) // prefix
   }
 
-  @Test def testFileStatusOnFile(): Unit = {
+  test("FileStatusOnFile") {
     // file
     val f = r("/a")
     val s = fs.fileStatus(f)
@@ -61,7 +58,7 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
     assert(s.getLen == 12)
   }
 
-  @Test def testFileListEntryOnFile(): Unit = {
+  test("FileListEntryOnFile") {
     // file
     val f = r("/a")
     val s = fs.fileListEntry(f)
@@ -71,14 +68,14 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
     assert(s.getLen == 12)
   }
 
-  @Test def testFileStatusOnDirIsFailure(): Unit = {
+  test("FileStatusOnDirIsFailure") {
     val f = r("/dir")
     interceptException[FileNotFoundException](f)(
       fs.fileStatus(f)
     )
   }
 
-  @Test def testFileListEntryOnDir(): Unit = {
+  test("FileListEntryOnDir") {
     // file
     val f = r("/dir")
     val s = fs.fileListEntry(f)
@@ -87,7 +84,7 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
     assert(s.isDirectory)
   }
 
-  @Test def testFileListEntryOnDirWithSlash(): Unit = {
+  test("FileListEntryOnDirWithSlash") {
     // file
     val f = r("/dir/")
     val s = fs.fileListEntry(f)
@@ -96,23 +93,24 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
     assert(s.isDirectory)
   }
 
-  @Test def testFileListEntryOnMissingFile(): Unit =
-    assertThrows[FileNotFoundException] {
+  test("FileListEntryOnMissingFile") {
+    intercept[FileNotFoundException] {
       fs.fileListEntry(r("/does_not_exist"))
     }
+  }
 
-  @Test def testFileListEntryRoot(): Unit = {
+  test("FileListEntryRoot") {
     val s = fs.fileListEntry(root)
     assert(s.getPath == root)
   }
 
-  @Test def testFileListEntryRootWithSlash(): Unit = {
-    if (root.endsWith("/")) throw new SkipException("skipped")
+  test("FileListEntryRootWithSlash") {
+    assume(!root.endsWith("/"), "skipped")
     val s = fs.fileListEntry(s"$root/")
     assert(s.getPath == root)
   }
 
-  @Test def testDeleteRecursive(): Unit = {
+  test("DeleteRecursive") {
     val d = t()
     fs.mkDir(d)
     fs.touch(s"$d/x")
@@ -133,34 +131,34 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
     assert(!fs.exists(s"$d/subdir/z"))
   }
 
-  @Test def testDeleteFileDoesntExist(): Unit = {
+  test("DeleteFileDoesntExist") {
     val d = t()
     fs.mkDir(d)
     fs.delete(s"$d/foo", recursive = false)
     fs.delete(s"$d/foo", recursive = true)
   }
 
-  @Test def testListDirectory(): Unit = {
+  test("ListDirectory") {
     val statuses = fs.listDirectory(r(""))
     assert(pathsRelResourcesRoot(statuses) == Set("/a", "/adir", "/az", "/dir", "/zzz"))
   }
 
-  @Test def testListDirectoryWithSlash(): Unit = {
+  test("ListDirectoryWithSlash") {
     val statuses = fs.listDirectory(r("/"))
     assert(pathsRelResourcesRoot(statuses) == Set("/a", "/adir", "/az", "/dir", "/zzz"))
   }
 
-  @Test def testGlobOnDir(): Unit = {
+  test("GlobOnDir") {
     val statuses = fs.glob(r(""))
     assert(pathsRelResourcesRoot(statuses) == Set(""))
   }
 
-  @Test def testGlobMissingFile(): Unit = {
+  test("GlobMissingFile") {
     val statuses = fs.glob(r("/does_not_exist_dir/does_not_exist"))
     assert(pathsRelResourcesRoot(statuses) == Set())
   }
 
-  @Test def testGlobFilename(): Unit = {
+  test("GlobFilename") {
     val statuses = fs.glob(r("/a*"))
     assert(
       pathsRelResourcesRoot(statuses) == Set("/a", "/adir", "/az"),
@@ -168,7 +166,7 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
     )
   }
 
-  @Test def testGlobFilenameMatchSingleCharacter(): Unit = {
+  test("GlobFilenameMatchSingleCharacter") {
     val statuses = fs.glob(r("/a?"))
     assert(
       pathsRelResourcesRoot(statuses) == Set("/az"),
@@ -176,7 +174,7 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
     )
   }
 
-  @Test def testGlobFilenameMatchSingleCharacterInMiddleOfName(): Unit = {
+  test("GlobFilenameMatchSingleCharacterInMiddleOfName") {
     val statuses = fs.glob(r("/a?ir"))
     assert(
       pathsRelResourcesRoot(statuses) == Set("/adir"),
@@ -184,7 +182,7 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
     )
   }
 
-  @Test def testGlobDirnameMatchSingleCharacterInMiddleOfName(): Unit = {
+  test("GlobDirnameMatchSingleCharacterInMiddleOfName") {
     val statuses = fs.glob(r("/a?ir/x"))
     assert(
       pathsRelResourcesRoot(statuses) == Set("/adir/x"),
@@ -192,7 +190,7 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
     )
   }
 
-  @Test def testGlobMatchDir(): Unit = {
+  test("GlobMatchDir") {
     val statuses = fs.glob(r("/*dir/x"))
     assert(
       pathsRelResourcesRoot(statuses) == Set("/adir/x", "/dir/x"),
@@ -200,13 +198,13 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
     )
   }
 
-  @Test def testGlobRoot(): Unit = {
+  test("GlobRoot") {
     val statuses = fs.glob(root)
     // empty with respect to root (self)
     assert(pathsRelRoot(root, statuses) == Set(""))
   }
 
-  @Test def testFileEndingWithPeriod(): Unit = {
+  test("FileEndingWithPeriod") {
     val f = fs.makeQualified(t())
     fs.touch(f + "/foo.")
     val statuses = fs.listDirectory(f)
@@ -220,13 +218,13 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
     }
   }
 
-  @Test def testGlobRootWithSlash(): Unit = {
-    if (root.endsWith("/")) throw new SkipException("skipped")
+  test("GlobRootWithSlash") {
+    assume(!root.endsWith("/"), "skipped")
     val statuses = fs.glob(s"$root/")
     assert(pathsRelRoot(root, statuses) == Set(""))
   }
 
-  @Test def testWriteRead(): Unit = {
+  test("WriteRead") {
     val s = "this is a test string"
     val f = t()
 
@@ -247,7 +245,7 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
     assert(!fs.exists(f))
   }
 
-  @Test def testWriteReadCompressed(): Unit = {
+  test("WriteReadCompressed") {
     val s = "this is a test string"
     val f = t(extension = ".bgz")
 
@@ -268,7 +266,7 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
     assert(!fs.exists(f))
   }
 
-  @Test def testWritePreexisting(): Unit = {
+  test("WritePreexisting") {
     val s1 = "first"
     val s2 = "second"
     val f = t()
@@ -288,10 +286,11 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
     }
   }
 
-  @Test def testGetCodecExtension(): Unit =
+  test("GetCodecExtension") {
     assert(fs.getCodecExtension("foo.vcf.bgz") == ".bgz")
+  }
 
-  @Test def testReadWriteBytes(): Unit = {
+  test("ReadWriteBytes") {
     val f = t()
 
     using(fs.create(f)) { os =>
@@ -313,7 +312,7 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
     assert(!fs.exists(f))
   }
 
-  @Test def testReadWriteBytesLargerThanBuffer(): Unit = {
+  test("ReadWriteBytesLargerThanBuffer") {
     val f = t()
 
     val numWrites = 1000000
@@ -349,7 +348,7 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
     assert(!fs.exists(f))
   }
 
-  @Test def testDropTrailingSlash(): Unit = {
+  test("DropTrailingSlash") {
     assert(dropTrailingSlash("") == "")
     assert(dropTrailingSlash("/foo/bar") == "/foo/bar")
     assert(dropTrailingSlash("foo/bar/") == "foo/bar")
@@ -357,7 +356,7 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
     assert(dropTrailingSlash("///") == "")
   }
 
-  @Test def testSeekMoreThanMaxInt(): Unit = {
+  test("SeekMoreThanMaxInt") {
     val f = t()
     using(fs.create(f)) { os =>
       val eight_mib = 8 * 1024 * 1024
@@ -388,7 +387,7 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
     assert(!fs.exists(f))
   }
 
-  @Test def testSeekAndReadStraddlingBufferSize(): Unit = {
+  test("SeekAndReadStraddlingBufferSize") {
     val data = Array.tabulate(251)(_.toByte)
     val f = t()
     using(fs.create(f)) { os =>
@@ -411,11 +410,11 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
       val toRead = new Array[Byte](512)
       is.readFully(toRead)
 
-      forAll(toRead.indices)(i => assert(toRead(i) == ((seekPos + i) % 251).toByte))
+      toRead.indices.foreach(i => assert(toRead(i) == ((seekPos + i) % 251).toByte))
     }
   }
 
-  @Test def largeDirectoryOperations(): Unit = {
+  test("largeDirectoryOperations") {
     val prefix = s"$tmpdir/fs-suite/delete-many-files/${java.util.UUID.randomUUID()}"
     for (i <- 0 until 2000)
       fs.touch(s"$prefix/$i.suffix")
@@ -430,7 +429,7 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
       fail(s"files not deleted:\n${fs.listDirectory(prefix).map(_.getPath).mkString("\n")}")
   }
 
-  @Test def testSeekAfterEOF(): Unit = {
+  test("SeekAfterEOF") {
     val prefix = s"$tmpdir/fs-suite/delete-many-files/${java.util.UUID.randomUUID()}"
     val p = s"$prefix/seek_file"
     using(fs.createNoCompression(p)) { os =>
@@ -450,25 +449,26 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
     }
   }
 
-  @Test def fileAndDirectoryIsError(): Unit = {
+  test("fileAndDirectoryIsError") {
     val d = t()
     fs.mkDir(d)
     fs.touch(s"$d/x/file")
 
-    intercept[Exception] {
+    val caught = intercept[Exception] {
       fs.touch(s"$d/x")
       fs.fileListEntry(s"$d/x")
-    } match {
+    }
+    caught match {
       /* Hadoop, in particular, errors when you touch an object whose name is a prefix of another
        * object. */
       case exc: FileAndDirectoryException
           if exc.getMessage() == s"$d/x appears as both file $d/x and directory $d/x/." =>
       case exc: FileNotFoundException if exc.getMessage() == s"$d/x (Is a directory)" =>
-      case other => fail(other)
+      case other => fail("unexpected exception", other)
     }
   }
 
-  @Test def testETag(): Unit = {
+  test("ETag") {
     val etag = fs.eTag(s"$fsResourcesRoot/a")
     if (fs.parseUrl(fsResourcesRoot).toString.startsWith("file:")) {
       // only the local file system should lack etags.
@@ -478,7 +478,7 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
     }
   }
 
-  @Test def fileAndDirectoryIsErrorEvenIfPrefixedFileIsNotLexicographicallyFirst(): Unit = {
+  test("fileAndDirectoryIsErrorEvenIfPrefixedFileIsNotLexicographicallyFirst") {
     val d = t()
     fs.mkDir(d)
     fs.touch(s"$d/x")
@@ -514,21 +514,23 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
     fs.touch(s"$d/x,")
     fs.touch(s"$d/x-")
     // fs.touch(s"$d/x.") // https://github.com/Azure/azure-sdk-for-java/issues/36674
-    intercept[Exception] {
+    val caught = intercept[Exception] {
       fs.touch(s"$d/x/file")
       fs.fileListEntry(s"$d/x")
-    } match {
+    }
+    caught match {
       /* Hadoop, in particular, errors when you touch an object whose name is a prefix of another
        * object. */
       case exc: FileAndDirectoryException
           if exc.getMessage() == s"$d/x appears as both file $d/x and directory $d/x/." =>
       case exc: FileAlreadyExistsException
-          if exc.getMessage() == s"Destination exists and is not a directory: $d/x" =>
-      case other => fail(other)
+          if exc.getMessage() == s"Destination exists and is not a directory: $d/x" ||
+            exc.getMessage() == s"Destination exists and is not a directory: /private$d/x" =>
+      case other => fail("unexpected exception", other)
     }
   }
 
-  @Test def fileListEntrySeesDirectoryEvenIfPrefixedFileIsNotLexicographicallyFirst(): Unit = {
+  test("fileListEntrySeesDirectoryEvenIfPrefixedFileIsNotLexicographicallyFirst") {
     val d = t()
     fs.mkDir(d)
     // fs.touch(s"$d/x ") // Hail does not support spaces in path names
@@ -570,8 +572,7 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
     assert(!fle.isFile)
   }
 
-  @Test def fileListEntrySeesFileEvenWithPeersPreceedingThePositionOfANonPresentDirectoryEntry()
-    : Unit = {
+  test("fileListEntrySeesFileEvenWithPeersPreceedingThePositionOfANonPresentDirectoryEntry") {
     val d = t()
     fs.mkDir(d)
     fs.touch(s"$d/x")
@@ -616,10 +617,12 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
 }
 
 class HadoopFSSuite extends HailSuite with FSSuite {
+  override val munitTimeout = Duration(1, "min")
+
   override val root: String = "file:/"
 
   override lazy val fsResourcesRoot: String =
-    "file:" + new java.io.File("./src/test/resources/fs").getCanonicalPath
+    "file:" + new java.io.File(getTestResource("fs")).getCanonicalPath
 
   override lazy val tmpdir: String = ctx.tmpdir
 }

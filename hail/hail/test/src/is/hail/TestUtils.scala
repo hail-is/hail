@@ -24,33 +24,12 @@ import java.io.PrintWriter
 import breeze.linalg.{DenseMatrix, Matrix, Vector}
 import org.apache.spark.SparkException
 import org.apache.spark.sql.Row
-import org.scalatest.{Assertion, Assertions}
 
-object ExecStrategy extends Enumeration {
-  type ExecStrategy = Value
-  val Interpret, InterpretUnoptimized, JvmCompile, LoweredJVMCompile, JvmCompileUnoptimized = Value
-
-  val unoptimizedCompileOnly: Set[ExecStrategy] = Set(JvmCompileUnoptimized)
-  val compileOnly: Set[ExecStrategy] = Set(JvmCompile, JvmCompileUnoptimized)
-
-  val javaOnly: Set[ExecStrategy] =
-    Set(Interpret, InterpretUnoptimized, JvmCompile, JvmCompileUnoptimized)
-
-  val interpretOnly: Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized)
-
-  val nonLowering: Set[ExecStrategy] =
-    Set(Interpret, InterpretUnoptimized, JvmCompile, JvmCompileUnoptimized)
-
-  val lowering: Set[ExecStrategy] = Set(LoweredJVMCompile)
-  val backendOnly: Set[ExecStrategy] = Set(LoweredJVMCompile)
-  val allRelational: Set[ExecStrategy] = interpretOnly.union(lowering)
-}
-
-trait TestUtils extends Assertions {
+trait TestUtils extends munit.Assertions {
 
   def ctx: ExecuteContext = ???
 
-  def interceptException[E <: Throwable: Manifest](regex: String)(f: => Any): Assertion = {
+  def interceptException[E <: Throwable: Manifest](regex: String)(f: => Any): Unit = {
     val thrown = intercept[E](f)
     val p = regex.r.findFirstIn(thrown.getMessage).isDefined
     val msg =
@@ -61,20 +40,20 @@ trait TestUtils extends Assertions {
     assert(p, msg)
   }
 
-  def interceptFatal(regex: String)(f: => Any): Assertion =
+  def interceptFatal(regex: String)(f: => Any): Unit =
     interceptException[HailException](regex)(f)
 
-  def interceptSpark(regex: String)(f: => Any): Assertion =
+  def interceptSpark(regex: String)(f: => Any): Unit =
     interceptException[SparkException](regex)(f)
 
-  def interceptAssertion(regex: String)(f: => Any): Assertion =
+  def interceptAssertion(regex: String)(f: => Any): Unit =
     interceptException[AssertionError](regex)(f)
 
   def assertVectorEqualityDouble(
     A: Vector[Double],
     B: Vector[Double],
     tolerance: Double = utils.defaultTolerance,
-  ): Assertion = {
+  ): Unit = {
     assert(A.size == B.size)
     assert((0 until A.size).forall(i => D_==(A(i), B(i), tolerance)))
   }
@@ -83,7 +62,7 @@ trait TestUtils extends Assertions {
     A: Matrix[Double],
     B: Matrix[Double],
     tolerance: Double = utils.defaultTolerance,
-  ): Assertion = {
+  ): Unit = {
     assert(A.rows == B.rows)
     assert(A.cols == B.cols)
     assert((0 until A.rows).forall(i =>
@@ -262,13 +241,13 @@ trait TestUtils extends Assertions {
     }
   }
 
-  def assertEvalSame(x: IR): Assertion =
+  def assertEvalSame(x: IR): Unit =
     assertEvalSame(x, Env.empty, FastSeq())
 
-  def assertEvalSame(x: IR, args: IndexedSeq[(Any, Type)]): Assertion =
+  def assertEvalSame(x: IR, args: IndexedSeq[(Any, Type)]): Unit =
     assertEvalSame(x, Env.empty, args)
 
-  def assertEvalSame(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)]): Assertion = {
+  def assertEvalSame(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)]): Unit = {
     val t = x.typ
 
     val (i, i2, c) =
@@ -290,7 +269,7 @@ trait TestUtils extends Assertions {
     assert(t.valuesSimilar(i2, c), s"interpret (optimize = false) $i vs compile $c")
   }
 
-  def assertThrows[E <: Throwable: Manifest](x: IR, regex: String): Assertion =
+  def assertThrows[E <: Throwable: Manifest](x: IR, regex: String): Unit =
     assertThrows[E](x, Env.empty[(Any, Type)], FastSeq.empty[(Any, Type)], regex)
 
   def assertThrows[E <: Throwable: Manifest](
@@ -298,7 +277,7 @@ trait TestUtils extends Assertions {
     env: Env[(Any, Type)],
     args: IndexedSeq[(Any, Type)],
     regex: String,
-  ): Assertion =
+  ): Unit =
     ctx.local() { ctx =>
       ctx.flags.set(Optimize, "1")
       interceptException[E](regex)(Interpret[Any](ctx, x, env, args))
@@ -308,14 +287,14 @@ trait TestUtils extends Assertions {
       interceptException[E](regex)(eval(x, env, args, None, None, ctx))
     }
 
-  def assertFatal(x: IR, regex: String): Assertion =
+  def assertFatal(x: IR, regex: String): Unit =
     assertThrows[HailException](x, regex)
 
-  def assertFatal(x: IR, args: IndexedSeq[(Any, Type)], regex: String): Assertion =
+  def assertFatal(x: IR, args: IndexedSeq[(Any, Type)], regex: String): Unit =
     assertThrows[HailException](x, Env.empty[(Any, Type)], args, regex)
 
   def assertFatal(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], regex: String)
-    : Assertion =
+    : Unit =
     assertThrows[HailException](x, env, args, regex)
 
   def assertCompiledThrows[E <: Throwable: Manifest](
@@ -323,13 +302,13 @@ trait TestUtils extends Assertions {
     env: Env[(Any, Type)],
     args: IndexedSeq[(Any, Type)],
     regex: String,
-  ): Assertion =
+  ): Unit =
     interceptException[E](regex)(eval(x, env, args, None, None, ctx))
 
-  def assertCompiledThrows[E <: Throwable: Manifest](x: IR, regex: String): Assertion =
+  def assertCompiledThrows[E <: Throwable: Manifest](x: IR, regex: String): Unit =
     assertCompiledThrows[E](x, Env.empty[(Any, Type)], FastSeq.empty[(Any, Type)], regex)
 
-  def assertCompiledFatal(x: IR, regex: String): Assertion =
+  def assertCompiledFatal(x: IR, regex: String): Unit =
     assertCompiledThrows[HailException](x, regex)
 
   def importVCF(

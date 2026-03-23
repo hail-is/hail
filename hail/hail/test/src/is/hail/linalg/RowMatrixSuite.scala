@@ -3,14 +3,10 @@ package is.hail.linalg
 import is.hail.HailSuite
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.ExportType
-import is.hail.scalacheck._
 
 import breeze.linalg.DenseMatrix
-import org.scalatest
-import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
-import org.testng.annotations.Test
 
-class RowMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
+class RowMatrixSuite extends HailSuite {
   private def rowArrayToRowMatrix(
     a: IndexedSeq[Array[Double]],
     nPartitions: Int = sc.defaultParallelism,
@@ -37,8 +33,7 @@ class RowMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     new DenseMatrix[Double](nRows, nCols, a.view.flatten.toArray, 0, nCols, isTranspose = true)
   }
 
-  @Test
-  def localizeRowMatrix(): Unit = {
+  test("localizeRowMatrix") {
     val fname = ctx.createTmpPath("test")
 
     val rowArrays = ArraySeq(
@@ -51,11 +46,10 @@ class RowMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
     BlockMatrix.fromBreezeMatrix(ctx, localMatrix).write(ctx, fname)
 
-    assert(rowMatrix.toBreezeMatrix() === localMatrix)
+    assertEquals(rowMatrix.toBreezeMatrix(), localMatrix)
   }
 
-  @Test
-  def readBlockSmall(): Unit = {
+  test("readBlockSmall") {
     val fname = ctx.createTmpPath("test")
 
     val localMatrix = DenseMatrix(
@@ -67,29 +61,26 @@ class RowMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
     val rowMatrixFromBlock = RowMatrix.readBlockMatrix(ctx, fname, 1)
 
-    assert(rowMatrixFromBlock.toBreezeMatrix() == localMatrix)
+    assertEquals(rowMatrixFromBlock.toBreezeMatrix(), localMatrix)
   }
 
-  @Test
-  def readBlock(): Unit =
-    forAll(genDenseMatrix(9, 10)) { lm =>
-      val fname = ctx.createTmpPath("test")
-      scalatest.Inspectors.forAll {
-        cartesian(
-          Seq(1, 2, 3, 4, 6, 7, 9, 10),
-          Seq(1, 2, 4, 9, 11),
-        )
-      } { case (blockSize, partSize) =>
-        BlockMatrix.fromBreezeMatrix(ctx, lm, blockSize).write(
-          ctx,
-          fname,
-          overwrite = true,
-          forceRowMajor = true,
-        )
-        val rowMatrix = RowMatrix.readBlockMatrix(ctx, fname, partSize)
-        assert(rowMatrix.toBreezeMatrix() === lm)
-      }
+  test("readBlock") {
+    val lm = DenseMatrix.create(9, 10, Array.tabulate(9 * 10)(_.toDouble))
+    val fname = ctx.createTmpPath("test")
+    cartesian(
+      Seq(1, 2, 3, 4, 6, 7, 9, 10),
+      Seq(1, 2, 4, 9, 11),
+    ).foreach { case (blockSize, partSize) =>
+      BlockMatrix.fromBreezeMatrix(ctx, lm, blockSize).write(
+        ctx,
+        fname,
+        overwrite = true,
+        forceRowMajor = true,
+      )
+      val rowMatrix = RowMatrix.readBlockMatrix(ctx, fname, partSize)
+      assertEquals(rowMatrix.toBreezeMatrix(), lm)
     }
+  }
 
   private def readCSV(fname: String): Array[Array[Double]] =
     fs.readLines(fname)(it =>
@@ -101,11 +92,13 @@ class RowMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   private def exportImportAssert(`export`: (String) => Unit, expected: Array[Double]*): Unit = {
     val fname = ctx.createTmpPath("test")
     `export`(fname)
-    assert(readCSV(fname) === expected.toArray[Array[Double]])
+    assertEquals(
+      readCSV(fname).map(_.toSeq).toSeq,
+      expected.toArray[Array[Double]].map(_.toSeq).toSeq,
+    )
   }
 
-  @Test
-  def exportWithIndex(): Unit = {
+  test("exportWithIndex") {
     val rowArrays = ArraySeq(
       Array(1.0, 2.0, 3.0),
       Array(4.0, 5.0, 6.0),
@@ -132,8 +125,7 @@ class RowMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     )
   }
 
-  @Test
-  def exportSquare(): Unit = {
+  test("exportSquare") {
     val rowArrays = ArraySeq(
       Array(1.0, 2.0, 3.0),
       Array(4.0, 5.0, 6.0),
@@ -208,8 +200,7 @@ class RowMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     )
   }
 
-  @Test
-  def exportWide(): Unit = {
+  test("exportWide") {
     val rowArrays = ArraySeq(
       Array(1.0, 2.0, 3.0),
       Array(4.0, 5.0, 6.0),
@@ -280,8 +271,7 @@ class RowMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     )
   }
 
-  @Test
-  def exportTall(): Unit = {
+  test("exportTall") {
     val rowArrays = ArraySeq(
       Array(1.0, 2.0),
       Array(4.0, 5.0),
@@ -354,8 +344,7 @@ class RowMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     )
   }
 
-  @Test
-  def exportBig(): Unit = {
+  test("exportBig") {
     val rowArrays: ArraySeq[Array[Double]] =
       ArraySeq.tabulate(20)(r => Array.tabulate(30)(c => 30.0 * c + r))
     val rowMatrix = rowArrayToRowMatrix(rowArrays)

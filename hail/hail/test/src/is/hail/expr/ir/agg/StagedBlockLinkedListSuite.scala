@@ -9,9 +9,6 @@ import is.hail.collection.compat.mutable.GrowableCompat
 import is.hail.expr.ir.{EmitCode, EmitFunctionBuilder}
 import is.hail.types.physical._
 
-import org.testng.Assert._
-import org.testng.annotations.Test
-
 class StagedBlockLinkedListSuite extends HailSuite {
 
   class BlockLinkedList[E](region: Region, val elemPType: PType, initImmediately: Boolean = true)
@@ -141,14 +138,15 @@ class StagedBlockLinkedListSuite extends HailSuite {
     }
   }
 
-  @Test def testPushIntsRequired(): Unit =
+  test("PushIntsRequired") {
     pool.scopedRegion { region =>
       val b = new BlockLinkedList[Int](region, PInt32Required)
       for (i <- 1 to 100) b += i
       assertEquals(b.toIndexedSeq, IndexedSeq.tabulate(100)(_ + 1))
     }
+  }
 
-  @Test def testPushStrsMissing(): Unit = {
+  test("PushStrsMissing") {
     pool.scopedRegion { region =>
       val a = ArraySeq.newBuilder[String]
       val b = new BlockLinkedList[String](region, PCanonicalString())
@@ -161,7 +159,7 @@ class StagedBlockLinkedListSuite extends HailSuite {
     }
   }
 
-  @Test def testAppendAnother(): Unit = {
+  test("AppendAnother") {
     pool.scopedRegion { region =>
       val b1 = new BlockLinkedList[String](region, PCanonicalString())
       val b2 = new BlockLinkedList[String](region, PCanonicalString())
@@ -174,7 +172,7 @@ class StagedBlockLinkedListSuite extends HailSuite {
     }
   }
 
-  @Test def testDeepCopy(): Unit = {
+  test("DeepCopy") {
     pool.scopedRegion { region =>
       val b1 = new BlockLinkedList[Double](region, PFloat64())
       b1 ++= Seq(1.0, 2.0, 3.0)

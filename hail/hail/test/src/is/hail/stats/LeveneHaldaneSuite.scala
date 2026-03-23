@@ -3,10 +3,8 @@ package is.hail.stats
 import is.hail.utils._
 
 import org.apache.commons.math3.util.CombinatoricsUtils.factorialLog
-import org.scalatestplus.testng.TestNGSuite
-import org.testng.annotations.Test
 
-class LeveneHaldaneSuite extends TestNGSuite {
+class LeveneHaldaneSuite extends munit.FunSuite {
 
   def LH(n: Int, nA: Int)(nAB: Int): Double = {
     assert(nA >= 0 && nA <= n)
@@ -27,29 +25,26 @@ class LeveneHaldaneSuite extends TestNGSuite {
   val examples =
     List((15, 10), (15, 9), (15, 0), (15, 15), (1, 0), (1, 1), (0, 0), (1526, 431), (1526, 430))
 
-  @Test def pmfTest(): Unit = {
-
+  test("pmf") {
     def test(e: (Int, Int)): Boolean = {
       val (n, nA) = e
       val p0 = LeveneHaldane(n, nA).probability _
       val p1 = LH(n, nA) _
       (-2 to nA + 2).forall(nAB => D_==(p0(nAB), p1(nAB)))
     }
-    examples foreach { e => assert(test(e)) }
+    examples.foreach(e => assert(test(e)))
   }
 
-  @Test def modeTest(): Unit = {
-
+  test("mode") {
     def test(e: (Int, Int)): Boolean = {
       val (n, nA) = e
       val LH = LeveneHaldane(n, nA)
       D_==(LH.probability(LH.mode), (nA % 2 to nA by 2).map(LH.probability).max)
     }
-    examples foreach { e => assert(test(e)) }
+    examples.foreach(e => assert(test(e)))
   }
 
-  @Test def meanTest(): Unit = {
-
+  test("mean") {
     def test(e: (Int, Int)): Boolean = {
       val (n, nA) = e
       val LH = LeveneHaldane(n, nA)
@@ -58,11 +53,10 @@ class LeveneHaldaneSuite extends TestNGSuite {
         (LH.getSupportLowerBound to LH.getSupportUpperBound).map(i => i * LH.probability(i)).sum,
       )
     }
-    examples foreach { e => assert(test(e)) }
+    examples.foreach(e => assert(test(e)))
   }
 
-  @Test def varianceTest(): Unit = {
-
+  test("variance") {
     def test(e: (Int, Int)): Boolean = {
       val (n, nA) = e
       val LH = LeveneHaldane(n, nA)
@@ -71,11 +65,10 @@ class LeveneHaldaneSuite extends TestNGSuite {
         (LH.getSupportLowerBound to LH.getSupportUpperBound).map(i => i * i * LH.probability(i)).sum,
       )
     }
-    examples foreach { e => assert(test(e)) }
+    examples.foreach(e => assert(test(e)))
   }
 
-  @Test def exactTestsTest(): Unit = {
-
+  test("exactTests") {
     def test(e: (Int, Int)): Boolean = {
       val (n, nA) = e
       val LH = LeveneHaldane(n, nA)
@@ -99,7 +92,7 @@ class LeveneHaldaneSuite extends TestNGSuite {
         )
       )
     }
-    examples foreach { e => assert(test(e)) }
+    examples.foreach(e => assert(test(e)))
   }
 
 }

@@ -10,23 +10,16 @@ import is.hail.utils._
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
-import java.lang.reflect.Method
 import java.nio.file.Path
 
-import org.scalatest.Inspectors.forAll
-import org.scalatest.enablers.InspectorAsserting.assertingNatureOfAssertion
-import org.scalatest.matchers.should.Matchers.convertToAnyShouldWrapper
-import org.scalatestplus.testng.TestNGSuite
-import org.testng.annotations.{AfterClass, BeforeClass, BeforeMethod, Test}
-
-class BatchClientSuite extends TestNGSuite {
+class BatchClientSuite extends munit.FunSuite {
 
   private[this] var client: BatchClient = _
   private[this] var batchId: Int = _
   private[this] var parentJobGroupId: Int = _
 
-  @BeforeClass
-  def createClientAndBatch(): Unit = {
+  override def beforeAll(): Unit = {
+    super.beforeAll()
     client =
       BatchClient(
         DeployConfig.default,
@@ -44,25 +37,25 @@ class BatchClientSuite extends TestNGSuite {
       )
   }
 
-  @BeforeMethod
-  def createEmptyParentJobGroup(m: Method): Unit = {
+  override def beforeEach(context: BeforeEach): Unit = {
+    super.beforeEach(context)
     parentJobGroupId = client.newJobGroup(
       req = JobGroupRequest(
         batch_id = batchId,
         absolute_parent_id = 0,
         token = tokenUrlSafe,
-        attributes = Map("name" -> m.getName),
+        attributes = Map("name" -> context.test.name),
         jobs = FastSeq(),
       )
     )._1
   }
 
-  @AfterClass
-  def closeClient(): Unit =
+  override def afterAll(): Unit = {
     client.close()
+    super.afterAll()
+  }
 
-  @Test
-  def testCancelAfterNFailures(): Unit = {
+  test("CancelAfterNFailures") {
     val (jobGroupId, _) = client.newJobGroup(
       req = JobGroupRequest(
         batch_id = batchId,
@@ -89,13 +82,12 @@ class BatchClientSuite extends TestNGSuite {
       )
     )
     val result = client.waitForJobGroup(batchId, jobGroupId)
-    assert(result.state == Failure)
-    assert(result.n_jobs == 2)
-    assert(result.n_failed == 1)
+    assertEquals(result.state, Failure)
+    assertEquals(result.n_jobs, 2)
+    assertEquals(result.n_failed, 1)
   }
 
-  @Test
-  def testGetJobGroupJobsByState(): Unit = {
+  test("GetJobGroupJobsByState") {
     val (jobGroupId, _) = client.newJobGroup(
       req = JobGroupRequest(
         batch_id = batchId,
@@ -120,19 +112,17 @@ class BatchClientSuite extends TestNGSuite {
       )
     )
     client.waitForJobGroup(batchId, jobGroupId): Unit
-    forAll(Array(JobStates.Failed, JobStates.Success)) { state =>
-      forAll(client.getJobGroupJobs(batchId, jobGroupId, Some(state))) { jobs =>
-        assert(jobs.length == 1)
-        assert(jobs(0).state == state)
+    Array(JobStates.Failed, JobStates.Success).foreach { state =>
+      client.getJobGroupJobs(batchId, jobGroupId, Some(state)).foreach { jobs =>
+        assertEquals(jobs.length, 1)
+        assertEquals(jobs(0).state, state)
         assert(jobs.head.end_time.isDefined)
       }
     }
   }
 
-  @Test
-  def testNewJobGroup(): Unit =
-    // The query driver submits a job group per stage with one job per partition
-    forAll(1 to 2) { i =>
+  test("NewJobGroup") {
+    (1 to 2).foreach { i =>
       val (jobGroupId, _) = client.newJobGroup(
         req = JobGroupRequest(
           batch_id = batchId,
@@ -152,11 +142,11 @@ class BatchClientSuite extends TestNGSuite {
       )
 
       val result = client.getJobGroup(batchId, jobGroupId)
-      assert(result.n_jobs == i)
+      assertEquals(result.n_jobs, i)
     }
+  }
 
-  @Test
-  def testJvmJob(): Unit = {
+  test("JvmJob") {
     val (jobGroupId, _) = client.newJobGroup(
       req = JobGroupRequest(
         batch_id = batchId,
@@ -177,11 +167,10 @@ class BatchClientSuite extends TestNGSuite {
     )
 
     val result = client.getJobGroup(batchId, jobGroupId)
-    assert(result.n_jobs == 1)
+    assertEquals(result.n_jobs, 1)
   }
 
-  @Test // #15118
-  def testWaitForCancelledJobGroup(): Unit = {
+  test("WaitForCancelledJobGroup") { // #15118
     val (jobGroupId, _) = client.newJobGroup(
       req = JobGroupRequest(
         batch_id = batchId,
@@ -207,6 +196,6 @@ class BatchClientSuite extends TestNGSuite {
     }: Unit
 
     val jg = client.waitForJobGroup(batchId, jobGroupId)
-    jg.state shouldBe services.JobGroupStates.Cancelled
+    assertEquals(jg.state, services.JobGroupStates.Cancelled)
   }
 }

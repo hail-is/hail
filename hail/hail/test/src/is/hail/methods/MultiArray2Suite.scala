@@ -1,106 +1,105 @@
 package is.hail.methods
 
-import is.hail.HailSuite
 import is.hail.utils.MultiArray2
 
-import org.testng.annotations.Test
-
-class MultiArray2Suite extends HailSuite {
-  @Test def test() = {
-
-    // test multiarray of size 0 will be created
+class MultiArray2Suite extends munit.FunSuite {
+  test("fill with size 0") {
     MultiArray2.fill[Int](0, 0)(0): Unit
+  }
 
-    // test multiarray of size 0 that apply nothing out
-    assertThrows[IllegalArgumentException] {
+  test("apply on size 0 throws") {
+    intercept[IllegalArgumentException] {
       val ma0 = MultiArray2.fill[Int](0, 0)(0)
       ma0(0, 0)
-    }
+    }: Unit
+  }
 
-    // test array index out of bounds on row slice
-    assertThrows[ArrayIndexOutOfBoundsException] {
+  test("row slice out of bounds") {
+    intercept[ArrayIndexOutOfBoundsException] {
       val foo = MultiArray2.fill[Int](5, 5)(0)
       foo.row(0)(5)
-    }
+    }: Unit
+  }
 
-    // bad multiarray initiation -- negative number
-    assertThrows[IllegalArgumentException] {
+  test("negative row count") {
+    intercept[IllegalArgumentException] {
       MultiArray2.fill[Int](-5, 5)(0)
-    }
+    }: Unit
+  }
 
-    // bad multiarray initiation -- negative number
-    assertThrows[IllegalArgumentException] {
+  test("negative column count") {
+    intercept[IllegalArgumentException] {
       MultiArray2.fill[Int](5, -5)(0)
-    }
+    }: Unit
+  }
 
+  test("update and apply") {
     val ma1 = MultiArray2.fill[Int](10, 3)(0)
     for ((i, j) <- ma1.indices)
       ma1.update(i, j, i * j)
-    assert(ma1(2, 2) == 4)
-    assert(ma1(6, 1) == 6)
+    assertEquals(ma1(2, 2), 4)
+    assertEquals(ma1(6, 1), 6)
 
-    // Catch exception if try to apply value that is not in indices of multiarray
-    assertThrows[IllegalArgumentException] {
+    intercept[IllegalArgumentException] {
       ma1(100, 100)
-    }
+    }: Unit
 
     val ma2 = MultiArray2.fill[Int](10, 3)(0)
     for ((i, j) <- ma2.indices)
       ma2.update(i, j, i + j)
 
-    assert(ma2(2, 2) == 4)
-    assert(ma2(6, 1) == 7)
+    assertEquals(ma2(2, 2), 4)
+    assertEquals(ma2(6, 1), 7)
 
-    // Test zip with two ints
+    // zip two int arrays
     val ma3 = ma1.zip(ma2)
-    assert(ma3(2, 2) == ((4, 4)))
-    assert(ma3(6, 1) == ((6, 7)))
+    assertEquals(ma3(2, 2), (4, 4))
+    assertEquals(ma3(6, 1), (6, 7))
 
-    // Test zip with multi-arrays of different types
+    // zip arrays of different types
     val ma4 = MultiArray2.fill[String](10, 3)("foo")
     val ma5 = ma1.zip(ma4)
-    assert(ma5(2, 2) == ((4, "foo")))
-    assert(ma5(0, 0) == ((0, "foo")))
+    assertEquals(ma5(2, 2), (4, "foo"))
+    assertEquals(ma5(0, 0), (0, "foo"))
 
-    // Test row slice
+    // row slice
     for {
       row <- ma5.rows
       idx <- 0 until row.length
     }
-      assert(row(idx) == ((row.i * idx, "foo")))
+      assertEquals(row(idx), (row.i * idx, "foo"))
 
-    assertThrows[IllegalArgumentException] {
+    intercept[IllegalArgumentException] {
       ma5.row(100)
-    }
+    }: Unit
 
-    assertThrows[ArrayIndexOutOfBoundsException] {
+    intercept[ArrayIndexOutOfBoundsException] {
       val x = ma5.row(0)
       x(100)
-    }
+    }: Unit
 
-    assertThrows[IllegalArgumentException] {
+    intercept[IllegalArgumentException] {
       ma5.row(-5)
-    }
+    }: Unit
 
-    assertThrows[IllegalArgumentException] {
+    intercept[IllegalArgumentException] {
       ma5.column(100)
-    }
+    }: Unit
 
-    assertThrows[IllegalArgumentException] {
+    intercept[IllegalArgumentException] {
       ma5.column(-5)
-    }
+    }: Unit
 
-    assertThrows[ArrayIndexOutOfBoundsException] {
+    intercept[ArrayIndexOutOfBoundsException] {
       val x = ma5.column(0)
       x(100)
-    }
+    }: Unit
 
-    // Test column slice
+    // column slice
     for {
       column <- ma5.columns
       idx <- 0 until column.length
     }
-      assert(column(idx) == ((column.j * idx, "foo")))
-
+      assertEquals(column(idx), (column.j * idx, "foo"))
   }
 }

@@ -19,9 +19,6 @@ import is.hail.types.virtual._
 import scala.collection.mutable.ArrayBuffer
 
 import org.apache.spark.sql.Row
-import org.scalatest.Inspectors.forAll
-import org.scalatest.enablers.InspectorAsserting.assertingNatureOfAssertion
-import org.testng.annotations.{DataProvider, Test}
 
 class RequirednessSuite extends HailSuite {
   val required: Boolean = true
@@ -108,7 +105,6 @@ class RequirednessSuite extends HailSuite {
 
   def pinterval(point: PType, r: Boolean): PInterval = PCanonicalInterval(point, r)
 
-  @DataProvider(name = "valueIR")
   def valueIR(): Array[Array[Any]] = {
     val nodes = Array.newBuilder[Array[Any]]
     nodes.sizeHint(50)
@@ -352,7 +348,6 @@ class RequirednessSuite extends HailSuite {
     nodes.result()
   }
 
-  @DataProvider(name = "tableIR")
   def tableIR(): Array[Array[Any]] = {
     val nodes = Array.newBuilder[Array[Any]]
     nodes.sizeHint(50)
@@ -634,8 +629,7 @@ class RequirednessSuite extends HailSuite {
     nodes.result()
   }
 
-  @Test
-  def testDataProviders(): Unit = {
+  test("DataProviders") {
     val s = ArrayBuffer.empty[String]
     valueIR().map(v => v(0) -> v(1)).foreach {
       case (n: IR, t: PType) =>
@@ -661,22 +655,25 @@ class RequirednessSuite extends HailSuite {
       s"${Pretty(ctx, node.t)}: \n$t"
     }.mkString("\n\n")
 
-  @Test(dataProvider = "valueIR")
-  def testRequiredness(node: IR, expected: Any): Unit = {
-    TypeCheck(ctx, node)
-    val et = expected match {
-      case pt: PType => EmitType(pt.sType, pt.required)
-      case et: EmitType => et
+  test("Requiredness") {
+    valueIR().foreach { v =>
+      val node = v(0).asInstanceOf[IR]
+      val expected = v(1)
+      TypeCheck(ctx, node)
+      val et = expected match {
+        case pt: PType => EmitType(pt.sType, pt.required)
+        case et: EmitType => et
+      }
+      val res = Requiredness.apply(node, ctx)
+      val actual = res.r.lookup(node).asInstanceOf[TypeWithRequiredness]
+      assert(
+        actual.canonicalEmitType(node.typ) == et,
+        s"\n\n${Pretty(ctx, node)}: \n$actual\n\n${dump(res.r)}",
+      )
     }
-    val res = Requiredness.apply(node, ctx)
-    val actual = res.r.lookup(node).asInstanceOf[TypeWithRequiredness]
-    assert(
-      actual.canonicalEmitType(node.typ) == et,
-      s"\n\n${Pretty(ctx, node)}: \n$actual\n\n${dump(res.r)}",
-    )
   }
 
-  @Test def sharedNodesWorkCorrectly(): Unit = {
+  test("sharedNodesWorkCorrectly") {
     val n2 = bindIR(I32(1))(x => MakeStruct(FastSeq("a" -> x, "b" -> x)))
     val node = InsertFields(n2, FastSeq("c" -> GetField(n2, "a"), "d" -> GetField(n2, "b")))
     val res = Requiredness.apply(node, ctx)
@@ -690,21 +687,25 @@ class RequirednessSuite extends HailSuite {
     ))
   }
 
-  @Test(dataProvider = "tableIR")
-  def testTableRequiredness(node: TableIR, row: PType, global: PType): Unit = {
-    val res = Requiredness.apply(node, ctx)
-    val actual = res.r.lookup(node).asInstanceOf[RTable]
-    assert(
-      actual.rowType.canonicalPType(node.typ.rowType) == row,
-      s"\n\n${Pretty(ctx, node)}: \n$actual\n\n${dump(res.r)}",
-    )
-    assert(
-      actual.globalType.canonicalPType(node.typ.globalType) == global,
-      s"\n\n${Pretty(ctx, node)}: \n$actual\n\n${dump(res.r)}",
-    )
+  test("TableRequiredness") {
+    tableIR().foreach { v =>
+      val node = v(0).asInstanceOf[TableIR]
+      val row = v(1).asInstanceOf[PType]
+      val global = v(2).asInstanceOf[PType]
+      val res = Requiredness.apply(node, ctx)
+      val actual = res.r.lookup(node).asInstanceOf[RTable]
+      assert(
+        actual.rowType.canonicalPType(node.typ.rowType) == row,
+        s"\n\n${Pretty(ctx, node)}: \n$actual\n\n${dump(res.r)}",
+      )
+      assert(
+        actual.globalType.canonicalPType(node.typ.globalType) == global,
+        s"\n\n${Pretty(ctx, node)}: \n$actual\n\n${dump(res.r)}",
+      )
+    }
   }
 
-  @Test def testTableReader(): Unit = {
+  test("TableReader") {
     val table = TableParallelize(
       makestruct(
         "rows" -> MakeArray(makestruct(
@@ -731,12 +732,10 @@ class RequirednessSuite extends HailSuite {
     }
 
     val reader = TableNativeReader(fs, TableNativeReaderParameters(path, None))
-    forAll(
-      Array(
-        table.typ,
-        TableType(TStruct("a" -> tnestedarray), FastSeq(), TStruct("z" -> tstruct)),
-      )
-    ) { rType =>
+    Array(
+      table.typ,
+      TableType(TStruct("a" -> tnestedarray), FastSeq(), TStruct("z" -> tstruct)),
+    ).foreach { rType =>
       val row = reader.rowRequiredness(ctx, rType)
       val global = reader.globalRequiredness(ctx, rType)
       val node = TableRead(rType, dropRows = false, reader)
@@ -753,7 +752,7 @@ class RequirednessSuite extends HailSuite {
     }
   }
 
-  @Test def testSubsettedTuple(): Unit = {
+  test("SubsettedTuple") {
     val node = MakeTuple(FastSeq(0 -> I32(0), 4 -> NA(TInt32), 2 -> NA(TArray(TInt32))))
     val expected = PCanonicalTuple(
       FastSeq(

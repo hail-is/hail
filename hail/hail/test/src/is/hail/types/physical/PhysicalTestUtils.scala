@@ -55,7 +55,7 @@ abstract class PhysicalTestUtils extends HailSuite {
             return
           }
 
-          fail(e)
+          fail("unexpected error in interpret path", e)
       }
 
       return
@@ -81,7 +81,7 @@ abstract class PhysicalTestUtils extends HailSuite {
           return
         }
 
-        fail(e)
+        fail("unexpected error in compile path", e)
     }
 
     if (compileSuccess && expectCompileError) {
@@ -102,7 +102,7 @@ abstract class PhysicalTestUtils extends HailSuite {
             return
           }
 
-          fail(e)
+          fail("unexpected runtime error", e)
       }
 
     logger.info(s"Copied value: $copy, Source value: $sourceValue")

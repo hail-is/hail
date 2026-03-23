@@ -1,10 +1,7 @@
 package is.hail.utils
 
-import org.scalatestplus.testng.TestNGSuite
-import org.testng.annotations.Test
-
-class SemanticVersionSuite extends TestNGSuite {
-  @Test def testOrdering(): Unit = {
+class SemanticVersionSuite extends munit.FunSuite {
+  test("Ordering") {
     val versions = Array(
       SemanticVersion(1, 1, 0),
       SemanticVersion(1, 1, 1),

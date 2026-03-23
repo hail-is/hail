@@ -9,12 +9,10 @@ import is.hail.sparkextras.implicits._
 import org.apache.spark.storage.StorageLevel
 import org.scalacheck.Gen
 import org.scalacheck.Gen.containerOf
-import org.scalatestplus.scalacheck.CheckerAsserting.assertingNatureOfAssertion
-import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
-import org.testng.annotations.Test
+import org.scalacheck.Prop.forAll
 
-class UtilsSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
-  @Test def testD_==(): Unit = {
+class UtilsSuite extends HailSuite with munit.ScalaCheckSuite {
+  test("D_==") {
     assert(D_==(1, 1))
     assert(D_==(1, 1 + 1e-7))
     assert(!D_==(1, 1 + 1e-5))
@@ -26,7 +24,7 @@ class UtilsSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(D_==(1e-320, -1e-320))
   }
 
-  @Test def testFlushDouble(): Unit = {
+  test("FlushDouble") {
     assert(flushDouble(8.0e-308) == 8.0e-308)
     assert(flushDouble(-8.0e-308) == -8.0e-308)
     assert(flushDouble(8.0e-309) == 0.0)
@@ -34,7 +32,7 @@ class UtilsSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(flushDouble(0.0) == 0.0)
   }
 
-  @Test def testAreDistinct(): Unit = {
+  test("AreDistinct") {
     assert(Array().areDistinct())
     assert(Array(1).areDistinct())
     assert(Array(1, 2).areDistinct())
@@ -42,7 +40,7 @@ class UtilsSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(!Array(1, 2, 1).areDistinct())
   }
 
-  @Test def testIsIncreasing(): Unit = {
+  test("IsIncreasing") {
     assert(Seq[Int]().isIncreasing)
     assert(Seq(1).isIncreasing)
     assert(Seq(1, 2).isIncreasing)
@@ -52,7 +50,7 @@ class UtilsSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(Array(1, 2).isIncreasing)
   }
 
-  @Test def testIsSorted(): Unit = {
+  test("IsSorted") {
     assert(Seq[Int]().isSorted)
     assert(Seq(1).isSorted)
     assert(Seq(1, 2).isSorted)
@@ -62,7 +60,7 @@ class UtilsSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(Array(1, 1).isSorted)
   }
 
-  @Test def testPairRDDNoDup(): Unit = {
+  test("PairRDDNoDup") {
     val answer1 =
       Array((1, (1, Option(1))), (2, (4, Option(2))), (3, (9, Option(3))), (4, (16, Option(4))))
     val pairRDD1 = sc.parallelize(ArraySeq(1, 2, 3, 4)).map(i => (i, i * i))
@@ -70,10 +68,10 @@ class UtilsSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     val join = pairRDD1.leftOuterJoin(pairRDD2.distinct())
 
     assert(join.collect().sortBy(t => t._1) sameElements answer1)
-    assert(join.count() == 4)
+    assertEquals(join.count(), 4L)
   }
 
-  @Test def testForallExists(): Unit = {
+  test("ForallExists") {
     val rdd1 = sc.parallelize(ArraySeq(1, 2, 3, 4, 5))
 
     assert(rdd1.forall(_ > 0))
@@ -83,7 +81,7 @@ class UtilsSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(!rdd1.exists(_ < 0))
   }
 
-  @Test def testSortFileListEntry(): Unit = {
+  test("SortFileListEntry") {
     val fs = new HadoopFS(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
 
     val partFileNames = fs.glob(getTestResource("part-*"))
@@ -93,10 +91,11 @@ class UtilsSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         ).last
       )
 
-    assert(partFileNames(0) == "part-40001" && partFileNames(1) == "part-100001")
+    assert(partFileNames(0) == "part-40001")
+    assert(partFileNames(1) == "part-100001")
   }
 
-  @Test def storageLevelStringTest() = {
+  test("storageLevelString") {
     val sls = List(
       "NONE", "DISK_ONLY", "DISK_ONLY_2", "MEMORY_ONLY", "MEMORY_ONLY_2", "MEMORY_ONLY_SER",
       "MEMORY_ONLY_SER_2",
@@ -106,7 +105,7 @@ class UtilsSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     sls.foreach(sl => StorageLevel.fromString(sl))
   }
 
-  @Test def testDictionaryOrdering(): Unit = {
+  test("DictionaryOrdering") {
     val stringList = Seq("Cats", "Crayon", "Dog")
 
     val longestToShortestLength = Ordering.by[String, Int](-_.length)
@@ -114,43 +113,48 @@ class UtilsSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     val alphabetically = Ordering.String
 
     val ord1 = dictionaryOrdering(alphabetically, byFirstLetter, longestToShortestLength)
-    assert(stringList.sorted(ord1) == stringList)
+    assertEquals(stringList.sorted(ord1), stringList)
     val ord2 = dictionaryOrdering(byFirstLetter, longestToShortestLength)
-    assert(stringList.sorted(ord2) == Seq("Crayon", "Cats", "Dog"))
+    assertEquals(stringList.sorted(ord2), Seq("Crayon", "Cats", "Dog"))
   }
 
-  @Test def testCollectAsSet(): Unit =
+  property("CollectAsSet") =
     forAll(containerOf[ArraySeq, Int](Gen.choose(-1000, 1000)), Gen.choose(1, 10)) {
       case (values, parts) =>
         val rdd = sc.parallelize(values, numSlices = parts)
-        assert(rdd.collectAsSet() == rdd.collect().toSet)
+        rdd.collectAsSet() == rdd.collect().toSet
     }
 
-  @Test def testDigitsNeeded(): Unit = {
-    assert(digitsNeeded(0) == 1)
-    assert(digitsNeeded(1) == 1)
-    assert(digitsNeeded(7) == 1)
-    assert(digitsNeeded(9) == 1)
-    assert(digitsNeeded(13) == 2)
-    assert(digitsNeeded(30173) == 5)
+  test("DigitsNeeded") {
+    assertEquals(digitsNeeded(0), 1)
+    assertEquals(digitsNeeded(1), 1)
+    assertEquals(digitsNeeded(7), 1)
+    assertEquals(digitsNeeded(9), 1)
+    assertEquals(digitsNeeded(13), 2)
+    assertEquals(digitsNeeded(30173), 5)
   }
 
-  @Test def toMapUniqueEmpty(): Unit =
-    assert(toMapIfUnique(Seq[(Int, Int)]())(x => x % 2) == Right(Map()))
+  test("toMapUniqueEmpty") {
+    assertEquals(toMapIfUnique(Seq[(Int, Int)]())(x => x % 2), Right(Map[Int, Int]()))
+  }
 
-  @Test def toMapUniqueSingleton(): Unit =
-    assert(toMapIfUnique(Seq(1 -> 2))(x => x % 2) == Right(Map(1 -> 2)))
+  test("toMapUniqueSingleton") {
+    assertEquals(toMapIfUnique(Seq(1 -> 2))(x => x % 2), Right(Map(1 -> 2)))
+  }
 
-  @Test def toMapUniqueSmallNoDupe(): Unit =
-    assert(toMapIfUnique(Seq(1 -> 2, 3 -> 6, 10 -> 2))(x => x % 5) ==
-      Right(Map(1 -> 2, 3 -> 6, 0 -> 2)))
+  test("toMapUniqueSmallNoDupe") {
+    assertEquals(
+      toMapIfUnique(Seq(1 -> 2, 3 -> 6, 10 -> 2))(x => x % 5),
+      Right(Map(1 -> 2, 3 -> 6, 0 -> 2)),
+    )
+  }
 
-  @Test def toMapUniqueSmallDupes(): Unit =
-    assert(toMapIfUnique(Seq(1 -> 2, 6 -> 6, 10 -> 2))(x => x % 5) ==
-      Left(Map(1 -> Seq(1, 6))))
+  test("toMapUniqueSmallDupes") {
+    assertEquals(toMapIfUnique(Seq(1 -> 2, 6 -> 6, 10 -> 2))(x => x % 5), Left(Map(1 -> Seq(1, 6))))
+  }
 
-  @Test def testItemPartition(): Unit = {
-    def test(n: Int, k: Int): Unit = {
+  test("ItemPartition") {
+    def check(n: Int, k: Int): Unit = {
       val a = new Array[Int](k)
       var prevj = 0
       for (i <- 0 until n) {
@@ -167,51 +171,51 @@ class UtilsSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       assert(a sameElements p)
     }
 
-    test(0, 0)
-    test(0, 4)
-    test(2, 4)
-    test(2, 5)
-    test(12, 4)
-    test(12, 5)
+    check(0, 0)
+    check(0, 4)
+    check(2, 4)
+    check(2, 5)
+    check(12, 4)
+    check(12, 5)
   }
 
-  @Test def testTreeAggDepth(): Unit = {
-    assert(treeAggDepth(20, 20) == 1)
-    assert(treeAggDepth(20, 19) == 2)
-    assert(treeAggDepth(399, 20) == 2)
-    assert(treeAggDepth(400, 20) == 2)
-    assert(treeAggDepth(401, 20) == 3)
-    assert(treeAggDepth(0, 20) == 1)
+  test("TreeAggDepth") {
+    assertEquals(treeAggDepth(20, 20), 1)
+    assertEquals(treeAggDepth(20, 19), 2)
+    assertEquals(treeAggDepth(399, 20), 2)
+    assertEquals(treeAggDepth(400, 20), 2)
+    assertEquals(treeAggDepth(401, 20), 3)
+    assertEquals(treeAggDepth(0, 20), 1)
   }
 
-  @Test def testMerge(): Unit = {
+  test("Merge") {
     val lt: (Int, Int) => Boolean =
       _ < _
 
     val empty: IndexedSeq[Int] =
       IndexedSeq.empty
 
-    assert(merge(empty, empty, lt) == empty)
+    assertEquals(merge(empty, empty, lt), empty)
 
     val ones: IndexedSeq[Int] =
       ArraySeq(1)
 
-    assert(merge(ones, empty, lt) == ones)
-    assert(merge(empty, ones, lt) == ones)
+    assertEquals(merge(ones, empty, lt), ones)
+    assertEquals(merge(empty, ones, lt), ones)
 
     val twos: IndexedSeq[Int] =
       ArraySeq(2)
 
-    assert(merge(ones, twos, lt) == (1 to 2))
-    assert(merge(twos, ones, lt) == (1 to 2))
+    assertEquals(merge(ones, twos, lt), (1 to 2).toIndexedSeq)
+    assertEquals(merge(twos, ones, lt), (1 to 2).toIndexedSeq)
 
     val threes: IndexedSeq[Int] =
       ArraySeq(3)
 
-    assert(merge(twos, ones ++ threes, lt) == (1 to 3))
+    assertEquals(merge(twos, ones ++ threes, lt), (1 to 3).toIndexedSeq)
 
     // inputs need to be sorted
-    assert(merge(twos, threes ++ ones, lt) == Seq(2, 3, 1))
+    assertEquals(merge(twos, threes ++ ones, lt), IndexedSeq(2, 3, 1))
   }
 
 }

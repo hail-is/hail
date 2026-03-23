@@ -8,8 +8,6 @@ import is.hail.utils.{Muple, OrderingView}
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.runtime.universe._
 
-import org.testng.annotations.Test
-
 class FlipbookIteratorSuite extends HailSuite {
 
   class Box[A: TypeTag] extends AnyRef {
@@ -141,26 +139,25 @@ class FlipbookIteratorSuite extends HailSuite {
       )
   }
 
-  @Test def flipbookIteratorStartsWithRightValue(): Unit = {
+  test("flipbookIteratorStartsWithRightValue") {
     val it: FlipbookIterator[Box[Int]] =
       makeTestIterator(1, 2, 3, 4, 5)
-    assert(it.value.value == 1)
+    assertEquals(it.value.value, 1)
   }
 
-  @Test def makeTestIteratorWorks(): Unit = {
+  test("makeTestIteratorWorks") {
     assert(makeTestIterator(1, 2, 3, 4, 5) shouldBe Iterator.range(1, 6))
-
     assert(makeTestIterator[Int]() shouldBe Iterator.empty)
   }
 
-  @Test def toFlipbookIteratorOnFlipbookIteratorIsIdentity(): Unit = {
+  test("toFlipbookIteratorOnFlipbookIteratorIsIdentity") {
     val it1 = makeTestIterator(1, 2, 3)
     val it2 = Iterator(1, 2, 3)
     assert(it1.toFlipbookIterator shouldBe it2)
     assert(makeTestIterator[Int]().toFlipbookIterator shouldBe Iterator.empty)
   }
 
-  @Test def toStaircaseWorks(): Unit = {
+  test("toStaircaseWorks") {
     val testIt = makeTestIterator(1, 1, 2, 3, 3, 3)
     val it = Iterator(
       Iterator(1, 1),
@@ -170,7 +167,7 @@ class FlipbookIteratorSuite extends HailSuite {
     assert(testIt.staircased(boxOrdView) shouldBe it)
   }
 
-  @Test def orderedZipJoinWorks(): Unit = {
+  test("orderedZipJoinWorks") {
     val left = makeTestIterator(1, 2, 4, 1000, 1000)
     val right = makeTestIterator(2, 3, 4, 1000, 1000)
     val zipped = left.orderedZipJoin(
@@ -185,7 +182,7 @@ class FlipbookIteratorSuite extends HailSuite {
     assert(zipped shouldBe it)
   }
 
-  @Test def innerJoinDistinctWorks(): Unit = {
+  test("innerJoinDistinctWorks") {
     val left = makeTestIterator(1, 2, 2, 4, 1000, 1000)
     val right = makeTestIterator(2, 4, 4, 5, 1000, 1000)
     val joined = left.innerJoinDistinct(
@@ -201,7 +198,7 @@ class FlipbookIteratorSuite extends HailSuite {
     assert(joined shouldBe it)
   }
 
-  @Test def leftJoinDistinctWorks(): Unit = {
+  test("leftJoinDistinctWorks") {
     val left = makeTestIterator(1, 2, 2, 4, 1000, 1000)
     val right = makeTestIterator(2, 4, 4, 5, 1000, 1000)
     val joined = left.leftJoinDistinct(
@@ -215,7 +212,7 @@ class FlipbookIteratorSuite extends HailSuite {
     assert(joined shouldBe it)
   }
 
-  @Test def innerJoinWorks(): Unit = {
+  test("innerJoinWorks") {
     val left = makeTestIterator(1, 2, 2, 4, 5, 5, 1000, 1000)
     val right = makeTestIterator(2, 2, 4, 4, 5, 6, 1000, 1000)
     val joined = left.innerJoin(
@@ -232,7 +229,7 @@ class FlipbookIteratorSuite extends HailSuite {
     assert(joined shouldBe it)
   }
 
-  @Test def leftJoinWorks(): Unit = {
+  test("leftJoinWorks") {
     val left = makeTestIterator(1, 2, 2, 4, 5, 5, 1000, 1000)
     val right = makeTestIterator(2, 2, 4, 4, 5, 6, 1000, 1000)
     val joined = left.leftJoin(
@@ -261,7 +258,7 @@ class FlipbookIteratorSuite extends HailSuite {
     assert(joined shouldBe it)
   }
 
-  @Test def rightJoinWorks(): Unit = {
+  test("rightJoinWorks") {
     val left = makeTestIterator(1, 2, 2, 4, 5, 5, 1000, 1000)
     val right = makeTestIterator(2, 2, 4, 4, 5, 6, 1000, 1000)
     val joined = left.rightJoin(
@@ -290,7 +287,7 @@ class FlipbookIteratorSuite extends HailSuite {
     assert(joined shouldBe it)
   }
 
-  @Test def outerJoinWorks(): Unit = {
+  test("outerJoinWorks") {
     val left = makeTestIterator(1, 2, 2, 4, 5, 5, 1000, 1000)
     val right = makeTestIterator(2, 2, 4, 4, 5, 6, 1000, 1000)
     val joined = left.outerJoin(
@@ -323,7 +320,7 @@ class FlipbookIteratorSuite extends HailSuite {
     assert(joined shouldBe it)
   }
 
-  @Test def multiZipJoinWorks(): Unit = {
+  test("multiZipJoinWorks") {
     val one = makeTestIterator(1, 2, 2, 4, 5, 5, 1000, 1000)
     val two = makeTestIterator(2, 3, 4, 5, 5, 6, 1000, 1000)
     val three = makeTestIterator(2, 3, 4, 4, 5, 6, 1000, 1000)

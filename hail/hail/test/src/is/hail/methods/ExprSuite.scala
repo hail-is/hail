@@ -13,15 +13,13 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.scalacheck.Arbitrary._
 import org.scalacheck.Gen
-import org.scalatestplus.scalacheck.CheckerAsserting.assertingNatureOfAssertion
-import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
-import org.testng.annotations.Test
+import org.scalacheck.Prop.forAll
 
-class ExprSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
+class ExprSuite extends HailSuite with munit.ScalaCheckSuite {
 
   def sm: HailStateManager = ctx.stateManager
 
-  @Test def testTypePretty(): Unit = {
+  property("TypePretty") {
     // for arbType
 
     val sb = new StringBuilder
@@ -31,27 +29,24 @@ class ExprSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       val res = sb.result()
       val parsed = IRParser.parseType(res)
       t == parsed
-    }
-
-    forAll { (t: Type) =>
-      sb.clear()
-      t.pretty(sb, 0, compact = false)
-      val res = sb.result()
-      val parsed = IRParser.parseType(res)
-      t == parsed
-    }
-
-    forAll { (t: Type) =>
-      val s = t.parsableString()
-      val parsed = IRParser.parseType(s)
-      assert(t == parsed)
-    }
+    } ++
+      forAll { (t: Type) =>
+        sb.clear()
+        t.pretty(sb, 0, compact = false)
+        val res = sb.result()
+        val parsed = IRParser.parseType(res)
+        t == parsed
+      } ++
+      forAll { (t: Type) =>
+        val s = t.parsableString()
+        val parsed = IRParser.parseType(s)
+        t == parsed
+      }
   }
 
-  @Test def testEscaping(): Unit =
-    forAll((s: String) => assert(s == unescapeString(escapeString(s))))
+  property("Escaping") = forAll((s: String) => s == unescapeString(escapeString(s)))
 
-  @Test def testEscapingSimple(): Unit = {
+  property("EscapingSimple") {
     // a == 0x61, _ = 0x5f
     assert(escapeStringSimple("abc", '_', _ => false) == "abc")
     assert(escapeStringSimple("abc", '_', _ == 'a') == "_61bc")
@@ -64,20 +59,22 @@ class ExprSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(unescapeStringSimple("my name is _u540d_u8c26", '_') == "my name is 名谦")
 
     forAll(Gen.asciiPrintableStr) { (s: String) =>
-      assert(s == unescapeStringSimple(
+      s == unescapeStringSimple(
         escapeStringSimple(s, '_', _.isLetterOrDigit, _.isLetterOrDigit),
         '_',
-      ))
+      )
     }
   }
 
-  @Test def testImportEmptyJSONObjectAsStruct(): Unit =
+  test("ImportEmptyJSONObjectAsStruct") {
     assert(JSONAnnotationImpex.importAnnotation(parse("{}"), TStruct()) == Row())
+  }
 
-  @Test def testExportEmptyJSONObjectAsStruct(): Unit =
+  test("ExportEmptyJSONObjectAsStruct") {
     assert(compact(render(JSONAnnotationImpex.exportAnnotation(Row(), TStruct()))) == "{}")
+  }
 
-  @Test def testRoundTripEmptyJSONObject(): Unit = {
+  test("RoundTripEmptyJSONObject") {
     val actual = JSONAnnotationImpex.exportAnnotation(
       JSONAnnotationImpex.importAnnotation(parse("{}"), TStruct()),
       TStruct(),
@@ -85,35 +82,33 @@ class ExprSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(compact(render(actual)) == "{}")
   }
 
-  @Test def testRoundTripEmptyStruct(): Unit = {
+  test("RoundTripEmptyStruct") {
     val actual = JSONAnnotationImpex.importAnnotation(
       JSONAnnotationImpex.exportAnnotation(Row(), TStruct()),
       TStruct(),
     )
-    assert(actual == Row())
+    assertEquals(actual, Row())
   }
 
-  @Test def testImpexes(): Unit = {
-
+  property("Impexes") {
     val g = for {
       t <- arbitrary[Type]
       a <- genNullable(ctx, t)
     } yield (t, a)
 
     forAll(g) { case (t, a) =>
-      assert(JSONAnnotationImpex.importAnnotation(
+      JSONAnnotationImpex.importAnnotation(
         JSONAnnotationImpex.exportAnnotation(a, t),
         t,
-      ) == a)
-    }
-
-    forAll(g) { case (t, a) =>
-      val string = compact(JSONAnnotationImpex.exportAnnotation(a, t))
-      assert(JSONAnnotationImpex.importAnnotation(parse(string), t) == a)
-    }
+      ) == a
+    } ++
+      forAll(g) { case (t, a) =>
+        val string = compact(JSONAnnotationImpex.exportAnnotation(a, t))
+        JSONAnnotationImpex.importAnnotation(parse(string), t) == a
+      }
   }
 
-  @Test def testOrdering(): Unit = {
+  property("Ordering") {
     val intOrd = TInt32.ordering(ctx.stateManager)
 
     assert(intOrd.compare(-2, -2) == 0)
@@ -130,7 +125,7 @@ class ExprSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
     forAll(g) { case (t, a, b) =>
       val ord = t.ordering(ctx.stateManager)
-      assert(ord.compare(a, b) == -ord.compare(b, a))
+      ord.compare(a, b) == -ord.compare(b, a)
     }
   }
 }
