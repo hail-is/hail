@@ -5,10 +5,6 @@ import is.hail.asm4s._
 import is.hail.collection.FastSeq
 import is.hail.expr.ir.EmitFunctionBuilder
 
-import org.scalatest.Inspectors.forAll
-import org.scalatest.enablers.InspectorAsserting.assertingNatureOfAssertion
-import org.testng.annotations.Test
-
 class PContainerTest extends PhysicalTestUtils {
   def nullInByte(nElements: Int, missingElement: Int) = {
     IndexedSeq.tabulate(nElements) { i =>
@@ -66,70 +62,70 @@ class PContainerTest extends PhysicalTestUtils {
     res
   }
 
-  @Test def checkFirstNonZeroByte(): Unit = {
+  test("FirstNonZeroByte") {
     val sourceType = PCanonicalArray(PInt64(false))
 
-    assert(testContainsNonZeroBits(sourceType, nullInByte(0, 0)) == false)
+    assertEquals(testContainsNonZeroBits(sourceType, nullInByte(0, 0)), false)
 
-    assert(testContainsNonZeroBits(sourceType, nullInByte(1, 0)) == false)
-    assert(testContainsNonZeroBits(sourceType, nullInByte(1, 1)) == true)
+    assertEquals(testContainsNonZeroBits(sourceType, nullInByte(1, 0)), false)
+    assertEquals(testContainsNonZeroBits(sourceType, nullInByte(1, 1)), true)
 
-    assert(testContainsNonZeroBits(sourceType, nullInByte(8, 0)) == false)
-    assert(testContainsNonZeroBits(sourceType, nullInByte(8, 1)) == true)
-    assert(testContainsNonZeroBits(sourceType, nullInByte(8, 8)) == true)
+    assertEquals(testContainsNonZeroBits(sourceType, nullInByte(8, 0)), false)
+    assertEquals(testContainsNonZeroBits(sourceType, nullInByte(8, 1)), true)
+    assertEquals(testContainsNonZeroBits(sourceType, nullInByte(8, 8)), true)
 
-    assert(testContainsNonZeroBits(sourceType, nullInByte(32, 0)) == false)
-    assert(testContainsNonZeroBits(sourceType, nullInByte(31, 31)) == true)
-    assert(testContainsNonZeroBits(sourceType, nullInByte(32, 32)) == true)
-    assert(testContainsNonZeroBits(sourceType, nullInByte(33, 33)) == true)
+    assertEquals(testContainsNonZeroBits(sourceType, nullInByte(32, 0)), false)
+    assertEquals(testContainsNonZeroBits(sourceType, nullInByte(31, 31)), true)
+    assertEquals(testContainsNonZeroBits(sourceType, nullInByte(32, 32)), true)
+    assertEquals(testContainsNonZeroBits(sourceType, nullInByte(33, 33)), true)
 
-    assert(testContainsNonZeroBits(sourceType, nullInByte(64, 0)) == false)
-    assert(testContainsNonZeroBits(sourceType, nullInByte(64, 1)) == true)
-    assert(testContainsNonZeroBits(sourceType, nullInByte(64, 32)) == true)
-    assert(testContainsNonZeroBits(sourceType, nullInByte(64, 33)) == true)
-    assert(testContainsNonZeroBits(sourceType, nullInByte(64, 64)) == true)
+    assertEquals(testContainsNonZeroBits(sourceType, nullInByte(64, 0)), false)
+    assertEquals(testContainsNonZeroBits(sourceType, nullInByte(64, 1)), true)
+    assertEquals(testContainsNonZeroBits(sourceType, nullInByte(64, 32)), true)
+    assertEquals(testContainsNonZeroBits(sourceType, nullInByte(64, 33)), true)
+    assertEquals(testContainsNonZeroBits(sourceType, nullInByte(64, 64)), true)
 
-    assert(testContainsNonZeroBits(sourceType, nullInByte(68, 0)) == false)
-    assert(testContainsNonZeroBits(sourceType, nullInByte(68, 1)) == true)
-    assert(testContainsNonZeroBits(sourceType, nullInByte(68, 32)) == true)
-    assert(testContainsNonZeroBits(sourceType, nullInByte(68, 33)) == true)
-    assert(testContainsNonZeroBits(sourceType, nullInByte(68, 64)) == true)
+    assertEquals(testContainsNonZeroBits(sourceType, nullInByte(68, 0)), false)
+    assertEquals(testContainsNonZeroBits(sourceType, nullInByte(68, 1)), true)
+    assertEquals(testContainsNonZeroBits(sourceType, nullInByte(68, 32)), true)
+    assertEquals(testContainsNonZeroBits(sourceType, nullInByte(68, 33)), true)
+    assertEquals(testContainsNonZeroBits(sourceType, nullInByte(68, 64)), true)
 
-    assert(testContainsNonZeroBits(sourceType, nullInByte(72, 0)) == false)
-    assert(testContainsNonZeroBits(sourceType, nullInByte(72, 1)) == true)
-    assert(testContainsNonZeroBits(sourceType, nullInByte(72, 32)) == true)
-    assert(testContainsNonZeroBits(sourceType, nullInByte(72, 33)) == true)
-    assert(testContainsNonZeroBits(sourceType, nullInByte(72, 64)) == true)
+    assertEquals(testContainsNonZeroBits(sourceType, nullInByte(72, 0)), false)
+    assertEquals(testContainsNonZeroBits(sourceType, nullInByte(72, 1)), true)
+    assertEquals(testContainsNonZeroBits(sourceType, nullInByte(72, 32)), true)
+    assertEquals(testContainsNonZeroBits(sourceType, nullInByte(72, 33)), true)
+    assertEquals(testContainsNonZeroBits(sourceType, nullInByte(72, 64)), true)
 
-    assert(testContainsNonZeroBits(sourceType, nullInByte(73, 0)) == false)
-    assert(testContainsNonZeroBits(sourceType, nullInByte(73, 1)) == true)
-    assert(testContainsNonZeroBits(sourceType, nullInByte(73, 32)) == true)
-    assert(testContainsNonZeroBits(sourceType, nullInByte(73, 33)) == true)
-    assert(testContainsNonZeroBits(sourceType, nullInByte(73, 64)) == true)
+    assertEquals(testContainsNonZeroBits(sourceType, nullInByte(73, 0)), false)
+    assertEquals(testContainsNonZeroBits(sourceType, nullInByte(73, 1)), true)
+    assertEquals(testContainsNonZeroBits(sourceType, nullInByte(73, 32)), true)
+    assertEquals(testContainsNonZeroBits(sourceType, nullInByte(73, 33)), true)
+    assertEquals(testContainsNonZeroBits(sourceType, nullInByte(73, 64)), true)
   }
 
-  @Test def checkFirstNonZeroByteStaged(): Unit = {
+  test("FirstNonZeroByteStaged") {
     val sourceType = PCanonicalArray(PInt64(false))
 
-    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(32, 0)) == false)
-    assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(73, 64)) == true)
+    assertEquals(testContainsNonZeroBitsStaged(sourceType, nullInByte(32, 0)), false)
+    assertEquals(testContainsNonZeroBitsStaged(sourceType, nullInByte(73, 64)), true)
   }
 
-  @Test def checkHasMissingValues(): Unit = {
+  test("HasMissingValues") {
     val sourceType = PCanonicalArray(PInt64(false))
 
-    assert(testHasMissingValues(sourceType, nullInByte(1, 0)) == false)
-    assert(testHasMissingValues(sourceType, nullInByte(1, 1)) == true)
-    assert(testHasMissingValues(sourceType, nullInByte(2, 1)) == true)
+    assertEquals(testHasMissingValues(sourceType, nullInByte(1, 0)), false)
+    assertEquals(testHasMissingValues(sourceType, nullInByte(1, 1)), true)
+    assertEquals(testHasMissingValues(sourceType, nullInByte(2, 1)), true)
 
-    forAll(Seq(2, 16, 31, 32, 33, 50, 63, 64, 65, 90, 127, 128, 129)) { num =>
-      forAll(1 to num) { missing =>
-        assert(testHasMissingValues(sourceType, nullInByte(num, missing)) == true)
+    Seq(2, 16, 31, 32, 33, 50, 63, 64, 65, 90, 127, 128, 129).foreach { num =>
+      (1 to num).foreach { missing =>
+        assertEquals(testHasMissingValues(sourceType, nullInByte(num, missing)), true)
       }
     }
   }
 
-  @Test def arrayCopyTest(): Unit = {
+  test("arrayCopy") {
     /* Note: can't test where data is null due to ArrayStack.top semantics (ScalaToRegionValue:
      * assert(size_ > 0)) */
     def runTests(deepCopy: Boolean, interpret: Boolean): Unit = {
@@ -310,7 +306,7 @@ class PContainerTest extends PhysicalTestUtils {
     runTests(false, interpret = true)
   }
 
-  @Test def dictCopyTests(): Unit = {
+  test("dictCopy") {
     def runTests(deepCopy: Boolean, interpret: Boolean): Unit = {
       copyTestExecutor(
         PCanonicalDict(PCanonicalString(), PInt32()),
@@ -343,7 +339,7 @@ class PContainerTest extends PhysicalTestUtils {
     runTests(false, interpret = true)
   }
 
-  @Test def setCopyTests(): Unit = {
+  test("setCopy") {
     def runTests(deepCopy: Boolean, interpret: Boolean): Unit = {
       copyTestExecutor(
         PCanonicalSet(PCanonicalString(true)),

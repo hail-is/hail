@@ -8,16 +8,26 @@ import is.hail.expr.Nat
 import is.hail.expr.ir.defs._
 import is.hail.types.virtual._
 
-import org.testng.annotations.{BeforeMethod, DataProvider, Test}
-
 class ForwardLetsSuite extends HailSuite {
 
-  @BeforeMethod
-  def resetUidCounter(): Unit =
+  override def beforeEach(context: BeforeEach): Unit = {
+    super.beforeEach(context)
     is.hail.expr.ir.uidCounter = 0
+  }
 
-  @DataProvider(name = "nonForwardingOps")
-  def nonForwardingOps(): Array[Array[IR]] = {
+  def aggMin(value: IR): ApplyAggOp = ApplyAggOp(Min())(value)
+
+  object checkNonForwardingOps extends TestCases {
+    def apply(ir: IR)(implicit loc: munit.Location): Unit =
+      test("NonForwardingOps") {
+        val after = ForwardLets(ctx, ir)
+        val normalizedBefore = NormalizeNames()(ctx, ir)
+        val normalizedAfter = NormalizeNames()(ctx, after)
+        assertEquals(normalizedBefore, normalizedAfter)
+      }
+  }
+
+  {
     val a = ToArray(StreamRange(I32(0), I32(10), I32(1)))
     val x = Ref(freshName(), TInt32)
     Array(
@@ -41,11 +51,19 @@ class ForwardLetsSuite extends HailSuite {
       )),
       ApplyBinaryPrimOp(Add(), ApplyBinaryPrimOp(Add(), x, x), I32(1)),
       streamAggIR(ToStream(a))(y => ApplyAggOp(Sum())(x + y)),
-    ).map(ir => Array[IR](Let(FastSeq(x.name -> (In(0, TInt32) + In(0, TInt32))), ir)))
+    ).map(ir => Let(FastSeq(x.name -> (In(0, TInt32) + In(0, TInt32))), ir))
+      .foreach(checkNonForwardingOps(_))
   }
 
-  @DataProvider(name = "nonForwardingNonEvalOps")
-  def nonForwardingNonEvalOps(): Array[Array[IR]] = {
+  object checkNonForwardingNonEvalOps extends TestCases {
+    def apply(ir: IR)(implicit loc: munit.Location): Unit =
+      test("NonForwardingNonEvalOps") {
+        val after = ForwardLets(ctx, ir)
+        assert(after.isInstanceOf[Block])
+      }
+  }
+
+  {
     val x = Ref(freshName(), TInt32)
     val y = Ref(freshName(), TInt32)
     val z = Ref(freshName(), TInt32)
@@ -66,23 +84,38 @@ class ForwardLetsSuite extends HailSuite {
         TInt32,
         If(y < x, Recur(f, FastSeq[IR](y - I32(1)), TInt32), x),
       ),
-    ).map(ir => Array[IR](Let(FastSeq(x.name -> (In(0, TInt32) + In(0, TInt32))), ir)))
+    ).map(ir => Let(FastSeq(x.name -> (In(0, TInt32) + In(0, TInt32))), ir))
+      .foreach(checkNonForwardingNonEvalOps(_))
   }
 
-  def aggMin(value: IR): ApplyAggOp = ApplyAggOp(Min())(value)
+  object checkNonForwardingAggOps extends TestCases {
+    def apply(ir: IR)(implicit loc: munit.Location): Unit =
+      test("NonForwardingAggOps") {
+        val after = ForwardLets(ctx, ir)
+        assert(after.isInstanceOf[Block])
+      }
+  }
 
-  @DataProvider(name = "nonForwardingAggOps")
-  def nonForwardingAggOps(): Array[Array[IR]] = {
+  {
     val a = StreamRange(I32(0), I32(10), I32(1))
     val x = Ref(freshName(), TInt32)
     Array(
       aggArrayPerElement(ToArray(a))((y, _) => aggMin(x + y)),
       aggExplodeIR(a)(y => aggMin(y + x)),
-    ).map(ir => Array[IR](AggLet(x.name, In(0, TInt32) + In(0, TInt32), ir, false)))
+    ).map(ir => AggLet(x.name, In(0, TInt32) + In(0, TInt32), ir, false))
+      .foreach(checkNonForwardingAggOps(_))
   }
 
-  @DataProvider(name = "forwardingOps")
-  def forwardingOps(): Array[Array[IR]] = {
+  object checkForwardingOps extends TestCases {
+    def apply(ir: IR)(implicit loc: munit.Location): Unit =
+      test("ForwardingOps") {
+        val after = ForwardLets(ctx, ir)
+        assert(!after.isInstanceOf[Block])
+        assertEvalSame(ir, args = ArraySeq(5 -> TInt32))
+      }
+  }
+
+  {
     val x = Ref(freshName(), TInt32)
     Array(
       MakeStruct(FastSeq("a" -> I32(1), "b" -> ApplyBinaryPrimOp(Add(), x, I32(2)))),
@@ -92,27 +125,102 @@ class ForwardLetsSuite extends HailSuite {
       ApplyUnaryPrimOp(Negate, x),
       ToArray(mapIR(rangeIR(x))(foo => foo)),
       ToArray(filterIR(rangeIR(x))(foo => foo <= I32(0))),
-    ).map(ir => Array[IR](Let(FastSeq(x.name -> (In(0, TInt32) + In(0, TInt32))), ir)))
+    ).map(ir => Let(FastSeq(x.name -> (In(0, TInt32) + In(0, TInt32))), ir))
+      .foreach(checkForwardingOps(_))
   }
 
-  @DataProvider(name = "forwardingAggOps")
-  def forwardingAggOps(): Array[Array[IR]] = {
+  object checkForwardingAggOps extends TestCases {
+    def apply(ir: IR)(implicit loc: munit.Location): Unit =
+      test("ForwardingAggOps") {
+        val after = ForwardLets(ctx, ir)
+        assert(!after.isInstanceOf[Block])
+      }
+  }
+
+  {
     val x = Ref(freshName(), TInt32)
     val other = Ref(freshName(), TInt32)
     Array(
       AggFilter(x.ceq(I32(0)), aggMin(other), false),
       aggMin(x + other),
-    ).map(ir => Array[IR](AggLet(x.name, In(0, TInt32) + In(0, TInt32), ir, false)))
+    ).map(ir => AggLet(x.name, In(0, TInt32) + In(0, TInt32), ir, false))
+      .foreach(checkForwardingAggOps(_))
   }
 
-  @Test def assertDataProvidersWork(): Unit = {
-    nonForwardingOps(): Unit
-    forwardingOps(): Unit
-    nonForwardingAggOps(): Unit
-    forwardingAggOps(): Unit
+  object checkTrivialCases extends TestCases {
+    def apply(input: IR, _expected: IR, reason: String)(implicit loc: munit.Location): Unit =
+      test("TrivialCases") {
+        val normalize: (ExecuteContext, BaseIR) => BaseIR =
+          NormalizeNames(allowFreeVariables = true)
+        val result = normalize(ctx, ForwardLets(ctx, input))
+        val expected = normalize(ctx, _expected)
+        assertEquals(
+          result,
+          normalize(ctx, expected),
+          s"\ninput:\n${Pretty.sexprStyle(input)}\nexpected:\n${Pretty.sexprStyle(expected)}\ngot:\n${Pretty.sexprStyle(result)}\n$reason",
+        )
+      }
   }
 
-  @Test def testBlock(): Unit = {
+  {
+    val pi = Math.atan(1) * 4
+    val r = Ref(freshName(), TFloat64)
+
+    checkTrivialCases(
+      bindIR(I32(0))(_ => I32(2)),
+      I32(2),
+      """"x" is unused.""",
+    )
+    checkTrivialCases(
+      bindIR(I32(0))(x => x),
+      I32(0),
+      """"x" is constant and is used once.""",
+    )
+    checkTrivialCases(
+      bindIR(I32(2))(x => x * x),
+      I32(2) * I32(2),
+      """"x" is a primitive constant (ForwardLets does not evaluate).""",
+    )
+    checkTrivialCases(
+      bindIRs(I32(2), F64(pi), r) { case Seq(two, pi, r) =>
+        ApplyBinaryPrimOp(Multiply(), ApplyBinaryPrimOp(Multiply(), Cast(two, TFloat64), pi), r)
+      },
+      ApplyBinaryPrimOp(
+        Multiply(),
+        ApplyBinaryPrimOp(Multiply(), Cast(I32(2), TFloat64), F64(pi)),
+        r,
+      ),
+      """Forward constant primitive values and simple use ref.""",
+    )
+    checkTrivialCases(
+      IRBuilder.scoped { b =>
+        val x0 = b.strictMemoize(I32(2))
+        val x1 = b.strictMemoize(Cast(x0, TFloat64))
+        val x2 = b.strictMemoize(ApplyBinaryPrimOp(FloatingPointDivide(), x1, F64(2)))
+        val x3 = b.strictMemoize(F64(pi))
+        val x4 = b.strictMemoize(ApplyBinaryPrimOp(Multiply(), x3, x1))
+        val x5 = b.strictMemoize(ApplyBinaryPrimOp(Multiply(), x2, x2))
+        val x6 = b.strictMemoize(ApplyBinaryPrimOp(Multiply(), x3, x5))
+        MakeStruct(FastSeq("radius" -> x2, "circumference" -> x4, "area" -> x6))
+      },
+      IRBuilder.scoped { b =>
+        val x1 = b.strictMemoize(Cast(I32(2), TFloat64))
+        val x2 = b.strictMemoize(ApplyBinaryPrimOp(FloatingPointDivide(), x1, F64(2)))
+        MakeStruct(FastSeq(
+          "radius" -> x2,
+          "circumference" -> ApplyBinaryPrimOp(Multiply(), F64(pi), x1),
+          "area" -> ApplyBinaryPrimOp(
+            Multiply(),
+            F64(pi),
+            ApplyBinaryPrimOp(Multiply(), x2, x2),
+          ),
+        ))
+      },
+      "Cascading Let-bindings are forwarded",
+    )
+  }
+
+  test("Block") {
     val x = Ref(freshName(), TInt32)
     val y = Ref(freshName(), TInt32)
     val ir = Block(
@@ -121,115 +229,10 @@ class ForwardLetsSuite extends HailSuite {
     )
     val after: IR = ForwardLets(ctx, ir)
     val expected = ApplyAggOp(Sum())(I32(1))
-    assert(NormalizeNames()(ctx, after) == NormalizeNames()(ctx, expected))
+    assertEquals(NormalizeNames()(ctx, after), NormalizeNames()(ctx, expected))
   }
 
-  @Test(dataProvider = "nonForwardingOps")
-  def testNonForwardingOps(ir: IR): Unit = {
-    val after = ForwardLets(ctx, ir)
-    val normalizedBefore = NormalizeNames()(ctx, ir)
-    val normalizedAfter = NormalizeNames()(ctx, after)
-    assert(normalizedBefore == normalizedAfter)
-  }
-
-  @Test(dataProvider = "nonForwardingNonEvalOps")
-  def testNonForwardingNonEvalOps(ir: IR): Unit = {
-    val after = ForwardLets(ctx, ir)
-    assert(after.isInstanceOf[Block])
-  }
-
-  @Test(dataProvider = "nonForwardingAggOps")
-  def testNonForwardingAggOps(ir: IR): Unit = {
-    val after = ForwardLets(ctx, ir)
-    assert(after.isInstanceOf[Block])
-  }
-
-  @Test(dataProvider = "forwardingOps")
-  def testForwardingOps(ir: IR): Unit = {
-    val after = ForwardLets(ctx, ir)
-    assert(!after.isInstanceOf[Block])
-    assertEvalSame(ir, args = ArraySeq(5 -> TInt32))
-  }
-
-  @Test(dataProvider = "forwardingAggOps")
-  def testForwardingAggOps(ir: IR): Unit = {
-    val after = ForwardLets(ctx, ir)
-    assert(!after.isInstanceOf[Block])
-  }
-
-  @DataProvider(name = "TrivialIRCases")
-  def trivalIRCases: Array[Array[Any]] = {
-    val pi = Math.atan(1) * 4
-
-    val r = Ref(freshName(), TFloat64)
-    Array(
-      Array(
-        bindIR(I32(0))(_ => I32(2)),
-        I32(2),
-        """"x" is unused.""",
-      ),
-      Array(
-        bindIR(I32(0))(x => x),
-        I32(0),
-        """"x" is constant and is used once.""",
-      ),
-      Array(
-        bindIR(I32(2))(x => x * x),
-        I32(2) * I32(2),
-        """"x" is a primitive constant (ForwardLets does not evaluate).""",
-      ),
-      Array(
-        bindIRs(I32(2), F64(pi), r) { case Seq(two, pi, r) =>
-          ApplyBinaryPrimOp(Multiply(), ApplyBinaryPrimOp(Multiply(), Cast(two, TFloat64), pi), r)
-        },
-        ApplyBinaryPrimOp(
-          Multiply(),
-          ApplyBinaryPrimOp(Multiply(), Cast(I32(2), TFloat64), F64(pi)),
-          r,
-        ),
-        """Forward constant primitive values and simple use ref.""",
-      ),
-      Array(
-        IRBuilder.scoped { b =>
-          val x0 = b.strictMemoize(I32(2))
-          val x1 = b.strictMemoize(Cast(x0, TFloat64))
-          val x2 = b.strictMemoize(ApplyBinaryPrimOp(FloatingPointDivide(), x1, F64(2)))
-          val x3 = b.strictMemoize(F64(pi))
-          val x4 = b.strictMemoize(ApplyBinaryPrimOp(Multiply(), x3, x1))
-          val x5 = b.strictMemoize(ApplyBinaryPrimOp(Multiply(), x2, x2))
-          val x6 = b.strictMemoize(ApplyBinaryPrimOp(Multiply(), x3, x5))
-          MakeStruct(FastSeq("radius" -> x2, "circumference" -> x4, "area" -> x6))
-        },
-        IRBuilder.scoped { b =>
-          val x1 = b.strictMemoize(Cast(I32(2), TFloat64))
-          val x2 = b.strictMemoize(ApplyBinaryPrimOp(FloatingPointDivide(), x1, F64(2)))
-          MakeStruct(FastSeq(
-            "radius" -> x2,
-            "circumference" -> ApplyBinaryPrimOp(Multiply(), F64(pi), x1),
-            "area" -> ApplyBinaryPrimOp(
-              Multiply(),
-              F64(pi),
-              ApplyBinaryPrimOp(Multiply(), x2, x2),
-            ),
-          ))
-        },
-        "Cascading Let-bindings are forwarded",
-      ),
-    )
-  }
-
-  @Test(dataProvider = "TrivialIRCases")
-  def testTrivialCases(input: IR, _expected: IR, reason: String): Unit = {
-    val normalize: (ExecuteContext, BaseIR) => BaseIR = NormalizeNames(allowFreeVariables = true)
-    val result = normalize(ctx, ForwardLets(ctx, input))
-    val expected = normalize(ctx, _expected)
-    assert(
-      result == normalize(ctx, expected),
-      s"\ninput:\n${Pretty.sexprStyle(input)}\nexpected:\n${Pretty.sexprStyle(expected)}\ngot:\n${Pretty.sexprStyle(result)}\n$reason",
-    )
-  }
-
-  @Test def testAggregators(): Unit = {
+  test("Aggregators") {
     val row = Ref(freshName(), TStruct("idx" -> TInt32))
     val aggEnv = Env[Type](row.name -> row.typ)
 
@@ -238,7 +241,7 @@ class ForwardLetsSuite extends HailSuite {
     TypeCheck(ctx, ForwardLets(ctx, ir0), BindingEnv(Env.empty, agg = Some(aggEnv)))
   }
 
-  @Test def testNestedBindingOverwrites(): Unit = {
+  test("NestedBindingOverwrites") {
     val x = Ref(freshName(), TInt32)
     val env = Env[Type](x.name -> TInt32)
     def xCast = Cast(x, TFloat64)
@@ -248,7 +251,7 @@ class ForwardLetsSuite extends HailSuite {
     TypeCheck(ctx, ForwardLets(ctx, ir), BindingEnv(env))
   }
 
-  @Test def testLetsDoNotForwardInsideArrayAggWithNoOps(): Unit = {
+  test("LetsDoNotForwardInsideArrayAggWithNoOps") {
     val y = Ref(freshName(), TInt32)
     val x = bindIR(
       streamAggIR(ToStream(In(0, TArray(TInt32))))(_ => y)

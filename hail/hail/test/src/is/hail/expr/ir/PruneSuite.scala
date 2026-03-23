@@ -17,12 +17,9 @@ import scala.collection.mutable
 
 import org.apache.spark.sql.Row
 import org.json4s.JValue
-import org.scalatest.Inspectors.forAll
-import org.scalatest.enablers.InspectorAsserting.assertingNatureOfAssertion
-import org.testng.annotations.{DataProvider, Test}
 
 class PruneSuite extends HailSuite {
-  @Test def testUnionType(): Unit = {
+  test("UnionType") {
     val base = TStruct(
       "a" -> TStruct(
         "aa" -> TInt32,
@@ -36,27 +33,35 @@ class PruneSuite extends HailSuite {
       )),
     )
 
-    assert(PruneDeadFields.unify(base, TStruct.empty) == TStruct.empty)
-    assert(PruneDeadFields.unify(base, TStruct("b" -> TInt32)) == TStruct("b" -> TInt32))
-    assert(
-      PruneDeadFields.unify(base, TStruct("a" -> TStruct.empty)) == TStruct("a" -> TStruct.empty)
-    )
-    assert(PruneDeadFields.unify(
-      base,
+    assertEquals(PruneDeadFields.unify(base, TStruct.empty), TStruct.empty)
+    assertEquals(PruneDeadFields.unify(base, TStruct("b" -> TInt32)), TStruct("b" -> TInt32))
+    assertEquals(
+      PruneDeadFields.unify(base, TStruct("a" -> TStruct.empty)),
       TStruct("a" -> TStruct.empty),
-      TStruct("b" -> TInt32),
-    ) == TStruct("a" -> TStruct.empty, "b" -> TInt32))
-    assert(PruneDeadFields.unify(base, TStruct("c" -> TArray(TStruct.empty))) == TStruct(
-      "c" -> TArray(TStruct.empty)
-    ))
-    assert(PruneDeadFields.unify(
-      base,
-      TStruct("a" -> TStruct("ab" -> TStruct.empty)),
+    )
+    assertEquals(
+      PruneDeadFields.unify(
+        base,
+        TStruct("a" -> TStruct.empty),
+        TStruct("b" -> TInt32),
+      ),
+      TStruct("a" -> TStruct.empty, "b" -> TInt32),
+    )
+    assertEquals(
+      PruneDeadFields.unify(base, TStruct("c" -> TArray(TStruct.empty))),
       TStruct("c" -> TArray(TStruct.empty)),
-    ) == TStruct("a" -> TStruct("ab" -> TStruct.empty), "c" -> TArray(TStruct.empty)))
+    )
+    assertEquals(
+      PruneDeadFields.unify(
+        base,
+        TStruct("a" -> TStruct("ab" -> TStruct.empty)),
+        TStruct("c" -> TArray(TStruct.empty)),
+      ),
+      TStruct("a" -> TStruct("ab" -> TStruct.empty), "c" -> TArray(TStruct.empty)),
+    )
   }
 
-  @Test def testIsSupertype(): Unit = {
+  test("IsSupertype") {
     val emptyTuple = TTuple.empty
     val tuple1Int = TTuple(TInt32)
     val tuple2Ints = TTuple(TInt32, TInt32)
@@ -67,7 +72,7 @@ class PruneSuite extends HailSuite {
     assert(PruneDeadFields.isSupertype(tuple2IntsFirstRemoved, tuple2Ints))
   }
 
-  @Test def testIsSupertypeWithDistinctFieldTypes(): Unit = {
+  test("IsSupertypeWithDistinctFieldTypes") {
     val tuple2Ints = TTuple(TInt32, TFloat64)
     val tuple2IntsFirstRemoved = TTuple(IndexedSeq(TupleField(1, TFloat64)))
 
@@ -97,7 +102,7 @@ class PruneSuite extends HailSuite {
         PruneDeadFields.memoizeValueIR(ctx, ir, requestedType.asInstanceOf[Type], ms, envStates)
     }
 
-    forAll(irCopy.children.zipWithIndex) { case (child, i) =>
+    irCopy.children.zipWithIndex.foreach { case (child, i) =>
       assert(
         expected(i) == null || expected(i) == ms.requestedType.lookup(child),
         s"For base IR $ir\n  Child $i with IR $child\n  Expected: ${expected(i)}\n  Actual:   ${ms.requestedType.get(child)}",
@@ -343,7 +348,7 @@ class PruneSuite extends HailSuite {
       t.typ.globalType.fieldNames.map(x => x -> (x + "_")).toMap,
     )
 
-  @Test def testTableJoinMemo(): Unit = {
+  test("TableJoinMemo") {
     val tk1 = TableKeyBy(tab, ArraySeq("1"))
     val tk2 = mangle(TableKeyBy(tab, ArraySeq("3")))
     val tj = TableJoin(tk1, tk2, "inner", 1)
@@ -387,7 +392,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testTableLeftJoinRightDistinctMemo(): Unit = {
+  test("TableLeftJoinRightDistinctMemo") {
     val tk1 = TableKeyBy(tab, ArraySeq("1"))
     val tk2 = TableKeyBy(tab, ArraySeq("3"))
     val tj = TableLeftJoinRightDistinct(tk1, tk2, "foo")
@@ -401,7 +406,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testTableIntervalJoinMemo(): Unit = {
+  test("TableIntervalJoinMemo") {
     val tk1 = TableKeyBy(tab, ArraySeq("1"))
     val tk2 = TableKeyBy(tab, ArraySeq("3"))
     val tj = TableIntervalJoin(tk1, tk2, "foo", product = false)
@@ -415,7 +420,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testTableMultiWayZipJoinMemo(): Unit = {
+  test("TableMultiWayZipJoinMemo") {
     val tk1 = TableKeyBy(tab, ArraySeq("1"))
     val ts = ArraySeq(tk1, tk1, tk1)
     val tmwzj = TableMultiWayZipJoin(ts, "data", "gbls")
@@ -426,12 +431,12 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testTableExplodeMemo(): Unit = {
+  test("TableExplodeMemo") {
     val te = TableExplode(tab, ArraySeq("2"))
     checkMemo(te, subsetTable(te.typ), ArraySeq(subsetTable(tab.typ, "row.2")))
   }
 
-  @Test def testTableFilterMemo(): Unit = {
+  test("TableFilterMemo") {
     checkMemo(
       TableFilter(tab, tableRefBoolean(tab.typ, "row.2")),
       subsetTable(tab.typ, "row.3"),
@@ -444,7 +449,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testTableKeyByMemo(): Unit = {
+  test("TableKeyByMemo") {
     val tk = TableKeyBy(tab, ArraySeq("1"))
     checkMemo(
       tk,
@@ -457,7 +462,7 @@ class PruneSuite extends HailSuite {
 
   }
 
-  @Test def testTableMapRowsMemo(): Unit = {
+  test("TableMapRowsMemo") {
     val tmr = TableMapRows(tab, tableRefStruct(tab.typ, "row.1", "row.2"))
     checkMemo(
       tmr,
@@ -473,7 +478,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testTableMapGlobalsMemo(): Unit = {
+  test("TableMapGlobalsMemo") {
     val tmg = TableMapGlobals(tab, tableRefStruct(tab.typ.copy(key = FastSeq()), "global.g1"))
     checkMemo(
       tmg,
@@ -482,7 +487,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testMatrixColsTableMemo(): Unit = {
+  test("MatrixColsTableMemo") {
     val mct = MatrixColsTable(mat)
     checkMemo(
       mct,
@@ -491,7 +496,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testMatrixRowsTableMemo(): Unit = {
+  test("MatrixRowsTableMemo") {
     val mrt = MatrixRowsTable(mat)
     checkMemo(
       mrt,
@@ -500,7 +505,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testMatrixEntriesTableMemo(): Unit = {
+  test("MatrixEntriesTableMemo") {
     val met = MatrixEntriesTable(mat)
     checkMemo(
       met,
@@ -509,7 +514,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testTableKeyByAndAggregateMemo(): Unit = {
+  test("TableKeyByAndAggregateMemo") {
     val tka = TableKeyByAndAggregate(
       tab,
       ApplyAggOp(PrevNonnull())(tableRefStruct(tab.typ, "row.2")),
@@ -530,7 +535,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testTableAggregateByKeyMemo(): Unit = {
+  test("TableAggregateByKeyMemo") {
     val tabk = TableAggregateByKey(
       tab,
       ApplyAggOp(PrevNonnull())(SelectFields(
@@ -545,14 +550,15 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testTableUnionMemo(): Unit =
+  test("TableUnionMemo") {
     checkMemo(
       TableUnion(FastSeq(tab, tab)),
       subsetTable(tab.typ, "row.1", "global.g1"),
       ArraySeq(subsetTable(tab.typ, "row.1", "global.g1"), subsetTable(tab.typ, "row.1")),
     )
+  }
 
-  @Test def testTableOrderByMemo(): Unit = {
+  test("TableOrderByMemo") {
     val tob = TableOrderBy(tab, ArraySeq(SortField("2", Ascending)))
     checkMemo(
       tob,
@@ -564,7 +570,7 @@ class PruneSuite extends HailSuite {
     checkMemo(tob2, subsetTable(tob2.typ), ArraySeq(subsetTable(tab.typ)))
   }
 
-  @Test def testCastMatrixToTableMemo(): Unit = {
+  test("CastMatrixToTableMemo") {
     val m2t = CastMatrixToTable(mat, "__entries", "__cols")
     checkMemo(
       m2t,
@@ -573,7 +579,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testMatrixFilterColsMemo(): Unit = {
+  test("MatrixFilterColsMemo") {
     val mfc = MatrixFilterCols(mat, matrixRefBoolean(mat.typ, "global.g1", "sa.c2"))
     checkMemo(
       mfc,
@@ -582,7 +588,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testMatrixFilterRowsMemo(): Unit = {
+  test("MatrixFilterRowsMemo") {
     val mfr = MatrixFilterRows(mat, matrixRefBoolean(mat.typ, "global.g1", "va.r2"))
     checkMemo(
       mfr,
@@ -591,7 +597,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testMatrixFilterEntriesMemo(): Unit = {
+  test("MatrixFilterEntriesMemo") {
     val mfe =
       MatrixFilterEntries(mat, matrixRefBoolean(mat.typ, "global.g1", "va.r2", "sa.c2", "g.e2"))
     checkMemo(
@@ -604,7 +610,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testMatrixMapColsMemo(): Unit = {
+  test("MatrixMapColsMemo") {
     val mmc = MatrixMapCols(
       mat,
       ApplyAggOp(PrevNonnull())(matrixRefStruct(mat.typ, "global.g1", "sa.c2", "va.r2", "g.e2")),
@@ -633,7 +639,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testMatrixKeyRowsByMemo(): Unit = {
+  test("MatrixKeyRowsByMemo") {
     val mkr = MatrixKeyRowsBy(mat, FastSeq("rk"))
     checkMemo(
       mkr,
@@ -642,7 +648,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testMatrixMapRowsMemo(): Unit = {
+  test("MatrixMapRowsMemo") {
     val mmr = MatrixMapRows(
       MatrixKeyRowsBy(mat, IndexedSeq.empty),
       ApplyAggOp(PrevNonnull())(matrixRefStruct(mat.typ, "global.g1", "sa.c2", "va.r2", "g.e2")),
@@ -664,7 +670,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testMatrixMapGlobalsMemo(): Unit = {
+  test("MatrixMapGlobalsMemo") {
     val mmg = MatrixMapGlobals(mat, matrixRefStruct(mat.typ, "global.g1"))
     checkMemo(
       mmg,
@@ -673,7 +679,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testMatrixAnnotateRowsTableMemo(): Unit = {
+  test("MatrixAnnotateRowsTableMemo") {
     val tl = TableLiteral(Interpret(MatrixRowsTable(mat), ctx), theHailClassLoader)
     val mart = MatrixAnnotateRowsTable(mat, tl, "foo", product = false)
     checkMemo(
@@ -683,7 +689,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testCollectColsByKeyMemo(): Unit = {
+  test("CollectColsByKeyMemo") {
     val ccbk = MatrixCollectColsByKey(mat)
     checkMemo(
       ccbk,
@@ -692,7 +698,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testMatrixExplodeRowsMemo(): Unit = {
+  test("MatrixExplodeRowsMemo") {
     val mer = MatrixExplodeRows(mat, FastSeq("r3"))
     checkMemo(
       mer,
@@ -701,7 +707,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testMatrixRepartitionMemo(): Unit = {
+  test("MatrixRepartitionMemo") {
     checkMemo(
       MatrixRepartition(mat, 10, RepartitionStrategy.SHUFFLE),
       subsetMatrixTable(mat.typ, "va.r2", "global.g1"),
@@ -712,7 +718,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testMatrixUnionRowsMemo(): Unit = {
+  test("MatrixUnionRowsMemo") {
     checkMemo(
       MatrixUnionRows(FastSeq(mat, mat)),
       subsetMatrixTable(mat.typ, "va.r2", "global.g1"),
@@ -723,7 +729,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testMatrixDistinctByRowMemo(): Unit = {
+  test("MatrixDistinctByRowMemo") {
     checkMemo(
       MatrixDistinctByRow(mat),
       subsetMatrixTable(mat.typ, "va.r2", "global.g1"),
@@ -734,7 +740,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testMatrixExplodeColsMemo(): Unit = {
+  test("MatrixExplodeColsMemo") {
     val mer = MatrixExplodeCols(mat, FastSeq("c3"))
     checkMemo(
       mer,
@@ -743,7 +749,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testCastTableToMatrixMemo(): Unit = {
+  test("CastTableToMatrixMemo") {
     val m2t = CastMatrixToTable(mat, "__entries", "__cols")
     val t2m = CastTableToMatrix(m2t, "__entries", "__cols", FastSeq("ck"))
     checkMemo(
@@ -760,7 +766,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testMatrixAggregateRowsByKeyMemo(): Unit = {
+  test("MatrixAggregateRowsByKeyMemo") {
     val magg = MatrixAggregateRowsByKey(
       mat,
       ApplyAggOp(PrevNonnull())(matrixRefStruct(mat.typ, "g.e2", "va.r2", "sa.c2")),
@@ -777,7 +783,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testMatrixAggregateColsByKeyMemo(): Unit = {
+  test("MatrixAggregateColsByKeyMemo") {
     val magg = MatrixAggregateColsByKey(
       mat,
       ApplyAggOp(PrevNonnull())(matrixRefStruct(mat.typ, "g.e2", "va.r2", "sa.c2")),
@@ -807,26 +813,29 @@ class PruneSuite extends HailSuite {
   val justARequired = TStruct("a" -> TInt32)
   val justBRequired = TStruct("b" -> TInt32)
 
-  @Test def testIfMemo(): Unit =
+  test("IfMemo") {
     checkMemo(If(True(), ref, ref), justA, ArraySeq(TBoolean, justA, justA), refEnv)
+  }
 
-  @Test def testSwitchMemo(): Unit =
+  test("SwitchMemo") {
     checkMemo(
       Switch(I32(0), ref, FastSeq(ref)),
       justA,
       ArraySeq(TInt32, justA, justA),
       refEnv,
     )
+  }
 
-  @Test def testCoalesceMemo(): Unit =
+  test("CoalesceMemo") {
     checkMemo(Coalesce(FastSeq(ref, ref)), justA, ArraySeq(justA, justA), refEnv)
+  }
 
-  @Test def testLetMemo(): Unit = {
+  test("LetMemo") {
     checkMemo(bindIR(ref)(x => x), justA, ArraySeq(justA, null), refEnv)
     checkMemo(bindIR(ref)(_ => True()), TBoolean, ArraySeq(empty, null), refEnv)
   }
 
-  @Test def testAggLetMemo(): Unit = {
+  test("AggLetMemo") {
     val env = BindingEnv.empty.createAgg.bindAgg(ref.name -> ref.typ)
     checkMemo(
       aggBindIR(ref)(foo => ApplyAggOp(Collect())(SelectFields(foo, IndexedSeq("a")))),
@@ -837,46 +846,54 @@ class PruneSuite extends HailSuite {
     checkMemo(aggBindIR(ref)(_ => True()), TBoolean, ArraySeq(empty, null), env)
   }
 
-  @Test def testMakeArrayMemo(): Unit =
+  test("MakeArrayMemo") {
     checkMemo(arr, TArray(justB), ArraySeq(justB, justB), refEnv)
+  }
 
-  @Test def testArrayRefMemo(): Unit =
+  test("ArrayRefMemo") {
     checkMemo(ArrayRef(arr, I32(0)), justB, ArraySeq(TArray(justB), null, null), refEnv)
+  }
 
-  @Test def testArrayLenMemo(): Unit =
+  test("ArrayLenMemo") {
     checkMemo(ArrayLen(arr), TInt32, ArraySeq(TArray(empty)), refEnv)
+  }
 
-  @Test def testStreamTakeMemo(): Unit =
+  test("StreamTakeMemo") {
     checkMemo(StreamTake(st, I32(2)), TStream(justA), ArraySeq(TStream(justA), null), refEnv)
+  }
 
-  @Test def testStreamDropMemo(): Unit =
+  test("StreamDropMemo") {
     checkMemo(StreamDrop(st, I32(2)), TStream(justA), ArraySeq(TStream(justA), null), refEnv)
+  }
 
-  @Test def testStreamMapMemo(): Unit =
+  test("StreamMapMemo") {
     checkMemo(
       mapIR(st)(x => x),
       TStream(justB),
       ArraySeq(TStream(justB), null),
       refEnv,
     )
+  }
 
-  @Test def testStreamGroupedMemo(): Unit =
+  test("StreamGroupedMemo") {
     checkMemo(
       StreamGrouped(st, I32(2)),
       TStream(TStream(justB)),
       ArraySeq(TStream(justB), null),
       refEnv,
     )
+  }
 
-  @Test def testStreamGroupByKeyMemo(): Unit =
+  test("StreamGroupByKeyMemo") {
     checkMemo(
       StreamGroupByKey(st, FastSeq("a"), false),
       TStream(TStream(justB)),
       ArraySeq(TStream(TStruct("a" -> TInt32, "b" -> TInt32)), null),
       refEnv,
     )
+  }
 
-  @Test def testStreamMergeMemo(): Unit = {
+  test("StreamMergeMemo") {
     val st2 = st.deepCopy()
     checkMemo(
       StreamMultiMerge(
@@ -889,7 +906,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testStreamZipMemo(): Unit = {
+  test("StreamZipMemo") {
     val a2 = st.deepCopy()
     val a3 = st.deepCopy()
     for (
@@ -922,7 +939,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testStreamFilterMemo(): Unit = {
+  test("StreamFilterMemo") {
     checkMemo(
       filterIR(st)(foo => bindIR(GetField(foo, "b"))(_ => False())),
       TStream(empty),
@@ -933,31 +950,34 @@ class PruneSuite extends HailSuite {
     checkMemo(filterIR(st)(_ => False()), TStream(justB), ArraySeq(TStream(justB), null), refEnv)
   }
 
-  @Test def testStreamFlatMapMemo(): Unit =
+  test("StreamFlatMapMemo") {
     checkMemo(
       flatMapIR(st)(foo => MakeStream(FastSeq(foo), TStream(ref.typ))),
       TStream(justA),
       ArraySeq(TStream(justA), null),
       refEnv,
     )
+  }
 
-  @Test def testStreamFoldMemo(): Unit =
+  test("StreamFoldMemo") {
     checkMemo(
       foldIR(st, I32(0))((_, foo) => GetField(foo, "a")),
       TInt32,
       ArraySeq(TStream(justA), null, null),
       refEnv,
     )
+  }
 
-  @Test def testStreamScanMemo(): Unit =
+  test("StreamScanMemo") {
     checkMemo(
       streamScanIR(st, I32(0))((_, foo) => GetField(foo, "a")),
       TStream(TInt32),
       ArraySeq(TStream(justA), null, null),
       refEnv,
     )
+  }
 
-  @Test def testStreamJoinRightDistinct(): Unit = {
+  test("StreamJoinRightDistinct") {
     checkMemo(
       joinRightDistinctIR(
         st,
@@ -984,7 +1004,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testStreamLeftIntervalJoin(): Unit = {
+  test("StreamLeftIntervalJoin") {
     val leftElemType = TStruct("a" -> TInt32, "b" -> TInt32, "c" -> TInt32)
     val rightElemType = TStruct("interval" -> TInterval(TInt32), "ignored" -> TInt32)
 
@@ -1027,7 +1047,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testStreamForMemo(): Unit = {
+  test("StreamForMemo") {
     checkMemo(
       forIR(st)(foo => Die(invoke("str", TString, GetField(foo, "a")), TVoid, ErrorIDs.NO_ERROR)),
       TVoid,
@@ -1036,7 +1056,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testMakeNDArrayMemo(): Unit = {
+  test("MakeNDArrayMemo") {
     val x = Ref(freshName(), TArray(TStruct("a" -> TInt32, "b" -> TInt64)))
     val y = Ref(freshName(), TTuple(TInt64, TInt64))
     checkMemo(
@@ -1051,15 +1071,16 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testNDArrayMapMemo(): Unit =
+  test("NDArrayMapMemo") {
     checkMemo(
       ndMap(ndArr)(x => x),
       TNDArray(justBRequired, Nat(1)),
       ArraySeq(TNDArray(justBRequired, Nat(1)), null),
       refEnv,
     )
+  }
 
-  @Test def testNDArrayMap2Memo(): Unit = {
+  test("NDArrayMap2Memo") {
     checkMemo(
       ndMap2(ndArr, ndArr)((l, _) => l),
       TNDArray(justBRequired, Nat(1)),
@@ -1082,7 +1103,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testMakeStructMemo(): Unit = {
+  test("MakeStructMemo") {
     checkMemo(
       MakeStruct(IndexedSeq("a" -> ref, "b" -> I32(10))),
       TStruct("a" -> justA),
@@ -1097,34 +1118,38 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testInsertFieldsMemo(): Unit =
+  test("InsertFieldsMemo") {
     checkMemo(
       InsertFields(ref, IndexedSeq("d" -> ref)),
       justA ++ TStruct("d" -> justB),
       ArraySeq(justA, justB),
       refEnv,
     )
+  }
 
-  @Test def testSelectFieldsMemo(): Unit = {
+  test("SelectFieldsMemo") {
     checkMemo(SelectFields(ref, IndexedSeq("a", "b")), justA, ArraySeq(justA), refEnv)
     checkMemo(SelectFields(ref, IndexedSeq("b", "a")), bAndA, ArraySeq(aAndB), refEnv)
   }
 
-  @Test def testGetFieldMemo(): Unit =
+  test("GetFieldMemo") {
     checkMemo(GetField(ref, "a"), TInt32, ArraySeq(justA), refEnv)
+  }
 
-  @Test def testMakeTupleMemo(): Unit =
+  test("MakeTupleMemo") {
     checkMemo(MakeTuple(IndexedSeq(0 -> ref)), TTuple(justA), ArraySeq(justA), refEnv)
+  }
 
-  @Test def testGetTupleElementMemo(): Unit =
+  test("GetTupleElementMemo") {
     checkMemo(
       GetTupleElement(MakeTuple.ordered(IndexedSeq(ref, ref)), 1),
       justB,
       ArraySeq(TTuple(FastSeq(TupleField(1, justB)))),
       refEnv,
     )
+  }
 
-  @Test def testCastRenameMemo(): Unit = {
+  test("CastRenameMemo") {
     val x = Ref(freshName(), TArray(TStruct("x" -> TInt32, "y" -> TString)))
     checkMemo(
       CastRename(x, TArray(TStruct("y" -> TInt32, "z" -> TString))),
@@ -1134,7 +1159,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testAggFilterMemo(): Unit = {
+  test("AggFilterMemo") {
     val t = TStruct("a" -> TInt32, "b" -> TInt64, "c" -> TString)
     val x = Ref(freshName(), t)
     checkMemo(
@@ -1149,7 +1174,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testAggExplodeMemo(): Unit = {
+  test("AggExplodeMemo") {
     val t = TStream(TStruct("a" -> TInt32, "b" -> TInt64))
     val x = Ref(freshName(), t)
     checkMemo(
@@ -1160,7 +1185,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testAggArrayPerElementMemo(): Unit = {
+  test("AggArrayPerElementMemo") {
     val t = TArray(TStruct("a" -> TInt32, "b" -> TInt64))
     val x = Ref(freshName(), t)
     checkMemo(
@@ -1173,7 +1198,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testCDAMemo(): Unit = {
+  test("CDAMemo") {
     val ctxT = TStruct("a" -> TInt32, "b" -> TString)
     val globT = TStruct("c" -> TInt64, "d" -> TFloat64)
     val x = cdaIR(NA(TStream(ctxT)), NA(globT), "test", NA(TString)) { (ctx, glob) =>
@@ -1195,66 +1220,75 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testTableCountMemo(): Unit =
+  test("TableCountMemo") {
     checkMemo(TableCount(tab), TInt64, ArraySeq(subsetTable(tab.typ, "NO_KEY")))
+  }
 
-  @Test def testTableGetGlobalsMemo(): Unit =
+  test("TableGetGlobalsMemo") {
     checkMemo(
       TableGetGlobals(tab),
       TStruct("g1" -> TInt32),
       ArraySeq(subsetTable(tab.typ, "global.g1", "NO_KEY")),
     )
+  }
 
-  @Test def testTableCollectMemo(): Unit =
+  test("TableCollectMemo") {
     checkMemo(
       TableCollect(TableKeyBy(tab, FastSeq())),
       TStruct("rows" -> TArray(TStruct("3" -> TString)), "global" -> TStruct("g2" -> TInt32)),
       ArraySeq(subsetTable(tab.typ.copy(key = FastSeq()), "row.3", "global.g2")),
     )
+  }
 
-  @Test def testTableHeadMemo(): Unit =
+  test("TableHeadMemo") {
     checkMemo(
       TableHead(tab, 10L),
       subsetTable(tab.typ.copy(key = FastSeq()), "global.g1"),
       ArraySeq(subsetTable(tab.typ, "row.3", "global.g1")),
     )
+  }
 
-  @Test def testTableTailMemo(): Unit =
+  test("TableTailMemo") {
     checkMemo(
       TableTail(tab, 10L),
       subsetTable(tab.typ.copy(key = FastSeq()), "global.g1"),
       ArraySeq(subsetTable(tab.typ, "row.3", "global.g1")),
     )
+  }
 
-  @Test def testTableToValueApplyMemo(): Unit =
+  test("TableToValueApplyMemo") {
     checkMemo(
       TableToValueApply(tab, ForceCountTable()),
       TInt64,
       ArraySeq(tab.typ),
     )
+  }
 
-  @Test def testMatrixToValueApplyMemo(): Unit =
+  test("MatrixToValueApplyMemo") {
     checkMemo(
       MatrixToValueApply(mat, ForceCountMatrixTable()),
       TInt64,
       ArraySeq(mat.typ),
     )
+  }
 
-  @Test def testTableAggregateMemo(): Unit =
+  test("TableAggregateMemo") {
     checkMemo(
       TableAggregate(tab, tableRefBoolean(tab.typ, "global.g1")),
       TBoolean,
       ArraySeq(subsetTable(tab.typ, "global.g1"), null),
     )
+  }
 
-  @Test def testMatrixAggregateMemo(): Unit =
+  test("MatrixAggregateMemo") {
     checkMemo(
       MatrixAggregate(mat, matrixRefBoolean(mat.typ, "global.g1")),
       TBoolean,
       ArraySeq(subsetMatrixTable(mat.typ, "global.g1", "NO_COL_KEY"), null),
     )
+  }
 
-  @Test def testPipelineLetMemo(): Unit = {
+  test("PipelineLetMemo") {
     val t = TStruct("a" -> TInt32)
     checkMemo(
       relationalBindIR(NA(t))(x => x),
@@ -1263,7 +1297,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testTableFilterRebuild(): Unit = {
+  test("TableFilterRebuild") {
     checkRebuild(
       TableFilter(tr, tableRefBoolean(tr.typ, "row.2")),
       subsetTable(tr.typ, "row.3"),
@@ -1275,7 +1309,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testTableMapRowsRebuild(): Unit = {
+  test("TableMapRowsRebuild") {
     val tmr = TableMapRows(tr, tableRefStruct(tr.typ, "row.2", "global.g1"))
     checkRebuild(
       tmr,
@@ -1306,7 +1340,7 @@ class PruneSuite extends HailSuite {
 
   }
 
-  @Test def testTableMapGlobalsRebuild(): Unit = {
+  test("TableMapGlobalsRebuild") {
     val tmg = TableMapGlobals(tr, tableRefStruct(tr.typ.copy(key = FastSeq()), "global.g1"))
     checkRebuild(
       tmg,
@@ -1319,7 +1353,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testTableLeftJoinRightDistinctRebuild(): Unit = {
+  test("TableLeftJoinRightDistinctRebuild") {
     val tk1 = TableKeyBy(tab, ArraySeq("1"))
     val tk2 = TableKeyBy(tab, ArraySeq("3"))
     val tj = TableLeftJoinRightDistinct(tk1, tk2, "foo")
@@ -1332,7 +1366,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testTableIntervalJoinRebuild(): Unit = {
+  test("TableIntervalJoinRebuild") {
     val tk1 = TableKeyBy(tab, ArraySeq("1"))
     val tk2 = TableKeyBy(tab, ArraySeq("3"))
     val tj = TableIntervalJoin(tk1, tk2, "foo", product = false)
@@ -1345,7 +1379,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testTableUnionRebuildUnifiesRowTypes(): Unit = {
+  test("TableUnionRebuildUnifiesRowTypes") {
     val mapExpr = InsertFields(
       Ref(TableIR.rowName, tr.typ.rowType),
       FastSeq("foo" -> tableRefBoolean(tr.typ, "row.3", "global.g1")),
@@ -1369,7 +1403,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testTableMultiWayZipJoinRebuildUnifiesRowTypes(): Unit = {
+  test("TableMultiWayZipJoinRebuildUnifiesRowTypes") {
     val t1 = TableKeyBy(tab, ArraySeq("1"))
     val t2 = TableFilter(t1, tableRefBoolean(t1.typ, "row.2"))
     val t3 = TableFilter(t1, tableRefBoolean(t1.typ, "row.3"))
@@ -1386,7 +1420,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testMatrixFilterColsRebuild(): Unit = {
+  test("MatrixFilterColsRebuild") {
     val mfc = MatrixFilterCols(mr, matrixRefBoolean(mr.typ, "sa.c2"))
     checkRebuild(
       mfc,
@@ -1399,7 +1433,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testMatrixFilterEntriesRebuild(): Unit = {
+  test("MatrixFilterEntriesRebuild") {
     val mfe = MatrixFilterEntries(mr, matrixRefBoolean(mr.typ, "sa.c2", "va.r2", "g.e1"))
     checkRebuild(
       mfe,
@@ -1418,7 +1452,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testMatrixMapRowsRebuild(): Unit = {
+  test("MatrixMapRowsRebuild") {
     val mmr = MatrixMapRows(
       MatrixKeyRowsBy(mr, IndexedSeq.empty),
       matrixRefStruct(mr.typ, "va.r2"),
@@ -1436,7 +1470,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testMatrixMapColsRebuild(): Unit = {
+  test("MatrixMapColsRebuild") {
     val mmc = MatrixMapCols(mr, matrixRefStruct(mr.typ, "sa.c2"), Some(FastSeq("foo")))
     checkRebuild(
       mmc,
@@ -1454,7 +1488,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testMatrixMapEntriesRebuild(): Unit = {
+  test("MatrixMapEntriesRebuild") {
     val mme = MatrixMapEntries(mr, matrixRefStruct(mr.typ, "sa.c2", "va.r2"))
     checkRebuild(
       mme,
@@ -1472,7 +1506,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testMatrixMapGlobalsRebuild(): Unit = {
+  test("MatrixMapGlobalsRebuild") {
     val mmg = MatrixMapGlobals(mr, matrixRefStruct(mr.typ, "global.g1"))
     checkRebuild(
       mmg,
@@ -1490,7 +1524,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testMatrixAggregateRowsByKeyRebuild(): Unit = {
+  test("MatrixAggregateRowsByKeyRebuild") {
     val ma = MatrixAggregateRowsByKey(
       mr,
       matrixRefStruct(mr.typ, "sa.c2"),
@@ -1507,7 +1541,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testMatrixAggregateColsByKeyRebuild(): Unit = {
+  test("MatrixAggregateColsByKeyRebuild") {
     val ma = MatrixAggregateColsByKey(
       mr,
       matrixRefStruct(mr.typ, "va.r2"),
@@ -1524,7 +1558,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testMatrixUnionRowsRebuild(): Unit = {
+  test("MatrixUnionRowsRebuild") {
     val mat2 = MatrixLiteral(mType.copy(colKey = FastSeq()), mat.tl)
     checkRebuild(
       MatrixUnionRows(FastSeq(
@@ -1539,7 +1573,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testMatrixUnionColsRebuild(): Unit = {
+  test("MatrixUnionColsRebuild") {
     def getColField(name: String) =
       GetField(Ref(MatrixIR.colName, mat.typ.colType), name)
     def childrenMatch(matrixUnionCols: MatrixUnionCols): Boolean =
@@ -1590,7 +1624,7 @@ class PruneSuite extends HailSuite {
 
   }
 
-  @Test def testMatrixAnnotateRowsTableRebuild(): Unit = {
+  test("MatrixAnnotateRowsTableRebuild") {
     val tl = TableLiteral(Interpret(MatrixRowsTable(mat), ctx), theHailClassLoader)
     val mart = MatrixAnnotateRowsTable(mat, tl, "foo", product = false)
     checkRebuild(
@@ -1609,7 +1643,7 @@ class PruneSuite extends HailSuite {
 
   def subsetTS(fields: String*): TStruct = ts.filterSet(fields.toSet)._1
 
-  @Test def testNARebuild(): Unit = {
+  test("NARebuild") {
     checkRebuild(
       NA(ts),
       subsetTS("b"),
@@ -1620,7 +1654,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testIfRebuild(): Unit = {
+  test("IfRebuild") {
     checkRebuild(
       If(True(), NA(ts), NA(ts)),
       subsetTS("b"),
@@ -1631,7 +1665,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testSwitchRebuild(): Unit =
+  test("SwitchRebuild") {
     checkRebuild[IR](
       Switch(I32(0), NA(ts), FastSeq(NA(ts))),
       subsetTS("b"),
@@ -1641,8 +1675,9 @@ class PruneSuite extends HailSuite {
           cases(0).typ == subsetTS("b")
       },
     )
+  }
 
-  @Test def testCoalesceRebuild(): Unit = {
+  test("CoalesceRebuild") {
     checkRebuild(
       Coalesce(FastSeq(NA(ts), NA(ts))),
       subsetTS("b"),
@@ -1651,7 +1686,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testLetRebuild(): Unit = {
+  test("LetRebuild") {
     checkRebuild(
       bindIR(NA(ts))(x => x),
       subsetTS("b"),
@@ -1662,7 +1697,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testAggLetRebuild(): Unit = {
+  test("AggLetRebuild") {
     checkRebuild(
       aggBindIR(NA(ref.typ))(foo => ApplyAggOp(Collect())(SelectFields(foo, IndexedSeq("a")))),
       TArray(subsetTS("a")),
@@ -1675,7 +1710,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testMakeArrayRebuild(): Unit = {
+  test("MakeArrayRebuild") {
     checkRebuild(
       MakeArray(IndexedSeq(NA(ts)), TArray(ts)),
       TArray(subsetTS("b")),
@@ -1686,7 +1721,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testStreamTakeRebuild(): Unit = {
+  test("StreamTakeRebuild") {
     checkRebuild(
       StreamTake(MakeStream(IndexedSeq(NA(ts)), TStream(ts)), I32(2)),
       TStream(subsetTS("b")),
@@ -1697,7 +1732,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testStreamDropRebuild(): Unit = {
+  test("StreamDropRebuild") {
     checkRebuild(
       StreamDrop(MakeStream(IndexedSeq(NA(ts)), TStream(ts)), I32(2)),
       TStream(subsetTS("b")),
@@ -1708,7 +1743,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testStreamMapRebuild(): Unit = {
+  test("StreamMapRebuild") {
     checkRebuild(
       mapIR(MakeStream(IndexedSeq(NA(ts)), TStream(ts)))(x => x),
       TStream(subsetTS("b")),
@@ -1719,7 +1754,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testStreamGroupedRebuild(): Unit = {
+  test("StreamGroupedRebuild") {
     checkRebuild(
       StreamGrouped(MakeStream(IndexedSeq(NA(ts)), TStream(ts)), I32(2)),
       TStream(TStream(subsetTS("b"))),
@@ -1730,7 +1765,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testStreamGroupByKeyRebuild(): Unit = {
+  test("StreamGroupByKeyRebuild") {
     checkRebuild(
       StreamGroupByKey(MakeStream(IndexedSeq(NA(ts)), TStream(ts)), FastSeq("a"), false),
       TStream(TStream(subsetTS("b"))),
@@ -1741,7 +1776,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testStreamMergeRebuild(): Unit = {
+  test("StreamMergeRebuild") {
     checkRebuild(
       StreamMultiMerge(
         IndexedSeq(
@@ -1755,7 +1790,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testStreamZipRebuild(): Unit = {
+  test("StreamZipRebuild") {
     val a2 = st.deepCopy()
     val a3 = st.deepCopy()
     for (
@@ -1796,7 +1831,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testStreamFlatmapRebuild(): Unit = {
+  test("StreamFlatmapRebuild") {
     checkRebuild(
       flatMapIR(MakeStream(IndexedSeq(NA(ts)), TStream(ts))) { x =>
         MakeStream(IndexedSeq(x), TStream(ts))
@@ -1809,7 +1844,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testMakeStructRebuild(): Unit = {
+  test("MakeStructRebuild") {
     checkRebuild(
       MakeStruct(IndexedSeq("a" -> NA(TInt32), "b" -> NA(TInt64), "c" -> NA(TString))),
       subsetTS("b"),
@@ -1818,7 +1853,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testInsertFieldsRebuild(): Unit = {
+  test("InsertFieldsRebuild") {
     checkRebuild(
       InsertFields(NA(TStruct("a" -> TInt32)), IndexedSeq("b" -> NA(TInt64), "c" -> NA(TString))),
       subsetTS("b"),
@@ -1843,7 +1878,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testMakeTupleRebuild(): Unit = {
+  test("MakeTupleRebuild") {
     checkRebuild(
       MakeTuple(IndexedSeq(0 -> I32(1), 1 -> F64(1.0), 2 -> NA(TString))),
       TTuple(FastSeq(TupleField(2, TString))),
@@ -1852,7 +1887,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testSelectFieldsRebuild(): Unit = {
+  test("SelectFieldsRebuild") {
     checkRebuild(
       SelectFields(NA(ts), IndexedSeq("a", "b")),
       subsetTS("b"),
@@ -1863,7 +1898,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testCastRenameRebuild(): Unit = {
+  test("CastRenameRebuild") {
     checkRebuild(
       CastRename(
         NA(TArray(TStruct("x" -> TInt32, "y" -> TString))),
@@ -1884,7 +1919,7 @@ class PruneSuite extends HailSuite {
     ErrorIDs.NO_ERROR,
   )
 
-  @Test def testNDArrayMapRebuild(): Unit = {
+  test("NDArrayMapRebuild") {
     checkRebuild(
       ndMap(ndArrayTS)(x => x),
       TNDArray(subsetTS("b"), Nat(1)),
@@ -1897,7 +1932,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testNDArrayMap2Rebuild(): Unit = {
+  test("NDArrayMap2Rebuild") {
     checkRebuild(
       ndMap2(ndArrayTS, ndArrayTS)((l, _) => l),
       TNDArray(subsetTS("b"), Nat(1)),
@@ -1918,7 +1953,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testCDARebuild(): Unit = {
+  test("CDARebuild") {
     val ctxT = TStruct("a" -> TInt32, "b" -> TString)
     val globT = TStruct("c" -> TInt64, "d" -> TFloat64)
     val x = cdaIR(
@@ -1947,7 +1982,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testTableAggregateRebuild(): Unit = {
+  test("TableAggregateRebuild") {
     val ta = TableAggregate(tr, ApplyAggOp(PrevNonnull())(tableRefBoolean(tr.typ, "row.2")))
     checkRebuild(
       ta,
@@ -1959,7 +1994,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testTableCollectRebuild(): Unit = {
+  test("TableCollectRebuild") {
     val tc = TableCollect(TableKeyBy(tab, FastSeq()))
     checkRebuild(
       tc,
@@ -1976,7 +2011,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testMatrixAggregateRebuild(): Unit = {
+  test("MatrixAggregateRebuild") {
     val ma = MatrixAggregate(mr, ApplyAggOp(Collect())(matrixRefBoolean(mr.typ, "va.r2")))
     checkRebuild(
       ma,
@@ -1988,7 +2023,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testPipelineLetRebuild(): Unit = {
+  test("PipelineLetRebuild") {
     val t = TStruct("a" -> TInt32)
     val foo = freshName()
     checkRebuild(
@@ -1999,7 +2034,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testPipelineLetTableRebuild(): Unit = {
+  test("PipelineLetTableRebuild") {
     val t = TStruct("a" -> TInt32)
     val foo = freshName()
     checkRebuild(
@@ -2012,7 +2047,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testPipelineLetMatrixTableRebuild(): Unit = {
+  test("PipelineLetMatrixTableRebuild") {
     val t = TStruct("a" -> TInt32)
     val foo = freshName()
     checkRebuild(
@@ -2025,7 +2060,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testIfUnification(): Unit = {
+  test("IfUnification") {
     val pred = False()
     val t = TStruct("a" -> TInt32, "b" -> TInt32)
     val pruneT = TStruct("a" -> TInt32)
@@ -2047,32 +2082,37 @@ class PruneSuite extends HailSuite {
     ): Unit
   }
 
-  @DataProvider(name = "supertypePairs")
-  def supertypePairs: Array[Array[Type]] = Array(
-    Array(TInt32, TInt32),
-    Array(
-      TStruct(
-        "a" -> TInt32,
-        "b" -> TArray(TInt64),
-      ),
-      TStruct(
-        "a" -> TInt32,
-        "b" -> TArray(TInt64),
-      ),
+  object checkIsSupertypeRequiredness extends TestCases {
+    def apply(
+      t1: Type,
+      t2: Type,
+    )(implicit loc: munit.Location
+    ): Unit = test("IsSupertypeRequiredness") {
+      assert(
+        PruneDeadFields.isSupertype(t1, t2),
+        s"""Failure, supertype relationship not met
+           | supertype: ${t1.toPrettyString(true)}
+           | subtype:   ${t2.toPrettyString(true)}""".stripMargin,
+      )
+    }
+  }
+
+  checkIsSupertypeRequiredness(TInt32, TInt32)
+
+  checkIsSupertypeRequiredness(
+    TStruct(
+      "a" -> TInt32,
+      "b" -> TArray(TInt64),
     ),
-    Array(TSet(TString), TSet(TString)),
+    TStruct(
+      "a" -> TInt32,
+      "b" -> TArray(TInt64),
+    ),
   )
 
-  @Test(dataProvider = "supertypePairs")
-  def testIsSupertypeRequiredness(t1: Type, t2: Type): Unit =
-    assert(
-      PruneDeadFields.isSupertype(t1, t2),
-      s"""Failure, supertype relationship not met
-         | supertype: ${t1.toPrettyString(true)}
-         | subtype:   ${t2.toPrettyString(true)}""".stripMargin,
-    )
+  checkIsSupertypeRequiredness(TSet(TString), TSet(TString))
 
-  @Test def testApplyScanOp(): Unit = {
+  test("ApplyScanOp") {
     val x = Ref(freshName(), TInt32)
     val y = Ref(freshName(), TInt32)
     val env = BindingEnv.empty.createScan.bindScan(x.name -> x.typ, y.name -> y.typ)
@@ -2119,7 +2159,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testApplyAggOp(): Unit = {
+  test("ApplyAggOp") {
     val x = Ref(freshName(), TInt32)
     val y = Ref(freshName(), TInt32)
     val env = BindingEnv.empty.createAgg.bindAgg(x.name -> x.typ, y.name -> y.typ)
@@ -2166,7 +2206,7 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testStreamFold2(): Unit = {
+  test("StreamFold2") {
     val eltType = TStruct("a" -> TInt32, "b" -> TInt32)
     val accum1Type = TStruct("c" -> TInt32, "d" -> TInt32)
 

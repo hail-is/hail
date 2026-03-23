@@ -2,12 +2,9 @@ package is.hail.utils
 
 import is.hail.utils.PartitionCounts._
 
-import org.scalatestplus.testng.TestNGSuite
-import org.testng.annotations.Test
+class PartitionCountsSuite extends munit.FunSuite {
 
-class PartitionCountsSuite extends TestNGSuite {
-
-  @Test def testHeadPCs() = {
+  test("HeadPCs") {
     for (
       ((a, n), b) <- Seq(
         (IndexedSeq(0L), 5L) -> IndexedSeq(0L),
@@ -19,10 +16,10 @@ class PartitionCountsSuite extends TestNGSuite {
         (IndexedSeq(4L, 5L, 6L), 20L) -> IndexedSeq(4L, 5L, 6L),
       )
     )
-      assert(getHeadPCs(a, n) == b, s"getHeadPartitionCounts($a, $n)")
+      assertEquals(getHeadPCs(a, n), b, s"getHeadPartitionCounts($a, $n)")
   }
 
-  @Test def testTailPCs() = {
+  test("TailPCs") {
     for (
       ((a, n), b) <- Seq(
         (IndexedSeq(0L), 5L) -> IndexedSeq(0L),
@@ -34,15 +31,16 @@ class PartitionCountsSuite extends TestNGSuite {
         (IndexedSeq(4L, 5L, 6L), 20L) -> IndexedSeq(4L, 5L, 6L),
       )
     ) {
-      assert(getTailPCs(a, n) == b, s"getTailPartitionCounts($a, $n)")
-      assert(
-        getTailPCs(a, n) == getHeadPCs(a.reverse, n).reverse,
+      assertEquals(getTailPCs(a, n), b, s"getTailPartitionCounts($a, $n)")
+      assertEquals(
+        getTailPCs(a, n),
+        getHeadPCs(a.reverse, n).reverse,
         s"getTailPartitionCounts($a, $n) via head",
       )
     }
   }
 
-  @Test def testIncrementalPCSubset() = {
+  test("IncrementalPCSubset") {
     val pcs = Array(0L, 0L, 5L, 6L, 4L, 3L, 3L, 3L, 2L, 1L)
 
     def headOffset(n: Long) =
@@ -51,8 +49,8 @@ class PartitionCountsSuite extends TestNGSuite {
     for (n <- 0L until pcs.sum) {
       val PCSubsetOffset(i, nKeep, nDrop) = headOffset(n)
       val total = (0 to i).map(j => if (j == i) nKeep else pcs(j)).sum
-      assert(nKeep + nDrop == pcs(i))
-      assert(total == n)
+      assertEquals(nKeep + nDrop, pcs(i))
+      assertEquals(total, n)
     }
 
     def tailOffset(n: Long) =
@@ -61,8 +59,8 @@ class PartitionCountsSuite extends TestNGSuite {
     for (n <- 0L until pcs.sum) {
       val PCSubsetOffset(i, nKeep, nDrop) = tailOffset(n)
       val total = (i to (pcs.length - 1)).map(j => if (j == i) nKeep else pcs(j)).sum
-      assert(nKeep + nDrop == pcs(i))
-      assert(total == n)
+      assertEquals(nKeep + nDrop, pcs(i))
+      assertEquals(total, n)
     }
   }
 }

@@ -20,13 +20,10 @@ import java.util.concurrent.CountDownLatch
 import org.mockito.ArgumentMatchersSugar.any
 import org.mockito.IdiomaticMockito
 import org.mockito.MockitoSugar.when
-import org.scalatest.OptionValues
-import org.scalatest.matchers.should.Matchers.{a, convertToAnyShouldWrapper}
-import org.testng.annotations.{DataProvider, Test}
 
-class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionValues {
+class ServiceBackendSuite extends HailSuite with IdiomaticMockito {
 
-  @Test def testExecutesSinglePartitionLocally(): Unit =
+  test("ExecutesSinglePartitionLocally") {
     runMock { (ctx, _, batchClient, backend) =>
       val contexts = ArraySeq.tabulate(10)(_ => Array.emptyByteArray)
 
@@ -42,8 +39,9 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
 
       batchClient.newJobGroup(any[JobGroupRequest]) wasNever called
     }
+  }
 
-  @Test def testCollectIncrementally(): Unit =
+  test("CollectIncrementally") {
     runMock { (ctx, jobConfig, batchClient, backend) =>
       // the service backend expects that each job write its output to a well-known
       // location when it finishes.
@@ -66,17 +64,20 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
 
       when(batchClient.newJobGroup(any[JobGroupRequest])) thenAnswer {
         jobGroup: JobGroupRequest =>
-          jobGroup.batch_id shouldBe backend.batchConfig.batchId
-          jobGroup.absolute_parent_id shouldBe backend.batchConfig.jobGroupId
+          assertEquals(jobGroup.batch_id, backend.batchConfig.batchId)
+          assertEquals(jobGroup.absolute_parent_id, backend.batchConfig.jobGroupId)
           val jobs = jobGroup.jobs
-          jobs.length shouldEqual contexts.length
+          assertEquals(jobs.length, contexts.length)
           jobs.foreach { payload =>
-            payload.regions shouldBe jobConfig.regions
-            payload.resources.value shouldBe JobResources(
-              preemptible = true,
-              cpu = jobConfig.worker_cores,
-              memory = jobConfig.worker_memory,
-              storage = jobConfig.storage,
+            assertEquals(payload.regions.map(_.toSeq), jobConfig.regions.map(_.toSeq))
+            assertEquals(
+              payload.resources.get,
+              JobResources(
+                preemptible = true,
+                cpu = jobConfig.worker_cores,
+                memory = jobConfig.worker_memory,
+                storage = jobConfig.storage,
+              ),
             )
           }
 
@@ -92,8 +93,8 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
         any[Option[String]],
       )) thenAnswer {
         (batchId: Int, _: Int, s: Option[JobState], t: Option[String]) =>
-          s shouldBe Some(JobStates.Success)
-          t shouldBe (if (getJobGroupJobsCalled > 0) endTime else None)
+          assertEquals(s, Some(JobStates.Success))
+          assertEquals(t, if (getJobGroupJobsCalled > 0) endTime else None)
 
           // require more than one call
           // withhold one job to simulate delays in marking a job complete
@@ -118,8 +119,8 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
       // make the driver poll for results while the job group is running
       when(batchClient.getJobGroup(any[Int], any[Int])) thenAnswer {
         (id: Int, jobGroupId: Int) =>
-          id shouldEqual backend.batchConfig.batchId
-          jobGroupId shouldEqual backend.batchConfig.jobGroupId + 1
+          assertEquals(id, backend.batchConfig.batchId)
+          assertEquals(jobGroupId, backend.batchConfig.jobGroupId + 1)
           val complete = getJobGroupJobsCalled >= 2
           JobGroupResponse(
             batch_id = id,
@@ -143,7 +144,7 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
 
       failure.foreach(throw _)
 
-      results.length shouldBe contexts.length
+      assertEquals(results.length, contexts.length)
       batchClient.newJobGroup(any[JobGroupRequest]) wasCalled once
       batchClient.getJobGroup(any[Int], any[Int]) wasCalled thrice
       batchClient.getJobGroupJobs(
@@ -153,100 +154,106 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
         any[Option[String]],
       ) wasCalled thrice
     }
+  }
 
-  @DataProvider(name = "UseFastRestarts")
-  def useFastRestarts: Array[Array[Any]] =
-    Array(Array(null), Array("1"))
-
-  @Test(dataProvider = "UseFastRestarts")
-  def testFailedJobGroup(useFastRestarts: String): Unit =
-    runMock { (ctx, _, batchClient, backend) =>
-      ctx.local(flags = ctx.flags + (UseFastRestarts -> useFastRestarts)) { ctx =>
-        val contexts = ArraySeq.tabulate(100)(_ => Array.emptyByteArray)
-        val startJobId = 2356
-        when(batchClient.newJobGroup(any[JobGroupRequest])) thenAnswer {
-          _: JobGroupRequest => (backend.batchConfig.jobGroupId + 1, startJobId)
-        }
-
-        val resultsDir = Path(ctx.tmpdir) / "mapCollectPartitions" / tokenUrlSafe
-        resultsDir.createDirectory(): Unit
-
-        val successes = ArraySeq(13, 34, 81) // arbitrary indices
-        if (ctx.flags.isDefined(UseFastRestarts))
-          for (i <- successes)
-            ctx.fs.writePDOS((resultsDir / f"result.$i").toString()) {
-              os => WireProtocol.write(os, i, Right(i.toString.getBytes()))
-            }
-
-        val failures = ArraySeq(21)
-        val expectedCause = new NoSuchMethodError("")
-        for (i <- failures)
-          ctx.fs.writePDOS((resultsDir / f"result.$i").toString()) {
-            os => WireProtocol.write(os, i, Left(expectedCause))
+  object checkFailedJobGroup extends TestCases {
+    def apply(
+      useFastRestarts: String
+    )(implicit loc: munit.Location
+    ): Unit = test("FailedJobGroup") {
+      runMock { (ctx, _, batchClient, backend) =>
+        ctx.local(flags = ctx.flags + (UseFastRestarts -> useFastRestarts)) { ctx =>
+          val contexts = ArraySeq.tabulate(100)(_ => Array.emptyByteArray)
+          val startJobId = 2356
+          when(batchClient.newJobGroup(any[JobGroupRequest])) thenAnswer {
+            _: JobGroupRequest => (backend.batchConfig.jobGroupId + 1, startJobId)
           }
 
-        when(batchClient.getJobGroup(any[Int], any[Int])) thenAnswer {
-          (id: Int, jobGroupId: Int) =>
-            JobGroupResponse(
-              batch_id = id,
-              job_group_id = jobGroupId,
-              state = Failure,
-              complete = false,
-              n_jobs = contexts.length,
-              n_completed = successes.length + failures.length,
-              n_succeeded = successes.length,
-              n_failed = failures.length,
-              n_cancelled = contexts.length - failures.length - successes.length,
-            )
-        }
+          val resultsDir = Path(ctx.tmpdir) / "mapCollectPartitions" / tokenUrlSafe
+          resultsDir.createDirectory(): Unit
 
-        when(batchClient.getJobGroupJobs(
-          any[Int],
-          any[Int],
-          any[Option[JobState]],
-          any[Option[String]],
-        )) thenAnswer {
-          (batchId: Int, _: Int, s: Option[JobState], _: Option[String]) =>
-            s match {
-              case Some(JobStates.Failed) =>
-                LazyList(failures.map(i =>
-                  JobListEntry(
-                    batch_id = batchId,
-                    job_id = i + startJobId,
-                    state = JobStates.Failed,
-                    exit_code = Some(1),
-                    end_time = Some(""),
-                  )
-                ))
+          val successes = ArraySeq(13, 34, 81) // arbitrary indices
+          if (ctx.flags.isDefined(UseFastRestarts))
+            for (i <- successes)
+              ctx.fs.writePDOS((resultsDir / f"result.$i").toString()) {
+                os => WireProtocol.write(os, i, Right(i.toString.getBytes()))
+              }
 
-              case Some(JobStates.Success) =>
-                ctx.flags.isDefined(UseFastRestarts) shouldBe true
-                LazyList(successes.map(i =>
-                  JobListEntry(
-                    batch_id = batchId,
-                    job_id = i + startJobId,
-                    state = JobStates.Success,
-                    exit_code = Some(0),
-                    end_time = Some(""),
-                  )
-                ))
+          val failures = ArraySeq(21)
+          val expectedCause = new NoSuchMethodError("")
+          for (i <- failures)
+            ctx.fs.writePDOS((resultsDir / f"result.$i").toString()) {
+              os => WireProtocol.write(os, i, Left(expectedCause))
             }
+
+          when(batchClient.getJobGroup(any[Int], any[Int])) thenAnswer {
+            (id: Int, jobGroupId: Int) =>
+              JobGroupResponse(
+                batch_id = id,
+                job_group_id = jobGroupId,
+                state = Failure,
+                complete = false,
+                n_jobs = contexts.length,
+                n_completed = successes.length + failures.length,
+                n_succeeded = successes.length,
+                n_failed = failures.length,
+                n_cancelled = contexts.length - failures.length - successes.length,
+              )
+          }
+
+          when(batchClient.getJobGroupJobs(
+            any[Int],
+            any[Int],
+            any[Option[JobState]],
+            any[Option[String]],
+          )) thenAnswer {
+            (batchId: Int, _: Int, s: Option[JobState], _: Option[String]) =>
+              s match {
+                case Some(JobStates.Failed) =>
+                  LazyList(failures.map(i =>
+                    JobListEntry(
+                      batch_id = batchId,
+                      job_id = i + startJobId,
+                      state = JobStates.Failed,
+                      exit_code = Some(1),
+                      end_time = Some(""),
+                    )
+                  ))
+
+                case Some(JobStates.Success) =>
+                  assert(ctx.flags.isDefined(UseFastRestarts))
+                  LazyList(successes.map(i =>
+                    JobListEntry(
+                      batch_id = batchId,
+                      job_id = i + startJobId,
+                      state = JobStates.Success,
+                      exit_code = Some(0),
+                      end_time = Some(""),
+                    )
+                  ))
+              }
+          }
+
+          val (failure, result) =
+            backend.runtimeContext(ctx).mapCollectPartitions(
+              Array.emptyByteArray,
+              contexts,
+              "stage1",
+            )((_, _, _, _) => (_, bytes) => bytes)
+
+          val (shortMessage, expanded, id) = handleForPython(expectedCause)
+          assertEquals(failure.get, HailWorkerException(failures.head, shortMessage, expanded, id))
+          if (ctx.flags.isDefined(UseFastRestarts))
+            assertEquals(result.map(_._2), successes)
         }
-
-        val (failure, result) =
-          backend.runtimeContext(ctx).mapCollectPartitions(
-            Array.emptyByteArray,
-            contexts,
-            "stage1",
-          )((_, _, _, _) => (_, bytes) => bytes)
-
-        val (shortMessage, expanded, id) = handleForPython(expectedCause)
-        failure.value shouldBe HailWorkerException(failures.head, shortMessage, expanded, id)
-        if (ctx.flags.isDefined(UseFastRestarts)) result.map(_._2) shouldBe successes
       }
     }
+  }
 
-  @Test def testCancelledJobGroup(): Unit =
+  checkFailedJobGroup(null)
+  checkFailedJobGroup("1")
+
+  test("CancelledJobGroup") {
     runMock { (ctx, _, batchClient, backend) =>
       val contexts = ArraySeq.tabulate(2)(_ => Array.emptyByteArray)
       val startJobId = 2356
@@ -277,10 +284,11 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
           "stage1",
         )((_, _, _, _) => (_, bytes) => bytes)
 
-      failure.value shouldBe a[CancellationException]
+      assert(failure.get.isInstanceOf[CancellationException])
     }
+  }
 
-  @Test def testInterrupt(): Unit =
+  test("Interrupt") {
     runMock { (ctx, _, batchClient, backend) =>
       val contexts = ArraySeq.tabulate(2)(_ => Array.emptyByteArray)
       val jobGroupId = Random.nextInt()
@@ -319,8 +327,8 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
 
       when(batchClient.cancelJobGroup(any[Int], any[Int])) thenAnswer {
         (batchId: Int, jgId: Int) =>
-          batchId shouldBe backend.batchConfig.batchId
-          jgId shouldBe jobGroupId
+          assertEquals(batchId, backend.batchConfig.batchId)
+          assertEquals(jgId, jobGroupId)
       }
 
       @volatile var failure: Option[Throwable] =
@@ -341,9 +349,10 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
       t.interrupt()
       t.join()
 
-      failure.value shouldBe a[CancellationException]
+      assert(failure.get.isInstanceOf[CancellationException])
       batchClient.cancelJobGroup(any[Int], any[Int]) wasCalled once
     }
+  }
 
   def runMock(test: (ExecuteContext, BatchJobConfig, BatchClient, ServiceBackend) => Any): Unit =
     withObjectSpied[is.hail.utils.UtilsType] {

@@ -14,309 +14,8 @@ import java.io.FileNotFoundException
 import java.lang
 
 import org.json4s.JValue
-import org.testng.annotations.{DataProvider, Test}
 
 class SemanticHashSuite extends HailSuite {
-
-  def isTriviallySemanticallyEquivalent: Array[Array[Any]] =
-    Array(
-      Array(True(), True(), true, "Refl"),
-      Array(False(), False(), true, "Refl"),
-      Array(True(), False(), false, "Refl"),
-      Array(I32(0), I32(0), true, "Refl"),
-      Array(I32(0), I32(1), false, "Refl"),
-      Array(I64(0), I64(0), true, "Refl"),
-      Array(I64(0), I64(1), false, "Refl"),
-      Array(F32(0), F32(0), true, "Refl"),
-      Array(F32(0), F32(1), false, "Refl"),
-      Array(Void(), Void(), true, "Refl"),
-      Array(Str("a"), Str("a"), true, "Refl"),
-      Array(Str("a"), Str("b"), false, "Refl"),
-      Array(NA(TInt32), NA(TInt32), true, "Refl"),
-      Array(NA(TInt32), NA(TFloat64), false, "Refl"),
-    )
-
-  def mkRelationalLet(bindings: IndexedSeq[(Name, IR)], body: IR): IR =
-    bindings.foldRight(body) { case ((name, value), body) =>
-      RelationalLet(name, value, body)
-    }
-
-  def isLetSemanticallyEquivalent: Array[Array[Any]] = {
-    val x = freshName()
-    val y = freshName()
-    Array((Let(_, _), Ref), (mkRelationalLet _, RelationalRef)).flatMap { case (let, ref) =>
-      Array(
-        Array(
-          let(FastSeq(x -> I32(0)), ref(x, TInt32)),
-          let(FastSeq(y -> I32(0)), ref(y, TInt32)),
-          true,
-          "names used in let-bindings do not change semantics",
-        ),
-        Array(
-          let(FastSeq(x -> I32(0), y -> I32(0)), ref(x, TInt32)),
-          let(FastSeq(y -> I32(0), x -> I32(0)), ref(y, TInt32)),
-          true,
-          "names of let-bindings do not change semantics",
-        ),
-        Array(
-          let(FastSeq(x -> I32(0)), ref(x, TInt32)),
-          let(FastSeq(x -> I64(0)), ref(x, TInt64)),
-          false,
-          "different IRs",
-        ),
-        Array(
-          let(FastSeq(x -> I32(0), y -> I32(0)), ref(x, TInt32)),
-          let(FastSeq(y -> I32(0), x -> I32(0)), ref(x, TInt32)),
-          false,
-          "Different binding being referenced",
-        ),
-        /* `SemanticHash` does not perform or recognise opportunities for simplification.
-         * The following examples demonstrate some of its limitations as a consequence. */
-        Array(
-          let(FastSeq(x -> I32(0)), ref(x, TInt32)),
-          let(FastSeq(x -> let(FastSeq(freshName() -> I32(0)), I32(0))), ref(x, TInt32)),
-          false,
-          "SemanticHash does not simplify",
-        ),
-        Array(
-          let(FastSeq(x -> I32(0)), ref(x, TInt32)),
-          let(FastSeq(x -> I32(0), y -> I32(0)), ref(x, TInt32)),
-          false,
-          "SemanticHash does not simplify",
-        ),
-      )
-    }
-  }
-
-  def isBaseStructSemanticallyEquivalent: Array[Array[Any]] =
-    Array.concat(
-      Array(
-        Array(
-          MakeStruct(ArraySeq.empty),
-          MakeStruct(ArraySeq.empty),
-          true,
-          "empty structs",
-        ),
-        Array(
-          MakeStruct(ArraySeq(genUID() -> I32(0))),
-          MakeStruct(ArraySeq(genUID() -> I32(0))),
-          true,
-          "field names do not affect MakeStruct semantics",
-        ),
-        Array(
-          MakeTuple(ArraySeq.empty),
-          MakeTuple(ArraySeq.empty),
-          true,
-          "empty tuples",
-        ),
-        Array(
-          MakeTuple(ArraySeq(0 -> I32(0))),
-          MakeTuple(ArraySeq(0 -> I32(0))),
-          true,
-          "identical tuples",
-        ),
-        Array(
-          MakeTuple(ArraySeq(0 -> I32(0))),
-          MakeTuple(ArraySeq(1 -> I32(0))),
-          false,
-          "tuple indices affect MakeTuple semantics",
-        ),
-      ), {
-
-        def f(mkType: Int => Type, get: (IR, Int) => IR, isSame: Boolean, reason: String) =
-          Array.tabulate(2)(idx => bindIR(NA(mkType(idx)))(get(_, idx))) ++ Array(isSame, reason)
-
-        Array(
-          f(
-            mkType = i => TStruct(i.toString -> TInt32),
-            get = (ir, i) => GetField(ir, i.toString),
-            isSame = true,
-            "field names do not affect GetField semantics",
-          ),
-          f(
-            mkType = _ => TTuple(TInt32),
-            get = (ir, _) => GetTupleElement(ir, 0),
-            isSame = true,
-            "GetTupleElement of same index",
-          ),
-          f(
-            mkType = i => TTuple(ArraySeq(TupleField(i, TInt32))),
-            get = (ir, i) => GetTupleElement(ir, i),
-            isSame = false,
-            "GetTupleElement on different index",
-          ),
-        )
-      },
-    )
-
-  def isTreeStructureSemanticallyEquivalent: Array[Array[Any]] =
-    Array(
-      Array(
-        MakeArray(
-          MakeArray(I32(0)),
-          MakeArray(I32(0)),
-        ),
-        MakeArray(
-          MakeArray(
-            MakeArray(I32(0), I32(0))
-          )
-        ),
-        false,
-        "Tree structure contributes to semantics",
-      )
-    )
-
-  def isValueIRSemanticallyEquivalent: Array[Array[Any]] =
-    Array.concat(
-      isTriviallySemanticallyEquivalent,
-      isLetSemanticallyEquivalent,
-      isBaseStructSemanticallyEquivalent,
-      isTreeStructureSemanticallyEquivalent,
-    )
-
-  def isTableIRSemanticallyEquivalent: Array[Array[Any]] = {
-    val ttype = TableType(TStruct("a" -> TInt32, "b" -> TStruct()), IndexedSeq("a"), TStruct())
-    val ttypeb = TableType(TStruct("c" -> TInt32, "d" -> TStruct()), IndexedSeq(), TStruct())
-
-    def mkTableRead(reader: TableReader): TableIR =
-      TableRead(typ = reader.fullType, dropRows = false, tr = reader)
-
-    def mkTableIR(ttype: TableType, path: String): TableIR =
-      mkTableRead(new TableNativeReader(
-        TableNativeReaderParameters(path, None),
-        mkFakeTableSpec(ttype),
-      ))
-
-    val tir = mkTableIR(ttype, "/fake/table")
-
-    Array.concat(
-      Array(
-        Array(tir, tir, true, "TableRead same table"),
-        Array(tir, mkTableIR(ttype, "/another/fake/table"), false, "TableRead different table"),
-        Array(
-          TableKeyBy(tir, IndexedSeq("a")),
-          TableKeyBy(tir, IndexedSeq("a")),
-          true,
-          "TableKeyBy same key",
-        ),
-        Array(
-          TableKeyBy(tir, IndexedSeq("a")),
-          TableKeyBy(tir, IndexedSeq("b")),
-          false,
-          "TableKeyBy different key",
-        ),
-      ),
-      Array[String => TableReader](
-        path =>
-          new StringTableReader(
-            StringTableReaderParameters(ArraySeq(path), None, false, false, false),
-            fakeFs.glob(path),
-          ),
-        path =>
-          TableNativeZippedReader(
-            path + ".left",
-            path + ".right",
-            None,
-            mkFakeTableSpec(ttype),
-            mkFakeTableSpec(ttypeb),
-          ),
-      )
-        .map(mkTableRead _ compose _)
-        .flatMap { reader =>
-          Array(
-            Array(reader("/fake/table"), reader("/fake/table"), true, "read same table"),
-            Array(
-              reader("/fake/table"),
-              reader("/another/fake/table"),
-              false,
-              "read different table",
-            ),
-          )
-        },
-      Array(
-        TableGetGlobals,
-        TableAggregate(_, I32(0)),
-        TableAggregateByKey(_, MakeStruct(FastSeq())),
-        TableKeyByAndAggregate(
-          _,
-          MakeStruct(FastSeq()),
-          MakeStruct(FastSeq("idx" -> I32(0))),
-          None,
-          256,
-        ),
-        (ir: TableIR) => TableCollect(TableKeyBy(ir, FastSeq())),
-        TableCount,
-        TableDistinct,
-        TableFilter(_, True()),
-        TableMapGlobals(_, MakeStruct(IndexedSeq.empty)),
-        TableMapRows(_, MakeStruct(FastSeq("a" -> I32(0)))),
-        TableRename(_, Map.empty, Map.empty),
-      ).map(wrap => Array(wrap(tir), wrap(tir), true, "")),
-    )
-  }
-
-  def isBlockMatrixIRSemanticallyEquivalent: Array[Array[Any]] =
-    Array[String => BlockMatrixReader](
-      path => BlockMatrixBinaryReader(path, ArraySeq(1L, 1L), 1),
-      path =>
-        new BlockMatrixNativeReader(
-          BlockMatrixNativeReaderParameters(path),
-          BlockMatrixMetadata(1, 1, 1, None, IndexedSeq.empty),
-        ),
-    )
-      .map(BlockMatrixRead compose _)
-      .flatMap { reader =>
-        Array(
-          Array(
-            reader("/fake/block-matrix"),
-            reader("/fake/block-matrix"),
-            true,
-            "Read same block matrix",
-          ),
-          Array(
-            reader("/fake/block-matrix"),
-            reader("/another/fake/block-matrix"),
-            false,
-            "Read different block matrix",
-          ),
-        )
-      }
-
-  @DataProvider(name = "isBaseIRSemanticallyEquivalent")
-  def isBaseIRSemanticallyEquivalent: Array[Array[Any]] =
-    Array.concat(
-      isValueIRSemanticallyEquivalent,
-      isTableIRSemanticallyEquivalent,
-      isBlockMatrixIRSemanticallyEquivalent,
-    )
-
-  @Test(dataProvider = "isBaseIRSemanticallyEquivalent")
-  def testSemanticEquivalence(a: BaseIR, b: BaseIR, isEqual: Boolean, comment: String): Unit =
-    ctx.local(fs = fakeFs) { ctx =>
-      assertResult(
-        isEqual,
-        s"expected semhash($a) ${if (isEqual) "==" else "!="} semhash($b), $comment",
-      )(
-        SemanticHash(ctx, a) == SemanticHash(ctx, b)
-      )
-    }
-
-  @Test
-  def testFileNotFoundExceptions(): Unit = {
-    val fs =
-      new FakeFS {
-        override def eTag(url: FakeURL): Option[String] =
-          throw new FileNotFoundException(url.path)
-      }
-
-    val ir = importMatrix("gs://fake-bucket/fake-matrix")
-
-    ctx.local(fs = fs) { ctx =>
-      assertResult(None, "SemHash should be resilient to FileNotFoundExceptions.")(
-        SemanticHash(ctx, ir)
-      )
-    }
-  }
 
   private[this] val fakeFs: FS =
     new FakeFS {
@@ -335,6 +34,289 @@ class SemanticHashSuite extends HailSuite {
           override def getOwner: String = ???
         })
     }
+
+  def mkRelationalLet(bindings: IndexedSeq[(Name, IR)], body: IR): IR =
+    bindings.foldRight(body) { case ((name, value), body) =>
+      RelationalLet(name, value, body)
+    }
+
+  object checkSemanticEquivalence extends TestCases {
+    def apply(
+      a: BaseIR,
+      b: BaseIR,
+      isEqual: Boolean,
+      comment: String,
+    )(implicit loc: munit.Location
+    ): Unit = test("SemanticEquivalence") {
+      ctx.local(fs = fakeFs) { ctx =>
+        assertEquals(
+          SemanticHash(ctx, a) == SemanticHash(ctx, b),
+          isEqual,
+          s"expected semhash($a) ${if (isEqual) "==" else "!="} semhash($b), $comment",
+        )
+      }
+    }
+  }
+
+  // trivial value semantics
+  checkSemanticEquivalence(True(), True(), true, "Refl")
+  checkSemanticEquivalence(False(), False(), true, "Refl")
+  checkSemanticEquivalence(True(), False(), false, "Refl")
+  checkSemanticEquivalence(I32(0), I32(0), true, "Refl")
+  checkSemanticEquivalence(I32(0), I32(1), false, "Refl")
+  checkSemanticEquivalence(I64(0), I64(0), true, "Refl")
+  checkSemanticEquivalence(I64(0), I64(1), false, "Refl")
+  checkSemanticEquivalence(F32(0), F32(0), true, "Refl")
+  checkSemanticEquivalence(F32(0), F32(1), false, "Refl")
+  checkSemanticEquivalence(Void(), Void(), true, "Refl")
+  checkSemanticEquivalence(Str("a"), Str("a"), true, "Refl")
+  checkSemanticEquivalence(Str("a"), Str("b"), false, "Refl")
+  checkSemanticEquivalence(NA(TInt32), NA(TInt32), true, "Refl")
+  checkSemanticEquivalence(NA(TInt32), NA(TFloat64), false, "Refl")
+
+  // let-binding semantics
+  {
+    val x = freshName()
+    val y = freshName()
+
+    def letCases(let: (IndexedSeq[(Name, IR)], IR) => IR, ref: (Name, Type) => IR): Unit = {
+      checkSemanticEquivalence(
+        let(FastSeq(x -> I32(0)), ref(x, TInt32)),
+        let(FastSeq(y -> I32(0)), ref(y, TInt32)),
+        true,
+        "names used in let-bindings do not change semantics",
+      )
+      checkSemanticEquivalence(
+        let(FastSeq(x -> I32(0), y -> I32(0)), ref(x, TInt32)),
+        let(FastSeq(y -> I32(0), x -> I32(0)), ref(y, TInt32)),
+        true,
+        "names of let-bindings do not change semantics",
+      )
+      checkSemanticEquivalence(
+        let(FastSeq(x -> I32(0)), ref(x, TInt32)),
+        let(FastSeq(x -> I64(0)), ref(x, TInt64)),
+        false,
+        "different IRs",
+      )
+      checkSemanticEquivalence(
+        let(FastSeq(x -> I32(0), y -> I32(0)), ref(x, TInt32)),
+        let(FastSeq(y -> I32(0), x -> I32(0)), ref(x, TInt32)),
+        false,
+        "Different binding being referenced",
+      )
+      /* `SemanticHash` does not perform or recognise opportunities for simplification.
+       * The following examples demonstrate some of its limitations as a consequence. */
+      checkSemanticEquivalence(
+        let(FastSeq(x -> I32(0)), ref(x, TInt32)),
+        let(FastSeq(x -> let(FastSeq(freshName() -> I32(0)), I32(0))), ref(x, TInt32)),
+        false,
+        "SemanticHash does not simplify",
+      )
+      checkSemanticEquivalence(
+        let(FastSeq(x -> I32(0)), ref(x, TInt32)),
+        let(FastSeq(x -> I32(0), y -> I32(0)), ref(x, TInt32)),
+        false,
+        "SemanticHash does not simplify",
+      )
+    }
+
+    letCases(Let(_, _), Ref)
+    letCases(mkRelationalLet _, RelationalRef)
+  }
+
+  // struct/tuple semantics
+  checkSemanticEquivalence(
+    MakeStruct(ArraySeq.empty),
+    MakeStruct(ArraySeq.empty),
+    true,
+    "empty structs",
+  )
+
+  checkSemanticEquivalence(
+    MakeStruct(ArraySeq(genUID() -> I32(0))),
+    MakeStruct(ArraySeq(genUID() -> I32(0))),
+    true,
+    "field names do not affect MakeStruct semantics",
+  )
+
+  checkSemanticEquivalence(
+    MakeTuple(ArraySeq.empty),
+    MakeTuple(ArraySeq.empty),
+    true,
+    "empty tuples",
+  )
+
+  checkSemanticEquivalence(
+    MakeTuple(ArraySeq(0 -> I32(0))),
+    MakeTuple(ArraySeq(0 -> I32(0))),
+    true,
+    "identical tuples",
+  )
+
+  checkSemanticEquivalence(
+    MakeTuple(ArraySeq(0 -> I32(0))),
+    MakeTuple(ArraySeq(1 -> I32(0))),
+    false,
+    "tuple indices affect MakeTuple semantics",
+  )
+
+  checkSemanticEquivalence(
+    bindIR(NA(TStruct("0" -> TInt32)))(GetField(_, "0")),
+    bindIR(NA(TStruct("1" -> TInt32)))(GetField(_, "1")),
+    true,
+    "field names do not affect GetField semantics",
+  )
+
+  checkSemanticEquivalence(
+    bindIR(NA(TTuple(TInt32)))(GetTupleElement(_, 0)),
+    bindIR(NA(TTuple(TInt32)))(GetTupleElement(_, 0)),
+    true,
+    "GetTupleElement of same index",
+  )
+
+  checkSemanticEquivalence(
+    bindIR(NA(TTuple(ArraySeq(TupleField(0, TInt32)))))(GetTupleElement(_, 0)),
+    bindIR(NA(TTuple(ArraySeq(TupleField(1, TInt32)))))(GetTupleElement(_, 1)),
+    false,
+    "GetTupleElement on different index",
+  )
+
+  // tree structure semantics
+  checkSemanticEquivalence(
+    MakeArray(MakeArray(I32(0)), MakeArray(I32(0))),
+    MakeArray(MakeArray(MakeArray(I32(0), I32(0)))),
+    false,
+    "Tree structure contributes to semantics",
+  )
+
+  // table IR semantics
+  {
+    val ttype = TableType(TStruct("a" -> TInt32, "b" -> TStruct()), IndexedSeq("a"), TStruct())
+    val ttypeb = TableType(TStruct("c" -> TInt32, "d" -> TStruct()), IndexedSeq(), TStruct())
+
+    def mkTableRead(reader: TableReader): TableIR =
+      TableRead(typ = reader.fullType, dropRows = false, tr = reader)
+
+    def mkTableIR(ttype: TableType, path: String): TableIR =
+      mkTableRead(new TableNativeReader(
+        TableNativeReaderParameters(path, None),
+        mkFakeTableSpec(ttype),
+      ))
+
+    val tir = mkTableIR(ttype, "/fake/table")
+
+    checkSemanticEquivalence(tir, tir, true, "TableRead same table")
+    checkSemanticEquivalence(
+      tir,
+      mkTableIR(ttype, "/another/fake/table"),
+      false,
+      "TableRead different table",
+    )
+    checkSemanticEquivalence(
+      TableKeyBy(tir, IndexedSeq("a")),
+      TableKeyBy(tir, IndexedSeq("a")),
+      true,
+      "TableKeyBy same key",
+    )
+    checkSemanticEquivalence(
+      TableKeyBy(tir, IndexedSeq("a")),
+      TableKeyBy(tir, IndexedSeq("b")),
+      false,
+      "TableKeyBy different key",
+    )
+
+    Array[String => TableIR](
+      path =>
+        mkTableRead(new StringTableReader(
+          StringTableReaderParameters(ArraySeq(path), None, false, false, false),
+          fakeFs.glob(path),
+        )),
+      path =>
+        mkTableRead(TableNativeZippedReader(
+          path + ".left",
+          path + ".right",
+          None,
+          mkFakeTableSpec(ttype),
+          mkFakeTableSpec(ttypeb),
+        )),
+    ).foreach { reader =>
+      checkSemanticEquivalence(
+        reader("/fake/table"),
+        reader("/fake/table"),
+        true,
+        "read same table",
+      )
+      checkSemanticEquivalence(
+        reader("/fake/table"),
+        reader("/another/fake/table"),
+        false,
+        "read different table",
+      )
+    }
+
+    Array[TableIR => BaseIR](
+      TableGetGlobals,
+      TableAggregate(_, I32(0)),
+      TableAggregateByKey(_, MakeStruct(FastSeq())),
+      TableKeyByAndAggregate(
+        _,
+        MakeStruct(FastSeq()),
+        MakeStruct(FastSeq("idx" -> I32(0))),
+        None,
+        256,
+      ),
+      (ir: TableIR) => TableCollect(TableKeyBy(ir, FastSeq())),
+      TableCount,
+      TableDistinct,
+      TableFilter(_, True()),
+      TableMapGlobals(_, MakeStruct(IndexedSeq.empty)),
+      TableMapRows(_, MakeStruct(FastSeq("a" -> I32(0)))),
+      TableRename(_, Map.empty, Map.empty),
+    ).foreach(wrap => checkSemanticEquivalence(wrap(tir), wrap(tir), true, ""))
+  }
+
+  // block matrix IR semantics
+  {
+    Array[String => BlockMatrixIR](
+      path => BlockMatrixRead(BlockMatrixBinaryReader(path, ArraySeq(1L, 1L), 1)),
+      path =>
+        BlockMatrixRead(new BlockMatrixNativeReader(
+          BlockMatrixNativeReaderParameters(path),
+          BlockMatrixMetadata(1, 1, 1, None, IndexedSeq.empty),
+        )),
+    ).foreach { reader =>
+      checkSemanticEquivalence(
+        reader("/fake/block-matrix"),
+        reader("/fake/block-matrix"),
+        true,
+        "Read same block matrix",
+      )
+      checkSemanticEquivalence(
+        reader("/fake/block-matrix"),
+        reader("/another/fake/block-matrix"),
+        false,
+        "Read different block matrix",
+      )
+    }
+  }
+
+  test("FileNotFoundExceptions") {
+    val fs =
+      new FakeFS {
+        override def eTag(url: FakeURL): Option[String] =
+          throw new FileNotFoundException(url.path)
+      }
+
+    val ir = importMatrix("gs://fake-bucket/fake-matrix")
+
+    ctx.local(fs = fs) { ctx =>
+      assertEquals(
+        SemanticHash(ctx, ir),
+        None,
+        "SemHash should be resilient to FileNotFoundExceptions.",
+      )
+    }
+  }
 
   def importMatrix(path: String): MatrixIR = {
     val ty =

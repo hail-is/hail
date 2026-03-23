@@ -9,10 +9,8 @@ import is.hail.utils.{Interval, IntervalEndpoint}
 import is.hail.variant.{Locus, ReferenceGenome}
 
 import org.apache.spark.sql.Row
-import org.scalatest.Inspectors.forAll
-import org.testng.annotations.Test
 
-class ExtractIntervalFiltersSuite extends HailSuite { outer =>
+class ExtractIntervalFiltersSuite extends HailSuite {
 
   val ref1 = Ref(freshName(), TStruct("w" -> TInt32, "x" -> TInt32, "y" -> TBoolean))
   val unknownBool = GetField(ref1, "y")
@@ -118,7 +116,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     check(IsNA(filter), rowRef, key, probes, naResidual, naIntervals)
   }
 
-  @Test def testIsNA(): Unit = {
+  test("IsNA") {
     val testRows = FastSeq(
       Row(0, 0, true),
       Row(0, null, true),
@@ -134,7 +132,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     )
   }
 
-  @Test def testKeyComparison(): Unit = {
+  test("KeyComparison") {
     def check(
       op: ComparisonOp[Boolean],
       point: IR,
@@ -243,7 +241,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     ).isEmpty)
   }
 
-  @Test def testLiteralContains(): Unit = {
+  test("LiteralContains") {
     def check(
       node: IR,
       trueIntervals: IndexedSeq[Interval],
@@ -259,53 +257,51 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       checkAll(node, ref1, k1Full, testRows, trueIntervals, falseIntervals, naIntervals)
     }
 
-    forAll {
-      Array(
-        Literal(TSet(TInt32), Set(null, 10, 1)),
-        Literal(TArray(TInt32), FastSeq(10, 1, null)),
-        Literal(TDict(TInt32, TString), Map(1 -> "foo", (null, "bar"), 10 -> "baz")),
-      )
-    } { lit =>
-      check(
-        invoke("contains", TBoolean, lit, k1),
-        FastSeq(
-          Interval(Row(1), Row(1), true, true),
-          Interval(Row(10), Row(10), true, true),
-          Interval(Row(null), Row(), true, true),
-        ),
-        FastSeq(
-          Interval(Row(), Row(1), true, false),
-          Interval(Row(1), Row(10), false, false),
-          Interval(Row(10), Row(null), false, false),
-        ),
-        FastSeq(),
-      )
-    }
+    Array(
+      Literal(TSet(TInt32), Set(null, 10, 1)),
+      Literal(TArray(TInt32), FastSeq(10, 1, null)),
+      Literal(TDict(TInt32, TString), Map(1 -> "foo", (null, "bar"), 10 -> "baz")),
+    )
+      .foreach { lit =>
+        check(
+          invoke("contains", TBoolean, lit, k1),
+          FastSeq(
+            Interval(Row(1), Row(1), true, true),
+            Interval(Row(10), Row(10), true, true),
+            Interval(Row(null), Row(), true, true),
+          ),
+          FastSeq(
+            Interval(Row(), Row(1), true, false),
+            Interval(Row(1), Row(10), false, false),
+            Interval(Row(10), Row(null), false, false),
+          ),
+          FastSeq(),
+        )
+      }
 
-    forAll {
-      Array(
-        Literal(TSet(TInt32), Set(10, 1)),
-        Literal(TArray(TInt32), FastSeq(10, 1)),
-        Literal(TDict(TInt32, TString), Map(1 -> "foo", 10 -> "baz")),
-      )
-    } { lit =>
-      check(
-        invoke("contains", TBoolean, lit, k1),
-        FastSeq(
-          Interval(Row(1), Row(1), true, true),
-          Interval(Row(10), Row(10), true, true),
-        ),
-        FastSeq(
-          Interval(Row(), Row(1), true, false),
-          Interval(Row(1), Row(10), false, false),
-          Interval(Row(10), Row(), false, true),
-        ),
-        FastSeq(),
-      )
-    }
+    Array(
+      Literal(TSet(TInt32), Set(10, 1)),
+      Literal(TArray(TInt32), FastSeq(10, 1)),
+      Literal(TDict(TInt32, TString), Map(1 -> "foo", 10 -> "baz")),
+    )
+      .foreach { lit =>
+        check(
+          invoke("contains", TBoolean, lit, k1),
+          FastSeq(
+            Interval(Row(1), Row(1), true, true),
+            Interval(Row(10), Row(10), true, true),
+          ),
+          FastSeq(
+            Interval(Row(), Row(1), true, false),
+            Interval(Row(1), Row(10), false, false),
+            Interval(Row(10), Row(), false, true),
+          ),
+          FastSeq(),
+        )
+      }
   }
 
-  @Test def testLiteralContainsStruct(): Unit = {
+  test("LiteralContainsStruct") {
     def check(
       node: IR,
       trueIntervals: IndexedSeq[Interval],
@@ -332,62 +328,60 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       )
     }
 
-    forAll {
-      Array(
-        Literal(TSet(structT1), Set(Row(1, 2), Row(3, 4), Row(3, null))),
-        Literal(TArray(structT1), FastSeq(Row(3, 4), Row(1, 2), Row(3, null))),
-        Literal(
-          TDict(structT1, TString),
-          Map(Row(1, 2) -> "foo", Row(3, 4) -> "bar", Row(3, null) -> "baz"),
-        ),
-      )
-    } { lit =>
-      forAll(fullKeyRefs) { k =>
-        check(
-          invoke("contains", TBoolean, lit, k),
-          IndexedSeq(
-            Interval(Row(1, 2), Row(1, 2), true, true),
-            Interval(Row(3, 4), Row(3, 4), true, true),
-            Interval(Row(3, null), Row(3, null), true, true),
-          ),
-          IndexedSeq(
-            Interval(Row(), Row(1, 2), true, false),
-            Interval(Row(1, 2), Row(3, 4), false, false),
-            Interval(Row(3, 4), Row(3, null), false, false),
-            Interval(Row(3, null), Row(), false, true),
-          ),
-          IndexedSeq(),
-        )
+    Array(
+      Literal(TSet(structT1), Set(Row(1, 2), Row(3, 4), Row(3, null))),
+      Literal(TArray(structT1), FastSeq(Row(3, 4), Row(1, 2), Row(3, null))),
+      Literal(
+        TDict(structT1, TString),
+        Map(Row(1, 2) -> "foo", Row(3, 4) -> "bar", Row(3, null) -> "baz"),
+      ),
+    )
+      .foreach { lit =>
+        fullKeyRefs.foreach { k =>
+          check(
+            invoke("contains", TBoolean, lit, k),
+            IndexedSeq(
+              Interval(Row(1, 2), Row(1, 2), true, true),
+              Interval(Row(3, 4), Row(3, 4), true, true),
+              Interval(Row(3, null), Row(3, null), true, true),
+            ),
+            IndexedSeq(
+              Interval(Row(), Row(1, 2), true, false),
+              Interval(Row(1, 2), Row(3, 4), false, false),
+              Interval(Row(3, 4), Row(3, null), false, false),
+              Interval(Row(3, null), Row(), false, true),
+            ),
+            IndexedSeq(),
+          )
+        }
       }
-    }
 
-    forAll {
-      Array(
-        Literal(TSet(structT2), Set(Row(1), Row(3), Row(null))),
-        Literal(TArray(structT2), FastSeq(Row(3), Row(null), Row(1))),
-        Literal(TDict(structT2, TString), Map(Row(1) -> "foo", Row(null) -> "baz", Row(3) -> "bar")),
-      )
-    } { lit =>
-      forAll(prefixKeyRefs) { k =>
-        check(
-          invoke("contains", TBoolean, lit, k),
-          IndexedSeq(
-            Interval(Row(1), Row(1), true, true),
-            Interval(Row(3), Row(3), true, true),
-            Interval(Row(null), Row(), true, true),
-          ),
-          IndexedSeq(
-            Interval(Row(), Row(1), true, false),
-            Interval(Row(1), Row(3), false, false),
-            Interval(Row(3), Row(null), false, false),
-          ),
-          IndexedSeq(),
-        )
+    Array(
+      Literal(TSet(structT2), Set(Row(1), Row(3), Row(null))),
+      Literal(TArray(structT2), FastSeq(Row(3), Row(null), Row(1))),
+      Literal(TDict(structT2, TString), Map(Row(1) -> "foo", Row(null) -> "baz", Row(3) -> "bar")),
+    )
+      .foreach { lit =>
+        prefixKeyRefs.foreach { k =>
+          check(
+            invoke("contains", TBoolean, lit, k),
+            IndexedSeq(
+              Interval(Row(1), Row(1), true, true),
+              Interval(Row(3), Row(3), true, true),
+              Interval(Row(null), Row(), true, true),
+            ),
+            IndexedSeq(
+              Interval(Row(), Row(1), true, false),
+              Interval(Row(1), Row(3), false, false),
+              Interval(Row(3), Row(null), false, false),
+            ),
+            IndexedSeq(),
+          )
+        }
       }
-    }
   }
 
-  @Test def testIntervalContains(): Unit = {
+  test("IntervalContains") {
     val interval = Interval(1, 5, false, true)
     val testRows = FastSeq(
       Row(0, 0, true),
@@ -412,7 +406,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     )
   }
 
-  @Test def testIntervalContainsStruct(): Unit = {
+  test("IntervalContainsStruct") {
     val fullInterval = Interval(Row(1, 1), Row(2, 2), false, true)
     val prefixInterval = Interval(Row(1), Row(2), false, true)
 
@@ -446,7 +440,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       )
     }
 
-    forAll(fullKeyRefs) { k =>
+    fullKeyRefs.foreach { k =>
       check(
         invoke("contains", TBoolean, Literal(TInterval(structT1), fullInterval), k),
         FastSeq(fullInterval),
@@ -458,7 +452,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       )
     }
 
-    forAll(prefixKeyRefs) { k =>
+    prefixKeyRefs.foreach { k =>
       check(
         invoke("contains", TBoolean, Literal(TInterval(structT2), prefixInterval), k),
         FastSeq(prefixInterval),
@@ -471,7 +465,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     }
   }
 
-  @Test def testLocusContigComparison(): Unit = {
+  test("LocusContigComparison") {
     val ref = Ref(freshName(), TStruct("x" -> TLocus(ReferenceGenome.GRCh38)))
     val k = GetField(ref, "x")
 
@@ -503,7 +497,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     checkAll(not(ir1), ref, ref, testRows, falseIntervals, trueIntervals, naIntervals)
   }
 
-  @Test def testLocusPositionComparison(): Unit = {
+  test("LocusPositionComparison") {
     val ref = Ref(freshName(), TStruct("x" -> TLocus(ReferenceGenome.GRCh38)))
     val k = GetField(ref, "x")
     val pos = invoke("position", TInt32, k)
@@ -645,7 +639,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     ).isEmpty)
   }
 
-  @Test def testLocusContigContains(): Unit = {
+  test("LocusContigContains") {
     val ref = Ref(freshName(), TStruct("x" -> TLocus(ReferenceGenome.GRCh38)))
     val k = GetField(ref, "x")
     val contig = invoke("contig", TString, k)
@@ -665,106 +659,104 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       checkAll(node, ref, ref, testRows, trueIntervals, falseIntervals, naIntervals)
     }
 
-    forAll {
-      Array(
-        Literal(TSet(TString), Set("chr10", "chr1", null, "foo")),
-        Literal(TArray(TString), FastSeq("foo", "chr10", null, "chr1")),
-        Literal(
-          TDict(TString, TString),
-          Map("chr1" -> "foo", "chr10" -> "bar", "foo" -> "baz", (null, "quux")),
-        ),
-      )
-    } { lit =>
-      check(
-        invoke("contains", TBoolean, lit, contig),
-        FastSeq(
-          Interval(
-            Row(Locus("chr1", 1)),
-            Row(Locus("chr1", grch38.contigLength("chr1"))),
-            true,
-            false,
+    Array(
+      Literal(TSet(TString), Set("chr10", "chr1", null, "foo")),
+      Literal(TArray(TString), FastSeq("foo", "chr10", null, "chr1")),
+      Literal(
+        TDict(TString, TString),
+        Map("chr1" -> "foo", "chr10" -> "bar", "foo" -> "baz", (null, "quux")),
+      ),
+    )
+      .foreach { lit =>
+        check(
+          invoke("contains", TBoolean, lit, contig),
+          FastSeq(
+            Interval(
+              Row(Locus("chr1", 1)),
+              Row(Locus("chr1", grch38.contigLength("chr1"))),
+              true,
+              false,
+            ),
+            Interval(
+              Row(Locus("chr10", 1)),
+              Row(Locus("chr10", grch38.contigLength("chr10"))),
+              true,
+              false,
+            ),
+            Interval(Row(null), Row(), true, true),
           ),
-          Interval(
-            Row(Locus("chr10", 1)),
-            Row(Locus("chr10", grch38.contigLength("chr10"))),
-            true,
-            false,
+          FastSeq(
+            Interval(
+              Row(),
+              Row(Locus("chr1", 1)),
+              true,
+              false,
+            ),
+            Interval(
+              Row(Locus("chr1", grch38.contigLength("chr1"))),
+              Row(Locus("chr10", 1)),
+              true,
+              false,
+            ),
+            Interval(
+              Row(Locus("chr10", grch38.contigLength("chr10"))),
+              Row(null),
+              true,
+              false,
+            ),
           ),
-          Interval(Row(null), Row(), true, true),
-        ),
-        FastSeq(
-          Interval(
-            Row(),
-            Row(Locus("chr1", 1)),
-            true,
-            false,
-          ),
-          Interval(
-            Row(Locus("chr1", grch38.contigLength("chr1"))),
-            Row(Locus("chr10", 1)),
-            true,
-            false,
-          ),
-          Interval(
-            Row(Locus("chr10", grch38.contigLength("chr10"))),
-            Row(null),
-            true,
-            false,
-          ),
-        ),
-        FastSeq(),
-      )
-    }
+          FastSeq(),
+        )
+      }
 
-    forAll {
-      Array(
-        Literal(TSet(TString), Set("chr10", "chr1", "foo")),
-        Literal(TArray(TString), FastSeq("foo", "chr10", "chr1")),
-        Literal(TDict(TString, TString), Map("chr1" -> "foo", "chr10" -> "bar", "foo" -> "baz")),
-      )
-    } { lit =>
-      check(
-        invoke("contains", TBoolean, lit, contig),
-        FastSeq(
-          Interval(
-            Row(Locus("chr1", 1)),
-            Row(Locus("chr1", grch38.contigLength("chr1"))),
-            true,
-            false,
+    Array(
+      Literal(TSet(TString), Set("chr10", "chr1", "foo")),
+      Literal(TArray(TString), FastSeq("foo", "chr10", "chr1")),
+      Literal(TDict(TString, TString), Map("chr1" -> "foo", "chr10" -> "bar", "foo" -> "baz")),
+    )
+      .foreach { lit =>
+        check(
+          invoke("contains", TBoolean, lit, contig),
+          FastSeq(
+            Interval(
+              Row(Locus("chr1", 1)),
+              Row(Locus("chr1", grch38.contigLength("chr1"))),
+              true,
+              false,
+            ),
+            Interval(
+              Row(Locus("chr10", 1)),
+              Row(Locus("chr10", grch38.contigLength("chr10"))),
+              true,
+              false,
+            ),
           ),
-          Interval(
-            Row(Locus("chr10", 1)),
-            Row(Locus("chr10", grch38.contigLength("chr10"))),
-            true,
-            false,
+          FastSeq(
+            Interval(
+              Row(),
+              Row(Locus("chr1", 1)),
+              true,
+              false,
+            ),
+            Interval(
+              Row(Locus("chr1", grch38.contigLength("chr1"))),
+              Row(Locus("chr10", 1)),
+              true,
+              false,
+            ),
+            Interval(
+              Row(Locus("chr10", grch38.contigLength("chr10"))),
+              Row(),
+              true,
+              true,
+            ),
           ),
-        ),
-        FastSeq(
-          Interval(
-            Row(),
-            Row(Locus("chr1", 1)),
-            true,
-            false,
-          ),
-          Interval(
-            Row(Locus("chr1", grch38.contigLength("chr1"))),
-            Row(Locus("chr10", 1)),
-            true,
-            false,
-          ),
-          Interval(
-            Row(Locus("chr10", grch38.contigLength("chr10"))),
-            Row(),
-            true,
-            true,
-          ),
-        ),
-        FastSeq(),
-      )
-    }
+          FastSeq(),
+        )
+      }
   }
 
-  @Test def testIntervalListFold(): Unit = {
+  test("IntervalListFold") {
     val inIntervals = FastSeq(
       Interval(0, 10, true, false),
       Interval(20, 25, true, false),
@@ -836,7 +828,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     )
   }
 
-  @Test def testDisjunction(): Unit = {
+  test("Disjunction") {
     def check(
       node: IR,
       trueIntervals: IndexedSeq[Interval],
@@ -908,7 +900,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     )
   }
 
-  @Test def testConjunction(): Unit = {
+  test("Conjunction") {
     def check(
       node: IR,
       trueIntervals: IndexedSeq[Interval],
@@ -965,7 +957,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     )
   }
 
-  @Test def testCoalesce(): Unit = {
+  test("Coalesce") {
     def check(
       node: IR,
       trueIntervals: IndexedSeq[Interval],
@@ -1001,7 +993,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     )
   }
 
-  @Test def testIf(): Unit = {
+  test("If") {
     def check(
       node: IR,
       trueIntervals: IndexedSeq[Interval],
@@ -1034,7 +1026,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     )
   }
 
-  @Test def testSwitch(): Unit = {
+  test("Switch") {
     def check(
       node: IR,
       trueIntervals: IndexedSeq[Interval],
@@ -1085,7 +1077,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     )
   }
 
-  @Test def testRelationalChildren(): Unit = {
+  test("RelationalChildren") {
     val testRows = FastSeq(
       Row(0, 0, true),
       Row(0, 10, true),
@@ -1102,7 +1094,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     check(filter, ref1, k1Full, testRows, filter, FastSeq(Interval(Row(), Row(), true, true)))
   }
 
-  @Test def testIntegration(): Unit = {
+  test("Integration") {
     val tab1 = TableRange(10, 5)
 
     def k = GetField(Ref(TableIR.rowName, tab1.typ.rowType), "idx")

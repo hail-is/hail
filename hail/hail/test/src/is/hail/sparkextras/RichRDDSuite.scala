@@ -5,10 +5,8 @@ import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.ExportType
 import is.hail.sparkextras.implicits._
 
-import org.testng.annotations.Test
-
 class RichRDDSuite extends HailSuite {
-  @Test def parallelWrite(): Unit = {
+  test("parallelWrite") {
     def read(file: String): Array[String] = fs.readLines(file)(_.map(_.value).toArray)
 
     val header = "my header is awesome!"

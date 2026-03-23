@@ -3,10 +3,8 @@ package is.hail.lir
 import is.hail.HailSuite
 import is.hail.asm4s._
 
-import org.testng.annotations.Test
-
 class CompileTimeRequirednessSuite extends HailSuite {
-  @Test def testCodeBooleanFolding(): Unit = {
+  test("CodeBooleanFolding") {
     val cFalse = const(false)
     val cTrue = const(true)
 

@@ -15,7 +15,6 @@ import is.hail.types.virtual._
 import is.hail.variant.Call2
 
 import org.apache.spark.sql.Row
-import org.testng.annotations.Test
 
 class AggregatorsSuite extends HailSuite {
 
@@ -52,7 +51,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def nestedAgg(): Unit = {
+  test("nestedAgg") {
     val agg = ToArray(mapIR(StreamRange(0, 10, 1))(_ => ApplyAggOp(Count())()))
     assertEvalsTo(
       agg,
@@ -61,7 +60,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def sumFloat64(): Unit = {
+  test("sumFloat64") {
     runAggregator(Sum(), TFloat64, (0 to 100).map(_.toDouble), 5050.0)
     runAggregator(Sum(), TFloat64, FastSeq(), 0.0)
     runAggregator(Sum(), TFloat64, FastSeq(42.0), 42.0)
@@ -69,10 +68,11 @@ class AggregatorsSuite extends HailSuite {
     runAggregator(Sum(), TFloat64, FastSeq(null, null, null), 0.0)
   }
 
-  @Test def sumInt64(): Unit =
+  test("sumInt64") {
     runAggregator(Sum(), TInt64, FastSeq(-1L, 2L, 3L), 4L)
+  }
 
-  @Test def collectBoolean(): Unit = {
+  test("collectBoolean") {
     runAggregator(
       Collect(),
       TBoolean,
@@ -81,22 +81,27 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def collectInt(): Unit =
+  test("collectInt") {
     runAggregator(Collect(), TInt32, FastSeq(10, null, 5), FastSeq(10, null, 5))
+  }
 
-  @Test def collectLong(): Unit =
+  test("collectLong") {
     runAggregator(Collect(), TInt64, FastSeq(10L, null, 5L), FastSeq(10L, null, 5L))
+  }
 
-  @Test def collectFloat(): Unit =
+  test("collectFloat") {
     runAggregator(Collect(), TFloat32, FastSeq(10f, null, 5f), FastSeq(10f, null, 5f))
+  }
 
-  @Test def collectDouble(): Unit =
+  test("collectDouble") {
     runAggregator(Collect(), TFloat64, FastSeq(10d, null, 5d), FastSeq(10d, null, 5d))
+  }
 
-  @Test def collectString(): Unit =
+  test("collectString") {
     runAggregator(Collect(), TString, FastSeq("hello", null, "foo"), FastSeq("hello", null, "foo"))
+  }
 
-  @Test def collectArray(): Unit = {
+  test("collectArray") {
     runAggregator(
       Collect(),
       TArray(TInt32),
@@ -105,7 +110,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def collectStruct(): Unit = {
+  test("collectStruct") {
     runAggregator(
       Collect(),
       TStruct("a" -> TInt32, "b" -> TBoolean),
@@ -114,7 +119,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def count(): Unit = {
+  test("count") {
     runAggregator(
       Count(),
       TStruct("x" -> TString),
@@ -125,7 +130,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def collectAsSetBoolean(): Unit = {
+  test("collectAsSetBoolean") {
     runAggregator(
       CollectAsSet(),
       TBoolean,
@@ -135,14 +140,14 @@ class AggregatorsSuite extends HailSuite {
     runAggregator(CollectAsSet(), TBoolean, FastSeq(true, null, true), Set(true, null))
   }
 
-  @Test def collectAsSetNumeric(): Unit = {
+  test("collectAsSetNumeric") {
     runAggregator(CollectAsSet(), TInt32, FastSeq(10, null, 5, 5, null), Set(10, null, 5))
     runAggregator(CollectAsSet(), TInt64, FastSeq(10L, null, 5L, 5L, null), Set(10L, null, 5L))
     runAggregator(CollectAsSet(), TFloat32, FastSeq(10f, null, 5f, 5f, null), Set(10f, null, 5f))
     runAggregator(CollectAsSet(), TFloat64, FastSeq(10d, null, 5d, 5d, null), Set(10d, null, 5d))
   }
 
-  @Test def collectAsSetString(): Unit = {
+  test("collectAsSetString") {
     runAggregator(
       CollectAsSet(),
       TString,
@@ -151,21 +156,22 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def collectAsSetArray(): Unit = {
+  test("collectAsSetArray") {
     val inputCollection = FastSeq(FastSeq(1, 2, 3), null, FastSeq(), null, FastSeq(1, 2, 3))
     val expected = Set(FastSeq(1, 2, 3), null, FastSeq())
     runAggregator(CollectAsSet(), TArray(TInt32), inputCollection, expected)
   }
 
-  @Test def collectAsSetStruct(): Unit =
+  test("collectAsSetStruct") {
     runAggregator(
       CollectAsSet(),
       TStruct("a" -> TInt32, "b" -> TBoolean),
       FastSeq(Row(5, true), Row(3, false), null, Row(0, false), null, Row(5, true)),
       Set(Row(5, true), Row(3, false), null, Row(0, false)),
     )
+  }
 
-  @Test def callStats(): Unit = {
+  test("callStats") {
     runAggregator(
       CallStats(),
       TCall,
@@ -177,22 +183,25 @@ class AggregatorsSuite extends HailSuite {
 
   // FIXME Max Boolean not supported by old-style MaxAggregator
 
-  @Test def maxInt32(): Unit = {
+  test("maxInt32") {
     runAggregator(Max(), TInt32, FastSeq(), null)
     runAggregator(Max(), TInt32, FastSeq(null), null)
     runAggregator(Max(), TInt32, FastSeq(-2, null, 7), 7)
   }
 
-  @Test def maxInt64(): Unit =
+  test("maxInt64") {
     runAggregator(Max(), TInt64, FastSeq(-2L, null, 7L), 7L)
+  }
 
-  @Test def maxFloat32(): Unit =
+  test("maxFloat32") {
     runAggregator(Max(), TFloat32, FastSeq(-2.0f, null, 7.2f), 7.2f)
+  }
 
-  @Test def maxFloat64(): Unit =
+  test("maxFloat64") {
     runAggregator(Max(), TFloat64, FastSeq(-2.0, null, 7.2), 7.2)
+  }
 
-  @Test def takeInt32(): Unit = {
+  test("takeInt32") {
     runAggregator(
       Take(),
       TInt32,
@@ -202,7 +211,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def takeInt64(): Unit = {
+  test("takeInt64") {
     runAggregator(
       Take(),
       TInt64,
@@ -212,7 +221,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def takeFloat32(): Unit = {
+  test("takeFloat32") {
     runAggregator(
       Take(),
       TFloat32,
@@ -222,7 +231,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def takeFloat64(): Unit = {
+  test("takeFloat64") {
     runAggregator(
       Take(),
       TFloat64,
@@ -232,7 +241,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def takeCall(): Unit = {
+  test("takeCall") {
     runAggregator(
       Take(),
       TCall,
@@ -242,7 +251,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def takeString(): Unit = {
+  test("takeString") {
     runAggregator(
       Take(),
       TString,
@@ -252,8 +261,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test
-  def sumMultivar(): Unit = {
+  test("sumMultivar") {
     assertEvalsTo(
       ApplyAggOp(
         FastSeq(),
@@ -285,56 +293,55 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test
-  def arraySumFloat64OnEmpty(): Unit =
+  test("arraySumFloat64OnEmpty") {
     assertArraySumEvalsTo[Double](
       TFloat64,
       FastSeq(),
       null,
     )
+  }
 
-  @Test
-  def arraySumFloat64OnSingletonMissing(): Unit =
+  test("arraySumFloat64OnSingletonMissing") {
     assertArraySumEvalsTo[Double](
       TFloat64,
       FastSeq(null),
       null,
     )
+  }
 
-  @Test
-  def arraySumFloat64OnAllMissing(): Unit =
+  test("arraySumFloat64OnAllMissing") {
     assertArraySumEvalsTo[Double](
       TFloat64,
       FastSeq(null, null, null),
       null,
     )
+  }
 
-  @Test
-  def arraySumInt64OnEmpty(): Unit =
+  test("arraySumInt64OnEmpty") {
     assertArraySumEvalsTo[Long](
       TInt64,
       FastSeq(),
       null,
     )
+  }
 
-  @Test
-  def arraySumInt64OnSingletonMissing(): Unit =
+  test("arraySumInt64OnSingletonMissing") {
     assertArraySumEvalsTo[Long](
       TInt64,
       FastSeq(null),
       null,
     )
+  }
 
-  @Test
-  def arraySumInt64OnAllMissing(): Unit =
+  test("arraySumInt64OnAllMissing") {
     assertArraySumEvalsTo[Long](
       TInt64,
       FastSeq(null, null, null),
       null,
     )
+  }
 
-  @Test
-  def arraySumFloat64OnSmallArray(): Unit =
+  test("arraySumFloat64OnSmallArray") {
     assertArraySumEvalsTo(
       TFloat64,
       FastSeq(
@@ -344,9 +351,9 @@ class AggregatorsSuite extends HailSuite {
       ),
       FastSeq(11.0, 22.0),
     )
+  }
 
-  @Test
-  def arraySumInt64OnSmallArray(): Unit =
+  test("arraySumInt64OnSmallArray") {
     assertArraySumEvalsTo(
       TInt64,
       FastSeq(
@@ -356,9 +363,9 @@ class AggregatorsSuite extends HailSuite {
       ),
       FastSeq(11L, 22L),
     )
+  }
 
-  @Test
-  def arraySumInt64FirstElementMissing(): Unit =
+  test("arraySumInt64FirstElementMissing") {
     assertArraySumEvalsTo(
       TInt64,
       FastSeq(
@@ -368,6 +375,7 @@ class AggregatorsSuite extends HailSuite {
       ),
       FastSeq(43L, 36L),
     )
+  }
 
   private[this] def assertTakeByEvalsTo(
     aggType: Type,
@@ -386,10 +394,11 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def takeByNGreater(): Unit =
+  test("takeByNGreater") {
     assertTakeByEvalsTo(TInt32, TInt32, 5, FastSeq(Row(3, 4)), FastSeq(3))
+  }
 
-  @Test def takeByBooleanBoolean(): Unit = {
+  test("takeByBooleanBoolean") {
     assertTakeByEvalsTo(
       TBoolean,
       TBoolean,
@@ -399,7 +408,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def takeByBooleanInt(): Unit = {
+  test("takeByBooleanInt") {
     assertTakeByEvalsTo(
       TBoolean,
       TInt32,
@@ -416,7 +425,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def takeByBooleanLong(): Unit = {
+  test("takeByBooleanLong") {
     assertTakeByEvalsTo(
       TBoolean,
       TInt64,
@@ -433,7 +442,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def takeByBooleanFloat(): Unit = {
+  test("takeByBooleanFloat") {
     assertTakeByEvalsTo(
       TBoolean,
       TFloat32,
@@ -450,7 +459,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def takeByBooleanDouble(): Unit = {
+  test("takeByBooleanDouble") {
     assertTakeByEvalsTo(
       TBoolean,
       TFloat64,
@@ -467,7 +476,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def takeByBooleanAnnotation(): Unit = {
+  test("takeByBooleanAnnotation") {
     assertTakeByEvalsTo(
       TBoolean,
       TString,
@@ -484,7 +493,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def takeByIntBoolean(): Unit = {
+  test("takeByIntBoolean") {
     assertTakeByEvalsTo(
       TInt32,
       TBoolean,
@@ -494,7 +503,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def takeByIntInt(): Unit = {
+  test("takeByIntInt") {
     assertTakeByEvalsTo(
       TInt32,
       TInt32,
@@ -504,7 +513,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def takeByIntLong(): Unit = {
+  test("takeByIntLong") {
     assertTakeByEvalsTo(
       TInt32,
       TInt64,
@@ -514,7 +523,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def takeByIntFloat(): Unit = {
+  test("takeByIntFloat") {
     assertTakeByEvalsTo(
       TInt32,
       TFloat32,
@@ -524,7 +533,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def takeByIntDouble(): Unit = {
+  test("takeByIntDouble") {
     assertTakeByEvalsTo(
       TInt32,
       TFloat64,
@@ -534,7 +543,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def takeByIntAnnotation(): Unit = {
+  test("takeByIntAnnotation") {
     assertTakeByEvalsTo(
       TInt32,
       TString,
@@ -551,7 +560,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def takeByLongBoolean(): Unit = {
+  test("takeByLongBoolean") {
     assertTakeByEvalsTo(
       TInt64,
       TBoolean,
@@ -561,7 +570,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def takeByLongInt(): Unit = {
+  test("takeByLongInt") {
     assertTakeByEvalsTo(
       TInt64,
       TInt32,
@@ -571,7 +580,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def takeByLongLong(): Unit = {
+  test("takeByLongLong") {
     assertTakeByEvalsTo(
       TInt64,
       TInt64,
@@ -588,7 +597,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def takeByLongFloat(): Unit = {
+  test("takeByLongFloat") {
     assertTakeByEvalsTo(
       TInt64,
       TFloat32,
@@ -605,7 +614,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def takeByLongDouble(): Unit = {
+  test("takeByLongDouble") {
     assertTakeByEvalsTo(
       TInt64,
       TFloat64,
@@ -622,7 +631,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def takeByLongAnnotation(): Unit = {
+  test("takeByLongAnnotation") {
     assertTakeByEvalsTo(
       TInt64,
       TString,
@@ -639,7 +648,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def takeByFloatBoolean(): Unit = {
+  test("takeByFloatBoolean") {
     assertTakeByEvalsTo(
       TFloat32,
       TBoolean,
@@ -649,7 +658,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def takeByFloatInt(): Unit = {
+  test("takeByFloatInt") {
     assertTakeByEvalsTo(
       TFloat32,
       TInt32,
@@ -659,7 +668,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def takeByFloatLong(): Unit = {
+  test("takeByFloatLong") {
     assertTakeByEvalsTo(
       TFloat32,
       TInt64,
@@ -676,7 +685,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def takeByFloatFloat(): Unit = {
+  test("takeByFloatFloat") {
     assertTakeByEvalsTo(
       TFloat32,
       TFloat32,
@@ -693,7 +702,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def takeByFloatDouble(): Unit = {
+  test("takeByFloatDouble") {
     assertTakeByEvalsTo(
       TFloat32,
       TFloat64,
@@ -710,7 +719,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def takeByFloatAnnotation(): Unit = {
+  test("takeByFloatAnnotation") {
     assertTakeByEvalsTo(
       TFloat32,
       TString,
@@ -727,7 +736,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def takeByDoubleBoolean(): Unit = {
+  test("takeByDoubleBoolean") {
     assertTakeByEvalsTo(
       TFloat64,
       TBoolean,
@@ -737,7 +746,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def takeByDoubleInt(): Unit = {
+  test("takeByDoubleInt") {
     assertTakeByEvalsTo(
       TFloat64,
       TInt32,
@@ -747,7 +756,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def takeByDoubleLong(): Unit = {
+  test("takeByDoubleLong") {
     assertTakeByEvalsTo(
       TFloat64,
       TInt64,
@@ -764,7 +773,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def takeByDoubleFloat(): Unit = {
+  test("takeByDoubleFloat") {
     assertTakeByEvalsTo(
       TFloat64,
       TFloat32,
@@ -781,7 +790,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def takeByDoubleDouble(): Unit = {
+  test("takeByDoubleDouble") {
     assertTakeByEvalsTo(
       TFloat64,
       TFloat64,
@@ -798,7 +807,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def takeByDoubleAnnotation(): Unit = {
+  test("takeByDoubleAnnotation") {
     assertTakeByEvalsTo(
       TFloat64,
       TString,
@@ -815,7 +824,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def takeByAnnotationBoolean(): Unit = {
+  test("takeByAnnotationBoolean") {
     assertTakeByEvalsTo(
       TString,
       TBoolean,
@@ -825,7 +834,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def takeByAnnotationInt(): Unit = {
+  test("takeByAnnotationInt") {
     assertTakeByEvalsTo(
       TString,
       TInt32,
@@ -835,7 +844,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def takeByAnnotationLong(): Unit = {
+  test("takeByAnnotationLong") {
     assertTakeByEvalsTo(
       TString,
       TInt64,
@@ -852,7 +861,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def takeByAnnotationFloat(): Unit = {
+  test("takeByAnnotationFloat") {
     assertTakeByEvalsTo(
       TString,
       TFloat32,
@@ -869,7 +878,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def takeByAnnotationDouble(): Unit = {
+  test("takeByAnnotationDouble") {
     assertTakeByEvalsTo(
       TString,
       TFloat64,
@@ -886,7 +895,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def takeByAnnotationAnnotation(): Unit = {
+  test("takeByAnnotationAnnotation") {
     assertTakeByEvalsTo(
       TString,
       TString,
@@ -903,7 +912,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def takeByCallLong(): Unit = {
+  test("takeByCallLong") {
     assertTakeByEvalsTo(
       TCall,
       TInt64,
@@ -940,8 +949,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test
-  def keyedCount(): Unit = {
+  test("keyedCount") {
     runKeyedAggregator(
       Count(),
       Ref(Name("k"), TInt32),
@@ -982,8 +990,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test
-  def keyedCollect(): Unit = {
+  test("keyedCollect") {
     runKeyedAggregator(
       Collect(),
       Ref(Name("k"), TBoolean),
@@ -1003,8 +1010,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test
-  def keyedCallStats(): Unit = {
+  test("keyedCallStats") {
     runKeyedAggregator(
       CallStats(),
       Ref(Name("k"), TBoolean),
@@ -1026,8 +1032,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test
-  def keyedTakeBy(): Unit = {
+  test("keyedTakeBy") {
     runKeyedAggregator(
       TakeBy(),
       Ref(Name("k"), TString),
@@ -1046,8 +1051,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test
-  def keyedKeyedCollect(): Unit = {
+  test("keyedKeyedCollect") {
     val agg =
       FastSeq(Row("EUR", true, 1), Row("EUR", false, 2), Row("AFR", true, 3), Row("AFR", null, 4))
     val aggType = TStruct("k1" -> TString, "k2" -> TBoolean, "x" -> TInt32)
@@ -1070,8 +1074,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test
-  def keyedKeyedCallStats(): Unit = {
+  test("keyedKeyedCallStats") {
     val agg = FastSeq(
       Row("EUR", "CASE", null),
       Row("EUR", "CONTROL", Call2(0, 1)),
@@ -1104,8 +1107,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test
-  def keyedKeyedTakeBy(): Unit = {
+  test("keyedKeyedTakeBy") {
     val agg = FastSeq(
       Row("case", "a", 0.2, 5),
       Row("control", "b", 0.4, 0),
@@ -1139,8 +1141,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test
-  def keyedKeyedKeyedCollect(): Unit = {
+  test("keyedKeyedKeyedCollect") {
     val agg = FastSeq(
       Row("EUR", "CASE", true, 1),
       Row("EUR", "CONTROL", true, 2),
@@ -1171,7 +1172,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def downsampleWhenEmpty(): Unit = {
+  test("downsampleWhenEmpty") {
     runAggregator(
       Downsample(),
       TStruct("x" -> TFloat64, "y" -> TFloat64, "label" -> TArray(TString)),
@@ -1186,7 +1187,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def testAggFilter(): Unit = {
+  test("AggFilter") {
     val aggType = TStruct("x" -> TBoolean, "y" -> TInt64)
     val agg = FastSeq(Row(true, -1L), Row(true, 1L), Row(false, 3L), Row(true, 5L))
 
@@ -1201,7 +1202,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def testAggExplode(): Unit = {
+  test("AggExplode") {
     val aggType = TStruct("x" -> TArray(TInt64))
     val agg = FastSeq(
       Row(FastSeq[Long](1, 4)),
@@ -1219,7 +1220,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def testArrayElementsAggregator(): Unit = {
+  test("ArrayElementsAggregator") {
     implicit val execStrats = ExecStrategy.interpretOnly
 
     def getAgg(n: Int, m: Int): IR = {
@@ -1237,7 +1238,7 @@ class AggregatorsSuite extends HailSuite {
     assertEvalsTo(getAgg(10, 10), IndexedSeq.range(0, 10).map(_ * 10L))
   }
 
-  @Test def testArrayElementsAggregatorEmpty(): Unit = {
+  test("ArrayElementsAggregatorEmpty") {
     implicit val execStrats = ExecStrategy.interpretOnly
 
     def getAgg(n: Int, m: Int, knownLength: Option[IR]): IR = {
@@ -1263,7 +1264,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def testImputeTypeSimple(): Unit = {
+  test("ImputeTypeSimple") {
     runAggregator(ImputeType(), TString, FastSeq(null), Row(false, false, true, true, true, true))
     runAggregator(
       ImputeType(),
@@ -1285,7 +1286,7 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def testFoldAgg(): Unit = {
+  test("FoldAgg") {
     val myIR = streamAggIR(
       mapIR(rangeIR(100))(idx => makestruct(("idx", idx), ("unused", idx + idx)))
     )(foo => aggFoldIR(I32(0))(_ + GetField(foo, "idx"))(_ + _))
@@ -1304,7 +1305,7 @@ class AggregatorsSuite extends HailSuite {
     assertEvalsTo(myLoweredTableIR, 4950)
   }
 
-  @Test def testFoldScan(): Unit = {
+  test("FoldScan") {
     val foo = Ref(freshName(), TStruct("idx" -> TInt32, "unused" -> TInt32))
 
     val myIR = ToArray(
@@ -1318,7 +1319,7 @@ class AggregatorsSuite extends HailSuite {
   }
 
   // fails because there is no "lowest binding referenced in an init op"
-  @Test def testStreamAgg(): Unit = {
+  test("StreamAgg") {
     implicit val execStrats = Set(ExecStrategy.JvmCompileUnoptimized)
     val foo = StreamRange(I32(0), I32(10), I32(1))
 
@@ -1333,7 +1334,7 @@ class AggregatorsSuite extends HailSuite {
     assertEvalsTo(ir, 1)
   }
 
-  @Test def testLetBoundInitOpArg(): Unit = {
+  test("LetBoundInitOpArg") {
     implicit val execStrats = ExecStrategy.allRelational
     var tir: TableIR = TableRange(10, 3)
     tir =

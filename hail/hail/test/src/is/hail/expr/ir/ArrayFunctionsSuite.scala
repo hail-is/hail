@@ -7,63 +7,83 @@ import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.defs.{ArraySlice, F32, F64, I32, In, MakeArray, NA, Str}
 import is.hail.types.virtual._
 
-import org.testng.annotations.{DataProvider, Test}
-
 class ArrayFunctionsSuite extends HailSuite {
   val naa = NA(TArray(TInt32))
 
   implicit val execStrats: Set[ExecStrategy] = ExecStrategy.javaOnly
 
-  @DataProvider(name = "basic")
-  def basicData(): Array[Array[Any]] = Array(
-    Array(FastSeq(3, 7)),
-    Array(null),
-    Array(FastSeq(3, null, 7, null)),
-    Array(FastSeq()),
-  )
-
-  @DataProvider(name = "basicPairs")
-  def basicPairsData(): Array[Array[Any]] = basicData().flatten.combinations(2).toArray
-
-  @Test(dataProvider = "basic")
-  def isEmpty(a: IndexedSeq[Integer]): Unit =
-    assertEvalsTo(invoke("isEmpty", TBoolean, toIRArray(a)), Option(a).map(_.isEmpty).orNull)
-
-  @Test(dataProvider = "basic")
-  def append(a: IndexedSeq[Integer]): Unit =
-    assertEvalsTo(
-      invoke("append", TArray(TInt32), toIRArray(a), I32(1)),
-      Option(a).map(_ :+ 1).orNull,
-    )
-
-  @Test(dataProvider = "basic")
-  def appendNull(a: IndexedSeq[Integer]): Unit =
-    assertEvalsTo(
-      invoke("append", TArray(TInt32), toIRArray(a), NA(TInt32)),
-      Option(a).map(_ :+ null).orNull,
-    )
-
-  @Test(dataProvider = "basic")
-  def sum(a: IndexedSeq[Integer]): Unit = {
-    assertEvalsTo(
-      invoke("sum", TInt32, toIRArray(a)),
-      Option(a).flatMap(_.foldLeft[Option[Int]](Some(0))((comb, x) =>
-        comb.flatMap(c => Option(x).map(_ + c))
-      )).orNull,
-    )
+  def lift(f: (Int, Int) => Int)
+    : (IndexedSeq[Integer], IndexedSeq[Integer]) => IndexedSeq[Integer] = {
+    case (a, b) =>
+      Option(a).zip(Option(b)).headOption.map { case (a0, b0) =>
+        a0.zip(b0).map { case (i, j) =>
+          Option(i).zip(Option(j)).headOption.map[Integer] { case (m, n) => f(m, n) }.orNull
+        }
+      }.orNull
   }
 
-  @Test(dataProvider = "basic")
-  def product(a: IndexedSeq[Integer]): Unit = {
-    assertEvalsTo(
-      invoke("product", TInt32, toIRArray(a)),
-      Option(a).flatMap(_.foldLeft[Option[Int]](Some(1))((comb, x) =>
-        comb.flatMap(c => Option(x).map(_ * c))
-      )).orNull,
-    )
+  // basic DataProvider tests
+
+  val basicData: Array[IndexedSeq[Integer]] =
+    Array(FastSeq(3, 7), null, FastSeq(3, null, 7, null), FastSeq())
+
+  object checkIsEmpty extends TestCases {
+    def apply(a: IndexedSeq[Integer])(implicit loc: munit.Location): Unit = test("isEmpty") {
+      assertEvalsTo(invoke("isEmpty", TBoolean, toIRArray(a)), Option(a).map(_.isEmpty).orNull)
+    }
   }
 
-  @Test def mean(): Unit = {
+  basicData.foreach(checkIsEmpty(_))
+
+  object checkAppend extends TestCases {
+    def apply(a: IndexedSeq[Integer])(implicit loc: munit.Location): Unit = test("append") {
+      assertEvalsTo(
+        invoke("append", TArray(TInt32), toIRArray(a), I32(1)),
+        Option(a).map(_ :+ 1).orNull,
+      )
+    }
+  }
+
+  basicData.foreach(checkAppend(_))
+
+  object checkAppendNull extends TestCases {
+    def apply(a: IndexedSeq[Integer])(implicit loc: munit.Location): Unit = test("appendNull") {
+      assertEvalsTo(
+        invoke("append", TArray(TInt32), toIRArray(a), NA(TInt32)),
+        Option(a).map(_ :+ null).orNull,
+      )
+    }
+  }
+
+  basicData.foreach(checkAppendNull(_))
+
+  object checkSum extends TestCases {
+    def apply(a: IndexedSeq[Integer])(implicit loc: munit.Location): Unit = test("sum") {
+      assertEvalsTo(
+        invoke("sum", TInt32, toIRArray(a)),
+        Option(a).flatMap(_.foldLeft[Option[Int]](Some(0))((comb, x) =>
+          comb.flatMap(c => Option(x).map(_ + c))
+        )).orNull,
+      )
+    }
+  }
+
+  basicData.foreach(checkSum(_))
+
+  object checkProduct extends TestCases {
+    def apply(a: IndexedSeq[Integer])(implicit loc: munit.Location): Unit = test("product") {
+      assertEvalsTo(
+        invoke("product", TInt32, toIRArray(a)),
+        Option(a).flatMap(_.foldLeft[Option[Int]](Some(1))((comb, x) =>
+          comb.flatMap(c => Option(x).map(_ * c))
+        )).orNull,
+      )
+    }
+  }
+
+  basicData.foreach(checkProduct(_))
+
+  test("mean") {
     assertEvalsTo(invoke("mean", TFloat64, IRArray(3, 7)), 5.0)
     assertEvalsTo(invoke("mean", TFloat64, IRArray(3, null, 7)), null)
     assertEvalsTo(invoke("mean", TFloat64, IRArray(3, 7, 11)), 7.0)
@@ -72,7 +92,7 @@ class ArrayFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("mean", TFloat64, naa), null)
   }
 
-  @Test def median(): Unit = {
+  test("median") {
     assertEvalsTo(invoke("median", TInt32, IRArray(5)), 5)
     assertEvalsTo(invoke("median", TInt32, IRArray(5, null, null)), 5)
     assertEvalsTo(invoke("median", TInt32, IRArray(3, 7)), 5)
@@ -84,30 +104,67 @@ class ArrayFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("median", TInt32, naa), null)
   }
 
-  @Test(dataProvider = "basicPairs")
-  def extend(a: IndexedSeq[Integer], b: IndexedSeq[Integer]): Unit =
-    assertEvalsTo(
-      invoke("extend", TArray(TInt32), toIRArray(a), toIRArray(b)),
-      Option(a).zip(Option(b)).headOption.map { case (x, y) => x ++ y }.orNull,
+  // basicPairs DataProvider test
+
+  object checkExtend extends TestCases {
+    def apply(a: IndexedSeq[Integer], b: IndexedSeq[Integer])(implicit loc: munit.Location): Unit =
+      test("extend") {
+        assertEvalsTo(
+          invoke("extend", TArray(TInt32), toIRArray(a), toIRArray(b)),
+          Option(a).zip(Option(b)).headOption.map { case (x, y) => x ++ y }.orNull,
+        )
+      }
+  }
+
+  basicData.combinations(2).foreach { case Array(a, b) => checkExtend(a, b) }
+
+  // sort DataProvider tests
+
+  object checkMin extends TestCases {
+    def apply(
+      a: IndexedSeq[Integer],
+      asc: IndexedSeq[Integer],
+      desc: IndexedSeq[Integer],
+    )(implicit
+      loc: munit.Location
+    ): Unit = test("min") {
+      assertEvalsTo(
+        invoke("min", TInt32, toIRArray(a)),
+        Option(asc).filter(!_.contains(null)).flatMap(_.headOption).orNull,
+      )
+    }
+  }
+
+  object checkMax extends TestCases {
+    def apply(
+      a: IndexedSeq[Integer],
+      asc: IndexedSeq[Integer],
+      desc: IndexedSeq[Integer],
+    )(implicit
+      loc: munit.Location
+    ): Unit = test("max") {
+      assertEvalsTo(
+        invoke("max", TInt32, toIRArray(a)),
+        Option(desc).filter(!_.contains(null)).flatMap(_.headOption).orNull,
+      )
+    }
+  }
+
+  {
+    val sortData: Array[(IndexedSeq[Integer], IndexedSeq[Integer], IndexedSeq[Integer])] = Array(
+      (FastSeq(3, 9, 7), FastSeq(3, 7, 9), FastSeq(9, 7, 3)),
+      (null, null, null),
+      (FastSeq(3, null, 1, null, 3), FastSeq(1, 3, 3, null, null), FastSeq(3, 3, 1, null, null)),
+      (FastSeq(1, null, 3, null, 1), FastSeq(1, 1, 3, null, null), FastSeq(3, 1, 1, null, null)),
+      (FastSeq(), FastSeq(), FastSeq()),
     )
+    for ((a, asc, desc) <- sortData) {
+      checkMin(a, asc, desc)
+      checkMax(a, asc, desc)
+    }
+  }
 
-  @DataProvider(name = "sort")
-  def sortData(): Array[Array[Any]] = Array(
-    Array(FastSeq(3, 9, 7), FastSeq(3, 7, 9), FastSeq(9, 7, 3)),
-    Array(null, null, null),
-    Array(FastSeq(3, null, 1, null, 3), FastSeq(1, 3, 3, null, null), FastSeq(3, 3, 1, null, null)),
-    Array(FastSeq(1, null, 3, null, 1), FastSeq(1, 1, 3, null, null), FastSeq(3, 1, 1, null, null)),
-    Array(FastSeq(), FastSeq(), FastSeq()),
-  )
-
-  @Test(dataProvider = "sort")
-  def min(a: IndexedSeq[Integer], asc: IndexedSeq[Integer], desc: IndexedSeq[Integer]): Unit =
-    assertEvalsTo(
-      invoke("min", TInt32, toIRArray(a)),
-      Option(asc).filter(!_.contains(null)).flatMap(_.headOption).orNull,
-    )
-
-  @Test def testMinMaxNans(): Unit = {
+  test("MinMaxNans") {
     assertAllEvalTo(
       (
         invoke(
@@ -156,121 +213,171 @@ class ArrayFunctionsSuite extends HailSuite {
     )
   }
 
-  @Test(dataProvider = "sort")
-  def max(a: IndexedSeq[Integer], asc: IndexedSeq[Integer], desc: IndexedSeq[Integer]): Unit =
-    assertEvalsTo(
-      invoke("max", TInt32, toIRArray(a)),
-      Option(desc).filter(!_.contains(null)).flatMap(_.headOption).orNull,
+  // argminmax DataProvider tests
+
+  object checkArgmin extends TestCases {
+    def apply(
+      a: IndexedSeq[Integer],
+      argmin: Integer,
+      argmax: Integer,
+    )(implicit
+      loc: munit.Location
+    ): Unit = test("argmin") {
+      assertEvalsTo(invoke("argmin", TInt32, toIRArray(a)), argmin)
+    }
+  }
+
+  object checkArgmax extends TestCases {
+    def apply(
+      a: IndexedSeq[Integer],
+      argmin: Integer,
+      argmax: Integer,
+    )(implicit
+      loc: munit.Location
+    ): Unit = test("argmax") {
+      assertEvalsTo(invoke("argmax", TInt32, toIRArray(a)), argmax)
+    }
+  }
+
+  {
+    val argMinMaxData: Array[(IndexedSeq[Integer], Integer, Integer)] = Array(
+      (FastSeq(3, 9, 7), 0, 1),
+      (null, null, null),
+      (FastSeq(3, null, 1, null, 3), 2, 0),
+      (FastSeq(1, null, 3, null, 1), 0, 2),
+      (FastSeq(), null, null),
+    )
+    for ((a, amin, amax) <- argMinMaxData) {
+      checkArgmin(a, amin, amax)
+      checkArgmax(a, amin, amax)
+    }
+  }
+
+  // uniqueMinMaxIndex DataProvider tests
+
+  object checkUniqueMinIndex extends TestCases {
+    def apply(
+      a: IndexedSeq[Integer],
+      argmin: Integer,
+      argmax: Integer,
+    )(implicit
+      loc: munit.Location
+    ): Unit = test("uniqueMinIndex") {
+      assertEvalsTo(invoke("uniqueMinIndex", TInt32, toIRArray(a)), argmin)
+    }
+  }
+
+  object checkUniqueMaxIndex extends TestCases {
+    def apply(
+      a: IndexedSeq[Integer],
+      argmin: Integer,
+      argmax: Integer,
+    )(implicit
+      loc: munit.Location
+    ): Unit = test("uniqueMaxIndex") {
+      assertEvalsTo(invoke("uniqueMaxIndex", TInt32, toIRArray(a)), argmax)
+    }
+  }
+
+  {
+    val uniqueMinMaxData: Array[(IndexedSeq[Integer], Integer, Integer)] = Array(
+      (FastSeq(3, 9, 7), 0, 1),
+      (null, null, null),
+      (FastSeq(3, null, 1, null, 3), 2, null),
+      (FastSeq(1, null, 3, null, 1), null, 2),
+      (FastSeq(), null, null),
+    )
+    for ((a, amin, amax) <- uniqueMinMaxData) {
+      checkUniqueMinIndex(a, amin, amax)
+      checkUniqueMaxIndex(a, amin, amax)
+    }
+  }
+
+  // arrayOps DataProvider tests
+
+  object checkArrayOps extends TestCases {
+    def apply(
+      a: IndexedSeq[Integer],
+      b: IndexedSeq[Integer],
+      s: String,
+      f: (Int, Int) => Int,
+    )(implicit loc: munit.Location
+    ): Unit = test("arrayOps") {
+      assertEvalsTo(invoke(s, TArray(TInt32), toIRArray(a), toIRArray(b)), lift(f)(a, b))
+    }
+  }
+
+  object checkArrayOpsFPDiv extends TestCases {
+    def apply(a: IndexedSeq[Integer], b: IndexedSeq[Integer])(implicit loc: munit.Location): Unit =
+      test("arrayOpsFPDiv") {
+        assertEvalsTo(
+          invoke("div", TArray(TFloat64), toIRArray(a), toIRArray(b)),
+          Option(a).zip(Option(b)).headOption.map { case (a0, b0) =>
+            a0.zip(b0).map { case (i, j) =>
+              Option(i).zip(Option(j)).headOption.map[java.lang.Double] { case (m, n) =>
+                m.toDouble / n
+              }.orNull
+            }
+          }.orNull,
+        )
+      }
+  }
+
+  object checkArrayOpsPow extends TestCases {
+    def apply(a: IndexedSeq[Integer], b: IndexedSeq[Integer])(implicit loc: munit.Location): Unit =
+      test("arrayOpsPow") {
+        assertEvalsTo(
+          invoke("pow", TArray(TFloat64), toIRArray(a), toIRArray(b)),
+          Option(a).zip(Option(b)).headOption.map { case (a0, b0) =>
+            a0.zip(b0).map { case (i, j) =>
+              Option(i).zip(Option(j)).headOption.map[java.lang.Double] { case (m, n) =>
+                math.pow(m.toDouble, n.toDouble)
+              }.orNull
+            }
+          }.orNull,
+        )
+      }
+  }
+
+  object checkArrayOpsDifferentLength extends TestCases {
+    def apply(s: String, f: (Int, Int) => Int)(implicit loc: munit.Location): Unit =
+      test("arrayOpsDifferentLength") {
+        assertFatal(invoke(s, TArray(TInt32), IRArray(1, 2, 3), IRArray(1, 2)), "length mismatch")
+        assertFatal(invoke(s, TArray(TInt32), IRArray(1, 2), IRArray(1, 2, 3)), "length mismatch")
+      }
+  }
+
+  {
+    val arrayOpsDataValues: Array[Array[IndexedSeq[Integer]]] = Array[IndexedSeq[Integer]](
+      FastSeq(3, 9, 7, 1),
+      FastSeq(null, 2, null, 8),
+      FastSeq(5, 3, null, null),
+      null,
+    ).combinations(2).toArray.map(_.toArray)
+
+    val arrayOpsOps: Array[(String, (Int, Int) => Int)] = Array(
+      ("add", _ + _),
+      ("sub", _ - _),
+      ("mul", _ * _),
+      ("floordiv", _ / _),
+      ("mod", _ % _),
     )
 
-  @DataProvider(name = "argminmax")
-  def argMinMaxData(): Array[Array[Any]] = Array(
-    Array(FastSeq(3, 9, 7), 0, 1),
-    Array(null, null, null),
-    Array(FastSeq(3, null, 1, null, 3), 2, 0),
-    Array(FastSeq(1, null, 3, null, 1), 0, 2),
-    Array(FastSeq(), null, null),
-  )
-
-  @Test(dataProvider = "argminmax")
-  def argmin(a: IndexedSeq[Integer], argmin: Integer, argmax: Integer): Unit =
-    assertEvalsTo(invoke("argmin", TInt32, toIRArray(a)), argmin)
-
-  @Test(dataProvider = "argminmax")
-  def argmax(a: IndexedSeq[Integer], argmin: Integer, argmax: Integer): Unit =
-    assertEvalsTo(invoke("argmax", TInt32, toIRArray(a)), argmax)
-
-  @DataProvider(name = "uniqueMinMaxIndex")
-  def uniqueMinMaxData(): Array[Array[Any]] = Array(
-    Array(FastSeq(3, 9, 7), 0, 1),
-    Array(null, null, null),
-    Array(FastSeq(3, null, 1, null, 3), 2, null),
-    Array(FastSeq(1, null, 3, null, 1), null, 2),
-    Array(FastSeq(), null, null),
-  )
-
-  @Test(dataProvider = "uniqueMinMaxIndex")
-  def uniqueMinIndex(a: IndexedSeq[Integer], argmin: Integer, argmax: Integer): Unit =
-    assertEvalsTo(invoke("uniqueMinIndex", TInt32, toIRArray(a)), argmin)
-
-  @Test(dataProvider = "uniqueMinMaxIndex")
-  def uniqueMaxIndex(a: IndexedSeq[Integer], argmin: Integer, argmax: Integer): Unit =
-    assertEvalsTo(invoke("uniqueMaxIndex", TInt32, toIRArray(a)), argmax)
-
-  @DataProvider(name = "arrayOpsData")
-  def arrayOpsData(): Array[Array[Any]] = Array[Any](
-    FastSeq(3, 9, 7, 1),
-    FastSeq(null, 2, null, 8),
-    FastSeq(5, 3, null, null),
-    null,
-  ).combinations(2).toArray
-
-  @DataProvider(name = "arrayOpsOperations")
-  def arrayOpsOperations: Array[Array[Any]] = Array[(String, (Int, Int) => Int)](
-    ("add", _ + _),
-    ("sub", _ - _),
-    ("mul", _ * _),
-    ("floordiv", _ / _),
-    ("mod", _ % _),
-  ).map(_.productIterator.toArray)
-
-  @DataProvider(name = "arrayOps")
-  def arrayOpsPairs(): Array[Array[Any]] =
     for {
-      Array(a, b) <- arrayOpsData()
-      Array(s, f) <- arrayOpsOperations
-    } yield Array(a, b, s, f)
+      Array(a, b) <- arrayOpsDataValues
+      (s, f) <- arrayOpsOps
+    } checkArrayOps(a, b, s, f)
 
-  def lift(f: (Int, Int) => Int)
-    : (IndexedSeq[Integer], IndexedSeq[Integer]) => IndexedSeq[Integer] = {
-    case (a, b) =>
-      Option(a).zip(Option(b)).headOption.map { case (a0, b0) =>
-        a0.zip(b0).map { case (i, j) =>
-          Option(i).zip(Option(j)).headOption.map[Integer] { case (m, n) => f(m, n) }.orNull
-        }
-      }.orNull
+    for (Array(a, b) <- arrayOpsDataValues) {
+      checkArrayOpsFPDiv(a, b)
+      checkArrayOpsPow(a, b)
+    }
+
+    for ((s, f) <- arrayOpsOps)
+      checkArrayOpsDifferentLength(s, f)
   }
 
-  @Test(dataProvider = "arrayOps")
-  def arrayOps(a: IndexedSeq[Integer], b: IndexedSeq[Integer], s: String, f: (Int, Int) => Int)
-    : Unit =
-    assertEvalsTo(invoke(s, TArray(TInt32), toIRArray(a), toIRArray(b)), lift(f)(a, b))
-
-  @Test(dataProvider = "arrayOpsData")
-  def arrayOpsFPDiv(a: IndexedSeq[Integer], b: IndexedSeq[Integer]): Unit = {
-    assertEvalsTo(
-      invoke("div", TArray(TFloat64), toIRArray(a), toIRArray(b)),
-      Option(a).zip(Option(b)).headOption.map { case (a0, b0) =>
-        a0.zip(b0).map { case (i, j) =>
-          Option(i).zip(Option(j)).headOption.map[java.lang.Double] { case (m, n) =>
-            m.toDouble / n
-          }.orNull
-        }
-      }.orNull,
-    )
-  }
-
-  @Test(dataProvider = "arrayOpsData")
-  def arrayOpsPow(a: IndexedSeq[Integer], b: IndexedSeq[Integer]): Unit = {
-    assertEvalsTo(
-      invoke("pow", TArray(TFloat64), toIRArray(a), toIRArray(b)),
-      Option(a).zip(Option(b)).headOption.map { case (a0, b0) =>
-        a0.zip(b0).map { case (i, j) =>
-          Option(i).zip(Option(j)).headOption.map[java.lang.Double] { case (m, n) =>
-            math.pow(m.toDouble, n.toDouble)
-          }.orNull
-        }
-      }.orNull,
-    )
-  }
-
-  @Test(dataProvider = "arrayOpsOperations")
-  def arrayOpsDifferentLength(s: String, f: (Int, Int) => Int): Unit = {
-    assertFatal(invoke(s, TArray(TInt32), IRArray(1, 2, 3), IRArray(1, 2)), "length mismatch")
-    assertFatal(invoke(s, TArray(TInt32), IRArray(1, 2), IRArray(1, 2, 3)), "length mismatch")
-  }
-
-  @Test def indexing(): Unit = {
+  test("indexing") {
     val a = IRArray(0, null, 2)
     assertEvalsTo(invoke("indexArray", TInt32, a, I32(0)), 0)
     assertEvalsTo(invoke("indexArray", TInt32, a, I32(1)), null)
@@ -283,7 +390,7 @@ class ArrayFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("indexArray", TInt32, a, NA(TInt32)), null)
   }
 
-  @Test def slicing(): Unit = {
+  test("slicing") {
     val a = IRArray(0, null, 2)
     assertEvalsTo(ArraySlice(a, I32(1), None), FastSeq(null, 2))
     assertEvalsTo(ArraySlice(a, I32(-2), None), FastSeq(null, 2))
@@ -311,23 +418,29 @@ class ArrayFunctionsSuite extends HailSuite {
     assertEvalsTo(ArraySlice(a, I32(3), Some(I32(2))), FastSeq())
   }
 
-  @DataProvider(name = "flatten")
-  def flattenData(): Array[Array[Any]] = Array(
-    Array(FastSeq(FastSeq(3, 9, 7), FastSeq(3, 7, 9)), FastSeq(3, 9, 7, 3, 7, 9)),
-    Array(FastSeq(null, FastSeq(1)), FastSeq(1)),
-    Array(FastSeq(null, null), FastSeq()),
-    Array(FastSeq(FastSeq(null), FastSeq(), FastSeq(7)), FastSeq(null, 7)),
-    Array(FastSeq(FastSeq(), FastSeq()), FastSeq()),
-  )
+  // flatten DataProvider test
 
-  @Test(dataProvider = "flatten")
-  def flatten(in: IndexedSeq[IndexedSeq[Integer]], expected: IndexedSeq[Int]): Unit =
-    assertEvalsTo(
-      invoke("flatten", TArray(TInt32), MakeArray(in.map(toIRArray(_)), TArray(TArray(TInt32)))),
-      expected,
-    )
+  object checkFlatten extends TestCases {
+    def apply(
+      in: IndexedSeq[IndexedSeq[Integer]],
+      expected: IndexedSeq[Any],
+    )(implicit
+      loc: munit.Location
+    ): Unit = test("flatten") {
+      assertEvalsTo(
+        invoke("flatten", TArray(TInt32), MakeArray(in.map(toIRArray(_)), TArray(TArray(TInt32)))),
+        expected,
+      )
+    }
+  }
 
-  @Test def testContains(): Unit = {
+  checkFlatten(FastSeq(FastSeq(3, 9, 7), FastSeq(3, 7, 9)), FastSeq(3, 9, 7, 3, 7, 9))
+  checkFlatten(FastSeq(null, FastSeq(1)), FastSeq(1))
+  checkFlatten(FastSeq(null, null), FastSeq())
+  checkFlatten(FastSeq(FastSeq(null), FastSeq(), FastSeq(7)), FastSeq[Any](null, 7))
+  checkFlatten(FastSeq(FastSeq(), FastSeq()), FastSeq())
+
+  test("Contains") {
     val t = TArray(TString)
 
     assertEvalsTo(
@@ -373,53 +486,65 @@ class ArrayFunctionsSuite extends HailSuite {
     )
   }
 
-  @DataProvider(name = "scatter")
-  def scatterData: Array[Array[Any]] = Array(
-    Array(FastSeq("a", "b", "c"), FastSeq(1, 3, 4), FastSeq(null, "a", null, "b", "c")),
-    Array(FastSeq("a", "b", "c"), FastSeq(2, 0, 3), FastSeq("b", null, "a", "c", null)),
-    Array(FastSeq(), FastSeq(), FastSeq(null, null, null)),
-    Array(FastSeq(), FastSeq(), FastSeq()),
-  )
+  // scatter DataProvider test
 
-  @Test(dataProvider = "scatter")
-  def testScatter(elts: IndexedSeq[String], indices: IndexedSeq[Int], expected: IndexedSeq[String])
-    : Unit = {
-    val t1 = TArray(TInt32)
-    val t2 = TArray(TString)
+  object checkScatter extends TestCases {
+    def apply(
+      elts: IndexedSeq[String],
+      indices: IndexedSeq[Int],
+      expected: IndexedSeq[String],
+    )(implicit loc: munit.Location
+    ): Unit = test("Scatter") {
+      val t1 = TArray(TInt32)
+      val t2 = TArray(TString)
 
-    assertEvalsTo(
-      invoke("scatter", t2, FastSeq(TString), In(0, t2), In(1, t1), expected.length),
-      args = FastSeq(elts -> t2, indices -> t1),
-      expected = expected,
-    )
+      assertEvalsTo(
+        invoke("scatter", t2, FastSeq(TString), In(0, t2), In(1, t1), expected.length),
+        args = FastSeq(elts -> t2, indices -> t1),
+        expected = expected,
+      )
+    }
   }
 
-  @DataProvider(name = "scatter_errors")
-  def scatterErrorData: Array[Array[Any]] = Array(
-    Array(FastSeq("a", "b", "c"), FastSeq(1, 3, 4), 4, "indices array contained index 4"),
-    Array(
-      FastSeq("a", "b"),
-      FastSeq(1, 3, 4),
-      4,
-      "values and indices arrays have different lengths",
-    ),
-    Array(FastSeq("a", "b", "c"), FastSeq(1, 2, 2), 2, "values array is larger than result length"),
+  checkScatter(FastSeq("a", "b", "c"), FastSeq(1, 3, 4), FastSeq(null, "a", null, "b", "c"))
+  checkScatter(FastSeq("a", "b", "c"), FastSeq(2, 0, 3), FastSeq("b", null, "a", "c", null))
+  checkScatter(FastSeq(), FastSeq(), FastSeq(null, null, null))
+  checkScatter(FastSeq(), FastSeq(), FastSeq())
+
+  // scatter_errors DataProvider test
+
+  object checkScatterErrors extends TestCases {
+    def apply(
+      elts: IndexedSeq[String],
+      indices: IndexedSeq[Int],
+      length: Int,
+      regex: String,
+    )(implicit loc: munit.Location
+    ): Unit = test("ScatterErrors") {
+      val t1 = TArray(TInt32)
+      val t2 = TArray(TString)
+
+      assertFatal(
+        invoke("scatter", t2, FastSeq(TString), In(0, t2), In(1, t1), length),
+        args = FastSeq(elts -> t2, indices -> t1),
+        regex = regex,
+      )
+    }
+  }
+
+  checkScatterErrors(FastSeq("a", "b", "c"), FastSeq(1, 3, 4), 4, "indices array contained index 4")
+
+  checkScatterErrors(
+    FastSeq("a", "b"),
+    FastSeq(1, 3, 4),
+    4,
+    "values and indices arrays have different lengths",
   )
 
-  @Test(dataProvider = "scatter_errors")
-  def testScatterErrors(
-    elts: IndexedSeq[String],
-    indices: IndexedSeq[Int],
-    length: Int,
-    regex: String,
-  ): Unit = {
-    val t1 = TArray(TInt32)
-    val t2 = TArray(TString)
-
-    assertFatal(
-      invoke("scatter", t2, FastSeq(TString), In(0, t2), In(1, t1), length),
-      args = FastSeq(elts -> t2, indices -> t1),
-      regex = regex,
-    )
-  }
+  checkScatterErrors(
+    FastSeq("a", "b", "c"),
+    FastSeq(1, 2, 2),
+    2,
+    "values array is larger than result length",
+  )
 }

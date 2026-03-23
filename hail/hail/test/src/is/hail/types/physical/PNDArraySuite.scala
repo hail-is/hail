@@ -7,11 +7,14 @@ import is.hail.expr.ir.{EmitCodeBuilder, EmitFunctionBuilder}
 import is.hail.methods.LocalWhitening
 import is.hail.types.physical.stypes.interfaces.{ColonIndex => Colon, _}
 
+import scala.concurrent.duration.Duration
+
 import org.apache.spark.sql.Row
-import org.testng.annotations.Test
 
 class PNDArraySuite extends PhysicalTestUtils {
-  @Test def copyTests(): Unit = {
+  override val munitTimeout = Duration(60, "s")
+
+  test("copyTests") {
     def runTests(deepCopy: Boolean, interpret: Boolean = false): Unit = {
       copyTestExecutor(
         PCanonicalNDArray(PInt64(true), 1),
@@ -29,7 +32,7 @@ class PNDArraySuite extends PhysicalTestUtils {
     runTests(false, true)
   }
 
-  @Test def testWhitenBase(): Unit = {
+  test("WhitenBase") {
     val fb = EmitFunctionBuilder[Region, Double](ctx, "whiten_test")
     val matType = PCanonicalNDArray(PFloat64Required, 2)
     val vecType = PCanonicalNDArray(PFloat64Required, 1)
@@ -99,7 +102,7 @@ class PNDArraySuite extends PhysicalTestUtils {
     }
   }
 
-  @Test def testQrPivot(): Unit = {
+  test("QrPivot") {
     val fb = EmitFunctionBuilder[Region, Double](ctx, "whiten_test")
     val matType = PCanonicalNDArray(PFloat64Required, 2)
     val vecType = PCanonicalNDArray(PFloat64Required, 1)
@@ -226,7 +229,7 @@ class PNDArraySuite extends PhysicalTestUtils {
     Xw
   }
 
-  @Test def testWhitenNonrecur(): Unit = {
+  test("WhitenNonrecur") {
     val fb = EmitFunctionBuilder[Region, Unit](ctx, "whiten_test")
     val matType = PCanonicalNDArray(PFloat64Required, 2)
     val m = SizeValueStatic(2000)
@@ -315,11 +318,10 @@ class PNDArraySuite extends PhysicalTestUtils {
       val f = fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, region)
 
       f(region)
-      succeed
     }
   }
 
-  @Test def testWhiten(): Unit = {
+  test("Whiten") {
     val fb = EmitFunctionBuilder[Region, Unit](ctx, "whiten_test")
     val matType = PCanonicalNDArray(PFloat64Required, 2)
     val m = SizeValueStatic(2000)
@@ -377,11 +379,10 @@ class PNDArraySuite extends PhysicalTestUtils {
       val f = fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, region)
 
       f(region)
-      succeed
     }
   }
 
-  @Test def testRefCounted(): Unit = {
+  test("RefCounted") {
     val nd = PCanonicalNDArray(PInt32Required, 1)
 
     val region1 = Region(pool = this.pool)
@@ -423,34 +424,34 @@ class PNDArraySuite extends PhysicalTestUtils {
     val result1Data = nd.unstagedDataFirstElementPointer(result1)
 
     // Check number of ndarrays in each region:
-    assert(region1.memory.listNDArrayRefs().size == 1)
-    assert(region1.memory.listNDArrayRefs()(0) == result1Data)
+    assertEquals(region1.memory.listNDArrayRefs().size, 1)
+    assertEquals(region1.memory.listNDArrayRefs()(0), result1Data)
 
-    assert(region2.memory.listNDArrayRefs().size == 2)
-    assert(region2.memory.listNDArrayRefs()(1) == result1Data)
+    assertEquals(region2.memory.listNDArrayRefs().size, 2)
+    assertEquals(region2.memory.listNDArrayRefs()(1), result1Data)
 
     // Check that the reference count of ndarray1 is 2:
     val rc1A = Region.loadLong(result1Data - Region.sharedChunkHeaderBytes)
-    assert(rc1A == 2)
+    assertEquals(rc1A, 2L)
 
     region1.clear()
-    assert(region1.memory.listNDArrayRefs().size == 0)
+    assertEquals(region1.memory.listNDArrayRefs().size, 0)
 
     // Check that ndarray 1 wasn't actually cleared, ref count should just be 1 now:
     val rc1B = Region.loadLong(result1Data - Region.sharedChunkHeaderBytes)
-    assert(rc1B == 1)
+    assertEquals(rc1B, 1L)
 
-    assert(region3.memory.listNDArrayRefs().size == 0)
+    assertEquals(region3.memory.listNDArrayRefs().size, 0)
     // Do an unstaged copy into region3
     nd.copyFromAddress(ctx.stateManager, region3, nd, result1, true): Unit
-    assert(region3.memory.listNDArrayRefs().size == 1)
+    assertEquals(region3.memory.listNDArrayRefs().size, 1)
 
     // Check that clearing region2 removes both ndarrays
     region2.clear()
-    assert(region2.memory.listNDArrayRefs().size == 0)
+    assertEquals(region2.memory.listNDArrayRefs().size, 0)
   }
 
-  @Test def testUnstagedCopy(): Unit = {
+  test("UnstagedCopy") {
     val region1 = Region(pool = this.pool)
     val region2 = Region(pool = this.pool)
     val x = SafeNDArray(IndexedSeq(3L, 2L), (0 until 6).map(_.toDouble))
@@ -462,11 +463,11 @@ class PNDArraySuite extends PhysicalTestUtils {
     // Deep copy same ptype just increments reference count, doesn't change the address.
     val dataAddr1 = Region.loadAddress(pNd.representation.loadField(ndAddr1, 2))
     val dataAddr2 = Region.loadAddress(pNd.representation.loadField(ndAddr2, 2))
-    assert(dataAddr1 == dataAddr2)
-    assert(Region.getSharedChunkRefCount(dataAddr1) == 2)
-    assert(unsafe1 == unsafe2)
+    assertEquals(dataAddr1, dataAddr2)
+    assertEquals(Region.getSharedChunkRefCount(dataAddr1), 2L)
+    assertEquals(unsafe1, unsafe2)
     region1.clear()
-    assert(Region.getSharedChunkRefCount(dataAddr1) == 1)
+    assertEquals(Region.getSharedChunkRefCount(dataAddr1), 1L)
 
     // Deep copy with elements that contain pointers, so have to actually do a full copy
     // FIXME: Currently ndarrays do not support this, reference counting needs to account for this.
@@ -497,6 +498,6 @@ class PNDArraySuite extends PhysicalTestUtils {
     val unsafe5 = UnsafeRow.read(pNDOfStructs1, region1, addr5)
     val addr6 = pNDOfStructs2.copyFromAddress(ctx.stateManager, region2, pNDOfStructs1, addr5, true)
     val unsafe6 = UnsafeRow.read(pNDOfStructs2, region2, addr6)
-    assert(unsafe5 == unsafe6)
+    assertEquals(unsafe5, unsafe6)
   }
 }

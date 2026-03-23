@@ -4,11 +4,10 @@ import is.hail.HailSuite
 import is.hail.utils._
 
 import breeze.linalg._
-import org.testng.annotations.Test
 
 class SkatSuite extends HailSuite {
 
-  @Test def smallNLargeNEqualityTest(): Unit = {
+  test("smallNLargeNEquality") {
     val rand = scala.util.Random
     rand.setSeed(0)
 

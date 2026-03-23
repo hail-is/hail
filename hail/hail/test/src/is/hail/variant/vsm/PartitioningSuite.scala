@@ -8,10 +8,8 @@ import is.hail.expr.ir.{Interpret, MatrixAnnotateRowsTable, TableLiteral, TableV
 import is.hail.rvd.RVD
 import is.hail.types.virtual.{TInt32, TStruct, TableType}
 
-import org.testng.annotations.Test
-
 class PartitioningSuite extends HailSuite {
-  @Test def testShuffleOnEmptyRDD(): Unit = {
+  test("ShuffleOnEmptyRDD") {
     val typ = TableType(TStruct("tidx" -> TInt32), FastSeq("tidx"), TStruct.empty)
     val t = TableLiteral(
       TableValue(

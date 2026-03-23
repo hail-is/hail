@@ -7,10 +7,8 @@ import is.hail.expr.ir.defs.{
   TableWrite, ToArray,
 }
 
-import org.testng.annotations.Test
-
 class DistinctlyKeyedSuite extends HailSuite {
-  @Test def distinctlyKeyedRangeTableBase(): Unit = {
+  test("distinctlyKeyedRangeTableBase") {
     val tableRange = TableRange(10, 2)
     val tableFilter = TableFilter(
       tableRange,
@@ -26,7 +24,7 @@ class DistinctlyKeyedSuite extends HailSuite {
     assert(tableIRSeq.forall(tableIR => distinctlyKeyedAnalysis.contains(tableIR)))
   }
 
-  @Test def readTableKeyByDistinctlyKeyedAnalysis(): Unit = {
+  test("readTableKeyByDistinctlyKeyedAnalysis") {
     val rt = TableRange(40, 4)
     val idxRef = GetField(Ref(TableIR.rowName, rt.typ.rowType), "idx")
     val at = TableMapRows(
@@ -61,7 +59,7 @@ class DistinctlyKeyedSuite extends HailSuite {
     assert(distinctlyKeyedAnalysis4.contains(intactKeysTable))
   }
 
-  @Test def nonDistinctlyKeyedParent(): Unit = {
+  test("nonDistinctlyKeyedParent") {
     val tableRange1 = TableRange(10, 2)
     val tableRange2 = TableRange(10, 2)
     val row = Ref(TableIR.rowName, tableRange2.typ.rowType)
@@ -83,7 +81,7 @@ class DistinctlyKeyedSuite extends HailSuite {
     assert(distinctlyKeyedSeq.forall(tableIR => distinctlyKeyedAnalysis.contains(tableIR)))
   }
 
-  @Test def distinctlyKeyedParent(): Unit = {
+  test("distinctlyKeyedParent") {
     val tableRange1 = TableRange(10, 2)
     val tableRange2 = TableRange(10, 2)
     val row = Ref(TableIR.rowName, tableRange2.typ.rowType)
@@ -102,7 +100,7 @@ class DistinctlyKeyedSuite extends HailSuite {
     assert(distinctlyKeyedAnalysis.contains(tableDistinct))
   }
 
-  @Test def iRparent(): Unit = {
+  test("iRparent") {
     val tableRange = TableRange(10, 2)
     val tableFilter = TableFilter(
       tableRange,

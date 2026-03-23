@@ -7,36 +7,33 @@ import is.hail.expr.ir.defs.{
 }
 import is.hail.types.virtual.{TFloat64, TInt32}
 
-import org.testng.annotations.{DataProvider, Test}
-
 class FoldConstantsSuite extends HailSuite {
-  @Test def testRandomBlocksFolding(): Unit = {
+  test("RandomBlocksFolding") {
     val x = Apply(
       "rand_norm",
       FastSeq.empty,
       FastSeq(RNGSplitStatic(RNGStateLiteral(), 0L), F64(0d), F64(0d)),
       TFloat64,
     )
-    assert(FoldConstants(ctx, x) == x)
+    assertEquals(FoldConstants(ctx, x), x)
   }
 
-  @Test def testErrorCatching(): Unit = {
+  test("ErrorCatching") {
     val ir = invoke("toInt32", TInt32, Str(""))
-    assert(FoldConstants(ctx, ir) == ir)
+    assertEquals(FoldConstants(ctx, ir), ir)
   }
 
-  @DataProvider(name = "aggNodes")
-  def aggNodes(): Array[Array[Any]] = {
-    Array[IR](
-      AggLet(freshName(), I32(1), I32(1), false),
-      AggLet(freshName(), I32(1), I32(1), true),
-      ApplyAggOp(Sum())(I64(1)),
-      ApplyScanOp(Sum())(I64(1)),
-    ).map(x => Array[Any](x))
+  object aggNodes extends TestCases {
+    def apply(node: IR)(implicit loc: munit.Location): Unit =
+      test("AggNodesDoNotFold") {
+        assertEquals(FoldConstants(ctx, node), node)
+      }
   }
 
-  @Test def testAggNodesConstruction(): Unit = aggNodes(): Unit
-
-  @Test(dataProvider = "aggNodes") def testAggNodesDoNotFold(node: IR): Unit =
-    assert(FoldConstants(ctx, node) == node)
+  Array[IR](
+    AggLet(freshName(), I32(1), I32(1), false),
+    AggLet(freshName(), I32(1), I32(1), true),
+    ApplyAggOp(Sum())(I64(1)),
+    ApplyScanOp(Sum())(I64(1)),
+  ).foreach(aggNodes(_))
 }

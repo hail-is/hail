@@ -8,7 +8,6 @@ import is.hail.expr.ir.defs.{NA, ToSet, ToStream}
 import is.hail.types.virtual._
 
 import org.apache.spark.sql.Row
-import org.testng.annotations.{DataProvider, Test}
 
 class DictFunctionsSuite extends HailSuite {
   def tuplesToMap(a: IndexedSeq[(Integer, Integer)]): Map[Integer, Integer] =
@@ -16,95 +15,135 @@ class DictFunctionsSuite extends HailSuite {
 
   implicit val execStrats: Set[ExecStrategy] = ExecStrategy.javaOnly
 
-  @DataProvider(name = "basic")
-  def basicData(): Array[Array[Any]] = Array(
-    Array(IndexedSeq((1, 3), (2, 7))),
-    Array(IndexedSeq((1, 3), (2, null), null, (null, 1), (3, 7))),
-    Array(IndexedSeq()),
-    Array(IndexedSeq(null)),
-    Array(null),
+  val basicData: Array[IndexedSeq[(Integer, Integer)]] = Array(
+    IndexedSeq((1, 3), (2, 7)),
+    IndexedSeq((1, 3), (2, null), null, (null, 1), (3, 7)),
+    IndexedSeq(),
+    IndexedSeq(null),
+    null,
   )
 
-  @Test(dataProvider = "basic")
-  def dictFromArray(a: IndexedSeq[(Integer, Integer)]): Unit = {
-    assertEvalsTo(invoke("dict", TDict(TInt32, TInt32), toIRPairArray(a)), tuplesToMap(a))
-    assertEvalsTo(toIRDict(a), tuplesToMap(a))
+  object checkDictFromArray extends TestCases {
+    def apply(
+      a: IndexedSeq[(Integer, Integer)]
+    )(implicit loc: munit.Location
+    ): Unit = test("dictFromArray") {
+      assertEvalsTo(invoke("dict", TDict(TInt32, TInt32), toIRPairArray(a)), tuplesToMap(a))
+      assertEvalsTo(toIRDict(a), tuplesToMap(a))
+    }
   }
 
-  @Test(dataProvider = "basic")
-  def dictFromSet(a: IndexedSeq[(Integer, Integer)]): Unit =
-    assertEvalsTo(
-      invoke("dict", TDict(TInt32, TInt32), ToSet(ToStream(toIRPairArray(a)))),
-      tuplesToMap(a),
-    )
+  basicData.foreach(checkDictFromArray(_))
 
-  @Test(dataProvider = "basic")
-  def isEmpty(a: IndexedSeq[(Integer, Integer)]): Unit =
-    assertEvalsTo(
-      invoke("isEmpty", TBoolean, toIRDict(a)),
-      Option(a).map(_.forall(_ == null)).orNull,
-    )
+  object checkDictFromSet extends TestCases {
+    def apply(
+      a: IndexedSeq[(Integer, Integer)]
+    )(implicit loc: munit.Location
+    ): Unit = test("dictFromSet") {
+      assertEvalsTo(
+        invoke("dict", TDict(TInt32, TInt32), ToSet(ToStream(toIRPairArray(a)))),
+        tuplesToMap(a),
+      )
+    }
+  }
 
-  @DataProvider(name = "dictToArray")
-  def dictToArrayData(): Array[Array[Any]] = Array(
-    Array(FastSeq(1 -> 3, 2 -> 7), FastSeq(Row(1, 3), Row(2, 7))),
-    Array(
-      FastSeq(1 -> 3, 2 -> null, null, (null, 1), 3 -> 7),
+  basicData.foreach(checkDictFromSet(_))
+
+  object checkIsEmpty extends TestCases {
+    def apply(
+      a: IndexedSeq[(Integer, Integer)]
+    )(implicit loc: munit.Location
+    ): Unit = test("isEmpty") {
+      assertEvalsTo(
+        invoke("isEmpty", TBoolean, toIRDict(a)),
+        Option(a).map(_.forall(_ == null)).orNull,
+      )
+    }
+  }
+
+  basicData.foreach(checkIsEmpty(_))
+
+  val dictToArrayData: Array[(IndexedSeq[(Integer, Integer)], IndexedSeq[Row])] = Array(
+    (FastSeq[(Integer, Integer)]((1, 3), (2, 7)), FastSeq(Row(1, 3), Row(2, 7))),
+    (
+      FastSeq[(Integer, Integer)]((1, 3), (2, null), null, (null, 1), (3, 7)),
       FastSeq(Row(1, 3), Row(2, null), Row(3, 7), Row(null, 1)),
     ),
-    Array(FastSeq(), FastSeq()),
-    Array(FastSeq(null), FastSeq()),
-    Array(null, null),
+    (FastSeq[(Integer, Integer)](), FastSeq()),
+    (FastSeq[(Integer, Integer)](null), FastSeq()),
+    (null, null),
   )
 
-  @Test(dataProvider = "dictToArray")
-  def dictToArray(a: IndexedSeq[(Integer, Integer)], expected: IndexedSeq[Row]): Unit = {
-    implicit val execStrats = Set(ExecStrategy.JvmCompile)
-    assertEvalsTo(invoke("dictToArray", TArray(TTuple(TInt32, TInt32)), toIRDict(a)), expected)
+  object checkDictToArray extends TestCases {
+    def apply(
+      a: IndexedSeq[(Integer, Integer)],
+      expected: IndexedSeq[Row],
+    )(implicit loc: munit.Location
+    ): Unit = test("dictToArray") {
+      implicit val execStrats = Set(ExecStrategy.JvmCompile)
+      assertEvalsTo(invoke("dictToArray", TArray(TTuple(TInt32, TInt32)), toIRDict(a)), expected)
+    }
   }
 
-  @DataProvider(name = "keysAndValues")
-  def keysAndValuesData(): Array[Array[Any]] = Array(
-    Array(FastSeq(1 -> 3, 2 -> 7), FastSeq(1, 2), FastSeq(3, 7)),
-    Array(
-      FastSeq(1 -> 3, 2 -> null, null, (null, 1), 3 -> 7),
-      FastSeq(1, 2, 3, null),
-      FastSeq(3, null, 7, 1),
+  dictToArrayData.foreach { case (a, expected) => checkDictToArray(a, expected) }
+
+  val keysAndValuesData
+    : Array[(IndexedSeq[(Integer, Integer)], IndexedSeq[Integer], IndexedSeq[Integer])] = Array(
+    (FastSeq[(Integer, Integer)]((1, 3), (2, 7)), FastSeq[Integer](1, 2), FastSeq[Integer](3, 7)),
+    (
+      FastSeq[(Integer, Integer)]((1, 3), (2, null), null, (null, 1), (3, 7)),
+      FastSeq[Integer](1, 2, 3, null),
+      FastSeq[Integer](3, null, 7, 1),
     ),
-    Array(FastSeq(), FastSeq(), FastSeq()),
-    Array(FastSeq(null), FastSeq(), FastSeq()),
-    Array(null, null, null),
+    (FastSeq[(Integer, Integer)](), FastSeq[Integer](), FastSeq[Integer]()),
+    (FastSeq[(Integer, Integer)](null), FastSeq[Integer](), FastSeq[Integer]()),
+    (null, null, null),
   )
 
-  @Test(dataProvider = "keysAndValues")
-  def keySet(
-    a: IndexedSeq[(Integer, Integer)],
-    keys: IndexedSeq[Integer],
-    values: IndexedSeq[Integer],
-  ): Unit =
-    assertEvalsTo(invoke("keySet", TSet(TInt32), toIRDict(a)), Option(keys).map(_.toSet).orNull)
+  object checkKeySet extends TestCases {
+    def apply(
+      a: IndexedSeq[(Integer, Integer)],
+      keys: IndexedSeq[Integer],
+      values: IndexedSeq[Integer],
+    )(implicit loc: munit.Location
+    ): Unit = test("keySet") {
+      assertEvalsTo(invoke("keySet", TSet(TInt32), toIRDict(a)), Option(keys).map(_.toSet).orNull)
+    }
+  }
 
-  @Test(dataProvider = "keysAndValues")
-  def keys(
-    a: IndexedSeq[(Integer, Integer)],
-    keys: IndexedSeq[Integer],
-    values: IndexedSeq[Integer],
-  ): Unit =
-    assertEvalsTo(invoke("keys", TArray(TInt32), toIRDict(a)), keys)
+  keysAndValuesData.foreach { case (a, keys, values) => checkKeySet(a, keys, values) }
 
-  @Test(dataProvider = "keysAndValues")
-  def values(
-    a: IndexedSeq[(Integer, Integer)],
-    keys: IndexedSeq[Integer],
-    values: IndexedSeq[Integer],
-  ): Unit =
-    assertEvalsTo(invoke("values", TArray(TInt32), toIRDict(a)), values)
+  object checkKeys extends TestCases {
+    def apply(
+      a: IndexedSeq[(Integer, Integer)],
+      keys: IndexedSeq[Integer],
+      values: IndexedSeq[Integer],
+    )(implicit loc: munit.Location
+    ): Unit = test("keys") {
+      assertEvalsTo(invoke("keys", TArray(TInt32), toIRDict(a)), keys)
+    }
+  }
+
+  keysAndValuesData.foreach { case (a, keys, values) => checkKeys(a, keys, values) }
+
+  object checkValues extends TestCases {
+    def apply(
+      a: IndexedSeq[(Integer, Integer)],
+      keys: IndexedSeq[Integer],
+      values: IndexedSeq[Integer],
+    )(implicit loc: munit.Location
+    ): Unit = test("values") {
+      assertEvalsTo(invoke("values", TArray(TInt32), toIRDict(a)), values)
+    }
+  }
+
+  keysAndValuesData.foreach { case (a, keys, values) => checkValues(a, keys, values) }
 
   val d = IRDict((1, 3), (3, 7), (5, null), (null, 5))
   val dwoutna = IRDict((1, 3), (3, 7), (5, null))
   val na = NA(TInt32)
 
-  @Test def dictGet(): Unit = {
+  test("dictGet") {
     assertEvalsTo(invoke("get", TInt32, NA(TDict(TInt32, TInt32)), 1, na), null)
     assertEvalsTo(invoke("get", TInt32, d, 0, na), null)
     assertEvalsTo(invoke("get", TInt32, d, 1, na), 3)
@@ -130,7 +169,7 @@ class DictFunctionsSuite extends HailSuite {
     assertFatal(invoke("index", TInt32, IRDict(), 100), "dictionary")
   }
 
-  @Test def dictContains(): Unit = {
+  test("dictContains") {
     assertEvalsTo(invoke("contains", TBoolean, d, 0), false)
     assertEvalsTo(invoke("contains", TBoolean, d, 1), true)
     assertEvalsTo(invoke("contains", TBoolean, d, 2), false)

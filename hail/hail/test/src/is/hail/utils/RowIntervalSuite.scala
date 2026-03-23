@@ -8,7 +8,6 @@ import is.hail.rvd.{PartitionBoundOrdering, RVDPartitioner}
 import is.hail.types.virtual.{TBoolean, TInt32, TStruct}
 
 import org.apache.spark.sql.Row
-import org.testng.annotations.Test
 
 class RowIntervalSuite extends HailSuite {
   lazy val t = TStruct("a" -> TInt32, "b" -> TInt32, "c" -> TInt32)
@@ -35,7 +34,7 @@ class RowIntervalSuite extends HailSuite {
     )(ExecStrategy.compileOnly)
   }
 
-  @Test def testContains(): Unit = {
+  test("Contains") {
     assertContains(Interval(Row(0, 1, 5), Row(1, 2, 4), true, true), Row(1, 1, 3))
     assertContains(Interval(Row(0, 1, 5), Row(1, 2, 4), true, true), Row(0, 1, 5))
     assertContains(
@@ -85,7 +84,7 @@ class RowIntervalSuite extends HailSuite {
     assert(!Interval(Row(0, 1, 5, 7), Row(2, 1, 4, 5), false, false).contains(pord, Row(0, 1, 5)))
   }
 
-  @Test def testAbovePosition(): Unit = {
+  test("AbovePosition") {
     assert(Interval(Row(0, 1, 5), Row(1, 2, 4), true, true).isAbovePosition(pord, Row(0, 1, 4)))
     assert(Interval(Row(0, 1, 5), Row(1, 2, 4), false, true).isAbovePosition(pord, Row(0, 1, 5)))
     assert(!Interval(Row(0, 1, 5), Row(1, 2, 4), true, true).isAbovePosition(pord, Row(0, 1, 5)))
@@ -105,7 +104,7 @@ class RowIntervalSuite extends HailSuite {
     ))
   }
 
-  @Test def testBelowPosition(): Unit = {
+  test("BelowPosition") {
     assert(Interval(Row(0, 1, 5), Row(1, 2, 4), true, true).isBelowPosition(pord, Row(1, 2, 5)))
     assert(Interval(Row(0, 1, 5), Row(1, 2, 4), true, false).isBelowPosition(pord, Row(1, 2, 4)))
     assert(!Interval(Row(0, 1, 5), Row(1, 2, 4), true, true).isBelowPosition(pord, Row(1, 2, 4)))
@@ -116,7 +115,7 @@ class RowIntervalSuite extends HailSuite {
     assert(!Interval(Row(1, 1, 8), Row(1, 2), true, true).isBelowPosition(pord, Row(1, 2, 5)))
   }
 
-  @Test def testAbutts(): Unit = {
+  test("Abutts") {
     assert(Interval(Row(0, 1, 5), Row(1, 2, 4), true, true).abutts(
       pord,
       Interval(Row(1, 2, 4), Row(1, 3, 4), false, true),
@@ -136,7 +135,7 @@ class RowIntervalSuite extends HailSuite {
     ))
   }
 
-  @Test def testLteqWithOverlap(): Unit = {
+  test("LteqWithOverlap") {
     val eord = pord.intervalEndpointOrdering
     assert(!eord.lteqWithOverlap(3)(
       IntervalEndpoint(Row(0, 1, 6), -1),
@@ -210,7 +209,7 @@ class RowIntervalSuite extends HailSuite {
     ))
   }
 
-  @Test def testIsValid(): Unit = {
+  test("IsValid") {
     assert(Interval.isValid(pord, Row(0, 1, 5), Row(0, 2), false, false))
     assert(!Interval.isValid(pord, Row(0, 1, 5), Row(0, 0), false, false))
     assert(Interval.isValid(pord, Row(0, 1, 5), Row(0, 1), false, true))

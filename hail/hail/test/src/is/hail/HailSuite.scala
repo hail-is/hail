@@ -25,9 +25,6 @@ import org.apache.hadoop
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.{Row, SparkSession}
-import org.scalatestplus.testng.TestNGSuite
-import org.testng.ITestContext
-import org.testng.annotations.{AfterClass, AfterSuite, BeforeClass, BeforeSuite}
 
 object HailSuite {
   private val hcl: HailClassLoader =
@@ -36,11 +33,29 @@ object HailSuite {
   private val flags: HailFeatureFlags =
     HailFeatureFlags.fromEnv(sys.env + ("lower" -> "1"))
 
-  private var backend_ : SparkBackend = _
+  private lazy val backend_ : SparkBackend = {
+    RVD.CheckRvdKeyOrderingForTesting = true
+    val b = SparkBackend(
+      SparkSession
+        .builder()
+        .appName("HailTest")
+        .master("local[2]")
+        .config("spark.unsafe.exceptionOnMemoryLeak", "true")
+        .config("spark.ui.showConsoleProgress", "false")
+        .config("spark.ui.enabled", "false")
+        .config(SparkBackend.pySparkConf)
+        .getOrCreate()
+    )
+    sys.addShutdownHook {
+      b.spark.stop()
+      b.close()
+      IRFunctionRegistry.clearUserFunctions()
+    }: Unit
+    b
+  }
 }
 
-class HailSuite extends TestNGSuite with TestUtils with Logging {
-
+class HailSuite extends munit.FunSuite with TestCaseSupport with TestUtils with Logging {
   private[this] var ctx_ : ExecuteContext = _
 
   override def ctx: ExecuteContext = ctx_
@@ -55,24 +70,10 @@ class HailSuite extends TestNGSuite with TestUtils with Logging {
 
   def getTestResource(localPath: String): String = s"$resources/$localPath"
 
-  @BeforeSuite
-  def setupBackend(): Unit = {
-    RVD.CheckRvdKeyOrderingForTesting = true
-    HailSuite.backend_ = SparkBackend(
-      SparkSession
-        .builder()
-        .appName("HailTest")
-        .master("local[2]")
-        .config("spark.unsafe.exceptionOnMemoryLeak", "true")
-        .config("spark.ui.showConsoleProgress", "false")
-        .config("spark.ui.enabled", "false")
-        .config(SparkBackend.pySparkConf)
-        .getOrCreate()
-    )
-  }
-
-  @BeforeClass
-  def setupExecuteContext(): Unit = {
+  override def beforeAll(): Unit = {
+    super.beforeAll()
+    // Force backend initialization
+    HailSuite.backend_ : Unit
     val conf = new Configuration(HailSuite.backend_.sc.hadoopConfiguration)
     val fs = new HadoopFS(new SerializableHadoopConfiguration(conf))
     val pool = RegionPool()
@@ -95,25 +96,19 @@ class HailSuite extends TestNGSuite with TestUtils with Logging {
     )
   }
 
-  @AfterClass
-  def tearDownExecuteContext(context: ITestContext): Unit = {
-    ctx_.timer.finish()
-    ctx_.close()
-    ctx_.r.pool.close()
-    ctx_ = null
-
+  override def afterAll(): Unit = {
+    if (ctx_ != null) {
+      ctx_.timer.finish()
+      ctx_.close()
+      ctx_.r.pool.close()
+      ctx_ = null
+    }
     hadoop.fs.FileSystem.closeAll()
 
     if (HailSuite.backend_.sc.isStopped)
-      throw new RuntimeException(s"'${context.getName}' stopped spark context!")
-  }
+      throw new RuntimeException(s"test suite stopped spark context!")
 
-  @AfterSuite
-  def tearDownBackend(): Unit = {
-    HailSuite.backend_.spark.stop()
-    HailSuite.backend_.close()
-    HailSuite.backend_ = null
-    IRFunctionRegistry.clearUserFunctions()
+    super.afterAll()
   }
 
   def evaluate(
@@ -209,8 +204,6 @@ class HailSuite extends TestNGSuite with TestUtils with Logging {
           logger.error(s"error from strategy $strat", e)
           if (execStrats.contains(strat)) throw e
       }
-
-      succeed
     }
   }
 
@@ -312,9 +305,9 @@ class HailSuite extends TestNGSuite with TestUtils with Logging {
           if (execStrats.contains(strat)) throw e
       }
     }
-    val expectedArray = ArraySeq.tabulate(expected.rows)(i =>
-      ArraySeq.tabulate(expected.cols)(j => expected(i, j))
-    )
+    val expectedArray = Array.tabulate(expected.rows)(i =>
+      Array.tabulate(expected.cols)(j => expected(i, j)).toFastSeq
+    ).toFastSeq
     assertNDEvals(BlockMatrixCollect(bm), expectedArray)(
       filteredExecStrats.filterNot(ExecStrategy.interpretOnly)
     )

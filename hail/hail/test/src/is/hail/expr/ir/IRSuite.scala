@@ -3,7 +3,6 @@ package is.hail.expr.ir
 import is.hail.{ExecStrategy, HailSuite}
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.annotations.{BroadcastRow, ExtendedOrdering, SafeNDArray}
-import is.hail.backend.ExecuteContext
 import is.hail.collection.{FastSeq, IntArrayBuilder}
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
@@ -32,14 +31,28 @@ import scala.collection.mutable
 
 import org.apache.spark.sql.Row
 import org.json4s.jackson.{JsonMethods, Serialization}
-import org.scalatest.Inspectors.forAll
-import org.scalatest.enablers.InspectorAsserting.assertingNatureOfAssertion
-import org.testng.annotations.{DataProvider, Test}
 
 class IRSuite extends HailSuite {
   implicit val execStrats: Set[ExecStrategy] = ExecStrategy.nonLowering
 
-  @Test def testRandDifferentLengthUIDStrings(): Unit = {
+  override def beforeAll(): Unit = {
+    super.beforeAll()
+    CompileAndEvaluate[Unit](
+      ctx,
+      invoke(
+        "index_bgen",
+        TInt64,
+        ArraySeq[Type](TLocus("GRCh37")),
+        Str(getTestResource("example.8bits.bgen")),
+        Str(getTestResource("example.8bits.bgen.idx2")),
+        Literal(TDict(TString, TString), Map("01" -> "1")),
+        False(),
+        I32(1000000),
+      ),
+    )
+  }
+
+  test("RandDifferentLengthUIDStrings") {
     implicit val execStrats = ExecStrategy.lowering
     val staticUID: Long = 112233
     var rng = RNGSplit(RNGSplitStatic(RNGStateLiteral(), staticUID), I64(12345))
@@ -59,29 +72,37 @@ class IRSuite extends HailSuite {
     assert(expected1 != expected3)
   }
 
-  @Test def testI32(): Unit =
+  test("I32") {
     assertEvalsTo(I32(5), 5)
+  }
 
-  @Test def testI64(): Unit =
+  test("I64") {
     assertEvalsTo(I64(5), 5L)
+  }
 
-  @Test def testF32(): Unit =
+  test("F32") {
     assertEvalsTo(F32(3.14f), 3.14f)
+  }
 
-  @Test def testF64(): Unit =
+  test("F64") {
     assertEvalsTo(F64(3.14), 3.14)
+  }
 
-  @Test def testStr(): Unit =
+  test("Str") {
     assertEvalsTo(Str("Hail"), "Hail")
+  }
 
-  @Test def testTrue(): Unit =
+  test("True") {
     assertEvalsTo(True(), true)
+  }
 
-  @Test def testFalse(): Unit =
+  test("False") {
     assertEvalsTo(False(), false)
+  }
+
   // FIXME Void() doesn't work because we can't handle a void type in a tuple
 
-  @Test def testCast(): Unit = {
+  test("Cast") {
     assertAllEvalTo(
       (Cast(I32(5), TInt32), 5),
       (Cast(I32(5), TInt64), 5L),
@@ -105,7 +126,7 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testCastRename(): Unit = {
+  test("CastRename") {
     assertEvalsTo(CastRename(MakeStruct(FastSeq(("x", I32(1)))), TStruct("foo" -> TInt32)), Row(1))
     assertEvalsTo(
       CastRename(
@@ -116,10 +137,11 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testNA(): Unit =
+  test("NA") {
     assertEvalsTo(NA(TInt32), null)
+  }
 
-  @Test def testCoalesce(): Unit = {
+  test("Coalesce") {
     assertEvalsTo(Coalesce(FastSeq(In(0, TInt32))), FastSeq((null, TInt32)), null)
     assertEvalsTo(Coalesce(FastSeq(In(0, TInt32))), FastSeq((1, TInt32)), 1)
     assertEvalsTo(Coalesce(FastSeq(NA(TInt32), In(0, TInt32))), FastSeq((null, TInt32)), null)
@@ -132,7 +154,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(Coalesce(FastSeq(NA(TInt32), I32(1), Die("foo", TInt32))), 1)
   }
 
-  @Test def testCoalesceWithDifferentRequiredeness(): Unit = {
+  test("CoalesceWithDifferentRequiredeness") {
     val t1 = In(0, TArray(TInt32))
     val t2 = NA(TArray(TInt32))
     val value = FastSeq(1, 2, 3, 4)
@@ -146,7 +168,7 @@ class IRSuite extends HailSuite {
   val f64na = NA(TFloat64)
   val bna = NA(TBoolean)
 
-  @Test def testApplyUnaryPrimOpNegate(): Unit = {
+  test("ApplyUnaryPrimOpNegate") {
     assertAllEvalTo(
       (ApplyUnaryPrimOp(Negate, I32(5)), -5),
       (ApplyUnaryPrimOp(Negate, i32na), null),
@@ -159,13 +181,13 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testApplyUnaryPrimOpBang(): Unit = {
+  test("ApplyUnaryPrimOpBang") {
     assertEvalsTo(ApplyUnaryPrimOp(Bang, False()), true)
     assertEvalsTo(ApplyUnaryPrimOp(Bang, True()), false)
     assertEvalsTo(ApplyUnaryPrimOp(Bang, bna), null)
   }
 
-  @Test def testApplyUnaryPrimOpBitFlip(): Unit = {
+  test("ApplyUnaryPrimOpBitFlip") {
     assertAllEvalTo(
       (ApplyUnaryPrimOp(BitNot, I32(0xdeadbeef)), ~0xdeadbeef),
       (ApplyUnaryPrimOp(BitNot, I32(-0xdeadbeef)), ~(-0xdeadbeef)),
@@ -176,7 +198,7 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testApplyUnaryPrimOpBitCount(): Unit = {
+  test("ApplyUnaryPrimOpBitCount") {
     assertAllEvalTo(
       (ApplyUnaryPrimOp(BitCount, I32(0xdeadbeef)), Integer.bitCount(0xdeadbeef)),
       (ApplyUnaryPrimOp(BitCount, I32(-0xdeadbeef)), Integer.bitCount(-0xdeadbeef)),
@@ -193,7 +215,7 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testApplyBinaryPrimOpAdd(): Unit = {
+  test("ApplyBinaryPrimOpAdd") {
     def assertSumsTo(t: Type, x: Any, y: Any, sum: Any): Unit =
       assertEvalsTo(ApplyBinaryPrimOp(Add(), In(0, t), In(1, t)), FastSeq(x -> t, y -> t), sum)
     assertSumsTo(TInt32, 5, 3, 8)
@@ -217,7 +239,7 @@ class IRSuite extends HailSuite {
     assertSumsTo(TFloat64, null, null, null)
   }
 
-  @Test def testApplyBinaryPrimOpSubtract(): Unit = {
+  test("ApplyBinaryPrimOpSubtract") {
     def assertExpected(t: Type, x: Any, y: Any, expected: Any): Unit =
       assertEvalsTo(
         ApplyBinaryPrimOp(Subtract(), In(0, t), In(1, t)),
@@ -246,7 +268,7 @@ class IRSuite extends HailSuite {
     assertExpected(TFloat64, null, null, null)
   }
 
-  @Test def testApplyBinaryPrimOpMultiply(): Unit = {
+  test("ApplyBinaryPrimOpMultiply") {
     def assertExpected(t: Type, x: Any, y: Any, expected: Any): Unit =
       assertEvalsTo(
         ApplyBinaryPrimOp(Multiply(), In(0, t), In(1, t)),
@@ -275,7 +297,7 @@ class IRSuite extends HailSuite {
     assertExpected(TFloat64, null, null, null)
   }
 
-  @Test def testApplyBinaryPrimOpFloatingPointDivide(): Unit = {
+  test("ApplyBinaryPrimOpFloatingPointDivide") {
     def assertExpected(t: Type, x: Any, y: Any, expected: Any): Unit =
       assertEvalsTo(
         ApplyBinaryPrimOp(FloatingPointDivide(), In(0, t), In(1, t)),
@@ -304,7 +326,7 @@ class IRSuite extends HailSuite {
     assertExpected(TFloat64, null, null, null)
   }
 
-  @Test def testApplyBinaryPrimOpRoundToNegInfDivide(): Unit = {
+  test("ApplyBinaryPrimOpRoundToNegInfDivide") {
     def assertExpected(t: Type, x: Any, y: Any, expected: Any): Unit =
       assertEvalsTo(
         ApplyBinaryPrimOp(RoundToNegInfDivide(), In(0, t), In(1, t)),
@@ -333,7 +355,7 @@ class IRSuite extends HailSuite {
     assertExpected(TFloat64, null, null, null)
   }
 
-  @Test def testApplyBinaryPrimOpBitAnd(): Unit = {
+  test("ApplyBinaryPrimOpBitAnd") {
     def assertExpected(t: Type, x: Any, y: Any, expected: Any): Unit =
       assertEvalsTo(
         ApplyBinaryPrimOp(BitAnd(), In(0, t), In(1, t)),
@@ -358,7 +380,7 @@ class IRSuite extends HailSuite {
     assertExpected(TInt64, null, null, null)
   }
 
-  @Test def testApplyBinaryPrimOpBitOr(): Unit = {
+  test("ApplyBinaryPrimOpBitOr") {
     def assertExpected(t: Type, x: Any, y: Any, expected: Any): Unit =
       assertEvalsTo(
         ApplyBinaryPrimOp(BitOr(), In(0, t), In(1, t)),
@@ -383,7 +405,7 @@ class IRSuite extends HailSuite {
     assertExpected(TInt64, null, null, null)
   }
 
-  @Test def testApplyBinaryPrimOpBitXOr(): Unit = {
+  test("ApplyBinaryPrimOpBitXOr") {
     def assertExpected(t: Type, x: Any, y: Any, expected: Any): Unit =
       assertEvalsTo(
         ApplyBinaryPrimOp(BitXOr(), In(0, t), In(1, t)),
@@ -408,7 +430,7 @@ class IRSuite extends HailSuite {
     assertExpected(TInt64, null, null, null)
   }
 
-  @Test def testApplyBinaryPrimOpLeftShift(): Unit = {
+  test("ApplyBinaryPrimOpLeftShift") {
     def assertShiftsTo(t: Type, x: Any, y: Any, expected: Any): Unit =
       assertEvalsTo(
         ApplyBinaryPrimOp(LeftShift(), In(0, t), In(1, TInt32)),
@@ -429,7 +451,7 @@ class IRSuite extends HailSuite {
     assertShiftsTo(TInt64, null, null, null)
   }
 
-  @Test def testApplyBinaryPrimOpRightShift(): Unit = {
+  test("ApplyBinaryPrimOpRightShift") {
     def assertShiftsTo(t: Type, x: Any, y: Any, expected: Any): Unit =
       assertEvalsTo(
         ApplyBinaryPrimOp(RightShift(), In(0, t), In(1, TInt32)),
@@ -450,7 +472,7 @@ class IRSuite extends HailSuite {
     assertShiftsTo(TInt64, null, null, null)
   }
 
-  @Test def testApplyBinaryPrimOpLogicalRightShift(): Unit = {
+  test("ApplyBinaryPrimOpLogicalRightShift") {
     def assertShiftsTo(t: Type, x: Any, y: Any, expected: Any): Unit =
       assertEvalsTo(
         ApplyBinaryPrimOp(LogicalRightShift(), In(0, t), In(1, TInt32)),
@@ -471,7 +493,7 @@ class IRSuite extends HailSuite {
     assertShiftsTo(TInt64, null, null, null)
   }
 
-  @Test def testApplyComparisonOpGT(): Unit = {
+  test("ApplyComparisonOpGT") {
     def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean): Unit =
       assertEvalsTo(ApplyComparisonOp(GT, In(0, t), In(1, t)), FastSeq(x -> t, y -> t), expected)
 
@@ -493,7 +515,7 @@ class IRSuite extends HailSuite {
 
   }
 
-  @Test def testApplyComparisonOpGTEQ(): Unit = {
+  test("ApplyComparisonOpGTEQ") {
     def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean): Unit =
       assertEvalsTo(
         ApplyComparisonOp(GTEQ, In(0, t), In(1, t)),
@@ -518,7 +540,7 @@ class IRSuite extends HailSuite {
     assertComparesTo(TFloat64, 1.0, 0.0, true)
   }
 
-  @Test def testApplyComparisonOpLT(): Unit = {
+  test("ApplyComparisonOpLT") {
     def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean): Unit =
       assertEvalsTo(ApplyComparisonOp(LT, In(0, t), In(1, t)), FastSeq(x -> t, y -> t), expected)
 
@@ -540,7 +562,7 @@ class IRSuite extends HailSuite {
 
   }
 
-  @Test def testApplyComparisonOpLTEQ(): Unit = {
+  test("ApplyComparisonOpLTEQ") {
     def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean): Unit =
       assertEvalsTo(
         ApplyComparisonOp(LTEQ, In(0, t), In(1, t)),
@@ -566,7 +588,7 @@ class IRSuite extends HailSuite {
 
   }
 
-  @Test def testApplyComparisonOpEQ(): Unit = {
+  test("ApplyComparisonOpEQ") {
     def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean): Unit =
       assertEvalsTo(ApplyComparisonOp(EQ, In(0, t), In(1, t)), FastSeq(x -> t, y -> t), expected)
 
@@ -587,7 +609,7 @@ class IRSuite extends HailSuite {
     assertComparesTo(TFloat64, 1.0, 0.0, expected = false)
   }
 
-  @Test def testApplyComparisonOpNE(): Unit = {
+  test("ApplyComparisonOpNE") {
     def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean): Unit =
       assertEvalsTo(
         ApplyComparisonOp(NEQ, In(0, t), In(1, t)),
@@ -612,33 +634,39 @@ class IRSuite extends HailSuite {
     assertComparesTo(TFloat64, 1.0, 0.0, expected = true)
   }
 
-  @Test def testDieCodeBUilder(): Unit =
+  test("DieCodeBUilder") {
     assertFatal(Die("msg1", TInt32) + Die("msg2", TInt32), "msg1")
 
-  @Test def testIf(): Unit = {
+  }
+
+  test("If") {
     assertEvalsTo(If(True(), I32(5), I32(7)), 5)
     assertEvalsTo(If(False(), I32(5), I32(7)), 7)
     assertEvalsTo(If(NA(TBoolean), I32(5), I32(7)), null)
     assertEvalsTo(If(True(), NA(TInt32), I32(7)), null)
   }
 
-  @DataProvider(name = "SwitchEval")
-  def switchEvalRules: Array[Array[Any]] =
-    Array(
-      Array(I32(-1), I32(Int.MinValue), FastSeq(0, Int.MaxValue).map(I32), Int.MinValue),
-      Array(I32(0), I32(Int.MinValue), FastSeq(0, Int.MaxValue).map(I32), 0),
-      Array(I32(1), I32(Int.MinValue), FastSeq(0, Int.MaxValue).map(I32), Int.MaxValue),
-      Array(I32(2), I32(Int.MinValue), FastSeq(0, Int.MaxValue).map(I32), Int.MinValue),
-      Array(NA(TInt32), I32(Int.MinValue), FastSeq(0, Int.MaxValue).map(I32), null),
-      Array(I32(-1), NA(TInt32), FastSeq(0, Int.MaxValue).map(I32), null),
-      Array(I32(0), NA(TInt32), FastSeq(NA(TInt32), I32(0)), null),
-    )
+  object checkSwitch extends TestCases {
+    def apply(
+      x: IR,
+      default: IR,
+      cases: IndexedSeq[IR],
+      result: Any,
+    )(implicit loc: munit.Location
+    ): Unit = test(s"Switch") {
+      assertEvalsTo(Switch(x, default, cases), result)
+    }
+  }
 
-  @Test(dataProvider = "SwitchEval")
-  def testSwitch(x: IR, default: IR, cases: IndexedSeq[IR], result: Any): Unit =
-    assertEvalsTo(Switch(x, default, cases), result)
+  checkSwitch(-1, Int.MinValue, FastSeq[IR](0, Int.MaxValue), Int.MinValue)
+  checkSwitch(0, Int.MinValue, FastSeq[IR](0, Int.MaxValue), 0)
+  checkSwitch(1, Int.MinValue, FastSeq[IR](0, Int.MaxValue), Int.MaxValue)
+  checkSwitch(2, Int.MinValue, FastSeq[IR](0, Int.MaxValue), Int.MinValue)
+  checkSwitch(NA(TInt32), Int.MinValue, FastSeq[IR](0, Int.MaxValue), null)
+  checkSwitch(-1, NA(TInt32), FastSeq[IR](0, Int.MaxValue), null)
+  checkSwitch(0, NA(TInt32), FastSeq[IR](NA(TInt32), 0), null)
 
-  @Test def testLet(): Unit = {
+  test("Let") {
     assertEvalsTo(bindIR(I32(5))(x => x), 5)
     assertEvalsTo(bindIR(NA(TInt32))(x => x), null)
     assertEvalsTo(bindIR(I32(5))(_ => NA(TInt32)), null)
@@ -670,7 +698,7 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testMakeArray(): Unit = {
+  test("MakeArray") {
     assertEvalsTo(
       MakeArray(FastSeq(I32(5), NA(TInt32), I32(-3)), TArray(TInt32)),
       FastSeq(5, null, -3),
@@ -678,218 +706,218 @@ class IRSuite extends HailSuite {
     assertEvalsTo(MakeArray(FastSeq(), TArray(TInt32)), FastSeq())
   }
 
-  @Test def testGetNestedElementPTypesI32(): Unit = {
+  test("GetNestedElementPTypesI32") {
     var types = IndexedSeq(PInt32(true))
     var res = InferPType.getCompatiblePType(types)
-    assert(res == PInt32(true))
+    assertEquals(res, PInt32(true))
 
     types = IndexedSeq(PInt32(false))
     res = InferPType.getCompatiblePType(types)
-    assert(res == PInt32(false))
+    assertEquals(res, PInt32(false))
 
     types = IndexedSeq(PInt32(false), PInt32(true))
     res = InferPType.getCompatiblePType(types)
-    assert(res == PInt32(false))
+    assertEquals(res, PInt32(false))
 
     types = IndexedSeq(PInt32(true), PInt32(true))
     res = InferPType.getCompatiblePType(types)
-    assert(res == PInt32(true))
+    assertEquals(res, PInt32(true))
   }
 
-  @Test def testGetNestedElementPTypesI64(): Unit = {
+  test("GetNestedElementPTypesI64") {
     var types = IndexedSeq(PInt64(true))
     var res = InferPType.getCompatiblePType(types)
-    assert(res == PInt64(true))
+    assertEquals(res, PInt64(true))
 
     types = IndexedSeq(PInt64(false))
     res = InferPType.getCompatiblePType(types)
-    assert(res == PInt64(false))
+    assertEquals(res, PInt64(false))
 
     types = IndexedSeq(PInt64(false), PInt64(true))
     res = InferPType.getCompatiblePType(types)
-    assert(res == PInt64(false))
+    assertEquals(res, PInt64(false))
 
     types = IndexedSeq(PInt64(true), PInt64(true))
     res = InferPType.getCompatiblePType(types)
-    assert(res == PInt64(true))
+    assertEquals(res, PInt64(true))
   }
 
-  @Test def testGetNestedElementPFloat32(): Unit = {
+  test("GetNestedElementPFloat32") {
     var types = IndexedSeq(PFloat32(true))
     var res = InferPType.getCompatiblePType(types)
-    assert(res == PFloat32(true))
+    assertEquals(res, PFloat32(true))
 
     types = IndexedSeq(PFloat32(false))
     res = InferPType.getCompatiblePType(types)
-    assert(res == PFloat32(false))
+    assertEquals(res, PFloat32(false))
 
     types = IndexedSeq(PFloat32(false), PFloat32(true))
     res = InferPType.getCompatiblePType(types)
-    assert(res == PFloat32(false))
+    assertEquals(res, PFloat32(false))
 
     types = IndexedSeq(PFloat32(true), PFloat32(true))
     res = InferPType.getCompatiblePType(types)
-    assert(res == PFloat32(true))
+    assertEquals(res, PFloat32(true))
   }
 
-  @Test def testGetNestedElementPFloat64(): Unit = {
+  test("GetNestedElementPFloat64") {
     var types = IndexedSeq(PFloat64(true))
     var res = InferPType.getCompatiblePType(types)
-    assert(res == PFloat64(true))
+    assertEquals(res, PFloat64(true))
 
     types = IndexedSeq(PFloat64(false))
     res = InferPType.getCompatiblePType(types)
-    assert(res == PFloat64(false))
+    assertEquals(res, PFloat64(false))
 
     types = IndexedSeq(PFloat64(false), PFloat64(true))
     res = InferPType.getCompatiblePType(types)
-    assert(res == PFloat64(false))
+    assertEquals(res, PFloat64(false))
 
     types = IndexedSeq(PFloat64(true), PFloat64(true))
     res = InferPType.getCompatiblePType(types)
-    assert(res == PFloat64(true))
+    assertEquals(res, PFloat64(true))
   }
 
-  @Test def testGetNestedElementPCanonicalString(): Unit = {
+  test("GetNestedElementPCanonicalString") {
     var types = IndexedSeq(PCanonicalString(true))
     var res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalString(true))
+    assertEquals(res, PCanonicalString(true))
 
     types = IndexedSeq(PCanonicalString(false))
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalString(false))
+    assertEquals(res, PCanonicalString(false))
 
     types = IndexedSeq(PCanonicalString(false), PCanonicalString(true))
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalString(false))
+    assertEquals(res, PCanonicalString(false))
 
     types = IndexedSeq(PCanonicalString(true), PCanonicalString(true))
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalString(true))
+    assertEquals(res, PCanonicalString(true))
   }
 
-  @Test def testGetNestedPCanonicalArray(): Unit = {
+  test("GetNestedPCanonicalArray") {
     var types = IndexedSeq(PCanonicalArray(PInt32(true), true))
     var res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalArray(PInt32(true), true))
+    assertEquals(res, PCanonicalArray(PInt32(true), true))
 
     types = IndexedSeq(PCanonicalArray(PInt32(true), false))
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalArray(PInt32(true), false))
+    assertEquals(res, PCanonicalArray(PInt32(true), false))
 
     types = IndexedSeq(PCanonicalArray(PInt32(false), true))
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalArray(PInt32(false), true))
+    assertEquals(res, PCanonicalArray(PInt32(false), true))
 
     types = IndexedSeq(PCanonicalArray(PInt32(false), false))
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalArray(PInt32(false), false))
+    assertEquals(res, PCanonicalArray(PInt32(false), false))
 
     types = IndexedSeq(
       PCanonicalArray(PInt32(true), true),
       PCanonicalArray(PInt32(true), true),
     )
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalArray(PInt32(true), true))
+    assertEquals(res, PCanonicalArray(PInt32(true), true))
 
     types = IndexedSeq(
       PCanonicalArray(PInt32(false), true),
       PCanonicalArray(PInt32(true), true),
     )
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalArray(PInt32(false), true))
+    assertEquals(res, PCanonicalArray(PInt32(false), true))
 
     types = IndexedSeq(
       PCanonicalArray(PInt32(false), true),
       PCanonicalArray(PInt32(true), false),
     )
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalArray(PInt32(false), false))
+    assertEquals(res, PCanonicalArray(PInt32(false), false))
 
     types = IndexedSeq(
       PCanonicalArray(PCanonicalArray(PInt32(true), true), true),
       PCanonicalArray(PCanonicalArray(PInt32(true), true), true),
     )
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalArray(PCanonicalArray(PInt32(true), true), true))
+    assertEquals(res, PCanonicalArray(PCanonicalArray(PInt32(true), true), true))
 
     types = IndexedSeq(
       PCanonicalArray(PCanonicalArray(PInt32(true), true), true),
       PCanonicalArray(PCanonicalArray(PInt32(false), true), true),
     )
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalArray(PCanonicalArray(PInt32(false), true), true))
+    assertEquals(res, PCanonicalArray(PCanonicalArray(PInt32(false), true), true))
 
     types = IndexedSeq(
       PCanonicalArray(PCanonicalArray(PInt32(true), false), true),
       PCanonicalArray(PCanonicalArray(PInt32(false), true), true),
     )
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalArray(PCanonicalArray(PInt32(false), false), true))
+    assertEquals(res, PCanonicalArray(PCanonicalArray(PInt32(false), false), true))
 
     types = IndexedSeq(
       PCanonicalArray(PCanonicalArray(PInt32(true), false), false),
       PCanonicalArray(PCanonicalArray(PInt32(false), true), true),
     )
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalArray(PCanonicalArray(PInt32(false), false), false))
+    assertEquals(res, PCanonicalArray(PCanonicalArray(PInt32(false), false), false))
   }
 
-  @Test def testGetNestedElementPCanonicalDict(): Unit = {
+  test("GetNestedElementPCanonicalDict") {
     var types = IndexedSeq(PCanonicalDict(PInt32(true), PCanonicalString(true), true))
     var res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalDict(PInt32(true), PCanonicalString(true), true))
+    assertEquals(res, PCanonicalDict(PInt32(true), PCanonicalString(true), true))
 
     types = IndexedSeq(PCanonicalDict(PInt32(false), PCanonicalString(true), true))
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalDict(PInt32(false), PCanonicalString(true), true))
+    assertEquals(res, PCanonicalDict(PInt32(false), PCanonicalString(true), true))
 
     types = IndexedSeq(PCanonicalDict(PInt32(true), PCanonicalString(false), true))
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalDict(PInt32(true), PCanonicalString(false), true))
+    assertEquals(res, PCanonicalDict(PInt32(true), PCanonicalString(false), true))
 
     types = IndexedSeq(PCanonicalDict(PInt32(true), PCanonicalString(true), false))
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalDict(PInt32(true), PCanonicalString(true), false))
+    assertEquals(res, PCanonicalDict(PInt32(true), PCanonicalString(true), false))
 
     types = IndexedSeq(PCanonicalDict(PInt32(false), PCanonicalString(false), false))
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalDict(PInt32(false), PCanonicalString(false), false))
+    assertEquals(res, PCanonicalDict(PInt32(false), PCanonicalString(false), false))
 
     types = IndexedSeq(
       PCanonicalDict(PInt32(true), PCanonicalString(true), true),
       PCanonicalDict(PInt32(true), PCanonicalString(true), true),
     )
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalDict(PInt32(true), PCanonicalString(true), true))
+    assertEquals(res, PCanonicalDict(PInt32(true), PCanonicalString(true), true))
 
     types = IndexedSeq(
       PCanonicalDict(PInt32(true), PCanonicalString(true), false),
       PCanonicalDict(PInt32(true), PCanonicalString(true), false),
     )
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalDict(PInt32(true), PCanonicalString(true), false))
+    assertEquals(res, PCanonicalDict(PInt32(true), PCanonicalString(true), false))
 
     types = IndexedSeq(
       PCanonicalDict(PInt32(false), PCanonicalString(true), true),
       PCanonicalDict(PInt32(true), PCanonicalString(true), true),
     )
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalDict(PInt32(false), PCanonicalString(true), true))
+    assertEquals(res, PCanonicalDict(PInt32(false), PCanonicalString(true), true))
 
     types = IndexedSeq(
       PCanonicalDict(PInt32(false), PCanonicalString(true), true),
       PCanonicalDict(PInt32(true), PCanonicalString(false), true),
     )
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalDict(PInt32(false), PCanonicalString(false), true))
+    assertEquals(res, PCanonicalDict(PInt32(false), PCanonicalString(false), true))
 
     types = IndexedSeq(
       PCanonicalDict(PInt32(false), PCanonicalString(true), false),
       PCanonicalDict(PInt32(true), PCanonicalString(false), true),
     )
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalDict(PInt32(false), PCanonicalString(false), false))
+    assertEquals(res, PCanonicalDict(PInt32(false), PCanonicalString(false), false))
 
     types = IndexedSeq(
       PCanonicalDict(
@@ -900,11 +928,14 @@ class IRSuite extends HailSuite {
       PCanonicalDict(PInt32(true), PCanonicalDict(PInt32(true), PCanonicalString(true), true), true),
     )
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalDict(
-      PInt32(true),
-      PCanonicalDict(PInt32(true), PCanonicalString(true), true),
-      true,
-    ))
+    assertEquals(
+      res,
+      PCanonicalDict(
+        PInt32(true),
+        PCanonicalDict(PInt32(true), PCanonicalString(true), true),
+        true,
+      ),
+    )
 
     types = IndexedSeq(
       PCanonicalDict(
@@ -915,11 +946,14 @@ class IRSuite extends HailSuite {
       PCanonicalDict(PInt32(true), PCanonicalDict(PInt32(true), PCanonicalString(true), true), true),
     )
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalDict(
-      PInt32(true),
-      PCanonicalDict(PInt32(false), PCanonicalString(true), true),
-      true,
-    ))
+    assertEquals(
+      res,
+      PCanonicalDict(
+        PInt32(true),
+        PCanonicalDict(PInt32(false), PCanonicalString(true), true),
+        true,
+      ),
+    )
 
     types = IndexedSeq(
       PCanonicalDict(
@@ -934,11 +968,14 @@ class IRSuite extends HailSuite {
       ),
     )
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalDict(
-      PInt32(true),
-      PCanonicalDict(PInt32(false), PCanonicalString(false), true),
-      true,
-    ))
+    assertEquals(
+      res,
+      PCanonicalDict(
+        PInt32(true),
+        PCanonicalDict(PInt32(false), PCanonicalString(false), true),
+        true,
+      ),
+    )
 
     types = IndexedSeq(
       PCanonicalDict(
@@ -953,11 +990,14 @@ class IRSuite extends HailSuite {
       ),
     )
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalDict(
-      PInt32(true),
-      PCanonicalDict(PInt32(false), PCanonicalString(false), true),
-      true,
-    ))
+    assertEquals(
+      res,
+      PCanonicalDict(
+        PInt32(true),
+        PCanonicalDict(PInt32(false), PCanonicalString(false), true),
+        true,
+      ),
+    )
 
     types = IndexedSeq(
       PCanonicalDict(
@@ -972,54 +1012,57 @@ class IRSuite extends HailSuite {
       ),
     )
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalDict(
-      PInt32(true),
-      PCanonicalDict(PInt32(false), PCanonicalString(false), false),
-      true,
-    ))
+    assertEquals(
+      res,
+      PCanonicalDict(
+        PInt32(true),
+        PCanonicalDict(PInt32(false), PCanonicalString(false), false),
+        true,
+      ),
+    )
   }
 
-  @Test def testGetNestedElementPCanonicalStruct(): Unit = {
+  test("GetNestedElementPCanonicalStruct") {
     var types = IndexedSeq(PCanonicalStruct(true, "a" -> PInt32(true), "b" -> PInt32(true)))
     var res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalStruct(true, "a" -> PInt32(true), "b" -> PInt32(true)))
+    assertEquals(res, PCanonicalStruct(true, "a" -> PInt32(true), "b" -> PInt32(true)))
 
     types = IndexedSeq(PCanonicalStruct(false, "a" -> PInt32(true), "b" -> PInt32(true)))
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalStruct(false, "a" -> PInt32(true), "b" -> PInt32(true)))
+    assertEquals(res, PCanonicalStruct(false, "a" -> PInt32(true), "b" -> PInt32(true)))
 
     types = IndexedSeq(PCanonicalStruct(true, "a" -> PInt32(false), "b" -> PInt32(true)))
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalStruct(true, "a" -> PInt32(false), "b" -> PInt32(true)))
+    assertEquals(res, PCanonicalStruct(true, "a" -> PInt32(false), "b" -> PInt32(true)))
 
     types = IndexedSeq(PCanonicalStruct(true, "a" -> PInt32(true), "b" -> PInt32(false)))
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalStruct(true, "a" -> PInt32(true), "b" -> PInt32(false)))
+    assertEquals(res, PCanonicalStruct(true, "a" -> PInt32(true), "b" -> PInt32(false)))
 
     types = IndexedSeq(PCanonicalStruct(false, "a" -> PInt32(false), "b" -> PInt32(false)))
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalStruct(false, "a" -> PInt32(false), "b" -> PInt32(false)))
+    assertEquals(res, PCanonicalStruct(false, "a" -> PInt32(false), "b" -> PInt32(false)))
 
     types = IndexedSeq(
       PCanonicalStruct(true, "a" -> PInt32(true), "b" -> PInt32(true)),
       PCanonicalStruct(true, "a" -> PInt32(true), "b" -> PInt32(true)),
     )
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalStruct(true, "a" -> PInt32(true), "b" -> PInt32(true)))
+    assertEquals(res, PCanonicalStruct(true, "a" -> PInt32(true), "b" -> PInt32(true)))
 
     types = IndexedSeq(
       PCanonicalStruct(true, "a" -> PInt32(true), "b" -> PInt32(true)),
       PCanonicalStruct(true, "a" -> PInt32(false), "b" -> PInt32(false)),
     )
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalStruct(true, "a" -> PInt32(false), "b" -> PInt32(false)))
+    assertEquals(res, PCanonicalStruct(true, "a" -> PInt32(false), "b" -> PInt32(false)))
 
     types = IndexedSeq(
       PCanonicalStruct(false, "a" -> PInt32(true), "b" -> PInt32(true)),
       PCanonicalStruct(true, "a" -> PInt32(false), "b" -> PInt32(false)),
     )
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalStruct(false, "a" -> PInt32(false), "b" -> PInt32(false)))
+    assertEquals(res, PCanonicalStruct(false, "a" -> PInt32(false), "b" -> PInt32(false)))
 
     types = IndexedSeq(
       PCanonicalStruct(
@@ -1029,11 +1072,14 @@ class IRSuite extends HailSuite {
       )
     )
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalStruct(
-      true,
-      "a" -> PCanonicalStruct(true, "c" -> PInt32(true), "d" -> PInt32(true)),
-      "b" -> PInt32(true),
-    ))
+    assertEquals(
+      res,
+      PCanonicalStruct(
+        true,
+        "a" -> PCanonicalStruct(true, "c" -> PInt32(true), "d" -> PInt32(true)),
+        "b" -> PInt32(true),
+      ),
+    )
 
     types = IndexedSeq(
       PCanonicalStruct(
@@ -1043,11 +1089,14 @@ class IRSuite extends HailSuite {
       )
     )
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalStruct(
-      true,
-      "a" -> PCanonicalStruct(true, "c" -> PInt32(false), "d" -> PInt32(true)),
-      "b" -> PInt32(true),
-    ))
+    assertEquals(
+      res,
+      PCanonicalStruct(
+        true,
+        "a" -> PCanonicalStruct(true, "c" -> PInt32(false), "d" -> PInt32(true)),
+        "b" -> PInt32(true),
+      ),
+    )
 
     types = IndexedSeq(
       PCanonicalStruct(
@@ -1062,11 +1111,14 @@ class IRSuite extends HailSuite {
       ),
     )
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalStruct(
-      true,
-      "a" -> PCanonicalStruct(true, "c" -> PInt32(false), "d" -> PInt32(false)),
-      "b" -> PInt32(true),
-    ))
+    assertEquals(
+      res,
+      PCanonicalStruct(
+        true,
+        "a" -> PCanonicalStruct(true, "c" -> PInt32(false), "d" -> PInt32(false)),
+        "b" -> PInt32(true),
+      ),
+    )
 
     types = IndexedSeq(
       PCanonicalStruct(
@@ -1081,208 +1133,211 @@ class IRSuite extends HailSuite {
       ),
     )
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalStruct(
-      true,
-      "a" -> PCanonicalStruct(false, "c" -> PInt32(false), "d" -> PInt32(false)),
-      "b" -> PInt32(true),
-    ))
+    assertEquals(
+      res,
+      PCanonicalStruct(
+        true,
+        "a" -> PCanonicalStruct(false, "c" -> PInt32(false), "d" -> PInt32(false)),
+        "b" -> PInt32(true),
+      ),
+    )
   }
 
-  @Test def testGetNestedElementPCanonicalTuple(): Unit = {
+  test("GetNestedElementPCanonicalTuple") {
     var types = IndexedSeq(PCanonicalTuple(true, PInt32(true)))
     var res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalTuple(true, PInt32(true)))
+    assertEquals(res, PCanonicalTuple(true, PInt32(true)))
 
     types = IndexedSeq(PCanonicalTuple(false, PInt32(true)))
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalTuple(false, PInt32(true)))
+    assertEquals(res, PCanonicalTuple(false, PInt32(true)))
 
     types = IndexedSeq(PCanonicalTuple(true, PInt32(false)))
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalTuple(true, PInt32(false)))
+    assertEquals(res, PCanonicalTuple(true, PInt32(false)))
 
     types = IndexedSeq(PCanonicalTuple(false, PInt32(false)))
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalTuple(false, PInt32(false)))
+    assertEquals(res, PCanonicalTuple(false, PInt32(false)))
 
     types = IndexedSeq(
       PCanonicalTuple(true, PInt32(true)),
       PCanonicalTuple(true, PInt32(true)),
     )
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalTuple(true, PInt32(true)))
+    assertEquals(res, PCanonicalTuple(true, PInt32(true)))
 
     types = IndexedSeq(
       PCanonicalTuple(true, PInt32(true)),
       PCanonicalTuple(false, PInt32(true)),
     )
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalTuple(false, PInt32(true)))
+    assertEquals(res, PCanonicalTuple(false, PInt32(true)))
 
     types = IndexedSeq(
       PCanonicalTuple(true, PInt32(false)),
       PCanonicalTuple(false, PInt32(true)),
     )
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalTuple(false, PInt32(false)))
+    assertEquals(res, PCanonicalTuple(false, PInt32(false)))
 
     types = IndexedSeq(
       PCanonicalTuple(true, PCanonicalTuple(true, PInt32(true))),
       PCanonicalTuple(true, PCanonicalTuple(true, PInt32(false))),
     )
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalTuple(true, PCanonicalTuple(true, PInt32(false))))
+    assertEquals(res, PCanonicalTuple(true, PCanonicalTuple(true, PInt32(false))))
 
     types = IndexedSeq(
       PCanonicalTuple(true, PCanonicalTuple(false, PInt32(true))),
       PCanonicalTuple(true, PCanonicalTuple(true, PInt32(false))),
     )
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalTuple(true, PCanonicalTuple(false, PInt32(false))))
+    assertEquals(res, PCanonicalTuple(true, PCanonicalTuple(false, PInt32(false))))
   }
 
-  @Test def testGetNestedElementPCanonicalSet(): Unit = {
+  test("GetNestedElementPCanonicalSet") {
     var types = IndexedSeq(PCanonicalSet(PInt32(true), true))
     var res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalSet(PInt32(true), true))
+    assertEquals(res, PCanonicalSet(PInt32(true), true))
 
     types = IndexedSeq(PCanonicalSet(PInt32(true), false))
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalSet(PInt32(true), false))
+    assertEquals(res, PCanonicalSet(PInt32(true), false))
 
     types = IndexedSeq(PCanonicalSet(PInt32(false), true))
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalSet(PInt32(false), true))
+    assertEquals(res, PCanonicalSet(PInt32(false), true))
 
     types = IndexedSeq(PCanonicalSet(PInt32(false), false))
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalSet(PInt32(false), false))
+    assertEquals(res, PCanonicalSet(PInt32(false), false))
 
     types = IndexedSeq(
       PCanonicalSet(PInt32(true), true),
       PCanonicalSet(PInt32(true), true),
     )
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalSet(PInt32(true), true))
+    assertEquals(res, PCanonicalSet(PInt32(true), true))
 
     types = IndexedSeq(
       PCanonicalSet(PInt32(false), true),
       PCanonicalSet(PInt32(true), true),
     )
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalSet(PInt32(false), true))
+    assertEquals(res, PCanonicalSet(PInt32(false), true))
 
     types = IndexedSeq(
       PCanonicalSet(PInt32(false), true),
       PCanonicalSet(PInt32(true), false),
     )
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalSet(PInt32(false), false))
+    assertEquals(res, PCanonicalSet(PInt32(false), false))
 
     types = IndexedSeq(
       PCanonicalSet(PCanonicalSet(PInt32(true), true), true),
       PCanonicalSet(PCanonicalSet(PInt32(true), true), true),
     )
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalSet(PCanonicalSet(PInt32(true), true), true))
+    assertEquals(res, PCanonicalSet(PCanonicalSet(PInt32(true), true), true))
 
     types = IndexedSeq(
       PCanonicalSet(PCanonicalSet(PInt32(true), true), true),
       PCanonicalSet(PCanonicalSet(PInt32(false), true), true),
     )
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalSet(PCanonicalSet(PInt32(false), true), true))
+    assertEquals(res, PCanonicalSet(PCanonicalSet(PInt32(false), true), true))
 
     types = IndexedSeq(
       PCanonicalSet(PCanonicalSet(PInt32(true), false), true),
       PCanonicalSet(PCanonicalSet(PInt32(false), true), true),
     )
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalSet(PCanonicalSet(PInt32(false), false), true))
+    assertEquals(res, PCanonicalSet(PCanonicalSet(PInt32(false), false), true))
   }
 
-  @Test def testGetNestedElementPCanonicalInterval(): Unit = {
+  test("GetNestedElementPCanonicalInterval") {
     var types = IndexedSeq(PCanonicalInterval(PInt32(true), true))
     var res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalInterval(PInt32(true), true))
+    assertEquals(res, PCanonicalInterval(PInt32(true), true))
 
     types = IndexedSeq(PCanonicalInterval(PInt32(true), false))
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalInterval(PInt32(true), false))
+    assertEquals(res, PCanonicalInterval(PInt32(true), false))
 
     types = IndexedSeq(PCanonicalInterval(PInt32(false), true))
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalInterval(PInt32(false), true))
+    assertEquals(res, PCanonicalInterval(PInt32(false), true))
 
     types = IndexedSeq(PCanonicalInterval(PInt32(false), false))
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalInterval(PInt32(false), false))
+    assertEquals(res, PCanonicalInterval(PInt32(false), false))
 
     types = IndexedSeq(
       PCanonicalInterval(PInt32(true), true),
       PCanonicalInterval(PInt32(true), true),
     )
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalInterval(PInt32(true), true))
+    assertEquals(res, PCanonicalInterval(PInt32(true), true))
 
     types = IndexedSeq(
       PCanonicalInterval(PInt32(false), true),
       PCanonicalInterval(PInt32(true), true),
     )
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalInterval(PInt32(false), true))
+    assertEquals(res, PCanonicalInterval(PInt32(false), true))
 
     types = IndexedSeq(
       PCanonicalInterval(PInt32(true), true),
       PCanonicalInterval(PInt32(true), false),
     )
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalInterval(PInt32(true), false))
+    assertEquals(res, PCanonicalInterval(PInt32(true), false))
 
     types = IndexedSeq(
       PCanonicalInterval(PInt32(false), true),
       PCanonicalInterval(PInt32(true), false),
     )
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalInterval(PInt32(false), false))
+    assertEquals(res, PCanonicalInterval(PInt32(false), false))
 
     types = IndexedSeq(
       PCanonicalInterval(PCanonicalInterval(PInt32(true), true), true),
       PCanonicalInterval(PCanonicalInterval(PInt32(true), true), true),
     )
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalInterval(PCanonicalInterval(PInt32(true), true), true))
+    assertEquals(res, PCanonicalInterval(PCanonicalInterval(PInt32(true), true), true))
 
     types = IndexedSeq(
       PCanonicalInterval(PCanonicalInterval(PInt32(true), false), true),
       PCanonicalInterval(PCanonicalInterval(PInt32(true), true), true),
     )
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalInterval(PCanonicalInterval(PInt32(true), false), true))
+    assertEquals(res, PCanonicalInterval(PCanonicalInterval(PInt32(true), false), true))
 
     types = IndexedSeq(
       PCanonicalInterval(PCanonicalInterval(PInt32(false), true), true),
       PCanonicalInterval(PCanonicalInterval(PInt32(true), true), true),
     )
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalInterval(PCanonicalInterval(PInt32(false), true), true))
+    assertEquals(res, PCanonicalInterval(PCanonicalInterval(PInt32(false), true), true))
 
     types = IndexedSeq(
       PCanonicalInterval(PCanonicalInterval(PInt32(true), false), true),
       PCanonicalInterval(PCanonicalInterval(PInt32(false), true), true),
     )
     res = InferPType.getCompatiblePType(types)
-    assert(res == PCanonicalInterval(PCanonicalInterval(PInt32(false), false), true))
+    assertEquals(res, PCanonicalInterval(PCanonicalInterval(PInt32(false), false), true))
   }
 
-  @Test def testMakeStruct(): Unit = {
+  test("MakeStruct") {
     assertEvalsTo(MakeStruct(FastSeq()), Row())
     assertEvalsTo(MakeStruct(FastSeq("a" -> NA(TInt32), "b" -> 4, "c" -> 0.5)), Row(null, 4, 0.5))
     // making sure wide structs get emitted without failure
     assertEvalsTo(GetField(MakeStruct((0 until 20000).map(i => s"foo$i" -> I32(1))), "foo1"), 1)
   }
 
-  @Test def testMakeArrayWithDifferentRequiredness(): Unit = {
+  test("MakeArrayWithDifferentRequiredness") {
     val pt1 = PCanonicalArray(PCanonicalStruct("a" -> PInt32(), "b" -> PCanonicalArray(PInt32())))
     val pt2 = PCanonicalArray(PCanonicalStruct(
       true,
@@ -1301,14 +1356,14 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testMakeTuple(): Unit = {
+  test("MakeTuple") {
     assertEvalsTo(MakeTuple.ordered(FastSeq()), Row())
     assertEvalsTo(MakeTuple.ordered(FastSeq(NA(TInt32), 4, 0.5)), Row(null, 4, 0.5))
     // making sure wide structs get emitted without failure
     assertEvalsTo(GetTupleElement(MakeTuple.ordered((0 until 20000).map(I32)), 1), 1)
   }
 
-  @Test def testGetTupleElement(): Unit = {
+  test("GetTupleElement") {
     implicit val execStrats = ExecStrategy.javaOnly
 
     val t = MakeTuple.ordered(FastSeq(I32(5), Str("abc"), NA(TInt32)))
@@ -1320,7 +1375,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(GetTupleElement(na, 0), null)
   }
 
-  @Test def testLetBoundPrunedTuple(): Unit = {
+  test("LetBoundPrunedTuple") {
     implicit val execStrats = ExecStrategy.unoptimizedCompileOnly
     val t2 = MakeTuple(FastSeq((2, I32(5))))
 
@@ -1329,7 +1384,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(letBoundTuple, 5)
   }
 
-  @Test def testArrayRef(): Unit = {
+  test("ArrayRef") {
     assertEvalsTo(
       ArrayRef(MakeArray(FastSeq(I32(5), NA(TInt32)), TArray(TInt32)), I32(0), ErrorIDs.NO_ERROR),
       5,
@@ -1353,13 +1408,13 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testArrayLen(): Unit = {
+  test("ArrayLen") {
     assertEvalsTo(ArrayLen(NA(TArray(TInt32))), null)
     assertEvalsTo(ArrayLen(MakeArray(FastSeq(), TArray(TInt32))), 0)
     assertEvalsTo(ArrayLen(MakeArray(FastSeq(I32(5), NA(TInt32)), TArray(TInt32))), 2)
   }
 
-  @Test def testArraySort(): Unit = {
+  test("ArraySort") {
     implicit val execStrats = ExecStrategy.javaOnly
 
     assertEvalsTo(ArraySort(ToStream(NA(TArray(TInt32)))), null)
@@ -1369,7 +1424,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(ArraySort(ToStream(a), False()), FastSeq(2, 2, -7, null))
   }
 
-  @Test def testStreamZip(): Unit = {
+  test("StreamZip") {
     val range12 = StreamRange(0, 12, 1)
     val range6 = StreamRange(0, 12, 2)
     val range8 = StreamRange(0, 24, 3)
@@ -1417,7 +1472,7 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testToSet(): Unit = {
+  test("ToSet") {
     implicit val execStrats = ExecStrategy.javaOnly
 
     assertEvalsTo(ToSet(ToStream(NA(TArray(TInt32)))), null)
@@ -1427,13 +1482,13 @@ class IRSuite extends HailSuite {
     assertEvalsTo(ToSet(ToStream(a)), Set(-7, 2, null))
   }
 
-  @Test def testToArrayFromSet(): Unit = {
+  test("ToArrayFromSet") {
     val t = TSet(TInt32)
     assertEvalsTo(CastToArray(NA(t)), null)
     assertEvalsTo(CastToArray(In(0, t)), FastSeq((Set(-7, 2, null), t)), FastSeq(-7, 2, null))
   }
 
-  @Test def testToDict(): Unit = {
+  test("ToDict") {
     implicit val execStrats = ExecStrategy.javaOnly
 
     assertEvalsTo(ToDict(ToStream(NA(TArray(TTuple(FastSeq(TInt32, TString): _*))))), null)
@@ -1452,7 +1507,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(ToDict(ToStream(a)), Map(5 -> "a", (null, "b"), 3 -> null))
   }
 
-  @Test def testToArrayFromDict(): Unit = {
+  test("ToArrayFromDict") {
     val t = TDict(TInt32, TString)
     assertEvalsTo(CastToArray(NA(t)), null)
 
@@ -1465,13 +1520,13 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testToArrayFromArray(): Unit = {
+  test("ToArrayFromArray") {
     val t = TArray(TInt32)
     assertEvalsTo(NA(t), null)
     assertEvalsTo(In(0, t), FastSeq((FastSeq(-7, 2, null, 2), t)), FastSeq(-7, 2, null, 2))
   }
 
-  @Test def testSetContains(): Unit = {
+  test("SetContains") {
     implicit val execStrats = ExecStrategy.javaOnly
 
     val t = TSet(TInt32)
@@ -1495,7 +1550,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(invoke("contains", TBoolean, In(0, t), I32(7)), FastSeq((Set(-7, 2), t)), false)
   }
 
-  @Test def testDictContains(): Unit = {
+  test("DictContains") {
     implicit val execStrats = ExecStrategy.javaOnly
 
     val t = TDict(TInt32, TString)
@@ -1512,7 +1567,7 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testLowerBoundOnOrderedCollectionArray(): Unit = {
+  test("LowerBoundOnOrderedCollectionArray") {
     implicit val execStrats = ExecStrategy.javaOnly
 
     val na = NA(TArray(TInt32))
@@ -1538,7 +1593,7 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testLowerBoundOnOrderedCollectionSet(): Unit = {
+  test("LowerBoundOnOrderedCollectionSet") {
     implicit val execStrats = ExecStrategy.javaOnly
 
     val na = NA(TSet(TInt32))
@@ -1560,7 +1615,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(LowerBoundOnOrderedCollection(swna, I32(5), onKey = false), 3)
   }
 
-  @Test def testLowerBoundOnOrderedCollectionDict(): Unit = {
+  test("LowerBoundOnOrderedCollectionDict") {
     implicit val execStrats = ExecStrategy.javaOnly
 
     val na = NA(TDict(TInt32, TString))
@@ -1580,7 +1635,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(LowerBoundOnOrderedCollection(dwoutna, NA(TInt32), onKey = true), 2)
   }
 
-  @Test def testStreamLen(): Unit = {
+  test("StreamLen") {
     val a = StreamLen(MakeStream(IndexedSeq(I32(3), NA(TInt32), I32(7)), TStream(TInt32)))
     assertEvalsTo(a, 3)
 
@@ -1613,7 +1668,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(lenOfLet, 7)
   }
 
-  @Test def testStreamLenUnconsumedInnerStream(): Unit =
+  test("StreamLenUnconsumedInnerStream") {
     assertEvalsTo(
       StreamLen(
         mapIR(StreamGrouped(filterIR(rangeIR(10))(x => x.cne(I32(0))), 3))(group => ToArray(group))
@@ -1621,7 +1676,9 @@ class IRSuite extends HailSuite {
       3,
     )
 
-  @Test def testStreamTake(): Unit = {
+  }
+
+  test("StreamTake") {
     val naa = NA(TStream(TInt32))
     val a = MakeStream(IndexedSeq(I32(3), NA(TInt32), I32(7)), TStream(TInt32))
 
@@ -1634,7 +1691,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(StreamLen(StreamTake(a, 2)), 2)
   }
 
-  @Test def testStreamDrop(): Unit = {
+  test("StreamDrop") {
     val naa = NA(TStream(TInt32))
     val a = MakeStream(IndexedSeq(I32(3), NA(TInt32), I32(7)), TStream(TInt32))
 
@@ -1650,7 +1707,7 @@ class IRSuite extends HailSuite {
 
   def toNestedArray(stream: IR): IR = ToArray(mapIR(stream)(ToArray))
 
-  @Test def testStreamGrouped(): Unit = {
+  test("StreamGrouped") {
     val naa = NA(TStream(TInt32))
     val a = MakeStream(IndexedSeq(I32(3), NA(TInt32), I32(7)), TStream(TInt32))
 
@@ -1689,7 +1746,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(toNestedArray(takeFromEach(r, I32(0), I32(5))), FastSeq(FastSeq(), FastSeq()))
   }
 
-  @Test def testStreamGroupByKey(): Unit = {
+  test("StreamGroupByKey") {
     val structType = TStruct("a" -> TInt32, "b" -> TInt32)
     val naa = NA(TStream(structType))
     val a = MakeStream(
@@ -1748,7 +1805,7 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testStreamMap(): Unit = {
+  test("StreamMap") {
     val naa = NA(TStream(TInt32))
     val a = MakeStream(IndexedSeq(I32(3), NA(TInt32), I32(7)), TStream(TInt32))
 
@@ -1756,7 +1813,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(ToArray(mapIR(a)(_ + I32(1))), FastSeq(4, null, 8))
   }
 
-  @Test def testStreamFilter(): Unit = {
+  test("StreamFilter") {
     val nsa = NA(TStream(TInt32))
     val a = MakeStream(IndexedSeq(I32(3), NA(TInt32), I32(7)), TStream(TInt32))
 
@@ -1772,7 +1829,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(ToArray(filterIR(a)(_ < I32(6))), FastSeq(3))
   }
 
-  @Test def testArrayFlatMap(): Unit = {
+  test("ArrayFlatMap") {
     val ta = TArray(TInt32)
     val ts = TStream(TInt32)
     val tsa = TStream(ta)
@@ -1803,7 +1860,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(ToArray(flatMapIR(st)(foo => rangeIR(-1, foo))), expected)
   }
 
-  @Test def testStreamFold(): Unit = {
+  test("StreamFold") {
     assertEvalsTo(foldIR(StreamRange(1, 2, 1), NA(TBoolean))((accum, elt) => IsNA(accum)), true)
     assertEvalsTo(foldIR(IRStream(1, 2, 3), 0)((accum, elt) => accum + elt), 6)
     assertEvalsTo(
@@ -1821,7 +1878,7 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testArrayFold2(): Unit = {
+  test("ArrayFold2") {
     implicit val execStrats = ExecStrategy.compileOnly
 
     val af = fold2IR(
@@ -1842,7 +1899,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(af, FastSeq((FastSeq(1, 2, 3), TArray(TInt32))), Row(6, 1))
   }
 
-  @Test def testArrayScan(): Unit = {
+  test("ArrayScan") {
     implicit val execStrats = ExecStrategy.javaOnly
 
     assertEvalsTo(
@@ -1900,7 +1957,7 @@ class IRSuite extends HailSuite {
   val cubeRowMajor = makeNDArray((0 until 27).map(_.toDouble), FastSeq(3, 3, 3), True())
   val cubeColMajor = makeNDArray((0 until 27).map(_.toDouble), FastSeq(3, 3, 3), False())
 
-  @Test def testNDArrayShape(): Unit = {
+  test("NDArrayShape") {
     implicit val execStrats = ExecStrategy.compileOnly
 
     assertEvalsTo(NDArrayShape(scalarRowMajor), Row())
@@ -1908,7 +1965,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(NDArrayShape(cubeRowMajor), Row(3L, 3L, 3L))
   }
 
-  @Test def testNDArrayRef(): Unit = {
+  test("NDArrayRef") {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
     assertEvalsTo(makeNDArrayRef(scalarRowMajor, FastSeq()), 3.0)
@@ -1936,7 +1993,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(centerColMajor, 13.0)
   }
 
-  @Test def testNDArrayReshape(): Unit = {
+  test("NDArrayReshape") {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
     val v = NDArrayReshape(matrixRowMajor, MakeTuple.ordered(IndexedSeq(I64(4))), ErrorIDs.NO_ERROR)
@@ -1948,7 +2005,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(makeNDArrayRef(mat2, FastSeq(0, 0)), 1.0)
   }
 
-  @Test def testNDArrayConcat(): Unit = {
+  test("NDArrayConcat") {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
     def nds(ndData: (IndexedSeq[Int], Long, Long)*): IR =
@@ -2027,7 +2084,7 @@ class IRSuite extends HailSuite {
     assertNDEvals(NDArrayConcat(NA(TArray(TNDArray(TInt32, Nat(2)))), 1), null)
   }
 
-  @Test def testNDArrayMap(): Unit = {
+  test("NDArrayMap") {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
     val data = 0 until 10
@@ -2061,7 +2118,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(zero, 0L)
   }
 
-  @Test def testNDArrayMap2(): Unit = {
+  test("NDArrayMap2") {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
     val shape = MakeTuple.ordered(FastSeq(2L, 2L).map(I64))
@@ -2085,7 +2142,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(twentyTwo, 22.0)
   }
 
-  @Test def testNDArrayReindex(): Unit = {
+  test("NDArrayReindex") {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
     val transpose = NDArrayReindex(matrixRowMajor, FastSeq(1, 0))
@@ -2108,7 +2165,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(makeNDArrayRef(partialTranspose, partialTranposeIdx), 3.0)
   }
 
-  @Test def testNDArrayBroadcasting(): Unit = {
+  test("NDArrayBroadcasting") {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
     def sum(nd1: IR, nd2: IR): IR = ndMap2(nd1, nd2)(_ + _)
@@ -2141,7 +2198,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(NDArrayShape(colVectorWithEmpty), Row(2L, 0L))
   }
 
-  @Test def testNDArrayAgg(): Unit = {
+  test("NDArrayAgg") {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
     val empty = makeNDArrayRef(
@@ -2165,7 +2222,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(twentySeven, 3.0)
   }
 
-  @Test def testNDArrayMatMul(): Unit = {
+  test("NDArrayMatMul") {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
     val dotProduct = NDArrayMatMul(vectorRowMajor, vectorRowMajor, ErrorIDs.NO_ERROR)
@@ -2193,7 +2250,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(makeNDArrayRef(matMulCube, IndexedSeq(0, 0, 0)), 30.0)
   }
 
-  @Test def testNDArrayInv(): Unit = {
+  test("NDArrayInv") {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
     val matrixRowMajor = makeNDArray(FastSeq(1.5, 2.0, 4.0, 5.0), FastSeq(2, 2), True())
     val inv = NDArrayInv(matrixRowMajor, ErrorIDs.NO_ERROR)
@@ -2201,7 +2258,7 @@ class IRSuite extends HailSuite {
     assertNDEvals(inv, expectedInv)
   }
 
-  @Test def testNDArraySlice(): Unit = {
+  test("NDArraySlice") {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
     val rightCol = NDArraySlice(
@@ -2338,7 +2395,7 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testNDArrayFilter(): Unit = {
+  test("NDArrayFilter") {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
     assertNDEvals(
@@ -2434,7 +2491,7 @@ class IRSuite extends HailSuite {
     })
   }
 
-  @Test def testStreamZipJoin(): Unit = {
+  test("StreamZipJoin") {
     def eltType = TStruct("k1" -> TInt32, "k2" -> TString, "idx" -> TInt32)
     def makeStream(a: IndexedSeq[Integer]): IR = {
       if (a == null)
@@ -2510,7 +2567,7 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testStreamMultiMerge(): Unit = {
+  test("StreamMultiMerge") {
     def eltType = TStruct("k1" -> TInt32, "k2" -> TString, "idx" -> TInt32)
     def makeStream(a: IndexedSeq[Integer]): IR = {
       if (a == null)
@@ -2588,7 +2645,7 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testJoinRightDistinct(): Unit = {
+  test("JoinRightDistinct") {
     implicit val execStrats = ExecStrategy.javaOnly
 
     def joinRows(left: IndexedSeq[Integer], right: IndexedSeq[Integer], joinType: String): IR = {
@@ -2707,7 +2764,7 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testStreamJoin(): Unit = {
+  test("StreamJoin") {
     implicit val execStrats = ExecStrategy.javaOnly
 
     def joinRows(left: IndexedSeq[Integer], right: IndexedSeq[Integer], joinType: String): IR = {
@@ -2812,7 +2869,7 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testStreamMerge(): Unit = {
+  test("StreamMerge") {
     implicit val execStrats = ExecStrategy.compileOnly
 
     def mergeRows(left: IndexedSeq[Integer], right: IndexedSeq[Integer], key: Int): IR = {
@@ -2939,12 +2996,12 @@ class IRSuite extends HailSuite {
     assertEvalsTo(mergeRows(ArraySeq(1, 2, null), null, 1), null)
   }
 
-  @Test def testDie(): Unit = {
+  test("Die") {
     assertFatal(Die("mumblefoo", TFloat64), "mble")
     assertFatal(Die(NA(TString), TFloat64, -1), "message missing")
   }
 
-  @Test def testStreamRange(): Unit = {
+  test("StreamRange") {
     def assertEquals(start: Integer, stop: Integer, step: Integer, expected: IndexedSeq[Int])
       : Unit =
       assertEvalsTo(
@@ -2958,21 +3015,19 @@ class IRSuite extends HailSuite {
 
     assertFatal(ToArray(StreamRange(I32(0), I32(5), I32(0))), "step size")
 
-    forAll(
-      for {
-        start <- -2 to 2
-        stop <- -2 to 8
-        step <- 1 to 3
-      } yield (start, stop, step)
-    ) { case (start, stop, step) =>
+    for {
+      start <- -2 to 2
+      stop <- -2 to 8
+      step <- 1 to 3
+    } { case (start, stop, step) =>
       assertEquals(start, stop, step, expected = ArraySeq.range(start, stop, step))
       assertEquals(start, stop, -step, expected = ArraySeq.range(start, stop, -step))
-    }
+    }: (Int, Int, Int) => Unit
     val expected = ArraySeq.range(Int.MinValue, Int.MaxValue, Int.MaxValue / 5)
     assertEquals(Int.MinValue, Int.MaxValue, Int.MaxValue / 5, expected)
   }
 
-  @Test def testArrayAgg(): Unit = {
+  test("ArrayAgg") {
     implicit val execStrats = ExecStrategy.compileOnly
 
     assertEvalsTo(
@@ -2981,7 +3036,7 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testArrayAggContexts(): Unit = {
+  test("ArrayAggContexts") {
     implicit val execStrats = ExecStrategy.compileOnly
 
     val ir = bindIR(In(0, TInt32) * In(0, TInt32)) { x => // multiply to prevent forwarding
@@ -3014,7 +3069,7 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testStreamAggScan(): Unit = {
+  test("StreamAggScan") {
     implicit val execStrats = ExecStrategy.compileOnly
 
     val eltType = TStruct("x" -> TCall, "y" -> TInt32)
@@ -3045,7 +3100,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(StreamLen(ir), args = FastSeq(input), 6)
   }
 
-  @Test def testInsertFields(): Unit = {
+  test("InsertFields") {
     implicit val execStrats = ExecStrategy.javaOnly
 
     val s = TStruct("a" -> TInt64, "b" -> TString)
@@ -3144,7 +3199,7 @@ class IRSuite extends HailSuite {
 
   }
 
-  @Test def testSelectFields(): Unit = {
+  test("SelectFields") {
     assertEvalsTo(
       SelectFields(
         NA(TStruct("foo" -> TInt32, "bar" -> TFloat64)),
@@ -3170,7 +3225,7 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testGetField(): Unit = {
+  test("GetField") {
     implicit val execStrats = ExecStrategy.javaOnly
 
     val s = MakeStruct(IndexedSeq("a" -> NA(TInt64), "b" -> Str("abc")))
@@ -3181,7 +3236,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(GetField(na, "a"), null)
   }
 
-  @Test def testLiteral(): Unit = {
+  test("Literal") {
     implicit val execStrats =
       Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.JvmCompile)
     val poopEmoji = new String(Array[Char](0xd83d, 0xdca9))
@@ -3204,7 +3259,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(Str("hello" + poopEmoji), "hello" + poopEmoji)
   }
 
-  @Test def testSameLiteralsWithDifferentTypes(): Unit = {
+  test("SameLiteralsWithDifferentTypes") {
     assertEvalsTo(
       ApplyComparisonOp(
         EQ,
@@ -3217,13 +3272,13 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testTableCount(): Unit = {
+  test("TableCount") {
     implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized)
     assertEvalsTo(TableCount(TableRange(0, 4)), 0L)
     assertEvalsTo(TableCount(TableRange(7, 4)), 7L)
   }
 
-  @Test def testTableGetGlobals(): Unit = {
+  test("TableGetGlobals") {
     implicit val execStrats = ExecStrategy.interpretOnly
     assertEvalsTo(
       TableGetGlobals(TableMapGlobals(TableRange(0, 1), Literal(TStruct("a" -> TInt32), Row(1)))),
@@ -3231,7 +3286,7 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testTableAggregate(): Unit = {
+  test("TableAggregate") {
     implicit val execStrats = ExecStrategy.allRelational
 
     val table = TableRange(3, 2)
@@ -3239,7 +3294,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(TableAggregate(table, MakeStruct(IndexedSeq("foo" -> count))), Row(3L))
   }
 
-  @Test def testMatrixAggregate(): Unit = {
+  test("MatrixAggregate") {
     implicit val execStrats = ExecStrategy.interpretOnly
 
     val matrix = MatrixIR.range(ctx, 5, 5, None)
@@ -3247,7 +3302,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(MatrixAggregate(matrix, MakeStruct(IndexedSeq("foo" -> count))), Row(25L))
   }
 
-  @Test def testGroupByKey(): Unit = {
+  test("GroupByKey") {
     implicit val execStrats = Set(
       ExecStrategy.Interpret,
       ExecStrategy.InterpretUnoptimized,
@@ -3276,100 +3331,82 @@ class IRSuite extends HailSuite {
     assertEvalsTo(groupby(), Map())
   }
 
-  @DataProvider(name = "compareDifferentTypes")
-  def compareDifferentTypesData(): Array[Array[Any]] = Array(
-    Array(FastSeq(0.0, 0.0), TArray(TFloat64), TArray(TFloat64)),
-    Array(Set(0, 1), TSet(TInt32), TSet(TInt32)),
-    Array(Map(0L -> 5, 3L -> 20), TDict(TInt64, TInt32), TDict(TInt64, TInt32)),
-    Array(
-      Interval(1, 2, includesStart = false, includesEnd = true),
-      TInterval(TInt32),
-      TInterval(TInt32),
-    ),
-    Array(
-      Row("foo", 0.0),
-      TStruct("a" -> TString, "b" -> TFloat64),
-      TStruct("a" -> TString, "b" -> TFloat64),
-    ),
-    Array(Row("foo", 0.0), TTuple(TString, TFloat64), TTuple(TString, TFloat64)),
-    Array(
-      Row(FastSeq("foo"), 0.0),
-      TTuple(TArray(TString), TFloat64),
-      TTuple(TArray(TString), TFloat64),
-    ),
-  )
+  object checkComparisonOpDifferentTypes extends TestCases {
+    def apply(a: Any, t1: Type, t2: Type)(implicit loc: munit.Location): Unit =
+      test("ComparisonOpDifferentTypes") {
+        implicit val execStrats = ExecStrategy.javaOnly
 
-  @Test(dataProvider = "compareDifferentTypes")
-  def testComparisonOpDifferentTypes(a: Any, t1: Type, t2: Type): Unit = {
-    implicit val execStrats = ExecStrategy.javaOnly
-
-    assertEvalsTo(
-      ApplyComparisonOp(EQ, In(0, t1), In(1, t2)),
-      FastSeq(a -> t1, a -> t2),
-      true,
-    )
-    assertEvalsTo(
-      ApplyComparisonOp(LT, In(0, t1), In(1, t2)),
-      FastSeq(a -> t1, a -> t2),
-      false,
-    )
-    assertEvalsTo(
-      ApplyComparisonOp(GT, In(0, t1), In(1, t2)),
-      FastSeq(a -> t1, a -> t2),
-      false,
-    )
-    assertEvalsTo(
-      ApplyComparisonOp(LTEQ, In(0, t1), In(1, t2)),
-      FastSeq(a -> t1, a -> t2),
-      true,
-    )
-    assertEvalsTo(
-      ApplyComparisonOp(GTEQ, In(0, t1), In(1, t2)),
-      FastSeq(a -> t1, a -> t2),
-      true,
-    )
-    assertEvalsTo(
-      ApplyComparisonOp(NEQ, In(0, t1), In(1, t2)),
-      FastSeq(a -> t1, a -> t2),
-      false,
-    )
-    assertEvalsTo(
-      ApplyComparisonOp(EQWithNA, In(0, t1), In(1, t2)),
-      FastSeq(a -> t1, a -> t2),
-      true,
-    )
-    assertEvalsTo(
-      ApplyComparisonOp(NEQWithNA, In(0, t1), In(1, t2)),
-      FastSeq(a -> t1, a -> t2),
-      false,
-    )
-    assertEvalsTo(
-      ApplyComparisonOp(Compare, In(0, t1), In(1, t2)),
-      FastSeq(a -> t1, a -> t2),
-      0,
-    )
+        assertEvalsTo(ApplyComparisonOp(EQ, In(0, t1), In(1, t2)), FastSeq(a -> t1, a -> t2), true)
+        assertEvalsTo(ApplyComparisonOp(LT, In(0, t1), In(1, t2)), FastSeq(a -> t1, a -> t2), false)
+        assertEvalsTo(ApplyComparisonOp(GT, In(0, t1), In(1, t2)), FastSeq(a -> t1, a -> t2), false)
+        assertEvalsTo(
+          ApplyComparisonOp(LTEQ, In(0, t1), In(1, t2)),
+          FastSeq(a -> t1, a -> t2),
+          true,
+        )
+        assertEvalsTo(
+          ApplyComparisonOp(GTEQ, In(0, t1), In(1, t2)),
+          FastSeq(a -> t1, a -> t2),
+          true,
+        )
+        assertEvalsTo(
+          ApplyComparisonOp(NEQ, In(0, t1), In(1, t2)),
+          FastSeq(a -> t1, a -> t2),
+          false,
+        )
+        assertEvalsTo(
+          ApplyComparisonOp(EQWithNA, In(0, t1), In(1, t2)),
+          FastSeq(a -> t1, a -> t2),
+          true,
+        )
+        assertEvalsTo(
+          ApplyComparisonOp(NEQWithNA, In(0, t1), In(1, t2)),
+          FastSeq(a -> t1, a -> t2),
+          false,
+        )
+        assertEvalsTo(
+          ApplyComparisonOp(Compare, In(0, t1), In(1, t2)),
+          FastSeq(a -> t1, a -> t2),
+          0,
+        )
+      }
   }
 
-  @DataProvider(name = "valueIRs")
-  def valueIRs(): Array[Array[Object]] =
-    valueIRs(ctx)
+  checkComparisonOpDifferentTypes(FastSeq(0.0, 0.0), TArray(TFloat64), TArray(TFloat64))
+  checkComparisonOpDifferentTypes(Set(0, 1), TSet(TInt32), TSet(TInt32))
 
-  def valueIRs(ctx: ExecuteContext): Array[Array[Object]] = {
-    val fs = ctx.fs
+  checkComparisonOpDifferentTypes(
+    Map(0L -> 5, 3L -> 20),
+    TDict(TInt64, TInt32),
+    TDict(TInt64, TInt32),
+  )
 
-    CompileAndEvaluate[Unit](
-      ctx,
-      invoke(
-        "index_bgen",
-        TInt64,
-        ArraySeq(TLocus("GRCh37")),
-        Str(getTestResource("example.8bits.bgen")),
-        Str(getTestResource("example.8bits.bgen.idx2")),
-        Literal(TDict(TString, TString), Map("01" -> "1")),
-        False(),
-        I32(1000000),
-      ),
-    )
+  checkComparisonOpDifferentTypes(
+    Interval(1, 2, includesStart = false, includesEnd = true),
+    TInterval(TInt32),
+    TInterval(TInt32),
+  )
+
+  checkComparisonOpDifferentTypes(
+    Row("foo", 0.0),
+    TStruct("a" -> TString, "b" -> TFloat64),
+    TStruct("a" -> TString, "b" -> TFloat64),
+  )
+
+  checkComparisonOpDifferentTypes(
+    Row("foo", 0.0),
+    TTuple(TString, TFloat64),
+    TTuple(TString, TFloat64),
+  )
+
+  checkComparisonOpDifferentTypes(
+    Row(FastSeq("foo"), 0.0),
+    TTuple(TArray(TString), TFloat64),
+    TTuple(TArray(TString), TFloat64),
+  )
+
+  {
+    lazy val fs = ctx.fs
 
     val b = True()
     val bin = Ref(freshName(), TBinary)
@@ -3407,9 +3444,9 @@ class IRSuite extends HailSuite {
 
     val table = TableRange(100, 10)
 
-    val mt = MatrixIR.range(ctx, 20, 2, Some(3))
-    val vcf = importVCF(ctx, getTestResource("sample.vcf"))
-    val bgenReader = MatrixBGENReader(
+    lazy val mt = MatrixIR.range(ctx, 20, 2, Some(3))
+    lazy val vcf = importVCF(ctx, getTestResource("sample.vcf"))
+    lazy val bgenReader = MatrixBGENReader(
       ctx,
       FastSeq(getTestResource("example.8bits.bgen")),
       None,
@@ -3418,9 +3455,9 @@ class IRSuite extends HailSuite {
       None,
       None,
     )
-    val bgen = MatrixRead(bgenReader.fullMatrixType, false, false, bgenReader)
+    lazy val bgen = MatrixRead(bgenReader.fullMatrixType, false, false, bgenReader)
 
-    val blockMatrix =
+    lazy val blockMatrix =
       BlockMatrixRead(BlockMatrixNativeReader(fs, getTestResource("blockmatrix_example/0")))
     val blockMatrixWriter = BlockMatrixNativeWriter("/path/to/file.bm", false, false, false)
     val blockMatrixMultiWriter = BlockMatrixBinaryMultiWriter("/path/to/prefix", false)
@@ -3434,48 +3471,60 @@ class IRSuite extends HailSuite {
 
     def collect(ir: IR): IR = ApplyAggOp(Collect())(ir)
 
-    implicit def addEnv(ir: IR): (IR, BindingEnv[Type] => BindingEnv[Type]) =
-      (ir, env => env)
-    implicit def liftRefs(refs: IndexedSeq[Ref]): BindingEnv[Type] => BindingEnv[Type] =
-      env => env.bindEval(refs.map(r => r.name -> r.typ): _*)
+    def testParseIR(name: String, ir: => IR, refMap: BindingEnv[Type] = BindingEnv.empty): Unit = {
+      test(s"$name construction")(ir: Unit)
+      test(s"$name parsing") {
+        val ir0 = ir
+        val s = Pretty.sexprStyle(ir0, elideLiterals = false)
+        val x2 = IRParser.parse_value_ir(ctx, s, refMap)
+        assertEquals(x2, ir0)
+      }
+    }
 
-    val irs = Array[(IR, BindingEnv[Type] => BindingEnv[Type])](
-      i,
-      I64(5),
-      F32(3.14f),
-      F64(3.14),
-      str,
-      True(),
-      False(),
-      Void(),
-      UUID4(),
-      Cast(i, TFloat64),
-      CastRename(NA(TStruct("a" -> TInt32)), TStruct("b" -> TInt32)),
-      NA(TInt32),
-      IsNA(i),
-      If(b, i, j),
-      Switch(i, j, 0 until 7 map I32),
-      Coalesce(FastSeq(i, I32(1))),
-      bindIR(i)(v => v),
-      aggBindIR(i)(collect(_)) -> (_.createAgg), {
-        val x = Ref(freshName(), TInt32)
-        x -> (_.bindEval(x.name, x.typ))
-      },
-      ApplyBinaryPrimOp(Add(), i, j),
-      ApplyUnaryPrimOp(Negate, i),
-      ApplyComparisonOp(EQ, i, j),
-      MakeArray(FastSeq(i, NA(TInt32), I32(-3)), TArray(TInt32)),
-      MakeStream(FastSeq(i, NA(TInt32), I32(-3)), TStream(TInt32)),
-      nd,
+    testParseIR("I32", i)
+    testParseIR("I32", I64(5))
+    testParseIR("F32", F32(3.14f))
+    testParseIR("F64", F64(3.14))
+    testParseIR("Str", str)
+    testParseIR("True", True())
+    testParseIR("False", False())
+    testParseIR("Void", Void())
+    testParseIR("UUID4", UUID4())
+    testParseIR("Cast", Cast(i, TFloat64))
+    testParseIR("NA", NA(TInt32))
+    testParseIR("IsNA", IsNA(i))
+    testParseIR("If", If(b, i, j))
+    testParseIR("Switch", Switch(i, j, 0 until 7 map I32))
+    testParseIR("Coalesce", Coalesce(FastSeq(i, I32(1))))
+    testParseIR("Let", bindIR(i)(v => v))
+    testParseIR("AggLet", aggBindIR(i)(collect(_)), BindingEnv.empty.createAgg)
+
+    {
+      val x = Ref(freshName(), TInt32)
+      testParseIR("Ref", x, BindingEnv.eval(x.name -> x.typ))
+    }
+
+    testParseIR("CastRename", CastRename(NA(TStruct("a" -> TInt32)), TStruct("b" -> TInt32)))
+    testParseIR("ApplyBinaryPrimOp", ApplyBinaryPrimOp(Add(), i, j))
+    testParseIR("ApplyUnaryPrimOp", ApplyUnaryPrimOp(Negate, i))
+    testParseIR("ApplyComparisonOp", ApplyComparisonOp(EQ, i, j))
+    testParseIR("MakeArray", MakeArray(FastSeq(i, NA(TInt32), I32(-3)), TArray(TInt32)))
+    testParseIR("MakeStream", MakeStream(FastSeq(i, NA(TInt32), I32(-3)), TStream(TInt32)))
+    testParseIR("MakeNDArray", nd)
+    testParseIR(
+      "NDArrayReshape",
       NDArrayReshape(nd, MakeTuple.ordered(IndexedSeq(I64(4))), ErrorIDs.NO_ERROR),
-      NDArrayConcat(MakeArray(FastSeq(nd, nd), TArray(nd.typ)), 0),
-      NDArrayRef(nd, FastSeq(I64(1), I64(2)), -1),
-      ndMap(nd)(v => -v),
-      ndMap2(nd, nd)(_ + _),
-      NDArrayReindex(nd, FastSeq(0, 1)),
-      NDArrayAgg(nd, FastSeq(0)),
-      NDArrayWrite(nd, Str("/path/to/ndarray")),
-      NDArrayMatMul(nd, nd, ErrorIDs.NO_ERROR),
+    )
+    testParseIR("NDArrayConcat", NDArrayConcat(MakeArray(FastSeq(nd, nd), TArray(nd.typ)), 0))
+    testParseIR("NDArrayRef", NDArrayRef(nd, FastSeq(I64(1), I64(2)), -1))
+    testParseIR("NDArrayMap", ndMap(nd)(v => -v))
+    testParseIR("NDArrayMap2", ndMap2(nd, nd)(_ + _))
+    testParseIR("NDArrayReindex", NDArrayReindex(nd, FastSeq(0, 1)))
+    testParseIR("NDArrayAgg", NDArrayAgg(nd, FastSeq(0)))
+    testParseIR("NDArrayWrite", NDArrayWrite(nd, Str("/path/to/ndarray")))
+    testParseIR("NDArrayMatMul", NDArrayMatMul(nd, nd, ErrorIDs.NO_ERROR))
+    testParseIR(
+      "NDArraySlice",
       NDArraySlice(
         nd,
         MakeTuple.ordered(FastSeq(
@@ -3483,42 +3532,66 @@ class IRSuite extends HailSuite {
           MakeTuple.ordered(FastSeq(I64(0), I64(2), I64(1))),
         )),
       ),
-      NDArrayFilter(nd, FastSeq(NA(TArray(TInt64)), NA(TArray(TInt64)))),
-      ArrayRef(a, i) -> ArraySeq(a),
-      ArrayLen(a) -> ArraySeq(a),
-      RNGSplit(rngState, MakeTuple.ordered(FastSeq(I64(1), I64(2), I64(3)))),
-      StreamLen(st) -> ArraySeq(st),
-      StreamRange(I32(0), I32(5), I32(1)),
-      StreamRange(I32(0), I32(5), I32(1)),
-      ArraySort(st, b) -> ArraySeq(st),
-      ToSet(st) -> ArraySeq(st),
-      ToDict(std) -> ArraySeq(std),
-      ToArray(st) -> ArraySeq(st),
-      CastToArray(NA(TSet(TInt32))),
-      ToStream(a) -> ArraySeq(a),
-      LowerBoundOnOrderedCollection(a, i, onKey = false) -> ArraySeq(a),
-      GroupByKey(std) -> ArraySeq(std),
-      StreamTake(st, I32(10)) -> ArraySeq(st),
-      StreamDrop(st, I32(10)) -> ArraySeq(st),
-      takeWhile(st)(_ < 5) -> ArraySeq(st),
-      dropWhile(st)(_ < 5) -> ArraySeq(st),
-      mapIR(st)(v => v) -> ArraySeq(st),
-      zipIR(FastSeq(st, st), ArrayZipBehavior.TakeMinLength)(_ => True()) -> ArraySeq(st),
-      filterIR(st)(_ => b) -> ArraySeq(st),
-      flatMapIR(sta)(ToStream(_)) -> ArraySeq(sta),
-      foldIR(st, I32(0))((_, v) => v) -> ArraySeq(st),
-      StreamFold2(foldIR(st, I32(0))((_, v) => v)) -> ArraySeq(st),
-      streamScanIR(st, I32(0))((_, v) => v) -> ArraySeq(st),
-      StreamWhiten(whitenStream, "newChunk", "prevWindow", 1, 1, 1, 1, false) -> ArraySeq(
-        whitenStream
-      ),
+    )
+    testParseIR("NDArrayFilter", NDArrayFilter(nd, FastSeq(NA(TArray(TInt64)), NA(TArray(TInt64)))))
+    testParseIR("ArrayRef", ArrayRef(a, i), BindingEnv.eval(a.name -> a.typ))
+    testParseIR("ArrayLen", ArrayLen(a), BindingEnv.eval(a.name -> a.typ))
+    testParseIR("RNGSplit", RNGSplit(rngState, MakeTuple.ordered(FastSeq(I64(1), I64(2), I64(3)))))
+    testParseIR("StreamLen", StreamLen(st), BindingEnv.eval(st.name -> st.typ))
+    testParseIR("StreamRange", StreamRange(I32(0), I32(5), I32(1)))
+    testParseIR("StreamRange", StreamRange(I32(0), I32(5), I32(1)))
+    testParseIR("ArraySort", ArraySort(st, b), BindingEnv.eval(st.name -> st.typ))
+    testParseIR("ToSet", ToSet(st), BindingEnv.eval(st.name -> st.typ))
+    testParseIR("ToDict", ToDict(std), BindingEnv.eval(std.name -> std.typ))
+    testParseIR("ToArray", ToArray(st), BindingEnv.eval(st.name -> st.typ))
+    testParseIR("CastToArray", CastToArray(NA(TSet(TInt32))))
+    testParseIR("ToStream", ToStream(a), BindingEnv.eval(a.name -> a.typ))
+    testParseIR(
+      "LowerBoundOnOrderedCollection",
+      LowerBoundOnOrderedCollection(a, i, onKey = false),
+      BindingEnv.eval(a.name -> a.typ),
+    )
+    testParseIR("GroupByKey", GroupByKey(std), BindingEnv.eval(std.name -> std.typ))
+    testParseIR("StreamTake", StreamTake(st, I32(10)), BindingEnv.eval(st.name -> st.typ))
+    testParseIR("StreamDrop", StreamDrop(st, I32(10)), BindingEnv.eval(st.name -> st.typ))
+    testParseIR("takeWhile", takeWhile(st)(_ < 5), BindingEnv.eval(st.name -> st.typ))
+    testParseIR("dropWhile", dropWhile(st)(_ < 5), BindingEnv.eval(st.name -> st.typ))
+    testParseIR("mapIR", mapIR(st)(v => v), BindingEnv.eval(st.name -> st.typ))
+    testParseIR(
+      "zipIR",
+      zipIR(FastSeq(st, st), ArrayZipBehavior.TakeMinLength)(_ => True()),
+      BindingEnv.eval(st.name -> st.typ),
+    )
+    testParseIR("filterIR", filterIR(st)(_ => b), BindingEnv.eval(st.name -> st.typ))
+    testParseIR("flatMapIR", flatMapIR(sta)(ToStream(_)), BindingEnv.eval(sta.name -> sta.typ))
+    testParseIR("foldIR", foldIR(st, I32(0))((_, v) => v), BindingEnv.eval(st.name -> st.typ))
+    testParseIR(
+      "StreamFold2",
+      StreamFold2(foldIR(st, I32(0))((_, v) => v)),
+      BindingEnv.eval(st.name -> st.typ),
+    )
+    testParseIR(
+      "streamScanIR",
+      streamScanIR(st, I32(0))((_, v) => v),
+      BindingEnv.eval(st.name -> st.typ),
+    )
+    testParseIR(
+      "StreamWhiten",
+      StreamWhiten(whitenStream, "newChunk", "prevWindow", 1, 1, 1, 1, false),
+      BindingEnv.eval(whitenStream.name -> whitenStream.typ),
+    )
+    testParseIR(
+      "joinRightDistinctIR",
       joinRightDistinctIR(
         mapIR(rangeIR(2))(x => MakeStruct(FastSeq("x" -> x))),
         mapIR(rangeIR(3))(x => MakeStruct(FastSeq("x" -> x))),
         FastSeq("x"),
         FastSeq("x"),
         "left",
-      )((_, _) => I32(1)), {
+      )((_, _) => I32(1)),
+    )
+    testParseIR(
+      "StreamLeftIntervalJoin", {
         val left = mapIR(rangeIR(2))(x => MakeStruct(FastSeq("x" -> x)))
         val right = ToStream(Literal(
           TArray(TStruct("a" -> TInterval(TInt32))),
@@ -3536,8 +3609,15 @@ class IRSuite extends HailSuite {
           InsertFields(lref, FastSeq("join" -> rref)),
         )
       },
-      forIR(st)(_ => Void()) -> ArraySeq(st),
-      streamAggIR(st)(x => ApplyAggOp(Sum())(Cast(x, TInt64))) -> ArraySeq(st),
+    )
+    testParseIR("forIR", forIR(st)(_ => Void()), BindingEnv.eval(st.name -> st.typ))
+    testParseIR(
+      "streamAggIR",
+      streamAggIR(st)(x => ApplyAggOp(Sum())(Cast(x, TInt64))),
+      BindingEnv.eval(st.name -> st.typ),
+    )
+    testParseIR(
+      "StreamBufferedAggregate",
       StreamBufferedAggregate(
         st,
         Void(),
@@ -3546,8 +3626,16 @@ class IRSuite extends HailSuite {
         l.name,
         ArraySeq(pCollectSig),
         27,
-      ) -> ArraySeq(st),
-      streamAggScanIR(st)(x => ApplyScanOp(Sum())(Cast(x, TInt64))) -> ArraySeq(st),
+      ),
+      BindingEnv.eval(st.name -> st.typ),
+    )
+    testParseIR(
+      "streamAggScanIR",
+      streamAggScanIR(st)(x => ApplyScanOp(Sum())(Cast(x, TInt64))),
+      BindingEnv.eval(st.name -> st.typ),
+    )
+    testParseIR(
+      "RunAgg",
       RunAgg(
         Begin(FastSeq(
           InitOp(0, FastSeq(Begin(FastSeq(InitOp(0, FastSeq(), pSumSig)))), groupSignature),
@@ -3555,7 +3643,10 @@ class IRSuite extends HailSuite {
         )),
         AggStateValue(0, groupSignature.state),
         FastSeq(groupSignature.state),
-      ), {
+      ),
+    )
+    testParseIR(
+      "RunAggScan", {
         val foo = Ref(freshName(), TInt32)
         RunAggScan(
           StreamRange(I32(0), I32(1), I32(1)),
@@ -3566,20 +3657,36 @@ class IRSuite extends HailSuite {
           FastSeq(groupSignature.state),
         )
       },
-      AggFilter(True(), I32(0), false) -> (_.createAgg),
-      aggExplodeIR(NA(TStream(TInt32)))(_ => I32(0)) -> (_.createAgg),
-      AggGroupBy(True(), I32(0), false) -> (_.createAgg),
-      ApplyAggOp(Collect())(I32(0)) -> (_.createAgg),
-      ApplyAggOp(CallStats(), I32(2))(call) -> (_.createAgg.bindAgg(
-        call.name,
-        call.typ,
-      )),
-      ApplyAggOp(TakeBy(), I32(10))(F64(-2.11), I32(4)) -> (_.createAgg),
-      AggFold(I32(0), l + I32(1), l + r, l.name, r.name, false) -> (_.createAgg),
-      InitOp(0, FastSeq(I32(2)), pCallStatsSig),
-      SeqOp(0, FastSeq(i), pCollectSig),
-      CombOp(0, 1, pCollectSig),
-      ResultOp(0, pCollectSig), {
+    )
+    testParseIR("AggFilter", AggFilter(True(), I32(0), false), BindingEnv.empty.createAgg)
+    testParseIR(
+      "aggExplodeIR",
+      aggExplodeIR(NA(TStream(TInt32)))(_ => I32(0)),
+      BindingEnv.empty.createAgg,
+    )
+    testParseIR("AggGroupBy", AggGroupBy(True(), I32(0), false), BindingEnv.empty.createAgg)
+    testParseIR("ApplyAggOp Collect", ApplyAggOp(Collect())(I32(0)), BindingEnv.empty.createAgg)
+    testParseIR(
+      "ApplyAggOp CallStats",
+      ApplyAggOp(CallStats(), I32(2))(call),
+      BindingEnv.empty.createAgg.bindAgg(call.name, call.typ),
+    )
+    testParseIR(
+      "ApplyAggOp TakeBy",
+      ApplyAggOp(TakeBy(), I32(10))(F64(-2.11), I32(4)),
+      BindingEnv.empty.createAgg,
+    )
+    testParseIR(
+      "AggFold",
+      AggFold(I32(0), l + I32(1), l + r, l.name, r.name, false),
+      BindingEnv.empty.createAgg,
+    )
+    testParseIR("InitOp", InitOp(0, FastSeq(I32(2)), pCallStatsSig))
+    testParseIR("SeqOp", SeqOp(0, FastSeq(i), pCollectSig))
+    testParseIR("CombOp", CombOp(0, 1, pCollectSig))
+    testParseIR("ResultOp", ResultOp(0, pCollectSig))
+    testParseIR(
+      "ResultOp FoldStateSig", {
         val accum = Ref(freshName(), TInt32)
         ResultOp(
           0,
@@ -3589,40 +3696,79 @@ class IRSuite extends HailSuite {
           ),
         )
       },
+    )
+    testParseIR(
+      "SerializeAggs",
       SerializeAggs(0, 0, BufferSpec.default, FastSeq(pCollectSig.state)),
+    )
+    testParseIR(
+      "DeserializeAggs",
       DeserializeAggs(0, 0, BufferSpec.default, FastSeq(pCollectSig.state)),
-      CombOpValue(0, bin, pCollectSig) -> ArraySeq(bin),
-      AggStateValue(0, pCollectSig.state),
-      InitFromSerializedValue(0, bin, pCollectSig.state) -> ArraySeq(bin),
-      Begin(FastSeq(Void())),
-      MakeStruct(FastSeq("x" -> i)),
-      SelectFields(s, FastSeq("x", "z")) -> ArraySeq(s),
-      InsertFields(s, FastSeq("x" -> i)) -> ArraySeq(s),
-      InsertFields(s, FastSeq("* x *" -> i)) -> ArraySeq(s), // Won't parse as a simple identifier
-      GetField(s, "x") -> ArraySeq(s),
-      MakeTuple(FastSeq(2 -> i, 4 -> b)),
-      GetTupleElement(t, 1) -> ArraySeq(t),
-      Die("mumblefoo", TFloat64),
-      invoke("land", TBoolean, b, c) -> ArraySeq(c), // ApplySpecial
-      invoke("toFloat64", TFloat64, i), // Apply
-      Literal(TStruct("x" -> TInt32), Row(1)),
-      TableCount(table),
-      MatrixCount(mt),
-      TableGetGlobals(table),
-      TableCollect(TableKeyBy(table, FastSeq())),
-      TableAggregate(table, MakeStruct(IndexedSeq("foo" -> count))),
-      TableToValueApply(table, ForceCountTable()),
-      MatrixToValueApply(mt, ForceCountMatrixTable()),
-      TableWrite(table, TableNativeWriter("/path/to/data.ht")),
-      MatrixWrite(mt, MatrixNativeWriter("/path/to/data.mt")),
-      MatrixWrite(vcf, MatrixVCFWriter("/path/to/sample.vcf")),
-      MatrixWrite(vcf, MatrixPLINKWriter("/path/to/base")),
-      MatrixWrite(bgen, MatrixGENWriter("/path/to/base")),
+    )
+    testParseIR(
+      "CombOpValue",
+      CombOpValue(0, bin, pCollectSig),
+      BindingEnv.eval(bin.name -> bin.typ),
+    )
+    testParseIR("AggStateValue", AggStateValue(0, pCollectSig.state))
+    testParseIR(
+      "InitFromSerializedValue",
+      InitFromSerializedValue(0, bin, pCollectSig.state),
+      BindingEnv.eval(bin.name -> bin.typ),
+    )
+    testParseIR("Begin", Begin(FastSeq(Void())))
+    testParseIR("MakeStruct", MakeStruct(FastSeq("x" -> i)))
+    testParseIR(
+      "SelectFields",
+      SelectFields(s, FastSeq("x", "z")),
+      BindingEnv.eval(s.name -> s.typ),
+    )
+    testParseIR(
+      "InsertFields",
+      InsertFields(s, FastSeq("x" -> i)),
+      BindingEnv.eval(s.name -> s.typ),
+    )
+    testParseIR(
+      "InsertFields special name", // Won't parse as a simple identifier
+      InsertFields(s, FastSeq("* x *" -> i)),
+      BindingEnv.eval(s.name -> s.typ),
+    )
+    testParseIR("GetField", GetField(s, "x"), BindingEnv.eval(s.name -> s.typ))
+    testParseIR("MakeTuple", MakeTuple(FastSeq(2 -> i, 4 -> b)))
+    testParseIR("GetTupleElement", GetTupleElement(t, 1), BindingEnv.eval(t.name -> t.typ))
+    testParseIR("Die", Die("mumblefoo", TFloat64))
+    testParseIR(
+      "ApplySpecial land",
+      invoke("land", TBoolean, b, c),
+      BindingEnv.eval(c.name -> c.typ),
+    )
+    testParseIR("Apply toFloat64", invoke("toFloat64", TFloat64, i))
+    testParseIR("Literal", Literal(TStruct("x" -> TInt32), Row(1)))
+    testParseIR("TableCount", TableCount(table))
+    testParseIR("MatrixCount", MatrixCount(mt))
+    testParseIR("TableGetGlobals", TableGetGlobals(table))
+    testParseIR("TableCollect", TableCollect(TableKeyBy(table, FastSeq())))
+    testParseIR("TableAggregate", TableAggregate(table, MakeStruct(IndexedSeq("foo" -> count))))
+    testParseIR("TableToValueApply", TableToValueApply(table, ForceCountTable()))
+    testParseIR("MatrixToValueApply", MatrixToValueApply(mt, ForceCountMatrixTable()))
+    testParseIR("TableWrite", TableWrite(table, TableNativeWriter("/path/to/data.ht")))
+    testParseIR("MatrixWrite NativeWriter", MatrixWrite(mt, MatrixNativeWriter("/path/to/data.mt")))
+    testParseIR("MatrixWrite VCFWriter", MatrixWrite(vcf, MatrixVCFWriter("/path/to/sample.vcf")))
+    testParseIR("MatrixWrite PLINKWriter", MatrixWrite(vcf, MatrixPLINKWriter("/path/to/base")))
+    testParseIR("MatrixWrite GENWriter", MatrixWrite(bgen, MatrixGENWriter("/path/to/base")))
+    testParseIR(
+      "MatrixWrite BlockMatrixWriter",
       MatrixWrite(mt, MatrixBlockMatrixWriter("path/to/data/bm", true, "a", 4096)),
+    )
+    testParseIR(
+      "MatrixMultiWrite",
       MatrixMultiWrite(
         ArraySeq(mt, mt),
         MatrixNativeMultiWriter(IndexedSeq("/path/to/mt1", "/path/to/mt2")),
       ),
+    )
+    testParseIR(
+      "TableMultiWrite",
       TableMultiWrite(
         ArraySeq(table, table),
         WrappedMatrixNativeMultiWriter(
@@ -3630,12 +3776,21 @@ class IRSuite extends HailSuite {
           FastSeq("foo"),
         ),
       ),
-      MatrixAggregate(mt, MakeStruct(IndexedSeq("foo" -> count))),
-      BlockMatrixCollect(blockMatrix),
-      BlockMatrixWrite(blockMatrix, blockMatrixWriter),
+    )
+    testParseIR("MatrixAggregate", MatrixAggregate(mt, MakeStruct(IndexedSeq("foo" -> count))))
+    testParseIR("BlockMatrixCollect", BlockMatrixCollect(blockMatrix))
+    testParseIR("BlockMatrixWrite", BlockMatrixWrite(blockMatrix, blockMatrixWriter))
+    testParseIR(
+      "BlockMatrixMultiWrite",
       BlockMatrixMultiWrite(IndexedSeq(blockMatrix, blockMatrix), blockMatrixMultiWriter),
+    )
+    testParseIR(
+      "BlockMatrixPersistWriter",
       BlockMatrixWrite(blockMatrix, BlockMatrixPersistWriter("x", "MEMORY_ONLY")),
-      cdaIR(rangeIR(3), 1, "test", NA(TString))((context, global) => context),
+    )
+    testParseIR("cdaIR", cdaIR(rangeIR(3), 1, "test", NA(TString))((context, global) => context))
+    testParseIR(
+      "ReadPartition",
       ReadPartition(
         MakeStruct(ArraySeq("partitionIndex" -> I64(0), "partitionPath" -> Str("foo"))),
         TStruct("foo" -> TInt32),
@@ -3648,6 +3803,9 @@ class IRSuite extends HailSuite {
           "rowUID",
         ),
       ),
+    )
+    testParseIR(
+      "WritePartition",
       WritePartition(
         MakeStream(FastSeq(), TStream(TStruct())),
         NA(TString),
@@ -3659,10 +3817,16 @@ class IRSuite extends HailSuite {
           None,
         ),
       ),
+    )
+    testParseIR(
+      "WriteMetadata",
       WriteMetadata(
         Begin(FastSeq()),
         RelationalWriter("path", overwrite = false, None),
       ),
+    )
+    testParseIR(
+      "ReadValue",
       ReadValue(
         Str("foo"),
         ETypeValueReader(TypedCodecSpec(
@@ -3672,334 +3836,305 @@ class IRSuite extends HailSuite {
         )),
         TStruct("foo" -> TInt32),
       ),
+    )
+    testParseIR(
+      "WriteValue",
       WriteValue(
         I32(1),
         Str("foo"),
         ETypeValueWriter(TypedCodecSpec(ctx, PInt32(), BufferSpec.default)),
       ),
+    )
+    testParseIR(
+      "WriteValue with uid",
       WriteValue(
         I32(1),
         Str("foo"),
         ETypeValueWriter(TypedCodecSpec(ctx, PInt32(), BufferSpec.default)),
         Some(Str("/tmp/uid/part")),
       ),
-      relationalBindIR(I32(0))(_ => I32(0)), {
+    )
+    testParseIR("relationalBindIR", relationalBindIR(I32(0))(_ => I32(0)))
+    testParseIR(
+      "TailLoop", {
         val y = freshName()
         TailLoop(y, IndexedSeq(freshName() -> I32(0)), TInt32, Recur(y, FastSeq(I32(4)), TInt32))
       },
     )
-    val emptyEnv = BindingEnv.empty[Type]
-    irs.map { case (ir, bind) => Array(ir, bind(emptyEnv)) }
   }
 
-  @DataProvider(name = "tableIRs")
-  def tableIRs(): Array[Array[TableIR]] =
-    tableIRs(ctx)
+  // --- Table IR parser tests ---
 
-  def tableIRs(ctx: ExecuteContext): Array[Array[TableIR]] = {
-    try {
-      val fs = ctx.fs
-
-      val read = TableIR.read(fs, getTestResource("backward_compatability/1.1.0/table/0.ht"))
-      val mtRead =
-        MatrixIR.read(fs, getTestResource("backward_compatability/1.0.0/matrix_table/0.hmt"))
-      val b = True()
-
-      val xs: Array[TableIR] = Array(
-        TableDistinct(read),
-        TableKeyBy(read, ArraySeq("m", "d")),
-        TableFilter(read, b),
-        read,
-        MatrixColsTable(mtRead),
-        TableAggregateByKey(
-          read,
-          MakeStruct(FastSeq(
-            "a" -> I32(5)
-          )),
-        ),
-        TableKeyByAndAggregate(read, NA(TStruct.empty), NA(TStruct.empty), Some(1), 2),
-        TableJoin(read, TableRange(100, 10), "inner", 1),
-        TableLeftJoinRightDistinct(read, TableRange(100, 10), "root"),
-        TableMultiWayZipJoin(FastSeq(read, read), " * data * ", "globals"),
-        MatrixEntriesTable(mtRead),
-        MatrixRowsTable(mtRead),
-        TableRepartition(read, 10, RepartitionStrategy.COALESCE),
-        TableHead(read, 10),
-        TableTail(read, 10),
-        TableParallelize(
-          MakeStruct(FastSeq(
-            "rows" -> MakeArray(
-              FastSeq(
-                MakeStruct(FastSeq("a" -> NA(TInt32))),
-                MakeStruct(FastSeq("a" -> I32(1))),
-              ),
-              TArray(TStruct("a" -> TInt32)),
-            ),
-            "global" -> MakeStruct(FastSeq()),
-          )),
-          None,
-        ),
-        TableMapRows(
-          TableKeyBy(read, FastSeq()),
-          MakeStruct(FastSeq(
-            "a" -> GetField(Ref(TableIR.rowName, read.typ.rowType), "f32"),
-            "b" -> F64(-2.11),
-          )),
-        ), {
-          val rs = Ref(freshName(), TStream(read.typ.rowType))
-          TableMapPartitions(
-            TableKeyBy(read, FastSeq()),
-            freshName(),
-            rs.name,
-            StreamTake(rs, 1),
-            0,
-            0,
-          )
-        },
-        TableMapGlobals(
-          read,
-          MakeStruct(FastSeq(
-            "foo" -> NA(TArray(TInt32))
-          )),
-        ),
-        TableRange(100, 10),
-        TableUnion(
-          FastSeq(TableRange(100, 10), TableRange(50, 10))
-        ),
-        TableExplode(read, ArraySeq("mset")),
-        TableOrderBy(
-          TableKeyBy(read, FastSeq()),
-          FastSeq(SortField("m", Ascending), SortField("m", Descending)),
-        ),
-        CastMatrixToTable(mtRead, " # entries", " # cols"),
-        TableRename(read, Map("idx" -> "idx_foo"), Map("global_f32" -> "global_foo")),
-        TableFilterIntervals(
-          read,
-          FastSeq(Interval(IntervalEndpoint(Row(0), -1), IntervalEndpoint(Row(10), 1))),
-          keep = false,
-        ),
-        RelationalLetTable(freshName(), I32(0), read), {
-          val structs = MakeStream(FastSeq(), TStream(TStruct()))
-          val partitioner = RVDPartitioner.empty(ctx.stateManager, TStruct())
-          TableGen(
-            structs,
-            MakeStruct(FastSeq()),
-            freshName(),
-            freshName(),
-            structs,
-            partitioner,
-            errorId = 180,
-          )
-        },
-      )
-      xs.map(x => Array(x))
-    } catch {
-      case t: Throwable =>
-        println(t)
-        println(t.printStackTrace())
-        throw t
+  object checkTableIRParser extends TestCases {
+    def apply(
+      ir: => TableIR
+    )(implicit loc: munit.Location
+    ): Unit = test("table IR parser") {
+      val ir0 = ir
+      val s = Pretty.sexprStyle(ir0, elideLiterals = false)
+      val x2 = IRParser.parse_table_ir(ctx, s)
+      assertEquals(x2, ir0)
     }
   }
 
-  @DataProvider(name = "matrixIRs")
-  def matrixIRs(): Array[Array[MatrixIR]] =
-    matrixIRs(ctx)
+  {
+    lazy val read = TableIR.read(ctx.fs, getTestResource("backward_compatability/1.1.0/table/0.ht"))
+    lazy val mtRead =
+      MatrixIR.read(ctx.fs, getTestResource("backward_compatability/1.0.0/matrix_table/0.hmt"))
+    val b = True()
 
-  def matrixIRs(ctx: ExecuteContext): Array[Array[MatrixIR]] = {
-    try {
-      val fs = ctx.fs
-
-      CompileAndEvaluate[Unit](
-        ctx,
-        invoke(
-          "index_bgen",
-          TInt64,
-          ArraySeq(TLocus("GRCh37")),
-          Str(getTestResource("example.8bits.bgen")),
-          Str(getTestResource("example.8bits.bgen.idx2")),
-          Literal(TDict(TString, TString), Map("01" -> "1")),
-          False(),
-          I32(1000000),
+    checkTableIRParser(TableDistinct(read))
+    checkTableIRParser(TableKeyBy(read, ArraySeq("m", "d")))
+    checkTableIRParser(TableFilter(read, b))
+    checkTableIRParser(read)
+    checkTableIRParser(MatrixColsTable(mtRead))
+    checkTableIRParser(TableAggregateByKey(
+      read,
+      MakeStruct(FastSeq(
+        "a" -> I32(5)
+      )),
+    ))
+    checkTableIRParser(TableKeyByAndAggregate(
+      read,
+      NA(TStruct.empty),
+      NA(TStruct.empty),
+      Some(1),
+      2,
+    ))
+    checkTableIRParser(TableJoin(read, TableRange(100, 10), "inner", 1))
+    checkTableIRParser(TableLeftJoinRightDistinct(read, TableRange(100, 10), "root"))
+    checkTableIRParser(TableMultiWayZipJoin(FastSeq(read, read), " * data * ", "globals"))
+    checkTableIRParser(MatrixEntriesTable(mtRead))
+    checkTableIRParser(MatrixRowsTable(mtRead))
+    checkTableIRParser(TableRepartition(read, 10, RepartitionStrategy.COALESCE))
+    checkTableIRParser(TableHead(read, 10))
+    checkTableIRParser(TableTail(read, 10))
+    checkTableIRParser(TableParallelize(
+      MakeStruct(FastSeq(
+        "rows" -> MakeArray(
+          FastSeq(
+            MakeStruct(FastSeq("a" -> NA(TInt32))),
+            MakeStruct(FastSeq("a" -> I32(1))),
+          ),
+          TArray(TStruct("a" -> TInt32)),
         ),
+        "global" -> MakeStruct(FastSeq()),
+      )),
+      None,
+    ))
+    checkTableIRParser(TableMapRows(
+      TableKeyBy(read, FastSeq()),
+      MakeStruct(FastSeq(
+        "a" -> GetField(Ref(TableIR.rowName, read.typ.rowType), "f32"),
+        "b" -> F64(-2.11),
+      )),
+    ))
+    checkTableIRParser({
+      val rs = Ref(freshName(), TStream(read.typ.rowType))
+      TableMapPartitions(
+        TableKeyBy(read, FastSeq()),
+        freshName(),
+        rs.name,
+        StreamTake(rs, 1),
+        0,
+        0,
       )
-
-      val tableRead = TableIR.read(fs, getTestResource("backward_compatability/1.1.0/table/0.ht"))
-      val read =
-        MatrixIR.read(fs, getTestResource("backward_compatability/1.0.0/matrix_table/0.hmt"))
-      val range = MatrixIR.range(ctx, 3, 7, None)
-      val vcf = importVCF(ctx, getTestResource("sample.vcf"))
-
-      val bgenReader = MatrixBGENReader(
-        ctx,
-        FastSeq(getTestResource("example.8bits.bgen")),
-        None,
-        Map.empty[String, String],
-        None,
-        None,
-        None,
+    })
+    checkTableIRParser(TableMapGlobals(
+      read,
+      MakeStruct(FastSeq(
+        "foo" -> NA(TArray(TInt32))
+      )),
+    ))
+    checkTableIRParser(TableRange(100, 10))
+    checkTableIRParser(TableUnion(
+      FastSeq(TableRange(100, 10), TableRange(50, 10))
+    ))
+    checkTableIRParser(TableExplode(read, ArraySeq("mset")))
+    checkTableIRParser(TableOrderBy(
+      TableKeyBy(read, FastSeq()),
+      FastSeq(SortField("m", Ascending), SortField("m", Descending)),
+    ))
+    checkTableIRParser(CastMatrixToTable(mtRead, " # entries", " # cols"))
+    checkTableIRParser(TableRename(
+      read,
+      Map("idx" -> "idx_foo"),
+      Map("global_f32" -> "global_foo"),
+    ))
+    checkTableIRParser(TableFilterIntervals(
+      read,
+      FastSeq(Interval(IntervalEndpoint(Row(0), -1), IntervalEndpoint(Row(10), 1))),
+      keep = false,
+    ))
+    checkTableIRParser(RelationalLetTable(freshName(), I32(0), read))
+    checkTableIRParser({
+      val structs = MakeStream(FastSeq(), TStream(TStruct()))
+      val partitioner = RVDPartitioner.empty(ctx.stateManager, TStruct())
+      TableGen(
+        structs,
+        MakeStruct(FastSeq()),
+        freshName(),
+        freshName(),
+        structs,
+        partitioner,
+        errorId = 180,
       )
-      val bgen = MatrixRead(bgenReader.fullMatrixType, false, false, bgenReader)
+    })
+  }
 
-      val range1 = MatrixIR.range(ctx, 20, 2, Some(3))
-      val range2 = MatrixIR.range(ctx, 20, 2, Some(4))
+  // --- Matrix IR parser tests ---
 
-      val b = True()
-
-      val newCol = MakeStruct(FastSeq(
-        "col_idx" -> GetField(Ref(MatrixIR.colName, read.typ.colType), "col_idx"),
-        "new_f32" -> ApplyBinaryPrimOp(
-          Add(),
-          GetField(Ref(MatrixIR.colName, read.typ.colType), "col_f32"),
-          F32(-5.2f),
-        ),
-      ))
-      val newRow = MakeStruct(FastSeq(
-        "row_idx" -> GetField(Ref(MatrixIR.rowName, read.typ.rowType), "row_idx"),
-        "new_f32" -> ApplyBinaryPrimOp(
-          Add(),
-          GetField(Ref(MatrixIR.rowName, read.typ.rowType), "row_f32"),
-          F32(-5.2f),
-        ),
-      ))
-
-      val collect = ApplyAggOp(Collect())(I32(0))
-
-      val newRowAnn = MakeStruct(FastSeq("count_row" -> collect))
-      val newColAnn = MakeStruct(FastSeq("count_col" -> collect))
-      val newEntryAnn = MakeStruct(FastSeq("count_entry" -> collect))
-
-      val xs = Array[MatrixIR](
-        read,
-        MatrixFilterRows(read, b),
-        MatrixFilterCols(read, b),
-        MatrixFilterEntries(read, b),
-        MatrixChooseCols(read, ArraySeq(0, 0, 0)),
-        MatrixMapCols(read, newCol, None),
-        MatrixKeyRowsBy(read, FastSeq("row_m", "row_d"), false),
-        MatrixMapRows(read, newRow),
-        MatrixRepartition(read, 10, 0),
-        MatrixMapEntries(
-          read,
-          MakeStruct(FastSeq(
-            "global_f32" -> ApplyBinaryPrimOp(
-              Add(),
-              GetField(Ref(MatrixIR.globalName, read.typ.globalType), "global_f32"),
-              F32(-5.2f),
-            )
-          )),
-        ),
-        MatrixCollectColsByKey(read),
-        MatrixAggregateColsByKey(read, newEntryAnn, newColAnn),
-        MatrixAggregateRowsByKey(read, newEntryAnn, newRowAnn),
-        range,
-        vcf,
-        bgen,
-        MatrixExplodeRows(read, FastSeq("row_mset")),
-        MatrixUnionRows(FastSeq(range1, range2)),
-        MatrixDistinctByRow(range1),
-        MatrixRowsHead(range1, 3),
-        MatrixColsHead(range1, 3),
-        MatrixRowsTail(range1, 3),
-        MatrixColsTail(range1, 3),
-        MatrixExplodeCols(read, FastSeq("col_mset")),
-        CastTableToMatrix(
-          CastMatrixToTable(read, " # entries", " # cols"),
-          " # entries",
-          " # cols",
-          read.typ.colKey,
-        ),
-        MatrixAnnotateColsTable(read, tableRead, "uid_123"),
-        MatrixAnnotateRowsTable(read, tableRead, "uid_123", product = false),
-        MatrixRename(
-          read,
-          Map("global_i64" -> "foo"),
-          Map("col_i64" -> "bar"),
-          Map("row_i64" -> "baz"),
-          Map("entry_i64" -> "quam"),
-        ),
-        MatrixFilterIntervals(
-          read,
-          FastSeq(Interval(IntervalEndpoint(Row(0), -1), IntervalEndpoint(Row(10), 1))),
-          keep = false,
-        ),
-        RelationalLetMatrixTable(freshName(), I32(0), read),
-      )
-
-      xs.map(x => Array(x))
-    } catch {
-      case t: Throwable =>
-        println(t)
-        println(t.printStackTrace())
-        throw t
+  object checkMatrixIRParser extends TestCases {
+    def apply(
+      ir: => MatrixIR
+    )(implicit loc: munit.Location
+    ): Unit = test("matrix IR parser") {
+      val ir0 = ir
+      val s = Pretty.sexprStyle(ir0, elideLiterals = false)
+      val x2 = IRParser.parse_matrix_ir(ctx, s)
+      assertEquals(x2, ir0)
     }
   }
 
-  @DataProvider(name = "blockMatrixIRs")
-  def blockMatrixIRs(): Array[Array[BlockMatrixIR]] = {
-    val read =
+  {
+    lazy val tableRead =
+      TableIR.read(ctx.fs, getTestResource("backward_compatability/1.1.0/table/0.ht"))
+    lazy val read =
+      MatrixIR.read(ctx.fs, getTestResource("backward_compatability/1.0.0/matrix_table/0.hmt"))
+    lazy val range = MatrixIR.range(ctx, 3, 7, None)
+    lazy val vcf = importVCF(ctx, getTestResource("sample.vcf"))
+
+    lazy val bgenReader = MatrixBGENReader(
+      ctx,
+      FastSeq(getTestResource("example.8bits.bgen")),
+      None,
+      Map.empty[String, String],
+      None,
+      None,
+      None,
+    )
+    lazy val bgen = MatrixRead(bgenReader.fullMatrixType, false, false, bgenReader)
+
+    lazy val range1 = MatrixIR.range(ctx, 20, 2, Some(3))
+    lazy val range2 = MatrixIR.range(ctx, 20, 2, Some(4))
+
+    val b = True()
+
+    lazy val newCol = MakeStruct(FastSeq(
+      "col_idx" -> GetField(Ref(MatrixIR.colName, read.typ.colType), "col_idx"),
+      "new_f32" -> ApplyBinaryPrimOp(
+        Add(),
+        GetField(Ref(MatrixIR.colName, read.typ.colType), "col_f32"),
+        F32(-5.2f),
+      ),
+    ))
+    lazy val newRow = MakeStruct(FastSeq(
+      "row_idx" -> GetField(Ref(MatrixIR.rowName, read.typ.rowType), "row_idx"),
+      "new_f32" -> ApplyBinaryPrimOp(
+        Add(),
+        GetField(Ref(MatrixIR.rowName, read.typ.rowType), "row_f32"),
+        F32(-5.2f),
+      ),
+    ))
+
+    val collect = ApplyAggOp(Collect())(I32(0))
+
+    val newRowAnn = MakeStruct(FastSeq("count_row" -> collect))
+    val newColAnn = MakeStruct(FastSeq("count_col" -> collect))
+    val newEntryAnn = MakeStruct(FastSeq("count_entry" -> collect))
+
+    checkMatrixIRParser(read)
+    checkMatrixIRParser(MatrixFilterRows(read, b))
+    checkMatrixIRParser(MatrixFilterCols(read, b))
+    checkMatrixIRParser(MatrixFilterEntries(read, b))
+    checkMatrixIRParser(MatrixChooseCols(read, ArraySeq(0, 0, 0)))
+    checkMatrixIRParser(MatrixMapCols(read, newCol, None))
+    checkMatrixIRParser(MatrixKeyRowsBy(read, FastSeq("row_m", "row_d"), false))
+    checkMatrixIRParser(MatrixMapRows(read, newRow))
+    checkMatrixIRParser(MatrixRepartition(read, 10, 0))
+    checkMatrixIRParser(MatrixMapEntries(
+      read,
+      MakeStruct(FastSeq(
+        "global_f32" -> ApplyBinaryPrimOp(
+          Add(),
+          GetField(Ref(MatrixIR.globalName, read.typ.globalType), "global_f32"),
+          F32(-5.2f),
+        )
+      )),
+    ))
+    checkMatrixIRParser(MatrixCollectColsByKey(read))
+    checkMatrixIRParser(MatrixAggregateColsByKey(read, newEntryAnn, newColAnn))
+    checkMatrixIRParser(MatrixAggregateRowsByKey(read, newEntryAnn, newRowAnn))
+    checkMatrixIRParser(range)
+    checkMatrixIRParser(vcf)
+    checkMatrixIRParser(bgen)
+    checkMatrixIRParser(MatrixExplodeRows(read, FastSeq("row_mset")))
+    checkMatrixIRParser(MatrixUnionRows(FastSeq(range1, range2)))
+    checkMatrixIRParser(MatrixDistinctByRow(range1))
+    checkMatrixIRParser(MatrixRowsHead(range1, 3))
+    checkMatrixIRParser(MatrixColsHead(range1, 3))
+    checkMatrixIRParser(MatrixRowsTail(range1, 3))
+    checkMatrixIRParser(MatrixColsTail(range1, 3))
+    checkMatrixIRParser(MatrixExplodeCols(read, FastSeq("col_mset")))
+    checkMatrixIRParser(CastTableToMatrix(
+      CastMatrixToTable(read, " # entries", " # cols"),
+      " # entries",
+      " # cols",
+      read.typ.colKey,
+    ))
+    checkMatrixIRParser(MatrixAnnotateColsTable(read, tableRead, "uid_123"))
+    checkMatrixIRParser(MatrixAnnotateRowsTable(read, tableRead, "uid_123", product = false))
+    checkMatrixIRParser(MatrixRename(
+      read,
+      Map("global_i64" -> "foo"),
+      Map("col_i64" -> "bar"),
+      Map("row_i64" -> "baz"),
+      Map("entry_i64" -> "quam"),
+    ))
+    checkMatrixIRParser(MatrixFilterIntervals(
+      read,
+      FastSeq(Interval(IntervalEndpoint(Row(0), -1), IntervalEndpoint(Row(10), 1))),
+      keep = false,
+    ))
+    checkMatrixIRParser(RelationalLetMatrixTable(freshName(), I32(0), read))
+  }
+
+  // --- Block matrix IR parser tests ---
+
+  object checkBlockMatrixIRParser extends TestCases {
+    def apply(
+      ir: => BlockMatrixIR
+    )(implicit loc: munit.Location
+    ): Unit = test("block matrix IR parser") {
+      val ir0 = ir
+      val s = Pretty.sexprStyle(ir0, elideLiterals = false)
+      val x2 = IRParser.parse_blockmatrix_ir(ctx, s)
+      assertEquals(x2, ir0)
+    }
+  }
+
+  {
+    lazy val read =
       BlockMatrixRead(BlockMatrixNativeReader(fs, getTestResource("blockmatrix_example/0")))
-    val transpose = BlockMatrixBroadcast(read, FastSeq(1, 0), FastSeq(2, 2), 2)
-    val dot = BlockMatrixDot(read, transpose)
-    val slice = BlockMatrixSlice(read, FastSeq(FastSeq(0, 2, 1), FastSeq(0, 1, 1)))
+    lazy val transpose = BlockMatrixBroadcast(read, FastSeq(1, 0), FastSeq(2, 2), 2)
 
-    val sparsify1 = BlockMatrixSparsify(read, RectangleSparsifier(FastSeq(FastSeq(0L, 1L, 5L, 6L))))
-    val sparsify2 = BlockMatrixSparsify(read, BandSparsifier(true, -1L, 1L))
-    val sparsify3 = BlockMatrixSparsify(
+    checkBlockMatrixIRParser(read)
+    checkBlockMatrixIRParser(transpose)
+    checkBlockMatrixIRParser(BlockMatrixDot(read, transpose))
+    checkBlockMatrixIRParser(BlockMatrixSparsify(
+      read,
+      RectangleSparsifier(FastSeq(FastSeq(0L, 1L, 5L, 6L))),
+    ))
+    checkBlockMatrixIRParser(BlockMatrixSparsify(read, BandSparsifier(true, -1L, 1L)))
+    checkBlockMatrixIRParser(BlockMatrixSparsify(
       read,
       RowIntervalSparsifier(true, FastSeq(0L, 1L, 5L, 6L), FastSeq(5L, 6L, 8L, 9L)),
-    )
-    val densify = BlockMatrixDensify(read)
-
-    val blockMatrixIRs = Array[BlockMatrixIR](
-      read,
-      transpose,
-      dot,
-      sparsify1,
-      sparsify2,
-      sparsify3,
-      densify,
-      slice,
-    )
-
-    blockMatrixIRs.map(ir => Array(ir))
+    ))
+    checkBlockMatrixIRParser(BlockMatrixDensify(read))
+    checkBlockMatrixIRParser(BlockMatrixSlice(read, FastSeq(FastSeq(0, 2, 1), FastSeq(0, 1, 1))))
   }
 
-  @Test def testIRConstruction(): Unit = {
-    matrixIRs(): Unit
-    tableIRs(): Unit
-    valueIRs(): Unit
-    blockMatrixIRs(): Unit
-  }
-
-  @Test(dataProvider = "valueIRs")
-  def testValueIRParser(x: IR, refMap: BindingEnv[Type]): Unit = {
-    val s = Pretty.sexprStyle(x, elideLiterals = false)
-    val x2 = IRParser.parse_value_ir(ctx, s, refMap)
-    assert(x2 == x)
-  }
-
-  @Test(dataProvider = "tableIRs")
-  def testTableIRParser(x: TableIR): Unit = {
-    val s = Pretty.sexprStyle(x, elideLiterals = false)
-    val x2 = IRParser.parse_table_ir(ctx, s)
-    assert(x2 == x)
-  }
-
-  @Test(dataProvider = "matrixIRs")
-  def testMatrixIRParser(x: MatrixIR): Unit = {
-    val s = Pretty.sexprStyle(x, elideLiterals = false)
-    val x2 = IRParser.parse_matrix_ir(ctx, s)
-    assert(x2 == x)
-  }
-
-  @Test(dataProvider = "blockMatrixIRs")
-  def testBlockMatrixIRParser(x: BlockMatrixIR): Unit = {
-    val s = Pretty.sexprStyle(x, elideLiterals = false)
-    val x2 = IRParser.parse_blockmatrix_ir(ctx, s)
-    assert(x2 == x)
-  }
-
-  @Test def testBlockMatrixIRParserPersist(): Unit = {
+  test("BlockMatrixIRParserPersist") {
     val cache = mutable.Map.empty[String, BlockMatrix]
     val bm = BlockMatrixRandom(0, gaussian = true, shape = ArraySeq(5L, 6L), blockSize = 3)
     try {
@@ -4014,13 +4149,13 @@ class IRSuite extends HailSuite {
         val persist = BlockMatrixRead(BlockMatrixPersistReader("x", bm.typ))
         val s = Pretty.sexprStyle(persist, elideLiterals = false)
         val x2 = IRParser.parse_blockmatrix_ir(ctx, s)
-        assert(x2 == persist)
+        assertEquals(x2, persist)
       }
     } finally
       cache.values.foreach(_.unpersist())
   }
 
-  @Test def testCachedIR(): Unit = {
+  test("CachedIR") {
     val cached = Literal(TSet(TInt32), Set(1))
     val s = s"(JavaIR 1)"
     val x2 =
@@ -4028,7 +4163,7 @@ class IRSuite extends HailSuite {
     assert(x2 eq cached)
   }
 
-  @Test def testCachedTableIR(): Unit = {
+  test("CachedTableIR") {
     val cached = TableRange(1, 1)
     val s = s"(JavaTable 1)"
     val x2 =
@@ -4036,7 +4171,7 @@ class IRSuite extends HailSuite {
     assert(x2 eq cached)
   }
 
-  @Test def testArrayContinuationDealsWithIfCorrectly(): Unit = {
+  test("ArrayContinuationDealsWithIfCorrectly") {
     val ir = ToArray(mapIR(
       If(IsNA(In(0, TBoolean)), NA(TStream(TInt32)), ToStream(In(1, TArray(TInt32))))
     )(Cast(_, TInt64)))
@@ -4044,7 +4179,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(ir, FastSeq(true -> TBoolean, FastSeq(0) -> TArray(TInt32)), FastSeq(0L))
   }
 
-  @Test def testTableGetGlobalsSimplifyRules(): Unit = {
+  test("TableGetGlobalsSimplifyRules") {
     implicit val execStrats = ExecStrategy.interpretOnly
 
     val t1 =
@@ -4081,7 +4216,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(TableGetGlobals(TableRename(tab1, Map.empty, Map("g2" -> "g3"))), Row(1, 1.1))
   }
 
-  @Test def testAggLet(): Unit = {
+  test("AggLet") {
     implicit val execStrats = ExecStrategy.interpretOnly
     val t = TableRange(2, 2)
     val ir = TableAggregate(
@@ -4096,14 +4231,14 @@ class IRSuite extends HailSuite {
     assertEvalsTo(ir, 61L)
   }
 
-  @Test def testRelationalLet(): Unit = {
+  test("RelationalLet") {
     implicit val execStrats = ExecStrategy.interpretOnly
 
     val ir = relationalBindIR(NA(TInt32))(x => x)
     assertEvalsTo(ir, null)
   }
 
-  @Test def testRelationalLetTable(): Unit = {
+  test("RelationalLetTable") {
     implicit val execStrats = ExecStrategy.interpretOnly
 
     val t = TArray(TStruct("x" -> TInt32))
@@ -4122,7 +4257,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(ir, 1L)
   }
 
-  @Test def testRelationalLetMatrixTable(): Unit = {
+  test("RelationalLetMatrixTable") {
     implicit val execStrats = ExecStrategy.interpretOnly
 
     val t = TArray(TStruct("x" -> TInt32))
@@ -4152,7 +4287,6 @@ class IRSuite extends HailSuite {
     assertEvalsTo(ir, 1L)
   }
 
-  @DataProvider(name = "relationalFunctions")
   def relationalFunctionsData(): Array[Array[Any]] = Array(
     Array(TableFilterPartitions(ArraySeq(1, 2, 3), keep = true)),
     Array(VEP(fs, getTestResource("dummy_vep_config.json"), false, 1, true)),
@@ -4200,31 +4334,50 @@ class IRSuite extends HailSuite {
     Array(GetElement(FastSeq(1, 2))),
   )
 
-  @Test def relationalFunctionsRun(): Unit = relationalFunctionsData(): Unit
+  test("relationalFunctionsRun") {
+    relationalFunctionsData(): Unit
+  }
 
-  @Test(dataProvider = "relationalFunctions")
-  def testRelationalFunctionsSerialize(x: Any): Unit = {
-    implicit val formats = RelationalFunctions.formats
+  // --- Relational functions serialize tests (from dataProvider "relationalFunctions") ---
+  private lazy val relationalFunctionsTestData: Array[Array[Any]] = relationalFunctionsData()
 
-    x match {
-      case x: MatrixToMatrixFunction =>
-        assert(RelationalFunctions.lookupMatrixToMatrix(ctx, Serialization.write(x)) == x)
-      case x: MatrixToTableFunction =>
-        assert(RelationalFunctions.lookupMatrixToTable(ctx, Serialization.write(x)) == x)
-      case x: MatrixToValueFunction =>
-        assert(RelationalFunctions.lookupMatrixToValue(ctx, Serialization.write(x)) == x)
-      case x: TableToTableFunction =>
-        assert(RelationalFunctions.lookupTableToTable(ctx, JsonMethods.compact(x.toJValue)) == x)
-      case x: TableToValueFunction =>
-        assert(RelationalFunctions.lookupTableToValue(ctx, Serialization.write(x)) == x)
-      case x: BlockMatrixToTableFunction =>
-        assert(RelationalFunctions.lookupBlockMatrixToTable(ctx, Serialization.write(x)) == x)
-      case x: BlockMatrixToValueFunction =>
-        assert(RelationalFunctions.lookupBlockMatrixToValue(ctx, Serialization.write(x)) == x)
+  private val RELATIONAL_FUNCTIONS_COUNT = 19
+
+  test("relational functions count check") {
+    assertEquals(
+      relationalFunctionsTestData.length,
+      RELATIONAL_FUNCTIONS_COUNT,
+      "RELATIONAL_FUNCTIONS_COUNT is out of sync with relationalFunctionsData()",
+    )
+  }
+
+  (0 until RELATIONAL_FUNCTIONS_COUNT).foreach { i =>
+    test(s"relational functions serialize $i") {
+      implicit val formats = RelationalFunctions.formats
+      val x = relationalFunctionsTestData(i)(0)
+      x match {
+        case x: MatrixToMatrixFunction =>
+          assertEquals(RelationalFunctions.lookupMatrixToMatrix(ctx, Serialization.write(x)), x)
+        case x: MatrixToTableFunction =>
+          assertEquals(RelationalFunctions.lookupMatrixToTable(ctx, Serialization.write(x)), x)
+        case x: MatrixToValueFunction =>
+          assertEquals(RelationalFunctions.lookupMatrixToValue(ctx, Serialization.write(x)), x)
+        case x: TableToTableFunction =>
+          assertEquals(
+            RelationalFunctions.lookupTableToTable(ctx, JsonMethods.compact(x.toJValue)),
+            x,
+          )
+        case x: TableToValueFunction =>
+          assertEquals(RelationalFunctions.lookupTableToValue(ctx, Serialization.write(x)), x)
+        case x: BlockMatrixToTableFunction =>
+          assertEquals(RelationalFunctions.lookupBlockMatrixToTable(ctx, Serialization.write(x)), x)
+        case x: BlockMatrixToValueFunction =>
+          assertEquals(RelationalFunctions.lookupBlockMatrixToValue(ctx, Serialization.write(x)), x)
+      }
     }
   }
 
-  @Test def testFoldWithSetup(): Unit = {
+  test("FoldWithSetup") {
     val v = In(0, TInt32)
     val cond1 = If(
       v.ceq(I32(3)),
@@ -4238,12 +4391,12 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testNonCanonicalTypeParsing(): Unit = {
+  test("NonCanonicalTypeParsing") {
     val t = TTuple(FastSeq(TupleField(1, TInt64)))
     val lit = Literal(t, Row(1L))
 
-    assert(IRParser.parseType(t.parsableString()) == t)
-    assert(IRParser.parse_value_ir(ctx, Pretty.sexprStyle(lit, elideLiterals = false)) == lit)
+    assertEquals(IRParser.parseType(t.parsableString()), t)
+    assertEquals(IRParser.parse_value_ir(ctx, Pretty.sexprStyle(lit, elideLiterals = false)), lit)
   }
 
   def regressionTestUnifyBug(): Unit = {
@@ -4275,7 +4428,7 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testSimpleTailLoop(): Unit = {
+  test("SimpleTailLoop") {
     implicit val execStrats = ExecStrategy.compileOnly
     val triangleSum: IR =
       tailLoop(TInt32, In(0, TInt32), In(1, TInt32)) { case (recur, Seq(x, accum)) =>
@@ -4287,7 +4440,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(triangleSum, FastSeq((null, TInt32), 0 -> TInt32), null)
   }
 
-  @Test def testNestedTailLoop(): Unit = {
+  test("NestedTailLoop") {
     implicit val execStrats = ExecStrategy.compileOnly
     val triangleSum: IR = tailLoop(TInt32, In(0, TInt32), I32(0)) { case (recur, Seq(x, accum)) =>
       If(
@@ -4302,7 +4455,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(triangleSum, FastSeq(5 -> TInt32), 15 + 10 + 5)
   }
 
-  @Test def testTailLoopNDMemory(): Unit = {
+  test("TailLoopNDMemory") {
     val ndType = TNDArray(TInt32, Nat(2))
 
     val ndSum: IR = tailLoop(
@@ -4329,46 +4482,52 @@ class IRSuite extends HailSuite {
         eval(ndSum, Env.empty, FastSeq(100 -> TInt32, startingArg -> ndType), None, None, ctx)
       }
 
-    assert(memUsed == memUsed2)
+    assertEquals(memUsed, memUsed2)
   }
 
-  @Test def testHasIRSharing(): Unit = {
+  test("HasIRSharing") {
     val r = Ref(freshName(), TInt32)
     val ir1 = MakeTuple.ordered(FastSeq(I64(1), r, r, I32(1)))
     assert(HasIRSharing(ctx)(ir1))
     assert(!HasIRSharing(ctx)(ir1.deepCopy()))
   }
 
-  @Test def freeVariables(): Unit = {
+  test("freeVariables") {
     val stream = rangeIR(5)
     val y = Ref(freshName(), TInt32)
     val z = Ref(freshName(), TInt32)
     val explodeIR = aggExplodeIR(stream)(x => z + ApplyAggOp(Sum())(x + y))
 
-    assert(FreeVariables(explodeIR, true, true) == BindingEnv[Unit](
-      Env((z.name, ())),
-      Some(Env((y.name, ()))),
-      Some(Env()),
-    ))
-    assert(FreeVariables(explodeIR, false, false) == BindingEnv[Unit](Env((z.name, ()))))
+    assertEquals(
+      FreeVariables(explodeIR, true, true),
+      BindingEnv[Unit](
+        Env((z.name, ())),
+        Some(Env((y.name, ()))),
+        Some(Env()),
+      ),
+    )
+    assertEquals(FreeVariables(explodeIR, false, false), BindingEnv[Unit](Env((z.name, ()))))
 
     val aggIR = streamAggIR(stream)(x => z + ApplyAggOp(Sum())(x + y))
-    assert(
-      FreeVariables(aggIR, true, true) == BindingEnv[Unit](
+    assertEquals(
+      FreeVariables(aggIR, true, true),
+      BindingEnv[Unit](
         Env((z.name, ()), (y.name, ())),
         Some(Env()),
         Some(Env()),
-      )
+      ),
     )
   }
 
-  @Test def freeVariablesAggScanBindingEnv(): Unit = {
+  test("freeVariablesAggScanBindingEnv") {
     def testFreeVarsHelper(ir: IR): Unit = {
       val irFreeVarsTrue = FreeVariables.apply(ir, true, true)
-      assert(irFreeVarsTrue.agg.isDefined && irFreeVarsTrue.scan.isDefined)
+      assert(irFreeVarsTrue.agg.isDefined)
+      assert(irFreeVarsTrue.scan.isDefined)
 
       val irFreeVarsFalse = FreeVariables.apply(ir, false, false)
-      assert(irFreeVarsFalse.agg.isEmpty && irFreeVarsFalse.scan.isEmpty)
+      assert(irFreeVarsFalse.agg.isEmpty)
+      assert(irFreeVarsFalse.scan.isEmpty)
     }
 
     val aggIR = streamAggIR(mapIR(rangeIR(4))(Cast(_, TInt64)))(ApplyAggOp(Sum())(_))
@@ -4380,7 +4539,6 @@ class IRSuite extends HailSuite {
     testFreeVarsHelper(scanIR)
   }
 
-  @DataProvider(name = "nonNullTypesAndValues")
   def nonNullTypesAndValues(): Array[Array[Any]] = Array(
     Array(Int32SingleCodeType, 1),
     Array(Int64SingleCodeType, 5L),
@@ -4399,43 +4557,50 @@ class IRSuite extends HailSuite {
     ),
   )
 
-  @Test(dataProvider = "nonNullTypesAndValues")
-  def testReadWriteValues(pt: SingleCodeType, value: Any): Unit = {
-    implicit val execStrats = ExecStrategy.compileOnly
-    val node = In(0, SingleCodeEmitParamType(true, pt))
-    val spec = TypedCodecSpec(ctx, PType.canonical(node.typ), BufferSpec.blockedUncompressed)
-    val writer = ETypeValueWriter(spec)
-    val reader = ETypeValueReader(spec)
-    val prefix = ctx.createTmpPath("test-read-write-values")
-    val filename = WriteValue(node, Str(prefix) + UUID4(), writer)
-    forAll(Array(value, null)) { v =>
-      assertEvalsTo(ReadValue(filename, reader, pt.virtualType), FastSeq(v -> pt.virtualType), v)
+  // --- Read/write values tests (from dataProvider "nonNullTypesAndValues") ---
+  nonNullTypesAndValues().zipWithIndex.foreach { case (arr, i) =>
+    test(s"ReadWriteValues $i") {
+      implicit val execStrats = ExecStrategy.compileOnly
+      val pt = arr(0).asInstanceOf[SingleCodeType]
+      val value = arr(1)
+      val node = In(0, SingleCodeEmitParamType(true, pt))
+      val spec = TypedCodecSpec(ctx, PType.canonical(node.typ), BufferSpec.blockedUncompressed)
+      val writer = ETypeValueWriter(spec)
+      val reader = ETypeValueReader(spec)
+      val prefix = ctx.createTmpPath("test-read-write-values")
+      val filename = WriteValue(node, Str(prefix) + UUID4(), writer)
+      Array(value, null).foreach { v =>
+        assertEvalsTo(ReadValue(filename, reader, pt.virtualType), FastSeq(v -> pt.virtualType), v)
+      }
     }
   }
 
-  @Test(dataProvider = "nonNullTypesAndValues")
-  def testReadWriteValueDistributed(pt: SingleCodeType, value: Any): Unit = {
-    implicit val execStrats = ExecStrategy.compileOnly
-    val node = In(0, SingleCodeEmitParamType(true, pt))
-    val spec = TypedCodecSpec(ctx, PType.canonical(node.typ), BufferSpec.blockedUncompressed)
-    val writer = ETypeValueWriter(spec)
-    val reader = ETypeValueReader(spec)
-    val prefix = ctx.createTmpPath("test-read-write-value-dist")
-    val readArray = bindIR(
-      cdaIR(
-        mapIR(rangeIR(10))(_ => node),
-        MakeStruct(FastSeq()),
-        "test",
-        NA(TString),
-      )((ctx, _) => WriteValue(ctx, Str(prefix) + UUID4(), writer))
-    )(files => mapIR(ToStream(files))(ReadValue(_, reader, pt.virtualType)))
+  nonNullTypesAndValues().zipWithIndex.foreach { case (arr, i) =>
+    test(s"ReadWriteValueDistributed $i") {
+      implicit val execStrats = ExecStrategy.compileOnly
+      val pt = arr(0).asInstanceOf[SingleCodeType]
+      val value = arr(1)
+      val node = In(0, SingleCodeEmitParamType(true, pt))
+      val spec = TypedCodecSpec(ctx, PType.canonical(node.typ), BufferSpec.blockedUncompressed)
+      val writer = ETypeValueWriter(spec)
+      val reader = ETypeValueReader(spec)
+      val prefix = ctx.createTmpPath("test-read-write-value-dist")
+      val readArray = bindIR(
+        cdaIR(
+          mapIR(rangeIR(10))(_ => node),
+          MakeStruct(FastSeq()),
+          "test",
+          NA(TString),
+        )((ctx, _) => WriteValue(ctx, Str(prefix) + UUID4(), writer))
+      )(files => mapIR(ToStream(files))(ReadValue(_, reader, pt.virtualType)))
 
-    forAll(ArraySeq(value, null)) { v =>
-      assertEvalsTo(ToArray(readArray), ArraySeq(v -> pt.virtualType), ArraySeq.fill(10)(v))
+      ArraySeq(value, null).foreach { v =>
+        assertEvalsTo(ToArray(readArray), ArraySeq(v -> pt.virtualType), ArraySeq.fill(10)(v))
+      }
     }
   }
 
-  @Test def testUUID4(): Unit = {
+  test("UUID4") {
     val single = UUID4()
     val hex = "[0-9a-f]"
     val format = s"$hex{8}-$hex{4}-$hex{4}-$hex{4}-$hex{12}"
@@ -4463,15 +4628,13 @@ class IRSuite extends HailSuite {
     assertNumDistinct(bindIR(ToArray(stream))(a => selfZip(ToStream(a), 2)), 5)
   }
 
-  @Test def testZipDoesntPruneLengthInfo(): Unit =
-    forAll {
-      ArraySeq(
-        ArrayZipBehavior.AssumeSameLength,
-        ArrayZipBehavior.AssertSameLength,
-        ArrayZipBehavior.TakeMinLength,
-        ArrayZipBehavior.ExtendNA,
-      )
-    } { behavior =>
+  test("ZipDoesntPruneLengthInfo") {
+    ArraySeq(
+      ArrayZipBehavior.AssumeSameLength,
+      ArrayZipBehavior.AssertSameLength,
+      ArrayZipBehavior.TakeMinLength,
+      ArrayZipBehavior.ExtendNA,
+    ).foreach { behavior =>
       val zip = zipIR(
         ArraySeq(StreamRange(0, 10, 1), StreamRange(0, 10, 1)),
         behavior,
@@ -4480,7 +4643,9 @@ class IRSuite extends HailSuite {
       assertEvalsTo(ToArray(zip), ArraySeq.fill(10)(Row("foo", "bar")))
     }
 
-  @Test def testStreamDistribute(): Unit = {
+  }
+
+  test("StreamDistribute") {
     val data1 = IndexedSeq(0, 1, 1, 2, 4, 7, 7, 7, 9, 11, 15, 20, 22, 28, 50, 100)
     val pivots1 = IndexedSeq(-10, 1, 7, 7, 15, 22, 50, 200)
     val pivots2 = IndexedSeq(-10, 1, 1, 7, 9, 28, 50, 200)
@@ -4535,16 +4700,16 @@ class IRSuite extends HailSuite {
         reader,
       ))
       val rowsFromDisk = eval(read).asInstanceOf[IndexedSeq[Row]]
-      assert(rowsFromDisk.size == elementCount)
+      assertEquals(rowsFromDisk.size, elementCount)
       assert(rowsFromDisk.forall(interval.contains(kord, _)))
 
       rowsFromDisk.foreach { row =>
-        assert(row(0) == data(dataIdx))
+        assertEquals(row(0), data(dataIdx))
         dataIdx += 1
       }
     }
 
-    assert(dataIdx == data.size)
+    assertEquals(dataIdx, data.size)
 
     result.map(_._1).sliding(2).foreach { case IndexedSeq(interval1, interval2) =>
       assert(interval1.isDisjointFrom(kord, interval2))
@@ -4560,9 +4725,9 @@ class IRSuite extends HailSuite {
     }
     val expectedStartsAndEnds = intBuilder.result().sliding(2).toIndexedSeq
 
-    forAll(result.map(_._1).zip(expectedStartsAndEnds)) { case (interval, splitterPair) =>
-      assert(interval.start.asInstanceOf[Row](0) == splitterPair(0))
-      assert(interval.end.asInstanceOf[Row](0) == splitterPair(1))
+    result.map(_._1).zip(expectedStartsAndEnds).foreach { case (interval, splitterPair) =>
+      assertEquals(interval.start.asInstanceOf[Row](0), splitterPair(0))
+      assertEquals(interval.end.asInstanceOf[Row](0), splitterPair(1))
     }
   }
 }
