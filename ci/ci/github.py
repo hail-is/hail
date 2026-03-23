@@ -620,31 +620,36 @@ mkdir -p {shq(repo_dir)}
         return row is not None
 
     async def _update_batch(self, batch_client, db: Database):
-        # find the latest non-cancelled batch for source
+        # Finds the current build batch for this source: the most recent non-cancelled,
+        # non-invalidated batch. Batches are returned newest-first, and any invalidated
+        # batch implies that anything older than it is excluded automatically.
+        # In general, no current build batch is a signal that a new build should be started.
+
         batches = batch_client.list_batches(
             f'test=1 target_branch={self.target_branch.branch.short_str()} source_sha={self.source_sha} user:ci'
         )
-        min_batch = None
-        min_batch_status = None
+
+        current_build_batch = None
+        current_build_batch_status = None
         async for b in batches:
             if await self.is_invalidated_batch(b, db):
-                continue
+                break
             try:
                 s = await b.status()
             except Exception:
                 log.exception(f'failed to get the status for batch {b.id}')
                 raise
             if s['state'] != 'cancelled':
-                if min_batch is None or b.id > min_batch.id:
-                    min_batch = b
-                    min_batch_status = s
-        self.batch = min_batch
+                current_build_batch = b
+                current_build_batch_status = s
+                break
+        self.batch = current_build_batch
         self.source_sha_failed = None
 
-        if min_batch_status is None:
+        if current_build_batch_status is None:
             self.set_build_state(None)
-        elif min_batch_status['complete']:
-            if min_batch_status['state'] == 'success':
+        elif current_build_batch_status['complete']:
+            if current_build_batch_status['state'] == 'success':
                 self.set_build_state('success')
                 self.source_sha_failed = False
             else:
