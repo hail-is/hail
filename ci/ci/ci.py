@@ -363,6 +363,8 @@ async def retry_pr(wb: WatchedBranch, pr: PR, request: web.Request, userdata: Us
             )
 
     await db.execute_insertone('INSERT INTO invalidated_batches (batch_id) VALUES (%s);', batch_id)
+    pr.batch = None
+    pr.set_build_state(None)
     await wb.notify_batch_changed(
         db, app[AppKeys.BATCH_CLIENT], app[AppKeys.GH_CLIENT], app[AppKeys.FROZEN_MERGE_DEPLOY]
     )
