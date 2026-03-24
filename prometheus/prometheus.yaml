@@ -274,7 +274,7 @@ spec:
     spec:
       serviceAccountName: prometheus
 {% if deploy %}
-      priorityClassName: infrastructure
+      priorityClassName: auxiliary
       nodeSelector:
         preemptible: "false"
 {% else %}
