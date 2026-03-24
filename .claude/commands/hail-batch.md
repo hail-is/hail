@@ -131,6 +131,19 @@ results.write('gs://bucket/output.ht')
 results = hl.read_table('gs://bucket/output.ht')
 ```
 
+## Direct API access with hailctl curl
+
+For endpoints not covered by `hailctl batch` subcommands, use `hailctl curl` — it handles auth automatically:
+
+```bash
+hailctl curl default batch /PATH
+```
+
+To discover all available endpoints, fetch the OpenAPI spec:
+```bash
+hailctl curl default batch /openapi.yaml
+```
+
 ## Listing jobs within a batch
 
 The `hailctl batch` CLI doesn't have a `jobs` subcommand yet. Use `hailctl curl` instead, which lets you filter and paginate:
@@ -150,25 +163,6 @@ hailctl curl default batch /api/v1alpha/batches/BATCH_ID/jobs | jq '.jobs[] | {j
 ```
 
 The response has a `last_job_id` field when more pages exist — repeat the call with `?last_job_id=<value>` to continue.
-
-### Job attempts (retry history)
-```bash
-hailctl curl default batch /api/v1alpha/batches/BATCH_ID/jobs/JOB_ID/attempts
-```
-Useful for understanding whether a job was retried and why each attempt ended.
-
-### Job resource usage
-```bash
-hailctl curl default batch /api/v1alpha/batches/BATCH_ID/jobs/JOB_ID/resource_usage
-```
-Returns per-container (input/main/output) CPU and memory time-series data. Useful for diagnosing OOM or right-sizing resource requests.
-
-### Supported regions and default region
-```bash
-hailctl curl default batch /api/v1alpha/supported_regions
-hailctl curl default batch /api/v1alpha/default_region
-```
-Useful when deciding where to run jobs.
 
 ## Job states
 

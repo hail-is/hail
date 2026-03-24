@@ -108,8 +108,6 @@ For raw API calls not covered by `hailctl batch` subcommands, use `hailctl curl`
 ```bash
 # hailctl curl NAMESPACE SERVICE PATH [curl args]
 hailctl curl default batch /api/v1alpha/batches/1234
-hailctl curl default batch /api/v1alpha/batches/1234/jobs/1
-hailctl curl default batch /api/v1alpha/batches/1234/jobs/1/log
 hailctl curl my-namespace batch /api/v1alpha/billing_projects
 
 # Pass extra curl flags after the path
@@ -117,32 +115,23 @@ hailctl curl default batch /api/v1alpha/batches -X GET
 hailctl curl default batch /api/v1alpha/batches/1234 -o output.json
 ```
 
-### Service info
+### Discovering available endpoints
+
+Each service exposes an OpenAPI spec. Fetch it to see all available endpoints before reaching for `hailctl curl`:
+
 ```bash
-hailctl curl default batch /api/v1alpha/version
-hailctl curl default batch /api/v1alpha/cloud
-hailctl curl default batch /api/v1alpha/supported_regions
-hailctl curl default batch /api/v1alpha/default_region
+hailctl curl default batch /openapi.yaml
+hailctl curl default auth /openapi.yaml
+hailctl curl default ci /openapi.yaml
+hailctl curl default batch-driver /openapi.yaml
+hailctl curl default monitoring /openapi.yaml
 ```
 
-### Job group hierarchy (for batches using job groups)
-```bash
-hailctl curl default batch /api/v1alpha/batches/BATCH_ID/job-groups
-hailctl curl default batch /api/v1alpha/batches/BATCH_ID/job-groups/JOB_GROUP_ID
-```
+The spec is the authoritative source — prefer it over any cached list of endpoints in documentation.
 
-### Billing project user management
-```bash
-# List billing projects and their details
-hailctl curl default batch /api/v1alpha/billing_projects
-hailctl curl default batch /api/v1alpha/billing_projects/MY_PROJECT
+**When adding a new endpoint**, update `openapi.yaml` in the same PR. The spec lives alongside the service code (e.g. `batch/openapi.yaml`).
 
-# Add/remove users (POST — requires -X POST)
-hailctl curl default batch /api/v1alpha/billing_projects/MY_PROJECT/users/USERNAME/add -X POST
-hailctl curl default batch /api/v1alpha/billing_projects/MY_PROJECT/users/USERNAME/remove -X POST
-```
-
-**When you add a new endpoint to the batch API**, add a curl example here (or in `hail-batch.md` if it's useful to end users too) as part of the same PR. Future developers and users will thank you.
+**When an endpoint doesn't match the spec** (wrong path, missing params, incorrect response shape), fix the spec too — a drift between implementation and spec is a bug.
 
 ## Investigating with the CLI (prefer this for inspection)
 
