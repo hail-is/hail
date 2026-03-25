@@ -589,7 +589,7 @@ class Image:
                         f'docker inspect failed for {self.image_ref_str} (batch_id={self.batch_id}, job_id={self.job_id}) '
                         f'after repeated retries; disk usage: {disk_info}; '
                         f'possible causes: insufficient storage (try requesting more), corrupt download, or docker daemon error'
-                    )
+                    ) from None
                 log.warning(
                     f'docker inspect failed for {self.image_ref_str} (batch_id={self.batch_id}, job_id={self.job_id}), '
                     f'retrying in {delay}s (image may still be unpacking)'
