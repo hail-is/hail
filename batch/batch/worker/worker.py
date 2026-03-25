@@ -448,6 +448,10 @@ class InvalidImageRepository(Exception):
     pass
 
 
+class DockerInspectError(Exception):
+    pass
+
+
 class Image:
     @staticmethod
     async def _pull_with_auth_refresh(
@@ -463,11 +467,15 @@ class Image:
         credentials: Optional[Dict[str, str]],
         client_session: httpx.ClientSession,
         pool: concurrent.futures.ThreadPoolExecutor,
+        batch_id: Optional[int] = None,
+        job_id: Optional[int] = None,
     ):
         self.image_name = name
         self.credentials = credentials
         self.client_session = client_session
         self.pool = pool
+        self.batch_id = batch_id
+        self.job_id = job_id
 
         image_ref = parse_docker_image_reference(name)
         if image_ref.tag is None and image_ref.digest is None:
@@ -561,13 +569,33 @@ class Image:
 
         await pull()
 
-        try:
-            image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
-        except:
-            # inspect non-deterministically fails sometimes
-            await asyncio.sleep(1)
-            await pull()
-            image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
+        # After a large image pull, the Docker daemon may still be unpacking layers
+        # when the pull stream ends. Retry inspect with backoff to allow time for
+        # unpacking to complete.
+        inspect_deadline = asyncio.get_event_loop().time() + 60
+        delay = 1
+        while True:
+            try:
+                image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
+                break
+            except:
+                if asyncio.get_event_loop().time() > inspect_deadline:
+                    try:
+                        disk_info, _ = await check_exec_output('df', '-h', '/')
+                        disk_info = disk_info.decode().strip().splitlines()[-1]
+                    except Exception:
+                        disk_info = 'unavailable'
+                    raise DockerInspectError(
+                        f'docker inspect failed for {self.image_ref_str} (batch_id={self.batch_id}, job_id={self.job_id}) '
+                        f'after repeated retries; disk usage: {disk_info}; '
+                        f'possible causes: insufficient storage (try requesting more), corrupt download, or docker daemon error'
+                    )
+                log.warning(
+                    f'docker inspect failed for {self.image_ref_str} (batch_id={self.batch_id}, job_id={self.job_id}), '
+                    f'retrying in {delay}s (image may still be unpacking)'
+                )
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, 30)
         image_configs[self.image_ref_str] = json.loads(image_config)[0]
 
     async def _ensure_image_is_pulled(
@@ -723,7 +751,7 @@ def user_error(e):
         # bucket name and your credentials.\n')
         if b'Bad credentials for bucket' in e.stderr:
             return True
-    if isinstance(e, (ImageNotFound, ImageCannotBePulled, InvalidImageRepository)):
+    if isinstance(e, (ImageNotFound, ImageCannotBePulled, InvalidImageRepository, DockerInspectError)):
         return True
     if isinstance(e, (ContainerTimeoutError, ContainerDeletedError)):
         return True
@@ -832,6 +860,8 @@ class Container:
                 self.short_error = 'image cannot be pulled'
             elif isinstance(e, InvalidImageRepository):
                 self.short_error = 'image repository is invalid'
+            elif isinstance(e, DockerInspectError):
+                self.short_error = 'docker inspect failed after pull; possible causes: insufficient storage, corrupt download, or docker daemon error'
 
             self.state = 'error'
             self.error = traceback.format_exc()
@@ -1833,7 +1863,14 @@ class DockerJob(Job):
             task_manager=self.task_manager,
             fs=self.worker.fs,
             name=self.container_name('main'),
-            image=Image(job_spec['process']['image'], self.credentials, client_session, pool),
+            image=Image(
+                job_spec['process']['image'],
+                self.credentials,
+                client_session,
+                pool,
+                batch_id=self.batch_id,
+                job_id=self.job_id,
+            ),
             scratch_dir=f'{self.scratch}/main',
             command=job_spec['process']['command'],
             cpu_in_mcpu=self.cpu_in_mcpu,
