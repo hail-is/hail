@@ -1518,10 +1518,10 @@ def test_pool_standard_instance_cheapest(client: BatchClient):
 @pytest.mark.timeout(5 * 60)
 async def test_nvidia_driver_accesibility_usage(client: BatchClient):
     b = create_batch(client)._async_batch
-    resources = {'machine_type': "g2-standard-4"}
+    resources = {'machine_type': "g2-standard-4", 'storage': '100Gi'}
     j = b.create_job(
-        'nvidia/cuda:13.2.0-cudnn-runtime-ubuntu24.04@sha256:7a31e9bfb2086e4b1ac08aa8e4718d7860730ecc6a9882d2f1e5ed6239f8ef5b',
-        ['/bin/sh', '-c', 'nvidia-smi'],
+        'pytorch/pytorch:2.11.0-cuda12.8-cudnn9-runtime@sha256:eee11b3b3872a8c838e35ef48f08b2d5def2080902c7f666831310ca1a0ef2be',
+        ['/bin/sh', '-c', 'nvidia-smi && python3 -c "import torch; assert torch.cuda.is_available()"'],
         resources=resources,
         n_max_attempts=4,
     )
