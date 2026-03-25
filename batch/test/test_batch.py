@@ -1521,7 +1521,11 @@ async def test_nvidia_driver_accesibility_usage(client: BatchClient):
     resources = {'machine_type': "g2-standard-4", 'storage': '100Gi'}
     j = b.create_job(
         'pytorch/pytorch:2.11.0-cuda12.8-cudnn9-runtime@sha256:eee11b3b3872a8c838e35ef48f08b2d5def2080902c7f666831310ca1a0ef2be',
-        ['/bin/sh', '-c', 'nvidia-smi && python3 -c "import torch; assert torch.cuda.is_available()"'],
+        [
+            '/bin/sh',
+            '-c',
+            'nvidia-smi && python3 -c "import torch, sys; sys.exit(0 if torch.cuda.is_available() else 1)"',
+        ],
         resources=resources,
         n_max_attempts=4,
     )
