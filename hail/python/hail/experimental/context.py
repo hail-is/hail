@@ -34,6 +34,7 @@ def init(
     jvm_heap_size: str | None = None,
     skip_logging_configuration: bool = False,
     max_read_parallelism: int | None = None,
+    copy_log_on_error: bool | None = None,
     **kwargs,
 ) -> None:
     backend = choose_backend(backend)
@@ -57,6 +58,7 @@ def init(
             gcs_bucket_allow_list=gcs_bucket_allow_list,
             skip_logging_configuration=skip_logging_configuration,
             max_read_parallelism=max_read_parallelism,
+            copy_log_on_error=copy_log_on_error,
             **kwargs,
         )
 
@@ -90,7 +92,7 @@ def init(
             if _optimizer_iterations is not None:
                 flags['optimizer_iterations'] = str(_optimizer_iterations)
 
-            backend = LocalBackend(gateway, jbackend, flags)
+            backend = LocalBackend(gateway, jbackend, flags, copy_log_on_error)
             backend.remote_tmpdir = remote_tmpdir
             backend.local_tmpdir = tmp_dir
             backend.requester_pays_config = get_gcs_requester_pays_configuration(

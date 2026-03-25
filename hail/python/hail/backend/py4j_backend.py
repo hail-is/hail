@@ -4,7 +4,7 @@ import http.client
 import logging
 import sys
 import warnings
-from typing import Dict, Mapping, Optional, Tuple
+from typing import Any, Dict, Mapping, Optional, Tuple
 
 import orjson
 import py4j
@@ -18,8 +18,11 @@ from py4j.java_gateway import (
     launch_gateway,
 )
 
+from hail.backend.backend import ActionTag, Backend, fatal_error_from_java_error_triplet, local_jar_information
 from hail.expr import construct_expr
-from hail.ir import CSERenderer, JavaIR
+from hail.hail_logging import Logger
+from hail.ir import BaseIR, CSERenderer, JavaIR
+from hail.utils import copy_log
 from hail.utils.java import Env, FatalError, scala_object, scala_package_object
 from hail.version import __version__
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
@@ -27,9 +30,6 @@ from hailtop.aiotools.validators import validate_file
 from hailtop.fs.fs import FS
 from hailtop.fs.router_fs import RouterFS
 from hailtop.utils import async_to_blocking, find_spark_home, sync_retry_transient_errors
-
-from ..hail_logging import Logger
-from .backend import ActionTag, Backend, fatal_error_from_java_error_triplet, local_jar_information
 
 # This defaults to 65536 and fails if a header is longer than _MAXLINE
 # The timing json that we output can exceed 65536 bytes so we raise the limit
@@ -42,8 +42,8 @@ _original = None
 
 def start_py4j_gateway(*, max_heap_size: str | None = None) -> JavaGateway:
     spark_home = find_spark_home()
-    _, hail_jar_path, extra_classpath = local_jar_information()
-    extra_classpath = ':'.join([f'{spark_home}/jars/*', hail_jar_path, *extra_classpath])
+    info = local_jar_information()
+    classpath = ':'.join([f'{spark_home}/jars/*', info.hail_jar, *info.extra_classpath])
 
     jvm_opts = []
     if max_heap_size is not None:
@@ -62,7 +62,7 @@ def start_py4j_gateway(*, max_heap_size: str | None = None) -> JavaGateway:
         java_path=None,
         javaopts=jvm_opts,
         jarpath=py4j_jars[0],
-        classpath=extra_classpath,
+        classpath=classpath,
         die_on_exit=True,
     )
 
@@ -183,6 +183,7 @@ class Py4JBackend(Backend):
         jvm: JVMView,
         jbackend: JavaObject,
         flags: Dict[str, str],
+        copy_log_on_error: bool,
     ):
         super().__init__()
         import base64
@@ -195,6 +196,7 @@ class Py4JBackend(Backend):
         self._is = getattr(jvm, 'is')
         self._py4jutils = scala_object(self._is.hail.utils, 'py4jutils')
         self._logger = Log4jLogger(self._py4jutils)
+        self._copy_log_on_error = copy_log_on_error
 
         self._jbackend = self._is.hail.backend.driver.Py4JQueryDriver(jbackend)
         self._fs = None
@@ -270,6 +272,18 @@ class Py4JBackend(Backend):
     @property
     def requires_lowering(self):
         return True
+
+    def execute(self, ir: BaseIR, timed: bool = False) -> Any:
+        try:
+            return super().execute(ir, timed)
+        except Exception as err:
+            if self._copy_log_on_error:
+                try:
+                    copy_log(self.remote_tmpdir)
+                except Exception as fatal:
+                    raise err from fatal
+
+            raise err
 
     def _rpc(self, action, payload) -> Tuple[bytes, Optional[dict]]:
         data = orjson.dumps(payload)
