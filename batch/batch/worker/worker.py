@@ -581,14 +581,14 @@ class Image:
             except:
                 if asyncio.get_event_loop().time() > inspect_deadline:
                     try:
-                        disk_info, _ = await check_exec_output('df', '-h', '/')
-                        disk_info = disk_info.decode().strip().splitlines()[-1]
+                        disk_info, _ = await check_exec_output('df', '-h', '--output=avail,used,pcent', '/')
+                        disk_info = disk_info.decode().splitlines()[-1].strip()
                     except Exception:
                         disk_info = 'unavailable'
                     raise DockerInspectError(
                         f'docker inspect failed for {self.image_ref_str} (batch_id={self.batch_id}, job_id={self.job_id}) '
-                        f'after repeated retries; disk usage: {disk_info}; '
-                        f'possible causes: insufficient storage (try requesting more), corrupt download, or docker daemon error'
+                        f'after repeated retries; disk (avail, used, used%): {disk_info}; '
+                        f'possible causes: insufficient storage (try requesting more), architecture mismatch, corrupt download, or docker daemon error'
                     ) from None
                 log.warning(
                     f'docker inspect failed for {self.image_ref_str} (batch_id={self.batch_id}, job_id={self.job_id}), '
@@ -861,7 +861,7 @@ class Container:
             elif isinstance(e, InvalidImageRepository):
                 self.short_error = 'image repository is invalid'
             elif isinstance(e, DockerInspectError):
-                self.short_error = 'docker inspect failed after pull; possible causes: insufficient storage, corrupt download, or docker daemon error'
+                self.short_error = 'docker inspect failed after pull; possible causes: insufficient storage, architecture mismatch, corrupt download, or docker daemon error'
 
             self.state = 'error'
             self.error = traceback.format_exc()
