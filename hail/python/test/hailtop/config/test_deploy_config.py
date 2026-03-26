@@ -84,3 +84,51 @@ class Test(unittest.TestCase):
         self.assertEqual(deploy_config.base_url('foo'), 'http://internal.hail/bar/foo')
         self.assertEqual(deploy_config.url('foo', '/moo'), 'http://internal.hail/bar/foo/moo')
         self.assertEqual(deploy_config.external_url('foo', '/moo'), 'https://internal.organization.tld/bar/foo/moo')
+
+    def test_with_default_namespace_default_to_default(self):
+        config = DeployConfig('external', 'default', 'organization.tld', None)
+        self.assertEqual(
+            config.with_default_namespace('default').get_config(),
+            {
+                'location': 'external',
+                'default_namespace': 'default',
+                'domain': 'organization.tld',
+                'base_path': None,
+            },
+        )
+
+    def test_with_default_namespace_default_to_non_default(self):
+        config = DeployConfig('external', 'default', 'organization.tld', None)
+        self.assertEqual(
+            config.with_default_namespace('foo').get_config(),
+            {
+                'location': 'external',
+                'default_namespace': 'foo',
+                'domain': 'internal.organization.tld',
+                'base_path': '/foo',
+            },
+        )
+
+    def test_with_default_namespace_non_default_to_default(self):
+        config = DeployConfig('external', 'foo', 'internal.organization.tld', '/foo')
+        self.assertEqual(
+            config.with_default_namespace('default').get_config(),
+            {
+                'location': 'external',
+                'default_namespace': 'default',
+                'domain': 'organization.tld',
+                'base_path': None,
+            },
+        )
+
+    def test_with_default_namespace_non_default_to_non_default(self):
+        config = DeployConfig('external', 'foo', 'internal.organization.tld', '/foo')
+        self.assertEqual(
+            config.with_default_namespace('bar').get_config(),
+            {
+                'location': 'external',
+                'default_namespace': 'bar',
+                'domain': 'internal.organization.tld',
+                'base_path': '/bar',
+            },
+        )
