@@ -571,8 +571,8 @@ class Image:
 
         try:
             image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
-        except Exception:
-            # inspect non-deterministically fails sometimes; retry once
+        except:
+            # inspect non-deterministically fails sometimes
             await asyncio.sleep(1)
             await pull()
             try:
@@ -582,7 +582,7 @@ class Image:
                     f'docker inspect failed for {self.image_ref_str} (batch_id={self.batch_id}, job_id={self.job_id}); '
                     f'possible causes: insufficient storage (private VMs need at least 3-6x the compressed image size to unpack layers), '
                     f'architecture mismatch (image built for a different CPU arch), or corrupt download'
-                ) from None
+                )
         image_configs[self.image_ref_str] = json.loads(image_config)[0]
 
     async def _ensure_image_is_pulled(
