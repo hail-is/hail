@@ -22,7 +22,14 @@ from hailtop.utils import delay_ms_for_try, external_requests_client_session, re
 from hailtop.utils.rich_progress_bar import BatchProgressBar
 
 from .failure_injecting_client_session import FailureInjectingClientSession
-from .utils import DOCKER_ROOT_IMAGE, HAIL_GENETICS_HAIL_IMAGE, create_batch, legacy_batch_status, smallest_machine_type
+from .utils import (
+    DOCKER_ROOT_IMAGE,
+    HAIL_GENETICS_HAIL_IMAGE,
+    create_batch,
+    legacy_batch_status,
+    smallest_machine_type,
+    xfail_if_infra_failures_only,
+)
 
 deploy_config = get_deploy_config()
 
@@ -1527,13 +1534,7 @@ async def test_nvidia_driver_accesibility_usage(client: BatchClient):
     await b.submit()
     status = await j.wait()
     if status['state'] != 'Success':
-        infra_only_reasons = {'does_not_exist', 'terminated', 'preempted'}
-        attempts = await j.attempts()
-        if all(a.get('reason') in infra_only_reasons for a in attempts):
-            pytest.xfail(
-                f"G2 instances unavailable (ZONE_RESOURCE_POOL_EXHAUSTED): "
-                f"all attempts ended with {sorted({a.get('reason') for a in attempts})}"
-            )
+        xfail_if_infra_failures_only(await j.attempts(), "G2 instances unavailable (ZONE_RESOURCE_POOL_EXHAUSTED)")
     assert status['state'] == 'Success', str((status, b.debug_info()))
 
 
@@ -1548,13 +1549,7 @@ async def test_over_64_cpus(client: BatchClient):
     b.submit()
     status = j.wait()
     if status['state'] != 'Success':
-        infra_only_reasons = {'does_not_exist', 'terminated', 'preempted'}
-        attempts = j.attempts()
-        if all(a.get('reason') in infra_only_reasons for a in attempts):
-            pytest.xfail(
-                f"n1-highmem-96 instances unavailable: "
-                f"all attempts ended with {sorted({a.get('reason') for a in attempts})}"
-            )
+        xfail_if_infra_failures_only(j.attempts(), "n1-highmem-96 instances unavailable")
     assert status['state'] == 'Success', str((status, b.debug_info()))
     assert 'job-private' in status['status']['worker'], str((status, b.debug_info()))
 

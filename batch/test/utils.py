@@ -1,6 +1,8 @@
 import inspect
 import os
-from typing import Union, overload
+from typing import List, Union, overload
+
+import pytest
 
 import hailtop.batch_client.aioclient as aiobc
 import hailtop.batch_client.client as bc
@@ -37,6 +39,14 @@ def legacy_batch_status(batch):
     status = batch.status()
     status['jobs'] = list(batch.jobs())
     return status
+
+
+def xfail_if_infra_failures_only(attempts: List[dict], message: str) -> None:
+    """xfail the current test if all job attempts ended due to infrastructure reasons
+    (i.e. the instance was never provisioned or was preempted), rather than a real job failure."""
+    infra_only_reasons = {'does_not_exist', 'terminated', 'preempted'}
+    if all(a.get('reason') in infra_only_reasons for a in attempts):
+        pytest.xfail(f"{message}: all attempts ended with {sorted(a.get('reason', 'unknown') for a in attempts)}")
 
 
 def smallest_machine_type():
