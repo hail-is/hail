@@ -449,6 +449,8 @@ class InvalidImageRepository(Exception):
 
 
 class DockerInspectError(Exception):
+    short_error = 'docker inspect failed after pull; possible causes: insufficient storage, architecture mismatch, corrupt download, or docker daemon error'
+
     def __init__(self, image_ref: str, batch_id: Optional[int], job_id: Optional[int]):
         super().__init__(
             f'docker inspect failed for {image_ref} (batch_id={batch_id}, job_id={job_id}); '
@@ -849,7 +851,7 @@ class Container:
             elif isinstance(e, InvalidImageRepository):
                 self.short_error = 'image repository is invalid'
             elif isinstance(e, DockerInspectError):
-                self.short_error = 'docker inspect failed after pull; possible causes: insufficient storage, architecture mismatch, corrupt download, or docker daemon error'
+                self.short_error = DockerInspectError.short_error
 
             self.state = 'error'
             self.error = traceback.format_exc()
