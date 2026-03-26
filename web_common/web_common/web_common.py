@@ -107,7 +107,7 @@ async def render_template(
     session = await aiohttp_session.get_session(request)
     context = base_context(session, userdata, service)
     context.update(page_context)
-    context['use_tailwind'] = service in TAILWIND_SERVICES
+    context['use_tailwind'] = page_context.get('use_tailwind', service in TAILWIND_SERVICES)
     context['csrf_token'] = csrf_token
 
     response = aiohttp_jinja2.render_template(file, request, context, status=status_code)

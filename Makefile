@@ -181,6 +181,15 @@ hail-buildkit-image: ci/buildkit/Dockerfile
 	./docker-build.sh ci buildkit/Dockerfile $(IMAGE_NAME) --build-arg DOCKER_PREFIX=$(DOCKER_PREFIX)
 	echo $(IMAGE_NAME) > $@
 
+services/ui/dist/ci/flaky_tests.js: $(shell git ls-files services/ui)
+	cd services/ui && npm ci && npm run build
+
+ci/ci/static/compiled-js/flaky_tests.js: services/ui/dist/ci/flaky_tests.js
+	mkdir -p ci/ci/static/compiled-js
+	cp services/ui/dist/ci/flaky_tests.js $@
+
+ci-image: ci/ci/static/compiled-js/flaky_tests.js
+
 batch/jvm-entryway/out/assembly.dest/out.jar: $(shell git ls-files batch/jvm-entryway)
 	cd batch/jvm-entryway && $(MILL) $(MILLOPTS) assembly
 
@@ -244,13 +253,45 @@ endif
 tailwind-compile-watch:
 	cd web_common && npx tailwindcss --watch -i input.css -o web_common/static/css/output.css
 
+ifeq ($(SERVICE),ci)
+run-dev-proxy: ci/ci/static/compiled-js/flaky_tests.js
+tailwind-compile-watch: ci/ci/static/compiled-js/flaky_tests.js
+DEVSERVER_TARGETS = tailwind-compile-watch run-dev-proxy ui-js-watch
+else
+DEVSERVER_TARGETS = tailwind-compile-watch run-dev-proxy
+endif
+
 .PHONY: run-dev-proxy
 run-dev-proxy:
 	SERVICE=$(SERVICE) adev runserver --root . --static web_common/web_common/static devbin/dev_proxy.py
 
+services/ui/node_modules/.package-lock.json: services/ui/package.json services/ui/package-lock.json
+	npm ci --prefix services/ui
+
+.PHONY: ui-js-watch
+ui-js-watch: services/ui/node_modules/.package-lock.json
+	cd services/ui && npx esbuild src/ci/flaky_tests.tsx --bundle --jsx=automatic --format=esm --outfile=../../ci/ci/static/compiled-js/flaky_tests.js --minify --watch=forever
+
+.PHONY: check-devserver-deps
+check-devserver-deps:
+	@if ! command -v adev > /dev/null 2>&1; then \
+		echo 'error: adev not found (aiohttp-devtools is not on PATH)' >&2; \
+		echo 'fix: run "make install-dev-requirements" (and/or "source .venv/bin/activate" if using a venv)' >&2; \
+		exit 1; \
+	fi
+	@SERVICE=$(SERVICE) python3 -c "\
+import importlib.metadata as m, sys, os; \
+svc = os.environ.get('SERVICE', ''); \
+pkgs = ['gear', 'web_common'] + ([svc] if svc else []); \
+installed = {d.name for d in m.distributions()}; \
+missing = [p for p in pkgs if p not in installed]; \
+(print('error: missing packages: ' + ', '.join(missing), file=sys.stderr), \
+ print('run: pip install ' + ' '.join('-e ' + p for p in missing), file=sys.stderr), \
+ sys.exit(1)) if missing else None"
+
 .PHONY: devserver
-devserver:
-	$(MAKE) -j 2 tailwind-compile-watch run-dev-proxy
+devserver: check-devserver-deps
+	$(MAKE) -j 3 $(DEVSERVER_TARGETS)
 
 .PHONY: benchmark
 benchmark: hail-dev-image
