@@ -578,15 +578,10 @@ class Image:
             try:
                 image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
             except Exception:
-                try:
-                    disk_info, _ = await check_exec_output('df', '-h', '--output=avail,used,pcent', '/')
-                    disk_info = disk_info.decode().splitlines()[-1].strip()
-                except Exception:
-                    disk_info = 'unavailable'
                 raise DockerInspectError(
                     f'docker inspect failed for {self.image_ref_str} (batch_id={self.batch_id}, job_id={self.job_id}); '
-                    f'disk (avail, used, used%): {disk_info}; '
-                    f'possible causes: insufficient storage (try requesting more), architecture mismatch, corrupt download, or docker daemon error'
+                    f'possible causes: insufficient storage (private VMs need at least 3-6x the compressed image size to unpack layers), '
+                    f'architecture mismatch (image built for a different CPU arch), or corrupt download'
                 ) from None
         image_configs[self.image_ref_str] = json.loads(image_config)[0]
 
