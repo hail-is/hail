@@ -449,7 +449,12 @@ class InvalidImageRepository(Exception):
 
 
 class DockerInspectError(Exception):
-    pass
+    def __init__(self, image_ref: str, batch_id: Optional[int], job_id: Optional[int]):
+        super().__init__(
+            f'docker inspect failed for {image_ref} (batch_id={batch_id}, job_id={job_id}); '
+            f'possible causes: insufficient storage (private VMs need at least 3-6x the compressed image size to unpack layers), '
+            f'architecture mismatch (image built for a different CPU arch), or corrupt download'
+        )
 
 
 class Image:
@@ -578,11 +583,7 @@ class Image:
             try:
                 image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
             except Exception:
-                raise DockerInspectError(
-                    f'docker inspect failed for {self.image_ref_str} (batch_id={self.batch_id}, job_id={self.job_id}); '
-                    f'possible causes: insufficient storage (private VMs need at least 3-6x the compressed image size to unpack layers), '
-                    f'architecture mismatch (image built for a different CPU arch), or corrupt download'
-                )
+                raise DockerInspectError(self.image_ref_str, self.batch_id, self.job_id)
         image_configs[self.image_ref_str] = json.loads(image_config)[0]
 
     async def _ensure_image_is_pulled(
