@@ -1510,12 +1510,7 @@ def test_pool_standard_instance_cheapest(client: BatchClient):
 
 
 @skip_in_azure
-@pytest.mark.xfail(
-    strict=False,
-    raises=pytest.fail.Exception,
-    reason="G2 instances are not always available within a CI-acceptable time window",
-)
-@pytest.mark.timeout(5 * 60)
+@pytest.mark.timeout(10 * 60)
 async def test_nvidia_driver_accesibility_usage(client: BatchClient):
     b = create_batch(client)._async_batch
     resources = {'machine_type': "g2-standard-4", 'storage': '100Gi'}
@@ -1531,24 +1526,35 @@ async def test_nvidia_driver_accesibility_usage(client: BatchClient):
     )
     await b.submit()
     status = await j.wait()
+    if status['state'] != 'Success':
+        infra_only_reasons = {'does_not_exist', 'terminated', 'preempted'}
+        attempts = await j.attempts()
+        if all(a.get('reason') in infra_only_reasons for a in attempts):
+            pytest.xfail(
+                f"G2 instances unavailable (ZONE_RESOURCE_POOL_EXHAUSTED): "
+                f"all attempts ended with {sorted({a.get('reason') for a in attempts})}"
+            )
     assert status['state'] == 'Success', str((status, b.debug_info()))
 
 
 @skip_in_azure
-@pytest.mark.xfail(
-    strict=False,
-    raises=pytest.fail.Exception,
-    reason="n1-highmem-96 job-private worker provisioning is not always available within a CI-acceptable time window",
-)
-@pytest.mark.timeout(5 * 60)
+@pytest.mark.timeout(10 * 60)
 async def test_over_64_cpus(client: BatchClient):
     # This test is being added to validate high CPU counts in custom machines.
     # The relevant part of this machine type ('highmem-96') is the CPU count, which is 96.
     b = create_batch(client)
     resources = {'machine_type': 'n1-highmem-96', 'preemptible': False}
-    j = b.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
+    j = b.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources, n_max_attempts=4)
     b.submit()
     status = j.wait()
+    if status['state'] != 'Success':
+        infra_only_reasons = {'does_not_exist', 'terminated', 'preempted'}
+        attempts = j.attempts()
+        if all(a.get('reason') in infra_only_reasons for a in attempts):
+            pytest.xfail(
+                f"n1-highmem-96 instances unavailable: "
+                f"all attempts ended with {sorted({a.get('reason') for a in attempts})}"
+            )
     assert status['state'] == 'Success', str((status, b.debug_info()))
     assert 'job-private' in status['status']['worker'], str((status, b.debug_info()))
 
