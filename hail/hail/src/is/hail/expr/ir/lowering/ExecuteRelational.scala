@@ -10,9 +10,12 @@ import is.hail.utils.{fatal, ArrayOfByteArrayInputStream}
 
 object ExecuteRelational {
   def apply(ctx: ExecuteContext, ir: TableIR): TableExecuteIntermediate =
-    execute(ctx, LoweringAnalyses(ir, ctx), ir)
+    ctx.time {
+      execute(ctx, LoweringAnalyses(ir, ctx), ir)
+    }
 
-  def execute(ctx: ExecuteContext, r: LoweringAnalyses, ir: TableIR): TableExecuteIntermediate = {
+  private def execute(ctx: ExecuteContext, r: LoweringAnalyses, ir: TableIR)
+    : TableExecuteIntermediate = {
     def recur(ir: TableIR): TableExecuteIntermediate = execute(ctx, r, ir)
 
     ir match {
