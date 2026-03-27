@@ -9,7 +9,7 @@ import pytest
 from hailtop.batch_client.client import BatchClient
 from hailtop.test_utils import skip_in_azure
 
-from .utils import DOCKER_ROOT_IMAGE, create_batch, xfail_if_infra_failures_only
+from .utils import DOCKER_ROOT_IMAGE, create_batch
 
 
 def _run_on_rare_instance(client: BatchClient, image: str, command, resources: dict, xfail_message: str) -> dict:
@@ -18,7 +18,10 @@ def _run_on_rare_instance(client: BatchClient, image: str, command, resources: d
     b.submit()
     status = j.wait()
     if status['state'] != 'Success':
-        xfail_if_infra_failures_only(j.attempts(), xfail_message)
+        infra_only_reasons = {'does_not_exist', 'terminated', 'preempted'}
+        real_reasons = {a.get('reason', 'unknown') for a in j.attempts() if a.get('instance_name')}
+        if real_reasons and real_reasons.issubset(infra_only_reasons):
+            pytest.xfail(f"{xfail_message}: all attempts ended with {sorted(real_reasons)}")
     assert status['state'] == 'Success', str((status, b.debug_info()))
     return status
 
