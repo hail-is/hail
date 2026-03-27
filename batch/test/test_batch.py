@@ -1517,7 +1517,7 @@ def test_pool_standard_instance_cheapest(client: BatchClient):
 
 
 @skip_in_azure
-@pytest.mark.timeout(10 * 60)
+@pytest.mark.timeout(5 * 60)
 async def test_nvidia_driver_accesibility_usage(client: BatchClient):
     b = create_batch(client)._async_batch
     resources = {'machine_type': "g2-standard-4", 'storage': '100Gi'}
@@ -1529,7 +1529,7 @@ async def test_nvidia_driver_accesibility_usage(client: BatchClient):
             'nvidia-smi && python3 -c "import torch, sys; sys.exit(0 if torch.cuda.is_available() else 1)"',
         ],
         resources=resources,
-        n_max_attempts=4,
+        n_max_attempts=2,
     )
     await b.submit()
     status = await j.wait()
@@ -1539,13 +1539,13 @@ async def test_nvidia_driver_accesibility_usage(client: BatchClient):
 
 
 @skip_in_azure
-@pytest.mark.timeout(10 * 60)
+@pytest.mark.timeout(5 * 60)
 async def test_over_64_cpus(client: BatchClient):
     # This test is being added to validate high CPU counts in custom machines.
     # The relevant part of this machine type ('highmem-96') is the CPU count, which is 96.
     b = create_batch(client)
     resources = {'machine_type': 'n1-highmem-96', 'preemptible': False}
-    j = b.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources, n_max_attempts=4)
+    j = b.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources, n_max_attempts=2)
     b.submit()
     status = j.wait()
     if status['state'] != 'Success':
