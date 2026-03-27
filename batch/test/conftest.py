@@ -5,6 +5,7 @@ import os
 
 import pytest
 
+from hailtop.batch_client.client import BatchClient
 from hailtop.config import get_remote_tmpdir
 
 log = logging.getLogger(__name__)
@@ -24,6 +25,13 @@ def log_before_after():
     log.info('starting test')
     yield
     log.info('ending test')
+
+
+@pytest.fixture
+def client():
+    client = BatchClient('test')
+    yield client
+    client.close()
 
 
 @pytest.fixture(scope='module')

@@ -36,13 +36,6 @@ deploy_config = get_deploy_config()
 skip_if_terra = pytest.mark.skipif(os.environ.get('HAIL_TERRA', False), reason="doesn't work yet on terra")
 
 
-@pytest.fixture
-def client():
-    client = BatchClient('test')
-    yield client
-    client.close()
-
-
 def test_job(client: BatchClient):
     b = create_batch(client)
     j = b.create_job(DOCKER_ROOT_IMAGE, ['echo', 'test'])
