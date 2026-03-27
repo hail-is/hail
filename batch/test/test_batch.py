@@ -1447,6 +1447,7 @@ async def test_old_clients_that_submit_mount_docker_socket_true_is_rejected(clie
                 await b._submit_jobs(update_id, [spec_bytes], pbar_task)
 
 
+@pytest.mark.timeout(10 * 60)
 def test_pool_highmem_instance(client: BatchClient):
     b = create_batch(client)
     resources = {'cpu': '0.25', 'memory': 'highmem'}
