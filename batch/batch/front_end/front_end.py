@@ -26,7 +26,6 @@ import plotly.express as px
 import plotly.graph_objects as go
 import pymysql
 from aiohttp import web
-from plotly.subplots import make_subplots
 from prometheus_async.aio.web import server_stats  # type: ignore
 from typing_extensions import ParamSpec
 
@@ -491,7 +490,19 @@ async def _read_job_container_log_from_cloud_storage(
         return b'ERROR: could not find log file'
 
 
-async def _get_job_container_log(app, batch_id, job_id, container, job_record) -> Optional[bytes]:
+async def _get_job_container_log(
+    app, batch_id, job_id, container, job_record, override_attempt_id=None
+) -> Optional[bytes]:
+    if override_attempt_id is not None:
+        return await _read_job_container_log_from_cloud_storage(
+            app['file_store'],
+            BatchFormatVersion(job_record['format_version']),
+            batch_id,
+            job_id,
+            container,
+            override_attempt_id,
+        )
+
     if not has_resource_available(job_record):
         return None
 
@@ -513,28 +524,48 @@ async def _get_job_container_log(app, batch_id, job_id, container, job_record) -
     )
 
 
-async def _get_job_log(app, batch_id, job_id) -> Dict[str, Optional[bytes]]:
+async def _get_job_log(app, batch_id, job_id, override_attempt_id=None) -> Dict[str, Optional[bytes]]:
     record = await _get_job_record(app, batch_id, job_id)
     containers = job_tasks_from_spec(record)
-    logs = await asyncio.gather(*[_get_job_container_log(app, batch_id, job_id, c, record) for c in containers])
+    logs = await asyncio.gather(*[
+        _get_job_container_log(app, batch_id, job_id, c, record, override_attempt_id) for c in containers
+    ])
     return dict(zip(containers, logs))
 
 
-async def _get_job_resource_usage(app, batch_id: int, job_id: int) -> Optional[Dict[str, Optional[pd.DataFrame]]]:
+async def _get_job_resource_usage(
+    app, batch_id: int, job_id: int, override_attempt_id=None
+) -> Optional[Dict[str, Optional[pd.DataFrame]]]:
     record = await _get_job_record(app, batch_id, job_id)
-    return await _get_job_resource_usage_from_record(app, record, batch_id=batch_id, job_id=job_id)
+    return await _get_job_resource_usage_from_record(
+        app, record, batch_id=batch_id, job_id=job_id, override_attempt_id=override_attempt_id
+    )
 
 
 async def _get_job_resource_usage_from_record(
-    app, record, batch_id: int, job_id: int
+    app, record, batch_id: int, job_id: int, override_attempt_id=None
 ) -> Optional[Dict[str, Optional[pd.DataFrame]]]:
-    client_session = app[CommonAiohttpAppKeys.CLIENT_SESSION]
     file_store: FileStore = app['file_store']
     batch_format_version = BatchFormatVersion(record['format_version'])
+    tasks = job_tasks_from_spec(record)
 
+    if override_attempt_id is not None:
+
+        async def _read_override_resource_usage(task):
+            try:
+                df = await file_store.read_resource_usage_file(
+                    batch_format_version, batch_id, job_id, override_attempt_id, task
+                )
+            except FileNotFoundError:
+                log.exception(f'missing resource usage file for {(batch_id, job_id)} and task {task}')
+                df = None
+            return task, df
+
+        return dict(await asyncio.gather(*[_read_override_resource_usage(task) for task in tasks]))
+
+    client_session = app[CommonAiohttpAppKeys.CLIENT_SESSION]
     state = record['state']
     ip_address = record['ip_address']
-    tasks = job_tasks_from_spec(record)
     attempt_id = attempt_id_from_spec(record)
 
     if not has_resource_available(record):
@@ -560,8 +591,7 @@ async def _get_job_resource_usage_from_record(
         try:
             df = await file_store.read_resource_usage_file(batch_format_version, batch_id, job_id, attempt_id, task)
         except FileNotFoundError:
-            id = (batch_id, job_id)
-            log.exception(f'missing resource usage file for {id} and task {task}')
+            log.exception(f'missing resource usage file for {(batch_id, job_id)} and task {task}')
             df = None
         return task, df
 
@@ -2545,6 +2575,7 @@ def plot_job_durations(container_statuses: dict, batch_id: int, job_id: int):
             ],
         },
     )
+    fig.update_layout(autosize=True)
 
     return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
@@ -2554,19 +2585,14 @@ def plot_resource_usage(
     memory_limit_bytes: Optional[int],
     io_storage_limit_bytes: Optional[int],
     non_io_storage_limit_bytes: Optional[int],
-) -> Optional[str]:
+) -> Optional[List[dict]]:
     if resource_usage is None:
         return None
 
-    if io_storage_limit_bytes is not None:
-        if io_storage_limit_bytes == 0:
-            io_storage_title = ''
-        else:
-            io_storage_title = (
-                f'Storage (Mounted Drive at /io) - {humanize.naturalsize(io_storage_limit_bytes, binary=False)} max'
-            )
+    if memory_limit_bytes is not None:
+        memory_title = f'Memory - {humanize.naturalsize(memory_limit_bytes, binary=False)} max'
     else:
-        io_storage_title = 'Storage (Mounted Drive at /io)'
+        memory_title = 'Memory'
 
     if non_io_storage_limit_bytes is not None:
         if io_storage_limit_bytes != 0:
@@ -2578,33 +2604,61 @@ def plot_resource_usage(
     else:
         non_io_storage_title = 'Storage (Container Overlay)'
 
-    if memory_limit_bytes is not None:
-        memory_title = f'Memory - {humanize.naturalsize(memory_limit_bytes, binary=False)} max'
+    if io_storage_limit_bytes is not None and io_storage_limit_bytes != 0:
+        io_storage_title = (
+            f'Storage (Mounted Drive at /io) - {humanize.naturalsize(io_storage_limit_bytes, binary=False)} max'
+        )
     else:
-        memory_title = 'Memory'
-
-    fig = make_subplots(
-        rows=3,
-        cols=2,
-        subplot_titles=(
-            'CPU Usage',
-            memory_title,
-            'Network Download Bandwidth (MB/sec)',
-            'Network Upload Bandwidth (MB/sec)',
-            non_io_storage_title,
-            io_storage_title,
-        ),
-    )
-    fig.update_layout(height=800, width=800)
+        io_storage_title = 'Storage (Mounted Drive at /io)'
 
     colors = {'input': 'red', 'main': 'green', 'output': 'blue'}
 
-    max_cpu_value = 1
-    max_memory_value = 1024 * 1024
-    max_download_network_bandwidth_value = 500
-    max_upload_network_bandwidth_value = 500
-    max_io_storage_value = 1024 * 1024 * 1024
-    max_non_io_storage_value = 1024 * 1024 * 1024
+    # Each metric: id, title, traces, running max, yaxis tickformat, limit value
+    metrics = [
+        {'id': 'plotly-resource-cpu', 'title': 'CPU Usage', 'traces': [], 'max': 1, 'tickformat': '%', 'limit': None},
+        {
+            'id': 'plotly-resource-memory',
+            'title': memory_title,
+            'traces': [],
+            'max': 1024 * 1024,
+            'tickformat': 's',
+            'limit': memory_limit_bytes,
+        },
+        {
+            'id': 'plotly-resource-net-down',
+            'title': 'Network Download Bandwidth (MB/sec)',
+            'traces': [],
+            'max': 500,
+            'tickformat': None,
+            'limit': None,
+        },
+        {
+            'id': 'plotly-resource-net-up',
+            'title': 'Network Upload Bandwidth (MB/sec)',
+            'traces': [],
+            'max': 500,
+            'tickformat': None,
+            'limit': None,
+        },
+        {
+            'id': 'plotly-resource-storage-overlay',
+            'title': non_io_storage_title,
+            'traces': [],
+            'max': 1024 * 1024 * 1024,
+            'tickformat': 's',
+            'limit': non_io_storage_limit_bytes,
+        },
+    ]
+    if io_storage_limit_bytes != 0:
+        metrics.append({
+            'id': 'plotly-resource-storage-io',
+            'title': io_storage_title,
+            'traces': [],
+            'max': 1024 * 1024 * 1024,
+            'tickformat': 's',
+            'limit': io_storage_limit_bytes if io_storage_limit_bytes is not None else None,
+        })
+
     n_total_rows = 0
 
     for container_name, df in resource_usage.items():
@@ -2613,78 +2667,63 @@ def plot_resource_usage(
 
         n_rows = df.shape[0]
         n_total_rows += n_rows
+        if n_rows == 0:
+            continue
 
         time_df = pd.to_datetime(df['time_msecs'], unit='ms')
-        mem_df = df['memory_in_bytes']
-        cpu_df = df['cpu_usage']
 
-        def get_df(df, colname):
+        def get_col(df, colname):
             if colname not in df:
                 df[colname] = ResourceUsageMonitor.missing_value
             return df[colname]
 
-        network_download_df = get_df(df, 'network_bandwidth_download_in_bytes_per_second')
-        network_upload_df = get_df(df, 'network_bandwidth_upload_in_bytes_per_second')
-        non_io_storage_df = get_df(df, 'non_io_storage_in_bytes')
-        io_storage_df = get_df(df, 'io_storage_in_bytes')
+        series = [
+            df['cpu_usage'],
+            df['memory_in_bytes'],
+            get_col(df, 'network_bandwidth_download_in_bytes_per_second'),
+            get_col(df, 'network_bandwidth_upload_in_bytes_per_second'),
+            get_col(df, 'non_io_storage_in_bytes'),
+        ]
+        if io_storage_limit_bytes != 0:
+            series.append(get_col(df, 'io_storage_in_bytes'))
 
-        if n_rows != 0:
-            max_cpu_value = max(max_cpu_value, cpu_df.max())
-            max_memory_value = max(max_memory_value, mem_df.max())
-            max_download_network_bandwidth_value = max(max_download_network_bandwidth_value, network_download_df.max())
-            max_upload_network_bandwidth_value = max(max_upload_network_bandwidth_value, network_upload_df.max())
-            max_io_storage_value = max(max_io_storage_value, io_storage_df.max())
-            max_non_io_storage_value = max(max_non_io_storage_value, non_io_storage_df.max())
-
-        def add_trace(time, measurement, row, col, container_name, show_legend):
-            fig.add_trace(
+        for metric, col_df in zip(metrics, series):
+            metric['max'] = max(metric['max'], col_df.max())
+            metric['traces'].append(
                 go.Scatter(
-                    x=time,
-                    y=measurement,
-                    showlegend=show_legend,
+                    x=time_df,
+                    y=col_df,
+                    showlegend=(metric is metrics[0]),
                     legendgroup=container_name,
                     name=container_name,
                     mode='markers+lines',
                     line={'color': colors[container_name]},
-                ),
-                row=row,
-                col=col,
+                )
             )
-
-        add_trace(time_df, cpu_df, 1, 1, container_name, True)
-        add_trace(time_df, mem_df, 1, 2, container_name, False)
-        add_trace(time_df, network_download_df, 2, 1, container_name, False)
-        add_trace(time_df, network_upload_df, 2, 2, container_name, False)
-        add_trace(time_df, non_io_storage_df, 3, 1, container_name, False)
-        if io_storage_limit_bytes != 0:
-            add_trace(time_df, io_storage_df, 3, 2, container_name, False)
-
-        limit_props = {'color': 'black', 'width': 2}
-        if memory_limit_bytes is not None:
-            fig.add_hline(memory_limit_bytes, row=1, col=2, line=limit_props)  # type: ignore
-        if non_io_storage_limit_bytes is not None:
-            fig.add_hline(non_io_storage_limit_bytes, row=3, col=1, line=limit_props)  # type: ignore
-        if io_storage_limit_bytes is not None:
-            fig.add_hline(io_storage_limit_bytes, row=3, col=2, line=limit_props)  # type: ignore
-
-    fig.update_layout(
-        showlegend=True,
-        yaxis1_tickformat='%',
-        yaxis2_tickformat='s',
-        yaxis5_tickformat='s',
-        yaxis6_tickformat='s',
-        yaxis1_range=[0, 1.25 * max_cpu_value],
-        yaxis2_range=[0, 1.25 * max_memory_value],
-        yaxis3_range=[0, 1.25 * max_download_network_bandwidth_value],
-        yaxis4_range=[0, 1.25 * max_upload_network_bandwidth_value],
-        yaxis5_range=[0, 1.25 * max_non_io_storage_value],
-        yaxis6_range=[0, 1.25 * max_io_storage_value],
-    )
 
     if n_total_rows == 0:
         return None
 
-    return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+    limit_line = {'color': 'black', 'width': 2}
+    charts = []
+    for metric in metrics:
+        fig = go.Figure(data=metric['traces'])
+        yaxis: dict = {'range': [0, 1.25 * metric['max']]}
+        if metric['tickformat'] is not None:
+            yaxis['tickformat'] = metric['tickformat']
+        fig.update_layout(
+            title=metric['title'],
+            autosize=True,
+            height=300,
+            margin={'l': 40, 'r': 20, 't': 40, 'b': 40},
+            showlegend=(metric is metrics[0]),
+            yaxis=yaxis,
+        )
+        if metric['limit'] is not None:
+            fig.add_hline(metric['limit'], line=limit_line)
+        charts.append({'id': metric['id'], 'json': json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)})
+
+    return charts
 
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}/jvm_profile')
@@ -2707,12 +2746,13 @@ async def ui_get_jvm_profile(request: web.Request, _, batch_id: int) -> web.Resp
 async def ui_get_job(request, userdata, batch_id):
     app = request.app
     job_id = int(request.match_info['job_id'])
+    query_attempt_id = request.query.get('attempt_id') or None
 
     job, attempts, job_log_bytes, resource_usage = await asyncio.gather(
         _get_job(app, batch_id, job_id),
         _get_attempts(app, batch_id, job_id),
-        _get_job_log(app, batch_id, job_id),
-        _get_job_resource_usage(app, batch_id, job_id),
+        _get_job_log(app, batch_id, job_id, override_attempt_id=query_attempt_id),
+        _get_job_resource_usage(app, batch_id, job_id, override_attempt_id=query_attempt_id),
     )
 
     job = cast(Dict[str, Any], job)
@@ -2725,7 +2765,16 @@ async def ui_get_job(request, userdata, batch_id):
             record['cost'] = cost_str(record['cost'])
         job['cost_breakdown'].sort(key=lambda record: record['resource'])
 
-    job_status = job['status']
+    if query_attempt_id is not None:
+        file_store: FileStore = app['file_store']
+        try:
+            status_bytes = await file_store.read_status_file(batch_id, job_id, query_attempt_id)
+            job_status = json.loads(status_bytes)
+        except FileNotFoundError:
+            job_status = job['status']
+    else:
+        job_status = job['status']
+
     container_status_spec = dictfix.NoneOr({
         'name': str,
         'timing': {
@@ -2800,12 +2849,19 @@ async def ui_get_job(request, userdata, batch_id):
         except UnicodeDecodeError:
             job_log_strings_or_bytes[container] = log
 
+    selected_attempt_id = query_attempt_id or (attempts[-1]['attempt_id'] if attempts else None)
+    is_latest_attempt = query_attempt_id is None or (
+        attempts is not None and len(attempts) > 0 and query_attempt_id == attempts[-1]['attempt_id']
+    )
+
     page_context = {
         'batch_id': batch_id,
         'job_id': job_id,
         'job': job,
         'job_log': job_log_strings_or_bytes,
         'attempts': attempts,
+        'selected_attempt_id': selected_attempt_id,
+        'is_latest_attempt': is_latest_attempt,
         'container_statuses': container_statuses,
         'job_specification': job_specification,
         'job_status_str': json.dumps(job, indent=2),
