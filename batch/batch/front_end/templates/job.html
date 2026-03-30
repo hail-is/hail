@@ -10,7 +10,7 @@
 {% endmacro %}
 
 {% macro error_and_logs_panel(step) %}
-{% if container_statuses[step]['short_error'] is not none %}
+{% if container_statuses[step] is not none and container_statuses[step]['short_error'] is not none %}
 <div class='text-red-600 text-xl font-light'>
   Errored with: {{ container_statuses[step]['short_error']|capitalize }}
 </div>
