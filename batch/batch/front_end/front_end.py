@@ -2464,12 +2464,14 @@ WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
     for attempt in attempts:
         start_time = attempt['start_time']
         if start_time is not None:
+            attempt['start_time_ms'] = start_time
             attempt['start_time'] = time_msecs_str(start_time)
         else:
             del attempt['start_time']
 
         end_time = attempt['end_time']
         if end_time is not None:
+            attempt['end_time_ms'] = end_time
             attempt['end_time'] = time_msecs_str(end_time)
         else:
             del attempt['end_time']
@@ -2551,30 +2553,65 @@ async def get_job_resource_usage(request: web.Request, _, batch_id: int) -> web.
     })
 
 
-def plot_job_durations(container_statuses: dict, batch_id: int, job_id: int):
+def plot_job_durations(latest_container_statuses: dict, attempts: Optional[list], batch_id: int, job_id: int):
     data = []
+    task_names = [
+        'pulling',
+        'setting up overlay',
+        'setting up network',
+        'running',
+        'uploading_log',
+        'uploading_resource_usage',
+    ]
+    prism_colors = px.colors.qualitative.Prism
+    color_map: Dict[str, str] = {'prior attempt': '#9ca3af'}
+    for i, task in enumerate(task_names):
+        color_map[task] = prism_colors[i % len(prism_colors)]
+
+    # Prior attempts: one coarse bar per attempt (all except the last)
+    if attempts:
+        for attempt in attempts[:-1]:
+            start_ms = attempt.get('start_time_ms')
+            end_ms = attempt.get('end_time_ms')
+            if start_ms is not None:
+                if end_ms is None:
+                    end_ms = time_msecs()
+                attempt_id = attempt['attempt_id']
+                data.append({
+                    'Row': f'attempt {attempt_id[:8]}',
+                    'Task': 'prior attempt',
+                    'Start': datetime.datetime.fromtimestamp(start_ms / 1000),
+                    'Finish': datetime.datetime.fromtimestamp(end_ms / 1000),
+                    'Detail': attempt.get('reason', ''),
+                })
+
+    # Latest attempt sub-steps
     for step in ['input', 'main', 'output']:
-        if container_statuses[step]:
-            for timing_name, timing_data in container_statuses[step]['timing'].items():
-                if timing_data is not None:
-                    plot_dict = {
-                        'Title': f'{(batch_id, job_id)}',
-                        'Step': step,
+        if latest_container_statuses[step]:
+            for timing_name, timing_data in latest_container_statuses[step]['timing'].items():
+                if timing_data is not None and timing_data.get('start_time') is not None:
+                    finish_time = timing_data.get('finish_time')
+                    if finish_time is None:
+                        finish_time = time_msecs()
+                    data.append({
+                        'Row': step,
                         'Task': timing_name,
-                    }
-
-                    if timing_data.get('start_time') is not None:
-                        plot_dict['Start'] = datetime.datetime.fromtimestamp(timing_data['start_time'] / 1000)
-
-                        finish_time = timing_data.get('finish_time')
-                        if finish_time is None:
-                            finish_time = time_msecs()
-                        plot_dict['Finish'] = datetime.datetime.fromtimestamp(finish_time / 1000)
-
-                    data.append(plot_dict)
+                        'Start': datetime.datetime.fromtimestamp(timing_data['start_time'] / 1000),
+                        'Finish': datetime.datetime.fromtimestamp(finish_time / 1000),
+                        'Detail': '',
+                    })
 
     if not data:
         return None
+
+    # Sort rows by earliest start time (oldest at bottom, latest attempt steps at top)
+    row_starts: Dict[str, datetime.datetime] = {}
+    for item in data:
+        if 'Start' in item:
+            row = item['Row']
+            if row not in row_starts or item['Start'] < row_starts[row]:
+                row_starts[row] = item['Start']
+    sorted_rows = sorted(row_starts.keys(), key=lambda r: row_starts[r])
 
     df = pd.DataFrame(data)
 
@@ -2582,21 +2619,11 @@ def plot_job_durations(container_statuses: dict, batch_id: int, job_id: int):
         df,
         x_start='Start',
         x_end='Finish',
-        y='Step',
+        y='Row',
         color='Task',
-        hover_data=['Step'],
-        color_discrete_sequence=px.colors.qualitative.Prism,
-        category_orders={
-            'Step': ['input', 'main', 'output'],
-            'Task': [
-                'pulling',
-                'setting up overlay',
-                'setting up network',
-                'running',
-                'uploading_log',
-                'uploading_resource_usage',
-            ],
-        },
+        hover_data=['Detail'],
+        color_discrete_map=color_map,
+        category_orders={'Row': sorted_rows},
     )
     fig.update_layout(autosize=True)
 
@@ -2898,7 +2925,14 @@ async def ui_get_job(request, userdata, batch_id):
         'job_str': json.dumps(job, indent=2),
         'step_errors': step_errors,
         'error': job_status.get('error'),
-        'plot_job_durations': plot_job_durations(container_statuses, batch_id, job_id),
+        'plot_job_durations': plot_job_durations(
+            container_statuses
+            if is_latest_attempt
+            else dictfix.dictfix(job['status'], job_status_spec)['container_statuses'],
+            attempts,
+            batch_id,
+            job_id,
+        ),
         'plot_resource_usage': plot_resource_usage(
             resource_usage, memory_limit_bytes, io_storage_limit_bytes, non_io_storage_limit_bytes
         ),
