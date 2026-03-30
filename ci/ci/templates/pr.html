@@ -169,7 +169,7 @@
     </pre>
     {% else %}
       {% if pr_authorized %}
-      <p>Build queued - waiting for a build slot. <a href="{{ ci_base_url }}">View CI dashboard</a>.</p>
+      <p>No current build — waiting for a build slot (or a retry is being processed). <a href="{{ ci_base_url }}">View CI dashboard</a>.</p>
       {% else %}
       <p>Build blocked: this PR's latest commit is not authorized. It must be reviewed and approved manually by a developer before authorizing.</p>
       <form action="{{ base_path }}/authorize_source_sha" method="post">
