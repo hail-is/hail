@@ -493,7 +493,14 @@ async def _read_job_container_log_from_cloud_storage(
 async def _get_job_container_log(
     app, batch_id, job_id, container, job_record, override_attempt_id=None
 ) -> Optional[bytes]:
+    state = job_record['state']
+
     if override_attempt_id is not None:
+        # If the job is running and the override is the current attempt, fetch live from the worker
+        if state == 'Running' and override_attempt_id == job_record['attempt_id']:
+            return await _get_job_container_log_from_worker(
+                app[CommonAiohttpAppKeys.CLIENT_SESSION], batch_id, job_id, container, job_record['ip_address']
+            )
         return await _read_job_container_log_from_cloud_storage(
             app['file_store'],
             BatchFormatVersion(job_record['format_version']),
@@ -506,7 +513,6 @@ async def _get_job_container_log(
     if not has_resource_available(job_record):
         return None
 
-    state = job_record['state']
     if state == 'Running':
         return await _get_job_container_log_from_worker(
             app[CommonAiohttpAppKeys.CLIENT_SESSION], batch_id, job_id, container, job_record['ip_address']
@@ -550,6 +556,23 @@ async def _get_job_resource_usage_from_record(
     tasks = job_tasks_from_spec(record)
 
     if override_attempt_id is not None:
+        state = record['state']
+        # If the job is running and the override is the current attempt, fetch live from the worker
+        if state == 'Running' and override_attempt_id == record['attempt_id']:
+            client_session = app[CommonAiohttpAppKeys.CLIENT_SESSION]
+            ip_address = record['ip_address']
+            try:
+                data = await retry_transient_errors(
+                    client_session.get_read_json,
+                    f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/resource_usage',
+                )
+                return {
+                    task: ResourceUsageMonitor.decode_to_df(base64.b64decode(encoded_df))
+                    for task, encoded_df in data.items()
+                }
+            except aiohttp.ClientResponseError:
+                log.exception(f'while getting resource usage for {(batch_id, job_id)}')
+                return {task: None for task in tasks}
 
         async def _read_override_resource_usage(task):
             try:
@@ -2748,11 +2771,9 @@ async def ui_get_job(request, userdata, batch_id):
     job_id = int(request.match_info['job_id'])
     query_attempt_id = request.query.get('attempt_id') or None
 
-    job, attempts, job_log_bytes, resource_usage = await asyncio.gather(
+    job, attempts = await asyncio.gather(
         _get_job(app, batch_id, job_id),
         _get_attempts(app, batch_id, job_id),
-        _get_job_log(app, batch_id, job_id, override_attempt_id=query_attempt_id),
-        _get_job_resource_usage(app, batch_id, job_id, override_attempt_id=query_attempt_id),
     )
 
     job = cast(Dict[str, Any], job)
@@ -2765,15 +2786,29 @@ async def ui_get_job(request, userdata, batch_id):
             record['cost'] = cost_str(record['cost'])
         job['cost_breakdown'].sort(key=lambda record: record['resource'])
 
+    selected_attempt_id = query_attempt_id or (attempts[-1]['attempt_id'] if attempts else None)
+
+    job_log_bytes, resource_usage = await asyncio.gather(
+        _get_job_log(app, batch_id, job_id, override_attempt_id=selected_attempt_id),
+        _get_job_resource_usage(app, batch_id, job_id, override_attempt_id=selected_attempt_id),
+    )
+    is_latest_attempt = query_attempt_id is None or (
+        attempts is not None and len(attempts) > 0 and query_attempt_id == attempts[-1]['attempt_id']
+    )
+
     if query_attempt_id is not None:
         file_store: FileStore = app['file_store']
         try:
             status_bytes = await file_store.read_status_file(batch_id, job_id, query_attempt_id)
             job_status = json.loads(status_bytes)
         except FileNotFoundError:
-            job_status = job['status']
+            # Latest attempt: file not written yet (e.g. still running) — use live status from _get_job
+            # Historical attempt: file never saved (e.g. preempted before upload) — show nothing
+            job_status = job['status'] if is_latest_attempt else None
     else:
         job_status = job['status']
+
+    raw_attempt_status = job_status  # save before dictfix for raw display
 
     container_status_spec = dictfix.NoneOr({
         'name': str,
@@ -2849,11 +2884,6 @@ async def ui_get_job(request, userdata, batch_id):
         except UnicodeDecodeError:
             job_log_strings_or_bytes[container] = log
 
-    selected_attempt_id = query_attempt_id or (attempts[-1]['attempt_id'] if attempts else None)
-    is_latest_attempt = query_attempt_id is None or (
-        attempts is not None and len(attempts) > 0 and query_attempt_id == attempts[-1]['attempt_id']
-    )
-
     page_context = {
         'batch_id': batch_id,
         'job_id': job_id,
@@ -2864,7 +2894,8 @@ async def ui_get_job(request, userdata, batch_id):
         'is_latest_attempt': is_latest_attempt,
         'container_statuses': container_statuses,
         'job_specification': job_specification,
-        'job_status_str': json.dumps(job, indent=2),
+        'job_status_str': json.dumps(raw_attempt_status, indent=2) if raw_attempt_status is not None else None,
+        'job_str': json.dumps(job, indent=2),
         'step_errors': step_errors,
         'error': job_status.get('error'),
         'plot_job_durations': plot_job_durations(container_statuses, batch_id, job_id),
