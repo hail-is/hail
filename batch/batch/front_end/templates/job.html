@@ -138,6 +138,11 @@
         <th class='text-center'></th>
       </thead>
       <tbody>
+        {% if not attempts %}
+        <tr class='h-12 border-y bg-white'>
+          <td colspan='7' class='text-center text-zinc-400 text-sm'>No attempts yet</td>
+        </tr>
+        {% endif %}
         {% for attempt in attempts or [] %}
         {% set is_selected = attempt['attempt_id'] == selected_attempt_id %}
         <tr class='h-12 border-y {% if is_selected %}bg-sky-50{% else %}bg-white{% endif %}'>
@@ -162,7 +167,7 @@
   </div>
 </div>
 
-{% if container_statuses or job_log or step_errors %}
+{% if selected_attempt_id %}
 <div class='bg-slate-100 border rounded overflow-hidden w-full md:w-auto mt-4'>
   {% if not is_latest_attempt %}
   <div class='bg-amber-50 border-b border-amber-300 px-4 py-3 flex items-center justify-between'>
@@ -174,50 +179,66 @@
   </div>
   {% endif %}
 
-  {% if has_jvm_profile %}
-  <div class='px-4 pt-3'>
-    <a href="{{ base_path }}/batches/{{ batch_id }}/jobs/{{ job_id }}/jvm_profile" class='text-sky-600 hover:underline'>JVM Profile</a>
-  </div>
-  {% endif %}
-
-  {% if plot_job_durations is not none %}
-  <div data-graph='{{plot_job_durations | safe }}' id="plotly-job-durations" class='w-full overflow-hidden'></div>
-  {% endif %}
-
-  {% if plot_resource_usage is not none %}
-  <div class='flex flex-wrap'>
-    {% for chart in plot_resource_usage %}
-    <div class='min-w-72 flex-1' data-graph='{{ chart["json"] | safe }}' id='{{ chart["id"] }}'></div>
-    {% endfor %}
-  </div>
-  {% endif %}
-
-  {% if job_log or step_errors %}
-  <div class='bg-white' x-data='{tab: "main"}'>
+  <div class='bg-white' x-data='{tab: "charts"}'>
     <div class='flex border-b text-lg overflow-auto'>
+      <div class='px-4 pt-4 pb-2 hover:opacity-100 hover:cursor-pointer hover:border-b border-black'
+        :class='{"border-b": tab == "charts", "opacity-50": tab != "charts"}' x-on:click='tab = "charts"'>
+        Charts
+      </div>
       {% for step in ['input', 'main', 'output'] %}
       {% if step in job_log or step in step_errors %}
       <div class='px-4 pt-4 pb-2 hover:opacity-100 hover:cursor-pointer hover:border-b border-black'
         :class='{"border-b": tab == "{{ step }}", "opacity-50": tab != "{{ step }}"}' x-on:click='tab = "{{ step }}"'>
         <div class='flex items-center space-x-1 h-full'>
           <div>{{ step|capitalize }}</div>
-          {{ step_state_indicator(container_statuses[step]['state']) }}
+          {% if container_statuses[step] %}{{ step_state_indicator(container_statuses[step]['state']) }}{% endif %}
         </div>
       </div>
       {% endif %}
       {% endfor %}
       <div class='px-4 pt-4 pb-2 hover:opacity-100 hover:cursor-pointer hover:border-b border-black'
         :class='{"border-b": tab == "status", "opacity-50": tab != "status"}' x-on:click='tab = "status"'>
-        Raw Status
+        Raw Attempt Status
+      </div>
+      <div class='px-4 pt-4 pb-2 hover:opacity-100 hover:cursor-pointer hover:border-b border-black'
+        :class='{"border-b": tab == "job", "opacity-50": tab != "job"}' x-on:click='tab = "job"'>
+        Raw Job
       </div>
     </div>
+
+    <div class='relative overflow-hidden transition-all' x-show='tab == "charts"'>
+      {% if has_jvm_profile %}
+      <div class='px-4 pt-3'>
+        <a href="{{ base_path }}/batches/{{ batch_id }}/jobs/{{ job_id }}/jvm_profile" class='text-sky-600 hover:underline'>JVM Profile</a>
+      </div>
+      {% endif %}
+      {% if plot_job_durations is not none %}
+      <div data-graph='{{plot_job_durations | safe }}' id="plotly-job-durations" class='w-full overflow-hidden'></div>
+      {% else %}
+      <div class='px-4 py-3 text-zinc-500 text-sm'>
+        No timing data for this attempt. This is expected for attempts that errored before timing could be persisted.
+      </div>
+      {% endif %}
+      {% if plot_resource_usage is not none %}
+      <div class='flex flex-wrap'>
+        {% for chart in plot_resource_usage %}
+        <div class='min-w-72 flex-1' data-graph='{{ chart["json"] | safe }}' id='{{ chart["id"] }}'></div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class='px-4 py-3 text-zinc-500 text-sm'>
+        No resource usage data for this attempt. This is expected for attempts that ended before any resource usage could be persisted.
+      </div>
+      {% endif %}
+    </div>
+
     <div class='relative overflow-hidden transition-all' x-show='tab == "input"' x-cloak>
       <div class='py-4 pl-4'>
         {{ step_runtime('input') }}
         {{ error_and_logs_panel('input') }}
       </div>
     </div>
-    <div class='relative overflow-hidden transition-all' x-show='tab == "main"'>
+    <div class='relative overflow-hidden transition-all' x-show='tab == "main"' x-cloak>
       <div class='py-4 pl-4'>
         <div class='overflow-auto'>
           {{ step_runtime('main') }}
@@ -253,11 +274,19 @@
     </div>
     <div class='relative overflow-hidden transition-all' x-show='tab == "status"' x-cloak>
       <div class='w-full overflow-auto pt-4 pl-4'>
+        {% if job_status_str %}
         {{ code_block(job_status_str) }}
+        {% else %}
+        <div class='text-zinc-500 text-sm py-2'>No status file was saved for this attempt. This is expected for attempts that were preempted or lost before the worker could upload results.</div>
+        {% endif %}
+      </div>
+    </div>
+    <div class='relative overflow-hidden transition-all' x-show='tab == "job"' x-cloak>
+      <div class='w-full overflow-auto pt-4 pl-4'>
+        {{ code_block(job_str) }}
       </div>
     </div>
   </div>
-  {% endif %}
 </div>
 {% endif %}
 <script defer src="{{ base_path }}/batch/static/js/auto_refresh.js"></script>
