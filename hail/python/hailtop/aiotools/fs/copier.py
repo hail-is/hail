@@ -610,7 +610,9 @@ class Copier:
                 transfer if isinstance(transfer, list) else [transfer],
             ):
                 if isinstance(single_transfer.src, str):
-                    if self.router_fs.valid_google_url(single_transfer.src):
+                    if self.router_fs.valid_google_url(single_transfer.src) and self.router_fs.valid_local_url(
+                        single_transfer.dest
+                    ):
                         assert isinstance(single_report._source_report, SourceReport)
                         google_to_local_transfers.append(single_transfer)
                         google_to_local_reports.append(single_report._source_report)
@@ -621,7 +623,9 @@ class Copier:
                     assert isinstance(single_transfer.src, list)
                     assert isinstance(single_report._source_report, list)
                     for source, source_report in zip(single_transfer.src, single_report._source_report):
-                        if self.router_fs.valid_google_url(source):
+                        if self.router_fs.valid_google_url(source) and self.router_fs.valid_local_url(
+                            single_transfer.dest
+                        ):
                             google_to_local_transfers.append(
                                 Transfer(source, single_transfer.dest, treat_dest_as=single_transfer.treat_dest_as)
                             )
