@@ -115,6 +115,7 @@ from ..utils import (
     add_metadata_to_request,
     query_billing_projects_with_cost,
     query_billing_projects_without_cost,
+    regions_bits_rep_to_regions,
     regions_to_bits_rep,
     rewrite_dockerhub_image,
     unavailable_if_frozen,
@@ -2427,10 +2428,37 @@ LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
         _get_full_job_status(app, record), _get_full_job_spec(app, record), _get_attributes(app, record)
     )
 
+    spec_defaulted_fields: list = []
+    if full_spec is not None:
+        # n_max_attempts is stored as a DB column, not in the spec JSON
+        full_spec['n_max_attempts'] = record['n_max_attempts']
+        if record['n_max_attempts'] == 20:
+            spec_defaulted_fields.append('n_max_attempts')
+
+        # always_run is stored as a DB column, not in the spec JSON
+        full_spec['always_run'] = bool(record['always_run'])
+        if not record['always_run']:
+            spec_defaulted_fields.append('always_run')
+
+        # network defaults to 'private' when not specified
+        if 'network' not in full_spec:
+            full_spec['network'] = 'private'
+            spec_defaulted_fields.append('network')
+
+        # regions: reconstruct from bits rep, or use all regions if unspecified
+        if 'regions' not in full_spec:
+            regions_bits_rep = record.get('regions_bits_rep')
+            if regions_bits_rep is not None:
+                full_spec['regions'] = regions_bits_rep_to_regions(regions_bits_rep, app['regions'])
+            else:
+                full_spec['regions'] = sorted(app['regions'].keys())
+            spec_defaulted_fields.append('regions')
+
     job: GetJobResponseV1Alpha = {
         **job_record_to_dict(record, attributes.get('name')),
         'status': full_status,
         'spec': full_spec,
+        'spec_defaulted_fields': spec_defaulted_fields,
     }
     if attributes:
         job['attributes'] = attributes

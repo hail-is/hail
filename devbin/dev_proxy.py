@@ -31,7 +31,17 @@ BC = web.AppKey('backend_client', Session)
 @routes.view('/api/{route:.*}')
 @web_security_headers
 async def default_proxied_api_route(request: web.Request):
-    return web.json_response(await proxy(request))
+    backend_client = request.app[BC]
+    backend_route = deploy_config.external_url(SERVICE, request.raw_path)
+    try:
+        async with await backend_client.request(request.method, backend_route) as resp:
+            body = await resp.read()
+            content_type = resp.content_type
+    except httpx.ClientResponseError as e:
+        if e.status == 404:
+            raise web.HTTPNotFound()
+        raise
+    return web.Response(body=body, content_type=content_type)
 
 
 if SERVICE == 'ci':
