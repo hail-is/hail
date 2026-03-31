@@ -88,11 +88,41 @@
         {% if job['state'] not in ('Success', 'Failed', 'Error', 'Cancelled') %}
         {{ auto_refresh() }}
         {% endif %}
-        <div>
-          <div class='font-light text-zinc-500'>Submitted by {{ job['user'] }}</div>
-          <div class='font-light text-zinc-500'>Billed to {{ job['billing_project'] }}</div>
+        <div class='flex justify-between'>
+          <div>
+            <div class='font-light text-zinc-500'>Submitted by {{ job['user'] }}</div>
+            <div class='font-light text-zinc-500'>Billed to {{ job['billing_project'] }}</div>
+          </div>
+          {% if 'always_run' in job and job['always_run'] %}
+          <div class='text-semibold flex items-center'>Always Run</div>
+          {% endif %}
         </div>
       </li>
+      {% call collapsible_li(false, 'Environment Variables', '') %}
+      <table class='w-full'>
+        <tbody class='divide-y'>
+          {% if job_specification %}
+          {% for envvar in job_specification['env'] %}
+          <tr>
+            <td class='p-2'>{{ envvar['name'] }}</td>
+            <td class='p-2 text-right'>{{ envvar['value'] }}</td>
+          </tr>
+          {% endfor %}
+          {% endif %}
+        </tbody>
+      </table>
+      {% endcall %}
+      {% if 'attributes' in job and job['attributes'] %}
+      {% call collapsible_li(false, 'Attributes', '') %}
+      {{ kv_table(job['attributes']) }}
+      {% endcall %}
+      {% endif %}
+      {% call collapsible_li(false, 'Resources', '') %}
+      {{ kv_table(job_specification['resources'] if job_specification else {}) }}
+      {% endcall %}
+      {% call collapsible_li(false, 'Cost', job.get('cost')) %}
+      {{ resource_cost_table(job['cost_breakdown'] or {}) }}
+      {% endcall %}
     </ul>
   </div>
 
@@ -105,81 +135,151 @@
   </div>
 </div>
 
+{# Attempt outcome icon macro — used in tab bar #}
+{% macro attempt_tab_icon(attempt) %}
+{% set is_this_latest = attempts and attempt['attempt_id'] == attempts[-1]['attempt_id'] %}
+{% if is_this_latest %}
+  {% if job['state'] == 'Success' %}{{ success_check() }}
+  {% elif job['state'] in ('Running', 'Creating') %}{{ progress_spinner('text-sky-600') }}
+  {% elif job['state'] in ('Failed', 'Error') %}{{ fail_cross() }}
+  {% endif %}
+{% else %}
+  {% if attempt.get('reason') == 'cancelled' %}
+  <span class='text-zinc-400 text-sm'>cancelled</span>
+  {% else %}
+  {{ fail_cross() }}
+  {% endif %}
+{% endif %}
+{% endmacro %}
+
+{# Derive a readable status label for an attempt #}
+{% macro attempt_status_label(attempt) %}
+{% set is_this_latest = attempts and attempt['attempt_id'] == attempts[-1]['attempt_id'] %}
+{% if is_this_latest %}{{ job['state'] }}
+{% else %}
+  {% set r = attempt.get('reason') %}
+  {% if r == 'completed' %}Failed
+  {% elif r == 'cancelled' %}Cancelled
+  {% elif r == 'terminated' %}Terminated
+  {% elif r == 'not_responding' %}Instance not responding
+  {% elif r == 'deactivated' %}Deactivated
+  {% elif r == 'activation_timeout' %}Activation timeout
+  {% elif r == 'does_not_exist' %}Instance lost
+  {% elif r %}{{ r }}
+  {% else %}—
+  {% endif %}
+{% endif %}
+{% endmacro %}
+
 {# Two-level tab section #}
 {% if selected_attempt_id or attempts %}
-<div class='mt-4' x-data="{ toplevel: '{{ 'attempt' if selected_attempt_id else 'job_details' }}' }">
+<div class='mt-4' x-data="{ toplevel: '{{ 'attempt' if selected_attempt_id else 'job_spec' }}' }">
 
   {# Top-level tab bar #}
   <div class='flex border-b text-lg overflow-auto bg-white'>
     <div class='px-4 pt-4 pb-2 hover:opacity-100 hover:cursor-pointer hover:border-b border-black'
-      :class='{"border-b": toplevel == "job_details", "opacity-50": toplevel != "job_details"}'
-      x-on:click='toplevel = "job_details"'>
-      Job Details
+      :class='{"border-b": toplevel == "job_spec", "opacity-50": toplevel != "job_spec"}'
+      x-on:click='toplevel = "job_spec"'>
+      Job Spec
+    </div>
+    <div class='px-4 pt-4 pb-2 hover:opacity-100 hover:cursor-pointer hover:border-b border-black'
+      :class='{"border-b": toplevel == "raw_status", "opacity-50": toplevel != "raw_status"}'
+      x-on:click='toplevel = "raw_status"'>
+      Raw Status
     </div>
 
-    {% if selected_attempt_id %}
+    {# All attempts, latest first — selected one is an Alpine tab, others are plain nav links #}
+    {% for attempt in (attempts or []) | reverse %}
+    {% set is_this_selected = attempt['attempt_id'] == selected_attempt_id %}
+    {% set is_this_latest = attempts and attempt['attempt_id'] == attempts[-1]['attempt_id'] %}
+    {% if is_this_selected %}
     <div class='px-4 pt-4 pb-2 hover:opacity-100 hover:cursor-pointer hover:border-b border-black'
       :class='{"border-b": toplevel == "attempt", "opacity-50": toplevel != "attempt"}'
       x-on:click='toplevel = "attempt"'>
-      <div class='flex items-center space-x-1'>
-        <span>Attempt {{ selected_attempt_id[:8] }}</span>
-        {% if is_latest_attempt %}<span class='text-xs text-zinc-400 ml-1'>latest</span>{% endif %}
+      <div class='flex items-center gap-1'>
+        <span>Attempt {{ attempt['attempt_id'][:8] }}</span>
+        {{ attempt_tab_icon(attempt) }}
       </div>
     </div>
-    {% endif %}
-
-    {% for attempt in attempts or [] %}
-    {% if attempt['attempt_id'] != selected_attempt_id %}
+    {% else %}
     <a href="{{ base_path }}/batches/{{ batch_id }}/jobs/{{ job_id }}?attempt_id={{ attempt['attempt_id'] }}"
        class='px-4 pt-4 pb-2 opacity-50 hover:opacity-100 hover:border-b border-black'>
-      Attempt {{ attempt['attempt_id'][:8] }}
+      <div class='flex items-center gap-1'>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-sky-500">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+        </svg>
+        <span>Attempt {{ attempt['attempt_id'][:8] }}</span>
+        {{ attempt_tab_icon(attempt) }}
+      </div>
     </a>
     {% endif %}
     {% endfor %}
   </div>
 
-  {# Job Details panel #}
-  <div x-show='toplevel == "job_details"' {% if selected_attempt_id %}x-cloak{% endif %}>
-    <div class='bg-white' x-data='{ subtab: "info" }'>
+  {# Job Spec panel #}
+  <div x-show='toplevel == "job_spec"' {% if selected_attempt_id %}x-cloak{% endif %}>
+    <div class='bg-white' x-data='{ subtab: "main" }'>
       <div class='flex border-b text-lg overflow-auto'>
         <div class='px-4 pt-4 pb-2 hover:opacity-100 hover:cursor-pointer hover:border-b border-black'
-          :class='{"border-b": subtab == "info", "opacity-50": subtab != "info"}' x-on:click='subtab = "info"'>
-          Info
+          :class='{"border-b": subtab == "input", "opacity-50": subtab != "input"}' x-on:click='subtab = "input"'>
+          Input
         </div>
         <div class='px-4 pt-4 pb-2 hover:opacity-100 hover:cursor-pointer hover:border-b border-black'
-          :class='{"border-b": subtab == "containers", "opacity-50": subtab != "containers"}' x-on:click='subtab = "containers"'>
-          Containers
+          :class='{"border-b": subtab == "main", "opacity-50": subtab != "main"}' x-on:click='subtab = "main"'>
+          Main
         </div>
         <div class='px-4 pt-4 pb-2 hover:opacity-100 hover:cursor-pointer hover:border-b border-black'
-          :class='{"border-b": subtab == "attempts", "opacity-50": subtab != "attempts"}' x-on:click='subtab = "attempts"'>
-          Attempts
-        </div>
-        <div class='px-4 pt-4 pb-2 hover:opacity-100 hover:cursor-pointer hover:border-b border-black'
-          :class='{"border-b": subtab == "raw_job", "opacity-50": subtab != "raw_job"}' x-on:click='subtab = "raw_job"'>
-          Raw Job
+          :class='{"border-b": subtab == "output", "opacity-50": subtab != "output"}' x-on:click='subtab = "output"'>
+          Output
         </div>
       </div>
 
-      {# Info subtab #}
-      <div class='relative overflow-hidden transition-all' x-show='subtab == "info"'>
-        <div class='py-4 pl-4'>
-          <div class='font-light text-zinc-500'>Submitted by {{ job['user'] }}</div>
-          <div class='font-light text-zinc-500'>Billed to {{ job['billing_project'] }}</div>
-          {% if 'always_run' in job and job['always_run'] %}
-          <div class='font-semibold'>Always Run</div>
+      {# Input subtab #}
+      <div class='relative overflow-hidden transition-all' x-show='subtab == "input"' x-cloak>
+        <div class='py-4 px-4'>
+          {% set input_files = job_specification.get('input_files') if job_specification else none %}
+          {% set cloudfuse = job_specification.get('cloudfuse') if job_specification else none %}
+          {% if input_files %}
+          <h3 class='text-xl font-light py-2'>Input Files</h3>
+          <table class='w-full'>
+            <thead class='text-left text-zinc-500 text-sm'>
+              <tr><th class='p-2'>From (cloud)</th><th class='p-2'>To (container)</th></tr>
+            </thead>
+            <tbody class='divide-y font-mono text-sm'>
+              {% for f in input_files %}
+              <tr>
+                <td class='p-2'>{{ f['from'] }}</td>
+                <td class='p-2'>{{ f['to'] }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <p class='text-zinc-500 text-sm'>This job has no input files.</p>
           {% endif %}
-          {% if 'attributes' in job and job['attributes'] %}
-          <h3 class='text-xl font-light py-2'>Attributes</h3>
-          {{ kv_table(job['attributes']) }}
+          {% if cloudfuse %}
+          <h3 class='text-xl font-light pt-4 pb-2'>Cloud Fuse Mounts</h3>
+          <table class='w-full'>
+            <thead class='text-left text-zinc-500 text-sm'>
+              <tr><th class='p-2'>Bucket</th><th class='p-2'>Mount Path</th><th class='p-2'>Read Only</th></tr>
+            </thead>
+            <tbody class='divide-y font-mono text-sm'>
+              {% for m in cloudfuse %}
+              <tr>
+                <td class='p-2'>{{ m['bucket'] }}</td>
+                <td class='p-2'>{{ m['mount_path'] }}</td>
+                <td class='p-2'>{{ 'yes' if m['read_only'] else 'no' }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
           {% endif %}
-          <h3 class='text-xl font-light py-2'>Cost: {{ job.get('cost') }}</h3>
-          {{ resource_cost_table(job['cost_breakdown'] or {}) }}
         </div>
       </div>
 
-      {# Containers subtab #}
-      <div class='relative overflow-hidden transition-all' x-show='subtab == "containers"' x-cloak>
-        <div class='py-4 pl-4'>
+      {# Main subtab #}
+      <div class='relative overflow-hidden transition-all' x-show='subtab == "main"'>
+        <div class='py-4 px-4'>
           {% if job_specification %}
           {% if job_specification['image'] != '[jvm]' %}
           <div class='py-2'>
@@ -197,65 +297,42 @@
             <h3 class='text-xl font-light py-2'>Command</h3>
             {{ code_block(job_specification['command'] | join("' '")) }}
           </div>
-          <div class='py-2'>
-            <h3 class='text-xl font-light py-2'>Resources</h3>
-            {{ kv_table(job_specification['resources'] if job_specification else {}) }}
-          </div>
-          <div class='py-2'>
-            <h3 class='text-xl font-light py-2'>Environment Variables</h3>
-            <table class='w-full'>
-              <tbody class='divide-y'>
-                {% for envvar in job_specification['env'] %}
-                <tr>
-                  <td class='p-2'>{{ envvar['name'] }}</td>
-                  <td class='p-2 text-right'>{{ envvar['value'] }}</td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
           {% endif %}
         </div>
       </div>
 
-      {# Attempts subtab #}
-      <div class='relative overflow-hidden transition-all' x-show='subtab == "attempts"' x-cloak>
-        <table class='overflow-hidden table-fixed w-full'>
-          <thead class='h-12 text-sky-900'>
-            <th class='text-center'>Attempt ID</th>
-            <th class='text-center'>Worker</th>
-            <th class='text-center hidden md:table-cell'>Started</th>
-            <th class='text-center hidden md:table-cell'>Ended</th>
-            <th class='text-center'>Duration</th>
-            <th class='text-center'>Status</th>
-          </thead>
-          <tbody>
-            {% if not attempts %}
-            <tr class='h-12 border-y bg-white'>
-              <td colspan='6' class='text-center text-zinc-400 text-sm'>No attempts yet</td>
-            </tr>
-            {% endif %}
-            {% for attempt in attempts or [] %}
-            {% set is_selected = attempt['attempt_id'] == selected_attempt_id %}
-            <tr class='h-12 border-y {% if is_selected %}bg-sky-50{% else %}bg-white{% endif %}'>
-              <td class='text-center font-mono text-sm'>{{ attempt['attempt_id'] }}</td>
-              <td class='text-center'>{{ attempt['instance_name'] }}</td>
-              <td class='text-center hidden md:table-cell'>{{ attempt.get('start_time') or '' }}</td>
-              <td class='text-center hidden md:table-cell'>{{ attempt.get('end_time') or '' }}</td>
-              <td class='text-center'>{{ attempt.get('duration') or '' }}</td>
-              <td class='text-center'>{{ attempt.get('reason') or '' }}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-
-      {# Raw Job subtab #}
-      <div class='relative overflow-hidden transition-all' x-show='subtab == "raw_job"' x-cloak>
-        <div class='w-full overflow-auto pt-4 pl-4'>
-          {{ code_block(job_str) }}
+      {# Output subtab #}
+      <div class='relative overflow-hidden transition-all' x-show='subtab == "output"' x-cloak>
+        <div class='py-4 px-4'>
+          {% set output_files = job_specification.get('output_files') if job_specification else none %}
+          {% if output_files %}
+          <h3 class='text-xl font-light py-2'>Output Files</h3>
+          <table class='w-full'>
+            <thead class='text-left text-zinc-500 text-sm'>
+              <tr><th class='p-2'>From (container)</th><th class='p-2'>To (cloud)</th></tr>
+            </thead>
+            <tbody class='divide-y font-mono text-sm'>
+              {% for f in output_files %}
+              <tr>
+                <td class='p-2'>{{ f['from'] }}</td>
+                <td class='p-2'>{{ f['to'] }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <p class='text-zinc-500 text-sm'>This job has no output files.</p>
+          {% endif %}
         </div>
       </div>
+
+    </div>
+  </div>
+
+  {# Raw Status panel #}
+  <div x-show='toplevel == "raw_status"' x-cloak>
+    <div class='w-full overflow-auto pt-4 pl-4'>
+      {{ code_block(job_str) }}
     </div>
   </div>
 
@@ -271,8 +348,12 @@
         class='text-amber-800 underline hover:text-amber-900 text-sm ml-4'>View latest</a>
     </div>
     {% endif %}
-    <div class='bg-white' x-data='{ subtab: "charts" }'>
+    <div class='bg-white' x-data='{ subtab: "main" }'>
       <div class='flex border-b text-lg overflow-auto'>
+        <div class='px-4 pt-4 pb-2 hover:opacity-100 hover:cursor-pointer hover:border-b border-black'
+          :class='{"border-b": subtab == "details", "opacity-50": subtab != "details"}' x-on:click='subtab = "details"'>
+          Details
+        </div>
         <div class='px-4 pt-4 pb-2 hover:opacity-100 hover:cursor-pointer hover:border-b border-black'
           :class='{"border-b": subtab == "charts", "opacity-50": subtab != "charts"}' x-on:click='subtab = "charts"'>
           Charts
@@ -281,10 +362,7 @@
         {% if step in job_log or step in step_errors %}
         <div class='px-4 pt-4 pb-2 hover:opacity-100 hover:cursor-pointer hover:border-b border-black'
           :class='{"border-b": subtab == "{{ step }}", "opacity-50": subtab != "{{ step }}"}' x-on:click='subtab = "{{ step }}"'>
-          <div class='flex items-center space-x-1 h-full'>
-            <div>{{ step|capitalize }}</div>
-            {% if container_statuses[step] %}{{ step_state_indicator(container_statuses[step]['state']) }}{% endif %}
-          </div>
+          {{ step|capitalize }}
         </div>
         {% endif %}
         {% endfor %}
@@ -294,7 +372,40 @@
         </div>
       </div>
 
-      <div class='relative overflow-hidden transition-all' x-show='subtab == "charts"'>
+      <div class='relative overflow-hidden transition-all' x-show='subtab == "details"' x-cloak>
+        <div class='py-4 px-4'>
+          {% if selected_attempt %}
+          <table class='w-full text-sm'>
+            <tbody class='divide-y'>
+              <tr class='h-10'>
+                <td class='text-zinc-500 pr-8 w-32'>Worker</td>
+                <td class='font-mono'>{{ selected_attempt['instance_name'] or '—' }}</td>
+              </tr>
+              <tr class='h-10'>
+                <td class='text-zinc-500'>Started</td>
+                <td>{{ selected_attempt.get('start_time') or '—' }}</td>
+              </tr>
+              <tr class='h-10'>
+                <td class='text-zinc-500'>Ended</td>
+                <td>{{ selected_attempt.get('end_time') or '—' }}</td>
+              </tr>
+              <tr class='h-10'>
+                <td class='text-zinc-500'>Duration</td>
+                <td>{{ selected_attempt.get('duration') or '—' }}</td>
+              </tr>
+              <tr class='h-10'>
+                <td class='text-zinc-500'>Status</td>
+                <td>{{ attempt_status_label(selected_attempt) }}</td>
+              </tr>
+            </tbody>
+          </table>
+          {% else %}
+          <p class='text-zinc-500 text-sm'>No attempt details available.</p>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class='relative overflow-hidden transition-all' x-show='subtab == "charts"' x-cloak>
         {% if has_jvm_profile %}
         <div class='px-4 pt-3'>
           <a href="{{ base_path }}/batches/{{ batch_id }}/jobs/{{ job_id }}/jvm_profile" class='text-sky-600 hover:underline'>JVM Profile</a>
@@ -319,7 +430,7 @@
           {{ error_and_logs_panel('input') }}
         </div>
       </div>
-      <div class='relative overflow-hidden transition-all' x-show='subtab == "main"' x-cloak>
+      <div class='relative overflow-hidden transition-all' x-show='subtab == "main"'>
         <div class='py-4 pl-4'>
           <div class='overflow-auto'>
             {{ step_runtime('main') }}

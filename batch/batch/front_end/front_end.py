@@ -2911,6 +2911,8 @@ async def ui_get_job(request, userdata, batch_id):
         except UnicodeDecodeError:
             job_log_strings_or_bytes[container] = log
 
+    selected_attempt = next((a for a in (attempts or []) if a['attempt_id'] == selected_attempt_id), None)
+
     page_context = {
         'batch_id': batch_id,
         'job_id': job_id,
@@ -2918,6 +2920,7 @@ async def ui_get_job(request, userdata, batch_id):
         'job_log': job_log_strings_or_bytes,
         'attempts': attempts,
         'selected_attempt_id': selected_attempt_id,
+        'selected_attempt': selected_attempt,
         'is_latest_attempt': is_latest_attempt,
         'container_statuses': container_statuses,
         'job_specification': job_specification,
