@@ -461,6 +461,8 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
               jobId={jobId}
               basePath={basePath}
               isLatest={activeAttempt === latestAttempt}
+              hasInput={(job.spec?.input_files ?? []).length > 0}
+              hasOutput={(job.spec?.output_files ?? []).length > 0}
               activeSubTab={attemptSubTabs[activeAttempt.attempt_id] ?? 'details'}
               setActiveSubTab={(sub) => updateAttemptSubTab(activeAttempt.attempt_id, sub)}
             />

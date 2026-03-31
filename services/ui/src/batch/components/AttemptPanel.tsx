@@ -14,12 +14,12 @@ type Attempt = {
 
 type SubTab = 'details' | 'charts' | 'input' | 'main' | 'output' | 'raw';
 
-const SUB_TABS: { id: SubTab; label: string }[] = [
+const ALL_SUB_TABS: { id: SubTab; label: string; requires?: 'input' | 'output' }[] = [
   { id: 'details', label: 'Details' },
   { id: 'charts', label: 'Charts' },
-  { id: 'input', label: 'Input Log' },
+  { id: 'input', label: 'Input Log', requires: 'input' },
   { id: 'main', label: 'Main Log' },
-  { id: 'output', label: 'Output Log' },
+  { id: 'output', label: 'Output Log', requires: 'output' },
   { id: 'raw', label: 'Raw Status' },
 ];
 
@@ -37,6 +37,8 @@ type Props = {
   jobId: string;
   basePath: string;
   isLatest: boolean;
+  hasInput: boolean;
+  hasOutput: boolean;
   activeSubTab: SubTab;
   setActiveSubTab: (t: SubTab) => void;
 };
@@ -58,6 +60,8 @@ export function AttemptPanel({
   batchId,
   jobId,
   basePath,
+  hasInput,
+  hasOutput,
   activeSubTab,
   setActiveSubTab,
 }: Props): JSX.Element {
@@ -83,9 +87,9 @@ export function AttemptPanel({
     const apiBase = `${basePath}/api/v1alpha/batches/${batchId}/jobs/${jobId}`;
 
     Promise.all([
-      fetchText(`${apiBase}/log/input${attemptParam}`).catch(() => null),
+      hasInput ? fetchText(`${apiBase}/log/input${attemptParam}`).catch(() => null) : Promise.resolve(null),
       fetchText(`${apiBase}/log/main${attemptParam}`).catch(() => null),
-      fetchText(`${apiBase}/log/output${attemptParam}`).catch(() => null),
+      hasOutput ? fetchText(`${apiBase}/log/output${attemptParam}`).catch(() => null) : Promise.resolve(null),
       fetchJson<ResourceUsageData>(`${apiBase}/resource_usage${attemptParam}`).catch(() => null),
     ]).then(([inputLog, mainLog, outputLog, resourceUsage]) => {
       const result: AttemptData = {
@@ -106,7 +110,9 @@ export function AttemptPanel({
   return (
     <div>
       <div className="flex border-b text-base overflow-auto bg-white mb-4">
-        {SUB_TABS.map(({ id, label }) => (
+        {ALL_SUB_TABS.filter(({ requires }) =>
+          requires === 'input' ? hasInput : requires === 'output' ? hasOutput : true
+        ).map(({ id, label }) => (
           <button
             key={id}
             onClick={() => setActiveSubTab(id)}
