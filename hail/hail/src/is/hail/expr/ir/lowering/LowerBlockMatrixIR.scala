@@ -1409,54 +1409,75 @@ object LowerBlockMatrixIR {
 
       case x @ BlockMatrixSlice(
             child,
-            IndexedSeq(IndexedSeq(rStart, rEnd, rStep), IndexedSeq(cStart, cEnd, cStep)),
+            IndexedSeq(IndexedSeq(rStart, rEnd @ _, rStep), IndexedSeq(cStart, cEnd @ _, cStep)),
           ) =>
         val rowDependents = x.rowBlockDependents
         val colDependents = x.colBlockDependents
         val childBMS = lower(child, ib)
 
-        val rowSlices = rowDependents.zipWithIndex.map { case (dep, i) =>
-          val blockAlignedRowStartIdx = dep.head.toLong * x.typ.blockSize
-          val blockAlignedRowEndIdx =
-            math.min(child.typ.nRows, (dep.last + 1L) * x.typ.blockSize * rStep)
-          val rStartPlusSeenAlready = rStart + i * x.typ.blockSize * rStep
-          val rowTrueStart = rStartPlusSeenAlready - blockAlignedRowStartIdx
-          val rowTrueEnd = math.min(
-            math.min(rEnd, blockAlignedRowEndIdx) - blockAlignedRowStartIdx,
-            rowTrueStart + x.typ.blockSize * rStep,
-          )
-          Row(rowTrueStart, rowTrueEnd, rStep)
-        }
-
-        val colSlices = colDependents.zipWithIndex.map { case (dep, i) =>
-          val blockAlignedColStartIdx = dep.head.toLong * x.typ.blockSize
-          val blockAlignedColEndIdx =
-            math.min(child.typ.nCols, (dep.last + 1L) * x.typ.blockSize * cStep)
-          val cStartPlusSeenAlready = cStart + i * x.typ.blockSize * cStep
-          val colTrueStart = cStartPlusSeenAlready - blockAlignedColStartIdx
-          val colTrueEnd = math.min(
-            math.min(cEnd, blockAlignedColEndIdx) - blockAlignedColStartIdx,
-            colTrueStart + x.typ.blockSize * cStep,
-          )
-          Row(colTrueStart, colTrueEnd, cStep)
-        }
+        // Precompute per-dependent-block slice bounds so we can slice each
+        // child block individually before concatenation, avoiding a large
+        // intermediate. The slice end is already accounted for in the type, so
+        // the slices produced here will be naturally limited.
+        def computePerBlockSlices(
+          dependents: IndexedSeq[IndexedSeq[Int]],
+          start: Long,
+          step: Long,
+          outputDimSize: Long,
+          childDimSize: Long,
+        ): IndexedSeq[IndexedSeq[Row]] =
+          dependents.zipWithIndex.map { case (deps, i) =>
+            val outputBlockStart = i.toLong * x.typ.blockSize
+            val outputBlockElems =
+              math.min((i + 1L) * x.typ.blockSize, outputDimSize) - outputBlockStart
+            var outputProduced = 0L
+            deps.map { d =>
+              val childBlockStart = d.toLong * x.typ.blockSize
+              val childBlockElems =
+                math.min((d + 1L) * x.typ.blockSize, childDimSize) - childBlockStart
+              val nextGlobalPos = start + (outputBlockStart + outputProduced) * step
+              val localStart = nextGlobalPos - childBlockStart
+              assert(localStart >= 0, s"negative localStart=$localStart")
+              if (localStart >= childBlockElems) {
+                Row(0L, 0L, step)
+              } else {
+                val maxFromBlock = (childBlockElems - localStart + step - 1) / step
+                val nSelected = math.min(maxFromBlock, outputBlockElems - outputProduced)
+                outputProduced += nSelected
+                if (nSelected == 0) Row(0L, 0L, step)
+                else Row(
+                  localStart,
+                  math.min(childBlockElems, localStart + nSelected * step),
+                  step,
+                )
+              }
+            }
+          }
 
         val sliceType = TTuple(TInt64, TInt64, TInt64)
-        val rowSlicesLit = Literal(TArray(sliceType), rowSlices)
-        val colSlicesLit = Literal(TArray(sliceType), colSlices)
-
-        val rowDependentsLit = Literal(TArray(TArray(TInt32)), rowDependents)
-        val colDependentsLit = Literal(TArray(TArray(TInt32)), colDependents)
+        val perBlockRowSlices = computePerBlockSlices(
+          rowDependents, rStart, rStep, x.typ.nRows, child.typ.nRows,
+        )
+        val perBlockColSlices = computePerBlockSlices(
+          colDependents, cStart, cStep, x.typ.nCols, child.typ.nCols,
+        )
+        val perBlockRowSlicesLit = Literal(TArray(TArray(sliceType)), perBlockRowSlices)
+        val perBlockColSlicesLit = Literal(TArray(TArray(sliceType)), perBlockColSlices)
 
         val groupedContexts = childBMS.contexts.grouped(ib, rowDependents, colDependents, x.typ)
         val groupedContextsWithSlices = groupedContexts.map(ib) { (i, j, pos, context) =>
           maketuple(
             context,
-            ArrayRef(rowDependentsLit, i),
-            ArrayRef(colDependentsLit, j),
-            ArrayRef(rowSlicesLit, i),
-            ArrayRef(colSlicesLit, j),
+            ArrayRef(perBlockRowSlicesLit, i),
+            ArrayRef(perBlockColSlicesLit, j),
           )
+        }
+
+        def sliceLen(slice: IR): IR = {
+          val start = GetTupleElement(slice, 0)
+          val stop = GetTupleElement(slice, 1)
+          val step = GetTupleElement(slice, 2)
+          (stop - start + step - 1L).floorDiv(step)
         }
 
         def newBody(ctxRef: Ref): IR = {
@@ -1465,30 +1486,25 @@ object LowerBlockMatrixIR {
               case _: DenseContexts => DynamicDenseContexts(ib, GetTupleElement(ctxRef, 0))
               case _: SparseContexts => DynamicSparseContexts(ib, GetTupleElement(ctxRef, 0))
             }
-            val localRowDeps = GetTupleElement(ctxRef, 1)
-            val localColDeps = GetTupleElement(ctxRef, 2)
-            val rowSlice = GetTupleElement(ctxRef, 3)
-            val colSlice = GetTupleElement(ctxRef, 4)
+            val localRowSlices = GetTupleElement(ctxRef, 1)
+            val localColSlices = GetTupleElement(ctxRef, 2)
 
-            val concatenatedBlock = localContexts.collect { (localI, localJ, localContext) =>
-              bindIRs(ArrayRef(localRowDeps, localI), ArrayRef(localColDeps, localJ)) {
-                case Seq(globalI, globalJ) =>
-                  val (nRowsInBlock, nColsInBlock) = child.typ.blockShapeIR(globalI, globalJ)
+            localContexts.collect { (localI, localJ, localContext) =>
+              bindIRs(ArrayRef(localRowSlices, localI), ArrayRef(localColSlices, localJ)) {
+                case Seq(rowSlice, colSlice) =>
                   Coalesce(FastSeq(
-                    childBMS.blockIR(localContext),
+                    NDArraySlice(
+                      childBMS.blockIR(localContext),
+                      MakeTuple.ordered(FastSeq(rowSlice, colSlice)),
+                    ),
                     MakeNDArray.fill(
                       zero(child.typ.elementType),
-                      FastSeq(nRowsInBlock, nColsInBlock),
+                      FastSeq(sliceLen(rowSlice), sliceLen(colSlice)),
                       False(),
                     ),
                   ))
               }
             }
-
-            NDArraySlice(
-              concatenatedBlock,
-              MakeTuple.ordered(FastSeq(rowSlice, colSlice)),
-            )
           }
         }
 
