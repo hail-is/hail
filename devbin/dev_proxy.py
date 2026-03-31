@@ -19,6 +19,7 @@ routes = web.RouteTableDef()
 setup_common_static_routes(routes)
 
 STATIC_DIRS: dict[str, list[tuple[str, str]]] = {
+    'batch': [('/batch/static/compiled-js', 'batch/batch/front_end/static/compiled-js')],
     'ci': [('/ci/static/compiled-js', 'ci/ci/static/compiled-js')],
 }
 for _path, _directory in STATIC_DIRS.get(SERVICE, []):

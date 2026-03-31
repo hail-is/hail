@@ -757,11 +757,12 @@ async def get_job_container_log(request, batch_id):
     app = request.app
     job_id = int(request.match_info['job_id'])
     container = request.match_info['container']
+    override_attempt_id = request.query.get('attempt_id') or None
     record = await _get_job_record(app, batch_id, job_id)
     containers = job_tasks_from_spec(record)
     if container not in containers:
         raise web.HTTPBadRequest(reason=f'unknown container {container}')
-    job_log = await _get_job_container_log(app, batch_id, job_id, container, record)
+    job_log = await _get_job_container_log(app, batch_id, job_id, container, record, override_attempt_id)
     return web.Response(body=job_log)
 
 
@@ -2535,11 +2536,12 @@ async def get_job_resource_usage(request: web.Request, _, batch_id: int) -> web.
     # pull this out separately as billing_project_users_only() does a permission
     # check for us, but has a fixed signature
     job_id = int(request.match_info['job_id'])
+    override_attempt_id = request.query.get('attempt_id') or None
 
     job_record = await _get_job_record(request.app, batch_id, job_id)
 
     resources: Optional[Dict[str, Optional[pd.DataFrame]]] = await _get_job_resource_usage_from_record(
-        app=request.app, record=job_record, batch_id=batch_id, job_id=job_id
+        app=request.app, record=job_record, batch_id=batch_id, job_id=job_id, override_attempt_id=override_attempt_id
     )
 
     if not resources:
@@ -2789,6 +2791,36 @@ async def ui_get_jvm_profile(request: web.Request, _, batch_id: int) -> web.Resp
     return web.Response(text=profile, content_type='text/html')
 
 
+async def render_react_job_page(request: web.Request, userdata, batch_id: int, job_id: int) -> web.Response:
+    page_context = {
+        'batch_id': batch_id,
+        'job_id': job_id,
+    }
+    return await render_template('batch', request, userdata, 'job_react.html', page_context)
+
+
+@routes.get('/batches/{batch_id}/jobs/{job_id}/enable-react')
+@web_security_headers
+@billing_project_users_only()
+@catch_ui_error_in_dev
+async def enable_react_ui(request, userdata, batch_id):  # pylint: disable=unused-argument
+    job_id = int(request.match_info['job_id'])
+    resp = web.HTTPFound(f'{deploy_config.base_path("batch")}/batches/{batch_id}/jobs/{job_id}')
+    resp.set_cookie('hail_react_ui', '1', max_age=365 * 24 * 3600, path='/', samesite='Lax')
+    raise resp
+
+
+@routes.get('/batches/{batch_id}/jobs/{job_id}/disable-react')
+@web_security_headers
+@billing_project_users_only()
+@catch_ui_error_in_dev
+async def disable_react_ui(request, userdata, batch_id):  # pylint: disable=unused-argument
+    job_id = int(request.match_info['job_id'])
+    resp = web.HTTPFound(f'{deploy_config.base_path("batch")}/batches/{batch_id}/jobs/{job_id}')
+    resp.del_cookie('hail_react_ui', path='/')
+    raise resp
+
+
 @routes.get('/batches/{batch_id}/jobs/{job_id}')
 @web_security_headers
 @billing_project_users_only()
@@ -2796,6 +2828,9 @@ async def ui_get_jvm_profile(request: web.Request, _, batch_id: int) -> web.Resp
 async def ui_get_job(request, userdata, batch_id):
     app = request.app
     job_id = int(request.match_info['job_id'])
+
+    if request.cookies.get('hail_react_ui') == '1':
+        return await render_react_job_page(request, userdata, batch_id, job_id)
     query_attempt_id = request.query.get('attempt_id') or None
 
     job, attempts = await asyncio.gather(

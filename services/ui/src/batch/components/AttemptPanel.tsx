@@ -1,0 +1,206 @@
+import { useState, useEffect, useRef } from 'react';
+import { LogViewer } from './LogViewer';
+import { CodeBlock } from './CodeBlock';
+import { ResourceCharts, ResourceUsageData } from './ResourceCharts';
+
+type Attempt = {
+  attempt_id: string;
+  instance_name?: string;
+  start_time_ms?: number;
+  end_time_ms?: number;
+  duration?: string;
+  reason?: string;
+};
+
+type SubTab = 'details' | 'charts' | 'input' | 'main' | 'output' | 'raw';
+
+const SUB_TABS: { id: SubTab; label: string }[] = [
+  { id: 'details', label: 'Details' },
+  { id: 'charts', label: 'Charts' },
+  { id: 'input', label: 'Input Log' },
+  { id: 'main', label: 'Main Log' },
+  { id: 'output', label: 'Output Log' },
+  { id: 'raw', label: 'Raw Status' },
+];
+
+type AttemptData = {
+  logs: Record<string, string | null>;
+  resourceUsage: ResourceUsageData | null;
+  rawStatus: string | null;
+  loading: boolean;
+  error: string | null;
+};
+
+type Props = {
+  attempt: Attempt;
+  batchId: string;
+  jobId: string;
+  basePath: string;
+  isLatest: boolean;
+  activeSubTab: SubTab;
+  setActiveSubTab: (t: SubTab) => void;
+};
+
+async function fetchText(url: string): Promise<string> {
+  const resp = await fetch(url, { credentials: 'same-origin' });
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  return resp.text();
+}
+
+async function fetchJson<T>(url: string): Promise<T> {
+  const resp = await fetch(url, { credentials: 'same-origin' });
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  return resp.json() as Promise<T>;
+}
+
+export function AttemptPanel({
+  attempt,
+  batchId,
+  jobId,
+  basePath,
+  activeSubTab,
+  setActiveSubTab,
+}: Props): JSX.Element {
+  const cache = useRef<AttemptData | null>(null);
+  const [data, setData] = useState<AttemptData>({
+    logs: {},
+    resourceUsage: null,
+    rawStatus: null,
+    loading: false,
+    error: null,
+  });
+
+  useEffect(() => {
+    if (cache.current) {
+      setData(cache.current);
+      return;
+    }
+
+    setData((d) => ({ ...d, loading: true, error: null }));
+
+    const attemptParam = `?attempt_id=${attempt.attempt_id}`;
+    const apiBase = `${basePath}/api/v1alpha/batches/${batchId}/jobs/${jobId}`;
+
+    Promise.all([
+      fetchText(`${apiBase}/log/input${attemptParam}`).catch(() => null),
+      fetchText(`${apiBase}/log/main${attemptParam}`).catch(() => null),
+      fetchText(`${apiBase}/log/output${attemptParam}`).catch(() => null),
+      fetchJson<ResourceUsageData>(`${apiBase}/resource_usage${attemptParam}`).catch(() => null),
+    ]).then(([inputLog, mainLog, outputLog, resourceUsage]) => {
+      const result: AttemptData = {
+        logs: { input: inputLog, main: mainLog, output: outputLog },
+        resourceUsage,
+        rawStatus: null,
+        loading: false,
+        error: null,
+      };
+      cache.current = result;
+      setData(result);
+    });
+  }, [attempt.attempt_id, batchId, jobId, basePath]);
+
+  const apiBase = `${basePath}/api/v1alpha/batches/${batchId}/jobs/${jobId}`;
+  const attemptParam = `?attempt_id=${attempt.attempt_id}`;
+
+  return (
+    <div>
+      <div className="flex border-b text-base overflow-auto bg-white mb-4">
+        {SUB_TABS.map(({ id, label }) => (
+          <button
+            key={id}
+            onClick={() => setActiveSubTab(id)}
+            className={`px-4 pt-3 pb-2 hover:opacity-100 border-b-2 ${
+              activeSubTab === id
+                ? 'border-black font-medium'
+                : 'border-transparent opacity-50'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {data.loading && (
+        <div className="py-8 text-center text-zinc-400 text-sm">Loading…</div>
+      )}
+
+      {!data.loading && activeSubTab === 'details' && (
+        <table className="text-sm border-collapse w-full max-w-lg">
+          <tbody>
+            <tr className="border-t">
+              <td className="py-2 pr-4 text-zinc-500">Attempt ID</td>
+              <td className="py-2 font-mono">{attempt.attempt_id}</td>
+            </tr>
+            {attempt.instance_name && (
+              <tr className="border-t">
+                <td className="py-2 pr-4 text-zinc-500">Worker</td>
+                <td className="py-2 font-mono">{attempt.instance_name}</td>
+              </tr>
+            )}
+            {attempt.start_time_ms != null && (
+              <tr className="border-t">
+                <td className="py-2 pr-4 text-zinc-500">Started</td>
+                <td className="py-2">{new Date(attempt.start_time_ms).toLocaleString()}</td>
+              </tr>
+            )}
+            {attempt.end_time_ms != null && (
+              <tr className="border-t">
+                <td className="py-2 pr-4 text-zinc-500">Ended</td>
+                <td className="py-2">{new Date(attempt.end_time_ms).toLocaleString()}</td>
+              </tr>
+            )}
+            {attempt.duration && (
+              <tr className="border-t">
+                <td className="py-2 pr-4 text-zinc-500">Duration</td>
+                <td className="py-2">{attempt.duration}</td>
+              </tr>
+            )}
+            {attempt.reason && (
+              <tr className="border-t">
+                <td className="py-2 pr-4 text-zinc-500">Reason</td>
+                <td className="py-2">{attempt.reason}</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      )}
+
+      {!data.loading && activeSubTab === 'charts' && (
+        <div>
+          {data.resourceUsage ? (
+            <ResourceCharts data={data.resourceUsage} />
+          ) : (
+            <div className="text-zinc-400 text-sm py-4">No resource usage data.</div>
+          )}
+        </div>
+      )}
+
+      {!data.loading &&
+        (['input', 'main', 'output'] as const).map((step) =>
+          activeSubTab === step ? (
+            <div key={step}>
+              {data.logs[step] != null ? (
+                <LogViewer
+                  text={data.logs[step]!}
+                  downloadUrl={`${apiBase}/log/${step}${attemptParam}`}
+                  downloadName={`batch-${batchId}-${jobId}-${step}.log`}
+                />
+              ) : (
+                <div className="text-zinc-400 text-sm py-4">No {step} log available.</div>
+              )}
+            </div>
+          ) : null
+        )}
+
+      {!data.loading && activeSubTab === 'raw' && (
+        <div>
+          {data.rawStatus != null ? (
+            <CodeBlock code={data.rawStatus} />
+          ) : (
+            <div className="text-zinc-400 text-sm py-4">No raw status available.</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

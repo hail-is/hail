@@ -694,9 +694,12 @@ steps:
         to: /io/repo/gear
       - from: /repo/web_common
         to: /io/repo/web_common
+      - from: /compiled-js/batch
+        to: /io/repo/batch/batch/front_end/static/compiled-js
     dependsOn:
       - hail_ubuntu_image
       - merge_code
+      - build_ui
   - kind: buildImage2
     name: hailgenetics_hailtop_image
     dockerFile: /io/repo/docker/hailgenetics/hailtop/Dockerfile
@@ -728,6 +731,8 @@ steps:
     outputs:
       - from: /io/repo/services/ui/dist/ci
         to: /compiled-js/ci
+      - from: /io/repo/services/ui/dist/batch
+        to: /compiled-js/batch
     dependsOn:
       - merge_code
   - kind: runImage
