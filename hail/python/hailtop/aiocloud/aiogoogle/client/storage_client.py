@@ -994,7 +994,8 @@ class GoogleStorageAsyncFS(AsyncFS):
         copy_operations = []
         copy_operation_thread_count = []
         for transfer, report in zip(transfers, source_reports):
-            assert isinstance(transfer.src, str)
+            if not isinstance(transfer.src, str):
+                raise TypeError(f'Expected a single source when copying from {transfer.src}')
             if await self.isfile(transfer.src):
                 stat = await self.statfile(transfer.src)
                 size = await stat.size()
