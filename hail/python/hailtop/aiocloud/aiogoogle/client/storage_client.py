@@ -4,7 +4,6 @@ import functools
 import logging
 import os
 import urllib.parse
-from asyncio import Semaphore
 from concurrent.futures.thread import ThreadPoolExecutor
 from contextlib import AsyncExitStack
 from types import TracebackType
@@ -31,7 +30,7 @@ from multidict import CIMultiDictProxy  # pylint: disable=unused-import  # pylin
 
 from hailtop import timex
 from hailtop.aiocloud.common import AnonymousCloudCredentials
-from hailtop.aiotools import FeedableAsyncIterable, Transfer, WeightedSemaphore, WriteBuffer
+from hailtop.aiotools import FeedableAsyncIterable, Transfer, WeightedSemaphore, WriteBuffer, weighted_bounded_gather2
 from hailtop.aiotools.fs import (
     AsyncFS,
     AsyncFSFactory,
@@ -50,7 +49,6 @@ from hailtop.utils import (
     OnlineBoundedGather2,
     TransientError,
     blocking_to_async,
-    bounded_gather2,
     retry_transient_errors,
     secret_alnum_string,
 )
@@ -344,6 +342,7 @@ class GetObjectStream(ReadableStream):
 
 class GoogleStorageClient(GoogleBaseClient):
     CHUNK_SIZE = 8 * 1024 * 1024
+    MAX_WORKERS = 8
 
     def __init__(
         self,
@@ -481,23 +480,15 @@ class GoogleStorageClient(GoogleBaseClient):
             local_dest = urllib.parse.urlparse(dest).path
         else:
             local_dest = dest
-        try:
-            await blocking_to_async(
-                self._thread_pool,
-                blob.download_to_filename,
-                local_dest,
-                single_shot_download=True,
-                timeout=self._timeout,
-            )
-        except FileNotFoundError:
-            os.makedirs(os.path.dirname(local_dest), exist_ok=True)
-            await blocking_to_async(
-                self._thread_pool,
-                blob.download_to_filename,
-                local_dest,
-                single_shot_download=True,
-                timeout=self._timeout,
-            )
+
+        os.makedirs(os.path.dirname(local_dest), exist_ok=True)
+        await blocking_to_async(
+            self._thread_pool,
+            blob.download_to_filename,
+            local_dest,
+            single_shot_download=True,
+            timeout=self._timeout,
+        )
 
     async def download_large_file(self, bucket: str, src: str, dest: str) -> None:
         user_project = self._get_user_project_for_bucket(bucket)
@@ -507,27 +498,17 @@ class GoogleStorageClient(GoogleBaseClient):
             local_dest = urllib.parse.urlparse(dest).path
         else:
             local_dest = dest
-        try:
-            await blocking_to_async(
-                self._thread_pool,
-                transfer_manager.download_chunks_concurrently,
-                blob=blob,
-                filename=local_dest,
-                chunk_size=self.CHUNK_SIZE,
-                download_kwargs={'timeout': self._timeout},
-                max_workers=8,
-            )
-        except FileNotFoundError:
-            os.makedirs(os.path.dirname(local_dest), exist_ok=True)
-            await blocking_to_async(
-                self._thread_pool,
-                transfer_manager.download_chunks_concurrently,
-                blob=blob,
-                filename=local_dest,
-                chunk_size=self.CHUNK_SIZE,
-                download_kwargs={'timeout': self._timeout},
-                max_workers=8,
-            )
+
+        os.makedirs(os.path.dirname(local_dest), exist_ok=True)
+        await blocking_to_async(
+            self._thread_pool,
+            transfer_manager.download_chunks_concurrently,
+            blob=blob,
+            filename=local_dest,
+            chunk_size=self.CHUNK_SIZE,
+            download_kwargs={'timeout': self._timeout},
+            max_workers=self.MAX_WORKERS,
+        )
 
     async def compose(self, bucket: str, names: List[str], destination: str, **kwargs) -> None:
         assert destination
@@ -1003,7 +984,7 @@ class GoogleStorageAsyncFS(AsyncFS):
 
     async def copy_to_local(
         self,
-        sema: Semaphore,
+        sema: WeightedSemaphore,
         xfer_sema: WeightedSemaphore,
         transfers: List[Transfer],
         source_reports: List[SourceReport],
@@ -1011,6 +992,7 @@ class GoogleStorageAsyncFS(AsyncFS):
         return_exceptions: bool = False,
     ):
         copy_operations = []
+        copy_operation_thread_count = []
         for transfer, report in zip(transfers, source_reports):
             assert isinstance(transfer.src, str)
             if await self.isfile(transfer.src):
@@ -1025,7 +1007,6 @@ class GoogleStorageAsyncFS(AsyncFS):
                     copy_operations.append(
                         functools.partial(
                             self._copy_single_large_file,
-                            sema,
                             xfer_sema,
                             transfer.src,
                             target_dest,
@@ -1034,6 +1015,7 @@ class GoogleStorageAsyncFS(AsyncFS):
                             return_exceptions,
                         )
                     )
+                    copy_operation_thread_count.append(self._storage_client.MAX_WORKERS)
                 else:
                     copy_operations.append(
                         functools.partial(
@@ -1046,6 +1028,7 @@ class GoogleStorageAsyncFS(AsyncFS):
                             return_exceptions,
                         )
                     )
+                    copy_operation_thread_count.append(1)
             else:
                 async for file in await self.listfiles(transfer.src, recursive=True):
                     stat = await file.status()
@@ -1056,7 +1039,6 @@ class GoogleStorageAsyncFS(AsyncFS):
                         copy_operations.append(
                             functools.partial(
                                 self._copy_single_large_file,
-                                sema,
                                 xfer_sema,
                                 await file.url(),
                                 target_dest,
@@ -1065,6 +1047,7 @@ class GoogleStorageAsyncFS(AsyncFS):
                                 return_exceptions,
                             )
                         )
+                        copy_operation_thread_count.append(self._storage_client.MAX_WORKERS)
                     else:
                         copy_operations.append(
                             functools.partial(
@@ -1077,9 +1060,11 @@ class GoogleStorageAsyncFS(AsyncFS):
                                 return_exceptions,
                             )
                         )
-        await bounded_gather2(
+                        copy_operation_thread_count.append(1)
+        await weighted_bounded_gather2(
             sema,
-            *copy_operations,
+            copy_operations,
+            copy_operation_thread_count,
             cancel_on_error=True,
         )
 
@@ -1112,7 +1097,6 @@ class GoogleStorageAsyncFS(AsyncFS):
 
     async def _copy_single_large_file(
         self,
-        sema: Semaphore,
         xfer_sema: WeightedSemaphore,
         src: str,
         dest: str,
@@ -1122,11 +1106,7 @@ class GoogleStorageAsyncFS(AsyncFS):
     ) -> None:
         async with xfer_sema.acquire_manager(self._storage_client.CHUNK_SIZE):
             success = False
-            threads_acquired = 0
             try:
-                for _ in range(0, 8):
-                    await sema.acquire()
-                    threads_acquired += 1
                 bucket, name = self.get_bucket_and_name(src)
                 report.start_files(1)
                 report.start_bytes(size)
@@ -1141,8 +1121,6 @@ class GoogleStorageAsyncFS(AsyncFS):
             finally:
                 report.finish_files(1, failed=not success)
                 report.finish_bytes(size)
-                for _ in range(0, threads_acquired):
-                    sema.release()
 
     async def copy_within_gcs(
         self, src: str, dest: str, callback: Optional[Callable[[Dict[str, Any], bool], None]] = None
