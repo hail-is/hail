@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, ReactNode } from 'react';
 import { GanttChart, GanttRow } from '../../shared/GanttChart';
 import { JobSpecPanel } from './JobSpecPanel';
 import { AttemptPanel } from './AttemptPanel';
@@ -27,6 +27,19 @@ type JobStatus = {
   error?: string | null;
 };
 
+type JobSpec = {
+  process?: { type: 'docker' | 'jvm'; image?: string; command?: string[] };
+  user_code?: string;
+  resources?: Record<string, unknown>;
+  env?: { name: string; value: string }[];
+  input_files?: [string, string][];
+  output_files?: [string, string][];
+  always_run?: boolean;
+  n_max_attempts?: number;
+  network?: string;
+  regions?: string[];
+};
+
 type Job = {
   id: number;
   batch_id: number;
@@ -39,7 +52,8 @@ type Job = {
   billing_project?: string;
   always_run?: boolean;
   attributes?: Record<string, string>;
-  spec?: Record<string, unknown> | null;
+  spec?: JobSpec | null;
+  spec_defaulted_fields?: string[];
   status?: JobStatus | null;
 };
 
@@ -142,6 +156,29 @@ function stateColor(state: string): string {
 }
 
 const RUNNING_STATES = new Set(['Running', 'Creating']);
+
+function CollapsibleItem({ title, summary, children }: {
+  title: string;
+  summary?: ReactNode;
+  children: ReactNode;
+}): JSX.Element {
+  const [open, setOpen] = useState(false);
+  return (
+    <li>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex justify-between items-center px-4 py-3 text-sm text-left hover:bg-slate-100"
+      >
+        <span className="font-medium">{title}</span>
+        <div className="flex items-center gap-2 text-zinc-400 text-xs">
+          {summary != null && <span>{summary}</span>}
+          <span>{open ? '▴' : '▾'}</span>
+        </div>
+      </button>
+      {open && <div className="px-4 pb-3">{children}</div>}
+    </li>
+  );
+}
 
 type Props = {
   basePath: string;
@@ -255,8 +292,6 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
   const latestAttempt = attempts && attempts.length > 0 ? attempts[attempts.length - 1] : null;
   const ganttRows = attempts ? buildGanttRows(job, attempts) : [];
   const colorMap = buildColorMap(ganttRows);
-  const jobStr = JSON.stringify(job, null, 2);
-
   // Determine active attempt for tab
   const activeAttempt = attempts?.find((a) => a.attempt_id === topTab) ?? latestAttempt;
 
@@ -300,22 +335,59 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
                 </div>
               )}
             </li>
+            <CollapsibleItem title="Environment Variables">
+              <table className="text-xs w-full">
+                <tbody className="divide-y">
+                  {(job.spec?.env ?? []).map(({ name, value }) => (
+                    <tr key={name}>
+                      <td className="py-1 pr-2">{name}</td>
+                      <td className="py-1 text-right break-all">{value}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </CollapsibleItem>
+            {job.attributes && Object.keys(job.attributes).length > 0 && (
+              <CollapsibleItem title="Attributes">
+                <table className="text-xs w-full">
+                  <tbody className="divide-y">
+                    {Object.entries(job.attributes).map(([k, v]) => (
+                      <tr key={k}>
+                        <td className="py-1 pr-2 text-zinc-500">{k}</td>
+                        <td className="py-1 text-right break-all">{v}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </CollapsibleItem>
+            )}
+            <CollapsibleItem title="Resources">
+              <table className="text-xs w-full">
+                <tbody className="divide-y">
+                  {Object.entries(job.spec?.resources ?? {}).map(([k, v]) => (
+                    <tr key={k}>
+                      <td className="py-1 pr-2 text-zinc-500">{k}</td>
+                      <td className="py-1 text-right">{String(v)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </CollapsibleItem>
             {job.cost && (
-              <li className="p-4">
-                <div className="text-sm text-zinc-500">Cost: {job.cost}</div>
+              <CollapsibleItem title="Cost" summary={job.cost}>
                 {job.cost_breakdown && (
-                  <table className="text-xs mt-1 w-full">
-                    <tbody>
+                  <table className="text-xs w-full">
+                    <tbody className="divide-y">
                       {job.cost_breakdown.map(({ resource, cost }) => (
                         <tr key={resource}>
-                          <td className="text-zinc-500 pr-2">{resource}</td>
-                          <td className="text-right">{cost}</td>
+                          <td className="py-1 pr-2 text-zinc-500">{resource}</td>
+                          <td className="py-1 text-right">{cost}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 )}
-              </li>
+              </CollapsibleItem>
             )}
           </ul>
         </div>
@@ -371,8 +443,8 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
         <div className="pt-4">
           {topTab === 'job_spec' && (
             <JobSpecPanel
-              spec={(job.spec as Parameters<typeof JobSpecPanel>[0]['spec']) ?? null}
-              jobStr={jobStr}
+              spec={job.spec ?? null}
+              defaultedFields={new Set(job.spec_defaulted_fields ?? [])}
               activeSubTab={specSubTab}
               setActiveSubTab={updateSpecSubTab}
             />
