@@ -418,7 +418,7 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
           >
             Raw Status
           </button>
-          {(attempts ?? []).map((attempt) => {
+          {[...(attempts ?? [])].reverse().map((attempt) => {
             const isLatest = attempt === latestAttempt;
             const isActive = topTab === attempt.attempt_id;
             return (
@@ -430,9 +430,9 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
                 }`}
               >
                 {isLatest ? (
-                  <span className={stateColor(job.state)}>●</span>
+                  <span className={`material-symbols-outlined text-base leading-none ${stateColor(job.state)}`}>check</span>
                 ) : (
-                  <span className="text-red-400">✕</span>
+                  <span className="material-symbols-outlined text-base leading-none text-red-400">close</span>
                 )}
                 <span>Attempt {attempt.attempt_id}</span>
               </button>

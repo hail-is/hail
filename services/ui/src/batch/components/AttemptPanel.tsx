@@ -61,7 +61,7 @@ export function AttemptPanel({
   activeSubTab,
   setActiveSubTab,
 }: Props): JSX.Element {
-  const cache = useRef<AttemptData | null>(null);
+  const cache = useRef<Record<string, AttemptData>>({});
   const [data, setData] = useState<AttemptData>({
     logs: {},
     resourceUsage: null,
@@ -71,8 +71,9 @@ export function AttemptPanel({
   });
 
   useEffect(() => {
-    if (cache.current) {
-      setData(cache.current);
+    const cached = cache.current[attempt.attempt_id];
+    if (cached) {
+      setData(cached);
       return;
     }
 
@@ -94,7 +95,7 @@ export function AttemptPanel({
         loading: false,
         error: null,
       };
-      cache.current = result;
+      cache.current[attempt.attempt_id] = result;
       setData(result);
     });
   }, [attempt.attempt_id, batchId, jobId, basePath]);
