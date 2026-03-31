@@ -3821,6 +3821,7 @@ def run():
 
     setup_aiohttp_jinja2(app, 'batch.front_end', jinja2.FileSystemLoader(f'{FRONT_END_ROOT}/static/'))
     setup_common_static_routes(routes)
+    routes.static('/batch/static/compiled-js', f'{FRONT_END_ROOT}/static/compiled-js')
     app.add_routes(routes)
     app.router.add_get("/metrics", server_stats)
 
