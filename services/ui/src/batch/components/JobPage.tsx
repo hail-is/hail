@@ -209,6 +209,7 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
   const [loading, setLoading] = useState(true);
   const [showPriorAttempts, setShowPriorAttempts] = useState(true);
 
+
   // URL-synced tab state
   const getInitialTab = (): TopTab => {
     const params = new URLSearchParams(window.location.search);
@@ -326,7 +327,7 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
       </div>
 
       {/* Top section: metadata + Gantt */}
-      <div className="flex flex-wrap justify-between items-stretch pt-6 gap-4">
+      <div className="flex flex-wrap justify-between items-start pt-6 gap-4">
         <div className="w-full lg:basis-1/4 drop-shadow-sm shrink-0">
           <ul className="border border-collapse divide-y bg-slate-50 rounded">
             <li className="p-4">
@@ -410,9 +411,9 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
         </div>
 
         {ganttRows.length > 0 && (
-          <div className="w-full lg:flex-1 bg-slate-100 border rounded overflow-hidden flex flex-col">
+          <div className="w-full lg:flex-1 bg-slate-100 border rounded overflow-hidden max-h-[32rem] overflow-y-auto">
             {hasPriorAttempts && (
-              <div className="flex items-center gap-2.5 px-3 pt-2 pb-1 shrink-0">
+              <div className="flex items-center gap-2.5 px-3 pt-2 pb-1">
                 <button
                   type="button"
                   role="switch"
@@ -434,9 +435,7 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
                 </button>
               </div>
             )}
-            <div className="flex-1 overflow-hidden">
-              <GanttChart rows={ganttRows} colorMap={colorMap} />
-            </div>
+            <GanttChart rows={ganttRows} colorMap={colorMap} />
           </div>
         )}
       </div>

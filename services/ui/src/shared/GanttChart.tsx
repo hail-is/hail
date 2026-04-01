@@ -14,8 +14,9 @@ type Props = {
   colorMap: Record<string, string>;
 };
 
-const ROW_HEIGHT_PX = 36;
 const CHART_MARGINS_PX = 75; // top + bottom margins (larger to fit 2-line first tick) + legend
+const MAX_BAR_HEIGHT = 200;
+const MIN_BAR_HEIGHT = 20;
 
 function formatXTick(d: Date, i: number): string {
   const hh = String(d.getHours()).padStart(2, '0');
@@ -53,9 +54,9 @@ export function GanttChart({ rows, colorMap }: Props): JSX.Element {
     if (!containerRef.current || rows.length === 0 || !width) return;
 
     const yDomain = [...new Set(rows.map((r) => r.label))];
-    const height = yDomain.length * ROW_HEIGHT_PX + CHART_MARGINS_PX;
-    const minStart = rows.reduce((mn, r) => (r.start < mn ? r.start : mn), rows[0].start);
-
+    const nRows = yDomain.length;
+    const rowHeightPx = Math.max(Math.floor(MAX_BAR_HEIGHT / nRows), MIN_BAR_HEIGHT);
+    const height = nRows * rowHeightPx + CHART_MARGINS_PX;
     const plot = Plot.plot({
       width,
       height,
@@ -85,7 +86,6 @@ export function GanttChart({ rows, colorMap }: Props): JSX.Element {
           y: 'label',
           title: (d: GanttRow) => d.tooltip ?? `${d.label}: ${d.category}`,
         })),
-        Plot.ruleX([minStart]),
       ],
     });
 
@@ -93,5 +93,5 @@ export function GanttChart({ rows, colorMap }: Props): JSX.Element {
     return () => plot.remove();
   }, [rows, colorMap, width]);
 
-  return <div ref={containerRef} className="w-full h-full overflow-y-auto" />;
+  return <div ref={containerRef} className="w-full" />;
 }
