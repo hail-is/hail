@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, ReactNode } from 'react';
+import { useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { GanttChart, GanttRow } from '../../shared/GanttChart';
 import { JobSpecPanel } from './JobSpecPanel';
 import { AttemptPanel } from './AttemptPanel';
@@ -73,7 +73,7 @@ type Attempt = {
   reason?: string;
 };
 
-type TopTab = 'job_spec' | 'raw_status' | string; // string for attempt_id
+type TopTab = 'job_spec' | 'raw_status' | 'current_attempt' | string; // string for attempt_id
 
 // px.colors.qualitative.Prism from Plotly — same palette used in the classic job page
 const PLOTLY_PRISM = [
@@ -286,6 +286,8 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [showPriorAttempts, setShowPriorAttempts] = useState(true);
+  const [refreshTick, setRefreshTick] = useState(0);
+  const isInitialLoad = useRef(true);
 
 
   // URL-synced tab state
@@ -295,7 +297,9 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
     if (tab === 'raw_status' || tab === 'job_spec') return tab;
     const attemptId = params.get('attempt_id');
     if (tab === 'attempt' && attemptId) return attemptId;
-    return 'job_spec';
+    // Default: show the latest attempt once loaded. Use a sentinel since the
+    // attempt ID is not yet known at initialisation time.
+    return 'current_attempt';
   };
 
   const [topTab, setTopTabState] = useState<TopTab>(getInitialTab);
@@ -306,7 +310,14 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
     return sub === 'input' || sub === 'output' ? sub : 'main';
   });
 
-  const [attemptSubTabs, setAttemptSubTabs] = useState<Record<string, 'details' | 'charts' | 'input' | 'main' | 'output' | 'raw'>>({});
+  const [attemptSubTabs, setAttemptSubTabs] = useState<Record<string, 'details' | 'charts' | 'input' | 'main' | 'output' | 'raw'>>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const attemptId = params.get('attempt_id');
+    const sub = params.get('subtab');
+    const validSub = sub === 'details' || sub === 'charts' || sub === 'input' || sub === 'main' || sub === 'output' || sub === 'raw' ? sub : null;
+    if (attemptId && validSub) return { [attemptId]: validSub };
+    return {};
+  });
 
   const setTopTab = useCallback((tab: TopTab) => {
     setTopTabState(tab);
@@ -350,6 +361,10 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
       setJob(jobData);
       setAttempts(attemptsData);
       setError(null);
+      if (!isInitialLoad.current) {
+        setRefreshTick((t) => t + 1);
+      }
+      isInitialLoad.current = false;
     } catch (e) {
       setError(String(e));
     } finally {
@@ -541,7 +556,7 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
           </button>
           {[...(attempts ?? [])].reverse().map((attempt) => {
             const isLatest = attempt === latestAttempt;
-            const isActive = topTab === attempt.attempt_id;
+            const isActive = topTab === attempt.attempt_id || (topTab === 'current_attempt' && isLatest);
             return (
               <button
                 key={attempt.attempt_id}
@@ -584,8 +599,9 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
               isLatest={activeAttempt === latestAttempt}
               hasInput={(job.spec?.input_files ?? []).length > 0}
               hasOutput={(job.spec?.output_files ?? []).length > 0}
-              activeSubTab={attemptSubTabs[activeAttempt.attempt_id] ?? 'details'}
+              activeSubTab={attemptSubTabs[activeAttempt.attempt_id] ?? 'main'}
               setActiveSubTab={(sub) => updateAttemptSubTab(activeAttempt.attempt_id, sub)}
+              refreshTick={refreshTick}
             />
           )}
         </div>
