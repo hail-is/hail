@@ -9,12 +9,20 @@ export type GanttRow = {
   tooltip?: string;
 };
 
+type RuleMark = {
+  x: Date;
+  label: string;
+};
+
 type Props = {
   rows: GanttRow[];
   colorMap: Record<string, string>;
+  ruleXs?: RuleMark[];
+  extendToNow?: boolean;
 };
 
-const CHART_MARGINS_PX = 75; // top + bottom margins (larger to fit 2-line first tick) + legend
+const BOTTOM_MARGINS_PX = 65; // bottom axis + legend
+const RULE_LABEL_MARGIN_PX = 50; // extra top margin when rule labels are shown
 const MAX_BAR_HEIGHT = 200;
 const MIN_BAR_HEIGHT = 20;
 
@@ -32,7 +40,7 @@ function formatXTick(d: Date, i: number): string {
   return time;
 }
 
-export function GanttChart({ rows, colorMap }: Props): JSX.Element {
+export function GanttChart({ rows, colorMap, ruleXs, extendToNow }: Props): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState<number | null>(null);
 
@@ -53,18 +61,27 @@ export function GanttChart({ rows, colorMap }: Props): JSX.Element {
   useEffect(() => {
     if (!containerRef.current || rows.length === 0 || !width) return;
 
+    const hasRules = (ruleXs?.length ?? 0) > 0;
+    const marginTop = hasRules ? RULE_LABEL_MARGIN_PX : 10;
+
+    const now = new Date();
+    const xDomain: [Date, Date] | undefined = extendToNow
+      ? [new Date(Math.min(...rows.map((r) => r.start.getTime()))), now]
+      : undefined;
+
     const yDomain = [...new Set(rows.map((r) => r.label))];
     const nRows = yDomain.length;
     const rowHeightPx = Math.max(Math.floor(MAX_BAR_HEIGHT / nRows), MIN_BAR_HEIGHT);
-    const height = nRows * rowHeightPx + CHART_MARGINS_PX;
+    const height = nRows * rowHeightPx + marginTop + BOTTOM_MARGINS_PX;
     const plot = Plot.plot({
       width,
       height,
+      marginTop,
       marginLeft: 160,
       marginRight: 20,
       marginBottom: 50, // extra space for the two-line first tick label
       color: { domain: Object.keys(colorMap), range: Object.values(colorMap), legend: true },
-      x: { type: 'time', axis: null }, // disable auto axis; we add it explicitly below
+      x: { type: 'time', axis: null, domain: xDomain }, // disable auto axis; we add it explicitly below
       y: { label: null, domain: yDomain },
       marks: [
         Plot.barX(rows, {
@@ -80,6 +97,24 @@ export function GanttChart({ rows, colorMap }: Props): JSX.Element {
           label: 'Time',
           tickFormat: formatXTick,
         }),
+        ...(hasRules ? [
+          Plot.ruleX(ruleXs!, {
+            x: 'x',
+            stroke: '#94a3b8',
+            strokeWidth: 1,
+            strokeDasharray: '4,3',
+          }),
+          Plot.text(ruleXs!, {
+            x: 'x',
+            text: 'label',
+            frameAnchor: 'top',
+            textAnchor: 'end',
+            rotate: -45,
+            fontSize: 9,
+            fill: '#475569',
+            dy: -4,
+          }),
+        ] : []),
         Plot.tip(rows, Plot.pointer({
           x1: 'start',
           x2: 'end',
@@ -91,7 +126,7 @@ export function GanttChart({ rows, colorMap }: Props): JSX.Element {
 
     containerRef.current.replaceChildren(plot);
     return () => plot.remove();
-  }, [rows, colorMap, width]);
+  }, [rows, colorMap, ruleXs, extendToNow, width]);
 
   return <div ref={containerRef} className="w-full" />;
 }
