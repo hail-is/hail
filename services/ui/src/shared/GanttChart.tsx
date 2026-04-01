@@ -19,34 +19,31 @@ const CHART_MARGINS_PX = 60; // top + bottom margins + legend
 
 export function GanttChart({ rows, colorMap }: Props): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [dims, setDims] = useState<{ width: number; height: number } | null>(null);
+  const [width, setWidth] = useState<number | null>(null);
 
-  // The container's height is pinned by the parent flex layout (items-stretch +
-  // overflow-hidden resets min-height:auto), so reading it here cannot feed back
-  // into the layout — the SVG content never changes the container's CSS height.
+  // Only track width — reading height would cause a feedback loop where the
+  // SVG grows the container, which triggers a new observation, which grows the
+  // SVG further. The container's height is determined by the flex layout.
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     const ro = new ResizeObserver(([entry]) => {
-      const { width, height } = entry.contentRect;
-      if (width > 0 && height > 0) setDims({ width, height });
+      const w = entry.contentRect.width;
+      if (w > 0) setWidth(w);
     });
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
 
   useEffect(() => {
-    if (!containerRef.current || rows.length === 0 || !dims) return;
+    if (!containerRef.current || rows.length === 0 || !width) return;
 
     const yDomain = [...new Set(rows.map((r) => r.label))];
-    // Use the container's full height when it's taller than the content would be,
-    // so the chart fills the panel rather than leaving empty space.
-    const contentHeight = yDomain.length * ROW_HEIGHT_PX + CHART_MARGINS_PX;
-    const height = Math.max(contentHeight, dims.height);
+    const height = yDomain.length * ROW_HEIGHT_PX + CHART_MARGINS_PX;
     const minStart = rows.reduce((mn, r) => (r.start < mn ? r.start : mn), rows[0].start);
 
     const plot = Plot.plot({
-      width: dims.width,
+      width,
       height,
       marginLeft: 160,
       marginRight: 20,
@@ -73,7 +70,7 @@ export function GanttChart({ rows, colorMap }: Props): JSX.Element {
 
     containerRef.current.replaceChildren(plot);
     return () => plot.remove();
-  }, [rows, colorMap, dims]);
+  }, [rows, colorMap, width]);
 
-  return <div ref={containerRef} className="w-full h-full" />;
+  return <div ref={containerRef} className="w-full h-full overflow-y-auto" />;
 }
