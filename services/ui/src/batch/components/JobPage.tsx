@@ -5,10 +5,14 @@ import { AttemptPanel } from './AttemptPanel';
 import { CodeBlock } from './CodeBlock';
 import { RelativeTime } from './RelativeTime';
 
+type TimingEntry = {
+  start_time?: number | null;
+  finish_time?: number | null;
+  duration?: number | null;
+};
+
 type ContainerTiming = {
-  pulling?: { duration?: number | null } | null;
-  running?: { duration?: number | null } | null;
-  uploading_resource_usage?: { duration?: number | null } | null;
+  [key: string]: TimingEntry | null | undefined;
 };
 
 type ContainerStatus = {
@@ -71,60 +75,74 @@ type Attempt = {
 
 type TopTab = 'job_spec' | 'raw_status' | string; // string for attempt_id
 
-const PRISM_COLORS = [
-  '#5778a4', '#e49444', '#d1615d', '#85b6b2', '#6a9f58',
-  '#e7ca60', '#a87c9f', '#f1a2a9', '#967662', '#b8b0ac',
+// px.colors.qualitative.Prism from Plotly — same palette used in the classic job page
+const PLOTLY_PRISM = [
+  '#5F4690', '#1D6996', '#38A6A5', '#0F8554', '#73AF48',
+  '#EDAD08', '#E17C05', '#CC503E', '#94346E', '#6F4070', '#994E95', '#666666',
 ];
 
-const STEP_LABELS = ['setting up network', 'pulling', 'running', 'uploading_log', 'uploading_resource_usage'];
+// Fixed color assignments matching the classic Plotly chart (task_names order)
+const STEP_COLOR_MAP: Record<string, string> = {
+  'pulling':                   PLOTLY_PRISM[0],
+  'setting up overlay':        PLOTLY_PRISM[1],
+  'setting up network':        PLOTLY_PRISM[2],
+  'running':                   PLOTLY_PRISM[3],
+  'uploading_log':             PLOTLY_PRISM[4],
+  'uploading_resource_usage':  PLOTLY_PRISM[5],
+  'prior attempt':             '#9ca3af',
+};
 
 function buildGanttRows(job: Job, attempts: Attempt[]): GanttRow[] {
   const rows: GanttRow[] = [];
+  const nowMs = Date.now();
 
-  // Prior attempts (grey)
-  const priorAttempts = attempts.slice(0, -1);
-  for (const a of priorAttempts) {
-    if (a.start_time_ms != null && a.end_time_ms != null) {
-      rows.push({
-        label: `Attempt ${a.attempt_id}`,
-        start: new Date(a.start_time_ms),
-        end: new Date(a.end_time_ms),
-        category: 'prior attempt',
-        tooltip: `Attempt ${a.attempt_id}: ${a.reason ?? 'ended'}`,
-      });
-    }
+  // Prior attempts: one coarse bar per attempt row (all except the last)
+  for (const a of attempts.slice(0, -1)) {
+    const startMs = a.start_time_ms;
+    if (startMs == null) continue;
+    const endMs = a.end_time_ms ?? nowMs;
+    const durationMs = endMs - startMs;
+    rows.push({
+      label: `attempt ${a.attempt_id.slice(0, 8)}`,
+      start: new Date(startMs),
+      end: new Date(endMs),
+      category: 'prior attempt',
+      tooltip: [
+        `Row: attempt ${a.attempt_id.slice(0, 8)}`,
+        `Task: prior attempt`,
+        `Start: ${new Date(startMs).toLocaleString()}`,
+        `Finish: ${new Date(endMs).toLocaleString()}`,
+        `Duration: ${(durationMs / 1000).toFixed(1)}s`,
+        a.reason ? `Detail: ${a.reason}` : '',
+      ].filter(Boolean).join('\n'),
+    });
   }
 
-  // Latest attempt sub-steps
+  // Latest attempt: per-container rows, one bar per timing sub-step on the same y-row
   const latest = attempts[attempts.length - 1];
   if (latest?.start_time_ms != null) {
     const statuses = job.status?.container_statuses ?? {};
-    const allSteps = ['input', 'main', 'output'] as const;
-    let colorIdx = 0;
-    for (const container of allSteps) {
+    for (const container of ['input', 'main', 'output'] as const) {
       const cs = statuses[container];
       if (!cs) continue;
-      const timing = cs.timing;
-      // Reconstruct sub-step start times sequentially from attempt start
-      let cursor = latest.start_time_ms;
-      const subSteps: [string, number][] = [
-        ['pulling', timing.pulling?.duration ?? 0],
-        ['running', timing.running?.duration ?? 0],
-        ['uploading_resource_usage', timing.uploading_resource_usage?.duration ?? 0],
-      ];
-      for (const [stepName, durationMs] of subSteps) {
-        const dur = durationMs ?? 0;
-        if (dur > 0) {
-          rows.push({
-            label: `${container}/${stepName}`,
-            start: new Date(cursor),
-            end: new Date(cursor + dur),
-            category: `${container}/${stepName}`,
-            tooltip: `${container}/${stepName}: ${(dur / 1000).toFixed(1)}s`,
-          });
-          colorIdx++;
-        }
-        cursor += dur;
+      for (const [stepName, timingData] of Object.entries(cs.timing)) {
+        if (!timingData || timingData.start_time == null) continue;
+        const startMs = timingData.start_time;
+        const endMs = timingData.finish_time ?? nowMs;
+        const durationMs = timingData.duration ?? (endMs - startMs);
+        rows.push({
+          label: container,
+          start: new Date(startMs),
+          end: new Date(endMs),
+          category: stepName,
+          tooltip: [
+            `Row: ${container}`,
+            `Task: ${stepName}`,
+            `Start: ${new Date(startMs).toLocaleString()}`,
+            `Finish: ${new Date(endMs).toLocaleString()}`,
+            `Duration: ${(durationMs / 1000).toFixed(1)}s`,
+          ].join('\n'),
+        });
       }
     }
   }
@@ -133,14 +151,9 @@ function buildGanttRows(job: Job, attempts: Attempt[]): GanttRow[] {
 }
 
 function buildColorMap(rows: GanttRow[]): Record<string, string> {
-  const categories = [...new Set(rows.map((r) => r.category))];
-  const map: Record<string, string> = { 'prior attempt': '#9ca3af' };
-  let idx = 0;
-  for (const cat of categories) {
-    if (cat !== 'prior attempt') {
-      map[cat] = PRISM_COLORS[idx % PRISM_COLORS.length];
-      idx++;
-    }
+  const map: Record<string, string> = {};
+  for (const cat of new Set(rows.map((r) => r.category))) {
+    map[cat] = STEP_COLOR_MAP[cat] ?? '#9ca3af';
   }
   return map;
 }
@@ -192,6 +205,7 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
   const [attempts, setAttempts] = useState<Attempt[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
 
   // URL-synced tab state
   const getInitialTab = (): TopTab => {
@@ -309,7 +323,7 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
       </div>
 
       {/* Top section: metadata + Gantt */}
-      <div className="flex flex-wrap justify-between items-start pt-6 gap-4">
+      <div className="flex flex-wrap justify-between items-stretch pt-6 gap-4">
         <div className="w-full lg:basis-1/4 drop-shadow-sm shrink-0">
           <ul className="border border-collapse divide-y bg-slate-50 rounded">
             <li className="p-4">
@@ -393,8 +407,8 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
         </div>
 
         {ganttRows.length > 0 && (
-          <div className="w-full lg:flex-1 bg-slate-100 border rounded overflow-hidden p-2">
-            <GanttChart rows={ganttRows} colorMap={colorMap} width={700} />
+          <div className="w-full lg:flex-1 bg-slate-100 border rounded overflow-hidden">
+            <GanttChart rows={ganttRows} colorMap={colorMap} />
           </div>
         )}
       </div>
