@@ -34,10 +34,13 @@ class WeightedSemaphore(Semaphore):
         self.events = SortedKeyList(key=lambda x: x[0])
 
     def locked(self):
-        return self._value == 0 or (any(event.is_set() for n, event in self.events))
+        return self._value == 0 and (any(not event.is_set() for n, event in (self.events or ())))
 
     def release(self, n: int = 1) -> None:
         self._value += n
+        self._wake_up_next()
+
+    def _wake_up_next(self):
         while self.events:
             _n, _event = self.events[0]
             # cast to int / Event:
