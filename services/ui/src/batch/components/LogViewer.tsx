@@ -1,13 +1,22 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 
 type Props = {
   text: string;
   downloadUrl: string;
   downloadName: string;
+  hasPendingUpdate?: boolean;
+  onLoadUpdate?: () => void;
 };
 
-export function LogViewer({ text, downloadUrl, downloadName }: Props): JSX.Element {
+export function LogViewer({ text, downloadUrl, downloadName, hasPendingUpdate, onLoadUpdate }: Props): JSX.Element {
   const [query, setQuery] = useState('');
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [text]);
 
   const lines = useMemo(() => text.split('\n'), [text]);
 
@@ -18,7 +27,7 @@ export function LogViewer({ text, downloadUrl, downloadName }: Props): JSX.Eleme
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <input
           type="text"
           placeholder="Filter lines…"
@@ -33,8 +42,16 @@ export function LogViewer({ text, downloadUrl, downloadName }: Props): JSX.Eleme
         >
           Download
         </a>
+        {hasPendingUpdate && onLoadUpdate && (
+          <span className="text-sm text-sky-700 bg-sky-50 border border-sky-200 rounded px-2 py-1">
+            New log data available -{' '}
+            <button onClick={onLoadUpdate} className="font-medium underline hover:no-underline">
+              show
+            </button>
+          </span>
+        )}
       </div>
-      <div className="bg-slate-50 border rounded overflow-auto" style={{ maxHeight: '32rem' }}>
+      <div ref={scrollRef} className="bg-slate-50 border rounded overflow-auto" style={{ maxHeight: '32rem' }}>
         <pre className="text-xs p-2 whitespace-pre-wrap break-all">
           {filteredLines.join('\n')}
         </pre>

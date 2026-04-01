@@ -23,8 +23,10 @@ const ALL_SUB_TABS: { id: SubTab; label: string; requires?: 'input' | 'output' }
   { id: 'raw', label: 'Raw Status' },
 ];
 
+type LogMap = Record<string, string | null>;
+
 type AttemptData = {
-  logs: Record<string, string | null>;
+  logs: LogMap;
   resourceUsage: ResourceUsageData | null;
   rawStatus: string | null;
   loading: boolean;
@@ -41,6 +43,7 @@ type Props = {
   hasOutput: boolean;
   activeSubTab: SubTab;
   setActiveSubTab: (t: SubTab) => void;
+  refreshTick: number;
 };
 
 async function fetchText(url: string): Promise<string> {
@@ -60,12 +63,15 @@ export function AttemptPanel({
   batchId,
   jobId,
   basePath,
+  isLatest,
   hasInput,
   hasOutput,
   activeSubTab,
   setActiveSubTab,
+  refreshTick,
 }: Props): JSX.Element {
   const cache = useRef<Record<string, AttemptData>>({});
+  const committedLogsRef = useRef<LogMap>({});
   const [data, setData] = useState<AttemptData>({
     logs: {},
     resourceUsage: null,
@@ -73,15 +79,38 @@ export function AttemptPanel({
     loading: false,
     error: null,
   });
+  // Log text that is actually rendered — updated immediately on initial load but
+  // held back on auto-refresh so scroll position and text selection are preserved.
+  const [committedLogs, setCommittedLogs] = useState<LogMap>({});
+  const [hasPendingLogs, setHasPendingLogs] = useState(false);
+
+  const applyLogs = (logs: LogMap) => {
+    committedLogsRef.current = logs;
+    setCommittedLogs(logs);
+    setHasPendingLogs(false);
+  };
 
   useEffect(() => {
+    const isRefreshFetch = refreshTick > 0 && isLatest;
+
+    // Bust the cache only when auto-refreshing the latest attempt.
+    if (isRefreshFetch) {
+      delete cache.current[attempt.attempt_id];
+    }
+
     const cached = cache.current[attempt.attempt_id];
     if (cached) {
+      // Switching to an already-loaded attempt — commit logs immediately.
       setData(cached);
+      applyLogs(cached.logs);
       return;
     }
 
-    setData((d) => ({ ...d, loading: true, error: null }));
+    // Only show the loading spinner on the initial load, not on background refreshes.
+    if (!isRefreshFetch) {
+      setData((d) => ({ ...d, loading: true, error: null }));
+      setHasPendingLogs(false);
+    }
 
     const attemptParam = `?attempt_id=${attempt.attempt_id}`;
     const apiBase = `${basePath}/api/v1alpha/batches/${batchId}/jobs/${jobId}`;
@@ -100,9 +129,20 @@ export function AttemptPanel({
         error: null,
       };
       cache.current[attempt.attempt_id] = result;
-      setData(result);
+
+      if (isRefreshFetch) {
+        // Keep the displayed log text stable — only surface a notifier if content changed.
+        setData(result);
+        const changed = (['input', 'main', 'output'] as const).some(
+          (k) => result.logs[k] !== committedLogsRef.current[k]
+        );
+        if (changed) setHasPendingLogs(true);
+      } else {
+        setData(result);
+        applyLogs(result.logs);
+      }
     });
-  }, [attempt.attempt_id, batchId, jobId, basePath]);
+  }, [attempt.attempt_id, batchId, jobId, basePath, hasInput, hasOutput, refreshTick]);
 
   const apiBase = `${basePath}/api/v1alpha/batches/${batchId}/jobs/${jobId}`;
   const attemptParam = `?attempt_id=${attempt.attempt_id}`;
@@ -186,11 +226,13 @@ export function AttemptPanel({
         (['input', 'main', 'output'] as const).map((step) =>
           activeSubTab === step ? (
             <div key={step}>
-              {data.logs[step] != null ? (
+              {committedLogs[step] != null ? (
                 <LogViewer
-                  text={data.logs[step]!}
+                  text={committedLogs[step]!}
                   downloadUrl={`${apiBase}/log/${step}${attemptParam}`}
                   downloadName={`batch-${batchId}-${jobId}-${step}.log`}
+                  hasPendingUpdate={hasPendingLogs}
+                  onLoadUpdate={() => applyLogs(data.logs)}
                 />
               ) : (
                 <div className="text-zinc-400 text-sm py-4">No {step} log available.</div>
