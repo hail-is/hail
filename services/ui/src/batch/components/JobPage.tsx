@@ -92,30 +92,32 @@ const STEP_COLOR_MAP: Record<string, string> = {
   'prior attempt':             '#9ca3af',
 };
 
-function buildGanttRows(job: Job, attempts: Attempt[]): GanttRow[] {
+function buildGanttRows(job: Job, attempts: Attempt[], showPriorAttempts: boolean): GanttRow[] {
   const rows: GanttRow[] = [];
   const nowMs = Date.now();
 
   // Prior attempts: one coarse bar per attempt row (all except the last)
-  for (const a of attempts.slice(0, -1)) {
-    const startMs = a.start_time_ms;
-    if (startMs == null) continue;
-    const endMs = a.end_time_ms ?? nowMs;
-    const durationMs = endMs - startMs;
-    rows.push({
-      label: `attempt ${a.attempt_id.slice(0, 8)}`,
-      start: new Date(startMs),
-      end: new Date(endMs),
-      category: 'prior attempt',
-      tooltip: [
-        `Row: attempt ${a.attempt_id.slice(0, 8)}`,
-        `Task: prior attempt`,
-        `Start: ${new Date(startMs).toLocaleString()}`,
-        `Finish: ${new Date(endMs).toLocaleString()}`,
-        `Duration: ${(durationMs / 1000).toFixed(1)}s`,
-        a.reason ? `Detail: ${a.reason}` : '',
-      ].filter(Boolean).join('\n'),
-    });
+  if (showPriorAttempts) {
+    for (const a of attempts.slice(0, -1)) {
+      const startMs = a.start_time_ms;
+      if (startMs == null) continue;
+      const endMs = a.end_time_ms ?? nowMs;
+      const durationMs = endMs - startMs;
+      rows.push({
+        label: `attempt ${a.attempt_id.slice(0, 8)}`,
+        start: new Date(startMs),
+        end: new Date(endMs),
+        category: 'prior attempt',
+        tooltip: [
+          `Row: attempt ${a.attempt_id.slice(0, 8)}`,
+          `Task: prior attempt`,
+          `Start: ${new Date(startMs).toLocaleString()}`,
+          `Finish: ${new Date(endMs).toLocaleString()}`,
+          `Duration: ${(durationMs / 1000).toFixed(1)}s`,
+          a.reason ? `Detail: ${a.reason}` : '',
+        ].filter(Boolean).join('\n'),
+      });
+    }
   }
 
   // Latest attempt: per-container rows, one bar per timing sub-step on the same y-row
@@ -205,7 +207,7 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
   const [attempts, setAttempts] = useState<Attempt[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-
+  const [showPriorAttempts, setShowPriorAttempts] = useState(true);
 
   // URL-synced tab state
   const getInitialTab = (): TopTab => {
@@ -304,7 +306,8 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
   }
 
   const latestAttempt = attempts && attempts.length > 0 ? attempts[attempts.length - 1] : null;
-  const ganttRows = attempts ? buildGanttRows(job, attempts) : [];
+  const hasPriorAttempts = attempts != null && attempts.length > 1;
+  const ganttRows = attempts ? buildGanttRows(job, attempts, showPriorAttempts) : [];
   const colorMap = buildColorMap(ganttRows);
   // Determine active attempt for tab
   const activeAttempt = attempts?.find((a) => a.attempt_id === topTab) ?? latestAttempt;
@@ -407,8 +410,33 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
         </div>
 
         {ganttRows.length > 0 && (
-          <div className="w-full lg:flex-1 bg-slate-100 border rounded overflow-hidden">
-            <GanttChart rows={ganttRows} colorMap={colorMap} />
+          <div className="w-full lg:flex-1 bg-slate-100 border rounded overflow-hidden flex flex-col">
+            {hasPriorAttempts && (
+              <div className="flex items-center gap-2.5 px-3 pt-2 pb-1 shrink-0">
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={showPriorAttempts}
+                  onClick={() => setShowPriorAttempts((v) => !v)}
+                  className={`relative h-5 w-9 flex-shrink-0 rounded-full p-0 transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 ${showPriorAttempts ? 'bg-sky-600' : 'bg-slate-300'}`}
+                >
+                  <span
+                    className="absolute h-4 w-4 rounded-full bg-white shadow-sm"
+                    style={{ top: '2px', left: showPriorAttempts ? '18px' : '2px', transition: 'left 200ms ease-in-out' }}
+                  />
+                </button>
+                <button
+                  type="button"
+                  className="text-sm text-slate-600 bg-transparent border-none p-0 cursor-pointer select-none focus:outline-none focus-visible:underline"
+                  onClick={() => setShowPriorAttempts((v) => !v)}
+                >
+                  Show prior attempts
+                </button>
+              </div>
+            )}
+            <div className="flex-1 overflow-hidden">
+              <GanttChart rows={ganttRows} colorMap={colorMap} />
+            </div>
           </div>
         )}
       </div>
