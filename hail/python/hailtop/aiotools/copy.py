@@ -5,7 +5,7 @@ import logging
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict, List, Literal, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from rich.progress import Progress, TaskID
 
@@ -40,13 +40,11 @@ class GrowingSemaphore(WeightedSemaphore):
                 progress, tid = self.progress_and_tid
                 progress.update(tid, advance=diff)
 
-    async def acquire(self, n: int = 1) -> Literal[True]:
+    async def __aenter__(self) -> 'GrowingSemaphore':
         self.task = asyncio.create_task(self._grow())
-        await super().acquire(n)
-        return True
+        return self
 
-    def release(self, n: int = 1) -> None:
-        super().release(n)
+    def __aexit__(self, exc_type, exc_val, exc_tb):
         if self.task is not None:
             if self.task.done() and not self.task.cancelled():
                 if exc := self.task.exception():

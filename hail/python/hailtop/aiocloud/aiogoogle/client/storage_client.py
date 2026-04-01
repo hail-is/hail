@@ -30,7 +30,13 @@ from multidict import CIMultiDictProxy  # pylint: disable=unused-import  # pylin
 
 from hailtop import timex
 from hailtop.aiocloud.common import AnonymousCloudCredentials
-from hailtop.aiotools import FeedableAsyncIterable, Transfer, WeightedSemaphore, WriteBuffer, weighted_bounded_gather2
+from hailtop.aiotools import (
+    FeedableAsyncIterable,
+    Transfer,
+    WeightedSemaphore,
+    WriteBuffer,
+    weighted_bounded_gather2,
+)
 from hailtop.aiotools.fs import (
     AsyncFS,
     AsyncFSFactory,
@@ -51,6 +57,8 @@ from hailtop.utils import (
     blocking_to_async,
     retry_transient_errors,
     secret_alnum_string,
+    url_basename,
+    url_join,
 )
 
 from ...common.session import BaseSession
@@ -476,16 +484,13 @@ class GoogleStorageClient(GoogleBaseClient):
         user_project = self._get_user_project_for_bucket(bucket)
         bucket_instance = self._client.bucket(bucket, user_project=user_project)
         blob = bucket_instance.blob(filename)
-        if dest.startswith('file://'):
-            local_dest = urllib.parse.urlparse(dest).path
-        else:
-            local_dest = dest
 
-        os.makedirs(os.path.dirname(local_dest), exist_ok=True)
+        if not os.path.exists(os.path.dirname(dest)):
+            os.makedirs(os.path.dirname(dest), exist_ok=True)
         await blocking_to_async(
             self._thread_pool,
             blob.download_to_filename,
-            local_dest,
+            dest,
             single_shot_download=True,
             timeout=self._timeout,
         )
@@ -494,17 +499,14 @@ class GoogleStorageClient(GoogleBaseClient):
         user_project = self._get_user_project_for_bucket(bucket)
         bucket_instance = self._client.bucket(bucket, user_project=user_project)
         blob = bucket_instance.blob(src)
-        if dest.startswith('file://'):
-            local_dest = urllib.parse.urlparse(dest).path
-        else:
-            local_dest = dest
 
-        os.makedirs(os.path.dirname(local_dest), exist_ok=True)
+        if not os.path.exists(os.path.dirname(dest)):
+            os.makedirs(os.path.dirname(dest), exist_ok=True)
         await blocking_to_async(
             self._thread_pool,
             transfer_manager.download_chunks_concurrently,
             blob=blob,
-            filename=local_dest,
+            filename=dest,
             chunk_size=self.CHUNK_SIZE,
             download_kwargs={'timeout': self._timeout},
             max_workers=self.MAX_WORKERS,
@@ -999,11 +1001,17 @@ class GoogleStorageAsyncFS(AsyncFS):
             if await self.isfile(transfer.src):
                 stat = await self.statfile(transfer.src)
                 size = await stat.size()
-                filename = self.get_bucket_and_name(transfer.src)[1]
-                if transfer.dest.endswith('/') or transfer.treat_dest_as == Transfer.DEST_DIR:
-                    target_dest = (transfer.dest if transfer.dest.endswith('/') else transfer.dest + '/') + filename
+                filename = url_basename(transfer.src)
+                if transfer.treat_dest_as == Transfer.DEST_DIR or (
+                    transfer.treat_dest_as == Transfer.INFER_DEST and transfer.dest.endswith('/')
+                ):
+                    target_dest = url_join(transfer.dest, filename)
                 else:
                     target_dest = transfer.dest
+
+                if os.path.isdir(target_dest):
+                    raise IsADirectoryError(transfer.dest)
+
                 if size > self._storage_client.CHUNK_SIZE:
                     copy_operations.append(
                         functools.partial(
@@ -1034,14 +1042,24 @@ class GoogleStorageAsyncFS(AsyncFS):
                 async for file in await self.listfiles(transfer.src, recursive=True):
                     stat = await file.status()
                     size = await stat.size()
-                    filename = file.basename()
-                    target_dest = (transfer.dest if transfer.dest.endswith('/') else transfer.dest + '/') + filename
+                    filename = await file.url_full()
+                    relfilename = filename[len(transfer.src) :].lstrip('/')
+                    if transfer.treat_dest_as == Transfer.DEST_DIR or transfer.treat_dest_as == Transfer.INFER_DEST:
+                        target_dest = url_join(
+                            url_join(transfer.dest, url_basename(transfer.src.rstrip('/'))), relfilename
+                        )
+                    else:
+                        target_dest = url_join(transfer.dest, relfilename)
+
+                    if os.path.isfile(target_dest):
+                        raise NotADirectoryError(transfer.dest)
+
                     if size > self._storage_client.CHUNK_SIZE:
                         copy_operations.append(
                             functools.partial(
                                 self._copy_single_large_file,
                                 xfer_sema,
-                                await file.url(),
+                                filename,
                                 target_dest,
                                 size,
                                 report,
@@ -1054,7 +1072,7 @@ class GoogleStorageAsyncFS(AsyncFS):
                             functools.partial(
                                 self._copy_single_local_file,
                                 xfer_sema,
-                                await file.url(),
+                                filename,
                                 target_dest,
                                 size,
                                 report,
