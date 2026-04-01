@@ -15,7 +15,21 @@ type Props = {
 };
 
 const ROW_HEIGHT_PX = 36;
-const CHART_MARGINS_PX = 60; // top + bottom margins + legend
+const CHART_MARGINS_PX = 75; // top + bottom margins (larger to fit 2-line first tick) + legend
+
+function formatXTick(d: Date, i: number): string {
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  const ss = String(d.getSeconds()).padStart(2, '0');
+  const time = `${hh}:${mm}:${ss}`;
+  if (i === 0) {
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mo = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    return `${dd}/${mo}/${yyyy}\n${time}`;
+  }
+  return time;
+}
 
 export function GanttChart({ rows, colorMap }: Props): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -47,8 +61,9 @@ export function GanttChart({ rows, colorMap }: Props): JSX.Element {
       height,
       marginLeft: 160,
       marginRight: 20,
+      marginBottom: 50, // extra space for the two-line first tick label
       color: { domain: Object.keys(colorMap), range: Object.values(colorMap), legend: true },
-      x: { type: 'time', label: 'Time' },
+      x: { type: 'time', axis: null }, // disable auto axis; we add it explicitly below
       y: { label: null, domain: yDomain },
       marks: [
         Plot.barX(rows, {
@@ -57,6 +72,12 @@ export function GanttChart({ rows, colorMap }: Props): JSX.Element {
           y: 'label',
           fill: 'category',
           rx: 2,
+        }),
+        // Explicit bottom axis so it is always pinned to the bottom of the element
+        Plot.axisX({
+          anchor: 'bottom',
+          label: 'Time',
+          tickFormat: formatXTick,
         }),
         Plot.tip(rows, Plot.pointer({
           x1: 'start',
