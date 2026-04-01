@@ -90,10 +90,17 @@ const STEP_COLOR_MAP: Record<string, string> = {
   'uploading_log':             PLOTLY_PRISM[4],
   'uploading_resource_usage':  PLOTLY_PRISM[5],
   'prior attempt':             '#9ca3af',
+  'scheduling':                '#e2e8f0',
 };
 
-function buildGanttRows(job: Job, attempts: Attempt[], showPriorAttempts: boolean): GanttRow[] {
+type GanttData = {
+  rows: GanttRow[];
+  ruleXs: { x: Date; label: string }[];
+};
+
+function buildGanttRows(job: Job, attempts: Attempt[], showPriorAttempts: boolean): GanttData {
   const rows: GanttRow[] = [];
+  const ruleXs: { x: Date; label: string }[] = [];
   const nowMs = Date.now();
 
   // Prior attempts: one coarse bar per attempt row (all except the last)
@@ -101,7 +108,9 @@ function buildGanttRows(job: Job, attempts: Attempt[], showPriorAttempts: boolea
     for (const a of attempts.slice(0, -1)) {
       const startMs = a.start_time_ms;
       if (startMs == null) continue;
-      const endMs = a.end_time_ms ?? nowMs;
+      // A prior attempt with a reason is complete — don't stretch its bar to nowMs
+      const isComplete = a.reason != null || a.end_time_ms != null;
+      const endMs = a.end_time_ms ?? (isComplete ? startMs : nowMs);
       const durationMs = endMs - startMs;
       rows.push({
         label: `attempt ${a.attempt_id.slice(0, 8)}`,
@@ -120,36 +129,82 @@ function buildGanttRows(job: Job, attempts: Attempt[], showPriorAttempts: boolea
     }
   }
 
-  // Latest attempt: per-container rows, one bar per timing sub-step on the same y-row
+  // Latest attempt: all containers combined onto a single row
   const latest = attempts[attempts.length - 1];
   if (latest?.start_time_ms != null) {
+    const latestLabel = `attempt ${latest.attempt_id.slice(0, 8)}`;
+    const isLatestComplete = latest.reason != null || latest.end_time_ms != null;
+    const latestFallbackEndMs = isLatestComplete ? (latest.end_time_ms ?? latest.start_time_ms) : nowMs;
     const statuses = job.status?.container_statuses ?? {};
+
+    // Find the earliest task start across all containers to bound the scheduling block
+    let firstTaskStartMs: number | null = null;
     for (const container of ['input', 'main', 'output'] as const) {
       const cs = statuses[container];
       if (!cs) continue;
+      for (const [, timingData] of Object.entries(cs.timing)) {
+        if (!timingData || timingData.start_time == null) continue;
+        if (firstTaskStartMs === null || timingData.start_time < firstTaskStartMs) {
+          firstTaskStartMs = timingData.start_time;
+        }
+      }
+    }
+
+    // Scheduling placeholder: time from attempt start to first task start
+    const schedEndMs = firstTaskStartMs ?? latestFallbackEndMs;
+    if (schedEndMs > latest.start_time_ms) {
+      const durationMs = schedEndMs - latest.start_time_ms;
+      rows.push({
+        label: latestLabel,
+        start: new Date(latest.start_time_ms),
+        end: new Date(schedEndMs),
+        category: 'scheduling',
+        tooltip: [
+          `Row: ${latestLabel}`,
+          `Task: scheduling`,
+          `Start: ${new Date(latest.start_time_ms).toLocaleString()}`,
+          `Finish: ${new Date(schedEndMs).toLocaleString()}`,
+          `Duration: ${(durationMs / 1000).toFixed(1)}s`,
+        ].join('\n'),
+      });
+      ruleXs.push({ x: new Date(latest.start_time_ms), label: 'scheduling' });
+    }
+
+    // Task bars — all containers merged onto the same row
+    for (const container of ['input', 'main', 'output'] as const) {
+      const cs = statuses[container];
+      if (!cs) continue;
+      let containerStartMs: number | null = null;
       for (const [stepName, timingData] of Object.entries(cs.timing)) {
         if (!timingData || timingData.start_time == null) continue;
         const startMs = timingData.start_time;
-        const endMs = timingData.finish_time ?? nowMs;
+        const endMs = timingData.finish_time ?? latestFallbackEndMs;
         const durationMs = timingData.duration ?? (endMs - startMs);
         rows.push({
-          label: container,
+          label: latestLabel,
           start: new Date(startMs),
           end: new Date(endMs),
           category: stepName,
           tooltip: [
-            `Row: ${container}`,
-            `Task: ${stepName}`,
+            `Row: ${latestLabel}`,
+            `Task: ${stepName} (${container})`,
             `Start: ${new Date(startMs).toLocaleString()}`,
             `Finish: ${new Date(endMs).toLocaleString()}`,
             `Duration: ${(durationMs / 1000).toFixed(1)}s`,
           ].join('\n'),
         });
+        if (containerStartMs === null || startMs < containerStartMs) {
+          containerStartMs = startMs;
+        }
+      }
+      // One rule per container division, at its earliest task start
+      if (containerStartMs !== null) {
+        ruleXs.push({ x: new Date(containerStartMs), label: container });
       }
     }
   }
 
-  return rows;
+  return { rows, ruleXs };
 }
 
 function buildColorMap(rows: GanttRow[]): Record<string, string> {
@@ -193,7 +248,7 @@ function StateIcon({ state }: { state: string }): JSX.Element {
   return <span className={`material-symbols-outlined text-base leading-none ${color}`}>{icon}</span>;
 }
 
-const RUNNING_STATES = new Set(['Running', 'Creating']);
+const TERMINAL_STATES = new Set(['Success', 'Failed', 'Error', 'Cancelled']);
 
 function CollapsibleItem({ title, summary, children }: {
   title: string;
@@ -306,9 +361,9 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
     fetchData();
   }, [fetchData]);
 
-  // Auto-refresh for running jobs
+  // Auto-refresh for non-terminal jobs
   useEffect(() => {
-    if (!job || !RUNNING_STATES.has(job.state)) return;
+    if (!job || TERMINAL_STATES.has(job.state)) return;
     const id = setInterval(() => fetchData(), 10_000);
     return () => clearInterval(id);
   }, [job, fetchData]);
@@ -331,7 +386,9 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
 
   const latestAttempt = attempts && attempts.length > 0 ? attempts[attempts.length - 1] : null;
   const hasPriorAttempts = attempts != null && attempts.length > 1;
-  const ganttRows = attempts ? buildGanttRows(job, attempts, showPriorAttempts) : [];
+  const { rows: ganttRows, ruleXs: ganttRuleXs } = attempts
+    ? buildGanttRows(job, attempts, showPriorAttempts)
+    : { rows: [], ruleXs: [] };
   const colorMap = buildColorMap(ganttRows);
   // Determine active attempt for tab
   const activeAttempt = attempts?.find((a) => a.attempt_id === topTab) ?? latestAttempt;
@@ -458,7 +515,7 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
                 </button>
               </div>
             )}
-            <GanttChart rows={ganttRows} colorMap={colorMap} />
+            <GanttChart rows={ganttRows} colorMap={colorMap} ruleXs={ganttRuleXs} extendToNow={!TERMINAL_STATES.has(job.state)} />
           </div>
         )}
       </div>
