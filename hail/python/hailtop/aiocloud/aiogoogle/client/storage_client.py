@@ -51,6 +51,8 @@ from hailtop.utils import (
     blocking_to_async,
     retry_transient_errors,
     secret_alnum_string,
+    url_basename,
+    url_join,
 )
 
 from ...common.session import BaseSession
@@ -999,9 +1001,11 @@ class GoogleStorageAsyncFS(AsyncFS):
             if await self.isfile(transfer.src):
                 stat = await self.statfile(transfer.src)
                 size = await stat.size()
-                filename = self.get_bucket_and_name(transfer.src)[1]
-                if transfer.dest.endswith('/') or transfer.treat_dest_as == Transfer.DEST_DIR:
-                    target_dest = (transfer.dest if transfer.dest.endswith('/') else transfer.dest + '/') + filename
+                filename = url_basename(transfer.src)
+                if transfer.treat_dest_as == Transfer.DEST_DIR or (
+                    transfer.treat_dest_as == Transfer.INFER_DEST and transfer.dest.endswith('/')
+                ):
+                    target_dest = url_join(transfer.dest, filename)
                 else:
                     target_dest = transfer.dest
                 if size > self._storage_client.CHUNK_SIZE:
@@ -1034,14 +1038,22 @@ class GoogleStorageAsyncFS(AsyncFS):
                 async for file in await self.listfiles(transfer.src, recursive=True):
                     stat = await file.status()
                     size = await stat.size()
-                    filename = file.basename()
-                    target_dest = (transfer.dest if transfer.dest.endswith('/') else transfer.dest + '/') + filename
+                    filename = await file.url_full()
+                    relfilename = filename[len(transfer.src) :].lstrip('/')
+                    if transfer.treat_dest_as == Transfer.DEST_DIR or (
+                        transfer.treat_dest_as == Transfer.INFER_DEST and transfer.dest.endswith('/')
+                    ):
+                        target_dest = url_join(transfer.dest, relfilename)
+                    else:
+                        target_dest = url_join(
+                            url_join(transfer.dest, url_basename(transfer.src.rstrip('/'))), relfilename
+                        )
                     if size > self._storage_client.CHUNK_SIZE:
                         copy_operations.append(
                             functools.partial(
                                 self._copy_single_large_file,
                                 xfer_sema,
-                                await file.url(),
+                                filename,
                                 target_dest,
                                 size,
                                 report,
@@ -1054,7 +1066,7 @@ class GoogleStorageAsyncFS(AsyncFS):
                             functools.partial(
                                 self._copy_single_local_file,
                                 xfer_sema,
-                                await file.url(),
+                                filename,
                                 target_dest,
                                 size,
                                 report,
