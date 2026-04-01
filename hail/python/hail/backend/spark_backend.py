@@ -225,4 +225,4 @@ class SparkBackend(Py4JBackend):
 
     @property
     def requires_lowering(self):
-        return False
+        return any(self.get_flags('lower', 'lower_bm').values())
