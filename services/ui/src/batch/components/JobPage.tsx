@@ -417,13 +417,16 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
 
   return (
     <div className="pb-8">
-      {/* Back link */}
-      <a href={`${basePath}/batches/${batchId}`} className="pt-8 flex items-center space-x-1 hover:text-sky-600">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
-        </svg>
-        <span className="text-xl text-center font-light">Batch {batchId}</span>
-      </a>
+      {/* Breadcrumb */}
+      <nav className="flex items-center gap-2 text-xl font-light text-zinc-500 flex-wrap">
+        <a href={`${basePath}/batches`} className="hover:text-sky-600">Batches</a>
+        <span className="text-zinc-300">›</span>
+        <a href={`${basePath}/batches/${batchId}`} className="hover:text-sky-600">Batch {batchId}</a>
+        <span className="text-zinc-300">›</span>
+        <span className="text-zinc-800">
+          Job {jobId}{job.attributes?.name ? <span className="text-zinc-400"> ({job.attributes.name})</span> : null}
+        </span>
+      </nav>
       <div className="mt-1 text-sm">
         <a href={disableReactUrl} className="text-sky-600 hover:underline">Back to classic layout</a>
       </div>
