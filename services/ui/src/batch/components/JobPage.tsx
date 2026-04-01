@@ -103,9 +103,16 @@ function buildGanttRows(job: Job, attempts: Attempt[], showPriorAttempts: boolea
   const ruleXs: { x: Date; label: string }[] = [];
   const nowMs = Date.now();
 
+  // If the job is still running but the last attempt already has a reason
+  // (failed/preempted), treat it as a prior attempt rather than the live
+  // "latest" — consistent with how the tab icons are determined.
+  const lastAttempt = attempts[attempts.length - 1];
+  const lastIsPrior = !TERMINAL_STATES.has(job.state) && lastAttempt?.reason != null;
+  const priorAttempts = lastIsPrior ? attempts : attempts.slice(0, -1);
+
   // Prior attempts: one coarse bar per attempt row (all except the last)
   if (showPriorAttempts) {
-    for (const a of attempts.slice(0, -1)) {
+    for (const a of priorAttempts) {
       const startMs = a.start_time_ms;
       if (startMs == null) continue;
       // A prior attempt with a reason is complete — don't stretch its bar to nowMs
@@ -130,7 +137,7 @@ function buildGanttRows(job: Job, attempts: Attempt[], showPriorAttempts: boolea
   }
 
   // Latest attempt: all containers combined onto a single row
-  const latest = attempts[attempts.length - 1];
+  const latest = lastIsPrior ? null : lastAttempt;
   if (latest?.start_time_ms != null) {
     const latestLabel = `attempt ${latest.attempt_id.slice(0, 8)}`;
     const isLatestComplete = latest.reason != null || latest.end_time_ms != null;
@@ -566,7 +573,12 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
                 }`}
               >
                 {isLatest ? (
-                  <StateIcon state={job.state} />
+                  // Job is terminal: its state is the definitive answer.
+                  // Job is still running: if the attempt already has a reason it
+                  // failed/was preempted even though the job hasn't settled yet.
+                  TERMINAL_STATES.has(job.state) || !attempt.reason
+                    ? <StateIcon state={job.state} />
+                    : <span className="material-symbols-outlined text-base leading-none text-red-400">close</span>
                 ) : (
                   <span className="material-symbols-outlined text-base leading-none text-red-400">close</span>
                 )}
