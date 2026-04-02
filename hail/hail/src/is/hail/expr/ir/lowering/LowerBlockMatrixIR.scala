@@ -1456,10 +1456,18 @@ object LowerBlockMatrixIR {
 
         val sliceType = TTuple(TInt64, TInt64, TInt64)
         val perBlockRowSlices = computePerBlockSlices(
-          rowDependents, rStart, rStep, x.typ.nRows, child.typ.nRows,
+          rowDependents,
+          rStart,
+          rStep,
+          x.typ.nRows,
+          child.typ.nRows,
         )
         val perBlockColSlices = computePerBlockSlices(
-          colDependents, cStart, cStep, x.typ.nCols, child.typ.nCols,
+          colDependents,
+          cStart,
+          cStep,
+          x.typ.nCols,
+          child.typ.nCols,
         )
         val perBlockRowSlicesLit = Literal(TArray(TArray(sliceType)), perBlockRowSlices)
         val perBlockColSlicesLit = Literal(TArray(TArray(sliceType)), perBlockColSlices)
