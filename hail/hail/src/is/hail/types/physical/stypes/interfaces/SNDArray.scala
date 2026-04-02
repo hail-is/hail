@@ -1277,6 +1277,7 @@ trait SNDArrayValue extends SValue {
 
   def strides: IndexedSeq[Value[Long]]
 
+
   def eltStride(i: Int): Code[Int] = st.elementByteSize match {
     case 4 => strides(i).toI >> 2
     case 8 => strides(i).toI >> 3

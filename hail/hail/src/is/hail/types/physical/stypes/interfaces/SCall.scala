@@ -6,11 +6,16 @@ import is.hail.types.{RPrimitive, TypeWithRequiredness}
 import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.physical.stypes.primitives.SInt32Value
 
+import is.hail.io.PrefixCoder
+import is.hail.asm4s.implicits._
+
 trait SCall extends SType {
   override def _typeWithRequiredness: TypeWithRequiredness = RPrimitive()
 }
 
 trait SCallValue extends SValue {
+  override def prefixCode(cb: EmitCodeBuilder, pc: Value[PrefixCoder]) = pc.encodeInt(cb, canonicalCall(cb))
+
   def unphase(cb: EmitCodeBuilder): SCallValue
 
   def containsAllele(cb: EmitCodeBuilder, allele: Value[Int]): Value[Boolean]

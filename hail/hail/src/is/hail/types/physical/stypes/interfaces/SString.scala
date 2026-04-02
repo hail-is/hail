@@ -7,6 +7,8 @@ import is.hail.types.{RPrimitive, TypeWithRequiredness}
 import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.physical.stypes.primitives.SInt32Value
 
+import is.hail.io.PrefixCoder
+
 trait SString extends SType {
   def constructFromString(cb: EmitCodeBuilder, r: Value[Region], s: Code[String]): SStringValue
   override def _typeWithRequiredness: TypeWithRequiredness = RPrimitive()
@@ -21,4 +23,6 @@ trait SStringValue extends SValue {
   def loadString(cb: EmitCodeBuilder): Value[String]
 
   def toBytes(cb: EmitCodeBuilder): SBinaryValue
+
+  override def prefixCode(cb: EmitCodeBuilder, pc: Value[PrefixCoder]) = toBytes(cb).prefixCode(cb, pc)
 }
