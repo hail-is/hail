@@ -1417,8 +1417,10 @@ object LowerBlockMatrixIR {
 
         // Precompute per-dependent-block slice bounds so we can slice each
         // child block individually before concatenation, avoiding a large
-        // intermediate. The slice end is already accounted for in the type, so
-        // the slices produced here will be naturally limited.
+        // intermediate. The slice end is not needed here; it's already
+        // accounted for in the output type's nRows/nCols which cap how many
+        // elements each block produces. Blocks that contribute zero elements
+        // are excluded from the dependents by BlockMatrixSlice.
         def computePerBlockSlices(
           dependents: IndexedSeq[IndexedSeq[Int]],
           start: Long,
@@ -1437,20 +1439,15 @@ object LowerBlockMatrixIR {
                 math.min((d + 1L) * x.typ.blockSize, childDimSize) - childBlockStart
               val nextGlobalPos = start + (outputBlockStart + outputProduced) * step
               val localStart = nextGlobalPos - childBlockStart
-              assert(localStart >= 0, s"negative localStart=$localStart")
-              if (localStart >= childBlockElems) {
-                Row(0L, 0L, step)
-              } else {
-                val maxFromBlock = (childBlockElems - localStart + step - 1) / step
-                val nSelected = math.min(maxFromBlock, outputBlockElems - outputProduced)
-                outputProduced += nSelected
-                if (nSelected == 0) Row(0L, 0L, step)
-                else Row(
-                  localStart,
-                  math.min(childBlockElems, localStart + nSelected * step),
-                  step,
-                )
-              }
+              assert(
+                localStart >= 0 && localStart < childBlockElems,
+                s"localStart=$localStart out of range [0, $childBlockElems)",
+              )
+              val maxFromBlock = (childBlockElems - localStart + step - 1) / step
+              val nSelected = math.min(maxFromBlock, outputBlockElems - outputProduced)
+              assert(nSelected > 0, s"block d=$d should contribute at least one element")
+              outputProduced += nSelected
+              Row(localStart, math.min(childBlockElems, localStart + nSelected * step), step)
             }
           }
 
