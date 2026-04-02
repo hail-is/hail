@@ -562,6 +562,31 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     }
   }
 
+  @Test def testPrefixCoder(): Unit = {
+    forAll(genTypeNonMissingVal2) { case (t, a1, a2) =>
+      pool.scopedRegion { region =>
+        val pType = PType.canonical(t)
+        val v1 = pType.unstagedStoreJavaObject(sm, a1, region)
+        val v2 = pType.unstagedStoreJavaObject(sm, a2, region)
+        val fcompare = getStagedOrderingFunction(pType, CodeOrdering.Compare(), region)
+        val result = java.lang.Integer.signum(fcompare(region, v1, v2))
+
+        assertEvalsTo(
+          invoke(
+            "sign",
+            TInt32,
+            ApplyComparisonOp(
+              Compare,
+              invoke("prefixCode", TBinary, Literal.coerce(t, a1)),
+              invoke("prefixCode", TBinary, Literal.coerce(t, a2)),
+            ),
+          ),
+          result,
+        )
+      }
+    }
+  }
+
   @Test def testContainsWithArrayFold(): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
     val set1 = ToSet(MakeStream(IndexedSeq(I32(1), I32(4)), TStream(TInt32)))

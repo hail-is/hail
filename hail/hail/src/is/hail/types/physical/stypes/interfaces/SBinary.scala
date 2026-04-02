@@ -2,7 +2,9 @@ package is.hail.types.physical.stypes.interfaces
 
 import is.hail.asm4s._
 import is.hail.asm4s.Code.invokeStatic1
+import is.hail.asm4s.implicits._
 import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.io.PrefixCoder
 import is.hail.types.{RPrimitive, TypeWithRequiredness}
 import is.hail.types.physical.PCanonicalBinary
 import is.hail.types.physical.stypes.{SType, SValue}
@@ -18,6 +20,9 @@ trait SBinaryValue extends SValue {
   def loadBytes(cb: EmitCodeBuilder): Value[Array[Byte]]
 
   def loadByte(cb: EmitCodeBuilder, i: Code[Int]): Value[Byte]
+
+  override def prefixCode(cb: EmitCodeBuilder, pc: Value[PrefixCoder]) =
+    pc.writeBytes(cb, loadBytes(cb))
 
   override def hash(cb: EmitCodeBuilder): SInt32Value =
     new SInt32Value(cb.memoize(invokeStatic1[java.util.Arrays, Array[Byte], Int](
