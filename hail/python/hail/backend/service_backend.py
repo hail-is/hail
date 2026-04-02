@@ -105,7 +105,7 @@ class ServiceBackend(Backend):
         *,
         billing_project: Optional[str] = None,
         batch_client: Optional[BatchClient] = None,
-        disable_progress_bar: Optional[bool] = None,
+        show_progress: bool | None = None,
         remote_tmpdir: Optional[str] = None,
         flags: Optional[Dict[str, str]] = None,
         driver_cores: Optional[Union[int, str]] = None,
@@ -162,12 +162,9 @@ class ServiceBackend(Backend):
 
         assert len(regions) > 0, regions
 
-        if disable_progress_bar is None:
-            disable_progress_bar_str = configuration_of(ConfigVariable.QUERY_DISABLE_PROGRESS_BAR, None, None)
-            if disable_progress_bar_str is None:
-                disable_progress_bar = not am_i_interactive()
-            else:
-                disable_progress_bar = len(disable_progress_bar_str) > 0
+        if show_progress is None:
+            str_value = configuration_of(ConfigVariable.QUERY_DISABLE_PROGRESS_BAR, None, None)
+            show_progress = str_value == '0' if str_value is not None else am_i_interactive()
 
         flags = flags or {}
         if branching_factor is not None:
@@ -182,7 +179,7 @@ class ServiceBackend(Backend):
                 if batch_id is not None
                 else batch_client.create_batch(attributes=batch_attributes)
             ),
-            disable_progress_bar=disable_progress_bar,
+            show_progress=show_progress,
             remote_tmpdir=remote_tmpdir,
             driver_cores=driver_cores,
             driver_memory=driver_memory,
@@ -203,7 +200,7 @@ class ServiceBackend(Backend):
         bucket_allow_list: list[str] | None = None,
         batch_client: BatchClient,
         batch: Batch,
-        disable_progress_bar: bool,
+        show_progress: bool,
         remote_tmpdir: str,
         driver_cores: Optional[Union[int, str]],
         driver_memory: Optional[str],
@@ -221,7 +218,7 @@ class ServiceBackend(Backend):
         self._batch_client = batch_client
         self._batch = batch
         self._job_group_was_submitted: bool = False
-        self.disable_progress_bar = disable_progress_bar
+        self.show_progress = show_progress
         self._remote_tmpdir = remote_tmpdir
         self.flags: Dict[str, str] = {}
         self._registered_ir_function_names: Set[str] = set()
@@ -341,7 +338,7 @@ class ServiceBackend(Backend):
                     await asyncio.sleep(0.6)  # it is not possible for the batch to be finished in less than 600ms
                     await self._job_group.wait(
                         description=name,
-                        disable_progress_bar=self.disable_progress_bar,
+                        disable_progress_bar=not self.show_progress,
                         progress=progress,
                     )
                 except KeyboardInterrupt:
