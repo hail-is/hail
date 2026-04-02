@@ -1916,7 +1916,7 @@ object LowerTableIR extends Logging {
           )
         }
 
-      case t @ TableKeyBy(child, newKey, _: Boolean) =>
+      case t @ TableKeyBy(child, newKey, _: Boolean, _) =>
         require(t.definitelyDoesNotShuffle)
         val loweredChild = lower(child)
 
