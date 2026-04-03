@@ -2,31 +2,59 @@ package is.hail.expr.ir.lowering
 
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{
-  BaseIR, BlockMatrixIR, Compilable, Emittable, IR, IRTraversal, MatrixIR, RelationalLetMatrixTable,
-  RelationalLetTable, TableIR, TableKeyBy, TableKeyByAndAggregate, TableOrderBy,
+  BaseIR, BlockMatrixIR, Compilable, Emittable, IR, IRTraversal, MatrixIR, NormalizeNames, Pretty,
+  RelationalLetMatrixTable, RelationalLetTable, TableIR, TableKeyBy, TableKeyByAndAggregate,
+  TableOrderBy,
 }
 import is.hail.expr.ir.defs.{ApplyIR, LiftMeOut, RelationalLet, RelationalRef}
+import is.hail.expr.ir.lowering.invariant.implicits.RichInvariantOps
+import is.hail.utils.fatal
 import is.hail.utils.implicits.toRichPredicate
 
-abstract class Invariant(implicit E: sourcecode.Enclosing) extends (BaseIR => Boolean) {
-  final def verify(ctx: ExecuteContext, ir: BaseIR): Unit =
-    ctx.time {
-      IRTraversal.levelOrder(ir).foreach { ir =>
-        if (!apply(ir))
-          throw new RuntimeException(
-            s"lowered state ${this.getClass.getCanonicalName} forbids IR $ir"
+package invariant {
+  sealed abstract class Invariant {
+    def verify(ctx: ExecuteContext, ir: BaseIR): Unit
+  }
+
+  case object NoOp extends Invariant {
+    override def verify(ctx: ExecuteContext, ir: BaseIR): Unit = ()
+  }
+
+  abstract class Global(implicit E: sourcecode.Enclosing) extends Invariant {
+
+    def local(ir: BaseIR): Boolean
+
+    override def verify(ctx: ExecuteContext, ir: BaseIR): Unit =
+      ctx.time {
+        IRTraversal.levelOrder(ir).foreach { ir =>
+          if (!local(ir)) fatal(
+            s"Invariant ${E.value} forbids IR ${Pretty(ctx, ir, preserveNames = true)}"
           )
+        }
       }
-    }
+  }
 }
 
-object Invariant {
+package object invariant {
+  object implicits {
+    implicit class RichInvariantOps(private val x: Invariant) extends AnyVal {
+      def and(y: Invariant)(implicit E: sourcecode.Enclosing): Invariant =
+        x match {
+          case NoOp => y
+          case g: Global => y match {
+              case NoOp => g
+              case p: Global => Invariant(g.local _ and p.local)
+            }
+        }
+    }
+  }
 
-  implicit def apply(p: BaseIR => Boolean)(implicit E: sourcecode.Enclosing): Invariant =
-    new Invariant() { override def apply(ir: BaseIR): Boolean = p(ir) }
+  def Invariant(p: BaseIR => Boolean)(implicit E: sourcecode.Enclosing): Invariant =
+    new Global { override def local(ir: BaseIR): Boolean = p(ir) }
 
-  lazy val AnyIR: Invariant =
-    Invariant(_ => true)
+  def NameNormalizedIr: Invariant =
+    if (is.hail.StrictLoweringInvariants) NormalizeNames.Invariant
+    else NoOp
 
   lazy val NoMatrixIR: Invariant =
     Invariant(!_.isInstanceOf[MatrixIR])

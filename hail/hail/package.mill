@@ -45,6 +45,7 @@ trait RootHailModule extends CrossScalaModule, HailScalaModule:
           |package object hail {
           |  // FIXME: This should be a compiler switch/flag
           |  val EmitTracebackInAssertions = ${buildMode != Release}
+          |  val StrictLoweringInvariants = ${buildMode != Release}
           |  
           |  val PipVersion = "${Settings.hailMajorMinorVersion}.${Settings.hailPatchVersion}"
           |  val Revision = "${VcsVersion.vcsState().currentRevision}"
