@@ -390,6 +390,14 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
     return () => clearInterval(id);
   }, [job, fetchData]);
 
+  // When attempts load and there are none, default to the Job Spec tab instead
+  // of the current_attempt sentinel (which would leave no tab selected).
+  useEffect(() => {
+    if (attempts !== null && attempts.length === 0 && topTab === 'current_attempt') {
+      setTopTab('job_spec');
+    }
+  }, [attempts, topTab, setTopTab]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center mt-24">
@@ -496,7 +504,7 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
                 </tbody>
               </table>
             </CollapsibleItem>
-            {job.cost && (
+            {job.cost != null && (
               <CollapsibleItem title="Cost" summary={job.cost}>
                 {job.cost_breakdown && (
                   <table className="text-xs w-full">
