@@ -90,7 +90,7 @@ const STEP_COLOR_MAP: Record<string, string> = {
   'uploading_log':             PLOTLY_PRISM[4],
   'uploading_resource_usage':  PLOTLY_PRISM[5],
   'prior attempt':             '#9ca3af',
-  'scheduling':                '#e2e8f0',
+  'creating':                  '#e2e8f0',
 };
 
 type GanttData = {
@@ -144,7 +144,7 @@ function buildGanttRows(job: Job, attempts: Attempt[], showPriorAttempts: boolea
     const latestFallbackEndMs = isLatestComplete ? (latest.end_time_ms ?? latest.start_time_ms) : nowMs;
     const statuses = job.status?.container_statuses ?? {};
 
-    // Find the earliest task start across all containers to bound the scheduling block
+    // Find the earliest task start across all containers to bound the creating block
     let firstTaskStartMs: number | null = null;
     for (const container of ['input', 'main', 'output'] as const) {
       const cs = statuses[container];
@@ -157,24 +157,26 @@ function buildGanttRows(job: Job, attempts: Attempt[], showPriorAttempts: boolea
       }
     }
 
-    // Scheduling placeholder: time from attempt start to first task start
+    // Creating placeholder: time from attempt start to first task start.
+    // Only shown when the creating phase is at least 1 second; sub-second
+    // durations are noise and would render as "0.0s" in the tooltip.
     const schedEndMs = firstTaskStartMs ?? latestFallbackEndMs;
-    if (schedEndMs > latest.start_time_ms) {
-      const durationMs = schedEndMs - latest.start_time_ms;
+    const creatingDurationMs = schedEndMs - latest.start_time_ms;
+    if (creatingDurationMs >= 1000) {
       rows.push({
         label: latestLabel,
         start: new Date(latest.start_time_ms),
         end: new Date(schedEndMs),
-        category: 'scheduling',
+        category: 'creating',
         tooltip: [
           `Row: ${latestLabel}`,
-          `Task: scheduling`,
+          `Task: creating`,
           `Start: ${new Date(latest.start_time_ms).toLocaleString()}`,
           `Finish: ${new Date(schedEndMs).toLocaleString()}`,
-          `Duration: ${(durationMs / 1000).toFixed(1)}s`,
+          `Duration: ${(creatingDurationMs / 1000).toFixed(1)}s`,
         ].join('\n'),
       });
-      ruleXs.push({ x: new Date(latest.start_time_ms), label: 'scheduling' });
+      ruleXs.push({ x: new Date(latest.start_time_ms), label: 'creating' });
     }
 
     // Task bars — all containers merged onto the same row
