@@ -25,129 +25,56 @@ function formatBytes(bytes: number): string {
   return `${bytes} B`;
 }
 
-function toChartData(df: SplitDataFrame): Record<string, number | null>[] {
-  const colIdx: Record<string, number> = {};
-  df.columns.forEach((c, i) => {
-    colIdx[c] = i;
-  });
-  return df.data.map((row) => {
-    const point: Record<string, number | null> = {};
-    df.columns.forEach((col, i) => {
-      point[col] = row[i];
-    });
-    return point;
-  });
+// Match the colors used in the legacy Plotly charts in front_end.py:
+//   colors = {'input': 'red', 'main': 'green', 'output': 'blue'}
+const CONTAINER_COLORS: Record<string, string> = {
+  input: '#ef4444',
+  main: '#22c55e',
+  output: '#3b82f6',
+};
+const FALLBACK_COLORS = ['#a855f7', '#f97316', '#06b6d4'];
+
+function containerColor(name: string, index: number): string {
+  return CONTAINER_COLORS[name] ?? FALLBACK_COLORS[index % FALLBACK_COLORS.length];
 }
 
-type StageChartProps = { stage: string; df: SplitDataFrame };
+type ContainerSeries = {
+  name: string;
+  color: string;
+  data: Array<{ t_s: number; value: number | null }>;
+};
 
-function StageChart({ stage, df }: StageChartProps): JSX.Element {
-  const data = toChartData(df);
+type MetricChartProps = {
+  title: string;
+  containers: ContainerSeries[];
+  valueFormatter: (v: number) => string;
+  tickFormatter: (v: number) => string;
+};
 
-  const timeCol = 'time_msecs';
-  const baseTime = (data[0]?.[timeCol] as number) ?? 0;
-  const chartData = data.map((d) => ({
-    ...d,
-    t_s: (((d[timeCol] as number) ?? 0) - baseTime) / 1000,
-  }));
+function MetricChart({ title, containers, valueFormatter, tickFormatter }: MetricChartProps): JSX.Element | null {
+  if (containers.every((c) => c.data.length === 0)) return null;
 
   return (
-    <div className="mb-6">
-      <h4 className="text-sm font-medium text-zinc-600 mb-2 capitalize">{stage}</h4>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div>
-          <div className="text-xs text-zinc-400 mb-1">CPU</div>
-          <ResponsiveContainer width="100%" height={160}>
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="t_s" tickFormatter={(v) => `${v}s`} tick={{ fontSize: 10 }} />
-              <YAxis tickFormatter={(v) => `${(v * 100).toFixed(0)}%`} tick={{ fontSize: 10 }} />
-              <Tooltip formatter={(v) => typeof v === 'number' ? `${(v * 100).toFixed(1)}%` : String(v)} />
-              <Line type="monotone" dataKey="cpu_usage" dot={false} stroke="#0ea5e9" name="CPU" />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-        <div>
-          <div className="text-xs text-zinc-400 mb-1">Memory</div>
-          <ResponsiveContainer width="100%" height={160}>
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="t_s" tickFormatter={(v) => `${v}s`} tick={{ fontSize: 10 }} />
-              <YAxis tickFormatter={formatBytes} tick={{ fontSize: 10 }} />
-              <Tooltip formatter={(v) => typeof v === 'number' ? formatBytes(v) : String(v)} />
-              <Line
-                type="monotone"
-                dataKey="memory_in_bytes"
-                dot={false}
-                stroke="#8b5cf6"
-                name="Memory"
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-        <div>
-          <div className="text-xs text-zinc-400 mb-1">Network Upload</div>
-          <ResponsiveContainer width="100%" height={160}>
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="t_s" tickFormatter={(v) => `${v}s`} tick={{ fontSize: 10 }} />
-              <YAxis tickFormatter={formatBytes} tick={{ fontSize: 10 }} />
-              <Tooltip formatter={(v) => typeof v === 'number' ? `${formatBytes(v)}/s` : String(v)} />
-              <Line
-                type="monotone"
-                dataKey="network_bandwidth_upload_in_bytes_per_second"
-                dot={false}
-                stroke="#10b981"
-                name="Upload"
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-        <div>
-          <div className="text-xs text-zinc-400 mb-1">Network Download</div>
-          <ResponsiveContainer width="100%" height={160}>
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="t_s" tickFormatter={(v) => `${v}s`} tick={{ fontSize: 10 }} />
-              <YAxis tickFormatter={formatBytes} tick={{ fontSize: 10 }} />
-              <Tooltip formatter={(v) => typeof v === 'number' ? `${formatBytes(v)}/s` : String(v)} />
-              <Line
-                type="monotone"
-                dataKey="network_bandwidth_download_in_bytes_per_second"
-                dot={false}
-                stroke="#f59e0b"
-                name="Download"
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-        <div>
-          <div className="text-xs text-zinc-400 mb-1">Storage</div>
-          <ResponsiveContainer width="100%" height={160}>
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="t_s" tickFormatter={(v) => `${v}s`} tick={{ fontSize: 10 }} />
-              <YAxis tickFormatter={formatBytes} tick={{ fontSize: 10 }} />
-              <Tooltip formatter={(v) => typeof v === 'number' ? formatBytes(v) : String(v)} />
-              <Legend />
-              <Line
-                type="monotone"
-                dataKey="non_io_storage_in_bytes"
-                dot={false}
-                stroke="#ef4444"
-                name="Non-IO"
-              />
-              <Line
-                type="monotone"
-                dataKey="io_storage_in_bytes"
-                dot={false}
-                stroke="#6366f1"
-                name="IO"
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
+    <div>
+      <div className="text-xs text-zinc-400 mb-1">{title}</div>
+      <ResponsiveContainer width="100%" height={160}>
+        <LineChart>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis
+            dataKey="t_s"
+            type="number"
+            domain={['dataMin', 'dataMax']}
+            tickFormatter={(v) => `${v}s`}
+            tick={{ fontSize: 10 }}
+          />
+          <YAxis tickFormatter={tickFormatter} tick={{ fontSize: 10 }} />
+          <Tooltip formatter={(v) => (typeof v === 'number' ? valueFormatter(v) : String(v))} />
+          <Legend />
+          {containers.map(({ name, color, data }) => (
+            <Line key={name} data={data} type="monotone" dataKey="value" dot={false} stroke={color} name={name} />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
     </div>
   );
 }
@@ -155,17 +82,83 @@ function StageChart({ stage, df }: StageChartProps): JSX.Element {
 type Props = { data: ResourceUsageData };
 
 export function ResourceCharts({ data }: Props): JSX.Element {
-  const stages = Object.entries(data).filter(([, df]) => df !== null) as [string, SplitDataFrame][];
+  const containers = Object.entries(data).filter(([, df]) => df !== null) as [string, SplitDataFrame][];
 
-  if (stages.length === 0) {
+  if (containers.length === 0) {
     return <div className="text-zinc-400 text-sm py-4">No resource usage data available.</div>;
   }
 
+  // Compute a global time base so all containers share the same x-axis origin.
+  let globalBaseTime = Infinity;
+  for (const [, df] of containers) {
+    const timeIdx = df.columns.indexOf('time_msecs');
+    if (timeIdx >= 0 && df.data.length > 0) {
+      const t = df.data[0][timeIdx] as number;
+      if (t < globalBaseTime) globalBaseTime = t;
+    }
+  }
+  if (!isFinite(globalBaseTime)) globalBaseTime = 0;
+
+  function buildSeries(df: SplitDataFrame, colName: string): Array<{ t_s: number; value: number | null }> {
+    const timeIdx = df.columns.indexOf('time_msecs');
+    const valIdx = df.columns.indexOf(colName);
+    if (valIdx < 0) return [];
+    return df.data.map((row) => ({
+      t_s: (((row[timeIdx] as number) ?? 0) - globalBaseTime) / 1000,
+      value: row[valIdx],
+    }));
+  }
+
+  function makeContainers(colName: string): ContainerSeries[] {
+    return containers.map(([name, df], i) => ({
+      name,
+      color: containerColor(name, i),
+      data: buildSeries(df, colName),
+    }));
+  }
+
+  const hasIoStorage = containers.some(([, df]) => df.columns.includes('io_storage_in_bytes'));
+
   return (
-    <div>
-      {stages.map(([stage, df]) => (
-        <StageChart key={stage} stage={stage} df={df} />
-      ))}
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <MetricChart
+        title="CPU"
+        containers={makeContainers('cpu_usage')}
+        valueFormatter={(v) => `${(v * 100).toFixed(1)}%`}
+        tickFormatter={(v) => `${(v * 100).toFixed(0)}%`}
+      />
+      <MetricChart
+        title="Memory"
+        containers={makeContainers('memory_in_bytes')}
+        valueFormatter={formatBytes}
+        tickFormatter={formatBytes}
+      />
+      <MetricChart
+        title="Network Download"
+        containers={makeContainers('network_bandwidth_download_in_bytes_per_second')}
+        valueFormatter={(v) => `${formatBytes(v)}/s`}
+        tickFormatter={formatBytes}
+      />
+      <MetricChart
+        title="Network Upload"
+        containers={makeContainers('network_bandwidth_upload_in_bytes_per_second')}
+        valueFormatter={(v) => `${formatBytes(v)}/s`}
+        tickFormatter={formatBytes}
+      />
+      <MetricChart
+        title="Storage (Container Overlay)"
+        containers={makeContainers('non_io_storage_in_bytes')}
+        valueFormatter={formatBytes}
+        tickFormatter={formatBytes}
+      />
+      {hasIoStorage && (
+        <MetricChart
+          title="Storage (Mounted Drive at /io)"
+          containers={makeContainers('io_storage_in_bytes')}
+          valueFormatter={formatBytes}
+          tickFormatter={formatBytes}
+        />
+      )}
     </div>
   );
 }
