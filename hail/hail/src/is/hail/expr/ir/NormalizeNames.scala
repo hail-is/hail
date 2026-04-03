@@ -3,10 +3,12 @@ package is.hail.expr.ir
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.NormalizeNames.needsRenaming
 import is.hail.expr.ir.defs._
+import is.hail.expr.ir.lowering.invariant._
 import is.hail.types.virtual.Type
 import is.hail.utils.StackSafe._
 
 import scala.annotation.tailrec
+import scala.collection.mutable
 
 object NormalizeNames {
   def apply[T <: BaseIR](allowFreeVariables: Boolean = false)(ctx: ExecuteContext, ir: T): T =
@@ -43,6 +45,30 @@ object NormalizeNames {
     case _: IR | _: BlockMatrixIR =>
       true
   }
+
+  def Invariant: Invariant =
+    new Global {
+      private[this] val names: mutable.Map[Name, BaseIR] =
+        is.hail.collection.compat.mutable.AnyRefMap.empty
+
+      override def local(ir: BaseIR): Boolean =
+        !needsRenaming(ir) || {
+          // ir may bind the same name in multiple children
+          val newNames = mutable.HashSet.empty[Name]
+          (0 until ir.children.size).forall { i =>
+            Bindings.get(ir, i).all.forall { case (name, _) =>
+              !newNames.add(name) || names.put(name, ir).forall { orig =>
+                throw new AssertionError(
+                  s"""Redefinition of '$name' in
+                     |${Pretty.ssaStyle(ir, preserveNames = true)}
+                     |Originally bound in
+                     |${Pretty.ssaStyle(orig, preserveNames = true)}""".stripMargin
+                )
+              }
+            }
+          }
+        }
+    }
 }
 
 class NormalizeNames(freeVariables: Set[Name]) {

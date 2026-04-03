@@ -344,10 +344,11 @@ class SparkBackend(val spark: SparkSession) extends Backend with Logging {
     )
   }
 
-  override def execute(ctx: ExecuteContext, ir: IR): Either[Unit, (PTuple, Long)] =
+  override def execute(ctx: ExecuteContext, ir0: IR): Either[Unit, (PTuple, Long)] =
     ctx.time {
-      TypeCheck(ctx, ir)
-      Validate(ir)
+      TypeCheck(ctx, ir0)
+      Validate(ir0)
+      val ir = NormalizeNames()(ctx, ir0)
 
       if (ctx.flags.isDefined(ExecutionCache.Flags.UseFastRestarts))
         ctx.irMetadata.semhash = SemanticHash(ctx, ir)

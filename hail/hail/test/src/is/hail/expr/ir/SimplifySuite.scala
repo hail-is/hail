@@ -6,6 +6,7 @@ import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.defs._
+import is.hail.expr.ir.implicits.forTesting._
 import is.hail.types.virtual._
 import is.hail.utils.Interval
 import is.hail.variant.Locus

@@ -10,9 +10,8 @@ import scala.collection.Set
 object ForwardLets {
   def apply[T <: BaseIR](ctx: ExecuteContext, ir0: T): T =
     ctx.time {
-      val ir1 = NormalizeNames(allowFreeVariables = true)(ctx, ir0)
-      val UsesAndDefs(uses, defs, _) = ComputeUsesAndDefs(ir1, errorIfFreeVariables = false)
-      val nestingDepth = NestingDepth(ctx, ir1)
+      val UsesAndDefs(uses, defs, _) = ComputeUsesAndDefs(ir0, errorIfFreeVariables = false)
+      val nestingDepth = NestingDepth(ctx, ir0)
 
       def shouldForward(value: IR, refs: Set[RefEquality[BaseRef]], base: Block, scope: Int)
         : Boolean =
@@ -66,6 +65,6 @@ object ForwardLets {
             )
         }
 
-      rewrite(ir1, BindingEnv(Env.empty, Some(Env.empty), Some(Env.empty))).asInstanceOf[T]
+      rewrite(ir0, BindingEnv(Env.empty, Some(Env.empty), Some(Env.empty))).asInstanceOf[T]
     }
 }
