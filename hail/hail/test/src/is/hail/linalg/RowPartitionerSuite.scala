@@ -3,25 +3,20 @@ package is.hail.linalg
 import is.hail.collection.compat.immutable.ArraySeq
 
 import org.scalacheck.Arbitrary.arbitrary
-import org.scalatest
-import org.scalatestplus.scalacheck.CheckerAsserting.assertingNatureOfAssertion
-import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
-import org.scalatestplus.testng.TestNGSuite
-import org.testng.annotations.Test
+import org.scalacheck.Prop._
 
-class RowPartitionerSuite extends TestNGSuite with ScalaCheckDrivenPropertyChecks {
-  @Test
-  def testGetPartition(): Unit = {
+class RowPartitionerSuite extends munit.ScalaCheckSuite {
+  test("GetPartition") {
     val partitionStarts = ArraySeq[Long](0, 0, 0, 4, 5, 5, 8, 10, 10)
     val partitionCounts = Array(0, 0, 4, 1, 0, 3, 2, 0)
     val keyPart = partitionCounts.zipWithIndex.flatMap { case (count, pi) => Array.fill(count)(pi) }
 
     val rp = RowPartitioner(partitionStarts)
-    assert(rp.numPartitions == 8)
-    assert((0 until 10).forall(i => keyPart(i) == rp.getPartition(i.toLong)))
+    assertEquals(rp.numPartitions, 8)
+    (0 until 10).foreach(i => assertEquals(rp.getPartition(i.toLong), keyPart(i)))
   }
 
-  @Test def testFindInterval(): Unit = {
+  property("FindInterval") {
     def naiveFindInterval(a: IndexedSeq[Long], key: Long): Int = {
       if (a.length == 0 || key < a(0))
         -1
@@ -37,13 +32,11 @@ class RowPartitionerSuite extends TestNGSuite with ScalaCheckDrivenPropertyCheck
 
     val moreKeys = Array(Long.MinValue, -1000L, -1L, 0L, 1L, 1000L, Long.MaxValue)
 
-    forAll(arbitrary[ArraySeq[Long]] map { _.sorted }) { a =>
-      whenever(a.nonEmpty) {
-        scalatest.Inspectors.forAll(a ++ moreKeys) { key =>
-          assert(
-            !(key > a.head && key < a.last) ||
-              RowPartitioner.findInterval(a, key) == naiveFindInterval(a, key)
-          )
+    forAll(arbitrary[ArraySeq[Long]].map(_.sorted)) { a =>
+      (a.nonEmpty) ==> {
+        (a ++ moreKeys).forall { key =>
+          !(key > a.head && key < a.last) ||
+          RowPartitioner.findInterval(a, key) == naiveFindInterval(a, key)
         }
       }
     }

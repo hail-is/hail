@@ -14,12 +14,12 @@ import is.hail.types.physical.stypes.interfaces.primitive
 import is.hail.types.physical.stypes.primitives.SInt64
 
 import scala.collection.mutable
+import scala.concurrent.duration.Duration
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
 import org.scalacheck.Gen._
-import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
-import org.testng.annotations.Test
+import org.scalacheck.Prop.forAll
 
 class TestBTreeKey(mb: EmitMethodBuilder[_]) extends BTreeKey {
   private val comp = mb.ecb.getOrderingFunction(SInt64, SInt64, CodeOrdering.Compare())
@@ -236,45 +236,58 @@ class TestSet {
   def getElements: Array[java.lang.Long] = map.toArray
 }
 
-class StagedBTreeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
+class StagedBTreeSuite extends HailSuite with munit.ScalaCheckSuite {
+  var region: Region = _
+  val refSet = new TestSet()
 
-  @Test def testBTree(): Unit = {
-    pool.scopedRegion { region =>
-      val refSet = new TestSet()
-      val nodeSizeParams = Array(
-        2 -> choose(-10, 10),
-        3 -> choose(-10, 10),
-        5 -> choose(-30, 30),
-        6 -> choose(-30, 30),
-        22 -> choose(-3, 3),
-      )
+  override def beforeAll(): Unit = {
+    super.beforeAll()
+    region = pool.getRegion()
+  }
 
-      for ((n, values) <- nodeSizeParams) {
-        val testSet = new BTreeBackedSet(ctx, region, n)
+  override def afterAll(): Unit = {
+    region.close()
+    region = null
+    super.afterAll()
+  }
 
-        val sets = containerOf[Array, java.lang.Long](zip(prob(.1), values)
-          .map { case (m, v) => if (m) null else Long.box(v.longValue()) })
+  override val munitTimeout = Duration(60, "s")
 
-        val lt = { (l1: java.lang.Long, l2: java.lang.Long) =>
-          !(l1 == null) && ((l2 == null) || (l1 < l2))
-        }
+  property("BTree") {
+    val refSet = new TestSet()
+    val nodeSizeParams = Array(
+      2 -> choose(-10, 10),
+      3 -> choose(-10, 10),
+      5 -> choose(-30, 30),
+      6 -> choose(-30, 30),
+      22 -> choose(-3, 3),
+    )
 
-        forAll(sets) { set =>
-          refSet.clear()
-          testSet.clear()
-          assert(refSet.getElements sameElements testSet.getElements)
+    nodeSizeParams.map { case (n, values) =>
+      val testSet = new BTreeBackedSet(ctx, region, n)
 
-          set.forall { v =>
-            refSet.getOrElseInsert(v)
-            testSet.getOrElseInsert(v)
-            refSet.getElements.sortWith(lt) sameElements testSet.getElements.sortWith(lt)
-          } && {
-            val serialized = testSet.bulkStore
-            val testSet2 = BTreeBackedSet.bulkLoad(ctx, region, serialized, n)
-            refSet.getElements.sortWith(lt) sameElements testSet2.getElements.sortWith(lt)
-          }
+      val sets = containerOf[Array, java.lang.Long](zip(prob(.1), values)
+        .map { case (m, v) => if (m) null else Long.box(v.longValue()) })
+
+      val lt = { (l1: java.lang.Long, l2: java.lang.Long) =>
+        !(l1 == null) && ((l2 == null) || (l1 < l2))
+      }
+
+      forAll(sets) { set =>
+        refSet.clear()
+        testSet.clear()
+        assert(refSet.getElements sameElements testSet.getElements)
+
+        set.forall { v =>
+          refSet.getOrElseInsert(v)
+          testSet.getOrElseInsert(v)
+          refSet.getElements.sortWith(lt) sameElements testSet.getElements.sortWith(lt)
+        } && {
+          val serialized = testSet.bulkStore
+          val testSet2 = BTreeBackedSet.bulkLoad(ctx, region, serialized, n)
+          refSet.getElements.sortWith(lt) sameElements testSet2.getElements.sortWith(lt)
         }
       }
-    }
+    }.reduce(_ ++ _)
   }
 }

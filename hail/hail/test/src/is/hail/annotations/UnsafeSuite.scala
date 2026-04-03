@@ -18,10 +18,9 @@ import org.json4s.jackson.Serialization
 import org.scalacheck._
 import org.scalacheck.Arbitrary.arbitrary
 import org.scalacheck.Gen._
-import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
-import org.testng.annotations.{DataProvider, Test}
+import org.scalacheck.Prop.forAll
 
-class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
+class UnsafeSuite extends HailSuite with munit.ScalaCheckSuite {
   def subsetType(t: Type): Type = {
     t match {
       case t: TStruct =>
@@ -57,10 +56,6 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
   def sm = ctx.stateManager
 
-  @DataProvider(name = "codecs")
-  def codecs(): Array[Array[Any]] =
-    codecs(ctx)
-
   def codecs(ctx: ExecuteContext): Array[Array[Any]] =
     (BufferSpec.specs ++ Array(TypedCodecSpec(
       ctx,
@@ -69,13 +64,25 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     )))
       .map(x => Array[Any](x))
 
-  @Test(dataProvider = "codecs") def testCodecSerialization(codec: Spec): Unit = {
-    implicit val formats = AbstractRVDSpec.formats
-    assert(Serialization.read[Spec](codec.toString) == codec)
-
+  object checkCodecSerialization extends TestCases {
+    def apply(
+      codec: => Spec
+    )(implicit loc: munit.Location
+    ): Unit = test("codec serialization") {
+      implicit val formats = AbstractRVDSpec.formats
+      val c = codec
+      assertEquals(Serialization.read[Spec](c.toString), c)
+    }
   }
 
-  @Test def testCodec(): Unit = {
+  {
+    lazy val specs = codecs(ctx)
+    specs.foreach { case Array(codec: Spec) =>
+      checkCodecSerialization(codec)
+    }
+  }
+
+  property("codec") {
     val region = Region(pool = pool)
     val region2 = Region(pool = pool)
     val region3 = Region(pool = pool)
@@ -147,7 +154,7 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     }
   }
 
-  @Test def testCodecForNonWrappedTypes(): Unit = {
+  test("codec for non-wrapped types") {
     val valuesAndTypes = FastSeq(
       5 -> PInt32(),
       6L -> PInt64(),
@@ -170,7 +177,7 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
           val serialized = baos.toByteArray
           val (decT, dec) = cs2.buildDecoder(ctx, t.virtualType)
-          assert(decT == t)
+          assertEquals(decT, t)
           val res =
             dec((new ByteArrayInputStream(serialized)), theHailClassLoader).readRegionValue(region)
 
@@ -180,7 +187,7 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     }
   }
 
-  @Test def testBufferWriteReadDoubles(): Unit = {
+  test("buffer write read doubles") {
     val a = Array(1.0, -349.273, 0.0, 9925.467, 0.001)
 
     BufferSpec.specs.foreach { bufferSpec =>
@@ -198,7 +205,7 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     }
   }
 
-  @Test def testRegionValue(): Unit = {
+  property("region value") {
     val region = Region(pool = pool)
     val region2 = Region(pool = pool)
     val rvb = new RegionValueBuilder(sm, region)
@@ -293,7 +300,7 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       if v != null
     } yield (t, v)
 
-  @Test def testPacking(): Unit = {
+  test("packing") {
 
     def makeStruct(types: PType*): PCanonicalStruct =
       PCanonicalStruct(types.zipWithIndex.map { case (t, i) => (s"f$i", t) }: _*)
@@ -308,8 +315,8 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       PBoolean(), // 12-13
       PBoolean(),
     ) // 13-14
-    assert(t1.byteOffsets.toSeq == Seq(4, 8, 16, 1, 2, 3, 12, 13))
-    assert(t1.byteSize == 24)
+    assertEquals(t1.byteOffsets.toSeq, Seq(4L, 8L, 16L, 1L, 2L, 3L, 12L, 13L))
+    assertEquals(t1.byteSize, 24L)
 
     val t2 = makeStruct( // missing bytes 0, 1
       PBoolean(), // 2-3
@@ -325,21 +332,22 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       PBoolean(),
     ) // 48-49
 
-    assert(t2.byteOffsets.toSeq == Seq(2, 4, 8, 16, 12, 24, 32, 28, 3, 40, 48))
-    assert(t2.byteSize == 49)
+    assertEquals(t2.byteOffsets.toSeq, Seq(2L, 4L, 8L, 16L, 12L, 24L, 32L, 28L, 3L, 40L, 48L))
+    assertEquals(t2.byteSize, 49L)
 
     val t3 = makeStruct((0 until 512).map(_ => PFloat64()): _*)
-    assert(t3.byteSize == (512 / 8) + 512 * 8)
+    assertEquals(t3.byteSize, (512L / 8) + 512 * 8)
     val t4 = makeStruct((0 until 256).flatMap(_ =>
       Iterator(PInt32(), PInt32(), PFloat64(), PBoolean())
     ): _*)
-    assert(t4.byteSize == 256 * 4 / 8 + 256 * 4 * 2 + 256 * 8 + 256)
+    assertEquals(t4.byteSize, 256L * 4 / 8 + 256 * 4 * 2 + 256 * 8 + 256)
   }
 
-  @Test def testEmptySize(): Unit =
-    assert(PCanonicalStruct().byteSize == 0)
+  test("empty size") {
+    assertEquals(PCanonicalStruct().byteSize, 0L)
+  }
 
-  @Test def testUnsafeOrdering(): Unit = {
+  property("unsafe ordering") {
     val region = Region(pool = pool)
     val region2 = Region(pool = pool)
 
@@ -383,6 +391,7 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         println(s"a2=$a2")
         println(s"c1=$c1, c2=$c2, c3=$c3")
       }
+      p
     }
   }
 }

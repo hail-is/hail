@@ -9,7 +9,6 @@ import is.hail.utils.Interval
 import is.hail.variant.{Locus, ReferenceGenome}
 
 import org.apache.spark.sql.Row
-import org.testng.annotations.Test
 
 class LocusFunctionsSuite extends HailSuite {
 
@@ -24,37 +23,42 @@ class LocusFunctionsSuite extends HailSuite {
 
   def locus = Locus("chr22", 1, grch38)
 
-  @Test def contig(): Unit =
-    assertEvalsTo(invoke("contig", TString, locusIR), locus.contig)
+  test("contig")(assertEvalsTo(invoke("contig", TString, locusIR), locus.contig))
 
-  @Test def position(): Unit =
-    assertEvalsTo(invoke("position", TInt32, locusIR), locus.position)
+  test("position")(assertEvalsTo(invoke("position", TInt32, locusIR), locus.position))
 
-  @Test def isAutosomalOrPseudoAutosomal(): Unit =
+  test("isAutosomalOrPseudoAutosomal") {
     assertEvalsTo(
       invoke("isAutosomalOrPseudoAutosomal", TBoolean, locusIR),
       locus.isAutosomalOrPseudoAutosomal(grch38),
     )
+  }
 
-  @Test def isAutosomal(): Unit =
+  test("isAutosomal") {
     assertEvalsTo(invoke("isAutosomal", TBoolean, locusIR), locus.isAutosomal(grch38))
+  }
 
-  @Test def inYNonPar(): Unit =
+  test("inYNonPar") {
     assertEvalsTo(invoke("inYNonPar", TBoolean, locusIR), locus.inYNonPar(grch38))
+  }
 
-  @Test def inXPar(): Unit =
+  test("inXPar") {
     assertEvalsTo(invoke("inXPar", TBoolean, locusIR), locus.inXPar(grch38))
+  }
 
-  @Test def isMitochondrial(): Unit =
+  test("isMitochondrial") {
     assertEvalsTo(invoke("isMitochondrial", TBoolean, locusIR), locus.isMitochondrial(grch38))
+  }
 
-  @Test def inXNonPar(): Unit =
+  test("inXNonPar") {
     assertEvalsTo(invoke("inXNonPar", TBoolean, locusIR), locus.inXNonPar(grch38))
+  }
 
-  @Test def inYPar(): Unit =
+  test("inYPar") {
     assertEvalsTo(invoke("inYPar", TBoolean, locusIR), locus.inYPar(grch38))
+  }
 
-  @Test def minRep(): Unit = {
+  test("minRep") {
     val alleles = MakeArray(FastSeq(Str("AA"), Str("AT")), TArray(TString))
     assertEvalsTo(
       invoke("min_rep", tvariant, locusIR, alleles),
@@ -63,10 +67,11 @@ class LocusFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("min_rep", tvariant, locusIR, NA(TArray(TString))), null)
   }
 
-  @Test def globalPosition(): Unit =
+  test("globalPosition") {
     assertEvalsTo(invoke("locusToGlobalPos", TInt64, locusIR), grch38.locusToGlobalPos(locus))
+  }
 
-  @Test def reverseGlobalPosition(): Unit = {
+  test("reverseGlobalPosition") {
     val globalPosition = 2824183054L
     assertEvalsTo(
       invoke("globalPosToLocus", tlocus, I64(globalPosition)),
@@ -74,7 +79,7 @@ class LocusFunctionsSuite extends HailSuite {
     )
   }
 
-  @Test def testMultipleReferenceGenomes(): Unit = {
+  test("MultipleReferenceGenomes") {
     implicit val execStrats = ExecStrategy.compileOnly
 
     val ir = MakeTuple.ordered(FastSeq(
@@ -91,7 +96,7 @@ class LocusFunctionsSuite extends HailSuite {
     )
   }
 
-  @Test def testMakeInterval(): Unit = {
+  test("MakeInterval") {
     // TString, TInt32, TInt32, TBoolean, TBoolean, TBoolean
     val ir = MakeTuple.ordered(FastSeq(
       invoke(

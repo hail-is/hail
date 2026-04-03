@@ -285,6 +285,7 @@ object MvnCoordinate:
   val `metrics-jvm` = "io.dropwizard.metrics:metrics-jvm"
   val `mill-scalafix` = "com.goyeau::mill-scalafix"
   val `minlog` = "com.esotericsoftware:minlog"
+  val `munit` = "org.scalameta::munit"
   val `mockito-scala` = "org.mockito::mockito-scala"
   val `netty-all` = "io.netty:netty-all"
   val `netty-buffer` = "io.netty:netty-buffer"

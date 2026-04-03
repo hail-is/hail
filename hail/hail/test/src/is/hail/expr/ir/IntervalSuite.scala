@@ -12,9 +12,6 @@ import is.hail.types.virtual._
 import is.hail.utils._
 
 import org.apache.spark.sql.Row
-import org.scalatest.Inspectors.forAll
-import org.testng.ITestContext
-import org.testng.annotations.{BeforeMethod, Test}
 
 class IntervalSuite extends HailSuite {
 
@@ -43,7 +40,7 @@ class IntervalSuite extends HailSuite {
   val i4 = interval(NA(tpoint1), point(2), null, false)
   val i5 = interval(NA(tpoint1), point(2), true, null)
 
-  @Test def constructor(): Unit = {
+  test("constructor") {
     assertEvalsTo(i1, Interval(Row(1), Row(2), true, false))
     assertEvalsTo(i2, Interval(Row(1), null, true, false))
     assertEvalsTo(i3, Interval(null, Row(2), true, false))
@@ -51,33 +48,33 @@ class IntervalSuite extends HailSuite {
     assertEvalsTo(i5, null)
   }
 
-  @Test def start(): Unit = {
+  test("start") {
     assertEvalsTo(invoke("start", tpoint1, i1), Row(1))
     assertEvalsTo(invoke("start", tpoint1, i2), Row(1))
     assertEvalsTo(invoke("start", tpoint1, i3), null)
     assertEvalsTo(invoke("start", tpoint1, na), null)
   }
 
-  @Test def defaultValueCorrectlyStored(): Unit = {
+  test("defaultValueCorrectlyStored") {
     assertEvalsTo(If(GetTupleElement(invoke("start", tpoint1, i1), 0).ceq(1), true, false), true)
     assertEvalsTo(If(GetTupleElement(invoke("end", tpoint1, i1), 0).ceq(2), true, false), true)
   }
 
-  @Test def end(): Unit = {
+  test("end") {
     assertEvalsTo(invoke("end", tpoint1, i1), Row(2))
     assertEvalsTo(invoke("end", tpoint1, i2), null)
     assertEvalsTo(invoke("end", tpoint1, i3), Row(2))
     assertEvalsTo(invoke("end", tpoint1, na), null)
   }
 
-  @Test def includeStart(): Unit = {
+  test("includeStart") {
     assertEvalsTo(invoke("includesStart", TBoolean, i1), true)
     assertEvalsTo(invoke("includesStart", TBoolean, i2), true)
     assertEvalsTo(invoke("includesStart", TBoolean, i3), true)
     assertEvalsTo(invoke("includesStart", TBoolean, na), null)
   }
 
-  @Test def includeEnd(): Unit = {
+  test("includeEnd") {
     assertEvalsTo(invoke("includesEnd", TBoolean, i1), false)
     assertEvalsTo(invoke("includesEnd", TBoolean, i2), false)
     assertEvalsTo(invoke("includesEnd", TBoolean, i3), false)
@@ -107,40 +104,45 @@ class IntervalSuite extends HailSuite {
       i.includesEnd,
     )
 
-  @Test def contains(): Unit =
-    forAll(cartesian(testIntervals, points)) { case (setInterval, p) =>
+  test("contains") {
+    cartesian(testIntervals, points).foreach { case (setInterval, p) =>
       val interval = toIRInterval(setInterval)
-      assert(eval(invoke("contains", TBoolean, interval, p)) == setInterval.contains(p))
+      assertEquals(eval(invoke("contains", TBoolean, interval, p)), setInterval.contains(p))
     }
+  }
 
-  @Test def isEmpty(): Unit =
-    forAll(testIntervals) { setInterval =>
+  test("isEmpty") {
+    testIntervals.foreach { setInterval =>
       val interval = toIRInterval(setInterval)
-      assert(eval(
-        invoke("isEmpty", TBoolean, ErrorIDs.NO_ERROR, interval)
-      ) == setInterval.definitelyEmpty())
+      assertEquals(
+        eval(invoke("isEmpty", TBoolean, ErrorIDs.NO_ERROR, interval)),
+        setInterval.definitelyEmpty(),
+      )
     }
+  }
 
-  @Test def overlaps(): Unit =
-    forAll(cartesian(testIntervals, testIntervals)) { case (setInterval1, setInterval2) =>
+  test("overlaps") {
+    cartesian(testIntervals, testIntervals).foreach { case (setInterval1, setInterval2) =>
       val interval1 = toIRInterval(setInterval1)
       val interval2 = toIRInterval(setInterval2)
-      assert(eval(
-        invoke("overlaps", TBoolean, interval1, interval2)
-      ) == setInterval1.probablyOverlaps(setInterval2))
+      assertEquals(
+        eval(invoke("overlaps", TBoolean, interval1, interval2)),
+        setInterval1.probablyOverlaps(setInterval2),
+      )
     }
+  }
 
   def intInterval(start: Int, end: Int, includesStart: Boolean = true, includesEnd: Boolean = false)
     : Interval =
     Interval(start, end, includesStart, includesEnd)
 
-  @Test def testIntervalSortAndReduce(): Unit = {
+  test("IntervalSortAndReduce") {
     val ord = TInt32.ordering(ctx.stateManager).intervalEndpointOrdering
 
-    assert(Interval.union(ArraySeq(), ord) == ArraySeq())
-    assert(Interval.union(ArraySeq(intInterval(0, 10)), ord) == ArraySeq(intInterval(0, 10)))
+    assertEquals(Interval.union(ArraySeq(), ord), ArraySeq())
+    assertEquals(Interval.union(ArraySeq(intInterval(0, 10)), ord), ArraySeq(intInterval(0, 10)))
 
-    assert(
+    assertEquals(
       Interval.union(
         ArraySeq(
           intInterval(0, 10),
@@ -149,11 +151,12 @@ class IntervalSuite extends HailSuite {
           intInterval(40, 50),
         ).reverse,
         ord,
-      ) == ArraySeq(intInterval(0, 30), intInterval(40, 50))
+      ),
+      ArraySeq(intInterval(0, 30), intInterval(40, 50)),
     )
   }
 
-  @Test def testIntervalIntersection(): Unit = {
+  test("IntervalIntersection") {
     val ord = TInt32.ordering(ctx.stateManager).intervalEndpointOrdering
 
     val x1 = ArraySeq(
@@ -174,15 +177,18 @@ class IntervalSuite extends HailSuite {
 
     assert(Interval.intersection(x1, ArraySeq(), ord).isEmpty)
     assert(Interval.intersection(ArraySeq(), x2, ord).isEmpty)
-    assert(Interval.intersection(x1, x2, ord) == x1)
-    assert(Interval.intersection(x1, x2, ord) == x1)
-    assert(Interval.intersection(x1, x3, ord) == ArraySeq(
-      intInterval(7, 10),
-      intInterval(15, 19, includesEnd = true),
-    ))
+    assertEquals(Interval.intersection(x1, x2, ord), x1)
+    assertEquals(Interval.intersection(x1, x2, ord), x1)
+    assertEquals(
+      Interval.intersection(x1, x3, ord),
+      ArraySeq(
+        intInterval(7, 10),
+        intInterval(15, 19, includesEnd = true),
+      ),
+    )
   }
 
-  @Test def testsortedNonOverlappingIntervalsContain(): Unit = {
+  test("sortedNonOverlappingIntervalsContain") {
     val intervals = Literal(
       TArray(TInterval(TInt32)),
       FastSeq(
@@ -236,8 +242,8 @@ class IntervalSuite extends HailSuite {
   val partitionerKType = TStruct("k1" -> TInt32, "k2" -> TInt32, "k3" -> TInt32)
   var partitioner: Literal = _
 
-  @BeforeMethod
-  def setupRVDPartitioner(context: ITestContext): Unit = {
+  override def beforeEach(context: BeforeEach): Unit = {
+    super.beforeEach(context)
     partitioner = new RVDPartitioner(
       ctx.stateManager,
       partitionerKType,
@@ -249,7 +255,7 @@ class IntervalSuite extends HailSuite {
     ).partitionBoundsIRRepresentation
   }
 
-  @Test def testsortedNonOverlappingPartitionIntervalsEqualRange(): Unit = {
+  test("sortedNonOverlappingPartitionIntervalsEqualRange") {
     def assertRange(interval: Interval, startIdx: Int, endIdx: Int): Unit = {
       val resultType = TTuple(TInt32, TInt32)
       val irInterval = Literal(
@@ -268,7 +274,7 @@ class IntervalSuite extends HailSuite {
     assertRange(Interval(Row(-1, 7), Row(0, 9), true, false), 0, 0)
   }
 
-  @Test def testPointPartitionIntervalEndpointComparison(): Unit = {
+  test("PointPartitionIntervalEndpointComparison") {
     def assertComp(
       point: IndexedSeq[Int],
       intervalEndpoint: IndexedSeq[Int],

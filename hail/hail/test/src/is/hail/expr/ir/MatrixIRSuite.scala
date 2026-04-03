@@ -19,16 +19,13 @@ import scala.collection.compat._
 
 import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods
-import org.scalatest.Inspectors.forAll
-import org.scalatest.enablers.InspectorAsserting.assertingNatureOfAssertion
-import org.testng.annotations.{DataProvider, Test}
 
 class MatrixIRSuite extends HailSuite {
 
   implicit val execStrats: Set[ExecStrategy] =
     Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.LoweredJVMCompile)
 
-  @Test def testMatrixWriteRead(): Unit = {
+  test("MatrixWriteRead") {
     val range = MatrixIR.range(ctx, 10, 10, Some(3))
     val withEntries = MatrixMapEntries(
       range,
@@ -53,7 +50,7 @@ class MatrixIRSuite extends HailSuite {
       partitionsTypeStr = partType.parsableString(),
     )
 
-    forAll(ArraySeq(writer1, writer2)) { writer =>
+    ArraySeq(writer1, writer2).foreach { writer =>
       assertEvalsTo(MatrixWrite(original, writer), ())
 
       val read = MatrixIR.read(fs, path, dropCols = false, dropRows = false, None)
@@ -108,7 +105,7 @@ class MatrixIRSuite extends HailSuite {
   def getCols(mir: MatrixIR): Array[Row] =
     Interpret(MatrixColsTable(mir), ctx).rdd.collect()
 
-  @Test def testScanCountBehavesLikeIndexOnRows(): Unit = {
+  test("ScanCountBehavesLikeIndexOnRows") {
     val mt = rangeMatrix()
     val oldRow = Ref(MatrixIR.rowName, mt.typ.rowType)
 
@@ -119,7 +116,7 @@ class MatrixIRSuite extends HailSuite {
     assert(rows.forall { case Row(row_idx, idx) => row_idx == idx }, rows.toSeq)
   }
 
-  @Test def testScanCollectBehavesLikeRangeOnRows(): Unit = {
+  test("ScanCollectBehavesLikeRangeOnRows") {
     val mt = rangeMatrix()
     val oldRow = Ref(MatrixIR.rowName, mt.typ.rowType)
 
@@ -133,7 +130,7 @@ class MatrixIRSuite extends HailSuite {
     })
   }
 
-  @Test def testScanCollectBehavesLikeRangeWithAggregationOnRows(): Unit = {
+  test("ScanCollectBehavesLikeRangeWithAggregationOnRows") {
     val mt = rangeMatrix()
     val oldRow = Ref(MatrixIR.rowName, mt.typ.rowType)
 
@@ -149,7 +146,7 @@ class MatrixIRSuite extends HailSuite {
     })
   }
 
-  @Test def testScanCountBehavesLikeIndexOnCols(): Unit = {
+  test("ScanCountBehavesLikeIndexOnCols") {
     val mt = rangeMatrix()
     val oldCol = Ref(MatrixIR.colName, mt.typ.colType)
 
@@ -160,7 +157,7 @@ class MatrixIRSuite extends HailSuite {
     assert(cols.forall { case Row(col_idx, idx) => col_idx == idx })
   }
 
-  @Test def testScanCollectBehavesLikeRangeOnCols(): Unit = {
+  test("ScanCollectBehavesLikeRangeOnCols") {
     val mt = rangeMatrix()
     val oldCol = Ref(MatrixIR.colName, mt.typ.colType)
 
@@ -174,7 +171,7 @@ class MatrixIRSuite extends HailSuite {
     })
   }
 
-  @Test def testScanCollectBehavesLikeRangeWithAggregationOnCols(): Unit = {
+  test("ScanCollectBehavesLikeRangeWithAggregationOnCols") {
     val mt = rangeMatrix()
     val oldCol = Ref(MatrixIR.colName, mt.typ.colType)
 
@@ -206,57 +203,60 @@ class MatrixIRSuite extends HailSuite {
     )
   }
 
-  @DataProvider(name = "unionRowsData")
-  def unionRowsData(): Array[Array[Any]] = Array(
-    Array(FastSeq(0 -> 0, 5 -> 7)),
-    Array(FastSeq(0 -> 1, 5 -> 7)),
-    Array(FastSeq(0 -> 6, 5 -> 7)),
-    Array(FastSeq(2 -> 3, 0 -> 1, 5 -> 7)),
-    Array(FastSeq(2 -> 4, 0 -> 3, 5 -> 7)),
-    Array(FastSeq(3 -> 6, 0 -> 1, 5 -> 7)),
-  )
+  object checkMatrixUnionRows extends TestCases {
+    def apply(
+      ranges: IndexedSeq[(Int, Int)]
+    )(implicit loc: munit.Location
+    ): Unit = test("MatrixUnionRows") {
+      val expectedOrdering = ranges.flatMap { case (start, end) =>
+        Array.range(start, end)
+      }.sorted
 
-  @Test(dataProvider = "unionRowsData")
-  def testMatrixUnionRows(ranges: IndexedSeq[(Int, Int)]): Unit = {
-    val expectedOrdering = ranges.flatMap { case (start, end) =>
-      Array.range(start, end)
-    }.sorted
+      val unioned = MatrixUnionRows(ranges.map { case (start, end) =>
+        rangeRowMatrix(start, end)
+      })
+      val actualOrdering = getRows(unioned).map { case Row(i: Int) => i }
 
-    val unioned = MatrixUnionRows(ranges.map { case (start, end) =>
-      rangeRowMatrix(start, end)
-    })
-    val actualOrdering = getRows(unioned).map { case Row(i: Int) => i }
-
-    assert(actualOrdering sameElements expectedOrdering)
+      assert(actualOrdering sameElements expectedOrdering)
+    }
   }
 
-  @DataProvider(name = "explodeRowsData")
-  def explodeRowsData(): Array[Array[Any]] = Array(
-    Array(FastSeq("empty"), FastSeq()),
-    Array(FastSeq("null"), null),
-    Array(FastSeq("set"), FastSeq(1, 3)),
-    Array(FastSeq("one"), FastSeq(3)),
-    Array(FastSeq("na"), FastSeq(null)),
-    Array(FastSeq("x", "y"), FastSeq(3)),
-    Array(FastSeq("foo", "bar"), FastSeq(1, 3)),
-    Array(FastSeq("a", "b", "c"), FastSeq()),
-  )
+  checkMatrixUnionRows(FastSeq(0 -> 0, 5 -> 7))
+  checkMatrixUnionRows(FastSeq(0 -> 1, 5 -> 7))
+  checkMatrixUnionRows(FastSeq(0 -> 6, 5 -> 7))
+  checkMatrixUnionRows(FastSeq(2 -> 3, 0 -> 1, 5 -> 7))
+  checkMatrixUnionRows(FastSeq(2 -> 4, 0 -> 3, 5 -> 7))
+  checkMatrixUnionRows(FastSeq(3 -> 6, 0 -> 1, 5 -> 7))
 
-  @Test(dataProvider = "explodeRowsData")
-  def testMatrixExplode(path: IndexedSeq[String], collection: IndexedSeq[Integer]): Unit = {
-    val range = rangeMatrix(5, 2, None)
+  object checkMatrixExplode extends TestCases {
+    def apply(
+      path: IndexedSeq[String],
+      collection: IndexedSeq[Integer],
+    )(implicit loc: munit.Location
+    ): Unit = test("MatrixExplode") {
+      val range = rangeMatrix(5, 2, None)
 
-    val field = path.init.foldRight(path.last -> toIRArray(collection))(_ -> IRStruct(_))
-    val annotated =
-      MatrixMapRows(range, InsertFields(Ref(MatrixIR.rowName, range.typ.rowType), FastSeq(field)))
+      val field = path.init.foldRight(path.last -> toIRArray(collection))(_ -> IRStruct(_))
+      val annotated =
+        MatrixMapRows(range, InsertFields(Ref(MatrixIR.rowName, range.typ.rowType), FastSeq(field)))
 
-    val q = annotated.typ.rowType.query(path: _*)
-    val exploded =
-      getRows(MatrixExplodeRows(annotated, path)).map(q(_).asInstanceOf[Integer])
+      val q = annotated.typ.rowType.query(path: _*)
+      val exploded =
+        getRows(MatrixExplodeRows(annotated, path)).map(q(_).asInstanceOf[Integer])
 
-    val expected = if (collection == null) Array[Integer]() else Array.fill(5)(collection).flatten
-    assert(exploded sameElements expected)
+      val expected = if (collection == null) Array[Integer]() else Array.fill(5)(collection).flatten
+      assert(exploded sameElements expected)
+    }
   }
+
+  checkMatrixExplode(FastSeq("empty"), FastSeq())
+  checkMatrixExplode(FastSeq("null"), null)
+  checkMatrixExplode(FastSeq("set"), FastSeq(1, 3))
+  checkMatrixExplode(FastSeq("one"), FastSeq(3))
+  checkMatrixExplode(FastSeq("na"), FastSeq(null))
+  checkMatrixExplode(FastSeq("x", "y"), FastSeq(3))
+  checkMatrixExplode(FastSeq("foo", "bar"), FastSeq(1, 3))
+  checkMatrixExplode(FastSeq("a", "b", "c"), FastSeq())
 
   // these two items are helper for UnlocalizedEntries testing,
   def makeLocalizedTable(rdata: IndexedSeq[Row], cdata: IndexedSeq[Row]): TableIR = {
@@ -278,7 +278,7 @@ class MatrixIRSuite extends HailSuite {
     TableLiteral(tv, theHailClassLoader)
   }
 
-  @Test def testCastTableToMatrix(): Unit = {
+  test("CastTableToMatrix") {
     val rdata = ArraySeq(
       Row(1, "fish", FastSeq(Row("a", 1.0), Row("x", 2.0))),
       Row(2, "cat", FastSeq(Row("b", 0.0), Row("y", 0.1))),
@@ -307,7 +307,7 @@ class MatrixIRSuite extends HailSuite {
     assert(localCols sameElements cdata)
   }
 
-  @Test def testCastTableToMatrixErrors(): Unit = {
+  test("CastTableToMatrixErrors") {
     val rdata = ArraySeq(
       Row(1, "fish", FastSeq(Row("x", 2.0))),
       Row(2, "cat", FastSeq(Row("b", 0.0), Row("y", 0.1))),
@@ -342,7 +342,7 @@ class MatrixIRSuite extends HailSuite {
     interceptSpark("missing")(Interpret(mir2, ctx).rvd.count())
   }
 
-  @Test def testMatrixFiltersWorkWithRandomness(): Unit = {
+  test("MatrixFiltersWorkWithRandomness") {
     val range = rangeMatrix(20, 20, Some(4), uids = true)
     def rand(rng: IR): IR =
       Apply("rand_bool", FastSeq.empty, FastSeq(RNGSplitStatic(rng, 0), 0.5), TBoolean)
@@ -366,7 +366,7 @@ class MatrixIRSuite extends HailSuite {
     assert(entries < 400 && entries > 0)
   }
 
-  @Test def testMatrixRepartition(): Unit = {
+  test("MatrixRepartition") {
     val range = rangeMatrix(11, 3, Some(10))
 
     val params = Array(
@@ -378,7 +378,7 @@ class MatrixIRSuite extends HailSuite {
       10 -> RepartitionStrategy.COALESCE,
     )
 
-    forAll(params) { case (n, strat) =>
+    params.foreach { case (n, strat) =>
       unoptimized { ctx =>
         val rvd = Interpret(MatrixRepartition(range, n, strat), ctx).rvd
         assert(rvd.getNumPartitions == n, n -> strat)
@@ -388,12 +388,12 @@ class MatrixIRSuite extends HailSuite {
     }
   }
 
-  @Test def testMatrixMultiWriteDifferentTypesRaisesError(): Unit = {
+  test("MatrixMultiWriteDifferentTypesRaisesError") {
     val vcf = importVCF(ctx, getTestResource("sample.vcf"))
     val range = rangeMatrix(10, 2, None)
     val path1 = ctx.createTmpPath("test1")
     val path2 = ctx.createTmpPath("test2")
-    assertThrows[HailException] {
+    intercept[HailException] {
       TypeCheck(
         ctx,
         MatrixMultiWrite(FastSeq(vcf, range), MatrixNativeMultiWriter(IndexedSeq(path1, path2))),

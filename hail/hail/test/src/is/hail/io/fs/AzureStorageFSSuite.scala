@@ -2,19 +2,16 @@ package is.hail.io.fs
 
 import is.hail.services.oauth2.AzureCloudCredentials
 
-import org.scalatestplus.testng.TestNGSuite
-import org.testng.SkipException
-import org.testng.annotations.{BeforeClass, Test}
-
-class AzureStorageFSSuite extends TestNGSuite with FSSuite {
-  @BeforeClass
-  def beforeclass(): Unit =
-    if (
-      System.getenv("HAIL_CLOUD") != "azure" ||
-      root == null ||
-      fsResourcesRoot == null
+class AzureStorageFSSuite extends FSSuite {
+  override def beforeAll(): Unit = {
+    super.beforeAll()
+    assume(
+      System.getenv("HAIL_CLOUD") == "azure" &&
+        root != null &&
+        fsResourcesRoot != null,
+      "not in Azure",
     )
-      throw new SkipException("skip")
+  }
 
   override lazy val fs: FS =
     new AzureStorageFS(
@@ -22,12 +19,12 @@ class AzureStorageFSSuite extends TestNGSuite with FSSuite {
         .scoped(AzureStorageFS.RequiredOAuthScopes)
     )
 
-  @Test def testMakeQualified(): Unit = {
+  test("MakeQualified") {
     val qualifiedFileName = "https://account.blob.core.windows.net/container/path"
-    assert(fs.makeQualified(qualifiedFileName) == qualifiedFileName)
+    assertEquals(fs.makeQualified(qualifiedFileName), qualifiedFileName)
 
     val unqualifiedFileName = "https://account/container/path"
-    assertThrows[IllegalArgumentException] {
+    intercept[IllegalArgumentException] {
       fs.makeQualified(unqualifiedFileName)
     }
   }

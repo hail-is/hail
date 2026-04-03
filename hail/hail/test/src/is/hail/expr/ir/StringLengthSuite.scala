@@ -5,12 +5,10 @@ import is.hail.ExecStrategy.ExecStrategy
 import is.hail.expr.ir.defs.Str
 import is.hail.types.virtual.TInt32
 
-import org.testng.annotations.Test
-
 class StringLengthSuite extends HailSuite {
   implicit val execStrats: Set[ExecStrategy] = ExecStrategy.javaOnly
 
-  @Test def sameAsJavaStringLength(): Unit = {
+  test("sameAsJavaStringLength") {
     val strings = Array("abc", "", "\uD83D\uDCA9")
     for (s <- strings)
       assertEvalsTo(invoke("length", TInt32, Str(s)), s.length)

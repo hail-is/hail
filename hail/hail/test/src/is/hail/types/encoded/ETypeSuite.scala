@@ -11,51 +11,49 @@ import is.hail.types.physical._
 
 import org.apache.spark.sql.Row
 import org.json4s.jackson.Serialization
-import org.testng.annotations.{DataProvider, Test}
 
 class ETypeSuite extends HailSuite {
 
-  @DataProvider(name = "etypes")
-  def etypes(): Array[Array[Any]] = {
-    Array[EType](
-      EInt32Required,
-      EInt32Optional,
-      EInt64Required,
-      EFloat32Optional,
-      EFloat32Required,
-      EFloat64Optional,
-      EFloat64Required,
-      EBooleanOptional,
-      EBinaryRequired,
-      EBinaryOptional,
-      EBinaryRequired,
-      EArray(EInt32Required, required = false),
-      EArray(EArray(EInt32Optional, required = true), required = true),
-      EBaseStruct(FastSeq(), required = true),
-      EBaseStruct(
-        FastSeq(EField("x", EBinaryRequired, 0), EField("y", EFloat64Optional, 1)),
-        required = true,
+  val etypes: Array[EType] = Array(
+    EInt32Required,
+    EInt32Optional,
+    EInt64Required,
+    EFloat32Optional,
+    EFloat32Required,
+    EFloat64Optional,
+    EFloat64Required,
+    EBooleanOptional,
+    EBinaryRequired,
+    EBinaryOptional,
+    EBinaryRequired,
+    EArray(EInt32Required, required = false),
+    EArray(EArray(EInt32Optional, required = true), required = true),
+    EBaseStruct(FastSeq(), required = true),
+    EBaseStruct(
+      FastSeq(EField("x", EBinaryRequired, 0), EField("y", EFloat64Optional, 1)),
+      required = true,
+    ),
+    ENDArrayColumnMajor(EFloat64Required, 3),
+    EStructOfArrays(
+      FastSeq(
+        EField("a", EArray(EInt32Required, true), 0),
+        EField("b", EArray(EInt32Optional, true), 1),
       ),
-      ENDArrayColumnMajor(EFloat64Required, 3),
-      EStructOfArrays(
-        FastSeq(
-          EField("a", EArray(EInt32Required, true), 0),
-          EField("b", EArray(EInt32Optional, true), 1),
-        ),
-        required = true,
-        structRequired = false,
-      ),
-    ).map(t => Array(t: Any))
+      required = true,
+      structRequired = false,
+    ),
+  )
+
+  object checkSerialization extends TestCases {
+    def apply(etype: EType)(implicit loc: munit.Location): Unit =
+      test("Serialization") {
+        implicit val formats = AbstractRVDSpec.formats
+        val s = Serialization.write(etype)
+        assertEquals(Serialization.read[EType](s), etype)
+      }
   }
 
-  @Test def testDataProvider(): Unit = etypes(): Unit
-
-  @Test(dataProvider = "etypes")
-  def testSerialization(etype: EType): Unit = {
-    implicit val formats = AbstractRVDSpec.formats
-    val s = Serialization.write(etype)
-    assert(Serialization.read[EType](s) == etype)
-  }
+  etypes.foreach(checkSerialization(_))
 
   def encodeDecode(inPType: PType, eType: EType, outPType: PType, data: Annotation): Annotation = {
     val fb = EmitFunctionBuilder[Long, OutputBuffer, Unit](ctx, "fb")
@@ -95,10 +93,10 @@ class ETypeSuite extends HailSuite {
   def assertEqualEncodeDecode(inPType: PType, eType: EType, outPType: PType, data: Annotation)
     : Unit = {
     val encodeDecodeResult = encodeDecode(inPType, eType, outPType, data)
-    assert(encodeDecodeResult == data)
+    assertEquals(encodeDecodeResult, data)
   }
 
-  @Test def testDifferentRequirednessEncodeDecode(): Unit = {
+  test("DifferentRequirednessEncodeDecode") {
 
     val inPType = PCanonicalArray(
       PCanonicalStruct(
@@ -138,7 +136,7 @@ class ETypeSuite extends HailSuite {
     assertEqualEncodeDecode(inPType, etype, outPType, data)
   }
 
-  @Test def testNDArrayEncodeDecode(): Unit = {
+  test("NDArrayEncodeDecode") {
     val pTypeInt0 = PCanonicalNDArray(PInt32Required, 0, true)
     val eTypeInt0 = ENDArrayColumnMajor(EInt32Required, 0, true)
     val dataInt0 = new SafeNDArray(IndexedSeq[Long](), FastSeq(0))
@@ -161,8 +159,10 @@ class ETypeSuite extends HailSuite {
     val eTypeDouble3 = ENDArrayColumnMajor(EFloat64Required, 3, false)
     val dataDouble3 = new SafeNDArray(IndexedSeq(3L, 2L, 1L), FastSeq(1.0, 2.0, 3.0, 4.0, 5.0, 6.0))
 
-    assert(encodeDecode(pTypeDouble3, eTypeDouble3, pTypeDouble3, dataDouble3) ==
-      new SafeNDArray(IndexedSeq(3L, 2L, 1L), FastSeq(1.0, 2.0, 3.0, 4.0, 5.0, 6.0)))
+    assertEquals(
+      encodeDecode(pTypeDouble3, eTypeDouble3, pTypeDouble3, dataDouble3),
+      new SafeNDArray(IndexedSeq(3L, 2L, 1L), FastSeq(1.0, 2.0, 3.0, 4.0, 5.0, 6.0)),
+    )
 
     // Test for skipping
     val pStructContainingNDArray = PCanonicalStruct(true, "a" -> pTypeInt2, "b" -> PInt32Optional)
@@ -177,26 +177,23 @@ class ETypeSuite extends HailSuite {
 
     val dataStruct = Row(dataInt2, 3)
 
-    assert(encodeDecode(
-      pStructContainingNDArray,
-      eStructContainingNDArray,
-      pOnlyReadB,
-      dataStruct,
-    ) ==
-      Row(3))
+    assertEquals(
+      encodeDecode(pStructContainingNDArray, eStructContainingNDArray, pOnlyReadB, dataStruct),
+      Row(3),
+    )
   }
 
-  @Test def testArrayOfString(): Unit = {
+  test("ArrayOfString") {
     val etype = EArray(EBinary(false), false)
     val toEncode = PCanonicalArray(PCanonicalStringRequired, false)
     val toDecode = PCanonicalArray(PCanonicalStringOptional, false)
     val longListOfStrings = (0 until 36).map(idx => s"foo_name_sample_$idx")
     val data = longListOfStrings
 
-    assert(encodeDecode(toEncode, etype, toDecode, data) == data)
+    assertEquals(encodeDecode(toEncode, etype, toDecode, data), data)
   }
 
-  @Test def testStructOfArrays(): Unit = {
+  test("StructOfArrays") {
     val etype =
       EStructOfArrays(
         FastSeq(

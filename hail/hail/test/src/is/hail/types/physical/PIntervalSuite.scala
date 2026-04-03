@@ -7,10 +7,8 @@ import is.hail.types.physical.stypes.concrete.{SUnreachableInterval, SUnreachabl
 import is.hail.types.virtual.{TInt32, TInterval}
 import is.hail.utils._
 
-import org.testng.annotations.Test
-
 class PIntervalSuite extends PhysicalTestUtils {
-  @Test def copyTests(): Unit = {
+  test("copyTests") {
     def runTests(deepCopy: Boolean, interpret: Boolean = false): Unit = {
       copyTestExecutor(
         PCanonicalInterval(PInt64()),
@@ -61,7 +59,7 @@ class PIntervalSuite extends PhysicalTestUtils {
   }
 
   // Just makes sure we can generate code to store an unreachable interval
-  @Test def storeUnreachable(): Unit = {
+  test("storeUnreachable") {
     val ust = SUnreachableInterval(TInterval(TInt32))
     val usv = new SUnreachableIntervalValue(ust)
     val pt = PCanonicalInterval(PInt32Required, true)

@@ -7,8 +7,6 @@ import is.hail.types.physical.stypes.interfaces.SBaseStruct
 import is.hail.types.tcoerce
 import is.hail.types.virtual.{TInt32, TInt64, TStruct}
 
-import org.testng.annotations.Test
-
 class SStructViewSuite extends HailSuite {
 
   val xyz: SBaseStruct =
@@ -22,7 +20,7 @@ class SStructViewSuite extends HailSuite {
       )
     )
 
-  @Test def testCastRename(): Unit = {
+  test("CastRename") {
     val newtype = TStruct("x" -> TStruct("b" -> TInt32))
 
     val expected =
@@ -32,10 +30,10 @@ class SStructViewSuite extends HailSuite {
         rename = newtype,
       )
 
-    assert(SStructView.subset(FastSeq("z"), xyz).castRename(newtype) == expected)
+    assertEquals(SStructView.subset(FastSeq("z"), xyz).castRename(newtype), expected)
   }
 
-  @Test def testSubsetRenameSubset(): Unit = {
+  test("SubsetRenameSubset") {
     val subset =
       SStructView.subset(
         FastSeq("x"),
@@ -51,12 +49,13 @@ class SStructViewSuite extends HailSuite {
         rename = TStruct("x" -> TStruct("b" -> TInt32)),
       )
 
-    assert(subset == expected)
+    assertEquals(subset, expected)
   }
 
-  @Test def testAssertIsomorphism(): Unit =
-    assertThrows[AssertionError] {
+  test("AssertIsomorphism") {
+    intercept[AssertionError] {
       SStructView.subset(FastSeq("x", "y"), xyz)
         .castRename(TStruct("x" -> TInt64, "x" -> TInt32))
     }
+  }
 }

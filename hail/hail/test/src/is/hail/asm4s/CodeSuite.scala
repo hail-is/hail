@@ -12,11 +12,10 @@ import is.hail.types.physical.stypes.primitives.{
 import is.hail.types.virtual.{TInt32, TInt64, TStruct}
 
 import org.apache.spark.sql.Row
-import org.testng.annotations.Test
 
 class CodeSuite extends HailSuite {
 
-  @Test def testForLoop(): Unit = {
+  test("forLoop") {
     val fb = EmitFunctionBuilder[Int](ctx, "foo")
     fb.emitWithBuilder[Int] { cb =>
       val i = cb.newLocal[Int]("i")
@@ -27,10 +26,10 @@ class CodeSuite extends HailSuite {
     }
 
     val result = fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, ctx.r)()
-    assert(result == 10)
+    assertEquals(result, 10)
   }
 
-  @Test def testSizeBasic(): Unit = {
+  test("sizeBasic") {
     val int64 = new SInt64Value(5L)
     val int32 = new SInt32Value(2)
     val struct = new SStackStructValue(
@@ -49,15 +48,16 @@ class CodeSuite extends HailSuite {
       fb.result()(theHailClassLoader)()
     }
 
-    assert(testSizeHelper(int64) == 8L)
-    assert(testSizeHelper(int32) == 4L)
-    assert(
-      testSizeHelper(struct) == 16L
+    assertEquals(testSizeHelper(int64), 8L)
+    assertEquals(testSizeHelper(int32), 4L)
+    assertEquals(
+      testSizeHelper(struct),
+      16L,
     ) // 1 missing byte that gets 4 byte aligned, 8 bytes for long, 4 bytes for missing int
-    assert(testSizeHelper(str) == 7L) // 4 byte header, 3 bytes for the 3 letters.
+    assertEquals(testSizeHelper(str), 7L) // 4 byte header, 3 bytes for the 3 letters.
   }
 
-  @Test def testArraySizeInBytes(): Unit = {
+  test("arraySizeInBytes") {
     val fb = EmitFunctionBuilder[Region, Long](ctx, "test_size_in_bytes")
     val mb = fb.apply_method
     val ptype = PCanonicalArray(PInt32())
@@ -73,12 +73,13 @@ class CodeSuite extends HailSuite {
       }
       sarray.sizeToStoreInBytes(cb).value
     })
-    assert(
-      fb.result()(theHailClassLoader)(ctx.r) == 36L
+    assertEquals(
+      fb.result()(theHailClassLoader)(ctx.r),
+      36L,
     ) // 2 missing bytes 8 byte aligned + 8 header bytes + 5 elements * 4 bytes for ints.
   }
 
-  @Test def testIntervalSizeInBytes(): Unit = {
+  test("intervalSizeInBytes") {
     val fb = EmitFunctionBuilder[Region, Long](ctx, "test_size_in_bytes")
     val mb = fb.apply_method
 
@@ -111,33 +112,49 @@ class CodeSuite extends HailSuite {
       )
       sval.sizeToStoreInBytes(cb).value
     })
-    assert(fb.result()(theHailClassLoader)(ctx.r) == 72L) // 2 28 byte structs, plus 2 1 byte booleans that get 8 byte for an extra 8 bytes, plus missing bytes.
+    assertEquals(
+      fb.result()(theHailClassLoader)(ctx.r),
+      72L,
+    ) // 2 28 byte structs, plus 2 1 byte booleans that get 8 byte for an extra 8 bytes, plus missing bytes.
   }
 
-  @Test def testHash(): Unit = {
+  test("hash") {
     val fields = IndexedSeq(
       PField("a", PCanonicalString(), 0),
       PField("b", PInt32(), 1),
       PField("c", PFloat32(), 2),
     )
-    assert(hashTestNumHelper(new SInt32Value(6)) == hashTestNumHelper(new SInt32Value(6)))
-    assert(hashTestNumHelper(new SInt64Value(5000000000L)) == hashTestNumHelper(
-      new SInt64Value(5000000000L)
-    ))
-    assert(
-      hashTestNumHelper(new SFloat32Value(3.14f)) == hashTestNumHelper(new SFloat32Value(3.14f))
+    assertEquals(hashTestNumHelper(new SInt32Value(6)), hashTestNumHelper(new SInt32Value(6)))
+    assertEquals(
+      hashTestNumHelper(new SInt64Value(5000000000L)),
+      hashTestNumHelper(
+        new SInt64Value(5000000000L)
+      ),
     )
-    assert(hashTestNumHelper(new SFloat64Value(5000000000.89d)) == hashTestNumHelper(
-      new SFloat64Value(5000000000.89d)
-    ))
-    assert(hashTestStringHelper("dog") == hashTestStringHelper("dog"))
-    assert(hashTestArrayHelper(IndexedSeq(1, 2, 3, 4, 5, 6)) == hashTestArrayHelper(IndexedSeq(1, 2,
-      3, 4, 5, 6)))
+    assertEquals(
+      hashTestNumHelper(new SFloat32Value(3.14f)),
+      hashTestNumHelper(new SFloat32Value(3.14f)),
+    )
+    assertEquals(
+      hashTestNumHelper(new SFloat64Value(5000000000.89d)),
+      hashTestNumHelper(
+        new SFloat64Value(5000000000.89d)
+      ),
+    )
+    assertEquals(hashTestStringHelper("dog"), hashTestStringHelper("dog"))
+    assertEquals(
+      hashTestArrayHelper(IndexedSeq(1, 2, 3, 4, 5, 6)),
+      hashTestArrayHelper(IndexedSeq(1, 2,
+        3, 4, 5, 6)),
+    )
     assert(hashTestArrayHelper(IndexedSeq(1, 2)) != hashTestArrayHelper(IndexedSeq(3, 4, 5, 6, 7)))
-    assert(hashTestStructHelper(Row("wolf", 8, .009f), fields) == hashTestStructHelper(
-      Row("wolf", 8, .009f),
-      fields,
-    ))
+    assertEquals(
+      hashTestStructHelper(Row("wolf", 8, .009f), fields),
+      hashTestStructHelper(
+        Row("wolf", 8, .009f),
+        fields,
+      ),
+    )
     assert(hashTestStructHelper(Row("w", 8, .009f), fields) != hashTestStructHelper(
       Row("opaque", 8, .009f),
       fields,

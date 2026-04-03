@@ -4,11 +4,9 @@ import is.hail.HailSuite
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitFunctionBuilder, ParamType}
 
-import org.testng.annotations.Test
-
 class LIRSplitSuite extends HailSuite {
 
-  @Test def testSplitPreservesParameterMutation(): Unit = {
+  test("SplitPreservesParameterMutation") {
     val f = EmitFunctionBuilder[Unit](ctx, "F")
     f.emitWithBuilder { cb =>
       val mb = f.newEmitMethod("m", IndexedSeq[ParamType](typeInfo[Long]), typeInfo[Unit])

@@ -11,13 +11,9 @@ import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.primitives.SInt32Value
 
-import org.scalatest.Inspectors.forAll
-import org.scalatest.enablers.InspectorAsserting.assertingNatureOfAssertion
-import org.testng.annotations.Test
-
 class TakeByAggregatorSuite extends HailSuite {
-  @Test def testPointers(): Unit = {
-    forAll(Array((1000, 100), (1, 10), (100, 10000), (1000, 10000))) { case (size, n) =>
+  test("Pointers") {
+    Array((1000, 100), (1, 10), (100, 10000), (1000, 10000)).foreach { case (size, n) =>
       val fb = EmitFunctionBuilder[Region, Long](ctx, "test_pointers")
       val cb = fb.ecb
       val stringPT = PCanonicalString(true)
@@ -50,8 +46,9 @@ class TakeByAggregatorSuite extends HailSuite {
 
         val o = fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, r)(r)
         val result = SafeRow.read(rt, o)
-        assert(
-          result == ((n - 1) to 0 by -1)
+        assertEquals(
+          result,
+          ((n - 1) to 0 by -1)
             .iterator
             .map(i => s"str$i")
             .take(size)
@@ -62,7 +59,7 @@ class TakeByAggregatorSuite extends HailSuite {
     }
   }
 
-  @Test def testMissing(): Unit = {
+  test("Missing") {
     val fb = EmitFunctionBuilder[Region, Long](ctx, "take_by_test_missing")
     val cb = fb.ecb
     val tba =
@@ -88,12 +85,12 @@ class TakeByAggregatorSuite extends HailSuite {
 
       val o = fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, r)(r)
       val result = SafeRow.read(rt, o)
-      assert(result == FastSeq(0, 1, 2, 3, null, null, null))
+      assertEquals(result, FastSeq(0, 1, 2, 3, null, null, null))
     }
   }
 
-  @Test def testRandom(): Unit =
-    forAll(Array(1, 2, 10, 100, 1000, 10000, 100000, 1000000)) { n =>
+  test("Random") {
+    Array(1, 2, 10, 100, 1000, 10000, 100000, 1000000).foreach { n =>
       val nToTake = 1025
       val fb = EmitFunctionBuilder[Region, Long](ctx, "take_by_test_random")
       val kb = fb.ecb
@@ -137,7 +134,8 @@ class TakeByAggregatorSuite extends HailSuite {
         val collOffset = Region.loadAddress(o + 8)
         val collected = SafeRow.read(ab.eltArray, collOffset).asInstanceOf[IndexedSeq[Int]].take(n)
         val minValues = collected.sorted.take(nToTake)
-        assert(pq == minValues, s"n=$n")
+        assertEquals(pq, minValues, s"n=$n")
       }
     }
+  }
 }

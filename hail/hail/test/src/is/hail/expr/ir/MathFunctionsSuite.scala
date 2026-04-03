@@ -6,7 +6,6 @@ import is.hail.types.virtual._
 import is.hail.utils._
 
 import org.apache.spark.sql.Row
-import org.testng.annotations.{DataProvider, Test}
 
 class MathFunctionsSuite extends HailSuite {
 
@@ -14,7 +13,7 @@ class MathFunctionsSuite extends HailSuite {
 
   val tfloat = TFloat64
 
-  @Test def log2(): Unit = {
+  test("log2") {
     assertEvalsTo(invoke("log2", TInt32, I32(2)), 1)
     assertEvalsTo(invoke("log2", TInt32, I32(32)), 5)
     assertEvalsTo(invoke("log2", TInt32, I32(33)), 5)
@@ -22,7 +21,7 @@ class MathFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("log2", TInt32, I32(64)), 6)
   }
 
-  @Test def roundToNextPowerOf2(): Unit = {
+  test("roundToNextPowerOf2") {
     assertEvalsTo(invoke("roundToNextPowerOf2", TInt32, I32(2)), 2)
     assertEvalsTo(invoke("roundToNextPowerOf2", TInt32, I32(32)), 32)
     assertEvalsTo(invoke("roundToNextPowerOf2", TInt32, I32(33)), 64)
@@ -30,7 +29,7 @@ class MathFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("roundToNextPowerOf2", TInt32, I32(64)), 64)
   }
 
-  @Test def isnan(): Unit = {
+  test("isnan") {
     implicit val execStrats = ExecStrategy.javaOnly
 
     assertEvalsTo(invoke("isnan", TBoolean, F32(0)), false)
@@ -40,7 +39,7 @@ class MathFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("isnan", TBoolean, F64(Double.NaN)), true)
   }
 
-  @Test def is_finite(): Unit = {
+  test("is_finite") {
     implicit val execStrats = ExecStrategy.javaOnly
 
     assertEvalsTo(invoke("is_finite", TBoolean, F32(0)), expected = true)
@@ -56,7 +55,7 @@ class MathFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("is_finite", TBoolean, F64(Double.NegativeInfinity)), expected = false)
   }
 
-  @Test def is_infinite(): Unit = {
+  test("is_infinite") {
     implicit val execStrats = ExecStrategy.javaOnly
 
     assertEvalsTo(invoke("is_infinite", TBoolean, F32(0)), expected = false)
@@ -72,7 +71,7 @@ class MathFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("is_infinite", TBoolean, F64(Double.NegativeInfinity)), expected = true)
   }
 
-  @Test def sign(): Unit = {
+  test("sign") {
     implicit val execStrats = ExecStrategy.javaOnly
 
     assertEvalsTo(invoke("sign", TInt32, I32(2)), 1)
@@ -96,7 +95,7 @@ class MathFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("sign", TFloat64, F64(Double.NegativeInfinity)), -1.0)
   }
 
-  @Test def approxEqual(): Unit = {
+  test("approxEqual") {
     implicit val execStrats = ExecStrategy.javaOnly
 
     assertEvalsTo(
@@ -157,7 +156,7 @@ class MathFunctionsSuite extends HailSuite {
     )
   }
 
-  @Test def entropy(): Unit = {
+  test("entropy") {
     implicit val execStrats = ExecStrategy.javaOnly
 
     assertEvalsTo(invoke("entropy", TFloat64, Str("")), 0.0)
@@ -167,120 +166,128 @@ class MathFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("entropy", TFloat64, Str("accctg")), 1.7924812503605778)
   }
 
-  @DataProvider(name = "chi_squared_test")
-  def chiSquaredData(): Array[Array[Any]] = Array(
-    Array(0, 0, 0, 0, Double.NaN, Double.NaN),
-    Array(0, 1, 1, 1, 0.38647623077123266, 0.0),
-    Array(1, 0, 1, 1, 0.38647623077123266, Double.PositiveInfinity),
-    Array(1, 1, 0, 1, 0.38647623077123266, Double.PositiveInfinity),
-    Array(1, 1, 1, 0, 0.38647623077123266, 0.0),
-    Array(10, 10, 10, 10, 1.0, 1.0),
-    Array(51, 43, 22, 92, 1.462626e-7, (51.0 * 92) / (22 * 43)),
-  )
-
-  @Test(dataProvider = "chi_squared_test")
-  def chiSquaredTest(a: Int, b: Int, c: Int, d: Int, pValue: Double, oddsRatio: Double): Unit = {
-    val r = eval(invoke(
-      "chi_squared_test",
-      stats.chisqStruct.virtualType,
-      ErrorIDs.NO_ERROR,
-      a,
-      b,
-      c,
-      d,
-    )).asInstanceOf[Row]
-    assert(D0_==(pValue, r.getDouble(0)))
-    assert(D0_==(oddsRatio, r.getDouble(1)))
+  object checkChiSquaredTest extends TestCases {
+    def apply(
+      a: Int,
+      b: Int,
+      c: Int,
+      d: Int,
+      pValue: Double,
+      oddsRatio: Double,
+    )(implicit loc: munit.Location
+    ): Unit = test("chiSquaredTest") {
+      val r = eval(invoke(
+        "chi_squared_test",
+        stats.chisqStruct.virtualType,
+        ErrorIDs.NO_ERROR,
+        a,
+        b,
+        c,
+        d,
+      )).asInstanceOf[Row]
+      assert(D0_==(pValue, r.getDouble(0)))
+      assert(D0_==(oddsRatio, r.getDouble(1)))
+    }
   }
 
-  @DataProvider(name = "fisher_exact_test")
-  def fisherExactData(): Array[Array[Any]] = Array(
-    Array(0, 0, 0, 0, Double.NaN, Double.NaN, Double.NaN, Double.NaN),
-    Array(10, 10, 10, 10, 1.0, 1.0, 0.243858, 4.100748),
-    Array(51, 43, 22, 92, 2.1565e-7, 4.918058, 2.565937, 9.677930),
-  )
+  checkChiSquaredTest(0, 0, 0, 0, Double.NaN, Double.NaN)
+  checkChiSquaredTest(0, 1, 1, 1, 0.38647623077123266, 0.0)
+  checkChiSquaredTest(1, 0, 1, 1, 0.38647623077123266, Double.PositiveInfinity)
+  checkChiSquaredTest(1, 1, 0, 1, 0.38647623077123266, Double.PositiveInfinity)
+  checkChiSquaredTest(1, 1, 1, 0, 0.38647623077123266, 0.0)
+  checkChiSquaredTest(10, 10, 10, 10, 1.0, 1.0)
+  checkChiSquaredTest(51, 43, 22, 92, 1.462626e-7, (51.0 * 92) / (22 * 43))
 
-  @Test(dataProvider = "fisher_exact_test")
-  def fisherExactTest(
-    a: Int,
-    b: Int,
-    c: Int,
-    d: Int,
-    pValue: Double,
-    oddsRatio: Double,
-    confLower: Double,
-    confUpper: Double,
-  ): Unit = {
-    val r = eval(invoke(
-      "fisher_exact_test",
-      stats.fetStruct.virtualType,
-      ErrorIDs.NO_ERROR,
-      a,
-      b,
-      c,
-      d,
-    )).asInstanceOf[Row]
-    assert(D0_==(pValue, r.getDouble(0)))
-    assert(D0_==(oddsRatio, r.getDouble(1)))
-    assert(D0_==(confLower, r.getDouble(2)))
-    assert(D0_==(confUpper, r.getDouble(3)))
+  object checkFisherExactTest extends TestCases {
+    def apply(
+      a: Int,
+      b: Int,
+      c: Int,
+      d: Int,
+      pValue: Double,
+      oddsRatio: Double,
+      confLower: Double,
+      confUpper: Double,
+    )(implicit loc: munit.Location
+    ): Unit = test("fisherExactTest") {
+      val r = eval(invoke(
+        "fisher_exact_test",
+        stats.fetStruct.virtualType,
+        ErrorIDs.NO_ERROR,
+        a,
+        b,
+        c,
+        d,
+      )).asInstanceOf[Row]
+      assert(D0_==(pValue, r.getDouble(0)))
+      assert(D0_==(oddsRatio, r.getDouble(1)))
+      assert(D0_==(confLower, r.getDouble(2)))
+      assert(D0_==(confUpper, r.getDouble(3)))
+    }
   }
 
-  @DataProvider(name = "contingency_table_test")
-  def contingencyTableData(): Array[Array[Any]] = Array(
-    Array(51, 43, 22, 92, 22, 1.462626e-7, 4.95983087),
-    Array(51, 43, 22, 92, 23, 2.1565e-7, 4.91805817),
-  )
+  checkFisherExactTest(0, 0, 0, 0, Double.NaN, Double.NaN, Double.NaN, Double.NaN)
+  checkFisherExactTest(10, 10, 10, 10, 1.0, 1.0, 0.243858, 4.100748)
+  checkFisherExactTest(51, 43, 22, 92, 2.1565e-7, 4.918058, 2.565937, 9.677930)
 
-  @Test(dataProvider = "contingency_table_test")
-  def contingencyTableTest(
-    a: Int,
-    b: Int,
-    c: Int,
-    d: Int,
-    minCellCount: Int,
-    pValue: Double,
-    oddsRatio: Double,
-  ): Unit = {
-    val r = eval(invoke(
-      "contingency_table_test",
-      stats.chisqStruct.virtualType,
-      ErrorIDs.NO_ERROR,
-      a,
-      b,
-      c,
-      d,
-      minCellCount,
-    )).asInstanceOf[Row]
-    assert(D0_==(pValue, r.getDouble(0)))
-    assert(D0_==(oddsRatio, r.getDouble(1)))
+  object checkContingencyTableTest extends TestCases {
+    def apply(
+      a: Int,
+      b: Int,
+      c: Int,
+      d: Int,
+      minCellCount: Int,
+      pValue: Double,
+      oddsRatio: Double,
+    )(implicit loc: munit.Location
+    ): Unit = test("contingencyTableTest") {
+      val r = eval(invoke(
+        "contingency_table_test",
+        stats.chisqStruct.virtualType,
+        ErrorIDs.NO_ERROR,
+        a,
+        b,
+        c,
+        d,
+        minCellCount,
+      )).asInstanceOf[Row]
+      assert(D0_==(pValue, r.getDouble(0)))
+      assert(D0_==(oddsRatio, r.getDouble(1)))
+    }
   }
 
-  @DataProvider(name = "hardy_weinberg_test")
-  def hardyWeinbergData(): Array[Array[Any]] = Array(
-    Array(0, 0, 0, Double.NaN, 0.5),
-    Array(1, 2, 1, 0.57142857, 0.65714285),
-    Array(0, 1, 0, 1.0, 0.5),
-    Array(100, 200, 100, 0.50062578, 0.96016808),
-  )
+  checkContingencyTableTest(51, 43, 22, 92, 22, 1.462626e-7, 4.95983087)
+  checkContingencyTableTest(51, 43, 22, 92, 23, 2.1565e-7, 4.91805817)
 
-  @Test(dataProvider = "hardy_weinberg_test")
-  def hardyWeinbergTest(nHomRef: Int, nHet: Int, nHomVar: Int, pValue: Double, hetFreq: Double)
-    : Unit = {
-    val r = eval(invoke(
-      "hardy_weinberg_test",
-      stats.hweStruct.virtualType,
-      ErrorIDs.NO_ERROR,
-      nHomRef,
-      nHet,
-      nHomVar,
-      false,
-    )).asInstanceOf[Row]
-    assert(D0_==(pValue, r.getDouble(0)))
-    assert(D0_==(hetFreq, r.getDouble(1)))
+  object checkHardyWeinbergTest extends TestCases {
+    def apply(
+      nHomRef: Int,
+      nHet: Int,
+      nHomVar: Int,
+      pValue: Double,
+      hetFreq: Double,
+    )(implicit loc: munit.Location
+    ): Unit = test("hardyWeinbergTest") {
+      val r = eval(invoke(
+        "hardy_weinberg_test",
+        stats.hweStruct.virtualType,
+        ErrorIDs.NO_ERROR,
+        nHomRef,
+        nHet,
+        nHomVar,
+        false,
+      )).asInstanceOf[Row]
+      assert(D0_==(pValue, r.getDouble(0)))
+      assert(D0_==(hetFreq, r.getDouble(1)))
+    }
   }
 
-  @Test def modulusTest(): Unit = {
+  checkHardyWeinbergTest(0, 0, 0, Double.NaN, 0.5)
+  checkHardyWeinbergTest(1, 2, 1, 0.57142857, 0.65714285)
+  checkHardyWeinbergTest(0, 1, 0, 1.0, 0.5)
+  checkHardyWeinbergTest(100, 200, 100, 0.50062578, 0.96016808)
+
+  test("modulusTest") {
     assertFatal(
       invoke("mod", TInt32, I32(1), I32(0)),
       "(modulo by zero)|(error while calling 'mod')",
@@ -299,7 +306,7 @@ class MathFunctionsSuite extends HailSuite {
     )
   }
 
-  @Test def testMinMax(): Unit = {
+  test("MinMax") {
     implicit val execStrats = ExecStrategy.javaOnly
     assertAllEvalTo(
       (invoke("min", TFloat32, F32(1.0f), F32(2.0f)), 1.0f),

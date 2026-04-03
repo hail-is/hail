@@ -30,6 +30,12 @@ object UnsafeUtils {
     offset & -alignment
   }
 
+  def roundUpAlignment(offset: Int, alignment: Int): Int = {
+    assert(alignment > 0)
+    assert((alignment & (alignment - 1)) == 0) // power of 2
+    (offset + (alignment - 1)) & ~(alignment - 1)
+  }
+
   def roundDownAlignment(offset: Int, alignment: Int): Int = {
     assert(alignment > 0)
     assert((alignment & (alignment - 1)) == 0) // power of 2

@@ -1,6 +1,6 @@
 package is.hail.expr.ir.lowering
 
-import is.hail.{ExecStrategy, HailSuite, TestUtils}
+import is.hail.{ExecStrategy, HailSuite}
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.collection.FastSeq
 import is.hail.expr.ir.{
@@ -14,13 +14,15 @@ import is.hail.expr.ir.lowering.LowerDistributedSort.samplePartition
 import is.hail.types.RTable
 import is.hail.types.virtual.{TArray, TInt32, TStruct}
 
-import org.apache.spark.sql.Row
-import org.testng.annotations.Test
+import scala.concurrent.duration.Duration
 
-class LowerDistributedSortSuite extends HailSuite with TestUtils {
+import org.apache.spark.sql.Row
+
+class LowerDistributedSortSuite extends HailSuite {
+  override val munitTimeout = Duration(60, "s")
   implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
-  @Test def testSamplePartition(): Unit = {
+  test("SamplePartition") {
     val dataKeys = IndexedSeq(
       (0, 0),
       (0, -1),
@@ -107,7 +109,7 @@ class LowerDistributedSortSuite extends HailSuite with TestUtils {
       assert(res == scalaSorted)
     }
 
-  @Test def testDistributedSort(): Unit = {
+  test("DistributedSort") {
     val tableRange = TableRange(100, 10)
     val rangeRow = Ref(TableIR.rowName, tableRange.typ.rowType)
     val tableWithExtraField = TableMapRows(
@@ -140,7 +142,7 @@ class LowerDistributedSortSuite extends HailSuite with TestUtils {
     )
   }
 
-  @Test def testDistributedSortEmpty(): Unit = {
+  test("DistributedSortEmpty") {
     val tableRange = TableRange(0, 1)
     testDistributedSortHelper(tableRange, IndexedSeq(SortField("idx", Ascending)))
   }

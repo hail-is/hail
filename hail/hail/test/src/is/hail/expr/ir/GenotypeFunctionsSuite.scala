@@ -6,31 +6,33 @@ import is.hail.collection.FastSeq
 import is.hail.expr.ir.TestUtils._
 import is.hail.types.virtual.TFloat64
 
-import org.testng.annotations.{DataProvider, Test}
-
 class GenotypeFunctionsSuite extends HailSuite {
 
   implicit val execStrats: Set[ExecStrategy] = ExecStrategy.javaOnly
 
-  @DataProvider(name = "gps")
-  def gpData(): Array[Array[Any]] = Array(
-    Array(FastSeq(1.0, 0.0, 0.0), 0.0),
-    Array(FastSeq(0.0, 1.0, 0.0), 1.0),
-    Array(FastSeq(0.0, 0.0, 1.0), 2.0),
-    Array(FastSeq(0.5, 0.5, 0.0), 0.5),
-    Array(FastSeq(0.0, 0.5, 0.5), 1.5),
-    Array(null, null),
-    Array(FastSeq(null, null, null), null),
-    Array(FastSeq(null, 0.5, 0.5), 1.5),
-    Array(FastSeq(0.0, null, 1.0), null),
-    Array(FastSeq(0.0, 0.5, null), null),
-  )
+  object checkDosage extends TestCases {
+    def apply(
+      gp: IndexedSeq[java.lang.Double],
+      expected: java.lang.Double,
+    )(implicit
+      loc: munit.Location
+    ): Unit = test("dosage") {
+      assertEvalsTo(invoke("dosage", TFloat64, toIRDoubleArray(gp)), expected)
+    }
+  }
 
-  @Test(dataProvider = "gps")
-  def testDosage(gp: IndexedSeq[java.lang.Double], expected: java.lang.Double): Unit =
-    assertEvalsTo(invoke("dosage", TFloat64, toIRDoubleArray(gp)), expected)
+  checkDosage(FastSeq(1.0, 0.0, 0.0), 0.0)
+  checkDosage(FastSeq(0.0, 1.0, 0.0), 1.0)
+  checkDosage(FastSeq(0.0, 0.0, 1.0), 2.0)
+  checkDosage(FastSeq(0.5, 0.5, 0.0), 0.5)
+  checkDosage(FastSeq(0.0, 0.5, 0.5), 1.5)
+  checkDosage(null, null)
+  checkDosage(FastSeq(null, null, null), null)
+  checkDosage(FastSeq(null, 0.5, 0.5), 1.5)
+  checkDosage(FastSeq(0.0, null, 1.0), null)
+  checkDosage(FastSeq(0.0, 0.5, null), null)
 
-  @Test def testDosageLength(): Unit = {
+  test("dosageLength") {
     assertFatal(invoke("dosage", TFloat64, IRDoubleArray(1.0, 1.5)), "length")
     assertFatal(invoke("dosage", TFloat64, IRDoubleArray(1.0, 1.5, 0.0, 0.0)), "length")
   }
