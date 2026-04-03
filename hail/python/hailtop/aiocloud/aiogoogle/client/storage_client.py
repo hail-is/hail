@@ -1,17 +1,36 @@
 import asyncio
 import datetime
+import functools
 import logging
 import os
 import urllib.parse
+from concurrent.futures.thread import ThreadPoolExecutor
 from contextlib import AsyncExitStack
 from types import TracebackType
-from typing import Any, AsyncIterator, Callable, Coroutine, Dict, List, MutableMapping, Optional, Set, Tuple, Type, cast
+from typing import (
+    Any,
+    AsyncIterator,
+    Callable,
+    Coroutine,
+    Dict,
+    List,
+    MutableMapping,
+    Optional,
+    Set,
+    Tuple,
+    Type,
+    cast,
+)
 
 import aiohttp
+from google.auth.aio.credentials import AnonymousCredentials
+from google.cloud.storage import Client, transfer_manager
+from google.oauth2.credentials import Credentials
 from multidict import CIMultiDictProxy  # pylint: disable=unused-import  # pylint: disable=unused-import
 
 from hailtop import timex
-from hailtop.aiotools import FeedableAsyncIterable, WriteBuffer
+from hailtop.aiocloud.common import AnonymousCloudCredentials
+from hailtop.aiotools import FeedableAsyncIterable, Transfer, WeightedSemaphore, WriteBuffer, weighted_bounded_gather2
 from hailtop.aiotools.fs import (
     AsyncFS,
     AsyncFSFactory,
@@ -22,10 +41,19 @@ from hailtop.aiotools.fs import (
     IsABucketError,
     MultiPartCreate,
     ReadableStream,
+    SourceReport,
     UnexpectedEOFError,
     WritableStream,
 )
-from hailtop.utils import OnlineBoundedGather2, TransientError, retry_transient_errors, secret_alnum_string
+from hailtop.utils import (
+    OnlineBoundedGather2,
+    TransientError,
+    blocking_to_async,
+    retry_transient_errors,
+    secret_alnum_string,
+    url_basename,
+    url_join,
+)
 
 from ...common.session import BaseSession
 from ..credentials import GoogleCredentials
@@ -315,14 +343,45 @@ class GetObjectStream(ReadableStream):
 
 
 class GoogleStorageClient(GoogleBaseClient):
-    def __init__(self, gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None, **kwargs):
+    CHUNK_SIZE = 8 * 1024 * 1024
+    MAX_WORKERS = 8
+
+    def __init__(
+        self,
+        gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
+        thread_pool: Optional[ThreadPoolExecutor] = None,
+        **kwargs,
+    ):
         if 'timeout' not in kwargs and 'http_session' not in kwargs:
             # Around May 2022, GCS started timing out a lot with our default 5s timeout
             kwargs['timeout'] = aiohttp.ClientTimeout(total=20)
+
+        timeout = kwargs.get('timeout')
+        if isinstance(timeout, aiohttp.ClientTimeout):
+            self._timeout = timeout.total
+        elif isinstance(timeout, (int, float)):
+            self._timeout = timeout
+        else:
+            self._timeout = 20
+
+        if not thread_pool:
+            thread_pool = ThreadPoolExecutor()
+        self._thread_pool = thread_pool
+
         super().__init__('https://storage.googleapis.com/storage/v1', **kwargs)
         self._gcs_requester_pays_configuration = get_gcs_requester_pays_configuration(
             gcs_requester_pays_configuration=gcs_requester_pays_configuration
         )
+        credentials = kwargs.get('credentials')
+        if isinstance(credentials, GoogleCredentials):
+            access_token = credentials.access_token
+            gcp_credentials = Credentials(token=access_token)
+        elif isinstance(credentials, AnonymousCloudCredentials):
+            gcp_credentials = AnonymousCredentials()
+        else:
+            gcp_credentials = None
+
+        self._client = Client(credentials=gcp_credentials)
 
     async def bucket_info(self, bucket: str) -> Dict[str, Any]:
         """
@@ -415,6 +474,44 @@ class GoogleStorageClient(GoogleBaseClient):
         self._update_params_with_user_project(kwargs, bucket)
         return PageIterator(self, f'/b/{bucket}/o', kwargs)
 
+    async def download_single_file(self, bucket: str, filename: str, dest: str) -> None:
+        user_project = self._get_user_project_for_bucket(bucket)
+        bucket_instance = self._client.bucket(bucket, user_project=user_project)
+        blob = bucket_instance.blob(filename)
+        if dest.startswith('file://'):
+            local_dest = urllib.parse.urlparse(dest).path
+        else:
+            local_dest = dest
+
+        os.makedirs(os.path.dirname(local_dest), exist_ok=True)
+        await blocking_to_async(
+            self._thread_pool,
+            blob.download_to_filename,
+            local_dest,
+            single_shot_download=True,
+            timeout=self._timeout,
+        )
+
+    async def download_large_file(self, bucket: str, src: str, dest: str) -> None:
+        user_project = self._get_user_project_for_bucket(bucket)
+        bucket_instance = self._client.bucket(bucket, user_project=user_project)
+        blob = bucket_instance.blob(src)
+        if dest.startswith('file://'):
+            local_dest = urllib.parse.urlparse(dest).path
+        else:
+            local_dest = dest
+
+        os.makedirs(os.path.dirname(local_dest), exist_ok=True)
+        await blocking_to_async(
+            self._thread_pool,
+            transfer_manager.download_chunks_concurrently,
+            blob=blob,
+            filename=local_dest,
+            chunk_size=self.CHUNK_SIZE,
+            download_kwargs={'timeout': self._timeout},
+            max_workers=self.MAX_WORKERS,
+        )
+
     async def compose(self, bucket: str, names: List[str], destination: str, **kwargs) -> None:
         assert destination
         n = len(names)
@@ -454,6 +551,18 @@ class GoogleStorageClient(GoogleBaseClient):
             project, buckets = config
             if bucket in buckets:
                 params.update({'userProject': project})
+
+    def _get_user_project_for_bucket(self, bucket: str) -> Optional[str]:
+        if isinstance(self._gcs_requester_pays_configuration, str):
+            return self._gcs_requester_pays_configuration
+        elif isinstance(self._gcs_requester_pays_configuration, tuple):
+            project, buckets = self._gcs_requester_pays_configuration
+            if bucket in buckets:
+                return project
+            else:
+                return None
+        else:
+            return None
 
 
 class GetObjectFileStatus(FileStatus):
@@ -874,6 +983,157 @@ class GoogleStorageAsyncFS(AsyncFS):
             if e.status == 404:
                 raise FileNotFoundError(url) from e
             raise
+
+    async def copy_to_local(
+        self,
+        sema: WeightedSemaphore,
+        xfer_sema: WeightedSemaphore,
+        transfers: List[Transfer],
+        source_reports: List[SourceReport],
+        *,
+        return_exceptions: bool = False,
+    ):
+        copy_operations = []
+        copy_operation_thread_count = []
+        for transfer, report in zip(transfers, source_reports):
+            if not isinstance(transfer.src, str):
+                raise TypeError(f'Expected a single source when copying from {transfer.src}')
+            if await self.isfile(transfer.src):
+                stat = await self.statfile(transfer.src)
+                size = await stat.size()
+                filename = url_basename(transfer.src)
+                if transfer.treat_dest_as == Transfer.DEST_DIR or (
+                    transfer.treat_dest_as == Transfer.INFER_DEST and transfer.dest.endswith('/')
+                ):
+                    target_dest = url_join(transfer.dest, filename)
+                else:
+                    target_dest = transfer.dest
+                if size > self._storage_client.CHUNK_SIZE:
+                    copy_operations.append(
+                        functools.partial(
+                            self._copy_single_large_file,
+                            xfer_sema,
+                            transfer.src,
+                            target_dest,
+                            size,
+                            report,
+                            return_exceptions,
+                        )
+                    )
+                    copy_operation_thread_count.append(self._storage_client.MAX_WORKERS)
+                else:
+                    copy_operations.append(
+                        functools.partial(
+                            self._copy_single_local_file,
+                            xfer_sema,
+                            transfer.src,
+                            target_dest,
+                            size,
+                            report,
+                            return_exceptions,
+                        )
+                    )
+                    copy_operation_thread_count.append(1)
+            else:
+                async for file in await self.listfiles(transfer.src, recursive=True):
+                    stat = await file.status()
+                    size = await stat.size()
+                    filename = await file.url_full()
+                    relfilename = filename[len(transfer.src) :].lstrip('/')
+                    if transfer.treat_dest_as == Transfer.DEST_DIR or (
+                        transfer.treat_dest_as == Transfer.INFER_DEST and transfer.dest.endswith('/')
+                    ):
+                        target_dest = url_join(transfer.dest, relfilename)
+                    else:
+                        target_dest = url_join(
+                            url_join(transfer.dest, url_basename(transfer.src.rstrip('/'))), relfilename
+                        )
+                    if size > self._storage_client.CHUNK_SIZE:
+                        copy_operations.append(
+                            functools.partial(
+                                self._copy_single_large_file,
+                                xfer_sema,
+                                filename,
+                                target_dest,
+                                size,
+                                report,
+                                return_exceptions,
+                            )
+                        )
+                        copy_operation_thread_count.append(self._storage_client.MAX_WORKERS)
+                    else:
+                        copy_operations.append(
+                            functools.partial(
+                                self._copy_single_local_file,
+                                xfer_sema,
+                                filename,
+                                target_dest,
+                                size,
+                                report,
+                                return_exceptions,
+                            )
+                        )
+                        copy_operation_thread_count.append(1)
+        await weighted_bounded_gather2(
+            sema,
+            copy_operations,
+            copy_operation_thread_count,
+            cancel_on_error=True,
+        )
+
+    async def _copy_single_local_file(
+        self,
+        xfer_sema: WeightedSemaphore,
+        src: str,
+        dest: str,
+        size: int,
+        report: SourceReport,
+        return_exceptions: bool,
+    ) -> None:
+        async with xfer_sema.acquire_manager(size):
+            bucket, name = self.get_bucket_and_name(src)
+            report.start_files(1)
+            report.start_bytes(size)
+            success = False
+            try:
+                await retry_transient_errors(self._storage_client.download_single_file, bucket, name, dest)
+                success = True
+            except Exception as e:
+                if return_exceptions:
+                    report.set_file_error(src, dest, e)
+                    report.set_exception(e)
+                else:
+                    raise e
+            finally:
+                report.finish_files(1, failed=not success)
+                report.finish_bytes(size)
+
+    async def _copy_single_large_file(
+        self,
+        xfer_sema: WeightedSemaphore,
+        src: str,
+        dest: str,
+        size: int,
+        report: SourceReport,
+        return_exceptions: bool,
+    ) -> None:
+        async with xfer_sema.acquire_manager(self._storage_client.CHUNK_SIZE):
+            success = False
+            try:
+                bucket, name = self.get_bucket_and_name(src)
+                report.start_files(1)
+                report.start_bytes(size)
+                await self._storage_client.download_large_file(bucket, name, dest)
+                success = True
+            except Exception as e:
+                if return_exceptions:
+                    report.set_file_error(src, dest, e)
+                    report.set_exception(e)
+                else:
+                    raise e
+            finally:
+                report.finish_files(1, failed=not success)
+                report.finish_bytes(size)
 
     async def copy_within_gcs(
         self, src: str, dest: str, callback: Optional[Callable[[Dict[str, Any], bool], None]] = None

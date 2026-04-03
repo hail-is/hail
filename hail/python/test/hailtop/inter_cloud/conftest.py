@@ -1,4 +1,3 @@
-import asyncio
 import functools
 import os
 import secrets
@@ -6,12 +5,13 @@ from typing import AsyncIterator, Dict, Tuple
 
 import pytest
 
+from hailtop.aiotools import WeightedSemaphore
 from hailtop.aiotools.router_fs import AsyncFS, RouterAsyncFS
 from hailtop.utils import bounded_gather2
 
 
 @pytest.fixture(scope='module')
-async def router_filesystem() -> AsyncIterator[Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]]]:
+async def router_filesystem() -> AsyncIterator[Tuple[WeightedSemaphore, AsyncFS, Dict[str, str]]]:
     token = secrets.token_hex(16)
 
     async with RouterAsyncFS() as fs:
@@ -26,7 +26,7 @@ async def router_filesystem() -> AsyncIterator[Tuple[asyncio.Semaphore, AsyncFS,
 
         bases = {'file': file_base, 'gs': gs_base, 's3': s3_base}
 
-        sema = asyncio.Semaphore(50)
+        sema = WeightedSemaphore(50)
         async with sema:
             yield (sema, fs, bases)
             await bounded_gather2(

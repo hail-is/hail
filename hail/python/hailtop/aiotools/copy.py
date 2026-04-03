@@ -5,23 +5,23 @@ import logging
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
-from typing import AsyncContextManager, Dict, List, Optional, Tuple
+from typing import Dict, List, Literal, Optional, Tuple
 
 from rich.progress import Progress, TaskID
 
 from .. import uvloopx
 from ..utils.rich_progress_bar import CopyToolProgressBar, make_listener
 from ..utils.utils import sleep_before_try
-from . import Copier, Transfer
+from . import Copier, Transfer, WeightedSemaphore
 from .router_fs import RouterAsyncFS
 
 
-class GrowingSempahore(AsyncContextManager[asyncio.Semaphore]):
+class GrowingSemaphore(WeightedSemaphore):
     def __init__(self, start_max: int, target_max: int, progress_and_tid: Optional[Tuple[Progress, TaskID]]):
+        super().__init__(start_max)
         self.task: Optional[asyncio.Task] = None
         self.target_max = target_max
         self.current_max = start_max
-        self.sema = asyncio.Semaphore(self.current_max)
         self.progress_and_tid = progress_and_tid
 
     async def _grow(self):
@@ -34,28 +34,25 @@ class GrowingSempahore(AsyncContextManager[asyncio.Semaphore]):
             )
             new_max = min(int(self.current_max * 1.5), self.target_max)
             diff = new_max - self.current_max
-            self.sema._value += diff
-            self.sema._wake_up_next()
+            self.release(diff)
             self.current_max = new_max
             if self.progress_and_tid:
                 progress, tid = self.progress_and_tid
                 progress.update(tid, advance=diff)
 
-    async def __aenter__(self) -> asyncio.Semaphore:
+    async def acquire(self, n: int = 1) -> Literal[True]:
         self.task = asyncio.create_task(self._grow())
-        await self.sema.__aenter__()
-        return self.sema
+        await super().acquire(n)
+        return True
 
-    async def __aexit__(self, exc_type, exc, tb):
-        try:
-            await self.sema.__aexit__(exc_type, exc, tb)
-        finally:
-            if self.task is not None:
-                if self.task.done() and not self.task.cancelled():
-                    if exc := self.task.exception():
-                        raise exc
-                else:
-                    self.task.cancel()
+    def release(self, n: int = 1) -> None:
+        super().release(n)
+        if self.task is not None:
+            if self.task.done() and not self.task.cancelled():
+                if exc := self.task.exception():
+                    raise exc
+            else:
+                self.task.cancel()
 
 
 async def copy(
@@ -76,6 +73,11 @@ async def copy(
         if 'thread_pool' not in local_kwargs:
             local_kwargs['thread_pool'] = thread_pool
 
+        if gcs_kwargs is None:
+            gcs_kwargs = {}
+        if 'thread_pool' not in gcs_kwargs:
+            gcs_kwargs['thread_pool'] = thread_pool
+
         if s3_kwargs is None:
             s3_kwargs = {}
         if 'thread_pool' not in s3_kwargs:
@@ -94,18 +96,18 @@ async def copy(
                     total=max_simultaneous_transfers,
                     visible=verbose,
                 )
-                async with GrowingSempahore(
+                sema = GrowingSemaphore(
                     initial_simultaneous_transfers, max_simultaneous_transfers, (progress, parallelism_tid)
-                ) as sema:
-                    file_tid = progress.add_task(description='files', total=0, visible=verbose)
-                    bytes_tid = progress.add_task(description='bytes', total=0, visible=verbose)
-                    copy_report = await Copier.copy(
-                        fs,
-                        sema,
-                        transfers,
-                        files_listener=make_listener(progress, file_tid),
-                        bytes_listener=make_listener(progress, bytes_tid),
-                    )
+                )
+                file_tid = progress.add_task(description='files', total=0, visible=verbose)
+                bytes_tid = progress.add_task(description='bytes', total=0, visible=verbose)
+                copy_report = await Copier.copy(
+                    fs,
+                    sema,
+                    transfers,
+                    files_listener=make_listener(progress, file_tid),
+                    bytes_listener=make_listener(progress, bytes_tid),
+                )
                 if verbose:
                     copy_report.summarize()
 

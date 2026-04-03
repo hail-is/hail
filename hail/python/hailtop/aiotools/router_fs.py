@@ -76,6 +76,14 @@ class RouterAsyncFS(AsyncFS):
             or aioaws.S3AsyncFS.valid_url(url)
         )
 
+    @staticmethod
+    def valid_google_url(url) -> bool:
+        return aiogoogle.GoogleStorageAsyncFS.valid_url(url)
+
+    @staticmethod
+    def valid_local_url(url) -> bool:
+        return LocalAsyncFS.valid_url(url)
+
     async def _get_fs(self, url: str):
         if LocalAsyncFS.valid_url(url):
             if self._local_fs is None:

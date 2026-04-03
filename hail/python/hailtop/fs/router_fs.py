@@ -20,6 +20,7 @@ from hailtop.aiotools.fs import (
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.utils import async_to_blocking, bounded_gather2
 
+from ..aiotools import WeightedSemaphore
 from .fs import FS
 from .stat_result import FileListEntry, FileType
 
@@ -238,7 +239,7 @@ class RouterFS(FS):
         transfer = Transfer(src, dest)
 
         async def _copy():
-            sema = asyncio.Semaphore(max_simultaneous_transfers)
+            sema = WeightedSemaphore(max_simultaneous_transfers)
             await Copier.copy(self.afs, sema, transfer)
 
         return async_to_blocking(_copy())
