@@ -72,6 +72,9 @@ export function AttemptPanel({
 }: Props): JSX.Element {
   const cache = useRef<Record<string, AttemptData>>({});
   const committedLogsRef = useRef<LogMap>({});
+  // Tracks the last attempt_id the effect ran for so we can distinguish a
+  // "same attempt, new poll" refresh from "different attempt now showing".
+  const prevAttemptIdRef = useRef<string | null>(null);
   const [data, setData] = useState<AttemptData>({
     logs: {},
     resourceUsage: null,
@@ -91,7 +94,15 @@ export function AttemptPanel({
   };
 
   useEffect(() => {
-    const isRefreshFetch = refreshTick > 0 && isLatest;
+    const attemptJustChanged =
+      prevAttemptIdRef.current !== null && prevAttemptIdRef.current !== attempt.attempt_id;
+    prevAttemptIdRef.current = attempt.attempt_id;
+
+    // A background refresh only happens when the *same* latest attempt is being
+    // polled again.  When the attempt itself changes (e.g. the "latest" flips to
+    // a new attempt_id after a retry) we treat it as a fresh load so that stale
+    // logs and any pending-update banner from the previous attempt are discarded.
+    const isRefreshFetch = !attemptJustChanged && refreshTick > 0 && isLatest;
 
     // Bust the cache only when auto-refreshing the latest attempt.
     if (isRefreshFetch) {
