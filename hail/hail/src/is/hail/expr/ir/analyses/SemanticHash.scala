@@ -26,19 +26,16 @@ case object SemanticHash extends Logging {
   def extend(x: Type, bytes: Array[Byte]): Type =
     MurmurHash3.hash32x86(bytes, 0, bytes.length, x)
 
+  // Requires name-normalised IR!
   def apply(ctx: ExecuteContext, root: BaseIR): Option[Type] =
     ctx.time {
-      // Running the algorithm on the name-normalised IR
-      // removes sensitivity to compiler-generated names
-      val nameNormalizedIR = NormalizeNames(allowFreeVariables = true)(ctx, root)
-
       def go: Option[Int] = {
         var hash: Type =
           MurmurHash3.DEFAULT_SEED
 
         // Include an encoding of a node's position in the parent's child array
         // to differentiate between IR trees that look identical when flattened
-        for ((ir, index) <- levelOrder(nameNormalizedIR)) {
+        for ((ir, index) <- levelOrder(root)) {
           try {
             val bytes = encode(ctx.fs, ir, index)
             hash = extend(hash, bytes)

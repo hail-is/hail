@@ -1,8 +1,10 @@
 package is.hail.expr.ir.analyses
 
 import is.hail.{HailSuite, PrettyVersion}
+import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
+import is.hail.expr.ir
 import is.hail.expr.ir._
 import is.hail.expr.ir.defs._
 import is.hail.io.fs.{FS, FakeFS, FakeURL, FileListEntry}
@@ -290,6 +292,9 @@ class SemanticHashSuite extends HailSuite {
       isBlockMatrixIRSemanticallyEquivalent,
     )
 
+  private[this] val NormalizeNames: (ExecuteContext, BaseIR) => BaseIR =
+    ir.NormalizeNames(allowFreeVariables = true)
+
   @Test(dataProvider = "isBaseIRSemanticallyEquivalent")
   def testSemanticEquivalence(a: BaseIR, b: BaseIR, isEqual: Boolean, comment: String): Unit =
     ctx.local(fs = fakeFs) { ctx =>
@@ -297,7 +302,7 @@ class SemanticHashSuite extends HailSuite {
         isEqual,
         s"expected semhash($a) ${if (isEqual) "==" else "!="} semhash($b), $comment",
       )(
-        SemanticHash(ctx, a) == SemanticHash(ctx, b)
+        SemanticHash(ctx, NormalizeNames(ctx, a)) == SemanticHash(ctx, NormalizeNames(ctx, b))
       )
     }
 
@@ -379,15 +384,10 @@ class SemanticHashSuite extends HailSuite {
   def mkFakeTableSpec(ttype: TableType): AbstractTableSpec =
     new AbstractTableSpec {
       override def references_rel_path: String = ???
-
       override def table_type: TableType = ttype
-
       override def rowsSpec: AbstractRVDSpec = ???
-
       override def globalsSpec: AbstractRVDSpec = ???
-
       override def file_version: Int = 0
-
       override def hail_version: String = ???
 
       override def components: Map[String, ComponentSpec] =

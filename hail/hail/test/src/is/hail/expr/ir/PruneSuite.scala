@@ -7,6 +7,7 @@ import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.Nat
 import is.hail.expr.ir.PruneDeadFields.TypeState
 import is.hail.expr.ir.defs._
+import is.hail.expr.ir.implicits.forTesting._
 import is.hail.expr.ir.lowering.ExecuteRelational
 import is.hail.methods.{ForceCountMatrixTable, ForceCountTable}
 import is.hail.rvd.RVD

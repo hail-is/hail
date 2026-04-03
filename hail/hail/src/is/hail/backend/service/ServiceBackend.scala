@@ -10,7 +10,8 @@ import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.Validate
 import is.hail.expr.ir.{
-  CompileAndEvaluate, IR, IRSize, LoweringAnalyses, SortField, TableIR, TableReader, TypeCheck,
+  CompileAndEvaluate, IR, IRSize, LoweringAnalyses, NormalizeNames, SortField, TableIR, TableReader,
+  TypeCheck,
 }
 import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.lowering._
@@ -442,10 +443,12 @@ class ServiceBackend(
     batchClient.close()
   }
 
-  override def execute(ctx: ExecuteContext, ir: IR): Either[Unit, (PTuple, Long)] =
+  override def execute(ctx: ExecuteContext, ir0: IR): Either[Unit, (PTuple, Long)] =
     ctx.time {
-      TypeCheck(ctx, ir)
-      Validate(ir)
+      TypeCheck(ctx, ir0)
+      Validate(ir0)
+      val ir = NormalizeNames()(ctx, ir0)
+
       val queryID = Backend.nextID()
       logger.info(s"starting execution of query $queryID of initial size ${IRSize(ir)}")
       if (ctx.flags.isDefined(ExecutionCache.Flags.UseFastRestarts))
