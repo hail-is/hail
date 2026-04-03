@@ -21,6 +21,8 @@ type Props = {
   extendToNow?: boolean;
 };
 
+type TooltipState = { text: string; x: number; y: number };
+
 const BOTTOM_MARGINS_PX = 65; // bottom axis + legend
 const RULE_LABEL_MARGIN_PX = 50; // extra top margin when rule labels are shown
 const MAX_BAR_HEIGHT = 200;
@@ -43,6 +45,7 @@ function formatXTick(d: Date, i: number): string {
 export function GanttChart({ rows, colorMap, ruleXs, extendToNow }: Props): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState<number | null>(null);
+  const [tooltip, setTooltip] = useState<TooltipState | null>(null);
 
   // Only track width — reading height would cause a feedback loop where the
   // SVG grows the container, which triggers a new observation, which grows the
@@ -115,18 +118,45 @@ export function GanttChart({ rows, colorMap, ruleXs, extendToNow }: Props): JSX.
             dy: -4,
           }),
         ] : []),
-        Plot.tip(rows, Plot.pointer({
-          x1: 'start',
-          x2: 'end',
-          y: 'label',
-          title: (d: GanttRow) => d.tooltip ?? `${d.label}: ${d.category}`,
-        })),
       ],
     });
 
+    // Attach hover listeners directly to each bar rect so the full bar area
+    // triggers the tooltip, rather than relying on Plot.pointer's centroid snap.
+    const barGroup = plot.querySelector('g[aria-label="bar"]');
+    if (barGroup) {
+      barGroup.querySelectorAll('rect').forEach((rect, i) => {
+        const row = rows[i];
+        if (!row) return;
+        const text = row.tooltip ?? `${row.label}: ${row.category}`;
+        rect.addEventListener('mouseenter', (e) => {
+          setTooltip({ text, x: (e as MouseEvent).clientX, y: (e as MouseEvent).clientY });
+        });
+        rect.addEventListener('mousemove', (e) => {
+          setTooltip({ text, x: (e as MouseEvent).clientX, y: (e as MouseEvent).clientY });
+        });
+        rect.addEventListener('mouseleave', () => setTooltip(null));
+      });
+    }
+
     containerRef.current.replaceChildren(plot);
-    return () => plot.remove();
+    return () => {
+      plot.remove();
+      setTooltip(null);
+    };
   }, [rows, colorMap, ruleXs, extendToNow, width]);
 
-  return <div ref={containerRef} className="w-full" />;
+  return (
+    <>
+      <div ref={containerRef} className="w-full" />
+      {tooltip && (
+        <div
+          className="fixed z-50 max-w-xs rounded bg-gray-800 px-2 py-1 text-xs text-white shadow-lg whitespace-pre pointer-events-none"
+          style={{ left: tooltip.x + 14, top: tooltip.y - 8 }}
+        >
+          {tooltip.text}
+        </div>
+      )}
+    </>
+  );
 }
