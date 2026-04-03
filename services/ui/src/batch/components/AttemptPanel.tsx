@@ -94,15 +94,15 @@ export function AttemptPanel({
   };
 
   useEffect(() => {
-    const attemptJustChanged =
-      prevAttemptIdRef.current !== null && prevAttemptIdRef.current !== attempt.attempt_id;
+    const isFirstRun = prevAttemptIdRef.current === null;
+    const attemptJustChanged = !isFirstRun && prevAttemptIdRef.current !== attempt.attempt_id;
     prevAttemptIdRef.current = attempt.attempt_id;
 
     // A background refresh only happens when the *same* latest attempt is being
-    // polled again.  When the attempt itself changes (e.g. the "latest" flips to
-    // a new attempt_id after a retry) we treat it as a fresh load so that stale
-    // logs and any pending-update banner from the previous attempt are discarded.
-    const isRefreshFetch = !attemptJustChanged && refreshTick > 0 && isLatest;
+    // polled again.  First mount (e.g. arriving from the Job Spec tab) and
+    // attempt switches are always treated as fresh loads so that stale logs and
+    // any pending-update banner are never shown before real content arrives.
+    const isRefreshFetch = !isFirstRun && !attemptJustChanged && refreshTick > 0 && isLatest;
 
     // Bust the cache only when auto-refreshing the latest attempt.
     if (isRefreshFetch) {

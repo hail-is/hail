@@ -390,13 +390,13 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
     return () => clearInterval(id);
   }, [job, fetchData]);
 
-  // When attempts load and there are none, default to the Job Spec tab instead
-  // of the current_attempt sentinel (which would leave no tab selected).
+  // Once the initial load completes, if there are no attempts (null response or
+  // empty array) and we're still on the sentinel, default to the Job Spec tab.
   useEffect(() => {
-    if (attempts !== null && attempts.length === 0 && topTab === 'current_attempt') {
+    if (!loading && topTab === 'current_attempt' && !(attempts && attempts.length > 0)) {
       setTopTab('job_spec');
     }
-  }, [attempts, topTab, setTopTab]);
+  }, [loading, attempts, topTab, setTopTab]);
 
   if (loading) {
     return (
