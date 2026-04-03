@@ -13,6 +13,7 @@ import is.hail.expr.ir.agg._
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.defs.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.functions._
+import is.hail.expr.ir.lowering.invariant.{TreeIR, UnsatisfiedInvariantError}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.bgen.MatrixBGENReader
 import is.hail.linalg.BlockMatrix
@@ -4335,8 +4336,15 @@ class IRSuite extends HailSuite {
   @Test def testHasIRSharing(): Unit = {
     val r = Ref(freshName(), TInt32)
     val ir1 = MakeTuple.ordered(FastSeq(I64(1), r, r, I32(1)))
-    assert(HasIRSharing(ctx)(ir1))
-    assert(!HasIRSharing(ctx)(ir1.deepCopy()))
+    assert(HasIRSharing(ctx, ir1))
+    assert(!HasIRSharing(ctx, ir1.deepCopy()))
+  }
+
+  @Test def testTreeIRInvariant(): Unit = {
+    val r = Ref(freshName(), TInt32)
+    val ir1 = MakeTuple.ordered(FastSeq(I64(1), r, r, I32(1)))
+    assertThrows[UnsatisfiedInvariantError](TreeIR.verify(ctx, ir1))
+    TreeIR.verify(ctx, ir1.deepCopy())
   }
 
   @Test def freeVariables(): Unit = {

@@ -703,30 +703,31 @@ object LowerMatrixIR {
           loweredChild,
           InsertFields(
             Ref(TableIR.rowName, rt),
-            FastSeq((
-              entriesFieldName,
-              ToArray(StreamZip(
-                FastSeq(
+            FastSeq(
+              entriesFieldName -> ToArray(
+                zip2(
                   ToStream(GetField(Ref(TableIR.rowName, rt), entriesFieldName)),
                   ToStream(GetField(Ref(TableIR.globalName, gt), colsFieldName)),
-                ),
-                FastSeq(MatrixIR.entryName, MatrixIR.colName),
-                Subst(
-                  lower(ctx, newEntries, liftedRelationalLets),
-                  BindingEnv(Env(
-                    MatrixIR.globalName -> SelectFields(
-                      Ref(TableIR.globalName, gt),
-                      child.typ.globalType.fieldNames,
-                    ),
-                    MatrixIR.rowName -> SelectFields(
-                      Ref(TableIR.rowName, rt),
-                      child.typ.rowType.fieldNames,
-                    ),
-                  )),
-                ),
-                ArrayZipBehavior.AssumeSameLength,
-              )),
-            )),
+                  ArrayZipBehavior.AssumeSameLength,
+                ) { (entries, cols) =>
+                  Subst(
+                    lower(ctx, newEntries, liftedRelationalLets),
+                    BindingEnv(Env(
+                      MatrixIR.globalName -> SelectFields(
+                        Ref(TableIR.globalName, gt),
+                        child.typ.globalType.fieldNames,
+                      ),
+                      MatrixIR.rowName -> SelectFields(
+                        Ref(TableIR.rowName, rt),
+                        child.typ.rowType.fieldNames,
+                      ),
+                      MatrixIR.colName -> cols,
+                      MatrixIR.entryName -> entries,
+                    )),
+                  )
+                }
+              )
+            ),
           ),
         )
 

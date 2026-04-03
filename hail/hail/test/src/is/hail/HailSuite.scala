@@ -12,6 +12,7 @@ import is.hail.expr.ir._
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.lowering.IrMetadata
+import is.hail.expr.ir.lowering.invariant.Flags.StrictInvariants
 import is.hail.io.fs.{FS, HadoopFS}
 import is.hail.rvd.RVD
 import is.hail.types.virtual._
@@ -34,7 +35,7 @@ object HailSuite {
     new HailClassLoader(getClass.getClassLoader)
 
   private val flags: HailFeatureFlags =
-    HailFeatureFlags.fromEnv(sys.env + ("lower" -> "1"))
+    HailFeatureFlags.fromEnv(sys.env + ("lower" -> "1") + (StrictInvariants -> "1"))
 
   private var backend_ : SparkBackend = _
 }
