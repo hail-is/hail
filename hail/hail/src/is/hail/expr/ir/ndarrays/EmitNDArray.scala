@@ -554,10 +554,10 @@ object EmitNDArray {
 
                                 val newDimSize = cb.newLocal[Long]("new_dim_size")
                                 cb.if_(
-                                  step >= 0L && start <= stop,
+                                  step >= 0L && start < stop,
                                   cb.assign(newDimSize, const(1L) + ((stop - start) - 1L) / step),
                                   cb.if_(
-                                    step < 0L && start >= stop,
+                                    step < 0L && start > stop,
                                     cb.assign(newDimSize, (((stop - start) + 1L) / step) + 1L),
                                     cb.assign(newDimSize, 0L),
                                   ),
