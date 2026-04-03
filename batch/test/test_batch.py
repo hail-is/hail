@@ -1519,6 +1519,7 @@ def test_job_private_instance_preemptible(client: BatchClient):
     assert 'job-private' in status['status']['worker'], str((status, b.debug_info()))
 
 
+@pytest.mark.timeout(10 * 60)
 def test_job_private_instance_nonpreemptible(client: BatchClient):
     b = create_batch(client)
     resources = {'machine_type': smallest_machine_type(), 'preemptible': False}
@@ -1529,6 +1530,7 @@ def test_job_private_instance_nonpreemptible(client: BatchClient):
     assert 'job-private' in status['status']['worker'], str((status, b.debug_info()))
 
 
+@pytest.mark.timeout(10 * 60)
 def test_job_private_instance_cancel(client: BatchClient):
     b = create_batch(client)
     resources = {'machine_type': smallest_machine_type()}
@@ -1537,6 +1539,10 @@ def test_job_private_instance_cancel(client: BatchClient):
 
     tries = 0
     start = time.time()
+
+    # For this test, require this job to be Creating (ie an attempt exists in the DB, even
+    # if the VM is not provisioned yet) within 60 seconds.
+    deadline = 60
     while True:
         status = j.status()
         if status['state'] == 'Creating':
@@ -1545,15 +1551,16 @@ def test_job_private_instance_cancel(client: BatchClient):
 
         tries += 1
         cumulative_delay = now - start
-        if cumulative_delay > 60:
+        if cumulative_delay > deadline:
             assert False, str((status, b.debug_info()))
-        delay = min(delay_ms_for_try(tries), 60 - cumulative_delay)
+        delay = min(delay_ms_for_try(tries), deadline - cumulative_delay)
         time.sleep(delay)
     b.cancel()
     status = j.wait()
     assert status['state'] == 'Cancelled', str((status, b.debug_info()))
 
 
+@pytest.mark.timeout(10 * 60)
 def test_always_run_job_private_instance_cancel(client: BatchClient):
     b = create_batch(client)
     resources = {'machine_type': smallest_machine_type()}
