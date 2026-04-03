@@ -26,7 +26,6 @@ object InterpretableButNotCompilable {
 object Compilable {
   def apply(ir: IR): Boolean = {
     ir match {
-      case _: LiftMeOut => false
       case _: TableCount => false
       case _: TableGetGlobals => false
       case _: TableCollect => false

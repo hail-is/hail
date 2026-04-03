@@ -3916,20 +3916,6 @@ class EncodedLiteral(IR):
         return self._typ
 
 
-class LiftMeOut(IR):
-    @typecheck_method(child=IR)
-    def __init__(self, child):
-        super().__init__(child)
-        self.child = child
-
-    def copy(self, child):
-        return LiftMeOut(child)
-
-    def _compute_type(self, env, agg_env, deep_typecheck):
-        self.child.compute_type(env, agg_env, deep_typecheck)
-        return self.child.typ
-
-
 class Join(IR):
     _idx = 0
 

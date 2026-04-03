@@ -1508,7 +1508,6 @@ object IRParser {
           case Seq(value, path) => WriteValue(value, path, writer)
           case Seq(value, path, stagingFile) => WriteValue(value, path, writer, Some(stagingFile))
         }
-      case "LiftMeOut" => ir_value_expr(ctx)(it).map(LiftMeOut)
     }
   }
 
