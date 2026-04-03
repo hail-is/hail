@@ -86,14 +86,13 @@ function StageChart({ stage, df }: StageChartProps): JSX.Element {
           </ResponsiveContainer>
         </div>
         <div>
-          <div className="text-xs text-zinc-400 mb-1">Network</div>
+          <div className="text-xs text-zinc-400 mb-1">Network Upload</div>
           <ResponsiveContainer width="100%" height={160}>
             <LineChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="t_s" tickFormatter={(v) => `${v}s`} tick={{ fontSize: 10 }} />
               <YAxis tickFormatter={formatBytes} tick={{ fontSize: 10 }} />
               <Tooltip formatter={(v) => typeof v === 'number' ? `${formatBytes(v)}/s` : String(v)} />
-              <Legend />
               <Line
                 type="monotone"
                 dataKey="network_bandwidth_upload_in_bytes_per_second"
@@ -101,6 +100,17 @@ function StageChart({ stage, df }: StageChartProps): JSX.Element {
                 stroke="#10b981"
                 name="Upload"
               />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+        <div>
+          <div className="text-xs text-zinc-400 mb-1">Network Download</div>
+          <ResponsiveContainer width="100%" height={160}>
+            <LineChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="t_s" tickFormatter={(v) => `${v}s`} tick={{ fontSize: 10 }} />
+              <YAxis tickFormatter={formatBytes} tick={{ fontSize: 10 }} />
+              <Tooltip formatter={(v) => typeof v === 'number' ? `${formatBytes(v)}/s` : String(v)} />
               <Line
                 type="monotone"
                 dataKey="network_bandwidth_download_in_bytes_per_second"
