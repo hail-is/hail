@@ -50,8 +50,8 @@ type Job = {
   state: string;
   exit_code?: number | null;
   duration?: string;
-  cost?: string;
-  cost_breakdown?: { resource: string; cost: string }[] | null;
+  cost?: number;
+  cost_breakdown?: { resource: string; cost: number }[] | null;
   user?: string;
   billing_project?: string;
   always_run?: boolean;
@@ -258,6 +258,27 @@ function StateIcon({ state }: { state: string }): JSX.Element {
 }
 
 const TERMINAL_STATES = new Set(['Success', 'Failed', 'Error', 'Cancelled']);
+
+const MIN_VISIBLE_COST = 0.01;
+
+function formatCostDisplay(cost: number): { display: string; tooltip: string | null } {
+  if (cost > 0 && cost < MIN_VISIBLE_COST) {
+    return { display: `< $${MIN_VISIBLE_COST.toFixed(2)}`, tooltip: `$${cost}` };
+  }
+  return { display: `$${cost.toFixed(2)}`, tooltip: null };
+}
+
+function CostDisplay({ cost }: { cost: number }): JSX.Element {
+  const { display, tooltip } = formatCostDisplay(cost);
+  if (tooltip != null) {
+    return (
+      <span title={tooltip} className="cursor-help">
+        {display}
+      </span>
+    );
+  }
+  return <>{display}</>;
+}
 
 function CollapsibleItem({ title, summary, children }: {
   title: string;
@@ -507,14 +528,16 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
               </table>
             </CollapsibleItem>
             {job.cost != null && (
-              <CollapsibleItem title="Cost" summary={job.cost}>
+              <CollapsibleItem title="Cost" summary={<CostDisplay cost={job.cost} />}>
                 {job.cost_breakdown && (
                   <table className="text-xs w-full">
                     <tbody className="divide-y">
                       {job.cost_breakdown.map(({ resource, cost }) => (
                         <tr key={resource}>
                           <td className="py-1 pr-2 text-zinc-500">{resource}</td>
-                          <td className="py-1 text-right">{cost}</td>
+                          <td className="py-1 text-right">
+                            <CostDisplay cost={cost} />
+                          </td>
                         </tr>
                       ))}
                     </tbody>
