@@ -336,6 +336,24 @@ class BlockMatrixIRSuite extends HailSuite {
     )
   }
 
+  @Test def testBlockMatrixSliceSparse(): Unit = {
+    val nRows = 12
+    val nCols = 8
+    val original = BDM.tabulate[Double](nRows, nCols)((i, j) => i.toDouble * nCols + j)
+    val unsliced = BlockMatrixSparsify(
+      toIR(original, blockSize = 3),
+      PerBlockSparsifier(FastSeq(0, 2, 5, 7, 9, 10)),
+    )
+    val expected = new BDM[Double](3, 2, Array(0d, 36, 0, 0, 38, 62))
+
+    val rowSlice = FastSeq(1L, 10L, 3L)
+    val colSlice = FastSeq(4L, 8L, 2L)
+    assertBMEvalsTo(
+      BlockMatrixSlice(unsliced, FastSeq(rowSlice, colSlice)),
+      expected,
+    )
+  }
+
   @Test def testBlockMatrixDot(): Unit = {
     val m1 = BDM.tabulate[Double](5, 4)((i, j) => (i.toDouble + 1) * j)
     val m2 = BDM.tabulate[Double](4, 6)((i, j) => (i.toDouble + 5) * (j - 2))

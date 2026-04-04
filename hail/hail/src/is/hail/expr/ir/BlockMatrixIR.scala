@@ -929,10 +929,19 @@ case class BlockMatrixSlice(child: BlockMatrixIR, slices: IndexedSeq[IndexedSeq[
     val size = 1 + (stop - start - 1) / step
     val nBlocks = BlockMatrixType.numBlocks(size, child.typ.blockSize)
     ArraySeq.tabulate(nBlocks) { blockIdx =>
-      val blockStart = start + blockIdx * child.typ.blockSize * step
-      val blockEnd =
-        java.lang.Math.min(start + ((blockIdx + 1) * child.typ.blockSize - 1) * step, stop)
-      Range(child.typ.getBlockIdx(blockStart), child.typ.getBlockIdx(blockEnd) + 1)
+      val outputBlockStart = blockIdx.toLong * child.typ.blockSize
+      val outputBlockEnd = java.lang.Math.min((blockIdx + 1L) * child.typ.blockSize, size)
+      val firstGlobal = start + outputBlockStart * step
+      val lastGlobal = start + (outputBlockEnd - 1) * step
+      val rangeStart = child.typ.getBlockIdx(firstGlobal)
+      val rangeEnd = child.typ.getBlockIdx(lastGlobal)
+      (rangeStart to rangeEnd).filter { d =>
+        val cbs = d.toLong * child.typ.blockSize
+        val kMin =
+          if (cbs <= start) outputBlockStart
+          else java.lang.Math.max(outputBlockStart, (cbs - start + step - 1) / step)
+        kMin < outputBlockEnd && start + kMin * step < (d + 1L) * child.typ.blockSize
+      }.toIndexedSeq
     }
   }
 
