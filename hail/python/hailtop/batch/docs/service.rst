@@ -326,6 +326,29 @@ Container (aka Docker) images are a form of data. In Google Cloud Platform, we r
 your images in a multi-regional artifact registry, which at time of writing, despite being
 "multi-regional", does not incur network charges in the manner described above.
 
+.. _apt-rewrite:
+
+Automatic apt Source Rewriting (GCP)
+-------------------------------------
+
+On GCP, Hail Batch automatically rewrites ``/etc/apt/sources.list`` at the start of each
+shell-invoked job to use the regional GCE Ubuntu mirror (e.g.
+``us-central1.gce.archive.ubuntu.com``) instead of the default Canonical mirror
+(``archive.ubuntu.com``). This reduces CloudNAT egress costs and generally improves
+``apt-get`` performance since the GCE mirror is co-located with your workers.
+
+The rewrite is prepended to your job's command and is visible in the **Command** section of
+the Batch UI.
+
+If your job requires the canonical Canonical mirror — for example, to access a package version
+not yet synced to the GCE mirror — you can opt out:
+
+.. code-block:: python
+
+    >>> j = b.new_job()
+    >>> j.apt_rewrite(False)
+    >>> j.command('apt-get install -y my-package')
+
 
 Using the UI
 ------------

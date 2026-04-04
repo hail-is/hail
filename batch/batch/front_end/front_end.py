@@ -1154,6 +1154,7 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
 
         always_run = spec.pop('always_run', False)
         n_max_attempts = spec.pop('n_max_attempts', 20)
+        apt_rewrite = spec.pop('apt_rewrite', True)
 
         cloud = spec.get('cloud', CLOUD)
 
@@ -1193,6 +1194,19 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
             if rewritten_image is not None:
                 spec['process']['image'] = rewritten_image
                 log.info(f'Rewrote Docker Hub image {original_image} to {rewritten_image} for job {batch_id}/{job_id}')
+
+        # On GCP, prepend a one-liner to redirect apt traffic to the regional GCE Ubuntu mirror.
+        # This avoids CloudNAT egress and reduces apt-get update cost. HAIL_REGION is injected
+        # into every job container by the worker and resolves to the worker's GCP region at runtime.
+        # Only applies to shell-invoked commands ([shell, '-c', script]). Opt out with apt_rewrite: false.
+        if apt_rewrite and cloud == 'gcp' and spec['process']['type'] == 'docker':
+            command = spec['process']['command']
+            if len(command) == 3 and command[1] == '-c':
+                apt_redirect = (
+                    'sed -i "s|archive\\.ubuntu\\.com|${HAIL_REGION}.gce.archive.ubuntu.com|g"'
+                    ' /etc/apt/sources.list /etc/apt/sources.list.d/*.list 2>/dev/null || true'
+                )
+                spec['process']['command'] = [command[0], command[1], apt_redirect + '\n' + command[2]]
 
         if spec['process']['type'] == 'jvm':
             jvm_requested_cpu = parse_cpu_in_mcpu(resources.get('cpu', BATCH_JOB_DEFAULT_CPU))

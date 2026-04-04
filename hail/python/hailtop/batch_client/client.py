@@ -182,6 +182,7 @@ class JobGroup:
         user_code: Optional[str] = None,
         regions: Optional[List[str]] = None,
         always_copy_output: bool = False,
+        apt_rewrite: bool = True,
     ) -> Job:
         if parents:
             parents = [parent._async_job for parent in parents]
@@ -209,6 +210,7 @@ class JobGroup:
             unconfined=unconfined,
             user_code=user_code,
             regions=regions,
+            apt_rewrite=apt_rewrite,
         )
 
         return Job(async_job)
@@ -324,6 +326,7 @@ class Batch:
         user_code: Optional[str] = None,
         regions: Optional[List[str]] = None,
         always_copy_output: bool = False,
+        apt_rewrite: bool = True,
     ) -> Job:
         if parents:
             parents = [parent._async_job for parent in parents]
@@ -351,6 +354,7 @@ class Batch:
             unconfined=unconfined,
             user_code=user_code,
             regions=regions,
+            apt_rewrite=apt_rewrite,
         )
 
         return Job(async_job)

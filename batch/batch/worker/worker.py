@@ -1829,13 +1829,14 @@ class DockerJob(Job):
             )
 
         assert self.worker.fs
+        command = job_spec['process']['command']
         containers['main'] = Container(
             task_manager=self.task_manager,
             fs=self.worker.fs,
             name=self.container_name('main'),
             image=Image(job_spec['process']['image'], self.credentials, client_session, pool),
             scratch_dir=f'{self.scratch}/main',
-            command=job_spec['process']['command'],
+            command=command,
             cpu_in_mcpu=self.cpu_in_mcpu,
             memory_in_bytes=self.memory_in_bytes,
             user_credentials=self.credentials,
