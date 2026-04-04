@@ -19,7 +19,7 @@ spec:
     spec:
       serviceAccountName: ci-agent
 {% if deploy %}
-      priorityClassName: production
+      priorityClassName: auxiliary
 {% endif %}
       nodeSelector:
         preemptible: "true"

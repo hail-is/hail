@@ -274,7 +274,7 @@ spec:
     spec:
       serviceAccountName: prometheus
 {% if deploy %}
-      priorityClassName: infrastructure
+      priorityClassName: auxiliary
       nodeSelector:
         preemptible: "false"
 {% else %}
@@ -290,7 +290,7 @@ spec:
         fsGroup: 65534
       containers:
        - name: prometheus
-         image: prom/prometheus:v2.46.0
+         image: prom/prometheus:v2.53.5@sha256:7a34573f0b9c952286b33d537f233cd5b708e12263733aa646e50c33f598f16c
          imagePullPolicy: Always
          command:
           - "/bin/prometheus"
