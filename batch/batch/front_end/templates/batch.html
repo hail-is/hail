@@ -83,6 +83,38 @@ batch_state_indicator, job_state_indicator, danger_button, submit_button, link, 
           <th class='h-12 bg-slate-200 font-light text-md text-left hidden md:table-cell rounded-tr'>Cost</th>
         </thead>
         <tbody class='border border-collapse border-slate-50'>
+          {% for jg in batch['job_groups'] %}
+          <tr class='border border-collapse hover:bg-slate-100'>
+            <td class='font-light pl-4 w-20'>
+              {{ link(base_path ~ '/batches/' ~ jg['batch_id'] ~ '/job-groups/' ~ jg['job_group_id'],
+              jg['job_group_id']) }}
+            </td>
+            <td class='py-1 block overflow-x-auto'>
+              <div class='flex flex-col space-x-0 md:space-x-2 md:flex-row md:flex-wrap'>
+                {% if 'attributes' in jg and 'name' in jg['attributes'] %}
+                <div class='text-wrap'>
+                  {{ link(base_path ~ '/batches/' ~ jg['batch_id'] ~ '/job-groups/' ~ jg['job_group_id'],
+                  jg['attributes']['name'])
+                  }}
+                </div>
+                {% else %}
+                <div class='text-wrap text-zinc-400 italic'>
+                  {{ link(base_path ~ '/batches/' ~ jg['batch_id'] ~ '/job-groups/' ~ jg['job_group_id'], 'no name') }}
+                </div>
+                {% endif %}
+                <div class='flex items-center'>
+                  {{ batch_state_indicator(jg) }}
+                </div>
+              </div>
+            </td>
+            <td class='hidden lg:table-cell font-light py-2 px-4'>
+              {{ jg.get('duration') or '' }}
+            </td>
+            <td class='hidden md:table-cell font-light py-2 px-4'>
+              {{ jg.get('cost') or '' }}
+            </td>
+          </tr>
+          {% endfor %}
           {% for job in batch['jobs'] %}
           <tr class='border border-collapse hover:bg-slate-100'>
             <td class='font-light pl-4 w-20'>
