@@ -245,7 +245,6 @@ object EmitStream {
       cb.goto(producer.LproduceElement)
 
       next.implementLabel(producer.LendOfStream) { cb =>
-        producer.close(cb)
         cb.assign(eosField, true)
         cb.goto(Lret)
       }
