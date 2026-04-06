@@ -668,9 +668,7 @@ object UtilFunctions extends RegistryFunctions {
       "prefixCode",
       tv("T"),
       TBinary,
-      (_, _) => SJavaBytes
-    ) { (region, cb, st, sv, _) =>
-      sv.prefixCode(cb)
-    }
+      (_, _) => SJavaBytes,
+    )((region, cb, st, sv, _) => sv.prefixCode(cb))
   }
 }

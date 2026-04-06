@@ -1,12 +1,11 @@
 package is.hail.types.physical.stypes.primitives
 
 import is.hail.asm4s._
+import is.hail.asm4s.implicits._
+import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.io.PrefixCoder
 import is.hail.types.{RPrimitive, TypeWithRequiredness}
 import is.hail.types.physical.stypes.{SType, SValue}
-import is.hail.expr.ir.EmitCodeBuilder
-
-import is.hail.asm4s.implicits._
-import is.hail.io.PrefixCoder
 
 trait SPrimitive extends SType {
   def ti: TypeInfo[_]

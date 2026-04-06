@@ -2,14 +2,13 @@ package is.hail.types.physical.stypes.interfaces
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.asm4s.implicits._
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
+import is.hail.io.PrefixCoder
 import is.hail.types.{RIterable, TypeWithRequiredness}
 import is.hail.types.physical.{PCanonicalArray, PContainer}
 import is.hail.types.physical.stypes.{EmitType, SType, SValue}
 import is.hail.types.physical.stypes.primitives.{SInt32Value, SInt64Value}
-
-import is.hail.asm4s.implicits._
-import is.hail.io.PrefixCoder
 
 trait SContainer extends SType {
   def elementType: SType
@@ -36,14 +35,17 @@ trait SIndexableValue extends SValue {
   def castToArray(cb: EmitCodeBuilder): SIndexableValue
 
   override def prefixCode(cb: EmitCodeBuilder, pc: Value[PrefixCoder]) = {
-    forEachDefinedOrMissing(cb)({ (cb, _) =>
-      pc.encodeContinuation(cb)
-      if (!st.elementEmitType.required) pc.encodeMissing(cb)
-    }, { (cb, _, sv) =>
-      pc.encodeContinuation(cb)
-      if (!st.elementEmitType.required) pc.encodePresent(cb)
-      sv.prefixCode(cb, pc)
-    })
+    forEachDefinedOrMissing(cb)(
+      { (cb, _) =>
+        pc.encodeContinuation(cb)
+        if (!st.elementEmitType.required) pc.encodeMissing(cb)
+      },
+      { (cb, _, sv) =>
+        pc.encodeContinuation(cb)
+        if (!st.elementEmitType.required) pc.encodePresent(cb)
+        sv.prefixCode(cb, pc)
+      },
+    )
     pc.encodeTerminator(cb)
   }
 

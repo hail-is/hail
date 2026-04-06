@@ -1,14 +1,13 @@
 package is.hail.types.physical.stypes.interfaces
 
 import is.hail.asm4s._
+import is.hail.asm4s.implicits._
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
 import is.hail.expr.ir.orderings.CodeOrdering
+import is.hail.io.PrefixCoder
 import is.hail.types.{RInterval, TypeWithRequiredness}
 import is.hail.types.physical.stypes.{EmitType, SType, SValue}
 import is.hail.types.physical.stypes.primitives.SInt64Value
-
-import is.hail.asm4s.implicits._
-import is.hail.io.PrefixCoder
 
 trait SInterval extends SType {
   def pointType: SType
@@ -25,12 +24,14 @@ trait SIntervalValue extends SValue {
 
   override def prefixCode(cb: EmitCodeBuilder, pc: Value[PrefixCoder]): Unit = {
     def encodeEndpoint(iec: IEmitCode) =
-      iec.consume(cb, {
-        if (!st.pointEmitType.required) pc.encodeMissing(cb)
-      }, { (sv) =>
-        if (!st.pointEmitType.required) pc.encodePresent(cb)
-        sv.prefixCode(cb, pc)
-      })
+      iec.consume(
+        cb,
+        if (!st.pointEmitType.required) pc.encodeMissing(cb),
+        { (sv) =>
+          if (!st.pointEmitType.required) pc.encodePresent(cb)
+          sv.prefixCode(cb, pc)
+        },
+      )
 
     encodeEndpoint(loadStart(cb))
     // we need to take !includesStart since a closed left endpoint sorts before an open one

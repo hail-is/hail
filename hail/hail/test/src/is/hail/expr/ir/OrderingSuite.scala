@@ -572,10 +572,16 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         val result = java.lang.Integer.signum(fcompare(region, v1, v2))
 
         assertEvalsTo(
-          invoke("sign", TInt32, ApplyComparisonOp(Compare,
-            invoke("prefixCode", TBinary, Literal(t, a1)),
-            invoke("prefixCode", TBinary, Literal(t, a2)))),
-          result
+          invoke(
+            "sign",
+            TInt32,
+            ApplyComparisonOp(
+              Compare,
+              invoke("prefixCode", TBinary, Literal(t, a1)),
+              invoke("prefixCode", TBinary, Literal(t, a2)),
+            ),
+          ),
+          result,
         )
       }
     }

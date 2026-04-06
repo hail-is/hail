@@ -36,7 +36,8 @@ class PrefixCoder() {
   def encodeLong(v: Long) = mb.writeLong(swap(flip(v)))
 
   // This produces a total ordering on floats that is close to the expected natural ordering:
-  // -qNaN < -sNaN < -Inf < -normal < -subnormal < -0 < 0 < +subnormal < +normal < +Inf < +sNaN < +qNaN
+  /* -qNaN < -sNaN < -Inf < -normal < -subnormal < -0 < 0 < +subnormal < +normal < +Inf < +sNaN <
+   * +qNaN */
   def encodeFloat(v: Float) = {
     Memory.storeFloat(scratch, 0, v);
     val bits = Memory.loadInt(scratch, 0);
@@ -65,7 +66,7 @@ class PrefixCoder() {
     while (i < bs.length) {
       mb.writeByte(bs(i))
       if (bs(i) == 0) {
-        mb.writeByte(0xFF.toByte)
+        mb.writeByte(0xff.toByte)
       }
       i += 1
     }

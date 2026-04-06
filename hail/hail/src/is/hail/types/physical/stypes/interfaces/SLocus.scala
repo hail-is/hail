@@ -1,14 +1,13 @@
 package is.hail.types.physical.stypes.interfaces
 
 import is.hail.asm4s.{Code, Value}
+import is.hail.asm4s.implicits._
 import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.io.PrefixCoder
 import is.hail.types.{RPrimitive, TypeWithRequiredness}
 import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.physical.stypes.primitives.{SInt32Value, SInt64Value}
 import is.hail.variant.Locus
-
-import is.hail.io.PrefixCoder
-import is.hail.asm4s.implicits._
 
 trait SLocus extends SType {
   def rg: String

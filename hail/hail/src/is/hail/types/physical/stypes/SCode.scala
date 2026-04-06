@@ -4,11 +4,11 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.asm4s.implicits._
 import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.io.PrefixCoder
 import is.hail.types.physical.stypes.concrete.SRNGStateValue
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives._
 import is.hail.types.virtual.Type
-import is.hail.io.PrefixCoder
 
 object SCode {
   def add(cb: EmitCodeBuilder, left: SValue, right: SValue, required: Boolean): SValue = {
@@ -110,7 +110,8 @@ trait SValue {
     new is.hail.types.physical.stypes.concrete.SJavaBytesValue(bytes)
   }
 
-  def prefixCode(cb: EmitCodeBuilder, pc: Value[PrefixCoder]): Unit = throw new UnsupportedOperationException(s"$st has no defined prefix code encoding")
+  def prefixCode(cb: EmitCodeBuilder, pc: Value[PrefixCoder]): Unit =
+    throw new UnsupportedOperationException(s"$st has no defined prefix code encoding")
 
   def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: SType): SValue =
     castTo(cb, region, destType, false)
