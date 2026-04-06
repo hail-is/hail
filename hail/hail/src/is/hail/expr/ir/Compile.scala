@@ -130,7 +130,6 @@ private[ir] trait CompileOps {
               .asInstanceOf[IR]
               .noSharing(ctx),
           )
-          println(Pretty.ssaStyle(lowered))
 
           val fb =
             EmitFunctionBuilder[F](

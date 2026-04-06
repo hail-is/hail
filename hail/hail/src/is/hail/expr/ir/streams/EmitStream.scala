@@ -158,6 +158,7 @@ object EmitStream {
     val isMissing = ecb.genFieldThisRef[Boolean]("isMissing")
     val eosField = ecb.genFieldThisRef[Boolean]("eos")
     val outerRegionField = ecb.genFieldThisRef[Region]("outer")
+    val eltRegionField = ecb.genFieldThisRef[Region]("eltRegion")
 
     ecb.makeAddPartitionRegion()
 
@@ -172,8 +173,9 @@ object EmitStream {
       UnitInfo,
     )
 
-    // Constructor: restores env, produces the stream, and sets up partition region and literals.
-    // Stream production happens here with mb=next, so producer labels are bound to the next method.
+    // Constructor: stores env params as fields, sets up partition region and literals.
+    // Does NOT produce the stream — that happens in next() to keep all stream code in one method.
+    var savedEnv: EmitEnv = null
     ctor.voidWithBuilder { cb =>
       val L = new lir.Block()
       L.append(
@@ -189,26 +191,7 @@ object EmitStream {
       )
       cb += new VCode(L, L, null)
 
-      val newEnv = restoreEnv(cb, 3)
-      val s = EmitStream.produce(
-        new Emit(emitCtx, ecb),
-        streamIR,
-        cb,
-        next,
-        outerRegionField,
-        newEnv,
-        None,
-      )
-      producerRequired = s.required
-      s.consume(
-        cb,
-        if (!producerRequired) cb.assign(isMissing, true),
-        { stream =>
-          if (!producerRequired) cb.assign(isMissing, false)
-          producer = stream.asStream.getProducer(next)
-          elementPType = producer.element.emitType.storageType.setRequired(true)
-        },
-      )
+      savedEnv = restoreEnv(cb, 3)
 
       val self =
         cb.memoize(
@@ -221,21 +204,62 @@ object EmitStream {
       cb += self.invoke[RegionPool, Unit]("setPool", partitionRegion.getPool())
     }
 
+    // All stream production and iteration code lives in next(), avoiding method-boundary issues
+    // with SStreamControlFlow producers (which assert producer.method == consuming method).
     next.emitWithBuilder { cb =>
+      val optStream = EmitCode.fromI(next)(cb =>
+        EmitStream.produce(
+          new Emit(emitCtx, ecb), streamIR, cb, cb.emb, outerRegionField, savedEnv, None,
+        )
+      )
+      producerRequired = optStream.required
+      producer = optStream.pv.asStream.getProducer(cb.emb)
+      elementPType = producer.element.emitType.storageType.setRequired(true)
+
+      val didSetup = next.genFieldThisRef[Boolean]("didSetup")
       val ret = cb.newLocal[Long]("ret")
       val Lret = CodeLabel()
+
+      cb.if_(
+        !didSetup, {
+          optStream.toI(cb).consume(
+            cb,
+            if (!producerRequired) cb.assign(isMissing, true),
+            { stream =>
+              if (!producerRequired) cb.assign(isMissing, false)
+            },
+          )
+          cb.assign(producer.elementRegion, eltRegionField)
+          producer.initialize(cb, outerRegionField)
+          cb.assign(didSetup, true)
+          cb.assign(eosField, false)
+        },
+      )
+
+      cb.if_(
+        eosField, {
+          cb.goto(Lret)
+        },
+      )
+
       cb.goto(producer.LproduceElement)
-      cb.define(producer.LproduceElementDone)
-      producer.element.toI(cb)
-        .consume(
-          cb,
-          cb.assign(ret, 0L),
-          value =>
-            cb.assign(ret, elementPType.store(cb, producer.elementRegion, value, false)),
-        )
-      cb.goto(Lret)
-      cb.define(producer.LendOfStream)
-      cb.assign(eosField, true)
+
+      next.implementLabel(producer.LendOfStream) { cb =>
+        producer.close(cb)
+        cb.assign(eosField, true)
+        cb.goto(Lret)
+      }
+
+      next.implementLabel(producer.LproduceElementDone) { cb =>
+        producer.element.toI(cb)
+          .consume(
+            cb,
+            cb.assign(ret, 0L),
+            value =>
+              cb.assign(ret, elementPType.store(cb, producer.elementRegion, value, false)),
+          )
+        cb.goto(Lret)
+      }
 
       cb.define(Lret)
       ret
@@ -248,13 +272,8 @@ object EmitStream {
         UnitInfo,
       )
     init.voidWithBuilder { cb =>
-      val outerRegion = init.getCodeParam[Region](1)
-      val eltRegion = init.getCodeParam[Region](2)
-
-      cb.assign(producer.elementRegion, eltRegion)
-      cb.assign(outerRegionField, outerRegion)
-      producer.initialize(cb, outerRegion)
-      cb.assign(eosField, false)
+      cb.assign(outerRegionField, init.getCodeParam[Region](1))
+      cb.assign(eltRegionField, init.getCodeParam[Region](2))
     }
 
     val isEOS = ecb.newEmitMethod("eos", FastSeq[ParamType](), BooleanInfo)
