@@ -345,7 +345,7 @@ class Tests(unittest.TestCase):
                 was_split=True,
                 s='S1',
                 GT=hl.Call(alleles=[0], phased=False),
-                PL=None,
+                PL=[0, 200],
             ),
             hl.Struct(
                 locus=hl.Locus(contig='Y', position=11000, reference_genome='GRCh37'),
