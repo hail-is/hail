@@ -9,15 +9,12 @@ case object TBinary extends Type {
   override def _typeCheck(a: Any): Boolean = a.isInstanceOf[Array[Byte]]
 
   override def mkOrdering(sm: HailStateManager, _missingEqual: Boolean = true): ExtendedOrdering =
-    ExtendedOrdering.iterableOrdering(new ExtendedOrdering {
+    new ExtendedOrdering {
       val missingEqual = _missingEqual
 
       override def compareNonnull(x: Any, y: Any): Int =
-        java.lang.Integer.compare(
-          java.lang.Byte.toUnsignedInt(x.asInstanceOf[Byte]),
-          java.lang.Byte.toUnsignedInt(y.asInstanceOf[Byte]),
-        )
-    })
+        java.util.Arrays.compareUnsigned(x.asInstanceOf[Array[Byte]], y.asInstanceOf[Array[Byte]])
+    }
 
   override def isIsomorphicTo(t: Type): Boolean =
     this == t
