@@ -76,14 +76,6 @@ class RouterAsyncFS(AsyncFS):
             or aioaws.S3AsyncFS.valid_url(url)
         )
 
-    @staticmethod
-    def valid_google_url(url) -> bool:
-        return aiogoogle.GoogleStorageAsyncFS.valid_url(url)
-
-    @staticmethod
-    def valid_local_url(url) -> bool:
-        return LocalAsyncFS.valid_url(url)
-
     async def _get_fs(self, url: str):
         if LocalAsyncFS.valid_url(url):
             if self._local_fs is None:
@@ -113,6 +105,16 @@ class RouterAsyncFS(AsyncFS):
                 self._exit_stack.push_async_callback(self._s3_fs.close)
             return self._s3_fs
         raise ValueError(f'no file system found for url {url}')
+
+    async def copy_between_fs(
+        self,
+        srcfile: str,
+        srcstat: FileStatus,
+        destfile: str,
+        **kwargs,
+    ):
+        fs = await self._get_fs(srcfile)
+        await fs.copy_between_fs(srcfile, srcstat, destfile, **kwargs)
 
     async def open(self, url: str) -> ReadableStream:
         fs = await self._get_fs(url)

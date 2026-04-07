@@ -6,18 +6,15 @@ from typing import Any, AsyncIterator, Awaitable, Callable, Dict, List, Optional
 
 import humanize
 
-from hailtop.aiotools import LocalAsyncFS
-from hailtop.fs.router_fs import RouterFS
-
-from ...aiocloud.aiogoogle import GoogleStorageAsyncFS
 from ...utils import (
+    bounded_gather2,
     humanize_timedelta_msecs,
     retry_transient_errors,
     time_msecs,
     url_basename,
     url_join,
 )
-from ..weighted_semaphore import WeightedSemaphore, weighted_bounded_gather2
+from ..weighted_semaphore import WeightedSemaphore
 from .exceptions import FileAndDirectoryError, UnexpectedEOFError
 from .fs import AsyncFS, FileListEntry, FileStatus, MultiPartCreate
 
@@ -192,7 +189,7 @@ class SourceCopier:
     """
 
     def __init__(
-        self, router_fs: RouterFS, xfer_sema: WeightedSemaphore, src: str, dest: str, treat_dest_as: str, dest_type_task
+        self, router_fs: AsyncFS, xfer_sema: WeightedSemaphore, src: str, dest: str, treat_dest_as: str, dest_type_task
     ):
         self.router_fs = router_fs
         self.xfer_sema = xfer_sema
@@ -307,9 +304,7 @@ class SourceCopier:
                     return_exceptions,
                 )
 
-            await weighted_bounded_gather2(
-                sema, [functools.partial(f, i) for i in range(n_parts)], cancel_on_error=True
-            )
+            await bounded_gather2(sema, *[functools.partial(f, i) for i in range(n_parts)], cancel_on_error=True)
 
     async def _copy_file_multi_part(
         self,
@@ -322,11 +317,15 @@ class SourceCopier:
     ) -> None:
         success = False
         try:
-            if GoogleStorageAsyncFS.valid_url(srcfile) and LocalAsyncFS.valid_url(destfile):
-                await self.router_fs._get_fs(srcfile).copy_to_local_file_2(
-                    sema, self.xfer_sema, source_report, srcfile, srcstat, destfile, return_exceptions
+            try:
+                await self.router_fs.copy_between_fs(
+                    srcfile,
+                    srcstat,
+                    destfile,
+                    sema=sema,
+                    xfer_sema=self.xfer_sema,
                 )
-            else:
+            except NotImplementedError:
                 await self._copy_file_multi_part_main(
                     sema, source_report, srcfile, srcstat, destfile, return_exceptions
                 )
@@ -460,7 +459,7 @@ class SourceCopier:
         copies, bytes_to_copy = await retry_transient_errors(create_copies)
         source_report.start_files(len(copies))
         source_report.start_bytes(bytes_to_copy)
-        await weighted_bounded_gather2(sema, copies, cancel_on_error=True)
+        await bounded_gather2(sema, *copies, cancel_on_error=True)
 
     async def copy(self, sema: WeightedSemaphore, source_report: SourceReport, return_exceptions: bool):
         try:
@@ -582,9 +581,9 @@ class Copier:
                     if transfer.treat_dest_as == Transfer.DEST_IS_TARGET:
                         raise NotADirectoryError(transfer.dest)
 
-                    await weighted_bounded_gather2(
+                    await bounded_gather2(
                         sema,
-                        [
+                        *[
                             functools.partial(self.copy_source, sema, transfer, r, s, dest_type_task, return_exceptions)
                             for r, s in zip(src_report, src)
                         ],
@@ -610,6 +609,7 @@ class Copier:
         transfer: Union[Transfer, List[Transfer]],
         return_exceptions: bool,
     ):
+        '''
         transfer_report = copy_report._transfer_report
         try:
             google_to_local_transfers: List[Transfer] = []
@@ -663,12 +663,20 @@ class Copier:
                 google_to_local_reports,
                 return_exceptions=return_exceptions,
             )
+        '''
+        transfer_report = copy_report._transfer_report
+        try:
+            if isinstance(transfer, Transfer):
+                assert isinstance(transfer_report, TransferReport)
+                await self._copy_one_transfer(sema, transfer_report, transfer, return_exceptions)
+                return
 
-            await weighted_bounded_gather2(
+            assert isinstance(transfer_report, list)
+            await bounded_gather2(
                 sema,
-                [
+                *[
                     functools.partial(self._copy_one_transfer, sema, r, t, return_exceptions)
-                    for r, t in zip(copier_reports, copier_transfers)
+                    for r, t in zip(transfer_report, transfer)
                 ],
                 return_exceptions=return_exceptions,
                 cancel_on_error=True,
