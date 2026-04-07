@@ -523,8 +523,9 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
       case exc: FileAndDirectoryException
           if exc.getMessage() == s"$d/x appears as both file $d/x and directory $d/x/." =>
       case exc: FileAlreadyExistsException
-          if exc.getMessage() == s"Destination exists and is not a directory: $d/x" =>
-      case other => fail(other)
+          if exc.getMessage() == s"Destination exists and is not a directory: $d/x" ||
+            exc.getMessage() == s"Destination exists and is not a directory: /private$d/x" =>
+      case other => fail("unexpected exception", other)
     }
   }
 
@@ -619,7 +620,7 @@ class HadoopFSSuite extends HailSuite with FSSuite {
   override val root: String = "file:/"
 
   override lazy val fsResourcesRoot: String =
-    "file:" + new java.io.File("./src/test/resources/fs").getCanonicalPath
+    "file:" + new java.io.File(getTestResource("fs")).getCanonicalPath
 
   override lazy val tmpdir: String = ctx.tmpdir
 }
