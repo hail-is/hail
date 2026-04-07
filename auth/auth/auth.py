@@ -880,16 +880,15 @@ async def get_userinfo(request: web.Request, auth_token: str) -> UserData:
             userdata = await get_userinfo_from_login_id_or_hail_identity_id(request, uid)
 
     if userdata:
-        if userdata['state'] == 'active':
-            current_uid = userdata['id']
-            await db.execute_update(
-                """
-    UPDATE users
-    SET last_activated = CURRENT_TIMESTAMP(3)
-    WHERE id = %s;
-    """,
-                current_uid,
-            )
+        current_uid = userdata['id']
+        await db.execute_update(
+            """
+UPDATE users
+SET last_activated = CURRENT_TIMESTAMP(3)
+WHERE id = %s;
+""",
+            current_uid,
+        )
         return userdata
 
     raise web.HTTPUnauthorized()
