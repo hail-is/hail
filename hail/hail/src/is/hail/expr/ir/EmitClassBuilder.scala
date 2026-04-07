@@ -268,7 +268,7 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
     : EmitMethodBuilder[C] =
     ecb.genEmitMethod[A1, A2, A3, R](baseName)
 
-  def geEmitMethod[A1: TypeInfo, A2: TypeInfo, A3: TypeInfo, A4: TypeInfo, R: TypeInfo](
+  def genEmitMethod[A1: TypeInfo, A2: TypeInfo, A3: TypeInfo, A4: TypeInfo, R: TypeInfo](
     baseName: String
   ): EmitMethodBuilder[C] =
     ecb.genEmitMethod[A1, A2, A3, A4, R](baseName)
@@ -290,7 +290,7 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def open(path: Code[String], checkCodec: Code[Boolean]): Code[InputStream] =
     Code.newInstance[java.io.BufferedInputStream, InputStream](
-      getFS.invoke[String, Boolean, InputStream]("open", path, checkCodec)
+      openUnbuffered(path, checkCodec)
     )
 
   def createUnbuffered(path: Code[String]): Code[OutputStream] =
@@ -298,7 +298,7 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def create(path: Code[String]): Code[OutputStream] =
     Code.newInstance[java.io.BufferedOutputStream, OutputStream](
-      getFS.invoke[String, OutputStream]("create", path)
+      createUnbuffered(path)
     )
 }
 
@@ -973,11 +973,6 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
     : EmitMethodBuilder[C] =
     newStaticEmitMethod(genName("sm", baseName), argsInfo, returnInfo)
 
-  def getUnsafeReader(path: Code[String], checkCodec: Code[Boolean]): Code[InputStream] =
-    getFS.invoke[String, Boolean, InputStream]("unsafeReader", path, checkCodec)
-
-  def getUnsafeWriter(path: Code[String]): Code[OutputStream] =
-    getFS.invoke[String, OutputStream]("unsafeWriter", path)
 }
 
 object EmitFunctionBuilder {
