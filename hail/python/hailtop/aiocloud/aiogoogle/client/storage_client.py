@@ -1,6 +1,5 @@
 import asyncio
 import datetime
-import functools
 import logging
 import os
 import urllib.parse
@@ -26,17 +25,15 @@ import aiohttp
 from google.auth.aio.credentials import AnonymousCredentials
 from google.cloud.storage import Client, transfer_manager
 from google.oauth2.credentials import Credentials
-from jupyter_lsp.virtual_documents_shadow import MAX_WORKERS
 from multidict import CIMultiDictProxy  # pylint: disable=unused-import  # pylint: disable=unused-import
 
 from hailtop import timex
 from hailtop.aiocloud.common import AnonymousCloudCredentials
 from hailtop.aiotools import (
     FeedableAsyncIterable,
-    Transfer,
+    LocalAsyncFS,
     WeightedSemaphore,
     WriteBuffer,
-    weighted_bounded_gather2,
 )
 from hailtop.aiotools.fs import (
     AsyncFS,
@@ -48,7 +45,6 @@ from hailtop.aiotools.fs import (
     IsABucketError,
     MultiPartCreate,
     ReadableStream,
-    SourceReport,
     UnexpectedEOFError,
     WritableStream,
 )
@@ -58,8 +54,6 @@ from hailtop.utils import (
     blocking_to_async,
     retry_transient_errors,
     secret_alnum_string,
-    url_basename,
-    url_join,
 )
 
 from ...common.session import BaseSession
@@ -756,6 +750,8 @@ class GoogleStorageAsyncFS(AsyncFS):
         if bucket_allow_list is None:
             bucket_allow_list = []
         self.allowed_storage_locations = bucket_allow_list
+        self._sema = WeightedSemaphore(self._storage_client.MAX_WORKERS * 10)
+        self._xfer_sema = WeightedSemaphore(self._storage_client.CHUNK_SIZE * 10)
 
     @staticmethod
     def schemes() -> Set[str]:
@@ -985,125 +981,31 @@ class GoogleStorageAsyncFS(AsyncFS):
                 raise FileNotFoundError(url) from e
             raise
 
-    async def copy_to_local_2(
+    async def copy_between_fs(
         self,
-        sema: WeightedSemaphore,
-        xfer_sema: WeightedSemaphore,
-        source_report: SourceReport,
         srcfile: str,
         srcstat: FileStatus,
         destfile: str,
-        return_exceptions: bool,
+        **kwargs,
     ):
-        size = await srcstat.size()
-        if size > self._storage_client.CHUNK_SIZE:
-            with sema.acquire_manager(MAX_WORKERS):
-                await self._copy_single_large_file(xfer_sema, srcfile, destfile, size, source_report, return_exceptions)
-        else:
-            await self._copy_single_local_file(xfer_sema, srcfile, destfile, size, source_report, return_exceptions)
-
-    async def copy_to_local(
-        self,
-        sema: WeightedSemaphore,
-        xfer_sema: WeightedSemaphore,
-        transfers: List[Transfer],
-        source_reports: List[SourceReport],
-        *,
-        return_exceptions: bool = False,
-    ):
-        copy_operations = []
-        copy_operation_thread_count = []
-        for transfer, report in zip(transfers, source_reports):
-            if not isinstance(transfer.src, str):
-                raise TypeError(f'Expected a single source when copying from {transfer.src}')
-            if await self.isfile(transfer.src):
-                stat = await self.statfile(transfer.src)
-                size = await stat.size()
-                filename = url_basename(transfer.src)
-                if transfer.treat_dest_as == Transfer.DEST_DIR or (
-                    transfer.treat_dest_as == Transfer.INFER_DEST and transfer.dest.endswith('/')
-                ):
-                    target_dest = url_join(transfer.dest, filename)
-                else:
-                    target_dest = transfer.dest
-
-                if os.path.isdir(target_dest):
-                    raise IsADirectoryError(transfer.dest)
-
-                if size > self._storage_client.CHUNK_SIZE:
-                    copy_operations.append(
-                        functools.partial(
-                            self._copy_single_large_file,
-                            xfer_sema,
-                            transfer.src,
-                            target_dest,
-                            size,
-                            report,
-                            return_exceptions,
-                        )
-                    )
-                    copy_operation_thread_count.append(self._storage_client.MAX_WORKERS)
-                else:
-                    copy_operations.append(
-                        functools.partial(
-                            self._copy_single_local_file,
-                            xfer_sema,
-                            transfer.src,
-                            target_dest,
-                            size,
-                            report,
-                            return_exceptions,
-                        )
-                    )
-                    copy_operation_thread_count.append(1)
+        if LocalAsyncFS.valid_url(destfile):
+            if kwargs.get('sema'):
+                sema = cast(WeightedSemaphore, kwargs.get('sema'))
             else:
-                async for file in await self.listfiles(transfer.src, recursive=True):
-                    stat = await file.status()
-                    size = await stat.size()
-                    filename = await file.url_full()
-                    relfilename = filename[len(transfer.src) :].lstrip('/')
-                    if transfer.treat_dest_as in (Transfer.DEST_DIR, Transfer.INFER_DEST):
-                        target_dest = url_join(
-                            url_join(transfer.dest, url_basename(transfer.src.rstrip('/'))), relfilename
-                        )
-                    else:
-                        target_dest = url_join(transfer.dest, relfilename)
+                sema = self._sema
+            if kwargs.get('xfer_sema'):
+                xfer_sema = cast(WeightedSemaphore, kwargs.get('xfer_sema'))
+            else:
+                xfer_sema = self._xfer_sema
 
-                    if os.path.isfile(target_dest):
-                        raise NotADirectoryError(transfer.dest)
-
-                    if size > self._storage_client.CHUNK_SIZE:
-                        copy_operations.append(
-                            functools.partial(
-                                self._copy_single_large_file,
-                                xfer_sema,
-                                filename,
-                                target_dest,
-                                size,
-                                report,
-                                return_exceptions,
-                            )
-                        )
-                        copy_operation_thread_count.append(self._storage_client.MAX_WORKERS)
-                    else:
-                        copy_operations.append(
-                            functools.partial(
-                                self._copy_single_local_file,
-                                xfer_sema,
-                                filename,
-                                target_dest,
-                                size,
-                                report,
-                                return_exceptions,
-                            )
-                        )
-                        copy_operation_thread_count.append(1)
-        await weighted_bounded_gather2(
-            sema,
-            copy_operations,
-            copy_operation_thread_count,
-            cancel_on_error=True,
-        )
+            size = await srcstat.size()
+            if size > self._storage_client.CHUNK_SIZE:
+                async with sema.acquire_manager(self._storage_client.MAX_WORKERS):
+                    await self._copy_single_large_file(xfer_sema, srcfile, destfile)
+            else:
+                await self._copy_single_local_file(xfer_sema, srcfile, destfile, size)
+        else:
+            raise NotImplementedError
 
     async def _copy_single_local_file(
         self,
@@ -1111,53 +1013,20 @@ class GoogleStorageAsyncFS(AsyncFS):
         src: str,
         dest: str,
         size: int,
-        report: SourceReport,
-        return_exceptions: bool,
     ) -> None:
         async with xfer_sema.acquire_manager(size):
             bucket, name = self.get_bucket_and_name(src)
-            report.start_files(1)
-            report.start_bytes(size)
-            success = False
-            try:
-                await retry_transient_errors(self._storage_client.download_single_file, bucket, name, dest)
-                success = True
-            except Exception as e:
-                if return_exceptions:
-                    report.set_file_error(src, dest, e)
-                    report.set_exception(e)
-                else:
-                    raise e
-            finally:
-                report.finish_files(1, failed=not success)
-                report.finish_bytes(size)
+            await retry_transient_errors(self._storage_client.download_single_file, bucket, name, dest)
 
     async def _copy_single_large_file(
         self,
         xfer_sema: WeightedSemaphore,
         src: str,
         dest: str,
-        size: int,
-        report: SourceReport,
-        return_exceptions: bool,
     ) -> None:
         async with xfer_sema.acquire_manager(self._storage_client.CHUNK_SIZE):
-            success = False
-            try:
-                bucket, name = self.get_bucket_and_name(src)
-                report.start_files(1)
-                report.start_bytes(size)
-                await retry_transient_errors(self._storage_client.download_large_file, bucket, name, dest)
-                success = True
-            except Exception as e:
-                if return_exceptions:
-                    report.set_file_error(src, dest, e)
-                    report.set_exception(e)
-                else:
-                    raise e
-            finally:
-                report.finish_files(1, failed=not success)
-                report.finish_bytes(size)
+            bucket, name = self.get_bucket_and_name(src)
+            await retry_transient_errors(self._storage_client.download_large_file, bucket, name, dest)
 
     async def copy_within_gcs(
         self, src: str, dest: str, callback: Optional[Callable[[Dict[str, Any], bool], None]] = None

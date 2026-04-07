@@ -40,11 +40,10 @@ class GrowingSemaphore(WeightedSemaphore):
                 progress, tid = self.progress_and_tid
                 progress.update(tid, advance=diff)
 
-    async def __aenter__(self) -> 'GrowingSemaphore':
+    async def __aenter__(self):
         self.task = asyncio.create_task(self._grow())
-        return self
 
-    def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
         if self.task is not None:
             if self.task.done() and not self.task.cancelled():
                 if exc := self.task.exception():
