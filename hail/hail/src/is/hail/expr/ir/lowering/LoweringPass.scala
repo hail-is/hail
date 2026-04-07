@@ -63,20 +63,13 @@ case object LowerMatrixToTablePass extends LoweringPass {
   override val context: String = "LowerMatrixToTable"
   override def before: Invariant = AnyIR
   override def after: Invariant = before and NoMatrixIR
-
-  override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = ir match {
-    case x: IR => LowerMatrixIR(ctx, x)
-    case x: TableIR => LowerMatrixIR(ctx, x)
-    case x: MatrixIR => LowerMatrixIR(ctx, x)
-    case x: BlockMatrixIR => LowerMatrixIR(ctx, x)
-  }
+  override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = LowerMatrixIR(ctx, ir)
 }
 
 case object LiftRelationalValuesToRelationalLets extends LoweringPass {
   override val context: String = "LiftRelationalValuesToRelationalLets"
   override def before: Invariant = AnyIR and NoMatrixIR
   override def after: Invariant = before
-
   override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = LiftRelationalValues(ir)
 }
 
@@ -126,15 +119,14 @@ case object InlineApplyIR extends LoweringPass {
 
 case object LowerArrayAggsToRunAggsPass extends LoweringPass {
   override val context: String = "LowerArrayAggsToRunAggs"
-  override def before: Invariant = CompilableIR and NoApplyIR
-  override def after: Invariant = EmittableIR
+  override def before: Invariant = AnyIR and CompilableIR and NoApplyIR
+  override def after: Invariant = before and EmittableIR
 
   override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR =
     ctx.time {
-      val x = ir.noSharing(ctx)
-      val r = Requiredness(x, ctx)
+      val r = Requiredness(ir, ctx)
       RewriteBottomUp(
-        x,
+        ir,
         {
           case x @ StreamAgg(a, name, query) =>
             val aggs = Extract(ctx, query, r)
@@ -153,7 +145,7 @@ case object LowerArrayAggsToRunAggsPass extends LoweringPass {
 
             if (newNode.typ != x.typ)
               throw new RuntimeException(s"types differ:\n  new: ${newNode.typ}\n  old: ${x.typ}")
-            Some(newNode.noSharing(ctx))
+            Some(newNode)
           case x @ StreamAggScan(a, name, query) =>
             val aggs = Extract(ctx, query, r, isScan = true)
 
@@ -170,7 +162,7 @@ case object LowerArrayAggsToRunAggsPass extends LoweringPass {
             )
             if (newNode.typ != x.typ)
               throw new RuntimeException(s"types differ:\n  new: ${newNode.typ}\n  old: ${x.typ}")
-            Some(newNode.noSharing(ctx))
+            Some(newNode)
           case _ => None
         },
       )
@@ -179,7 +171,7 @@ case object LowerArrayAggsToRunAggsPass extends LoweringPass {
 
 case class EvalRelationalLetsPass(passesBelow: LoweringPipeline) extends LoweringPass {
   override val context: String = "EvalRelationalLets"
-  override def before: Invariant = NoMatrixIR
+  override def before: Invariant = AnyIR and NoMatrixIR
   override def after: Invariant = before and NoRelationalLets
 
   override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR =
@@ -188,7 +180,7 @@ case class EvalRelationalLetsPass(passesBelow: LoweringPipeline) extends Lowerin
 
 case object LowerTableKeyByAndAggregatePass extends LoweringPass {
   override val context: String = "LowerTableKeyByAndAggregate"
-  override def before: Invariant = NoRelationalLets and NoMatrixIR
+  override def before: Invariant = AnyIR and NoRelationalLets and NoMatrixIR
   override def after: Invariant = before and NoTableKeyByAndAggregate
 
   override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = ctx.time {
@@ -230,7 +222,7 @@ case object LowerTableKeyByAndAggregatePass extends LoweringPass {
                   bufferSize,
                 ),
               )
-            }.noSharing(ctx)
+            }
 
           val analyses = LoweringAnalyses(partiallyAggregated, ctx)
           val rt = analyses.requirednessAnalysis.lookup(partiallyAggregated).asInstanceOf[RTable]
@@ -304,7 +296,10 @@ case object LowerTableKeyByAndAggregatePass extends LoweringPass {
 
 case object LowerAndExecuteShufflesPass extends LoweringPass {
   override val context: String = "LowerAndExecuteShuffles"
-  override def before: Invariant = NoRelationalLets and NoMatrixIR and NoTableKeyByAndAggregate
+
+  override def before: Invariant =
+    AnyIR and NoRelationalLets and NoMatrixIR and NoTableKeyByAndAggregate
+
   override def after: Invariant = before and LoweredShuffles
 
   override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR =

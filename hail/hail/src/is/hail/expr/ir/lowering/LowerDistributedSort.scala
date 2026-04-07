@@ -411,7 +411,7 @@ object LowerDistributedSort extends Logging {
                         Apply(
                           "floor",
                           FastSeq(),
-                          IndexedSeq(idx.toD * ((numSamples + 1) / branchingFactor)),
+                          IndexedSeq(idx.toD * ((numSamples.clone + 1) / branchingFactor)),
                           TFloat64,
                           ErrorIDs.NO_ERROR,
                         ).toI - 1,

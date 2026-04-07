@@ -24,7 +24,7 @@ import is.hail.variant.Call2
 import org.apache.spark.sql.Row
 import org.scalatest.Inspectors.forAll
 import org.scalatest.enablers.InspectorAsserting.assertingNatureOfAssertion
-import org.testng.annotations.Test
+import org.testng.annotations.{DataProvider, Test}
 
 class EmitStreamSuite extends HailSuite {
 
@@ -46,7 +46,7 @@ class EmitStreamSuite extends HailSuite {
       LongInfo,
     )
     val mb = fb.apply_method
-    val ir = streamIR.deepCopy()
+    val ir = streamIR.unsafeClone
 
     val emitContext = EmitContext.analyze(ctx, ir)
 
@@ -145,7 +145,7 @@ class EmitStreamSuite extends HailSuite {
     val fb = EmitFunctionBuilder[Region, Int](ctx, "eval_stream_len")
     val mb = fb.apply_method
     val region = mb.getCodeParam[Region](1)
-    val ir = streamIR.deepCopy()
+    val ir = streamIR.unsafeClone
     val emitContext = EmitContext.analyze(ctx, ir)
 
     fb.emitWithBuilder { cb =>
@@ -314,7 +314,7 @@ class EmitStreamSuite extends HailSuite {
     val tests: Array[(IR, IndexedSeq[Any])] = Array(
       mapIR(ten)(_ * 2) -> (0 until 10).map(_ * 2),
       mapIR(ten)(_.toL) -> (0 until 10).map(_.toLong),
-      mapIR(mapIR(ten)(_ + 1))(y => y * y) -> (0 until 10).map(i => (i + 1) * (i + 1)),
+      mapIR(mapIR(ten)(_.clone + 1))(y => y * y) -> (0 until 10).map(i => (i + 1) * (i + 1)),
       mapIR(ten)(_ => NA(TInt32)) -> IndexedSeq.tabulate(10)(_ => null),
     )
     forAll(tests) { case (ir, v) =>
@@ -348,7 +348,7 @@ class EmitStreamSuite extends HailSuite {
       flatMapIR(rangeIR(6))(_ => rangeIR(NA(TInt32))) ->
         IndexedSeq(),
       flatMapIR(rangeIR(NA(TInt32)))(rangeIR(_)) -> null,
-      flatMapIR(rangeIR(20))(x => flatMapIR(rangeIR(x))(y => rangeIR(x + y))) ->
+      flatMapIR(rangeIR(20))(x => flatMapIR(rangeIR(x))(y => rangeIR(x.clone + y))) ->
         (0 until 20).flatMap(x => (0 until x).flatMap(y => 0 until (x + y))),
       flatMapIR(filterIR(rangeIR(5))(_ cne 3)) { y =>
         MakeStream(IndexedSeq(y, y), TStream(TInt32))
@@ -768,16 +768,22 @@ class EmitStreamSuite extends HailSuite {
     assert(compiled == expected)
   }
 
-  @Test def testEmitScan(): Unit = {
-    val tests: Array[(IR, IndexedSeq[Any])] = Array(
-      streamScanIR(MakeStream(IndexedSeq(), TStream(TInt32)), 9)(_ + _) -> IndexedSeq(9),
-      streamScanIR(mapIR(rangeIR(4))(x => x * x), 1)(_ + _) ->
+  @DataProvider(name = "EmitScan")
+  def emitScanData: Array[Array[Any]] =
+    Array(
+      Array(
+        streamScanIR(MakeStream(IndexedSeq(), TStream(TInt32)), 9)(_.clone + _),
+        IndexedSeq(9),
+      ),
+      Array(
+        streamScanIR(mapIR(rangeIR(4))(x => x * x), 1)(_.clone + _),
         IndexedSeq(1, 1 /*1+0*0*/, 2 /*1+1*1*/, 6 /*2+2*2*/, 15 /*6+3*3*/ ),
+      ),
     )
-    forAll(tests) { case (ir, v) =>
-      assert(evalStream(ir) == v, Pretty(ctx, ir))
-      assert(evalStreamLen(ir).contains(v.length), Pretty(ctx, ir))
-    }
+
+  @Test def testEmitScan(ir: IR, v: IndexedSeq[Any]): Unit = {
+    assert(evalStream(ir) == v, Pretty(ctx, ir))
+    assert(evalStreamLen(ir).contains(v.length), Pretty(ctx, ir))
   }
 
   @Test def testEmitAggScan(): Unit = {
@@ -831,7 +837,7 @@ class EmitStreamSuite extends HailSuite {
       streamScanIR(
         In(0, SingleCodeEmitParamType(true, StreamSingleCodeType(true, PInt32(true), true))),
         zero = 0,
-      )((a, x) => a + x * x),
+      )((a, x) => a.clone + x * x),
       false,
       intsPType,
     )
@@ -906,7 +912,7 @@ class EmitStreamSuite extends HailSuite {
         ArrayZipBehavior.AssertSameLength,
       )(_ * _),
       F64(0d),
-    )(_ + _)))
+    )(_.clone + _)))
 
     val (Some(PTypeReferenceSingleCodeType(pt)), f) = Compile[AsmFunction2RegionLongLong](
       ctx,
@@ -936,16 +942,12 @@ class EmitStreamSuite extends HailSuite {
       MakeStream(FastSeq(Str("one"), Str("two"), Str("three"), Str("four")), TStream(TString), true)
 
     assertEvalsTo(
-      foldIR(ToStream(ints, requiresMemoryManagementPerElement = false), I32(-1)) { (acc, elt) =>
-        acc + elt
-      },
+      foldIR(ToStream(ints), I32(-1))((acc, elt) => acc.clone + elt),
       9,
     )
 
     assertEvalsTo(
-      foldIR(ToStream(strsLit, requiresMemoryManagementPerElement = false), Str("")) { (acc, elt) =>
-        invoke("concat", TString, acc, elt)
-      },
+      foldIR(ToStream(strsLit), Str(""))((acc, elt) => invoke("concat", TString, acc, elt)),
       "onetwothreefour",
     )
 
@@ -1080,7 +1082,7 @@ class EmitStreamSuite extends HailSuite {
       )
     }
 
-  def sumIR(x: IR): IR = foldIR(x, 0) { case (acc, value) => acc + value }
+  def sumIR(x: IR): IR = foldIR(x, 0) { case (acc, value) => acc.clone + value }
 
   def foldLength(x: IR): IR = sumIR(mapIR(x)(_ => I32(1)))
 

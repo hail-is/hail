@@ -44,7 +44,7 @@ class RequirednessSuite extends HailSuite {
     if (r)
       MakeStream(FastSeq(int(elt), int(required)), tstream)
     else
-      mapIR(NA(tstream))(x => x + int(elt))
+      mapIR(NA(tstream))(_.clone + int(elt))
 
   def array(r: Boolean, elt: Boolean): IR = ToArray(stream(r, elt))
 
@@ -101,7 +101,7 @@ class RequirednessSuite extends HailSuite {
     "Interval",
     TInterval(point.typ),
     point,
-    point.deepCopy(),
+    point.unsafeClone,
     True(),
     if (r) True() else NA(TBoolean),
   )
@@ -261,7 +261,7 @@ class RequirednessSuite extends HailSuite {
     ) { case (recur, Seq(param1, param2)) =>
       If(
         False(), // required
-        MakeArray(FastSeq(param1), tnestedarray), // required
+        MakeArray(FastSeq(param1.clone), tnestedarray), // required
         If(
           param2 <= I32(1), // possibly missing
           recur(FastSeq(array(required, optional), int(required))),
@@ -284,11 +284,11 @@ class RequirednessSuite extends HailSuite {
     val notExtendNA = zipIR(
       FastSeq(stream(required, optional), stream(required, required)),
       ArrayZipBehavior.TakeMinLength,
-    ) { case Seq(s1, s2) => s1 + s2 }
+    ) { case Seq(s1, s2) => s1.clone + s2 }
     val extendNA = zipIR(
       FastSeq(stream(required, required), stream(required, required)),
       ArrayZipBehavior.ExtendNA,
-    ) { case Seq(s1, s2) => s1 + s2 }
+    ) { case Seq(s1, s2) => s1.clone + s2 }
     nodes += Array(notExtendNA, pstream(required, optional))
     nodes += Array(extendNA, pstream(required, optional))
     // ArraySort
@@ -298,7 +298,8 @@ class RequirednessSuite extends HailSuite {
     )
     // CollectDistributedArray
     nodes += Array(
-      cdaIR(stream(optional, required), int(optional), "test", NA(TString))(_ + _),
+      cdaIR(stream(optional, required), int(optional), "test", NA(TString))(_.clone + _),
+      cdaIR(stream(optional, required), int(optional), "test", NA(TString))(_.clone + _),
       parray(optional, optional),
     )
 
@@ -450,7 +451,7 @@ class RequirednessSuite extends HailSuite {
 
     nodes += Array(
       TableUnion(FastSeq(
-        table.deepCopy(),
+        table.unsafeClone,
         TableMapRows(table, insertIR(row, "a" -> nestedarray(optional, optional, required))),
       )),
       rowType.insertFields(FastSeq("a" -> pnestedarray(optional, optional, optional))),
@@ -486,7 +487,7 @@ class RequirednessSuite extends HailSuite {
     val left = TableMapGlobals(
       TableKeyBy(
         TableMapRows(
-          table.deepCopy(),
+          table.unsafeClone,
           makestruct(
             "a" -> nestedarray(required, optional, required),
             "b" -> GetField(row, "b"),
@@ -499,7 +500,7 @@ class RequirednessSuite extends HailSuite {
     val right = TableMapGlobals(
       TableKeyBy(
         TableMapRows(
-          table.deepCopy(),
+          table.unsafeClone,
           makestruct(
             "a" -> nestedarray(required, required, optional),
             "c" -> GetField(row, "c"),
@@ -556,7 +557,7 @@ class RequirednessSuite extends HailSuite {
 
     val intervalTable = TableKeyBy(
       TableMapRows(
-        table.deepCopy(),
+        table.unsafeClone,
         makestruct(
           "a" -> interval(nestedarray(required, required, optional), required),
           "c" -> GetField(row, "c"),
@@ -594,14 +595,14 @@ class RequirednessSuite extends HailSuite {
         FastSeq(
           TableKeyBy(
             TableMapRows(
-              table.deepCopy(),
+              table.unsafeClone,
               insertIR(row, "a" -> nestedarray(required, optional, required)),
             ),
             FastSeq("a"),
           ),
           TableKeyBy(
             TableMapRows(
-              table.deepCopy(),
+              table.unsafeClone,
               insertIR(row, "a" -> nestedarray(required, required, optional)),
             ),
             FastSeq("a"),

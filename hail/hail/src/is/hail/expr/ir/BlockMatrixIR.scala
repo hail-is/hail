@@ -163,7 +163,7 @@ class BlockMatrixNativeReader(
     )
     val reader = ETypeValueReader(spec)
 
-    def blockIR(ctx: IR): IR = {
+    def blockIR(ctx: TrivialIR): IR = {
       val path = Apply(
         "concat",
         FastSeq(),
@@ -221,27 +221,25 @@ case class BlockMatrixBinaryReader(path: String, shape: IndexedSeq[Long], blockS
     val nd = evalCtx.memoize(ReadValue(Str(path), reader, TNDArray(TFloat64, nDimsBase = Nat(2))))
 
     val typ = fullType
-    val contexts = BMSContexts.tabulate(evalCtx, typ.sparsity)({ (blockRow, blockCol) =>
+    val contexts = BMSContexts.tabulate(evalCtx, typ.sparsity) { (blockRow, blockCol) =>
       NDArraySlice(
         nd,
         MakeTuple.ordered(FastSeq(
           MakeTuple.ordered(FastSeq(
             blockRow.toL * blockSize.toLong,
-            minIR((blockRow + 1).toL * blockSize.toLong, nRows),
+            minIR((blockRow.clone + 1).toL * blockSize.toLong, nRows),
             1L,
           )),
           MakeTuple.ordered(FastSeq(
             blockCol.toL * blockSize.toLong,
-            minIR((blockCol + 1).toL * blockSize.toLong, nCols),
+            minIR((blockCol.clone + 1).toL * blockSize.toLong, nCols),
             1L,
           )),
         )),
       )
-    })
+    }
 
-    def blockIR(ctx: IR) = ctx
-
-    BlockMatrixStage2(FastSeq(), typ, contexts, blockIR)
+    BlockMatrixStage2(FastSeq(), typ, contexts, _.clone)
   }
 }
 
