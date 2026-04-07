@@ -95,8 +95,6 @@ class AsmTuple[C](
   def newTuple(elems: IndexedSeq[Code[_]]): Code[C] = Code.newInstance(cb, ctor, elems)
 
   def loadElementsAny(t: Value[_]): IndexedSeq[Value[_]] = fields.map(_.get(coerce[C](t)))
-
-  def loadElements(t: Value[C]): IndexedSeq[Value[_]] = fields.map(_.get(t))
 }
 
 trait WrappedModuleBuilder {
