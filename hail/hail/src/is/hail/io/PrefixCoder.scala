@@ -1,7 +1,5 @@
 package is.hail.io
 
-import is.hail.annotations.Memory
-
 import java.nio.ByteOrder
 
 object PrefixCoder {

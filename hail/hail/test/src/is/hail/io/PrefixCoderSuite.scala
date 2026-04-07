@@ -4,7 +4,6 @@ import is.hail.HailSuite
 import org.scalacheck.Prop.forAll
 import org.testng.annotations.Test
 
-
 class PrefixCoderSuite extends HailSuite {
   def helper(v: Any): Array[Byte] = {
     val coder = new PrefixCoder
