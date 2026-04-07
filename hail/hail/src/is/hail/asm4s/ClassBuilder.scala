@@ -168,12 +168,14 @@ class ModuleBuilder() {
   private var nStaticFieldsOnThisClass: Int = maxFieldsOrMethodsOnClass
   private var staticCls: ClassBuilder[_] = null
 
-  private def incrStaticClassSize(n: Int = 1): Unit =
-    if (nStaticFieldsOnThisClass + n >= maxFieldsOrMethodsOnClass) {
-      nStaticFieldsOnThisClass = n
+  private def incrStaticClassSize(): Unit = {
+    if (nStaticFieldsOnThisClass + 1 >= maxFieldsOrMethodsOnClass) {
+      nStaticFieldsOnThisClass = 0
       staticFieldWrapperIdx += 1
       staticCls = genClass[Unit](s"staticWrapperClass_$staticFieldWrapperIdx")
     }
+    nStaticFieldsOnThisClass += 1
+  }
 
   def genStaticField[T: TypeInfo](name: String = null): StaticFieldRef[T] = {
     incrStaticClassSize()
