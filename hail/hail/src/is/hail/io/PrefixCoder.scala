@@ -23,8 +23,6 @@ class PrefixCoder() {
 
   val mb = new MemoryBuffer
 
-  private val scratch = new Array[Byte](8)
-
   def clear() = mb.clear()
 
   def toByteArray(): Array[Byte] = mb.toByteArray()
@@ -39,7 +37,6 @@ class PrefixCoder() {
   // normalized to a single 'canonical' NaN value. This is exactly what compare
   // on float does.
   def encodeFloat(v: Float) = {
-    Memory.storeFloat(scratch, 0, v);
     val bits = java.lang.Float.floatToIntBits(v)
     val i = if (bits < 0) ~bits else flip(bits)
     mb.writeInt(swap(i))
