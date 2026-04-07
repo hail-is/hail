@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
-import is.hail.collection.implicits.{toRichIndexedSeq, toRichIterable, toRichMap}
+import is.hail.collection.implicits.{toRichIndexedSeq, toRichMap}
 import is.hail.expr.ir.analyses.{ColumnCount, PartitionCounts, PartitionCountsOrColumnCount}
 import is.hail.expr.ir.defs._
 import is.hail.io.bgen.MatrixBGENReader
@@ -518,16 +518,16 @@ object Simplify {
                   }
             }
 
-            allRefsCanBePassedThrough(Block(after.toFastSeq, body))
+            allRefsCanBePassedThrough(Block(after, body))
           } =>
-        val fieldNames = newFields.map(_._1).toArray
+        val fieldNames = newFields.map(_._1)
         val newFieldMap = newFields.toMap
         val newFieldRefs = newFieldMap.map { case (k, ir) =>
           (k, Ref(freshName(), ir.typ))
         } // cannot be mapValues, or genUID() gets run for every usage!
 
         def copiedNewFieldRefs(): IndexedSeq[(String, IR)] =
-          fieldNames.map(name => (name, newFieldRefs(name).deepCopy())).toFastSeq
+          fieldNames.map(name => (name, newFieldRefs(name).deepCopy()))
 
         def rewrite(ir1: IR): IR = ir1 match {
           case GetField(Ref(`name`, _), fd) => newFieldRefs.get(fd) match {
@@ -540,7 +540,7 @@ object Simplify {
               Ref(name, old.typ),
               copiedNewFieldRefs().filter { case (name, _) => !newFieldSet.contains(name) }
                 ++ fields.map { case (name, ir) => (name, rewrite(ir)) },
-              Some(ins.typ.fieldNames.toFastSeq),
+              Some(ins.typ.fieldNames),
             )
 
           case SelectFields(Ref(`name`, _), fds) =>
@@ -548,7 +548,7 @@ object Simplify {
               InsertFields(
                 Ref(name, old.typ),
                 copiedNewFieldRefs(),
-                Some(x.typ.fieldNames.toFastSeq),
+                Some(x.typ.fieldNames),
               ),
               fds,
             )
@@ -560,15 +560,12 @@ object Simplify {
             }
         }
 
+        val bindings = ArraySeq.newBuilder[Binding]
+        bindings ++= before
+        fieldNames.foreach(f => bindings += Binding(newFieldRefs(f).name, newFieldMap(f)))
+        bindings += Binding(name, old)
         Some(
-          Block(
-            before.toFastSeq ++ fieldNames.map(f =>
-              Binding(newFieldRefs(f).name, newFieldMap(f))
-            ) ++ FastSeq(
-              Binding(name, old)
-            ),
-            rewrite(Block(after.toFastSeq, body)),
-          )
+          Block(bindings.result(), rewrite(Block(after, body)))
         )
 
       case SelectFields(old, fields) if tcoerce[TStruct](old.typ).fieldNames sameElements fields =>
@@ -589,7 +586,7 @@ object Simplify {
         val x2 = InsertFields(
           SelectFields(struct, selectFields2),
           insertFields2,
-          Some(selectFields.toFastSeq),
+          Some(selectFields),
         )
         assert(x2.typ == x.typ)
         Some(x2)
@@ -602,7 +599,7 @@ object Simplify {
           insertFields.partition { case (name, f) => f == GetField(struct, name) }
         val preservedFields =
           selectFields.filter(f => !insertNames.contains(f)) ++ oldFields.map(_._1)
-        Some(InsertFields(SelectFields(struct, preservedFields), newFields, Some(fields.toFastSeq)))
+        Some(InsertFields(SelectFields(struct, preservedFields), newFields, Some(fields)))
 
       case MakeStructOfGetField(o, newNames) =>
         val select = SelectFields(o, newNames.map(_._1))
@@ -632,7 +629,7 @@ object Simplify {
       case TableCount(TableUnion(children)) =>
         Some(children.map(TableCount(_): IR).treeReduce(ApplyBinaryPrimOp(Add(), _, _)))
 
-      case TableCount(TableKeyBy(child, _, _)) =>
+      case TableCount(TableKeyBy(child, _, _, _)) =>
         Some(TableCount(child))
 
       case TableCount(TableOrderBy(child, _)) =>
@@ -714,7 +711,7 @@ object Simplify {
       case TableGetGlobals(child) if child.typ.globalType == TStruct.empty =>
         Some(MakeStruct(FastSeq()))
 
-      case TableGetGlobals(TableKeyBy(child, _, _)) =>
+      case TableGetGlobals(TableKeyBy(child, _, _, _)) =>
         Some(TableGetGlobals(child))
 
       case TableGetGlobals(TableFilter(child, _)) =>
@@ -909,8 +906,6 @@ object Simplify {
           case TNDArray(_, _) => Some(NDArrayRef(child, IndexedSeq(i, j), ErrorIDs.NO_ERROR))
           case TFloat64 => Some(child)
         }
-      case LiftMeOut(child) if IsConstant(child) =>
-        Some(child)
 
       case _ =>
         None
@@ -922,8 +917,13 @@ object Simplify {
         Some(child)
 
       // TODO: Write more rules like this to bubble 'TableRename' nodes towards the root.
-      case t @ TableRename(TableKeyBy(child, keys, isSorted), rowMap, globalMap) =>
-        Some(TableKeyBy(TableRename(child, rowMap, globalMap), keys.map(t.rowF), isSorted))
+      case t @ TableRename(TableKeyBy(child, keys, isSorted, nPartitions), rowMap, globalMap) =>
+        Some(TableKeyBy(
+          TableRename(child, rowMap, globalMap),
+          keys.map(t.rowF),
+          isSorted,
+          nPartitions,
+        ))
 
       case TableFilter(t, True()) =>
         Some(t)
@@ -934,16 +934,16 @@ object Simplify {
       case TableFilter(TableFilter(t, p1), p2) =>
         Some(TableFilter(
           t,
-          ApplySpecial("land", Array.empty[Type], Array(p1, p2), TBoolean, ErrorIDs.NO_ERROR),
+          ApplySpecial("land", ArraySeq.empty, ArraySeq(p1, p2), TBoolean, ErrorIDs.NO_ERROR),
         ))
 
-      case TableFilter(TableKeyBy(child, key, isSorted), p) =>
-        Some(TableKeyBy(TableFilter(child, p), key, isSorted))
+      case TableFilter(TableKeyBy(child, key, isSorted, nPartitions), p) =>
+        Some(TableKeyBy(TableFilter(child, p), key, isSorted, nPartitions))
 
       case TableFilter(TableRepartition(child, n, strategy), p) =>
         Some(TableRepartition(TableFilter(child, p), n, strategy))
 
-      case TableOrderBy(TableKeyBy(child, _, false), sortFields) =>
+      case TableOrderBy(TableKeyBy(child, _, false, _), sortFields) =>
         Some(TableOrderBy(child, sortFields))
 
       case TableFilter(TableOrderBy(child, sortFields), pred) =>
@@ -981,16 +981,16 @@ object Simplify {
         }
         Some(TableParallelize(newRowsAndGlobal, nPartitions))
 
-      case TableKeyBy(TableOrderBy(child, _), keys, false) =>
-        Some(TableKeyBy(child, keys, false))
+      case TableKeyBy(TableOrderBy(child, _), keys, false, nPartitions) =>
+        Some(TableKeyBy(child, keys, false, nPartitions))
 
-      case TableKeyBy(TableKeyBy(child, _, _), keys, false) =>
-        Some(TableKeyBy(child, keys, false))
+      case TableKeyBy(TableKeyBy(child, _, _, _), keys, false, nPartitions) =>
+        Some(TableKeyBy(child, keys, false, nPartitions))
 
-      case TableKeyBy(TableKeyBy(child, _, true), keys, true) =>
-        Some(TableKeyBy(child, keys, true))
+      case TableKeyBy(TableKeyBy(child, _, true, _), keys, true, nPartitions) =>
+        Some(TableKeyBy(child, keys, true, nPartitions))
 
-      case TableKeyBy(child, key, _) if key == child.typ.key =>
+      case TableKeyBy(child, key, _, _) if key == child.typ.key =>
         Some(child)
 
       case TableMapRows(child, Ref(n, _)) if n == TableIR.rowName =>
@@ -1145,7 +1145,7 @@ object Simplify {
               MakeStruct(FastSeq(
                 "row" -> ApplyAggOp(
                   FastSeq(I32(n.toInt)),
-                  Array(row, keyStruct),
+                  ArraySeq(row, keyStruct),
                   TakeBy(),
                 )
               )),
@@ -1188,13 +1188,14 @@ object Simplify {
             && child.typ.key.nonEmpty =>
         Some(TableAggregateByKey(child, expr))
 
-      case TableAggregateByKey(x @ TableKeyBy(child, keys, false), expr)
+      case TableAggregateByKey(x @ TableKeyBy(child, keys, false, nPartitions), expr)
           if !x.definitelyDoesNotShuffle =>
         Some(TableKeyByAndAggregate(
           child,
           expr,
           MakeStruct(keys.map(k => k -> GetField(Ref(TableIR.rowName, child.typ.rowType), k))),
           bufferSize = ctx.getFlag("grouped_aggregate_buffer_size").toInt,
+          nPartitions = nPartitions,
         ))
 
       case TableParallelize(TableCollect(child), _) =>
@@ -1249,15 +1250,15 @@ object Simplify {
       case TableFilterIntervals(TableFilterIntervals(child, _i1, keep1), _i2, keep2)
           if keep1 == keep2 =>
         val ord = PartitionBoundOrdering(ctx, child.typ.keyType).intervalEndpointOrdering
-        val i1 = Interval.union(_i1.toArray[Interval], ord)
-        val i2 = Interval.union(_i2.toArray[Interval], ord)
+        val i1 = Interval.union(_i1, ord)
+        val i2 = Interval.union(_i2, ord)
         val intervals = if (keep1)
           // keep means intersect intervals
           Interval.intersection(i1, i2, ord)
         else
           // remove means union intervals
           Interval.union(i1 ++ i2, ord)
-        Some(TableFilterIntervals(child, intervals.toFastSeq, keep1))
+        Some(TableFilterIntervals(child, intervals, keep1))
 
       // FIXME: Can try to serialize intervals shorter than the key
       /* case TableFilterIntervals(k@TableKeyBy(child, keys, isSorted), intervals, keep) if

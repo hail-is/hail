@@ -37,7 +37,7 @@ case class MatrixValue(
     rvb.addFields(
       prevGlobals.t,
       prevGlobals.value,
-      prevGlobals.t.fields.filter(_.name != LowerMatrixIR.colsFieldName).map(_.index).toArray,
+      prevGlobals.t.fields.filter(_.name != LowerMatrixIR.colsFieldName).map(_.index),
     )
     rvb.endStruct()
     BroadcastRow(tv.ctx, RegionValue(prevGlobals.value.region, rvb.end()), newT)
@@ -270,7 +270,7 @@ case class MatrixValue(
   }
 
   def toRowMatrix(ctx: ExecuteContext, entryField: String): RowMatrix = {
-    val partCounts: Array[Long] = rvd.countPerPartition()
+    val partCounts = rvd.countPerPartition()
     val partStarts = partCounts.scanLeft(0L)(_ + _)
     assert(partStarts.length == rvd.getNumPartitions + 1)
     val partStartsBc = ctx.backend.broadcast(partStarts)
@@ -286,7 +286,7 @@ case class MatrixValue(
     val fieldIdx = entryType.fieldIdx(entryField)
     val numColsLocal = nCols
 
-    val rows = rvd.mapPartitionsWithIndex { (pi, _, it) =>
+    val rows = rvd.mapPartitionsWithIndex { (pi, _, _, it) =>
       var i = partStartsBc.value(pi)
       it.map { ptr =>
         val data = new Array[Double](numColsLocal)

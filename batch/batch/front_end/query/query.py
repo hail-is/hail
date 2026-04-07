@@ -273,11 +273,7 @@ class JobEndTimeQuery(Query):
 
     def query(self) -> Tuple[str, List[int]]:
         op = self.operator.to_sql()
-        sql = f"""
-((jobs.batch_id, jobs.job_id) IN
- (SELECT batch_id, job_id FROM attempts
-  WHERE end_time {op} %s))
-"""
+        sql = f'(latest_attempt.end_time {op} %s)'
         return (sql, [self.time_msecs])
 
 

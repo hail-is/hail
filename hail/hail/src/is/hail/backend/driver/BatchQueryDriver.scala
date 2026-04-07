@@ -5,10 +5,11 @@ import is.hail.annotations.Memory
 import is.hail.asm4s.HailClassLoader
 import is.hail.backend.{Backend, ExecuteContext, OwningTempFileManager}
 import is.hail.backend.service._
+import is.hail.backend.service.ServiceBackend.DefaultMaxReadParallelism
 import is.hail.collection.ImmutableMap
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.lowering.IrMetadata
-import is.hail.io.fs.{CloudStorageFSConfig, FS, RouterFS}
+import is.hail.io.fs.{CloudStorageConfig, FS, RequesterPaysConfig, RouterFS}
 import is.hail.io.reference.{IndexedFastaSequenceFile, LiftOver}
 import is.hail.services._
 import is.hail.services.oauth2.CloudCredentials
@@ -23,7 +24,8 @@ import java.io.OutputStream
 import java.nio.charset.StandardCharsets
 import java.nio.file.Path
 
-import org.json4s.JsonAST.JValue
+import org.json4s.{CustomSerializer, DefaultFormats, Formats}
+import org.json4s.JsonAST.{JArray, JValue}
 import org.json4s.jackson.JsonMethods
 
 object BatchQueryDriver extends HttpLikeRpc with Logging {
@@ -113,7 +115,7 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
           flags = env.flags,
           irMetadata = new IrMetadata(),
           blockMatrixCache = ImmutableMap.empty,
-          codeCache = ImmutableMap.empty,
+          compileCache = ImmutableMap.empty,
           irCache = ImmutableMap.empty,
           coercerCache = ImmutableMap.empty,
         )(f)
@@ -123,6 +125,9 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
       // evaluate for effects
       ReferenceGenome.addFatalOnCollision(env.references, refs): Unit
   }
+
+  implicit override val fmts: Formats =
+    DefaultFormats + RequesterPaysConfigFormats
 
   def main(argv: Array[String]): Unit = {
     assert(argv.length == 7, argv.toFastSeq)
@@ -140,14 +145,13 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
 
     sys.env.get("HAIL_SSL_CONFIG_DIR").foreach(tls.setSSLConfigFromDir)
 
+    val fsConfig =
+      CloudStorageConfig.readEnv(
+        Some(Path.of(scratchDir, "secrets/gsa-key/key.json"))
+      )
+
     val (rpcConfig, jobConfig, action, payload) = {
-      val bootstrapFs =
-        RouterFS.buildRoutes(
-          CloudStorageFSConfig.fromFlagsAndEnv(
-            Some(Path.of(scratchDir, "secrets/gsa-key/key.json")),
-            HailFeatureFlags.fromEnv(),
-          )
-        )
+      val bootstrapFs = RouterFS.buildRoutes(fsConfig)
 
       using(bootstrapFs.openNoCompression(inputURL)) { is =>
         val input = JsonMethods.parse(is)
@@ -160,15 +164,12 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
       }
     }
 
-    // requester pays config is conveyed in feature flags currently
-    val featureFlags =
-      HailFeatureFlags.fromEnv(rpcConfig.flags)
-
     val fs =
       RouterFS.buildRoutes(
-        CloudStorageFSConfig.fromFlagsAndEnv(
-          Some(Path.of(scratchDir, "secrets/gsa-key/key.json")),
-          featureFlags,
+        fsConfig.copy(
+          google = fsConfig.google.map(_.copy(
+            requester_pays_config = rpcConfig.requester_pays_conf
+          ))
         )
       )
 
@@ -195,13 +196,14 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
         JarUrl(jarLocation),
         BatchConfig.fromConfigFile(Path.of(scratchDir, "batch-config/batch-config.json")),
         jobConfig,
+        rpcConfig.max_read_parallelism.getOrElse(DefaultMaxReadParallelism),
       )
 
     // FIXME: when can the classloader be shared? (optimizer benefits!)
     try runRpc(
         Env(
           backend,
-          featureFlags,
+          HailFeatureFlags.fromEnv(rpcConfig.flags),
           new HailClassLoader(getClass.getClassLoader),
           fs,
           rpcConfig.tmp_dir,
@@ -253,7 +255,22 @@ case class SequenceConfig(fasta: String, index: String)
 case class ServiceBackendRPCPayload(
   tmp_dir: String,
   flags: Map[String, String],
+  requester_pays_conf: Option[RequesterPaysConfig],
   custom_references: Array[String],
   liftovers: Map[String, Map[String, String]],
   sequences: Map[String, SequenceConfig],
+  max_read_parallelism: Option[Int],
 )
+
+object RequesterPaysConfigFormats
+    extends CustomSerializer[RequesterPaysConfig](implicit fmts =>
+      (
+        { case JArray(List(project, buckets)) =>
+          RequesterPaysConfig(
+            project = project.extract[String],
+            buckets = buckets.extract[Option[Set[String]]],
+          )
+        },
+        PartialFunction.empty,
+      )
+    )

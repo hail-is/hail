@@ -1,5 +1,6 @@
 package is.hail.collection
 
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.utils.fatal
 
 import scala.collection.mutable
@@ -35,7 +36,7 @@ class BinaryHeap[T: ClassTag](minimumCapacity: Int = 32, maybeTieBreaker: (T, T)
   def nonEmpty: Boolean = next != 0
 
   override def toString(): String =
-    s"values: ${ts.slice(0, next): IndexedSeq[T]}; ranks: ${ranks.slice(0, next): IndexedSeq[Long]}"
+    s"values: ${ArraySeq.unsafeWrapArray(ts.slice(0, next))}; ranks: ${ArraySeq.unsafeWrapArray(ranks.slice(0, next))}"
 
   def insert(t: T, r: Long): Unit = {
     if (m.contains(t))
@@ -115,10 +116,12 @@ class BinaryHeap[T: ClassTag](minimumCapacity: Int = 32, maybeTieBreaker: (T, T)
     m.contains(t)
 
   def toArray: Array[T] = {
-    val trimmed = new Array(size)
+    val trimmed = new Array[T](size)
     Array.copy(ts, 0, trimmed, 0, next)
     trimmed
   }
+
+  def toIndexedSeq: IndexedSeq[T] = ArraySeq.unsafeWrapArray(toArray)
 
   private def parent(i: Int) =
     if (i == 0) 0 else (i - 1) >>> 1

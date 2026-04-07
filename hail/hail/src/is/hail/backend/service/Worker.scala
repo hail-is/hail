@@ -1,6 +1,6 @@
 package is.hail.backend.service
 
-import is.hail.{HailFeatureFlags, Revision}
+import is.hail.Revision
 import is.hail.asm4s._
 import is.hail.backend.Backend.PartitionFn
 import is.hail.backend.HailTaskContext
@@ -184,9 +184,8 @@ object Worker extends Logging {
     val hcl = new HailClassLoader(getClass.getClassLoader)
 
     val fs = RouterFS.buildRoutes(
-      CloudStorageFSConfig.fromFlagsAndEnv(
-        Some(Path.of(scratchDir, "secrets/gsa-key/key.json")),
-        HailFeatureFlags.fromEnv(),
+      CloudStorageConfig.readEnv(
+        Some(Path.of(scratchDir, "secrets/gsa-key/key.json"))
       )
     )
 
@@ -252,7 +251,9 @@ object Worker extends Logging {
           try
             using(new ServiceTaskContext(partition)) { htc =>
               retryTransientErrors {
-                Right(f(globals, context, htc, hcl, fs))
+                htc.getRegionPool().scopedRegion { r =>
+                  Right(f(hcl, fs, htc, r)(globals, context))
+                }
               }
             }
           catch {

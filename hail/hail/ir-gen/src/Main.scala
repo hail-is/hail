@@ -1,5 +1,6 @@
 import scala.annotation.nowarn
 import scala.collection.compat._
+import scala.collection.compat.immutable.ArraySeq
 
 import mainargs.{main, ParserForMethods}
 
@@ -1084,13 +1085,6 @@ object Main {
       .withDocstring("Function input").withCompanionExtension
 
     r += node("Die", in("message", child), in("_typ", att("Type")), errorID).withCompanionExtension
-    r += node("Trap", in("child", child)).withDocstring(
-      """The Trap node runs the `child` node with an exception handler. If the child throws a
-        |HailException (user exception), then we return the tuple ((msg, errorId), NA). If the child
-        |throws any other exception, we raise that exception. If the child does not throw, then we
-        |return the tuple (NA, child value).
-        |""".stripMargin
-    )
     r += node("ConsoleLog", in("message", child), in("result", child))
 
     r += node(
@@ -1120,8 +1114,6 @@ object Main {
       in("returnType", att("Type")),
       errorID,
     ).withTraits(ApplyNode(missingnessAware = true))
-
-    r += node("LiftMeOut", in("child", child))
 
     r += node("TableCount", tableChild)
     r += node("MatrixCount", matrixChild)
@@ -1226,6 +1218,6 @@ object Main {
   }
 
   def main(args: Array[String]): Unit = {
-    val _ = ParserForMethods(this).runOrExit(args)
+    val _ = ParserForMethods(this).runOrExit(ArraySeq.unsafeWrapArray(args))
   }
 }

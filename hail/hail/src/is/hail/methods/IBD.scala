@@ -3,6 +3,7 @@ package is.hail.methods
 import is.hail.annotations._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichOption
 import is.hail.expr.ir._
 import is.hail.expr.ir.functions.MatrixToTableFunction
@@ -248,7 +249,7 @@ object IBD {
     val sm = ctx.stateManager
 
     val rowPType = input.rvRowPType
-    val unnormalizedIbse = input.rvd.mapPartitions { (ctx, it) =>
+    val unnormalizedIbse = input.rvd.mapPartitions { (_, ctx, it) =>
       val rv = RegionValue(ctx.r)
       val view = HardCallView(rowPType)
       it.map { ptr =>
@@ -260,7 +261,7 @@ object IBD {
 
     val ibse = unnormalizedIbse.normalized
 
-    val chunkedGenotypeMatrix = input.rvd.mapPartitions { (_, it) =>
+    val chunkedGenotypeMatrix = input.rvd.mapPartitions { (_, _, it) =>
       val view = HardCallView(rowPType)
       it.map { ptr =>
         view.set(ptr)
@@ -310,7 +311,7 @@ object IBD {
       })
 
     joined
-      .cmapPartitions { (ctx, it) =>
+      .cmapPartitions { (_, ctx, it) =>
         val rvb = new RegionValueBuilder(sm, ctx.region)
         for {
           ((iChunk, jChunk), ibses) <- it
@@ -338,7 +339,7 @@ object IBD {
   private val ibdPType =
     PCanonicalStruct(
       required = true,
-      Array(
+      ArraySeq(
         ("i", PCanonicalString()),
         ("j", PCanonicalString()),
       ) ++ ExtendedIBDInfo.pType.fields.map(f => (f.name, f.typ)): _*

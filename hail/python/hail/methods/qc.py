@@ -20,7 +20,7 @@ from hail.table import Table
 from hail.typecheck import anytype, nullable, numeric, oneof, typecheck
 from hail.utils import FatalError
 from hail.utils.java import Env, info, warning
-from hail.utils.misc import divide_null, guess_cloud_spark_provider, new_temp_file
+from hail.utils.misc import divide_null, guess_cloud_spark_provider, maybe, new_temp_file
 from hailtop import __pip_version__, yamlx
 from hailtop.config import get_deploy_config
 from hailtop.utils import async_to_blocking
@@ -955,8 +955,8 @@ def _service_vep(
     else:
         vep_config = _supported_vep_config(cloud, reference_genome, regions=regions)
 
-    requester_pays_project = backend.flags.get('gcs_requester_pays_project')
-    if requester_pays_project is None and vep_config.data_bucket_is_requester_pays and vep_config.cloud == 'gcp':
+    requester_pays_config = backend.requester_pays_config
+    if requester_pays_config is None and vep_config.data_bucket_is_requester_pays and vep_config.cloud == 'gcp':
         raise ValueError(
             "No requester pays project has been set. "
             "Use hl.init(gcs_requester_pays_configuration='MY_PROJECT') "
@@ -996,7 +996,7 @@ def _service_vep(
                 cloudfuse=[(vep_config.data_bucket, vep_config.data_mount, True)],
                 output_files=[(local_output_file, f'{vep_output_path}/csq-header')],
                 regions=vep_config.regions,
-                requester_pays_project=requester_pays_project,
+                requester_pays_project=maybe(lambda c: c if isinstance(c, str) else c[0], requester_pays_config),
                 env=env,
             )
 
@@ -1039,7 +1039,7 @@ def _service_vep(
                 output_files=[(local_output_file, f'{vep_output_path}/annotations/{part_name}.tsv.gz')],
                 cloudfuse=[(vep_config.data_bucket, vep_config.data_mount, True)],
                 regions=vep_config.regions,
-                requester_pays_project=requester_pays_project,
+                requester_pays_project=requester_pays_config,
                 env=env,
             )
 
@@ -1055,7 +1055,7 @@ def _service_vep(
     try:
         status = b.wait(
             description='vep(...)',
-            disable_progress_bar=backend.disable_progress_bar,
+            disable_progress_bar=not backend.show_progress,
             progress=None,
             starting_job=starting_job_id,
         )

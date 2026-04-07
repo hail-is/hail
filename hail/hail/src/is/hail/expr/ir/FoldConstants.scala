@@ -17,7 +17,6 @@ object FoldConstants {
       {
         case _: Ref |
             _: In |
-            _: LiftMeOut |
             _: RelationalRef |
             _: RelationalLet |
             _: UUID4 |
@@ -35,7 +34,6 @@ object FoldConstants {
             _: NDArrayAgg |
             _: NDArrayWrite |
             _: NDArrayMatMul |
-            _: Trap |
             _: Die |
             _: RNGSplitStatic |
             _: RNGStateLiteral => None

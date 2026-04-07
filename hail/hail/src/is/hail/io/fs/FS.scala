@@ -1,10 +1,10 @@
 package is.hail.io.fs
 
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.io.compress.{BGzipInputStream, BGzipOutputStream}
 import is.hail.io.fs.FSUtil.{containsWildcard, dropTrailingSlash}
 import is.hail.utils._
 
-import scala.collection.mutable
 import scala.io.Source
 
 import java.io._
@@ -321,21 +321,21 @@ trait FS extends Serializable with Logging {
 
   def mkDir(url: URL): Unit = ()
 
-  final def listDirectory(filename: String): Array[FileListEntry] =
+  final def listDirectory(filename: String): IndexedSeq[FileListEntry] =
     listDirectory(parseUrl(filename))
 
-  def listDirectory(url: URL): Array[FileListEntry]
+  def listDirectory(url: URL): IndexedSeq[FileListEntry]
 
   final def delete(filename: String, recursive: Boolean): Unit =
     delete(parseUrl(filename), recursive)
 
   def delete(url: URL, recursive: Boolean): Unit
 
-  final def glob(filename: String): Array[FileListEntry] = glob(parseUrl(filename))
+  final def glob(filename: String): IndexedSeq[FileListEntry] = glob(parseUrl(filename))
 
-  def glob(url: URL): Array[FileListEntry]
+  def glob(url: URL): IndexedSeq[FileListEntry]
 
-  def globWithPrefix(prefix: URL, path: String): Array[FileListEntry] = {
+  def globWithPrefix(prefix: URL, path: String): IndexedSeq[FileListEntry] = {
     val components =
       if (path == "")
         Array.empty[String]
@@ -344,7 +344,7 @@ trait FS extends Serializable with Logging {
 
     val javaFS = FileSystems.getDefault
 
-    val ab = new mutable.ArrayBuffer[FileListEntry]()
+    val ab = ArraySeq.newBuilder[FileListEntry]
     def f(prefix: URL, fs: FileListEntry, i: Int): Unit = {
       if (i == components.length) {
         var t = fs
@@ -376,11 +376,11 @@ trait FS extends Serializable with Logging {
     }
 
     f(prefix, null, 0)
-    ab.toArray
+    ab.result()
   }
 
-  def globAll(filenames: Iterable[String]): Array[FileListEntry] =
-    filenames.flatMap((x: String) => glob(x)).toArray
+  def globAll(filenames: Iterable[String]): IndexedSeq[FileListEntry] =
+    ArraySeq.from(filenames.flatMap((x: String) => glob(x)))
 
   final def eTag(filename: String): Option[String] = eTag(parseUrl(filename))
 
@@ -627,9 +627,9 @@ trait FS extends Serializable with Logging {
     else if (!header && headerFileListEntry.nonEmpty)
       fatal(s"Found unexpected header file")
 
-    val partFileStatuses: Array[_ <: FileStatus] = partFilesOpt match {
+    val partFileStatuses = partFilesOpt match {
       case None => glob(sourceFolder + "/part-*")
-      case Some(files) => files.map(f => fileStatus(sourceFolder + "/" + f)).toArray
+      case Some(files) => files.map(f => fileStatus(sourceFolder + "/" + f))
     }
 
     val sortedPartFileStatuses = partFileStatuses.sortBy { fileStatus =>
@@ -639,7 +639,7 @@ trait FS extends Serializable with Logging {
     if (sortedPartFileStatuses.length != numPartFilesExpected)
       fatal(s"Expected $numPartFilesExpected part files but found ${sortedPartFileStatuses.length}")
 
-    val filesToMerge: Array[FileStatus] = headerFileListEntry ++ sortedPartFileStatuses
+    val filesToMerge = headerFileListEntry ++ sortedPartFileStatuses
 
     logger.info(s"merging ${filesToMerge.length} files totalling " +
       s"${readableBytes(filesToMerge.map(_.getLen).sum)}...")
@@ -658,12 +658,12 @@ trait FS extends Serializable with Logging {
   }
 
   def copyMergeList(
-    srcFileStatuses: Array[_ <: FileStatus],
+    srcFileStatuses: IndexedSeq[FileStatus],
     destFilename: String,
     deleteSource: Boolean = true,
   ): Unit = {
     val codec = Option(getCodecFromPath(destFilename))
-    val isBGzip = codec.exists(_ == BGZipCompressionCodec)
+    val isBGzip = codec.contains(BGZipCompressionCodec)
 
     require(srcFileStatuses.forall {
       fileStatus => fileStatus.getPath != destFilename && fileStatus.isFileOrFileAndDirectory
@@ -690,7 +690,7 @@ trait FS extends Serializable with Logging {
   }
 
   def concatenateFiles(sourceNames: Array[String], destFilename: String): Unit = {
-    val fileStatuses = sourceNames.map(fileStatus(_))
+    val fileStatuses = ArraySeq.unsafeWrapArray(sourceNames).map(fileStatus)
 
     logger.info(s"merging ${fileStatuses.length} files totalling " +
       s"${readableBytes(fileStatuses.map(_.getLen).sum)}...")

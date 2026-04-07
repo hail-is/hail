@@ -1,6 +1,7 @@
 package is.hail.collection.implicits
 
 import is.hail.collection.{FlipbookIterator, StagingIterator, StateMachine}
+import is.hail.collection.compat.immutable.ArraySeq
 
 import scala.io.Source
 import scala.jdk.CollectionConverters._
@@ -132,7 +133,7 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
       }
     }
 
-  def toFastSeq(implicit tct: ClassTag[T]): IndexedSeq[T] = it.toArray[T]
+  def toFastSeq(implicit tct: ClassTag[T]): IndexedSeq[T] = it.to(ArraySeq)
 
   def headOption: Option[T] = if (it.isEmpty) None else Some(it.next())
 }

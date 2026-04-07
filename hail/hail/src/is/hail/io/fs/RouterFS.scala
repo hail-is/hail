@@ -1,9 +1,8 @@
 package is.hail.io.fs
 
-import is.hail.HailFeatureFlags
 import is.hail.collection.FastSeq
 import is.hail.services.oauth2.{AzureCloudCredentials, GoogleCloudCredentials}
-import is.hail.utils.SerializableHadoopConfiguration
+import is.hail.utils.{fatal, SerializableHadoopConfiguration}
 
 import java.io.Serializable
 import java.nio.file.Path
@@ -21,41 +20,36 @@ class RouterFSURL(val fs: FS, _url: FSURL[_]) extends FSURL[RouterFSURL] {
   override def toString: String = _url.toString
 }
 
-case class CloudStorageFSConfig(
-  azure: Option[AzureStorageFSConfig] = None,
-  google: Option[GoogleStorageFSConfig] = None,
+case class CloudStorageConfig(
+  azure: Option[AzureStorageConfig] = None,
+  google: Option[GoogleStorageConfig] = None,
 ) extends Serializable
 
-object CloudStorageFSConfig {
-  def fromFlagsAndEnv(
-    credentialsFile: Option[Path],
-    flags: HailFeatureFlags,
-    env: Map[String, String] = sys.env,
-  ): CloudStorageFSConfig = {
+object CloudStorageConfig {
+  def readEnv(credentialsFile: Option[Path], env: Map[String, String] = sys.env)
+    : CloudStorageConfig =
     env.get("HAIL_CLOUD") match {
       case Some("azure") =>
-        CloudStorageFSConfig(azure = Some(AzureStorageFSConfig(credentialsFile)))
+        CloudStorageConfig(azure = Some(AzureStorageConfig(credentialsFile)))
       case Some("gcp") | None =>
-        val rpConf = RequesterPaysConfig.fromFlags(flags)
-        CloudStorageFSConfig(google = Some(GoogleStorageFSConfig(credentialsFile, rpConf)))
-      case _ =>
-        CloudStorageFSConfig()
+        CloudStorageConfig(google = Some(GoogleStorageConfig(credentialsFile, None)))
+      case unknown =>
+        fatal(s"unknown cloud vendor: '$unknown'.")
     }
-  }
 }
 
 object RouterFS {
 
-  def buildRoutes(cloudConfig: CloudStorageFSConfig, env: Map[String, String] = sys.env): FS =
+  def buildRoutes(cloudConfig: CloudStorageConfig, env: Map[String, String] = sys.env): FS =
     new RouterFS(
       IndexedSeq.concat(
-        cloudConfig.google.map { case GoogleStorageFSConfig(path, rpConfig) =>
+        cloudConfig.google.map { case GoogleStorageConfig(path, rpConfig) =>
           new GoogleStorageFS(
             GoogleCloudCredentials(path).scoped(GoogleStorageFS.RequiredOAuthScopes),
             rpConfig,
           )
         },
-        cloudConfig.azure.map { case AzureStorageFSConfig(path) =>
+        cloudConfig.azure.map { case AzureStorageConfig(path) =>
           if (env.contains("HAIL_TERRA"))
             new TerraAzureStorageFS(
               AzureCloudCredentials(path, env)
@@ -99,9 +93,9 @@ class RouterFS(fss: IndexedSeq[FS]) extends FS {
 
   override def delete(url: URL, recursive: Boolean) = url.fs.delete(url.url, recursive)
 
-  override def listDirectory(url: URL): Array[FileListEntry] = url.fs.listDirectory(url.url)
+  override def listDirectory(url: URL): IndexedSeq[FileListEntry] = url.fs.listDirectory(url.url)
 
-  override def glob(url: URL): Array[FileListEntry] = url.fs.glob(url.url)
+  override def glob(url: URL): IndexedSeq[FileListEntry] = url.fs.glob(url.url)
 
   override def fileStatus(url: URL): FileStatus = url.fs.fileStatus(url.url)
 

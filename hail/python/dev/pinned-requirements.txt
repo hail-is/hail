@@ -35,7 +35,7 @@ asttokens==2.4.1
     # via
     #   devtools
     #   stack-data
-async-lru==2.1.0
+async-lru==2.3.0
     # via jupyterlab
 async-timeout==5.0.1
     # via
@@ -58,7 +58,7 @@ bleach==6.3.0
     # via nbconvert
 build==1.1.1
     # via -r hail/python/dev/requirements.txt
-certifi==2026.1.4
+certifi==2026.2.25
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   httpcore
@@ -70,7 +70,7 @@ cffi==2.0.0
     #   argon2-cffi-bindings
 cfgv==3.5.0
     # via pre-commit
-charset-normalizer==3.4.4
+charset-normalizer==3.4.6
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   requests
@@ -128,9 +128,11 @@ executing==2.2.1
     #   stack-data
 fastjsonschema==2.21.2
     # via nbformat
-filelock==3.24.3
-    # via virtualenv
-fonttools==4.61.1
+filelock==3.25.2
+    # via
+    #   python-discovery
+    #   virtualenv
+fonttools==4.62.1
     # via matplotlib
 fqdn==1.5.1
     # via jsonschema
@@ -147,7 +149,7 @@ httpcore==1.0.9
     # via httpx
 httpx==0.28.1
     # via jupyterlab
-identify==2.6.16
+identify==2.6.18
     # via pre-commit
 idna==3.11
     # via
@@ -157,9 +159,9 @@ idna==3.11
     #   jsonschema
     #   requests
     #   yarl
-imagesize==1.4.1
+imagesize==2.0.0
     # via sphinx
-importlib-metadata==8.7.1
+importlib-metadata==8.8.0
     # via build
 iniconfig==2.3.0
     # via pytest
@@ -242,7 +244,7 @@ jupyter-server==2.17.0
     #   notebook-shim
 jupyter-server-terminals==0.5.4
     # via jupyter-server
-jupyterlab==4.5.4
+jupyterlab==4.5.6
     # via jupyter
 jupyterlab-pygments==0.3.0
     # via nbconvert
@@ -250,7 +252,7 @@ jupyterlab-server==2.28.0
     # via jupyterlab
 jupyterlab-widgets==3.0.16
     # via ipywidgets
-kiwisolver==1.4.9
+kiwisolver==1.5.0
     # via matplotlib
 lark==1.3.1
     # via rfc3987-syntax
@@ -307,7 +309,7 @@ nodeenv==1.10.0
     # via
     #   pre-commit
     #   pyright
-nodejs-wheel-binaries==24.13.1
+nodejs-wheel-binaries==24.14.0
     # via pyright
 notebook==6.5.7
     # via
@@ -352,10 +354,11 @@ pillow==12.1.1
     #   -c hail/python/dev/../pinned-requirements.txt
     #   -r hail/python/dev/requirements.txt
     #   matplotlib
-platformdirs==4.9.2
+platformdirs==4.9.4
     # via
     #   jupyter-core
     #   pylint
+    #   python-discovery
     #   virtualenv
 pluggy==1.6.0
     # via pytest
@@ -440,6 +443,8 @@ python-dateutil==2.9.0.post0
     #   arrow
     #   jupyter-client
     #   matplotlib
+python-discovery==1.2.0
+    # via virtualenv
 python-json-logger==2.0.7
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
@@ -547,7 +552,7 @@ tomli==2.4.0
     #   pytest
 tomlkit==0.14.0
     # via pylint
-tornado==6.5.4
+tornado==6.5.5
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   ipykernel
@@ -581,7 +586,7 @@ types-deprecated==1.3.1.20260130
     # via -r hail/python/dev/requirements.txt
 types-pymysql==1.1.0.20251220
     # via -r hail/python/dev/requirements.txt
-types-python-dateutil==2.9.0.20260124
+types-python-dateutil==2.9.0.20260305
     # via -r hail/python/dev/requirements.txt
 types-pyyaml==6.0.12.20250915
     # via -r hail/python/dev/requirements.txt
@@ -591,7 +596,7 @@ types-setuptools==82.0.0.20260210
     # via -r hail/python/dev/requirements.txt
 types-six==1.17.0.20251009
     # via -r hail/python/dev/requirements.txt
-types-tabulate==0.9.0.20241207
+types-tabulate==0.10.0.20260308
     # via -r hail/python/dev/requirements.txt
 types-urllib3==1.26.25.14
     # via
@@ -622,11 +627,11 @@ urllib3==2.6.3
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   requests
-uv==0.9.30
+uv==0.10.9
     # via -r hail/python/dev/requirements.txt
-uv-build==0.9.30
+uv-build==0.10.9
     # via -r hail/python/dev/requirements.txt
-virtualenv==20.38.0
+virtualenv==21.2.0
     # via pre-commit
 watchfiles==1.1.1
     # via aiohttp-devtools
@@ -642,7 +647,7 @@ websocket-client==1.9.0
     # via jupyter-server
 widgetsnbextension==4.0.15
     # via ipywidgets
-yarl==1.22.0
+yarl==1.23.0
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   aiohttp

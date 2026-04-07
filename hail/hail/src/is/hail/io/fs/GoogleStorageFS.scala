@@ -1,12 +1,11 @@
 package is.hail.io.fs
 
-import is.hail.HailFeatureFlags
 import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.io.fs.FSUtil.dropTrailingSlash
 import is.hail.io.fs.GoogleStorageFS.RequesterPaysFailure
 import is.hail.services.{isTransientError, retryTransientErrors}
 import is.hail.services.oauth2.GoogleCloudCredentials
-import is.hail.utils._
 
 import scala.jdk.CollectionConverters._
 
@@ -108,28 +107,7 @@ object GoogleStorageFileListEntry {
 
 case class RequesterPaysConfig(project: String, buckets: Option[Set[String]])
 
-object RequesterPaysConfig {
-  object Flags {
-    val RequesterPaysProject = "gcs_requester_pays_project"
-    val RequesterPaysBuckets = "gcs_requester_pays_buckets"
-  }
-
-  def fromFlags(flags: HailFeatureFlags): Option[RequesterPaysConfig] =
-    FastSeq(Flags.RequesterPaysProject, Flags.RequesterPaysBuckets).map(flags.lookup) match {
-      case Seq(Some(project), buckets) =>
-        Some(RequesterPaysConfig(project, buckets.map(_.split(",").toSet)))
-      case Seq(None, Some(buckets)) =>
-        fatal(
-          s"'${Flags.RequesterPaysBuckets}' requires '${Flags.RequesterPaysProject}'." +
-            s"Expected: <undefined>" +
-            s"  Actual: '$buckets'"
-        )
-      case _ =>
-        None
-    }
-}
-
-case class GoogleStorageFSConfig(
+case class GoogleStorageConfig(
   credentials_file: Option[Path],
   requester_pays_config: Option[RequesterPaysConfig],
 )
@@ -419,11 +397,11 @@ class GoogleStorageFS(
       }
     }
 
-  override def glob(url: URL): Array[FileListEntry] = retryTransientErrors {
+  override def glob(url: URL): IndexedSeq[FileListEntry] = retryTransientErrors {
     globWithPrefix(url.withPath(""), path = dropTrailingSlash(url.path))
   }
 
-  override def listDirectory(url: URL): Array[FileListEntry] = retryTransientErrors {
+  override def listDirectory(url: URL): IndexedSeq[FileListEntry] = retryTransientErrors {
     val path = if (url.path.endsWith("/")) url.path else url.path + "/"
 
     val blobs = retryTransientErrors {
@@ -441,7 +419,7 @@ class GoogleStorageFS(
     blobs.iterateAll().iterator.asScala
       .filter(b => b.getName != path) // elide directory markers created by Hadoop
       .map(b => GoogleStorageFileListEntry(b))
-      .toArray
+      .to(ArraySeq)
   }
 
   private[this] def getBlob(url: URL) = retryTransientErrors {

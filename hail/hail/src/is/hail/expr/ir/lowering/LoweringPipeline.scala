@@ -46,30 +46,24 @@ object LoweringPipeline {
   private[this] def fullLoweringPipeline(context: String, baseTransformer: LoweringPass)
     : LoweringPipeline = {
 
-    val base = LoweringPipeline(
-      baseTransformer,
-      OptimizePass(s"$context, after ${baseTransformer.context}"),
-    )
-
     // recursively lowers and executes
     val withShuffleRewrite =
       LoweringPipeline(
-        LowerAndExecuteShufflesPass(base),
+        LowerTableKeyByAndAggregatePass,
+        LowerAndExecuteShufflesPass,
         OptimizePass(s"$context, after LowerAndExecuteShuffles"),
-      ) + base
+        baseTransformer,
+        OptimizePass(s"$context, after ${baseTransformer.context}"),
+      )
 
     // recursively lowers and executes
-    val withLetEvaluation =
-      LoweringPipeline(
-        LiftRelationalValuesToRelationalLets,
-        EvalRelationalLetsPass(withShuffleRewrite),
-      ) + withShuffleRewrite
-
     LoweringPipeline(
       OptimizePass(s"$context, initial IR"),
       LowerMatrixToTablePass,
       OptimizePass(s"$context, after LowerMatrixToTable"),
-    ) + withLetEvaluation
+      LiftRelationalValuesToRelationalLets,
+      EvalRelationalLetsPass(withShuffleRewrite),
+    ) + withShuffleRewrite
   }
 
   lazy val relationalLowerer: LoweringPipeline =

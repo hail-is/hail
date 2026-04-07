@@ -2,6 +2,7 @@ package is.hail.variant
 
 import is.hail.HailSuite
 import is.hail.backend.HailStateManager
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.io.reference.{FASTAReader, FASTAReaderConfig, LiftOver}
 import is.hail.scalacheck.{genLocus, genNullable}
@@ -48,20 +49,24 @@ class ReferenceGenomeSuite extends HailSuite {
 
   @Test def testAssertions(): Unit = {
     interceptFatal("Must have at least one contig in the reference genome.")(
-      ReferenceGenome("test", Array.empty[String], Map.empty[String, Int])
+      ReferenceGenome("test", ArraySeq.empty[String], Map.empty[String, Int])
     )
     interceptFatal("No lengths given for the following contigs:")(ReferenceGenome(
       "test",
-      Array("1", "2", "3"),
+      ArraySeq("1", "2", "3"),
       Map("1" -> 5),
     ))
     interceptFatal("Contigs found in 'lengths' that are not present in 'contigs'")(
-      ReferenceGenome("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5, "4" -> 100))
+      ReferenceGenome(
+        "test",
+        ArraySeq("1", "2", "3"),
+        Map("1" -> 5, "2" -> 5, "3" -> 5, "4" -> 100),
+      )
     )
     interceptFatal("The following X contig names are absent from the reference:")(
       ReferenceGenome(
         "test",
-        Array("1", "2", "3"),
+        ArraySeq("1", "2", "3"),
         Map("1" -> 5, "2" -> 5, "3" -> 5),
         xContigs = Set("X"),
       )
@@ -69,7 +74,7 @@ class ReferenceGenomeSuite extends HailSuite {
     interceptFatal("The following Y contig names are absent from the reference:")(
       ReferenceGenome(
         "test",
-        Array("1", "2", "3"),
+        ArraySeq("1", "2", "3"),
         Map("1" -> 5, "2" -> 5, "3" -> 5),
         yContigs = Set("Y"),
       )
@@ -78,19 +83,19 @@ class ReferenceGenomeSuite extends HailSuite {
       "The following mitochondrial contig names are absent from the reference:"
     )(ReferenceGenome(
       "test",
-      Array("1", "2", "3"),
+      ArraySeq("1", "2", "3"),
       Map("1" -> 5, "2" -> 5, "3" -> 5),
       mtContigs = Set("MT"),
     ))
     interceptFatal("The contig name for PAR interval")(ReferenceGenome(
       "test",
-      Array("1", "2", "3"),
+      ArraySeq("1", "2", "3"),
       Map("1" -> 5, "2" -> 5, "3" -> 5),
-      parInput = Array((Locus("X", 1), Locus("X", 5))),
+      parInput = ArraySeq((Locus("X", 1), Locus("X", 5))),
     ))
     interceptFatal("in both X and Y contigs.")(ReferenceGenome(
       "test",
-      Array("1", "2", "3"),
+      ArraySeq("1", "2", "3"),
       Map("1" -> 5, "2" -> 5, "3" -> 5),
       xContigs = Set("1"),
       yContigs = Set("1"),
@@ -141,7 +146,7 @@ class ReferenceGenomeSuite extends HailSuite {
     val fastaFileGzip = getTestResource("fake_reference.fasta.gz")
     val indexFile = getTestResource("fake_reference.fasta.fai")
 
-    val rg = ReferenceGenome("test", Array("a", "b", "c"), Map("a" -> 25, "b" -> 15, "c" -> 10))
+    val rg = ReferenceGenome("test", ArraySeq("a", "b", "c"), Map("a" -> 25, "b" -> 15, "c" -> 10))
     ctx.local(references = ctx.references + (rg.name -> rg)) { ctx =>
       val fr = FASTAReaderConfig(ctx.localTmpdir, ctx.fs, rg, fastaFile, indexFile, 3, 5).reader
       val frGzip =

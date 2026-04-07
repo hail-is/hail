@@ -2,6 +2,7 @@ package is.hail.lir
 
 import is.hail.asm4s.{classInfo, BooleanInfo, IntInfo, UnitInfo}
 import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.utils._
 
 import scala.collection.mutable
@@ -203,21 +204,27 @@ class SplitMethod(
     }
 
     val blocks = method.findBlocks()
-    for (b <- blocks) {
+
+    val N = blocks.length
+    var i = 0
+    while (i < N) {
+      val b = blocks(i)
+
       b.last match {
         case x: SwitchX =>
           var Lunreachable: Block = null
-          var i = 0
-          while (i < x.targetArity()) {
-            if (x.target(i) == null) {
+          val T = x.targetArity()
+          var t = 0
+          while (t < T) {
+            if (x.target(t) == null) {
               if (Lunreachable == null) {
                 Lunreachable = new Block()
                 Lunreachable.method = method
                 Lunreachable.append(throwUnreachable())
               }
-              x.setTarget(i, Lunreachable)
+              x.setTarget(t, Lunreachable)
             }
-            i += 1
+            t += 1
           }
         case _ =>
       }
@@ -228,6 +235,8 @@ class SplitMethod(
         spill(x)
         x = n
       }
+
+      i += 1
     }
   }
 
@@ -361,13 +370,13 @@ class SplitMethod(
 
     {
       if (returnTI == UnitInfo) {
-        val s = methodStmt(INVOKEVIRTUAL, splitM, Array(load(m.getParam(0)), load(spills)))
+        val s = methodStmt(INVOKEVIRTUAL, splitM, ArraySeq(load(m.getParam(0)), load(spills)))
         newL.append(s)
         if (splitsReturn)
           splitReturnCalls += s
       } else {
         splitMReturnValue =
-          methodInsn(INVOKEVIRTUAL, splitM, Array(load(m.getParam(0)), load(spills)))
+          methodInsn(INVOKEVIRTUAL, splitM, ArraySeq(load(m.getParam(0)), load(spills)))
         if (splitsReturn) {
           val l = m.newLocal("splitMReturnValue", returnTI)
           val s = store(l, splitMReturnValue)
@@ -434,15 +443,14 @@ class SplitMethod(
         Lreturn.method = splitM
         Lreturn.append(returnx(load(lidx)))
         val newSwitch = switch(splitMReturnValue, x.Ldefault, x.Lcases)
-        var i = 0
-        while (i < x.targetArity()) {
-          val L = x.target(i)
+        val T = x.targetArity()
+        var t = 0
+        while (t < T) {
+          val L = x.target(t)
           if (regionBlocks(L))
-            // null is replaced with throw new SplitUnreachable
-            newSwitch.setTarget(i, null)
-          else
-            x.setTarget(i, Lreturn)
-          i += 1
+            newSwitch.setTarget(t, null) // null is replaced with throw new SplitUnreachable
+          else x.setTarget(t, Lreturn)
+          t += 1
         }
         newL.append(newSwitch)
       case _: ReturnX =>

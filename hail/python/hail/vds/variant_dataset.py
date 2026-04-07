@@ -274,9 +274,6 @@ class VariantDataset:
         rd = self.reference_data
         vd = self.variant_data
 
-        def error(msg):
-            raise ValueError(f'VDS.validate: {msg}')
-
         rd_row_key = rd.row_key.dtype
         if (
             not isinstance(rd_row_key, hl.tstruct)
@@ -284,7 +281,7 @@ class VariantDataset:
             or not rd_row_key.fields[0] == 'locus'
             or not isinstance(rd_row_key.types[0], hl.tlocus)
         ):
-            error(f"expect reference data to have a single row key 'locus' of type locus, found {rd_row_key}")
+            _validate_err(f"expect reference data to have a single row key 'locus' of type locus, found {rd_row_key}")
 
         vd_row_key = vd.row_key.dtype
         if (
@@ -294,33 +291,34 @@ class VariantDataset:
             or not isinstance(vd_row_key.types[0], hl.tlocus)
             or vd_row_key.types[1] != hl.tarray(hl.tstr)
         ):
-            error(
+            _validate_err(
                 f"expect variant data to have a row key {{'locus': locus<rg>, alleles: array<str>}}, found {vd_row_key}"
             )
 
         rd_col_key = rd.col_key.dtype
         if not isinstance(rd_col_key, hl.tstruct) or len(rd_row_key) != 1 or rd_col_key.types[0] != hl.tstr:
-            error(f"expect reference data to have a single col key of type string, found {rd_col_key}")
+            _validate_err(f"expect reference data to have a single col key of type string, found {rd_col_key}")
 
         vd_col_key = vd.col_key.dtype
         if not isinstance(vd_col_key, hl.tstruct) or len(vd_col_key) != 1 or vd_col_key.types[0] != hl.tstr:
-            error(f"expect variant data to have a single col key of type string, found {vd_col_key}")
+            _validate_err(f"expect variant data to have a single col key of type string, found {vd_col_key}")
 
         end_exists = 'END' in rd.entry
         len_exists = 'LEN' in rd.entry
         if not (end_exists or len_exists):
-            error("expect at least one of 'END' or 'LEN' in entry of reference data")
+            _validate_err("expect at least one of 'END' or 'LEN' in entry of reference data")
         if end_exists and rd.END.dtype != hl.tint32:
-            error("'END' field in entry of reference data must have type tint32")
+            _validate_err("'END' field in entry of reference data must have type tint32")
         if len_exists and rd.LEN.dtype != hl.tint32:
-            error("'LEN' field in entry of reference data must have type tint32")
+            _validate_err("'LEN' field in entry of reference data must have type tint32")
+        self._validate_filters_fields()
 
         if check_data:
             # check cols
             ref_cols = rd.col_key.collect()
             var_cols = vd.col_key.collect()
             if len(ref_cols) != len(var_cols):
-                error(
+                _validate_err(
                     f"mismatch in number of columns: reference data has {ref_cols} columns, variant data has {var_cols} columns"
                 )
 
@@ -328,7 +326,7 @@ class VariantDataset:
                 first_mismatch = 0
                 while ref_cols[first_mismatch] == var_cols[first_mismatch]:
                     first_mismatch += 1
-                error(
+                _validate_err(
                     f"mismatch in columns keys: ref={ref_cols[first_mismatch]}, var={var_cols[first_mismatch]} at position {first_mismatch}"
                 )
 
@@ -337,7 +335,9 @@ class VariantDataset:
             n_distinct = rd.distinct_by_row().count_rows()
 
             if n_distinct != n_rd_rows:
-                error(f'reference data loci are not distinct: found {n_rd_rows} rows, but {n_distinct} distinct loci')
+                _validate_err(
+                    f'reference data loci are not distinct: found {n_rd_rows} rows, but {n_distinct} distinct loci'
+                )
 
             # check END field
             end_exprs = dict(
@@ -353,21 +353,32 @@ class VariantDataset:
             res = rd.aggregate_entries(hl.struct(**end_exprs))
 
             if res.missing_end:
-                error(
+                _validate_err(
                     'found records in reference data with missing END field\n  '
                     + '\n  '.join(str(x) for x in res.missing_end)
                 )
             if res.end_before_position:
-                error(
+                _validate_err(
                     'found records in reference data with END before locus position\n  '
                     + '\n  '.join(str(x) for x in res.end_before_position)
                 )
             blocks_too_long = res.get('blocks_too_long', [])
             if blocks_too_long:
-                error(
+                _validate_err(
                     'found records in reference data with blocks larger than `ref_block_max_length`\n  '
                     + '\n  '.join(str(x) for x in blocks_too_long)
                 )
+
+    def _validate_filters_fields(self):
+        field = 'gvcf_filters'
+        ref_has = field in self.reference_data.entry
+        var_has = field in self.variant_data.entry
+        if ref_has == var_has:
+            return
+        if ref_has and not var_has:
+            _validate_err(f"reference data has '{field}' when variant data does not")
+        if var_has and not ref_has:
+            _validate_err(f"variant data has '{field}' when reference data does not")
 
     def _same(self, other: 'VariantDataset'):
         return self.reference_data._same(other.reference_data) and self.variant_data._same(other.variant_data)
@@ -420,3 +431,7 @@ class VariantDataset:
 
         new_var_mt = hl.MatrixTable.union_rows(*(vds.variant_data for vds in vdses))
         return hl.vds.VariantDataset(new_ref_mt, new_var_mt)
+
+
+def _validate_err(msg):
+    raise ValueError(f'VDS.validate: {msg}')

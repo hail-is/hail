@@ -2,26 +2,21 @@ package is.hail.backend
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIndexedSeq
+import is.hail.expr.ir.Compiled
 import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.lowering.TableStageDependency
-import is.hail.io.fs._
 import is.hail.utils._
 
 object BackendUtils {
   type F = AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]]
 }
 
-class BackendUtils(
-  mods: Array[(String, (HailClassLoader, FS, HailTaskContext, Region) => BackendUtils.F)]
-) extends Logging {
+class BackendUtils(mods: Array[(String, Compiled[BackendUtils.F])]) extends Logging {
 
-  import BackendUtils.F
-
-  private[this] val loadedModules
-    : Map[String, (HailClassLoader, FS, HailTaskContext, Region) => F] = mods.toMap
-
-  def getModule(id: String): (HailClassLoader, FS, HailTaskContext, Region) => F = loadedModules(id)
+  private[this] val getModule: Map[String, Compiled[BackendUtils.F]] =
+    mods.toMap
 
   def collectDArray(
     ctx: DriverRuntimeContext,
@@ -31,7 +26,8 @@ class BackendUtils(
     stageName: String,
     tsd: Option[TableStageDependency],
   ): Array[Array[Byte]] = {
-    val (failureOpt, results) = runCDA(ctx, globals, contexts, None, modID, stageName, tsd)
+    val (failureOpt, results) =
+      runCDA(ctx, globals, ArraySeq.unsafeWrapArray(contexts), None, modID, stageName, tsd)
     failureOpt.foreach(throw _)
     Array.tabulate[Array[Byte]](results.length)(results(_)._1)
   }
@@ -57,10 +53,18 @@ class BackendUtils(
     val (failureOpt, successes) =
       todo match {
         case Seq() =>
-          (None, IndexedSeq.empty)
+          (None, ArraySeq.empty)
 
         case partitions =>
-          runCDA(ctx, globals, contexts, Some(partitions), modID, stageName, tsd)
+          runCDA(
+            ctx,
+            globals,
+            ArraySeq.unsafeWrapArray(contexts),
+            Some(partitions),
+            modID,
+            stageName,
+            tsd,
+          )
       }
 
     val results = merge[(Array[Byte], Int)](cachedResults, successes, _._2 < _._2)
@@ -75,7 +79,7 @@ class BackendUtils(
   private[this] def runCDA(
     rtx: DriverRuntimeContext,
     globals: Array[Byte],
-    contexts: Array[Array[Byte]],
+    contexts: IndexedSeq[Array[Byte]],
     partitions: Option[IndexedSeq[Int]],
     modID: String,
     stageName: String,
@@ -85,16 +89,10 @@ class BackendUtils(
     val mod = getModule(modID)
     val start = System.nanoTime()
 
-    val r = rtx.mapCollectPartitions(
-      globals,
-      contexts,
-      stageName,
-      tsd,
-      partitions,
-    ) { (gs, ctx, htc, theHailClassLoader, fs) =>
-      htc.getRegionPool().scopedRegion { region =>
-        mod(theHailClassLoader, fs, htc, region)(region, ctx, gs)
-      }
+    val r = rtx.mapCollectPartitions(globals, contexts, stageName, tsd, partitions) {
+      (hcl, fs, htc, r) =>
+        val f = mod(hcl, fs, htc, r)
+        f(r, _, _)
     }
 
     val elapsed = System.nanoTime() - start

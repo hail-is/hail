@@ -304,9 +304,41 @@ def test_missing_ref_gt_does_not_drop_other_fields():
     locus = hl.locus('1', 1, reference_genome='GRCh37')
     entry = hl.struct(GT=hl.missing('tcall'), DP=10, GQ=20)
     row = hl.struct(locus=locus, info=hl.struct(END=40))
-    result = hl.eval(make_ref_entry_struct(entry, set(entry), row))
+    result = hl.eval(make_ref_entry_struct(entry, set(entry), False, row))
     assert result is not None
     assert result.LGT is None
     assert result.DP == 10
     assert result.GQ == 20
     assert result.LEN == 40
+
+
+def test_save_filters_saves_filters():
+    _paths = ['gvcfs/has_filter.g.vcf.gz']
+    paths = [resource(p) for p in _paths]
+    parts = [
+        hl.Interval(
+            start=hl.Locus('chr20', 17821257, reference_genome='GRCh38'),
+            end=hl.Locus('chr20', 21144633, reference_genome='GRCh38'),
+            includes_end=True,
+        ),
+    ]
+    with hl.TemporaryDirectory() as tmpdir:
+        out = os.path.join(tmpdir, 'out.vds')
+        hl.vds.new_combiner(
+            temp_path=tmpdir,
+            output_path=out,
+            gvcf_paths=paths,
+            intervals=parts,
+            call_fields=[],
+            reference_genome='GRCh38',
+            gvcf_save_filters=True,
+        ).run()
+        comb = hl.vds.read_vds(out)
+        assert 'gvcf_filters' in comb.reference_data.entry
+        assert 'gvcf_filters' in comb.variant_data.entry
+        all_filters = comb.reference_data.aggregate_entries(hl.agg.collect_as_set(comb.reference_data.gvcf_filters))
+        filters = frozenset.union(*all_filters)
+        assert {'LowQual'} == filters
+        all_filters = comb.variant_data.aggregate_entries(hl.agg.collect_as_set(comb.variant_data.gvcf_filters))
+        filters = frozenset.union(*all_filters)
+        assert {'LowQual'} == filters

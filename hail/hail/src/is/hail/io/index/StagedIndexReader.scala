@@ -5,6 +5,7 @@ import is.hail.asm4s._
 import is.hail.asm4s.implicits.valueToRichCodeInputBuffer
 import is.hail.backend.TaskFinalizer
 import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{
   BinarySearch, EmitCode, EmitCodeBuilder, EmitMethodBuilder, EmitValue, IEmitCode,
 }
@@ -480,7 +481,7 @@ class StagedIndexReader(
   private[this] def getFirstLeaf(cb: EmitCodeBuilder, internalChild: SBaseStructValue): SValue =
     new SStackStructValue(
       leafChildLocalType,
-      Array(
+      ArraySeq(
         EmitValue.present(internalChild.loadField(cb, "first_key").getOrAssert(cb)),
         EmitValue.present(internalChild.loadField(cb, "first_record_offset").getOrAssert(cb)),
         EmitValue.present(internalChild.loadField(cb, "first_annotation").getOrAssert(cb)),

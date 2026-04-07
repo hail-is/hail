@@ -1,6 +1,5 @@
 package is.hail.expr.ir
 
-import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.Nat
 import is.hail.expr.ir.defs._
 import is.hail.types.tcoerce
@@ -54,7 +53,6 @@ object InferType {
       case _: SerializeAggs => TVoid
       case _: DeserializeAggs => TVoid
       case Die(_, t, _) => t
-      case Trap(child) => TTuple(TTuple(TString, TInt32), child.typ)
       case ConsoleLog(_, result) => result.typ
       case If(cond, cnsq, altr) =>
         assert(cond.typ == TBoolean)
@@ -258,7 +256,7 @@ object InferType {
         }: _*)
       case SelectFields(old, fields) =>
         val tbs = tcoerce[TStruct](old.typ)
-        tbs.select(fields.toFastSeq)._1
+        tbs.select(fields)._1
       case InsertFields(old, fields, fieldOrder) =>
         val tbs = tcoerce[TStruct](old.typ)
         val s = tbs.insertFields(fields.map(f => (f._1, f._2.typ)))
@@ -272,7 +270,7 @@ object InferType {
           throw new RuntimeException(s"$name not in $t")
         t.field(name).typ
       case MakeTuple(values) =>
-        TTuple(values.map { case (i, value) => TupleField(i, value.typ) }.toFastSeq)
+        TTuple(values.map { case (i, value) => TupleField(i, value.typ) })
       case GetTupleElement(o, idx) =>
         val t = tcoerce[TTuple](o.typ)
         val fd = t.fields(t.fieldIndex(idx)).typ
@@ -302,7 +300,6 @@ object InferType {
       case _: WriteMetadata => TVoid
       case ReadValue(_, _, typ) => typ
       case _: WriteValue => TString
-      case LiftMeOut(child) => child.typ
     }
   }
 }

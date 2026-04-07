@@ -1,6 +1,7 @@
 package is.hail.methods
 
 import is.hail.backend.ExecuteContext
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.TableValue
 import is.hail.expr.ir.functions.BlockMatrixToTableFunction
 import is.hail.linalg.BlockMatrix
@@ -40,7 +41,7 @@ object PCRelate {
     ("ibd2", TFloat64),
   )
 
-  private val keys: IndexedSeq[String] = Array("i", "j")
+  private val keys: IndexedSeq[String] = ArraySeq("i", "j")
 
   private def rowsToBDM(xss: IndexedSeq[IndexedSeq[java.lang.Double]]): BDM[Double] = {
     val x = xss.toArray

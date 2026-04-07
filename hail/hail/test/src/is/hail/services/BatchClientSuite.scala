@@ -90,7 +90,8 @@ class BatchClientSuite extends TestNGSuite {
     )
     val result = client.waitForJobGroup(batchId, jobGroupId)
     assert(result.state == Failure)
-    assert(result.n_cancelled == 1)
+    assert(result.n_jobs == 2)
+    assert(result.n_failed == 1)
   }
 
   @Test
@@ -123,6 +124,7 @@ class BatchClientSuite extends TestNGSuite {
       forAll(client.getJobGroupJobs(batchId, jobGroupId, Some(state))) { jobs =>
         assert(jobs.length == 1)
         assert(jobs(0).state == state)
+        assert(jobs.head.end_time.isDefined)
       }
     }
   }

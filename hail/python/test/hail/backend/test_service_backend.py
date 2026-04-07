@@ -39,7 +39,7 @@ def run_on_batch_mocks(mocker):
     outfile = type('Settable', (object,), {'value': None})
 
     async def write_output(*args, **kwargs):
-        async with await backend._async_fs.create(outfile.value) as f:
+        async with await backend.fs.afs.create(outfile.value) as f:
             payload = hl.ttuple(hl.tint64)._to_encoding([0])
             await f.write(struct.pack('<b', 1))
             await f.write(struct.pack('<i', len(payload)))

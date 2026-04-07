@@ -2628,14 +2628,12 @@ class JVMContainer:
 
     async def start_profiler(self, output_file: str):
         await self.container.exec(
-            ['./profiler.sh', 'start', '-o', 'flamegraph', '-e', 'itimer', '-f', output_file, 'jps'],
-            options=['--cwd=/async-profiler-2.9-linux-x64/'],
+            ['asprof', 'start', '-o', 'flamegraph', '-e', 'itimer', '-f', output_file, 'jps'],
         )
 
     async def stop_profiler(self, output_file: str):
         await self.container.exec(
-            ['./profiler.sh', 'stop', '-o', 'flamegraph', '-f', output_file, 'jps'],
-            options=['--cwd=/async-profiler-2.9-linux-x64/'],
+            ['asprof', 'stop', '-o', 'flamegraph', '-f', output_file, 'jps'],
         )
 
     async def get_resource_usage(self) -> bytes:
@@ -2673,7 +2671,7 @@ class JVMProfiler:
         except asyncio.CancelledError:
             raise
         except Exception:
-            log.warning(f'could not start JVM profiling for {self.container.container.name}')
+            log.warning(f'could not start JVM profiling for {self.container.container.name}', exc_info=True)
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -2685,7 +2683,7 @@ class JVMProfiler:
         except asyncio.CancelledError:
             raise
         except Exception:
-            log.warning(f'could not stop JVM profiling for {self.container.container.name}')
+            log.warning(f'could not stop JVM profiling for {self.container.container.name}', exc_info=True)
 
 
 class JVM:

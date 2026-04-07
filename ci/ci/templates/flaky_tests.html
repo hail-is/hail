@@ -1,0 +1,14 @@
+{% extends "layout.html" %}
+{% block title %}Flaky Tests{% endblock %}
+{% block head %}
+<link href="https://fonts.googleapis.com/css2?family=Fredoka+One&display=swap" rel="stylesheet" />
+<script type="module" src="{{ base_path }}/ci/static/compiled-js/flaky_tests.js"></script>
+{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-light mb-2">Flaky Test Dashboard</h1>
+<div id="flaky-tests-root" data-base-path="{{ base_path }}" data-batch-base-url="{{ batch_base_url }}">
+  <div class="flex items-center justify-center mt-24">
+    <span class="text-5xl font-light text-sky-600">Loading&hellip;</span>
+  </div>
+</div>
+{% endblock %}

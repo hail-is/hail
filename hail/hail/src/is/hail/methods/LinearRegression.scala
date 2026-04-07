@@ -88,13 +88,13 @@ case class LinearRegressionRowsSingle(
     val tableType = typ(mv.typ)
     val rvdType = tableType.canonicalRVDType
 
-    val copiedFieldIndices = (mv.typ.rowKey ++ passThrough).map(fullRowType.fieldIdx(_)).toArray
+    val copiedFieldIndices = (mv.typ.rowKey ++ passThrough).map(fullRowType.fieldIdx(_))
     val nDependentVariables = yFields.length
 
     val sm = ctx.stateManager
     val newRVD = mv.rvd.mapPartitionsWithContext(
       rvdType
-    ) { (consumerCtx, it) =>
+    ) { (hcl, consumerCtx, it) =>
       val producerCtx = consumerCtx.freshContext()
       val rvb = new RegionValueBuilder(sm)
 
@@ -108,7 +108,7 @@ case class LinearRegressionRowsSingle(
         i += 1
       }
 
-      it(producerCtx).trueGroupedIterator(rowBlockSize)
+      it(hcl, producerCtx).trueGroupedIterator(rowBlockSize)
         .flatMap { git =>
           var i = 0
           while (git.hasNext) {
@@ -268,12 +268,12 @@ case class LinearRegressionRowsChained(
 
     val tableType = typ(mv.typ)
     val rvdType = tableType.canonicalRVDType
-    val copiedFieldIndices = (mv.typ.rowKey ++ passThrough).map(fullRowType.fieldIdx(_)).toArray
+    val copiedFieldIndices = (mv.typ.rowKey ++ passThrough).map(fullRowType.fieldIdx(_))
 
     val sm = ctx.stateManager
     val newRVD = mv.rvd.mapPartitionsWithContext(
       rvdType
-    ) { (consumerCtx, it) =>
+    ) { (hcl, consumerCtx, it) =>
       val producerCtx = consumerCtx.freshContext()
       val rvb = new RegionValueBuilder(sm)
 
@@ -288,7 +288,7 @@ case class LinearRegressionRowsChained(
         i += 1
       }
 
-      it(producerCtx).trueGroupedIterator(rowBlockSize)
+      it(hcl, producerCtx).trueGroupedIterator(rowBlockSize)
         .flatMap { git =>
           var i = 0
           while (git.hasNext) {

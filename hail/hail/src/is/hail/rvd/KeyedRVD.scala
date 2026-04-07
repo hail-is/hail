@@ -83,7 +83,7 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
       joinedType.copy(key = joinedType.key.take(realType.key.length)),
       right.rvd,
       key,
-    ) { (ctx, leftIt, rightIt) =>
+    ) { (_, ctx, leftIt, rightIt) =>
       val sideBuffer = ctx.freshRegion()
       joiner(
         ctx,
@@ -116,7 +116,7 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
 
         (
           newTyp,
-          (ctx: RVDContext, it: Iterator[RegionValue], intervals: Iterator[RegionValue]) =>
+          (_, ctx: RVDContext, it: Iterator[RegionValue], intervals: Iterator[RegionValue]) =>
             f(
               ctx,
               OrderedRVIterator(lTyp, it, ctx, sm)
@@ -143,7 +143,7 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
 
         (
           newTyp,
-          (ctx: RVDContext, it: Iterator[RegionValue], intervals: Iterator[RegionValue]) =>
+          (_, ctx: RVDContext, it: Iterator[RegionValue], intervals: Iterator[RegionValue]) =>
             f(
               ctx,
               OrderedRVIterator(lTyp, it, ctx, sm)
@@ -167,7 +167,7 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
       joinedType,
       right.rvd,
       key,
-    ) { (ctx, leftIt, rightIt) =>
+    ) { (_, ctx, leftIt, rightIt) =>
       joiner(
         ctx,
         OrderedRVIterator(lTyp, leftIt, ctx, sm).leftJoinDistinct(OrderedRVIterator(
@@ -209,7 +209,7 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
       this.virtType,
       right.rvd,
       key,
-    ) { (ctx, leftIt, rightIt) =>
+    ) { (_, ctx, leftIt, rightIt) =>
       OrderedRVIterator(lType, leftIt, ctx, sm)
         .merge(OrderedRVIterator(rType, rightIt, ctx, sm))
     }

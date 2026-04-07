@@ -159,11 +159,12 @@ class HailContext(object):
     sc=nullable(SparkContext),
     app_name=nullable(str),
     master=nullable(str),
-    local=str,
+    local=nullable(str),
     log=nullable(str),
     quiet=bool,
+    show_progress=nullable(bool),
     append=bool,
-    min_block_size=int,
+    min_block_size=nullable(int),
     branching_factor=int,
     tmp_dir=nullable(str),
     default_reference=nullable(enumeration(*BUILTIN_REFERENCES)),
@@ -178,20 +179,23 @@ class HailContext(object):
     worker_cores=nullable(oneof(str, int)),
     worker_memory=nullable(str),
     batch_id=nullable(int),
+    max_read_parallelism=nullable(int),
     gcs_requester_pays_configuration=nullable(oneof(str, sized_tupleof(str, sequenceof(str)))),
     regions=nullable(sequenceof(str)),
     gcs_bucket_allow_list=nullable(dictof(str, sequenceof(str))),
     copy_spark_log_on_error=nullable(bool),
+    copy_log_on_error=nullable(bool),
 )
 def init(
     sc=None,
     app_name=None,
     master=None,
-    local='local[*]',
+    local=None,
     log=None,
     quiet=False,
+    show_progress=None,
     append=False,
-    min_block_size=0,
+    min_block_size=None,
     branching_factor=50,
     tmp_dir=None,
     default_reference=None,
@@ -207,10 +211,12 @@ def init(
     worker_cores=None,
     worker_memory=None,
     batch_id=None,
+    max_read_parallelism: int | None = None,
     gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
     regions: Optional[List[str]] = None,
     gcs_bucket_allow_list: Optional[Dict[str, List[str]]] = None,
-    copy_spark_log_on_error: bool = False,
+    copy_spark_log_on_error: bool | None = None,
+    copy_log_on_error: bool | None = None,
 ):
     """Initialize and configure Hail.
 
@@ -283,6 +289,8 @@ def init(
         Google Storage, S3, or HDFS.
     quiet : :obj:`bool`
         Print fewer log messages.
+    show_progress: :obj:`bool`, optional
+        Shows the progress of stages in the next line of the console. 'spark' and 'batch' backend only.
     append : :obj:`bool`
         Append to the end of the log file.
     min_block_size : :obj:`int`
@@ -290,8 +298,8 @@ def init(
     branching_factor : :obj:`int`
         Branching factor for tree aggregation.
     tmp_dir : :class:`str`, optional
-        Networked temporary directory.  Must be a network-visible file
-        path.  Defaults to /tmp in the default scheme.
+        Networked temporary directory.  Must be a network-visible file path.
+        Defaults to /tmp in the default scheme.
     default_reference : :class:`str`
         *Deprecated*. Please use :func:`.default_reference` to set the default reference genome
 
@@ -307,7 +315,7 @@ def init(
         Spark Backend only. Skip logging configuration in java and python.
     local_tmpdir : :class:`str`, optional
         Local temporary directory.  Used on driver and executor nodes.
-        Must use the file scheme.  Defaults to TMPDIR, or /tmp.
+        Defaults to TMPDIR, or /tmp
     driver_cores : :class:`str` or :class:`int`, optional
         Batch backend only. Number of cores to use for the driver process. May be 1, 2, 4, or 8. Default is
         1.
@@ -322,6 +330,8 @@ def init(
         highmem. Default is standard.
     batch_id: :class:`int`, optional
         Batch backend only. An existing batch id to add jobs to.
+    max_read_parallelism: :class:`int`, optional
+        Batch backend only. Maximum number of partition results that the driver may read in parallel
     gcs_requester_pays_configuration : either :class:`str` or :class:`tuple` of :class:`str` and :class:`list` of :class:`str`, optional
         If a string is provided, configure the Google Cloud Storage file system to bill usage to the
         project identified by that string. If a tuple is provided, configure the Google Cloud
@@ -335,7 +345,10 @@ def init(
         A list of buckets that Hail should be permitted to read from or write to, even if their default policy is to
         use "cold" storage. Should look like ``["bucket1", "bucket2"]``.
     copy_spark_log_on_error: :class:`bool`, optional
+        *Deprecated*. Please use `copy_log_on_error`.
         Spark backend only. If `True`, copy the log from the spark driver node to `tmp_dir` on error.
+    copy_log_on_error: :class:`bool`, optional
+        Local-mode only. If `True`, copy the log from the driver node to `tmp_dir` on error.
     """
     if Env._hc:
         if idempotent:
@@ -356,6 +369,13 @@ def init(
     else:
         default_reference = 'GRCh37'
 
+    if copy_spark_log_on_error is not None:
+        warnings.warn('`copy_spark_log_on_error` is deprecated. Please use `copy_log_on_error` instead.')
+        if copy_log_on_error is None:
+            copy_log_on_error = copy_spark_log_on_error
+        else:
+            raise ValueError('Specify at most one of `copy_log_on_error` or `copy_spark_log_on_error`.')
+
     backend = choose_backend(backend)
 
     if backend == 'service':
@@ -365,6 +385,10 @@ def init(
         )
         backend = 'batch'
 
+    requester_pays_config = get_gcs_requester_pays_configuration(
+        gcs_requester_pays_configuration=gcs_requester_pays_configuration,
+    )
+
     if backend == 'batch':
         if os.getenv('HAIL_QUERY_USE_EXPERIMENTAL_BATCH_BACKEND') is not None:
             return hail.experimental.init(
@@ -372,6 +396,7 @@ def init(
                 app_name=app_name,
                 log=log,
                 quiet=quiet,
+                show_progress=show_progress,
                 append=append,
                 tmp_dir=tmp_dir,
                 default_reference=default_reference,
@@ -381,16 +406,19 @@ def init(
                 worker_cores=worker_cores,
                 worker_memory=worker_memory,
                 batch_id=batch_id,
-                gcs_requester_pays_configuration=gcs_requester_pays_configuration,
+                gcs_requester_pays_configuration=requester_pays_config,
                 regions=regions,
                 gcs_bucket_allow_list=gcs_bucket_allow_list,
                 branching_factor=branching_factor,
+                max_read_parallelism=max_read_parallelism,
+                copy_log_on_error=copy_log_on_error,
             )
         else:
             return hail_event_loop().run_until_complete(
                 init_batch(
                     log=log,
                     quiet=quiet,
+                    show_progress=show_progress,
                     append=append,
                     tmpdir=tmp_dir,
                     default_reference=default_reference,
@@ -401,10 +429,11 @@ def init(
                     worker_memory=worker_memory,
                     batch_id=batch_id,
                     name_prefix=app_name,
-                    gcs_requester_pays_configuration=gcs_requester_pays_configuration,
+                    requester_pays_config=requester_pays_config,
                     regions=regions,
                     gcs_bucket_allow_list=gcs_bucket_allow_list,
                     branching_factor=branching_factor,
+                    max_read_parallelism=max_read_parallelism,
                 )
             )
     if backend == 'spark':
@@ -418,14 +447,15 @@ def init(
             spark_conf=spark_conf,
             log=log,
             quiet=quiet,
+            show_progress=show_progress,
             append=append,
             tmp_dir=tmp_dir,
             local_tmpdir=local_tmpdir,
             default_reference=default_reference,
             global_seed=global_seed,
             skip_logging_configuration=skip_logging_configuration,
-            gcs_requester_pays_configuration=gcs_requester_pays_configuration,
-            copy_log_on_error=copy_spark_log_on_error,
+            requester_pays_config=requester_pays_config,
+            copy_log_on_error=copy_log_on_error,
         )
     if backend == 'local':
         return init_local(
@@ -436,7 +466,8 @@ def init(
             default_reference=default_reference,
             global_seed=global_seed,
             skip_logging_configuration=skip_logging_configuration,
-            gcs_requester_pays_configuration=gcs_requester_pays_configuration,
+            requester_pays_config=requester_pays_config,
+            copy_log_on_error=copy_log_on_error,
         )
     raise ValueError(f'unknown Hail Query backend: {backend}')
 
@@ -445,11 +476,12 @@ def init(
     sc=nullable(SparkContext),
     app_name=nullable(str),
     master=nullable(str),
-    local=str,
+    local=nullable(str),
     log=nullable(str),
     quiet=bool,
+    show_progress=nullable(bool),
     append=bool,
-    min_block_size=int,
+    min_block_size=nullable(int),
     branching_factor=int,
     tmp_dir=nullable(str),
     default_reference=enumeration(*BUILTIN_REFERENCES),
@@ -457,18 +489,19 @@ def init(
     spark_conf=nullable(dictof(str, str)),
     skip_logging_configuration=bool,
     local_tmpdir=nullable(str),
-    gcs_requester_pays_configuration=nullable(oneof(str, sized_tupleof(str, sequenceof(str)))),
+    requester_pays_config=nullable(oneof(str, sized_tupleof(str, sequenceof(str)))),
     copy_log_on_error=nullable(bool),
 )
 def init_spark(
     sc=None,
     app_name=None,
     master=None,
-    local='local[*]',
+    local=None,
     log=None,
     quiet=False,
     append=False,
-    min_block_size=0,
+    show_progress: bool | None = None,
+    min_block_size=None,
     branching_factor=50,
     tmp_dir=None,
     default_reference='GRCh37',
@@ -476,19 +509,13 @@ def init_spark(
     spark_conf=None,
     skip_logging_configuration=False,
     local_tmpdir=None,
-    gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
+    requester_pays_config: GCSRequesterPaysConfiguration | None = None,
     copy_log_on_error: bool = False,
 ):
     from hail.backend.spark_backend import SparkBackend
 
     log = _get_log(log)
     tmpdir = _get_tmpdir(tmp_dir)
-    local_tmpdir = _get_local_tmpdir(local_tmpdir)
-
-    app_name = app_name or 'Hail'
-    gcs_requester_pays_configuration = get_gcs_requester_pays_configuration(
-        gcs_requester_pays_configuration=gcs_requester_pays_configuration,
-    )
 
     backend = SparkBackend(
         sc,
@@ -499,14 +526,16 @@ def init_spark(
         log,
         quiet,
         append,
+        show_progress,
         min_block_size,
         branching_factor,
         tmpdir,
-        local_tmpdir,
+        _get_local_tmpdir(local_tmpdir),
         skip_logging_configuration,
-        gcs_requester_pays_config=gcs_requester_pays_configuration,
+        requester_pays_config=requester_pays_config,
         copy_log_on_error=copy_log_on_error,
     )
+
     if not backend.fs.exists(tmpdir):
         backend.fs.mkdir(tmpdir)
 
@@ -522,7 +551,7 @@ def init_spark(
     tmpdir=nullable(str),
     default_reference=enumeration(*BUILTIN_REFERENCES),
     global_seed=nullable(int),
-    disable_progress_bar=nullable(bool),
+    show_progress=nullable(bool),
     driver_cores=nullable(oneof(str, int)),
     driver_memory=nullable(str),
     worker_cores=nullable(oneof(str, int)),
@@ -530,10 +559,11 @@ def init_spark(
     batch_id=nullable(int),
     name_prefix=nullable(str),
     token=nullable(str),
-    gcs_requester_pays_configuration=nullable(oneof(str, sized_tupleof(str, sequenceof(str)))),
+    requester_pays_config=nullable(oneof(str, sized_tupleof(str, sequenceof(str)))),
     regions=nullable(sequenceof(str)),
     gcs_bucket_allow_list=nullable(sequenceof(str)),
     branching_factor=nullable(int),
+    max_read_parallelism=nullable(int),
 )
 async def init_batch(
     *,
@@ -545,7 +575,7 @@ async def init_batch(
     tmpdir: Optional[str] = None,
     default_reference: str = 'GRCh37',
     global_seed: Optional[int] = None,
-    disable_progress_bar: Optional[bool] = None,
+    show_progress: bool | None = None,
     driver_cores: Optional[Union[str, int]] = None,
     driver_memory: Optional[str] = None,
     worker_cores: Optional[Union[str, int]] = None,
@@ -553,10 +583,11 @@ async def init_batch(
     batch_id: Optional[int] = None,
     name_prefix: Optional[str] = None,
     token: Optional[str] = None,
-    gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
+    requester_pays_config: Optional[GCSRequesterPaysConfiguration] = None,
     regions: Optional[List[str]] = None,
     gcs_bucket_allow_list: Optional[List[str]] = None,
     branching_factor: Optional[int] = None,
+    max_read_parallelism: int | None = None,
 ):
     from hail.backend.service_backend import ServiceBackend
 
@@ -564,7 +595,7 @@ async def init_batch(
     backend = await ServiceBackend.create(
         billing_project=billing_project,
         remote_tmpdir=remote_tmpdir,
-        disable_progress_bar=disable_progress_bar,
+        show_progress=show_progress,
         driver_cores=driver_cores,
         driver_memory=driver_memory,
         worker_cores=worker_cores,
@@ -573,9 +604,10 @@ async def init_batch(
         name_prefix=name_prefix,
         credentials_token=token,
         regions=regions,
-        gcs_requester_pays_configuration=gcs_requester_pays_configuration,
+        requester_pays_config=requester_pays_config,
         gcs_bucket_allow_list=gcs_bucket_allow_list,
         branching_factor=branching_factor,
+        max_read_parallelism=max_read_parallelism,
     )
 
     log = _get_log(log)
@@ -592,7 +624,8 @@ async def init_batch(
     global_seed=nullable(int),
     skip_logging_configuration=bool,
     jvm_heap_size=nullable(str),
-    gcs_requester_pays_configuration=nullable(oneof(str, sized_tupleof(str, sequenceof(str)))),
+    requester_pays_config=nullable(oneof(str, sized_tupleof(str, sequenceof(str)))),
+    copy_log_on_error=nullable(bool),
 )
 def init_local(
     log=None,
@@ -604,7 +637,8 @@ def init_local(
     global_seed=None,
     skip_logging_configuration=False,
     jvm_heap_size=None,
-    gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
+    requester_pays_config: GCSRequesterPaysConfiguration | None = None,
+    copy_log_on_error: bool | None = None,
 ):
     from hail.backend.local_backend import LocalBackend
 
@@ -620,7 +654,8 @@ def init_local(
         branching_factor,
         skip_logging_configuration,
         jvm_heap_size,
-        gcs_requester_pays_configuration,
+        requester_pays_config,
+        copy_log_on_error,
     )
 
     if not backend.fs.exists(tmpdir):
@@ -631,8 +666,7 @@ def init_local(
 
 def _hail_cite_url():
     [tag, sha_prefix] = __version__.split("-")
-    is_devel, *_ = local_jar_information()
-    if not is_devel:
+    if not local_jar_information().dev:
         # pip installed
         return f"https://github.com/hail-is/hail/releases/tag/{tag}"
     return f"https://github.com/hail-is/hail/commit/{sha_prefix}"
@@ -932,10 +966,10 @@ def debug_info():
     if isinstance(Env.backend(), SparkBackend):
         spark_conf = spark_context()._conf.getAll()
 
-    _, hail_jar, classpath = local_jar_information()
+    info = local_jar_information()
     return {
         'version': __version__,
-        'hail_jar': hail_jar,
-        'classpath': classpath,
+        'hail_jar': info.hail_jar,
+        'classpath': info.extra_classpath,
         'spark_conf': spark_conf,
     }

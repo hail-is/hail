@@ -2,6 +2,7 @@ package is.hail.linalg
 
 import is.hail.backend.{BroadcastValue, ExecuteContext, HailStateManager}
 import is.hail.backend.spark.SparkBackend
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.io.InputBuffer
 import is.hail.io.fs.FS
 import is.hail.rvd.RVDPartitioner
@@ -21,16 +22,20 @@ object RowMatrix {
   def apply(rows: RDD[(Long, Array[Double])], nCols: Int, nRows: Long): RowMatrix =
     new RowMatrix(rows, nCols, Some(nRows), None)
 
-  def apply(rows: RDD[(Long, Array[Double])], nCols: Int, nRows: Long, partitionCounts: Array[Long])
-    : RowMatrix =
+  def apply(
+    rows: RDD[(Long, Array[Double])],
+    nCols: Int,
+    nRows: Long,
+    partitionCounts: IndexedSeq[Long],
+  ): RowMatrix =
     new RowMatrix(rows, nCols, Some(nRows), Some(partitionCounts))
 
-  def computePartitionCounts(partSize: Long, nRows: Long): Array[Long] = {
+  def computePartitionCounts(partSize: Long, nRows: Long): IndexedSeq[Long] = {
     val nParts = ((nRows - 1) / partSize).toInt + 1
     val partitionCounts = Array.fill[Long](nParts)(partSize)
     partitionCounts(nParts - 1) = nRows - partSize * (nParts - 1)
 
-    partitionCounts
+    ArraySeq.unsafeWrapArray(partitionCounts)
   }
 
   def readBlockMatrix(ctx: ExecuteContext, uri: String, maybePartSize: java.lang.Integer)
@@ -56,7 +61,7 @@ class RowMatrix(
   val rows: RDD[(Long, Array[Double])],
   val nCols: Int,
   private var _nRows: Option[Long],
-  private var _partitionCounts: Option[Array[Long]],
+  private var _partitionCounts: Option[IndexedSeq[Long]],
 ) extends Serializable {
 
   require(nCols > 0)
@@ -68,7 +73,7 @@ class RowMatrix(
       nRows
   }
 
-  def partitionCounts(): Array[Long] = _partitionCounts match {
+  def partitionCounts(): IndexedSeq[Long] = _partitionCounts match {
     case Some(partitionCounts) => partitionCounts
     case None =>
       _partitionCounts = Some(rows.countPerPartition())
@@ -76,7 +81,7 @@ class RowMatrix(
   }
 
   // length nPartitions + 1, first element 0, last element rdd2 count
-  def partitionStarts(): Array[Long] = partitionCounts().scanLeft(0L)(_ + _)
+  def partitionStarts(): IndexedSeq[Long] = partitionCounts().scanLeft(0L)(_ + _)
 
   def partitioner(
     partitionKey: Array[String] = Array("idx"),
@@ -89,7 +94,7 @@ class RowMatrix(
       HailStateManager(Map.empty),
       partitionKey,
       kType,
-      Array.tabulate(partStarts.length - 1) { i =>
+      ArraySeq.tabulate(partStarts.length - 1) { i =>
         val start = partStarts(i)
         val end = partStarts(i + 1)
         Interval(Row(start), Row(end), includesStart = true, includesEnd = false)
@@ -286,7 +291,7 @@ class ReadBlocksAsRowsRDD(
   fsBc: BroadcastValue[FS],
   path: String,
   partFiles: IndexedSeq[String],
-  partitionCounts: Array[Long],
+  partitionCounts: IndexedSeq[Long],
   gp: GridPartitioner,
 ) extends RDD[(Long, Array[Double])](SparkBackend.sparkContext, Nil) {
 

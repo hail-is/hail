@@ -3,4 +3,5 @@
 -c ../gear/pinned-requirements.txt
 -c ../web_common/pinned-requirements.txt
 gidgethub>=4.1.0,<6
+python-dateutil>=2.8.0
 zulip>=0.6.3,<1

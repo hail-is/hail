@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.{ExecStrategy, HailSuite}
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.defs._
 import is.hail.types.virtual._
@@ -54,7 +55,7 @@ class SimplifySuite extends HailSuite {
 
   @Test def testTableMultiWayZipJoinGlobalsRewrite(): Unit = {
     val tmwzj = TableGetGlobals(TableMultiWayZipJoin(
-      Array(TableRange(10, 10), TableRange(10, 10), TableRange(10, 10)),
+      ArraySeq(TableRange(10, 10), TableRange(10, 10), TableRange(10, 10)),
       "rowField",
       "globalField",
     ))
@@ -487,7 +488,7 @@ class SimplifySuite extends HailSuite {
 
     val t2 = Simplify(ctx, t)
     assert(t2 match {
-      case TableKeyBy(TableFilter(child, _), _, _) =>
+      case TableKeyBy(TableFilter(child, _), _, _, _) =>
         !Exists(child, _.isInstanceOf[TableFilterIntervals])
       case _ => false
     })

@@ -69,7 +69,7 @@ case class PCA(entryField: String, k: Int, computeLoadings: Boolean)
     val localRowKeySignature = mv.typ.rowKeyStruct.types
 
     val crdd: ContextRDD[Long] = if (computeLoadings) {
-      ContextRDD.weaken(svd.U.rows).cmapPartitions { (ctx, it) =>
+      ContextRDD.weaken(svd.U.rows).cmapPartitions { (_, ctx, it) =>
         val rvb = ctx.rvb
         it.map { ir =>
           rvb.start(rowType)
@@ -120,14 +120,14 @@ case class PCA(entryField: String, k: Int, computeLoadings: Boolean)
 
     val g1 = f1(mv.globals.value, eigenvalues.toFastSeq)
     val globalScores = mv.colValues.safeJavaValue.zipWithIndex.map { case (cv, i) =>
-      f3(mv.typ.extractColKey(cv.asInstanceOf[Row]), scores(i))
+      f3(mv.typ.extractColKey(cv), scores(i))
     }
     val newGlobal = f2(g1, globalScores)
 
     TableValue(
       ctx,
-      TableType(rowType.virtualType, mv.typ.rowKey, newGlobalType.asInstanceOf[TStruct]),
-      BroadcastRow(ctx, newGlobal.asInstanceOf[Row], newGlobalType.asInstanceOf[TStruct]),
+      TableType(rowType.virtualType, mv.typ.rowKey, newGlobalType),
+      BroadcastRow(ctx, newGlobal.asInstanceOf[Row], newGlobalType),
       rvd,
     )
   }

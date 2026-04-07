@@ -10,9 +10,12 @@ import is.hail.utils.{fatal, ArrayOfByteArrayInputStream}
 
 object ExecuteRelational {
   def apply(ctx: ExecuteContext, ir: TableIR): TableExecuteIntermediate =
-    execute(ctx, LoweringAnalyses(ir, ctx), ir)
+    ctx.time {
+      execute(ctx, LoweringAnalyses(ir, ctx), ir)
+    }
 
-  def execute(ctx: ExecuteContext, r: LoweringAnalyses, ir: TableIR): TableExecuteIntermediate = {
+  private def execute(ctx: ExecuteContext, r: LoweringAnalyses, ir: TableIR)
+    : TableExecuteIntermediate = {
     def recur(ir: TableIR): TableExecuteIntermediate = execute(ctx, r, ir)
 
     ir match {
@@ -56,7 +59,7 @@ object ExecuteRelational {
         val leftTS = recur(left).asTableStage(ctx)
         val rightTS = recur(right).asTableStage(ctx)
         TableExecuteIntermediate(LowerTableIRHelpers.lowerTableJoin(ctx, r, ir, leftTS, rightTS))
-      case ir @ TableKeyBy(child, keys, isSorted) =>
+      case ir @ TableKeyBy(child, keys, isSorted, _) =>
         val tv = recur(child).asTableValue(ctx)
         TableValueIntermediate(tv.copy(typ = ir.typ, rvd = tv.rvd.enforceKey(ctx, keys, isSorted)))
       case TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize) =>

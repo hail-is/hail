@@ -6,6 +6,7 @@ import os
 import traceback
 from collections import defaultdict
 from contextlib import AsyncExitStack
+from datetime import timezone
 from typing import Any, Callable, Dict, List, NoReturn, Optional, Set, Tuple, TypedDict
 
 import aiohttp_session  # type: ignore
@@ -15,6 +16,7 @@ import kubernetes_asyncio.client
 import kubernetes_asyncio.config
 import yaml
 from aiohttp import ClientError, web
+from dateutil.parser import isoparse
 from gidgethub import aiohttp as gh_aiohttp
 from gidgethub import routing as gh_routing
 from gidgethub import sansio as gh_sansio
@@ -57,6 +59,8 @@ with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r',
     oauth_token = f.read().strip()
 
 log = logging.getLogger('ci')
+
+CI_ROOT = os.path.dirname(__file__)
 
 deploy_config = get_deploy_config()
 
@@ -193,10 +197,41 @@ async def _populate_batch_context(page_context: Dict[str, Any], batch: Batch) ->
         page_context['logging_queries'] = None
 
 
-async def _populate_active_pr_context(page_context: Dict[str, Any], wb: WatchedBranch, pr_number: int) -> None:
+async def _populate_active_pr_context(
+    page_context: Dict[str, Any], wb: WatchedBranch, pr_number: int, db: Database
+) -> None:
     pr = wb.prs[pr_number]
     page_context['pr'] = pr
     page_context['active_pr'] = True
+    page_context['pr_authorized'] = await pr.authorized(db)
+
+    # Merge eligibility checklist
+    page_context['review_approved'] = pr.review_state == 'approved'
+    page_context['checks_all_pass'] = len(pr.last_known_github_status) > 0 and pr.build_succeeding_on_all_platforms()
+    page_context['is_up_to_date'] = pr.is_up_to_date()
+    page_context['blocking_labels'] = [label for label in pr.labels if label in ('WIP', 'stacked PR')]
+    page_context['is_mergeable'] = pr.is_mergeable()
+
+    # Merge queue: approved, non-blocked, non-failing PRs with higher priority
+    _do_not_merge = frozenset(('WIP', 'stacked PR'))
+    page_context['build_failing'] = pr.build_failed_on_at_least_one_platform()
+    page_context['prs_ahead_in_queue'] = [
+        {'number': p.number, 'title': p.title, 'is_merge_candidate': p is wb.merge_candidate}
+        for p in wb.prs_in_merge_priority_order()
+        if p.number != pr.number
+        and p.merge_priority() > pr.merge_priority()
+        and p.review_state == 'approved'
+        and not any(label in _do_not_merge for label in p.labels)
+        and not p.build_failed_on_at_least_one_platform()
+    ]
+    page_context['is_merge_candidate'] = wb.merge_candidate is not None and wb.merge_candidate.number == pr.number
+
+    # Deploy batch blocking next merge (running but not yet complete)
+    deploy_batch = wb.deploy_batch
+    page_context['blocking_deploy_batch_id'] = (
+        deploy_batch.id if deploy_batch and isinstance(deploy_batch, Batch) and wb.deploy_state is None else None
+    )
+
     batch = pr.batch
     if batch:
         if isinstance(batch, Batch):
@@ -217,6 +252,7 @@ async def _populate_historical_pr_context(
             'number': gh_pr['number'],
             'labels': [label['name'] for label in gh_pr.get('labels', [])],
             'merged': gh_pr['merged'],
+            'merge_commit_sha': gh_pr.get('merge_commit_sha') if gh_pr['merged'] else None,
         }
     except gidgethub.HTTPException as e:
         if e.status_code == 404:
@@ -243,7 +279,7 @@ async def get_pr(request: web.Request, userdata: UserData) -> web.Response:
     page_context: Dict[str, Any] = {'repo': wb.branch.repo.short_str(), 'wb': wb}
 
     if wb.prs and pr_number in wb.prs:
-        await _populate_active_pr_context(page_context, wb, pr_number)
+        await _populate_active_pr_context(page_context, wb, pr_number, request.app[AppKeys.DB])
     else:
         await _populate_historical_pr_context(page_context, request.app[AppKeys.GH_CLIENT], wb, pr_number)
 
@@ -262,6 +298,27 @@ async def get_pr(request: web.Request, userdata: UserData) -> web.Response:
         await _populate_batch_context(page_context, batches[0])
     page_context['history'] = [await b.last_known_status() for b in batches]
 
+    deploy_batches = []
+    pr_data = page_context.get('pr')
+    if (
+        not page_context['active_pr']
+        and isinstance(pr_data, dict)
+        and pr_data.get('merged')
+        and pr_data.get('merge_commit_sha')
+    ):
+        merge_commit_sha = pr_data['merge_commit_sha']
+        deploy_batches = sorted(
+            [
+                b
+                async for b in batch_client.list_batches(
+                    f'deploy=1 target_branch={wb.branch.short_str()} sha={merge_commit_sha} user:ci'
+                )
+            ],
+            key=lambda b: b.id,
+            reverse=True,
+        )
+    page_context['deploy_batches'] = [await b.last_known_status() for b in deploy_batches]
+
     return await render_template('ci', request, userdata, 'pr.html', page_context)
 
 
@@ -272,7 +329,7 @@ def storage_uri_to_url(uri: str) -> str:
     return uri
 
 
-async def retry_pr(wb: WatchedBranch, pr: PR, request: web.Request):
+async def retry_pr(wb: WatchedBranch, pr: PR, request: web.Request, userdata: UserData):
     app = request.app
     session = await aiohttp_session.get_session(request)
 
@@ -288,7 +345,30 @@ async def retry_pr(wb: WatchedBranch, pr: PR, request: web.Request):
 
     batch_id = pr.batch.id
     db = app[AppKeys.DB]
+
+    async for job in pr.batch.jobs():
+        if job['state'] in ('Failed', 'Error'):
+            await db.execute_insertone(
+                '''INSERT INTO retried_tests
+                   (batch_id, job_id, job_name, state, exit_code, pr_number, target_branch, source_branch, source_sha, retried_by)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)''',
+                (
+                    job['batch_id'],
+                    job['job_id'],
+                    job.get('name'),
+                    job['state'],
+                    job.get('exit_code'),
+                    pr.number,
+                    wb.branch.short_str(),
+                    pr.source_branch.name,
+                    pr.source_sha,
+                    userdata['username'],
+                ),
+            )
+
     await db.execute_insertone('INSERT INTO invalidated_batches (batch_id) VALUES (%s);', batch_id)
+    pr.batch = None
+    pr.set_build_state(None)
     await wb.notify_batch_changed(
         db, app[AppKeys.BATCH_CLIENT], app[AppKeys.GH_CLIENT], app[AppKeys.FROZEN_MERGE_DEPLOY]
     )
@@ -300,10 +380,10 @@ async def retry_pr(wb: WatchedBranch, pr: PR, request: web.Request):
 @routes.post('/watched_branches/{watched_branch_index}/pr/{pr_number}/retry')
 @web_security_headers
 @auth.authenticated_developers_only(redirect=False)
-async def post_retry_pr(request: web.Request, _) -> NoReturn:
+async def post_retry_pr(request: web.Request, userdata: UserData) -> NoReturn:
     wb, pr = wb_and_pr_from_request(request)
 
-    await asyncio.shield(retry_pr(wb, pr, request))
+    await asyncio.shield(retry_pr(wb, pr, request, userdata))
     raise web.HTTPFound(deploy_config.external_url('ci', f'/watched_branches/{wb.index}/pr/{pr.number}'))
 
 
@@ -776,6 +856,98 @@ async def get_envoy_configs(request: web.Request, _) -> web.Response:
     return json_response({'cds': cds, 'rds': rds})
 
 
+@routes.get('/flaky_tests')
+@web_security_headers
+@auth.authenticated_developers_only()
+async def get_flaky_tests(request: web.Request, userdata: UserData) -> web.Response:
+    return await render_template('ci', request, userdata, 'flaky_tests.html', {'use_tailwind': True})
+
+
+@routes.get('/api/v1alpha/retried_tests')
+@auth.authenticated_developers_only(redirect=False)
+async def api_retried_tests(request: web.Request, _) -> web.Response:
+    db = request.app[AppKeys.DB]
+
+    after = request.rel_url.query.get('after')
+    cursor = request.rel_url.query.get('cursor')
+    try:
+        limit = min(int(request.rel_url.query.get('limit', 500)), 500)
+    except ValueError as exc:
+        raise web.HTTPBadRequest(text='limit must be an integer') from exc
+    if limit <= 0:
+        raise web.HTTPBadRequest(text='limit must be a positive integer')
+
+    conditions = []
+    args: list = []
+
+    if after is not None:
+        try:
+            after_dt = isoparse(after)
+        except ValueError as exc:
+            raise web.HTTPBadRequest(
+                text=f'invalid value for after: {after!r} (expected ISO 8601 timestamp with timezone, e.g. 2026-02-24T00:00:00Z)'
+            ) from exc
+        if after_dt.tzinfo is None:
+            raise web.HTTPBadRequest(
+                text=f'invalid value for after: {after!r} (must include timezone info, e.g. 2026-02-24T00:00:00Z)'
+            )
+        after_utc = after_dt.astimezone(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+        conditions.append('retried_at >= %s')
+        args.append(after_utc)
+    else:
+        conditions.append('retried_at >= NOW() - INTERVAL 14 DAY')
+
+    if cursor is not None:
+        try:
+            conditions.append('id < %s')
+            args.append(int(cursor))
+        except ValueError as exc:
+            raise web.HTTPBadRequest(text='cursor must be an integer') from exc
+
+    where = 'WHERE ' + ' AND '.join(conditions)
+
+    rows = [
+        row
+        async for row in db.execute_and_fetchall(
+            f"""
+SELECT id, batch_id, job_id, job_name, state, exit_code, pr_number,
+       target_branch, source_branch, source_sha, retried_by, retried_at
+FROM retried_tests
+{where}
+ORDER BY id DESC
+LIMIT %s
+""",
+            [*args, limit + 1],
+        )
+    ]
+
+    has_more = len(rows) > limit
+    if has_more:
+        rows = rows[:limit]
+
+    return json_response({
+        'rows': [
+            {
+                'id': r['id'],
+                'batch_id': r['batch_id'],
+                'job_id': r['job_id'],
+                'job_name': r['job_name'],
+                'state': r['state'],
+                'exit_code': r['exit_code'],
+                'pr_number': r['pr_number'],
+                'target_branch': r['target_branch'],
+                'source_branch': r['source_branch'],
+                'source_sha': r['source_sha'],
+                'retried_by': r['retried_by'],
+                'retried_at': r['retried_at'].replace(tzinfo=timezone.utc).isoformat(),
+            }
+            for r in rows
+        ],
+        'cursor': rows[-1]['id'] if has_more else None,
+        'has_more': has_more,
+    })
+
+
 async def cleanup_expired_namespaces(db: Database):
     assert DEFAULT_NAMESPACE == 'default'
     expired_namespaces = [
@@ -942,6 +1114,7 @@ def run():
     app.on_cleanup.append(on_cleanup)
 
     setup_common_static_routes(routes)
+    routes.static('/ci/static/compiled-js', f'{CI_ROOT}/static/compiled-js')
     app.add_routes(routes)
     app.router.add_get("/metrics", server_stats)
 

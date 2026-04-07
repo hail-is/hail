@@ -3,12 +3,13 @@ import logging
 import os
 import warnings
 import zipfile
-from dataclasses import astuple, dataclass
+from dataclasses import dataclass
 from enum import Enum
 from typing import AbstractSet, Any, ClassVar, Dict, List, Mapping, Optional, Set, Tuple, TypeVar, Union
 
 import orjson
 
+from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
 from hailtop.config.user_config import unchecked_configuration_of
 from hailtop.fs.fs import FS
 
@@ -49,10 +50,7 @@ Error summary: {short_message}""",
 class LocalJarInfo:
     dev: bool
     hail_jar: str
-    extra_classpath: List[str]
-
-    def __iter__(self):
-        return iter(astuple(self))
+    extra_classpath: list[str]
 
 
 def local_jar_information() -> LocalJarInfo:
@@ -175,8 +173,6 @@ class Backend(abc.ABC):
         "branching_factor": ("HAIL_BRANCHING_FACTOR", None),
         "cachedir": ("HAIL_CACHE_DIR", None),
         "distributed_scan_comb_op": ("HAIL_DEV_DISTRIBUTED_SCAN_COMB_OP", None),
-        "gcs_requester_pays_buckets": ("HAIL_GCS_REQUESTER_PAYS_BUCKETS", None),
-        "gcs_requester_pays_project": ("HAIL_GCS_REQUESTER_PAYS_PROJECT", None),
         "grouped_aggregate_buffer_size": ("HAIL_GROUPED_AGGREGATE_BUFFER_SIZE", "50"),
         "index_branching_factor": ("HAIL_INDEX_BRANCHING_FACTOR", None),
         "jvm_bytecode_dump": ("HAIL_DEV_JVM_BYTECODE_DUMP", None),
@@ -289,11 +285,12 @@ class Backend(abc.ABC):
     def initialize_references(self):
         from hail.genetics.reference_genome import ReferenceGenome
 
-        _, jar_path, *_ = local_jar_information()
-        for path_in_jar in BUILTIN_REFERENCE_RESOURCE_PATHS.values():
-            rg_config = orjson.loads(zipfile.ZipFile(jar_path).open(path_in_jar).read())
-            rg = ReferenceGenome._from_config(rg_config, _builtin=True)
-            self._references[rg.name] = rg
+        with zipfile.ZipFile(local_jar_information().hail_jar) as hail_jar:
+            for path_in_jar in BUILTIN_REFERENCE_RESOURCE_PATHS.values():
+                with hail_jar.open(path_in_jar) as f:
+                    rg_config = orjson.loads(f.read())
+                    rg = ReferenceGenome._from_config(rg_config, _builtin=True)
+                    self._references[rg.name] = rg
 
     def remove_reference(self, name):
         del self._references[name]
@@ -417,4 +414,14 @@ class Backend(abc.ABC):
     @remote_tmpdir.setter
     @abc.abstractmethod
     def remote_tmpdir(self, dir: str) -> None:
+        pass
+
+    @property
+    @abc.abstractmethod
+    def requester_pays_config(self) -> GCSRequesterPaysConfiguration | None:
+        pass
+
+    @requester_pays_config.setter
+    @abc.abstractmethod
+    def requester_pays_config(self, config: GCSRequesterPaysConfiguration | None):
         pass
