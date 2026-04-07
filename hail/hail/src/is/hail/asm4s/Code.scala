@@ -1091,12 +1091,9 @@ object Code {
 
   def _throwAny[T <: java.lang.Throwable]: Thrower[T] = new Thrower[T] {
     override def apply[U](cerr: Code[T])(implicit uti: TypeInfo[U]): Code[U] = {
-      if (uti eq UnitInfo) {
-        cerr.end.append(lir.throwx(cerr.v))
-        val newC = new VCode(cerr.start, cerr.end, null)
-        cerr.clear()
-        newC
-      } else
+      if (uti eq UnitInfo)
+        Code.void(cerr, lir.throwx(_))
+      else
         Code(cerr, lir.insn1(ATHROW, uti))
     }
   }
@@ -1112,12 +1109,9 @@ object Code {
 
   def _throw[T <: java.lang.Throwable, U](cerr: Code[T], lineNumber: Int)(implicit uti: TypeInfo[U])
     : Code[U] = {
-    if (uti eq UnitInfo) {
-      cerr.end.append(lir.throwx(cerr.v, lineNumber))
-      val newC = new VCode(cerr.start, cerr.end, null)
-      cerr.clear()
-      newC
-    } else
+    if (uti eq UnitInfo)
+      Code.void(cerr, lir.throwx(_, lineNumber))
+    else
       Code(cerr, lir.insn1(ATHROW, uti, lineNumber))
   }
 
@@ -2066,10 +2060,7 @@ class LocalRef[T](val l: lir.Local) extends Settable[T] {
 
   override def store(rhs: Code[T]): Code[Unit] = {
     assert(rhs.v != null)
-    rhs.end.append(lir.store(l, rhs.v))
-    val newC = new VCode(rhs.start, rhs.end, null)
-    rhs.clear()
-    newC
+    Code.void(rhs, lir.store(l, _))
   }
 }
 

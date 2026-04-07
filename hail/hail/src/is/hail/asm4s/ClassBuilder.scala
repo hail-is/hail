@@ -36,14 +36,8 @@ class Field[T] private (private val lf: lir.Field) extends AnyVal {
 
   def putAny(obj: Code[_], v: Code[_]): Code[Unit] = put(obj, coerce[T](v))
 
-  def put(obj: Code[_], v: Code[T]): Code[Unit] = {
-    obj.end.append(lir.goto(v.start))
-    v.end.append(lir.putField(lf, obj.v, v.v))
-    val newC = new VCode(obj.start, v.end, null)
-    obj.clear()
-    v.clear()
-    newC
-  }
+  def put(obj: Code[_], v: Code[T]): Code[Unit] =
+    Code.void(obj, v, lir.putField(lf, _, _))
 }
 
 object StaticField {
@@ -61,12 +55,8 @@ case class StaticField[T] private (lf: lir.StaticField) extends AnyVal {
 
   def get(): Code[T] = Code(lir.getStaticField(lf))
 
-  def put(v: Code[T]): Code[Unit] = {
-    v.end.append(lir.putStaticField(lf, v.v))
-    val newC = new VCode(v.start, v.end, null)
-    v.clear()
-    newC
-  }
+  def put(v: Code[T]): Code[Unit] =
+    Code.void(v, lir.putStaticField(lf, _))
 }
 
 class ClassesBytes(classesBytes: Array[(String, Array[Byte])]) extends Serializable with Logging {
