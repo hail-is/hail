@@ -13,7 +13,7 @@ class RichCodePrefixCoder(val pc: Value[PrefixCoder]) {
 
   def encodeInt(cb: EmitCodeBuilder, v: Code[Int]) = cb += pc.invoke[Int, Unit]("encodeInt", v)
 
-  def encodeLong(cb: EmitCodeBuilder, v: Code[Long]) = cb += pc.invoke[Long, Unit]("encodeInt", v)
+  def encodeLong(cb: EmitCodeBuilder, v: Code[Long]) = cb += pc.invoke[Long, Unit]("encodeLong", v)
 
   def encodeFloat(cb: EmitCodeBuilder, v: Code[Float]) =
     cb += pc.invoke[Float, Unit]("encodeFloat", v)
