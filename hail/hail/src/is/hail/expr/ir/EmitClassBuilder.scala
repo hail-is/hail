@@ -676,11 +676,7 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
 
   private def getCodeArgsInfo(argsInfo: IndexedSeq[ParamType], returnInfo: ParamType)
     : (IndexedSeq[TypeInfo[_]], TypeInfo[_], AsmTuple[_]) = {
-    val codeArgsInfo = argsInfo.flatMap {
-      case CodeParamType(ti) => FastSeq(ti)
-      case t: EmitParamType => t.valueTupleTypes
-      case SCodeParamType(pt) => pt.settableTupleTypes()
-    }
+    val codeArgsInfo = argsInfo.flatMap(_.codeTypes)
     val (codeReturnInfo, asmTuple) = returnInfo match {
       case CodeParamType(ti) => ti -> null
       case SCodeParamType(pt) if pt.nSettables == 1 => pt.settableTupleTypes().head -> null
@@ -688,7 +684,7 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
         val asmTuple = modb.tupleClass(pt.settableTupleTypes())
         asmTuple.ti -> asmTuple
       case t: EmitParamType =>
-        val ts = t.valueTupleTypes
+        val ts = t.codeTypes
         if (ts.length == 1)
           ts.head -> null
         else {
@@ -1209,7 +1205,9 @@ class EmitMethodBuilder[C](
   // EmitMethodBuilder methods
 
   // this, ...
-  private val emitParamCodeIndex = emitParamTypes.scanLeft((!mb.isStatic).toInt) {
+  private val thisOffset: Int = if (mb.isStatic) 0 else 1
+
+  private val emitParamCodeIndex = emitParamTypes.scanLeft(thisOffset) {
     case (i, paramType) =>
       i + paramType.nCodes
   }
@@ -1218,20 +1216,18 @@ class EmitMethodBuilder[C](
     if (emitIndex == 0 && !mb.isStatic)
       mb.getArg[T](0)
     else {
-      val static = (!mb.isStatic).toInt
-      assert(emitParamTypes(emitIndex - static).isInstanceOf[CodeParamType])
-      mb.getArg[T](emitParamCodeIndex(emitIndex - static))
+      assert(emitParamTypes(emitIndex - thisOffset).isInstanceOf[CodeParamType])
+      mb.getArg[T](emitParamCodeIndex(emitIndex - thisOffset))
     }
   }
 
   def getSCodeParam(emitIndex: Int): SValue = {
     assert(mb.isStatic || emitIndex != 0)
-    val static = (!mb.isStatic).toInt
-    val _st = emitParamTypes(emitIndex - static).asInstanceOf[SCodeParamType].st
+    val _st = emitParamTypes(emitIndex - thisOffset).asInstanceOf[SCodeParamType].st
     assert(_st.isRealizable)
 
     val ts = _st.settableTupleTypes()
-    val codeIndex = emitParamCodeIndex(emitIndex - static)
+    val codeIndex = emitParamCodeIndex(emitIndex - thisOffset)
 
     _st.fromValues(ts.zipWithIndex.map { case (t, i) =>
       mb.getArg(codeIndex + i)(t)
@@ -1247,14 +1243,13 @@ class EmitMethodBuilder[C](
 
   def getEmitParam(cb: EmitCodeBuilder, emitIndex: Int): EmitValue = {
     assert(mb.isStatic || emitIndex != 0)
-    val static = (!mb.isStatic).toInt
-    val et = emitParamTypes(emitIndex - static) match {
+    val et = emitParamTypes(emitIndex - thisOffset) match {
       case t: EmitParamType => t
       case _ => throw new RuntimeException(
           s"isStatic=${mb.isStatic}, emitIndex=$emitIndex, params=$emitParamTypes"
         )
     }
-    val codeIndex = emitParamCodeIndex(emitIndex - static)
+    val codeIndex = emitParamCodeIndex(emitIndex - thisOffset)
 
     et match {
       case SingleCodeEmitParamType(required, sct) =>
@@ -1264,13 +1259,8 @@ class EmitMethodBuilder[C](
         EmitValue(m, v)
 
       case SCodeEmitParamType(et) =>
-        val ts = et.st.settableTupleTypes()
-
-        val m = if (et.required) None else Some(mb.getArg[Boolean](codeIndex + ts.length))
-        val v = et.st.fromValues(ts.zipWithIndex.map { case (t, i) =>
-          mb.getArg(codeIndex + i)(t)
-        })
-        EmitValue(m, v)
+        val ts = et.settableTupleTypes
+        et.fromValues(ts.zipWithIndex.map { case (t, i) => mb.getArg(codeIndex + i)(t) })
     }
   }
 
