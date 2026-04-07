@@ -35,19 +35,21 @@ class PrefixCoder() {
 
   def encodeLong(v: Long) = mb.writeLong(swap(flip(v)))
 
-  // This produces a total ordering on floats that is close to the expected natural ordering:
-  /* -qNaN < -sNaN < -Inf < -normal < -subnormal < -0 < 0 < +subnormal < +normal < +Inf < +sNaN <
-   * +qNaN */
+  // This works based on the semantics of floatToIntBits, that is, NaN is
+  // normalized to a single 'canonical' NaN value. This is exactly what compare
+  // on float does.
   def encodeFloat(v: Float) = {
     Memory.storeFloat(scratch, 0, v);
-    val bits = Memory.loadInt(scratch, 0);
+    val bits = java.lang.Float.floatToIntBits(v)
     val i = if (bits < 0) ~bits else flip(bits)
     mb.writeInt(swap(i))
   }
 
+  // This works based on the semantics of doubleToLongBits, that is, NaN is
+  // normalized to a single 'canonical' NaN value. This is exactly what compare
+  // on double does.
   def encodeDouble(v: Double) = {
-    Memory.storeDouble(scratch, 0, v);
-    val bits = Memory.loadLong(scratch, 0);
+    val bits = java.lang.Double.doubleToLongBits(v)
     val i = if (bits < 0) ~bits else flip(bits)
     mb.writeLong(swap(i))
   }
