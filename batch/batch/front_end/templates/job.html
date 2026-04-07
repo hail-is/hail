@@ -65,7 +65,7 @@
 </a>
 {% if userdata['is_developer'] %}
 <div class='mt-2'>
-  <a href="{{ base_path }}/batches/{{ batch_id }}/jobs/{{ job_id }}/enable-react"
+  <a href="{{ base_path }}/enable-react-ui?next={{ base_path }}/batches/{{ batch_id }}/jobs/{{ job_id }}"
     class='text-sm text-sky-600 hover:underline'>
     Try new layout
   </a>

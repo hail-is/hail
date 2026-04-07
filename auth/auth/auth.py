@@ -6,7 +6,6 @@ import re
 import typing
 from contextlib import AsyncExitStack
 from typing import List, NoReturn, Optional, Union
-from urllib.parse import urlparse
 
 import aiohttp_session
 import jinja2
@@ -30,6 +29,7 @@ from gear import (
     monitor_endpoints_middleware,
     setup_aiohttp_session,
     transaction,
+    validate_redirect_url,
 )
 from gear.auth import AIOHTTPHandler, get_session_id
 from gear.cloud_config import get_global_config
@@ -215,17 +215,6 @@ def cleanup_session(session):
     _delete('flow')
 
 
-def validate_next_page_url(next_page):
-    if not next_page:
-        raise web.HTTPBadRequest(text='Invalid next page: empty')
-    valid_next_services = ['batch', 'auth', 'ci', 'monitoring']
-    valid_next_domains = [urlparse(deploy_config.external_url(s, '/')).netloc for s in valid_next_services]
-    actual_next_page_domain = urlparse(next_page).netloc
-
-    if actual_next_page_domain not in valid_next_domains:
-        raise web.HTTPBadRequest(text='Invalid next page.')
-
-
 @routes.get('/healthcheck')
 async def get_healthcheck(_) -> web.Response:
     return web.Response()
@@ -281,7 +270,7 @@ async def creating_account(request: web.Request, userdata: Optional[UserData]) -
 
         next_url = deploy_config.external_url('auth', '/user')
         next_page = session.pop('next', next_url)
-        validate_next_page_url(next_page)
+        validate_redirect_url(next_page)
 
         cleanup_session(session)
 
@@ -359,7 +348,7 @@ async def _wait_websocket(request, login_id):
 @web_security_headers
 async def signup(request) -> NoReturn:
     next_page = request.query.get('next', deploy_config.external_url('auth', '/user'))
-    validate_next_page_url(next_page)
+    validate_redirect_url(next_page)
 
     flow_data = request.app[AppKeys.FLOW_CLIENT].initiate_flow(deploy_config.external_url('auth', '/oauth2callback'))
 
@@ -376,7 +365,7 @@ async def signup(request) -> NoReturn:
 @web_security_headers
 async def login(request) -> NoReturn:
     next_page = request.query.get('next', deploy_config.external_url('auth', '/user'))
-    validate_next_page_url(next_page)
+    validate_redirect_url(next_page)
 
     flow_data = request.app[AppKeys.FLOW_CLIENT].initiate_flow(deploy_config.external_url('auth', '/oauth2callback'))
 
@@ -401,7 +390,7 @@ async def callback(request) -> web.Response:
 
     caller = session['caller']
     next_page = session.pop('next', next_url)
-    validate_next_page_url(next_page)
+    validate_redirect_url(next_page)
     flow_dict = session['flow']
     flow_dict['callback_uri'] = deploy_config.external_url('auth', '/oauth2callback')
     cleanup_session(session)

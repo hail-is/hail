@@ -42,6 +42,7 @@ from gear import (
     monitor_endpoints_middleware,
     setup_aiohttp_session,
     transaction,
+    validate_redirect_url,
 )
 from gear.auth import get_session_id, impersonate_user
 from gear.clients import get_cloud_async_fs
@@ -2786,32 +2787,22 @@ async def ui_get_jvm_profile(request: web.Request, _, batch_id: int) -> web.Resp
     return web.Response(text=profile, content_type='text/html')
 
 
-async def render_react_job_page(request: web.Request, userdata, batch_id: int, job_id: int) -> web.Response:
-    page_context = {
-        'batch_id': batch_id,
-        'job_id': job_id,
-    }
-    return await render_template('batch', request, userdata, 'job_react.html', page_context)
-
-
-@routes.get('/batches/{batch_id}/jobs/{job_id}/enable-react')
+@routes.get('/enable-react-ui')
 @web_security_headers
-@billing_project_users_only()
 @catch_ui_error_in_dev
-async def enable_react_ui(request, userdata, batch_id):  # pylint: disable=unused-argument
-    job_id = int(request.match_info['job_id'])
-    resp = web.HTTPFound(f'{deploy_config.base_path("batch")}/batches/{batch_id}/jobs/{job_id}')
-    resp.set_cookie('hail_react_ui', '1', max_age=365 * 24 * 3600, path='/', samesite='Lax')
+async def enable_react_ui(request):
+    next_page = validate_redirect_url(request.query.get('next'))
+    resp = web.HTTPFound(next_page)
+    resp.set_cookie('hail_react_ui', '1', max_age=30 * 3600, path='/', samesite='Lax')
     raise resp
 
 
-@routes.get('/batches/{batch_id}/jobs/{job_id}/disable-react')
+@routes.get('/disable-react-ui')
 @web_security_headers
-@billing_project_users_only()
 @catch_ui_error_in_dev
-async def disable_react_ui(request, userdata, batch_id):  # pylint: disable=unused-argument
-    job_id = int(request.match_info['job_id'])
-    resp = web.HTTPFound(f'{deploy_config.base_path("batch")}/batches/{batch_id}/jobs/{job_id}')
+async def disable_react_ui(request):
+    redirect_url = validate_redirect_url(request.query.get('next'))
+    resp = web.HTTPFound(redirect_url)
     resp.del_cookie('hail_react_ui', path='/')
     raise resp
 
@@ -2824,15 +2815,20 @@ async def ui_get_job(request, userdata, batch_id):
     app = request.app
     job_id = int(request.match_info['job_id'])
 
+    # If the user has enabled the React UI, render the React page:
     if request.cookies.get('hail_react_ui') == '1':
-        return await render_react_job_page(request, userdata, batch_id, job_id)
+        page_context = {
+            'batch_id': batch_id,
+            'job_id': job_id,
+        }
+        return await render_template('batch', request, userdata, 'job_react.html', page_context)
 
     # Otherwise: old server-side style rendering:
-    query_attempt_id = request.query.get('attempt_id') or None
-
-    job, attempts = await asyncio.gather(
+    job, attempts, job_log_bytes, resource_usage = await asyncio.gather(
         _get_job(app, batch_id, job_id),
         _get_attempts(app, batch_id, job_id),
+        _get_job_log(app, batch_id, job_id),
+        _get_job_resource_usage(app, batch_id, job_id),
     )
 
     job = cast(Dict[str, Any], job)
@@ -2845,30 +2841,7 @@ async def ui_get_job(request, userdata, batch_id):
             record['cost'] = cost_str(record['cost'])
         job['cost_breakdown'].sort(key=lambda record: record['resource'])
 
-    selected_attempt_id = query_attempt_id or (attempts[-1]['attempt_id'] if attempts else None)
-
-    job_log_bytes, resource_usage = await asyncio.gather(
-        _get_job_log(app, batch_id, job_id, override_attempt_id=selected_attempt_id),
-        _get_job_resource_usage(app, batch_id, job_id, override_attempt_id=selected_attempt_id),
-    )
-    is_latest_attempt = query_attempt_id is None or (
-        attempts is not None and len(attempts) > 0 and query_attempt_id == attempts[-1]['attempt_id']
-    )
-
-    if query_attempt_id is not None:
-        file_store: FileStore = app['file_store']
-        try:
-            status_bytes = await file_store.read_status_file(batch_id, job_id, query_attempt_id)
-            job_status = json.loads(status_bytes)
-        except FileNotFoundError:
-            # Latest attempt: file not written yet (e.g. still running) — use live status from _get_job
-            # Historical attempt: file never saved (e.g. preempted before upload) — show nothing
-            job_status = job['status'] if is_latest_attempt else None
-    else:
-        job_status = job['status']
-
-    raw_attempt_status = job_status  # save before dictfix for raw display
-
+    job_status = job['status']
     container_status_spec = dictfix.NoneOr({
         'name': str,
         'timing': {
@@ -2943,21 +2916,15 @@ async def ui_get_job(request, userdata, batch_id):
         except UnicodeDecodeError:
             job_log_strings_or_bytes[container] = log
 
-    selected_attempt = next((a for a in (attempts or []) if a['attempt_id'] == selected_attempt_id), None)
-
     page_context = {
         'batch_id': batch_id,
         'job_id': job_id,
         'job': job,
         'job_log': job_log_strings_or_bytes,
         'attempts': attempts,
-        'selected_attempt_id': selected_attempt_id,
-        'selected_attempt': selected_attempt,
-        'is_latest_attempt': is_latest_attempt,
         'container_statuses': container_statuses,
         'job_specification': job_specification,
-        'job_status_str': json.dumps(raw_attempt_status, indent=2) if raw_attempt_status is not None else None,
-        'job_str': json.dumps(job, indent=2),
+        'job_status_str': json.dumps(job, indent=2),
         'step_errors': step_errors,
         'error': job_status.get('error'),
         'plot_job_durations': plot_job_durations(container_statuses, batch_id, job_id),
