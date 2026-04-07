@@ -233,43 +233,49 @@ class ASM4SSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     a
 
   @DataProvider(name = "DoubleComparisonOperator")
-  def doubleComparisonOperator(): Array[(Code[Double], Code[Double]) => Code[Boolean]] =
-    Array(
-      refl(_ < _),
-      refl(_ <= _),
-      refl(_ >= _),
-      refl(_ > _),
-      refl(_ ceq _),
-      refl(_ cne _),
-    )
+  def doubleComparisonOperator(): Array[Array[Any]] =
+    Array[((Code[Double], Code[Double]) => Code[Boolean], Boolean)](
+      (refl(_ < _), false),
+      (refl(_ <= _), false),
+      (refl(_ >= _), false),
+      (refl(_ > _), false),
+      (refl(_ ceq _), false),
+      (refl(_ cne _), true),
+    ).map(t => Array(t._1, t._2))
 
   @Test(dataProvider = "DoubleComparisonOperator")
-  def nanDoubleAlwaysComparesFalse(op: (Code[Double], Code[Double]) => Code[Boolean]): Unit =
+  def nanDoubleAlwaysComparesFalse(
+    op: (Code[Double], Code[Double]) => Code[Boolean],
+    expected: Boolean,
+  ): Unit =
     forAll { (x: Double) =>
       val F = FunctionBuilder[Double, Double, Boolean]("CMP")
       F.emit(op(F.getArg[Double](1), F.getArg[Double](2)))
       val cmp = F.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
-      !cmp(Double.NaN, x)
+      cmp(Double.NaN, x) == expected && cmp(x, Double.NaN) == expected
     }
 
   @DataProvider(name = "FloatComparisonOperator")
-  def floatComparisonOperator(): Array[(Code[Float], Code[Float]) => Code[Boolean]] =
-    Array(
-      refl(_ < _),
-      refl(_ <= _),
-      refl(_ >= _),
-      refl(_ > _),
-      refl(_ ceq _),
-      refl(_ cne _),
-    )
+  def floatComparisonOperator(): Array[Array[Any]] =
+    Array[((Code[Float], Code[Float]) => Code[Boolean], Boolean)](
+      (refl(_ < _), false),
+      (refl(_ <= _), false),
+      (refl(_ >= _), false),
+      (refl(_ > _), false),
+      (refl(_ ceq _), false),
+      (refl(_ cne _), true),
+    ).map(t => Array(t._1, t._2))
 
   @Test(dataProvider = "FloatComparisonOperator")
-  def nanFloatAlwaysComparesFalse(op: (Code[Float], Code[Float]) => Code[Boolean]): Unit =
+  def nanFloatAlwaysComparesFalse(
+    op: (Code[Float], Code[Float]) => Code[Boolean],
+    expected: Boolean,
+  ): Unit =
     forAll { (x: Float) =>
       val F = FunctionBuilder[Float, Float, Boolean]("CMP")
       F.emit(op(F.getArg[Float](1), F.getArg[Float](2)))
       val cmp = F.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
-      !cmp(Float.NaN, x)
+      cmp(Float.NaN, x) == expected && cmp(x, Float.NaN) == expected
     }
 
   @Test def defineOpsAsMethods(): Unit = {

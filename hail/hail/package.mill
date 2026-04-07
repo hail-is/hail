@@ -2,6 +2,7 @@ package build.hail
 
 import mill.*
 import mill.api.{BuildCtx, Result}
+import mill.javalib.testrunner.TestResult
 import mill.scalalib.*
 import mill.scalalib.Assembly.*
 import mill.scalalib.TestModule.TestNg
@@ -199,3 +200,54 @@ trait RootHailModule extends CrossScalaModule, HailScalaModule:
 
     override def assemblyRules: Seq[Rule] =
       outer.assemblyRules
+
+    val numCISplits: Int = 5
+
+    // FIXME: we used to run this with `-Xms7500M -Xmx7500M`, will need to split into separate test module
+    // to give it different `forkArgs`
+    def `test-fs`(args: String*): Task.Command[(msg: String, results: Seq[TestResult])] = Task.Command {
+      testTask(
+        Task.Anon {
+          args
+        },
+        Task.Anon {
+          Seq("is.hail.io.fs.*")
+        },
+      )()
+    }
+
+    def `test-services`(args: String*): Task.Command[(msg: String, results: Seq[TestResult])] = Task.Command {
+      testTask(
+        Task.Anon {
+          args
+        },
+        Task.Anon {
+          Seq("is.hail.services.*")
+        },
+      )()
+    }
+
+    def testCISplit(args: String*): Task.Command[(msg: String, results: Seq[TestResult])] = {
+      require(args.length == 1)
+      Task.Command {
+        testTask(
+          Task.Anon {
+            Seq.empty
+          }, ciTestGrouping.map(_.apply(args.head.toInt))
+        )()
+      }
+    }
+
+    def ciTestGrouping: T[Seq[Seq[String]]] = Task {
+      val k = numCISplits
+      val classes = discoveredTestClasses().filter { cls =>
+        !cls.startsWith("is.hail.io.fs") && !cls.startsWith("is.hail.services")
+      }
+      val n = classes.length
+      val shuffled = scala.util.Random(12345).shuffle(classes)
+      val offsets = Range(0, k).map(i => (n - i + k - 1) / k).scan(0)(_ + _)
+      assert(offsets.last == n)
+      Range(0, k).map { i =>
+        shuffled.slice(offsets(i), offsets(i + 1))
+      }
+    }
