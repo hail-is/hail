@@ -475,7 +475,7 @@ object Extract {
     val initBuilder = ArrayBuffer.empty[InitOp]
     val seqBuilder = ArraySeq.newBuilder[(Name, IR)]
     val memo = mutable.Map.empty[IR, Int]
-    val result = Ref(freshName(), null)
+    val resultName = freshName()
 
     val postAggIR = extract(
       ir,
@@ -484,7 +484,7 @@ object Extract {
       initBuilder,
       seqBuilder,
       memo,
-      result,
+      Ref(resultName, null),
       r,
       isScan,
     )
@@ -492,14 +492,14 @@ object Extract {
     val initOps = initBuilder.to(ArraySeq)
     val pAggSigs = initOps.map(_.aggSig)
     val sigs = new AggSignatures(pAggSigs)
-    result._typ = sigs.resultsOp.typ
+    MutateType(postAggIR, Env(resultName -> sigs.resultsOp.typ))
 
     new ExtractedAggs(
       ctx,
       initBindings.result(),
       Begin(initOps),
       Let.void(seqBuilder.result()),
-      Let(FastSeq(result.name -> sigs.resultsOp), postAggIR),
+      Let(FastSeq(resultName -> sigs.resultsOp), postAggIR),
       new AggSignatures(pAggSigs),
     )
   }
@@ -522,7 +522,7 @@ object Extract {
      * state, used to perform CSE on agg ops */
     memo: mutable.Map[IR, Int],
     // a reference to the tuple of results of contained aggs
-    result: IR,
+    result: TrivialIR,
     r: RequirednessAnalysis,
     isScan: Boolean,
   ): IR = {
@@ -640,7 +640,8 @@ object Extract {
         val i = initBuilder.length
         val newInit = ArrayBuffer.empty[InitOp]
         val newSeq = ArraySeq.newBuilder[(Name, IR)]
-        val newRef = Ref(freshName(), null)
+
+        val valueName = freshName()
         val transformed = this.extract(
           aggIR,
           env,
@@ -648,10 +649,11 @@ object Extract {
           newInit,
           newSeq,
           newMemo,
-          GetField(newRef, "value"),
+          Ref(valueName, null),
           r,
           isScan,
         )
+
         val initOps = newInit.to(ArraySeq)
 
         val pAggSigs = initOps.map(_.aggSig)
@@ -665,29 +667,44 @@ object Extract {
         )
 
         val rt = tcoerce[TDict](groupSig.resultType)
-        newRef._typ = rt.elementType
+        val elem = Ref(freshName(), rt.elementType)
 
         ToDict(StreamMap(
           ToStream(GetTupleElement(result, i)),
-          newRef.name,
-          MakeTuple.ordered(FastSeq(GetField(newRef, "key"), transformed)),
+          elem.name,
+          maketuple(
+            GetField(elem, "key"),
+            bindIR(GetField(elem, "value")) { v =>
+              MutateType(transformed, Env(valueName -> v.typ))
+              transformed
+            },
+          ),
         ))
 
       case x @ AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, _) =>
         val i = initBuilder.length
         val newAggs = ArrayBuffer.empty[InitOp]
         val newSeq = ArraySeq.newBuilder[(Name, IR)]
-        val newRef = Ref(freshName(), null)
+        val localResult = freshName()
 
-        val transformed = this.extract(aggBody, env, initBindings, newAggs, newSeq,
-          newMemo, newRef, r, isScan)
+        val transformed = this.extract(
+          aggBody,
+          env,
+          initBindings,
+          newAggs,
+          newSeq,
+          newMemo,
+          Ref(localResult, null),
+          r,
+          isScan,
+        )
 
         val initOps = newAggs.to(ArraySeq)
         val pAggSigs = initOps.map(_.aggSig)
         val checkSig = ArrayLenAggSig(x.knownLength.isDefined, pAggSigs)
         val nestedSigs = checkSig.nested
         val rt = TArray(TTuple(nestedSigs.map(_.resultType): _*))
-        newRef._typ = rt.elementType
+        MutateType(transformed, Env(localResult -> rt.elementType))
 
         val (dependent, independent) = partitionDependentLets(newSeq.result(), elementName)
 
@@ -726,7 +743,7 @@ object Extract {
             StreamRange(0, ArrayLen(rUID), 1),
             indexName,
             Let(
-              FastSeq(newRef.name -> ArrayRef(rUID, Ref(indexName, TInt32))),
+              FastSeq(localResult -> ArrayRef(rUID, Ref(indexName, TInt32))),
               transformed,
             ),
           )),
@@ -747,4 +764,12 @@ object Extract {
         }
     }
   }
+}
+
+object MutateType {
+  def apply(x: IR, env: Env[Type]): Unit =
+    IRTraversal.levelOrder(x).foreach {
+      case r @ Ref(name, _) => env.lookupOption(name).foreach(r._typ = _)
+      case _ =>
+    }
 }

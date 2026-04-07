@@ -6,9 +6,7 @@ import is.hail.backend.{BroadcastValue, ExecuteContext}
 import is.hail.backend.spark.{AnonymousDependency, SparkTaskContext}
 import is.hail.collection.FastSeq
 import is.hail.expr.ir._
-import is.hail.expr.ir.defs.{
-  GetField, In, Let, MakeStruct, ReadPartition, Ref, StreamRange, ToArray,
-}
+import is.hail.expr.ir.defs.{GetField, In, Let, MakeStruct, ReadPartition, StreamRange, ToArray}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.fs.FS
 import is.hail.rvd.{RVD, RVDType}
@@ -123,7 +121,7 @@ object TableStageToRVD {
       partitioner = _ts.partitioner,
       dependency = _ts.dependency,
       contexts = mapIR(_ts.contexts)(c => MakeStruct(FastSeq("context" -> c))),
-      partition = { ctx: Ref => _ts.partition(GetField(ctx, "context")) },
+      partition = ctx => bindIR(GetField(ctx, "context"))(_ts.partition),
     )
 
     val sparkContext = ctx.backend.asSpark.sc

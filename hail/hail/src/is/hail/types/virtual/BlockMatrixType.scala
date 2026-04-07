@@ -2,7 +2,7 @@ package is.hail.types.virtual
 
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir._
-import is.hail.expr.ir.defs.{I64, If}
+import is.hail.expr.ir.defs.{I64, If, TrivialIR}
 import is.hail.linalg.{BlockMatrix, MatrixSparsity}
 import is.hail.utils.fatal
 
@@ -68,7 +68,7 @@ case class BlockMatrixType(
     r -> c
   }
 
-  def blockShapeIR(i: IR, j: IR): (IR, IR) = {
+  def blockShapeIR(i: TrivialIR, j: TrivialIR): (IR, IR) = {
     assert(i.typ == TInt32)
     assert(j.typ == TInt32)
     val r = If(i.ceq(nRowBlocks - 1), I64(nRows) - (i.toL * blockSize.toLong), blockSize.toLong)

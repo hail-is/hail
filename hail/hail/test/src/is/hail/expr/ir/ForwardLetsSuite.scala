@@ -76,8 +76,8 @@ class ForwardLetsSuite extends HailSuite {
     val a = StreamRange(I32(0), I32(10), I32(1))
     val x = Ref(freshName(), TInt32)
     Array(
-      aggArrayPerElement(ToArray(a))((y, _) => aggMin(x + y)),
-      aggExplodeIR(a)(y => aggMin(y + x)),
+      aggArrayPerElement(ToArray(a))((y, _) => aggMin(x.clone + y)),
+      aggExplodeIR(a)(y => aggMin(y.clone + x)),
     ).map(ir => Array[IR](AggLet(x.name, In(0, TInt32) + In(0, TInt32), ir, false)))
   }
 
@@ -242,7 +242,7 @@ class ForwardLetsSuite extends HailSuite {
     val x = Ref(freshName(), TInt32)
     val env = Env[Type](x.name -> TInt32)
     def xCast = Cast(x, TFloat64)
-    val ir = bindIRs(xCast, xCast) { case Seq(x1, x2) => x2 + x2 + x1 }
+    val ir = bindIRs(xCast, xCast) { case Seq(x1, x2) => x2.clone + x2 + x1 }
 
     TypeCheck(ctx, ir, BindingEnv(env))
     TypeCheck(ctx, ForwardLets(ctx, ir), BindingEnv(env))

@@ -9,7 +9,7 @@ import is.hail.expr.ir.{
   flatMapIR, partFile, IR, PartitionNativeReader, PartitionZippedIndexedNativeReader,
   PartitionZippedNativeReader,
 }
-import is.hail.expr.ir.defs.{Literal, ReadPartition, Ref, ToStream}
+import is.hail.expr.ir.defs.{Literal, ReadPartition, ToStream}
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.io._
 import is.hail.io.fs.FS
@@ -198,15 +198,13 @@ object AbstractRVDSpec {
 
         val contexts = ToStream(Literal(TArray(reader.contextType), contextsValues))
 
-        val body = (ctx: IR) => ReadPartition(ctx, requestedType, reader)
-
-        { (globals: IR) =>
+        { globals =>
           val ts = TableStage(
             globals,
             tmpPartitioner.coarsen(requestedKey.length),
             TableStageDependency.none,
             contexts,
-            body,
+            ctx => ReadPartition(ctx, requestedType, reader),
           )
           if (filterIntervals)
             ts.repartitionNoShuffle(ctx, partitioner, dropEmptyPartitions = true)
@@ -263,16 +261,14 @@ abstract class AbstractRVDSpec {
         },
       ))
 
-      val body = (ctx: IR) =>
-        ReadPartition(ctx, requestedType.rowType, PartitionNativeReader(rSpec, uidFieldName))
-
-      (globals: IR) =>
+      globals =>
         TableStage(
           globals,
           part.coarsen(part.kType.fieldNames.takeWhile(requestedType.rowType.hasField).length),
           TableStageDependency.none,
           contexts,
-          body,
+          ctx =>
+            ReadPartition(ctx, requestedType.rowType, PartitionNativeReader(rSpec, uidFieldName)),
         )
   }
 
@@ -565,18 +561,17 @@ case class IndexedRVDSpec2(
 
       assert(TArray(TArray(reader.contextType)).typeCheck(nestedContexts))
 
-      { (globals: IR) =>
+      globals =>
         TableStage(
           globals,
           newPartitioner,
           TableStageDependency.none,
           contexts = ToStream(Literal(TArray(TArray(reader.contextType)), nestedContexts)),
-          body = (ctxs: Ref) =>
+          body = ctxs =>
             flatMapIR(ToStream(ctxs, true)) { ctx =>
               ReadPartition(ctx, requestedType.rowType, reader)
             },
         )
-      }
 
     case None =>
       super.readTableStage(ctx, path, requestedType, uidFieldName, newPartitioner, filterIntervals)
