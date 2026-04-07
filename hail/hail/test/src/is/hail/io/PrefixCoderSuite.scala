@@ -74,4 +74,18 @@ class PrefixCoderSuite extends HailSuite {
 
     prop.check()
   }
+
+  @Test def testStringCoding(): Unit = {
+    val prop = forAll { (a: String, b: String) =>
+      val abytes = helper(a)
+      val bbytes = helper(b)
+
+      val icmp = java.lang.Integer.signum(a.compareTo(b))
+      val acmp = java.lang.Integer.signum(java.util.Arrays.compareUnsigned(abytes, bbytes))
+
+      icmp == acmp
+    }
+
+    prop.check()
+  }
 }
