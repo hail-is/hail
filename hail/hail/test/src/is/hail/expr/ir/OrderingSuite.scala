@@ -577,8 +577,8 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
             TInt32,
             ApplyComparisonOp(
               Compare,
-              invoke("prefixCode", TBinary, Literal(t, a1)),
-              invoke("prefixCode", TBinary, Literal(t, a2)),
+              invoke("prefixCode", TBinary, Literal.coerce(t, a1)),
+              invoke("prefixCode", TBinary, Literal.coerce(t, a2)),
             ),
           ),
           result,
