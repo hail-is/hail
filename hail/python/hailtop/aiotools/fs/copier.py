@@ -7,6 +7,7 @@ from typing import Any, AsyncIterator, Awaitable, Callable, Dict, List, Optional
 import humanize
 
 from hailtop.aiotools import LocalAsyncFS
+from hailtop.fs.router_fs import RouterFS
 
 from ...aiocloud.aiogoogle import GoogleStorageAsyncFS
 from ...utils import (
@@ -191,7 +192,7 @@ class SourceCopier:
     """
 
     def __init__(
-        self, router_fs: AsyncFS, xfer_sema: WeightedSemaphore, src: str, dest: str, treat_dest_as: str, dest_type_task
+        self, router_fs: RouterFS, xfer_sema: WeightedSemaphore, src: str, dest: str, treat_dest_as: str, dest_type_task
     ):
         self.router_fs = router_fs
         self.xfer_sema = xfer_sema
@@ -322,9 +323,13 @@ class SourceCopier:
         success = False
         try:
             if GoogleStorageAsyncFS.valid_url(srcfile) and LocalAsyncFS.valid_url(destfile):
-                await self.router_fs._get_fs(srcfile).copy_to_local_file(sema, source_report, srcfile, srcstat, destfile, return_exceptions)
+                await self.router_fs._get_fs(srcfile).copy_to_local_file_2(
+                    sema, self.xfer_sema, source_report, srcfile, srcstat, destfile, return_exceptions
+                )
             else:
-                await self._copy_file_multi_part_main(sema, source_report, srcfile, srcstat, destfile, return_exceptions)
+                await self._copy_file_multi_part_main(
+                    sema, source_report, srcfile, srcstat, destfile, return_exceptions
+                )
             success = True
         except Exception as e:
             if return_exceptions:

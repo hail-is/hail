@@ -26,6 +26,7 @@ import aiohttp
 from google.auth.aio.credentials import AnonymousCredentials
 from google.cloud.storage import Client, transfer_manager
 from google.oauth2.credentials import Credentials
+from jupyter_lsp.virtual_documents_shadow import MAX_WORKERS
 from multidict import CIMultiDictProxy  # pylint: disable=unused-import  # pylint: disable=unused-import
 
 from hailtop import timex
@@ -984,6 +985,23 @@ class GoogleStorageAsyncFS(AsyncFS):
                 raise FileNotFoundError(url) from e
             raise
 
+    async def copy_to_local_2(
+        self,
+        sema: WeightedSemaphore,
+        xfer_sema: WeightedSemaphore,
+        source_report: SourceReport,
+        srcfile: str,
+        srcstat: FileStatus,
+        destfile: str,
+        return_exceptions: bool,
+    ):
+        size = await srcstat.size()
+        if size > self._storage_client.CHUNK_SIZE:
+            with sema.acquire_manager(MAX_WORKERS):
+                await self._copy_single_large_file(xfer_sema, srcfile, destfile, size, source_report, return_exceptions)
+        else:
+            await self._copy_single_local_file(xfer_sema, srcfile, destfile, size, source_report, return_exceptions)
+
     async def copy_to_local(
         self,
         sema: WeightedSemaphore,
@@ -1044,7 +1062,7 @@ class GoogleStorageAsyncFS(AsyncFS):
                     size = await stat.size()
                     filename = await file.url_full()
                     relfilename = filename[len(transfer.src) :].lstrip('/')
-                    if transfer.treat_dest_as == Transfer.DEST_DIR or transfer.treat_dest_as == Transfer.INFER_DEST:
+                    if transfer.treat_dest_as in (Transfer.DEST_DIR, Transfer.INFER_DEST):
                         target_dest = url_join(
                             url_join(transfer.dest, url_basename(transfer.src.rstrip('/'))), relfilename
                         )
@@ -1129,7 +1147,7 @@ class GoogleStorageAsyncFS(AsyncFS):
                 bucket, name = self.get_bucket_and_name(src)
                 report.start_files(1)
                 report.start_bytes(size)
-                await self._storage_client.download_large_file(bucket, name, dest)
+                await retry_transient_errors(self._storage_client.download_large_file, bucket, name, dest)
                 success = True
             except Exception as e:
                 if return_exceptions:
