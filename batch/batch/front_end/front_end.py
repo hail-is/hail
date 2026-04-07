@@ -496,41 +496,32 @@ async def _read_job_container_log_from_cloud_storage(
 async def _get_job_container_log(
     app, batch_id, job_id, container, job_record, override_attempt_id=None
 ) -> Optional[bytes]:
+    if not has_resource_available(job_record):
+        return None
+
     state = job_record['state']
 
     if override_attempt_id is not None:
-        # If the job is running and the override is the current attempt, fetch live from the worker
-        if state == 'Running' and override_attempt_id == job_record['attempt_id']:
-            return await _get_job_container_log_from_worker(
-                app[CommonAiohttpAppKeys.CLIENT_SESSION], batch_id, job_id, container, job_record['ip_address']
-            )
+        use_worker = state == 'Running' and override_attempt_id == job_record['attempt_id']
+        attempt_id = override_attempt_id
+    else:
+        use_worker = state == 'Running'
+        attempt_id = attempt_id_from_spec(job_record)
+        assert use_worker or (attempt_id is not None and state in complete_states)
+
+    if use_worker:
+        return await _get_job_container_log_from_worker(
+            app[CommonAiohttpAppKeys.CLIENT_SESSION], batch_id, job_id, container, job_record['ip_address']
+        )
+    else:
         return await _read_job_container_log_from_cloud_storage(
             app['file_store'],
             BatchFormatVersion(job_record['format_version']),
             batch_id,
             job_id,
             container,
-            override_attempt_id,
+            attempt_id,
         )
-
-    if not has_resource_available(job_record):
-        return None
-
-    if state == 'Running':
-        return await _get_job_container_log_from_worker(
-            app[CommonAiohttpAppKeys.CLIENT_SESSION], batch_id, job_id, container, job_record['ip_address']
-        )
-
-    attempt_id = attempt_id_from_spec(job_record)
-    assert attempt_id is not None and state in complete_states
-    return await _read_job_container_log_from_cloud_storage(
-        app['file_store'],
-        BatchFormatVersion(job_record['format_version']),
-        batch_id,
-        job_id,
-        container,
-        attempt_id,
-    )
 
 
 async def _get_job_log(app, batch_id, job_id, override_attempt_id=None) -> Dict[str, Optional[bytes]]:
@@ -557,51 +548,24 @@ async def _get_job_resource_usage_from_record(
     file_store: FileStore = app['file_store']
     batch_format_version = BatchFormatVersion(record['format_version'])
     tasks = job_tasks_from_spec(record)
+    state = record['state']
 
     if override_attempt_id is not None:
-        state = record['state']
-        # If the job is running and the override is the current attempt, fetch live from the worker
-        if state == 'Running' and override_attempt_id == record['attempt_id']:
-            client_session = app[CommonAiohttpAppKeys.CLIENT_SESSION]
-            ip_address = record['ip_address']
-            try:
-                data = await retry_transient_errors(
-                    client_session.get_read_json,
-                    f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/resource_usage',
-                )
-                return {
-                    task: ResourceUsageMonitor.decode_to_df(base64.b64decode(encoded_df))
-                    for task, encoded_df in data.items()
-                }
-            except aiohttp.ClientResponseError:
-                log.exception(f'while getting resource usage for {(batch_id, job_id)}')
-                return {task: None for task in tasks}
+        attempt_id = override_attempt_id
+        # Only fetch live from the worker if this override is the currently-running attempt
+        use_worker = state == 'Running' and override_attempt_id == record['attempt_id']
+    else:
+        if not has_resource_available(record):
+            return None
+        attempt_id = attempt_id_from_spec(record)
+        use_worker = state == 'Running'
 
-        async def _read_override_resource_usage(task):
-            try:
-                df = await file_store.read_resource_usage_file(
-                    batch_format_version, batch_id, job_id, override_attempt_id, task
-                )
-            except FileNotFoundError:
-                log.exception(f'missing resource usage file for {(batch_id, job_id)} and task {task}')
-                df = None
-            return task, df
-
-        return dict(await asyncio.gather(*[_read_override_resource_usage(task) for task in tasks]))
-
-    client_session = app[CommonAiohttpAppKeys.CLIENT_SESSION]
-    state = record['state']
-    ip_address = record['ip_address']
-    attempt_id = attempt_id_from_spec(record)
-
-    if not has_resource_available(record):
-        return None
-
-    if state == 'Running':
+    if use_worker:
+        client_session = app[CommonAiohttpAppKeys.CLIENT_SESSION]
         try:
             data = await retry_transient_errors(
                 client_session.get_read_json,
-                f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/resource_usage',
+                f'http://{record["ip_address"]}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/resource_usage',
             )
             return {
                 task: ResourceUsageMonitor.decode_to_df(base64.b64decode(encoded_df))
@@ -610,18 +574,18 @@ async def _get_job_resource_usage_from_record(
         except aiohttp.ClientResponseError:
             log.exception(f'while getting resource usage for {(batch_id, job_id)}')
             return {task: None for task in tasks}
+    else:
+        assert attempt_id is not None
 
-    assert attempt_id is not None and state in complete_states
+        async def _read_resource_usage_from_cloud_storage(task):
+            try:
+                df = await file_store.read_resource_usage_file(batch_format_version, batch_id, job_id, attempt_id, task)
+            except FileNotFoundError:
+                log.exception(f'missing resource usage file for {(batch_id, job_id)} and task {task}')
+                df = None
+            return task, df
 
-    async def _read_resource_usage_from_cloud_storage(task):
-        try:
-            df = await file_store.read_resource_usage_file(batch_format_version, batch_id, job_id, attempt_id, task)
-        except FileNotFoundError:
-            log.exception(f'missing resource usage file for {(batch_id, job_id)} and task {task}')
-            df = None
-        return task, df
-
-    return dict(await asyncio.gather(*[_read_resource_usage_from_cloud_storage(task) for task in tasks]))
+        return dict(await asyncio.gather(*[_read_resource_usage_from_cloud_storage(task) for task in tasks]))
 
 
 async def _get_jvm_profile(app: web.Application, batch_id: int, job_id: int) -> Optional[str]:
