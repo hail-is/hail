@@ -9,7 +9,7 @@ from .auth import (
 from .auth_utils import create_session, insert_user
 from .csrf import check_csrf_token, new_csrf_token
 from .database import Database, Transaction, create_database_pool, resolve_test_db_endpoint, transaction
-from .http_server_utils import json_request, json_response
+from .http_server_utils import json_request, json_response, validate_redirect_url
 from .k8s_cache import K8sCache
 from .metrics import monitor_endpoints_middleware
 from .session import setup_aiohttp_session
@@ -37,4 +37,5 @@ __all__ = [
     'resolve_test_db_endpoint',
     'setup_aiohttp_session',
     'transaction',
+    'validate_redirect_url',
 ]
