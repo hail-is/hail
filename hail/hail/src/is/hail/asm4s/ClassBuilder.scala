@@ -360,39 +360,37 @@ class ClassBuilder[C](
       m.isStatic == isStatic
     }
 
+  private def addMethod(
+    name: String,
+    parameterTypeInfo: IndexedSeq[TypeInfo[_]],
+    returnTypeInfo: TypeInfo[_],
+    isStatic: Boolean,
+  ): MethodBuilder[C] = {
+    if (lookupMethod(name, parameterTypeInfo, returnTypeInfo, isStatic).isDefined) {
+      val keyword = if (isStatic) "Static method" else "Method"
+      val signature = s"${parameterTypeInfo.mkString("(", ",", ")")} => $returnTypeInfo"
+      throw new DuplicateMemberException(
+        s"$keyword '$name: $signature' already defined in class '$className'."
+      )
+    }
+    val mb = new MethodBuilder[C](this, name, parameterTypeInfo, returnTypeInfo, isStatic)
+    methods += mb
+    mb
+  }
+
   def newMethod(
     name: String,
     parameterTypeInfo: IndexedSeq[TypeInfo[_]],
     returnTypeInfo: TypeInfo[_],
-  ): MethodBuilder[C] = {
-    if (lookupMethod(name, parameterTypeInfo, returnTypeInfo, isStatic = false).isDefined) {
-      val signature = s"${parameterTypeInfo.mkString("(", ",", ")")} => $returnTypeInfo"
-      throw new DuplicateMemberException(
-        s"Method '$name: $signature' already defined in class '$className'."
-      )
-    }
-
-    val mb = new MethodBuilder[C](this, name, parameterTypeInfo, returnTypeInfo)
-    methods += mb
-    mb
-  }
+  ): MethodBuilder[C] =
+    addMethod(name, parameterTypeInfo, returnTypeInfo, isStatic = false)
 
   def newStaticMethod(
     name: String,
     parameterTypeInfo: IndexedSeq[TypeInfo[_]],
     returnTypeInfo: TypeInfo[_],
-  ): MethodBuilder[C] = {
-    if (lookupMethod(name, parameterTypeInfo, returnTypeInfo, isStatic = true).isDefined) {
-      val signature = s"${parameterTypeInfo.mkString("(", ",", ")")} => $returnTypeInfo"
-      throw new DuplicateMemberException(
-        s"Static method '$name: $signature' already defined in class '$className'."
-      )
-    }
-
-    val mb = new MethodBuilder[C](this, name, parameterTypeInfo, returnTypeInfo, isStatic = true)
-    methods += mb
-    mb
-  }
+  ): MethodBuilder[C] =
+    addMethod(name, parameterTypeInfo, returnTypeInfo, isStatic = true)
 
   def newMethod(
     name: String,
