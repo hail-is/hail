@@ -255,39 +255,28 @@ export function JobPage({ basePath, batchId, jobId }: Props): JSX.Element {
           Job {jobId}{job.attributes?.name ? <span className="text-zinc-400"> ({job.attributes.name})</span> : null}
         </span>
       </nav>
-      <div className="mt-1 flex items-center justify-between gap-4 flex-wrap text-sm">
+      <div className="mt-1 text-sm">
         <button
           onClick={() => { document.cookie = 'hail_react_ui=; max-age=0; path=/; SameSite=Lax'; location.reload(); }}
           className="text-sky-600 hover:underline cursor-pointer"
         >
           Back to classic layout
         </button>
-        {!isTerminal && (
-          <label className="flex items-center gap-1.5 text-zinc-500 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={autoRefresh}
-              onChange={(e) => handleAutoRefreshToggle(e.target.checked)}
-              className="cursor-pointer"
-            />
-            Auto-refresh
-          </label>
-        )}
-      </div>
-      {/* Countdown progress bar */}
-      <div className="mt-1.5 h-0.5 bg-zinc-100 rounded-full overflow-hidden">
-        {!isTerminal && autoRefresh && (
-          <div
-            key={countdownKey}
-            className="h-full bg-sky-400 origin-left"
-            style={{ animation: `countdown-shrink ${REFRESH_INTERVAL_MS}ms linear forwards` }}
-          />
-        )}
       </div>
 
       {/* Top section: metadata + Gantt */}
       <div className="flex flex-wrap justify-between items-start pt-6 gap-4">
-        <JobStatusPanel batchId={batchId} jobId={jobId} job={job} latestAttempt={latestAttempt} />
+        <JobStatusPanel
+          batchId={batchId}
+          jobId={jobId}
+          job={job}
+          latestAttempt={latestAttempt}
+          autoRefresh={autoRefresh}
+          isTerminal={isTerminal}
+          onAutoRefreshToggle={handleAutoRefreshToggle}
+          countdownKey={countdownKey}
+          refreshIntervalMs={REFRESH_INTERVAL_MS}
+        />
         {attempts && <JobTimelineGantt job={job} attempts={attempts} isTerminal={isTerminal} />}
       </div>
 
