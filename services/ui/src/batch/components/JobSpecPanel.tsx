@@ -65,6 +65,8 @@ type Spec = {
 
 type Props = {
   spec: Spec | null;
+  attributes?: Record<string, string>;
+  instColl?: string;
 };
 
 type SubTab = 'input' | 'main' | 'output';
@@ -98,9 +100,18 @@ function FilesTable({ files }: { files: [string, string][] }): JSX.Element {
 
 export function JobSpecPanel({
   spec,
+  attributes,
+  instColl,
   activeSubTab,
   setActiveSubTab,
 }: Props & { activeSubTab: SubTab; setActiveSubTab: (t: SubTab) => void }): JSX.Element {
+  const res = spec?.resources ?? {};
+  const reqCpu = res['req_cpu'] as string | undefined;
+  const reqMemory = res['req_memory'] as string | undefined;
+  const reqStorage = res['req_storage'] as string | undefined;
+  const requestedMachineType = res['machine_type'] as string | undefined;
+  const preemptible = res['preemptible'] as boolean | undefined;
+
   return (
     <div>
       <div className="flex border-b text-base overflow-auto bg-white mb-4">
@@ -179,6 +190,41 @@ export function JobSpecPanel({
                   <div className="font-mono text-sm">{spec.process.jar_spec.type}: {spec.process.jar_spec.value}</div>
                 </CollapsibleSection>
               )}
+              {(reqCpu != null || reqMemory != null || reqStorage != null || requestedMachineType != null) && (
+                <CollapsibleSection title="Resources" defaultOpen>
+                  <table className="text-sm border-collapse w-full max-w-sm">
+                    <tbody>
+                      {requestedMachineType != null ? (
+                        <tr className="border-t">
+                          <td className="py-1 pr-4 text-zinc-500">Machine type</td>
+                          <td className="py-1 font-mono">{requestedMachineType}</td>
+                        </tr>
+                      ) : (
+                        <>
+                          {reqCpu != null && (
+                            <tr className="border-t">
+                              <td className="py-1 pr-4 text-zinc-500">CPU</td>
+                              <td className="py-1">{reqCpu}</td>
+                            </tr>
+                          )}
+                          {reqMemory != null && (
+                            <tr className="border-t">
+                              <td className="py-1 pr-4 text-zinc-500">Memory</td>
+                              <td className="py-1">{reqMemory}</td>
+                            </tr>
+                          )}
+                        </>
+                      )}
+                      {reqStorage != null && (
+                        <tr className="border-t">
+                          <td className="py-1 pr-4 text-zinc-500">Storage</td>
+                          <td className="py-1">{reqStorage}</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </CollapsibleSection>
+              )}
               <CollapsibleSection title="Settings" defaultOpen>
                 <table className="text-sm border-collapse w-full max-w-sm">
                   <tbody>
@@ -191,8 +237,8 @@ export function JobSpecPanel({
                       <td className="py-1">{spec.n_max_attempts != null ? (spec.n_max_attempts === 20 ? <AsDefault value={20} /> : spec.n_max_attempts) : <Unset />}</td>
                     </tr>
                     <tr className="border-t">
-                      <td className="py-1 pr-4 text-zinc-500">Network</td>
-                      <td className="py-1">{spec.network ? (spec.network === 'public' ? <AsDefault value="public" /> : spec.network) : <Unset />}</td>
+                      <td className="py-1 pr-4 text-zinc-500">Preemptible</td>
+                      <td className="py-1">{preemptible != null ? String(preemptible) : <Unset />}</td>
                     </tr>
                     <tr className="border-t">
                       <td className="py-1 pr-4 text-zinc-500">Regions</td>
@@ -210,6 +256,44 @@ export function JobSpecPanel({
                       <td className="py-1 pr-4 text-zinc-500">Requester pays</td>
                       <td className="py-1">{spec.requester_pays_project ?? <AsDefault value="none" />}</td>
                     </tr>
+                  </tbody>
+                </table>
+              </CollapsibleSection>
+              {spec.env && spec.env.length > 0 && (
+                <CollapsibleSection title="Environment">
+                  <table className="text-sm border-collapse w-full">
+                    <tbody>
+                      {spec.env.map(({ name, value }) => (
+                        <tr key={name} className="border-t">
+                          <td className="py-1 pr-4 font-mono text-xs">{name}</td>
+                          <td className="py-1 font-mono text-xs break-all">{value}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </CollapsibleSection>
+              )}
+              {attributes && Object.keys(attributes).length > 0 && (
+                <CollapsibleSection title="Attributes">
+                  <table className="text-sm border-collapse w-full max-w-sm">
+                    <tbody>
+                      {Object.entries(attributes).map(([k, v]) => (
+                        <tr key={k} className="border-t">
+                          <td className="py-1 pr-4 text-zinc-500">{k}</td>
+                          <td className="py-1 break-all">{v}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </CollapsibleSection>
+              )}
+              <CollapsibleSection title="System">
+                <table className="text-sm border-collapse w-full max-w-sm">
+                  <tbody>
+                    <tr className="border-t">
+                      <td className="py-1 pr-4 text-zinc-500">Network</td>
+                      <td className="py-1">{spec.network ? (spec.network === 'public' ? <AsDefault value="public" /> : spec.network) : <Unset />}</td>
+                    </tr>
                     <tr className="border-t">
                       <td className="py-1 pr-4 text-zinc-500">Port</td>
                       <td className="py-1">{spec.port != null ? spec.port : <AsDefault value="none" />}</td>
@@ -220,12 +304,12 @@ export function JobSpecPanel({
                         <td className="py-1">{spec.process.profile != null ? String(spec.process.profile) : <Unset />}</td>
                       </tr>
                     )}
-                  </tbody>
-                </table>
-              </CollapsibleSection>
-              <CollapsibleSection title="System">
-                <table className="text-sm border-collapse w-full max-w-sm">
-                  <tbody>
+                    {instColl != null && (
+                      <tr className="border-t">
+                        <td className="py-1 pr-4 text-zinc-500">Instance collection</td>
+                        <td className="py-1 font-mono">{instColl}</td>
+                      </tr>
+                    )}
                     <tr className="border-t">
                       <td className="py-1 pr-4 text-zinc-500">Service account</td>
                       <td className="py-1">{spec.service_account ? `${spec.service_account.namespace}/${spec.service_account.name}` : <Unset />}</td>
