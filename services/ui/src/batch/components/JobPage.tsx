@@ -1,307 +1,13 @@
-import { useState, useEffect, useCallback, useRef, ReactNode } from 'react';
-import { GanttChart, GanttRow } from '../../shared/GanttChart';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Job, Attempt, TERMINAL_STATES } from './jobModels';
+import { JobStatusPanel } from './JobStatusPanel';
+import { JobTimelineGantt } from './JobTimelineGantt';
+import { StateIcon } from './StateIcon';
 import { JobSpecPanel } from './JobSpecPanel';
 import { AttemptPanel } from './AttemptPanel';
 import { CodeBlock } from './CodeBlock';
-import { RelativeTime } from './RelativeTime';
-
-type TimingEntry = {
-  start_time?: number | null;
-  finish_time?: number | null;
-  duration?: number | null;
-};
-
-type ContainerTiming = {
-  [key: string]: TimingEntry | null | undefined;
-};
-
-type ContainerStatus = {
-  name: string;
-  state: string;
-  short_error?: string | null;
-  timing: ContainerTiming;
-};
-
-type JobStatus = {
-  container_statuses?: {
-    input?: ContainerStatus | null;
-    main?: ContainerStatus | null;
-    output?: ContainerStatus | null;
-  };
-  error?: string | null;
-};
-
-type JobSpec = {
-  process?: { type: 'docker' | 'jvm'; image?: string; command?: string[] };
-  user_code?: string;
-  resources?: Record<string, unknown>;
-  env?: { name: string; value: string }[];
-  input_files?: [string, string][];
-  output_files?: [string, string][];
-  always_run?: boolean;
-  n_max_attempts?: number;
-  network?: string;
-  regions?: string[];
-};
-
-type Job = {
-  id: number;
-  batch_id: number;
-  state: string;
-  exit_code?: number | null;
-  duration?: string;
-  cost?: number;
-  cost_breakdown?: { resource: string; cost: number }[] | null;
-  user?: string;
-  billing_project?: string;
-  always_run?: boolean;
-  attributes?: Record<string, string>;
-  inst_coll?: string;
-  spec?: JobSpec | null;
-  status?: JobStatus | null;
-};
-
-type Attempt = {
-  attempt_id: string;
-  instance_name?: string;
-  start_time?: string;
-  start_time_ms?: number;
-  end_time?: string;
-  end_time_ms?: number;
-  duration?: string;
-  duration_ms?: number;
-  reason?: string;
-};
 
 type TopTab = 'job_spec' | 'raw_status' | 'current_attempt' | string; // string for attempt_id
-
-// px.colors.qualitative.Prism from Plotly — same palette used in the classic job page
-const PLOTLY_PRISM = [
-  '#5F4690', '#1D6996', '#38A6A5', '#0F8554', '#73AF48',
-  '#EDAD08', '#E17C05', '#CC503E', '#94346E', '#6F4070', '#994E95', '#666666',
-];
-
-// Fixed color assignments matching the classic Plotly chart (task_names order)
-const STEP_COLOR_MAP: Record<string, string> = {
-  'pulling':                   PLOTLY_PRISM[0],
-  'setting up overlay':        PLOTLY_PRISM[1],
-  'setting up network':        PLOTLY_PRISM[2],
-  'running':                   PLOTLY_PRISM[3],
-  'uploading_log':             PLOTLY_PRISM[4],
-  'uploading_resource_usage':  PLOTLY_PRISM[5],
-  'prior attempt':             '#9ca3af',
-  'creating':                  '#e2e8f0',
-};
-
-type GanttData = {
-  rows: GanttRow[];
-  ruleXs: { x: Date; label: string }[];
-};
-
-function buildGanttRows(job: Job, attempts: Attempt[], showPriorAttempts: boolean): GanttData {
-  const rows: GanttRow[] = [];
-  const ruleXs: { x: Date; label: string }[] = [];
-  const nowMs = Date.now();
-
-  // If the job is still running but the last attempt already has a reason
-  // (failed/preempted), treat it as a prior attempt rather than the live
-  // "latest" — consistent with how the tab icons are determined.
-  const lastAttempt = attempts[attempts.length - 1];
-  const lastIsPrior = !TERMINAL_STATES.has(job.state) && lastAttempt?.reason != null;
-  const priorAttempts = lastIsPrior ? attempts : attempts.slice(0, -1);
-
-  // Prior attempts: one coarse bar per attempt row (all except the last)
-  if (showPriorAttempts) {
-    for (const a of priorAttempts) {
-      const startMs = a.start_time_ms;
-      if (startMs == null) continue;
-      // A prior attempt with a reason is complete — don't stretch its bar to nowMs
-      const isComplete = a.reason != null || a.end_time_ms != null;
-      const endMs = a.end_time_ms ?? (isComplete ? startMs : nowMs);
-      const durationMs = endMs - startMs;
-      rows.push({
-        label: `attempt ${a.attempt_id.slice(0, 8)}`,
-        start: new Date(startMs),
-        end: new Date(endMs),
-        category: 'prior attempt',
-        tooltip: [
-          `Row: attempt ${a.attempt_id.slice(0, 8)}`,
-          `Task: prior attempt`,
-          `Start: ${new Date(startMs).toLocaleString()}`,
-          `Finish: ${new Date(endMs).toLocaleString()}`,
-          `Duration: ${(durationMs / 1000).toFixed(1)}s`,
-          a.reason ? `Detail: ${a.reason}` : '',
-        ].filter(Boolean).join('\n'),
-      });
-    }
-  }
-
-  // Latest attempt: all containers combined onto a single row
-  const latest = lastIsPrior ? null : lastAttempt;
-  if (latest?.start_time_ms != null) {
-    const latestLabel = `attempt ${latest.attempt_id.slice(0, 8)}`;
-    const isLatestComplete = latest.reason != null || latest.end_time_ms != null;
-    const latestFallbackEndMs = isLatestComplete ? (latest.end_time_ms ?? latest.start_time_ms) : nowMs;
-    const statuses = job.status?.container_statuses ?? {};
-
-    // Find the earliest task start across all containers to bound the creating block
-    let firstTaskStartMs: number | null = null;
-    for (const container of ['input', 'main', 'output'] as const) {
-      const cs = statuses[container];
-      if (!cs) continue;
-      for (const [, timingData] of Object.entries(cs.timing)) {
-        if (!timingData || timingData.start_time == null) continue;
-        if (firstTaskStartMs === null || timingData.start_time < firstTaskStartMs) {
-          firstTaskStartMs = timingData.start_time;
-        }
-      }
-    }
-
-    // Creating placeholder: time from attempt start to first task start.
-    // Only shown when the creating phase is at least 1 second; sub-second
-    // durations are noise and would render as "0.0s" in the tooltip.
-    const schedEndMs = firstTaskStartMs ?? latestFallbackEndMs;
-    const creatingDurationMs = schedEndMs - latest.start_time_ms;
-    if (creatingDurationMs >= 1000) {
-      rows.push({
-        label: latestLabel,
-        start: new Date(latest.start_time_ms),
-        end: new Date(schedEndMs),
-        category: 'creating',
-        tooltip: [
-          `Row: ${latestLabel}`,
-          `Task: creating`,
-          `Start: ${new Date(latest.start_time_ms).toLocaleString()}`,
-          `Finish: ${new Date(schedEndMs).toLocaleString()}`,
-          `Duration: ${(creatingDurationMs / 1000).toFixed(1)}s`,
-        ].join('\n'),
-      });
-      ruleXs.push({ x: new Date(latest.start_time_ms), label: 'creating' });
-    }
-
-    // Task bars — all containers merged onto the same row
-    for (const container of ['input', 'main', 'output'] as const) {
-      const cs = statuses[container];
-      if (!cs) continue;
-      let containerStartMs: number | null = null;
-      for (const [stepName, timingData] of Object.entries(cs.timing)) {
-        if (!timingData || timingData.start_time == null) continue;
-        const startMs = timingData.start_time;
-        const endMs = timingData.finish_time ?? latestFallbackEndMs;
-        const durationMs = timingData.duration ?? (endMs - startMs);
-        rows.push({
-          label: latestLabel,
-          start: new Date(startMs),
-          end: new Date(endMs),
-          category: stepName,
-          tooltip: [
-            `Row: ${latestLabel}`,
-            `Task: ${stepName} (${container})`,
-            `Start: ${new Date(startMs).toLocaleString()}`,
-            `Finish: ${new Date(endMs).toLocaleString()}`,
-            `Duration: ${(durationMs / 1000).toFixed(1)}s`,
-          ].join('\n'),
-        });
-        if (containerStartMs === null || startMs < containerStartMs) {
-          containerStartMs = startMs;
-        }
-      }
-      // One rule per container division, at its earliest task start
-      if (containerStartMs !== null) {
-        ruleXs.push({ x: new Date(containerStartMs), label: container });
-      }
-    }
-  }
-
-  return { rows, ruleXs };
-}
-
-function buildColorMap(rows: GanttRow[]): Record<string, string> {
-  const map: Record<string, string> = {};
-  for (const cat of new Set(rows.map((r) => r.category))) {
-    map[cat] = STEP_COLOR_MAP[cat] ?? '#9ca3af';
-  }
-  return map;
-}
-
-function stateColor(state: string): string {
-  switch (state) {
-    case 'Success': return 'text-green-600';
-    case 'Running': case 'Creating': return 'text-sky-600';
-    case 'Failed': case 'Error': return 'text-red-600';
-    case 'Cancelled': return 'text-zinc-400';
-    default: return 'text-zinc-600';
-  }
-}
-
-function stateIcon(state: string): string {
-  switch (state) {
-    case 'Success': return 'check';
-    case 'Failed': case 'Error': return 'close';
-    case 'Cancelled': return 'close';
-    default: return 'schedule';
-  }
-}
-
-function StateIcon({ state }: { state: string }): JSX.Element {
-  if (state === 'Running') {
-    return (
-      <svg className="animate-spin h-4 w-4 text-sky-600 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-      </svg>
-    );
-  }
-  const icon = stateIcon(state);
-  const color = icon === 'schedule' ? 'text-zinc-400' : stateColor(state);
-  return <span className={`material-symbols-outlined text-base leading-none ${color}`}>{icon}</span>;
-}
-
-const TERMINAL_STATES = new Set(['Success', 'Failed', 'Error', 'Cancelled']);
-
-const MIN_VISIBLE_COST = 0.01;
-
-function formatCostDisplay(cost: number): { display: string; tooltip: string | null } {
-  if (cost > 0 && cost < MIN_VISIBLE_COST) {
-    return { display: `< $${MIN_VISIBLE_COST.toFixed(2)}`, tooltip: `$${cost}` };
-  }
-  return { display: `$${cost.toFixed(2)}`, tooltip: null };
-}
-
-function CostDisplay({ cost }: { cost: number }): JSX.Element {
-  const { display, tooltip } = formatCostDisplay(cost);
-  if (tooltip != null) {
-    return (
-      <span title={tooltip} className="cursor-help">
-        {display}
-      </span>
-    );
-  }
-  return <>{display}</>;
-}
-
-function CollapsibleItem({ title, summary, children }: {
-  title: string;
-  summary?: ReactNode;
-  children: ReactNode;
-}): JSX.Element {
-  const [open, setOpen] = useState(false);
-  return (
-    <li>
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="w-full flex justify-between items-center px-4 py-3 text-sm text-left hover:bg-slate-100"
-      >
-        <span className="font-medium">{title}</span>
-        <div className="flex items-center gap-2 text-zinc-400 text-xs">
-          {summary != null && <span>{summary}</span>}
-          <span>{open ? '▴' : '▾'}</span>
-        </div>
-      </button>
-      {open && <div className="px-4 pb-3">{children}</div>}
-    </li>
-  );
-}
 
 type Props = {
   basePath: string;
@@ -315,10 +21,8 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
   const [attempts, setAttempts] = useState<Attempt[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showPriorAttempts, setShowPriorAttempts] = useState(true);
   const [refreshTick, setRefreshTick] = useState(0);
   const isInitialLoad = useRef(true);
-
 
   // URL-synced tab state
   const getInitialTab = (): TopTab => {
@@ -438,12 +142,7 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
   }
 
   const latestAttempt = attempts && attempts.length > 0 ? attempts[attempts.length - 1] : null;
-  const hasPriorAttempts = attempts != null && attempts.length > 1;
-  const { rows: ganttRows, ruleXs: ganttRuleXs } = attempts
-    ? buildGanttRows(job, attempts, showPriorAttempts)
-    : { rows: [], ruleXs: [] };
-  const colorMap = buildColorMap(ganttRows);
-  // Determine active attempt for tab
+  const isTerminal = TERMINAL_STATES.has(job.state);
   const activeAttempt = attempts?.find((a) => a.attempt_id === topTab) ?? latestAttempt;
 
   return (
@@ -464,80 +163,8 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
 
       {/* Top section: metadata + Gantt */}
       <div className="flex flex-wrap justify-between items-start pt-6 gap-4">
-        <div className="w-full lg:basis-1/4 drop-shadow-sm shrink-0">
-          <ul className="border border-collapse divide-y bg-slate-50 rounded">
-            <li className="p-4">
-              <div className="flex w-full justify-between items-center">
-                <div className="text-xl font-light">Batch {batchId} Job {jobId}</div>
-                <span className={`font-medium ${stateColor(job.state)}`}>{job.state}</span>
-              </div>
-              {job.attributes?.name && (
-                <div className="text-lg font-light py-1 overflow-auto">{job.attributes.name}</div>
-              )}
-              {job.user && (
-                <div className="font-light text-zinc-500 text-sm">Submitted by {job.user}</div>
-              )}
-              {job.billing_project && (
-                <div className="font-light text-zinc-500 text-sm">Billed to {job.billing_project}</div>
-              )}
-              {job.always_run && (
-                <div className="text-sm font-semibold mt-1">Always Run</div>
-              )}
-              {latestAttempt?.start_time_ms != null && (
-                <div className="text-sm text-zinc-400 mt-1">
-                  Started <RelativeTime ms={latestAttempt.start_time_ms} />
-                </div>
-              )}
-            </li>
-            {job.cost != null && (
-              <CollapsibleItem title="Cost" summary={<CostDisplay cost={job.cost} />}>
-                {job.cost_breakdown && (
-                  <table className="text-xs w-full">
-                    <tbody className="divide-y">
-                      {job.cost_breakdown.map(({ resource, cost }) => (
-                        <tr key={resource}>
-                          <td className="py-1 pr-2 text-zinc-500">{resource}</td>
-                          <td className="py-1 text-right">
-                            <CostDisplay cost={cost} />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </CollapsibleItem>
-            )}
-          </ul>
-        </div>
-
-        {ganttRows.length > 0 && (
-          <div className="w-full lg:flex-1 bg-slate-100 border rounded overflow-hidden max-h-[32rem] overflow-y-auto">
-            {hasPriorAttempts && (
-              <div className="flex items-center gap-2.5 px-3 pt-2 pb-1">
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={showPriorAttempts}
-                  onClick={() => setShowPriorAttempts((v) => !v)}
-                  className={`relative h-5 w-9 flex-shrink-0 rounded-full p-0 transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 ${showPriorAttempts ? 'bg-sky-600' : 'bg-slate-300'}`}
-                >
-                  <span
-                    className="absolute h-4 w-4 rounded-full bg-white shadow-sm"
-                    style={{ top: '2px', left: showPriorAttempts ? '18px' : '2px', transition: 'left 200ms ease-in-out' }}
-                  />
-                </button>
-                <button
-                  type="button"
-                  className="text-sm text-slate-600 bg-transparent border-none p-0 cursor-pointer select-none focus:outline-none focus-visible:underline"
-                  onClick={() => setShowPriorAttempts((v) => !v)}
-                >
-                  Show prior attempts
-                </button>
-              </div>
-            )}
-            <GanttChart rows={ganttRows} colorMap={colorMap} ruleXs={ganttRuleXs} extendToNow={!TERMINAL_STATES.has(job.state)} />
-          </div>
-        )}
+        <JobStatusPanel batchId={batchId} jobId={jobId} job={job} latestAttempt={latestAttempt} />
+        {attempts && <JobTimelineGantt job={job} attempts={attempts} isTerminal={isTerminal} />}
       </div>
 
       {/* Main tab section */}
@@ -574,7 +201,7 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
                   // Job is terminal: its state is the definitive answer.
                   // Job is still running: if the attempt already has a reason it
                   // failed/was preempted even though the job hasn't settled yet.
-                  TERMINAL_STATES.has(job.state) || !attempt.reason
+                  isTerminal || !attempt.reason
                     ? <StateIcon state={job.state} />
                     : <span className="material-symbols-outlined text-base leading-none text-red-400">close</span>
                 ) : (
