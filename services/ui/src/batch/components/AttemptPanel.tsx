@@ -41,6 +41,7 @@ type Props = {
   isLatest: boolean;
   hasInput: boolean;
   hasOutput: boolean;
+  resources?: Record<string, unknown>;
   activeSubTab: SubTab;
   setActiveSubTab: (t: SubTab) => void;
   refreshTick: number;
@@ -66,10 +67,16 @@ export function AttemptPanel({
   isLatest,
   hasInput,
   hasOutput,
+  resources,
   activeSubTab,
   setActiveSubTab,
   refreshTick,
 }: Props): JSX.Element {
+  const coresMcpu = resources?.['cores_mcpu'] as number | undefined;
+  const memoryBytes = resources?.['memory_bytes'] as number | undefined;
+  const storageGib = resources?.['storage_gib'] as number | undefined;
+  const cores = coresMcpu != null ? coresMcpu / 1000 : undefined;
+  const memoryGib = memoryBytes != null ? (memoryBytes / (1024 ** 3)).toFixed(1) : undefined;
   const cache = useRef<Record<string, AttemptData>>({});
   const committedLogsRef = useRef<LogMap>({});
   // Tracks the last attempt_id the effect ran for so we can distinguish a
@@ -217,6 +224,24 @@ export function AttemptPanel({
               <tr className="border-t">
                 <td className="py-2 pr-4 text-zinc-500">Reason</td>
                 <td className="py-2">{attempt.reason}</td>
+              </tr>
+            )}
+            {cores != null && (
+              <tr className="border-t">
+                <td className="py-2 pr-4 text-zinc-500">Cores allocated</td>
+                <td className="py-2">{cores}</td>
+              </tr>
+            )}
+            {memoryGib != null && (
+              <tr className="border-t">
+                <td className="py-2 pr-4 text-zinc-500">Memory allocated</td>
+                <td className="py-2">{memoryGib} GiB</td>
+              </tr>
+            )}
+            {storageGib != null && (
+              <tr className="border-t">
+                <td className="py-2 pr-4 text-zinc-500">Storage allocated</td>
+                <td className="py-2">{storageGib} GiB</td>
               </tr>
             )}
           </tbody>

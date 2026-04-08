@@ -2417,6 +2417,7 @@ LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
         **job_record_to_dict(record, attributes.get('name')),
         'status': full_status,
         'spec': full_spec,
+        'inst_coll': record['inst_coll'],
     }
     if attributes:
         job['attributes'] = attributes

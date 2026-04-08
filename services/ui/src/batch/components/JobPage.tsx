@@ -56,6 +56,7 @@ type Job = {
   billing_project?: string;
   always_run?: boolean;
   attributes?: Record<string, string>;
+  inst_coll?: string;
   spec?: JobSpec | null;
   status?: JobStatus | null;
 };
@@ -488,44 +489,6 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
                 </div>
               )}
             </li>
-            <CollapsibleItem title="Environment Variables">
-              <table className="text-xs w-full">
-                <tbody className="divide-y">
-                  {(job.spec?.env ?? []).map(({ name, value }) => (
-                    <tr key={name}>
-                      <td className="py-1 pr-2">{name}</td>
-                      <td className="py-1 text-right break-all">{value}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </CollapsibleItem>
-            {job.attributes && Object.keys(job.attributes).length > 0 && (
-              <CollapsibleItem title="Attributes">
-                <table className="text-xs w-full">
-                  <tbody className="divide-y">
-                    {Object.entries(job.attributes).map(([k, v]) => (
-                      <tr key={k}>
-                        <td className="py-1 pr-2 text-zinc-500">{k}</td>
-                        <td className="py-1 text-right break-all">{v}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </CollapsibleItem>
-            )}
-            <CollapsibleItem title="Resources">
-              <table className="text-xs w-full">
-                <tbody className="divide-y">
-                  {Object.entries(job.spec?.resources ?? {}).map(([k, v]) => (
-                    <tr key={k}>
-                      <td className="py-1 pr-2 text-zinc-500">{k}</td>
-                      <td className="py-1 text-right">{String(v)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </CollapsibleItem>
             {job.cost != null && (
               <CollapsibleItem title="Cost" summary={<CostDisplay cost={job.cost} />}>
                 {job.cost_breakdown && (
@@ -627,6 +590,8 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
           {topTab === 'job_spec' && (
             <JobSpecPanel
               spec={job.spec ?? null}
+              attributes={job.attributes}
+              instColl={job.inst_coll}
               activeSubTab={specSubTab}
               setActiveSubTab={updateSpecSubTab}
             />
@@ -645,6 +610,7 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
               isLatest={activeAttempt === latestAttempt}
               hasInput={(job.spec?.input_files ?? []).length > 0}
               hasOutput={(job.spec?.output_files ?? []).length > 0}
+              resources={job.spec?.resources}
               activeSubTab={attemptSubTabs[activeAttempt.attempt_id] ?? 'main'}
               setActiveSubTab={(sub) => updateAttemptSubTab(activeAttempt.attempt_id, sub)}
               refreshTick={refreshTick}
