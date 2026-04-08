@@ -65,9 +65,7 @@
 </a>
 {% if userdata['is_developer'] %}
 <div class='mt-2'>
-  <a href="#"
-    onclick="document.cookie='hail_react_ui=1; max-age=108000; path=/; SameSite=Lax'; location.reload(); return false;"
-    class='text-sm text-sky-600 hover:underline'>
+  <a id="enable-react-ui-btn" href="#" class='text-sm text-sky-600 hover:underline'>
     Try new layout
   </a>
 </div>
@@ -244,8 +242,8 @@
   {% endif %}
 </div>
 <script defer src="{{ base_path }}/batch/static/js/auto_refresh.js"></script>
+<script defer src="{{ base_path }}/batch/static/js/job.js"></script>
 {% if plot_job_durations is not none or plot_resource_usage is not none %}
 <script src="https://cdn.plot.ly/plotly-2.35.3.min.js"></script>
-<script defer src="{{ base_path }}/batch/static/js/job.js"></script>
 {% endif %}
 {% endblock %}
