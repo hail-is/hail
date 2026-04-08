@@ -244,7 +244,7 @@ export function JobPage({ basePath, batchId, jobId }: Props): JSX.Element {
 
   return (
     <div className="pb-8">
-      <style>{`@keyframes countdown-shrink { from { transform: scaleX(1); } to { transform: scaleX(0); } }`}</style>
+      <style>{`@keyframes countdown-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }`}</style>
       {/* Breadcrumb */}
       <nav className="flex items-center gap-2 text-xl font-light text-zinc-500 flex-wrap">
         <a href={`${basePath}/batches`} className="hover:text-sky-600">Batches</a>

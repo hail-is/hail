@@ -56,7 +56,7 @@ export function JobStatusPanel({ batchId, jobId, job, latestAttempt, autoRefresh
                   <div
                     key={countdownKey}
                     className="h-full bg-sky-400 origin-left"
-                    style={{ animation: `countdown-shrink ${refreshIntervalMs}ms linear forwards` }}
+                    style={{ animation: `countdown-grow ${refreshIntervalMs}ms linear forwards` }}
                   />
                 )}
               </div>
