@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Job, Attempt, TERMINAL_STATES } from './jobModels';
+import { Job, Attempt, ContainerStatus, TERMINAL_STATES } from './jobModels';
 import { JobStatusPanel } from './JobStatusPanel';
 import { JobTimelineGantt } from './JobTimelineGantt';
 import { StateIcon } from './StateIcon';
@@ -8,6 +8,75 @@ import { AttemptPanel } from './AttemptPanel';
 import { CodeBlock } from './CodeBlock';
 
 type TopTab = 'job_spec' | 'raw_status' | 'current_attempt' | string; // string for attempt_id
+
+type StepError = {
+  step: string;
+  shortError: string | null;
+  fullError: string | null;
+};
+
+function collectStepErrors(job: Job): { topLevelError: string | null; steps: StepError[] } {
+  const topLevelError = job.status?.error ?? null;
+  const cs = job.status?.container_statuses;
+  const steps: StepError[] = (['input', 'main', 'output'] as const)
+    .map((step) => {
+      const s: ContainerStatus | null | undefined = cs?.[step];
+      return { step, shortError: s?.short_error ?? null, fullError: s?.error ?? null };
+    })
+    .filter(({ shortError, fullError }) => shortError !== null || fullError !== null);
+  return { topLevelError, steps };
+}
+
+function ExpandableError({ label, error }: { label: string; error: string }): JSX.Element {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div className="mt-2">
+      <button
+        onClick={() => setExpanded((e) => !e)}
+        className="text-sm text-red-700 underline underline-offset-2 hover:text-red-900"
+      >
+        {expanded ? 'Hide' : 'Show'} {label}
+      </button>
+      {expanded && (
+        <div className="mt-2">
+          <CodeBlock code={error} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function JobErrorSummary({ job }: { job: Job }): JSX.Element | null {
+  const { topLevelError, steps } = collectStepErrors(job);
+  if (!topLevelError && steps.length === 0) return null;
+
+  const multiStep = steps.length > 1;
+
+  return (
+    <div className="mt-6 border border-red-200 bg-red-50 rounded-lg p-4 space-y-3">
+      <p className="text-red-700 font-semibold text-base">Job error</p>
+      {topLevelError && (
+        <ExpandableError label="error detail" error={topLevelError} />
+      )}
+      {steps.map((entry) => (
+        <div key={entry.step}>
+          {entry.shortError && (
+            <p className="font-medium text-red-800">
+              {multiStep ? `${entry.step.charAt(0).toUpperCase() + entry.step.slice(1)} — ` : ''}
+              Errored with: <span className="capitalize">{entry.shortError}</span>
+            </p>
+          )}
+          {entry.fullError && (
+            <ExpandableError
+              label={`${entry.step} error detail`}
+              error={entry.fullError}
+            />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 type Props = {
   basePath: string;
@@ -166,6 +235,9 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
         <JobStatusPanel batchId={batchId} jobId={jobId} job={job} latestAttempt={latestAttempt} />
         {attempts && <JobTimelineGantt job={job} attempts={attempts} isTerminal={isTerminal} />}
       </div>
+
+      {/* Job error summary */}
+      {(job.state === 'Failed' || job.state === 'Error') && <JobErrorSummary job={job} />}
 
       {/* Main tab section */}
       <div className="mt-6">

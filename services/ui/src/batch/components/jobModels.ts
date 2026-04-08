@@ -12,6 +12,7 @@ export type ContainerStatus = {
   name: string;
   state: string;
   short_error?: string | null;
+  error?: string | null;
   timing: ContainerTiming;
 };
 
