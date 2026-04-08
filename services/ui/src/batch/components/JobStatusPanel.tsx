@@ -21,9 +21,14 @@ type Props = {
   jobId: string;
   job: Job;
   latestAttempt: Attempt | null;
+  autoRefresh: boolean;
+  isTerminal: boolean;
+  onAutoRefreshToggle: (checked: boolean) => void;
+  countdownKey: number;
+  refreshIntervalMs: number;
 };
 
-export function JobStatusPanel({ batchId, jobId, job, latestAttempt }: Props): JSX.Element {
+export function JobStatusPanel({ batchId, jobId, job, latestAttempt, autoRefresh, isTerminal, onAutoRefreshToggle, countdownKey, refreshIntervalMs }: Props): JSX.Element {
   return (
     <div className="w-full lg:basis-1/4 drop-shadow-sm shrink-0">
       <ul className="border border-collapse divide-y bg-slate-50 rounded">
@@ -35,8 +40,30 @@ export function JobStatusPanel({ batchId, jobId, job, latestAttempt }: Props): J
           {job.attributes?.name && (
             <div className="text-lg font-light py-1 overflow-auto">{job.attributes.name}</div>
           )}
+          {!isTerminal && (
+            <div className="mt-2">
+              <label className="flex items-center gap-1.5 text-zinc-500 text-sm cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={autoRefresh}
+                  onChange={(e) => onAutoRefreshToggle(e.target.checked)}
+                  className="cursor-pointer"
+                />
+                Auto-refresh
+              </label>
+              <div className="mt-1.5 h-0.5 bg-zinc-200 rounded-full overflow-hidden">
+                {autoRefresh && (
+                  <div
+                    key={countdownKey}
+                    className="h-full bg-sky-400 origin-left"
+                    style={{ animation: `countdown-shrink ${refreshIntervalMs}ms linear forwards` }}
+                  />
+                )}
+              </div>
+            </div>
+          )}
           {job.user && (
-            <div className="font-light text-zinc-500 text-sm">Submitted by {job.user}</div>
+            <div className="font-light text-zinc-500 text-sm mt-2">Submitted by {job.user}</div>
           )}
           {job.billing_project && (
             <div className="font-light text-zinc-500 text-sm">Billed to {job.billing_project}</div>
