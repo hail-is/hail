@@ -57,7 +57,6 @@ type Job = {
   always_run?: boolean;
   attributes?: Record<string, string>;
   spec?: JobSpec | null;
-  spec_defaulted_fields?: string[];
   status?: JobStatus | null;
 };
 
@@ -628,7 +627,6 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
           {topTab === 'job_spec' && (
             <JobSpecPanel
               spec={job.spec ?? null}
-              defaultedFields={new Set(job.spec_defaulted_fields ?? [])}
               activeSubTab={specSubTab}
               setActiveSubTab={updateSpecSubTab}
             />
