@@ -27,20 +27,33 @@ function collectStepErrors(job: Job): { topLevelError: string | null; steps: Ste
   return { topLevelError, steps };
 }
 
+const MAX_PREVIEW_CHARS = 100;
+const MAX_PREVIEW_LINES = 10;
+
+function truncateErrorPreview(error: string): { preview: string; truncated: boolean } {
+  const lines = error.split('\n');
+  const linesTruncated = lines.length > MAX_PREVIEW_LINES;
+  const clippedLines = linesTruncated ? lines.slice(0, MAX_PREVIEW_LINES) : lines;
+  const joined = clippedLines.join('\n');
+  const charsTruncated = joined.length > MAX_PREVIEW_CHARS;
+  const preview = charsTruncated ? joined.slice(0, MAX_PREVIEW_CHARS) : joined;
+  return { preview, truncated: linesTruncated || charsTruncated };
+}
+
 function ExpandableError({ label, error }: { label: string; error: string }): JSX.Element {
   const [expanded, setExpanded] = useState(false);
+  const { preview, truncated } = truncateErrorPreview(error);
   return (
     <div className="mt-2">
-      <button
-        onClick={() => setExpanded((e) => !e)}
-        className="text-sm text-red-700 underline underline-offset-2 hover:text-red-900"
-      >
-        {expanded ? 'Hide' : 'Show'} {label}
-      </button>
-      {expanded && (
-        <div className="mt-2">
-          <CodeBlock code={error} />
-        </div>
+      <p className="text-xs text-red-600 mb-1">{label}</p>
+      <CodeBlock code={expanded ? error : preview} />
+      {truncated && (
+        <button
+          onClick={() => setExpanded((e) => !e)}
+          className="mt-1 text-xs text-red-700 underline underline-offset-2 hover:text-red-900"
+        >
+          {expanded ? 'Show less' : 'Show all'}
+        </button>
       )}
     </div>
   );
