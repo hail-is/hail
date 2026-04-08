@@ -2746,7 +2746,6 @@ async def ui_get_jvm_profile(request: web.Request, _, batch_id: int) -> web.Resp
 
 @routes.get('/enable-react-ui')
 @web_security_headers
-@catch_ui_error_in_dev
 async def enable_react_ui(request):
     next_page = validate_redirect_url(request.query.get('next'))
     resp = web.HTTPFound(next_page)
@@ -2756,7 +2755,6 @@ async def enable_react_ui(request):
 
 @routes.get('/disable-react-ui')
 @web_security_headers
-@catch_ui_error_in_dev
 async def disable_react_ui(request):
     redirect_url = validate_redirect_url(request.query.get('next'))
     resp = web.HTTPFound(redirect_url)
