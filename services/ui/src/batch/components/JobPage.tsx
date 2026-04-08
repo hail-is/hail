@@ -40,13 +40,13 @@ function truncateErrorPreview(error: string): { preview: string; truncated: bool
   return { preview, truncated: linesTruncated || charsTruncated };
 }
 
-function ExpandableError({ label, error }: { label: string; error: string }): JSX.Element {
+function ExpandableError({ stepLabel, error }: { stepLabel?: string; error: string }): JSX.Element {
   const [expanded, setExpanded] = useState(false);
   const { preview, truncated } = truncateErrorPreview(error);
   return (
     <div className="mt-2">
-      <p className="text-xs text-red-600 mb-1">{label}</p>
-      <CodeBlock code={expanded ? error : preview} />
+      {stepLabel && <p className="text-xs font-semibold text-red-800 uppercase tracking-wide mb-1">{stepLabel}</p>}
+      <pre className="text-sm text-red-800 whitespace-pre-wrap break-all">{expanded ? error : preview}</pre>
       {truncated && (
         <button
           onClick={() => setExpanded((e) => !e)}
@@ -68,9 +68,7 @@ function JobErrorSummary({ job }: { job: Job }): JSX.Element | null {
   return (
     <div className="mt-6 border border-red-200 bg-red-50 rounded-lg p-4 space-y-3">
       <p className="text-red-700 font-semibold text-base">Job error</p>
-      {topLevelError && (
-        <ExpandableError label="error detail" error={topLevelError} />
-      )}
+      {topLevelError && <ExpandableError error={topLevelError} />}
       {steps.map((entry) => (
         <div key={entry.step}>
           {entry.shortError && (
@@ -81,7 +79,7 @@ function JobErrorSummary({ job }: { job: Job }): JSX.Element | null {
           )}
           {entry.fullError && (
             <ExpandableError
-              label={`${entry.step} error detail`}
+              stepLabel={multiStep ? entry.step : undefined}
               error={entry.fullError}
             />
           )}
