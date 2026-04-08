@@ -44,11 +44,11 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
     return sub === 'input' || sub === 'output' ? sub : 'main';
   });
 
-  const [attemptSubTabs, setAttemptSubTabs] = useState<Record<string, 'details' | 'charts' | 'input' | 'main' | 'output' | 'raw'>>(() => {
+  const [attemptSubTabs, setAttemptSubTabs] = useState<Record<string, 'details' | 'charts' | 'input' | 'main' | 'output'>>(() => {
     const params = new URLSearchParams(window.location.search);
     const attemptId = params.get('attempt_id');
     const sub = params.get('subtab');
-    const validSub = sub === 'details' || sub === 'charts' || sub === 'input' || sub === 'main' || sub === 'output' || sub === 'raw' ? sub : null;
+    const validSub = sub === 'details' || sub === 'charts' || sub === 'input' || sub === 'main' || sub === 'output' ? sub : null;
     if (attemptId && validSub) return { [attemptId]: validSub };
     return {};
   });
@@ -73,7 +73,7 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
     window.history.replaceState(null, '', `?${params.toString()}`);
   }, []);
 
-  const updateAttemptSubTab = useCallback((attemptId: string, sub: 'details' | 'charts' | 'input' | 'main' | 'output' | 'raw') => {
+  const updateAttemptSubTab = useCallback((attemptId: string, sub: 'details' | 'charts' | 'input' | 'main' | 'output') => {
     setAttemptSubTabs((prev) => ({ ...prev, [attemptId]: sub }));
     const params = new URLSearchParams(window.location.search);
     params.set('subtab', sub);

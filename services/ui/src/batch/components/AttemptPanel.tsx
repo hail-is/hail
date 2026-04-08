@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 import { LogViewer } from './LogViewer';
-import { CodeBlock } from './CodeBlock';
 import { ResourceCharts, ResourceUsageData } from './ResourceCharts';
 
 type Attempt = {
@@ -12,7 +11,7 @@ type Attempt = {
   reason?: string;
 };
 
-type SubTab = 'details' | 'charts' | 'input' | 'main' | 'output' | 'raw';
+type SubTab = 'details' | 'charts' | 'input' | 'main' | 'output';
 
 const ALL_SUB_TABS: { id: SubTab; label: string; requires?: 'input' | 'output' }[] = [
   { id: 'details', label: 'Details' },
@@ -20,7 +19,6 @@ const ALL_SUB_TABS: { id: SubTab; label: string; requires?: 'input' | 'output' }
   { id: 'input', label: 'Input Log', requires: 'input' },
   { id: 'main', label: 'Main Log' },
   { id: 'output', label: 'Output Log', requires: 'output' },
-  { id: 'raw', label: 'Raw Status' },
 ];
 
 type LogMap = Record<string, string | null>;
@@ -28,7 +26,6 @@ type LogMap = Record<string, string | null>;
 type AttemptData = {
   logs: LogMap;
   resourceUsage: ResourceUsageData | null;
-  rawStatus: string | null;
   loading: boolean;
   error: string | null;
 };
@@ -43,7 +40,7 @@ type Props = {
   hasOutput: boolean;
   resources?: Record<string, unknown>;
   activeSubTab: SubTab;
-  setActiveSubTab: (t: SubTab) => void;
+  setActiveSubTab: (tab: SubTab) => void;
   refreshTick: number;
 };
 
@@ -85,7 +82,6 @@ export function AttemptPanel({
   const [data, setData] = useState<AttemptData>({
     logs: {},
     resourceUsage: null,
-    rawStatus: null,
     loading: false,
     error: null,
   });
@@ -142,7 +138,6 @@ export function AttemptPanel({
       const result: AttemptData = {
         logs: { input: inputLog, main: mainLog, output: outputLog },
         resourceUsage,
-        rawStatus: null,
         loading: false,
         error: null,
       };
@@ -277,15 +272,6 @@ export function AttemptPanel({
           ) : null
         )}
 
-      {!data.loading && activeSubTab === 'raw' && (
-        <div>
-          {data.rawStatus != null ? (
-            <CodeBlock code={data.rawStatus} />
-          ) : (
-            <div className="text-zinc-400 text-sm py-4">No raw status available.</div>
-          )}
-        </div>
-      )}
     </div>
   );
 }
