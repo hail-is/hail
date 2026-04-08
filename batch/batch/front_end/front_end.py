@@ -2406,9 +2406,9 @@ LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
         if not record['always_run']:
             spec_defaulted_fields.append('always_run')
 
-        # network defaults to 'private' when not specified
+        # network defaults to 'public' when not specified
         if 'network' not in full_spec:
-            full_spec['network'] = 'private'
+            full_spec['network'] = 'public'
             spec_defaulted_fields.append('network')
 
         # regions: reconstruct from bits rep, or use all regions if unspecified
