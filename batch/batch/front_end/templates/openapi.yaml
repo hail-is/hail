@@ -1746,6 +1746,16 @@ components:
           additionalProperties:
             type: string
 
+    CostBreakdownEntry:
+      type: object
+      properties:
+        resource:
+          type: string
+          description: "Name of the resource"
+        cost:
+          type: number
+          description: "Cost for this resource in USD"
+
     JobResponse:
       type: object
       properties:
@@ -1755,17 +1765,34 @@ components:
         job_id:
           type: integer
           description: "The job ID"
+        job_group_id:
+          type: integer
+          description: "ID of the job group this job belongs to"
+        name:
+          type: string
+          description: "Name of the job"
+          nullable: true
+        user:
+          type: string
+          description: "User who owns the job"
+        billing_project:
+          type: string
+          description: "Billing project for the job"
         state:
           type: string
-          enum: ["pending", "running", "succeeded", "failed", "cancelled"]
+          enum: ["Pending", "Ready", "Creating", "Running", "Failed", "Cancelled", "Error", "Success"]
           description: "Current state of the job"
+        display_state:
+          type: string
+          description: "Human-readable display state"
+          nullable: true
         exit_code:
           type: integer
           description: "Exit code of the job"
           nullable: true
         duration:
           type: number
-          description: "Duration of the job in seconds"
+          description: "Duration of the job in milliseconds"
           nullable: true
         start_time:
           type: string
@@ -1777,11 +1804,38 @@ components:
           format: date-time
           description: "When the job ended"
           nullable: true
+        cost:
+          type: number
+          description: "Total cost of the job in USD"
+          nullable: true
+        msec_mcpu:
+          type: integer
+          description: "Millisecond milli-CPU usage"
+        cost_breakdown:
+          type: array
+          description: "Per-resource cost breakdown"
+          items:
+            $ref: '#/components/schemas/CostBreakdownEntry'
+        always_run:
+          type: boolean
+          description: "Whether the job runs regardless of the batch's success state"
+        n_max_attempts:
+          type: integer
+          description: "Maximum number of times this job will be attempted"
+        inst_coll:
+          type: string
+          description: "Instance collection the job ran on"
+          nullable: true
         attributes:
           type: object
           description: "Key-value pairs of attributes for the job"
           additionalProperties:
             type: string
+          nullable: true
+        status:
+          type: object
+          description: "Detailed job status"
+          nullable: true
         spec:
           $ref: '#/components/schemas/CreateJobRequest'
 
