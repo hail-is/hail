@@ -65,7 +65,6 @@ type Spec = {
 
 type Props = {
   spec: Spec | null;
-  defaultedFields: Set<string>;
 };
 
 type SubTab = 'input' | 'main' | 'output';
@@ -99,13 +98,9 @@ function FilesTable({ files }: { files: [string, string][] }): JSX.Element {
 
 export function JobSpecPanel({
   spec,
-  defaultedFields,
   activeSubTab,
   setActiveSubTab,
 }: Props & { activeSubTab: SubTab; setActiveSubTab: (t: SubTab) => void }): JSX.Element {
-  const def = (field: string, value: React.ReactNode) =>
-    defaultedFields.has(field) ? <AsDefault value={value} /> : <>{value}</>;
-
   return (
     <div>
       <div className="flex border-b text-base overflow-auto bg-white mb-4">
@@ -189,19 +184,19 @@ export function JobSpecPanel({
                   <tbody>
                     <tr className="border-t">
                       <td className="py-1 pr-4 text-zinc-500">Always run</td>
-                      <td className="py-1">{spec.always_run != null ? def('always_run', String(spec.always_run)) : <Unset />}</td>
+                      <td className="py-1">{spec.always_run != null ? (spec.always_run === false ? <AsDefault value="false" /> : 'true') : <Unset />}</td>
                     </tr>
                     <tr className="border-t">
                       <td className="py-1 pr-4 text-zinc-500">Max attempts</td>
-                      <td className="py-1">{spec.n_max_attempts != null ? def('n_max_attempts', spec.n_max_attempts) : <Unset />}</td>
+                      <td className="py-1">{spec.n_max_attempts != null ? (spec.n_max_attempts === 20 ? <AsDefault value={20} /> : spec.n_max_attempts) : <Unset />}</td>
                     </tr>
                     <tr className="border-t">
                       <td className="py-1 pr-4 text-zinc-500">Network</td>
-                      <td className="py-1">{spec.network ? def('network', spec.network) : <Unset />}</td>
+                      <td className="py-1">{spec.network ? (spec.network === 'public' ? <AsDefault value="public" /> : spec.network) : <Unset />}</td>
                     </tr>
                     <tr className="border-t">
                       <td className="py-1 pr-4 text-zinc-500">Regions</td>
-                      <td className="py-1">{spec.regions ? def('regions', spec.regions.join(', ')) : <Unset />}</td>
+                      <td className="py-1">{spec.regions ? spec.regions.join(', ') : <Unset />}</td>
                     </tr>
                     <tr className="border-t">
                       <td className="py-1 pr-4 text-zinc-500">Timeout</td>
