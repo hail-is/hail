@@ -42,7 +42,6 @@ from gear import (
     monitor_endpoints_middleware,
     setup_aiohttp_session,
     transaction,
-    validate_redirect_url,
 )
 from gear.auth import get_session_id, impersonate_user
 from gear.clients import get_cloud_async_fs
@@ -2742,24 +2741,6 @@ async def ui_get_jvm_profile(request: web.Request, _, batch_id: int) -> web.Resp
     if profile is None:
         raise web.HTTPNotFound()
     return web.Response(text=profile, content_type='text/html')
-
-
-@routes.get('/enable-react-ui')
-@web_security_headers
-async def enable_react_ui(request):
-    next_page = validate_redirect_url(request.query.get('next'))
-    resp = web.HTTPFound(next_page)
-    resp.set_cookie('hail_react_ui', '1', max_age=30 * 3600, path='/', samesite='Lax')
-    raise resp
-
-
-@routes.get('/disable-react-ui')
-@web_security_headers
-async def disable_react_ui(request):
-    redirect_url = validate_redirect_url(request.query.get('next'))
-    resp = web.HTTPFound(redirect_url)
-    resp.del_cookie('hail_react_ui', path='/')
-    raise resp
 
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}')

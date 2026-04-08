@@ -89,20 +89,36 @@ function JobErrorSummary({ job }: { job: Job }): JSX.Element | null {
   );
 }
 
+const REFRESH_INTERVAL_MS = 30_000;
+
 type Props = {
   basePath: string;
   batchId: string;
   jobId: string;
-  disableReactUrl: string;
 };
 
-export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): JSX.Element {
+export function JobPage({ basePath, batchId, jobId }: Props): JSX.Element {
   const [job, setJob] = useState<Job | null>(null);
   const [attempts, setAttempts] = useState<Attempt[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshTick, setRefreshTick] = useState(0);
+  const [countdownKey, setCountdownKey] = useState(0);
+  const [autoRefresh, setAutoRefresh] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('batch.jobPage.autoRefresh') !== 'false';
+    } catch {
+      return true;
+    }
+  });
   const isInitialLoad = useRef(true);
+
+  const handleAutoRefreshToggle = (checked: boolean) => {
+    setAutoRefresh(checked);
+    try {
+      localStorage.setItem('batch.jobPage.autoRefresh', String(checked));
+    } catch { /* ignore */ }
+  };
 
   // URL-synced tab state
   const getInitialTab = (): TopTab => {
@@ -179,6 +195,7 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
         setRefreshTick((t) => t + 1);
       }
       isInitialLoad.current = false;
+      setCountdownKey((k) => k + 1);
     } catch (e) {
       setError(String(e));
     } finally {
@@ -192,10 +209,10 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
 
   // Auto-refresh for non-terminal jobs
   useEffect(() => {
-    if (!job || TERMINAL_STATES.has(job.state)) return;
-    const id = setInterval(() => fetchData(), 10_000);
+    if (!job || TERMINAL_STATES.has(job.state) || !autoRefresh) return;
+    const id = setInterval(() => fetchData(), REFRESH_INTERVAL_MS);
     return () => clearInterval(id);
-  }, [job, fetchData]);
+  }, [job, fetchData, autoRefresh]);
 
   // Once the initial load completes, if there are no attempts (null response or
   // empty array) and we're still on the sentinel, default to the Job Spec tab.
@@ -227,6 +244,7 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
 
   return (
     <div className="pb-8">
+      <style>{`@keyframes countdown-shrink { from { transform: scaleX(1); } to { transform: scaleX(0); } }`}</style>
       {/* Breadcrumb */}
       <nav className="flex items-center gap-2 text-xl font-light text-zinc-500 flex-wrap">
         <a href={`${basePath}/batches`} className="hover:text-sky-600">Batches</a>
@@ -237,8 +255,34 @@ export function JobPage({ basePath, batchId, jobId, disableReactUrl }: Props): J
           Job {jobId}{job.attributes?.name ? <span className="text-zinc-400"> ({job.attributes.name})</span> : null}
         </span>
       </nav>
-      <div className="mt-1 text-sm">
-        <a href={disableReactUrl} className="text-sky-600 hover:underline">Back to classic layout</a>
+      <div className="mt-1 flex items-center justify-between gap-4 flex-wrap text-sm">
+        <button
+          onClick={() => { document.cookie = 'hail_react_ui=; max-age=0; path=/; SameSite=Lax'; location.reload(); }}
+          className="text-sky-600 hover:underline cursor-pointer"
+        >
+          Back to classic layout
+        </button>
+        {!isTerminal && (
+          <label className="flex items-center gap-1.5 text-zinc-500 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={autoRefresh}
+              onChange={(e) => handleAutoRefreshToggle(e.target.checked)}
+              className="cursor-pointer"
+            />
+            Auto-refresh
+          </label>
+        )}
+      </div>
+      {/* Countdown progress bar */}
+      <div className="mt-1.5 h-0.5 bg-zinc-100 rounded-full overflow-hidden">
+        {!isTerminal && autoRefresh && (
+          <div
+            key={countdownKey}
+            className="h-full bg-sky-400 origin-left"
+            style={{ animation: `countdown-shrink ${REFRESH_INTERVAL_MS}ms linear forwards` }}
+          />
+        )}
       </div>
 
       {/* Top section: metadata + Gantt */}

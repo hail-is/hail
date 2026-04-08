@@ -65,7 +65,8 @@
 </a>
 {% if userdata['is_developer'] %}
 <div class='mt-2'>
-  <a href="{{ base_path }}/enable-react-ui?next={{ base_path }}/batches/{{ batch_id }}/jobs/{{ job_id }}"
+  <a href="#"
+    onclick="document.cookie='hail_react_ui=1; max-age=108000; path=/; SameSite=Lax'; location.reload(); return false;"
     class='text-sm text-sky-600 hover:underline'>
     Try new layout
   </a>

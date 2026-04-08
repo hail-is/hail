@@ -6,7 +6,6 @@ if (rootEl) {
   const basePath = rootEl.dataset.basePath ?? '';
   const batchId = rootEl.dataset.batchId ?? '';
   const jobId = rootEl.dataset.jobId ?? '';
-  const disableReactUrl = rootEl.dataset.disableReactUrl ?? `${basePath}/disable-react-ui?next=${basePath}/batches/${batchId}/jobs/${jobId}`;
 
   const root = createRoot(rootEl);
   root.render(
@@ -14,7 +13,6 @@ if (rootEl) {
       basePath={basePath}
       batchId={batchId}
       jobId={jobId}
-      disableReactUrl={disableReactUrl}
     />
   );
 }
