@@ -631,6 +631,12 @@ paths:
           required: true
           schema:
             type: string
+        - name: attempt_id
+          in: query
+          description: "Return the log for a specific attempt. Defaults to the current or most recent attempt."
+          required: false
+          schema:
+            type: string
       responses:
         '200':
           description: "Successfully retrieved the log of the job in the container."
@@ -638,11 +644,11 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ContainerLogResponse'
-  '/api/v1alpha/batches/{batch_id}/jobs/{job_id}/resources_usage':
+  '/api/v1alpha/batches/{batch_id}/jobs/{job_id}/resource_usage':
     get:
       summary: "Get job resource usage"
-      description: "Get the resources usage of a job."
-      operationId: getResourcesUsageInJobv1alpha
+      description: "Get the resource usage of a job."
+      operationId: getResourceUsageInJobv1alpha
       tags:
         - Batches API v1Alpha
       parameters:
@@ -658,9 +664,15 @@ paths:
           required: true
           schema:
             type: number
+        - name: attempt_id
+          in: query
+          description: "Return resource usage for a specific attempt. Defaults to the current or most recent attempt."
+          required: false
+          schema:
+            type: string
       responses:
         '200':
-          description: "Successfully retrieved the resources usage of the job."
+          description: "Successfully retrieved the resource usage of the job."
           content:
             application/json:
               schema:
