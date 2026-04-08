@@ -28,7 +28,7 @@ def validate_redirect_url(next_page: Optional[str]) -> str:
     if not next_page:
         raise web.HTTPBadRequest(text='Invalid next page')
     deploy_config = get_deploy_config()
-    valid_next_services = ['batch', 'auth', 'ci', 'monitoring']
+    valid_next_services = ['batch', 'auth', 'ci', 'monitoring', 'internal']
     valid_next_domains = [urlparse(deploy_config.external_url(s, '/')).netloc for s in valid_next_services]
     actual_next_page_domain = urlparse(next_page).netloc
     if actual_next_page_domain not in valid_next_domains:
