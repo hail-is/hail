@@ -156,12 +156,14 @@ export function AttemptPanel({
       )}
 
       {!attemptData.loading &&
-        (['input', 'main', 'output'] as const).map((step) =>
-          activeSubTab === step ? (
+        (['input', 'main', 'output'] as const).map((step) => {
+          if (activeSubTab !== step) return null;
+          const logText = attemptData.committedLogs.get(step);
+          return (
             <div key={step}>
-              {attemptData.committedLogs[step] != null ? ( // eslint-disable-line security/detect-object-injection
+              {logText != null ? (
                 <LogViewer
-                  text={attemptData.committedLogs[step]} // eslint-disable-line security/detect-object-injection
+                  text={logText}
                   downloadUrl={`${basePath}/api/v1alpha/batches/${batchId}/jobs/${jobId}/log/${step}?attempt_id=${attempt.attempt_id}`}
                   downloadName={`batch-${batchId}-${jobId}-${step}.log`}
                   hasPendingUpdate={attemptData.hasPendingLogs}
@@ -172,8 +174,8 @@ export function AttemptPanel({
                 <div className="text-zinc-400 text-sm py-4">No {step} log available.</div>
               )}
             </div>
-          ) : null
-        )}
+          );
+        })}
     </div>
   );
 }

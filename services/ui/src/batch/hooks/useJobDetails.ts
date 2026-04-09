@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Job, Attempt, TERMINAL_STATES } from '../components/jobModels';
 import { ResourceUsageData } from '../components/ResourceCharts';
 
-export type LogMap = Record<string, string | null>;
+export type LogMap = Map<string, string | null>;
 
 export type AttemptCache = {
   logs: LogMap;
@@ -34,11 +34,11 @@ export interface UseJobDetailsResult {
 export const REFRESH_INTERVAL_MS = 30_000;
 
 export const DEFAULT_EMPTY_CACHE: AttemptCache = {
-  logs: {},
+  logs: new Map(),
   resourceUsage: null,
   loading: false,
   error: null,
-  committedLogs: {},
+  committedLogs: new Map(),
   hasPendingLogs: false,
   isRefreshing: false,
 };
@@ -70,7 +70,7 @@ export function useJobDetails(basePath: string, batchId: string, jobId: string):
     }
   });
 
-  const cache = useRef<Partial<Record<string, AttemptCache>>>({});
+  const cache = useRef<Map<string, AttemptCache>>(new Map());
   const inFlight = useRef<Set<string>>(new Set());
   const jobRef = useRef<Job | null>(null);
   const [, setCacheTick] = useState(0);
@@ -89,13 +89,11 @@ export function useJobDetails(basePath: string, batchId: string, jobId: string):
     inFlight.current.add(attemptId);
 
     if (!isRefresh) {
-      cache.current[attemptId] = { ...DEFAULT_EMPTY_CACHE, loading: true };
+      cache.current.set(attemptId, { ...DEFAULT_EMPTY_CACHE, loading: true });
     } else {
-      // eslint-disable-next-line security/detect-object-injection
-      const prior = cache.current[attemptId];
+      const prior = cache.current.get(attemptId);
       if (prior) {
-        // eslint-disable-next-line security/detect-object-injection
-        cache.current[attemptId] = { ...prior, isRefreshing: true };
+        cache.current.set(attemptId, { ...prior, isRefreshing: true });
       }
     }
     bumpCache();
@@ -113,15 +111,14 @@ export function useJobDetails(basePath: string, batchId: string, jobId: string):
       hasOutput ? fetchText(`${apiBase}/log/output${attemptParam}`).catch(() => null) : Promise.resolve(null),
       fetchJson<ResourceUsageData>(`${apiBase}/resource_usage${attemptParam}`).catch(() => null),
     ]).then(([inputLog, mainLog, outputLog, resourceUsage]) => {
-      const logs: LogMap = { input: inputLog, main: mainLog, output: outputLog };
-      const existing = cache.current[attemptId];
+      const logs: LogMap = new Map([['input', inputLog], ['main', mainLog], ['output', outputLog]]);
+      const existing = cache.current.get(attemptId);
 
       if (isRefresh && existing) {
         const changed = (['input', 'main', 'output'] as const).some(
-          // eslint-disable-next-line security/detect-object-injection
-          (k) => logs[k] !== existing.committedLogs[k]
+          (k) => logs.get(k) !== existing.committedLogs.get(k)
         );
-        cache.current[attemptId] = {
+        cache.current.set(attemptId, {
           ...existing,
           logs,
           resourceUsage,
@@ -129,9 +126,9 @@ export function useJobDetails(basePath: string, batchId: string, jobId: string):
           error: null,
           hasPendingLogs: changed,
           isRefreshing: false,
-        };
+        });
       } else {
-        cache.current[attemptId] = {
+        cache.current.set(attemptId, {
           logs,
           resourceUsage,
           loading: false,
@@ -139,17 +136,15 @@ export function useJobDetails(basePath: string, batchId: string, jobId: string):
           committedLogs: logs,
           hasPendingLogs: false,
           isRefreshing: false,
-        };
+        });
       }
 
       inFlight.current.delete(attemptId);
       bumpCache();
     }).catch(() => {
-      // eslint-disable-next-line security/detect-object-injection
-      const prior = cache.current[attemptId];
+      const prior = cache.current.get(attemptId);
       if (prior) {
-        // eslint-disable-next-line security/detect-object-injection
-        cache.current[attemptId] = { ...prior, isRefreshing: false };
+        cache.current.set(attemptId, { ...prior, isRefreshing: false });
       }
       inFlight.current.delete(attemptId);
       bumpCache();
@@ -203,24 +198,21 @@ export function useJobDetails(basePath: string, batchId: string, jobId: string):
   }, [job, fetchData, autoRefresh]);
 
   const ensureAttemptLoaded = useCallback((attemptId: string) => {
-    // eslint-disable-next-line security/detect-object-injection
-    const entry = cache.current[attemptId];
+    const entry = cache.current.get(attemptId);
     if (entry && !entry.loading) return;
     if (inFlight.current.has(attemptId)) return;
     fetchAttemptData(attemptId, false);
   }, [fetchAttemptData]);
 
   const commitAttemptLogs = useCallback((attemptId: string) => {
-    const entry = cache.current[attemptId];
+    const entry = cache.current.get(attemptId);
     if (!entry) return;
-    // eslint-disable-next-line security/detect-object-injection
-    cache.current[attemptId] = { ...entry, committedLogs: entry.logs, hasPendingLogs: false };
+    cache.current.set(attemptId, { ...entry, committedLogs: entry.logs, hasPendingLogs: false });
     bumpCache();
   }, [bumpCache]);
 
   const getAttemptData = useCallback((attemptId: string): AttemptCache => {
-    // eslint-disable-next-line security/detect-object-injection
-    return cache.current[attemptId] ?? DEFAULT_EMPTY_CACHE;
+    return cache.current.get(attemptId) ?? DEFAULT_EMPTY_CACHE;
   }, []);
 
   return {
