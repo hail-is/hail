@@ -697,6 +697,7 @@ steps:
       set -ex
       cd /io/repo/services/ui
       npm ci
+      npm test
       npm run check
     inputs:
       - from: /repo/services/ui

@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "build": "esbuild src/ci/flaky_tests.tsx --bundle --jsx=automatic --format=esm --outdir=dist/ci --minify && esbuild src/batch/job.tsx --bundle --jsx=automatic --format=esm --outdir=dist/batch --minify",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@observablehq/plot": "^0.6.16",
@@ -13,9 +14,12 @@
     "recharts": "^3.8.0"
   },
   "devDependencies": {
+    "@testing-library/react": "^16.0.0",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "esbuild": "^0.20.0",
-    "typescript": "^5.4.0"
+    "jsdom": "^25.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^2.0.0"
   }
 }

@@ -26,9 +26,10 @@ type Props = {
   onAutoRefreshToggle: (checked: boolean) => void;
   countdownKey: number;
   refreshIntervalMs: number;
+  jobRefreshing: boolean;
 };
 
-export function JobStatusPanel({ batchId, jobId, job, latestAttempt, autoRefresh, isTerminal, onAutoRefreshToggle, countdownKey, refreshIntervalMs }: Props): JSX.Element {
+export function JobStatusPanel({ batchId, jobId, job, latestAttempt, autoRefresh, isTerminal, onAutoRefreshToggle, countdownKey, refreshIntervalMs, jobRefreshing }: Props): JSX.Element {
   return (
     <div className="w-full lg:basis-1/4 drop-shadow-sm shrink-0">
       <ul className="border border-collapse divide-y bg-slate-50 rounded">
@@ -50,14 +51,22 @@ export function JobStatusPanel({ batchId, jobId, job, latestAttempt, autoRefresh
                   className="cursor-pointer"
                 />
                 Auto-refresh
+                {autoRefresh && jobRefreshing && (
+                  <span className="material-symbols-outlined text-sm animate-spin text-sky-400" style={{ animationDuration: '1s' }}>
+                    progress_activity
+                  </span>
+                )}
               </label>
               <div className="mt-1.5 h-0.5 bg-zinc-200 rounded-full overflow-hidden">
-                {autoRefresh && (
+                {autoRefresh && !jobRefreshing && (
                   <div
                     key={countdownKey}
                     className="h-full bg-sky-400 origin-left"
                     style={{ animation: `countdown-grow ${refreshIntervalMs}ms linear forwards` }}
                   />
+                )}
+                {autoRefresh && jobRefreshing && (
+                  <div className="h-full bg-sky-300 w-full animate-pulse" />
                 )}
               </div>
             </div>
