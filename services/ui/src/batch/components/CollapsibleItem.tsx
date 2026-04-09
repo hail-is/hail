@@ -9,7 +9,7 @@ export function CollapsibleItem({ title, summary, children }: {
   return (
     <li>
       <button
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => { setOpen((o) => !o); }}
         className="w-full flex justify-between items-center px-4 py-3 text-sm text-left hover:bg-slate-100"
       >
         <span className="font-medium">{title}</span>

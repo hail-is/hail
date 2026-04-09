@@ -1,27 +1,28 @@
+/* eslint-disable @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-argument */
 import * as Plot from '@observablehq/plot';
 import { useEffect, useRef, useState } from 'react';
 
-export type GanttRow = {
+export interface GanttRow {
   label: string;
   start: Date;
   end: Date;
   category: string;
   tooltip?: string;
-};
+}
 
-type RuleMark = {
+interface RuleMark {
   x: Date;
   label: string;
-};
+}
 
-type Props = {
+interface Props {
   rows: GanttRow[];
   colorMap: Record<string, string>;
   ruleXs?: RuleMark[];
   extendToNow?: boolean;
-};
+}
 
-type TooltipState = { text: string; x: number; y: number };
+interface TooltipState { text: string; x: number; y: number }
 
 const BOTTOM_MARGINS_PX = 65; // bottom axis + legend
 const RULE_LABEL_MARGIN_PX = 50; // extra top margin when rule labels are shown
@@ -58,13 +59,14 @@ export function GanttChart({ rows, colorMap, ruleXs, extendToNow }: Props): JSX.
       if (w > 0) setWidth(w);
     });
     ro.observe(el);
-    return () => ro.disconnect();
+    return () => { ro.disconnect(); };
   }, []);
 
   useEffect(() => {
     if (!containerRef.current || rows.length === 0 || !width) return;
 
-    const hasRules = (ruleXs?.length ?? 0) > 0;
+    const rules = ruleXs ?? [];
+    const hasRules = rules.length > 0;
     const marginTop = hasRules ? RULE_LABEL_MARGIN_PX : 10;
 
     const now = new Date();
@@ -101,13 +103,13 @@ export function GanttChart({ rows, colorMap, ruleXs, extendToNow }: Props): JSX.
           tickFormat: formatXTick,
         }),
         ...(hasRules ? [
-          Plot.ruleX(ruleXs!, {
+          Plot.ruleX(rules, {
             x: 'x',
             stroke: '#94a3b8',
             strokeWidth: 1,
             strokeDasharray: '4,3',
           }),
-          Plot.text(ruleXs!, {
+          Plot.text(rules, {
             x: 'x',
             text: 'label',
             frameAnchor: 'top',
@@ -126,6 +128,7 @@ export function GanttChart({ rows, colorMap, ruleXs, extendToNow }: Props): JSX.
     const barGroup = plot.querySelector('g[aria-label="bar"]');
     if (barGroup) {
       barGroup.querySelectorAll('rect').forEach((rect, i) => {
+        // eslint-disable-next-line security/detect-object-injection
         const row = rows[i];
         if (!row) return;
         const text = row.tooltip ?? `${row.label}: ${row.category}`;

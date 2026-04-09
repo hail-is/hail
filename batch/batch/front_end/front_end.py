@@ -506,7 +506,10 @@ async def _get_job_container_log(
     else:
         use_worker = state == 'Running'
         attempt_id = attempt_id_from_spec(job_record)
-        assert use_worker or (attempt_id is not None and state in complete_states)
+        if not (use_worker or (attempt_id is not None and state in complete_states)):
+            raise ValueError(
+                f'unexpected log fetch state: use_worker={use_worker}, attempt_id={attempt_id}, state={state}'
+            )
 
     if use_worker:
         return await _get_job_container_log_from_worker(

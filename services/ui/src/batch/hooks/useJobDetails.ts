@@ -14,20 +14,20 @@ export type AttemptCache = {
   isRefreshing: boolean;  // background re-fetch in flight (not initial load)
 };
 
-export type UseJobDetailsResult = {
+export interface UseJobDetailsResult {
   job: Job | null;
   attempts: Attempt[] | null;
   error: string | null;
   loading: boolean;
   autoRefresh: boolean;
-  setAutoRefresh: (v: boolean) => void;
+  setAutoRefresh: (_v: boolean) => void;
   countdownKey: number;
   refreshIntervalMs: number;
   jobRefreshing: boolean;
-  getAttemptData: (attemptId: string) => AttemptCache;
-  ensureAttemptLoaded: (attemptId: string) => void;
+  getAttemptData: (_attemptId: string) => AttemptCache;
+  ensureAttemptLoaded: (_attemptId: string) => void;
   commitAttemptLogs: (attemptId: string) => void;
-};
+}
 
 export const REFRESH_INTERVAL_MS = 30_000;
 
@@ -68,12 +68,12 @@ export function useJobDetails(basePath: string, batchId: string, jobId: string):
     }
   });
 
-  const cache = useRef<Record<string, AttemptCache>>({});
+  const cache = useRef<Partial<Record<string, AttemptCache>>>({});
   const inFlight = useRef<Set<string>>(new Set());
   const jobRef = useRef<Job | null>(null);
   const [, setCacheTick] = useState(0);
 
-  const bumpCache = useCallback(() => setCacheTick((t) => t + 1), []);
+  const bumpCache = useCallback(() => { setCacheTick((t) => t + 1); }, []);
 
   const setAutoRefresh = useCallback((v: boolean) => {
     setAutoRefreshState(v);
@@ -88,8 +88,13 @@ export function useJobDetails(basePath: string, batchId: string, jobId: string):
 
     if (!isRefresh) {
       cache.current[attemptId] = { ...DEFAULT_EMPTY_CACHE, loading: true };
-    } else if (cache.current[attemptId]) {
-      cache.current[attemptId] = { ...cache.current[attemptId], isRefreshing: true };
+    } else {
+      // eslint-disable-next-line security/detect-object-injection
+      const prior = cache.current[attemptId];
+      if (prior) {
+        // eslint-disable-next-line security/detect-object-injection
+        cache.current[attemptId] = { ...prior, isRefreshing: true };
+      }
     }
     bumpCache();
 
@@ -111,6 +116,7 @@ export function useJobDetails(basePath: string, batchId: string, jobId: string):
 
       if (isRefresh && existing) {
         const changed = (['input', 'main', 'output'] as const).some(
+          // eslint-disable-next-line security/detect-object-injection
           (k) => logs[k] !== existing.committedLogs[k]
         );
         cache.current[attemptId] = {
@@ -137,15 +143,18 @@ export function useJobDetails(basePath: string, batchId: string, jobId: string):
       inFlight.current.delete(attemptId);
       bumpCache();
     }).catch(() => {
-      if (cache.current[attemptId]) {
-        cache.current[attemptId] = { ...cache.current[attemptId], isRefreshing: false };
+      // eslint-disable-next-line security/detect-object-injection
+      const prior = cache.current[attemptId];
+      if (prior) {
+        // eslint-disable-next-line security/detect-object-injection
+        cache.current[attemptId] = { ...prior, isRefreshing: false };
       }
       inFlight.current.delete(attemptId);
       bumpCache();
     });
   }, [basePath, batchId, jobId, bumpCache]);
 
-  const fetchData = useCallback(async (isRefresh: boolean = false) => {
+  const fetchData = useCallback(async (isRefresh = false) => {
     const apiBase = `${basePath}/api/v1alpha/batches/${batchId}/jobs/${jobId}`;
     if (isRefresh) setJobRefreshing(true);
     try {
@@ -187,7 +196,7 @@ export function useJobDetails(basePath: string, batchId: string, jobId: string):
   // Auto-refresh for non-terminal jobs
   useEffect(() => {
     if (!job || TERMINAL_STATES.has(job.state) || !autoRefresh) return;
-    const id = setInterval(() => fetchData(true), REFRESH_INTERVAL_MS);
+    const id = setInterval(() => { void fetchData(true); }, REFRESH_INTERVAL_MS);
     return () => clearInterval(id);
   }, [job, fetchData, autoRefresh]);
 
@@ -201,11 +210,13 @@ export function useJobDetails(basePath: string, batchId: string, jobId: string):
   const commitAttemptLogs = useCallback((attemptId: string) => {
     const entry = cache.current[attemptId];
     if (!entry) return;
+    // eslint-disable-next-line security/detect-object-injection
     cache.current[attemptId] = { ...entry, committedLogs: entry.logs, hasPendingLogs: false };
     bumpCache();
   }, [bumpCache]);
 
   const getAttemptData = useCallback((attemptId: string): AttemptCache => {
+    // eslint-disable-next-line security/detect-object-injection
     return cache.current[attemptId] ?? DEFAULT_EMPTY_CACHE;
   }, []);
 

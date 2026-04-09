@@ -10,11 +10,11 @@ import {
 } from 'recharts';
 
 // orient='split' format from pandas DataFrame.to_dict()
-export type SplitDataFrame = {
+export interface SplitDataFrame {
   columns: string[];
   index: number[];
   data: (number | null)[][];
-};
+}
 
 export type ResourceUsageData = Record<string, SplitDataFrame | null>;
 
@@ -38,18 +38,18 @@ function containerColor(name: string, index: number): string {
   return CONTAINER_COLORS[name] ?? FALLBACK_COLORS[index % FALLBACK_COLORS.length];
 }
 
-type ContainerSeries = {
+interface ContainerSeries {
   name: string;
   color: string;
-  data: Array<{ t_s: number; value: number | null }>;
-};
+  data: { t_s: number; value: number | null }[];
+}
 
-type MetricChartProps = {
+interface MetricChartProps {
   title: string;
   containers: ContainerSeries[];
-  valueFormatter: (v: number) => string;
-  tickFormatter: (v: number) => string;
-};
+  valueFormatter: (_v: number) => string;
+  tickFormatter: (_v: number) => string;
+}
 
 function MetricChart({ title, containers, valueFormatter, tickFormatter }: MetricChartProps): JSX.Element | null {
   if (containers.every((c) => c.data.length === 0)) return null;
@@ -104,8 +104,8 @@ export function ResourceCharts({ data }: Props): JSX.Element {
     const valIdx = df.columns.indexOf(colName);
     if (valIdx < 0) return [];
     return df.data.map((row) => ({
-      t_s: (((row[timeIdx] as number) ?? 0) - globalBaseTime) / 1000,
-      value: row[valIdx],
+      t_s: ((row[timeIdx] ?? 0) - globalBaseTime) / 1000, // eslint-disable-line security/detect-object-injection
+      value: row[valIdx], // eslint-disable-line security/detect-object-injection
     }));
   }
 

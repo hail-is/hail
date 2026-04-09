@@ -33,7 +33,7 @@ export function LogViewer({ text, downloadUrl, downloadName, hasPendingUpdate, o
           type="text"
           placeholder="Filter lines…"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => { setQuery(e.target.value); }}
           className="border rounded px-2 py-1 text-sm flex-1 max-w-sm"
         />
         <a

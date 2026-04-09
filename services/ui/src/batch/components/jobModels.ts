@@ -1,20 +1,20 @@
-export type TimingEntry = {
+export interface TimingEntry {
   start_time?: number | null;
   finish_time?: number | null;
   duration?: number | null;
-};
+}
 
 export type ContainerTiming = {
   [key: string]: TimingEntry | null | undefined;
 };
 
-export type ContainerStatus = {
+export interface ContainerStatus {
   name: string;
   state: string;
   short_error?: string | null;
   error?: string | null;
   timing: ContainerTiming;
-};
+}
 
 export type JobStatus = {
   container_statuses?: {
@@ -25,7 +25,7 @@ export type JobStatus = {
   error?: string | null;
 };
 
-export type JobSpec = {
+export interface JobSpec {
   process?: { type: 'docker' | 'jvm'; image?: string; command?: string[] };
   user_code?: string;
   resources?: Record<string, unknown>;
@@ -36,7 +36,7 @@ export type JobSpec = {
   n_max_attempts?: number;
   network?: string;
   regions?: string[];
-};
+}
 
 export type Job = {
   id: number;
