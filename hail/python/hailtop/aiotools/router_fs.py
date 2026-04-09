@@ -106,6 +106,16 @@ class RouterAsyncFS(AsyncFS):
             return self._s3_fs
         raise ValueError(f'no file system found for url {url}')
 
+    async def copy_between_fs(
+        self,
+        srcfile: str,
+        srcstat: FileStatus,
+        destfile: str,
+        **kwargs,
+    ):
+        fs = await self._get_fs(srcfile)
+        await fs.copy_between_fs(srcfile, srcstat, destfile, **kwargs)
+
     async def open(self, url: str) -> ReadableStream:
         fs = await self._get_fs(url)
         return await fs.open(url)

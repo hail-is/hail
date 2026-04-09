@@ -23,7 +23,7 @@ click==8.3.1
     #   -c ci/../hail/python/dev/pinned-requirements.txt
     #   -c ci/../hail/python/pinned-requirements.txt
     #   zulip
-cryptography==46.0.5
+cryptography==46.0.6
     # via
     #   -c ci/../gear/pinned-requirements.txt
     #   -c ci/../hail/python/pinned-requirements.txt
@@ -55,7 +55,7 @@ python-dateutil==2.9.0.post0
     #   -c ci/../hail/python/dev/pinned-requirements.txt
     #   -c ci/../hail/python/pinned-requirements.txt
     #   -r ci/requirements.txt
-requests==2.32.5
+requests==2.33.1
     # via
     #   -c ci/../gear/pinned-requirements.txt
     #   -c ci/../hail/python/dev/pinned-requirements.txt
