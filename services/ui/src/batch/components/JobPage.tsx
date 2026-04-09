@@ -344,20 +344,22 @@ export function JobPage({ basePath, batchId, jobId }: Props): JSX.Element {
             <CodeBlock code={JSON.stringify(job.status ?? job, null, 2)} />
           )}
 
-          {activeAttempt && topTab !== 'job_spec' && topTab !== 'raw_status' && (
-            <AttemptPanel
-              attempt={activeAttempt}
-              batchId={batchId}
-              jobId={jobId}
-              basePath={basePath}
-              isLatest={activeAttempt === latestAttempt}
-              hasInput={(job.spec?.input_files ?? []).length > 0}
-              hasOutput={(job.spec?.output_files ?? []).length > 0}
-              resources={job.spec?.resources}
-              activeSubTab={attemptSubTabs[activeAttempt.attempt_id] ?? 'main'}
-              setActiveSubTab={(sub) => updateAttemptSubTab(activeAttempt.attempt_id, sub)}
-              refreshTick={refreshTick}
-            />
+          {activeAttempt && (
+            <div hidden={topTab === 'job_spec' || topTab === 'raw_status'}>
+              <AttemptPanel
+                attempt={activeAttempt}
+                batchId={batchId}
+                jobId={jobId}
+                basePath={basePath}
+                isLatest={activeAttempt === latestAttempt}
+                hasInput={(job.spec?.input_files ?? []).length > 0}
+                hasOutput={(job.spec?.output_files ?? []).length > 0}
+                resources={job.spec?.resources}
+                activeSubTab={attemptSubTabs[activeAttempt.attempt_id] ?? 'main'}
+                setActiveSubTab={(sub) => updateAttemptSubTab(activeAttempt.attempt_id, sub)}
+                refreshTick={refreshTick}
+              />
+            </div>
           )}
         </div>
       </div>
