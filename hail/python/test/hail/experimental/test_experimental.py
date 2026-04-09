@@ -294,12 +294,19 @@ class Tests(unittest.TestCase):
         assert mt._same(expected_split_mt)
 
     def test_sparse_split_haploid(self):
-        line = {
-            'locus': hl.Locus(contig='Y', position=10_000),
-            'alleles': ['A', 'C', 'T'],
-            'entries': [{'LGT': hl.Call([1]), 'LA': [0, 2], 'LPL': [100, 0]}],
-        }
-        ht = hl.Table.parallelize([line], key=['locus', 'alleles'])
+        lines = [
+            {
+                'locus': hl.Locus(contig='Y', position=10_000),
+                'alleles': ['A', 'C', 'T'],
+                'entries': [{'LGT': hl.Call([1]), 'LA': [0, 2], 'LPL': [100, 0]}],
+            },
+            {
+                'locus': hl.Locus(contig='Y', position=11_000),
+                'alleles': ['A', 'AT', 'ATT', 'T'],
+                'entries': [{'LGT': hl.Call([2]), 'LA': [0, 2, 3], 'LPL': [100, 200, 0]}],
+            },
+        ]
+        ht = hl.Table.parallelize(lines, key=['locus', 'alleles'])
         ht = ht.annotate_globals(cols=[hl.Struct(s='S1')])
         mt = ht._unlocalize_entries('entries', 'cols', ['s'])
         mt = hl.experimental.sparse_split_multi(mt)
@@ -317,6 +324,33 @@ class Tests(unittest.TestCase):
                 locus=hl.Locus(contig='Y', position=10000, reference_genome='GRCh37'),
                 alleles=['A', 'T'],
                 a_index=2,
+                was_split=True,
+                s='S1',
+                GT=hl.Call(alleles=[1], phased=False),
+                PL=[100, 0],
+            ),
+            hl.Struct(
+                locus=hl.Locus(contig='Y', position=11000, reference_genome='GRCh37'),
+                alleles=['A', 'AT'],
+                a_index=1,
+                was_split=True,
+                s='S1',
+                GT=hl.Call(alleles=[0], phased=False),
+                PL=None,
+            ),
+            hl.Struct(
+                locus=hl.Locus(contig='Y', position=11000, reference_genome='GRCh37'),
+                alleles=['A', 'ATT'],
+                a_index=2,
+                was_split=True,
+                s='S1',
+                GT=hl.Call(alleles=[0], phased=False),
+                PL=[0, 200],
+            ),
+            hl.Struct(
+                locus=hl.Locus(contig='Y', position=11000, reference_genome='GRCh37'),
+                alleles=['A', 'T'],
+                a_index=3,
                 was_split=True,
                 s='S1',
                 GT=hl.Call(alleles=[1], phased=False),
