@@ -391,7 +391,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case TableRange(_, _) =>
 
       // pass through TableIR child
-      case TableKeyBy(child, _, _) => requiredness.unionFrom(lookup(child))
+      case TableKeyBy(child, _, _, _) => requiredness.unionFrom(lookup(child))
       case TableFilter(child, _) => requiredness.unionFrom(lookup(child))
       case TableHead(child, _) => requiredness.unionFrom(lookup(child))
       case TableTail(child, _) => requiredness.unionFrom(lookup(child))
@@ -842,7 +842,6 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
           case SingleCodeEmitParamType(required, _) =>
             requiredness.union(required)
         }
-      case LiftMeOut(f) => requiredness.unionFrom(lookup(f))
       case ResultOp(_, sig) =>
         val r = requiredness
         r.fromEmitType(sig.emitResultType)

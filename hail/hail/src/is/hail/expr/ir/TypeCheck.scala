@@ -600,7 +600,6 @@ object TypeCheck {
       case WriteValue(_, path, _, stagingFile) =>
         assert(path.typ == TString)
         assert(stagingFile.forall(_.typ == TString))
-      case LiftMeOut(_) =>
       case Consume(_) =>
 
       case TableAggregateByKey(child, _) =>
@@ -630,7 +629,7 @@ object TypeCheck {
             .intersect(right.typ.globalType.fieldNames.toSet)
             .isEmpty
         )
-      case TableKeyBy(child, keys, _) =>
+      case TableKeyBy(child, keys, _, _) =>
         val fields = child.typ.rowType.fieldNames.toSet
         assert(
           keys.forall(fields.contains),

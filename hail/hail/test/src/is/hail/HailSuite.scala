@@ -61,17 +61,12 @@ class HailSuite extends TestNGSuite with TestUtils with Logging {
     HailSuite.backend_ = SparkBackend(
       SparkSession
         .builder()
-        .config(
-          SparkBackend.createSparkConf(
-            appName = "Hail.TestNG",
-            master = System.getProperty("hail.master"),
-            local = "local[2]",
-            blockSize = 0,
-          )
-        )
+        .appName("HailTest")
+        .master("local[2]")
         .config("spark.unsafe.exceptionOnMemoryLeak", "true")
         .config("spark.ui.showConsoleProgress", "false")
         .config("spark.ui.enabled", "false")
+        .config(SparkBackend.pySparkConf)
         .getOrCreate()
     )
   }

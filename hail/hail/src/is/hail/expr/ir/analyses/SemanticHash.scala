@@ -224,9 +224,10 @@ case object SemanticHash extends Logging {
       case StreamZip(_, _, _, behaviour, _) =>
         buffer ++= Bytes.fromInt(behaviour.id)
 
-      case TableKeyBy(table, keys, _) =>
+      case TableKeyBy(table, keys, _, nPartitions) =>
         val getFieldIndex = table.typ.rowType.fieldIdx
         keys.map(getFieldIndex).foreach(buffer ++= Bytes.fromInt(_))
+        nPartitions.foreach(buffer ++= Bytes.fromInt(_))
 
       case TableKeyByAndAggregate(_, _, _, nPartitions, bufferSize) =>
         nPartitions.foreach {
@@ -304,7 +305,6 @@ case object SemanticHash extends Logging {
           _: InsertFields |
           _: IsNA |
           _: Block |
-          _: LiftMeOut |
           _: MakeArray |
           _: MakeNDArray |
           _: MakeStream |

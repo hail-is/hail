@@ -533,7 +533,7 @@ object PruneDeadFields extends Logging {
       case TableFilter(child, pred) =>
         val irDep = memoizeAndGetDep(ctx, tir, 1, pred.typ, memo)
         memoizeTableIR(ctx, child, unify(child.typ, requestedType, irDep), memo)
-      case TableKeyBy(child, _, isSorted) =>
+      case TableKeyBy(child, _, isSorted, _) =>
         val reqKey = requestedType.key
         val isPrefix = reqKey.zip(child.typ.key).forall { case (l, r) => l == r }
         val childReqKey = if (isSorted)
@@ -1837,7 +1837,7 @@ object PruneDeadFields extends Logging {
       case TableMapGlobals(child, newGlobals) =>
         val child2 = rebuild(ctx, child, memo)
         TableMapGlobals(child2, rebuildIR(ctx, newGlobals, BindingEnv(child2.typ.globalEnv), memo))
-      case TableKeyBy(child, _, isSorted) =>
+      case TableKeyBy(child, _, isSorted, nPartitions) =>
         var child2 = rebuild(ctx, child, memo)
         val keys2 = requestedType.key
         // fully upcast before shuffle
@@ -1848,7 +1848,7 @@ object PruneDeadFields extends Logging {
             memo.requestedType.lookup(child).asInstanceOf[TableType],
             upcastGlobals = false,
           )
-        TableKeyBy(child2, keys2, isSorted)
+        TableKeyBy(child2, keys2, isSorted, nPartitions)
       case TableOrderBy(child, sortFields) =>
         val child2 =
           if (

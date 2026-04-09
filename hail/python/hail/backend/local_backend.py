@@ -1,5 +1,5 @@
 import os
-from typing import Dict, Optional
+from typing import Dict
 
 from py4j.java_gateway import JavaGateway, JavaObject, Py4JJavaError
 
@@ -25,7 +25,8 @@ class LocalBackend(Py4JBackend):
         branching_factor: int | None = None,
         skip_logging_configuration: bool = False,
         jvm_heap_size: str | None = None,
-        requester_pays_config: Optional[GCSRequesterPaysConfiguration] = None,
+        requester_pays_config: GCSRequesterPaysConfiguration | None = None,
+        copy_log_on_error: bool = False,
     ) -> Py4JBackend:
         max_heap_size = jvm_heap_size or os.getenv('HAIL_LOCAL_BACKEND_HEAP_SIZE')
 
@@ -45,7 +46,7 @@ class LocalBackend(Py4JBackend):
                     flags['branching_factor'] = str(branching_factor)
 
                 jbackend = scala_object(_is.hail.backend.local, 'LocalBackend')
-                backend = LocalBackend(gateway, jbackend, flags)
+                backend = LocalBackend(gateway, jbackend, flags, copy_log_on_error)
 
                 backend.local_tmpdir = tmpdir
                 backend.remote_tmpdir = tmpdir
@@ -66,9 +67,10 @@ class LocalBackend(Py4JBackend):
         jgateway: JavaGateway,
         jbackend: JavaObject,
         flags: Dict[str, str],
+        copy_log_on_error: bool,
     ):
         self._gateway = jgateway
-        super().__init__(jgateway.jvm, jbackend, flags)
+        super().__init__(jgateway.jvm, jbackend, flags, copy_log_on_error)
 
     def stop(self):
         super().stop()

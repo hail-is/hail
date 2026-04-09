@@ -5,7 +5,7 @@ import is.hail.expr.ir.{
   BaseIR, BlockMatrixIR, Compilable, Emittable, IR, IRTraversal, MatrixIR, RelationalLetMatrixTable,
   RelationalLetTable, TableIR, TableKeyBy, TableKeyByAndAggregate, TableOrderBy,
 }
-import is.hail.expr.ir.defs.{ApplyIR, LiftMeOut, RelationalLet, RelationalRef}
+import is.hail.expr.ir.defs.{ApplyIR, RelationalLet, RelationalRef}
 import is.hail.utils.implicits.toRichPredicate
 
 abstract class Invariant(implicit E: sourcecode.Enclosing) extends (BaseIR => Boolean) {
@@ -46,8 +46,8 @@ object Invariant {
       case _ => true
     }
 
-  lazy val NoLiftMeOuts: Invariant =
-    Invariant(!_.isInstanceOf[LiftMeOut])
+  lazy val NoTableKeyByAndAggregate: Invariant =
+    Invariant(!_.isInstanceOf[TableKeyByAndAggregate])
 
   lazy val NoApplyIR: Invariant =
     Invariant(!_.isInstanceOf[ApplyIR])
