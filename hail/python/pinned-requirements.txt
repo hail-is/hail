@@ -8,7 +8,7 @@ aiohappyeyeballs==2.6.1
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   aiohttp
-aiohttp==3.13.3
+aiohttp==3.13.5
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
@@ -24,7 +24,7 @@ async-timeout==5.0.1
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   aiohttp
-attrs==25.4.0
+attrs==26.1.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   aiohttp
@@ -59,11 +59,11 @@ azure-storage-blob==12.28.0
     #   -r hail/python/hailtop/requirements.txt
 bokeh==3.4.3
     # via -r hail/python/requirements.txt
-boto3==1.42.71
+boto3==1.42.84
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
-botocore==1.42.71
+botocore==1.42.84
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
@@ -79,11 +79,11 @@ cffi==2.0.0
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   cryptography
     #   pycares
-charset-normalizer==3.4.6
+charset-normalizer==3.4.7
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   requests
-click==8.3.1
+click==8.3.2
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   typer
@@ -93,7 +93,7 @@ commonmark==0.9.1
     #   rich
 contourpy==1.3.2
     # via bokeh
-cryptography==46.0.5
+cryptography==46.0.6
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   azure-identity
@@ -188,7 +188,7 @@ oauthlib==3.3.1
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   requests-oauthlib
-orjson==3.11.7
+orjson==3.11.8
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
@@ -202,7 +202,7 @@ pandas==2.3.3
     #   bokeh
 parsimonious==0.11.0
     # via -r hail/python/requirements.txt
-pillow==12.1.1
+pillow==12.2.0
     # via bokeh
 plotly==5.24.1
     # via -r hail/python/requirements.txt
@@ -229,7 +229,7 @@ pycparser==3.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   cffi
-pygments==2.19.2
+pygments==2.20.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   rich
@@ -257,9 +257,9 @@ pyyaml==6.0.3
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
     #   bokeh
-regex==2026.2.28
+regex==2026.4.4
     # via parsimonious
-requests==2.32.5
+requests==2.33.1
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/requirements.txt
@@ -323,7 +323,7 @@ typing-extensions==4.15.0
     #   janus
     #   multidict
     #   pyjwt
-tzdata==2025.3
+tzdata==2026.1
     # via pandas
 urllib3==2.6.3
     # via
@@ -336,7 +336,7 @@ uvloop==0.21.0
     #   -r hail/python/hailtop/requirements.txt
 wrapt==1.17.3
     # via deprecated
-xyzservices==2025.11.0
+xyzservices==2026.3.0
     # via bokeh
 yarl==1.23.0
     # via

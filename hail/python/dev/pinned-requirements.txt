@@ -4,7 +4,7 @@ aiohappyeyeballs==2.6.1
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   aiohttp
-aiohttp==3.13.3
+aiohttp==3.13.5
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   aiohttp-devtools
@@ -16,7 +16,7 @@ aiosignal==1.4.0
     #   aiohttp
 alabaster==0.7.16
     # via sphinx
-anyio==4.12.1
+anyio==4.13.0
     # via
     #   httpx
     #   jupyter-server
@@ -41,7 +41,7 @@ async-timeout==5.0.1
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   aiohttp
-attrs==25.4.0
+attrs==26.1.0
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   aiohttp
@@ -70,11 +70,11 @@ cffi==2.0.0
     #   argon2-cffi-bindings
 cfgv==3.5.0
     # via pre-commit
-charset-normalizer==3.4.6
+charset-normalizer==3.4.7
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   requests
-click==8.3.1
+click==8.3.2
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   -r hail/python/dev/requirements.txt
@@ -161,7 +161,7 @@ idna==3.11
     #   yarl
 imagesize==2.0.0
     # via sphinx
-importlib-metadata==8.8.0
+importlib-metadata==9.0.0
     # via build
 iniconfig==2.3.0
     # via pytest
@@ -172,7 +172,7 @@ ipykernel==6.29.5
     #   jupyterlab
     #   nbclassic
     #   notebook
-ipython==8.38.0
+ipython==8.39.0
     # via
     #   ipykernel
     #   ipywidgets
@@ -199,9 +199,9 @@ jinja2==3.1.6
     #   nbsphinx
     #   notebook
     #   sphinx
-json5==0.13.0
+json5==0.14.0
     # via jupyterlab-server
-jsonpointer==3.0.0
+jsonpointer==3.1.1
     # via jsonschema
 jsonschema==4.26.0
     # via
@@ -234,7 +234,7 @@ jupyter-core==5.9.1
     #   notebook
 jupyter-events==0.12.0
     # via jupyter-server
-jupyter-lsp==2.3.0
+jupyter-lsp==2.3.1
     # via jupyterlab
 jupyter-server==2.17.0
     # via
@@ -309,7 +309,7 @@ nodeenv==1.10.0
     # via
     #   pre-commit
     #   pyright
-nodejs-wheel-binaries==24.14.0
+nodejs-wheel-binaries==24.14.1
     # via pyright
 notebook==6.5.7
     # via
@@ -349,7 +349,7 @@ pathspec==0.12.1
     # via curlylint
 pexpect==4.9.0
     # via ipython
-pillow==12.1.1
+pillow==12.2.0
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   -r hail/python/dev/requirements.txt
@@ -391,7 +391,7 @@ pycparser==3.0
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   cffi
-pygments==2.19.2
+pygments==2.20.0
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   aiohttp-devtools
@@ -443,7 +443,7 @@ python-dateutil==2.9.0.post0
     #   arrow
     #   jupyter-client
     #   matplotlib
-python-discovery==1.2.0
+python-discovery==1.2.1
     # via virtualenv
 python-json-logger==2.0.7
     # via
@@ -466,7 +466,7 @@ referencing==0.37.0
     #   jsonschema
     #   jsonschema-specifications
     #   jupyter-events
-requests==2.32.5
+requests==2.33.1
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   jupyterlab-server
@@ -544,7 +544,7 @@ tinycss2==1.5.1
     # via nbconvert
 toml==0.10.2
     # via curlylint
-tomli==2.4.0
+tomli==2.4.1
     # via
     #   build
     #   jupyterlab
@@ -582,17 +582,17 @@ types-chardet==5.0.4.6
     # via -r hail/python/dev/requirements.txt
 types-decorator==5.2.0.20251101
     # via -r hail/python/dev/requirements.txt
-types-deprecated==1.3.1.20260130
+types-deprecated==1.3.1.20260402
     # via -r hail/python/dev/requirements.txt
 types-pymysql==1.1.0.20251220
     # via -r hail/python/dev/requirements.txt
-types-python-dateutil==2.9.0.20260305
+types-python-dateutil==2.9.0.20260402
     # via -r hail/python/dev/requirements.txt
 types-pyyaml==6.0.12.20250915
     # via -r hail/python/dev/requirements.txt
 types-requests==2.31.0.6
     # via -r hail/python/dev/requirements.txt
-types-setuptools==82.0.0.20260210
+types-setuptools==82.0.0.20260402
     # via -r hail/python/dev/requirements.txt
 types-six==1.17.0.20251009
     # via -r hail/python/dev/requirements.txt
@@ -617,7 +617,7 @@ typing-extensions==4.15.0
     #   pyright
     #   referencing
     #   virtualenv
-tzdata==2025.3
+tzdata==2026.1
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   arrow
@@ -627,9 +627,9 @@ urllib3==2.6.3
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   requests
-uv==0.10.9
+uv==0.10.12
     # via -r hail/python/dev/requirements.txt
-uv-build==0.10.9
+uv-build==0.10.12
     # via -r hail/python/dev/requirements.txt
 virtualenv==21.2.0
     # via pre-commit
