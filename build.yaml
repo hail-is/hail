@@ -732,6 +732,7 @@ steps:
       - hail_ubuntu_image
       - merge_code
       - build_ui
+      - check_ui
   - kind: buildImage2
     name: hailgenetics_hailtop_image
     dockerFile: /io/repo/docker/hailgenetics/hailtop/Dockerfile
