@@ -22,7 +22,7 @@ const ALL_SUB_TABS: { id: SubTab; label: string; requires?: 'input' | 'output' }
   { id: 'output', label: 'Output Log', requires: 'output' },
 ];
 
-type Props = {
+interface Props {
   attempt: Attempt;
   batchId: string;
   jobId: string;
@@ -31,11 +31,11 @@ type Props = {
   hasOutput: boolean;
   resources?: Record<string, unknown>;
   activeSubTab: SubTab;
-  setActiveSubTab: (tab: SubTab) => void;
+  setActiveSubTab: (_tab: SubTab) => void;
   attemptData: AttemptCache;
   onEnsureLoaded: () => void;
   onCommitLogs: () => void;
-};
+}
 
 export function AttemptPanel({
   attempt,
@@ -51,9 +51,9 @@ export function AttemptPanel({
   onEnsureLoaded,
   onCommitLogs,
 }: Props): JSX.Element {
-  const coresMcpu = resources?.['cores_mcpu'] as number | undefined;
-  const memoryBytes = resources?.['memory_bytes'] as number | undefined;
-  const storageGib = resources?.['storage_gib'] as number | undefined;
+  const coresMcpu = resources?.cores_mcpu as number | undefined;
+  const memoryBytes = resources?.memory_bytes as number | undefined;
+  const storageGib = resources?.storage_gib as number | undefined;
   const cores = coresMcpu != null ? coresMcpu / 1000 : undefined;
   const memoryGib = memoryBytes != null ? (memoryBytes / (1024 ** 3)).toFixed(1) : undefined;
 
@@ -159,13 +159,13 @@ export function AttemptPanel({
         (['input', 'main', 'output'] as const).map((step) =>
           activeSubTab === step ? (
             <div key={step}>
-              {attemptData.committedLogs[step] != null ? (
+              {attemptData.committedLogs[step] != null ? ( // eslint-disable-line security/detect-object-injection
                 <LogViewer
-                  text={attemptData.committedLogs[step]!}
+                  text={attemptData.committedLogs[step]!} // eslint-disable-line security/detect-object-injection
                   downloadUrl={`${basePath}/api/v1alpha/batches/${batchId}/jobs/${jobId}/log/${step}?attempt_id=${attempt.attempt_id}`}
                   downloadName={`batch-${batchId}-${jobId}-${step}.log`}
                   hasPendingUpdate={attemptData.hasPendingLogs}
-                  onLoadUpdate={() => onCommitLogs()}
+                  onLoadUpdate={() => { onCommitLogs(); }}
                   isRefreshing={attemptData.isRefreshing}
                 />
               ) : (

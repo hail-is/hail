@@ -63,11 +63,11 @@ type Spec = {
   unconfined?: boolean;
 };
 
-type Props = {
+interface Props {
   spec: Spec | null;
   attributes?: Record<string, string>;
   instColl?: string;
-};
+}
 
 type SubTab = 'input' | 'main' | 'output';
 
@@ -106,11 +106,11 @@ export function JobSpecPanel({
   setActiveSubTab,
 }: Props & { activeSubTab: SubTab; setActiveSubTab: (t: SubTab) => void }): JSX.Element {
   const res = spec?.resources ?? {};
-  const reqCpu = res['req_cpu'] as string | undefined;
-  const reqMemory = res['req_memory'] as string | undefined;
-  const reqStorage = res['req_storage'] as string | undefined;
-  const requestedMachineType = res['machine_type'] as string | undefined;
-  const preemptible = res['preemptible'] as boolean | undefined;
+  const reqCpu = res.req_cpu as string | undefined;
+  const reqMemory = res.req_memory as string | undefined;
+  const reqStorage = res.req_storage as string | undefined;
+  const requestedMachineType = res.machine_type as string | undefined;
+  const preemptible = res.preemptible as boolean | undefined;
 
   return (
     <div>
@@ -118,7 +118,7 @@ export function JobSpecPanel({
         {SUB_TABS.map(({ id, label }) => (
           <button
             key={id}
-            onClick={() => setActiveSubTab(id)}
+            onClick={() => { setActiveSubTab(id); }}
             className={`px-4 pt-3 pb-2 hover:opacity-100 border-b-2 ${
               activeSubTab === id
                 ? 'border-black font-medium'
@@ -296,7 +296,7 @@ export function JobSpecPanel({
                     </tr>
                     <tr className="border-t">
                       <td className="py-1 pr-4 text-zinc-500">Port</td>
-                      <td className="py-1">{spec.port != null ? spec.port : <AsDefault value="none" />}</td>
+                      <td className="py-1">{spec.port ?? <AsDefault value="none" />}</td>
                     </tr>
                     {spec.process.type === 'jvm' && (
                       <tr className="border-t">

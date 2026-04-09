@@ -20,10 +20,10 @@ const STEP_COLOR_MAP: Record<string, string> = {
   'creating':                  '#e2e8f0',
 };
 
-type GanttData = {
+interface GanttData {
   rows: GanttRow[];
   ruleXs: { x: Date; label: string }[];
-};
+}
 
 function buildGanttRows(job: Job, attempts: Attempt[], showPriorAttempts: boolean): GanttData {
   const rows: GanttRow[] = [];
@@ -77,7 +77,7 @@ function buildGanttRows(job: Job, attempts: Attempt[], showPriorAttempts: boolea
       const cs = statuses[container];
       if (!cs) continue;
       for (const [, timingData] of Object.entries(cs.timing)) {
-        if (!timingData || timingData.start_time == null) continue;
+        if (timingData?.start_time == null) continue;
         if (firstTaskStartMs === null || timingData.start_time < firstTaskStartMs) {
           firstTaskStartMs = timingData.start_time;
         }
@@ -146,6 +146,7 @@ function buildGanttRows(job: Job, attempts: Attempt[], showPriorAttempts: boolea
 function buildColorMap(rows: GanttRow[]): Record<string, string> {
   const map: Record<string, string> = {};
   for (const cat of new Set(rows.map((r) => r.category))) {
+    // eslint-disable-next-line security/detect-object-injection
     map[cat] = STEP_COLOR_MAP[cat] ?? '#9ca3af';
   }
   return map;

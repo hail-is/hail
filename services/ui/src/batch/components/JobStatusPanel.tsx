@@ -16,18 +16,18 @@ function CostDisplay({ cost }: { cost: number }): JSX.Element {
   return <>${cost.toFixed(2)}</>;
 }
 
-type Props = {
+interface Props {
   batchId: string;
   jobId: string;
   job: Job;
   latestAttempt: Attempt | null;
   autoRefresh: boolean;
   isTerminal: boolean;
-  onAutoRefreshToggle: (checked: boolean) => void;
+  onAutoRefreshToggle: (_checked: boolean) => void;
   countdownKey: number;
   refreshIntervalMs: number;
   jobRefreshing: boolean;
-};
+}
 
 export function JobStatusPanel({ batchId, jobId, job, latestAttempt, autoRefresh, isTerminal, onAutoRefreshToggle, countdownKey, refreshIntervalMs, jobRefreshing }: Props): JSX.Element {
   return (
@@ -47,7 +47,7 @@ export function JobStatusPanel({ batchId, jobId, job, latestAttempt, autoRefresh
                 <input
                   type="checkbox"
                   checked={autoRefresh}
-                  onChange={(e) => onAutoRefreshToggle(e.target.checked)}
+                  onChange={(e) => { onAutoRefreshToggle(e.target.checked); }}
                   className="cursor-pointer"
                 />
                 Auto-refresh

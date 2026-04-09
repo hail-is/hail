@@ -8,19 +8,20 @@ import { AttemptPanel } from './AttemptPanel';
 import { CodeBlock } from './CodeBlock';
 import { useJobDetails } from '../hooks/useJobDetails';
 
-type TopTab = 'job_spec' | 'raw_status' | 'current_attempt' | string; // string for attempt_id
+type TopTab = string; // 'job_spec' | 'raw_status' | 'current_attempt' | <attempt_id>
 
-type StepError = {
+interface StepError {
   step: string;
   shortError: string | null;
   fullError: string | null;
-};
+}
 
 function collectStepErrors(job: Job): { topLevelError: string | null; steps: StepError[] } {
   const topLevelError = job.status?.error ?? null;
   const cs = job.status?.container_statuses;
   const steps: StepError[] = (['input', 'main', 'output'] as const)
     .map((step) => {
+      // eslint-disable-next-line security/detect-object-injection
       const s: ContainerStatus | null | undefined = cs?.[step];
       return { step, shortError: s?.short_error ?? null, fullError: s?.error ?? null };
     })
@@ -50,7 +51,7 @@ function ExpandableError({ stepLabel, error }: { stepLabel?: string; error: stri
       <pre className="text-sm text-red-800 whitespace-pre-wrap break-all">{expanded ? error : preview}</pre>
       {truncated && (
         <button
-          onClick={() => setExpanded((e) => !e)}
+          onClick={() => { setExpanded((e) => !e); }}
           className="mt-1 text-xs text-red-700 underline underline-offset-2 hover:text-red-900"
         >
           {expanded ? 'Show less' : 'Show all'}
@@ -90,11 +91,11 @@ function JobErrorSummary({ job }: { job: Job }): JSX.Element | null {
   );
 }
 
-type Props = {
+interface Props {
   basePath: string;
   batchId: string;
   jobId: string;
-};
+}
 
 export function JobPage({ basePath, batchId, jobId }: Props): JSX.Element {
   const {
@@ -188,7 +189,7 @@ export function JobPage({ basePath, batchId, jobId }: Props): JSX.Element {
     );
   }
 
-  if (error || !job) {
+  if (error || !job) { // eslint-disable-line @typescript-eslint/prefer-nullish-coalescing
     return (
       <div className="mt-8 text-red-600">
         Error loading job: {error ?? 'unknown error'}
@@ -246,7 +247,7 @@ export function JobPage({ basePath, batchId, jobId }: Props): JSX.Element {
       <div className="mt-6">
         <div className="flex border-b text-lg overflow-auto bg-white">
           <button
-            onClick={() => setTopTab('job_spec')}
+            onClick={() => { setTopTab('job_spec'); }}
             className={`px-4 pt-4 pb-2 hover:opacity-100 border-b-2 ${
               topTab === 'job_spec' ? 'border-black' : 'border-transparent opacity-50'
             }`}
@@ -254,7 +255,7 @@ export function JobPage({ basePath, batchId, jobId }: Props): JSX.Element {
             Job Spec
           </button>
           <button
-            onClick={() => setTopTab('raw_status')}
+            onClick={() => { setTopTab('raw_status'); }}
             className={`px-4 pt-4 pb-2 hover:opacity-100 border-b-2 ${
               topTab === 'raw_status' ? 'border-black' : 'border-transparent opacity-50'
             }`}
@@ -267,7 +268,7 @@ export function JobPage({ basePath, batchId, jobId }: Props): JSX.Element {
             return (
               <button
                 key={attempt.attempt_id}
-                onClick={() => setTopTab(attempt.attempt_id)}
+                onClick={() => { setTopTab(attempt.attempt_id); }}
                 className={`px-4 pt-4 pb-2 hover:opacity-100 border-b-2 flex items-center gap-1 ${
                   isActive ? 'border-black' : 'border-transparent opacity-50'
                 }`}
@@ -314,10 +315,10 @@ export function JobPage({ basePath, batchId, jobId }: Props): JSX.Element {
                 hasOutput={(job.spec?.output_files ?? []).length > 0}
                 resources={job.spec?.resources}
                 activeSubTab={attemptSubTabs[activeAttempt.attempt_id] ?? 'main'}
-                setActiveSubTab={(sub) => updateAttemptSubTab(activeAttempt.attempt_id, sub)}
+                setActiveSubTab={(sub) => { updateAttemptSubTab(activeAttempt.attempt_id, sub); }}
                 attemptData={getAttemptData(activeAttempt.attempt_id)}
-                onEnsureLoaded={() => ensureAttemptLoaded(activeAttempt.attempt_id)}
-                onCommitLogs={() => commitAttemptLogs(activeAttempt.attempt_id)}
+                onEnsureLoaded={() => { ensureAttemptLoaded(activeAttempt.attempt_id); }}
+                onCommitLogs={() => { commitAttemptLogs(activeAttempt.attempt_id); }}
               />
             </div>
           )}

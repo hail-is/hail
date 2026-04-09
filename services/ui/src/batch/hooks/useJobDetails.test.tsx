@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useJobDetails, REFRESH_INTERVAL_MS } from './useJobDetails';
@@ -15,7 +16,7 @@ const LOG_V1 = 'log text v1';
 const LOG_V2 = 'log text v2 — updated';
 const JOB_URL = `${BASE_PATH}/api/v1alpha/batches/${BATCH_ID}/jobs/${JOB_ID}`;
 
-type MockFetchOpts = { log?: string; job?: object };
+interface MockFetchOpts { log?: string; job?: object }
 
 function makeFetch({ log = LOG_V1, job = mockJob }: MockFetchOpts = {}) {
   return vi.fn((url: string) => {
@@ -88,7 +89,7 @@ describe('T2 — ensureAttemptLoaded fetches and caches', () => {
     const { result } = renderHook(() => useJobDetails(BASE_PATH, BATCH_ID, JOB_ID));
     await flush(); // initial job/attempts load
 
-    act(() => result.current.ensureAttemptLoaded(ATTEMPT_LATEST));
+    act(() => { result.current.ensureAttemptLoaded(ATTEMPT_LATEST); });
     await flush();
 
     expect(result.current.getAttemptData(ATTEMPT_LATEST).logs.main).toBe(LOG_V1);
@@ -97,7 +98,7 @@ describe('T2 — ensureAttemptLoaded fetches and caches', () => {
     const callsBefore = fetchSpy.mock.calls.filter(([u]) => (u as string).includes('/log/')).length;
 
     // Second call — should be a cache hit, no new fetch
-    act(() => result.current.ensureAttemptLoaded(ATTEMPT_LATEST));
+    act(() => { result.current.ensureAttemptLoaded(ATTEMPT_LATEST); });
     await flush();
 
     const callsAfter = fetchSpy.mock.calls.filter(([u]) => (u as string).includes('/log/')).length;
@@ -116,15 +117,15 @@ describe('T3 — no double-fetch on cache hit', () => {
     const { result } = renderHook(() => useJobDetails(BASE_PATH, BATCH_ID, JOB_ID));
     await flush();
 
-    act(() => result.current.ensureAttemptLoaded(ATTEMPT_LATEST));
+    act(() => { result.current.ensureAttemptLoaded(ATTEMPT_LATEST); });
     await flush();
 
     const logCalls = () => fetchSpy.mock.calls.filter(([u]) => (u as string).includes('/log/')).length;
     const after1 = logCalls();
 
-    act(() => result.current.ensureAttemptLoaded(ATTEMPT_LATEST));
+    act(() => { result.current.ensureAttemptLoaded(ATTEMPT_LATEST); });
     await flush();
-    act(() => result.current.ensureAttemptLoaded(ATTEMPT_LATEST));
+    act(() => { result.current.ensureAttemptLoaded(ATTEMPT_LATEST); });
     await flush();
 
     expect(logCalls()).toBe(after1);
@@ -143,8 +144,8 @@ describe('T4 — refresh only re-fetches the latest attempt', () => {
     await flush();
 
     // Prime both attempts into the cache
-    act(() => result.current.ensureAttemptLoaded(ATTEMPT_LATEST));
-    act(() => result.current.ensureAttemptLoaded(ATTEMPT_OLDER));
+    act(() => { result.current.ensureAttemptLoaded(ATTEMPT_LATEST); });
+    act(() => { result.current.ensureAttemptLoaded(ATTEMPT_OLDER); });
     await flush();
 
     const logUrlFor = (id: string) => `${JOB_URL}/log/main?attempt_id=${id}`;
@@ -194,7 +195,7 @@ describe('T5 — pending logs banner on changed content', () => {
     const { result } = renderHook(() => useJobDetails(BASE_PATH, BATCH_ID, JOB_ID));
     await flush();
 
-    act(() => result.current.ensureAttemptLoaded(ATTEMPT_LATEST));
+    act(() => { result.current.ensureAttemptLoaded(ATTEMPT_LATEST); });
     await flush();
 
     expect(result.current.getAttemptData(ATTEMPT_LATEST).committedLogs.main).toBe(LOG_V1);
@@ -214,7 +215,7 @@ describe('T5 — pending logs banner on changed content', () => {
     expect(result.current.getAttemptData(ATTEMPT_LATEST).hasPendingLogs).toBe(true);
     expect(result.current.getAttemptData(ATTEMPT_LATEST).committedLogs.main).toBe(LOG_V1);
 
-    act(() => result.current.commitAttemptLogs(ATTEMPT_LATEST));
+    act(() => { result.current.commitAttemptLogs(ATTEMPT_LATEST); });
 
     expect(result.current.getAttemptData(ATTEMPT_LATEST).hasPendingLogs).toBe(false);
     expect(result.current.getAttemptData(ATTEMPT_LATEST).committedLogs.main).toBe(LOG_V2);
@@ -232,7 +233,7 @@ describe('T6 — no pending logs banner when content unchanged', () => {
     const { result } = renderHook(() => useJobDetails(BASE_PATH, BATCH_ID, JOB_ID));
     await flush();
 
-    act(() => result.current.ensureAttemptLoaded(ATTEMPT_LATEST));
+    act(() => { result.current.ensureAttemptLoaded(ATTEMPT_LATEST); });
     await flush();
 
     await act(async () => {

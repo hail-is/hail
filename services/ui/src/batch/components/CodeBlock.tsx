@@ -1,14 +1,14 @@
 import { useState } from 'react';
 
-type Props = { code: string; maxHeight?: string };
+interface Props { code: string; maxHeight?: string }
 
 export function CodeBlock({ code, maxHeight = '24rem' }: Props): JSX.Element {
   const [copied, setCopied] = useState(false);
 
   function handleCopy() {
-    navigator.clipboard.writeText(code).then(() => {
+    void navigator.clipboard.writeText(code).then(() => {
       setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      setTimeout(() => { setCopied(false); }, 1500);
     });
   }
 
