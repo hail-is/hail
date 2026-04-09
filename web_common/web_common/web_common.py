@@ -77,6 +77,7 @@ def base_context(session, userdata, service):
         'ci_base_url': deploy_config.external_url('ci', ''),
         'grafana_base_url': deploy_config.external_url('grafana', ''),
         'monitoring_base_url': deploy_config.external_url('monitoring', ''),
+        'k8s_namespace': deploy_config.default_namespace(),
         'support_email': support_email,
         'userdata': userdata,
     }
