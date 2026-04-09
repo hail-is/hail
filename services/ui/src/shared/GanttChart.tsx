@@ -17,7 +17,7 @@ interface RuleMark {
 
 interface Props {
   rows: GanttRow[];
-  colorMap: Record<string, string>;
+  colorMap: Map<string, string>;
   ruleXs?: RuleMark[];
   extendToNow?: boolean;
 }
@@ -85,7 +85,7 @@ export function GanttChart({ rows, colorMap, ruleXs, extendToNow }: Props): JSX.
       marginLeft: 160,
       marginRight: 20,
       marginBottom: 50, // extra space for the two-line first tick label
-      color: { domain: Object.keys(colorMap), range: Object.values(colorMap), legend: true },
+      color: { domain: [...colorMap.keys()], range: [...colorMap.values()], legend: true },
       x: { type: 'time', axis: null, domain: xDomain }, // disable auto axis; we add it explicitly below
       y: { label: null, domain: yDomain },
       marks: [

@@ -27,16 +27,15 @@ function formatBytes(bytes: number): string {
 
 // Match the colors used in the legacy Plotly charts in front_end.py:
 //   colors = {'input': 'red', 'main': 'green', 'output': 'blue'}
-const CONTAINER_COLORS: Record<string, string> = {
-  input: '#ef4444',
-  main: '#22c55e',
-  output: '#3b82f6',
-};
+const CONTAINER_COLORS = new Map<string, string>([
+  ['input', '#ef4444'],
+  ['main', '#22c55e'],
+  ['output', '#3b82f6'],
+]);
 const FALLBACK_COLORS = ['#a855f7', '#f97316', '#06b6d4'];
 
 function containerColor(name: string, index: number): string {
-  // eslint-disable-next-line security/detect-object-injection
-  return CONTAINER_COLORS[name] ?? FALLBACK_COLORS[index % FALLBACK_COLORS.length];
+  return CONTAINER_COLORS.get(name) ?? FALLBACK_COLORS.at(index % FALLBACK_COLORS.length)!;
 }
 
 interface ContainerSeries {
@@ -94,7 +93,7 @@ export function ResourceCharts({ data }: Props): JSX.Element {
   for (const [, df] of containers) {
     const timeIdx = df.columns.indexOf('time_msecs');
     if (timeIdx >= 0 && df.data.length > 0) {
-      const t = df.data[0][timeIdx]!;
+      const t = df.data[0].at(timeIdx)!;
       if (t < globalBaseTime) globalBaseTime = t;
     }
   }
@@ -105,8 +104,8 @@ export function ResourceCharts({ data }: Props): JSX.Element {
     const valIdx = df.columns.indexOf(colName);
     if (valIdx < 0) return [];
     return df.data.map((row) => ({
-      t_s: ((row[timeIdx] ?? 0) - globalBaseTime) / 1000, // eslint-disable-line security/detect-object-injection
-      value: row[valIdx], // eslint-disable-line security/detect-object-injection
+      t_s: ((row.at(timeIdx) ?? 0) - globalBaseTime) / 1000,
+      value: row.at(valIdx) ?? null,
     }));
   }
 
