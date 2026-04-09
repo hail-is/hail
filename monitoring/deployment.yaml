@@ -17,6 +17,7 @@ spec:
         hail.is/sha: "{{ code.sha }}"
         grafanak8sapp: "true"
     spec:
+      priorityClassName: auxiliary
       nodeSelector:
         preemptible: "true"
       tolerations:
