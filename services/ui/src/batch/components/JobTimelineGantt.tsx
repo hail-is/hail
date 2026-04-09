@@ -152,11 +152,11 @@ function buildColorMap(rows: GanttRow[]): Record<string, string> {
   return map;
 }
 
-type Props = {
+interface Props {
   job: Job;
   attempts: Attempt[];
   isTerminal: boolean;
-};
+}
 
 export function JobTimelineGantt({ job, attempts, isTerminal }: Props): JSX.Element | null {
   const [showPriorAttempts, setShowPriorAttempts] = useState(true);

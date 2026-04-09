@@ -4,9 +4,7 @@ export interface TimingEntry {
   duration?: number | null;
 }
 
-export type ContainerTiming = {
-  [key: string]: TimingEntry | null | undefined;
-};
+export type ContainerTiming = Record<string, TimingEntry | null | undefined>;
 
 export interface ContainerStatus {
   name: string;

@@ -70,7 +70,7 @@ export function AttemptPanel({
         ).map(({ id, label }) => (
           <button
             key={id}
-            onClick={() => setActiveSubTab(id)}
+            onClick={() => { setActiveSubTab(id); }}
             className={`px-4 pt-3 pb-2 hover:opacity-100 border-b-2 ${
               activeSubTab === id
                 ? 'border-black font-medium'
@@ -161,7 +161,7 @@ export function AttemptPanel({
             <div key={step}>
               {attemptData.committedLogs[step] != null ? ( // eslint-disable-line security/detect-object-injection
                 <LogViewer
-                  text={attemptData.committedLogs[step]!} // eslint-disable-line security/detect-object-injection
+                  text={attemptData.committedLogs[step]} // eslint-disable-line security/detect-object-injection
                   downloadUrl={`${basePath}/api/v1alpha/batches/${batchId}/jobs/${jobId}/log/${step}?attempt_id=${attempt.attempt_id}`}
                   downloadName={`batch-${batchId}-${jobId}-${step}.log`}
                   hasPendingUpdate={attemptData.hasPendingLogs}
