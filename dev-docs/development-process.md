@@ -152,6 +152,14 @@ Run the Python query documentation tests:
 make -C hail doctest-query
 ```
 
+##### Attaching a debugger
+
+To help debug failing Python query tests, it is possible to attach the IntelliJ debugger to the JVM created by py4j/pyspark. The steps are:
+
+* In IntelliJ, make a "Remote JVM Debug" run/debug config, set to "listen to remote jvm", localhost, port 5005
+* run the debug config in IntelliJ
+* set `HAIL_DEBUG_JVM=1` when running hail python (e.g. `HAIL_DEBUG_JVM=1 make pytest PYTEST_ARGS='-k foo'`)
+
 #### Services
 
 Production, test and development versions of Hail Batch share one Kubernetes

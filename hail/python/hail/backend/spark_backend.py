@@ -46,6 +46,9 @@ def _configure_spark_classpath(conf: SparkConf):
             conf, 'spark.extraListeners', _append_csv('sparkmonitor.listener.JupyterSparkMonitorListener')
         )
 
+    if os.environ.get('HAIL_DEBUG_JVM'):
+        conf.set('spark.driver.extraJavaOptions', '-agentlib:jdwp=transport=dt_socket,server=n,suspend=y,address=localhost:5005')
+
     _modify_spark_conf(conf, 'spark.jars', _append_csv(*classpath))
     if os.environ.get('AZURE_SPARK') == '1':
         print('AZURE_SPARK environment variable is set to "1", assuming you are in HDInsight.')

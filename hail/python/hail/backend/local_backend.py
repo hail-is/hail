@@ -30,7 +30,9 @@ class LocalBackend(Py4JBackend):
     ) -> Py4JBackend:
         max_heap_size = jvm_heap_size or os.getenv('HAIL_LOCAL_BACKEND_HEAP_SIZE')
 
-        gateway = start_py4j_gateway(max_heap_size=max_heap_size)
+
+        attach_to_debugger = 'HAIL_DEBUG_JVM' in os.environ
+        gateway = start_py4j_gateway(max_heap_size=max_heap_size, attach_to_debugger=attach_to_debugger)
 
         try:
             raise_when_mismatched_hail_versions(gateway.jvm)

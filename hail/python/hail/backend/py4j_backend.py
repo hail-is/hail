@@ -40,7 +40,7 @@ _installed = False
 _original = None
 
 
-def start_py4j_gateway(*, max_heap_size: str | None = None) -> JavaGateway:
+def start_py4j_gateway(*, max_heap_size: str | None = None, attach_to_debugger: bool = False) -> JavaGateway:
     spark_home = find_spark_home()
     info = local_jar_information()
     classpath = ':'.join([f'{spark_home}/jars/*', info.hail_jar, *info.extra_classpath])
@@ -48,6 +48,9 @@ def start_py4j_gateway(*, max_heap_size: str | None = None) -> JavaGateway:
     jvm_opts = []
     if max_heap_size is not None:
         jvm_opts.append(f'-Xmx{max_heap_size}')
+
+    if attach_to_debugger:
+        jvm_opts.append('-agentlib:jdwp=transport=dt_socket,server=n,suspend=y,address=localhost:5005')
 
     py4j_jars = glob.glob(f'{spark_home}/jars/py4j-*.jar')
     if len(py4j_jars) == 0:
