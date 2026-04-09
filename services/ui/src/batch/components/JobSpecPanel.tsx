@@ -104,6 +104,7 @@ export function JobSpecPanel({
   instColl,
   activeSubTab,
   setActiveSubTab,
+  // eslint-disable-next-line no-unused-vars
 }: Props & { activeSubTab: SubTab; setActiveSubTab: (t: SubTab) => void }): JSX.Element {
   const res = spec?.resources ?? {};
   const reqCpu = res.req_cpu as string | undefined;
@@ -230,7 +231,7 @@ export function JobSpecPanel({
                   <tbody>
                     <tr className="border-t">
                       <td className="py-1 pr-4 text-zinc-500">Always run</td>
-                      <td className="py-1">{spec.always_run != null ? (spec.always_run === false ? <AsDefault value="false" /> : 'true') : <Unset />}</td>
+                      <td className="py-1">{spec.always_run != null ? (!spec.always_run ? <AsDefault value="false" /> : 'true') : <Unset />}</td>
                     </tr>
                     <tr className="border-t">
                       <td className="py-1 pr-4 text-zinc-500">Max attempts</td>

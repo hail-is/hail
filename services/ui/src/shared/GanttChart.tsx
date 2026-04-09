@@ -130,6 +130,7 @@ export function GanttChart({ rows, colorMap, ruleXs, extendToNow }: Props): JSX.
       barGroup.querySelectorAll('rect').forEach((rect, i) => {
         // eslint-disable-next-line security/detect-object-injection
         const row = rows[i];
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         if (!row) return;
         const text = row.tooltip ?? `${row.label}: ${row.category}`;
         rect.addEventListener('mouseenter', (e) => {

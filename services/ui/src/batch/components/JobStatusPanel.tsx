@@ -23,6 +23,7 @@ interface Props {
   latestAttempt: Attempt | null;
   autoRefresh: boolean;
   isTerminal: boolean;
+  // eslint-disable-next-line no-unused-vars
   onAutoRefreshToggle: (_checked: boolean) => void;
   countdownKey: number;
   refreshIntervalMs: number;

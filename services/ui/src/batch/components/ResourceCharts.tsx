@@ -35,6 +35,7 @@ const CONTAINER_COLORS: Record<string, string> = {
 const FALLBACK_COLORS = ['#a855f7', '#f97316', '#06b6d4'];
 
 function containerColor(name: string, index: number): string {
+  // eslint-disable-next-line security/detect-object-injection
   return CONTAINER_COLORS[name] ?? FALLBACK_COLORS[index % FALLBACK_COLORS.length];
 }
 
@@ -79,7 +80,7 @@ function MetricChart({ title, containers, valueFormatter, tickFormatter }: Metri
   );
 }
 
-type Props = { data: ResourceUsageData };
+interface Props { data: ResourceUsageData }
 
 export function ResourceCharts({ data }: Props): JSX.Element {
   const containers = Object.entries(data).filter(([, df]) => df !== null) as [string, SplitDataFrame][];
@@ -93,7 +94,7 @@ export function ResourceCharts({ data }: Props): JSX.Element {
   for (const [, df] of containers) {
     const timeIdx = df.columns.indexOf('time_msecs');
     if (timeIdx >= 0 && df.data.length > 0) {
-      const t = df.data[0][timeIdx] as number;
+      const t = df.data[0][timeIdx]!;
       if (t < globalBaseTime) globalBaseTime = t;
     }
   }
