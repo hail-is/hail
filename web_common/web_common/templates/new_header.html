@@ -49,7 +49,7 @@
     {% if userdata['is_developer'] == 1 %}
     {% call header_item("Monitoring", monitoring_base_url) %}
     <a class="block hover:bg-slate-100 px-2 py-1" href="{{ grafana_base_url }}">Grafana</a>
-    <a target="_blank" class="block hover:bg-slate-100 px-2 py-1" href="https://console.cloud.google.com/logs">
+    <a target="_blank" class="block hover:bg-slate-100 px-2 py-1" href="https://console.cloud.google.com/logs/query;query=resource.labels.namespace_name%3D%22{{ k8s_namespace }}%22">
       Log Viewer<i class="material-icons text-icon">open_in_new</i>
     </a>
     <a class="block hover:bg-slate-100 px-2 py-1" href="{{ monitoring_base_url }}/billing">Billing</a>

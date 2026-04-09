@@ -98,6 +98,7 @@
     <th>Failed Requests</th>
     <th>Time Created</th>
     <th>Last Updated</th>
+    <th>Logs</th>
   </tr>
   </thead>
   <tbody>
@@ -113,6 +114,7 @@
     <td class="numeric-cell">{{ instance.failed_request_count }}</td>
     <td>{{ instance.time_created_str() }}</td>
     <td>{{ instance.last_updated_str() }} ago</td>
+    <td><a target="_blank" href="https://console.cloud.google.com/logs/query;query=resource.type%3D%22gce_instance%22%20AND%20labels.%22compute.googleapis.com%2Fresource_name%22%3D%22{{ instance.name }}%22">Logs<i class="material-icons text-icon">open_in_new</i></a></td>
   </tr>
   {% endfor %}
   </tbody>
