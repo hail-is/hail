@@ -44,13 +44,13 @@ export const DEFAULT_EMPTY_CACHE: AttemptCache = {
 };
 
 async function fetchText(url: string): Promise<string> {
-  const resp = await fetch(url, { credentials: 'same-origin' }); // nosemgrep: rules.lgpl.javascript.ssrf.rule-node-ssrf
+  const resp = await fetch(url, { credentials: 'same-origin' });
   if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
   return resp.text();
 }
 
 async function fetchJson<T>(url: string): Promise<T> {
-  const resp = await fetch(url, { credentials: 'same-origin' }); // nosemgrep: rules.lgpl.javascript.ssrf.rule-node-ssrf
+  const resp = await fetch(url, { credentials: 'same-origin' });
   if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
   return resp.json() as Promise<T>;
 }
@@ -156,8 +156,8 @@ export function useJobDetails(basePath: string, batchId: string, jobId: string):
     if (isRefresh) setJobRefreshing(true);
     try {
       const [jobResp, attemptsResp] = await Promise.all([
-        fetch(apiBase, { credentials: 'same-origin' }), // nosemgrep: rules.lgpl.javascript.ssrf.rule-node-ssrf
-        fetch(`${apiBase}/attempts`, { credentials: 'same-origin' }), // nosemgrep: rules.lgpl.javascript.ssrf.rule-node-ssrf
+        fetch(apiBase, { credentials: 'same-origin' }),
+        fetch(`${apiBase}/attempts`, { credentials: 'same-origin' }),
       ]);
       if (!jobResp.ok) throw new Error(`Job fetch: HTTP ${jobResp.status}`);
       const [jobData, attemptsData] = await Promise.all([
