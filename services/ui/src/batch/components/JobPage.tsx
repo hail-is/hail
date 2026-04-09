@@ -1,11 +1,12 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { Job, Attempt, ContainerStatus, TERMINAL_STATES } from './jobModels';
+import { useState, useEffect, useCallback } from 'react';
+import { Job, ContainerStatus, TERMINAL_STATES } from './jobModels';
 import { JobStatusPanel } from './JobStatusPanel';
 import { JobTimelineGantt } from './JobTimelineGantt';
 import { StateIcon } from './StateIcon';
 import { JobSpecPanel } from './JobSpecPanel';
 import { AttemptPanel } from './AttemptPanel';
 import { CodeBlock } from './CodeBlock';
+import { useJobDetails } from '../hooks/useJobDetails';
 
 type TopTab = 'job_spec' | 'raw_status' | 'current_attempt' | string; // string for attempt_id
 
@@ -89,8 +90,6 @@ function JobErrorSummary({ job }: { job: Job }): JSX.Element | null {
   );
 }
 
-const REFRESH_INTERVAL_MS = 30_000;
-
 type Props = {
   basePath: string;
   batchId: string;
@@ -98,26 +97,23 @@ type Props = {
 };
 
 export function JobPage({ basePath, batchId, jobId }: Props): JSX.Element {
-  const [job, setJob] = useState<Job | null>(null);
-  const [attempts, setAttempts] = useState<Attempt[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshTick, setRefreshTick] = useState(0);
-  const [countdownKey, setCountdownKey] = useState(0);
-  const [autoRefresh, setAutoRefresh] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem('batch.jobPage.autoRefresh') !== 'false';
-    } catch {
-      return true;
-    }
-  });
-  const isInitialLoad = useRef(true);
+  const {
+    job,
+    attempts,
+    error,
+    loading,
+    autoRefresh,
+    setAutoRefresh,
+    countdownKey,
+    refreshIntervalMs,
+    jobRefreshing,
+    getAttemptData,
+    ensureAttemptLoaded,
+    commitAttemptLogs,
+  } = useJobDetails(basePath, batchId, jobId);
 
   const handleAutoRefreshToggle = (checked: boolean) => {
     setAutoRefresh(checked);
-    try {
-      localStorage.setItem('batch.jobPage.autoRefresh', String(checked));
-    } catch { /* ignore */ }
   };
 
   // URL-synced tab state
@@ -175,44 +171,6 @@ export function JobPage({ basePath, batchId, jobId }: Props): JSX.Element {
     params.set('subtab', sub);
     window.history.replaceState(null, '', `?${params.toString()}`);
   }, []);
-
-  const fetchData = useCallback(async () => {
-    const apiBase = `${basePath}/api/v1alpha/batches/${batchId}/jobs/${jobId}`;
-    try {
-      const [jobResp, attemptsResp] = await Promise.all([
-        fetch(apiBase, { credentials: 'same-origin' }),
-        fetch(`${apiBase}/attempts`, { credentials: 'same-origin' }),
-      ]);
-      if (!jobResp.ok) throw new Error(`Job fetch: HTTP ${jobResp.status}`);
-      const [jobData, attemptsData] = await Promise.all([
-        jobResp.json() as Promise<Job>,
-        attemptsResp.ok ? (attemptsResp.json() as Promise<Attempt[]>) : Promise.resolve(null),
-      ]);
-      setJob(jobData);
-      setAttempts(attemptsData);
-      setError(null);
-      if (!isInitialLoad.current) {
-        setRefreshTick((t) => t + 1);
-      }
-      isInitialLoad.current = false;
-      setCountdownKey((k) => k + 1);
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, [basePath, batchId, jobId]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  // Auto-refresh for non-terminal jobs
-  useEffect(() => {
-    if (!job || TERMINAL_STATES.has(job.state) || !autoRefresh) return;
-    const id = setInterval(() => fetchData(), REFRESH_INTERVAL_MS);
-    return () => clearInterval(id);
-  }, [job, fetchData, autoRefresh]);
 
   // Once the initial load completes, if there are no attempts (null response or
   // empty array) and we're still on the sentinel, default to the Job Spec tab.
@@ -275,7 +233,8 @@ export function JobPage({ basePath, batchId, jobId }: Props): JSX.Element {
           isTerminal={isTerminal}
           onAutoRefreshToggle={handleAutoRefreshToggle}
           countdownKey={countdownKey}
-          refreshIntervalMs={REFRESH_INTERVAL_MS}
+          refreshIntervalMs={refreshIntervalMs}
+          jobRefreshing={jobRefreshing}
         />
         {attempts && <JobTimelineGantt job={job} attempts={attempts} isTerminal={isTerminal} />}
       </div>
@@ -351,13 +310,14 @@ export function JobPage({ basePath, batchId, jobId }: Props): JSX.Element {
                 batchId={batchId}
                 jobId={jobId}
                 basePath={basePath}
-                isLatest={activeAttempt === latestAttempt}
                 hasInput={(job.spec?.input_files ?? []).length > 0}
                 hasOutput={(job.spec?.output_files ?? []).length > 0}
                 resources={job.spec?.resources}
                 activeSubTab={attemptSubTabs[activeAttempt.attempt_id] ?? 'main'}
                 setActiveSubTab={(sub) => updateAttemptSubTab(activeAttempt.attempt_id, sub)}
-                refreshTick={refreshTick}
+                attemptData={getAttemptData(activeAttempt.attempt_id)}
+                onEnsureLoaded={() => ensureAttemptLoaded(activeAttempt.attempt_id)}
+                onCommitLogs={() => commitAttemptLogs(activeAttempt.attempt_id)}
               />
             </div>
           )}

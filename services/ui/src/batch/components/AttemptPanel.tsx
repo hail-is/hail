@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { LogViewer } from './LogViewer';
-import { ResourceCharts, ResourceUsageData } from './ResourceCharts';
+import { ResourceCharts } from './ResourceCharts';
+import { AttemptCache } from '../hooks/useJobDetails';
 
 type Attempt = {
   attempt_id: string;
@@ -21,144 +22,45 @@ const ALL_SUB_TABS: { id: SubTab; label: string; requires?: 'input' | 'output' }
   { id: 'output', label: 'Output Log', requires: 'output' },
 ];
 
-type LogMap = Record<string, string | null>;
-
-type AttemptData = {
-  logs: LogMap;
-  resourceUsage: ResourceUsageData | null;
-  loading: boolean;
-  error: string | null;
-};
-
 type Props = {
   attempt: Attempt;
   batchId: string;
   jobId: string;
   basePath: string;
-  isLatest: boolean;
   hasInput: boolean;
   hasOutput: boolean;
   resources?: Record<string, unknown>;
   activeSubTab: SubTab;
   setActiveSubTab: (tab: SubTab) => void;
-  refreshTick: number;
+  attemptData: AttemptCache;
+  onEnsureLoaded: () => void;
+  onCommitLogs: () => void;
 };
-
-async function fetchText(url: string): Promise<string> {
-  const resp = await fetch(url, { credentials: 'same-origin' });
-  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-  return resp.text();
-}
-
-async function fetchJson<T>(url: string): Promise<T> {
-  const resp = await fetch(url, { credentials: 'same-origin' });
-  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-  return resp.json() as Promise<T>;
-}
 
 export function AttemptPanel({
   attempt,
   batchId,
   jobId,
   basePath,
-  isLatest,
   hasInput,
   hasOutput,
   resources,
   activeSubTab,
   setActiveSubTab,
-  refreshTick,
+  attemptData,
+  onEnsureLoaded,
+  onCommitLogs,
 }: Props): JSX.Element {
   const coresMcpu = resources?.['cores_mcpu'] as number | undefined;
   const memoryBytes = resources?.['memory_bytes'] as number | undefined;
   const storageGib = resources?.['storage_gib'] as number | undefined;
   const cores = coresMcpu != null ? coresMcpu / 1000 : undefined;
   const memoryGib = memoryBytes != null ? (memoryBytes / (1024 ** 3)).toFixed(1) : undefined;
-  const cache = useRef<Record<string, AttemptData>>({});
-  const committedLogsRef = useRef<LogMap>({});
-  // Tracks the last attempt_id the effect ran for so we can distinguish a
-  // "same attempt, new poll" refresh from "different attempt now showing".
-  const prevAttemptIdRef = useRef<string | null>(null);
-  const [data, setData] = useState<AttemptData>({
-    logs: {},
-    resourceUsage: null,
-    loading: false,
-    error: null,
-  });
-  // Log text that is actually rendered — updated immediately on initial load but
-  // held back on auto-refresh so scroll position and text selection are preserved.
-  const [committedLogs, setCommittedLogs] = useState<LogMap>({});
-  const [hasPendingLogs, setHasPendingLogs] = useState(false);
-
-  const applyLogs = (logs: LogMap) => {
-    committedLogsRef.current = logs;
-    setCommittedLogs(logs);
-    setHasPendingLogs(false);
-  };
 
   useEffect(() => {
-    const isFirstRun = prevAttemptIdRef.current === null;
-    const attemptJustChanged = !isFirstRun && prevAttemptIdRef.current !== attempt.attempt_id;
-    prevAttemptIdRef.current = attempt.attempt_id;
-
-    // A background refresh only happens when the *same* latest attempt is being
-    // polled again.  First mount (e.g. arriving from the Job Spec tab) and
-    // attempt switches are always treated as fresh loads so that stale logs and
-    // any pending-update banner are never shown before real content arrives.
-    const isRefreshFetch = !isFirstRun && !attemptJustChanged && refreshTick > 0 && isLatest;
-
-    // Bust the cache only when auto-refreshing the latest attempt.
-    if (isRefreshFetch) {
-      delete cache.current[attempt.attempt_id];
-    }
-
-    const cached = cache.current[attempt.attempt_id];
-    if (cached) {
-      // Switching to an already-loaded attempt — commit logs immediately.
-      setData(cached);
-      applyLogs(cached.logs);
-      return;
-    }
-
-    // Only show the loading spinner on the initial load, not on background refreshes.
-    if (!isRefreshFetch) {
-      setData((d) => ({ ...d, loading: true, error: null }));
-      setHasPendingLogs(false);
-    }
-
-    const attemptParam = `?attempt_id=${attempt.attempt_id}`;
-    const apiBase = `${basePath}/api/v1alpha/batches/${batchId}/jobs/${jobId}`;
-
-    Promise.all([
-      hasInput ? fetchText(`${apiBase}/log/input${attemptParam}`).catch(() => null) : Promise.resolve(null),
-      fetchText(`${apiBase}/log/main${attemptParam}`).catch(() => null),
-      hasOutput ? fetchText(`${apiBase}/log/output${attemptParam}`).catch(() => null) : Promise.resolve(null),
-      fetchJson<ResourceUsageData>(`${apiBase}/resource_usage${attemptParam}`).catch(() => null),
-    ]).then(([inputLog, mainLog, outputLog, resourceUsage]) => {
-      const result: AttemptData = {
-        logs: { input: inputLog, main: mainLog, output: outputLog },
-        resourceUsage,
-        loading: false,
-        error: null,
-      };
-      cache.current[attempt.attempt_id] = result;
-
-      if (isRefreshFetch) {
-        // Keep the displayed log text stable — only surface a notifier if content changed.
-        setData(result);
-        const changed = (['input', 'main', 'output'] as const).some(
-          (k) => result.logs[k] !== committedLogsRef.current[k]
-        );
-        if (changed) setHasPendingLogs(true);
-      } else {
-        setData(result);
-        applyLogs(result.logs);
-      }
-    });
-  }, [attempt.attempt_id, batchId, jobId, basePath, hasInput, hasOutput, refreshTick]);
-
-  const apiBase = `${basePath}/api/v1alpha/batches/${batchId}/jobs/${jobId}`;
-  const attemptParam = `?attempt_id=${attempt.attempt_id}`;
+    onEnsureLoaded();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attempt.attempt_id]);
 
   return (
     <div>
@@ -180,11 +82,11 @@ export function AttemptPanel({
         ))}
       </div>
 
-      {data.loading && (
+      {attemptData.loading && (
         <div className="py-8 text-center text-zinc-400 text-sm">Loading…</div>
       )}
 
-      {!data.loading && activeSubTab === 'details' && (
+      {!attemptData.loading && activeSubTab === 'details' && (
         <table className="text-sm border-collapse w-full max-w-lg">
           <tbody>
             <tr className="border-t">
@@ -243,27 +145,28 @@ export function AttemptPanel({
         </table>
       )}
 
-      {!data.loading && activeSubTab === 'charts' && (
+      {!attemptData.loading && activeSubTab === 'charts' && (
         <div>
-          {data.resourceUsage ? (
-            <ResourceCharts data={data.resourceUsage} />
+          {attemptData.resourceUsage ? (
+            <ResourceCharts data={attemptData.resourceUsage} />
           ) : (
             <div className="text-zinc-400 text-sm py-4">No resource usage data.</div>
           )}
         </div>
       )}
 
-      {!data.loading &&
+      {!attemptData.loading &&
         (['input', 'main', 'output'] as const).map((step) =>
           activeSubTab === step ? (
             <div key={step}>
-              {committedLogs[step] != null ? (
+              {attemptData.committedLogs[step] != null ? (
                 <LogViewer
-                  text={committedLogs[step]!}
-                  downloadUrl={`${apiBase}/log/${step}${attemptParam}`}
+                  text={attemptData.committedLogs[step]!}
+                  downloadUrl={`${basePath}/api/v1alpha/batches/${batchId}/jobs/${jobId}/log/${step}?attempt_id=${attempt.attempt_id}`}
                   downloadName={`batch-${batchId}-${jobId}-${step}.log`}
-                  hasPendingUpdate={hasPendingLogs}
-                  onLoadUpdate={() => applyLogs(data.logs)}
+                  hasPendingUpdate={attemptData.hasPendingLogs}
+                  onLoadUpdate={() => onCommitLogs()}
+                  isRefreshing={attemptData.isRefreshing}
                 />
               ) : (
                 <div className="text-zinc-400 text-sm py-4">No {step} log available.</div>
@@ -271,7 +174,6 @@ export function AttemptPanel({
             </div>
           ) : null
         )}
-
     </div>
   );
 }
