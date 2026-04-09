@@ -75,7 +75,7 @@ describe('T1 — initial load', () => {
     expect(result.current.attempts).toHaveLength(2);
     // Attempt data is lazy — not loaded yet
     expect(result.current.getAttemptData(ATTEMPT_LATEST).loading).toBe(false);
-    expect(result.current.getAttemptData(ATTEMPT_LATEST).logs).toEqual({});
+    expect(result.current.getAttemptData(ATTEMPT_LATEST).logs.size).toBe(0);
   });
 });
 
@@ -93,7 +93,7 @@ describe('T2 — ensureAttemptLoaded fetches and caches', () => {
     act(() => { result.current.ensureAttemptLoaded(ATTEMPT_LATEST); });
     await flush();
 
-    expect(result.current.getAttemptData(ATTEMPT_LATEST).logs.main).toBe(LOG_V1);
+    expect(result.current.getAttemptData(ATTEMPT_LATEST).logs.get('main')).toBe(LOG_V1);
     expect(result.current.getAttemptData(ATTEMPT_LATEST).loading).toBe(false);
 
     const callsBefore = fetchSpy.mock.calls.filter(([u]) => (u as string).includes('/log/')).length;
@@ -200,7 +200,7 @@ describe('T5 — pending logs banner on changed content', () => {
     act(() => { result.current.ensureAttemptLoaded(ATTEMPT_LATEST); });
     await flush();
 
-    expect(result.current.getAttemptData(ATTEMPT_LATEST).committedLogs.main).toBe(LOG_V1);
+    expect(result.current.getAttemptData(ATTEMPT_LATEST).committedLogs.get('main')).toBe(LOG_V1);
     expect(result.current.getAttemptData(ATTEMPT_LATEST).hasPendingLogs).toBe(false);
 
     // Change logs so the next refresh returns different content
@@ -215,12 +215,12 @@ describe('T5 — pending logs banner on changed content', () => {
     });
 
     expect(result.current.getAttemptData(ATTEMPT_LATEST).hasPendingLogs).toBe(true);
-    expect(result.current.getAttemptData(ATTEMPT_LATEST).committedLogs.main).toBe(LOG_V1);
+    expect(result.current.getAttemptData(ATTEMPT_LATEST).committedLogs.get('main')).toBe(LOG_V1);
 
     act(() => { result.current.commitAttemptLogs(ATTEMPT_LATEST); });
 
     expect(result.current.getAttemptData(ATTEMPT_LATEST).hasPendingLogs).toBe(false);
-    expect(result.current.getAttemptData(ATTEMPT_LATEST).committedLogs.main).toBe(LOG_V2);
+    expect(result.current.getAttemptData(ATTEMPT_LATEST).committedLogs.get('main')).toBe(LOG_V2);
   });
 });
 
@@ -287,7 +287,7 @@ describe('T8 — proactive prefetch on refresh', () => {
     const { result } = renderHook(() => useJobDetails(BASE_PATH, BATCH_ID, JOB_ID));
     await flush(); // initial load — attempt data still empty (lazy)
 
-    expect(result.current.getAttemptData(ATTEMPT_LATEST).logs).toEqual({});
+    expect(result.current.getAttemptData(ATTEMPT_LATEST).logs.size).toBe(0);
 
     // Advance timer to trigger auto-refresh (which proactively fetches latest attempt)
     await act(async () => {
@@ -305,6 +305,6 @@ describe('T8 — proactive prefetch on refresh', () => {
 
     // Data should now be populated without ever calling ensureAttemptLoaded
     expect(result.current.getAttemptData(ATTEMPT_LATEST).loading).toBe(false);
-    expect(result.current.getAttemptData(ATTEMPT_LATEST).logs.main).toBe(LOG_V1);
+    expect(result.current.getAttemptData(ATTEMPT_LATEST).logs.get('main')).toBe(LOG_V1);
   });
 });
