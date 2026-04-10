@@ -1,5 +1,6 @@
 import { useState, ReactNode } from 'react';
 import { CodeBlock } from './CodeBlock';
+import { JobSpec } from './jobModels';
 
 function Unset(): JSX.Element {
   return <span className="text-zinc-300 text-xs">[unset]</span>;
@@ -30,41 +31,8 @@ function CollapsibleSection({ title, children, defaultOpen = false }: { title: s
   );
 }
 
-type JobProcess = {
-  type: 'docker' | 'jvm';
-  image?: string;
-  command?: string[];
-  profile?: boolean;
-  jar_spec?: { type: string; value: string };
-};
-
-type Spec = {
-  process?: JobProcess;
-  user_code?: string;
-  resources?: Record<string, unknown>;
-  env?: { name: string; value: string }[];
-  input_files?: [string, string][];
-  output_files?: [string, string][];
-  cloudfuse?: { bucket: string; mount_path: string; read_only: boolean }[];
-  timeout?: number;
-  network?: string;
-  regions?: string[];
-  n_max_attempts?: number;
-  always_run?: boolean;
-  service_account?: { namespace: string; name: string };
-  secrets?: { namespace: string; name: string; mount_path: string }[];
-  requester_pays_project?: string;
-  port?: number;
-  always_copy_output?: boolean;
-  absolute_parent_ids?: number[];
-  in_update_parent_ids?: number[];
-  absolute_job_group_id?: number;
-  mount_tokens?: boolean;
-  unconfined?: boolean;
-};
-
 interface Props {
-  spec: Spec | null;
+  spec: JobSpec | null;
   attributes?: Record<string, string>;
   instColl?: string;
 }

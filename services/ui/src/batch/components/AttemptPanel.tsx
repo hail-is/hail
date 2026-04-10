@@ -2,15 +2,7 @@ import { useEffect } from 'react';
 import { LogViewer } from './LogViewer';
 import { ResourceCharts } from './ResourceCharts';
 import { AttemptCache } from '../hooks/useJobDetails';
-
-type Attempt = {
-  attempt_id: string;
-  instance_name?: string;
-  start_time_ms?: number;
-  end_time_ms?: number;
-  duration?: string;
-  reason?: string;
-};
+import { Attempt } from './jobModels';
 
 type SubTab = 'details' | 'charts' | 'input' | 'main' | 'output';
 
