@@ -604,8 +604,8 @@ async def _users_in_state_with_roles(db: Database, state: str) -> List[dict]:
             """
 SELECT users.*, GROUP_CONCAT(system_roles.name ORDER BY system_roles.name SEPARATOR ',') AS role_names
 FROM users
-JOIN users_system_roles ON users.id = users_system_roles.user_id
-JOIN system_roles ON users_system_roles.role_id = system_roles.id
+LEFT JOIN users_system_roles ON users.id = users_system_roles.user_id
+LEFT JOIN system_roles ON users_system_roles.role_id = system_roles.id
 WHERE users.state = %s
 GROUP BY users.id
 """,
@@ -614,7 +614,7 @@ GROUP BY users.id
     ]
 
     for user in users:
-        user['system_roles'] = user['role_names'].split(',')
+        user['system_roles'] = user['role_names'].split(',') if user['role_names'] else []
         del user['role_names']
 
     return users

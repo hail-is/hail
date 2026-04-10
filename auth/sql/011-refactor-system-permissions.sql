@@ -80,6 +80,11 @@ SELECT (SELECT `id` FROM `system_roles` WHERE `name` = 'sysadmin-readonly'), `id
 FROM `system_permissions`
 WHERE `name` = 'read_deployed_system_state';
 
+INSERT INTO `system_role_permissions` (`role_id`, `permission_id`)
+SELECT (SELECT `id` FROM `system_roles` WHERE `name` = 'sysadmin-readonly'), `id`
+FROM `system_permissions`
+WHERE `name` = 'view_monitoring_dashboards';
+
 
 -- Assign sysadmin-readonly role to the 'ci' user:
 INSERT INTO `users_system_roles` (`user_id`, `role_id`)
@@ -101,9 +106,9 @@ SELECT (SELECT `id` FROM `system_roles` WHERE `name` = 'developer'), `id`
 FROM `system_permissions`
 WHERE `name` = 'read_prerendered_jinja2_context';
 
--- Assign developer role to the 'grafana' user (for view_monitoring_dashboards permission):
+-- Assign sysadmin-readonly role to the 'grafana' user (for view_monitoring_dashboards permission):
 INSERT INTO `users_system_roles` (`user_id`, `role_id`)
-SELECT `id`, (SELECT `id` FROM `system_roles` WHERE `name` = 'developer')
+SELECT `id`, (SELECT `id` FROM `system_roles` WHERE `name` = 'sysadmin-readonly')
 FROM `users`
 WHERE `username` = 'grafana';
 

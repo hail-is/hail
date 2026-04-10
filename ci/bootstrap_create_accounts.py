@@ -97,9 +97,9 @@ async def insert_user_if_not_exists(app, username, login_id, system_roles, is_se
 async def main():
     users = [
         # username, login_id, system_roles, is_service_account
-        ('auth', None, [], 1),
+        ('auth', None, ['billing_manager'], 1),
         ('batch', None, [], 1),
-        ('ci', None, [], 1),
+        ('ci', None, ['sysadmin-readonly', 'developer'], 1),
         ('test', None, [], 0),
         ('test-dev', None, ['developer', 'billing_manager', 'sysadmin'], 0),
         ('grafana', None, ['sysadmin-readonly'], 1),
