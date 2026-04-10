@@ -7,10 +7,8 @@ import is.hail.expr.ir.defs.{Literal, ToArray, ToStream}
 import is.hail.types.virtual.{TArray, TBoolean, TSet, TString}
 import is.hail.utils._
 
-import org.testng.annotations.Test
-
 class MemoryLeakSuite extends HailSuite {
-  @Test def testLiteralSetContains(): Unit = {
+  test("LiteralSetContains") {
 
     val litSize = 32000
 

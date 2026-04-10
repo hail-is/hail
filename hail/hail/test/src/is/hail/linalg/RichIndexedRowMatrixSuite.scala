@@ -8,14 +8,11 @@ import breeze.linalg.{DenseMatrix => BDM}
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 import org.apache.spark.rdd.RDD
-import org.scalatest.Inspectors.forAll
-import org.scalatest.enablers.InspectorAsserting.assertingNatureOfAssertion
-import org.testng.annotations.Test
 
 /** Testing RichIndexedRowMatrix. */
 class RichIndexedRowMatrixSuite extends HailSuite {
 
-  @Test def testToBlockMatrixDense(): Unit = {
+  test("toBlockMatrixDense") {
     val nRows = 9L
     val nCols = 6L
     val data = Seq(
@@ -33,25 +30,25 @@ class RichIndexedRowMatrixSuite extends HailSuite {
     val irm = new IndexedRowMatrix(indexedRows)
     val irmLocal = irm.toBlockMatrix().toLocalMatrix()
 
-    forAll(Seq(1, 2, 3, 4, 6, 7, 9, 10)) { blockSize =>
+    Seq(1, 2, 3, 4, 6, 7, 9, 10).foreach { blockSize =>
       val blockMat = irm.toHailBlockMatrix(blockSize)
-      assert(blockMat.nRows === nRows)
-      assert(blockMat.nCols === nCols)
+      assertEquals(blockMat.nRows, nRows)
+      assertEquals(blockMat.nCols, nCols)
       val blockMatAsBreeze = blockMat.toBreezeMatrix()
-      assert(blockMatAsBreeze.rows == irmLocal.numRows)
-      assert(blockMatAsBreeze.cols == irmLocal.numCols)
-      assert(blockMatAsBreeze.toArray.toIndexedSeq == irmLocal.toArray.toIndexedSeq)
+      assertEquals(blockMatAsBreeze.rows, irmLocal.numRows)
+      assertEquals(blockMatAsBreeze.cols, irmLocal.numCols)
+      assertEquals(blockMatAsBreeze.toArray.toIndexedSeq, irmLocal.toArray.toIndexedSeq)
     }
 
-    assertThrows[IllegalArgumentException] {
+    intercept[IllegalArgumentException] {
       irm.toHailBlockMatrix(-1)
-    }
-    assertThrows[IllegalArgumentException] {
+    }: Unit
+    intercept[IllegalArgumentException] {
       irm.toHailBlockMatrix(0)
-    }
+    }: Unit
   }
 
-  @Test def emptyBlocks(): Unit = {
+  test("emptyBlocks") {
     val nRows = 9
     val nCols = 2
     val data = Seq(
@@ -65,15 +62,16 @@ class RichIndexedRowMatrixSuite extends HailSuite {
     val irmLocal = irm.toBlockMatrix().toLocalMatrix()
 
     val m = irm.toHailBlockMatrix(2)
-    assert(m.nRows == nRows)
-    assert(m.nCols == nCols)
+    assertEquals(m.nRows, nRows.toLong)
+    assertEquals(m.nCols, nCols.toLong)
     val blockMatAsBreeze = m.toBreezeMatrix()
-    assert(blockMatAsBreeze.toArray.toIndexedSeq == irmLocal.toArray.toIndexedSeq)
-    assert(m.blocks.count() == 5)
+    assertEquals(blockMatAsBreeze.toArray.toIndexedSeq, irmLocal.toArray.toIndexedSeq)
+    assertEquals(m.blocks.count(), 5L)
 
     m.dot(m.T).toBreezeMatrix(): Unit // assert no exception
 
-    assert(m.mapWithIndex { case (i, j, v) => i + 10 * j + v }.toBreezeMatrix() ===
+    assertEquals(
+      m.mapWithIndex { case (i, j, v) => i + 10 * j + v }.toBreezeMatrix(),
       new BDM[Double](
         nRows,
         nCols,
@@ -81,6 +79,7 @@ class RichIndexedRowMatrixSuite extends HailSuite {
           0.0, 1.0, 2.0, 4.0, 5.0, 6.0, 6.0, 7.0, 9.0,
           10.0, 11.0, 12.0, 15.0, 16.0, 17.0, 16.0, 17.0, 20.0,
         ),
-      ))
+      ),
+    )
   }
 }

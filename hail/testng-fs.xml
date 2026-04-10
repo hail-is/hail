@@ -1,8 +1,0 @@
-<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.1.dtd">
-<suite name="SuiteAll" verbose="1" allow-return-values="true">
-  <test name="TestAll">
-    <packages>
-      <package name="is.hail.io.fs.*"></package>
-    </packages>
-  </test>
-</suite>

@@ -1,14 +1,10 @@
 package is.hail.utils.prettyPrint
 
+import is.hail.TestCaseSupport
 import is.hail.collection.implicits.toRichIterator
 
-import scala.jdk.CollectionConverters._
-
-import org.scalatestplus.testng.TestNGSuite
-import org.testng.annotations.{DataProvider, Test}
-
-class PrettyPrintWriterSuite extends TestNGSuite {
-  def data: Array[(Doc, Array[(Int, Int, Int, String)])] =
+class PrettyPrintWriterSuite extends munit.FunSuite with TestCaseSupport {
+  val data: Array[(Doc, Array[(Int, Int, Int, String)])] =
     Array(
       (
         nest(2, hsep("prefix", sep("text", "to", "lay", "out"))),
@@ -129,23 +125,27 @@ class PrettyPrintWriterSuite extends TestNGSuite {
       ),
     )
 
-  @DataProvider(name = "data")
-  def flatData: java.util.Iterator[Array[Object]] =
-    (for {
-      (doc, cases) <- data.iterator
-      (width, ribbonWidth, maxLines, expected) <- cases.iterator
-    } yield Array(doc, Int.box(width), Int.box(ribbonWidth), Int.box(maxLines), expected)).asJava
-
-  @Test(dataProvider = "data")
-  def testPP(doc: Doc, width: Integer, ribbonWidth: Integer, maxLines: Integer, expected: String)
-    : Unit = {
-    val ruler = "=" * width
-    assert(expected == s"$ruler\n${doc.render(width, ribbonWidth, maxLines)}\n$ruler")
+  object checkPP extends TestCases {
+    def apply(
+      doc: Doc,
+      width: Int,
+      ribbonWidth: Int,
+      maxLines: Int,
+      expected: String,
+    )(implicit loc: munit.Location
+    ): Unit = test("PP") {
+      val ruler = "=" * width
+      assertEquals(expected, s"$ruler\n${doc.render(width, ribbonWidth, maxLines)}\n$ruler")
+    }
   }
 
-  @Test def testIntersperse(): Unit = {
+  for {
+    (doc, cases) <- data
+    (width, ribbonWidth, maxLines, expected) <- cases
+  } checkPP(doc, width, ribbonWidth, maxLines, expected)
+
+  test("Intersperse") {
     val it = Array("A", "B", "C").iterator.intersperse("(", ",", ")")
-    assert(it.mkString == "(A,B,C)")
+    assertEquals(it.mkString, "(A,B,C)")
   }
-
 }

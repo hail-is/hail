@@ -5,55 +5,48 @@ import is.hail.utils.{handleForPython, using, HailWorkerException}
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream, DataInputStream, DataOutputStream}
 
-import org.scalatest.matchers.should.Matchers.convertToAnyShouldWrapper
-import org.scalatestplus.scalacheck.CheckerAsserting.assertingNatureOfAssertion
-import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
-import org.scalatestplus.testng.TestNGSuite
-import org.testng.annotations.Test
+import org.scalacheck.Prop.forAll
 
-class WorkerSuite extends TestNGSuite with ScalaCheckDrivenPropertyChecks {
+class WorkerSuite extends munit.ScalaCheckSuite {
 
-  @Test def testWriteReadSuccess(): Unit =
-    forAll { (partitionId: Int, payload: Array[Byte]) =>
-      val buffer =
-        using(new ByteArrayOutputStream()) { bs =>
-          using(new DataOutputStream(bs)) { os =>
-            WireProtocol.write(os, partitionId, Right(payload))
-            bs.toByteArray
-          }
+  property("WriteReadSuccess") = forAll { (partitionId: Int, payload: Array[Byte]) =>
+    val buffer =
+      using(new ByteArrayOutputStream()) { bs =>
+        using(new DataOutputStream(bs)) { os =>
+          WireProtocol.write(os, partitionId, Right(payload))
+          bs.toByteArray
         }
+      }
 
-      val (result, readPartition) =
-        using(new ByteArrayInputStream(buffer)) { bs =>
-          using(new DataInputStream(bs))(is => WireProtocol.read(is).getOrElse(null))
+    val (result, readPartition) =
+      using(new ByteArrayInputStream(buffer)) { bs =>
+        using(new DataInputStream(bs))(is => WireProtocol.read(is).getOrElse(null))
+      }
+
+    readPartition == partitionId && java.util.Arrays.equals(result, payload)
+  }
+
+  property("WriteReadFailure") = forAll { (partitionId: Int, payload: Throwable) =>
+    val buffer =
+      using(new ByteArrayOutputStream()) { bs =>
+        using(new DataOutputStream(bs)) { os =>
+          WireProtocol.write(os, partitionId, Left(payload))
+          bs.toByteArray
         }
+      }
 
-      readPartition shouldBe partitionId
-      result shouldBe payload
-    }
+    val exception: HailWorkerException =
+      using(new ByteArrayInputStream(buffer)) { bs =>
+        using(new DataInputStream(bs))(is => WireProtocol.read(is).left.getOrElse(null))
+      }
 
-  @Test def testWriteReadFailure(): Unit =
-    forAll { (partitionId: Int, payload: Throwable) =>
-      val buffer =
-        using(new ByteArrayOutputStream()) { bs =>
-          using(new DataOutputStream(bs)) { os =>
-            WireProtocol.write(os, partitionId, Left(payload))
-            bs.toByteArray
-          }
-        }
-
-      val exception: HailWorkerException =
-        using(new ByteArrayInputStream(buffer)) { bs =>
-          using(new DataInputStream(bs))(is => WireProtocol.read(is).left.getOrElse(null))
-        }
-
-      val (short, expanded, errorId) = handleForPython(payload)
-      exception shouldBe HailWorkerException(
-        partitionId = partitionId,
-        shortMessage = short,
-        expandedMessage = expanded,
-        errorId = errorId,
-      )
-    }
+    val (short, expanded, errorId) = handleForPython(payload)
+    exception == HailWorkerException(
+      partitionId = partitionId,
+      shortMessage = short,
+      expandedMessage = expanded,
+      errorId = errorId,
+    )
+  }
 
 }

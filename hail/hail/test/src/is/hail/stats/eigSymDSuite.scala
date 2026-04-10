@@ -6,12 +6,9 @@ import is.hail.utils._
 
 import breeze.linalg.{eigSym, svd, DenseMatrix, DenseVector}
 import org.apache.commons.math3.random.JDKRandomGenerator
-import org.scalatest.Inspectors.forAll
-import org.scalatest.enablers.InspectorAsserting.assertingNatureOfAssertion
-import org.testng.annotations.Test
 
 class eigSymDSuite extends HailSuite {
-  @Test def eigSymTest(): Unit = {
+  test("eigSym") {
     val seed = 0
 
     val rand = new JDKRandomGenerator()
@@ -29,21 +26,21 @@ class eigSymDSuite extends HailSuite {
     val eigSymDK = eigSymD(K)
 
     // eigSymD = svdW
-    forAll(0 until n) { j =>
+    (0 until n).foreach { j =>
       assert(D_==(svdW.S(j) * svdW.S(j), eigSymDK.eigenvalues(n - j - 1)))
       for (i <- 0 until n)
         assert(D_==(math.abs(svdW.U(i, j)), math.abs(eigSymDK.eigenvectors(i, n - j - 1))))
     }
 
     // eigSymR = svdK
-    forAll(0 until n) { j =>
+    (0 until n).foreach { j =>
       assert(D_==(svdK.S(j), eigSymDK.eigenvalues(n - j - 1)))
       for (i <- 0 until n)
         assert(D_==(math.abs(svdK.U(i, j)), math.abs(eigSymDK.eigenvectors(i, n - j - 1))))
     }
 
     // eigSymD = eigSym
-    forAll(0 until n) { j =>
+    (0 until n).foreach { j =>
       assert(D_==(eigSymK.eigenvalues(j), eigSymDK.eigenvalues(j)))
       for (i <- 0 until n)
         assert(D_==(math.abs(eigSymK.eigenvectors(i, j)), math.abs(eigSymDK.eigenvectors(i, j))))
@@ -100,13 +97,13 @@ class eigSymDSuite extends HailSuite {
     timeSymEig()
   }
 
-  @Test def triSolveTest(): Unit = {
+  test("triSolve") {
     val seed = 0
 
     val rand = new JDKRandomGenerator()
     rand.setSeed(seed)
 
-    forAll(1 to 5) { n =>
+    (1 to 5).foreach { n =>
       val A = DenseMatrix.zeros[Double](n, n)
       (0 until n).foreach(i => (i until n).foreach(j => A(i, j) = rand.nextGaussian()))
 

@@ -2,26 +2,22 @@ package is.hail.linalg
 
 import is.hail.collection.compat.immutable.ArraySeq
 
-import org.scalatestplus.testng.TestNGSuite
-import org.testng.annotations.Test
-
-class GridPartitionerSuite extends TestNGSuite {
+class GridPartitionerSuite extends munit.FunSuite {
 
   private def assertLayout(hg: GridPartitioner, layout: ((Int, Int), Int)*): Unit = {
     layout.foreach { case ((i, j), p) =>
-      assert(hg.coordinatesBlock(i, j) === p, s"at coordinates ${(i, j)}")
+      assertEquals(hg.coordinatesBlock(i, j), p, s"at coordinates ${(i, j)}")
     }
     layout.foreach { case ((i, j), p) =>
-      assert(hg.blockCoordinates(p) === ((i, j)), s"at pid $p")
+      assertEquals(hg.blockCoordinates(p), ((i, j)), s"at pid $p")
     }
   }
 
-  @Test
-  def squareIsColumnMajor(): Unit =
+  test("squareIsColumnMajor") {
     assertLayout(GridPartitioner(2, 4, 4), (0, 0) -> 0, (1, 0) -> 1, (0, 1) -> 2, (1, 1) -> 3)
+  }
 
-  @Test
-  def rectangleMoreRowsIsColumnMajor(): Unit = {
+  test("rectangleMoreRowsIsColumnMajor") {
     assertLayout(
       GridPartitioner(2, 6, 4),
       (0, 0) -> 0,
@@ -33,8 +29,7 @@ class GridPartitionerSuite extends TestNGSuite {
     )
   }
 
-  @Test
-  def rectangleMoreColsIsColumnMajor(): Unit = {
+  test("rectangleMoreColsIsColumnMajor") {
     assertLayout(
       GridPartitioner(2, 4, 6),
       (0, 0) -> 0,
@@ -46,8 +41,7 @@ class GridPartitionerSuite extends TestNGSuite {
     )
   }
 
-  @Test
-  def bandedBlocksTest(): Unit = {
+  test("bandedBlocks") {
     // 0  3  6  9
     // 1  4  7 10
     // 2  5  8 11
@@ -76,8 +70,7 @@ class GridPartitionerSuite extends TestNGSuite {
     }
   }
 
-  @Test
-  def rectangularBlocksTest(): Unit = {
+  test("rectangularBlocks") {
     // 0  3  6  9
     // 1  4  7 10
     // 2  5  8 11
@@ -85,23 +78,28 @@ class GridPartitionerSuite extends TestNGSuite {
     val gp2 = GridPartitioner(10, 21, 31)
 
     for (gp <- Seq(gp1, gp2)) {
-      assert(gp.rectangleBlocks(ArraySeq[Long](0, 1, 0, 1)) == ArraySeq(0))
-      assert(gp.rectanglesBlocks(ArraySeq(ArraySeq[Long](0, 1, 0, 1))) == ArraySeq(0))
+      assertEquals(gp.rectangleBlocks(ArraySeq[Long](0, 1, 0, 1)), ArraySeq(0))
+      assertEquals(gp.rectanglesBlocks(ArraySeq(ArraySeq[Long](0, 1, 0, 1))), ArraySeq(0))
 
-      assert(gp.rectangleBlocks(ArraySeq[Long](0, 10, 0, 10)) == ArraySeq(0))
+      assertEquals(gp.rectangleBlocks(ArraySeq[Long](0, 10, 0, 10)), ArraySeq(0))
 
-      assert(gp.rectangleBlocks(ArraySeq[Long](9, 11, 9, 11)) == ArraySeq(0, 1, 3, 4))
-      assert(gp.rectanglesBlocks(ArraySeq(ArraySeq[Long](9, 11, 9, 11))) == ArraySeq(0, 1, 3, 4))
+      assertEquals(gp.rectangleBlocks(ArraySeq[Long](9, 11, 9, 11)), ArraySeq(0, 1, 3, 4))
+      assertEquals(
+        gp.rectanglesBlocks(ArraySeq(ArraySeq[Long](9, 11, 9, 11))),
+        ArraySeq(0, 1, 3, 4),
+      )
 
-      assert(gp.rectangleBlocks(ArraySeq[Long](10, 20, 10, 30)) == ArraySeq(4, 7))
+      assertEquals(gp.rectangleBlocks(ArraySeq[Long](10, 20, 10, 30)), ArraySeq(4, 7))
 
-      assert(gp.rectanglesBlocks(ArraySeq(
-        ArraySeq[Long](9, 11, 9, 11),
-        ArraySeq(10, 20, 10, 30),
-        ArraySeq(0, 1, 20, 21),
-        ArraySeq(20, 21, 20, 31),
-      ))
-        == ArraySeq(0, 1, 3, 4, 6, 7, 8, 11))
+      assertEquals(
+        gp.rectanglesBlocks(ArraySeq(
+          ArraySeq[Long](9, 11, 9, 11),
+          ArraySeq(10, 20, 10, 30),
+          ArraySeq(0, 1, 20, 21),
+          ArraySeq(20, 21, 20, 31),
+        )),
+        ArraySeq(0, 1, 3, 4, 6, 7, 8, 11),
+      )
 
       assert(gp.rectangleBlocks(ArraySeq[Long](0, 21, 0, 31)) == (0 until 12))
     }

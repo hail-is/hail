@@ -8,11 +8,13 @@ import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical.{PCanonicalArray, PCanonicalString}
 import is.hail.types.physical.stypes.primitives.SFloat64Value
 
-import org.testng.annotations.Test
+import scala.concurrent.duration.Duration
 
 class DownsampleSuite extends HailSuite {
 
-  @Test def testLargeRandom(): Unit = {
+  override val munitTimeout = Duration(120, "s")
+
+  test("LargeRandom") {
     val lt = PCanonicalArray(PCanonicalString())
     val fb = EmitFunctionBuilder[RegionPool, Unit](ctx, "foo")
     val cb = fb.ecb

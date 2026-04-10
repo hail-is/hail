@@ -19,8 +19,6 @@ import java.lang.Math.floorDiv
 
 import breeze.linalg.{DenseMatrix => BDM}
 import breeze.math.Ring.ringFromField
-import org.scalatest.Inspectors.forAll
-import org.testng.annotations.{DataProvider, Test}
 
 class BlockMatrixIRSuite extends HailSuite {
 
@@ -50,55 +48,63 @@ class BlockMatrixIRSuite extends HailSuite {
     BlockMatrixMap2(left, right, l.name, r.name, ApplyBinaryPrimOp(op, l, r), strategy)
   }
 
-  @DataProvider(name = "valToBMData")
-  def valToBMData(): Array[Array[Any]] = Array(
-    Array(
-      ValueToBlockMatrix(F64(1), FastSeq(1, 1), BLOCK_SIZE),
-      BDM.fill[Double](1, 1)(1),
-    ),
-    Array(ones, BDM.fill[Double](N_ROWS, N_COLS)(1)),
-    Array(
-      ValueToBlockMatrix(
-        child = ToArray(mapIR(rangeIR(64))(it => it.toD)),
-        shape = FastSeq(8, 8),
-        blockSize = 3,
-      ),
-      BDM.tabulate[Double](8, 8)((i, j) => i * 8.0 + j),
-    ),
-    Array(
-      ValueToBlockMatrix(
-        child = ToArray(mapIR(rangeIR(27))(it => it.toD)),
-        shape = FastSeq(3, 9),
-        blockSize = 3,
-      ),
-      BDM.tabulate[Double](3, 9)((i, j) => i * 9.0 + j),
-    ),
-    Array(
-      ValueToBlockMatrix(
-        child = MakeNDArray.fill(F64(1), FastSeq(I64(8), I64(8)), True()),
-        shape = FastSeq(8, 8),
-        blockSize = 3,
-      ),
-      BDM.fill[Double](8, 8)(1),
-    ),
-    Array(
-      ValueToBlockMatrix(
-        child = MakeNDArray(
-          ToArray(mapIR(rangeIR(27))(it => it.toD)),
-          MakeTuple.ordered(FastSeq(I64(3), I64(9))),
-          True(),
-          ErrorIDs.NO_ERROR,
-        ),
-        shape = FastSeq(3, 9),
-        blockSize = 3,
-      ),
-      BDM.tabulate[Double](3, 9)((i, j) => i * 9.0 + j),
-    ),
+  object checkValueToBlockMatrix extends TestCases {
+    def apply(
+      bmir: BlockMatrixIR,
+      bdm: BDM[Double],
+    )(implicit loc: munit.Location
+    ): Unit = test("ValueToBlockMatrix") {
+      assertBMEvalsTo(bmir, bdm)
+    }
+  }
+
+  checkValueToBlockMatrix(
+    ValueToBlockMatrix(F64(1), FastSeq(1, 1), BLOCK_SIZE),
+    BDM.fill[Double](1, 1)(1),
   )
 
-  @Test(dataProvider = "valToBMData")
-  def testValueToBlockMatrix(bmir: ValueToBlockMatrix, bdm: BDM[Double]): Unit =
-    assertBMEvalsTo(bmir, bdm)
+  checkValueToBlockMatrix(ones, BDM.fill[Double](N_ROWS, N_COLS)(1))
+
+  checkValueToBlockMatrix(
+    ValueToBlockMatrix(
+      child = ToArray(mapIR(rangeIR(64))(it => it.toD)),
+      shape = FastSeq(8, 8),
+      blockSize = 3,
+    ),
+    BDM.tabulate[Double](8, 8)((i, j) => i * 8.0 + j),
+  )
+
+  checkValueToBlockMatrix(
+    ValueToBlockMatrix(
+      child = ToArray(mapIR(rangeIR(27))(it => it.toD)),
+      shape = FastSeq(3, 9),
+      blockSize = 3,
+    ),
+    BDM.tabulate[Double](3, 9)((i, j) => i * 9.0 + j),
+  )
+
+  checkValueToBlockMatrix(
+    ValueToBlockMatrix(
+      child = MakeNDArray.fill(F64(1), FastSeq(I64(8), I64(8)), True()),
+      shape = FastSeq(8, 8),
+      blockSize = 3,
+    ),
+    BDM.fill[Double](8, 8)(1),
+  )
+
+  checkValueToBlockMatrix(
+    ValueToBlockMatrix(
+      child = MakeNDArray(
+        ToArray(mapIR(rangeIR(27))(it => it.toD)),
+        MakeTuple.ordered(FastSeq(I64(3), I64(9))),
+        True(),
+        ErrorIDs.NO_ERROR,
+      ),
+      shape = FastSeq(3, 9),
+      blockSize = 3,
+    ),
+    BDM.tabulate[Double](3, 9)((i, j) => i * 9.0 + j),
+  )
 
   def rangeBlockMatrix(nRows: Int, nCols: Int, blockSize: Int = 2): BlockMatrixIR =
     ValueToBlockMatrix(
@@ -128,16 +134,14 @@ class BlockMatrixIRSuite extends HailSuite {
       else 0.0
     }
 
-  @Test
-  def testBlockMatrixSparsify(): Unit = {
+  test("BlockMatrixSparsify") {
     val blocks = FastSeq((1, 0), (0, 1), (2, 1), (0, 2))
     val bm = sparseRangeBlockMatrix(5, 5, blocks)
     val expected = sparseRangeBreezeMatrix(5, 5, blocks)
     assertBMEvalsTo(bm, expected)
   }
 
-  @Test
-  def testBlockMatrixSparseTranspose(): Unit = {
+  test("BlockMatrixSparseTranspose") {
     val blocks = FastSeq((1, 0), (0, 1), (2, 1), (0, 2))
     val bm = sparseRangeBlockMatrix(5, 5, blocks)
     val expected = sparseRangeBreezeMatrix(5, 5, blocks)
@@ -147,8 +151,7 @@ class BlockMatrixIRSuite extends HailSuite {
     )
   }
 
-  @Test
-  def testBlockMatrixSparseSumCols(): Unit = {
+  test("BlockMatrixSparseSumCols") {
     val blocks = FastSeq((1, 0), (0, 1), (2, 1), (0, 2))
     val bm = sparseRangeBlockMatrix(5, 5, blocks)
     assertBMEvalsTo(
@@ -157,8 +160,7 @@ class BlockMatrixIRSuite extends HailSuite {
     )
   }
 
-  @Test
-  def testBlockMatrixSparseSumRows(): Unit = {
+  test("BlockMatrixSparseSumRows") {
     val blocks = FastSeq((1, 0), (0, 1), (2, 1), (0, 2))
     val bm = sparseRangeBlockMatrix(5, 5, blocks)
     assertBMEvalsTo(
@@ -167,8 +169,7 @@ class BlockMatrixIRSuite extends HailSuite {
     )
   }
 
-  @Test
-  def testBlockMatrixSparseSumAll(): Unit = {
+  test("BlockMatrixSparseSumAll") {
     val blocks = FastSeq((1, 0), (0, 1), (2, 1), (0, 2))
     val bm = sparseRangeBlockMatrix(5, 5, blocks)
     assertBMEvalsTo(
@@ -177,7 +178,7 @@ class BlockMatrixIRSuite extends HailSuite {
     )
   }
 
-  @Test def testBlockMatrixWriteRead(): Unit = {
+  test("BlockMatrixWriteRead") {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.interpretOnly
     val tempPath = ctx.createTmpPath("test-blockmatrix-write-read", "bm")
     Interpret[Unit](
@@ -191,7 +192,7 @@ class BlockMatrixIRSuite extends HailSuite {
     )
   }
 
-  @Test def testBlockMatrixMap(): Unit = {
+  test("BlockMatrixMap") {
     val element = Ref(freshName(), TFloat64)
     val sqrtIR = BlockMatrixMap(
       ones,
@@ -220,7 +221,7 @@ class BlockMatrixIRSuite extends HailSuite {
     assertBMEvalsTo(absIR, BDM.fill[Double](3, 3)(1))
   }
 
-  @Test def testBlockMatrixMap2(): Unit = {
+  test("BlockMatrixMap2") {
     val onesAddOnes = makeMap2(ones, ones, Add(), UnionBlocks)
     val onesSubOnes = makeMap2(ones, ones, Subtract(), UnionBlocks)
     val onesMulOnes = makeMap2(ones, ones, Multiply(), IntersectionBlocks)
@@ -232,7 +233,7 @@ class BlockMatrixIRSuite extends HailSuite {
     assertBMEvalsTo(onesDivOnes, BDM.fill[Double](3, 3)(1.0 / 1.0))
   }
 
-  @Test def testBlockMatrixBroadcastValue_Scalars(): Unit = {
+  test("BlockMatrixBroadcastValue_Scalars") {
     val broadcastTwo = BlockMatrixBroadcast(
       ValueToBlockMatrix(
         MakeArray(IndexedSeq[F64](F64(2)), TArray(TFloat64)),
@@ -255,7 +256,7 @@ class BlockMatrixIRSuite extends HailSuite {
     assertBMEvalsTo(onesDivTwo, BDM.fill[Double](3, 3)(1.0 / 2.0))
   }
 
-  @Test def testBlockMatrixBroadcastValue_Vectors(): Unit = {
+  test("BlockMatrixBroadcastValue_Vectors") {
     val vectorLiteral = MakeArray(IndexedSeq[F64](F64(1), F64(2), F64(3)), TArray(TFloat64))
 
     val broadcastRowVector = BlockMatrixBroadcast(
@@ -278,7 +279,7 @@ class BlockMatrixIRSuite extends HailSuite {
       (FloatingPointDivide(), NeedsDense, (i: Double, j: Double) => i / j),
     )
 
-    forAll(ops) { case (op, merge, f) =>
+    ops.foreach { case (op, merge, f) =>
       val rightRowOp = makeMap2(ones, broadcastRowVector, op, merge)
       val rightColOp = makeMap2(ones, broadcastColVector, op, merge)
       val leftRowOp = makeMap2(broadcastRowVector, ones, op, merge)
@@ -296,7 +297,7 @@ class BlockMatrixIRSuite extends HailSuite {
     }
   }
 
-  @Test def testBlockMatrixFilter(): Unit = {
+  test("BlockMatrixFilter") {
     val nRows = 5
     val nCols = 8
     val original = BDM.tabulate[Double](nRows, nCols)((i, j) => i.toDouble * nCols + j)
@@ -319,7 +320,7 @@ class BlockMatrixIRSuite extends HailSuite {
     )
   }
 
-  @Test def testBlockMatrixSlice(): Unit = {
+  test("BlockMatrixSlice") {
     val nRows = 12
     val nCols = 8
     val original = BDM.tabulate[Double](nRows, nCols)((i, j) => i.toDouble * nCols + j)
@@ -336,7 +337,7 @@ class BlockMatrixIRSuite extends HailSuite {
     )
   }
 
-  @Test def testBlockMatrixSliceSparse(): Unit = {
+  test("BlockMatrixSparse") {
     val nRows = 12
     val nCols = 8
     val original = BDM.tabulate[Double](nRows, nCols)((i, j) => i.toDouble * nCols + j)
@@ -354,13 +355,13 @@ class BlockMatrixIRSuite extends HailSuite {
     )
   }
 
-  @Test def testBlockMatrixDot(): Unit = {
+  test("BlockMatrixDot") {
     val m1 = BDM.tabulate[Double](5, 4)((i, j) => (i.toDouble + 1) * j)
     val m2 = BDM.tabulate[Double](4, 6)((i, j) => (i.toDouble + 5) * (j - 2))
     assertBMEvalsTo(BlockMatrixDot(toIR(m1), toIR(m2)), m1 * m2)
   }
 
-  @Test def testBlockMatrixRandom(): Unit = {
+  test("BlockMatrixRandom") {
     val gaussian = BlockMatrixRandom(0, gaussian = true, shape = ArraySeq(5L, 6L), blockSize = 3)
     val uniform = BlockMatrixRandom(0, gaussian = false, shape = ArraySeq(5L, 6L), blockSize = 3)
 
@@ -376,7 +377,7 @@ class BlockMatrixIRSuite extends HailSuite {
     )
   }
 
-  @Test def readBlockMatrixIR(): Unit = {
+  test("readBlockMatrixIR") {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
     val etype = EBlockMatrixNDArray(EFloat64Required, required = true)
     val path =
@@ -405,7 +406,7 @@ class BlockMatrixIRSuite extends HailSuite {
     )
   }
 
-  @Test def readWriteBlockMatrix(): Unit = {
+  test("readWriteBlockMatrix") {
     val original = getTestResource("blockmatrix_example/0")
     val expected = BlockMatrix.read(ctx, original).toBreezeMatrix()
 
@@ -422,7 +423,7 @@ class BlockMatrixIRSuite extends HailSuite {
     assertBMEvalsTo(BlockMatrixRead(BlockMatrixNativeReader(ctx.fs, path)), expected)
   }
 
-  @Test def testBlockMatrixDensify(): Unit = {
+  test("BlockMatrixDensify") {
     val dense = fill(1, nRows = 10, nCols = 10, blockSize = 5)
     val sparse = BlockMatrixSparsify(dense, PerBlockSparsifier(FastSeq(0, 1, 2)))
     val densified = BlockMatrixDensify(sparse)

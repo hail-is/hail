@@ -9,7 +9,6 @@ import is.hail.types.physical.stypes.concrete.{
 }
 
 import org.apache.commons.math3.distribution.ChiSquaredDistribution
-import org.testng.annotations.Test
 
 class RandomSuite extends HailSuite {
   // from skein_golden_kat_short_internals.txt in the skein source
@@ -28,7 +27,7 @@ class RandomSuite extends HailSuite {
     ),
   )
 
-  @Test def testThreefry(): Unit = {
+  test("Threefry") {
     for {
       (key, tweak, input, expected) <- threefryTestCases
     } {
@@ -160,7 +159,7 @@ class RandomSuite extends HailSuite {
     (Array[Long](100, 101, 102, 103, 104), 30L),
   )
 
-  @Test def testPMAC(): Unit = {
+  test("PMAC") {
     for {
       (message, staticID) <- pmacTestCases
     } {
@@ -172,7 +171,7 @@ class RandomSuite extends HailSuite {
     }
   }
 
-  @Test def testPMACHash(): Unit = {
+  test("PMACHash") {
     for {
       (message, _) <- pmacTestCases
     } {
@@ -185,7 +184,7 @@ class RandomSuite extends HailSuite {
     }
   }
 
-  @Test def testRandomEngine(): Unit = {
+  test("RandomEngine") {
     for {
       (message, staticID) <- pmacTestCases
     } {
@@ -232,7 +231,7 @@ class RandomSuite extends HailSuite {
     println(s"passed after $numRuns runs with pvalue $geometricMean")
   }
 
-  @Test def testRandomInt(): Unit = {
+  test("RandomInt") {
     val n = 1 << 25
     val k = 1 << 15
     val rand = ThreefryRandomEngine.randState()
@@ -241,7 +240,7 @@ class RandomSuite extends HailSuite {
     }
   }
 
-  @Test def testBoundedUniformInt(): Unit = {
+  test("BoundedUniformInt") {
     var n = 1 << 25
     var k = 1 << 15
     val rand = ThreefryRandomEngine.randState()
@@ -256,7 +255,7 @@ class RandomSuite extends HailSuite {
     }
   }
 
-  @Test def testBoundedUniformLong(): Unit = {
+  test("BoundedUniformLong") {
     var n = 1 << 25
     var k = 1 << 15
     val rand = ThreefryRandomEngine.randState()
@@ -271,7 +270,7 @@ class RandomSuite extends HailSuite {
     }
   }
 
-  @Test def testUniformDouble(): Unit = {
+  test("UniformDouble") {
     val n = 1 << 25
     val k = 1 << 15
     val rand = ThreefryRandomEngine.randState()
@@ -282,7 +281,7 @@ class RandomSuite extends HailSuite {
     }
   }
 
-  @Test def testUniformFloat(): Unit = {
+  test("UniformFloat") {
     val n = 1 << 25
     val k = 1 << 15
     val rand = ThreefryRandomEngine.randState()

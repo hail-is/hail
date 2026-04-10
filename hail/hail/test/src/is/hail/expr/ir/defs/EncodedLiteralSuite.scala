@@ -2,12 +2,9 @@ package is.hail.expr.ir.defs
 
 import is.hail.HailSuite
 
-import org.testng.annotations.Test
-
 class EncodedLiteralSuite extends HailSuite {
 
-  @Test
-  def testWrappedByteArrayEquality(): Unit = {
+  test("WrappedByteArrayEquality") {
     val byteArray1 = Array[Byte](1, 2, 1, 1)
     val byteArray2 = Array[Byte](1, 2, 1, 1)
     val byteArray3 = Array[Byte](0, 0, 1, 0)

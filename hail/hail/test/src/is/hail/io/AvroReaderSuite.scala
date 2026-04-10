@@ -12,7 +12,6 @@ import org.apache.avro.SchemaBuilder
 import org.apache.avro.file.DataFileWriter
 import org.apache.avro.generic.{GenericDatumWriter, GenericRecord, GenericRecordBuilder}
 import org.apache.spark.sql.Row
-import org.testng.annotations.Test
 
 class AvroReaderSuite extends HailSuite {
   implicit val execStrats: Set[ExecStrategy] = Set(ExecStrategy.LoweredJVMCompile)
@@ -63,7 +62,7 @@ class AvroReaderSuite extends HailSuite {
     avroFile
   }
 
-  @Test def avroReaderWorks(): Unit = {
+  test("avroReaderWorks") {
     val avroFile = makeTestFile()
     val ir = ToArray(ReadPartition(
       MakeStruct(ArraySeq("partitionPath" -> Str(avroFile), "partitionIndex" -> I64(0))),
@@ -76,7 +75,7 @@ class AvroReaderSuite extends HailSuite {
     assertEvalsTo(ir, testValueWithUIDs)
   }
 
-  @Test def testSmallerRequestedType(): Unit = {
+  test("SmallerRequestedType") {
     val avroFile = makeTestFile()
     val ir = ToArray(ReadPartition(
       MakeStruct(ArraySeq("partitionPath" -> Str(avroFile), "partitionIndex" -> I64(0))),

@@ -10,15 +10,14 @@ import scala.language.postfixOps
 import java.io.PrintWriter
 
 import org.scalacheck.Gen.choose
-import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
-import org.testng.annotations.{DataProvider, Test}
+import org.scalacheck.Prop.forAll
 
 trait Z2Z { def apply(z: Boolean): Boolean }
 
-class ASM4SSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
+class ASM4SSuite extends HailSuite with munit.ScalaCheckSuite {
   override val theHailClassLoader = new HailClassLoader(getClass().getClassLoader())
 
-  @Test def not(): Unit = {
+  test("not") {
     val notb = FunctionBuilder[Z2Z](
       "is/hail/asm4s/Z2Z",
       ArraySeq(NotGenericTypeInfo[Boolean]),
@@ -30,30 +29,30 @@ class ASM4SSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(not(false))
   }
 
-  @Test def mux(): Unit = {
+  test("mux") {
     val gb = FunctionBuilder[Boolean, Int]("G")
     gb.emit(gb.getArg[Boolean](1).mux(11, -1))
     val g = gb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
-    assert(g(true) == 11)
-    assert(g(false) == -1)
+    assertEquals(g(true), 11)
+    assertEquals(g(false), -1)
   }
 
-  @Test def add(): Unit = {
+  test("add") {
     val fb = FunctionBuilder[Int, Int]("F")
     fb.emit(fb.getArg[Int](1) + 5)
     val f = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
-    assert(f(-2) == 3)
+    assertEquals(f(-2), 3)
   }
 
-  @Test def iinc(): Unit = {
+  test("iinc") {
     val fb = FunctionBuilder[Int]("F")
     val l = fb.newLocal[Int]()
     fb.emit(Code(l := 0, l ++, l += 2, l))
     val f = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
-    assert(f() == 3)
+    assertEquals(f(), 3)
   }
 
-  @Test def array(): Unit = {
+  test("array") {
     val hb = FunctionBuilder[Int, Int]("H")
     val arr = hb.newLocal[Array[Int]]()
     hb.emit(Code(
@@ -64,46 +63,46 @@ class ASM4SSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       arr(hb.getArg[Int](1)),
     ))
     val h = hb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
-    assert(h(0) == 6)
-    assert(h(1) == 7)
-    assert(h(2) == -6)
+    assertEquals(h(0), 6)
+    assertEquals(h(1), 7)
+    assertEquals(h(2), -6)
   }
 
-  @Test def get(): Unit = {
+  test("get") {
     val fb = FunctionBuilder[Foo, Int]("F")
     fb.emit(fb.getArg[Foo](1).getField[Int]("i"))
     val i = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
 
     val a = new Foo
-    assert(i(a) == 5)
+    assertEquals(i(a), 5)
   }
 
-  @Test def invoke(): Unit = {
+  test("invoke") {
     val fb = FunctionBuilder[Foo, Int]("F")
     fb.emit(fb.getArg[Foo](1).invoke[Int]("f"))
     val i = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
 
     val a = new Foo
-    assert(i(a) == 6)
+    assertEquals(i(a), 6)
   }
 
-  @Test def invoke2(): Unit = {
+  test("invoke2") {
     val fb = FunctionBuilder[Foo, Int]("F")
     fb.emit(fb.getArg[Foo](1).invoke[Int, Int]("g", 6))
     val j = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
 
     val a = new Foo
-    assert(j(a) == 11)
+    assertEquals(j(a), 11)
   }
 
-  @Test def newInstance(): Unit = {
+  test("newInstance") {
     val fb = FunctionBuilder[Int]("F")
     fb.emit(Code.newInstance[Foo]().invoke[Int]("f"))
     val f = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
-    assert(f() == 6)
+    assertEquals(f(), 6)
   }
 
-  @Test def put(): Unit = {
+  test("put") {
     val fb = FunctionBuilder[Int]("F")
     val inst = fb.newLocal[Foo]()
     fb.emit(Code(
@@ -112,10 +111,10 @@ class ASM4SSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       inst.getField[Int]("i"),
     ))
     val f = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
-    assert(f() == -2)
+    assertEquals(f(), -2)
   }
 
-  @Test def staticPut(): Unit = {
+  test("staticPut") {
     val fb = FunctionBuilder[Int]("F")
     val inst = fb.newLocal[Foo]()
     fb.emit(Code(
@@ -124,17 +123,17 @@ class ASM4SSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       Code.getStatic[Foo, Int]("j"),
     ))
     val f = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
-    assert(f() == -2)
+    assertEquals(f(), -2)
   }
 
-  @Test def f2(): Unit = {
+  test("f2") {
     val fb = FunctionBuilder[Int, Int, Int]("F")
     fb.emit(fb.getArg[Int](1) + fb.getArg[Int](2))
     val f = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
-    assert(f(3, 5) == 8)
+    assertEquals(f(3, 5), 8)
   }
 
-  @Test def compare(): Unit = {
+  test("compare") {
     val fb = FunctionBuilder[Int, Int, Boolean]("F")
     fb.emit(fb.getArg[Int](1) > fb.getArg[Int](2))
     val f = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
@@ -143,7 +142,7 @@ class ASM4SSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(!f(2, 5))
   }
 
-  @Test def fact(): Unit = {
+  test("fact") {
     val fb = FunctionBuilder[Int, Int]("Fact")
     val i = fb.getArg[Int](1)
     fb.emitWithBuilder[Int] { cb =>
@@ -159,11 +158,11 @@ class ASM4SSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     }
 
     val f = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
-    assert(f(3) == 6)
-    assert(f(4) == 24)
+    assertEquals(f(3), 6)
+    assertEquals(f(4), 24)
   }
 
-  @Test def dcmp(): Unit = {
+  test("dcmp") {
     val fb = FunctionBuilder[Double, Double, Boolean]("F")
     fb.emit(fb.getArg[Double](1) > fb.getArg[Double](2))
     val f = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
@@ -174,7 +173,7 @@ class ASM4SSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(!f(2.3, 5.2))
   }
 
-  @Test def anewarray(): Unit = {
+  test("anewarray") {
     val fb = FunctionBuilder[Int]("F")
     val arr = fb.newLocal[Array[Foo]]()
     fb.emit(Code(
@@ -184,7 +183,7 @@ class ASM4SSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       arr(0).getField[Int]("i") + arr(1).getField[Int]("i"),
     ))
     val f = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
-    assert(f() == 10)
+    assertEquals(f(), 10)
   }
 
   def fib(_n: Int): Int = {
@@ -203,7 +202,7 @@ class ASM4SSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     b
   }
 
-  @Test def fibonacci(): Unit = {
+  property("fibonacci") {
     val Fib = FunctionBuilder[Int, Int]("Fib")
     Fib.emitWithBuilder[Int] { cb =>
       val n = Fib.getArg[Int](1)
@@ -228,51 +227,51 @@ class ASM4SSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     forAll(choose(0, 100))(i => fib(i) == f(i))
   }
 
-  // type inference helper
-  private[this] def refl[A](a: (Code[A], Code[A]) => Code[Boolean]) =
-    a
-
-  @DataProvider(name = "DoubleComparisonOperator")
-  def doubleComparisonOperator(): Array[(Code[Double], Code[Double]) => Code[Boolean]] =
-    Array(
-      refl(_ < _),
-      refl(_ <= _),
-      refl(_ >= _),
-      refl(_ > _),
-      refl(_ ceq _),
-      refl(_ cne _),
-    )
-
-  @Test(dataProvider = "DoubleComparisonOperator")
-  def nanDoubleAlwaysComparesFalse(op: (Code[Double], Code[Double]) => Code[Boolean]): Unit =
-    forAll { (x: Double) =>
-      val F = FunctionBuilder[Double, Double, Boolean]("CMP")
-      F.emit(op(F.getArg[Double](1), F.getArg[Double](2)))
-      val cmp = F.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
-      !cmp(Double.NaN, x)
+  object checkNanDoubleComparisons extends TestCases {
+    def apply(
+      op: (Code[Double], Code[Double]) => Code[Boolean],
+      expected: Boolean,
+    )(implicit loc: munit.Location
+    ): Unit = property(s"nan double always compares false") {
+      forAll { (x: Double) =>
+        val F = FunctionBuilder[Double, Double, Boolean]("CMP")
+        F.emit(op(F.getArg[Double](1), F.getArg[Double](2)))
+        val cmp = F.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
+        cmp(Double.NaN, x) == expected && cmp(x, Double.NaN) == expected
+      }
     }
+  }
 
-  @DataProvider(name = "FloatComparisonOperator")
-  def floatComparisonOperator(): Array[(Code[Float], Code[Float]) => Code[Boolean]] =
-    Array(
-      refl(_ < _),
-      refl(_ <= _),
-      refl(_ >= _),
-      refl(_ > _),
-      refl(_ ceq _),
-      refl(_ cne _),
-    )
+  checkNanDoubleComparisons(_ < _, false)
+  checkNanDoubleComparisons(_ <= _, false)
+  checkNanDoubleComparisons(_ >= _, false)
+  checkNanDoubleComparisons(_ > _, false)
+  checkNanDoubleComparisons(_ ceq _, false)
+  checkNanDoubleComparisons(_ cne _, true)
 
-  @Test(dataProvider = "FloatComparisonOperator")
-  def nanFloatAlwaysComparesFalse(op: (Code[Float], Code[Float]) => Code[Boolean]): Unit =
-    forAll { (x: Float) =>
-      val F = FunctionBuilder[Float, Float, Boolean]("CMP")
-      F.emit(op(F.getArg[Float](1), F.getArg[Float](2)))
-      val cmp = F.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
-      !cmp(Float.NaN, x)
+  object checkNanFloatComparisons extends TestCases {
+    def apply(
+      op: (Code[Float], Code[Float]) => Code[Boolean],
+      expected: Boolean,
+    )(implicit loc: munit.Location
+    ): Unit = property(s"nan float always compares false case") {
+      forAll { (x: Float) =>
+        val F = FunctionBuilder[Float, Float, Boolean]("CMP")
+        F.emit(op(F.getArg[Float](1), F.getArg[Float](2)))
+        val cmp = F.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
+        cmp(Float.NaN, x) == expected && cmp(x, Float.NaN) == expected
+      }
     }
+  }
 
-  @Test def defineOpsAsMethods(): Unit = {
+  checkNanFloatComparisons(_ < _, false)
+  checkNanFloatComparisons(_ <= _, false)
+  checkNanFloatComparisons(_ >= _, false)
+  checkNanFloatComparisons(_ > _, false)
+  checkNanFloatComparisons(_ ceq _, false)
+  checkNanFloatComparisons(_ cne _, true)
+
+  test("defineOpsAsMethods") {
     val fb = FunctionBuilder[Int, Int, Int, Int]("F")
     val add = fb.genMethod[Int, Int, Int]("add")
     val sub = fb.genMethod[Int, Int, Int]("sub")
@@ -301,12 +300,12 @@ class ASM4SSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
     val f =
       fb.result(ctx.shouldWriteIRFiles(), Some(new PrintWriter(System.out)))(theHailClassLoader)
-    assert(f(0, 1, 1) == 2)
-    assert(f(1, 5, 1) == 4)
-    assert(f(2, 2, 8) == 16)
+    assertEquals(f(0, 1, 1), 2)
+    assertEquals(f(1, 5, 1), 4)
+    assertEquals(f(2, 2, 8), 16)
   }
 
-  @Test def checkLocalVarsOnMethods(): Unit = {
+  test("checkLocalVarsOnMethods") {
     val fb = FunctionBuilder[Int, Int, Int]("F")
     val add = fb.genMethod[Int, Int, Int]("add")
 
@@ -323,10 +322,10 @@ class ASM4SSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
     fb.emitWithBuilder(cb => cb.invoke(add, cb.this_, fb.getArg[Int](1), fb.getArg[Int](2)))
     val f = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
-    assert(f(1, 1) == 2)
+    assertEquals(f(1, 1), 2)
   }
 
-  @Test def checkClassFields(): Unit = {
+  test("checkClassFields") {
 
     def readField[T: TypeInfo](arg1: Int, arg2: Long, arg3: Boolean): T = {
       val fb = FunctionBuilder[Int, Long, Boolean, T]("F")
@@ -348,12 +347,12 @@ class ASM4SSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       f(arg1, arg2, arg3)
     }
 
-    assert(readField[Int](1, 2L, true) == 1)
-    assert(readField[Long](1, 2L, true) == 2L)
+    assertEquals(readField[Int](1, 2L, true), 1)
+    assertEquals(readField[Long](1, 2L, true), 2L)
     assert(readField[Boolean](1, 2L, true))
   }
 
-  @Test def checkClassFieldsFromMethod(): Unit = {
+  test("checkClassFieldsFromMethod") {
     def readField[T: TypeInfo](arg1: Int, arg2: Long, arg3: Boolean): T = {
       val fb = FunctionBuilder[Int, Long, Boolean, T]("F")
       val mb = fb.genMethod[Int, Long, Boolean, T]("m")
@@ -378,12 +377,12 @@ class ASM4SSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       f(arg1, arg2, arg3)
     }
 
-    assert(readField[Int](1, 2L, true) == 1)
-    assert(readField[Long](1, 2L, true) == 2L)
+    assertEquals(readField[Int](1, 2L, true), 1)
+    assertEquals(readField[Long](1, 2L, true), 2L)
     assert(readField[Boolean](1, 2L, true))
   }
 
-  @Test def lazyFieldEvaluatesOnce(): Unit = {
+  test("lazyFieldEvaluatesOnce") {
     val F = FunctionBuilder[Int]("LazyField")
     val a = F.genFieldThisRef[Int]("a")
     val lzy = F.genLazyFieldThisRef(a + 1, "lzy")
@@ -396,10 +395,10 @@ class ASM4SSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     ))
 
     val f = F.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
-    assert(f() == 1)
+    assertEquals(f(), 1)
   }
 
-  @Test def testInitialize(): Unit = {
+  test("initialize") {
     val fb = FunctionBuilder[Boolean, Int]("F")
     fb.emitWithBuilder { cb =>
       val a = cb.newLocal[Int]("a")
@@ -407,31 +406,31 @@ class ASM4SSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       a
     }
     val f = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
-    assert(f(true) == 0)
-    assert(f(false) == 5)
+    assertEquals(f(true), 0)
+    assertEquals(f(false), 5)
   }
 
-  @Test def testInit(): Unit = {
+  test("init") {
     val Main = FunctionBuilder[Int]("Main")
     val a = Main.genFieldThisRef[Int]("a")
     Main.emitInit(a := 1)
     Main.emit(a)
 
     val test = Main.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
-    assert(test() == 1)
+    assertEquals(test(), 1)
   }
 
-  @Test def testClinit(): Unit = {
+  test("clinit") {
     val Main = FunctionBuilder[Int]("Main")
     val a = Main.newStaticField[Int]("a")
     Main.emitClinit(a.put(1))
     Main.emit(a.get())
 
     val test = Main.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
-    assert(test() == 1)
+    assertEquals(test(), 1)
   }
 
-  @Test def testClassInstances(): Unit = {
+  test("classInstances") {
     val Counter = FunctionBuilder[Int]("Counter")
     val x = Counter.genFieldThisRef[Int]("x")
     Counter.emitInit(x := 0)
@@ -454,10 +453,10 @@ class ASM4SSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
     Counter.result(ctx.shouldWriteIRFiles())(theHailClassLoader): Unit
     val test = Main.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
-    assert(test() == 6)
+    assertEquals(test(), 6)
   }
 
-  @Test def testIf(): Unit = {
+  property("if") {
     val Main = FunctionBuilder[Int, Int]("If")
     Main.emitWithBuilder[Int] { cb =>
       val a = cb.mb.getArg[Int](1)
@@ -470,7 +469,7 @@ class ASM4SSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     forAll((x: Int) => abs(x) == x.abs)
   }
 
-  @Test def testWhile(): Unit = {
+  property("while") {
     val Main = FunctionBuilder[Int, Int, Int]("While")
     Main.emitWithBuilder[Int] { cb =>
       val a = cb.mb.getArg[Int](1)
@@ -493,7 +492,7 @@ class ASM4SSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     forAll(choose(-10, 10), choose(-10, 10))((x, y) => add(x, y) == x + y)
   }
 
-  @Test def testFor(): Unit = {
+  property("for") {
     val Main = FunctionBuilder[Int, Int, Int]("For")
     Main.emitWithBuilder[Int] { cb =>
       val a = cb.mb.getArg[Int](1)

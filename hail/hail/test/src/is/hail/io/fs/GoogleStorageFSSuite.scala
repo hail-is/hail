@@ -2,19 +2,16 @@ package is.hail.io.fs
 
 import is.hail.services.oauth2.GoogleCloudCredentials
 
-import org.scalatestplus.testng.TestNGSuite
-import org.testng.SkipException
-import org.testng.annotations.{BeforeClass, Test}
-
-class GoogleStorageFSSuite extends TestNGSuite with FSSuite {
-  @BeforeClass
-  def beforeclass(): Unit =
-    if (
-      System.getenv("HAIL_CLOUD") != "gcp" ||
-      root == null ||
-      fsResourcesRoot == null
+class GoogleStorageFSSuite extends FSSuite {
+  override def beforeAll(): Unit = {
+    super.beforeAll()
+    assume(
+      System.getenv("HAIL_CLOUD") == "gcp" &&
+        root != null &&
+        fsResourcesRoot != null,
+      "not in GCP",
     )
-      throw new SkipException("skip")
+  }
 
   override lazy val fs: FS =
     new GoogleStorageFS(
@@ -23,13 +20,12 @@ class GoogleStorageFSSuite extends TestNGSuite with FSSuite {
       None,
     )
 
-  @Test def testMakeQualified(): Unit = {
+  test("MakeQualified") {
     val qualifiedFileName = "gs://bucket/path"
-    assert(fs.makeQualified(qualifiedFileName) == qualifiedFileName)
+    assertEquals(fs.makeQualified(qualifiedFileName), qualifiedFileName)
 
-    val unqualifiedFileName = "not-gs://bucket/path"
-    assertThrows[IllegalArgumentException] {
-      fs.makeQualified(unqualifiedFileName)
+    intercept[IllegalArgumentException] {
+      fs.makeQualified("not-gs://bucket/path")
     }
   }
 }

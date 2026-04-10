@@ -21,12 +21,9 @@ import is.hail
 import org.apache.spark.sql.Row
 import org.scalacheck.Arbitrary.arbitrary
 import org.scalacheck.Gen
-import org.scalatest
-import org.scalatestplus.scalacheck.CheckerAsserting.assertingNatureOfAssertion
-import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
-import org.testng.annotations.{DataProvider, Test}
+import org.scalacheck.Prop.forAll
 
-class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
+class OrderingSuite extends HailSuite with munit.ScalaCheckSuite {
 
   implicit val execStrats: hail.ExecStrategy.ValueSet = ExecStrategy.values
 
@@ -67,31 +64,31 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, r)
   }
 
-  @Test def testMissingNonequalComparisons(): Unit = {
-    def getStagedOrderingFunctionWithMissingness(
-      t: PType,
-      op: CodeOrdering.Op,
-      r: Region,
-      sortOrder: SortOrder = Ascending,
-    ): AsmFunction5[Region, Boolean, Long, Boolean, Long, op.ReturnType] = {
-      implicit val x = op.rtti
-      val fb =
-        EmitFunctionBuilder[Region, Boolean, Long, Boolean, Long, op.ReturnType](ctx, "lifted")
-      fb.emitWithBuilder { cb =>
-        val m1 = fb.getCodeParam[Boolean](2)
-        val cv1 = t.loadCheapSCode(cb, fb.getCodeParam[Long](3))
-        val m2 = fb.getCodeParam[Boolean](4)
-        val cv2 = t.loadCheapSCode(cb, fb.getCodeParam[Long](5))
-        val ev1 = EmitValue(Some(m1), cv1)
-        val ev2 = EmitValue(Some(m2), cv2)
-        fb.ecb.getOrderingFunction(ev1.st, ev2.st, op)
-          .apply(cb, ev1, ev2)
-      }
-      fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, r)
-    }
-
-    forAll(genTypeVal[TStruct](ctx)) { case (t, a) =>
+  property("MissingNonequalComparisons") =
+    forAll(genTypeVal[TStruct](ctx)) { case (t: TStruct, a) =>
       pool.scopedRegion { region =>
+        def getStagedOrderingFunctionWithMissingness(
+          t: PType,
+          op: CodeOrdering.Op,
+          r: Region,
+          sortOrder: SortOrder = Ascending,
+        ): AsmFunction5[Region, Boolean, Long, Boolean, Long, op.ReturnType] = {
+          implicit val x = op.rtti
+          val fb =
+            EmitFunctionBuilder[Region, Boolean, Long, Boolean, Long, op.ReturnType](ctx, "lifted")
+          fb.emitWithBuilder { cb =>
+            val m1 = fb.getCodeParam[Boolean](2)
+            val cv1 = t.loadCheapSCode(cb, fb.getCodeParam[Long](3))
+            val m2 = fb.getCodeParam[Boolean](4)
+            val cv2 = t.loadCheapSCode(cb, fb.getCodeParam[Long](5))
+            val ev1 = EmitValue(Some(m1), cv1)
+            val ev2 = EmitValue(Some(m2), cv2)
+            fb.ecb.getOrderingFunction(ev1.st, ev2.st, op)
+              .apply(cb, ev1, ev2)
+          }
+          fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, r)
+        }
+
         val pType = PType.canonical(t).asInstanceOf[PStruct]
 
         val v = pType.unstagedStoreJavaObject(sm, a, region)
@@ -233,11 +230,11 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         check(eordMNE.gteq(null, a), true)
         check(eordMNE.gteq(a, null), false)
       }
+      true
     }
-  }
 
-  @Test def testRandomOpsAgainstExtended(): Unit =
-    forAll(genTypeNonMissingVal2) { case (t, a1, a2) =>
+  property("RandomOpsAgainstExtended") =
+    forAll(genTypeNonMissingVal2) { case (t: Type, a1, a2) =>
       pool.scopedRegion { region =>
         val pType = PType.canonical(t)
 
@@ -279,10 +276,11 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
         assert(fgteq(region, v1, v2) == gteq, s"gteq expected: $gteq")
       }
+      true
     }
 
-  @Test def testReverseIsSwappedArgumentsOfExtendedOrdering(): Unit =
-    forAll(genTypeNonMissingVal2) { case (t, a1, a2) =>
+  property("ReverseIsSwappedArgumentsOfExtendedOrdering") =
+    forAll(genTypeNonMissingVal2) { case (t: Type, a1, a2) =>
       pool.scopedRegion { region =>
         val pType = PType.canonical(t)
 
@@ -323,36 +321,39 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
         assert(fgteq(region, v1, v2) == gteq, s"gteq expected: $gteq")
       }
+      true
     }
 
-  @Test def testSortOnRandomArray(): Unit = {
+  property("SortOnRandomArray") {
     implicit val execStrats = ExecStrategy.javaOnly
 
     forAll(genTypeVal[TArray](ctx), arbitrary[Boolean]) {
-      case ((tarray, a: IndexedSeq[Any]), asc) =>
+      case ((tarray: TArray, a: IndexedSeq[Any]), asc) =>
         val ord = tarray.elementType.ordering(sm)
         assertEvalsTo(
           ArraySort(ToStream(In(0, tarray)), Literal.coerce(TBoolean, asc)),
           FastSeq(a -> tarray),
           expected = a.sorted((if (asc) ord else ord.reverse).toOrdering),
         )
+        true
     }
   }
 
-  @Test def testToSetOnRandomDuplicatedArray(): Unit = {
+  property("ToSetOnRandomDuplicatedArray") {
     implicit val execStrats = ExecStrategy.javaOnly
 
-    forAll(genTypeVal[TArray](ctx)) { case (tarray, a: IndexedSeq[Any]) =>
+    forAll(genTypeVal[TArray](ctx)) { case (tarray: TArray, a: IndexedSeq[Any]) =>
       val array = a ++ a
       assertEvalsTo(
         ToArray(ToStream(ToSet(ToStream(In(0, tarray))))),
         FastSeq(array -> tarray),
         expected = array.sorted(tarray.elementType.ordering(sm).toOrdering).distinct,
       )
+      true
     }
   }
 
-  @Test def testToDictOnRandomDuplicatedArray(): Unit = {
+  property("ToDictOnRandomDuplicatedArray") {
     implicit val execStrats: Set[ExecStrategy] =
       ExecStrategy.javaOnly
 
@@ -366,7 +367,7 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         array = a.asInstanceOf[IndexedSeq[Annotation]]
       } yield (pelt.virtualType, array ++ array)
 
-    forAll(compareGen) { case (telt, array) =>
+    forAll(compareGen) { case (telt: TTuple, array) =>
       assertEvalsTo(
         ToArray(mapIR(ToStream(ToDict(ToStream(In(0, TArray(telt))))))(GetField(_, "key"))),
         FastSeq(array -> TArray(telt)),
@@ -378,18 +379,19 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
             .distinct
             .sorted(telt.types(0).ordering(sm).toOrdering),
       )
+      true
     }
   }
 
-  @Test def testSortOnMissingArray(): Unit = {
+  test("SortOnMissingArray") {
     implicit val execStrats = ExecStrategy.javaOnly
     val ts = TStream(TStruct("key" -> TInt32, "value" -> TInt32))
     val irs: Array[IR => IR] = Array(ArraySort(_, True()), ToSet(_), ToDict(_))
 
-    scalatest.Inspectors.forAll(irs)(irF => assertEvalsTo(IsNA(irF(NA(ts))), true))
+    irs.foreach(irF => assertEvalsTo(IsNA(irF(NA(ts))), true))
   }
 
-  @Test def testSetContainsOnRandomSet(): Unit = {
+  property("SetContainsOnRandomSet") {
     implicit val execStrats = ExecStrategy.javaOnly
     val compareGen =
       for {
@@ -415,10 +417,11 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         FastSeq(set -> tset, test1 -> telt),
         expected = set.contains(test1),
       )
+      true
     }
   }
 
-  @Test def testDictGetOnRandomDict(): Unit = {
+  property("DictGetOnRandomDict") {
     implicit val execStrats = ExecStrategy.javaOnly
 
     val compareGen =
@@ -436,8 +439,7 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         dict.getOrElse(testKey1, null),
       )
 
-      if (dict.isEmpty) scalatest.Succeeded
-      else {
+      if (dict.nonEmpty) {
         val testKey2 = dict.keys.toSeq.head
         assertEvalsTo(
           invoke("get", tdict.valueType, In(0, tdict), In(1, tdict.keyType)),
@@ -445,18 +447,18 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
           expected = dict(testKey2),
         )
       }
+      true
     }
   }
 
-  @Test def testBinarySearchOnSet(): Unit = {
-    val compareGen =
+  property("BinarySearchOnSet") =
+    forAll(
       for {
         elt <- arbitrary[Type]
         set <- genNonMissingT[Set[Annotation]](ctx, TSet(elt))
         v <- genNonMissing(ctx, elt)
       } yield (elt, set, v)
-
-    forAll(compareGen) { case (t, set, elem) =>
+    ) { case (t: Type, set, elem) =>
       val pt = PType.canonical(t)
       val pset = PCanonicalSet(pt)
 
@@ -501,18 +503,17 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         assert(((i - 1 < 0) || ordering.compare(asArray(i - 1), elem) < 0) &&
           ((i >= set.size) || ordering.compare(elem, asArray(i)) <= 0))
       }
+      true
     }
-  }
 
-  @Test def testBinarySearchOnDict(): Unit = {
-    val compareGen =
+  property("BinarySearchOnDict") =
+    forAll(
       for {
         tdict <- arbitrary[TDict]
         dict <- genNonMissingT[Map[Annotation, Annotation]](ctx, tdict, innerRequired = false)
         key <- genNonMissing(ctx, tdict.keyType, innerRequired = false)
       } yield (tdict, dict, key)
-
-    forAll(compareGen) { case (tDict, dict, key) =>
+    ) { case (tDict: TDict, dict, key) =>
       val pDict = PType.canonical(tDict).asInstanceOf[PDict]
 
       pool.scopedRegion { region =>
@@ -559,10 +560,10 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         assert(((i - 1 < 0) || ordering.compare(asArray(i - 1).get(0), key) < 0) &&
           ((i >= asArray.size) || ordering.compare(key, asArray(i).get(0)) <= 0))
       }
+      true
     }
-  }
 
-  @Test def testContainsWithArrayFold(): Unit = {
+  test("ContainsWithArrayFold") {
     implicit val execStrats = ExecStrategy.javaOnly
     val set1 = ToSet(MakeStream(IndexedSeq(I32(1), I32(4)), TStream(TInt32)))
     val set2 = ToSet(MakeStream(IndexedSeq(I32(9), I32(1), I32(4)), TStream(TInt32)))
@@ -583,64 +584,70 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     )
   }
 
-  @DataProvider(name = "arrayDoubleOrderingData")
-  def arrayDoubleOrderingData(): Array[Array[Any]] = {
+  val arrayDoubleOrderingData: IndexedSeq[(IndexedSeq[Any], IndexedSeq[Any])] = {
     val xs =
       Array[Any](null, Double.NegativeInfinity, -0.0, 0.0, 1.0, Double.PositiveInfinity, Double.NaN)
 
     val as = Array(null: IndexedSeq[Any]) ++
       (for (x <- xs) yield IndexedSeq[Any](x))
 
-    for {
+    (for {
       a <- as
       a2 <- as
-    } yield Array[Any](a, a2)
+    } yield (a, a2)).toIndexedSeq
   }
 
-  @Test(dataProvider = "arrayDoubleOrderingData")
-  def testOrderingArrayDouble(
-    a: IndexedSeq[Any],
-    a2: IndexedSeq[Any],
-  ): Unit = {
-    val t = TArray(TFloat64)
+  object checkOrderingArrayDouble extends TestCases {
+    def apply(
+      a: IndexedSeq[Any],
+      a2: IndexedSeq[Any],
+    )(implicit loc: munit.Location
+    ): Unit = test("OrderingArrayDouble") {
+      val t = TArray(TFloat64)
 
-    val args = FastSeq(a -> t, a2 -> t)
+      val args = FastSeq(a -> t, a2 -> t)
 
-    assertEvalSame(ApplyComparisonOp(EQ, In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(EQWithNA, In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(NEQ, In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(NEQWithNA, In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(LT, In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(LTEQ, In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(GT, In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(GTEQ, In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(Compare, In(0, t), In(1, t)), args)
+      assertEvalSame(ApplyComparisonOp(EQ, In(0, t), In(1, t)), args)
+      assertEvalSame(ApplyComparisonOp(EQWithNA, In(0, t), In(1, t)), args)
+      assertEvalSame(ApplyComparisonOp(NEQ, In(0, t), In(1, t)), args)
+      assertEvalSame(ApplyComparisonOp(NEQWithNA, In(0, t), In(1, t)), args)
+      assertEvalSame(ApplyComparisonOp(LT, In(0, t), In(1, t)), args)
+      assertEvalSame(ApplyComparisonOp(LTEQ, In(0, t), In(1, t)), args)
+      assertEvalSame(ApplyComparisonOp(GT, In(0, t), In(1, t)), args)
+      assertEvalSame(ApplyComparisonOp(GTEQ, In(0, t), In(1, t)), args)
+      assertEvalSame(ApplyComparisonOp(Compare, In(0, t), In(1, t)), args)
+    }
   }
 
-  @Test(dataProvider = "arrayDoubleOrderingData")
-  def testOrderingSetDouble(
-    a: IndexedSeq[Any],
-    a2: IndexedSeq[Any],
-  ): Unit = {
-    val t = TSet(TFloat64)
+  arrayDoubleOrderingData.foreach { case (a, a2) => checkOrderingArrayDouble(a, a2) }
 
-    val s = if (a != null) a.toSet else null
-    val s2 = if (a2 != null) a2.toSet else null
-    val args = FastSeq(s -> t, s2 -> t)
+  object checkOrderingSetDouble extends TestCases {
+    def apply(
+      a: IndexedSeq[Any],
+      a2: IndexedSeq[Any],
+    )(implicit loc: munit.Location
+    ): Unit = test("OrderingSetDouble") {
+      val t = TSet(TFloat64)
 
-    assertEvalSame(ApplyComparisonOp(EQ, In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(EQWithNA, In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(NEQ, In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(NEQWithNA, In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(LT, In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(LTEQ, In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(GT, In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(GTEQ, In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(Compare, In(0, t), In(1, t)), args)
+      val s = if (a != null) a.toSet else null
+      val s2 = if (a2 != null) a2.toSet else null
+      val args = FastSeq(s -> t, s2 -> t)
+
+      assertEvalSame(ApplyComparisonOp(EQ, In(0, t), In(1, t)), args)
+      assertEvalSame(ApplyComparisonOp(EQWithNA, In(0, t), In(1, t)), args)
+      assertEvalSame(ApplyComparisonOp(NEQ, In(0, t), In(1, t)), args)
+      assertEvalSame(ApplyComparisonOp(NEQWithNA, In(0, t), In(1, t)), args)
+      assertEvalSame(ApplyComparisonOp(LT, In(0, t), In(1, t)), args)
+      assertEvalSame(ApplyComparisonOp(LTEQ, In(0, t), In(1, t)), args)
+      assertEvalSame(ApplyComparisonOp(GT, In(0, t), In(1, t)), args)
+      assertEvalSame(ApplyComparisonOp(GTEQ, In(0, t), In(1, t)), args)
+      assertEvalSame(ApplyComparisonOp(Compare, In(0, t), In(1, t)), args)
+    }
   }
 
-  @DataProvider(name = "rowDoubleOrderingData")
-  def rowDoubleOrderingData(): Array[Array[Any]] = {
+  arrayDoubleOrderingData.foreach { case (a, a2) => checkOrderingSetDouble(a, a2) }
+
+  val rowDoubleOrderingData: IndexedSeq[(Row, Row)] = {
     val xs =
       Array[Any](null, Double.NegativeInfinity, -0.0, 0.0, 1.0, Double.PositiveInfinity, Double.NaN)
     val ss = Array[Any](null, "a", "aa")
@@ -650,29 +657,33 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       s <- ss
     } yield Row(x, s)
 
-    for {
+    (for {
       r <- rs
       r2 <- rs
-    } yield Array[Any](r, r2)
+    } yield (r, r2)).toIndexedSeq
   }
 
-  @Test(dataProvider = "rowDoubleOrderingData")
-  def testOrderingRowDouble(
-    r: Row,
-    r2: Row,
-  ): Unit = {
-    val t = TStruct("x" -> TFloat64, "s" -> TString)
+  object checkOrderingRowDouble extends TestCases {
+    def apply(
+      r: Row,
+      r2: Row,
+    )(implicit loc: munit.Location
+    ): Unit = test("OrderingRowDouble") {
+      val t = TStruct("x" -> TFloat64, "s" -> TString)
 
-    val args = FastSeq(r -> t, r2 -> t)
+      val args = FastSeq(r -> t, r2 -> t)
 
-    assertEvalSame(ApplyComparisonOp(EQ, In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(EQWithNA, In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(NEQ, In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(NEQWithNA, In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(LT, In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(LTEQ, In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(GT, In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(GTEQ, In(0, t), In(1, t)), args)
-    assertEvalSame(ApplyComparisonOp(Compare, In(0, t), In(1, t)), args)
+      assertEvalSame(ApplyComparisonOp(EQ, In(0, t), In(1, t)), args)
+      assertEvalSame(ApplyComparisonOp(EQWithNA, In(0, t), In(1, t)), args)
+      assertEvalSame(ApplyComparisonOp(NEQ, In(0, t), In(1, t)), args)
+      assertEvalSame(ApplyComparisonOp(NEQWithNA, In(0, t), In(1, t)), args)
+      assertEvalSame(ApplyComparisonOp(LT, In(0, t), In(1, t)), args)
+      assertEvalSame(ApplyComparisonOp(LTEQ, In(0, t), In(1, t)), args)
+      assertEvalSame(ApplyComparisonOp(GT, In(0, t), In(1, t)), args)
+      assertEvalSame(ApplyComparisonOp(GTEQ, In(0, t), In(1, t)), args)
+      assertEvalSame(ApplyComparisonOp(Compare, In(0, t), In(1, t)), args)
+    }
   }
+
+  rowDoubleOrderingData.foreach { case (r, r2) => checkOrderingRowDouble(r, r2) }
 }
