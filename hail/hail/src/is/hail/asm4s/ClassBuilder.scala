@@ -683,10 +683,10 @@ class MethodBuilder[C](
     if (i == 0 && !isStatic)
       assert(ti == cb.ti, s"$ti != ${cb.ti}")
     else {
-      val static = (!isStatic).toInt
+      val thisOffset = (!isStatic).toInt
       assert(
-        ti == parameterTypeInfo(i - static),
-        s"$ti != ${parameterTypeInfo(i - static)}\n  params: $parameterTypeInfo",
+        ti == parameterTypeInfo(i - thisOffset),
+        s"$ti != ${parameterTypeInfo(i - thisOffset)}\n  params: $parameterTypeInfo",
       )
     }
     new LocalRef(lmethod.getParam(i))

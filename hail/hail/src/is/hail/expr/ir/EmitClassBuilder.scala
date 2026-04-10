@@ -85,10 +85,8 @@ class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
     literalsBuilder.getOrElseUpdate(
       (t, value), {
         val curr = currLitIndex
-        val pt = t.canonicalPType
-        literalsBuilder.update((t, value), (pt, curr))
         currLitIndex += 1
-        (pt, curr)
+        (t.canonicalPType, curr)
       },
     )
   }
@@ -97,10 +95,8 @@ class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
     encodedLiteralsBuilder.getOrElseUpdate(
       el, {
         val curr = currLitIndex
-        val pt = el.codec.decodedPType()
-        encodedLiteralsBuilder.update(el, (pt, curr))
         currLitIndex += 1
-        (pt, curr)
+        (el.codec.decodedPType(), curr)
       },
     )
   }
@@ -540,15 +536,17 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
     _aggState
   }
 
-  def getSerializedAgg(i: Int): Code[Array[Byte]] = {
+  private def trackSerialized(i: Int): Unit =
     if (_nSerialized <= i)
       _nSerialized = i + 1
+
+  def getSerializedAgg(i: Int): Code[Array[Byte]] = {
+    trackSerialized(i)
     _aggSerialized.load()(i)
   }
 
   def setSerializedAgg(i: Int, b: Code[Array[Byte]]): Code[Unit] = {
-    if (_nSerialized <= i)
-      _nSerialized = i + 1
+    trackSerialized(i)
     _aggSerialized.load().update(i, b)
   }
 

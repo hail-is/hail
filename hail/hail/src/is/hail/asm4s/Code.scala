@@ -1138,15 +1138,8 @@ object Code {
       errorId,
     ))
 
-  def _return[T](c: Code[T]): Code[Unit] = {
-    c.end.append(if (c.v != null)
-      lir.returnx(c.v)
-    else
-      lir.returnx())
-    val newC = new VCode(c.start, c.end, null)
-    c.clear()
-    newC
-  }
+  def _return[T](c: Code[T]): Code[Unit] =
+    Code.void(c, v => if (v != null) lir.returnx(v) else lir.returnx())
 
   def _printlns(cs: Code[String]*): Code[Unit] =
     _println(cs.reduce[Code[String]] { case (l, r) => (l.concat(r)) })
@@ -1878,11 +1871,7 @@ class CodeLabel(val L: lir.Block) extends Code[Unit] {
      * clearStack = Thread.currentThread().getStackTrace */
     _start = null
 
-  def goto: Code[Unit] = {
-    val M = new lir.Block()
-    M.append(lir.goto(L))
-    new VCode(M, M, null)
-  }
+  def goto: Code[Unit] = Code.void(lir.goto(L))
 }
 
 object Invokeable {
@@ -2065,11 +2054,7 @@ class LocalRef[T](val l: lir.Local) extends Settable[T] {
 }
 
 class LocalRefInt(val v: LocalRef[Int]) extends AnyRef {
-  def +=(i: Int): Code[Unit] = {
-    val L = new lir.Block()
-    L.append(lir.iincInsn(v.l, i))
-    new VCode(L, L, null)
-  }
+  def +=(i: Int): Code[Unit] = Code.void(lir.iincInsn(v.l, i))
 
   def ++ : Code[Unit] = +=(1)
 }
