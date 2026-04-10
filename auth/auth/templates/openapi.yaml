@@ -50,11 +50,11 @@ components:
           type: string
           enum: [creating, active, deleting, deleted]
           description: "Current state of the user account"
-        system_roles:
-          type: array
-          items:
-            type: string
-          description: "List of system roles assigned to the user"
+        system_permissions:
+          type: object
+          additionalProperties:
+            type: boolean
+          description: "Map of system permission names to whether the user has that permission"
         is_service_account:
           type: boolean
           description: "Whether this is a service account"
@@ -116,7 +116,7 @@ components:
     developerAuth:
       type: http
       scheme: bearer
-      description: Developer authentication token
+      description: Hail authentication token (permissions are checked per-endpoint)
 
 paths:
   /api/v1alpha/userinfo:
@@ -406,7 +406,7 @@ paths:
                   properties:
                     role_addition:
                       type: string
-                      enum: [developer, billing_manager]
+                      enum: [developer, billing_manager, sysadmin, sysadmin-readonly]
                       description: System role to add to the user
                   additionalProperties: false
                 - type: object
@@ -414,7 +414,7 @@ paths:
                   properties:
                     role_removal:
                       type: string
-                      enum: [developer, billing_manager]
+                      enum: [developer, billing_manager, sysadmin, sysadmin-readonly]
                       description: System role to remove from the user
                   additionalProperties: false
             examples:
@@ -535,56 +535,3 @@ paths:
                     type: object
                     description: OAuth2 client configuration details
 
-  /api/v1alpha/users/{user}:
-    get:
-      summary: Get user details
-      description: Retrieve details for a specific user
-      tags: [Users]
-      security:
-        - developerAuth: []
-      parameters:
-        - name: user
-          in: path
-          required: true
-          schema:
-            type: string
-          description: Username to retrieve details for
-      responses:
-        '200':
-          description: User details retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  id:
-                    type: integer
-                    description: User ID
-                  username:
-                    type: string
-                    description: Username
-                  login_id:
-                    type: string
-                    nullable: true
-                    description: Login identifier
-                  state:
-                    type: string
-                    description: User state
-                  system_roles:
-                    type: array
-                    items:
-                      type: string
-                    description: List of system roles assigned to the user
-                  is_service_account:
-                    type: integer
-                    description: Whether user is a service account
-                  hail_identity:
-                    type: string
-                    nullable: true
-                    description: Hail identity ID
-        '401':
-          description: Unauthorized
-        '403':
-          description: Forbidden - requires developer privileges
-        '404':
-          description: User not found 

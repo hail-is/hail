@@ -646,10 +646,10 @@ LEFT JOIN system_permissions ON system_role_permissions.permission_id = system_p
                 'state': user['state'],
                 'is_service_account': user['is_service_account'],
                 'hail_identity': user['hail_identity'],
-                'system_permissions': [user['permission_name']] if user['permission_name'] else [],
+                'system_permissions': {user['permission_name']: True} if user['permission_name'] else {},
             }
         elif user['permission_name']:
-            users[user['user_id']]['system_permissions'].append(user['permission_name'])
+            users[user['user_id']]['system_permissions'][user['permission_name']] = True
     result = list(users.values())
     result.sort(key=lambda x: x['id'])
     return result
