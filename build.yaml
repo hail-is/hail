@@ -1794,13 +1794,12 @@ steps:
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
 
       {% if default_ns.name == "default" %}
-      hailctl auth create-user --developer {{ code.username }} {{ code.login_id }}
+      hailctl auth create-user {{ code.username }} {{ code.login_id }} developer billing_manager sysadmin
       {% else %}
       hailctl auth create-user \
-        --developer \
         --hail-identity {{ code.hail_identity }} \
         --hail-credentials-secret-name {{ code.username }}-gsa-key \
-        {{ code.username }} {{ code.login_id }}
+        {{ code.username }} {{ code.login_id }} developer billing_manager sysadmin
       {% endif %}
     secrets:
       - name: test-dev-gsa-key
@@ -2510,10 +2509,9 @@ steps:
       {% for user in code.get("developers", []) %}
       {% if user['username'] != 'test-dev' %}
       hailctl auth create-user \
-        --developer \
         --hail-identity {{ user["hail_identity"] }} \
         --hail-credentials-secret-name {{ user["username"] }}-gsa-key \
-        {{ user["username"] }} {{ user["login_id"] }}
+        {{ user["username"] }} {{ user["login_id"] }} developer billing_manager sysadmin
       {% endif %}
       {% endfor %}
     secrets:
