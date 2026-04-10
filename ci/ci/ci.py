@@ -402,7 +402,7 @@ async def get_batches(request: web.Request, userdata: UserData):
 @routes.get('/batches/{batch_id}')
 @web_security_headers
 @auth.authenticated_users_with_permission(SystemPermission.READ_CI)
-async def get_batch(request: web.Request, userdata: UserData):
+async def get_batch(request: web.Request, _: UserData):
     batch_id = int(request.match_info['batch_id'])
     batch_client = request.app[AppKeys.BATCH_CLIENT]
     pr_url = None
