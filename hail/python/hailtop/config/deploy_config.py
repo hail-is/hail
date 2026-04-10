@@ -39,6 +39,14 @@ class DeployConfig:
         }
 
     @classmethod
+    def default_config(cls) -> Dict[str, str]:
+        return {
+            'location': 'external',
+            'default_namespace': 'default',
+            'domain': get_user_config().get('global', 'domain', fallback='hail.is'),
+        }
+
+    @classmethod
     def from_config_file(cls, config_file=None) -> 'DeployConfig':
         config_file = first_extant_file(
             config_file,
@@ -53,11 +61,7 @@ class DeployConfig:
             log.info(f'deploy config location: {config["location"]}')
         else:
             log.info(f'deploy config file not found: {config_file}')
-            config = {
-                'location': 'external',
-                'default_namespace': 'default',
-                'domain': get_user_config().get('global', 'domain', fallback='hail.is'),
-            }
+            config = cls.default_config()
         return cls.from_config(config)
 
     def __init__(self, location: str, default_namespace: str, domain: str, base_path: Optional[str]):
