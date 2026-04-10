@@ -338,19 +338,13 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
   def newPField(name: String, st: SType): SSettable = newPSettable(fieldBuilder, st, name)
 
   def newEmitField(st: SType, required: Boolean): EmitSettable =
-    new EmitSettable(
-      if (required) None else Some(genFieldThisRef[Boolean]("emitfield_missing")),
-      newPField(st),
-    )
+    EmitSettable(fieldBuilder, st, required)
 
   def newEmitField(name: String, emitType: EmitType): EmitSettable =
     newEmitField(name, emitType.st, emitType.required)
 
   def newEmitField(name: String, st: SType, required: Boolean): EmitSettable =
-    new EmitSettable(
-      if (required) None else Some(genFieldThisRef[Boolean](name + "_missing")),
-      newPField(name, st),
-    )
+    EmitSettable(fieldBuilder, st, required, name)
 
   private[this] type CompareMapKey = (SType, SType)
 
@@ -1263,19 +1257,13 @@ class EmitMethodBuilder[C](
   def newEmitLocal(emitType: EmitType): EmitSettable = newEmitLocal(emitType.st, emitType.required)
 
   def newEmitLocal(st: SType, required: Boolean): EmitSettable =
-    new EmitSettable(
-      if (required) None else Some(newLocal[Boolean]("anon_emitlocal_m")),
-      newPLocal("anon_emitlocal_v", st),
-    )
+    EmitSettable(localBuilder, st, required)
 
   def newEmitLocal(name: String, emitType: EmitType): EmitSettable =
     newEmitLocal(name, emitType.st, emitType.required)
 
   def newEmitLocal(name: String, st: SType, required: Boolean): EmitSettable =
-    new EmitSettable(
-      if (required) None else Some(newLocal[Boolean](name + "_missing")),
-      newPLocal(name, st),
-    )
+    EmitSettable(localBuilder, st, required, name)
 
   def emitWithBuilder[T](f: (EmitCodeBuilder) => Code[T]): Unit =
     emit(EmitCodeBuilder.scopedCode[T](this)(f))
