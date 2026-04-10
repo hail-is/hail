@@ -23,17 +23,37 @@ export type JobStatus = {
   error?: string | null;
 };
 
+export interface JobProcess {
+  type: 'docker' | 'jvm';
+  image?: string;
+  command?: string[];
+  profile?: boolean;
+  jar_spec?: { type: string; value: string };
+}
+
 export interface JobSpec {
-  process?: { type: 'docker' | 'jvm'; image?: string; command?: string[] };
+  process?: JobProcess;
   user_code?: string;
   resources?: Record<string, unknown>;
   env?: { name: string; value: string }[];
   input_files?: [string, string][];
   output_files?: [string, string][];
+  cloudfuse?: { bucket: string; mount_path: string; read_only: boolean }[];
   always_run?: boolean;
   n_max_attempts?: number;
   network?: string;
   regions?: string[];
+  timeout?: number;
+  service_account?: { namespace: string; name: string };
+  secrets?: { namespace: string; name: string; mount_path: string }[];
+  requester_pays_project?: string;
+  port?: number;
+  always_copy_output?: boolean;
+  absolute_parent_ids?: number[];
+  in_update_parent_ids?: number[];
+  absolute_job_group_id?: number;
+  mount_tokens?: boolean;
+  unconfined?: boolean;
 }
 
 export type Job = {
