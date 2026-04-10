@@ -493,7 +493,7 @@ async def callback(request) -> web.Response:
 
 
 @routes.post('/api/v1alpha/users/{user}/create')
-@auth.authenticated_users_with_permission(SystemPermission.CREATE_USERS)
+@auth.authenticated_users_with_permission(SystemPermission.CREATE_USERS, redirect=False)
 async def create_user(request: web.Request, _) -> web.Response:
     db = request.app[AppKeys.DB]
     username = request.match_info['user']
@@ -697,7 +697,7 @@ async def post_create_user(request: web.Request, _) -> NoReturn:
 
 
 @routes.get('/api/v1alpha/users')
-@auth.authenticated_users_with_permission(SystemPermission.READ_USERS)
+@auth.authenticated_users_with_permission(SystemPermission.READ_USERS, redirect=False)
 async def rest_get_users(request: web.Request, _: UserData) -> web.Response:
     db = request.app[AppKeys.DB]
     users = await _get_users(db)
@@ -706,7 +706,7 @@ async def rest_get_users(request: web.Request, _: UserData) -> web.Response:
 
 
 @routes.get('/api/v1alpha/users/{user}')
-@auth.authenticated_users_with_permission(SystemPermission.READ_USERS)
+@auth.authenticated_users_with_permission(SystemPermission.READ_USERS, redirect=False)
 async def rest_get_user(request: web.Request, _) -> web.Response:
     db = request.app[AppKeys.DB]
     username = request.match_info['user']
@@ -768,7 +768,7 @@ async def delete_user(request: web.Request, _) -> NoReturn:
 
 
 @routes.delete('/api/v1alpha/users/{user}')
-@auth.authenticated_users_with_permission(SystemPermission.DELETE_USERS)
+@auth.authenticated_users_with_permission(SystemPermission.DELETE_USERS, redirect=False)
 async def rest_delete_user(request: web.Request, _) -> web.Response:
     db = request.app[AppKeys.DB]
     username = request.match_info['user']
@@ -886,7 +886,7 @@ WHERE copy_paste_tokens.id = %s
 
 
 @routes.post('/api/v1alpha/invalidate_all_sessions')
-@auth.authenticated_users_with_permission(SystemPermission.UPDATE_USERS)
+@auth.authenticated_users_with_permission(SystemPermission.UPDATE_USERS, redirect=False)
 async def rest_invalidate_all_sessions(request: web.Request, _) -> web.Response:
     db = request.app[AppKeys.DB]
     await _invalidate_all_sessions(db)
@@ -1121,7 +1121,7 @@ async def get_system_roles_for_me(request: web.Request, userdata: UserData) -> w
 
 
 @routes.get('/api/v1alpha/system_roles/{user_id}')
-@auth.authenticated_users_with_permission(SystemPermission.READ_SYSTEM_ROLES)
+@auth.authenticated_users_with_permission(SystemPermission.READ_SYSTEM_ROLES, redirect=False)
 async def get_system_roles_for_user(request: web.Request, _) -> web.Response:
     user_id = request.match_info['user_id']
 
@@ -1130,7 +1130,7 @@ async def get_system_roles_for_user(request: web.Request, _) -> web.Response:
 
 
 @routes.patch('/api/v1alpha/system_roles/{user_id}')
-@auth.authenticated_users_with_permission(SystemPermission.ASSIGN_SYSTEM_ROLES)
+@auth.authenticated_users_with_permission(SystemPermission.ASSIGN_SYSTEM_ROLES, redirect=False)
 async def patch_system_roles_for_user(request: web.Request, _) -> web.Response:
     user_id = request.match_info['user_id']
     body = await json_request(request)
@@ -1219,7 +1219,7 @@ WHERE usr.user_id = %s AND sr.name = %s
 
 
 @routes.get('/api/v1alpha/system_roles/all')
-@auth.authenticated_users_with_permission(SystemPermission.READ_SYSTEM_ROLES)
+@auth.authenticated_users_with_permission(SystemPermission.READ_SYSTEM_ROLES, redirect=False)
 async def get_all_system_role_assignments(request: web.Request, _userdata: UserData) -> web.Response:
     # Note: userdata provided by authenticating wrapper, but is otherwise unused in function.
     system_roles_for_everyone = await _get_system_role_assignments(request, user_id_filter=None)

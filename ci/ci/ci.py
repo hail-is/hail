@@ -600,7 +600,7 @@ async def batch_callback_handler(request: web.Request):
 
 
 @routes.get('/api/v1alpha/deploy_status')
-@auth.authenticated_users_with_permission(SystemPermission.READ_CI)
+@auth.authenticated_users_with_permission(SystemPermission.READ_CI, redirect=False)
 async def deploy_status(request: web.Request, _) -> web.Response:
     batch_client = request.app[AppKeys.BATCH_CLIENT]
 
@@ -635,7 +635,7 @@ async def deploy_status(request: web.Request, _) -> web.Response:
 
 
 @routes.post('/api/v1alpha/update')
-@auth.authenticated_users_with_permission(SystemPermission.MANAGE_CI)
+@auth.authenticated_users_with_permission(SystemPermission.MANAGE_CI, redirect=False)
 async def post_update(request: web.Request, _) -> web.Response:
     log.info('developer triggered update')
     db = request.app[AppKeys.DB]
@@ -652,7 +652,7 @@ async def post_update(request: web.Request, _) -> web.Response:
 
 
 @routes.post('/api/v1alpha/dev_deploy_branch')
-@auth.authenticated_users_with_permission(SystemPermission.MANAGE_CI)
+@auth.authenticated_users_with_permission(SystemPermission.MANAGE_CI, redirect=False)
 async def dev_deploy_branch(request: web.Request, userdata: UserData) -> web.Response:
     app = request.app
     try:
@@ -853,7 +853,7 @@ async def add_namespace(request: web.Request, _) -> NoReturn:
 
 @routes.get('/envoy-config/{proxy}')
 @web_security_headers
-@auth.authenticated_users_with_permission(SystemPermission.READ_DEPLOYED_SYSTEM_STATE)
+@auth.authenticated_users_with_permission(SystemPermission.READ_DEPLOYED_SYSTEM_STATE, redirect=False)
 async def get_envoy_configs(request: web.Request, _) -> web.Response:
     proxy = request.match_info['proxy']
     if proxy not in ('gateway', 'internal-gateway'):

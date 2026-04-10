@@ -2890,7 +2890,7 @@ UPDATE billing_projects SET `limit` = %s WHERE name_cs = %s;
 
 
 @routes.post('/api/v1alpha/billing_limits/{billing_project}/edit')
-@auth.authenticated_users_with_permission(SystemPermission.UPDATE_ALL_BILLING_PROJECTS)
+@auth.authenticated_users_with_permission(SystemPermission.UPDATE_ALL_BILLING_PROJECTS, redirect=False)
 async def post_edit_billing_limits(request: web.Request, _: UserData) -> web.Response:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
@@ -3153,7 +3153,7 @@ async def post_billing_projects_remove_user(request: web.Request, _) -> NoReturn
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/users/{user}/remove')
-@auth.authenticated_users_with_permission(SystemPermission.ASSIGN_USERS_TO_ALL_BILLING_PROJECTS)
+@auth.authenticated_users_with_permission(SystemPermission.ASSIGN_USERS_TO_ALL_BILLING_PROJECTS, redirect=False)
 async def api_get_billing_projects_remove_user(request: web.Request, _: UserData) -> web.Response:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
@@ -3236,7 +3236,7 @@ async def post_billing_projects_add_user(request: web.Request, _: UserData) -> N
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/users/{user}/add')
-@auth.authenticated_users_with_permission(SystemPermission.ASSIGN_USERS_TO_ALL_BILLING_PROJECTS)
+@auth.authenticated_users_with_permission(SystemPermission.ASSIGN_USERS_TO_ALL_BILLING_PROJECTS, redirect=False)
 async def api_billing_projects_add_user(request: web.Request, _: UserData) -> web.Response:
     db: Database = request.app['db']
     user = request.match_info['user']
@@ -3292,7 +3292,7 @@ async def post_create_billing_projects(request: web.Request, _: UserData) -> NoR
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/create')
-@auth.authenticated_users_with_permission(SystemPermission.CREATE_BILLING_PROJECTS)
+@auth.authenticated_users_with_permission(SystemPermission.CREATE_BILLING_PROJECTS, redirect=False)
 async def api_get_create_billing_projects(request: web.Request, _: UserData) -> web.Response:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
@@ -3352,7 +3352,7 @@ async def post_close_billing_projects(request: web.Request, _: UserData) -> NoRe
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/close')
-@auth.authenticated_users_with_permission(SystemPermission.DELETE_ALL_BILLING_PROJECTS)
+@auth.authenticated_users_with_permission(SystemPermission.DELETE_ALL_BILLING_PROJECTS, redirect=False)
 async def api_close_billing_projects(request: web.Request, _: UserData) -> web.Response:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
@@ -3397,7 +3397,7 @@ async def post_reopen_billing_projects(request: web.Request, _: UserData) -> NoR
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/reopen')
-@auth.authenticated_users_with_permission(SystemPermission.UPDATE_ALL_BILLING_PROJECTS)
+@auth.authenticated_users_with_permission(SystemPermission.UPDATE_ALL_BILLING_PROJECTS, redirect=False)
 async def api_reopen_billing_projects(request: web.Request, _: UserData) -> web.Response:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
@@ -3427,7 +3427,7 @@ async def _delete_billing_project(db, billing_project):
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/delete')
-@auth.authenticated_users_with_permission(SystemPermission.DELETE_ALL_BILLING_PROJECTS)
+@auth.authenticated_users_with_permission(SystemPermission.DELETE_ALL_BILLING_PROJECTS, redirect=False)
 async def api_delete_billing_projects(request: web.Request, _: UserData) -> web.Response:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
