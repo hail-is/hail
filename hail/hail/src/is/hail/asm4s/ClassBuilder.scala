@@ -85,6 +85,25 @@ class ClassesBytes(classesBytes: Array[(String, Array[Byte])]) extends Serializa
   }
 }
 
+class LazyClassFactory[C](
+  classesBytes: ClassesBytes,
+  className: String,
+) extends java.io.Serializable {
+  @transient @volatile private var theClass: Class[_] = null
+
+  def newInstance(hcl: HailClassLoader): C = {
+    if (theClass == null) {
+      this.synchronized {
+        if (theClass == null) {
+          classesBytes.load(hcl)
+          theClass = loadClass(hcl, className)
+        }
+      }
+    }
+    theClass.getDeclaredConstructor().newInstance().asInstanceOf[C]
+  }
+}
+
 class AsmTuple[C](
   val cb: ClassBuilder[C],
   val fields: IndexedSeq[Field[_]],
@@ -479,29 +498,16 @@ class ClassBuilder[C](
   }
 
   def result(writeIRs: Boolean, print: Option[PrintWriter] = None): HailClassLoader => C = {
-    val n = className.replace("/", ".")
-    val classesBytes = modb.classesBytes(writeIRs)
-
     assert(
       TaskContext.get() == null,
       "FunctionBuilder emission should happen on master, but happened on worker",
     )
 
     new (HailClassLoader => C) with java.io.Serializable {
-      @transient @volatile private var theClass: Class[_] = null
+      private val factory =
+        new LazyClassFactory[C](modb.classesBytes(writeIRs), className.replace("/", "."))
 
-      override def apply(hcl: HailClassLoader): C = {
-        if (theClass == null) {
-          this.synchronized {
-            if (theClass == null) {
-              classesBytes.load(hcl)
-              theClass = loadClass(hcl, n)
-            }
-          }
-        }
-
-        theClass.getDeclaredConstructor().newInstance().asInstanceOf[C]
-      }
+      override def apply(hcl: HailClassLoader): C = factory.newInstance(hcl)
     }
   }
 

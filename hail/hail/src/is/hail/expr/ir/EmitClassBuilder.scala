@@ -846,24 +846,15 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
         "FunctionBuilder emission should happen on master, but happened on worker",
       )
 
-      val n = cb.className.replace("/", ".")
-      val classesBytes = modb.classesBytes(ctx.shouldWriteIRFiles(), print)
+      val factory = new LazyClassFactory[C](
+        modb.classesBytes(ctx.shouldWriteIRFiles(), print),
+        cb.className.replace("/", "."),
+      )
 
       new Compiled[C] with java.io.Serializable {
-        @transient @volatile private var theClass: Class[_] = null
-
         override def apply(hcl: HailClassLoader, fs: FS, htc: HailTaskContext, region: Region)
           : C = {
-          if (theClass == null) {
-            this.synchronized {
-              if (theClass == null) {
-                classesBytes.load(hcl)
-                theClass = loadClass(hcl, n)
-              }
-            }
-          }
-
-          val f = theClass.getDeclaredConstructor().newInstance().asInstanceOf[C]
+          val f = factory.newInstance(hcl)
           f.asInstanceOf[FunctionWithHailClassLoader].addHailClassLoader(hcl)
           f.asInstanceOf[FunctionWithFS].addFS(fs)
           f.asInstanceOf[FunctionWithTaskContext].addTaskContext(htc)
