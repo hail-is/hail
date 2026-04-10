@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-argument */
 import * as Plot from '@observablehq/plot';
 import { useEffect, useRef, useState } from 'react';
 
@@ -128,9 +127,7 @@ export function GanttChart({ rows, colorMap, ruleXs, extendToNow }: Props): JSX.
     const barGroup = plot.querySelector('g[aria-label="bar"]');
     if (barGroup) {
       barGroup.querySelectorAll('rect').forEach((rect, i) => {
-        // eslint-disable-next-line security/detect-object-injection
-        const row = rows[i];
-        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+        const row = rows.at(i);
         if (!row) return;
         const text = row.tooltip ?? `${row.label}: ${row.category}`;
         rect.addEventListener('mouseenter', (e) => {

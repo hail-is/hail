@@ -104,7 +104,6 @@ export function JobSpecPanel({
   instColl,
   activeSubTab,
   setActiveSubTab,
-  // eslint-disable-next-line no-unused-vars
 }: Props & { activeSubTab: SubTab; setActiveSubTab: (t: SubTab) => void }): JSX.Element {
   const res = spec?.resources ?? {};
   const reqCpu = res.req_cpu as string | undefined;
