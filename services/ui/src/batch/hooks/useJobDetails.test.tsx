@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useJobDetails, REFRESH_INTERVAL_MS } from './useJobDetails';
@@ -19,7 +18,6 @@ const JOB_URL = `${BASE_PATH}/api/v1alpha/batches/${BATCH_ID}/jobs/${JOB_ID}`;
 interface MockFetchOpts { log?: string; job?: object }
 
 function makeFetch({ log = LOG_V1, job = mockJob }: MockFetchOpts = {}) {
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
   return vi.fn((url: string) => {
     const u = url as string;
     if (u === `${JOB_URL}/attempts`) {
@@ -121,7 +119,6 @@ describe('T3 — no double-fetch on cache hit', () => {
     act(() => { result.current.ensureAttemptLoaded(ATTEMPT_LATEST); });
     await flush();
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     const logCalls = () => fetchSpy.mock.calls.filter(([u]) => (u as string).includes('/log/')).length;
     const after1 = logCalls();
 

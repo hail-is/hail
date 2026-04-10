@@ -24,9 +24,7 @@ export interface UseJobDetailsResult {
   countdownKey: number;
   refreshIntervalMs: number;
   jobRefreshing: boolean;
-  // eslint-disable-next-line no-unused-vars
   getAttemptData: (_attemptId: string) => AttemptCache;
-  // eslint-disable-next-line no-unused-vars
   ensureAttemptLoaded: (_attemptId: string) => void;
   commitAttemptLogs: (attemptId: string) => void;
 }

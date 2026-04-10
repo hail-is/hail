@@ -18,11 +18,10 @@ interface StepError {
 
 function collectStepErrors(job: Job): { topLevelError: string | null; steps: StepError[] } {
   const topLevelError = job.status?.error ?? null;
-  const cs = job.status?.container_statuses;
+  const cs = new Map(Object.entries(job.status?.container_statuses ?? {})) as Map<string, ContainerStatus | null | undefined>;
   const steps: StepError[] = (['input', 'main', 'output'] as const)
     .map((step) => {
-      // eslint-disable-next-line security/detect-object-injection
-      const s: ContainerStatus | null | undefined = cs?.[step];
+      const s = cs.get(step);
       return { step, shortError: s?.short_error ?? null, fullError: s?.error ?? null };
     })
     .filter(({ shortError, fullError }) => shortError !== null || fullError !== null);
