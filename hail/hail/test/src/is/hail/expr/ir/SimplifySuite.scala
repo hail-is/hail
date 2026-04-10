@@ -674,7 +674,7 @@ class SimplifySuite extends HailSuite {
       ).asInstanceOf[Array[Array[Any]]]
     }
 
-  @Test(dataProvider = "binaryIntegralArithmetic")
+  @Test(dataProvider = "floatingIntegralArithmetic")
   def testBinaryFloatingSimplification(input: IR, expected: IR): Unit =
     input should simplifyTo(expected)
 
