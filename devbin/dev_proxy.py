@@ -4,6 +4,7 @@ from hailtop import httpx
 from hailtop.config import get_deploy_config
 from hailtop.auth import hail_credentials
 from hailtop.aiocloud.common import Session
+from gear.system_permissions import SystemPermission
 
 from web_common import render_template, setup_aiohttp_jinja2, setup_common_static_routes, web_security_headers
 
@@ -23,7 +24,8 @@ STATIC_DIRS: dict[str, list[tuple[str, str]]] = {
 }
 for _path, _directory in STATIC_DIRS.get(SERVICE, []):
     routes.static(_path, _directory)
-IS_DEVELOPER = bool(os.getenv('IS_DEVELOPER', True))
+_IS_DEVELOPER_ENV = os.getenv('IS_DEVELOPER')
+IS_DEVELOPER: bool | None = None if _IS_DEVELOPER_ENV is None else _IS_DEVELOPER_ENV.lower() not in ('0', 'false', 'no', '')
 MODULES = {'batch': 'batch.front_end', 'batch-driver': 'batch.driver'}
 BC = web.AppKey('backend_client', Session)
 
@@ -38,7 +40,7 @@ if SERVICE == 'ci':
     @routes.get('/flaky_tests')
     @web_security_headers
     async def flaky_tests_local(request: web.Request):
-        fake_userdata = {'username': 'dev', 'is_developer': IS_DEVELOPER}
+        fake_userdata = {'username': 'dev', 'system_permissions': {p.value: True for p in SystemPermission}}
         return await render_template('ci', request, fake_userdata, 'flaky_tests.html', {'use_tailwind': True, 'base_path': ''})
 
     if os.getenv('MOCK_API_DATA'):
@@ -151,8 +153,10 @@ async def render_html(request: web.Request, context: dict):
     # Make links point back to the local dev server and not use
     # the dev namespace path rewrite shenanigans.
     context['page_context']['base_path'] = ''
-    context['page_context']['system_roles'] = ['developer', 'billing_manager', 'sysadmin'] if IS_DEVELOPER else []
-    context['userdata']['system_roles'] = ['developer', 'billing_manager', 'sysadmin'] if IS_DEVELOPER else []
+    if IS_DEVELOPER is not None:
+        all_permissions = {p.value: IS_DEVELOPER for p in SystemPermission}
+        context['page_context']['system_permissions'] = all_permissions
+        context['userdata']['system_permissions'] = all_permissions
     return await render_template(SERVICE, request, **context)
 
 
