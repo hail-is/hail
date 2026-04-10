@@ -7,6 +7,7 @@ import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits._
 import is.hail.expr.Nat
 import is.hail.expr.ir.defs._
+import is.hail.expr.ir.lowering.invariant.TreeIR
 import is.hail.types._
 import is.hail.types.virtual._
 import is.hail.types.virtual.TIterable.elementType
@@ -122,10 +123,10 @@ object PruneDeadFields extends Logging {
 
   def apply(ctx: ExecuteContext, ir: BaseIR): BaseIR =
     ctx.time {
+      TreeIR.verify(ctx, ir)
       try {
-        val irCopy = ir.deepCopy()
         val ms = new ComputeMutableState
-        irCopy match {
+        ir match {
           case mir: MatrixIR =>
             memoizeMatrixIR(ctx, mir, mir.typ, ms)
             rebuild(ctx, mir, ms.rebuildState)

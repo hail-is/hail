@@ -103,7 +103,7 @@ object TableReader {
 object LoweredTableReader extends Logging {
 
   type LoweredTableReaderCoercer =
-    (ExecuteContext, IR, Type, IndexedSeq[Any], IR => IR) => TableStage
+    (ExecuteContext, IR, Type, IndexedSeq[Any], TrivialIR => IR) => TableStage
 
   def makeCoercer(
     ctx: ExecuteContext,
@@ -305,7 +305,7 @@ object LoweredTableReader extends Logging {
                   ApplyComparisonOp(
                     LTEQ,
                     GetField(ArrayRef(sortedPartData, i), "maxkey"),
-                    GetField(ArrayRef(sortedPartData, i + I32(1)), "minkey"),
+                    GetField(ArrayRef(sortedPartData, i.clone + I32(1)), "minkey"),
                   ),
                 )
             },
@@ -326,7 +326,7 @@ object LoweredTableReader extends Logging {
                   ApplyComparisonOp(
                     LTEQ,
                     selectPK(GetField(ArrayRef(sortedPartData, i), "maxkey")),
-                    selectPK(GetField(ArrayRef(sortedPartData, i + I32(1)), "minkey")),
+                    selectPK(GetField(ArrayRef(sortedPartData, i.clone + I32(1)), "minkey")),
                   ),
                 )
             },
@@ -360,7 +360,7 @@ object LoweredTableReader extends Logging {
         globals: IR,
         contextType: Type,
         contexts: IndexedSeq[Any],
-        body: IR => IR,
+        body: TrivialIR => IR,
       ) => {
         val partOrigIndex = sortedPartData.map(_.getInt(6))
 
@@ -399,7 +399,7 @@ object LoweredTableReader extends Logging {
         globals: IR,
         contextType: Type,
         contexts: IndexedSeq[Any],
-        body: IR => IR,
+        body: TrivialIR => IR,
       ) => {
         val partOrigIndex = sortedPartData.map(_.getInt(6))
 
@@ -444,7 +444,7 @@ object LoweredTableReader extends Logging {
         globals: IR,
         contextType: Type,
         contexts: IndexedSeq[Any],
-        body: IR => IR,
+        body: TrivialIR => IR,
       ) => {
         val partOrigIndex = sortedPartData.map(_.getInt(6))
 
@@ -531,7 +531,7 @@ abstract class TableReader {
         RVDPartitioner.empty(ctx, requestedType.keyType),
         TableStageDependency.none,
         MakeStream(FastSeq(), TStream(TStruct.empty)),
-        (_: Ref) => MakeStream(FastSeq(), TStream(requestedType.rowType)),
+        _ => MakeStream(FastSeq(), TStream(requestedType.rowType)),
       )
     } else {
       lower(ctx, requestedType)

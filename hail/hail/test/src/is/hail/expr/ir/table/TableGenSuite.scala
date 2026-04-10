@@ -7,7 +7,7 @@ import is.hail.expr.ir._
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.defs.{
   ApplyBinaryPrimOp, ErrorIDs, GetField, MakeStream, MakeStruct, Ref, Str, StreamRange,
-  TableAggregate, TableGetGlobals,
+  TableAggregate, TableGetGlobals, TrivialIR,
 }
 import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR}
 import is.hail.rvd.RVDPartitioner
@@ -192,7 +192,7 @@ class TableGenSuite extends HailSuite {
   def mkTableGen(
     contexts: Option[IR] = None,
     globals: Option[IR] = None,
-    body: Option[(Ref, Ref) => IR] = None,
+    body: Option[(TrivialIR, TrivialIR) => IR] = None,
     partitioner: Option[RVDPartitioner] = None,
     errorId: Option[Int] = None,
   ): TableGen = {

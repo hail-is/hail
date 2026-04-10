@@ -45,7 +45,6 @@ object Optimize {
 
             ir = FoldConstants(ctx, ir)
             ir = ExtractIntervalFilters(ctx, ir)
-            ir = NormalizeNames(allowFreeVariables = true)(ctx, ir)
             ir = Simplify(ctx, ir)
 
             ir = {

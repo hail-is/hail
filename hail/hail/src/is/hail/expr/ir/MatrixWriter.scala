@@ -87,8 +87,8 @@ sealed trait MatrixWriterComponents {
   def stage: TableStage
   def setup: IR
   def writePartitionType: Type
-  def writePartition(rows: IR, ctx: Ref): IR
-  def finalizeWrite(parts: IR, globals: IR): IR
+  def writePartition(rows: TrivialIR, ctx: TrivialIR): IR
+  def finalizeWrite(parts: TrivialIR, globals: TrivialIR): IR
 }
 
 object MatrixNativeWriter {
@@ -223,10 +223,10 @@ object MatrixNativeWriter {
       override def writePartitionType: Type =
         rowWriter.returnType
 
-      override def writePartition(rows: IR, ctx: Ref): IR =
+      override def writePartition(rows: TrivialIR, ctx: TrivialIR): IR =
         WritePartition(rows, GetField(ctx, "writeCtx") + UUID4(), rowWriter)
 
-      override def finalizeWrite(parts: IR, globals: IR): IR = {
+      override def finalizeWrite(parts: TrivialIR, globals: TrivialIR): IR = {
         // parts is array<struct> of partition results
         val writeEmpty = WritePartition(
           MakeStream(FastSeq(makestruct()), TStream(TStruct.empty)),
@@ -2420,7 +2420,7 @@ case class MatrixBlockMatrixWriter(
     val rowsInBlockSizeGroups: TableStage =
       keyedByRowIdx.repartitionNoShuffle(ctx, blockSizeGroupsPartitioner)
 
-    def createBlockMakingContexts(tablePartsStreamIR: IR): IR = {
+    def createBlockMakingContexts(tablePartsStreamIR: TrivialIR): IR = {
       flatten(zip2(tablePartsStreamIR, rangeIR(numBlockRows), ArrayZipBehavior.AssertSameLength) {
         case (tableSinglePartCtx, blockRowIdx) =>
           mapIR(rangeIR(I32(numBlockCols))) { blockColIdx =>
@@ -2448,7 +2448,7 @@ case class MatrixBlockMatrixWriter(
           val mappedSlice = ToArray(mapIR(ToStream(sliceArrayIR(
             GetField(singleRow, entriesFieldName),
             blockStartRef,
-            blockStartRef + numColsOfBlock,
+            (blockStartRef: IR) + numColsOfBlock,
           )))(entriesStructRef =>
             GetField(entriesStructRef, entryField)
           ))
@@ -2566,7 +2566,7 @@ case class MatrixNativeMultiWriter(
     val contextUnionType = TStruct("matrixId" -> TInt32, "options" -> unionType)
 
     val emptyUnionIRs: IndexedSeq[(Int, IR)] =
-      IndexedSeq.tabulate(unionType.size)(i => i -> NA(unionType.types(i)))
+      ArraySeq.tabulate(unionType.size)(i => i -> NA(unionType.types(i)))
 
     val concatenatedContexts =
       flatten(
@@ -2575,7 +2575,7 @@ case class MatrixNativeMultiWriter(
             ToArray(mapIR(c.stage.contexts) { ctx =>
               MakeStruct(FastSeq(
                 "matrixId" -> I32(matrixId),
-                "options" -> MakeTuple(emptyUnionIRs.updated(matrixId, matrixId -> ctx)),
+                "options" -> MakeTuple(emptyUnionIRs.updated(matrixId, matrixId -> ctx.clone)),
               ))
             })
           },
@@ -2593,33 +2593,33 @@ case class MatrixNativeMultiWriter(
         components.flatMap(_.stage.letBindings),
         bindIR(cdaIR(concatenatedContexts, allBroadcasts, "matrix_multi_writer") {
           case (ctx, globals) =>
-            bindIR(GetField(ctx, "options")) { options =>
-              Switch(
-                GetField(ctx, "matrixId"),
-                default = Die("MatrixId exceeds matrix count", components.head.writePartitionType),
-                cases = components.zipWithIndex.map { case (component, i) =>
-                  val binds = component.stage.broadcastVals.map { case (name, _) =>
-                    name -> GetField(globals, name.str)
-                  }
+            Switch(
+              GetField(ctx, "matrixId"),
+              default = Die("MatrixId exceeds matrix count", components.head.writePartitionType),
+              cases = components.zipWithIndex.map { case (component, i) =>
+                val binds = component.stage.broadcastVals.map { case (name, _) =>
+                  name -> GetField(globals, name.str)
+                }
 
-                  Let(
-                    binds,
-                    bindIR(GetTupleElement(options, i)) { ctxRef =>
-                      component.writePartition(component.stage.partition(ctxRef), ctxRef)
-                    },
-                  )
-                },
-              )
-            }
+                Let(
+                  binds,
+                  IRBuilder.scoped { b =>
+                    val options = GetField(ctx, "options")
+                    val ctxRef = b.memoize(GetTupleElement(options, i))
+                    val rows = b.memoize(component.stage.partition(ctxRef))
+                    component.writePartition(rows, ctxRef)
+                  },
+                )
+              },
+            )
         }) { cdaResult =>
           val partitionCountScan =
             components.map(_.stage.numPartitions).scanLeft(0)(_ + _)
 
           Begin(components.zipWithIndex.map { case (c, i) =>
-            c.finalizeWrite(
-              ArraySlice(cdaResult, partitionCountScan(i), Some(partitionCountScan(i + 1))),
-              c.stage.globals,
-            )
+            bindIR(ArraySlice(cdaResult, partitionCountScan(i), Some(partitionCountScan(i + 1)))) {
+              part => c.finalizeWrite(part, c.stage.globals)
+            }
           })
         },
       ),

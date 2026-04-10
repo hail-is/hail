@@ -2,7 +2,8 @@ package is.hail.expr.ir
 
 import is.hail.backend.ExecuteContext
 import is.hail.collection.compat.immutable.ArraySeq
-import is.hail.expr.ir.defs.{BaseRef, Binding, Block, In, Ref, Str}
+import is.hail.expr.ir.defs.{BaseRef, Binding, Block, Ref, Str, TrivialIR}
+import is.hail.expr.ir.lowering.invariant.NoRedefinedNames
 import is.hail.types.virtual.TVoid
 
 import scala.collection.Set
@@ -10,16 +11,14 @@ import scala.collection.Set
 object ForwardLets {
   def apply[T <: BaseIR](ctx: ExecuteContext, ir0: T): T =
     ctx.time {
-      val ir1 = NormalizeNames(allowFreeVariables = true)(ctx, ir0)
-      val UsesAndDefs(uses, defs, _) = ComputeUsesAndDefs(ir1, errorIfFreeVariables = false)
-      val nestingDepth = NestingDepth(ctx, ir1)
+      NoRedefinedNames.verify(ctx, ir0)
+      val UsesAndDefs(uses, defs, _) = ComputeUsesAndDefs(ir0, errorIfFreeVariables = false)
+      val nestingDepth = NestingDepth(ctx, ir0)
 
       def shouldForward(value: IR, refs: Set[RefEquality[BaseRef]], base: Block, scope: Int)
         : Boolean =
         IsPure(value) && (
-          value.isInstanceOf[Ref] ||
-            value.isInstanceOf[In] ||
-            (IsConstant(value) && !value.isInstanceOf[Str]) ||
+          (value.isInstanceOf[TrivialIR] && !value.isInstanceOf[Str]) ||
             refs.isEmpty ||
             (refs.size == 1 &&
               nestingDepth.lookupRef(refs.head) == nestingDepth.lookupBinding(base, scope) &&
@@ -55,9 +54,14 @@ object ForwardLets {
           case x @ Ref(name, _) =>
             env.eval
               .lookupOption(name)
-              .map { forwarded =>
-                if (uses.lookup(defs.lookup(x)).count(_.t.name == name) > 1) forwarded.deepCopy()
-                else forwarded
+              .map {
+                case forwarded: TrivialIR => forwarded.clone
+                case big =>
+                  if (uses.lookup(defs.lookup(x)).count(_.t.name == name) < 2) big
+                  else throw new AssertionError(
+                    s"""TreeIR invariant is violated by forwarding binding:\n
+                       |  $name = ${Pretty(ctx, big, preserveNames = true)}""".stripMargin
+                  )
               }
               .getOrElse(x)
           case _ =>
@@ -66,6 +70,6 @@ object ForwardLets {
             )
         }
 
-      rewrite(ir1, BindingEnv(Env.empty, Some(Env.empty), Some(Env.empty))).asInstanceOf[T]
+      rewrite(ir0, BindingEnv(Env.empty, Some(Env.empty), Some(Env.empty))).asInstanceOf[T]
     }
 }

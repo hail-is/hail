@@ -12,6 +12,7 @@ import is.hail.expr.ir._
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.lowering.IrMetadata
+import is.hail.expr.ir.lowering.invariant.Flags.StrictInvariants
 import is.hail.io.fs.{FS, HadoopFS}
 import is.hail.rvd.RVD
 import is.hail.types.virtual._
@@ -34,7 +35,7 @@ object HailSuite {
     new HailClassLoader(getClass.getClassLoader)
 
   private val flags: HailFeatureFlags =
-    HailFeatureFlags.fromEnv(sys.env + ("lower" -> "1"))
+    HailFeatureFlags.fromEnv(sys.env + ("lower" -> "1") + (StrictInvariants -> "1"))
 
   private var backend_ : SparkBackend = _
 }
@@ -170,7 +171,7 @@ class HailSuite extends TestNGSuite with TestUtils with Logging {
     }
 
   def assertEvalsTo(
-    x: IR,
+    x0: IR,
     env: Env[(Any, Type)],
     args: IndexedSeq[(Any, Type)],
     agg: Option[(IndexedSeq[Row], TStruct)],
@@ -178,9 +179,9 @@ class HailSuite extends TestNGSuite with TestUtils with Logging {
   )(implicit execStrats: Set[ExecStrategy]
   ): Unit = {
 
-    TypeCheck(ctx, x, BindingEnv(env.mapValues(_._2), agg = agg.map(_._2.toEnv)))
+    TypeCheck(ctx, x0, BindingEnv(env.mapValues(_._2), agg = agg.map(_._2.toEnv)))
 
-    val t = x.typ
+    val t = x0.typ
     assert(t == TVoid || t.typeCheck(expected), s"$t, $expected")
 
     val filteredExecStrats: Set[ExecStrategy] =
@@ -191,6 +192,7 @@ class HailSuite extends TestNGSuite with TestUtils with Logging {
         execStrats.intersect(ExecStrategy.backendOnly)
       }
 
+    val x = x0.unsafeClone
     filteredExecStrats.foreach { implicit strat =>
       try {
         val res =

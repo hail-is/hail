@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.defs._
+import is.hail.expr.ir.lowering.invariant.TreeIR
 
 case class ScopedDepth(eval: Int, agg: Int, scan: Int) {
   def incrementEval: ScopedDepth = ScopedDepth(eval + 1, agg, scan)
@@ -36,22 +37,13 @@ object NestingDepth {
 
       val memo = Memo.empty[ScopedDepth]
 
-      def computeChildren(ir: BaseIR): Unit = {
+      def computeChildren(ir: BaseIR): Unit =
         ir.children
           .zipWithIndex
           .foreach {
             case (child: IR, _) => computeIR(child, ScopedDepth(0, 0, 0))
-            case (tir: TableIR, _) => computeTable(tir)
-            case (mir: MatrixIR, _) => computeMatrix(mir)
-            case (bmir: BlockMatrixIR, _) => computeBlockMatrix(bmir)
+            case (ir: BaseIR, _) => computeChildren(ir)
           }
-      }
-
-      def computeTable(tir: TableIR): Unit = computeChildren(tir)
-
-      def computeMatrix(mir: MatrixIR): Unit = computeChildren(mir)
-
-      def computeBlockMatrix(bmir: BlockMatrixIR): Unit = computeChildren(bmir)
 
       def computeIR(ir: IR, depth: ScopedDepth): Unit = {
         ir match {
@@ -133,33 +125,29 @@ object NestingDepth {
             computeIR(aggBody, depth.incrementScanOrAgg(isScan))
             knownLength.foreach(computeIR(_, depth))
           case TableAggregate(child, query) =>
-            computeTable(child)
+            computeChildren(child)
             computeIR(query, ScopedDepth(0, 0, 0))
           case MatrixAggregate(child, query) =>
-            computeMatrix(child)
+            computeChildren(child)
             computeIR(query, ScopedDepth(0, 0, 0))
           case _ =>
             ir.children
               .zipWithIndex
               .foreach {
-                case (child: IR, i) => if (UsesAggEnv(ir, i))
-                    computeIR(child, depth.promoteAgg)
-                  else if (UsesScanEnv(ir, i))
-                    computeIR(child, depth.promoteScan)
-                  else
-                    computeIR(child, depth)
-                case (child: TableIR, _) => computeTable(child)
-                case (child: MatrixIR, _) => computeMatrix(child)
-                case (child: BlockMatrixIR, _) => computeBlockMatrix(child)
+                case (child: IR, i) =>
+                  if (UsesAggEnv(ir, i)) computeIR(child, depth.promoteAgg)
+                  else if (UsesScanEnv(ir, i)) computeIR(child, depth.promoteScan)
+                  else computeIR(child, depth)
+                case (child: BaseIR, _) => computeChildren(child)
               }
         }
       }
 
+      TreeIR.verify(ctx, ir0)
+
       ir0 match {
         case ir: IR => computeIR(ir, ScopedDepth(0, 0, 0))
-        case tir: TableIR => computeTable(tir)
-        case mir: MatrixIR => computeMatrix(mir)
-        case bmir: BlockMatrixIR => computeBlockMatrix(bmir)
+        case ir: BaseIR => computeChildren(ir)
       }
 
       new NestingDepth(memo)

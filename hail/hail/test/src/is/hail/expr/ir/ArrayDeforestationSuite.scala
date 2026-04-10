@@ -13,11 +13,11 @@ class ArrayDeforestationSuite extends HailSuite {
   implicit val execStrats: ExecStrategy.ValueSet = ExecStrategy.values
 
   def primitiveArrayNoRegion(len: IR): IR =
-    ToArray(mapIR(StreamRange(0, len, 1))(_ + 5))
+    ToArray(mapIR(StreamRange(0, len, 1))(_.clone + 5))
 
   def arrayWithRegion(len: IR): IR =
     ToArray(mapIR(StreamRange(0, len, 1)) { x2 =>
-      MakeStruct(FastSeq("f1" -> (x2 + 1), "f2" -> 0))
+      MakeStruct(FastSeq("f1" -> (x2.clone + 1), "f2" -> 0))
     })
 
   def primitiveArrayWithRegion(len: IR): IR = {
