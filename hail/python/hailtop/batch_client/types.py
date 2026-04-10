@@ -28,6 +28,7 @@ class GetJobResponseV1Alpha(TypedDict):
     always_run: bool
     n_max_attempts: int
     display_state: Optional[str]
+    inst_coll: NotRequired[str]
 
 
 class JobListEntryV1Alpha(TypedDict):

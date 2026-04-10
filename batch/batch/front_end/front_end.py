@@ -116,6 +116,7 @@ from ..utils import (
     add_metadata_to_request,
     query_billing_projects_with_cost,
     query_billing_projects_without_cost,
+    regions_bits_rep_to_regions,
     regions_to_bits_rep,
     rewrite_dockerhub_image,
     unavailable_if_frozen,
@@ -491,60 +492,82 @@ async def _read_job_container_log_from_cloud_storage(
         return b'ERROR: could not find log file'
 
 
-async def _get_job_container_log(app, batch_id, job_id, container, job_record) -> Optional[bytes]:
+async def _get_job_container_log(
+    app, batch_id, job_id, container, job_record, override_attempt_id=None
+) -> Optional[bytes]:
     if not has_resource_available(job_record):
         return None
 
     state = job_record['state']
-    if state == 'Running':
+
+    if override_attempt_id is not None:
+        use_worker = state == 'Running' and override_attempt_id == job_record['attempt_id']
+        attempt_id = override_attempt_id
+    else:
+        use_worker = state == 'Running'
+        attempt_id = attempt_id_from_spec(job_record)
+        if not (use_worker or (attempt_id is not None and state in complete_states)):
+            raise ValueError(
+                f'unexpected log fetch state: use_worker={use_worker}, attempt_id={attempt_id}, state={state}'
+            )
+
+    if use_worker:
         return await _get_job_container_log_from_worker(
             app[CommonAiohttpAppKeys.CLIENT_SESSION], batch_id, job_id, container, job_record['ip_address']
         )
-
-    attempt_id = attempt_id_from_spec(job_record)
-    assert attempt_id is not None and state in complete_states
-    return await _read_job_container_log_from_cloud_storage(
-        app['file_store'],
-        BatchFormatVersion(job_record['format_version']),
-        batch_id,
-        job_id,
-        container,
-        attempt_id,
-    )
+    else:
+        return await _read_job_container_log_from_cloud_storage(
+            app['file_store'],
+            BatchFormatVersion(job_record['format_version']),
+            batch_id,
+            job_id,
+            container,
+            attempt_id,
+        )
 
 
-async def _get_job_log(app, batch_id, job_id) -> Dict[str, Optional[bytes]]:
+async def _get_job_log(app, batch_id, job_id, override_attempt_id=None) -> Dict[str, Optional[bytes]]:
     record = await _get_job_record(app, batch_id, job_id)
     containers = job_tasks_from_spec(record)
-    logs = await asyncio.gather(*[_get_job_container_log(app, batch_id, job_id, c, record) for c in containers])
+    logs = await asyncio.gather(*[
+        _get_job_container_log(app, batch_id, job_id, c, record, override_attempt_id) for c in containers
+    ])
     return dict(zip(containers, logs))
 
 
-async def _get_job_resource_usage(app, batch_id: int, job_id: int) -> Optional[Dict[str, Optional[pd.DataFrame]]]:
+async def _get_job_resource_usage(
+    app, batch_id: int, job_id: int, override_attempt_id=None
+) -> Optional[Dict[str, Optional[pd.DataFrame]]]:
     record = await _get_job_record(app, batch_id, job_id)
-    return await _get_job_resource_usage_from_record(app, record, batch_id=batch_id, job_id=job_id)
+    return await _get_job_resource_usage_from_record(
+        app, record, batch_id=batch_id, job_id=job_id, override_attempt_id=override_attempt_id
+    )
 
 
 async def _get_job_resource_usage_from_record(
-    app, record, batch_id: int, job_id: int
+    app, record, batch_id: int, job_id: int, override_attempt_id=None
 ) -> Optional[Dict[str, Optional[pd.DataFrame]]]:
-    client_session = app[CommonAiohttpAppKeys.CLIENT_SESSION]
     file_store: FileStore = app['file_store']
     batch_format_version = BatchFormatVersion(record['format_version'])
-
-    state = record['state']
-    ip_address = record['ip_address']
     tasks = job_tasks_from_spec(record)
-    attempt_id = attempt_id_from_spec(record)
+    state = record['state']
 
-    if not has_resource_available(record):
-        return None
+    if override_attempt_id is not None:
+        attempt_id = override_attempt_id
+        # Only fetch live from the worker if this override is the currently-running attempt
+        use_worker = state == 'Running' and override_attempt_id == record['attempt_id']
+    else:
+        if not has_resource_available(record):
+            return None
+        attempt_id = attempt_id_from_spec(record)
+        use_worker = state == 'Running'
 
-    if state == 'Running':
+    if use_worker:
+        client_session = app[CommonAiohttpAppKeys.CLIENT_SESSION]
         try:
             data = await retry_transient_errors(
                 client_session.get_read_json,
-                f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/resource_usage',
+                f'http://{record["ip_address"]}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/resource_usage',
             )
             return {
                 task: ResourceUsageMonitor.decode_to_df(base64.b64decode(encoded_df))
@@ -553,19 +576,18 @@ async def _get_job_resource_usage_from_record(
         except aiohttp.ClientResponseError:
             log.exception(f'while getting resource usage for {(batch_id, job_id)}')
             return {task: None for task in tasks}
+    else:
+        assert attempt_id is not None
 
-    assert attempt_id is not None and state in complete_states
+        async def _read_resource_usage_from_cloud_storage(task):
+            try:
+                df = await file_store.read_resource_usage_file(batch_format_version, batch_id, job_id, attempt_id, task)
+            except FileNotFoundError:
+                log.exception(f'missing resource usage file for {(batch_id, job_id)} and task {task}')
+                df = None
+            return task, df
 
-    async def _read_resource_usage_from_cloud_storage(task):
-        try:
-            df = await file_store.read_resource_usage_file(batch_format_version, batch_id, job_id, attempt_id, task)
-        except FileNotFoundError:
-            id = (batch_id, job_id)
-            log.exception(f'missing resource usage file for {id} and task {task}')
-            df = None
-        return task, df
-
-    return dict(await asyncio.gather(*[_read_resource_usage_from_cloud_storage(task) for task in tasks]))
+        return dict(await asyncio.gather(*[_read_resource_usage_from_cloud_storage(task) for task in tasks]))
 
 
 async def _get_jvm_profile(app: web.Application, batch_id: int, job_id: int) -> Optional[str]:
@@ -704,11 +726,12 @@ async def get_job_container_log(request, batch_id):
     app = request.app
     job_id = int(request.match_info['job_id'])
     container = request.match_info['container']
+    override_attempt_id = request.query.get('attempt_id') or None
     record = await _get_job_record(app, batch_id, job_id)
     containers = job_tasks_from_spec(record)
     if container not in containers:
         raise web.HTTPBadRequest(reason=f'unknown container {container}')
-    job_log = await _get_job_container_log(app, batch_id, job_id, container, record)
+    job_log = await _get_job_container_log(app, batch_id, job_id, container, record, override_attempt_id)
     return web.Response(body=job_log)
 
 
@@ -2373,10 +2396,30 @@ LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
         _get_full_job_status(app, record), _get_full_job_spec(app, record), _get_attributes(app, record)
     )
 
+    if full_spec is not None:
+        # n_max_attempts is stored as a DB column, not in the spec JSON
+        full_spec['n_max_attempts'] = record['n_max_attempts']
+
+        # always_run is stored as a DB column, not in the spec JSON
+        full_spec['always_run'] = bool(record['always_run'])
+
+        # network defaults to 'public' when not specified
+        if 'network' not in full_spec:
+            full_spec['network'] = 'public'
+
+        # regions: reconstruct from bits rep, or use all regions if unspecified
+        if 'regions' not in full_spec:
+            regions_bits_rep = record.get('regions_bits_rep')
+            if regions_bits_rep is not None:
+                full_spec['regions'] = regions_bits_rep_to_regions(regions_bits_rep, app['regions'])
+            else:
+                full_spec['regions'] = sorted(app['regions'].keys())
+
     job: GetJobResponseV1Alpha = {
         **job_record_to_dict(record, attributes.get('name')),
         'status': full_status,
         'spec': full_spec,
+        'inst_coll': record['inst_coll'],
     }
     if attributes:
         job['attributes'] = attributes
@@ -2411,12 +2454,14 @@ WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
     for attempt in attempts:
         start_time = attempt['start_time']
         if start_time is not None:
+            attempt['start_time_ms'] = start_time
             attempt['start_time'] = time_msecs_str(start_time)
         else:
             del attempt['start_time']
 
         end_time = attempt['end_time']
         if end_time is not None:
+            attempt['end_time_ms'] = end_time
             attempt['end_time'] = time_msecs_str(end_time)
         else:
             del attempt['end_time']
@@ -2480,11 +2525,12 @@ async def get_job_resource_usage(request: web.Request, _, batch_id: int) -> web.
     # pull this out separately as billing_project_users_only() does a permission
     # check for us, but has a fixed signature
     job_id = int(request.match_info['job_id'])
+    override_attempt_id = request.query.get('attempt_id') or None
 
     job_record = await _get_job_record(request.app, batch_id, job_id)
 
     resources: Optional[Dict[str, Optional[pd.DataFrame]]] = await _get_job_resource_usage_from_record(
-        app=request.app, record=job_record, batch_id=batch_id, job_id=job_id
+        app=request.app, record=job_record, batch_id=batch_id, job_id=job_id, override_attempt_id=override_attempt_id
     )
 
     if not resources:
@@ -2708,6 +2754,15 @@ async def ui_get_job(request, userdata, batch_id):
     app = request.app
     job_id = int(request.match_info['job_id'])
 
+    # If the user has enabled the React UI, render the React page:
+    if request.cookies.get('hail_react_ui') == '1':
+        page_context = {
+            'batch_id': batch_id,
+            'job_id': job_id,
+        }
+        return await render_template('batch', request, userdata, 'job_react.html', page_context)
+
+    # Otherwise: old server-side style rendering:
     job, attempts, job_log_bytes, resource_usage = await asyncio.gather(
         _get_job(app, batch_id, job_id),
         _get_attempts(app, batch_id, job_id),
@@ -3662,6 +3717,7 @@ def run():
 
     setup_aiohttp_jinja2(app, 'batch.front_end', jinja2.FileSystemLoader(f'{FRONT_END_ROOT}/static/'))
     setup_common_static_routes(routes)
+    routes.static('/batch/static/compiled-js', f'{FRONT_END_ROOT}/static/compiled-js')
     app.add_routes(routes)
     app.router.add_get("/metrics", server_stats)
 
