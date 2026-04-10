@@ -56,9 +56,11 @@ object Pretty {
     elideLiterals: Boolean = true,
     maxLen: Int = -1,
     allowUnboundRefs: Boolean = false,
+    preserveNames: Boolean = false,
   ): String = {
     val pretty =
-      new Pretty(width, ribbonWidth, elideLiterals, maxLen, allowUnboundRefs, useSSA = true)
+      new Pretty(width, ribbonWidth, elideLiterals, maxLen, allowUnboundRefs, useSSA = true,
+        preserveNames = preserveNames)
     pretty(ir)
   }
 

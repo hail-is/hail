@@ -62,7 +62,7 @@ class Memo[T] private (val m: mutable.HashMap[RefEquality[BaseIR], T]) {
 }
 
 object HasIRSharing {
-  def apply(ctx: ExecuteContext)(ir: BaseIR): Boolean = {
+  def apply(ctx: ExecuteContext, ir: BaseIR): Boolean = {
     val mark = ctx.irMetadata.nextFlag
 
     for (node <- IRTraversal.levelOrder(ir)) {
