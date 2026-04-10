@@ -57,7 +57,7 @@ azure-storage-blob==12.28.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
-bokeh==3.4.3
+bokeh==3.9.0
     # via -r hail/python/requirements.txt
 boto3==1.42.87
     # via
@@ -173,6 +173,8 @@ multidict==6.7.1
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   aiohttp
     #   yarl
+narwhals==2.19.0
+    # via bokeh
 nest-asyncio==1.6.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
@@ -197,9 +199,7 @@ packaging==26.0
     #   bokeh
     #   plotly
 pandas==2.3.3
-    # via
-    #   -r hail/python/requirements.txt
-    #   bokeh
+    # via -r hail/python/requirements.txt
 parsimonious==0.11.0
     # via -r hail/python/requirements.txt
 pillow==12.2.0

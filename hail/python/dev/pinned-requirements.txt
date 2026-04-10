@@ -282,7 +282,7 @@ nbclassic==1.3.3
     # via notebook
 nbclient==0.10.4
     # via nbconvert
-nbconvert==7.13.1
+nbconvert==7.17.1
     # via
     #   -r hail/python/dev/requirements.txt
     #   jupyter
@@ -540,8 +540,8 @@ terminado==0.18.1
     #   jupyter-server
     #   jupyter-server-terminals
     #   notebook
-tinycss2==1.5.1
-    # via nbconvert
+tinycss2==1.4.0
+    # via bleach
 toml==0.10.2
     # via curlylint
 tomli==2.4.1
