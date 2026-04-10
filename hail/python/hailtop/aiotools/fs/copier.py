@@ -1,7 +1,9 @@
 import asyncio
 import functools
+import logging
 import os
 import os.path
+import threading
 from typing import Any, AsyncIterator, Awaitable, Callable, Dict, List, Optional, Tuple, Union
 
 import humanize
@@ -17,6 +19,8 @@ from ...utils import (
 from ..weighted_semaphore import WeightedSemaphore
 from .exceptions import FileAndDirectoryError, UnexpectedEOFError
 from .fs import AsyncFS, FileListEntry, FileStatus, MultiPartCreate
+
+log = logging.getLogger(__name__)
 
 
 class Transfer:
@@ -211,6 +215,7 @@ class SourceCopier:
 
     async def _copy_file(self, source_report: SourceReport, srcfile: str, size: int, destfile: str) -> None:
         assert not destfile.endswith('/')
+        log.info('_copy_file: START srcfile=%s destfile=%s size=%d', srcfile, destfile, size)
 
         async with self.xfer_sema.acquire_manager(min(Copier.BUFFER_SIZE, size)):
             async with await self.router_fs.open(srcfile) as srcf:
@@ -272,11 +277,14 @@ class SourceCopier:
         return_exceptions: bool,
     ):
         size = await srcstat.size()
+        log.info('_copy_file_multi_part_main: srcfile=%s destfile=%s size=%d', srcfile, destfile, size)
 
         part_size = self.router_fs.copy_part_size(destfile)
 
         if size <= part_size:
+            log.info('_copy_file_multi_part_main: single part copy srcfile=%s', srcfile)
             await retry_transient_errors(self._copy_file, source_report, srcfile, size, destfile)
+            log.info('_copy_file_multi_part_main: single part copy done srcfile=%s', srcfile)
             return
 
         n_parts, rem = divmod(size, part_size)
@@ -351,20 +359,28 @@ class SourceCopier:
         source_report: SourceReport,
         return_exceptions: bool,
     ):
+        log.info('copy_as_file: START src=%s dest=%s thread=%s', self.src, self.dest, threading.current_thread().name)
         try:
             src = self.src
             if src.endswith('/'):
+                log.info('copy_as_file: src ends with /, skipping src=%s', src)
                 return
             try:
+                log.info('copy_as_file: statfile src=%s', src)
                 srcstat = await self.router_fs.statfile(src)
+                log.info('copy_as_file: statfile done src=%s', src)
             except FileNotFoundError:
+                log.info('copy_as_file: src not found src=%s', src)
                 self.src_is_file = False
                 return
             self.src_is_file = True
         finally:
+            log.info('copy_as_file: releasing barrier src=%s', self.src)
             await self.release_barrier()
 
+        log.info('copy_as_file: waiting on barrier src=%s', self.src)
         await self.barrier.wait()
+        log.info('copy_as_file: barrier passed src=%s src_is_dir=%s', self.src, self.src_is_dir)
 
         if self.src_is_dir:
             raise FileAndDirectoryError(self.src)
@@ -380,8 +396,13 @@ class SourceCopier:
         await self._copy_file_multi_part(sema, source_report, src, srcstat, full_dest, return_exceptions)
 
     async def copy_as_dir(self, sema: asyncio.Semaphore, source_report: SourceReport, return_exceptions: bool):
+        log.info('copy_as_dir: START src=%s dest=%s thread=%s', self.src, self.dest, threading.current_thread().name)
+
         async def files_iterator() -> AsyncIterator[FileListEntry]:
-            return await self.router_fs.listfiles(src, recursive=True)
+            log.info('copy_as_dir: listfiles src=%s', src)
+            result = await self.router_fs.listfiles(src, recursive=True)
+            log.info('copy_as_dir: listfiles done src=%s', src)
+            return result
 
         try:
             src = self.src
@@ -390,11 +411,13 @@ class SourceCopier:
 
             try:
                 srcentries: Optional[AsyncIterator[FileListEntry]] = await files_iterator()
-            except (NotADirectoryError, FileNotFoundError):
+            except (NotADirectoryError, FileNotFoundError) as e:
+                log.info('copy_as_dir: src is not a dir src=%s exc=%s', src, type(e).__name__)
                 self.src_is_dir = False
                 return
             self.src_is_dir = True
         finally:
+            log.info('copy_as_dir: releasing barrier src=%s', self.src)
             await self.release_barrier()
 
         await self.barrier.wait()
@@ -452,6 +475,9 @@ class SourceCopier:
 
     async def copy(self, sema: asyncio.Semaphore, source_report: SourceReport, return_exceptions: bool):
         try:
+            log.info(
+                'SourceCopier.copy: START src=%s dest=%s treat_dest_as=%s', self.src, self.dest, self.treat_dest_as
+            )
             # gather with return_exceptions=True to make copy
             # deterministic with respect to exceptions
             results = await asyncio.gather(
@@ -459,11 +485,19 @@ class SourceCopier:
                 self.copy_as_dir(sema, source_report, return_exceptions),
                 return_exceptions=True,
             )
+            log.info(
+                'SourceCopier.copy: gather done src=%s results=%s',
+                self.src,
+                [type(r).__name__ if isinstance(r, BaseException) else 'ok' for r in results],
+            )
 
             assert self.pending == 0
 
             for result in results:
                 if isinstance(result, BaseException):
+                    log.info(
+                        'SourceCopier.copy: re-raising %s from src=%s: %s', type(result).__name__, self.src, result
+                    )
                     raise result
 
             assert (self.src_is_file is None) == self.src.endswith('/')
