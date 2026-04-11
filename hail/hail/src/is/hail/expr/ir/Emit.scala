@@ -608,6 +608,13 @@ class EmitCode(private val start: CodeLabel, private val iec: IEmitCode) {
 
 object EmitSettable {
   def present(vs: SSettable): EmitSettable = new EmitSettable(None, vs)
+
+  def apply(sb: SettableBuilder, st: SType, required: Boolean, name: String = "anon")
+    : EmitSettable =
+    new EmitSettable(
+      if (required) None else Some(sb.newSettable[Boolean](name + "_missing")),
+      SSettable(sb, st, name),
+    )
 }
 
 class EmitSettable(

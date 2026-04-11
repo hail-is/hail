@@ -36,14 +36,8 @@ class Field[T] private (private val lf: lir.Field) extends AnyVal {
 
   def putAny(obj: Code[_], v: Code[_]): Code[Unit] = put(obj, coerce[T](v))
 
-  def put(obj: Code[_], v: Code[T]): Code[Unit] = {
-    obj.end.append(lir.goto(v.start))
-    v.end.append(lir.putField(lf, obj.v, v.v))
-    val newC = new VCode(obj.start, v.end, null)
-    obj.clear()
-    v.clear()
-    newC
-  }
+  def put(obj: Code[_], v: Code[T]): Code[Unit] =
+    Code.void(obj, v, lir.putField(lf, _, _))
 }
 
 object StaticField {
@@ -61,12 +55,8 @@ case class StaticField[T] private (lf: lir.StaticField) extends AnyVal {
 
   def get(): Code[T] = Code(lir.getStaticField(lf))
 
-  def put(v: Code[T]): Code[Unit] = {
-    v.end.append(lir.putStaticField(lf, v.v))
-    val newC = new VCode(v.start, v.end, null)
-    v.clear()
-    newC
-  }
+  def put(v: Code[T]): Code[Unit] =
+    Code.void(v, lir.putStaticField(lf, _))
 }
 
 class ClassesBytes(classesBytes: Array[(String, Array[Byte])]) extends Serializable with Logging {
@@ -95,6 +85,25 @@ class ClassesBytes(classesBytes: Array[(String, Array[Byte])]) extends Serializa
   }
 }
 
+class LazyClassFactory[C](
+  classesBytes: ClassesBytes,
+  className: String,
+) extends java.io.Serializable {
+  @transient @volatile private var theClass: Class[_] = null
+
+  def newInstance(hcl: HailClassLoader): C = {
+    if (theClass == null) {
+      this.synchronized {
+        if (theClass == null) {
+          classesBytes.load(hcl)
+          theClass = loadClass(hcl, className)
+        }
+      }
+    }
+    theClass.getDeclaredConstructor().newInstance().asInstanceOf[C]
+  }
+}
+
 class AsmTuple[C](
   val cb: ClassBuilder[C],
   val fields: IndexedSeq[Field[_]],
@@ -105,8 +114,6 @@ class AsmTuple[C](
   def newTuple(elems: IndexedSeq[Code[_]]): Code[C] = Code.newInstance(cb, ctor, elems)
 
   def loadElementsAny(t: Value[_]): IndexedSeq[Value[_]] = fields.map(_.get(coerce[C](t)))
-
-  def loadElements(t: Value[C]): IndexedSeq[Value[_]] = fields.map(_.get(t))
 }
 
 trait WrappedModuleBuilder {
@@ -178,12 +185,14 @@ class ModuleBuilder() {
   private var nStaticFieldsOnThisClass: Int = maxFieldsOrMethodsOnClass
   private var staticCls: ClassBuilder[_] = null
 
-  private def incrStaticClassSize(n: Int = 1): Unit =
-    if (nStaticFieldsOnThisClass + n >= maxFieldsOrMethodsOnClass) {
-      nStaticFieldsOnThisClass = n
+  private def incrStaticClassSize(): Unit = {
+    if (nStaticFieldsOnThisClass + 1 >= maxFieldsOrMethodsOnClass) {
+      nStaticFieldsOnThisClass = 0
       staticFieldWrapperIdx += 1
       staticCls = genClass[Unit](s"staticWrapperClass_$staticFieldWrapperIdx")
     }
+    nStaticFieldsOnThisClass += 1
+  }
 
   def genStaticField[T: TypeInfo](name: String = null): StaticFieldRef[T] = {
     incrStaticClassSize()
@@ -370,39 +379,37 @@ class ClassBuilder[C](
       m.isStatic == isStatic
     }
 
+  private def addMethod(
+    name: String,
+    parameterTypeInfo: IndexedSeq[TypeInfo[_]],
+    returnTypeInfo: TypeInfo[_],
+    isStatic: Boolean,
+  ): MethodBuilder[C] = {
+    if (lookupMethod(name, parameterTypeInfo, returnTypeInfo, isStatic).isDefined) {
+      val keyword = if (isStatic) "Static method" else "Method"
+      val signature = s"${parameterTypeInfo.mkString("(", ",", ")")} => $returnTypeInfo"
+      throw new DuplicateMemberException(
+        s"$keyword '$name: $signature' already defined in class '$className'."
+      )
+    }
+    val mb = new MethodBuilder[C](this, name, parameterTypeInfo, returnTypeInfo, isStatic)
+    methods += mb
+    mb
+  }
+
   def newMethod(
     name: String,
     parameterTypeInfo: IndexedSeq[TypeInfo[_]],
     returnTypeInfo: TypeInfo[_],
-  ): MethodBuilder[C] = {
-    if (lookupMethod(name, parameterTypeInfo, returnTypeInfo, isStatic = false).isDefined) {
-      val signature = s"${parameterTypeInfo.mkString("(", ",", ")")} => $returnTypeInfo"
-      throw new DuplicateMemberException(
-        s"Method '$name: $signature' already defined in class '$className'."
-      )
-    }
-
-    val mb = new MethodBuilder[C](this, name, parameterTypeInfo, returnTypeInfo)
-    methods += mb
-    mb
-  }
+  ): MethodBuilder[C] =
+    addMethod(name, parameterTypeInfo, returnTypeInfo, isStatic = false)
 
   def newStaticMethod(
     name: String,
     parameterTypeInfo: IndexedSeq[TypeInfo[_]],
     returnTypeInfo: TypeInfo[_],
-  ): MethodBuilder[C] = {
-    if (lookupMethod(name, parameterTypeInfo, returnTypeInfo, isStatic = true).isDefined) {
-      val signature = s"${parameterTypeInfo.mkString("(", ",", ")")} => $returnTypeInfo"
-      throw new DuplicateMemberException(
-        s"Static method '$name: $signature' already defined in class '$className'."
-      )
-    }
-
-    val mb = new MethodBuilder[C](this, name, parameterTypeInfo, returnTypeInfo, isStatic = true)
-    methods += mb
-    mb
-  }
+  ): MethodBuilder[C] =
+    addMethod(name, parameterTypeInfo, returnTypeInfo, isStatic = true)
 
   def newMethod(
     name: String,
@@ -491,29 +498,16 @@ class ClassBuilder[C](
   }
 
   def result(writeIRs: Boolean, print: Option[PrintWriter] = None): HailClassLoader => C = {
-    val n = className.replace("/", ".")
-    val classesBytes = modb.classesBytes(writeIRs)
-
     assert(
       TaskContext.get() == null,
       "FunctionBuilder emission should happen on master, but happened on worker",
     )
 
     new (HailClassLoader => C) with java.io.Serializable {
-      @transient @volatile private var theClass: Class[_] = null
+      private val factory =
+        new LazyClassFactory[C](modb.classesBytes(writeIRs), className.replace("/", "."))
 
-      override def apply(hcl: HailClassLoader): C = {
-        if (theClass == null) {
-          this.synchronized {
-            if (theClass == null) {
-              classesBytes.load(hcl)
-              theClass = loadClass(hcl, n)
-            }
-          }
-        }
-
-        theClass.getDeclaredConstructor().newInstance().asInstanceOf[C]
-      }
+      override def apply(hcl: HailClassLoader): C = factory.newInstance(hcl)
     }
   }
 
@@ -695,10 +689,10 @@ class MethodBuilder[C](
     if (i == 0 && !isStatic)
       assert(ti == cb.ti, s"$ti != ${cb.ti}")
     else {
-      val static = (!isStatic).toInt
+      val thisOffset = (!isStatic).toInt
       assert(
-        ti == parameterTypeInfo(i - static),
-        s"$ti != ${parameterTypeInfo(i - static)}\n  params: $parameterTypeInfo",
+        ti == parameterTypeInfo(i - thisOffset),
+        s"$ti != ${parameterTypeInfo(i - thisOffset)}\n  params: $parameterTypeInfo",
       )
     }
     new LocalRef(lmethod.getParam(i))
