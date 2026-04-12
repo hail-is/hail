@@ -1,6 +1,7 @@
 package is.hail.io
 
 import is.hail.HailSuite
+
 import org.scalacheck.Prop.forAll
 import org.testng.annotations.Test
 
