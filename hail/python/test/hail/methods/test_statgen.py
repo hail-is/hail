@@ -1868,3 +1868,78 @@ def test_logistic_regression_y_parameter_sanity():
 
     with pytest.raises(hl.ExpressionException):
         hl.logistic_regression_rows(test='wald', x=mt.prod, y=mt.row_idx, covariates=[1.0]).describe()
+
+def test_split_multi_pl_haploid():
+    lines = [
+        {
+            'locus': hl.Locus(contig='Y', position=10_000),
+            'alleles': ['A', 'C', 'T'],
+            'entries': [{'GT': hl.Call([1]), 'LPL': [100, 0, 1000]}],
+        },
+        {
+            'locus': hl.Locus(contig='Y', position=11_000),
+            'alleles': ['A', 'AT', 'ATT', 'T'],
+            'entries': [{'GT': hl.Call([2]), 'PL': [100, 200, 0, 73]}],
+        },
+    ]
+    ht = hl.Table.parallelize(lines, key=['locus', 'alleles'])
+    ht = ht.annotate_globals(cols=[hl.Struct(s='S1')])
+    mt = ht._unlocalize_entries('entries', 'cols', ['s'])
+    expected = [
+        hl.Struct(
+            locus=hl.Locus(contig='Y', position=10000, reference_genome='GRCh37'),
+            alleles=['A', 'C'],
+            a_index=1,
+            was_split=True,
+            s='S1',
+            GT=hl.Call(alleles=[1], phased=False),
+            PL=[100, 0],
+        ),
+        hl.Struct(
+            locus=hl.Locus(contig='Y', position=10000, reference_genome='GRCh37'),
+            alleles=['A', 'T'],
+            a_index=2,
+            was_split=True,
+            s='S1',
+            GT=hl.Call(alleles=[0], phased=False),
+            PL=[0, 1000],
+        ),
+        hl.Struct(
+            locus=hl.Locus(contig='Y', position=10000, reference_genome='GRCh37'),
+            alleles=['A', 'T'],
+            a_index=2,
+            was_split=True,
+            s='S1',
+            GT=hl.Call(alleles=[0], phased=False),
+            PL=[100, 0],
+        ),
+        hl.Struct(
+            locus=hl.Locus(contig='Y', position=11000, reference_genome='GRCh37'),
+            alleles=['A', 'AT'],
+            a_index=1,
+            was_split=True,
+            s='S1',
+            GT=hl.Call(alleles=[0], phased=False),
+            PL=[100, 200],
+        ),
+        hl.Struct(
+            locus=hl.Locus(contig='Y', position=11000, reference_genome='GRCh37'),
+            alleles=['A', 'ATT'],
+            a_index=2,
+            was_split=True,
+            s='S1',
+            GT=hl.Call(alleles=[1], phased=False),
+            PL=[100, 0],
+        ),
+        hl.Struct(
+            locus=hl.Locus(contig='Y', position=11000, reference_genome='GRCh37'),
+            alleles=['A', 'T'],
+            a_index=3,
+            was_split=True,
+            s='S1',
+            GT=hl.Call(alleles=[0], phased=False),
+            PL=[100, 0],
+        ),
+    ]
+    result = mt.entries().collect()
+    assert expected == result
