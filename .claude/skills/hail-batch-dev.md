@@ -1,5 +1,5 @@
 ---
-description: Investigate Hail Batch infrastructure and develop service improvements (non-default namespaces, service internals)
+description: Work on the Hail system itself — CI pipeline, flaky tests, Batch service internals, dev namespace deployments, deployed infrastructure management
 ---
 
 You are helping a Hail service engineer investigate Hail Batch infrastructure or develop improvements to it.

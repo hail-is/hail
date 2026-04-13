@@ -1,15 +1,8 @@
 ---
-description: Work with Hail Batch — inspect status, logs, debug failures, write/improve scripts
+description: Submit jobs, debug failures, and write Hail Batch submission scripts as an end user
 ---
 
 You are helping a user work with Hail Batch — a job orchestration service for running analysis pipelines on cloud compute.
-
-## What you can do
-
-- Inspect batch and job status, logs, and resource usage
-- Help write, debug, and improve batch submission scripts
-- Diagnose failures (OOM, exit codes, dependency failures)
-- Advise on cost, parallelism, and resource requests
 
 ## Running hailctl commands
 
