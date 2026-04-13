@@ -1907,22 +1907,13 @@ def test_split_multi_pl_haploid():
             PL=[0, 1000],
         ),
         hl.Struct(
-            locus=hl.Locus(contig='Y', position=10000, reference_genome='GRCh37'),
-            alleles=['A', 'T'],
-            a_index=2,
-            was_split=True,
-            s='S1',
-            GT=hl.Call(alleles=[0], phased=False),
-            PL=[100, 0],
-        ),
-        hl.Struct(
             locus=hl.Locus(contig='Y', position=11000, reference_genome='GRCh37'),
             alleles=['A', 'AT'],
             a_index=1,
             was_split=True,
             s='S1',
             GT=hl.Call(alleles=[0], phased=False),
-            PL=[100, 200],
+            PL=[0, 200],
         ),
         hl.Struct(
             locus=hl.Locus(contig='Y', position=11000, reference_genome='GRCh37'),
@@ -1931,7 +1922,7 @@ def test_split_multi_pl_haploid():
             was_split=True,
             s='S1',
             GT=hl.Call(alleles=[1], phased=False),
-            PL=[100, 0],
+            PL=[73, 0],
         ),
         hl.Struct(
             locus=hl.Locus(contig='Y', position=11000, reference_genome='GRCh37'),
@@ -1940,7 +1931,7 @@ def test_split_multi_pl_haploid():
             was_split=True,
             s='S1',
             GT=hl.Call(alleles=[0], phased=False),
-            PL=[100, 0],
+            PL=[0, 73],
         ),
     ]
     result = mt.entries().collect()
