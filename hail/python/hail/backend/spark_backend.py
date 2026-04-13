@@ -30,31 +30,35 @@ def _modify_spark_conf(conf: pyspark.SparkConf, key: str, update: Callable[[str 
     conf.set(key, update(old))
 
 
-def _append_csv(*xs: str) -> Callable[[str | None], str]:
-    return lambda csv: ','.join(xs if csv is None else (csv, *xs))
+def _append_delimited(*xs: str, sep: str) -> Callable[[str | None], str]:
+    return lambda csv: sep.join(xs if csv is None else (csv, *xs))
 
 
 def _configure_spark_classpath(conf: SparkConf):
     info = local_jar_information()
-    classpath = [info.hail_jar, *info.extra_classpath]
+    extra_classpath = [path for extra_classes in info.extra_classpath for path in extra_classes.split(':')]
+    classpath = [info.hail_jar, *extra_classpath]
 
     if os.environ.get('HAIL_SPARK_MONITOR') or os.environ.get('AZURE_SPARK') == '1':
         import sparkmonitor
 
         classpath.append(os.path.join(os.path.dirname(sparkmonitor.__file__), 'listener.jar'))
         _modify_spark_conf(
-            conf, 'spark.extraListeners', _append_csv('sparkmonitor.listener.JupyterSparkMonitorListener')
+            conf,
+            'spark.extraListeners',
+            _append_delimited('sparkmonitor.listener.JupyterSparkMonitorListener', sep=','),
         )
 
-    _modify_spark_conf(conf, 'spark.jars', _append_csv(*classpath))
+    spark_jars = [path for path in classpath if os.path.splitext(path)[1] == '.jar']
+    _modify_spark_conf(conf, 'spark.jars', _append_delimited(*spark_jars, sep=','))
     if os.environ.get('AZURE_SPARK') == '1':
         print('AZURE_SPARK environment variable is set to "1", assuming you are in HDInsight.')
         # Setting extraClassPath in HDInsight overrides the classpath entirely so you can't
         # load the Scala standard library. Interestingly, setting extraClassPath is not
         # necessary in HDInsight.
     else:
-        _modify_spark_conf(conf, 'spark.driver.extraClassPath', _append_csv(*classpath))
-        _modify_spark_conf(conf, 'spark.executor.extraClassPath', _append_csv(*classpath))
+        _modify_spark_conf(conf, 'spark.driver.extraClassPath', _append_delimited(*classpath, sep=':'))
+        _modify_spark_conf(conf, 'spark.executor.extraClassPath', _append_delimited(*classpath, sep=':'))
 
 
 def _get_or_create_pyspark_session(
