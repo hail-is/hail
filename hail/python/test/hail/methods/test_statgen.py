@@ -1869,6 +1869,7 @@ def test_logistic_regression_y_parameter_sanity():
     with pytest.raises(hl.ExpressionException):
         hl.logistic_regression_rows(test='wald', x=mt.prod, y=mt.row_idx, covariates=[1.0]).describe()
 
+
 def test_split_multi_pl_haploid():
     lines = [
         {
