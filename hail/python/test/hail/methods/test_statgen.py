@@ -1874,7 +1874,7 @@ def test_split_multi_pl_haploid():
         {
             'locus': hl.Locus(contig='Y', position=10_000),
             'alleles': ['A', 'C', 'T'],
-            'entries': [{'GT': hl.Call([1]), 'LPL': [100, 0, 1000]}],
+            'entries': [{'GT': hl.Call([1]), 'PL': [100, 0, 1000]}],
         },
         {
             'locus': hl.Locus(contig='Y', position=11_000),
@@ -1885,6 +1885,7 @@ def test_split_multi_pl_haploid():
     ht = hl.Table.parallelize(lines, key=['locus', 'alleles'])
     ht = ht.annotate_globals(cols=[hl.Struct(s='S1')])
     mt = ht._unlocalize_entries('entries', 'cols', ['s'])
+    mt = hl.split_multi_hts(mt)
     expected = [
         hl.Struct(
             locus=hl.Locus(contig='Y', position=10000, reference_genome='GRCh37'),
