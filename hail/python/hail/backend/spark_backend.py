@@ -36,8 +36,7 @@ def _append_delimited(*xs: str, sep: str) -> Callable[[str | None], str]:
 
 def _configure_spark_classpath(conf: SparkConf):
     info = local_jar_information()
-    extra_classpath = [path for extra_classes in info.extra_classpath for path in extra_classes.split(':')]
-    classpath = [info.hail_jar, *extra_classpath]
+    classpath = [info.hail_jar, *info.extra_classpath]
 
     if os.environ.get('HAIL_SPARK_MONITOR') or os.environ.get('AZURE_SPARK') == '1':
         import sparkmonitor
