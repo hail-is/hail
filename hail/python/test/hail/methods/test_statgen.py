@@ -1868,3 +1868,13 @@ def test_logistic_regression_y_parameter_sanity():
 
     with pytest.raises(hl.ExpressionException):
         hl.logistic_regression_rows(test='wald', x=mt.prod, y=mt.row_idx, covariates=[1.0]).describe()
+
+
+def test_gq_from_pl_missing():
+    result = hl.eval(hl.gq_from_pl([450, None, 73, 85, 0, None]))
+    assert result == 73
+
+
+def test_gq_from_pl_all_missing():
+    result = hl.eval(hl.gq_from_pl(hl.literal([None, None, None], hl.tarray(hl.tint32))))
+    assert result == 0
