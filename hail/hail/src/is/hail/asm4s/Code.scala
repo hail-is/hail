@@ -1090,12 +1090,11 @@ object Code {
   def _empty: Value[Unit] = Value.fromLIR[Unit](null: lir.ValueX)
 
   def _throwAny[T <: java.lang.Throwable]: Thrower[T] = new Thrower[T] {
-    override def apply[U](cerr: Code[T])(implicit uti: TypeInfo[U]): Code[U] = {
+    override def apply[U](cerr: Code[T])(implicit uti: TypeInfo[U]): Code[U] =
       if (uti eq UnitInfo)
         Code.void(cerr, lir.throwx(_))
       else
         Code(cerr, lir.insn1(ATHROW, uti))
-    }
   }
 
   private def getEmitLineNum: Int =
@@ -1108,12 +1107,11 @@ object Code {
     _throw[T, U](cerr, getEmitLineNum)
 
   def _throw[T <: java.lang.Throwable, U](cerr: Code[T], lineNumber: Int)(implicit uti: TypeInfo[U])
-    : Code[U] = {
+    : Code[U] =
     if (uti eq UnitInfo)
       Code.void(cerr, lir.throwx(_, lineNumber))
     else
       Code(cerr, lir.insn1(ATHROW, uti, lineNumber))
-  }
 
   def _fatal[U](msg: Code[String])(implicit uti: TypeInfo[U]): Code[U] =
     _fatal[U](msg, getEmitLineNum)

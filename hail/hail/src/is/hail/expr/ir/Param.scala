@@ -28,7 +28,7 @@ trait EmitParamType extends ParamType {
 
   def virtualType: Type
 
-  final lazy override val codeTypes: IndexedSeq[TypeInfo[_]] = {
+  final override lazy val codeTypes: IndexedSeq[TypeInfo[_]] = {
     val ts = definedValueTupleTypes()
     if (required)
       ts
