@@ -2228,6 +2228,114 @@ class IRSuite extends HailSuite {
 
     val scalarSlice = NDArraySlice(scalarRowMajor, MakeTuple.ordered(FastSeq()))
     assertEvalsTo(makeNDArrayRef(scalarSlice, FastSeq()), 3.0)
+
+    def sliceTuple(start: Long, stop: Long, step: Long): IR =
+      MakeTuple.ordered(FastSeq(I64(start), I64(stop), I64(step)))
+
+    // 4x5 matrix: [[0,1,2,3,4], [5,6,7,8,9], [10,11,12,13,14], [15,16,17,18,19]]
+    val mat4x5 = makeNDArray((0 until 20).map(_.toDouble), FastSeq(4, 5), True())
+
+    // empty slice: start == stop produces 0 elements
+    val emptyVec = NDArraySlice(
+      vectorRowMajor,
+      MakeTuple.ordered(FastSeq(sliceTuple(0, 0, 1))),
+    )
+    assertEvalsTo(NDArrayShape(emptyVec), Row(0L))
+
+    val emptyRows = NDArraySlice(
+      mat4x5,
+      MakeTuple.ordered(FastSeq(sliceTuple(2, 2, 1), sliceTuple(0, 5, 1))),
+    )
+    assertEvalsTo(NDArrayShape(emptyRows), Row(0L, 5L))
+
+    val emptyCols = NDArraySlice(
+      mat4x5,
+      MakeTuple.ordered(FastSeq(sliceTuple(0, 4, 1), sliceTuple(3, 3, 1))),
+    )
+    assertEvalsTo(NDArrayShape(emptyCols), Row(4L, 0L))
+
+    // empty slice with step > 1
+    val emptyStride = NDArraySlice(
+      mat4x5,
+      MakeTuple.ordered(FastSeq(sliceTuple(1, 1, 3), sliceTuple(0, 5, 1))),
+    )
+    assertEvalsTo(NDArrayShape(emptyStride), Row(0L, 5L))
+
+    // step=2 on rows: select rows 0, 2
+    assertNDEvals(
+      NDArraySlice(
+        mat4x5,
+        MakeTuple.ordered(FastSeq(sliceTuple(0, 4, 2), sliceTuple(0, 5, 1))),
+      ),
+      FastSeq(
+        FastSeq(0.0, 1.0, 2.0, 3.0, 4.0),
+        FastSeq(10.0, 11.0, 12.0, 13.0, 14.0),
+      ),
+    )
+
+    // step=2 on cols: select cols 0, 2, 4
+    assertNDEvals(
+      NDArraySlice(
+        mat4x5,
+        MakeTuple.ordered(FastSeq(sliceTuple(0, 4, 1), sliceTuple(0, 5, 2))),
+      ),
+      FastSeq(
+        FastSeq(0.0, 2.0, 4.0),
+        FastSeq(5.0, 7.0, 9.0),
+        FastSeq(10.0, 12.0, 14.0),
+        FastSeq(15.0, 17.0, 19.0),
+      ),
+    )
+
+    // step=2 on both dimensions
+    assertNDEvals(
+      NDArraySlice(
+        mat4x5,
+        MakeTuple.ordered(FastSeq(sliceTuple(0, 4, 2), sliceTuple(0, 5, 2))),
+      ),
+      FastSeq(
+        FastSeq(0.0, 2.0, 4.0),
+        FastSeq(10.0, 12.0, 14.0),
+      ),
+    )
+
+    // step=3 with offset: rows 1 to 4 by 3 selects only row 1
+    assertNDEvals(
+      NDArraySlice(
+        mat4x5,
+        MakeTuple.ordered(FastSeq(sliceTuple(1, 4, 3), sliceTuple(0, 5, 1))),
+      ),
+      FastSeq(
+        FastSeq(5.0, 6.0, 7.0, 8.0, 9.0)
+      ),
+    )
+
+    // large step selects only first element per dimension
+    assertNDEvals(
+      NDArraySlice(
+        mat4x5,
+        MakeTuple.ordered(FastSeq(sliceTuple(0, 4, 1), sliceTuple(0, 5, 10))),
+      ),
+      FastSeq(
+        FastSeq(0.0),
+        FastSeq(5.0),
+        FastSeq(10.0),
+        FastSeq(15.0),
+      ),
+    )
+
+    // 1D step=2 on a vector
+    val vec5 = makeNDArray(FastSeq(10.0, 20.0, 30.0, 40.0, 50.0), FastSeq(5), True())
+    assertNDEvals(
+      NDArraySlice(vec5, MakeTuple.ordered(FastSeq(sliceTuple(0, 5, 2)))),
+      FastSeq(10.0, 30.0, 50.0),
+    )
+
+    // step where stop is not aligned with step boundary
+    assertNDEvals(
+      NDArraySlice(vec5, MakeTuple.ordered(FastSeq(sliceTuple(0, 4, 3)))),
+      FastSeq(10.0, 40.0),
+    )
   }
 
   @Test def testNDArrayFilter(): Unit = {
@@ -3575,7 +3683,6 @@ class IRSuite extends HailSuite {
         ETypeValueWriter(TypedCodecSpec(ctx, PInt32(), BufferSpec.default)),
         Some(Str("/tmp/uid/part")),
       ),
-      LiftMeOut(I32(1)),
       relationalBindIR(I32(0))(_ => I32(0)), {
         val y = freshName()
         TailLoop(y, IndexedSeq(freshName() -> I32(0)), TInt32, Recur(y, FastSeq(I32(4)), TInt32))

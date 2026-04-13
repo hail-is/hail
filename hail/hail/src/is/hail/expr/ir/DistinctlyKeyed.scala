@@ -8,7 +8,7 @@ object DistinctlyKeyed {
       case t: TableRead =>
         memo.bindIf(t.isDistinctlyKeyed, t, ())
 
-      case t @ TableKeyBy(child, keys, _) =>
+      case t @ TableKeyBy(child, keys, _, _) =>
         memo.bindIf(child.typ.key.forall(keys.contains) && memo.contains(child), t, ())
 
       case t @ (_: TableFilter

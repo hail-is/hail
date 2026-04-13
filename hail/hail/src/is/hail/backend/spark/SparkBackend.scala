@@ -10,6 +10,8 @@ import is.hail.expr.ir._
 import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.lowering._
 import is.hail.io.{BufferSpec, TypedCodecSpec}
+import is.hail.io.compress.{BGzipCodec, BGzipCodecTbi}
+import is.hail.kryo.HailKryoRegistrator
 import is.hail.rvd.RVD
 import is.hail.types._
 import is.hail.types.physical.{PStruct, PTuple}
@@ -24,9 +26,11 @@ import java.io.PrintWriter
 
 import com.fasterxml.jackson.core.StreamReadConstraints
 import org.apache.hadoop
+import org.apache.hadoop.io.compress.{DefaultCodec, GzipCodec}
 import org.apache.spark._
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
+import org.apache.spark.serializer.KryoSerializer
 import org.apache.spark.sql.SparkSession
 import sourcecode.Enclosing
 
@@ -89,7 +93,7 @@ object SparkBackend extends Logging {
       else theSparkBackend.sc
     }
 
-  def checkSparkCompatibility(jarVersion: String, sparkVersion: String): Unit = {
+  private def checkSparkCompatibility(jarVersion: String, sparkVersion: String): Unit = {
     def majorMinor(version: String): String = version.split("\\.", 3).take(2).mkString(".")
 
     if (majorMinor(jarVersion) != majorMinor(sparkVersion))
@@ -104,62 +108,35 @@ object SparkBackend extends Logging {
       )
   }
 
-  def createSparkConf(appName: String, master: String, local: String, blockSize: Long)
-    : SparkConf = {
-    require(blockSize >= 0)
-
-    checkSparkCompatibility(is.hail.SparkVersion, org.apache.spark.SPARK_VERSION)
-
-    val conf = new SparkConf().setAppName(appName)
-
-    if (master != null) conf.setMaster(master): Unit
-    else if (!conf.contains("spark.master")) conf.setMaster(local): Unit
-
-    conf
-      .set("spark.logConf", "true")
-      .set("spark.kryoserializer.buffer.max", "1g")
-      .set("spark.driver.maxResultSize", "0")
-      .set(
-        "spark.hadoop.io.compression.codecs",
-        "org.apache.hadoop.io.compress.DefaultCodec," +
-          "is.hail.io.compress.BGzipCodec," +
-          "is.hail.io.compress.BGzipCodecTbi," +
-          "org.apache.hadoop.io.compress.GzipCodec",
-      )
-      .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
-      .set("spark.kryo.registrator", "is.hail.kryo.HailKryoRegistrator")
-      .set(
-        "spark.hadoop.mapreduce.input.fileinputformat.split.minsize",
-        (blockSize * 1024L * 1024L).toString,
-      ): Unit
+  // Used by python and HailSuite before spark session initialisation
+  def pySparkConf: SparkConf = {
+    val config =
+      new SparkConf(loadDefaults = false)
+        .set("spark.logConf", "true")
+        .set("spark.kryoserializer.buffer.max", "1g")
+        .set("spark.driver.maxResultSize", "0")
+        .set("spark.hadoop.io.compression.codecs", CompressionCodecs.mkString(","))
+        .set("spark.serializer", classOf[KryoSerializer].getName)
+        .set("spark.kryo.registrator", classOf[HailKryoRegistrator].getName)
 
     // load additional Spark properties from HAIL_SPARK_PROPERTIES
+    // I (ed) couldn't find any uses of this env var, is it documented?
     sys.env.get("HAIL_SPARK_PROPERTIES").foreach { hailSparkProperties =>
       for (p <- hailSparkProperties.split(",")) {
         p.split("=") match {
           case Array(k, v) =>
             logger.info(s"set Spark property from HAIL_SPARK_PROPERTIES: $k=$v")
-            conf.set(k, v)
+            config.set(k, v)
           case _ =>
-            logger.warn(s"invalid key-value property pair in HAIL_SPARK_PROPERTIES: $p")
+            logger.warn(s"ignoring invalid property in HAIL_SPARK_PROPERTIES: '$p'")
         }
       }
     }
 
-    conf
+    config
   }
 
-  def pySparkSession(
-    appName: String = "Hail",
-    master: String = null,
-    local: String = "local[*]",
-    minBlockSize: Long = 1L,
-  ): SparkSession = {
-    val conf = createSparkConf(appName, master, local, minBlockSize)
-    SparkSession.builder().config(conf).getOrCreate()
-  }
-
-  def checkSparkConfiguration(conf: SparkConf): Unit = {
+  private def checkSparkConfiguration(conf: SparkConf): Unit = {
     val problems = new mutable.ArrayBuffer[String]
 
     val serializer = conf.getOption("spark.serializer")
@@ -183,13 +160,14 @@ object SparkBackend extends Logging {
       )
   }
 
-  private[this] lazy val CompressionCodecs: Array[String] =
-    Array(
-      "org.apache.hadoop.io.compress.DefaultCodec",
-      "is.hail.io.compress.BGzipCodec",
-      "is.hail.io.compress.BGzipCodecTbi",
-      "org.apache.hadoop.io.compress.GzipCodec",
+  private def CompressionCodecs =
+    ArraySeq(
+      classOf[DefaultCodec],
+      classOf[BGzipCodec],
+      classOf[BGzipCodecTbi],
+      classOf[GzipCodec],
     )
+      .map(_.getName)
 
   def getOrCreate(session: SparkSession): SparkBackend =
     synchronized {
@@ -209,8 +187,9 @@ object SparkBackend extends Logging {
   def apply(session: SparkSession): SparkBackend =
     synchronized {
       require(theSparkBackend == null)
+      checkSparkCompatibility(is.hail.SparkVersion, org.apache.spark.SPARK_VERSION)
+
       val sc = session.sparkContext
-      sc.hadoopConfiguration.set("io.compression.codecs", CompressionCodecs.mkString(","))
       checkSparkConfiguration(sc.getConf)
       sc.uiWebUrl.foreach(ui => logger.info(s"SparkUI: $ui"))
       theSparkBackend = new SparkBackend(session)

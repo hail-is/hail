@@ -1055,7 +1055,7 @@ def _service_vep(
     try:
         status = b.wait(
             description='vep(...)',
-            disable_progress_bar=backend.disable_progress_bar,
+            disable_progress_bar=not backend.show_progress,
             progress=None,
             starting_job=starting_job_id,
         )

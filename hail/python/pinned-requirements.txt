@@ -8,7 +8,7 @@ aiohappyeyeballs==2.6.1
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   aiohttp
-aiohttp==3.13.4
+aiohttp==3.13.5
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
@@ -59,11 +59,11 @@ azure-storage-blob==12.28.0
     #   -r hail/python/hailtop/requirements.txt
 bokeh==3.4.3
     # via -r hail/python/requirements.txt
-boto3==1.42.79
+boto3==1.42.84
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
-botocore==1.42.79
+botocore==1.42.84
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
@@ -79,11 +79,11 @@ cffi==2.0.0
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   cryptography
     #   pycares
-charset-normalizer==3.4.6
+charset-normalizer==3.4.7
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   requests
-click==8.3.1
+click==8.3.2
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   typer
@@ -115,44 +115,15 @@ frozenlist==1.8.0
     #   -r hail/python/hailtop/requirements.txt
     #   aiohttp
     #   aiosignal
-google-api-core==2.30.1
-    # via
-    #   -c hail/python/hailtop/pinned-requirements.txt
-    #   google-cloud-core
-    #   google-cloud-storage
 google-auth==2.49.1
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
-    #   google-api-core
     #   google-auth-oauthlib
-    #   google-cloud-core
-    #   google-cloud-storage
 google-auth-oauthlib==0.8.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
-google-cloud-core==2.5.1
-    # via
-    #   -c hail/python/hailtop/pinned-requirements.txt
-    #   google-cloud-storage
-google-cloud-storage==3.10.1
-    # via
-    #   -c hail/python/hailtop/pinned-requirements.txt
-    #   -r hail/python/hailtop/requirements.txt
-google-crc32c==1.8.0
-    # via
-    #   -c hail/python/hailtop/pinned-requirements.txt
-    #   google-cloud-storage
-    #   google-resumable-media
-google-resumable-media==2.8.2
-    # via
-    #   -c hail/python/hailtop/pinned-requirements.txt
-    #   google-cloud-storage
-googleapis-common-protos==1.73.1
-    # via
-    #   -c hail/python/hailtop/pinned-requirements.txt
-    #   google-api-core
 humanize==4.15.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
@@ -217,7 +188,7 @@ oauthlib==3.3.1
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   requests-oauthlib
-orjson==3.11.7
+orjson==3.11.8
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
@@ -231,7 +202,7 @@ pandas==2.3.3
     #   bokeh
 parsimonious==0.11.0
     # via -r hail/python/requirements.txt
-pillow==12.1.1
+pillow==12.2.0
     # via bokeh
 plotly==5.24.1
     # via -r hail/python/requirements.txt
@@ -240,16 +211,6 @@ propcache==0.4.1
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   aiohttp
     #   yarl
-proto-plus==1.27.2
-    # via
-    #   -c hail/python/hailtop/pinned-requirements.txt
-    #   google-api-core
-protobuf==6.33.6
-    # via
-    #   -c hail/python/hailtop/pinned-requirements.txt
-    #   google-api-core
-    #   googleapis-common-protos
-    #   proto-plus
 py4j==0.10.9.7
     # via pyspark
 pyasn1==0.6.3
@@ -296,15 +257,13 @@ pyyaml==6.0.3
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
     #   bokeh
-regex==2026.3.32
+regex==2026.4.4
     # via parsimonious
 requests==2.33.1
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/requirements.txt
     #   azure-core
-    #   google-api-core
-    #   google-cloud-storage
     #   msal
     #   msrest
     #   requests-oauthlib
@@ -364,7 +323,7 @@ typing-extensions==4.15.0
     #   janus
     #   multidict
     #   pyjwt
-tzdata==2025.3
+tzdata==2026.1
     # via pandas
 urllib3==2.6.3
     # via

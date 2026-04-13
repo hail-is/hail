@@ -4,7 +4,7 @@ aiohappyeyeballs==2.6.1
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   aiohttp
-aiohttp==3.13.4
+aiohttp==3.13.5
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   aiohttp-devtools
@@ -70,11 +70,11 @@ cffi==2.0.0
     #   argon2-cffi-bindings
 cfgv==3.5.0
     # via pre-commit
-charset-normalizer==3.4.6
+charset-normalizer==3.4.7
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   requests
-click==8.3.1
+click==8.3.2
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   -r hail/python/dev/requirements.txt
@@ -234,7 +234,7 @@ jupyter-core==5.9.1
     #   notebook
 jupyter-events==0.12.0
     # via jupyter-server
-jupyter-lsp==2.3.0
+jupyter-lsp==2.3.1
     # via jupyterlab
 jupyter-server==2.17.0
     # via
@@ -349,7 +349,7 @@ pathspec==0.12.1
     # via curlylint
 pexpect==4.9.0
     # via ipython
-pillow==12.1.1
+pillow==12.2.0
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   -r hail/python/dev/requirements.txt
@@ -582,17 +582,17 @@ types-chardet==5.0.4.6
     # via -r hail/python/dev/requirements.txt
 types-decorator==5.2.0.20251101
     # via -r hail/python/dev/requirements.txt
-types-deprecated==1.3.1.20260130
+types-deprecated==1.3.1.20260402
     # via -r hail/python/dev/requirements.txt
 types-pymysql==1.1.0.20251220
     # via -r hail/python/dev/requirements.txt
-types-python-dateutil==2.9.0.20260323
+types-python-dateutil==2.9.0.20260402
     # via -r hail/python/dev/requirements.txt
 types-pyyaml==6.0.12.20250915
     # via -r hail/python/dev/requirements.txt
 types-requests==2.31.0.6
     # via -r hail/python/dev/requirements.txt
-types-setuptools==82.0.0.20260210
+types-setuptools==82.0.0.20260402
     # via -r hail/python/dev/requirements.txt
 types-six==1.17.0.20251009
     # via -r hail/python/dev/requirements.txt
@@ -617,7 +617,7 @@ typing-extensions==4.15.0
     #   pyright
     #   referencing
     #   virtualenv
-tzdata==2025.3
+tzdata==2026.1
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   arrow
