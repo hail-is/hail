@@ -1874,5 +1874,5 @@ def test_gq_from_pl_missing():
     assert result == 73
 
 def test_gq_from_pl_all_missing():
-    result = hl.eval(hl.gq_from_pl([None, None, None]))
+    result = hl.eval(hl.gq_from_pl(hl.literal([None, None, None], hl.tarray(hl.tint32))))
     assert result == 0
