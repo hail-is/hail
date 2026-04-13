@@ -68,14 +68,12 @@ jobs:
       - name: Run check-services
         run: make -k check-services
 
-  check-hail:
-    # Runs ruff, pyright, pylint on hail Python code, plus Scala format and
-    # scalafix checks via Mill. The Mill checkFormat/fix targets compile all
-    # cross-build Scala versions (2.12, 2.12.13, 2.13) as a prerequisite,
-    # so this job subsumes the standalone compile_hail_213 build.yaml step.
-    name: Check hail
+  check-hail-fast:
+    # Runs ruff, pyright, pylint on hail Python code. Skips Scala format and
+    # scalafix checks via Mill because they raised runtime too high.
+    name: Check hail fast
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -84,20 +82,6 @@ jobs:
           python-version: '3.11'
           cache: pip
           cache-dependency-path: '**/pinned-requirements.txt'
-
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '11'
-
-      - name: Cache Mill
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/mill
-            hail/out
-          key: mill-${{ runner.os }}-${{ hashFiles('hail/build.mill') }}
-          restore-keys: mill-${{ runner.os }}-
 
       - name: Generate version files
         run: make -C hail python-version-info
@@ -112,8 +96,11 @@ jobs:
             -r batch/pinned-requirements.txt \
             -r ci/pinned-requirements.txt
 
-      - name: Run check-hail
-        run: make check-hail MILLOPTS=--no-daemon
+      - name: Run ruff and pyright
+        run: make check-hail-fast
+
+      - name: Run pylint
+        run: make pylint-hailtop
 
   test-gcp-ar-cleanup:
     name: Test GCP AR cleanup policies
@@ -282,6 +269,27 @@ jobs:
             batch/test/test_utils.py \
             batch/test/test_time_limited_max_size_cache.py
 
+  check-ui:
+    name: Check UI
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: services/ui/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: services/ui
+
+      - name: Run TypeScript check
+        run: npm run check
+        working-directory: services/ui
+
   test-ci-envoy:
     name: Test CI envoy
     runs-on: ubuntu-latest
@@ -334,7 +342,8 @@ jobs:
     needs:
       - check-pip-requirements
       - check-services
-      - check-hail
+      - check-hail-fast
+      - check-ui
       - test-gcp-ar-cleanup
       - test-ci-unit
       - test-auth
@@ -348,7 +357,8 @@ jobs:
           results=( \
             "${{ needs.check-pip-requirements.result }}" \
             "${{ needs.check-services.result }}" \
-            "${{ needs.check-hail.result }}" \
+            "${{ needs.check-hail-fast.result }}" \
+            "${{ needs.check-ui.result }}" \
             "${{ needs.test-gcp-ar-cleanup.result }}" \
             "${{ needs.test-ci-unit.result }}" \
             "${{ needs.test-auth.result }}" \
