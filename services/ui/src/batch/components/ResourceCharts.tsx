@@ -49,9 +49,10 @@ interface MetricChartProps {
   containers: ContainerSeries[];
   valueFormatter: (_v: number) => string;
   tickFormatter: (_v: number) => string;
+  xDomain: [number, number];
 }
 
-function MetricChart({ title, containers, valueFormatter, tickFormatter }: MetricChartProps): JSX.Element | null {
+function MetricChart({ title, containers, valueFormatter, tickFormatter, xDomain }: MetricChartProps): JSX.Element | null {
   if (containers.every((c) => c.data.length === 0)) return null;
 
   return (
@@ -63,7 +64,7 @@ function MetricChart({ title, containers, valueFormatter, tickFormatter }: Metri
           <XAxis
             dataKey="t_s"
             type="number"
-            domain={['dataMin', 'dataMax']}
+            domain={xDomain}
             tickFormatter={(v) => `${v}s`}
             tick={{ fontSize: 10 }}
           />
@@ -99,6 +100,16 @@ export function ResourceCharts({ data }: Props): JSX.Element {
   }
   if (!isFinite(globalBaseTime)) globalBaseTime = 0;
 
+  let globalMaxTime = -Infinity;
+  for (const [, df] of containers) {
+    const timeIdx = df.columns.indexOf('time_msecs');
+    if (timeIdx >= 0 && df.data.length > 0) {
+      const t = df.data[df.data.length - 1].at(timeIdx)!;
+      if (t > globalMaxTime) globalMaxTime = t;
+    }
+  }
+  const xDomain: [number, number] = [0, isFinite(globalMaxTime) ? (globalMaxTime - globalBaseTime) / 1000 : 0];
+
   function buildSeries(df: SplitDataFrame, colName: string): Array<{ t_s: number; value: number | null }> {
     const timeIdx = df.columns.indexOf('time_msecs');
     const valIdx = df.columns.indexOf(colName);
@@ -126,30 +137,35 @@ export function ResourceCharts({ data }: Props): JSX.Element {
         containers={makeContainers('cpu_usage')}
         valueFormatter={(v) => `${(v * 100).toFixed(1)}%`}
         tickFormatter={(v) => `${(v * 100).toFixed(0)}%`}
+        xDomain={xDomain}
       />
       <MetricChart
         title="Memory"
         containers={makeContainers('memory_in_bytes')}
         valueFormatter={formatBytes}
         tickFormatter={formatBytes}
+        xDomain={xDomain}
       />
       <MetricChart
         title="Network Download"
         containers={makeContainers('network_bandwidth_download_in_bytes_per_second')}
         valueFormatter={(v) => `${formatBytes(v)}/s`}
         tickFormatter={formatBytes}
+        xDomain={xDomain}
       />
       <MetricChart
         title="Network Upload"
         containers={makeContainers('network_bandwidth_upload_in_bytes_per_second')}
         valueFormatter={(v) => `${formatBytes(v)}/s`}
         tickFormatter={formatBytes}
+        xDomain={xDomain}
       />
       <MetricChart
         title="Storage (Container Overlay)"
         containers={makeContainers('non_io_storage_in_bytes')}
         valueFormatter={formatBytes}
         tickFormatter={formatBytes}
+        xDomain={xDomain}
       />
       {hasIoStorage && (
         <MetricChart
@@ -157,6 +173,7 @@ export function ResourceCharts({ data }: Props): JSX.Element {
           containers={makeContainers('io_storage_in_bytes')}
           valueFormatter={formatBytes}
           tickFormatter={formatBytes}
+          xDomain={xDomain}
         />
       )}
     </div>
