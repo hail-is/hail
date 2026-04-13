@@ -631,7 +631,6 @@ class ServiceBackend(Backend[bc.Batch]):
         )
 
         self.__fs = self._requester_pays_fses[None]
-        self.__batch_client: Optional[AioBatchClient] = None
 
         async_to_blocking(self.validate_file(self.remote_tmpdir))
 
