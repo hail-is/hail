@@ -11,6 +11,7 @@ type Props = {
 
 export function LogViewer({ text, downloadUrl, downloadName, hasPendingUpdate, onLoadUpdate, isRefreshing }: Props): JSX.Element {
   const [query, setQuery] = useState('');
+  const [expanded, setExpanded] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -43,6 +44,15 @@ export function LogViewer({ text, downloadUrl, downloadName, hasPendingUpdate, o
         >
           Download
         </a>
+        <button
+          onClick={() => { setExpanded((e) => !e); }}
+          className="text-sm text-zinc-500 hover:text-zinc-800 flex items-center gap-1"
+          title={expanded ? 'Collapse log viewer' : 'Expand log viewer'}
+        >
+          <span className="material-symbols-outlined text-base leading-none">
+            {expanded ? 'unfold_less' : 'unfold_more'}
+          </span>
+        </button>
         {hasPendingUpdate && onLoadUpdate ? (
           <span className="text-sm text-sky-700 bg-sky-50 border border-sky-200 rounded px-2 py-1">
             New log data available -{' '}
@@ -57,8 +67,8 @@ export function LogViewer({ text, downloadUrl, downloadName, hasPendingUpdate, o
           </span>
         ) : null}
       </div>
-      <div ref={scrollRef} className="bg-slate-50 border rounded overflow-auto" style={{ maxHeight: '32rem' }}>
-        <pre className="text-xs p-2 whitespace-pre-wrap break-all">
+      <div ref={scrollRef} className="bg-slate-50 border rounded overflow-auto" style={{ maxHeight: expanded ? '64rem' : '32rem' }}>
+        <pre className="text-sm p-2 whitespace-pre-wrap break-all">
           {filteredLines.join('\n')}
         </pre>
       </div>
