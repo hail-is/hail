@@ -337,7 +337,7 @@ jobs:
             ci/test/test_envoy.py
 
   gate:
-    name: "Gate: Static Analysis and Unit Tests"
+    name: Gate
     if: always()
     needs:
       - check-pip-requirements
