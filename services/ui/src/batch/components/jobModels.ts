@@ -36,8 +36,8 @@ export interface JobSpec {
   user_code?: string;
   resources?: Record<string, unknown>;
   env?: { name: string; value: string }[];
-  input_files?: [string, string][];
-  output_files?: [string, string][];
+  input_files?: { from: string; to: string }[];
+  output_files?: { from: string; to: string }[];
   cloudfuse?: { bucket: string; mount_path: string; read_only: boolean }[];
   always_run?: boolean;
   n_max_attempts?: number;
