@@ -45,7 +45,7 @@ const SUB_TABS: { id: SubTab; label: string }[] = [
   { id: 'output', label: 'Output' },
 ];
 
-function FilesTable({ files }: { files: [string, string][] }): JSX.Element {
+function FilesTable({ files }: { files: { from: string; to: string }[] }): JSX.Element {
   return (
     <table className="text-sm w-full border-collapse">
       <thead>
@@ -55,10 +55,10 @@ function FilesTable({ files }: { files: [string, string][] }): JSX.Element {
         </tr>
       </thead>
       <tbody>
-        {files.map(([from, to], i) => (
+        {files.map((file, i) => (
           <tr key={i} className="border-t">
-            <td className="py-1 pr-4 font-mono text-xs break-all">{from}</td>
-            <td className="py-1 font-mono text-xs break-all">{to}</td>
+            <td className="py-1 pr-4 font-mono text-xs break-all">{file.from}</td>
+            <td className="py-1 font-mono text-xs break-all">{file.to}</td>
           </tr>
         ))}
       </tbody>
