@@ -11,14 +11,18 @@ import build.Env
 import build.Settings
 import build.HailScalaModule
 
+import millbuild.SupportedScalaVersions
 import millbuild.BuildConfig.*
 import millbuild.BuildMode.*
 import millbuild.MvnCoordinate.*
 
-object `package` extends Cross[RootHailModule](enabledScalaVersions)
+object `package` extends Cross[RootHailModule](SupportedScalaVersions)
 
 trait RootHailModule extends CrossScalaModule, HailScalaModule:
   outer =>
+
+  override def enableBsp: Boolean =
+    millbuild.BuildConfig.bspScalaVersion == crossValue
 
   override def crossScalaVersion: String =
     Settings.scalaMinorVersions(crossValue)
@@ -191,7 +195,7 @@ trait RootHailModule extends CrossScalaModule, HailScalaModule:
       )
 
     override def runMvnDeps: T[Seq[Dep]] =
-      outer.runMvnDeps()
+      outer.runMvnDeps() ++ outer.compileMvnDeps()
 
     override def assemblyRules: Seq[Rule] =
       outer.assemblyRules
