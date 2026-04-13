@@ -3534,21 +3534,27 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep', *, 
     if 'PL' in entry_fields:
         pl = hl.or_missing(
             hl.is_defined(split.PL),
-            (
+            hl.if_else(
+                split.GT.is_diploid(),
                 hl.range(0, 3).map(
                     lambda i: hl.min(
-                        (
-                            hl.range(0, hl.triangle(split.old_alleles.length()))
-                            .filter(
-                                lambda j: hl.downcode(
-                                    hl.unphased_diploid_gt_index_call(j), split.a_index
-                                ).unphased_diploid_gt_index()
-                                == i
-                            )
-                            .map(lambda j: split.PL[j])
+                        hl.range(0, hl.triangle(split.old_alleles.length()))
+                        .filter(
+                            lambda j: hl.downcode(
+                                hl.unphased_diploid_gt_index_call(j), split.a_index
+                            ).unphased_diploid_gt_index()
+                            == i
                         )
+                        .map(lambda j: split.PL[j])
                     )
-                )
+                ),
+                hl.range(0, 2).map(
+                    lambda i: hl.min(
+                        hl.range(0, split.old_alleles.length())
+                        .filter(lambda j: hl.int32(j == split.a_index) == i)
+                        .map(lambda j: split.PL[j])
+                    )
+                ),
             ),
         )
         if 'GQ' in entry_fields:
