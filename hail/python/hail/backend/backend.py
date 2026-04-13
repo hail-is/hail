@@ -60,7 +60,7 @@ def local_jar_information() -> LocalJarInfo:
 
     if (hail_jar := __resource('backend/hail.jar')).is_file():
         warnings.warn('!!! THIS IS A DEVELOPMENT VERSION OF HAIL !!!')
-        return LocalJarInfo(True, str(hail_jar), [__resource_str('backend/extra_classpath')])
+        return LocalJarInfo(True, str(hail_jar), __resource_str('backend/extra_classpath').split(':'))
 
     if (hail_all_spark_jar := __resource('backend/hail-all-spark.jar')).is_file():
         return LocalJarInfo(False, str(hail_all_spark_jar), [])
