@@ -25,6 +25,9 @@ class BuildSelectionResult:
     requested_steps: List[str] = field(default_factory=list)
     full_retest_triggers: List[str] = field(default_factory=list)
 
+    def __str__(self) -> str:
+        return f'requested_steps={self.requested_steps}\nfull_retest_triggers={self.full_retest_triggers}'
+
 
 def _path_matches(changed_file: str, pattern: str) -> bool:
     """Match a changed file path against a watchedPaths/unwatchedPaths pattern.
