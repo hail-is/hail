@@ -5,7 +5,7 @@ import logging
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict, List, Optional, Tuple
+from typing import AsyncContextManager, Dict, List, Optional, Tuple
 
 from rich.progress import Progress, TaskID
 
@@ -16,9 +16,9 @@ from . import Copier, Transfer, WeightedSemaphore
 from .router_fs import RouterAsyncFS
 
 
-class GrowingSemaphore(WeightedSemaphore):
+class GrowingSemaphore(AsyncContextManager[WeightedSemaphore]):
     def __init__(self, start_max: int, target_max: int, progress_and_tid: Optional[Tuple[Progress, TaskID]]):
-        super().__init__(start_max)
+        self.sema = WeightedSemaphore(start_max)
         self.task: Optional[asyncio.Task] = None
         self.target_max = target_max
         self.current_max = start_max
@@ -34,14 +34,15 @@ class GrowingSemaphore(WeightedSemaphore):
             )
             new_max = min(int(self.current_max * 1.5), self.target_max)
             diff = new_max - self.current_max
-            self.release(diff)
+            self.sema.release(diff)
             self.current_max = new_max
             if self.progress_and_tid:
                 progress, tid = self.progress_and_tid
                 progress.update(tid, advance=diff)
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> WeightedSemaphore:
         self.task = asyncio.create_task(self._grow())
+        return self.sema
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         if self.task is not None:
@@ -93,18 +94,18 @@ async def copy(
                     total=max_simultaneous_transfers,
                     visible=verbose,
                 )
-                sema = GrowingSemaphore(
+                async with GrowingSemaphore(
                     initial_simultaneous_transfers, max_simultaneous_transfers, (progress, parallelism_tid)
-                )
-                file_tid = progress.add_task(description='files', total=0, visible=verbose)
-                bytes_tid = progress.add_task(description='bytes', total=0, visible=verbose)
-                copy_report = await Copier.copy(
-                    fs,
-                    sema,
-                    transfers,
-                    files_listener=make_listener(progress, file_tid),
-                    bytes_listener=make_listener(progress, bytes_tid),
-                )
+                ) as sema:
+                    file_tid = progress.add_task(description='files', total=0, visible=verbose)
+                    bytes_tid = progress.add_task(description='bytes', total=0, visible=verbose)
+                    copy_report = await Copier.copy(
+                        fs,
+                        sema,
+                        transfers,
+                        files_listener=make_listener(progress, file_tid),
+                        bytes_listener=make_listener(progress, bytes_tid),
+                    )
                 if verbose:
                     copy_report.summarize()
 

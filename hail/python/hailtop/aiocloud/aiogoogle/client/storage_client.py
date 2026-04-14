@@ -480,8 +480,11 @@ class GoogleStorageClient(GoogleBaseClient):
         bucket_instance = self._client.bucket(bucket, user_project=user_project)
         blob = bucket_instance.blob(filename)
 
-        if not os.path.exists(os.path.dirname(dest)):
-            os.makedirs(os.path.dirname(dest), exist_ok=True)
+        dest_parent = os.path.dirname(dest)
+        if dest_parent:
+            if os.path.exists(dest_parent) and not os.path.isdir(dest_parent):
+                raise NotADirectoryError(dest_parent)
+            os.makedirs(dest_parent, exist_ok=True)
         await blocking_to_async(
             self._thread_pool,
             blob.download_to_filename,
@@ -495,8 +498,11 @@ class GoogleStorageClient(GoogleBaseClient):
         bucket_instance = self._client.bucket(bucket, user_project=user_project)
         blob = bucket_instance.blob(src)
 
-        if not os.path.exists(os.path.dirname(dest)):
-            os.makedirs(os.path.dirname(dest), exist_ok=True)
+        dest_parent = os.path.dirname(dest)
+        if dest_parent:
+            if os.path.exists(dest_parent) and not os.path.isdir(dest_parent):
+                raise NotADirectoryError(dest_parent)
+            os.makedirs(dest_parent, exist_ok=True)
         await blocking_to_async(
             self._thread_pool,
             transfer_manager.download_chunks_concurrently,
@@ -999,11 +1005,15 @@ class GoogleStorageAsyncFS(AsyncFS):
                 xfer_sema = self._xfer_sema
 
             size = await srcstat.size()
+            if destfile.startswith('file://'):
+                local_dest = destfile[len('file://') :]
+            else:
+                local_dest = destfile
             if size > self._storage_client.CHUNK_SIZE:
                 async with sema.acquire_manager(self._storage_client.MAX_WORKERS):
-                    await self._copy_single_large_file(xfer_sema, srcfile, destfile)
+                    await self._copy_single_large_file(xfer_sema, srcfile, local_dest)
             else:
-                await self._copy_single_local_file(xfer_sema, srcfile, destfile, size)
+                await self._copy_single_local_file(xfer_sema, srcfile, local_dest, size)
         else:
             raise NotImplementedError
 
