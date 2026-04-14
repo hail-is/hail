@@ -2,9 +2,11 @@ unwatchedPaths:
   - dev-docs/
   - '*.md'
   - CHANGELOG
+  - CODEOWNERS
   - LICENSE
   - .gitignore
   - .github/
+  - .mailmap
 
 alwaysRunSteps:
   - merge_code
