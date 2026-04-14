@@ -4,33 +4,26 @@ import is.hail.asm4s.{coerce => _, _}
 import is.hail.types.{tcoerce => _}
 import is.hail.types.physical.stypes.{EmitType, SType}
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.stypes.primitives.{SFloat64, SInt32}
+import is.hail.types.physical.stypes.primitives.{SFloat64, SInt32, SInt32Value}
 import is.hail.types.virtual.{TArray, TFloat64, TInt32, Type}
 
 object GenotypeFunctions extends RegistryFunctions {
 
   override def registerAll(): Unit = {
     registerSCode1("gqFromPL", TArray(tv("N", "int32")), TInt32, (_: Type, _: SType) => SInt32) {
-      case (_, cb, _, pl: SIndexableValue, errorID) =>
+      case (_, cb, _, pl: SIndexableValue, errorID @ _) =>
         val m = cb.newLocal[Int]("m", 99)
         val m2 = cb.newLocal[Int]("m2", 99)
-        val i = cb.newLocal[Int]("i", 0)
 
-        cb.while_(
-          i < pl.loadLength, {
-            val value =
-              pl.loadElement(cb, i).getOrFatal(cb, "PL cannot have missing elements.", errorID)
-            val pli = cb.newLocal[Int]("pli", value.asInt.value)
-            cb.if_(
-              pli < m, {
-                cb.assign(m2, m)
-                cb.assign(m, pli)
-              },
-              cb.if_(pli < m2, cb.assign(m2, pli)),
-            )
-            cb.assign(i, i + 1)
-          },
-        )
+        pl.forEachDefined(cb) { case (cb, _, pli: SInt32Value) =>
+          cb.if_(
+            pli.value < m, {
+              cb.assign(m2, m)
+              cb.assign(m, pli.value)
+            },
+            cb.if_(pli.value < m2, cb.assign(m2, pli.value)),
+          )
+        }
 
         primitive(cb.memoize(m2 - m))
     }
