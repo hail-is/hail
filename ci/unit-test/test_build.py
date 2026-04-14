@@ -1,4 +1,4 @@
-from ci.build_selection import compute_requested_steps
+from ci.build_selection import BuildSelectionResult, compute_requested_steps
 
 MINIMAL_CONFIG = """
 unwatchedPaths:
@@ -23,39 +23,57 @@ steps:
 
 def test_all_unwatched_files_returns_always_run_only():
     result = compute_requested_steps(MINIMAL_CONFIG, ['dev-docs/foo.md'])
-    assert result == ['merge_code']
+    assert result.requested_steps == ['merge_code']
+    assert result.full_retest_triggers == []
 
 
 def test_unwatched_glob_pattern_returns_always_run_only():
     result = compute_requested_steps(MINIMAL_CONFIG, ['README.md'])
-    assert result == ['merge_code']
+    assert result.requested_steps == ['merge_code']
+    assert result.full_retest_triggers == []
+
+
+def test_unwatched_glob_matches_nested_md():
+    result = compute_requested_steps(MINIMAL_CONFIG, ['nested/README.md'])
+    assert result.requested_steps == ['merge_code']
+    assert result.full_retest_triggers == []
+
+
+def test_unwatched_glob_matches_uppercase_extension():
+    result = compute_requested_steps(MINIMAL_CONFIG, ['README.MD'])
+    assert result.requested_steps == ['merge_code']
+    assert result.full_retest_triggers == []
 
 
 def test_matched_file_returns_specific_step():
     result = compute_requested_steps(MINIMAL_CONFIG, ['batch/server.py'])
-    assert result == ['merge_code', 'test_batch']
+    assert result.requested_steps == ['merge_code', 'test_batch']
+    assert result.full_retest_triggers == []
 
 
 def test_matched_file_returns_multiple_steps():
     # hailtop is in both test_batch and any step watching it; here only test_batch watches hailtop
     result = compute_requested_steps(MINIMAL_CONFIG, ['hail/python/hailtop/batch/client.py'])
-    assert result == ['merge_code', 'test_batch']
+    assert result.requested_steps == ['merge_code', 'test_batch']
+    assert result.full_retest_triggers == []
 
 
 def test_unknown_file_triggers_all_watched_steps():
     result = compute_requested_steps(MINIMAL_CONFIG, ['some/new/thing.py'])
-    assert result == ['merge_code', 'test_auth', 'test_batch']
+    assert result.requested_steps == ['merge_code', 'test_auth', 'test_batch']
+    assert result.full_retest_triggers == ['some/new/thing.py']
 
 
 def test_mixed_matched_and_unknown_triggers_all():
     # one unknown file → fallback to all watched steps
     result = compute_requested_steps(MINIMAL_CONFIG, ['batch/x.py', 'some/new/thing.py'])
-    assert result == ['merge_code', 'test_auth', 'test_batch']
+    assert result.requested_steps == ['merge_code', 'test_auth', 'test_batch']
+    assert result.full_retest_triggers == ['some/new/thing.py']
 
 
 def test_empty_changed_files_returns_empty():
     result = compute_requested_steps(MINIMAL_CONFIG, [])
-    assert result == []
+    assert result == BuildSelectionResult()
 
 
 def test_directory_pattern_matches_nested_file():
@@ -67,7 +85,8 @@ steps:
       - hail/src/
 """
     result = compute_requested_steps(config, ['hail/src/main/scala/is/hail/Foo.scala'])
-    assert result == ['test_hail']
+    assert result.requested_steps == ['test_hail']
+    assert result.full_retest_triggers == []
 
 
 def test_directory_pattern_does_not_match_sibling():
@@ -81,32 +100,74 @@ steps:
     # hail/python/ does not start with hail/src/
     result = compute_requested_steps(config, ['hail/python/hail/foo.py'])
     # no watchedPaths match → fallback to all watched steps
-    assert result == ['test_hail']
+    assert result.requested_steps == ['test_hail']
+    assert result.full_retest_triggers == ['hail/python/hail/foo.py']
 
 
 def test_multiple_matched_files_each_different_step():
     result = compute_requested_steps(MINIMAL_CONFIG, ['batch/x.py', 'auth/y.py'])
-    assert result == ['merge_code', 'test_auth', 'test_batch']
+    assert result.requested_steps == ['merge_code', 'test_auth', 'test_batch']
+    assert result.full_retest_triggers == []
 
 
 def test_mixed_unwatched_and_matched():
     # docs-only file contributes nothing beyond always-run; batch file adds test_batch
     result = compute_requested_steps(MINIMAL_CONFIG, ['dev-docs/guide.md', 'batch/handler.py'])
-    assert result == ['merge_code', 'test_batch']
+    assert result.requested_steps == ['merge_code', 'test_batch']
+    assert result.full_retest_triggers == []
 
 
 def test_always_run_step_always_selected():
     # merge_code is in alwaysRunSteps — it always appears when changed_files is non-empty
     result = compute_requested_steps(MINIMAL_CONFIG, ['batch/server.py'])
-    assert 'merge_code' in result
+    assert 'merge_code' in result.requested_steps
 
 
 def test_always_run_step_not_in_empty_result():
     # alwaysRunSteps do not appear when changed_files is empty
     result = compute_requested_steps(MINIMAL_CONFIG, [])
-    assert 'merge_code' not in result
+    assert 'merge_code' not in result.requested_steps
+
+
+def test_no_duplicates_when_multiple_files_match_same_step():
+    # batch/x.py and hail/python/hailtop/foo.py both match test_batch — it should appear only once
+    result = compute_requested_steps(MINIMAL_CONFIG, ['batch/x.py', 'hail/python/hailtop/foo.py'])
+    assert result.requested_steps.count('test_batch') == 1
 
 
 def test_result_is_sorted():
     result = compute_requested_steps(MINIMAL_CONFIG, ['batch/x.py', 'auth/y.py'])
-    assert result == sorted(result)
+    assert result.requested_steps == sorted(result.requested_steps)
+
+
+def test_full_retest_triggers_are_sorted():
+    result = compute_requested_steps(MINIMAL_CONFIG, ['z/unknown.py', 'a/unknown.py'])
+    assert result.full_retest_triggers == sorted(result.full_retest_triggers)
+
+
+def test_multiple_unknown_files_all_recorded_in_triggers():
+    result = compute_requested_steps(MINIMAL_CONFIG, ['x/foo.py', 'y/bar.py', 'z/baz.py'])
+    assert result.full_retest_triggers == ['x/foo.py', 'y/bar.py', 'z/baz.py']
+
+
+def test_unwatched_files_not_recorded_in_triggers():
+    # Files matching unwatchedPaths are skipped entirely — not counted as fallthrough triggers
+    result = compute_requested_steps(MINIMAL_CONFIG, ['dev-docs/guide.md', 'README.md'])
+    assert result.full_retest_triggers == []
+
+
+def test_mixed_unwatched_and_unknown_only_unknown_in_triggers():
+    # Unwatched file is silently skipped; unknown file causes full-retest
+    result = compute_requested_steps(MINIMAL_CONFIG, ['dev-docs/guide.md', 'new/thing.py'])
+    assert result.full_retest_triggers == ['new/thing.py']
+
+
+def test_build_selection_result_defaults():
+    r = BuildSelectionResult()
+    assert r.requested_steps == []
+    assert r.full_retest_triggers == []
+
+
+def test_build_selection_result_equality():
+    assert BuildSelectionResult(['a', 'b'], ['x']) == BuildSelectionResult(['a', 'b'], ['x'])
+    assert BuildSelectionResult(['a'], []) != BuildSelectionResult(['b'], [])

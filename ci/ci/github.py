@@ -13,7 +13,6 @@ import aiohttp
 import aiohttp.client_exceptions
 import gidgethub
 import prometheus_client as pc  # type: ignore
-import yaml
 import zulip
 from gidgethub import aiohttp as gh_aiohttp
 
@@ -23,7 +22,7 @@ from hailtop.config import get_deploy_config
 from hailtop.utils import RETRY_FUNCTION_SCRIPT, check_shell, check_shell_output
 
 from .build import BuildConfiguration, Code
-from .build_selection import _path_matches, compute_requested_steps
+from .build_selection import compute_requested_steps
 from .constants import AUTHORIZED_USERS, COMPILER_TEAM, GITHUB_CLONE_URL, GITHUB_STATUS_CONTEXT, SERVICES_TEAM
 from .environment import DEPLOY_STEPS
 from .globals import is_test_deployment
@@ -572,21 +571,12 @@ mkdir -p {shq(repo_dir)}
                 f'git -C {shq(repo_dir)} diff --name-only {shq(self.target_branch.sha)} HEAD'
             )
             changed_files = diff_out.decode('utf-8').strip().splitlines()
-            requested = compute_requested_steps(config_str, changed_files)
-            log.info(f'PR {self.number}: changed files={len(changed_files)}, requested steps={requested}')
+            selection = compute_requested_steps(config_str, changed_files)
+            log.info(
+                f'PR {self.number}: changed files={len(changed_files)}, requested steps={selection.requested_steps}'
+            )
 
-            # Identify files that triggered a full-retest fallback for observability
-            parsed_config = yaml.safe_load(config_str)
-            unwatched_patterns: List[str] = parsed_config.get('unwatchedPaths', [])
-            watched_steps_config = [s for s in parsed_config['steps'] if s.get('watchedPaths')]
-            fallthrough = [
-                f
-                for f in changed_files
-                if not any(_path_matches(f, p) for p in unwatched_patterns)
-                and not any(_path_matches(f, p) for s in watched_steps_config for p in s['watchedPaths'])
-            ]
-
-            config = BuildConfiguration(self, config_str, scope='test', requested_step_names=requested)
+            config = BuildConfiguration(self, config_str, scope='test', requested_step_names=selection.requested_steps)
             namespace = config.namespace()
             services = config.deployed_services()
             with open(f'{repo_dir}/ci/test/resources/build.yaml', 'r', encoding='utf-8') as f:
@@ -608,7 +598,7 @@ mkdir -p {shq(repo_dir)}
                     'namespace': namespace,
                     'source_sha': self.source_sha,
                     'target_sha': self.target_branch.sha,
-                    'full_retest_triggers': ','.join(sorted(fallthrough)),
+                    'full_retest_triggers': ','.join(selection.full_retest_triggers),
                 },
                 callback=CALLBACK_URL,
             )
