@@ -421,7 +421,6 @@ def test_submit_with_proper_job_settings(submit, tmp_path, client):
             f'{bucket}:/foo:true',
             '-v',
             f'{echo_script}:/',
-            '--wait',
             '-o',
             'json',
             '--quiet',
@@ -440,6 +439,7 @@ def test_submit_with_proper_job_settings(submit, tmp_path, client):
     assert 'gcsfuse' in spec, str(j.status())
     assert 'FOO' in [env['name'] for env in spec['env']], str(j.status())
     assert spec['process']['image'] == os.environ['HAIL_GENETICS_HAIL_IMAGE'], str(j.status())
+    b.cancel()
 
 
 def test_hail_config_in_environment(submit, tmp_path, client):
