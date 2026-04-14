@@ -196,6 +196,70 @@ sequenceDiagram
     CI->>Github: Update github check
 ```
 
+## Change-Based Test Selection
+
+### Why
+
+Running the full build.yaml test suite on every PR is expensive. Many PRs touch a single
+service or isolated area (e.g. a batch-only change, a docs fix) and have no need to compile
+the Hail JAR, run Python query tests, or rebuild unrelated service images.
+
+Change-based test selection uses per-step `watchedPaths` annotations in `build.yaml` to
+skip irrelevant test steps automatically. The savings can be significant: a batch-only PR
+skips all JAR compilation and query test steps.
+
+### How it works
+
+Three categories determine what runs:
+
+1. **Unwatched files** — listed in the top-level `unwatchedPaths:` key in `build.yaml`
+   (e.g. `dev-docs/`, `*.md`). A PR that changes only unwatched files runs nothing.
+
+2. **Watched steps** — steps with a `watchedPaths:` list. A changed file that matches any
+   pattern in a step's `watchedPaths` adds that step to the run set.
+
+3. **Unknown files** — changed files that don't match any `unwatchedPaths` pattern and
+   don't match any step's `watchedPaths` patterns. These trigger a fallback: all watched
+   steps run. This is conservative and correct — an unmapped file might affect anything.
+
+`requested_step_names` is passed to `BuildConfiguration`, which transitively closes over
+dependencies automatically. Infrastructure steps (`merge_code`, `deploy_batch`, etc.) have
+no `watchedPaths` and are included automatically as transitive deps when needed.
+
+### The algorithm
+
+```
+for each changed file f:
+    if f matches any unwatchedPaths pattern:
+        skip (contributes nothing)
+    elif f matches at least one step's watchedPaths:
+        add those steps to the run set
+    else:
+        add ALL watched steps (fallback — unknown file)
+```
+
+### How to maintain
+
+**Adding `watchedPaths` to a new test step** — add a `watchedPaths:` list directly under
+the step's `name:` in `build.yaml`. Use directory patterns (ending in `/`) for whole
+directories, and `fnmatch` globs for file patterns. Be conservative: if a test incidentally
+uses a shared library, that library's path belongs in `watchedPaths`.
+
+**Adding to `unwatchedPaths`** — add new inert file types or directories to the top-level
+`unwatchedPaths:` list. Only add entries you are certain can never affect any test.
+
+**Leaving a step unwatched** — infra/setup steps (image builds, namespace creation,
+deployment steps) should have no `watchedPaths`. They are picked up as transitive
+dependencies of whichever test steps are selected.
+
+### Observability
+
+The `full_retest_triggers` batch attribute (visible in the Batch UI under the batch's
+attributes) lists any changed files that fell through to the "run everything" fallback,
+comma-separated. An empty value means all changed files were cleanly mapped.
+
+To see it: open the batch in the Batch UI → Attributes tab → `full_retest_triggers`.
+
 ## Merging PRs
 
 Mergability is determined by:
