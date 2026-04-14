@@ -4,6 +4,7 @@ unwatchedPaths:
   - CHANGELOG
   - CODEOWNERS
   - LICENSE
+  - .gitattributes
   - .gitignore
   - .github/
   - .mailmap
@@ -1065,8 +1066,8 @@ steps:
   - kind: runImage
     name: test_hail_java
     watchedPaths:
-      - hail/src/
-      - hail/build.sc
+      - hail/hail/
+      - hail/build.mill
     numSplits: 5
     image:
       valueFrom: hail_run_image.image
@@ -1106,7 +1107,7 @@ steps:
     name: test_hail_python
     watchedPaths:
       - hail/python/hail/
-      - hail/src/
+      - hail/hail/
       - hail/python/hailtop/
     numSplits: 28
     image:
@@ -1229,7 +1230,7 @@ steps:
     name: test_hail_python_unchecked_allocator
     watchedPaths:
       - hail/python/hail/
-      - hail/src/
+      - hail/hail/
       - hail/python/hailtop/
     image:
       valueFrom: hail_run_image.image
@@ -1289,7 +1290,7 @@ steps:
     name: test_hail_python_local_backend
     watchedPaths:
       - hail/python/hail/
-      - hail/src/
+      - hail/hail/
       - hail/python/hailtop/
     numSplits: 48
     image:
@@ -1361,7 +1362,7 @@ steps:
     watchedPaths:
       - hail/python/hail/docs/
       - hail/python/hail/
-      - hail/src/
+      - hail/hail/
     image:
       valueFrom: hail_run_image.image
     resources:
@@ -1550,7 +1551,7 @@ steps:
     name: test_hailgenetics_hail_image
     watchedPaths:
       - hail/python/hail/
-      - hail/src/
+      - hail/hail/
     image:
       valueFrom: hailgenetics_hail_image.image
     script: |
@@ -1564,7 +1565,7 @@ steps:
     name: test_hailgenetics_hail_image_python_3_10
     watchedPaths:
       - hail/python/hail/
-      - hail/src/
+      - hail/hail/
     image:
       valueFrom: hailgenetics_hail_image_python_3_10.image
     script: |
@@ -1578,7 +1579,7 @@ steps:
     name: test_hailgenetics_hail_image_python_3_12
     watchedPaths:
       - hail/python/hail/
-      - hail/src/
+      - hail/hail/
     image:
       valueFrom: hailgenetics_hail_image_python_3_12.image
     script: |
@@ -1592,7 +1593,7 @@ steps:
     name: test_hailgenetics_hail_image_python_3_13
     watchedPaths:
       - hail/python/hail/
-      - hail/src/
+      - hail/hail/
     image:
       valueFrom: hailgenetics_hail_image_python_3_13.image
     script: |
@@ -1730,8 +1731,8 @@ steps:
   - kind: runImage
     name: compile_hail_213
     watchedPaths:
-      - hail/src/
-      - hail/build.sc
+      - hail/hail/
+      - hail/build.mill
     image:
       valueFrom: base_image.image
     resources:
@@ -2642,7 +2643,7 @@ steps:
     name: test_hail_python_service_backend_gcp
     watchedPaths:
       - hail/python/hail/
-      - hail/src/
+      - hail/hail/
       - hail/python/hailtop/
       - batch/
     numSplits: 16
@@ -2719,7 +2720,7 @@ steps:
     name: test_hail_spark_conf_requester_pays_parsing
     watchedPaths:
       - hail/python/hail/
-      - hail/src/
+      - hail/hail/
       - hail/scripts/
     image:
       valueFrom: hail_run_image.image
@@ -3807,8 +3808,8 @@ steps:
   - kind: runImage
     name: test_hail_scala_fs
     watchedPaths:
-      - hail/src/
-      - hail/build.sc
+      - hail/hail/
+      - hail/build.mill
     image:
       valueFrom: hail_run_image.image
     resources:
@@ -3865,8 +3866,8 @@ steps:
   - kind: runImage
     name: test_hail_services_java
     watchedPaths:
-      - hail/src/
-      - hail/build.sc
+      - hail/hail/
+      - hail/build.mill
       - batch/
     image:
       valueFrom: hail_run_image.image
@@ -4011,7 +4012,7 @@ steps:
       - hail/python/hailtop/
       - ci/
       - hail/python/hail/
-      - hail/src/
+      - hail/hail/
     image:
       valueFrom: hail_dev_image.image
     script: |
