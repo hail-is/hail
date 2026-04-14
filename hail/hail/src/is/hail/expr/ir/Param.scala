@@ -6,17 +6,19 @@ import is.hail.types.physical.stypes.{EmitType, SType, SValue, SingleCodeType}
 import is.hail.types.virtual.Type
 
 sealed trait ParamType {
-  def nCodes: Int
+  def codeTypes: IndexedSeq[TypeInfo[_]]
+
+  def nCodes: Int = codeTypes.length
 }
 
 case class CodeParamType(ti: TypeInfo[_]) extends ParamType {
-  override def nCodes: Int = 1
+  override def codeTypes: IndexedSeq[TypeInfo[_]] = FastSeq(ti)
 
   override def toString: String = s"CodeParam($ti)"
 }
 
 case class SCodeParamType(st: SType) extends ParamType {
-  override def nCodes: Int = st.nSettables
+  override def codeTypes: IndexedSeq[TypeInfo[_]] = st.settableTupleTypes()
 
   override def toString: String = s"SCodeParam($st, $nCodes)"
 }
@@ -26,15 +28,13 @@ trait EmitParamType extends ParamType {
 
   def virtualType: Type
 
-  final lazy val valueTupleTypes: IndexedSeq[TypeInfo[_]] = {
+  final override lazy val codeTypes: IndexedSeq[TypeInfo[_]] = {
     val ts = definedValueTupleTypes()
     if (required)
       ts
     else
       ts :+ BooleanInfo
   }
-
-  final override def nCodes: Int = valueTupleTypes.length
 
   protected def definedValueTupleTypes(): IndexedSeq[TypeInfo[_]]
 }

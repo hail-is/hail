@@ -1090,15 +1090,11 @@ object Code {
   def _empty: Value[Unit] = Value.fromLIR[Unit](null: lir.ValueX)
 
   def _throwAny[T <: java.lang.Throwable]: Thrower[T] = new Thrower[T] {
-    override def apply[U](cerr: Code[T])(implicit uti: TypeInfo[U]): Code[U] = {
-      if (uti eq UnitInfo) {
-        cerr.end.append(lir.throwx(cerr.v))
-        val newC = new VCode(cerr.start, cerr.end, null)
-        cerr.clear()
-        newC
-      } else
+    override def apply[U](cerr: Code[T])(implicit uti: TypeInfo[U]): Code[U] =
+      if (uti eq UnitInfo)
+        Code.void(cerr, lir.throwx(_))
+      else
         Code(cerr, lir.insn1(ATHROW, uti))
-    }
   }
 
   private def getEmitLineNum: Int =
@@ -1111,15 +1107,11 @@ object Code {
     _throw[T, U](cerr, getEmitLineNum)
 
   def _throw[T <: java.lang.Throwable, U](cerr: Code[T], lineNumber: Int)(implicit uti: TypeInfo[U])
-    : Code[U] = {
-    if (uti eq UnitInfo) {
-      cerr.end.append(lir.throwx(cerr.v, lineNumber))
-      val newC = new VCode(cerr.start, cerr.end, null)
-      cerr.clear()
-      newC
-    } else
+    : Code[U] =
+    if (uti eq UnitInfo)
+      Code.void(cerr, lir.throwx(_, lineNumber))
+    else
       Code(cerr, lir.insn1(ATHROW, uti, lineNumber))
-  }
 
   def _fatal[U](msg: Code[String])(implicit uti: TypeInfo[U]): Code[U] =
     _fatal[U](msg, getEmitLineNum)
@@ -1144,15 +1136,8 @@ object Code {
       errorId,
     ))
 
-  def _return[T](c: Code[T]): Code[Unit] = {
-    c.end.append(if (c.v != null)
-      lir.returnx(c.v)
-    else
-      lir.returnx())
-    val newC = new VCode(c.start, c.end, null)
-    c.clear()
-    newC
-  }
+  def _return[T](c: Code[T]): Code[Unit] =
+    Code.void(c, v => if (v != null) lir.returnx(v) else lir.returnx())
 
   def _printlns(cs: Code[String]*): Code[Unit] =
     _println(cs.reduce[Code[String]] { case (l, r) => (l.concat(r)) })
@@ -1884,11 +1869,7 @@ class CodeLabel(val L: lir.Block) extends Code[Unit] {
      * clearStack = Thread.currentThread().getStackTrace */
     _start = null
 
-  def goto: Code[Unit] = {
-    val M = new lir.Block()
-    M.append(lir.goto(L))
-    new VCode(M, M, null)
-  }
+  def goto: Code[Unit] = Code.void(lir.goto(L))
 }
 
 object Invokeable {
@@ -2066,19 +2047,12 @@ class LocalRef[T](val l: lir.Local) extends Settable[T] {
 
   override def store(rhs: Code[T]): Code[Unit] = {
     assert(rhs.v != null)
-    rhs.end.append(lir.store(l, rhs.v))
-    val newC = new VCode(rhs.start, rhs.end, null)
-    rhs.clear()
-    newC
+    Code.void(rhs, lir.store(l, _))
   }
 }
 
 class LocalRefInt(val v: LocalRef[Int]) extends AnyRef {
-  def +=(i: Int): Code[Unit] = {
-    val L = new lir.Block()
-    L.append(lir.iincInsn(v.l, i))
-    new VCode(L, L, null)
-  }
+  def +=(i: Int): Code[Unit] = Code.void(lir.iincInsn(v.l, i))
 
   def ++ : Code[Unit] = +=(1)
 }
