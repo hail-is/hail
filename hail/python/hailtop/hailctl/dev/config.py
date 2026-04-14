@@ -20,9 +20,15 @@ class DevConfigProperty(str, Enum):
 @app.command()
 def set(property: DevConfigProperty, value: str):
     """Set dev config property PROPERTY to value VALUE."""
+    from hailtop.config.deploy_config import DeployConfig  # pylint: disable=import-outside-toplevel
+
     config_file = os.environ.get('HAIL_DEPLOY_CONFIG_FILE', os.path.expanduser('~/.hail/deploy-config.json'))
-    with open(config_file, 'r', encoding='utf-8') as old_config_f:
-        config = orjson.loads(old_config_f.read())
+    if os.path.exists(config_file):
+        with open(config_file, 'r', encoding='utf-8') as old_config_f:
+            config = orjson.loads(old_config_f.read())
+    else:
+        os.makedirs(os.path.dirname(config_file), exist_ok=True)
+        config = DeployConfig.default_config()
 
     config[property] = value
     with open(config_file, 'w', encoding='utf-8') as new_config_f:
