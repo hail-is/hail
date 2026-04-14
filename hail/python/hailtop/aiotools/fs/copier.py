@@ -609,61 +609,6 @@ class Copier:
         transfer: Union[Transfer, List[Transfer]],
         return_exceptions: bool,
     ):
-        '''
-        transfer_report = copy_report._transfer_report
-        try:
-            google_to_local_transfers: List[Transfer] = []
-            google_to_local_reports: List[SourceReport] = []
-            copier_transfers: List[Transfer] = []
-            copier_reports: List[TransferReport] = []
-            for single_report, single_transfer in zip(
-                transfer_report if isinstance(transfer_report, list) else [transfer_report],
-                transfer if isinstance(transfer, list) else [transfer],
-            ):
-                if isinstance(single_transfer.src, str) and isinstance(single_report._source_report, SourceReport):
-                    if self.router_fs.valid_google_url(single_transfer.src) and self.router_fs.valid_local_url(
-                        single_transfer.dest
-                    ):
-                        google_to_local_transfers.append(single_transfer)
-                        google_to_local_reports.append(single_report._source_report)
-                    else:
-                        copier_transfers.append(single_transfer)
-                        copier_reports.append(single_report)
-                elif isinstance(single_report._source_report, List):
-                    for source, source_report in zip(single_transfer.src, single_report._source_report):
-                        if self.router_fs.valid_google_url(source) and self.router_fs.valid_local_url(
-                            single_transfer.dest
-                        ):
-                            google_to_local_transfers.append(
-                                Transfer(source, single_transfer.dest, treat_dest_as=single_transfer.treat_dest_as)
-                            )
-                            google_to_local_reports.append(source_report)
-                        else:
-                            copier_transfer = Transfer(
-                                source, single_transfer.dest, treat_dest_as=single_transfer.treat_dest_as
-                            )
-                            copier_transfers.append(copier_transfer)
-                            copier_reports.append(
-                                TransferReport(
-                                    copier_transfer,
-                                    files_listener=source_report._files_listener,
-                                    bytes_listener=source_report._bytes_listener,
-                                )
-                            )
-                else:
-                    raise TypeError(
-                        f'Expected {single_transfer.src} to have type {"list" if isinstance(single_report._source_report, List) else "str"}'
-                    )
-
-            google_fs = await self.router_fs._get_fs('gs://')
-            await google_fs.copy_to_local(
-                sema,
-                self.xfer_sema,
-                google_to_local_transfers,
-                google_to_local_reports,
-                return_exceptions=return_exceptions,
-            )
-        '''
         transfer_report = copy_report._transfer_report
         try:
             if isinstance(transfer, Transfer):

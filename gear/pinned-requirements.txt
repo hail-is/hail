@@ -71,7 +71,6 @@ google-api-core==2.30.3
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
     #   google-api-python-client
-    # via google-api-python-client
 google-api-python-client==2.194.0
     # via google-cloud-profiler
 google-auth==2.49.2
@@ -97,7 +96,7 @@ httplib2==0.31.2
     # via
     #   google-api-python-client
     #   google-auth-httplib2
-idna==3.11
+idna==3.12
     # via
     #   -c gear/../hail/python/dev/pinned-requirements.txt
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
@@ -113,7 +112,7 @@ multidict==6.7.1
     #   -c gear/../hail/python/pinned-requirements.txt
     #   aiohttp
     #   yarl
-packaging==26.0
+packaging==26.1
     # via
     #   -c gear/../hail/python/dev/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
@@ -133,7 +132,10 @@ propcache==0.4.1
     #   aiohttp
     #   yarl
 proto-plus==1.27.2
-    # via google-api-core
+    # via
+    #   -c gear/../hail/python/hailtop/pinned-requirements.txt
+    #   -c gear/../hail/python/pinned-requirements.txt
+    #   google-api-core
 protobuf==7.34.1
     # via
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt

@@ -30,9 +30,9 @@ azure-mgmt-storage==20.1.0
     # via -r hail/python/hailtop/requirements.txt
 azure-storage-blob==12.28.0
     # via -r hail/python/hailtop/requirements.txt
-boto3==1.42.87
+boto3==1.42.92
     # via -r hail/python/hailtop/requirements.txt
-botocore==1.42.87
+botocore==1.42.92
     # via
     #   -r hail/python/hailtop/requirements.txt
     #   boto3
@@ -65,7 +65,7 @@ frozenlist==1.8.0
     #   -r hail/python/hailtop/requirements.txt
     #   aiohttp
     #   aiosignal
-google-api-core==2.30.0
+google-api-core==2.30.3
     # via
     #   google-cloud-core
     #   google-cloud-storage
@@ -78,21 +78,21 @@ google-auth==2.49.2
     #   google-cloud-storage
 google-auth-oauthlib==0.8.0
     # via -r hail/python/hailtop/requirements.txt
-google-cloud-core==2.5.0
+google-cloud-core==2.5.1
     # via google-cloud-storage
-google-cloud-storage==3.9.0
+google-cloud-storage==3.10.1
     # via -r hail/python/hailtop/requirements.txt
 google-crc32c==1.8.0
     # via
     #   google-cloud-storage
     #   google-resumable-media
-google-resumable-media==2.8.0
+google-resumable-media==2.8.2
     # via google-cloud-storage
-googleapis-common-protos==1.72.0
+googleapis-common-protos==1.74.0
     # via google-api-core
 humanize==4.15.0
     # via -r hail/python/hailtop/requirements.txt
-idna==3.11
+idna==3.12
     # via
     #   requests
     #   yarl
@@ -130,19 +130,15 @@ propcache==0.4.1
     # via
     #   aiohttp
     #   yarl
-pyasn1==0.6.3
-    # via pyasn1-modules
-proto-plus==1.27.1
+proto-plus==1.27.2
     # via google-api-core
-protobuf==6.33.5
+protobuf==7.34.1
     # via
     #   google-api-core
     #   googleapis-common-protos
     #   proto-plus
-pyasn1==0.6.2
-    # via
-    #   pyasn1-modules
-    #   rsa
+pyasn1==0.6.3
+    # via pyasn1-modules
 pyasn1-modules==0.4.2
     # via google-auth
 pycares==5.0.1

@@ -59,11 +59,11 @@ azure-storage-blob==12.28.0
     #   -r hail/python/hailtop/requirements.txt
 bokeh==3.9.0
     # via -r hail/python/requirements.txt
-boto3==1.42.87
+boto3==1.42.92
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
-botocore==1.42.87
+botocore==1.42.92
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
@@ -115,12 +115,12 @@ frozenlist==1.8.0
     #   -r hail/python/hailtop/requirements.txt
     #   aiohttp
     #   aiosignal
-google-api-core==2.30.0
+google-api-core==2.30.3
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   google-cloud-core
     #   google-cloud-storage
-google-auth==2.49.1
+google-auth==2.49.2
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
@@ -132,11 +132,11 @@ google-auth-oauthlib==0.8.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
-google-cloud-core==2.5.0
+google-cloud-core==2.5.1
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   google-cloud-storage
-google-cloud-storage==3.9.0
+google-cloud-storage==3.10.1
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
@@ -145,11 +145,11 @@ google-crc32c==1.8.0
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   google-cloud-storage
     #   google-resumable-media
-google-resumable-media==2.8.0
+google-resumable-media==2.8.2
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   google-cloud-storage
-googleapis-common-protos==1.72.0
+googleapis-common-protos==1.74.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   google-api-core
@@ -157,7 +157,7 @@ humanize==4.15.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
-idna==3.11
+idna==3.12
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   requests
@@ -202,7 +202,7 @@ multidict==6.7.1
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   aiohttp
     #   yarl
-narwhals==2.19.0
+narwhals==2.20.0
     # via bokeh
 nest-asyncio==1.6.0
     # via
@@ -223,7 +223,7 @@ orjson==3.11.8
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
-packaging==26.0
+packaging==26.1
     # via
     #   bokeh
     #   plotly
@@ -240,11 +240,11 @@ propcache==0.4.1
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   aiohttp
     #   yarl
-proto-plus==1.27.1
+proto-plus==1.27.2
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   google-api-core
-protobuf==6.33.5
+protobuf==7.34.1
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   google-api-core
@@ -256,7 +256,6 @@ pyasn1==0.6.3
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   pyasn1-modules
-    #   rsa
 pyasn1-modules==0.4.2
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt

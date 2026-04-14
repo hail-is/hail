@@ -24,6 +24,7 @@ from typing import (
 import aiohttp
 from google.auth.aio.credentials import AnonymousCredentials
 from google.cloud.storage import Client, transfer_manager
+from google.oauth2 import service_account
 from google.oauth2.credentials import Credentials
 from multidict import CIMultiDictProxy  # pylint: disable=unused-import  # pylint: disable=unused-import
 
@@ -51,13 +52,14 @@ from hailtop.aiotools.fs import (
 from hailtop.utils import (
     OnlineBoundedGather2,
     TransientError,
+    async_to_blocking,
     blocking_to_async,
     retry_transient_errors,
     secret_alnum_string,
 )
 
 from ...common.session import BaseSession
-from ..credentials import GoogleCredentials
+from ..credentials import GoogleCredentials, GoogleServiceAccountCredentials
 from ..user_config import GCSRequesterPaysConfiguration, get_gcs_requester_pays_configuration
 from .base_client import GoogleBaseClient
 
@@ -374,8 +376,10 @@ class GoogleStorageClient(GoogleBaseClient):
             gcs_requester_pays_configuration=gcs_requester_pays_configuration
         )
         credentials = kwargs.get('credentials')
-        if isinstance(credentials, GoogleCredentials):
-            access_token = credentials.access_token
+        if isinstance(credentials, GoogleServiceAccountCredentials):
+            gcp_credentials = service_account.Credentials.from_service_account_info(info=credentials.key)
+        elif isinstance(credentials, GoogleCredentials):
+            access_token = async_to_blocking(credentials.access_token())
             gcp_credentials = Credentials(token=access_token)
         elif isinstance(credentials, AnonymousCloudCredentials):
             gcp_credentials = AnonymousCredentials()
@@ -480,8 +484,11 @@ class GoogleStorageClient(GoogleBaseClient):
         bucket_instance = self._client.bucket(bucket, user_project=user_project)
         blob = bucket_instance.blob(filename)
 
-        if not os.path.exists(os.path.dirname(dest)):
-            os.makedirs(os.path.dirname(dest), exist_ok=True)
+        dest_parent = os.path.dirname(dest)
+        if dest_parent:
+            if os.path.exists(dest_parent) and not os.path.isdir(dest_parent):
+                raise NotADirectoryError(dest_parent)
+            os.makedirs(dest_parent, exist_ok=True)
         await blocking_to_async(
             self._thread_pool,
             blob.download_to_filename,
@@ -495,8 +502,11 @@ class GoogleStorageClient(GoogleBaseClient):
         bucket_instance = self._client.bucket(bucket, user_project=user_project)
         blob = bucket_instance.blob(src)
 
-        if not os.path.exists(os.path.dirname(dest)):
-            os.makedirs(os.path.dirname(dest), exist_ok=True)
+        dest_parent = os.path.dirname(dest)
+        if dest_parent:
+            if os.path.exists(dest_parent) and not os.path.isdir(dest_parent):
+                raise NotADirectoryError(dest_parent)
+            os.makedirs(dest_parent, exist_ok=True)
         await blocking_to_async(
             self._thread_pool,
             transfer_manager.download_chunks_concurrently,
@@ -999,11 +1009,15 @@ class GoogleStorageAsyncFS(AsyncFS):
                 xfer_sema = self._xfer_sema
 
             size = await srcstat.size()
+            if destfile.startswith('file://'):
+                local_dest = destfile[len('file://') :]
+            else:
+                local_dest = destfile
             if size > self._storage_client.CHUNK_SIZE:
                 async with sema.acquire_manager(self._storage_client.MAX_WORKERS):
-                    await self._copy_single_large_file(xfer_sema, srcfile, destfile)
+                    await self._copy_single_large_file(xfer_sema, srcfile, local_dest)
             else:
-                await self._copy_single_local_file(xfer_sema, srcfile, destfile, size)
+                await self._copy_single_local_file(xfer_sema, srcfile, local_dest, size)
         else:
             raise NotImplementedError
 
@@ -1024,7 +1038,7 @@ class GoogleStorageAsyncFS(AsyncFS):
         src: str,
         dest: str,
     ) -> None:
-        async with xfer_sema.acquire_manager(self._storage_client.CHUNK_SIZE):
+        async with xfer_sema.acquire_manager(self._storage_client.CHUNK_SIZE * self._storage_client.MAX_WORKERS):
             bucket, name = self.get_bucket_and_name(src)
             await retry_transient_errors(self._storage_client.download_large_file, bucket, name, dest)
 
