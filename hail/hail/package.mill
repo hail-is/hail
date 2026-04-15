@@ -179,6 +179,12 @@ trait RootHailModule extends CrossScalaModule, HailScalaModule:
     override def forkArgs: T[Seq[String]] =
       Seq("-Xss4m", "-Xmx4096M")
 
+    // ParameterizedTest.java is meta-annotated with JUnit's @ParameterizedTest and
+    // @ArgumentsSource. javac's annotation-processing round emits an "unclaimed annotations"
+    // warning for these, which -Werror promotes to a fatal error.
+    override def javacOptions: T[Seq[String]] =
+      super.javacOptions() :+ "-Xlint:-processing"
+
     override def forkEnv: T[Map[String, String]] =
       super.forkEnv() ++ Task.env.get("SCALACHECK_SEED").map("SCALACHECK_SEED" -> _)
 
