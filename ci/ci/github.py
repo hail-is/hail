@@ -19,9 +19,9 @@ from gidgethub import aiohttp as gh_aiohttp
 from gear import Database, UserData
 from hailtop.batch_client.aioclient import Batch, BatchClient
 from hailtop.config import get_deploy_config
-from hailtop.utils import RETRY_FUNCTION_SCRIPT, check_shell, check_shell_output
+from hailtop.utils import RETRY_FUNCTION_SCRIPT
 
-from .build import BuildConfiguration, Code
+from .build import BuildConfiguration, Code, download_repo_file
 from .constants import AUTHORIZED_USERS, COMPILER_TEAM, GITHUB_CLONE_URL, GITHUB_STATUS_CONTEXT, SERVICES_TEAM
 from .environment import DEPLOY_STEPS
 from .globals import is_test_deployment
@@ -30,6 +30,20 @@ from .utils import GithubStatus, add_deployed_services, github_status
 repos_lock = asyncio.Lock()
 
 log = logging.getLogger('ci')
+
+
+async def prepare_build(gh, code: Code, repo_ss: str, sha: str, scope: str, **kwargs):
+    build_yaml, test_build_yaml = await asyncio.gather(
+        download_repo_file(gh, repo_ss, sha, 'build.yaml'),
+        download_repo_file(gh, repo_ss, sha, 'ci/test/resources/build.yaml'),
+    )
+    config = BuildConfiguration(code, build_yaml, scope=scope, **kwargs)
+    namespace = config.namespace()
+    services = config.deployed_services()
+    test_services = BuildConfiguration(code, test_build_yaml, scope=scope).deployed_services()
+    await config.prefetch(gh, repo_ss, sha)
+    return config, namespace, services, test_services
+
 
 deploy_config = get_deploy_config()
 
@@ -372,9 +386,6 @@ class PR(Code):
         pr.increment_pr_metric()
         return pr
 
-    def repo_dir(self):
-        return self.target_branch.repo_dir()
-
     def config(self):
         assert self.sha is not None
         source_repo = self.source_branch.repo
@@ -541,7 +552,7 @@ class PR(Code):
             self.last_known_github_status = last_known_github_status
             self.target_branch.state_changed = True
 
-    async def _start_build(self, db: Database, batch_client: BatchClient):
+    async def _start_build(self, db: Database, batch_client: BatchClient, gh: gh_aiohttp.GitHubAPI):
         assert await self.authorized(db)
 
         # clear current batch
@@ -551,22 +562,17 @@ class PR(Code):
         batch = None
         try:
             log.info(f'merging for {self.number}')
-            repo_dir = self.repo_dir()
-            await check_shell(f"""
-set -ex
-mkdir -p {shq(repo_dir)}
-(cd {shq(repo_dir)}; {self.checkout_script()})
-""")
+            repo_ss = self.target_branch.branch.repo.short_str()
 
-            sha_out, _ = await check_shell_output(f'git -C {shq(repo_dir)} rev-parse HEAD')
-            self.sha = sha_out.decode('utf-8').strip()
+            # Get the merge commit SHA from GitHub's auto-maintained merge ref.
+            # Returns None if the PR has a merge conflict.
+            pr_data = await gh.getitem(f'/repos/{repo_ss}/pulls/{self.number}')
+            merge_sha = pr_data.get('merge_commit_sha')
+            if not merge_sha:
+                raise Exception(f'PR {self.number} has no merge commit SHA (merge conflict?)')
+            self.sha = merge_sha
 
-            with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
-                config = BuildConfiguration(self, f.read(), scope='test')
-                namespace = config.namespace()
-                services = config.deployed_services()
-            with open(f'{repo_dir}/ci/test/resources/build.yaml', 'r', encoding='utf-8') as f:
-                test_services = BuildConfiguration(self, f.read(), scope='test').deployed_services()
+            config, namespace, services, test_services = await prepare_build(gh, self, repo_ss, merge_sha, 'test')
 
             services.extend(test_services)
             tomorrow = datetime.datetime.utcnow() + datetime.timedelta(days=1)
@@ -680,7 +686,7 @@ mkdir -p {shq(repo_dir)}
             if on_deck or self.target_branch.n_running_batches < MAX_CONCURRENT_PR_BATCHES:
                 self.target_branch.n_running_batches += 1
                 async with repos_lock:
-                    await self._start_build(db, batch_client)
+                    await self._start_build(db, batch_client, gh)
 
     def is_up_to_date(self):
         return self.batch is not None and self.target_branch.sha == self.batch.attributes['target_sha']
@@ -767,9 +773,6 @@ class WatchedBranch(Code):
 
     def short_str(self):
         return f'br-{self.branch.repo.owner}-{self.branch.repo.name}-{self.branch.name}'
-
-    def repo_dir(self):
-        return f'repos/{self.branch.repo.short_str()}'
 
     def config(self):
         assert self.sha is not None
@@ -920,7 +923,7 @@ url: {url}
                     await send_zulip_deploy_failure_message(deploy_failure_message, db, self.sha)
                 self.state_changed = True
 
-    async def _heal_deploy(self, db: Database, batch_client: BatchClient, frozen: bool):
+    async def _heal_deploy(self, db: Database, batch_client: BatchClient, gh: gh_aiohttp.GitHubAPI, frozen: bool):
         assert self.deployable
 
         if not self.sha:
@@ -930,7 +933,7 @@ url: {url}
             self.deploy_batch is None or (self.deploy_state and self.deploy_batch.attributes['sha'] != self.sha)
         ):
             async with repos_lock:
-                await self._start_deploy(db, batch_client)
+                await self._start_deploy(db, batch_client, gh)
 
     async def _update_batch(self, batch_client: BatchClient, db: Database):
         log.info(f'update batch {self.short_str()}')
@@ -945,7 +948,7 @@ url: {url}
         log.info(f'heal {self.short_str()}')
 
         if self.deployable:
-            await self._heal_deploy(db, batch_client, frozen)
+            await self._heal_deploy(db, batch_client, gh, frozen)
 
         merge_candidate = None
         merge_candidate_pri = None
@@ -984,7 +987,7 @@ url: {url}
                 log.info(f'cancel batch {batch.id} for {attrs["pr"]} {attrs["source_sha"]} => {attrs["target_sha"]}')
                 await batch.cancel()
 
-    async def _start_deploy(self, db: Database, batch_client: BatchClient):
+    async def _start_deploy(self, db: Database, batch_client: BatchClient, gh: gh_aiohttp.GitHubAPI):
         # not deploying
         assert not self.deploy_batch or self.deploy_state
 
@@ -994,17 +997,10 @@ url: {url}
         deploy_batch = None
         assert self.sha is not None
         try:
-            repo_dir = self.repo_dir()
-            await check_shell(f"""
-mkdir -p {shq(repo_dir)}
-(cd {shq(repo_dir)}; {self.checkout_script()})
-""")
-            with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
-                config = BuildConfiguration(self, f.read(), requested_step_names=DEPLOY_STEPS, scope='deploy')
-                namespace = config.namespace()
-                services = config.deployed_services()
-            with open(f'{repo_dir}/ci/test/resources/build.yaml', 'r', encoding='utf-8') as f:
-                test_services = BuildConfiguration(self, f.read(), scope='deploy').deployed_services()
+            repo_ss = self.branch.repo.short_str()
+            config, namespace, services, test_services = await prepare_build(
+                gh, self, repo_ss, self.sha, 'deploy', requested_step_names=DEPLOY_STEPS
+            )
 
             services.extend(test_services)
             assert namespace is not None
@@ -1079,9 +1075,6 @@ class UnwatchedBranch(Code):
     def short_str(self) -> str:
         return f'br-{self.branch.repo.owner}-{self.branch.repo.name}-{self.branch.name}'
 
-    def repo_dir(self) -> str:
-        return f'repos/{self.branch.repo.short_str()}'
-
     def config(self) -> Dict[str, str]:
         config = {
             'checkout_script': self.checkout_script(),
@@ -1097,26 +1090,23 @@ class UnwatchedBranch(Code):
         return config
 
     async def deploy(
-        self, db: Database, batch_client: BatchClient, steps: Sequence[str], excluded_steps: Sequence[str] = ()
+        self,
+        db: Database,
+        batch_client: BatchClient,
+        gh: gh_aiohttp.GitHubAPI,
+        steps: Sequence[str],
+        excluded_steps: Sequence[str] = (),
     ):
         assert not self.deploy_batch
 
         deploy_batch = None
         try:
-            repo_dir = self.repo_dir()
-            await check_shell(f"""
-mkdir -p {shq(repo_dir)}
-(cd {shq(repo_dir)}; {self.checkout_script()})
-""")
+            repo_ss = self.branch.repo.short_str()
             log.info(f'User {self.user} requested these steps for dev deploy: {steps}')
-            with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
-                config = BuildConfiguration(
-                    self, f.read(), scope='dev', requested_step_names=steps, excluded_step_names=excluded_steps
-                )
-                namespace = config.namespace()
-                services = config.deployed_services()
-            with open(f'{repo_dir}/ci/test/resources/build.yaml', 'r', encoding='utf-8') as f:
-                test_services = BuildConfiguration(self, f.read(), scope='dev').deployed_services()
+            config, namespace, services, test_services = await prepare_build(
+                gh, self, repo_ss, self.sha, 'dev', requested_step_names=steps, excluded_step_names=excluded_steps
+            )
+
             if namespace is not None:
                 services.extend(test_services)
                 await add_deployed_services(db, namespace, services, None)

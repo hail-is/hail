@@ -687,7 +687,9 @@ async def dev_deploy_branch(request: web.Request, userdata: UserData) -> web.Res
     batch_client = app[AppKeys.BATCH_CLIENT]
 
     try:
-        batch_id = await unwatched_branch.deploy(app[AppKeys.DB], batch_client, steps, excluded_steps=excluded_steps)
+        batch_id = await unwatched_branch.deploy(
+            app[AppKeys.DB], batch_client, gh, steps, excluded_steps=excluded_steps
+        )
     except asyncio.CancelledError:
         raise
     except Exception as e:  # pylint: disable=broad-except
