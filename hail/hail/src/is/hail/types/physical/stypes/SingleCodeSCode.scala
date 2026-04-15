@@ -18,6 +18,7 @@ object SingleCodeType {
     case TFloat64 => DoubleInfo
     case TBoolean => BooleanInfo
     case TVoid => UnitInfo
+    case _: TStream => classInfo[Iterator[_]]
     case _ => LongInfo // all others passed as ptype references
   }
 

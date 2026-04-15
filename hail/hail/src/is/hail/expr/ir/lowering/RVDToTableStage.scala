@@ -177,23 +177,25 @@ object TableStageToRVD {
       baos.toByteArray
     }
 
-    val (newRowPType: PStruct, makeIterator) = CompileIterator.forTableStageToRVD(
-      ctx,
-      decodedContextPType,
-      decodedBcValsPType,
-      Let(
-        ts.broadcastVals.map(_._1).map(bcVal =>
-          bcVal -> GetField(
-            In(1, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(decodedBcValsPType))),
-            bcVal.str,
-          )
-        ),
-        ts.partition(In(
-          0,
-          SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(decodedContextPType)),
-        )),
+    val ctxParam = Ref(freshName(), decodedContextPType.virtualType)
+    val bcParam = Ref(freshName(), decodedBcValsPType.virtualType)
+    val ctxEmitType =
+      SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(decodedContextPType))
+    val bcEmitType = SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(decodedBcValsPType))
+    val bodyIR = Let(
+      ts.broadcastVals.map(_._1).map(bcVal =>
+        bcVal -> GetField(bcParam, bcVal.str)
       ),
+      ts.partition(ctxParam),
     )
+    val (Some(PTypeReferenceSingleCodeType(newRowPType: PStruct)), makeStreamFn) =
+      Compile[AsmFunction3RegionLongLongIteratorJLong](
+        ctx,
+        FastSeq((ctxParam.name, ctxEmitType), (bcParam.name, bcEmitType)),
+        FastSeq(classInfo[Region], LongInfo, LongInfo),
+        classInfo[Iterator[_]],
+        bodyIR,
+      )
 
     val fsBc = ctx.fsBc
 
@@ -215,14 +217,13 @@ object TableStageToRVD {
           hcl,
         )
           .readRegionValue(rvdContext.partitionRegion)
-        makeIterator(
+        val f = makeStreamFn(
           hcl,
           fsBc.value,
           SparkTaskContext.get(),
-          rvdContext,
-          decodedContext,
-          decodedBroadcastVals,
+          rvdContext.partitionRegion,
         )
+        f(rvdContext.region, decodedContext, decodedBroadcastVals)
           .map(_.longValue())
       }
 
