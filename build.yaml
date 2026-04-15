@@ -1552,6 +1552,9 @@ steps:
     name: test_hailgenetics_hail_image
     watchedPaths:
       - hail/python/hail/
+      - hail/python/requirements.txt
+      - hail/python/pinned-requirements.txt
+      - hail/python/hailtop/pinned-requirements.txt
     image:
       valueFrom: hailgenetics_hail_image.image
     script: |
@@ -1565,6 +1568,9 @@ steps:
     name: test_hailgenetics_hail_image_python_3_10
     watchedPaths:
       - hail/python/hail/
+      - hail/python/requirements.txt
+      - hail/python/pinned-requirements.txt
+      - hail/python/hailtop/pinned-requirements.txt
     image:
       valueFrom: hailgenetics_hail_image_python_3_10.image
     script: |
@@ -1578,6 +1584,9 @@ steps:
     name: test_hailgenetics_hail_image_python_3_12
     watchedPaths:
       - hail/python/hail/
+      - hail/python/requirements.txt
+      - hail/python/pinned-requirements.txt
+      - hail/python/hailtop/pinned-requirements.txt
     image:
       valueFrom: hailgenetics_hail_image_python_3_12.image
     script: |
@@ -1591,6 +1600,9 @@ steps:
     name: test_hailgenetics_hail_image_python_3_13
     watchedPaths:
       - hail/python/hail/
+      - hail/python/requirements.txt
+      - hail/python/pinned-requirements.txt
+      - hail/python/hailtop/pinned-requirements.txt
     image:
       valueFrom: hailgenetics_hail_image_python_3_13.image
     script: |
