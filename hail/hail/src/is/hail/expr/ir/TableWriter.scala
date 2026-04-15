@@ -11,7 +11,7 @@ import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.functions.StringFunctions
-import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage}
+import is.hail.expr.ir.lowering.TableStage
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, OutputBuffer, TypedCodecSpec}
 import is.hail.io.fs.FS
@@ -55,8 +55,7 @@ abstract class TableWriter {
     CompileAndEvaluate(ctx, lower(ctx, tableStage, RTable.fromTableStage(ctx, tableStage)))
   }
 
-  def lower(ctx: ExecuteContext, ts: TableStage, r: RTable): IR =
-    throw new LowererUnsupportedOperation(s"${this.getClass} does not have defined lowering!")
+  def lower(ctx: ExecuteContext, ts: TableStage, r: RTable): IR
 
   def canLowerEfficiently: Boolean =
     true

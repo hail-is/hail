@@ -47,7 +47,7 @@ object CanLowerEfficiently {
         case _: TableRepartition => fail(s"TableRepartition has no lowered implementation")
         case _: TableParallelize =>
         case _: TableRange =>
-        case TableKeyBy(_, _, _, _) =>
+        case _: TableKeyBy =>
         case _: TableOrderBy =>
         case _: TableFilter =>
         case _: TableHead =>
@@ -62,9 +62,7 @@ object CanLowerEfficiently {
         case t: TableUnion if t.childrenSeq.length > 16 =>
           fail(s"TableUnion lowering generates deeply nested IR if it has many children")
         case _: TableUnion =>
-        case _: TableMultiWayZipJoin => fail(
-            s"TableMultiWayZipJoin is not passing tests due to problems in ptype inference in StreamZipJoin"
-          )
+        case _: TableMultiWayZipJoin =>
         case _: TableDistinct =>
         case _: TableKeyByAndAggregate =>
         case _: TableAggregateByKey =>
@@ -75,7 +73,7 @@ object CanLowerEfficiently {
         case TableToTableApply(_, WrappedMatrixToTableFunction(_: LocalLDPrune, _, _, _)) =>
         case _: TableToTableApply => fail(s"TableToTableApply")
         case _: BlockMatrixToTableApply => fail(s"BlockMatrixToTableApply")
-        case _: BlockMatrixToTable => fail(s"BlockMatrixToTable has no lowered implementation")
+        case _: BlockMatrixToTable =>
 
         case _: BlockMatrixAgg => fail(s"BlockMatrixAgg needs to do tree aggregation")
         case _: BlockMatrixIR => fail(s"BlockMatrixIR lowering not yet efficient/scalable")
