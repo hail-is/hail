@@ -186,7 +186,7 @@ class IndexSuite extends HailSuite {
         stringsWithDups,
         stringsWithDups.indices.map(i => Row()),
         TStruct.empty,
-        branchingFactor = 2,
+        branchingFactor,
       )
       val index = indexReader(file, TStruct.empty)
 
