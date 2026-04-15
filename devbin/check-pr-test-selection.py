@@ -25,11 +25,28 @@ changed_files = subprocess.run(
 
 config_str = (Path(__file__).parent.parent / 'build.yaml').read_text()
 selection = compute_requested_steps(config_str, changed_files)
-print(selection)
 
 config = yaml.safe_load(config_str)
 cleanup_names = {s['name'] for s in config['steps'] if s.get('cleanupFor')}
 expanded = expand_build_steps(config_str, selection.requested_steps, include_cleanups=True)
 cleanup = [s for s in expanded if s in cleanup_names]
+
+print(f'changed_files={changed_files}')
+print(selection)
 if cleanup:
     print(f'cleanup_steps={cleanup}')
+
+# Steps with watchedPaths that were not selected — candidates for gap analysis.
+run_if_requested = {s['name'] for s in config['steps'] if s.get('runIfRequested', False)}
+expanded_set = set(expanded)
+excluded_watched = {
+    s['name']: s['watchedPaths']
+    for s in config['steps']
+    if s.get('watchedPaths')
+    and s['name'] not in expanded_set
+    and s['name'] not in run_if_requested
+}
+if excluded_watched:
+    print('excluded_watched_steps (have watchedPaths but not selected):')
+    for name, paths in sorted(excluded_watched.items()):
+        print(f'  {name}: {paths}')
