@@ -1,19 +1,17 @@
 package is.hail.utils
 
-import is.hail.HailExtension
 import is.hail.JUnitTestUtils.cartesian
+import is.hail.ParameterizedTest
 import is.hail.annotations.ExtendedOrdering
 import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.virtual.{TInt32, TStruct}
-
 import org.apache.spark.sql.Row
 import org.junit.jupiter.api.{BeforeEach, Test}
 import org.junit.jupiter.api.extension.ExtendWith
 
-@ExtendWith(Array(classOf[HailExtension]))
 class IntervalSuite {
   val pord: ExtendedOrdering = TInt32.ordering(HailStateManager(Map.empty))
 
@@ -33,7 +31,7 @@ class IntervalSuite {
   var test_itrees: IndexedSeq[SetIntervalTree] = _
 
   @BeforeEach
-  def setupIntervalTrees(ctx: ExecuteContext): Unit = {
+  def setupIntervalTrees(implicit ctx: ExecuteContext): Unit = {
     test_itrees = SetIntervalTree(ctx, ArraySeq[(SetInterval, Int)]()) +:
       test_intervals.flatMap { i1 =>
         SetIntervalTree(ctx, ArraySeq(i1).zipWithIndex) +:
@@ -46,14 +44,19 @@ class IntervalSuite {
       }
   }
 
-  @Test def interval_agrees_with_set_interval_greater_than_point(): Unit =
-    cartesian(test_intervals, points).foreach { case (set_interval, p) =>
-      val interval = set_interval.interval
-      assert(
-        interval.isAbovePosition(pord, p) ==
-          set_interval.doubledPointSet.forall(dp => dp > 2 * p)
-      )
-    }
+  def interval_agrees_with_set_interval_greater_than_point() =
+    cartesian(test_intervals, points)
+
+  @ParameterizedTest def interval_agrees_with_set_interval_greater_than_point(
+    set_interval: SetInterval,
+    p: Int,
+  ): Unit = {
+    val interval = set_interval.interval
+    assert(
+      interval.isAbovePosition(pord, p) ==
+        set_interval.doubledPointSet.forall(dp => dp > 2 * p)
+    )
+  }
 
   @Test def interval_agrees_with_set_interval_less_than_point(): Unit =
     cartesian(test_intervals, points).foreach { case (set_interval, p) =>
