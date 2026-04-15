@@ -824,6 +824,28 @@ steps:
       - base_image
       - merge_code
   - kind: runImage
+    name: test_install_in_isolation_python3_11
+    image:
+      valueFrom: base_image.image
+    script: |
+      set -ex
+      cd /io/
+      
+      uv venv --python 3.11 --seed _venv
+      source _venv/bin/activate
+      
+      pip install /io/wheel/hail-*-py3-none-any.whl
+      cat << EOF | python3
+      import hail as hl
+      hl.utils.range_table(10)._force_count()
+      EOF
+    inputs:
+      - from: /derived/release/hail/build/deploy/dist
+        to: /io/wheel
+    dependsOn:
+      - base_image
+      - build_hail_jar_and_wheel
+  - kind: runImage
     name: upload_temporary_hailctl_artifacts
     image:
       valueFrom: ci_utils_image.image
@@ -3368,7 +3390,8 @@ steps:
     dependsOn:
       - ci_utils_image
       - default_ns
-      - merge_code
+      - build_hail_jar_and_wheel
+      - test_install_in_isolation_python3_11
       - upload_temporary_hailctl_artifacts
     inputs:
       - from: /repo
@@ -3412,7 +3435,8 @@ steps:
     dependsOn:
       - ci_utils_image
       - default_ns
-      - merge_code
+      - build_hail_jar_and_wheel
+      - test_install_in_isolation_python3_11
       - upload_temporary_hailctl_artifacts
     inputs:
       - from: /repo
