@@ -27,26 +27,38 @@ config_str = (Path(__file__).parent.parent / 'build.yaml').read_text()
 selection = compute_requested_steps(config_str, changed_files)
 
 config = yaml.safe_load(config_str)
-cleanup_names = {s['name'] for s in config['steps'] if s.get('cleanupFor')}
-expanded = expand_build_steps(config_str, selection.requested_steps, include_cleanups=True)
-cleanup = [s for s in expanded if s in cleanup_names]
-
-print(f'changed_files={changed_files}')
-print(selection)
-if cleanup:
-    print(f'cleanup_steps={cleanup}')
-
-# Steps with watchedPaths that were not selected — candidates for gap analysis.
+all_cleanup_names = {s['name'] for s in config['steps'] if s.get('cleanupFor')}
 run_if_requested = {s['name'] for s in config['steps'] if s.get('runIfRequested', False)}
+expanded = expand_build_steps(config_str, selection.requested_steps, include_cleanups=True)
 expanded_set = set(expanded)
-excluded_watched = {
-    s['name']: s['watchedPaths']
-    for s in config['steps']
+requested_set = set(selection.requested_steps)
+
+selected_cleanups = sorted(s for s in expanded if s in all_cleanup_names)
+unselected_cleanups = sorted(all_cleanup_names - expanded_set)
+excluded_watched = sorted(
+    s['name'] for s in config['steps']
     if s.get('watchedPaths')
     and s['name'] not in expanded_set
     and s['name'] not in run_if_requested
+)
+dep_only = {
+    s['name'] for s in config['steps']
+    if not s.get('watchedPaths')
+    and not s.get('runIfRequested', False)
+    and s['name'] not in all_cleanup_names
 }
+included_deps = sorted(expanded_set & dep_only - requested_set)
+excluded_deps = sorted(dep_only - expanded_set)
+
+print(f'changed_files={changed_files}')
+print(selection)
+if included_deps:
+    print(f'included_test_dependencies={included_deps}')
+if selected_cleanups:
+    print(f'included_cleanup_steps={selected_cleanups}')
 if excluded_watched:
-    print('excluded_watched_steps (have watchedPaths but not selected):')
-    for name, paths in sorted(excluded_watched.items()):
-        print(f'  {name}: {paths}')
+    print(f'excluded_test_steps_with_watched_paths={excluded_watched}')
+if excluded_deps:
+    print(f'excluded_test_dependencies={excluded_deps}')
+if unselected_cleanups:
+    print(f'excluded_cleanup_steps={unselected_cleanups}')
