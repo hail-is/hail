@@ -1235,7 +1235,6 @@ steps:
       - hail/python/test/hail/
       - hail/hail/
       - hail/python/hailtop/
-      - hail/python/test/hailtop/
     image:
       valueFrom: hail_run_image.image
     resources:
