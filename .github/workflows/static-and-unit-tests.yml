@@ -1,0 +1,374 @@
+name: Static Analysis and Unit Tests
+
+on:
+  pull_request:
+    branches: [main]
+
+# Cancel in-progress runs for the same PR
+concurrency:
+  group: static-and-unit-tests-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: hail/python:auth:batch:ci:gear:monitoring:website:web_common
+
+jobs:
+  check-pip-requirements:
+    name: Check pip requirements
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: pip
+          cache-dependency-path: '**/pinned-requirements.txt'
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Check pinned requirements are up to date
+        run: |
+          chmod 755 ./check_pip_requirements.sh
+          make check-pip-requirements
+
+  check-services:
+    name: Check services
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      HAIL_TARGET_SHA: ${{ github.event.pull_request.base.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # check-sql.sh needs git history to diff against target
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: '**/pinned-requirements.txt'
+
+      - name: Generate version files
+        run: make -C hail python-version-info
+
+      - name: Install Python dependencies
+        run: |
+          pip install \
+            -r hail/python/pinned-requirements.txt \
+            -r hail/python/dev/pinned-requirements.txt \
+            -r gear/pinned-requirements.txt \
+            -r web_common/pinned-requirements.txt \
+            -r batch/pinned-requirements.txt \
+            -r ci/pinned-requirements.txt
+
+      - name: Run check-services
+        run: make -k check-services
+
+  check-hail-fast:
+    # Runs ruff, pyright, pylint on hail Python code. Skips Scala format and
+    # scalafix checks via Mill because they raised runtime too high.
+    name: Check hail fast
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: '**/pinned-requirements.txt'
+
+      - name: Generate version files
+        run: make -C hail python-version-info
+
+      - name: Install Python dependencies
+        run: |
+          pip install \
+            -r hail/python/pinned-requirements.txt \
+            -r hail/python/dev/pinned-requirements.txt \
+            -r gear/pinned-requirements.txt \
+            -r web_common/pinned-requirements.txt \
+            -r batch/pinned-requirements.txt \
+            -r ci/pinned-requirements.txt
+
+      - name: Run ruff and pyright
+        run: make check-hail-fast
+
+      - name: Run pylint
+        run: make pylint-hailtop
+
+  test-gcp-ar-cleanup:
+    name: Test GCP AR cleanup policies
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install pyyaml
+        run: pip install pyyaml
+
+      - name: Check AR cleanup policy is up to date
+        run: |
+          new_policy=$(mktemp)
+          python3 devbin/generate_gcp_ar_cleanup_policy.py > "$new_policy"
+          diff "$new_policy" infra/gcp-broad/gcp-ar-cleanup-policy.txt || {
+            echo '>>> AR cleanup policy has changed, new policy is <<<'
+            cat "$new_policy"
+            echo '--------------------------------------'
+            echo "Please regenerate the policy file by running:"
+            echo "> python3 devbin/generate_gcp_ar_cleanup_policy.py > infra/gcp-broad/gcp-ar-cleanup-policy.txt"
+            exit 1
+          }
+
+  test-ci-unit:
+    name: Test CI unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: '**/pinned-requirements.txt'
+
+      - name: Generate version files
+        run: make -C hail python-version-info
+
+      - name: Install Python dependencies
+        run: |
+          pip install \
+            -r hail/python/hailtop/pinned-requirements.txt \
+            -r hail/python/dev/pinned-requirements.txt \
+            -r gear/pinned-requirements.txt \
+            -r web_common/pinned-requirements.txt \
+            -r ci/pinned-requirements.txt
+
+      - name: Install packages
+        run: |
+          pip install uv_build
+          # hailtop's setup.py lives at a non-standard path; create a temp
+          # installable directory mirroring what the CI Dockerfile does.
+          tmp_hailtop=$(mktemp -d)
+          cp hail/python/setup-hailtop.py "$tmp_hailtop/setup.py"
+          cp hail/python/MANIFEST.in "$tmp_hailtop/MANIFEST.in"
+          ln -s "$PWD/hail/python/hailtop" "$tmp_hailtop/hailtop"
+          pip install --no-deps "$tmp_hailtop" ./gear ./web_common ./ci
+
+      - name: Run CI unit tests
+        run: |
+          python3 -m pytest \
+            -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
+            --log-cli-level=INFO \
+            -s \
+            -r A \
+            -vv \
+            --instafail \
+            --durations=50 \
+            ci/unit-test
+
+  test-auth:
+    name: Test auth
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: '**/pinned-requirements.txt'
+
+      - name: Generate version files
+        run: make -C hail python-version-info
+
+      - name: Install Python dependencies
+        run: |
+          pip install \
+            -r hail/python/hailtop/pinned-requirements.txt \
+            -r hail/python/dev/pinned-requirements.txt \
+            -r gear/pinned-requirements.txt \
+            -r web_common/pinned-requirements.txt
+
+      - name: Install packages
+        run: |
+          pip install uv_build
+          tmp_hailtop=$(mktemp -d)
+          cp hail/python/setup-hailtop.py "$tmp_hailtop/setup.py"
+          cp hail/python/MANIFEST.in "$tmp_hailtop/MANIFEST.in"
+          ln -s "$PWD/hail/python/hailtop" "$tmp_hailtop/hailtop"
+          pip install --no-deps "$tmp_hailtop" ./gear ./web_common ./auth
+
+      - name: Run auth unit tests
+        run: |
+          python3 -m pytest \
+            -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
+            --log-cli-level=INFO \
+            -s \
+            -r A \
+            -vv \
+            --instafail \
+            --durations=50 \
+            auth/test/test_auth_utils.py
+
+  test-batch-unit:
+    name: Test batch unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: '**/pinned-requirements.txt'
+
+      - name: Generate version files
+        run: make -C hail python-version-info
+
+      - name: Install Python dependencies
+        run: |
+          pip install \
+            -r hail/python/hailtop/pinned-requirements.txt \
+            -r hail/python/dev/pinned-requirements.txt \
+            -r gear/pinned-requirements.txt \
+            -r web_common/pinned-requirements.txt \
+            -r batch/pinned-requirements.txt
+
+      - name: Install packages
+        run: |
+          pip install uv_build
+          tmp_hailtop=$(mktemp -d)
+          cp hail/python/setup-hailtop.py "$tmp_hailtop/setup.py"
+          cp hail/python/MANIFEST.in "$tmp_hailtop/MANIFEST.in"
+          ln -s "$PWD/hail/python/hailtop" "$tmp_hailtop/hailtop"
+          pip install --no-deps "$tmp_hailtop" ./gear ./web_common ./batch
+
+      - name: Run batch unit tests
+        run: |
+          python3 -m pytest \
+            -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
+            --log-cli-level=INFO \
+            -s \
+            -r A \
+            -vv \
+            --instafail \
+            --durations=50 \
+            batch/test/test_utils.py \
+            batch/test/test_time_limited_max_size_cache.py
+
+  check-ui:
+    name: Check UI
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: services/ui/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: services/ui
+
+      - name: Run TypeScript check
+        run: npm run check
+        working-directory: services/ui
+
+  test-ci-envoy:
+    name: Test CI envoy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: '**/pinned-requirements.txt'
+
+      - name: Generate version files
+        run: make -C hail python-version-info
+
+      - name: Install Python dependencies
+        run: |
+          pip install \
+            -r hail/python/hailtop/pinned-requirements.txt \
+            -r hail/python/dev/pinned-requirements.txt \
+            -r gear/pinned-requirements.txt \
+            -r web_common/pinned-requirements.txt \
+            -r ci/pinned-requirements.txt
+
+      - name: Install packages
+        run: |
+          pip install uv_build
+          tmp_hailtop=$(mktemp -d)
+          cp hail/python/setup-hailtop.py "$tmp_hailtop/setup.py"
+          cp hail/python/MANIFEST.in "$tmp_hailtop/MANIFEST.in"
+          ln -s "$PWD/hail/python/hailtop" "$tmp_hailtop/hailtop"
+          pip install --no-deps "$tmp_hailtop" ./gear ./web_common ./ci
+
+      - name: Run CI envoy tests
+        run: |
+          python3 -m pytest \
+            -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
+            --log-cli-level=INFO \
+            -s \
+            -r A \
+            -vv \
+            --instafail \
+            --durations=50 \
+            ci/test/test_envoy.py
+
+  gate:
+    name: Gate
+    if: always()
+    needs:
+      - check-pip-requirements
+      - check-services
+      - check-hail-fast
+      - check-ui
+      - test-gcp-ar-cleanup
+      - test-ci-unit
+      - test-auth
+      - test-batch-unit
+      - test-ci-envoy
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: Verify all checks passed
+        run: |
+          results=( \
+            "${{ needs.check-pip-requirements.result }}" \
+            "${{ needs.check-services.result }}" \
+            "${{ needs.check-hail-fast.result }}" \
+            "${{ needs.check-ui.result }}" \
+            "${{ needs.test-gcp-ar-cleanup.result }}" \
+            "${{ needs.test-ci-unit.result }}" \
+            "${{ needs.test-auth.result }}" \
+            "${{ needs.test-batch-unit.result }}" \
+            "${{ needs.test-ci-envoy.result }}" \
+          )
+          for r in "${results[@]}"; do
+            if [[ "$r" != "success" ]]; then
+              echo "One or more Static Analysis and Unit Tests checks failed or were cancelled."
+              exit 1
+            fi
+          done
+          echo "All Static Analysis and Unit Tests checks passed."
