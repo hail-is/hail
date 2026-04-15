@@ -576,7 +576,9 @@ mkdir -p {shq(repo_dir)}
                 f'PR {self.number}: changed files={len(changed_files)}, requested steps={selection.requested_steps}'
             )
 
-            config = BuildConfiguration(self, config_str, scope='test', requested_step_names=selection.requested_steps)
+            config = BuildConfiguration(
+                self, config_str, scope='test', requested_step_names=selection.requested_steps, include_cleanups=True
+            )
             namespace = config.namespace()
             services = config.deployed_services()
             with open(f'{repo_dir}/ci/test/resources/build.yaml', 'r', encoding='utf-8') as f:

@@ -6,7 +6,7 @@ used in unit tests without a running deployment.
 
 import fnmatch
 from dataclasses import dataclass, field
-from typing import List, Set
+from typing import Dict, List, Optional, Sequence, Set
 
 import yaml
 
@@ -27,6 +27,75 @@ class BuildSelectionResult:
 
     def __str__(self) -> str:
         return f'requested_steps={self.requested_steps}\nfull_retest_triggers={self.full_retest_triggers}'
+
+
+def _transitive_closure(
+    names: Set[str],
+    deps_map: Dict[str, List[str]],
+    run_if_requested: Set[str],
+    excluded: Set[str],
+    cloud: Optional[str],
+    clouds_map: Dict[str, Optional[List[str]]],
+) -> Set[str]:
+    """Transitively expand names over dependsOn, skipping runIfRequested and wrong-cloud steps."""
+    visited: Set[str] = set()
+    frontier = list(names)
+    while frontier:
+        cur = frontier.pop()
+        if cur in visited or cur in excluded:
+            continue
+        if cloud is not None:
+            step_clouds = clouds_map.get(cur)
+            if step_clouds is not None and cloud not in step_clouds:
+                continue
+        visited.add(cur)
+        for dep in deps_map.get(cur, []):
+            if dep not in run_if_requested:
+                frontier.append(dep)
+    return visited
+
+
+def expand_build_steps(
+    config_str: str,
+    requested_step_names: Sequence[str],
+    cloud: Optional[str] = None,
+    excluded_step_names: Sequence[str] = (),
+    include_cleanups: bool = False,
+) -> List[str]:
+    """Expand a list of requested step names into the full set that should run.
+
+    - Transitively closes requested_step_names over dependsOn (skipping
+      runIfRequested deps and steps not runnable in cloud).
+    - When include_cleanups=True, also adds cleanup steps (those declaring
+      cleanupFor) whose target is transitively reachable from the expanded set.
+    - Returns a sorted list of all step names to include.
+
+    This is a pure function with no cloud/environment imports, suitable for
+    unit tests and for use before BuildConfiguration is constructed.
+    """
+    config = yaml.safe_load(config_str)
+    steps = config.get('steps', [])
+
+    excluded = set(excluded_step_names)
+    run_if_requested: Set[str] = {s['name'] for s in steps if s.get('runIfRequested', False)}
+    deps_map: Dict[str, List[str]] = {s['name']: s.get('dependsOn', []) for s in steps}
+    clouds_map: Dict[str, Optional[List[str]]] = {s['name']: s.get('clouds') for s in steps}
+
+    expanded = _transitive_closure(
+        set(requested_step_names),
+        deps_map,
+        run_if_requested,
+        excluded,
+        cloud,
+        clouds_map,
+    )
+
+    if include_cleanups:
+        # Include cleanup steps whose cleanupFor target is in the expanded set.
+        cleanup_names = {s['name'] for s in steps if s.get('cleanupFor') in expanded}
+        expanded |= cleanup_names
+
+    return sorted(expanded)
 
 
 def _path_matches(changed_file: str, pattern: str) -> bool:
@@ -74,4 +143,7 @@ def compute_requested_steps(config_str: str, changed_files: List[str]) -> BuildS
             target |= all_watched_names  # unknown file → run everything
             fallthrough.append(f)
 
-    return BuildSelectionResult(requested_steps=sorted(target), full_retest_triggers=sorted(fallthrough))
+    return BuildSelectionResult(
+        requested_steps=sorted(target),
+        full_retest_triggers=sorted(fallthrough),
+    )

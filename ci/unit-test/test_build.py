@@ -1,4 +1,4 @@
-from ci.build_selection import BuildSelectionResult, compute_requested_steps
+from ci.build_selection import BuildSelectionResult, compute_requested_steps, expand_build_steps
 
 MINIMAL_CONFIG = """
 unwatchedPaths:
@@ -171,3 +171,112 @@ def test_build_selection_result_defaults():
 def test_build_selection_result_equality():
     assert BuildSelectionResult(['a', 'b'], ['x']) == BuildSelectionResult(['a', 'b'], ['x'])
     assert BuildSelectionResult(['a'], []) != BuildSelectionResult(['b'], [])
+
+
+# ---------------------------------------------------------------------------
+# expand_build_steps tests
+# ---------------------------------------------------------------------------
+
+EXPAND_CONFIG = """
+steps:
+  - name: setup
+  - name: test_a
+    watchedPaths: [a/]
+    dependsOn: [setup]
+  - name: test_b
+    watchedPaths: [b/]
+    dependsOn: [setup]
+  - name: cleanup
+    cleanupFor: setup
+    dependsOn: [test_a, test_b]
+"""
+
+
+def test_expand_includes_transitive_deps():
+    result = expand_build_steps(EXPAND_CONFIG, ['test_a'])
+    assert 'setup' in result
+    assert 'test_a' in result
+
+
+def test_expand_no_cleanup_by_default():
+    result = expand_build_steps(EXPAND_CONFIG, ['test_a'])
+    assert 'cleanup' not in result
+
+
+def test_expand_cleanup_included_when_requested():
+    result = expand_build_steps(EXPAND_CONFIG, ['test_a'], include_cleanups=True)
+    assert 'cleanup' in result
+
+
+def test_expand_cleanup_not_included_when_setup_not_reachable():
+    config = """
+steps:
+  - name: other
+    watchedPaths: [other/]
+  - name: setup
+  - name: cleanup
+    cleanupFor: setup
+    dependsOn: [other]
+"""
+    result = expand_build_steps(config, ['other'], include_cleanups=True)
+    assert 'cleanup' not in result
+
+
+def test_expand_chained_cleanups_both_included():
+    config = """
+steps:
+  - name: setup
+  - name: test_a
+    watchedPaths: [a/]
+    dependsOn: [setup]
+  - name: cleanup1
+    cleanupFor: setup
+    dependsOn: [test_a]
+  - name: cleanup2
+    cleanupFor: setup
+    dependsOn: [cleanup1]
+"""
+    result = expand_build_steps(config, ['test_a'], include_cleanups=True)
+    assert 'cleanup1' in result
+    assert 'cleanup2' in result
+
+
+def test_expand_excluded_steps_not_included():
+    result = expand_build_steps(EXPAND_CONFIG, ['test_a', 'test_b'], excluded_step_names=['test_b'])
+    assert 'test_b' not in result
+    assert 'test_a' in result
+
+
+def test_expand_run_if_requested_dep_not_pulled_in():
+    config = """
+steps:
+  - name: infra
+    runIfRequested: true
+  - name: test_a
+    dependsOn: [infra]
+"""
+    result = expand_build_steps(config, ['test_a'])
+    assert 'test_a' in result
+    assert 'infra' not in result
+
+
+def test_expand_cloud_filter_excludes_wrong_cloud():
+    config = """
+steps:
+  - name: gcp_only
+    clouds: [gcp]
+  - name: test_a
+    dependsOn: [gcp_only]
+"""
+    result = expand_build_steps(config, ['test_a'], cloud='azure')
+    assert 'gcp_only' not in result
+
+
+def test_expand_result_is_sorted():
+    result = expand_build_steps(EXPAND_CONFIG, ['test_b', 'test_a'])
+    assert result == sorted(result)
+
+
+def test_expand_empty_requested_returns_empty():
+    result = expand_build_steps(EXPAND_CONFIG, [])
+    assert result == []

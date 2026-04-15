@@ -3018,6 +3018,7 @@ steps:
           valueFrom: default_ns.name
         mountPath: /test-dev-gsa-key
     alwaysRun: true
+    cleanupFor: test_batch
     dependsOn:
       - create_deploy_config
       - create_accounts
@@ -3448,6 +3449,7 @@ steps:
           valueFrom: default_ns.name
         mountPath: /secret/ci-secrets
     alwaysRun: true
+    cleanupFor: create_ci_test_repo
     scopes:
       - test
       - dev
@@ -3991,6 +3993,7 @@ steps:
           valueFrom: default_ns.name
         mountPath: /test-dev-gsa-key
     alwaysRun: true
+    cleanupFor: deploy_batch
     timeout: 300
     dependsOn:
       - create_deploy_config
@@ -4065,6 +4068,7 @@ steps:
     image:
       valueFrom: ci_utils_image.image
     alwaysRun: true
+    cleanupFor: deploy_batch
     script: |
       set -ex
       gcloud -q auth activate-service-account --key-file=/batch-gsa-key/key.json
