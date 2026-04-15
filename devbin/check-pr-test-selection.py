@@ -9,7 +9,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-from ci.build_selection import compute_requested_steps
+import yaml
+
+from ci.build_selection import compute_requested_steps, expand_build_steps
 
 if len(sys.argv) != 2:
     print(f'Usage: {sys.argv[0]} <pr-number>', file=sys.stderr)
@@ -22,4 +24,12 @@ changed_files = subprocess.run(
 ).stdout.strip().splitlines()
 
 config_str = (Path(__file__).parent.parent / 'build.yaml').read_text()
-print(compute_requested_steps(config_str, changed_files))
+selection = compute_requested_steps(config_str, changed_files)
+print(selection)
+
+config = yaml.safe_load(config_str)
+cleanup_names = {s['name'] for s in config['steps'] if s.get('cleanupFor')}
+expanded = expand_build_steps(config_str, selection.requested_steps, include_cleanups=True)
+cleanup = [s for s in expanded if s in cleanup_names]
+if cleanup:
+    print(f'cleanup_steps={cleanup}')
