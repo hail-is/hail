@@ -1364,6 +1364,10 @@ steps:
       - hail/python/hail/docs/
       - hail/python/hail/
       - hail/hail/
+      - hail/python/requirements.txt
+      - hail/python/pinned-requirements.txt
+      - hail/python/dev/pinned-requirements.txt
+      - hail/python/hailtop/pinned-requirements.txt
     image:
       valueFrom: hail_run_image.image
     resources:
@@ -1761,6 +1765,10 @@ steps:
       - merge_code
   - kind: runImage
     name: get_pip_versioned_docs
+    watchedPaths:
+      - hail/python/requirements.txt
+      - hail/python/pinned-requirements.txt
+      - hail/python/hailtop/pinned-requirements.txt
     image:
       valueFrom: hailgenetics_hail_image.image
     script: |
