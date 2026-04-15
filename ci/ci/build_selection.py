@@ -107,7 +107,7 @@ def _path_matches(changed_file: str, pattern: str) -> bool:
     if pattern.endswith('/'):
         cf = changed_file.lower()
         p = pattern.lower()
-        return cf.startswith(p) or cf == p.rstrip('/')
+        return cf.startswith(p)
     return fnmatch.fnmatch(changed_file.lower(), pattern.lower())
 
 
