@@ -35,3 +35,12 @@
 /CODEOWNERS @hail-is/appsec
 /build.yaml @hail-is/appsec
 /Makefile @hail-is/appsec
+
+# Test directories: override the service-level appsec rules above.
+# Pure test changes don't touch production code and don't need appsec review.
+/auth/test/
+/batch/test/
+/ci/test/
+/gear/test/
+/monitoring/test/
+/hail/python/hailtop/test/
