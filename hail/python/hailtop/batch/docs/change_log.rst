@@ -15,6 +15,15 @@ versions. In particular, Hail officially supports:
 Change Log
 ==========
 
+**Version 0.2.138**
+
+- (`#15266 <https://github.com/hail-is/hail/pull/15266>`__) Add the ability to filter jobs by exit code in the Batch UI and API.
+- (`#15283 <https://github.com/hail-is/hail/pull/15283>`__) Batch and job status pages now automatically refresh while the batch is still running.
+- (`#15286 <https://github.com/hail-is/hail/pull/15286>`__) Show a more helpful error message when a user's account is inactive.
+- (`#15287 <https://github.com/hail-is/hail/pull/15287>`__) Fix a bug causing duplicate job rows to appear in the Batch UI.
+- (`#15308 <https://github.com/hail-is/hail/pull/15308>`__) Fix an incorrect ``--files`` switch in the ``hailctl batch submit`` documentation.
+- (`#15343 <https://github.com/hail-is/hail/pull/15343>`__) Fix a bug in ``hailctl curl`` where the configured namespace was not respected.
+
 **Version 0.2.137**
 
 - (`#15199 <https://github.com/hail-is/hail/pull/15199>`__)
