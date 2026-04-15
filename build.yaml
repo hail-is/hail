@@ -1108,6 +1108,7 @@ steps:
     name: test_hail_python
     watchedPaths:
       - hail/python/hail/
+      - hail/python/test/hail/
       - hail/hail/
       - hail/python/hailtop/
     numSplits: 28
@@ -1231,8 +1232,10 @@ steps:
     name: test_hail_python_unchecked_allocator
     watchedPaths:
       - hail/python/hail/
+      - hail/python/test/hail/
       - hail/hail/
       - hail/python/hailtop/
+      - hail/python/test/hailtop/
     image:
       valueFrom: hail_run_image.image
     resources:
@@ -1291,6 +1294,7 @@ steps:
     name: test_hail_python_local_backend
     watchedPaths:
       - hail/python/hail/
+      - hail/python/test/hail/
       - hail/hail/
       - hail/python/hailtop/
     numSplits: 48
@@ -2660,6 +2664,7 @@ steps:
     name: test_hail_python_service_backend_gcp
     watchedPaths:
       - hail/python/hail/
+      - hail/python/test/hail/
       - hail/hail/
       - hail/python/hailtop/
       - batch/
@@ -3241,6 +3246,7 @@ steps:
     name: test_hailtop_python
     watchedPaths:
       - hail/python/hailtop/
+      - hail/python/test/hailtop/
       - gear/
       - batch/
     resources:
