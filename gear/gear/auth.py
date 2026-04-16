@@ -184,6 +184,8 @@ class TrustedSingleTenantAuthenticator(Authenticator):
                     'read_developer_environments': True,
                     'update_developer_environments': True,
                     'delete_developer_environments': True,
+                    'access_developer_environments': True,
+                    'read_prerendered_jinja2_context': True,
                     'view_monitoring_dashboards': True,
                     'create_billing_projects': True,
                     'read_all_billing_projects': True,
