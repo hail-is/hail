@@ -11,6 +11,7 @@ from pyspark.sql import SparkSession
 
 from hail.expr.table_type import ttable
 from hail.table import Table
+from hail.utils import maybe
 from hail.utils.java import scala_object
 from hail.version import __version__
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
@@ -18,7 +19,7 @@ from hailtop.aiotools.validators import validate_file
 from hailtop.config import ConfigVariable, configuration_of
 from hailtop.fs.fs import FS
 from hailtop.fs.router_fs import RouterFS
-from hailtop.utils import am_i_interactive, async_to_blocking
+from hailtop.utils import async_to_blocking
 
 from ..fs.hadoop_fs import HadoopFS
 from .backend import local_jar_information
@@ -82,16 +83,23 @@ def _get_or_create_pyspark_session(
         )
         return SparkSession(sc)
 
-    # How spark is configured depends on the environment in which it's run.
+    # How we source and apply sparkconf depends on the execution environment.
     #
-    # At present, we don't supply a spark-defaults.conf when users pip-install hail.
-    # When a user executes hail directly in a python shell, therefore, we need to
-    # configure the classpath of the spark driver and workers before we launch the jvm.
+    # If hail is running in a python shell then we need to configure the driver
+    # and worker classpath before starting the jvm. Note that defaults are read
+    # after jvm initialisation and so specifying `loadDefaults=True` here has
+    # no effect.
     #
-    # When hail is run in a managed spark environment (like dataproc), however, this
-    # configuration is supplied by a spark-defaults.conf file that we installed on the
-    # master node on cluster creation.
-    conf = SparkConf(loadDefaults=False)
+    # If hail is running as a spark-submit job within a managed spark service
+    # like dataproc, then the jvm has already been started and conf passed to
+    # `_ensure_initialized` is ignored.
+    #
+    # Once the jvm has been initialised, we can load default values and apply
+    # configuration defined in python and scala. While we don't ship a
+    # spark-defaults.conf file with hail, users are free to supply and edit
+    # one. This is the mechanism used by the install_gcs_connector script to
+    # configure hadoop fs auth.
+    conf = SparkConf(loadDefaults=False).setAll(list((spark_conf or dict()).items()))
     _configure_spark_classpath(conf)
     SparkContext._ensure_initialized(conf=conf)
 
@@ -99,32 +107,33 @@ def _get_or_create_pyspark_session(
     raise_when_mismatched_hail_versions(jvm)
     JBackend = scala_object(getattr(jvm, 'is').hail.backend.spark, 'SparkBackend')
 
-    # In the case of spark-submit, the python process is run as a child of the jvm
-    # and the conf passed to _ensure_initialized is not used. Some config is defined
-    # in scala as it's required in tests so we merge that with the user-supplied
-    # config from before.
-    conf = SparkConf(_jconf=JBackend.pySparkConf()).setAll(conf.getAll())
-    if spark_conf is not None:
-        conf.setAll(list(spark_conf.items()))
+    conf = (
+        SparkConf(loadDefaults=True)
+        .setAll(SparkConf(_jconf=JBackend.pySparkConf()).getAll())
+        .setAll(conf.getAll())
+        .setAppName(app_name if app_name is not None else 'Hail')
+    )
 
-    conf.setIfMissing('spark.app.name', app_name if app_name is not None else 'Hail')
-    conf.setIfMissing('spark.master', master if master is not None else 'local[*]')
+    # It's important that we allow users to overwrite master, but we should use
+    # the default when it exists. For example, pyspark has no default so we
+    # should use 'local[*]'. Dataproc defines 'yarn' as the default master; we
+    # should use this.
+    conf.setMaster(master if master is not None else conf.get('spark.master', 'local[*]'))
 
     if local_tmpdir is not None:
-        conf.setIfMissing('spark.local.dir', local_tmpdir.removeprefix('file://'))
+        conf.set('spark.local.dir', local_tmpdir.removeprefix('file://'))
 
     if show_progress is not None:
-        conf.setIfMissing('spark.ui.showConsoleProgress', str(show_progress).lower())
+        conf.set('spark.ui.showConsoleProgress', str(show_progress).lower())
 
-    if min_block_size is None:
-        min_block_size = 0
-    elif min_block_size < 0:
-        raise ValueError('`min_block_size` cannot be negative')
+    if min_block_size is not None:
+        if min_block_size < 0:
+            raise ValueError('`min_block_size` cannot be negative')
 
-    conf.setIfMissing(
-        'spark.hadoop.mapreduce.input.fileinputformat.split.minsize',
-        str(min_block_size * 1024 * 1024),
-    )
+        conf.set(
+            'spark.hadoop.mapreduce.input.fileinputformat.split.minsize',
+            str(min_block_size * 1024 * 1024),
+        )
 
     return SparkSession.Builder().config(conf=conf).getOrCreate()
 
@@ -155,7 +164,7 @@ class SparkBackend(Py4JBackend):
 
         if show_progress is None:
             str_value = configuration_of(ConfigVariable.QUERY_DISABLE_PROGRESS_BAR, None, None)
-            show_progress = str_value == '0' if str_value is not None else am_i_interactive()
+            show_progress = maybe(lambda v: v == '0', str_value)
 
         self._spark = _get_or_create_pyspark_session(
             sc,
