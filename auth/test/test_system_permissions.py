@@ -18,6 +18,8 @@ import os
 import time
 from contextlib import contextmanager
 
+import pytest
+
 from hailtop.auth import async_add_role, async_remove_role
 from hailtop.config import get_deploy_config
 from hailtop.utils import external_requests_client_session, retry_response_returning_functions
@@ -123,6 +125,17 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
     },
 }
 
+# Flat list of all (service, method, path) tuples across all permissions
+_ALL_ENDPOINTS = [ep for eps in PERMISSION_ENDPOINTS.values() for ep in eps]
+
+
+def _endpoints_for_role(role: str, granted: bool) -> list[tuple[str, str, str]]:
+    perms = ROLE_PERMISSIONS[role]
+    if granted:
+        return [ep for perm in perms for ep in PERMISSION_ENDPOINTS[perm]]
+    return [ep for perm, eps in PERMISSION_ENDPOINTS.items() if perm not in perms for ep in eps]
+
+
 # ---------------------------------------------------------------------------
 # Assertion helpers
 # ---------------------------------------------------------------------------
@@ -177,83 +190,78 @@ def _with_role(role: str):
             time.sleep(11)
 
 
-def _check_all_denied(session):
-    """Assert every permission-gated endpoint returns 401 for this session."""
-    for endpoints in PERMISSION_ENDPOINTS.values():
-        for service, method, path in endpoints:
-            _assert_denied(session, service, method, path)
-
-
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
 
 
-def test_unauthenticated_denied():
+@pytest.mark.parametrize('service,method,path', _ALL_ENDPOINTS)
+def test_unauthenticated_denied(service, method, path):
     """Requests with no bearer token must be rejected (401) on all permission-gated endpoints."""
-    _check_all_denied(NO_AUTH_SESSION)
+    _assert_denied(NO_AUTH_SESSION, service, method, path)
 
 
-def test_no_roles_denied():
+@pytest.mark.parametrize('service,method,path', _ALL_ENDPOINTS)
+def test_no_roles_denied(service, method, path):
     """Authenticated `test` user with no roles must be denied (401) on all permission-gated endpoints."""
-    _check_all_denied(TEST_USER_SESSION)
+    _assert_denied(TEST_USER_SESSION, service, method, path)
 
 
-def test_sysadmin_readonly():
-    """sysadmin-readonly role grants: read_users, read_system_roles, read_ci, view_monitoring_dashboards."""
-    role = 'sysadmin-readonly'
-    granted = ROLE_PERMISSIONS[role]
-    denied = set(PERMISSION_ENDPOINTS.keys()) - granted
+class TestSysadminReadonly:
+    @pytest.fixture(autouse=True, scope='class')
+    def grant_role(self):
+        with _with_role('sysadmin-readonly'):
+            yield
 
-    with _with_role(role):
-        for perm in granted:
-            for service, method, path in PERMISSION_ENDPOINTS[perm]:
-                _assert_granted(TEST_USER_SESSION, service, method, path)
-        for perm in denied:
-            for service, method, path in PERMISSION_ENDPOINTS[perm]:
-                _assert_denied(TEST_USER_SESSION, service, method, path)
+    @pytest.mark.parametrize('service,method,path', _endpoints_for_role('sysadmin-readonly', granted=True))
+    def test_granted(self, service, method, path):
+        _assert_granted(TEST_USER_SESSION, service, method, path)
 
-
-def test_billing_manager():
-    """billing_manager role grants: read_users, create/delete billing projects, assign users to billing projects."""
-    role = 'billing_manager'
-    granted = ROLE_PERMISSIONS[role]
-    denied = set(PERMISSION_ENDPOINTS.keys()) - granted
-
-    with _with_role(role):
-        for perm in granted:
-            for service, method, path in PERMISSION_ENDPOINTS[perm]:
-                _assert_granted(TEST_USER_SESSION, service, method, path)
-        for perm in denied:
-            for service, method, path in PERMISSION_ENDPOINTS[perm]:
-                _assert_denied(TEST_USER_SESSION, service, method, path)
+    @pytest.mark.parametrize('service,method,path', _endpoints_for_role('sysadmin-readonly', granted=False))
+    def test_denied(self, service, method, path):
+        _assert_denied(TEST_USER_SESSION, service, method, path)
 
 
-def test_developer():
-    """developer role grants: read_ci, manage_ci."""
-    role = 'developer'
-    granted = ROLE_PERMISSIONS[role]
-    denied = set(PERMISSION_ENDPOINTS.keys()) - granted
+class TestBillingManager:
+    @pytest.fixture(autouse=True, scope='class')
+    def grant_role(self):
+        with _with_role('billing_manager'):
+            yield
 
-    with _with_role(role):
-        for perm in granted:
-            for service, method, path in PERMISSION_ENDPOINTS[perm]:
-                _assert_granted(TEST_USER_SESSION, service, method, path)
-        for perm in denied:
-            for service, method, path in PERMISSION_ENDPOINTS[perm]:
-                _assert_denied(TEST_USER_SESSION, service, method, path)
+    @pytest.mark.parametrize('service,method,path', _endpoints_for_role('billing_manager', granted=True))
+    def test_granted(self, service, method, path):
+        _assert_granted(TEST_USER_SESSION, service, method, path)
+
+    @pytest.mark.parametrize('service,method,path', _endpoints_for_role('billing_manager', granted=False))
+    def test_denied(self, service, method, path):
+        _assert_denied(TEST_USER_SESSION, service, method, path)
 
 
-def test_sysadmin():
-    """sysadmin role grants: read_users, delete_users, assign_system_roles, read_system_roles, view_monitoring_dashboards."""
-    role = 'sysadmin'
-    granted = ROLE_PERMISSIONS[role]
-    denied = set(PERMISSION_ENDPOINTS.keys()) - granted
+class TestDeveloper:
+    @pytest.fixture(autouse=True, scope='class')
+    def grant_role(self):
+        with _with_role('developer'):
+            yield
 
-    with _with_role(role):
-        for perm in granted:
-            for service, method, path in PERMISSION_ENDPOINTS[perm]:
-                _assert_granted(TEST_USER_SESSION, service, method, path)
-        for perm in denied:
-            for service, method, path in PERMISSION_ENDPOINTS[perm]:
-                _assert_denied(TEST_USER_SESSION, service, method, path)
+    @pytest.mark.parametrize('service,method,path', _endpoints_for_role('developer', granted=True))
+    def test_granted(self, service, method, path):
+        _assert_granted(TEST_USER_SESSION, service, method, path)
+
+    @pytest.mark.parametrize('service,method,path', _endpoints_for_role('developer', granted=False))
+    def test_denied(self, service, method, path):
+        _assert_denied(TEST_USER_SESSION, service, method, path)
+
+
+class TestSysadmin:
+    @pytest.fixture(autouse=True, scope='class')
+    def grant_role(self):
+        with _with_role('sysadmin'):
+            yield
+
+    @pytest.mark.parametrize('service,method,path', _endpoints_for_role('sysadmin', granted=True))
+    def test_granted(self, service, method, path):
+        _assert_granted(TEST_USER_SESSION, service, method, path)
+
+    @pytest.mark.parametrize('service,method,path', _endpoints_for_role('sysadmin', granted=False))
+    def test_denied(self, service, method, path):
+        _assert_denied(TEST_USER_SESSION, service, method, path)
