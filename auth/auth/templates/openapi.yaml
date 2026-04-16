@@ -50,9 +50,11 @@ components:
           type: string
           enum: [creating, active, deleting, deleted]
           description: "Current state of the user account"
-        is_developer:
-          type: boolean
-          description: "Whether the user has developer privileges"
+        system_permissions:
+          type: object
+          additionalProperties:
+            type: boolean
+          description: "Map of system permission names to whether the user has that permission"
         is_service_account:
           type: boolean
           description: "Whether this is a service account"
@@ -80,15 +82,17 @@ components:
       type: object
       required:
         - login_id
-        - is_developer
+        - system_roles
         - is_service_account
       properties:
         login_id:
           type: string
           description: "Login identifier for the new user"
-        is_developer:
-          type: boolean
-          description: "Whether the user should have developer privileges"
+        system_roles:
+          type: array
+          items:
+            type: string
+          description: "List of system roles to assign to the new user"
         is_service_account:
           type: boolean
           description: "Whether this is a service account"
@@ -112,7 +116,7 @@ components:
     developerAuth:
       type: http
       scheme: bearer
-      description: Developer authentication token
+      description: Hail authentication token (permissions are checked per-endpoint)
 
 paths:
   /api/v1alpha/userinfo:
@@ -280,36 +284,30 @@ paths:
         '401':
           description: Not authenticated
 
-  /api/v1alpha/verify_dev_credentials:
-    get:
-      summary: Verify developer credentials
-      description: Verify that the authenticated user has developer credentials
-      tags: [Authentication]
-      security:
-        - developerAuth: []
-      responses:
-        '200':
-          description: User has valid developer credentials
-        '401':
-          description: Unauthorized or not a developer
 
-  /api/v1alpha/verify_dev_or_sa_credentials:
+  /api/v1alpha/verify_system_permission:
     get:
-      summary: Verify developer or service account credentials
-      description: Verify that the authenticated user has developer or service account credentials
+      summary: Verify system permission
+      description: Verify that the authenticated user has a specific system permission
       tags: [Authentication]
       security:
         - developerAuth: []
+      parameters:
+        - name: permission
+          in: query
+          required: true
+          schema:
+            type: string
       responses:
         '200':
-          description: User has valid developer or service account credentials
+          description: User has the requested system permission
         '401':
-          description: Unauthorized or not a developer/service account
+          description: Unauthorized
 
   /api/v1alpha/check_system_permission:
     get:
       summary: Check system permission
-      description: Check if the authenticated user has a specific system permission
+      description: Returns whether the authenticated user has a specific system permission. Always returns 200 if authenticated; use verify_system_permission for a 401-on-deny check.
       tags: [Authentication]
       parameters:
         - name: permission
@@ -330,9 +328,9 @@ paths:
                     type: boolean
                     description: Whether the user has the requested permission
         '400':
-          description: Invalid permission parameter
+          description: Invalid or missing permission parameter
         '401':
-          description: Unauthorized
+          description: Not authenticated
 
   /api/v1alpha/system_roles/me:
     get:
@@ -416,7 +414,7 @@ paths:
                   properties:
                     role_addition:
                       type: string
-                      enum: [developer, billing_manager]
+                      enum: [developer, billing_manager, sysadmin, sysadmin-readonly]
                       description: System role to add to the user
                   additionalProperties: false
                 - type: object
@@ -424,7 +422,7 @@ paths:
                   properties:
                     role_removal:
                       type: string
-                      enum: [developer, billing_manager]
+                      enum: [developer, billing_manager, sysadmin, sysadmin-readonly]
                       description: System role to remove from the user
                   additionalProperties: false
             examples:
@@ -545,54 +543,3 @@ paths:
                     type: object
                     description: OAuth2 client configuration details
 
-  /api/v1alpha/users/{user}:
-    get:
-      summary: Get user details
-      description: Retrieve details for a specific user
-      tags: [Users]
-      security:
-        - developerAuth: []
-      parameters:
-        - name: user
-          in: path
-          required: true
-          schema:
-            type: string
-          description: Username to retrieve details for
-      responses:
-        '200':
-          description: User details retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  id:
-                    type: integer
-                    description: User ID
-                  username:
-                    type: string
-                    description: Username
-                  login_id:
-                    type: string
-                    nullable: true
-                    description: Login identifier
-                  state:
-                    type: string
-                    description: User state
-                  is_developer:
-                    type: integer
-                    description: Whether user is a developer
-                  is_service_account:
-                    type: integer
-                    description: Whether user is a service account
-                  hail_identity:
-                    type: string
-                    nullable: true
-                    description: Hail identity ID
-        '401':
-          description: Unauthorized
-        '403':
-          description: Forbidden - requires developer privileges
-        '404':
-          description: User not found 
