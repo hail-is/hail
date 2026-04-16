@@ -286,17 +286,16 @@ class IAMManager:
 
 
 # Accounts that require manual follow-up after key rotation.
-# Keys are username prefixes (the part of the email before '@').
 FOLLOWUP_REQUIRED: Dict[str, str] = {
     'trivy-scanner': (
         'ACTION REQUIRED: The new key must be copied to the GOOGLE_GAR_CREDENTIALS GitHub secret.\n'
         'Retrieve the new key with:\n'
         '  kubectl get secret trivy-scanner-gsa-key -n default -o jsonpath=\'{.data.key\\.json}\' | base64 -d\n'
-        'Then update the secret at: https://github.com/hail-is/hail/settings/secrets/actions\n'
+        'Then update the secret in github used by the trivy scanner.\n'
         'See dev-docs/refreshing-trivy-scanner-github-secret.md for full instructions.'
     ),
     'appsecpentest': (
-        'ACTION REQUIRED: This GSA key can be shared with appsec to update their pentest process.\n'
+        'ACTION REQUIRED: The new key can be shared with appsec to update their pentest processor.\n'
         'Retrieve the new key with:\n'
         '  SECRET=$(kubectl get secrets | grep appsec | grep gsa-key | awk \'{print $1}\')\n'
         '  kubectl get secret $SECRET -n default -o jsonpath=\'{.data.key\\.json}\' | base64 -d'
