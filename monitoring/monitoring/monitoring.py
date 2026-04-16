@@ -150,7 +150,7 @@ async def _billing(request: web.Request):
 
 
 @routes.get('/api/v1alpha/billing')
-@auth.authenticated_users_with_permission(SystemPermission.VIEW_MONITORING_DASHBOARDS)
+@auth.authenticated_users_with_permission(SystemPermission.VIEW_MONITORING_DASHBOARDS, redirect=False)
 async def get_billing(request: web.Request, _) -> web.Response:
     cost_by_service, compute_cost_breakdown, cost_by_sku_label, time_period_query = await _billing(request)
     resp = {

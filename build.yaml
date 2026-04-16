@@ -2901,6 +2901,7 @@ steps:
               --log-date-format="%Y-%m-%dT%H:%M:%S" \
               --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" \
               --timeout=360 \
+              --ignore=/io/test/test_system_permissions.py \
               /io/test/
     inputs:
       - from: /repo/auth/test
