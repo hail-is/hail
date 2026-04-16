@@ -285,6 +285,25 @@ class IAMManager:
                 yield acc
 
 
+# Accounts that require manual follow-up after key rotation.
+# Keys are username prefixes (the part of the email before '@').
+FOLLOWUP_REQUIRED: Dict[str, str] = {
+    'trivy-scanner': (
+        'ACTION REQUIRED: The new key must be copied to the GOOGLE_GAR_CREDENTIALS GitHub secret.\n'
+        'Retrieve the new key with:\n'
+        '  kubectl get secret trivy-scanner-gsa-key -n default -o jsonpath=\'{.data.key\\.json}\' | base64 -d\n'
+        'Then update the secret at: https://github.com/hail-is/hail/settings/secrets/actions\n'
+        'See dev-docs/refreshing-trivy-scanner-github-secret.md for full instructions.'
+    ),
+    'appsecpentest': (
+        'ACTION REQUIRED: This GSA key can be shared with appsec to update their pentest process.\n'
+        'Retrieve the new key with:\n'
+        '  SECRET=$(kubectl get secrets | grep appsec | grep gsa-key | awk \'{print $1}\')\n'
+        '  kubectl get secret $SECRET -n default -o jsonpath=\'{.data.key\\.json}\' | base64 -d'
+    ),
+}
+
+
 async def add_new_keys(
     service_accounts: List[ServiceAccount],
     iam_manager: IAMManager,
@@ -316,6 +335,9 @@ async def add_new_keys(
         new_secrets = await asyncio.gather(*[k8s_manager.update_gsa_key_secret(s, key_data) for s in sa.kube_secrets])
         sa.kube_secrets = list(new_secrets)
         sa.list_keys(sys.stdout)
+        followup = next((msg for prefix, msg in FOLLOWUP_REQUIRED.items() if sa.username().startswith(prefix)), None)
+        if followup:
+            print(f'{WARNING_YELLOW}{followup}{ENDC}')
 
 
 async def delete_old_keys(
