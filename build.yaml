@@ -2911,6 +2911,49 @@ steps:
     dependsOn:
       - auth_image
   - kind: runImage
+    name: test_system_permissions
+    resources:
+      memory: standard
+      cpu: '0.25'
+    image:
+      valueFrom: auth_image.image
+    script: |
+      set -ex
+      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
+      export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-dev-gsa-key/key.json
+
+      hail-pip-install -r /io/dev-requirements.txt
+
+      python3 -m pytest \
+              --log-cli-level=INFO -s -r A -vv --instafail \
+              --durations=50 --timeout=600 \
+              /io/test/test_system_permissions.py
+    inputs:
+      - from: /repo/auth/test
+        to: /io/test
+      - from: /repo/hail/python/dev/pinned-requirements.txt
+        to: /io/dev-requirements.txt
+    timeout: 900
+    secrets:
+      - name: test-tokens
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /user-tokens
+      - name: test-dev-gsa-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-dev-gsa-key
+    dependsOn:
+      - create_deploy_config
+      - create_accounts
+      - default_ns
+      - deploy_auth
+      - deploy_batch
+      - deploy_ci
+      - deploy_monitoring
+      - auth_image
+  - kind: runImage
     name: delete_test_billing_projects
     resources:
       memory: standard

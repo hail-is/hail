@@ -285,3 +285,23 @@ async def async_delete_user(username: str):
     url = get_deploy_config().url('auth', f'/api/v1alpha/users/{username}')
     async with hail_session(timeout=aiohttp.ClientTimeout(total=300)) as session:
         await session.delete(url)
+
+
+async def async_add_role(username: str, role: str) -> None:
+    url = get_deploy_config().url('auth', f'/api/v1alpha/system_roles/{username}')
+    async with hail_session(timeout=aiohttp.ClientTimeout(total=30)) as session:
+        await session.patch(url, json={'role_addition': role})
+
+
+async def async_remove_role(username: str, role: str) -> None:
+    url = get_deploy_config().url('auth', f'/api/v1alpha/system_roles/{username}')
+    async with hail_session(timeout=aiohttp.ClientTimeout(total=30)) as session:
+        await session.patch(url, json={'role_removal': role})
+
+
+async def async_get_roles(username: Optional[str] = None) -> dict:
+    path = f'/api/v1alpha/system_roles/{username}' if username else '/api/v1alpha/system_roles/me'
+    url = get_deploy_config().url('auth', path)
+    async with hail_session(timeout=aiohttp.ClientTimeout(total=30)) as session:
+        async with await session.get(url) as resp:
+            return await resp.json()

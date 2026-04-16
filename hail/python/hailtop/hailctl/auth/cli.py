@@ -156,3 +156,30 @@ def delete_user(
     from .delete_user import polling_delete_user  # pylint: disable=import-outside-toplevel
 
     asyncio.run(polling_delete_user(username, wait))
+
+
+@app.command()
+def add_role(username: str, role: str):
+    """Add a system role to a user."""
+    from hailtop.auth import async_add_role  # pylint: disable=import-outside-toplevel
+
+    asyncio.run(async_add_role(username, role))
+    print(f"Added role '{role}' to user '{username}'.")
+
+
+@app.command()
+def remove_role(username: str, role: str):
+    """Remove a system role from a user."""
+    from hailtop.auth import async_remove_role  # pylint: disable=import-outside-toplevel
+
+    asyncio.run(async_remove_role(username, role))
+    print(f"Removed role '{role}' from user '{username}'.")
+
+
+@app.command()
+def list_roles(username: Optional[str] = None):
+    """List system roles for a user. Shows your own roles if no username is given."""
+    from hailtop.auth import async_get_roles  # pylint: disable=import-outside-toplevel
+
+    result = asyncio.run(async_get_roles(username))
+    print(json.dumps(result, indent=4))
