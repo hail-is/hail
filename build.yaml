@@ -672,6 +672,38 @@ steps:
     dependsOn:
       - hail_ubuntu_image
       - merge_code
+  - kind: runImage
+    name: build_ui
+    image: node:20-slim@sha256:a82f40540f5959e0003fb7b3c0f80490def2927be8bdbee7e3e0ac65cce3be92
+    script: |
+      set -ex
+      cd /io/repo/services/ui
+      npm ci
+      npm run build
+    inputs:
+      - from: /repo/services/ui
+        to: /io/repo/services/ui
+    outputs:
+      - from: /io/repo/services/ui/dist/ci
+        to: /compiled-js/ci
+      - from: /io/repo/services/ui/dist/batch
+        to: /compiled-js/batch
+    dependsOn:
+      - merge_code
+  - kind: runImage
+    name: check_ui
+    image: node:20-slim@sha256:a82f40540f5959e0003fb7b3c0f80490def2927be8bdbee7e3e0ac65cce3be92
+    script: |
+      set -ex
+      cd /io/repo/services/ui
+      npm ci
+      npm test
+      npm run check
+    inputs:
+      - from: /repo/services/ui
+        to: /io/repo/services/ui
+    dependsOn:
+      - merge_code
   - kind: buildImage2
     name: batch_image
     dockerFile: /io/repo/batch/Dockerfile
@@ -694,9 +726,13 @@ steps:
         to: /io/repo/gear
       - from: /repo/web_common
         to: /io/repo/web_common
+      - from: /compiled-js/batch
+        to: /io/repo/batch/batch/front_end/static/compiled-js
     dependsOn:
       - hail_ubuntu_image
       - merge_code
+      - build_ui
+      - check_ui
   - kind: buildImage2
     name: hailgenetics_hailtop_image
     dockerFile: /io/repo/docker/hailgenetics/hailtop/Dockerfile
@@ -714,35 +750,6 @@ steps:
     dependsOn:
       - merge_code
       - hail_ubuntu_image
-  - kind: runImage
-    name: build_ui
-    image: node:20-slim@sha256:a82f40540f5959e0003fb7b3c0f80490def2927be8bdbee7e3e0ac65cce3be92
-    script: |
-      set -ex
-      cd /io/repo/services/ui
-      npm ci
-      npm run build
-    inputs:
-      - from: /repo/services/ui
-        to: /io/repo/services/ui
-    outputs:
-      - from: /io/repo/services/ui/dist/ci
-        to: /compiled-js/ci
-    dependsOn:
-      - merge_code
-  - kind: runImage
-    name: check_ui
-    image: node:20-slim@sha256:a82f40540f5959e0003fb7b3c0f80490def2927be8bdbee7e3e0ac65cce3be92
-    script: |
-      set -ex
-      cd /io/repo/services/ui
-      npm ci
-      npm run check
-    inputs:
-      - from: /repo/services/ui
-        to: /io/repo/services/ui
-    dependsOn:
-      - merge_code
   - kind: buildImage2
     name: ci_image
     dockerFile: /io/repo/ci/Dockerfile
