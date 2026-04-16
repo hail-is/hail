@@ -10,7 +10,6 @@ import is.hail.rvd.RVDPartitioner
 import is.hail.types.virtual.{TInt32, TStruct}
 import org.apache.spark.sql.Row
 import org.junit.jupiter.api.{BeforeEach, Test}
-import org.junit.jupiter.api.extension.ExtendWith
 
 class IntervalSuite {
   val pord: ExtendedOrdering = TInt32.ordering(HailStateManager(Map.empty))
