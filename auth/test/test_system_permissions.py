@@ -179,7 +179,7 @@ def _with_role(role: str):
 
 def _check_all_denied(session):
     """Assert every permission-gated endpoint returns 401 for this session."""
-    for perm, endpoints in PERMISSION_ENDPOINTS.items():
+    for endpoints in PERMISSION_ENDPOINTS.values():
         for service, method, path in endpoints:
             _assert_denied(session, service, method, path)
 
