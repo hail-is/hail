@@ -2,12 +2,11 @@ import os
 from typing import Any
 
 import pytest
-from pyspark import SparkContext
+from pyspark import SparkConf, SparkContext
 
 import hail as hl
-from hail.backend.spark_backend import _get_or_create_pyspark_session
+from hail.backend.spark_backend import _configure_spark_classpath, _get_or_create_pyspark_session
 from hail.utils.java import Env
-from hailtop.utils import am_i_interactive
 from test.hail.helpers import hl_init_for_test
 
 pytestmark = [pytest.mark.backend('spark'), pytest.mark.uninitialized]
@@ -15,6 +14,10 @@ pytestmark = [pytest.mark.backend('spark'), pytest.mark.uninitialized]
 
 def fatal(typ: hl.HailType, msg: str = "") -> hl.Expression:
     return hl.construct_expr(hl.ir.Die(hl.to_expr(msg, hl.tstr)._ir, typ), typ)
+
+
+def prune(kvs: dict[str, Any | None]) -> dict[str, Any]:
+    return {k: v for k, v in kvs.items() if v is not None}
 
 
 @pytest.mark.parametrize('copy', [True, False])
@@ -65,58 +68,52 @@ def test_init_with_existing_spark_context(request):
             SparkContext._jvm = None
 
 
-@pytest.mark.parametrize('show_progress', [True, False])
-def test_show_console_progress_bar(show_progress):
-    hl.init(show_progress=show_progress)
-    conf = hl.spark_context().getConf()
-    assert conf.get('spark.ui.showConsoleProgress') == str(show_progress).lower()
+@pytest.fixture(scope='class')
+def jvm_gateway():
+    conf = SparkConf(loadDefaults=False)
+    _configure_spark_classpath(conf)
+    SparkContext._ensure_initialized(conf=conf)
+    try:
+        yield
+    finally:
+        with SparkContext._lock:
+            SparkContext._gateway.shutdown()
+            SparkContext._gateway = None
+            SparkContext._jvm = None
 
 
-@pytest.mark.parametrize(
-    'cname,name,default',
-    [
-        ['spark.app.name', 'app_name', 'Hail'],
-        ['spark.master', 'master', 'local[*]'],
-        ['spark.master', 'local', 'local[*]'],
-        ['spark.local.dir', 'local_tmpdir', '/tmp'],
-        ['spark.hadoop.mapreduce.input.fileinputformat.split.minsize', 'min_block_size', '0'],
-        ['spark.ui.showConsoleProgress', 'show_progress', str(am_i_interactive()).lower()],
-    ],
-)
-def test_default_spark_conf(cname: str, name: str, default: str):
-    hl.init(**{name: None})
-    conf = hl.spark_context().getConf()
-    assert conf.get(cname) == default
+class TestSparkConf:
+    cases = (
+        ['spark.app.name', 'app_name', None, None, 'Hail'],  # default
+        ['spark.app.name', 'app_name', 'Any', None, 'Hail'],
+        ['spark.app.name', 'app_name', 'Any', 'Foo', 'Foo'],
+        ['spark.master', 'master', None, None, 'local[*]'],  # default
+        ['spark.master', 'master', None, 'local', 'local'],
+        ['spark.master', 'master', 'local', None, 'local'],
+        ['spark.master', 'master', 'local[*]', 'local', 'local'],
+        ['spark.local.dir', 'local_tmpdir', None, None, None],  # default
+        ['spark.local.dir', 'local_tmpdir', '/tmp', None, '/tmp'],
+        ['spark.local.dir', 'local_tmpdir', None, '/tmp', '/tmp'],
+        ['spark.local.dir', 'local_tmpdir', '/dev/null', '/tmp', '/tmp'],
+        ['spark.hadoop.mapreduce.input.fileinputformat.split.minsize', 'min_block_size', None, None, None],  # default
+        ['spark.hadoop.mapreduce.input.fileinputformat.split.minsize', 'min_block_size', 1, None, '1'],
+        ['spark.hadoop.mapreduce.input.fileinputformat.split.minsize', 'min_block_size', None, 1, str(1 * 1024 * 1024)],
+        ['spark.hadoop.mapreduce.input.fileinputformat.split.minsize', 'min_block_size', 1, 2, str(2 * 1024 * 1024)],
+        ['spark.ui.showConsoleProgress', 'show_progress', None, None, 'true'],  # pyspark default
+        ['spark.ui.showConsoleProgress', 'show_progress', 'false', None, 'false'],
+        ['spark.ui.showConsoleProgress', 'show_progress', None, 'false', 'false'],
+        ['spark.ui.showConsoleProgress', 'show_progress', 'true', 'false', 'false'],
+    )
 
-
-@pytest.mark.parametrize(
-    'cname,cvalue,name,value',
-    [
-        ['spark.app.name', 'geoff', 'app_name', 'steve'],
-        ['spark.master', 'local[1]', 'master', 'local[*]'],
-        ['spark.master', 'local[1]', 'local', 'local[*]'],
-        ['spark.hadoop.mapreduce.input.fileinputformat.split.minsize', '1', 'min_block_size', 0],
-        ['spark.ui.showConsoleProgress', 'false', 'show_progress', True],
-    ],
-)
-def test_spark_conf_takes_precedence(cname: str, cvalue: str, name: str, value: Any):
-    hl.init(spark_conf={cname: cvalue}, **{name: value})
-    conf = hl.spark_context().getConf()
-    assert conf.get(cname) == cvalue
-
-
-# you can set the spark local dir once per spark context, but you can
-# set hail's temporary directory at any time
-def test_spark_conf_takes_precedence_local_dir_special_case(tmp_path):
-    hl.init(spark_conf={'spark.local.dir': str(tmp_path)}, local_tmpdir='/does/not/exist')
-    conf = hl.spark_context().getConf()
-    assert conf.get('spark.local.dir') == str(tmp_path)
-
-    backend = hl.current_backend()
-    assert backend.local_tmpdir == 'file:///does/not/exist'
-
-    backend.local_tmpdir = '/dev/null'
-    assert backend.local_tmpdir == '/dev/null'
+    @pytest.mark.usefixtures('jvm_gateway')
+    @pytest.mark.parametrize('key,param,cvalue,arg,expected', cases)
+    def test_(self, key: str, param: str, cvalue: str | None, arg: Any | None, expected: str):
+        session = _get_or_create_pyspark_session(sc=None, spark_conf=prune({key: cvalue}), **prune({param: arg}))
+        try:
+            conf = session.sparkContext.getConf()
+            assert conf.get(key) == expected
+        finally:
+            session.stop()
 
 
 def test_min_block_size_pos_int():
