@@ -8,6 +8,7 @@ import is.hail.expr.ir.{BaseIR, CompileCache}
 import is.hail.expr.ir.LoweredTableReader.LoweredTableReaderCoercer
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.lowering.IrMetadata
+import is.hail.expr.ir.lowering.invariant.Flags.StrictInvariants
 import is.hail.io.fs.{FS, HadoopFS}
 import is.hail.linalg.BlockMatrix
 import is.hail.rvd.RVD
@@ -15,7 +16,6 @@ import is.hail.utils.{ExecutionTimer, SerializableHadoopConfiguration}
 import is.hail.variant.ReferenceGenome
 
 import scala.collection.mutable
-
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.sql.SparkSession
 import org.junit.jupiter.api.extension.{
@@ -43,7 +43,9 @@ final class ClassLevelIrCaches {
   */
 final class SharedResources extends AutoCloseable {
   val hcl: HailClassLoader = new HailClassLoader(getClass.getClassLoader)
-  val flags: HailFeatureFlags = HailFeatureFlags.fromEnv(sys.env + ("lower" -> "1"))
+
+  val flags: HailFeatureFlags =
+    HailFeatureFlags.fromEnv(sys.env + ("lower" -> "1") + (StrictInvariants -> "1"))
 
   val backend: SparkBackend = SparkBackend(
     SparkSession.builder()
@@ -186,20 +188,19 @@ class HailExtension extends AfterAllCallback with ParameterResolver {
     extCtx
   }
 
-  /** Look up (or create) the [[ClassLevelIrCaches]] attached to this test class. The caches live
-    * at the class-level ExtensionContext so every [[ExecuteContext]] built for a test in that
-    * class shares them.
+  /** Look up (or create) the [[ClassLevelIrCaches]] attached to this test class. The caches live at
+    * the class-level ExtensionContext so every [[ExecuteContext]] built for a test in that class
+    * shares them.
     */
-  private def classCaches(extCtx: ExtensionContext): ClassLevelIrCaches = {
+  private def classCaches(extCtx: ExtensionContext): ClassLevelIrCaches =
     classScope(extCtx).getStore(NAMESPACE).getOrComputeIfAbsent(
       CACHES_KEY,
       (_: String) => new ClassLevelIrCaches,
       classOf[ClassLevelIrCaches],
     )
-  }
 
-  /** The ExtensionContext whose element is the test class (the first ancestor with a test class
-    * but no test method). Used as the anchor for class-scoped state (IR caches).
+  /** The ExtensionContext whose element is the test class (the first ancestor with a test class but
+    * no test method). Used as the anchor for class-scoped state (IR caches).
     */
   private def classScope(extCtx: ExtensionContext): ExtensionContext = {
     var cur: ExtensionContext = extCtx
