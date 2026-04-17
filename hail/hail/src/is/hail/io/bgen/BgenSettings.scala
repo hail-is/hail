@@ -23,7 +23,9 @@ object BgenSettings {
   val indexAnnotationType: Type = TStruct.empty
 
   private def specFromVersion(indexVersion: SemanticVersion): BufferSpec =
-    if (indexVersion >= SemanticVersion(1, 2, 0)) {
+    if (indexVersion >= SemanticVersion(1, 3, 0)) {
+      BufferSpec.default
+    } else if (indexVersion >= SemanticVersion(1, 2, 0)) {
       BufferSpec.zstdCompressionLEB
     } else {
       BufferSpec.lz4HCCompressionLEB
@@ -31,6 +33,11 @@ object BgenSettings {
 
   def getIndexSpec(indexVersion: SemanticVersion, rg: Option[String]): AbstractIndexSpec = {
     val bufferSpec = specFromVersion(indexVersion)
+    val v2 = indexVersion >= SemanticVersion(1, 3, 0)
+
+    def eBinary(required: Boolean): EType = if (v2) EBinary2(required) else EBinary(required)
+    def eArray(elt: EType, required: Boolean): EType =
+      if (v2) EArray2(elt, required) else EArray(elt, required)
 
     val keyVType = indexKeyType(rg)
     val keyEType = EBaseStruct(
@@ -38,12 +45,12 @@ object BgenSettings {
         EField(
           "locus",
           EBaseStruct(FastSeq(
-            EField("contig", EBinaryRequired, 0),
+            EField("contig", eBinary(true), 0),
             EField("position", EInt32Required, 1),
           )),
           0,
         ),
-        EField("alleles", EArray(EBinaryOptional, required = false), 1),
+        EField("alleles", eArray(eBinary(false), required = false), 1),
       ),
       required = false,
     )
@@ -55,7 +62,7 @@ object BgenSettings {
       EField("first_idx", EInt64Required, 0),
       EField(
         "keys",
-        EArray(
+        eArray(
           EBaseStruct(
             FastSeq(
               EField("key", keyEType, 0),
@@ -85,7 +92,7 @@ object BgenSettings {
     val internalNodeEType = EBaseStruct(FastSeq(
       EField(
         "children",
-        EArray(
+        eArray(
           EBaseStruct(
             FastSeq(
               EField("index_file_offset", EInt64Required, 0),

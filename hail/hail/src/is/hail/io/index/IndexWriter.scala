@@ -79,7 +79,7 @@ case class IndexMetadata(
 ) extends AbstractIndexMetadata
 
 object IndexWriter {
-  val version: SemanticVersion = SemanticVersion(1, 2, 0)
+  val version: SemanticVersion = SemanticVersion(1, 3, 0)
 
   val spec: BufferSpec = BufferSpec.default
 
