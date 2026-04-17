@@ -2,9 +2,11 @@ package is.hail.types.physical.stypes.interfaces
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.asm4s.implicits._
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitValue, IEmitCode}
+import is.hail.io.PrefixCoder
 import is.hail.types.{RStruct, RTuple, TypeWithRequiredness}
 import is.hail.types.physical.PCanonicalStruct
 import is.hail.types.physical.stypes._
@@ -83,6 +85,19 @@ trait SBaseStructValue extends SValue {
       )
     }
     new SInt32Value(hash_result)
+  }
+
+  override def prefixCode(cb: EmitCodeBuilder, pc: Value[PrefixCoder]) = {
+    st.fieldEmitTypes.zipWithIndex.foreach { case (fet, i) =>
+      loadField(cb, i).consume(
+        cb,
+        if (!fet.required) pc.encodeMissing(cb),
+        { (sv) =>
+          if (!fet.required) pc.encodePresent(cb)
+          sv.prefixCode(cb, pc)
+        },
+      )
+    }
   }
 
   override def sizeToStoreInBytes(cb: EmitCodeBuilder): SInt64Value = {

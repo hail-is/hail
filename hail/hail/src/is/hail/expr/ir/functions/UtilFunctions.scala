@@ -8,7 +8,7 @@ import is.hail.expr.ir.defs._
 import is.hail.io.fs.FS
 import is.hail.io.vcf.{LoadVCF, VCFHeaderInfo}
 import is.hail.types.physical.stypes._
-import is.hail.types.physical.stypes.concrete.SJavaString
+import is.hail.types.physical.stypes.concrete.{SJavaBytes, SJavaString}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives._
 import is.hail.types.virtual._
@@ -663,5 +663,12 @@ object UtilFunctions extends RegistryFunctions {
           VCFHeaderInfo.headerTypePType.loadCheapSCode(cb, addr)
         }
     }
+
+    registerSCode1(
+      "prefixCode",
+      tv("T"),
+      TBinary,
+      (_, _) => SJavaBytes,
+    )((region, cb, st, sv, _) => sv.prefixCode(cb))
   }
 }
