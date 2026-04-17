@@ -593,14 +593,14 @@ class _tstr(HailType):
         pass
 
     def _convert_from_encoding(self, byte_reader, _should_freeze: bool = False) -> str:
-        length = byte_reader.read_int32()
+        length = byte_reader.read_varint()
         str_literal = byte_reader.read_bytes(length).decode('utf-8')
 
         return str_literal
 
     def _convert_to_encoding(self, byte_writer: ByteWriter, value):
         value_bytes = value.encode('utf-8')
-        byte_writer.write_int32(len(value_bytes))
+        byte_writer.write_varint(len(value_bytes))
         byte_writer.write_bytes(value_bytes)
 
 
@@ -896,7 +896,7 @@ class tarray(HailType):
         return self.element_type.get_context()
 
     def _convert_from_encoding(self, byte_reader, _should_freeze: bool = False) -> Union[list, frozenlist]:
-        length = byte_reader.read_int32()
+        length = byte_reader.read_varint()
 
         num_missing_bytes = math.ceil(length / 8)
         missing_bytes = byte_reader.read_bytes_view(num_missing_bytes)
@@ -921,7 +921,7 @@ class tarray(HailType):
 
     def _convert_to_encoding(self, byte_writer: ByteWriter, value):
         length = len(value)
-        byte_writer.write_int32(length)
+        byte_writer.write_varint(length)
         i = 0
         while i < length:
             missing_byte = 0
@@ -1209,7 +1209,7 @@ class tdict(HailType):
     def _convert_from_encoding(self, byte_reader, _should_freeze: bool = False) -> Union[dict, frozendict]:
         # NB: We ensure the key is always frozen with a wrapper on the key_type in the _array_repr.
         d = {}
-        length = byte_reader.read_int32()
+        length = byte_reader.read_varint()
         for _ in range(length):
             element = self._array_repr.element_type._convert_from_encoding(byte_reader, _should_freeze)
             d[element.key] = element.value
@@ -1220,7 +1220,7 @@ class tdict(HailType):
 
     def _convert_to_encoding(self, byte_writer: ByteWriter, value):
         length = len(value)
-        byte_writer.write_int32(length)
+        byte_writer.write_varint(length)
         for k, v in value.items():
             self._array_repr.element_type._convert_to_encoding(byte_writer, {'key': k, 'value': v})
 
