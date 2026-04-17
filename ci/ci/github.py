@@ -22,6 +22,7 @@ from hailtop.config import get_deploy_config
 from hailtop.utils import RETRY_FUNCTION_SCRIPT, check_shell, check_shell_output
 
 from .build import BuildConfiguration, Code
+from .build_selection import compute_requested_steps
 from .constants import AUTHORIZED_USERS, COMPILER_TEAM, GITHUB_CLONE_URL, GITHUB_STATUS_CONTEXT, SERVICES_TEAM
 from .environment import DEPLOY_STEPS
 from .globals import is_test_deployment
@@ -562,9 +563,24 @@ mkdir -p {shq(repo_dir)}
             self.sha = sha_out.decode('utf-8').strip()
 
             with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
-                config = BuildConfiguration(self, f.read(), scope='test')
-                namespace = config.namespace()
-                services = config.deployed_services()
+                config_str = f.read()
+
+            # Compute which test steps are needed based on changed files
+            assert self.target_branch.sha is not None
+            diff_out, _ = await check_shell_output(
+                f'git -C {shq(repo_dir)} diff --name-only {shq(self.target_branch.sha)} HEAD'
+            )
+            changed_files = diff_out.decode('utf-8').strip().splitlines()
+            selection = compute_requested_steps(config_str, changed_files)
+            log.info(
+                f'PR {self.number}: changed files={len(changed_files)}, requested steps={selection.requested_steps}'
+            )
+
+            config = BuildConfiguration(
+                self, config_str, scope='test', requested_step_names=selection.requested_steps, include_cleanups=True
+            )
+            namespace = config.namespace()
+            services = config.deployed_services()
             with open(f'{repo_dir}/ci/test/resources/build.yaml', 'r', encoding='utf-8') as f:
                 test_services = BuildConfiguration(self, f.read(), scope='test').deployed_services()
 
@@ -584,6 +600,7 @@ mkdir -p {shq(repo_dir)}
                     'namespace': namespace,
                     'source_sha': self.source_sha,
                     'target_sha': self.target_branch.sha,
+                    'full_retest_triggers': ','.join(selection.full_retest_triggers),
                 },
                 callback=CALLBACK_URL,
             )

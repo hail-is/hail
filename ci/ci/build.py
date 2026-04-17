@@ -11,6 +11,7 @@ import yaml
 from gear.cloud_config import get_global_config
 from hailtop.utils import RETRY_FUNCTION_SCRIPT, flatten
 
+from .build_selection import expand_build_steps
 from .environment import (
     BUILDKIT_IMAGE,
     CI_UTILS_IMAGE,
@@ -104,38 +105,36 @@ class BuildConfiguration:
         *,
         requested_step_names: Sequence[str] = (),
         excluded_step_names: Sequence[str] = (),
+        include_cleanups: bool = False,
     ):
-        if len(excluded_step_names) > 0 and scope != 'dev':
+        if excluded_step_names and scope != 'dev':
             raise BuildConfigurationError('Excluding build steps is only permitted in a dev scope')
 
-        config = yaml.safe_load(config_str)
         if requested_step_names:
             log.info(f"Constructing build configuration with steps: {requested_step_names}")
+            expanded = set(
+                expand_build_steps(
+                    config_str,
+                    requested_step_names,
+                    cloud=CLOUD,
+                    excluded_step_names=excluded_step_names,
+                    include_cleanups=include_cleanups,
+                )
+            )
+        else:
+            expanded = None
 
-        runnable_steps: List[Step] = []
+        config = yaml.safe_load(config_str)
         name_step: Dict[str, Step] = {}
+        runnable_steps: List[Step] = []
         for step_config in config['steps']:
             step = Step.from_json(StepParameters(code, scope, step_config, name_step))
-            if step.name not in excluded_step_names and step.can_run_in_current_cloud():
+            if step.can_run_in_current_cloud():
                 name_step[step.name] = step
                 runnable_steps.append(step)
 
-        if requested_step_names:
-            # transitively close requested_step_names over dependencies
-            visited = set()
-
-            def visit_dependent(step: Step):
-                if step not in visited and step.name not in excluded_step_names:
-                    if not step.can_run_in_current_cloud():
-                        raise BuildConfigurationError(f'Step {step.name} cannot be run in cloud {CLOUD}')
-                    visited.add(step)
-                    for s2 in step.deps:
-                        if not s2.run_if_requested:
-                            visit_dependent(s2)
-
-            for step_name in requested_step_names:
-                visit_dependent(name_step[step_name])
-            self.steps = [step for step in runnable_steps if step in visited]
+        if expanded is not None:
+            self.steps = [step for step in runnable_steps if step.name in expanded]
         else:
             self.steps = [step for step in runnable_steps if not step.run_if_requested]
 

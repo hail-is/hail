@@ -1,3 +1,18 @@
+unwatchedPaths:
+  - dev-docs/
+  - '*.md'
+  - CHANGELOG
+  - CODEOWNERS
+  - LICENSE
+  - .gitattributes
+  - .gitignore
+  - .github/
+  - .mailmap
+  - devbin/
+
+alwaysRunSteps:
+  - merge_code
+
 steps:
   - kind: buildImage2
     name: git_make_bash_image
@@ -732,6 +747,8 @@ steps:
       - merge_code
   - kind: runImage
     name: check_ui
+    watchedPaths:
+      - services/ui/
     image: node:20-slim@sha256:a82f40540f5959e0003fb7b3c0f80490def2927be8bdbee7e3e0ac65cce3be92
     script: |
       set -ex
@@ -1071,6 +1088,9 @@ steps:
       - merge_code
   - kind: runImage
     name: test_hail_java
+    watchedPaths:
+      - hail/hail/
+      - hail/build.mill
     numSplits: 5
     image:
       valueFrom: hail_run_image.image
@@ -1108,6 +1128,11 @@ steps:
       - build_hail_test_artifacts
   - kind: runImage
     name: test_hail_python
+    watchedPaths:
+      - hail/python/hail/
+      - hail/python/test/hail/
+      - hail/hail/
+      - hail/python/hailtop/
     numSplits: 28
     image:
       valueFrom: hail_run_image.image
@@ -1171,6 +1196,9 @@ steps:
       - gcp
   - kind: runImage
     name: test_hailtop_python_fs
+    watchedPaths:
+      - hail/python/hailtop/
+      - gear/
     numSplits: 5
     image:
       valueFrom: hailgenetics_hailtop_image.image
@@ -1224,6 +1252,11 @@ steps:
       - gcp
   - kind: runImage
     name: test_hail_python_unchecked_allocator
+    watchedPaths:
+      - hail/python/hail/
+      - hail/python/test/hail/
+      - hail/hail/
+      - hail/python/hailtop/
     image:
       valueFrom: hail_run_image.image
     resources:
@@ -1280,6 +1313,11 @@ steps:
       - gcp
   - kind: runImage
     name: test_hail_python_local_backend
+    watchedPaths:
+      - hail/python/hail/
+      - hail/python/test/hail/
+      - hail/hail/
+      - hail/python/hailtop/
     numSplits: 48
     image:
       valueFrom: hail_run_image.image
@@ -1347,6 +1385,14 @@ steps:
       - build_hail_test_artifacts
   - kind: runImage
     name: test_python_docs
+    watchedPaths:
+      - hail/python/hail/docs/
+      - hail/python/hail/
+      - hail/hail/
+      - hail/python/requirements.txt
+      - hail/python/pinned-requirements.txt
+      - hail/python/dev/pinned-requirements.txt
+      - hail/python/hailtop/pinned-requirements.txt
     image:
       valueFrom: hail_run_image.image
     resources:
@@ -1533,6 +1579,12 @@ steps:
       - hail_ubuntu_image_python_3_13
   - kind: runImage
     name: test_hailgenetics_hail_image
+    watchedPaths:
+      - hail/hail/
+      - hail/python/hail/
+      - hail/python/requirements.txt
+      - hail/python/pinned-requirements.txt
+      - hail/python/hailtop/pinned-requirements.txt
     image:
       valueFrom: hailgenetics_hail_image.image
     script: |
@@ -1544,6 +1596,12 @@ steps:
       - hailgenetics_hail_image
   - kind: runImage
     name: test_hailgenetics_hail_image_python_3_10
+    watchedPaths:
+      - hail/hail/
+      - hail/python/hail/
+      - hail/python/requirements.txt
+      - hail/python/pinned-requirements.txt
+      - hail/python/hailtop/pinned-requirements.txt
     image:
       valueFrom: hailgenetics_hail_image_python_3_10.image
     script: |
@@ -1555,6 +1613,12 @@ steps:
       - hailgenetics_hail_image_python_3_10
   - kind: runImage
     name: test_hailgenetics_hail_image_python_3_12
+    watchedPaths:
+      - hail/hail/
+      - hail/python/hail/
+      - hail/python/requirements.txt
+      - hail/python/pinned-requirements.txt
+      - hail/python/hailtop/pinned-requirements.txt
     image:
       valueFrom: hailgenetics_hail_image_python_3_12.image
     script: |
@@ -1566,6 +1630,12 @@ steps:
       - hailgenetics_hail_image_python_3_12
   - kind: runImage
     name: test_hailgenetics_hail_image_python_3_13
+    watchedPaths:
+      - hail/hail/
+      - hail/python/hail/
+      - hail/python/requirements.txt
+      - hail/python/pinned-requirements.txt
+      - hail/python/hailtop/pinned-requirements.txt
     image:
       valueFrom: hailgenetics_hail_image_python_3_13.image
     script: |
@@ -1630,6 +1700,9 @@ steps:
       - hail_ubuntu_image
   - kind: runImage
     name: check_pip_requirements
+    watchedPaths:
+      - hail/python/dev/pinned-requirements.txt
+      - pyproject.toml
     image:
       valueFrom: hail_linting_image.image
     script: |
@@ -1645,6 +1718,15 @@ steps:
       - merge_code
   - kind: runImage
     name: check_services
+    watchedPaths:
+      - auth/
+      - batch/
+      - ci/
+      - gear/
+      - monitoring/
+      - web_common/
+      - hail/python/hailtop/
+      - pyproject.toml
     image:
       valueFrom: hail_linting_image.image
     script: |
@@ -1662,6 +1744,10 @@ steps:
       - merge_code
   - kind: runImage
     name: check_hail
+    watchedPaths:
+      - hail/
+      - pyproject.toml
+      - pylintrc
     image:
       valueFrom: hail_linting_image.image
     resources:
@@ -1686,6 +1772,9 @@ steps:
       - merge_code
   - kind: runImage
     name: compile_hail_213
+    watchedPaths:
+      - hail/hail/
+      - hail/build.mill
     image:
       valueFrom: base_image.image
     resources:
@@ -1705,6 +1794,10 @@ steps:
       - merge_code
   - kind: runImage
     name: get_pip_versioned_docs
+    watchedPaths:
+      - hail/python/requirements.txt
+      - hail/python/pinned-requirements.txt
+      - hail/python/hailtop/pinned-requirements.txt
     image:
       valueFrom: hailgenetics_hail_image.image
     script: |
@@ -1906,6 +1999,9 @@ steps:
       - gcp
   - kind: runImage
     name: test_monitoring
+    watchedPaths:
+      - monitoring/
+      - gear/
     resources:
       memory: standard
       cpu: '0.25'
@@ -1946,6 +2042,10 @@ steps:
       - gcp
   - kind: runImage
     name: test_auth_copy_paste_login
+    watchedPaths:
+      - auth/
+      - gear/
+      - hail/python/hailtop/
     resources:
       memory: standard
       cpu: '0.25'
@@ -2008,6 +2108,10 @@ steps:
       - hailgenetics_hailtop_image
   - kind: runImage
     name: test_auth_copy_paste_login_timeout
+    watchedPaths:
+      - auth/
+      - gear/
+      - hail/python/hailtop/
     resources:
       memory: standard
       cpu: '0.25'
@@ -2583,6 +2687,12 @@ steps:
       - create_test_gsa_keys
   - kind: runImage
     name: test_hail_python_service_backend_gcp
+    watchedPaths:
+      - hail/python/hail/
+      - hail/python/test/hail/
+      - hail/hail/
+      - hail/python/hailtop/
+      - batch/
     numSplits: 16
     image:
       valueFrom: hail_run_image.image
@@ -2655,6 +2765,10 @@ steps:
       - gcp
   - kind: runImage
     name: test_hail_spark_conf_requester_pays_parsing
+    watchedPaths:
+      - hail/python/hail/
+      - hail/hail/
+      - hail/scripts/
     image:
       valueFrom: hail_run_image.image
     resources:
@@ -2731,6 +2845,10 @@ steps:
       - hail_ubuntu_image
   - kind: runImage
     name: test_batch
+    watchedPaths:
+      - batch/
+      - gear/
+      - hail/python/hailtop/
     numSplits: 5
     image:
       valueFrom: batch_image.image
@@ -2808,6 +2926,10 @@ steps:
       - gpu_image
   - kind: runImage
     name: test_batch_job_private_machines
+    watchedPaths:
+      - batch/
+      - gear/
+      - hail/python/hailtop/
     numSplits: 1
     image:
       valueFrom: batch_image.image
@@ -2882,6 +3004,9 @@ steps:
       - hail_ubuntu_image
   - kind: runImage
     name: test_auth
+    watchedPaths:
+      - auth/
+      - gear/
     numSplits: 1
     image:
       valueFrom: auth_image.image
@@ -2939,6 +3064,7 @@ steps:
           valueFrom: default_ns.name
         mountPath: /test-dev-gsa-key
     alwaysRun: true
+    cleanupFor: test_batch
     dependsOn:
       - create_deploy_config
       - create_accounts
@@ -3062,6 +3188,8 @@ steps:
       - hail_buildkit_image
   - kind: runImage
     name: test_ci_unit
+    watchedPaths:
+      - ci/
     resources:
       memory: standard
       cpu: '0.25'
@@ -3093,6 +3221,9 @@ steps:
       - ci_image
   - kind: runImage
     name: test_ci
+    watchedPaths:
+      - ci/
+      - gear/
     resources:
       memory: standard
       cpu: '0.25'
@@ -3138,6 +3269,11 @@ steps:
       - create_ci_test_repo
   - kind: runImage
     name: test_hailtop_python
+    watchedPaths:
+      - hail/python/hailtop/
+      - hail/python/test/hailtop/
+      - gear/
+      - batch/
     resources:
       memory: standard
       cpu: '0.25'
@@ -3200,6 +3336,9 @@ steps:
       - deploy_batch
   - kind: runImage
     name: test_hailctl_batch
+    watchedPaths:
+      - hail/python/hailtop/
+      - batch/
     resources:
       memory: standard
       cpu: '0.25'
@@ -3294,6 +3433,9 @@ steps:
       - deploy_batch
   - kind: runImage
     name: test_batch_docs
+    watchedPaths:
+      - hail/python/hailtop/
+      - batch/
     image:
       valueFrom: hail_dev_image.image
     script: |
@@ -3354,6 +3496,7 @@ steps:
           valueFrom: default_ns.name
         mountPath: /secret/ci-secrets
     alwaysRun: true
+    cleanupFor: create_ci_test_repo
     scopes:
       - test
       - dev
@@ -3690,6 +3833,8 @@ steps:
       - gcp
   - kind: runImage
     name: test_website
+    watchedPaths:
+      - website/
     image:
       valueFrom: hailgenetics_hailtop_image.image
     script: |
@@ -3714,6 +3859,9 @@ steps:
       - gcp
   - kind: runImage
     name: test_hail_scala_fs
+    watchedPaths:
+      - hail/hail/
+      - hail/build.mill
     image:
       valueFrom: hail_run_image.image
     resources:
@@ -3769,6 +3917,10 @@ steps:
       - upload_test_resources_to_blob_storage
   - kind: runImage
     name: test_hail_services_java
+    watchedPaths:
+      - hail/hail/
+      - hail/build.mill
+      - batch/
     image:
       valueFrom: hail_run_image.image
     resources:
@@ -3890,6 +4042,7 @@ steps:
           valueFrom: default_ns.name
         mountPath: /test-dev-gsa-key
     alwaysRun: true
+    cleanupFor: deploy_batch
     timeout: 300
     dependsOn:
       - create_deploy_config
@@ -3906,6 +4059,11 @@ steps:
       - test_hailctl_batch
   - kind: runImage
     name: test_batch_invariants
+    watchedPaths:
+      - batch/
+      - gear/
+      - hail/python/hailtop/
+      - ci/
     image:
       valueFrom: hail_dev_image.image
     script: |
@@ -3957,6 +4115,7 @@ steps:
     image:
       valueFrom: ci_utils_image.image
     alwaysRun: true
+    cleanupFor: deploy_batch
     script: |
       set -ex
       gcloud -q auth activate-service-account --key-file=/batch-gsa-key/key.json
