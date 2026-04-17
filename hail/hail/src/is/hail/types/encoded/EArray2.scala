@@ -13,8 +13,10 @@ import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePoin
 import is.hail.types.physical.stypes.interfaces.SIndexableValue
 import is.hail.types.virtual._
 
-final case class EArray2(val elementType: EType, override val required: Boolean = false)
-    extends EContainer {
+abstract class EArrayCommon(val elementType: EType, override val required: Boolean = false) extends EContainer {
+  def writeLength(cb: EmitCodeBuilder, out: Value[OutputBuffer], len: Code[Int]): Unit
+  def readLength(cb: EmitCodeBuilder, in: Value[InputBuffer]): Value[Int]
+
   override def _decodedSType(requestedType: Type): SType = {
     val elementPType = elementType.decodedPType(requestedType.asInstanceOf[TContainer].elementType)
     requestedType match {
@@ -37,7 +39,7 @@ final case class EArray2(val elementType: EType, override val required: Boolean 
     val prefixLen = cb.newLocal[Int]("prefixLen", prefixLength)
     val i = cb.newLocal[Int]("i", 0)
 
-    cb += out.writeVarint(prefixLen)
+    writeLength(cb, out, prefixLen)
 
     value.st match {
       case SIndexablePointer(pType: PCanonicalArrayBackedContainer)
@@ -59,7 +61,7 @@ final case class EArray2(val elementType: EType, override val required: Boolean 
         if (elementType.required) {
           cb.if_(
             value.hasMissingValues(cb),
-            cb._fatal("cannot encode indexable with missing element(s) to required EArray2!"),
+            cb._fatal("cannot encode indexable with missing element(s) to required EArray!"),
           )
         } else {
           val b = Code.newLocal[Int]("b")
@@ -120,7 +122,7 @@ final case class EArray2(val elementType: EType, override val required: Boolean 
       s"${arrayType.elementType.required} | ${elementType.required}",
     )
 
-    val len = cb.memoize(in.readVarint(), "len")
+    val len = readLength(cb, in)
     val array = cb.memoize(arrayType.allocate(region, len), "array")
     arrayType.storeLength(cb, array, len)
 
@@ -197,7 +199,7 @@ final case class EArray2(val elementType: EType, override val required: Boolean 
 
   override def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
     val skip = elementType.buildSkip(cb.emb.ecb)
-    val len = cb.newLocal[Int]("len", in.readVarint())
+    val len = readLength(cb, in)
     val i = cb.newLocal[Int]("i")
     if (elementType.required) {
       cb.for_(cb.assign(i, 0), i < len, cb.assign(i, i + 1), skip(cb, r, in))
@@ -213,6 +215,13 @@ final case class EArray2(val elementType: EType, override val required: Boolean 
       )
     }
   }
+
+}
+
+final case class EArray2(override val elementType: EType, override val required: Boolean = false)
+    extends EArrayCommon(elementType, required) {
+  override def writeLength(cb: EmitCodeBuilder, out: Value[OutputBuffer], len: Code[Int]): Unit = cb += out.writeVarint(len)
+  override def readLength(cb: EmitCodeBuilder, in: Value[InputBuffer]): Value[Int] = cb.memoize(in.readVarint(), "len")
 
   override def _asIdent = s"array2_of_${elementType.asIdent}"
   override def _toPretty = s"EArray2[$elementType]"

@@ -11,21 +11,20 @@ import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces.{SBinary, SBinaryValue, SString}
 import is.hail.types.virtual._
 
-case object EBinary2Optional extends EBinary2(false)
-case object EBinary2Required extends EBinary2(true)
-
-class EBinary2(override val required: Boolean) extends EType {
+abstract class EBinaryCommon(override val required: Boolean) extends EType {
+  def writeLength(cb: EmitCodeBuilder, out: Value[OutputBuffer], len: Code[Int]): Unit
+  def readLength(cb: EmitCodeBuilder, in: Value[InputBuffer]): Value[Int]
 
   override def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit = {
 
     def writeCanonicalBinary(bin: SBinaryPointerValue): Unit = {
       val len = bin.loadLength(cb)
-      cb += out.writeVarint(len)
+      writeLength(cb, out, len)
       cb += out.writeBytes(bin.bytesAddress(), len)
     }
 
     def writeBytes(bytes: Value[Array[Byte]]): Unit = {
-      cb += out.writeVarint(bytes.length())
+      writeLength(cb, out, bytes.length())
       cb += out.write(bytes)
     }
 
@@ -51,7 +50,7 @@ class EBinary2(override val required: Boolean) extends EType {
     }
 
     val bT = pt
-    val len = cb.newLocal[Int]("len", in.readVarint())
+    val len = readLength(cb, in)
     val barray = cb.newLocal[Long]("barray", bT.allocate(region, len))
     bT.storeLength(cb, barray, len)
     cb += in.readBytes(region, bT.bytesAddress(barray), len)
@@ -62,12 +61,20 @@ class EBinary2(override val required: Boolean) extends EType {
   }
 
   override def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit =
-    cb += in.skipBytes(in.readVarint())
+    cb += in.skipBytes(readLength(cb, in))
 
   override def _decodedSType(requestedType: Type): SType = requestedType match {
     case TBinary => SBinaryPointer(PCanonicalBinary(false))
     case TString => SStringPointer(PCanonicalString(false))
   }
+}
+
+case object EBinary2Optional extends EBinary2(false)
+case object EBinary2Required extends EBinary2(true)
+
+class EBinary2(override val required: Boolean) extends EBinaryCommon(required) {
+  override def writeLength(cb: EmitCodeBuilder, out: Value[OutputBuffer], len: Code[Int]): Unit = cb += out.writeVarint(len)
+  override def readLength(cb: EmitCodeBuilder, in: Value[InputBuffer]): Value[Int] = cb.memoize(in.readVarint(), "len")
 
   override def _asIdent = "binary2"
   override def _toPretty = "EBinary2"
