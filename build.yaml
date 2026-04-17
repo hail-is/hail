@@ -1558,6 +1558,7 @@ steps:
   - kind: runImage
     name: test_hailgenetics_hail_image
     watchedPaths:
+      - hail/hail/
       - hail/python/hail/
       - hail/python/requirements.txt
       - hail/python/pinned-requirements.txt
@@ -1574,6 +1575,7 @@ steps:
   - kind: runImage
     name: test_hailgenetics_hail_image_python_3_10
     watchedPaths:
+      - hail/hail/
       - hail/python/hail/
       - hail/python/requirements.txt
       - hail/python/pinned-requirements.txt
@@ -1590,6 +1592,7 @@ steps:
   - kind: runImage
     name: test_hailgenetics_hail_image_python_3_12
     watchedPaths:
+      - hail/hail/
       - hail/python/hail/
       - hail/python/requirements.txt
       - hail/python/pinned-requirements.txt
@@ -1606,6 +1609,7 @@ steps:
   - kind: runImage
     name: test_hailgenetics_hail_image_python_3_13
     watchedPaths:
+      - hail/hail/
       - hail/python/hail/
       - hail/python/requirements.txt
       - hail/python/pinned-requirements.txt
