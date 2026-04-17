@@ -73,7 +73,7 @@ object TypeWithRequiredness {
   }
 }
 
-sealed abstract class BaseTypeWithRequiredness {
+sealed abstract class BaseTypeWithRequiredness extends Cloneable {
   private[this] var _required: Boolean = true
   private[this] var change = false
 
@@ -85,7 +85,7 @@ sealed abstract class BaseTypeWithRequiredness {
   def minimalCopy(): BaseTypeWithRequiredness =
     copy(children.map(_.minimalCopy()))
 
-  def deepCopy(): BaseTypeWithRequiredness = {
+  override def clone: BaseTypeWithRequiredness = {
     val r = minimalCopy()
     r.unionFrom(this)
     r
@@ -466,7 +466,7 @@ case class RInterval(startType: TypeWithRequiredness, endType: TypeWithRequiredn
 
   override def canonicalPType(t: Type): PType = t match {
     case TInterval(pointType) =>
-      val unified = startType.deepCopy().asInstanceOf[TypeWithRequiredness]
+      val unified = startType.clone.asInstanceOf[TypeWithRequiredness]
       unified.unionFrom(endType)
       PCanonicalInterval(unified.canonicalPType(pointType), required = required)
   }
@@ -578,10 +578,9 @@ object RTable {
   def fromTableStage(ctx: ExecuteContext, s: TableStage): RTable = {
     def virtualTypeWithReq(ir: IR, inputs: Env[PType]): VirtualTypeWithReq = {
       import is.hail.expr.ir.Requiredness
-      val ns = ir.noSharing(ctx)
-      val usesAndDefs = ComputeUsesAndDefs(ns, errorIfFreeVariables = false)
-      val req = Requiredness.apply(ns, usesAndDefs, ctx, inputs)
-      VirtualTypeWithReq(ir.typ, req.lookup(ns).asInstanceOf[TypeWithRequiredness])
+      val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
+      val req = Requiredness(ir, usesAndDefs, ctx, inputs)
+      VirtualTypeWithReq(ir.typ, req.lookup(ir).asInstanceOf[TypeWithRequiredness])
     }
 
     // requiredness uses ptypes for legacy reasons, there is a 1-1 mapping between

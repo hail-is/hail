@@ -2,13 +2,14 @@ package is.hail.expr.ir.lowering
 
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{
-  BaseIR, Bindings, BlockMatrixIR, Compilable, Emittable, IR, IRTraversal, MatrixIR, Name, Pretty,
+  BaseIR, Bindings, BlockMatrixIR, Compilable, Emittable, IR, MatrixIR, Name, Pretty,
   RelationalLetMatrixTable, RelationalLetTable, TableIR, TableKeyBy, TableKeyByAndAggregate,
   TableOrderBy,
 }
 import is.hail.expr.ir.NormalizeNames.needsRenaming
 import is.hail.expr.ir.defs.{ApplyIR, RelationalLet, RelationalRef}
 import is.hail.expr.ir.lowering.invariant.Flags.StrictInvariants
+import is.hail.utils.TreeTraversal.levelOrder
 import is.hail.utils.implicits.toRichPredicate
 
 import scala.collection.mutable
@@ -16,6 +17,9 @@ import scala.collection.mutable
 import sourcecode.Enclosing
 
 package invariant {
+
+  import is.hail.expr.ir.IRTraversal
+
   object Flags {
     val StrictInvariants = "strict_invariants"
   }
@@ -70,10 +74,8 @@ package object invariant {
   implicit def Invariant(p: BaseIR => Boolean)(implicit E: sourcecode.Enclosing): Invariant =
     Fused(p)
 
-  def AnyIR: Invariant =
-    new Invariant {
-      override def verify(ctx: ExecuteContext, ir: BaseIR): Unit = ()
-    }
+  def AnyIR(implicit E: Enclosing): Invariant =
+    TreeIR and NoRedefinedNames
 
   def TreeIR: Invariant = {
     var mark: Int = 0
@@ -161,4 +163,9 @@ package object invariant {
       case t: TableOrderBy => t.definitelyDoesNotShuffle
       case _ => true
     }
+
+  private[invariant] lazy val trace: BaseIR => Iterator[List[BaseIR]] = {
+    val go = levelOrder[List[BaseIR]](p => p.head.children.map(_ :: p.take(2)).iterator) _
+    ir => go(ir :: Nil)
+  }
 }

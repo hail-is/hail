@@ -15,37 +15,33 @@ object LowerMatrixIR {
   val colsField: Symbol = Symbol(colsFieldName)
   val entriesField: Symbol = Symbol(entriesFieldName)
 
-  def apply(ctx: ExecuteContext, ir: IR): IR = {
-    val ab = ArraySeq.newBuilder[(Name, IR)]
-    val l1 = lower(ctx, ir, ab)
-    ab.result().foldRight[IR](l1) { case ((ident, value), body) =>
-      RelationalLet(ident, value, body)
-    }
-  }
-
-  def apply(ctx: ExecuteContext, tir: TableIR): TableIR = {
-    val ab = ArraySeq.newBuilder[(Name, IR)]
-    val l1 = lower(ctx, tir, ab)
-    ab.result().foldRight[TableIR](l1) { case ((ident, value), body) =>
-      RelationalLetTable(ident, value, body)
-    }
-  }
-
-  def apply(ctx: ExecuteContext, mir: MatrixIR): TableIR = {
+  def apply(ctx: ExecuteContext, ir0: BaseIR): BaseIR = {
     val ab = ArraySeq.newBuilder[(Name, IR)]
 
-    val l1 = lower(ctx, mir, ab)
-    ab.result().foldRight[TableIR](l1) { case ((ident, value), body) =>
-      RelationalLetTable(ident, value, body)
-    }
-  }
+    val lowered =
+      ir0 match {
+        case ir: IR =>
+          val l1 = lower(ctx, ir, ab)
+          ab.result().foldRight[IR](l1) { case ((ident, value), body) =>
+            RelationalLet(ident, value, body)
+          }
+        case tir: TableIR =>
+          val l1 = lower(ctx, tir, ab)
+          ab.result().foldRight[TableIR](l1) { case ((ident, value), body) =>
+            RelationalLetTable(ident, value, body)
+          }
+        case mir: MatrixIR =>
+          val l1 = lower(ctx, mir, ab)
+          ab.result().foldRight[TableIR](l1) { case ((ident, value), body) =>
+            RelationalLetTable(ident, value, body)
+          }
+        case bmir: BlockMatrixIR =>
+          val l1 = lower(ctx, bmir, ab)
+          assert(ab.result().isEmpty)
+          l1
+      }
 
-  def apply(ctx: ExecuteContext, bmir: BlockMatrixIR): BlockMatrixIR = {
-    val ab = ArraySeq.newBuilder[(Name, IR)]
-
-    val l1 = lower(ctx, bmir, ab)
-    assert(ab.result().isEmpty)
-    l1
+    NormalizeNames()(ctx, lowered)
   }
 
   private[this] def lowerChildren(
@@ -109,7 +105,8 @@ object LowerMatrixIR {
   private def bindingsToStruct(bindings: IndexedSeq[(Name, IR)]): MakeStruct =
     MakeStruct(bindings.map { case (n, ir) => n.str -> ir })
 
-  private def unwrapStruct(bindings: IndexedSeq[(Name, IR)], struct: Ref): IndexedSeq[(Name, IR)] =
+  private def unwrapStruct(bindings: IndexedSeq[(Name, IR)], struct: TrivialIR)
+    : IndexedSeq[(Name, IR)] =
     bindings.map { case (name, _) => name -> GetField(struct, name.str) }
 
   private[this] def lower(
@@ -148,12 +145,12 @@ object LowerMatrixIR {
                         Str(" entries, "),
                         invoke("str", TString, colsLen),
                         Str(" cols, at "),
-                        invoke("str", TString, SelectFields(row, child.typ.key)),
+                        invoke("str", TString, SelectFields(row.clone, child.typ.key)),
                       ),
                       row.typ,
                       -1,
                     ),
-                    row,
+                    row.clone,
                   )
               },
             )
@@ -1102,9 +1099,7 @@ object LowerMatrixIR {
                 ToStream(GetField(Ref(TableIR.rowName, lc.typ.rowType), entriesFieldName)),
                 ToStream(GetField(Ref(TableIR.globalName, lc.typ.globalType), colsFieldName)),
                 ArrayZipBehavior.AssertSameLength,
-              ) { case (e, c) =>
-                MakeTuple.ordered(FastSeq(e, c))
-              }
+              ) { case (e, c) => maketuple(e, c) }
             )(filterTuple => ApplyUnaryPrimOp(Bang, IsNA(GetTupleElement(filterTuple, 0))))
           ) { explodedTuple =>
             AggLet(

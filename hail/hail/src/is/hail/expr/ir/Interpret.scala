@@ -28,9 +28,7 @@ object Interpret extends Logging {
 
   def apply(tir: TableIR, ctx: ExecuteContext): TableValue = {
     val lowered =
-      LoweringPipeline.legacyRelationalLowerer(ctx, tir).asInstanceOf[TableIR].noSharing(
-        ctx
-      )
+      LoweringPipeline.legacyRelationalLowerer(ctx, tir).asInstanceOf[TableIR]
     ExecuteRelational(ctx, lowered).asTableValue(ctx)
   }
 
@@ -39,11 +37,8 @@ object Interpret extends Logging {
     ExecuteRelational(ctx, lowered).asTableValue(ctx)
   }
 
-  def apply(bmir: BlockMatrixIR, ctx: ExecuteContext): BlockMatrix = {
-    val lowered =
-      LoweringPipeline.legacyRelationalLowerer(ctx, bmir).asInstanceOf[BlockMatrixIR]
-    lowered.execute(ctx)
-  }
+  def apply(bmir: BlockMatrixIR, ctx: ExecuteContext): BlockMatrix =
+    LoweringPipeline.legacyRelationalLowerer(ctx, bmir).asInstanceOf[BlockMatrixIR].execute(ctx)
 
   def apply[T](ctx: ExecuteContext, ir: IR): T =
     apply[T](ctx, ir, Env.empty[(Any, Type)], FastSeq[(Any, Type)]())
