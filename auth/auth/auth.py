@@ -867,19 +867,29 @@ async def get_userinfo(request: web.Request, auth_token: str) -> UserData:
     flow_client = request.app[AppKeys.FLOW_CLIENT]
     client_session = request.app[AppKeys.CLIENT_SESSION]
 
+    db = request.app[AppKeys.DB]
     userdata = await get_userinfo_from_hail_session_id(request, auth_token)
     if userdata:
-        db = request.app[AppKeys.DB]
         await db.just_execute("UPDATE sessions SET created = NOW() WHERE session_id = %s", (auth_token,))
+    else:
+        hailctl_oauth_client = request.app[AppKeys.HAILCTL_CLIENT_CONFIG]
+        uid = await flow_client.get_identity_uid_from_access_token(
+            client_session, auth_token, oauth2_client=hailctl_oauth_client
+        )
+        if uid:
+            userdata = await get_userinfo_from_login_id_or_hail_identity_id(request, uid)
 
+    if userdata:
+        current_uid = userdata['id']
+        await db.execute_update(
+            """
+UPDATE users
+SET last_activated = CURRENT_TIMESTAMP(3)
+WHERE id = %s;
+""",
+            current_uid,
+        )
         return userdata
-
-    hailctl_oauth_client = request.app[AppKeys.HAILCTL_CLIENT_CONFIG]
-    uid = await flow_client.get_identity_uid_from_access_token(
-        client_session, auth_token, oauth2_client=hailctl_oauth_client
-    )
-    if uid:
-        return await get_userinfo_from_login_id_or_hail_identity_id(request, uid)
 
     raise web.HTTPUnauthorized()
 
@@ -929,17 +939,6 @@ WHERE users.state = 'active' AND sessions.session_id = %s AND (ISNULL(sessions.m
 
     if len(users) != 1:
         return None
-
-    if users[0]['state'] == 'active':
-        current_uid = users[0]['id']
-        await db.execute_update(
-            """
-UPDATE users
-SET last_activated = CURRENT_TIMESTAMP(3)
-WHERE id = %s;
-""",
-            current_uid,
-        )
 
     return typing.cast(UserData, users[0])
 
