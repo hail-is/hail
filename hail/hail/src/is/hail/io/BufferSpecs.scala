@@ -42,24 +42,13 @@ object BufferSpec {
 
   val memorySpec: BufferSpec = wireSpec
 
-  val blockSpecs: Array[BufferSpec] = Array(
-    BlockingBufferSpec(64 * 1024, new StreamBlockBufferSpec),
-    BlockingBufferSpec(32 * 1024, LZ4HCBlockBufferSpec(32 * 1024, new StreamBlockBufferSpec)),
-    BlockingBufferSpec(32 * 1024, LZ4FastBlockBufferSpec(32 * 1024, new StreamBlockBufferSpec)),
-    BlockingBufferSpec(64 * 1024, ZstdBlockBufferSpec(64 * 1024, new StreamBlockBufferSpec)),
-    new StreamBufferSpec,
-  )
-
-  val blockSpecsV2: Array[BufferSpec] = Array(
+  val specs: Array[BufferSpec] = Array(
     BlockingBufferSpec(64 * 1024, new StreamBlockBufferSpec2),
     BlockingBufferSpec(32 * 1024, LZ4HCBlockBufferSpec(32 * 1024, new StreamBlockBufferSpec2)),
     BlockingBufferSpec(32 * 1024, LZ4FastBlockBufferSpec(32 * 1024, new StreamBlockBufferSpec2)),
     BlockingBufferSpec(64 * 1024, ZstdBlockBufferSpec(64 * 1024, new StreamBlockBufferSpec2)),
   )
 
-  val specs: Array[BufferSpec] = blockSpecs.flatMap { blockSpec =>
-    Array(blockSpec, LEB128BufferSpec(blockSpec))
-  } ++ blockSpecsV2
 
   def parse(s: String): BufferSpec = {
     import AbstractRVDSpec.formats
