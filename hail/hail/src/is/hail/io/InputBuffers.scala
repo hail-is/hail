@@ -230,46 +230,6 @@ final class MemoryInputBuffer(mb: MemoryBuffer) extends InputBuffer {
   override def readDoubles(to: Array[Double], off: Int, n: Int): Unit = ???
 }
 
-final class LEB128InputBuffer(in: InputBuffer) extends InputBuffer {
-  override def close(): Unit =
-    in.close()
-
-  override def seek(offset: Long): Unit = in.seek(offset)
-
-  override def readByte(): Byte =
-    in.readByte()
-
-  override def read(buf: Array[Byte], toOff: Int, n: Int) = in.read(buf, toOff, n)
-
-  override def readInt(): Int = readVarint()
-
-  override def readLong(): Long = readVarintLong()
-
-  override def readFloat(): Float = in.readFloat()
-
-  override def readDouble(): Double = in.readDouble()
-
-  override def readBytes(toRegion: Region, toOff: Long, n: Int): Unit =
-    in.readBytes(toRegion, toOff, n)
-
-  override def readBytesArray(n: Int): Array[Byte] = in.readBytesArray(n)
-
-  override def skipByte(): Unit = in.skipByte()
-
-  override def skipInt(): Unit = skipVarint()
-
-  override def skipLong(): Unit = skipVarint()
-
-  override def skipFloat(): Unit = in.skipFloat()
-
-  override def skipDouble(): Unit = in.skipDouble()
-
-  override def skipBytes(n: Int): Unit = in.skipBytes(n)
-
-  override def readDoubles(to: Array[Double], toOff: Int, n: Int): Unit =
-    in.readDoubles(to, toOff, n)
-}
-
 final class TracingInputBuffer(
   private[this] val in: InputBuffer
 ) extends InputBuffer with Logging {

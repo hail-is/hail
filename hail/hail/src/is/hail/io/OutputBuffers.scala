@@ -148,32 +148,6 @@ final class MemoryOutputBuffer(mb: MemoryBuffer) extends OutputBuffer {
   override def writeDoubles(from: Array[Double], fromOff: Int, n: Int): Unit = ???
 }
 
-final class LEB128OutputBuffer(out: OutputBuffer) extends OutputBuffer {
-  override def flush(): Unit = out.flush()
-
-  override def close(): Unit =
-    out.close()
-
-  override def indexOffset(): Long = out.indexOffset()
-
-  override def writeByte(b: Byte): Unit = out.writeByte(b)
-
-  override def writeInt(i: Int): Unit = writeVarint(i)
-
-  override def writeLong(l: Long): Unit = writeVarintLong(l)
-
-  override def writeFloat(f: Float): Unit = out.writeFloat(f)
-
-  override def writeDouble(d: Double): Unit = out.writeDouble(d)
-
-  override def writeBytes(region: Region, off: Long, n: Int): Unit = out.writeBytes(region, off, n)
-
-  override def writeBytes(addr: Long, n: Int): Unit = out.writeBytes(addr, n)
-
-  override def writeDoubles(from: Array[Double], fromOff: Int, n: Int): Unit =
-    out.writeDoubles(from, fromOff, n)
-}
-
 final class BlockingOutputBuffer(blockSize: Int, out: OutputBlockBuffer) extends OutputBuffer {
   private val buf: Array[Byte] = new Array[Byte](blockSize)
   private var off: Int = 0
