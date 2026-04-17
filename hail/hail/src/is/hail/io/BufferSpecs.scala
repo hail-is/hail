@@ -69,6 +69,7 @@ object BufferSpec {
       classOf[LZ4SizeBasedBlockBufferSpec],
       classOf[ZstdBlockBufferSpec],
       classOf[StreamBlockBufferSpec],
+      classOf[StreamBlockBufferSpec2],
       classOf[BufferSpec],
       classOf[LEB128BufferSpec],
       classOf[BlockingBufferSpec],
@@ -290,6 +291,25 @@ final class StreamBlockBufferSpec extends BlockBufferSpec {
     Code.newInstance[StreamBlockOutputBuffer, OutputStream](out)
 
   override def equals(other: Any): Boolean = other.isInstanceOf[StreamBlockBufferSpec]
+}
+
+object StreamBlockBufferSpec2 {
+  def extract(jv: JValue): StreamBlockBufferSpec2 = new StreamBlockBufferSpec2
+}
+
+final class StreamBlockBufferSpec2 extends BlockBufferSpec {
+  override def buildInputBuffer(in: InputStream): InputBlockBuffer = new StreamBlockInputBuffer2(in)
+
+  override def buildOutputBuffer(out: OutputStream): OutputBlockBuffer =
+    new StreamBlockOutputBuffer2(out)
+
+  override def buildCodeInputBuffer(in: Code[InputStream]): Code[InputBlockBuffer] =
+    Code.newInstance[StreamBlockInputBuffer2, InputStream](in)
+
+  override def buildCodeOutputBuffer(out: Code[OutputStream]): Code[OutputBlockBuffer] =
+    Code.newInstance[StreamBlockOutputBuffer2, OutputStream](out)
+
+  override def equals(other: Any): Boolean = other.isInstanceOf[StreamBlockBufferSpec2]
 }
 
 final class StreamBufferSpec extends BufferSpec {

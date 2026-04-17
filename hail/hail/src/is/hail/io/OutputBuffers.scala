@@ -292,6 +292,28 @@ final class StreamBlockOutputBuffer(out: OutputStream) extends OutputBlockBuffer
   override def getPos(): Long = out.asInstanceOf[ByteTrackingOutputStream].bytesWritten
 }
 
+final class StreamBlockOutputBuffer2(out: OutputStream) extends OutputBlockBuffer {
+  override def flush(): Unit =
+    out.flush()
+
+  override def close(): Unit =
+    out.close()
+
+  override def writeBlock(buf: Array[Byte], len: Int): Unit = {
+    var j = len
+    do {
+      var b = j & 0x7f
+      j >>>= 7
+      if (j != 0)
+        b |= 0x80
+      out.write(b)
+    } while (j != 0)
+    out.write(buf, 0, len)
+  }
+
+  override def getPos(): Long = out.asInstanceOf[ByteTrackingOutputStream].bytesWritten
+}
+
 final class LZ4OutputBlockBuffer(lz4: LZ4, blockSize: Int, out: OutputBlockBuffer)
     extends OutputBlockBuffer {
   private val comp = new Array[Byte](4 + lz4.maxCompressedLength(blockSize))

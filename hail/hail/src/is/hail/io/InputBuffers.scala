@@ -535,6 +535,32 @@ final class StreamBlockInputBuffer(in: InputStream) extends InputBlockBuffer {
   }
 }
 
+final class StreamBlockInputBuffer2(in: InputStream) extends InputBlockBuffer {
+  override def close(): Unit =
+    in.close()
+
+  // this takes a virtual offset and will seek the underlying stream to offset >> 16
+  override def seek(offset: Long): Unit =
+    in.asInstanceOf[ByteTrackingInputStream].seek(offset >> 16)
+
+  override def readBlock(buf: Array[Byte]): Int = {
+    var b: Int = in.read()
+    if (b < 0) fatal("Premature end of file while reading varint block length")
+    var len: Int = b & 0x7f
+    var shift: Int = 7
+    while ((b & 0x80) != 0) {
+      b = in.read()
+      if (b < 0) fatal("Premature end of file while reading varint block length")
+      len |= ((b & 0x7f) << shift)
+      shift += 7
+    }
+    assert(len >= 0)
+    assert(len <= buf.length)
+    in.readFully(buf, 0, len)
+    len
+  }
+}
+
 final class LZ4InputBlockBuffer(lz4: LZ4, blockSize: Int, in: InputBlockBuffer)
     extends InputBlockBuffer {
   private[this] val comp = new Array[Byte](4 + lz4.maxCompressedLength(blockSize))
