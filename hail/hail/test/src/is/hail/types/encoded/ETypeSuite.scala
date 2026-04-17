@@ -33,9 +33,12 @@ class ETypeSuite extends HailSuite {
       EArray(EArray(EInt32Optional, required = true), required = true),
       EBinary2Required,
       EBinary2Optional,
+      EVarintRequired,
+      EVarintOptional,
       EArray2(EInt32Required, required = false),
       EArray2(EArray2(EInt32Optional, required = true), required = true),
       EArray2(EBinary2Required, required = true),
+      EArray2(EVarintOptional, required = true),
       EBaseStruct(FastSeq(), required = true),
       EBaseStruct(
         FastSeq(EField("x", EBinaryRequired, 0), EField("y", EFloat64Optional, 1)),
@@ -203,6 +206,67 @@ class ETypeSuite extends HailSuite {
     val data = longListOfStrings
 
     assert(encodeDecode(toEncode, etype, toDecode, data) == data)
+  }
+
+  @Test def testVarintInt32EncodeDecode(): Unit = {
+    val etype = EBaseStruct(
+      FastSeq(
+        EField("zero", EVarintRequired, 0),
+        EField("one", EVarintRequired, 1),
+        EField("neg_one", EVarintRequired, 2),
+        EField("max", EVarintRequired, 3),
+        EField("min", EVarintRequired, 4),
+        EField("byte_boundary", EVarintRequired, 5),
+        EField("two_byte_boundary", EVarintRequired, 6),
+        EField("three_byte_boundary", EVarintRequired, 7),
+      ),
+      required = true,
+    )
+    val ptype = PCanonicalStruct(
+      true,
+      "zero" -> PInt32Required,
+      "one" -> PInt32Required,
+      "neg_one" -> PInt32Required,
+      "max" -> PInt32Required,
+      "min" -> PInt32Required,
+      "byte_boundary" -> PInt32Required,
+      "two_byte_boundary" -> PInt32Required,
+      "three_byte_boundary" -> PInt32Required,
+    )
+    val data = Row(0, 1, -1, Int.MaxValue, Int.MinValue, 127, 16383, 2097151)
+    assertEqualEncodeDecode(ptype, etype, ptype, data)
+  }
+
+  @Test def testVarintInt64EncodeDecode(): Unit = {
+    val etype = EBaseStruct(
+      FastSeq(
+        EField("zero", EVarintRequired, 0),
+        EField("one", EVarintRequired, 1),
+        EField("neg_one", EVarintRequired, 2),
+        EField("max", EVarintRequired, 3),
+        EField("min", EVarintRequired, 4),
+        EField("int_max_plus_one", EVarintRequired, 5),
+      ),
+      required = true,
+    )
+    val ptype = PCanonicalStruct(
+      true,
+      "zero" -> PInt64Required,
+      "one" -> PInt64Required,
+      "neg_one" -> PInt64Required,
+      "max" -> PInt64Required,
+      "min" -> PInt64Required,
+      "int_max_plus_one" -> PInt64Required,
+    )
+    val data = Row(0L, 1L, -1L, Long.MaxValue, Long.MinValue, Int.MaxValue.toLong + 1L)
+    assertEqualEncodeDecode(ptype, etype, ptype, data)
+  }
+
+  @Test def testVarintArrayOfInt32(): Unit = {
+    val etype = EArray2(EVarintOptional, required = true)
+    val ptype = PCanonicalArray(PInt32Optional, required = true)
+    val data = FastSeq[Any](0, 1, -1, null, Int.MaxValue, Int.MinValue, 127, 128, 16383, 16384)
+    assertEqualEncodeDecode(ptype, etype, ptype, data)
   }
 
   @Test def testStructOfArrays(): Unit = {

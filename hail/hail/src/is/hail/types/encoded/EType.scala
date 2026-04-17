@@ -309,8 +309,8 @@ object EType extends Logging {
   }
 
   def fromTypeAndAnalysis(ctx: ExecuteContext, t: Type, r: TypeWithRequiredness): EType = t match {
-    case TInt32 => EInt32(r.required)
-    case TInt64 => EInt64(r.required)
+    case TInt32 => EVarint(r.required)
+    case TInt64 => EVarint(r.required)
     case TFloat32 => EFloat32(r.required)
     case TFloat64 => EFloat64(r.required)
     case TBoolean => EBoolean(r.required)
@@ -320,11 +320,11 @@ object EType extends Logging {
       EBaseStruct(
         ArraySeq(
           EField("contig", EBinary2(true), 0),
-          EField("position", EInt32(true), 1),
+          EField("position", EVarint(true), 1),
         ),
         required = r.required,
       )
-    case TCall => EInt32(r.required)
+    case TCall => EVarint(r.required)
     case TRNGState => ERNGState(r.required, None)
     case t: TInterval =>
       val rinterval = r.asInstanceOf[RInterval]
@@ -429,6 +429,7 @@ object EType extends Logging {
       case "EInt64" => EInt64(req)
       case "EFloat32" => EFloat32(req)
       case "EFloat64" => EFloat64(req)
+      case "EVarint" => EVarint(req)
       case "EBinary" => EBinary(req)
       case "EBinary2" => EBinary2(req)
       case "EArray" =>
