@@ -54,7 +54,7 @@ charset-normalizer==3.4.7
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
     #   requests
-cryptography==46.0.6
+cryptography==46.0.7
     # via
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
@@ -66,11 +66,14 @@ frozenlist==1.8.0
     #   -c gear/../hail/python/pinned-requirements.txt
     #   aiohttp
     #   aiosignal
-google-api-core==2.30.2
-    # via google-api-python-client
-google-api-python-client==2.193.0
+google-api-core==2.30.3
+    # via
+    #   -c gear/../hail/python/hailtop/pinned-requirements.txt
+    #   -c gear/../hail/python/pinned-requirements.txt
+    #   google-api-python-client
+google-api-python-client==2.194.0
     # via google-cloud-profiler
-google-auth==2.49.1
+google-auth==2.49.2
     # via
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
@@ -85,7 +88,10 @@ google-auth-httplib2==0.3.1
 google-cloud-profiler==4.1.0
     # via -r gear/requirements.txt
 googleapis-common-protos==1.74.0
-    # via google-api-core
+    # via
+    #   -c gear/../hail/python/hailtop/pinned-requirements.txt
+    #   -c gear/../hail/python/pinned-requirements.txt
+    #   google-api-core
 httplib2==0.31.2
     # via
     #   google-api-python-client
@@ -113,7 +119,7 @@ packaging==26.0
     #   -r gear/requirements.txt
 prometheus-async==19.2.0
     # via -r gear/requirements.txt
-prometheus-client==0.24.1
+prometheus-client==0.25.0
     # via
     #   -c gear/../hail/python/dev/pinned-requirements.txt
     #   -r gear/requirements.txt
@@ -126,9 +132,14 @@ propcache==0.4.1
     #   aiohttp
     #   yarl
 proto-plus==1.27.2
-    # via google-api-core
+    # via
+    #   -c gear/../hail/python/hailtop/pinned-requirements.txt
+    #   -c gear/../hail/python/pinned-requirements.txt
+    #   google-api-core
 protobuf==7.34.1
     # via
+    #   -c gear/../hail/python/hailtop/pinned-requirements.txt
+    #   -c gear/../hail/python/pinned-requirements.txt
     #   google-api-core
     #   google-cloud-profiler
     #   googleapis-common-protos

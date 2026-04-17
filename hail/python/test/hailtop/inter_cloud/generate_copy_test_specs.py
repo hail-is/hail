@@ -3,7 +3,7 @@ import pprint
 import secrets
 from concurrent.futures import ThreadPoolExecutor
 
-from hailtop.aiotools import Copier, Transfer
+from hailtop.aiotools import Copier, Transfer, WeightedSemaphore
 from hailtop.aiotools.router_fs import RouterAsyncFS
 
 
@@ -137,7 +137,7 @@ async def copy_test_specs():
                 async with await fs.create(f'{dest_base}keep'):
                     pass
 
-                sema = asyncio.Semaphore(50)
+                sema = WeightedSemaphore(50)
                 async with sema:
                     result = await run_test_spec(sema, fs, config, src_base, dest_base)
                     config['result'] = result

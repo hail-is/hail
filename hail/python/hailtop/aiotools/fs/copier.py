@@ -264,7 +264,7 @@ class SourceCopier:
 
     async def _copy_file_multi_part_main(
         self,
-        sema: asyncio.Semaphore,
+        sema: WeightedSemaphore,
         source_report: SourceReport,
         srcfile: str,
         srcstat: FileStatus,
@@ -308,7 +308,7 @@ class SourceCopier:
 
     async def _copy_file_multi_part(
         self,
-        sema: asyncio.Semaphore,
+        sema: WeightedSemaphore,
         source_report: SourceReport,
         srcfile: str,
         srcstat: FileStatus,
@@ -317,7 +317,18 @@ class SourceCopier:
     ) -> None:
         success = False
         try:
-            await self._copy_file_multi_part_main(sema, source_report, srcfile, srcstat, destfile, return_exceptions)
+            try:
+                await self.router_fs.copy_between_fs(
+                    srcfile,
+                    srcstat,
+                    destfile,
+                    sema=sema,
+                    xfer_sema=self.xfer_sema,
+                )
+            except NotImplementedError:
+                await self._copy_file_multi_part_main(
+                    sema, source_report, srcfile, srcstat, destfile, return_exceptions
+                )
             success = True
         except Exception as e:
             if return_exceptions:
@@ -347,7 +358,7 @@ class SourceCopier:
 
     async def copy_as_file(
         self,
-        sema: asyncio.Semaphore,  # pylint: disable=unused-argument
+        sema: WeightedSemaphore,  # pylint: disable=unused-argument
         source_report: SourceReport,
         return_exceptions: bool,
     ):
@@ -379,7 +390,7 @@ class SourceCopier:
         source_report.start_bytes(await srcstat.size())
         await self._copy_file_multi_part(sema, source_report, src, srcstat, full_dest, return_exceptions)
 
-    async def copy_as_dir(self, sema: asyncio.Semaphore, source_report: SourceReport, return_exceptions: bool):
+    async def copy_as_dir(self, sema: WeightedSemaphore, source_report: SourceReport, return_exceptions: bool):
         async def files_iterator() -> AsyncIterator[FileListEntry]:
             return await self.router_fs.listfiles(src, recursive=True)
 
@@ -450,7 +461,7 @@ class SourceCopier:
         source_report.start_bytes(bytes_to_copy)
         await bounded_gather2(sema, *copies, cancel_on_error=True)
 
-    async def copy(self, sema: asyncio.Semaphore, source_report: SourceReport, return_exceptions: bool):
+    async def copy(self, sema: WeightedSemaphore, source_report: SourceReport, return_exceptions: bool):
         try:
             # gather with return_exceptions=True to make copy
             # deterministic with respect to exceptions
@@ -496,7 +507,7 @@ class Copier:
     @staticmethod
     async def copy(
         fs: AsyncFS,
-        sema: asyncio.Semaphore,
+        sema: WeightedSemaphore,
         transfer: Union[Transfer, List[Transfer]],
         return_exceptions: bool = False,
         *,
@@ -538,7 +549,7 @@ class Copier:
 
     async def copy_source(
         self,
-        sema: asyncio.Semaphore,
+        sema: WeightedSemaphore,
         transfer: Transfer,
         source_report: SourceReport,
         src: str,
@@ -551,7 +562,7 @@ class Copier:
         await src_copier.copy(sema, source_report, return_exceptions)
 
     async def _copy_one_transfer(
-        self, sema: asyncio.Semaphore, transfer_report: TransferReport, transfer: Transfer, return_exceptions: bool
+        self, sema: WeightedSemaphore, transfer_report: TransferReport, transfer: Transfer, return_exceptions: bool
     ):
         try:
             if transfer.treat_dest_as == Transfer.INFER_DEST:
@@ -593,7 +604,7 @@ class Copier:
 
     async def _copy(
         self,
-        sema: asyncio.Semaphore,
+        sema: WeightedSemaphore,
         copy_report: CopyReport,
         transfer: Union[Transfer, List[Transfer]],
         return_exceptions: bool,
