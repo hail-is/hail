@@ -33,11 +33,13 @@ object BgenSettings {
 
   def getIndexSpec(indexVersion: SemanticVersion, rg: Option[String]): AbstractIndexSpec = {
     val bufferSpec = specFromVersion(indexVersion)
-    val v2 = indexVersion >= SemanticVersion(1, 3, 0)
+    val ixV13 = indexVersion >= SemanticVersion(1, 3, 0)
 
-    def eBinary(required: Boolean): EType = if (v2) EBinary2(required) else EBinary(required)
+    def eBinary(required: Boolean): EType = if (ixV13) EBinary2(required) else EBinary(required)
     def eArray(elt: EType, required: Boolean): EType =
-      if (v2) EArray2(elt, required) else EArray(elt, required)
+      if (ixV13) EArray2(elt, required) else EArray(elt, required)
+    def eInt32(required: Boolean): EType = if (ixV13) EVarint(required) else EInt32(required)
+    def eInt64(required: Boolean): EType = if (ixV13) EVarint(required) else EInt64(required)
 
     val keyVType = indexKeyType(rg)
     val keyEType = EBaseStruct(
@@ -46,7 +48,7 @@ object BgenSettings {
           "locus",
           EBaseStruct(FastSeq(
             EField("contig", eBinary(true), 0),
-            EField("position", EInt32Required, 1),
+            EField("position", eInt32(true), 1),
           )),
           0,
         ),
@@ -59,14 +61,14 @@ object BgenSettings {
     val annotationEType = EBaseStruct(FastSeq(), required = true)
 
     val leafEType = EBaseStruct(FastSeq(
-      EField("first_idx", EInt64Required, 0),
+      EField("first_idx", eInt64(true), 0),
       EField(
         "keys",
         eArray(
           EBaseStruct(
             FastSeq(
               EField("key", keyEType, 0),
-              EField("offset", EInt64Required, 1),
+              EField("offset", eInt64(true), 1),
               EField("annotation", annotationEType, 2),
             ),
             required = true,
@@ -95,10 +97,10 @@ object BgenSettings {
         eArray(
           EBaseStruct(
             FastSeq(
-              EField("index_file_offset", EInt64Required, 0),
-              EField("first_idx", EInt64Required, 1),
+              EField("index_file_offset", eInt64(true), 0),
+              EField("first_idx", eInt64(true), 1),
               EField("first_key", keyEType, 2),
-              EField("first_record_offset", EInt64Required, 3),
+              EField("first_record_offset", eInt64(true), 3),
               EField("first_annotation", annotationEType, 4),
             ),
             required = true,
