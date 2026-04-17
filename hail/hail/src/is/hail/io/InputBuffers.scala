@@ -57,6 +57,36 @@ trait InputBuffer extends Closeable {
   def readDoubles(to: Array[Double]): Unit = readDoubles(to, 0, to.length)
 
   def readBoolean(): Boolean = readByte() != 0
+
+  def readVarint(): Int = {
+    var b: Byte = readByte()
+    var x: Int = b & 0x7f
+    var shift: Int = 7
+    while ((b & 0x80) != 0) {
+      b = readByte()
+      x |= ((b & 0x7f) << shift)
+      shift += 7
+    }
+    x
+  }
+
+  def readVarintLong(): Long = {
+    var b: Byte = readByte()
+    var x: Long = b & 0x7fL
+    var shift: Int = 7
+    while ((b & 0x80) != 0) {
+      b = readByte()
+      x |= ((b & 0x7fL) << shift)
+      shift += 7
+    }
+    x
+  }
+
+  def skipVarint(): Unit = {
+    var b: Byte = readByte()
+    while ((b & 0x80) != 0)
+      b = readByte()
+  }
 }
 
 trait InputBlockBuffer extends Spec with Closeable {
@@ -211,29 +241,9 @@ final class LEB128InputBuffer(in: InputBuffer) extends InputBuffer {
 
   override def read(buf: Array[Byte], toOff: Int, n: Int) = in.read(buf, toOff, n)
 
-  override def readInt(): Int = {
-    var b: Byte = readByte()
-    var x: Int = b & 0x7f
-    var shift: Int = 7
-    while ((b & 0x80) != 0) {
-      b = readByte()
-      x |= ((b & 0x7f) << shift)
-      shift += 7
-    }
-    x
-  }
+  override def readInt(): Int = readVarint()
 
-  override def readLong(): Long = {
-    var b: Byte = readByte()
-    var x: Long = b & 0x7fL
-    var shift: Int = 7
-    while ((b & 0x80) != 0) {
-      b = readByte()
-      x |= ((b & 0x7fL) << shift)
-      shift += 7
-    }
-    x
-  }
+  override def readLong(): Long = readVarintLong()
 
   override def readFloat(): Float = in.readFloat()
 
@@ -246,17 +256,9 @@ final class LEB128InputBuffer(in: InputBuffer) extends InputBuffer {
 
   override def skipByte(): Unit = in.skipByte()
 
-  override def skipInt(): Unit = {
-    var b: Byte = readByte()
-    while ((b & 0x80) != 0)
-      b = readByte()
-  }
+  override def skipInt(): Unit = skipVarint()
 
-  override def skipLong(): Unit = {
-    var b: Byte = readByte()
-    while ((b & 0x80) != 0)
-      b = readByte()
-  }
+  override def skipLong(): Unit = skipVarint()
 
   override def skipFloat(): Unit = in.skipFloat()
 

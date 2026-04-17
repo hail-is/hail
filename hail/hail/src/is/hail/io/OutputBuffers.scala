@@ -46,6 +46,28 @@ trait OutputBuffer extends Closeable {
 
   def writeBoolean(b: Boolean): Unit =
     writeByte(b.toByte)
+
+  def writeVarint(i: Int): Unit = {
+    var j = i
+    do {
+      var b = j & 0x7f
+      j >>>= 7
+      if (j != 0)
+        b |= 0x80
+      writeByte(b.toByte)
+    } while (j != 0)
+  }
+
+  def writeVarintLong(l: Long): Unit = {
+    var j = l
+    do {
+      var b = (j & 0x7fL).toInt
+      j >>>= 7
+      if (j != 0)
+        b |= 0x80
+      writeByte(b.toByte)
+    } while (j != 0)
+  }
 }
 
 trait OutputBlockBuffer extends Spec with Closeable {
@@ -136,27 +158,9 @@ final class LEB128OutputBuffer(out: OutputBuffer) extends OutputBuffer {
 
   override def writeByte(b: Byte): Unit = out.writeByte(b)
 
-  override def writeInt(i: Int): Unit = {
-    var j = i
-    do {
-      var b = j & 0x7f
-      j >>>= 7
-      if (j != 0)
-        b |= 0x80
-      out.writeByte(b.toByte)
-    } while (j != 0)
-  }
+  override def writeInt(i: Int): Unit = writeVarint(i)
 
-  override def writeLong(l: Long): Unit = {
-    var j = l
-    do {
-      var b = j & 0x7f
-      j >>>= 7
-      if (j != 0)
-        b |= 0x80
-      out.writeByte(b.toByte)
-    } while (j != 0)
-  }
+  override def writeLong(l: Long): Unit = writeVarintLong(l)
 
   override def writeFloat(f: Float): Unit = out.writeFloat(f)
 
