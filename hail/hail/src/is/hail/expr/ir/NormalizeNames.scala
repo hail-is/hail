@@ -33,7 +33,7 @@ object NormalizeNames {
       res
     }
 
-  protected def needsRenaming(ir: BaseIR): Boolean = ir match {
+  def needsRenaming(ir: BaseIR): Boolean = ir match {
     case _: RelationalLetMatrixTable | _: TableGen | _: TableMapPartitions | _: RelationalLetTable =>
       true
     case _: MatrixIR | _: TableIR =>

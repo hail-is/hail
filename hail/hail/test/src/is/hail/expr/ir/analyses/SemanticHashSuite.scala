@@ -1,11 +1,13 @@
 package is.hail.expr.ir.analyses
 
 import is.hail.{HailSuite, PrettyVersion}
+import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
+import is.hail.expr.ir
 import is.hail.expr.ir._
 import is.hail.expr.ir.defs._
-import is.hail.io.fs.{FS, FakeFS, FakeURL, FileListEntry}
+import is.hail.io.fs.{FakeURL, FileListEntry}
 import is.hail.linalg.BlockMatrixMetadata
 import is.hail.rvd.AbstractRVDSpec
 import is.hail.types.virtual._
@@ -210,7 +212,7 @@ class SemanticHashSuite extends HailSuite {
         path =>
           new StringTableReader(
             StringTableReaderParameters(ArraySeq(path), None, false, false, false),
-            fakeFs.glob(path),
+            new FakeFS().glob(path),
           ),
         path =>
           TableNativeZippedReader(
@@ -290,14 +292,17 @@ class SemanticHashSuite extends HailSuite {
       isBlockMatrixIRSemanticallyEquivalent,
     )
 
+  private[this] val NormalizeNames: (ExecuteContext, BaseIR) => BaseIR =
+    ir.NormalizeNames(allowFreeVariables = true)
+
   @Test(dataProvider = "isBaseIRSemanticallyEquivalent")
   def testSemanticEquivalence(a: BaseIR, b: BaseIR, isEqual: Boolean, comment: String): Unit =
-    ctx.local(fs = fakeFs) { ctx =>
+    ctx.local(fs = new FakeFS) { ctx =>
       assertResult(
         isEqual,
         s"expected semhash($a) ${if (isEqual) "==" else "!="} semhash($b), $comment",
       )(
-        SemanticHash(ctx, a) == SemanticHash(ctx, b)
+        SemanticHash(ctx, NormalizeNames(ctx, a)) == SemanticHash(ctx, NormalizeNames(ctx, b))
       )
     }
 
@@ -318,23 +323,22 @@ class SemanticHashSuite extends HailSuite {
     }
   }
 
-  private[this] val fakeFs: FS =
-    new FakeFS {
-      override def eTag(url: FakeURL): Option[String] =
-        Some(url.path)
+  class FakeFS extends is.hail.io.fs.FakeFS {
+    override def eTag(url: FakeURL): Option[String] =
+      Some(url.path)
 
-      override def glob(url: FakeURL): IndexedSeq[FileListEntry] =
-        ArraySeq(new FileListEntry {
-          override def getPath: String = url.path
-          override def getActualUrl: String = url.path
-          override def getModificationTime: lang.Long = ???
-          override def getLen: Long = ???
-          override def isDirectory: Boolean = ???
-          override def isSymlink: Boolean = ???
-          override def isFile: Boolean = true
-          override def getOwner: String = ???
-        })
-    }
+    override def glob(url: FakeURL): IndexedSeq[FileListEntry] =
+      ArraySeq(new FileListEntry {
+        override def getPath: String = url.path
+        override def getActualUrl: String = url.path
+        override def getModificationTime: lang.Long = ???
+        override def getLen: Long = ???
+        override def isDirectory: Boolean = ???
+        override def isSymlink: Boolean = ???
+        override def isFile: Boolean = true
+        override def getOwner: String = ???
+      })
+  }
 
   def importMatrix(path: String): MatrixIR = {
     val ty =
@@ -351,24 +355,15 @@ class SemanticHashSuite extends HailSuite {
       new MatrixNativeReader(
         MatrixNativeReaderParameters(path, None),
         new AbstractMatrixTableSpec {
-          override def matrix_type: MatrixType =
-            ty
-          override def references_rel_path: String =
-            "references"
-          override def globalsSpec: AbstractTableSpec =
-            mkFakeTableSpec(ty.canonicalTableType)
-          override def colsSpec: AbstractTableSpec =
-            mkFakeTableSpec(ty.colsTableType)
-          override def rowsSpec: AbstractTableSpec =
-            mkFakeTableSpec(ty.rowsTableType)
-          override def entriesSpec: AbstractTableSpec =
-            mkFakeTableSpec(ty.entriesTableType)
-          override def file_version: Int =
-            1
-          override def hail_version: String =
-            PrettyVersion
-          override def components: Map[String, ComponentSpec] =
-            Map.empty
+          override def matrix_type: MatrixType = ty
+          override def references_rel_path: String = "references"
+          override def globalsSpec: AbstractTableSpec = mkFakeTableSpec(ty.canonicalTableType)
+          override def colsSpec: AbstractTableSpec = mkFakeTableSpec(ty.colsTableType)
+          override def rowsSpec: AbstractTableSpec = mkFakeTableSpec(ty.rowsTableType)
+          override def entriesSpec: AbstractTableSpec = mkFakeTableSpec(ty.entriesTableType)
+          override def file_version: Int = 1
+          override def hail_version: String = PrettyVersion
+          override def components: Map[String, ComponentSpec] = Map.empty
           override def toJValue: JValue = ???
         },
       )
@@ -379,15 +374,10 @@ class SemanticHashSuite extends HailSuite {
   def mkFakeTableSpec(ttype: TableType): AbstractTableSpec =
     new AbstractTableSpec {
       override def references_rel_path: String = ???
-
       override def table_type: TableType = ttype
-
       override def rowsSpec: AbstractRVDSpec = ???
-
       override def globalsSpec: AbstractRVDSpec = ???
-
       override def file_version: Int = 0
-
       override def hail_version: String = ???
 
       override def components: Map[String, ComponentSpec] =

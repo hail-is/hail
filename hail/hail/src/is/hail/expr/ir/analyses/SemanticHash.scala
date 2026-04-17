@@ -4,6 +4,7 @@ import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{MatrixRangeReader, _}
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.functions.{TableCalculateNewPartitions, WrappedMatrixToValueFunction}
+import is.hail.expr.ir.lowering.invariant.NoRedefinedNames
 import is.hail.io.fs.FS
 import is.hail.io.vcf.MatrixVCFReader
 import is.hail.methods._
@@ -28,9 +29,7 @@ case object SemanticHash extends Logging {
 
   def apply(ctx: ExecuteContext, root: BaseIR): Option[Type] =
     ctx.time {
-      // Running the algorithm on the name-normalised IR
-      // removes sensitivity to compiler-generated names
-      val nameNormalizedIR = NormalizeNames(allowFreeVariables = true)(ctx, root)
+      NoRedefinedNames.verify(ctx, root)
 
       def go: Option[Int] = {
         var hash: Type =
@@ -38,7 +37,7 @@ case object SemanticHash extends Logging {
 
         // Include an encoding of a node's position in the parent's child array
         // to differentiate between IR trees that look identical when flattened
-        for ((ir, index) <- levelOrder(nameNormalizedIR)) {
+        for ((ir, index) <- levelOrder(root)) {
           try {
             val bytes = encode(ctx.fs, ir, index)
             hash = extend(hash, bytes)

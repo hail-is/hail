@@ -4,13 +4,17 @@ import is.hail.utils.TreeTraversal
 
 object IRTraversal {
 
-  def postOrder: BaseIR => Iterator[BaseIR] =
+  val postOrder: BaseIR => Iterator[BaseIR] =
     TreeTraversal.postOrder(_.children.iterator)
 
-  def preOrder: BaseIR => Iterator[BaseIR] =
+  val preOrder: BaseIR => Iterator[BaseIR] =
     TreeTraversal.preOrder(_.children.iterator)
 
-  def levelOrder: BaseIR => Iterator[BaseIR] =
+  val levelOrder: BaseIR => Iterator[BaseIR] =
     TreeTraversal.levelOrder(_.children.iterator)
 
+  val trace: BaseIR => Iterator[List[BaseIR]] = {
+    val adj = { p: List[BaseIR] => p.head.children.map(_ :: p).iterator }
+    TreeTraversal.levelOrder(adj) _ compose (_ :: Nil)
+  }
 }

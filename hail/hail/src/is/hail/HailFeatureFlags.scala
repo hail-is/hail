@@ -4,6 +4,7 @@ import is.hail.backend.ExecutionCache
 import is.hail.backend.service.ServiceBackend
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.{agg, Optimize}
+import is.hail.expr.ir.lowering.invariant
 import is.hail.types.encoded.EType
 
 import scala.collection.compat._
@@ -40,6 +41,7 @@ object HailFeatureFlags {
     (EType.Flags.UseUnstableEncodings, EType.Flags.UseUnstableEncodingsVar -> null),
     (ExecutionCache.Flags.Cachedir, "HAIL_CACHE_DIR" -> null),
     (ExecutionCache.Flags.UseFastRestarts, "HAIL_USE_FAST_RESTARTS" -> null),
+    (invariant.Flags.StrictInvariants, "HAIL_STRICT_INVARIANTS" -> null),
     (Optimize.Flags.MaxOptimizerIterations, "HAIL_OPTIMIZER_ITERATIONS" -> null),
     (Optimize.Flags.Optimize, "HAIL_QUERY_OPTIMIZE" -> "1"),
     (ServiceBackend.Flags.UseAsyncProfiler, "HAIL_PROFILE" -> null),
