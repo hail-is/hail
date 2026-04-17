@@ -49,7 +49,6 @@ object BufferSpec {
     BlockingBufferSpec(64 * 1024, ZstdBlockBufferSpec(64 * 1024, new StreamBlockBufferSpec2)),
   )
 
-
   def parse(s: String): BufferSpec = {
     import AbstractRVDSpec.formats
     JsonMethods.parse(s).extract[BufferSpec]

@@ -15,8 +15,11 @@ case object EBinaryOptional extends EBinary(false)
 case object EBinaryRequired extends EBinary(true)
 
 class EBinary(override val required: Boolean) extends EBinaryCommon(required) {
-  override def writeLength(cb: EmitCodeBuilder, out: Value[OutputBuffer], len: Code[Int]): Unit = cb += out.writeInt(len)
-  override def readLength(cb: EmitCodeBuilder, in: Value[InputBuffer]): Value[Int] = cb.memoize(in.readInt(), "len")
+  override def writeLength(cb: EmitCodeBuilder, out: Value[OutputBuffer], len: Code[Int]): Unit =
+    cb += out.writeInt(len)
+
+  override def readLength(cb: EmitCodeBuilder, in: Value[InputBuffer]): Value[Int] =
+    cb.memoize(in.readInt(), "len")
 
   override def _asIdent = "binary"
   override def _toPretty = "EBinary"

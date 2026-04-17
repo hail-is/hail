@@ -13,7 +13,8 @@ import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePoin
 import is.hail.types.physical.stypes.interfaces.SIndexableValue
 import is.hail.types.virtual._
 
-abstract class EArrayCommon(val elementType: EType, override val required: Boolean = false) extends EContainer {
+abstract class EArrayCommon(val elementType: EType, override val required: Boolean = false)
+    extends EContainer {
   def writeLength(cb: EmitCodeBuilder, out: Value[OutputBuffer], len: Code[Int]): Unit
   def readLength(cb: EmitCodeBuilder, in: Value[InputBuffer]): Value[Int]
 
@@ -220,8 +221,11 @@ abstract class EArrayCommon(val elementType: EType, override val required: Boole
 
 final case class EArray2(override val elementType: EType, override val required: Boolean = false)
     extends EArrayCommon(elementType, required) {
-  override def writeLength(cb: EmitCodeBuilder, out: Value[OutputBuffer], len: Code[Int]): Unit = cb += out.writeVarint(len)
-  override def readLength(cb: EmitCodeBuilder, in: Value[InputBuffer]): Value[Int] = cb.memoize(in.readVarint(), "len")
+  override def writeLength(cb: EmitCodeBuilder, out: Value[OutputBuffer], len: Code[Int]): Unit =
+    cb += out.writeVarint(len)
+
+  override def readLength(cb: EmitCodeBuilder, in: Value[InputBuffer]): Value[Int] =
+    cb.memoize(in.readVarint(), "len")
 
   override def _asIdent = s"array2_of_${elementType.asIdent}"
   override def _toPretty = s"EArray2[$elementType]"

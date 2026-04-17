@@ -308,9 +308,25 @@ object EType extends Logging {
     fromTypeAndAnalysis(ctx, r.t, r.r)
   }
 
-  def fromTypeAndAnalysis(ctx: ExecuteContext, t: Type, r: TypeWithRequiredness): EType = t match {
-    case TInt32 => EVarint(r.required)
-    case TInt64 => EVarint(r.required)
+  // Centralized int-EType selection: all callers picking an EType for an integer-shaped virtual
+  // type (TInt32 / TInt64 / TCall, plus the position field of TLocus) go through here so that the
+  // varint-vs-fixed-width decision lives in exactly one place. Flip useVarint=false at any call
+  // site whose decoder cannot read varints — currently fromPythonTypeEncoding, because the Python
+  // value codec (python/hail/expr/types.py) reads ints with fixed widths.
+  private def intEType(t: Type, required: Boolean, useVarint: Boolean): EType =
+    if (useVarint) EVarint(required)
+    else t match {
+      case TInt32 | TCall => EInt32(required)
+      case TInt64 => EInt64(required)
+    }
+
+  def fromTypeAndAnalysis(
+    ctx: ExecuteContext,
+    t: Type,
+    r: TypeWithRequiredness,
+    useVarint: Boolean = true,
+  ): EType = t match {
+    case TInt32 | TInt64 | TCall => intEType(t, r.required, useVarint)
     case TFloat32 => EFloat32(r.required)
     case TFloat64 => EFloat64(r.required)
     case TBoolean => EBoolean(r.required)
@@ -320,18 +336,25 @@ object EType extends Logging {
       EBaseStruct(
         ArraySeq(
           EField("contig", EBinary2(true), 0),
-          EField("position", EVarint(true), 1),
+          EField("position", intEType(TInt32, required = true, useVarint), 1),
         ),
         required = r.required,
       )
-    case TCall => EVarint(r.required)
     case TRNGState => ERNGState(r.required, None)
     case t: TInterval =>
       val rinterval = r.asInstanceOf[RInterval]
       EBaseStruct(
         ArraySeq(
-          EField("start", fromTypeAndAnalysis(ctx, t.pointType, rinterval.startType), 0),
-          EField("end", fromTypeAndAnalysis(ctx, t.pointType, rinterval.endType), 1),
+          EField(
+            "start",
+            fromTypeAndAnalysis(ctx, t.pointType, rinterval.startType, useVarint),
+            0,
+          ),
+          EField(
+            "end",
+            fromTypeAndAnalysis(ctx, t.pointType, rinterval.endType, useVarint),
+            1,
+          ),
           EField("includesStart", EBoolean(true), 2),
           EField("includesEnd", EBoolean(true), 3),
         ),
@@ -346,7 +369,7 @@ object EType extends Logging {
       EStructOfArrays.fromTypeAndRequiredness(t, tcoerce[RIterable](r))
     case t: TIterable =>
       EArray2(
-        fromTypeAndAnalysis(ctx, t.elementType, tcoerce[RIterable](r).elementType),
+        fromTypeAndAnalysis(ctx, t.elementType, tcoerce[RIterable](r).elementType, useVarint),
         r.required,
       )
     case t: TBaseStruct =>
@@ -357,22 +380,26 @@ object EType extends Logging {
           val f = rstruct.fields(i)
           if (f.index != i)
             throw new AssertionError(s"$t [$i]")
-          EField(f.name, fromTypeAndAnalysis(ctx, t.fields(i).typ, f.typ), f.index)
+          EField(f.name, fromTypeAndAnalysis(ctx, t.fields(i).typ, f.typ, useVarint), f.index)
         },
         required = r.required,
       )
     case t: TNDArray =>
       val rndarray = r.asInstanceOf[RNDArray]
       ENDArrayColumnMajor(
-        fromTypeAndAnalysis(ctx, t.elementType, rndarray.elementType),
+        fromTypeAndAnalysis(ctx, t.elementType, rndarray.elementType, useVarint),
         t.nDims,
         rndarray.required,
       )
   }
 
+  // ETypes for values that the Python value codec (python/hail/expr/types.py, ByteReader at
+  // python/hail/utils/byte_reader.py) will read or has written. Ints MUST be fixed-width because
+  // the Python codec uses read_int32/read_int64; varint lengths on EArray2/EBinary2 are matched by
+  // the Python read_varint added on the corresponding length sites. Keep everything here funneled
+  // through intEType so the fixed-width invariant cannot drift away from this function.
   def fromPythonTypeEncoding(t: Type): EType = t match {
-    case TInt32 => EInt32(false)
-    case TInt64 => EInt64(false)
+    case TInt32 | TInt64 | TCall => intEType(t, required = false, useVarint = false)
     case TFloat32 => EFloat32(false)
     case TFloat64 => EFloat64(false)
     case TBoolean => EBoolean(false)
@@ -382,11 +409,10 @@ object EType extends Logging {
       EBaseStruct(
         ArraySeq(
           EField("contig", EBinary2(false), 0),
-          EField("position", EInt32(false), 1),
+          EField("position", intEType(TInt32, required = false, useVarint = false), 1),
         ),
         required = false,
       )
-    case TCall => EInt32(false)
     case t: TInterval =>
       EBaseStruct(
         ArraySeq(

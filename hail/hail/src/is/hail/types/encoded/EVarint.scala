@@ -15,11 +15,12 @@ case object EVarintOptional extends EVarint(false)
 case object EVarintRequired extends EVarint(true)
 
 class EVarint(override val required: Boolean) extends EType {
-  override def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit = v.st match {
-    case _: SCall => cb += out.writeVarint(v.asInstanceOf[SCallValue].canonicalCall(cb))
-    case SInt32 => cb += out.writeVarint(v.asInt32.value)
-    case SInt64 => cb += out.writeVarintLong(v.asInt64.value)
-  }
+  override def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit =
+    v.st match {
+      case _: SCall => cb += out.writeVarint(v.asInstanceOf[SCallValue].canonicalCall(cb))
+      case SInt32 => cb += out.writeVarint(v.asInt32.value)
+      case SInt64 => cb += out.writeVarintLong(v.asInt64.value)
+    }
 
   override def _buildDecoder(
     cb: EmitCodeBuilder,
