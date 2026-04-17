@@ -780,6 +780,33 @@ steps:
       - merge_code
       - copy_third_party_images
   - kind: runImage
+    name: download_mill_and_maven_deps
+    image:
+      valueFrom: base_image.image
+    resources:
+      memory: standard
+      cpu: '2'
+    script: |
+      set -ex
+      cd /io/repo/hail
+
+      export HAIL_BUILD_MODE=Release
+      export COURSIER_CACHE='/io/cache/coursier'
+      # force download of mill binary and coursier dependencies
+      sh mill --no-daemon hail._.prepareOffline
+      # mkdir -p /io/cache
+      # mv ~/.cache/mill /io/cache/mill
+      # rm -rf out/mill.javalib.JvmWorkerModule
+    inputs:
+      - from: /repo
+        to: /io/repo
+    outputs:
+      - from: /io/cache
+        to: /cache
+    dependsOn:
+      - base_image
+      - merge_code
+  - kind: runImage
     name: build_hail_jar_and_wheel
     image:
       valueFrom: base_image.image
@@ -791,6 +818,10 @@ steps:
       cd /io/repo/hail
 
       export MILLOPTS='--no-daemon' HAIL_BUILD_MODE=Release
+      export COURSIER_CACHE='/io/cache/coursier'
+      # mkdir -p ~/.cache
+      # mv /io/cache/mill ~/.cache/mill
+      # chmod +x ~/.cache/mill/download/*
       time retry sh mill --no-daemon --version
 
       # We've encountered the following sporadic error in CI between `mill`
@@ -815,14 +846,17 @@ steps:
     inputs:
       - from: /repo
         to: /io/repo
+      - from: /cache
+        to: /io/cache
     outputs:
-      - from: /io/repo/hail/out
-        to: /derived/release/hail/out/
+      - from: /io/repo/hail/out/hail/2.12/assembly.dest/out.jar
+        to: /derived/release/hail/out/hail/2.12/assembly.dest/out.jar
       - from: /io/repo/hail/build/deploy/dist
         to: /derived/release/hail/build/deploy/dist
     dependsOn:
       - base_image
       - merge_code
+      - download_mill_and_maven_deps
   - kind: runImage
     name: test_install_in_isolation_python3_11
     image:
@@ -890,7 +924,12 @@ steps:
       set -ex
       cd /io/repo/hail
 
-      export MILLOPTS='--no-daemon' HAIL_BUILD_MODE=CI
+      export MILLOPTS='--no-daemon'
+      export HAIL_BUILD_MODE=CI
+      export COURSIER_CACHE='/io/cache/coursier'
+      # mkdir -p ~/.cache
+      # mv /io/cache/mill ~/.cache/mill
+      # chmod -R +x ~/.cache/mill
       time retry sh mill --no-daemon --version
 
       # See `build_hail_jar_and_wheel`
@@ -904,6 +943,8 @@ steps:
     inputs:
       - from: /repo
         to: /io/repo
+      - from: /cache
+        to: /io/cache
     outputs:
       - from: /io/repo/hail/out
         to: /derived/debug/hail/out
@@ -912,6 +953,7 @@ steps:
     dependsOn:
       - base_image
       - merge_code
+      - download_mill_and_maven_deps
   - kind: runImage
     name: build_debug_hail_test_jar
     image:
@@ -923,20 +965,19 @@ steps:
       set -ex
       cd /io/repo/hail
 
-      export MILLOPTS='--no-daemon' HAIL_BUILD_MODE=CI
-      time retry sh mill --no-daemon --version
-
-      # See `build_hail_jar_and_wheel`
-      time retry make shadowTestJar
-      if [ ! -f out/hail/2.12/test/assembly.dest/out.jar ]; then
-          echo 'no out.jar found after mill assembly returned. going to sleep'
-          sleep 5
-      fi
+      export HAIL_BUILD_MODE=CI
+      export COURSIER_CACHE='/io/cache/coursier'
+      # mkdir -p ~/.cache
+      # mv /io/cache/mill ~/.cache/mill
+      # chmod -R +x ~/.cache/mill
+      time sh mill --no-daemon hail[2.12].test.{compile,testForkGrouping}
     inputs:
       - from: /repo
         to: /io/repo
       - from: /derived/debug/hail/out
         to: /io/repo/hail/out
+      - from: /cache
+        to: /io/cache
     outputs:
       - from: /io/repo/hail/out
         to: /derived/debug/hail/out
@@ -944,6 +985,7 @@ steps:
       - base_image
       - merge_code
       - build_hail_debug_jar_and_wheel
+      - download_mill_and_maven_deps
   - kind: runImage
     name: build_hail_test_artifacts
     image:
@@ -955,8 +997,6 @@ steps:
       time tar czf test.tar.gz -C python test pytest.ini
       time tar czf resources.tar.gz -C hail/test resources
       time tar czf data.tar.gz -C python/hail/docs data
-      time TESTNG_SPLITS=5 python3 generate_splits.py
-      time tar czf splits.tar.gz testng-splits-*.xml
     inputs:
       - from: /repo
         to: /io/repo
@@ -965,8 +1005,6 @@ steps:
         to: /test.tar.gz
       - from: /io/repo/hail/resources.tar.gz
         to: /resources.tar.gz
-      - from: /io/repo/hail/splits.tar.gz
-        to: /splits.tar.gz
       - from: /io/repo/hail/data.tar.gz
         to: /data.tar.gz
     dependsOn:
@@ -1079,22 +1117,21 @@ steps:
       cpu: '2'
     script: |
       set -ex
-      cd /io
-      mkdir -p hail/test
-      tar xzf resources.tar.gz -C hail/test
-      tar xzf splits.tar.gz
-      export HAIL_TEST_SKIP_R=1
-      java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-splits-$HAIL_RUN_IMAGE_SPLIT_INDEX.xml
+      cd /io/repo/hail
+      export HAIL_BUILD_MODE='CI'
+      export NO_COLOR=1
+      export COURSIER_CACHE='/io/cache/coursier'
+      # mkdir -p ~/.cache
+      # mv /io/cache/mill ~/.cache/mill
+      # chmod -R +x ~/.cache/mill
+      sh mill --no-daemon -j2 hail[2.12].test.testCISplit $HAIL_RUN_IMAGE_SPLIT_INDEX
     inputs:
-      - from: /resources.tar.gz
-        to: /io/resources.tar.gz
-      - from: /derived/debug/hail/out/hail/2.12/test/assembly.dest/out.jar
-        to: /io/hail-test.jar
-      - from: /splits.tar.gz
-        to: /io/splits.tar.gz
-    outputs:
-      - from: /io/test-output
-        to: /test-output
+      - from: /repo
+        to: /io/repo
+      - from: /derived/debug/hail/out
+        to: /io/repo/hail/out
+      - from: /cache
+        to: /io/cache
     secrets:
       - name: test-gsa-key
         namespace:
@@ -1106,6 +1143,7 @@ steps:
       - create_test_gsa_keys
       - build_debug_hail_test_jar
       - build_hail_test_artifacts
+      - download_mill_and_maven_deps
   - kind: runImage
     name: test_hail_python
     numSplits: 28
@@ -3196,7 +3234,7 @@ steps:
       - create_accounts
       - default_ns
       - hail_dev_image
-      - hail_debug_wheel
+      - build_hail_debug_jar_and_wheel
       - deploy_batch
   - kind: runImage
     name: test_hailctl_batch
@@ -3720,10 +3758,7 @@ steps:
       memory: standard
       cpu: '2'
     script: |
-      set -ex
-      cd /io
-      mkdir -p src/test
-      tar xzf resources.tar.gz -C src/test
+      set -x
 
       export HAIL_CLOUD={{ global.cloud }}
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
@@ -3731,12 +3766,12 @@ steps:
       export HAIL_FS_TEST_CLOUD_RESOURCES_URI={{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/test/resources/fs
       export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}
 
-      set +e
-      java -Xms7500M -Xmx7500M \
-           -cp hail-test.jar:$SPARK_HOME/jars/* \
-           org.testng.TestNG \
-           -listener is.hail.LogTestListener \
-           testng-fs.xml
+      cd /io/repo/hail
+      export HAIL_BUILD_MODE='CI'
+      export NO_COLOR=1
+      export COURSIER_CACHE='/io/cache/coursier'
+      # mv /io/cache/mill ~/.cache/mill
+      sh mill --no-daemon -j2 hail[2.12].test.test-fs
       exit_code=$?
       set -e
       if [[ $exit_code -eq 2 ]]
@@ -3747,12 +3782,12 @@ steps:
           exit $exit_code
       fi
     inputs:
-      - from: /resources.tar.gz
-        to: /io/resources.tar.gz
-      - from: /derived/debug/hail/out/hail/2.12/test/assembly.dest/out.jar
-        to: /io/hail-test.jar
-      - from: /repo/hail/testng-fs.xml
-        to: /io/testng-fs.xml
+      - from: /repo
+        to: /io/repo
+      - from: /derived/debug/hail/out
+        to: /io/repo/hail/out
+      - from: /cache
+        to: /io/cache
     secrets:
       - name: test-gsa-key
         namespace:
@@ -3767,6 +3802,7 @@ steps:
       - build_debug_hail_test_jar
       - build_hail_test_artifacts
       - upload_test_resources_to_blob_storage
+      - download_mill_and_maven_deps
   - kind: runImage
     name: test_hail_services_java
     image:
@@ -3780,21 +3816,19 @@ steps:
       export HAIL_CLOUD={{ global.cloud }}
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
 
-      cd /io
-      mkdir -p src/test
-      tar xzf resources.tar.gz -C src/test
-      java -Xms7500M -Xmx7500M \
-           -cp hail-test.jar:$SPARK_HOME/jars/* \
-           org.testng.TestNG \
-           -listener is.hail.LogTestListener \
-           testng-services.xml
+      cd /io/repo/hail
+      export HAIL_BUILD_MODE='CI'
+      export NO_COLOR=1
+      export COURSIER_CACHE='/io/cache/coursier'
+      # mv /io/cache/mill ~/.cache/mill
+      sh mill --no-daemon -j2 hail[2.12].test.test-fs
     inputs:
-      - from: /resources.tar.gz
-        to: /io/resources.tar.gz
-      - from: /derived/debug/hail/out/hail/2.12/test/assembly.dest/out.jar
-        to: /io/hail-test.jar
-      - from: /repo/hail/testng-services.xml
-        to: /io/testng-services.xml
+      - from: /repo
+        to: /io/repo
+      - from: /derived/debug/hail/out
+        to: /io/repo/hail/out
+      - from: /cache
+        to: /io/cache
     secrets:
       - name: test-gsa-key
         namespace:
@@ -3810,6 +3844,7 @@ steps:
       - build_hail_test_artifacts
       - upload_query_jar
       - deploy_batch
+      - download_mill_and_maven_deps
   - kind: runImage
     name: start_hail_benchmark
     scopes:

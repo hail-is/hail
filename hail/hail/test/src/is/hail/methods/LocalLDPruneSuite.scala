@@ -15,6 +15,7 @@ import org.scalacheck.Gen._
 import org.scalacheck.Prop.forAll
 import org.scalatest
 import org.scalatest.matchers.should.Matchers.convertToAnyShouldWrapper
+import org.scalatestplus.scalacheck.Checkers.check
 import org.testng.annotations.Test
 
 object LocalLDPruneSuite {
@@ -303,7 +304,7 @@ class LocalLDPruneSuite extends HailSuite {
         val bpv = LocalLDPruneSuite.fromCalls(v1)
 
         bpv match {
-          case Some(x) => LocalLDPruneSuite.fromCalls(x.unpack().map(toC2)).get.gs == x.gs
+          case Some(x) => LocalLDPruneSuite.fromCalls(x.unpack().map(toC2)).get.gs sameElements x.gs
           case None => true
         }
       }): Unit
@@ -326,7 +327,10 @@ class LocalLDPruneSuite extends HailSuite {
               val r2BitPacked = LocalLDPrune.computeR2(a, b)
 
               val isSame =
-                D_==(r2BitPacked, r2Breeze) && D_>=(r2BitPacked, 0d) && D_<=(r2BitPacked, 1d)
+                D_==(r2BitPacked, r2Breeze, absTolerance = 1e-30) && D_>=(r2BitPacked, 0d) && D_<=(
+                  r2BitPacked,
+                  1d,
+                )
               if (!isSame) {
                 println(s"breeze=$r2Breeze bitPacked=$r2BitPacked nSamples=$nSamples")
               }
@@ -336,7 +340,7 @@ class LocalLDPruneSuite extends HailSuite {
       }): Unit
   }
 
-  @Test def testRandom(): Unit = Spec.check()
+  @Test def testRandom(): Unit = Spec.properties.foreach { case (_, p) => check(p) }
 
   @Test def testIsLocallyUncorrelated(): Unit = {
     val locallyPrunedVariantsTable =
