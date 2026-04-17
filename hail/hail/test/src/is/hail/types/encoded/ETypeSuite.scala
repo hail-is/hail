@@ -8,6 +8,7 @@ import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.io._
 import is.hail.rvd.AbstractRVDSpec
 import is.hail.types.physical._
+import is.hail.types.virtual._
 
 import org.apache.spark.sql.Row
 import org.json4s.jackson.Serialization
@@ -267,6 +268,35 @@ class ETypeSuite extends HailSuite {
     val ptype = PCanonicalArray(PInt32Optional, required = true)
     val data = FastSeq[Any](0, 1, -1, null, Int.MaxValue, Int.MinValue, 127, 128, 16383, 16384)
     assertEqualEncodeDecode(ptype, etype, ptype, data)
+  }
+
+  @Test def testPythonEncodingUsesFixedWidthInts(): Unit = {
+    val cases = Array[Type](
+      TInt32,
+      TInt64,
+      TCall,
+      TArray(TInt32),
+      TArray(TInt64),
+      TArray(TCall),
+      TStruct("a" -> TInt32, "b" -> TInt64, "c" -> TCall),
+      TLocus("GRCh37"),
+      TInterval(TInt32),
+      TDict(TInt32, TInt64),
+      TSet(TInt32),
+      TArray(TStruct("x" -> TInt32, "y" -> TArray(TInt64))),
+    )
+    def assertNoVarint(et: EType, virt: Type): Unit = et match {
+      case _: EVarint =>
+        throw new AssertionError(s"unexpected EVarint inside $et for virtual $virt")
+      case s: EBaseStruct => s.fields.foreach(f => assertNoVarint(f.typ, virt))
+      case a: EArray2 => assertNoVarint(a.elementType, virt)
+      case a: EArray => assertNoVarint(a.elementType, virt)
+      case c: EContainer => assertNoVarint(c.elementType, virt)
+      case nd: ENDArrayColumnMajor => assertNoVarint(nd.elementType, virt)
+      case _ => ()
+    }
+    for (t <- cases)
+      assertNoVarint(EType.fromPythonTypeEncoding(t), t)
   }
 
   @Test def testStructOfArrays(): Unit = {
