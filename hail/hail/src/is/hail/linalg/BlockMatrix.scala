@@ -110,7 +110,7 @@ object BlockMatrix {
   val bufferSpec: BufferSpec =
     new BlockingBufferSpec(
       bufferSpecBlockSize,
-      new LZ4FastBlockBufferSpec(bufferSpecBlockSize, new StreamBlockBufferSpec2),
+      new LZ4FastBlockBufferSpec(bufferSpecBlockSize, new StreamBlockBufferSpec),
     )
 
   def apply(gp: GridPartitioner, piBlock: (GridPartitioner, Int) => ((Int, Int), BDM[Double]))
