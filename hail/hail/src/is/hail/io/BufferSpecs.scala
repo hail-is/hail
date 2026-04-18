@@ -1,7 +1,7 @@
 package is.hail.io
 
 import is.hail.asm4s._
-import is.hail.compatibility.LZ4BlockBufferSpec
+import is.hail.compatibility.{LEB128BufferSpec, LZ4BlockBufferSpec}
 import is.hail.io.compress.LZ4
 import is.hail.rvd.AbstractRVDSpec
 
@@ -11,44 +11,43 @@ import org.json4s.{JValue, ShortTypeHints}
 import org.json4s.jackson.JsonMethods
 
 object BufferSpec {
+  // v1 legacy spec — preserved because the BGEN reader picks this for index
+  // files written by older versions. Do not flip to v2.
   val zstdCompressionLEB: BufferSpec = LEB128BufferSpec(
     BlockingBufferSpec(64 * 1024, ZstdBlockBufferSpec(64 * 1024, new StreamBlockBufferSpec))
   )
 
-  val default: BufferSpec = zstdCompressionLEB
+  // v1 legacy spec — preserved for the same reason as zstdCompressionLEB.
+  val lz4HCCompressionLEB: BufferSpec = LEB128BufferSpec(
+    BlockingBufferSpec(32 * 1024, LZ4HCBlockBufferSpec(32 * 1024, new StreamBlockBufferSpec))
+  )
 
-  val blockedUncompressed: BufferSpec = BlockingBufferSpec(32 * 1024, new StreamBlockBufferSpec)
+  val zstdCompression: BufferSpec =
+    BlockingBufferSpec(64 * 1024, ZstdBlockBufferSpec(64 * 1024, new StreamBlockBufferSpec2))
+
+  val default: BufferSpec = zstdCompression
+
+  val blockedUncompressed: BufferSpec = BlockingBufferSpec(32 * 1024, new StreamBlockBufferSpec2)
   val unblockedUncompressed: BufferSpec = new StreamBufferSpec
 
-  val wireSpec: BufferSpec = LEB128BufferSpec(
+  val wireSpec: BufferSpec =
     BlockingBufferSpec(
       64 * 1024,
       ZstdSizedBasedBlockBufferSpec(
         64 * 1024,
         /*minCompressionSize=*/ 256,
-        new StreamBlockBufferSpec,
+        new StreamBlockBufferSpec2,
       ),
     )
-  )
 
   val memorySpec: BufferSpec = wireSpec
 
-  // longtime default spec
-  val lz4HCCompressionLEB: BufferSpec = LEB128BufferSpec(
-    BlockingBufferSpec(32 * 1024, LZ4HCBlockBufferSpec(32 * 1024, new StreamBlockBufferSpec))
+  val specs: Array[BufferSpec] = Array(
+    BlockingBufferSpec(64 * 1024, new StreamBlockBufferSpec2),
+    BlockingBufferSpec(32 * 1024, LZ4HCBlockBufferSpec(32 * 1024, new StreamBlockBufferSpec2)),
+    BlockingBufferSpec(32 * 1024, LZ4FastBlockBufferSpec(32 * 1024, new StreamBlockBufferSpec2)),
+    BlockingBufferSpec(64 * 1024, ZstdBlockBufferSpec(64 * 1024, new StreamBlockBufferSpec2)),
   )
-
-  val blockSpecs: Array[BufferSpec] = Array(
-    BlockingBufferSpec(64 * 1024, new StreamBlockBufferSpec),
-    BlockingBufferSpec(32 * 1024, LZ4HCBlockBufferSpec(32 * 1024, new StreamBlockBufferSpec)),
-    BlockingBufferSpec(32 * 1024, LZ4FastBlockBufferSpec(32 * 1024, new StreamBlockBufferSpec)),
-    BlockingBufferSpec(64 * 1024, ZstdBlockBufferSpec(64 * 1024, new StreamBlockBufferSpec)),
-    new StreamBufferSpec,
-  )
-
-  val specs: Array[BufferSpec] = blockSpecs.flatMap { blockSpec =>
-    Array(blockSpec, LEB128BufferSpec(blockSpec))
-  }
 
   def parse(s: String): BufferSpec = {
     import AbstractRVDSpec.formats
@@ -69,6 +68,7 @@ object BufferSpec {
       classOf[LZ4SizeBasedBlockBufferSpec],
       classOf[ZstdBlockBufferSpec],
       classOf[StreamBlockBufferSpec],
+      classOf[StreamBlockBufferSpec2],
       classOf[BufferSpec],
       classOf[LEB128BufferSpec],
       classOf[BlockingBufferSpec],
@@ -86,20 +86,6 @@ trait BufferSpec extends Spec {
   def buildCodeInputBuffer(in: Code[InputStream]): Code[InputBuffer]
 
   def buildCodeOutputBuffer(in: Code[OutputStream]): Code[OutputBuffer]
-}
-
-final case class LEB128BufferSpec(child: BufferSpec) extends BufferSpec {
-  override def buildInputBuffer(in: InputStream): InputBuffer =
-    new LEB128InputBuffer(child.buildInputBuffer(in))
-
-  override def buildOutputBuffer(out: OutputStream): OutputBuffer =
-    new LEB128OutputBuffer(child.buildOutputBuffer(out))
-
-  override def buildCodeInputBuffer(in: Code[InputStream]): Code[InputBuffer] =
-    Code.newInstance[LEB128InputBuffer, InputBuffer](child.buildCodeInputBuffer(in))
-
-  override def buildCodeOutputBuffer(out: Code[OutputStream]): Code[OutputBuffer] =
-    Code.newInstance[LEB128OutputBuffer, OutputBuffer](child.buildCodeOutputBuffer(out))
 }
 
 final case class BlockingBufferSpec(blockSize: Int, child: BlockBufferSpec) extends BufferSpec {
@@ -290,6 +276,25 @@ final class StreamBlockBufferSpec extends BlockBufferSpec {
     Code.newInstance[StreamBlockOutputBuffer, OutputStream](out)
 
   override def equals(other: Any): Boolean = other.isInstanceOf[StreamBlockBufferSpec]
+}
+
+object StreamBlockBufferSpec2 {
+  def extract(jv: JValue): StreamBlockBufferSpec2 = new StreamBlockBufferSpec2
+}
+
+final class StreamBlockBufferSpec2 extends BlockBufferSpec {
+  override def buildInputBuffer(in: InputStream): InputBlockBuffer = new StreamBlockInputBuffer2(in)
+
+  override def buildOutputBuffer(out: OutputStream): OutputBlockBuffer =
+    new StreamBlockOutputBuffer2(out)
+
+  override def buildCodeInputBuffer(in: Code[InputStream]): Code[InputBlockBuffer] =
+    Code.newInstance[StreamBlockInputBuffer2, InputStream](in)
+
+  override def buildCodeOutputBuffer(out: Code[OutputStream]): Code[OutputBlockBuffer] =
+    Code.newInstance[StreamBlockOutputBuffer2, OutputStream](out)
+
+  override def equals(other: Any): Boolean = other.isInstanceOf[StreamBlockBufferSpec2]
 }
 
 final class StreamBufferSpec extends BufferSpec {

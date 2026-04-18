@@ -36,11 +36,11 @@ object EStructOfArrays {
     val ret = tcoerce[RBaseStruct](r.elementType)
     val fields = et.fields.zip(ret.fields).map { case (TField(name, typ, index), r) =>
       val encodedType = typ match {
-        case TBoolean => EArray(EBoolean(r.typ.required), required = true)
-        case TFloat32 => EArray(EFloat32(r.typ.required), required = true)
-        case TFloat64 => EArray(EFloat64(r.typ.required), required = true)
-        case TInt32 => EArray(EInt32(r.typ.required), required = true)
-        case TInt64 => EArray(EInt64(r.typ.required), required = true)
+        case TBoolean => EArray2(EBoolean(r.typ.required), required = true)
+        case TFloat32 => EArray2(EFloat32(r.typ.required), required = true)
+        case TFloat64 => EArray2(EFloat64(r.typ.required), required = true)
+        case TInt32 => EArray2(EInt32(r.typ.required), required = true)
+        case TInt64 => EArray2(EInt64(r.typ.required), required = true)
       }
       EField(name, encodedType, index)
     }
@@ -96,7 +96,7 @@ final case class EStructOfArrays(
     )
 
     val scratchRegion: Value[Region] = cb.memoize(region.getPool().invoke[Region]("getRegion"))
-    val length = cb.memoize(in.readInt())
+    val length = cb.memoize(in.readVarint())
 
     val arrayPtr = cb.memoize(pt.allocate(region, length))
     cb += Region.setMemory(
@@ -170,7 +170,7 @@ final case class EStructOfArrays(
         val pArray = sv.st.pType.asInstanceOf[PCanonicalArrayBackedContainer].arrayRep
         val r: Value[Region] = // scratch region
           cb.memoize(cb.emb.ecb.pool().invoke[Region]("getRegion"))
-        cb += out.writeInt(sv.length)
+        cb += out.writeVarint(sv.length)
         if (!elementType.required) {
           val nMissingBytes = cb.memoize(pArray.nMissingBytes(sv.length))
           cb += out.writeBytes(sv.a + pArray.missingBytesOffset, nMissingBytes)
@@ -226,7 +226,7 @@ final case class EStructOfArrays(
   }
 
   override def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
-    val length = cb.memoize(in.readInt())
+    val length = cb.memoize(in.readVarint())
     val nMissingBytes =
       cb.memoize(UnsafeUtils.packBitsToBytes(length)) // valid for all top level arrays
     if (!elementType.required)

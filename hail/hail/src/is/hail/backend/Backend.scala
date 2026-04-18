@@ -34,6 +34,9 @@ object Backend {
   ): Unit = {
     assert(t.size == 1)
     val elementType = t.fields(0).typ
+    // fromPythonTypeEncoding (not defaultFromPType / fromTypeAndAnalysis)
+    // because Python's value codec reads ints fixed-width; routing this
+    // through a varint-emitting EType would silently corrupt decodes.
     val codec = TypedCodecSpec(
       EType.fromPythonTypeEncoding(elementType.virtualType),
       elementType.virtualType,

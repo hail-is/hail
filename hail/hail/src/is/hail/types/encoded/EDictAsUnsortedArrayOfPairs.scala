@@ -16,7 +16,7 @@ final case class EDictAsUnsortedArrayOfPairs(
 ) extends EContainer {
   assert(elementType.isInstanceOf[EBaseStruct])
 
-  private[this] val arrayRepr = EArray(elementType, required)
+  private[this] val arrayRepr = EArray2(elementType, required)
 
   override def _decodedSType(requestedType: Type): SType = {
     val elementPType = elementType.decodedPType(requestedType.asInstanceOf[TContainer].elementType)
