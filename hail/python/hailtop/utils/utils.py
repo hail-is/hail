@@ -11,6 +11,7 @@ import secrets
 import socket
 import subprocess
 import sys
+import threading
 import time
 import traceback
 import urllib.parse
@@ -197,7 +198,20 @@ def ait_to_blocking(ait: AsyncIterator[T]) -> Iterator[T]:
 
 
 async def blocking_to_async(thread_pool: concurrent.futures.Executor, fun: Callable[..., T], *args, **kwargs) -> T:
-    return await asyncio.get_running_loop().run_in_executor(thread_pool, lambda: fun(*args, **kwargs))
+    _bta_log = logging.getLogger('hailtop.utils.blocking_to_async')
+    pool_shutdown = getattr(thread_pool, '_shutdown', 'unknown')
+    pool_threads = len(getattr(thread_pool, '_threads', []))
+    _bta_log.info(
+        'blocking_to_async: submitting %s to pool=%s _shutdown=%s threads=%d caller_thread=%s',
+        getattr(fun, '__name__', repr(fun)),
+        thread_pool,
+        pool_shutdown,
+        pool_threads,
+        threading.current_thread().name,
+    )
+    result = await asyncio.get_running_loop().run_in_executor(thread_pool, lambda: fun(*args, **kwargs))
+    _bta_log.info('blocking_to_async: done %s', getattr(fun, '__name__', repr(fun)))
+    return result
 
 
 async def bounded_gather(
