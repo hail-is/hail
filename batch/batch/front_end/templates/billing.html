@@ -26,6 +26,40 @@
       MM/DD/YYYY. Leave End empty to include currently running batches. If End is not empty,
       then no currently running batches are included. All dates search for batches that have
       completed within that time interval (inclusive).</p>
+
+    <details class='mt-4 border rounded'>
+      <summary class='p-3 cursor-pointer font-medium select-none'>Export to spreadsheet</summary>
+      <div class='p-4 space-y-3'>
+        <p class='text-sm text-zinc-500'>
+          Dates: <span class='font-medium'>{{ start }}</span> to
+          <span class='font-medium'>{{ end or today }}</span>
+        </p>
+
+        {% if is_developer %}
+        <div class='space-y-1 text-sm'>
+          <label class='flex items-center gap-2 cursor-pointer'>
+            <input type='radio' name='export-grouping' value='by-project' checked> By Billing Project
+          </label>
+          <label class='flex items-center gap-2 cursor-pointer'>
+            <input type='radio' name='export-grouping' value='by-user'> By User
+          </label>
+          <label class='flex items-center gap-2 cursor-pointer'>
+            <input type='radio' name='export-grouping' value='by-project-user'> By Billing Project and User
+          </label>
+        </div>
+        {% else %}
+        <p class='text-sm flex items-center gap-2'>
+          <span class='text-green-600 font-bold'>&#10003;</span> By Billing Project and User
+        </p>
+        {% endif %}
+
+        <button id='billing-export-btn'
+          class='bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-sm'>
+          Download CSV
+        </button>
+        <p id='billing-export-status' class='text-sm text-zinc-500 hidden'></p>
+      </div>
+    </details>
   </div>
   <div class='bg-slate-100 border rounded overflow-hidden lg:basis-1/2'>
     <div class='text-xl m-4'>
@@ -90,4 +124,5 @@
     </div>
   </div>
 </div>
+<script defer src="{{ base_path }}/batch/static/js/billing.js"></script>
 {% endblock %}
