@@ -3039,11 +3039,23 @@ async def ui_get_billing(request, userdata):
         'billing_by_project_user': billing_by_project_user,
         'start': start,
         'end': end,
+        'today': datetime.datetime.now().strftime('%m/%d/%Y'),
         'is_developer': is_developer,
         'user': userdata['username'],
         'total_cost': total_cost,
     }
     return await render_template('batch', request, userdata, 'billing.html', page_context)
+
+
+@routes.get('/api/v1alpha/billing')
+@auth.authenticated_users_only()
+async def api_get_billing(request, userdata):
+    is_developer = userdata['is_developer'] == 1
+    user = userdata['username'] if not is_developer else None
+    billing, _, _ = await _query_billing(request, user=user)
+    return json_response([
+        {'billing_project': r['billing_project'], 'user': r['user'], 'total_spent': r['cost']} for r in billing
+    ])
 
 
 @routes.get('/billing_projects')
