@@ -10,8 +10,8 @@ import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerValue}
-import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Value}
 import is.hail.types.physical.stypes.interfaces.SIndexableValue
+import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Value}
 import is.hail.types.virtual._
 
 final case class EArray(

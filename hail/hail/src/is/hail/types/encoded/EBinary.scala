@@ -8,8 +8,8 @@ import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.physical.stypes.concrete._
-import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Value}
 import is.hail.types.physical.stypes.interfaces.{SBinary, SBinaryValue, SString}
+import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Value}
 import is.hail.types.virtual._
 
 case object EBinaryOptional extends EBinary(false, EInt32Required)
