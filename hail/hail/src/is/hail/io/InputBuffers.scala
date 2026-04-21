@@ -59,33 +59,45 @@ trait InputBuffer extends Closeable {
   def readBoolean(): Boolean = readByte() != 0
 
   def readVarint(): Int = {
+    var count = 1
     var b: Byte = readByte()
     var x: Int = b & 0x7f
     var shift: Int = 7
-    while ((b & 0x80) != 0) {
+    while ((b & 0x80) != 0 && count <= 5) {
       b = readByte()
       x |= ((b & 0x7f) << shift)
       shift += 7
+      count += 1
     }
-    x
+    if (count <= 5)
+      x
+    else
+      throw new RuntimeException(s"Invalid variable length int, longer than 5 bytes")
   }
 
   def readVarintLong(): Long = {
+    var count = 1
     var b: Byte = readByte()
     var x: Long = b & 0x7fL
     var shift: Int = 7
-    while ((b & 0x80) != 0) {
+    while ((b & 0x80) != 0 && count <= 10) {
       b = readByte()
       x |= ((b & 0x7fL) << shift)
       shift += 7
+      count += 1
     }
-    x
+    if (count <= 10)
+      x
+    else
+      throw new RuntimeException(s"Invalid variable length long, longer than 10 bytes")
   }
 
   def skipVarint(): Unit = {
-    var b: Byte = readByte()
-    while ((b & 0x80) != 0)
-      b = readByte()
+    var count = 1
+    while ((readByte() & 0x80) != 0 && count <= 10)
+      count += 1
+    if (count > 10)
+      throw new RuntimeException(s"Invalid variable length number, longer than 10 bytes")
   }
 }
 

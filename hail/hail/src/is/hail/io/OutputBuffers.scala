@@ -49,24 +49,26 @@ trait OutputBuffer extends Closeable {
 
   def writeVarint(i: Int): Unit = {
     var j = i
-    do {
+    while ({
       var b = j & 0x7f
       j >>>= 7
       if (j != 0)
         b |= 0x80
       writeByte(b.toByte)
-    } while (j != 0)
+      j != 0
+    }) {}
   }
 
   def writeVarintLong(l: Long): Unit = {
     var j = l
-    do {
-      var b = (j & 0x7fL).toInt
+    while ({
+      var b = j & 0x7f
       j >>>= 7
       if (j != 0)
         b |= 0x80
       writeByte(b.toByte)
-    } while (j != 0)
+      j != 0
+    }) {}
   }
 }
 
@@ -275,13 +277,14 @@ final class StreamBlockOutputBuffer2(out: OutputStream) extends OutputBlockBuffe
 
   override def writeBlock(buf: Array[Byte], len: Int): Unit = {
     var j = len
-    do {
+    while ({
       var b = j & 0x7f
       j >>>= 7
       if (j != 0)
         b |= 0x80
       out.write(b)
-    } while (j != 0)
+      j != 0
+    }) {}
     out.write(buf, 0, len)
   }
 
