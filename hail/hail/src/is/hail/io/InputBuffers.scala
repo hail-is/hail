@@ -59,34 +59,30 @@ trait InputBuffer extends Closeable {
   def readBoolean(): Boolean = readByte() != 0
 
   def readVarint(): Int = {
-    var count = 1
     var b: Byte = readByte()
     var x: Int = b & 0x7f
     var shift: Int = 7
-    while ((b & 0x80) != 0 && count <= 5) {
+    while ((b & 0x80) != 0 && shift <= 5 * 7) {
       b = readByte()
       x |= ((b & 0x7f) << shift)
       shift += 7
-      count += 1
     }
-    if (count <= 5)
+    if (shift <= 5 * 7)
       x
     else
       throw new RuntimeException(s"Invalid variable length int, longer than 5 bytes")
   }
 
   def readVarintLong(): Long = {
-    var count = 1
     var b: Byte = readByte()
     var x: Long = b & 0x7fL
     var shift: Int = 7
-    while ((b & 0x80) != 0 && count <= 10) {
+    while ((b & 0x80) != 0 && shift <= 10 * 7) {
       b = readByte()
       x |= ((b & 0x7fL) << shift)
       shift += 7
-      count += 1
     }
-    if (count <= 10)
+    if (shift <= 10 * 7)
       x
     else
       throw new RuntimeException(s"Invalid variable length long, longer than 10 bytes")
@@ -520,12 +516,13 @@ final class StreamBlockInputBuffer2(in: InputStream) extends InputBlockBuffer {
     if (b < 0) fatal("Premature end of file while reading varint block length")
     var len: Int = b & 0x7f
     var shift: Int = 7
-    while ((b & 0x80) != 0) {
+    while ((b & 0x80) != 0 && shift <= 5 * 7) {
       b = in.read()
       if (b < 0) fatal("Premature end of file while reading varint block length")
       len |= ((b & 0x7f) << shift)
       shift += 7
     }
+    assert(shift <= 5 * 7)
     assert(len >= 0)
     assert(len <= buf.length)
     in.readFully(buf, 0, len)

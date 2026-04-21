@@ -393,11 +393,8 @@ object EType extends Logging {
       )
   }
 
-  // ETypes for values that the Python value codec (python/hail/expr/types.py, ByteReader at
-  // python/hail/utils/byte_reader.py) will read or has written. Ints MUST be fixed-width because
-  // the Python codec uses read_int32/read_int64; varint lengths on EArray2/EBinary2 are matched by
-  // the Python read_varint added on the corresponding length sites. Keep everything here funneled
-  // through intEType so the fixed-width invariant cannot drift away from this function.
+  // key difference from defaultFromPType is that python doesn't read or write
+  // varints aside from lengths of arrays
   def fromPythonTypeEncoding(t: Type): EType = t match {
     case TInt32 | TInt64 | TCall => intEType(t, required = false, useVarint = false)
     case TFloat32 => EFloat32(false)

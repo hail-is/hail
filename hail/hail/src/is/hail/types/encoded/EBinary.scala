@@ -18,7 +18,7 @@ case object EBinaryRequired extends EBinary(true, EInt32Required)
 case object EBinary2Optional extends EBinary(false, EVarintRequired)
 case object EBinary2Required extends EBinary(true, EVarintRequired)
 
-class EBinary(override val required: Boolean, lengthEType: EType) extends EType {
+class EBinary(override val required: Boolean, lengthEType: EIntegral) extends EType {
   def writeLength(cb: EmitCodeBuilder, out: Value[OutputBuffer], len: Code[Int]): Unit = {
     val lsv = new SInt32Value(cb.memoize(len))
     lengthEType.buildEncoder(SInt32, cb.emb.ecb).apply(cb, lsv, out)

@@ -17,7 +17,7 @@ import is.hail.types.virtual._
 final case class EArray(
   override val elementType: EType,
   override val required: Boolean = false,
-  lengthEType: EType,
+  lengthEType: EIntegral,
 ) extends EContainer {
   def writeLength(cb: EmitCodeBuilder, out: Value[OutputBuffer], len: Code[Int]): Unit = {
     val lsv = new SInt32Value(cb.memoize(len))

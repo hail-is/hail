@@ -14,7 +14,7 @@ import is.hail.types.virtual._
 case object EVarintOptional extends EVarint(false)
 case object EVarintRequired extends EVarint(true)
 
-class EVarint(override val required: Boolean) extends EType {
+class EVarint(override val required: Boolean) extends EIntegral {
   override def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit =
     v.st match {
       case _: SCall => cb += out.writeVarint(v.asInstanceOf[SCallValue].canonicalCall(cb))

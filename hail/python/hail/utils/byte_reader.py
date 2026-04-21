@@ -43,13 +43,14 @@ class ByteReader:
     def read_varint(self) -> int:
         result = 0
         shift = 0
-        while True:
+        while shift < 7 * 10:
             b = self._memview[self._offset]
             self._offset += 1
             result |= (b & 0x7F) << shift
             if (b & 0x80) == 0:
                 return result
             shift += 7
+        raise ValueError('Invalid variable length integer, longer than 10 bytes')
 
 
 class ByteWriter:
