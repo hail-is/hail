@@ -289,7 +289,6 @@ class ETypeSuite extends HailSuite {
       case _: EVarint =>
         throw new AssertionError(s"unexpected EVarint inside $et for virtual $virt")
       case s: EBaseStruct => s.fields.foreach(f => assertNoVarint(f.typ, virt))
-      case a: EArray2 => assertNoVarint(a.elementType, virt)
       case a: EArray => assertNoVarint(a.elementType, virt)
       case c: EContainer => assertNoVarint(c.elementType, virt)
       case nd: ENDArrayColumnMajor => assertNoVarint(nd.elementType, virt)
