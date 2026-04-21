@@ -3,7 +3,7 @@
     if (!exportBtn) return;
 
     var statusEl = document.getElementById('billing-export-status');
-    var basePath = '{{ base_path }}';
+    var basePath = (document.getElementById('billing-js') || {}).dataset?.basePath ?? '';
 
     function toIso(mmddyyyy) {
         if (!mmddyyyy) {
