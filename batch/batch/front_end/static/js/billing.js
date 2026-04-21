@@ -27,29 +27,29 @@
 
     function toCsv(rows, columns) {
         var lines = [columns.join(',')];
-        for (var i = 0; i < rows.length; i++) {
-            lines.push(columns.map(function (col) { return csvEscape(rows[i][col]); }).join(','));
-        }
+        rows.forEach(function (row) {
+            lines.push(columns.map(function (col) { return csvEscape(row.get(col)); }).join(','));
+        });
         return lines.join('\n');
     }
 
     function groupByProject(records) {
-        var acc = {};
+        var acc = new Map();
         records.forEach(function (r) {
-            acc[r.billing_project] = (acc[r.billing_project] || 0) + r.total_spent;
+            acc.set(r.billing_project, (acc.get(r.billing_project) || 0) + r.total_spent);
         });
-        return Object.keys(acc).sort().map(function (bp) {
-            return { billing_project: bp, total_spent: acc[bp] };
+        return Array.from(acc.keys()).sort().map(function (bp) {
+            return new Map([['billing_project', bp], ['total_spent', acc.get(bp)]]);
         });
     }
 
     function groupByUser(records) {
-        var acc = {};
+        var acc = new Map();
         records.forEach(function (r) {
-            acc[r.user] = (acc[r.user] || 0) + r.total_spent;
+            acc.set(r.user, (acc.get(r.user) || 0) + r.total_spent);
         });
-        return Object.keys(acc).sort().map(function (u) {
-            return { user: u, total_spent: acc[u] };
+        return Array.from(acc.keys()).sort().map(function (u) {
+            return new Map([['user', u], ['total_spent', acc.get(u)]]);
         });
     }
 
@@ -59,15 +59,15 @@
                 return a.billing_project < b.billing_project ? -1 : 1;
             }
             return a.user < b.user ? -1 : 1;
+        }).map(function (r) {
+            return new Map([['billing_project', r.billing_project], ['user', r.user], ['total_spent', r.total_spent]]);
         });
     }
 
     function getGrouping() {
         var radios = document.querySelectorAll('input[name="export-grouping"]');
-        for (var i = 0; i < radios.length; i++) {
-            if (radios[i].checked) return radios[i].value;
-        }
-        return 'by-project-user';
+        var checked = Array.from(radios).find(function (r) { return r.checked; });
+        return checked ? checked.value : 'by-project-user';
     }
 
     function triggerDownload(csvText, filename) {
