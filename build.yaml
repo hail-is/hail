@@ -747,6 +747,7 @@ steps:
       - merge_code
   - kind: runImage
     name: check_ui
+    description: Run TypeScript type checks and linting (npm run check) for the services/ui frontend; no deployment required.
     watchedPaths:
       - services/ui/
     image: node:20-slim@sha256:a82f40540f5959e0003fb7b3c0f80490def2927be8bdbee7e3e0ac65cce3be92
@@ -1066,6 +1067,7 @@ steps:
       - merge_code
   - kind: runImage
     name: test_hail_java
+    description: Run the Hail JVM integration suite (TestNG) against the compiled Scala debug test JAR; runs in-process.
     watchedPaths:
       - hail/hail/
       - hail/build.mill
@@ -1106,6 +1108,7 @@ steps:
       - build_hail_test_artifacts
   - kind: runImage
     name: test_hail_python
+    description: Run the Hail Python integration suite (pytest) against the debug wheel using an in-process local Spark session.
     watchedPaths:
       - hail/python/hail/
       - hail/python/test/hail/
@@ -1174,6 +1177,7 @@ steps:
       - gcp
   - kind: runImage
     name: test_hailtop_python_fs
+    description: Run the hailtop inter-cloud filesystem integration suite (pytest) against GCS and S3; no deployment required.
     watchedPaths:
       - hail/python/hailtop/
       - gear/
@@ -1230,6 +1234,7 @@ steps:
       - gcp
   - kind: runImage
     name: test_hail_python_unchecked_allocator
+    description: Run the Hail Python integration suite (pytest, unchecked_allocator-marked tests only) against the release wheel using an in-process local Spark session.
     watchedPaths:
       - hail/python/hail/
       - hail/python/test/hail/
@@ -1291,6 +1296,7 @@ steps:
       - gcp
   - kind: runImage
     name: test_hail_python_local_backend
+    description: Run the Hail Python integration suite (pytest) against the debug wheel using the local JVM backend (not Spark).
     watchedPaths:
       - hail/python/hail/
       - hail/python/test/hail/
@@ -1363,6 +1369,7 @@ steps:
       - build_hail_test_artifacts
   - kind: runImage
     name: test_python_docs
+    description: Run the Hail Python doctest suite (pytest --doctest-modules) against the release wheel using an in-process local Spark session.
     watchedPaths:
       - hail/python/hail/docs/
       - hail/python/hail/
@@ -1557,6 +1564,7 @@ steps:
       - hail_ubuntu_image_python_3_13
   - kind: runImage
     name: test_hailgenetics_hail_image
+    description: Smoke-test the Python 3.11 hailgenetics/hail Docker image by verifying the Python version, a basic Hail operation, and scientific library imports (numpy, pandas, sklearn, scipy).
     watchedPaths:
       - hail/hail/
       - hail/python/hail/
@@ -1574,6 +1582,7 @@ steps:
       - hailgenetics_hail_image
   - kind: runImage
     name: test_hailgenetics_hail_image_python_3_10
+    description: Smoke-test the Python 3.10 hailgenetics/hail Docker image by verifying the Python version, a basic Hail operation, and scientific library imports.
     watchedPaths:
       - hail/hail/
       - hail/python/hail/
@@ -1591,6 +1600,7 @@ steps:
       - hailgenetics_hail_image_python_3_10
   - kind: runImage
     name: test_hailgenetics_hail_image_python_3_12
+    description: Smoke-test the Python 3.12 hailgenetics/hail Docker image by verifying the Python version, a basic Hail operation, and scientific library imports.
     watchedPaths:
       - hail/hail/
       - hail/python/hail/
@@ -1608,6 +1618,7 @@ steps:
       - hailgenetics_hail_image_python_3_12
   - kind: runImage
     name: test_hailgenetics_hail_image_python_3_13
+    description: Smoke-test the Python 3.13 hailgenetics/hail Docker image by verifying the Python version, a basic Hail operation, and scientific library imports.
     watchedPaths:
       - hail/hail/
       - hail/python/hail/
@@ -1678,6 +1689,7 @@ steps:
       - hail_ubuntu_image
   - kind: runImage
     name: check_pip_requirements
+    description: Verify that pip dependency pins are consistent and up to date (make check-pip-requirements); no deployment required.
     watchedPaths:
       - hail/python/dev/pinned-requirements.txt
       - pyproject.toml
@@ -1696,6 +1708,7 @@ steps:
       - merge_code
   - kind: runImage
     name: check_services
+    description: Run lint and type checks (ruff, pyright, curlylint via make check-services) across all service packages (auth, batch, ci, gear, monitoring, web_common, hailtop); no deployment required.
     watchedPaths:
       - auth/
       - batch/
@@ -1722,6 +1735,7 @@ steps:
       - merge_code
   - kind: runImage
     name: check_hail
+    description: Run lint and type checks (ruff, pyright, pylint, scalafmt via make check-hail) across the hail Python package and Scala source; no deployment required.
     watchedPaths:
       - hail/
       - pyproject.toml
@@ -1750,6 +1764,7 @@ steps:
       - merge_code
   - kind: runImage
     name: compile_hail_213
+    description: Compile the hail Scala source under Scala 2.13 (Mill) to verify cross-version compatibility; no deployment required.
     watchedPaths:
       - hail/hail/
       - hail/build.mill
@@ -1772,6 +1787,7 @@ steps:
       - merge_code
   - kind: runImage
     name: get_pip_versioned_docs
+    description: Fetch the versioned Hail docs from GCS if the current version tag exists, otherwise package the freshly-built docs; no deployment required.
     watchedPaths:
       - hail/python/requirements.txt
       - hail/python/pinned-requirements.txt
@@ -1977,6 +1993,7 @@ steps:
       - gcp
   - kind: runImage
     name: test_monitoring
+    description: Run the monitoring service integration suite (pytest) against a live deployed monitoring instance.
     watchedPaths:
       - monitoring/
       - gear/
@@ -2020,6 +2037,7 @@ steps:
       - gcp
   - kind: runImage
     name: test_auth_copy_paste_login
+    description: Test the copy-paste login flow (including one-time-use token enforcement) using hailctl and hailtop Python against a live deployed auth instance.
     watchedPaths:
       - auth/
       - gear/
@@ -2086,6 +2104,7 @@ steps:
       - hailgenetics_hailtop_image
   - kind: runImage
     name: test_auth_copy_paste_login_timeout
+    description: Test that copy-paste login tokens expire after 5 minutes using hailctl and hailtop Python against a live deployed auth instance.
     watchedPaths:
       - auth/
       - gear/
@@ -2665,6 +2684,7 @@ steps:
       - create_test_gsa_keys
   - kind: runImage
     name: test_hail_python_service_backend_gcp
+    description: Run the Hail Python integration suite (pytest) against the release wheel using the Batch service backend on GCP; requires a live deployed Batch instance.
     watchedPaths:
       - hail/python/hail/
       - hail/python/test/hail/
@@ -2743,6 +2763,7 @@ steps:
       - gcp
   - kind: runImage
     name: test_hail_spark_conf_requester_pays_parsing
+    description: Run a targeted pytest suite against the release wheel to verify Spark requester-pays configuration parsing.
     watchedPaths:
       - hail/python/hail/
       - hail/hail/
@@ -2823,6 +2844,7 @@ steps:
       - hail_ubuntu_image
   - kind: runImage
     name: test_batch
+    description: Run the Batch service integration suite (pytest) against a live deployed Batch instance.
     watchedPaths:
       - batch/
       - gear/
@@ -2904,6 +2926,7 @@ steps:
       - gpu_image
   - kind: runImage
     name: test_batch_job_private_machines
+    description: Run the Batch integration suite (pytest) for private-machine job configurations against a live deployed Batch instance.
     watchedPaths:
       - batch/
       - gear/
@@ -2982,6 +3005,7 @@ steps:
       - hail_ubuntu_image
   - kind: runImage
     name: test_auth
+    description: Run the auth service integration suite (pytest) against a live deployed auth instance.
     watchedPaths:
       - auth/
       - gear/
@@ -3166,6 +3190,7 @@ steps:
       - hail_buildkit_image
   - kind: runImage
     name: test_ci_unit
+    description: Run the CI service unit suite (pytest) against CI source; no live deployment required.
     watchedPaths:
       - ci/
     resources:
@@ -3199,6 +3224,7 @@ steps:
       - ci_image
   - kind: runImage
     name: test_ci
+    description: Run the CI service integration suite (pytest) against a live deployed CI instance and a temporary test GitHub repo.
     watchedPaths:
       - ci/
       - gear/
@@ -3247,6 +3273,7 @@ steps:
       - create_ci_test_repo
   - kind: runImage
     name: test_hailtop_python
+    description: Run the hailtop Python integration suite (pytest) from the debug wheel, including Batch client tests that require a live deployed Batch instance.
     watchedPaths:
       - hail/python/hailtop/
       - hail/python/test/hailtop/
@@ -3314,6 +3341,7 @@ steps:
       - deploy_batch
   - kind: runImage
     name: test_hailctl_batch
+    description: Run an end-to-end smoke test for hailctl batch submit (submits a Hail query job and verifies output) against a live deployed Batch instance.
     watchedPaths:
       - hail/python/hailtop/
       - batch/
@@ -3411,6 +3439,7 @@ steps:
       - deploy_batch
   - kind: runImage
     name: test_batch_docs
+    description: Run the hailtop Batch Python client doctest suite (pytest --doctest-modules) against a live deployed Batch instance.
     watchedPaths:
       - hail/python/hailtop/
       - batch/
@@ -3809,6 +3838,7 @@ steps:
       - gcp
   - kind: runImage
     name: test_website
+    description: Smoke-test the website service by fetching its root URL via hailctl curl; requires a live deployed website instance.
     watchedPaths:
       - website/
     image:
@@ -3835,6 +3865,7 @@ steps:
       - gcp
   - kind: runImage
     name: test_hail_scala_fs
+    description: Run the Hail Scala filesystem integration suite (TestNG, testng-fs.xml) against the debug test JAR and GCS; requires cloud storage access.
     watchedPaths:
       - hail/hail/
       - hail/build.mill
@@ -3893,6 +3924,7 @@ steps:
       - upload_test_resources_to_blob_storage
   - kind: runImage
     name: test_hail_services_java
+    description: Run the Hail services JVM integration suite (TestNG, testng-services.xml) against the debug test JAR; requires a live deployed Batch instance.
     watchedPaths:
       - hail/hail/
       - hail/build.mill
@@ -4035,6 +4067,7 @@ steps:
       - test_hailctl_batch
   - kind: runImage
     name: test_batch_invariants
+    description: Run the Batch scheduling invariants test (pytest) against a live deployed Batch instance.
     watchedPaths:
       - batch/
       - gear/
