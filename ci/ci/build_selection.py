@@ -17,9 +17,9 @@ class BuildSelectionResult:
 
     Attributes:
         requested_steps: Sorted list of step names that should run.
-        full_retest_triggers: Sorted list of changed files that matched no
-            watchedPaths pattern (and therefore caused all watched steps to be
-            included as a fallback).
+        full_retest_triggers: Sorted list of changed files that matched a
+            fullRetestPaths pattern (and therefore caused all watched steps to
+            be included).
     """
 
     requested_steps: List[str] = field(default_factory=list)
@@ -115,10 +115,11 @@ def compute_requested_steps(config_str: str, changed_files: List[str]) -> BuildS
     """Return step selection results given a list of changed file paths.
 
     - alwaysRunSteps are always included when changed_files is non-empty.
-    - Files matching unwatchedPaths contribute nothing beyond the always-run set.
+    - Files matching unwatchedPaths are skipped (explicit no-op list, e.g. doc extensions).
+    - Files matching fullRetestPaths add all watched steps and are recorded in
+      full_retest_triggers for observability.
     - Files matching a step's watchedPaths add that step.
-    - Files matching no step's watchedPaths (fallback) add all watched steps and
-      are recorded in full_retest_triggers for observability.
+    - Files matching none of the above contribute nothing (safe default).
     - Returns an empty BuildSelectionResult when changed_files is empty.
     """
     if not changed_files:
@@ -126,24 +127,25 @@ def compute_requested_steps(config_str: str, changed_files: List[str]) -> BuildS
 
     config = yaml.safe_load(config_str)
     unwatched: List[str] = config.get('unwatchedPaths', [])
+    full_retest: List[str] = config.get('fullRetestPaths', [])
     always_run: List[str] = config.get('alwaysRunSteps', [])
     watched_steps = [s for s in config['steps'] if s.get('watchedPaths')]
 
     target: Set[str] = set(always_run)
     all_watched_names = {s['name'] for s in watched_steps}
-    fallthrough: List[str] = []
+    full_retest_triggers: List[str] = []
 
     for f in changed_files:
         if any(_path_matches(f, p) for p in unwatched):
             continue
+        if any(_path_matches(f, p) for p in full_retest):
+            target |= all_watched_names
+            full_retest_triggers.append(f)
+            continue
         matched = {s['name'] for s in watched_steps if any(_path_matches(f, p) for p in s['watchedPaths'])}
-        if matched:
-            target |= matched
-        else:
-            target |= all_watched_names  # unknown file → run everything
-            fallthrough.append(f)
+        target |= matched  # unknown file → nothing
 
     return BuildSelectionResult(
         requested_steps=sorted(target),
-        full_retest_triggers=sorted(fallthrough),
+        full_retest_triggers=sorted(full_retest_triggers),
     )

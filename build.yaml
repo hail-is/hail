@@ -1,14 +1,32 @@
+# Files that should never trigger tests regardless of which directory they live
+# in. Doc extensions (*.md, *.rst) need to be listed explicitly so they don't
+# match watchedPaths globs for directories that contain them (e.g. batch/*.md).
+# The directory entries are documentary — they'd be skipped by the
+# default-nothing model anyway, but are listed here to make coverage audits
+# easier and to document the intent.
 unwatchedPaths:
-  - dev-docs/
-  - '*.md'
-  - CHANGELOG
-  - CODEOWNERS
-  - LICENSE
-  - .gitattributes
-  - .gitignore
-  - .github/
-  - .mailmap
-  - devbin/
+  - '*.md'   # documentation; explicitly excluded so it doesn't match dir globs
+  - '*.rst'  # documentation; same reason
+  - datasets/           # one-off data ETL scripts; not executed by CI
+  - infra/              # Terraform infrastructure; manually applied, never CI-tested
+  - devbin/             # developer utility scripts; not executed by CI
+  - .github/            # GitHub issue templates and Actions workflows; not Hail CI
+  - gateway/            # unmanaged nginx proxy; manually deployed
+  - internal-gateway/   # unmanaged nginx proxy; manually deployed
+  - bootstrap-gateway/  # unmanaged nginx proxy; manually deployed
+  - letsencrypt/        # TLS cert renewal scripts; manually run
+  - prometheus/         # monitoring config; manually applied
+  - grafana/            # monitoring config; manually applied
+  - admin-pod/          # ops tooling; manually deployed
+
+# Files where any change should trigger a full retest of all watched steps.
+# Use this for files that underpin so many things that per-step watching would
+# require duplicating the pattern across most steps.
+fullRetestPaths:
+  - build.yaml              # CI config itself
+  - docker/hail-ubuntu/     # base image for almost every CI step
+  - docker/Dockerfile.base  # base for build-artifact and service images
+  - tls/                    # cert infrastructure used by batch/auth service tests
 
 alwaysRunSteps:
   - merge_code
@@ -1071,6 +1089,9 @@ steps:
     watchedPaths:
       - hail/hail/
       - hail/build.mill
+      - hail/mill-build/
+      - hail/c
+      - hail/prebuilt/
     numSplits: 5
     image:
       valueFrom: hail_run_image.image
@@ -1110,10 +1131,13 @@ steps:
     name: test_hail_python
     description: Run the Hail Python integration suite (pytest) against the debug wheel using an in-process local Spark session.
     watchedPaths:
-      - hail/python/hail/
-      - hail/python/test/hail/
       - hail/hail/
-      - hail/python/hailtop/
+      - hail/build.mill
+      - hail/mill-build/
+      - hail/c
+      - hail/prebuilt/
+      - hail/python/
+      - hail/Makefile
     numSplits: 28
     image:
       valueFrom: hail_run_image.image
@@ -1181,6 +1205,7 @@ steps:
     watchedPaths:
       - hail/python/hailtop/
       - gear/
+      - docker/hailgenetics/hailtop/
     numSplits: 5
     image:
       valueFrom: hailgenetics_hailtop_image.image
@@ -1571,6 +1596,7 @@ steps:
       - hail/python/requirements.txt
       - hail/python/pinned-requirements.txt
       - hail/python/hailtop/pinned-requirements.txt
+      - docker/hailgenetics/hail/
     image:
       valueFrom: hailgenetics_hail_image.image
     script: |
@@ -1589,6 +1615,7 @@ steps:
       - hail/python/requirements.txt
       - hail/python/pinned-requirements.txt
       - hail/python/hailtop/pinned-requirements.txt
+      - docker/hailgenetics/hail/
     image:
       valueFrom: hailgenetics_hail_image_python_3_10.image
     script: |
@@ -1607,6 +1634,7 @@ steps:
       - hail/python/requirements.txt
       - hail/python/pinned-requirements.txt
       - hail/python/hailtop/pinned-requirements.txt
+      - docker/hailgenetics/hail/
     image:
       valueFrom: hailgenetics_hail_image_python_3_12.image
     script: |
@@ -1625,6 +1653,7 @@ steps:
       - hail/python/requirements.txt
       - hail/python/pinned-requirements.txt
       - hail/python/hailtop/pinned-requirements.txt
+      - docker/hailgenetics/hail/
     image:
       valueFrom: hailgenetics_hail_image_python_3_13.image
     script: |
@@ -2691,6 +2720,7 @@ steps:
       - hail/hail/
       - hail/python/hailtop/
       - batch/
+      - docker/hailgenetics/vep/
     numSplits: 16
     image:
       valueFrom: hail_run_image.image
@@ -2849,6 +2879,7 @@ steps:
       - batch/
       - gear/
       - hail/python/hailtop/
+      - docker/core-site.xml
     numSplits: 5
     image:
       valueFrom: batch_image.image
@@ -2931,6 +2962,7 @@ steps:
       - batch/
       - gear/
       - hail/python/hailtop/
+      - docker/core-site.xml
     numSplits: 1
     image:
       valueFrom: batch_image.image
@@ -3279,6 +3311,7 @@ steps:
       - hail/python/test/hailtop/
       - gear/
       - batch/
+      - docker/hailgenetics/hailtop/
     resources:
       memory: standard
       cpu: '0.25'
@@ -3345,6 +3378,7 @@ steps:
     watchedPaths:
       - hail/python/hailtop/
       - batch/
+      - docker/hailgenetics/hail/
     resources:
       memory: standard
       cpu: '0.25'
