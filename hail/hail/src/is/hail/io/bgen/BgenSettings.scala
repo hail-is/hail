@@ -33,13 +33,12 @@ object BgenSettings {
 
   def getIndexSpec(indexVersion: SemanticVersion, rg: Option[String]): AbstractIndexSpec = {
     val bufferSpec = specFromVersion(indexVersion)
-    val ixV13 = indexVersion >= SemanticVersion(1, 3, 0)
+    val `v1.3` = indexVersion >= SemanticVersion(1, 3, 0)
 
-    def eBinary(required: Boolean): EType = if (ixV13) EBinary2(required) else EBinary(required)
-    def eArray(elt: EType, required: Boolean): EType =
-      if (ixV13) EArray2(elt, required) else EArray(elt, required)
-    def eInt32(required: Boolean): EType = if (ixV13) EVarint(required) else EInt32(required)
-    def eInt64(required: Boolean): EType = if (ixV13) EVarint(required) else EInt64(required)
+    def eInt32(required: Boolean): EType = if (`v1.3`) EVarint(required) else EInt32(required)
+    def eInt64(required: Boolean): EType = if (`v1.3`) EVarint(required) else EInt64(required)
+    def eBinary(required: Boolean): EType = if (`v1.3`) EBinary2(required) else EBinary(required)
+    def eArray(elt: EType, required: Boolean): EType = EArray(elt, required, eInt32(true))
 
     val keyVType = indexKeyType(rg)
     val keyEType = EBaseStruct(
