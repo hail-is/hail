@@ -245,9 +245,11 @@ final case class EArray(
 }
 
 object EArray2 {
-  def apply(elementType: EType, required: Boolean = false): EArray = EArray(elementType, required, EVarintRequired)
+  def apply(elementType: EType, required: Boolean = false): EArray =
+    EArray(elementType, required, EVarintRequired)
 }
 
 object EArray {
-  def apply(elementType: EType, required: Boolean): EArray = EArray(elementType, required, EInt32Required)
+  def apply(elementType: EType, required: Boolean): EArray =
+    EArray(elementType, required, EInt32Required)
 }

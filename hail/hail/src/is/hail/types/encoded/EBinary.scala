@@ -99,5 +99,6 @@ object EBinary {
 }
 
 object EBinary2 {
-  def apply(required: Boolean = false): EBinary = if (required) EBinary2Required else EBinary2Optional
+  def apply(required: Boolean = false): EBinary =
+    if (required) EBinary2Required else EBinary2Optional
 }
