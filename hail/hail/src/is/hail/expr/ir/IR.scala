@@ -47,9 +47,8 @@ trait IR extends BaseIR {
   override def mapChildrenWithIndex(f: (BaseIR, Int) => BaseIR): IR =
     super.mapChildrenWithIndex(f).asInstanceOf[IR]
 
-  override def deepCopy(): this.type = {
-
-    val cp = super.deepCopy()
+  override def unsafeClone: this.type = {
+    val cp = super.unsafeClone
     if (_typ != null)
       cp._typ = _typ
     cp
@@ -69,8 +68,15 @@ package defs {
     override def typ: T = tcoerce[T](super.typ)
   }
 
-  // Mark Refs and constants as IRs that are safe to duplicate
-  trait TrivialIR extends IR
+  // Refs and Constants as IRs that are safe to duplicate
+  trait TrivialIR extends Cloneable { this: IR =>
+    override def clone: IR with TrivialIR = unsafeClone
+  }
+
+  object TrivialIR {
+    implicit def toIR(a: TrivialIR): IR = a.clone
+    implicit def toPrimitiveIr(a: TrivialIR): PrimitiveIR = new PrimitiveIR(a.clone)
+  }
 
   class WrappedByteArrays(val ba: Array[Array[Byte]]) {
     override def hashCode(): Int =
@@ -122,7 +128,7 @@ package defs {
 
   case class Binding(name: Name, value: IR, scope: Int = Scope.EVAL)
 
-  trait BaseRef extends IR with TrivialIR {
+  trait BaseRef extends IR {
     def name: Name
     def _typ: Type
   }
@@ -163,7 +169,7 @@ package defs {
         val rightGrouped = mapIR(rightGroupedStream) { group =>
           bindIR(ToArray(group)) { array =>
             bindIR(ArrayRef(array, 0)) { head =>
-              MakeStruct(rKey.map(key => key -> GetField(head, key)) :+ groupField -> array)
+              MakeStruct(rKey.map(key => key -> GetField(head, key)) :+ groupField -> array.clone)
             }
           }
         }
@@ -888,7 +894,7 @@ package defs {
       lazy val (body, inline): (IR, Boolean) = {
         val ((_, _, _, inline), impl) =
           IRFunctionRegistry.lookupIR(function, typeArgs, args.map(_.typ)).get
-        val body = impl(typeArgs, refs, errorID).deepCopy()
+        val body = impl(typeArgs, refs, errorID).unsafeClone
         (body, inline)
       }
 

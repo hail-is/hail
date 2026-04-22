@@ -343,7 +343,7 @@ object StringFunctions extends RegistryFunctions {
             ),
             If(i < 0, i + len, i),
           )
-        )(idx => invoke("substring", TString, s, idx, idx + 1))
+        )(idx => invoke("substring", TString, s, idx, idx.clone + 1))
       }
     }
 

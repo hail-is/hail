@@ -640,7 +640,7 @@ object Main {
       .withPreamble("override lazy val size: Int = bindings.length + 1")
       .withCompanionExtension
 
-    r += node("Ref", name, _typ().mutable).withTraits(BaseRef)
+    r += node("Ref", name, _typ().mutable).withTraits(BaseRef, TrivialIR)
 
     r += node(
       "TailLoop",
@@ -659,7 +659,7 @@ object Main {
     r += node("Recur", name, in("args", child.*), _typ().mutable).withTraits(BaseRef)
 
     r += node("RelationalLet", name, in("value", child), in("body", child))
-    r += node("RelationalRef", name, _typ()).withTraits(BaseRef)
+    r += node("RelationalRef", name, _typ()).withTraits(BaseRef, TrivialIR)
 
     r += node("ApplyBinaryPrimOp", in("op", att("BinaryOp")), in("l", child), in("r", child))
     r += node("ApplyUnaryPrimOp", in("op", att("UnaryOp")), in("x", child))
@@ -1082,7 +1082,9 @@ object Main {
     r += node("GetTupleElement", in("o", child), in("idx", att("Int")))
 
     r += node("In", in("i", att("Int")), in("_typ", att("EmitParamType")))
-      .withDocstring("Function input").withCompanionExtension
+      .withTraits(TrivialIR)
+      .withDocstring("Function input")
+      .withCompanionExtension
 
     r += node("Die", in("message", child), in("_typ", att("Type")), errorID).withCompanionExtension
     r += node("ConsoleLog", in("message", child), in("result", child))

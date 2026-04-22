@@ -6,7 +6,7 @@ import is.hail.asm4s.implicits.toRichCodeIterator
 import is.hail.backend.ExecuteContext
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.LoweredTableReader.LoweredTableReaderCoercer
-import is.hail.expr.ir.defs.{Literal, PartitionReader, ReadPartition, ToStream}
+import is.hail.expr.ir.defs.{Literal, PartitionReader, ReadPartition, ToStream, TrivialIR}
 import is.hail.expr.ir.functions.UtilFunctions
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.expr.ir.streams.StreamProducer
@@ -182,7 +182,7 @@ class GenericTableValue(
   def toTableStage(ctx: ExecuteContext, requestedType: TableType, context: String, cacheKey: Any)
     : TableStage = {
     val globalsIR = Literal(requestedType.globalType, globals(requestedType.globalType))
-    val requestedBody: (IR) => (IR) = (ctx: IR) =>
+    val requestedBody: TrivialIR => IR = ctx =>
       ReadPartition(
         ctx,
         requestedType.rowType,

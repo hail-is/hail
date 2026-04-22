@@ -7,8 +7,8 @@ import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.DeprecatedIRBuilder._
 import is.hail.expr.ir.defs.{
   AggFilter, AggGroupBy, ApplyAggOp, ApplyBinaryPrimOp, ArrayRef, Cast, GetField, I32, InsertFields,
-  MakeStruct, MakeTuple, Ref, Str, StreamAgg, StreamAggScan, StreamRange, TableAggregate, ToArray,
-  ToStream,
+  MakeStruct, MakeTuple, PrimitiveIR, Ref, Str, StreamAgg, StreamAggScan, StreamRange,
+  TableAggregate, ToArray, ToStream,
 }
 import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR}
 import is.hail.types.virtual._
@@ -1286,16 +1286,18 @@ class AggregatorsSuite extends HailSuite {
   }
 
   @Test def testFoldAgg(): Unit = {
-    val myIR = streamAggIR(
-      mapIR(rangeIR(100))(idx => makestruct(("idx", idx), ("unused", idx + idx)))
-    )(foo => aggFoldIR(I32(0))(_ + GetField(foo, "idx"))(_ + _))
+    val myIR =
+      streamAggIR(
+        mapIR(rangeIR(100))(idx => makestruct("idx" -> idx, "unused" -> idx * 2))
+      )(foo => aggFoldIR(I32(0))(_.clone + GetField(foo, "idx"))((a, b) => (a: PrimitiveIR) + b))
+
     assertEvalsTo(myIR, 4950)
 
     val myTableIR = TableAggregate(
       TableRange(100, 5),
-      aggFoldIR(I32(0)) { bar =>
-        bar + GetField(Ref(TableIR.rowName, TStruct("idx" -> TInt32)), "idx")
-      }(_ + _),
+      aggFoldIR(I32(0))(_.clone + GetField(Ref(TableIR.rowName, TStruct("idx" -> TInt32)), "idx"))(
+        (a, b) => (a: PrimitiveIR) + b
+      ),
     )
 
     val analyses = LoweringAnalyses.apply(myTableIR, ctx)
@@ -1309,9 +1311,11 @@ class AggregatorsSuite extends HailSuite {
 
     val myIR = ToArray(
       StreamAggScan(
-        mapIR(rangeIR(10))(idx => makestruct(("idx", idx), ("unused", idx + idx))),
+        mapIR(rangeIR(10))(idx => makestruct("idx" -> idx, "unused" -> idx * 2)),
         foo.name,
-        aggFoldIR(I32(0), isScan = true)(bar => bar + GetField(foo, "idx"))(_ + _),
+        aggFoldIR(I32(0), isScan = true)(_.clone + GetField(foo, "idx"))((a, b) =>
+          (a: PrimitiveIR) + b
+        ),
       )
     )
     assertEvalsTo(myIR, IndexedSeq(0, 0, 1, 3, 6, 10, 15, 21, 28, 36))
