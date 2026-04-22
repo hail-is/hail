@@ -1,15 +1,16 @@
-name: Create Release PR
+name: Create Patch Release
 on:
   workflow_dispatch:
   schedule:
-    # Midnight on the 1st of every 2nd month
-    - cron: 0 0 1 */2 *
+    # At 00:00 on the 20th of every 3rd month from February through November.
+    - cron: 0 0 20 2/3 *
 jobs:
   create-release-pr:
     if: github.repository == 'hail-is/hail'
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      issues: write
       pull-requests: write
     defaults:
       run:
@@ -30,7 +31,7 @@ jobs:
           
           echo "old=${prefix}.${patch}" >> "${GITHUB_OUTPUT}"
           echo "new=${prefix}.${n}" >> "${GITHUB_OUTPUT}"
-          echo "next=${prefix}.$((n + 1))" >> "${GITHUB_OUTPUT}"
+          echo "fut=${prefix}.$((n + 3))" >> "${GITHUB_OUTPUT}"
 
       - name: Generate Changelog Entries
         working-directory: hail
@@ -57,24 +58,44 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          cat << 'EOF' | gh pr create --base=main --head=$(git branch --show-current) --draft --fill -F -
-          # Release Checklist (delete before merge)
+          issue_number=$(gh issue list \
+            --search '"[release] ${{ steps.version.outputs.new }}" in:title' \
+            --state open \
+            --limit 1 \
+            --json number \
+            --jq '.[0].number')
           
-          - [ ] Verify new PATCH version is correct 
+          if [ -z "$issue_number" ] || [ "$issue_number" = "null" ]; then
+            echo "Error: No matching issue found for version ${{ steps.version.outputs.new }}"
+            exit 1
+          fi
+
+          cat << EOF | gh pr create --base=main --head=$(git branch --show-current) --draft --fill -F -
+          Closes #${issue_number}
+
+          # Release Checklist (delete before merge)
+
+          - [ ] Verify new PATCH version is correct
           - [ ] Organise / format / expand / delete new entries from
             - [ ] hail/python/hail/docs/change_log.md
             - [ ] hail/python/hailtop/batch/docs/change_log.rst
-          
+
           # Security Assessment
           This change has low security impact as:
           - there are no functional changes herein
           - all changes since the last release have an approved security impact assessment.
           EOF
           
-      - name: Create Next Milestone ${{ steps.version.outputs.next }}
+      - name: Create Future Milestone ${{ steps.version.outputs.fut }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh api -X POST "/repos/${GITHUB_REPOSITORY}/milestones" \
-            -f "title=${{ steps.version.outputs.next }}" \
-            -f "due_on=$(date --iso-8601=seconds --utc --date='+2 months +1 week 00:00')"
+          milestone_number=$(gh api -X POST '/repos/${{ github.repository }}/milestones' \
+            -f 'title=${{ steps.version.outputs.fut }}' \
+            -f "due_on=$(date --utc --iso-8601=seconds --date=`date +%Y-%m-01`' +9 months 00:00')" \
+            --jq '.number')
+
+          gh api -X POST '/repos/${{ github.repository }}/issues' \
+            -f 'title=[release] ${{ steps.version.outputs.fut }}' \
+            -f "milestone=${milestone_number}" \
+            -f 'type=Task' 
