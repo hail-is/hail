@@ -37,7 +37,8 @@ object BgenSettings {
 
     def eInt32(required: Boolean): EIntegral = if (`v1.3`) EVarint(required) else EInt32(required)
     def eInt64(required: Boolean): EIntegral = if (`v1.3`) EVarint(required) else EInt64(required)
-    def eBinary(required: Boolean): EType = if (`v1.3`) EBinary2(required) else EBinary(required)
+    def eBinary(required: Boolean): EType =
+      if (`v1.3`) EBinary(required) else EBinaryLegacyFullWidthIntegerLength(required)
     def eArray(elt: EType, required: Boolean): EType = EArray(elt, required, eInt32(true))
 
     val keyVType = indexKeyType(rg)

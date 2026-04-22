@@ -28,25 +28,31 @@ class ETypeSuite extends HailSuite {
       EFloat64Required,
       EBooleanOptional,
       EBinaryRequired,
-      EBinaryOptional,
+      EBinaryLegacyFullWidthIntegerLengthOptional,
+      EBinaryLegacyFullWidthIntegerLengthRequired,
+      EArrayLegacyFullWidthIntegerLength(EInt32Required, required = false),
+      EArrayLegacyFullWidthIntegerLength(
+        EArrayLegacyFullWidthIntegerLength(EInt32Optional, required = true),
+        required = true,
+      ),
       EBinaryRequired,
-      EArray(EInt32Required, required = false),
-      EArray(EArray(EInt32Optional, required = true), required = true),
-      EBinary2Required,
-      EBinary2Optional,
+      EBinaryOptional,
       EVarintRequired,
       EVarintOptional,
-      EArray2(EInt32Required, required = false),
-      EArray2(EArray2(EInt32Optional, required = true), required = true),
-      EArray2(EBinary2Required, required = true),
-      EArray2(EVarintOptional, required = true),
+      EArray(EInt32Required, required = false),
+      EArray(EArray(EInt32Optional, required = true), required = true),
+      EArray(EBinaryRequired, required = true),
+      EArray(EVarintOptional, required = true),
       EBaseStruct(FastSeq(), required = true),
       EBaseStruct(
-        FastSeq(EField("x", EBinaryRequired, 0), EField("y", EFloat64Optional, 1)),
+        FastSeq(
+          EField("x", EBinaryLegacyFullWidthIntegerLengthRequired, 0),
+          EField("y", EFloat64Optional, 1),
+        ),
         required = true,
       ),
       EBaseStruct(
-        FastSeq(EField("x", EBinary2Required, 0), EField("y", EFloat64Optional, 1)),
+        FastSeq(EField("x", EBinaryRequired, 0), EField("y", EFloat64Optional, 1)),
         required = true,
       ),
       ENDArrayColumnMajor(EFloat64Required, 3),
@@ -264,7 +270,7 @@ class ETypeSuite extends HailSuite {
   }
 
   @Test def testVarintArrayOfInt32(): Unit = {
-    val etype = EArray2(EVarintOptional, required = true)
+    val etype = EArray(EVarintOptional, required = true)
     val ptype = PCanonicalArray(PInt32Optional, required = true)
     val data = FastSeq[Any](0, 1, -1, null, Int.MaxValue, Int.MinValue, 127, 128, 16383, 16384)
     assertEqualEncodeDecode(ptype, etype, ptype, data)

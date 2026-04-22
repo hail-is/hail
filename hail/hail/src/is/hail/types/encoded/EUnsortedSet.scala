@@ -12,7 +12,7 @@ import is.hail.types.virtual._
 
 final case class EUnsortedSet(val elementType: EType, override val required: Boolean = false)
     extends EContainer {
-  private[this] val arrayRepr = EArray2(elementType, required)
+  private[this] val arrayRepr = EArray(elementType, required)
 
   override def _decodedSType(requestedType: Type): SType = {
     val elementPType = elementType.decodedPType(requestedType.asInstanceOf[TContainer].elementType)

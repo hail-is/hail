@@ -227,11 +227,11 @@ final case class EArray(
   }
 
   private def ver: String = lengthEType match {
-    case EInt32Required => ""
+    case EInt32Required => "LegacyFullWidthIntegerLength"
     case EVarintRequired => "2"
   }
 
-  override def _asIdent = s"array${ver}_of_${elementType.asIdent}"
+  override def _asIdent = s"array_of_${elementType.asIdent}"
   override def _toPretty = s"EArray$ver[$elementType]"
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false): Unit = {
@@ -244,12 +244,12 @@ final case class EArray(
     EArray(elementType, newRequired, lengthEType)
 }
 
-object EArray2 {
-  def apply(elementType: EType, required: Boolean = false): EArray =
+object EArray {
+  def apply(elementType: EType, required: Boolean): EArray =
     EArray(elementType, required, EVarintRequired)
 }
 
-object EArray {
+object EArrayLegacyFullWidthIntegerLength {
   def apply(elementType: EType, required: Boolean): EArray =
     EArray(elementType, required, EInt32Required)
 }

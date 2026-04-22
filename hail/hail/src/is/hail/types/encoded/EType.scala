@@ -330,12 +330,12 @@ object EType extends Logging {
     case TFloat32 => EFloat32(r.required)
     case TFloat64 => EFloat64(r.required)
     case TBoolean => EBoolean(r.required)
-    case TBinary => EBinary2(r.required)
-    case TString => EBinary2(r.required)
+    case TBinary => EBinary(r.required)
+    case TString => EBinary(r.required)
     case TLocus(_) =>
       EBaseStruct(
         ArraySeq(
-          EField("contig", EBinary2(true), 0),
+          EField("contig", EBinary(true), 0),
           EField("position", intEType(TInt32, required = true, useVarint), 1),
         ),
         required = r.required,
@@ -368,7 +368,7 @@ object EType extends Logging {
         ].fields.forall(fld => EStructOfArrays.supportsFieldType(fld.typ))) =>
       EStructOfArrays.fromTypeAndRequiredness(t, tcoerce[RIterable](r))
     case t: TIterable =>
-      EArray2(
+      EArray(
         fromTypeAndAnalysis(ctx, t.elementType, tcoerce[RIterable](r).elementType, useVarint),
         r.required,
       )
@@ -400,12 +400,12 @@ object EType extends Logging {
     case TFloat32 => EFloat32(false)
     case TFloat64 => EFloat64(false)
     case TBoolean => EBoolean(false)
-    case TBinary => EBinary2(false)
-    case TString => EBinary2(false)
+    case TBinary => EBinary(false)
+    case TString => EBinary(false)
     case TLocus(_) =>
       EBaseStruct(
         ArraySeq(
-          EField("contig", EBinary2(false), 0),
+          EField("contig", EBinary(false), 0),
           EField("position", intEType(TInt32, required = false, useVarint = false), 1),
         ),
         required = false,
@@ -423,7 +423,7 @@ object EType extends Logging {
     case t: TDict =>
       EDictAsUnsortedArrayOfPairs(fromPythonTypeEncoding(t.elementType).setRequired(true), false)
     case t: TSet => EUnsortedSet(fromPythonTypeEncoding(t.elementType), false)
-    case t: TIterable => EArray2(fromPythonTypeEncoding(t.elementType), false)
+    case t: TIterable => EArray(fromPythonTypeEncoding(t.elementType), false)
     case t: TBaseStruct =>
       EBaseStruct(
         ArraySeq.tabulate(t.size) { i =>
@@ -453,18 +453,19 @@ object EType extends Logging {
       case "EFloat32" => EFloat32(req)
       case "EFloat64" => EFloat64(req)
       case "EVarint" => EVarint(req)
-      case "EBinary" => EBinary(req)
-      case "EBinary2" => EBinary2(req)
-      case "EArray" =>
+      case "EBinary" | "EBinaryLegacyFullWidthIntegerLength" =>
+        EBinaryLegacyFullWidthIntegerLength(req)
+      case "EBinary2" => EBinary(req)
+      case "EArray" | "EArrayLegacyFullWidthIntegerLength" =>
         IRParser.punctuation(it, "[")
         val elementType = eTypeParser(it)
         IRParser.punctuation(it, "]")
-        EArray(elementType, req)
+        EArrayLegacyFullWidthIntegerLength(elementType, req)
       case "EArray2" =>
         IRParser.punctuation(it, "[")
         val elementType = eTypeParser(it)
         IRParser.punctuation(it, "]")
-        EArray2(elementType, req)
+        EArray(elementType, req)
       case "EBaseStruct" =>
         IRParser.punctuation(it, "{")
         val args = IRParser.repsepUntil(

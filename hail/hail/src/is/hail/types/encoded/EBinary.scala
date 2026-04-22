@@ -12,11 +12,11 @@ import is.hail.types.physical.stypes.interfaces.{SBinary, SBinaryValue, SString}
 import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Value}
 import is.hail.types.virtual._
 
-case object EBinaryOptional extends EBinary(false, EInt32Required)
-case object EBinaryRequired extends EBinary(true, EInt32Required)
+case object EBinaryLegacyFullWidthIntegerLengthOptional extends EBinary(false, EInt32Required)
+case object EBinaryLegacyFullWidthIntegerLengthRequired extends EBinary(true, EInt32Required)
 
-case object EBinary2Optional extends EBinary(false, EVarintRequired)
-case object EBinary2Required extends EBinary(true, EVarintRequired)
+case object EBinaryOptional extends EBinary(false, EVarintRequired)
+case object EBinaryRequired extends EBinary(true, EVarintRequired)
 
 class EBinary(override val required: Boolean, lengthEType: EIntegral) extends EType {
   def writeLength(cb: EmitCodeBuilder, out: Value[OutputBuffer], len: Code[Int]): Unit = {
@@ -81,16 +81,16 @@ class EBinary(override val required: Boolean, lengthEType: EIntegral) extends ET
   }
 
   private def ver: String = lengthEType match {
-    case EInt32Required => ""
+    case EInt32Required => "LegacyFullWidthIntegerLength"
     case EVarintRequired => "2"
   }
 
-  override def _asIdent = s"binary$ver"
+  override def _asIdent = s"binary"
   override def _toPretty = s"EBinary$ver"
 
   override def setRequired(newRequired: Boolean): EBinary = lengthEType match {
-    case EInt32Required => EBinary(newRequired)
-    case EVarintRequired => EBinary2(newRequired)
+    case EInt32Required => EBinaryLegacyFullWidthIntegerLength(newRequired)
+    case EVarintRequired => EBinary(newRequired)
   }
 }
 
@@ -98,7 +98,8 @@ object EBinary {
   def apply(required: Boolean = false): EBinary = if (required) EBinaryRequired else EBinaryOptional
 }
 
-object EBinary2 {
+object EBinaryLegacyFullWidthIntegerLength {
   def apply(required: Boolean = false): EBinary =
-    if (required) EBinary2Required else EBinary2Optional
+    if (required) EBinaryLegacyFullWidthIntegerLengthRequired
+    else EBinaryLegacyFullWidthIntegerLengthOptional
 }

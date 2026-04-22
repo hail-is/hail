@@ -36,11 +36,11 @@ object EStructOfArrays {
     val ret = tcoerce[RBaseStruct](r.elementType)
     val fields = et.fields.zip(ret.fields).map { case (TField(name, typ, index), r) =>
       val encodedType = typ match {
-        case TBoolean => EArray2(EBoolean(r.typ.required), required = true)
-        case TFloat32 => EArray2(EFloat32(r.typ.required), required = true)
-        case TFloat64 => EArray2(EFloat64(r.typ.required), required = true)
-        case TInt32 => EArray2(EInt32(r.typ.required), required = true)
-        case TInt64 => EArray2(EInt64(r.typ.required), required = true)
+        case TBoolean => EArray(EBoolean(r.typ.required), required = true)
+        case TFloat32 => EArray(EFloat32(r.typ.required), required = true)
+        case TFloat64 => EArray(EFloat64(r.typ.required), required = true)
+        case TInt32 => EArray(EInt32(r.typ.required), required = true)
+        case TInt64 => EArray(EInt64(r.typ.required), required = true)
       }
       EField(name, encodedType, index)
     }
