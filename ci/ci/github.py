@@ -584,6 +584,8 @@ mkdir -p {shq(repo_dir)}
                     'namespace': namespace,
                     'source_sha': self.source_sha,
                     'target_sha': self.target_branch.sha,
+                    'name': f'PR test #{self.number}: {self.source_branch.name} @ {self.source_sha[:8]} -> {self.target_branch.branch.name} @ {(self.target_branch.sha or "unknown")[:8]}',
+                    'batch_type': 'ci/test/pr',
                 },
                 callback=CALLBACK_URL,
             )
@@ -1017,6 +1019,8 @@ mkdir -p {shq(repo_dir)}
                     'deploy': '1',
                     'target_branch': self.branch.short_str(),
                     'sha': self.sha,
+                    'name': f'Deploy {self.branch.name} @ {self.sha[:8]}',
+                    'batch_type': 'ci/deploy/prod',
                 },
                 callback=CALLBACK_URL,
             )
@@ -1130,6 +1134,8 @@ mkdir -p {shq(repo_dir)}
                     'sha': self.sha,
                     'user': self.user,
                     'dev_deploy': '1',
+                    'name': f'Dev deploy {self.branch.name} by {self.user} @ {self.sha[:8]}',
+                    'batch_type': 'hailctl/dev_deploy/deploy_batch',
                 }
             )
             config.build(deploy_batch, self, scope='dev')
