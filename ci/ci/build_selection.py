@@ -9,7 +9,7 @@ used in tests and tooling without a running deployment.
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Set
+from typing import Callable, Dict, List, Optional, Set
 
 import yaml
 
@@ -59,6 +59,44 @@ def _in_cloud(clouds: Optional[List[str]], cloud: Optional[str]) -> bool:
     return cloud in clouds
 
 
+def _find_seed_steps(
+    steps: list,
+    changed_files: List[str],
+    runnable: Callable[[str], bool],
+) -> Set[str]:
+    """Return steps whose /repo/ inputs match any of the changed files."""
+    seeds: Set[str] = set()
+    for step in steps:
+        if not runnable(step['name']):
+            continue
+        inputs = step.get('inputs') or []
+        for inp in inputs:
+            local_path = _repo_input_local_path(inp.get('from', ''))
+            if local_path is None:
+                continue
+            if any(_file_matches_input(f, local_path) for f in changed_files):
+                seeds.add(step['name'])
+                break
+    return seeds
+
+
+def _expand_to_descendants(
+    seeds: Set[str],
+    reverse: Dict[str, List[str]],
+    runnable: Callable[[str], bool],
+) -> Set[str]:
+    """BFS forward from seeds, following dependsOn edges, returning all runnable descendants."""
+    result: Set[str] = set(seeds)
+    frontier = list(seeds)
+    while frontier:
+        cur = frontier.pop()
+        for dependent in reverse.get(cur, []):
+            if dependent not in result and runnable(dependent):
+                result.add(dependent)
+                frontier.append(dependent)
+    return result
+
+
 def compute_requested_steps(
     config_str: str,
     changed_files: List[str],
@@ -87,35 +125,12 @@ def compute_requested_steps(
     def runnable(name: str) -> bool:
         return _in_scope(scopes_map.get(name), scope) and _in_cloud(clouds_map.get(name), cloud)
 
-    # Build reverse adjacency: step_name -> list of steps that depend on it
     reverse: Dict[str, List[str]] = {}
     for step in steps:
         for dep in step.get('dependsOn', []):
             reverse.setdefault(dep, []).append(step['name'])
 
-    # Find seed steps: those whose /repo/ inputs match any changed file,
-    # restricted to steps runnable in the target scope and cloud.
-    seed_steps: Set[str] = set()
-    for step in steps:
-        if not runnable(step['name']):
-            continue
-        inputs = step.get('inputs') or []
-        for inp in inputs:
-            local_path = _repo_input_local_path(inp.get('from', ''))
-            if local_path is None:
-                continue
-            if any(_file_matches_input(f, local_path) for f in changed_files):
-                seed_steps.add(step['name'])
-                break
-
-    # BFS forward from seeds to find all runnable descendants
-    result: Set[str] = set(seed_steps)
-    frontier = list(seed_steps)
-    while frontier:
-        cur = frontier.pop()
-        for dependent in reverse.get(cur, []):
-            if dependent not in result and runnable(dependent):
-                result.add(dependent)
-                frontier.append(dependent)
+    seeds = _find_seed_steps(steps, changed_files, runnable)
+    result = _expand_to_descendants(seeds, reverse, runnable)
 
     return BuildSelectionResult(requested_steps=sorted(result))
