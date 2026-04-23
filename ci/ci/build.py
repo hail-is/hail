@@ -134,8 +134,7 @@ class BuildConfiguration:
                             visit_dependent(s2)
 
             for step_name in requested_step_names:
-                if step_name in name_step:
-                    visit_dependent(name_step[step_name])
+                visit_dependent(name_step[step_name])
             self.steps = [step for step in runnable_steps if step in visited]
         else:
             self.steps = [step for step in runnable_steps if not step.run_if_requested]

@@ -24,7 +24,7 @@ from hailtop.utils import RETRY_FUNCTION_SCRIPT, check_shell, check_shell_output
 from .build import BuildConfiguration, Code
 from .build_selection import compute_requested_steps
 from .constants import AUTHORIZED_USERS, COMPILER_TEAM, GITHUB_CLONE_URL, GITHUB_STATUS_CONTEXT, SERVICES_TEAM
-from .environment import DEPLOY_STEPS
+from .environment import CLOUD, DEPLOY_STEPS
 from .globals import is_test_deployment
 from .utils import GithubStatus, add_deployed_services, github_status
 
@@ -571,8 +571,10 @@ mkdir -p {shq(repo_dir)}
 
             with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
                 build_yaml = f.read()
-            selection = compute_requested_steps(build_yaml, changed_files)
-            log.info(f'PR #{self.number} selected steps ({len(selection.requested_steps)}): {selection.requested_steps}')
+            selection = compute_requested_steps(build_yaml, changed_files, cloud=CLOUD)
+            log.info(
+                f'PR #{self.number} selected steps ({len(selection.requested_steps)}): {selection.requested_steps}'
+            )
             config = BuildConfiguration(
                 self, build_yaml, scope='test', requested_step_names=selection.requested_steps or ()
             )
@@ -582,6 +584,8 @@ mkdir -p {shq(repo_dir)}
                 test_services = BuildConfiguration(self, f.read(), scope='test').deployed_services()
 
             services.extend(test_services)
+            # namespace is None when no service deploy steps are selected (e.g. hail-only PRs);
+            # in that case there are no deployed services to register.
             if namespace is not None:
                 tomorrow = datetime.datetime.utcnow() + datetime.timedelta(days=1)
                 await add_deployed_services(db, namespace, services, tomorrow)

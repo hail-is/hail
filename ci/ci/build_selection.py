@@ -9,7 +9,7 @@ used in tests and tooling without a running deployment.
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Sequence, Set
+from typing import Dict, List, Optional, Set
 
 import yaml
 
@@ -28,41 +28,6 @@ class BuildSelectionResult:
         return f'requested_steps={self.requested_steps}'
 
 
-def expand_build_steps(
-    config_str: str,
-    requested_step_names: Sequence[str],
-    cloud: Optional[str] = None,
-    excluded_step_names: Sequence[str] = (),
-) -> List[str]:
-    """Expand a list of requested step names to include all transitive upstream deps.
-
-    Mirrors the logic in BuildConfiguration.visit_dependent, but as a pure
-    function for use in tests and tooling.
-    """
-    config = yaml.safe_load(config_str)
-    steps = config.get('steps', [])
-    excluded = set(excluded_step_names)
-    run_if_requested: Set[str] = {s['name'] for s in steps if s.get('runIfRequested', False)}
-    deps_map: Dict[str, List[str]] = {s['name']: s.get('dependsOn', []) for s in steps}
-    clouds_map: Dict[str, Optional[List[str]]] = {s['name']: s.get('clouds') for s in steps}
-
-    visited: Set[str] = set()
-    frontier = list(requested_step_names)
-    while frontier:
-        cur = frontier.pop()
-        if cur in visited or cur in excluded:
-            continue
-        if cloud is not None:
-            step_clouds = clouds_map.get(cur)
-            if step_clouds is not None and cloud not in step_clouds:
-                continue
-        visited.add(cur)
-        for dep in deps_map.get(cur, []):
-            if dep not in run_if_requested:
-                frontier.append(dep)
-    return sorted(visited)
-
-
 def _repo_input_local_path(from_path: str) -> Optional[str]:
     """Return the local path from a /repo/... input, or None if not a repo input.
 
@@ -73,7 +38,7 @@ def _repo_input_local_path(from_path: str) -> Optional[str]:
     if from_path == '/repo':
         return ''
     if from_path.startswith('/repo/'):
-        return from_path[len('/repo/'):]
+        return from_path[len('/repo/') :]
     return None
 
 
@@ -88,16 +53,25 @@ def _in_scope(scopes: Optional[List[str]], scope: str) -> bool:
     return scopes is None or scope in scopes
 
 
+def _in_cloud(clouds: Optional[List[str]], cloud: Optional[str]) -> bool:
+    if cloud is None or clouds is None:
+        return True
+    return cloud in clouds
+
+
 def compute_requested_steps(
-    config_str: str, changed_files: List[str], scope: str = 'test'
+    config_str: str,
+    changed_files: List[str],
+    scope: str = 'test',
+    cloud: Optional[str] = None,
 ) -> BuildSelectionResult:
     """Return step selection results given a list of changed file paths.
 
     Finds steps directly affected (those with /repo/ inputs matching changed
     files), then follows dependsOn edges forward to find all transitive
-    descendants. Only steps runnable in `scope` are returned; this prevents
-    deploy-only steps from pulling in unrelated test-scope upstream deps via
-    BuildConfiguration.visit_dependent.
+    descendants. Only steps runnable in `scope` and `cloud` are returned; this
+    prevents deploy-only or wrong-cloud steps from pulling in unrelated
+    upstream deps via BuildConfiguration.visit_dependent.
 
     Returns an empty BuildSelectionResult when changed_files is empty.
     """
@@ -108,6 +82,10 @@ def compute_requested_steps(
     steps = config.get('steps', [])
 
     scopes_map: Dict[str, Optional[List[str]]] = {s['name']: s.get('scopes') for s in steps}
+    clouds_map: Dict[str, Optional[List[str]]] = {s['name']: s.get('clouds') for s in steps}
+
+    def runnable(name: str) -> bool:
+        return _in_scope(scopes_map.get(name), scope) and _in_cloud(clouds_map.get(name), cloud)
 
     # Build reverse adjacency: step_name -> list of steps that depend on it
     reverse: Dict[str, List[str]] = {}
@@ -116,10 +94,10 @@ def compute_requested_steps(
             reverse.setdefault(dep, []).append(step['name'])
 
     # Find seed steps: those whose /repo/ inputs match any changed file,
-    # restricted to steps runnable in the target scope.
+    # restricted to steps runnable in the target scope and cloud.
     seed_steps: Set[str] = set()
     for step in steps:
-        if not _in_scope(scopes_map.get(step['name']), scope):
+        if not runnable(step['name']):
             continue
         inputs = step.get('inputs') or []
         for inp in inputs:
@@ -130,13 +108,13 @@ def compute_requested_steps(
                 seed_steps.add(step['name'])
                 break
 
-    # BFS forward from seeds to find all in-scope descendants
+    # BFS forward from seeds to find all runnable descendants
     result: Set[str] = set(seed_steps)
     frontier = list(seed_steps)
     while frontier:
         cur = frontier.pop()
         for dependent in reverse.get(cur, []):
-            if dependent not in result and _in_scope(scopes_map.get(dependent), scope):
+            if dependent not in result and runnable(dependent):
                 result.add(dependent)
                 frontier.append(dependent)
 
