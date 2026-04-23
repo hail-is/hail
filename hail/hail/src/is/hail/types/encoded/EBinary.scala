@@ -80,6 +80,10 @@ class EBinary(override val required: Boolean, lengthEType: EIntegral) extends ET
     case TString => SStringPointer(PCanonicalString(false))
   }
 
+  // It was a mistake to simply use write/readInt for lengths in 'version 1' so
+  // the new serialization gets to be version 2 while the old version has
+  // a very long and descriptive name to indicate what it is and to discourage
+  // use
   private def ver: String = lengthEType match {
     case EInt32Required => "LegacyFullWidthIntegerLength"
     case EVarintRequired => "2"
