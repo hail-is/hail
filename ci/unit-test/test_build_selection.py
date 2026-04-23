@@ -7,9 +7,27 @@ from ci.build_selection import (
     _find_seed_steps,
     _in_cloud,
     _in_scope,
+    _is_doc_file,
     _repo_input_local_path,
     compute_requested_steps,
 )
+
+
+@pytest.mark.parametrize(
+    'path, expected',
+    [
+        ('batch/README.md', True),
+        ('batch/README.MD', True),
+        ('CHANGELOG.rst', True),
+        ('CHANGELOG.RST', True),
+        ('batch/batch/server.py', False),
+        ('foo.py', False),
+        ('notes.md.bak', False),
+        ('README', False),
+    ],
+)
+def test_is_doc_file(path, expected):
+    assert _is_doc_file(path) == expected
 
 
 @pytest.mark.parametrize(
@@ -180,10 +198,12 @@ def test_expand_to_descendants(seeds, reverse, runnable, expected):
 
 
 _SIMPLE_CONFIG = """
+alwaysRunSteps:
+  - merge_code
+
 steps:
   - name: merge_code
-    kind: buildImage
-    scopes: [test, dev]
+    kind: runImage
   - name: check_ci
     kind: runImage
     scopes: [test, dev]
@@ -205,10 +225,12 @@ steps:
 """
 
 _CLOUD_CONFIG = """
+alwaysRunSteps:
+  - merge_code
+
 steps:
   - name: merge_code
-    kind: buildImage
-    scopes: [test]
+    kind: runImage
   - name: test_gcp
     kind: runImage
     scopes: [test]
@@ -231,23 +253,24 @@ steps:
 @pytest.mark.parametrize(
     'config_str, changed_files, scope, cloud, expected_steps',
     [
-        # empty changed_files -> nothing runs
+        # empty changed_files -> nothing runs (not even merge_code)
         (_SIMPLE_CONFIG, [], 'test', None, []),
-        # ci change seeds check_ci; deploy_ci excluded (wrong scope)
-        (_SIMPLE_CONFIG, ['ci/foo.py'], 'test', None, ['check_ci']),
-        # hail change seeds check_hail
-        (_SIMPLE_CONFIG, ['hail/foo.py'], 'test', None, ['check_hail']),
-        # unrelated change matches nothing
-        (_SIMPLE_CONFIG, ['docs/index.md'], 'test', None, []),
-        # deploy scope: check_ci is scoped to [test,dev] so it's not a seed,
-        # and deploy_ci has no /repo inputs, so nothing is selected
-        (_SIMPLE_CONFIG, ['ci/foo.py'], 'deploy', None, []),
-        # gcp cloud filter — only test_gcp returned
-        (_CLOUD_CONFIG, ['ci/foo.py'], 'test', 'gcp', ['test_gcp']),
+        # ci change seeds check_ci; merge_code always included
+        (_SIMPLE_CONFIG, ['ci/foo.py'], 'test', None, ['check_ci', 'merge_code']),
+        # hail change seeds check_hail; merge_code always included
+        (_SIMPLE_CONFIG, ['hail/foo.py'], 'test', None, ['check_hail', 'merge_code']),
+        # doc-only change: no seeds, but merge_code still runs
+        (_SIMPLE_CONFIG, ['ci/README.md'], 'test', None, ['merge_code']),
+        # mix of doc and code: code file seeds check_ci, doc file ignored
+        (_SIMPLE_CONFIG, ['ci/README.md', 'ci/foo.py'], 'test', None, ['check_ci', 'merge_code']),
+        # deploy scope: check_ci scoped to [test,dev] is not a seed; merge_code always included
+        (_SIMPLE_CONFIG, ['ci/foo.py'], 'deploy', None, ['merge_code']),
+        # gcp cloud filter — test_gcp + merge_code
+        (_CLOUD_CONFIG, ['ci/foo.py'], 'test', 'gcp', ['merge_code', 'test_gcp']),
         # azure cloud filter
-        (_CLOUD_CONFIG, ['ci/foo.py'], 'test', 'azure', ['test_azure']),
-        # no cloud filter -> both cloud-specific steps returned
-        (_CLOUD_CONFIG, ['ci/foo.py'], 'test', None, ['test_azure', 'test_gcp']),
+        (_CLOUD_CONFIG, ['ci/foo.py'], 'test', 'azure', ['merge_code', 'test_azure']),
+        # no cloud filter -> both cloud-specific steps + merge_code
+        (_CLOUD_CONFIG, ['ci/foo.py'], 'test', None, ['merge_code', 'test_azure', 'test_gcp']),
     ],
 )
 def test_compute_requested_steps(config_str, changed_files, scope, cloud, expected_steps):

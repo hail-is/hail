@@ -9,7 +9,7 @@ used in tests and tooling without a running deployment.
 """
 
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Optional, Set
+from typing import Callable, Dict, FrozenSet, List, Optional, Set
 
 import yaml
 
@@ -26,6 +26,15 @@ class BuildSelectionResult:
 
     def __str__(self) -> str:
         return f'requested_steps={self.requested_steps}'
+
+
+_DOC_EXTENSIONS: FrozenSet[str] = frozenset({'.md', '.rst'})
+
+
+def _is_doc_file(path: str) -> bool:
+    """True if the file has a documentation-only extension that should not trigger test seeds."""
+    lower = path.lower()
+    return any(lower.endswith(ext) for ext in _DOC_EXTENSIONS)
 
 
 def _repo_input_local_path(from_path: str) -> Optional[str]:
@@ -111,6 +120,11 @@ def compute_requested_steps(
     prevents deploy-only or wrong-cloud steps from pulling in unrelated
     upstream deps via BuildConfiguration.visit_dependent.
 
+    Doc-only files (.md, .rst) are excluded from seed-matching so that a PR
+    touching only documentation does not trigger test steps. Steps listed under
+    alwaysRunSteps in the config are always included whenever changed_files is
+    non-empty.
+
     Returns an empty BuildSelectionResult when changed_files is empty.
     """
     if not changed_files:
@@ -118,6 +132,7 @@ def compute_requested_steps(
 
     config = yaml.safe_load(config_str)
     steps = config.get('steps', [])
+    always_run_steps: List[str] = config.get('alwaysRunSteps', [])
 
     scopes_map: Dict[str, Optional[List[str]]] = {s['name']: s.get('scopes') for s in steps}
     clouds_map: Dict[str, Optional[List[str]]] = {s['name']: s.get('clouds') for s in steps}
@@ -130,7 +145,9 @@ def compute_requested_steps(
         for dep in step.get('dependsOn', []):
             reverse.setdefault(dep, []).append(step['name'])
 
-    seeds = _find_seed_steps(steps, changed_files, runnable)
+    code_files = [f for f in changed_files if not _is_doc_file(f)]
+    seeds = _find_seed_steps(steps, code_files, runnable)
     result = _expand_to_descendants(seeds, reverse, runnable)
+    result.update(always_run_steps)
 
     return BuildSelectionResult(requested_steps=sorted(result))

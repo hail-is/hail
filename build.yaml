@@ -1,3 +1,6 @@
+alwaysRunSteps:
+  - merge_code
+
 steps:
   - kind: buildImage2
     name: git_make_bash_image
