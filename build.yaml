@@ -5,16 +5,16 @@
 # - The directory entries are superfluous (unwatched files don't cause any tests to be added),
 #   but are here to help document the intent, and make the intent clearer in coverage audits.
 unwatchedPaths:
-  - '*.md'   # documentation; explicitly excluded so it doesn't match dir globs
-  - '*.rst'  # documentation; same reason
+  - '*.md'              # documentation
+  - '*.rst'             # documentation
   - datasets/           # one-off data ETL scripts; not executed by CI
   - infra/              # Terraform infrastructure; manually applied, never CI-tested
   - devbin/             # developer utility scripts; not executed by CI
   - .github/            # GitHub issue templates and Actions workflows; not Hail CI
-  - gateway/            # unmanaged nginx proxy; manually deployed
-  - internal-gateway/   # unmanaged nginx proxy; manually deployed
-  - bootstrap-gateway/  # unmanaged nginx proxy; manually deployed
-  - prometheus/         # monitoring config; manually applied
+  - gateway/            # unmanaged nginx proxy; manually deployed by Make at bootstrap time
+  - internal-gateway/   # unmanaged nginx proxy; manually deployed by Make at bootstrap time
+  - bootstrap-gateway/  # nginx proxy for cluster bootstrap; manually deployed, not used in test runs
+  - prometheus/         # deployed during deploy runs, not test runs
 
 # Files where any change should trigger a full retest of all watched steps.
 # Use this for files that underpin so many things that per-step watching would
