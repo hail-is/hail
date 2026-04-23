@@ -28,7 +28,7 @@ case class IndexSpec private (
     EField("first_idx", EInt64Required, 0),
     EField(
       "keys",
-      EArray(
+      EArrayLegacyFullWidthIntegerLength(
         EBaseStruct(
           FastSeq(
             EField("key", keyEType, 0),
@@ -59,7 +59,7 @@ case class IndexSpec private (
   val internalNodeEType = EBaseStruct(FastSeq(
     EField(
       "children",
-      EArray(
+      EArrayLegacyFullWidthIntegerLength(
         EBaseStruct(
           FastSeq(
             EField("index_file_offset", EInt64Required, 0),

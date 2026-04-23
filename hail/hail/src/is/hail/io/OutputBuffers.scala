@@ -46,6 +46,30 @@ trait OutputBuffer extends Closeable {
 
   def writeBoolean(b: Boolean): Unit =
     writeByte(b.toByte)
+
+  def writeVarint(i: Int): Unit = {
+    var j = i
+    while ({
+      var b = j & 0x7f
+      j >>>= 7
+      if (j != 0)
+        b |= 0x80
+      writeByte(b.toByte)
+      j != 0
+    }) {}
+  }
+
+  def writeVarintLong(l: Long): Unit = {
+    var j = l
+    while ({
+      var b = j & 0x7f
+      j >>>= 7
+      if (j != 0)
+        b |= 0x80
+      writeByte(b.toByte)
+      j != 0
+    }) {}
+  }
 }
 
 trait OutputBlockBuffer extends Spec with Closeable {
@@ -124,50 +148,6 @@ final class MemoryOutputBuffer(mb: MemoryBuffer) extends OutputBuffer {
   override def writeBytes(addr: Long, n: Int): Unit = mb.writeBytes(addr, n)
 
   override def writeDoubles(from: Array[Double], fromOff: Int, n: Int): Unit = ???
-}
-
-final class LEB128OutputBuffer(out: OutputBuffer) extends OutputBuffer {
-  override def flush(): Unit = out.flush()
-
-  override def close(): Unit =
-    out.close()
-
-  override def indexOffset(): Long = out.indexOffset()
-
-  override def writeByte(b: Byte): Unit = out.writeByte(b)
-
-  override def writeInt(i: Int): Unit = {
-    var j = i
-    do {
-      var b = j & 0x7f
-      j >>>= 7
-      if (j != 0)
-        b |= 0x80
-      out.writeByte(b.toByte)
-    } while (j != 0)
-  }
-
-  override def writeLong(l: Long): Unit = {
-    var j = l
-    do {
-      var b = j & 0x7f
-      j >>>= 7
-      if (j != 0)
-        b |= 0x80
-      out.writeByte(b.toByte)
-    } while (j != 0)
-  }
-
-  override def writeFloat(f: Float): Unit = out.writeFloat(f)
-
-  override def writeDouble(d: Double): Unit = out.writeDouble(d)
-
-  override def writeBytes(region: Region, off: Long, n: Int): Unit = out.writeBytes(region, off, n)
-
-  override def writeBytes(addr: Long, n: Int): Unit = out.writeBytes(addr, n)
-
-  override def writeDoubles(from: Array[Double], fromOff: Int, n: Int): Unit =
-    out.writeDoubles(from, fromOff, n)
 }
 
 final class BlockingOutputBuffer(blockSize: Int, out: OutputBlockBuffer) extends OutputBuffer {
@@ -282,6 +262,29 @@ final class StreamBlockOutputBuffer(out: OutputStream) extends OutputBlockBuffer
   override def writeBlock(buf: Array[Byte], len: Int): Unit = {
     Memory.storeInt(lenBuf, 0, len)
     out.write(lenBuf, 0, 4)
+    out.write(buf, 0, len)
+  }
+
+  override def getPos(): Long = out.asInstanceOf[ByteTrackingOutputStream].bytesWritten
+}
+
+final class StreamBlockOutputBuffer2(out: OutputStream) extends OutputBlockBuffer {
+  override def flush(): Unit =
+    out.flush()
+
+  override def close(): Unit =
+    out.close()
+
+  override def writeBlock(buf: Array[Byte], len: Int): Unit = {
+    var j = len
+    while ({
+      var b = j & 0x7f
+      j >>>= 7
+      if (j != 0)
+        b |= 0x80
+      out.write(b)
+      j != 0
+    }) {}
     out.write(buf, 0, len)
   }
 

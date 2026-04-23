@@ -57,6 +57,44 @@ trait InputBuffer extends Closeable {
   def readDoubles(to: Array[Double]): Unit = readDoubles(to, 0, to.length)
 
   def readBoolean(): Boolean = readByte() != 0
+
+  def readVarint(): Int = {
+    var b: Byte = readByte()
+    var x: Int = b & 0x7f
+    var shift: Int = 7
+    while ((b & 0x80) != 0 && shift <= 5 * 7) {
+      b = readByte()
+      x |= ((b & 0x7f) << shift)
+      shift += 7
+    }
+    if (shift <= 5 * 7)
+      x
+    else
+      throw new RuntimeException(s"Invalid variable length int, longer than 5 bytes")
+  }
+
+  def readVarintLong(): Long = {
+    var b: Byte = readByte()
+    var x: Long = b & 0x7fL
+    var shift: Int = 7
+    while ((b & 0x80) != 0 && shift <= 10 * 7) {
+      b = readByte()
+      x |= ((b & 0x7fL) << shift)
+      shift += 7
+    }
+    if (shift <= 10 * 7)
+      x
+    else
+      throw new RuntimeException(s"Invalid variable length long, longer than 10 bytes")
+  }
+
+  def skipVarint(): Unit = {
+    var count = 1
+    while ((readByte() & 0x80) != 0 && count < 10)
+      count += 1
+    if (count > 10)
+      throw new RuntimeException(s"Invalid variable length number, longer than 10 bytes")
+  }
 }
 
 trait InputBlockBuffer extends Spec with Closeable {
@@ -198,74 +236,6 @@ final class MemoryInputBuffer(mb: MemoryBuffer) extends InputBuffer {
   override def skipBytes(n: Int): Unit = mb.skipBytes(n)
 
   override def readDoubles(to: Array[Double], off: Int, n: Int): Unit = ???
-}
-
-final class LEB128InputBuffer(in: InputBuffer) extends InputBuffer {
-  override def close(): Unit =
-    in.close()
-
-  override def seek(offset: Long): Unit = in.seek(offset)
-
-  override def readByte(): Byte =
-    in.readByte()
-
-  override def read(buf: Array[Byte], toOff: Int, n: Int) = in.read(buf, toOff, n)
-
-  override def readInt(): Int = {
-    var b: Byte = readByte()
-    var x: Int = b & 0x7f
-    var shift: Int = 7
-    while ((b & 0x80) != 0) {
-      b = readByte()
-      x |= ((b & 0x7f) << shift)
-      shift += 7
-    }
-    x
-  }
-
-  override def readLong(): Long = {
-    var b: Byte = readByte()
-    var x: Long = b & 0x7fL
-    var shift: Int = 7
-    while ((b & 0x80) != 0) {
-      b = readByte()
-      x |= ((b & 0x7fL) << shift)
-      shift += 7
-    }
-    x
-  }
-
-  override def readFloat(): Float = in.readFloat()
-
-  override def readDouble(): Double = in.readDouble()
-
-  override def readBytes(toRegion: Region, toOff: Long, n: Int): Unit =
-    in.readBytes(toRegion, toOff, n)
-
-  override def readBytesArray(n: Int): Array[Byte] = in.readBytesArray(n)
-
-  override def skipByte(): Unit = in.skipByte()
-
-  override def skipInt(): Unit = {
-    var b: Byte = readByte()
-    while ((b & 0x80) != 0)
-      b = readByte()
-  }
-
-  override def skipLong(): Unit = {
-    var b: Byte = readByte()
-    while ((b & 0x80) != 0)
-      b = readByte()
-  }
-
-  override def skipFloat(): Unit = in.skipFloat()
-
-  override def skipDouble(): Unit = in.skipDouble()
-
-  override def skipBytes(n: Int): Unit = in.skipBytes(n)
-
-  override def readDoubles(to: Array[Double], toOff: Int, n: Int): Unit =
-    in.readDoubles(to, toOff, n)
 }
 
 final class TracingInputBuffer(
@@ -526,6 +496,33 @@ final class StreamBlockInputBuffer(in: InputStream) extends InputBlockBuffer {
   override def readBlock(buf: Array[Byte]): Int = {
     in.readFully(lenBuf, 0, 4)
     val len = Memory.loadInt(lenBuf, 0)
+    assert(len >= 0)
+    assert(len <= buf.length)
+    in.readFully(buf, 0, len)
+    len
+  }
+}
+
+final class StreamBlockInputBuffer2(in: InputStream) extends InputBlockBuffer {
+  override def close(): Unit =
+    in.close()
+
+  // this takes a virtual offset and will seek the underlying stream to offset >> 16
+  override def seek(offset: Long): Unit =
+    in.asInstanceOf[ByteTrackingInputStream].seek(offset >> 16)
+
+  override def readBlock(buf: Array[Byte]): Int = {
+    var b: Int = in.read()
+    if (b < 0) fatal("Premature end of file while reading varint block length")
+    var len: Int = b & 0x7f
+    var shift: Int = 7
+    while ((b & 0x80) != 0 && shift <= 5 * 7) {
+      b = in.read()
+      if (b < 0) fatal("Premature end of file while reading varint block length")
+      len |= ((b & 0x7f) << shift)
+      shift += 7
+    }
+    assert(shift <= 5 * 7)
     assert(len >= 0)
     assert(len <= buf.length)
     in.readFully(buf, 0, len)

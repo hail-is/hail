@@ -23,7 +23,9 @@ object BgenSettings {
   val indexAnnotationType: Type = TStruct.empty
 
   private def specFromVersion(indexVersion: SemanticVersion): BufferSpec =
-    if (indexVersion >= SemanticVersion(1, 2, 0)) {
+    if (indexVersion >= SemanticVersion(1, 3, 0)) {
+      BufferSpec.default
+    } else if (indexVersion >= SemanticVersion(1, 2, 0)) {
       BufferSpec.zstdCompressionLEB
     } else {
       BufferSpec.lz4HCCompressionLEB
@@ -31,6 +33,13 @@ object BgenSettings {
 
   def getIndexSpec(indexVersion: SemanticVersion, rg: Option[String]): AbstractIndexSpec = {
     val bufferSpec = specFromVersion(indexVersion)
+    val `v1.3` = indexVersion >= SemanticVersion(1, 3, 0)
+
+    def eInt32(required: Boolean): EIntegral = if (`v1.3`) EVarint(required) else EInt32(required)
+    def eInt64(required: Boolean): EIntegral = if (`v1.3`) EVarint(required) else EInt64(required)
+    def eBinary(required: Boolean): EType =
+      if (`v1.3`) EBinary(required) else EBinaryLegacyFullWidthIntegerLength(required)
+    def eArray(elt: EType, required: Boolean): EType = EArray(elt, required, eInt32(true))
 
     val keyVType = indexKeyType(rg)
     val keyEType = EBaseStruct(
@@ -38,12 +47,12 @@ object BgenSettings {
         EField(
           "locus",
           EBaseStruct(FastSeq(
-            EField("contig", EBinaryRequired, 0),
-            EField("position", EInt32Required, 1),
+            EField("contig", eBinary(true), 0),
+            EField("position", eInt32(true), 1),
           )),
           0,
         ),
-        EField("alleles", EArray(EBinaryOptional, required = false), 1),
+        EField("alleles", eArray(eBinary(false), required = false), 1),
       ),
       required = false,
     )
@@ -52,14 +61,14 @@ object BgenSettings {
     val annotationEType = EBaseStruct(FastSeq(), required = true)
 
     val leafEType = EBaseStruct(FastSeq(
-      EField("first_idx", EInt64Required, 0),
+      EField("first_idx", eInt64(true), 0),
       EField(
         "keys",
-        EArray(
+        eArray(
           EBaseStruct(
             FastSeq(
               EField("key", keyEType, 0),
-              EField("offset", EInt64Required, 1),
+              EField("offset", eInt64(true), 1),
               EField("annotation", annotationEType, 2),
             ),
             required = true,
@@ -85,13 +94,13 @@ object BgenSettings {
     val internalNodeEType = EBaseStruct(FastSeq(
       EField(
         "children",
-        EArray(
+        eArray(
           EBaseStruct(
             FastSeq(
-              EField("index_file_offset", EInt64Required, 0),
-              EField("first_idx", EInt64Required, 1),
+              EField("index_file_offset", eInt64(true), 0),
+              EField("first_idx", eInt64(true), 1),
               EField("first_key", keyEType, 2),
-              EField("first_record_offset", EInt64Required, 3),
+              EField("first_record_offset", eInt64(true), 3),
               EField("first_annotation", annotationEType, 4),
             ),
             required = true,

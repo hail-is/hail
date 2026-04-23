@@ -34,6 +34,12 @@ class RichCodeOutputBuffer(
   def writeLong(l: Code[Long]): Code[Unit] =
     ob.invoke[Long, Unit]("writeLong", l)
 
+  def writeVarint(i: Code[Int]): Code[Unit] =
+    ob.invoke[Int, Unit]("writeVarint", i)
+
+  def writeVarintLong(l: Code[Long]): Code[Unit] =
+    ob.invoke[Long, Unit]("writeVarintLong", l)
+
   def writeFloat(f: Code[Float]): Code[Unit] =
     ob.invoke[Float, Unit]("writeFloat", f)
 

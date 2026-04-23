@@ -40,6 +40,18 @@ class ByteReader:
     def read_bytes(self, num_bytes):
         return self.read_bytes_view(num_bytes).tobytes()
 
+    def read_varint(self) -> int:
+        result = 0
+        shift = 0
+        while shift < 7 * 10:
+            b = self._memview[self._offset]
+            self._offset += 1
+            result |= (b & 0x7F) << shift
+            if (b & 0x80) == 0:
+                return result
+            shift += 7
+        raise ValueError('Invalid variable length integer, longer than 10 bytes')
+
 
 class ByteWriter:
     def __init__(self, buf):
@@ -65,3 +77,14 @@ class ByteWriter:
 
     def write_bytes(self, bs: Union[bytes, memoryview]):
         self._buf += bs
+
+    def write_varint(self, v: int):
+        if v < 0:
+            raise ValueError(f'write_varint expected non-negative value, got {v}')
+        while True:
+            byte = v & 0x7F
+            v >>= 7
+            if v == 0:
+                self._buf += struct.pack('=B', byte)
+                return
+            self._buf += struct.pack('=B', byte | 0x80)
