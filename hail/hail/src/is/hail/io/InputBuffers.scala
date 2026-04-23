@@ -90,7 +90,7 @@ trait InputBuffer extends Closeable {
 
   def skipVarint(): Unit = {
     var count = 1
-    while ((readByte() & 0x80) != 0 && count <= 10)
+    while ((readByte() & 0x80) != 0 && count < 10)
       count += 1
     if (count > 10)
       throw new RuntimeException(s"Invalid variable length number, longer than 10 bytes")
