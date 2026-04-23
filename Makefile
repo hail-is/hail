@@ -58,7 +58,7 @@ pylint-hailtop:
 
 .PHONY: check-hail
 check-hail: check-hail-fast pylint-hailtop
-	cd hail && HAIL_BUILD_MODE=Dev $(MILL) $(MILLOPTS) hail.2_13.__.checkFormat + hail.2_13.__.fix --check
+	cd hail && HAIL_BUILD_MODE=Dev SCALA_VERSION=2.13 $(MILL) $(MILLOPTS) hail[].__.checkFormat + hail[].__.fix --check
 
 .PHONY: check-batch
 check-batch: check-batch-fast pylint-batch

@@ -1,5 +1,5 @@
-//| mill-version: 1.0.4
-//| mill-jvm-version: 11
+//| mill-version: 1.0.6
+//| mill-jvm-version: 17
 //| mvnDeps:
 //| - com.goyeau::mill-scalafix::0.6.0
 //| - org.typelevel::scalac-options:0.1.8
@@ -14,6 +14,9 @@ import mill.scalalib.scalafmt.ScalafmtModule
 import org.typelevel.scalacoptions.*
 
 object `package` extends ScalafixModule with ScalafmtModule {
+
+  override def jvmId: T[String] =
+    "11"
 
   override def scalaVersion: T[String] =
     "2.12.18"

@@ -7,15 +7,11 @@ import mill.scalalib.{CrossScalaModule, Dep}
 import build.Settings
 import build.HailScalaModule
 
-import millbuild.SupportedScalaVersions
 import millbuild.BuildConfig.*
 import millbuild.MvnCoordinate.*
 
-object `package` extends Cross[HailUtils](SupportedScalaVersions)
+object `package` extends Cross[HailUtils](enabledScalaVersions)
 trait HailUtils extends HailScalaModule, CrossScalaModule:
-  override def enableBsp: Boolean =
-    millbuild.BuildConfig.bspScalaVersion == crossValue
-
   override def crossScalaVersion: String =
     Settings.scalaMinorVersions(crossValue)
 

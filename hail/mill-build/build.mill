@@ -5,7 +5,7 @@ import mill.api.{PathRef, Task, TaskCtx}
 import mill.meta.MillBuildRootModule
 import mill.scalalib.Dep
 
-import millbuild.*
+import millbuild.BuildMode
 import millbuild.MvnCoordinate.*
 
 import scala.collection.immutable.ArraySeq
@@ -19,6 +19,9 @@ extension [A, F[+X] <: Iterable[X]] (as: F[A])
 
 
 object `package` extends MillBuildRootModule:
+
+  private val SupportedScalaVersions =
+    Set("2.12", "2.12.13", "2.13")
 
   override def mvnDeps: T[Seq[Dep]] =
     Seq(
@@ -42,37 +45,37 @@ object `package` extends MillBuildRootModule:
          |object BuildConfig {
          |  val buildMode =
          |    BuildMode.${buildMode().getOrElse(BuildMode.Release)}
-         |  val bspScalaVersion: String =
-         |    "${bspScalaVersion().getOrElse("2.13")}"
+         |  val enabledScalaVersions =
+         |    ${(enabledScalaVersions() or SupportedScalaVersions.to(ArraySeq)).quoted}
          |}
       """.stripMargin
     )
     super.generatedSources() ++ Seq(PathRef(Task.dest))
   }
 
-  def getConfig(name: String)(implicit ctx: TaskCtx.Env): Option[String] =
+  def getConfig(name: String)(implicit ctx: TaskCtx.Env): Seq[String] =
     ctx.env
       .get(name map { case '-' => '_'; case c => c.toUpper })
       .orElse {
         val path = moduleDir / "config" / name
         Option.when(os.exists(path))(os.read(path))
       }
+      .to(ArraySeq)
+      .flatMap(_.split(',').map(_.strip))
 
-  def bspScalaVersion: T[Option[String]] =
+  def enabledScalaVersions: T[Seq[String]] =
     Task.Input {
-      val opt = getConfig("scala-version")
-      opt.foreach { ver =>
+      getConfig("scala-version").tapEach { ver =>
         require(
           SupportedScalaVersions `contains` ver,
           s"SCALA_VERSION may be one of ${SupportedScalaVersions.quoted.mkString(",")}; found '$ver'."
         )
       }
-      opt
     }
 
   def buildMode: T[Option[BuildMode]] =
     Task.Input {
-      getConfig("hail-build-mode").map { raw =>
+      getConfig("hail-build-mode").headOption.map { raw =>
         try
           BuildMode.valueOf(raw)
         catch {
