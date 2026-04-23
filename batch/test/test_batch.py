@@ -1245,7 +1245,7 @@ python3 -c \'{script}\'""",
         assert status['state'] == 'Success', str((status, b.debug_info()))
     else:
         assert status['state'] == 'Failed', str((status, b.debug_info()))
-        assert 'Unauthorized' in j.log()['main'], (str(j.log()['main']), status)
+        assert 'Not authenticated' in j.log()['main'], (str(j.log()['main']), status)
 
 
 def test_deploy_config_is_mounted_as_readonly(client: BatchClient):
