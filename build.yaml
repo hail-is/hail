@@ -1,9 +1,9 @@
 # Files that should never trigger tests regardless of which directory they live
-# in. Doc extensions (*.md, *.rst) need to be listed explicitly so they don't
-# match watchedPaths globs for directories that contain them (e.g. batch/*.md).
-# The directory entries are documentary — they'd be skipped by the
-# default-nothing model anyway, but are listed here to make coverage audits
-# easier and to document the intent.
+# in. 
+# - Doc extensions (*.md, *.rst) are listed explicitly so they don't
+#   trigger tests even within otherwise watched directories (e.g. batch/*.md).
+# - The directory entries are superfluous (unwatched files don't cause any tests to be added),
+#   but are here to help document the intent, and make the intent clearer in coverage audits.
 unwatchedPaths:
   - '*.md'   # documentation; explicitly excluded so it doesn't match dir globs
   - '*.rst'  # documentation; same reason
@@ -14,10 +14,7 @@ unwatchedPaths:
   - gateway/            # unmanaged nginx proxy; manually deployed
   - internal-gateway/   # unmanaged nginx proxy; manually deployed
   - bootstrap-gateway/  # unmanaged nginx proxy; manually deployed
-  - letsencrypt/        # TLS cert renewal scripts; manually run
   - prometheus/         # monitoring config; manually applied
-  - grafana/            # monitoring config; manually applied
-  - admin-pod/          # ops tooling; manually deployed
 
 # Files where any change should trigger a full retest of all watched steps.
 # Use this for files that underpin so many things that per-step watching would
@@ -26,7 +23,6 @@ fullRetestPaths:
   - build.yaml              # CI config itself
   - docker/hail-ubuntu/     # base image for almost every CI step
   - docker/Dockerfile.base  # base for build-artifact and service images
-  - tls/                    # cert infrastructure used by batch/auth service tests
 
 alwaysRunSteps:
   - merge_code
@@ -403,9 +399,12 @@ steps:
       - create_test_database_server_config
   - kind: buildImage2
     name: admin_pod_image
+    description: Build the admin-pod Docker image used for ops tooling (kubectl, gsutil, etc.). Tests Dockerfile but not deployed during tests.
     dockerFile: /io/repo/admin-pod/Dockerfile
     contextPath: /io/repo
     publishAs: admin-pod
+    watchedPaths:
+      - admin-pod/
     inputs:
       - from: /repo/admin-pod
         to: /io/repo/admin-pod
@@ -1875,9 +1874,13 @@ steps:
       - gcp
   - kind: deploy
     name: deploy_grafana
+    description: Deploy Grafana into the test namespace for monitoring dashboards; validates grafana/deployment.yaml via kubectl apply.
     namespace:
       valueFrom: default_ns.name
     config: grafana/deployment.yaml
+    watchedPaths:
+      - grafana/
+      - tls/
     scopes:
       - deploy
       - test
@@ -2026,6 +2029,7 @@ steps:
     watchedPaths:
       - monitoring/
       - gear/
+      - tls/
     resources:
       memory: standard
       cpu: '0.25'
@@ -2071,6 +2075,7 @@ steps:
       - auth/
       - gear/
       - hail/python/hailtop/
+      - tls/
     resources:
       memory: standard
       cpu: '0.25'
@@ -2138,6 +2143,7 @@ steps:
       - auth/
       - gear/
       - hail/python/hailtop/
+      - tls/
     resources:
       memory: standard
       cpu: '0.25'
@@ -2720,6 +2726,7 @@ steps:
       - hail/hail/
       - hail/python/hailtop/
       - batch/
+      - tls/
       - docker/hailgenetics/vep/
     numSplits: 16
     image:
@@ -2880,6 +2887,8 @@ steps:
       - gear/
       - hail/python/hailtop/
       - docker/core-site.xml
+      - letsencrypt/subdomains.txt
+      - tls/
     numSplits: 5
     image:
       valueFrom: batch_image.image
@@ -2963,6 +2972,7 @@ steps:
       - gear/
       - hail/python/hailtop/
       - docker/core-site.xml
+      - tls/
     numSplits: 1
     image:
       valueFrom: batch_image.image
@@ -3260,6 +3270,7 @@ steps:
     watchedPaths:
       - ci/
       - gear/
+      - tls/
     resources:
       memory: standard
       cpu: '0.25'
@@ -3312,6 +3323,7 @@ steps:
       - gear/
       - batch/
       - docker/hailgenetics/hailtop/
+      - tls/
     resources:
       memory: standard
       cpu: '0.25'
@@ -3379,6 +3391,7 @@ steps:
       - hail/python/hailtop/
       - batch/
       - docker/hailgenetics/hail/
+      - tls/
     resources:
       memory: standard
       cpu: '0.25'
@@ -3477,6 +3490,7 @@ steps:
     watchedPaths:
       - hail/python/hailtop/
       - batch/
+      - tls/
     image:
       valueFrom: hail_dev_image.image
     script: |
@@ -3875,6 +3889,7 @@ steps:
     description: Smoke-test the website service by fetching its root URL via hailctl curl; requires a live deployed website instance.
     watchedPaths:
       - website/
+      - tls/
     image:
       valueFrom: hailgenetics_hailtop_image.image
     script: |
@@ -3903,6 +3918,7 @@ steps:
     watchedPaths:
       - hail/hail/
       - hail/build.mill
+      - tls/
     image:
       valueFrom: hail_run_image.image
     resources:
@@ -3963,6 +3979,7 @@ steps:
       - hail/hail/
       - hail/build.mill
       - batch/
+      - tls/
     image:
       valueFrom: hail_run_image.image
     resources:
@@ -4107,6 +4124,7 @@ steps:
       - gear/
       - hail/python/hailtop/
       - ci/
+      - tls/
     image:
       valueFrom: hail_dev_image.image
     script: |
