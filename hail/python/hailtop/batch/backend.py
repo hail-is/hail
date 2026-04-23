@@ -24,6 +24,7 @@ from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiotools.validators import validate_file
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES, hailgenetics_hail_image_for_current_python_version
 from hailtop.batch_client.aioclient import BatchClient as AioBatchClient
+from hailtop.batch_client.aioclient import BatchNotAuthenticatedError
 from hailtop.batch_client.parse import parse_cpu_in_mcpu
 from hailtop.config import ConfigVariable, configuration_of, get_deploy_config, get_remote_tmpdir
 from hailtop.utils import async_to_blocking, bounded_gather, parse_docker_image_reference, url_scheme
@@ -538,7 +539,11 @@ class ServiceBackend(Backend[bc.Batch]):
         -------
         A list of the supported cloud regions
         """
-        return async_to_blocking(self._batch_client_sync().supported_regions())
+        try:
+            return async_to_blocking(self._batch_client_sync().supported_regions())
+        except (BatchNotAuthenticatedError, PermissionError) as e:
+            # Reduce stack trace here. Users won't care where this came from. They care they're not authenticated.
+            raise e.with_traceback(None) from None
 
     def default_region(self):
         """
@@ -554,7 +559,11 @@ class ServiceBackend(Backend[bc.Batch]):
         -------
         The default region jobs run in when no regions are specified
         """
-        return async_to_blocking(self._batch_client_sync().default_region())
+        try:
+            return async_to_blocking(self._batch_client_sync().default_region())
+        except (BatchNotAuthenticatedError, PermissionError) as e:
+            # Reduce stack trace here. Users won't care where this came from. They care they're not authenticated.
+            raise e.with_traceback(None) from None
 
     def __init__(
         self,
