@@ -1,3 +1,4 @@
+//| mill-version: 1.0.6
 //| mill-jvm-version: 17
 package build
 
@@ -27,7 +28,8 @@ object Env extends Module:
 
 
 trait HailJavaModule extends JavaModule:
-  override def jvmId = "11"
+  override def jvmId: T[String] =
+    "11"
 
   override def javacOptions: T[Seq[String]] = {
     val `java-1.8` =
