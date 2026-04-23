@@ -1,6 +1,7 @@
 package is.hail.asm4s
 
 import is.hail.annotations.Region
+import is.hail.types.physical.stypes.interfaces.NoBoxLongIterator
 
 trait AsmFunction0[R] { def apply(): R }
 trait AsmFunction1[A, R] { def apply(a: A): R }
@@ -111,4 +112,12 @@ trait AsmFunction3RegionIteratorJLongBooleanLong {
 
 trait AsmFunction3RegionLongIteratorJLongBoolean {
   def apply(r: Region, a: Long, b: Iterator[java.lang.Long]): Boolean
+}
+
+trait AsmFunction3RegionLongLongIteratorJLong {
+  def apply(r: Region, a: Long, b: Long): Iterator[java.lang.Long]
+}
+
+trait AsmFunction3RegionLongNoBoxLongIteratorIteratorJLong {
+  def apply(r: Region, a: Long, b: NoBoxLongIterator): Iterator[java.lang.Long]
 }

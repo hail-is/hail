@@ -3581,34 +3581,25 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
     container: Option[AggContainer],
     loopEnv: Option[Env[LoopRef]],
   ): EmitEnv = {
+    assert(let.bindings.forall(!_.value.typ.isInstanceOf[TStream]))
+
     def emitI(ir: IR, cb: EmitCodeBuilder, env: EmitEnv, r: Value[Region]): IEmitCode =
-      if (ir.typ.isInstanceOf[TStream])
-        EmitStream.produce(this, ir, cb, cb.emb, r, env, container)
-      else this.emitI(ir, cb, r, env, container, loopEnv)
+      this.emitI(ir, cb, r, env, container, loopEnv)
 
     def emitVoid(ir: IR, cb: EmitCodeBuilder, env: EmitEnv, r: Value[Region]): Unit =
       this.emitVoid(cb, ir, r, env, container, loopEnv)
 
-    val uses: mutable.Set[Name] =
-      ctx.usesAndDefs.uses.get(let) match {
-        case Some(refs) => refs.map(_.t.name)
-        case None => mutable.Set.empty
-      }
-
     /* Emit a sequence of bindings into a code builder. Each is added to the environment of all
-     * following bindings. Any bindings which is unused and has no side effects is skipped (this is
-     * mostly an optimization, but it is important not to emit unused streams). */
+     * following bindings. */
     def emitChunk(cb: EmitCodeBuilder, bindings: Seq[Binding], env: EmitEnv, r: Value[Region])
       : EmitEnv =
       bindings.foldLeft(env) { case (newEnv, Binding(name, ir, Scope.EVAL)) =>
         if (ir.typ == TVoid) {
           emitVoid(ir, cb, newEnv, r)
           newEnv
-        } else if (IsPure(ir) && !uses.contains(name)) {
-          newEnv
         } else {
           val value = emitI(ir, cb, newEnv, r)
-          val memo = cb.memoizeMaybeStreamValue(value, s"let_$name")
+          val memo = cb.memoizeField(value, s"let_$name")
           newEnv.bind(name, memo)
         }
       }
@@ -3640,7 +3631,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
       }
 
       def cantEmitInSeparateMethod(ir: IR): Boolean =
-        ir.typ.isInstanceOf[TStream] || ctx.inLoopCriticalPath.contains(ir)
+        ctx.inLoopCriticalPath.contains(ir)
 
       // end of bindings, emit any pending chunk and return the final environment
       if (pos == let.bindings.length) {
@@ -3650,23 +3641,12 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
           return env
       }
 
-      val Binding(curName, curIR, Scope.EVAL) = let.bindings(pos)
+      val Binding(_, curIR, Scope.EVAL) = let.bindings(pos)
 
-      // skip over unused streams
-      if (curIR.typ.isInstanceOf[TStream] && !uses.contains(curName)) {
-        go(env, chunkStart, pos + 1, chunkSize, groupIdx)
-      } else if (chunkSize == 16 || (chunkSize > 0 && cantEmitInSeparateMethod(curIR))) {
-        /* emit the current chunk if it's either max size, or broken by a stream or other control
-         * flow */
+      if (chunkSize == 16 || (chunkSize > 0 && cantEmitInSeparateMethod(curIR))) {
+        // emit the current chunk if it's either max size, or broken by control flow
         val newEnv = emitChunkInSeparateMethod()
         go(newEnv, pos, pos, 0, groupIdx + 1)
-      } else if (curIR.typ.isInstanceOf[TStream]) {
-        // emit a stream, assuming we've already emitted any prior chunk
-        assert(chunkSize == 0) // no pending bindings
-        val value = emitI(curIR, cb, env, r)
-        val memo = cb.memoizeMaybeStreamValue(value, s"let_$curName")
-        val newEnv = env.bind(curName, memo)
-        go(newEnv, pos + 1, pos + 1, 0, groupIdx)
       } else {
         // add cur binding to pending chunk
         go(env, chunkStart, pos + 1, chunkSize + 1, groupIdx)
