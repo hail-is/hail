@@ -22,8 +22,9 @@ from hailtop.config import get_deploy_config
 from hailtop.utils import RETRY_FUNCTION_SCRIPT, check_shell, check_shell_output
 
 from .build import BuildConfiguration, Code
+from .build_selection import compute_requested_steps
 from .constants import AUTHORIZED_USERS, COMPILER_TEAM, GITHUB_CLONE_URL, GITHUB_STATUS_CONTEXT, SERVICES_TEAM
-from .environment import DEPLOY_STEPS
+from .environment import CLOUD, DEPLOY_STEPS
 from .globals import is_test_deployment
 from .utils import GithubStatus, add_deployed_services, github_status
 
@@ -561,17 +562,29 @@ mkdir -p {shq(repo_dir)}
             sha_out, _ = await check_shell_output(f'git -C {shq(repo_dir)} rev-parse HEAD')
             self.sha = sha_out.decode('utf-8').strip()
 
+            assert self.target_branch.sha is not None
+            diff_out, _ = await check_shell_output(
+                f'git -C {shq(repo_dir)} diff --name-only {shq(self.target_branch.sha)}...HEAD'
+            )
+            changed_files = [f for f in diff_out.decode('utf-8').strip().split('\n') if f]
+            log.info(f'PR #{self.number} changed files ({len(changed_files)}): {changed_files}')
+
             with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
-                config = BuildConfiguration(self, f.read(), scope='test')
-                namespace = config.namespace()
-                services = config.deployed_services()
+                build_yaml = f.read()
+            requested_steps_set = compute_requested_steps(build_yaml, changed_files, scope='test', cloud=CLOUD)
+            log.info(f'PR #{self.number} selected steps ({len(requested_steps_set)})')
+            config = BuildConfiguration(self, build_yaml, scope='test', requested_step_names=list(requested_steps_set))
+            namespace = config.namespace()
+            services = config.deployed_services()
             with open(f'{repo_dir}/ci/test/resources/build.yaml', 'r', encoding='utf-8') as f:
                 test_services = BuildConfiguration(self, f.read(), scope='test').deployed_services()
 
             services.extend(test_services)
-            tomorrow = datetime.datetime.utcnow() + datetime.timedelta(days=1)
-            assert namespace is not None
-            await add_deployed_services(db, namespace, services, tomorrow)
+            # namespace is None when no service deploy steps are selected (e.g. hail-only PRs);
+            # in that case there are no deployed services to register.
+            if namespace is not None:
+                tomorrow = datetime.datetime.utcnow() + datetime.timedelta(days=1)
+                await add_deployed_services(db, namespace, services, tomorrow)
 
             log.info(f'creating test batch for {self.number}')
             batch = batch_client.create_batch(
@@ -581,7 +594,7 @@ mkdir -p {shq(repo_dir)}
                     'source_branch': self.source_branch.short_str(),
                     'target_branch': self.target_branch.branch.short_str(),
                     'pr': str(self.number),
-                    'namespace': namespace,
+                    'namespace': namespace or 'N/A',
                     'source_sha': self.source_sha,
                     'target_sha': self.target_branch.sha,
                     'name': f'PR test #{self.number}: {self.source_branch.name} @ {self.source_sha[:8]} -> {self.target_branch.branch.name} @ {(self.target_branch.sha or "unknown")[:8]}',

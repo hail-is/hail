@@ -1,3 +1,8 @@
+repoPrefix: /repo
+
+alwaysRunSteps:
+  - merge_code
+
 steps:
   - kind: buildImage2
     name: git_make_bash_image
@@ -637,8 +642,10 @@ steps:
     contextPath: /io/repo/docker/vep/
     publishAs: hailgenetics/vep-grch37-85
     inputs:
-      - from: /repo
-        to: /io/repo
+      - from: /repo/docker/hailgenetics/vep
+        to: /io/repo/docker/hailgenetics/vep
+      - from: /repo/docker/vep
+        to: /io/repo/docker/vep
     dependsOn:
       - merge_code
   - kind: buildImage2
@@ -647,8 +654,10 @@ steps:
     contextPath: /io/repo/docker/vep/
     publishAs: hailgenetics/vep-grch38-95
     inputs:
-      - from: /repo
-        to: /io/repo
+      - from: /repo/docker/hailgenetics/vep
+        to: /io/repo/docker/hailgenetics/vep
+      - from: /repo/docker/vep
+        to: /io/repo/docker/vep
     dependsOn:
       - merge_code
   - kind: buildImage2
@@ -813,8 +822,12 @@ steps:
       BYTES=$(du build/deploy/dist/hail-*-py3-none-any.whl | awk '{print $1}')
       (( BYTES < 209715200 )) || exit 1
     inputs:
-      - from: /repo
-        to: /io/repo
+      - from: /repo/hail
+        to: /io/repo/hail
+      - from: /repo/.git
+        to: /io/repo/.git
+      - from: /repo/README.md
+        to: /io/repo/README.md
     outputs:
       - from: /io/repo/hail/out
         to: /derived/release/hail/out/
@@ -902,8 +915,12 @@ steps:
 
       time retry make wheel
     inputs:
-      - from: /repo
-        to: /io/repo
+      - from: /repo/hail
+        to: /io/repo/hail
+      - from: /repo/.git
+        to: /io/repo/.git
+      - from: /repo/README.md
+        to: /io/repo/README.md
     outputs:
       - from: /io/repo/hail/out
         to: /derived/debug/hail/out
@@ -933,8 +950,10 @@ steps:
           sleep 5
       fi
     inputs:
-      - from: /repo
-        to: /io/repo
+      - from: /repo/hail
+        to: /io/repo/hail
+      - from: /repo/.git
+        to: /io/repo/.git
       - from: /derived/debug/hail/out
         to: /io/repo/hail/out
     outputs:
@@ -958,8 +977,8 @@ steps:
       time TESTNG_SPLITS=5 python3 generate_splits.py
       time tar czf splits.tar.gz testng-splits-*.xml
     inputs:
-      - from: /repo
-        to: /io/repo
+      - from: /repo/hail
+        to: /io/repo/hail
     outputs:
       - from: /io/repo/hail/test.tar.gz
         to: /test.tar.gz
@@ -1698,8 +1717,8 @@ steps:
       HAIL_BUILD_MODE='CI'
       time retry sh mill --no-daemon hail[2.13].__.compile
     inputs:
-      - from: /repo
-        to: /io/repo
+      - from: /repo/hail
+        to: /io/repo/hail
     dependsOn:
       - base_image
       - merge_code
@@ -1744,8 +1763,10 @@ steps:
       memory: standard
       cpu: '2'
     inputs:
-      - from: /repo
-        to: /io/repo
+      - from: /repo/hail/env/HAIL_PIP_VERSION
+        to: /io/repo/hail/env/HAIL_PIP_VERSION
+      - from: /repo/.git
+        to: /io/repo/.git
       - from: /www.tar.gz
         to: /io/www.tar.gz
     outputs:
@@ -3006,8 +3027,28 @@ steps:
       - test
       - dev
     inputs:
-      - from: /repo
-        to: /io/repo
+      - from: /repo/ci
+        to: /io/repo/ci
+      - from: /repo/tls
+        to: /io/repo/tls
+      - from: /repo/pylintrc
+        to: /io/repo/pylintrc
+      - from: /repo/check-sql.sh
+        to: /io/repo/check-sql.sh
+      - from: /repo/pyproject.toml
+        to: /io/repo/pyproject.toml
+      - from: /repo/docker
+        to: /io/repo/docker
+      - from: /repo/gear
+        to: /io/repo/gear
+      - from: /repo/hail/python
+        to: /io/repo/hail/python
+      - from: /repo/hail/Makefile
+        to: /io/repo/hail/Makefile
+      - from: /repo/hail/env_var.mk
+        to: /io/repo/hail/env_var.mk
+      - from: /repo/web_common
+        to: /io/repo/web_common
     dependsOn:
       - default_ns
       - ci_utils_image
