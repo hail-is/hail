@@ -1,10 +1,9 @@
-import asyncio
 import secrets
 from typing import AsyncIterator, Dict, List, Tuple
 
 import pytest
 
-from hailtop.aiotools import AsyncFS, Copier, FileAndDirectoryError, FileListEntry, Transfer
+from hailtop.aiotools import AsyncFS, Copier, FileAndDirectoryError, FileListEntry, Transfer, WeightedSemaphore
 from hailtop.utils import url_scheme
 
 from .copy_test_specs import COPY_TEST_SPECS
@@ -42,7 +41,7 @@ async def cloud_scheme(request):
         's3/s3',
     ]
 )
-async def copy_test_context(request, router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]]):
+async def copy_test_context(request, router_filesystem: Tuple[WeightedSemaphore, AsyncFS, Dict[str, str]]):
     sema, fs, bases = router_filesystem
 
     [src_scheme, dest_scheme] = request.param.split('/')
@@ -355,7 +354,7 @@ async def test_file_overwrite_dir(copy_test_context):
 
 
 async def test_file_and_directory_error(
-    router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]], cloud_scheme: str
+    router_filesystem: Tuple[WeightedSemaphore, AsyncFS, Dict[str, str]], cloud_scheme: str
 ):
     sema, fs, bases = router_filesystem
 
@@ -394,7 +393,7 @@ async def collect_files(it: AsyncIterator[FileListEntry]) -> List[str]:
 
 
 async def test_file_and_directory_error_with_slash_empty_file(
-    router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]], cloud_scheme: str
+    router_filesystem: Tuple[WeightedSemaphore, AsyncFS, Dict[str, str]], cloud_scheme: str
 ):
     sema, fs, bases = router_filesystem
 
@@ -429,7 +428,7 @@ async def test_file_and_directory_error_with_slash_empty_file(
 
 
 async def test_file_and_directory_error_with_slash_non_empty_file_for_google_non_recursive(
-    router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]],
+    router_filesystem: Tuple[WeightedSemaphore, AsyncFS, Dict[str, str]],
 ):
     _, fs, bases = router_filesystem
 
@@ -446,7 +445,7 @@ async def test_file_and_directory_error_with_slash_non_empty_file_for_google_non
 
 
 async def test_file_and_directory_error_with_slash_non_empty_file(
-    router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]], cloud_scheme: str
+    router_filesystem: Tuple[WeightedSemaphore, AsyncFS, Dict[str, str]], cloud_scheme: str
 ):
     sema, fs, bases = router_filesystem
 
@@ -489,7 +488,7 @@ async def test_file_and_directory_error_with_slash_non_empty_file(
 
 
 async def test_file_and_directory_error_with_slash_non_empty_file_only_for_google_non_recursive(
-    router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]],
+    router_filesystem: Tuple[WeightedSemaphore, AsyncFS, Dict[str, str]],
 ):
     sema, fs, bases = router_filesystem
 
@@ -512,7 +511,7 @@ async def test_file_and_directory_error_with_slash_non_empty_file_only_for_googl
 
 
 async def test_file_and_directory_error_with_slash_empty_file_only(
-    router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]], cloud_scheme: str
+    router_filesystem: Tuple[WeightedSemaphore, AsyncFS, Dict[str, str]], cloud_scheme: str
 ):
     sema, fs, bases = router_filesystem
 
@@ -537,7 +536,7 @@ async def test_file_and_directory_error_with_slash_empty_file_only(
 
 
 async def test_file_and_directory_error_with_slash_non_empty_file_only_google_non_recursive(
-    router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]],
+    router_filesystem: Tuple[WeightedSemaphore, AsyncFS, Dict[str, str]],
 ):
     _, fs, bases = router_filesystem
 
@@ -553,7 +552,7 @@ async def test_file_and_directory_error_with_slash_non_empty_file_only_google_no
 
 
 async def test_file_and_directory_error_with_slash_non_empty_file_only(
-    router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]], cloud_scheme: str
+    router_filesystem: Tuple[WeightedSemaphore, AsyncFS, Dict[str, str]], cloud_scheme: str
 ):
     sema, fs, bases = router_filesystem
 

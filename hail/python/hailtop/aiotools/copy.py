@@ -12,16 +12,16 @@ from rich.progress import Progress, TaskID
 from .. import uvloopx
 from ..utils.rich_progress_bar import CopyToolProgressBar, make_listener
 from ..utils.utils import sleep_before_try
-from . import Copier, Transfer
+from . import Copier, Transfer, WeightedSemaphore
 from .router_fs import RouterAsyncFS
 
 
-class GrowingSempahore(AsyncContextManager[asyncio.Semaphore]):
+class GrowingSemaphore(AsyncContextManager[WeightedSemaphore]):
     def __init__(self, start_max: int, target_max: int, progress_and_tid: Optional[Tuple[Progress, TaskID]]):
+        self.sema = WeightedSemaphore(start_max)
         self.task: Optional[asyncio.Task] = None
         self.target_max = target_max
         self.current_max = start_max
-        self.sema = asyncio.Semaphore(self.current_max)
         self.progress_and_tid = progress_and_tid
 
     async def _grow(self):
@@ -34,28 +34,23 @@ class GrowingSempahore(AsyncContextManager[asyncio.Semaphore]):
             )
             new_max = min(int(self.current_max * 1.5), self.target_max)
             diff = new_max - self.current_max
-            self.sema._value += diff
-            self.sema._wake_up_next()
+            self.sema.release(diff)
             self.current_max = new_max
             if self.progress_and_tid:
                 progress, tid = self.progress_and_tid
                 progress.update(tid, advance=diff)
 
-    async def __aenter__(self) -> asyncio.Semaphore:
+    async def __aenter__(self) -> WeightedSemaphore:
         self.task = asyncio.create_task(self._grow())
-        await self.sema.__aenter__()
         return self.sema
 
-    async def __aexit__(self, exc_type, exc, tb):
-        try:
-            await self.sema.__aexit__(exc_type, exc, tb)
-        finally:
-            if self.task is not None:
-                if self.task.done() and not self.task.cancelled():
-                    if exc := self.task.exception():
-                        raise exc
-                else:
-                    self.task.cancel()
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if self.task is not None:
+            if self.task.done() and not self.task.cancelled():
+                if exc := self.task.exception():
+                    raise exc
+            else:
+                self.task.cancel()
 
 
 async def copy(
@@ -76,6 +71,11 @@ async def copy(
         if 'thread_pool' not in local_kwargs:
             local_kwargs['thread_pool'] = thread_pool
 
+        if gcs_kwargs is None:
+            gcs_kwargs = {}
+        if 'thread_pool' not in gcs_kwargs:
+            gcs_kwargs['thread_pool'] = thread_pool
+
         if s3_kwargs is None:
             s3_kwargs = {}
         if 'thread_pool' not in s3_kwargs:
@@ -94,7 +94,7 @@ async def copy(
                     total=max_simultaneous_transfers,
                     visible=verbose,
                 )
-                async with GrowingSempahore(
+                async with GrowingSemaphore(
                     initial_simultaneous_transfers, max_simultaneous_transfers, (progress, parallelism_tid)
                 ) as sema:
                     file_tid = progress.add_task(description='files', total=0, visible=verbose)

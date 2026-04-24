@@ -128,7 +128,7 @@ executing==2.2.1
     #   stack-data
 fastjsonschema==2.21.2
     # via nbformat
-filelock==3.25.2
+filelock==3.29.0
     # via
     #   python-discovery
     #   virtualenv
@@ -149,9 +149,9 @@ httpcore==1.0.9
     # via httpx
 httpx==0.28.1
     # via jupyterlab
-identify==2.6.18
+identify==2.6.19
     # via pre-commit
-idna==3.11
+idna==3.12
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   anyio
@@ -232,7 +232,7 @@ jupyter-core==5.9.1
     #   nbconvert
     #   nbformat
     #   notebook
-jupyter-events==0.12.0
+jupyter-events==0.12.1
     # via jupyter-server
 jupyter-lsp==2.3.1
     # via jupyterlab
@@ -309,7 +309,7 @@ nodeenv==1.10.0
     # via
     #   pre-commit
     #   pyright
-nodejs-wheel-binaries==24.14.1
+nodejs-wheel-binaries==24.15.0
     # via pyright
 notebook==6.5.7
     # via
@@ -326,7 +326,7 @@ numpy==2.2.6
     #   matplotlib
 overrides==7.7.0
     # via jupyter-server
-packaging==26.0
+packaging==26.1
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   build
@@ -631,7 +631,7 @@ uv==0.10.12
     # via -r hail/python/dev/requirements.txt
 uv-build==0.10.12
     # via -r hail/python/dev/requirements.txt
-virtualenv==21.2.1
+virtualenv==21.2.4
     # via pre-commit
 watchfiles==1.1.1
     # via aiohttp-devtools
@@ -651,5 +651,5 @@ yarl==1.23.0
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   aiohttp
-zipp==3.23.0
+zipp==3.23.1
     # via importlib-metadata

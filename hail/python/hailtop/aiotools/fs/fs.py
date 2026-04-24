@@ -397,6 +397,15 @@ class AsyncFS(abc.ABC):
             if tasks:
                 await pool.wait(tasks)
 
+    async def copy_between_fs(
+        self,
+        srcfile: str,
+        srcstat: FileStatus,
+        destfile: str,
+        **kwargs,
+    ):
+        raise NotImplementedError
+
     async def touch(self, url: str) -> None:
         async with await self.create(url):
             pass
