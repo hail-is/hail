@@ -4,8 +4,6 @@ from ci.build_selection import (
     _expand_to_descendants,
     _file_matches_input,
     _find_affected_steps,
-    _in_cloud,
-    _in_scope,
     _repo_input_local_path,
     _valid_step,
     compute_requested_steps,
@@ -57,44 +55,15 @@ def test_file_matches_input(changed_file, local_path, expected):
 
 
 @pytest.mark.parametrize(
-    'scopes, scope, expected',
-    [
-        (None, 'test', True),
-        (None, 'dev', True),
-        (['test'], 'test', True),
-        (['test', 'dev'], 'test', True),
-        (['dev'], 'test', False),
-        ([], 'test', False),
-    ],
-)
-def test_in_scope(scopes, scope, expected):
-    assert _in_scope(scopes, scope) == expected
-
-
-@pytest.mark.parametrize(
-    'clouds, cloud, expected',
-    [
-        (None, 'gcp', True),
-        (None, None, True),
-        (['gcp'], 'gcp', True),
-        (['gcp', 'azure'], 'gcp', True),
-        (['gcp'], 'azure', False),
-        (['gcp'], None, True),
-        ([], 'gcp', False),
-    ],
-)
-def test_in_cloud(clouds, cloud, expected):
-    assert _in_cloud(clouds, cloud) == expected
-
-
-@pytest.mark.parametrize(
     'step, scope, cloud, expected',
     [
         ({'scopes': None, 'clouds': None}, 'test', 'gcp', True),
+        ({'scopes': None, 'clouds': None}, 'test', None, True),  # no cloud filter
         ({'scopes': ['test'], 'clouds': None}, 'test', 'gcp', True),
         ({'scopes': ['dev'], 'clouds': None}, 'test', 'gcp', False),
         ({'scopes': None, 'clouds': ['gcp']}, 'test', 'gcp', True),
         ({'scopes': None, 'clouds': ['gcp']}, 'test', 'azure', False),
+        ({'scopes': None, 'clouds': ['gcp']}, 'test', None, True),  # unfiltered cloud matches any
         ({'scopes': ['deploy'], 'clouds': ['gcp']}, 'test', 'gcp', False),
         ({}, 'test', None, True),
     ],

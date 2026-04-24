@@ -24,18 +24,12 @@ def _file_matches_input(changed_file: str, local_path: str) -> bool:
     return changed_file == local_path or changed_file.startswith(local_path + '/')
 
 
-def _in_scope(scopes: Optional[List[str]], scope: str) -> bool:
-    return scopes is None or scope in scopes
-
-
-def _in_cloud(clouds: Optional[List[str]], cloud: Optional[str]) -> bool:
-    if cloud is None or clouds is None:
-        return True
-    return cloud in clouds
-
-
-def _valid_step(step: dict, scope: str, cloud: Optional[str]) -> bool:
-    return _in_scope(step.get('scopes'), scope) and _in_cloud(step.get('clouds'), cloud)
+def _valid_step(step: dict, actual_scope: str, actual_cloud: Optional[str]) -> bool:
+    step_scopes = step.get('scopes')
+    step_clouds = step.get('clouds')
+    return (step_scopes is None or actual_scope in step_scopes) and (
+        step_clouds is None or actual_cloud is None or actual_cloud in step_clouds
+    )
 
 
 def _find_affected_steps(
