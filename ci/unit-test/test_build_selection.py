@@ -7,28 +7,10 @@ from ci.build_selection import (
     _find_affected_steps,
     _in_cloud,
     _in_scope,
-    _is_doc_file,
     _repo_input_local_path,
     _valid_step,
     compute_requested_steps,
 )
-
-
-@pytest.mark.parametrize(
-    'path, expected',
-    [
-        ('batch/README.md', True),
-        ('batch/README.MD', True),
-        ('CHANGELOG.rst', True),
-        ('CHANGELOG.RST', True),
-        ('batch/batch/server.py', False),
-        ('foo.py', False),
-        ('notes.md.bak', False),
-        ('README', False),
-    ],
-)
-def test_is_doc_file(path, expected):
-    assert _is_doc_file(path) == expected
 
 
 @pytest.mark.parametrize(
@@ -292,9 +274,9 @@ steps:
         (_SIMPLE_CONFIG, ['ci/foo.py'], 'test', None, ['check_ci', 'merge_code']),
         # hail change affects check_hail; merge_code always included
         (_SIMPLE_CONFIG, ['hail/foo.py'], 'test', None, ['check_hail', 'merge_code']),
-        # doc-only change: no affected steps, but merge_code still runs
-        (_SIMPLE_CONFIG, ['ci/README.md'], 'test', None, ['merge_code']),
-        # mix of doc and code: code file affects check_ci, doc file ignored
+        # README.md under ci/ affects check_ci just like any other file there
+        (_SIMPLE_CONFIG, ['ci/README.md'], 'test', None, ['check_ci', 'merge_code']),
+        # multiple ci/ files both affect check_ci
         (_SIMPLE_CONFIG, ['ci/README.md', 'ci/foo.py'], 'test', None, ['check_ci', 'merge_code']),
         # deploy scope: check_ci scoped to [test,dev] is not affected; merge_code always included
         (_SIMPLE_CONFIG, ['ci/foo.py'], 'deploy', None, ['merge_code']),

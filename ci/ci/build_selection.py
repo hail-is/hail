@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Dict, FrozenSet, List, Optional, Set
+from typing import Dict, List, Optional, Set
 
 import yaml
 
@@ -12,15 +12,6 @@ class BuildSelectionResult:
 
     def __str__(self) -> str:
         return f'requested_steps={self.requested_steps}'
-
-
-_DOC_EXTENSIONS: FrozenSet[str] = frozenset({'.md', '.rst'})
-
-
-def _is_doc_file(path: str) -> bool:
-    """True if the file is documentation-only and should not trigger test steps."""
-    lower = path.lower()
-    return any(lower.endswith(ext) for ext in _DOC_EXTENSIONS)
 
 
 def _repo_input_local_path(from_path: str, repo_prefix: str = '/repo') -> Optional[str]:
@@ -110,7 +101,6 @@ def compute_requested_steps(
 
     config = yaml.safe_load(config_str)
     repo_prefix: str = config.get('repoPrefix', '/repo')
-    code_files = [f for f in changed_files if not _is_doc_file(f)]
 
     steps = [s for s in config.get('steps', []) if _valid_step(s, scope, cloud)]
     always_run_steps = set(config.get('alwaysRunSteps', []))
@@ -120,7 +110,7 @@ def compute_requested_steps(
         for dep in step.get('dependsOn', []):
             descendants_map.setdefault(dep, []).append(step['name'])
 
-    affected_steps = _find_affected_steps(steps, code_files, repo_prefix)
+    affected_steps = _find_affected_steps(steps, changed_files, repo_prefix)
     affected_and_descendants = _expand_to_descendants(affected_steps, descendants_map)
     requested_steps = affected_and_descendants | always_run_steps
 

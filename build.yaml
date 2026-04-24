@@ -826,6 +826,8 @@ steps:
         to: /io/repo/hail
       - from: /repo/.git
         to: /io/repo/.git
+      - from: /repo/README.md
+        to: /io/repo/README.md
     outputs:
       - from: /io/repo/hail/out
         to: /derived/release/hail/out/
@@ -917,6 +919,8 @@ steps:
         to: /io/repo/hail
       - from: /repo/.git
         to: /io/repo/.git
+      - from: /repo/README.md
+        to: /io/repo/README.md
     outputs:
       - from: /io/repo/hail/out
         to: /derived/debug/hail/out
