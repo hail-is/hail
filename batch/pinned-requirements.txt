@@ -50,7 +50,7 @@ frozenlist==1.8.0
     #   -c batch/../web_common/pinned-requirements.txt
     #   aiohttp
     #   aiosignal
-idna==3.11
+idna==3.13
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   -c batch/../hail/python/dev/pinned-requirements.txt
@@ -70,7 +70,7 @@ numpy==2.2.6
     #   -c batch/../hail/python/dev/pinned-requirements.txt
     #   -c batch/../hail/python/pinned-requirements.txt
     #   pandas
-packaging==26.0
+packaging==26.1
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   -c batch/../hail/python/dev/pinned-requirements.txt
@@ -120,7 +120,7 @@ typing-extensions==4.15.0
     #   -c batch/../web_common/pinned-requirements.txt
     #   aiosignal
     #   multidict
-tzdata==2026.1
+tzdata==2026.2
     # via
     #   -c batch/../hail/python/dev/pinned-requirements.txt
     #   -c batch/../hail/python/pinned-requirements.txt

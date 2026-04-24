@@ -1,5 +1,4 @@
 from .fs_utils import (
-    FileListEntry,
     copy,
     exists,
     is_dir,
@@ -11,6 +10,7 @@ from .fs_utils import (
     rmtree,
     stat,
 )
+from .stat_result import FileListEntry
 
 __all__ = [
     'FileListEntry',

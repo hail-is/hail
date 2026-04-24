@@ -35,7 +35,7 @@ attrs==26.1.0
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
     #   aiohttp
-certifi==2026.2.25
+certifi==2026.4.22
     # via
     #   -c gear/../hail/python/dev/pinned-requirements.txt
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
@@ -90,7 +90,7 @@ httplib2==0.31.2
     # via
     #   google-api-python-client
     #   google-auth-httplib2
-idna==3.11
+idna==3.13
     # via
     #   -c gear/../hail/python/dev/pinned-requirements.txt
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
@@ -106,7 +106,7 @@ multidict==6.7.1
     #   -c gear/../hail/python/pinned-requirements.txt
     #   aiohttp
     #   yarl
-packaging==26.0
+packaging==26.1
     # via
     #   -c gear/../hail/python/dev/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt

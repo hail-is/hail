@@ -59,7 +59,7 @@ def test_job_resource_usage(client: BatchClient):
     assert status['state'] == 'Success', str((status, b.debug_info()))
 
     resource_usage = j.resource_usage()
-    if resource_usage is None:
+    if resource_usage is not None:
         assert resource_usage['main'] is not None, str((resource_usage, b.debug_info()))
 
 
