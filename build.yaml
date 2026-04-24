@@ -460,6 +460,8 @@ steps:
         script: /io/sql/009-add-users-last-active.sql
       - name: refactor-roles
         script: /io/sql/010-refactor-roles.sql
+      - name: refactor-system-permissions
+        script: /io/sql/011-refactor-system-permissions.sql
     inputs:
       - from: /repo/auth/sql
         to: /io/sql
@@ -1814,13 +1816,12 @@ steps:
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
 
       {% if default_ns.name == "default" %}
-      hailctl auth create-user --developer {{ code.username }} {{ code.login_id }}
+      hailctl auth create-user {{ code.username }} {{ code.login_id }} developer billing_manager sysadmin
       {% else %}
       hailctl auth create-user \
-        --developer \
         --hail-identity {{ code.hail_identity }} \
         --hail-credentials-secret-name {{ code.username }}-gsa-key \
-        {{ code.username }} {{ code.login_id }}
+        {{ code.username }} {{ code.login_id }} developer billing_manager sysadmin
       {% endif %}
     secrets:
       - name: test-dev-gsa-key
@@ -2530,10 +2531,9 @@ steps:
       {% for user in code.get("developers", []) %}
       {% if user['username'] != 'test-dev' %}
       hailctl auth create-user \
-        --developer \
         --hail-identity {{ user["hail_identity"] }} \
         --hail-credentials-secret-name {{ user["username"] }}-gsa-key \
-        {{ user["username"] }} {{ user["login_id"] }}
+        {{ user["username"] }} {{ user["login_id"] }} developer billing_manager sysadmin
       {% endif %}
       {% endfor %}
     secrets:
@@ -2901,6 +2901,7 @@ steps:
               --log-date-format="%Y-%m-%dT%H:%M:%S" \
               --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" \
               --timeout=360 \
+              --ignore=/io/test/test_system_permissions.py \
               /io/test/
     inputs:
       - from: /repo/auth/test
@@ -2909,6 +2910,49 @@ steps:
         to: /io/dev-requirements.txt
     timeout: 1500
     dependsOn:
+      - auth_image
+  - kind: runImage
+    name: test_system_permissions
+    resources:
+      memory: standard
+      cpu: '0.25'
+    image:
+      valueFrom: auth_image.image
+    script: |
+      set -ex
+      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
+      export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-dev-gsa-key/key.json
+
+      hail-pip-install -r /io/dev-requirements.txt
+
+      python3 -m pytest \
+              --log-cli-level=INFO -s -r A -vv --instafail \
+              --durations=50 --timeout=600 \
+              /io/test/test_system_permissions.py
+    inputs:
+      - from: /repo/auth/test
+        to: /io/test
+      - from: /repo/hail/python/dev/pinned-requirements.txt
+        to: /io/dev-requirements.txt
+    timeout: 900
+    secrets:
+      - name: test-tokens
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /user-tokens
+      - name: test-dev-gsa-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-dev-gsa-key
+    dependsOn:
+      - create_deploy_config
+      - create_accounts
+      - default_ns
+      - deploy_auth
+      - deploy_batch
+      - deploy_ci
+      - deploy_monitoring
       - auth_image
   - kind: runImage
     name: delete_test_billing_projects
