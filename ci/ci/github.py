@@ -571,8 +571,9 @@ mkdir -p {shq(repo_dir)}
 
             with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
                 build_yaml = f.read()
-            requested_steps = compute_requested_steps(build_yaml, changed_files, cloud=CLOUD)
-            log.info(f'PR #{self.number} selected steps ({len(requested_steps)}): {requested_steps}')
+            requested_steps_set = compute_requested_steps(build_yaml, changed_files, cloud=CLOUD)
+            requested_steps = list(requested_steps_set)
+            log.info(f'PR #{self.number} selected steps ({len(requested_steps)})')
             config = BuildConfiguration(self, build_yaml, scope='test', requested_step_names=requested_steps or ())
             namespace = config.namespace()
             services = config.deployed_services()

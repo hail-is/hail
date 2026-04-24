@@ -78,15 +78,15 @@ def compute_requested_steps(
     changed_files: List[str],
     scope: str = 'test',
     cloud: Optional[str] = None,
-) -> List[str]:
+) -> Set[str]:
     """Select which build steps should be requested, given the changed files in a PR.
 
     set((directly affected steps + their descendants) + alwaysRunSteps)
 
-    Returns an empty list when changed_files is empty.
+    Returns an empty set when changed_files is empty.
     """
     if not changed_files:
-        return []
+        return set()
 
     config = yaml.safe_load(config_str)
     repo_prefix: str = config.get('repoPrefix', '/repo')
@@ -103,4 +103,4 @@ def compute_requested_steps(
     affected_and_descendants = _expand_to_descendants(affected_steps, descendants_map)
     requested_steps = affected_and_descendants | always_run_steps
 
-    return sorted(requested_steps)
+    return requested_steps

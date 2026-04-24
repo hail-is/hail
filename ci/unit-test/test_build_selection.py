@@ -291,4 +291,4 @@ steps:
 )
 def test_compute_requested_steps(config_str, changed_files, scope, cloud, expected_steps):
     result = compute_requested_steps(config_str, changed_files, scope=scope, cloud=cloud)
-    assert result == expected_steps
+    assert result == set(expected_steps)
