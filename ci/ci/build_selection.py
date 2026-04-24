@@ -1,13 +1,3 @@
-"""Change-based test selection helpers.
-
-Derives step selection from each step's `inputs` declarations in build.yaml.
-Steps that directly import changed repository files are seeds; all transitive
-dependents in the dependsOn DAG are included.
-
-This module is intentionally free of cloud/environment imports so it can be
-used in tests and tooling without a running deployment.
-"""
-
 from dataclasses import dataclass, field
 from typing import Dict, FrozenSet, List, Optional, Set
 
@@ -16,11 +6,7 @@ import yaml
 
 @dataclass
 class BuildSelectionResult:
-    """Result of change-based step selection.
-
-    Attributes:
-        requested_steps: Sorted list of step names that should run.
-    """
+    """The set of build steps selected to run."""
 
     requested_steps: List[str] = field(default_factory=list)
 
@@ -32,13 +18,13 @@ _DOC_EXTENSIONS: FrozenSet[str] = frozenset({'.md', '.rst'})
 
 
 def _is_doc_file(path: str) -> bool:
-    """True if the file has a documentation-only extension that should not trigger test seeds."""
+    """True if the file is documentation-only and should not trigger test steps."""
     lower = path.lower()
     return any(lower.endswith(ext) for ext in _DOC_EXTENSIONS)
 
 
 def _repo_input_local_path(from_path: str, repo_prefix: str = '/repo') -> Optional[str]:
-    """Return the local path from a <repo_prefix>/... input, or None if not a repo input.
+    """Return the repo-relative path for a repo input, or None if not a repo input.
 
     '/repo'   -> ''       (matches everything)
     '/repo/x' -> 'x'
@@ -72,13 +58,13 @@ def _valid_step(step: dict, scope: str, cloud: Optional[str]) -> bool:
     return _in_scope(step.get('scopes'), scope) and _in_cloud(step.get('clouds'), cloud)
 
 
-def _find_seed_steps(
+def _find_affected_steps(
     steps: list,
     changed_files: List[str],
     repo_prefix: str = '/repo',
 ) -> Set[str]:
-    """Return steps whose repo inputs match any of the changed files."""
-    seeds: Set[str] = set()
+    """Return steps with repo inputs that overlap with the changed files."""
+    affected_steps: Set[str] = set()
     for step in steps:
         inputs = step.get('inputs') or []
         for inp in inputs:
@@ -86,24 +72,24 @@ def _find_seed_steps(
             if local_path is None:
                 continue
             if any(_file_matches_input(f, local_path) for f in changed_files):
-                seeds.add(step['name'])
+                affected_steps.add(step['name'])
                 break
-    return seeds
+    return affected_steps
 
 
 def _expand_to_descendants(
-    seeds: Set[str],
-    reverse: Dict[str, List[str]],
+    affected_steps: Set[str],
+    descendants_map: Dict[str, List[str]],
 ) -> Set[str]:
-    """BFS forward from seeds, following dependsOn edges, returning all descendants."""
-    result: Set[str] = set(seeds)
-    frontier = list(seeds)
-    while frontier:
-        cur = frontier.pop()
-        for dependent in reverse.get(cur, []):
+    """Return affected_steps plus all steps that transitively depend on them."""
+    result: Set[str] = set(affected_steps)
+    steps_to_review = set(affected_steps)
+    while steps_to_review:
+        cur = steps_to_review.pop()
+        for dependent in descendants_map.get(cur, []):
             if dependent not in result:
                 result.add(dependent)
-                frontier.append(dependent)
+                steps_to_review.add(dependent)
     return result
 
 
@@ -113,41 +99,29 @@ def compute_requested_steps(
     scope: str = 'test',
     cloud: Optional[str] = None,
 ) -> BuildSelectionResult:
-    """Return step selection results given a list of changed file paths.
+    """Select which build steps should be requested, given the changed files in a PR.
 
-    Finds steps directly affected (those with repo inputs matching changed
-    files), then follows dependsOn edges forward to find all transitive
-    descendants. Only steps runnable in `scope` and `cloud` are returned; this
-    prevents deploy-only or wrong-cloud steps from pulling in unrelated
-    upstream deps via BuildConfiguration.visit_dependent.
+    set((directly affected steps + their descendants) + alwaysRunSteps)
 
-    Doc-only files (.md, .rst) are excluded from seed-matching so that a PR
-    touching only documentation does not trigger test steps. Steps listed under
-    alwaysRunSteps in the config are always included whenever changed_files is
-    non-empty.
-
-    The repo artifact prefix (e.g. '/repo') is read from the top-level
-    `repoPrefix` field in the config, defaulting to '/repo' if absent.
-
-    Returns an empty BuildSelectionResult when changed_files is empty.
+    Returns an empty result when changed_files is empty.
     """
     if not changed_files:
         return BuildSelectionResult()
 
     config = yaml.safe_load(config_str)
-    always_run_steps: List[str] = config.get('alwaysRunSteps', [])
     repo_prefix: str = config.get('repoPrefix', '/repo')
+    code_files = [f for f in changed_files if not _is_doc_file(f)]
 
     steps = [s for s in config.get('steps', []) if _valid_step(s, scope, cloud)]
+    always_run_steps = set(config.get('alwaysRunSteps', []))
 
-    reverse: Dict[str, List[str]] = {}
+    descendants_map: Dict[str, List[str]] = {}
     for step in steps:
         for dep in step.get('dependsOn', []):
-            reverse.setdefault(dep, []).append(step['name'])
+            descendants_map.setdefault(dep, []).append(step['name'])
 
-    code_files = [f for f in changed_files if not _is_doc_file(f)]
-    seeds = _find_seed_steps(steps, code_files, repo_prefix)
-    result = _expand_to_descendants(seeds, reverse)
-    result.update(always_run_steps)
+    affected_steps = _find_affected_steps(steps, code_files, repo_prefix)
+    affected_and_descendants = _expand_to_descendants(affected_steps, descendants_map)
+    requested_steps = affected_and_descendants | always_run_steps
 
-    return BuildSelectionResult(requested_steps=sorted(result))
+    return BuildSelectionResult(requested_steps=sorted(requested_steps))
