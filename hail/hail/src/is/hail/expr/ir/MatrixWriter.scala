@@ -440,7 +440,8 @@ case class SplitPartitionNativeWriter(
       "indexHeight" -> TInt32,
       "indexNKeys" -> TInt64,
       "indexRootOffset" -> TInt64,
-    ) else base
+    )
+    else base
   }
 
   override def unionTypeRequiredness(
@@ -669,7 +670,7 @@ case class SplitPartitionNativeWriter(
         cb,
         region,
         returnType.asInstanceOf[TBaseStruct],
-        values: _*,
+        values: _*
       )
     }
   }

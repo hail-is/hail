@@ -15,7 +15,9 @@ import is.hail.expr.ir.lowering.TableStage
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, OutputBuffer, TypedCodecSpec}
 import is.hail.io.fs.FS
-import is.hail.io.index.{ConsolidatedIndexMetadata, IndexWriter, PartitionIndexMetadata, StagedIndexWriter}
+import is.hail.io.index.{
+  ConsolidatedIndexMetadata, IndexWriter, PartitionIndexMetadata, StagedIndexWriter,
+}
 import is.hail.rvd.{AbstractRVDSpec, IndexSpec, RVDPartitioner, RVDSpecMaker}
 import is.hail.types._
 import is.hail.types.encoded.EType
@@ -527,7 +529,8 @@ case class ConsolidatedIndexMetadataWriter(
     val i = cb.newLocal[Int]("i", 0)
     cb.while_(
       i < n, {
-        val elem = a.loadElement(cb, i).getOrFatal(cb, "index metadata can't be missing").asBaseStruct
+        val elem =
+          a.loadElement(cb, i).getOrFatal(cb, "index metadata can't be missing").asBaseStruct
         cb += indexFiles.update(
           i,
           elem.loadField(cb, "filePath").getOrAssert(cb).asString.loadString(cb),
@@ -548,11 +551,19 @@ case class ConsolidatedIndexMetadataWriter(
       },
     )
     val helper = new ConsolidatedIndexMetadataHelper(
-      path, indexBranchingFactor, indexKeyType, indexAnnotationType,
+      path,
+      indexBranchingFactor,
+      indexKeyType,
+      indexAnnotationType,
     )
     cb += cb.emb.getObject(helper)
       .invoke[FS, Array[String], Array[Int], Array[Long], Array[Long], Unit](
-        "write", cb.emb.getFS, indexFiles, heights, nKeysArr, rootOffsets,
+        "write",
+        cb.emb.getFS,
+        indexFiles,
+        heights,
+        nKeysArr,
+        rootOffsets,
       )
   }
 }

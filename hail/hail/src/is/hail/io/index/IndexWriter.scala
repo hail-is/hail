@@ -99,9 +99,7 @@ case class ConsolidatedIndexMetadata(
 object ConsolidatedIndexMetadata {
   def write(fs: FS, path: String, metadata: ConsolidatedIndexMetadata): Unit = {
     import AbstractRVDSpec.formats
-    using(fs.create(path + "/metadata.json.gz")) { os =>
-      Serialization.write(metadata, os)
-    }
+    using(fs.create(path + "/metadata.json.gz"))(os => Serialization.write(metadata, os))
   }
 
   def read(fs: FS, path: String): ConsolidatedIndexMetadata = {
@@ -229,7 +227,10 @@ class StagedIndexWriterUtils(ib: Settable[IndexWriterUtils], flatFile: Boolean) 
     cb.assign(
       ib,
       Code.newInstance[IndexWriterUtils, String, FS, StagedIndexMetadata, Boolean](
-        path, fs, meta, flatFile,
+        path,
+        fs,
+        meta,
+        flatFile,
       ),
     )
 
@@ -441,8 +442,10 @@ class StagedIndexWriter(
 
   private val elementIdx = cb.genFieldThisRef[Long]()
   private val ob = cb.genFieldThisRef[OutputBuffer]()
+
   private[index] val utils = new StagedIndexWriterUtils(
-    cb.genFieldThisRef[IndexWriterUtils](), flatFile,
+    cb.genFieldThisRef[IndexWriterUtils](),
+    flatFile,
   )
 
   private val leafBuilder =

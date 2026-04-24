@@ -1187,7 +1187,8 @@ case class PartitionNativeReaderIndexed(
       "indexHeight" -> TInt32,
       "indexNKeys" -> TInt64,
       "indexRootOffset" -> TInt64,
-    ) else base
+    )
+    else base
   }
 
   override def emitStream(
