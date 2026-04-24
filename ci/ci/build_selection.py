@@ -1,17 +1,6 @@
-from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set
 
 import yaml
-
-
-@dataclass
-class BuildSelectionResult:
-    """The set of build steps selected to run."""
-
-    requested_steps: List[str] = field(default_factory=list)
-
-    def __str__(self) -> str:
-        return f'requested_steps={self.requested_steps}'
 
 
 def _repo_input_local_path(from_path: str, repo_prefix: str = '/repo') -> Optional[str]:
@@ -89,15 +78,15 @@ def compute_requested_steps(
     changed_files: List[str],
     scope: str = 'test',
     cloud: Optional[str] = None,
-) -> BuildSelectionResult:
+) -> List[str]:
     """Select which build steps should be requested, given the changed files in a PR.
 
     set((directly affected steps + their descendants) + alwaysRunSteps)
 
-    Returns an empty result when changed_files is empty.
+    Returns an empty list when changed_files is empty.
     """
     if not changed_files:
-        return BuildSelectionResult()
+        return []
 
     config = yaml.safe_load(config_str)
     repo_prefix: str = config.get('repoPrefix', '/repo')
@@ -114,4 +103,4 @@ def compute_requested_steps(
     affected_and_descendants = _expand_to_descendants(affected_steps, descendants_map)
     requested_steps = affected_and_descendants | always_run_steps
 
-    return BuildSelectionResult(requested_steps=sorted(requested_steps))
+    return sorted(requested_steps)
