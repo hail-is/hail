@@ -236,8 +236,8 @@ steps:
 @pytest.mark.parametrize(
     'config_str, changed_files, scope, cloud, expected_steps',
     [
-        # empty changed_files -> nothing runs (not even merge_code)
-        (_SIMPLE_CONFIG, [], 'test', None, []),
+        # empty changed_files -> nothing runs except alwaysRunSteps (ie merge_code)
+        (_SIMPLE_CONFIG, [], 'test', None, {'merge_code'}),
         # ci change affects check_ci; merge_code always included
         (_SIMPLE_CONFIG, ['ci/foo.py'], 'test', None, ['check_ci', 'merge_code']),
         # hail change affects check_hail; merge_code always included

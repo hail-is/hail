@@ -70,23 +70,21 @@ def _expand_to_descendants(
 def compute_requested_steps(
     config_str: str,
     changed_files: List[str],
-    scope: str = 'test',
+    scope: str,
     cloud: Optional[str] = None,
 ) -> Set[str]:
     """Select which build steps should be requested, given the changed files in a PR.
 
     set((directly affected steps + their descendants) + alwaysRunSteps)
-
-    Returns an empty set when changed_files is empty.
     """
-    if not changed_files:
-        return set()
-
     config = yaml.safe_load(config_str)
     repo_prefix: str = config.get('repoPrefix', '/repo')
+    always_run_steps: Set[str] = set(config.get('alwaysRunSteps', []))
+
+    if not changed_files:
+        return always_run_steps
 
     steps = [s for s in config.get('steps', []) if _valid_step(s, scope, cloud)]
-    always_run_steps = set(config.get('alwaysRunSteps', []))
 
     descendants_map: Dict[str, List[str]] = {}
     for step in steps:
