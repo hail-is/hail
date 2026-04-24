@@ -583,7 +583,7 @@ class Image:
             try:
                 image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
             except Exception:
-                raise DockerInspectError(self.image_ref_str, self.batch_id, self.job_id)
+                raise DockerInspectError(self.image_ref_str, self.batch_id, self.job_id) from None
         image_configs[self.image_ref_str] = json.loads(image_config)[0]
 
     async def _ensure_image_is_pulled(
