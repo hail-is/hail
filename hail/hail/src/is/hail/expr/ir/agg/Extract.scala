@@ -59,6 +59,9 @@ object AggStateSig {
           seqVTypes.head.setRequired(false)
         ) // set required to false to handle empty aggs
       case NDArrayMultiplyAdd() => NDArrayMultiplyAddStateSig(seqVTypes.head.setRequired(false))
+      case WriteTBD(codecSpec) =>
+        assert(codecSpec.encodedVirtualType == seqVTypes.head.t)
+        WriteSig(seqVTypes.head)
       case _ => throw new UnsupportedExtraction(op.toString)
     }
   }
@@ -92,6 +95,7 @@ object AggStateSig {
       val vWithReq = resultEmitType.typeWithRequiredness
       new TypedRegionBackedAggState(vWithReq, cb)
     case LinearRegressionStateSig() => new LinearRegressionAggregatorState(cb)
+    case WriteSig(_) => new StreamWriterState(cb)
   }
 }
 
@@ -141,6 +145,8 @@ case class FoldStateSig(
   otherAccumName: Name,
   combOpIR: IR,
 ) extends AggStateSig(ArraySeq(resultEmitType.typeWithRequiredness), None)
+
+case class WriteSig(rowType: VirtualTypeWithReq) extends AggStateSig(ArraySeq(rowType), None)
 
 object PhysicalAggSig {
   def apply(op: AggOp, state: AggStateSig): PhysicalAggSig = BasicPhysicalAggSig(op, state)
@@ -467,6 +473,8 @@ object Extract {
       new NDArrayMultiplyAddAggregator(nda)
     case PhysicalAggSig(Fold(), FoldStateSig(res, accumName, otherAccumName, combOpIR)) =>
       new FoldAggregator(res, accumName, otherAccumName, combOpIR)
+    case PhysicalAggSig(WriteTBD(codec), WriteSig(_)) =>
+      new StreamWriterAggregator(codec)
   }
 
   def apply(ctx: ExecuteContext, ir: IR, r: RequirednessAnalysis, isScan: Boolean = false)

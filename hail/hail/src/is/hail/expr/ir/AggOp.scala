@@ -28,6 +28,7 @@ final case class ImputeType() extends AggOp
 final case class NDArraySum() extends AggOp
 final case class NDArrayMultiplyAdd() extends AggOp
 final case class Fold() extends AggOp
+final case class WriteTBD(codec: is.hail.io.TypedCodecSpec) extends AggOp
 
 // exists === map(p).sum, needs short-circuiting aggs
 // forall === map(p).product, needs short-circuiting aggs
@@ -55,6 +56,7 @@ object AggOp {
     case (Downsample(), Seq(_, _, _)) => DownsampleAggregator.resultType
     case (NDArraySum(), Seq(t)) => t
     case (NDArrayMultiplyAdd(), Seq(a: TNDArray, _)) => a
+    case (WriteTBD(_), _) => TString
     case _ => throw new UnsupportedExtraction(this.toString)
   }
 
