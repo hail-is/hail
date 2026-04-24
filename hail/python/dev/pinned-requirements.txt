@@ -58,7 +58,7 @@ bleach==6.3.0
     # via nbconvert
 build==1.1.1
     # via -r hail/python/dev/requirements.txt
-certifi==2026.2.25
+certifi==2026.4.22
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   httpcore
@@ -74,7 +74,7 @@ charset-normalizer==3.4.7
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   requests
-click==8.3.2
+click==8.3.3
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   -r hail/python/dev/requirements.txt
@@ -128,7 +128,7 @@ executing==2.2.1
     #   stack-data
 fastjsonschema==2.21.2
     # via nbformat
-filelock==3.25.2
+filelock==3.29.0
     # via
     #   python-discovery
     #   virtualenv
@@ -149,9 +149,9 @@ httpcore==1.0.9
     # via httpx
 httpx==0.28.1
     # via jupyterlab
-identify==2.6.18
+identify==2.6.19
     # via pre-commit
-idna==3.11
+idna==3.13
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   anyio
@@ -232,7 +232,7 @@ jupyter-core==5.9.1
     #   nbconvert
     #   nbformat
     #   notebook
-jupyter-events==0.12.0
+jupyter-events==0.12.1
     # via jupyter-server
 jupyter-lsp==2.3.1
     # via jupyterlab
@@ -261,7 +261,7 @@ markupsafe==3.0.3
     #   -c hail/python/dev/../pinned-requirements.txt
     #   jinja2
     #   nbconvert
-matplotlib==3.10.8
+matplotlib==3.10.9
     # via -r hail/python/dev/requirements.txt
 matplotlib-inline==0.2.1
     # via
@@ -309,7 +309,7 @@ nodeenv==1.10.0
     # via
     #   pre-commit
     #   pyright
-nodejs-wheel-binaries==24.14.1
+nodejs-wheel-binaries==24.15.0
     # via pyright
 notebook==6.5.7
     # via
@@ -326,7 +326,7 @@ numpy==2.2.6
     #   matplotlib
 overrides==7.7.0
     # via jupyter-server
-packaging==26.0
+packaging==26.1
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   build
@@ -406,7 +406,7 @@ pyparsing==3.3.2
     # via matplotlib
 pyproject-hooks==1.2.0
     # via build
-pyright==1.1.408
+pyright==1.1.409
     # via -r hail/python/dev/requirements.txt
 pytest==7.4.4
     # via
@@ -617,7 +617,7 @@ typing-extensions==4.15.0
     #   pyright
     #   referencing
     #   virtualenv
-tzdata==2026.1
+tzdata==2026.2
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   arrow
@@ -631,7 +631,7 @@ uv==0.10.12
     # via -r hail/python/dev/requirements.txt
 uv-build==0.10.12
     # via -r hail/python/dev/requirements.txt
-virtualenv==21.2.1
+virtualenv==21.2.4
     # via pre-commit
 watchfiles==1.1.1
     # via aiohttp-devtools
@@ -651,5 +651,5 @@ yarl==1.23.0
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   aiohttp
-zipp==3.23.0
+zipp==3.23.1
     # via importlib-metadata
