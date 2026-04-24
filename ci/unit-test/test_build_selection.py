@@ -31,19 +31,24 @@ def test_is_doc_file(path, expected):
 
 
 @pytest.mark.parametrize(
-    'from_path, expected',
+    'from_path, repo_prefix, expected',
     [
-        ('/repo', ''),
-        ('/repo/ci', 'ci'),
-        ('/repo/hail/python/hail', 'hail/python/hail'),
-        ('/other', None),
-        ('/repo-suffix', None),
-        ('repo', None),
-        ('', None),
+        ('/repo', '/repo', ''),
+        ('/repo/ci', '/repo', 'ci'),
+        ('/repo/hail/python/hail', '/repo', 'hail/python/hail'),
+        ('/other', '/repo', None),
+        ('/repo-suffix', '/repo', None),
+        ('repo', '/repo', None),
+        ('', '/repo', None),
+        # custom prefix
+        ('/src', '/src', ''),
+        ('/src/ci', '/src', 'ci'),
+        ('/repo/ci', '/src', None),
+        ('/src-suffix', '/src', None),
     ],
 )
-def test_repo_input_local_path(from_path, expected):
-    assert _repo_input_local_path(from_path) == expected
+def test_repo_input_local_path(from_path, repo_prefix, expected):
+    assert _repo_input_local_path(from_path, repo_prefix) == expected
 
 
 @pytest.mark.parametrize(
@@ -109,13 +114,14 @@ def _never_runnable(_name: str) -> bool:
 
 
 @pytest.mark.parametrize(
-    'steps, changed_files, runnable, expected_seeds',
+    'steps, changed_files, runnable, repo_prefix, expected_seeds',
     [
         # step with matching /repo/ci input
         (
             [{'name': 'check_ci', 'inputs': [{'from': '/repo/ci', 'to': '/io/ci'}]}],
             ['ci/foo.py'],
             _always_runnable,
+            '/repo',
             {'check_ci'},
         ),
         # /repo matches any changed file
@@ -123,6 +129,7 @@ def _never_runnable(_name: str) -> bool:
             [{'name': 'check_all', 'inputs': [{'from': '/repo', 'to': '/io/repo'}]}],
             ['anything.py'],
             _always_runnable,
+            '/repo',
             {'check_all'},
         ),
         # changed file doesn't match the step's input path
@@ -130,6 +137,7 @@ def _never_runnable(_name: str) -> bool:
             [{'name': 'check_ci', 'inputs': [{'from': '/repo/ci', 'to': '/io/ci'}]}],
             ['hail/foo.py'],
             _always_runnable,
+            '/repo',
             set(),
         ),
         # step excluded because not runnable
@@ -137,6 +145,7 @@ def _never_runnable(_name: str) -> bool:
             [{'name': 'check_ci', 'inputs': [{'from': '/repo/ci', 'to': '/io/ci'}]}],
             ['ci/foo.py'],
             _never_runnable,
+            '/repo',
             set(),
         ),
         # step with no inputs is never a seed
@@ -144,6 +153,7 @@ def _never_runnable(_name: str) -> bool:
             [{'name': 'deploy_auth'}],
             ['ci/foo.py'],
             _always_runnable,
+            '/repo',
             set(),
         ),
         # non-/repo input (artifact from another step) is ignored
@@ -151,6 +161,7 @@ def _never_runnable(_name: str) -> bool:
             [{'name': 'test_ci', 'inputs': [{'from': '/io/wheel', 'to': '/wheel'}]}],
             ['ci/foo.py'],
             _always_runnable,
+            '/repo',
             set(),
         ),
         # multiple steps — only the matching one is a seed
@@ -161,12 +172,29 @@ def _never_runnable(_name: str) -> bool:
             ],
             ['ci/foo.py'],
             _always_runnable,
+            '/repo',
             {'check_ci'},
+        ),
+        # custom repo_prefix: /src/ci matches when prefix is /src
+        (
+            [{'name': 'check_ci', 'inputs': [{'from': '/src/ci', 'to': '/io/ci'}]}],
+            ['ci/foo.py'],
+            _always_runnable,
+            '/src',
+            {'check_ci'},
+        ),
+        # custom repo_prefix: /repo/ci does NOT match when prefix is /src
+        (
+            [{'name': 'check_ci', 'inputs': [{'from': '/repo/ci', 'to': '/io/ci'}]}],
+            ['ci/foo.py'],
+            _always_runnable,
+            '/src',
+            set(),
         ),
     ],
 )
-def test_find_seed_steps(steps, changed_files, runnable, expected_seeds):
-    assert _find_seed_steps(steps, changed_files, runnable) == expected_seeds
+def test_find_seed_steps(steps, changed_files, runnable, repo_prefix, expected_seeds):
+    assert _find_seed_steps(steps, changed_files, runnable, repo_prefix) == expected_seeds
 
 
 @pytest.mark.parametrize(
@@ -250,6 +278,25 @@ steps:
 """
 
 
+_CUSTOM_PREFIX_CONFIG = """
+repoPrefix: /src
+
+alwaysRunSteps:
+  - merge_code
+
+steps:
+  - name: merge_code
+    kind: runImage
+  - name: check_ci
+    kind: runImage
+    scopes: [test]
+    inputs:
+      - from: /src/ci
+        to: /io/ci
+    dependsOn: [merge_code]
+"""
+
+
 @pytest.mark.parametrize(
     'config_str, changed_files, scope, cloud, expected_steps',
     [
@@ -271,6 +318,8 @@ steps:
         (_CLOUD_CONFIG, ['ci/foo.py'], 'test', 'azure', ['merge_code', 'test_azure']),
         # no cloud filter -> both cloud-specific steps + merge_code
         (_CLOUD_CONFIG, ['ci/foo.py'], 'test', None, ['merge_code', 'test_azure', 'test_gcp']),
+        # custom repoPrefix in config: ci change seeds check_ci
+        (_CUSTOM_PREFIX_CONFIG, ['ci/foo.py'], 'test', None, ['check_ci', 'merge_code']),
     ],
 )
 def test_compute_requested_steps(config_str, changed_files, scope, cloud, expected_steps):

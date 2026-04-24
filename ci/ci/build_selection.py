@@ -37,17 +37,17 @@ def _is_doc_file(path: str) -> bool:
     return any(lower.endswith(ext) for ext in _DOC_EXTENSIONS)
 
 
-def _repo_input_local_path(from_path: str) -> Optional[str]:
-    """Return the local path from a /repo/... input, or None if not a repo input.
+def _repo_input_local_path(from_path: str, repo_prefix: str = '/repo') -> Optional[str]:
+    """Return the local path from a <repo_prefix>/... input, or None if not a repo input.
 
     '/repo'   -> ''       (matches everything)
     '/repo/x' -> 'x'
     other     -> None
     """
-    if from_path == '/repo':
+    if from_path == repo_prefix:
         return ''
-    if from_path.startswith('/repo/'):
-        return from_path[len('/repo/') :]
+    if from_path.startswith(repo_prefix + '/'):
+        return from_path[len(repo_prefix) + 1 :]
     return None
 
 
@@ -72,15 +72,16 @@ def _find_seed_steps(
     steps: list,
     changed_files: List[str],
     runnable: Callable[[str], bool],
+    repo_prefix: str = '/repo',
 ) -> Set[str]:
-    """Return steps whose /repo/ inputs match any of the changed files."""
+    """Return steps whose repo inputs match any of the changed files."""
     seeds: Set[str] = set()
     for step in steps:
         if not runnable(step['name']):
             continue
         inputs = step.get('inputs') or []
         for inp in inputs:
-            local_path = _repo_input_local_path(inp.get('from', ''))
+            local_path = _repo_input_local_path(inp.get('from', ''), repo_prefix)
             if local_path is None:
                 continue
             if any(_file_matches_input(f, local_path) for f in changed_files):
@@ -114,7 +115,7 @@ def compute_requested_steps(
 ) -> BuildSelectionResult:
     """Return step selection results given a list of changed file paths.
 
-    Finds steps directly affected (those with /repo/ inputs matching changed
+    Finds steps directly affected (those with repo inputs matching changed
     files), then follows dependsOn edges forward to find all transitive
     descendants. Only steps runnable in `scope` and `cloud` are returned; this
     prevents deploy-only or wrong-cloud steps from pulling in unrelated
@@ -125,6 +126,9 @@ def compute_requested_steps(
     alwaysRunSteps in the config are always included whenever changed_files is
     non-empty.
 
+    The repo artifact prefix (e.g. '/repo') is read from the top-level
+    `repoPrefix` field in the config, defaulting to '/repo' if absent.
+
     Returns an empty BuildSelectionResult when changed_files is empty.
     """
     if not changed_files:
@@ -133,6 +137,7 @@ def compute_requested_steps(
     config = yaml.safe_load(config_str)
     steps = config.get('steps', [])
     always_run_steps: List[str] = config.get('alwaysRunSteps', [])
+    repo_prefix: str = config.get('repoPrefix', '/repo')
 
     scopes_map: Dict[str, Optional[List[str]]] = {s['name']: s.get('scopes') for s in steps}
     clouds_map: Dict[str, Optional[List[str]]] = {s['name']: s.get('clouds') for s in steps}
@@ -146,7 +151,7 @@ def compute_requested_steps(
             reverse.setdefault(dep, []).append(step['name'])
 
     code_files = [f for f in changed_files if not _is_doc_file(f)]
-    seeds = _find_seed_steps(steps, code_files, runnable)
+    seeds = _find_seed_steps(steps, code_files, runnable, repo_prefix)
     result = _expand_to_descendants(seeds, reverse, runnable)
     result.update(always_run_steps)
 

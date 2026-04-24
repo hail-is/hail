@@ -1,3 +1,5 @@
+repoPrefix: /repo
+
 alwaysRunSteps:
   - merge_code
 
