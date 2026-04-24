@@ -9,6 +9,7 @@ from ci.build_selection import (
     _in_scope,
     _is_doc_file,
     _repo_input_local_path,
+    _valid_step,
     compute_requested_steps,
 )
 
@@ -105,22 +106,29 @@ def test_in_cloud(clouds, cloud, expected):
     assert _in_cloud(clouds, cloud) == expected
 
 
-def _always_runnable(_name: str) -> bool:
-    return True
-
-
-def _never_runnable(_name: str) -> bool:
-    return False
+@pytest.mark.parametrize(
+    'step, scope, cloud, expected',
+    [
+        ({'scopes': None, 'clouds': None}, 'test', 'gcp', True),
+        ({'scopes': ['test'], 'clouds': None}, 'test', 'gcp', True),
+        ({'scopes': ['dev'], 'clouds': None}, 'test', 'gcp', False),
+        ({'scopes': None, 'clouds': ['gcp']}, 'test', 'gcp', True),
+        ({'scopes': None, 'clouds': ['gcp']}, 'test', 'azure', False),
+        ({'scopes': ['deploy'], 'clouds': ['gcp']}, 'test', 'gcp', False),
+        ({}, 'test', None, True),
+    ],
+)
+def test_valid_step(step, scope, cloud, expected):
+    assert _valid_step(step, scope, cloud) == expected
 
 
 @pytest.mark.parametrize(
-    'steps, changed_files, runnable, repo_prefix, expected_seeds',
+    'steps, changed_files, repo_prefix, expected_seeds',
     [
         # step with matching /repo/ci input
         (
             [{'name': 'check_ci', 'inputs': [{'from': '/repo/ci', 'to': '/io/ci'}]}],
             ['ci/foo.py'],
-            _always_runnable,
             '/repo',
             {'check_ci'},
         ),
@@ -128,7 +136,6 @@ def _never_runnable(_name: str) -> bool:
         (
             [{'name': 'check_all', 'inputs': [{'from': '/repo', 'to': '/io/repo'}]}],
             ['anything.py'],
-            _always_runnable,
             '/repo',
             {'check_all'},
         ),
@@ -136,15 +143,6 @@ def _never_runnable(_name: str) -> bool:
         (
             [{'name': 'check_ci', 'inputs': [{'from': '/repo/ci', 'to': '/io/ci'}]}],
             ['hail/foo.py'],
-            _always_runnable,
-            '/repo',
-            set(),
-        ),
-        # step excluded because not runnable
-        (
-            [{'name': 'check_ci', 'inputs': [{'from': '/repo/ci', 'to': '/io/ci'}]}],
-            ['ci/foo.py'],
-            _never_runnable,
             '/repo',
             set(),
         ),
@@ -152,7 +150,6 @@ def _never_runnable(_name: str) -> bool:
         (
             [{'name': 'deploy_auth'}],
             ['ci/foo.py'],
-            _always_runnable,
             '/repo',
             set(),
         ),
@@ -160,7 +157,6 @@ def _never_runnable(_name: str) -> bool:
         (
             [{'name': 'test_ci', 'inputs': [{'from': '/io/wheel', 'to': '/wheel'}]}],
             ['ci/foo.py'],
-            _always_runnable,
             '/repo',
             set(),
         ),
@@ -171,7 +167,6 @@ def _never_runnable(_name: str) -> bool:
                 {'name': 'check_hail', 'inputs': [{'from': '/repo/hail', 'to': '/io/hail'}]},
             ],
             ['ci/foo.py'],
-            _always_runnable,
             '/repo',
             {'check_ci'},
         ),
@@ -179,7 +174,6 @@ def _never_runnable(_name: str) -> bool:
         (
             [{'name': 'check_ci', 'inputs': [{'from': '/src/ci', 'to': '/io/ci'}]}],
             ['ci/foo.py'],
-            _always_runnable,
             '/src',
             {'check_ci'},
         ),
@@ -187,42 +181,34 @@ def _never_runnable(_name: str) -> bool:
         (
             [{'name': 'check_ci', 'inputs': [{'from': '/repo/ci', 'to': '/io/ci'}]}],
             ['ci/foo.py'],
-            _always_runnable,
             '/src',
             set(),
         ),
     ],
 )
-def test_find_seed_steps(steps, changed_files, runnable, repo_prefix, expected_seeds):
-    assert _find_seed_steps(steps, changed_files, runnable, repo_prefix) == expected_seeds
+def test_find_seed_steps(steps, changed_files, repo_prefix, expected_seeds):
+    assert _find_seed_steps(steps, changed_files, repo_prefix) == expected_seeds
 
 
 @pytest.mark.parametrize(
-    'seeds, reverse, runnable, expected',
+    'seeds, reverse, expected',
     [
         # seeds with no dependents
-        ({'A'}, {}, _always_runnable, {'A'}),
+        ({'A'}, {}, {'A'}),
         # single-level descendant
-        ({'A'}, {'A': ['B']}, _always_runnable, {'A', 'B'}),
+        ({'A'}, {'A': ['B']}, {'A', 'B'}),
         # two-level chain
-        ({'A'}, {'A': ['B'], 'B': ['C']}, _always_runnable, {'A', 'B', 'C'}),
-        # descendant filtered out by runnable
-        ({'A'}, {'A': ['B']}, _never_runnable, {'A'}),
+        ({'A'}, {'A': ['B'], 'B': ['C']}, {'A', 'B', 'C'}),
         # diamond: A -> B, A -> C, B -> D, C -> D
-        (
-            {'A'},
-            {'A': ['B', 'C'], 'B': ['D'], 'C': ['D']},
-            _always_runnable,
-            {'A', 'B', 'C', 'D'},
-        ),
+        ({'A'}, {'A': ['B', 'C'], 'B': ['D'], 'C': ['D']}, {'A', 'B', 'C', 'D'}),
         # empty seeds
-        (set(), {'A': ['B']}, _always_runnable, set()),
+        (set(), {'A': ['B']}, set()),
         # multiple seeds
-        ({'A', 'X'}, {'A': ['B'], 'X': ['Y']}, _always_runnable, {'A', 'B', 'X', 'Y'}),
+        ({'A', 'X'}, {'A': ['B'], 'X': ['Y']}, {'A', 'B', 'X', 'Y'}),
     ],
 )
-def test_expand_to_descendants(seeds, reverse, runnable, expected):
-    assert _expand_to_descendants(seeds, reverse, runnable) == expected
+def test_expand_to_descendants(seeds, reverse, expected):
+    assert _expand_to_descendants(seeds, reverse) == expected
 
 
 _SIMPLE_CONFIG = """

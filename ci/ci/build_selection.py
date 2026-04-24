@@ -9,7 +9,7 @@ used in tests and tooling without a running deployment.
 """
 
 from dataclasses import dataclass, field
-from typing import Callable, Dict, FrozenSet, List, Optional, Set
+from typing import Dict, FrozenSet, List, Optional, Set
 
 import yaml
 
@@ -68,17 +68,18 @@ def _in_cloud(clouds: Optional[List[str]], cloud: Optional[str]) -> bool:
     return cloud in clouds
 
 
+def _valid_step(step: dict, scope: str, cloud: Optional[str]) -> bool:
+    return _in_scope(step.get('scopes'), scope) and _in_cloud(step.get('clouds'), cloud)
+
+
 def _find_seed_steps(
     steps: list,
     changed_files: List[str],
-    runnable: Callable[[str], bool],
     repo_prefix: str = '/repo',
 ) -> Set[str]:
     """Return steps whose repo inputs match any of the changed files."""
     seeds: Set[str] = set()
     for step in steps:
-        if not runnable(step['name']):
-            continue
         inputs = step.get('inputs') or []
         for inp in inputs:
             local_path = _repo_input_local_path(inp.get('from', ''), repo_prefix)
@@ -93,15 +94,14 @@ def _find_seed_steps(
 def _expand_to_descendants(
     seeds: Set[str],
     reverse: Dict[str, List[str]],
-    runnable: Callable[[str], bool],
 ) -> Set[str]:
-    """BFS forward from seeds, following dependsOn edges, returning all runnable descendants."""
+    """BFS forward from seeds, following dependsOn edges, returning all descendants."""
     result: Set[str] = set(seeds)
     frontier = list(seeds)
     while frontier:
         cur = frontier.pop()
         for dependent in reverse.get(cur, []):
-            if dependent not in result and runnable(dependent):
+            if dependent not in result:
                 result.add(dependent)
                 frontier.append(dependent)
     return result
@@ -135,15 +135,10 @@ def compute_requested_steps(
         return BuildSelectionResult()
 
     config = yaml.safe_load(config_str)
-    steps = config.get('steps', [])
     always_run_steps: List[str] = config.get('alwaysRunSteps', [])
     repo_prefix: str = config.get('repoPrefix', '/repo')
 
-    scopes_map: Dict[str, Optional[List[str]]] = {s['name']: s.get('scopes') for s in steps}
-    clouds_map: Dict[str, Optional[List[str]]] = {s['name']: s.get('clouds') for s in steps}
-
-    def runnable(name: str) -> bool:
-        return _in_scope(scopes_map.get(name), scope) and _in_cloud(clouds_map.get(name), cloud)
+    steps = [s for s in config.get('steps', []) if _valid_step(s, scope, cloud)]
 
     reverse: Dict[str, List[str]] = {}
     for step in steps:
@@ -151,8 +146,8 @@ def compute_requested_steps(
             reverse.setdefault(dep, []).append(step['name'])
 
     code_files = [f for f in changed_files if not _is_doc_file(f)]
-    seeds = _find_seed_steps(steps, code_files, runnable, repo_prefix)
-    result = _expand_to_descendants(seeds, reverse, runnable)
+    seeds = _find_seed_steps(steps, code_files, repo_prefix)
+    result = _expand_to_descendants(seeds, reverse)
     result.update(always_run_steps)
 
     return BuildSelectionResult(requested_steps=sorted(result))
