@@ -598,7 +598,7 @@ mkdir -p {shq(repo_dir)}
                     'source_branch': self.source_branch.short_str(),
                     'target_branch': self.target_branch.branch.short_str(),
                     'pr': str(self.number),
-                    'namespace': namespace or '',
+                    'namespace': namespace or 'N/A',
                     'source_sha': self.source_sha,
                     'target_sha': self.target_branch.sha,
                     'name': f'PR test #{self.number}: {self.source_branch.name} @ {self.source_sha[:8]} -> {self.target_branch.branch.name} @ {(self.target_branch.sha or "unknown")[:8]}',
