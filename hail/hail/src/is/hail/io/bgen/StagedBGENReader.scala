@@ -890,6 +890,7 @@ object BGENFunctions extends RegistryFunctions {
           settings.indexKeyType,
           mb.ecb,
           annotationType = +PCanonicalStruct(),
+          flatFile = false,
         )
         iw.init(
           cb,

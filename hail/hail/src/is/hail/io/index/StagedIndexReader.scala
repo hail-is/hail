@@ -77,26 +77,73 @@ class StagedIndexReader(
   def initialize(cb: EmitCodeBuilder, indexPath: Value[String]): Unit = {
     val fs = cb.emb.getFS
     cb.assign(cache, Code.newInstance[LongToRegionValueCache, Int](16))
+
+    val isDir = cb.memoize(fs.invoke[String, Boolean]("isDir", indexPath))
+    cb.if_(
+      isDir, {
+        cb.assign(
+          metadata,
+          Code.invokeScalaObject2[FS, String, IndexMetadataUntypedJSON](
+            IndexReader.getClass,
+            "readUntyped",
+            fs,
+            indexPath,
+          ).invoke[VariableMetadata]("toFileMetadata"),
+        )
+        cb.assign(
+          is,
+          Code.newInstance[ByteTrackingInputStream, InputStream](cb.emb.openUnbuffered(
+            indexPath.concat("/index"),
+            false,
+          )),
+        )
+      }, {
+        cb.assign(
+          metadata,
+          Code.invokeScalaObject2[FS, String, VariableMetadata](
+            IndexReader.getClass,
+            "readFlatMetadata",
+            fs,
+            indexPath,
+          ),
+        )
+        cb.assign(
+          is,
+          Code.newInstance[ByteTrackingInputStream, InputStream](cb.emb.openUnbuffered(
+            indexPath,
+            false,
+          )),
+        )
+      },
+    )
+  }
+
+  def initializeFlat(
+    cb: EmitCodeBuilder,
+    indexPath: Value[String],
+    branchingFactor: Int,
+    height: Value[Int],
+    nKeys: Value[Long],
+    rootOffset: Value[Long],
+  ): Unit = {
+    cb.assign(cache, Code.newInstance[LongToRegionValueCache, Int](16))
     cb.assign(
       metadata,
-      Code.invokeScalaObject2[FS, String, IndexMetadataUntypedJSON](
-        IndexReader.getClass,
-        "readUntyped",
-        fs,
-        indexPath,
-      ).invoke[VariableMetadata]("toFileMetadata"),
+      Code.newInstance[VariableMetadata, Int, Int, Long, Long, Map[String, Any]](
+        branchingFactor,
+        height,
+        nKeys,
+        rootOffset,
+        cb.emb.getObject(Map.empty[String, Any]),
+      ),
     )
-
-    /* FIXME: hardcoded. Will break if we change spec -- assumption not introduced with this code,
-     * but propagated. */
     cb.assign(
       is,
       Code.newInstance[ByteTrackingInputStream, InputStream](cb.emb.openUnbuffered(
-        indexPath.concat("/index"),
+        indexPath,
         false,
       )),
     )
-
   }
 
   def addToFinalizer(cb: EmitCodeBuilder, finalizer: Value[TaskFinalizer]): Unit = {

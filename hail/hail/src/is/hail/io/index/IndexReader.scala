@@ -69,6 +69,25 @@ object IndexReader {
     val metadata = jv.extract[IndexMetadata]
     metadata.keyType -> metadata.annotationType
   }
+
+  def readFlatMetadata(fs: FS, indexFilePath: String): VariableMetadata = {
+    val parentDir = indexFilePath.substring(0, indexFilePath.lastIndexOf('/'))
+    val consolidated = ConsolidatedIndexMetadata.read(fs, parentDir)
+    val fileName = indexFilePath.substring(indexFilePath.lastIndexOf('/') + 1)
+    val pm = consolidated.partitionsByFile.getOrElse(
+      fileName,
+      throw new RuntimeException(
+        s"flat index file '$fileName' not found in consolidated metadata at $parentDir"
+      ),
+    )
+    VariableMetadata(
+      consolidated.branchingFactor,
+      pm.height,
+      pm.nKeys,
+      pm.rootOffset,
+      Map.empty[String, Any],
+    )
+  }
 }
 
 class IndexReader(

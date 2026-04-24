@@ -1171,15 +1171,24 @@ case class PartitionNativeReaderIndexed(
   indexSpec: AbstractIndexSpec,
   key: IndexedSeq[String],
   uidFieldName: String,
+  consolidatedIndex: Boolean = false,
+  branchingFactor: Int = 4096,
 ) extends AbstractNativeReader {
-  override def contextType: Type = TStruct(
-    "partitionIndex" -> TInt64,
-    "partitionPath" -> TString,
-    "indexPath" -> TString,
-    "interval" -> RVDPartitioner.intervalIRRepresentation(
-      spec.encodedVirtualType.asInstanceOf[TStruct].select(key)._1
-    ),
-  )
+  override def contextType: Type = {
+    val base = TStruct(
+      "partitionIndex" -> TInt64,
+      "partitionPath" -> TString,
+      "indexPath" -> TString,
+      "interval" -> RVDPartitioner.intervalIRRepresentation(
+        spec.encodedVirtualType.asInstanceOf[TStruct].select(key)._1
+      ),
+    )
+    if (consolidatedIndex) base ++ TStruct(
+      "indexHeight" -> TInt32,
+      "indexNKeys" -> TInt64,
+      "indexRootOffset" -> TInt64,
+    ) else base
+  }
 
   override def emitStream(
     ctx: ExecuteContext,
@@ -1240,7 +1249,14 @@ case class PartitionNativeReaderIndexed(
             .loadField(cb, "interval")
             .getOrAssert(cb)
             .asInterval
-          index.initialize(cb, indexPath)
+          if (consolidatedIndex) {
+            val height = ctxStruct.loadField(cb, "indexHeight").getOrAssert(cb).asInt.value
+            val idxNKeys = ctxStruct.loadField(cb, "indexNKeys").getOrAssert(cb).asLong.value
+            val rootOffset = ctxStruct.loadField(cb, "indexRootOffset").getOrAssert(cb).asLong.value
+            index.initializeFlat(cb, indexPath, branchingFactor, height, idxNKeys, rootOffset)
+          } else {
+            index.initialize(cb, indexPath)
+          }
 
           val indexResult = index.queryInterval(cb, interval)
           val startIndex = indexResult.loadField(cb, 0)

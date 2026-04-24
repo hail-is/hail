@@ -319,6 +319,20 @@ object MatrixNativeWriter {
                     ),
                   ))
               },
+              WriteMetadata(
+                ToArray(mapIR(ToStream(partInfo)) { fc =>
+                  SelectFields(
+                    fc,
+                    FastSeq("filePath", "indexHeight", "indexNKeys", "indexRootOffset"),
+                  )
+                }),
+                ConsolidatedIndexMetadataWriter(
+                  s"$path/index",
+                  Option(ctx.getFlag("index_branching_factor")).map(_.toInt).getOrElse(4096),
+                  pKey.virtualType,
+                  TStruct("entries_offset" -> TInt64),
+                ),
+              ),
               bindIR(ToArray(mapIR(ToStream(partInfo)) { fc =>
                 SelectFields(
                   fc,
@@ -414,13 +428,20 @@ case class SplitPartitionNativeWriter(
 
   override def ctxType: Type = TString
 
-  override def returnType: Type = TStruct(
-    "filePath" -> TString,
-    "partitionCounts" -> TInt64,
-    "distinctlyKeyed" -> TBoolean,
-    "firstKey" -> keyType,
-    "lastKey" -> keyType,
-  )
+  override def returnType: Type = {
+    val base = TStruct(
+      "filePath" -> TString,
+      "partitionCounts" -> TInt64,
+      "distinctlyKeyed" -> TBoolean,
+      "firstKey" -> keyType,
+      "lastKey" -> keyType,
+    )
+    if (index.isDefined) base ++ TStruct(
+      "indexHeight" -> TInt32,
+      "indexNKeys" -> TInt64,
+      "indexRootOffset" -> TInt64,
+    ) else base
+  }
 
   override def unionTypeRequiredness(
     r: TypeWithRequiredness,
@@ -630,15 +651,25 @@ case class SplitPartitionNativeWriter(
       )
       cb += lastSeenRegion.invalidate()
 
-      SStackStruct.constructFromArgs(
-        cb,
-        region,
-        returnType.asInstanceOf[TBaseStruct],
+      val values = Seq[EmitCode](
         EmitCode.present(mb, pctx),
         EmitCode.present(mb, new SInt64Value(pCount)),
         EmitCode.present(mb, new SBooleanValue(distinctlyKeyed)),
         firstSeenSettable,
         lastSeenSettable,
+      ) ++ writeIndexInfo.map { case (_, _, writer) =>
+        Seq(
+          EmitCode.present(mb, new SInt32Value(cb.memoize(writer.storedHeight))),
+          EmitCode.present(mb, new SInt64Value(cb.memoize(writer.storedNKeys))),
+          EmitCode.present(mb, new SInt64Value(cb.memoize(writer.storedRootOffset))),
+        )
+      }.getOrElse(Seq.empty)
+
+      SStackStruct.constructFromArgs(
+        cb,
+        region,
+        returnType.asInstanceOf[TBaseStruct],
+        values: _*,
       )
     }
   }

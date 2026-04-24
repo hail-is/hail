@@ -15,7 +15,7 @@ import is.hail.expr.ir.lowering.TableStage
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, OutputBuffer, TypedCodecSpec}
 import is.hail.io.fs.FS
-import is.hail.io.index.StagedIndexWriter
+import is.hail.io.index.{ConsolidatedIndexMetadata, IndexWriter, PartitionIndexMetadata, StagedIndexWriter}
 import is.hail.rvd.{AbstractRVDSpec, IndexSpec, RVDPartitioner, RVDSpecMaker}
 import is.hail.types._
 import is.hail.types.encoded.EType
@@ -25,7 +25,7 @@ import is.hail.types.physical.stypes.concrete.{
   SJavaArrayString, SJavaArrayStringValue, SStackStruct,
 }
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.stypes.primitives.{SBooleanValue, SInt64, SInt64Value}
+import is.hail.types.physical.stypes.primitives.{SBooleanValue, SInt32Value, SInt64, SInt64Value}
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.utils.implicits.ByteTrackingOutputStream
@@ -144,6 +144,20 @@ object TableNativeWriter {
               }),
               TableSpecWriter(path, ts.tableType, "rows", "globals", "references", log = true),
             ),
+            WriteMetadata(
+              ToArray(mapIR(ToStream(fileCountAndDistinct)) { fc =>
+                SelectFields(
+                  fc,
+                  FastSeq("filePath", "indexHeight", "indexNKeys", "indexRootOffset"),
+                )
+              }),
+              ConsolidatedIndexMetadataWriter(
+                s"$path/index",
+                Option(ctx.getFlag("index_branching_factor")).map(_.toInt).getOrElse(4096),
+                pKey.virtualType,
+                TStruct.empty,
+              ),
+            ),
           ))
         }
       }
@@ -193,11 +207,16 @@ object PartitionNativeWriter {
     "firstKey" -> keyType,
     "lastKey" -> keyType,
     "partitionByteSize" -> TInt64,
+    "indexHeight" -> TInt32,
+    "indexNKeys" -> TInt64,
+    "indexRootOffset" -> TInt64,
   )
 
-  def returnType(keyType: TStruct, trackTotalBytes: Boolean): TStruct = {
+  def returnType(keyType: TStruct, trackTotalBytes: Boolean, hasIndex: Boolean): TStruct = {
+    val exclude = (if (trackTotalBytes) Set.empty[String] else Set("partitionByteSize")) ++
+      (if (hasIndex) Set.empty[String] else Set("indexHeight", "indexNKeys", "indexRootOffset"))
     val t = PartitionNativeWriter.fullReturnType(keyType)
-    if (trackTotalBytes) t else t.filterSet(Set("partitionByteSize"), include = false)._1
+    if (exclude.isEmpty) t else t.filterSet(exclude, include = false)._1
   }
 }
 
@@ -212,7 +231,7 @@ case class PartitionNativeWriter(
   val keyType = spec.encodedVirtualType.asInstanceOf[TStruct].select(keyFields)._1
 
   override def ctxType = PartitionNativeWriter.ctxType
-  val returnType = PartitionNativeWriter.returnType(keyType, trackTotalBytes)
+  val returnType = PartitionNativeWriter.returnType(keyType, trackTotalBytes, index.isDefined)
 
   override def unionTypeRequiredness(
     r: TypeWithRequiredness,
@@ -392,7 +411,14 @@ case class PartitionNativeWriter(
         EmitCode.present(mb, new SBooleanValue(distinctlyKeyed)),
         firstSeenSettable,
         lastSeenSettable,
-      ) ++ byteCount.map(EmitCode.present(mb, _))
+      ) ++ byteCount.map(EmitCode.present(mb, _)) ++
+        writeIndexInfo.map { case (_, _, writer) =>
+          Seq(
+            EmitCode.present(mb, new SInt32Value(cb.memoize(writer.storedHeight))),
+            EmitCode.present(mb, new SInt64Value(cb.memoize(writer.storedNKeys))),
+            EmitCode.present(mb, new SInt64Value(cb.memoize(writer.storedRootOffset))),
+          )
+        }.getOrElse(Seq.empty)
 
       SStackStruct.constructFromArgs(cb, region, returnType.asInstanceOf[TBaseStruct], values: _*)
     }
@@ -440,6 +466,94 @@ case class RVDSpecWriter(path: String, spec: RVDSpecMaker) extends MetadataWrite
     cb += cb.emb.getObject(spec)
       .invoke[Array[String], AbstractRVDSpec]("applyFromCodegen", partFiles)
       .invoke[FS, String, Unit]("write", cb.emb.getFS, path)
+  }
+}
+
+class ConsolidatedIndexMetadataHelper(
+  path: String,
+  branchingFactor: Int,
+  keyType: Type,
+  annotationType: Type,
+) extends Serializable {
+  def write(
+    fs: FS,
+    partFiles: Array[String],
+    heights: Array[Int],
+    nKeys: Array[Long],
+    rootOffsets: Array[Long],
+  ): Unit = {
+    val partitions = IndexedSeq.tabulate(heights.length)(i =>
+      PartitionIndexMetadata(partFiles(i) + ".idx", heights(i), nKeys(i), rootOffsets(i))
+    )
+    val metadata = ConsolidatedIndexMetadata(
+      IndexWriter.version.rep,
+      branchingFactor,
+      keyType,
+      annotationType,
+      partitions,
+    )
+    ConsolidatedIndexMetadata.write(fs, path, metadata)
+  }
+}
+
+case class ConsolidatedIndexMetadataWriter(
+  path: String,
+  indexBranchingFactor: Int,
+  indexKeyType: Type,
+  indexAnnotationType: Type,
+) extends MetadataWriter {
+  override def annotationType: Type = TArray(TStruct(
+    "filePath" -> TString,
+    "indexHeight" -> TInt32,
+    "indexNKeys" -> TInt64,
+    "indexRootOffset" -> TInt64,
+  ))
+
+  override def writeMetadata(
+    writeAnnotations: => IEmitCode,
+    cb: EmitCodeBuilder,
+    region: Value[Region],
+  ): Unit = {
+    val a = writeAnnotations.getOrFatal(cb, "write annotations can't be missing!").asIndexable
+    val n = cb.newLocal[Int]("n", a.loadLength)
+    val indexFiles = cb.newLocal[Array[String]]("indexFiles")
+    val heights = cb.newLocal[Array[Int]]("heights")
+    val nKeysArr = cb.newLocal[Array[Long]]("nKeysArr")
+    val rootOffsets = cb.newLocal[Array[Long]]("rootOffsets")
+    cb.assign(indexFiles, Code.newArray[String](n))
+    cb.assign(heights, Code.newArray[Int](n))
+    cb.assign(nKeysArr, Code.newArray[Long](n))
+    cb.assign(rootOffsets, Code.newArray[Long](n))
+    val i = cb.newLocal[Int]("i", 0)
+    cb.while_(
+      i < n, {
+        val elem = a.loadElement(cb, i).getOrFatal(cb, "index metadata can't be missing").asBaseStruct
+        cb += indexFiles.update(
+          i,
+          elem.loadField(cb, "filePath").getOrAssert(cb).asString.loadString(cb),
+        )
+        cb += heights.update(
+          i,
+          elem.loadField(cb, "indexHeight").getOrAssert(cb).asInt.value,
+        )
+        cb += nKeysArr.update(
+          i,
+          elem.loadField(cb, "indexNKeys").getOrAssert(cb).asLong.value,
+        )
+        cb += rootOffsets.update(
+          i,
+          elem.loadField(cb, "indexRootOffset").getOrAssert(cb).asLong.value,
+        )
+        cb.assign(i, i + 1)
+      },
+    )
+    val helper = new ConsolidatedIndexMetadataHelper(
+      path, indexBranchingFactor, indexKeyType, indexAnnotationType,
+    )
+    cb += cb.emb.getObject(helper)
+      .invoke[FS, Array[String], Array[Int], Array[Long], Array[Long], Unit](
+        "write", cb.emb.getFS, indexFiles, heights, nKeysArr, rootOffsets,
+      )
   }
 }
 
