@@ -824,6 +824,8 @@ steps:
     inputs:
       - from: /repo/hail
         to: /io/repo/hail
+      - from: /repo/.git
+        to: /io/repo/.git
     outputs:
       - from: /io/repo/hail/out
         to: /derived/release/hail/out/
@@ -913,6 +915,8 @@ steps:
     inputs:
       - from: /repo/hail
         to: /io/repo/hail
+      - from: /repo/.git
+        to: /io/repo/.git
     outputs:
       - from: /io/repo/hail/out
         to: /derived/debug/hail/out
@@ -944,6 +948,8 @@ steps:
     inputs:
       - from: /repo/hail
         to: /io/repo/hail
+      - from: /repo/.git
+        to: /io/repo/.git
       - from: /derived/debug/hail/out
         to: /io/repo/hail/out
     outputs:
@@ -1755,6 +1761,8 @@ steps:
     inputs:
       - from: /repo/hail/env/HAIL_PIP_VERSION
         to: /io/repo/hail/env/HAIL_PIP_VERSION
+      - from: /repo/.git
+        to: /io/repo/.git
       - from: /www.tar.gz
         to: /io/www.tar.gz
     outputs:
