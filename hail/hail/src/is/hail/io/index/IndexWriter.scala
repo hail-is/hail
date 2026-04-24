@@ -78,6 +78,39 @@ case class IndexMetadata(
   attributes: Map[String, Any],
 ) extends AbstractIndexMetadata
 
+case class PartitionIndexMetadata(
+  indexFile: String,
+  height: Int,
+  nKeys: Long,
+  rootOffset: Long,
+)
+
+case class ConsolidatedIndexMetadata(
+  version: Int,
+  branchingFactor: Int,
+  keyType: Type,
+  annotationType: Type,
+  partitions: IndexedSeq[PartitionIndexMetadata],
+) {
+  lazy val partitionsByFile: Map[String, PartitionIndexMetadata] =
+    partitions.map(p => p.indexFile -> p).toMap
+}
+
+object ConsolidatedIndexMetadata {
+  def write(fs: FS, path: String, metadata: ConsolidatedIndexMetadata): Unit = {
+    import AbstractRVDSpec.formats
+    using(fs.create(path + "/metadata.json.gz"))(os => Serialization.write(metadata, os))
+  }
+
+  def read(fs: FS, path: String): ConsolidatedIndexMetadata = {
+    import AbstractRVDSpec.formats
+    using(fs.open(path + "/metadata.json.gz")) { is =>
+      val jv = org.json4s.jackson.JsonMethods.parse(is)
+      jv.extract[ConsolidatedIndexMetadata]
+    }
+  }
+}
+
 object IndexWriter {
   val version: SemanticVersion = SemanticVersion(1, 3, 0)
 
@@ -188,12 +221,17 @@ class IndexWriterArrayBuilder(
   def getLoadedChild: SBaseStructValue = elt
 }
 
-class StagedIndexWriterUtils(ib: Settable[IndexWriterUtils]) {
+class StagedIndexWriterUtils(ib: Settable[IndexWriterUtils], flatFile: Boolean) {
   def create(cb: EmitCodeBuilder, path: Code[String], fs: Code[FS], meta: Code[StagedIndexMetadata])
     : Unit =
     cb.assign(
       ib,
-      Code.newInstance[IndexWriterUtils, String, FS, StagedIndexMetadata](path, fs, meta),
+      Code.newInstance[IndexWriterUtils, String, FS, StagedIndexMetadata, Boolean](
+        path,
+        fs,
+        meta,
+        flatFile,
+      ),
     )
 
   def size: Code[Int] = ib.invoke[Int]("size")
@@ -220,6 +258,10 @@ class StagedIndexWriterUtils(ib: Settable[IndexWriterUtils]) {
     nKeys: Code[Long],
   ): Unit =
     cb += ib.invoke[Int, Long, Long, Unit]("writeMetadata", height, rootOffset, nKeys)
+
+  def storedHeight: Code[Int] = ib.invoke[Int]("storedHeight")
+  def storedRootOffset: Code[Long] = ib.invoke[Long]("storedRootOffset")
+  def storedNKeys: Code[Long] = ib.invoke[Long]("storedNKeys")
 }
 
 case class StagedIndexMetadata(
@@ -245,16 +287,26 @@ case class StagedIndexMetadata(
   }
 }
 
-class IndexWriterUtils(path: String, fs: FS, meta: StagedIndexMetadata) {
-  val indexPath: String = path + "/index"
-  val metadataPath: String = path + "/metadata.json.gz"
+class IndexWriterUtils(path: String, fs: FS, meta: StagedIndexMetadata, flatFile: Boolean) {
+  val indexPath: String = if (flatFile) path else path + "/index"
   val trackedOS: ByteTrackingOutputStream = new ByteTrackingOutputStream(fs.create(indexPath))
+
+  var storedHeight: Int = _
+  var storedRootOffset: Long = _
+  var storedNKeys: Long = _
 
   def bytesWritten: Long = trackedOS.bytesWritten
   def os: OutputStream = trackedOS
 
-  def writeMetadata(height: Int, rootOffset: Long, nKeys: Long): Unit =
-    using(fs.create(metadataPath))(os => meta.serialize(os, height, rootOffset, nKeys))
+  def writeMetadata(height: Int, rootOffset: Long, nKeys: Long): Unit = {
+    storedHeight = height
+    storedRootOffset = rootOffset
+    storedNKeys = nKeys
+    if (!flatFile) {
+      val metadataPath = path + "/metadata.json.gz"
+      using(fs.create(metadataPath))(os => meta.serialize(os, height, rootOffset, nKeys))
+    }
+  }
 
   val rBuilder = ArrayBuffer.empty[Region]
   val aBuilder = new LongArrayBuilder()
@@ -293,6 +345,9 @@ trait CompiledIndexWriter {
   def trackedOS(): ByteTrackingOutputStream
   def apply(x: Long, offset: Long, annotation: Long): Unit
   def close(): Unit
+  def storedHeight(): Int
+  def storedRootOffset(): Long
+  def storedNKeys(): Long
 }
 
 object StagedIndexWriter {
@@ -301,6 +356,7 @@ object StagedIndexWriter {
     keyType: PType,
     annotationType: PType,
     branchingFactor: Int = 4096,
+    flatFile: Boolean = false,
   ): (String, HailClassLoader, HailTaskContext, RegionPool, Map[String, Any]) => CompiledIndexWriter = {
     val fb = EmitFunctionBuilder[CompiledIndexWriter](
       ctx,
@@ -309,7 +365,7 @@ object StagedIndexWriter {
       typeInfo[Unit],
     )
     val cb = fb.ecb
-    val siw = new StagedIndexWriter(branchingFactor, keyType, annotationType, cb)
+    val siw = new StagedIndexWriter(branchingFactor, keyType, annotationType, cb, flatFile)
 
     cb.newEmitMethod(
       "init",
@@ -334,6 +390,15 @@ object StagedIndexWriter {
       .emitWithBuilder[ByteTrackingOutputStream] { _ =>
         Code.checkcast[ByteTrackingOutputStream](siw.utils.os)
       }
+
+    cb.newEmitMethod("storedHeight", FastSeq[ParamType](), typeInfo[Int])
+      .emitWithBuilder[Int](_ => siw.utils.storedHeight)
+
+    cb.newEmitMethod("storedRootOffset", FastSeq[ParamType](), typeInfo[Long])
+      .emitWithBuilder[Long](_ => siw.utils.storedRootOffset)
+
+    cb.newEmitMethod("storedNKeys", FastSeq[ParamType](), typeInfo[Long])
+      .emitWithBuilder[Long](_ => siw.utils.storedNKeys)
 
     val makeFB = fb.resultWithIndex()
 
@@ -361,8 +426,9 @@ object StagedIndexWriter {
     cb: EmitClassBuilder[_],
     branchingFactor: Int = 4096,
     annotationType: PType = +PCanonicalStruct(),
+    flatFile: Boolean = true,
   ): StagedIndexWriter =
-    new StagedIndexWriter(branchingFactor, keyType, annotationType, cb)
+    new StagedIndexWriter(branchingFactor, keyType, annotationType, cb, flatFile)
 }
 
 class StagedIndexWriter(
@@ -370,12 +436,17 @@ class StagedIndexWriter(
   keyType: PType,
   annotationType: PType,
   cb: EmitClassBuilder[_],
+  flatFile: Boolean = true,
 ) {
   require(branchingFactor > 1)
 
   private val elementIdx = cb.genFieldThisRef[Long]()
   private val ob = cb.genFieldThisRef[OutputBuffer]()
-  private val utils = new StagedIndexWriterUtils(cb.genFieldThisRef[IndexWriterUtils]())
+
+  private[index] val utils = new StagedIndexWriterUtils(
+    cb.genFieldThisRef[IndexWriterUtils](),
+    flatFile,
+  )
 
   private val leafBuilder =
     new StagedLeafNodeBuilder(branchingFactor, keyType, annotationType, cb.fieldBuilder)
@@ -492,6 +563,10 @@ class StagedIndexWriter(
     utils.close(cb)
     utils.writeMetadata(cb, utils.size + 1, off, elementIdx)
   }
+
+  def storedHeight: Code[Int] = utils.storedHeight
+  def storedRootOffset: Code[Long] = utils.storedRootOffset
+  def storedNKeys: Code[Long] = utils.storedNKeys
 
   def init(cb: EmitCodeBuilder, path: Value[String], attributes: Value[Map[String, Any]]): Unit = {
     val metadata = Code.newInstance[StagedIndexMetadata, Int, Type, Type, Map[String, Any]](

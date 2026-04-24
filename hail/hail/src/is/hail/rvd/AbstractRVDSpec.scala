@@ -13,7 +13,7 @@ import is.hail.expr.ir.defs.{Literal, ReadPartition, Ref, ToStream}
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.io._
 import is.hail.io.fs.FS
-import is.hail.io.index.{InternalNodeBuilder, LeafNodeBuilder}
+import is.hail.io.index.{ConsolidatedIndexMetadata, InternalNodeBuilder, LeafNodeBuilder}
 import is.hail.sparkextras.implicits.RichContextRDDRegionValue
 import is.hail.types.encoded.ETypeSerializer
 import is.hail.types.physical._
@@ -504,11 +504,20 @@ case class IndexedRVDSpec2(
 
       assert(key.nonEmpty)
 
+      val indexDirPath = s"$path/${indexSpec.relPath}"
+      val consolidatedMeta =
+        if (ctx.fs.exists(indexDirPath + "/metadata.json.gz"))
+          Some(ConsolidatedIndexMetadata.read(ctx.fs, indexDirPath))
+        else
+          None
+
       val reader = ir.PartitionNativeReaderIndexed(
         typedCodecSpec,
         indexSpec,
         part.kType.fieldNames,
         uidFieldName,
+        consolidatedIndex = consolidatedMeta.isDefined,
+        branchingFactor = consolidatedMeta.map(_.branchingFactor).getOrElse(4096),
       )
 
       def makeCtx(oldPartIdx: Int, newPartIdx: Int): Row = {
@@ -517,12 +526,19 @@ case class IndexedRVDSpec2(
         val intersectionInterval =
           extendedNP.rangeBounds(newPartIdx)
             .intersect(extendedNP.kord, oldInterval).get
-        Row(
+        val baseRow = Row(
           oldPartIdx.toLong,
           s"$path/parts/$partFile",
           s"$path/${indexSpec.relPath}/$partFile.idx",
           RVDPartitioner.intervalToIRRepresentation(intersectionInterval, part.kType.size),
         )
+        consolidatedMeta match {
+          case Some(meta) =>
+            val pm = meta.partitions(oldPartIdx)
+            Row(baseRow.toSeq :+ pm.height :+ pm.nKeys :+ pm.rootOffset: _*)
+          case None =>
+            baseRow
+        }
       }
 
       val (nestedContexts, newPartitioner) = if (filterIntervals) {
