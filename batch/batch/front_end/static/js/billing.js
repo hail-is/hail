@@ -6,21 +6,19 @@
     var statusEl = document.getElementById('billing-export-status');
     var basePath = (document.getElementById('billing-js') || {}).dataset?.basePath ?? '';
 
-    function queryDateToIso8601(mmddyyyy) {
-        try {
-            if (!mmddyyyy) {
-                const now = new Date();
-                const yyyy = now.getFullYear();
-                const mm = String(now.getMonth() + 1).padStart(2, '0');
-                const dd = String(now.getDate()).padStart(2, '0');
-                return `${yyyy}-${mm}-${dd}`;
-            } else {
-                const [mm, dd, yyyy] = mmddyyyy.split('/');
-                return `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
-            }
-        } catch (e) {
-            return 'invalid-date-format';
-        }
+    function mmddyyyyToIso8601(mmddyyyy) {
+        const [mm, dd, yyyy] = mmddyyyy.split('/');
+        return `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
+    }
+
+    function todayIso8601() {
+        const now = new Date();
+        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    }
+
+    function firstOfMonthIso8601() {
+        const now = new Date();
+        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
     }
 
     function csvEscape(val) {
@@ -92,8 +90,8 @@
             label = 'by billing project and user';
         }
         var params = new URLSearchParams(window.location.search);
-        var startStr = queryDateToIso8601(params.get('start') || '');
-        var endStr = queryDateToIso8601(params.get('end') || '');
+        var startStr = params.get('start') ? mmddyyyyToIso8601(params.get('start')) : firstOfMonthIso8601();
+        var endStr   = params.get('end')   ? mmddyyyyToIso8601(params.get('end'))   : todayIso8601();
         return {
             csvText: toCsv(rows, columns),
             filename: `Hail billing export ${startStr} to ${endStr} ${label}.csv`,
@@ -124,16 +122,26 @@
             });
     }
 
+    function showStatus(text) {
+        statusEl.textContent = text;
+        statusEl.classList.remove('hidden');
+    }
+
+    function showDoneThenHide() {
+        showStatus('\u2713 Done');
+        setTimeout(function () { statusEl.classList.add('hidden'); }, 1500);
+    }
+
     function withBillingData(btn, action) {
         btn.disabled = true;
-        statusEl.textContent = 'Fetching\u2026';
-        statusEl.classList.remove('hidden');
+        showStatus('\u29d6 Fetching\u2026');
 
         var grouping = getGrouping();
         fetchBillingRecords()
             .then(function (records) { return action(prepareCsvExport(records, grouping)); })
+            .then(showDoneThenHide)
             .catch(function (err) {
-                statusEl.textContent = 'Failed: ' + err.message;
+                showStatus('Failed: ' + err.message);
             })
             .finally(function () {
                 btn.disabled = false;
@@ -144,7 +152,6 @@
         exportBtn.addEventListener('click', function () {
             withBillingData(exportBtn, function ({ csvText, filename }) {
                 triggerDownload(csvText, filename);
-                statusEl.classList.add('hidden');
             });
         });
     }
@@ -152,12 +159,7 @@
     if (copyBtn) {
         copyBtn.addEventListener('click', function () {
             withBillingData(copyBtn, function ({ csvText }) {
-                return copyToClipboard(csvText).then(function () {
-                    statusEl.classList.add('hidden');
-                    var original = copyBtn.textContent;
-                    copyBtn.textContent = '\u2713 Copied!';
-                    setTimeout(function () { copyBtn.textContent = original; }, 2000);
-                });
+                return copyToClipboard(csvText);
             });
         });
     }
