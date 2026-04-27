@@ -76,8 +76,7 @@
         return checked ? checked.value : 'by-project-user';
     }
 
-    function prepareCsvExport(records) {
-        var grouping = getGrouping();
+    function prepareCsvExport(records, grouping) {
         var rows, columns, label;
         if (grouping === 'by-project') {
             rows = groupByProject(records);
@@ -130,8 +129,9 @@
         statusEl.textContent = 'Fetching\u2026';
         statusEl.classList.remove('hidden');
 
+        var grouping = getGrouping();
         fetchBillingRecords()
-            .then(function (records) { return action(prepareCsvExport(records)); })
+            .then(function (records) { return action(prepareCsvExport(records, grouping)); })
             .catch(function (err) {
                 statusEl.textContent = 'Failed: ' + err.message;
             })
