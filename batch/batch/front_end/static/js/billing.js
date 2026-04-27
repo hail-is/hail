@@ -1,20 +1,29 @@
 (function () {
     var exportBtn = document.getElementById('billing-export-btn');
-    if (!exportBtn) return;
+    var copyBtn = document.getElementById('billing-copy-btn');
+    if (!exportBtn && !copyBtn) return;
 
     var statusEl = document.getElementById('billing-export-status');
     var basePath = (document.getElementById('billing-js') || {}).dataset?.basePath ?? '';
 
-    function toIso(mmddyyyy) {
-        if (!mmddyyyy) {
-            let now = new Date();
-            return now.getFullYear() + '-'
-                + String(now.getMonth() + 1).padStart(2, '0') + '-'
-                + String(now.getDate()).padStart(2, '0');
+    // Converts a mm/dd/yyyy query-param date string to yyyy-mm-dd for use in filenames.
+    // String manipulation is intentional — Date.toISOString() converts to UTC and can
+    // shift the date backwards in timezones behind UTC.
+    function queryDateToIso8601(mmddyyyy) {
+        try {
+            if (!mmddyyyy) {
+                const now = new Date();
+                yyyy = now.getFullYear();
+                mm = String(now.getMonth() + 1).padStart(2, '0');
+                dd = String(now.getDate()).padStart(2, '0');
+                return `${yyyy}-${mm}-${dd}`;
+            } else {
+                const [mm, dd, yyyy] = mmddyyyy.split('/');
+                return `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
+            }
+        } catch (e) {
+            return 'invalid-date-format';
         }
-        var parts = mmddyyyy.split('/');
-        if (parts.length !== 3) return mmddyyyy;
-        return parts[2] + '-' + parts[0] + '-' + parts[1];
     }
 
     function csvEscape(val) {
@@ -70,6 +79,31 @@
         return checked ? checked.value : 'by-project-user';
     }
 
+    function prepareCsvExport(records) {
+        var grouping = getGrouping();
+        var rows, columns, label;
+        if (grouping === 'by-project') {
+            rows = groupByProject(records);
+            columns = ['billing_project', 'total_spent'];
+            label = 'by billing project';
+        } else if (grouping === 'by-user') {
+            rows = groupByUser(records);
+            columns = ['user', 'total_spent'];
+            label = 'by user';
+        } else {
+            rows = groupByProjectUser(records);
+            columns = ['billing_project', 'user', 'total_spent'];
+            label = 'by billing project and user';
+        }
+        var params = new URLSearchParams(window.location.search);
+        var startStr = queryDateToIso8601(params.get('start') || '');
+        var endStr = queryDateToIso8601(params.get('end') || '');
+        return {
+            csvText: toCsv(rows, columns),
+            filename: `Hail billing export ${startStr} to ${endStr} ${label}.csv`,
+        };
+    }
+
     function triggerDownload(csvText, filename) {
         var blob = new Blob([csvText], { type: 'text/csv' });
         var url = URL.createObjectURL(blob);
@@ -82,47 +116,52 @@
         URL.revokeObjectURL(url);
     }
 
-    exportBtn.addEventListener('click', function () {
-        exportBtn.disabled = true;
-        statusEl.textContent = 'Fetching\u2026';
-        statusEl.classList.remove('hidden');
+    function copyToClipboard(csvText) {
+        return navigator.clipboard.writeText(csvText);
+    }
 
-        var query = window.location.search;
-        fetch(basePath + '/api/v1alpha/billing' + query)
+    function fetchBillingRecords() {
+        return fetch(basePath + '/api/v1alpha/billing' + window.location.search)
             .then(function (resp) {
                 if (!resp.ok) throw new Error('HTTP ' + resp.status);
                 return resp.json();
-            })
-            .then(function (records) {
-                var grouping = getGrouping();
-                var rows, columns, label;
-                if (grouping === 'by-project') {
-                    rows = groupByProject(records);
-                    columns = ['billing_project', 'total_spent'];
-                    label = 'by billing project';
-                } else if (grouping === 'by-user') {
-                    rows = groupByUser(records);
-                    columns = ['user', 'total_spent'];
-                    label = 'by user';
-                } else {
-                    rows = groupByProjectUser(records);
-                    columns = ['billing_project', 'user', 'total_spent'];
-                    label = 'by billing project and user';
-                }
+            });
+    }
 
-                var params = new URLSearchParams(window.location.search);
-                var startStr = toIso(params.get('start') || '');
-                var endStr = toIso(params.get('end') || '');
-                var filename = 'Hail billing export ' + startStr + ' to ' + endStr + ' ' + label + '.csv';
+    function withBillingData(btn, action) {
+        btn.disabled = true;
+        statusEl.textContent = 'Fetching\u2026';
+        statusEl.classList.remove('hidden');
 
-                triggerDownload(toCsv(rows, columns), filename);
-                statusEl.classList.add('hidden');
-            })
+        fetchBillingRecords()
+            .then(function (records) { return action(prepareCsvExport(records)); })
             .catch(function (err) {
-                statusEl.textContent = 'Export failed: ' + err.message;
+                statusEl.textContent = 'Failed: ' + err.message;
             })
             .finally(function () {
-                exportBtn.disabled = false;
+                btn.disabled = false;
             });
-    });
+    }
+
+    if (exportBtn) {
+        exportBtn.addEventListener('click', function () {
+            withBillingData(exportBtn, function ({ csvText, filename }) {
+                triggerDownload(csvText, filename);
+                statusEl.classList.add('hidden');
+            });
+        });
+    }
+
+    if (copyBtn) {
+        copyBtn.addEventListener('click', function () {
+            withBillingData(copyBtn, function ({ csvText }) {
+                return copyToClipboard(csvText).then(function () {
+                    statusEl.classList.add('hidden');
+                    var original = copyBtn.textContent;
+                    copyBtn.textContent = '\u2713 Copied!';
+                    setTimeout(function () { copyBtn.textContent = original; }, 2000);
+                });
+            });
+        });
+    }
 })();
