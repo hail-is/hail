@@ -6,9 +6,6 @@
     var statusEl = document.getElementById('billing-export-status');
     var basePath = (document.getElementById('billing-js') || {}).dataset?.basePath ?? '';
 
-    // Converts a mm/dd/yyyy query-param date string to yyyy-mm-dd for use in filenames.
-    // String manipulation is intentional — Date.toISOString() converts to UTC and can
-    // shift the date backwards in timezones behind UTC.
     function queryDateToIso8601(mmddyyyy) {
         try {
             if (!mmddyyyy) {
