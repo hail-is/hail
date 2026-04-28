@@ -27,7 +27,7 @@ import java.io.OutputStream
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 import org.json4s.JsonAST.{JNothing, JString}
 
-trait IR extends BaseIR {
+abstract class IR extends BaseIR {
   private var _typ: Type = null
 
   override def typ: Type = {
@@ -55,10 +55,15 @@ trait IR extends BaseIR {
     cp
   }
 
-  lazy val size: Int = 1 + children.map {
-    case x: IR => x.size
-    case _ => 0
-  }.sum
+  val size: Int = {
+    def go(s: Int, ir0: BaseIR): Int =
+      ir0.children.foldLeft(s) {
+        case (s, c: IR) => s + c.size
+        case (s, c: BaseIR) => go(s + 1, c)
+      }
+
+    go(1, this)
+  }
 }
 
 package defs {

@@ -634,10 +634,8 @@ object Main {
 
     r += node("If", in("cond", child), in("cnsq", child), in("altr", child))
     r += node("Switch", in("x", child), in("default", child), in("cases", child.*))
-      .withPreamble("override lazy val size: Int = 2 + cases.length")
 
     r += node("Block", in("bindings", binding.*), in("body", child))
-      .withPreamble("override lazy val size: Int = bindings.length + 1")
       .withCompanionExtension
 
     r += node("Ref", name, _typ().mutable).withTraits(BaseRef)
