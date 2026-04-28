@@ -220,6 +220,16 @@ class StagedIndexWriterUtils(ib: Settable[IndexWriterUtils]) {
     nKeys: Code[Long],
   ): Unit =
     cb += ib.invoke[Int, Long, Long, Unit]("writeMetadata", height, rootOffset, nKeys)
+
+  def writeMetadataTo(
+    cb: EmitCodeBuilder,
+    out: Code[OutputStream],
+    height: Code[Int],
+    rootOffset: Code[Long],
+    nKeys: Code[Long],
+  ): Unit =
+    cb += ib.invoke[OutputStream, Int, Long, Long, Unit]("writeMetadataTo", out, height, rootOffset,
+      nKeys)
 }
 
 case class StagedIndexMetadata(
@@ -245,16 +255,29 @@ case class StagedIndexMetadata(
   }
 }
 
-class IndexWriterUtils(path: String, fs: FS, meta: StagedIndexMetadata) {
-  val indexPath: String = path + "/index"
-  val metadataPath: String = path + "/metadata.json.gz"
+class IndexWriterUtils(
+  path: String,
+  fs: FS,
+  meta: StagedIndexMetadata,
+  selfContained: Boolean = false,
+) {
+  val indexPath: String = if (selfContained) path else path + "/index"
+
+  def metadataPath: String = {
+    require(!selfContained)
+    path + "/metadata.json.gz"
+  }
+
   val trackedOS: ByteTrackingOutputStream = new ByteTrackingOutputStream(fs.create(indexPath))
 
   def bytesWritten: Long = trackedOS.bytesWritten
   def os: OutputStream = trackedOS
 
-  def writeMetadata(height: Int, rootOffset: Long, nKeys: Long): Unit =
-    using(fs.create(metadataPath))(os => meta.serialize(os, height, rootOffset, nKeys))
+  def writeMetadataTo(out: OutputStream, height: Int, rootOffset: Long, nKeys: Long): Unit =
+    meta.serialize(out, height, rootOffset, nKeys)
+
+  def writeMetadata(height: Int, rootOffset: Long, nKeys: Long): Unit = if (!selfContained)
+    using(fs.create(metadataPath))(os => writeMetadataTo(os, height, rootOffset, nKeys))
 
   val rBuilder = ArrayBuffer.empty[Region]
   val aBuilder = new LongArrayBuilder()
@@ -489,6 +512,13 @@ class StagedIndexWriter(
   def close(cb: EmitCodeBuilder): Unit = {
     val off = cb.invokeCode[Long](flush, cb.this_)
     leafBuilder.close(cb)
+    val mdOff = cb.memoize(utils.bytesWritten)
+
+    utils.writeMetadataTo(cb, utils.os, utils.size + 1, off, elementIdx)
+    val streamSpec = new is.hail.io.StreamBufferSpec
+    val mdOffsetWriter = cb.memoize(streamSpec.buildCodeOutputBuffer(utils.os))
+    cb += mdOffsetWriter.writeLong(mdOff)
+
     utils.close(cb)
     utils.writeMetadata(cb, utils.size + 1, off, elementIdx)
   }
