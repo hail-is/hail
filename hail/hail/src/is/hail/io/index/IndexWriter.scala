@@ -188,12 +188,12 @@ class IndexWriterArrayBuilder(
   def getLoadedChild: SBaseStructValue = elt
 }
 
-class StagedIndexWriterUtils(ib: Settable[IndexWriterUtils]) {
+class StagedIndexWriterUtils(selfContained: Boolean, ib: Settable[IndexWriterUtils]) {
   def create(cb: EmitCodeBuilder, path: Code[String], fs: Code[FS], meta: Code[StagedIndexMetadata])
     : Unit =
     cb.assign(
       ib,
-      Code.newInstance[IndexWriterUtils, String, FS, StagedIndexMetadata](path, fs, meta),
+      Code.newInstance[IndexWriterUtils, String, FS, StagedIndexMetadata, Boolean](path, fs, meta, selfContained),
     )
 
   def size: Code[Int] = ib.invoke[Int]("size")
@@ -259,7 +259,7 @@ class IndexWriterUtils(
   path: String,
   fs: FS,
   meta: StagedIndexMetadata,
-  selfContained: Boolean = false,
+  selfContained: Boolean,
 ) {
   val indexPath: String = if (selfContained) path else path + "/index"
 
@@ -407,7 +407,7 @@ class StagedIndexWriter(
 
   private val elementIdx = cb.genFieldThisRef[Long]()
   private val ob = cb.genFieldThisRef[OutputBuffer]()
-  private val utils = new StagedIndexWriterUtils(cb.genFieldThisRef[IndexWriterUtils]())
+  private val utils = new StagedIndexWriterUtils(selfContained, cb.genFieldThisRef[IndexWriterUtils]())
 
   private val leafBuilder =
     new StagedLeafNodeBuilder(branchingFactor, keyType, annotationType, cb.fieldBuilder)
