@@ -109,7 +109,7 @@ object LowerMatrixIR {
   private def bindingsToStruct(bindings: IndexedSeq[(Name, IR)]): MakeStruct =
     MakeStruct(bindings.map { case (n, ir) => n.str -> ir })
 
-  private def unwrapStruct(bindings: IndexedSeq[(Name, IR)], struct: Ref): IndexedSeq[(Name, IR)] =
+  private def unwrapStruct(bindings: IndexedSeq[(Name, IR)], struct: Atom): IndexedSeq[(Name, IR)] =
     bindings.map { case (name, _) => name -> GetField(struct, name.str) }
 
   private[this] def lower(

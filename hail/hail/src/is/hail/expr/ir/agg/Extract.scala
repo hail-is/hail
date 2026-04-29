@@ -193,12 +193,12 @@ class AggSignatures(val sigs: IndexedSeq[PhysicalAggSig]) {
       AggStateValue(i, state)
     })
 
-  def initFromSerializedValueOp(statesValue: TrivialIR): IR =
+  def initFromSerializedValueOp(statesValue: Atom): IR =
     Begin(states.zipWithIndex.map { case (state, i) =>
       InitFromSerializedValue(i, GetTupleElement(statesValue, i), state)
     })
 
-  def combOpValues(values: TrivialIR): IR =
+  def combOpValues(values: Atom): IR =
     Begin(sigs.zipWithIndex.map { case (sig, i) =>
       CombOpValue(i, GetTupleElement(values, i), sig)
     })

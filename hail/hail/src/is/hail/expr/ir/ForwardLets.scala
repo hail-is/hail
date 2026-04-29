@@ -56,7 +56,7 @@ object ForwardLets {
             env.eval
               .lookupOption(name)
               .map { forwarded =>
-                if (uses.lookup(defs.lookup(x)).count(_.t.name == name) > 1) forwarded.deepCopy()
+                if (uses.lookup(defs.lookup(x)).count(_.t.name == name) > 1) forwarded.deepCopy
                 else forwarded
               }
               .getOrElse(x)

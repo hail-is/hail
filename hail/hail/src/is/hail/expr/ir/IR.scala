@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.annotations.Region
 import is.hail.asm4s.Value
 import is.hail.backend.ExecuteContext
+import is.hail.collection.FastSeq
 import is.hail.expr.ir.agg.PhysicalAggSig
 import is.hail.expr.ir.functions._
 import is.hail.expr.ir.streams.StreamProducer
@@ -27,29 +28,24 @@ import java.io.OutputStream
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 import org.json4s.JsonAST.{JNothing, JString}
 
-trait IR extends BaseIR {
+abstract class IR extends BaseIR {
   private var _typ: Type = null
 
-  override def typ: Type = {
-    if (_typ == null) {
-      try
-        _typ = InferType(this)
-      catch {
-        case e: Throwable => throw new RuntimeException(s"typ: inference failure:", e)
-      }
+  override def typ: Type =
+    if (_typ != null) _typ
+    else {
+      _typ = InferType(this)
       assert(_typ != null)
+      _typ
     }
-    _typ
-  }
 
   override def mapChildren(f: BaseIR => BaseIR): IR = super.mapChildren(f).asInstanceOf[IR]
 
   override def mapChildrenWithIndex(f: (BaseIR, Int) => BaseIR): IR =
     super.mapChildrenWithIndex(f).asInstanceOf[IR]
 
-  override def deepCopy(): this.type = {
-
-    val cp = super.deepCopy()
+  override def deepCopy: this.type = {
+    val cp = super.deepCopy
     if (_typ != null)
       cp._typ = _typ
     cp
@@ -63,14 +59,18 @@ trait IR extends BaseIR {
 
 package defs {
 
-  import is.hail.collection.FastSeq
-
   trait TypedIR[T <: Type] extends IR {
     override def typ: T = tcoerce[T](super.typ)
   }
 
-  // Mark Refs and constants as IRs that are safe to duplicate
-  trait TrivialIR extends IR
+  // Refs and Constants as IRs that are safe to duplicate
+  trait Atom { this: IR =>
+    def ir: IR with Atom = deepCopy
+  }
+
+  object Atom {
+    implicit def atomToIR(a: Atom): IR = a.ir
+  }
 
   class WrappedByteArrays(val ba: Array[Array[Byte]]) {
     override def hashCode(): Int =
@@ -122,7 +122,7 @@ package defs {
 
   case class Binding(name: Name, value: IR, scope: Int = Scope.EVAL)
 
-  trait BaseRef extends IR with TrivialIR {
+  trait BaseRef extends IR {
     def name: Name
     def _typ: Type
   }
@@ -163,7 +163,7 @@ package defs {
         val rightGrouped = mapIR(rightGroupedStream) { group =>
           bindIR(ToArray(group)) { array =>
             bindIR(ArrayRef(array, 0)) { head =>
-              MakeStruct(rKey.map(key => key -> GetField(head, key)) :+ groupField -> array)
+              MakeStruct(rKey.map(key => key -> GetField(head, key)) :+ groupField -> array.ir)
             }
           }
         }
@@ -638,38 +638,23 @@ package defs {
     }
 
     abstract class ArraySortCompanionExt {
-      def apply(a: IR, ascending: IR = True(), onKey: Boolean = false): ArraySort = {
-        val l = freshName()
-        val r = freshName()
-        val atyp = tcoerce[TStream](a.typ)
-        val compare = if (onKey) {
-          val elementType = atyp.elementType.asInstanceOf[TBaseStruct]
-          elementType match {
-            case _: TStruct =>
-              val elt = tcoerce[TStruct](atyp.elementType)
-              ApplyComparisonOp(
-                Compare,
-                GetField(Ref(l, elt), elt.fieldNames(0)),
-                GetField(Ref(r, atyp.elementType), elt.fieldNames(0)),
-              )
-            case _: TTuple =>
-              val elt = tcoerce[TTuple](atyp.elementType)
-              ApplyComparisonOp(
-                Compare,
-                GetTupleElement(Ref(l, elt), elt.fields(0).index),
-                GetTupleElement(Ref(r, atyp.elementType), elt.fields(0).index),
-              )
-          }
-        } else {
-          ApplyComparisonOp(
-            Compare,
-            Ref(l, atyp.elementType),
-            Ref(r, atyp.elementType),
-          )
-        }
+      def apply(a: IR, ascending: IR = True(), onKey: Boolean = false): IR =
+        sortIR(a) { (l, r) =>
+          val compare =
+            if (!onKey) ApplyComparisonOp(Compare, l, r)
+            else l.typ match {
+              case elt: TStruct =>
+                val field = elt.fieldNames(0)
+                ApplyComparisonOp(Compare, GetField(l, field), GetField(r, field))
+              case elt: TTuple =>
+                val index = elt.fields(0).index
+                ApplyComparisonOp(Compare, GetTupleElement(l, index), GetTupleElement(r, index))
+              case telem =>
+                fatal(s"ArraySort(.., onKey = true) requires struct or tuple elements, got $telem")
+            }
 
-        ArraySort(a, l, r, If(ascending, compare < 0, compare > 0))
-      }
+          bindIR(compare)(c => If(ascending, c < 0, c > 0))
+        }
     }
 
     abstract class StreamFold2CompanionExt {
@@ -888,7 +873,7 @@ package defs {
       lazy val (body, inline): (IR, Boolean) = {
         val ((_, _, _, inline), impl) =
           IRFunctionRegistry.lookupIR(function, typeArgs, args.map(_.typ)).get
-        val body = impl(typeArgs, refs, errorID).deepCopy()
+        val body = impl(typeArgs, refs, errorID).deepCopy
         (body, inline)
       }
 

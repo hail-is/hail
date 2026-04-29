@@ -82,7 +82,7 @@ class PruneSuite extends HailSuite {
     env: BindingEnv[Type] = BindingEnv.empty,
   ): Unit = {
     TypeCheck(ctx, ir, env)
-    val irCopy = ir.deepCopy()
+    val irCopy = ir.deepCopy
     assert(
       PruneDeadFields.isSupertype(requestedType, irCopy.typ),
       s"not supertype:\n  super: ${requestedType.parsableString()}\n  sub:   ${irCopy.typ.parsableString()}",
@@ -113,7 +113,7 @@ class PruneSuite extends HailSuite {
     env: BindingEnv[Type] = BindingEnv.empty,
   ): Unit = {
     TypeCheck(ctx, ir, env)
-    val irCopy = ir.deepCopy()
+    val irCopy = ir.deepCopy
     val ms = new PruneDeadFields.ComputeMutableState
     val rebuilt = (irCopy match {
       case mir: MatrixIR =>
@@ -878,7 +878,7 @@ class PruneSuite extends HailSuite {
     )
 
   @Test def testStreamMergeMemo(): Unit = {
-    val st2 = st.deepCopy()
+    val st2 = st.deepCopy
     checkMemo(
       StreamMultiMerge(
         IndexedSeq(st, st2),
@@ -891,8 +891,8 @@ class PruneSuite extends HailSuite {
   }
 
   @Test def testStreamZipMemo(): Unit = {
-    val a2 = st.deepCopy()
-    val a3 = st.deepCopy()
+    val a2 = st.deepCopy
+    val a3 = st.deepCopy
     for (
       b <- Array(
         ArrayZipBehavior.ExtendNA,
@@ -1757,8 +1757,8 @@ class PruneSuite extends HailSuite {
   }
 
   @Test def testStreamZipRebuild(): Unit = {
-    val a2 = st.deepCopy()
-    val a3 = st.deepCopy()
+    val a2 = st.deepCopy
+    val a3 = st.deepCopy
     for (
       b <- Array(
         ArrayZipBehavior.ExtendNA,

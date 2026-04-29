@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.collection.compat.immutable.ArraySeq
-import is.hail.expr.ir.defs.{Let, Ref, TrivialIR}
+import is.hail.expr.ir.defs.{Atom, Let, Ref}
 
 object IRBuilder {
   def scoped(f: IRBuilder => IR): IR = {
@@ -16,15 +16,15 @@ class IRBuilder {
 
   def getBindings: IndexedSeq[(Name, IR)] = bindings.result()
 
-  def memoize(ir: IR): TrivialIR = ir match {
-    case ir: TrivialIR => ir
+  def memoize(ir: IR): Atom = ir match {
+    case ir: Atom => ir
     case _ => strictMemoize(ir)
   }
 
-  def strictMemoize(ir: IR): Ref =
+  def strictMemoize(ir: IR): Atom =
     strictMemoize(ir, freshName())
 
-  def strictMemoize(ir: IR, name: Name): Ref = {
+  def strictMemoize(ir: IR, name: Name): Atom = {
     bindings += name -> ir
     Ref(name, ir.typ)
   }

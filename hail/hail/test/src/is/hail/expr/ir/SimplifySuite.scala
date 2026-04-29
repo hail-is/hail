@@ -355,29 +355,35 @@ class SimplifySuite extends HailSuite {
     tir should simplifyTo(tir)
   }
 
-  @Test def testFilterParallelize(): Unit =
-    forAll(
+  @DataProvider(name = "FilterParallelize")
+  def filterParallelize: Array[Array[Any]] =
+    Array(
       Array(
-        MakeStruct(FastSeq(
-          ("rows", In(0, TArray(TStruct("x" -> TInt32)))),
-          ("global", In(1, TStruct.empty)),
-        )),
-        In(0, TStruct("rows" -> TArray(TStruct("x" -> TInt32)), "global" -> TStruct.empty)),
-      )
-    ) { rowsAndGlobals =>
-      val tp = TableParallelize(rowsAndGlobals, None)
-      val tf = TableFilter(tp, GetField(Ref(TableIR.rowName, tp.typ.rowType), "x") < 100)
+        makestruct(
+          "rows" -> In(0, TArray(TStruct("x" -> TInt32))),
+          "global" -> In(1, TStruct.empty),
+        )
+      ),
+      Array(
+        In(0, TStruct("rows" -> TArray(TStruct("x" -> TInt32)), "global" -> TStruct.empty))
+      ),
+    )
 
-      val rw = Simplify(ctx, tf)
-      TypeCheck(ctx, rw)
-      assert(!Exists(rw, _.isInstanceOf[TableFilter]))
-    }
+  @Test(dataProvider = "FilterParallelize")
+  def testFilterParallelize(rowsAndGlobals: IR): Unit = {
+    val tp = TableParallelize(rowsAndGlobals, None)
+    val tf = TableFilter(tp, GetField(Ref(TableIR.rowName, tp.typ.rowType), "x") < 100)
+
+    val rw = Simplify(ctx, tf)
+    TypeCheck(ctx, rw)
+    assert(!Exists(rw, _.isInstanceOf[TableFilter]))
+  }
 
   @Test def testStreamLenSimplifications(): Unit = {
     val rangeIR = StreamRange(I32(0), I32(10), I32(1))
-    val mapOfRange = mapIR(rangeIR)(range_element => range_element + 5)
+    val mapOfRange = mapIR(rangeIR)(_ + 5)
     val mapBlockedByLet =
-      bindIR(I32(5))(ref => mapIR(rangeIR)(range_element => range_element + ref))
+      bindIR(I32(5))(ref => mapIR(rangeIR)(_ + ref))
 
     assert(Simplify(ctx, StreamLen(rangeIR)) == Simplify(ctx, StreamLen(mapOfRange)))
     assert(Simplify(ctx, StreamLen(mapBlockedByLet)) match {

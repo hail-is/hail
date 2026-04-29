@@ -41,7 +41,7 @@ package invariant {
         IRTraversal.trace(ir).foreach { case trace @ ir :: _ =>
           if (!invariant(ir)) throw new UnsatisfiedInvariantError(
             s"""Invariant ${E.value} forbids
-               |${trace.take(3).map(Pretty(ctx, _, preserveNames = true)).mkString("\nin\n")}
+               |${trace.take(5).map(Pretty(ctx, _, preserveNames = true)).mkString("\nin\n")}
                |""".stripMargin
           )
         }
@@ -70,10 +70,13 @@ package object invariant {
   implicit def Invariant(p: BaseIR => Boolean)(implicit E: sourcecode.Enclosing): Invariant =
     Fused(p)
 
-  def AnyIR: Invariant =
+  lazy val AnyIR: Invariant =
     new Invariant {
-      override def verify(ctx: ExecuteContext, ir: BaseIR): Unit = ()
+      override private[invariant] def verify(ctx: ExecuteContext, ir: BaseIR): Unit = ()
     }
+
+  def LowerableIR(implicit E: Enclosing): Invariant =
+    TreeIR and NoRedefinedNames
 
   def TreeIR: Invariant = {
     var mark: Int = 0

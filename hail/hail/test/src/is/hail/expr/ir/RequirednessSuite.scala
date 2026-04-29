@@ -44,7 +44,7 @@ class RequirednessSuite extends HailSuite {
     if (r)
       MakeStream(FastSeq(int(elt), int(required)), tstream)
     else
-      mapIR(NA(tstream))(x => x + int(elt))
+      mapIR(NA(tstream))(_ + int(elt))
 
   def array(r: Boolean, elt: Boolean): IR = ToArray(stream(r, elt))
 
@@ -101,7 +101,7 @@ class RequirednessSuite extends HailSuite {
     "Interval",
     TInterval(point.typ),
     point,
-    point.deepCopy(),
+    point.deepCopy,
     True(),
     if (r) True() else NA(TBoolean),
   )
@@ -261,7 +261,7 @@ class RequirednessSuite extends HailSuite {
     ) { case (recur, Seq(param1, param2)) =>
       If(
         False(), // required
-        MakeArray(FastSeq(param1), tnestedarray), // required
+        MakeArray(FastSeq(param1.ir), tnestedarray), // required
         If(
           param2 <= I32(1), // possibly missing
           recur(FastSeq(array(required, optional), int(required))),
@@ -450,7 +450,7 @@ class RequirednessSuite extends HailSuite {
 
     nodes += Array(
       TableUnion(FastSeq(
-        table.deepCopy(),
+        table.deepCopy,
         TableMapRows(table, insertIR(row, "a" -> nestedarray(optional, optional, required))),
       )),
       rowType.insertFields(FastSeq("a" -> pnestedarray(optional, optional, optional))),
@@ -486,7 +486,7 @@ class RequirednessSuite extends HailSuite {
     val left = TableMapGlobals(
       TableKeyBy(
         TableMapRows(
-          table.deepCopy(),
+          table.deepCopy,
           makestruct(
             "a" -> nestedarray(required, optional, required),
             "b" -> GetField(row, "b"),
@@ -499,7 +499,7 @@ class RequirednessSuite extends HailSuite {
     val right = TableMapGlobals(
       TableKeyBy(
         TableMapRows(
-          table.deepCopy(),
+          table.deepCopy,
           makestruct(
             "a" -> nestedarray(required, required, optional),
             "c" -> GetField(row, "c"),
@@ -556,7 +556,7 @@ class RequirednessSuite extends HailSuite {
 
     val intervalTable = TableKeyBy(
       TableMapRows(
-        table.deepCopy(),
+        table.deepCopy,
         makestruct(
           "a" -> interval(nestedarray(required, required, optional), required),
           "c" -> GetField(row, "c"),
@@ -594,14 +594,14 @@ class RequirednessSuite extends HailSuite {
         FastSeq(
           TableKeyBy(
             TableMapRows(
-              table.deepCopy(),
+              table.deepCopy,
               insertIR(row, "a" -> nestedarray(required, optional, required)),
             ),
             FastSeq("a"),
           ),
           TableKeyBy(
             TableMapRows(
-              table.deepCopy(),
+              table.deepCopy,
               insertIR(row, "a" -> nestedarray(required, required, optional)),
             ),
             FastSeq("a"),

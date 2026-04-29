@@ -644,23 +644,23 @@ class IRSuite extends HailSuite {
     assertEvalsTo(bindIR(NA(TInt32))(x => x), null)
     assertEvalsTo(bindIR(I32(5))(_ => NA(TInt32)), null)
     assertEvalsTo(
-      ToArray(mapIR(bindIR(I32(5))(v => rangeIR(v)))(x => x + I32(2))),
+      ToArray(mapIR(bindIR(I32(5))(v => rangeIR(v)))(x => x + 2)),
       FastSeq(2, 3, 4, 5, 6),
     )
     assertEvalsTo(
       ToArray(mapIR(
         bindIR(I32(2))(q => mapIR(bindIR(q + I32(3))(v => rangeIR(v)))(x => x + q))
-      )(y => y + I32(3))),
+      )(_ + I32(3))),
       FastSeq(5, 6, 7, 8, 9),
     )
 
     // test let binding streams
     assertEvalsTo(
-      bindIR(MakeStream(IndexedSeq(I32(0), I32(5)), TStream(TInt32)))(ToArray),
+      bindIR(MakeStream(IndexedSeq(I32(0), I32(5)), TStream(TInt32)))(ToArray(_)),
       FastSeq(0, 5),
     )
     assertEvalsTo(
-      bindIR(NA(TStream(TInt32)))(ToArray),
+      bindIR(NA(TStream(TInt32)))(ToArray(_)),
       null,
     )
     assertEvalsTo(
@@ -1379,7 +1379,7 @@ class IRSuite extends HailSuite {
     val range6dup = StreamRange(0, 6, 1)
 
     def zip(behavior: ArrayZipBehavior, irs: IR*): IR =
-      zipIR(irs.toFastSeq, behavior)(MakeTuple.ordered)
+      zipIR(irs.toFastSeq, behavior)(irs => MakeTuple.ordered(irs.map(_.ir)))
 
     def zipToTuple(behavior: ArrayZipBehavior, irs: IR*): IR =
       ToArray(zip(behavior, irs: _*))
@@ -1606,7 +1606,10 @@ class IRSuite extends HailSuite {
     val lenOfLet = StreamLen(bindIR(I32(5))(ref =>
       StreamGrouped(
         mapIR(rangeIR(20))(range_element =>
-          InsertFields(MakeStruct(IndexedSeq(("num", range_element + ref))), IndexedSeq(("y", 12)))
+          InsertFields(
+            MakeStruct(IndexedSeq(("num", range_element + ref))),
+            IndexedSeq(("y", 12)),
+          )
         ),
         3,
       )
@@ -1649,7 +1652,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(StreamLen(StreamDrop(a, 1)), 2)
   }
 
-  def toNestedArray(stream: IR): IR = ToArray(mapIR(stream)(ToArray))
+  def toNestedArray(stream: IR): IR = ToArray(mapIR(stream)(ToArray(_)))
 
   @Test def testStreamGrouped(): Unit = {
     val naa = NA(TStream(TInt32))
@@ -1767,7 +1770,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(ToArray(filterIR(a)(_ => False())), FastSeq())
     assertEvalsTo(ToArray(filterIR(a)(_ => True())), FastSeq(3, null, 7))
 
-    assertEvalsTo(ToArray(filterIR(a)(IsNA)), FastSeq(null))
+    assertEvalsTo(ToArray(filterIR(a)(IsNA(_))), FastSeq(null))
     assertEvalsTo(ToArray(filterIR(a)(!IsNA(_))), FastSeq(3, 7))
 
     assertEvalsTo(ToArray(filterIR(a)(_ < I32(6))), FastSeq(3))
@@ -1806,18 +1809,18 @@ class IRSuite extends HailSuite {
 
   @Test def testStreamFold(): Unit = {
     assertEvalsTo(foldIR(StreamRange(1, 2, 1), NA(TBoolean))((accum, elt) => IsNA(accum)), true)
-    assertEvalsTo(foldIR(IRStream(1, 2, 3), 0)((accum, elt) => accum + elt), 6)
+    assertEvalsTo(foldIR(IRStream(1, 2, 3), 0)(_ + _), 6)
     assertEvalsTo(
-      foldIR(IRStream(1, 2, 3), NA(TInt32))((accum, elt) => accum + elt),
+      foldIR(IRStream(1, 2, 3), NA(TInt32))(_ + _),
       null,
     )
     assertEvalsTo(
-      foldIR(IRStream(1, null, 3), NA(TInt32))((accum, elt) => accum + elt),
+      foldIR(IRStream(1, null, 3), NA(TInt32))(_ + _),
       null,
     )
-    assertEvalsTo(foldIR(IRStream(1, null, 3), 0)((accum, elt) => accum + elt), null)
+    assertEvalsTo(foldIR(IRStream(1, null, 3), 0)(_ + _), null)
     assertEvalsTo(
-      foldIR(IRStream(1, null, 3), NA(TInt32))((accum, elt) => I32(5) + I32(5)),
+      foldIR(IRStream(1, null, 3), NA(TInt32))((_, _) => I32(5) + I32(5)),
       10,
     )
   }
@@ -1830,15 +1833,9 @@ class IRSuite extends HailSuite {
       I32(0),
       NA(TInt32),
     )(
-      { case (elt, Seq(x, _)) =>
-        elt + x
-      },
-      { case (elt, Seq(_, y)) =>
-        Coalesce(FastSeq(y, elt))
-      },
-    ) { case Seq(x, y) =>
-      MakeStruct(FastSeq(("x", x), ("y", y)))
-    }
+      { case (elt, Seq(x, _)) => elt + x },
+      { case (elt, Seq(_, y)) => Coalesce(FastSeq(y, elt)) },
+    ) { case Seq(x, y) => makestruct("x" -> x, "y" -> y) }
 
     assertEvalsTo(af, FastSeq((FastSeq(1, 2, 3), TArray(TInt32))), Row(6, 1))
   }
@@ -1847,35 +1844,31 @@ class IRSuite extends HailSuite {
     implicit val execStrats = ExecStrategy.javaOnly
 
     assertEvalsTo(
-      ToArray(streamScanIR(StreamRange(1, 4, 1), NA(TBoolean))((accum, elt) => IsNA(accum))),
+      ToArray(streamScanIR(StreamRange(1, 4, 1), NA(TBoolean))((accum, _) => IsNA(accum))),
       FastSeq(null, true, false, false),
     )
     assertEvalsTo(
-      ToArray(streamScanIR(IRStream(1, 2, 3), 0)((accum, elt) => accum + elt)),
+      ToArray(streamScanIR(IRStream(1, 2, 3), 0)(_ + _)),
       FastSeq(0, 1, 3, 6),
     )
     assertEvalsTo(
-      ToArray(streamScanIR(IRStream(1, 2, 3), NA(TInt32))((accum, elt) => accum + elt)),
+      ToArray(streamScanIR(IRStream(1, 2, 3), NA(TInt32))(_ + _)),
       FastSeq(null, null, null, null),
     )
     assertEvalsTo(
-      ToArray(streamScanIR(IRStream(1, null, 3), NA(TInt32))((accum, elt) =>
-        accum + elt
-      )),
+      ToArray(streamScanIR(IRStream(1, null, 3), NA(TInt32))(_ + _)),
       FastSeq(null, null, null, null),
     )
-    assertEvalsTo(ToArray(streamScanIR(NA(TStream(TInt32)), 0)((accum, elt) => accum + elt)), null)
+    assertEvalsTo(ToArray(streamScanIR(NA(TStream(TInt32)), 0)(_ + _)), null)
     assertEvalsTo(
-      ToArray(streamScanIR(MakeStream(IndexedSeq(), TStream(TInt32)), 99)((accum, elt) =>
-        accum + elt
-      )),
+      ToArray(streamScanIR(MakeStream(IndexedSeq(), TStream(TInt32)), 99)(_ + _)),
       FastSeq(99),
     )
     assertEvalsTo(
       ToArray(streamScanIR(
         flatMapIR(rangeIR(5))(_ => MakeStream(IndexedSeq(), TStream(TInt32))),
         99,
-      )((accum, elt) => accum + elt)),
+      )(_ + _)),
       FastSeq(99),
     )
   }
@@ -2419,19 +2412,17 @@ class IRSuite extends HailSuite {
       joinType,
       requiresMemoryManagement = false,
       rightKeyIsDistinct = rightDistinct,
-    ) { (l: IR, r: IR) =>
-      bindIRs(l, r) { case Seq(l, r) =>
-        MakeStruct(
-          lKeys.lazyZip(rKeys).map { (lk, rk) =>
-            lk -> Coalesce(IndexedSeq(GetField(l, lk), GetField(r, rk)))
+    ) { (l, r) =>
+      MakeStruct(
+        lKeys.lazyZip(rKeys).map { (lk, rk) =>
+          lk -> Coalesce(IndexedSeq(GetField(l, lk), GetField(r, rk)))
+        }
+          ++ tcoerce[TStruct](l.typ).fields.filter(f => !lKeys.contains(f.name)).map { f =>
+            f.name -> GetField(l, f.name)
+          } ++ tcoerce[TStruct](r.typ).fields.filter(f => !rKeys.contains(f.name)).map { f =>
+            f.name -> GetField(r, f.name)
           }
-            ++ tcoerce[TStruct](l.typ).fields.filter(f => !lKeys.contains(f.name)).map { f =>
-              f.name -> GetField(l, f.name)
-            } ++ tcoerce[TStruct](r.typ).fields.filter(f => !rKeys.contains(f.name)).map { f =>
-              f.name -> GetField(r, f.name)
-            }
-        )
-      }
+      )
     })
   }
 
@@ -2994,15 +2985,15 @@ class IRSuite extends HailSuite {
             ApplyAggOp(Collect())(
               MakeArray(
                 FastSeq(
-                  x,
-                  elt,
+                  x.ir,
+                  elt.ir,
                   Cast(y, TInt32),
                   Cast(y, TInt32),
                 ), // reference y twice to prevent forwarding
                 TArray(TInt32),
               )
             ),
-            MakeArray(FastSeq(x), TArray(TInt32)),
+            MakeArray(FastSeq(x.ir), TArray(TInt32)),
           )
         }
       }
@@ -4296,7 +4287,7 @@ class IRSuite extends HailSuite {
         tailLoop(TInt32, accum, I32(0)) { case (recur2, Seq(x2, accum2)) =>
           If(x2 <= 0, accum2, recur2(FastSeq(x2 - 5, accum2 + x2)))
         },
-        recur(FastSeq(x - I32(1), accum + x)),
+        recur(FastSeq(x - 1, accum + x)),
       )
     }
 
@@ -4314,7 +4305,7 @@ class IRSuite extends HailSuite {
       If(
         x <= 0,
         accum,
-        recur(FastSeq(x - 1, ndMap(accum)(elt => elt + x))),
+        recur(FastSeq(x - 1, ndMap(accum)(_ + x))),
       )
     }
 
@@ -4333,18 +4324,11 @@ class IRSuite extends HailSuite {
     assert(memUsed == memUsed2)
   }
 
-  @Test def testHasIRSharing(): Unit = {
-    val r = Ref(freshName(), TInt32)
-    val ir1 = MakeTuple.ordered(FastSeq(I64(1), r, r, I32(1)))
-    assert(HasIRSharing(ctx, ir1))
-    assert(!HasIRSharing(ctx, ir1.deepCopy()))
-  }
-
   @Test def testTreeIRInvariant(): Unit = {
     val r = Ref(freshName(), TInt32)
     val ir1 = MakeTuple.ordered(FastSeq(I64(1), r, r, I32(1)))
     assertThrows[UnsatisfiedInvariantError](TreeIR.verify(ctx, ir1))
-    TreeIR.verify(ctx, ir1.deepCopy())
+    TreeIR.verify(ctx, ir1.deepCopy)
   }
 
   @Test def freeVariables(): Unit = {
@@ -4456,12 +4440,13 @@ class IRSuite extends HailSuite {
       true,
     )
 
-    val stream = mapIR(rangeIR(5))(_ => single)
+    def stream = mapIR(rangeIR(5))(_ => single)
 
-    def selfZip(s: IR, n: Int) = zipIR(
-      ArraySeq.fill(n)(s),
-      ArrayZipBehavior.AssumeSameLength,
-    )(MakeArray(_, TArray(TString)))
+    def selfZip(s: => IR, n: Int) =
+      zipIR(
+        ArraySeq.tabulate(n)(_ => s),
+        ArrayZipBehavior.AssumeSameLength,
+      )(elems => MakeArray(elems.map(_.ir), TArray(TString)))
 
     def assertNumDistinct(s: IR, expected: Int) =
       assertEvalsTo(ArrayLen(CastToArray(ToSet(s))), expected)

@@ -18,7 +18,7 @@ import org.apache.spark.sql.Row
 abstract class BlockMatrixStage(val broadcastVals: IndexedSeq[Ref], val ctxType: Type) {
   def blockContext(idx: (Int, Int)): IR
 
-  def blockBody(ctxRef: Ref): IR
+  def blockBody(ctxRef: Atom): IR
 
   def collectBlocks(
     staticID: String,
@@ -87,7 +87,8 @@ abstract class BlockMatrixStage(val broadcastVals: IndexedSeq[Ref], val ctxType:
       override def blockContext(idx: (Int, Int)): IR =
         makestruct("old" -> outer.blockContext(idx), "new" -> newCtx(idx))
 
-      override def blockBody(ctxRef: Ref): IR = bindIR(GetField(ctxRef, "old"))(outer.blockBody)
+      override def blockBody(ctxRef: Atom): IR =
+        bindIR(GetField(ctxRef, "old"))(outer.blockBody)
     }
   }
 
@@ -96,7 +97,7 @@ abstract class BlockMatrixStage(val broadcastVals: IndexedSeq[Ref], val ctxType:
     new BlockMatrixStage(broadcastVals, outer.ctxType) {
       override def blockContext(idx: (Int, Int)): IR = outer.blockContext(idx)
 
-      override def blockBody(ctxRef: Ref): IR = f(ctxRef, outer.blockBody(ctxRef))
+      override def blockBody(ctxRef: Atom): IR = f(ctxRef, outer.blockBody(ctxRef))
     }
   }
 
@@ -126,7 +127,7 @@ abstract class BlockMatrixStage(val broadcastVals: IndexedSeq[Ref], val ctxType:
         }: _*)
       }
 
-      override def blockBody(ctxRef: Ref): IR = {
+      override def blockBody(ctxRef: Atom): IR = {
         NDArrayConcat(
           ToArray(mapIR(ToStream(ctxRef)) { ctxRows =>
             NDArrayConcat(
@@ -161,7 +162,7 @@ abstract class BlockMatrixStage(val broadcastVals: IndexedSeq[Ref], val ctxType:
 abstract class DynamicBMSContexts {
   def apply(row: IR, col: IR): IR
   def map(ib: IRBuilder)(f: (IR, IR, IR, IR) => IR): DynamicBMSContexts
-  def collect(makeBlock: (Ref, Ref, Ref) => IR): IR
+  def collect(makeBlock: (Atom, Atom, Atom) => IR): IR
 }
 
 object DynamicDenseContexts {
@@ -175,7 +176,7 @@ object DynamicDenseContexts {
   }
 }
 
-case class DynamicDenseContexts(nRows: TrivialIR, nCols: TrivialIR, contexts: TrivialIR)
+case class DynamicDenseContexts(nRows: Atom, nCols: Atom, contexts: Atom)
     extends DynamicBMSContexts {
   def irValue: IR = makestruct("nRows" -> nRows, "nCols" -> nCols, "contexts" -> contexts)
 
@@ -195,7 +196,7 @@ case class DynamicDenseContexts(nRows: TrivialIR, nCols: TrivialIR, contexts: Tr
     )
   }
 
-  override def collect(makeBlock: (Ref, Ref, Ref) => IR): IR = {
+  override def collect(makeBlock: (Atom, Atom, Atom) => IR): IR = {
     NDArrayConcat(
       ToArray(mapIR(rangeIR(nCols)) { j =>
         val colBlocks = mapIR(rangeIR(nRows)) { i =>
@@ -235,15 +236,15 @@ object DynamicSparseContexts {
 }
 
 class DynamicSparseContexts(
-  nRows: TrivialIR,
-  nCols: TrivialIR,
-  rowPos: TrivialIR,
-  rowIdx: TrivialIR,
-  val contexts: TrivialIR,
+  nRows: Atom,
+  nCols: Atom,
+  rowPos: Atom,
+  rowIdx: Atom,
+  val contexts: Atom,
 ) extends DynamicBMSContexts {
   val elementType: Type = contexts.typ.asInstanceOf[TArray].elementType
 
-  def withNewContexts(newContexts: TrivialIR): DynamicSparseContexts =
+  def withNewContexts(newContexts: Atom): DynamicSparseContexts =
     new DynamicSparseContexts(nRows, nCols, rowPos, rowIdx, newContexts)
 
   override def apply(row: IR, col: IR): IR = {
@@ -279,7 +280,7 @@ class DynamicSparseContexts(
     new DynamicSparseContexts(nRows, nCols, rowPos, rowIdx, ib.memoize(newContexts))
   }
 
-  override def collect(makeBlock: (Ref, Ref, Ref) => IR): IR = {
+  override def collect(makeBlock: (Atom, Atom, Atom) => IR): IR = {
     NDArrayConcat(
       ToArray(mapIR(rangeIR(nCols)) { j =>
         val allIdxs = mapIR(rangeIR(nRows))(i => makestruct("idx" -> i))
@@ -358,7 +359,7 @@ abstract class BMSContexts {
 
   def groupedByCol(ib: IRBuilder): BMSContexts
 
-  def collect(makeBlock: (Ref, Ref, Ref) => IR): IR
+  def collect(makeBlock: (Atom, Atom, Atom) => IR): IR
 
   def print(ctx: ExecuteContext): Unit
 }
@@ -375,7 +376,7 @@ case class DenseContexts(sparsity: MatrixSparsity.Dense, dynamic: DynamicDenseCo
     extends BMSContexts {
   override val elementType: Type = contexts.typ.asInstanceOf[TArray].elementType
 
-  override def contexts: TrivialIR = dynamic.contexts
+  override def contexts: IR = dynamic.contexts
 
   override def print(ctx: ExecuteContext): Unit =
     println(
@@ -477,7 +478,7 @@ case class DenseContexts(sparsity: MatrixSparsity.Dense, dynamic: DynamicDenseCo
     DenseContexts(ib, MatrixSparsity.Dense(rowDeps.length, colDeps.length), newContexts)
   }
 
-  override def collect(makeBlock: (Ref, Ref, Ref) => IR): IR = {
+  override def collect(makeBlock: (Atom, Atom, Atom) => IR): IR = {
     NDArrayConcat(
       ToArray(mapIR(rangeIR(nCols)) { j =>
         val colBlocks = mapIR(rangeIR(nRows)) { i =>
@@ -501,7 +502,7 @@ case class SparseContexts(
 ) extends BMSContexts {
   override val elementType: Type = contexts.typ.asInstanceOf[TArray].elementType
 
-  override def contexts: TrivialIR = dynamic.contexts
+  override def contexts: IR = dynamic.contexts
 
   override def print(ctx: ExecuteContext): Unit =
     println(
@@ -604,7 +605,7 @@ case class SparseContexts(
     new SparseContexts(newSparsity, DynamicSparseContexts(ib, newSparsity, newContexts))
   }
 
-  override def collect(makeBlock: (Ref, Ref, Ref) => IR): IR =
+  override def collect(makeBlock: (Atom, Atom, Atom) => IR): IR =
     dynamic.collect(makeBlock)
 }
 
@@ -633,14 +634,14 @@ object BlockMatrixStage2 {
 
   def broadcastVector(ib: IRBuilder, vector: IR, typ: BlockMatrixType, asRowVector: Boolean)
     : BlockMatrixStage2 = {
-    val v: Ref = ib.strictMemoize(vector)
+    val v = ib.strictMemoize(vector)
     val contexts = BMSContexts.tabulate(ib, typ.sparsity)({ (i, j) =>
       val (m, n) = typ.blockShapeIR(i, j)
       val start = (if (asRowVector) j.toL else i.toL) * typ.blockSize.toLong
       makestruct("start" -> start, "shape" -> MakeTuple.ordered(FastSeq[IR](m, n)))
     })
     BlockMatrixStage2(
-      FastSeq(v),
+      FastSeq(v.ir.asInstanceOf[Ref]),
       typ,
       contexts,
       ctx => {
@@ -712,7 +713,7 @@ class BlockMatrixStage2 private (
     new BlockMatrixStage(broadcastVals, ctxType) {
       override def blockContext(idx: (Int, Int)): IR = contexts.dynamic(idx._1, idx._2)
 
-      override def blockBody(ctxRef: Ref): IR =
+      override def blockBody(ctxRef: Atom): IR =
         Let(FastSeq(ctxRefName -> ctxRef), _blockIR)
     }
   }
@@ -754,8 +755,8 @@ class BlockMatrixStage2 private (
           val (m, n) = typ.blockShapeIR(i, j)
           makestruct("oldContext" -> oldContext, "nRows" -> m, "nCols" -> n)
         }
-      def newBlock(context: Ref): IR = {
-        bindIR(GetField(context, "oldContext")) { oldContext =>
+      def newBlock(context: Atom): IR = {
+        bindIR(GetField(context, "oldContext")) { case oldContext: Ref =>
           If(
             IsNA(oldContext),
             MakeNDArray.fill(
@@ -789,8 +790,8 @@ class BlockMatrixStage2 private (
           makestruct("oldContext" -> oldContext, "nRows" -> m, "nCols" -> n)
         }
 
-      def newBlock(context: Ref): IR = {
-        bindIR(GetField(context, "oldContext")) { oldContext =>
+      def newBlock(context: Atom): IR = {
+        bindIR(GetField(context, "oldContext")) { case oldContext: Ref =>
           If(
             IsNA(oldContext),
             MakeNDArray.fill(
@@ -807,7 +808,7 @@ class BlockMatrixStage2 private (
     }
   }
 
-  def mapBody(f: IR => IR): BlockMatrixStage2 = {
+  def mapBody(f: Atom => IR): BlockMatrixStage2 = {
     val newBlockIR = bindIR(_blockIR)(f)
     val newType = typ.copy(elementType = newBlockIR.typ.asInstanceOf[TNDArray].elementType)
     new BlockMatrixStage2(broadcastVals, newType, contexts, ctxRefName, newBlockIR)
@@ -848,7 +849,7 @@ class BlockMatrixStage2 private (
     val newContexts = contexts.zip(ib, other.contexts)
     val ctxRef = Ref(freshName(), newContexts.elementType)
     val newBlockIR =
-      bindIRs(GetTupleElement(ctxRef, 0), GetTupleElement(ctxRef, 1)) { case Seq(l, r) =>
+      bindIRs(GetTupleElement(ctxRef, 0), GetTupleElement(ctxRef, 1)) { case Seq(l: Ref, r: Ref) =>
         f(this.blockIR(l), other.blockIR(r))
       }
     val newType = typ.copy(elementType = newBlockIR.typ.asInstanceOf[TNDArray].elementType)
@@ -910,11 +911,11 @@ class BlockMatrixStage2 private (
         }
         val localKeepRows = GetTupleElement(ctx, 1)
         val localKeepCols = GetTupleElement(ctx, 2)
-        localContexts.collect { (i, j, localContext) =>
+        localContexts.collect({ (i, j, localContext) =>
           bindIRs(ArrayRef(localKeepRows, i), ArrayRef(localKeepCols, j)) { case Seq(rows, cols) =>
             Coalesce(FastSeq(
               // FIXME: assumes blockIR is strict (preserves missing)
-              NDArrayFilter(blockIR(localContext), FastSeq(rows, cols)),
+              NDArrayFilter(blockIR(localContext.asInstanceOf[Ref]), FastSeq(rows, cols)),
               MakeNDArray.fill(
                 zero(typ.elementType),
                 FastSeq(ArrayLen(rows).toL, ArrayLen(cols).toL),
@@ -922,7 +923,7 @@ class BlockMatrixStage2 private (
               ),
             ))
           }
-        }
+        })
       }
     }
 
@@ -937,7 +938,7 @@ class BlockMatrixStage2 private (
       val i = GetTupleElement(ctx, 1)
       val j = GetTupleElement(ctx, 2)
       val diagIndex = (j - i).toL * typ.blockSize.toLong
-      bindIRs(diagIndex, oldCtx) { case Seq(diagIndex, oldCtx) =>
+      bindIRs(diagIndex, oldCtx) { case Seq(diagIndex, oldCtx: Ref) =>
         val localLower = I64(lower) - diagIndex
         val localUpper = I64(upper) - diagIndex
         val (nRowsInBlock, nColsInBlock) = typ.blockShapeIR(i, j)
@@ -978,7 +979,7 @@ class BlockMatrixStage2 private (
       val stops = ToArray(mapIR(ToStream(GetTupleElement(ctx, 4))) { s =>
         minIR(maxIR(s - j.toL * typ.blockSize.toLong, 0L), nCols)
       })
-      bindIRs(oldCtx) { case Seq(oldCtx) =>
+      bindIR(oldCtx) { case oldCtx: Ref =>
         invoke("zero_row_intervals", TNDArray(TFloat64, Nat(2)), blockIR(oldCtx), starts, stops)
       }
     }
@@ -1025,7 +1026,7 @@ class BlockMatrixStage2 private (
     staticID: String,
     dynamicID: IR = NA(TString),
   )(
-    f: (TrivialIR, TrivialIR, TrivialIR) => IR // (ctx, pos, block)
+    f: (Atom, Atom, Atom) => IR // (ctx, pos, block)
   ): IR = {
     val newCtxRef = Ref(freshName(), TTuple(TInt32, ctxType))
     val body = IRBuilder.scoped { bodyIB =>
@@ -1065,11 +1066,11 @@ class BlockMatrixStage2 private (
       case x: SparseContexts => SparseContexts(ib, x.sparsity, blockResults)
     }
 
-    blocks.collect { (i, j, block) =>
+    blocks.collect({ (i, j, block) =>
       val (m, n) = typ.blockShapeIR(i, j)
       val zeroBlock: IR = MakeNDArray.fill(zero(typ.elementType), FastSeq(m, n), False())
       Coalesce(FastSeq(block, zeroBlock))
-    }
+    })
   }
 }
 
@@ -1264,7 +1265,7 @@ object LowerBlockMatrixIR {
           bmir.typ,
           contexts,
           (ctx) =>
-            streamAggIR(mapIR(ToStream(ctx)) { childCtx =>
+            streamAggIR(mapIR(ToStream(ctx)) { case childCtx: Ref =>
               bindIR(NDArrayAgg(loweredChild.blockIR(childCtx), IndexedSeq(0))) { aggedND =>
                 NDArrayReshape(
                   aggedND,
@@ -1289,7 +1290,7 @@ object LowerBlockMatrixIR {
           bmir.typ,
           contexts,
           (ctx) =>
-            streamAggIR(mapIR(ToStream(ctx)) { childCtx =>
+            streamAggIR(mapIR(ToStream(ctx)) { case childCtx: Ref =>
               bindIR(NDArrayAgg(loweredChild.blockIR(childCtx), IndexedSeq(1))) { aggedND =>
                 NDArrayReshape(
                   aggedND,
@@ -1325,7 +1326,7 @@ object LowerBlockMatrixIR {
         })
 
         BlockMatrixStage2(
-          FastSeq(elt),
+          FastSeq(elt.ir.asInstanceOf[Ref]),
           x.typ,
           contexts,
           (ctxRef: Ref) =>
@@ -1494,12 +1495,12 @@ object LowerBlockMatrixIR {
             val localRowSlices = GetTupleElement(ctxRef, 1)
             val localColSlices = GetTupleElement(ctxRef, 2)
 
-            localContexts.collect { (localI, localJ, localContext) =>
+            localContexts.collect({ (localI, localJ, localContext) =>
               bindIRs(ArrayRef(localRowSlices, localI), ArrayRef(localColSlices, localJ)) {
                 case Seq(rowSlice, colSlice) =>
                   Coalesce(FastSeq(
                     NDArraySlice(
-                      childBMS.blockIR(localContext),
+                      childBMS.blockIR(localContext.asInstanceOf[Ref]),
                       MakeTuple.ordered(FastSeq(rowSlice, colSlice)),
                     ),
                     MakeNDArray.fill(
@@ -1509,7 +1510,7 @@ object LowerBlockMatrixIR {
                     ),
                   ))
               }
-            }
+            })
           }
         }
 
@@ -1556,7 +1557,7 @@ object LowerBlockMatrixIR {
             )
           }
 
-          override def blockBody(ctxRef: Ref): IR = {
+          override def blockBody(ctxRef: Atom): IR = {
             val tupleNDArrayStream = ToStream(ctxRef)
             val streamElementName = freshName()
             val streamElementRef =

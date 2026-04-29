@@ -5,7 +5,7 @@ import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
-import is.hail.expr.ir.defs.{Literal, MakeStruct, PartitionReader, ReadPartition, Ref, ToStream}
+import is.hail.expr.ir.defs.{Literal, MakeStruct, PartitionReader, ReadPartition, ToStream}
 import is.hail.expr.ir.functions.StringFunctions
 import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage, TableStageDependency}
 import is.hail.expr.ir.streams.StreamProducer
@@ -198,13 +198,12 @@ case class StringTableReader(
       partitioner = RVDPartitioner.unkeyed(ctx.stateManager, lines.nPartitions),
       dependency = TableStageDependency.none,
       contexts = ToStream(Literal.coerce(TArray(lines.contextType), lines.contexts)),
-      body = { partitionContext: Ref =>
+      body = partitionContext =>
         ReadPartition(
           partitionContext,
           requestedType.rowType,
           StringTablePartitionReader(lines, uidFieldName),
-        )
-      },
+        ),
     )
   }
 
