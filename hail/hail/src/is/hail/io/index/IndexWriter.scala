@@ -523,13 +523,16 @@ class StagedIndexWriter(
     leafBuilder.close(cb)
     val mdOff = cb.memoize(utils.bytesWritten)
 
-    utils.writeMetadataTo(cb, utils.os, utils.size + 1, off, elementIdx)
-    val streamSpec = new is.hail.io.StreamBufferSpec
-    val mdOffsetWriter = cb.memoize(streamSpec.buildCodeOutputBuffer(utils.os))
-    cb += mdOffsetWriter.writeLong(mdOff)
+    if (selfContained) {
+      utils.writeMetadataTo(cb, utils.os, utils.size + 1, off, elementIdx)
+      val streamSpec = new is.hail.io.StreamBufferSpec
+      val mdOffsetWriter = cb.memoize(streamSpec.buildCodeOutputBuffer(utils.os))
+      cb += mdOffsetWriter.writeLong(mdOff)
+    } else {
+      utils.writeMetadata(cb, utils.size + 1, off, elementIdx)
+    }
 
     utils.close(cb)
-    utils.writeMetadata(cb, utils.size + 1, off, elementIdx)
   }
 
   def init(cb: EmitCodeBuilder, path: Value[String], attributes: Value[Map[String, Any]]): Unit = {
