@@ -89,6 +89,7 @@ object IndexWriter {
     annotationType: PType,
     branchingFactor: Int = 4096,
     attributes: Map[String, Any] = Map.empty[String, Any],
+    selfContained: Boolean = true
   ): (String, HailClassLoader, HailTaskContext, RegionPool) => IndexWriter = {
     val sm = ctx.stateManager;
     val f = StagedIndexWriter.build(ctx, keyType, annotationType, branchingFactor);
@@ -324,6 +325,7 @@ object StagedIndexWriter {
     keyType: PType,
     annotationType: PType,
     branchingFactor: Int = 4096,
+    selfContained: Boolean = true
   ): (String, HailClassLoader, HailTaskContext, RegionPool, Map[String, Any]) => CompiledIndexWriter = {
     val fb = EmitFunctionBuilder[CompiledIndexWriter](
       ctx,
@@ -332,7 +334,7 @@ object StagedIndexWriter {
       typeInfo[Unit],
     )
     val cb = fb.ecb
-    val siw = new StagedIndexWriter(selfContained = true, branchingFactor, keyType, annotationType, cb)
+    val siw = new StagedIndexWriter(selfContained, branchingFactor, keyType, annotationType, cb)
 
     cb.newEmitMethod(
       "init",

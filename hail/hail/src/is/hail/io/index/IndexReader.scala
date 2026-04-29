@@ -28,11 +28,12 @@ object IndexReaderBuilder {
       spec.leafCodec.buildDecoder(ctx, spec.leafCodec.encodedVirtualType)
     val (intPType: PStruct, intDec) =
       spec.internalNodeCodec.buildDecoder(ctx, spec.internalNodeCodec.encodedVirtualType)
-    withDecoders(ctx, leafDec, intDec, keyType, annotationType, leafPType, intPType)
+    withDecoders(ctx, spec.selfContained, leafDec, intDec, keyType, annotationType, leafPType, intPType)
   }
 
   def withDecoders(
     ctx: ExecuteContext,
+    selfContained: Boolean,
     leafDec: (InputStream, HailClassLoader) => Decoder,
     intDec: (InputStream, HailClassLoader) => Decoder,
     keyType: Type,
@@ -43,7 +44,7 @@ object IndexReaderBuilder {
     val sm = ctx.stateManager
     (theHailClassLoader, fs, path, cacheCapacity, pool) =>
       new IndexReader(
-        theHailClassLoader, fs, path, cacheCapacity, leafDec, intDec, keyType, annotationType,
+        theHailClassLoader, selfContained, fs, path, cacheCapacity, leafDec, intDec, keyType, annotationType,
         leafPType, intPType, pool, sm)
   }
 }
@@ -73,6 +74,7 @@ object IndexReader {
 
 class IndexReader(
   theHailClassLoader: HailClassLoader,
+  selfContained: Boolean,
   fs: FS,
   path: String,
   cacheCapacity: Int = 8,
@@ -85,19 +87,22 @@ class IndexReader(
   val pool: RegionPool,
   val sm: HailStateManager,
 ) extends AutoCloseable with Logging {
-  private[io] val metadata = IndexReader.readMetadata(fs, path, keyType, annotationType)
+  private val (metadata, is) = if (selfContained) {
+    ???
+  } else {
+    val md = IndexReader.readMetadata(fs, path, keyType, annotationType)
+    md -> fs.openNoCompression(path + "/" + md.indexPath)
+  }
   val branchingFactor = metadata.branchingFactor
   val height = metadata.height
   val nKeys = metadata.nKeys
   val attributes = metadata.attributes
-  val indexRelativePath = metadata.indexPath
 
   val ordering = keyType match {
     case ts: TStruct => PartitionBoundOrdering(sm, ts)
     case t => t.ordering(sm)
   }
 
-  private val is = fs.openNoCompression(path + "/" + indexRelativePath)
   private val leafDecoder = leafDecoderBuilder(is, theHailClassLoader)
   private val internalDecoder = internalDecoderBuilder(is, theHailClassLoader)
 
