@@ -6,11 +6,12 @@ import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIndexedSeq
 import is.hail.io._
-import is.hail.io.fs.FS
+import is.hail.io.fs.{SeekableDataInputStream, FS}
 import is.hail.rvd.{AbstractIndexSpec, PartitionBoundOrdering}
 import is.hail.types.physical.PStruct
 import is.hail.types.virtual.{TStruct, Type, TypeSerializer}
 import is.hail.utils._
+import is.hail.utils.implicits.RichInputStream
 
 import java.io.InputStream
 import java.util
@@ -70,6 +71,26 @@ object IndexReader {
     val metadata = jv.extract[IndexMetadata]
     metadata.keyType -> metadata.annotationType
   }
+
+  def readInlineMetadata(fs: FS, path: String, keyType: Type, annotationType: Type): (SeekableDataInputStream, IndexMetadata) = {
+    // FIXME this is TOCTOU, but we don't implement relative seek ala fseek(file, -8, SEEK_END), so this is what we have
+    val len = fs.getFileSize(path)
+    val is = fs.openNoCompression(path)
+    is.seek(len - 8L)
+    val spec = new StreamBufferSpec
+    val ib = spec.buildInputBuffer(is)
+    val mdOff = ib.readLong()
+    val jsonBytes = new Array[Byte]((len - mdOff - 8L).toInt)
+    is.seek(mdOff)
+    is.readFully(jsonBytes)
+    is.seek(0)
+
+    val jv = JsonMethods.parse(new java.io.ByteArrayInputStream(jsonBytes))
+        .removeField { case (f, _) => f == "keyType" || f == "annotationType" }
+    implicit val formats: Formats = DefaultFormats
+    val md = jv.extract[IndexMetadataUntypedJSON]
+    is -> md.toMetadata(keyType, annotationType)
+  }
 }
 
 class IndexReader(
@@ -87,12 +108,13 @@ class IndexReader(
   val pool: RegionPool,
   val sm: HailStateManager,
 ) extends AutoCloseable with Logging {
-  private val (metadata, is) = if (selfContained) {
-    ???
+  private val (is, metadata) = if (selfContained) {
+    IndexReader.readInlineMetadata(fs, path, keyType, annotationType)
   } else {
     val md = IndexReader.readMetadata(fs, path, keyType, annotationType)
-    md -> fs.openNoCompression(path + "/" + md.indexPath)
+    fs.openNoCompression(path + "/" + md.indexPath) -> md
   }
+
   val branchingFactor = metadata.branchingFactor
   val height = metadata.height
   val nKeys = metadata.nKeys
