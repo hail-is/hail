@@ -247,7 +247,7 @@ case class StagedIndexMetadata(
       keyType,
       annotationType,
       nKeys,
-      "index",
+      "index", // unused if self contained, but it's fine
       rootOffset,
       attributes,
     )
@@ -332,7 +332,7 @@ object StagedIndexWriter {
       typeInfo[Unit],
     )
     val cb = fb.ecb
-    val siw = new StagedIndexWriter(branchingFactor, keyType, annotationType, cb)
+    val siw = new StagedIndexWriter(selfContained = true, branchingFactor, keyType, annotationType, cb)
 
     cb.newEmitMethod(
       "init",
@@ -385,10 +385,19 @@ object StagedIndexWriter {
     branchingFactor: Int = 4096,
     annotationType: PType = +PCanonicalStruct(),
   ): StagedIndexWriter =
-    new StagedIndexWriter(branchingFactor, keyType, annotationType, cb)
+    new StagedIndexWriter(selfContained = true, branchingFactor, keyType, annotationType, cb)
+
+  def forBgen(
+    keyType: PType,
+    cb: EmitClassBuilder[_],
+    branchingFactor: Int = 4096,
+    annotationType: PType = +PCanonicalStruct(),
+  ): StagedIndexWriter =
+    new StagedIndexWriter(selfContained = false, branchingFactor, keyType, annotationType, cb)
 }
 
 class StagedIndexWriter(
+  selfContained: Boolean,
   branchingFactor: Int,
   keyType: PType,
   annotationType: PType,

@@ -237,7 +237,6 @@ class MatrixTableSpec(
 object FileFormat {
   val version: SemanticVersion = SemanticVersion(1, 8, 0)
 
-  private val `1.8`: SemanticVersion = SemanticVersion(1, 8, 0)
-
-  def hasSelfContainedIndex(version: SemanticVersion): Boolean = version >= `1.8`
+  def hasSelfContainedIndex(version: SemanticVersion): Boolean = version >= selfContainedIndexVersion
+  private val selfContainedIndexVersion: SemanticVersion = SemanticVersion(1, 8, 0)
 }
