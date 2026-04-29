@@ -65,6 +65,8 @@ def test_file_matches_input(changed_file, local_path, expected):
         ({'scopes': None, 'clouds': ['gcp']}, 'test', 'azure', False),
         ({'scopes': None, 'clouds': ['gcp']}, 'test', None, True),  # unfiltered cloud matches any
         ({'scopes': ['deploy'], 'clouds': ['gcp']}, 'test', 'gcp', False),
+        ({'runIfRequested': True}, 'test', 'gcp', False),
+        ({'runIfRequested': True}, 'test', None, False),
         ({}, 'test', None, True),
     ],
 )
@@ -214,6 +216,26 @@ steps:
 """
 
 
+_RUN_IF_REQUESTED_CONFIG = """
+alwaysRunSteps:
+  - merge_code
+
+steps:
+  - name: merge_code
+    kind: runImage
+  - name: check_ci
+    kind: runImage
+    scopes: [test]
+    inputs:
+      - from: /repo/ci
+        to: /io/ci
+    dependsOn: [merge_code]
+  - name: create_initial_user
+    kind: runImage
+    runIfRequested: true
+    dependsOn: [merge_code, check_ci]
+"""
+
 _CUSTOM_PREFIX_CONFIG = """
 repoPrefix: /src
 
@@ -254,6 +276,8 @@ steps:
         (_CLOUD_CONFIG, ['ci/foo.py'], 'test', 'azure', ['merge_code', 'test_azure']),
         # no cloud filter -> both cloud-specific steps + merge_code
         (_CLOUD_CONFIG, ['ci/foo.py'], 'test', None, ['merge_code', 'test_azure', 'test_gcp']),
+        # runIfRequested step is never auto-selected as a descendant
+        (_RUN_IF_REQUESTED_CONFIG, ['ci/foo.py'], 'test', None, ['check_ci', 'merge_code']),
         # custom repoPrefix in config: ci change affects check_ci
         (_CUSTOM_PREFIX_CONFIG, ['ci/foo.py'], 'test', None, ['check_ci', 'merge_code']),
     ],

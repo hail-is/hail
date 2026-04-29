@@ -27,8 +27,10 @@ def _file_matches_input(changed_file: str, local_path: str) -> bool:
 def _valid_step(step: dict, actual_scope: str, actual_cloud: Optional[str]) -> bool:
     step_scopes = step.get('scopes')
     step_clouds = step.get('clouds')
-    return (step_scopes is None or actual_scope in step_scopes) and (
-        step_clouds is None or actual_cloud is None or actual_cloud in step_clouds
+    return (
+        not step.get('runIfRequested')
+        and (step_scopes is None or actual_scope in step_scopes)
+        and (step_clouds is None or actual_cloud is None or actual_cloud in step_clouds)
     )
 
 
