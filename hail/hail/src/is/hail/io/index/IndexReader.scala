@@ -72,10 +72,7 @@ object IndexReader {
     metadata.keyType -> metadata.annotationType
   }
 
-  def readInlineMetadata(fs: FS, path: String, keyType: Type, annotationType: Type): (SeekableDataInputStream, IndexMetadata) = {
-    // FIXME this is TOCTOU, but we don't implement relative seek ala fseek(file, -8, SEEK_END), so this is what we have
-    val len = fs.getFileSize(path)
-    val is = fs.openNoCompression(path)
+  def readInlineMetadata(is: SeekableDataInputStream, len: Long): IndexMetadataUntypedJSON = {
     is.seek(len - 8L)
     val spec = new StreamBufferSpec
     val ib = spec.buildInputBuffer(is)
@@ -84,11 +81,17 @@ object IndexReader {
     is.seek(mdOff)
     is.readFully(jsonBytes)
     is.seek(0)
-
     val jv = JsonMethods.parse(new java.io.ByteArrayInputStream(jsonBytes))
         .removeField { case (f, _) => f == "keyType" || f == "annotationType" }
     implicit val formats: Formats = DefaultFormats
-    val md = jv.extract[IndexMetadataUntypedJSON]
+    jv.extract[IndexMetadataUntypedJSON]
+  }
+
+  def readInlineMetadata(fs: FS, path: String, keyType: Type, annotationType: Type): (SeekableDataInputStream, IndexMetadata) = {
+    // FIXME this is TOCTOU, but we don't implement relative seek ala fseek(file, -8, SEEK_END), so this is what we have
+    val len = fs.getFileSize(path)
+    val is = fs.openNoCompression(path)
+    val md = readInlineMetadata(is, len)
     is -> md.toMetadata(keyType, annotationType)
   }
 }

@@ -13,7 +13,7 @@ import is.hail.expr.ir.functions.IntervalFunctions.{
   arrayOfStructFindIntervalRange, compareStructWithPartitionIntervalEndpoint,
 }
 import is.hail.io.AbstractTypedCodecSpec
-import is.hail.io.fs.FS
+import is.hail.io.fs.{FS, SeekableDataInputStream}
 import is.hail.rvd.AbstractIndexSpec
 import is.hail.types.physical.{PCanonicalArray, PCanonicalBaseStruct}
 import is.hail.types.physical.stypes.{SSettable, SValue}
@@ -45,8 +45,8 @@ class StagedIndexReader(
   private[this] val metadata: Settable[VariableMetadata] =
     emb.genFieldThisRef[VariableMetadata]("index_file_metadata")
 
-  private[this] val is: Settable[ByteTrackingInputStream] =
-    emb.genFieldThisRef[ByteTrackingInputStream]("index_is")
+  private[this] val is: Settable[SeekableDataInputStream] =
+    emb.genFieldThisRef[SeekableDataInputStream]("index_is")
 
   private[this] val leafPType = leafCodec.encodedType.decodedPType(leafCodec.encodedVirtualType)
 
@@ -77,25 +77,30 @@ class StagedIndexReader(
   def initialize(cb: EmitCodeBuilder, indexPath: Value[String]): Unit = {
     val fs = cb.emb.getFS
     cb.assign(cache, Code.newInstance[LongToRegionValueCache, Int](16))
-    cb.assign(
-      metadata,
-      Code.invokeScalaObject2[FS, String, IndexMetadataUntypedJSON](
-        IndexReader.getClass,
-        "readUntyped",
-        fs,
-        indexPath,
-      ).invoke[VariableMetadata]("toFileMetadata"),
-    )
 
-    /* FIXME: hardcoded. Will break if we change spec -- assumption not introduced with this code,
-     * but propagated. */
-    cb.assign(
-      is,
-      Code.newInstance[ByteTrackingInputStream, InputStream](cb.emb.openUnbuffered(
-        indexPath.concat("/index"),
-        false,
-      )),
-    )
+    if (spec.selfContained) {
+      val len = cb.memoize(fs.invoke[String, Long]("getFileSize", indexPath))
+      cb.assign(is, fs.invoke[String, SeekableDataInputStream]("openNoCompression", indexPath))
+      cb.assign(
+        metadata,
+        Code.invokeScalaObject2[SeekableDataInputStream, Long, IndexMetadataUntypedJSON](
+          IndexReader.getClass,
+          "readInlineMetadata", is, len).invoke[VariableMetadata]("toFileMetadata"))
+    } else {
+      cb.assign(
+        metadata,
+        Code.invokeScalaObject2[FS, String, IndexMetadataUntypedJSON](
+          IndexReader.getClass,
+          "readUntyped",
+          fs,
+          indexPath,
+        ).invoke[VariableMetadata]("toFileMetadata"),
+      )
+
+      /* FIXME: hardcoded. Will break if we change spec -- assumption not introduced with this code,
+       * but propagated. */
+      cb.assign(is, fs.invoke[String, SeekableDataInputStream]("openNoCompression", indexPath.concat("/index")))
+    }
 
   }
 
