@@ -7,7 +7,6 @@ from typing import Any, AsyncIterator, Awaitable, Callable, Dict, List, Optional
 import humanize
 
 from ...utils import (
-    async_to_blocking,
     bounded_gather2,
     humanize_timedelta_msecs,
     retry_transient_errors,
@@ -248,11 +247,10 @@ class SourceCopier:
                     n = this_part_size
                     while n > 0:
                         bytes_to_write = min(Copier.BUFFER_SIZE, n)
-                        srcf = await self.router_fs.open_from(
+                        async with await self.router_fs.open_from(
                             srcfile, part_number * part_size + (this_part_size - n), length=bytes_to_write
-                        )
-                        b = await srcf.readexactly(bytes_to_write)
-                        await srcf.wait_closed()
+                        ) as srcf:
+                            b = await srcf.readexactly(bytes_to_write)
                         if len(b) == 0:
                             raise UnexpectedEOFError()
                         written = await destf.write(b)
