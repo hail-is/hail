@@ -22,7 +22,7 @@ import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual.{TInt64, TTuple}
 import is.hail.utils._
 
-import java.io.{Closeable, InputStream}
+import java.io.Closeable
 
 case class VariableMetadata(
   branchingFactor: Int,

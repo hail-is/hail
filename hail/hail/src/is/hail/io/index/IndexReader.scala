@@ -11,7 +11,6 @@ import is.hail.rvd.{AbstractIndexSpec, PartitionBoundOrdering}
 import is.hail.types.physical.PStruct
 import is.hail.types.virtual.{TStruct, Type, TypeSerializer}
 import is.hail.utils._
-import is.hail.utils.implicits.RichInputStream
 
 import java.io.InputStream
 import java.util
