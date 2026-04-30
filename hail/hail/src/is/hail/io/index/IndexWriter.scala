@@ -89,7 +89,7 @@ object IndexWriter {
     annotationType: PType,
     branchingFactor: Int = 4096,
     attributes: Map[String, Any] = Map.empty[String, Any],
-    selfContained: Boolean = true
+    selfContained: Boolean = true,
   ): (String, HailClassLoader, HailTaskContext, RegionPool) => IndexWriter = {
     val sm = ctx.stateManager;
     val f = StagedIndexWriter.build(ctx, keyType, annotationType, branchingFactor, selfContained);
@@ -194,7 +194,12 @@ class StagedIndexWriterUtils(selfContained: Boolean, ib: Settable[IndexWriterUti
     : Unit =
     cb.assign(
       ib,
-      Code.newInstance[IndexWriterUtils, String, FS, StagedIndexMetadata, Boolean](path, fs, meta, selfContained),
+      Code.newInstance[IndexWriterUtils, String, FS, StagedIndexMetadata, Boolean](
+        path,
+        fs,
+        meta,
+        selfContained,
+      ),
     )
 
   def size: Code[Int] = ib.invoke[Int]("size")
@@ -414,7 +419,9 @@ class StagedIndexWriter(
 
   private val elementIdx = cb.genFieldThisRef[Long]()
   private val ob = cb.genFieldThisRef[OutputBuffer]()
-  private val utils = new StagedIndexWriterUtils(selfContained, cb.genFieldThisRef[IndexWriterUtils]())
+
+  private val utils =
+    new StagedIndexWriterUtils(selfContained, cb.genFieldThisRef[IndexWriterUtils]())
 
   private val leafBuilder =
     new StagedLeafNodeBuilder(branchingFactor, keyType, annotationType, cb.fieldBuilder)

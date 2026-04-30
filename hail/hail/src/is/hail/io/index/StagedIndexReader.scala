@@ -85,7 +85,11 @@ class StagedIndexReader(
         metadata,
         Code.invokeScalaObject2[SeekableDataInputStream, Long, IndexMetadataUntypedJSON](
           IndexReader.getClass,
-          "readInlineMetadata", is, len).invoke[VariableMetadata]("toFileMetadata"))
+          "readInlineMetadata",
+          is,
+          len,
+        ).invoke[VariableMetadata]("toFileMetadata"),
+      )
     } else {
       cb.assign(
         metadata,
@@ -99,7 +103,10 @@ class StagedIndexReader(
 
       /* FIXME: hardcoded. Will break if we change spec -- assumption not introduced with this code,
        * but propagated. */
-      cb.assign(is, fs.invoke[String, SeekableDataInputStream]("openNoCompression", indexPath.concat("/index")))
+      cb.assign(
+        is,
+        fs.invoke[String, SeekableDataInputStream]("openNoCompression", indexPath.concat("/index")),
+      )
     }
 
   }

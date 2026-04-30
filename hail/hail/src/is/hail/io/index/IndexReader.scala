@@ -6,7 +6,7 @@ import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIndexedSeq
 import is.hail.io._
-import is.hail.io.fs.{SeekableDataInputStream, FS}
+import is.hail.io.fs.{FS, SeekableDataInputStream}
 import is.hail.rvd.{AbstractIndexSpec, PartitionBoundOrdering}
 import is.hail.types.physical.PStruct
 import is.hail.types.virtual.{TStruct, Type, TypeSerializer}
@@ -28,7 +28,16 @@ object IndexReaderBuilder {
       spec.leafCodec.buildDecoder(ctx, spec.leafCodec.encodedVirtualType)
     val (intPType: PStruct, intDec) =
       spec.internalNodeCodec.buildDecoder(ctx, spec.internalNodeCodec.encodedVirtualType)
-    withDecoders(ctx, spec.selfContained, leafDec, intDec, keyType, annotationType, leafPType, intPType)
+    withDecoders(
+      ctx,
+      spec.selfContained,
+      leafDec,
+      intDec,
+      keyType,
+      annotationType,
+      leafPType,
+      intPType,
+    )
   }
 
   def withDecoders(
@@ -44,7 +53,8 @@ object IndexReaderBuilder {
     val sm = ctx.stateManager
     (theHailClassLoader, fs, path, cacheCapacity, pool) =>
       new IndexReader(
-        theHailClassLoader, selfContained, fs, path, cacheCapacity, leafDec, intDec, keyType, annotationType,
+        theHailClassLoader, selfContained, fs, path, cacheCapacity, leafDec, intDec, keyType,
+        annotationType,
         leafPType, intPType, pool, sm)
   }
 }
@@ -81,13 +91,15 @@ object IndexReader {
     is.readFully(jsonBytes)
     is.seek(0)
     val jv = JsonMethods.parse(new java.io.ByteArrayInputStream(jsonBytes))
-        .removeField { case (f, _) => f == "keyType" || f == "annotationType" }
+      .removeField { case (f, _) => f == "keyType" || f == "annotationType" }
     implicit val formats: Formats = DefaultFormats
     jv.extract[IndexMetadataUntypedJSON]
   }
 
-  def readInlineMetadata(fs: FS, path: String, keyType: Type, annotationType: Type): (SeekableDataInputStream, IndexMetadata) = {
-    // FIXME this is TOCTOU, but we don't implement relative seek ala fseek(file, -8, SEEK_END), so this is what we have
+  def readInlineMetadata(fs: FS, path: String, keyType: Type, annotationType: Type)
+    : (SeekableDataInputStream, IndexMetadata) = {
+    /* FIXME this is TOCTOU, but we don't implement relative seek ala fseek(file, -8, SEEK_END), so
+     * this is what we have */
     val len = fs.getFileSize(path)
     val is = fs.openNoCompression(path)
     val md = readInlineMetadata(is, len)
