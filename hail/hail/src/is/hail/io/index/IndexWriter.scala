@@ -92,7 +92,7 @@ object IndexWriter {
     selfContained: Boolean = true
   ): (String, HailClassLoader, HailTaskContext, RegionPool) => IndexWriter = {
     val sm = ctx.stateManager;
-    val f = StagedIndexWriter.build(ctx, keyType, annotationType, branchingFactor);
+    val f = StagedIndexWriter.build(ctx, keyType, annotationType, branchingFactor, selfContained);
     { (path: String, hcl: HailClassLoader, htc: HailTaskContext, pool: RegionPool) =>
       new IndexWriter(
         sm,
@@ -252,7 +252,12 @@ case class StagedIndexMetadata(
       rootOffset,
       attributes,
     )
-    Serialization.write(metadata, out)
+    // do this to make sure that default jackson serialization factory doesn't
+    // close the underlying output stream
+    val nonClosing = new java.io.FilterOutputStream(out) {
+      override def close(): Unit = flush()
+    }
+    Serialization.write(metadata, nonClosing)
   }
 }
 
@@ -325,7 +330,7 @@ object StagedIndexWriter {
     keyType: PType,
     annotationType: PType,
     branchingFactor: Int = 4096,
-    selfContained: Boolean = true
+    selfContained: Boolean,
   ): (String, HailClassLoader, HailTaskContext, RegionPool, Map[String, Any]) => CompiledIndexWriter = {
     val fb = EmitFunctionBuilder[CompiledIndexWriter](
       ctx,
