@@ -22,7 +22,7 @@ import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual.{TInt64, TTuple}
 import is.hail.utils._
 
-import java.io.Closeable
+import java.io.{Closeable, InputStream}
 
 case class VariableMetadata(
   branchingFactor: Int,
@@ -45,8 +45,8 @@ class StagedIndexReader(
   private[this] val metadata: Settable[VariableMetadata] =
     emb.genFieldThisRef[VariableMetadata]("index_file_metadata")
 
-  private[this] val is: Settable[SeekableDataInputStream] =
-    emb.genFieldThisRef[SeekableDataInputStream]("index_is")
+  private[this] val is: Settable[ByteTrackingInputStream] =
+    emb.genFieldThisRef[ByteTrackingInputStream]("index_is")
 
   private[this] val leafPType = leafCodec.encodedType.decodedPType(leafCodec.encodedVirtualType)
 
@@ -75,21 +75,23 @@ class StagedIndexReader(
   def nKeys(cb: EmitCodeBuilder): Value[Long] = cb.memoize(metadata.invoke[Long]("nKeys"))
 
   def initialize(cb: EmitCodeBuilder, indexPath: Value[String]): Unit = {
-    val fs = cb.emb.getFS
+    val fs: Value[FS] = cb.emb.getFS
     cb.assign(cache, Code.newInstance[LongToRegionValueCache, Int](16))
 
     if (spec.selfContained) {
       val len = cb.memoize(fs.invoke[String, Long]("getFileSize", indexPath))
-      cb.assign(is, fs.invoke[String, SeekableDataInputStream]("openNoCompression", indexPath))
+      val istmp =
+        cb.memoize(fs.invoke[String, SeekableDataInputStream]("openNoCompression", indexPath))
       cb.assign(
         metadata,
         Code.invokeScalaObject2[SeekableDataInputStream, Long, IndexMetadataUntypedJSON](
           IndexReader.getClass,
           "readInlineMetadata",
-          is,
+          istmp,
           len,
         ).invoke[VariableMetadata]("toFileMetadata"),
       )
+      cb.assign(is, Code.newInstance[ByteTrackingInputStream, InputStream](istmp))
     } else {
       cb.assign(
         metadata,
@@ -103,12 +105,10 @@ class StagedIndexReader(
 
       /* FIXME: hardcoded. Will break if we change spec -- assumption not introduced with this code,
        * but propagated. */
-      cb.assign(
-        is,
-        fs.invoke[String, SeekableDataInputStream]("openNoCompression", indexPath.concat("/index")),
-      )
+      val istmp =
+        fs.invoke[String, SeekableDataInputStream]("openNoCompression", indexPath.concat("/index"))
+      cb.assign(is, Code.newInstance[ByteTrackingInputStream, InputStream](istmp))
     }
-
   }
 
   def addToFinalizer(cb: EmitCodeBuilder, finalizer: Value[TaskFinalizer]): Unit = {
