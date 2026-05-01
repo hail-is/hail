@@ -2,7 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.asm4s.implicits.{valueToRichCodeOutputBuffer}
+import is.hail.asm4s.implicits.valueToRichCodeOutputBuffer
 import is.hail.backend.ExecuteContext
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir._
@@ -14,11 +14,14 @@ import is.hail.types.physical.stypes.concrete.{SJavaString, SJavaStringValue}
 import is.hail.types.virtual._
 import is.hail.utils.fatal
 
-class StreamWriterState(override val kb: EmitClassBuilder[_], indexKey: Option[PStruct]) extends AggregatorState {
+class StreamWriterState(override val kb: EmitClassBuilder[_], indexKey: Option[PStruct])
+    extends AggregatorState {
   val outb: Settable[OutputBuffer] = kb.genFieldThisRef[OutputBuffer]()
   val part: Settable[String] = kb.genFieldThisRef[String]()
+
   val indexWriter = indexKey.map { key =>
-    val branchingFactor = Option(kb.ctx.getFlag("index_branching_factor")).map(_.toInt).getOrElse(4096)
+    val branchingFactor =
+      Option(kb.ctx.getFlag("index_branching_factor")).map(_.toInt).getOrElse(4096)
     StagedIndexWriter.withDefaults(key, kb, branchingFactor = branchingFactor)
   }
 
@@ -46,12 +49,17 @@ class StreamWriterState(override val kb: EmitClassBuilder[_], indexKey: Option[P
 
   override def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = ???
 
-  private[agg] def addToIndex(cb: EmitCodeBuilder, codeRow: SValue): Unit = indexWriter.foreach { iw =>
-    val row = codeRow.asBaseStruct
-    val rowKey = row.subset(indexKey.get.fieldNames: _*)
-    iw.add(cb, IEmitCode.present(cb, rowKey), outb.invoke[Long]("indexOffset"),
-          IEmitCode.present(cb, PCanonicalStruct().loadCheapSCode(cb, 0L)))
-  }
+  private[agg] def addToIndex(cb: EmitCodeBuilder, codeRow: SValue): Unit =
+    indexWriter.foreach { iw =>
+      val row = codeRow.asBaseStruct
+      val rowKey = row.subset(indexKey.get.fieldNames: _*)
+      iw.add(
+        cb,
+        IEmitCode.present(cb, rowKey),
+        outb.invoke[Long]("indexOffset"),
+        IEmitCode.present(cb, PCanonicalStruct().loadCheapSCode(cb, 0L)),
+      )
+    }
 }
 
 class StreamWriterAggregator(spec: TypedCodecSpec, indexed: Boolean) extends StagedAggregator {
@@ -60,7 +68,8 @@ class StreamWriterAggregator(spec: TypedCodecSpec, indexed: Boolean) extends Sta
   val initOpTypes: IndexedSeq[Type] = ArraySeq(
     TString, // partfile base name
     TString, // path root _with_  'directory' separator
-  ) ++ (if (indexed) Some(TString) else None) // if indexed, index root path _with_ 'directory' separator
+  ) ++ (if (indexed) Some(TString)
+        else None) // if indexed, index root path _with_ 'directory' separator
   val seqOpTypes: IndexedSeq[Type] = ArraySeq(spec.encodedVirtualType)
   val resultEmitType = EmitType(SJavaString, true)
 
@@ -79,7 +88,8 @@ class StreamWriterAggregator(spec: TypedCodecSpec, indexed: Boolean) extends Sta
     val os = cb.emb.createUnbuffered(root.concat(part))
 
     state.indexWriter.foreach { iw =>
-      val root = ixrootEC.get.toI(cb).getOrFatal(cb, "index path cannot be missing").asString.loadString(cb)
+      val root =
+        ixrootEC.get.toI(cb).getOrFatal(cb, "index path cannot be missing").asString.loadString(cb)
       val path = cb.memoize(root.concat(part).concat(".idx"))
       iw.init(cb, path, cb.memoize(cb.emb.getObject[Map[String, Any]](Map.empty)))
     }
@@ -97,7 +107,6 @@ class StreamWriterAggregator(spec: TypedCodecSpec, indexed: Boolean) extends Sta
     cb += state.outb.writeByte(1.asInstanceOf[Byte])
     encoder.apply(cb, row, state.outb)
   }
-
 
   override protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region])
     : IEmitCode = {

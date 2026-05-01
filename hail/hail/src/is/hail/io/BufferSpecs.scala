@@ -293,13 +293,18 @@ object StreamBlockBufferSpec2 {
 final class StreamBlockBufferSpec2 extends BlockBufferSpec {
   override def buildInputBuffer(in: InputStream): InputBlockBuffer = new StreamBlockInputBuffer2(in)
 
-  override def buildOutputBuffer(out: OutputStream): OutputBlockBuffer = StreamBlockBufferSpec2.buildOutputBuffer(out)
+  override def buildOutputBuffer(out: OutputStream): OutputBlockBuffer =
+    StreamBlockBufferSpec2.buildOutputBuffer(out)
 
   override def buildCodeInputBuffer(in: Code[InputStream]): Code[InputBlockBuffer] =
     Code.newInstance[StreamBlockInputBuffer2, InputStream](in)
 
   override def buildCodeOutputBuffer(out: Code[OutputStream]): Code[OutputBlockBuffer] =
-    Code.invokeScalaObject1[OutputStream, OutputBlockBuffer](StreamBlockBufferSpec2.getClass, "buildOutputBuffer", out)
+    Code.invokeScalaObject1[OutputStream, OutputBlockBuffer](
+      StreamBlockBufferSpec2.getClass,
+      "buildOutputBuffer",
+      out,
+    )
 
   override def equals(other: Any): Boolean = other.isInstanceOf[StreamBlockBufferSpec2]
 }
