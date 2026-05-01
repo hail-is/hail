@@ -147,7 +147,8 @@ case class FoldStateSig(
   combOpIR: IR,
 ) extends AggStateSig(ArraySeq(resultEmitType.typeWithRequiredness), None)
 
-case class WriteSig(rowType: VirtualTypeWithReq, indexKey: Option[PStruct]) extends AggStateSig(ArraySeq(rowType), None)
+case class WriteSig(rowType: VirtualTypeWithReq, indexKey: Option[PStruct])
+    extends AggStateSig(ArraySeq(rowType), None)
 
 object PhysicalAggSig {
   def apply(op: AggOp, state: AggStateSig): PhysicalAggSig = BasicPhysicalAggSig(op, state)

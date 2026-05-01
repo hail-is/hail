@@ -108,7 +108,12 @@ object TableNativeWriter {
             )
             val partResult = streamAggIR(rows) { row =>
               makestruct(
-                "partpath" -> ApplyAggOp(WriteTBD(rowSpec, Some(pKey)), partPath, Str(root), Str(s"$path/index/"))(row),
+                "partpath" -> ApplyAggOp(
+                  WriteTBD(rowSpec, Some(pKey)),
+                  partPath,
+                  Str(root),
+                  Str(s"$path/index/"),
+                )(row),
                 "partitionCounts" -> ApplyAggOp(Count())(),
                 "keyMeta" -> aggFoldIR(zero) { accum =>
                   bindIRs(SelectFields(row, pKey.fieldNames), GetField(accum, "lastKey")) {
