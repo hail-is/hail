@@ -250,7 +250,7 @@ final class BlockingOutputBuffer(blockSize: Int, out: OutputBlockBuffer) extends
   }
 }
 
-final class StreamBlockOutputBuffer(out: OutputStream) extends OutputBlockBuffer {
+final class StreamBlockOutputBuffer(out: ByteTrackingOutputStream) extends OutputBlockBuffer {
   private val lenBuf = new Array[Byte](4)
 
   override def flush(): Unit =
@@ -265,10 +265,10 @@ final class StreamBlockOutputBuffer(out: OutputStream) extends OutputBlockBuffer
     out.write(buf, 0, len)
   }
 
-  override def getPos(): Long = out.asInstanceOf[ByteTrackingOutputStream].bytesWritten
+  override def getPos(): Long = out.bytesWritten
 }
 
-final class StreamBlockOutputBuffer2(out: OutputStream) extends OutputBlockBuffer {
+final class StreamBlockOutputBuffer2(out: ByteTrackingOutputStream) extends OutputBlockBuffer {
   override def flush(): Unit =
     out.flush()
 
@@ -288,7 +288,7 @@ final class StreamBlockOutputBuffer2(out: OutputStream) extends OutputBlockBuffe
     out.write(buf, 0, len)
   }
 
-  override def getPos(): Long = out.asInstanceOf[ByteTrackingOutputStream].bytesWritten
+  override def getPos(): Long = out.bytesWritten
 }
 
 final class LZ4OutputBlockBuffer(lz4: LZ4, blockSize: Int, out: OutputBlockBuffer)

@@ -4,6 +4,7 @@ import is.hail.asm4s._
 import is.hail.compatibility.{LEB128BufferSpec, LZ4BlockBufferSpec}
 import is.hail.io.compress.LZ4
 import is.hail.rvd.AbstractRVDSpec
+import is.hail.utils.implicits.ByteTrackingOutputStream
 
 import java.io._
 
@@ -266,8 +267,10 @@ object StreamBlockBufferSpec {
 final class StreamBlockBufferSpec extends BlockBufferSpec {
   override def buildInputBuffer(in: InputStream): InputBlockBuffer = new StreamBlockInputBuffer(in)
 
-  override def buildOutputBuffer(out: OutputStream): OutputBlockBuffer =
-    new StreamBlockOutputBuffer(out)
+  override def buildOutputBuffer(out: OutputStream): OutputBlockBuffer = out match {
+    case out: ByteTrackingOutputStream => new StreamBlockOutputBuffer(out)
+    case out => new StreamBlockOutputBuffer(new ByteTrackingOutputStream(out))
+  }
 
   override def buildCodeInputBuffer(in: Code[InputStream]): Code[InputBlockBuffer] =
     Code.newInstance[StreamBlockInputBuffer, InputStream](in)
@@ -280,19 +283,23 @@ final class StreamBlockBufferSpec extends BlockBufferSpec {
 
 object StreamBlockBufferSpec2 {
   def extract(jv: JValue): StreamBlockBufferSpec2 = new StreamBlockBufferSpec2
+
+  def buildOutputBuffer(out: OutputStream): OutputBlockBuffer = out match {
+    case out: ByteTrackingOutputStream => new StreamBlockOutputBuffer2(out)
+    case out => new StreamBlockOutputBuffer2(new ByteTrackingOutputStream(out))
+  }
 }
 
 final class StreamBlockBufferSpec2 extends BlockBufferSpec {
   override def buildInputBuffer(in: InputStream): InputBlockBuffer = new StreamBlockInputBuffer2(in)
 
-  override def buildOutputBuffer(out: OutputStream): OutputBlockBuffer =
-    new StreamBlockOutputBuffer2(out)
+  override def buildOutputBuffer(out: OutputStream): OutputBlockBuffer = StreamBlockBufferSpec2.buildOutputBuffer(out)
 
   override def buildCodeInputBuffer(in: Code[InputStream]): Code[InputBlockBuffer] =
     Code.newInstance[StreamBlockInputBuffer2, InputStream](in)
 
   override def buildCodeOutputBuffer(out: Code[OutputStream]): Code[OutputBlockBuffer] =
-    Code.newInstance[StreamBlockOutputBuffer2, OutputStream](out)
+    Code.invokeScalaObject1[OutputStream, OutputBlockBuffer](StreamBlockBufferSpec2.getClass, "buildOutputBuffer", out)
 
   override def equals(other: Any): Boolean = other.isInstanceOf[StreamBlockBufferSpec2]
 }

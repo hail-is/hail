@@ -99,7 +99,7 @@ object TableNativeWriter {
         (rows, ctxRef) =>
           bindIR(GetField(ctxRef, "writeCtx") + UUID4()) { file =>
             val root = s"$path/rows/parts/"
-            val partPath = Str(root) + file + UUID4()
+            val partPath = file + UUID4()
 
             val zero = makestruct(
               "distinct" -> !pKey.fieldNames.isEmpty,
@@ -108,7 +108,7 @@ object TableNativeWriter {
             )
             val partResult = streamAggIR(rows) { row =>
               makestruct(
-                "fullpartpath" -> ApplyAggOp(WriteTBD(rowSpec), partPath)(row),
+                "partpath" -> ApplyAggOp(WriteTBD(rowSpec, Some(pKey)), partPath, Str(root), Str(s"$path/index/"))(row),
                 "partitionCounts" -> ApplyAggOp(Count())(),
                 "keyMeta" -> aggFoldIR(zero) { accum =>
                   bindIRs(SelectFields(row, pKey.fieldNames), GetField(accum, "lastKey")) {
@@ -138,13 +138,7 @@ object TableNativeWriter {
             bindIR(partResult) { result =>
               bindIR(GetField(result, "keyMeta")) { keymeta =>
                 makestruct(
-                  "filePath" -> invoke(
-                    "slice",
-                    TString,
-                    GetField(result, "fullpartpath"),
-                    I32(root.length()),
-                    I32(Int.MaxValue),
-                  ),
+                  "filePath" -> GetField(result, "partpath"),
                   "partitionCounts" -> GetField(result, "partitionCounts"),
                   "distinctlyKeyed" -> GetField(keymeta, "distinct"),
                   "firstKey" -> GetField(keymeta, "firstKey"),
