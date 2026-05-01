@@ -44,8 +44,7 @@ class IndexSuite extends HailSuite {
     branchingFactor: Int,
     attributes: Map[String, Any],
   ): Unit = {
-    val iw = IndexWriter.builder(ctx, keyType, annotationType, branchingFactor, attributes,
-      selfContained = false)(
+    val iw = IndexWriter.builder(ctx, keyType, annotationType, branchingFactor, attributes)(
       file,
       theHailClassLoader,
       ctx.taskContext,
@@ -73,7 +72,6 @@ class IndexSuite extends HailSuite {
     assert(irt == intPType)
     IndexReaderBuilder.withDecoders(
       ctx,
-      selfContained = false,
       leafDec,
       intDec,
       keyPType.virtualType,

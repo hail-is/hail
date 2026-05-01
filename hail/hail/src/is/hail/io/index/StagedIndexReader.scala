@@ -78,37 +78,42 @@ class StagedIndexReader(
     val fs: Value[FS] = cb.emb.getFS
     cb.assign(cache, Code.newInstance[LongToRegionValueCache, Int](16))
 
-    if (spec.selfContained) {
-      val len = cb.memoize(fs.invoke[String, Long]("getFileSize", indexPath))
-      val istmp =
-        cb.memoize(fs.invoke[String, SeekableDataInputStream]("openNoCompression", indexPath))
-      cb.assign(
-        metadata,
-        Code.invokeScalaObject2[SeekableDataInputStream, Long, IndexMetadataUntypedJSON](
-          IndexReader.getClass,
-          "readInlineMetadata",
-          istmp,
-          len,
-        ).invoke[VariableMetadata]("toFileMetadata"),
-      )
-      cb.assign(is, Code.newInstance[ByteTrackingInputStream, InputStream](istmp))
-    } else {
-      cb.assign(
-        metadata,
-        Code.invokeScalaObject2[FS, String, IndexMetadataUntypedJSON](
-          IndexReader.getClass,
-          "readUntyped",
-          fs,
-          indexPath,
-        ).invoke[VariableMetadata]("toFileMetadata"),
-      )
+    cb.if_(
+      !fs.invoke[String, Boolean]("exists", indexPath.concat("metadata.json.gz")), {
+        val len = cb.memoize(fs.invoke[String, Long]("getFileSize", indexPath))
+        val istmp =
+          cb.memoize(fs.invoke[String, SeekableDataInputStream]("openNoCompression", indexPath))
+        cb.assign(
+          metadata,
+          Code.invokeScalaObject2[SeekableDataInputStream, Long, IndexMetadataUntypedJSON](
+            IndexReader.getClass,
+            "readInlineMetadata",
+            istmp,
+            len,
+          ).invoke[VariableMetadata]("toFileMetadata"),
+        )
+        cb.assign(is, Code.newInstance[ByteTrackingInputStream, InputStream](istmp))
+      }, {
+        /* legacy path, including hardcoded index file relative path which has now become fine since
+         * we don't produce such files anymore */
+        cb.assign(
+          metadata,
+          Code.invokeScalaObject2[FS, String, IndexMetadataUntypedJSON](
+            IndexReader.getClass,
+            "readUntyped",
+            fs,
+            indexPath,
+          ).invoke[VariableMetadata]("toFileMetadata"),
+        )
 
-      /* FIXME: hardcoded. Will break if we change spec -- assumption not introduced with this code,
-       * but propagated. */
-      val istmp =
-        fs.invoke[String, SeekableDataInputStream]("openNoCompression", indexPath.concat("/index"))
-      cb.assign(is, Code.newInstance[ByteTrackingInputStream, InputStream](istmp))
-    }
+        val istmp =
+          fs.invoke[String, SeekableDataInputStream](
+            "openNoCompression",
+            indexPath.concat("/index"),
+          )
+        cb.assign(is, Code.newInstance[ByteTrackingInputStream, InputStream](istmp))
+      },
+    )
   }
 
   def addToFinalizer(cb: EmitCodeBuilder, finalizer: Value[TaskFinalizer]): Unit = {

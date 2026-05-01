@@ -89,10 +89,9 @@ object IndexWriter {
     annotationType: PType,
     branchingFactor: Int = 4096,
     attributes: Map[String, Any] = Map.empty[String, Any],
-    selfContained: Boolean = true,
   ): (String, HailClassLoader, HailTaskContext, RegionPool) => IndexWriter = {
     val sm = ctx.stateManager;
-    val f = StagedIndexWriter.build(ctx, keyType, annotationType, branchingFactor, selfContained);
+    val f = StagedIndexWriter.build(ctx, keyType, annotationType, branchingFactor);
     { (path: String, hcl: HailClassLoader, htc: HailTaskContext, pool: RegionPool) =>
       new IndexWriter(
         sm,
@@ -189,16 +188,15 @@ class IndexWriterArrayBuilder(
   def getLoadedChild: SBaseStructValue = elt
 }
 
-class StagedIndexWriterUtils(selfContained: Boolean, ib: Settable[IndexWriterUtils]) {
+class StagedIndexWriterUtils(ib: Settable[IndexWriterUtils]) {
   def create(cb: EmitCodeBuilder, path: Code[String], fs: Code[FS], meta: Code[StagedIndexMetadata])
     : Unit =
     cb.assign(
       ib,
-      Code.newInstance[IndexWriterUtils, String, FS, StagedIndexMetadata, Boolean](
+      Code.newInstance[IndexWriterUtils, String, FS, StagedIndexMetadata](
         path,
         fs,
         meta,
-        selfContained,
       ),
     )
 
@@ -253,7 +251,7 @@ case class StagedIndexMetadata(
       keyType,
       annotationType,
       nKeys,
-      "index", // unused if self contained, but it's fine
+      "" /* index relative path no longer used */,
       rootOffset,
       attributes,
     )
@@ -270,25 +268,14 @@ class IndexWriterUtils(
   path: String,
   fs: FS,
   meta: StagedIndexMetadata,
-  selfContained: Boolean,
 ) {
-  val indexPath: String = if (selfContained) path else path + "/index"
-
-  def metadataPath: String = {
-    require(!selfContained)
-    path + "/metadata.json.gz"
-  }
-
-  val trackedOS: ByteTrackingOutputStream = new ByteTrackingOutputStream(fs.create(indexPath))
+  val trackedOS: ByteTrackingOutputStream = new ByteTrackingOutputStream(fs.create(path))
 
   def bytesWritten: Long = trackedOS.bytesWritten
   def os: OutputStream = trackedOS
 
   def writeMetadataTo(out: OutputStream, height: Int, rootOffset: Long, nKeys: Long): Unit =
     meta.serialize(out, height, rootOffset, nKeys)
-
-  def writeMetadata(height: Int, rootOffset: Long, nKeys: Long): Unit = if (!selfContained)
-    using(fs.create(metadataPath))(os => writeMetadataTo(os, height, rootOffset, nKeys))
 
   val rBuilder = ArrayBuffer.empty[Region]
   val aBuilder = new LongArrayBuilder()
@@ -335,7 +322,6 @@ object StagedIndexWriter {
     keyType: PType,
     annotationType: PType,
     branchingFactor: Int = 4096,
-    selfContained: Boolean,
   ): (String, HailClassLoader, HailTaskContext, RegionPool, Map[String, Any]) => CompiledIndexWriter = {
     val fb = EmitFunctionBuilder[CompiledIndexWriter](
       ctx,
@@ -344,7 +330,7 @@ object StagedIndexWriter {
       typeInfo[Unit],
     )
     val cb = fb.ecb
-    val siw = new StagedIndexWriter(selfContained, branchingFactor, keyType, annotationType, cb)
+    val siw = new StagedIndexWriter(branchingFactor, keyType, annotationType, cb)
 
     cb.newEmitMethod(
       "init",
@@ -397,7 +383,7 @@ object StagedIndexWriter {
     branchingFactor: Int = 4096,
     annotationType: PType = +PCanonicalStruct(),
   ): StagedIndexWriter =
-    new StagedIndexWriter(selfContained = true, branchingFactor, keyType, annotationType, cb)
+    new StagedIndexWriter(branchingFactor, keyType, annotationType, cb)
 
   def forBgen(
     keyType: PType,
@@ -405,11 +391,10 @@ object StagedIndexWriter {
     branchingFactor: Int = 4096,
     annotationType: PType = +PCanonicalStruct(),
   ): StagedIndexWriter =
-    new StagedIndexWriter(selfContained = false, branchingFactor, keyType, annotationType, cb)
+    new StagedIndexWriter(branchingFactor, keyType, annotationType, cb)
 }
 
 class StagedIndexWriter(
-  selfContained: Boolean,
   branchingFactor: Int,
   keyType: PType,
   annotationType: PType,
@@ -421,7 +406,7 @@ class StagedIndexWriter(
   private val ob = cb.genFieldThisRef[OutputBuffer]()
 
   private val utils =
-    new StagedIndexWriterUtils(selfContained, cb.genFieldThisRef[IndexWriterUtils]())
+    new StagedIndexWriterUtils(cb.genFieldThisRef[IndexWriterUtils]())
 
   private val leafBuilder =
     new StagedLeafNodeBuilder(branchingFactor, keyType, annotationType, cb.fieldBuilder)
@@ -537,14 +522,10 @@ class StagedIndexWriter(
     leafBuilder.close(cb)
     val mdOff = cb.memoize(utils.bytesWritten)
 
-    if (selfContained) {
-      utils.writeMetadataTo(cb, utils.os, utils.size + 1, off, elementIdx)
-      val streamSpec = new is.hail.io.StreamBufferSpec
-      val mdOffsetWriter = cb.memoize(streamSpec.buildCodeOutputBuffer(utils.os))
-      cb += mdOffsetWriter.writeLong(mdOff)
-    } else {
-      utils.writeMetadata(cb, utils.size + 1, off, elementIdx)
-    }
+    utils.writeMetadataTo(cb, utils.os, utils.size + 1, off, elementIdx)
+    val streamSpec = new is.hail.io.StreamBufferSpec
+    val mdOffsetWriter = cb.memoize(streamSpec.buildCodeOutputBuffer(utils.os))
+    cb += mdOffsetWriter.writeLong(mdOff)
 
     utils.close(cb)
   }

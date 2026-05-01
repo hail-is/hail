@@ -300,8 +300,6 @@ trait AbstractIndexSpec {
     offsetField.map(f => annotationType.asInstanceOf[TStruct].fieldIdx(f))
 
   def types: (Type, Type) = (keyType, annotationType)
-
-  def selfContained: Boolean
 }
 
 case class IndexSpec2(
@@ -311,7 +309,6 @@ case class IndexSpec2(
   _keyType: Type,
   _annotationType: Type,
   _offsetField: Option[String] = None,
-  _selfContained: Boolean = false,
 ) extends AbstractIndexSpec {
   override def relPath: String = _relPath
 
@@ -324,8 +321,6 @@ case class IndexSpec2(
   override def annotationType: Type = _annotationType
 
   override def offsetField: Option[String] = _offsetField
-
-  override def selfContained: Boolean = _selfContained
 }
 
 object IndexSpec {
@@ -348,7 +343,6 @@ object IndexSpec {
       keyPType.virtualType,
       annotationPType.virtualType,
       offsetFieldName,
-      _selfContained = true,
     )
   }
 

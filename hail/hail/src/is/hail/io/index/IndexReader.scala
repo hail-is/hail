@@ -30,7 +30,6 @@ object IndexReaderBuilder {
       spec.internalNodeCodec.buildDecoder(ctx, spec.internalNodeCodec.encodedVirtualType)
     withDecoders(
       ctx,
-      spec.selfContained,
       leafDec,
       intDec,
       keyType,
@@ -42,7 +41,6 @@ object IndexReaderBuilder {
 
   def withDecoders(
     ctx: ExecuteContext,
-    selfContained: Boolean,
     leafDec: (InputStream, HailClassLoader) => Decoder,
     intDec: (InputStream, HailClassLoader) => Decoder,
     keyType: Type,
@@ -53,7 +51,7 @@ object IndexReaderBuilder {
     val sm = ctx.stateManager
     (theHailClassLoader, fs, path, cacheCapacity, pool) =>
       new IndexReader(
-        theHailClassLoader, selfContained, fs, path, cacheCapacity, leafDec, intDec, keyType,
+        theHailClassLoader, fs, path, cacheCapacity, leafDec, intDec, keyType,
         annotationType,
         leafPType, intPType, pool, sm)
   }
@@ -109,7 +107,6 @@ object IndexReader {
 
 class IndexReader(
   theHailClassLoader: HailClassLoader,
-  selfContained: Boolean,
   fs: FS,
   path: String,
   cacheCapacity: Int = 8,
@@ -122,12 +119,14 @@ class IndexReader(
   val pool: RegionPool,
   val sm: HailStateManager,
 ) extends AutoCloseable with Logging {
-  private val (is, metadata) = if (selfContained) {
-    IndexReader.readInlineMetadata(fs, path, keyType, annotationType)
-  } else {
-    val md = IndexReader.readMetadata(fs, path, keyType, annotationType)
-    fs.openNoCompression(path + "/" + md.indexPath) -> md
-  }
+  private val (is, metadata) =
+    try {
+      val md = IndexReader.readMetadata(fs, path, keyType, annotationType)
+      fs.openNoCompression(path + "/" + md.indexPath) -> md
+    } catch {
+      case _: java.io.FileNotFoundException =>
+        IndexReader.readInlineMetadata(fs, path, keyType, annotationType)
+    }
 
   val branchingFactor = metadata.branchingFactor
   val height = metadata.height

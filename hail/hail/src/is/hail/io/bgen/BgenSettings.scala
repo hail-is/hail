@@ -131,7 +131,6 @@ object BgenSettings {
       val internalNodeCodec = TypedCodecSpec(internalNodeEType, internalNodeVType, bufferSpec)
       val keyType = keyVType
       val annotationType = annotationVType
-      override def selfContained: Boolean = false
     }
   }
 }
