@@ -46,10 +46,21 @@ curl -fsSL https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-contai
     sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
     tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
 
-echo "=== Installing NVIDIA driver ==="
-add-apt-repository ppa:graphics-drivers/ppa -y
+echo "=== Installing build tools and kernel headers ==="
 apt-get update
-apt-get install -y nvidia-driver-595
+apt-get install -y build-essential linux-headers-$(uname -r)
+
+echo "=== Downloading NVIDIA driver ==="
+wget --no-verbose https://us.download.nvidia.com/XFree86/Linux-x86_64/595.58.03/NVIDIA-Linux-x86_64-595.58.03.run
+echo "8c0d4f967b7932c4ab5714272aee8103392b0a702c92afa555176d36205829f9  NVIDIA-Linux-x86_64-595.58.03.run" | sha256sum -c
+chmod +x NVIDIA-Linux-x86_64-595.58.03.run
+
+echo "=== Running NVIDIA driver installer ==="
+touch /var/log/nvidia-installer.log
+tail -f /var/log/nvidia-installer.log &
+NVIDIA_LOG_PID=$!
+./NVIDIA-Linux-x86_64-595.58.03.run --silent
+kill $NVIDIA_LOG_PID
 
 echo "=== Installing NVIDIA container toolkit ==="
 apt-get --yes install nvidia-container-toolkit
