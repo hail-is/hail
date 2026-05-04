@@ -2,16 +2,17 @@ package is.hail.types.physical
 
 import is.hail.annotations.{Region, SafeNDArray, UnsafeRow}
 import is.hail.asm4s._
+import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.expr.ir.{EmitCodeBuilder, EmitFunctionBuilder}
 import is.hail.methods.LocalWhitening
 import is.hail.types.physical.stypes.interfaces.{ColonIndex => Colon, _}
 
 import org.apache.spark.sql.Row
-import org.testng.annotations.Test
+import org.junit.jupiter.api.Test
 
 class PNDArraySuite extends PhysicalTestUtils {
-  @Test def copyTests(): Unit = {
+  @Test def copyTests(implicit ctx: ExecuteContext): Unit = {
     def runTests(deepCopy: Boolean, interpret: Boolean = false): Unit = {
       copyTestExecutor(
         PCanonicalNDArray(PInt64(true), 1),
@@ -29,7 +30,8 @@ class PNDArraySuite extends PhysicalTestUtils {
     runTests(false, true)
   }
 
-  @Test def testWhitenBase(): Unit = {
+  @Test def testWhitenBase(implicit ctx: ExecuteContext): Unit = {
+    val pool = ctx.r.pool
     val fb = EmitFunctionBuilder[Region, Double](ctx, "whiten_test")
     val matType = PCanonicalNDArray(PFloat64Required, 2)
     val vecType = PCanonicalNDArray(PFloat64Required, 1)
@@ -40,7 +42,7 @@ class PNDArraySuite extends PhysicalTestUtils {
     val blocksize = SizeValueStatic(5)
     val btwpn = SizeValueStatic(blocksize.v * wpn.v)
 
-    this.pool.scopedRegion { region =>
+    pool.scopedRegion { region =>
       fb.emitWithBuilder { cb =>
         val region = fb.getCodeParam[Region](1)
         val A = matType.constructUninitialized(FastSeq(m, wpn), cb, region)
@@ -93,13 +95,14 @@ class PNDArraySuite extends PhysicalTestUtils {
         Code.invokeStatic1[java.lang.Math, Double, Double]("sqrt", normDiff / normA)
       }
 
-      val f = fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, region)
+      val f = fb.resultWithIndex()(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, region)
 
       assert(f(region) < 1e-14)
     }
   }
 
-  @Test def testQrPivot(): Unit = {
+  @Test def testQrPivot(implicit ctx: ExecuteContext): Unit = {
+    val pool = ctx.r.pool
     val fb = EmitFunctionBuilder[Region, Double](ctx, "whiten_test")
     val matType = PCanonicalNDArray(PFloat64Required, 2)
     val vecType = PCanonicalNDArray(PFloat64Required, 1)
@@ -111,7 +114,7 @@ class PNDArraySuite extends PhysicalTestUtils {
     val btn = SizeValueStatic(blocksize.v * n.v)
     val btm = SizeValueStatic(blocksize.v * m.v)
 
-    this.pool.scopedRegion { region =>
+    pool.scopedRegion { region =>
       fb.emitWithBuilder { cb =>
         val region = fb.getCodeParam[Region](1)
         val A = matType.constructUninitialized(FastSeq(m, n), FastSeq(8, 8 * m.v), cb, region)
@@ -178,7 +181,7 @@ class PNDArraySuite extends PhysicalTestUtils {
         Code.invokeStatic1[java.lang.Math, Double, Double]("sqrt", normDiff / normA)
       }
 
-      val f = fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, region)
+      val f = fb.resultWithIndex()(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, region)
 
       assert(f(region) < 1e-14)
     }
@@ -226,7 +229,8 @@ class PNDArraySuite extends PhysicalTestUtils {
     Xw
   }
 
-  @Test def testWhitenNonrecur(): Unit = {
+  @Test def testWhitenNonrecur(implicit ctx: ExecuteContext): Unit = {
+    val pool = ctx.r.pool
     val fb = EmitFunctionBuilder[Region, Unit](ctx, "whiten_test")
     val matType = PCanonicalNDArray(PFloat64Required, 2)
     val m = SizeValueStatic(2000)
@@ -235,7 +239,7 @@ class PNDArraySuite extends PhysicalTestUtils {
     val wpn = SizeValueStatic(w.v + n.v)
     val blocksize = SizeValueStatic(5)
 
-    this.pool.scopedRegion { region =>
+    pool.scopedRegion { region =>
       fb.emitWithBuilder { cb =>
         val region = fb.getCodeParam[Region](1)
         val Aorig = matType.constructUninitialized(FastSeq(m, wpn), cb, region)
@@ -312,14 +316,14 @@ class PNDArraySuite extends PhysicalTestUtils {
         Code._empty
       }
 
-      val f = fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, region)
+      val f = fb.resultWithIndex()(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, region)
 
       f(region)
-      succeed
     }
   }
 
-  @Test def testWhiten(): Unit = {
+  @Test def testWhiten(implicit ctx: ExecuteContext): Unit = {
+    val pool = ctx.r.pool
     val fb = EmitFunctionBuilder[Region, Unit](ctx, "whiten_test")
     val matType = PCanonicalNDArray(PFloat64Required, 2)
     val m = SizeValueStatic(2000)
@@ -328,7 +332,7 @@ class PNDArraySuite extends PhysicalTestUtils {
     val b = const(25L)
     val blocksize = SizeValueStatic(5)
 
-    this.pool.scopedRegion { region =>
+    pool.scopedRegion { region =>
       fb.emitWithBuilder { cb =>
         val region = fb.getCodeParam[Region](1)
         val Aorig = matType.constructUninitialized(FastSeq(m, n), cb, region)
@@ -374,19 +378,19 @@ class PNDArraySuite extends PhysicalTestUtils {
         Code._empty
       }
 
-      val f = fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, region)
+      val f = fb.resultWithIndex()(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, region)
 
       f(region)
-      succeed
     }
   }
 
-  @Test def testRefCounted(): Unit = {
+  @Test def testRefCounted(implicit ctx: ExecuteContext): Unit = {
+    val pool = ctx.r.pool
     val nd = PCanonicalNDArray(PInt32Required, 1)
 
-    val region1 = Region(pool = this.pool)
-    val region2 = Region(pool = this.pool)
-    val region3 = Region(pool = this.pool)
+    val region1 = Region(pool = pool)
+    val region2 = Region(pool = pool)
+    val region3 = Region(pool = pool)
     val fb = EmitFunctionBuilder[Region, Region, Region, Long](ctx, "ref_count_test")
     val codeRegion1 = fb.getCodeParam[Region](1)
     val codeRegion2 = fb.getCodeParam[Region](2)
@@ -418,7 +422,7 @@ class PNDArraySuite extends PhysicalTestUtils {
         throw e
     }
 
-    val f = fb.result()(theHailClassLoader)
+    val f = fb.result()(ctx.theHailClassLoader)
     val result1 = f(region1, region2, region3)
     val result1Data = nd.unstagedDataFirstElementPointer(result1)
 
@@ -450,9 +454,10 @@ class PNDArraySuite extends PhysicalTestUtils {
     assert(region2.memory.listNDArrayRefs().size == 0)
   }
 
-  @Test def testUnstagedCopy(): Unit = {
-    val region1 = Region(pool = this.pool)
-    val region2 = Region(pool = this.pool)
+  @Test def testUnstagedCopy(implicit ctx: ExecuteContext): Unit = {
+    val pool = ctx.r.pool
+    val region1 = Region(pool = pool)
+    val region2 = Region(pool = pool)
     val x = SafeNDArray(IndexedSeq(3L, 2L), (0 until 6).map(_.toDouble))
     val pNd = PCanonicalNDArray(PFloat64Required, 2, true)
     val ndAddr1 = pNd.unstagedStoreJavaObject(ctx.stateManager, x, region = region1)

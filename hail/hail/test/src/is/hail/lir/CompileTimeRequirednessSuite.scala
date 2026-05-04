@@ -1,11 +1,10 @@
 package is.hail.lir
 
-import is.hail.HailSuite
 import is.hail.asm4s._
 
-import org.testng.annotations.Test
+import org.junit.jupiter.api.Test
 
-class CompileTimeRequirednessSuite extends HailSuite {
+class CompileTimeRequirednessSuite {
   @Test def testCodeBooleanFolding(): Unit = {
     val cFalse = const(false)
     val cTrue = const(true)

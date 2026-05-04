@@ -8,6 +8,7 @@ import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.virtual.{TInt32, TStruct}
+
 import org.apache.spark.sql.Row
 import org.junit.jupiter.api.{BeforeEach, Test}
 

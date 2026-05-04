@@ -16,6 +16,7 @@ import is.hail.utils.{ExecutionTimer, SerializableHadoopConfiguration}
 import is.hail.variant.ReferenceGenome
 
 import scala.collection.mutable
+
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.sql.SparkSession
 import org.junit.jupiter.api.extension.{

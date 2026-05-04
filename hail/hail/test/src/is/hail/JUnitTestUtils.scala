@@ -9,9 +9,10 @@ import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.SparkBackend
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
+import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.{
-  freshName, streamAggIR, BindingEnv, bindIR, BlockMatrixIR, Compilable, Compile, Env, Forall, IR,
-  Interpret, MapIR, MatrixIR, MatrixRead, Name, Pretty, rangeIR, SingleCodeEmitParamType, Subst,
+  bindIR, freshName, rangeIR, streamAggIR, BindingEnv, BlockMatrixIR, Compilable, Compile, Env,
+  Forall, IR, Interpret, MapIR, MatrixIR, MatrixRead, Name, Pretty, SingleCodeEmitParamType, Subst,
   TypeCheck,
 }
 import is.hail.expr.ir.Optimize.Flags.Optimize
@@ -24,7 +25,6 @@ import is.hail.io.vcf.MatrixVCFReader
 import is.hail.types.physical.{PBaseStruct, PCanonicalArray, PType}
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.virtual._
-import is.hail.collection.implicits.toRichIterable
 import is.hail.utils._
 import is.hail.variant.{BoxedCall, Call2, ReferenceGenome}
 
@@ -39,6 +39,7 @@ import org.junit.jupiter.api.{Assertions => JAssertions}
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.scalacheck.{Prop, Test => ScalaCheckTest}
 import org.scalacheck.rng.Seed
+import org.scalatest
 
 object JUnitTestUtils extends Logging {
 
@@ -107,6 +108,10 @@ object JUnitTestUtils extends Logging {
         )
     }
   }
+
+  // Allows the body of a `forAll` to have type `Unit`, relying on assertions to trigger failure
+  implicit def unitToProp(unit: Unit): Prop = Prop.proved
+  implicit def assertionToProp(unit: scalatest.Assertion): Prop = Prop.proved
 
   // --- IR evaluation helpers (ported from TestUtils / HailSuite) ---
 
@@ -264,7 +269,8 @@ object JUnitTestUtils extends Logging {
     args: IndexedSeq[(Any, Type)],
     env: Env[(Any, Type)],
     agg: Option[(IndexedSeq[Row], TStruct)],
-  )(implicit ctx: ExecuteContext,
+  )(implicit
+    ctx: ExecuteContext,
     strat: ExecStrategy,
   ): Any = strat match {
     case ExecStrategy.Interpret =>
@@ -306,17 +312,18 @@ object JUnitTestUtils extends Logging {
   }
 
   def assertEvalsTo(
-    x: IR,
+    x0: IR,
     env: Env[(Any, Type)],
     args: IndexedSeq[(Any, Type)],
     agg: Option[(IndexedSeq[Row], TStruct)],
     expected: Any,
-  )(implicit ctx: ExecuteContext,
+  )(implicit
+    ctx: ExecuteContext,
     execStrats: Set[ExecStrategy],
   ): Unit = {
-    TypeCheck(ctx, x, BindingEnv(env.mapValues(_._2), agg = agg.map(_._2.toEnv)))
+    TypeCheck(ctx, x0, BindingEnv(env.mapValues(_._2), agg = agg.map(_._2.toEnv)))
 
-    val t = x.typ
+    val t = x0.typ
     assert(t == TVoid || t.typeCheck(expected), s"$t, $expected")
 
     val filteredExecStrats: Set[ExecStrategy] =
@@ -327,6 +334,7 @@ object JUnitTestUtils extends Logging {
         execStrats.intersect(ExecStrategy.backendOnly)
       }
 
+    val x = x0.deepCopy
     filteredExecStrats.foreach { implicit strat =>
       try {
         val res = evaluate(x, args, env, agg)
@@ -349,7 +357,8 @@ object JUnitTestUtils extends Logging {
   def assertEvalsTo(
     x: IR,
     expected: Any,
-  )(implicit ctx: ExecuteContext,
+  )(implicit
+    ctx: ExecuteContext,
     execStrats: Set[ExecStrategy],
   ): Unit =
     assertEvalsTo(x, Env.empty, FastSeq(), None, expected)
@@ -358,10 +367,21 @@ object JUnitTestUtils extends Logging {
     x: IR,
     args: IndexedSeq[(Any, Type)],
     expected: Any,
-  )(implicit ctx: ExecuteContext,
+  )(implicit
+    ctx: ExecuteContext,
     execStrats: Set[ExecStrategy],
   ): Unit =
     assertEvalsTo(x, Env.empty, args, None, expected)
+
+  def assertEvalsTo(
+    x: IR,
+    agg: (IndexedSeq[Row], TStruct),
+    expected: Any,
+  )(implicit
+    ctx: ExecuteContext,
+    execStrats: Set[ExecStrategy],
+  ): Unit =
+    assertEvalsTo(x, Env.empty, FastSeq(), Some(agg), expected)
 
   private[this] lazy val testResources: String =
     sys.env.getOrElse("MILL_TEST_RESOURCE_DIR", "hail/test/resources")
@@ -370,7 +390,8 @@ object JUnitTestUtils extends Logging {
 
   def assertAllEvalTo(
     xs: (IR, Any)*
-  )(implicit ctx: ExecuteContext,
+  )(implicit
+    ctx: ExecuteContext,
     execStrats: Set[ExecStrategy],
   ): Unit =
     assertEvalsTo(
@@ -416,7 +437,11 @@ object JUnitTestUtils extends Logging {
       }
     }
 
-  def assertFatal(x: IR, args: IndexedSeq[(Any, Type)], regex: String)(implicit
+  def assertFatal(
+    x: IR,
+    args: IndexedSeq[(Any, Type)],
+    regex: String,
+  )(implicit
     ctx: ExecuteContext
   ): Unit =
     assertThrows[HailException](x, Env.empty[(Any, Type)], args, regex)
@@ -439,7 +464,10 @@ object JUnitTestUtils extends Logging {
   ): Unit =
     interceptException[E](regex)(eval(x, env, args))
 
-  def assertCompiledThrows[E <: Throwable: ClassTag](x: IR, regex: String)(implicit
+  def assertCompiledThrows[E <: Throwable: ClassTag](
+    x: IR,
+    regex: String,
+  )(implicit
     ctx: ExecuteContext
   ): Unit =
     assertCompiledThrows[E](x, Env.empty[(Any, Type)], FastSeq.empty[(Any, Type)], regex)
@@ -522,7 +550,9 @@ object JUnitTestUtils extends Logging {
     MatrixRead(reader.fullMatrixTypeWithoutUIDs, dropSamples, false, reader)
   }
 
-  def measuringHighestTotalMemoryUsage[A](f: ExecuteContext => A)(implicit
+  def measuringHighestTotalMemoryUsage[A](
+    f: ExecuteContext => A
+  )(implicit
     ctx: ExecuteContext
   ): (A, Long) =
     RegionPool.scoped { p =>
@@ -574,13 +604,19 @@ object JUnitTestUtils extends Logging {
   def unphasedDiploidGtIndicesToBoxedCall(m: DenseMatrix[Int]): DenseMatrix[BoxedCall] =
     m.map(g => if (g == -1) null: BoxedCall else Call2.fromUnphasedDiploidGtIndex(g): BoxedCall)
 
-  def assertNDEvals(nd: IR, expected: Any)(implicit
+  def assertNDEvals(
+    nd: IR,
+    expected: Any,
+  )(implicit
     ctx: ExecuteContext,
     execStrats: Set[ExecStrategy],
   ): Unit =
     assertNDEvals(nd, Env.empty, FastSeq(), None, expected)
 
-  def assertNDEvals(nd: IR, expected: (Any, IndexedSeq[Long]))(implicit
+  def assertNDEvals(
+    nd: IR,
+    expected: (Any, IndexedSeq[Long]),
+  )(implicit
     ctx: ExecuteContext,
     execStrats: Set[ExecStrategy],
   ): Unit =
@@ -589,13 +625,21 @@ object JUnitTestUtils extends Logging {
     else
       assertNDEvals(nd, Env.empty, FastSeq(), None, expected._2, expected._1)
 
-  def assertNDEvals(nd: IR, args: IndexedSeq[(Any, Type)], expected: Any)(implicit
+  def assertNDEvals(
+    nd: IR,
+    args: IndexedSeq[(Any, Type)],
+    expected: Any,
+  )(implicit
     ctx: ExecuteContext,
     execStrats: Set[ExecStrategy],
   ): Unit =
     assertNDEvals(nd, Env.empty, args, None, expected)
 
-  def assertNDEvals(nd: IR, agg: (IndexedSeq[Row], TStruct), expected: Any)(implicit
+  def assertNDEvals(
+    nd: IR,
+    agg: (IndexedSeq[Row], TStruct),
+    expected: Any,
+  )(implicit
     ctx: ExecuteContext,
     execStrats: Set[ExecStrategy],
   ): Unit =
@@ -607,7 +651,8 @@ object JUnitTestUtils extends Logging {
     args: IndexedSeq[(Any, Type)],
     agg: Option[(IndexedSeq[Row], TStruct)],
     expected: Any,
-  )(implicit ctx: ExecuteContext,
+  )(implicit
+    ctx: ExecuteContext,
     execStrats: Set[ExecStrategy],
   ): Unit = {
     var e: IndexedSeq[Any] = expected.asInstanceOf[IndexedSeq[Any]]
@@ -627,7 +672,8 @@ object JUnitTestUtils extends Logging {
     agg: Option[(IndexedSeq[Row], TStruct)],
     dims: IndexedSeq[Long],
     expected: Any,
-  )(implicit ctx: ExecuteContext,
+  )(implicit
+    ctx: ExecuteContext,
     execStrats: Set[ExecStrategy],
   ): Unit = {
     val arrayIR = if (expected == null) nd
@@ -646,7 +692,8 @@ object JUnitTestUtils extends Logging {
   def assertBMEvalsTo(
     bm: BlockMatrixIR,
     expected: DenseMatrix[Double],
-  )(implicit ctx: ExecuteContext,
+  )(implicit
+    ctx: ExecuteContext,
     execStrats: Set[ExecStrategy],
   ): Unit = {
     val filteredExecStrats: Set[ExecStrategy] =

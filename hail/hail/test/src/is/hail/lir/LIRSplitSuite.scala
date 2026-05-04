@@ -1,14 +1,14 @@
 package is.hail.lir
 
-import is.hail.HailSuite
 import is.hail.asm4s._
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{EmitFunctionBuilder, ParamType}
 
-import org.testng.annotations.Test
+import org.junit.jupiter.api.Test
 
-class LIRSplitSuite extends HailSuite {
+class LIRSplitSuite {
 
-  @Test def testSplitPreservesParameterMutation(): Unit = {
+  @Test def testSplitPreservesParameterMutation(implicit ctx: ExecuteContext): Unit = {
     val f = EmitFunctionBuilder[Unit](ctx, "F")
     f.emitWithBuilder { cb =>
       val mb = f.newEmitMethod("m", IndexedSeq[ParamType](typeInfo[Long]), typeInfo[Unit])
@@ -21,6 +21,6 @@ class LIRSplitSuite extends HailSuite {
       cb.invokeVoid(mb, cb.this_, const(1L))
       Code._empty
     }
-    f.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, ctx.r)()
+    f.resultWithIndex()(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, ctx.r)()
   }
 }

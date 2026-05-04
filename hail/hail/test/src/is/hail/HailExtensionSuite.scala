@@ -14,45 +14,45 @@ import org.junit.jupiter.api.Assertions.{assertSame, assertTrue}
   *
   * Properties tested here:
   *   - `ctx.fs` / `ctx.backend` / `ctx.r.pool` are the same shared instances that the resolver
-  *     hands to `FS` / `Backend` / `RegionPool` parameters (no wrapping) and are the same
-  *     across every test method.
+  *     hands to `FS` / `Backend` / `RegionPool` parameters (no wrapping) and are the same across
+  *     every test method.
   *   - `@BeforeEach` and the following `@Test` receive the same `ExecuteContext`.
   *   - Two `ExecuteContext` parameters on one method resolve to the same instance.
-  *   - Each `@ParameterizedTest` invocation shares one `ExecuteContext` (and `Region`) with
-  *     the factory that produced its arguments and with every other invocation.
+  *   - Each `@ParameterizedTest` invocation shares one `ExecuteContext` (and `Region`) with the
+  *     factory that produced its arguments and with every other invocation.
   *   - Different test methods receive distinct per-method state: `ExecuteContext`, `Region`,
   *     `ExecutionTimer`, `tempFileManager`, `irMetadata`.
   *   - The class-level IR caches (`BlockMatrixCache`, `CompileCache`, `PersistedIrCache`,
   *     `PersistedCoercerCache`) are the same mutable-map instances across every test method.
   *
   * Properties the design requires that this suite does NOT test, and why:
-  *   - `SharedResources` lazy init. Any suite that resolves a Hail parameter has already
-  *     triggered creation, so a test can't observe "not yet initialized" from within itself.
-  *     A cold-start observation would need external inspection of the process before the
-  *     first injected test runs.
-  *   - Teardown ordering (Spark stopped before the `RegionPool`) in `SharedResources.close`:
-  *     that runs after the last test; no test method is alive to observe it.
-  *   - `@BeforeAll`-scoped ctx living at the class scope (design decision 9). Testing it
-  *     would require `@BeforeAll def setup(ctx: ExecuteContext)`, but that makes every
-  *     subsequent `@Test` reuse the class-scoped ctx — breaking the per-method `Region`
-  *     invariant that every other test in this suite checks. Belongs in a dedicated suite.
+  *   - `SharedResources` lazy init. Any suite that resolves a Hail parameter has already triggered
+  *     creation, so a test can't observe "not yet initialized" from within itself. A cold-start
+  *     observation would need external inspection of the process before the first injected test
+  *     runs.
+  *   - Teardown ordering (Spark stopped before the `RegionPool`) in `SharedResources.close`: that
+  *     runs after the last test; no test method is alive to observe it.
+  *   - `@BeforeAll`-scoped ctx living at the class scope (design decision 9). Testing it would
+  *     require `@BeforeAll def setup(ctx: ExecuteContext)`, but that makes every subsequent `@Test`
+  *     reuse the class-scoped ctx — breaking the per-method `Region` invariant that every other
+  *     test in this suite checks. Belongs in a dedicated suite.
   *   - Separate `ClassLevelIrCaches` per class (vs. shared `SharedResources` across classes).
-  *     Observable only by cross-class state, which would couple this suite to a second
-  *     suite's execution order.
+  *     Observable only by cross-class state, which would couple this suite to a second suite's
+  *     execution order.
   *   - `ExecutionTimer.finished` is private with no accessor, so we can't assert
   *     `OwnedExecuteContext.close` called `timer.finish()` on scope-end.
   *   - Region invalidation on scope-end. The design says JUnit closing the stored
-  *     `OwnedExecuteContext` "releases the Region", but `OwnedExecuteContext.close` only
-  *     calls `ctx.close()` which closes `tempFileManager` and `taskContext` — not the
-  *     Region. A `previousCtx.r.isValid() == false` assertion in `@BeforeEach` of the next
-  *     method would fail on the current code. Treating it as a probable code bug rather
-  *     than asserting a property that doesn't hold.
-  *   - `RVD.CheckRvdKeyOrderingForTesting` side-effect in `shared(...)`. Testable via a
-  *     single `assertTrue(RVD.CheckRvdKeyOrderingForTesting)` but belongs elsewhere — it's
-  *     a one-time flag, not a lifetime.
-  *   - The `@AfterAll` safety check that no test stopped the `SparkContext`. Exercising it
-  *     requires stopping the SparkContext mid-suite, which would break every following
-  *     suite. Not testable without process-level isolation.
+  *     `OwnedExecuteContext` "releases the Region", but `OwnedExecuteContext.close` only calls
+  *     `ctx.close()` which closes `tempFileManager` and `taskContext` — not the Region. A
+  *     `previousCtx.r.isValid() == false` assertion in `@BeforeEach` of the next method would fail
+  *     on the current code. Treating it as a probable code bug rather than asserting a property
+  *     that doesn't hold.
+  *   - `RVD.CheckRvdKeyOrderingForTesting` side-effect in `shared(...)`. Testable via a single
+  *     `assertTrue(RVD.CheckRvdKeyOrderingForTesting)` but belongs elsewhere — it's a one-time
+  *     flag, not a lifetime.
+  *   - The `@AfterAll` safety check that no test stopped the `SparkContext`. Exercising it requires
+  *     stopping the SparkContext mid-suite, which would break every following suite. Not testable
+  *     without process-level isolation.
   */
 class HailExtensionSuite {
   private var beforeEachCtx: ExecuteContext = _

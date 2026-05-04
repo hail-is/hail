@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.ExecStrategy
+import is.hail.{ExecStrategy, ParameterizedTest}
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.JUnitTestUtils._
 import is.hail.annotations.{BroadcastRow, ExtendedOrdering, SafeNDArray}
@@ -28,7 +28,6 @@ import is.hail.types.virtual._
 import is.hail.types.virtual.TIterable.elementType
 import is.hail.utils._
 import is.hail.variant.{Call2, Locus}
-import is.hail.ParameterizedTest
 
 import scala.collection.compat._
 import scala.collection.mutable
@@ -634,7 +633,13 @@ class IRSuite {
   )
 
   @ParameterizedTest
-  def testSwitch(x: IR, default: IR, cases: IndexedSeq[IR], result: Any)(implicit ctx: ExecuteContext): Unit =
+  def testSwitch(
+    x: IR,
+    default: IR,
+    cases: IndexedSeq[IR],
+    result: Any,
+  )(implicit ctx: ExecuteContext
+  ): Unit =
     assertEvalsTo(Switch(x, default, cases), result)
 
   @Test def testLet()(implicit ctx: ExecuteContext): Unit = {
@@ -3287,7 +3292,8 @@ class IRSuite {
   )
 
   @ParameterizedTest
-  def testComparisonOpDifferentTypes(a: Any, t1: Type, t2: Type)(implicit ctx: ExecuteContext): Unit = {
+  def testComparisonOpDifferentTypes(a: Any, t1: Type, t2: Type)(implicit ctx: ExecuteContext)
+    : Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     assertEvalsTo(
@@ -4474,7 +4480,11 @@ class IRSuite {
     runStreamDistTest(data2, pivots11)
   }
 
-  def runStreamDistTest(data: IndexedSeq[Int], splitters: IndexedSeq[Int])(implicit ctx: ExecuteContext): Unit = {
+  def runStreamDistTest(
+    data: IndexedSeq[Int],
+    splitters: IndexedSeq[Int],
+  )(implicit ctx: ExecuteContext
+  ): Unit = {
     def makeRowStruct(i: Int) =
       MakeStruct(IndexedSeq(("rowIdx", I32(i)), ("extraInfo", I32(i * i))))
     def makeKeyStruct(i: Int) = MakeStruct(IndexedSeq(("rowIdx", I32(i))))
