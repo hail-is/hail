@@ -4,6 +4,7 @@ import is.hail.asm4s._
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
+import is.hail.expr.ir.{Memoized => M}
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.lowering.TableStageDependency
@@ -25,6 +26,8 @@ import org.apache.spark.TaskContext
 package ir {
   trait LowerPriorityImplicits {
     implicit def irToPrimitiveIR(ir: IR): PrimitiveIR = new PrimitiveIR(ir)
+    implicit def irToMemoized[S](ir: IR): M[S] = M.pure(ir)
+    implicit def namedIRToMemoized[S](b: (Name, IR)): M[S] = M.let(b._1, b._2)
   }
 }
 
@@ -114,17 +117,19 @@ package object ir extends CompileOps with LowerPriorityImplicits {
   }
 
   def maxIR(A: IR, B: IR): IR =
-    IRBuilder.scoped { r =>
-      val a = r.memoize(A)
-      val b = r.memoize(B)
-      If(a > b, a, b)
+    M.eval {
+      for {
+        a <- A
+        b <- B
+      } yield If(a > b, a, b)
     }
 
   def minIR(A: IR, B: IR): IR =
-    IRBuilder.scoped { r =>
-      val a = r.memoize(A)
-      val b = r.memoize(B)
-      If(a < b, a, b)
+    M.eval {
+      for {
+        a <- A
+        b <- B
+      } yield If(a < b, a, b)
     }
 
   def streamAggIR(stream: IR)(f: Atom => IR): StreamAgg = {

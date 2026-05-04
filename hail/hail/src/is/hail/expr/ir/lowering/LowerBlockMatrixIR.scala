@@ -6,6 +6,7 @@ import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterator
 import is.hail.expr.Nat
 import is.hail.expr.ir._
+import is.hail.expr.ir.Scope.EVAL
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.functions.GetElement
 import is.hail.linalg.MatrixSparsity
@@ -999,7 +1000,10 @@ class BlockMatrixStage2 private (
 
     val emptyGlobals = MakeStruct(FastSeq())
     val globalsId = freshName()
-    val letBindings = ib.getBindings :+ globalsId -> emptyGlobals
+    val letBindings =
+      ib.getBindings
+        .map { b => assert(b.scope == EVAL, b.name); b.name -> b.value } :+
+        globalsId -> emptyGlobals
 
     def tsPartitionFunction(newCtxRef: Ref): IR = {
       val s = makestruct(
