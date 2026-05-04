@@ -1,6 +1,5 @@
 package is.hail.collection
 
-import is.hail.HailSuite
 import is.hail.collection.compat.mutable.{Growable, GrowableCompat}
 import is.hail.collection.implicits.toRichIterator
 import is.hail.utils.{Muple, OrderingView}
@@ -8,9 +7,9 @@ import is.hail.utils.{Muple, OrderingView}
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.runtime.universe._
 
-import org.testng.annotations.Test
+import org.junit.jupiter.api.Test
 
-class FlipbookIteratorSuite extends HailSuite {
+class FlipbookIteratorSuite {
 
   class Box[A: TypeTag] extends AnyRef {
     def typ = typeOf[A]

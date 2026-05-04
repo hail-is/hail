@@ -1,9 +1,8 @@
 package is.hail.utils
 
-import org.scalatestplus.testng.TestNGSuite
-import org.testng.annotations.Test
+import org.junit.jupiter.api.Test
 
-class SemanticVersionSuite extends TestNGSuite {
+class SemanticVersionSuite {
   @Test def testOrdering(): Unit = {
     val versions = Array(
       SemanticVersion(1, 1, 0),

@@ -26,7 +26,8 @@ class SimplifySuite {
 
   implicit val execStrats: Set[ExecStrategy] = ExecStrategy.interpretOnly
 
-  def simplifyTo(expected: BaseIR)(implicit ctx: ExecuteContext): MatcherFactory1[BaseIR, Equivalence] =
+  def simplifyTo(expected: BaseIR)(implicit ctx: ExecuteContext)
+    : MatcherFactory1[BaseIR, Equivalence] =
     new MatcherFactory1[BaseIR, Equivalence] {
       override def matcher[T <: BaseIR: Equivalence]: Matcher[T] =
         Matcher[BaseIR] { input =>
@@ -64,7 +65,8 @@ class SimplifySuite {
     assertEvalsTo(tmwzj, Row(FastSeq(Row(), Row(), Row())))
   }
 
-  @Test def testRepartitionableMapUpdatesForUpstreamOptimizations(implicit ctx: ExecuteContext): Unit = {
+  @Test def testRepartitionableMapUpdatesForUpstreamOptimizations(implicit ctx: ExecuteContext)
+    : Unit = {
     val range = TableKeyBy(TableRange(10, 3), FastSeq())
     val simplifiableIR =
       If(True(), GetField(Ref(TableIR.rowName, range.typ.rowType), "idx").ceq(0), False())
@@ -131,7 +133,8 @@ class SimplifySuite {
   lazy val base2 =
     Literal(TStruct("A" -> TInt32, "B" -> TInt32, "C" -> TInt32, "D" -> TInt32), Row(1, 2, 3, 4))
 
-  @Test def testInsertFieldsWhereFieldBeingInsertedCouldBeSelected(implicit ctx: ExecuteContext): Unit = {
+  @Test def testInsertFieldsWhereFieldBeingInsertedCouldBeSelected(implicit ctx: ExecuteContext)
+    : Unit = {
     val ir1 =
       InsertFields(
         SelectFields(base2, IndexedSeq("A", "B", "C")),
@@ -225,8 +228,7 @@ class SimplifySuite {
         bindIRs(F64(0), r) { case Seq(x0, _) =>
           InsertFields(Ref(unbound, TStruct.empty), FastSeq("z" -> x0.toI))
         },
-      ),
-      {
+      ), {
         val u = bindIR(InsertFields(r, FastSeq("y" -> Ref(unbound, TFloat64)))) { r2 =>
           InsertFields(r2, FastSeq(("z", invoke("str", TString, r2))))
         }
@@ -340,7 +342,8 @@ class SimplifySuite {
     assert(s.typ == TInt32)
   }
 
-  @Test def testMatrixColsTableMatrixMapColsWithAggLetDoesNotSimplify(implicit ctx: ExecuteContext): Unit = {
+  @Test def testMatrixColsTableMatrixMapColsWithAggLetDoesNotSimplify(implicit ctx: ExecuteContext)
+    : Unit = {
     val reader = MatrixRangeReader(ctx, 1, 1, None)
     var mir: MatrixIR = MatrixRead(reader.fullMatrixType, false, false, reader)
     val colType = reader.fullMatrixType.colType
@@ -624,17 +627,18 @@ class SimplifySuite {
             (ApplyBinaryPrimOp(BitXOr(), ref(typ), pure(0)), ref(typ)),
             (ApplyBinaryPrimOp(BitXOr(), pure(0), ref(typ)), ref(typ)),
           ) ++
-          // Shifts
-          Array(LeftShift(), RightShift(), LogicalRightShift()).toSeq.flatMap { shift =>
-            Seq(
-              (ApplyBinaryPrimOp(shift, pure(0), ref(TInt32)), pure(0)),
-              (ApplyBinaryPrimOp(shift, ref(typ), I32(0)), ref(typ)),
-            )
-          }
+            // Shifts
+            Array(LeftShift(), RightShift(), LogicalRightShift()).toSeq.flatMap { shift =>
+              Seq(
+                (ApplyBinaryPrimOp(shift, pure(0), ref(TInt32)), pure(0)),
+                (ApplyBinaryPrimOp(shift, ref(typ), I32(0)), ref(typ)),
+              )
+            }
       }
 
   @ParameterizedTest
-  def testBinaryIntegralSimplification(input: IR, expected: IR)(implicit ctx: ExecuteContext): Unit =
+  def testBinaryIntegralSimplification(input: IR, expected: IR)(implicit ctx: ExecuteContext)
+    : Unit =
     input should simplifyTo(expected)
 
   def testBinaryFloatingSimplification() =
@@ -673,7 +677,8 @@ class SimplifySuite {
     }
 
   @ParameterizedTest
-  def testBinaryFloatingSimplification(input: IR, expected: IR)(implicit ctx: ExecuteContext): Unit =
+  def testBinaryFloatingSimplification(input: IR, expected: IR)(implicit ctx: ExecuteContext)
+    : Unit =
     input should simplifyTo(expected)
 
   def testBlockMatrixSimplification() = {
@@ -700,7 +705,11 @@ class SimplifySuite {
   }
 
   @ParameterizedTest
-  def testBlockMatrixSimplification(input: BlockMatrixIR, expected: BlockMatrixIR)(implicit ctx: ExecuteContext): Unit =
+  def testBlockMatrixSimplification(
+    input: BlockMatrixIR,
+    expected: BlockMatrixIR,
+  )(implicit ctx: ExecuteContext
+  ): Unit =
     input should simplifyTo(expected)
 
   def testTestSwitchSimplification() =
@@ -723,8 +732,13 @@ class SimplifySuite {
     )
 
   @ParameterizedTest
-  def testTestSwitchSimplification(x: IR, default: IR, cases: IndexedSeq[IR], expected: BaseIR)(implicit ctx: ExecuteContext)
-    : Unit =
+  def testTestSwitchSimplification(
+    x: IR,
+    default: IR,
+    cases: IndexedSeq[IR],
+    expected: BaseIR,
+  )(implicit ctx: ExecuteContext
+  ): Unit =
     Switch(x, default, cases) should simplifyTo(expected)
 
   def testIfSimplification() = {
@@ -744,7 +758,13 @@ class SimplifySuite {
   }
 
   @ParameterizedTest
-  def testIfSimplification(pred: IR, cnsq: IR, altr: IR, expected: BaseIR)(implicit ctx: ExecuteContext): Unit =
+  def testIfSimplification(
+    pred: IR,
+    cnsq: IR,
+    altr: IR,
+    expected: BaseIR,
+  )(implicit ctx: ExecuteContext
+  ): Unit =
     If(pred, cnsq, altr) should simplifyTo(expected)
 
   def testMakeStruct() = {
@@ -777,7 +797,8 @@ class SimplifySuite {
   }
 
   @ParameterizedTest
-  def testMakeStruct(fields: IndexedSeq[(String, IR)], expected: IR)(implicit ctx: ExecuteContext): Unit =
+  def testMakeStruct(fields: IndexedSeq[(String, IR)], expected: IR)(implicit ctx: ExecuteContext)
+    : Unit =
     MakeStruct(fields) should simplifyTo(expected)
 
   def testCastSimplify() =
@@ -791,7 +812,8 @@ class SimplifySuite {
     )
 
   @ParameterizedTest
-  def testCastSimplify(t1: Type, t2: Type, simplifies: Boolean)(implicit ctx: ExecuteContext): Unit = {
+  def testCastSimplify(t1: Type, t2: Type, simplifies: Boolean)(implicit ctx: ExecuteContext)
+    : Unit = {
     val x = ref(t1)
     val ir = Cast(Cast(x, t2), t1)
     ir should simplifyTo(if (simplifies) x else ir)

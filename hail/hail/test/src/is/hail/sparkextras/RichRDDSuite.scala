@@ -1,14 +1,16 @@
 package is.hail.sparkextras
 
-import is.hail.HailSuite
+import is.hail.backend.ExecuteContext
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.ExportType
 import is.hail.sparkextras.implicits._
 
-import org.testng.annotations.Test
+import org.junit.jupiter.api.Test
 
-class RichRDDSuite extends HailSuite {
-  @Test def parallelWrite(): Unit = {
+class RichRDDSuite {
+  @Test def parallelWrite(implicit ctx: ExecuteContext): Unit = {
+    val fs = ctx.fs
+    val sc = ctx.backend.asSpark.sc
     def read(file: String): Array[String] = fs.readLines(file)(_.map(_.value).toArray)
 
     val header = "my header is awesome!"

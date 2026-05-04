@@ -1,22 +1,21 @@
 package is.hail.rvd
 
-import is.hail.HailSuite
+import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.types.virtual.{TInt32, TStruct}
 import is.hail.utils.Interval
 
 import org.apache.spark.sql.Row
-import org.testng.ITestContext
-import org.testng.annotations.{BeforeMethod, Test}
+import org.junit.jupiter.api.{BeforeEach, Test}
 
-class RVDPartitionerSuite extends HailSuite {
+class RVDPartitionerSuite {
   val kType = TStruct(("A", TInt32), ("B", TInt32), ("C", TInt32))
 
   var partitioner: RVDPartitioner = _
 
-  @BeforeMethod
-  def setupPartitioner(context: ITestContext): Unit = {
+  @BeforeEach
+  def setupPartitioner(implicit ctx: ExecuteContext): Unit = {
     partitioner = new RVDPartitioner(
       ctx.stateManager,
       kType,
@@ -28,7 +27,7 @@ class RVDPartitionerSuite extends HailSuite {
     )
   }
 
-  @Test def testExtendKey(): Unit = {
+  @Test def testExtendKey(implicit ctx: ExecuteContext): Unit = {
     val p = new RVDPartitioner(
       ctx.stateManager,
       TStruct(("A", TInt32), ("B", TInt32)),
@@ -107,7 +106,7 @@ class RVDPartitionerSuite extends HailSuite {
     assert(partitioner.queryKey(Row(7, 11)) == Range.inclusive(2, 2))
   }
 
-  @Test def testGenerateDisjoint(): Unit = {
+  @Test def testGenerateDisjoint(implicit ctx: ExecuteContext): Unit = {
     val intervals = ArraySeq(
       Interval(Row(1, 0, 4), Row(4, 3, 2), true, false),
       Interval(Row(4, 3, 5), Row(7, 9, 1), true, false),
@@ -148,7 +147,7 @@ class RVDPartitionerSuite extends HailSuite {
       ))
   }
 
-  @Test def testGenerateEmptyKey(): Unit = {
+  @Test def testGenerateEmptyKey(implicit ctx: ExecuteContext): Unit = {
     val intervals1 = ArraySeq(Interval(Row(), Row(), true, true))
     val intervals5 = ArraySeq.fill(5)(Interval(Row(), Row(), true, true))
 
@@ -162,7 +161,7 @@ class RVDPartitionerSuite extends HailSuite {
     assert(p0.rangeBounds.isEmpty)
   }
 
-  @Test def testIntersect(): Unit = {
+  @Test def testIntersect(implicit ctx: ExecuteContext): Unit = {
     val kType = TStruct(("key", TInt32))
     val left =
       new RVDPartitioner(

@@ -1,18 +1,19 @@
 package is.hail.expr.ir.agg
 
-import is.hail.HailSuite
 import is.hail.annotations.{Region, RegionPool}
 import is.hail.asm4s._
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{EmitCode, EmitFunctionBuilder}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical.{PCanonicalArray, PCanonicalString}
 import is.hail.types.physical.stypes.primitives.SFloat64Value
 
-import org.testng.annotations.Test
+import org.junit.jupiter.api.Test
 
-class DownsampleSuite extends HailSuite {
+class DownsampleSuite {
 
-  @Test def testLargeRandom(): Unit = {
+  @Test def testLargeRandom(implicit ctx: ExecuteContext): Unit = {
+    val pool = ctx.r.pool
     val lt = PCanonicalArray(PCanonicalString())
     val fb = EmitFunctionBuilder[RegionPool, Unit](ctx, "foo")
     val cb = fb.ecb
@@ -56,7 +57,7 @@ class DownsampleSuite extends HailSuite {
     }
 
     pool.scopedSmallRegion { r =>
-      fb.resultWithIndex().apply(theHailClassLoader, ctx.fs, ctx.taskContext, r).apply(pool)
+      fb.resultWithIndex().apply(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, r).apply(pool)
     }
   }
 }
