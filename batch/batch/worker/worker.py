@@ -1238,7 +1238,7 @@ class Container:
 
     async def _get_in_container_user(self) -> Tuple[int, int]:
         assert self.image.image_config
-        user = self.image.image_config['Config']['User']
+        user = self.image.image_config['Config'].get('User', '')
         if not user:
             return 0, 0
         if ":" in user:
