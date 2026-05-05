@@ -13,7 +13,8 @@ apt-get install -y \
     ca-certificates \
     curl \
     jq \
-    software-properties-common
+    software-properties-common \
+    xfsprogs
 
 echo "=== Adding Docker apt repo ==="
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
