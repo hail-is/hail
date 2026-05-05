@@ -4268,7 +4268,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testSimpleTailLoop(): Unit = {
-    implicit val execStrats = ExecStrategy.compileOnly
+    implicit val execStrats = ExecStrategy.javaOnly
     val triangleSum: IR =
       tailLoop(TInt32, In(0, TInt32), In(1, TInt32)) { case (recur, Seq(x, accum)) =>
         If(x <= 0, accum, recur(FastSeq(x - 1, accum + x)))
@@ -4280,7 +4280,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testNestedTailLoop(): Unit = {
-    implicit val execStrats = ExecStrategy.compileOnly
+    implicit val execStrats = ExecStrategy.javaOnly
     val triangleSum: IR = tailLoop(TInt32, In(0, TInt32), I32(0)) { case (recur, Seq(x, accum)) =>
       If(
         x <= 0,

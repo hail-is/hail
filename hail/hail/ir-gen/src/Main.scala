@@ -1092,7 +1092,7 @@ object Main {
     r += node(
       "ApplyIR",
       in("function", att("String")),
-      in("typeArgs", att("Seq[Type]")),
+      in("typeArgs", att("IndexedSeq[Type]")),
       in("args", child.*),
       in("returnType", att("Type")),
       errorID,
@@ -1102,7 +1102,7 @@ object Main {
     r += node(
       "Apply",
       in("function", att("String")),
-      in("typeArgs", att("Seq[Type]")),
+      in("typeArgs", att("IndexedSeq[Type]")),
       in("args", child.*),
       in("returnType", att("Type")),
       errorID,
@@ -1111,7 +1111,7 @@ object Main {
     r += node(
       "ApplySpecial",
       in("function", att("String")),
-      in("typeArgs", att("Seq[Type]")),
+      in("typeArgs", att("IndexedSeq[Type]")),
       in("args", child.*),
       in("returnType", att("Type")),
       errorID,

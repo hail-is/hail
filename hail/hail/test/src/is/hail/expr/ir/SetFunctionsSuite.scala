@@ -6,7 +6,7 @@ import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.defs.{I32, NA, ToSet, ToStream}
 import is.hail.types.virtual._
 
-import org.testng.annotations.Test
+import org.testng.annotations.{DataProvider, Test}
 
 class SetFunctionsSuite extends HailSuite {
   val naa = NA(TArray(TInt32))
@@ -63,24 +63,22 @@ class SetFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("add", TSet(TInt32), IRSet(3, 7), NA(TInt32)), Set(null, 3, 7))
   }
 
-  @Test def isSubset(): Unit = {
-    val s = IRSet(3, null, 7)
-    assertEvalsTo(invoke("isSubset", TBoolean, s, invoke("add", TSet(TInt32), s, I32(4))), true)
-    assertEvalsTo(
-      invoke(
-        "isSubset",
-        TBoolean,
-        IRSet(3, 7),
-        invoke("add", TSet(TInt32), IRSet(3, 7), NA(TInt32)),
-      ),
-      true,
+  @DataProvider(name = "IsSubset")
+  def dataIsSubset: Array[Array[Any]] =
+    Array(
+      Array(IRSet(), IRSet(), true),
+      Array(IRSet(1), IRSet(1), true),
+      Array(IRSet(3, null, 7), IRSet(3, null, 7), true),
+      Array(IRSet(3, null, 7), IRSet(3, null, 7, 11), true),
+      Array(IRSet(1, 2, 3), IRSet(1, 2, 4), false),
+      Array(IRSet(1, 2, 3), NA(TSet(TInt32)), null),
+      Array(NA(TSet(TInt32)), IRSet(1, 2, 3), null),
+      Array(NA(TSet(TInt32)), NA(TSet(TInt32)), null),
     )
-    assertEvalsTo(invoke("isSubset", TBoolean, s, invoke("remove", TSet(TInt32), s, I32(3))), false)
-    assertEvalsTo(
-      invoke("isSubset", TBoolean, s, invoke("remove", TSet(TInt32), s, NA(TInt32))),
-      false,
-    )
-  }
+
+  @Test(dataProvider = "IsSubset")
+  def testIsSubset(a: IR, b: IR, isSubset: Any): Unit =
+    assertEvalsTo(invoke("isSubset", TBoolean, a, b), isSubset)
 
   @Test def union(): Unit = {
     assertEvalsTo(invoke("union", TSet(TInt32), IRSet(3, null, 7), IRSet(3, 8)), Set(null, 3, 7, 8))

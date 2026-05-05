@@ -20,6 +20,7 @@ import is.hail.types.virtual._
 import is.hail.utils._
 
 import scala.collection.compat._
+import scala.util.control.ControlThrowable
 
 import org.apache.spark.sql.Row
 
@@ -772,6 +773,25 @@ object Interpret extends Logging {
           }
         }
         ()
+      case TailLoop(name, params, _, body) =>
+        val names = params.map(_._1)
+
+        var vals: IndexedSeq[Any] =
+          params.map(p => interpret(p._2, env, args))
+
+        def go: Any =
+          while (true)
+            try return interpret(body, env.bindIterable(names.zip(vals)), args)
+            catch {
+              case LoopCtrl(`name`, params) =>
+                vals = params
+            }
+
+        go
+
+      case Recur(name, exprs, _) =>
+        throw LoopCtrl(name, exprs.map(e => interpret(e, env, args)))
+
       case MakeStruct(fields) =>
         Row.fromSeq(fields.map { case (_, fieldIR) => interpret(fieldIR, env, args) })
       case SelectFields(old, fields) =>
@@ -1097,4 +1117,6 @@ object Interpret extends Logging {
         uuid4()
     }
   }
+
+  final private case class LoopCtrl(name: Name, args: IndexedSeq[Any]) extends ControlThrowable
 }

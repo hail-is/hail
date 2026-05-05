@@ -6,8 +6,9 @@ import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir._
+import is.hail.expr.ir.{Memoized => M}
 import is.hail.expr.ir.defs._
-import is.hail.expr.ir.functions.{ArrayFunctions, UtilFunctions}
+import is.hail.expr.ir.functions.ArrayFunctions
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.rvd.RVDPartitioner
 import is.hail.sparkextras.implicits.toRichRow
@@ -378,18 +379,17 @@ object LowerDistributedSort extends Logging {
             }) { case (left, right) =>
               ApplyComparisonOp(StructLT(sortFields), left, right)
             }
-            val minArray = MakeArray(GetField(aggResults, "min"))
-            val maxArray = MakeArray(GetField(aggResults, "max"))
+
             val tuplesInSortedOrder =
               tuplesAreSorted(GetField(aggResults, "perPartIntervalTuples"), sortFields)
             bindIR(sortedOversampling) { sortedOversampling =>
               bindIR(ArrayLen(sortedOversampling)) { numSamples =>
                 val sortedSampling = bindIR(
                   /* calculate a 'good' branch factor based on part sizes */
-                  UtilFunctions.intMax(
+                  maxIR(
                     I32(2),
-                    UtilFunctions.intMin(
-                      UtilFunctions.intMin(numSamples, I32(defaultBranchingFactor)),
+                    minIR(
+                      minIR(numSamples, I32(defaultBranchingFactor)),
                       (I64(2L) * GetField(aggResults, "byteSize").floorDiv(
                         I64(sizeCutoff.toLong)
                       )).toI,
@@ -421,13 +421,16 @@ object LowerDistributedSort extends Logging {
                   })
                 }
                 MakeStruct(FastSeq(
-                  "pivotsWithEndpoints" -> ArrayFunctions.extend(
-                    ArrayFunctions.extend(minArray, sortedSampling),
-                    maxArray,
-                  ),
+                  "pivotsWithEndpoints" ->
+                    M.eval {
+                      for {
+                        mins <- MakeArray(GetField(aggResults, "min"))
+                        prefix <- ArrayFunctions.extend(mins, sortedSampling)
+                      } yield ArrayFunctions.extend(prefix, MakeArray(GetField(aggResults, "max")))
+                    },
                   "isSorted" -> ApplySpecial(
                     "land",
-                    Seq.empty[Type],
+                    ArraySeq.empty[Type],
                     FastSeq(GetField(aggResults, "eachPartSorted"), tuplesInSortedOrder),
                     TBoolean,
                     ErrorIDs.NO_ERROR,
@@ -924,7 +927,7 @@ object LowerDistributedSort extends Logging {
       },
       True(),
     ) { case (accum, elt) =>
-      ApplySpecial("land", Seq.empty[Type], FastSeq(accum, elt), TBoolean, ErrorIDs.NO_ERROR)
+      ApplySpecial("land", ArraySeq.empty[Type], FastSeq(accum, elt), TBoolean, ErrorIDs.NO_ERROR)
     }
   }
 }

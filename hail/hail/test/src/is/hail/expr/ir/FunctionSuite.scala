@@ -86,22 +86,22 @@ class FunctionSuite extends HailSuite {
     assert(IRFunctionRegistry.lookup(
       "testCodeUnification",
       TInt32,
-      Seq(TInt32, TInt32),
+      ArraySeq(TInt32, TInt32),
     ).isDefined)
     assert(IRFunctionRegistry.lookup(
       "testCodeUnification",
       TInt32,
-      Seq(TInt64, TInt32),
+      ArraySeq(TInt64, TInt32),
     ).isEmpty)
     assert(IRFunctionRegistry.lookup(
       "testCodeUnification",
       TInt64,
-      Seq(TInt32, TInt32),
+      ArraySeq(TInt32, TInt32),
     ).isEmpty)
     assert(IRFunctionRegistry.lookup(
       "testCodeUnification2",
       TArray(TInt32),
-      Seq(TArray(TInt32)),
+      ArraySeq(TArray(TInt32)),
     ).isDefined)
   }
 
