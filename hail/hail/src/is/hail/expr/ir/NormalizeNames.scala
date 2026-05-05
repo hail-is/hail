@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.NormalizeNames.needsRenaming
 import is.hail.expr.ir.defs._
+import is.hail.expr.ir.lowering.invariant.TreeIR
 import is.hail.types.virtual.Type
 import is.hail.utils.StackSafe._
 
@@ -11,6 +12,7 @@ import scala.annotation.tailrec
 object NormalizeNames {
   def apply[T <: BaseIR](allowFreeVariables: Boolean = false)(ctx: ExecuteContext, ir: T): T =
     ctx.time {
+      TreeIR.verify(ctx, ir)
       val freeVariables: Set[Name] = ir match {
         case ir: IR =>
           if (allowFreeVariables) {
@@ -26,9 +28,8 @@ object NormalizeNames {
           Set.empty
       }
       val env = BindingEnv.empty[Name].createAgg.createScan
-      val noSharing = ir.noSharing(ctx)
       val normalize = new NormalizeNames(freeVariables)
-      val res = normalize.normalizeIR(noSharing, env).run().asInstanceOf[T]
+      val res = normalize.normalizeIR(ir, env).run().asInstanceOf[T]
       uidCounter = math.max(uidCounter, normalize.count.toLong)
       res
     }

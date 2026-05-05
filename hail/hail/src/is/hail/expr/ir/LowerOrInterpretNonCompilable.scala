@@ -61,6 +61,6 @@ object LowerOrInterpretNonCompilable extends Logging {
       }
     }
 
-    rewrite(ir.noSharing(ctx), mutable.HashMap.empty)
+    rewrite(ir, mutable.HashMap.empty)
   }
 }

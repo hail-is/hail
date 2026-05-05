@@ -124,7 +124,7 @@ class MatrixIRSuite extends HailSuite {
     val oldRow = Ref(MatrixIR.rowName, mt.typ.rowType)
 
     val newRow =
-      InsertFields(oldRow, FastSeq("range" -> IRScanCollect(GetField(oldRow, "row_idx"))))
+      InsertFields(oldRow.ir, FastSeq("range" -> IRScanCollect(GetField(oldRow, "row_idx"))))
 
     val newMatrix = MatrixMapRows(mt, newRow)
     val rows = getRows(newMatrix)
@@ -138,7 +138,7 @@ class MatrixIRSuite extends HailSuite {
     val oldRow = Ref(MatrixIR.rowName, mt.typ.rowType)
 
     val newRow = InsertFields(
-      oldRow,
+      oldRow.ir,
       FastSeq("n" -> IRAggCount, "range" -> IRScanCollect(GetField(oldRow, "row_idx").toL)),
     )
 
@@ -165,7 +165,7 @@ class MatrixIRSuite extends HailSuite {
     val oldCol = Ref(MatrixIR.colName, mt.typ.colType)
 
     val newCol =
-      InsertFields(oldCol, FastSeq("range" -> IRScanCollect(GetField(oldCol, "col_idx"))))
+      InsertFields(oldCol.ir, FastSeq("range" -> IRScanCollect(GetField(oldCol, "col_idx"))))
 
     val newMatrix = MatrixMapCols(mt, newCol, None)
     val cols = getCols(newMatrix)
@@ -179,7 +179,7 @@ class MatrixIRSuite extends HailSuite {
     val oldCol = Ref(MatrixIR.colName, mt.typ.colType)
 
     val newCol = InsertFields(
-      oldCol,
+      oldCol.ir,
       FastSeq("n" -> IRAggCount, "range" -> IRScanCollect(GetField(oldCol, "col_idx").toL)),
     )
 
@@ -199,7 +199,7 @@ class MatrixIRSuite extends HailSuite {
         MatrixKeyRowsBy(baseRange, FastSeq()),
         InsertFields(
           row,
-          FastSeq("row_idx" -> (GetField(row, "row_idx") + start)),
+          FastSeq("row_idx" -> (GetField(row.ir, "row_idx") + start)),
         ),
       ),
       FastSeq("row_idx"),

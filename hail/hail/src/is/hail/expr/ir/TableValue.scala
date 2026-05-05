@@ -579,9 +579,9 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
             ref,
             FastSeq(field ->
               (if (i == refs.length - 1)
-                 ArrayRef(CastToArray(GetField(ref, field)), arg)
+                 ArrayRef(CastToArray(GetField(ref.ir, field)), arg)
                else
-                 Let(FastSeq(refs(i + 1).name -> GetField(ref, field)), arg))),
+                 Let(FastSeq(refs(i + 1).name -> GetField(ref.ir, field)), arg))),
           )
       }.asInstanceOf[InsertFields]
     }

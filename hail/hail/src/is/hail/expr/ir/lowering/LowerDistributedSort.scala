@@ -420,20 +420,13 @@ object LowerDistributedSort extends Logging {
                 "indexIntoPivotsArray" -> TInt32,
               )),
               unsortedPivotsWithEndpointsAndInfoGroupedBySegmentNumber
-                .view
-                .zipWithIndex
-                .flatMap { case ((_, pivotIdx), n) =>
-                  val offset = n * unsortedPivotsWithEndpointsAndInfoGroupedBySegmentNumber.length
-                  partitionDataPerSegment(pivotIdx).zipWithIndex.map { case (x, idx) =>
-                    Row(
-                      x.indices.last,
-                      x.files,
-                      offset + idx,
-                      pivotIdx,
-                    )
+                .foldLeft((0, ArraySeq.newBuilder[Row])) { case (s, (_, pivotIdx)) =>
+                  partitionDataPerSegment(pivotIdx).foldLeft(s) { case ((n, b), x) =>
+                    (n + 1, b += Row(x.indices.last, x.files, n, pivotIdx))
                   }
                 }
-                .toFastSeq,
+                ._2
+                .result(),
             )
 
           val distributeGlobals =

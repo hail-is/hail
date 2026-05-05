@@ -92,7 +92,7 @@ private[ir] trait CompileOps {
         NormalizeNames()(
           ctx,
           Subst(
-            body.noSharing(ctx),
+            body,
             BindingEnv(Env.fromSeq(params.zipWithIndex.map { case ((n, t), i) => n -> In(i, t) })),
           ),
         )
@@ -107,9 +107,7 @@ private[ir] trait CompileOps {
       ctx.CompileCache.getOrElseUpdate(
         key, {
           val lowered =
-            LoweringPipeline.compileLowerer(ctx, ir)
-              .asInstanceOf[IR]
-              .noSharing(ctx)
+            LoweringPipeline.compileLowerer(ctx, ir).asInstanceOf[IR]
 
           val fb =
             EmitFunctionBuilder[F](
@@ -208,7 +206,7 @@ object CompileIterator {
 
     val outerRegion = outerRegionField
 
-    val ir = LoweringPipeline.compileLowerer(ctx, body).asInstanceOf[IR].noSharing(ctx)
+    val ir = LoweringPipeline.compileLowerer(ctx, body).asInstanceOf[IR]
     TypeCheck(ctx, ir)
 
     var elementAddress: Settable[Long] = null
