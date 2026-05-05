@@ -49,10 +49,8 @@ object ArrayFunctions extends RegistryFunctions {
   private[functions] def isEmpty(a: IR): IR =
     ApplyComparisonOp(EQ, ArrayLen(a), 0)
 
-  def extend(a: Atom, b: IR): IR =
-    guardIR(!IsNA(a)) {
-      maybeIR(b)(b => ToArray(flatten(MakeStream(FastSeq(a, b), TStream(a.typ)))))
-    }
+  private[functions] def extend(a: IR, b: IR): IR =
+    ToArray(flatten(MakeStream(FastSeq(a, b), TStream(a.typ))))
 
   def exists(a: IR, cond: Atom => IR): IR =
     M.eval {
