@@ -4,7 +4,6 @@ import is.hail.annotations.Region
 import is.hail.asm4s.Value
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.agg.PhysicalAggSig
 import is.hail.expr.ir.functions._
@@ -754,70 +753,27 @@ package defs {
     }
 
     abstract class AggFoldCompanionExt {
-      def min(element: IR, sortFields: IndexedSeq[SortField]): IR = {
+      def min(element: Atom, sortFields: IndexedSeq[SortField]): IR = {
         val elementType = element.typ.asInstanceOf[TStruct]
         val keyType = elementType.select(sortFields.map(_.field))._1
-        minAndMaxHelper(element, keyType, StructLT(sortFields))
+        aggMinMax(element, keyType)(ApplyComparisonOp(StructLT(sortFields), _, _))
       }
 
-      def max(element: IR, sortFields: IndexedSeq[SortField]): IR = {
+      def max(element: Atom, sortFields: IndexedSeq[SortField]): IR = {
         val elementType = element.typ.asInstanceOf[TStruct]
         val keyType = elementType.select(sortFields.map(_.field))._1
-        minAndMaxHelper(element, keyType, StructGT(sortFields))
+        aggMinMax(element, keyType)(ApplyComparisonOp(StructGT(sortFields), _, _))
       }
 
-      def all(element: IR): IR =
-        aggFoldIR(True()) { accum =>
-          ApplySpecial(
-            "land",
-            ArraySeq.empty[Type],
-            ArraySeq(accum, element),
-            TBoolean,
-            ErrorIDs.NO_ERROR,
-          )
-        } { (accum1, accum2) =>
-          ApplySpecial(
-            "land",
-            ArraySeq.empty[Type],
-            ArraySeq(accum1, accum2),
-            TBoolean,
-            ErrorIDs.NO_ERROR,
-          )
-        }
+      def all(element: Atom): IR =
+        aggFoldIR(True())(_ && element)(_ && _)
 
-      private def minAndMaxHelper(element: IR, keyType: TStruct, comp: ComparisonOp[Boolean])
-        : IR = {
-        val keyFields = keyType.fields.map(_.name)
-
-        val minAndMaxZero = NA(keyType)
-        val aggFoldMinAccumName1 = freshName()
-        val aggFoldMinAccumName2 = freshName()
-        val aggFoldMinAccumRef1 = Ref(aggFoldMinAccumName1, keyType)
-        val aggFoldMinAccumRef2 = Ref(aggFoldMinAccumName2, keyType)
-        val minSeq = bindIR(SelectFields(element, keyFields)) { keyOfCurElementRef =>
-          If(
-            IsNA(aggFoldMinAccumRef1),
-            keyOfCurElementRef,
-            If(
-              ApplyComparisonOp(comp, aggFoldMinAccumRef1, keyOfCurElementRef),
-              aggFoldMinAccumRef1,
-              keyOfCurElementRef,
-            ),
-          )
-        }
-        val minComb =
-          If(
-            IsNA(aggFoldMinAccumRef1),
-            aggFoldMinAccumRef2,
-            If(
-              ApplyComparisonOp(comp, aggFoldMinAccumRef1, aggFoldMinAccumRef2),
-              aggFoldMinAccumRef1,
-              aggFoldMinAccumRef2,
-            ),
-          )
-
-        AggFold(minAndMaxZero, minSeq, minComb, aggFoldMinAccumName1, aggFoldMinAccumName2, false)
-      }
+      private def aggMinMax(element: Atom, keyType: TStruct)(cmp: (Atom, Atom) => IR): IR =
+        aggFoldIR(NA(keyType))(accum =>
+          bindIR(SelectFields(element, keyType.fields.map(_.name))) { key =>
+            If(IsNA(accum), key, If(cmp(accum, key), accum, key))
+          }
+        )((accum1, accum2) => If(IsNA(accum1), accum2, If(cmp(accum1, accum2), accum1, accum2)))
     }
 
     abstract class ApplyScanOpCompanionExt {
