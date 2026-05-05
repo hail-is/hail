@@ -1125,7 +1125,7 @@ class Container:
 
         uid, gid = await self._get_in_container_user()
         weight = worker_fraction_in_1024ths(self.cpu_in_mcpu)
-        workdir = self.image.image_config['Config']['WorkingDir']
+        workdir = self.image.image_config['Config'].get('WorkingDir', '')
         default_docker_capabilities = [
             'CAP_CHOWN',
             'CAP_DAC_OVERRIDE',
@@ -1260,7 +1260,7 @@ class Container:
         assert self.netns
         # Only supports empty volumes
         external_volumes: List[MountSpecification] = []
-        volumes = self.image.image_config['Config']['Volumes']
+        volumes = self.image.image_config['Config'].get('Volumes')
         if volumes:
             for v_container_path in volumes:
                 if v_container_path.startswith('/'):
@@ -1358,7 +1358,7 @@ class Container:
         assert self.image.image_config
         assert CLOUD_WORKER_API
         env = (
-            (self.image.image_config['Config']['Env'] or [])
+            (self.image.image_config['Config'].get('Env') or [])
             + CLOUD_WORKER_API.cloud_specific_env_vars_for_user_jobs
             + self.env  # User-defined env variables should take precedence
         )
