@@ -117,6 +117,7 @@ def create_vm_config(
                 'boot': True,
                 'autoDelete': True,
                 'initializeParams': {
+                    # Don't forget to update the INSTANCE_VERSION in globals.py when you bump this!
                     'sourceImage': f'projects/{project}/global/images/batch-worker-chrisl-19',
                     'diskType': f'projects/{project}/zones/{zone}/diskTypes/pd-ssd',
                     'diskSizeGb': str(boot_disk_size_gb),
