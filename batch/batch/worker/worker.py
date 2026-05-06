@@ -546,12 +546,18 @@ class Image:
                 if e.status in (403, 500) and (
                     (
                         'artifactregistry.repositories.downloadArtifacts' in e.message
-                        and 'denied on resource' in e.message
+                        # quoted resource path means the repo itself is invalid/inaccessible
+                        and 'denied on resource "' in e.message
                     )
                     or 'Caller does not have permission' in e.message
                     or 'unauthorized' in e.message
                 ):
                     raise ImageCannotBePulled from e
+                # newer Docker/GAR returns 403 with no explicit resource path when image doesn't exist
+                if e.status == 403 and (
+                    'artifactregistry.repositories.downloadArtifacts' in e.message and 'may not exist' in e.message
+                ):
+                    raise ImageNotFound from e
                 if e.status == 500 and 'denied: retrieving permissions failed' in e.message:
                     if n_pull_attempts <= 2:
                         await docker_call_retry(
