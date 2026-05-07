@@ -34,7 +34,7 @@ azure-common==1.1.28
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   azure-mgmt-storage
-azure-core==1.39.0
+azure-core==1.40.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   azure-identity
@@ -59,11 +59,11 @@ azure-storage-blob==12.28.0
     #   -r hail/python/hailtop/requirements.txt
 bokeh==3.9.0
     # via -r hail/python/requirements.txt
-boto3==1.42.95
+boto3==1.43.2
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
-botocore==1.42.95
+botocore==1.43.2
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
@@ -93,7 +93,7 @@ commonmark==0.9.1
     #   rich
 contourpy==1.3.2
     # via bokeh
-cryptography==46.0.7
+cryptography==47.0.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   azure-identity
@@ -115,7 +115,7 @@ frozenlist==1.8.0
     #   -r hail/python/hailtop/requirements.txt
     #   aiohttp
     #   aiosignal
-google-auth==2.49.2
+google-auth==2.50.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
@@ -194,7 +194,7 @@ orjson==3.11.8
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
-packaging==26.1
+packaging==26.2
     # via
     #   bokeh
     #   plotly
@@ -277,7 +277,7 @@ rich==12.6.0
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
     #   typer
-s3transfer==0.16.1
+s3transfer==0.17.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   boto3
