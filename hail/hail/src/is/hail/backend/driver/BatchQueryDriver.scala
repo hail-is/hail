@@ -156,7 +156,7 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
       using(bootstrapFs.openNoCompression(inputURL)) { is =>
         val input = JsonMethods.parse(is)
         (
-          (input \ "rpc_config").extract[ServiceBackendRPCPayload],
+          (input \ "rpc_config").extract[ServiceBackendRPCConfig],
           (input \ "job_config").extract[BatchJobConfig],
           (input \ "action").extract[Int],
           input \ "payload",
@@ -168,7 +168,7 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
       RouterFS.buildRoutes(
         fsConfig.copy(
           google = fsConfig.google.map(_.copy(
-            requester_pays_config = rpcConfig.requester_pays_conf
+            requester_pays_config = rpcConfig.requester_pays_config
           ))
         )
       )
@@ -252,10 +252,10 @@ private class HailSocketAPIOutputStream(
 
 case class SequenceConfig(fasta: String, index: String)
 
-case class ServiceBackendRPCPayload(
+case class ServiceBackendRPCConfig(
   tmp_dir: String,
   flags: Map[String, String],
-  requester_pays_conf: Option[RequesterPaysConfig],
+  requester_pays_config: Option[RequesterPaysConfig],
   custom_references: Array[String],
   liftovers: Map[String, Map[String, String]],
   sequences: Map[String, SequenceConfig],
@@ -265,11 +265,12 @@ case class ServiceBackendRPCPayload(
 object RequesterPaysConfigFormats
     extends CustomSerializer[RequesterPaysConfig](implicit fmts =>
       (
-        { case JArray(List(project, buckets)) =>
-          RequesterPaysConfig(
-            project = project.extract[String],
-            buckets = buckets.extract[Option[Set[String]]],
-          )
+        {
+          case JArray(List(project, buckets)) =>
+            RequesterPaysConfig(
+              project = project.extract[String],
+              buckets = buckets.extract[Option[Set[String]]],
+            )
         },
         PartialFunction.empty,
       )
