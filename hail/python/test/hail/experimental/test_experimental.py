@@ -13,6 +13,7 @@ from ..helpers import (
     fails_service_backend,
     qobtest,
     resource,
+    skip_when_service_backend,
     test_timeout,
 )
 
@@ -105,6 +106,7 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(annotated.mean_stats.binary, 0.965, places=3)
         self.assertAlmostEqual(annotated.mean_stats.continuous, 176.528, places=3)
 
+    @skip_when_service_backend
     @test_timeout(local=8 * 60, batch=8 * 60)
     def test_plot_roc_curve(self):
         x = hl.utils.range_table(100).annotate(score1=hl.rand_norm(), score2=hl.rand_norm())

@@ -4,7 +4,9 @@ import os
 import pytest
 
 import hail as hl
+from hail.utils.java import Env, FatalError
 from hailtop.aiocloud.aioazure import AzureAsyncFS
+from hailtop.httpx import ClientResponseError
 from hailtop.test_utils import run_if_azure, skip_in_azure
 from hailtop.utils import secret_alnum_string
 
@@ -12,27 +14,23 @@ from ..helpers import fails_local_backend, hl_init_for_test, resource, test_time
 
 
 @skip_in_azure
+@pytest.mark.uninitialized
 def test_requester_pays_no_settings():
-    try:
+    with pytest.raises(FatalError, match='Bucket is a requester pays bucket but no user project provided'):
+        hl_init_for_test(gcs_requester_pays_configuration=None)
         hl.import_table('gs://hail-test-requester-pays-fds32/hello')
-    except Exception as exc:
-        assert "Bucket is a requester pays bucket but no user project provided" in str(exc)
-    else:
-        assert False
 
 
 @skip_in_azure
+@pytest.mark.uninitialized
 def test_requester_pays_write_no_settings():
-    random_filename = 'gs://hail-test-requester-pays-fds32/test_requester_pays_on_worker_driver_' + secret_alnum_string(
-        10
-    )
-    try:
+    with pytest.raises(ClientResponseError, match='Bucket is a requester pays bucket but no user project provided'):
+        hl_init_for_test(gcs_requester_pays_configuration=None)
+        random_filename = (
+            'gs://hail-test-requester-pays-fds32/test_requester_pays_on_worker_driver_' + secret_alnum_string(10)
+        )
         hl.utils.range_table(4, n_partitions=4).write(random_filename, overwrite=True)
-    except Exception as exc:
-        assert "Bucket is a requester pays bucket but no user project provided" in str(exc)
-    else:
-        hl.current_backend().fs.rmtree(random_filename)
-        assert False
+        Env.fs().rmtree(random_filename)
 
 
 @skip_in_azure

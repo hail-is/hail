@@ -19,6 +19,7 @@ from hail.utils.java import FatalError
 from hail.utils.linkedlist import LinkedList
 from hail.utils.misc import escape_id, escape_str
 
+from ..conftest import init_hail_scope
 from ..helpers import fails_local_backend, fails_service_backend, qobtest, resource
 
 
@@ -338,7 +339,7 @@ class Tests(unittest.TestCase):
         )
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope=init_hail_scope)
 def glob_tests_directory(init_hail):
     with hl.TemporaryDirectory() as dirname:
         touch(dirname + '/abc/ghi/123')
