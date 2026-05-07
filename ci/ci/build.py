@@ -424,6 +424,10 @@ cat /home/user/trace
         if scope == 'deploy' and not is_test_deployment:
             return
 
+        # Temporary: keep VEP images in the registry for post-failure inspection
+        if 'vep' in self.name:
+            return
+
         if CLOUD == 'azure':
             image = 'mcr.microsoft.com/azure-cli'
             assert self.image.startswith(DOCKER_PREFIX + '/')

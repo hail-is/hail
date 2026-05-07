@@ -584,12 +584,12 @@ class Image:
             image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
         except:
             # inspect non-deterministically fails sometimes
-            await asyncio.sleep(1)
+            await asyncio.sleep(60)
             await pull()
             try:
                 image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
-            except Exception:
-                raise DockerInspectError(self.image_ref_str, self.batch_id, self.job_id) from None
+            except Exception as inspect_error:
+                raise DockerInspectError(self.image_ref_str, self.batch_id, self.job_id) from inspect_error
         image_configs[self.image_ref_str] = json.loads(image_config)[0]
 
     async def _ensure_image_is_pulled(
