@@ -389,14 +389,8 @@ async def post_retry_pr(request: web.Request, userdata: UserData) -> NoReturn:
 
 
 @routes.get('/batches')
-@web_security_headers
-@auth.authenticated_users_with_permission(SystemPermission.READ_CI)
-async def get_batches(request: web.Request, userdata: UserData):
-    batch_client = request.app[AppKeys.BATCH_CLIENT]
-    batches = [b async for b in batch_client.list_batches()]
-    statuses = [await b.last_known_status() for b in batches]
-    page_context = {'batches': statuses}
-    return await render_template('ci', request, userdata, 'batches.html', page_context)
+async def get_batches(request: web.Request) -> NoReturn:
+    raise web.HTTPFound(deploy_config.external_url('batch', '/batches'))
 
 
 @routes.get('/batches/{batch_id}')
