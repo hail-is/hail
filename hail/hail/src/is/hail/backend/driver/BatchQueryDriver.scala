@@ -141,7 +141,7 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
     val inputURL = argv(5)
     val outputURL = argv(6)
 
-    logger.info(f"${getClass.getName} $PrettyVersion")
+    logger.info(f"Hail $PrettyVersion")
 
     sys.env.get("HAIL_SSL_CONFIG_DIR").foreach(tls.setSSLConfigFromDir)
 

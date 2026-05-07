@@ -1180,7 +1180,7 @@ steps:
       - download_mill_and_maven_deps
   - kind: runImage
     name: test_hail_python
-    numSplits: 28
+    numSplits: 22
     image:
       valueFrom: hail_run_image.image
     resources:
@@ -1352,7 +1352,7 @@ steps:
       - gcp
   - kind: runImage
     name: test_hail_python_local_backend
-    numSplits: 48
+    numSplits: 22
     image:
       valueFrom: hail_run_image.image
     resources:
@@ -2652,11 +2652,11 @@ steps:
       - create_test_gsa_keys
   - kind: runImage
     name: test_hail_python_service_backend_gcp
-    numSplits: 16
+    numSplits: 100
     image:
       valueFrom: hail_run_image.image
     resources:
-      cpu: '0.25'
+      cpu: '0.5'
       preemptible: False
     script: |
       set -ex
@@ -2692,7 +2692,6 @@ steps:
               --durations=50 \
               --ignore=test/hailtop/ \
               --ignore=test/hail/matrixtable/test_file_formats.py \
-              -m backend \
               --timeout=600 \
               test
     timeout: 5400
