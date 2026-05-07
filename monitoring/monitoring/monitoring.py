@@ -248,7 +248,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
 
 @routes.post('/billing/fetch')
 @web_security_headers
-@auth.authenticated_developers_only()
+@auth.authenticated_users_with_permission(SystemPermission.VIEW_MONITORING_DASHBOARDS)
 async def fetch_billing_html(request: web.Request, _) -> web.Response:
     date_format = '%m/%Y'
     time_period_query = request.query.get('time_period', datetime.datetime.now().strftime(date_format))
