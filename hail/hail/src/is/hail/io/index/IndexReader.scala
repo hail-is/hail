@@ -59,10 +59,8 @@ object IndexReaderBuilder {
 
 object IndexReader {
   def readUntyped(fs: FS, path: String): IndexMetadataUntypedJSON = {
-    val jv = using(fs.open(path + "/metadata.json.gz")) { in =>
-      JsonMethods.parse(in)
-        .removeField { case (f, _) => f == "keyType" || f == "annotationType" }
-    }
+    val jv = readMetadataRaw(fs, path)
+      .removeField { case (f, _) => f == "keyType" || f == "annotationType" }
     implicit val formats: Formats = DefaultFormats
     jv.extract[IndexMetadataUntypedJSON]
   }
@@ -73,13 +71,21 @@ object IndexReader {
   }
 
   def readTypes(fs: FS, path: String): (Type, Type) = {
-    val jv = using(fs.open(path + "/metadata.json.gz"))(in => JsonMethods.parse(in))
+    val jv = readMetadataRaw(fs, path)
     implicit val formats: Formats = DefaultFormats + new TypeSerializer
     val metadata = jv.extract[IndexMetadata]
     metadata.keyType -> metadata.annotationType
   }
 
-  def readInlineMetadata(is: SeekableDataInputStream, len: Long): IndexMetadataUntypedJSON = {
+  private def readMetadataRaw(fs: FS, path: String): org.json4s.JValue =
+    if (fs.isFile(path)) {
+      val len = fs.getFileSize(path)
+      using(fs.openNoCompression(path))(in => readInlineMetadataRaw(in, len))
+    } else {
+      using(fs.open(path + "/metadata.json.gz"))(in => JsonMethods.parse(in))
+    }
+
+  private def readInlineMetadataRaw(is: SeekableDataInputStream, len: Long): org.json4s.JValue = {
     is.seek(len - 8L)
     val spec = new StreamBufferSpec
     val ib = spec.buildInputBuffer(is)
@@ -88,13 +94,17 @@ object IndexReader {
     is.seek(mdOff)
     is.readFully(jsonBytes)
     is.seek(0)
-    val jv = JsonMethods.parse(new java.io.ByteArrayInputStream(jsonBytes))
+    JsonMethods.parse(new java.io.ByteArrayInputStream(jsonBytes))
+  }
+
+  def readInlineMetadata(is: SeekableDataInputStream, len: Long): IndexMetadataUntypedJSON = {
+    val jv = readInlineMetadataRaw(is, len)
       .removeField { case (f, _) => f == "keyType" || f == "annotationType" }
     implicit val formats: Formats = DefaultFormats
     jv.extract[IndexMetadataUntypedJSON]
   }
 
-  def readInlineMetadata(fs: FS, path: String, keyType: Type, annotationType: Type)
+  def openAndGetMetadata(fs: FS, path: String, keyType: Type, annotationType: Type)
     : (SeekableDataInputStream, IndexMetadata) = {
     /* FIXME this is TOCTOU, but we don't implement relative seek ala fseek(file, -8, SEEK_END), so
      * this is what we have */
@@ -119,17 +129,16 @@ class IndexReader(
   val pool: RegionPool,
   val sm: HailStateManager,
 ) extends AutoCloseable with Logging {
-  /* prior to ~0.2.139, The index files were written as a directory with two
-   * files, the index itself, and a metadata.json.gz, when reading an index,
-   * we switch on if the old style metadata file exists.
-   */
+  /* prior to ~0.2.139, The index files were written as a directory with two files, the index
+   * itself, and a metadata.json.gz, when reading an index, we switch on if the old style metadata
+   * file exists. */
   private val (is, metadata) =
     try {
       val md = IndexReader.readMetadata(fs, path, keyType, annotationType)
       fs.openNoCompression(path + "/" + md.indexPath) -> md
     } catch {
       case _: java.io.FileNotFoundException =>
-        IndexReader.readInlineMetadata(fs, path, keyType, annotationType)
+        IndexReader.openAndGetMetadata(fs, path, keyType, annotationType)
     }
 
   val branchingFactor = metadata.branchingFactor

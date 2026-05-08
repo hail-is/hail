@@ -274,9 +274,10 @@ object LoadBgen extends Logging {
     val indexFiles = getIndexFileNames(fs, files, indexFileMap)
 
     val bgenFilesWhichAreMisssingIdx2Files = files.zip(indexFiles).filterNot {
-      case (_, index) => index.endsWith("idx2") && fs.isFile(index + "/index") && fs.isFile(
+      case (_, index) =>
+        index.endsWith("idx2") && (fs.isFile(index) || fs.isFile(index + "/index") && fs.isFile(
           index + "/metadata.json.gz"
-        )
+        ))
     }.map(_._1.getPath)
 
     if (bgenFilesWhichAreMisssingIdx2Files.nonEmpty)

@@ -78,10 +78,9 @@ class StagedIndexReader(
     val fs: Value[FS] = cb.emb.getFS
     cb.assign(cache, Code.newInstance[LongToRegionValueCache, Int](16))
 
-    /* prior to ~0.2.139, The index files were written as a directory with two
-     * files, the index itself, and a metadata.json.gz, when reading an index,
-     * we switch on if the old style metadata file exists.
-     */
+    /* prior to ~0.2.139, The index files were written as a directory with two files, the index
+     * itself, and a metadata.json.gz, when reading an index, we switch on if the old style metadata
+     * file exists. */
     cb.if_(
       !fs.invoke[String, Boolean]("exists", indexPath.concat("/metadata.json.gz")), {
         val len = cb.memoize(fs.invoke[String, Long]("getFileSize", indexPath))
