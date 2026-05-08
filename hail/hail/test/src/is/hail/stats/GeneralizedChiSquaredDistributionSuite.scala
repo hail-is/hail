@@ -1,10 +1,8 @@
 package is.hail.stats
 
-import is.hail.HailSuite
+import org.junit.jupiter.api.Test
 
-import org.testng.annotations.Test
-
-class GeneralizedChiSquaredDistributionSuite extends HailSuite {
+class GeneralizedChiSquaredDistributionSuite {
   private[this] def pgenchisq(
     c: Double,
     n: Array[Int],

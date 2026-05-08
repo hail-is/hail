@@ -1,12 +1,11 @@
 package is.hail.stats
 
-import is.hail.HailSuite
 import is.hail.utils._
 
 import breeze.linalg._
-import org.testng.annotations.Test
+import org.junit.jupiter.api.Test
 
-class LogisticRegressionModelSuite extends HailSuite {
+class LogisticRegressionModelSuite {
 
   @Test def covariatesVsInterceptOnlyTest(): Unit = {
 

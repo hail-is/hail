@@ -1,7 +1,9 @@
 package is.hail.expr.ir.lowering
 
-import is.hail.{ExecStrategy, HailSuite, TestUtils}
+import is.hail.ExecStrategy
 import is.hail.ExecStrategy.ExecStrategy
+import is.hail.JUnitTestUtils._
+import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.expr.ir.{
   mapIR, Ascending, Descending, LoweringAnalyses, SortField, TableIR, TableMapRows, TableRange,
@@ -15,12 +17,12 @@ import is.hail.types.RTable
 import is.hail.types.virtual.{TArray, TInt32, TStruct}
 
 import org.apache.spark.sql.Row
-import org.testng.annotations.Test
+import org.junit.jupiter.api.Test
 
-class LowerDistributedSortSuite extends HailSuite with TestUtils {
+class LowerDistributedSortSuite {
   implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
-  @Test def testSamplePartition(): Unit = {
+  @Test def testSamplePartition()(implicit ctx: ExecuteContext): Unit = {
     val dataKeys = IndexedSeq(
       (0, 0),
       (0, -1),
@@ -64,8 +66,12 @@ class LowerDistributedSortSuite extends HailSuite with TestUtils {
   }
 
   // Only does ascending for now
-  def testDistributedSortHelper(myTable: TableIR, sortFields: IndexedSeq[SortField]): Unit =
-    ctx.local(flags = ctx.flags + ("shuffle_cutoff_to_local_sort" -> "40")) { ctx =>
+  def testDistributedSortHelper(
+    myTable: TableIR,
+    sortFields: IndexedSeq[SortField],
+  )(implicit ctx: ExecuteContext
+  ): Unit =
+    ctx.local(flags = ctx.flags + ("shuffle_cutoff_to_local_sort" -> "40")) { implicit ctx =>
       val analyses: LoweringAnalyses = LoweringAnalyses.apply(myTable, ctx)
       val rt = analyses.requirednessAnalysis.lookup(myTable).asInstanceOf[RTable]
       val stage = LowerTableIR.applyTable(myTable, DArrayLowering.All, ctx, analyses)
@@ -107,7 +113,7 @@ class LowerDistributedSortSuite extends HailSuite with TestUtils {
       assert(res == scalaSorted)
     }
 
-  @Test def testDistributedSort(): Unit = {
+  @Test def testDistributedSort()(implicit ctx: ExecuteContext): Unit = {
     val tableRange = TableRange(100, 10)
     val rangeRow = Ref(TableIR.rowName, tableRange.typ.rowType)
     val tableWithExtraField = TableMapRows(
@@ -140,7 +146,7 @@ class LowerDistributedSortSuite extends HailSuite with TestUtils {
     )
   }
 
-  @Test def testDistributedSortEmpty(): Unit = {
+  @Test def testDistributedSortEmpty()(implicit ctx: ExecuteContext): Unit = {
     val tableRange = TableRange(0, 1)
     testDistributedSortHelper(tableRange, IndexedSeq(SortField("idx", Ascending)))
   }
