@@ -120,7 +120,7 @@ package defs {
         Let(xs.init.map(x => (freshName(), x)), xs.last)
   }
 
-  case class Binding(name: Name, value: IR, scope: Int = Scope.EVAL)
+  case class Binding(name: Name, value: IR, scope: Scope = Scope.EVAL)
 
   trait BaseRef extends IR {
     def name: Name

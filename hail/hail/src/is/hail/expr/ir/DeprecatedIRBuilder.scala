@@ -385,7 +385,7 @@ object DeprecatedIRBuilder {
     def ~>(body: IRProxy): LambdaProxy = new LambdaProxy(s, body)
   }
 
-  case class BindingProxy(s: Symbol, value: IRProxy, scope: Int)
+  case class BindingProxy(s: Symbol, value: IRProxy, scope: Scope)
 
   private object LetProxy {
     def bind(bindings: IndexedSeq[BindingProxy], body: IRProxy, env: E): IR = {

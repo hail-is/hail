@@ -33,15 +33,26 @@ object UsesScanEnv {
   }
 }
 
+sealed trait Scope {
+  import Scope.{AGG, EVAL, SCAN}
+
+  def toInt: Int =
+    this match {
+      case EVAL => 0
+      case AGG => 1
+      case SCAN => 2
+    }
+}
+
 object Scope {
-  val EVAL: Int = 0
-  val AGG: Int = 1
-  val SCAN: Int = 2
+  case object EVAL extends Scope
+  case object AGG extends Scope
+  case object SCAN extends Scope
 
-  def apply(ir0: BaseIR): Memo[Int] = {
-    val memo = Memo.empty[Int]
+  def apply(ir0: BaseIR): Memo[Scope] = {
+    val memo = Memo.empty[Scope]
 
-    def compute(ir: BaseIR, scope: Int): Unit = {
+    def compute(ir: BaseIR, scope: Scope): Unit = {
       if (ir.isInstanceOf[IR])
         memo.bind(ir, scope)
 

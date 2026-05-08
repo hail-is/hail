@@ -14,7 +14,7 @@ object ForwardLets {
       val UsesAndDefs(uses, defs, _) = ComputeUsesAndDefs(ir1, errorIfFreeVariables = false)
       val nestingDepth = NestingDepth(ctx, ir1)
 
-      def shouldForward(value: IR, refs: Set[RefEquality[BaseRef]], base: Block, scope: Int)
+      def shouldForward(value: IR, refs: Set[RefEquality[BaseRef]], base: Block, scope: Scope)
         : Boolean =
         IsPure(value) && (
           value.isInstanceOf[Ref] ||

@@ -8,6 +8,8 @@ import mill.scalalib.Assembly.*
 import mill.scalalib.TestModule.TestNg
 import mill.util.{Jvm, VcsVersion}
 
+import contrib.jmh.JmhModule
+
 import build.Env
 import build.Settings
 import build.HailScalaModule
@@ -246,3 +248,36 @@ trait RootHailModule extends CrossScalaModule, HailScalaModule:
         shuffled.slice(offsets(i), offsets(i + 1))
       }
     }
+
+  object bench extends HailScalaModule, JmhModule, CrossValue:
+    override def scalaVersion: T[String] =
+      outer.scalaVersion()
+
+    override def jmhCoreVersion: T[String] =
+      "1.37"
+
+    override def moduleDeps: Seq[JavaModule] =
+      Seq(outer, test)
+
+    override def forkArgs: T[Seq[String]] =
+      Seq("-Xss4m", "-Xmx4096M")
+
+    override def jmhGeneratedSources: T[PathRef] =
+      Task {
+        val dest = Task.ctx().dest
+        val (sourcesDir, _) = generateBenchmarkSources()
+        val sources = os.walk(sourcesDir.path).filter(os.isFile)
+
+        os.proc(
+          Jvm.jdkTool("javac"),
+          "--release", jvmId(),
+          sources.map(_.toString),
+          "-cp",
+          (runClasspath() ++ generatorDeps()).map(_.path.toString).mkString(
+            java.io.File.pathSeparator
+          ),
+          "-d",
+          dest,
+        ).call(dest)
+        PathRef(dest)
+      }

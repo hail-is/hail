@@ -283,6 +283,7 @@ object MvnCoordinate:
   val `metrics-jmx` = "io.dropwizard.metrics:metrics-jmx"
   val `metrics-json` = "io.dropwizard.metrics:metrics-json"
   val `metrics-jvm` = "io.dropwizard.metrics:metrics-jvm"
+  val `mill-contrib-jmh` = "com.lihaoyi::mill-contrib-jmh"
   val `mill-scalafix` = "com.goyeau::mill-scalafix"
   val `minlog` = "com.esotericsoftware:minlog"
   val `mockito-scala` = "org.mockito::mockito-scala"

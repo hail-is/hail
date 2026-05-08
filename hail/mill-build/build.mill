@@ -25,6 +25,7 @@ object `package` extends MillBuildRootModule:
 
   override def mvnDeps: T[Seq[Dep]] =
     Seq(
+      `mill-contrib-jmh` :: "1.0.6",
       `mill-scalafix` :::: "0.6.0",
       `scalac-options` :: "0.1.8",
     )
