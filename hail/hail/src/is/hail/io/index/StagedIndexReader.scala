@@ -79,7 +79,7 @@ class StagedIndexReader(
     cb.assign(cache, Code.newInstance[LongToRegionValueCache, Int](16))
 
     cb.if_(
-      !fs.invoke[String, Boolean]("exists", indexPath.concat("metadata.json.gz")), {
+      !fs.invoke[String, Boolean]("exists", indexPath.concat("/metadata.json.gz")), {
         val len = cb.memoize(fs.invoke[String, Long]("getFileSize", indexPath))
         val istmp =
           cb.memoize(fs.invoke[String, SeekableDataInputStream]("openNoCompression", indexPath))
