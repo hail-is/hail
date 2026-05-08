@@ -585,13 +585,18 @@ class Image:
         try:
             image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
         except:
-            # inspect non-deterministically fails sometimes
-            await asyncio.sleep(60)
-            await pull()
-            try:
-                image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
-            except Exception as inspect_error:
-                raise DockerInspectError(self.image_ref_str, self.batch_id, self.job_id) from inspect_error
+            # inspect non-deterministically fails sometimes; backoff up to ~60s total
+            last_inspect_error: Exception = RuntimeError('unreachable')
+            for delay in (1, 2, 4, 8, 15, 30):
+                await asyncio.sleep(delay)
+                await pull()
+                try:
+                    image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
+                    break
+                except Exception as inspect_error:
+                    last_inspect_error = inspect_error
+            else:
+                raise DockerInspectError(self.image_ref_str, self.batch_id, self.job_id) from last_inspect_error
         image_configs[self.image_ref_str] = json.loads(image_config)[0]
 
     async def _ensure_image_is_pulled(
