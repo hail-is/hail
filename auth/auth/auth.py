@@ -1064,7 +1064,7 @@ async def check_system_permission(request: web.Request, userdata: UserData) -> w
     return json_response({'has_permission': has_permission})
 
 
-@routes.get('/api/v1alpha/verify_system_permission', name='verify_system_permission')
+@routes.route('*', '/api/v1alpha/verify_system_permission', name='verify_system_permission')
 @auth.authenticated_users_only()
 async def verify_system_permission(request: web.Request, userdata: UserData) -> web.Response:
     permission_name = request.query.get('permission')
