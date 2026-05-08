@@ -119,6 +119,10 @@ class IndexReader(
   val pool: RegionPool,
   val sm: HailStateManager,
 ) extends AutoCloseable with Logging {
+  /* prior to ~0.2.139, The index files were written as a directory with two
+   * files, the index itself, and a metadata.json.gz, when reading an index,
+   * we switch on if the old style metadata file exists.
+   */
   private val (is, metadata) =
     try {
       val md = IndexReader.readMetadata(fs, path, keyType, annotationType)
