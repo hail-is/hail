@@ -886,7 +886,7 @@ object BGENFunctions extends RegistryFunctions {
           rowPType,
         )
 
-        val iw = StagedIndexWriter.forBgen(
+        val iw = StagedIndexWriter.withDefaults(
           settings.indexKeyType,
           mb.ecb,
           annotationType = +PCanonicalStruct(),

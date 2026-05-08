@@ -384,14 +384,6 @@ object StagedIndexWriter {
     annotationType: PType = +PCanonicalStruct(),
   ): StagedIndexWriter =
     new StagedIndexWriter(branchingFactor, keyType, annotationType, cb)
-
-  def forBgen(
-    keyType: PType,
-    cb: EmitClassBuilder[_],
-    branchingFactor: Int = 4096,
-    annotationType: PType = +PCanonicalStruct(),
-  ): StagedIndexWriter =
-    new StagedIndexWriter(branchingFactor, keyType, annotationType, cb)
 }
 
 class StagedIndexWriter(
