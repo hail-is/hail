@@ -182,7 +182,7 @@ $(FAST_PYTHON_JAR_EXTRA_CLASSPATH): $(EXTRA_CLASSPATH)
 	cp $(EXTRA_CLASSPATH) $@
 
 .PHONY: pytest
-pytest: install-editable
+pytest: install
 	cd python && \
           $(HAIL_PYTHON3) -m pytest \
             -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
