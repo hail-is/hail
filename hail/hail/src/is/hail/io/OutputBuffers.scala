@@ -250,7 +250,7 @@ final class BlockingOutputBuffer(blockSize: Int, out: OutputBlockBuffer) extends
   }
 }
 
-final class StreamBlockOutputBuffer(out: ByteTrackingOutputStream) extends OutputBlockBuffer {
+final class StreamBlockOutputBuffer(out: OutputStream) extends OutputBlockBuffer {
   private val lenBuf = new Array[Byte](4)
 
   override def flush(): Unit =
