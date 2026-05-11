@@ -259,10 +259,14 @@ sudo mount -o prjquota /dev/$WORKER_DATA_DISK_NAME /mnt/disks/$WORKER_DATA_DISK_
 sudo chmod a+w /mnt/disks/$WORKER_DATA_DISK_NAME
 XFS_DEVICE=$(xfs_info /mnt/disks/$WORKER_DATA_DISK_NAME | head -n 1 | awk '{{ print $1 }}' | awk  'BEGIN {{ FS = "=" }}; {{ print $2 }}')
 
-# reconfigure docker to use local SSD
+# reconfigure docker and containerd to use local SSD
 sudo service docker stop
+sudo service containerd stop
 sudo mv /var/lib/docker /mnt/disks/$WORKER_DATA_DISK_NAME/docker
 sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/docker /var/lib/docker
+sudo mv /var/lib/containerd /mnt/disks/$WORKER_DATA_DISK_NAME/containerd
+sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/containerd /var/lib/containerd
+sudo service containerd start
 sudo service docker start
 
 # reconfigure /batch and /logs and /gcsfuse to use local SSD
