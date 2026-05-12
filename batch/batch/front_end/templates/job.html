@@ -63,7 +63,7 @@
     </span>
   </div>
 </a>
-{% if userdata['is_developer'] %}
+{% if userdata['system_permissions']['access_developer_environments'] %}
 <div class='mt-2'>
   <a id="enable-react-ui-btn" href="#" class='text-sm text-sky-600 hover:underline'>
     Try new layout
