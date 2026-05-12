@@ -240,22 +240,23 @@ class SourceCopier:
         return_exceptions: bool,
     ) -> None:
         try:
-            async with self.xfer_sema.acquire_manager(min(Copier.BUFFER_SIZE, this_part_size)):
-                async with await self.router_fs.open_from(
-                    srcfile, part_number * part_size, length=this_part_size
-                ) as srcf:
-                    async with await part_creator.create_part(
-                        part_number, part_number * part_size, size_hint=this_part_size
-                    ) as destf:
-                        n = this_part_size
-                        while n > 0:
-                            b = await srcf.read(min(Copier.BUFFER_SIZE, n))
-                            if len(b) == 0:
-                                raise UnexpectedEOFError()
-                            written = await destf.write(b)
-                            assert written == len(b)
-                            source_report.finish_bytes(written)
-                            n -= len(b)
+            async with self.xfer_sema.acquire_manager(Copier.BUFFER_SIZE):
+                async with await part_creator.create_part(
+                    part_number, part_number * part_size, size_hint=this_part_size
+                ) as destf:
+                    n = this_part_size
+                    while n > 0:
+                        bytes_to_write = min(Copier.BUFFER_SIZE, n)
+                        async with await self.router_fs.open_from(
+                            srcfile, part_number * part_size + (this_part_size - n), length=bytes_to_write
+                        ) as srcf:
+                            b = await srcf.readexactly(bytes_to_write)
+                        if len(b) == 0:
+                            raise UnexpectedEOFError()
+                        written = await destf.write(b)
+                        assert written == len(b)
+                        source_report.finish_bytes(written)
+                        n -= bytes_to_write
         except Exception as e:
             if return_exceptions:
                 source_report.set_exception(e)

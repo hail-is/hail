@@ -955,8 +955,8 @@ def _service_vep(
     else:
         vep_config = _supported_vep_config(cloud, reference_genome, regions=regions)
 
-    requester_pays_config = backend.requester_pays_config
-    if requester_pays_config is None and vep_config.data_bucket_is_requester_pays and vep_config.cloud == 'gcp':
+    requester_pays_project = maybe(lambda c: c if isinstance(c, str) else c[0], backend.requester_pays_config)
+    if requester_pays_project is None and vep_config.data_bucket_is_requester_pays and vep_config.cloud == 'gcp':
         raise ValueError(
             "No requester pays project has been set. "
             "Use hl.init(gcs_requester_pays_configuration='MY_PROJECT') "
@@ -996,7 +996,7 @@ def _service_vep(
                 cloudfuse=[(vep_config.data_bucket, vep_config.data_mount, True)],
                 output_files=[(local_output_file, f'{vep_output_path}/csq-header')],
                 regions=vep_config.regions,
-                requester_pays_project=maybe(lambda c: c if isinstance(c, str) else c[0], requester_pays_config),
+                requester_pays_project=requester_pays_project,
                 env=env,
             )
 
@@ -1039,7 +1039,7 @@ def _service_vep(
                 output_files=[(local_output_file, f'{vep_output_path}/annotations/{part_name}.tsv.gz')],
                 cloudfuse=[(vep_config.data_bucket, vep_config.data_mount, True)],
                 regions=vep_config.regions,
-                requester_pays_project=requester_pays_config,
+                requester_pays_project=requester_pays_project,
                 env=env,
             )
 

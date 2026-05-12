@@ -12,7 +12,7 @@ import is.hail.expr.ir.{
   LowerMatrixIR, MatrixHybridReader, MatrixReader, PartitionNativeIntervalReader, TableNativeReader,
   TableReader,
 }
-import is.hail.expr.ir.defs.{Literal, MakeStruct, PartitionReader, ReadPartition, Ref, ToStream}
+import is.hail.expr.ir.defs.{Literal, MakeStruct, PartitionReader, ReadPartition, ToStream}
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io._
@@ -274,9 +274,10 @@ object LoadBgen extends Logging {
     val indexFiles = getIndexFileNames(fs, files, indexFileMap)
 
     val bgenFilesWhichAreMisssingIdx2Files = files.zip(indexFiles).filterNot {
-      case (_, index) => index.endsWith("idx2") && fs.isFile(index + "/index") && fs.isFile(
+      case (_, index) =>
+        index.endsWith("idx2") && (fs.isFile(index) || fs.isFile(index + "/index") && fs.isFile(
           index + "/metadata.json.gz"
-        )
+        ))
     }.map(_._1.getPath)
 
     if (bgenFilesWhichAreMisssingIdx2Files.nonEmpty)
@@ -620,7 +621,7 @@ class MatrixBGENReader(
           partitioner = partitioner,
           dependency = TableStageDependency.none,
           contexts = ToStream(Literal(TArray(reader.contextType), contexts.result())),
-          (ref: Ref) => ReadPartition(ref, requestedType.rowType, reader),
+          ref => ReadPartition(ref, requestedType.rowType, reader),
         )
 
       case None =>
@@ -654,7 +655,7 @@ class MatrixBGENReader(
           partitioner = partitioner,
           dependency = TableStageDependency.none,
           contexts = ToStream(Literal(TArray(reader.contextType), contexts.result())),
-          (ref: Ref) => ReadPartition(ref, requestedType.rowType, reader),
+          ref => ReadPartition(ref, requestedType.rowType, reader),
         )
     }
   }

@@ -13,7 +13,7 @@ import is.hail.expr.ir.functions.IntervalFunctions.{
   arrayOfStructFindIntervalRange, compareStructWithPartitionIntervalEndpoint,
 }
 import is.hail.io.AbstractTypedCodecSpec
-import is.hail.io.fs.FS
+import is.hail.io.fs.{FS, SeekableDataInputStream}
 import is.hail.rvd.AbstractIndexSpec
 import is.hail.types.physical.{PCanonicalArray, PCanonicalBaseStruct}
 import is.hail.types.physical.stypes.{SSettable, SValue}
@@ -75,28 +75,48 @@ class StagedIndexReader(
   def nKeys(cb: EmitCodeBuilder): Value[Long] = cb.memoize(metadata.invoke[Long]("nKeys"))
 
   def initialize(cb: EmitCodeBuilder, indexPath: Value[String]): Unit = {
-    val fs = cb.emb.getFS
+    val fs: Value[FS] = cb.emb.getFS
     cb.assign(cache, Code.newInstance[LongToRegionValueCache, Int](16))
-    cb.assign(
-      metadata,
-      Code.invokeScalaObject2[FS, String, IndexMetadataUntypedJSON](
-        IndexReader.getClass,
-        "readUntyped",
-        fs,
-        indexPath,
-      ).invoke[VariableMetadata]("toFileMetadata"),
-    )
 
-    /* FIXME: hardcoded. Will break if we change spec -- assumption not introduced with this code,
-     * but propagated. */
-    cb.assign(
-      is,
-      Code.newInstance[ByteTrackingInputStream, InputStream](cb.emb.openUnbuffered(
-        indexPath.concat("/index"),
-        false,
-      )),
-    )
+    /* prior to ~0.2.139, The index files were written as a directory with two files, the index
+     * itself, and a metadata.json.gz, when reading an index, we switch on if the old style metadata
+     * file exists. */
+    cb.if_(
+      !fs.invoke[String, Boolean]("exists", indexPath.concat("/metadata.json.gz")), {
+        val len = cb.memoize(fs.invoke[String, Long]("getFileSize", indexPath))
+        val istmp =
+          cb.memoize(fs.invoke[String, SeekableDataInputStream]("openNoCompression", indexPath))
+        cb.assign(
+          metadata,
+          Code.invokeScalaObject2[SeekableDataInputStream, Long, IndexMetadataUntypedJSON](
+            IndexReader.getClass,
+            "readInlineMetadata",
+            istmp,
+            len,
+          ).invoke[VariableMetadata]("toFileMetadata"),
+        )
+        cb.assign(is, Code.newInstance[ByteTrackingInputStream, InputStream](istmp))
+      }, {
+        /* legacy path, including hardcoded index file relative path which has now become fine since
+         * we don't produce such files anymore */
+        cb.assign(
+          metadata,
+          Code.invokeScalaObject2[FS, String, IndexMetadataUntypedJSON](
+            IndexReader.getClass,
+            "readUntyped",
+            fs,
+            indexPath,
+          ).invoke[VariableMetadata]("toFileMetadata"),
+        )
 
+        val istmp =
+          fs.invoke[String, SeekableDataInputStream](
+            "openNoCompression",
+            indexPath.concat("/index"),
+          )
+        cb.assign(is, Code.newInstance[ByteTrackingInputStream, InputStream](istmp))
+      },
+    )
   }
 
   def addToFinalizer(cb: EmitCodeBuilder, finalizer: Value[TaskFinalizer]): Unit = {

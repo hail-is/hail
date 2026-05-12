@@ -77,7 +77,7 @@ object TableStage {
     val ctxArrays = children.view.zipWithIndex.map { case (child, idx) =>
       ToArray(mapIR(child.contexts) { ctx =>
         MakeTuple.ordered(children.indices.map { idx2 =>
-          if (idx == idx2) ctx else NA(children(idx2).ctxType)
+          if (idx == idx2) ctx.ir else NA(children(idx2).ctxType)
         })
       })
     }.toFastSeq
@@ -91,7 +91,7 @@ object TableStage {
       new RVDPartitioner(ctx.stateManager, keyType, children.flatMap(_.partitioner.rangeBounds))
 
     TableStage(
-      children.flatMap(_.letBindings) :+ globalsRef.name -> newGlobals,
+      children.flatMap(_.letBindings) :+ globalsRef.name -> newGlobals.ir,
       children.flatMap(_.broadcastVals) :+ globalsRef.name -> globalsRef,
       globalsRef,
       newPartitioner,
@@ -260,7 +260,7 @@ class TableStage(
       partitioner,
       dependency,
       newContexts,
-      ctxRef => bindIR(getOldContext(ctxRef))(partition),
+      ctxRef => bindIR(getOldContext(ctxRef))(partition(_)),
     )
   }
 
@@ -1089,7 +1089,7 @@ object LowerTableIR extends Logging {
                   partitioner.rangeBounds.toIndexedSeq,
                 )
                 zipIR(FastSeq(partitionIdx, ToStream(bounds), ctxs), AssertSameLength, errorId)(
-                  MakeTuple.ordered
+                  refs => MakeTuple.ordered(refs.map(_.ir))
                 )
               }
             }
@@ -1325,7 +1325,7 @@ object LowerTableIR extends Logging {
           else
             StreamLen(a)
 
-        def partitionSizeArray(childContexts: Ref): IR = {
+        def partitionSizeArray(childContexts: Atom): IR = {
           PartitionCounts(child) match {
             case Some(partCounts) =>
               var idx = 0
@@ -1378,7 +1378,7 @@ object LowerTableIR extends Logging {
           }
         }
 
-        def answerTuple(partitionSizeArrayRef: Ref): IR =
+        def answerTuple(partitionSizeArrayRef: Atom): IR =
           bindIR(ArrayLen(partitionSizeArrayRef)) { numPartitions =>
             val howManyPartsToKeep = freshName()
             val i = Ref(freshName(), TInt32)
@@ -1461,7 +1461,7 @@ object LowerTableIR extends Logging {
       case TableTail(child, targetNumRows) =>
         val loweredChild = lower(child)
 
-        def partitionSizeArray(childContexts: Ref, totalNumPartitions: Ref): IR = {
+        def partitionSizeArray(childContexts: Atom, totalNumPartitions: Atom): IR = {
           PartitionCounts(child) match {
             case Some(partCounts) =>
               var idx = partCounts.length
@@ -1522,7 +1522,7 @@ object LowerTableIR extends Logging {
 
         /* First element is how many partitions to keep from the right partitionSizeArrayRef, second
          * is how many to keep from first kept element. */
-        def answerTuple(partitionSizeArrayRef: Ref): IR = {
+        def answerTuple(partitionSizeArrayRef: Atom): IR = {
           bindIR(ArrayLen(partitionSizeArrayRef)) { numPartitions =>
             val howManyPartsToDrop = freshName()
             val i = Ref(freshName(), TInt32)
@@ -2029,7 +2029,7 @@ object LowerTableIR extends Logging {
             newPartitioner,
             TableStageDependency.union(repartitioned.map(_.dependency)),
             zipIR(repartitioned.map(_.contexts), ArrayZipBehavior.AssumeSameLength) { ctxRefs =>
-              MakeTuple.ordered(ctxRefs)
+              MakeTuple.ordered(ctxRefs.map(_.ir))
             },
             ctxRef =>
               StreamMultiMerge(
@@ -2071,7 +2071,7 @@ object LowerTableIR extends Logging {
           newPartitioner,
           TableStageDependency.union(repartitioned.map(_.dependency)),
           zipIR(repartitioned.map(_.contexts), ArrayZipBehavior.AssumeSameLength) { ctxRefs =>
-            MakeTuple.ordered(ctxRefs)
+            MakeTuple.ordered(ctxRefs.map(_.ir))
           },
           ctxRef =>
             StreamZipJoin(
@@ -2095,7 +2095,7 @@ object LowerTableIR extends Logging {
 
       case TableExplode(child, path) =>
         lower(child).mapPartition(Some(child.typ.key.takeWhile(k => k != path(0)))) { rows =>
-          flatMapIR(rows) { row: Ref =>
+          flatMapIR(rows) { case row: Ref =>
             val refsBuffer = Array.fill[Ref](path.length + 1)(null)
             val rootsBuffer = Array.fill[IR](path.length)(null)
             var i = 0

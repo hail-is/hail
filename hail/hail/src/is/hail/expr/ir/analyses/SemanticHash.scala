@@ -87,7 +87,7 @@ case object SemanticHash extends Logging {
         buffer += a.isScan.toByte
 
       case Block(bindings, _) =>
-        for (b <- bindings) buffer += b.scope.toByte
+        for (b <- bindings) buffer += b.scope.toInt.toByte
 
       case a: AggArrayPerElement =>
         buffer += a.isScan.toByte

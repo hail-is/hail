@@ -24,7 +24,7 @@ final class NestingDepth(private val memo: Memo[ScopedDepth]) {
   def lookupRef(x: RefEquality[BaseRef]): Int = memo.lookup(x).eval
   def lookupRef(x: BaseRef): Int = memo.lookup(x).eval
 
-  def lookupBinding(x: Block, scope: Int): Int = scope match {
+  def lookupBinding(x: Block, scope: Scope): Int = scope match {
     case Scope.EVAL => memo(x).eval
     case Scope.AGG => memo(x).agg
     case Scope.SCAN => memo(x).scan

@@ -87,7 +87,7 @@ sealed trait MatrixWriterComponents {
   def stage: TableStage
   def setup: IR
   def writePartitionType: Type
-  def writePartition(rows: IR, ctx: Ref): IR
+  def writePartition(rows: IR, ctx: Atom): IR
   def finalizeWrite(parts: IR, globals: IR): IR
 }
 
@@ -223,7 +223,7 @@ object MatrixNativeWriter {
       override def writePartitionType: Type =
         rowWriter.returnType
 
-      override def writePartition(rows: IR, ctx: Ref): IR =
+      override def writePartition(rows: IR, ctx: Atom): IR =
         WritePartition(rows, GetField(ctx, "writeCtx") + UUID4(), rowWriter)
 
       override def finalizeWrite(parts: IR, globals: IR): IR = {
@@ -2575,7 +2575,7 @@ case class MatrixNativeMultiWriter(
             ToArray(mapIR(c.stage.contexts) { ctx =>
               MakeStruct(FastSeq(
                 "matrixId" -> I32(matrixId),
-                "options" -> MakeTuple(emptyUnionIRs.updated(matrixId, matrixId -> ctx)),
+                "options" -> MakeTuple(emptyUnionIRs.updated(matrixId, matrixId -> ctx.ir)),
               ))
             })
           },

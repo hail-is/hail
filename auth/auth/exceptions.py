@@ -36,6 +36,11 @@ class InvalidType(AuthUserError):
         super().__init__(f"Expected '{field_name}' is of type {expected_type}. Found type {type(input)}", 'error')
 
 
+class InvalidRole(AuthUserError):
+    def __init__(self, role):
+        super().__init__(f"Unknown system role '{role}'.", 'error')
+
+
 class MultipleUserTypes(AuthUserError):
     def __init__(self, username):
         super().__init__(f"User '{username}' cannot be both a developer and a service account.", 'error')

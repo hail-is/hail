@@ -180,7 +180,7 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def getHailClassLoader: Code[HailClassLoader] = ecb.getHailClassLoader
 
-  def getFS: Code[FS] = ecb.getFS
+  def getFS: Value[FS] = ecb.getFS
 
   def getTaskContext: Value[HailTaskContext] = ecb.getTaskContext
 
@@ -569,7 +569,7 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
 
   def getHailClassLoader: Code[HailClassLoader] = emodb.getHailClassLoader
 
-  def getFS: Code[FS] = emodb.getFS
+  def getFS: Value[FS] = emodb.getFS
 
   def getTaskContext: Value[HailTaskContext] = _taskContext
 

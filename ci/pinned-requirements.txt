@@ -23,7 +23,7 @@ click==8.3.3
     #   -c ci/../hail/python/dev/pinned-requirements.txt
     #   -c ci/../hail/python/pinned-requirements.txt
     #   zulip
-cryptography==46.0.7
+cryptography==47.0.0
     # via
     #   -c ci/../gear/pinned-requirements.txt
     #   -c ci/../hail/python/pinned-requirements.txt

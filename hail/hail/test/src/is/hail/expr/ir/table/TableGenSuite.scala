@@ -6,7 +6,7 @@ import is.hail.collection.FastSeq
 import is.hail.expr.ir._
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.defs.{
-  ApplyBinaryPrimOp, ErrorIDs, GetField, MakeStream, MakeStruct, Ref, Str, StreamRange,
+  ApplyBinaryPrimOp, Atom, ErrorIDs, GetField, MakeStream, MakeStruct, Ref, Str, StreamRange,
   TableAggregate, TableGetGlobals,
 }
 import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR}
@@ -192,7 +192,7 @@ class TableGenSuite extends HailSuite {
   def mkTableGen(
     contexts: Option[IR] = None,
     globals: Option[IR] = None,
-    body: Option[(Ref, Ref) => IR] = None,
+    body: Option[(Atom, Atom) => IR] = None,
     partitioner: Option[RVDPartitioner] = None,
     errorId: Option[Int] = None,
   ): TableGen = {

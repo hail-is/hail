@@ -29,7 +29,7 @@ trait GenericBindingEnv[Self, V] {
 
   def bindScan(bindings: (Name, V)*): Self
 
-  def bindInScope(name: Name, v: V, scope: Int): Self = scope match {
+  def bindInScope(name: Name, v: V, scope: Scope): Self = scope match {
     case Scope.EVAL => bindEval(name -> v)
     case Scope.AGG => bindAgg(name -> v)
     case Scope.SCAN => bindScan(name -> v)
@@ -154,7 +154,7 @@ case class BindingEnv[V](
 
   override def promoteScan: BindingEnv[V] = copy(eval = scan.get, scan = None)
 
-  def promoteScope(scope: Int): BindingEnv[V] = scope match {
+  def promoteScope(scope: Scope): BindingEnv[V] = scope match {
     case Scope.EVAL => this
     case Scope.AGG => promoteAgg
     case Scope.SCAN => promoteScan
