@@ -25,7 +25,7 @@ else
     BUILDER=build-batch-worker-$NAMESPACE-image
 fi
 
-UBUNTU_IMAGE=ubuntu-minimal-2404-noble-amd64-v20260429
+UBUNTU_IMAGE=ubuntu-minimal-2404-noble-amd64-v20260507
 
 WORKER_IMAGE_EXISTS=false
 if [[ -n "$(gcloud compute images list --project "${PROJECT}" --filter="name=${WORKER_IMAGE}" --format='value(name)')" ]]; then
