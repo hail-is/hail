@@ -190,6 +190,15 @@ ci/ci/static/compiled-js/flaky_tests.js: services/ui/dist/ci/flaky_tests.js
 
 ci-image: ci/ci/static/compiled-js/flaky_tests.js
 
+services/ui/dist/batch/job.js: $(shell git ls-files services/ui)
+	cd services/ui && npm ci && npm run build
+
+batch/batch/front_end/static/compiled-js/job.js: services/ui/dist/batch/job.js
+	mkdir -p batch/batch/front_end/static/compiled-js
+	cp services/ui/dist/batch/job.js $@
+
+batch-image: batch/batch/front_end/static/compiled-js/job.js
+
 batch/jvm-entryway/out/assembly.dest/out.jar: $(shell git ls-files batch/jvm-entryway)
 	cd batch/jvm-entryway && $(MILL) $(MILLOPTS) assembly
 
@@ -257,6 +266,10 @@ ifeq ($(SERVICE),ci)
 run-dev-proxy: ci/ci/static/compiled-js/flaky_tests.js
 tailwind-compile-watch: ci/ci/static/compiled-js/flaky_tests.js
 DEVSERVER_TARGETS = tailwind-compile-watch run-dev-proxy ui-js-watch
+else ifeq ($(SERVICE),batch)
+run-dev-proxy: batch/batch/front_end/static/compiled-js/job.js
+tailwind-compile-watch: batch/batch/front_end/static/compiled-js/job.js
+DEVSERVER_TARGETS = tailwind-compile-watch run-dev-proxy ui-js-watch-batch
 else
 DEVSERVER_TARGETS = tailwind-compile-watch run-dev-proxy
 endif
@@ -271,6 +284,10 @@ services/ui/node_modules/.package-lock.json: services/ui/package.json services/u
 .PHONY: ui-js-watch
 ui-js-watch: services/ui/node_modules/.package-lock.json
 	cd services/ui && npx esbuild src/ci/flaky_tests.tsx --bundle --jsx=automatic --format=esm --outfile=../../ci/ci/static/compiled-js/flaky_tests.js --minify --watch=forever
+
+.PHONY: ui-js-watch-batch
+ui-js-watch-batch: services/ui/node_modules/.package-lock.json
+	cd services/ui && npx esbuild src/batch/job.tsx --bundle --jsx=automatic --format=esm --outfile=../../batch/batch/front_end/static/compiled-js/job.js --minify --watch=forever
 
 .PHONY: check-devserver-deps
 check-devserver-deps:
