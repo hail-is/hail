@@ -23,7 +23,7 @@ click==8.3.3
     #   -c ci/../hail/python/dev/pinned-requirements.txt
     #   -c ci/../hail/python/pinned-requirements.txt
     #   zulip
-cryptography==47.0.0
+cryptography==48.0.0
     # via
     #   -c ci/../gear/pinned-requirements.txt
     #   -c ci/../hail/python/pinned-requirements.txt
@@ -80,7 +80,7 @@ uritemplate==4.2.0
     # via
     #   -c ci/../gear/pinned-requirements.txt
     #   gidgethub
-urllib3==2.6.3
+urllib3==2.7.0
     # via
     #   -c ci/../gear/pinned-requirements.txt
     #   -c ci/../hail/python/dev/pinned-requirements.txt
