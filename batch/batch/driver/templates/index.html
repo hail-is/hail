@@ -184,7 +184,7 @@
         <td class="numeric-cell">{{ instance.failed_request_count }}</td>
         <td>{{ instance.time_created_str() }}</td>
         <td>{{ instance.last_updated_str() }} ago</td>
-        <td><a target="_blank" href="https://console.cloud.google.com/logs/query;query=resource.type%3D%22gce_instance%22%20AND%20labels.%22compute.googleapis.com%2Fresource_name%22%3D%22{{ instance.name }}%22">Logs<i class="material-icons text-icon">open_in_new</i></a></td>
+        <td><a target="_blank" href="https://console.cloud.google.com/logs/query;query=%22{{ instance.name }}%22%0A-protoPayload.serviceName%3D%22logging.googleapis.com%22%0A-protoPayload.serviceName%3D%22securitycenter.googleapis.com%22">Logs<i class="material-icons text-icon">open_in_new</i></a></td>
       </tr>
       {% endfor %}
     </tbody>
