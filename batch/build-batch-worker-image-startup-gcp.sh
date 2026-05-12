@@ -78,6 +78,16 @@ export HOME=/root
 docker-credential-gcr configure-docker --include-artifact-registry
 docker pull {{ global.docker_root_image }}
 
+echo "=== Disabling algif_aead kernel module (copy.fail / CVE-2026-31431) ==="
+echo "install algif_aead /bin/false" > /etc/modprobe.d/disable-algif.conf
+rmmod algif_aead 2>/dev/null || true
+
+echo "=== Blacklisting ESP modules (copy.fail2) ==="
+cat > /etc/modprobe.d/blocklist-esp.conf << 'EOF'
+blacklist esp4
+blacklist esp6
+EOF
+
 echo "=== Enabling Docker debug logging ==="
 jq '.debug = true' /etc/docker/daemon.json > daemon.json.tmp
 mv daemon.json.tmp /etc/docker/daemon.json
