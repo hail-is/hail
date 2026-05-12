@@ -21,10 +21,11 @@ extension [A, F[+X] <: Iterable[X]] (as: F[A])
 object `package` extends MillBuildRootModule:
 
   private val SupportedScalaVersions =
-    Set("2.12", "2.12.13", "2.13")
+    Set("2.12", "2.13")
 
   override def mvnDeps: T[Seq[Dep]] =
     Seq(
+      `mill-contrib-jmh` :: "1.0.6",
       `mill-scalafix` :::: "0.6.0",
       `scalac-options` :: "0.1.8",
     )

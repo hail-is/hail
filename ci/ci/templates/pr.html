@@ -144,7 +144,7 @@
       {% endfor %}
       <div>labels: {{ pr.labels|join(", ") }}</div>
     </div>
-    {% if active_pr %}
+    {% if userdata['system_permissions']['manage_ci'] %}
     <form action="{{ base_path }}/watched_branches/{{ wb.index }}/pr/{{ pr.number }}/retry" method="post">
       <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
       <button type="submit">Retry</button>

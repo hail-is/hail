@@ -39,7 +39,7 @@ frozenlist==1.8.0
     #   -c web_common/../hail/python/pinned-requirements.txt
     #   aiohttp
     #   aiosignal
-idna==3.11
+idna==3.13
     # via
     #   -c web_common/../gear/pinned-requirements.txt
     #   -c web_common/../hail/python/dev/pinned-requirements.txt

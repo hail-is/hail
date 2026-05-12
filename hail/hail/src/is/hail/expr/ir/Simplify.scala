@@ -22,7 +22,7 @@ object Simplify {
 
   private[this] def recur(ctx: ExecuteContext, ir: BaseIR): BaseIR =
     ir match {
-      case ir: TrivialIR => ir
+      case ir: Atom => ir
       case ir: IR => simplifyValue(ctx, ir)
       case tir: TableIR => simplifyTable(ctx, tir)
       case mir: MatrixIR => simplifyMatrix(ctx, mir)
@@ -98,66 +98,86 @@ object Simplify {
 
       def isIntegral(t: Type) = t.isInstanceOf[TIntegral]
       def isFloating(t: Type) = t == TFloat32 || t == TFloat64
-      def pure(x: Int): IR = Literal.coerce(typ, x)
 
-      lazy val MinusOne: IR = pure(-1)
-      lazy val Zero: IR = pure(0)
-      lazy val One: IR = pure(1)
+      def pure(x: Int) = Literal.coerce(typ, x)
+      @inline def MinusOne = pure(-1)
+      @inline def Zero = pure(0)
+      @inline def One = pure(1)
+      @inline def Two = pure(2)
 
       ir match {
         case ApplyBinaryPrimOp(op, x, y) =>
           op match {
             case Add() =>
-              if (x == Zero) Some(y)
-              else if (y == Zero) Some(x)
-              else if (isIntegral(typ) && x == y) Some(ApplyBinaryPrimOp(Multiply(), pure(2), x))
+              val `0` = Zero
+              if (x == `0`) Some(y)
+              else if (y == `0`) Some(x)
+              else if (isIntegral(typ) && x == y) Some(ApplyBinaryPrimOp(Multiply(), Two, x))
               else None
 
             case Subtract() =>
-              if (x == Zero) Some(ApplyUnaryPrimOp(Negate, y))
-              else if (y == Zero) Some(x)
-              else if (isIntegral(typ) && x == y) Some(Zero)
+              val `0` = Zero
+              if (x == `0`) Some(ApplyUnaryPrimOp(Negate, y))
+              else if (y == `0`) Some(x)
+              else if (isIntegral(typ) && x == y) Some(`0`)
               else None
 
             case Multiply() =>
-              if (x == One) Some(y)
-              else if (x == MinusOne) Some(ApplyUnaryPrimOp(Negate, y))
-              else if (y == One) Some(x)
-              else if (y == MinusOne) Some(ApplyUnaryPrimOp(Negate, x))
-              else if (isIntegral(typ) && (x == Zero || y == Zero)) Some(Zero)
-              else None
+              val `1` = One
+              if (x == `1`) Some(y)
+              else {
+                val `-1` = MinusOne
+                if (x == `-1`) Some(ApplyUnaryPrimOp(Negate, y))
+                else if (y == `1`) Some(x)
+                else if (y == `-1`) Some(ApplyUnaryPrimOp(Negate, x))
+                else {
+                  val `0` = Zero
+                  if (isIntegral(typ) && (x == `0` || y == `0`)) Some(`0`)
+                  else None
+                }
+              }
 
             case RoundToNegInfDivide() =>
-              if (y == One) Some(x)
+              val `1` = One
+              if (y == `1`) Some(x)
               else if (y == MinusOne) Some(ApplyUnaryPrimOp(Negate, x))
               else if (isIntegral(typ)) {
-                if (x == y) Some(One)
-                else if (x == Zero) Some(Zero)
-                else if (y == Zero) Some(Die("division by zero", ir.typ))
+                val `0` = Zero
+                if (x == y) Some(`1`)
+                else if (x == `0`) Some(x)
+                else if (y == `0`) Some(Die("division by zero", ir.typ))
                 else None
               } else None
 
             case _: LeftShift | _: RightShift | _: LogicalRightShift if isIntegral(typ) =>
-              if (x == Zero) Some(Zero)
-              else if (y == I32(0)) Some(x)
+              if (x == Zero || y == I32(0)) Some(x)
               else None
 
             case BitAnd() if isIntegral(typ) =>
-              if (x == Zero || y == Zero) Some(Zero)
-              else if (x == MinusOne) Some(y)
-              else if (y == MinusOne) Some(x)
-              else None
+              val `0` = Zero
+              if (x == `0` || y == `0`) Some(`0`)
+              else {
+                val `-1` = MinusOne
+                if (x == `-1`) Some(y)
+                else if (y == `-1`) Some(x)
+                else None
+              }
 
             case BitOr() if isIntegral(typ) =>
-              if (x == MinusOne || y == MinusOne) Some(MinusOne)
-              else if (x == Zero) Some(y)
-              else if (y == Zero) Some(x)
-              else None
+              val `-1` = MinusOne
+              if (x == `-1` || y == `-1`) Some(`-1`)
+              else {
+                val `0` = Zero
+                if (x == `0`) Some(y)
+                else if (y == `0`) Some(x)
+                else None
+              }
 
             case BitXOr() if isIntegral(typ) =>
-              if (x == y) Some(Zero)
-              else if (x == Zero) Some(y)
-              else if (y == Zero) Some(x)
+              val `0` = Zero
+              if (x == y) Some(`0`)
+              else if (x == `0`) Some(y)
+              else if (y == `0`) Some(x)
               else None
 
             case _ =>
@@ -527,11 +547,11 @@ object Simplify {
         } // cannot be mapValues, or genUID() gets run for every usage!
 
         def copiedNewFieldRefs(): IndexedSeq[(String, IR)] =
-          fieldNames.map(name => (name, newFieldRefs(name).deepCopy()))
+          fieldNames.map(name => (name, newFieldRefs(name)))
 
         def rewrite(ir1: IR): IR = ir1 match {
           case GetField(Ref(`name`, _), fd) => newFieldRefs.get(fd) match {
-              case Some(r) => r.deepCopy()
+              case Some(r) => r.ir
               case None => GetField(Ref(name, old.typ), fd)
             }
           case ins @ InsertFields(Ref(`name`, _), fields, _) =>

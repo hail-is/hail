@@ -910,7 +910,7 @@ class Pretty(
       bindings: Env[String],
       prefix: String,
       origName: Option[Name],
-      scope: Int = Scope.EVAL,
+      scope: Scope = Scope.EVAL,
     ): (Doc, String) = {
       val (pre, body) = pretty(ir, bindings)
       val ident = prefix + uniqueify(getIdentBase(ir), origName)

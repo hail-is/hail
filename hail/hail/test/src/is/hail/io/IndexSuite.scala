@@ -115,8 +115,7 @@ class IndexSuite extends HailSuite {
         branchingFactor,
         attributes,
       )
-      assert(fs.getFileSize(file + "/index") != 0)
-      assert(fs.getFileSize(file + "/metadata.json.gz") != 0)
+      assert(fs.getFileSize(file) != 0)
 
       val index = indexReader(file, TStruct("a" -> TBoolean))
 
@@ -136,8 +135,7 @@ class IndexSuite extends HailSuite {
   @Test def testEmptyKeys(): Unit = {
     val file = ctx.createTmpPath("empty", "idx")
     writeIndex(file, ArraySeq.empty, ArraySeq.empty, TStruct("a" -> TBoolean), 2)
-    assert(fs.getFileSize(file + "/index") != 0)
-    assert(fs.getFileSize(file + "/metadata.json.gz") != 0)
+    assert(fs.getFileSize(file) != 0)
     val index = indexReader(file, TStruct("a" -> TBoolean))
     assertThrows[IllegalArgumentException](index.queryByIndex(0L))
     assert(index.queryByKey("moo").isEmpty)

@@ -6,7 +6,7 @@ import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIndexedSeq
 import is.hail.io._
-import is.hail.io.fs.FS
+import is.hail.io.fs.{FS, SeekableDataInputStream}
 import is.hail.rvd.{AbstractIndexSpec, PartitionBoundOrdering}
 import is.hail.types.physical.PStruct
 import is.hail.types.virtual.{TStruct, Type, TypeSerializer}
@@ -28,7 +28,15 @@ object IndexReaderBuilder {
       spec.leafCodec.buildDecoder(ctx, spec.leafCodec.encodedVirtualType)
     val (intPType: PStruct, intDec) =
       spec.internalNodeCodec.buildDecoder(ctx, spec.internalNodeCodec.encodedVirtualType)
-    withDecoders(ctx, leafDec, intDec, keyType, annotationType, leafPType, intPType)
+    withDecoders(
+      ctx,
+      leafDec,
+      intDec,
+      keyType,
+      annotationType,
+      leafPType,
+      intPType,
+    )
   }
 
   def withDecoders(
@@ -43,17 +51,16 @@ object IndexReaderBuilder {
     val sm = ctx.stateManager
     (theHailClassLoader, fs, path, cacheCapacity, pool) =>
       new IndexReader(
-        theHailClassLoader, fs, path, cacheCapacity, leafDec, intDec, keyType, annotationType,
+        theHailClassLoader, fs, path, cacheCapacity, leafDec, intDec, keyType,
+        annotationType,
         leafPType, intPType, pool, sm)
   }
 }
 
 object IndexReader {
   def readUntyped(fs: FS, path: String): IndexMetadataUntypedJSON = {
-    val jv = using(fs.open(path + "/metadata.json.gz")) { in =>
-      JsonMethods.parse(in)
-        .removeField { case (f, _) => f == "keyType" || f == "annotationType" }
-    }
+    val jv = readMetadataRaw(fs, path)
+      .removeField { case (f, _) => f == "keyType" || f == "annotationType" }
     implicit val formats: Formats = DefaultFormats
     jv.extract[IndexMetadataUntypedJSON]
   }
@@ -64,10 +71,47 @@ object IndexReader {
   }
 
   def readTypes(fs: FS, path: String): (Type, Type) = {
-    val jv = using(fs.open(path + "/metadata.json.gz"))(in => JsonMethods.parse(in))
+    val jv = readMetadataRaw(fs, path)
     implicit val formats: Formats = DefaultFormats + new TypeSerializer
     val metadata = jv.extract[IndexMetadata]
     metadata.keyType -> metadata.annotationType
+  }
+
+  private def readMetadataRaw(fs: FS, path: String): org.json4s.JValue =
+    if (fs.isFile(path)) {
+      val len = fs.getFileSize(path)
+      using(fs.openNoCompression(path))(in => readInlineMetadataRaw(in, len))
+    } else {
+      using(fs.open(path + "/metadata.json.gz"))(in => JsonMethods.parse(in))
+    }
+
+  private def readInlineMetadataRaw(is: SeekableDataInputStream, len: Long): org.json4s.JValue = {
+    is.seek(len - 8L)
+    val spec = new StreamBufferSpec
+    val ib = spec.buildInputBuffer(is)
+    val mdOff = ib.readLong()
+    val jsonBytes = new Array[Byte]((len - mdOff - 8L).toInt)
+    is.seek(mdOff)
+    is.readFully(jsonBytes)
+    is.seek(0)
+    JsonMethods.parse(new java.io.ByteArrayInputStream(jsonBytes))
+  }
+
+  def readInlineMetadata(is: SeekableDataInputStream, len: Long): IndexMetadataUntypedJSON = {
+    val jv = readInlineMetadataRaw(is, len)
+      .removeField { case (f, _) => f == "keyType" || f == "annotationType" }
+    implicit val formats: Formats = DefaultFormats
+    jv.extract[IndexMetadataUntypedJSON]
+  }
+
+  def openAndGetMetadata(fs: FS, path: String, keyType: Type, annotationType: Type)
+    : (SeekableDataInputStream, IndexMetadata) = {
+    /* FIXME this is TOCTOU, but we don't implement relative seek ala fseek(file, -8, SEEK_END), so
+     * this is what we have */
+    val len = fs.getFileSize(path)
+    val is = fs.openNoCompression(path)
+    val md = readInlineMetadata(is, len)
+    is -> md.toMetadata(keyType, annotationType)
   }
 }
 
@@ -85,19 +129,28 @@ class IndexReader(
   val pool: RegionPool,
   val sm: HailStateManager,
 ) extends AutoCloseable with Logging {
-  private[io] val metadata = IndexReader.readMetadata(fs, path, keyType, annotationType)
+  /* prior to ~0.2.139, The index files were written as a directory with two files, the index
+   * itself, and a metadata.json.gz, when reading an index, we switch on if the old style metadata
+   * file exists. */
+  private val (is, metadata) =
+    try {
+      val md = IndexReader.readMetadata(fs, path, keyType, annotationType)
+      fs.openNoCompression(path + "/" + md.indexPath) -> md
+    } catch {
+      case _: java.io.FileNotFoundException =>
+        IndexReader.openAndGetMetadata(fs, path, keyType, annotationType)
+    }
+
   val branchingFactor = metadata.branchingFactor
   val height = metadata.height
   val nKeys = metadata.nKeys
   val attributes = metadata.attributes
-  val indexRelativePath = metadata.indexPath
 
   val ordering = keyType match {
     case ts: TStruct => PartitionBoundOrdering(sm, ts)
     case t => t.ordering(sm)
   }
 
-  private val is = fs.openNoCompression(path + "/" + indexRelativePath)
   private val leafDecoder = leafDecoderBuilder(is, theHailClassLoader)
   private val internalDecoder = internalDecoderBuilder(is, theHailClassLoader)
 

@@ -448,6 +448,15 @@ class InvalidImageRepository(Exception):
     pass
 
 
+class DockerInspectError(Exception):
+    def __init__(self, image_ref: str, batch_id: Optional[int], job_id: Optional[int]):
+        super().__init__(
+            f'docker inspect failed for {image_ref} (batch_id={batch_id}, job_id={job_id}); '
+            f'possible causes: insufficient storage (private VMs need at least 3-6x the compressed image size to unpack layers), '
+            f'architecture mismatch (image built for a different CPU arch), or corrupt download'
+        )
+
+
 class Image:
     @staticmethod
     async def _pull_with_auth_refresh(
@@ -463,11 +472,15 @@ class Image:
         credentials: Optional[Dict[str, str]],
         client_session: httpx.ClientSession,
         pool: concurrent.futures.ThreadPoolExecutor,
+        batch_id: Optional[int] = None,
+        job_id: Optional[int] = None,
     ):
         self.image_name = name
         self.credentials = credentials
         self.client_session = client_session
         self.pool = pool
+        self.batch_id = batch_id
+        self.job_id = job_id
 
         image_ref = parse_docker_image_reference(name)
         if image_ref.tag is None and image_ref.digest is None:
@@ -567,7 +580,10 @@ class Image:
             # inspect non-deterministically fails sometimes
             await asyncio.sleep(1)
             await pull()
-            image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
+            try:
+                image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
+            except Exception:
+                raise DockerInspectError(self.image_ref_str, self.batch_id, self.job_id) from None
         image_configs[self.image_ref_str] = json.loads(image_config)[0]
 
     async def _ensure_image_is_pulled(
@@ -723,7 +739,7 @@ def user_error(e):
         # bucket name and your credentials.\n')
         if b'Bad credentials for bucket' in e.stderr:
             return True
-    if isinstance(e, (ImageNotFound, ImageCannotBePulled, InvalidImageRepository)):
+    if isinstance(e, (ImageNotFound, ImageCannotBePulled, InvalidImageRepository, DockerInspectError)):
         return True
     if isinstance(e, (ContainerTimeoutError, ContainerDeletedError)):
         return True
@@ -832,6 +848,8 @@ class Container:
                 self.short_error = 'image cannot be pulled'
             elif isinstance(e, InvalidImageRepository):
                 self.short_error = 'image repository is invalid'
+            elif isinstance(e, DockerInspectError):
+                self.short_error = 'docker inspect failed'
 
             self.state = 'error'
             self.error = traceback.format_exc()
@@ -1833,7 +1851,14 @@ class DockerJob(Job):
             task_manager=self.task_manager,
             fs=self.worker.fs,
             name=self.container_name('main'),
-            image=Image(job_spec['process']['image'], self.credentials, client_session, pool),
+            image=Image(
+                job_spec['process']['image'],
+                self.credentials,
+                client_session,
+                pool,
+                batch_id=self.batch_id,
+                job_id=self.job_id,
+            ),
             scratch_dir=f'{self.scratch}/main',
             command=job_spec['process']['command'],
             cpu_in_mcpu=self.cpu_in_mcpu,

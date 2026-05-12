@@ -26,7 +26,7 @@ object LowerOrInterpretNonCompilable extends Logging {
         case None =>
           logger.info(s"LowerOrInterpretNonCompilable: whole stage code generation is a go!")
           logger.info(s"lowering result: ${value.getClass.getSimpleName}")
-          val fullyLowered = LowerToDistributedArrayPass(DArrayLowering.All).transform(ctx, value)
+          val fullyLowered = LowerToDistributedArrayPass(DArrayLowering.All)(ctx, value)
             .asInstanceOf[IR]
           logger.info(s"compiling and evaluating result: ${value.getClass.getSimpleName}")
           CompileAndEvaluate.evalToIR(ctx, fullyLowered)

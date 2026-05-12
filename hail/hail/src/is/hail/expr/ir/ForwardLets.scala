@@ -14,7 +14,7 @@ object ForwardLets {
       val UsesAndDefs(uses, defs, _) = ComputeUsesAndDefs(ir1, errorIfFreeVariables = false)
       val nestingDepth = NestingDepth(ctx, ir1)
 
-      def shouldForward(value: IR, refs: Set[RefEquality[BaseRef]], base: Block, scope: Int)
+      def shouldForward(value: IR, refs: Set[RefEquality[BaseRef]], base: Block, scope: Scope)
         : Boolean =
         IsPure(value) && (
           value.isInstanceOf[Ref] ||
@@ -56,7 +56,7 @@ object ForwardLets {
             env.eval
               .lookupOption(name)
               .map { forwarded =>
-                if (uses.lookup(defs.lookup(x)).count(_.t.name == name) > 1) forwarded.deepCopy()
+                if (uses.lookup(defs.lookup(x)).count(_.t.name == name) > 1) forwarded.deepCopy
                 else forwarded
               }
               .getOrElse(x)

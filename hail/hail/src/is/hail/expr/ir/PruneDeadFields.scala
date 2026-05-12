@@ -123,7 +123,7 @@ object PruneDeadFields extends Logging {
   def apply(ctx: ExecuteContext, ir: BaseIR): BaseIR =
     ctx.time {
       try {
-        val irCopy = ir.deepCopy()
+        val irCopy = ir.deepCopy
         val ms = new ComputeMutableState
         irCopy match {
           case mir: MatrixIR =>

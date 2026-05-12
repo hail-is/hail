@@ -17,6 +17,7 @@ from gear import (
     AuthServiceAuthenticator,
     CommonAiohttpAppKeys,
     Database,
+    SystemPermission,
     json_response,
     setup_aiohttp_session,
     transaction,
@@ -149,7 +150,7 @@ async def _billing(request: web.Request):
 
 
 @routes.get('/api/v1alpha/billing')
-@auth.authenticated_developers_only()
+@auth.authenticated_users_with_permission(SystemPermission.VIEW_MONITORING_DASHBOARDS, redirect=False)
 async def get_billing(request: web.Request, _) -> web.Response:
     cost_by_service, compute_cost_breakdown, cost_by_sku_label, time_period_query = await _billing(request)
     resp = {
@@ -163,7 +164,7 @@ async def get_billing(request: web.Request, _) -> web.Response:
 
 @routes.get('/billing')
 @web_security_headers
-@auth.authenticated_developers_only()
+@auth.authenticated_users_with_permission(SystemPermission.VIEW_MONITORING_DASHBOARDS)
 async def billing(request: web.Request, userdata) -> web.Response:  # pylint: disable=unused-argument
     cost_by_service, compute_cost_breakdown, cost_by_sku_label, time_period_query = await _billing(request)
     context = {
@@ -175,30 +176,26 @@ async def billing(request: web.Request, userdata) -> web.Response:  # pylint: di
     return await render_template('monitoring', request, userdata, 'billing.html', context)
 
 
-async def query_billing_body(app):
-    db = app[AppKeys.DB]
-    bigquery_client = app[AppKeys.BQ_CLIENT]
+async def _fetch_billing_month(db, bigquery_client, dt, full_query=False):
+    month = dt.month
+    year = dt.year
 
-    async def _query(dt):
-        month = dt.month
-        year = dt.year
+    start = datetime.date(year, month, 1)
+    _, last_day_of_month = calendar.monthrange(year, month)
 
-        start = datetime.date(year, month, 1)
-        _, last_day_of_month = calendar.monthrange(year, month)
+    if full_query or HAIL_USE_FULL_QUERY:
+        end = datetime.date(year, month, last_day_of_month) + datetime.timedelta(days=7)
+    else:
+        end = start + datetime.timedelta(days=1)
 
-        if HAIL_USE_FULL_QUERY:
-            end = datetime.date(year, month, last_day_of_month) + datetime.timedelta(days=7)
-        else:
-            end = start + datetime.timedelta(days=1)
+    date_format = '%Y-%m-%d'
+    start_str = datetime.date.strftime(start, date_format)
+    end_str = datetime.date.strftime(end, date_format)
 
-        date_format = '%Y-%m-%d'
-        start_str = datetime.date.strftime(start, date_format)
-        end_str = datetime.date.strftime(end, date_format)
+    invoice_month = datetime.date.strftime(start, '%Y%m')
 
-        invoice_month = datetime.date.strftime(start, '%Y%m')
-
-        # service.id: service.description -- "6F81-5844-456A": "Compute Engine"
-        cmd = f"""
+    # service.id: service.description -- "6F81-5844-456A": "Compute Engine"
+    cmd = f"""
 SELECT service.id as service_id, service.description as service_description, sku.id as sku_id, sku.description as sku_description, SUM(cost) as cost,
 CASE
   WHEN service.id = "6F81-5844-456A" AND EXISTS(SELECT 1 FROM UNNEST(labels) WHERE key = "namespace" and value = "default") THEN "batch-production"
@@ -208,53 +205,75 @@ CASE
   WHEN service.id = "6F81-5844-456A" THEN "unknown"
   ELSE NULL
 END AS source
-FROM `broad-ctsa.hail_billing.gcp_billing_export_v1_0055E5_9CA197_B9B894`
+FROM `hail-vdc.hail_vdc_billing.gcp_billing_export_v1_00E7E5_D339BE_C54ACE`
 WHERE DATE(_PARTITIONTIME) >= "{start_str}" AND DATE(_PARTITIONTIME) <= "{end_str}" AND project.name = "{PROJECT}" AND invoice.month = "{invoice_month}"
 GROUP BY service_id, service_description, sku_id, sku_description, source;
 """
 
-        log.info(f'querying BigQuery with command: {cmd}')
+    log.info(f'querying BigQuery with command: {cmd}')
 
-        records = [
-            (
-                year,
-                month,
-                record['service_id'],
-                record['service_description'],
-                record['sku_id'],
-                record['sku_description'],
-                record['source'],
-                record['cost'],
-            )
-            async for record in await bigquery_client.query(cmd)
-        ]
+    records = [
+        (
+            year,
+            month,
+            record['service_id'],
+            record['service_description'],
+            record['sku_id'],
+            record['sku_description'],
+            record['source'],
+            record['cost'],
+        )
+        async for record in await bigquery_client.query(cmd)
+    ]
 
-        @transaction(db)
-        async def insert(tx):
-            await tx.just_execute(
-                """
+    @transaction(db)
+    async def insert(tx):
+        await tx.just_execute(
+            """
 DELETE FROM monitoring_billing_data WHERE year = %s AND month = %s;
 """,
-                (year, month),
-            )
+            (year, month),
+        )
 
-            await tx.execute_many(
-                """
+        await tx.execute_many(
+            """
 INSERT INTO monitoring_billing_data (year, month, service_id, service_description, sku_id, sku_description, source, cost)
 VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
 """,
-                records,
-            )
+            records,
+        )
 
-        await insert()
+    await insert()
+
+
+@routes.post('/billing/fetch')
+@web_security_headers
+@auth.authenticated_users_with_permission(SystemPermission.VIEW_MONITORING_DASHBOARDS)
+async def fetch_billing_html(request: web.Request, _) -> web.Response:
+    date_format = '%m/%Y'
+    time_period_query = request.query.get('time_period', datetime.datetime.now().strftime(date_format))
+    try:
+        time_period = datetime.datetime.strptime(time_period_query, date_format)
+    except ValueError as exc:
+        raise web.HTTPBadRequest(reason='Invalid time_period.') from exc
+
+    db = request.app[AppKeys.DB]
+    bigquery_client = request.app[AppKeys.BQ_CLIENT]
+    await _fetch_billing_month(db, bigquery_client, time_period, full_query=True)
+    raise web.HTTPFound(deploy_config.base_path('monitoring') + f'/billing?time_period={time_period_query}')
+
+
+async def query_billing_body(app):
+    db = app[AppKeys.DB]
+    bigquery_client = app[AppKeys.BQ_CLIENT]
 
     log.info('updating billing information')
     now = datetime.datetime.now()
-    await _query(now)
+    await _fetch_billing_month(db, bigquery_client, now)
     last_month = get_previous_month(now)
     end_last_month = get_last_day_month(last_month)
     if now < end_last_month + datetime.timedelta(days=7):
-        await _query(last_month)
+        await _fetch_billing_month(db, bigquery_client, last_month)
 
     now_msecs = time_msecs()
     await db.execute_update('UPDATE monitoring_billing_mark SET mark = %s;', (now_msecs,))
@@ -280,7 +299,7 @@ async def monitor_disks(app):
     disk_counts = defaultdict(list)
 
     for zone in app[AppKeys.ZONES]:
-        async for disk in await compute_client.list(f'/zones/{zone}/disks', params={'filter': '(labels.batch = 1)'}):
+        async for disk in compute_client.list(f'/zones/{zone}/disks', params={'filter': '(labels.batch = 1)'}):
             namespace = disk['labels']['namespace']
             size_gb = int(disk['sizeGb'])
 
@@ -316,7 +335,7 @@ async def monitor_instances(app):
     instance_counts: Dict[InstanceLabels, int] = defaultdict(int)
 
     for zone in app[AppKeys.ZONES]:
-        async for instance in await compute_client.list(
+        async for instance in compute_client.list(
             f'/zones/{zone}/instances', params={'filter': '(labels.role = batch2-agent)'}
         ):
             instance_labels = InstanceLabels(

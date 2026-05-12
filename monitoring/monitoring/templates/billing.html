@@ -19,6 +19,13 @@
     </form>
 </div>
 
+{% if not cost_by_service %}
+<p>No data found for {{ time_period }}.</p>
+<form method="POST" action="{{ base_path }}/billing/fetch?time_period={{ time_period }}">
+    <button type="submit">Fetch from BigQuery</button>
+</form>
+{% endif %}
+
 <h1>Costs by Google Service</h1>
 <table class="data-table">
     <thead>

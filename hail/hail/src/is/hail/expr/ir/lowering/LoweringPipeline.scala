@@ -17,20 +17,15 @@ case class LoweringPipeline(lowerings: LoweringPass*) extends Logging {
       render(s"initial IR")
 
       for (l <- lowerings) {
-        try {
-          x = l(ctx, x)
-          render(s"after ${l.context}")
-        } catch {
-          case e: Throwable =>
-            logger.error(s"error while applying lowering '${l.context}'", e)
-            throw e
-        }
-        try
-          TypeCheck(ctx, x)
-        catch {
-          case e: Throwable =>
-            fatal(s"error after applying ${l.context}", e)
-        }
+        x =
+          try l(ctx, x)
+          catch {
+            case e: Throwable =>
+              logger.error(s"error while applying lowering '${l.context}'", e)
+              throw e
+          }
+        render(s"after ${l.context}")
+        TypeCheck(ctx, x)
       }
 
       x

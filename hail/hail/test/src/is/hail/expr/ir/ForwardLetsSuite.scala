@@ -157,7 +157,7 @@ class ForwardLetsSuite extends HailSuite {
     assert(!after.isInstanceOf[Block])
   }
 
-  @DataProvider(name = "TrivialIRCases")
+  @DataProvider(name = "AtomCases")
   def trivalIRCases: Array[Array[Any]] = {
     val pi = Math.atan(1) * 4
 
@@ -218,7 +218,7 @@ class ForwardLetsSuite extends HailSuite {
     )
   }
 
-  @Test(dataProvider = "TrivialIRCases")
+  @Test(dataProvider = "AtomCases")
   def testTrivialCases(input: IR, _expected: IR, reason: String): Unit = {
     val normalize: (ExecuteContext, BaseIR) => BaseIR = NormalizeNames(allowFreeVariables = true)
     val result = normalize(ctx, ForwardLets(ctx, input))
