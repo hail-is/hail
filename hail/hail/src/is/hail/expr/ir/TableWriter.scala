@@ -72,12 +72,6 @@ object TableNativeWriter {
     // write out partitioner key, which may be stricter than table key
     val partitioner = ts.partitioner
     val pKey: PStruct = tcoerce[PStruct](rowSpec.decodedPType(partitioner.kType))
-    // val _@rowWriter = PartitionNativeWriter(
-    //  rowSpec,
-    //  pKey.fieldNames,
-    //  s"$path/rows/parts/",
-    //  Some(s"$path/index/" -> pKey),
-    // )
 
     val globalWriter =
       PartitionNativeWriter(globalSpec, IndexedSeq(), s"$path/globals/parts/", None)
@@ -129,14 +123,6 @@ object TableNativeWriter {
                   }
                 } { (accum1, accum2) =>
                   Die("unreachable: calling combop on writer fold makes no sense", zero.typ)
-                  /* val stillDistinct = GetField(accum1, "distinct") && GetField( accum2,
-                   * "distinct", ) && Coalesce(FastSeq( GetField(accum1,
-                   * "lastKey").cne(GetField(accum2, "firstKey")), True(), )) val first =
-                   * Coalesce(FastSeq(GetField(accum1, "firstKey"), GetField(accum2, "firstKey")))
-                   * val last =
-                   * Coalesce(FastSeq(GetField(accum2, "lastKey"), GetField(accum1, "lastKey")))
-                   * makestruct( "distinct" -> stillDistinct, "firstKey" -> first, "lastKey" ->
-                   * last, ) */
                 },
               )
             }
