@@ -743,6 +743,43 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/JobV2ListResponse'
+  '/api/v1alpha/billing':
+    get:
+      summary: "Get billing records"
+      description: >
+        Return per-(billing_project, user) cost records for a date range.
+        Non-developers see only their own records; developers see all.
+        Costs are plain floats in USD. Omitting `end` includes currently-running batches;
+        supplying `end` excludes them.
+      operationId: getBilling
+      tags:
+        - Billing Projects
+      parameters:
+        - name: start
+          in: query
+          description: "Start date in MM/DD/YYYY format (required)."
+          required: true
+          schema:
+            type: string
+            example: "04/01/2026"
+        - name: end
+          in: query
+          description: "End date in MM/DD/YYYY format (inclusive, optional). Omit to include currently-running batches."
+          required: false
+          schema:
+            type: string
+            example: "04/21/2026"
+      responses:
+        '200':
+          description: "Billing records retrieved successfully."
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BillingRecord'
+        '401':
+          description: Unauthorized
   '/api/v1alpha/billing_projects':
     get:
       summary: "List billing projects"
@@ -2185,6 +2222,19 @@ components:
           description: "List of child job groups"
           items:
             $ref: '#/components/schemas/JobGroupResponse'
+
+    BillingRecord:
+      type: object
+      properties:
+        billing_project:
+          type: string
+          description: "The billing project."
+        user:
+          type: string
+          description: "The user."
+        total_spent:
+          type: number
+          description: "Total cost in USD."
 
     CreateJobGroupResponse:
       type: object
