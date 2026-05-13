@@ -252,7 +252,13 @@ class DynamicSparseContexts(
     val startPos = ArrayRef(rowPos, col)
     val endPos = ArrayRef(rowPos, col + 1)
     bindIR(
-      Apply("lowerBound", Seq(), FastSeq(rowIdx, row, startPos, endPos), TInt32, ErrorIDs.NO_ERROR)
+      Apply(
+        "lowerBound",
+        ArraySeq(),
+        FastSeq(rowIdx, row, startPos, endPos),
+        TInt32,
+        ErrorIDs.NO_ERROR,
+      )
     ) { pos =>
       If(
         ArrayRef(rowIdx, pos).ceq(row),

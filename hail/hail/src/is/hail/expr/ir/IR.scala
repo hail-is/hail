@@ -4,6 +4,8 @@ import is.hail.annotations.Region
 import is.hail.asm4s.Value
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
+import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.agg.PhysicalAggSig
 import is.hail.expr.ir.functions._
 import is.hail.expr.ir.streams.StreamProducer
@@ -225,13 +227,13 @@ package defs {
   trait AbstractApplyNode[F <: JVMFunction] extends IR {
     def function: String
 
-    def args: Seq[IR]
+    def args: IndexedSeq[IR]
 
     def returnType: Type
 
-    def typeArgs: Seq[Type]
+    def typeArgs: IndexedSeq[Type]
 
-    def argTypes: Seq[Type] = args.map(_.typ)
+    def argTypes: IndexedSeq[Type] = args.map(_.typ)
 
     lazy val implementation: F =
       IRFunctionRegistry.lookupFunctionOrFail(function, returnType, typeArgs, argTypes)
@@ -527,8 +529,6 @@ package defs {
 
   package exts {
 
-    import is.hail.collection.implicits.toRichIterable
-
     abstract class UUID4CompanionExt {
       def apply(): UUID4 = UUID4(genUID())
     }
@@ -770,16 +770,16 @@ package defs {
         aggFoldIR(True()) { accum =>
           ApplySpecial(
             "land",
-            Seq.empty[Type],
-            FastSeq(accum, element),
+            ArraySeq.empty[Type],
+            ArraySeq(accum, element),
             TBoolean,
             ErrorIDs.NO_ERROR,
           )
         } { (accum1, accum2) =>
           ApplySpecial(
             "land",
-            Seq.empty[Type],
-            FastSeq(accum1, accum2),
+            ArraySeq.empty[Type],
+            ArraySeq(accum1, accum2),
             TBoolean,
             ErrorIDs.NO_ERROR,
           )
@@ -873,7 +873,7 @@ package defs {
       lazy val (body, inline): (IR, Boolean) = {
         val ((_, _, _, inline), impl) =
           IRFunctionRegistry.lookupIR(function, typeArgs, args.map(_.typ)).get
-        val body = impl(typeArgs, refs, errorID).deepCopy
+        val body = impl(typeArgs, refs, errorID)
         (body, inline)
       }
 

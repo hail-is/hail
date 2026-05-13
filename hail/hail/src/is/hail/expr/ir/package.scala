@@ -54,15 +54,17 @@ package object ir extends CompileOps with LowerPriorityImplicits {
       If(IsNA(pred), False(), pred)
     }
 
-  def invoke(name: String, rt: Type, typeArgs: Seq[Type], errorID: Int, args: IR*): IR =
-    IRFunctionRegistry.lookup(name, rt, typeArgs, args.map(_.typ)) match {
-      case Some(f) => f(args, errorID)
+  def invoke(name: String, rt: Type, typeArgs: IndexedSeq[Type], errorID: Int, args: IR*): IR = {
+    val argSeq = args.toFastSeq
+    IRFunctionRegistry.lookup(name, rt, typeArgs, argSeq.map(_.typ)) match {
+      case Some(f) => f(argSeq, errorID)
       case None => fatal(
           s"no conversion found for $name[${typeArgs.mkString(", ")}](${args.map(_.typ).mkString(", ")}) => $rt"
         )
     }
+  }
 
-  def invoke(name: String, rt: Type, typeArgs: Seq[Type], args: IR*): IR =
+  def invoke(name: String, rt: Type, typeArgs: IndexedSeq[Type], args: IR*): IR =
     invoke(name, rt, typeArgs, ErrorIDs.NO_ERROR, args: _*)
 
   def invoke(name: String, rt: Type, args: IR*): IR =
@@ -92,12 +94,14 @@ package object ir extends CompileOps with LowerPriorityImplicits {
   }
 
   def bindIRs(values: IR*)(body: IndexedSeq[Atom] => IR): IR = {
-    val bindings = values.toFastSeq.map(freshName() -> _)
-    Let(bindings, body(bindings.map(b => Ref(b._1, b._2.typ))))
+    val bindings = values.toFastSeq.map(expr => Binding(freshName(), expr, Scope.EVAL))
+    Block(bindings, body(bindings.map(b => Ref(b.name, b.value.typ))))
   }
 
-  def bindIR(v: IR)(body: Atom => IR): IR =
-    bindIRs(v) { case Seq(ref) => body(ref) }
+  def bindIR(v: IR)(body: Atom => IR): IR = {
+    val ref = Ref(freshName(), v.typ)
+    new Block(ArraySeq(Binding(ref.name, v, Scope.EVAL)), body(ref))
+  }
 
   def relationalBindIR(v: IR)(body: Atom => IR): IR = {
     val ref = RelationalRef(freshName(), v.typ)
@@ -151,6 +155,15 @@ package object ir extends CompileOps with LowerPriorityImplicits {
     val ref = Ref(freshName(), tcoerce[TStream](stream.typ).elementType)
     StreamFilter(stream, ref.name, f(ref))
   }
+
+  def maybeIR(ir: IR)(f: Atom => IR): IR =
+    bindIR(ir) { a =>
+      val r = f(a)
+      If(IsNA(a), NA(r.typ), r)
+    }
+
+  def guardIR(condition: IR)(body: IR): IR =
+    If(condition, body, NA(body.typ))
 
   def mapIR(stream: IR)(f: Atom => IR): IR = {
     val ref = Ref(freshName(), tcoerce[TStream](stream.typ).elementType)
@@ -441,24 +454,14 @@ package object ir extends CompileOps with LowerPriorityImplicits {
 
   def strConcat(irs: AnyRef*): IR = {
     assert(irs.nonEmpty)
-    var s: IR = null
-    irs.foreach { xAny =>
-      val x = xAny match {
-        case x: IR => x
-        case x: String => Str(x)
+
+    def str(x: AnyRef): IR =
+      x match {
+        case s: String => Str(s)
+        case ir: IR => if (ir.typ == TString) ir else invoke("str", TString, ir)
       }
 
-      val xstr = if (x.typ == TString)
-        x
-      else
-        invoke("str", TString, x)
-
-      if (s == null)
-        s = xstr
-      else
-        s = invoke("concat", TString, s, xstr)
-    }
-    s
+    irs.tail.foldLeft(str(irs.head))(_ + str(_))
   }
 
   def logIR(result: IR, messages: AnyRef*): IR = ConsoleLog(strConcat(messages: _*), result)

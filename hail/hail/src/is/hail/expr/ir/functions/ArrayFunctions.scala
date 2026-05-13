@@ -3,7 +3,7 @@ package is.hail.expr.ir.functions
 import is.hail.asm4s._
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
-import is.hail.expr.ir._
+import is.hail.expr.ir.{Memoized => M, _}
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.types.physical.{PCanonicalArray, PType}
@@ -13,112 +13,75 @@ import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SBooleanValue, SFloat64, SInt32, SInt32Value}
 import is.hail.types.tcoerce
 import is.hail.types.virtual._
+import is.hail.types.virtual.TIterable.elementType
 
 object ArrayFunctions extends RegistryFunctions {
-  val arrayOps: Array[(String, Type, Type, (IR, IR, Int) => IR)] =
+  private[functions] val arrayOps: Array[(String, Type, Type, (IR, IR, Int) => IR)] =
     Array(
-      ("mul", tnum("T"), tv("T"), (ir1: IR, ir2: IR, _) => ApplyBinaryPrimOp(Multiply(), ir1, ir2)),
-      (
-        "div",
-        TInt32,
-        TFloat32,
-        (ir1: IR, ir2: IR, _) => ApplyBinaryPrimOp(FloatingPointDivide(), ir1, ir2),
-      ),
-      (
-        "div",
-        TInt64,
-        TFloat32,
-        (ir1: IR, ir2: IR, _) => ApplyBinaryPrimOp(FloatingPointDivide(), ir1, ir2),
-      ),
-      (
-        "div",
-        TFloat32,
-        TFloat32,
-        (ir1: IR, ir2: IR, _) => ApplyBinaryPrimOp(FloatingPointDivide(), ir1, ir2),
-      ),
-      (
-        "div",
-        TFloat64,
-        TFloat64,
-        (ir1: IR, ir2: IR, _) => ApplyBinaryPrimOp(FloatingPointDivide(), ir1, ir2),
-      ),
-      (
-        "floordiv",
-        tnum("T"),
-        tv("T"),
-        (ir1: IR, ir2: IR, _) =>
-          ApplyBinaryPrimOp(RoundToNegInfDivide(), ir1, ir2),
-      ),
-      ("add", tnum("T"), tv("T"), (ir1: IR, ir2: IR, _) => ApplyBinaryPrimOp(Add(), ir1, ir2)),
-      ("sub", tnum("T"), tv("T"), (ir1: IR, ir2: IR, _) => ApplyBinaryPrimOp(Subtract(), ir1, ir2)),
+      ("mul", tnum("T"), tv("T"), (x, y, _) => x * y),
+      ("div", TInt32, TFloat32, (x, y, _) => x / y),
+      ("div", TInt64, TFloat32, (x, y, _) => x / y),
+      ("div", TFloat32, TFloat32, (x, y, _) => x / y),
+      ("div", TFloat64, TFloat64, (x, y, _) => x / y),
+      ("floordiv", tnum("T"), tv("T"), (x, y, _) => x floorDiv y),
+      ("add", tnum("T"), tv("T"), (x, y, _) => x + y),
+      ("sub", tnum("T"), tv("T"), (x, y, _) => x - y),
       (
         "pow",
         tnum("T"),
         TFloat64,
-        (ir1: IR, ir2: IR, errorID: Int) =>
-          Apply("pow", Seq(), FastSeq(ir1, ir2), TFloat64, errorID),
+        (x, y, errorID) => Apply("pow", ArraySeq(), ArraySeq(x, y), TFloat64, errorID),
       ),
       (
         "mod",
         tnum("T"),
         tv("T"),
-        (ir1: IR, ir2: IR, errorID: Int) =>
-          Apply("mod", Seq(), FastSeq(ir1, ir2), ir2.typ, errorID),
+        (x, y, errorID) => Apply("mod", ArraySeq(), ArraySeq(x, y), y.typ, errorID),
       ),
     )
 
-  def mean(args: Seq[IR]): IR = {
-    val Seq(a) = args
-    val t = tcoerce[TArray](a.typ).elementType
-    val elt = freshName()
-    val n = freshName()
-    val sum = freshName()
-    StreamFold2(
-      ToStream(a),
-      FastSeq((n, I32(0)), (sum, zero(t))),
-      elt,
-      FastSeq(Ref(n, TInt32) + I32(1), Ref(sum, t) + Ref(elt, t)),
-      Cast(Ref(sum, t), TFloat64) / Cast(Ref(n, TInt32), TFloat64),
-    )
-  }
+  private def mean(a: IR): IR =
+    fold2IR(ToStream(a), 0, zero(elementType(a.typ)))(
+      { case (_, Seq(n, _)) => n + 1 },
+      { case (elt, Seq(_, sum)) => sum + elt },
+    ) { case Seq(n, sum) => sum.toD / n.toD }
 
-  def isEmpty(a: IR): IR = ApplyComparisonOp(EQ, ArrayLen(a), I32(0))
+  private[functions] def isEmpty(a: IR): IR =
+    ApplyComparisonOp(EQ, ArrayLen(a), 0)
 
-  def extend(a1: IR, a2: IR): IR = {
-    val uid = freshName()
-    val typ = a1.typ
-    If(
-      IsNA(a1),
-      NA(typ),
-      If(
-        IsNA(a2),
-        NA(typ),
-        ToArray(StreamFlatMap(
-          MakeStream(FastSeq(a1, a2), TStream(typ)),
-          uid,
-          ToStream(Ref(uid, a1.typ)),
-        )),
-      ),
-    )
-  }
+  def extend(a: Atom, b: IR): IR =
+    guardIR(!IsNA(a)) {
+      maybeIR(b)(b => ToArray(flatten(MakeStream(FastSeq(a, b), TStream(a.typ)))))
+    }
 
-  def exists(a: IR, cond: IR => IR): IR = foldIR(ToStream(a), False()) { (acc, elt) =>
-    invoke("lor", TBoolean, acc, cond(elt))
-  }
+  def exists(a: IR, cond: Atom => IR): IR =
+    M.eval {
+      for {
+        a <- a
+        len <- ArrayLen(a)
+      } yield tailLoop(TBoolean, 0) {
+        case (recur, Seq(idx)) =>
+          If(
+            idx >= len,
+            False(),
+            If(bindIR(ArrayRef(a, idx))(cond), True(), recur(ArraySeq(idx + 1))),
+          )
+      }
+    }
 
-  def contains(a: IR, value: IR): IR =
+  def contains(a: IR, value: Atom): IR =
     exists(a, elt => ApplyComparisonOp(EQWithNA, elt, value))
 
   def sum(a: IR): IR = {
     val t = tcoerce[TArray](a.typ).elementType
-    val zero = Cast(I64(0), t)
-    foldIR(ToStream(a), zero)((sum, v) => ApplyBinaryPrimOp(Add(), sum, v))
+    val zero = Cast(0L, t)
+    foldIR(ToStream(a), zero)(_ + _)
   }
 
   def product(a: IR): IR = {
     val t = tcoerce[TArray](a.typ).elementType
     val one = Cast(I64(1), t)
-    foldIR(ToStream(a), one)((product, v) => ApplyBinaryPrimOp(Multiply(), product, v))
+    foldIR(ToStream(a), one)(_ * _)
   }
 
   override def registerAll(): Unit = {
@@ -129,7 +92,7 @@ object ArrayFunctions extends RegistryFunctions {
     )
 
     registerIR2("append", TArray(tv("T")), tv("T"), TArray(tv("T"))) { (_, a, c, _) =>
-      extend(a, MakeArray(FastSeq(c), TArray(c.typ)))
+      extend(a, MakeArray(c))
     }
 
     registerIR2("contains", TArray(tv("T")), tv("T"), TBoolean)((_, a, e, _) => contains(a, e))
@@ -158,59 +121,50 @@ object ArrayFunctions extends RegistryFunctions {
 
     registerIR1("product", TArray(tnum("T")), tv("T"))((_, a, _) => product(a))
 
-    def makeMinMaxOp(op: String): Seq[IR] => IR = { case Seq(a) =>
-      val t = tcoerce[TArray](a.typ).elementType
-      val value = freshName()
-      val first = freshName()
-      val acc = freshName()
-      StreamFold2(
-        ToStream(a),
-        FastSeq((acc, NA(t)), (first, True())),
-        value,
-        FastSeq(
-          If(Ref(first, TBoolean), Ref(value, t), invoke(op, t, Ref(acc, t), Ref(value, t))),
-          False(),
-        ),
-        Ref(acc, t),
-      )
-    }
+    def minmax(s: IR)(pick: (Atom, Atom) => IR): IR =
+      fold2IR(ToStream(s), NA(elementType(s.typ)), True())(
+        { case (elem, Seq(res, first)) => If(first, elem, pick(res, elem)) },
+        (_, _) => False(),
+      ) { case Seq(r, _) => r }
 
-    registerIR("min", ArraySeq(TArray(tnum("T"))), tv("T"), inline = true)((_, a, _) =>
-      makeMinMaxOp("min")(a)
+    registerIR1("min", TArray(tnum("T")), tv("T"), inline = true)((_, a, _) =>
+      minmax(a)((acc, v) => invoke("min", acc.typ, acc, v))
     )
-    registerIR("nanmin", ArraySeq(TArray(tnum("T"))), tv("T"), inline = true)((_, a, _) =>
-      makeMinMaxOp("nanmin")(a)
+    registerIR1("nanmin", TArray(tnum("T")), tv("T"), inline = true)((_, a, _) =>
+      minmax(a)((acc, v) => invoke("nanmin", acc.typ, acc, v))
     )
-    registerIR("max", ArraySeq(TArray(tnum("T"))), tv("T"), inline = true)((_, a, _) =>
-      makeMinMaxOp("max")(a)
+    registerIR1("max", TArray(tnum("T")), tv("T"), inline = true)((_, a, _) =>
+      minmax(a)((acc, v) => invoke("max", acc.typ, acc, v))
     )
-    registerIR("nanmax", ArraySeq(TArray(tnum("T"))), tv("T"), inline = true)((_, a, _) =>
-      makeMinMaxOp("nanmax")(a)
+    registerIR1("nanmax", TArray(tnum("T")), tv("T"), inline = true)((_, a, _) =>
+      minmax(a)((acc, v) => invoke("nanmax", acc.typ, acc, v))
     )
-
-    registerIR("mean", ArraySeq(TArray(tnum("T"))), TFloat64, inline = true)((_, a, _) => mean(a))
+    registerIR1("mean", TArray(tnum("T")), TFloat64, inline = true)((_, a, _) =>
+      mean(a)
+    )
 
     registerIR1("median", TArray(tnum("T")), tv("T")) { (_, array, errorID) =>
-      val t = array.typ.asInstanceOf[TArray].elementType
+      val t = elementType(array.typ)
 
       def div(a: IR, b: IR): IR = ApplyBinaryPrimOp(BinaryOp.defaultDivideOp(t), a, b)
 
       bindIR(ArraySort(filterIR(ToStream(array))(!IsNA(_)))) { a =>
         def ref(i: IR) = ArrayRef(a, i, errorID)
+
         If(
           IsNA(a),
           NA(t),
           bindIR(ArrayLen(a)) { size =>
-            val lastIdx = size - 1
-            val midIdx = lastIdx.floorDiv(2)
             If(
-              size.ceq(0),
+              size ceq 0,
               NA(t),
-              If(
-                invoke("mod", TInt32, size, 2).cne(0),
-                ref(midIdx), // odd number of non-missing elements
-                div(ref(midIdx) + ref(midIdx + 1), Cast(2, t)),
-              ),
+              bindIR((size - 1) floorDiv 2) { midIdx =>
+                If(
+                  invoke("mod", TInt32, size, 2).cne(0),
+                  ref(midIdx), // odd number of non-missing elements
+                  div(ref(midIdx) + ref(midIdx + 1), Literal.coerce(t, 2)),
+                )
+              },
             )
           },
         )
@@ -219,30 +173,19 @@ object ArrayFunctions extends RegistryFunctions {
 
     def argF(a: IR, op: ComparisonOp[Boolean], errorID: Int): IR = {
       val t = tcoerce[TArray](a.typ).elementType
-      val tAccum = TStruct("m" -> t, "midx" -> TInt32)
+      val tAccum = TTuple(t, TInt32)
 
-      def updateAccum(min: IR, midx: IR): IR =
-        MakeStruct(FastSeq("m" -> min, "midx" -> midx))
-
-      GetField(
-        foldIR(StreamRange(I32(0), ArrayLen(a), I32(1)), NA(tAccum)) { (accum, idx) =>
-          bindIRs(ArrayRef(a, idx, errorID), GetField(accum, "m")) { case Seq(value, m) =>
+      GetTupleElement(
+        foldIR(StreamRange(0, ArrayLen(a), 1), NA(tAccum)) { (accum, idx) =>
+          bindIRs(ArrayRef(a, idx, errorID), GetTupleElement(accum, 0)) { case Seq(value, m) =>
             If(
-              IsNA(value),
+              !IsNA(value) && (IsNA(m) || ApplyComparisonOp(op, value, m)),
+              maketuple(value, idx),
               accum,
-              If(
-                IsNA(m),
-                updateAccum(value, idx),
-                If(
-                  ApplyComparisonOp(op, value, m),
-                  updateAccum(value, idx),
-                  accum,
-                ),
-              ),
             )
           }
         },
-        "midx",
+        1,
       )
     }
 
@@ -250,33 +193,25 @@ object ArrayFunctions extends RegistryFunctions {
 
     registerIR1("argmax", TArray(tv("T")), TInt32)((_, a, errorID) => argF(a, GT, errorID))
 
-    def uniqueIndex(a: IR, op: ComparisonOp[Boolean], errorID: Int): IR = {
-      val t = tcoerce[TArray](a.typ).elementType
+    def uniqueIndex(a: Atom, op: ComparisonOp[Boolean], errorID: Int): IR = {
+      val t = elementType(a.typ)
       val tAccum = TStruct("m" -> t, "midx" -> TInt32, "count" -> TInt32)
 
-      def updateAccum(m: IR, midx: IR, count: IR): IR =
-        MakeStruct(FastSeq("m" -> m, "midx" -> midx, "count" -> count))
+      def makeaccum(m: IR, midx: IR, count: IR): IR =
+        makestruct("m" -> m, "midx" -> midx, "count" -> count)
 
-      val fold = foldIR(StreamRange(I32(0), ArrayLen(a), I32(1)), NA(tAccum)) { (accum, idx) =>
+      val fold = foldIR(StreamRange(0, ArrayLen(a), 1), NA(tAccum)) { (accum, idx) =>
         bindIRs(ArrayRef(a, idx, errorID), GetField(accum, "m")) { case Seq(value, m) =>
           If(
             IsNA(value),
             accum,
             If(
-              IsNA(m),
-              updateAccum(value, idx, I32(1)),
+              IsNA(m) || ApplyComparisonOp(op, value, m),
+              makeaccum(value, idx, 1),
               If(
-                ApplyComparisonOp(op, value, m),
-                updateAccum(value, idx, I32(1)),
-                If(
-                  ApplyComparisonOp(EQ, value, m),
-                  updateAccum(
-                    value,
-                    idx,
-                    ApplyBinaryPrimOp(Add(), GetField(accum, "count"), I32(1)),
-                  ),
-                  accum,
-                ),
+                ApplyComparisonOp(EQ, value, m),
+                makeaccum(value, idx, GetField(accum, "count") + 1),
+                accum,
               ),
             ),
           )
@@ -285,7 +220,7 @@ object ArrayFunctions extends RegistryFunctions {
 
       bindIR(fold) { result =>
         If(
-          ApplyComparisonOp(EQ, GetField(result, "count"), I32(1)),
+          ApplyComparisonOp(EQ, GetField(result, "count"), 1),
           GetField(result, "midx"),
           NA(TInt32),
         )
@@ -301,15 +236,11 @@ object ArrayFunctions extends RegistryFunctions {
     )
 
     registerIR2("indexArray", TArray(tv("T")), TInt32, tv("T")) { (_, a, i, errorID) =>
-      ArrayRef(
-        a,
-        If(ApplyComparisonOp(LT, i, I32(0)), ApplyBinaryPrimOp(Add(), ArrayLen(a), i), i),
-        errorID,
-      )
+      ArrayRef(a, If(i < 0, ArrayLen(a) + i, i), errorID)
     }
 
     registerIR1("flatten", TArray(TArray(tv("T"))), TArray(tv("T"))) { (_, a, _) =>
-      ToArray(flatMapIR(ToStream(a))(ToStream(_)))
+      ToArray(flatten(ToStream(a)))
     }
 
     /* Construct an array of length `len`, with the values in `elts` copied to the positions in

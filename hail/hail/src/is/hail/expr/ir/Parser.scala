@@ -777,7 +777,7 @@ object IRParser {
 
   def apply_like(
     ctx: ExecuteContext,
-    cons: (String, Seq[Type], IndexedSeq[IR], Type, Int) => IR,
+    cons: (String, IndexedSeq[Type], IndexedSeq[IR], Type, Int) => IR,
   )(
     it: TokenIterator
   ): StackFrame[IR] = {
