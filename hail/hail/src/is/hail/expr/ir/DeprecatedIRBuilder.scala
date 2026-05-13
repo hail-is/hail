@@ -56,9 +56,8 @@ object DeprecatedIRBuilder {
 
   def concatStructs(struct1: IRProxy, struct2: IRProxy): IRProxy = (env: E) => {
     val s2Type = struct2(env).typ.asInstanceOf[TStruct]
-    let(__struct2 = struct2) {
-      struct1.insertFields(s2Type.fieldNames.map(f => Symbol(f) -> '__struct2(Symbol(f))): _*)
-    }(env)
+    (let(__struct2 = struct2) in
+      struct1.insertFields(s2Type.fieldNames.map(f => Symbol(f) -> '__struct2(Symbol(f))): _*))(env)
   }
 
   def makeTuple(values: IRProxy*): IRProxy = (env: E) =>
@@ -412,38 +411,22 @@ object DeprecatedIRBuilder {
   }
 
   class LetProxy(val bindings: IndexedSeq[BindingProxy]) extends AnyVal {
-    def apply(body: IRProxy): IRProxy = in(body)
-
     def in(body: IRProxy): IRProxy = { (env: E) => LetProxy.bind(bindings, body, env) }
   }
 
   object aggLet extends Dynamic {
-    def applyDynamicNamed(method: String)(args: (String, IRProxy)*): AggLetProxy = {
+    def applyDynamicNamed(method: String)(args: (String, IRProxy)*): LetProxy = {
       assert(method == "apply")
-      new AggLetProxy(args.toFastSeq.map { case (s, b) => BindingProxy(Symbol(s), b, Scope.AGG) })
+      new LetProxy(args.toFastSeq.map { case (s, b) => BindingProxy(Symbol(s), b, Scope.AGG) })
     }
   }
 
-  class AggLetProxy(val bindings: IndexedSeq[BindingProxy]) extends AnyVal {
-    def apply(body: IRProxy): IRProxy = in(body)
-
-    def in(body: IRProxy): IRProxy = { (env: E) => LetProxy.bind(bindings, body, env) }
+  object scanLet extends Dynamic {
+    def applyDynamicNamed(method: String)(args: (String, IRProxy)*): LetProxy = {
+      assert(method == "apply")
+      new LetProxy(args.toFastSeq.map { case (s, b) => BindingProxy(Symbol(s), b, Scope.SCAN) })
+    }
   }
-
-  object MapIRProxy {
-    def apply(f: (IRProxy) => IRProxy)(x: IRProxy): IRProxy = (e: E) =>
-      MapIR(x => f(x)(e))(x(e))
-  }
-
-  def subst(x: IRProxy, env: BindingEnv[IRProxy]): IRProxy = (e: E) =>
-    Subst(
-      x(e),
-      BindingEnv(
-        env.eval.mapValues(_(e)),
-        agg = env.agg.map(_.mapValues(_(e))),
-        scan = env.scan.map(_.mapValues(_(e))),
-      ),
-    )
 
   def lift(f: (IR) => IRProxy)(x: IRProxy): IRProxy = (e: E) => f(x(e))(e)
 }

@@ -4,11 +4,12 @@ import is.hail.{ExecStrategy, HailSuite, TestUtils}
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.collection.FastSeq
 import is.hail.expr.ir.{
-  mapIR, Ascending, Descending, LoweringAnalyses, SortField, TableIR, TableMapRows, TableRange,
+  makestruct, mapIR, Ascending, Descending, LoweringAnalyses, SortField, TableIR, TableMapRows,
+  TableRange,
 }
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.defs.{
-  Apply, ErrorIDs, GetField, I32, Literal, MakeStruct, Ref, SelectFields, ToArray, ToStream,
+  Apply, ErrorIDs, GetField, I32, Literal, Ref, SelectFields, ToArray, ToStream,
 }
 import is.hail.expr.ir.lowering.LowerDistributedSort.samplePartition
 import is.hail.types.RTable
@@ -112,18 +113,18 @@ class LowerDistributedSortSuite extends HailSuite with TestUtils {
     val rangeRow = Ref(TableIR.rowName, tableRange.typ.rowType)
     val tableWithExtraField = TableMapRows(
       tableRange,
-      MakeStruct(IndexedSeq(
+      makestruct(
         "idx" -> GetField(rangeRow, "idx"),
         "foo" -> Apply(
           "mod",
           IndexedSeq(),
-          IndexedSeq(GetField(rangeRow, "idx"), I32(2)),
+          IndexedSeq(GetField(rangeRow.ir, "idx"), I32(2)),
           TInt32,
           ErrorIDs.NO_ERROR,
         ),
-        "backwards" -> -GetField(rangeRow, "idx"),
+        "backwards" -> -GetField(rangeRow.ir, "idx"),
         "const" -> I32(4),
-      )),
+      ),
     )
 
     testDistributedSortHelper(

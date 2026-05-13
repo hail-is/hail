@@ -578,10 +578,9 @@ object RTable {
   def fromTableStage(ctx: ExecuteContext, s: TableStage): RTable = {
     def virtualTypeWithReq(ir: IR, inputs: Env[PType]): VirtualTypeWithReq = {
       import is.hail.expr.ir.Requiredness
-      val ns = ir.noSharing(ctx)
-      val usesAndDefs = ComputeUsesAndDefs(ns, errorIfFreeVariables = false)
-      val req = Requiredness.apply(ns, usesAndDefs, ctx, inputs)
-      VirtualTypeWithReq(ir.typ, req.lookup(ns).asInstanceOf[TypeWithRequiredness])
+      val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
+      val req = Requiredness.apply(ir, usesAndDefs, ctx, inputs)
+      VirtualTypeWithReq(ir.typ, req.lookup(ir).asInstanceOf[TypeWithRequiredness])
     }
 
     // requiredness uses ptypes for legacy reasons, there is a 1-1 mapping between

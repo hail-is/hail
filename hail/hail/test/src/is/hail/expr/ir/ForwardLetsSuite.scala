@@ -18,28 +18,18 @@ class ForwardLetsSuite extends HailSuite {
 
   @DataProvider(name = "nonForwardingOps")
   def nonForwardingOps(): Array[Array[IR]] = {
-    val a = ToArray(StreamRange(I32(0), I32(10), I32(1)))
+    val a = ToArray(StreamRange(0, 10, 1))
     val x = Ref(freshName(), TInt32)
     Array(
-      mapArray(a)(y => ApplyBinaryPrimOp(Add(), x, y)),
-      ToArray(filterIR(ToStream(a))(y => ApplyComparisonOp(LT, x, y))),
+      mapArray(a)(y => x + y),
+      ToArray(filterIR(ToStream(a))(y => x < y)),
       ToArray(flatMapIR(ToStream(a))(y => StreamRange(x, y, I32(1)))),
-      foldIR(ToStream(a), I32(0)) { (acc, y) =>
-        ApplyBinaryPrimOp(Add(), ApplyBinaryPrimOp(Add(), x, y), acc)
-      },
+      foldIR(ToStream(a), I32(0))((acc, y) => x + y + acc),
       fold2IR(ToStream(a), I32(0)) { case (y, Seq(acc)) => x + y + acc } { case Seq(acc) => acc },
-      ToArray(streamScanIR(ToStream(a), I32(0))((acc, y) =>
-        ApplyBinaryPrimOp(Add(), ApplyBinaryPrimOp(Add(), x, y), acc)
-      )),
-      MakeStruct(FastSeq(
-        "a" -> ApplyBinaryPrimOp(Add(), x, I32(1)),
-        "b" -> ApplyBinaryPrimOp(Add(), x, I32(2)),
-      )),
-      MakeTuple.ordered(FastSeq(
-        ApplyBinaryPrimOp(Add(), x, I32(1)),
-        ApplyBinaryPrimOp(Add(), x, I32(2)),
-      )),
-      ApplyBinaryPrimOp(Add(), ApplyBinaryPrimOp(Add(), x, x), I32(1)),
+      ToArray(streamScanIR(ToStream(a), I32(0))((acc, y) => x + y + acc)),
+      makestruct("a" -> (x + 1), "b" -> (x.ir + 2)),
+      maketuple(x + 1, x.ir + 2),
+      x + x.ir + 1,
       streamAggIR(ToStream(a))(y => ApplyAggOp(Sum())(x + y)),
     ).map(ir => Array[IR](Let(FastSeq(x.name -> (In(0, TInt32) + In(0, TInt32))), ir)))
   }
@@ -49,7 +39,6 @@ class ForwardLetsSuite extends HailSuite {
     val x = Ref(freshName(), TInt32)
     val y = Ref(freshName(), TInt32)
     val z = Ref(freshName(), TInt32)
-    val f = freshName()
     Array(
       NDArrayMap(In(1, TNDArray(TInt32, Nat(1))), y.name, x + y),
       NDArrayMap2(
@@ -60,12 +49,7 @@ class ForwardLetsSuite extends HailSuite {
         x + y + z,
         ErrorIDs.NO_ERROR,
       ),
-      TailLoop(
-        f,
-        FastSeq(y.name -> I32(0)),
-        TInt32,
-        If(y < x, Recur(f, FastSeq[IR](y - I32(1)), TInt32), x),
-      ),
+      tailLoop(TInt32, 0) { case (recur, Seq(y)) => If(y < x, recur(FastSeq(y - 1)), x.ir) },
     ).map(ir => Array[IR](Let(FastSeq(x.name -> (In(0, TInt32) + In(0, TInt32))), ir)))
   }
 
@@ -85,11 +69,11 @@ class ForwardLetsSuite extends HailSuite {
   def forwardingOps(): Array[Array[IR]] = {
     val x = Ref(freshName(), TInt32)
     Array(
-      MakeStruct(FastSeq("a" -> I32(1), "b" -> ApplyBinaryPrimOp(Add(), x, I32(2)))),
-      MakeTuple.ordered(FastSeq(I32(1), ApplyBinaryPrimOp(Add(), x, I32(2)))),
+      makestruct("a" -> 1, "b" -> (x + 2)),
+      maketuple(1, x + 2),
       If(True(), x, I32(0)),
-      ApplyBinaryPrimOp(Add(), ApplyBinaryPrimOp(Add(), I32(2), x), I32(1)),
-      ApplyUnaryPrimOp(Negate, x),
+      I32(2) + x + 1,
+      -x,
       ToArray(mapIR(rangeIR(x))(foo => foo)),
       ToArray(filterIR(rangeIR(x))(foo => foo <= I32(0))),
     ).map(ir => Array[IR](Let(FastSeq(x.name -> (In(0, TInt32) + In(0, TInt32))), ir)))
@@ -242,7 +226,7 @@ class ForwardLetsSuite extends HailSuite {
     val x = Ref(freshName(), TInt32)
     val env = Env[Type](x.name -> TInt32)
     def xCast = Cast(x, TFloat64)
-    val ir = bindIRs(xCast, xCast) { case Seq(x1, x2) => x2 + x2 + x1 }
+    val ir = bindIRs(xCast, xCast.deepCopy) { case Seq(x1, x2) => x2 + x2 + x1 }
 
     TypeCheck(ctx, ir, BindingEnv(env))
     TypeCheck(ctx, ForwardLets(ctx, ir), BindingEnv(env))
