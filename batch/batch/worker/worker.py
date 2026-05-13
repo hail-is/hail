@@ -543,15 +543,23 @@ class Image:
             except DockerError as e:
                 if e.status == 404 and 'pull access denied' in e.message:
                     raise ImageCannotBePulled from e
-                if e.status == 500 and (
+                if e.status == 404 and 'not found' in e.message:
+                    raise ImageNotFound from e
+                if e.status in (403, 500) and (
                     (
                         'artifactregistry.repositories.downloadArtifacts' in e.message
-                        and 'denied on resource' in e.message
+                        # quoted resource path means the repo itself is invalid/inaccessible
+                        and 'denied on resource "' in e.message
                     )
                     or 'Caller does not have permission' in e.message
                     or 'unauthorized' in e.message
                 ):
                     raise ImageCannotBePulled from e
+                # newer Docker/GAR returns 403 with no explicit resource path when image doesn't exist
+                if e.status == 403 and (
+                    'artifactregistry.repositories.downloadArtifacts' in e.message and 'may not exist' in e.message
+                ):
+                    raise ImageNotFound from e
                 if e.status == 500 and 'denied: retrieving permissions failed' in e.message:
                     if n_pull_attempts <= 2:
                         await docker_call_retry(
@@ -577,13 +585,18 @@ class Image:
         try:
             image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
         except:
-            # inspect non-deterministically fails sometimes
-            await asyncio.sleep(1)
-            await pull()
-            try:
-                image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
-            except Exception:
-                raise DockerInspectError(self.image_ref_str, self.batch_id, self.job_id) from None
+            # inspect non-deterministically fails sometimes; backoff up to ~60s total
+            last_inspect_error: Exception = RuntimeError('unreachable')
+            for delay in (1, 2, 4, 8, 15, 30):
+                await asyncio.sleep(delay)
+                await pull()
+                try:
+                    image_config, _ = await check_exec_output('docker', 'inspect', self.image_ref_str)
+                    break
+                except Exception as inspect_error:
+                    last_inspect_error = inspect_error
+            else:
+                raise DockerInspectError(self.image_ref_str, self.batch_id, self.job_id) from last_inspect_error
         image_configs[self.image_ref_str] = json.loads(image_config)[0]
 
     async def _ensure_image_is_pulled(
@@ -1125,7 +1138,7 @@ class Container:
 
         uid, gid = await self._get_in_container_user()
         weight = worker_fraction_in_1024ths(self.cpu_in_mcpu)
-        workdir = self.image.image_config['Config']['WorkingDir']
+        workdir = self.image.image_config['Config'].get('WorkingDir', '')
         default_docker_capabilities = [
             'CAP_CHOWN',
             'CAP_DAC_OVERRIDE',
@@ -1238,7 +1251,7 @@ class Container:
 
     async def _get_in_container_user(self) -> Tuple[int, int]:
         assert self.image.image_config
-        user = self.image.image_config['Config']['User']
+        user = self.image.image_config['Config'].get('User', '')
         if not user:
             return 0, 0
         if ":" in user:
@@ -1260,7 +1273,7 @@ class Container:
         assert self.netns
         # Only supports empty volumes
         external_volumes: List[MountSpecification] = []
-        volumes = self.image.image_config['Config']['Volumes']
+        volumes = self.image.image_config['Config'].get('Volumes')
         if volumes:
             for v_container_path in volumes:
                 if v_container_path.startswith('/'):
@@ -1358,7 +1371,7 @@ class Container:
         assert self.image.image_config
         assert CLOUD_WORKER_API
         env = (
-            (self.image.image_config['Config']['Env'] or [])
+            (self.image.image_config['Config'].get('Env') or [])
             + CLOUD_WORKER_API.cloud_specific_env_vars_for_user_jobs
             + self.env  # User-defined env variables should take precedence
         )

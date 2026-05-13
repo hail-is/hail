@@ -14,7 +14,8 @@ PROJECT=$(get_global_config_field gcp_project $NAMESPACE)
 ZONE=$(get_global_config_field gcp_zone $NAMESPACE)
 DOCKER_ROOT_IMAGE=$(get_global_config_field docker_root_image $NAMESPACE)
 
-WORKER_IMAGE_VERSION=17
+# Don't forget to update the INSTANCE_VERSION in globals.py when you bump this!
+WORKER_IMAGE_VERSION=19
 
 if [ "$NAMESPACE" == "default" ]; then
     WORKER_IMAGE=batch-worker-${WORKER_IMAGE_VERSION}
@@ -24,12 +25,30 @@ else
     BUILDER=build-batch-worker-$NAMESPACE-image
 fi
 
-UBUNTU_IMAGE=ubuntu-minimal-2404-noble-amd64-v20250606
+UBUNTU_IMAGE=ubuntu-minimal-2404-noble-amd64-v20260507
+
+WORKER_IMAGE_EXISTS=false
+if [[ -n "$(gcloud compute images list --project "${PROJECT}" --filter="name=${WORKER_IMAGE}" --format='value(name)')" ]]; then
+    WORKER_IMAGE_EXISTS=true
+    if [ "$NAMESPACE" == "default" ]; then
+        echo "ERROR: Image $WORKER_IMAGE already exists in project $PROJECT. Delete it first or bump WORKER_IMAGE_VERSION."
+        exit 1
+    else
+        echo "WARNING: Image $WORKER_IMAGE already exists in project $PROJECT and will be overwritten."
+    fi
+fi
+
+LEFTOVER_BUILDERS="$(gcloud compute instances list --project "${PROJECT}" --filter="name~^build-batch-worker" --format='value(name,zone)')"
+if [[ -n "$LEFTOVER_BUILDERS" ]]; then
+    echo "WARNING: Found leftover builder VM(s) in project $PROJECT:"
+    echo "$LEFTOVER_BUILDERS"
+fi
+BUILDER_EXISTS="$(echo "$LEFTOVER_BUILDERS" | grep -c "^${BUILDER}\b" || true)"
 
 create_build_image_instance() {
-    echo "Deleting any preexisting $BUILDER instance. This is expected to print an ERROR if the image does not exist."
-    gcloud -q compute --project ${PROJECT} instances delete \
-        --zone=${ZONE} ${BUILDER} || true
+    if [[ "$BUILDER_EXISTS" -gt 0 ]]; then
+        gcloud -q compute --project ${PROJECT} instances delete --zone=${ZONE} ${BUILDER}
+    fi
 
     python3 ../ci/jinja2_render.py '{"global":{"docker_root_image":"'${DOCKER_ROOT_IMAGE}'"}}' \
         build-batch-worker-image-startup-gcp.sh build-batch-worker-image-startup-gcp.sh.out
@@ -37,7 +56,7 @@ create_build_image_instance() {
     gcloud -q compute instances create ${BUILDER} \
         --project ${PROJECT}  \
         --zone=${ZONE} \
-        --machine-type=n1-standard-1 \
+        --machine-type=n1-standard-4 \
         --network=default \
         --subnet=default \
         --network-tier=PREMIUM \
@@ -52,9 +71,9 @@ create_build_image_instance() {
 }
 
 create_worker_image() {
-    echo "Deleting any preexisting $WORKER_IMAGE image. This is expected to print an ERROR if the image does not exist."
-    gcloud -q compute images delete $WORKER_IMAGE \
-        --project ${PROJECT} || true
+    if [ "$WORKER_IMAGE_EXISTS" == "true" ]; then
+        gcloud -q compute images delete $WORKER_IMAGE --project ${PROJECT}
+    fi
 
     gcloud -q compute images create $WORKER_IMAGE \
         --project ${PROJECT} \
