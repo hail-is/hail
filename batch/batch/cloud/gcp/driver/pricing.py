@@ -378,6 +378,13 @@ async def fetch_prices(
             # therefore, it is safe to skip adding prices for reserved resources.
             continue
 
+        if 'DWS' in sku['description']:
+            # DWS (Dynamic Workload Scheduler) is another example of the same problem as reserved
+            # resources. The hail product names are the same but the SKUs are different. Since we
+            # also don't use DWS, we can skip DWS SKUs too to avoid bringing in the wrong resources
+            # and prices.
+            continue
+
         if 'GPU' in category['resourceGroup']:
             for accelerator_price in process_accelerator_sku(sku, regions):
                 yield accelerator_price
