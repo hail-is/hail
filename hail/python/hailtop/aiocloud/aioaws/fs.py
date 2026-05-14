@@ -356,6 +356,13 @@ class S3AsyncFSURL(AsyncFSURL):
 
 
 class S3AsyncFS(AsyncFS):
+    """Async filesystem implementation for Amazon S3.
+
+    The boto3 S3 client is synchronous, so this implementation runs blocking
+    S3 operations in a thread pool while exposing the shared :class:`AsyncFS`
+    coroutine interface for ``s3://`` URLs.
+    """
+
     def __init__(
         self,
         thread_pool: Optional[ThreadPoolExecutor] = None,
