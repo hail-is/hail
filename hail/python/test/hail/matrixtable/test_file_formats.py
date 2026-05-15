@@ -6,6 +6,7 @@ import pytest
 import hail as hl
 from hail.utils.java import Env, scala_object
 
+from ..conftest import init_hail_scope
 from ..helpers import (
     create_all_values_datasets,
     create_all_values_matrix_table,
@@ -44,12 +45,12 @@ def test_write():
     create_backward_compatibility_files()
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope=init_hail_scope)
 def all_values_matrix_table_fixture(init_hail):
     return create_all_values_matrix_table()
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope=init_hail_scope)
 def all_values_table_fixture(init_hail):
     return create_all_values_table()
 
