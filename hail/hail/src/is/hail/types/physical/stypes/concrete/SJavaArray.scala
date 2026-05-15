@@ -68,7 +68,6 @@ final case class SJavaArrayString(elementRequired: Boolean) extends SContainer {
                 cb += (array(i) = elt.asString.loadString(cb))
               },
             )
-          case (false, false) =>
         }
         new SJavaArrayStringValue(this, array)
     }
