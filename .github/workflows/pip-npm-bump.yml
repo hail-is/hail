@@ -4,8 +4,6 @@ on:
   schedule:
     - cron: '0 9 * * 5'  # Friday 9am UTC
   workflow_dispatch:
-  push:
-    branches: [cjl_package_update_helper]
 
 permissions:
   contents: write
