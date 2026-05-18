@@ -41,15 +41,23 @@ jobs:
         run: echo "value=$(date +'%Y_%m_%d')" >> "$GITHUB_OUTPUT"
 
       - name: Commit and push branch
+        id: commit
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git checkout -b pip_npm_updates_${{ steps.date.outputs.value }}
+          git checkout -B pip_npm_updates_${{ steps.date.outputs.value }}
           git add -A
-          git diff --cached --quiet || git commit -m "[services] pip npm bump ${{ steps.date.outputs.value }}"
-          git push origin pip_npm_updates_${{ steps.date.outputs.value }}
+          if git diff --cached --quiet; then
+            echo "no changes, skipping PR"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            git commit -m "[services] pip npm bump ${{ steps.date.outputs.value }}"
+            git push --force-with-lease origin pip_npm_updates_${{ steps.date.outputs.value }}
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Create pull request
+        if: steps.commit.outputs.changed == 'true'
         run: |
           gh pr create \
             --title "[services] pip npm bump ${{ steps.date.outputs.value }}" \
