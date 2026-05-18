@@ -74,19 +74,6 @@ object TableNativeWriter {
     // write out partitioner key, which may be stricter than table key
     val partitioner = ts.partitioner
     val pKey: PStruct = tcoerce[PStruct](rowSpec.decodedPType(partitioner.kType))
-    val rowWriter = PartitionNativeWriter(
-      rowSpec,
-      pKey.fieldNames,
-      s"$path/rows/parts/",
-      Some(s"$path/index/" -> pKey),
-      if (stageLocally) Some(FileSystems.getDefault.getPath(
-        ctx.localTmpdir,
-        s"hail_staging_tmp_${UUID.randomUUID()}",
-        "rows",
-        "parts",
-      ))
-      else None,
-    )
 
     val globalWriter =
       PartitionNativeWriter(globalSpec, IndexedSeq(), s"$path/globals/parts/", None, None)
@@ -106,8 +93,53 @@ object TableNativeWriter {
         }
       }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals("table_native_writer") {
         (rows, ctxRef) =>
-          val file = GetField(ctxRef, "writeCtx")
-          WritePartition(rows, file + UUID4(), rowWriter)
+          bindIR(GetField(ctxRef, "writeCtx") + UUID4()) { file =>
+            val root = s"$path/rows/parts/"
+            val partPath = file + UUID4()
+
+            val zero = makestruct(
+              "distinct" -> !pKey.fieldNames.isEmpty,
+              "firstKey" -> NA(pKey.virtualType),
+              "lastKey" -> NA(pKey.virtualType),
+            )
+            val partResult = streamAggIR(rows) { row =>
+              makestruct(
+                "partpath" -> ApplyAggOp(
+                  WriteTBD(rowSpec, Some(pKey)),
+                  partPath,
+                  Str(root),
+                  Str(s"$path/index/"),
+                )(row),
+                "partitionCounts" -> ApplyAggOp(Count())(),
+                "keyMeta" -> aggFoldIR(zero) { accum =>
+                  bindIRs(SelectFields(row, pKey.fieldNames), GetField(accum, "lastKey")) {
+                    case Seq(key, prev) =>
+                      makestruct(
+                        "distinct" -> (GetField(accum, "distinct") && Coalesce(FastSeq(
+                          prev.cne(key),
+                          True(),
+                        ))),
+                        "firstKey" -> Coalesce(FastSeq(GetField(accum, "firstKey"), key)),
+                        "lastKey" -> Coalesce(FastSeq(key, prev)),
+                      )
+                  }
+                } { (accum1, accum2) =>
+                  Die("unreachable: calling combop on writer fold makes no sense", zero.typ)
+                },
+              )
+            }
+            bindIR(partResult) { result =>
+              bindIR(GetField(result, "keyMeta")) { keymeta =>
+                makestruct(
+                  "filePath" -> GetField(result, "partpath"),
+                  "partitionCounts" -> GetField(result, "partitionCounts"),
+                  "distinctlyKeyed" -> GetField(keymeta, "distinct"),
+                  "firstKey" -> GetField(keymeta, "firstKey"),
+                  "lastKey" -> GetField(keymeta, "lastKey"),
+                )
+              }
+            }
+          }
       } { (parts, globals) =>
         val writeGlobals = WritePartition(
           MakeStream(FastSeq(globals), TStream(globals.typ)),
