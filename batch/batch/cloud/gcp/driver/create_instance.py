@@ -117,8 +117,8 @@ def create_vm_config(
                 'boot': True,
                 'autoDelete': True,
                 'initializeParams': {
-                    # Don't forget to update the INSTANCE_VERSION in globals.py when you bump this!
-                    'sourceImage': f'projects/{project}/global/images/batch-worker-19',
+                    # NB: create a new worker image with gcp-create-worker-image.sh
+                    'sourceImage': f'projects/{project}/global/images/batch-worker-20',
                     'diskType': f'projects/{project}/zones/{zone}/diskTypes/pd-ssd',
                     'diskSizeGb': str(boot_disk_size_gb),
                 },
