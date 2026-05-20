@@ -24,7 +24,12 @@ STATIC_DIRS: dict[str, list[tuple[str, str]]] = {
         ('/batch/static/compiled-js', 'batch/batch/front_end/static/compiled-js'),
         ('/batch/static/js', 'batch/batch/front_end/static/js'),
     ],
+    'batch-driver': [
+        ('/batch/static/compiled-js', 'batch/batch/driver/static/compiled-js'),
+    ],
     'ci': [('/ci/static/compiled-js', 'ci/ci/static/compiled-js')],
+    'monitoring': [('/monitoring/static/compiled-js', 'monitoring/monitoring/static/compiled-js')],
+    'auth': [('/auth/static/compiled-js', 'auth/auth/static/compiled-js')],
 }
 for _path, _directory in STATIC_DIRS.get(SERVICE, []):
     routes.static(_path, _directory)
@@ -49,13 +54,24 @@ async def default_proxied_api_route(request: web.Request):
     return web.Response(body=body, content_type=content_type)
 
 
-if SERVICE == 'ci':
+_FAKE_DEV_USERDATA = {'username': 'dev', 'system_permissions': {p.value: True for p in SystemPermission}}
 
-    @routes.get('/flaky_tests')
-    @web_security_headers
-    async def flaky_tests_local(request: web.Request):
-        fake_userdata = {'username': 'dev', 'system_permissions': {p.value: True for p in SystemPermission}}
-        return await render_template('ci', request, fake_userdata, 'flaky_tests.html', {'use_tailwind': True, 'base_path': ''})
+# Pages served entirely from local templates (React shell + client-side data fetching).
+# Add new react-first pages here: (service, method, path, template).
+_LOCAL_REACT_ROUTES: list[tuple[str, str, str, str]] = [
+    ('monitoring',   'GET', '/helloreact', 'hello_react.html'),
+    ('auth',         'GET', '/helloreact', 'hello_react.html'),
+    ('batch-driver', 'GET', '/helloreact', 'hello_react.html'),
+    ('ci',           'GET', '/flaky_tests', 'flaky_tests.html'),
+]
+
+for _service, _verb, _path, _template in _LOCAL_REACT_ROUTES:
+    if _service == SERVICE:
+        async def _handler(request: web.Request, _m=MODULES.get(_service, _service), _t=_template) -> web.Response:
+            return await render_template(_m, request, _FAKE_DEV_USERDATA, _t, {'use_tailwind': True, 'base_path': ''})
+        routes.route(_verb, _path)(web_security_headers(_handler))
+
+if SERVICE == 'ci':
 
     if os.getenv('MOCK_API_DATA'):
 

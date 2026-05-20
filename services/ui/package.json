@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "esbuild src/ci/flaky_tests.tsx --bundle --jsx=automatic --format=esm --outdir=dist/ci --minify && esbuild src/batch/job.tsx --bundle --jsx=automatic --format=esm --outdir=dist/batch --minify",
+    "build": "esbuild src/ci/flaky_tests.tsx --bundle --jsx=automatic --format=esm --outdir=dist/ci --minify && esbuild src/batch/job.tsx --bundle --jsx=automatic --format=esm --outdir=dist/batch --minify && esbuild src/monitoring/index.tsx --bundle --jsx=automatic --format=esm --outdir=dist/monitoring --minify && esbuild src/auth/index.tsx --bundle --jsx=automatic --format=esm --outdir=dist/auth --minify && esbuild src/batch_driver/index.tsx --bundle --jsx=automatic --format=esm --outdir=dist/batch_driver --minify",
     "check": "tsc --noEmit",
     "test": "vitest run"
   },
