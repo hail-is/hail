@@ -1,5 +1,7 @@
 import importlib
+import json
 import os
+from datetime import datetime
 from functools import wraps
 from typing import Any, Dict, Optional
 
@@ -97,7 +99,16 @@ async def render_template(
 ) -> web.Response:
     if request.headers.get('x-hail-return-jinja-context'):
         if userdata and userdata.get('system_permissions', {}).get(SystemPermission.READ_PRERENDERED_JINJA2_CONTEXT):
-            return web.json_response({'file': file, 'page_context': page_context, 'userdata': userdata})
+
+            def _dumps(data):
+                def _default(o):
+                    if isinstance(o, datetime):
+                        return o.isoformat()
+                    raise TypeError(f'Object of type {type(o).__name__} is not JSON serializable')
+
+                return json.dumps(data, default=_default)
+
+            return web.json_response({'file': file, 'page_context': page_context, 'userdata': userdata}, dumps=_dumps)
         raise ValueError('Only developers can request the jinja context')
 
     if '_csrf' in request.cookies:
