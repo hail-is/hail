@@ -1,7 +1,7 @@
 package is.hail.linalg
 
-import is.hail.JUnitTestUtils._
 import is.hail.ParameterizedTest
+import is.hail.TestUtils._
 import is.hail.collection.compat.immutable.ArraySeq
 
 class MatrixSparsitySuite {
@@ -58,11 +58,11 @@ class MatrixSparsitySuite {
     }
   )
 
-  @ParameterizedTest(Array("degenerateData"))
+  @ParameterizedTest("degenerateData")
   def newToOldDegenerate(s1: MatrixSparsity, s2: MatrixSparsity.Sparse): Unit =
     assertEq(s1.newToOldPos(s2), newToOldReference(s1, s2))
 
-  @ParameterizedTest(Array("degenerateData"))
+  @ParameterizedTest("degenerateData")
   def newToOldNonSubsetDegenerate(s1: MatrixSparsity, s2: MatrixSparsity.Sparse): Unit =
     assertEq(s1.newToOldPosNonSubset(s2), newToOldReference(s1, s2))
 }

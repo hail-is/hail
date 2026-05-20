@@ -1,7 +1,7 @@
 package is.hail.utils.prettyPrint
 
-import is.hail.JUnitTestUtils._
 import is.hail.ParameterizedTest
+import is.hail.TestUtils._
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterator
 

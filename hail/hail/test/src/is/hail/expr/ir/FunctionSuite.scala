@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.ExecStrategy
 import is.hail.ExecStrategy.ExecStrategy
-import is.hail.JUnitTestUtils._
+import is.hail.TestUtils._
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq

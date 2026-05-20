@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, ParameterizedTest}
 import is.hail.ExecStrategy.ExecStrategy
-import is.hail.JUnitTestUtils._
+import is.hail.TestUtils._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
@@ -27,25 +27,25 @@ class ArrayFunctionsSuite {
   def extend() =
     basicData().combinations(2).map { case Seq(a, b) => (a, b) }.to(ArraySeq)
 
-  @ParameterizedTest(Array("basicData"))
+  @ParameterizedTest("basicData")
   def isEmpty(a: IndexedSeq[Integer])(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(invoke("isEmpty", TBoolean, toIRArray(a)), Option(a).map(_.isEmpty).orNull)
 
-  @ParameterizedTest(Array("basicData"))
+  @ParameterizedTest("basicData")
   def append(a: IndexedSeq[Integer])(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(
       invoke("append", TArray(TInt32), toIRArray(a), I32(1)),
       Option(a).map(_ :+ 1).orNull,
     )
 
-  @ParameterizedTest(Array("basicData"))
+  @ParameterizedTest("basicData")
   def appendNull(a: IndexedSeq[Integer])(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(
       invoke("append", TArray(TInt32), toIRArray(a), NA(TInt32)),
       Option(a).map(_ :+ null).orNull,
     )
 
-  @ParameterizedTest(Array("basicData"))
+  @ParameterizedTest("basicData")
   def sum(a: IndexedSeq[Integer])(implicit ctx: ExecuteContext): Unit = {
     assertEvalsTo(
       invoke("sum", TInt32, toIRArray(a)),
@@ -55,7 +55,7 @@ class ArrayFunctionsSuite {
     )
   }
 
-  @ParameterizedTest(Array("basicData"))
+  @ParameterizedTest("basicData")
   def product(a: IndexedSeq[Integer])(implicit ctx: ExecuteContext): Unit = {
     assertEvalsTo(
       invoke("product", TInt32, toIRArray(a)),
@@ -101,7 +101,7 @@ class ArrayFunctionsSuite {
     (ArraySeq(), ArraySeq(), ArraySeq()),
   )
 
-  @ParameterizedTest(Array("sortData"))
+  @ParameterizedTest("sortData")
   def min(
     a: IndexedSeq[Integer],
     asc: IndexedSeq[Integer],
@@ -162,7 +162,7 @@ class ArrayFunctionsSuite {
     )
   }
 
-  @ParameterizedTest(Array("sortData"))
+  @ParameterizedTest("sortData")
   def max(
     a: IndexedSeq[Integer],
     asc: IndexedSeq[Integer],
@@ -182,12 +182,12 @@ class ArrayFunctionsSuite {
     (ArraySeq(), null, null),
   )
 
-  @ParameterizedTest(Array("argMinMaxData"))
+  @ParameterizedTest("argMinMaxData")
   def argmin(a: IndexedSeq[Integer], argmin: Integer, argmax: Integer)(implicit ctx: ExecuteContext)
     : Unit =
     assertEvalsTo(invoke("argmin", TInt32, toIRArray(a)), argmin)
 
-  @ParameterizedTest(Array("argMinMaxData"))
+  @ParameterizedTest("argMinMaxData")
   def argmax(a: IndexedSeq[Integer], argmin: Integer, argmax: Integer)(implicit ctx: ExecuteContext)
     : Unit =
     assertEvalsTo(invoke("argmax", TInt32, toIRArray(a)), argmax)
@@ -200,7 +200,7 @@ class ArrayFunctionsSuite {
     (ArraySeq(), null, null),
   )
 
-  @ParameterizedTest(Array("uniqueMinMaxData"))
+  @ParameterizedTest("uniqueMinMaxData")
   def uniqueMinIndex(
     a: IndexedSeq[Integer],
     argmin: Integer,
@@ -209,7 +209,7 @@ class ArrayFunctionsSuite {
   ): Unit =
     assertEvalsTo(invoke("uniqueMinIndex", TInt32, toIRArray(a)), argmin)
 
-  @ParameterizedTest(Array("uniqueMinMaxData"))
+  @ParameterizedTest("uniqueMinMaxData")
   def uniqueMaxIndex(
     a: IndexedSeq[Integer],
     argmin: Integer,
@@ -260,7 +260,7 @@ class ArrayFunctionsSuite {
   ): Unit =
     assertEvalsTo(invoke(s, TArray(TInt32), toIRArray(a), toIRArray(b)), lift(f)(a, b))
 
-  @ParameterizedTest(Array("arrayOpsData"))
+  @ParameterizedTest("arrayOpsData")
   def arrayOpsFPDiv(a: IndexedSeq[Integer], b: IndexedSeq[Integer])(implicit ctx: ExecuteContext)
     : Unit = {
     assertEvalsTo(
@@ -275,7 +275,7 @@ class ArrayFunctionsSuite {
     )
   }
 
-  @ParameterizedTest(Array("arrayOpsData"))
+  @ParameterizedTest("arrayOpsData")
   def arrayOpsPow(a: IndexedSeq[Integer], b: IndexedSeq[Integer])(implicit ctx: ExecuteContext)
     : Unit = {
     assertEvalsTo(
@@ -290,7 +290,7 @@ class ArrayFunctionsSuite {
     )
   }
 
-  @ParameterizedTest(Array("arrayOpsOperations"))
+  @ParameterizedTest("arrayOpsOperations")
   def arrayOpsDifferentLength(s: String, f: (Int, Int) => Int)(implicit ctx: ExecuteContext)
     : Unit = {
     assertFatal(invoke(s, TArray(TInt32), IRArray(1, 2, 3), IRArray(1, 2)), "length mismatch")

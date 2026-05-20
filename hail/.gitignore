@@ -77,6 +77,3 @@ src/main/resources/include/catch.hpp
 env/
 www/docs
 .bsp/
-
-# Riptide artifacts (cloud-synced)
-.humanlayer/tasks/

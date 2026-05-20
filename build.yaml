@@ -1165,7 +1165,7 @@ steps:
       export COURSIER_ARCHIVE_CACHE='/io/cache/coursier/arc'
       export MILL_DOWNLOAD_PATH=/io/cache/mill
       export SCALA_VERSION=2.12
-      sh mill --no-daemon -j2 hail[].test.testCISplit --split $HAIL_RUN_IMAGE_SPLIT_INDEX --totalSplits 5
+      sh mill --no-daemon -j1 hail[].test.testCISplit --split $HAIL_RUN_IMAGE_SPLIT_INDEX --totalSplits 5
     inputs:
       - from: /repo/hail
         to: /io/repo/hail
@@ -1754,6 +1754,7 @@ steps:
       export COURSIER_CACHE='/io/cache/coursier/v1'
       export COURSIER_ARCHIVE_CACHE='/io/cache/coursier/arc'
       export MILL_DOWNLOAD_PATH=/io/cache/mill
+      export MILLOPTS=--no-daemon
       # This also compiles with scala 2.13, so asserts there are no compiler errors or warnings
       make check-hail
     inputs:

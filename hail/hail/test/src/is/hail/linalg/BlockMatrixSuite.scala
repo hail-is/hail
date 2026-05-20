@@ -1,6 +1,6 @@
 package is.hail.linalg
 
-import is.hail.JUnitTestUtils._
+import is.hail.TestUtils._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{CompileAndEvaluate, TableLiteral}
@@ -17,7 +17,7 @@ import org.apache.spark.sql.Row
 import org.junit.jupiter.api.Test
 import org.scalacheck._
 import org.scalacheck.Arbitrary._
-import org.scalacheck.Gen.{size, _}
+import org.scalacheck.Gen._
 import org.scalacheck.Prop.forAll
 
 class BlockMatrixSuite {
@@ -125,7 +125,7 @@ class BlockMatrixSuite {
   }
 
   @Test
-  def pointwiseSubtractCorrect()(implicit ctx: ExecuteContext): Unit = {
+  def pointwiseSubtractCorrect(implicit ctx: ExecuteContext): Unit = {
     val m = toBM(
       4,
       4,
@@ -151,7 +151,7 @@ class BlockMatrixSuite {
   }
 
   @Test
-  def multiplyByLocalMatrix()(implicit ctx: ExecuteContext): Unit = {
+  def multiplyByLocalMatrix(implicit ctx: ExecuteContext): Unit = {
     val ll = toLM(
       4,
       4,
@@ -178,14 +178,14 @@ class BlockMatrixSuite {
   }
 
   @Test
-  def randomMultiplyByLocalMatrix()(implicit ctx: ExecuteContext): Unit =
+  def randomMultiplyByLocalMatrix(implicit ctx: ExecuteContext): Unit =
     check(forAll(genMultipliableDenseMatrices) { case (ll, lr) =>
       val l = toBM(ll)
       assertDoubleMatrixNaNEqualsNaN(ll * lr, l.dot(ctx, lr).toBreezeMatrix())
     })
 
   @Test
-  def multiplySameAsBreeze()(implicit ctx: ExecuteContext): Unit = {
+  def multiplySameAsBreeze(implicit ctx: ExecuteContext): Unit = {
     check(forAll(genDenseMatrix(4, 4), genDenseMatrix(4, 4)) { (ll, lr) =>
       val l = toBM(ll, 2)
       val r = toBM(lr, 2)
@@ -223,7 +223,7 @@ class BlockMatrixSuite {
   }
 
   @Test
-  def multiplySameAsBreezeRandomized()(implicit ctx: ExecuteContext): Unit = {
+  def multiplySameAsBreezeRandomized(implicit ctx: ExecuteContext): Unit = {
     check(forAll(twoMultipliableBlockMatrices) {
       case (l: BlockMatrix, r: BlockMatrix) =>
         val actual = l.dot(r).toBreezeMatrix()
@@ -233,7 +233,7 @@ class BlockMatrixSuite {
   }
 
   @Test
-  def rowwiseMultiplication()(implicit ctx: ExecuteContext): Unit = {
+  def rowwiseMultiplication(implicit ctx: ExecuteContext): Unit = {
     val l = toBM(
       4,
       4,
@@ -260,7 +260,7 @@ class BlockMatrixSuite {
   }
 
   @Test
-  def rowwiseMultiplicationRandom()(implicit ctx: ExecuteContext): Unit = {
+  def rowwiseMultiplicationRandom(implicit ctx: ExecuteContext): Unit = {
     val g = for {
       l <- blockMatrixGen()
       v <- containerOfN[Array, Double](l.nCols.toInt, arbitrary[Double])
@@ -277,7 +277,7 @@ class BlockMatrixSuite {
   }
 
   @Test
-  def colwiseMultiplication()(implicit ctx: ExecuteContext): Unit = {
+  def colwiseMultiplication(implicit ctx: ExecuteContext): Unit = {
     val l = toBM(
       4,
       4,
@@ -304,7 +304,7 @@ class BlockMatrixSuite {
   }
 
   @Test
-  def colwiseMultiplicationRandom()(implicit ctx: ExecuteContext): Unit = {
+  def colwiseMultiplicationRandom(implicit ctx: ExecuteContext): Unit = {
     val g = for {
       l <- blockMatrixGen()
       v <- containerOfN[Array, Double](l.nRows.toInt, arbitrary[Double])
@@ -320,7 +320,7 @@ class BlockMatrixSuite {
   }
 
   @Test
-  def colwiseAddition()(implicit ctx: ExecuteContext): Unit = {
+  def colwiseAddition(implicit ctx: ExecuteContext): Unit = {
     val l = toBM(
       4,
       4,
@@ -347,7 +347,7 @@ class BlockMatrixSuite {
   }
 
   @Test
-  def rowwiseAddition()(implicit ctx: ExecuteContext): Unit = {
+  def rowwiseAddition(implicit ctx: ExecuteContext): Unit = {
     val l = toBM(
       4,
       4,
@@ -374,7 +374,7 @@ class BlockMatrixSuite {
   }
 
   @Test
-  def diagonalTestTiny()(implicit ctx: ExecuteContext): Unit = {
+  def diagonalTestTiny(implicit ctx: ExecuteContext): Unit = {
     val lm = toLM(
       3,
       4,
@@ -392,7 +392,7 @@ class BlockMatrixSuite {
   }
 
   @Test
-  def diagonalTestRandomized()(implicit ctx: ExecuteContext): Unit =
+  def diagonalTestRandomized(implicit ctx: ExecuteContext): Unit =
     check(forAll(squareBlockMatrixGen) { (m: BlockMatrix) =>
       val lm = m.toBreezeMatrix()
       val diagonalLength = math.min(lm.rows, lm.cols)
@@ -405,7 +405,7 @@ class BlockMatrixSuite {
     })
 
   @Test
-  def fromLocalTest()(implicit ctx: ExecuteContext): Unit =
+  def fromLocalTest(implicit ctx: ExecuteContext): Unit =
     check(forAll(arbitrary[DenseMatrix[Double]].flatMap { m =>
       Gen.zip(Gen.const(m), Gen.choose(math.sqrt(m.rows.toDouble).toInt, m.rows + 16))
     }) { case (lm, blockSize) =>
@@ -413,7 +413,7 @@ class BlockMatrixSuite {
     })
 
   @Test
-  def readWriteIdentityTrivial()(implicit ctx: ExecuteContext): Unit = {
+  def readWriteIdentityTrivial(implicit ctx: ExecuteContext): Unit = {
     val m = toBM(
       4,
       4,
@@ -434,7 +434,7 @@ class BlockMatrixSuite {
   }
 
   @Test
-  def readWriteIdentityTrivialTransposed()(implicit ctx: ExecuteContext): Unit = {
+  def readWriteIdentityTrivialTransposed(implicit ctx: ExecuteContext): Unit = {
     val m = toBM(
       4,
       4,
@@ -455,7 +455,7 @@ class BlockMatrixSuite {
   }
 
   @Test
-  def readWriteIdentityRandom()(implicit ctx: ExecuteContext): Unit = {
+  def readWriteIdentityRandom(implicit ctx: ExecuteContext): Unit = {
     check(forAll(blockMatrixGen()) { (m: BlockMatrix) =>
       val fname = ctx.createTmpPath("test")
       m.write(ctx, fname)
@@ -467,7 +467,7 @@ class BlockMatrixSuite {
   }
 
   @Test
-  def transpose()(implicit ctx: ExecuteContext): Unit = {
+  def transpose(implicit ctx: ExecuteContext): Unit = {
     check(forAll(blockMatrixGen()) { (m: BlockMatrix) =>
       val transposed = m.toBreezeMatrix().t
       assertEq(transposed.rows, m.nCols.toInt)
@@ -477,7 +477,7 @@ class BlockMatrixSuite {
   }
 
   @Test
-  def doubleTransposeIsIdentity()(implicit ctx: ExecuteContext): Unit = {
+  def doubleTransposeIsIdentity(implicit ctx: ExecuteContext): Unit = {
     check(forAll(blockMatrixGen(element = nonExtremeDouble)) { (m: BlockMatrix) =>
       val mt = m.T.cache()
       val mtt = m.T.T.cache()
@@ -489,7 +489,7 @@ class BlockMatrixSuite {
   }
 
   @Test
-  def cachedOpsOK()(implicit ctx: ExecuteContext): Unit =
+  def cachedOpsOK(implicit ctx: ExecuteContext): Unit =
     check(forAll(twoMultipliableBlockMatrices) {
       case (l: BlockMatrix, r: BlockMatrix) =>
         l.cache()
@@ -502,7 +502,7 @@ class BlockMatrixSuite {
     })
 
   @Test
-  def toIRMToHBMIdentity()(implicit ctx: ExecuteContext): Unit =
+  def toIRMToHBMIdentity(implicit ctx: ExecuteContext): Unit =
     check(forAll(blockMatrixGen()) { (m: BlockMatrix) =>
       val roundtrip = m.toIndexedRowMatrix().toHailBlockMatrix(m.blockSize)
 
@@ -513,7 +513,7 @@ class BlockMatrixSuite {
     })
 
   @Test
-  def map2RespectsTransposition()(implicit ctx: ExecuteContext): Unit = {
+  def map2RespectsTransposition(implicit ctx: ExecuteContext): Unit = {
     val lm = toLM(
       4,
       2,
@@ -542,7 +542,7 @@ class BlockMatrixSuite {
   }
 
   @Test
-  def map4RespectsTransposition()(implicit ctx: ExecuteContext): Unit = {
+  def map4RespectsTransposition(implicit ctx: ExecuteContext): Unit = {
     val lm = toLM(
       4,
       2,
@@ -568,7 +568,7 @@ class BlockMatrixSuite {
   }
 
   @Test
-  def mapRespectsTransposition()(implicit ctx: ExecuteContext): Unit = {
+  def mapRespectsTransposition(implicit ctx: ExecuteContext): Unit = {
     val lm = toLM(
       4,
       2,
@@ -595,7 +595,7 @@ class BlockMatrixSuite {
   }
 
   @Test
-  def mapWithIndexRespectsTransposition()(implicit ctx: ExecuteContext): Unit = {
+  def mapWithIndexRespectsTransposition(implicit ctx: ExecuteContext): Unit = {
     val lm = toLM(
       4,
       2,
@@ -631,7 +631,7 @@ class BlockMatrixSuite {
   }
 
   @Test
-  def map2WithIndexRespectsTransposition()(implicit ctx: ExecuteContext): Unit = {
+  def map2WithIndexRespectsTransposition(implicit ctx: ExecuteContext): Unit = {
     val lm = toLM(
       4,
       2,
@@ -673,7 +673,7 @@ class BlockMatrixSuite {
   }
 
   @Test
-  def filterCols()(implicit ctx: ExecuteContext): Unit = {
+  def filterCols(implicit ctx: ExecuteContext): Unit = {
     val lm = new DenseMatrix[Double](9, 10, (0 until 90).map(_.toDouble).toArray)
 
     Seq(1, 2, 3, 5, 10, 11).foreach { blockSize =>
@@ -694,7 +694,7 @@ class BlockMatrixSuite {
   }
 
   @Test
-  def filterColsTranspose()(implicit ctx: ExecuteContext): Unit = {
+  def filterColsTranspose(implicit ctx: ExecuteContext): Unit = {
     val lm = new DenseMatrix[Double](9, 10, (0 until 90).map(_.toDouble).toArray)
     val lmt = lm.t
 
@@ -713,7 +713,7 @@ class BlockMatrixSuite {
   }
 
   @Test
-  def filterRows()(implicit ctx: ExecuteContext): Unit = {
+  def filterRows(implicit ctx: ExecuteContext): Unit = {
     val lm = new DenseMatrix[Double](9, 10, (0 until 90).map(_.toDouble).toArray)
 
     Seq(2, 3).foreach { blockSize =>
@@ -732,7 +732,7 @@ class BlockMatrixSuite {
   }
 
   @Test
-  def filterSymmetric()(implicit ctx: ExecuteContext): Unit = {
+  def filterSymmetric(implicit ctx: ExecuteContext): Unit = {
     val lm = new DenseMatrix[Double](10, 10, (0 until 100).map(_.toDouble).toArray)
 
     Seq(1, 2, 3, 5, 10, 11).foreach { blockSize =>
@@ -754,7 +754,7 @@ class BlockMatrixSuite {
   }
 
   @Test
-  def filter()(implicit ctx: ExecuteContext): Unit = {
+  def filter(implicit ctx: ExecuteContext): Unit = {
     val lm = new DenseMatrix[Double](9, 10, (0 until 90).map(_.toDouble).toArray)
     Seq(1, 2, 3, 5, 10, 11).foreach { blockSize =>
       val bm = BlockMatrix.fromBreezeMatrix(ctx, lm, blockSize)
@@ -780,7 +780,7 @@ class BlockMatrixSuite {
   }
 
   @Test
-  def writeLocalAsBlockTest()(implicit ctx: ExecuteContext): Unit = {
+  def writeLocalAsBlockTest(implicit ctx: ExecuteContext): Unit = {
     val lm = new DenseMatrix[Double](10, 10, (0 until 100).map(_.toDouble).toArray)
 
     Seq(1, 2, 3, 5, 10, 11).foreach { blockSize =>
@@ -820,7 +820,7 @@ class BlockMatrixSuite {
   }
 
   @Test
-  def testEntriesTable()(implicit ctx: ExecuteContext): Unit = {
+  def testEntriesTable(implicit ctx: ExecuteContext): Unit = {
     val data = (0 until 90).map(_.toDouble).toArray
     val lm = new DenseMatrix[Double](9, 10, data)
     val expectedEntries = data.map(x => ((x % 9).toLong, (x / 9).toLong, x)).toSet
@@ -843,7 +843,7 @@ class BlockMatrixSuite {
   }
 
   @Test
-  def testEntriesTableWhenKeepingOnlySomeBlocks()(implicit ctx: ExecuteContext): Unit = {
+  def testEntriesTableWhenKeepingOnlySomeBlocks(implicit ctx: ExecuteContext): Unit = {
     val data = (0 until 50).map(_.toDouble).toArray
     val lm = new DenseMatrix[Double](5, 10, data)
     val bm = toBM(lm, blockSize = 2)
@@ -869,7 +869,7 @@ class BlockMatrixSuite {
   }
 
   @Test
-  def testPowSqrt()(implicit ctx: ExecuteContext): Unit = {
+  def testPowSqrt(implicit ctx: ExecuteContext): Unit = {
     val lm = new DenseMatrix[Double](2, 3, Array(0.0, 1.0, 4.0, 9.0, 16.0, 25.0))
     val bm = BlockMatrix.fromBreezeMatrix(ctx, lm, blockSize = 2)
     val expected = new DenseMatrix[Double](2, 3, Array(0.0, 1.0, 2.0, 3.0, 4.0, 5.0))
@@ -883,7 +883,7 @@ class BlockMatrixSuite {
     bm1.blocks.collect() sameElements bm2.blocks.collect()
 
   @Test
-  def testSparseFilterEdges()(implicit ctx: ExecuteContext): Unit = {
+  def testSparseFilterEdges(implicit ctx: ExecuteContext): Unit = {
     val lm = new DenseMatrix[Double](12, 12, (0 to 143).map(_.toDouble).toArray)
     val bm = toBM(lm, blockSize = 5)
 
@@ -900,7 +900,7 @@ class BlockMatrixSuite {
   }
 
   @Test
-  def testSparseTransposeMaybeBlocks()(implicit ctx: ExecuteContext): Unit = {
+  def testSparseTransposeMaybeBlocks(implicit ctx: ExecuteContext): Unit = {
     val lm = new DenseMatrix[Double](9, 12, (0 to 107).map(_.toDouble).toArray)
     val bm = toBM(lm, blockSize = 3)
     val sparse = bm.filterBand(0, 0, true)
@@ -915,7 +915,7 @@ class BlockMatrixSuite {
   }
 
   @Test
-  def filterRowsRectangleSum()(implicit ctx: ExecuteContext): Unit = {
+  def filterRowsRectangleSum(implicit ctx: ExecuteContext): Unit = {
     val nRows = 10
     val nCols = 50
     val bm = BlockMatrix.fill(nRows.toLong, nCols.toLong, 2, 1)
@@ -930,7 +930,7 @@ class BlockMatrixSuite {
   }
 
   @Test
-  def testFilterBlocks()(implicit ctx: ExecuteContext): Unit = {
+  def testFilterBlocks(implicit ctx: ExecuteContext): Unit = {
     val lm = toLM(
       4,
       4,
@@ -981,7 +981,7 @@ class BlockMatrixSuite {
   }
 
   @Test
-  def testSparseBlockMatrixIO()(implicit ctx: ExecuteContext): Unit = {
+  def testSparseBlockMatrixIO(implicit ctx: ExecuteContext): Unit = {
     val lm = toLM(
       4,
       4,
@@ -1034,7 +1034,7 @@ class BlockMatrixSuite {
   }
 
   @Test
-  def testSparseBlockMatrixMathAndFilter()(implicit ctx: ExecuteContext): Unit = {
+  def testSparseBlockMatrixMathAndFilter(implicit ctx: ExecuteContext): Unit = {
     val lm = toLM(
       4,
       4,
@@ -1188,7 +1188,7 @@ class BlockMatrixSuite {
   }
 
   @Test
-  def testRealizeBlocks()(implicit ctx: ExecuteContext): Unit = {
+  def testRealizeBlocks(implicit ctx: ExecuteContext): Unit = {
     val lm = toLM(
       4,
       4,

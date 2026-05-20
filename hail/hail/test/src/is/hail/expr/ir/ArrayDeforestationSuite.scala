@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.ExecStrategy
-import is.hail.JUnitTestUtils._
+import is.hail.TestUtils._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.expr.ir.defs.{
@@ -52,7 +52,7 @@ class ArrayDeforestationSuite {
     }
   }
 
-  @Test def testArrayFold()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testArrayFold(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats: ExecStrategy.ValueSet = ExecStrategy.values
     assertEvalsTo(arrayFoldWithStructWithPrimitiveValues(5, -5, -6), Row(5, 4))
     assertEvalsTo(arrayFoldWithStruct(5, -5, -6), Row(Row(4, 0), Row(5, 0)))

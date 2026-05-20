@@ -21,5 +21,5 @@ import org.junit.jupiter.params.provider.ArgumentsSource;
 @org.junit.jupiter.params.ParameterizedTest
 @ArgumentsSource(HailMethodArgumentsProvider.class)
 public @interface ParameterizedTest {
-    String[] value() default {};
+    String value() default "";
 }

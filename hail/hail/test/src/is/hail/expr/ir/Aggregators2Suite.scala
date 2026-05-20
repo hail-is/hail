@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.ExecStrategy
-import is.hail.JUnitTestUtils._
+import is.hail.TestUtils._
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
@@ -216,7 +216,7 @@ class Aggregators2Suite {
   def collectAggSig(t: Type): PhysicalAggSig =
     PhysicalAggSig(Collect(), CollectStateSig(VirtualTypeWithReq(PType.canonical(t))))
 
-  @Test def TestCount()(implicit ctx: ExecuteContext): Unit = {
+  @Test def TestCount(implicit ctx: ExecuteContext): Unit = {
     val seqOpArgs = ArraySeq.fill(rows.length)(FastSeq[IR]())
     assertAggEquals(
       countAggSig,
@@ -227,7 +227,7 @@ class Aggregators2Suite {
     )
   }
 
-  @Test def testSum()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testSum(implicit ctx: ExecuteContext): Unit = {
     val a = Ref(freshName(), arrayType)
     val seqOpArgs = ArraySeq.tabulate(rows.length)(i =>
       FastSeq[IR](GetField(ArrayRef(a, i), "b"))
@@ -241,7 +241,7 @@ class Aggregators2Suite {
     )
   }
 
-  @Test def testPrevNonnullStr()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testPrevNonnullStr(implicit ctx: ExecuteContext): Unit = {
     val aggSig =
       PhysicalAggSig(PrevNonnull(), TypedStateSig(VirtualTypeWithReq(PCanonicalString())))
     val a = Ref(freshName(), arrayType)
@@ -258,7 +258,7 @@ class Aggregators2Suite {
     )
   }
 
-  @Test def testPrevNonnull()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testPrevNonnull(implicit ctx: ExecuteContext): Unit = {
     val a = Ref(freshName(), arrayType)
     val seqOpArgs =
       ArraySeq.tabulate(rows.length)(i => FastSeq[IR](ArrayRef(a, i)))
@@ -271,7 +271,7 @@ class Aggregators2Suite {
     )
   }
 
-  @Test def testProduct()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testProduct(implicit ctx: ExecuteContext): Unit = {
     val aggSig = PhysicalAggSig(
       Product(),
       TypedStateSig(VirtualTypeWithReq.fullyOptional(TInt64).setRequired(true)),
@@ -289,7 +289,7 @@ class Aggregators2Suite {
     )
   }
 
-  @Test def testCallStats()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testCallStats(implicit ctx: ExecuteContext): Unit = {
     val t = TStruct("x" -> TCall)
 
     val calls = FastSeq(
@@ -341,7 +341,7 @@ class Aggregators2Suite {
     )
   }
 
-  @Test def testTakeBy()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testTakeBy(implicit ctx: ExecuteContext): Unit = {
     val t = TStruct(
       "a" -> TStruct("x" -> TInt32, "y" -> TInt64),
       "b" -> TInt32,
@@ -495,7 +495,7 @@ class Aggregators2Suite {
     )
   }
 
-  @Test def testTake()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testTake(implicit ctx: ExecuteContext): Unit = {
     val t = TStruct(
       "a" -> TStruct("x" -> TInt32, "y" -> TInt64),
       "b" -> TInt32,
@@ -578,7 +578,7 @@ class Aggregators2Suite {
     ))
   }
 
-  @Test def testMin()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testMin(implicit ctx: ExecuteContext): Unit = {
     val aggSig = PhysicalAggSig(Min(), TypedStateSig(VirtualTypeWithReq(PInt64(false))))
     val a = Ref(freshName(), arrayType)
     val seqOpArgs = ArraySeq.tabulate(rows.length)(i => FastSeq[IR](GetField(ArrayRef(a, i), "b")))
@@ -600,7 +600,7 @@ class Aggregators2Suite {
     )
   }
 
-  @Test def testMax()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testMax(implicit ctx: ExecuteContext): Unit = {
     val aggSig = PhysicalAggSig(Max(), TypedStateSig(VirtualTypeWithReq(PInt64(false))))
     val a = Ref(freshName(), arrayType)
     val seqOpArgs = ArraySeq.tabulate(rows.length)(i => FastSeq[IR](GetField(ArrayRef(a, i), "b")))
@@ -622,7 +622,7 @@ class Aggregators2Suite {
     )
   }
 
-  @Test def testCollectLongs()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testCollectLongs(implicit ctx: ExecuteContext): Unit = {
     val a = Ref(freshName(), arrayType)
     val seqOpArgs = ArraySeq.tabulate(rows.length)(i => FastSeq[IR](GetField(ArrayRef(a, i), "b")))
     assertAggEquals(
@@ -634,7 +634,7 @@ class Aggregators2Suite {
     )
   }
 
-  @Test def testCollectStrs()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testCollectStrs(implicit ctx: ExecuteContext): Unit = {
     val a = Ref(freshName(), arrayType)
     val seqOpArgs = ArraySeq.tabulate(rows.length)(i => FastSeq[IR](GetField(ArrayRef(a, i), "a")))
 
@@ -647,7 +647,7 @@ class Aggregators2Suite {
     )
   }
 
-  @Test def testCollectBig()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testCollectBig(implicit ctx: ExecuteContext): Unit = {
     val seqOpArgs = ArraySeq.tabulate(100)(i => FastSeq(I64(i.toLong)))
     assertAggEquals(
       collectAggSig(TInt64),
@@ -658,7 +658,7 @@ class Aggregators2Suite {
     )
   }
 
-  @Test def testArrayElementsAgg()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testArrayElementsAgg(implicit ctx: ExecuteContext): Unit = {
     val alState = ArrayLenAggSig(knownLength = false, FastSeq(pnnAggSig, countAggSig, sumAggSig))
 
     val value = FastSeq(
@@ -714,7 +714,7 @@ class Aggregators2Suite {
     )
   }
 
-  @Test def testNestedArrayElementsAgg()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testNestedArrayElementsAgg(implicit ctx: ExecuteContext): Unit = {
     val alstate1 = ArrayLenAggSig(knownLength = false, FastSeq(sumAggSig))
     val alstate2 = ArrayLenAggSig(knownLength = false, FastSeq[PhysicalAggSig](alstate1))
 
@@ -756,7 +756,7 @@ class Aggregators2Suite {
     )
   }
 
-  @Test def testArrayElementsAggTake()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testArrayElementsAggTake(implicit ctx: ExecuteContext): Unit = {
     val value = FastSeq(
       FastSeq(Row("a", 0L), Row("b", 0L), Row("c", 0L), Row("f", 0L)),
       FastSeq(Row("a", 1L), null, Row("c", 1L), null),
@@ -796,7 +796,7 @@ class Aggregators2Suite {
     )
   }
 
-  @Test def testGroup()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testGroup(implicit ctx: ExecuteContext): Unit = {
     val group = GroupedAggSig(
       VirtualTypeWithReq(PCanonicalString()),
       FastSeq(pnnAggSig, countAggSig, sumAggSig),
@@ -838,7 +838,7 @@ class Aggregators2Suite {
     )
   }
 
-  @Test def testNestedGroup()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testNestedGroup(implicit ctx: ExecuteContext): Unit = {
 
     val group1 = GroupedAggSig(
       VirtualTypeWithReq(PCanonicalString()),
@@ -898,7 +898,7 @@ class Aggregators2Suite {
     )
   }
 
-  @Test def testCollectAsSet()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testCollectAsSet(implicit ctx: ExecuteContext): Unit = {
     val rows =
       FastSeq(Row("abcd", 5L), null, Row(null, -2L), Row("abcd", 7L), null, Row("foo", null))
     val rref = Ref(freshName(), arrayType)
@@ -931,7 +931,7 @@ class Aggregators2Suite {
     )
   }
 
-  @Test def testDownsample()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testDownsample(implicit ctx: ExecuteContext): Unit = {
     val aggSig = PhysicalAggSig(
       Downsample(),
       DownsampleStateSig(VirtualTypeWithReq(PCanonicalArray(PCanonicalString()))),
@@ -985,7 +985,7 @@ class Aggregators2Suite {
     )
   }
 
-  @Test def testLoweringMatrixMapColsWithAggFilterAndLets()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testLoweringMatrixMapColsWithAggFilterAndLets(implicit ctx: ExecuteContext): Unit = {
     val t = MatrixType(
       TStruct.empty,
       FastSeq("col_idx"),
@@ -1021,7 +1021,7 @@ class Aggregators2Suite {
     )
   }
 
-  @Test def testRunAggScan()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testRunAggScan(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.compileOnly
     val sig = PhysicalAggSig(
       Sum(),
@@ -1039,7 +1039,7 @@ class Aggregators2Suite {
     assertEvalsTo(x, FastSeq(0.0, 0.0, 1.0, 3.0, 6.0))
   }
 
-  @Test def testNestedRunAggScan()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testNestedRunAggScan(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.compileOnly
     val sig = PhysicalAggSig(
       Sum(),
@@ -1068,7 +1068,7 @@ class Aggregators2Suite {
     )
   }
 
-  @Test def testRunAggBasic()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testRunAggBasic(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.compileOnly
     val sig = PhysicalAggSig(Sum(), TypedStateSig(VirtualTypeWithReq(PFloat64(true))))
     val x = RunAgg(
@@ -1083,7 +1083,7 @@ class Aggregators2Suite {
     assertEvalsTo(x, Row(-4.0))
   }
 
-  @Test def testRunAggNested()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testRunAggNested(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.compileOnly
     val sumSig = PhysicalAggSig(Sum(), TypedStateSig(VirtualTypeWithReq(PFloat64(true))))
     val takeSig = PhysicalAggSig(Take(), TakeStateSig(VirtualTypeWithReq(PFloat64(true))))
@@ -1115,7 +1115,7 @@ class Aggregators2Suite {
   }
 
   @Disabled
-  @Test def testAggStateAndCombOp()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testAggStateAndCombOp(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.compileOnly
     val takeSig = PhysicalAggSig(Take(), TakeStateSig(VirtualTypeWithReq(PInt64(true))))
     val x = bindIR(

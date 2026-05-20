@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.JUnitTestUtils.check
+import is.hail.TestUtils.check
 import is.hail.annotations.{Region, RegionPool}
 import is.hail.asm4s._
 import is.hail.asm4s.implicits.{valueToRichCodeInputBuffer, valueToRichCodeOutputBuffer}

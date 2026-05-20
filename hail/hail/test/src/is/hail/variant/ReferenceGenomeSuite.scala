@@ -1,6 +1,6 @@
 package is.hail.variant
 
-import is.hail.JUnitTestUtils._
+import is.hail.TestUtils._
 import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.EmitFunctionBuilder

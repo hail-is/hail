@@ -1,6 +1,6 @@
 package is.hail
 
-import is.hail.JUnitTestUtils._
+import is.hail.TestUtils._
 
 import breeze.linalg.{DenseMatrix, DenseVector}
 import org.junit.jupiter.api.Test

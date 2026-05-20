@@ -1,6 +1,7 @@
 package is.hail.io
 
-import is.hail.JUnitTestUtils._
+import is.hail.TestUtils._
+import is.hail.annotations.UnsafeUtils.roundUpAlignment
 import is.hail.backend.ExecuteContext
 
 import scala.collection.mutable.ArrayBuffer
@@ -38,10 +39,10 @@ class IndexBTreeSuite {
       val btree = new IndexBTree(index, fs)
 
       val indexSize = fs.getFileSize(index)
-      val padding = 1024 - (arrayRandomStarts.length % 1024)
-      val numEntries = arrayRandomStarts.length + padding + (1 until depth).map { i =>
-        math.pow(1024, i.toDouble).toInt
-      }.sum
+      val numEntries =
+        roundUpAlignment(arrayRandomStarts.length.toLong, 1024L) + (1 until depth).map { i =>
+          math.pow(1024, i.toDouble).toInt
+        }.sum
 
       // make sure index size is correct
       val indexCorrectSize = if (indexSize == (numEntries * 8)) true else false

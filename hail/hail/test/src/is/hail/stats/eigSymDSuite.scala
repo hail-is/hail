@@ -1,6 +1,6 @@
 package is.hail.stats
 
-import is.hail.JUnitTestUtils._
+import is.hail.TestUtils._
 import is.hail.linalg.implicits._
 import is.hail.utils._
 

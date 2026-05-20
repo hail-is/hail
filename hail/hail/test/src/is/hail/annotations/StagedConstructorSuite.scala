@@ -1,6 +1,6 @@
 package is.hail.annotations
 
-import is.hail.JUnitTestUtils._
+import is.hail.TestUtils._
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
@@ -25,7 +25,7 @@ class StagedConstructorSuite {
   def sm(implicit ctx: ExecuteContext) = ctx.stateManager
 
   @Test
-  def testCanonicalString()(implicit ctx: ExecuteContext): Unit = {
+  def testCanonicalString(implicit ctx: ExecuteContext): Unit = {
     val rt = PCanonicalString()
     val input = "hello"
     val fb = EmitFunctionBuilder[Region, String, Long](ctx, "fb")
@@ -68,7 +68,7 @@ class StagedConstructorSuite {
   }
 
   @Test
-  def testInt()(implicit ctx: ExecuteContext): Unit = {
+  def testInt(implicit ctx: ExecuteContext): Unit = {
     val rt = PInt32()
     val input = 3
     val fb = EmitFunctionBuilder[Region, Int, Long](ctx, "fb")
@@ -106,7 +106,7 @@ class StagedConstructorSuite {
   }
 
   @Test
-  def testArray()(implicit ctx: ExecuteContext): Unit = {
+  def testArray(implicit ctx: ExecuteContext): Unit = {
     val rt = PCanonicalArray(PInt32())
     val input = 3
     val fb = EmitFunctionBuilder[Region, Int, Long](ctx, "fb")
@@ -146,7 +146,7 @@ class StagedConstructorSuite {
   }
 
   @Test
-  def testStruct()(implicit ctx: ExecuteContext): Unit = {
+  def testStruct(implicit ctx: ExecuteContext): Unit = {
     val pstring = PCanonicalString()
     val rt = PCanonicalStruct("a" -> pstring, "b" -> PInt32())
     val input = 3
@@ -198,7 +198,7 @@ class StagedConstructorSuite {
   }
 
   @Test
-  def testArrayOfStruct()(implicit ctx: ExecuteContext): Unit = {
+  def testArrayOfStruct(implicit ctx: ExecuteContext): Unit = {
     val structType = PCanonicalStruct("a" -> PInt32(), "b" -> PCanonicalString())
     val arrayType = PCanonicalArray(structType)
     val input = "hello"
@@ -264,7 +264,7 @@ class StagedConstructorSuite {
   }
 
   @Test
-  def testMissingRandomAccessArray()(implicit ctx: ExecuteContext): Unit = {
+  def testMissingRandomAccessArray(implicit ctx: ExecuteContext): Unit = {
     val rt = PCanonicalArray(PCanonicalStruct("a" -> PInt32(), "b" -> PCanonicalString()))
     val intVal = 20
     val strVal = "a string with a partner of 20"
@@ -306,7 +306,7 @@ class StagedConstructorSuite {
   }
 
   @Test
-  def testSetFieldPresent()(implicit ctx: ExecuteContext): Unit = {
+  def testSetFieldPresent(implicit ctx: ExecuteContext): Unit = {
     val rt = PCanonicalStruct("a" -> PInt32(), "b" -> PCanonicalString(), "c" -> PFloat64())
     val intVal = 30
     val floatVal = 39.273d
@@ -348,7 +348,7 @@ class StagedConstructorSuite {
   }
 
   @Test
-  def testStructWithArray()(implicit ctx: ExecuteContext): Unit = {
+  def testStructWithArray(implicit ctx: ExecuteContext): Unit = {
     val tArray = PCanonicalArray(PInt32())
     val rt = PCanonicalStruct("a" -> PCanonicalString(), "b" -> tArray)
     val input = "hello"
@@ -420,7 +420,7 @@ class StagedConstructorSuite {
   }
 
   @Test
-  def testMissingArray()(implicit ctx: ExecuteContext): Unit = {
+  def testMissingArray(implicit ctx: ExecuteContext): Unit = {
     val rt = PCanonicalArray(PInt32())
     val input = 3
     val fb = EmitFunctionBuilder[Region, Int, Long](ctx, "fb")
@@ -460,7 +460,7 @@ class StagedConstructorSuite {
     println(region.prettyBits())
 
   @Test
-  def testAddPrimitive()(implicit ctx: ExecuteContext): Unit = {
+  def testAddPrimitive(implicit ctx: ExecuteContext): Unit = {
     val t = PCanonicalStruct("a" -> PInt32(), "b" -> PBoolean(), "c" -> PFloat64())
     val fb = EmitFunctionBuilder[Region, Int, Boolean, Double, Long](ctx, "fb")
 
@@ -508,7 +508,7 @@ class StagedConstructorSuite {
     fb.resultWithIndex()
   }
 
-  @Test def testShallowCopyOfPointersFailsAcrossRegions()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testShallowCopyOfPointersFailsAcrossRegions(implicit ctx: ExecuteContext): Unit = {
     val ptype = PCanonicalStruct(required = true, "a" -> PCanonicalArray(PInt32()))
     val value = genVal(ctx, ptype).sample.get
     val ShallowCopy = emitCopy(ctx, ptype, deepCopy = false)
@@ -531,7 +531,7 @@ class StagedConstructorSuite {
     ex.getMessage should include("invalid memory access")
   }
 
-  @Test def testDeepCopy()(implicit ctx: ExecuteContext): Unit =
+  @Test def testDeepCopy(implicit ctx: ExecuteContext): Unit =
     check(forAll(genPTypeVal[PCanonicalStruct](ctx)) { case (t, a: Row) =>
       val DeepCopy = emitCopy(ctx, t, deepCopy = true)
 
@@ -551,7 +551,7 @@ class StagedConstructorSuite {
       copy == a
     })
 
-  @Test def testUnstagedCopy()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testUnstagedCopy(implicit ctx: ExecuteContext): Unit = {
     val t1 = PCanonicalArray(
       PCanonicalStruct(
         true,
@@ -585,7 +585,7 @@ class StagedConstructorSuite {
     }
   }
 
-  @Test def testStagedCopy()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testStagedCopy(implicit ctx: ExecuteContext): Unit = {
     val t1 = PCanonicalStruct(
       false,
       "a" -> PCanonicalArray(

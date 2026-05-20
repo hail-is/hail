@@ -1,6 +1,6 @@
 package is.hail.io
 
-import is.hail.JUnitTestUtils._
+import is.hail.TestUtils._
 
 import org.junit.jupiter.api.Test
 import org.scalacheck.Prop.forAll

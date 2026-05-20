@@ -1,6 +1,6 @@
 package is.hail.asm4s
 
-import is.hail.JUnitTestUtils._
+import is.hail.TestUtils._
 import is.hail.annotations.Region
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{EmitCodeBuilder, EmitFunctionBuilder, EmitValue, IEmitCode}
@@ -17,7 +17,7 @@ import org.junit.jupiter.api.Test
 
 class CodeSuite {
 
-  @Test def testForLoop()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testForLoop(implicit ctx: ExecuteContext): Unit = {
     val fb = EmitFunctionBuilder[Int](ctx, "foo")
     fb.emitWithBuilder[Int] { cb =>
       val i = cb.newLocal[Int]("i")
@@ -31,7 +31,7 @@ class CodeSuite {
     assertEq(result, 10)
   }
 
-  @Test def testSizeBasic()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testSizeBasic(implicit ctx: ExecuteContext): Unit = {
     val int64 = new SInt64Value(5L)
     val int32 = new SInt32Value(2)
     val struct = new SStackStructValue(
@@ -59,7 +59,7 @@ class CodeSuite {
     assertEq(testSizeHelper(str), 7L) // 4 byte header, 3 bytes for the 3 letters.
   }
 
-  @Test def testArraySizeInBytes()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testArraySizeInBytes(implicit ctx: ExecuteContext): Unit = {
     val fb = EmitFunctionBuilder[Region, Long](ctx, "test_size_in_bytes")
     val mb = fb.apply_method
     val ptype = PCanonicalArray(PInt32())
@@ -81,7 +81,7 @@ class CodeSuite {
     ) // 2 missing bytes 8 byte aligned + 8 header bytes + 5 elements * 4 bytes for ints.
   }
 
-  @Test def testIntervalSizeInBytes()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testIntervalSizeInBytes(implicit ctx: ExecuteContext): Unit = {
     val fb = EmitFunctionBuilder[Region, Long](ctx, "test_size_in_bytes")
     val mb = fb.apply_method
 
@@ -120,7 +120,7 @@ class CodeSuite {
     ) // 2 28 byte structs, plus 2 1 byte booleans that get 8 byte for an extra 8 bytes, plus missing bytes.
   }
 
-  @Test def testHash()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testHash(implicit ctx: ExecuteContext): Unit = {
     val fields = IndexedSeq(
       PField("a", PCanonicalString(), 0),
       PField("b", PInt32(), 1),

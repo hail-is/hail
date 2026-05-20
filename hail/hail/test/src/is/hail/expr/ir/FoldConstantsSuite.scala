@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
-import is.hail.JUnitTestUtils._
 import is.hail.ParameterizedTest
+import is.hail.TestUtils._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
@@ -13,7 +13,7 @@ import is.hail.types.virtual.{TFloat64, TInt32}
 import org.junit.jupiter.api.Test
 
 class FoldConstantsSuite {
-  @Test def testRandomBlocksFolding()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testRandomBlocksFolding(implicit ctx: ExecuteContext): Unit = {
     val x = Apply(
       "rand_norm",
       FastSeq.empty,
@@ -23,7 +23,7 @@ class FoldConstantsSuite {
     assertEq(FoldConstants(ctx, x), x)
   }
 
-  @Test def testErrorCatching()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testErrorCatching(implicit ctx: ExecuteContext): Unit = {
     val ir = invoke("toInt32", TInt32, Str(""))
     assertEq(FoldConstants(ctx, ir), ir)
   }

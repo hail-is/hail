@@ -2,23 +2,29 @@ package is.hail.expr.ir.lowering
 
 import is.hail.{ExecStrategy, ParameterizedTest}
 import is.hail.ExecStrategy.ExecStrategy
-import is.hail.JUnitTestUtils._
+import is.hail.TestUtils._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
-import is.hail.expr.ir.{Ascending, Descending, LoweringAnalyses, SortField, TableIR, TableMapRows, TableRange, makestruct, mapIR}
+import is.hail.expr.ir.{
+  makestruct, mapIR, Ascending, Descending, LoweringAnalyses, SortField, TableIR, TableMapRows,
+  TableRange,
+}
 import is.hail.expr.ir.TestUtils._
-import is.hail.expr.ir.defs.{Apply, ErrorIDs, GetField, I32, Literal, Ref, SelectFields, ToArray, ToStream}
+import is.hail.expr.ir.defs.{
+  Apply, ErrorIDs, GetField, I32, Literal, Ref, SelectFields, ToArray, ToStream,
+}
 import is.hail.expr.ir.lowering.LowerDistributedSort.samplePartition
 import is.hail.types.RTable
 import is.hail.types.virtual.{TArray, TInt32, TStruct}
+
 import org.apache.spark.sql.Row
 import org.junit.jupiter.api.Test
 
 class LowerDistributedSortSuite {
   implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
-  @Test def testSamplePartition()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testSamplePartition(implicit ctx: ExecuteContext): Unit = {
     val dataKeys = IndexedSeq(
       (0, 0),
       (0, -1),
@@ -100,8 +106,12 @@ class LowerDistributedSortSuite {
   }
 
   @ParameterizedTest
-  def testDistributedSort(tir: TableIR, sortFields: IndexedSeq[SortField])(implicit ctx: ExecuteContext): Unit = {
-    ctx.local(flags = ctx.flags + ("shuffle_cutoff_to_local_sort" -> "40")) { ctx =>
+  def testDistributedSort(
+    tir: TableIR,
+    sortFields: IndexedSeq[SortField],
+  )(implicit ctx: ExecuteContext
+  ): Unit = {
+    ctx.local(flags = ctx.flags + ("shuffle_cutoff_to_local_sort" -> "40")) { implicit ctx =>
       val lowerSorted =
         eval {
           val analyses = LoweringAnalyses(tir, ctx)

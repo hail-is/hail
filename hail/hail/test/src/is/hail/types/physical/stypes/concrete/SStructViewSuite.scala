@@ -1,6 +1,6 @@
 package is.hail.types.physical.stypes.concrete
 
-import is.hail.JUnitTestUtils._
+import is.hail.TestUtils._
 import is.hail.collection.FastSeq
 import is.hail.types.physical.stypes.SType
 import is.hail.types.physical.stypes.interfaces.SBaseStruct

@@ -1,6 +1,7 @@
 package is.hail.types.physical
 
-import is.hail.JUnitTestUtils._
+import is.hail.ParameterizedTest
+import is.hail.TestUtils._
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.rvd.AbstractRVDSpec
@@ -42,7 +43,7 @@ class PTypeSuite {
 
   @Test def testPTypesDataProvider(): Unit = ptypes(): Unit
 
-  @is.hail.ParameterizedTest(Array("ptypes"))
+  @ParameterizedTest("ptypes")
   def testSerialization(ptype: PType): Unit = {
     implicit val formats = AbstractRVDSpec.formats
     val s = Serialization.write(ptype)

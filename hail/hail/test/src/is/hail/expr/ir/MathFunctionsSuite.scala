@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.{stats, ExecStrategy, ParameterizedTest}
-import is.hail.JUnitTestUtils._
+import is.hail.TestUtils._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.defs.{ErrorIDs, F32, F64, False, I32, I64, Str, True}
 import is.hail.types.virtual._

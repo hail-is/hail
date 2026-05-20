@@ -1,7 +1,7 @@
 package is.hail.types.virtual
 
-import is.hail.JUnitTestUtils._
 import is.hail.ParameterizedTest
+import is.hail.TestUtils._
 import is.hail.annotations.{Annotation, Inserter}
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq

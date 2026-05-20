@@ -26,7 +26,7 @@ class DistinctlyKeyedSuite {
     assert(tableIRSeq.forall(tableIR => distinctlyKeyedAnalysis.contains(tableIR)))
   }
 
-  @Test def readTableKeyByDistinctlyKeyedAnalysis()(implicit ctx: ExecuteContext): Unit = {
+  @Test def readTableKeyByDistinctlyKeyedAnalysis(implicit ctx: ExecuteContext): Unit = {
     val rt = TableRange(40, 4)
     val idxRef = GetField(Ref(TableIR.rowName, rt.typ.rowType), "idx")
     val at = TableMapRows(

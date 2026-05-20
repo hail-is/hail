@@ -1,7 +1,7 @@
 package is.hail.asm4s
 
-import is.hail.JUnitTestUtils._
 import is.hail.ParameterizedTest
+import is.hail.TestUtils._
 import is.hail.asm4s.Code._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
@@ -20,7 +20,7 @@ trait Z2Z { def apply(z: Boolean): Boolean }
 class ASM4SSuite {
   val theHailClassLoader = new HailClassLoader(getClass().getClassLoader())
 
-  @Test def not()(implicit ctx: ExecuteContext): Unit = {
+  @Test def not(implicit ctx: ExecuteContext): Unit = {
     val notb = FunctionBuilder[Z2Z](
       "is/hail/asm4s/Z2Z",
       ArraySeq(NotGenericTypeInfo[Boolean]),
@@ -32,7 +32,7 @@ class ASM4SSuite {
     assert(not(false))
   }
 
-  @Test def mux()(implicit ctx: ExecuteContext): Unit = {
+  @Test def mux(implicit ctx: ExecuteContext): Unit = {
     val gb = FunctionBuilder[Boolean, Int]("G")
     gb.emit(gb.getArg[Boolean](1).mux(11, -1))
     val g = gb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
@@ -40,14 +40,14 @@ class ASM4SSuite {
     assert(g(false) == -1)
   }
 
-  @Test def add()(implicit ctx: ExecuteContext): Unit = {
+  @Test def add(implicit ctx: ExecuteContext): Unit = {
     val fb = FunctionBuilder[Int, Int]("F")
     fb.emit(fb.getArg[Int](1) + 5)
     val f = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
     assert(f(-2) == 3)
   }
 
-  @Test def iinc()(implicit ctx: ExecuteContext): Unit = {
+  @Test def iinc(implicit ctx: ExecuteContext): Unit = {
     val fb = FunctionBuilder[Int]("F")
     val l = fb.newLocal[Int]()
     fb.emit(Code(l := 0, l ++, l += 2, l))
@@ -55,7 +55,7 @@ class ASM4SSuite {
     assert(f() == 3)
   }
 
-  @Test def array()(implicit ctx: ExecuteContext): Unit = {
+  @Test def array(implicit ctx: ExecuteContext): Unit = {
     val hb = FunctionBuilder[Int, Int]("H")
     val arr = hb.newLocal[Array[Int]]()
     hb.emit(Code(
@@ -71,7 +71,7 @@ class ASM4SSuite {
     assert(h(2) == -6)
   }
 
-  @Test def get()(implicit ctx: ExecuteContext): Unit = {
+  @Test def get(implicit ctx: ExecuteContext): Unit = {
     val fb = FunctionBuilder[Foo, Int]("F")
     fb.emit(fb.getArg[Foo](1).getField[Int]("i"))
     val i = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
@@ -80,7 +80,7 @@ class ASM4SSuite {
     assert(i(a) == 5)
   }
 
-  @Test def invoke()(implicit ctx: ExecuteContext): Unit = {
+  @Test def invoke(implicit ctx: ExecuteContext): Unit = {
     val fb = FunctionBuilder[Foo, Int]("F")
     fb.emit(fb.getArg[Foo](1).invoke[Int]("f"))
     val i = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
@@ -89,7 +89,7 @@ class ASM4SSuite {
     assert(i(a) == 6)
   }
 
-  @Test def invoke2()(implicit ctx: ExecuteContext): Unit = {
+  @Test def invoke2(implicit ctx: ExecuteContext): Unit = {
     val fb = FunctionBuilder[Foo, Int]("F")
     fb.emit(fb.getArg[Foo](1).invoke[Int, Int]("g", 6))
     val j = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
@@ -98,14 +98,14 @@ class ASM4SSuite {
     assert(j(a) == 11)
   }
 
-  @Test def newInstance()(implicit ctx: ExecuteContext): Unit = {
+  @Test def newInstance(implicit ctx: ExecuteContext): Unit = {
     val fb = FunctionBuilder[Int]("F")
     fb.emit(Code.newInstance[Foo]().invoke[Int]("f"))
     val f = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
     assert(f() == 6)
   }
 
-  @Test def put()(implicit ctx: ExecuteContext): Unit = {
+  @Test def put(implicit ctx: ExecuteContext): Unit = {
     val fb = FunctionBuilder[Int]("F")
     val inst = fb.newLocal[Foo]()
     fb.emit(Code(
@@ -117,7 +117,7 @@ class ASM4SSuite {
     assert(f() == -2)
   }
 
-  @Test def staticPut()(implicit ctx: ExecuteContext): Unit = {
+  @Test def staticPut(implicit ctx: ExecuteContext): Unit = {
     val fb = FunctionBuilder[Int]("F")
     val inst = fb.newLocal[Foo]()
     fb.emit(Code(
@@ -129,14 +129,14 @@ class ASM4SSuite {
     assert(f() == -2)
   }
 
-  @Test def f2()(implicit ctx: ExecuteContext): Unit = {
+  @Test def f2(implicit ctx: ExecuteContext): Unit = {
     val fb = FunctionBuilder[Int, Int, Int]("F")
     fb.emit(fb.getArg[Int](1) + fb.getArg[Int](2))
     val f = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
     assert(f(3, 5) == 8)
   }
 
-  @Test def compare()(implicit ctx: ExecuteContext): Unit = {
+  @Test def compare(implicit ctx: ExecuteContext): Unit = {
     val fb = FunctionBuilder[Int, Int, Boolean]("F")
     fb.emit(fb.getArg[Int](1) > fb.getArg[Int](2))
     val f = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
@@ -145,7 +145,7 @@ class ASM4SSuite {
     assert(!f(2, 5))
   }
 
-  @Test def fact()(implicit ctx: ExecuteContext): Unit = {
+  @Test def fact(implicit ctx: ExecuteContext): Unit = {
     val fb = FunctionBuilder[Int, Int]("Fact")
     val i = fb.getArg[Int](1)
     fb.emitWithBuilder[Int] { cb =>
@@ -165,7 +165,7 @@ class ASM4SSuite {
     assert(f(4) == 24)
   }
 
-  @Test def dcmp()(implicit ctx: ExecuteContext): Unit = {
+  @Test def dcmp(implicit ctx: ExecuteContext): Unit = {
     val fb = FunctionBuilder[Double, Double, Boolean]("F")
     fb.emit(fb.getArg[Double](1) > fb.getArg[Double](2))
     val f = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
@@ -176,7 +176,7 @@ class ASM4SSuite {
     assert(!f(2.3, 5.2))
   }
 
-  @Test def anewarray()(implicit ctx: ExecuteContext): Unit = {
+  @Test def anewarray(implicit ctx: ExecuteContext): Unit = {
     val fb = FunctionBuilder[Int]("F")
     val arr = fb.newLocal[Array[Foo]]()
     fb.emit(Code(
@@ -205,7 +205,7 @@ class ASM4SSuite {
     b
   }
 
-  @Test def fibonacci()(implicit ctx: ExecuteContext): Unit = {
+  @Test def fibonacci(implicit ctx: ExecuteContext): Unit = {
     val Fib = FunctionBuilder[Int, Int]("Fib")
     Fib.emitWithBuilder[Int] { cb =>
       val n = Fib.getArg[Int](1)
@@ -282,7 +282,7 @@ class ASM4SSuite {
     cmp(Float.NaN, x) == javaOp(Float.NaN, x) && cmp(x, Float.NaN) == javaOp(x, Float.NaN)
   })
 
-  @Test def defineOpsAsMethods()(implicit ctx: ExecuteContext): Unit = {
+  @Test def defineOpsAsMethods(implicit ctx: ExecuteContext): Unit = {
     val fb = FunctionBuilder[Int, Int, Int, Int]("F")
     val add = fb.genMethod[Int, Int, Int]("add")
     val sub = fb.genMethod[Int, Int, Int]("sub")
@@ -316,7 +316,7 @@ class ASM4SSuite {
     assert(f(2, 2, 8) == 16)
   }
 
-  @Test def checkLocalVarsOnMethods()(implicit ctx: ExecuteContext): Unit = {
+  @Test def checkLocalVarsOnMethods(implicit ctx: ExecuteContext): Unit = {
     val fb = FunctionBuilder[Int, Int, Int]("F")
     val add = fb.genMethod[Int, Int, Int]("add")
 
@@ -336,7 +336,7 @@ class ASM4SSuite {
     assert(f(1, 1) == 2)
   }
 
-  @Test def checkClassFields()(implicit ctx: ExecuteContext): Unit = {
+  @Test def checkClassFields(implicit ctx: ExecuteContext): Unit = {
 
     def readField[T: TypeInfo](arg1: Int, arg2: Long, arg3: Boolean): T = {
       val fb = FunctionBuilder[Int, Long, Boolean, T]("F")
@@ -363,7 +363,7 @@ class ASM4SSuite {
     assert(readField[Boolean](1, 2L, true))
   }
 
-  @Test def checkClassFieldsFromMethod()(implicit ctx: ExecuteContext): Unit = {
+  @Test def checkClassFieldsFromMethod(implicit ctx: ExecuteContext): Unit = {
     def readField[T: TypeInfo](arg1: Int, arg2: Long, arg3: Boolean): T = {
       val fb = FunctionBuilder[Int, Long, Boolean, T]("F")
       val mb = fb.genMethod[Int, Long, Boolean, T]("m")
@@ -393,7 +393,7 @@ class ASM4SSuite {
     assert(readField[Boolean](1, 2L, true))
   }
 
-  @Test def lazyFieldEvaluatesOnce()(implicit ctx: ExecuteContext): Unit = {
+  @Test def lazyFieldEvaluatesOnce(implicit ctx: ExecuteContext): Unit = {
     val F = FunctionBuilder[Int]("LazyField")
     val a = F.genFieldThisRef[Int]("a")
     val lzy = F.genLazyFieldThisRef(a + 1, "lzy")
@@ -409,7 +409,7 @@ class ASM4SSuite {
     assert(f() == 1)
   }
 
-  @Test def testInitialize()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testInitialize(implicit ctx: ExecuteContext): Unit = {
     val fb = FunctionBuilder[Boolean, Int]("F")
     fb.emitWithBuilder { cb =>
       val a = cb.newLocal[Int]("a")
@@ -421,7 +421,7 @@ class ASM4SSuite {
     assert(f(false) == 5)
   }
 
-  @Test def testInit()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testInit(implicit ctx: ExecuteContext): Unit = {
     val Main = FunctionBuilder[Int]("Main")
     val a = Main.genFieldThisRef[Int]("a")
     Main.emitInit(a := 1)
@@ -431,7 +431,7 @@ class ASM4SSuite {
     assert(test() == 1)
   }
 
-  @Test def testClinit()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testClinit(implicit ctx: ExecuteContext): Unit = {
     val Main = FunctionBuilder[Int]("Main")
     val a = Main.newStaticField[Int]("a")
     Main.emitClinit(a.put(1))
@@ -441,7 +441,7 @@ class ASM4SSuite {
     assert(test() == 1)
   }
 
-  @Test def testClassInstances()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testClassInstances(implicit ctx: ExecuteContext): Unit = {
     val Counter = FunctionBuilder[Int]("Counter")
     val x = Counter.genFieldThisRef[Int]("x")
     Counter.emitInit(x := 0)
@@ -467,7 +467,7 @@ class ASM4SSuite {
     assert(test() == 6)
   }
 
-  @Test def testIf()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testIf(implicit ctx: ExecuteContext): Unit = {
     val Main = FunctionBuilder[Int, Int]("If")
     Main.emitWithBuilder[Int] { cb =>
       val a = cb.mb.getArg[Int](1)
@@ -480,7 +480,7 @@ class ASM4SSuite {
     check(forAll((x: Int) => abs(x) == x.abs))
   }
 
-  @Test def testWhile()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testWhile(implicit ctx: ExecuteContext): Unit = {
     val Main = FunctionBuilder[Int, Int, Int]("While")
     Main.emitWithBuilder[Int] { cb =>
       val a = cb.mb.getArg[Int](1)
@@ -503,7 +503,7 @@ class ASM4SSuite {
     check(forAll(choose(-10, 10), choose(-10, 10))((x, y) => add(x, y) == x + y))
   }
 
-  @Test def testFor()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testFor(implicit ctx: ExecuteContext): Unit = {
     val Main = FunctionBuilder[Int, Int, Int]("For")
     Main.emitWithBuilder[Int] { cb =>
       val a = cb.mb.getArg[Int](1)

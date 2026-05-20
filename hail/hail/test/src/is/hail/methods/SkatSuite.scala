@@ -1,6 +1,6 @@
 package is.hail.methods
 
-import is.hail.JUnitTestUtils._
+import is.hail.TestUtils._
 import is.hail.utils._
 
 import breeze.linalg._

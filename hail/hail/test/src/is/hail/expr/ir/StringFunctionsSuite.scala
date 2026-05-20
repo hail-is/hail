@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, ParameterizedTest}
 import is.hail.ExecStrategy.ExecStrategy
-import is.hail.JUnitTestUtils._
+import is.hail.TestUtils._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
@@ -117,7 +117,7 @@ class StringFunctionsSuite {
     (MakeTuple.ordered(FastSeq(1, NA(TInt32), 5.7)), TTuple(TInt32, TInt32, TFloat64)),
   )
 
-  @ParameterizedTest(Array("strData"))
+  @ParameterizedTest("strData")
   def str(annotation: IR, typ: Type)(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(
       invoke("str", TString, annotation), {
@@ -125,7 +125,7 @@ class StringFunctionsSuite {
       },
     )
 
-  @ParameterizedTest(Array("strData"))
+  @ParameterizedTest("strData")
   def json(annotation: IR, typ: Type)(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(
       invoke("json", TString, annotation),
@@ -182,11 +182,11 @@ class StringFunctionsSuite {
     ("Monday week #%W. %Y.%m.%d %H:%M:%S", "Monday week #01. 2005.01.03 00:00:00", 1104728400L),
   )
 
-  @ParameterizedTest(Array("timeData"))
+  @ParameterizedTest("timeData")
   def strftime(fmt: String, s: String, t: Long)(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(invoke("strftime", TString, Str(fmt), I64(t), Str("America/New_York")), s)
 
-  @ParameterizedTest(Array("timeData"))
+  @ParameterizedTest("timeData")
   def strptime(fmt: String, s: String, t: Long)(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(invoke("strptime", TInt64, Str(s), Str(fmt), Str("America/New_York")), t)
 }

@@ -1,6 +1,6 @@
 package is.hail.annotations
 
-import is.hail.JUnitTestUtils._
+import is.hail.TestUtils._
 import is.hail.collection.LongArrayBuilder
 import is.hail.utils.using
 

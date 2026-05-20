@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.ExecStrategy
 import is.hail.ExecStrategy.ExecStrategy
-import is.hail.JUnitTestUtils._
+import is.hail.TestUtils._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
@@ -56,7 +56,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def nestedAgg()(implicit ctx: ExecuteContext): Unit = {
+  @Test def nestedAgg(implicit ctx: ExecuteContext): Unit = {
     val agg = ToArray(mapIR(StreamRange(0, 10, 1))(_ => ApplyAggOp(Count())()))
     assertEvalsTo(
       agg,
@@ -65,7 +65,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def sumFloat64()(implicit ctx: ExecuteContext): Unit = {
+  @Test def sumFloat64(implicit ctx: ExecuteContext): Unit = {
     runAggregator(Sum(), TFloat64, (0 to 100).map(_.toDouble), 5050.0)
     runAggregator(Sum(), TFloat64, FastSeq(), 0.0)
     runAggregator(Sum(), TFloat64, FastSeq(42.0), 42.0)
@@ -73,10 +73,10 @@ class AggregatorsSuite {
     runAggregator(Sum(), TFloat64, FastSeq(null, null, null), 0.0)
   }
 
-  @Test def sumInt64()(implicit ctx: ExecuteContext): Unit =
+  @Test def sumInt64(implicit ctx: ExecuteContext): Unit =
     runAggregator(Sum(), TInt64, FastSeq(-1L, 2L, 3L), 4L)
 
-  @Test def collectBoolean()(implicit ctx: ExecuteContext): Unit = {
+  @Test def collectBoolean(implicit ctx: ExecuteContext): Unit = {
     runAggregator(
       Collect(),
       TBoolean,
@@ -85,22 +85,22 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def collectInt()(implicit ctx: ExecuteContext): Unit =
+  @Test def collectInt(implicit ctx: ExecuteContext): Unit =
     runAggregator(Collect(), TInt32, FastSeq(10, null, 5), FastSeq(10, null, 5))
 
-  @Test def collectLong()(implicit ctx: ExecuteContext): Unit =
+  @Test def collectLong(implicit ctx: ExecuteContext): Unit =
     runAggregator(Collect(), TInt64, FastSeq(10L, null, 5L), FastSeq(10L, null, 5L))
 
-  @Test def collectFloat()(implicit ctx: ExecuteContext): Unit =
+  @Test def collectFloat(implicit ctx: ExecuteContext): Unit =
     runAggregator(Collect(), TFloat32, FastSeq(10f, null, 5f), FastSeq(10f, null, 5f))
 
-  @Test def collectDouble()(implicit ctx: ExecuteContext): Unit =
+  @Test def collectDouble(implicit ctx: ExecuteContext): Unit =
     runAggregator(Collect(), TFloat64, FastSeq(10d, null, 5d), FastSeq(10d, null, 5d))
 
-  @Test def collectString()(implicit ctx: ExecuteContext): Unit =
+  @Test def collectString(implicit ctx: ExecuteContext): Unit =
     runAggregator(Collect(), TString, FastSeq("hello", null, "foo"), FastSeq("hello", null, "foo"))
 
-  @Test def collectArray()(implicit ctx: ExecuteContext): Unit = {
+  @Test def collectArray(implicit ctx: ExecuteContext): Unit = {
     runAggregator(
       Collect(),
       TArray(TInt32),
@@ -109,7 +109,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def collectStruct()(implicit ctx: ExecuteContext): Unit = {
+  @Test def collectStruct(implicit ctx: ExecuteContext): Unit = {
     runAggregator(
       Collect(),
       TStruct("a" -> TInt32, "b" -> TBoolean),
@@ -118,7 +118,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def count()(implicit ctx: ExecuteContext): Unit = {
+  @Test def count(implicit ctx: ExecuteContext): Unit = {
     runAggregator(
       Count(),
       TStruct("x" -> TString),
@@ -129,7 +129,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def collectAsSetBoolean()(implicit ctx: ExecuteContext): Unit = {
+  @Test def collectAsSetBoolean(implicit ctx: ExecuteContext): Unit = {
     runAggregator(
       CollectAsSet(),
       TBoolean,
@@ -139,14 +139,14 @@ class AggregatorsSuite {
     runAggregator(CollectAsSet(), TBoolean, FastSeq(true, null, true), Set(true, null))
   }
 
-  @Test def collectAsSetNumeric()(implicit ctx: ExecuteContext): Unit = {
+  @Test def collectAsSetNumeric(implicit ctx: ExecuteContext): Unit = {
     runAggregator(CollectAsSet(), TInt32, FastSeq(10, null, 5, 5, null), Set(10, null, 5))
     runAggregator(CollectAsSet(), TInt64, FastSeq(10L, null, 5L, 5L, null), Set(10L, null, 5L))
     runAggregator(CollectAsSet(), TFloat32, FastSeq(10f, null, 5f, 5f, null), Set(10f, null, 5f))
     runAggregator(CollectAsSet(), TFloat64, FastSeq(10d, null, 5d, 5d, null), Set(10d, null, 5d))
   }
 
-  @Test def collectAsSetString()(implicit ctx: ExecuteContext): Unit = {
+  @Test def collectAsSetString(implicit ctx: ExecuteContext): Unit = {
     runAggregator(
       CollectAsSet(),
       TString,
@@ -155,13 +155,13 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def collectAsSetArray()(implicit ctx: ExecuteContext): Unit = {
+  @Test def collectAsSetArray(implicit ctx: ExecuteContext): Unit = {
     val inputCollection = FastSeq(FastSeq(1, 2, 3), null, FastSeq(), null, FastSeq(1, 2, 3))
     val expected = Set(FastSeq(1, 2, 3), null, FastSeq())
     runAggregator(CollectAsSet(), TArray(TInt32), inputCollection, expected)
   }
 
-  @Test def collectAsSetStruct()(implicit ctx: ExecuteContext): Unit =
+  @Test def collectAsSetStruct(implicit ctx: ExecuteContext): Unit =
     runAggregator(
       CollectAsSet(),
       TStruct("a" -> TInt32, "b" -> TBoolean),
@@ -169,7 +169,7 @@ class AggregatorsSuite {
       Set(Row(5, true), Row(3, false), null, Row(0, false)),
     )
 
-  @Test def callStats()(implicit ctx: ExecuteContext): Unit = {
+  @Test def callStats(implicit ctx: ExecuteContext): Unit = {
     runAggregator(
       CallStats(),
       TCall,
@@ -181,22 +181,22 @@ class AggregatorsSuite {
 
   // FIXME Max Boolean not supported by old-style MaxAggregator
 
-  @Test def maxInt32()(implicit ctx: ExecuteContext): Unit = {
+  @Test def maxInt32(implicit ctx: ExecuteContext): Unit = {
     runAggregator(Max(), TInt32, FastSeq(), null)
     runAggregator(Max(), TInt32, FastSeq(null), null)
     runAggregator(Max(), TInt32, FastSeq(-2, null, 7), 7)
   }
 
-  @Test def maxInt64()(implicit ctx: ExecuteContext): Unit =
+  @Test def maxInt64(implicit ctx: ExecuteContext): Unit =
     runAggregator(Max(), TInt64, FastSeq(-2L, null, 7L), 7L)
 
-  @Test def maxFloat32()(implicit ctx: ExecuteContext): Unit =
+  @Test def maxFloat32(implicit ctx: ExecuteContext): Unit =
     runAggregator(Max(), TFloat32, FastSeq(-2.0f, null, 7.2f), 7.2f)
 
-  @Test def maxFloat64()(implicit ctx: ExecuteContext): Unit =
+  @Test def maxFloat64(implicit ctx: ExecuteContext): Unit =
     runAggregator(Max(), TFloat64, FastSeq(-2.0, null, 7.2), 7.2)
 
-  @Test def takeInt32()(implicit ctx: ExecuteContext): Unit = {
+  @Test def takeInt32(implicit ctx: ExecuteContext): Unit = {
     runAggregator(
       Take(),
       TInt32,
@@ -206,7 +206,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def takeInt64()(implicit ctx: ExecuteContext): Unit = {
+  @Test def takeInt64(implicit ctx: ExecuteContext): Unit = {
     runAggregator(
       Take(),
       TInt64,
@@ -216,7 +216,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def takeFloat32()(implicit ctx: ExecuteContext): Unit = {
+  @Test def takeFloat32(implicit ctx: ExecuteContext): Unit = {
     runAggregator(
       Take(),
       TFloat32,
@@ -226,7 +226,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def takeFloat64()(implicit ctx: ExecuteContext): Unit = {
+  @Test def takeFloat64(implicit ctx: ExecuteContext): Unit = {
     runAggregator(
       Take(),
       TFloat64,
@@ -236,7 +236,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def takeCall()(implicit ctx: ExecuteContext): Unit = {
+  @Test def takeCall(implicit ctx: ExecuteContext): Unit = {
     runAggregator(
       Take(),
       TCall,
@@ -246,7 +246,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def takeString()(implicit ctx: ExecuteContext): Unit = {
+  @Test def takeString(implicit ctx: ExecuteContext): Unit = {
     runAggregator(
       Take(),
       TString,
@@ -257,7 +257,7 @@ class AggregatorsSuite {
   }
 
   @Test
-  def sumMultivar()(implicit ctx: ExecuteContext): Unit = {
+  def sumMultivar(implicit ctx: ExecuteContext): Unit = {
     assertEvalsTo(
       ApplyAggOp(
         FastSeq(),
@@ -291,7 +291,7 @@ class AggregatorsSuite {
   }
 
   @Test
-  def arraySumFloat64OnEmpty()(implicit ctx: ExecuteContext): Unit =
+  def arraySumFloat64OnEmpty(implicit ctx: ExecuteContext): Unit =
     assertArraySumEvalsTo[Double](
       TFloat64,
       FastSeq(),
@@ -299,7 +299,7 @@ class AggregatorsSuite {
     )
 
   @Test
-  def arraySumFloat64OnSingletonMissing()(implicit ctx: ExecuteContext): Unit =
+  def arraySumFloat64OnSingletonMissing(implicit ctx: ExecuteContext): Unit =
     assertArraySumEvalsTo[Double](
       TFloat64,
       FastSeq(null),
@@ -307,7 +307,7 @@ class AggregatorsSuite {
     )
 
   @Test
-  def arraySumFloat64OnAllMissing()(implicit ctx: ExecuteContext): Unit =
+  def arraySumFloat64OnAllMissing(implicit ctx: ExecuteContext): Unit =
     assertArraySumEvalsTo[Double](
       TFloat64,
       FastSeq(null, null, null),
@@ -315,7 +315,7 @@ class AggregatorsSuite {
     )
 
   @Test
-  def arraySumInt64OnEmpty()(implicit ctx: ExecuteContext): Unit =
+  def arraySumInt64OnEmpty(implicit ctx: ExecuteContext): Unit =
     assertArraySumEvalsTo[Long](
       TInt64,
       FastSeq(),
@@ -323,7 +323,7 @@ class AggregatorsSuite {
     )
 
   @Test
-  def arraySumInt64OnSingletonMissing()(implicit ctx: ExecuteContext): Unit =
+  def arraySumInt64OnSingletonMissing(implicit ctx: ExecuteContext): Unit =
     assertArraySumEvalsTo[Long](
       TInt64,
       FastSeq(null),
@@ -331,7 +331,7 @@ class AggregatorsSuite {
     )
 
   @Test
-  def arraySumInt64OnAllMissing()(implicit ctx: ExecuteContext): Unit =
+  def arraySumInt64OnAllMissing(implicit ctx: ExecuteContext): Unit =
     assertArraySumEvalsTo[Long](
       TInt64,
       FastSeq(null, null, null),
@@ -339,7 +339,7 @@ class AggregatorsSuite {
     )
 
   @Test
-  def arraySumFloat64OnSmallArray()(implicit ctx: ExecuteContext): Unit =
+  def arraySumFloat64OnSmallArray(implicit ctx: ExecuteContext): Unit =
     assertArraySumEvalsTo(
       TFloat64,
       FastSeq(
@@ -351,7 +351,7 @@ class AggregatorsSuite {
     )
 
   @Test
-  def arraySumInt64OnSmallArray()(implicit ctx: ExecuteContext): Unit =
+  def arraySumInt64OnSmallArray(implicit ctx: ExecuteContext): Unit =
     assertArraySumEvalsTo(
       TInt64,
       FastSeq(
@@ -363,7 +363,7 @@ class AggregatorsSuite {
     )
 
   @Test
-  def arraySumInt64FirstElementMissing()(implicit ctx: ExecuteContext): Unit =
+  def arraySumInt64FirstElementMissing(implicit ctx: ExecuteContext): Unit =
     assertArraySumEvalsTo(
       TInt64,
       FastSeq(
@@ -392,10 +392,10 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def takeByNGreater()(implicit ctx: ExecuteContext): Unit =
+  @Test def takeByNGreater(implicit ctx: ExecuteContext): Unit =
     assertTakeByEvalsTo(TInt32, TInt32, 5, FastSeq(Row(3, 4)), FastSeq(3))
 
-  @Test def takeByBooleanBoolean()(implicit ctx: ExecuteContext): Unit = {
+  @Test def takeByBooleanBoolean(implicit ctx: ExecuteContext): Unit = {
     assertTakeByEvalsTo(
       TBoolean,
       TBoolean,
@@ -405,7 +405,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def takeByBooleanInt()(implicit ctx: ExecuteContext): Unit = {
+  @Test def takeByBooleanInt(implicit ctx: ExecuteContext): Unit = {
     assertTakeByEvalsTo(
       TBoolean,
       TInt32,
@@ -422,7 +422,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def takeByBooleanLong()(implicit ctx: ExecuteContext): Unit = {
+  @Test def takeByBooleanLong(implicit ctx: ExecuteContext): Unit = {
     assertTakeByEvalsTo(
       TBoolean,
       TInt64,
@@ -439,7 +439,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def takeByBooleanFloat()(implicit ctx: ExecuteContext): Unit = {
+  @Test def takeByBooleanFloat(implicit ctx: ExecuteContext): Unit = {
     assertTakeByEvalsTo(
       TBoolean,
       TFloat32,
@@ -456,7 +456,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def takeByBooleanDouble()(implicit ctx: ExecuteContext): Unit = {
+  @Test def takeByBooleanDouble(implicit ctx: ExecuteContext): Unit = {
     assertTakeByEvalsTo(
       TBoolean,
       TFloat64,
@@ -473,7 +473,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def takeByBooleanAnnotation()(implicit ctx: ExecuteContext): Unit = {
+  @Test def takeByBooleanAnnotation(implicit ctx: ExecuteContext): Unit = {
     assertTakeByEvalsTo(
       TBoolean,
       TString,
@@ -490,7 +490,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def takeByIntBoolean()(implicit ctx: ExecuteContext): Unit = {
+  @Test def takeByIntBoolean(implicit ctx: ExecuteContext): Unit = {
     assertTakeByEvalsTo(
       TInt32,
       TBoolean,
@@ -500,7 +500,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def takeByIntInt()(implicit ctx: ExecuteContext): Unit = {
+  @Test def takeByIntInt(implicit ctx: ExecuteContext): Unit = {
     assertTakeByEvalsTo(
       TInt32,
       TInt32,
@@ -510,7 +510,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def takeByIntLong()(implicit ctx: ExecuteContext): Unit = {
+  @Test def takeByIntLong(implicit ctx: ExecuteContext): Unit = {
     assertTakeByEvalsTo(
       TInt32,
       TInt64,
@@ -520,7 +520,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def takeByIntFloat()(implicit ctx: ExecuteContext): Unit = {
+  @Test def takeByIntFloat(implicit ctx: ExecuteContext): Unit = {
     assertTakeByEvalsTo(
       TInt32,
       TFloat32,
@@ -530,7 +530,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def takeByIntDouble()(implicit ctx: ExecuteContext): Unit = {
+  @Test def takeByIntDouble(implicit ctx: ExecuteContext): Unit = {
     assertTakeByEvalsTo(
       TInt32,
       TFloat64,
@@ -540,7 +540,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def takeByIntAnnotation()(implicit ctx: ExecuteContext): Unit = {
+  @Test def takeByIntAnnotation(implicit ctx: ExecuteContext): Unit = {
     assertTakeByEvalsTo(
       TInt32,
       TString,
@@ -557,7 +557,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def takeByLongBoolean()(implicit ctx: ExecuteContext): Unit = {
+  @Test def takeByLongBoolean(implicit ctx: ExecuteContext): Unit = {
     assertTakeByEvalsTo(
       TInt64,
       TBoolean,
@@ -567,7 +567,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def takeByLongInt()(implicit ctx: ExecuteContext): Unit = {
+  @Test def takeByLongInt(implicit ctx: ExecuteContext): Unit = {
     assertTakeByEvalsTo(
       TInt64,
       TInt32,
@@ -577,7 +577,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def takeByLongLong()(implicit ctx: ExecuteContext): Unit = {
+  @Test def takeByLongLong(implicit ctx: ExecuteContext): Unit = {
     assertTakeByEvalsTo(
       TInt64,
       TInt64,
@@ -594,7 +594,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def takeByLongFloat()(implicit ctx: ExecuteContext): Unit = {
+  @Test def takeByLongFloat(implicit ctx: ExecuteContext): Unit = {
     assertTakeByEvalsTo(
       TInt64,
       TFloat32,
@@ -611,7 +611,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def takeByLongDouble()(implicit ctx: ExecuteContext): Unit = {
+  @Test def takeByLongDouble(implicit ctx: ExecuteContext): Unit = {
     assertTakeByEvalsTo(
       TInt64,
       TFloat64,
@@ -628,7 +628,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def takeByLongAnnotation()(implicit ctx: ExecuteContext): Unit = {
+  @Test def takeByLongAnnotation(implicit ctx: ExecuteContext): Unit = {
     assertTakeByEvalsTo(
       TInt64,
       TString,
@@ -645,7 +645,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def takeByFloatBoolean()(implicit ctx: ExecuteContext): Unit = {
+  @Test def takeByFloatBoolean(implicit ctx: ExecuteContext): Unit = {
     assertTakeByEvalsTo(
       TFloat32,
       TBoolean,
@@ -655,7 +655,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def takeByFloatInt()(implicit ctx: ExecuteContext): Unit = {
+  @Test def takeByFloatInt(implicit ctx: ExecuteContext): Unit = {
     assertTakeByEvalsTo(
       TFloat32,
       TInt32,
@@ -665,7 +665,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def takeByFloatLong()(implicit ctx: ExecuteContext): Unit = {
+  @Test def takeByFloatLong(implicit ctx: ExecuteContext): Unit = {
     assertTakeByEvalsTo(
       TFloat32,
       TInt64,
@@ -682,7 +682,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def takeByFloatFloat()(implicit ctx: ExecuteContext): Unit = {
+  @Test def takeByFloatFloat(implicit ctx: ExecuteContext): Unit = {
     assertTakeByEvalsTo(
       TFloat32,
       TFloat32,
@@ -699,7 +699,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def takeByFloatDouble()(implicit ctx: ExecuteContext): Unit = {
+  @Test def takeByFloatDouble(implicit ctx: ExecuteContext): Unit = {
     assertTakeByEvalsTo(
       TFloat32,
       TFloat64,
@@ -716,7 +716,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def takeByFloatAnnotation()(implicit ctx: ExecuteContext): Unit = {
+  @Test def takeByFloatAnnotation(implicit ctx: ExecuteContext): Unit = {
     assertTakeByEvalsTo(
       TFloat32,
       TString,
@@ -733,7 +733,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def takeByDoubleBoolean()(implicit ctx: ExecuteContext): Unit = {
+  @Test def takeByDoubleBoolean(implicit ctx: ExecuteContext): Unit = {
     assertTakeByEvalsTo(
       TFloat64,
       TBoolean,
@@ -743,7 +743,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def takeByDoubleInt()(implicit ctx: ExecuteContext): Unit = {
+  @Test def takeByDoubleInt(implicit ctx: ExecuteContext): Unit = {
     assertTakeByEvalsTo(
       TFloat64,
       TInt32,
@@ -753,7 +753,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def takeByDoubleLong()(implicit ctx: ExecuteContext): Unit = {
+  @Test def takeByDoubleLong(implicit ctx: ExecuteContext): Unit = {
     assertTakeByEvalsTo(
       TFloat64,
       TInt64,
@@ -770,7 +770,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def takeByDoubleFloat()(implicit ctx: ExecuteContext): Unit = {
+  @Test def takeByDoubleFloat(implicit ctx: ExecuteContext): Unit = {
     assertTakeByEvalsTo(
       TFloat64,
       TFloat32,
@@ -787,7 +787,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def takeByDoubleDouble()(implicit ctx: ExecuteContext): Unit = {
+  @Test def takeByDoubleDouble(implicit ctx: ExecuteContext): Unit = {
     assertTakeByEvalsTo(
       TFloat64,
       TFloat64,
@@ -804,7 +804,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def takeByDoubleAnnotation()(implicit ctx: ExecuteContext): Unit = {
+  @Test def takeByDoubleAnnotation(implicit ctx: ExecuteContext): Unit = {
     assertTakeByEvalsTo(
       TFloat64,
       TString,
@@ -821,7 +821,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def takeByAnnotationBoolean()(implicit ctx: ExecuteContext): Unit = {
+  @Test def takeByAnnotationBoolean(implicit ctx: ExecuteContext): Unit = {
     assertTakeByEvalsTo(
       TString,
       TBoolean,
@@ -831,7 +831,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def takeByAnnotationInt()(implicit ctx: ExecuteContext): Unit = {
+  @Test def takeByAnnotationInt(implicit ctx: ExecuteContext): Unit = {
     assertTakeByEvalsTo(
       TString,
       TInt32,
@@ -841,7 +841,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def takeByAnnotationLong()(implicit ctx: ExecuteContext): Unit = {
+  @Test def takeByAnnotationLong(implicit ctx: ExecuteContext): Unit = {
     assertTakeByEvalsTo(
       TString,
       TInt64,
@@ -858,7 +858,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def takeByAnnotationFloat()(implicit ctx: ExecuteContext): Unit = {
+  @Test def takeByAnnotationFloat(implicit ctx: ExecuteContext): Unit = {
     assertTakeByEvalsTo(
       TString,
       TFloat32,
@@ -875,7 +875,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def takeByAnnotationDouble()(implicit ctx: ExecuteContext): Unit = {
+  @Test def takeByAnnotationDouble(implicit ctx: ExecuteContext): Unit = {
     assertTakeByEvalsTo(
       TString,
       TFloat64,
@@ -892,7 +892,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def takeByAnnotationAnnotation()(implicit ctx: ExecuteContext): Unit = {
+  @Test def takeByAnnotationAnnotation(implicit ctx: ExecuteContext): Unit = {
     assertTakeByEvalsTo(
       TString,
       TString,
@@ -909,7 +909,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def takeByCallLong()(implicit ctx: ExecuteContext): Unit = {
+  @Test def takeByCallLong(implicit ctx: ExecuteContext): Unit = {
     assertTakeByEvalsTo(
       TCall,
       TInt64,
@@ -948,7 +948,7 @@ class AggregatorsSuite {
   }
 
   @Test
-  def keyedCount()(implicit ctx: ExecuteContext): Unit = {
+  def keyedCount(implicit ctx: ExecuteContext): Unit = {
     runKeyedAggregator(
       Count(),
       Ref(Name("k"), TInt32),
@@ -990,7 +990,7 @@ class AggregatorsSuite {
   }
 
   @Test
-  def keyedCollect()(implicit ctx: ExecuteContext): Unit = {
+  def keyedCollect(implicit ctx: ExecuteContext): Unit = {
     runKeyedAggregator(
       Collect(),
       Ref(Name("k"), TBoolean),
@@ -1011,7 +1011,7 @@ class AggregatorsSuite {
   }
 
   @Test
-  def keyedCallStats()(implicit ctx: ExecuteContext): Unit = {
+  def keyedCallStats(implicit ctx: ExecuteContext): Unit = {
     runKeyedAggregator(
       CallStats(),
       Ref(Name("k"), TBoolean),
@@ -1034,7 +1034,7 @@ class AggregatorsSuite {
   }
 
   @Test
-  def keyedTakeBy()(implicit ctx: ExecuteContext): Unit = {
+  def keyedTakeBy(implicit ctx: ExecuteContext): Unit = {
     runKeyedAggregator(
       TakeBy(),
       Ref(Name("k"), TString),
@@ -1054,7 +1054,7 @@ class AggregatorsSuite {
   }
 
   @Test
-  def keyedKeyedCollect()(implicit ctx: ExecuteContext): Unit = {
+  def keyedKeyedCollect(implicit ctx: ExecuteContext): Unit = {
     val agg =
       FastSeq(Row("EUR", true, 1), Row("EUR", false, 2), Row("AFR", true, 3), Row("AFR", null, 4))
     val aggType = TStruct("k1" -> TString, "k2" -> TBoolean, "x" -> TInt32)
@@ -1078,7 +1078,7 @@ class AggregatorsSuite {
   }
 
   @Test
-  def keyedKeyedCallStats()(implicit ctx: ExecuteContext): Unit = {
+  def keyedKeyedCallStats(implicit ctx: ExecuteContext): Unit = {
     val agg = FastSeq(
       Row("EUR", "CASE", null),
       Row("EUR", "CONTROL", Call2(0, 1)),
@@ -1112,7 +1112,7 @@ class AggregatorsSuite {
   }
 
   @Test
-  def keyedKeyedTakeBy()(implicit ctx: ExecuteContext): Unit = {
+  def keyedKeyedTakeBy(implicit ctx: ExecuteContext): Unit = {
     val agg = FastSeq(
       Row("case", "a", 0.2, 5),
       Row("control", "b", 0.4, 0),
@@ -1147,7 +1147,7 @@ class AggregatorsSuite {
   }
 
   @Test
-  def keyedKeyedKeyedCollect()(implicit ctx: ExecuteContext): Unit = {
+  def keyedKeyedKeyedCollect(implicit ctx: ExecuteContext): Unit = {
     val agg = FastSeq(
       Row("EUR", "CASE", true, 1),
       Row("EUR", "CONTROL", true, 2),
@@ -1178,7 +1178,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def downsampleWhenEmpty()(implicit ctx: ExecuteContext): Unit = {
+  @Test def downsampleWhenEmpty(implicit ctx: ExecuteContext): Unit = {
     runAggregator(
       Downsample(),
       TStruct("x" -> TFloat64, "y" -> TFloat64, "label" -> TArray(TString)),
@@ -1193,7 +1193,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def testAggFilter()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testAggFilter(implicit ctx: ExecuteContext): Unit = {
     val aggType = TStruct("x" -> TBoolean, "y" -> TInt64)
     val agg = FastSeq(Row(true, -1L), Row(true, 1L), Row(false, 3L), Row(true, 5L))
 
@@ -1208,7 +1208,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def testAggExplode()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testAggExplode(implicit ctx: ExecuteContext): Unit = {
     val aggType = TStruct("x" -> TArray(TInt64))
     val agg = FastSeq(
       Row(FastSeq[Long](1, 4)),
@@ -1226,7 +1226,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def testArrayElementsAggregator()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testArrayElementsAggregator(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.interpretOnly
 
     def getAgg(n: Int, m: Int): IR = {
@@ -1244,7 +1244,7 @@ class AggregatorsSuite {
     assertEvalsTo(getAgg(10, 10), IndexedSeq.range(0, 10).map(_ * 10L))
   }
 
-  @Test def testArrayElementsAggregatorEmpty()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testArrayElementsAggregatorEmpty(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.interpretOnly
 
     def getAgg(n: Int, m: Int, knownLength: Option[IR]): IR = {
@@ -1270,7 +1270,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def testImputeTypeSimple()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testImputeTypeSimple(implicit ctx: ExecuteContext): Unit = {
     runAggregator(ImputeType(), TString, FastSeq(null), Row(false, false, true, true, true, true))
     runAggregator(
       ImputeType(),
@@ -1292,7 +1292,7 @@ class AggregatorsSuite {
     )
   }
 
-  @Test def testFoldAgg()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testFoldAgg(implicit ctx: ExecuteContext): Unit = {
     val myIR = streamAggIR(
       mapIR(rangeIR(100))(idx => makestruct(("idx", idx), ("unused", idx + idx)))
     )(foo => aggFoldIR(I32(0))(_ + GetField(foo, "idx"))(_ + _))
@@ -1311,7 +1311,7 @@ class AggregatorsSuite {
     assertEvalsTo(myLoweredTableIR, 4950)
   }
 
-  @Test def testFoldScan()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testFoldScan(implicit ctx: ExecuteContext): Unit = {
     val foo = Ref(freshName(), TStruct("idx" -> TInt32, "unused" -> TInt32))
 
     val myIR = ToArray(
@@ -1325,7 +1325,7 @@ class AggregatorsSuite {
   }
 
   // fails because there is no "lowest binding referenced in an init op"
-  @Test def testStreamAgg()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testStreamAgg(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = Set(ExecStrategy.JvmCompileUnoptimized)
     val foo = StreamRange(I32(0), I32(10), I32(1))
 
@@ -1340,7 +1340,7 @@ class AggregatorsSuite {
     assertEvalsTo(ir, 1)
   }
 
-  @Test def testLetBoundInitOpArg()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testLetBoundInitOpArg(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.allRelational
     var tir: TableIR = TableRange(10, 3)
     tir =

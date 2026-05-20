@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, ParameterizedTest}
 import is.hail.ExecStrategy.ExecStrategy
-import is.hail.JUnitTestUtils._
+import is.hail.TestUtils._
 import is.hail.annotations.{Region, SafeRow, ScalaToRegionValue}
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
@@ -1311,7 +1311,7 @@ class EmitStreamSuite {
     )
   }
 
-  @Test def testEmitBoundExprUsingStreamRef(): Unit = {
+  @Test def testEmitBoundExprUsingStreamRef(implicit ctx: ExecuteContext): Unit = {
     val expr =
       ToArray(mapIR(mapIR(rangeIR(1))(_ => rangeIR(10))) { stream =>
         M.eval {

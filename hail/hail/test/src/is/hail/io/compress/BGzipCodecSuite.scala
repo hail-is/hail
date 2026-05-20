@@ -1,6 +1,6 @@
 package is.hail.io.compress
 
-import is.hail.JUnitTestUtils._
+import is.hail.TestUtils._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterator

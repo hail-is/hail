@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, ParameterizedTest}
 import is.hail.ExecStrategy.ExecStrategy
-import is.hail.JUnitTestUtils._
+import is.hail.TestUtils._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
@@ -27,20 +27,20 @@ class DictFunctionsSuite {
     null,
   )
 
-  @ParameterizedTest(Array("basic"))
+  @ParameterizedTest("basic")
   def dictFromArray(a: IndexedSeq[(Integer, Integer)])(implicit ctx: ExecuteContext): Unit = {
     assertEvalsTo(invoke("dict", TDict(TInt32, TInt32), toIRPairArray(a)), tuplesToMap(a))
     assertEvalsTo(toIRDict(a), tuplesToMap(a))
   }
 
-  @ParameterizedTest(Array("basic"))
+  @ParameterizedTest("basic")
   def dictFromSet(a: IndexedSeq[(Integer, Integer)])(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(
       invoke("dict", TDict(TInt32, TInt32), ToSet(ToStream(toIRPairArray(a)))),
       tuplesToMap(a),
     )
 
-  @ParameterizedTest(Array("basic"))
+  @ParameterizedTest("basic")
   def isEmpty(a: IndexedSeq[(Integer, Integer)])(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(
       invoke("isEmpty", TBoolean, toIRDict(a)),
@@ -83,7 +83,7 @@ class DictFunctionsSuite {
     (null, null, null),
   )
 
-  @ParameterizedTest(Array("keysAndValues"))
+  @ParameterizedTest("keysAndValues")
   def keySet(
     a: IndexedSeq[(Integer, Integer)],
     keys: IndexedSeq[Integer],
@@ -92,7 +92,7 @@ class DictFunctionsSuite {
   ): Unit =
     assertEvalsTo(invoke("keySet", TSet(TInt32), toIRDict(a)), Option(keys).map(_.toSet).orNull)
 
-  @ParameterizedTest(Array("keysAndValues"))
+  @ParameterizedTest("keysAndValues")
   def keys(
     a: IndexedSeq[(Integer, Integer)],
     keys: IndexedSeq[Integer],
@@ -101,7 +101,7 @@ class DictFunctionsSuite {
   ): Unit =
     assertEvalsTo(invoke("keys", TArray(TInt32), toIRDict(a)), keys)
 
-  @ParameterizedTest(Array("keysAndValues"))
+  @ParameterizedTest("keysAndValues")
   def values(
     a: IndexedSeq[(Integer, Integer)],
     keys: IndexedSeq[Integer],
@@ -114,7 +114,7 @@ class DictFunctionsSuite {
   val dwoutna = IRDict((1, 3), (3, 7), (5, null))
   val na = NA(TInt32)
 
-  @Test def dictGet()(implicit ctx: ExecuteContext): Unit = {
+  @Test def dictGet(implicit ctx: ExecuteContext): Unit = {
     assertEvalsTo(invoke("get", TInt32, NA(TDict(TInt32, TInt32)), 1, na), null)
     assertEvalsTo(invoke("get", TInt32, d, 0, na), null)
     assertEvalsTo(invoke("get", TInt32, d, 1, na), 3)
@@ -140,7 +140,7 @@ class DictFunctionsSuite {
     assertFatal(invoke("index", TInt32, IRDict(), 100), "dictionary")
   }
 
-  @Test def dictContains()(implicit ctx: ExecuteContext): Unit = {
+  @Test def dictContains(implicit ctx: ExecuteContext): Unit = {
     assertEvalsTo(invoke("contains", TBoolean, d, 0), false)
     assertEvalsTo(invoke("contains", TBoolean, d, 1), true)
     assertEvalsTo(invoke("contains", TBoolean, d, 2), false)

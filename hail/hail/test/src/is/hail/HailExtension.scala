@@ -4,18 +4,14 @@ import is.hail.annotations.{Region, RegionPool}
 import is.hail.asm4s.HailClassLoader
 import is.hail.backend.{Backend, ExecuteContext, OwningTempFileManager}
 import is.hail.backend.spark.SparkBackend
-import is.hail.expr.ir.{BaseIR, CompileCache}
-import is.hail.expr.ir.LoweredTableReader.LoweredTableReaderCoercer
+import is.hail.collection.ImmutableMap
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.lowering.IrMetadata
 import is.hail.expr.ir.lowering.invariant.Flags.StrictInvariants
 import is.hail.io.fs.{FS, HadoopFS}
-import is.hail.linalg.BlockMatrix
 import is.hail.rvd.RVD
 import is.hail.utils.{ExecutionTimer, SerializableHadoopConfiguration}
 import is.hail.variant.ReferenceGenome
-
-import scala.collection.mutable
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.sql.SparkSession
@@ -23,17 +19,6 @@ import org.junit.jupiter.api.extension.{
   AfterAllCallback, ExtensionContext, ParameterContext, ParameterResolver,
 }
 import org.junit.jupiter.api.extension.ExtensionContext.Namespace
-
-/** Mutable IR caches shared across every test in a single test class. One instance is created
-  * lazily at class scope (on the first [[ExecuteContext]] injection for a class) and passed into
-  * every [[ExecuteContext]] built for tests in that class.
-  */
-final class ClassLevelIrCaches {
-  val blockMatrix: mutable.Map[String, BlockMatrix] = mutable.HashMap.empty
-  val compile: CompileCache = mutable.HashMap.empty
-  val persistedIr: mutable.Map[Int, BaseIR] = mutable.HashMap.empty
-  val persistedCoercer: mutable.Map[Any, LoweredTableReaderCoercer] = mutable.HashMap.empty
-}
 
 /** Created once per test run, closed at the end of the test run. Holds every object with test-run
   * lifetime: the Spark backend, classloader, flags, fs, region pool, and reference genomes.
@@ -67,7 +52,7 @@ final class SharedResources extends AutoCloseable {
 
   val references: Map[String, ReferenceGenome] = ReferenceGenome.builtinReferences()
 
-  def newExecuteContext(displayName: String, caches: ClassLevelIrCaches): ExecuteContext =
+  def newExecuteContext(displayName: String): ExecuteContext =
     new ExecuteContext(
       tmpdir = "/tmp",
       localTmpdir = "file:///tmp",
@@ -80,10 +65,11 @@ final class SharedResources extends AutoCloseable {
       theHailClassLoader = hcl,
       flags = flags,
       irMetadata = new IrMetadata(),
-      BlockMatrixCache = caches.blockMatrix,
-      CompileCache = caches.compile,
-      PersistedIrCache = caches.persistedIr,
-      PersistedCoercerCache = caches.persistedCoercer,
+      // disable caching in tests
+      BlockMatrixCache = ImmutableMap.empty,
+      CompileCache = ImmutableMap.empty,
+      PersistedIrCache = ImmutableMap.empty,
+      PersistedCoercerCache = ImmutableMap.empty,
     )
 
   override def close(): Unit = {
@@ -170,7 +156,7 @@ class HailExtension extends AfterAllCallback with ParameterResolver {
     */
   private def createCtx(extCtx: ExtensionContext, s: SharedResources): ExecuteContext = {
     val owned = new OwnedExecuteContext(
-      s.newExecuteContext(extCtx.getDisplayName, classCaches(extCtx))
+      s.newExecuteContext(extCtx.getDisplayName)
     )
     storageScope(extCtx).getStore(NAMESPACE).put(CTX_KEY, owned)
     owned.ctx
@@ -188,34 +174,10 @@ class HailExtension extends AfterAllCallback with ParameterResolver {
     }
     extCtx
   }
-
-  /** Look up (or create) the [[ClassLevelIrCaches]] attached to this test class. The caches live at
-    * the class-level ExtensionContext so every [[ExecuteContext]] built for a test in that class
-    * shares them.
-    */
-  private def classCaches(extCtx: ExtensionContext): ClassLevelIrCaches =
-    classScope(extCtx).getStore(NAMESPACE).getOrComputeIfAbsent(
-      CACHES_KEY,
-      (_: String) => new ClassLevelIrCaches,
-      classOf[ClassLevelIrCaches],
-    )
-
-  /** The ExtensionContext whose element is the test class (the first ancestor with a test class but
-    * no test method). Used as the anchor for class-scoped state (IR caches).
-    */
-  private def classScope(extCtx: ExtensionContext): ExtensionContext = {
-    var cur: ExtensionContext = extCtx
-    while (cur != null) {
-      if (cur.getTestClass.isPresent && !cur.getTestMethod.isPresent) return cur
-      cur = cur.getParent.orElse(null)
-    }
-    extCtx
-  }
 }
 
 object HailExtension {
   val NAMESPACE: Namespace = Namespace.create(classOf[HailExtension])
   val SHARED_KEY = "sharedResources"
   val CTX_KEY = "executeContext"
-  val CACHES_KEY = "irCaches"
 }

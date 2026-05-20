@@ -1,7 +1,7 @@
 package is.hail.annotations
 
-import is.hail.JUnitTestUtils._
 import is.hail.ParameterizedTest
+import is.hail.TestUtils._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
@@ -73,7 +73,7 @@ class UnsafeSuite {
     assert(Serialization.read[Spec](codec.toString) == codec)
   }
 
-  @Test def testCodec()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testCodec(implicit ctx: ExecuteContext): Unit = {
     val pool = ctx.r.pool
     val region = Region(pool = pool)
     val region2 = Region(pool = pool)
@@ -144,7 +144,7 @@ class UnsafeSuite {
     })
   }
 
-  @Test def testCodecForNonWrappedTypes()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testCodecForNonWrappedTypes(implicit ctx: ExecuteContext): Unit = {
     val pool = ctx.r.pool
     val valuesAndTypes = FastSeq(
       5 -> PInt32(),
@@ -198,7 +198,7 @@ class UnsafeSuite {
     }
   }
 
-  @Test def testRegionValue()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testRegionValue(implicit ctx: ExecuteContext): Unit = {
     val pool = ctx.r.pool
     val region = Region(pool = pool)
     val region2 = Region(pool = pool)
@@ -326,7 +326,7 @@ class UnsafeSuite {
   @Test def testEmptySize(): Unit =
     assert(PCanonicalStruct().byteSize == 0)
 
-  @Test def testUnsafeOrdering()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testUnsafeOrdering(implicit ctx: ExecuteContext): Unit = {
     val pool = ctx.r.pool
     val region = Region(pool = pool)
     val region2 = Region(pool = pool)

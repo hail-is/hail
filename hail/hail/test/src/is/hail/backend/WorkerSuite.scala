@@ -1,6 +1,6 @@
 package is.hail.backend
 
-import is.hail.JUnitTestUtils._
+import is.hail.TestUtils._
 import is.hail.backend.service.WireProtocol
 import is.hail.utils.{handleForPython, using, HailWorkerException}
 

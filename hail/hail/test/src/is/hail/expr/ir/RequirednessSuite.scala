@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
-import is.hail.JUnitTestUtils._
 import is.hail.ParameterizedTest
+import is.hail.TestUtils._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
@@ -659,7 +659,7 @@ class RequirednessSuite {
       s"${Pretty(ctx, node.t)}: \n$t"
     }.mkString("\n\n")
 
-  @ParameterizedTest(Array("valueIR"))
+  @ParameterizedTest("valueIR")
   def testRequiredness(node: IR, expected: Any)(implicit ctx: ExecuteContext): Unit = {
     TypeCheck(ctx, node)
     val et = expected match {
@@ -688,7 +688,7 @@ class RequirednessSuite {
     ))
   }
 
-  @ParameterizedTest(Array("tableIR"))
+  @ParameterizedTest("tableIR")
   def testTableRequiredness(node: TableIR, row: PType, global: PType)(implicit ctx: ExecuteContext)
     : Unit = {
     val res = Requiredness.apply(node, ctx)

@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, ParameterizedTest}
 import is.hail.ExecStrategy.ExecStrategy
-import is.hail.JUnitTestUtils._
+import is.hail.TestUtils._
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
@@ -68,7 +68,7 @@ class OrderingSuite {
     fb.resultWithIndex()(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, r)
   }
 
-  @Test def testMissingNonequalComparisons()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testMissingNonequalComparisons(implicit ctx: ExecuteContext): Unit = {
     val pool = ctx.r.pool
     def getStagedOrderingFunctionWithMissingness(
       t: PType,
@@ -238,7 +238,7 @@ class OrderingSuite {
     })
   }
 
-  @Test def testRandomOpsAgainstExtended()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testRandomOpsAgainstExtended(implicit ctx: ExecuteContext): Unit = {
     val pool = ctx.r.pool
     check(forAll(genTypeNonMissingVal2) { case (t, a1, a2) =>
       pool.scopedRegion { region =>
@@ -285,8 +285,7 @@ class OrderingSuite {
     })
   }
 
-  @Test def testReverseIsSwappedArgumentsOfExtendedOrdering()(implicit ctx: ExecuteContext)
-    : Unit = {
+  @Test def testReverseIsSwappedArgumentsOfExtendedOrdering(implicit ctx: ExecuteContext): Unit = {
     val pool = ctx.r.pool
     check(forAll(genTypeNonMissingVal2) { case (t, a1, a2) =>
       pool.scopedRegion { region =>
@@ -332,7 +331,7 @@ class OrderingSuite {
     })
   }
 
-  @Test def testSortOnRandomArray()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testSortOnRandomArray(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     check(forAll(genTypeVal[TArray](ctx), arbitrary[Boolean]) {
@@ -346,7 +345,7 @@ class OrderingSuite {
     })
   }
 
-  @Test def testToSetOnRandomDuplicatedArray()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testToSetOnRandomDuplicatedArray(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     check(forAll(genTypeVal[TArray](ctx)) { case (tarray, a: IndexedSeq[Any]) =>
@@ -359,7 +358,7 @@ class OrderingSuite {
     })
   }
 
-  @Test def testToDictOnRandomDuplicatedArray()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testToDictOnRandomDuplicatedArray(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats: Set[ExecStrategy] =
       ExecStrategy.javaOnly
 
@@ -388,7 +387,7 @@ class OrderingSuite {
     })
   }
 
-  @Test def testSortOnMissingArray()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testSortOnMissingArray(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
     val ts = TStream(TStruct("key" -> TInt32, "value" -> TInt32))
     val irs: Array[IR => IR] = Array(ArraySort(_, True()), ToSet(_), ToDict(_))
@@ -396,7 +395,7 @@ class OrderingSuite {
     irs.foreach(irF => assertEvalsTo(IsNA(irF(NA(ts))), true))
   }
 
-  @Test def testSetContainsOnRandomSet()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testSetContainsOnRandomSet(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
     val compareGen =
       for {
@@ -425,7 +424,7 @@ class OrderingSuite {
     })
   }
 
-  @Test def testDictGetOnRandomDict()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testDictGetOnRandomDict(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     val compareGen =
@@ -454,7 +453,7 @@ class OrderingSuite {
     })
   }
 
-  @Test def testBinarySearchOnSet()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testBinarySearchOnSet(implicit ctx: ExecuteContext): Unit = {
     val compareGen =
       for {
         elt <- arbitrary[Type]
@@ -510,7 +509,7 @@ class OrderingSuite {
     })
   }
 
-  @Test def testBinarySearchOnDict()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testBinarySearchOnDict(implicit ctx: ExecuteContext): Unit = {
     val compareGen =
       for {
         tdict <- arbitrary[TDict]
@@ -568,7 +567,7 @@ class OrderingSuite {
     })
   }
 
-  @Test def testPrefixCoder()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testPrefixCoder(implicit ctx: ExecuteContext): Unit = {
     val pool = ctx.r.pool
     check(forAll(genTypeNonMissingVal2) { case (t, a1, a2) =>
       pool.scopedRegion { region =>
@@ -594,7 +593,7 @@ class OrderingSuite {
     })
   }
 
-  @Test def testContainsWithArrayFold()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testContainsWithArrayFold(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
     val set1 = ToSet(MakeStream(IndexedSeq(I32(1), I32(4)), TStream(TInt32)))
     val set2 = ToSet(MakeStream(IndexedSeq(I32(9), I32(1), I32(4)), TStream(TInt32)))
@@ -628,7 +627,7 @@ class OrderingSuite {
     } yield (a, a2)
   }
 
-  @ParameterizedTest(Array("arrayDoubleOrderingData"))
+  @ParameterizedTest("arrayDoubleOrderingData")
   def testOrderingArrayDouble(
     a: IndexedSeq[Any],
     a2: IndexedSeq[Any],
@@ -649,7 +648,7 @@ class OrderingSuite {
     assertEvalSame(ApplyComparisonOp(Compare, In(0, t), In(1, t)), args)
   }
 
-  @ParameterizedTest(Array("arrayDoubleOrderingData"))
+  @ParameterizedTest("arrayDoubleOrderingData")
   def testOrderingSetDouble(
     a: IndexedSeq[Any],
     a2: IndexedSeq[Any],

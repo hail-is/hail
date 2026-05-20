@@ -10,7 +10,7 @@ import org.junit.jupiter.api.{BeforeEach, Test, TestInfo}
 import org.junit.jupiter.api.Assertions.{assertSame, assertTrue}
 
 /** Verifies that the resource lifetimes `HailExtension` hands to tests match the design in
-  * `.humanlayer/tasks/migrate-testing-framework-from-testng-to-junit/design.md`.
+  * `dev-docs/hail-query/testing.md`.
   *
   * Properties tested here:
   *   - `ctx.fs` / `ctx.backend` / `ctx.r.pool` are the same shared instances that the resolver

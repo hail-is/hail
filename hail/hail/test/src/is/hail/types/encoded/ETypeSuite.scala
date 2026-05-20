@@ -1,7 +1,7 @@
 package is.hail.types.encoded
 
-import is.hail.JUnitTestUtils._
 import is.hail.ParameterizedTest
+import is.hail.TestUtils._
 import is.hail.annotations.{Annotation, Region, SafeNDArray, SafeRow}
 import is.hail.asm4s.Code
 import is.hail.backend.ExecuteContext

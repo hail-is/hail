@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, ParameterizedTest}
 import is.hail.ExecStrategy.ExecStrategy
-import is.hail.JUnitTestUtils._
+import is.hail.TestUtils._
 import is.hail.annotations.{BroadcastRow, ExtendedOrdering, SafeNDArray}
 import is.hail.backend.ExecuteContext
 import is.hail.collection.{FastSeq, IntArrayBuilder}
@@ -39,7 +39,7 @@ import org.junit.jupiter.api.Test
 class IRSuite {
   implicit val execStrats: Set[ExecStrategy] = ExecStrategy.nonLowering
 
-  @Test def testRandDifferentLengthUIDStrings()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testRandDifferentLengthUIDStrings(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.lowering
     val staticUID: Long = 112233
     var rng = RNGSplit(RNGSplitStatic(RNGStateLiteral(), staticUID), I64(12345))
@@ -59,29 +59,29 @@ class IRSuite {
     assert(expected1 != expected3)
   }
 
-  @Test def testI32()(implicit ctx: ExecuteContext): Unit =
+  @Test def testI32(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(I32(5), 5)
 
-  @Test def testI64()(implicit ctx: ExecuteContext): Unit =
+  @Test def testI64(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(I64(5), 5L)
 
-  @Test def testF32()(implicit ctx: ExecuteContext): Unit =
+  @Test def testF32(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(F32(3.14f), 3.14f)
 
-  @Test def testF64()(implicit ctx: ExecuteContext): Unit =
+  @Test def testF64(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(F64(3.14), 3.14)
 
-  @Test def testStr()(implicit ctx: ExecuteContext): Unit =
+  @Test def testStr(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(Str("Hail"), "Hail")
 
-  @Test def testTrue()(implicit ctx: ExecuteContext): Unit =
+  @Test def testTrue(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(True(), true)
 
-  @Test def testFalse()(implicit ctx: ExecuteContext): Unit =
+  @Test def testFalse(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(False(), false)
   // FIXME Void() doesn't work because we can't handle a void type in a tuple
 
-  @Test def testCast()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testCast(implicit ctx: ExecuteContext): Unit = {
     assertAllEvalTo(
       (Cast(I32(5), TInt32), 5),
       (Cast(I32(5), TInt64), 5L),
@@ -105,7 +105,7 @@ class IRSuite {
     )
   }
 
-  @Test def testCastRename()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testCastRename(implicit ctx: ExecuteContext): Unit = {
     assertEvalsTo(CastRename(MakeStruct(FastSeq(("x", I32(1)))), TStruct("foo" -> TInt32)), Row(1))
     assertEvalsTo(
       CastRename(
@@ -116,10 +116,10 @@ class IRSuite {
     )
   }
 
-  @Test def testNA()(implicit ctx: ExecuteContext): Unit =
+  @Test def testNA(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(NA(TInt32), null)
 
-  @Test def testCoalesce()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testCoalesce(implicit ctx: ExecuteContext): Unit = {
     assertEvalsTo(Coalesce(FastSeq(In(0, TInt32))), FastSeq((null, TInt32)), null)
     assertEvalsTo(Coalesce(FastSeq(In(0, TInt32))), FastSeq((1, TInt32)), 1)
     assertEvalsTo(Coalesce(FastSeq(NA(TInt32), In(0, TInt32))), FastSeq((null, TInt32)), null)
@@ -132,7 +132,7 @@ class IRSuite {
     assertEvalsTo(Coalesce(FastSeq(NA(TInt32), I32(1), Die("foo", TInt32))), 1)
   }
 
-  @Test def testCoalesceWithDifferentRequiredeness()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testCoalesceWithDifferentRequiredeness(implicit ctx: ExecuteContext): Unit = {
     val t1 = In(0, TArray(TInt32))
     val t2 = NA(TArray(TInt32))
     val value = FastSeq(1, 2, 3, 4)
@@ -146,7 +146,7 @@ class IRSuite {
   val f64na = NA(TFloat64)
   val bna = NA(TBoolean)
 
-  @Test def testApplyUnaryPrimOpNegate()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testApplyUnaryPrimOpNegate(implicit ctx: ExecuteContext): Unit = {
     assertAllEvalTo(
       (ApplyUnaryPrimOp(Negate, I32(5)), -5),
       (ApplyUnaryPrimOp(Negate, i32na), null),
@@ -159,13 +159,13 @@ class IRSuite {
     )
   }
 
-  @Test def testApplyUnaryPrimOpBang()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testApplyUnaryPrimOpBang(implicit ctx: ExecuteContext): Unit = {
     assertEvalsTo(ApplyUnaryPrimOp(Bang, False()), true)
     assertEvalsTo(ApplyUnaryPrimOp(Bang, True()), false)
     assertEvalsTo(ApplyUnaryPrimOp(Bang, bna), null)
   }
 
-  @Test def testApplyUnaryPrimOpBitFlip()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testApplyUnaryPrimOpBitFlip(implicit ctx: ExecuteContext): Unit = {
     assertAllEvalTo(
       (ApplyUnaryPrimOp(BitNot, I32(0xdeadbeef)), ~0xdeadbeef),
       (ApplyUnaryPrimOp(BitNot, I32(-0xdeadbeef)), ~(-0xdeadbeef)),
@@ -176,7 +176,7 @@ class IRSuite {
     )
   }
 
-  @Test def testApplyUnaryPrimOpBitCount()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testApplyUnaryPrimOpBitCount(implicit ctx: ExecuteContext): Unit = {
     assertAllEvalTo(
       (ApplyUnaryPrimOp(BitCount, I32(0xdeadbeef)), Integer.bitCount(0xdeadbeef)),
       (ApplyUnaryPrimOp(BitCount, I32(-0xdeadbeef)), Integer.bitCount(-0xdeadbeef)),
@@ -193,7 +193,7 @@ class IRSuite {
     )
   }
 
-  @Test def testApplyBinaryPrimOpAdd()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testApplyBinaryPrimOpAdd(implicit ctx: ExecuteContext): Unit = {
     def assertSumsTo(t: Type, x: Any, y: Any, sum: Any): Unit =
       assertEvalsTo(ApplyBinaryPrimOp(Add(), In(0, t), In(1, t)), FastSeq(x -> t, y -> t), sum)
     assertSumsTo(TInt32, 5, 3, 8)
@@ -217,7 +217,7 @@ class IRSuite {
     assertSumsTo(TFloat64, null, null, null)
   }
 
-  @Test def testApplyBinaryPrimOpSubtract()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testApplyBinaryPrimOpSubtract(implicit ctx: ExecuteContext): Unit = {
     def assertExpected(t: Type, x: Any, y: Any, expected: Any): Unit =
       assertEvalsTo(
         ApplyBinaryPrimOp(Subtract(), In(0, t), In(1, t)),
@@ -246,7 +246,7 @@ class IRSuite {
     assertExpected(TFloat64, null, null, null)
   }
 
-  @Test def testApplyBinaryPrimOpMultiply()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testApplyBinaryPrimOpMultiply(implicit ctx: ExecuteContext): Unit = {
     def assertExpected(t: Type, x: Any, y: Any, expected: Any): Unit =
       assertEvalsTo(
         ApplyBinaryPrimOp(Multiply(), In(0, t), In(1, t)),
@@ -275,7 +275,7 @@ class IRSuite {
     assertExpected(TFloat64, null, null, null)
   }
 
-  @Test def testApplyBinaryPrimOpFloatingPointDivide()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testApplyBinaryPrimOpFloatingPointDivide(implicit ctx: ExecuteContext): Unit = {
     def assertExpected(t: Type, x: Any, y: Any, expected: Any): Unit =
       assertEvalsTo(
         ApplyBinaryPrimOp(FloatingPointDivide(), In(0, t), In(1, t)),
@@ -304,7 +304,7 @@ class IRSuite {
     assertExpected(TFloat64, null, null, null)
   }
 
-  @Test def testApplyBinaryPrimOpRoundToNegInfDivide()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testApplyBinaryPrimOpRoundToNegInfDivide(implicit ctx: ExecuteContext): Unit = {
     def assertExpected(t: Type, x: Any, y: Any, expected: Any): Unit =
       assertEvalsTo(
         ApplyBinaryPrimOp(RoundToNegInfDivide(), In(0, t), In(1, t)),
@@ -333,7 +333,7 @@ class IRSuite {
     assertExpected(TFloat64, null, null, null)
   }
 
-  @Test def testApplyBinaryPrimOpBitAnd()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testApplyBinaryPrimOpBitAnd(implicit ctx: ExecuteContext): Unit = {
     def assertExpected(t: Type, x: Any, y: Any, expected: Any): Unit =
       assertEvalsTo(
         ApplyBinaryPrimOp(BitAnd(), In(0, t), In(1, t)),
@@ -358,7 +358,7 @@ class IRSuite {
     assertExpected(TInt64, null, null, null)
   }
 
-  @Test def testApplyBinaryPrimOpBitOr()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testApplyBinaryPrimOpBitOr(implicit ctx: ExecuteContext): Unit = {
     def assertExpected(t: Type, x: Any, y: Any, expected: Any): Unit =
       assertEvalsTo(
         ApplyBinaryPrimOp(BitOr(), In(0, t), In(1, t)),
@@ -383,7 +383,7 @@ class IRSuite {
     assertExpected(TInt64, null, null, null)
   }
 
-  @Test def testApplyBinaryPrimOpBitXOr()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testApplyBinaryPrimOpBitXOr(implicit ctx: ExecuteContext): Unit = {
     def assertExpected(t: Type, x: Any, y: Any, expected: Any): Unit =
       assertEvalsTo(
         ApplyBinaryPrimOp(BitXOr(), In(0, t), In(1, t)),
@@ -408,7 +408,7 @@ class IRSuite {
     assertExpected(TInt64, null, null, null)
   }
 
-  @Test def testApplyBinaryPrimOpLeftShift()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testApplyBinaryPrimOpLeftShift(implicit ctx: ExecuteContext): Unit = {
     def assertShiftsTo(t: Type, x: Any, y: Any, expected: Any): Unit =
       assertEvalsTo(
         ApplyBinaryPrimOp(LeftShift(), In(0, t), In(1, TInt32)),
@@ -429,7 +429,7 @@ class IRSuite {
     assertShiftsTo(TInt64, null, null, null)
   }
 
-  @Test def testApplyBinaryPrimOpRightShift()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testApplyBinaryPrimOpRightShift(implicit ctx: ExecuteContext): Unit = {
     def assertShiftsTo(t: Type, x: Any, y: Any, expected: Any): Unit =
       assertEvalsTo(
         ApplyBinaryPrimOp(RightShift(), In(0, t), In(1, TInt32)),
@@ -450,7 +450,7 @@ class IRSuite {
     assertShiftsTo(TInt64, null, null, null)
   }
 
-  @Test def testApplyBinaryPrimOpLogicalRightShift()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testApplyBinaryPrimOpLogicalRightShift(implicit ctx: ExecuteContext): Unit = {
     def assertShiftsTo(t: Type, x: Any, y: Any, expected: Any): Unit =
       assertEvalsTo(
         ApplyBinaryPrimOp(LogicalRightShift(), In(0, t), In(1, TInt32)),
@@ -471,7 +471,7 @@ class IRSuite {
     assertShiftsTo(TInt64, null, null, null)
   }
 
-  @Test def testApplyComparisonOpGT()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testApplyComparisonOpGT(implicit ctx: ExecuteContext): Unit = {
     def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean): Unit =
       assertEvalsTo(ApplyComparisonOp(GT, In(0, t), In(1, t)), FastSeq(x -> t, y -> t), expected)
 
@@ -493,7 +493,7 @@ class IRSuite {
 
   }
 
-  @Test def testApplyComparisonOpGTEQ()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testApplyComparisonOpGTEQ(implicit ctx: ExecuteContext): Unit = {
     def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean): Unit =
       assertEvalsTo(
         ApplyComparisonOp(GTEQ, In(0, t), In(1, t)),
@@ -518,7 +518,7 @@ class IRSuite {
     assertComparesTo(TFloat64, 1.0, 0.0, true)
   }
 
-  @Test def testApplyComparisonOpLT()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testApplyComparisonOpLT(implicit ctx: ExecuteContext): Unit = {
     def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean): Unit =
       assertEvalsTo(ApplyComparisonOp(LT, In(0, t), In(1, t)), FastSeq(x -> t, y -> t), expected)
 
@@ -540,7 +540,7 @@ class IRSuite {
 
   }
 
-  @Test def testApplyComparisonOpLTEQ()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testApplyComparisonOpLTEQ(implicit ctx: ExecuteContext): Unit = {
     def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean): Unit =
       assertEvalsTo(
         ApplyComparisonOp(LTEQ, In(0, t), In(1, t)),
@@ -566,7 +566,7 @@ class IRSuite {
 
   }
 
-  @Test def testApplyComparisonOpEQ()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testApplyComparisonOpEQ(implicit ctx: ExecuteContext): Unit = {
     def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean): Unit =
       assertEvalsTo(ApplyComparisonOp(EQ, In(0, t), In(1, t)), FastSeq(x -> t, y -> t), expected)
 
@@ -587,7 +587,7 @@ class IRSuite {
     assertComparesTo(TFloat64, 1.0, 0.0, expected = false)
   }
 
-  @Test def testApplyComparisonOpNE()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testApplyComparisonOpNE(implicit ctx: ExecuteContext): Unit = {
     def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean): Unit =
       assertEvalsTo(
         ApplyComparisonOp(NEQ, In(0, t), In(1, t)),
@@ -612,10 +612,10 @@ class IRSuite {
     assertComparesTo(TFloat64, 1.0, 0.0, expected = true)
   }
 
-  @Test def testDieCodeBUilder()(implicit ctx: ExecuteContext): Unit =
+  @Test def testDieCodeBUilder(implicit ctx: ExecuteContext): Unit =
     assertFatal(Die("msg1", TInt32) + Die("msg2", TInt32), "msg1")
 
-  @Test def testIf()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testIf(implicit ctx: ExecuteContext): Unit = {
     assertEvalsTo(If(True(), I32(5), I32(7)), 5)
     assertEvalsTo(If(False(), I32(5), I32(7)), 7)
     assertEvalsTo(If(NA(TBoolean), I32(5), I32(7)), null)
@@ -642,7 +642,7 @@ class IRSuite {
   ): Unit =
     assertEvalsTo(Switch(x, default, cases), result)
 
-  @Test def testLet()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testLet(implicit ctx: ExecuteContext): Unit = {
     assertEvalsTo(bindIR(I32(5))(x => x), 5)
     assertEvalsTo(bindIR(NA(TInt32))(x => x), null)
     assertEvalsTo(bindIR(I32(5))(_ => NA(TInt32)), null)
@@ -674,7 +674,7 @@ class IRSuite {
     )
   }
 
-  @Test def testMakeArray()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testMakeArray(implicit ctx: ExecuteContext): Unit = {
     assertEvalsTo(
       MakeArray(FastSeq(I32(5), NA(TInt32), I32(-3)), TArray(TInt32)),
       FastSeq(5, null, -3),
@@ -682,7 +682,7 @@ class IRSuite {
     assertEvalsTo(MakeArray(FastSeq(), TArray(TInt32)), FastSeq())
   }
 
-  @Test def testGetNestedElementPTypesI32()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testGetNestedElementPTypesI32(implicit ctx: ExecuteContext): Unit = {
     var types = IndexedSeq(PInt32(true))
     var res = InferPType.getCompatiblePType(types)
     assert(res == PInt32(true))
@@ -700,7 +700,7 @@ class IRSuite {
     assert(res == PInt32(true))
   }
 
-  @Test def testGetNestedElementPTypesI64()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testGetNestedElementPTypesI64(implicit ctx: ExecuteContext): Unit = {
     var types = IndexedSeq(PInt64(true))
     var res = InferPType.getCompatiblePType(types)
     assert(res == PInt64(true))
@@ -718,7 +718,7 @@ class IRSuite {
     assert(res == PInt64(true))
   }
 
-  @Test def testGetNestedElementPFloat32()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testGetNestedElementPFloat32(implicit ctx: ExecuteContext): Unit = {
     var types = IndexedSeq(PFloat32(true))
     var res = InferPType.getCompatiblePType(types)
     assert(res == PFloat32(true))
@@ -736,7 +736,7 @@ class IRSuite {
     assert(res == PFloat32(true))
   }
 
-  @Test def testGetNestedElementPFloat64()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testGetNestedElementPFloat64(implicit ctx: ExecuteContext): Unit = {
     var types = IndexedSeq(PFloat64(true))
     var res = InferPType.getCompatiblePType(types)
     assert(res == PFloat64(true))
@@ -754,7 +754,7 @@ class IRSuite {
     assert(res == PFloat64(true))
   }
 
-  @Test def testGetNestedElementPCanonicalString()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testGetNestedElementPCanonicalString(implicit ctx: ExecuteContext): Unit = {
     var types = IndexedSeq(PCanonicalString(true))
     var res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalString(true))
@@ -772,7 +772,7 @@ class IRSuite {
     assert(res == PCanonicalString(true))
   }
 
-  @Test def testGetNestedPCanonicalArray()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testGetNestedPCanonicalArray(implicit ctx: ExecuteContext): Unit = {
     var types = IndexedSeq(PCanonicalArray(PInt32(true), true))
     var res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalArray(PInt32(true), true))
@@ -839,7 +839,7 @@ class IRSuite {
     assert(res == PCanonicalArray(PCanonicalArray(PInt32(false), false), false))
   }
 
-  @Test def testGetNestedElementPCanonicalDict()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testGetNestedElementPCanonicalDict(implicit ctx: ExecuteContext): Unit = {
     var types = IndexedSeq(PCanonicalDict(PInt32(true), PCanonicalString(true), true))
     var res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalDict(PInt32(true), PCanonicalString(true), true))
@@ -983,7 +983,7 @@ class IRSuite {
     ))
   }
 
-  @Test def testGetNestedElementPCanonicalStruct()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testGetNestedElementPCanonicalStruct(implicit ctx: ExecuteContext): Unit = {
     var types = IndexedSeq(PCanonicalStruct(true, "a" -> PInt32(true), "b" -> PInt32(true)))
     var res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalStruct(true, "a" -> PInt32(true), "b" -> PInt32(true)))
@@ -1092,7 +1092,7 @@ class IRSuite {
     ))
   }
 
-  @Test def testGetNestedElementPCanonicalTuple()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testGetNestedElementPCanonicalTuple(implicit ctx: ExecuteContext): Unit = {
     var types = IndexedSeq(PCanonicalTuple(true, PInt32(true)))
     var res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalTuple(true, PInt32(true)))
@@ -1145,7 +1145,7 @@ class IRSuite {
     assert(res == PCanonicalTuple(true, PCanonicalTuple(false, PInt32(false))))
   }
 
-  @Test def testGetNestedElementPCanonicalSet()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testGetNestedElementPCanonicalSet(implicit ctx: ExecuteContext): Unit = {
     var types = IndexedSeq(PCanonicalSet(PInt32(true), true))
     var res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalSet(PInt32(true), true))
@@ -1205,7 +1205,7 @@ class IRSuite {
     assert(res == PCanonicalSet(PCanonicalSet(PInt32(false), false), true))
   }
 
-  @Test def testGetNestedElementPCanonicalInterval()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testGetNestedElementPCanonicalInterval(implicit ctx: ExecuteContext): Unit = {
     var types = IndexedSeq(PCanonicalInterval(PInt32(true), true))
     var res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalInterval(PInt32(true), true))
@@ -1279,14 +1279,14 @@ class IRSuite {
     assert(res == PCanonicalInterval(PCanonicalInterval(PInt32(false), false), true))
   }
 
-  @Test def testMakeStruct()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testMakeStruct(implicit ctx: ExecuteContext): Unit = {
     assertEvalsTo(MakeStruct(FastSeq()), Row())
     assertEvalsTo(MakeStruct(FastSeq("a" -> NA(TInt32), "b" -> 4, "c" -> 0.5)), Row(null, 4, 0.5))
     // making sure wide structs get emitted without failure
     assertEvalsTo(GetField(MakeStruct((0 until 20000).map(i => s"foo$i" -> I32(1))), "foo1"), 1)
   }
 
-  @Test def testMakeArrayWithDifferentRequiredness()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testMakeArrayWithDifferentRequiredness(implicit ctx: ExecuteContext): Unit = {
     val pt1 = PCanonicalArray(PCanonicalStruct("a" -> PInt32(), "b" -> PCanonicalArray(PInt32())))
     val pt2 = PCanonicalArray(PCanonicalStruct(
       true,
@@ -1305,14 +1305,14 @@ class IRSuite {
     )
   }
 
-  @Test def testMakeTuple()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testMakeTuple(implicit ctx: ExecuteContext): Unit = {
     assertEvalsTo(MakeTuple.ordered(FastSeq()), Row())
     assertEvalsTo(MakeTuple.ordered(FastSeq(NA(TInt32), 4, 0.5)), Row(null, 4, 0.5))
     // making sure wide structs get emitted without failure
     assertEvalsTo(GetTupleElement(MakeTuple.ordered((0 until 20000).map(I32)), 1), 1)
   }
 
-  @Test def testGetTupleElement()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testGetTupleElement(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     val t = MakeTuple.ordered(FastSeq(I32(5), Str("abc"), NA(TInt32)))
@@ -1324,7 +1324,7 @@ class IRSuite {
     assertEvalsTo(GetTupleElement(na, 0), null)
   }
 
-  @Test def testLetBoundPrunedTuple()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testLetBoundPrunedTuple(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.unoptimizedCompileOnly
     val t2 = MakeTuple(FastSeq((2, I32(5))))
 
@@ -1333,7 +1333,7 @@ class IRSuite {
     assertEvalsTo(letBoundTuple, 5)
   }
 
-  @Test def testArrayRef()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testArrayRef(implicit ctx: ExecuteContext): Unit = {
     assertEvalsTo(
       ArrayRef(MakeArray(FastSeq(I32(5), NA(TInt32)), TArray(TInt32)), I32(0), ErrorIDs.NO_ERROR),
       5,
@@ -1357,13 +1357,13 @@ class IRSuite {
     )
   }
 
-  @Test def testArrayLen()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testArrayLen(implicit ctx: ExecuteContext): Unit = {
     assertEvalsTo(ArrayLen(NA(TArray(TInt32))), null)
     assertEvalsTo(ArrayLen(MakeArray(FastSeq(), TArray(TInt32))), 0)
     assertEvalsTo(ArrayLen(MakeArray(FastSeq(I32(5), NA(TInt32)), TArray(TInt32))), 2)
   }
 
-  @Test def testArraySort()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testArraySort(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     assertEvalsTo(ArraySort(ToStream(NA(TArray(TInt32)))), null)
@@ -1373,7 +1373,7 @@ class IRSuite {
     assertEvalsTo(ArraySort(ToStream(a), False()), FastSeq(2, 2, -7, null))
   }
 
-  @Test def testStreamZip()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testStreamZip(implicit ctx: ExecuteContext): Unit = {
     val range12 = StreamRange(0, 12, 1)
     val range6 = StreamRange(0, 12, 2)
     val range8 = StreamRange(0, 24, 3)
@@ -1421,7 +1421,7 @@ class IRSuite {
     )
   }
 
-  @Test def testToSet()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testToSet(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     assertEvalsTo(ToSet(ToStream(NA(TArray(TInt32)))), null)
@@ -1431,13 +1431,13 @@ class IRSuite {
     assertEvalsTo(ToSet(ToStream(a)), Set(-7, 2, null))
   }
 
-  @Test def testToArrayFromSet()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testToArrayFromSet(implicit ctx: ExecuteContext): Unit = {
     val t = TSet(TInt32)
     assertEvalsTo(CastToArray(NA(t)), null)
     assertEvalsTo(CastToArray(In(0, t)), FastSeq((Set(-7, 2, null), t)), FastSeq(-7, 2, null))
   }
 
-  @Test def testToDict()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testToDict(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     assertEvalsTo(ToDict(ToStream(NA(TArray(TTuple(FastSeq(TInt32, TString): _*))))), null)
@@ -1456,7 +1456,7 @@ class IRSuite {
     assertEvalsTo(ToDict(ToStream(a)), Map(5 -> "a", (null, "b"), 3 -> null))
   }
 
-  @Test def testToArrayFromDict()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testToArrayFromDict(implicit ctx: ExecuteContext): Unit = {
     val t = TDict(TInt32, TString)
     assertEvalsTo(CastToArray(NA(t)), null)
 
@@ -1469,13 +1469,13 @@ class IRSuite {
     )
   }
 
-  @Test def testToArrayFromArray()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testToArrayFromArray(implicit ctx: ExecuteContext): Unit = {
     val t = TArray(TInt32)
     assertEvalsTo(NA(t), null)
     assertEvalsTo(In(0, t), FastSeq((FastSeq(-7, 2, null, 2), t)), FastSeq(-7, 2, null, 2))
   }
 
-  @Test def testSetContains()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testSetContains(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     val t = TSet(TInt32)
@@ -1499,7 +1499,7 @@ class IRSuite {
     assertEvalsTo(invoke("contains", TBoolean, In(0, t), I32(7)), FastSeq((Set(-7, 2), t)), false)
   }
 
-  @Test def testDictContains()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testDictContains(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     val t = TDict(TInt32, TString)
@@ -1516,7 +1516,7 @@ class IRSuite {
     )
   }
 
-  @Test def testLowerBoundOnOrderedCollectionArray()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testLowerBoundOnOrderedCollectionArray(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     val na = NA(TArray(TInt32))
@@ -1542,7 +1542,7 @@ class IRSuite {
     )
   }
 
-  @Test def testLowerBoundOnOrderedCollectionSet()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testLowerBoundOnOrderedCollectionSet(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     val na = NA(TSet(TInt32))
@@ -1564,7 +1564,7 @@ class IRSuite {
     assertEvalsTo(LowerBoundOnOrderedCollection(swna, I32(5), onKey = false), 3)
   }
 
-  @Test def testLowerBoundOnOrderedCollectionDict()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testLowerBoundOnOrderedCollectionDict(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     val na = NA(TDict(TInt32, TString))
@@ -1584,7 +1584,7 @@ class IRSuite {
     assertEvalsTo(LowerBoundOnOrderedCollection(dwoutna, NA(TInt32), onKey = true), 2)
   }
 
-  @Test def testStreamLen()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testStreamLen(implicit ctx: ExecuteContext): Unit = {
     val a = StreamLen(MakeStream(IndexedSeq(I32(3), NA(TInt32), I32(7)), TStream(TInt32)))
     assertEvalsTo(a, 3)
 
@@ -1620,7 +1620,7 @@ class IRSuite {
     assertEvalsTo(lenOfLet, 7)
   }
 
-  @Test def testStreamLenUnconsumedInnerStream()(implicit ctx: ExecuteContext): Unit =
+  @Test def testStreamLenUnconsumedInnerStream(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(
       StreamLen(
         mapIR(StreamGrouped(filterIR(rangeIR(10))(x => x.cne(I32(0))), 3))(group => ToArray(group))
@@ -1628,7 +1628,7 @@ class IRSuite {
       3,
     )
 
-  @Test def testStreamTake()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testStreamTake(implicit ctx: ExecuteContext): Unit = {
     val naa = NA(TStream(TInt32))
     val a = MakeStream(IndexedSeq(I32(3), NA(TInt32), I32(7)), TStream(TInt32))
 
@@ -1641,7 +1641,7 @@ class IRSuite {
     assertEvalsTo(StreamLen(StreamTake(a, 2)), 2)
   }
 
-  @Test def testStreamDrop()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testStreamDrop(implicit ctx: ExecuteContext): Unit = {
     val naa = NA(TStream(TInt32))
     val a = MakeStream(IndexedSeq(I32(3), NA(TInt32), I32(7)), TStream(TInt32))
 
@@ -1657,7 +1657,7 @@ class IRSuite {
 
   def toNestedArray(stream: IR): IR = ToArray(mapIR(stream)(ToArray(_)))
 
-  @Test def testStreamGrouped()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testStreamGrouped(implicit ctx: ExecuteContext): Unit = {
     val naa = NA(TStream(TInt32))
     val a = MakeStream(IndexedSeq(I32(3), NA(TInt32), I32(7)), TStream(TInt32))
 
@@ -1696,7 +1696,7 @@ class IRSuite {
     assertEvalsTo(toNestedArray(takeFromEach(r, I32(0), I32(5))), FastSeq(FastSeq(), FastSeq()))
   }
 
-  @Test def testStreamGroupByKey()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testStreamGroupByKey(implicit ctx: ExecuteContext): Unit = {
     val structType = TStruct("a" -> TInt32, "b" -> TInt32)
     val naa = NA(TStream(structType))
     val a = MakeStream(
@@ -1755,7 +1755,7 @@ class IRSuite {
     )
   }
 
-  @Test def testStreamMap()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testStreamMap(implicit ctx: ExecuteContext): Unit = {
     val naa = NA(TStream(TInt32))
     val a = MakeStream(IndexedSeq(I32(3), NA(TInt32), I32(7)), TStream(TInt32))
 
@@ -1763,7 +1763,7 @@ class IRSuite {
     assertEvalsTo(ToArray(mapIR(a)(_ + I32(1))), FastSeq(4, null, 8))
   }
 
-  @Test def testStreamFilter()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testStreamFilter(implicit ctx: ExecuteContext): Unit = {
     val nsa = NA(TStream(TInt32))
     val a = MakeStream(IndexedSeq(I32(3), NA(TInt32), I32(7)), TStream(TInt32))
 
@@ -1779,7 +1779,7 @@ class IRSuite {
     assertEvalsTo(ToArray(filterIR(a)(_ < I32(6))), FastSeq(3))
   }
 
-  @Test def testArrayFlatMap()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testArrayFlatMap(implicit ctx: ExecuteContext): Unit = {
     val ta = TArray(TInt32)
     val ts = TStream(TInt32)
     val tsa = TStream(ta)
@@ -1810,7 +1810,7 @@ class IRSuite {
     assertEvalsTo(ToArray(flatMapIR(st)(foo => rangeIR(-1, foo))), expected)
   }
 
-  @Test def testStreamFold()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testStreamFold(implicit ctx: ExecuteContext): Unit = {
     assertEvalsTo(foldIR(StreamRange(1, 2, 1), NA(TBoolean))((accum, elt) => IsNA(accum)), true)
     assertEvalsTo(foldIR(IRStream(1, 2, 3), 0)(_ + _), 6)
     assertEvalsTo(
@@ -1828,7 +1828,7 @@ class IRSuite {
     )
   }
 
-  @Test def testArrayFold2()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testArrayFold2(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.compileOnly
 
     val af = fold2IR(
@@ -1843,7 +1843,7 @@ class IRSuite {
     assertEvalsTo(af, FastSeq((FastSeq(1, 2, 3), TArray(TInt32))), Row(6, 1))
   }
 
-  @Test def testArrayScan()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testArrayScan(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     assertEvalsTo(
@@ -1897,7 +1897,7 @@ class IRSuite {
   val cubeRowMajor = makeNDArray((0 until 27).map(_.toDouble), FastSeq(3, 3, 3), True())
   val cubeColMajor = makeNDArray((0 until 27).map(_.toDouble), FastSeq(3, 3, 3), False())
 
-  @Test def testNDArrayShape()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testNDArrayShape(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.compileOnly
 
     assertEvalsTo(NDArrayShape(scalarRowMajor), Row())
@@ -1905,7 +1905,7 @@ class IRSuite {
     assertEvalsTo(NDArrayShape(cubeRowMajor), Row(3L, 3L, 3L))
   }
 
-  @Test def testNDArrayRef()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testNDArrayRef(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
     assertEvalsTo(makeNDArrayRef(scalarRowMajor, FastSeq()), 3.0)
@@ -1933,7 +1933,7 @@ class IRSuite {
     assertEvalsTo(centerColMajor, 13.0)
   }
 
-  @Test def testNDArrayReshape()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testNDArrayReshape(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
     val v = NDArrayReshape(matrixRowMajor, MakeTuple.ordered(IndexedSeq(I64(4))), ErrorIDs.NO_ERROR)
@@ -1945,7 +1945,7 @@ class IRSuite {
     assertEvalsTo(makeNDArrayRef(mat2, FastSeq(0, 0)), 1.0)
   }
 
-  @Test def testNDArrayConcat()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testNDArrayConcat(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
     def nds(ndData: (IndexedSeq[Int], Long, Long)*): IR =
@@ -2024,7 +2024,7 @@ class IRSuite {
     assertNDEvals(NDArrayConcat(NA(TArray(TNDArray(TInt32, Nat(2)))), 1), null)
   }
 
-  @Test def testNDArrayMap()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testNDArrayMap(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
     val data = 0 until 10
@@ -2058,7 +2058,7 @@ class IRSuite {
     assertEvalsTo(zero, 0L)
   }
 
-  @Test def testNDArrayMap2()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testNDArrayMap2(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
     val shape = MakeTuple.ordered(FastSeq(2L, 2L).map(I64))
@@ -2082,7 +2082,7 @@ class IRSuite {
     assertEvalsTo(twentyTwo, 22.0)
   }
 
-  @Test def testNDArrayReindex()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testNDArrayReindex(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
     val transpose = NDArrayReindex(matrixRowMajor, FastSeq(1, 0))
@@ -2105,7 +2105,7 @@ class IRSuite {
     assertEvalsTo(makeNDArrayRef(partialTranspose, partialTranposeIdx), 3.0)
   }
 
-  @Test def testNDArrayBroadcasting()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testNDArrayBroadcasting(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
     def sum(nd1: IR, nd2: IR): IR = ndMap2(nd1, nd2)(_ + _)
@@ -2138,7 +2138,7 @@ class IRSuite {
     assertEvalsTo(NDArrayShape(colVectorWithEmpty), Row(2L, 0L))
   }
 
-  @Test def testNDArrayAgg()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testNDArrayAgg(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
     val empty = makeNDArrayRef(
@@ -2162,7 +2162,7 @@ class IRSuite {
     assertEvalsTo(twentySeven, 3.0)
   }
 
-  @Test def testNDArrayMatMul()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testNDArrayMatMul(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
     val dotProduct = NDArrayMatMul(vectorRowMajor, vectorRowMajor, ErrorIDs.NO_ERROR)
@@ -2190,7 +2190,7 @@ class IRSuite {
     assertEvalsTo(makeNDArrayRef(matMulCube, IndexedSeq(0, 0, 0)), 30.0)
   }
 
-  @Test def testNDArrayInv()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testNDArrayInv(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
     val matrixRowMajor = makeNDArray(FastSeq(1.5, 2.0, 4.0, 5.0), FastSeq(2, 2), True())
     val inv = NDArrayInv(matrixRowMajor, ErrorIDs.NO_ERROR)
@@ -2198,7 +2198,7 @@ class IRSuite {
     assertNDEvals(inv, expectedInv)
   }
 
-  @Test def testNDArraySlice()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testNDArraySlice(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
     val rightCol = NDArraySlice(
@@ -2335,7 +2335,7 @@ class IRSuite {
     )
   }
 
-  @Test def testNDArrayFilter()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testNDArrayFilter(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
     assertNDEvals(
@@ -2429,7 +2429,7 @@ class IRSuite {
     })
   }
 
-  @Test def testStreamZipJoin()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testStreamZipJoin(implicit ctx: ExecuteContext): Unit = {
     def eltType = TStruct("k1" -> TInt32, "k2" -> TString, "idx" -> TInt32)
     def makeStream(a: IndexedSeq[Integer]): IR = {
       if (a == null)
@@ -2505,7 +2505,7 @@ class IRSuite {
     )
   }
 
-  @Test def testStreamMultiMerge()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testStreamMultiMerge(implicit ctx: ExecuteContext): Unit = {
     def eltType = TStruct("k1" -> TInt32, "k2" -> TString, "idx" -> TInt32)
     def makeStream(a: IndexedSeq[Integer]): IR = {
       if (a == null)
@@ -2583,7 +2583,7 @@ class IRSuite {
     )
   }
 
-  @Test def testJoinRightDistinct()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testJoinRightDistinct(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     def joinRows(left: IndexedSeq[Integer], right: IndexedSeq[Integer], joinType: String): IR = {
@@ -2702,7 +2702,7 @@ class IRSuite {
     )
   }
 
-  @Test def testStreamJoin()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testStreamJoin(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     def joinRows(left: IndexedSeq[Integer], right: IndexedSeq[Integer], joinType: String): IR = {
@@ -2807,7 +2807,7 @@ class IRSuite {
     )
   }
 
-  @Test def testStreamMerge()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testStreamMerge(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.compileOnly
 
     def mergeRows(left: IndexedSeq[Integer], right: IndexedSeq[Integer], key: Int): IR = {
@@ -2934,12 +2934,12 @@ class IRSuite {
     assertEvalsTo(mergeRows(ArraySeq(1, 2, null), null, 1), null)
   }
 
-  @Test def testDie()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testDie(implicit ctx: ExecuteContext): Unit = {
     assertFatal(Die("mumblefoo", TFloat64), "mble")
     assertFatal(Die(NA(TString), TFloat64, -1), "message missing")
   }
 
-  @Test def testStreamRange()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testStreamRange(implicit ctx: ExecuteContext): Unit = {
     def assertEquals(start: Integer, stop: Integer, step: Integer, expected: IndexedSeq[Int])
       : Unit =
       assertEvalsTo(
@@ -2965,7 +2965,7 @@ class IRSuite {
     assertEquals(Int.MinValue, Int.MaxValue, Int.MaxValue / 5, expected)
   }
 
-  @Test def testArrayAgg()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testArrayAgg(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.compileOnly
 
     assertEvalsTo(
@@ -2974,7 +2974,7 @@ class IRSuite {
     )
   }
 
-  @Test def testArrayAggContexts()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testArrayAggContexts(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.compileOnly
 
     val ir = bindIR(In(0, TInt32) * In(0, TInt32)) { x => // multiply to prevent forwarding
@@ -3007,7 +3007,7 @@ class IRSuite {
     )
   }
 
-  @Test def testStreamAggScan()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testStreamAggScan(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.compileOnly
 
     val eltType = TStruct("x" -> TCall, "y" -> TInt32)
@@ -3038,7 +3038,7 @@ class IRSuite {
     assertEvalsTo(StreamLen(ir), args = FastSeq(input), 6)
   }
 
-  @Test def testInsertFields()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testInsertFields(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     val s = TStruct("a" -> TInt64, "b" -> TString)
@@ -3137,7 +3137,7 @@ class IRSuite {
 
   }
 
-  @Test def testSelectFields()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testSelectFields(implicit ctx: ExecuteContext): Unit = {
     assertEvalsTo(
       SelectFields(
         NA(TStruct("foo" -> TInt32, "bar" -> TFloat64)),
@@ -3163,7 +3163,7 @@ class IRSuite {
     )
   }
 
-  @Test def testGetField()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testGetField(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     val s = MakeStruct(IndexedSeq("a" -> NA(TInt64), "b" -> Str("abc")))
@@ -3174,7 +3174,7 @@ class IRSuite {
     assertEvalsTo(GetField(na, "a"), null)
   }
 
-  @Test def testLiteral()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testLiteral(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats =
       Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.JvmCompile)
     val poopEmoji = new String(Array[Char](0xd83d, 0xdca9))
@@ -3197,7 +3197,7 @@ class IRSuite {
     assertEvalsTo(Str("hello" + poopEmoji), "hello" + poopEmoji)
   }
 
-  @Test def testSameLiteralsWithDifferentTypes()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testSameLiteralsWithDifferentTypes(implicit ctx: ExecuteContext): Unit = {
     assertEvalsTo(
       ApplyComparisonOp(
         EQ,
@@ -3210,13 +3210,13 @@ class IRSuite {
     )
   }
 
-  @Test def testTableCount()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testTableCount(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized)
     assertEvalsTo(TableCount(TableRange(0, 4)), 0L)
     assertEvalsTo(TableCount(TableRange(7, 4)), 7L)
   }
 
-  @Test def testTableGetGlobals()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testTableGetGlobals(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.interpretOnly
     assertEvalsTo(
       TableGetGlobals(TableMapGlobals(TableRange(0, 1), Literal(TStruct("a" -> TInt32), Row(1)))),
@@ -3224,7 +3224,7 @@ class IRSuite {
     )
   }
 
-  @Test def testTableAggregate()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testTableAggregate(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.allRelational
 
     val table = TableRange(3, 2)
@@ -3232,7 +3232,7 @@ class IRSuite {
     assertEvalsTo(TableAggregate(table, MakeStruct(IndexedSeq("foo" -> count))), Row(3L))
   }
 
-  @Test def testMatrixAggregate()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testMatrixAggregate(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.interpretOnly
 
     val matrix = MatrixIR.range(ctx, 5, 5, None)
@@ -3240,7 +3240,7 @@ class IRSuite {
     assertEvalsTo(MatrixAggregate(matrix, MakeStruct(IndexedSeq("foo" -> count))), Row(25L))
   }
 
-  @Test def testGroupByKey()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testGroupByKey(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = Set(
       ExecStrategy.Interpret,
       ExecStrategy.InterpretUnoptimized,
@@ -3943,7 +3943,7 @@ class IRSuite {
     Seq[BlockMatrixIR](read, transpose, dot, sparsify1, sparsify2, sparsify3, densify, slice)
   }
 
-  @Test def testIRConstruction()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testIRConstruction(implicit ctx: ExecuteContext): Unit = {
     testMatrixIRParser(ctx): Unit
     testTableIRParser(ctx): Unit
     testValueIRParser(ctx): Unit
@@ -3978,7 +3978,7 @@ class IRSuite {
     assert(x2 == x)
   }
 
-  @Test def testBlockMatrixIRParserPersist()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testBlockMatrixIRParserPersist(implicit ctx: ExecuteContext): Unit = {
     val cache = mutable.Map.empty[String, BlockMatrix]
     val bm = BlockMatrixRandom(0, gaussian = true, shape = ArraySeq(5L, 6L), blockSize = 3)
     try {
@@ -3999,7 +3999,7 @@ class IRSuite {
       cache.values.foreach(_.unpersist())
   }
 
-  @Test def testCachedIR()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testCachedIR(implicit ctx: ExecuteContext): Unit = {
     val cached = Literal(TSet(TInt32), Set(1))
     val s = s"(JavaIR 1)"
     val x2 =
@@ -4007,7 +4007,7 @@ class IRSuite {
     assert(x2 eq cached)
   }
 
-  @Test def testCachedTableIR()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testCachedTableIR(implicit ctx: ExecuteContext): Unit = {
     val cached = TableRange(1, 1)
     val s = s"(JavaTable 1)"
     val x2 =
@@ -4015,7 +4015,7 @@ class IRSuite {
     assert(x2 eq cached)
   }
 
-  @Test def testArrayContinuationDealsWithIfCorrectly()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testArrayContinuationDealsWithIfCorrectly(implicit ctx: ExecuteContext): Unit = {
     val ir = ToArray(mapIR(
       If(IsNA(In(0, TBoolean)), NA(TStream(TInt32)), ToStream(In(1, TArray(TInt32))))
     )(Cast(_, TInt64)))
@@ -4023,7 +4023,7 @@ class IRSuite {
     assertEvalsTo(ir, FastSeq(true -> TBoolean, FastSeq(0) -> TArray(TInt32)), FastSeq(0L))
   }
 
-  @Test def testTableGetGlobalsSimplifyRules()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testTableGetGlobalsSimplifyRules(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.interpretOnly
 
     val t1 =
@@ -4060,7 +4060,7 @@ class IRSuite {
     assertEvalsTo(TableGetGlobals(TableRename(tab1, Map.empty, Map("g2" -> "g3"))), Row(1, 1.1))
   }
 
-  @Test def testAggLet()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testAggLet(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.interpretOnly
     val t = TableRange(2, 2)
     val ir = TableAggregate(
@@ -4075,14 +4075,14 @@ class IRSuite {
     assertEvalsTo(ir, 61L)
   }
 
-  @Test def testRelationalLet()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testRelationalLet(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.interpretOnly
 
     val ir = relationalBindIR(NA(TInt32))(x => x)
     assertEvalsTo(ir, null)
   }
 
-  @Test def testRelationalLetTable()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testRelationalLetTable(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.interpretOnly
 
     val t = TArray(TStruct("x" -> TInt32))
@@ -4101,7 +4101,7 @@ class IRSuite {
     assertEvalsTo(ir, 1L)
   }
 
-  @Test def testRelationalLetMatrixTable()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testRelationalLetMatrixTable(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.interpretOnly
 
     val t = TArray(TStruct("x" -> TInt32))
@@ -4178,7 +4178,7 @@ class IRSuite {
     GetElement(FastSeq(1, 2)),
   )
 
-  @Test def relationalFunctionsRun()(implicit ctx: ExecuteContext): Unit =
+  @Test def relationalFunctionsRun(implicit ctx: ExecuteContext): Unit =
     testRelationalFunctionsSerialize(ctx): Unit
 
   @ParameterizedTest
@@ -4203,7 +4203,7 @@ class IRSuite {
     }
   }
 
-  @Test def testFoldWithSetup()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testFoldWithSetup(implicit ctx: ExecuteContext): Unit = {
     val v = In(0, TInt32)
     val cond1 = If(
       v.ceq(I32(3)),
@@ -4217,7 +4217,7 @@ class IRSuite {
     )
   }
 
-  @Test def testNonCanonicalTypeParsing()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testNonCanonicalTypeParsing(implicit ctx: ExecuteContext): Unit = {
     val t = TTuple(FastSeq(TupleField(1, TInt64)))
     val lit = Literal(t, Row(1L))
 
@@ -4225,7 +4225,7 @@ class IRSuite {
     assert(IRParser.parse_value_ir(ctx, Pretty.sexprStyle(lit, elideLiterals = false)) == lit)
   }
 
-  def regressionTestUnifyBug()(implicit ctx: ExecuteContext): Unit = {
+  def regressionTestUnifyBug(implicit ctx: ExecuteContext): Unit = {
     // failed due to misuse of Type.unify
     val ir = IRParser.parse_value_ir(
       ctx,
@@ -4254,7 +4254,7 @@ class IRSuite {
     )
   }
 
-  @Test def testSimpleTailLoop()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testSimpleTailLoop(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
     val triangleSum: IR =
       tailLoop(TInt32, In(0, TInt32), In(1, TInt32)) { case (recur, Seq(x, accum)) =>
@@ -4266,7 +4266,7 @@ class IRSuite {
     assertEvalsTo(triangleSum, FastSeq((null, TInt32), 0 -> TInt32), null)
   }
 
-  @Test def testNestedTailLoop()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testNestedTailLoop(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
     val triangleSum: IR = tailLoop(TInt32, In(0, TInt32), I32(0)) { case (recur, Seq(x, accum)) =>
       If(
@@ -4281,7 +4281,7 @@ class IRSuite {
     assertEvalsTo(triangleSum, FastSeq(5 -> TInt32), 15 + 10 + 5)
   }
 
-  @Test def testTailLoopNDMemory()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testTailLoopNDMemory(implicit ctx: ExecuteContext): Unit = {
     val ndType = TNDArray(TInt32, Nat(2))
 
     val ndSum: IR = tailLoop(
@@ -4311,14 +4311,14 @@ class IRSuite {
     assert(memUsed == memUsed2)
   }
 
-  @Test def testTreeIRInvariant()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testTreeIRInvariant(implicit ctx: ExecuteContext): Unit = {
     val r = Ref(freshName(), TInt32)
     val ir1 = MakeTuple.ordered(FastSeq(I64(1), r, r, I32(1)))
     intercept[UnsatisfiedInvariantError](TreeIR.verify(ctx, ir1)): Unit
     TreeIR.verify(ctx, ir1.deepCopy)
   }
 
-  @Test def freeVariables()(implicit ctx: ExecuteContext): Unit = {
+  @Test def freeVariables(implicit ctx: ExecuteContext): Unit = {
     val stream = rangeIR(5)
     val y = Ref(freshName(), TInt32)
     val z = Ref(freshName(), TInt32)
@@ -4341,7 +4341,7 @@ class IRSuite {
     )
   }
 
-  @Test def freeVariablesAggScanBindingEnv()(implicit ctx: ExecuteContext): Unit = {
+  @Test def freeVariablesAggScanBindingEnv(implicit ctx: ExecuteContext): Unit = {
     def testFreeVarsHelper(ir: IR): Unit = {
       val irFreeVarsTrue = FreeVariables.apply(ir, true, true)
       assert(irFreeVarsTrue.agg.isDefined && irFreeVarsTrue.scan.isDefined)
@@ -4377,7 +4377,7 @@ class IRSuite {
     ),
   )
 
-  @ParameterizedTest(Array("nonNullTypesAndValues"))
+  @ParameterizedTest("nonNullTypesAndValues")
   def testReadWriteValues(pt: SingleCodeType, value: Any)(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.compileOnly
     val node = In(0, SingleCodeEmitParamType(true, pt))
@@ -4391,7 +4391,7 @@ class IRSuite {
     }
   }
 
-  @ParameterizedTest(Array("nonNullTypesAndValues"))
+  @ParameterizedTest("nonNullTypesAndValues")
   def testReadWriteValueDistributed(pt: SingleCodeType, value: Any)(implicit ctx: ExecuteContext)
     : Unit = {
     implicit val execStrats = ExecStrategy.compileOnly
@@ -4414,7 +4414,7 @@ class IRSuite {
     }
   }
 
-  @Test def testUUID4()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testUUID4(implicit ctx: ExecuteContext): Unit = {
     val single = UUID4()
     val hex = "[0-9a-f]"
     val format = s"$hex{8}-$hex{4}-$hex{4}-$hex{4}-$hex{12}"
@@ -4443,7 +4443,7 @@ class IRSuite {
     assertNumDistinct(bindIR(ToArray(stream))(a => selfZip(ToStream(a), 2)), 5)
   }
 
-  @Test def testZipDoesntPruneLengthInfo()(implicit ctx: ExecuteContext): Unit =
+  @Test def testZipDoesntPruneLengthInfo(implicit ctx: ExecuteContext): Unit =
     ArraySeq(
       ArrayZipBehavior.AssumeSameLength,
       ArrayZipBehavior.AssertSameLength,
@@ -4458,7 +4458,7 @@ class IRSuite {
       assertEvalsTo(ToArray(zip), ArraySeq.fill(10)(Row("foo", "bar")))
     }
 
-  @Test def testStreamDistribute()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testStreamDistribute(implicit ctx: ExecuteContext): Unit = {
     val data1 = IndexedSeq(0, 1, 1, 2, 4, 7, 7, 7, 9, 11, 15, 20, 22, 28, 50, 100)
     val pivots1 = IndexedSeq(-10, 1, 7, 7, 15, 22, 50, 200)
     val pivots2 = IndexedSeq(-10, 1, 1, 7, 9, 28, 50, 200)

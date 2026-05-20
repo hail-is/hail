@@ -2,12 +2,13 @@ package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, ParameterizedTest}
 import is.hail.ExecStrategy.ExecStrategy
-import is.hail.JUnitTestUtils._
+import is.hail.TestUtils._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.defs.{I32, NA, ToSet, ToStream}
 import is.hail.types.virtual._
+
 import org.junit.jupiter.api.Test
 
 class SetFunctionsSuite {
@@ -66,15 +67,15 @@ class SetFunctionsSuite {
   }
 
   def testIsSubset = ArraySeq[(IR, IR, Any)](
-      (IRSet(), IRSet(), true),
-      (IRSet(1), IRSet(1), true),
-      (IRSet(3, null, 7), IRSet(3, null, 7), true),
-      (IRSet(3, null, 7), IRSet(3, null, 7, 11), true),
-      (IRSet(1, 2, 3), IRSet(1, 2, 4), false),
-      (IRSet(1, 2, 3), NA(TSet(TInt32)), null),
-      (NA(TSet(TInt32)), IRSet(1, 2, 3), null),
-      (NA(TSet(TInt32)), NA(TSet(TInt32)), null),
-    )
+    (IRSet(), IRSet(), true),
+    (IRSet(1), IRSet(1), true),
+    (IRSet(3, null, 7), IRSet(3, null, 7), true),
+    (IRSet(3, null, 7), IRSet(3, null, 7, 11), true),
+    (IRSet(1, 2, 3), IRSet(1, 2, 4), false),
+    (IRSet(1, 2, 3), NA(TSet(TInt32)), null),
+    (NA(TSet(TInt32)), IRSet(1, 2, 3), null),
+    (NA(TSet(TInt32)), NA(TSet(TInt32)), null),
+  )
 
   @ParameterizedTest
   def testIsSubset(a: IR, b: IR, isSubset: Any)(implicit ctx: ExecuteContext): Unit =

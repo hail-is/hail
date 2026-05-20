@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.ExecStrategy
-import is.hail.JUnitTestUtils._
+import is.hail.TestUtils._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.expr.ir.defs._
@@ -121,7 +121,7 @@ class ExtractIntervalFiltersSuite {
     check(IsNA(filter), rowRef, key, probes, naResidual, naIntervals)
   }
 
-  @Test def testIsNA()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testIsNA(implicit ctx: ExecuteContext): Unit = {
     val testRows = FastSeq(
       Row(0, 0, true),
       Row(0, null, true),
@@ -137,7 +137,7 @@ class ExtractIntervalFiltersSuite {
     )
   }
 
-  @Test def testKeyComparison()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testKeyComparison(implicit ctx: ExecuteContext): Unit = {
     def check(
       op: ComparisonOp[Boolean],
       point: IR,
@@ -246,7 +246,7 @@ class ExtractIntervalFiltersSuite {
     ).isEmpty)
   }
 
-  @Test def testLiteralContains()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testLiteralContains(implicit ctx: ExecuteContext): Unit = {
     def check(
       node: IR,
       trueIntervals: IndexedSeq[Interval],
@@ -304,7 +304,7 @@ class ExtractIntervalFiltersSuite {
     }
   }
 
-  @Test def testLiteralContainsStruct()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testLiteralContainsStruct(implicit ctx: ExecuteContext): Unit = {
     def check(
       node: IR,
       trueIntervals: IndexedSeq[Interval],
@@ -382,7 +382,7 @@ class ExtractIntervalFiltersSuite {
     }
   }
 
-  @Test def testIntervalContains()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testIntervalContains(implicit ctx: ExecuteContext): Unit = {
     val interval = Interval(1, 5, false, true)
     val testRows = FastSeq(
       Row(0, 0, true),
@@ -407,7 +407,7 @@ class ExtractIntervalFiltersSuite {
     )
   }
 
-  @Test def testIntervalContainsStruct()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testIntervalContainsStruct(implicit ctx: ExecuteContext): Unit = {
     val fullInterval = Interval(Row(1, 1), Row(2, 2), false, true)
     val prefixInterval = Interval(Row(1), Row(2), false, true)
 
@@ -466,7 +466,7 @@ class ExtractIntervalFiltersSuite {
     }
   }
 
-  @Test def testLocusContigComparison()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testLocusContigComparison(implicit ctx: ExecuteContext): Unit = {
     val ref = Ref(freshName(), TStruct("x" -> TLocus(ReferenceGenome.GRCh38)))
     val k = GetField(ref, "x")
 
@@ -498,7 +498,7 @@ class ExtractIntervalFiltersSuite {
     checkAll(not(ir1), ref, ref, testRows, falseIntervals, trueIntervals, naIntervals)
   }
 
-  @Test def testLocusPositionComparison()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testLocusPositionComparison(implicit ctx: ExecuteContext): Unit = {
     val ref = Ref(freshName(), TStruct("x" -> TLocus(ReferenceGenome.GRCh38)))
     val k = GetField(ref, "x")
     val pos = invoke("position", TInt32, k)
@@ -640,7 +640,7 @@ class ExtractIntervalFiltersSuite {
     ).isEmpty)
   }
 
-  @Test def testLocusContigContains()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testLocusContigContains(implicit ctx: ExecuteContext): Unit = {
     val ref = Ref(freshName(), TStruct("x" -> TLocus(ReferenceGenome.GRCh38)))
     val k = GetField(ref, "x")
     val contig = invoke("contig", TString, k)
@@ -755,7 +755,7 @@ class ExtractIntervalFiltersSuite {
     }
   }
 
-  @Test def testIntervalListFold()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testIntervalListFold(implicit ctx: ExecuteContext): Unit = {
     val inIntervals = FastSeq(
       Interval(0, 10, true, false),
       Interval(20, 25, true, false),
@@ -827,7 +827,7 @@ class ExtractIntervalFiltersSuite {
     )
   }
 
-  @Test def testDisjunction()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testDisjunction(implicit ctx: ExecuteContext): Unit = {
     def check(
       node: IR,
       trueIntervals: IndexedSeq[Interval],
@@ -899,7 +899,7 @@ class ExtractIntervalFiltersSuite {
     )
   }
 
-  @Test def testConjunction()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testConjunction(implicit ctx: ExecuteContext): Unit = {
     def check(
       node: IR,
       trueIntervals: IndexedSeq[Interval],
@@ -956,7 +956,7 @@ class ExtractIntervalFiltersSuite {
     )
   }
 
-  @Test def testCoalesce()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testCoalesce(implicit ctx: ExecuteContext): Unit = {
     def check(
       node: IR,
       trueIntervals: IndexedSeq[Interval],
@@ -992,7 +992,7 @@ class ExtractIntervalFiltersSuite {
     )
   }
 
-  @Test def testIf()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testIf(implicit ctx: ExecuteContext): Unit = {
     def check(
       node: IR,
       trueIntervals: IndexedSeq[Interval],
@@ -1025,7 +1025,7 @@ class ExtractIntervalFiltersSuite {
     )
   }
 
-  @Test def testSwitch()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testSwitch(implicit ctx: ExecuteContext): Unit = {
     def check(
       node: IR,
       trueIntervals: IndexedSeq[Interval],
@@ -1076,7 +1076,7 @@ class ExtractIntervalFiltersSuite {
     )
   }
 
-  @Test def testRelationalChildren()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testRelationalChildren(implicit ctx: ExecuteContext): Unit = {
     val testRows = FastSeq(
       Row(0, 0, true),
       Row(0, 10, true),
@@ -1093,7 +1093,7 @@ class ExtractIntervalFiltersSuite {
     check(filter, ref1, k1Full, testRows, filter, FastSeq(Interval(Row(), Row(), true, true)))
   }
 
-  @Test def testIntegration()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testIntegration(implicit ctx: ExecuteContext): Unit = {
     val tab1 = TableRange(10, 5)
 
     def k = GetField(Ref(TableIR.rowName, tab1.typ.rowType), "idx")

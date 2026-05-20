@@ -26,7 +26,7 @@ import org.scalatest.matchers.should.Matchers.{a, convertToAnyShouldWrapper}
 
 class ServiceBackendSuite extends IdiomaticMockito with OptionValues {
 
-  @Test def testExecutesSinglePartitionLocally()(implicit ctx: ExecuteContext): Unit =
+  @Test def testExecutesSinglePartitionLocally(implicit ctx: ExecuteContext): Unit =
     runMock { (ctx, _, batchClient, backend) =>
       val contexts = ArraySeq.tabulate(10)(_ => Array.emptyByteArray)
 
@@ -43,7 +43,7 @@ class ServiceBackendSuite extends IdiomaticMockito with OptionValues {
       batchClient.newJobGroup(any[JobGroupRequest]) wasNever called
     }
 
-  @Test def testCollectIncrementally()(implicit ctx: ExecuteContext): Unit =
+  @Test def testCollectIncrementally(implicit ctx: ExecuteContext): Unit =
     runMock { (ctx, jobConfig, batchClient, backend) =>
       // the service backend expects that each job write its output to a well-known
       // location when it finishes.
@@ -244,7 +244,7 @@ class ServiceBackendSuite extends IdiomaticMockito with OptionValues {
       }
     }
 
-  @Test def testCancelledJobGroup()(implicit ctx: ExecuteContext): Unit =
+  @Test def testCancelledJobGroup(implicit ctx: ExecuteContext): Unit =
     runMock { (ctx, _, batchClient, backend) =>
       val contexts = ArraySeq.tabulate(2)(_ => Array.emptyByteArray)
       val startJobId = 2356
@@ -278,7 +278,7 @@ class ServiceBackendSuite extends IdiomaticMockito with OptionValues {
       failure.value shouldBe a[CancellationException]
     }
 
-  @Test def testInterrupt()(implicit ctx: ExecuteContext): Unit =
+  @Test def testInterrupt(implicit ctx: ExecuteContext): Unit =
     runMock { (ctx, _, batchClient, backend) =>
       val contexts = ArraySeq.tabulate(2)(_ => Array.emptyByteArray)
       val jobGroupId = Random.nextInt()

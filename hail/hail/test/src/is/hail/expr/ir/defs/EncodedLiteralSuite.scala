@@ -1,6 +1,6 @@
 package is.hail.expr.ir.defs
 
-import is.hail.JUnitTestUtils._
+import is.hail.TestUtils._
 
 import org.junit.jupiter.api.Test
 

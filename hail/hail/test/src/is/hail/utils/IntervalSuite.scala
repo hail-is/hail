@@ -1,7 +1,7 @@
 package is.hail.utils
 
-import is.hail.JUnitTestUtils.cartesian
 import is.hail.ParameterizedTest
+import is.hail.TestUtils.cartesian
 import is.hail.annotations.ExtendedOrdering
 import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.collection.compat.immutable.ArraySeq

@@ -1,6 +1,6 @@
 package is.hail.linalg
 
-import is.hail.JUnitTestUtils._
+import is.hail.TestUtils._
 import is.hail.backend.ExecuteContext
 import is.hail.linalg.implicits._
 

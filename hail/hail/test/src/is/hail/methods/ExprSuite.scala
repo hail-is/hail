@@ -1,6 +1,6 @@
 package is.hail.methods
 
-import is.hail.JUnitTestUtils._
+import is.hail.TestUtils._
 import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.expr._
 import is.hail.expr.ir.IRParser
@@ -92,7 +92,7 @@ class ExprSuite {
     assertEq(actual, Row())
   }
 
-  @Test def testImpexes()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testImpexes(implicit ctx: ExecuteContext): Unit = {
 
     val g = for {
       t <- arbitrary[Type]
@@ -112,7 +112,7 @@ class ExprSuite {
     })
   }
 
-  @Test def testOrdering()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testOrdering(implicit ctx: ExecuteContext): Unit = {
     val intOrd = TInt32.ordering(ctx.stateManager)
 
     assertEq(intOrd.compare(-2, -2), 0)

@@ -2,7 +2,7 @@ package is.hail.expr.ir.table
 
 import is.hail.ExecStrategy
 import is.hail.ExecStrategy.ExecStrategy
-import is.hail.JUnitTestUtils._
+import is.hail.TestUtils._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.expr.ir._

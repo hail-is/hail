@@ -32,7 +32,9 @@ public class HailMethodArgumentsProvider
 
     @Override
     public void accept(ParameterizedTest annotation) {
-        this.sourceNames = annotation.value();
+        if (!annotation.value().isEmpty()) {
+            this.sourceNames = new String[]{annotation.value()};
+        }
     }
 
     @Override

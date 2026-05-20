@@ -1,6 +1,6 @@
 package is.hail.io.fs
 
-import is.hail.JUnitTestUtils._
+import is.hail.TestUtils._
 import is.hail.services.oauth2.AzureCloudCredentials
 
 import org.junit.jupiter.api.{BeforeAll, Test}

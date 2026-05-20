@@ -1,7 +1,7 @@
 package is.hail.expr.ir.analyses
 
 import is.hail.{ParameterizedTest, PrettyVersion}
-import is.hail.JUnitTestUtils._
+import is.hail.TestUtils._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq

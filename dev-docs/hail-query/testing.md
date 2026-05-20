@@ -9,13 +9,14 @@ Tests live in `hail/test/src/is/hail/` and run on JUnit 5. A global extension (`
 | Scope | Lifetime | Contents |
 |-------|----------|----------|
 | Test run | Entire test run | `SparkBackend`, `HailClassLoader`, `HailFeatureFlags`, `FS`, `RegionPool`, reference genomes (`SharedResources`) |
-| Test class | One test class | `ClassLevelIrCaches` — mutable IR compile / persisted-IR / block-matrix / coercer caches, shared across all tests in the class |
 | Test method | One `@Test` method | `ExecuteContext` — with its own `Region`, `ExecutionTimer`, `OwningTempFileManager`, `IrMetadata`. Shared across all parameterized invocations of that method, and between a `@BeforeEach` and its following `@Test` |
 | Fallback | Class scope | An `ExecuteContext` created when no test method is in scope (e.g. from `@BeforeAll`) |
 
 `SharedResources` is **lazy**: it is created on the first parameter injection that needs it. A test class that never declares any Hail-state parameters never triggers Spark startup.
 
 When an `ExecuteContext` is created, it references the long-lived `SharedResources` for backend/fs/pool/classloader/flags/references, points at the class-scoped IR caches, and gets a fresh Region/timer/tempFileManager/irMetadata. JUnit automatically closes it (releasing the Region, finishing the timer, cleaning temp files) when its owning scope ends.
+
+The `ExecuteContext` is given no-op maps for all caches such as the compile cache, to ensure test isolation.
 
 ## Parameter Injection
 
@@ -67,14 +68,14 @@ class MySuite {
 }
 ```
 
-**Named factory:** `@ParameterizedTest(Array("factoryName"))`:
+**Named factory:** `@ParameterizedTest("factoryName")`:
 
 ```scala
 class MySuite {
   def sharedData = Seq(1, 2, 3)
 
-  @ParameterizedTest(Array("sharedData")) def testPositive(n: Int): Unit = assert(n > 0)
-  @ParameterizedTest(Array("sharedData")) def testNonZero(n: Int): Unit = assert(n != 0)
+  @ParameterizedTest("sharedData") def testPositive(n: Int): Unit = assert(n > 0)
+  @ParameterizedTest("sharedData") def testNonZero(n: Int): Unit = assert(n != 0)
 }
 ```
 

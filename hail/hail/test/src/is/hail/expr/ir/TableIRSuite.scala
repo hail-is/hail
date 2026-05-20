@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, ParameterizedTest}
 import is.hail.ExecStrategy.ExecStrategy
-import is.hail.JUnitTestUtils._
+import is.hail.TestUtils._
 import is.hail.annotations.SafeNDArray
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
@@ -30,7 +30,7 @@ class TableIRSuite {
   implicit val execStrats: Set[ExecStrategy] =
     Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.LoweredJVMCompile)
 
-  @Test def testRangeCount()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testRangeCount(implicit ctx: ExecuteContext): Unit = {
     val node1 = TableCount(TableRange(10, 2))
     val node2 = TableCount(TableRange(15, 5))
     val node = ApplyBinaryPrimOp(Add(), node1, node2)
@@ -39,14 +39,14 @@ class TableIRSuite {
     assertEvalsTo(node, 25L)
   }
 
-  @Test def testForceCount()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testForceCount(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.interpretOnly
     val tableRangeSize = Int.MaxValue / 20
     val forceCountRange = TableToValueApply(TableRange(tableRangeSize, 2), ForceCountTable())
     assertEvalsTo(forceCountRange, tableRangeSize.toLong)
   }
 
-  @Test def testRangeRead()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testRangeRead(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.lowering
     val original = TableKeyBy(
       TableMapGlobals(TableRange(10, 3), MakeStruct(FastSeq("foo" -> I32(57)))),
@@ -70,13 +70,13 @@ class TableIRSuite {
     assertEvalsTo(TableCollect(droppedRows), Row(FastSeq(), expectedGlobals))
   }
 
-  @Test def testCountRead()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testCountRead(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.lowering
     val tir: TableIR = TableRead.native(ctx.fs, getTestResource("three_key.ht"))
     assertEvalsTo(TableCount(tir), 120L)
   }
 
-  @Test def testRangeCollect()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testRangeCollect(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized)
     val t = TableRange(10, 2)
     val row = Ref(TableIR.rowName, t.typ.rowType)
@@ -85,7 +85,7 @@ class TableIRSuite {
     assertEvalsTo(node, Row(ArraySeq.tabulate(10)(i => Row(i, i)), Row()))
   }
 
-  @Test def testNestedRangeCollect()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testNestedRangeCollect(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.allRelational
 
     val r = TableRange(2, 2)
@@ -107,7 +107,7 @@ class TableIRSuite {
     )
   }
 
-  @Test def testRangeSum()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testRangeSum(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.interpretOnly
     val t = TableRange(10, 2)
     val row = Ref(TableIR.rowName, t.typ.rowType)
@@ -124,7 +124,7 @@ class TableIRSuite {
     )
   }
 
-  @Test def testGetGlobals()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testGetGlobals(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized)
     val t = TableRange(10, 2)
     val newGlobals =
@@ -133,7 +133,7 @@ class TableIRSuite {
     assertEvalsTo(node, Row(Row(ArraySeq.tabulate(10)(i => Row(i)), Row())))
   }
 
-  @Test def testCollectGlobals()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testCollectGlobals(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized)
     val t = TableRange(10, 2)
     val newGlobals =
@@ -152,7 +152,7 @@ class TableIRSuite {
     assertEvalsTo(collect(node), Row(expected, Row(collectedT)))
   }
 
-  @Test def testRangeExplode()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testRangeExplode(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized)
     val t = TableRange(10, 2)
     val row = Ref(TableIR.rowName, t.typ.rowType)
@@ -179,7 +179,7 @@ class TableIRSuite {
     assertEvalsTo(collect(node2), Row(expected2, Row()))
   }
 
-  @Test def testFilter()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testFilter(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized)
     val t = TableRange(10, 2)
     val node = TableFilter(
@@ -199,7 +199,7 @@ class TableIRSuite {
     assertEvalsTo(collect(node), Row(expected, Row(4)))
   }
 
-  @Test def testFilterIntervals()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testFilterIntervals(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.allRelational
 
     def assertFilterIntervals(
@@ -267,7 +267,7 @@ class TableIRSuite {
     )
   }
 
-  @Test def testTableMapWithLiterals()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testTableMapWithLiterals(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized)
     val t = TableRange(10, 2)
     val node = TableMapRows(
@@ -285,7 +285,7 @@ class TableIRSuite {
     assertEvalsTo(collect(node), Row(expected, Row()))
   }
 
-  @Test def testScanCountBehavesLikeIndex()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testScanCountBehavesLikeIndex(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.interpretOnly
     val t = rangeKT
     val oldRow = Ref(TableIR.rowName, t.typ.rowType)
@@ -302,7 +302,7 @@ class TableIRSuite {
     )
   }
 
-  @Test def testScanCollectBehavesLikeRange()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testScanCollectBehavesLikeRange(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.interpretOnly
     val t = rangeKT
     val oldRow = Ref(TableIR.rowName, t.typ.rowType)
@@ -616,7 +616,7 @@ class TableIRSuite {
       rParts <- ArraySeq[Int](1, 2, 3)
     } yield (lParts, rParts)
 
-  @ParameterizedTest(Array("unionData"))
+  @ParameterizedTest("unionData")
   def testTableUnion(lParts: Int, rParts: Int)(implicit ctx: ExecuteContext): Unit = {
     val left = TableKeyBy(
       TableParallelize(
@@ -645,7 +645,7 @@ class TableIRSuite {
     assertEvalsTo(merged, Row(expectedUnion, Row()))
   }
 
-  @ParameterizedTest(Array("unionData"))
+  @ParameterizedTest("unionData")
   def testTableMultiWayZipJoin(lParts: Int, rParts: Int)(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = Set(ExecStrategy.LoweredJVMCompile)
     val left = TableKeyBy(
@@ -676,7 +676,7 @@ class TableIRSuite {
   }
 
   // Catches a bug in the partitioner created by the importer.
-  @Test def testTableJoinOfImport()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testTableJoinOfImport(implicit ctx: ExecuteContext): Unit = {
     val mnr = MatrixNativeReader(ctx.fs, getTestResource("sample.vcf.mt"))
     val mt2 = MatrixRead(mnr.fullMatrixType, false, false, mnr)
     val t2 = MatrixRowsTable(mt2)
@@ -690,7 +690,7 @@ class TableIRSuite {
     assertEvalsTo(TableCount(join), 346L)
   }
 
-  @Test def testNativeReaderWithOverlappingPartitions()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testNativeReaderWithOverlappingPartitions(implicit ctx: ExecuteContext): Unit = {
     val path = getTestResource("sample.vcf-20-partitions-with-overlap.mt/rows")
     // i1 overlaps the first two partitions
     val i1 = Interval(Row(Locus("20", 10200000)), Row(Locus("20", 10500000)), true, true)
@@ -709,7 +709,7 @@ class TableIRSuite {
     test(true, 2)
   }
 
-  @Test def testTableKeyBy()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testTableKeyBy(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.interpretOnly
     val data = ArraySeq(ArraySeq("A", 1), ArraySeq("A", 2), ArraySeq("B", 1))
     val rdd = ctx.backend.asSpark.sc.parallelize(data.map(Row.fromSeq(_)))
@@ -732,7 +732,7 @@ class TableIRSuite {
     assertEvalsTo(distinctCount, 2L)
   }
 
-  @Test def testTableKeyByLowering()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testTableKeyByLowering(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.lowering
     val t = TStruct(
       "rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)),
@@ -747,7 +747,7 @@ class TableIRSuite {
     assertEvalsTo(TableCount(keyed), length.toLong)
   }
 
-  @Test def testTableParallelize()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testTableParallelize(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.allRelational
     val t = TStruct(
       "rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)),
@@ -769,7 +769,7 @@ class TableIRSuite {
     }
   }
 
-  @Test def testTableParallelizeCount()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testTableParallelizeCount(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.allRelational
     val t = TStruct(
       "rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)),
@@ -790,7 +790,7 @@ class TableIRSuite {
     )
   }
 
-  @Test def testTableHead()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testTableHead(implicit ctx: ExecuteContext): Unit = {
     val t = TStruct(
       "rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)),
       "global" -> TStruct("x" -> TString),
@@ -821,7 +821,7 @@ class TableIRSuite {
     }
   }
 
-  @Test def testTableTail()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testTableTail(implicit ctx: ExecuteContext): Unit = {
     val t = TStruct(
       "rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)),
       "global" -> TStruct("x" -> TString),
@@ -857,7 +857,7 @@ class TableIRSuite {
     }
   }
 
-  @Test def testShuffleAndJoinDoesntMemoryLeak()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testShuffleAndJoinDoesntMemoryLeak(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = Set(ExecStrategy.LoweredJVMCompile, ExecStrategy.Interpret)
     val row = Ref(TableIR.rowName, TStruct("idx" -> TInt32))
     val t1 = TableRename(TableRange(1, 1), Map("idx" -> "idx_"), Map.empty)
@@ -873,7 +873,7 @@ class TableIRSuite {
     assertEvalsTo(TableCount(TableJoin(t1, t2, "left")), 1L)
   }
 
-  @Test def testTableRename()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testTableRename(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.lowering
     val t = TStruct(
       "rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)),
@@ -915,7 +915,7 @@ class TableIRSuite {
     )
   }
 
-  @Test def testTableMapGlobals()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testTableMapGlobals(implicit ctx: ExecuteContext): Unit = {
     val t = TStruct(
       "rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)),
       "global" -> TStruct("x" -> TString),
@@ -948,7 +948,7 @@ class TableIRSuite {
     )
   }
 
-  @Test def testTableWrite()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testTableWrite(implicit ctx: ExecuteContext): Unit = {
     val table = TableRange(5, 4)
     val path = ctx.createTmpPath("test-table-write", "ht")
     Interpret[Unit](ctx, TableWrite(table, TableNativeWriter(path)))
@@ -960,7 +960,7 @@ class TableIRSuite {
     assert(before.rdd.collect().toFastSeq == after.rdd.collect().toFastSeq)
   }
 
-  @Test def testWriteKeyDistinctness()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testWriteKeyDistinctness(implicit ctx: ExecuteContext): Unit = {
     val rt = TableRange(40, 4)
     val idxRef = GetField(Ref(TableIR.rowName, rt.typ.rowType), "idx")
     val at = TableMapRows(
@@ -1011,7 +1011,7 @@ class TableIRSuite {
     assert(!readTwoMissing.isDistinctlyKeyed)
   }
 
-  @Test def testPartitionCountsWithDropRows()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testPartitionCountsWithDropRows(implicit ctx: ExecuteContext): Unit = {
     val tr = new FakeTableReader {
       override def pathsUsed: Seq[String] = Seq.empty
       override def partitionCounts: Option[IndexedSeq[Long]] = Some(FastSeq(1, 2, 3, 4))
@@ -1021,7 +1021,7 @@ class TableIRSuite {
     assert(PartitionCounts(tir).forall(_.sum == 0))
   }
 
-  @Test def testScanInAggInMapRows()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testScanInAggInMapRows(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.interpretOnly
     var tr: TableIR = TableRange(10, 3)
     tr = TableKeyBy(tr, FastSeq(), false)
@@ -1051,7 +1051,7 @@ class TableIRSuite {
     )
   }
 
-  @Test def testScanInAggInScanInMapRows()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testScanInAggInScanInMapRows(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.interpretOnly
     var tr: TableIR = TableRange(10, 3)
     tr = TableKeyBy(tr, FastSeq(), false)
@@ -1084,7 +1084,7 @@ class TableIRSuite {
     )
   }
 
-  @Test def testTableAggregateByKey()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testTableAggregateByKey(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.allRelational
     var tir: TableIR = TableRead.native(ctx.fs, getTestResource("three_key.ht"))
     tir = TableKeyBy(tir, FastSeq("x", "y"), true)
@@ -1107,7 +1107,7 @@ class TableIRSuite {
     )
   }
 
-  @Test def testTableDistinct()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testTableDistinct(implicit ctx: ExecuteContext): Unit = {
     val tir: TableIR = TableRead.native(ctx.fs, getTestResource("three_key.ht"))
     val keyedByX = TableKeyBy(tir, FastSeq("x"), true)
     val distinctByX = TableDistinct(keyedByX)
@@ -1122,7 +1122,7 @@ class TableIRSuite {
     assertEvalsTo(TableCount(distinctByAll), 120L)
   }
 
-  @Test def testRangeOrderByDescending()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testRangeOrderByDescending(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.allRelational
     var tir: TableIR = TableRange(10, 3)
     tir = TableOrderBy(tir, FastSeq(SortField("idx", Descending)))
@@ -1131,7 +1131,7 @@ class TableIRSuite {
     assertEvalsTo(x, (0 until 10).reverse.map(i => Row(i)))
   }
 
-  @Test def testTableLeftJoinRightDistinctRangeTables()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testTableLeftJoinRightDistinctRangeTables(implicit ctx: ExecuteContext): Unit = {
     IndexedSeq((1, 1), (3, 2), (10, 5), (5, 10)).foreach { case (nParts1, nParts2) =>
       val rangeTable1 = TableRange(10, nParts1)
       var rangeTable2: TableIR = TableRange(5, nParts2)
@@ -1151,7 +1151,7 @@ class TableIRSuite {
     }
   }
 
-  @Test def testNestedStreamInTable()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testNestedStreamInTable(implicit ctx: ExecuteContext): Unit = {
     var tir: TableIR = TableRange(1, 1)
     var ir: IR = rangeIR(5)
     ir = StreamGrouped(ir, 2)
@@ -1194,8 +1194,7 @@ class TableIRSuite {
   val table2KeyedByA = TableKeyBy(table2, IndexedSeq("a2"))
   val joinedParKeyedByA = TableLeftJoinRightDistinct(table1KeyedByA, table2KeyedByA, "joinRoot")
 
-  @Test def testTableLeftJoinRightDistinctParallelizeSameKey()(implicit ctx: ExecuteContext)
-    : Unit = {
+  @Test def testTableLeftJoinRightDistinctParallelizeSameKey(implicit ctx: ExecuteContext): Unit = {
     assertEvalsTo(TableCount(table1KeyedByA), parTable1Length.toLong)
     assertEvalsTo(TableCount(table2KeyedByA), parTable2Length.toLong)
 
@@ -1211,7 +1210,7 @@ class TableIRSuite {
     )
   }
 
-  @Test def testTableLeftJoinRightDistinctParallelizePrefixKey()(implicit ctx: ExecuteContext)
+  @Test def testTableLeftJoinRightDistinctParallelizePrefixKey(implicit ctx: ExecuteContext)
     : Unit = {
     val table1KeyedByAAndB = TableKeyBy(table1, IndexedSeq("a1", "b1"))
     val joinedParKeyedByAAndB =
@@ -1229,7 +1228,7 @@ class TableIRSuite {
     )
   }
 
-  @Test def testTableIntervalJoin()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testTableIntervalJoin(implicit ctx: ExecuteContext): Unit = {
     val intervals: IndexedSeq[Interval] =
       for {
         (start, end, includesStart, includesEnd) <- FastSeq(
@@ -1288,7 +1287,7 @@ class TableIRSuite {
     )
   }
 
-  @Test def testTableKeyByAndAggregate()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testTableKeyByAndAggregate(implicit ctx: ExecuteContext): Unit = {
     val tir: TableIR = TableRead.native(ctx.fs, getTestResource("three_key.ht"))
     val unkeyed = TableKeyBy(tir, IndexedSeq[String]())
     val rowRef = Ref(TableIR.rowName, unkeyed.typ.rowType)
@@ -1368,7 +1367,7 @@ class TableIRSuite {
     )
   }
 
-  @Test def testTableAggregateCollectAndTake()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testTableAggregateCollectAndTake(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.allRelational
     var tir: TableIR = TableRange(10, 3)
     tir =
@@ -1393,7 +1392,7 @@ class TableIRSuite {
     )
   }
 
-  @Test def testNDArrayMultiplyAddAggregator()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testNDArrayMultiplyAddAggregator(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.allRelational
     var tir: TableIR = TableRange(6, 3)
     val nDArray1 = Literal(
@@ -1421,7 +1420,7 @@ class TableIRSuite {
     assertEvalsTo(x, SafeNDArray(Vector(2, 2), IndexedSeq(24.0, 24.0, 24.0, 24.0)))
   }
 
-  @Test def testTableScanCollect()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testTableScanCollect(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.allRelational
     var tir: TableIR = TableRange(5, 3)
     tir = TableMapRows(
@@ -1448,7 +1447,7 @@ class TableIRSuite {
     )
   }
 
-  @Test def testIssue9016()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testIssue9016(implicit ctx: ExecuteContext): Unit = {
     val rows =
       mapIR(ToStream(MakeArray(makestruct("a" -> MakeTuple.ordered(FastSeq(I32(0), I32(1))))))) {
         row =>
@@ -1469,7 +1468,7 @@ class TableIRSuite {
     assertEvalsTo(TableCollect(table), Row(FastSeq(Row(Row(1))), Row()))
   }
 
-  @Test def testTableNativeZippedReaderWithPrefixKey()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testTableNativeZippedReaderWithPrefixKey(implicit ctx: ExecuteContext): Unit = {
     /* This test is important because it tests that we can handle lowering with a
      * TableNativeZippedReader when elements of the original key get pruned away (so I copy key to
      * only be "locus" instead of "locus", "alleles") */
@@ -1496,7 +1495,7 @@ class TableIRSuite {
     LowerTableIR(optimized, DArrayLowering.All, ctx, analyses): Unit
   }
 
-  @Test def testTableMapPartitions()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testTableMapPartitions(implicit ctx: ExecuteContext): Unit = {
 
     val table =
       TableKeyBy(
@@ -1564,7 +1563,7 @@ class TableIRSuite {
     )
   }
 
-  @Test def testRepartitionCostEstimate()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testRepartitionCostEstimate(implicit ctx: ExecuteContext): Unit = {
     val empty = RVDPartitioner.empty(ctx.stateManager, TStruct.empty)
     val some = RVDPartitioner.unkeyed(ctx.stateManager, _)
 

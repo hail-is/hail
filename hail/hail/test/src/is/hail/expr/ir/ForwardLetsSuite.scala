@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
-import is.hail.JUnitTestUtils._
 import is.hail.ParameterizedTest
+import is.hail.TestUtils._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
@@ -108,7 +108,7 @@ class ForwardLetsSuite {
     testForwardingAggOps(): Unit
   }
 
-  @Test def testBlock()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testBlock(implicit ctx: ExecuteContext): Unit = {
     val x = Ref(freshName(), TInt32)
     val y = Ref(freshName(), TInt32)
     val ir = Block(
@@ -226,7 +226,7 @@ class ForwardLetsSuite {
     )
   }
 
-  @Test def testAggregators()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testAggregators(implicit ctx: ExecuteContext): Unit = {
     val row = Ref(freshName(), TStruct("idx" -> TInt32))
     val aggEnv = Env[Type](row.name -> row.typ)
 
@@ -235,7 +235,7 @@ class ForwardLetsSuite {
     TypeCheck(ctx, ForwardLets(ctx, ir0), BindingEnv(Env.empty, agg = Some(aggEnv)))
   }
 
-  @Test def testNestedBindingOverwrites()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testNestedBindingOverwrites(implicit ctx: ExecuteContext): Unit = {
     val x = Ref(freshName(), TInt32)
     val env = Env[Type](x.name -> TInt32)
     def xCast = Cast(x, TFloat64)
@@ -245,7 +245,7 @@ class ForwardLetsSuite {
     TypeCheck(ctx, ForwardLets(ctx, ir), BindingEnv(env))
   }
 
-  @Test def testLetsDoNotForwardInsideArrayAggWithNoOps()(implicit ctx: ExecuteContext): Unit = {
+  @Test def testLetsDoNotForwardInsideArrayAggWithNoOps(implicit ctx: ExecuteContext): Unit = {
     val y = Ref(freshName(), TInt32)
     val x = bindIR(
       streamAggIR(ToStream(In(0, TArray(TInt32))))(_ => y)

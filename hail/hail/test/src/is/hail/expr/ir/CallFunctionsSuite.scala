@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, ParameterizedTest}
 import is.hail.ExecStrategy.ExecStrategy
-import is.hail.JUnitTestUtils._
+import is.hail.TestUtils._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.TestUtils.{IRArray, IRCall}
@@ -59,66 +59,66 @@ class CallFunctionsSuite {
     assertEvalsTo(invoke("Call", TCall, Str("0|1")), Call2(0, 1, true))
   }
 
-  @ParameterizedTest(Array("basicData"))
+  @ParameterizedTest("basicData")
   def isPhased(c: Call)(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(invoke("isPhased", TBoolean, IRCall(c)), Option(c).map(Call.isPhased).orNull)
 
-  @ParameterizedTest(Array("basicData"))
+  @ParameterizedTest("basicData")
   def isHomRef(c: Call)(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(invoke("isHomRef", TBoolean, IRCall(c)), Option(c).map(Call.isHomRef).orNull)
 
-  @ParameterizedTest(Array("basicData"))
+  @ParameterizedTest("basicData")
   def isHet(c: Call)(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(invoke("isHet", TBoolean, IRCall(c)), Option(c).map(Call.isHet).orNull)
 
-  @ParameterizedTest(Array("basicData"))
+  @ParameterizedTest("basicData")
   def isHomVar(c: Call)(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(invoke("isHomVar", TBoolean, IRCall(c)), Option(c).map(Call.isHomVar).orNull)
 
-  @ParameterizedTest(Array("basicData"))
+  @ParameterizedTest("basicData")
   def isNonRef(c: Call)(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(invoke("isNonRef", TBoolean, IRCall(c)), Option(c).map(Call.isNonRef).orNull)
 
-  @ParameterizedTest(Array("basicData"))
+  @ParameterizedTest("basicData")
   def isHetNonRef(c: Call)(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(
       invoke("isHetNonRef", TBoolean, IRCall(c)),
       Option(c).map(Call.isHetNonRef).orNull,
     )
 
-  @ParameterizedTest(Array("basicData"))
+  @ParameterizedTest("basicData")
   def isHetRef(c: Call)(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(invoke("isHetRef", TBoolean, IRCall(c)), Option(c).map(Call.isHetRef).orNull)
 
-  @ParameterizedTest(Array("basicData"))
+  @ParameterizedTest("basicData")
   def nNonRefAlleles(c: Call)(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(
       invoke("nNonRefAlleles", TInt32, IRCall(c)),
       Option(c).map(Call.nNonRefAlleles).orNull,
     )
 
-  @ParameterizedTest(Array("basicWithIndexData"))
+  @ParameterizedTest("basicWithIndexData")
   def alleleByIndex(c: Call, idx: Int)(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(
       invoke("index", TInt32, IRCall(c), I32(idx)),
       Option(c).map(c => Call.alleleByIndex(c, idx)).orNull,
     )
 
-  @ParameterizedTest(Array("basicWithIndexData"))
+  @ParameterizedTest("basicWithIndexData")
   def downcode(c: Call, idx: Int)(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(
       invoke("downcode", TCall, IRCall(c), I32(idx)),
       Option(c).map(c => Call.downcode(c, idx)).orNull,
     )
 
-  @ParameterizedTest(Array("diploidData"))
+  @ParameterizedTest("diploidData")
   def unphasedDiploidGtIndex(c: Call)(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(
       invoke("unphasedDiploidGtIndex", TInt32, IRCall(c)),
       Option(c).map(c => Call.unphasedDiploidGtIndex(c)).orNull,
     )
 
-  @ParameterizedTest(Array("basicData"))
+  @ParameterizedTest("basicData")
   def oneHotAlleles(c: Call)(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(
       invoke("oneHotAlleles", TArray(TInt32), IRCall(c), I32(2)),

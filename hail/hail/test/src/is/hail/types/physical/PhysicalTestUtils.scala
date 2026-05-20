@@ -1,6 +1,6 @@
 package is.hail.types.physical
 
-import is.hail.JUnitTestUtils.assertEq
+import is.hail.TestUtils.assertEq
 import is.hail.annotations.{Region, ScalaToRegionValue, UnsafeRow}
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.EmitFunctionBuilder
