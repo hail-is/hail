@@ -7,6 +7,7 @@ import is.hail.asm4s._
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
+import is.hail.expr.ir.{Memoized => M}
 import is.hail.expr.ir.agg.{CollectStateSig, PhysicalAggSig, TypedStateSig}
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.lowering.LoweringPipeline
@@ -1300,5 +1301,24 @@ class EmitStreamSuite extends HailSuite {
         Row(8, FastSeq()),
       ),
     )
+  }
+
+  @Test def testEmitBoundExprUsingStreamRef(): Unit = {
+    val expr =
+      ToArray(mapIR(mapIR(rangeIR(1))(_ => rangeIR(10))) { stream =>
+        M.eval {
+          for {
+            a <- foldIR(stream, I64(0))(_ + _.toL)
+            b <- I64(2L) * a
+            c <- a + b
+          } yield (c + a) + (b + c)
+        }
+      })
+
+    val before = Emit.EmitBlockSizeThreshold
+    Emit.EmitBlockSizeThreshold = 0
+    try assertEvalsTo(expr, FastSeq(9 * 45L))
+    finally
+      Emit.EmitBlockSizeThreshold = before
   }
 }
