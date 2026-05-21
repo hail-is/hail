@@ -14,7 +14,7 @@ object IRTraversal {
     TreeTraversal.levelOrder(_.children.iterator)
 
   val trace: BaseIR => Iterator[List[BaseIR]] = {
-    val adj = { p: List[BaseIR] => p.head.children.map(_ :: p).iterator }
-    TreeTraversal.levelOrder(adj) _ compose (_ :: Nil)
+    val adj = { p: List[BaseIR] => p.head.children.iterator.map(_ :: p) }
+    ir => TreeTraversal.preOrder(adj)(ir :: Nil)
   }
 }
