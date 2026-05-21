@@ -284,10 +284,12 @@ class Job:
             tries += 1
             await sleep_before_try(tries)
 
-    async def container_log(self, container_name: str) -> bytes:
+    async def container_log(self, container_name: str, attempt_id: Optional[str] = None) -> bytes:
         self._raise_if_not_submitted()
+        params = {'attempt_id': attempt_id} if attempt_id else {}
         async with await self._client._get(
-            f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/log/{container_name}'
+            f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/log/{container_name}',
+            params=params,
         ) as resp:
             return await resp.read()
 

@@ -24,9 +24,7 @@ hailctl auth login
 
 Both are needed. If a user gets auth errors, check which one is missing.
 
-## Investigating batches: use hailctl curl
-
-For inspecting individual jobs and logs, **use `hailctl curl` directly** — it's reliable and works for everything. The `hailctl batch` subcommands (`job`, `log`) are less complete and have version-dependent gaps.
+## Investigating batches
 
 ### List recent batches
 ```bash
@@ -43,22 +41,20 @@ hailctl batch get BATCH_ID -o json
 
 ### Inspect a specific job
 ```bash
-hailctl curl default batch /api/v1alpha/batches/BATCH_ID/jobs/JOB_ID
+hailctl batch job BATCH_ID JOB_ID
 ```
 
-### Get logs
+### List attempts and get logs
+
+Always specify `--container` when fetching logs — the default (all containers, JSON-wrapped) is hard to read. When a job has been retried, also specify `--attempt` to get the right one.
+
 ```bash
-# All containers (JSON keyed by container name: main, input, output) — deprecated but convenient
-hailctl curl default batch /api/v1alpha/batches/BATCH_ID/jobs/JOB_ID/log
+# List attempts to find the attempt_id
+hailctl batch attempts BATCH_ID JOB_ID
 
-# Specific container (preferred)
-hailctl curl default batch /api/v1alpha/batches/BATCH_ID/jobs/JOB_ID/log/main
-
-# Specific attempt
-hailctl curl default batch "/api/v1alpha/batches/BATCH_ID/jobs/JOB_ID/log/main?attempt_id=ATTEMPT_ID"
-
-# List all attempts (to find attempt_id)
-hailctl curl default batch /api/v1alpha/batches/BATCH_ID/jobs/JOB_ID/attempts
+# Get log for a specific container (almost always what you want)
+hailctl batch log BATCH_ID JOB_ID --container main
+hailctl batch log BATCH_ID JOB_ID --container main --attempt ATTEMPT_ID
 ```
 
 ### Wait for a batch to complete

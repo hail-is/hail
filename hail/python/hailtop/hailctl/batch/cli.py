@@ -103,6 +103,7 @@ def log(
     batch_id: int,
     job_id: int,
     container: Ann[Optional[JobContainer], Opt(help='Container name of the desired job')] = None,
+    attempt: Ann[Optional[str], Opt(help='Attempt ID to retrieve log for (defaults to most recent)')] = None,
     output: StructuredFormatOption = StructuredFormat.YAML,
 ):
     """Get the log for the job with id JOB_ID in the batch with id BATCH_ID."""
@@ -115,9 +116,26 @@ def log(
             return
 
         if container:
-            print(maybe_job.container_log(container))
+            print(maybe_job.container_log(container.value, attempt_id=attempt).decode())
         else:
             print(make_formatter(output)(maybe_job.log()))
+
+
+@app.command()
+def attempts(
+    batch_id: int,
+    job_id: int,
+    output: StructuredFormatOption = StructuredFormat.YAML,
+):
+    """List all attempts for the job with id JOB_ID in the batch with id BATCH_ID."""
+    from hailtop.batch_client.client import BatchClient  # pylint: disable=import-outside-toplevel
+
+    with BatchClient('') as client:
+        maybe_job = get_job_if_exists(client, batch_id, job_id)
+        if maybe_job is None:
+            print(f"Job with ID {job_id} on batch {batch_id} not found")
+            return
+        print(make_formatter(output)(maybe_job.attempts()))
 
 
 @app.command()
