@@ -17,5 +17,7 @@ module-root = ""
 namespace = true
 source-include = [
   "batch/front_end/templates/**",
+  "batch/front_end/static/**",
   "batch/driver/templates/**",
+  "batch/driver/static/**",
 ]
