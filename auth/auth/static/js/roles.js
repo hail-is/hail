@@ -14,7 +14,7 @@ async function removeRole(username, roleName) {
     }
 
     try {
-        const response = await fetch("{{ base_path }}/api/v1alpha/system_roles/${username}", {
+        const response = await fetch(`{{ base_path }}/api/v1alpha/system_roles/${username}`, {
             method: 'PATCH',
             headers: {
                 'Content-Type': 'application/json',
@@ -47,7 +47,7 @@ async function addRole(usernameInputId, roleName) {
     }
 
     try {
-        const response = await fetch("{{ base_path }}/api/v1alpha/system_roles/${username}", {
+        const response = await fetch(`{{ base_path }}/api/v1alpha/system_roles/${username}`, {
             method: 'PATCH',
             headers: {
                 'Content-Type': 'application/json',
