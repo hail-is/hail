@@ -7,7 +7,7 @@ import os
 import random
 import secrets
 from shlex import quote as shq
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Union
+from typing import Any, Dict, Iterable, List, Optional, Protocol, Sequence, Set, Union
 
 import aiohttp
 import aiohttp.client_exceptions
@@ -441,72 +441,7 @@ class PR(Code):
             except aiohttp.client_exceptions.ClientResponseError:
                 log.exception(f'{self.short_str()}: Unexpected exception in post to github: {data}')
 
-    async def _update_github(self, gh):
-        results = []
-        cursor = None
-        review_decision = None
-
-        def query():
-            return f"""
-                query {{
-                  repository (
-                    owner: "{self.target_branch.branch.repo.owner}",
-                    name: "{self.target_branch.branch.repo.name}"
-                  ) {{
-                    pullRequest (number: {self.number}) {{
-                      reviewDecision
-                      commits (last: 1) {{
-                        nodes {{
-                          commit {{
-                            statusCheckRollup {{
-                              contexts (first: 10{f', after: "{cursor}"' if cursor is not None else ''}) {{
-                                nodes {{
-                                  __typename
-                                  ... on CheckRun {{
-                                    name
-                                    conclusion
-                                    isRequired (pullRequestNumber: {self.number})
-                                  }}
-                                  ... on StatusContext {{
-                                    context
-                                    state
-                                    isRequired (pullRequestNumber: {self.number})
-                                  }}
-                                }}
-                                pageInfo {{
-                                  endCursor
-                                  hasNextPage
-                                }}
-                              }}
-                            }}
-                          }}
-                        }}
-                      }}
-                    }}
-                  }}
-                }}
-            """
-
-        def review_decision_and_commit_status(pull_request, rollup):
-            nonlocal review_decision
-            if review_decision is None:
-                review_decision = (
-                    pull_request["reviewDecision"] if pull_request["reviewDecision"] is not None else "API_NONE"
-                )
-            if rollup is not None:
-                results.extend(rollup["contexts"]["nodes"])
-
-        while (
-            rollup := (
-                pull_request := (await gh.post("/graphql", data={"query": query()}))["data"]["repository"][
-                    "pullRequest"
-                ]
-            )["commits"]["nodes"][0]["commit"]["statusCheckRollup"]
-        ) is not None and rollup["contexts"]["pageInfo"]["hasNextPage"]:
-            cursor = rollup["contexts"]["pageInfo"]["endCursor"]
-            review_decision_and_commit_status(pull_request, rollup)
-        review_decision_and_commit_status(pull_request, rollup)
-
+    def _apply_github_data(self, review_decision: str, check_nodes: List[Dict[str, Any]]):
         if review_decision == 'APPROVED':
             review_state = 'approved'
         elif review_decision == 'CHANGES_REQUESTED':
@@ -528,7 +463,7 @@ class PR(Code):
             self.target_branch.state_changed = True
 
         last_known_github_status = {}
-        for check in results:
+        for check in check_nodes:
             if check["isRequired"]:
                 if (typename := check["__typename"]) == "StatusContext":
                     last_known_github_status[check["context"]] = github_status(check["state"])
@@ -745,6 +680,90 @@ git merge {shq(self.source_sha)} -m 'merge PR'
 """
 
 
+class _GitHubGraphQL(Protocol):
+    async def post(self, url: str, *, data: Any) -> Any: ...
+
+
+async def _fetch_pr_github_data(
+    gh: _GitHubGraphQL,
+    owner: str,
+    repo_name: str,
+    pr_numbers: List[int],
+) -> Dict[int, tuple]:
+    """Fetch review decisions and status check rollup for all PRs in a single batched GraphQL query.
+
+    Uses GraphQL aliases (pr_N: pullRequest(number: N) {{ ... }}) so one round-trip covers all PRs.
+    Paginates if any PR has more than 20 check contexts, which is not expected in practice.
+
+    Returns dict mapping pr_number -> (review_decision: str, check_nodes: List[dict]).
+    review_decision is the raw GraphQL PullRequestReviewDecision value, or "API_NONE" when null.
+    """
+    accumulated_nodes: Dict[int, List[Dict[str, Any]]] = {n: [] for n in pr_numbers}
+    review_decisions: Dict[int, Optional[str]] = {n: None for n in pr_numbers}
+    # remaining maps pr_number -> cursor (None = first page)
+    remaining: Dict[int, Optional[str]] = {n: None for n in pr_numbers}
+
+    while remaining:
+
+        def build_query(remaining: Dict[int, Optional[str]]) -> str:
+            aliases = []
+            for pr_number, cursor in remaining.items():
+                cursor_arg = f', after: "{cursor}"' if cursor is not None else ''
+                aliases.append(f"""
+                    pr_{pr_number}: pullRequest(number: {pr_number}) {{
+                      reviewDecision
+                      commits(last: 1) {{
+                        nodes {{
+                          commit {{
+                            statusCheckRollup {{
+                              contexts(first: 20{cursor_arg}) {{
+                                nodes {{
+                                  __typename
+                                  ... on CheckRun {{
+                                    name
+                                    conclusion
+                                    isRequired(pullRequestNumber: {pr_number})
+                                  }}
+                                  ... on StatusContext {{
+                                    context
+                                    state
+                                    isRequired(pullRequestNumber: {pr_number})
+                                  }}
+                                }}
+                                pageInfo {{
+                                  endCursor
+                                  hasNextPage
+                                }}
+                              }}
+                            }}
+                          }}
+                        }}
+                      }}
+                    }}
+                """)
+            return f'query {{ repository(owner: "{owner}", name: "{repo_name}") {{ {"".join(aliases)} }} }}'
+
+        repo_data = (await gh.post("/graphql", data={"query": build_query(remaining)}))["data"]["repository"]
+
+        next_remaining: Dict[int, Optional[str]] = {}
+        for pr_number in list(remaining.keys()):
+            pr_data = repo_data[f"pr_{pr_number}"]
+            if review_decisions[pr_number] is None:
+                raw = pr_data["reviewDecision"]
+                review_decisions[pr_number] = raw if raw is not None else "API_NONE"
+            rollup = pr_data["commits"]["nodes"][0]["commit"]["statusCheckRollup"]
+            if rollup is not None:
+                accumulated_nodes[pr_number].extend(rollup["contexts"]["nodes"])
+                if rollup["contexts"]["pageInfo"]["hasNextPage"]:
+                    next_remaining[pr_number] = rollup["contexts"]["pageInfo"]["endCursor"]
+
+        if next_remaining:
+            log.warning(f'_fetch_pr_github_data: pagination required for PRs {list(next_remaining.keys())}')
+        remaining = next_remaining
+
+    return {n: (review_decisions[n] or "API_NONE", accumulated_nodes[n]) for n in pr_numbers}
+
+
 class WatchedBranch(Code):
     def __init__(
         self,
@@ -890,8 +909,33 @@ class WatchedBranch(Code):
         for pr in new_prs.values():
             await pr.assign_gh_reviewer_if_requested(gh)
 
-        for pr in new_prs.values():
-            await pr._update_github(gh)
+        if new_prs:
+            pr_github_data = await _fetch_pr_github_data(
+                gh, self.branch.repo.owner, self.branch.repo.name, list(new_prs.keys())
+            )
+
+            summary = []
+            for pr_number, (review_decision, check_nodes) in pr_github_data.items():
+                required_nodes = [c for c in check_nodes if c["isRequired"]]
+                required_statuses = [
+                    github_status(c["conclusion"] if c["__typename"] == "CheckRun" else c["state"])
+                    for c in required_nodes
+                ]
+                if any(s == GithubStatus.FAILURE for s in required_statuses):
+                    check_decision = 'failing'
+                elif required_statuses and all(s == GithubStatus.SUCCESS for s in required_statuses):
+                    check_decision = 'passing'
+                else:
+                    check_decision = 'pending'
+                summary.append((pr_number, review_decision, len(check_nodes), len(required_nodes), check_decision))
+            log.info(
+                f'update github {self.short_str()}: PR data fetched '
+                f'(pr_number, review_decision, total_checks, required_checks, check_decision): {summary}'
+            )
+
+            for pr in new_prs.values():
+                review_decision, check_nodes = pr_github_data[pr.number]
+                pr._apply_github_data(review_decision, check_nodes)
 
     async def _update_deploy(self, batch_client, db: Database):
         assert self.deployable
