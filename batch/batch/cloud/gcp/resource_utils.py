@@ -346,18 +346,17 @@ def gcp_is_valid_storage_request(storage_in_gib: int) -> bool:
 GCP_LOCAL_SSD_PARTITION_SIZE_GIB = 375
 
 # N2 machines require local SSDs in specific quantities that vary by vCPU count.
-# Verified: n2-standard-16 requires minimum 2 (valid: [0, 2, 4, 8, 16, 24]).
-# Other thresholds are estimated and may need adjustment based on GCP API errors.
+# Source: https://docs.cloud.google.com/compute/docs/general-purpose-machines#n2-standard
 N2_MIN_LOCAL_SSD_COUNT_BY_CORES = {
     2: 1,
     4: 1,
     8: 1,
     16: 2,
-    32: 2,
-    48: 4,
-    64: 4,
+    32: 4,
+    48: 8,
+    64: 8,
     80: 8,
-    96: 8,
+    96: 16,
     128: 16,
 }
 

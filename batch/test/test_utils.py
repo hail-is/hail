@@ -88,11 +88,11 @@ def test_gcp_local_ssd_count():
     assert gcp_local_ssd_count('n2', 4) == 1
     assert gcp_local_ssd_count('n2', 8) == 1
     assert gcp_local_ssd_count('n2', 16) == 2
-    assert gcp_local_ssd_count('n2', 32) == 2
-    assert gcp_local_ssd_count('n2', 48) == 4
-    assert gcp_local_ssd_count('n2', 64) == 4
+    assert gcp_local_ssd_count('n2', 32) == 4
+    assert gcp_local_ssd_count('n2', 48) == 8
+    assert gcp_local_ssd_count('n2', 64) == 8
     assert gcp_local_ssd_count('n2', 80) == 8
-    assert gcp_local_ssd_count('n2', 96) == 8
+    assert gcp_local_ssd_count('n2', 96) == 16
     assert gcp_local_ssd_count('n2', 128) == 16
 
 
@@ -100,7 +100,7 @@ def test_gcp_local_ssd_size():
     assert gcp_local_ssd_size('n1', 16) == 375
     assert gcp_local_ssd_size('n2', 2) == 375
     assert gcp_local_ssd_size('n2', 16) == 750
-    assert gcp_local_ssd_size('n2', 48) == 1500
+    assert gcp_local_ssd_size('n2', 48) == 3000
     assert gcp_local_ssd_size('n2', 128) == 6000
 
 
