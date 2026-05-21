@@ -4,6 +4,7 @@ In CI these values come from the real deployment environment (env vars + /global
 mount).  Locally they don't exist, so we set safe defaults and mock the config reader.
 """
 
+import atexit
 import json
 import os
 import unittest.mock
@@ -34,4 +35,6 @@ if not os.path.exists('/global-config'):
         'gcp_project': 'hail-vdc',
         'gcp_zone': 'us-central1-a',
     }
-    unittest.mock.patch('gear.cloud_config.read_config_secret', return_value=_fake_global_config).start()
+    _patcher = unittest.mock.patch('gear.cloud_config.read_config_secret', return_value=_fake_global_config)
+    _patcher.start()
+    atexit.register(_patcher.stop)
