@@ -6,12 +6,15 @@ log = logging.getLogger('utils')
 
 GCP_MAX_PERSISTENT_SSD_SIZE_GIB = 64 * 1024
 
-GCP_MACHINE_FAMILY = 'n1'
+GCP_MACHINE_FAMILY = 'n2'
 
 MEMORY_PER_CORE_MIB = {
     ('n1', 'standard'): 3840,
     ('n1', 'highmem'): 6656,
     ('n1', 'highcpu'): 924,
+    ('n2', 'standard'): 4096,
+    ('n2', 'highmem'): 8192,
+    ('n2', 'highcpu'): 1024,
 }
 
 
@@ -116,6 +119,45 @@ n1_highcpu_machines = {
     for cores in [2, 4, 8, 16, 32, 64, 96]
 }
 
+# N2 Standard cores: 2 4 8 16 32 48 64 80 96 128
+# N2 Standard mem: 4 * cores GiB
+n2_standard_machines = {
+    f'n2-standard-{cores}': MachineTypeParts(
+        cores=cores,
+        memory=gib_to_bytes(4 * cores),
+        gpu_config=None,
+        machine_family='n2',
+        worker_type='standard',
+    )
+    for cores in [2, 4, 8, 16, 32, 48, 64, 80, 96, 128]
+}
+
+# N2 Highmem cores: 2 4 8 16 32 48 64 80 96
+# N2 Highmem mem: 8 * cores GiB
+n2_highmem_machines = {
+    f'n2-highmem-{cores}': MachineTypeParts(
+        cores=cores,
+        memory=gib_to_bytes(8 * cores),
+        gpu_config=None,
+        machine_family='n2',
+        worker_type='highmem',
+    )
+    for cores in [2, 4, 8, 16, 32, 48, 64, 80, 96]
+}
+
+# N2 Highcpu cores: 2 4 8 16 32 48 64 80 96
+# N2 Highcpu mem: 1024 * cores MiB
+n2_highcpu_machines = {
+    f'n2-highcpu-{cores}': MachineTypeParts(
+        cores=cores,
+        memory=mib_to_bytes(1024 * cores),
+        gpu_config=None,
+        machine_family='n2',
+        worker_type='highcpu',
+    )
+    for cores in [2, 4, 8, 16, 32, 48, 64, 80, 96]
+}
+
 MACHINE_TYPE_TO_PARTS = {
     **n1_standard_t4_machines,
     **n1_highmem_t4_machines,
@@ -123,6 +165,16 @@ MACHINE_TYPE_TO_PARTS = {
     **n1_standard_machines,
     **n1_highmem_machines,
     **n1_highcpu_machines,
+    **n2_standard_machines,
+    **n2_highmem_machines,
+    **n2_highcpu_machines,
+    'n2-highmem-128': MachineTypeParts(
+        cores=128,
+        memory=gib_to_bytes(864),
+        gpu_config=None,
+        machine_family='n2',
+        worker_type='highmem',
+    ),
     'g2-standard-4': MachineTypeParts(
         cores=4,
         memory=gib_to_bytes(16),
@@ -245,9 +297,9 @@ MACHINE_TYPE_TO_PARTS = {
 }
 
 gcp_valid_cores_for_pool_worker_type = {
-    'highcpu': [2, 4, 8, 16, 32, 64, 96],
-    'standard': [1, 2, 4, 8, 16, 32, 64, 96],
-    'highmem': [2, 4, 8, 16, 32, 64, 96],
+    'standard': [2, 4, 8, 16, 32, 48, 64, 80, 96, 128],
+    'highmem': [2, 4, 8, 16, 32, 48, 64, 80, 96],
+    'highcpu': [2, 4, 8, 16, 32, 48, 64, 80, 96],
 }
 
 gcp_valid_machine_types = list(MACHINE_TYPE_TO_PARTS.keys())

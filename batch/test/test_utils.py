@@ -33,11 +33,12 @@ def test_memory_str_to_bytes():
 
 
 def test_gcp_worker_memory_per_core_mib():
-    with pytest.raises(AssertionError):
-        assert gcp_worker_memory_per_core_mib('n2', 'standard')
     assert gcp_worker_memory_per_core_mib('n1', 'standard') == 3840
     assert gcp_worker_memory_per_core_mib('n1', 'highmem') == 6656
     assert gcp_worker_memory_per_core_mib('n1', 'highcpu') == 924
+    assert gcp_worker_memory_per_core_mib('n2', 'standard') == 4096
+    assert gcp_worker_memory_per_core_mib('n2', 'highmem') == 8192
+    assert gcp_worker_memory_per_core_mib('n2', 'highcpu') == 1024
 
 
 def test_gcp_machine_memory_per_core_mib():
@@ -48,6 +49,15 @@ def test_gcp_machine_memory_per_core_mib():
             assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 6656
         elif machine_parts.machine_family == 'n1' and machine_parts.worker_type == 'highcpu':
             assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 924
+        elif machine_parts.machine_family == 'n2' and machine_parts.worker_type == 'standard':
+            assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 4096
+        elif machine_parts.machine_family == 'n2' and machine_parts.worker_type == 'highmem':
+            if machine_parts.cores == 128:
+                assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 6912
+            else:
+                assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 8192
+        elif machine_parts.machine_family == 'n2' and machine_parts.worker_type == 'highcpu':
+            assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 1024
         elif machine_parts.machine_family == 'g2' and machine_parts.worker_type == 'standard':
             assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 4096
         elif machine_parts.machine_family == 'a2' and machine_parts.worker_type == 'highgpu':
