@@ -295,6 +295,8 @@ If you hit a gap in the CLI during an investigation (e.g. there's no `hailctl ba
 
 That said, CLI additions should be a **separate PR** from whatever you're currently working on — note it as a follow-up rather than doing it now.
 
+Similarly, if an investigation reveals that a service API endpoint is missing, awkward, or has unhelpful response shape (e.g. no way to filter, missing fields, params that don't do what the spec says), proactively suggest adding or tweaking it. Service API changes also go in a separate PR — but flag them as improvements worth making.
+
 ## Common dev-level failure patterns
 
 | Symptom | Likely cause | Action |
