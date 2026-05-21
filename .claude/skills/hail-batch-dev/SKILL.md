@@ -133,11 +133,11 @@ The spec is the authoritative source — prefer it over any cached list of endpo
 
 **When an endpoint doesn't match the spec** (wrong path, missing params, incorrect response shape), fix the spec too — a drift between implementation and spec is a bug.
 
-## Investigating with the CLI (prefer this for inspection)
+## Investigating with hailctl curl (prefer this for inspection)
 
-The `hailctl batch` CLI works against any namespace via `HAIL_DEFAULT_NAMESPACE`. Prefer it for inspection — see `/hail-batch` for the full command reference.
+Use `hailctl curl` as the primary tool for inspecting jobs, logs, and attempts — it's reliable and works for everything. `hailctl batch` subcommands have gaps and version-dependent behaviour. See `/hail-batch` for the full reference including log/attempt endpoints.
 
-For listing jobs within a batch, `hailctl curl` is often better than the Python client because the response is paginated and curl makes it easy to inspect pages and compose with `jq`:
+For listing jobs within a batch, `hailctl curl` is also better than the Python client because the response is paginated and easy to compose with `jq`:
 
 ```bash
 # First page of jobs

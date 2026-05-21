@@ -24,9 +24,9 @@ hailctl auth login
 
 Both are needed. If a user gets auth errors, check which one is missing.
 
-## Investigating batches: use the CLI
+## Investigating batches: use hailctl curl
 
-For inspection tasks (checking status, reading logs, diagnosing failures), **always prefer `hailctl batch` CLI commands** — they're simpler and don't require writing Python.
+For inspecting individual jobs and logs, **use `hailctl curl` directly** — it's reliable and works for everything. The `hailctl batch` subcommands (`job`, `log`) are less complete and have version-dependent gaps.
 
 ### List recent batches
 ```bash
@@ -43,22 +43,22 @@ hailctl batch get BATCH_ID -o json
 
 ### Inspect a specific job
 ```bash
-hailctl batch job BATCH_ID JOB_ID           # status + spec (yaml)
+hailctl curl default batch /api/v1alpha/batches/BATCH_ID/jobs/JOB_ID
 ```
 
 ### Get logs
 ```bash
-hailctl batch log BATCH_ID JOB_ID                       # all containers (yaml)
-hailctl batch log BATCH_ID JOB_ID --container main      # just main (raw text)
-hailctl batch log BATCH_ID JOB_ID --container input     # input sidecar
-hailctl batch log BATCH_ID JOB_ID --container output    # output sidecar
-```
+# All containers (JSON keyed by container name: main, input, output) — deprecated but convenient
+hailctl curl default batch /api/v1alpha/batches/BATCH_ID/jobs/JOB_ID/log
 
-Note: `--container` requires a recent hailtop version. If it fails, fall back to the raw API (container is a path segment):
-```bash
+# Specific container (preferred)
 hailctl curl default batch /api/v1alpha/batches/BATCH_ID/jobs/JOB_ID/log/main
-hailctl curl default batch /api/v1alpha/batches/BATCH_ID/jobs/JOB_ID/log/input
-hailctl curl default batch /api/v1alpha/batches/BATCH_ID/jobs/JOB_ID/log/output
+
+# Specific attempt
+hailctl curl default batch "/api/v1alpha/batches/BATCH_ID/jobs/JOB_ID/log/main?attempt_id=ATTEMPT_ID"
+
+# List all attempts (to find attempt_id)
+hailctl curl default batch /api/v1alpha/batches/BATCH_ID/jobs/JOB_ID/attempts
 ```
 
 ### Wait for a batch to complete
