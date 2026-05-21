@@ -15,3 +15,7 @@ Repository = "https://github.com/hail-is/hail.git"
 module-name = "batch"
 module-root = ""
 namespace = true
+source-include = [
+  "batch/front_end/templates/**",
+  "batch/driver/templates/**",
+]

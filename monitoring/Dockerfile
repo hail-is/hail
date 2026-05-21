@@ -19,7 +19,7 @@ COPY gear/gear /gear/gear/
 COPY web_common/pyproject.toml web_common/MANIFEST.in /web_common/
 COPY web_common/web_common /web_common/web_common/
 
-COPY monitoring/setup.py monitoring/MANIFEST.in  /monitoring/
+COPY monitoring/pyproject.toml /monitoring/
 COPY monitoring/monitoring /monitoring/monitoring/
 
 RUN hail-pip-install /hailtop /gear /web_common /monitoring
