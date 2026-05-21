@@ -2,7 +2,7 @@ import pytest
 
 from batch.cloud.azure.resource_utils import MACHINE_TYPE_TO_PARTS as MACHINE_TYPE_TO_PARTS_AZURE
 from batch.cloud.gcp.resource_utils import MACHINE_TYPE_TO_PARTS as MACHINE_TYPE_TO_PARTS_GCP
-from batch.cloud.gcp.resource_utils import gcp_worker_memory_per_core_mib, machine_type_to_gpu_num
+from batch.cloud.gcp.resource_utils import gcp_local_ssd_count, gcp_local_ssd_size, gcp_worker_memory_per_core_mib, machine_type_to_gpu_num
 from batch.cloud.gcp.resources import GCPAcceleratorResource, gcp_resource_from_dict
 from batch.cloud.resource_utils import adjust_cores_for_packability
 from batch.utils import rewrite_dockerhub_image
@@ -79,6 +79,29 @@ def test_azure_machine_memory_per_core_mib():
             assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 4096
         elif machine_parts.family == 'E':
             assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 8192
+
+
+def test_gcp_local_ssd_count():
+    assert gcp_local_ssd_count('n1', 16) == 1
+    assert gcp_local_ssd_count('n1', 96) == 1
+    assert gcp_local_ssd_count('n2', 2) == 1
+    assert gcp_local_ssd_count('n2', 4) == 1
+    assert gcp_local_ssd_count('n2', 8) == 1
+    assert gcp_local_ssd_count('n2', 16) == 2
+    assert gcp_local_ssd_count('n2', 32) == 2
+    assert gcp_local_ssd_count('n2', 48) == 4
+    assert gcp_local_ssd_count('n2', 64) == 4
+    assert gcp_local_ssd_count('n2', 80) == 8
+    assert gcp_local_ssd_count('n2', 96) == 8
+    assert gcp_local_ssd_count('n2', 128) == 16
+
+
+def test_gcp_local_ssd_size():
+    assert gcp_local_ssd_size('n1', 16) == 375
+    assert gcp_local_ssd_size('n2', 2) == 375
+    assert gcp_local_ssd_size('n2', 16) == 750
+    assert gcp_local_ssd_size('n2', 48) == 1500
+    assert gcp_local_ssd_size('n2', 128) == 6000
 
 
 def test_gcp_resource_from_dict():

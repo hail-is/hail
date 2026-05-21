@@ -343,8 +343,39 @@ def gcp_is_valid_storage_request(storage_in_gib: int) -> bool:
     return 10 <= storage_in_gib <= GCP_MAX_PERSISTENT_SSD_SIZE_GIB
 
 
-def gcp_local_ssd_size() -> int:
-    return 375
+GCP_LOCAL_SSD_PARTITION_SIZE_GIB = 375
+
+# N2 machines require local SSDs in specific quantities that vary by vCPU count.
+# Verified: n2-standard-16 requires minimum 2 (valid: [0, 2, 4, 8, 16, 24]).
+# Other thresholds are estimated and may need adjustment based on GCP API errors.
+N2_MIN_LOCAL_SSD_COUNT_BY_CORES = {
+    2: 1,
+    4: 1,
+    8: 1,
+    16: 2,
+    32: 2,
+    48: 4,
+    64: 4,
+    80: 8,
+    96: 8,
+    128: 16,
+}
+
+
+def gcp_local_ssd_count(machine_family: str, cores: int) -> int:
+    if machine_family != 'n2':
+        return 1
+    count = N2_MIN_LOCAL_SSD_COUNT_BY_CORES.get(cores)
+    if count is not None:
+        return count
+    for threshold_cores in sorted(N2_MIN_LOCAL_SSD_COUNT_BY_CORES.keys(), reverse=True):
+        if cores >= threshold_cores:
+            return N2_MIN_LOCAL_SSD_COUNT_BY_CORES[threshold_cores]
+    return 1
+
+
+def gcp_local_ssd_size(machine_family: str, cores: int) -> int:
+    return GCP_LOCAL_SSD_PARTITION_SIZE_GIB * gcp_local_ssd_count(machine_family, cores)
 
 
 def machine_type_to_gpu(machine_type: str) -> Optional[str]:
