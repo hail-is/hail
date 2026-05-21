@@ -24,7 +24,9 @@ hailctl auth login
 
 Both are needed. If a user gets auth errors, check which one is missing.
 
-## Investigating batches
+## Investigating batches: use the CLI
+
+For inspection tasks (checking status, reading logs, diagnosing failures), **always prefer `hailctl batch` CLI commands** — they're simpler and don't require writing Python.
 
 ### List recent batches
 ```bash
@@ -41,20 +43,19 @@ hailctl batch get BATCH_ID -o json
 
 ### Inspect a specific job
 ```bash
-hailctl batch job BATCH_ID JOB_ID
+hailctl batch job BATCH_ID JOB_ID           # status + spec (yaml)
 ```
 
-### List attempts and get logs
+### Get logs
 
-Always specify `--container` when fetching logs — the default (all containers, JSON-wrapped) is hard to read. When a job has been retried, also specify `--attempt` to get the right one.
+Always specify `--container` — the bare command dumps all containers as escaped YAML and is hard to read. If a job has been retried, use `--attempt` to get the right one (defaults to most recent).
 
 ```bash
-# List attempts to find the attempt_id
-hailctl batch attempts BATCH_ID JOB_ID
-
-# Get log for a specific container (almost always what you want)
-hailctl batch log BATCH_ID JOB_ID --container main
-hailctl batch log BATCH_ID JOB_ID --container main --attempt ATTEMPT_ID
+hailctl batch attempts BATCH_ID JOB_ID                              # list attempts + IDs (only if needed)
+hailctl batch log BATCH_ID JOB_ID --container main                  # user code (start here)
+hailctl batch log BATCH_ID JOB_ID --container main --attempt ID     # specific attempt
+hailctl batch log BATCH_ID JOB_ID --container input                 # file copies in
+hailctl batch log BATCH_ID JOB_ID --container output                # file copies out
 ```
 
 ### Wait for a batch to complete

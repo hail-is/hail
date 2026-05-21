@@ -133,11 +133,11 @@ The spec is the authoritative source — prefer it over any cached list of endpo
 
 **When an endpoint doesn't match the spec** (wrong path, missing params, incorrect response shape), fix the spec too — a drift between implementation and spec is a bug.
 
-## Investigating with the CLI
+## Investigating with the CLI (prefer this for inspection)
 
-Use `hailctl batch` for all job inspection. See `/hail-batch` for the full reference. Key: always use `--container` with `hailctl batch log`, and `--attempt` when a job has been retried.
+The `hailctl batch` CLI works against any namespace via `HAIL_DEFAULT_NAMESPACE`. Prefer it for inspection — see `/hail-batch` for the full command reference.
 
-For listing jobs within a batch, `hailctl curl` is also better than the Python client because the response is paginated and easy to compose with `jq`:
+For listing jobs within a batch, `hailctl curl` is often better than the Python client because the response is paginated and curl makes it easy to inspect pages and compose with `jq`:
 
 ```bash
 # First page of jobs
@@ -294,8 +294,6 @@ CI submits batches to the `ci` billing project. To investigate a CI build failur
 If you hit a gap in the CLI during an investigation (e.g. there's no `hailctl batch jobs BATCH_ID` to list jobs within a batch — you currently need the Python client or `hailctl curl` for that), it may be worth adding the missing command. The CLI lives in `hail/python/hailtop/hailctl/` and is straightforward to extend.
 
 That said, CLI additions should be a **separate PR** from whatever you're currently working on — note it as a follow-up rather than doing it now.
-
-Similarly, if an investigation reveals that a service API endpoint is missing, awkward, or has unhelpful response shape (e.g. no way to filter, missing fields, params that don't do what the spec says), proactively suggest adding or tweaking it. Service API changes also go in a separate PR — but flag them as improvements worth making.
 
 ## Common dev-level failure patterns
 
