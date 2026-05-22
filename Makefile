@@ -110,7 +110,7 @@ install-dev-requirements:
 
 .PHONY: update-hail-ubuntu
 update-hail-ubuntu:
-	./update-hail-ubuntu.sh && $(MAKE) -C docker/third-party copy || [ $$? -eq 2 ]
+	python3 update-hail-ubuntu.py && $(MAKE) -C docker/third-party copy || [ $$? -eq 2 ]
 
 .PHONY: generate-pip-lockfiles
 generate-pip-lockfiles:
