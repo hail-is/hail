@@ -30,7 +30,7 @@ current_tag = m.group(1)
 
 if current_tag == latest_tag:
     print(f'Already up to date: ubuntu:{latest_tag}')
-    sys.exit(2)
+    sys.exit(1)
 
 print(f'Updating ubuntu:{current_tag} -> ubuntu:{latest_tag}')
 IMAGES_FILE.write_text(images_text.replace(f'ubuntu:{current_tag}', f'ubuntu:{latest_tag}'))
