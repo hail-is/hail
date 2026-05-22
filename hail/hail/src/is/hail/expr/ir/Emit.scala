@@ -6,6 +6,7 @@ import is.hail.asm4s.implicits.{codeToRichCodeRegion, valueToRichCodeRegion}
 import is.hail.backend.{DriverRuntimeContext, ExecuteContext, HailTaskContext}
 import is.hail.collection.{ByteArrayArrayBuilder, FastSeq}
 import is.hail.collection.compat.immutable.ArraySeq
+import is.hail.expr.ir.Emit.{EmitBlockMaxChunkSize, EmitBlockSizeThreshold}
 import is.hail.expr.ir.agg.{AggStateSig, ArrayAggStateSig, GroupedStateSig}
 import is.hail.expr.ir.analyses.{
   ComputeMethodSplits, ControlFlowPreventsSplit, ParentPointers, SemanticHash,
@@ -97,6 +98,10 @@ case class EmitEnv(bindings: Env[EmitValue], inputValues: IndexedSeq[EmitValue])
 }
 
 object Emit {
+
+  private[ir] var EmitBlockSizeThreshold = 4
+  val EmitBlockMaxChunkSize = 16
+
   def apply[C](
     ctx: EmitContext,
     ir: IR,
@@ -3586,7 +3591,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
         EmitStream.produce(this, ir, cb, cb.emb, r, env, container)
       else this.emitI(ir, cb, r, env, container, loopEnv)
 
-    def emitVoid(ir: IR, cb: EmitCodeBuilder, env: EmitEnv, r: Value[Region]): Unit =
+    def emitVoid(cb: EmitCodeBuilder, ir: IR, r: Value[Region], env: EmitEnv): Unit =
       this.emitVoid(cb, ir, r, env, container, loopEnv)
 
     val uses: mutable.Set[Name] =
@@ -3595,16 +3600,22 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
         case None => mutable.Set.empty
       }
 
+    @inline def skip(b: Binding): Boolean =
+      IsPure(b.value) && !uses.contains(b.name)
+
+    @inline def cantEmitInSeparateMethod(ir: IR): Boolean =
+      ir.typ.isInstanceOf[TStream] || ctx.inLoopCriticalPath.contains(ir)
+
     /* Emit a sequence of bindings into a code builder. Each is added to the environment of all
      * following bindings. Any bindings which is unused and has no side effects is skipped (this is
      * mostly an optimization, but it is important not to emit unused streams). */
-    def emitChunk(cb: EmitCodeBuilder, bindings: Seq[Binding], env: EmitEnv, r: Value[Region])
+    def emitChunk(cb: EmitCodeBuilder, bindings: Iterable[Binding], env: EmitEnv, r: Value[Region])
       : EmitEnv =
-      bindings.foldLeft(env) { case (newEnv, Binding(name, ir, Scope.EVAL)) =>
+      bindings.foldLeft(env) { case (newEnv, b @ Binding(name, ir, Scope.EVAL)) =>
         if (ir.typ == TVoid) {
-          emitVoid(ir, cb, newEnv, r)
+          emitVoid(cb, ir, r, newEnv)
           newEnv
-        } else if (IsPure(ir) && !uses.contains(name)) {
+        } else if (skip(b)) {
           newEnv
         } else {
           val value = emitI(ir, cb, newEnv, r)
@@ -3639,9 +3650,6 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
         newEnv
       }
 
-      def cantEmitInSeparateMethod(ir: IR): Boolean =
-        ir.typ.isInstanceOf[TStream] || ctx.inLoopCriticalPath.contains(ir)
-
       // end of bindings, emit any pending chunk and return the final environment
       if (pos == let.bindings.length) {
         if (chunkSize > 0)
@@ -3650,35 +3658,34 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
           return env
       }
 
-      val Binding(curName, curIR, Scope.EVAL) = let.bindings(pos)
+      val b @ Binding(name, expr, Scope.EVAL) = let.bindings(pos)
 
-      // skip over unused streams
-      if (curIR.typ.isInstanceOf[TStream] && !uses.contains(curName)) {
-        go(env, chunkStart, pos + 1, chunkSize, groupIdx)
-      } else if (chunkSize == 16 || (chunkSize > 0 && cantEmitInSeparateMethod(curIR))) {
-        /* emit the current chunk if it's either max size, or broken by a stream or other control
-         * flow */
+      // skip over unused expressions
+      if (skip(b)) go(env, chunkStart, pos + 1, chunkSize, groupIdx)
+      else if (
+        chunkSize == EmitBlockMaxChunkSize || (chunkSize > 0 && cantEmitInSeparateMethod(expr))
+      ) {
+        // emit the current chunk if
+        // - it's either max size, or
+        // - broken by a stream or other control flow
         val newEnv = emitChunkInSeparateMethod()
         go(newEnv, pos, pos, 0, groupIdx + 1)
-      } else if (curIR.typ.isInstanceOf[TStream]) {
-        // emit a stream, assuming we've already emitted any prior chunk
-        assert(chunkSize == 0) // no pending bindings
-        val value = emitI(curIR, cb, env, r)
-        val memo = cb.memoizeMaybeStreamValue(value, s"let_$curName")
-        val newEnv = env.bind(curName, memo)
+      } else if (cantEmitInSeparateMethod(expr)) {
+        // all previous bindings must have been emitted by the case above
+        assert(chunkSize == 0)
+        val value = emitI(expr, cb, env, r)
+        val memo = cb.memoizeMaybeStreamValue(value, s"let_$name")
+        val newEnv = env.bind(name, memo)
         go(newEnv, pos + 1, pos + 1, 0, groupIdx)
       } else {
-        // add cur binding to pending chunk
+        // add current binding to pending chunk
         go(env, chunkStart, pos + 1, chunkSize + 1, groupIdx)
       }
     }
 
     // don't split into separate methods if the bindings list is small
-    if (let.bindings.size > 4) {
-      go(env, 0, 0, 0, 0)
-    } else {
-      emitChunk(cb, let.bindings, env, r)
-    }
+    if (let.bindings.length > EmitBlockSizeThreshold) go(env, 0, 0, 0, 0)
+    else emitChunk(cb, let.bindings, env, r)
   }
 }
 
