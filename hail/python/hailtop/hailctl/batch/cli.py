@@ -115,13 +115,17 @@ def log(
     from hailtop.batch_client.client import BatchClient  # pylint: disable=import-outside-toplevel
 
     if attempt is not None and container is None:
-        print("Error: --attempt requires --container to be specified", file=sys.stderr)
-        raise typer.Exit(code=1)
+        raise typer.BadParameter('--attempt requires --container to be specified')
+    if raw and container is None:
+        raise typer.BadParameter('--raw requires --container to be specified')
 
     with BatchClient('') as client:
         maybe_job = get_job_if_exists(client, batch_id, job_id)
         if maybe_job is None:
-            print(f"Job with ID {job_id} on batch {batch_id} not found")
+            msg = f"Job with ID {job_id} on batch {batch_id} not found"
+            if attempt is not None:
+                msg += f", or attempt {attempt!r} does not exist"
+            print(msg)
             return
 
         if container:
