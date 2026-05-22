@@ -103,11 +103,20 @@ def log(
     batch_id: int,
     job_id: int,
     container: Ann[Optional[JobContainer], Opt(help='Container name of the desired job')] = None,
-    attempt: Ann[Optional[str], Opt(help='Attempt ID to retrieve log for (defaults to most recent)')] = None,
+    attempt: Ann[
+        Optional[str], Opt(help='Attempt ID to retrieve log for (defaults to most recent); requires --container')
+    ] = None,
     output: StructuredFormatOption = StructuredFormat.YAML,
+    raw: Ann[bool, Opt(help='Write log bytes directly to stdout without decoding')] = False,
 ):
     """Get the log for the job with id JOB_ID in the batch with id BATCH_ID."""
+    import sys  # pylint: disable=import-outside-toplevel
+
     from hailtop.batch_client.client import BatchClient  # pylint: disable=import-outside-toplevel
+
+    if attempt is not None and container is None:
+        print("Error: --attempt requires --container to be specified", file=sys.stderr)
+        raise typer.Exit(code=1)
 
     with BatchClient('') as client:
         maybe_job = get_job_if_exists(client, batch_id, job_id)
@@ -116,7 +125,11 @@ def log(
             return
 
         if container:
-            print(maybe_job.container_log(container.value, attempt_id=attempt).decode())
+            log_bytes = maybe_job.container_log(container.value, attempt_id=attempt)
+            if raw:
+                sys.stdout.buffer.write(log_bytes)
+            else:
+                sys.stdout.write(log_bytes.decode(errors='replace'))
         else:
             print(make_formatter(output)(maybe_job.log()))
 
