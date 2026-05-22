@@ -98,6 +98,14 @@ class JobContainer(str, Enum):
     OUTPUT = 'output'
 
 
+def _get_job_or_exit(client, batch_id: int, job_id: int):
+    job = get_job_if_exists(client, batch_id, job_id)
+    if job is None:
+        print(f"Job with ID {job_id} on batch {batch_id} not found")
+        raise typer.Exit(1)
+    return job
+
+
 @app.command()
 def log(
     batch_id: int,
@@ -120,13 +128,7 @@ def log(
         raise typer.BadParameter('--raw requires --container to be specified')
 
     with BatchClient('') as client:
-        maybe_job = get_job_if_exists(client, batch_id, job_id)
-        if maybe_job is None:
-            msg = f"Job with ID {job_id} on batch {batch_id} not found"
-            if attempt is not None:
-                msg += f", or attempt {attempt!r} does not exist"
-            print(msg)
-            return
+        maybe_job = _get_job_or_exit(client, batch_id, job_id)
 
         if container:
             log_bytes = maybe_job.container_log(container.value, attempt_id=attempt)
@@ -148,10 +150,7 @@ def attempts(
     from hailtop.batch_client.client import BatchClient  # pylint: disable=import-outside-toplevel
 
     with BatchClient('') as client:
-        maybe_job = get_job_if_exists(client, batch_id, job_id)
-        if maybe_job is None:
-            print(f"Job with ID {job_id} on batch {batch_id} not found")
-            return
+        maybe_job = _get_job_or_exit(client, batch_id, job_id)
         print(make_formatter(output)(maybe_job.attempts()))
 
 
@@ -184,17 +183,13 @@ def job(batch_id: int, job_id: int, output: StructuredFormatOption = StructuredF
     from hailtop.batch_client.client import BatchClient  # pylint: disable=import-outside-toplevel
 
     with BatchClient('') as client:
-        job = get_job_if_exists(client, batch_id, job_id)
-
-        if job is not None:
-            assert job._status
-            print(
-                make_formatter(output)(
-                    [cast(Dict[str, Any], job._status)]  # https://stackoverflow.com/q/71986632/6823256
-                )
+        job = _get_job_or_exit(client, batch_id, job_id)
+        assert job._status
+        print(
+            make_formatter(output)(
+                [cast(Dict[str, Any], job._status)]  # https://stackoverflow.com/q/71986632/6823256
             )
-        else:
-            print(f"Job with ID {job_id} on batch {batch_id} not found")
+        )
 
 
 @app.command('init', help='Initialize a Hail Batch environment.')
