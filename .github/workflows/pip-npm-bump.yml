@@ -1,0 +1,88 @@
+name: Weekly pip/npm bump
+
+on:
+  schedule:
+    - cron: '0 9 * * 5'  # Friday 9am UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump:
+    name: Update pip and npm lockfiles
+    runs-on: ubuntu-latest
+    if: github.repository == 'hail-is/hail'
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Update pip lockfiles
+        run: make generate-pip-lockfiles
+
+      - name: Update npm lockfile
+        run: npm update --package-lock-only
+        working-directory: services/ui
+
+      - name: Compute date
+        id: date
+        run: echo "value=$(date +'%Y_%m_%d')" >> "$GITHUB_OUTPUT"
+
+      - name: Commit and push branch
+        id: commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -B pip_npm_updates_${{ steps.date.outputs.value }}
+          git add -A
+          if git diff --cached --quiet; then
+            echo "no changes, skipping PR"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            git commit -m "[services] pip npm bump ${{ steps.date.outputs.value }}"
+            git push --force-with-lease origin pip_npm_updates_${{ steps.date.outputs.value }}
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create pull request
+        if: steps.commit.outputs.changed == 'true'
+        run: |
+          gh pr create \
+            --title "[services] pip npm bump ${{ steps.date.outputs.value }}" \
+            --body "$(cat <<'EOF'
+## Change Description
+
+PR to bump pip and npm packages this week
+
+## Security Assessment
+
+- This change potentially impacts the Hail Batch instance as deployed by Broad Institute in GCP
+
+### Impact Rating
+
+- This change has a low security impact
+
+### Impact Description
+
+Regular updates.
+
+### Appsec Review
+
+- [ ] Required: The impact has been assessed and approved by appsec
+EOF
+)" \
+            --base main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
