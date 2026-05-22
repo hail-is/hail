@@ -8,9 +8,7 @@ import is.hail.collection.{ByteArrayArrayBuilder, FastSeq}
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.Emit.{EmitBlockMaxChunkSize, EmitBlockSizeThreshold}
 import is.hail.expr.ir.agg.{AggStateSig, ArrayAggStateSig, GroupedStateSig}
-import is.hail.expr.ir.analyses.{
-  ComputeMethodSplits, ControlFlowPreventsSplit, ParentPointers, SemanticHash,
-}
+import is.hail.expr.ir.analyses.{ComputeMethodSplits, ControlFlowPreventsSplit, SemanticHash}
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.lowering.TableStageDependency
 import is.hail.expr.ir.ndarrays.EmitNDArray
@@ -40,7 +38,7 @@ object EmitContext {
     ctx.time {
       val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
       val requiredness = Requiredness(ir, usesAndDefs, ctx, pTypeEnv)
-      val inLoopCriticalPath = ControlFlowPreventsSplit(ir, ParentPointers(ir), usesAndDefs)
+      val inLoopCriticalPath = ControlFlowPreventsSplit(ir, usesAndDefs)
       val methodSplits = ComputeMethodSplits(ctx, ir, inLoopCriticalPath)
       new EmitContext(
         ctx,
