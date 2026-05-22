@@ -2,7 +2,7 @@
 #    uv pip compile --python-version 3.10 --python-platform linux hail/python/hailtop/requirements.txt --output-file=hail/python/hailtop/pinned-requirements.txt
 aiodns==2.0.0
     # via -r hail/python/hailtop/requirements.txt
-aiohappyeyeballs==2.6.1
+aiohappyeyeballs==2.6.2
     # via aiohttp
 aiohttp==3.13.5
     # via -r hail/python/hailtop/requirements.txt
@@ -30,14 +30,14 @@ azure-mgmt-storage==20.1.0
     # via -r hail/python/hailtop/requirements.txt
 azure-storage-blob==12.29.0
     # via -r hail/python/hailtop/requirements.txt
-boto3==1.43.9
+boto3==1.43.13
     # via -r hail/python/hailtop/requirements.txt
-botocore==1.43.9
+botocore==1.43.13
     # via
     #   -r hail/python/hailtop/requirements.txt
     #   boto3
     #   s3transfer
-certifi==2026.4.22
+certifi==2026.5.20
     # via
     #   msrest
     #   requests
@@ -47,7 +47,7 @@ cffi==2.0.0
     #   pycares
 charset-normalizer==3.4.7
     # via requests
-click==8.4.0
+click==8.4.1
     # via typer
 commonmark==0.9.1
     # via rich
@@ -73,7 +73,7 @@ google-auth-oauthlib==0.8.0
     # via -r hail/python/hailtop/requirements.txt
 humanize==4.15.0
     # via -r hail/python/hailtop/requirements.txt
-idna==3.15
+idna==3.16
     # via
     #   requests
     #   yarl
@@ -121,7 +121,7 @@ pycparser==3.0
     # via cffi
 pygments==2.20.0
     # via rich
-pyjwt==2.12.1
+pyjwt==2.13.0
     # via msal
 python-dateutil==2.9.0.post0
     # via botocore
@@ -175,5 +175,5 @@ urllib3==2.7.0
     #   requests
 uvloop==0.21.0
     # via -r hail/python/hailtop/requirements.txt
-yarl==1.23.0
+yarl==1.24.2
     # via aiohttp

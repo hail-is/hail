@@ -4,7 +4,7 @@ aiodns==2.0.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
-aiohappyeyeballs==2.6.1
+aiohappyeyeballs==2.6.2
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   aiohttp
@@ -59,17 +59,17 @@ azure-storage-blob==12.29.0
     #   -r hail/python/hailtop/requirements.txt
 bokeh==3.9.0
     # via -r hail/python/requirements.txt
-boto3==1.43.9
+boto3==1.43.13
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
-botocore==1.43.9
+botocore==1.43.13
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
     #   boto3
     #   s3transfer
-certifi==2026.4.22
+certifi==2026.5.20
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   msrest
@@ -83,7 +83,7 @@ charset-normalizer==3.4.7
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   requests
-click==8.4.0
+click==8.4.1
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   typer
@@ -128,7 +128,7 @@ humanize==4.15.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
-idna==3.15
+idna==3.16
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   requests
@@ -233,7 +233,7 @@ pygments==2.20.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   rich
-pyjwt==2.12.1
+pyjwt==2.13.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   msal
@@ -338,7 +338,7 @@ wrapt==1.17.3
     # via deprecated
 xyzservices==2026.3.0
     # via bokeh
-yarl==1.23.0
+yarl==1.24.2
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   aiohttp
