@@ -11,7 +11,7 @@ DOCKERFILE = REPO_ROOT / 'docker/hail-ubuntu/Dockerfile'
 
 url = 'https://hub.docker.com/v2/repositories/library/ubuntu/tags?page_size=100&name=noble-2'
 print('Querying Docker Hub for latest ubuntu noble tag...')
-with urllib.request.urlopen(url) as r:
+with urllib.request.urlopen(url) as r: # nosec B310 - ignore bandit rule because this url is https
     data = json.loads(r.read())
 
 pattern = re.compile(r'^noble-(\d{8})$')
