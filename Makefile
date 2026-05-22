@@ -108,6 +108,10 @@ install-dev-requirements:
 		-r batch/pinned-requirements.txt \
 		-r ci/pinned-requirements.txt
 
+.PHONY: update-hail-ubuntu
+update-hail-ubuntu:
+	./update-hail-ubuntu.sh && $(MAKE) -C docker/third-party copy || [ $$? -eq 2 ]
+
 .PHONY: generate-pip-lockfiles
 generate-pip-lockfiles:
 	./generate-pip-lockfile.sh hail/python/hailtop
