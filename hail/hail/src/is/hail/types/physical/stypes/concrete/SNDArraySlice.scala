@@ -52,11 +52,11 @@ final case class SNDArraySlice(pType: PCanonicalNDArray) extends SNDArray {
     new SNDArraySliceSettable(this, shape, strides, dataFirstElementPointer)
   }
 
-  override def fromValues(settables: IndexedSeq[Value[_]]): SNDArraySliceValue = {
-    assert(settables.length == 2 * nDims + 1)
-    val shape = settables.slice(0, nDims).asInstanceOf[IndexedSeq[Value[Long @unchecked]]]
-    val strides = settables.slice(nDims, 2 * nDims).asInstanceOf[IndexedSeq[Value[Long @unchecked]]]
-    val dataFirstElementPointer = settables.last.asInstanceOf[Value[Long]]
+  override def fromValues(values: IndexedSeq[Value[_]]): SNDArraySliceValue = {
+    assert(values.length == 2 * nDims + 1)
+    val shape = values.slice(0, nDims).asInstanceOf[IndexedSeq[Value[Long @unchecked]]]
+    val strides = values.slice(nDims, 2 * nDims).asInstanceOf[IndexedSeq[Value[Long @unchecked]]]
+    val dataFirstElementPointer = values.last.asInstanceOf[Value[Long]]
     new SNDArraySliceValue(this, shape.map(SizeValueDyn.apply), strides, dataFirstElementPointer)
   }
 
