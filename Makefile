@@ -204,6 +204,33 @@ batch/batch/front_end/static/compiled-js/job.js: services/ui/dist/batch/job.js
 
 batch-image: batch/batch/front_end/static/compiled-js/job.js
 
+services/ui/dist/batch_driver/index.js: $(shell git ls-files services/ui)
+	cd services/ui && npm ci && npm run build
+
+batch/batch/driver/static/compiled-js/index.js: services/ui/dist/batch_driver/index.js
+	mkdir -p batch/batch/driver/static/compiled-js
+	cp services/ui/dist/batch_driver/index.js $@
+
+batch-image: batch/batch/driver/static/compiled-js/index.js
+
+services/ui/dist/monitoring/index.js: $(shell git ls-files services/ui)
+	cd services/ui && npm ci && npm run build
+
+monitoring/monitoring/static/compiled-js/index.js: services/ui/dist/monitoring/index.js
+	mkdir -p monitoring/monitoring/static/compiled-js
+	cp services/ui/dist/monitoring/index.js $@
+
+monitoring-image: monitoring/monitoring/static/compiled-js/index.js
+
+services/ui/dist/auth/index.js: $(shell git ls-files services/ui)
+	cd services/ui && npm ci && npm run build
+
+auth/auth/static/compiled-js/index.js: services/ui/dist/auth/index.js
+	mkdir -p auth/auth/static/compiled-js
+	cp services/ui/dist/auth/index.js $@
+
+auth-image: auth/auth/static/compiled-js/index.js
+
 batch/jvm-entryway/out/assembly.dest/out.jar: $(shell git ls-files batch/jvm-entryway)
 	cd batch/jvm-entryway && $(MILL) $(MILLOPTS) assembly
 
@@ -275,6 +302,18 @@ else ifeq ($(SERVICE),batch)
 run-dev-proxy: batch/batch/front_end/static/compiled-js/job.js
 tailwind-compile-watch: batch/batch/front_end/static/compiled-js/job.js
 DEVSERVER_TARGETS = tailwind-compile-watch run-dev-proxy ui-js-watch-batch
+else ifeq ($(SERVICE),batch-driver)
+run-dev-proxy: batch/batch/driver/static/compiled-js/index.js
+tailwind-compile-watch: batch/batch/driver/static/compiled-js/index.js
+DEVSERVER_TARGETS = tailwind-compile-watch run-dev-proxy ui-js-watch-batch-driver
+else ifeq ($(SERVICE),monitoring)
+run-dev-proxy: monitoring/monitoring/static/compiled-js/index.js
+tailwind-compile-watch: monitoring/monitoring/static/compiled-js/index.js
+DEVSERVER_TARGETS = tailwind-compile-watch run-dev-proxy ui-js-watch-monitoring
+else ifeq ($(SERVICE),auth)
+run-dev-proxy: auth/auth/static/compiled-js/index.js
+tailwind-compile-watch: auth/auth/static/compiled-js/index.js
+DEVSERVER_TARGETS = tailwind-compile-watch run-dev-proxy ui-js-watch-auth
 else
 DEVSERVER_TARGETS = tailwind-compile-watch run-dev-proxy
 endif
@@ -294,6 +333,18 @@ ui-js-watch: services/ui/node_modules/.package-lock.json
 ui-js-watch-batch: services/ui/node_modules/.package-lock.json
 	cd services/ui && npx esbuild src/batch/job.tsx --bundle --jsx=automatic --format=esm --outfile=../../batch/batch/front_end/static/compiled-js/job.js --minify --watch=forever
 
+.PHONY: ui-js-watch-batch-driver
+ui-js-watch-batch-driver: services/ui/node_modules/.package-lock.json
+	cd services/ui && npx esbuild src/batch_driver/index.tsx --bundle --jsx=automatic --format=esm --outfile=../../batch/batch/driver/static/compiled-js/index.js --minify --watch=forever
+
+.PHONY: ui-js-watch-monitoring
+ui-js-watch-monitoring: services/ui/node_modules/.package-lock.json
+	cd services/ui && npx esbuild src/monitoring/index.tsx --bundle --jsx=automatic --format=esm --outfile=../../monitoring/monitoring/static/compiled-js/index.js --minify --watch=forever
+
+.PHONY: ui-js-watch-auth
+ui-js-watch-auth: services/ui/node_modules/.package-lock.json
+	cd services/ui && npx esbuild src/auth/index.tsx --bundle --jsx=automatic --format=esm --outfile=../../auth/auth/static/compiled-js/index.js --minify --watch=forever
+
 .PHONY: check-devserver-deps
 check-devserver-deps:
 	@if ! command -v adev > /dev/null 2>&1; then \
@@ -304,7 +355,9 @@ check-devserver-deps:
 	@SERVICE=$(SERVICE) python3 -c "\
 import importlib.metadata as m, sys, os; \
 svc = os.environ.get('SERVICE', ''); \
-pkgs = ['gear', 'web_common'] + ([svc] if svc else []); \
+pkg_alias = {'batch-driver': 'batch'}; \
+svc_pkg = pkg_alias.get(svc, svc); \
+pkgs = ['gear', 'web_common'] + ([svc_pkg] if svc_pkg else []); \
 installed = {d.name for d in m.distributions()}; \
 missing = [p for p in pkgs if p not in installed]; \
 (print('error: missing packages: ' + ', '.join(missing), file=sys.stderr), \

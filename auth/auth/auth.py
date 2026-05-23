@@ -250,6 +250,13 @@ async def get_healthcheck(_) -> web.Response:
     return web.Response()
 
 
+@routes.get('/helloreact')
+@web_security_headers
+@auth.maybe_authenticated_user
+async def hello_react(request: web.Request, userdata) -> web.Response:
+    return await render_template('auth', request, userdata, 'hello_react.html', {'use_tailwind': True})
+
+
 @routes.get('/swagger')
 @web_security_headers_swagger
 async def swagger(request):

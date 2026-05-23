@@ -408,6 +408,13 @@ async def on_cleanup(app):
     await app[AppKeys.EXIT_STACK].aclose()
 
 
+@routes.get('/helloreact')
+@web_security_headers
+@auth.authenticated_users_with_permission(SystemPermission.VIEW_MONITORING_DASHBOARDS)
+async def hello_react(request: web.Request, userdata) -> web.Response:
+    return await render_template('monitoring', request, userdata, 'hello_react.html', {'use_tailwind': True})
+
+
 @routes.get('/swagger')
 @web_security_headers_swagger
 async def swagger(request):

@@ -573,6 +573,13 @@ def validate_int(session, name, value, predicate, description):
     return validate(session, name, i, predicate, description)
 
 
+@routes.get('/helloreact')
+@web_security_headers
+@auth.authenticated_users_with_permission(SystemPermission.READ_DEPLOYED_SYSTEM_STATE)
+async def hello_react(request: web.Request, userdata) -> web.Response:
+    return await render_template('batch-driver', request, userdata, 'hello_react.html', {'use_tailwind': True})
+
+
 @routes.post('/configure-feature-flags')
 @auth.authenticated_users_with_permission(SystemPermission.UPDATE_DEPLOYED_SYSTEM_STATE)
 async def configure_feature_flags(request: web.Request, _) -> NoReturn:
