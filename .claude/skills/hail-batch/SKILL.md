@@ -139,23 +139,18 @@ hailctl curl default batch /openapi.yaml
 
 ## Listing jobs within a batch
 
-The `hailctl batch` CLI doesn't have a `jobs` subcommand yet. Use `hailctl curl` instead, which lets you filter and paginate:
-
 ```bash
-# List jobs (first page)
-hailctl curl default batch /api/v1alpha/batches/BATCH_ID/jobs
-
-# Filter to failed jobs only
-hailctl curl default batch "/api/v1alpha/batches/BATCH_ID/jobs?q=state%3DFailed"
-
-# Next page — use last_job_id from the previous response
-hailctl curl default batch "/api/v1alpha/batches/BATCH_ID/jobs?last_job_id=42"
-
-# Extract just job_id, state, exit_code with jq
-hailctl curl default batch /api/v1alpha/batches/BATCH_ID/jobs | jq '.jobs[] | {job_id, state, exit_code}'
+hailctl batch jobs BATCH_ID                          # first 50 jobs
+hailctl batch jobs BATCH_ID --state bad              # failed or errored jobs
+hailctl batch jobs BATCH_ID --state bad -o json      # machine-readable
+hailctl batch jobs BATCH_ID --exit-code 137          # OOM kills
+hailctl batch jobs BATCH_ID --name my-step           # by job name
+hailctl batch jobs BATCH_ID --limit 0                # all jobs (no limit)
 ```
 
-The response has a `last_job_id` field when more pages exist — repeat the call with `?last_job_id=<value>` to continue.
+Valid `--state` values: `pending`, `ready`, `creating`, `running`, `live` (ready+creating+running), `cancelled`, `error`, `failed`, `bad` (error+failed), `success`, `done` (all terminal states).
+
+Flags can be combined: `--state bad --exit-code 1` returns jobs that are bad AND have exit code 1.
 
 ## Job states
 
@@ -184,6 +179,6 @@ The response has a `last_job_id` field when more pages exist — repeat the call
 
 When given a batch ID:
 1. Run `hailctl batch get BATCH_ID` — report state, n_jobs, n_succeeded, n_failed, cost
-2. Run `hailctl batch list` with a failure query to find failed jobs, or page through jobs
-3. For each failed job (up to ~5), run `hailctl batch log BATCH_ID JOB_ID --container main`
+2. Run `hailctl batch jobs BATCH_ID --state bad` to find failed/errored jobs
+3. For each bad job (up to ~5), run `hailctl batch log BATCH_ID JOB_ID --container main`
 4. Identify the root cause and suggest next steps
