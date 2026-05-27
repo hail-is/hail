@@ -1,8 +1,13 @@
 import pytest
 
 from batch.cloud.azure.resource_utils import MACHINE_TYPE_TO_PARTS as MACHINE_TYPE_TO_PARTS_AZURE
-from batch.cloud.gcp.resource_utils import MACHINE_TYPE_TO_PARTS as MACHINE_TYPE_TO_PARTS_GCP
-from batch.cloud.gcp.resource_utils import gcp_local_ssd_count, gcp_local_ssd_size, gcp_worker_memory_per_core_mib, machine_type_to_gpu_num
+from batch.cloud.gcp.resource_utils import (
+    MACHINE_TYPE_TO_PARTS as MACHINE_TYPE_TO_PARTS_GCP,
+    gcp_local_ssd_count,
+    gcp_local_ssd_size,
+    gcp_worker_memory_per_core_mib,
+    machine_type_to_gpu_num,
+)
 from batch.cloud.gcp.resources import GCPAcceleratorResource, gcp_resource_from_dict
 from batch.cloud.resource_utils import adjust_cores_for_packability
 from batch.utils import rewrite_dockerhub_image
