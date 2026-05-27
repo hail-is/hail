@@ -29,9 +29,7 @@ jobs:
           sed -Ei 's|(HAIL_PATCH_VERSION := )[[:digit:]]+|\1'"${n}"'|' hail/Makefile
           sed -Ei 's|(hailPatchVersion = ")[[:digit:]]+|\1'"${n}"'|' hail/build.mill
           
-          echo "old=${prefix}.${patch}" >> "${GITHUB_OUTPUT}"
-          echo "new=${prefix}.${n}" >> "${GITHUB_OUTPUT}"
-          echo "fut=${prefix}.$((n + 3))" >> "${GITHUB_OUTPUT}"
+          { echo "old=${prefix}.${patch}"; echo "new=${prefix}.${n}"; echo "fut=${prefix}.$((n + 3))"; } >> "${GITHUB_OUTPUT}"
 
       - name: Generate Changelog Entries
         working-directory: hail
@@ -52,7 +50,7 @@ jobs:
             hail/build.mill \
             hail/Makefile
           
-          git push origin $(git branch --show-current) --force-with-lease
+          git push origin "$(git branch --show-current)" --force-with-lease
 
       - name: Create Pull Request
         env:
@@ -70,7 +68,7 @@ jobs:
             exit 1
           fi
 
-          cat << EOF | gh pr create --base=main --head=$(git branch --show-current) --draft --fill -F -
+          cat << EOF | gh pr create --base=main --head="$(git branch --show-current)" --draft --fill -F -
           Closes #${issue_number}
 
           # Release Checklist (delete before merge)
@@ -92,7 +90,7 @@ jobs:
         run: |
           milestone_number=$(gh api -X POST '/repos/${{ github.repository }}/milestones' \
             -f 'title=${{ steps.version.outputs.fut }}' \
-            -f "due_on=$(date --utc --iso-8601=seconds --date=`date +%Y-%m-01`' +9 months 00:00')" \
+            -f "due_on=$(date --utc --iso-8601=seconds --date="$(date +%Y-%m-01) +9 months 00:00")" \
             --jq '.number')
 
           gh api -X POST '/repos/${{ github.repository }}/issues' \
