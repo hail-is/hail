@@ -68,7 +68,7 @@ class AccessLogger(AbstractAccessLogger):
         }
 
         userdata_maybe = request.get('userdata', {})
-        userdata_keys = ['username', 'login_id', 'hail_identity', 'system_permissions']
+        userdata_keys = ['username', 'login_id', 'hail_identity']
         extra.update({k: userdata_maybe[k] for k in userdata_keys if k in userdata_maybe})
 
         # Try to get formdata in various ways:
@@ -91,16 +91,11 @@ class AccessLogger(AbstractAccessLogger):
         extra.update({'request_data': {k: request_data[k] for k in request_data.keys() if not k.startswith('_')}})
 
         api_info_maybe = request.get('api_info', {})
-        api_info_keys_and_defaults = {
-            'authenticated_users_only': False,
-            'developers_only': False,
-        }
+        extra['authenticated_users_only'] = api_info_maybe.get('authenticated_users_only', False)
 
-        for k, default in api_info_keys_and_defaults.items():
-            if k in api_info_maybe:
-                extra[k] = api_info_maybe[k]
-            else:
-                extra[k] = default
+        if api_info_maybe.get('system_permissions_required'):
+            extra['system_permissions_required'] = api_info_maybe['system_permissions_required']
+            extra['system_permissions_possessed'] = list(userdata_maybe.get('system_permissions', {}).keys())
 
         self.logger.info(
             f'{request.scheme} {request.method} {request.path} done in {time}s: {response.status}',
