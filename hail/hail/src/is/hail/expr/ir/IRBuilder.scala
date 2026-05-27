@@ -36,6 +36,7 @@ sealed abstract class Memoized[S] {
 
   def map(f: Atom => IR): Memoized[S] = flatMap(a => pure(f(a)))
   def flatMap(f: Atom => Memoized[S]): Memoized[S] = new Cont(this, f)
+  def >>(m: Memoized[S]): Memoized[S] = flatMap(_ => m)
 }
 
 object Memoized {
