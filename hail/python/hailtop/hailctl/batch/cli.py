@@ -224,7 +224,7 @@ def jobs(
         results = []
         for job in batch.jobs(q=q, version=2):
             results.append(job)
-            if limit > 0 and len(results) >= limit:
+            if 0 < limit <= len(results):
                 break
 
     if results:
