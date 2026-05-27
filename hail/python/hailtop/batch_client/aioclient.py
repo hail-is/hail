@@ -433,11 +433,11 @@ class JobGroup:
         q: Optional[str] = None,
         version: Optional[int] = None,
         recursive: bool = False,
+        last_job_id: Optional[int] = None,
     ) -> AsyncIterator[JobListEntryV1Alpha]:
         self._raise_if_not_submitted()
         if version is None:
             version = 1
-        last_job_id = None
         while True:
             params: Dict[str, Any] = {'recursive': str(recursive)}
             if q is not None:
@@ -667,9 +667,14 @@ class Batch:
         self._raise_if_not_created()
         await self._root_job_group.cancel()
 
-    def jobs(self, q: Optional[str] = None, version: Optional[int] = None) -> AsyncIterator[JobListEntryV1Alpha]:
+    def jobs(
+        self,
+        q: Optional[str] = None,
+        version: Optional[int] = None,
+        last_job_id: Optional[int] = None,
+    ) -> AsyncIterator[JobListEntryV1Alpha]:
         self._raise_if_not_created()
-        return self._root_job_group.jobs(q, version, recursive=True)
+        return self._root_job_group.jobs(q, version, recursive=True, last_job_id=last_job_id)
 
     def job_groups(self) -> AsyncIterator[JobGroup]:
         self._raise_if_not_created()

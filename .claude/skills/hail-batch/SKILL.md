@@ -146,6 +146,7 @@ hailctl batch jobs BATCH_ID --state bad -o json      # machine-readable
 hailctl batch jobs BATCH_ID --exit-code 137          # OOM kills
 hailctl batch jobs BATCH_ID --name my-step           # by job name
 hailctl batch jobs BATCH_ID --limit 0                # all jobs (no limit)
+hailctl batch jobs BATCH_ID --limit 50 --last-job-id 50  # pagination: next page after job 50
 ```
 
 Valid `--state` values: `pending`, `ready`, `creating`, `running`, `live` (ready+creating+running), `cancelled`, `error`, `failed`, `bad` (error+failed), `success`, `done` (all terminal states).

@@ -194,6 +194,7 @@ def jobs(
     exit_code: Ann[Optional[int], Opt(help='Filter by exit code.')] = None,
     name: Ann[Optional[str], Opt(help='Filter by job name (attribute).')] = None,
     limit: Ann[int, Opt(help='Maximum number of jobs to return. 0 means no limit.')] = 50,
+    last_job_id: Ann[Optional[int], Opt(help='Return jobs after this job id (for pagination).')] = None,
     output: StructuredFormatOption = StructuredFormat.YAML,
 ):
     """List jobs in the batch with id BATCH_ID."""
@@ -222,7 +223,7 @@ def jobs(
             raise typer.Exit(1)
 
         results = []
-        for job in batch.jobs(q=q, version=2):
+        for job in batch.jobs(q=q, version=2, last_job_id=last_job_id):
             results.append(job)
             if 0 < limit <= len(results):
                 break

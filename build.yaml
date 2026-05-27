@@ -3490,6 +3490,35 @@ steps:
       - merge_code
       - deploy_batch
   - kind: runImage
+    name: test_hailctl_unit
+    resources:
+      memory: standard
+      cpu: '0.25'
+    image:
+      valueFrom: hail_dev_image.image
+    script: |
+      set -ex
+      cd /io/repo
+      python3 -m pytest \
+              -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
+              --log-cli-level=INFO \
+              -s \
+              -r A \
+              -vv \
+              --instafail \
+              --durations=50 \
+              --timeout=120 \
+              hail/python/test/hailtop/hailctl/batch/test_jobs_unit.py
+    inputs:
+      - from: /repo/hail/python
+        to: /io/repo/hail/python
+    scopes:
+      - test
+      - dev
+    dependsOn:
+      - merge_code
+      - hail_dev_image
+  - kind: runImage
     name: test_batch_docs
     image:
       valueFrom: hail_dev_image.image
