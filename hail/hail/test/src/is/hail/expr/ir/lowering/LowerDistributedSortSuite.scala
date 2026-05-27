@@ -4,18 +4,19 @@ import is.hail.{ExecStrategy, HailSuite, TestUtils}
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.collection.FastSeq
 import is.hail.expr.ir.{
-  mapIR, Ascending, Descending, LoweringAnalyses, SortField, TableIR, TableMapRows, TableRange,
+  makestruct, mapIR, Ascending, Descending, LoweringAnalyses, SortField, TableIR, TableMapRows,
+  TableRange,
 }
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.defs.{
-  Apply, ErrorIDs, GetField, I32, Literal, MakeStruct, Ref, SelectFields, ToArray, ToStream,
+  Apply, ErrorIDs, GetField, I32, Literal, Ref, SelectFields, ToArray, ToStream,
 }
 import is.hail.expr.ir.lowering.LowerDistributedSort.samplePartition
 import is.hail.types.RTable
 import is.hail.types.virtual.{TArray, TInt32, TStruct}
 
 import org.apache.spark.sql.Row
-import org.testng.annotations.Test
+import org.testng.annotations.{DataProvider, Test}
 
 class LowerDistributedSortSuite extends HailSuite with TestUtils {
   implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
@@ -63,85 +64,88 @@ class LowerDistributedSortSuite extends HailSuite with TestUtils {
     assertEvalsTo(sampled2, Row(Row(0, 0), Row(3, 3), IndexedSeq(Row(0, 0)), false))
   }
 
-  // Only does ascending for now
-  def testDistributedSortHelper(myTable: TableIR, sortFields: IndexedSeq[SortField]): Unit =
-    ctx.local(flags = ctx.flags + ("shuffle_cutoff_to_local_sort" -> "40")) { ctx =>
-      val analyses: LoweringAnalyses = LoweringAnalyses.apply(myTable, ctx)
-      val rt = analyses.requirednessAnalysis.lookup(myTable).asInstanceOf[RTable]
-      val stage = LowerTableIR.applyTable(myTable, DArrayLowering.All, ctx, analyses)
-
-      val sortedTs = LowerDistributedSort.distributedSort(ctx, stage, sortFields, rt)
-        .lower(ctx, myTable.typ.copy(key = FastSeq()))
-      val res =
-        eval(sortedTs.mapCollect("test")(x => ToArray(x))).asInstanceOf[IndexedSeq[
-          IndexedSeq[Row]
-        ]].flatten
-
-      val rowFunc = myTable.typ.rowType.select(sortFields.map(_.field))._2
-      val unsortedCollect = collect(myTable)
-      val unsortedAnalyses = LoweringAnalyses.apply(unsortedCollect, ctx)
-      val unsorted = eval(LowerTableIR.apply(
-        unsortedCollect,
-        DArrayLowering.All,
-        ctx,
-        unsortedAnalyses,
-      )).asInstanceOf[Row](0).asInstanceOf[IndexedSeq[Row]]
-      val scalaSorted = unsorted.sortWith { case (l, r) =>
-        val leftKey = rowFunc(l)
-        val rightKey = rowFunc(r)
-        var ans = false
-        var i = 0
-        while (i < sortFields.size) {
-          if (leftKey(i).asInstanceOf[Int] != rightKey(i).asInstanceOf[Int]) {
-            if (sortFields(i).sortOrder == Ascending) {
-              ans = leftKey(i).asInstanceOf[Int] < rightKey(i).asInstanceOf[Int]
-            } else {
-              ans = leftKey(i).asInstanceOf[Int] > rightKey(i).asInstanceOf[Int]
-            }
-            i = sortFields.size
-          }
-          i += 1
-        }
-        ans
-      }
-      assert(res == scalaSorted)
-    }
-
-  @Test def testDistributedSort(): Unit = {
+  @DataProvider(name = "DistributedSort")
+  def dataDistributedSort: Array[Array[Any]] = {
     val tableRange = TableRange(100, 10)
-    val rangeRow = Ref(TableIR.rowName, tableRange.typ.rowType)
-    val tableWithExtraField = TableMapRows(
-      tableRange,
-      MakeStruct(IndexedSeq(
-        "idx" -> GetField(rangeRow, "idx"),
-        "foo" -> Apply(
-          "mod",
-          IndexedSeq(),
-          IndexedSeq(GetField(rangeRow, "idx"), I32(2)),
-          TInt32,
-          ErrorIDs.NO_ERROR,
-        ),
-        "backwards" -> -GetField(rangeRow, "idx"),
-        "const" -> I32(4),
-      )),
-    )
 
-    testDistributedSortHelper(
-      tableWithExtraField,
-      IndexedSeq(SortField("foo", Ascending), SortField("idx", Ascending)),
-    )
-    testDistributedSortHelper(tableWithExtraField, IndexedSeq(SortField("idx", Ascending)))
-    testDistributedSortHelper(tableWithExtraField, IndexedSeq(SortField("backwards", Ascending)))
-    testDistributedSortHelper(tableWithExtraField, IndexedSeq(SortField("const", Ascending)))
-    testDistributedSortHelper(tableWithExtraField, IndexedSeq(SortField("idx", Descending)))
-    testDistributedSortHelper(
-      tableWithExtraField,
-      IndexedSeq(SortField("foo", Descending), SortField("idx", Ascending)),
+    def idx =
+      GetField(
+        Ref(TableIR.rowName, tableRange.typ.rowType),
+        "idx",
+      )
+
+    val t =
+      TableMapRows(
+        tableRange,
+        makestruct(
+          "idx" -> idx,
+          "foo" -> Apply(
+            "mod",
+            FastSeq(),
+            FastSeq(idx, I32(2)),
+            TInt32,
+            ErrorIDs.NO_ERROR,
+          ),
+          "ridx" -> -idx,
+          "const" -> I32(4),
+        ),
+      )
+
+    Array(
+      Array(TableRange(0, 1), FastSeq(SortField("idx", Ascending))),
+      Array(tableRange, FastSeq(SortField("idx", Ascending))),
+      Array(t, FastSeq(SortField("idx", Ascending))),
+      Array(t, FastSeq(SortField("idx", Descending))),
+      Array(t, FastSeq(SortField("ridx", Ascending))),
+      Array(t, FastSeq(SortField("const", Ascending))),
+      Array(t, FastSeq(SortField("foo", Ascending), SortField("idx", Ascending))),
+      Array(t, FastSeq(SortField("foo", Descending), SortField("idx", Ascending))),
     )
   }
 
-  @Test def testDistributedSortEmpty(): Unit = {
-    val tableRange = TableRange(0, 1)
-    testDistributedSortHelper(tableRange, IndexedSeq(SortField("idx", Ascending)))
+  @Test(dataProvider = "DistributedSort")
+  def testDistributedSort(tir: TableIR, sortFields: IndexedSeq[SortField]): Unit = {
+    ctx.local(flags = ctx.flags + ("shuffle_cutoff_to_local_sort" -> "40")) { ctx =>
+      val lowerSorted =
+        eval {
+          val analyses = LoweringAnalyses(tir, ctx)
+          val rt = analyses.requirednessAnalysis.lookup(tir).asInstanceOf[RTable]
+          val stage = LowerTableIR.applyTable(tir, DArrayLowering.All, ctx, analyses)
+
+          LowerDistributedSort
+            .distributedSort(ctx, stage, sortFields, rt)
+            .lower(ctx, tir.typ.copy(key = FastSeq()))
+            .mapCollect("test")(ToArray(_))
+        }
+          .asInstanceOf[IndexedSeq[IndexedSeq[Row]]]
+          .flatten
+
+      val unsorted =
+        eval {
+          val ir = collect(tir)
+          val analyses = LoweringAnalyses(ir, ctx)
+          LowerTableIR.apply(ir, DArrayLowering.All, ctx, analyses)
+        }
+          .asInstanceOf[Row](0)
+          .asInstanceOf[IndexedSeq[Row]]
+
+      val rowFunc =
+        tir.typ.rowType.select(sortFields.map(_.field))._2
+
+      val scalaSorted =
+        unsorted.sortWith { (l, r) =>
+          val leftKey = rowFunc(l)
+          val rightKey = rowFunc(r)
+
+          sortFields.indices.collectFirst {
+            case i if leftKey(i) != rightKey(i) =>
+              val L = leftKey(i).asInstanceOf[Int]
+              val R = rightKey(i).asInstanceOf[Int]
+              if (sortFields(i).sortOrder == Ascending) L < R else L > R
+          }.getOrElse(false)
+        }
+
+      assert(lowerSorted == scalaSorted)
+    }
   }
 }
