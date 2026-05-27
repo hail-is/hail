@@ -36,7 +36,7 @@
           <span class='italic'>({% if end %}currently-running batches excluded{% else %}including currently-running batches{% endif %})</span>
         </p>
 
-        {% if is_developer %}
+        {% if userdata['system_permissions']['read_all_billing_projects'] %}
         <div class='space-y-1 text-sm'>
           <label class='flex items-center gap-2 cursor-pointer'>
             <input type='radio' name='export-grouping' value='by-project' checked> By Billing Project
