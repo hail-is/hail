@@ -163,7 +163,7 @@ class BlockMatrixNativeReader(
     )
     val reader = ETypeValueReader(spec)
 
-    def blockIR(ctx: IR): IR = {
+    def blockIR(ctx: Atom): IR = {
       val path = Apply(
         "concat",
         FastSeq(),
@@ -221,27 +221,25 @@ case class BlockMatrixBinaryReader(path: String, shape: IndexedSeq[Long], blockS
     val nd = evalCtx.memoize(ReadValue(Str(path), reader, TNDArray(TFloat64, nDimsBase = Nat(2))))
 
     val typ = fullType
-    val contexts = BMSContexts.tabulate(evalCtx, typ.sparsity)({ (blockRow, blockCol) =>
+    val contexts = BMSContexts.tabulate(evalCtx, typ.sparsity) { (blockRow, blockCol) =>
       NDArraySlice(
         nd,
-        MakeTuple.ordered(FastSeq(
-          MakeTuple.ordered(FastSeq(
+        maketuple(
+          maketuple(
             blockRow.toL * blockSize.toLong,
             minIR((blockRow + 1).toL * blockSize.toLong, nRows),
             1L,
-          )),
-          MakeTuple.ordered(FastSeq(
+          ),
+          maketuple(
             blockCol.toL * blockSize.toLong,
             minIR((blockCol + 1).toL * blockSize.toLong, nCols),
             1L,
-          )),
-        )),
+          ),
+        ),
       )
-    })
+    }
 
-    def blockIR(ctx: IR) = ctx
-
-    BlockMatrixStage2(FastSeq(), typ, contexts, blockIR)
+    BlockMatrixStage2(FastSeq(), typ, contexts, identity)
   }
 }
 
@@ -299,11 +297,11 @@ case class BlockMatrixMap(child: BlockMatrixIR, eltName: Name, f: IR, needsDense
     val prev = child.execute(ctx)
 
     val functionArgs = f match {
-      case ApplyUnaryPrimOp(_, arg1) => IndexedSeq(arg1)
+      case ApplyUnaryPrimOp(_, arg1) => FastSeq(arg1)
       case Apply(_, _, args, _, _) => args
-      case ApplyBinaryPrimOp(_, l, r) => IndexedSeq(l, r)
-      case _: Ref => IndexedSeq(f)
-      case Constant(k) => IndexedSeq(k)
+      case ApplyBinaryPrimOp(_, l, r) => FastSeq(l, r)
+      case _: Ref => FastSeq(f)
+      case Constant(k) => FastSeq(k)
     }
 
     assert(
@@ -941,7 +939,7 @@ case class BlockMatrixSlice(child: BlockMatrixIR, slices: IndexedSeq[IndexedSeq[
           if (cbs <= start) outputBlockStart
           else java.lang.Math.max(outputBlockStart, (cbs - start + step - 1) / step)
         kMin < outputBlockEnd && start + kMin * step < (d + 1L) * child.typ.blockSize
-      }.toIndexedSeq
+      }
     }
   }
 
