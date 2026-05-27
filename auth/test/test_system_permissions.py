@@ -20,7 +20,7 @@ from contextlib import contextmanager
 
 import pytest
 
-from hailtop.auth import async_add_role, async_remove_role
+from hailtop.auth import async_add_role, async_get_roles, async_remove_role
 from hailtop.config import get_deploy_config
 from hailtop.utils import external_requests_client_session, retry_response_returning_functions
 
@@ -45,6 +45,15 @@ NO_AUTH_SESSION = external_requests_client_session()
 # Session authenticated as the `test` user (no roles)
 _test_token = _load_test_user_token()
 TEST_USER_SESSION = external_requests_client_session(headers={'Authorization': f'Bearer {_test_token}'})
+
+
+@pytest.fixture(autouse=True, scope='session')
+def reset_test_user_roles():
+    """Strip any roles left on `test` by a previously preempted test run."""
+    existing = asyncio.run(async_get_roles('test'))
+    for role in existing:
+        asyncio.run(async_remove_role('test', role))
+
 
 # ---------------------------------------------------------------------------
 # Permission → endpoint mapping
