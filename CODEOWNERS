@@ -28,7 +28,7 @@
 /letsencrypt/ @hail-is/appsec
 /tls/ @hail-is/appsec
 /website/ @hail-is/appsec
-/web-common/ @hail-is/appsec
+/web_common/ @hail-is/appsec
 
 
 # Files at the top level of the repository:
@@ -44,3 +44,7 @@
 /gear/test/
 /monitoring/test/
 /hail/python/hailtop/test/
+
+# hailctl is a client-only CLI tool — no deployed service imports from it.
+# Override the broad hailtop rule so client-only CLI changes don't need appsec review.
+/hail/python/hailtop/hailctl/
