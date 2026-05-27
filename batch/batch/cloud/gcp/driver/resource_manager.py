@@ -112,7 +112,10 @@ class GCPResourceManager(CloudResourceManager):
         instance_config: InstanceConfig,
     ) -> List[QuantifiedResource]:
         if local_ssd_data_disk:
-            assert data_disk_size_gb % GCP_LOCAL_SSD_PARTITION_SIZE_GIB == 0 and data_disk_size_gb >= GCP_LOCAL_SSD_PARTITION_SIZE_GIB
+            assert (
+                data_disk_size_gb % GCP_LOCAL_SSD_PARTITION_SIZE_GIB == 0
+                and data_disk_size_gb >= GCP_LOCAL_SSD_PARTITION_SIZE_GIB
+            )
 
         resource_rates = self.billing_manager.resource_rates
 
