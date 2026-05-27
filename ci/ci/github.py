@@ -687,19 +687,14 @@ mkdir -p {shq(repo_dir)}
             self.target_branch.state_changed = True
 
     async def _determine_build_reason(self, batch_client, db: Database) -> str:
-        prior_batches = sorted(
-            [
-                b
-                async for b in batch_client.list_batches(
-                    f'test=1 pr={self.number} target_branch={self.target_branch.branch.short_str()} user:ci'
-                )
-            ],
-            key=lambda b: b.id,
-            reverse=True,
-        )
-        if not prior_batches:
+        most_recent = None
+        async for b in batch_client.list_batches(
+            f'test=1 pr={self.number} target_branch={self.target_branch.branch.short_str()} user:ci',
+            limit=1,
+        ):
+            most_recent = b
+        if most_recent is None:
             return 'initial build'
-        most_recent = prior_batches[0]
         most_recent_status = await most_recent.last_known_status()
         prior_source_sha = most_recent_status.get('attributes', {}).get('source_sha')
         if prior_source_sha and prior_source_sha != self.source_sha:
