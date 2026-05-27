@@ -915,6 +915,8 @@ class WatchedBranch(Code):
                 pr.update_from_gh_json(gh_json_pr)
             else:
                 pr = PR.from_gh_json(gh_json_pr, self)
+                if self.prs:
+                    pr.pending_build_reason = 'initial build'
             new_prs[number] = pr
         for number, pr in self.prs.items():
             if number not in new_prs:
