@@ -21,6 +21,7 @@
     <tr>
       <th>id</th>
       <th>state</th>
+      <th>reason</th>
     </tr>
   </thead>
   <tbody>
@@ -34,6 +35,7 @@
         {{ batch_state_icon(batch['state']) }} {{ batch['state'] }}
         {% endif %}
       </td>
+      <td>{{ batch.get('attributes', {}).get('reason', '') }}</td>
     </tr>
     {% endfor %}
   </tbody>

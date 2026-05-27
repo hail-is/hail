@@ -260,6 +260,8 @@ class PR(Code):
         # 'error', 'success', 'failure', None
         self.build_state: Optional[str] = None
 
+        self.pending_build_reason: Optional[str] = 'initial build'
+
         self.intended_github_status: GithubStatus = self.github_status_from_build_state()
         self.last_known_github_status: Dict[str, GithubStatus] = {}
 
@@ -350,6 +352,7 @@ class PR(Code):
             self.batch = None
             self.source_sha_failed = None
             self.set_build_state(None)
+            self.pending_build_reason = f'new commit {new_source_sha[:8]}'
             self.target_branch.batch_changed = True
             self.target_branch.state_changed = True
 
@@ -546,6 +549,9 @@ class PR(Code):
     async def _start_build(self, db: Database, batch_client: BatchClient):
         assert await self.authorized(db)
 
+        reason = self.pending_build_reason or 'unknown'
+        self.pending_build_reason = None
+
         # clear current batch
         self.batch = None
         self.set_build_state(None)
@@ -606,6 +612,7 @@ mkdir -p {shq(repo_dir)}
                     'target_sha': self.target_branch.sha,
                     'name': f'PR test #{self.number}: {self.source_branch.name} @ {self.source_sha[:8]} -> {self.target_branch.branch.name} @ {(self.target_branch.sha or "unknown")[:8]}',
                     'batch_type': 'ci/test/pr',
+                    'reason': reason,
                 },
                 callback=CALLBACK_URL,
             )
@@ -699,6 +706,9 @@ mkdir -p {shq(repo_dir)}
             return
 
         if not self.batch or (on_deck and self.batch.attributes['target_sha'] != self.target_branch.sha):
+            if self.batch:
+                old_target = self.batch.attributes['target_sha']
+                self.pending_build_reason = f'target sha updated {old_target[:8]} -> {self.target_branch.sha[:8]}'
             if on_deck or self.target_branch.n_running_batches < MAX_CONCURRENT_PR_BATCHES:
                 self.target_branch.n_running_batches += 1
                 async with repos_lock:
