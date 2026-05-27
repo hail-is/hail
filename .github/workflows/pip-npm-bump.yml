@@ -58,31 +58,30 @@ jobs:
 
       - name: Create pull request
         if: steps.commit.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_BODY: |
+            ## Change Description
+
+            PR to bump pip and npm packages this week
+
+            ## Security Assessment
+
+            - This change potentially impacts the Hail Batch instance as deployed by Broad Institute in GCP
+
+            ### Impact Rating
+
+            - This change has a low security impact
+
+            ### Impact Description
+
+            Regular updates.
+
+            ### Appsec Review
+
+            - [ ] Required: The impact has been assessed and approved by appsec
         run: |
           gh pr create \
             --title "[services] pip npm bump ${{ steps.date.outputs.value }}" \
-            --body "$(cat <<'EOF'
-## Change Description
-
-PR to bump pip and npm packages this week
-
-## Security Assessment
-
-- This change potentially impacts the Hail Batch instance as deployed by Broad Institute in GCP
-
-### Impact Rating
-
-- This change has a low security impact
-
-### Impact Description
-
-Regular updates.
-
-### Appsec Review
-
-- [ ] Required: The impact has been assessed and approved by appsec
-EOF
-)" \
+            --body "$PR_BODY" \
             --base main
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
