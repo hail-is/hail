@@ -62,12 +62,6 @@ object ExecuteRelational {
       case ir @ TableKeyBy(child, keys, isSorted, _) =>
         val tv = recur(child).asTableValue(ctx)
         TableValueIntermediate(tv.copy(typ = ir.typ, rvd = tv.rvd.enforceKey(ctx, keys, isSorted)))
-      case TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize) =>
-        val prev = recur(child).asTableValue(ctx)
-        val extracted = agg.Extract(ctx, expr, r.requirednessAnalysis).independent
-        TableValueIntermediate(
-          prev.keyByAndAggregate(ctx, newKey, extracted, nPartitions, bufferSize)
-        )
       case ir @ TableLeftJoinRightDistinct(left, right, root) =>
         val leftValue = recur(left).asTableValue(ctx)
         val rightValue = recur(right).asTableValue(ctx)
