@@ -88,8 +88,8 @@ class Job:
     def _wait_for_states(self, *states: str):
         return async_to_blocking(self._async_job._wait_for_states(*states))
 
-    def container_log(self, container_name):
-        return async_to_blocking(self._async_job.container_log(container_name))
+    def container_log(self, container_name, attempt_id=None):
+        return async_to_blocking(self._async_job.container_log(container_name, attempt_id=attempt_id))
 
     def log(self):
         return async_to_blocking(self._async_job.log())

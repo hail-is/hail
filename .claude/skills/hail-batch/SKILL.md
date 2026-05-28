@@ -47,18 +47,15 @@ hailctl batch job BATCH_ID JOB_ID           # status + spec (yaml)
 ```
 
 ### Get logs
-```bash
-hailctl batch log BATCH_ID JOB_ID                       # all containers (yaml)
-hailctl batch log BATCH_ID JOB_ID --container main      # just main (raw text)
-hailctl batch log BATCH_ID JOB_ID --container input     # input sidecar
-hailctl batch log BATCH_ID JOB_ID --container output    # output sidecar
-```
 
-Note: `--container` requires a recent hailtop version. If it fails, fall back to the raw API (container is a path segment):
+Always specify `--container` — the bare command dumps all containers as escaped YAML and is hard to read. If a job has been retried, use `--attempt` to get the right one (defaults to most recent).
+
 ```bash
-hailctl curl default batch /api/v1alpha/batches/BATCH_ID/jobs/JOB_ID/log/main
-hailctl curl default batch /api/v1alpha/batches/BATCH_ID/jobs/JOB_ID/log/input
-hailctl curl default batch /api/v1alpha/batches/BATCH_ID/jobs/JOB_ID/log/output
+hailctl batch attempts BATCH_ID JOB_ID                              # list attempts + IDs (only if needed)
+hailctl batch log BATCH_ID JOB_ID --container main                  # user code (start here)
+hailctl batch log BATCH_ID JOB_ID --container main --attempt ID     # specific attempt
+hailctl batch log BATCH_ID JOB_ID --container input                 # file copies in
+hailctl batch log BATCH_ID JOB_ID --container output                # file copies out
 ```
 
 ### Wait for a batch to complete
