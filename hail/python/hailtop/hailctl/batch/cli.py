@@ -192,6 +192,78 @@ def job(batch_id: int, job_id: int, output: StructuredFormatOption = StructuredF
         )
 
 
+_VALID_JOB_STATES = frozenset([
+    'pending',
+    'ready',
+    'creating',
+    'running',
+    'live',
+    'cancelled',
+    'error',
+    'failed',
+    'bad',
+    'success',
+    'done',
+])
+
+
+@app.command()
+def jobs(
+    batch_id: int,
+    state: Ann[
+        Optional[str],
+        Opt(
+            help=(
+                'Filter by job state. One of: pending, ready, creating, running, live, '
+                'cancelled, error, failed, bad, success, done. '
+                '"bad" matches error or failed; "live" matches ready, creating, or running; '
+                '"done" matches cancelled, error, failed, or success.'
+            )
+        ),
+    ] = None,
+    exit_code: Ann[Optional[int], Opt(help='Filter by exit code.')] = None,
+    name: Ann[Optional[str], Opt(help='Filter by job name (attribute).')] = None,
+    limit: Ann[int, Opt(help='Maximum number of jobs to return. 0 means no limit.')] = 50,
+    last_job_id: Ann[Optional[int], Opt(help='Return jobs after this job id (for pagination).')] = None,
+    output: StructuredFormatOption = StructuredFormat.YAML,
+):
+    """List jobs in the batch with id BATCH_ID."""
+    from hailtop.batch_client.client import BatchClient  # pylint: disable=import-outside-toplevel
+
+    if state is not None and state not in _VALID_JOB_STATES:
+        raise typer.BadParameter(
+            f'Invalid state "{state}". Must be one of: {", ".join(sorted(_VALID_JOB_STATES))}',
+            param_hint='--state',
+        )
+
+    terms = []
+    if state is not None:
+        terms.append(f'state={state}')
+    if exit_code is not None:
+        terms.append(f'exit_code={exit_code}')
+    if name is not None:
+        terms.append(f'name={name}')
+
+    q = '\n'.join(terms) if terms else None
+
+    with BatchClient('') as client:
+        batch = get_batch_if_exists(client, batch_id)
+        if batch is None:
+            print(f"Batch with id {batch_id} not found")
+            raise typer.Exit(1)
+
+        results = []
+        for job in batch.jobs(q=q, version=2, last_job_id=last_job_id):
+            results.append(job)
+            if 0 < limit <= len(results):
+                break
+
+    if results:
+        print(make_formatter(output)(results))
+    else:
+        print('No jobs found.')
+
+
 @app.command('init', help='Initialize a Hail Batch environment.')
 def initialize(verbose: Ann[bool, Opt('--verbose', '-v', help='Print gcloud commands being executed')] = False):
     asyncio.run(async_basic_initialize(verbose=verbose))
