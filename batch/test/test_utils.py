@@ -88,27 +88,39 @@ def test_azure_machine_memory_per_core_mib():
             assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 8192
 
 
-def test_gcp_local_ssd_count():
-    assert gcp_local_ssd_count('n1', 16) == 1
-    assert gcp_local_ssd_count('n1', 96) == 1
-    assert gcp_local_ssd_count('n2', 2) == 1
-    assert gcp_local_ssd_count('n2', 4) == 1
-    assert gcp_local_ssd_count('n2', 8) == 1
-    assert gcp_local_ssd_count('n2', 16) == 2
-    assert gcp_local_ssd_count('n2', 32) == 4
-    assert gcp_local_ssd_count('n2', 48) == 8
-    assert gcp_local_ssd_count('n2', 64) == 8
-    assert gcp_local_ssd_count('n2', 80) == 8
-    assert gcp_local_ssd_count('n2', 96) == 16
-    assert gcp_local_ssd_count('n2', 128) == 16
+@pytest.mark.parametrize(
+    "family,cores,expected",
+    [
+        ('n1', 16, 1),
+        ('n1', 96, 1),
+        ('n2', 2, 1),
+        ('n2', 4, 1),
+        ('n2', 8, 1),
+        ('n2', 16, 2),
+        ('n2', 32, 4),
+        ('n2', 48, 8),
+        ('n2', 64, 8),
+        ('n2', 80, 8),
+        ('n2', 96, 16),
+        ('n2', 128, 16),
+    ],
+)
+def test_gcp_local_ssd_count(family, cores, expected):
+    assert gcp_local_ssd_count(family, cores) == expected
 
 
-def test_gcp_local_ssd_size():
-    assert gcp_local_ssd_size('n1', 16) == 375
-    assert gcp_local_ssd_size('n2', 2) == 375
-    assert gcp_local_ssd_size('n2', 16) == 750
-    assert gcp_local_ssd_size('n2', 48) == 3000
-    assert gcp_local_ssd_size('n2', 128) == 6000
+@pytest.mark.parametrize(
+    "family,cores,expected",
+    [
+        ('n1', 16, 375),
+        ('n2', 2, 375),
+        ('n2', 16, 750),
+        ('n2', 48, 3000),
+        ('n2', 128, 6000),
+    ],
+)
+def test_gcp_local_ssd_size(family, cores, expected):
+    assert gcp_local_ssd_size(family, cores) == expected
 
 
 def test_gcp_resource_from_dict():

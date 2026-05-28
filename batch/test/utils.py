@@ -43,6 +43,6 @@ def smallest_machine_type():
     cloud = os.environ['HAIL_CLOUD']
 
     if cloud == 'gcp':
-        return 'n2-standard-2'
+        return 'n1-standard-1'
     assert cloud == 'azure'
     return 'Standard_D2ds_v4'

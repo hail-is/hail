@@ -298,7 +298,7 @@ MACHINE_TYPE_TO_PARTS = {
 
 gcp_valid_cores_for_pool_worker_type = {
     'standard': [2, 4, 8, 16, 32, 48, 64, 80, 96, 128],
-    'highmem': [2, 4, 8, 16, 32, 48, 64, 80, 96],
+    'highmem': [2, 4, 8, 16, 32, 48, 64, 80, 96, 128],
     'highcpu': [2, 4, 8, 16, 32, 48, 64, 80, 96],
 }
 
