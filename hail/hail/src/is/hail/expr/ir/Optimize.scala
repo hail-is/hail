@@ -54,7 +54,7 @@ object Optimize {
               catch {
                 case NonFatal(e) =>
                   fatal(
-                    s"bad ir from ForwardLets, started as\n${Pretty(ctx, ir, preserveNames = true)}",
+                    s"bad ir from ForwardLets, started as\n${Pretty(ctx, ir)}",
                     e,
                   )
               }

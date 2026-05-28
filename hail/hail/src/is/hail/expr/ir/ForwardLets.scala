@@ -40,7 +40,7 @@ object ForwardLets extends Logging {
                   else {
                     logger.info(
                       f"Eliminating unused binding:\n" +
-                        f"$name: ${value.typ} = ($scope) ${Pretty.ssaStyle(value, preserveNames = true).trim}"
+                        f"$name: ${value.typ} = ($scope) ${Pretty.ssaStyle(value).trim}"
                     )
                     env
                   }

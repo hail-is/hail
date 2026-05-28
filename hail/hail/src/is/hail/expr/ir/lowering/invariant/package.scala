@@ -41,7 +41,7 @@ package invariant {
         IRTraversal.trace(ir).foreach { case trace @ ir :: _ =>
           if (!invariant(ir)) throw new UnsatisfiedInvariantError(
             s"""Invariant ${E.value} forbids
-               |${trace.take(5).map(Pretty(ctx, _, preserveNames = true)).mkString("\nin\n")}
+               |${trace.take(5).map(Pretty(ctx, _)).mkString("\nin\n")}
                |""".stripMargin
           )
         }
@@ -102,9 +102,9 @@ package object invariant {
             !newNames.add(name) || names.put(name, ir).forall { orig =>
               throw new UnsatisfiedInvariantError(
                 s"""Invariant ${implicitly[Enclosing].value} forbids redefinition of '$name' in
-                   |${Pretty.ssaStyle(ir, preserveNames = true)}
+                   |${Pretty.ssaStyle(ir)}
                    |Originally bound in
-                   |${Pretty.ssaStyle(orig, preserveNames = true)}""".stripMargin
+                   |${Pretty.ssaStyle(orig)}""".stripMargin
               )
             }
           }

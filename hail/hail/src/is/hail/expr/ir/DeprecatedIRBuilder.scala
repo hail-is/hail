@@ -424,7 +424,6 @@ object DeprecatedIRBuilder {
   }
 
   class LetProxy(val bindings: IndexedSeq[BindingProxy]) extends AnyVal {
-    def apply(body: IRProxy): IRProxy = in(body)
     def in(body: IRProxy): IRProxy = { env: E => LetProxy.bind(bindings, body, env) }
   }
 
@@ -441,16 +440,6 @@ object DeprecatedIRBuilder {
       new LetProxy(args.toFastSeq.map { case (s, b) => BindingProxy(Symbol(s), b, Scope.SCAN) })
     }
   }
-
-  def subst(x: IRProxy, env: BindingEnv[IRProxy]): IRProxy = (e: E) =>
-    Subst(
-      x(e),
-      BindingEnv(
-        env.eval.mapValues(_(e)),
-        agg = env.agg.map(_.mapValues(_(e))),
-        scan = env.scan.map(_.mapValues(_(e))),
-      ),
-    )
 
   def lift(f: (IR) => IRProxy)(x: IRProxy): IRProxy = (e: E) => f(x(e))(e)
 }
