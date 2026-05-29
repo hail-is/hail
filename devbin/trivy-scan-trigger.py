@@ -43,12 +43,11 @@ def print_placeholder_during_lookup(name, getter):
 
 
 def find_batch_id():
-    batches = json.loads(run(['hailctl', 'batch', 'list', '--query', 'batch_type=ci/deploy/prod', '--limit', '10', '-o', 'json']))
-    completed = [b for b in batches if b['state'].lower() in ('success', 'failure')]
-    if not completed:
+    batches = json.loads(run(['hailctl', 'batch', 'list', '--query', 'batch_type=ci/deploy/prod complete', '--limit', '1', '-o', 'json']))
+    if not batches:
         print('No completed ci/deploy/prod batches found', file=sys.stderr)
         sys.exit(1)
-    return completed[0]['id']
+    return batches[0]['id']
 
 
 def find_sha(batch_id):
