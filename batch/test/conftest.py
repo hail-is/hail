@@ -1,4 +1,3 @@
-import asyncio
 import hashlib
 import logging
 import os
@@ -9,15 +8,6 @@ from hailtop.batch_client.client import BatchClient
 from hailtop.config import get_remote_tmpdir
 
 log = logging.getLogger(__name__)
-
-
-@pytest.fixture(scope="session")
-def event_loop():
-    loop = asyncio.get_event_loop()
-    try:
-        yield loop
-    finally:
-        loop.close()
 
 
 @pytest.fixture(autouse=True)
