@@ -74,45 +74,50 @@ def find_image(batch_id):
     return match.group(1)
 
 
-print('Searching latest completed deploy batch for commit sha and image to scan...')
-print()
-batch_id = print_placeholder_during_lookup('  Batch', find_batch_id)
-sha      = print_placeholder_during_lookup('  SHA  ', lambda: find_sha(batch_id))
-image    = print_placeholder_during_lookup('  Image', lambda: find_image(batch_id))
+def main():
+    print('Searching latest completed deploy batch for commit sha and image to scan...')
+    print()
+    batch_id = print_placeholder_during_lookup('  Batch', find_batch_id)
+    sha      = print_placeholder_during_lookup('  SHA  ', lambda: find_sha(batch_id))
+    image    = print_placeholder_during_lookup('  Image', lambda: find_image(batch_id))
 
-BRANCH = 'main'
-gh_cmd = (
-    f'gh workflow run trivy-scan.yml --repo hail-is/hail --ref {BRANCH}'
-    f' -f branch={BRANCH} -f commit_hash={sha} -f images={image}'
-)
-gh_cmd_display = (
-    f'gh workflow run trivy-scan.yml \\\n'
-    f'    --repo hail-is/hail --ref {BRANCH} \\\n'
-    f'    -f branch={BRANCH} \\\n'
-    f'    -f commit_hash={sha} \\\n'
-    f'    -f images={image}'
-)
+    BRANCH = 'main'
+    gh_cmd = (
+        f'gh workflow run trivy-scan.yml --repo hail-is/hail --ref {BRANCH}'
+        f' -f branch={BRANCH} -f commit_hash={sha} -f images={image}'
+    )
+    gh_cmd_display = (
+        f'gh workflow run trivy-scan.yml \\\n'
+        f'    --repo hail-is/hail --ref {BRANCH} \\\n'
+        f'    -f branch={BRANCH} \\\n'
+        f'    -f commit_hash={sha} \\\n'
+        f'    -f images={image}'
+    )
 
-print()
-print(f'Proposed command:\n{gh_cmd_display}')
-print()
-try:
-    answer = input('Run it now? [y/N] ').strip().lower()
-except EOFError:
-    answer = ''
-if answer != 'y':
-    print('Aborted.')
-    sys.exit(0)
+    print()
+    print(f'Proposed command:\n{gh_cmd_display}')
+    print()
+    try:
+        answer = input('Run it now? [y/N] ').strip().lower()
+    except EOFError:
+        answer = ''
+    if answer != 'y':
+        print('Aborted.')
+        sys.exit(0)
 
-subprocess.run(
-    [
-        'gh', 'workflow', 'run', 'trivy-scan.yml',
-        '--repo', 'hail-is/hail',
-        '--ref', BRANCH,
-        '-f', f'branch={BRANCH}',
-        '-f', f'commit_hash={sha}',
-        '-f', f'images={image}',
-    ],
-    check=True,
-)
-print('Workflow triggered.')
+    subprocess.run(
+        [
+            'gh', 'workflow', 'run', 'trivy-scan.yml',
+            '--repo', 'hail-is/hail',
+            '--ref', BRANCH,
+            '-f', f'branch={BRANCH}',
+            '-f', f'commit_hash={sha}',
+            '-f', f'images={image}',
+        ],
+        check=True,
+    )
+    print('Workflow triggered.')
+
+
+if __name__ == '__main__':
+    main()
