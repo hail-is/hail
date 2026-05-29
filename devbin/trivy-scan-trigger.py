@@ -43,7 +43,11 @@ def print_placeholder_during_lookup(name, getter):
 
 
 def find_batch_id():
-    batches = json.loads(run(['hailctl', 'batch', 'list', '--query', 'batch_type=ci/deploy/prod complete', '--limit', '1', '-o', 'json']))
+    out = run(['hailctl', 'batch', 'list', '--query', 'batch_type=ci/deploy/prod complete', '--limit', '1', '-o', 'json'])
+    if not out.strip() or not out.strip().startswith('['):
+        print('No completed ci/deploy/prod batches found', file=sys.stderr)
+        sys.exit(1)
+    batches = json.loads(out)
     if not batches:
         print('No completed ci/deploy/prod batches found', file=sys.stderr)
         sys.exit(1)
@@ -56,7 +60,11 @@ def find_sha(batch_id):
 
 
 def find_image(batch_id):
-    jobs = json.loads(run(['hailctl', 'batch', 'jobs', str(batch_id), '--name', 'batch_image', '-o', 'json']))
+    out = run(['hailctl', 'batch', 'jobs', str(batch_id), '--name', 'batch_image', '-o', 'json'])
+    if not out.strip() or not out.strip().startswith('['):
+        print(f'No batch_image job found in batch {batch_id}', file=sys.stderr)
+        sys.exit(1)
+    jobs = json.loads(out)
     if not jobs:
         print(f'No batch_image job found in batch {batch_id}', file=sys.stderr)
         sys.exit(1)
