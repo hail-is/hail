@@ -68,6 +68,8 @@ def _backend_url(service: str, raw_path: str) -> str:
     """Strip the /<service> prefix from the devserver path before forwarding."""
     prefix = f'/{service}'
     stripped = raw_path[len(prefix):] if raw_path.startswith(prefix) else raw_path
+    if stripped and not stripped.startswith('/'):
+        stripped = '/' + stripped
     return deploy_config.external_url(service, stripped or '/')
 
 

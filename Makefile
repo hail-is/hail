@@ -186,47 +186,36 @@ hail-buildkit-image: ci/buildkit/Dockerfile
 	./docker-build.sh ci buildkit/Dockerfile $(IMAGE_NAME) --build-arg DOCKER_PREFIX=$(DOCKER_PREFIX)
 	echo $(IMAGE_NAME) > $@
 
-services/ui/dist/ci/flaky_tests.js: $(shell git ls-files services/ui)
-	cd services/ui && npm ci && npm run build
+services/ui/dist/.built: services/ui/node_modules/.package-lock.json $(shell git ls-files services/ui)
+	cd services/ui && npm run build
+	touch $@
 
-ci/ci/static/compiled-js/flaky_tests.js: services/ui/dist/ci/flaky_tests.js
-	mkdir -p ci/ci/static/compiled-js
+ci/ci/static/compiled-js/flaky_tests.js: services/ui/dist/.built
+	mkdir -p $(@D)
 	cp services/ui/dist/ci/flaky_tests.js $@
 
 ci-image: ci/ci/static/compiled-js/flaky_tests.js
 
-services/ui/dist/batch/job.js: $(shell git ls-files services/ui)
-	cd services/ui && npm ci && npm run build
-
-batch/batch/front_end/static/compiled-js/job.js: services/ui/dist/batch/job.js
-	mkdir -p batch/batch/front_end/static/compiled-js
+batch/batch/front_end/static/compiled-js/job.js: services/ui/dist/.built
+	mkdir -p $(@D)
 	cp services/ui/dist/batch/job.js $@
 
 batch-image: batch/batch/front_end/static/compiled-js/job.js
 
-services/ui/dist/batch_driver/index.js: $(shell git ls-files services/ui)
-	cd services/ui && npm ci && npm run build
-
-batch/batch/driver/static/compiled-js/index.js: services/ui/dist/batch_driver/index.js
-	mkdir -p batch/batch/driver/static/compiled-js
+batch/batch/driver/static/compiled-js/index.js: services/ui/dist/.built
+	mkdir -p $(@D)
 	cp services/ui/dist/batch_driver/index.js $@
 
 batch-image: batch/batch/driver/static/compiled-js/index.js
 
-services/ui/dist/monitoring/index.js: $(shell git ls-files services/ui)
-	cd services/ui && npm ci && npm run build
-
-monitoring/monitoring/static/compiled-js/index.js: services/ui/dist/monitoring/index.js
-	mkdir -p monitoring/monitoring/static/compiled-js
+monitoring/monitoring/static/compiled-js/index.js: services/ui/dist/.built
+	mkdir -p $(@D)
 	cp services/ui/dist/monitoring/index.js $@
 
 monitoring-image: monitoring/monitoring/static/compiled-js/index.js
 
-services/ui/dist/auth/index.js: $(shell git ls-files services/ui)
-	cd services/ui && npm ci && npm run build
-
-auth/auth/static/compiled-js/index.js: services/ui/dist/auth/index.js
-	mkdir -p auth/auth/static/compiled-js
+auth/auth/static/compiled-js/index.js: services/ui/dist/.built
+	mkdir -p $(@D)
 	cp services/ui/dist/auth/index.js $@
 
 auth-image: auth/auth/static/compiled-js/index.js
