@@ -1048,7 +1048,8 @@ async def on_startup(app: web.Application):
     exit_stack = AsyncExitStack()
     app[AppKeys.EXIT_STACK] = exit_stack
 
-    client_session = httpx.client_session()
+    # 60s timeout: bulk GitHub GraphQL PR status fetches can take 10-30s.
+    client_session = httpx.client_session(timeout=60)
     exit_stack.push_async_callback(client_session.close)
 
     app[AppKeys.CLIENT_SESSION] = client_session

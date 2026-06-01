@@ -685,7 +685,6 @@ class _GitHubGraphQL(Protocol):
 
 
 _GITHUB_GRAPHQL_PR_CHUNK_SIZE = 100
-_GITHUB_GRAPHQL_TIMEOUT_SECONDS = 30
 
 
 async def _fetch_pr_github_data(
@@ -754,12 +753,7 @@ async def _fetch_pr_github_data(
                     """)
                 return f'query {{ repository(owner: "{owner}", name: "{repo_name}") {{ {"".join(aliases)} }} }}'
 
-            repo_data = (
-                await asyncio.wait_for(
-                    gh.post("/graphql", data={"query": build_query(remaining)}),
-                    timeout=_GITHUB_GRAPHQL_TIMEOUT_SECONDS,
-                )
-            )["data"]["repository"]
+            repo_data = (await gh.post("/graphql", data={"query": build_query(remaining)}))["data"]["repository"]
 
             next_remaining: Dict[int, Optional[str]] = {}
             for pr_number in list(remaining.keys()):
