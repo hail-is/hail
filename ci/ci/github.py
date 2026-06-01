@@ -684,15 +684,20 @@ class _GitHubGraphQL(Protocol):
     async def post(self, url: str, *, data: Any) -> Any: ...
 
 
+_GITHUB_GRAPHQL_PR_CHUNK_SIZE = 100
+_GITHUB_GRAPHQL_TIMEOUT_SECONDS = 30
+
+
 async def _fetch_pr_github_data(
     gh: _GitHubGraphQL,
     owner: str,
     repo_name: str,
     pr_numbers: List[int],
 ) -> Dict[int, tuple]:
-    """Fetch review decisions and status check rollup for all PRs in a single batched GraphQL query.
+    """Fetch review decisions and status check rollup for all PRs, batched in chunks.
 
-    Uses GraphQL aliases (pr_N: pullRequest(number: N) {{ ... }}) so one round-trip covers all PRs.
+    Uses GraphQL aliases (pr_N: pullRequest(number: N) {{ ... }}) to reduce round-trips.
+    Chunks requests to avoid GitHub query complexity timeouts (~2s per 20-PR chunk vs ~6s for 56).
     Paginates if any PR has more than 20 check contexts, which is not expected in practice.
 
     Returns dict mapping pr_number -> (review_decision: str, check_nodes: List[dict]).
@@ -700,66 +705,77 @@ async def _fetch_pr_github_data(
     """
     accumulated_nodes: Dict[int, List[Dict[str, Any]]] = {n: [] for n in pr_numbers}
     review_decisions: Dict[int, Optional[str]] = {n: None for n in pr_numbers}
-    # remaining maps pr_number -> cursor (None = first page)
-    remaining: Dict[int, Optional[str]] = {n: None for n in pr_numbers}
 
-    while remaining:
+    chunks = [
+        pr_numbers[i : i + _GITHUB_GRAPHQL_PR_CHUNK_SIZE]
+        for i in range(0, len(pr_numbers), _GITHUB_GRAPHQL_PR_CHUNK_SIZE)
+    ]
+    for chunk in chunks:
+        # remaining maps pr_number -> cursor (None = first page)
+        remaining: Dict[int, Optional[str]] = {n: None for n in chunk}
 
-        def build_query(remaining: Dict[int, Optional[str]]) -> str:
-            aliases = []
-            for pr_number, cursor in remaining.items():
-                cursor_arg = f', after: "{cursor}"' if cursor is not None else ''
-                aliases.append(f"""
-                    pr_{pr_number}: pullRequest(number: {pr_number}) {{
-                      reviewDecision
-                      commits(last: 1) {{
-                        nodes {{
-                          commit {{
-                            statusCheckRollup {{
-                              contexts(first: 20{cursor_arg}) {{
-                                nodes {{
-                                  __typename
-                                  ... on CheckRun {{
-                                    name
-                                    conclusion
-                                    isRequired(pullRequestNumber: {pr_number})
+        while remaining:
+
+            def build_query(remaining: Dict[int, Optional[str]]) -> str:
+                aliases = []
+                for pr_number, cursor in remaining.items():
+                    cursor_arg = f', after: "{cursor}"' if cursor is not None else ''
+                    aliases.append(f"""
+                        pr_{pr_number}: pullRequest(number: {pr_number}) {{
+                          reviewDecision
+                          commits(last: 1) {{
+                            nodes {{
+                              commit {{
+                                statusCheckRollup {{
+                                  contexts(first: 20{cursor_arg}) {{
+                                    nodes {{
+                                      __typename
+                                      ... on CheckRun {{
+                                        name
+                                        conclusion
+                                        isRequired(pullRequestNumber: {pr_number})
+                                      }}
+                                      ... on StatusContext {{
+                                        context
+                                        state
+                                        isRequired(pullRequestNumber: {pr_number})
+                                      }}
+                                    }}
+                                    pageInfo {{
+                                      endCursor
+                                      hasNextPage
+                                    }}
                                   }}
-                                  ... on StatusContext {{
-                                    context
-                                    state
-                                    isRequired(pullRequestNumber: {pr_number})
-                                  }}
-                                }}
-                                pageInfo {{
-                                  endCursor
-                                  hasNextPage
                                 }}
                               }}
                             }}
                           }}
                         }}
-                      }}
-                    }}
-                """)
-            return f'query {{ repository(owner: "{owner}", name: "{repo_name}") {{ {"".join(aliases)} }} }}'
+                    """)
+                return f'query {{ repository(owner: "{owner}", name: "{repo_name}") {{ {"".join(aliases)} }} }}'
 
-        repo_data = (await gh.post("/graphql", data={"query": build_query(remaining)}))["data"]["repository"]
+            repo_data = (
+                await asyncio.wait_for(
+                    gh.post("/graphql", data={"query": build_query(remaining)}),
+                    timeout=_GITHUB_GRAPHQL_TIMEOUT_SECONDS,
+                )
+            )["data"]["repository"]
 
-        next_remaining: Dict[int, Optional[str]] = {}
-        for pr_number in list(remaining.keys()):
-            pr_data = repo_data[f"pr_{pr_number}"]
-            if review_decisions[pr_number] is None:
-                raw = pr_data["reviewDecision"]
-                review_decisions[pr_number] = raw if raw is not None else "API_NONE"
-            rollup = pr_data["commits"]["nodes"][0]["commit"]["statusCheckRollup"]
-            if rollup is not None:
-                accumulated_nodes[pr_number].extend(rollup["contexts"]["nodes"])
-                if rollup["contexts"]["pageInfo"]["hasNextPage"]:
-                    next_remaining[pr_number] = rollup["contexts"]["pageInfo"]["endCursor"]
+            next_remaining: Dict[int, Optional[str]] = {}
+            for pr_number in list(remaining.keys()):
+                pr_data = repo_data[f"pr_{pr_number}"]
+                if review_decisions[pr_number] is None:
+                    raw = pr_data["reviewDecision"]
+                    review_decisions[pr_number] = raw if raw is not None else "API_NONE"
+                rollup = pr_data["commits"]["nodes"][0]["commit"]["statusCheckRollup"]
+                if rollup is not None:
+                    accumulated_nodes[pr_number].extend(rollup["contexts"]["nodes"])
+                    if rollup["contexts"]["pageInfo"]["hasNextPage"]:
+                        next_remaining[pr_number] = rollup["contexts"]["pageInfo"]["endCursor"]
 
-        if next_remaining:
-            log.warning(f'_fetch_pr_github_data: pagination required for PRs {list(next_remaining.keys())}')
-        remaining = next_remaining
+            if next_remaining:
+                log.warning(f'_fetch_pr_github_data: pagination required for PRs {list(next_remaining.keys())}')
+            remaining = next_remaining
 
     return {n: (review_decisions[n] or "API_NONE", accumulated_nodes[n]) for n in pr_numbers}
 
