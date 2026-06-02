@@ -42,17 +42,9 @@ if os.path.exists("/zulip-config/.zuliprc"):
     zulip_client = zulip.Client(config_file="/zulip-config/.zuliprc")
 
 TRACKED_PRS = pc.Gauge('ci_tracked_prs', 'PRs currently being monitored by CI', ['build_state', 'review_state'])
-GITHUB_GRAPHQL_REQUEST_LATENCY = pc.Histogram(
-    'ci_github_graphql_request_latency_seconds',
-    'Latency of individual GraphQL requests in _fetch_pr_github_data',
-    ['chunk_size'],
-    buckets=[1, 2, 5, 10, 15, 20, 30, 45, 60],
-)
-WATCHED_BRANCH_UPDATE_LATENCY = pc.Histogram(
+WATCHED_BRANCH_UPDATE_LATENCY = pc.Gauge(
     'ci_watched_branch_update_latency_seconds',
-    'Latency of WatchedBranch update phases',
-    ['phase'],
-    buckets=[0.1, 0.5, 1, 2, 5, 10, 20, 30, 60],
+    'Duration of the most recent WatchedBranch update cycle',
 )
 
 MAX_CONCURRENT_PR_BATCHES = 3
@@ -725,8 +717,6 @@ async def _fetch_pr_github_data(
         pr_numbers[i : i + _GITHUB_GRAPHQL_PR_CHUNK_SIZE]
         for i in range(0, len(pr_numbers), _GITHUB_GRAPHQL_PR_CHUNK_SIZE)
     ]
-    log.info(f'_fetch_pr_github_data: fetching {len(pr_numbers)} PRs in {len(chunks)} chunk(s)')
-    t_total_start = time.monotonic()
     for chunk in chunks:
         # remaining maps pr_number -> cursor (None = first page)
         remaining: Dict[int, Optional[str]] = {n: None for n in chunk}
@@ -771,9 +761,7 @@ async def _fetch_pr_github_data(
                     """)
                 return f'query {{ repository(owner: "{owner}", name: "{repo_name}") {{ {"".join(aliases)} }} }}'
 
-            t_req_start = time.monotonic()
             repo_data = (await gh.post("/graphql", data={"query": build_query(remaining)}))["data"]["repository"]
-            GITHUB_GRAPHQL_REQUEST_LATENCY.labels(chunk_size=len(remaining)).observe(time.monotonic() - t_req_start)
 
             next_remaining: Dict[int, Optional[str]] = {}
             for pr_number in list(remaining.keys()):
@@ -791,9 +779,6 @@ async def _fetch_pr_github_data(
                 log.warning(f'_fetch_pr_github_data: pagination required for PRs {list(next_remaining.keys())}')
             remaining = next_remaining
 
-    log.info(
-        f'_fetch_pr_github_data: fetched {len(pr_numbers)} PR statuses in {time.monotonic() - t_total_start:.1f}s total'
-    )
     return {n: (review_decisions[n] or "API_NONE", accumulated_nodes[n]) for n in pr_numbers}
 
 
@@ -901,7 +886,7 @@ class WatchedBranch(Code):
                         await self.try_to_merge(gh)
         finally:
             t_total = time.monotonic() - t_update_start
-            WATCHED_BRANCH_UPDATE_LATENCY.labels(phase='total').observe(t_total)
+            WATCHED_BRANCH_UPDATE_LATENCY.set(t_total)
             log.info(f'update done {self.short_str()} in {t_total:.1f}s')
             self.updating = False
 
@@ -918,7 +903,6 @@ class WatchedBranch(Code):
 
     async def _update_github(self, gh):
         log.info(f'update github {self.short_str()}')
-        t_start = time.monotonic()
 
         repo_ss = self.branch.repo.short_str()
 
@@ -930,7 +914,6 @@ class WatchedBranch(Code):
             self.state_changed = True
 
         new_prs: Dict[int, PR] = {}
-        t_pr_list_start = time.monotonic()
         async for gh_json_pr in gh.getiter(f'/repos/{repo_ss}/pulls?state=open&base={self.branch.name}'):
             number = gh_json_pr['number']
             if number in self.prs:
@@ -939,20 +922,13 @@ class WatchedBranch(Code):
             else:
                 pr = PR.from_gh_json(gh_json_pr, self)
             new_prs[number] = pr
-        t_pr_list_elapsed = time.monotonic() - t_pr_list_start
-        WATCHED_BRANCH_UPDATE_LATENCY.labels(phase='pr_list').observe(t_pr_list_elapsed)
-        log.info(f'update github {self.short_str()}: fetched {len(new_prs)} open PRs in {t_pr_list_elapsed:.1f}s')
         for number, pr in self.prs.items():
             if number not in new_prs:
                 pr.decrement_pr_metric()
         self.prs = new_prs
 
-        t_assign_start = time.monotonic()
         for pr in new_prs.values():
             await pr.assign_gh_reviewer_if_requested(gh)
-        t_assign_elapsed = time.monotonic() - t_assign_start
-        WATCHED_BRANCH_UPDATE_LATENCY.labels(phase='assign').observe(t_assign_elapsed)
-        log.info(f'update github {self.short_str()}: assign reviewer loop done in {t_assign_elapsed:.1f}s')
 
         if new_prs:
             pr_github_data = await _fetch_pr_github_data(
@@ -981,10 +957,6 @@ class WatchedBranch(Code):
             for pr in new_prs.values():
                 review_decision, check_nodes = pr_github_data[pr.number]
                 pr._apply_github_data(review_decision, check_nodes)
-
-        t_elapsed = time.monotonic() - t_start
-        WATCHED_BRANCH_UPDATE_LATENCY.labels(phase='github').observe(t_elapsed)
-        log.info(f'update github {self.short_str()} done in {t_elapsed:.1f}s')
 
     async def _update_deploy(self, batch_client, db: Database):
         assert self.deployable
@@ -1049,7 +1021,6 @@ url: {url}
 
     async def _update_batch(self, batch_client: BatchClient, db: Database):
         log.info(f'update batch {self.short_str()}')
-        t_start = time.monotonic()
 
         if self.deployable:
             await self._update_deploy(batch_client, db)
@@ -1057,13 +1028,8 @@ url: {url}
         for pr in self.prs.values():
             await pr._update_batch(batch_client, db)
 
-        t_elapsed = time.monotonic() - t_start
-        WATCHED_BRANCH_UPDATE_LATENCY.labels(phase='batch').observe(t_elapsed)
-        log.info(f'update batch {self.short_str()} done in {t_elapsed:.1f}s')
-
     async def _heal(self, db: Database, batch_client: BatchClient, gh: gh_aiohttp.GitHubAPI, frozen: bool):
         log.info(f'heal {self.short_str()}')
-        t_start = time.monotonic()
 
         if self.deployable:
             await self._heal_deploy(db, batch_client, frozen)
@@ -1104,10 +1070,6 @@ url: {url}
                 attrs = batch.attributes
                 log.info(f'cancel batch {batch.id} for {attrs["pr"]} {attrs["source_sha"]} => {attrs["target_sha"]}')
                 await batch.cancel()
-
-        t_elapsed = time.monotonic() - t_start
-        WATCHED_BRANCH_UPDATE_LATENCY.labels(phase='heal').observe(t_elapsed)
-        log.info(f'heal {self.short_str()} done in {t_elapsed:.1f}s')
 
     async def _start_deploy(self, db: Database, batch_client: BatchClient):
         # not deploying
