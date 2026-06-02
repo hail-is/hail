@@ -444,6 +444,8 @@ class PR(Code):
                 assignees.add(select_random_teammate(SERVICES_TEAM).gh_username)
             if ASSIGN_COMPILER in self.body:
                 assignees.add(select_random_teammate(COMPILER_TEAM).gh_username)
+            if not assignees:
+                return
             data = {'assignees': list(assignees)}
             log.info(f'{self.short_str()}: assigning reviewers: {data}')
             try:
