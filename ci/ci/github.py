@@ -6,6 +6,7 @@ import logging
 import os
 import random
 import secrets
+import time
 from shlex import quote as shq
 from typing import Any, Dict, Iterable, List, Optional, Protocol, Sequence, Set, Union
 
@@ -41,6 +42,12 @@ if os.path.exists("/zulip-config/.zuliprc"):
     zulip_client = zulip.Client(config_file="/zulip-config/.zuliprc")
 
 TRACKED_PRS = pc.Gauge('ci_tracked_prs', 'PRs currently being monitored by CI', ['build_state', 'review_state'])
+GITHUB_GRAPHQL_REQUEST_LATENCY = pc.Histogram(
+    'ci_github_graphql_request_latency_seconds',
+    'Latency of individual GraphQL requests in _fetch_pr_github_data',
+    ['chunk_size'],
+    buckets=[1, 2, 5, 10, 15, 20, 30, 45, 60],
+)
 
 MAX_CONCURRENT_PR_BATCHES = 3
 
@@ -270,8 +277,8 @@ class PR(Code):
         self.developers = developers
 
     def set_build_state(self, build_state):
-        log.info(f'{self.short_str()}: Build state changing from {self.build_state} => {build_state}')
         if build_state != self.build_state:
+            log.info(f'{self.short_str()}: build state changing: {self.build_state} => {build_state}')
             self.decrement_pr_metric()
             self.build_state = build_state
             self.increment_pr_metric()
@@ -709,6 +716,8 @@ async def _fetch_pr_github_data(
         pr_numbers[i : i + _GITHUB_GRAPHQL_PR_CHUNK_SIZE]
         for i in range(0, len(pr_numbers), _GITHUB_GRAPHQL_PR_CHUNK_SIZE)
     ]
+    log.info(f'_fetch_pr_github_data: fetching {len(pr_numbers)} PRs in {len(chunks)} chunk(s)')
+    t_total_start = time.monotonic()
     for chunk in chunks:
         # remaining maps pr_number -> cursor (None = first page)
         remaining: Dict[int, Optional[str]] = {n: None for n in chunk}
@@ -753,7 +762,9 @@ async def _fetch_pr_github_data(
                     """)
                 return f'query {{ repository(owner: "{owner}", name: "{repo_name}") {{ {"".join(aliases)} }} }}'
 
+            t_req_start = time.monotonic()
             repo_data = (await gh.post("/graphql", data={"query": build_query(remaining)}))["data"]["repository"]
+            GITHUB_GRAPHQL_REQUEST_LATENCY.labels(chunk_size=len(remaining)).observe(time.monotonic() - t_req_start)
 
             next_remaining: Dict[int, Optional[str]] = {}
             for pr_number in list(remaining.keys()):
@@ -771,6 +782,9 @@ async def _fetch_pr_github_data(
                 log.warning(f'_fetch_pr_github_data: pagination required for PRs {list(next_remaining.keys())}')
             remaining = next_remaining
 
+    log.info(
+        f'_fetch_pr_github_data: fetched {len(pr_numbers)} PR statuses in {time.monotonic() - t_total_start:.1f}s total'
+    )
     return {n: (review_decisions[n] or "API_NONE", accumulated_nodes[n]) for n in pr_numbers}
 
 
