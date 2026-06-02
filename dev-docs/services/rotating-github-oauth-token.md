@@ -42,6 +42,7 @@ Key settings:
   - Contents: read/write
   - Metadata: read only
   - Pull requests: read/write
+  - Workflows: read/write
 
 
 ## 2. Update the Sops-Encrypted Config
