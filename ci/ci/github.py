@@ -48,6 +48,12 @@ GITHUB_GRAPHQL_REQUEST_LATENCY = pc.Histogram(
     ['chunk_size'],
     buckets=[1, 2, 5, 10, 15, 20, 30, 45, 60],
 )
+WATCHED_BRANCH_UPDATE_LATENCY = pc.Histogram(
+    'ci_watched_branch_update_latency_seconds',
+    'Latency of WatchedBranch update phases',
+    ['phase'],
+    buckets=[0.1, 0.5, 1, 2, 5, 10, 20, 30, 60],
+)
 
 MAX_CONCURRENT_PR_BATCHES = 3
 
@@ -871,6 +877,7 @@ class WatchedBranch(Code):
             log.info(f'already updating {self.short_str()}')
             return
 
+        t_update_start = time.monotonic()
         try:
             log.info(f'start update {self.short_str()}')
             self.updating = True
@@ -890,7 +897,9 @@ class WatchedBranch(Code):
                     if (self.deploy_batch is None or self.deploy_state is not None) and not frozen and self.mergeable:
                         await self.try_to_merge(gh)
         finally:
-            log.info(f'update done {self.short_str()}')
+            t_total = time.monotonic() - t_update_start
+            WATCHED_BRANCH_UPDATE_LATENCY.labels(phase='total').observe(t_total)
+            log.info(f'update done {self.short_str()} in {t_total:.1f}s')
             self.updating = False
 
     async def try_to_merge(self, gh):
@@ -906,6 +915,7 @@ class WatchedBranch(Code):
 
     async def _update_github(self, gh):
         log.info(f'update github {self.short_str()}')
+        t_start = time.monotonic()
 
         repo_ss = self.branch.repo.short_str()
 
@@ -917,6 +927,7 @@ class WatchedBranch(Code):
             self.state_changed = True
 
         new_prs: Dict[int, PR] = {}
+        t_pr_list_start = time.monotonic()
         async for gh_json_pr in gh.getiter(f'/repos/{repo_ss}/pulls?state=open&base={self.branch.name}'):
             number = gh_json_pr['number']
             if number in self.prs:
@@ -925,6 +936,9 @@ class WatchedBranch(Code):
             else:
                 pr = PR.from_gh_json(gh_json_pr, self)
             new_prs[number] = pr
+        t_pr_list_elapsed = time.monotonic() - t_pr_list_start
+        WATCHED_BRANCH_UPDATE_LATENCY.labels(phase='pr_list').observe(t_pr_list_elapsed)
+        log.info(f'update github {self.short_str()}: fetched {len(new_prs)} open PRs in {t_pr_list_elapsed:.1f}s')
         for number, pr in self.prs.items():
             if number not in new_prs:
                 pr.decrement_pr_metric()
@@ -960,6 +974,10 @@ class WatchedBranch(Code):
             for pr in new_prs.values():
                 review_decision, check_nodes = pr_github_data[pr.number]
                 pr._apply_github_data(review_decision, check_nodes)
+
+        t_elapsed = time.monotonic() - t_start
+        WATCHED_BRANCH_UPDATE_LATENCY.labels(phase='github').observe(t_elapsed)
+        log.info(f'update github {self.short_str()} done in {t_elapsed:.1f}s')
 
     async def _update_deploy(self, batch_client, db: Database):
         assert self.deployable
@@ -1024,6 +1042,7 @@ url: {url}
 
     async def _update_batch(self, batch_client: BatchClient, db: Database):
         log.info(f'update batch {self.short_str()}')
+        t_start = time.monotonic()
 
         if self.deployable:
             await self._update_deploy(batch_client, db)
@@ -1031,8 +1050,13 @@ url: {url}
         for pr in self.prs.values():
             await pr._update_batch(batch_client, db)
 
+        t_elapsed = time.monotonic() - t_start
+        WATCHED_BRANCH_UPDATE_LATENCY.labels(phase='batch').observe(t_elapsed)
+        log.info(f'update batch {self.short_str()} done in {t_elapsed:.1f}s')
+
     async def _heal(self, db: Database, batch_client: BatchClient, gh: gh_aiohttp.GitHubAPI, frozen: bool):
         log.info(f'heal {self.short_str()}')
+        t_start = time.monotonic()
 
         if self.deployable:
             await self._heal_deploy(db, batch_client, frozen)
@@ -1073,6 +1097,10 @@ url: {url}
                 attrs = batch.attributes
                 log.info(f'cancel batch {batch.id} for {attrs["pr"]} {attrs["source_sha"]} => {attrs["target_sha"]}')
                 await batch.cancel()
+
+        t_elapsed = time.monotonic() - t_start
+        WATCHED_BRANCH_UPDATE_LATENCY.labels(phase='heal').observe(t_elapsed)
+        log.info(f'heal {self.short_str()} done in {t_elapsed:.1f}s')
 
     async def _start_deploy(self, db: Database, batch_client: BatchClient):
         # not deploying
