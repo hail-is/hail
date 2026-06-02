@@ -445,6 +445,7 @@ class PR(Code):
             if ASSIGN_COMPILER in self.body:
                 assignees.add(select_random_teammate(COMPILER_TEAM).gh_username)
             data = {'assignees': list(assignees)}
+            log.info(f'{self.short_str()}: assigning reviewers: {data}')
             try:
                 await gh_client.post(
                     f'/repos/{self.target_branch.branch.repo.short_str()}/issues/{self.number}/assignees', data=data
@@ -944,8 +945,12 @@ class WatchedBranch(Code):
                 pr.decrement_pr_metric()
         self.prs = new_prs
 
+        t_assign_start = time.monotonic()
         for pr in new_prs.values():
             await pr.assign_gh_reviewer_if_requested(gh)
+        t_assign_elapsed = time.monotonic() - t_assign_start
+        WATCHED_BRANCH_UPDATE_LATENCY.labels(phase='assign').observe(t_assign_elapsed)
+        log.info(f'update github {self.short_str()}: assign reviewer loop done in {t_assign_elapsed:.1f}s')
 
         if new_prs:
             pr_github_data = await _fetch_pr_github_data(
