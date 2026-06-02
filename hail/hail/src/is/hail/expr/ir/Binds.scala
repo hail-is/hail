@@ -224,38 +224,40 @@ object Bindings {
   private def childEnvValue(ir: IR, i: Int): Bindings[Type] =
     ir match {
       case Block(bindings, _) =>
-        val bindingsTypes = bindings.view.take(i).map(b => b.name -> b.value.typ).to(ArraySeq)
+        val types = ArraySeq.newBuilder[(Name, Type)]
+        types.sizeHint(i)
+
         val eval = ArraySeq.newBuilder[Int]
+        eval.sizeHint(i) // most likely binding in eval
+
         val agg = ArraySeq.newBuilder[Int]
         val scan = ArraySeq.newBuilder[Int]
-        for (k <- 0 until i) bindings(k) match {
-          case Binding(_, _, Scope.EVAL) =>
-            eval += k
-          case Binding(_, _, Scope.AGG) =>
-            agg += k
-          case Binding(_, _, Scope.SCAN) =>
-            scan += k
+
+        for (k <- 0 until i) {
+          val Binding(name, value, scope) = bindings(k)
+          types += name -> value.typ
+          scope match {
+            case Scope.EVAL =>
+              eval += k
+            case Scope.AGG =>
+              agg += k
+            case Scope.SCAN =>
+              scan += k
+          }
         }
-        if (i < bindings.length) bindings(i).scope match {
-          case Scope.EVAL =>
-            Bindings(
-              bindingsTypes,
-              eval.result(),
-              AggEnv.bindOrNoOp(agg.result()),
-              AggEnv.bindOrNoOp(scan.result()),
-            )
-          case Scope.AGG =>
-            Bindings(bindingsTypes, agg.result(), AggEnv.Promote, AggEnv.bindOrNoOp(scan.result()))
-          case Scope.SCAN =>
-            Bindings(bindingsTypes, scan.result(), AggEnv.bindOrNoOp(agg.result()), AggEnv.Promote)
-        }
-        else
+
+        if (i == bindings.length || bindings(i).scope == Scope.EVAL)
           Bindings(
-            bindingsTypes,
+            types.result(),
             eval.result(),
             AggEnv.bindOrNoOp(agg.result()),
             AggEnv.bindOrNoOp(scan.result()),
           )
+        else if (bindings(i).scope == Scope.AGG)
+          Bindings(types.result(), agg.result(), AggEnv.Promote, AggEnv.bindOrNoOp(scan.result()))
+        else // SCAN
+          Bindings(types.result(), scan.result(), AggEnv.bindOrNoOp(agg.result()), AggEnv.Promote)
+
       case TailLoop(name, args, resultType, _) if i == args.length =>
         Bindings(
           args.map { case (name, ir) => name -> ir.typ } :+
