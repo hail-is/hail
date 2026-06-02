@@ -68,7 +68,7 @@ frozenlist==1.8.0
     #   aiosignal
 google-api-core==2.30.3
     # via google-api-python-client
-google-api-python-client==2.196.0
+google-api-python-client==2.197.0
     # via google-cloud-profiler
 google-auth==2.53.0
     # via
@@ -90,7 +90,7 @@ httplib2==0.31.2
     # via
     #   google-api-python-client
     #   google-auth-httplib2
-idna==3.16
+idna==3.17
     # via
     #   -c gear/../hail/python/dev/pinned-requirements.txt
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
