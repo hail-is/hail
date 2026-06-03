@@ -43,6 +43,7 @@ from gear import (
     monitor_endpoints_middleware,
     setup_aiohttp_session,
     transaction,
+    version_response,
 )
 from gear.auth import get_session_id, impersonate_user
 from gear.clients import get_cloud_async_fs
@@ -241,8 +242,9 @@ async def get_healthcheck(_) -> web.Response:
 
 
 @routes.get('/api/v1alpha/version')
-async def rest_get_version(_) -> web.Response:
-    return web.Response(text=__version__)
+@auth.maybe_authenticated_user
+async def rest_get_version(_, userdata: Optional[UserData]) -> web.Response:
+    return version_response(userdata)
 
 
 @routes.get('/api/v1alpha/cloud')
@@ -2534,6 +2536,26 @@ async def get_job_resource_usage(request: web.Request, _, batch_id: int) -> web.
     })
 
 
+@routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/jvm_profile')
+@billing_project_users_only()
+async def api_get_jvm_profile(request: web.Request, _, batch_id: int) -> web.Response:
+    job_id = int(request.match_info['job_id'])
+    record = await _get_job_record(request.app, batch_id, job_id)
+    file_store: FileStore = request.app['file_store']
+    batch_format_version = BatchFormatVersion(record['format_version'])
+    attempt_id = attempt_id_from_spec(record)
+
+    if not has_resource_available(record) or record['state'] == 'Running' or attempt_id is None:
+        raise web.HTTPNotFound()
+
+    try:
+        data = await file_store.read_jvm_profile(batch_format_version, batch_id, job_id, attempt_id, 'main')
+    except FileNotFoundError as exc:
+        raise web.HTTPNotFound() from exc
+
+    return web.Response(body=data, content_type='application/octet-stream')
+
+
 def plot_job_durations(container_statuses: dict, batch_id: int, job_id: int):
     data = []
     for step in ['input', 'main', 'output']:
@@ -3135,7 +3157,11 @@ async def get_billing_projects(request, userdata):
     else:
         user = None
 
-    billing_projects = await query_billing_projects_with_cost(db, user=user)
+    status = request.query.get('status')
+    if status is not None and status not in ('open', 'closed'):
+        raise web.HTTPBadRequest(reason=f"Invalid value for status '{status}'; must be 'open' or 'closed'.")
+
+    billing_projects = await query_billing_projects_with_cost(db, user=user, status=status)
     return json_response(billing_projects)
 
 
