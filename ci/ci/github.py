@@ -260,6 +260,8 @@ class PR(Code):
         # 'error', 'success', 'failure', None
         self.build_state: Optional[str] = None
 
+        self.pending_build_reason: str = 'unknown'
+
         self.intended_github_status: GithubStatus = self.github_status_from_build_state()
         self.last_known_github_status: Dict[str, GithubStatus] = {}
 
@@ -350,6 +352,7 @@ class PR(Code):
             self.batch = None
             self.source_sha_failed = None
             self.set_build_state(None)
+            self.pending_build_reason = f'new commit {new_source_sha[:8]}'
             self.target_branch.batch_changed = True
             self.target_branch.state_changed = True
 
@@ -546,6 +549,9 @@ class PR(Code):
     async def _start_build(self, db: Database, batch_client: BatchClient):
         assert await self.authorized(db)
 
+        reason = self.pending_build_reason
+        self.pending_build_reason = 'unknown'
+
         # clear current batch
         self.batch = None
         self.set_build_state(None)
@@ -606,6 +612,7 @@ mkdir -p {shq(repo_dir)}
                     'target_sha': self.target_branch.sha,
                     'name': f'PR test #{self.number}: {self.source_branch.name} @ {self.source_sha[:8]} -> {self.target_branch.branch.name} @ {(self.target_branch.sha or "unknown")[:8]}',
                     'batch_type': 'ci/test/pr',
+                    'reason': reason,
                 },
                 callback=CALLBACK_URL,
             )
@@ -679,6 +686,23 @@ mkdir -p {shq(repo_dir)}
                 self.source_sha_failed = True
             self.target_branch.state_changed = True
 
+    async def _determine_build_reason(self, batch_client, db: Database) -> str:
+        most_recent = None
+        async for b in batch_client.list_batches(
+            f'test=1 pr={self.number} target_branch={self.target_branch.branch.short_str()} user:ci',
+            limit=1,
+        ):
+            most_recent = b
+        if most_recent is None:
+            return 'initial build'
+        most_recent_status = await most_recent.last_known_status()
+        prior_source_sha = most_recent_status.get('attributes', {}).get('source_sha')
+        if prior_source_sha and prior_source_sha != self.source_sha:
+            return f'new commit {self.source_sha[:8]}'
+        if await self.is_invalidated_batch(most_recent, db):
+            return 'old batch invalidated'
+        return 'unknown'
+
     async def _heal(self, batch_client, db: Database, on_deck, gh):
         # can't merge target if we don't know what it is
         if self.target_branch.sha is None:
@@ -699,6 +723,11 @@ mkdir -p {shq(repo_dir)}
             return
 
         if not self.batch or (on_deck and self.batch.attributes['target_sha'] != self.target_branch.sha):
+            if self.batch:
+                old_target = self.batch.attributes['target_sha']
+                self.pending_build_reason = f'target sha updated {old_target[:8]} -> {self.target_branch.sha[:8]}'
+            elif self.pending_build_reason == 'unknown':
+                self.pending_build_reason = await self._determine_build_reason(batch_client, db)
             if on_deck or self.target_branch.n_running_batches < MAX_CONCURRENT_PR_BATCHES:
                 self.target_branch.n_running_batches += 1
                 async with repos_lock:
@@ -881,6 +910,8 @@ class WatchedBranch(Code):
                 pr.update_from_gh_json(gh_json_pr)
             else:
                 pr = PR.from_gh_json(gh_json_pr, self)
+                if self.prs:
+                    pr.pending_build_reason = 'initial build'
             new_prs[number] = pr
         for number, pr in self.prs.items():
             if number not in new_prs:

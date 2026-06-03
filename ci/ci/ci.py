@@ -368,6 +368,7 @@ async def retry_pr(wb: WatchedBranch, pr: PR, request: web.Request, userdata: Us
             )
 
     await db.execute_insertone('INSERT INTO invalidated_batches (batch_id) VALUES (%s);', batch_id)
+    pr.pending_build_reason = f'retry by {userdata["username"]}'
     pr.batch = None
     pr.set_build_state(None)
     await wb.notify_batch_changed(

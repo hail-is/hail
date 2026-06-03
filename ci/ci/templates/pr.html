@@ -20,6 +20,8 @@
   <thead>
     <tr>
       <th>id</th>
+      <th>reason</th>
+      <th>started</th>
       <th>state</th>
     </tr>
   </thead>
@@ -29,6 +31,8 @@
       <td class="numeric-cell">
         <a rel="noopener" href="{{ batch_base_url }}/batches/{{ batch['id'] }}">{{ batch['id'] }}</a>
       </td>
+      <td>{{ batch.get('attributes', {}).get('reason', '') }}</td>
+      <td>{{ batch.get('time_created', '') }}</td>
       <td>
         {% if 'state' in batch and batch['state'] %}
         {{ batch_state_icon(batch['state']) }} {{ batch['state'] }}
