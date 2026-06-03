@@ -2751,6 +2751,7 @@ steps:
               -vv \
               --instafail \
               --durations=50 \
+              --asyncio-mode=auto \
               /io/test_requester_pays_parsing.py
     inputs:
       - from: /derived/release/hail/build/deploy/dist
