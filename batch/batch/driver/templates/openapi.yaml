@@ -1,0 +1,646 @@
+openapi: "3.1.0"
+info:
+  version: "{{ spec_version }}"
+  title: Hail Batch Driver
+  contact:
+    name: Contact our support
+    email: hail-team@broadinstitute.org
+    url: https://www.hail.is/gethelp.html
+  license:
+    name: MIT Licence
+    url: https://github.com/hail-is/hail/blob/main/LICENSE
+  description: >
+    Operator API for the Hail Batch Driver service. Requires elevated system
+    permissions (READ_DEPLOYED_SYSTEM_STATE or UPDATE_DEPLOYED_SYSTEM_STATE).
+tags:
+  - name: System
+    description: "System health and diagnostics."
+  - name: Operator
+    description: "Read and mutate live system state. Requires system permissions."
+servers:
+  - url: "{{ base_path }}"
+    description: "Batch Driver service."
+paths:
+  '/healthcheck':
+    get:
+      summary: Healthcheck
+      description: Liveness probe used by Kubernetes.
+      operationId: healthcheck
+      tags: [System]
+      responses:
+        '200':
+          description: Service is healthy.
+
+  '/check_invariants':
+    get:
+      summary: Check invariants
+      description: >
+        Runs consistency checks on user_inst_coll_resources counters against live
+        job state. Returns null fields on success; non-null strings contain error
+        details on failure.
+      operationId: checkInvariants
+      tags: [Operator]
+      responses:
+        '200':
+          description: Invariant check completed (see body for any errors).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  check_incremental_error:
+                    type: [string, 'null']
+                  check_resource_aggregation_error:
+                    type: [string, 'null']
+
+  '/api/v1alpha/driver_info':
+    get:
+      summary: Get driver state
+      description: >
+        Returns global system state: frozen status, total ready cores, feature
+        flags, per-pool and JPIM summaries, and global instance-collection stats.
+        Instance lists are available via the per-collection instances endpoints.
+      operationId: getDriverInfo
+      tags: [Operator]
+      responses:
+        '200':
+          description: Driver state retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DriverInfo'
+
+  '/api/v1alpha/freeze':
+    post:
+      summary: Freeze scheduling
+      description: >
+        Halts all scheduling and batch submissions system-wide. Returns 409 if
+        the system is already frozen.
+      operationId: freeze
+      tags: [Operator]
+      responses:
+        '200':
+          description: System frozen successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  frozen:
+                    type: boolean
+                    example: true
+        '409':
+          description: System is already frozen.
+
+  '/api/v1alpha/unfreeze':
+    post:
+      summary: Unfreeze scheduling
+      description: >
+        Resumes scheduling and batch submissions. Returns 409 if the system is
+        already unfrozen.
+      operationId: unfreeze
+      tags: [Operator]
+      responses:
+        '200':
+          description: System unfrozen successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  frozen:
+                    type: boolean
+                    example: false
+        '409':
+          description: System is already unfrozen.
+
+  '/api/v1alpha/inst_coll/pool/{pool}':
+    get:
+      summary: Get pool state
+      description: >
+        Returns pool configuration, live status (instances and cores by state,
+        schedulable cores), and per-user fair-share breakdown. Instance list
+        is available via the /instances sub-endpoint.
+      operationId: getPool
+      tags: [Operator]
+      parameters:
+        - name: pool
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Pool state retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PoolDetail'
+        '404':
+          description: Pool not found.
+    patch:
+      summary: Update pool configuration
+      description: >
+        Partially updates pool configuration. Only the fields provided in the
+        request body are changed; omitted fields retain their current values.
+        Read-only fields (name, worker_type, preemptible) are rejected if
+        included. Returns the full pool state after the update.
+      operationId: patchPool
+      tags: [Operator]
+      parameters:
+        - name: pool
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PoolConfigUpdate'
+      responses:
+        '200':
+          description: Pool updated. Returns full pool state after the update.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PoolDetail'
+        '400':
+          description: Validation error.
+        '404':
+          description: Pool not found.
+
+  '/api/v1alpha/inst_coll/pool/{pool}/instances':
+    get:
+      summary: List pool instances
+      description: Paginated list of live instances for the named pool.
+      operationId: getPoolInstances
+      tags: [Operator]
+      parameters:
+        - name: pool
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/offset'
+        - $ref: '#/components/parameters/limit'
+      responses:
+        '200':
+          description: Instance list retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstancesPage'
+        '404':
+          description: Pool not found.
+
+  '/api/v1alpha/inst_coll/jpim/instances':
+    get:
+      summary: List JPIM instances
+      description: Paginated list of live instances for the job-private instance manager.
+      operationId: getJpimInstances
+      tags: [Operator]
+      parameters:
+        - $ref: '#/components/parameters/offset'
+        - $ref: '#/components/parameters/limit'
+      responses:
+        '200':
+          description: Instance list retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstancesPage'
+
+  '/api/v1alpha/inst_coll/jpim':
+    patch:
+      summary: Update JPIM configuration
+      description: >
+        Partially updates JPIM configuration. Only the fields provided in the
+        request body are changed. Returns the full JPIM state after the update.
+      operationId: patchJpim
+      tags: [Operator]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JpimConfigUpdate'
+      responses:
+        '200':
+          description: JPIM updated. Returns full JPIM state after the update.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JpimDetail'
+        '400':
+          description: Validation error.
+    get:
+      summary: Get JPIM state
+      description: >
+        Returns job-private instance manager configuration, live status, and
+        per-user breakdown. Instance list is available via the /instances sub-endpoint.
+      operationId: getJpim
+      tags: [Operator]
+      responses:
+        '200':
+          description: JPIM state retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JpimDetail'
+
+  '/api/v1alpha/user_resources':
+    get:
+      summary: Get user resources
+      description: >
+        Returns all users with active work (ready or running jobs), with
+        aggregate ready/running job counts and core counts across all instance
+        collections. Sorted descending by total active cores.
+      operationId: getUserResources
+      tags: [Operator]
+      responses:
+        '200':
+          description: User resources retrieved successfully.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserResources'
+
+  '/api/v1alpha/gcp_quotas':
+    get:
+      summary: Get GCP quota usage
+      description: >
+        Returns all GCP quota metrics for each configured region, keyed as
+        `{region: {metric: {limit, usage}}}`. Data is served from a cache
+        refreshed every 60 seconds by the zone monitor. Returns 404 on
+        non-GCP clouds, 503 if the cache has not yet populated.
+      operationId: getGcpQuotas
+      tags: [Operator]
+      responses:
+        '200':
+          description: Quota data retrieved successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+                  additionalProperties:
+                    type: object
+                    properties:
+                      limit:
+                        type: number
+                      usage:
+                        type: number
+        '404':
+          description: Not running on GCP.
+        '503':
+          description: Quota cache not yet populated.
+
+  '/api/v1alpha/instances/{instance_name}/kill':
+    post:
+      summary: Kill instance
+      description: >
+        Kills an active instance. Returns 404 if the instance is not found,
+        409 if the instance is not in the active state.
+      operationId: killInstance
+      tags: [Operator]
+      parameters:
+        - name: instance_name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Kill request issued successfully.
+        '404':
+          description: Instance not found.
+        '409':
+          description: Instance is not active.
+
+  '/api/v1alpha/feature_flags':
+    patch:
+      summary: Update feature flags
+      description: >
+        Partially updates feature flags. Only the fields provided in the request
+        body are changed; omitted fields retain their current values.
+      operationId: patchFeatureFlags
+      tags: [Operator]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeatureFlagsUpdate'
+      responses:
+        '200':
+          description: Feature flags updated. Returns the full set of flags after the update.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  feature_flags:
+                    $ref: '#/components/schemas/FeatureFlags'
+
+components:
+  parameters:
+    offset:
+      name: offset
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+      description: Number of instances to skip.
+    limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+      description: Maximum number of instances to return. Omit to return all.
+
+
+  schemas:
+    FeatureFlags:
+      type: object
+      properties:
+        compact_billing_tables:
+          type: boolean
+        oms_agent:
+          type: boolean
+        dockerhub_proxy:
+          type: boolean
+
+    FeatureFlagsUpdate:
+      type: object
+      properties:
+        compact_billing_tables:
+          type: boolean
+        oms_agent:
+          type: boolean
+        dockerhub_proxy:
+          type: boolean
+
+    InstCollSummary:
+      type: object
+      properties:
+        name:
+          type: string
+        all_versions_instances_by_state:
+          type: object
+          additionalProperties:
+            type: integer
+        all_versions_cores_mcpu_by_state:
+          type: object
+          additionalProperties:
+            type: integer
+        max_live_instances:
+          type: integer
+        max_instances:
+          type: integer
+        schedulable_free_cores_mcpu:
+          type: integer
+        schedulable_cores_mcpu:
+          type: integer
+
+    Instance:
+      type: object
+      properties:
+        name:
+          type: string
+        inst_coll_name:
+          type: string
+        location:
+          type: string
+        version:
+          type: string
+        state:
+          type: string
+          enum: [pending, active, inactive, deleted]
+        free_cores_mcpu:
+          type: integer
+        cores_mcpu:
+          type: integer
+        failed_request_count:
+          type: integer
+        time_created_ms:
+          type: integer
+        last_updated_ms:
+          type: integer
+
+    GlobalStats:
+      type: object
+      properties:
+        n_instances_by_state:
+          type: object
+          additionalProperties:
+            type: integer
+        cores_mcpu_by_state:
+          type: object
+          additionalProperties:
+            type: integer
+        schedulable_free_cores_mcpu:
+          type: integer
+        schedulable_cores_mcpu:
+          type: integer
+
+    InstancesPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Instance'
+        total_count:
+          type: integer
+          description: Total number of instances across all pages.
+        current_offset:
+          type: integer
+          description: Offset used for this page.
+        more:
+          type: boolean
+          description: Whether more instances exist beyond this page. If true, the next offset is current_offset + len(items).
+
+    UserResources:
+      type: object
+      properties:
+        user:
+          type: string
+        n_ready_jobs:
+          type: integer
+        ready_cores_mcpu:
+          type: integer
+        n_running_jobs:
+          type: integer
+        running_cores_mcpu:
+          type: integer
+
+    PoolUserResources:
+      type: object
+      properties:
+        user:
+          type: string
+        n_ready_jobs:
+          type: integer
+        ready_cores_mcpu:
+          type: integer
+        allocated_cores_mcpu:
+          type: integer
+        n_running_jobs:
+          type: integer
+        running_cores_mcpu:
+          type: integer
+
+    JpimUserResources:
+      type: object
+      properties:
+        user:
+          type: string
+        n_ready_jobs:
+          type: integer
+        n_allocated_jobs:
+          type: integer
+        n_creating_jobs:
+          type: integer
+        n_running_jobs:
+          type: integer
+
+    PoolConfigUpdate:
+      type: object
+      properties:
+        boot_disk_size_gb:
+          type: integer
+        worker_local_ssd_data_disk:
+          type: boolean
+        worker_external_ssd_data_disk_size_gb:
+          type: integer
+        worker_cores:
+          type: integer
+        standing_worker_cores:
+          type: integer
+        min_instances:
+          type: integer
+        max_instances:
+          type: integer
+        max_live_instances:
+          type: integer
+        max_new_instances_per_autoscaler_loop:
+          type: integer
+        autoscaler_loop_period_secs:
+          type: integer
+        worker_max_idle_time_secs:
+          type: integer
+        standing_worker_max_idle_time_secs:
+          type: integer
+        job_queue_scheduling_window_secs:
+          type: integer
+
+    JpimConfigUpdate:
+      type: object
+      properties:
+        boot_disk_size_gb:
+          type: integer
+        max_instances:
+          type: integer
+        max_live_instances:
+          type: integer
+        max_new_instances_per_autoscaler_loop:
+          type: integer
+        autoscaler_loop_period_secs:
+          type: integer
+        worker_max_idle_time_secs:
+          type: integer
+
+    PoolDetail:
+      type: object
+      properties:
+        name:
+          type: string
+        worker_type:
+          type: string
+        worker_cores:
+          type: integer
+        boot_disk_size_gb:
+          type: integer
+        worker_local_ssd_data_disk:
+          type: boolean
+        worker_external_ssd_data_disk_size_gb:
+          type: integer
+        standing_worker_cores:
+          type: integer
+        min_instances:
+          type: integer
+        max_instances:
+          type: integer
+        max_live_instances:
+          type: integer
+        preemptible:
+          type: boolean
+        max_new_instances_per_autoscaler_loop:
+          type: integer
+        autoscaler_loop_period_secs:
+          type: integer
+        standing_worker_max_idle_time_secs:
+          type: integer
+        worker_max_idle_time_secs:
+          type: integer
+        job_queue_scheduling_window_secs:
+          type: integer
+        status:
+          $ref: '#/components/schemas/InstCollSummary'
+        user_resources:
+          type: array
+          items:
+            $ref: '#/components/schemas/PoolUserResources'
+
+    JpimDetail:
+      type: object
+      properties:
+        name:
+          type: string
+        boot_disk_size_gb:
+          type: integer
+        max_instances:
+          type: integer
+        max_live_instances:
+          type: integer
+        max_new_instances_per_autoscaler_loop:
+          type: integer
+        autoscaler_loop_period_secs:
+          type: integer
+        worker_max_idle_time_secs:
+          type: integer
+        status:
+          $ref: '#/components/schemas/InstCollSummary'
+        user_resources:
+          type: array
+          items:
+            $ref: '#/components/schemas/JpimUserResources'
+
+    DriverInfo:
+      type: object
+      properties:
+        instance_id:
+          type: string
+        frozen:
+          type: boolean
+        ready_cores_mcpu:
+          type: integer
+        feature_flags:
+          $ref: '#/components/schemas/FeatureFlags'
+        pools:
+          type: array
+          items:
+            $ref: '#/components/schemas/InstCollSummary'
+        jpim:
+          $ref: '#/components/schemas/InstCollSummary'
+        global_stats:
+          $ref: '#/components/schemas/GlobalStats'
