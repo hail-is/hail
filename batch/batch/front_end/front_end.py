@@ -43,6 +43,7 @@ from gear import (
     monitor_endpoints_middleware,
     setup_aiohttp_session,
     transaction,
+    version_response,
 )
 from gear.auth import get_session_id, impersonate_user
 from gear.clients import get_cloud_async_fs
@@ -241,8 +242,9 @@ async def get_healthcheck(_) -> web.Response:
 
 
 @routes.get('/api/v1alpha/version')
-async def rest_get_version(_) -> web.Response:
-    return web.Response(text=__version__)
+@auth.maybe_authenticated_user
+async def rest_get_version(_, userdata: Optional[UserData]) -> web.Response:
+    return version_response(userdata)
 
 
 @routes.get('/api/v1alpha/cloud')
@@ -2534,6 +2536,26 @@ async def get_job_resource_usage(request: web.Request, _, batch_id: int) -> web.
     })
 
 
+@routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/jvm_profile')
+@billing_project_users_only()
+async def api_get_jvm_profile(request: web.Request, _, batch_id: int) -> web.Response:
+    job_id = int(request.match_info['job_id'])
+    record = await _get_job_record(request.app, batch_id, job_id)
+    file_store: FileStore = request.app['file_store']
+    batch_format_version = BatchFormatVersion(record['format_version'])
+    attempt_id = attempt_id_from_spec(record)
+
+    if not has_resource_available(record) or record['state'] == 'Running' or attempt_id is None:
+        raise web.HTTPNotFound()
+
+    try:
+        data = await file_store.read_jvm_profile(batch_format_version, batch_id, job_id, attempt_id, 'main')
+    except FileNotFoundError as exc:
+        raise web.HTTPNotFound() from exc
+
+    return web.Response(body=data, content_type='application/octet-stream')
+
+
 def plot_job_durations(container_statuses: dict, batch_id: int, job_id: int):
     data = []
     for step in ['input', 'main', 'output']:
@@ -3105,6 +3127,70 @@ async def api_get_billing(request, userdata):
     ])
 
 
+@routes.get('/api/v1alpha/billing_breakdown')
+@auth.authenticated_users_only()
+async def api_get_billing_breakdown(request: web.Request, userdata) -> web.Response:
+    db: Database = request.app['db']
+
+    date_format = '%m/%d/%Y'
+
+    start_query = request.query.get('start')
+    if start_query is None:
+        raise web.HTTPBadRequest(reason="start is required.")
+    try:
+        start = datetime.datetime.strptime(start_query, date_format)
+    except ValueError as exc:
+        raise web.HTTPBadRequest(reason=f"Invalid start '{start_query}'; must be MM/DD/YYYY.") from exc
+
+    end_query = request.query.get('end')
+    if end_query is None:
+        raise web.HTTPBadRequest(reason="end is required.")
+    try:
+        end = datetime.datetime.strptime(end_query, date_format)
+    except ValueError as exc:
+        raise web.HTTPBadRequest(reason=f"Invalid end '{end_query}'; must be MM/DD/YYYY.") from exc
+
+    if start > end:
+        raise web.HTTPBadRequest(reason="start must be earlier than or equal to end.")
+
+    is_billing_manager = userdata['system_permissions'].get(SystemPermission.READ_ALL_BILLING_PROJECTS, False)
+
+    where = [
+        "billing_projects.`status` != 'deleted'",
+        'billing_date >= %s',
+        'billing_date <= %s',
+    ]
+    args: List[Any] = [start, end]
+
+    if not is_billing_manager:
+        where.append('`user` = %s')
+        args.append(userdata['username'])
+
+    sql = f"""
+SELECT billing_project, `user`, resources.resource, COALESCE(SUM(`usage` * rate), 0) AS cost
+FROM (
+  SELECT billing_project, `user`, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  FROM aggregated_billing_project_user_resources_by_date_v3
+  LEFT JOIN billing_projects ON billing_projects.name = aggregated_billing_project_user_resources_by_date_v3.billing_project
+  WHERE {' AND '.join(where)}
+  GROUP BY billing_project, `user`, resource_id
+) AS t
+LEFT JOIN resources ON resources.resource_id = t.resource_id
+GROUP BY billing_project, `user`, resources.resource
+HAVING cost > 0;
+"""
+    rows = [
+        {
+            'billing_project': r['billing_project'],
+            'user': r['user'],
+            'resource': r['resource'],
+            'cost': float(r['cost']),
+        }
+        async for r in db.select_and_fetchall(sql, args)
+    ]
+    return json_response(rows)
+
+
 @routes.get('/billing_projects')
 @web_security_headers
 @auth.authenticated_users_only()
@@ -3135,7 +3221,11 @@ async def get_billing_projects(request, userdata):
     else:
         user = None
 
-    billing_projects = await query_billing_projects_with_cost(db, user=user)
+    status = request.query.get('status')
+    if status is not None and status not in ('open', 'closed'):
+        raise web.HTTPBadRequest(reason=f"Invalid value for status '{status}'; must be 'open' or 'closed'.")
+
+    billing_projects = await query_billing_projects_with_cost(db, user=user, status=status)
     return json_response(billing_projects)
 
 
