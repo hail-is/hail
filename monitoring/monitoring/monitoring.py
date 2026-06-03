@@ -258,13 +258,14 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
 @auth.authenticated_users_with_permission(SystemPermission.VIEW_MONITORING_DASHBOARDS, redirect=False)
 async def fetch_billing_json(request: web.Request, _) -> web.Response:
     date_format = '%m/%Y'
-    try:
-        body = await request.json()
+    if request.content_length:
+        try:
+            body = await request.json()
+        except Exception as exc:
+            raise web.HTTPBadRequest(reason='Request body must be valid JSON.') from exc
         if not isinstance(body, dict):
             raise web.HTTPBadRequest(reason='Request body must be a JSON object.')
-    except web.HTTPBadRequest:
-        raise
-    except Exception:
+    else:
         body = {}
     time_period_raw = body.get('time_period')
     if time_period_raw is not None and not isinstance(time_period_raw, str):

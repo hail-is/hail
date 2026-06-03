@@ -94,6 +94,18 @@ components:
 
 
 paths:
+  /api/v1alpha/version:
+    get:
+      summary: Get version
+      description: Get the current version of the monitoring service
+      tags: [Documentation]
+      responses:
+        '200':
+          description: Version retrieved successfully
+          content:
+            text/plain:
+              schema:
+                type: string
   /api/v1alpha/billing:
     get:
       summary: Get billing information
@@ -115,9 +127,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/BillingResponse'
         '401':
-          description: Unauthorized
+          description: Unauthorized or insufficient permissions
         '403':
-          description: Forbidden - requires developer privileges
+          description: Forbidden - account is inactive
   /api/v1alpha/billing/fetch:
     post:
       summary: Trigger billing data refresh
@@ -145,9 +157,9 @@ paths:
         '400':
           description: Invalid time_period format
         '401':
-          description: Unauthorized
+          description: Unauthorized or insufficient permissions
         '403':
-          description: Forbidden - requires developer privileges
+          description: Forbidden - account is inactive
 
   /billing:
     get:
