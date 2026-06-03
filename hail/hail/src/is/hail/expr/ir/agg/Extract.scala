@@ -387,9 +387,9 @@ class ExtractedAggs(
   val sigs: AggSignatures,
 ) {
   def independent: IndependentExtractedAggs = new IndependentExtractedAggs(
-    ForwardLets(ctx, Let(initBindings, init)),
-    ForwardLets(ctx, seqPerElt),
-    ForwardLets(ctx, Let(initBindings, result)),
+    Let(initBindings.map(b => b._1 -> b._2.deepCopy), init),
+    seqPerElt,
+    Let(initBindings.map(b => b._1 -> b._2.deepCopy), result),
     sigs,
   )
 }
@@ -475,7 +475,7 @@ object Extract {
     val initBuilder = ArrayBuffer.empty[InitOp]
     val seqBuilder = ArraySeq.newBuilder[(Name, IR)]
     val memo = mutable.Map.empty[IR, Int]
-    val result = Ref(freshName(), null)
+    val resultName = freshName()
 
     val postAggIR = extract(
       ir,
@@ -484,7 +484,7 @@ object Extract {
       initBuilder,
       seqBuilder,
       memo,
-      result,
+      resultName,
       r,
       isScan,
     )
@@ -492,14 +492,14 @@ object Extract {
     val initOps = initBuilder.to(ArraySeq)
     val pAggSigs = initOps.map(_.aggSig)
     val sigs = new AggSignatures(pAggSigs)
-    result._typ = sigs.resultsOp.typ
+    adjust(postAggIR, Env(resultName -> sigs.resultsOp.typ))
 
     new ExtractedAggs(
       ctx,
       initBindings.result(),
       Begin(initOps),
       Let.void(seqBuilder.result()),
-      Let(FastSeq(result.name -> sigs.resultsOp), postAggIR),
+      Let(FastSeq(resultName -> sigs.resultsOp), postAggIR),
       new AggSignatures(pAggSigs),
     )
   }
@@ -521,8 +521,8 @@ object Extract {
     /* Map each contained ApplyAggOp, ApplyScanOp, or AggFold, to the index of the corresponding agg
      * state, used to perform CSE on agg ops */
     memo: mutable.Map[IR, Int],
-    // a reference to the tuple of results of contained aggs
-    result: IR,
+    // the name of the tuple of results of contained aggs whose type is not yet known
+    result: Name,
     r: RequirednessAnalysis,
     isScan: Boolean,
   ): IR = {
@@ -543,7 +543,7 @@ object Extract {
         var newEnv = env
         val bindingsTemp = ArraySeq.newBuilder[(Name, IR)]
         bindingsTemp.sizeHint(bindings)
-        for (binding <- bindings) binding match {
+        bindings.foreach {
           case Binding(name, value, Scope.EVAL) =>
             val newValue =
               this.extract(value, newEnv, initBindings, initBuilder, seqBuilder, memo, result, r,
@@ -562,10 +562,7 @@ object Extract {
           else bindingsTemp += b
         }
 
-        Block(
-          bindingsTemp.result().map { case (name, value) => Binding(name, value) },
-          newBody,
-        )
+        Let(bindingsTemp.result(), newBody)
 
       case x: ApplyAggOp if !isScan =>
         val idx = memo.getOrElseUpdate(
@@ -580,7 +577,7 @@ object Extract {
           },
         )
 
-        GetTupleElement(result, idx)
+        GetTupleElement(Ref(result, null), idx)
 
       case x: ApplyScanOp if isScan =>
         val idx = memo.getOrElseUpdate(
@@ -595,19 +592,18 @@ object Extract {
           },
         )
 
-        GetTupleElement(result, idx)
+        GetTupleElement(Ref(result, null), idx)
 
       case x @ AggFold(zero, seqOp, combOp, accumName, otherAccumName, _) =>
         val idx = memo.getOrElseUpdate(
           x, {
             val i = initBuilder.length
-            val initOpArgs = IndexedSeq(zero)
+            val initOpArgs = ArraySeq(zero)
             bindInitArgRefs(initOpArgs)
-            val seqOpArgs = IndexedSeq(seqOp)
-            val op = Fold()
+            val seqOpArgs = ArraySeq(seqOp)
             val resultEmitType = r(x).canonicalEmitType(x.typ)
             val foldStateSig = FoldStateSig(resultEmitType, accumName, otherAccumName, combOp)
-            val state = PhysicalAggSig(op, foldStateSig)
+            val state = PhysicalAggSig(Fold(), foldStateSig)
             initBuilder += InitOp(i, initOpArgs, state)
             // So seqOp has to be able to reference accumName.
             seqBuilder += accumName -> ResultOp(i, state)
@@ -616,7 +612,7 @@ object Extract {
           },
         )
 
-        GetTupleElement(result, idx)
+        GetTupleElement(Ref(result, null), idx)
 
       case AggFilter(cond, aggIR, _) =>
         val newSeq = ArraySeq.newBuilder[(Name, IR)]
@@ -640,7 +636,8 @@ object Extract {
         val i = initBuilder.length
         val newInit = ArrayBuffer.empty[InitOp]
         val newSeq = ArraySeq.newBuilder[(Name, IR)]
-        val newRef = Ref(freshName(), null)
+
+        val valueName = freshName()
         val transformed = this.extract(
           aggIR,
           env,
@@ -648,10 +645,11 @@ object Extract {
           newInit,
           newSeq,
           newMemo,
-          GetField(newRef, "value"),
+          valueName,
           r,
           isScan,
         )
+
         val initOps = newInit.to(ArraySeq)
 
         val pAggSigs = initOps.map(_.aggSig)
@@ -665,68 +663,81 @@ object Extract {
         )
 
         val rt = tcoerce[TDict](groupSig.resultType)
-        newRef._typ = rt.elementType
+        val elem = Ref(freshName(), rt.elementType)
+        adjust(transformed, Env(valueName -> rt.valueType))
 
         ToDict(StreamMap(
-          ToStream(GetTupleElement(result, i)),
-          newRef.name,
-          MakeTuple.ordered(FastSeq(GetField(newRef, "key"), transformed)),
+          ToStream(GetTupleElement(Ref(result, null), i)),
+          elem.name,
+          Let(
+            ArraySeq(valueName -> GetField(elem, "value")),
+            maketuple(GetField(elem.ir, "key"), transformed),
+          ),
         ))
 
       case x @ AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, _) =>
         val i = initBuilder.length
         val newAggs = ArrayBuffer.empty[InitOp]
         val newSeq = ArraySeq.newBuilder[(Name, IR)]
-        val newRef = Ref(freshName(), null)
+        val localResult = freshName()
 
-        val transformed = this.extract(aggBody, env, initBindings, newAggs, newSeq,
-          newMemo, newRef, r, isScan)
+        val transformed = this.extract(
+          aggBody,
+          env,
+          initBindings,
+          newAggs,
+          newSeq,
+          newMemo,
+          localResult,
+          r,
+          isScan,
+        )
 
         val initOps = newAggs.to(ArraySeq)
         val pAggSigs = initOps.map(_.aggSig)
         val checkSig = ArrayLenAggSig(x.knownLength.isDefined, pAggSigs)
         val nestedSigs = checkSig.nested
         val rt = TArray(TTuple(nestedSigs.map(_.resultType): _*))
-        newRef._typ = rt.elementType
+        adjust(transformed, Env(localResult -> rt.elementType))
 
         val (dependent, independent) = partitionDependentLets(newSeq.result(), elementName)
 
-        val eltSig = AggElementsAggSig(nestedSigs)
-
         val aRef = Ref(freshName(), a.typ)
+        val aLen = Ref(freshName(), TInt32)
 
+        val init = Begin(initOps)
         initBuilder += InitOp(
           i,
-          knownLength.map(FastSeq(_)).getOrElse(FastSeq[IR]()) :+ Begin(initOps),
+          knownLength.fold(ArraySeq(init))(ArraySeq(_, init)),
           checkSig,
         )
 
         seqBuilder ++= independent
         seqBuilder += aRef.name -> a
-        seqBuilder += freshName() -> SeqOp(i, FastSeq(ArrayLen(aRef)), checkSig)
-        seqBuilder +=
-          freshName() -> StreamFor(
-            StreamRange(I32(0), ArrayLen(aRef), I32(1)),
-            indexName,
-            SeqOp(
-              i,
-              FastSeq(
-                Ref(indexName, TInt32),
-                Let.void((elementName, ArrayRef(aRef, Ref(indexName, TInt32))) +: dependent),
-              ),
-              eltSig,
+        seqBuilder += aLen.name -> ArrayLen(aRef.ir)
+        seqBuilder += freshName() -> SeqOp(i, FastSeq(aLen.ir), checkSig)
+        seqBuilder += freshName() -> StreamFor(
+          StreamRange(0, aLen.ir, 1),
+          indexName,
+          SeqOp(
+            i,
+            FastSeq(
+              Ref(indexName, TInt32),
+              Let.void((elementName, ArrayRef(aRef.ir, Ref(indexName, TInt32))) +: dependent),
             ),
-          )
+            AggElementsAggSig(nestedSigs),
+          ),
+        )
 
         val rUID = Ref(freshName(), rt)
 
         Let(
-          FastSeq(rUID.name -> GetTupleElement(result, i)),
+          FastSeq(rUID.name -> GetTupleElement(Ref(result, null), i)),
           ToArray(StreamMap(
             StreamRange(0, ArrayLen(rUID), 1),
             indexName,
             Let(
-              FastSeq(newRef.name -> ArrayRef(rUID, Ref(indexName, TInt32))),
+              FastSeq(localResult -> ArrayRef(rUID.ir, Ref(indexName, TInt32))),
               transformed,
             ),
           )),
@@ -747,4 +758,10 @@ object Extract {
         }
     }
   }
+
+  private def adjust(x: IR, env: Env[Type]): Unit =
+    IRTraversal.preOrder(x).foreach {
+      case r @ Ref(name, _) => env.lookupOption(name).foreach(r._typ = _)
+      case _ =>
+    }
 }
