@@ -943,7 +943,7 @@ object Main {
       .withTraits(NDArrayIR)
     r += node("NDArrayReindex", in("nd", child), in("indexExpr", att("Int").*))
       .withTraits(NDArrayIR)
-    r += node("NDArrayAgg", in("nd", child), in("axes", att("Int").*))
+    r += node("NDArrayAgg", in("nd", child), in("axes", att("Int").*)).withTraits(NDArrayIR)
     r += node("NDArrayWrite", in("nd", child), in("path", child)).typed("TVoid.type")
     r += node("NDArrayMatMul", in("l", child), in("r", child), errorID).withTraits(NDArrayIR)
     r += node(
