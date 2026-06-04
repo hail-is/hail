@@ -1,11 +1,12 @@
 import pytest
 
 import hail as hl
+from test.hail.conftest import init_hail_scope
 
 
 class TestAnnotationDB:
-    @pytest.fixture(scope="class")
-    def db_json(self):
+    @pytest.fixture(scope=init_hail_scope)
+    def db_json(self, init_hail):
         t = hl.utils.genomic_range_table(10)
         t = t.annotate(annotation=hl.str(t.locus.position - 1))
         tempdir_manager = hl.TemporaryDirectory()

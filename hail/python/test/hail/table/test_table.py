@@ -12,6 +12,7 @@ from hail import ExpressionException, ir
 from hail.utils import new_temp_file
 from hail.utils.java import Env
 
+from ..conftest import init_hail_scope
 from ..helpers import (
     assert_time,
     convert_struct_to_dict,
@@ -569,24 +570,26 @@ class Tests(unittest.TestCase):
         )
 
     def test_interval_product_join_long_key(self):
-        left = hl.utils.range_table(50, n_partitions=8)
-        intervals = hl.utils.range_table(25)
-        intervals = intervals.key_by(
-            interval=hl.interval(
-                1 + (intervals.idx // 5) * 10 + (intervals.idx % 5), (1 + intervals.idx // 5) * 10 - (intervals.idx % 5)
-            ),
-            k2=1,
-        )
-        intervals = intervals.checkpoint('/tmp/bar.ht', overwrite=True)
-        intervals = intervals.annotate(i=intervals.idx % 5)
-        intervals = intervals.key_by('interval')
-        left = left.annotate(interval_matches=intervals.index(left.idx, all_matches=True))
-        self.assertTrue(
-            left.all(
-                hl.sorted(left.interval_matches.map(lambda x: x.i))
-                == hl.range(0, hl.min(left.idx % 10, 10 - left.idx % 10))
+        with hl.TemporaryDirectory(suffix='.ht', ensure_exists=False) as tmpfile:
+            left = hl.utils.range_table(50, n_partitions=8)
+            intervals = hl.utils.range_table(25)
+            intervals = intervals.key_by(
+                interval=hl.interval(
+                    1 + (intervals.idx // 5) * 10 + (intervals.idx % 5),
+                    (1 + intervals.idx // 5) * 10 - (intervals.idx % 5),
+                ),
+                k2=1,
             )
-        )
+            intervals = intervals.checkpoint(tmpfile)
+            intervals = intervals.annotate(i=intervals.idx % 5)
+            intervals = intervals.key_by('interval')
+            left = left.annotate(interval_matches=intervals.index(left.idx, all_matches=True))
+            self.assertTrue(
+                left.all(
+                    hl.sorted(left.interval_matches.map(lambda x: x.i))
+                    == hl.range(0, hl.min(left.idx % 10, 10 - left.idx % 10))
+                )
+            )
 
     def test_join_with_empty(self):
         kt = hl.utils.range_table(10)
@@ -2625,8 +2628,8 @@ def test_order_by_desc():
     assert t._force_count() == 10_000
 
 
-@pytest.fixture(scope="module")
-def query_table_table():
+@pytest.fixture(scope=init_hail_scope)
+def query_table_table(init_hail):
     path = new_temp_file(extension='ht')
     ht = hl.utils.range_table(200, 10)
     ht = ht.filter(ht.idx % 10 == 0)
@@ -2698,8 +2701,8 @@ def test_query_table_randomness(query_table_table):
     assert len(x.r) == x.n
 
 
-@pytest.fixture(scope="module")
-def compound_key_table():
+@pytest.fixture(scope=init_hail_scope)
+def compound_key_table(init_hail):
     path = new_temp_file(extension='ht')
     ht = hl.utils.range_table(200, 10)
     ht = ht.filter(ht.idx % 10 == 0)
@@ -2719,8 +2722,8 @@ def test_query_table_compound_key(compound_key_table, query, expected):
     assert hl.eval(hl.query_table(compound_key_table, query)) == expected
 
 
-@pytest.fixture(scope="module")
-def interval_key_table():
+@pytest.fixture(scope=init_hail_scope)
+def interval_key_table(init_hail):
     path = new_temp_file(extension='ht')
     ht = hl.utils.range_table(200, 10)
     ht = ht.filter(ht.idx % 10 == 0)

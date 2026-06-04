@@ -64,11 +64,7 @@ def pytest_collection_modifyitems(items):
             continue
 
         init_fixture_name, priority = (
-            ('uninitialized', 0)
-            if item.get_closest_marker('uninitialized') is not None
-            else ('init_query_on_batch', 1)
-            if backend == 'batch'
-            else ('init_hail', 1)
+            ('uninitialized', 0) if item.get_closest_marker('uninitialized') is not None else ('init_hail', 1)
         )
 
         item.fixturenames.insert(0, init_fixture_name)
@@ -87,29 +83,30 @@ def uninitialized():
         hl_stop_for_test()
 
 
-@pytest.fixture(scope='session')
+def init_hail_scope(fixture_name, config):
+    return 'function' if choose_backend() == 'batch' else 'session'
+
+
+@pytest.fixture(scope=init_hail_scope)
 def init_hail(request):
-    hl_init_for_test(app_name=request.node.name)
+    backend = choose_backend()
+    hl_init_for_test(backend=backend, app_name=request.node.name)
     try:
         yield
     finally:
-        hl_stop_for_test()
-
-
-@pytest.fixture
-def init_query_on_batch(request):
-    hl_stop_for_test()
-    hl_init_for_test(backend='batch', app_name=request.node.name)
-    try:
-        yield
-    finally:
-        new_backend = current_backend()
-        assert isinstance(new_backend, ServiceBackend)
-        batch = new_backend._batch
-        report: Dict[str, CollectReport] = request.node.stash[test_results_key]
-        if any(r.failed for r in report.values()):
-            log.info(f'cancelling failed test batch {batch.id}')
-            hail_event_loop().run_until_complete(batch.cancel())
+        if backend == 'batch':
+            try:
+                new_backend = current_backend()
+                assert isinstance(new_backend, ServiceBackend)
+                batch = new_backend._batch
+                report: Dict[str, CollectReport] = request.node.stash[test_results_key]
+                if any(r.failed for r in report.values()):
+                    log.info(f'cancelling failed test batch {batch.id}')
+                    hail_event_loop().run_until_complete(batch.cancel())
+            finally:
+                hl_stop_for_test()
+        else:
+            hl_stop_for_test()
 
 
 @pytest.fixture(autouse=True)

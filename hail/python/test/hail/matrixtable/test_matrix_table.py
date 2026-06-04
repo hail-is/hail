@@ -2378,7 +2378,10 @@ def test_struct_of_arrays_encoding():
         out_path = new_temp_file(extension='mt')
         mt = std_mt.checkpoint(out_path)
         md_path = os.path.join(out_path, 'entries/rows/metadata.json.gz')
-        with gzip.open(md_path) as md_file:
+        with (
+            Env.fs().open(md_path, 'rb') as f,
+            gzip.open(f) as md_file,
+        ):
             md = json.load(md_file)
         etype = md['_codecSpec']['_eType']
         assert 'EStructOfArrays' in etype
