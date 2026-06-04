@@ -6,9 +6,7 @@ import is.hail.backend.{BroadcastValue, ExecuteContext}
 import is.hail.backend.spark.{AnonymousDependency, SparkTaskContext}
 import is.hail.collection.FastSeq
 import is.hail.expr.ir._
-import is.hail.expr.ir.defs.{
-  GetField, In, Let, MakeStruct, ReadPartition, Ref, StreamRange, ToArray,
-}
+import is.hail.expr.ir.defs.{Atom, In, Let, MakeStruct, ReadPartition, StreamRange, ToArray}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.fs.FS
 import is.hail.rvd.{RVD, RVDType}
@@ -122,8 +120,8 @@ object TableStageToRVD {
       globals = _ts.globals,
       partitioner = _ts.partitioner,
       dependency = _ts.dependency,
-      contexts = mapIR(_ts.contexts)(c => MakeStruct(FastSeq("context" -> c))),
-      partition = { ctx: Ref => _ts.partition(GetField(ctx, "context")) },
+      contexts = mapIR(_ts.contexts)(c => makestruct("context" -> c)),
+      partition = _.get("context").bind(_ts.partition),
     )
 
     val sparkContext = ctx.backend.asSpark.sc
@@ -177,22 +175,22 @@ object TableStageToRVD {
       baos.toByteArray
     }
 
+    val broadcasts: Atom =
+      In(1, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(decodedBcValsPType)))
+
+    val body =
+      Let(
+        ts.broadcastVals.map(_._1).map(bcVal => bcVal -> broadcasts.get(bcVal.str)),
+        ts.partition(
+          In(0, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(decodedContextPType)))
+        ),
+      )
+
     val (newRowPType: PStruct, makeIterator) = CompileIterator.forTableStageToRVD(
       ctx,
       decodedContextPType,
       decodedBcValsPType,
-      Let(
-        ts.broadcastVals.map(_._1).map(bcVal =>
-          bcVal -> GetField(
-            In(1, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(decodedBcValsPType))),
-            bcVal.str,
-          )
-        ),
-        ts.partition(In(
-          0,
-          SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(decodedContextPType)),
-        )),
-      ),
+      NormalizeNames()(ctx, body),
     )
 
     val fsBc = ctx.fsBc

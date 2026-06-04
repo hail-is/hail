@@ -566,33 +566,25 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
   }
 
   def explode(path: IndexedSeq[String]): TableValue = {
+    val row = Ref(TableIR.rowName, typ.rowType)
     val idx = Ref(freshName(), TInt32)
 
-    val newRow: InsertFields = {
-      val refs = path.init.scanLeft(Ref(TableIR.rowName, typ.rowType))((struct, name) =>
+    val refs =
+      path.scanLeft(row)((struct, name) =>
         Ref(freshName(), tcoerce[TStruct](struct.typ).field(name).typ)
       )
 
-      path.zip(refs).zipWithIndex.foldRight[IR](idx) {
-        case (((field, ref), i), arg) =>
-          InsertFields(
-            ref,
-            FastSeq(field ->
-              (if (i == refs.length - 1)
-                 ArrayRef(CastToArray(GetField(ref, field)), arg)
-               else
-                 Let(FastSeq(refs(i + 1).name -> GetField(ref, field)), arg))),
-          )
-      }.asInstanceOf[InsertFields]
-    }
+    val newRow =
+      Block(
+        ArraySeq.tabulate(path.length)(i => Binding(refs(i + 1).name, refs(i).get(path(i)))),
+        refs.init.zip(path).foldRight(refs.last.at(idx)) { case ((r, p), elem) =>
+          r.ir.insert(p -> elem)
+        },
+      )
 
-    val length: IR =
+    val length =
       Coalesce(FastSeq(
-        ArrayLen(CastToArray(
-          path.foldLeft[IR](Ref(TableIR.rowName, typ.rowType))((struct, field) =>
-            GetField(struct, field)
-          )
-        )),
+        CastToArray(path.foldLeft[IR](row.ir)(_.get(_))).len,
         0,
       ))
 
@@ -629,7 +621,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
 
     TableValue(
       ctx,
-      typ.copy(rowType = newRow.typ),
+      typ.copy(rowType = newRow.typ.asInstanceOf[TStruct]),
       globals,
       rvd.boundary.mapPartitionsWithIndex(rvdType) { (i, hcl, ctx, it) =>
         val globalRegion = ctx.partitionRegion

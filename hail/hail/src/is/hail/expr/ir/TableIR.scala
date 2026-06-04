@@ -7,6 +7,8 @@ import is.hail.backend.{ExecuteContext, HailStateManager, HailTaskContext, TaskF
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
+import is.hail.expr.ir.{Memoized => M}
+import is.hail.expr.ir.Scope._
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.functions.{
   BlockMatrixToTableFunction, IntervalFunctions, MatrixToTableFunction, TableToTableFunction,
@@ -148,7 +150,7 @@ object TableReader {
 object LoweredTableReader extends Logging {
 
   type LoweredTableReaderCoercer =
-    (ExecuteContext, IR, Type, IndexedSeq[Any], IR => IR) => TableStage
+    (ExecuteContext, IR, Type, IndexedSeq[Any], Atom => IR) => TableStage
 
   def makeCoercer(
     ctx: ExecuteContext,
@@ -173,211 +175,102 @@ object LoweredTableReader extends Logging {
 
     val pkType = keyType.typeAfterSelectNames(key.take(partitionKey))
 
-    def selectPK(k: IR): IR =
-      SelectFields(k, key.take(partitionKey))
+    def selectPK(k: IR): IR = k.select(key.take(partitionKey))
 
     logger.info(s"scanning $context for sortedness...")
 
-    val xType = TStruct(
-      "key" -> keyType,
-      "token" -> TFloat64,
-      "prevkey" -> keyType,
-    )
-
-    val keyRef = Ref(freshName(), keyType)
-    val xRef = Ref(freshName(), xType)
-    val nRef = Ref(freshName(), TInt64)
-
-    val scanBody = (ctx: IR) =>
-      StreamAgg(
-        StreamAggScan(
-          ReadPartition(
-            ctx,
-            keyType,
-            new PartitionIteratorLongReader(
-              keyType,
-              uidFieldName,
-              contextType,
-              (requestedType: Type) => bodyPType(requestedType.asInstanceOf[TStruct]),
-              (requestedType: Type) => keys(requestedType.asInstanceOf[TStruct]),
-            ),
-          ),
-          keyRef.name,
-          MakeStruct(FastSeq(
-            "key" -> keyRef,
-            "token" -> invoke(
-              "rand_unif",
-              TFloat64,
-              RNGSplitStatic(RNGStateLiteral(), 1L),
-              F64(0.0),
-              F64(1.0),
-            ),
-            "prevkey" -> ApplyScanOp(FastSeq(), FastSeq(keyRef), PrevNonnull()),
-          )),
-        ),
-        xRef.name,
-        Let(
-          FastSeq(nRef.name -> ApplyAggOp(FastSeq(), FastSeq(), Count())),
-          AggLet(
-            keyRef.name,
-            GetField(xRef, "key"),
-            MakeStruct(FastSeq(
-              "n" -> nRef,
-              "minkey" ->
-                ApplyAggOp(
-                  FastSeq(I32(1)),
-                  FastSeq(keyRef, keyRef),
-                  TakeBy(),
-                ),
-              "maxkey" ->
-                ApplyAggOp(
-                  FastSeq(I32(1)),
-                  FastSeq(keyRef, keyRef),
-                  TakeBy(Descending),
-                ),
-              "ksorted" ->
-                ApplyComparisonOp(
-                  EQ,
-                  ApplyAggOp(
-                    FastSeq(),
-                    FastSeq(
-                      invoke(
-                        "toInt64",
-                        TInt64,
-                        invoke(
-                          "lor",
-                          TBoolean,
-                          IsNA(GetField(xRef, "prevkey")),
-                          ApplyComparisonOp(
-                            LTEQ,
-                            GetField(xRef, "prevkey"),
-                            GetField(xRef, "key"),
-                          ),
-                        ),
-                      )
-                    ),
-                    Sum(),
-                  ),
-                  nRef,
-                ),
-              "pksorted" ->
-                ApplyComparisonOp(
-                  EQ,
-                  ApplyAggOp(
-                    FastSeq(),
-                    FastSeq(
-                      invoke(
-                        "toInt64",
-                        TInt64,
-                        invoke(
-                          "lor",
-                          TBoolean,
-                          IsNA(selectPK(GetField(xRef, "prevkey"))),
-                          ApplyComparisonOp(
-                            LTEQ,
-                            selectPK(GetField(xRef, "prevkey")),
-                            selectPK(GetField(xRef, "key")),
-                          ),
-                        ),
-                      )
-                    ),
-                    Sum(),
-                  ),
-                  nRef,
-                ),
-              "sample" -> ApplyAggOp(
-                FastSeq(I32(samplesPerPartition)),
-                FastSeq(GetField(xRef, "key"), GetField(xRef, "token")),
-                TakeBy(),
-              ),
-            )),
-            isScan = false,
-          ),
-        ),
+    def scanBody(ctx: Atom) =
+      ReadPartition(
+        ctx,
+        keyType,
+        new PartitionIteratorLongReader(keyType, uidFieldName, contextType, bodyPType, keys),
       )
+        .streamAggScan { key =>
+          makestruct(
+            "__key" -> key,
+            "__prev_key" -> ApplyScanOp(PrevNonnull())(key),
+            "__token" ->
+              invoke("rand_unif", TFloat64, RNGSplitStatic(RNGStateLiteral(), 1L), 0.0, 1.0),
+          )
+        }
+        .streamAgg { x =>
+          M.eval {
+            ApplyAggOp(Count())().flatMap { n =>
+              M.lift[AGG.type] {
+                def aggOrderedCount(a: Atom, b: Atom): IR =
+                  ApplyAggOp(Sum())((a.isNA || (a <= b)).invoke("toInt64", TInt64))
 
-    val scanResult = cdaIR(
-      ToStream(Literal(TArray(contextType), contexts)),
-      MakeStruct(FastSeq()),
-      "table_coerce_sortedness",
-      NA(TString),
-    )((context, _) => scanBody(context))
+                for {
+                  key <- x.get("__key")
+                  prev <- x.get("__prev_key")
+                  token <- x.get("__token")
 
-    val sortedPartDataIR = sortIR(bindIR(scanResult) { scanResult =>
-      mapIR(
-        filterIR(
-          mapIR(
-            rangeIR(I32(0), ArrayLen(scanResult))
-          ) { i =>
-            InsertFields(
-              ArrayRef(scanResult, i),
-              FastSeq("i" -> i),
-            )
+                  pkkey <- selectPK(key)
+                  pkprev <- selectPK(prev)
+                } yield makestruct(
+                  "__n" -> n,
+                  "__min_key" -> ApplyAggOp(TakeBy(Ascending), 1)(key, key),
+                  "__max_key" -> ApplyAggOp(TakeBy(Descending), 1)(key, key),
+                  "__ksorted" -> aggOrderedCount(prev, key).ceq(n),
+                  "__pksorted" -> aggOrderedCount(pkprev, pkkey).ceq(n),
+                  "__sample" -> ApplyAggOp(TakeBy(), samplesPerPartition)(key, token),
+                )
+              }
+            }
           }
-        )(row => ArrayLen(GetField(row, "minkey")) > 0)
-      ) { row =>
-        InsertFields(
-          row,
-          FastSeq(
-            ("minkey", ArrayRef(GetField(row, "minkey"), I32(0))),
-            ("maxkey", ArrayRef(GetField(row, "maxkey"), I32(0))),
-          ),
-        )
-      }
-    }) { (l, r) =>
-      ApplyComparisonOp(
-        LT,
-        SelectFields(l, FastSeq("minkey", "maxkey")),
-        SelectFields(r, FastSeq("minkey", "maxkey")),
-      )
-    }
+        }
 
-    val summary = bindIR(sortedPartDataIR) { sortedPartData =>
-      MakeStruct(FastSeq(
-        "ksorted" ->
-          invoke(
-            "land",
-            TBoolean,
-            foldIR(ToStream(sortedPartData), True()) { (acc, partDataWithIndex) =>
-              invoke("land", TBoolean, acc, GetField(partDataWithIndex, "ksorted"))
+    val summary = M.eval {
+      for {
+        scanResult <-
+          cdaIR(
+            ToStream(Literal(TArray(contextType), contexts)),
+            makestruct(),
+            "table_coerce_sortedness",
+            NA(TString),
+          )((context, _) => scanBody(context))
+
+        sortedPartData <-
+          rangeIR(scanResult.len)
+            .streamMap(i => scanResult.at(i).insert("__idx" -> i))
+            .filter(_.get("__min_key").len > 0)
+            .streamMap(_.update("__min_key")(_.at(0)).update("__max_key")(_.at(0)))
+            .sort((l, r) => l.select("__min_key", "__max_key") < r.select("__min_key", "__max_key"))
+
+        makesummary = (ksorted: IR, pksorted: IR) =>
+          makestruct(
+            "__ksorted" -> ksorted,
+            "__pksorted" -> pksorted,
+            "__sorted_part_data" -> sortedPartData,
+          )
+
+        length <- sortedPartData.len
+
+      } yield tailLoop(makesummary(True(), True()).typ, True(), True(), 0) {
+        case (recur, Seq(ksorted, pksorted, i)) =>
+          If(
+            i >= length || !(ksorted || pksorted),
+            makesummary(ksorted, pksorted),
+            M.eval {
+              for {
+                data <- sortedPartData.at(i)
+                j <- i + 1
+                minMaxOrdered <-
+                  maketuple(true, true).if_(j >= length) {
+                    M.eval {
+                      for {
+                        thisMax <- data.get("__max_key")
+                        nextMin <- sortedPartData.at(j).get("__min_key")
+                      } yield maketuple(thisMax <= nextMin, selectPK(thisMax) <= selectPK(nextMin))
+                    }
+                  }
+
+                ksorted <- ksorted && minMaxOrdered.get(0) && data.get("__ksorted")
+                pksorted <- pksorted && minMaxOrdered.get(1) && data.get("__pksorted")
+              } yield recur(FastSeq(ksorted, pksorted, j))
             },
-            foldIR(StreamRange(I32(0), ArrayLen(sortedPartData) - I32(1), I32(1)), True()) {
-              (acc, i) =>
-                invoke(
-                  "land",
-                  TBoolean,
-                  acc,
-                  ApplyComparisonOp(
-                    LTEQ,
-                    GetField(ArrayRef(sortedPartData, i), "maxkey"),
-                    GetField(ArrayRef(sortedPartData, i + I32(1)), "minkey"),
-                  ),
-                )
-            },
-          ),
-        "pksorted" ->
-          invoke(
-            "land",
-            TBoolean,
-            foldIR(ToStream(sortedPartData), True()) { (acc, partDataWithIndex) =>
-              invoke("land", TBoolean, acc, GetField(partDataWithIndex, "pksorted"))
-            },
-            foldIR(StreamRange(I32(0), ArrayLen(sortedPartData) - I32(1), I32(1)), True()) {
-              (acc, i) =>
-                invoke(
-                  "land",
-                  TBoolean,
-                  acc,
-                  ApplyComparisonOp(
-                    LTEQ,
-                    selectPK(GetField(ArrayRef(sortedPartData, i), "maxkey")),
-                    selectPK(GetField(ArrayRef(sortedPartData, i + I32(1)), "minkey")),
-                  ),
-                )
-            },
-          ),
-        "sortedPartData" -> sortedPartData,
-      ))
+          )
+      }
     }
 
     val (Some(PTypeReferenceSingleCodeType(resultPType: PStruct)), f) =
@@ -405,7 +298,7 @@ object LoweredTableReader extends Logging {
         globals: IR,
         contextType: Type,
         contexts: IndexedSeq[Any],
-        body: IR => IR,
+        body: Atom => IR,
       ) => {
         val partOrigIndex = sortedPartData.map(_.getInt(6))
 
@@ -444,7 +337,7 @@ object LoweredTableReader extends Logging {
         globals: IR,
         contextType: Type,
         contexts: IndexedSeq[Any],
-        body: IR => IR,
+        body: Atom => IR,
       ) => {
         val partOrigIndex = sortedPartData.map(_.getInt(6))
 
@@ -489,7 +382,7 @@ object LoweredTableReader extends Logging {
         globals: IR,
         contextType: Type,
         contexts: IndexedSeq[Any],
-        body: IR => IR,
+        body: Atom => IR,
       ) => {
         val partOrigIndex = sortedPartData.map(_.getInt(6))
 
@@ -567,21 +460,17 @@ trait TableReaderWithExtraUID extends TableReader {
 abstract class TableReader {
   def pathsUsed: Seq[String]
 
-  final def lower(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableStage = {
-    if (dropRows) {
-      val globals = lowerGlobals(ctx, requestedType.globalType)
-
+  final def lower(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean): TableStage =
+    if (dropRows)
       TableStage(
-        globals,
+        lowerGlobals(ctx, requestedType.globalType),
         RVDPartitioner.empty(ctx, requestedType.keyType),
         TableStageDependency.none,
-        MakeStream(FastSeq(), TStream(TStruct.empty)),
-        (_: Ref) => MakeStream(FastSeq(), TStream(requestedType.rowType)),
+        MakeStream.empty(TStruct.empty),
+        _ => MakeStream.empty(requestedType.rowType),
       )
-    } else {
+    else
       lower(ctx, requestedType)
-    }
-  }
 
   def toExecuteIntermediate(ctx: ExecuteContext, requestedType: TableType, dropRows: Boolean)
     : TableExecuteIntermediate =
@@ -1799,17 +1688,16 @@ class TableNativeReader(
     val globalsSpec = spec.globalsSpec
     val globalsPath = spec.globalsComponent.absolutePath(params.path)
     assert(!requestedGlobalsType.hasField(uidFieldName))
-    ArrayRef(
-      ToArray(ReadPartition(
-        MakeStruct(ArraySeq(
-          "partitionIndex" -> I64(0),
-          "partitionPath" -> Str(globalsSpec.absolutePartPaths(globalsPath).head),
-        )),
-        requestedGlobalsType,
-        PartitionNativeReader(globalsSpec.typedCodecSpec, uidFieldName),
-      )),
-      0,
+    ReadPartition(
+      makestruct(
+        "partitionIndex" -> 0L,
+        "partitionPath" -> Str(globalsSpec.absolutePartPaths(globalsPath).head),
+      ),
+      requestedGlobalsType,
+      PartitionNativeReader(globalsSpec.typedCodecSpec, uidFieldName),
     )
+      .toArray
+      .at(0)
   }
 
   override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
