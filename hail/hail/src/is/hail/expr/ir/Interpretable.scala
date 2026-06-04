@@ -4,11 +4,10 @@ import is.hail.expr.ir.defs._
 import is.hail.types.virtual.TNDArray
 
 object Interpretable {
-  def apply(ir: IR): Boolean = {
-    !ir.typ.isInstanceOf[TNDArray] &&
-    (ir match {
-      case _: EncodedLiteral |
-          _: RunAgg |
+  def apply(ir: IR): Boolean =
+    ir match {
+      case _ if ir.typ.isInstanceOf[TNDArray] => false
+      case _: RunAgg |
           _: InitOp |
           _: SeqOp |
           _: CombOp |
@@ -16,25 +15,15 @@ object Interpretable {
           _: CombOpValue |
           _: InitFromSerializedValue |
           _: AggStateValue |
-          _: RunAgg |
           _: RunAggScan |
           _: SerializeAggs |
           _: DeserializeAggs |
           _: ArrayZeros |
-          _: MakeNDArray |
+          _: NDArrayQR |
+          _: NDArraySVD |
+          _: NDArrayEigh |
           _: NDArrayShape |
-          _: NDArrayReshape |
-          _: NDArrayConcat |
           _: NDArrayRef |
-          _: NDArraySlice |
-          _: NDArrayFilter |
-          _: NDArrayMap |
-          _: NDArrayMap2 |
-          _: NDArrayReindex |
-          _: NDArrayAgg |
-          _: NDArrayMatMul |
-          _: TailLoop |
-          _: Recur |
           _: ReadPartition |
           _: WritePartition |
           _: WriteMetadata |
@@ -57,6 +46,5 @@ object Interpretable {
           },
         )
       case _ => true
-    })
-  }
+    }
 }
