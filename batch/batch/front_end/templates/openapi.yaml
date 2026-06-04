@@ -682,8 +682,6 @@ paths:
       summary: List batches (v2)
       description: Get a list of batches using v2 query format
       tags: [Batches]
-      security:
-        - developerAuth: []
       parameters:
         - name: q
           in: query
@@ -769,8 +767,8 @@ paths:
       parameters:
         - name: start
           in: query
-          description: "Start date in MM/DD/YYYY format (required)."
-          required: true
+          description: "Start date in MM/DD/YYYY format. Defaults to the first day of the current month."
+          required: false
           schema:
             type: string
             example: "04/01/2026"
@@ -792,13 +790,61 @@ paths:
                   $ref: '#/components/schemas/BillingRecord'
         '401':
           description: Unauthorized
+  '/api/v1alpha/billing_breakdown':
+    get:
+      summary: "Get billing breakdown"
+      description: >
+        Return per-(billing_project, user, resource) cost records for a date range.
+        Billing managers (READ_ALL_BILLING_PROJECTS) see all records; other users see only
+        rows where the user matches their own username. Costs are plain floats in USD.
+        Rows with zero cost are excluded. The `resource` field uses internal resource names
+        such as `"service-fee"`, `"compute/n1-standard/preemptible/us-central1"`, etc.
+      operationId: getBillingBreakdown
+      tags:
+        - Billing Projects
+      parameters:
+        - name: start
+          in: query
+          description: "Start date in MM/DD/YYYY format."
+          required: true
+          schema:
+            type: string
+            example: "05/01/2026"
+        - name: end
+          in: query
+          description: "End date in MM/DD/YYYY format (inclusive). Required."
+          required: true
+          schema:
+            type: string
+            example: "05/31/2026"
+      responses:
+        '200':
+          description: "Billing breakdown retrieved successfully."
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BillingBreakdownRecord'
+        '400':
+          description: "Missing or invalid date parameters."
+        '401':
+          description: Unauthorized
   '/api/v1alpha/billing_projects':
     get:
       summary: "List billing projects"
-      description: "List billing projects."
+      description: "List billing projects. Optionally filter by status."
       operationId: getBillingProjects
       tags:
         - Billing Projects
+      parameters:
+        - name: status
+          in: query
+          description: "Filter by billing project status. If omitted, returns both open and closed projects."
+          required: false
+          schema:
+            type: string
+            enum: [open, closed]
       responses:
         '200':
           description: "Successfully retrieved the billing projects."
@@ -806,6 +852,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/BillingProjectListResponse'
+        '400':
+          description: "Invalid status value."
   '/api/v1alpha/billing_projects/{billing_project}':
     get:
       summary: "Get a billing project"
@@ -832,8 +880,6 @@ paths:
       summary: Create billing project
       description: Create a new billing project
       tags: [Billing]
-      security:
-        - developerAuth: []
       parameters:
         - name: billing_project
           in: path
@@ -956,8 +1002,6 @@ paths:
       summary: Delete billing project
       description: Delete an existing billing project
       tags: [Billing]
-      security:
-        - developerAuth: []
       parameters:
         - name: billing_project
           in: path
@@ -984,8 +1028,6 @@ paths:
       summary: Edit billing limits
       description: Edit billing limits for a billing project
       tags: [Billing]
-      security:
-        - developerAuth: []
       parameters:
         - name: billing_project
           in: path
@@ -1023,6 +1065,38 @@ paths:
           description: Forbidden - requires developer privileges
         '404':
           description: Billing project not found
+  '/api/v1alpha/batches/{batch_id}/jobs/{job_id}/jvm_profile':
+    get:
+      summary: "Get JVM profile data"
+      description: "Get raw JVM profiling data for a completed job. Only available for jobs run with profiling enabled."
+      operationId: getJvmProfile
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: job_id
+          in: path
+          description: "The ID of the job."
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: "Raw JVM profile data."
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '401':
+          description: Unauthorized
+        '404':
+          description: "Profile not available (job not complete, profiling not enabled, or profile not yet uploaded)."
   '/batches':
     get:
       summary: "Batches page (UI)"
@@ -1295,8 +1369,6 @@ paths:
       summary: Edit billing limits
       description: Edit billing limits for a billing project
       tags: [Billing]
-      security:
-        - developerAuth: []
       parameters:
         - name: billing_project
           in: path
@@ -1362,8 +1434,6 @@ paths:
       summary: Create billing project
       description: Create a new billing project
       tags: [Billing]
-      security:
-        - developerAuth: []
       parameters:
         - name: billing_project
           in: path
@@ -2301,6 +2371,22 @@ components:
         total_spent:
           type: number
           description: "Total cost in USD."
+
+    BillingBreakdownRecord:
+      type: object
+      properties:
+        billing_project:
+          type: string
+          description: "The billing project."
+        user:
+          type: string
+          description: "The user."
+        resource:
+          type: string
+          description: "Internal resource name (e.g. 'service-fee', 'compute/n1-standard/preemptible/us-central1')."
+        cost:
+          type: number
+          description: "Cost in USD for this (billing_project, user, resource) combination."
 
     CreateJobGroupResponse:
       type: object
