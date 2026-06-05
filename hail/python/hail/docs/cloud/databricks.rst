@@ -88,8 +88,15 @@ lets multiple notebooks share the same Hail context). On a single-node cluster t
 driver; on a multi-node cluster the same call distributes work across the cluster.
 
 Hail eagerly initializes a Google Cloud filesystem on startup; on AWS/Azure, set
-``GOOGLE_APPLICATION_CREDENTIALS`` to any syntactically valid (unused) service-account JSON so this
-initialization succeeds.
+``GOOGLE_APPLICATION_CREDENTIALS`` to a service-account JSON before calling ``hl.init()`` so this
+initialization succeeds (it is never used for real authentication on AWS/Azure):
+
+.. code-block:: python
+
+    import os
+    with open('/tmp/dummy-gcs-key.json', 'w') as f:
+        f.write('{"type": "service_account"}')
+    os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = '/tmp/dummy-gcs-key.json'
 
 :**note**:
 
