@@ -110,6 +110,7 @@ install-dev-requirements:
 
 .PHONY: update-hail-ubuntu
 update-hail-ubuntu:
+	@command -v skopeo >/dev/null 2>&1 || { echo 'ERROR: skopeo is required. Install with: brew install skopeo'; exit 1; }
 	python3 update-hail-ubuntu.py
 	$(MAKE) -C docker/third-party copy
 
