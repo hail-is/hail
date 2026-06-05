@@ -634,6 +634,9 @@ package defs {
           requiresMemoryManagementPerElement,
         )
       }
+
+      def single(x: IR): IR with TypedIR[TStream] =
+        MakeStream(FastSeq(x), TStream(x.typ))
     }
 
     abstract class ArraySortCompanionExt {

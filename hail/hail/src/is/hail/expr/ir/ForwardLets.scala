@@ -2,24 +2,22 @@ package is.hail.expr.ir
 
 import is.hail.backend.ExecuteContext
 import is.hail.collection.compat.immutable.ArraySeq
-import is.hail.expr.ir.defs.{BaseRef, Binding, Block, In, Ref, Str}
-import is.hail.types.virtual.TVoid
+import is.hail.expr.ir.defs.{Atom, BaseRef, Binding, Block, Ref}
+import is.hail.utils.Logging
 
 import scala.collection.Set
 
-object ForwardLets {
+object ForwardLets extends Logging {
   def apply[T <: BaseIR](ctx: ExecuteContext, ir0: T): T =
     ctx.time {
       val ir1 = NormalizeNames(allowFreeVariables = true)(ctx, ir0)
-      val UsesAndDefs(uses, defs, _) = ComputeUsesAndDefs(ir1, errorIfFreeVariables = false)
+      val UsesAndDefs(uses, _, _) = ComputeUsesAndDefs(ir1, errorIfFreeVariables = false)
       val nestingDepth = NestingDepth(ctx, ir1)
 
       def shouldForward(value: IR, refs: Set[RefEquality[BaseRef]], base: Block, scope: Scope)
         : Boolean =
         IsPure(value) && (
-          value.isInstanceOf[Ref] ||
-            value.isInstanceOf[In] ||
-            (IsConstant(value) && !value.isInstanceOf[Str]) ||
+          value.isInstanceOf[Atom] ||
             refs.isEmpty ||
             (refs.size == 1 &&
               nestingDepth.lookupRef(refs.head) == nestingDepth.lookupBinding(base, scope) &&
@@ -36,11 +34,16 @@ object ForwardLets {
             val newEnv = l.bindings.foldLeft(env) {
               case (env, Binding(name, value, scope)) =>
                 val rewriteValue = rewrite(value, env.promoteScope(scope)).asInstanceOf[IR]
-                if (
-                  rewriteValue.typ != TVoid
-                  && shouldForward(rewriteValue, refs.filter(_.t.name == name), l, scope)
-                ) {
-                  env.bindInScope(name, rewriteValue, scope)
+                val refs_ = refs.filter(_.t.name == name)
+                if (shouldForward(rewriteValue, refs_, l, scope)) {
+                  if (refs_.nonEmpty) env.bindInScope(name, rewriteValue, scope)
+                  else {
+                    logger.info(
+                      f"Eliminating unused binding:\n" +
+                        f"$name: ${value.typ} = ($scope) ${Pretty.ssaStyle(value, preserveNames = true).trim}"
+                    )
+                    env
+                  }
                 } else {
                   keep += Binding(name, rewriteValue, scope)
                   env
@@ -55,9 +58,9 @@ object ForwardLets {
           case x @ Ref(name, _) =>
             env.eval
               .lookupOption(name)
-              .map { forwarded =>
-                if (uses.lookup(defs.lookup(x)).count(_.t.name == name) > 1) forwarded.deepCopy
-                else forwarded
+              .map {
+                case forwarded: Atom => forwarded.ir
+                case big => big
               }
               .getOrElse(x)
           case _ =>

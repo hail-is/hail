@@ -10,7 +10,7 @@ object ForwardRelationalLets {
     ctx.time {
       val uses = mutable.HashMap.empty[Name, (Int, Int)]
       val nestingDepth = NestingDepth(ctx, ir0)
-      IRTraversal.levelOrder(ir0).foreach {
+      IRTraversal.preOrder(ir0).foreach {
         case x @ RelationalRef(name, _) =>
           val (n, nd) = uses.getOrElseUpdate(name, (0, 0))
           uses(name) = (n + 1, math.max(nd, nestingDepth.lookupRef(x)))

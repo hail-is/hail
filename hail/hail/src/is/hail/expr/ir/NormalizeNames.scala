@@ -74,7 +74,7 @@ class NormalizeNames(freeVariables: Set[Name]) {
     case Ref(name, typ) =>
       val newName = env.eval.lookupOption(name).getOrElse {
         if (!freeVariables.contains(name)) throw new RuntimeException(
-          s"found free variable in normalize: $name; ${env.pretty(x => x.str)}"
+          s"found free variable in normalize: $name: ${typ._toPretty}; ${env.pretty(x => x.str)}"
         )
         else name
       }
