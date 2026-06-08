@@ -1476,7 +1476,7 @@ class TableIRSuite {
     val entriesPath = getTestResource("sample.vcf.mt/entries")
 
     val mnr = MatrixNativeReader(ctx.fs, getTestResource("sample.vcf.mt"))
-    val mnrSpec = mnr.getSpec()
+    val mnrSpec = mnr.spec
 
     val reader =
       TableNativeZippedReader(rowsPath, entriesPath, None, mnrSpec.rowsSpec, mnrSpec.entriesSpec)

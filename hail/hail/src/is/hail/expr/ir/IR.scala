@@ -97,20 +97,16 @@ package defs {
   }
 
   object Let {
-    def apply(bindings: IndexedSeq[(Name, IR)], body: IR): Block =
-      Block(
-        bindings.map { case (name, value) => Binding(name, value) },
-        body,
-      )
+    def apply(bindings: IndexedSeq[(Name, IR)], body: IR): IR =
+      if (bindings.isEmpty) body
+      else Block(bindings.map { case (n, v) => Binding(n, v) }, body)
 
-    def void(bindings: IndexedSeq[(Name, IR)]): IR = {
-      if (bindings.isEmpty) {
-        Void()
-      } else {
+    def void(bindings: IndexedSeq[(Name, IR)]): IR =
+      if (bindings.isEmpty) Void()
+      else {
         assert(bindings.last._2.typ == TVoid)
         Let(bindings.init, bindings.last._2)
       }
-    }
   }
 
   object Begin {
@@ -537,6 +533,9 @@ package defs {
         assert(args.nonEmpty)
         MakeArray(args.toFastSeq, TArray(args.head.typ))
       }
+
+      def empty(elementType: Type): MakeArray =
+        MakeArray(FastSeq.empty[IR], TArray(elementType))
 
       def unify(ctx: ExecuteContext, args: IndexedSeq[IR], requestedType: TArray = null)
         : MakeArray = {
