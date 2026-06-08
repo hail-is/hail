@@ -55,12 +55,17 @@ every worker, placing Hail's jar on the Spark classpath.
     ``--target`` so base Python is untouched, and install the Python package from the notebook with
     ``%pip`` (below).
 
+**Pin the Hail version.** Use the same pinned version in the init script and in the notebook
+``%pip install`` below, so the JAR on the classpath and the notebook's Python package always match.
+A version mismatch between the two causes confusing runtime errors. Replace ``0.2.138`` below with
+the version you intend to use.
+
 .. code-block:: bash
 
     #!/bin/bash
     set -euxo pipefail
     # Install Hail into a scratch dir so base Python (numpy/pyarrow) stays intact.
-    /databricks/python3/bin/pip install --target=/tmp/hailpkg hail
+    /databricks/python3/bin/pip install --target=/tmp/hailpkg hail==0.2.138
     # Put Hail's jar on the Spark classpath at JVM startup (driver + all workers).
     mkdir -p /databricks/jars
     cp /tmp/hailpkg/hail/backend/hail-all-spark.jar /databricks/jars/
@@ -68,11 +73,14 @@ every worker, placing Hail's jar on the Spark classpath.
 Install the Hail Python package
 -------------------------------
 
-In the first cell of your notebook (notebook-scoped; does not affect the kernel):
+In the first cell of your notebook, install the Hail Python package with ``%pip``, pinned to the
+same version as the init script. ``%pip`` installs into the notebook session and restarts the
+notebook's Python process; it does **not** modify the runtime's base Python environment (which is
+why it avoids the numpy/pyarrow problem described above):
 
 .. code-block:: text
 
-    %pip install hail
+    %pip install hail==0.2.138
 
 Use Hail in a notebook
 ----------------------
