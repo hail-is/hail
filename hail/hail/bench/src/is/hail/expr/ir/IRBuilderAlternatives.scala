@@ -25,7 +25,7 @@ class MemoizedMapBenchmark {
 
   @Benchmark
   def memoized(): IR = {
-    var x = Memoized.pure[EVAL.type](Zero)
+    var x = Memoized.memo[EVAL.type](Zero)
     for (_ <- 1 until numBinds)
       x = x.map(_ + 1)
     eval(x)
@@ -33,7 +33,7 @@ class MemoizedMapBenchmark {
 
   @Benchmark
   def directV(): IR = {
-    var x = DirectV.pure(Zero)
+    var x = DirectV.memo(Zero)
     for (_ <- 1 until numBinds)
       x = x.map(_ + 1)
     x.toIR
@@ -41,7 +41,7 @@ class MemoizedMapBenchmark {
 
   @Benchmark
   def directL(): IR = {
-    var x = DirectL.pure(Zero)
+    var x = DirectL.memo(Zero)
     for (_ <- 1 until numBinds)
       x = x.map(_ + 1)
     x.toIR
@@ -89,8 +89,8 @@ class MemoizedFlatMapBenchmark {
   @Benchmark
   def memoized(): IR = {
     def go(n: Int): Memoized[EVAL.type] =
-      if (n <= 0) Memoized.pure(Zero)
-      else Memoized.pure(Zero).flatMap(acc => go(n - 1).map(acc + _))
+      if (n <= 0) Memoized.memo(Zero)
+      else Memoized.memo(Zero).flatMap(acc => go(n - 1).map(acc + _))
 
     eval(go(numBinds))
   }
@@ -98,16 +98,16 @@ class MemoizedFlatMapBenchmark {
   @Benchmark
   def directV(): IR = {
     def go(n: Int): DirectV =
-      if (n <= 0) DirectV.pure(Zero)
-      else DirectV.pure(Zero).flatMap(acc => go(n - 1).map(acc + _))
+      if (n <= 0) DirectV.memo(Zero)
+      else DirectV.memo(Zero).flatMap(acc => go(n - 1).map(acc + _))
     go(numBinds).toIR
   }
 
   @Benchmark
   def directL(): IR = {
     def go(n: Int): DirectL =
-      if (n <= 0) DirectL.pure(Zero)
-      else DirectL.pure(Zero).flatMap(acc => go(n - 1).map(acc + _))
+      if (n <= 0) DirectL.memo(Zero)
+      else DirectL.memo(Zero).flatMap(acc => go(n - 1).map(acc + _))
     go(numBinds).toIR
   }
 
@@ -141,7 +141,7 @@ final class DirectV(val bindings: Vector[Binding], val body: IR) {
 }
 
 object DirectV {
-  def pure(ir: IR): DirectV =
+  def memo(ir: IR): DirectV =
     new DirectV(Vector(), ir)
 }
 
@@ -161,6 +161,6 @@ final class DirectL(val rbinds: List[Binding], val body: IR) {
 }
 
 object DirectL {
-  def pure(ir: IR): DirectL =
+  def memo(ir: IR): DirectL =
     new DirectL(Nil, ir)
 }

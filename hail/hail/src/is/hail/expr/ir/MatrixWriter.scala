@@ -194,7 +194,7 @@ object MatrixNativeWriter {
             partFile <- Str(partFile(1, 0))
             // parts is array<struct> of partition results
             writeEmpty <- WritePartition(
-              MakeStream.single(makestruct()),
+              MakeStream(makestruct()),
               partFile,
               PartitionNativeWriter(
                 emptySpec,
@@ -212,7 +212,7 @@ object MatrixNativeWriter {
             )
 
             writeGlobals <- WritePartition(
-              MakeStream.single(SelectFields(globals, tm.globalType.fieldNames)),
+              MakeStream(SelectFields(globals, tm.globalType.fieldNames)),
               partFile,
               PartitionNativeWriter(globalSpec, FastSeq(), s"$path/globals/rows/parts/", None, None),
             )
@@ -2432,7 +2432,7 @@ case class MatrixBlockMatrixWriter(
               ndarrayData <- GetField(data, "__block_data")
               shape <- maketuple(numRowsOfBlock, blockSize.toL)
               ndarray <- MakeNDArray(ndarrayData, shape, True(), ErrorIDs.NO_ERROR)
-            } yield MakeStream.single(
+            } yield MakeStream(
               makestruct(
                 "__per_row_idx" -> idxOfResult,
                 "__block_row_idx" -> GetField(ctx, "__block_row_idx"),

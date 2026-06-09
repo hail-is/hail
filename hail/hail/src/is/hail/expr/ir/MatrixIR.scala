@@ -4,6 +4,7 @@ import is.hail.annotations._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
+import is.hail.expr.ir.LowerMatrixIR.{colsFieldName, entriesFieldName}
 import is.hail.expr.ir.analyses.{ColumnCount, PartitionCounts}
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.functions.MatrixToMatrixFunction
@@ -161,10 +162,10 @@ trait MatrixReader {
       else
         mt.rowType.appendKey(LowerMatrixIR.entriesFieldName, TArray(mt.entryType)),
       key = mt.rowKey,
-      globalType = if (includeColsArray)
-        mt.globalType.appendKey(LowerMatrixIR.colsFieldName, TArray(mt.colType))
-      else
-        mt.globalType,
+      globalType =
+        if (includeColsArray)
+          mt.globalType.appendKey(LowerMatrixIR.colsFieldName, TArray(mt.colType))
+        else mt.globalType,
     )
   }
 
@@ -190,25 +191,11 @@ abstract class MatrixHybridReader extends TableReaderWithExtraUID with MatrixRea
     dropCols: Boolean,
     dropRows: Boolean,
   ): TableIR = {
-    var tr: TableIR = TableRead(matrixToTableType(requestedType), dropRows, this)
-    if (dropCols) {
-      // this lowering preserves dropCols using pruning
-      tr = TableMapRows(
-        tr,
-        InsertFields(
-          Ref(TableIR.rowName, tr.typ.rowType),
-          FastSeq(LowerMatrixIR.entriesFieldName -> MakeArray.empty(requestedType.entryType)),
-        ),
-      )
-      tr = TableMapGlobals(
-        tr,
-        InsertFields(
-          Ref(TableIR.globalName, tr.typ.globalType),
-          FastSeq(LowerMatrixIR.colsFieldName -> MakeArray.empty(requestedType.colType)),
-        ),
-      )
-    }
-    tr
+    val tr = TableRead(matrixToTableType(requestedType), dropRows, this)
+    if (!dropCols) tr
+    else tr // this lowering preserves dropCols using pruning
+      .mapGlobals(_.insert(colsFieldName -> MakeArray.empty(requestedType.colType)))
+      .mapRows((_, row) => row.insert(entriesFieldName -> MakeArray.empty(requestedType.entryType)))
   }
 }
 
@@ -288,21 +275,11 @@ class MatrixNativeReader(
       val tt = TableType(requestedType.rowType, requestedType.rowKey, requestedType.globalType)
       val trdr: TableReader =
         new TableNativeReader(TableNativeReaderParameters(rowsPath, params.options), spec.rowsSpec)
-      var tr: TableIR = TableRead(tt, dropRows, trdr)
-      tr = TableMapGlobals(
-        tr,
-        InsertFields(
-          Ref(TableIR.globalName, tr.typ.globalType),
-          FastSeq(LowerMatrixIR.colsFieldName -> MakeArray.empty(requestedType.colType)),
-        ),
-      )
-      TableMapRows(
-        tr,
-        InsertFields(
-          Ref(TableIR.rowName, tr.typ.rowType),
-          FastSeq(LowerMatrixIR.entriesFieldName -> MakeArray.empty(requestedType.entryType)),
-        ),
-      )
+      TableRead(tt, dropRows, trdr)
+        .mapGlobals(_.insert(colsFieldName -> MakeArray.empty(requestedType.colType)))
+        .mapRows((_, row) =>
+          row.insert(entriesFieldName -> MakeArray.empty(requestedType.entryType))
+        )
     } else {
       val tt = matrixToTableType(requestedType, includeColsArray = false)
       val trdr = TableNativeZippedReader(
@@ -312,7 +289,7 @@ class MatrixNativeReader(
         spec.rowsSpec,
         spec.entriesSpec,
       )
-      val tr = TableRead(tt, dropRows, trdr)
+
       val colsRVDSpec = spec.colsSpec.rowsSpec
       val partFiles =
         colsRVDSpec.absolutePartPaths(spec.colsSpec.rowsComponent.absolutePath(colsPath))
@@ -334,13 +311,7 @@ class MatrixNativeReader(
           )(readCols(_, _))
         )
 
-      TableMapGlobals(
-        tr,
-        InsertFields(
-          Ref(TableIR.globalName, tr.typ.globalType),
-          FastSeq(LowerMatrixIR.colsFieldName -> ToArray(cols)),
-        ),
-      )
+      TableRead(tt, dropRows, trdr).mapGlobals(_.insert(colsFieldName -> ToArray(cols)))
     }
   }
 
@@ -408,8 +379,6 @@ case class MatrixRangeReader(
     dropCols: Boolean,
     dropRows: Boolean,
   ): TableIR = {
-    import DeprecatedIRBuilder._
-
     val nRowsAdj = if (dropRows) 0 else params.nRows
     val nColsAdj = if (dropCols) 0 else params.nCols
     var ht =
@@ -417,30 +386,35 @@ case class MatrixRangeReader(
         .rename(Map("idx" -> "row_idx"))
 
     ht = if (requestedType.colType.hasField(colUIDFieldName))
-      ht.mapGlobals(makeStruct(
-        LowerMatrixIR.colsField ->
-          irRange(0, nColsAdj).map('i ~>
-            makeStruct(
-              'col_idx -> 'i,
-              Symbol(colUIDFieldName) -> 'i.toL,
-            ))
-      ))
+      ht.mapGlobals { _ =>
+        makestruct(
+          colsFieldName ->
+            ToArray(rangeIR(nColsAdj).streamMap { i =>
+              makestruct("col_idx" -> i, colUIDFieldName -> i.toL)
+            })
+        )
+      }
     else
-      ht.mapGlobals(makeStruct(
-        LowerMatrixIR.colsField ->
-          irRange(0, nColsAdj).map('i ~> makeStruct('col_idx -> 'i))
-      ))
+      ht.mapGlobals { _ =>
+        makestruct(
+          colsFieldName ->
+            rangeIR(nColsAdj).streamMap(i => makestruct("col_idx" -> i)).toArray
+        )
+      }
 
     if (requestedType.rowType.hasField(rowUIDFieldName))
-      ht.mapRows('row.insertFields(
-        LowerMatrixIR.entriesField -> irRange(0, nColsAdj).map('i ~> makestruct()),
-        Symbol(rowUIDFieldName) -> 'row('row_idx).toL,
-      ))
+      ht.mapRows { (_, row) =>
+        row.insert(
+          entriesFieldName -> rangeIR(nColsAdj).streamMap(_ => makestruct()).toArray,
+          rowUIDFieldName -> row.get("row_idx").toL,
+        )
+      }
     else
-      ht.mapRows('row.insertFields(
-        LowerMatrixIR.entriesField ->
-          irRange(0, nColsAdj).map('i ~> makestruct())
-      ))
+      ht.mapRows { (_, row) =>
+        row.insert(
+          entriesFieldName -> rangeIR(nColsAdj).streamMap(_ => makestruct()).toArray
+        )
+      }
   }
 
   override def toJValue: JValue = {

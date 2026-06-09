@@ -899,7 +899,7 @@ class BlockMatrixStage2 private (
       TableStageDependency.none,
       contextsIR,
       newCtxRef =>
-        MakeStream.single(
+        MakeStream(
           makestruct(
             "blockRow" -> GetTupleElement(newCtxRef, 0),
             "blockCol" -> GetTupleElement(newCtxRef, 1),

@@ -6,9 +6,8 @@ import is.hail.TestUtils._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
-import is.hail.expr.ir.DeprecatedIRBuilder._
 import is.hail.expr.ir.defs.{
-  AggFilter, AggGroupBy, ApplyAggOp, ApplyBinaryPrimOp, ArrayRef, Cast, GetField, I32, InsertFields,
+  AggFilter, AggGroupBy, ApplyAggOp, ApplyBinaryPrimOp, ArrayRef, GetField, I32, InsertFields,
   MakeStruct, MakeTuple, Ref, Str, StreamAgg, StreamAggScan, StreamRange, TableAggregate, ToArray,
   ToStream,
 }
@@ -1229,17 +1228,12 @@ class AggregatorsSuite {
   @Test def testArrayElementsAggregator(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.interpretOnly
 
-    def getAgg(n: Int, m: Int): IR = {
-      val ht = TableRange(10, 3)
-        .mapRows('row.insertFields('aRange -> irRange(0, m, 1)))
-
-      TableAggregate(
-        ht,
-        aggArrayPerElement(
-          GetField(Ref(TableIR.rowName, ht.typ.rowType), "aRange")
-        )((elt, _) => ApplyAggOp(FastSeq(), FastSeq(Cast(elt, TInt64)), Sum())),
-      )
-    }
+    def getAgg(n: Int, m: Int): IR =
+      TableRange(n, 3)
+        .mapRows((_, row) => row.insert("aRange" -> rangeIR(m).toArray))
+        .aggregate((_, row) =>
+          row.get("aRange").aggElements()((elt, _) => ApplyAggOp(Sum())(elt.toL))
+        )
 
     assertEvalsTo(getAgg(10, 10), IndexedSeq.range(0, 10).map(_ * 10L))
   }
@@ -1247,20 +1241,14 @@ class AggregatorsSuite {
   @Test def testArrayElementsAggregatorEmpty(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.interpretOnly
 
-    def getAgg(n: Int, m: Int, knownLength: Option[IR]): IR = {
-      val ht = TableRange(10, 3)
-        .mapRows('row.insertFields('aRange -> irRange(0, m, 1)))
-        .mapGlobals('global.insertFields('m -> m))
-        .filter(false)
-
-      TableAggregate(
-        ht,
-        aggArrayPerElement(
-          GetField(Ref(TableIR.rowName, ht.typ.rowType), "aRange"),
-          knownLength,
-        )((elt, _) => ApplyAggOp(FastSeq(), FastSeq(Cast(elt, TInt64)), Sum())),
-      )
-    }
+    def getAgg(n: Int, m: Int, knownLength: Option[IR]): IR =
+      TableRange(n, 3)
+        .mapRows((_, row) => row.insert("aRange" -> rangeIR(m).toArray))
+        .mapGlobals(_.insert("m" -> I32(m)))
+        .filter((_, _) => false)
+        .aggregate { (_, row) =>
+          row.get("aRange").aggElements(knownLength)((elt, _) => ApplyAggOp(Sum())(elt.toL))
+        }
 
     assertEvalsTo(getAgg(10, 10, None), null)
     assertEvalsTo(getAgg(10, 10, Some(1)), FastSeq(0L))

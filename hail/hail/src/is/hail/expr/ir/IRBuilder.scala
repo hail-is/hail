@@ -32,58 +32,74 @@ class IRBuilder {
 }
 
 sealed abstract class Memoized[S] {
-  import Memoized.{Cont, pure}
+  import Memoized.{Cont, memo}
 
-  def map(f: Atom => IR): Memoized[S] = flatMap(a => pure(f(a)))
+  def map(f: Atom => IR): Memoized[S] = flatMap(a => memo(f(a)))
   def flatMap(f: Atom => Memoized[S]): Memoized[S] = new Cont(this, f)
   def >>(m: Memoized[S]): Memoized[S] = flatMap(_ => m)
 }
 
 object Memoized {
+  private[this] val unit_ : Memoized[Nothing] = pure(0) // ir has no unit
+  @inline def unit[S]: Memoized[S] = unit_.asInstanceOf[Memoized[S]]
+  @inline def pure[S](a: Atom): Memoized[S] = new Pure(a)
+  @inline def let[S](binding: (Name, IR)): Memoized[S] = new Let[S](binding)
+  @inline def defer[S](f: IRBuilder => IR): Memoized[S] = new Suspend(f)
+  @inline def lift[S](m: Memoized[S]): Lifted[S] = new Lifted[S](m)
 
-  def pure[S](ir: IR): Memoized[S] = new Mem[S](ir)
-  def let[S](n: Name, ir: IR): Memoized[S] = new Let[S](n, ir)
-  def defer[S](f: IRBuilder => IR): Memoized[S] = new Suspend(f)
+  @inline def sequence[S](exprs: Memoized[S]*): Memoized[S] = exprs.foldLeft(unit[S])(_ >> _)
+
+  @inline def memo[S](ir: IR): Memoized[S] =
+    ir match {
+      case a: Atom => pure(a)
+      case big => let(freshName() -> big)
+    }
 
   sealed abstract class HasScope[S](val scope: Scope)
   implicit object evalScope extends HasScope[EVAL.type](EVAL)
   implicit object aggScope extends HasScope[AGG.type](AGG)
   implicit object scanScope extends HasScope[SCAN.type](SCAN)
 
-  def eval(m: Memoized[EVAL.type]): IR = m
-  def agg(m: Memoized[AGG.type]): IR = m
-  def scan(m: Memoized[SCAN.type]): IR = m
+  @inline def eval(m: Memoized[EVAL.type]): IR = m
+  @inline def agg(m: Memoized[AGG.type]): IR = m
+  @inline def scan(m: Memoized[SCAN.type]): IR = m
 
-  final private class Mem[S](val expr: IR) extends Memoized[S]
-  final private class Let[S](val name: Name, val expr: IR) extends Memoized[S]
+  final private class Pure[S](val a: Atom) extends Memoized[S]
+  final private class Let[S](val binding: (Name, IR)) extends Memoized[S]
   final private class Cont[S](val m: Memoized[S], val f: Atom => Memoized[S]) extends Memoized[S]
   final private class Suspend[S](val f: IRBuilder => IR) extends Memoized[S]
 
-  private def run[S](m0: Memoized[S])(b: IRBuilder)(implicit ev: HasScope[S]): IR = {
+  final class Lifted[S](val m: Memoized[S]) extends AnyVal
+
+  private def run[S](m0: Memoized[S])(ib: IRBuilder)(implicit ev: HasScope[S]): IR = {
     @tailrec def go(m: Memoized[S], stack: List[Atom => Memoized[S]]): IR =
       m match {
-        case m: Mem[S @unchecked] =>
-          stack match {
-            case Nil => m.expr
-            case k :: rest => go(k(b.memoize(m.expr, scope = ev.scope)), rest)
-          }
-
         case m: Let[S @unchecked] =>
+          val b = m.binding
           stack match {
-            case Nil => m.expr
-            case k :: rest => go(k(b.strictMemoize(m.expr, m.name, ev.scope)), rest)
+            case Nil => b._2
+            case k :: rest => go(k(ib.strictMemoize(b._2, b._1, ev.scope)), rest)
           }
 
         case m: Cont[S @unchecked] =>
           go(m.m, m.f :: stack)
 
+        case m: Pure[S @unchecked] =>
+          stack match {
+            case Nil => m.a
+            case k :: rest => go(k(m.a), rest)
+          }
+
         case m: Suspend[S @unchecked] =>
-          go(pure(m.f(b)), stack)
+          go(memo(m.f(ib)), stack)
       }
 
     go(m0, Nil)
   }
 
-  implicit def memoizedToIR[S: HasScope](m: Memoized[S]): IR =
+  implicit private def memoizedToIR[S: HasScope](m: Memoized[S]): IR =
     IRBuilder.scoped(run[S](m))
+
+  implicit def liftedToMemoized[S0: HasScope, S](m: Lifted[S0]): Memoized[S] =
+    defer[S](run(m.m))
 }

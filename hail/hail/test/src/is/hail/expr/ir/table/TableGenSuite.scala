@@ -201,6 +201,6 @@ class TableGenSuite {
       partitioner.getOrElse(RVDPartitioner.unkeyed(ctx.stateManager, 2)),
       errorId.getOrElse(ErrorIDs.NO_ERROR),
     )(
-      body.getOrElse((c, g) => MakeStream.single(makestruct("a" -> c * GetField(g, "g"))))
+      body.getOrElse((c, g) => MakeStream(makestruct("a" -> c * GetField(g, "g"))))
     )
 }

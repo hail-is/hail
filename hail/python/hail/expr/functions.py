@@ -7162,8 +7162,14 @@ def _escape_string(s):
 @typecheck(left=expr_any, right=expr_any, tolerance=expr_float64, absolute=expr_bool)
 def _values_similar(left, right, tolerance=1e-6, absolute=False):
     assert left.dtype == right.dtype
-    return (is_missing(left) & is_missing(right)) | (
-        (is_defined(left) & is_defined(right)) & _func("valuesSimilar", hl.tbool, left, right, tolerance, absolute)
+    return bind(
+        lambda l, r: bind(
+            lambda lmissing: (lmissing == is_missing(r))
+            & (lmissing | _func("valuesSimilar", hl.tbool, l, r, tolerance, absolute)),
+            is_missing(l),
+        ),
+        left,
+        right,
     )
 
 

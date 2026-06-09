@@ -244,8 +244,8 @@ class MatrixIRSuite {
     (FastSeq("a", "b", "c"), FastSeq()),
   )
 
-  @ParameterizedTest
-  def testMatrixExplode(
+  @ParameterizedTest("testMatrixExplode")
+  def testMatrixExplodeRows(
     path: IndexedSeq[String],
     collection: IndexedSeq[Integer],
   )(implicit
@@ -262,6 +262,22 @@ class MatrixIRSuite {
       getRows(MatrixExplodeRows(annotated, path)).map(q(_).asInstanceOf[Integer])
 
     val expected = if (collection == null) Array[Integer]() else Array.fill(5)(collection).flatten
+    assert(exploded sameElements expected)
+  }
+
+  @ParameterizedTest("testMatrixExplode")
+  def testMatrixExplodeCols(
+    path: IndexedSeq[String],
+    collection: IndexedSeq[Integer],
+  )(implicit
+    ctx: ExecuteContext
+  ): Unit = {
+    var mt = rangeMatrix(5, 2, None)
+    val field = path.init.foldRight(path.last -> toIRArray(collection))(_ -> IRStruct(_))
+    mt = MatrixMapCols(mt, Ref(MatrixIR.colName, mt.typ.colType).insert(field), None)
+    val q = mt.typ.colType.query(path: _*)
+    val exploded = getCols(MatrixExplodeCols(mt, path)).map(q(_).asInstanceOf[Integer])
+    val expected = if (collection == null) Array[Integer]() else Array.fill(2)(collection).flatten
     assert(exploded sameElements expected)
   }
 
