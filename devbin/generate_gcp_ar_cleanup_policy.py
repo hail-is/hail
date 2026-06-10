@@ -126,6 +126,9 @@ def scrape_build_yaml(file_path: str):
 deploy_packages.extend(scrape_build_yaml('build.yaml'))
 deploy_packages.extend(scrape_build_yaml('ci/test/resources/build.yaml'))
 
+# hail-benchmark is pushed by benchmark_in_batch.py at runtime, not a buildImage2 step
+deploy_packages.append('hail-benchmark')
+
 deploy_packages = list(set(deploy_packages))
 
 third_party_packages.sort()
