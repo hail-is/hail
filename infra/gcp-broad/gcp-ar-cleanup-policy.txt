@@ -74,6 +74,19 @@
         }
     },
     {
+        "name": "delete_deploy",
+        "action": {
+            "type": "Delete"
+        },
+        "condition": {
+            "tagState": "tagged",
+            "tagPrefixes": [
+                "deploy-"
+            ],
+            "olderThan": "30d"
+        }
+    },
+    {
         "name": "keep_third_party",
         "action": {
             "type": "Keep"
@@ -113,6 +126,7 @@
                 "create_certs_image",
                 "git-make-bash",
                 "gpu",
+                "hail-benchmark",
                 "hail-buildkit",
                 "hail-dev",
                 "hail-run",
