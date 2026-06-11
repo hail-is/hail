@@ -1,48 +1,105 @@
 import os
 
+import aiohttp_jinja2
+import jinja2
 from hailtop import httpx
 from hailtop.config import get_deploy_config
 from hailtop.auth import hail_credentials
 from hailtop.aiocloud.common import Session
-from gear.system_permissions import SystemPermission
+from gear import new_csrf_token, SystemPermission
 
-from web_common import render_template, setup_aiohttp_jinja2, setup_common_static_routes, web_security_headers
+from web_common import base_context, setup_common_static_routes, web_security_headers
+from web_common.web_common import WEB_COMMON_ROOT, TAILWIND_SERVICES
 
 from aiohttp import web
 import aiohttp_session
 from aiohttp_session.cookie_storage import EncryptedCookieStorage
 
-SERVICE = os.environ['SERVICE']
-
 deploy_config = get_deploy_config()
+
+# All services the devserver can proxy to
+ALL_SERVICES: frozenset[str] = frozenset(['batch', 'batch-driver', 'ci', 'monitoring', 'auth'])
+
+# Service name → Python module for template loading (only services that differ)
+MODULES: dict[str, str] = {'batch': 'batch.front_end', 'batch-driver': 'batch.driver'}
+
+# Per-service jinja2 app keys — needed to avoid template-name conflicts between services
+_SERVICE_APP_KEYS: dict[str, web.AppKey] = {
+    svc: web.AppKey(f'jinja_{svc}', jinja2.Environment)
+    for svc in ALL_SERVICES
+}
 
 routes = web.RouteTableDef()
 setup_common_static_routes(routes)
 
-STATIC_DIRS: dict[str, list[tuple[str, str]]] = {
-    'batch': [
-        ('/batch/static/compiled-js', 'batch/batch/front_end/static/compiled-js'),
-        ('/batch/static/js', 'batch/batch/front_end/static/js'),
-    ],
-    'batch-driver': [
-        ('/batch/static/compiled-js', 'batch/batch/driver/static/compiled-js'),
-    ],
-    'ci': [('/ci/static/compiled-js', 'ci/ci/static/compiled-js')],
-    'monitoring': [('/monitoring/static/compiled-js', 'monitoring/monitoring/static/compiled-js')],
-    'auth': [('/auth/static/compiled-js', 'auth/auth/static/compiled-js')],
-}
-for _path, _directory in STATIC_DIRS.get(SERVICE, []):
+# With base_path = '/<service>', templates generate '/<service>/<svc-name>/static/...'
+# so static routes must carry both the service prefix and the hardcoded service path.
+_ALL_STATIC_DIRS: list[tuple[str, str]] = [
+    ('/batch/batch/static/compiled-js', 'batch/batch/front_end/static/compiled-js'),
+    ('/batch/batch/static/js', 'batch/batch/front_end/static/js'),
+    ('/batch-driver/batch/static/compiled-js', 'batch/batch/driver/static/compiled-js'),
+    ('/batch-driver/batch_driver/static/js', 'batch/batch/driver/static/js'),
+    ('/ci/ci/static/compiled-js', 'ci/ci/static/compiled-js'),
+    ('/monitoring/monitoring/static/compiled-js', 'monitoring/monitoring/static/compiled-js'),
+    ('/auth/auth/static/compiled-js', 'auth/auth/static/compiled-js'),
+]
+for _path, _directory in _ALL_STATIC_DIRS:
     routes.static(_path, _directory)
+
+# common_static must also be service-prefixed
+_WEB_COMMON_STATIC = f'{WEB_COMMON_ROOT}/static'
+for _svc in ALL_SERVICES:
+    routes.static(f'/{_svc}/common_static', _WEB_COMMON_STATIC)
+
 _IS_DEVELOPER_ENV = os.getenv('IS_DEVELOPER')
 IS_DEVELOPER: bool | None = None if _IS_DEVELOPER_ENV is None else _IS_DEVELOPER_ENV.lower() not in ('0', 'false', 'no', '')
-MODULES = {'batch': 'batch.front_end', 'batch-driver': 'batch.driver'}
+
+_FAKE_DEV_USERDATA = {'username': 'dev', 'system_permissions': {p.value: True for p in SystemPermission}}
+
 BC = web.AppKey('backend_client', Session)
 
-@routes.view('/api/{route:.*}')
+
+def _service_from_path(path: str) -> str | None:
+    first_segment = path.lstrip('/').split('/')[0]
+    return first_segment if first_segment in ALL_SERVICES else None
+
+
+def _backend_url(service: str, raw_path: str) -> str:
+    """Strip the /<service> prefix from the devserver path before forwarding."""
+    prefix = f'/{service}'
+    stripped = raw_path[len(prefix):] if raw_path.startswith(prefix) else raw_path
+    if stripped and not stripped.startswith('/'):
+        stripped = '/' + stripped
+    return deploy_config.external_url(service, stripped or '/')
+
+
+# Pages served from local templates (React shell with client-side data fetching).
+# Paths include the service prefix that matches the new URL model.
+_LOCAL_REACT_ROUTES: list[tuple[str, str, str, str]] = [
+    ('monitoring',   'GET', '/monitoring/helloreact', 'hello_react.html'),
+    ('auth',         'GET', '/auth/helloreact', 'hello_react.html'),
+    ('batch-driver', 'GET', '/batch-driver/helloreact', 'hello_react.html'),
+    ('ci',           'GET', '/ci/flaky_tests', 'flaky_tests.html'),
+]
+
+for _service, _verb, _path, _template in _LOCAL_REACT_ROUTES:
+    async def _local_handler(
+        request: web.Request,
+        _s: str = _service,
+        _t: str = _template,
+    ) -> web.Response:
+        return await _render_html(request, _s, _FAKE_DEV_USERDATA, _t, {'use_tailwind': True})
+    routes.route(_verb, _path)(web_security_headers(_local_handler))
+
+
+@routes.view('/{service:[^/]+}/api/{route:.*}')
 @web_security_headers
-async def default_proxied_api_route(request: web.Request):
+async def default_proxied_api_route(request: web.Request) -> web.Response:
+    service = request.match_info['service']
+    if service not in ALL_SERVICES:
+        raise web.HTTPNotFound()
     backend_client = request.app[BC]
-    backend_route = deploy_config.external_url(SERVICE, request.raw_path)
+    backend_route = _backend_url(service, request.raw_path)
     try:
         async with await backend_client.request(request.method, backend_route) as resp:
             body = await resp.read()
@@ -54,121 +111,18 @@ async def default_proxied_api_route(request: web.Request):
     return web.Response(body=body, content_type=content_type)
 
 
-_FAKE_DEV_USERDATA = {'username': 'dev', 'system_permissions': {p.value: True for p in SystemPermission}}
-
-# Pages served entirely from local templates (React shell + client-side data fetching).
-# Add new react-first pages here: (service, method, path, template).
-_LOCAL_REACT_ROUTES: list[tuple[str, str, str, str]] = [
-    ('monitoring',   'GET', '/helloreact', 'hello_react.html'),
-    ('auth',         'GET', '/helloreact', 'hello_react.html'),
-    ('batch-driver', 'GET', '/helloreact', 'hello_react.html'),
-    ('ci',           'GET', '/flaky_tests', 'flaky_tests.html'),
-]
-
-for _service, _verb, _path, _template in _LOCAL_REACT_ROUTES:
-    if _service == SERVICE:
-        async def _handler(request: web.Request, _m=MODULES.get(_service, _service), _t=_template) -> web.Response:
-            return await render_template(_m, request, _FAKE_DEV_USERDATA, _t, {'use_tailwind': True, 'base_path': ''})
-        routes.route(_verb, _path)(web_security_headers(_handler))
-
-if SERVICE == 'ci':
-
-    if os.getenv('MOCK_API_DATA'):
-
-        @routes.get('/api/v1alpha/retried_tests')
-        async def retried_tests_mock(request: web.Request):
-            import random
-            from datetime import datetime, timedelta, timezone
-            from dateutil.parser import isoparse
-            now = datetime.now(timezone.utc)
-            rng = random.Random(42)
-
-            job_names = [
-                'test_hail_python', 'test_hail_python_unchecked_allocator',
-                'test_hail_java', 'test_batch', 'test_hailtop_python_fs', 'test_ci',
-            ]
-            branches = [
-                'big-refactor', 'perf-improvements', 'fix-aggregations', 'new-backend',
-                'query-optimiser', 'type-system', 'batch-scaling', 'fs-cleanup',
-                'ci-overhaul', 'docs-update', 'spark-compat', 'memory-fixes',
-                'interval-tree', 'mt-operations', 'vcf-export', 'wgs-pipeline',
-                'locus-expr', 'shuffle-fix', 'jvm-warmup', 'codec-v2',
-                'auth-refresh', 'billing-v2', 'driver-oom', 'worker-pool',
-                'hailtop-async',
-            ]
-            # one heavy retrier, a few occasional ones
-            retried_by_pool = ['ci'] * 14 + ['turbo_tester'] * 3 + ['retry_queen'] * 2 + ['flaky_mcflakeface']
-
-            # assign each branch a window within the last 90 days
-            pr_base = 15200
-            prs = []
-            for i, branch in enumerate(branches):
-                start_days_ago = rng.uniform(2, 90)
-                lifespan = rng.uniform(1, 6)
-                n_retries = rng.choices(
-                    [0, 1, 2, 3, 5, 8, 12, 20, 35, 50],
-                    weights=[5, 10, 15, 15, 12, 10, 8, 5, 3, 2],
-                )[0]
-                prs.append((pr_base + i, branch, start_days_ago, lifespan, n_retries))
-
-            # generate retry events; group nearby retries on the same PR into a batch
-            retries = []
-            batch_counter = 8000
-            for pr_number, branch, start_days_ago, lifespan, n_retries in prs:
-                source_sha = rng.randbytes(3).hex()
-                pr_retries = []
-                for _ in range(n_retries):
-                    days_ago = rng.uniform(max(0, start_days_ago - lifespan), start_days_ago)
-                    pr_retries.append(now - timedelta(days=days_ago, seconds=rng.randint(0, 3600)))
-                pr_retries.sort()
-
-                # group into batches: new batch if gap > 2 hours
-                batch_id = None
-                batch_ts = None
-                job_counter: dict = {}
-                for ts in pr_retries:
-                    if batch_ts is None or (ts - batch_ts).total_seconds() > 7200:
-                        batch_counter += 1
-                        batch_id = batch_counter
-                        batch_ts = ts
-                        job_counter = {}
-                    job_name = f'{rng.choice(job_names)}_{rng.randint(1, 6)}'
-                    job_counter[job_name] = job_counter.get(job_name, 0) + 1
-                    state = rng.choices(['Failed', 'Error'], weights=[3, 1])[0]
-                    retries.append({
-                        'batch_id': batch_id,
-                        'job_id': job_counter[job_name],
-                        'job_name': job_name,
-                        'state': state,
-                        'exit_code': 1 if state == 'Failed' else None,
-                        'pr_number': pr_number,
-                        'target_branch': 'main',
-                        'source_branch': branch,
-                        'source_sha': source_sha,
-                        'retried_by': rng.choice(retried_by_pool),
-                        'retried_at': ts.isoformat(),
-                    })
-
-            retries.sort(key=lambda r: r['retried_at'], reverse=True)
-            rows = [{'id': i + 1, **r} for i, r in enumerate(retries)]
-            after_str = request.rel_url.query.get('after')
-            if after_str is not None:
-                after_dt = isoparse(after_str)
-            else:
-                after_dt = datetime.now(timezone.utc) - timedelta(days=14)
-            rows = [r for r in rows if isoparse(r['retried_at']) >= after_dt]
-            return web.json_response({'rows': rows, 'cursor': None, 'has_more': False})
-
-
 @routes.view('/{route:.*}')
 @web_security_headers
-async def default_proxied_web_route(request: web.Request):
-    return await render_html(request, await proxy(request))
+async def default_proxied_web_route(request: web.Request) -> web.Response:
+    service = _service_from_path(request.path)
+    if service is None:
+        raise web.HTTPNotFound()
+    return await _render_html(request, service, **await _proxy(request, service))
 
 
-async def proxy(request: web.Request):
+async def _proxy(request: web.Request, service: str) -> dict:
     backend_client = request.app[BC]
-    backend_route = deploy_config.external_url(SERVICE, request.raw_path)
+    backend_route = _backend_url(service, request.raw_path)
     headers = {'x-hail-return-jinja-context': '1'}
     try:
         async with await backend_client.request(request.method, backend_route, headers=headers) as resp:
@@ -179,22 +133,53 @@ async def proxy(request: web.Request):
         raise
 
 
-async def render_html(request: web.Request, context: dict):
-    # Make links point back to the local dev server and not use
-    # the dev namespace path rewrite shenanigans.
-    context['page_context']['base_path'] = ''
+async def _render_html(
+    request: web.Request,
+    service: str,
+    userdata,
+    file: str,
+    page_context: dict,
+    status_code: int = 200,
+) -> web.Response:
+    page_context['base_path'] = f'/{service}'
     if IS_DEVELOPER is not None:
         all_permissions = {p.value: IS_DEVELOPER for p in SystemPermission}
-        context['page_context']['system_permissions'] = all_permissions
-        context['userdata']['system_permissions'] = all_permissions
-    return await render_template(SERVICE, request, **context)
+        page_context['system_permissions'] = all_permissions
+        if userdata:
+            userdata = dict(userdata)
+            userdata['system_permissions'] = all_permissions
+
+    if '_csrf' in request.cookies:
+        csrf_token = request.cookies['_csrf']
+    else:
+        csrf_token = new_csrf_token()
+
+    session = await aiohttp_session.get_session(request)
+    context = base_context(session, userdata, service)
+    context.update({
+        'base_url': f'/{service}',
+        'auth_base_url': '/auth',
+        'batch_base_url': '/batch',
+        'batch_driver_base_url': '/batch-driver',
+        'ci_base_url': '/ci',
+        'monitoring_base_url': '/monitoring',
+    })
+    context.update(page_context)
+    context['use_tailwind'] = page_context.get('use_tailwind', service in TAILWIND_SERVICES)
+    context['csrf_token'] = csrf_token
+
+    response = aiohttp_jinja2.render_template(
+        file, request, context, app_key=_SERVICE_APP_KEYS[service], status=status_code
+    )
+    response.set_cookie('_csrf', csrf_token, secure=True, httponly=True, samesite='strict')
+    return response
 
 
-async def on_startup(app: web.Application):
+async def on_startup(app: web.Application) -> None:
     app[BC] = Session(credentials=hail_credentials())
 
 
-async def on_cleanup(app: web.Application):
+async def on_cleanup(app: web.Application) -> None:
     await app[BC].close()
 
 
@@ -210,7 +195,17 @@ async def dev_csp_middleware(request: web.Request, handler):
 
 
 app = web.Application(middlewares=[dev_csp_middleware])
-setup_aiohttp_jinja2(app, MODULES.get(SERVICE, SERVICE))
+
+# Set up a separate jinja2 env per service to avoid template-name conflicts
+for _svc in ALL_SERVICES:
+    _module = MODULES.get(_svc, _svc)
+    _env = aiohttp_jinja2.setup(
+        app,
+        loader=jinja2.ChoiceLoader([jinja2.PackageLoader('web_common'), jinja2.PackageLoader(_module)]),
+        app_key=_SERVICE_APP_KEYS[_svc],
+    )
+    _env.add_extension('jinja2.ext.do')
+
 app.add_routes(routes)
 app.on_startup.append(on_startup)
 app.on_cleanup.append(on_cleanup)

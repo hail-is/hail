@@ -187,47 +187,36 @@ hail-buildkit-image: ci/buildkit/Dockerfile
 	./docker-build.sh ci buildkit/Dockerfile $(IMAGE_NAME) --build-arg DOCKER_PREFIX=$(DOCKER_PREFIX)
 	echo $(IMAGE_NAME) > $@
 
-services/ui/dist/ci/flaky_tests.js: $(shell git ls-files services/ui)
-	cd services/ui && npm ci && npm run build
+services/ui/dist/.built: services/ui/node_modules/.package-lock.json $(shell git ls-files services/ui)
+	cd services/ui && npm run build
+	touch $@
 
-ci/ci/static/compiled-js/flaky_tests.js: services/ui/dist/ci/flaky_tests.js
-	mkdir -p ci/ci/static/compiled-js
+ci/ci/static/compiled-js/flaky_tests.js: services/ui/dist/.built
+	mkdir -p $(@D)
 	cp services/ui/dist/ci/flaky_tests.js $@
 
 ci-image: ci/ci/static/compiled-js/flaky_tests.js
 
-services/ui/dist/batch/job.js: $(shell git ls-files services/ui)
-	cd services/ui && npm ci && npm run build
-
-batch/batch/front_end/static/compiled-js/job.js: services/ui/dist/batch/job.js
-	mkdir -p batch/batch/front_end/static/compiled-js
+batch/batch/front_end/static/compiled-js/job.js: services/ui/dist/.built
+	mkdir -p $(@D)
 	cp services/ui/dist/batch/job.js $@
 
 batch-image: batch/batch/front_end/static/compiled-js/job.js
 
-services/ui/dist/batch_driver/index.js: $(shell git ls-files services/ui)
-	cd services/ui && npm ci && npm run build
-
-batch/batch/driver/static/compiled-js/index.js: services/ui/dist/batch_driver/index.js
-	mkdir -p batch/batch/driver/static/compiled-js
+batch/batch/driver/static/compiled-js/index.js: services/ui/dist/.built
+	mkdir -p $(@D)
 	cp services/ui/dist/batch_driver/index.js $@
 
 batch-image: batch/batch/driver/static/compiled-js/index.js
 
-services/ui/dist/monitoring/index.js: $(shell git ls-files services/ui)
-	cd services/ui && npm ci && npm run build
-
-monitoring/monitoring/static/compiled-js/index.js: services/ui/dist/monitoring/index.js
-	mkdir -p monitoring/monitoring/static/compiled-js
+monitoring/monitoring/static/compiled-js/index.js: services/ui/dist/.built
+	mkdir -p $(@D)
 	cp services/ui/dist/monitoring/index.js $@
 
 monitoring-image: monitoring/monitoring/static/compiled-js/index.js
 
-services/ui/dist/auth/index.js: $(shell git ls-files services/ui)
-	cd services/ui && npm ci && npm run build
-
-auth/auth/static/compiled-js/index.js: services/ui/dist/auth/index.js
-	mkdir -p auth/auth/static/compiled-js
+auth/auth/static/compiled-js/index.js: services/ui/dist/.built
+	mkdir -p $(@D)
 	cp services/ui/dist/auth/index.js $@
 
 auth-image: auth/auth/static/compiled-js/index.js
@@ -295,33 +284,16 @@ endif
 tailwind-compile-watch:
 	cd web_common && npx tailwindcss --watch -i input.css -o web_common/static/css/output.css
 
-ifeq ($(SERVICE),ci)
-run-dev-proxy: ci/ci/static/compiled-js/flaky_tests.js
-tailwind-compile-watch: ci/ci/static/compiled-js/flaky_tests.js
-DEVSERVER_TARGETS = tailwind-compile-watch run-dev-proxy ui-js-watch
-else ifeq ($(SERVICE),batch)
-run-dev-proxy: batch/batch/front_end/static/compiled-js/job.js
-tailwind-compile-watch: batch/batch/front_end/static/compiled-js/job.js
-DEVSERVER_TARGETS = tailwind-compile-watch run-dev-proxy ui-js-watch-batch
-else ifeq ($(SERVICE),batch-driver)
-run-dev-proxy: batch/batch/driver/static/compiled-js/index.js
-tailwind-compile-watch: batch/batch/driver/static/compiled-js/index.js
-DEVSERVER_TARGETS = tailwind-compile-watch run-dev-proxy ui-js-watch-batch-driver
-else ifeq ($(SERVICE),monitoring)
-run-dev-proxy: monitoring/monitoring/static/compiled-js/index.js
-tailwind-compile-watch: monitoring/monitoring/static/compiled-js/index.js
-DEVSERVER_TARGETS = tailwind-compile-watch run-dev-proxy ui-js-watch-monitoring
-else ifeq ($(SERVICE),auth)
-run-dev-proxy: auth/auth/static/compiled-js/index.js
-tailwind-compile-watch: auth/auth/static/compiled-js/index.js
-DEVSERVER_TARGETS = tailwind-compile-watch run-dev-proxy ui-js-watch-auth
-else
-DEVSERVER_TARGETS = tailwind-compile-watch run-dev-proxy
-endif
+run-dev-proxy: ci/ci/static/compiled-js/flaky_tests.js \
+    batch/batch/front_end/static/compiled-js/job.js \
+    batch/batch/driver/static/compiled-js/index.js \
+    monitoring/monitoring/static/compiled-js/index.js \
+    auth/auth/static/compiled-js/index.js
+DEVSERVER_TARGETS = tailwind-compile-watch run-dev-proxy ui-js-watch ui-js-watch-batch ui-js-watch-batch-driver ui-js-watch-monitoring ui-js-watch-auth
 
 .PHONY: run-dev-proxy
 run-dev-proxy:
-	SERVICE=$(SERVICE) adev runserver --root . --static web_common/web_common/static devbin/dev_proxy.py
+	adev runserver --root . --static web_common/web_common/static devbin/dev_proxy.py
 
 services/ui/node_modules/.package-lock.json: services/ui/package.json services/ui/package-lock.json
 	npm ci --prefix services/ui
@@ -353,12 +325,9 @@ check-devserver-deps:
 		echo 'fix: run "make install-dev-requirements" (and/or "source .venv/bin/activate" if using a venv)' >&2; \
 		exit 1; \
 	fi
-	@SERVICE=$(SERVICE) python3 -c "\
-import importlib.metadata as m, sys, os; \
-svc = os.environ.get('SERVICE', ''); \
-pkg_alias = {'batch-driver': 'batch'}; \
-svc_pkg = pkg_alias.get(svc, svc); \
-pkgs = ['gear', 'web_common'] + ([svc_pkg] if svc_pkg else []); \
+	@python3 -c "\
+import importlib.metadata as m, sys; \
+pkgs = ['gear', 'web_common', 'batch', 'ci', 'monitoring', 'auth']; \
 installed = {d.name for d in m.distributions()}; \
 missing = [p for p in pkgs if p not in installed]; \
 (print('error: missing packages: ' + ', '.join(missing), file=sys.stderr), \
@@ -367,7 +336,7 @@ missing = [p for p in pkgs if p not in installed]; \
 
 .PHONY: devserver
 devserver: check-devserver-deps
-	$(MAKE) -j 3 $(DEVSERVER_TARGETS)
+	$(MAKE) -j 7 $(DEVSERVER_TARGETS)
 
 .PHONY: benchmark
 benchmark: hail-dev-image
