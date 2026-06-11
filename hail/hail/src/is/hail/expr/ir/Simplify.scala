@@ -18,7 +18,7 @@ object Simplify {
 
   /** Transform 'ir' using simplification rules until none apply. */
   def apply(ctx: ExecuteContext, ir: BaseIR): BaseIR =
-    ctx.time(recur(ctx, ir))
+    TimedBlock.enter(recur(ctx, ir))
 
   private[this] def recur(ctx: ExecuteContext, ir: BaseIR): BaseIR =
     ir match {

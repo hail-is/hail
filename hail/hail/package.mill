@@ -200,7 +200,7 @@ trait RootHailModule extends CrossScalaModule, HailScalaModule:
     override def mvnDeps: T[Seq[Dep]] =
       outer.mvnDeps() ++ Seq[Dep](
         `junit-platform-launcher`,
-        `junit-jupiter-api`,
+        `junit-platform-jfr`,
         `junit-jupiter-api`,
         `junit-jupiter-params`,
 

@@ -345,7 +345,7 @@ class SparkBackend(val spark: SparkSession) extends Backend with Logging {
   }
 
   override def execute(ctx: ExecuteContext, ir0: IR): Either[Unit, (PTuple, Long)] =
-    ctx.time {
+    TimedBlock.enter {
       TypeCheck(ctx, ir0)
       Validate(ir0)
       val ir = NormalizeNames()(ctx, ir0)

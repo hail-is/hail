@@ -3,11 +3,12 @@ package is.hail.expr.ir.lowering
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{Requiredness, _}
 import is.hail.types._
+import is.hail.utils.TimedBlock
 
 object LowerAndExecuteShuffles {
 
   def apply(ir: BaseIR, ctx: ExecuteContext): BaseIR =
-    ctx.time {
+    TimedBlock.enter {
       RewriteBottomUp(
         ir,
         {

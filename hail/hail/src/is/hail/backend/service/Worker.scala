@@ -8,7 +8,6 @@ import is.hail.io.fs._
 import is.hail.services._
 import is.hail.utils._
 
-import scala.collection.mutable
 import scala.concurrent.{Await, ExecutionContext, ExecutionException, Future}
 import scala.concurrent.duration.Duration
 
@@ -23,29 +22,6 @@ class ServiceTaskContext(val partitionId: Int) extends HailTaskContext {
   override def stageId(): Int = 0
 
   override def attemptNumber(): Int = 0
-}
-
-class WorkerTimer extends Logging {
-
-  var startTimes: mutable.Map[String, Long] = mutable.Map()
-
-  def start(label: String): Unit =
-    startTimes.update(label, System.nanoTime())
-
-  def end(label: String): Unit = {
-    val endTime = System.nanoTime()
-    val startTime = startTimes.get(label)
-    startTime.foreach { s =>
-      val durationMS = "%.6f".format((endTime - s).toDouble / 1000000.0)
-      logger.info(s"$label took $durationMS ms.")
-    }
-  }
-
-  def enter[A](label: String)(f: => A): A = {
-    start(label)
-    try f
-    finally end(label)
-  }
 }
 
 // Java's ObjectInputStream does not properly use the context classloader that
@@ -172,14 +148,13 @@ object Worker extends Logging {
     val root = argv(4)
     val partition = argv(5).toInt
     val index = argv(6).toInt
-    val timer = new WorkerTimer()
+    val timer = new TimedBlock(s"Worker partition $partition, index $index")
+    timer.begin()
 
     sys.env.get("HAIL_SSL_CONFIG_DIR").foreach(tls.setSSLConfigFromDir)
 
     logger.info(s"Hail $PrettyVersion")
     logger.info(s"running partition $partition root '$root' with scratch directory '$scratchDir'")
-
-    timer.start(s"partition $partition")
 
     val hcl = new HailClassLoader(getClass.getClassLoader)
 
@@ -206,7 +181,7 @@ object Worker extends Logging {
       fs.openNoCompression(x)
 
     val inputs: Either[Throwable, (Array[Byte], Array[Byte], PartitionFn)] =
-      timer.enter("read inputs") {
+      TimedBlock.enter("read inputs") {
         val globals = Future {
           retryTransientErrors {
             using(open(s"$root/globals"))(_.readAllBytes())
@@ -247,7 +222,7 @@ object Worker extends Logging {
 
     val result: Either[Throwable, Array[Byte]] =
       inputs.flatMap { case (globals, context, f) =>
-        timer.enter("execute") {
+        TimedBlock.enter("execute") {
           try
             using(new ServiceTaskContext(partition)) { htc =>
               retryTransientErrors {
@@ -262,13 +237,13 @@ object Worker extends Logging {
         }
       }
 
-    timer.enter("write outputs") {
+    TimedBlock.enter("write outputs") {
       retryTransientErrors {
         fs.writePDOS(s"$root/result.$index")(dos => WireProtocol.write(dos, partition, result))
       }
     }
 
-    timer.end(s"partition $partition")
+    timer.commit()
     logger.info(s"finished job $index at root $root")
 
     result.left.foreach { throwableWhileExecutingUserCode =>

@@ -18,7 +18,7 @@ object TypeCheck {
     apply(ctx, ir, BindingEnv.empty)
 
   def apply(ctx: ExecuteContext, ir: BaseIR, env: BindingEnv[Type]): Unit =
-    ctx.time {
+    TimedBlock.enter {
       try
         check(ctx, ir, env).run()
       catch {

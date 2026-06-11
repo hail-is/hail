@@ -121,7 +121,7 @@ object PruneDeadFields extends Logging {
   }
 
   def apply(ctx: ExecuteContext, ir: BaseIR): BaseIR =
-    ctx.time {
+    TimedBlock.enter {
       try {
         val irCopy = ir.deepCopy
         val ms = new ComputeMutableState

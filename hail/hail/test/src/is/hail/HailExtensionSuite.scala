@@ -21,7 +21,7 @@ import org.junit.jupiter.api.Assertions.{assertSame, assertTrue}
   *   - Each `@ParameterizedTest` invocation shares one `ExecuteContext` (and `Region`) with the
   *     factory that produced its arguments and with every other invocation.
   *   - Different test methods receive distinct per-method state: `ExecuteContext`, `Region`,
-  *     `ExecutionTimer`, `tempFileManager`, `irMetadata`.
+  *     `tempFileManager`, `irMetadata`.
   *   - The class-level IR caches (`BlockMatrixCache`, `CompileCache`, `PersistedIrCache`,
   *     `PersistedCoercerCache`) are the same mutable-map instances across every test method.
   *
@@ -39,14 +39,11 @@ import org.junit.jupiter.api.Assertions.{assertSame, assertTrue}
   *   - Separate `ClassLevelIrCaches` per class (vs. shared `SharedResources` across classes).
   *     Observable only by cross-class state, which would couple this suite to a second suite's
   *     execution order.
-  *   - `ExecutionTimer.finished` is private with no accessor, so we can't assert
-  *     `OwnedExecuteContext.close` called `timer.finish()` on scope-end.
-  *   - Region invalidation on scope-end. The design says JUnit closing the stored
-  *     `OwnedExecuteContext` "releases the Region", but `OwnedExecuteContext.close` only calls
-  *     `ctx.close()` which closes `tempFileManager` and `taskContext` — not the Region. A
-  *     `previousCtx.r.isValid() == false` assertion in `@BeforeEach` of the next method would fail
-  *     on the current code. Treating it as a probable code bug rather than asserting a property
-  *     that doesn't hold.
+  *   - Region invalidation on scope-end. The design says JUnit closing the stored `ExecuteContext`
+  *     "releases the Region", but `ExecuteContext.close` closes `tempFileManager` and `taskContext`
+  *     — not the Region. A `previousCtx.r.isValid() == false` assertion in `@BeforeEach` of the
+  *     next method would fail on the current code. Treating it as a probable code bug rather than
+  *     asserting a property that doesn't hold.
   *   - `RVD.CheckRvdKeyOrderingForTesting` side-effect in `shared(...)`. Testable via a single
   *     `assertTrue(RVD.CheckRvdKeyOrderingForTesting)` but belongs elsewhere — it's a one-time
   *     flag, not a lifetime.
@@ -59,7 +56,6 @@ class HailExtensionSuite {
 
   private val ctxByMethod: mutable.Map[String, ExecuteContext] = mutable.HashMap.empty
   private val regionByMethod: mutable.Map[String, Region] = mutable.HashMap.empty
-  private val timerByMethod: mutable.Map[String, AnyRef] = mutable.HashMap.empty
   private val tempFileMgrByMethod: mutable.Map[String, AnyRef] = mutable.HashMap.empty
   private val irMetadataByMethod: mutable.Map[String, AnyRef] = mutable.HashMap.empty
 
@@ -87,10 +83,6 @@ class HailExtensionSuite {
           s"$methodName received a Region already used by another method",
         )
         assertTrue(
-          !timerByMethod.values.exists(_ eq ctx.timer),
-          s"$methodName received an ExecutionTimer already used by another method",
-        )
-        assertTrue(
           !tempFileMgrByMethod.values.exists(_ eq ctx.tempFileManager),
           s"$methodName received a tempFileManager already used by another method",
         )
@@ -100,7 +92,6 @@ class HailExtensionSuite {
         )
         ctxByMethod(methodName) = ctx
         regionByMethod(methodName) = ctx.r
-        timerByMethod(methodName) = ctx.timer
         tempFileMgrByMethod(methodName) = ctx.tempFileManager
         irMetadataByMethod(methodName) = ctx.irMetadata
 
@@ -110,11 +101,6 @@ class HailExtensionSuite {
           regionByMethod(methodName),
           ctx.r,
           s"$methodName invocations should share one Region",
-        )
-        assertSame(
-          timerByMethod(methodName),
-          ctx.timer,
-          s"$methodName invocations should share one ExecutionTimer",
         )
         assertSame(
           tempFileMgrByMethod(methodName),

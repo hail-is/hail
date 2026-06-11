@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.backend.ExecuteContext
-import is.hail.utils.{fatal, HailException}
+import is.hail.utils.{fatal, HailException, TimedBlock}
 
 import scala.util.control.Breaks.{break, breakable}
 import scala.util.control.NonFatal
@@ -15,7 +15,7 @@ object Optimize {
   private[this] val DefaultOptimizerIterations: Int = 3
 
   def apply[T <: BaseIR](ctx: ExecuteContext, ir0: T): T =
-    ctx.time {
+    TimedBlock.enter {
 
       var ir: BaseIR = ir0
 
@@ -40,7 +40,7 @@ object Optimize {
 
       breakable {
         for (iter <- 0 until iters.getOrElse(DefaultOptimizerIterations)) {
-          ctx.timer.time(f"iteration $iter") {
+          TimedBlock.enter(f"iteration $iter") {
             val last = ir
 
             ir = FoldConstants(ctx, ir)

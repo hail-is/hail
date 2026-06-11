@@ -812,7 +812,7 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
   }
 
   def resultWithIndex(print: Option[PrintWriter] = None): Compiled[C] =
-    ctx.time {
+    TimedBlock.enter {
       makeAddPartitionRegion()
       makeAddHailClassLoader()
       makeAddFS()

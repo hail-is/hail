@@ -4,7 +4,7 @@ import http.client
 import logging
 import sys
 import warnings
-from typing import Any, Dict, Mapping, Optional, Tuple
+from typing import Any, Dict, Mapping
 
 import orjson
 import py4j
@@ -164,18 +164,6 @@ action_routes = {
 }
 
 
-def parse_timings(str: Optional[str]) -> Optional[dict]:
-    def parse(node):
-        return {
-            'name': node[0],
-            'total_time': node[1],
-            'self_time': node[2],
-            'children': [parse(c) for c in node[3]],
-        }
-
-    return None if str is None else parse(orjson.loads(str))
-
-
 class Py4JBackend(Backend):
     @abc.abstractmethod
     def __init__(
@@ -273,9 +261,9 @@ class Py4JBackend(Backend):
     def requires_lowering(self):
         return True
 
-    def execute(self, ir: BaseIR, timed: bool = False) -> Any:
+    def execute(self, ir: BaseIR) -> Any:
         try:
-            return super().execute(ir, timed)
+            return super().execute(ir)
         except Exception as err:
             if self._copy_log_on_error:
                 try:
@@ -285,7 +273,7 @@ class Py4JBackend(Backend):
 
             raise err
 
-    def _rpc(self, action, payload) -> Tuple[bytes, Optional[dict]]:
+    def _rpc(self, action, payload) -> bytes:
         data = orjson.dumps(payload)
         path = action_routes[action]
 
@@ -306,7 +294,7 @@ class Py4JBackend(Backend):
                 error_json['short'], error_json['expanded'], error_json['error_id']
             )
 
-        return resp.content, parse_timings(resp.headers.get('X-Hail-Timings', None))
+        return resp.content
 
     def persist_expression(self, expr):
         t = expr.dtype

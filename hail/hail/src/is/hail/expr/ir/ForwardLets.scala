@@ -3,13 +3,13 @@ package is.hail.expr.ir
 import is.hail.backend.ExecuteContext
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.defs.{Atom, BaseRef, Binding, Block, Ref}
-import is.hail.utils.Logging
+import is.hail.utils.{Logging, TimedBlock}
 
 import scala.collection.Set
 
 object ForwardLets extends Logging {
   def apply[T <: BaseIR](ctx: ExecuteContext, ir0: T): T =
-    ctx.time {
+    TimedBlock.enter {
       val ir1 = NormalizeNames(allowFreeVariables = true)(ctx, ir0)
       val UsesAndDefs(uses, _, _) = ComputeUsesAndDefs(ir1, errorIfFreeVariables = false)
       val nestingDepth = NestingDepth(ctx, ir1)

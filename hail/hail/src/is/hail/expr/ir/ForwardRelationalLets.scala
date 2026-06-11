@@ -2,12 +2,13 @@ package is.hail.expr.ir
 
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.defs.{RelationalLet, RelationalRef}
+import is.hail.utils.TimedBlock
 
 import scala.collection.mutable
 
 object ForwardRelationalLets {
   def apply(ctx: ExecuteContext, ir0: BaseIR): BaseIR =
-    ctx.time {
+    TimedBlock.enter {
       val uses = mutable.HashMap.empty[Name, (Int, Int)]
       val nestingDepth = NestingDepth(ctx, ir0)
       IRTraversal.preOrder(ir0).foreach {

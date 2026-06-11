@@ -2110,7 +2110,7 @@ object IRParser {
 
   def parse_value_ir(ctx: ExecuteContext, s: String, typeEnv: BindingEnv[Type] = BindingEnv.empty)
     : IR =
-    ctx.time {
+    TimedBlock.enter {
       var ir = parse(s, ir_value_expr(ctx)(_).run())
       ir = annotateTypes(ctx, ir, typeEnv).asInstanceOf[IR]
       TypeCheck(ctx, ir, typeEnv)
@@ -2118,7 +2118,7 @@ object IRParser {
     }
 
   def parse_table_ir(ctx: ExecuteContext, s: String): TableIR =
-    ctx.time {
+    TimedBlock.enter {
       var ir = parse(s, table_ir(ctx)(_).run())
       ir = annotateTypes(ctx, ir, BindingEnv.empty).asInstanceOf[TableIR]
       TypeCheck(ctx, ir)
@@ -2126,7 +2126,7 @@ object IRParser {
     }
 
   def parse_matrix_ir(ctx: ExecuteContext, s: String): MatrixIR =
-    ctx.time {
+    TimedBlock.enter {
       var ir = parse(s, matrix_ir(ctx)(_).run())
       ir = annotateTypes(ctx, ir, BindingEnv.empty).asInstanceOf[MatrixIR]
       TypeCheck(ctx, ir)
@@ -2134,7 +2134,7 @@ object IRParser {
     }
 
   def parse_blockmatrix_ir(ctx: ExecuteContext, s: String): BlockMatrixIR =
-    ctx.time {
+    TimedBlock.enter {
       var ir = parse(s, blockmatrix_ir(ctx)(_).run())
       ir = annotateTypes(ctx, ir, BindingEnv.empty).asInstanceOf[BlockMatrixIR]
       TypeCheck(ctx, ir)

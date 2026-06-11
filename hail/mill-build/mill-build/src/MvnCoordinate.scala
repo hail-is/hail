@@ -221,6 +221,7 @@ object MvnCoordinate:
   val `junit-bom` = "org.junit:junit-bom"
   val `junit-jupiter-api` = "org.junit.jupiter:junit-jupiter-api"
   val `junit-jupiter-engine` = "org.junit.jupiter:junit-jupiter-engine"
+  val `junit-platform-jfr` = "org.junit.platform:junit-platform-jfr"
   val `junit-platform-launcher` = "org.junit.platform:junit-platform-launcher"
   val `junit-jupiter-params` = "org.junit.jupiter:junit-jupiter-params"
   val `junixsocket-core` = "com.kohlschutter.junixsocket:junixsocket-core"

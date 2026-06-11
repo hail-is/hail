@@ -35,7 +35,7 @@ import java.io._
 // class for holding all information computed ahead-of-time that we need in the emitter
 object EmitContext {
   def analyze(ctx: ExecuteContext, ir: IR, pTypeEnv: Env[PType] = Env.empty): EmitContext = {
-    ctx.time {
+    TimedBlock.enter {
       val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
       val requiredness = Requiredness(ir, usesAndDefs, ctx, pTypeEnv)
       val inLoopCriticalPath = ControlFlowPreventsSplit(ir, usesAndDefs)
@@ -108,7 +108,7 @@ object Emit {
     nParams: Int,
     aggs: Option[IndexedSeq[AggStateSig]] = None,
   ): Option[SingleCodeType] =
-    ctx.executeContext.time {
+    TimedBlock.enter {
       TypeCheck(ctx.executeContext, ir)
 
       val mb = fb.apply_method
