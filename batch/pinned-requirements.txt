@@ -9,7 +9,7 @@ aiohappyeyeballs==2.6.2
     #   -c batch/../hail/python/pinned-requirements.txt
     #   -c batch/../web_common/pinned-requirements.txt
     #   aiohttp
-aiohttp==3.13.5
+aiohttp==3.14.1
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   -c batch/../hail/python/dev/pinned-requirements.txt
@@ -50,7 +50,7 @@ frozenlist==1.8.0
     #   -c batch/../web_common/pinned-requirements.txt
     #   aiohttp
     #   aiosignal
-idna==3.17
+idna==3.18
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   -c batch/../hail/python/dev/pinned-requirements.txt
@@ -118,6 +118,7 @@ typing-extensions==4.15.0
     #   -c batch/../hail/python/dev/pinned-requirements.txt
     #   -c batch/../hail/python/pinned-requirements.txt
     #   -c batch/../web_common/pinned-requirements.txt
+    #   aiohttp
     #   aiosignal
     #   multidict
 tzdata==2026.2
