@@ -899,6 +899,13 @@ resource "google_service_account_iam_member" "testns_batch_act_as_batch_agent" {
   member             = "serviceAccount:${module.testns_batch_gsa_secret.email}"
 }
 
+# Grant batch2-agent service account permission to act as itself - required for some permission checks
+resource "google_service_account_iam_member" "batch_agent_act_as_batch_agent" {
+  service_account_id = google_service_account.batch_agent.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.batch_agent.email}"
+}
+
 resource "google_service_account" "gke_node_pool" {
   description  = "Service account for GKE node pools"
   display_name = "gke-node-pool"
