@@ -4,7 +4,7 @@ aiohappyeyeballs==2.6.2
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   aiohttp
-aiohttp==3.13.5
+aiohttp==3.14.1
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   aiohttp-devtools
@@ -52,9 +52,9 @@ babel==2.18.0
     # via
     #   jupyterlab-server
     #   sphinx
-beautifulsoup4==4.14.3
+beautifulsoup4==4.15.0
     # via nbconvert
-bleach==6.3.0
+bleach==6.4.0
     # via nbconvert
 build==1.1.1
     # via -r hail/python/dev/requirements.txt
@@ -92,7 +92,7 @@ curlylint==0.13.1
     # via -r hail/python/dev/requirements.txt
 cycler==0.12.1
     # via matplotlib
-debugpy==1.8.20
+debugpy==1.8.21
     # via ipykernel
 decorator==4.4.2
     # via
@@ -106,7 +106,7 @@ dill==0.4.1
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   pylint
-distlib==0.4.0
+distlib==0.4.3
     # via virtualenv
 docutils==0.18.1
     # via
@@ -128,7 +128,7 @@ executing==2.2.1
     #   stack-data
 fastjsonschema==2.21.2
     # via nbformat
-filelock==3.29.0
+filelock==3.29.3
     # via
     #   python-discovery
     #   virtualenv
@@ -151,7 +151,7 @@ httpx==0.28.1
     # via jupyterlab
 identify==2.6.19
     # via pre-commit
-idna==3.17
+idna==3.18
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   anyio
@@ -244,7 +244,7 @@ jupyter-server==2.19.0
     #   notebook-shim
 jupyter-server-terminals==0.5.4
     # via jupyter-server
-jupyterlab==4.5.7
+jupyterlab==4.5.8
     # via jupyter
 jupyterlab-pygments==0.3.0
     # via nbconvert
@@ -280,7 +280,7 @@ multidict==6.7.1
     #   yarl
 nbclassic==1.3.3
     # via notebook
-nbclient==0.10.4
+nbclient==0.11.0
     # via nbconvert
 nbconvert==7.17.1
     # via
@@ -309,7 +309,7 @@ nodeenv==1.10.0
     # via
     #   pre-commit
     #   pyright
-nodejs-wheel-binaries==24.15.0
+nodejs-wheel-binaries==24.16.0
     # via pyright
 notebook==6.5.7
     # via
@@ -406,7 +406,7 @@ pyparsing==3.3.2
     # via matplotlib
 pyproject-hooks==1.2.0
     # via build
-pyright==1.1.409
+pyright==1.1.410
     # via -r hail/python/dev/requirements.txt
 pytest==7.4.4
     # via
@@ -443,7 +443,7 @@ python-dateutil==2.9.0.post0
     #   arrow
     #   jupyter-client
     #   matplotlib
-python-discovery==1.4.0
+python-discovery==1.4.2
     # via virtualenv
 python-json-logger==2.0.7
     # via
@@ -501,7 +501,7 @@ six==1.17.0
     #   asttokens
     #   python-dateutil
     #   rfc3339-validator
-snowballstemmer==3.1.0
+snowballstemmer==3.1.1
     # via sphinx
 soupsieve==2.8.4
     # via beautifulsoup4
@@ -540,7 +540,7 @@ terminado==0.18.1
     #   jupyter-server
     #   jupyter-server-terminals
     #   notebook
-tinycss2==1.4.0
+tinycss2==1.5.1
     # via bleach
 toml==0.10.2
     # via curlylint
@@ -552,7 +552,7 @@ tomli==2.4.1
     #   pytest
 tomlkit==0.15.0
     # via pylint
-tornado==6.5.6
+tornado==6.5.7
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   ipykernel
@@ -561,7 +561,7 @@ tornado==6.5.6
     #   jupyterlab
     #   notebook
     #   terminado
-traitlets==5.15.0
+traitlets==5.15.1
     # via
     #   ipykernel
     #   ipython
@@ -605,6 +605,7 @@ types-urllib3==1.26.25.14
 typing-extensions==4.15.0
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
+    #   aiohttp
     #   aiosignal
     #   anyio
     #   astroid
@@ -631,11 +632,11 @@ uv==0.10.12
     # via -r hail/python/dev/requirements.txt
 uv-build==0.10.12
     # via -r hail/python/dev/requirements.txt
-virtualenv==21.4.1
+virtualenv==21.4.3
     # via pre-commit
 watchfiles==1.2.0
     # via aiohttp-devtools
-wcwidth==0.7.0
+wcwidth==0.8.1
     # via prompt-toolkit
 webcolors==25.10.0
     # via jsonschema
