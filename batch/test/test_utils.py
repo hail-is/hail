@@ -1,6 +1,7 @@
 import pytest
 
 from batch.cloud.azure.resource_utils import MACHINE_TYPE_TO_PARTS as MACHINE_TYPE_TO_PARTS_AZURE
+from batch.cloud.gcp.instance_config import region_from_location
 from batch.cloud.gcp.resource_utils import (
     MACHINE_TYPE_TO_PARTS as MACHINE_TYPE_TO_PARTS_GCP,
 )
@@ -121,6 +122,21 @@ def test_gcp_local_ssd_count(family, cores, expected):
 )
 def test_gcp_local_ssd_size(family, cores, expected):
     assert gcp_local_ssd_size(family, cores) == expected
+
+
+@pytest.mark.parametrize(
+    "location,expected",
+    [
+        ('us-central1', 'us-central1'),
+        ('us-east1', 'us-east1'),
+        ('northamerica-northeast1', 'northamerica-northeast1'),
+        ('us-central1-a', 'us-central1'),
+        ('us-central1-b', 'us-central1'),
+        ('northamerica-northeast1-a', 'northamerica-northeast1'),
+    ],
+)
+def test_region_from_location(location, expected):
+    assert region_from_location(location) == expected
 
 
 def test_gcp_resource_from_dict():
