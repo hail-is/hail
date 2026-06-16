@@ -17,7 +17,7 @@ DOCKER_ROOT_IMAGE=$(get_global_config_field docker_root_image $NAMESPACE)
 # When you bump the WORKER_IMAGE_VERSION, you should also update:
 # - the INSTANCE_VERSION in globals.py (add one to the current value)
 # - the image name in batch/batch/cloud/gcp/driver/create_instance.py (should match this value)
-WORKER_IMAGE_VERSION=20
+WORKER_IMAGE_VERSION=21
 
 if [ "$NAMESPACE" == "default" ]; then
     WORKER_IMAGE=batch-worker-${WORKER_IMAGE_VERSION}
@@ -27,7 +27,7 @@ else
     BUILDER=build-batch-worker-$NAMESPACE-image
 fi
 
-UBUNTU_IMAGE=ubuntu-minimal-2404-noble-amd64-v20260516
+UBUNTU_IMAGE=ubuntu-minimal-2404-noble-amd64-v20260517
 
 WORKER_IMAGE_EXISTS=false
 if [[ -n "$(gcloud compute images list --project "${PROJECT}" --filter="name=${WORKER_IMAGE}" --format='value(name)')" ]]; then
