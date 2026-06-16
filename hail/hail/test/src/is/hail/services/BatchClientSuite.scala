@@ -10,22 +10,18 @@ import is.hail.utils._
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
-import java.lang.reflect.Method
 import java.nio.file.Path
 
-import org.scalatest.Inspectors.forAll
-import org.scalatest.enablers.InspectorAsserting.assertingNatureOfAssertion
+import org.junit.jupiter.api.{AfterAll, BeforeAll, BeforeEach, Test, TestInfo}
 import org.scalatest.matchers.should.Matchers.convertToAnyShouldWrapper
-import org.scalatestplus.testng.TestNGSuite
-import org.testng.annotations.{AfterClass, BeforeClass, BeforeMethod, Test}
 
-class BatchClientSuite extends TestNGSuite {
+class BatchClientSuite {
 
   private[this] var client: BatchClient = _
   private[this] var batchId: Int = _
   private[this] var parentJobGroupId: Int = _
 
-  @BeforeClass
+  @BeforeAll
   def createClientAndBatch(): Unit = {
     client =
       BatchClient(
@@ -44,20 +40,20 @@ class BatchClientSuite extends TestNGSuite {
       )
   }
 
-  @BeforeMethod
-  def createEmptyParentJobGroup(m: Method): Unit = {
+  @BeforeEach
+  def createEmptyParentJobGroup(info: TestInfo): Unit = {
     parentJobGroupId = client.newJobGroup(
       req = JobGroupRequest(
         batch_id = batchId,
         absolute_parent_id = 0,
         token = tokenUrlSafe,
-        attributes = Map("name" -> m.getName),
+        attributes = Map("name" -> info.getTestMethod.get().getName),
         jobs = FastSeq(),
       )
     )._1
   }
 
-  @AfterClass
+  @AfterAll
   def closeClient(): Unit =
     client.close()
 
@@ -120,8 +116,8 @@ class BatchClientSuite extends TestNGSuite {
       )
     )
     client.waitForJobGroup(batchId, jobGroupId): Unit
-    forAll(Array(JobStates.Failed, JobStates.Success)) { state =>
-      forAll(client.getJobGroupJobs(batchId, jobGroupId, Some(state))) { jobs =>
+    Array(JobStates.Failed, JobStates.Success).foreach { state =>
+      client.getJobGroupJobs(batchId, jobGroupId, Some(state)).foreach { jobs =>
         assert(jobs.length == 1)
         assert(jobs(0).state == state)
         assert(jobs.head.end_time.isDefined)
@@ -132,7 +128,7 @@ class BatchClientSuite extends TestNGSuite {
   @Test
   def testNewJobGroup(): Unit =
     // The query driver submits a job group per stage with one job per partition
-    forAll(1 to 2) { i =>
+    (1 to 2).foreach { i =>
       val (jobGroupId, _) = client.newJobGroup(
         req = JobGroupRequest(
           batch_id = batchId,

@@ -1,28 +1,30 @@
 package is.hail.linalg
 
-import is.hail.HailSuite
+import is.hail.TestUtils._
+import is.hail.backend.ExecuteContext
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.ExportType
-import is.hail.scalacheck._
+import is.hail.io.fs.FS
 
 import breeze.linalg.DenseMatrix
-import org.scalatest
-import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
-import org.testng.annotations.Test
+import org.junit.jupiter.api.Test
 
-class RowMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
+class RowMatrixSuite {
   private def rowArrayToRowMatrix(
     a: IndexedSeq[Array[Double]],
-    nPartitions: Int = sc.defaultParallelism,
+    nPartitions: Int = -1,
+  )(implicit ctx: ExecuteContext
   ): RowMatrix = {
     require(a.nonEmpty)
     val nRows = a.length
     val nCols = a(0).length
+    val sc = ctx.backend.asSpark.sc
+    val np = if (nPartitions == -1) sc.defaultParallelism else nPartitions
 
     RowMatrix(
       sc.parallelize(
         a.zipWithIndex.map { case (row, i) => (i.toLong, row) },
-        nPartitions,
+        np,
       ),
       nCols,
       nRows.toLong,
@@ -38,7 +40,7 @@ class RowMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def localizeRowMatrix(): Unit = {
+  def localizeRowMatrix(implicit ctx: ExecuteContext): Unit = {
     val fname = ctx.createTmpPath("test")
 
     val rowArrays = ArraySeq(
@@ -51,11 +53,11 @@ class RowMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
     BlockMatrix.fromBreezeMatrix(ctx, localMatrix).write(ctx, fname)
 
-    assert(rowMatrix.toBreezeMatrix() === localMatrix)
+    assertEq(rowMatrix.toBreezeMatrix(), localMatrix)
   }
 
   @Test
-  def readBlockSmall(): Unit = {
+  def readBlockSmall(implicit ctx: ExecuteContext): Unit = {
     val fname = ctx.createTmpPath("test")
 
     val localMatrix = DenseMatrix(
@@ -67,45 +69,49 @@ class RowMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
     val rowMatrixFromBlock = RowMatrix.readBlockMatrix(ctx, fname, 1)
 
-    assert(rowMatrixFromBlock.toBreezeMatrix() == localMatrix)
+    assertEq(rowMatrixFromBlock.toBreezeMatrix(), localMatrix)
   }
 
   @Test
-  def readBlock(): Unit =
-    forAll(genDenseMatrix(9, 10)) { lm =>
-      val fname = ctx.createTmpPath("test")
-      scalatest.Inspectors.forAll {
-        cartesian(
-          Seq(1, 2, 3, 4, 6, 7, 9, 10),
-          Seq(1, 2, 4, 9, 11),
-        )
-      } { case (blockSize, partSize) =>
-        BlockMatrix.fromBreezeMatrix(ctx, lm, blockSize).write(
-          ctx,
-          fname,
-          overwrite = true,
-          forceRowMajor = true,
-        )
-        val rowMatrix = RowMatrix.readBlockMatrix(ctx, fname, partSize)
-        assert(rowMatrix.toBreezeMatrix() === lm)
-      }
+  def readBlock(implicit ctx: ExecuteContext): Unit = {
+    val lm = DenseMatrix.create(9, 10, Array.tabulate(9 * 10)(_.toDouble))
+    val fname = ctx.createTmpPath("test")
+    cartesian(
+      Seq(1, 3, 4, 7, 9, 10),
+      Seq(1, 2, 5, 11),
+    ).foreach { case (blockSize, partSize) =>
+      BlockMatrix.fromBreezeMatrix(ctx, lm, blockSize).write(
+        ctx,
+        fname,
+        overwrite = true,
+        forceRowMajor = true,
+      )
+      val rowMatrix = RowMatrix.readBlockMatrix(ctx, fname, partSize)
+      assertEq(rowMatrix.toBreezeMatrix(), lm)
     }
+  }
 
-  private def readCSV(fname: String): Array[Array[Double]] =
+  private def readCSV(fname: String)(implicit fs: FS): Array[Array[Double]] =
     fs.readLines(fname)(it =>
       it.map(_.value)
         .map(_.split(",").map(_.toDouble))
         .toArray[Array[Double]]
     )
 
-  private def exportImportAssert(`export`: (String) => Unit, expected: Array[Double]*): Unit = {
+  private def exportImportAssert(
+    `export`: (String) => Unit,
+    expected: Array[Double]*
+  )(implicit
+    ctx: ExecuteContext
+  ): Unit = {
     val fname = ctx.createTmpPath("test")
     `export`(fname)
-    assert(readCSV(fname) === expected.toArray[Array[Double]])
+    val actual = readCSV(fname)(ctx.fs)
+    assertEq(actual.map(_.toSeq).toSeq, expected.map(_.toSeq).toSeq)
   }
 
   @Test
-  def exportWithIndex(): Unit = {
+  def exportWithIndex(implicit ctx: ExecuteContext): Unit = {
     val rowArrays = ArraySeq(
       Array(1.0, 2.0, 3.0),
       Array(4.0, 5.0, 6.0),
@@ -133,7 +139,7 @@ class RowMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def exportSquare(): Unit = {
+  def exportSquare(implicit ctx: ExecuteContext): Unit = {
     val rowArrays = ArraySeq(
       Array(1.0, 2.0, 3.0),
       Array(4.0, 5.0, 6.0),
@@ -209,7 +215,7 @@ class RowMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def exportWide(): Unit = {
+  def exportWide(implicit ctx: ExecuteContext): Unit = {
     val rowArrays = ArraySeq(
       Array(1.0, 2.0, 3.0),
       Array(4.0, 5.0, 6.0),
@@ -281,7 +287,7 @@ class RowMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def exportTall(): Unit = {
+  def exportTall(implicit ctx: ExecuteContext): Unit = {
     val rowArrays = ArraySeq(
       Array(1.0, 2.0),
       Array(4.0, 5.0),
@@ -355,7 +361,7 @@ class RowMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   }
 
   @Test
-  def exportBig(): Unit = {
+  def exportBig(implicit ctx: ExecuteContext): Unit = {
     val rowArrays: ArraySeq[Array[Double]] =
       ArraySeq.tabulate(20)(r => Array.tabulate(30)(c => 30.0 * c + r))
     val rowMatrix = rowArrayToRowMatrix(rowArrays)

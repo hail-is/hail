@@ -1,11 +1,14 @@
 package is.hail.types.physical
 
-import is.hail.HailSuite
+import is.hail.TestUtils.assertEq
 import is.hail.annotations.{Region, ScalaToRegionValue, UnsafeRow}
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.EmitFunctionBuilder
-import is.hail.utils.HailException
+import is.hail.utils.{HailException, Logging}
 
-abstract class PhysicalTestUtils extends HailSuite {
+import org.junit.jupiter.api.Assertions.fail
+
+abstract class PhysicalTestUtils extends Logging {
   def copyTestExecutor(
     sourceType: PType,
     destType: PType,
@@ -15,8 +18,10 @@ abstract class PhysicalTestUtils extends HailSuite {
     deepCopy: Boolean = false,
     interpret: Boolean = false,
     expectedValue: Any = null,
+  )(implicit ctx: ExecuteContext
   ): Unit = {
 
+    val pool = ctx.r.pool
     val srcRegion = Region(pool = pool)
     val region = Region(pool = pool)
 
@@ -39,9 +44,9 @@ abstract class PhysicalTestUtils extends HailSuite {
         logger.info(s"Copied value: $copy, Source value: $sourceValue")
 
         if (expectedValue != null) {
-          assert(copy == expectedValue)
+          assertEq(copy, expectedValue)
         } else {
-          assert(copy == sourceValue)
+          assertEq(copy, sourceValue)
         }
         region.clear()
         srcRegion.clear()
@@ -92,7 +97,7 @@ abstract class PhysicalTestUtils extends HailSuite {
 
     val copy =
       try {
-        val f = fb.result()(theHailClassLoader)
+        val f = fb.result()(ctx.theHailClassLoader)
         val copyOff = f(region, srcAddress)
         UnsafeRow.read(destType, region, copyOff)
       } catch {
@@ -108,9 +113,9 @@ abstract class PhysicalTestUtils extends HailSuite {
     logger.info(s"Copied value: $copy, Source value: $sourceValue")
 
     if (expectedValue != null) {
-      assert(copy == expectedValue)
+      assertEq(copy, expectedValue)
     } else {
-      assert(copy == sourceValue)
+      assertEq(copy, sourceValue)
     }
     region.clear()
     srcRegion.clear()

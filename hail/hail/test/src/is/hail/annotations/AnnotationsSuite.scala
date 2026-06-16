@@ -1,11 +1,9 @@
 package is.hail.annotations
 
-import is.hail.HailSuite
-
-import org.testng.annotations.Test
+import org.junit.jupiter.api.Test
 
 /** This testing suite evaluates the functionality of the [[is.hail.annotations]] package */
-class AnnotationsSuite extends HailSuite {
+class AnnotationsSuite {
   @Test def testExtendedOrdering(): Unit = {
     val ord = ExtendedOrdering.extendToNull(implicitly[Ordering[Int]])
     val rord = ord.reverse

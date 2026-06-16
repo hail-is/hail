@@ -1,11 +1,10 @@
 package is.hail.expr
 
-import is.hail.HailSuite
 import is.hail.collection.compat.immutable.ArraySeq
 
-import org.testng.annotations.Test
+import org.junit.jupiter.api.Test
 
-class ParserSuite extends HailSuite {
+class ParserSuite {
   @Test def testOneOfLiteral(): Unit = {
     val strings = ArraySeq("A", "B", "AB", "AA", "CAD", "EF")
     val p = Parser.oneOfLiteral(strings)

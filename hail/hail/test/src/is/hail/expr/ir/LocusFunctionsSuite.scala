@@ -1,7 +1,9 @@
 package is.hail.expr.ir
 
-import is.hail.{ExecStrategy, HailSuite}
+import is.hail.ExecStrategy
 import is.hail.ExecStrategy.ExecStrategy
+import is.hail.TestUtils._
+import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.expr.ir.defs.{Apply, ErrorIDs, False, I32, I64, MakeArray, MakeTuple, NA, Str, True}
 import is.hail.types.virtual._
@@ -9,52 +11,56 @@ import is.hail.utils.Interval
 import is.hail.variant.{Locus, ReferenceGenome}
 
 import org.apache.spark.sql.Row
-import org.testng.annotations.Test
+import org.junit.jupiter.api.Test
 
-class LocusFunctionsSuite extends HailSuite {
+class LocusFunctionsSuite {
 
   implicit val execStrats: Set[ExecStrategy] = ExecStrategy.javaOnly
 
-  private def grch38: ReferenceGenome = ctx.references(ReferenceGenome.GRCh38)
-  private def tlocus = TLocus(grch38.name)
-  private def tvariant = TStruct("locus" -> tlocus, "alleles" -> TArray(TString))
+  private def grch38(implicit ctx: ExecuteContext): ReferenceGenome =
+    ctx.references(ReferenceGenome.GRCh38)
 
-  def locusIR: Apply =
+  private def tlocus(implicit ctx: ExecuteContext) = TLocus(grch38.name)
+
+  private def tvariant(implicit ctx: ExecuteContext) =
+    TStruct("locus" -> tlocus, "alleles" -> TArray(TString))
+
+  def locusIR(implicit ctx: ExecuteContext): Apply =
     Apply("Locus", FastSeq(), FastSeq(Str("chr22"), I32(1)), tlocus, ErrorIDs.NO_ERROR)
 
-  def locus = Locus("chr22", 1, grch38)
+  def locus(implicit ctx: ExecuteContext) = Locus("chr22", 1, grch38)
 
-  @Test def contig(): Unit =
+  @Test def contig(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(invoke("contig", TString, locusIR), locus.contig)
 
-  @Test def position(): Unit =
+  @Test def position(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(invoke("position", TInt32, locusIR), locus.position)
 
-  @Test def isAutosomalOrPseudoAutosomal(): Unit =
+  @Test def isAutosomalOrPseudoAutosomal(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(
       invoke("isAutosomalOrPseudoAutosomal", TBoolean, locusIR),
       locus.isAutosomalOrPseudoAutosomal(grch38),
     )
 
-  @Test def isAutosomal(): Unit =
+  @Test def isAutosomal(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(invoke("isAutosomal", TBoolean, locusIR), locus.isAutosomal(grch38))
 
-  @Test def inYNonPar(): Unit =
+  @Test def inYNonPar(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(invoke("inYNonPar", TBoolean, locusIR), locus.inYNonPar(grch38))
 
-  @Test def inXPar(): Unit =
+  @Test def inXPar(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(invoke("inXPar", TBoolean, locusIR), locus.inXPar(grch38))
 
-  @Test def isMitochondrial(): Unit =
+  @Test def isMitochondrial(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(invoke("isMitochondrial", TBoolean, locusIR), locus.isMitochondrial(grch38))
 
-  @Test def inXNonPar(): Unit =
+  @Test def inXNonPar(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(invoke("inXNonPar", TBoolean, locusIR), locus.inXNonPar(grch38))
 
-  @Test def inYPar(): Unit =
+  @Test def inYPar(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(invoke("inYPar", TBoolean, locusIR), locus.inYPar(grch38))
 
-  @Test def minRep(): Unit = {
+  @Test def minRep(implicit ctx: ExecuteContext): Unit = {
     val alleles = MakeArray(FastSeq(Str("AA"), Str("AT")), TArray(TString))
     assertEvalsTo(
       invoke("min_rep", tvariant, locusIR, alleles),
@@ -63,10 +69,10 @@ class LocusFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("min_rep", tvariant, locusIR, NA(TArray(TString))), null)
   }
 
-  @Test def globalPosition(): Unit =
+  @Test def globalPosition(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(invoke("locusToGlobalPos", TInt64, locusIR), grch38.locusToGlobalPos(locus))
 
-  @Test def reverseGlobalPosition(): Unit = {
+  @Test def reverseGlobalPosition(implicit ctx: ExecuteContext): Unit = {
     val globalPosition = 2824183054L
     assertEvalsTo(
       invoke("globalPosToLocus", tlocus, I64(globalPosition)),
@@ -74,7 +80,7 @@ class LocusFunctionsSuite extends HailSuite {
     )
   }
 
-  @Test def testMultipleReferenceGenomes(): Unit = {
+  @Test def testMultipleReferenceGenomes(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.compileOnly
 
     val ir = MakeTuple.ordered(FastSeq(
@@ -91,7 +97,7 @@ class LocusFunctionsSuite extends HailSuite {
     )
   }
 
-  @Test def testMakeInterval(): Unit = {
+  @Test def testMakeInterval(implicit ctx: ExecuteContext): Unit = {
     // TString, TInt32, TInt32, TBoolean, TBoolean, TBoolean
     val ir = MakeTuple.ordered(FastSeq(
       invoke(

@@ -1,14 +1,14 @@
 package is.hail.utils.prettyPrint
 
+import is.hail.ParameterizedTest
+import is.hail.TestUtils._
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterator
 
-import scala.jdk.CollectionConverters._
+import org.junit.jupiter.api.Test
 
-import org.scalatestplus.testng.TestNGSuite
-import org.testng.annotations.{DataProvider, Test}
-
-class PrettyPrintWriterSuite extends TestNGSuite {
-  def data: Array[(Doc, Array[(Int, Int, Int, String)])] =
+class PrettyPrintWriterSuite {
+  private def data: Array[(Doc, Array[(Int, Int, Int, String)])] =
     Array(
       (
         nest(2, hsep("prefix", sep("text", "to", "lay", "out"))),
@@ -129,23 +129,23 @@ class PrettyPrintWriterSuite extends TestNGSuite {
       ),
     )
 
-  @DataProvider(name = "data")
-  def flatData: java.util.Iterator[Array[Object]] =
+  def testPP() = ArraySeq[(Doc, Integer, Integer, Integer, String)](
     (for {
       (doc, cases) <- data.iterator
       (width, ribbonWidth, maxLines, expected) <- cases.iterator
-    } yield Array(doc, Int.box(width), Int.box(ribbonWidth), Int.box(maxLines), expected)).asJava
+    } yield (doc, Int.box(width), Int.box(ribbonWidth), Int.box(maxLines), expected)).toSeq: _*
+  )
 
-  @Test(dataProvider = "data")
+  @ParameterizedTest
   def testPP(doc: Doc, width: Integer, ribbonWidth: Integer, maxLines: Integer, expected: String)
     : Unit = {
     val ruler = "=" * width
-    assert(expected == s"$ruler\n${doc.render(width, ribbonWidth, maxLines)}\n$ruler")
+    assertEq(s"$ruler\n${doc.render(width, ribbonWidth, maxLines)}\n$ruler", expected)
   }
 
   @Test def testIntersperse(): Unit = {
     val it = Array("A", "B", "C").iterator.intersperse("(", ",", ")")
-    assert(it.mkString == "(A,B,C)")
+    assertEq(it.mkString, "(A,B,C)")
   }
 
 }

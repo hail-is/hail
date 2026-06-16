@@ -1,7 +1,9 @@
 package is.hail.expr.ir.table
 
-import is.hail.{ExecStrategy, HailSuite}
+import is.hail.ExecStrategy
 import is.hail.ExecStrategy.ExecStrategy
+import is.hail.TestUtils._
+import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.expr.ir._
 import is.hail.expr.ir.TestUtils._
@@ -16,15 +18,15 @@ import is.hail.utils.{HailException, Interval}
 
 import org.apache.spark.SparkException
 import org.apache.spark.sql.Row
-import org.scalatest.matchers.should.Matchers._
-import org.testng.annotations.Test
+import org.junit.jupiter.api.Test
+import org.scalatest.matchers.should.Matchers.{intercept => _, _}
 
-class TableGenSuite extends HailSuite {
+class TableGenSuite {
 
   implicit val execStrategy: Set[ExecStrategy] = ExecStrategy.lowering
 
-  @Test(groups = Array("construction", "typecheck"))
-  def testWithInvalidContextsType(): Unit = {
+  @Test
+  def testWithInvalidContextsType(implicit ctx: ExecuteContext): Unit = {
     val ex = intercept[IllegalArgumentException] {
       TypeCheck(ctx, mkTableGen(contexts = Some(Str("oh noes :'("))))
     }
@@ -34,8 +36,8 @@ class TableGenSuite extends HailSuite {
     ex.getMessage should include(s"Actual: ${TString.getClass.getName}")
   }
 
-  @Test(groups = Array("construction", "typecheck"))
-  def testWithInvalidGlobalsType(): Unit = {
+  @Test
+  def testWithInvalidGlobalsType(implicit ctx: ExecuteContext): Unit = {
     val ex = intercept[HailException] {
       TypeCheck(
         ctx,
@@ -50,8 +52,8 @@ class TableGenSuite extends HailSuite {
     ex.getCause.getMessage should include(s"Actual: ${TString.getClass.getName}")
   }
 
-  @Test(groups = Array("construction", "typecheck"))
-  def testWithInvalidBodyType(): Unit = {
+  @Test
+  def testWithInvalidBodyType(implicit ctx: ExecuteContext): Unit = {
     val ex = intercept[HailException] {
       TypeCheck(ctx, mkTableGen(body = Some((_, _) => Str("oh noes :'("))))
     }
@@ -60,8 +62,8 @@ class TableGenSuite extends HailSuite {
     ex.getCause.getMessage should include(s"Actual: ${TString.getClass.getName}")
   }
 
-  @Test(groups = Array("construction", "typecheck"))
-  def testWithInvalidBodyElementType(): Unit = {
+  @Test
+  def testWithInvalidBodyElementType(implicit ctx: ExecuteContext): Unit = {
     val ex = intercept[HailException] {
       TypeCheck(
         ctx,
@@ -75,8 +77,8 @@ class TableGenSuite extends HailSuite {
     ex.getCause.getMessage should include(s"Actual: ${TString.getClass.getName}")
   }
 
-  @Test(groups = Array("construction", "typecheck"))
-  def testWithInvalidPartitionerKeyType(): Unit = {
+  @Test
+  def testWithInvalidPartitionerKeyType(implicit ctx: ExecuteContext): Unit = {
     val ex = intercept[HailException] {
       TypeCheck(
         ctx,
@@ -88,8 +90,8 @@ class TableGenSuite extends HailSuite {
     ex.getCause.getMessage should include("partitioner")
   }
 
-  @Test(groups = Array("construction", "typecheck"))
-  def testWithTooLongPartitionerKeyType(): Unit = {
+  @Test
+  def testWithTooLongPartitionerKeyType(implicit ctx: ExecuteContext): Unit = {
     val ex = intercept[HailException] {
       TypeCheck(
         ctx,
@@ -101,23 +103,23 @@ class TableGenSuite extends HailSuite {
     ex.getCause.getMessage should include("partitioner")
   }
 
-  @Test(groups = Array("requiredness"))
-  def testRequiredness(): Unit = {
+  @Test
+  def testRequiredness(implicit ctx: ExecuteContext): Unit = {
     val table = mkTableGen()
     val analysis = Requiredness(table, ctx)
     analysis.lookup(table).required shouldBe true
     analysis.states.m.isEmpty shouldBe true
   }
 
-  @Test(groups = Array("lowering"))
-  def testLowering(): Unit = {
+  @Test
+  def testLowering(implicit ctx: ExecuteContext): Unit = {
     val table = collect(mkTableGen())
     val lowered = LowerTableIR(table, DArrayLowering.All, ctx, LoweringAnalyses(table, ctx))
     assertEvalsTo(lowered, Row(FastSeq(0, 0).map(Row(_)), Row(0)))
   }
 
-  @Test(groups = Array("lowering"))
-  def testNumberOfContextsMatchesPartitions(): Unit = {
+  @Test
+  def testNumberOfContextsMatchesPartitions(implicit ctx: ExecuteContext): Unit = {
     val errorId = 42
     val table = collect(mkTableGen(
       partitioner = Some(RVDPartitioner.unkeyed(ctx.stateManager, 0)),
@@ -125,14 +127,14 @@ class TableGenSuite extends HailSuite {
     ))
     val lowered = LowerTableIR(table, DArrayLowering.All, ctx, LoweringAnalyses(table, ctx))
     val ex = intercept[HailException] {
-      loweredExecute(ctx, lowered, Env.empty, FastSeq(), None)
+      loweredExecute(lowered, Env.empty, FastSeq(), None)
     }
     ex.errorId shouldBe errorId
     ex.getMessage should include("partitioner contains 0 partitions, got 2 contexts.")
   }
 
-  @Test(groups = Array("lowering"))
-  def testRowsAreCorrectlyKeyed(): Unit = {
+  @Test
+  def testRowsAreCorrectlyKeyed(implicit ctx: ExecuteContext): Unit = {
     val errorId = 56
     val table = collect(mkTableGen(
       partitioner = Some(new RVDPartitioner(
@@ -147,22 +149,22 @@ class TableGenSuite extends HailSuite {
     ))
     val lowered = LowerTableIR(table, DArrayLowering.All, ctx, LoweringAnalyses(table, ctx))
     val ex = intercept[SparkException] {
-      loweredExecute(ctx, lowered, Env.empty, FastSeq(), None)
+      loweredExecute(lowered, Env.empty, FastSeq(), None)
     }.getCause.asInstanceOf[HailException]
 
     ex.errorId shouldBe errorId
     ex.getMessage should include("TableGen: Unexpected key in partition")
   }
 
-  @Test(groups = Array("optimization", "prune"))
-  def testPruneNoUnusedFields(): Unit = {
+  @Test
+  def testPruneNoUnusedFields(implicit ctx: ExecuteContext): Unit = {
     val start = mkTableGen()
     val pruned = PruneDeadFields(ctx, start)
     pruned.typ shouldBe start.typ
   }
 
-  @Test(groups = Array("optimization", "prune"))
-  def testPruneGlobals(): Unit = {
+  @Test
+  def testPruneGlobals(implicit ctx: ExecuteContext): Unit = {
     val start = mkTableGen(
       body = Some { (c, _) =>
         val elem = MakeStruct(IndexedSeq("a" -> c))
@@ -181,8 +183,8 @@ class TableGenSuite extends HailSuite {
     pruned.asInstanceOf[TableGen].globals shouldBe MakeStruct(IndexedSeq())
   }
 
-  @Test(groups = Array("optimization", "prune"))
-  def testPruneContexts(): Unit = {
+  @Test
+  def testPruneContexts(implicit ctx: ExecuteContext): Unit = {
     val start = mkTableGen()
     val TableGetGlobals(pruned) = PruneDeadFields(ctx, TableGetGlobals(start))
     pruned.typ should not be start.typ
@@ -195,6 +197,7 @@ class TableGenSuite extends HailSuite {
     body: Option[(Atom, Atom) => IR] = None,
     partitioner: Option[RVDPartitioner] = None,
     errorId: Option[Int] = None,
+  )(implicit ctx: ExecuteContext
   ): TableGen = {
     tableGen(
       contexts.getOrElse(StreamRange(0, 2, 1)),

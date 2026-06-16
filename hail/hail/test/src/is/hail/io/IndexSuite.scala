@@ -1,7 +1,9 @@
 package is.hail.io
 
-import is.hail.HailSuite
+import is.hail.ParameterizedTest
+import is.hail.TestUtils._
 import is.hail.annotations.Annotation
+import is.hail.backend.ExecuteContext
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterator
 import is.hail.io.index._
@@ -10,9 +12,9 @@ import is.hail.types.virtual._
 import is.hail.utils._
 
 import org.apache.spark.sql.Row
-import org.testng.annotations.{DataProvider, Test}
+import org.junit.jupiter.api.Test
 
-class IndexSuite extends HailSuite {
+class IndexSuite {
   val strings = ArraySeq(
     "bear", "cat", "deer", "dog",
     "lion", "mouse", "parrot", "quail",
@@ -31,9 +33,7 @@ class IndexSuite extends HailSuite {
     LeafChild(s, i.toLong, Row())
   }
 
-  @DataProvider(name = "elements")
-  def data(): Array[Array[ArraySeq[String]]] =
-    (1 to strings.length).map(i => Array(strings.take(i))).toArray
+  def writeReadGivesSameAsInput() = (1 to strings.length).map(i => strings.take(i))
 
   def writeIndex(
     file: String,
@@ -43,12 +43,13 @@ class IndexSuite extends HailSuite {
     annotationType: PType,
     branchingFactor: Int,
     attributes: Map[String, Any],
+  )(implicit ctx: ExecuteContext
   ): Unit = {
     val iw = IndexWriter.builder(ctx, keyType, annotationType, branchingFactor, attributes)(
       file,
-      theHailClassLoader,
+      ctx.theHailClassLoader,
       ctx.taskContext,
-      pool,
+      ctx.r.pool,
     )
     data.zip(annotations).zipWithIndex.foreach { case ((s, a), offset) =>
       iw.appendRow(s, offset.toLong, a)
@@ -56,11 +57,20 @@ class IndexSuite extends HailSuite {
     iw.close()
   }
 
-  def indexReader(file: String, annotationType: Type, keyPType: PType = PCanonicalString())
-    : IndexReader =
+  def indexReader(
+    file: String,
+    annotationType: Type,
+    keyPType: PType = PCanonicalString(),
+  )(implicit ctx: ExecuteContext
+  ): IndexReader =
     indexReader(file, PType.canonical(annotationType), keyPType)
 
-  def indexReader(file: String, annotationPType: PType, keyPType: PType): IndexReader = {
+  def indexReader(
+    file: String,
+    annotationPType: PType,
+    keyPType: PType,
+  )(implicit ctx: ExecuteContext
+  ): IndexReader = {
     val leafPType = LeafNodeBuilder.typ(keyPType, annotationPType)
     val intPType = InternalNodeBuilder.typ(keyPType, annotationPType)
     val leafSpec = TypedCodecSpec(ctx, leafPType, BufferSpec.default)
@@ -78,7 +88,7 @@ class IndexSuite extends HailSuite {
       annotationPType.virtualType,
       leafPType,
       intPType,
-    ).apply(theHailClassLoader, fs, file, 8, pool)
+    ).apply(ctx.theHailClassLoader, ctx.fs, file, 8, ctx.r.pool)
   }
 
   def writeIndex(
@@ -88,6 +98,7 @@ class IndexSuite extends HailSuite {
     annotationType: Type,
     branchingFactor: Int = 2,
     attributes: Map[String, Any] = Map.empty[String, Any],
+  )(implicit ctx: ExecuteContext
   ): Unit =
     writeIndex(
       file,
@@ -99,8 +110,8 @@ class IndexSuite extends HailSuite {
       attributes,
     )
 
-  @Test(dataProvider = "elements")
-  def writeReadGivesSameAsInput(data: IndexedSeq[String]): Unit = {
+  @ParameterizedTest
+  def writeReadGivesSameAsInput(data: IndexedSeq[String])(implicit ctx: ExecuteContext): Unit = {
     val file = ctx.createTmpPath("test", "idx")
     val attributes: Map[String, Any] = Map("foo" -> true, "bar" -> 5)
 
@@ -115,35 +126,34 @@ class IndexSuite extends HailSuite {
         branchingFactor,
         attributes,
       )
-      assert(fs.getFileSize(file) != 0)
+      assert(ctx.fs.getFileSize(file) != 0)
 
       val index = indexReader(file, TStruct("a" -> TBoolean))
 
-      assert(index.attributes == attributes)
+      assertEq(index.attributes, attributes)
 
       data.zipWithIndex.foreach { case (s, i) =>
-        assert({
-          val result = index.queryByIndex(i.toLong)
-          result.key == s && result.annotation == a(i)
-        })
+        val result = index.queryByIndex(i.toLong)
+        assertEq(result.key, s)
+        assertEq(result.annotation, a(i))
       }
 
       index.close()
     }
   }
 
-  @Test def testEmptyKeys(): Unit = {
+  @Test def testEmptyKeys(implicit ctx: ExecuteContext): Unit = {
     val file = ctx.createTmpPath("empty", "idx")
     writeIndex(file, ArraySeq.empty, ArraySeq.empty, TStruct("a" -> TBoolean), 2)
-    assert(fs.getFileSize(file) != 0)
+    assert(ctx.fs.getFileSize(file) != 0)
     val index = indexReader(file, TStruct("a" -> TBoolean))
-    assertThrows[IllegalArgumentException](index.queryByIndex(0L))
+    intercept[IllegalArgumentException](index.queryByIndex(0L)): Unit
     assert(index.queryByKey("moo").isEmpty)
     assert(index.queryByInterval("bear", "cat", includesStart = true, includesEnd = true).isEmpty)
     index.close()
   }
 
-  @Test def testLowerBound(): Unit = {
+  @Test def testLowerBound(implicit ctx: ExecuteContext): Unit = {
     for (branchingFactor <- 2 to 5) {
       val file = ctx.createTmpPath("lowerBound", "idx")
       writeIndex(
@@ -171,12 +181,12 @@ class IndexSuite extends HailSuite {
       )
 
       expectedResult.foreach { case (s, expectedIdx) =>
-        assert(index.lowerBound(s) == expectedIdx) // test full b-tree search works
+        assertEq(index.lowerBound(s), expectedIdx.toLong)
       }
     }
   }
 
-  @Test def testUpperBound(): Unit = {
+  @Test def testUpperBound(implicit ctx: ExecuteContext): Unit = {
     for (branchingFactor <- 2 to 5) {
       val file = ctx.createTmpPath("upperBound", "idx")
       writeIndex(
@@ -204,12 +214,12 @@ class IndexSuite extends HailSuite {
       )
 
       expectedResult.foreach { case (s, expectedIdx) =>
-        assert(index.upperBound(s) == expectedIdx) // test full b-tree search works
+        assertEq(index.upperBound(s), expectedIdx.toLong)
       }
     }
   }
 
-  @Test def testRangeIterator(): Unit = {
+  @Test def testRangeIterator(implicit ctx: ExecuteContext): Unit = {
     for (branchingFactor <- 2 to 5) {
       val file = ctx.createTmpPath("range", "idx")
       val a = { (i: Int) => Row() }
@@ -234,7 +244,7 @@ class IndexSuite extends HailSuite {
     }
   }
 
-  @Test def testQueryByKey(): Unit = {
+  @Test def testQueryByKey(implicit ctx: ExecuteContext): Unit = {
     for (branchingFactor <- 2 to 5) {
       val file = ctx.createTmpPath("key", "idx")
       writeIndex(
@@ -256,7 +266,7 @@ class IndexSuite extends HailSuite {
     }
   }
 
-  @Test def testIntervalIterator(): Unit = {
+  @Test def testIntervalIterator(implicit ctx: ExecuteContext): Unit = {
     for (branchingFactor <- 2 to 5) {
       val file = ctx.createTmpPath("interval", "idx")
       writeIndex(
@@ -268,89 +278,116 @@ class IndexSuite extends HailSuite {
       )
       val index = indexReader(file, TStruct.empty)
       // intervals with endpoint in list
-      assert(index.queryByInterval(
-        "bear",
-        "bear",
-        includesStart = true,
-        includesEnd = true,
-      ).toFastSeq == index.iterator(0, 2).toFastSeq)
+      assertEq(
+        index.queryByInterval(
+          "bear",
+          "bear",
+          includesStart = true,
+          includesEnd = true,
+        ).toFastSeq,
+        index.iterator(0, 2).toFastSeq,
+      )
 
-      assert(index.queryByInterval(
-        "bear",
-        "cat",
-        includesStart = true,
-        includesEnd = false,
-      ).toFastSeq == index.iterator(0, 2).toFastSeq)
-      assert(index.queryByInterval(
-        "bear",
-        "cat",
-        includesStart = true,
-        includesEnd = true,
-      ).toFastSeq == index.iterator(0, 9).toFastSeq)
-      assert(index.queryByInterval(
-        "bear",
-        "cat",
-        includesStart = false,
-        includesEnd = true,
-      ).toFastSeq == index.iterator(2, 9).toFastSeq)
-      assert(index.queryByInterval(
-        "bear",
-        "cat",
-        includesStart = false,
-        includesEnd = false,
-      ).toFastSeq == index.iterator(2, 2).toFastSeq)
+      assertEq(
+        index.queryByInterval(
+          "bear",
+          "cat",
+          includesStart = true,
+          includesEnd = false,
+        ).toFastSeq,
+        index.iterator(0, 2).toFastSeq,
+      )
+      assertEq(
+        index.queryByInterval(
+          "bear",
+          "cat",
+          includesStart = true,
+          includesEnd = true,
+        ).toFastSeq,
+        index.iterator(0, 9).toFastSeq,
+      )
+      assertEq(
+        index.queryByInterval(
+          "bear",
+          "cat",
+          includesStart = false,
+          includesEnd = true,
+        ).toFastSeq,
+        index.iterator(2, 9).toFastSeq,
+      )
+      assertEq(
+        index.queryByInterval(
+          "bear",
+          "cat",
+          includesStart = false,
+          includesEnd = false,
+        ).toFastSeq,
+        index.iterator(2, 2).toFastSeq,
+      )
 
       // intervals with endpoint(s) not in list
-      assert(index.queryByInterval(
-        "cat",
-        "snail",
-        includesStart = true,
-        includesEnd = false,
-      ).toFastSeq == index.iterator(2, 15).toFastSeq)
-      assert(index.queryByInterval(
-        "cat",
-        "snail",
-        includesStart = true,
-        includesEnd = true,
-      ).toFastSeq == index.iterator(2, 15).toFastSeq)
-      assert(index.queryByInterval(
-        "aardvark",
-        "cat",
-        includesStart = true,
-        includesEnd = true,
-      ).toFastSeq == index.iterator(0, 9).toFastSeq)
-      assert(index.queryByInterval(
-        "aardvark",
-        "cat",
-        includesStart = false,
-        includesEnd = true,
-      ).toFastSeq == index.iterator(0, 9).toFastSeq)
+      assertEq(
+        index.queryByInterval(
+          "cat",
+          "snail",
+          includesStart = true,
+          includesEnd = false,
+        ).toFastSeq,
+        index.iterator(2, 15).toFastSeq,
+      )
+      assertEq(
+        index.queryByInterval(
+          "cat",
+          "snail",
+          includesStart = true,
+          includesEnd = true,
+        ).toFastSeq,
+        index.iterator(2, 15).toFastSeq,
+      )
+      assertEq(
+        index.queryByInterval(
+          "aardvark",
+          "cat",
+          includesStart = true,
+          includesEnd = true,
+        ).toFastSeq,
+        index.iterator(0, 9).toFastSeq,
+      )
+      assertEq(
+        index.queryByInterval(
+          "aardvark",
+          "cat",
+          includesStart = false,
+          includesEnd = true,
+        ).toFastSeq,
+        index.iterator(0, 9).toFastSeq,
+      )
 
       // illegal interval queries
-      assertThrows[IllegalArgumentException](index.queryByInterval(
+      intercept[IllegalArgumentException](index.queryByInterval(
         "bear",
         "bear",
         includesStart = false,
         includesEnd = false,
-      ).toFastSeq)
-      assertThrows[IllegalArgumentException](index.queryByInterval(
+      ).toFastSeq): Unit
+      intercept[IllegalArgumentException](index.queryByInterval(
         "bear",
         "bear",
         includesStart = false,
         includesEnd = true,
-      ).toFastSeq)
-      assertThrows[IllegalArgumentException](index.queryByInterval(
+      ).toFastSeq): Unit
+      intercept[IllegalArgumentException](index.queryByInterval(
         "bear",
         "bear",
         includesStart = true,
         includesEnd = false,
-      ).toFastSeq)
-      assertThrows[IllegalArgumentException](index.queryByInterval(
+      ).toFastSeq): Unit
+      intercept[IllegalArgumentException](index.queryByInterval(
         "cat",
         "bear",
         includesStart = true,
         includesEnd = true,
-      ).toFastSeq)
+      ).toFastSeq): Unit
 
       val endPoints = (stringsWithDups.distinct ++ Array("aardvark", "boar", "elk", "oppossum",
         "snail", "zoo")).combinations(2)
@@ -375,34 +412,40 @@ class IndexSuite extends HailSuite {
                 else
                   stringsWithDups.lastIndexWhere(bounds(1) > _) + 1 // want last index before transition point and then want to include that value so add 1
 
-              assert(index.queryByInterval(
-                bounds(0),
-                bounds(1),
-                includesStart,
-                includesEnd,
-              ).toFastSeq ==
-                index.iterator(lowerBoundIdx.toLong, upperBoundIdx.toLong).toFastSeq)
+              assertEq(
+                index.queryByInterval(
+                  bounds(0),
+                  bounds(1),
+                  includesStart,
+                  includesEnd,
+                ).toFastSeq,
+                index.iterator(lowerBoundIdx.toLong, upperBoundIdx.toLong).toFastSeq,
+              )
 
               if (includesStart)
-                assert(index.iterateFrom(bounds(0)).toFastSeq ==
-                  leafsWithDups.slice(lowerBoundIdx, stringsWithDups.length))
+                assertEq(
+                  index.iterateFrom(bounds(0)).toFastSeq,
+                  leafsWithDups.slice(lowerBoundIdx, stringsWithDups.length),
+                )
               if (!includesEnd)
-                assert(index.iterateUntil(bounds(1)).toFastSeq ==
-                  leafsWithDups.slice(0, upperBoundIdx))
+                assertEq(
+                  index.iterateUntil(bounds(1)).toFastSeq,
+                  leafsWithDups.slice(0, upperBoundIdx),
+                )
             } else
               intercept[IllegalArgumentException](index.queryByInterval(
                 bounds(0),
                 bounds(1),
                 includesStart,
                 includesEnd,
-              ))
+              )): Unit
           }
         }
       }
     }
   }
 
-  @Test def testIntervalIteratorWorksWithGeneralEndpoints(): Unit = {
+  @Test def testIntervalIteratorWorksWithGeneralEndpoints(implicit ctx: ExecuteContext): Unit = {
     for (branchingFactor <- 2 to 5) {
       val keyType = PCanonicalStruct("a" -> PCanonicalString(), "b" -> PInt32())
       val file = ctx.createTmpPath("from", "idx")
@@ -425,45 +468,55 @@ class IndexSuite extends HailSuite {
         +PCanonicalStruct(),
         keyPType = PCanonicalStruct("a" -> PCanonicalString(), "b" -> PInt32()),
       )
-      assert(index.queryByInterval(
-        Row("cat", 3),
-        Row("cat", 5),
-        includesStart = true,
-        includesEnd = false,
-      ).toFastSeq ==
-        leafChildren.slice(3, 5))
-      assert(index.queryByInterval(
-        Row("cat"),
-        Row("cat", 5),
-        includesStart = true,
-        includesEnd = false,
-      ).toFastSeq ==
-        leafChildren.slice(2, 5))
-      assert(index.queryByInterval(
-        Row(),
-        Row(),
-        includesStart = true,
-        includesEnd = true,
-      ).toFastSeq ==
-        leafChildren)
-      assert(index.queryByInterval(
-        Row(),
-        Row("cat"),
-        includesStart = true,
-        includesEnd = false,
-      ).toFastSeq ==
-        leafChildren.take(2))
-      assert(index.queryByInterval(
-        Row("zebra"),
-        Row(),
-        includesStart = true,
-        includesEnd = true,
-      ).toFastSeq ==
-        leafChildren.takeRight(3))
+      assertEq(
+        index.queryByInterval(
+          Row("cat", 3),
+          Row("cat", 5),
+          includesStart = true,
+          includesEnd = false,
+        ).toFastSeq,
+        leafChildren.slice(3, 5),
+      )
+      assertEq(
+        index.queryByInterval(
+          Row("cat"),
+          Row("cat", 5),
+          includesStart = true,
+          includesEnd = false,
+        ).toFastSeq,
+        leafChildren.slice(2, 5),
+      )
+      assertEq(
+        index.queryByInterval(
+          Row(),
+          Row(),
+          includesStart = true,
+          includesEnd = true,
+        ).toFastSeq,
+        leafChildren,
+      )
+      assertEq(
+        index.queryByInterval(
+          Row(),
+          Row("cat"),
+          includesStart = true,
+          includesEnd = false,
+        ).toFastSeq,
+        leafChildren.take(2),
+      )
+      assertEq(
+        index.queryByInterval(
+          Row("zebra"),
+          Row(),
+          includesStart = true,
+          includesEnd = true,
+        ).toFastSeq,
+        leafChildren.takeRight(3),
+      )
     }
   }
 
-  @Test def testIterateFromUntil(): Unit = {
+  @Test def testIterateFromUntil(implicit ctx: ExecuteContext): Unit = {
     for (branchingFactor <- 2 to 5) {
       val file = ctx.createTmpPath("from", "idx")
       writeIndex(
@@ -481,13 +534,16 @@ class IndexSuite extends HailSuite {
         var start = stringsWithDups.indexWhere(s <= _)
         if (start == -1)
           start = stringsWithDups.length
-        assert(index.iterateFrom(s).toFastSeq == leafsWithDups.slice(
-          start,
-          stringsWithDups.length,
-        ))
+        assertEq(
+          index.iterateFrom(s).toFastSeq,
+          leafsWithDups.slice(
+            start,
+            stringsWithDups.length,
+          ),
+        )
 
         val end = stringsWithDups.lastIndexWhere(s > _) + 1
-        assert(index.iterateUntil(s).toFastSeq == leafsWithDups.slice(0, end))
+        assertEq(index.iterateUntil(s).toFastSeq, leafsWithDups.slice(0, end))
       }
     }
   }

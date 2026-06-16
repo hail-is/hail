@@ -1,6 +1,6 @@
 package is.hail.annotations
 
-import is.hail.HailSuite
+import is.hail.TestUtils._
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
@@ -13,19 +13,19 @@ import is.hail.types.physical.stypes.primitives.SInt32Value
 import is.hail.utils._
 
 import org.apache.spark.sql.Row
-import org.scalatest.matchers.must.Matchers.{be, include}
+import org.junit.jupiter.api.Test
+import org.scalacheck.Prop.forAll
+import org.scalatest.matchers.must.Matchers.include
 import org.scalatest.matchers.should.Matchers.convertToAnyShouldWrapper
-import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
-import org.testng.annotations.Test
 
-class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
+class StagedConstructorSuite {
 
   val showRVInfo = true
 
-  def sm = ctx.stateManager
+  def sm(implicit ctx: ExecuteContext) = ctx.stateManager
 
   @Test
-  def testCanonicalString(): Unit = {
+  def testCanonicalString(implicit ctx: ExecuteContext): Unit = {
     val rt = PCanonicalString()
     val input = "hello"
     val fb = EmitFunctionBuilder[Region, String, Long](ctx, "fb")
@@ -41,16 +41,16 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
       )
     }
 
-    val region = Region(pool = pool)
+    val region = Region(pool = ctx.r.pool)
     val rv = RegionValue(region)
-    rv.setOffset(fb.result()(theHailClassLoader)(region, input))
+    rv.setOffset(fb.result()(ctx.theHailClassLoader)(region, input))
 
     if (showRVInfo) {
       printRegion(region, "string")
       println(rv.pretty(rt))
     }
 
-    val region2 = Region(pool = pool)
+    val region2 = Region(pool = ctx.r.pool)
     val rv2 = RegionValue(region2)
     val bytes = input.getBytes()
     val bt = PCanonicalBinary()
@@ -63,13 +63,12 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
       println(rv2.pretty(rt))
     }
 
-    assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(rt.loadString(rv.offset) ==
-      rt.loadString(rv2.offset))
+    assertEq(rv.pretty(rt), rv2.pretty(rt))
+    assertEq(rt.loadString(rv.offset), rt.loadString(rv2.offset))
   }
 
   @Test
-  def testInt(): Unit = {
+  def testInt(implicit ctx: ExecuteContext): Unit = {
     val rt = PInt32()
     val input = 3
     val fb = EmitFunctionBuilder[Region, Int, Long](ctx, "fb")
@@ -83,16 +82,16 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
       )
     }
 
-    val region = Region(pool = pool)
+    val region = Region(pool = ctx.r.pool)
     val rv = RegionValue(region)
-    rv.setOffset(fb.result()(theHailClassLoader)(region, input))
+    rv.setOffset(fb.result()(ctx.theHailClassLoader)(region, input))
 
     if (showRVInfo) {
       printRegion(region, "int")
       println(rv.pretty(rt))
     }
 
-    val region2 = Region(pool = pool)
+    val region2 = Region(pool = ctx.r.pool)
     val rv2 = RegionValue(region2)
     rv2.setOffset(region2.allocate(4, 4))
     Region.storeInt(rv2.offset, input)
@@ -102,12 +101,12 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
       println(rv2.pretty(rt))
     }
 
-    assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(Region.loadInt(rv.offset) == Region.loadInt(rv2.offset))
+    assertEq(rv.pretty(rt), rv2.pretty(rt))
+    assertEq(Region.loadInt(rv.offset), Region.loadInt(rv2.offset))
   }
 
   @Test
-  def testArray(): Unit = {
+  def testArray(implicit ctx: ExecuteContext): Unit = {
     val rt = PCanonicalArray(PInt32())
     val input = 3
     val fb = EmitFunctionBuilder[Region, Int, Long](ctx, "fb")
@@ -120,16 +119,16 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
       }.a
     }
 
-    val region = Region(pool = pool)
+    val region = Region(pool = ctx.r.pool)
     val rv = RegionValue(region)
-    rv.setOffset(fb.result()(theHailClassLoader)(region, input))
+    rv.setOffset(fb.result()(ctx.theHailClassLoader)(region, input))
 
     if (showRVInfo) {
       printRegion(region, "array")
       println(rv.pretty(rt))
     }
 
-    val region2 = Region(pool = pool)
+    val region2 = Region(pool = ctx.r.pool)
     val rv2 = RegionValue(region2)
     rv2.setOffset(ScalaToRegionValue(sm, region2, rt, FastSeq(input)))
 
@@ -139,13 +138,15 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
     }
 
     assert(rt.loadLength(rv.offset) == 1)
-    assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(Region.loadInt(rt.loadElement(rv.offset, 0)) ==
-      Region.loadInt(rt.loadElement(rv2.offset, 0)))
+    assertEq(rv.pretty(rt), rv2.pretty(rt))
+    assertEq(
+      Region.loadInt(rt.loadElement(rv.offset, 0)),
+      Region.loadInt(rt.loadElement(rv2.offset, 0)),
+    )
   }
 
   @Test
-  def testStruct(): Unit = {
+  def testStruct(implicit ctx: ExecuteContext): Unit = {
     val pstring = PCanonicalString()
     val rt = PCanonicalStruct("a" -> pstring, "b" -> PInt32())
     val input = 3
@@ -167,16 +168,16 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
       ).a
     }
 
-    val region = Region(pool = pool)
+    val region = Region(pool = ctx.r.pool)
     val rv = RegionValue(region)
-    rv.setOffset(fb.result()(theHailClassLoader)(region, input))
+    rv.setOffset(fb.result()(ctx.theHailClassLoader)(region, input))
 
     if (showRVInfo) {
       printRegion(region, "struct")
       println(rv.pretty(rt))
     }
 
-    val region2 = Region(pool = pool)
+    val region2 = Region(pool = ctx.r.pool)
     val rv2 = RegionValue(region2)
     rv2.setOffset(ScalaToRegionValue(sm, region2, rt, Annotation("hello", input)))
 
@@ -185,15 +186,19 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
       println(rv2.pretty(rt))
     }
 
-    assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(rt.types(0).asInstanceOf[PString].loadString(rt.loadField(rv.offset, 0)) ==
-      rt.types(0).asInstanceOf[PString].loadString(rt.loadField(rv2.offset, 0)))
-    assert(Region.loadInt(rt.loadField(rv.offset, 1)) ==
-      Region.loadInt(rt.loadField(rv2.offset, 1)))
+    assertEq(rv.pretty(rt), rv2.pretty(rt))
+    assertEq(
+      rt.types(0).asInstanceOf[PString].loadString(rt.loadField(rv.offset, 0)),
+      rt.types(0).asInstanceOf[PString].loadString(rt.loadField(rv2.offset, 0)),
+    )
+    assertEq(
+      Region.loadInt(rt.loadField(rv.offset, 1)),
+      Region.loadInt(rt.loadField(rv2.offset, 1)),
+    )
   }
 
   @Test
-  def testArrayOfStruct(): Unit = {
+  def testArrayOfStruct(implicit ctx: ExecuteContext): Unit = {
     val structType = PCanonicalStruct("a" -> PInt32(), "b" -> PCanonicalString())
     val arrayType = PCanonicalArray(structType)
     val input = "hello"
@@ -224,16 +229,16 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
       }.a
     }
 
-    val region = Region(pool = pool)
+    val region = Region(pool = ctx.r.pool)
     val rv = RegionValue(region)
-    rv.setOffset(fb.result()(theHailClassLoader)(region, input))
+    rv.setOffset(fb.result()(ctx.theHailClassLoader)(region, input))
 
     if (showRVInfo) {
       printRegion(region, "array of struct")
       println(rv.pretty(arrayType))
     }
 
-    val region2 = Region(pool = pool)
+    val region2 = Region(pool = ctx.r.pool)
     val rv2 = RegionValue(region2)
     val rvb = new RegionValueBuilder(sm, region2)
     rvb.start(arrayType)
@@ -252,19 +257,19 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
       println(rv2.pretty(arrayType))
     }
 
-    assert(rv.pretty(arrayType) == rv2.pretty(arrayType))
+    assertEq(rv.pretty(arrayType), rv2.pretty(arrayType))
     assert(new UnsafeIndexedSeq(arrayType, rv.region, rv.offset).sameElements(
       new UnsafeIndexedSeq(arrayType, rv2.region, rv2.offset)
     ))
   }
 
   @Test
-  def testMissingRandomAccessArray(): Unit = {
+  def testMissingRandomAccessArray(implicit ctx: ExecuteContext): Unit = {
     val rt = PCanonicalArray(PCanonicalStruct("a" -> PInt32(), "b" -> PCanonicalString()))
     val intVal = 20
     val strVal = "a string with a partner of 20"
-    val region = Region(pool = pool)
-    val region2 = Region(pool = pool)
+    val region = Region(pool = ctx.r.pool)
+    val region2 = Region(pool = ctx.r.pool)
     val rvb = new RegionValueBuilder(sm, region)
     val rvb2 = new RegionValueBuilder(sm, region2)
     val rv = RegionValue(region)
@@ -294,19 +299,19 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
     }
     rvb2.endArray()
     rv2.setOffset(rvb2.end())
-    assert(rv.pretty(rt) == rv2.pretty(rt))
+    assertEq(rv.pretty(rt), rv2.pretty(rt))
     assert(new UnsafeIndexedSeq(rt, rv.region, rv.offset).sameElements(
       new UnsafeIndexedSeq(rt, rv2.region, rv2.offset)
     ))
   }
 
   @Test
-  def testSetFieldPresent(): Unit = {
+  def testSetFieldPresent(implicit ctx: ExecuteContext): Unit = {
     val rt = PCanonicalStruct("a" -> PInt32(), "b" -> PCanonicalString(), "c" -> PFloat64())
     val intVal = 30
     val floatVal = 39.273d
-    val r = Region(pool = pool)
-    val r2 = Region(pool = pool)
+    val r = Region(pool = ctx.r.pool)
+    val r2 = Region(pool = ctx.r.pool)
     val rv = RegionValue(r)
     val rv2 = RegionValue(r2)
     val rvb = new RegionValueBuilder(sm, r)
@@ -331,15 +336,19 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
     rvb2.endStruct()
     rv2.setOffset(rvb2.end())
 
-    assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(Region.loadInt(rt.loadField(rv.offset, 0)) ==
-      Region.loadInt(rt.loadField(rv2.offset, 0)))
-    assert(Region.loadDouble(rt.loadField(rv.offset, 2)) ==
-      Region.loadDouble(rt.loadField(rv2.offset, 2)))
+    assertEq(rv.pretty(rt), rv2.pretty(rt))
+    assertEq(
+      Region.loadInt(rt.loadField(rv.offset, 0)),
+      Region.loadInt(rt.loadField(rv2.offset, 0)),
+    )
+    assertEq(
+      Region.loadDouble(rt.loadField(rv.offset, 2)),
+      Region.loadDouble(rt.loadField(rv2.offset, 2)),
+    )
   }
 
   @Test
-  def testStructWithArray(): Unit = {
+  def testStructWithArray(implicit ctx: ExecuteContext): Unit = {
     val tArray = PCanonicalArray(PInt32())
     val rt = PCanonicalStruct("a" -> PCanonicalString(), "b" -> tArray)
     val input = "hello"
@@ -374,16 +383,16 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
       ).a
     }
 
-    val region = Region(pool = pool)
+    val region = Region(pool = ctx.r.pool)
     val rv = RegionValue(region)
-    rv.setOffset(fb.result()(theHailClassLoader)(region, input))
+    rv.setOffset(fb.result()(ctx.theHailClassLoader)(region, input))
 
     if (showRVInfo) {
       printRegion(region, "struct with array")
       println(rv.pretty(rt))
     }
 
-    val region2 = Region(pool = pool)
+    val region2 = Region(pool = ctx.r.pool)
     val rv2 = RegionValue(region2)
     val rvb = new RegionValueBuilder(sm, region2)
 
@@ -403,13 +412,15 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
       println(rv2.pretty(rt))
     }
 
-    assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(new UnsafeRow(rt, rv.region, rv.offset) ==
-      new UnsafeRow(rt, rv2.region, rv2.offset))
+    assertEq(rv.pretty(rt), rv2.pretty(rt))
+    assertEq(
+      new UnsafeRow(rt, rv.region, rv.offset),
+      new UnsafeRow(rt, rv2.region, rv2.offset),
+    )
   }
 
   @Test
-  def testMissingArray(): Unit = {
+  def testMissingArray(implicit ctx: ExecuteContext): Unit = {
     val rt = PCanonicalArray(PInt32())
     val input = 3
     val fb = EmitFunctionBuilder[Region, Int, Long](ctx, "fb")
@@ -421,16 +432,16 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
       }.a
     }
 
-    val region = Region(pool = pool)
+    val region = Region(pool = ctx.r.pool)
     val rv = RegionValue(region)
-    rv.setOffset(fb.result()(theHailClassLoader)(region, input))
+    rv.setOffset(fb.result()(ctx.theHailClassLoader)(region, input))
 
     if (showRVInfo) {
       printRegion(region, "missing array")
       println(rv.pretty(rt))
     }
 
-    val region2 = Region(pool = pool)
+    val region2 = Region(pool = ctx.r.pool)
     val rv2 = RegionValue(region2)
     rv2.setOffset(ScalaToRegionValue(sm, region2, rt, FastSeq(input, null)))
 
@@ -439,7 +450,7 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
       println(rv2.pretty(rt))
     }
 
-    assert(rv.pretty(rt) == rv2.pretty(rt))
+    assertEq(rv.pretty(rt), rv2.pretty(rt))
     assert(new UnsafeIndexedSeq(rt, rv.region, rv.offset).sameElements(
       new UnsafeIndexedSeq(rt, rv2.region, rv2.offset)
     ))
@@ -449,7 +460,7 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
     println(region.prettyBits())
 
   @Test
-  def testAddPrimitive(): Unit = {
+  def testAddPrimitive(implicit ctx: ExecuteContext): Unit = {
     val t = PCanonicalStruct("a" -> PInt32(), "b" -> PBoolean(), "c" -> PFloat64())
     val fb = EmitFunctionBuilder[Region, Int, Boolean, Double, Long](ctx, "fb")
 
@@ -470,8 +481,8 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
       ).a
     }
 
-    val region = Region(pool = pool)
-    val f = fb.result()(theHailClassLoader)
+    val region = Region(pool = ctx.r.pool)
+    val f = fb.result()(ctx.theHailClassLoader)
     def run(i: Int, b: Boolean, d: Double): (Int, Boolean, Double) = {
       val off = f(region, i, b, d)
       (
@@ -481,8 +492,8 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
       )
     }
 
-    assert(run(3, true, 42.0) == ((3, true, 42.0)))
-    assert(run(42, false, -1.0) == ((42, false, -1.0)))
+    assertEq(run(3, true, 42.0), ((3, true, 42.0)))
+    assertEq(run(42, false, -1.0), ((42, false, -1.0)))
   }
 
   def emitCopy(ctx: ExecuteContext, ptype: PType, deepCopy: Boolean)
@@ -497,7 +508,7 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
     fb.resultWithIndex()
   }
 
-  @Test def testShallowCopyOfPointersFailsAcrossRegions(): Unit = {
+  @Test def testShallowCopyOfPointersFailsAcrossRegions(implicit ctx: ExecuteContext): Unit = {
     val ptype = PCanonicalStruct(required = true, "a" -> PCanonicalArray(PInt32()))
     val value = genVal(ctx, ptype).sample.get
     val ShallowCopy = emitCopy(ctx, ptype, deepCopy = false)
@@ -520,8 +531,8 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
     ex.getMessage should include("invalid memory access")
   }
 
-  @Test def testDeepCopy(): Unit =
-    forAll(genPTypeVal[PCanonicalStruct](ctx)) { case (t, a: Row) =>
+  @Test def testDeepCopy(implicit ctx: ExecuteContext): Unit =
+    check(forAll(genPTypeVal[PCanonicalStruct](ctx)) { case (t, a: Row) =>
       val DeepCopy = emitCopy(ctx, t, deepCopy = true)
 
       val copy: Row =
@@ -537,10 +548,10 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
           SafeRow(t, validPtr)
         }
 
-      copy should be(a)
-    }
+      copy == a
+    })
 
-  @Test def testUnstagedCopy(): Unit = {
+  @Test def testUnstagedCopy(implicit ctx: ExecuteContext): Unit = {
     val t1 = PCanonicalArray(
       PCanonicalStruct(
         true,
@@ -561,7 +572,7 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
       Row(1, IndexedSeq(), IndexedSeq(-1), Set(Row("aa"))),
     )
 
-    pool.scopedRegion { r =>
+    ctx.r.pool.scopedRegion { r =>
       val rvb = new RegionValueBuilder(sm, r)
       val v1 = t2.unstagedStoreJavaObject(sm, value, r)
       assert(SafeRow.read(t2, v1) == value)
@@ -574,7 +585,7 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
     }
   }
 
-  @Test def testStagedCopy(): Unit = {
+  @Test def testStagedCopy(implicit ctx: ExecuteContext): Unit = {
     val t1 = PCanonicalStruct(
       false,
       "a" -> PCanonicalArray(
@@ -599,7 +610,7 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
     )
 
     val valueT2 = t2.types(0)
-    pool.scopedRegion { r =>
+    ctx.r.pool.scopedRegion { r =>
       val v1 = valueT2.unstagedStoreJavaObject(sm, value, r)
       assert(SafeRow.read(valueT2, v1) == value)
 
@@ -613,7 +624,7 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
           deepCopy = false,
         ).a
       }
-      val cp1 = f1.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, r)()
+      val cp1 = f1.resultWithIndex()(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, r)()
       assert(SafeRow.read(t2, cp1) == Row(value))
 
       val f2 = EmitFunctionBuilder[Long](ctx, "stagedCopy2")
@@ -626,7 +637,7 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
           deepCopy = false,
         ).a
       }
-      val cp2 = f2.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, r)()
+      val cp2 = f2.resultWithIndex()(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, r)()
       assert(SafeRow.read(t1, cp2) == Row(value))
     }
   }

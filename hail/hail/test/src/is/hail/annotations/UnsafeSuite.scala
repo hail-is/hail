@@ -1,8 +1,11 @@
 package is.hail.annotations
 
-import is.hail.HailSuite
+import is.hail.ParameterizedTest
+import is.hail.TestUtils._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
+import is.hail.collection.implicits.toRichIterable
 import is.hail.io._
 import is.hail.rvd.AbstractRVDSpec
 import is.hail.scalacheck._
@@ -15,13 +18,13 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
 import org.apache.spark.sql.Row
 import org.json4s.jackson.Serialization
+import org.junit.jupiter.api.Test
 import org.scalacheck._
 import org.scalacheck.Arbitrary.arbitrary
 import org.scalacheck.Gen._
-import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
-import org.testng.annotations.{DataProvider, Test}
+import org.scalacheck.Prop.forAll
 
-class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
+class UnsafeSuite {
   def subsetType(t: Type): Type = {
     t match {
       case t: TStruct =>
@@ -55,27 +58,23 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     }
   }
 
-  def sm = ctx.stateManager
+  def sm(implicit ctx: ExecuteContext) = ctx.stateManager
 
-  @DataProvider(name = "codecs")
-  def codecs(): Array[Array[Any]] =
-    codecs(ctx)
-
-  def codecs(ctx: ExecuteContext): Array[Array[Any]] =
-    (BufferSpec.specs ++ Array(TypedCodecSpec(
+  def testCodecSerialization(ctx: ExecuteContext) =
+    (BufferSpec.specs.toFastSeq ++ ArraySeq(TypedCodecSpec(
       ctx,
       PCanonicalStruct("x" -> PInt64()),
       BufferSpec.default,
     )))
-      .map(x => Array[Any](x))
 
-  @Test(dataProvider = "codecs") def testCodecSerialization(codec: Spec): Unit = {
+  @ParameterizedTest
+  def testCodecSerialization(codec: Spec)(implicit ctx: ExecuteContext): Unit = {
     implicit val formats = AbstractRVDSpec.formats
     assert(Serialization.read[Spec](codec.toString) == codec)
-
   }
 
-  @Test def testCodec(): Unit = {
+  @Test def testCodec(implicit ctx: ExecuteContext): Unit = {
+    val pool = ctx.r.pool
     val region = Region(pool = pool)
     val region2 = Region(pool = pool)
     val region3 = Region(pool = pool)
@@ -87,7 +86,7 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         v <- genVal(ctx, pt.setRequired(true))
       } yield (pt.virtualType, v)
 
-    forAll(g) { case (t, a) =>
+    check(forAll(g) { case (t, a) =>
       assert(t.typeCheck(a))
       val pt = PType.canonical(t).asInstanceOf[PStruct]
 
@@ -102,14 +101,14 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         val offset = pt.unstagedStoreJavaObject(sm, a, region)
 
         val aos = new ByteArrayOutputStream()
-        val en = codec.buildEncoder(ctx, pt)(aos, theHailClassLoader)
+        val en = codec.buildEncoder(ctx, pt)(aos, ctx.theHailClassLoader)
         en.writeRegionValue(ctx.r, offset)
         en.flush()
 
         region2.clear()
         val ais2 = new ByteArrayInputStream(aos.toByteArray)
         val (retPType2: PStruct, dec2) = codec.buildDecoder(ctx, t)
-        val offset2 = dec2(ais2, theHailClassLoader).readRegionValue(region2)
+        val offset2 = dec2(ais2, ctx.theHailClassLoader).readRegionValue(region2)
         val ur2 = new UnsafeRow(retPType2, region2, offset2)
         assert(t.typeCheck(ur2))
         assert(t.valuesSimilar(a, ur2))
@@ -117,21 +116,21 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         region3.clear()
         val ais3 = new ByteArrayInputStream(aos.toByteArray)
         val (retPType3: PStruct, dec3) = codec.buildDecoder(ctx, requestedType)
-        val offset3 = dec3(ais3, theHailClassLoader).readRegionValue(region3)
+        val offset3 = dec3(ais3, ctx.theHailClassLoader).readRegionValue(region3)
         val ur3 = new UnsafeRow(retPType3, region3, offset3)
         assert(requestedType.typeCheck(ur3))
         assert(requestedType.valuesSimilar(a2, ur3))
 
         val codec2 = TypedCodecSpec(ctx, PType.canonical(requestedType), bufferSpec)
         val aos2 = new ByteArrayOutputStream()
-        val en2 = codec2.buildEncoder(ctx, pt)(aos2, theHailClassLoader)
+        val en2 = codec2.buildEncoder(ctx, pt)(aos2, ctx.theHailClassLoader)
         en2.writeRegionValue(ctx.r, offset)
         en2.flush()
 
         region4.clear()
         val ais4 = new ByteArrayInputStream(aos2.toByteArray)
         val (retPType4: PStruct, dec4) = codec2.buildDecoder(ctx, requestedType)
-        val offset4 = dec4(ais4, theHailClassLoader).readRegionValue(region4)
+        val offset4 = dec4(ais4, ctx.theHailClassLoader).readRegionValue(region4)
         val ur4 = new UnsafeRow(retPType4, region4, offset4)
         assert(requestedType.typeCheck(ur4))
         if (!requestedType.valuesSimilar(a2, ur4)) {
@@ -142,12 +141,11 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         }
         assert(requestedType.valuesSimilar(a2, ur4))
       }
-
-      true
-    }
+    })
   }
 
-  @Test def testCodecForNonWrappedTypes(): Unit = {
+  @Test def testCodecForNonWrappedTypes(implicit ctx: ExecuteContext): Unit = {
+    val pool = ctx.r.pool
     val valuesAndTypes = FastSeq(
       5 -> PInt32(),
       6L -> PInt64(),
@@ -164,7 +162,7 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         BufferSpec.specs.foreach { spec =>
           val cs2 = TypedCodecSpec(ctx, t, spec)
           val baos = new ByteArrayOutputStream()
-          val enc = cs2.buildEncoder(ctx, t)(baos, theHailClassLoader)
+          val enc = cs2.buildEncoder(ctx, t)(baos, ctx.theHailClassLoader)
           enc.writeRegionValue(ctx.r, off)
           enc.flush()
 
@@ -172,7 +170,9 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
           val (decT, dec) = cs2.buildDecoder(ctx, t.virtualType)
           assert(decT == t)
           val res =
-            dec((new ByteArrayInputStream(serialized)), theHailClassLoader).readRegionValue(region)
+            dec((new ByteArrayInputStream(serialized)), ctx.theHailClassLoader).readRegionValue(
+              region
+            )
 
           assert(t.unsafeOrdering(sm).equiv(res, off))
         }
@@ -198,7 +198,8 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     }
   }
 
-  @Test def testRegionValue(): Unit = {
+  @Test def testRegionValue(implicit ctx: ExecuteContext): Unit = {
+    val pool = ctx.r.pool
     val region = Region(pool = pool)
     val region2 = Region(pool = pool)
     val rvb = new RegionValueBuilder(sm, region)
@@ -211,7 +212,7 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         (n, n2) <- zip(choose(0, 100), choose(0, 100))
       } yield (t, v, n, n2)
 
-    forAll(g) { case (t, a, n, n2) =>
+    check(forAll(g) { case (t, a, n, n2) =>
       val pt = PType.canonical(t)
       assert(t.typeCheck(a))
 
@@ -276,22 +277,8 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
           assert(t.valuesSimilar(a, ur6)): Unit
         case _ =>
       }
-
-      true
-    }
+    })
   }
-
-  val g: Gen[(TStruct, Annotation)] =
-    for {
-      s <- size
-      // prefer smaller type and bigger values
-      fraction <- choose(0.1, 0.3)
-      x = (fraction * s).toInt
-      y = s - x
-      t <- resize(x, arbitrary[TStruct])
-      v <- resize(y, genNullable(ctx, t))
-      if v != null
-    } yield (t, v)
 
   @Test def testPacking(): Unit = {
 
@@ -339,7 +326,8 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   @Test def testEmptySize(): Unit =
     assert(PCanonicalStruct().byteSize == 0)
 
-  @Test def testUnsafeOrdering(): Unit = {
+  @Test def testUnsafeOrdering(implicit ctx: ExecuteContext): Unit = {
+    val pool = ctx.r.pool
     val region = Region(pool = pool)
     val region2 = Region(pool = pool)
 
@@ -348,7 +336,7 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         .flatMap(t => Gen.zip(const(t), genVal(ctx, t), genVal(ctx, t)))
         .filter { case (_, a1, a2) => a1 != null && a2 != null }
 
-    forAll(resize(10, g)) { case (t, a1, a2) =>
+    check(forAll(resize(10, g)) { case (t, a1, a2) =>
       val tv = t.virtualType
 
       assert(tv.typeCheck(a1))
@@ -383,6 +371,8 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         println(s"a2=$a2")
         println(s"c1=$c1, c2=$c2, c3=$c3")
       }
-    }
+
+      p
+    })
   }
 }

@@ -1,8 +1,11 @@
 package is.hail.expr.ir.lowering
 
-import is.hail.{ExecStrategy, HailSuite, TestUtils}
+import is.hail.{ExecStrategy, ParameterizedTest}
 import is.hail.ExecStrategy.ExecStrategy
+import is.hail.TestUtils._
+import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{
   makestruct, mapIR, Ascending, Descending, LoweringAnalyses, SortField, TableIR, TableMapRows,
   TableRange,
@@ -16,12 +19,12 @@ import is.hail.types.RTable
 import is.hail.types.virtual.{TArray, TInt32, TStruct}
 
 import org.apache.spark.sql.Row
-import org.testng.annotations.{DataProvider, Test}
+import org.junit.jupiter.api.Test
 
-class LowerDistributedSortSuite extends HailSuite with TestUtils {
+class LowerDistributedSortSuite {
   implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
-  @Test def testSamplePartition(): Unit = {
+  @Test def testSamplePartition(implicit ctx: ExecuteContext): Unit = {
     val dataKeys = IndexedSeq(
       (0, 0),
       (0, -1),
@@ -64,8 +67,7 @@ class LowerDistributedSortSuite extends HailSuite with TestUtils {
     assertEvalsTo(sampled2, Row(Row(0, 0), Row(3, 3), IndexedSeq(Row(0, 0)), false))
   }
 
-  @DataProvider(name = "DistributedSort")
-  def dataDistributedSort: Array[Array[Any]] = {
+  def testDistributedSort: IndexedSeq[(TableIR, IndexedSeq[SortField])] = {
     val tableRange = TableRange(100, 10)
 
     def idx =
@@ -91,21 +93,25 @@ class LowerDistributedSortSuite extends HailSuite with TestUtils {
         ),
       )
 
-    Array(
-      Array(TableRange(0, 1), FastSeq(SortField("idx", Ascending))),
-      Array(tableRange, FastSeq(SortField("idx", Ascending))),
-      Array(t, FastSeq(SortField("idx", Ascending))),
-      Array(t, FastSeq(SortField("idx", Descending))),
-      Array(t, FastSeq(SortField("ridx", Ascending))),
-      Array(t, FastSeq(SortField("const", Ascending))),
-      Array(t, FastSeq(SortField("foo", Ascending), SortField("idx", Ascending))),
-      Array(t, FastSeq(SortField("foo", Descending), SortField("idx", Ascending))),
+    ArraySeq(
+      (TableRange(0, 1), FastSeq(SortField("idx", Ascending))),
+      (tableRange, FastSeq(SortField("idx", Ascending))),
+      (t, FastSeq(SortField("idx", Ascending))),
+      (t, FastSeq(SortField("idx", Descending))),
+      (t, FastSeq(SortField("ridx", Ascending))),
+      (t, FastSeq(SortField("const", Ascending))),
+      (t, FastSeq(SortField("foo", Ascending), SortField("idx", Ascending))),
+      (t, FastSeq(SortField("foo", Descending), SortField("idx", Ascending))),
     )
   }
 
-  @Test(dataProvider = "DistributedSort")
-  def testDistributedSort(tir: TableIR, sortFields: IndexedSeq[SortField]): Unit = {
-    ctx.local(flags = ctx.flags + ("shuffle_cutoff_to_local_sort" -> "40")) { ctx =>
+  @ParameterizedTest
+  def testDistributedSort(
+    tir: TableIR,
+    sortFields: IndexedSeq[SortField],
+  )(implicit ctx: ExecuteContext
+  ): Unit = {
+    ctx.local(flags = ctx.flags + ("shuffle_cutoff_to_local_sort" -> "40")) { implicit ctx =>
       val lowerSorted =
         eval {
           val analyses = LoweringAnalyses(tir, ctx)

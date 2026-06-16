@@ -1,6 +1,6 @@
 package is.hail.backend
 
-import is.hail.HailSuite
+import is.hail.ParameterizedTest
 import is.hail.backend.ExecutionCache.Flags.UseFastRestarts
 import is.hail.backend.service.{BatchJobConfig, ServiceBackend, WireProtocol}
 import is.hail.collection.FastSeq
@@ -17,16 +17,16 @@ import scala.util.Random
 import java.io.Closeable
 import java.util.concurrent.CountDownLatch
 
+import org.junit.jupiter.api.Test
 import org.mockito.ArgumentMatchersSugar.any
 import org.mockito.IdiomaticMockito
 import org.mockito.MockitoSugar.when
 import org.scalatest.OptionValues
 import org.scalatest.matchers.should.Matchers.{a, convertToAnyShouldWrapper}
-import org.testng.annotations.{DataProvider, Test}
 
-class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionValues {
+class ServiceBackendSuite extends IdiomaticMockito with OptionValues {
 
-  @Test def testExecutesSinglePartitionLocally(): Unit =
+  @Test def testExecutesSinglePartitionLocally(implicit ctx: ExecuteContext): Unit =
     runMock { (ctx, _, batchClient, backend) =>
       val contexts = ArraySeq.tabulate(10)(_ => Array.emptyByteArray)
 
@@ -43,7 +43,7 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
       batchClient.newJobGroup(any[JobGroupRequest]) wasNever called
     }
 
-  @Test def testCollectIncrementally(): Unit =
+  @Test def testCollectIncrementally(implicit ctx: ExecuteContext): Unit =
     runMock { (ctx, jobConfig, batchClient, backend) =>
       // the service backend expects that each job write its output to a well-known
       // location when it finishes.
@@ -154,12 +154,10 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
       ) wasCalled thrice
     }
 
-  @DataProvider(name = "UseFastRestarts")
-  def useFastRestarts: Array[Array[Any]] =
-    Array(Array(null), Array("1"))
+  def testFailedJobGroup() = ArraySeq(null: String, "1")
 
-  @Test(dataProvider = "UseFastRestarts")
-  def testFailedJobGroup(useFastRestarts: String): Unit =
+  @ParameterizedTest
+  def testFailedJobGroup(useFastRestarts: String)(implicit ctx: ExecuteContext): Unit =
     runMock { (ctx, _, batchClient, backend) =>
       ctx.local(flags = ctx.flags + (UseFastRestarts -> useFastRestarts)) { ctx =>
         val contexts = ArraySeq.tabulate(100)(_ => Array.emptyByteArray)
@@ -246,7 +244,7 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
       }
     }
 
-  @Test def testCancelledJobGroup(): Unit =
+  @Test def testCancelledJobGroup(implicit ctx: ExecuteContext): Unit =
     runMock { (ctx, _, batchClient, backend) =>
       val contexts = ArraySeq.tabulate(2)(_ => Array.emptyByteArray)
       val startJobId = 2356
@@ -280,7 +278,7 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
       failure.value shouldBe a[CancellationException]
     }
 
-  @Test def testInterrupt(): Unit =
+  @Test def testInterrupt(implicit ctx: ExecuteContext): Unit =
     runMock { (ctx, _, batchClient, backend) =>
       val contexts = ArraySeq.tabulate(2)(_ => Array.emptyByteArray)
       val jobGroupId = Random.nextInt()
@@ -345,7 +343,10 @@ class ServiceBackendSuite extends HailSuite with IdiomaticMockito with OptionVal
       batchClient.cancelJobGroup(any[Int], any[Int]) wasCalled once
     }
 
-  def runMock(test: (ExecuteContext, BatchJobConfig, BatchClient, ServiceBackend) => Any): Unit =
+  def runMock(
+    test: (ExecuteContext, BatchJobConfig, BatchClient, ServiceBackend) => Any
+  )(implicit ctx: ExecuteContext
+  ): Unit =
     withObjectSpied[is.hail.utils.UtilsType] {
       // not obvious how to pull out `tokenUrlSafe` and inject this directory
       // using a spy is a hack and i don't particularly like it.

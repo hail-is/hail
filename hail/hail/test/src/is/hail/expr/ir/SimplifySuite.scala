@@ -1,31 +1,33 @@
 package is.hail.expr.ir
 
-import is.hail.{ExecStrategy, HailSuite}
+import is.hail.{ExecStrategy, ParameterizedTest}
 import is.hail.ExecStrategy.ExecStrategy
+import is.hail.TestUtils._
+import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.implicits.forTesting._
+import is.hail.io.fs.FS
 import is.hail.types.virtual._
 import is.hail.utils.Interval
 import is.hail.variant.Locus
 
 import org.apache.spark.sql.Row
+import org.junit.jupiter.api.{Disabled, Test}
 import org.scalactic.{Equivalence, Prettifier}
-import org.scalatest.Inspectors.forAll
-import org.scalatest.enablers.InspectorAsserting.assertingNatureOfAssertion
 import org.scalatest.matchers.{MatchResult, Matcher}
 import org.scalatest.matchers.dsl.MatcherFactory1
 import org.scalatest.matchers.must.Matchers.not
 import org.scalatest.matchers.should.Matchers.{a, convertToAnyShouldWrapper}
-import org.testng.annotations.{DataProvider, Test}
 
-class SimplifySuite extends HailSuite {
+class SimplifySuite {
 
   implicit val execStrats: Set[ExecStrategy] = ExecStrategy.interpretOnly
 
-  def simplifyTo(expected: BaseIR): MatcherFactory1[BaseIR, Equivalence] =
+  def simplifyTo(expected: BaseIR)(implicit ctx: ExecuteContext)
+    : MatcherFactory1[BaseIR, Equivalence] =
     new MatcherFactory1[BaseIR, Equivalence] {
       override def matcher[T <: BaseIR: Equivalence]: Matcher[T] =
         Matcher[BaseIR] { input =>
@@ -49,12 +51,12 @@ class SimplifySuite extends HailSuite {
         }
     }
 
-  implicit val irPrettifier: Prettifier = {
+  implicit def irPrettifier(implicit ctx: ExecuteContext): Prettifier = {
     case ir: BaseIR => Pretty(ctx, ir)
     case x => Prettifier.default(x)
   }
 
-  @Test def testTableMultiWayZipJoinGlobalsRewrite(): Unit = {
+  @Test def testTableMultiWayZipJoinGlobalsRewrite(implicit ctx: ExecuteContext): Unit = {
     val tmwzj = TableGetGlobals(TableMultiWayZipJoin(
       ArraySeq(TableRange(10, 10), TableRange(10, 10), TableRange(10, 10)),
       "rowField",
@@ -63,7 +65,8 @@ class SimplifySuite extends HailSuite {
     assertEvalsTo(tmwzj, Row(FastSeq(Row(), Row(), Row())))
   }
 
-  @Test def testRepartitionableMapUpdatesForUpstreamOptimizations(): Unit = {
+  @Test def testRepartitionableMapUpdatesForUpstreamOptimizations(implicit ctx: ExecuteContext)
+    : Unit = {
     val range = TableKeyBy(TableRange(10, 3), FastSeq())
     val simplifiableIR =
       If(True(), GetField(Ref(TableIR.rowName, range.typ.rowType), "idx").ceq(0), False())
@@ -78,7 +81,7 @@ class SimplifySuite extends HailSuite {
 
   lazy val base = Literal(TStruct("1" -> TInt32, "2" -> TInt32), Row(1, 2))
 
-  @Test def testInsertFieldsRewriteRules(): Unit = {
+  @Test def testInsertFieldsRewriteRules(implicit ctx: ExecuteContext): Unit = {
     val ir1 =
       InsertFields(InsertFields(base, FastSeq("1" -> I32(2)), None), FastSeq("1" -> I32(3)), None)
 
@@ -130,7 +133,8 @@ class SimplifySuite extends HailSuite {
   lazy val base2 =
     Literal(TStruct("A" -> TInt32, "B" -> TInt32, "C" -> TInt32, "D" -> TInt32), Row(1, 2, 3, 4))
 
-  @Test def testInsertFieldsWhereFieldBeingInsertedCouldBeSelected(): Unit = {
+  @Test def testInsertFieldsWhereFieldBeingInsertedCouldBeSelected(implicit ctx: ExecuteContext)
+    : Unit = {
     val ir1 =
       InsertFields(
         SelectFields(base2, IndexedSeq("A", "B", "C")),
@@ -141,7 +145,7 @@ class SimplifySuite extends HailSuite {
     assert(simplify1.typ == ir1.typ)
   }
 
-  @Test def testInsertSelectRewriteRules(): Unit = {
+  @Test def testInsertSelectRewriteRules(implicit ctx: ExecuteContext): Unit = {
     SelectFields(InsertFields(base, FastSeq("3" -> I32(1)), None), FastSeq("1")) should
       simplifyTo(SelectFields(base, FastSeq("1")))
 
@@ -155,7 +159,7 @@ class SimplifySuite extends HailSuite {
       }
   }
 
-  @Test def testContainsRewrites(): Unit = {
+  @Test def testContainsRewrites(implicit ctx: ExecuteContext): Unit = {
     assertEvalsTo(
       invoke("contains", TBoolean, Literal(TArray(TString), FastSeq("a")), In(0, TString)),
       FastSeq("a" -> TString),
@@ -175,7 +179,7 @@ class SimplifySuite extends HailSuite {
     )
   }
 
-  @Test def testTableCountExplodeSetRewrite(): Unit = {
+  @Test def testTableCountExplodeSetRewrite(implicit ctx: ExecuteContext): Unit = {
     var ir: TableIR = TableRange(1, 1)
     ir = TableMapRows(
       ir,
@@ -188,13 +192,12 @@ class SimplifySuite extends HailSuite {
     assertEvalsTo(TableCount(ir), 1L)
   }
 
-  @DataProvider(name = "NestedInserts")
-  def nestedInserts: Array[Array[Any]] = {
+  def testNestedInsertsSimplify() = {
     val unbound = Name("do-not-touch")
     val r = Ref(Name("unbound-struct"), TStruct("x" -> TInt32))
 
-    Array[Array[Any]](
-      Array(
+    Seq(
+      (
         bindIR(InsertFields(r, FastSeq("y" -> F64(0)))) { r2 =>
           InsertFields(r2, FastSeq("z" -> GetField(r2, "x").toD))
         },
@@ -206,7 +209,7 @@ class SimplifySuite extends HailSuite {
           )
         },
       ),
-      Array(
+      (
         bindIR(InsertFields(r, FastSeq("y" -> F64(0)))) { r2 =>
           InsertFields(r2, FastSeq("z" -> (GetField(r2, "x").toD + GetField(r2, "y"))))
         },
@@ -218,20 +221,20 @@ class SimplifySuite extends HailSuite {
           )
         },
       ),
-      Array(
+      (
         bindIR(InsertFields(r, FastSeq("y" -> F64(0)))) { r2 =>
           InsertFields(Ref(unbound, TStruct.empty), FastSeq("z" -> GetField(r2, "y").toI))
         },
         bindIRs(F64(0), r) { case Seq(x0, _) =>
           InsertFields(Ref(unbound, TStruct.empty), FastSeq("z" -> x0.toI))
         },
-      ),
-      Array.fill(2) { // unrewriteable
-        bindIR(InsertFields(r, FastSeq("y" -> Ref(unbound, TFloat64)))) { r2 =>
+      ), {
+        val u = bindIR(InsertFields(r, FastSeq("y" -> Ref(unbound, TFloat64)))) { r2 =>
           InsertFields(r2, FastSeq(("z", invoke("str", TString, r2))))
         }
+        (u, u)
       },
-      Array(
+      (
         IRBuilder.scoped { b =>
           val a = b.strictMemoize(I32(32))
           val r2 = b.strictMemoize(InsertFields(r, FastSeq("y" -> F64(0))))
@@ -256,7 +259,7 @@ class SimplifySuite extends HailSuite {
           )
         },
       ),
-      Array(
+      (
         IRBuilder.scoped { outer =>
           val ins =
             outer.strictMemoize {
@@ -283,11 +286,11 @@ class SimplifySuite extends HailSuite {
     )
   }
 
-  @Test(dataProvider = "NestedInserts")
-  def testNestedInsertsSimplify(input: IR, expected: IR): Unit =
+  @ParameterizedTest
+  def testNestedInsertsSimplify(input: IR, expected: IR)(implicit ctx: ExecuteContext): Unit =
     input should simplifyTo(expected)
 
-  @Test def testArrayAggNoAggRewrites(): Unit = {
+  @Test def testArrayAggNoAggRewrites(implicit ctx: ExecuteContext): Unit = {
     val doesRewrite: Array[StreamAgg] = {
       val x = Ref(freshName(), TInt32)
       Array(
@@ -298,7 +301,7 @@ class SimplifySuite extends HailSuite {
       )
     }
 
-    forAll(doesRewrite)(a => a should simplifyTo(a.query))
+    doesRewrite.foreach(a => a should simplifyTo(a.query))
 
     val doesNotRewrite: Array[StreamAgg] = Array(
       streamAggIR(ToStream(In(0, TArray(TInt32))))(ApplyAggOp(Sum())(_)),
@@ -307,10 +310,10 @@ class SimplifySuite extends HailSuite {
       },
     )
 
-    forAll(doesNotRewrite)(a => a should simplifyTo(a))
+    doesNotRewrite.foreach(a => a should simplifyTo(a))
   }
 
-  @Test def testArrayAggScanNoAggRewrites(): Unit = {
+  @Test def testArrayAggScanNoAggRewrites(implicit ctx: ExecuteContext): Unit = {
     val doesRewrite: Array[StreamAggScan] = Array(
       streamAggScanIR(ToStream(In(0, TArray(TInt32))))(_ => Ref(freshName(), TInt32)),
       streamAggScanIR(ToStream(In(0, TArray(TInt32)))) { _ =>
@@ -318,7 +321,7 @@ class SimplifySuite extends HailSuite {
       },
     )
 
-    forAll(doesRewrite)(ir => Simplify(ctx, ir) should not be a[StreamAggScan])
+    doesRewrite.foreach(ir => Simplify(ctx, ir) should not be a[StreamAggScan])
 
     val doesNotRewrite: Array[StreamAggScan] = Array(
       streamAggScanIR(ToStream(In(0, TArray(TInt32))))(foo => ApplyScanOp(Sum())(foo)),
@@ -327,10 +330,10 @@ class SimplifySuite extends HailSuite {
       },
     )
 
-    forAll(doesNotRewrite)(a => Simplify(ctx, a) shouldBe a)
+    doesNotRewrite.foreach(a => Simplify(ctx, a) shouldBe a)
   }
 
-  @Test def testArrayLenCollectToTableCount(): Unit = {
+  @Test def testArrayLenCollectToTableCount(implicit ctx: ExecuteContext): Unit = {
     val tr = TableRange(10, 10)
     val a = ArrayLen(GetField(TableCollect(tr), "rows"))
     assert(a.typ == TInt32)
@@ -339,7 +342,8 @@ class SimplifySuite extends HailSuite {
     assert(s.typ == TInt32)
   }
 
-  @Test def testMatrixColsTableMatrixMapColsWithAggLetDoesNotSimplify(): Unit = {
+  @Test def testMatrixColsTableMatrixMapColsWithAggLetDoesNotSimplify(implicit ctx: ExecuteContext)
+    : Unit = {
     val reader = MatrixRangeReader(ctx, 1, 1, None)
     var mir: MatrixIR = MatrixRead(reader.fullMatrixType, false, false, reader)
     val colType = reader.fullMatrixType.colType
@@ -355,22 +359,16 @@ class SimplifySuite extends HailSuite {
     tir should simplifyTo(tir)
   }
 
-  @DataProvider(name = "FilterParallelize")
-  def filterParallelize: Array[Array[Any]] =
-    Array(
-      Array(
-        makestruct(
-          "rows" -> In(0, TArray(TStruct("x" -> TInt32))),
-          "global" -> In(1, TStruct.empty),
-        )
-      ),
-      Array(
-        In(0, TStruct("rows" -> TArray(TStruct("x" -> TInt32)), "global" -> TStruct.empty))
-      ),
-    )
+  def testFilterParallelize(): ArraySeq[IR] = ArraySeq(
+    makestruct(
+      "rows" -> In(0, TArray(TStruct("x" -> TInt32))),
+      "global" -> In(1, TStruct.empty),
+    ),
+    In(0, TStruct("rows" -> TArray(TStruct("x" -> TInt32)), "global" -> TStruct.empty)),
+  )
 
-  @Test(dataProvider = "FilterParallelize")
-  def testFilterParallelize(rowsAndGlobals: IR): Unit = {
+  @ParameterizedTest
+  def testFilterParallelize(rowsAndGlobals: IR)(implicit ctx: ExecuteContext): Unit = {
     val tp = TableParallelize(rowsAndGlobals, None)
     val tf = TableFilter(tp, GetField(Ref(TableIR.rowName, tp.typ.rowType), "x") < 100)
 
@@ -379,7 +377,7 @@ class SimplifySuite extends HailSuite {
     assert(!Exists(rw, _.isInstanceOf[TableFilter]))
   }
 
-  @Test def testStreamLenSimplifications(): Unit = {
+  @Test def testStreamLenSimplifications(implicit ctx: ExecuteContext): Unit = {
     val rangeIR = StreamRange(I32(0), I32(10), I32(1))
     val mapOfRange = mapIR(rangeIR)(_ + 5)
     val mapBlockedByLet =
@@ -391,7 +389,7 @@ class SimplifySuite extends HailSuite {
     })
   }
 
-  @Test def testNestedFilterIntervals(): Unit = {
+  @Test def testNestedFilterIntervals(implicit ctx: ExecuteContext): Unit = {
     var tir: TableIR = TableRange(10, 5)
     def r = Ref(TableIR.rowName, tir.typ.rowType)
     tir = TableMapRows(tir, InsertFields(r, FastSeq("idx2" -> GetField(r, "idx"))))
@@ -404,7 +402,7 @@ class SimplifySuite extends HailSuite {
     ))
   }
 
-  @Test def testSimplifyReadFilterIntervals(): Unit = {
+  @Test def testSimplifyReadFilterIntervals(fs: FS)(implicit ctx: ExecuteContext): Unit = {
     val src = getTestResource("sample-indexed-0.2.52.mt")
 
     val mnr = MatrixNativeReader(fs, src, None)
@@ -477,7 +475,8 @@ class SimplifySuite extends HailSuite {
     }
   }
 
-  @Test(enabled = false) def testFilterIntervalsKeyByToFilter(): Unit = {
+  @Disabled
+  @Test def testFilterIntervalsKeyByToFilter(implicit ctx: ExecuteContext): Unit = {
     var t: TableIR = TableRange(100, 10)
     t = TableMapRows(
       t,
@@ -501,7 +500,7 @@ class SimplifySuite extends HailSuite {
     })
   }
 
-  @Test def testSimplifyArraySlice(): Unit = {
+  @Test def testSimplifyArraySlice(implicit ctx: ExecuteContext): Unit = {
     val stream = StreamRange(I32(0), I32(10), I32(1))
     val streamSlice1 = Simplify(ctx, ArraySlice(ToArray(stream), I32(0), Some(I32(7))))
     assert(streamSlice1 match {
@@ -534,159 +533,155 @@ class SimplifySuite extends HailSuite {
 
   def ref(typ: Type) = Ref(Name("#undefined"), typ)
 
-  @DataProvider(name = "unaryBooleanArithmetic")
-  def unaryBooleanArithmetic: Array[Array[Any]] =
-    Array(
-      Array(ApplyUnaryPrimOp(Bang, ApplyUnaryPrimOp(Bang, ref(TBoolean))), ref(TBoolean))
-    ).asInstanceOf[Array[Array[Any]]]
+  def testUnaryBooleanSimplification() =
+    Seq(
+      (ApplyUnaryPrimOp(Bang, ApplyUnaryPrimOp(Bang, ref(TBoolean))), ref(TBoolean))
+    )
 
-  @Test(dataProvider = "unaryBooleanArithmetic")
-  def testUnaryBooleanSimplification(input: IR, expected: IR): Unit =
+  @ParameterizedTest
+  def testUnaryBooleanSimplification(input: IR, expected: IR)(implicit ctx: ExecuteContext): Unit =
     input should simplifyTo(expected)
 
-  @DataProvider(name = "unaryIntegralArithmetic")
-  def unaryIntegralArithmetic: Array[Array[Any]] =
-    Array(TInt32, TInt64).flatMap { typ =>
-      Array(
-        Array(ApplyUnaryPrimOp(Negate, ApplyUnaryPrimOp(Negate, ref(typ))), ref(typ)),
-        Array(ApplyUnaryPrimOp(BitNot, ApplyUnaryPrimOp(BitNot, ref(typ))), ref(typ)),
-        Array(
+  def testUnaryIntegralSimplification() =
+    Array(TInt32, TInt64).toSeq.flatMap { typ =>
+      Seq(
+        (ApplyUnaryPrimOp(Negate, ApplyUnaryPrimOp(Negate, ref(typ))), ref(typ)),
+        (ApplyUnaryPrimOp(BitNot, ApplyUnaryPrimOp(BitNot, ref(typ))), ref(typ)),
+        (
           ApplyUnaryPrimOp(Negate, ApplyUnaryPrimOp(BitNot, ref(typ))),
           ApplyUnaryPrimOp(Negate, ApplyUnaryPrimOp(BitNot, ref(typ))),
         ),
-        Array(
+        (
           ApplyUnaryPrimOp(BitNot, ApplyUnaryPrimOp(Negate, ref(typ))),
           ApplyUnaryPrimOp(BitNot, ApplyUnaryPrimOp(Negate, ref(typ))),
         ),
-      ).asInstanceOf[Array[Array[Any]]]
+      )
     }
 
-  @Test(dataProvider = "unaryIntegralArithmetic")
-  def testUnaryIntegralSimplification(input: IR, expected: IR): Unit =
+  @ParameterizedTest
+  def testUnaryIntegralSimplification(input: IR, expected: IR)(implicit ctx: ExecuteContext): Unit =
     input should simplifyTo(expected)
 
-  @DataProvider(name = "binaryIntegralArithmetic")
-  def binaryIntegralArithmetic: Array[Array[Any]] =
-    Array((Literal.coerce(TInt32, _)) -> TInt32, (Literal.coerce(TInt64, _)) -> TInt64).flatMap {
-      case (pure, typ) =>
-        Array.concat(
-          Array(
+  def testBinaryIntegralSimplification() =
+    Array((Literal.coerce(TInt32, _)) -> TInt32, (Literal.coerce(TInt64, _)) -> TInt64).toSeq
+      .flatMap {
+        case (pure, typ) =>
+          Seq(
             // Addition
-            Array(
+            (
               ApplyBinaryPrimOp(Add(), ref(typ), ref(typ)),
               ApplyBinaryPrimOp(Multiply(), pure(2), ref(typ)),
             ),
-            Array(ApplyBinaryPrimOp(Add(), pure(0), ref(typ)), ref(typ)),
-            Array(ApplyBinaryPrimOp(Add(), ref(typ), pure(0)), ref(typ)),
+            (ApplyBinaryPrimOp(Add(), pure(0), ref(typ)), ref(typ)),
+            (ApplyBinaryPrimOp(Add(), ref(typ), pure(0)), ref(typ)),
 
             // Subtraction
-            Array(ApplyBinaryPrimOp(Subtract(), ref(typ), ref(typ)), pure(0)),
-            Array(
+            (ApplyBinaryPrimOp(Subtract(), ref(typ), ref(typ)), pure(0)),
+            (
               ApplyBinaryPrimOp(Subtract(), pure(0), ref(typ)),
               ApplyUnaryPrimOp(Negate, ref(typ)),
             ),
-            Array(ApplyBinaryPrimOp(Subtract(), ref(typ), pure(0)), ref(typ)),
+            (ApplyBinaryPrimOp(Subtract(), ref(typ), pure(0)), ref(typ)),
 
             // Multiplication
-            Array(ApplyBinaryPrimOp(Multiply(), pure(0), ref(typ)), pure(0)),
-            Array(ApplyBinaryPrimOp(Multiply(), ref(typ), pure(0)), pure(0)),
-            Array(ApplyBinaryPrimOp(Multiply(), pure(1), ref(typ)), ref(typ)),
-            Array(ApplyBinaryPrimOp(Multiply(), ref(typ), pure(1)), ref(typ)),
-            Array(
+            (ApplyBinaryPrimOp(Multiply(), pure(0), ref(typ)), pure(0)),
+            (ApplyBinaryPrimOp(Multiply(), ref(typ), pure(0)), pure(0)),
+            (ApplyBinaryPrimOp(Multiply(), pure(1), ref(typ)), ref(typ)),
+            (ApplyBinaryPrimOp(Multiply(), ref(typ), pure(1)), ref(typ)),
+            (
               ApplyBinaryPrimOp(Multiply(), pure(-1), ref(typ)),
               ApplyUnaryPrimOp(Negate, ref(typ)),
             ),
-            Array(
+            (
               ApplyBinaryPrimOp(Multiply(), ref(typ), pure(-1)),
               ApplyUnaryPrimOp(Negate, ref(typ)),
             ),
 
             // Div (truncated to -Inf)
-            Array(ApplyBinaryPrimOp(RoundToNegInfDivide(), ref(typ), ref(typ)), pure(1)),
-            Array(ApplyBinaryPrimOp(RoundToNegInfDivide(), pure(0), ref(typ)), pure(0)),
-            Array(
+            (ApplyBinaryPrimOp(RoundToNegInfDivide(), ref(typ), ref(typ)), pure(1)),
+            (ApplyBinaryPrimOp(RoundToNegInfDivide(), pure(0), ref(typ)), pure(0)),
+            (
               ApplyBinaryPrimOp(RoundToNegInfDivide(), ref(typ), pure(0)),
               Die("division by zero", typ),
             ),
-            Array(ApplyBinaryPrimOp(RoundToNegInfDivide(), ref(typ), pure(1)), ref(typ)),
-            Array(
+            (ApplyBinaryPrimOp(RoundToNegInfDivide(), ref(typ), pure(1)), ref(typ)),
+            (
               ApplyBinaryPrimOp(RoundToNegInfDivide(), ref(typ), pure(-1)),
               ApplyUnaryPrimOp(Negate, ref(typ)),
             ),
 
             // Bitwise And
-            Array(ApplyBinaryPrimOp(BitAnd(), pure(0), ref(typ)), pure(0)),
-            Array(ApplyBinaryPrimOp(BitAnd(), ref(typ), pure(0)), pure(0)),
-            Array(ApplyBinaryPrimOp(BitAnd(), pure(-1), ref(typ)), ref(typ)),
-            Array(ApplyBinaryPrimOp(BitAnd(), ref(typ), pure(-1)), ref(typ)),
+            (ApplyBinaryPrimOp(BitAnd(), pure(0), ref(typ)), pure(0)),
+            (ApplyBinaryPrimOp(BitAnd(), ref(typ), pure(0)), pure(0)),
+            (ApplyBinaryPrimOp(BitAnd(), pure(-1), ref(typ)), ref(typ)),
+            (ApplyBinaryPrimOp(BitAnd(), ref(typ), pure(-1)), ref(typ)),
 
             // Bitwise Or
-            Array(ApplyBinaryPrimOp(BitOr(), pure(0), ref(typ)), ref(typ)),
-            Array(ApplyBinaryPrimOp(BitOr(), ref(typ), pure(0)), ref(typ)),
-            Array(ApplyBinaryPrimOp(BitOr(), pure(-1), ref(typ)), pure(-1)),
-            Array(ApplyBinaryPrimOp(BitOr(), ref(typ), pure(-1)), pure(-1)),
+            (ApplyBinaryPrimOp(BitOr(), pure(0), ref(typ)), ref(typ)),
+            (ApplyBinaryPrimOp(BitOr(), ref(typ), pure(0)), ref(typ)),
+            (ApplyBinaryPrimOp(BitOr(), pure(-1), ref(typ)), pure(-1)),
+            (ApplyBinaryPrimOp(BitOr(), ref(typ), pure(-1)), pure(-1)),
 
             // Bitwise Xor
-            Array(ApplyBinaryPrimOp(BitXOr(), ref(typ), ref(typ)), pure(0)),
-            Array(ApplyBinaryPrimOp(BitXOr(), ref(typ), pure(0)), ref(typ)),
-            Array(ApplyBinaryPrimOp(BitXOr(), pure(0), ref(typ)), ref(typ)),
-          ).asInstanceOf[Array[Array[Any]]],
-          // Shifts
-          Array(LeftShift(), RightShift(), LogicalRightShift()).flatMap { shift =>
-            Array(
-              Array(ApplyBinaryPrimOp(shift, pure(0), ref(TInt32)), pure(0)),
-              Array(ApplyBinaryPrimOp(shift, ref(typ), I32(0)), ref(typ)),
-            )
-          }.asInstanceOf[Array[Array[Any]]],
-        )
-    }
+            (ApplyBinaryPrimOp(BitXOr(), ref(typ), ref(typ)), pure(0)),
+            (ApplyBinaryPrimOp(BitXOr(), ref(typ), pure(0)), ref(typ)),
+            (ApplyBinaryPrimOp(BitXOr(), pure(0), ref(typ)), ref(typ)),
+          ) ++
+            // Shifts
+            Array(LeftShift(), RightShift(), LogicalRightShift()).toSeq.flatMap { shift =>
+              Seq(
+                (ApplyBinaryPrimOp(shift, pure(0), ref(TInt32)), pure(0)),
+                (ApplyBinaryPrimOp(shift, ref(typ), I32(0)), ref(typ)),
+              )
+            }
+      }
 
-  @Test(dataProvider = "binaryIntegralArithmetic")
-  def testBinaryIntegralSimplification(input: IR, expected: IR): Unit =
+  @ParameterizedTest
+  def testBinaryIntegralSimplification(input: IR, expected: IR)(implicit ctx: ExecuteContext)
+    : Unit =
     input should simplifyTo(expected)
 
-  @DataProvider(name = "floatingIntegralArithmetic")
-  def binaryFloatingArithmetic: Array[Array[Any]] =
+  def testBinaryFloatingSimplification() =
     Array(
       (Literal.coerce(TFloat32, _)) -> TFloat32,
       (Literal.coerce(TFloat64, _)) -> TFloat64,
-    ).flatMap { case (pure, typ) =>
-      Array(
+    ).toSeq.flatMap { case (pure, typ) =>
+      Seq(
         // Addition
-        Array(ApplyBinaryPrimOp(Add(), pure(0), ref(typ)), ref(typ)),
-        Array(ApplyBinaryPrimOp(Add(), ref(typ), pure(0)), ref(typ)),
+        (ApplyBinaryPrimOp(Add(), pure(0), ref(typ)), ref(typ)),
+        (ApplyBinaryPrimOp(Add(), ref(typ), pure(0)), ref(typ)),
 
         // Subtraction
-        Array(ApplyBinaryPrimOp(Subtract(), pure(0), ref(typ)), ApplyUnaryPrimOp(Negate, ref(typ))),
-        Array(ApplyBinaryPrimOp(Subtract(), ref(typ), pure(0)), ref(typ)),
+        (ApplyBinaryPrimOp(Subtract(), pure(0), ref(typ)), ApplyUnaryPrimOp(Negate, ref(typ))),
+        (ApplyBinaryPrimOp(Subtract(), ref(typ), pure(0)), ref(typ)),
 
         // Multiplication
-        Array(ApplyBinaryPrimOp(Multiply(), pure(1), ref(typ)), ref(typ)),
-        Array(ApplyBinaryPrimOp(Multiply(), ref(typ), pure(1)), ref(typ)),
-        Array(
+        (ApplyBinaryPrimOp(Multiply(), pure(1), ref(typ)), ref(typ)),
+        (ApplyBinaryPrimOp(Multiply(), ref(typ), pure(1)), ref(typ)),
+        (
           ApplyBinaryPrimOp(Multiply(), pure(-1), ref(typ)),
           ApplyUnaryPrimOp(Negate, ref(typ)),
         ),
-        Array(
+        (
           ApplyBinaryPrimOp(Multiply(), ref(typ), pure(-1)),
           ApplyUnaryPrimOp(Negate, ref(typ)),
         ),
 
         // Div (truncated to -Inf)
-        Array(ApplyBinaryPrimOp(RoundToNegInfDivide(), ref(typ), pure(1)), ref(typ)),
-        Array(
+        (ApplyBinaryPrimOp(RoundToNegInfDivide(), ref(typ), pure(1)), ref(typ)),
+        (
           ApplyBinaryPrimOp(RoundToNegInfDivide(), ref(typ), pure(-1)),
           ApplyUnaryPrimOp(Negate, ref(typ)),
         ),
-      ).asInstanceOf[Array[Array[Any]]]
+      )
     }
 
-  @Test(dataProvider = "floatingIntegralArithmetic")
-  def testBinaryFloatingSimplification(input: IR, expected: IR): Unit =
+  @ParameterizedTest
+  def testBinaryFloatingSimplification(input: IR, expected: IR)(implicit ctx: ExecuteContext)
+    : Unit =
     input should simplifyTo(expected)
 
-  @DataProvider(name = "blockMatrixRules")
-  def blockMatrixRules: Array[Array[Any]] = {
+  def testBlockMatrixSimplification() = {
     val matrix =
       ValueToBlockMatrix(
         MakeArray((1 to 4).map(i => F64(i.toDouble)), TArray(TFloat64)),
@@ -694,10 +689,10 @@ class SimplifySuite extends HailSuite {
         10,
       )
 
-    Array(
-      Array(BlockMatrixBroadcast(matrix, 0 to 1, matrix.shape, matrix.blockSize), matrix),
-      Array(bmMap(matrix, true)(x => x), matrix),
-      Array(
+    Seq(
+      (BlockMatrixBroadcast(matrix, 0 to 1, matrix.shape, matrix.blockSize), matrix),
+      (bmMap(matrix, true)(x => x), matrix),
+      (
         bmMap(matrix, true)(_ => F64(2356)),
         BlockMatrixBroadcast(
           ValueToBlockMatrix(F64(2356), FastSeq(1, 1), matrix.blockSize),
@@ -706,61 +701,73 @@ class SimplifySuite extends HailSuite {
           matrix.blockSize,
         ),
       ),
-    ).asInstanceOf[Array[Array[Any]]]
+    )
   }
 
-  @Test(dataProvider = "blockMatrixRules")
-  def testBlockMatrixSimplification(input: BlockMatrixIR, expected: BlockMatrixIR): Unit =
+  @ParameterizedTest
+  def testBlockMatrixSimplification(
+    input: BlockMatrixIR,
+    expected: BlockMatrixIR,
+  )(implicit ctx: ExecuteContext
+  ): Unit =
     input should simplifyTo(expected)
 
-  @DataProvider(name = "SwitchRules")
-  def switchRules: Array[Array[Any]] =
-    Array(
-      Array(I32(-1), I32(-1), IndexedSeq.tabulate(5)(I32), I32(-1)),
-      Array(I32(1), I32(-1), IndexedSeq.tabulate(5)(I32), I32(1)),
-      Array(
+  def testTestSwitchSimplification() =
+    Seq(
+      (I32(-1), I32(-1), IndexedSeq.tabulate(5)(I32), I32(-1)),
+      (I32(1), I32(-1), IndexedSeq.tabulate(5)(I32), I32(1)),
+      (
         ref(TInt32),
         I32(-1),
         IndexedSeq.tabulate(5)(I32),
         Switch(ref(TInt32), I32(-1), IndexedSeq.tabulate(5)(I32)),
       ),
-      Array(I32(256), I32(-1), IndexedSeq.empty[IR], I32(-1)),
-      Array(
+      (I32(256), I32(-1), IndexedSeq.empty[IR], I32(-1)),
+      (
         ref(TInt32),
         I32(-1),
         IndexedSeq.empty[IR],
         Switch(ref(TInt32), I32(-1), IndexedSeq.empty[IR]),
-      ), // missingness
+      ),
     )
 
-  @Test(dataProvider = "SwitchRules")
-  def testTestSwitchSimplification(x: IR, default: IR, cases: IndexedSeq[IR], expected: BaseIR)
-    : Unit =
+  @ParameterizedTest
+  def testTestSwitchSimplification(
+    x: IR,
+    default: IR,
+    cases: IndexedSeq[IR],
+    expected: BaseIR,
+  )(implicit ctx: ExecuteContext
+  ): Unit =
     Switch(x, default, cases) should simplifyTo(expected)
 
-  @DataProvider(name = "IfRules")
-  def ifRules: Array[Array[Any]] = {
+  def testIfSimplification() = {
     val x = Ref(freshName(), TInt32)
     val y = Ref(freshName(), TInt32)
     val c = Ref(freshName(), TBoolean)
 
-    Array(
-      Array(True(), x, Die("Failure", x.typ), x),
-      Array(False(), Die("Failure", x.typ), x, x),
-      Array(IsNA(x), NA(x.typ), x, x),
-      Array(ApplyUnaryPrimOp(Bang, c), x, y, If(c, y, x)),
-      Array(c, If(c, x, y), y, If(c, x, y)),
-      Array(c, x, If(c, x, y), If(c, x, y)),
-      Array(c, x, x, If(IsNA(c), NA(x.typ), x)),
+    Seq(
+      (True(), x, Die("Failure", x.typ), x),
+      (False(), Die("Failure", x.typ), x, x),
+      (IsNA(x), NA(x.typ), x, x),
+      (ApplyUnaryPrimOp(Bang, c), x, y, If(c, y, x)),
+      (c, If(c, x, y), y, If(c, x, y)),
+      (c, x, If(c, x, y), If(c, x, y)),
+      (c, x, x, If(IsNA(c), NA(x.typ), x)),
     )
   }
 
-  @Test(dataProvider = "IfRules")
-  def testIfSimplification(pred: IR, cnsq: IR, altr: IR, expected: BaseIR): Unit =
+  @ParameterizedTest
+  def testIfSimplification(
+    pred: IR,
+    cnsq: IR,
+    altr: IR,
+    expected: BaseIR,
+  )(implicit ctx: ExecuteContext
+  ): Unit =
     If(pred, cnsq, altr) should simplifyTo(expected)
 
-  @DataProvider(name = "MakeStructRules")
-  def makeStructRules: Array[Array[Any]] = {
+  def testMakeStruct() = {
     val s = ref(TStruct(
       "a" -> TInt32,
       "b" -> TInt64,
@@ -769,44 +776,44 @@ class SimplifySuite extends HailSuite {
 
     def get(name: String) = GetField(s, name)
 
-    Array(
-      Array(
+    Seq(
+      (
         FastSeq("x" -> get("a")),
         CastRename(SelectFields(s, FastSeq("a")), TStruct("x" -> TInt32)),
       ),
-      Array(
+      (
         FastSeq("x" -> get("a"), "y" -> get("b")),
         CastRename(SelectFields(s, FastSeq("a", "b")), TStruct("x" -> TInt32, "y" -> TInt64)),
       ),
-      Array(
+      (
         FastSeq("a" -> get("a"), "b" -> get("b")),
         SelectFields(s, FastSeq("a", "b")),
       ),
-      Array(
+      (
         FastSeq("a" -> get("a"), "b" -> get("b"), "c" -> get("c")),
         s,
       ),
     )
   }
 
-  @Test(dataProvider = "MakeStructRules")
-  def testMakeStruct(fields: IndexedSeq[(String, IR)], expected: IR): Unit =
+  @ParameterizedTest
+  def testMakeStruct(fields: IndexedSeq[(String, IR)], expected: IR)(implicit ctx: ExecuteContext)
+    : Unit =
     MakeStruct(fields) should simplifyTo(expected)
 
-  @DataProvider(name = "CastRules")
-  def castRules: Array[Array[Any]] = {
-    Array(
-      Array(TInt32, TFloat32, false),
-      Array(TInt32, TInt64, true),
-      Array(TInt64, TInt32, false),
-      Array(TInt32, TFloat64, true),
-      Array(TFloat32, TFloat64, true),
-      Array(TFloat64, TFloat32, false),
+  def testCastSimplify() =
+    Seq(
+      (TInt32, TFloat32, false),
+      (TInt32, TInt64, true),
+      (TInt64, TInt32, false),
+      (TInt32, TFloat64, true),
+      (TFloat32, TFloat64, true),
+      (TFloat64, TFloat32, false),
     )
-  }
 
-  @Test(dataProvider = "CastRules")
-  def testCastSimplify(t1: Type, t2: Type, simplifies: Boolean): Unit = {
+  @ParameterizedTest
+  def testCastSimplify(t1: Type, t2: Type, simplifies: Boolean)(implicit ctx: ExecuteContext)
+    : Unit = {
     val x = ref(t1)
     val ir = Cast(Cast(x, t2), t1)
     ir should simplifyTo(if (simplifies) x else ir)

@@ -1,15 +1,13 @@
 package is.hail.linalg
 
+import is.hail.TestUtils._
 import is.hail.collection.compat.immutable.ArraySeq
 
+import org.junit.jupiter.api.Test
 import org.scalacheck.Arbitrary.arbitrary
-import org.scalatest
-import org.scalatestplus.scalacheck.CheckerAsserting.assertingNatureOfAssertion
-import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
-import org.scalatestplus.testng.TestNGSuite
-import org.testng.annotations.Test
+import org.scalacheck.Prop.forAll
 
-class RowPartitionerSuite extends TestNGSuite with ScalaCheckDrivenPropertyChecks {
+class RowPartitionerSuite {
   @Test
   def testGetPartition(): Unit = {
     val partitionStarts = ArraySeq[Long](0, 0, 0, 4, 5, 5, 8, 10, 10)
@@ -17,7 +15,7 @@ class RowPartitionerSuite extends TestNGSuite with ScalaCheckDrivenPropertyCheck
     val keyPart = partitionCounts.zipWithIndex.flatMap { case (count, pi) => Array.fill(count)(pi) }
 
     val rp = RowPartitioner(partitionStarts)
-    assert(rp.numPartitions == 8)
+    assertEq(rp.numPartitions, 8)
     assert((0 until 10).forall(i => keyPart(i) == rp.getPartition(i.toLong)))
   }
 
@@ -37,15 +35,16 @@ class RowPartitionerSuite extends TestNGSuite with ScalaCheckDrivenPropertyCheck
 
     val moreKeys = Array(Long.MinValue, -1000L, -1L, 0L, 1L, 1000L, Long.MaxValue)
 
-    forAll(arbitrary[ArraySeq[Long]] map { _.sorted }) { a =>
-      whenever(a.nonEmpty) {
-        scalatest.Inspectors.forAll(a ++ moreKeys) { key =>
+    check(forAll(arbitrary[ArraySeq[Long]] map { _.sorted }) { a =>
+      a.isEmpty || {
+        (a ++ moreKeys).foreach { key =>
           assert(
             !(key > a.head && key < a.last) ||
               RowPartitioner.findInterval(a, key) == naiveFindInterval(a, key)
           )
         }
+        true
       }
-    }
+    })
   }
 }

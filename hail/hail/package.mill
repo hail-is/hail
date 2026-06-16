@@ -5,7 +5,7 @@ import mill.api.{BuildCtx, Result}
 import mill.javalib.testrunner.TestResult
 import mill.scalalib.*
 import mill.scalalib.Assembly.*
-import mill.scalalib.TestModule.TestNg
+import mill.scalalib.TestModule.Junit5
 import mill.util.{Jvm, VcsVersion}
 
 import contrib.jmh.JmhModule
@@ -175,15 +175,35 @@ trait RootHailModule extends CrossScalaModule, HailScalaModule:
       PathRef(Task.dest)
     }
 
-  object test extends HailScalaTests, TestNg, CrossValue:
+  object test extends HailScalaTests, Junit5, CrossValue:
     override def forkArgs: T[Seq[String]] =
       Seq("-Xss4m", "-Xmx4096M")
+
+    // ParameterizedTest.java is meta-annotated with JUnit's @ParameterizedTest and
+    // @ArgumentsSource. javac's annotation-processing round emits an "unclaimed annotations"
+    // warning for these, which -Werror promotes to a fatal error.
+    override def javacOptions: T[Seq[String]] =
+      super.javacOptions() :+ "-Xlint:-processing"
+
+    override def forkEnv: T[Map[String, String]] =
+      super.forkEnv() ++ Task.env.get("SCALACHECK_SEED").map("SCALACHECK_SEED" -> _)
+
+    override def bomMvnDeps: T[Seq[Dep]] = {
+      outer.bomMvnDeps() ++ Seq(
+        `junit-bom` :: "5.14.4",
+      )
+    }
 
     override def compileMvnDeps: T[Seq[Dep]] =
       outer.compileMvnDeps()
 
     override def mvnDeps: T[Seq[Dep]] =
-      outer.mvnDeps() ++ Seq(
+      outer.mvnDeps() ++ Seq[Dep](
+        `junit-platform-launcher`,
+        `junit-jupiter-api`,
+        `junit-jupiter-api`,
+        `junit-jupiter-params`,
+
         `guice` :: "5.1.0",
         `mockito-scala` :: "1.17.31",
         `scalacheck` :: "1.18.1",

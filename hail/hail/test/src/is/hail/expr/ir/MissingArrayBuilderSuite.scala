@@ -1,14 +1,13 @@
 package is.hail.expr.ir
 
+import is.hail.ParameterizedTest
 import is.hail.asm4s.AsmFunction2
 import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
 
 import scala.reflect.ClassTag
 
-import org.scalatestplus.testng.TestNGSuite
-import org.testng.annotations.{DataProvider, Test}
-
-class MissingArrayBuilderSuite extends TestNGSuite {
+class MissingArrayBuilderSuite {
   def ordering[T <: AnyVal](f: (T, T) => Boolean): AsmFunction2[T, T, Boolean] =
     new AsmFunction2[T, T, Boolean] {
       override def apply(i: T, j: T): Boolean = f(i, j)
@@ -38,14 +37,13 @@ class MissingArrayBuilderSuite extends TestNGSuite {
     }
   }
 
-  @DataProvider(name = "sortInt")
-  def integerData(): Array[Array[Any]] = Array(
-    Array(FastSeq(3, null, 3, 7, null), FastSeq(3, 3, 7, null, null)),
-    Array(FastSeq(null, null, null, null), FastSeq(null, null, null, null)),
-    Array(FastSeq(), FastSeq()),
+  def testSortOnIntArrayBuilder() = ArraySeq[(IndexedSeq[Integer], IndexedSeq[Integer])](
+    (FastSeq(3, null, 3, 7, null), FastSeq(3, 3, 7, null, null)),
+    (FastSeq(null, null, null, null), FastSeq(null, null, null, null)),
+    (FastSeq(), FastSeq()),
   )
 
-  @Test(dataProvider = "sortInt")
+  @ParameterizedTest
   def testSortOnIntArrayBuilder(array: IndexedSeq[Integer], expected: IndexedSeq[Integer]): Unit = {
     val ab = new IntMissingArrayBuilder(16)
     addToArrayBuilder(ab, array)((iab, i) => iab.add(i))
@@ -55,14 +53,14 @@ class MissingArrayBuilderSuite extends TestNGSuite {
     assert(result sameElements expected)
   }
 
-  @DataProvider(name = "sortLong")
-  def longData(): Array[Array[Any]] = Array(
-    Array(FastSeq(3L, null, 3L, 7L, null), FastSeq(3L, 3L, 7L, null, null)),
-    Array(FastSeq(null, null, null, null), FastSeq(null, null, null, null)),
-    Array(FastSeq(), FastSeq()),
-  )
+  def testSortOnLongArrayBuilder() =
+    ArraySeq[(IndexedSeq[java.lang.Long], IndexedSeq[java.lang.Long])](
+      (FastSeq(3L, null, 3L, 7L, null), FastSeq(3L, 3L, 7L, null, null)),
+      (FastSeq(null, null, null, null), FastSeq(null, null, null, null)),
+      (FastSeq(), FastSeq()),
+    )
 
-  @Test(dataProvider = "sortLong")
+  @ParameterizedTest
   def testSortOnLongArrayBuilder(
     array: IndexedSeq[java.lang.Long],
     expected: IndexedSeq[java.lang.Long],
@@ -77,14 +75,14 @@ class MissingArrayBuilderSuite extends TestNGSuite {
     assert(result sameElements expected)
   }
 
-  @DataProvider(name = "sortFloat")
-  def floatData(): Array[Array[Any]] = Array(
-    Array(FastSeq(3f, null, 3f, 7f, null), FastSeq(3f, 3f, 7f, null, null)),
-    Array(FastSeq(null, null, null, null), FastSeq(null, null, null, null)),
-    Array(FastSeq(), FastSeq()),
-  )
+  def testSortOnFloatArrayBuilder() =
+    ArraySeq[(IndexedSeq[java.lang.Float], IndexedSeq[java.lang.Float])](
+      (FastSeq(3f, null, 3f, 7f, null), FastSeq(3f, 3f, 7f, null, null)),
+      (FastSeq(null, null, null, null), FastSeq(null, null, null, null)),
+      (FastSeq(), FastSeq()),
+    )
 
-  @Test(dataProvider = "sortFloat")
+  @ParameterizedTest
   def testSortOnFloatArrayBuilder(
     array: IndexedSeq[java.lang.Float],
     expected: IndexedSeq[java.lang.Float],
@@ -99,14 +97,14 @@ class MissingArrayBuilderSuite extends TestNGSuite {
     assert(result sameElements expected)
   }
 
-  @DataProvider(name = "sortDouble")
-  def doubleData(): Array[Array[Any]] = Array(
-    Array(FastSeq(3d, null, 3d, 7d, null), FastSeq(3d, 3d, 7d, null, null)),
-    Array(FastSeq(null, null, null, null), FastSeq(null, null, null, null)),
-    Array(FastSeq(), FastSeq()),
-  )
+  def testSortOnDoubleArrayBuilder() =
+    ArraySeq[(IndexedSeq[java.lang.Double], IndexedSeq[java.lang.Double])](
+      (FastSeq(3d, null, 3d, 7d, null), FastSeq(3d, 3d, 7d, null, null)),
+      (FastSeq(null, null, null, null), FastSeq(null, null, null, null)),
+      (FastSeq(), FastSeq()),
+    )
 
-  @Test(dataProvider = "sortDouble")
+  @ParameterizedTest
   def testSortOnDoubleArrayBuilder(
     array: IndexedSeq[java.lang.Double],
     expected: IndexedSeq[java.lang.Double],
@@ -121,14 +119,14 @@ class MissingArrayBuilderSuite extends TestNGSuite {
     assert(result sameElements expected)
   }
 
-  @DataProvider(name = "sortBoolean")
-  def booleanData(): Array[Array[Any]] = Array(
-    Array(FastSeq(true, null, true, false, null), FastSeq(false, true, true, null, null)),
-    Array(FastSeq(null, null, null, null), FastSeq(null, null, null, null)),
-    Array(FastSeq(), FastSeq()),
-  )
+  def testSortOnBooleanArrayBuilder() =
+    ArraySeq[(IndexedSeq[java.lang.Boolean], IndexedSeq[java.lang.Boolean])](
+      (FastSeq(true, null, true, false, null), FastSeq(false, true, true, null, null)),
+      (FastSeq(null, null, null, null), FastSeq(null, null, null, null)),
+      (FastSeq(), FastSeq()),
+    )
 
-  @Test(dataProvider = "sortBoolean")
+  @ParameterizedTest
   def testSortOnBooleanArrayBuilder(
     array: IndexedSeq[java.lang.Boolean],
     expected: IndexedSeq[java.lang.Boolean],

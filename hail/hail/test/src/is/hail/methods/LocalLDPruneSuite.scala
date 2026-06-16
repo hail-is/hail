@@ -1,7 +1,8 @@
 package is.hail.methods
 
-import is.hail.HailSuite
+import is.hail.TestUtils._
 import is.hail.annotations.Annotation
+import is.hail.backend.ExecuteContext
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{Interpret, MatrixValue, TableValue}
 import is.hail.sparkextras.implicits.toRichRDD
@@ -10,13 +11,11 @@ import is.hail.variant._
 
 import breeze.linalg.{Vector => BVector}
 import org.apache.spark.rdd.RDD
+import org.junit.jupiter.api.Test
 import org.scalacheck.{Gen, Properties}
 import org.scalacheck.Gen._
 import org.scalacheck.Prop.forAll
-import org.scalatest
 import org.scalatest.matchers.should.Matchers.convertToAnyShouldWrapper
-import org.scalatestplus.scalacheck.Checkers
-import org.testng.annotations.Test
 
 object LocalLDPruneSuite {
   val variantByteOverhead = 50
@@ -112,22 +111,17 @@ object LocalLDPruneSuite {
   }
 }
 
-class LocalLDPruneSuite extends HailSuite with Checkers {
+class LocalLDPruneSuite extends Logging {
   val memoryPerCoreBytes = 256L * 1024 * 1024
   val nCores = 4
 
-  lazy val mt = unoptimized { ctx =>
-    Interpret(
-      importVCF(ctx, getTestResource("sample.vcf.bgz"), nPartitions = Option(10)),
-      ctx,
-    ).toMatrixValue(ArraySeq("s"))
-  }
-
-  lazy val maxQueueSize = LocalLDPruneSuite.estimateMemoryRequirements(
-    mt.rvd.count(),
-    mt.nCols,
-    memoryPerCoreBytes,
-  )
+  private def loadMt(implicit ctx: ExecuteContext): MatrixValue =
+    unoptimized { implicit ctx =>
+      Interpret(
+        importVCF(getTestResource("sample.vcf.bgz"), nPartitions = Option(10)),
+        ctx,
+      ).toMatrixValue(ArraySeq("s"))
+    }
 
   def toC2(i: Int): BoxedCall = if (i == -1) null else Call2.fromUnphasedDiploidGtIndex(i)
 
@@ -237,14 +231,15 @@ class LocalLDPruneSuite extends HailSuite with Checkers {
     val calls2 = ArraySeq(0, 1, 2, 2, 2, 0, -1, -1).map(toC2)
     val calls3 = calls1 ++ ArraySeq.fill(32 - calls1.length)(toC2(0)) ++ calls2
 
-    scalatest.Inspectors.forAll(ArraySeq(calls1, calls2, calls3)) { calls =>
-      scalatest.Inspectors.forAll(LocalLDPruneSuite.fromCalls(calls).toSeq) { bpv =>
+    ArraySeq(calls1, calls2, calls3).foreach { calls =>
+      LocalLDPruneSuite.fromCalls(calls).toSeq.foreach { bpv =>
         bpv.unpack().map(toC2) shouldBe calls
       }
     }
   }
 
-  @Test def testR2(): Unit = {
+  @Test def testR2(implicit ctx: ExecuteContext): Unit = {
+    val fs = ctx.fs
     val calls = Array(
       Array(1, 0, 0, 0, 0, 0, 0, 0).map(toC2),
       Array(1, 1, 1, 1, 1, 1, 1, 1).map(toC2),
@@ -342,7 +337,13 @@ class LocalLDPruneSuite extends HailSuite with Checkers {
 
   @Test def testRandom(): Unit = Spec.properties.foreach { case (_, p) => check(p) }
 
-  @Test def testIsLocallyUncorrelated(): Unit = {
+  @Test def testIsLocallyUncorrelated(implicit ctx: ExecuteContext): Unit = {
+    val mt = loadMt
+    val maxQueueSize = LocalLDPruneSuite.estimateMemoryRequirements(
+      mt.rvd.count(),
+      mt.nCols,
+      memoryPerCoreBytes,
+    )
     val locallyPrunedVariantsTable =
       LocalLDPrune(ctx, mt, r2Threshold = 0.2, windowSize = 1000000, maxQueueSize = maxQueueSize)
     assert(isLocallyUncorrelated(mt, locallyPrunedVariantsTable, 0.2, 1000000))

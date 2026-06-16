@@ -1,6 +1,8 @@
 package is.hail.expr.ir
 
-import is.hail.{ExecStrategy, HailSuite}
+import is.hail.ExecStrategy
+import is.hail.TestUtils._
+import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.expr.ir.defs._
 import is.hail.rvd.RVDPartitioner
@@ -9,10 +11,9 @@ import is.hail.utils.{Interval, IntervalEndpoint}
 import is.hail.variant.{Locus, ReferenceGenome}
 
 import org.apache.spark.sql.Row
-import org.scalatest.Inspectors.forAll
-import org.testng.annotations.Test
+import org.junit.jupiter.api.Test
 
-class ExtractIntervalFiltersSuite extends HailSuite { outer =>
+class ExtractIntervalFiltersSuite {
 
   val ref1 = Ref(freshName(), TStruct("w" -> TInt32, "x" -> TInt32, "y" -> TBoolean))
   val unknownBool = GetField(ref1, "y")
@@ -38,7 +39,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
 
   def wrappedIntervalEndpoint(x: Any, sign: Int) = IntervalEndpoint(Row(x), sign)
 
-  def grch38: ReferenceGenome = ctx.references(ReferenceGenome.GRCh38)
+  def grch38(implicit ctx: ExecuteContext): ReferenceGenome = ctx.references(ReferenceGenome.GRCh38)
 
   def lt(l: IR, r: IR): IR = ApplyComparisonOp(LT, l, r)
   def gt(l: IR, r: IR): IR = ApplyComparisonOp(GT, l, r)
@@ -59,6 +60,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     probes: IndexedSeq[Row],
     residualFilter: IR,
     trueIntervals: Seq[Interval],
+  )(implicit ctx: ExecuteContext
   ): Unit = {
     val result = ExtractIntervalFilters.extractPartitionFilters(
       ctx,
@@ -98,7 +100,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       ),
     )
 
-    assertEvalsTo(testIR, true)(ExecStrategy.compileOnly)
+    assertEvalsTo(testIR, true)(ctx, ExecStrategy.compileOnly)
   }
 
   def checkAll(
@@ -112,13 +114,14 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     trueResidual: IR = True(),
     falseResidual: IR = True(),
     naResidual: IR = True(),
+  )(implicit ctx: ExecuteContext
   ): Unit = {
     check(filter, rowRef, key, probes, trueResidual, trueIntervals)
     check(ApplyUnaryPrimOp(Bang, filter), rowRef, key, probes, falseResidual, falseIntervals)
     check(IsNA(filter), rowRef, key, probes, naResidual, naIntervals)
   }
 
-  @Test def testIsNA(): Unit = {
+  @Test def testIsNA(implicit ctx: ExecuteContext): Unit = {
     val testRows = FastSeq(
       Row(0, 0, true),
       Row(0, null, true),
@@ -134,7 +137,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     )
   }
 
-  @Test def testKeyComparison(): Unit = {
+  @Test def testKeyComparison(implicit ctx: ExecuteContext): Unit = {
     def check(
       op: ComparisonOp[Boolean],
       point: IR,
@@ -243,7 +246,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     ).isEmpty)
   }
 
-  @Test def testLiteralContains(): Unit = {
+  @Test def testLiteralContains(implicit ctx: ExecuteContext): Unit = {
     def check(
       node: IR,
       trueIntervals: IndexedSeq[Interval],
@@ -259,13 +262,11 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       checkAll(node, ref1, k1Full, testRows, trueIntervals, falseIntervals, naIntervals)
     }
 
-    forAll {
-      Array(
-        Literal(TSet(TInt32), Set(null, 10, 1)),
-        Literal(TArray(TInt32), FastSeq(10, 1, null)),
-        Literal(TDict(TInt32, TString), Map(1 -> "foo", (null, "bar"), 10 -> "baz")),
-      )
-    } { lit =>
+    Array(
+      Literal(TSet(TInt32), Set(null, 10, 1)),
+      Literal(TArray(TInt32), FastSeq(10, 1, null)),
+      Literal(TDict(TInt32, TString), Map(1 -> "foo", (null, "bar"), 10 -> "baz")),
+    ).foreach { lit =>
       check(
         invoke("contains", TBoolean, lit, k1),
         FastSeq(
@@ -282,13 +283,11 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       )
     }
 
-    forAll {
-      Array(
-        Literal(TSet(TInt32), Set(10, 1)),
-        Literal(TArray(TInt32), FastSeq(10, 1)),
-        Literal(TDict(TInt32, TString), Map(1 -> "foo", 10 -> "baz")),
-      )
-    } { lit =>
+    Array(
+      Literal(TSet(TInt32), Set(10, 1)),
+      Literal(TArray(TInt32), FastSeq(10, 1)),
+      Literal(TDict(TInt32, TString), Map(1 -> "foo", 10 -> "baz")),
+    ).foreach { lit =>
       check(
         invoke("contains", TBoolean, lit, k1),
         FastSeq(
@@ -305,7 +304,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     }
   }
 
-  @Test def testLiteralContainsStruct(): Unit = {
+  @Test def testLiteralContainsStruct(implicit ctx: ExecuteContext): Unit = {
     def check(
       node: IR,
       trueIntervals: IndexedSeq[Interval],
@@ -332,17 +331,15 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       )
     }
 
-    forAll {
-      Array(
-        Literal(TSet(structT1), Set(Row(1, 2), Row(3, 4), Row(3, null))),
-        Literal(TArray(structT1), FastSeq(Row(3, 4), Row(1, 2), Row(3, null))),
-        Literal(
-          TDict(structT1, TString),
-          Map(Row(1, 2) -> "foo", Row(3, 4) -> "bar", Row(3, null) -> "baz"),
-        ),
-      )
-    } { lit =>
-      forAll(fullKeyRefs) { k =>
+    Array(
+      Literal(TSet(structT1), Set(Row(1, 2), Row(3, 4), Row(3, null))),
+      Literal(TArray(structT1), FastSeq(Row(3, 4), Row(1, 2), Row(3, null))),
+      Literal(
+        TDict(structT1, TString),
+        Map(Row(1, 2) -> "foo", Row(3, 4) -> "bar", Row(3, null) -> "baz"),
+      ),
+    ).foreach { lit =>
+      fullKeyRefs.foreach { k =>
         check(
           invoke("contains", TBoolean, lit, k),
           IndexedSeq(
@@ -361,14 +358,12 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       }
     }
 
-    forAll {
-      Array(
-        Literal(TSet(structT2), Set(Row(1), Row(3), Row(null))),
-        Literal(TArray(structT2), FastSeq(Row(3), Row(null), Row(1))),
-        Literal(TDict(structT2, TString), Map(Row(1) -> "foo", Row(null) -> "baz", Row(3) -> "bar")),
-      )
-    } { lit =>
-      forAll(prefixKeyRefs) { k =>
+    Array(
+      Literal(TSet(structT2), Set(Row(1), Row(3), Row(null))),
+      Literal(TArray(structT2), FastSeq(Row(3), Row(null), Row(1))),
+      Literal(TDict(structT2, TString), Map(Row(1) -> "foo", Row(null) -> "baz", Row(3) -> "bar")),
+    ).foreach { lit =>
+      prefixKeyRefs.foreach { k =>
         check(
           invoke("contains", TBoolean, lit, k),
           IndexedSeq(
@@ -387,7 +382,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     }
   }
 
-  @Test def testIntervalContains(): Unit = {
+  @Test def testIntervalContains(implicit ctx: ExecuteContext): Unit = {
     val interval = Interval(1, 5, false, true)
     val testRows = FastSeq(
       Row(0, 0, true),
@@ -412,7 +407,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     )
   }
 
-  @Test def testIntervalContainsStruct(): Unit = {
+  @Test def testIntervalContainsStruct(implicit ctx: ExecuteContext): Unit = {
     val fullInterval = Interval(Row(1, 1), Row(2, 2), false, true)
     val prefixInterval = Interval(Row(1), Row(2), false, true)
 
@@ -446,7 +441,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       )
     }
 
-    forAll(fullKeyRefs) { k =>
+    fullKeyRefs.foreach { k =>
       check(
         invoke("contains", TBoolean, Literal(TInterval(structT1), fullInterval), k),
         FastSeq(fullInterval),
@@ -458,7 +453,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       )
     }
 
-    forAll(prefixKeyRefs) { k =>
+    prefixKeyRefs.foreach { k =>
       check(
         invoke("contains", TBoolean, Literal(TInterval(structT2), prefixInterval), k),
         FastSeq(prefixInterval),
@@ -471,7 +466,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     }
   }
 
-  @Test def testLocusContigComparison(): Unit = {
+  @Test def testLocusContigComparison(implicit ctx: ExecuteContext): Unit = {
     val ref = Ref(freshName(), TStruct("x" -> TLocus(ReferenceGenome.GRCh38)))
     val k = GetField(ref, "x")
 
@@ -503,7 +498,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     checkAll(not(ir1), ref, ref, testRows, falseIntervals, trueIntervals, naIntervals)
   }
 
-  @Test def testLocusPositionComparison(): Unit = {
+  @Test def testLocusPositionComparison(implicit ctx: ExecuteContext): Unit = {
     val ref = Ref(freshName(), TStruct("x" -> TLocus(ReferenceGenome.GRCh38)))
     val k = GetField(ref, "x")
     val pos = invoke("position", TInt32, k)
@@ -645,7 +640,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     ).isEmpty)
   }
 
-  @Test def testLocusContigContains(): Unit = {
+  @Test def testLocusContigContains(implicit ctx: ExecuteContext): Unit = {
     val ref = Ref(freshName(), TStruct("x" -> TLocus(ReferenceGenome.GRCh38)))
     val k = GetField(ref, "x")
     val contig = invoke("contig", TString, k)
@@ -665,16 +660,14 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       checkAll(node, ref, ref, testRows, trueIntervals, falseIntervals, naIntervals)
     }
 
-    forAll {
-      Array(
-        Literal(TSet(TString), Set("chr10", "chr1", null, "foo")),
-        Literal(TArray(TString), FastSeq("foo", "chr10", null, "chr1")),
-        Literal(
-          TDict(TString, TString),
-          Map("chr1" -> "foo", "chr10" -> "bar", "foo" -> "baz", (null, "quux")),
-        ),
-      )
-    } { lit =>
+    Array(
+      Literal(TSet(TString), Set("chr10", "chr1", null, "foo")),
+      Literal(TArray(TString), FastSeq("foo", "chr10", null, "chr1")),
+      Literal(
+        TDict(TString, TString),
+        Map("chr1" -> "foo", "chr10" -> "bar", "foo" -> "baz", (null, "quux")),
+      ),
+    ).foreach { lit =>
       check(
         invoke("contains", TBoolean, lit, contig),
         FastSeq(
@@ -716,13 +709,11 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       )
     }
 
-    forAll {
-      Array(
-        Literal(TSet(TString), Set("chr10", "chr1", "foo")),
-        Literal(TArray(TString), FastSeq("foo", "chr10", "chr1")),
-        Literal(TDict(TString, TString), Map("chr1" -> "foo", "chr10" -> "bar", "foo" -> "baz")),
-      )
-    } { lit =>
+    Array(
+      Literal(TSet(TString), Set("chr10", "chr1", "foo")),
+      Literal(TArray(TString), FastSeq("foo", "chr10", "chr1")),
+      Literal(TDict(TString, TString), Map("chr1" -> "foo", "chr10" -> "bar", "foo" -> "baz")),
+    ).foreach { lit =>
       check(
         invoke("contains", TBoolean, lit, contig),
         FastSeq(
@@ -764,7 +755,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     }
   }
 
-  @Test def testIntervalListFold(): Unit = {
+  @Test def testIntervalListFold(implicit ctx: ExecuteContext): Unit = {
     val inIntervals = FastSeq(
       Interval(0, 10, true, false),
       Interval(20, 25, true, false),
@@ -836,7 +827,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     )
   }
 
-  @Test def testDisjunction(): Unit = {
+  @Test def testDisjunction(implicit ctx: ExecuteContext): Unit = {
     def check(
       node: IR,
       trueIntervals: IndexedSeq[Interval],
@@ -908,7 +899,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     )
   }
 
-  @Test def testConjunction(): Unit = {
+  @Test def testConjunction(implicit ctx: ExecuteContext): Unit = {
     def check(
       node: IR,
       trueIntervals: IndexedSeq[Interval],
@@ -965,7 +956,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     )
   }
 
-  @Test def testCoalesce(): Unit = {
+  @Test def testCoalesce(implicit ctx: ExecuteContext): Unit = {
     def check(
       node: IR,
       trueIntervals: IndexedSeq[Interval],
@@ -1001,7 +992,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     )
   }
 
-  @Test def testIf(): Unit = {
+  @Test def testIf(implicit ctx: ExecuteContext): Unit = {
     def check(
       node: IR,
       trueIntervals: IndexedSeq[Interval],
@@ -1034,7 +1025,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     )
   }
 
-  @Test def testSwitch(): Unit = {
+  @Test def testSwitch(implicit ctx: ExecuteContext): Unit = {
     def check(
       node: IR,
       trueIntervals: IndexedSeq[Interval],
@@ -1085,7 +1076,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     )
   }
 
-  @Test def testRelationalChildren(): Unit = {
+  @Test def testRelationalChildren(implicit ctx: ExecuteContext): Unit = {
     val testRows = FastSeq(
       Row(0, 0, true),
       Row(0, 10, true),
@@ -1102,7 +1093,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     check(filter, ref1, k1Full, testRows, filter, FastSeq(Interval(Row(), Row(), true, true)))
   }
 
-  @Test def testIntegration(): Unit = {
+  @Test def testIntegration(implicit ctx: ExecuteContext): Unit = {
     val tab1 = TableRange(10, 5)
 
     def k = GetField(Ref(TableIR.rowName, tab1.typ.rowType), "idx")
@@ -1123,6 +1114,6 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     assert(ExtractIntervalFilters(ctx, tf).asInstanceOf[TableFilter].child.isInstanceOf[
       TableFilterIntervals
     ])
-    assertEvalsTo(TableCount(tf), 6L)(ExecStrategy.interpretOnly)
+    assertEvalsTo(TableCount(tf), 6L)(ctx, ExecStrategy.interpretOnly)
   }
 }

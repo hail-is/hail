@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
-import is.hail.HailSuite
 import is.hail.asm4s._
+import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.types.physical.stypes.concrete.{
@@ -9,9 +9,9 @@ import is.hail.types.physical.stypes.concrete.{
 }
 
 import org.apache.commons.math3.distribution.ChiSquaredDistribution
-import org.testng.annotations.Test
+import org.junit.jupiter.api.Test
 
-class RandomSuite extends HailSuite {
+class RandomSuite {
   // from skein_golden_kat_short_internals.txt in the skein source
   val threefryTestCases = FastSeq(
     (
@@ -58,7 +58,8 @@ class RandomSuite extends HailSuite {
     }
   }
 
-  def pmacStagedStaticSize(staticID: Long, size: Int): AsmFunction1[Array[Long], Array[Long]] = {
+  def pmacStagedStaticSize(staticID: Long, size: Int, ctx: ExecuteContext)
+    : AsmFunction1[Array[Long], Array[Long]] = {
     val f = EmitFunctionBuilder[Array[Long], Array[Long]](ctx, "pmacStaticSize")
     f.emb.emitWithBuilder { cb =>
       val message = f.mb.getArg[Array[Long]](1)
@@ -79,7 +80,7 @@ class RandomSuite extends HailSuite {
     f.result()(new HailClassLoader(getClass.getClassLoader))
   }
 
-  def pmacEngineStagedStaticSize(staticID: Long, size: Int)
+  def pmacEngineStagedStaticSize(staticID: Long, size: Int, ctx: ExecuteContext)
     : AsmFunction1[Array[Long], ThreefryRandomEngine] = {
     val f = EmitFunctionBuilder[Array[Long], ThreefryRandomEngine](ctx, "pmacStaticSize")
     f.emb.emitWithBuilder { cb =>
@@ -99,7 +100,8 @@ class RandomSuite extends HailSuite {
     f.result()(new HailClassLoader(getClass.getClassLoader))
   }
 
-  def pmacStagedDynSize(staticID: Long): AsmFunction1[Array[Long], Array[Long]] = {
+  def pmacStagedDynSize(staticID: Long, ctx: ExecuteContext)
+    : AsmFunction1[Array[Long], Array[Long]] = {
     val f = EmitFunctionBuilder[Array[Long], Array[Long]](ctx, "pmacDynSize")
     f.emb.emitWithBuilder { cb =>
       val message = f.mb.getArg[Array[Long]](1)
@@ -127,7 +129,8 @@ class RandomSuite extends HailSuite {
     f.result()(new HailClassLoader(getClass.getClassLoader))
   }
 
-  def pmacEngineStagedDynSize(staticID: Long): AsmFunction1[Array[Long], ThreefryRandomEngine] = {
+  def pmacEngineStagedDynSize(staticID: Long, ctx: ExecuteContext)
+    : AsmFunction1[Array[Long], ThreefryRandomEngine] = {
     val f = EmitFunctionBuilder[Array[Long], ThreefryRandomEngine](ctx, "pmacDynSize")
     f.emb.emitWithBuilder { cb =>
       val message = f.mb.getArg[Array[Long]](1)
@@ -160,13 +163,13 @@ class RandomSuite extends HailSuite {
     (Array[Long](100, 101, 102, 103, 104), 30L),
   )
 
-  @Test def testPMAC(): Unit = {
+  @Test def testPMAC(implicit ctx: ExecuteContext): Unit = {
     for {
       (message, staticID) <- pmacTestCases
     } {
       val res1 = Threefry.pmac(ctx.rngNonce, staticID, ArraySeq.unsafeWrapArray(message))
-      val res2 = pmacStagedStaticSize(staticID, message.length)(message)
-      val res3 = pmacStagedDynSize(staticID)(message)
+      val res2 = pmacStagedStaticSize(staticID, message.length, ctx)(message)
+      val res3 = pmacStagedDynSize(staticID, ctx)(message)
       assert(res1 sameElements res2)
       assert(res1 sameElements res3)
     }
@@ -185,14 +188,14 @@ class RandomSuite extends HailSuite {
     }
   }
 
-  @Test def testRandomEngine(): Unit = {
+  @Test def testRandomEngine(implicit ctx: ExecuteContext): Unit = {
     for {
       (message, staticID) <- pmacTestCases
     } {
       val (hash, finalTweak) =
         Threefry.pmacHash(ctx.rngNonce, staticID, ArraySeq.unsafeWrapArray(message))
-      val engine1 = pmacEngineStagedStaticSize(staticID, message.length)(message)
-      val engine2 = pmacEngineStagedDynSize(staticID)(message)
+      val engine1 = pmacEngineStagedStaticSize(staticID, message.length, ctx)(message)
+      val engine2 = pmacEngineStagedDynSize(staticID, ctx)(message)
 
       var expected = hash.clone()
       Threefry.encrypt(Threefry.defaultKey, ArraySeq(finalTweak, 0L), expected)

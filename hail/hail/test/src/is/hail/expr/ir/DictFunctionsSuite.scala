@@ -1,102 +1,112 @@
 package is.hail.expr.ir
 
-import is.hail.{ExecStrategy, HailSuite}
+import is.hail.{ExecStrategy, ParameterizedTest}
 import is.hail.ExecStrategy.ExecStrategy
+import is.hail.TestUtils._
+import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.defs.{NA, ToSet, ToStream}
 import is.hail.types.virtual._
 
 import org.apache.spark.sql.Row
-import org.testng.annotations.{DataProvider, Test}
+import org.junit.jupiter.api.Test
 
-class DictFunctionsSuite extends HailSuite {
+class DictFunctionsSuite {
   def tuplesToMap(a: IndexedSeq[(Integer, Integer)]): Map[Integer, Integer] =
     Option(a).map(_.filter(_ != null).toMap).orNull
 
   implicit val execStrats: Set[ExecStrategy] = ExecStrategy.javaOnly
 
-  @DataProvider(name = "basic")
-  def basicData(): Array[Array[Any]] = Array(
-    Array(IndexedSeq((1, 3), (2, 7))),
-    Array(IndexedSeq((1, 3), (2, null), null, (null, 1), (3, 7))),
-    Array(IndexedSeq()),
-    Array(IndexedSeq(null)),
-    Array(null),
+  def basic() = ArraySeq(
+    IndexedSeq((1, 3), (2, 7)),
+    IndexedSeq((1, 3), (2, null), null, (null, 1), (3, 7)),
+    IndexedSeq(),
+    IndexedSeq(null),
+    null,
   )
 
-  @Test(dataProvider = "basic")
-  def dictFromArray(a: IndexedSeq[(Integer, Integer)]): Unit = {
+  @ParameterizedTest("basic")
+  def dictFromArray(a: IndexedSeq[(Integer, Integer)])(implicit ctx: ExecuteContext): Unit = {
     assertEvalsTo(invoke("dict", TDict(TInt32, TInt32), toIRPairArray(a)), tuplesToMap(a))
     assertEvalsTo(toIRDict(a), tuplesToMap(a))
   }
 
-  @Test(dataProvider = "basic")
-  def dictFromSet(a: IndexedSeq[(Integer, Integer)]): Unit =
+  @ParameterizedTest("basic")
+  def dictFromSet(a: IndexedSeq[(Integer, Integer)])(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(
       invoke("dict", TDict(TInt32, TInt32), ToSet(ToStream(toIRPairArray(a)))),
       tuplesToMap(a),
     )
 
-  @Test(dataProvider = "basic")
-  def isEmpty(a: IndexedSeq[(Integer, Integer)]): Unit =
+  @ParameterizedTest("basic")
+  def isEmpty(a: IndexedSeq[(Integer, Integer)])(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(
       invoke("isEmpty", TBoolean, toIRDict(a)),
       Option(a).map(_.forall(_ == null)).orNull,
     )
 
-  @DataProvider(name = "dictToArray")
-  def dictToArrayData(): Array[Array[Any]] = Array(
-    Array(FastSeq(1 -> 3, 2 -> 7), FastSeq(Row(1, 3), Row(2, 7))),
-    Array(
-      FastSeq(1 -> 3, 2 -> null, null, (null, 1), 3 -> 7),
+  def dictToArray() = ArraySeq[(IndexedSeq[(Integer, Integer)], IndexedSeq[Row])](
+    (FastSeq[(Integer, Integer)]((1, 3), (2, 7)), FastSeq(Row(1, 3), Row(2, 7))),
+    (
+      FastSeq[(Integer, Integer)]((1, 3), (2, null), null, (null, 1), (3, 7)),
       FastSeq(Row(1, 3), Row(2, null), Row(3, 7), Row(null, 1)),
     ),
-    Array(FastSeq(), FastSeq()),
-    Array(FastSeq(null), FastSeq()),
-    Array(null, null),
+    (FastSeq(), FastSeq()),
+    (FastSeq(null), FastSeq()),
+    (null, null),
   )
 
-  @Test(dataProvider = "dictToArray")
-  def dictToArray(a: IndexedSeq[(Integer, Integer)], expected: IndexedSeq[Row]): Unit = {
+  @ParameterizedTest
+  def dictToArray(
+    a: IndexedSeq[(Integer, Integer)],
+    expected: IndexedSeq[Row],
+  )(implicit
+    ctx: ExecuteContext
+  ): Unit = {
     implicit val execStrats = Set(ExecStrategy.JvmCompile)
     assertEvalsTo(invoke("dictToArray", TArray(TTuple(TInt32, TInt32)), toIRDict(a)), expected)
   }
 
-  @DataProvider(name = "keysAndValues")
-  def keysAndValuesData(): Array[Array[Any]] = Array(
-    Array(FastSeq(1 -> 3, 2 -> 7), FastSeq(1, 2), FastSeq(3, 7)),
-    Array(
-      FastSeq(1 -> 3, 2 -> null, null, (null, 1), 3 -> 7),
-      FastSeq(1, 2, 3, null),
-      FastSeq(3, null, 7, 1),
+  def keysAndValues() = ArraySeq[
+    (IndexedSeq[(Integer, Integer)], IndexedSeq[Integer], IndexedSeq[Integer])
+  ](
+    (FastSeq[(Integer, Integer)]((1, 3), (2, 7)), FastSeq[Integer](1, 2), FastSeq[Integer](3, 7)),
+    (
+      FastSeq[(Integer, Integer)]((1, 3), (2, null), null, (null, 1), (3, 7)),
+      FastSeq[Integer](1, 2, 3, null),
+      FastSeq[Integer](3, null, 7, 1),
     ),
-    Array(FastSeq(), FastSeq(), FastSeq()),
-    Array(FastSeq(null), FastSeq(), FastSeq()),
-    Array(null, null, null),
+    (FastSeq(), FastSeq(), FastSeq()),
+    (FastSeq(null), FastSeq(), FastSeq()),
+    (null, null, null),
   )
 
-  @Test(dataProvider = "keysAndValues")
+  @ParameterizedTest("keysAndValues")
   def keySet(
     a: IndexedSeq[(Integer, Integer)],
     keys: IndexedSeq[Integer],
     values: IndexedSeq[Integer],
+  )(implicit ctx: ExecuteContext
   ): Unit =
     assertEvalsTo(invoke("keySet", TSet(TInt32), toIRDict(a)), Option(keys).map(_.toSet).orNull)
 
-  @Test(dataProvider = "keysAndValues")
+  @ParameterizedTest("keysAndValues")
   def keys(
     a: IndexedSeq[(Integer, Integer)],
     keys: IndexedSeq[Integer],
     values: IndexedSeq[Integer],
+  )(implicit ctx: ExecuteContext
   ): Unit =
     assertEvalsTo(invoke("keys", TArray(TInt32), toIRDict(a)), keys)
 
-  @Test(dataProvider = "keysAndValues")
+  @ParameterizedTest("keysAndValues")
   def values(
     a: IndexedSeq[(Integer, Integer)],
     keys: IndexedSeq[Integer],
     values: IndexedSeq[Integer],
+  )(implicit ctx: ExecuteContext
   ): Unit =
     assertEvalsTo(invoke("values", TArray(TInt32), toIRDict(a)), values)
 
@@ -104,7 +114,7 @@ class DictFunctionsSuite extends HailSuite {
   val dwoutna = IRDict((1, 3), (3, 7), (5, null))
   val na = NA(TInt32)
 
-  @Test def dictGet(): Unit = {
+  @Test def dictGet(implicit ctx: ExecuteContext): Unit = {
     assertEvalsTo(invoke("get", TInt32, NA(TDict(TInt32, TInt32)), 1, na), null)
     assertEvalsTo(invoke("get", TInt32, d, 0, na), null)
     assertEvalsTo(invoke("get", TInt32, d, 1, na), 3)
@@ -130,7 +140,7 @@ class DictFunctionsSuite extends HailSuite {
     assertFatal(invoke("index", TInt32, IRDict(), 100), "dictionary")
   }
 
-  @Test def dictContains(): Unit = {
+  @Test def dictContains(implicit ctx: ExecuteContext): Unit = {
     assertEvalsTo(invoke("contains", TBoolean, d, 0), false)
     assertEvalsTo(invoke("contains", TBoolean, d, 1), true)
     assertEvalsTo(invoke("contains", TBoolean, d, 2), false)
@@ -141,7 +151,7 @@ class DictFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("contains", TBoolean, dwoutna, 100), false)
     assertEvalsTo(invoke("contains", TBoolean, d, na), true)
 
-    assert(eval(invoke("contains", TBoolean, IRDict(), 100)) == false)
+    assertEq(eval(invoke("contains", TBoolean, IRDict(), 100)), false)
     assertEvalsTo(invoke("contains", TBoolean, NA(TDict(TInt32, TInt32)), 1), null)
   }
 }

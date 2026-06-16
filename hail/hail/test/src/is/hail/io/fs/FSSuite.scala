@@ -1,6 +1,6 @@
 package is.hail.io.fs
 
-import is.hail.{HailSuite, TestUtils}
+import is.hail.TestUtils._
 import is.hail.backend.ExecuteContext
 import is.hail.io.fs.FSUtil.dropTrailingSlash
 import is.hail.utils._
@@ -9,13 +9,11 @@ import java.io.FileNotFoundException
 
 import org.apache.commons.io.IOUtils
 import org.apache.hadoop.fs.FileAlreadyExistsException
-import org.scalatest.Inspectors.forAll
-import org.scalatest.enablers.InspectorAsserting.assertingNatureOfAssertion
-import org.scalatestplus.testng.TestNGSuiteLike
-import org.testng.SkipException
-import org.testng.annotations.Test
+import org.junit.jupiter.api.{BeforeAll, Test}
+import org.junit.jupiter.api.Assertions.fail
+import org.junit.jupiter.api.Assumptions.assumeTrue
 
-trait FSSuite extends TestNGSuiteLike with TestUtils {
+trait FSSuite {
   val root: String = System.getenv("HAIL_TEST_STORAGE_URI")
   def fsResourcesRoot: String = System.getenv("HAIL_FS_TEST_CLOUD_RESOURCES_URI")
   def tmpdir: String = System.getenv("HAIL_TEST_STORAGE_URI")
@@ -57,18 +55,18 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
     // file
     val f = r("/a")
     val s = fs.fileStatus(f)
-    assert(s.getPath == f)
-    assert(s.getLen == 12)
+    assertEq(s.getPath, f)
+    assertEq(s.getLen, 12L)
   }
 
   @Test def testFileListEntryOnFile(): Unit = {
     // file
     val f = r("/a")
     val s = fs.fileListEntry(f)
-    assert(s.getPath == f)
+    assertEq(s.getPath, f)
     assert(s.isFile)
     assert(!s.isDirectory)
-    assert(s.getLen == 12)
+    assertEq(s.getLen, 12L)
   }
 
   @Test def testFileStatusOnDirIsFailure(): Unit = {
@@ -82,7 +80,7 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
     // file
     val f = r("/dir")
     val s = fs.fileListEntry(f)
-    assert(s.getPath == f)
+    assertEq(s.getPath, f)
     assert(!s.isFile)
     assert(s.isDirectory)
   }
@@ -91,25 +89,25 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
     // file
     val f = r("/dir/")
     val s = fs.fileListEntry(f)
-    assert(s.getPath == f.dropRight(1))
+    assertEq(s.getPath, f.dropRight(1))
     assert(!s.isFile)
     assert(s.isDirectory)
   }
 
   @Test def testFileListEntryOnMissingFile(): Unit =
-    assertThrows[FileNotFoundException] {
+    intercept[FileNotFoundException] {
       fs.fileListEntry(r("/does_not_exist"))
-    }
+    }: Unit
 
   @Test def testFileListEntryRoot(): Unit = {
     val s = fs.fileListEntry(root)
-    assert(s.getPath == root)
+    assertEq(s.getPath, root)
   }
 
   @Test def testFileListEntryRootWithSlash(): Unit = {
-    if (root.endsWith("/")) throw new SkipException("skipped")
+    assumeTrue(!root.endsWith("/"), "skipped")
     val s = fs.fileListEntry(s"$root/")
-    assert(s.getPath == root)
+    assertEq(s.getPath, root)
   }
 
   @Test def testDeleteRecursive(): Unit = {
@@ -142,88 +140,88 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
 
   @Test def testListDirectory(): Unit = {
     val statuses = fs.listDirectory(r(""))
-    assert(pathsRelResourcesRoot(statuses) == Set("/a", "/adir", "/az", "/dir", "/zzz"))
+    assertEq(pathsRelResourcesRoot(statuses), Set("/a", "/adir", "/az", "/dir", "/zzz"))
   }
 
   @Test def testListDirectoryWithSlash(): Unit = {
     val statuses = fs.listDirectory(r("/"))
-    assert(pathsRelResourcesRoot(statuses) == Set("/a", "/adir", "/az", "/dir", "/zzz"))
+    assertEq(pathsRelResourcesRoot(statuses), Set("/a", "/adir", "/az", "/dir", "/zzz"))
   }
 
   @Test def testGlobOnDir(): Unit = {
     val statuses = fs.glob(r(""))
-    assert(pathsRelResourcesRoot(statuses) == Set(""))
+    assertEq(pathsRelResourcesRoot(statuses), Set(""))
   }
 
   @Test def testGlobMissingFile(): Unit = {
     val statuses = fs.glob(r("/does_not_exist_dir/does_not_exist"))
-    assert(pathsRelResourcesRoot(statuses) == Set())
+    assertEq(pathsRelResourcesRoot(statuses), Set())
   }
 
   @Test def testGlobFilename(): Unit = {
     val statuses = fs.glob(r("/a*"))
-    assert(
-      pathsRelResourcesRoot(statuses) == Set("/a", "/adir", "/az"),
-      s"$statuses ${pathsRelResourcesRoot(statuses)} ${Set("/a", "/adir", "/az")}",
+    assertEq(
+      pathsRelResourcesRoot(statuses),
+      Set("/a", "/adir", "/az"),
     )
   }
 
   @Test def testGlobFilenameMatchSingleCharacter(): Unit = {
     val statuses = fs.glob(r("/a?"))
-    assert(
-      pathsRelResourcesRoot(statuses) == Set("/az"),
-      s"$statuses ${pathsRelResourcesRoot(statuses)} ${Set("/az")}",
+    assertEq(
+      pathsRelResourcesRoot(statuses),
+      Set("/az"),
     )
   }
 
   @Test def testGlobFilenameMatchSingleCharacterInMiddleOfName(): Unit = {
     val statuses = fs.glob(r("/a?ir"))
-    assert(
-      pathsRelResourcesRoot(statuses) == Set("/adir"),
-      s"$statuses ${pathsRelResourcesRoot(statuses)} ${Set("/adir")}",
+    assertEq(
+      pathsRelResourcesRoot(statuses),
+      Set("/adir"),
     )
   }
 
   @Test def testGlobDirnameMatchSingleCharacterInMiddleOfName(): Unit = {
     val statuses = fs.glob(r("/a?ir/x"))
-    assert(
-      pathsRelResourcesRoot(statuses) == Set("/adir/x"),
-      s"$statuses ${pathsRelResourcesRoot(statuses)} ${Set("/adir/x")}",
+    assertEq(
+      pathsRelResourcesRoot(statuses),
+      Set("/adir/x"),
     )
   }
 
   @Test def testGlobMatchDir(): Unit = {
     val statuses = fs.glob(r("/*dir/x"))
-    assert(
-      pathsRelResourcesRoot(statuses) == Set("/adir/x", "/dir/x"),
-      s"$statuses ${pathsRelResourcesRoot(statuses)} ${Set("/adir/x", "/dir/x")}",
+    assertEq(
+      pathsRelResourcesRoot(statuses),
+      Set("/adir/x", "/dir/x"),
     )
   }
 
   @Test def testGlobRoot(): Unit = {
     val statuses = fs.glob(root)
     // empty with respect to root (self)
-    assert(pathsRelRoot(root, statuses) == Set(""))
+    assertEq(pathsRelRoot(root, statuses), Set(""))
   }
 
   @Test def testFileEndingWithPeriod(): Unit = {
     val f = fs.makeQualified(t())
     fs.touch(f + "/foo.")
     val statuses = fs.listDirectory(f)
-    assert(statuses.length == 1, statuses)
+    assertEq(statuses.length, 1)
     val status = statuses(0)
     if (this.isInstanceOf[AzureStorageFSSuite]) {
       // https://github.com/Azure/azure-sdk-for-java/issues/36674
-      assert(status.getPath == f + "/foo")
+      assertEq(status.getPath, f + "/foo")
     } else {
-      assert(status.getPath == f + "/foo.")
+      assertEq(status.getPath, f + "/foo.")
     }
   }
 
   @Test def testGlobRootWithSlash(): Unit = {
-    if (root.endsWith("/")) throw new SkipException("skipped")
+    assumeTrue(!root.endsWith("/"), "skipped")
     val statuses = fs.glob(s"$root/")
-    assert(pathsRelRoot(root, statuses) == Set(""))
+    assertEq(pathsRelRoot(root, statuses), Set(""))
   }
 
   @Test def testWriteRead(): Unit = {
@@ -239,7 +237,7 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
 
     using(fs.openNoCompression(f)) { is =>
       val read = new String(IOUtils.toByteArray(is))
-      assert(read == s)
+      assertEq(read, s)
     }
 
     fs.delete(f, false)
@@ -260,7 +258,7 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
 
     using(fs.open(f)) { is =>
       val read = new String(IOUtils.toByteArray(is))
-      assert(read == s)
+      assertEq(read, s)
     }
 
     fs.delete(f, false)
@@ -277,19 +275,19 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
     assert(fs.exists(f))
     using(fs.open(f)) { is =>
       val read = new String(IOUtils.toByteArray(is))
-      assert(read == s1)
+      assertEq(read, s1)
     }
 
     using(fs.create(f))(_.write(s2.getBytes))
     assert(fs.exists(f))
     using(fs.open(f)) { is =>
       val read = new String(IOUtils.toByteArray(is))
-      assert(read == s2)
+      assertEq(read, s2)
     }
   }
 
   @Test def testGetCodecExtension(): Unit =
-    assert(fs.getCodecExtension("foo.vcf.bgz") == ".bgz")
+    assertEq(fs.getCodecExtension("foo.vcf.bgz"), ".bgz")
 
   @Test def testReadWriteBytes(): Unit = {
     val f = t()
@@ -303,9 +301,9 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
     assert(fs.exists(f))
 
     using(fs.open(f)) { is =>
-      assert(is.read() == 1)
-      assert(is.read() == 127)
-      assert(is.read() == 255)
+      assertEq(is.read(), 1)
+      assertEq(is.read(), 127)
+      assertEq(is.read(), 255)
     }
 
     fs.delete(f, false)
@@ -332,14 +330,14 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
     assert(fs.exists(f))
 
     using(fs.open(f)) { is =>
-      assert(is.read() == 1)
-      assert(is.read() == 127)
-      assert(is.read() == 255)
+      assertEq(is.read(), 1)
+      assertEq(is.read(), 127)
+      assertEq(is.read(), 255)
 
       var i = 0
       while (i < numWrites) {
         val readFromIs = is.read()
-        assert(readFromIs == (i & 0xff), s"$i ${i & 0xff} $readFromIs")
+        assertEq(readFromIs, i & 0xff)
         i = i + 1
       }
     }
@@ -350,11 +348,11 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
   }
 
   @Test def testDropTrailingSlash(): Unit = {
-    assert(dropTrailingSlash("") == "")
-    assert(dropTrailingSlash("/foo/bar") == "/foo/bar")
-    assert(dropTrailingSlash("foo/bar/") == "foo/bar")
-    assert(dropTrailingSlash("/foo///") == "/foo")
-    assert(dropTrailingSlash("///") == "")
+    assertEq(dropTrailingSlash(""), "")
+    assertEq(dropTrailingSlash("/foo/bar"), "/foo/bar")
+    assertEq(dropTrailingSlash("foo/bar/"), "foo/bar")
+    assertEq(dropTrailingSlash("/foo///"), "/foo")
+    assertEq(dropTrailingSlash("///"), "")
   }
 
   @Test def testSeekMoreThanMaxInt(): Unit = {
@@ -380,8 +378,8 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
         case base: Seekable => base.seek(Int.MaxValue + 2.toLong)
         case base: org.apache.hadoop.fs.Seekable => base.seek(Int.MaxValue + 2.toLong)
       }
-      assert(is.read() == 20)
-      assert(is.read() == 30)
+      assertEq(is.read(), 20)
+      assertEq(is.read(), 30)
     }
 
     fs.delete(f, false)
@@ -402,16 +400,16 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
 
     using(fs.openNoCompression(f)) { is =>
       is.seek(251)
-      assert(is.read() == 0)
-      assert(is.read() == 1)
+      assertEq(is.read(), 0)
+      assertEq(is.read(), 1)
 
       val seekPos = 8 * 1024 * 1024 - 512
       is.seek(8 * 1024 * 1024 - 512)
-      assert(is.getPosition == seekPos)
+      assertEq(is.getPosition, seekPos.toLong)
       val toRead = new Array[Byte](512)
       is.readFully(toRead)
 
-      forAll(toRead.indices)(i => assert(toRead(i) == ((seekPos + i) % 251).toByte))
+      toRead.indices.foreach(i => assertEq(toRead(i), ((seekPos + i) % 251).toByte))
     }
   }
 
@@ -420,8 +418,8 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
     for (i <- 0 until 2000)
       fs.touch(s"$prefix/$i.suffix")
 
-    assert(fs.listDirectory(prefix).size == 2000)
-    assert(fs.glob(prefix + "/" + "*.suffix").size == 2000)
+    assertEq(fs.listDirectory(prefix).size, 2000)
+    assertEq(fs.glob(prefix + "/" + "*.suffix").size, 2000)
 
     assert(fs.exists(prefix))
     fs.delete(prefix, recursive = true)
@@ -441,12 +439,12 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
     }
 
     using(fs.openNoCompression(p)) { is =>
-      assert(is.read() == 1.toByte)
+      assertEq(is.read(), 1)
       is.seek(3)
-      assert(is.read() == 4.toByte)
-      assert(is.read() == (-1).toByte)
+      assertEq(is.read(), 4)
+      assertEq(is.read(), -1)
       is.seek(0)
-      assert(is.read() == 1.toByte)
+      assertEq(is.read(), 1)
     }
   }
 
@@ -612,15 +610,24 @@ trait FSSuite extends TestNGSuiteLike with TestUtils {
     val fle = fs.fileListEntry(s"$d/x")
     assert(!fle.isDirectory)
     assert(fle.isFile)
-    assert(fle.getPath == fs.parseUrl(s"$d/x").toString)
+    assertEq(fle.getPath, fs.parseUrl(s"$d/x").toString)
   }
 }
 
-class HadoopFSSuite extends HailSuite with FSSuite {
+class HadoopFSSuite extends FSSuite {
   override val root: String = "file:/"
 
   override lazy val fsResourcesRoot: String =
     "file:" + new java.io.File(getTestResource("fs")).getCanonicalPath
 
-  override lazy val tmpdir: String = ctx.tmpdir
+  private var _tmpdir: String = _
+  override def tmpdir: String = _tmpdir
+
+  private var _fs: FS = _
+  override def fs: FS = _fs
+
+  @BeforeAll def init(fs: FS)(implicit ctx: ExecuteContext): Unit = {
+    _fs = fs
+    _tmpdir = ctx.tmpdir
+  }
 }

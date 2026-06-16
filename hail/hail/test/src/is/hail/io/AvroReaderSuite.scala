@@ -1,7 +1,9 @@
 package is.hail.io
 
-import is.hail.{ExecStrategy, HailSuite}
+import is.hail.ExecStrategy
 import is.hail.ExecStrategy.ExecStrategy
+import is.hail.TestUtils._
+import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.defs.{I64, MakeStruct, ReadPartition, Str, ToArray}
@@ -12,9 +14,9 @@ import org.apache.avro.SchemaBuilder
 import org.apache.avro.file.DataFileWriter
 import org.apache.avro.generic.{GenericDatumWriter, GenericRecord, GenericRecordBuilder}
 import org.apache.spark.sql.Row
-import org.testng.annotations.Test
+import org.junit.jupiter.api.Test
 
-class AvroReaderSuite extends HailSuite {
+class AvroReaderSuite {
   implicit val execStrats: Set[ExecStrategy] = Set(ExecStrategy.LoweredJVMCompile)
 
   private val testSchema = SchemaBuilder.record("Root")
@@ -47,10 +49,10 @@ class AvroReaderSuite extends HailSuite {
     case _ => fatal("invalid row")
   }
 
-  def makeTestFile(): String = {
+  def makeTestFile()(implicit ctx: ExecuteContext): String = {
     val avroFile = ctx.createTmpPath("avro_test", "avro")
 
-    using(fs.create(avroFile)) { os =>
+    using(ctx.fs.create(avroFile)) { os =>
       using(new DataFileWriter[GenericRecord](new GenericDatumWriter(testSchema)).create(
         testSchema,
         os,
@@ -63,7 +65,7 @@ class AvroReaderSuite extends HailSuite {
     avroFile
   }
 
-  @Test def avroReaderWorks(): Unit = {
+  @Test def avroReaderWorks(implicit ctx: ExecuteContext): Unit = {
     val avroFile = makeTestFile()
     val ir = ToArray(ReadPartition(
       MakeStruct(ArraySeq("partitionPath" -> Str(avroFile), "partitionIndex" -> I64(0))),
@@ -76,7 +78,7 @@ class AvroReaderSuite extends HailSuite {
     assertEvalsTo(ir, testValueWithUIDs)
   }
 
-  @Test def testSmallerRequestedType(): Unit = {
+  @Test def testSmallerRequestedType(implicit ctx: ExecuteContext): Unit = {
     val avroFile = makeTestFile()
     val ir = ToArray(ReadPartition(
       MakeStruct(ArraySeq("partitionPath" -> Str(avroFile), "partitionIndex" -> I64(0))),

@@ -55,6 +55,3 @@ services/ui/dist/
 services/ui/node_modules/
 **/static/compiled-js/
 .playwright-mcp/
-
-# Riptide artifacts (cloud-synced)
-.humanlayer/tasks/

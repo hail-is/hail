@@ -1,11 +1,10 @@
 package is.hail.linalg
 
+import is.hail.ParameterizedTest
+import is.hail.TestUtils._
 import is.hail.collection.compat.immutable.ArraySeq
 
-import org.scalatestplus.testng.TestNGSuite
-import org.testng.annotations.{DataProvider, Test}
-
-class MatrixSparsitySuite extends TestNGSuite {
+class MatrixSparsitySuite {
   def newToOldReference(from: MatrixSparsity, to: MatrixSparsity): IndexedSeq[Integer] =
     to.definedCoords.map { coords =>
       val i = from.definedCoords.indexOf(coords)
@@ -23,50 +22,47 @@ class MatrixSparsitySuite extends TestNGSuite {
     MatrixSparsity.apply(4, 3, ArraySeq()),
   )
 
-  @DataProvider(name = "sparsity_pairs_4_3")
-  def sparsityPairs43(): Array[Array[Object]] = (
-    for {
-      s1 <- sparsities_4_3
-      s2 <- sparsities_4_3
-      if s2.isInstanceOf[MatrixSparsity.Sparse]
-    } yield Array[Object](s1, s2)
-  ).toArray
-
-  @DataProvider(name = "sparsity_subset_pairs_4_3")
-  def sparsitySubsetPairs(): Array[Array[Object]] = (
-    for {
+  def newToOld() = ArraySeq[(MatrixSparsity, MatrixSparsity.Sparse)](
+    (for {
       s1 <- sparsities_4_3
       s2 <- sparsities_4_3
       if s2.isInstanceOf[MatrixSparsity.Sparse]
       if isSubset(s1, s2)
-    } yield Array[Object](s1, s2)
-  ).toArray
+    } yield (s1, s2.asInstanceOf[MatrixSparsity.Sparse])).toSeq: _*
+  )
 
-  @Test(dataProvider = "sparsity_subset_pairs_4_3")
+  @ParameterizedTest
   def newToOld(s1: MatrixSparsity, s2: MatrixSparsity.Sparse): Unit =
-    assertResult(newToOldReference(s1, s2))(s1.newToOldPos(s2))
+    assertEq(s1.newToOldPos(s2), newToOldReference(s1, s2))
 
-  @Test(dataProvider = "sparsity_pairs_4_3")
+  def newToOldNonSubset() = ArraySeq[(MatrixSparsity, MatrixSparsity.Sparse)](
+    (for {
+      s1 <- sparsities_4_3
+      s2 <- sparsities_4_3
+      if s2.isInstanceOf[MatrixSparsity.Sparse]
+    } yield (s1, s2.asInstanceOf[MatrixSparsity.Sparse])).toSeq: _*
+  )
+
+  @ParameterizedTest
   def newToOldNonSubset(s1: MatrixSparsity, s2: MatrixSparsity.Sparse): Unit =
-    assertResult(newToOldReference(s1, s2))(s1.newToOldPosNonSubset(s2))
+    assertEq(s1.newToOldPosNonSubset(s2), newToOldReference(s1, s2))
 
   def sparsities_0_0: Iterator[MatrixSparsity] = Iterator(
     MatrixSparsity.dense(0, 0),
     MatrixSparsity.apply(0, 0, ArraySeq()),
   )
 
-  @DataProvider(name = "sparsity_pairs_0_0")
-  def sparsityPairs00(): Array[Array[Object]] = (
-    for {
-      s1 <- sparsities_0_0
-    } yield Array[Object](s1, MatrixSparsity.apply(0, 0, ArraySeq()))
-  ).toArray
+  def degenerateData() = ArraySeq.from(
+    sparsities_0_0.map { s1 =>
+      (s1, MatrixSparsity.apply(0, 0, ArraySeq()).asInstanceOf[MatrixSparsity.Sparse])
+    }
+  )
 
-  @Test(dataProvider = "sparsity_pairs_0_0")
+  @ParameterizedTest("degenerateData")
   def newToOldDegenerate(s1: MatrixSparsity, s2: MatrixSparsity.Sparse): Unit =
-    assertResult(newToOldReference(s1, s2))(s1.newToOldPos(s2))
+    assertEq(s1.newToOldPos(s2), newToOldReference(s1, s2))
 
-  @Test(dataProvider = "sparsity_pairs_0_0")
+  @ParameterizedTest("degenerateData")
   def newToOldNonSubsetDegenerate(s1: MatrixSparsity, s2: MatrixSparsity.Sparse): Unit =
-    assertResult(newToOldReference(s1, s2))(s1.newToOldPosNonSubset(s2))
+    assertEq(s1.newToOldPosNonSubset(s2), newToOldReference(s1, s2))
 }

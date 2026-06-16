@@ -1,6 +1,7 @@
 package is.hail.io.compress
 
-import is.hail.HailSuite
+import is.hail.TestUtils._
+import is.hail.backend.ExecuteContext
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterator
 import is.hail.expr.ir.GenericLines
@@ -16,13 +17,11 @@ import htsjdk.samtools.util.BlockCompressedFilePointerUtil
 import org.apache.{hadoop => hd}
 import org.apache.commons.io.IOUtils
 import org.apache.spark.sql.Row
+import org.junit.jupiter.api.Test
 import org.scalacheck.Gen._
-import org.scalatest
+import org.scalacheck.Prop.forAll
 import org.scalatest.matchers.must.Matchers.contain
 import org.scalatest.matchers.should.Matchers.{convertToAnyShouldWrapper, equal}
-import org.scalatestplus.scalacheck.CheckerAsserting.assertingNatureOfAssertion
-import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
-import org.testng.annotations.Test
 
 class TestFileInputFormat extends hd.mapreduce.lib.input.TextInputFormat {
   override def getSplits(job: hd.mapreduce.JobContext): java.util.List[hd.mapreduce.InputSplit] = {
@@ -59,11 +58,11 @@ class TestFileInputFormat extends hd.mapreduce.lib.input.TextInputFormat {
   }
 }
 
-class BGzipCodecSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
-  val uncompPath = getTestResource("sample.vcf")
+class BGzipCodecSuite {
+  lazy val uncompPath = getTestResource("sample.vcf")
 
   // is actually a bgz file
-  val gzPath = getTestResource("sample.vcf.gz")
+  lazy val gzPath = getTestResource("sample.vcf.gz")
 
   /* bgz.test.sample.vcf.bgz was created as follows:
    * - split sample.vcf into 60-line chunks: `split -l 60 sample.vcf sample.vcf.`
@@ -71,13 +70,14 @@ class BGzipCodecSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
    * - bgzip compressed the chunks
    * - stripped the empty terminate block in chunks except ad and ag (the last)
    * - concatenated the chunks */
-  val compPath = getTestResource("bgz.test.sample.vcf.bgz")
+  lazy val compPath = getTestResource("bgz.test.sample.vcf.bgz")
 
-  @Test def testGenericLinesSimpleUncompressed(): Unit = {
+  @Test def testGenericLinesSimpleUncompressed(implicit ctx: ExecuteContext): Unit = {
+    val fs = ctx.fs
     val lines = Source.fromFile(uncompPath).getLines().toFastSeq
     val uncompStatus = fs.fileStatus(uncompPath)
 
-    scalatest.Inspectors.forAll(0 until 16) { i =>
+    (0 until 16).foreach { i =>
       val lines2 = GenericLines.collect(
         fs,
         GenericLines.read(fs, ArraySeq(uncompStatus), Some(i), None, None, false, false),
@@ -86,11 +86,12 @@ class BGzipCodecSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     }
   }
 
-  @Test def testGenericLinesSimpleBGZ(): Unit = {
+  @Test def testGenericLinesSimpleBGZ(implicit ctx: ExecuteContext): Unit = {
+    val fs = ctx.fs
     val lines = Source.fromFile(uncompPath).getLines().toFastSeq
 
     val compStatus = fs.fileStatus(compPath)
-    scalatest.Inspectors.forAll(0 until 16) { i =>
+    (0 until 16).foreach { i =>
       val lines2 = GenericLines.collect(
         fs,
         GenericLines.read(fs, ArraySeq(compStatus), Some(i), None, None, false, false),
@@ -99,7 +100,8 @@ class BGzipCodecSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     }
   }
 
-  @Test def testGenericLinesSimpleGZ(): Unit = {
+  @Test def testGenericLinesSimpleGZ(implicit ctx: ExecuteContext): Unit = {
+    val fs = ctx.fs
     val lines = Source.fromFile(uncompPath).getLines().toFastSeq
 
     // won't split, just run once
@@ -111,13 +113,16 @@ class BGzipCodecSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     lines2 should equal(lines)
   }
 
-  @Test def testGenericLinesRefuseGZ(): Unit =
+  @Test def testGenericLinesRefuseGZ(implicit ctx: ExecuteContext): Unit = {
+    val fs = ctx.fs
     interceptFatal("Cowardly refusing") {
       val gzStatus = fs.fileStatus(gzPath)
       GenericLines.read(fs, ArraySeq(gzStatus), Some(7), None, None, false, false)
     }
+  }
 
-  @Test def testGenericLinesRandom(): Unit = {
+  @Test def testGenericLinesRandom(implicit ctx: ExecuteContext): Unit = {
+    val fs = ctx.fs
     val lines = Source.fromFile(uncompPath).getLines().toFastSeq
 
     val compLength = 195353L
@@ -136,7 +141,7 @@ class BGzipCodecSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       )
     } yield (Array(0L, compLength) ++ rawSplits).distinct.sorted
 
-    forAll(g) { splits =>
+    check(forAll(g) { splits =>
       val contexts = (0 until (splits.length - 1))
         .map { i =>
           val end = makeVirtualOffset(splits(i + 1), 0)
@@ -144,10 +149,12 @@ class BGzipCodecSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         }
       val lines2 = GenericLines.collect(fs, GenericLines.read(fs, contexts, false, false))
       lines2 should equal(lines)
-    }
+    })
   }
 
-  @Test def test(): Unit = {
+  @Test def test(implicit ctx: ExecuteContext): Unit = {
+    val fs = ctx.fs
+    val sc = ctx.backend.asSpark.sc
     sc.hadoopConfiguration.setLong("mapreduce.input.fileinputformat.split.minsize", 1L)
 
     val uncompIS = fs.open(uncompPath)
@@ -165,9 +172,9 @@ class BGzipCodecSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(sc.textFile(uncompPath).collectOrdered()
       .sameElements(lines))
 
-    scalatest.Inspectors.forAll(1 until 20) { i =>
+    (1 until 20).foreach { i =>
       val linesRDD = sc.textFile(compPath, i)
-      assert(linesRDD.partitions.length == i)
+      assertEq(linesRDD.partitions.length, i)
       assert(linesRDD.collectOrdered().sameElements(lines))
     }
 
@@ -190,7 +197,7 @@ class BGzipCodecSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         )
       } yield (Array(0L, compLength) ++ rawSplits).distinct.sorted
 
-    forAll(g) { splits =>
+    check(forAll(g) { splits =>
       val jobConf = new hd.conf.Configuration(sc.hadoopConfiguration)
       jobConf.set("bgz.test.splits", splits.mkString(","))
       val rdd = sc.newAPIHadoopFile[hd.io.LongWritable, hd.io.Text, TestFileInputFormat](
@@ -203,10 +210,11 @@ class BGzipCodecSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
       val rddLines = rdd.map(_._2.toString).collectOrdered()
       rddLines should contain theSameElementsAs (lines)
-    }
+    })
   }
 
-  @Test def testVirtualSeek(): Unit = {
+  @Test def testVirtualSeek(implicit ctx: ExecuteContext): Unit = {
+    val fs = ctx.fs
     // real offsets of the start of some blocks, paired with the offset to the next block
     val blockStarts = Array[(Long, Long)](
       (0, 14653),
@@ -241,7 +249,7 @@ class BGzipCodecSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
           val vOff = BlockCompressedFilePointerUtil.makeFilePointer(cOff, extra)
 
           decompIS.virtualSeek(vOff)
-          assert(decompIS.getVirtualOffset() == vOff);
+          assertEq(decompIS.getVirtualOffset(), vOff)
           uncompIS.seek(uOff.toLong + extra)
 
           val decompRead = decompIS.readNBytes(decompData, 0, decompData.length)
@@ -260,7 +268,7 @@ class BGzipCodecSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
             BlockCompressedFilePointerUtil.makeFilePointer(nOff, decompRead - fromEnd)
           else
             BlockCompressedFilePointerUtil.makeFilePointer(cOff, extra + decompRead)
-          assert(expectedVirtualOffset == decompIS.getVirtualOffset())
+          assertEq(expectedVirtualOffset, decompIS.getVirtualOffset())
         }
 
         // here we test reading from the middle of a block to it's end
@@ -268,45 +276,48 @@ class BGzipCodecSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         val toSkip = 20000
         val vOff = BlockCompressedFilePointerUtil.makeFilePointer(blockStarts(2)._1, toSkip)
         decompIS.virtualSeek(vOff)
-        assert(decompIS.getVirtualOffset() == vOff)
-        assert(decompIS.read(decompData) == maxBlockSize - 20000)
-        assert(decompIS.getVirtualOffset() == BlockCompressedFilePointerUtil.makeFilePointer(
-          blockStarts(2)._2,
-          0,
-        ))
+        assertEq(decompIS.getVirtualOffset(), vOff)
+        assertEq(decompIS.read(decompData), maxBlockSize - 20000)
+        assertEq(
+          decompIS.getVirtualOffset(),
+          BlockCompressedFilePointerUtil.makeFilePointer(
+            blockStarts(2)._2,
+            0,
+          ),
+        )
 
         // Trying to seek to the end of a block should fail
-        assertThrows[java.io.IOException] {
+        intercept[java.io.IOException] {
           val vOff = BlockCompressedFilePointerUtil.makeFilePointer(blockStarts(1)._1, maxBlockSize)
           decompIS.virtualSeek(vOff)
-        }
+        }: Unit
 
         // Trying to seek past the end of a block should fail
-        assertThrows[java.io.IOException] {
+        intercept[java.io.IOException] {
           val vOff =
             BlockCompressedFilePointerUtil.makeFilePointer(blockStarts(0)._1, maxBlockSize + 1)
           decompIS.virtualSeek(vOff)
-        }
+        }: Unit
 
         // Trying to seek to the end of the last block should fail
-        assertThrows[java.io.IOException] {
+        intercept[java.io.IOException] {
           val vOff =
             BlockCompressedFilePointerUtil.makeFilePointer(blockStarts.last._1, lastBlockLen)
           decompIS.virtualSeek(vOff)
-        }
+        }: Unit
 
         // trying to seek to the end of file should succeed
         decompIS.virtualSeek(0)
         val eofOffset = BlockCompressedFilePointerUtil.makeFilePointer(blockStarts.last._2, 0)
         decompIS.virtualSeek(eofOffset)
-        assert(-1 == decompIS.read())
+        assertEq(-1, decompIS.read())
 
         // seeking past end of file directly should fail
         decompIS.virtualSeek(0)
-        assertThrows[java.io.IOException] {
+        intercept[java.io.IOException] {
           val vOff = BlockCompressedFilePointerUtil.makeFilePointer(blockStarts.last._2, 1)
           decompIS.virtualSeek(vOff)
-        }
+        }: Unit
       }
     }
   }

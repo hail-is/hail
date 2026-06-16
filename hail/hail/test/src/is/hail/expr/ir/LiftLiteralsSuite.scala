@@ -1,20 +1,25 @@
 package is.hail.expr.ir
 
-import is.hail.{ExecStrategy, HailSuite}
+import is.hail.ExecStrategy
 import is.hail.ExecStrategy.ExecStrategy
+import is.hail.TestUtils._
+import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.expr.ir.defs.{ApplyBinaryPrimOp, I64, MakeStruct, TableCount, TableGetGlobals}
 import is.hail.expr.ir.lowering.ExecuteRelational
 
 import org.apache.spark.sql.Row
-import org.testng.annotations.Test
+import org.junit.jupiter.api.Test
 
-class LiftLiteralsSuite extends HailSuite {
+class LiftLiteralsSuite {
   implicit val execStrats: Set[ExecStrategy] = ExecStrategy.interpretOnly
 
-  @Test def testNestedGlobalsRewrite(): Unit = {
+  @Test def testNestedGlobalsRewrite(implicit ctx: ExecuteContext): Unit = {
     val tab =
-      TableLiteral(ExecuteRelational(ctx, TableRange(10, 1)).asTableValue(ctx), theHailClassLoader)
+      TableLiteral(
+        ExecuteRelational(ctx, TableRange(10, 1)).asTableValue(ctx),
+        ctx.theHailClassLoader,
+      )
     val ir = TableGetGlobals(
       TableMapGlobals(
         tab,

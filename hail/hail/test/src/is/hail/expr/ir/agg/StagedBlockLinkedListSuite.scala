@@ -1,21 +1,25 @@
 package is.hail.expr.ir.agg
 
-import is.hail.HailSuite
-import is.hail.annotations.{Region, SafeRow, ScalaToRegionValue}
+import is.hail.TestUtils._
+import is.hail.annotations.{Region, RegionPool, SafeRow, ScalaToRegionValue}
 import is.hail.asm4s.Code
 import is.hail.asm4s.implicits.valueToRichCodeRegion
+import is.hail.backend.ExecuteContext
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.compat.mutable.GrowableCompat
 import is.hail.expr.ir.{EmitCode, EmitFunctionBuilder}
 import is.hail.types.physical._
 
-import org.testng.Assert._
-import org.testng.annotations.Test
+import org.junit.jupiter.api.Test
 
-class StagedBlockLinkedListSuite extends HailSuite {
+class StagedBlockLinkedListSuite {
 
-  class BlockLinkedList[E](region: Region, val elemPType: PType, initImmediately: Boolean = true)
-      extends GrowableCompat[E] {
+  class BlockLinkedList[E](
+    ctx: ExecuteContext,
+    region: Region,
+    val elemPType: PType,
+    initImmediately: Boolean = true,
+  ) extends GrowableCompat[E] {
     val arrayPType = PCanonicalArray(elemPType)
 
     private val initF: Region => Long = {
@@ -32,7 +36,7 @@ class StagedBlockLinkedListSuite extends HailSuite {
         ptr
       }
 
-      fb.result()(theHailClassLoader)(_)
+      fb.result()(ctx.theHailClassLoader)(_)
     }
 
     private val pushF: (Region, Long, E) => Unit = {
@@ -54,7 +58,7 @@ class StagedBlockLinkedListSuite extends HailSuite {
         Code._empty
       }
 
-      val f = fb.result()(theHailClassLoader)
+      val f = fb.result()(ctx.theHailClassLoader)
       ({ (r, ptr, elt) =>
         f(r, ptr, if (elt == null) 0L else ScalaToRegionValue(ctx.stateManager, r, elemPType, elt))
       })
@@ -77,7 +81,7 @@ class StagedBlockLinkedListSuite extends HailSuite {
         Code._empty
       }
 
-      val f = fb.result()(theHailClassLoader)
+      val f = fb.result()(ctx.theHailClassLoader)
       ({ (r, ptr, other) =>
         assert(other.elemPType.required == elemPType.required)
         f(r, ptr, other.ptr)
@@ -98,7 +102,7 @@ class StagedBlockLinkedListSuite extends HailSuite {
         sbll.resultArray(cb, rArg, arrayPType).a
       }
 
-      val f = fb.result()(theHailClassLoader)
+      val f = fb.result()(ctx.theHailClassLoader)
       ({ (r, ptr) =>
         SafeRow.read(arrayPType, f(r, ptr))
           .asInstanceOf[IndexedSeq[E]]
@@ -121,7 +125,7 @@ class StagedBlockLinkedListSuite extends HailSuite {
         dstPtr
       }
 
-      val f = fb.result()(theHailClassLoader)
+      val f = fb.result()(ctx.theHailClassLoader)
       ({ (r, other) => f(r, other.ptr) })
     }
 
@@ -135,54 +139,54 @@ class StagedBlockLinkedListSuite extends HailSuite {
     if (initImmediately) clear()
 
     def copy(): BlockLinkedList[E] = {
-      val b = new BlockLinkedList[E](region, elemPType, initImmediately = false)
+      val b = new BlockLinkedList[E](ctx, region, elemPType, initImmediately = false)
       b.ptr = b.initWithDeepCopyF(region, this)
       b
     }
   }
 
-  @Test def testPushIntsRequired(): Unit =
+  @Test def testPushIntsRequired(pool: RegionPool)(implicit ctx: ExecuteContext): Unit =
     pool.scopedRegion { region =>
-      val b = new BlockLinkedList[Int](region, PInt32Required)
+      val b = new BlockLinkedList[Int](ctx, region, PInt32Required)
       for (i <- 1 to 100) b += i
-      assertEquals(b.toIndexedSeq, IndexedSeq.tabulate(100)(_ + 1))
+      assertEq(b.toIndexedSeq, IndexedSeq.tabulate(100)(_ + 1))
     }
 
-  @Test def testPushStrsMissing(): Unit = {
+  @Test def testPushStrsMissing(pool: RegionPool)(implicit ctx: ExecuteContext): Unit = {
     pool.scopedRegion { region =>
       val a = ArraySeq.newBuilder[String]
-      val b = new BlockLinkedList[String](region, PCanonicalString())
+      val b = new BlockLinkedList[String](ctx, region, PCanonicalString())
       for (i <- 1 to 100) {
         val elt = if (i % 3 == 0) null else i.toString()
         a += elt
         b += elt
       }
-      assertEquals(b.toIndexedSeq, a.result())
+      assertEq(b.toIndexedSeq, a.result())
     }
   }
 
-  @Test def testAppendAnother(): Unit = {
+  @Test def testAppendAnother(pool: RegionPool)(implicit ctx: ExecuteContext): Unit = {
     pool.scopedRegion { region =>
-      val b1 = new BlockLinkedList[String](region, PCanonicalString())
-      val b2 = new BlockLinkedList[String](region, PCanonicalString())
+      val b1 = new BlockLinkedList[String](ctx, region, PCanonicalString())
+      val b2 = new BlockLinkedList[String](ctx, region, PCanonicalString())
       b1 += "{"
       b2 ++= Seq("foo", "bar")
       b1 ++= b2
       b1 ++= b2
       b1 += "}"
-      assertEquals(b1.toIndexedSeq, "{ foo bar foo bar }".split(" ").toIndexedSeq)
+      assertEq(b1.toIndexedSeq, "{ foo bar foo bar }".split(" ").toIndexedSeq)
     }
   }
 
-  @Test def testDeepCopy(): Unit = {
+  @Test def testDeepCopy(pool: RegionPool)(implicit ctx: ExecuteContext): Unit = {
     pool.scopedRegion { region =>
-      val b1 = new BlockLinkedList[Double](region, PFloat64())
+      val b1 = new BlockLinkedList[Double](ctx, region, PFloat64())
       b1 ++= Seq(1.0, 2.0, 3.0)
       val b2 = b1.copy()
       b1 += 4.0
       b2 += 5.0
-      assertEquals(b1.toIndexedSeq, IndexedSeq(1.0, 2.0, 3.0, 4.0))
-      assertEquals(b2.toIndexedSeq, IndexedSeq(1.0, 2.0, 3.0, 5.0))
+      assertEq(b1.toIndexedSeq, IndexedSeq(1.0, 2.0, 3.0, 4.0))
+      assertEq(b2.toIndexedSeq, IndexedSeq(1.0, 2.0, 3.0, 5.0))
     }
   }
 }

@@ -1,7 +1,7 @@
 package is.hail.variant
 
-import is.hail.HailSuite
-import is.hail.backend.HailStateManager
+import is.hail.TestUtils._
+import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.io.reference.{FASTAReader, FASTAReaderConfig, LiftOver}
@@ -10,41 +10,50 @@ import is.hail.types.virtual.{TInterval, TLocus}
 import is.hail.utils._
 
 import htsjdk.samtools.reference.ReferenceSequenceFileFactory
-import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
-import org.testng.annotations.Test
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
+import org.scalacheck.Prop.forAll
 
-class ReferenceGenomeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
+class ReferenceGenomeSuite {
 
-  @Test def testGRCh37(): Unit = {
-    assert(ctx.references.contains(ReferenceGenome.GRCh37))
+  @Test def testGRCh37(implicit ctx: ExecuteContext): Unit = {
+    assertTrue(ctx.references.contains(ReferenceGenome.GRCh37))
     val grch37 = ctx.references(ReferenceGenome.GRCh37)
 
-    assert(grch37.inX("X") && grch37.inY("Y") && grch37.isMitochondrial("MT"))
-    assert(grch37.contigLength("1") == 249250621)
+    assertTrue(grch37.inX("X"))
+    assertTrue(grch37.inY("Y"))
+    assertTrue(grch37.isMitochondrial("MT"))
+    assertEq(grch37.contigLength("1"), 249250621)
 
     val parXLocus = Array(Locus("X", 2499520), Locus("X", 155260460))
     val parYLocus = Array(Locus("Y", 50001), Locus("Y", 59035050))
     val nonParXLocus = Array(Locus("X", 50), Locus("X", 50000000))
     val nonParYLocus = Array(Locus("Y", 5000), Locus("Y", 10000000))
 
-    assert(parXLocus.forall(grch37.inXPar) && parYLocus.forall(grch37.inYPar))
-    assert(!nonParXLocus.forall(grch37.inXPar) && !nonParYLocus.forall(grch37.inYPar))
+    assertTrue(parXLocus.forall(grch37.inXPar))
+    assertTrue(parYLocus.forall(grch37.inYPar))
+    assertTrue(!nonParXLocus.forall(grch37.inXPar))
+    assertTrue(!nonParYLocus.forall(grch37.inYPar))
   }
 
-  @Test def testGRCh38(): Unit = {
-    assert(ctx.references.contains(ReferenceGenome.GRCh38))
+  @Test def testGRCh38(implicit ctx: ExecuteContext): Unit = {
+    assertTrue(ctx.references.contains(ReferenceGenome.GRCh38))
     val grch38 = ctx.references(ReferenceGenome.GRCh38)
 
-    assert(grch38.inX("chrX") && grch38.inY("chrY") && grch38.isMitochondrial("chrM"))
-    assert(grch38.contigLength("chr1") == 248956422)
+    assertTrue(grch38.inX("chrX"))
+    assertTrue(grch38.inY("chrY"))
+    assertTrue(grch38.isMitochondrial("chrM"))
+    assertEq(grch38.contigLength("chr1"), 248956422)
 
     val parXLocus38 = Array(Locus("chrX", 2781479), Locus("chrX", 156030895))
     val parYLocus38 = Array(Locus("chrY", 50001), Locus("chrY", 57217415))
     val nonParXLocus38 = Array(Locus("chrX", 50), Locus("chrX", 50000000))
     val nonParYLocus38 = Array(Locus("chrY", 5000), Locus("chrY", 10000000))
 
-    assert(parXLocus38.forall(grch38.inXPar) && parYLocus38.forall(grch38.inYPar))
-    assert(!nonParXLocus38.forall(grch38.inXPar) && !nonParYLocus38.forall(grch38.inYPar))
+    assertTrue(parXLocus38.forall(grch38.inXPar))
+    assertTrue(parYLocus38.forall(grch38.inYPar))
+    assertTrue(!nonParXLocus38.forall(grch38.inXPar))
+    assertTrue(!nonParYLocus38.forall(grch38.inYPar))
   }
 
   @Test def testAssertions(): Unit = {
@@ -102,46 +111,46 @@ class ReferenceGenomeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks
     ))
   }
 
-  @Test def testContigRemap(): Unit = {
+  @Test def testContigRemap(implicit ctx: ExecuteContext): Unit = {
     val mapping = Map("23" -> "foo")
     interceptFatal("have remapped contigs in reference genome")(
       ctx.references(ReferenceGenome.GRCh37).validateContigRemap(mapping)
     )
   }
 
-  @Test def testComparisonOps(): Unit = {
+  @Test def testComparisonOps(implicit ctx: ExecuteContext): Unit = {
     val rg = ctx.references(ReferenceGenome.GRCh37)
 
     // Test contigs
     assert(rg.compare("3", "18") < 0)
     assert(rg.compare("18", "3") > 0)
-    assert(rg.compare("7", "7") == 0)
+    assertEq(rg.compare("7", "7"), 0)
 
     assert(rg.compare("3", "X") < 0)
     assert(rg.compare("X", "3") > 0)
-    assert(rg.compare("X", "X") == 0)
+    assertEq(rg.compare("X", "X"), 0)
 
     assert(rg.compare("X", "Y") < 0)
     assert(rg.compare("Y", "X") > 0)
     assert(rg.compare("Y", "MT") < 0)
   }
 
-  @Test def testWriteToFile(): Unit = {
+  @Test def testWriteToFile(implicit ctx: ExecuteContext): Unit = {
     val tmpFile = ctx.createTmpPath("grWrite", "json")
 
     val rg = ctx.references(ReferenceGenome.GRCh37)
-    rg.copy(name = "GRCh37_2").write(fs, tmpFile)
-    val gr2 = ReferenceGenome.fromFile(fs, tmpFile)
+    rg.copy(name = "GRCh37_2").write(ctx.fs, tmpFile)
+    val gr2 = ReferenceGenome.fromFile(ctx.fs, tmpFile)
 
-    assert((rg.contigs sameElements gr2.contigs) &&
-      rg.lengths == gr2.lengths &&
-      rg.xContigs == gr2.xContigs &&
-      rg.yContigs == gr2.yContigs &&
-      rg.mtContigs == gr2.mtContigs &&
-      (rg.parInput sameElements gr2.parInput))
+    assertTrue(rg.contigs sameElements gr2.contigs)
+    assertEq(rg.lengths, gr2.lengths)
+    assertEq(rg.xContigs, gr2.xContigs)
+    assertEq(rg.yContigs, gr2.yContigs)
+    assertEq(rg.mtContigs, gr2.mtContigs)
+    assertTrue(rg.parInput sameElements gr2.parInput)
   }
 
-  @Test def testFasta(): Unit = {
+  @Test def testFasta(implicit ctx: ExecuteContext): Unit = {
     // qualifying the paths to avoid a bug: #15368. This dodges the bug by making sure
     // the paths don't start with "/", which forces FASTAReader.setup to copy and
     // decompress the files.
@@ -157,14 +166,14 @@ class ReferenceGenomeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks
         new java.io.File(uriPath(refReaderPath))
       )
 
-      forAll(genLocus(rg)) { l =>
+      check(forAll(genLocus(rg)) { l =>
         val contig = l.contig
         val pos = l.position
         val expected = refReader.getSubsequenceAt(contig, pos.toLong, pos.toLong).getBaseString
-        assert(fr.lookup(contig, pos, 0, 0) == expected)
-      }
+        assertEq(fr.lookup(contig, pos, 0, 0), expected)
+      })
 
-      forAll(genNonMissing(ctx, TInterval(TLocus(rg.name)))) {
+      check(forAll(genNonMissing(ctx, TInterval(TLocus(rg.name)))) {
         case i: Interval =>
           val start = i.start.asInstanceOf[Locus]
           val end = i.end.asInstanceOf[Locus]
@@ -191,47 +200,59 @@ class ReferenceGenomeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks
             sb.result()
           }
 
-          assert(fr.lookup(
-            Interval(start, end, includesStart = true, includesEnd = true)
-          ) == getHtsjdkIntervalSequence)
-      }
+          assertEq(
+            fr.lookup(
+              Interval(start, end, includesStart = true, includesEnd = true)
+            ),
+            getHtsjdkIntervalSequence,
+          )
+      })
 
-      assert(fr.lookup("a", 25, 0, 5) == "A")
-      assert(fr.lookup("b", 1, 5, 0) == "T")
-      assert(fr.lookup("c", 5, 10, 10) == "GGATCCGTGC")
-      assert(fr.lookup(Interval(
-        Locus("a", 1),
-        Locus("a", 5),
-        includesStart = true,
-        includesEnd = false,
-      )) == "AGGT")
-      assert(fr.lookup(Interval(
-        Locus("a", 20),
-        Locus("b", 5),
-        includesStart = false,
-        includesEnd = false,
-      )) == "ACGTATAAT")
-      assert(fr.lookup(Interval(
-        Locus("a", 20),
-        Locus("c", 5),
-        includesStart = false,
-        includesEnd = false,
-      )) == "ACGTATAATTAAATTAGCCAGGAT")
+      assertEq(fr.lookup("a", 25, 0, 5), "A")
+      assertEq(fr.lookup("b", 1, 5, 0), "T")
+      assertEq(fr.lookup("c", 5, 10, 10), "GGATCCGTGC")
+      assertEq(
+        fr.lookup(Interval(
+          Locus("a", 1),
+          Locus("a", 5),
+          includesStart = true,
+          includesEnd = false,
+        )),
+        "AGGT",
+      )
+      assertEq(
+        fr.lookup(Interval(
+          Locus("a", 20),
+          Locus("b", 5),
+          includesStart = false,
+          includesEnd = false,
+        )),
+        "ACGTATAAT",
+      )
+      assertEq(
+        fr.lookup(Interval(
+          Locus("a", 20),
+          Locus("c", 5),
+          includesStart = false,
+          includesEnd = false,
+        )),
+        "ACGTATAATTAAATTAGCCAGGAT",
+      )
     }
   }
 
-  @Test def testSerializeOnFB(): Unit = {
+  @Test def testSerializeOnFB(implicit ctx: ExecuteContext): Unit = {
     val grch38 = ctx.references(ReferenceGenome.GRCh38)
     val fb = EmitFunctionBuilder[String, Boolean](ctx, "serialize_rg")
     val rgfield = fb.getReferenceGenome(grch38.name)
     fb.emit(rgfield.invoke[String, Boolean]("isValidContig", fb.getCodeParam[String](1)))
     ctx.scopedExecution { (cl, fs, tc, r) =>
       val f = fb.resultWithIndex()(cl, fs, tc, r)
-      assert(f("X") == grch38.isValidContig("X"))
+      assertEq(f("X"), grch38.isValidContig("X"))
     }
   }
 
-  @Test def testSerializeWithLiftoverOnFB(): Unit =
+  @Test def testSerializeWithLiftoverOnFB(implicit ctx: ExecuteContext): Unit =
     ctx.local(references = ReferenceGenome.builtinReferences()) { ctx =>
       val grch37 = ctx.references(ReferenceGenome.GRCh37)
       val liftoverFile = getTestResource("grch37_to_grch38_chr20.over.chain.gz")
@@ -250,11 +271,14 @@ class ReferenceGenomeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks
 
       ctx.scopedExecution { (cl, fs, tc, r) =>
         val f = fb.resultWithIndex()(cl, fs, tc, r)
-        assert(f("GRCh38", Locus("20", 60001), 0.95) == grch37.liftoverLocus(
-          "GRCh38",
-          Locus("20", 60001),
-          0.95,
-        ))
+        assertEq(
+          f("GRCh38", Locus("20", 60001), 0.95),
+          grch37.liftoverLocus(
+            "GRCh38",
+            Locus("20", 60001),
+            0.95,
+          ),
+        )
       }
     }
 }

@@ -1,15 +1,15 @@
 package is.hail.expr.ir
 
-import is.hail.HailSuite
+import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.expr.ir.defs.{
   ApplyComparisonOp, GetField, I32, If, InsertFields, MakeStruct, Ref, StreamRange, TableCollect,
   TableWrite, ToArray,
 }
 
-import org.testng.annotations.Test
+import org.junit.jupiter.api.Test
 
-class DistinctlyKeyedSuite extends HailSuite {
+class DistinctlyKeyedSuite {
   @Test def distinctlyKeyedRangeTableBase(): Unit = {
     val tableRange = TableRange(10, 2)
     val tableFilter = TableFilter(
@@ -26,7 +26,7 @@ class DistinctlyKeyedSuite extends HailSuite {
     assert(tableIRSeq.forall(tableIR => distinctlyKeyedAnalysis.contains(tableIR)))
   }
 
-  @Test def readTableKeyByDistinctlyKeyedAnalysis(): Unit = {
+  @Test def readTableKeyByDistinctlyKeyedAnalysis(implicit ctx: ExecuteContext): Unit = {
     val rt = TableRange(40, 4)
     val idxRef = GetField(Ref(TableIR.rowName, rt.typ.rowType), "idx")
     val at = TableMapRows(
@@ -41,14 +41,14 @@ class DistinctlyKeyedSuite extends HailSuite {
     val keyedByConst = TableKeyBy(at, IndexedSeq("const"))
     val pathConst = ctx.createTmpPath("test-table-distinctly-keyed", "ht")
     Interpret[Unit](ctx, TableWrite(keyedByConst, TableNativeWriter(pathConst)))
-    val readConst = TableIR.read(fs, pathConst)
+    val readConst = TableIR.read(ctx.fs, pathConst)
     val distinctlyKeyedAnalysis1 = DistinctlyKeyed.apply(readConst)
     assert(!distinctlyKeyedAnalysis1.contains(readConst))
 
     val keyedByIdxAndHalf = TableKeyBy(at, IndexedSeq("idx", "half"))
     val pathIdxAndHalf = ctx.createTmpPath("test-table-write-distinctness", "ht")
     Interpret[Unit](ctx, TableWrite(keyedByIdxAndHalf, TableNativeWriter(pathIdxAndHalf)))
-    val readIdxAndHalf = TableIR.read(fs, pathIdxAndHalf)
+    val readIdxAndHalf = TableIR.read(ctx.fs, pathIdxAndHalf)
     val distinctlyKeyedAnalysis2 = DistinctlyKeyed.apply(readIdxAndHalf)
     assert(distinctlyKeyedAnalysis2.contains(readIdxAndHalf))
 

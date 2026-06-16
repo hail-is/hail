@@ -1,20 +1,23 @@
 package is.hail.expr.ir
 
-import is.hail.{ExecStrategy, HailSuite}
+import is.hail.{ExecStrategy, ParameterizedTest}
 import is.hail.ExecStrategy.ExecStrategy
+import is.hail.TestUtils._
+import is.hail.backend.ExecuteContext
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.defs.{I32, NA, ToSet, ToStream}
 import is.hail.types.virtual._
 
-import org.testng.annotations.{DataProvider, Test}
+import org.junit.jupiter.api.Test
 
-class SetFunctionsSuite extends HailSuite {
+class SetFunctionsSuite {
   val naa = NA(TArray(TInt32))
   val nas = NA(TSet(TInt32))
 
   implicit val execStrats: Set[ExecStrategy] = ExecStrategy.javaOnly
 
-  @Test def toSet(): Unit = {
+  @Test def toSet(implicit ctx: ExecuteContext): Unit = {
     assertEvalsTo(IRSet(3, 7), Set(3, 7))
     assertEvalsTo(IRSet(3, null, 7), Set(null, 3, 7))
     assertEvalsTo(nas, null)
@@ -24,7 +27,7 @@ class SetFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("toSet", TSet(TInt32), naa), null)
   }
 
-  @Test def isEmpty(): Unit = {
+  @Test def isEmpty(implicit ctx: ExecuteContext): Unit = {
     assertEvalsTo(invoke("isEmpty", TBoolean, IRSet(3, 7)), false)
     assertEvalsTo(invoke("isEmpty", TBoolean, IRSet(3, null, 7)), false)
     assertEvalsTo(invoke("isEmpty", TBoolean, IRSet()), true)
@@ -32,7 +35,7 @@ class SetFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("isEmpty", TBoolean, nas), null)
   }
 
-  @Test def contains(): Unit = {
+  @Test def contains(implicit ctx: ExecuteContext): Unit = {
     val s = IRSet(3, null, 7)
     val swoutna = IRSet(3, 7)
 
@@ -46,7 +49,7 @@ class SetFunctionsSuite extends HailSuite {
     assert(eval(invoke("contains", TBoolean, IRSet(), 3)) == false)
   }
 
-  @Test def remove(): Unit = {
+  @Test def remove(implicit ctx: ExecuteContext): Unit = {
     val s = IRSet(3, null, 7)
     assertEvalsTo(invoke("remove", TSet(TInt32), s, I32(3)), Set(null, 7))
     assertEvalsTo(invoke("remove", TSet(TInt32), s, I32(4)), Set(null, 3, 7))
@@ -54,7 +57,7 @@ class SetFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("remove", TSet(TInt32), IRSet(3, 7), NA(TInt32)), Set(3, 7))
   }
 
-  @Test def add(): Unit = {
+  @Test def add(implicit ctx: ExecuteContext): Unit = {
     val s = IRSet(3, null, 7)
     assertEvalsTo(invoke("add", TSet(TInt32), s, I32(3)), Set(null, 3, 7))
     assertEvalsTo(invoke("add", TSet(TInt32), s, I32(4)), Set(null, 3, 4, 7))
@@ -63,29 +66,27 @@ class SetFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("add", TSet(TInt32), IRSet(3, 7), NA(TInt32)), Set(null, 3, 7))
   }
 
-  @DataProvider(name = "IsSubset")
-  def dataIsSubset: Array[Array[Any]] =
-    Array(
-      Array(IRSet(), IRSet(), true),
-      Array(IRSet(1), IRSet(1), true),
-      Array(IRSet(3, null, 7), IRSet(3, null, 7), true),
-      Array(IRSet(3, null, 7), IRSet(3, null, 7, 11), true),
-      Array(IRSet(1, 2, 3), IRSet(1, 2, 4), false),
-      Array(IRSet(1, 2, 3), NA(TSet(TInt32)), null),
-      Array(NA(TSet(TInt32)), IRSet(1, 2, 3), null),
-      Array(NA(TSet(TInt32)), NA(TSet(TInt32)), null),
-    )
+  def testIsSubset = ArraySeq[(IR, IR, Any)](
+    (IRSet(), IRSet(), true),
+    (IRSet(1), IRSet(1), true),
+    (IRSet(3, null, 7), IRSet(3, null, 7), true),
+    (IRSet(3, null, 7), IRSet(3, null, 7, 11), true),
+    (IRSet(1, 2, 3), IRSet(1, 2, 4), false),
+    (IRSet(1, 2, 3), NA(TSet(TInt32)), null),
+    (NA(TSet(TInt32)), IRSet(1, 2, 3), null),
+    (NA(TSet(TInt32)), NA(TSet(TInt32)), null),
+  )
 
-  @Test(dataProvider = "IsSubset")
-  def testIsSubset(a: IR, b: IR, isSubset: Any): Unit =
+  @ParameterizedTest
+  def testIsSubset(a: IR, b: IR, isSubset: Any)(implicit ctx: ExecuteContext): Unit =
     assertEvalsTo(invoke("isSubset", TBoolean, a, b), isSubset)
 
-  @Test def union(): Unit = {
+  @Test def union(implicit ctx: ExecuteContext): Unit = {
     assertEvalsTo(invoke("union", TSet(TInt32), IRSet(3, null, 7), IRSet(3, 8)), Set(null, 3, 7, 8))
     assertEvalsTo(invoke("union", TSet(TInt32), IRSet(3, 7), IRSet(3, 8, null)), Set(null, 3, 7, 8))
   }
 
-  @Test def intersection(): Unit = {
+  @Test def intersection(implicit ctx: ExecuteContext): Unit = {
     assertEvalsTo(invoke("intersection", TSet(TInt32), IRSet(3, null, 7), IRSet(3, 8)), Set(3))
     assertEvalsTo(
       invoke("intersection", TSet(TInt32), IRSet(3, null, 7), IRSet(3, 8, null)),
@@ -93,12 +94,12 @@ class SetFunctionsSuite extends HailSuite {
     )
   }
 
-  @Test def difference(): Unit = {
+  @Test def difference(implicit ctx: ExecuteContext): Unit = {
     assertEvalsTo(invoke("difference", TSet(TInt32), IRSet(3, null, 7), IRSet(3, 8)), Set(null, 7))
     assertEvalsTo(invoke("difference", TSet(TInt32), IRSet(3, null, 7), IRSet(3, 8, null)), Set(7))
   }
 
-  @Test def median(): Unit = {
+  @Test def median(implicit ctx: ExecuteContext): Unit = {
     assertEvalsTo(invoke("median", TInt32, IRSet(5)), 5)
     assertEvalsTo(invoke("median", TInt32, IRSet(5, null)), 5)
     assertEvalsTo(invoke("median", TInt32, IRSet(3, 7)), 5)
