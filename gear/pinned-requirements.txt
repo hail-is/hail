@@ -35,7 +35,7 @@ attrs==26.1.0
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
     #   aiohttp
-certifi==2026.5.20
+certifi==2026.6.17
     # via
     #   -c gear/../hail/python/dev/pinned-requirements.txt
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
@@ -54,7 +54,7 @@ charset-normalizer==3.4.7
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
     #   requests
-cryptography==48.0.1
+cryptography==49.0.0
     # via
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
@@ -70,7 +70,7 @@ google-api-core==2.31.0
     # via google-api-python-client
 google-api-python-client==2.197.0
     # via google-cloud-profiler
-google-auth==2.53.0
+google-auth==2.55.0
     # via
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
@@ -178,7 +178,6 @@ requests==2.34.2
     #   google-cloud-profiler
 setuptools==81.0.0
     # via
-    #   -c gear/../hail/python/dev/pinned-requirements.txt
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
     #   kubernetes-asyncio
