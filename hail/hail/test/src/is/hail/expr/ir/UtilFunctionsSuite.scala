@@ -5,7 +5,7 @@ import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.defs.{Die, False, MakeStream, NA, Str, True}
-import is.hail.types.virtual.{TBoolean, TInt32, TStream}
+import is.hail.types.virtual.{TBoolean, TInt32}
 
 import org.junit.jupiter.api.Test
 
@@ -15,7 +15,7 @@ class UtilFunctionsSuite {
   val na = NA(TBoolean)
   val die = Die("it ded", TBoolean)
 
-  val folded = foldIR(MakeStream(IndexedSeq(true), TStream(TBoolean)), die)(_ || _)
+  val folded = foldIR(MakeStream(true), die)(_ || _)
 
   @Test def shortCircuitOr(implicit ctx: ExecuteContext): Unit = {
     assertEvalsTo(True() || True(), true)

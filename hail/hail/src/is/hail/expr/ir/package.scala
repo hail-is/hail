@@ -26,8 +26,9 @@ import org.apache.spark.TaskContext
 package ir {
   trait LowerPriorityImplicits {
     implicit def irToPrimitiveIR(ir: IR): PrimitiveIR = new PrimitiveIR(ir)
-    implicit def irToMemoized[S](ir: IR): M[S] = M.pure(ir)
-    implicit def namedIRToMemoized[S](b: (Name, IR)): M[S] = M.let(b._1, b._2)
+    implicit def irToMemoized[S](ir: IR): M[S] = M.memo(ir)
+    implicit def bindingToMemoized[S](binding: (Name, IR)): M[S] = M.let(binding)
+    implicit def irToIROps(ir: IR): IROps = new IROps(ir)
   }
 }
 
@@ -73,8 +74,10 @@ package object ir extends CompileOps with LowerPriorityImplicits {
   def invoke(name: String, rt: Type, errorID: Int, args: IR*): IR =
     invoke(name, rt, ArraySeq.empty, errorID, args: _*)
 
-  implicit def AtomToPrimitive(ir: Atom): PrimitiveIR =
-    new PrimitiveIR(ir)
+  implicit def atomToPrimitiveIR(ir: Atom): PrimitiveIR = new PrimitiveIR(ir)
+  implicit def atomicBinding[N](binding: (N, Atom)): (N, IR) = (binding._1, binding._2)
+  implicit def atomToMemoized[S](a: Atom): M[S] = M.pure(a)
+  implicit def atomicBindingMemoized[S](binding: (Name, Atom)): M[S] = M.let(binding)
 
   implicit def intToIR(i: Int): I32 = I32(i)
 
@@ -172,6 +175,9 @@ package object ir extends CompileOps with LowerPriorityImplicits {
 
   def mapArray(array: IR)(f: Atom => IR): IR =
     ToArray(mapIR(ToStream(array))(f))
+
+  def concatIR(containers: IR*): IR =
+    flatten(MakeStream(containers: _*))
 
   def flatMapIR(stream: IR)(f: Atom => IR): IR = {
     val ref = Ref(freshName(), tcoerce[TStream](stream.typ).elementType)

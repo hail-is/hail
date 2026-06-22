@@ -708,7 +708,10 @@ object Extract {
         val init = Begin(initOps)
         initBuilder += InitOp(
           i,
-          knownLength.fold(ArraySeq(init))(ArraySeq(_, init)),
+          knownLength.fold(ArraySeq(init)) { ir =>
+            bindInitArgRefs(FastSeq(ir))
+            ArraySeq(ir, init)
+          },
           checkSig,
         )
 

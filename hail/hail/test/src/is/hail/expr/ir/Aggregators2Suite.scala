@@ -994,27 +994,27 @@ class Aggregators2Suite {
       TStruct("row_idx" -> TInt32),
       TStruct.empty,
     )
-    val ir = TableCollect(MatrixColsTable(MatrixMapCols(
-      MatrixRead(t, false, false, MatrixRangeReader(ctx, 10, 10, None)),
-      InsertFields(
-        Ref(MatrixIR.colName, t.colType),
-        FastSeq((
-          "foo",
-          bindIR(GetField(Ref(MatrixIR.colName, t.colType), "col_idx") + I32(1)) { bar =>
-            AggFilter(
-              GetField(Ref(MatrixIR.rowName, t.rowType), "row_idx") < I32(5),
-              bar.toL + bar.toL + ApplyAggOp(
-                FastSeq(),
-                FastSeq(GetField(Ref(MatrixIR.rowName, t.rowType), "row_idx").toL),
-                Sum(),
-              ),
-              false,
-            )
-          },
-        )),
-      ),
-      Some(FastSeq()),
-    )))
+
+    val col: Atom = Ref(MatrixIR.colName, t.colType)
+    val row: Atom = Ref(MatrixIR.rowName, t.rowType)
+
+    val ir = TableCollect(
+      MatrixColsTable(
+        MatrixMapCols(
+          MatrixRead(t, false, false, MatrixRangeReader(ctx, 10, 10, None)),
+          insertIR(
+            col,
+            "foo" -> bindIR(GetField(col, "col_idx").toL + 1L) { colIdx =>
+              aggBindIR(GetField(row, "row_idx")) { rowIdx =>
+                AggFilter(rowIdx < 5, colIdx + colIdx + ApplyAggOp(Sum())(rowIdx.toL), false)
+              }
+            },
+          ),
+          Some(FastSeq()),
+        )
+      )
+    )
+
     assertEvalsTo(ir, Row((0 until 10).map(i => Row(i, 2L * i + 12L)), Row()))(
       ctx,
       ExecStrategy.interpretOnly,

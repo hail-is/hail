@@ -692,7 +692,7 @@ object TestUtils extends Logging {
   }
 
   def assertBMEvalsTo(
-    bm: BlockMatrixIR,
+    bm0: BlockMatrixIR,
     expected: DenseMatrix[Double],
   )(implicit
     ctx: ExecuteContext,
@@ -704,6 +704,8 @@ object TestUtils extends Logging {
         logger.info("skipping interpret and non-lowering compile steps on non-spark backend")
         execStrats.intersect(ExecStrategy.backendOnly)
       }
+
+    val bm = bm0.deepCopy
     filteredExecStrats.filter(ExecStrategy.interpretOnly).foreach { strat =>
       try {
         val res = unoptimized { ctx =>

@@ -936,7 +936,7 @@ class PruneSuite {
 
   @Test def testStreamFlatMapMemo(implicit ctx: ExecuteContext): Unit =
     checkMemo(
-      flatMapIR(st)(foo => MakeStream(FastSeq(foo), TStream(ref.typ))),
+      flatMapIR(st)(MakeStream(_)),
       TStream(justA),
       ArraySeq(TStream(justA), null),
       refEnv,
@@ -1799,9 +1799,7 @@ class PruneSuite {
 
   @Test def testStreamFlatmapRebuild(implicit ctx: ExecuteContext): Unit = {
     checkRebuild(
-      flatMapIR(MakeStream(IndexedSeq(NA(ts)), TStream(ts))) { x =>
-        MakeStream(IndexedSeq(x), TStream(ts))
-      },
+      flatMapIR(MakeStream(NA(ts)))(MakeStream(_)),
       TStream(subsetTS("b")),
       (_: BaseIR, r: BaseIR) => {
         val ir = r.asInstanceOf[StreamFlatMap]

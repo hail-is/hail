@@ -110,7 +110,7 @@ object TableNativeWriter {
           WritePartition(rows, file + UUID4(), rowWriter)
       } { (parts, globals) =>
         val writeGlobals = WritePartition(
-          MakeStream(FastSeq(globals), TStream(globals.typ)),
+          MakeStream(globals),
           Str(partFile(1, 0)),
           globalWriter,
         )
@@ -1022,7 +1022,7 @@ case class TableNativeFanoutWriter(
               MakeArray(
                 GetField(
                   WritePartition(
-                    MakeStream(FastSeq(globals), TStream(globals.typ)),
+                    MakeStream(globals),
                     Str(partFile(1, 0)),
                     target.globalWriter,
                   ),

@@ -8,10 +8,9 @@ import is.hail.collection.FastSeq
 import is.hail.expr.ir._
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.defs.{
-  ApplyBinaryPrimOp, Atom, ErrorIDs, GetField, MakeStream, MakeStruct, Ref, Str, StreamRange,
-  TableAggregate, TableGetGlobals,
+  Atom, ErrorIDs, GetField, MakeStream, MakeStruct, Ref, Str, StreamRange, TableAggregate,
+  TableGetGlobals,
 }
-import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR}
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.virtual._
 import is.hail.utils.{HailException, Interval}
@@ -113,21 +112,19 @@ class TableGenSuite {
 
   @Test
   def testLowering(implicit ctx: ExecuteContext): Unit = {
-    val table = collect(mkTableGen())
-    val lowered = LowerTableIR(table, DArrayLowering.All, ctx, LoweringAnalyses(table, ctx))
-    assertEvalsTo(lowered, Row(FastSeq(0, 0).map(Row(_)), Row(0)))
+    val rows = collect(mkTableGen())
+    assertEvalsTo(rows, Row(FastSeq(0, 0).map(Row(_)), Row(0)))
   }
 
   @Test
   def testNumberOfContextsMatchesPartitions(implicit ctx: ExecuteContext): Unit = {
     val errorId = 42
-    val table = collect(mkTableGen(
+    val rows = collect(mkTableGen(
       partitioner = Some(RVDPartitioner.unkeyed(ctx.stateManager, 0)),
       errorId = Some(errorId),
     ))
-    val lowered = LowerTableIR(table, DArrayLowering.All, ctx, LoweringAnalyses(table, ctx))
     val ex = intercept[HailException] {
-      loweredExecute(lowered, Env.empty, FastSeq(), None)
+      loweredExecute(rows, Env.empty, FastSeq(), None)
     }
     ex.errorId shouldBe errorId
     ex.getMessage should include("partitioner contains 0 partitions, got 2 contexts.")
@@ -136,7 +133,7 @@ class TableGenSuite {
   @Test
   def testRowsAreCorrectlyKeyed(implicit ctx: ExecuteContext): Unit = {
     val errorId = 56
-    val table = collect(mkTableGen(
+    val rows = collect(mkTableGen(
       partitioner = Some(new RVDPartitioner(
         ctx.stateManager,
         TStruct("a" -> TInt32),
@@ -147,9 +144,8 @@ class TableGenSuite {
       )),
       errorId = Some(errorId),
     ))
-    val lowered = LowerTableIR(table, DArrayLowering.All, ctx, LoweringAnalyses(table, ctx))
     val ex = intercept[SparkException] {
-      loweredExecute(lowered, Env.empty, FastSeq(), None)
+      loweredExecute(rows, Env.empty, FastSeq(), None)
     }.getCause.asInstanceOf[HailException]
 
     ex.errorId shouldBe errorId
@@ -198,19 +194,13 @@ class TableGenSuite {
     partitioner: Option[RVDPartitioner] = None,
     errorId: Option[Int] = None,
   )(implicit ctx: ExecuteContext
-  ): TableGen = {
+  ): TableGen =
     tableGen(
       contexts.getOrElse(StreamRange(0, 2, 1)),
-      globals.getOrElse(MakeStruct(IndexedSeq("g" -> 0))),
+      globals.getOrElse(makestruct("g" -> 0)),
       partitioner.getOrElse(RVDPartitioner.unkeyed(ctx.stateManager, 2)),
       errorId.getOrElse(ErrorIDs.NO_ERROR),
     )(
-      body.getOrElse { (c, g) =>
-        val elem = MakeStruct(IndexedSeq(
-          "a" -> ApplyBinaryPrimOp(Multiply(), c, GetField(g, "g"))
-        ))
-        MakeStream(IndexedSeq(elem), TStream(elem.typ))
-      }
+      body.getOrElse((c, g) => MakeStream(makestruct("a" -> c * GetField(g, "g"))))
     )
-  }
 }

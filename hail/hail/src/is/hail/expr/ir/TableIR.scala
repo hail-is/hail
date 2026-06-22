@@ -48,14 +48,59 @@ object TableIR {
   }
 
   val globalName: Name = Name("global")
-
   val rowName: Name = Name("row")
+
+  implicit def tableIRToTableIROps(ir: TableIR): TableIROps =
+    new TableIROps(ir)
 }
 
 sealed abstract class TableIR extends BaseIR {
   override def typ: TableType
 
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): TableIR
+}
+
+final class TableIROps(val tir: TableIR) extends AnyVal {
+
+  def global: Atom = Ref(TableIR.globalName, tir.typ.globalType)
+  def row: Atom = Ref(TableIR.rowName, tir.typ.rowType)
+
+  def getGlobals: IR = TableGetGlobals(tir)
+
+  def mapGlobals(f: Atom => IR): TableIR =
+    TableMapGlobals(tir, f(global))
+
+  def mapRows(f: (Atom, Atom) => IR): TableIR =
+    TableMapRows(tir, f(global, row))
+
+  def explode(sym: String*): TableIR = TableExplode(tir, sym.toFastSeq)
+
+  def aggregateByKey(f: (Atom, Atom) => IR): TableIR =
+    TableAggregateByKey(tir, f(global, row))
+
+  def keyBy(keys: IndexedSeq[String], isSorted: Boolean = false): TableIR =
+    TableKeyBy(tir, keys, isSorted)
+
+  def rename(rowMap: Map[String, String], globalMap: Map[String, String] = Map.empty): TableIR =
+    TableRename(tir, rowMap, globalMap)
+
+  def filter(f: (Atom, Atom) => IR): TableIR =
+    TableFilter(tir, f(global, row))
+
+  def distinct: TableIR = TableDistinct(tir)
+
+  def collect: IR = TableCollect(tir)
+
+  def collectAsDict: IR =
+    keyBy(FastSeq())
+      .collect
+      .get("rows")
+      .stream
+      .streamMap(row => maketuple(row.select(tir.typ.key), row.drop(tir.typ.key)))
+      .toDict
+
+  def aggregate(f: (Atom, Atom) => IR): IR =
+    TableAggregate(tir, f(global, row))
 }
 
 object TableLiteral {

@@ -62,15 +62,9 @@ case class OptimizePass(_context: String) extends LoweringPass {
 
 case object LowerMatrixToTablePass extends LoweringPass {
   override val context: String = "LowerMatrixToTable"
-  override def before: Invariant = AnyIR
+  override def before: Invariant = LowerableIR
   override def after: Invariant = before and NoMatrixIR
-
-  override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = ir match {
-    case x: IR => LowerMatrixIR(ctx, x)
-    case x: TableIR => LowerMatrixIR(ctx, x)
-    case x: MatrixIR => LowerMatrixIR(ctx, x)
-    case x: BlockMatrixIR => LowerMatrixIR(ctx, x)
-  }
+  override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = LowerMatrixIR(ctx, ir)
 }
 
 case object LiftRelationalValuesToRelationalLets extends LoweringPass {

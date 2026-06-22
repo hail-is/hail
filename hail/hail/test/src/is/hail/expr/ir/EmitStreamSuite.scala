@@ -304,9 +304,7 @@ class EmitStreamSuite {
   @Test def testEmitLet(implicit ctx: ExecuteContext): Unit = {
     val ir =
       bindIRs(3, 10) { case Seq(start, end) =>
-        flatMapIR(StreamRange(start, end, 1)) { i =>
-          MakeStream(IndexedSeq(i, end), TStream(TInt32))
-        }
+        flatMapIR(StreamRange(start, end, 1))(i => MakeStream(i, end))
       }
     assert(evalStream(ir) == (3 until 10).flatMap(i => IndexedSeq(i, 10)), Pretty(ctx, ir))
     assert(evalStreamLen(ir).isEmpty, Pretty(ctx, ir))
@@ -354,9 +352,8 @@ class EmitStreamSuite {
       flatMapIR(rangeIR(NA(TInt32)))(rangeIR(_)) -> null,
       flatMapIR(rangeIR(20))(x => flatMapIR(rangeIR(x))(y => rangeIR(x + y))) ->
         (0 until 20).flatMap(x => (0 until x).flatMap(y => 0 until (x + y))),
-      flatMapIR(filterIR(rangeIR(5))(_ cne 3)) { y =>
-        MakeStream(IndexedSeq(y, y), TStream(TInt32))
-      } -> IndexedSeq(0, 0, 1, 1, 2, 2, 4, 4),
+      flatMapIR(filterIR(rangeIR(5))(_ cne 3))(y => MakeStream(y, y)) -> IndexedSeq(0, 0, 1, 1,
+        2, 2, 4, 4),
       flatMapIR(rangeIR(4)) { x =>
         ToStream(MakeArray(IndexedSeq[IR](x, x), TArray(TInt32)))
       } -> IndexedSeq(0, 0, 1, 1, 2, 2, 3, 3),

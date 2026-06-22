@@ -898,14 +898,14 @@ class BlockMatrixStage2 private (
       RVDPartitioner.unkeyed(ctx.stateManager, bmTyp.nDefinedBlocks),
       TableStageDependency.none,
       contextsIR,
-      { newCtxRef =>
-        val s = makestruct(
-          "blockRow" -> GetTupleElement(newCtxRef, 0),
-          "blockCol" -> GetTupleElement(newCtxRef, 1),
-          "block" -> Let(FastSeq(ctxRefName -> GetTupleElement(newCtxRef, 2)), _blockIR),
-        )
-        MakeStream(FastSeq(s), TStream(s.typ))
-      },
+      newCtxRef =>
+        MakeStream(
+          makestruct(
+            "blockRow" -> GetTupleElement(newCtxRef, 0),
+            "blockCol" -> GetTupleElement(newCtxRef, 1),
+            "block" -> Let(FastSeq(ctxRefName -> GetTupleElement(newCtxRef, 2)), _blockIR),
+          )
+        ),
     )
   }
 

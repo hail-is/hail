@@ -51,7 +51,7 @@ object ArrayFunctions extends RegistryFunctions {
 
   private[functions] def extend(a: Atom, b: IR): IR =
     guardIR(!IsNA(a)) {
-      maybeIR(b)(b => ToArray(flatten(MakeStream(FastSeq(a, b), TStream(a.typ)))))
+      maybeIR(b)(b => concatIR(a, b).toArray)
     }
 
   def exists(a: IR, cond: Atom => IR): IR =

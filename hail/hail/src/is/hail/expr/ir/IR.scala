@@ -6,6 +6,7 @@ import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.agg.PhysicalAggSig
+import is.hail.expr.ir.defs._
 import is.hail.expr.ir.functions._
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, TypedCodecSpec}
@@ -58,6 +59,136 @@ abstract class IR extends BaseIR {
   }.sum
 }
 
+class IROps(val ir: IR) extends AnyVal {
+
+  def invoke(name: String, rt: Type, args: IR*): IR =
+    is.hail.expr.ir.invoke(name, rt, ir +: args: _*)
+
+  def bind(f: Atom => IR): IR =
+    ir match {
+      case a: Atom => f(a)
+      case big => bindIR(big)(f)
+    }
+
+  def get(name: String): IR =
+    GetField(ir, name)
+
+  def get(idx: Int): IR =
+    GetTupleElement(ir, idx)
+
+  def at(idx: IR): IR =
+    ArrayRef(ir, idx)
+
+  def rename(f: TStruct => TStruct): IR =
+    CastRename(ir, f(ir.typ.asInstanceOf[TStruct]))
+
+  def update(field: String)(f: Atom => IR): IR =
+    bind(y => y.get(field).bind(x => y.insert(field -> f(x))))
+
+  def insert(fields: (String, IR)*): IR =
+    InsertFields(ir, fields.toFastSeq)
+
+  def insert(fields: IndexedSeq[(String, IR)], ordering: Option[IndexedSeq[String]] = None): IR =
+    InsertFields(ir, fields, ordering)
+
+  def select(fields: String*): IR =
+    select(fields.toFastSeq)
+
+  def select(fields: IndexedSeq[String]): IR =
+    SelectFields(ir, fields)
+
+  def drop(fields: IndexedSeq[String]): IR = {
+    val typ = ir.typ.asInstanceOf[TStruct]
+    SelectFields(ir, typ.fieldNames.diff(fields))
+  }
+
+  def drop(fields: String*): IR =
+    drop(fields.toFastSeq)
+
+  def len: IR =
+    if (ir.typ.isInstanceOf[TArray]) ArrayLen(ir)
+    else StreamLen(ir)
+
+  def isNA: IR = IsNA(ir)
+
+  def if_(csq: IR)(alt: IR): IR =
+    If(ir, csq, alt)
+
+  def orElse(alt: IR): IR =
+    bind(x => If(IsNA(x), alt, x))
+
+  def filter(f: Atom => IR): IR =
+    filterIR(ir)(f)
+
+  def aggExplode(f: Atom => IR): IR =
+    aggExplodeIR(ir, isScan = false)(f)
+
+  def grouped(size: IR): IR =
+    StreamGrouped(ir, size)
+
+  def groupedByKey(key: IndexedSeq[String], missingEqual: Boolean = false): IR =
+    StreamGroupByKey(ir, key, missingEqual)
+
+  def take(n: IR): IR =
+    StreamTake(ir, n)
+
+  def takeWhile(f: Atom => IR): IR =
+    is.hail.expr.ir.takeWhile(ir)(f)
+
+  def drop(n: IR): IR =
+    StreamDrop(ir, n)
+
+  def dropWhile(f: Atom => IR): IR =
+    is.hail.expr.ir.dropWhile(ir)(f)
+
+  def streamFor(f: Atom => IR): IR =
+    forIR(ir)(f)
+
+  def streamMap(f: Atom => IR): IR =
+    mapIR(ir)(f)
+
+  def streamFlatMap(f: Atom => IR): IR =
+    flatMapIR(ir)(f)
+
+  def streamFlatten: IR =
+    flatten(ir)
+
+  def streamAgg(f: Atom => IR): IR =
+    streamAggIR(ir)(f)
+
+  def streamScan(zero: IR)(f: (Atom, Atom) => IR): IR =
+    streamScanIR(ir, zero)(f)
+
+  def streamAggScan(f: Atom => IR): IR =
+    streamAggScanIR(ir)(f)
+
+  def slice(start: IR, stop: Option[IR], step: IR = I32(1)): IR =
+    ArraySlice(ir, start, stop, step, ErrorIDs.NO_ERROR)
+
+  def aggElements(knownLength: Option[IR] = None)(aggBody: (Atom, Atom) => IR): IR =
+    aggArrayPerElement(ir, knownLength, isScan = false)(aggBody)
+
+  def sort(ascending: IR, onKey: Boolean = false): IR =
+    ArraySort(ir, ascending, onKey)
+
+  def sort(cmp: (Atom, Atom) => IR): IR =
+    sortIR(ir)(cmp)
+
+  def sum: IR =
+    streamSumIR(ir)
+
+  def groupByKey: IR = GroupByKey(ir)
+
+  def toArray: IR = ToArray(ir)
+
+  def stream: IR = ToStream(ir)
+
+  def toDict: IR = ToDict(ir)
+
+  def parallelize(nPartitions: Option[Int] = None): TableIR =
+    TableParallelize(ir, nPartitions)
+}
+
 package defs {
 
   trait TypedIR[T <: Type] extends IR {
@@ -71,6 +202,7 @@ package defs {
 
   object Atom {
     implicit def atomToIR(a: Atom): IR = a.ir
+    implicit def atomToIROps(a: Atom): IROps = new IROps(a)
   }
 
   class WrappedByteArrays(val ba: Array[Array[Byte]]) {
@@ -97,20 +229,16 @@ package defs {
   }
 
   object Let {
-    def apply(bindings: IndexedSeq[(Name, IR)], body: IR): Block =
-      Block(
-        bindings.map { case (name, value) => Binding(name, value) },
-        body,
-      )
+    def apply(bindings: IndexedSeq[(Name, IR)], body: IR): IR =
+      if (bindings.isEmpty) body
+      else Block(bindings.map { case (n, v) => Binding(n, v) }, body)
 
-    def void(bindings: IndexedSeq[(Name, IR)]): IR = {
-      if (bindings.isEmpty) {
-        Void()
-      } else {
+    def void(bindings: IndexedSeq[(Name, IR)]): IR =
+      if (bindings.isEmpty) Void()
+      else {
         assert(bindings.last._2.typ == TVoid)
         Let(bindings.init, bindings.last._2)
       }
-    }
   }
 
   object Begin {
@@ -538,6 +666,9 @@ package defs {
         MakeArray(args.toFastSeq, TArray(args.head.typ))
       }
 
+      def empty(elementType: Type): MakeArray =
+        MakeArray(FastSeq.empty[IR], TArray(elementType))
+
       def unify(ctx: ExecuteContext, args: IndexedSeq[IR], requestedType: TArray = null)
         : MakeArray = {
         assert(requestedType != null || args.nonEmpty)
@@ -635,8 +766,13 @@ package defs {
         )
       }
 
-      def single(x: IR): IR with TypedIR[TStream] =
-        MakeStream(FastSeq(x), TStream(x.typ))
+      def apply(xs: IR*): IR with TypedIR[TStream] = {
+        assert(xs.nonEmpty, "MakeStream requires at least one argument")
+        MakeStream(xs.toFastSeq, TStream(xs.head.typ))
+      }
+
+      def empty(elementType: Type): IR with TypedIR[TStream] =
+        MakeStream(FastSeq(), TStream(elementType))
     }
 
     abstract class ArraySortCompanionExt {
@@ -645,12 +781,8 @@ package defs {
           val compare =
             if (!onKey) ApplyComparisonOp(Compare, l, r)
             else l.typ match {
-              case elt: TStruct =>
-                val field = elt.fieldNames(0)
-                ApplyComparisonOp(Compare, GetField(l, field), GetField(r, field))
-              case elt: TTuple =>
-                val index = elt.fields(0).index
-                ApplyComparisonOp(Compare, GetTupleElement(l, index), GetTupleElement(r, index))
+              case _: TBaseStruct =>
+                ApplyComparisonOp(Compare, GetFieldByIdx(l, 0), GetFieldByIdx(r, 0))
               case telem =>
                 fatal(s"ArraySort(.., onKey = true) requires struct or tuple elements, got $telem")
             }

@@ -283,12 +283,7 @@ object LowerDistributedSort extends Logging {
               perPartIntervalTuples <- GetField(aggResults, "perPartIntervalTuples")
             } yield makestruct(
               "pivotsWithEndpoints" ->
-                ToArray(flatten(
-                  MakeStream(
-                    FastSeq(MakeArray(min), sortedSampling, MakeArray(max)),
-                    TStream(sortedSampling.typ),
-                  )
-                )),
+                concatIR(MakeArray(min), sortedSampling, MakeArray(max)).toArray,
               "isSorted" ->
                 (GetField(aggResults, "eachPartSorted") &&
                   tuplesAreSorted(perPartIntervalTuples, sortFields)),

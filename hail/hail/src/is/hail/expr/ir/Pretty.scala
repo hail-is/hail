@@ -28,7 +28,7 @@ object Pretty {
     elideLiterals: Boolean = true,
     maxLen: Int = -1,
     allowUnboundRefs: Boolean = false,
-    preserveNames: Boolean = false,
+    preserveNames: Boolean = true,
   ): String = {
     val useSSA = ctx != null && ctx.getFlag("use_ssa_logs") != null
     val pretty =
@@ -56,7 +56,7 @@ object Pretty {
     elideLiterals: Boolean = true,
     maxLen: Int = -1,
     allowUnboundRefs: Boolean = false,
-    preserveNames: Boolean = false,
+    preserveNames: Boolean = true,
   ): String = {
     val pretty =
       new Pretty(width, ribbonWidth, elideLiterals, maxLen, allowUnboundRefs, useSSA = true,
@@ -773,7 +773,7 @@ class Pretty(
           if (i == 1) some(MatrixIR.globalName -> "g")
           else None
         case _: MatrixMapRows =>
-          if (i == 1) matrixBlockArgs map { _ :+ (Name("n_rows") -> "n_rows") }
+          if (i == 1) matrixBlockArgs map { _ :+ (Name("n_cols") -> "n_cols") }
           else None
         case NDArrayMap(_, name, _) =>
           if (i == 1) some(name -> "elt")
