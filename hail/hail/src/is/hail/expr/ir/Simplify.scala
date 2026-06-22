@@ -1434,6 +1434,14 @@ object Simplify {
           )
         )
 
+      // push MatrixFilterCols through MatrixMapEntries / MatrixFilterEntries
+      // so that column-reducing operations run before per-entry work
+      case MatrixFilterCols(MatrixMapEntries(child, newEntries), pred) =>
+        Some(MatrixMapEntries(MatrixFilterCols(child, pred), newEntries))
+
+      case MatrixFilterCols(MatrixFilterEntries(child, entryPred), colPred) =>
+        Some(MatrixFilterEntries(MatrixFilterCols(child, colPred), entryPred))
+
       case MatrixFilterEntries(MatrixFilterEntries(child, pred1), pred2) =>
         Some(MatrixFilterEntries(
           child,

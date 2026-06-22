@@ -359,6 +359,34 @@ class SimplifySuite {
     tir should simplifyTo(tir)
   }
 
+  @Test def testFilterColsPushesThroughMapEntries(implicit ctx: ExecuteContext): Unit = {
+    val reader = MatrixRangeReader(ctx, 5, 5, None)
+    val typ = reader.fullMatrixType
+
+    val newEntries = Ref(MatrixIR.entryName, typ.entryType).insert("x" -> I32(1))
+    val pred = Ref(MatrixIR.colName, typ.colType).get("col_idx") > 0
+
+    val mt = MatrixRead(typ, false, false, reader)
+    val input = MatrixFilterCols(MatrixMapEntries(mt, newEntries), pred)
+    val expected = MatrixMapEntries(MatrixFilterCols(mt, pred), newEntries)
+
+    input should simplifyTo(expected)
+  }
+
+  @Test def testFilterColsPushesThroughFilterEntries(implicit ctx: ExecuteContext): Unit = {
+    val reader = MatrixRangeReader(ctx, 5, 5, None)
+    val typ = reader.fullMatrixType
+
+    val entryPred = True()
+    val colPred = Ref(MatrixIR.colName, typ.colType).get("col_idx") > 0
+
+    val mr = MatrixRead(typ, false, false, reader)
+    val input = MatrixFilterCols(MatrixFilterEntries(mr, entryPred), colPred)
+    val expected = MatrixFilterEntries(MatrixFilterCols(mr, colPred), entryPred)
+
+    input should simplifyTo(expected)
+  }
+
   def testFilterParallelize(): ArraySeq[IR] = ArraySeq(
     makestruct(
       "rows" -> In(0, TArray(TStruct("x" -> TInt32))),
