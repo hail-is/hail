@@ -219,24 +219,21 @@ class Backend(abc.ABC):
         self.functions = []
         self._registered_ir_function_names = set()
 
-    def execute(self, ir: BaseIR, timed: bool = False) -> Any:
+    def execute(self, ir: BaseIR) -> Any:
         payload = ExecutePayload(
             self._render_ir(ir),
             fns=[fn.to_dataclass() for fn in self.functions],
             stream_codec='{"name":"StreamBufferSpec"}',
         )
         try:
-            result, timings = self._rpc(ActionTag.EXECUTE, payload)
+            result = self._rpc(ActionTag.EXECUTE, payload)
         except FatalError as e:
             raise e.maybe_user_error(ir) from None
-        if ir.typ == tvoid:
-            value = None
-        else:
-            value = ir.typ._from_encoding(result)
-        return (value, timings) if timed else value
+
+        return None if ir.typ == tvoid else ir.typ._from_encoding(result)
 
     @abc.abstractmethod
-    def _rpc(self, action: ActionTag, payload: ActionPayload) -> Tuple[bytes, Optional[dict]]:
+    def _rpc(self, action: ActionTag, payload: ActionPayload) -> bytes:
         pass
 
     def _render_ir(self, ir):
@@ -245,32 +242,32 @@ class Backend(abc.ABC):
 
     def value_type(self, ir):
         payload = IRTypePayload(ir=self._render_ir(ir))
-        type_bytes, _ = self._rpc(ActionTag.VALUE_TYPE, payload)
+        type_bytes = self._rpc(ActionTag.VALUE_TYPE, payload)
         return dtype(orjson.loads(type_bytes))
 
     def table_type(self, tir):
         payload = IRTypePayload(ir=self._render_ir(tir))
-        type_bytes, _ = self._rpc(ActionTag.TABLE_TYPE, payload)
+        type_bytes = self._rpc(ActionTag.TABLE_TYPE, payload)
         return ttable._from_json(orjson.loads(type_bytes))
 
     def matrix_type(self, mir):
         payload = IRTypePayload(ir=self._render_ir(mir))
-        type_bytes, _ = self._rpc(ActionTag.MATRIX_TABLE_TYPE, payload)
+        type_bytes = self._rpc(ActionTag.MATRIX_TABLE_TYPE, payload)
         return tmatrix._from_json(orjson.loads(type_bytes))
 
     def blockmatrix_type(self, bmir):
         payload = IRTypePayload(ir=self._render_ir(bmir))
-        type_bytes, _ = self._rpc(ActionTag.BLOCK_MATRIX_TYPE, payload)
+        type_bytes = self._rpc(ActionTag.BLOCK_MATRIX_TYPE, payload)
         return tblockmatrix._from_json(orjson.loads(type_bytes))
 
     def load_references_from_dataset(self, path):
         payload = LoadReferencesFromDatasetPayload(path=path)
-        references_json_bytes, _ = self._rpc(ActionTag.LOAD_REFERENCES_FROM_DATASET, payload)
+        references_json_bytes = self._rpc(ActionTag.LOAD_REFERENCES_FROM_DATASET, payload)
         return orjson.loads(references_json_bytes)
 
     def from_fasta_file(self, name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par):
         payload = FromFASTAFilePayload(name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par)
-        rg_json_bytes, _ = self._rpc(ActionTag.FROM_FASTA_FILE, payload)
+        rg_json_bytes = self._rpc(ActionTag.FROM_FASTA_FILE, payload)
         return orjson.loads(rg_json_bytes)
 
     def add_reference(self, rg):
@@ -318,7 +315,7 @@ class Backend(abc.ABC):
 
     def parse_vcf_metadata(self, path):
         payload = ParseVCFMetadataPayload(path)
-        metadata_json_bytes, _ = self._rpc(ActionTag.PARSE_VCF_METADATA, payload)
+        metadata_json_bytes = self._rpc(ActionTag.PARSE_VCF_METADATA, payload)
         return orjson.loads(metadata_json_bytes)
 
     @property
@@ -333,7 +330,7 @@ class Backend(abc.ABC):
 
     def import_fam(self, path: str, quant_pheno: bool, delimiter: str, missing: str):
         payload = ImportFamPayload(path, quant_pheno, delimiter, missing)
-        fam_json_bytes, _ = self._rpc(ActionTag.IMPORT_FAM, payload)
+        fam_json_bytes = self._rpc(ActionTag.IMPORT_FAM, payload)
         return orjson.loads(fam_json_bytes)
 
     def persist(self, dataset: Dataset) -> Dataset:

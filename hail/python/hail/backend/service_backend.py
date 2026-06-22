@@ -5,7 +5,7 @@ import struct
 import warnings
 from contextlib import AsyncExitStack
 from dataclasses import dataclass
-from typing import Any, Awaitable, Dict, List, Mapping, NoReturn, Optional, Set, Tuple, TypeVar, Union
+from typing import Any, Awaitable, Dict, List, Mapping, NoReturn, Optional, Set, TypeVar, Union
 
 import orjson
 
@@ -23,7 +23,7 @@ from hailtop.batch_client.aioclient import Batch, BatchClient, JobGroup
 from hailtop.config import ConfigVariable, configuration_of, get_remote_tmpdir
 from hailtop.fs.router_fs import RouterFS
 from hailtop.hail_event_loop import hail_event_loop
-from hailtop.utils import Timings, am_i_interactive, async_to_blocking, retry_transient_errors
+from hailtop.utils import am_i_interactive, async_to_blocking, retry_transient_errors
 from hailtop.utils.rich_progress_bar import BatchProgressBar
 
 from ..builtin_references import BUILTIN_REFERENCES
@@ -285,72 +285,66 @@ class ServiceBackend(Backend):
         progress: Optional[BatchProgressBar] = None,
         driver_cores: Optional[Union[int, str]] = None,
         driver_memory: Optional[str] = None,
-    ) -> Tuple[bytes, Optional[dict]]:
-        timings = Timings()
+    ) -> bytes:
         async with TemporaryDirectory(ensure_exists=False) as iodir:
-            with timings.step("write input"):
-                async with await self.fs.afs.create(iodir + '/in') as infile:
-                    await infile.write(
-                        orjson.dumps({
-                            'rpc_config': service_backend_config,
-                            'job_config': job_config,
-                            'action': action.value,
-                            'payload': payload,
-                        })
-                    )
-
-            with timings.step("submit batch"):
-                resources: Dict[str, Union[str, bool]] = {'preemptible': False}
-                if driver_cores is not None:
-                    resources['cpu'] = str(driver_cores)
-                elif self.driver_cores is not None:
-                    resources['cpu'] = str(self.driver_cores)
-
-                if driver_memory is not None:
-                    resources['memory'] = str(driver_memory)
-                elif self.driver_memory is not None:
-                    resources['memory'] = str(self.driver_memory)
-
-                if job_config.storage is not None and job_config.storage != '0Gi':
-                    resources['storage'] = job_config.storage
-
-                self._job_group = self._batch.create_job_group(attributes={'name': name})
-                self._batch.create_jvm_job(
-                    jar_spec=self.jar_spec,
-                    argv=[
-                        ServiceBackend.DRIVER,
-                        name,
-                        iodir + '/in',
-                        iodir + '/out',
-                    ],
-                    job_group=self._job_group,
-                    resources=resources,
-                    attributes={'name': name + '_driver'},
-                    regions=self.regions,
-                    cloudfuse=[(c.bucket, c.mount_path, c.read_only) for c in job_config.cloudfuse_configs],
-                    profile=self.flags['profile'] is not None,
+            async with await self.fs.afs.create(iodir + '/in') as infile:
+                await infile.write(
+                    orjson.dumps({
+                        'rpc_config': service_backend_config,
+                        'job_config': job_config,
+                        'action': action.value,
+                        'payload': payload,
+                    })
                 )
-                await self._batch.submit(disable_progress_bar=True)
-                self._job_group_was_submitted = True
 
-            with timings.step("wait driver"):
-                try:
-                    await asyncio.sleep(0.6)  # it is not possible for the batch to be finished in less than 600ms
-                    await self._job_group.wait(
-                        description=name,
-                        disable_progress_bar=not self.show_progress,
-                        progress=progress,
-                    )
-                except KeyboardInterrupt:
-                    raise
-                except Exception:
-                    await self._job_group.cancel()
-                    self._job_group_was_submitted = False
-                    raise
+            resources: Dict[str, Union[str, bool]] = {'preemptible': False}
+            if driver_cores is not None:
+                resources['cpu'] = str(driver_cores)
+            elif self.driver_cores is not None:
+                resources['cpu'] = str(self.driver_cores)
 
-            with timings.step("read output"):
-                result_bytes = await retry_transient_errors(self._read_output, iodir + '/out', iodir + '/in')
-                return result_bytes, timings.to_dict()
+            if driver_memory is not None:
+                resources['memory'] = str(driver_memory)
+            elif self.driver_memory is not None:
+                resources['memory'] = str(self.driver_memory)
+
+            if job_config.storage is not None and job_config.storage != '0Gi':
+                resources['storage'] = job_config.storage
+
+            self._job_group = self._batch.create_job_group(attributes={'name': name})
+            self._batch.create_jvm_job(
+                jar_spec=self.jar_spec,
+                argv=[
+                    ServiceBackend.DRIVER,
+                    name,
+                    iodir + '/in',
+                    iodir + '/out',
+                ],
+                job_group=self._job_group,
+                resources=resources,
+                attributes={'name': name + '_driver'},
+                regions=self.regions,
+                cloudfuse=[(c.bucket, c.mount_path, c.read_only) for c in job_config.cloudfuse_configs],
+                profile=self.flags['profile'] is not None,
+            )
+            await self._batch.submit(disable_progress_bar=True)
+            self._job_group_was_submitted = True
+
+            try:
+                await asyncio.sleep(0.6)  # it is not possible for the batch to be finished in less than 600ms
+                await self._job_group.wait(
+                    description=name,
+                    disable_progress_bar=not self.show_progress,
+                    progress=progress,
+                )
+            except KeyboardInterrupt:
+                raise
+            except Exception:
+                await self._job_group.cancel()
+                self._job_group_was_submitted = False
+                raise
+
+            return await retry_transient_errors(self._read_output, iodir + '/out', iodir + '/in')
 
     async def _read_output(self, output_uri: str, input_uri: str) -> bytes:
         try:
@@ -397,10 +391,10 @@ class ServiceBackend(Backend):
                 self._job_group_was_submitted = False
             raise
 
-    def _rpc(self, action: ActionTag, payload: ActionPayload) -> Tuple[bytes, Optional[dict]]:
+    def _rpc(self, action: ActionTag, payload: ActionPayload) -> bytes:
         return self._cancel_on_ctrl_c(self._async_rpc(action, payload))
 
-    async def _async_rpc(self, action: ActionTag, payload: ActionPayload):
+    async def _async_rpc(self, action: ActionTag, payload: ActionPayload) -> bytes:
         storage_requirement_bytes = 0
         readonly_fuse_buckets: Set[str] = set()
 

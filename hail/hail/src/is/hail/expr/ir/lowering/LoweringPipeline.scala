@@ -7,7 +7,7 @@ import is.hail.utils._
 case class LoweringPipeline(lowerings: LoweringPass*) extends Logging {
   final def apply(ctx: ExecuteContext, ir: BaseIR): BaseIR = {
     if (lowerings.isEmpty) ir
-    else ctx.time {
+    else TimedBlock.enter {
       var x = ir
 
       def render(context: String): Unit =

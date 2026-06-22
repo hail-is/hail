@@ -3,11 +3,11 @@ package is.hail.expr.ir
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.defs._
 import is.hail.types.virtual.{TStream, TVoid}
-import is.hail.utils.HailException
+import is.hail.utils.{HailException, TimedBlock}
 
 object FoldConstants {
   def apply(ctx: ExecuteContext, ir: BaseIR): BaseIR =
-    ctx.time {
+    TimedBlock.enter {
       ctx.r.pool.scopedRegion(r => ctx.local(r = r)(foldConstants(_, ir)))
     }
 

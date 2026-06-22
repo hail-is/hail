@@ -2815,7 +2815,7 @@ class Table(BaseTable):
         rows_ir = ir.GetField(ir.TableCollect(t._tir), 'rows')
         e = construct_expr(rows_ir, hl.tarray(t.row.dtype))
         if _localize:
-            return Env.backend().execute(e._ir, timed=_timed)
+            return Env.backend().execute(e._ir)
         else:
             return e
 

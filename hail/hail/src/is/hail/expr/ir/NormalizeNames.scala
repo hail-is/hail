@@ -5,12 +5,13 @@ import is.hail.expr.ir.NormalizeNames.needsRenaming
 import is.hail.expr.ir.defs._
 import is.hail.types.virtual.Type
 import is.hail.utils.StackSafe._
+import is.hail.utils.TimedBlock
 
 import scala.annotation.tailrec
 
 object NormalizeNames {
   def apply[T <: BaseIR](allowFreeVariables: Boolean = false)(ctx: ExecuteContext, ir: T): T =
-    ctx.time {
+    TimedBlock.enter {
       val freeVariables: Set[Name] = ir match {
         case ir: IR =>
           if (allowFreeVariables) {

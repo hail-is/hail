@@ -1446,7 +1446,7 @@ object RVD extends Logging {
         }
     }
 
-    val partFilePartitionCounts = execCtx.time {
+    val partFilePartitionCounts = TimedBlock.enter {
       val rdd = new OriginUnionRDD(first.crdd.rdd.sparkContext, rvds.map(_.crdd.rdd), partF)
       new ContextRDD(rdd).collect()
     }
@@ -1458,7 +1458,7 @@ object RVD extends Logging {
 
     val fileData = fileDataByOrigin.map(_.result())
 
-    execCtx.timer.time("writeMetadataInParallel")(
+    TimedBlock.enter("writeMetadataInParallel")(
       fileData.zipWithIndex
         .par
         .foreach { case (partFiles, i) =>

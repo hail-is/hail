@@ -21,7 +21,6 @@ import is.hail.types.physical.PStruct
 import is.hail.types.virtual.{TArray, TInterval}
 import is.hail.types.virtual.Kinds.{BlockMatrix, Matrix, Table, Value}
 import is.hail.utils._
-import is.hail.utils.ExecutionTimer.Timings
 import is.hail.utils.implicits.toRichString
 import is.hail.variant.ReferenceGenome
 
@@ -38,7 +37,7 @@ import com.sun.net.httpserver.{HttpExchange, HttpServer}
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.sql.DataFrame
 import org.json4s._
-import org.json4s.jackson.{JsonMethods, Serialization}
+import org.json4s.jackson.JsonMethods
 import sourcecode.Enclosing
 
 final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
@@ -175,7 +174,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
             exportType,
           )
       }
-    }._1
+    }
   }
 
   def pyRegisterIR(
@@ -196,7 +195,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
         returnType,
         bodyStr,
       ): Unit
-    }._1
+    }
 
   def pyExecuteLiteral(irStr: String): Int =
     withExecuteContext(selfContainedExecution = false) { ctx =>
@@ -208,7 +207,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
           val field = GetFieldByIdx(EncodedLiteral.fromPTypeAndAddress(pt, addr, ctx), 0)
           addJavaIR(ctx, field)
       }
-    }._1
+    }
 
   def pyFromDF(df: DataFrame, jKey: java.util.List[String]): (Int, String) =
     withExecuteContext(selfContainedExecution = false) { ctx =>
@@ -227,14 +226,14 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
       )
       val id = addJavaIR(ctx, tir)
       (id, JsonMethods.compact(tir.typ.toJSON))
-    }._1
+    }
 
   def pyToDF(s: String): DataFrame =
     withExecuteContext(selfContainedExecution = false) { ctx =>
       val tir = IRParser.parse_table_ir(ctx, s)
       val tv = Interpret(tir, ctx)
       tv.toDF(ctx)
-    }._1
+    }
 
   def pyReadMultipleMatrixTables(jsonQuery: String): util.List[MatrixIR] =
     withExecuteContext(selfContainedExecution = false) { ctx =>
@@ -258,7 +257,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
 
       logger.info("pyReadMultipleMatrixTables: returning N matrix tables")
       matrixReaders
-    }._1
+    }
 
   def pyAddReference(jsonConfig: String): Unit =
     synchronized(addReference(ReferenceGenome.fromJSON(jsonConfig)))
@@ -280,7 +279,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
   def parse_blockmatrix_ir(s: String): BlockMatrixIR =
     withExecuteContext(selfContainedExecution = false) { ctx =>
       IRParser.parse_blockmatrix_ir(ctx, s)
-    }._1
+    }
 
   private[this] def fileAndLineCounts(
     regex: String,
@@ -331,16 +330,15 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
   )(
     f: ExecuteContext => T
   )(implicit E: Enclosing
-  ): (T, Timings) =
+  ): T =
     synchronized {
-      ExecutionTimer.time { timer =>
+      TimedBlock.enter {
         ExecuteContext.scoped(
           tmpdir = tmpdir,
           localTmpdir = localTmpdir,
           backend = backend,
           references = references.toMap,
           fs = tmpFileManager.fs,
-          timer = timer,
           tempFileManager =
             if (!selfContainedExecution) NonOwningTempFileManager(tmpFileManager)
             else new OwningTempFileManager(tmpFileManager.fs),
@@ -411,11 +409,6 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
         override def payload(req: HttpExchange): JValue =
           using(req.getRequestBody)(JsonMethods.parse(_))
 
-        override def timings(req: HttpExchange, t: Timings): Unit = {
-          val ts = Serialization.write(Map("timings" -> t))
-          req.getResponseHeaders.add("X-Hail-Timings", ts)
-        }
-
         override def result(req: HttpExchange, result: Array[Byte]): Unit =
           respond(req, 200, result)
 
@@ -440,7 +433,7 @@ final class Py4JQueryDriver(backend: Backend) extends Closeable with Logging {
       }
 
       implicit object Context extends Context {
-        override def scoped[A](req: HttpExchange)(f: ExecuteContext => A): (A, Timings) =
+        override def scoped[A](req: HttpExchange)(f: ExecuteContext => A): A =
           withExecuteContext()(f)
 
         override def putReferences(req: HttpExchange)(refs: Iterable[ReferenceGenome]): Unit =

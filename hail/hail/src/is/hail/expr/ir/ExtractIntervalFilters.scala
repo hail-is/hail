@@ -29,7 +29,7 @@ object ExtractIntervalFilters extends Logging {
   val MAX_LITERAL_SIZE = 4096
 
   def apply(ctx: ExecuteContext, ir0: BaseIR): BaseIR =
-    ctx.time {
+    TimedBlock.enter {
       MapIR.mapBaseIR(
         ir0,
         {
@@ -75,7 +75,7 @@ object ExtractIntervalFilters extends Logging {
   def extractPartitionFilters(ctx: ExecuteContext, cond: IR, ref: Ref, key: IndexedSeq[String])
     : Option[(IR, IndexedSeq[Interval])] =
     if (key.isEmpty) None
-    else ctx.time {
+    else TimedBlock.enter {
       val extract =
         new ExtractIntervalFilters(ctx, ref.typ.asInstanceOf[TStruct].typeAfterSelectNames(key))
       val trueSet = extract.analyze(cond, ref.name)

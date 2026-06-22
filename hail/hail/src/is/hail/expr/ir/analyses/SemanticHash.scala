@@ -9,7 +9,7 @@ import is.hail.io.fs.FS
 import is.hail.io.vcf.MatrixVCFReader
 import is.hail.methods._
 import is.hail.types.virtual._
-import is.hail.utils.{Logging, TreeTraversal}
+import is.hail.utils.{Logging, TimedBlock, TreeTraversal}
 import is.hail.utils.implicits.toRichBoolean
 
 import scala.collection.mutable
@@ -28,7 +28,7 @@ case object SemanticHash extends Logging {
     MurmurHash3.hash32x86(bytes, 0, bytes.length, x)
 
   def apply(ctx: ExecuteContext, root: BaseIR): Option[Type] =
-    ctx.time {
+    TimedBlock.enter {
       NoRedefinedNames.verify(ctx, root)
 
       def go: Option[Int] = {

@@ -1,5 +1,7 @@
 from typing import Dict, Set
 
+from deprecated import deprecated
+
 from hail.typecheck import setof, typecheck
 
 from ...ir import MakeTuple
@@ -132,10 +134,30 @@ def analyze(caller: str, expr: Expression, expected_indices: Indices, aggregatio
         raise errors[0]
 
 
+@deprecated(reason='Timings now collected via Java Flight Recorder', version='0.2.139')
 @typecheck(expression=expr_any)
 def eval_timed(expression):
-    """Evaluate a Hail expression, returning the result and the times taken for
-    each stage in the evaluation process.
+    """Deprecated in favor of :func:`.eval`.
+
+    Timings are now collected via Java Flight Recorder. To record query
+    timings, start a JFR recording on the JVM before calling :func:`.eval`.
+    For the `spark` backend, pass the flag via ``spark_conf``::
+
+        hl.init(spark_conf={
+            'spark.driver.extraJavaOptions':
+                '-XX:StartFlightRecording=filename=hail.jfr,dumponexit=true',
+        })
+
+    To start a recording on an already-running hail JVM, use ``jcmd``::
+
+        jcmd <pid> JFR.start filename=hail.jfr
+        # ... run queries ...
+        jcmd <pid> JFR.stop
+
+    For the `batch` backend, set the ``HAIL_PROFILE`` environment variable.
+
+    Open the resulting ``.jfr`` file in JDK Mission Control and look for
+    events under the **Hail** category.
 
     Parameters
     ----------
@@ -145,24 +167,9 @@ def eval_timed(expression):
     Returns
     -------
     (Any, dict)
-        Result of evaluating `expression` and a dictionary of the timings
+        Result of evaluating `expression` and an empty dictionary.
     """
-
-    from hail.utils.java import Env
-
-    analyze('eval', expression, Indices(expression._indices.source))
-    if expression._indices.source is None:
-        ir_type = expression._ir.typ
-        expression_type = expression.dtype
-        if ir_type != expression.dtype:
-            raise ExpressionException(f'Expression type and IR type differed: \n{ir_type}\n vs \n{expression_type}')
-        ir = expression._ir
-    else:
-        uid = Env.get_uid()
-        ir = expression._indices.source.select_globals(**{uid: expression}).index_globals()[uid]._ir
-
-    (value, timings) = Env.backend().execute(MakeTuple([ir]), timed=True)
-    return value[0], timings
+    return eval(expression), {}
 
 
 @typecheck(expression=expr_any)
@@ -192,7 +199,20 @@ def eval(expression):
     -------
     Any
     """
-    return eval_timed(expression)[0]
+    from hail.utils.java import Env
+
+    analyze('eval', expression, Indices(expression._indices.source))
+    if expression._indices.source is None:
+        ir_type = expression._ir.typ
+        expression_type = expression.dtype
+        if ir_type != expression.dtype:
+            raise ExpressionException(f'Expression type and IR type differed: \n{ir_type}\n vs \n{expression_type}')
+        ir = expression._ir
+    else:
+        uid = Env.get_uid()
+        ir = expression._indices.source.select_globals(**{uid: expression}).index_globals()[uid]._ir
+
+    return Env.backend().execute(MakeTuple([ir]))[0]
 
 
 @typecheck(expression=expr_any)

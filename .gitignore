@@ -1,6 +1,7 @@
 *~
 *.o
 .*.crc
+*.jfr
 *.out
 !**/resources/*.out
 .gradle/

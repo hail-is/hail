@@ -16,6 +16,7 @@ import is.hail.types.physical.stypes.{
   PTypeReferenceSingleCodeType, SingleCodeType, StreamSingleCodeType,
 }
 import is.hail.types.physical.stypes.interfaces.{NoBoxLongIterator, SStream}
+import is.hail.utils.TimedBlock
 
 import scala.collection.mutable
 
@@ -87,7 +88,7 @@ private[ir] trait CompileOps {
     E: Enclosing,
     N: sourcecode.Name,
   ): (Option[SingleCodeType], Compiled[F with Mixin]) =
-    ctx.time {
+    TimedBlock.enter {
       val ir =
         NormalizeNames()(
           ctx,

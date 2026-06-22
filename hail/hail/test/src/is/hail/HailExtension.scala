@@ -10,8 +10,10 @@ import is.hail.expr.ir.lowering.IrMetadata
 import is.hail.expr.ir.lowering.invariant.Flags.StrictInvariants
 import is.hail.io.fs.{FS, HadoopFS}
 import is.hail.rvd.RVD
-import is.hail.utils.{ExecutionTimer, SerializableHadoopConfiguration}
+import is.hail.utils.SerializableHadoopConfiguration
 import is.hail.variant.ReferenceGenome
+
+import scala.jdk.OptionConverters.RichOptional
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.sql.SparkSession
@@ -23,9 +25,9 @@ import org.junit.jupiter.api.extension.ExtensionContext.Namespace
 /** Created once per test run, closed at the end of the test run. Holds every object with test-run
   * lifetime: the Spark backend, classloader, flags, fs, region pool, and reference genomes.
   * Per-injection state (a fresh [[ExecuteContext]] with its own Region, timer, tempFileManager,
-  * irMetadata) is produced by [[newExecuteContext]] and owned by [[OwnedExecuteContext]]; the IR
-  * caches passed to [[newExecuteContext]] are class-scoped rather than fresh per invocation, so
-  * compiled-function / persisted-IR lookups are shared across tests in the same class.
+  * irMetadata) is produced by [[newExecuteContext]]; the IR caches passed to [[newExecuteContext]]
+  * are class-scoped rather than fresh per invocation, so compiled-function / persisted-IR lookups
+  * are shared across tests in the same class.
   */
 final class SharedResources extends AutoCloseable {
   val hcl: HailClassLoader = new HailClassLoader(getClass.getClassLoader)
@@ -52,7 +54,7 @@ final class SharedResources extends AutoCloseable {
 
   val references: Map[String, ReferenceGenome] = ReferenceGenome.builtinReferences()
 
-  def newExecuteContext(displayName: String): ExecuteContext =
+  def newExecuteContext: ExecuteContext =
     new ExecuteContext(
       tmpdir = "/tmp",
       localTmpdir = "file:///tmp",
@@ -60,7 +62,6 @@ final class SharedResources extends AutoCloseable {
       references = references,
       fs = fs,
       r = Region(pool = pool),
-      timer = new ExecutionTimer(displayName),
       tempFileManager = new OwningTempFileManager(fs),
       theHailClassLoader = hcl,
       flags = flags,
@@ -77,16 +78,6 @@ final class SharedResources extends AutoCloseable {
     backend.close()
     pool.close()
     IRFunctionRegistry.clearUserFunctions()
-  }
-}
-
-/** AutoCloseable wrapper so the JUnit store releases a scoped ExecuteContext when its owning scope
-  * (test method / @BeforeEach / @MethodSource invocation) ends.
-  */
-final class OwnedExecuteContext(val ctx: ExecuteContext) extends AutoCloseable {
-  override def close(): Unit = {
-    ctx.timer.finish()
-    ctx.close()
   }
 }
 
@@ -134,20 +125,15 @@ class HailExtension extends AfterAllCallback with ParameterResolver {
     }
   }
 
-  /** Walk from `extCtx` up through its parent chain and return the first stored
-    * [[OwnedExecuteContext]] we find. Reusing an ancestor's ctx lets a parameterized-test factory
-    * share its ctx with every invocation downstream, and lets `@BeforeEach` share its ctx with the
-    * following `@Test`.
+  /** Walk from `extCtx` up through its parent chain and return the first stored [[ExecuteContext]]
+    * we find. Reusing an ancestor's ctx lets a parameterized-test factory share its ctx with every
+    * invocation downstream, and lets `@BeforeEach` share its ctx with the following `@Test`.
     */
-  private def findExistingCtx(extCtx: ExtensionContext): Option[ExecuteContext] = {
-    var cur: ExtensionContext = extCtx
-    while (cur != null) {
-      val owned = cur.getStore(NAMESPACE).get(CTX_KEY, classOf[OwnedExecuteContext])
-      if (owned != null) return Some(owned.ctx)
-      cur = cur.getParent.orElse(null)
+  private def findExistingCtx(extCtx: ExtensionContext): Option[ExecuteContext] =
+    extCtx.getStore(NAMESPACE).get(CTX_KEY, classOf[ExecuteContext]) match {
+      case ctx: ExecuteContext => Some(ctx)
+      case _ => extCtx.getParent.toScala.flatMap(findExistingCtx)
     }
-    None
-  }
 
   /** Build a new [[ExecuteContext]] and register it as [[AutoCloseable]] in a scope wide enough to
     * cover every downstream use. For `@Test` / `@BeforeEach` / factory calls, that's the test
@@ -155,11 +141,9 @@ class HailExtension extends AfterAllCallback with ParameterResolver {
     * class-level injection (e.g. `@BeforeAll`) it's the class scope.
     */
   private def createCtx(extCtx: ExtensionContext, s: SharedResources): ExecuteContext = {
-    val owned = new OwnedExecuteContext(
-      s.newExecuteContext(extCtx.getDisplayName)
-    )
-    storageScope(extCtx).getStore(NAMESPACE).put(CTX_KEY, owned)
-    owned.ctx
+    val ctx = s.newExecuteContext
+    storageScope(extCtx).getStore(NAMESPACE).put(CTX_KEY, ctx)
+    ctx
   }
 
   /** The scope at which a newly created ExecuteContext should be registered. Prefer the test

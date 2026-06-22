@@ -5,13 +5,14 @@ import is.hail.expr.ir.{
   BaseIR, CompileAndEvaluate, IR, Name, RelationalLetMatrixTable, RelationalLetTable,
 }
 import is.hail.expr.ir.defs.{RelationalLet, RelationalRef}
+import is.hail.utils.TimedBlock
 
 object EvalRelationalLets {
   // need to run the rest of lowerings to eval.
   def apply(ir: BaseIR, ctx: ExecuteContext, passesBelow: LoweringPipeline): BaseIR =
-    ctx.time {
+    TimedBlock.enter {
       def execute(value: BaseIR, letsAbove: Map[Name, IR]): IR =
-        ctx.time {
+        TimedBlock.enter {
           val compilable = passesBelow.apply(ctx, lower(value, letsAbove))
             .asInstanceOf[IR]
           CompileAndEvaluate.evalToIR(ctx, compilable)

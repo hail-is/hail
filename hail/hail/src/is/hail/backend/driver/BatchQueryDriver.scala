@@ -15,7 +15,6 @@ import is.hail.services._
 import is.hail.services.oauth2.CloudCredentials
 import is.hail.types.virtual.Kinds._
 import is.hail.utils._
-import is.hail.utils.ExecutionTimer.Timings
 import is.hail.variant.ReferenceGenome
 
 import scala.annotation.switch
@@ -58,8 +57,6 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
       }
 
     override def payload(env: Env): JValue = env.payload
-    // service backend doesn't support sending timings back to the python client
-    override def timings(env: Env, t: Timings): Unit = ()
 
     override def result(env: Env, result: Array[Byte]): Unit =
       retryTransientErrors {
@@ -101,15 +98,14 @@ object BatchQueryDriver extends HttpLikeRpc with Logging {
   }
 
   implicit object Context extends Context {
-    override def scoped[A](env: Env)(f: ExecuteContext => A): (A, Timings) =
-      ExecutionTimer.time { timer =>
+    override def scoped[A](env: Env)(f: ExecuteContext => A): A =
+      TimedBlock.enter {
         ExecuteContext.scoped(
           tmpdir = env.tmpdir,
           localTmpdir = "file:///tmp",
           backend = env.backend,
           references = env.references,
           fs = env.fs,
-          timer = timer,
           tempFileManager = new OwningTempFileManager(env.fs),
           theHailClassLoader = env.hcl,
           flags = env.flags,

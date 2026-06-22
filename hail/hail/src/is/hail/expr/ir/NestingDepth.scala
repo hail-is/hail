@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.lowering.invariant.TreeIR
+import is.hail.utils.TimedBlock
 
 case class ScopedDepth(eval: Int, agg: Int, scan: Int) {
   def incrementEval: ScopedDepth = ScopedDepth(eval + 1, agg, scan)
@@ -33,7 +34,7 @@ final class NestingDepth(private val memo: Memo[ScopedDepth]) {
 
 object NestingDepth {
   def apply(ctx: ExecuteContext, ir0: BaseIR): NestingDepth =
-    ctx.time {
+    TimedBlock.enter {
 
       val memo = Memo.empty[ScopedDepth]
 

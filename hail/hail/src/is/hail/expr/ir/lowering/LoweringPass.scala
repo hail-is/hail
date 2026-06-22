@@ -13,6 +13,7 @@ import is.hail.expr.ir.defs.{
 import is.hail.expr.ir.lowering.invariant._
 import is.hail.types.{RTable, VirtualTypeWithReq}
 import is.hail.types.virtual.TStruct
+import is.hail.utils.TimedBlock
 
 final class IrMetadata() {
   private[this] var hashCounter: Int = 0
@@ -37,7 +38,7 @@ abstract class LoweringPass(implicit E: sourcecode.Enclosing) {
   def after: Invariant
 
   def apply(ctx: ExecuteContext, ir: BaseIR): BaseIR =
-    ctx.time {
+    TimedBlock.enter {
       before.verify(ctx, ir)
       val result = transform(ctx, ir)
       after.verify(ctx, result)
@@ -113,7 +114,7 @@ case object InlineApplyIR extends LoweringPass {
   override def after: Invariant = before and NoApplyIR
 
   override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR =
-    ctx.time {
+    TimedBlock.enter {
       RewriteBottomUp(
         ir,
         {
@@ -130,7 +131,7 @@ case object LowerArrayAggsToRunAggsPass extends LoweringPass {
   override def after: Invariant = EmittableIR
 
   override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR =
-    ctx.time {
+    TimedBlock.enter {
       val x = ir.noSharing(ctx)
       val r = Requiredness(x, ctx)
       RewriteBottomUp(
@@ -191,7 +192,7 @@ case object LowerTableKeyByAndAggregatePass extends LoweringPass {
   override def before: Invariant = NoRelationalLets and NoMatrixIR
   override def after: Invariant = before and NoTableKeyByAndAggregate
 
-  override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = ctx.time {
+  override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = TimedBlock.enter {
     RewriteBottomUp(
       ir,
       {
