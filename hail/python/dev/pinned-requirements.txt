@@ -16,7 +16,7 @@ aiosignal==1.4.0
     #   aiohttp
 alabaster==0.7.16
     # via sphinx
-anyio==4.13.0
+anyio==4.14.0
     # via
     #   httpx
     #   jupyter-server
@@ -58,7 +58,7 @@ bleach==6.4.0
     # via nbconvert
 build==1.1.1
     # via -r hail/python/dev/requirements.txt
-certifi==2026.5.20
+certifi==2026.6.17
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   httpcore
@@ -128,7 +128,7 @@ executing==2.2.1
     #   stack-data
 fastjsonschema==2.21.2
     # via nbformat
-filelock==3.29.3
+filelock==3.29.4
     # via
     #   python-discovery
     #   virtualenv
@@ -212,6 +212,8 @@ jsonschema-specifications==2025.9.1
     # via jsonschema
 jupyter==1.1.1
     # via -r hail/python/dev/requirements.txt
+jupyter-builder==1.0.2
+    # via jupyterlab
 jupyter-client==7.4.9
     # via
     #   ipykernel
@@ -224,6 +226,7 @@ jupyter-console==6.6.3
 jupyter-core==5.9.1
     # via
     #   ipykernel
+    #   jupyter-builder
     #   jupyter-client
     #   jupyter-console
     #   jupyter-server
@@ -236,7 +239,7 @@ jupyter-events==0.12.1
     # via jupyter-server
 jupyter-lsp==2.3.1
     # via jupyterlab
-jupyter-server==2.19.0
+jupyter-server==2.20.0
     # via
     #   jupyter-lsp
     #   jupyterlab
@@ -244,7 +247,7 @@ jupyter-server==2.19.0
     #   notebook-shim
 jupyter-server-terminals==0.5.4
     # via jupyter-server
-jupyterlab==4.5.8
+jupyterlab==4.6.0
     # via jupyter
 jupyterlab-pygments==0.3.0
     # via nbconvert
@@ -491,10 +494,6 @@ send2trash==2.1.0
     # via
     #   jupyter-server
     #   notebook
-setuptools==81.0.0
-    # via
-    #   -c hail/python/dev/../pinned-requirements.txt
-    #   jupyterlab
 six==1.17.0
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
@@ -547,6 +546,7 @@ toml==0.10.2
 tomli==2.4.1
     # via
     #   build
+    #   jupyter-builder
     #   jupyterlab
     #   pylint
     #   pytest
@@ -566,6 +566,7 @@ traitlets==5.15.1
     #   ipykernel
     #   ipython
     #   ipywidgets
+    #   jupyter-builder
     #   jupyter-client
     #   jupyter-console
     #   jupyter-core
@@ -632,7 +633,7 @@ uv==0.10.12
     # via -r hail/python/dev/requirements.txt
 uv-build==0.10.12
     # via -r hail/python/dev/requirements.txt
-virtualenv==21.4.3
+virtualenv==21.5.1
     # via pre-commit
 watchfiles==1.2.0
     # via aiohttp-devtools
