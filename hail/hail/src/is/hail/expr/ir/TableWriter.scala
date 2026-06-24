@@ -45,6 +45,57 @@ object TableWriter {
       typeHintFieldName = "name",
     )
   }
+
+  def writerHelper(
+    rowSpec: TypedCodecSpec,
+    pKey: PStruct,
+    row: Atom,
+    partFile: IR,
+    partRoot: IR,
+    indexRoot: IR,
+  ): IR = {
+    val zero = makestruct(
+      "distinct" -> !pKey.fieldNames.isEmpty,
+      "firstKey" -> NA(pKey.virtualType),
+      "lastKey" -> NA(pKey.virtualType),
+    )
+    makestruct(
+      "partpath" -> ApplyAggOp(
+        WriteTBD(rowSpec, Some(pKey)),
+        partFile,
+        partRoot,
+        indexRoot,
+      )(row),
+      "partitionCounts" -> ApplyAggOp(Count())(),
+      "keyMeta" -> aggFoldIR(zero) { accum =>
+        bindIRs(SelectFields(row, pKey.fieldNames), GetField(accum, "lastKey")) {
+          case Seq(key, prev) =>
+            makestruct(
+              "distinct" -> (GetField(accum, "distinct") && Coalesce(FastSeq(
+                prev.cne(key),
+                True(),
+              ))),
+              "firstKey" -> Coalesce(FastSeq(GetField(accum, "firstKey"), key)),
+              "lastKey" -> Coalesce(FastSeq(key, prev)),
+            )
+        }
+      } { (accum1, accum2) =>
+        Die("unreachable: calling combop on writer fold makes no sense", zero.typ)
+      },
+    )
+  }
+
+  def resultHelper(result: Atom): IR = {
+    bindIR(GetField(result, "keyMeta")) { keymeta =>
+      makestruct(
+        "filePath" -> GetField(result, "partpath"),
+        "partitionCounts" -> GetField(result, "partitionCounts"),
+        "distinctlyKeyed" -> GetField(keymeta, "distinct"),
+        "firstKey" -> GetField(keymeta, "firstKey"),
+        "lastKey" -> GetField(keymeta, "lastKey"),
+      )
+    }
+  }
 }
 
 abstract class TableWriter {
@@ -93,52 +144,13 @@ object TableNativeWriter {
         }
       }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals("table_native_writer") {
         (rows, ctxRef) =>
-          bindIR(GetField(ctxRef, "writeCtx") + UUID4()) { file =>
-            val root = s"$path/rows/parts/"
-            val partPath = file + UUID4()
-
-            val zero = makestruct(
-              "distinct" -> !pKey.fieldNames.isEmpty,
-              "firstKey" -> NA(pKey.virtualType),
-              "lastKey" -> NA(pKey.virtualType),
-            )
+          bindIR(GetField(ctxRef, "writeCtx") + UUID4()) { partFile =>
+            val partRoot = Str(s"$path/rows/parts/")
+            val indexRoot = Str(s"$path/index/")
             val partResult = streamAggIR(rows) { row =>
-              makestruct(
-                "partpath" -> ApplyAggOp(
-                  WriteTBD(rowSpec, Some(pKey)),
-                  partPath,
-                  Str(root),
-                  Str(s"$path/index/"),
-                )(row),
-                "partitionCounts" -> ApplyAggOp(Count())(),
-                "keyMeta" -> aggFoldIR(zero) { accum =>
-                  bindIRs(SelectFields(row, pKey.fieldNames), GetField(accum, "lastKey")) {
-                    case Seq(key, prev) =>
-                      makestruct(
-                        "distinct" -> (GetField(accum, "distinct") && Coalesce(FastSeq(
-                          prev.cne(key),
-                          True(),
-                        ))),
-                        "firstKey" -> Coalesce(FastSeq(GetField(accum, "firstKey"), key)),
-                        "lastKey" -> Coalesce(FastSeq(key, prev)),
-                      )
-                  }
-                } { (accum1, accum2) =>
-                  Die("unreachable: calling combop on writer fold makes no sense", zero.typ)
-                },
-              )
+              TableWriter.writerHelper(rowSpec, pKey, row, partFile, partRoot, indexRoot)
             }
-            bindIR(partResult) { result =>
-              bindIR(GetField(result, "keyMeta")) { keymeta =>
-                makestruct(
-                  "filePath" -> GetField(result, "partpath"),
-                  "partitionCounts" -> GetField(result, "partitionCounts"),
-                  "distinctlyKeyed" -> GetField(keymeta, "distinct"),
-                  "firstKey" -> GetField(keymeta, "firstKey"),
-                  "lastKey" -> GetField(keymeta, "lastKey"),
-                )
-              }
-            }
+            bindIR(partResult)(TableWriter.resultHelper(_))
           }
       } { (parts, globals) =>
         val writeGlobals = WritePartition(
