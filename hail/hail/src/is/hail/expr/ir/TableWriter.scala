@@ -47,12 +47,26 @@ object TableWriter {
 
   def writerHelper(
     rowSpec: TypedCodecSpec,
-    pKey: PStruct,
+    rows: IR,
+    partFile: IR,
+    partRoot: IR,
+    indexInfo: Option[(PStruct, IR)] = None,
+  ): IR = {
+    val partResult = streamAggIR(rows) { row =>
+      TableWriter.writerHelper(rowSpec, row, partFile, partRoot, indexInfo)
+    }
+    bindIR(partResult)(TableWriter.resultHelper(_))
+  }
+
+  def rowWriterHelper(
+    rowSpec: TypedCodecSpec,
     row: Atom,
     partFile: IR,
     partRoot: IR,
-    indexRoot: IR,
+    indexInfo: Option[(PStruct, IR)] = None,
   ): IR = {
+    val pKey = indexInfo.map(_._1).getOrElse(PCanonicalStruct())
+    val initOpArgs = Seq(partFile, partRoot) ++ indexInfo.map(_._2)
     val zero = makestruct(
       "distinct" -> !pKey.fieldNames.isEmpty,
       "firstKey" -> NA(pKey.virtualType),
@@ -60,10 +74,8 @@ object TableWriter {
     )
     makestruct(
       "partpath" -> ApplyAggOp(
-        WriteTBD(rowSpec, Some(pKey)),
-        partFile,
-        partRoot,
-        indexRoot,
+        WriteTBD(rowSpec, indexInfo.map(_._1)),
+        initOpArgs: _*
       )(row),
       "partitionCounts" -> ApplyAggOp(Count())(),
       "keyMeta" -> aggFoldIR(zero) { accum =>
@@ -124,8 +136,6 @@ object TableNativeWriter {
     val partitioner = ts.partitioner
     val pKey: PStruct = tcoerce[PStruct](rowSpec.decodedPType(partitioner.kType))
 
-    val globalWriter =
-      PartitionNativeWriter(globalSpec, IndexedSeq(), s"$path/globals/parts/", None)
     RelationalWriter.scoped(path, overwrite, Some(ts.tableType))(
       ts.mapContexts { oldCtx =>
         val d = digitsNeeded(ts.numPartitions)
@@ -145,16 +155,14 @@ object TableNativeWriter {
           bindIR(GetField(ctxRef, "writeCtx") + UUID4()) { partFile =>
             val partRoot = Str(s"$path/rows/parts/")
             val indexRoot = Str(s"$path/index/")
-            val partResult = streamAggIR(rows) { row =>
-              TableWriter.writerHelper(rowSpec, pKey, row, partFile, partRoot, indexRoot)
-            }
-            bindIR(partResult)(TableWriter.resultHelper(_))
+            TableWriter.writerHelper(rowSpec, rows, partFile, partRoot, Some(pKey -> indexRoot))
           }
       } { (parts, globals) =>
-        val writeGlobals = WritePartition(
+        val writeGlobals = TableWriter.writerHelper(
+          globalSpec,
           MakeStream(globals),
           Str(partFile(1, 0)),
-          globalWriter,
+          Str(s"$path/globals/parts/"),
         )
 
         bindIR(parts) { fileCountAndDistinct =>
