@@ -683,7 +683,7 @@ async def post_create_user(request: web.Request, _) -> NoReturn:
     post = await request.post()
     username = str(post['username'])
     login_id = str(post['login_id']) if 'login_id' in post else None
-    system_roles_raw = post.getall('system_roles[]')
+    system_roles_raw = post.getall('system_roles[]', [])
     system_roles = [str(role) for role in system_roles_raw]
     is_service_account = post.get('is_service_account') == '1'
 
