@@ -74,7 +74,7 @@ object TableWriter {
     )
     makestruct(
       "partpath" -> ApplyAggOp(
-        WriteTBD(rowSpec, indexInfo.map(_._1)),
+        WriteRows(rowSpec, indexInfo.map(_._1)),
         initOpArgs: _*
       )(row),
       "partitionCounts" -> ApplyAggOp(Count())(),
