@@ -60,7 +60,7 @@ object AggStateSig {
           seqVTypes.head.setRequired(false)
         ) // set required to false to handle empty aggs
       case NDArrayMultiplyAdd() => NDArrayMultiplyAddStateSig(seqVTypes.head.setRequired(false))
-      case WriteTBD(codecSpec, key) =>
+      case WriteRows(codecSpec, key) =>
         assert(codecSpec.encodedVirtualType == seqVTypes.head.t)
         WriteSig(seqVTypes.head, key)
       case _ => throw new UnsupportedExtraction(op.toString)
@@ -475,7 +475,7 @@ object Extract {
       new NDArrayMultiplyAddAggregator(nda)
     case PhysicalAggSig(Fold(), FoldStateSig(res, accumName, otherAccumName, combOpIR)) =>
       new FoldAggregator(res, accumName, otherAccumName, combOpIR)
-    case PhysicalAggSig(WriteTBD(codec, indexKey), WriteSig(_, _)) =>
+    case PhysicalAggSig(WriteRows(codec, indexKey), WriteSig(_, _)) =>
       new StreamWriterAggregator(codec, indexKey.isDefined)
   }
 
