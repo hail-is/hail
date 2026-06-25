@@ -1,0 +1,28 @@
+name: Validate build.yaml
+
+on:
+  pull_request:
+    branches: [main]
+    paths: [build.yaml, devbin/check_build_yaml_order.py]
+
+concurrency:
+  group: validate-build-yaml-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  validate-build-yaml:
+    name: Check build.yaml step ordering
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install PyYAML
+        run: pip install pyyaml
+
+      - name: Check build.yaml dependsOn ordering
+        run: python3 devbin/check_build_yaml_order.py
