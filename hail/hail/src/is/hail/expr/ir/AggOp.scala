@@ -32,6 +32,9 @@ final case class NDArrayMultiplyAdd() extends AggOp
 final case class Fold() extends AggOp
 final case class WriteRows(codec: TypedCodecSpec, indexKey: Option[PStruct]) extends AggOp
 
+// TODO
+// final case class WriteSplitRows(codec, indexKey, entries)
+
 // exists === map(p).sum, needs short-circuiting aggs
 // forall === map(p).product, needs short-circuiting aggs
 
