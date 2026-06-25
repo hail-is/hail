@@ -183,36 +183,25 @@ case class TableNativeWriter(
   }
 }
 
-object PartitionNativeWriter {
-  val ctxType = TString
-
-  def fullReturnType(keyType: TStruct): TStruct = TStruct(
-    "filePath" -> TString,
-    "partitionCounts" -> TInt64,
-    "distinctlyKeyed" -> TBoolean,
-    "firstKey" -> keyType,
-    "lastKey" -> keyType,
-    "partitionByteSize" -> TInt64,
-  )
-
-  def returnType(keyType: TStruct, trackTotalBytes: Boolean): TStruct = {
-    val t = PartitionNativeWriter.fullReturnType(keyType)
-    if (trackTotalBytes) t else t.filterSet(Set("partitionByteSize"), include = false)._1
-  }
-}
-
 case class PartitionNativeWriter(
   spec: AbstractTypedCodecSpec,
   keyFields: IndexedSeq[String],
   partPrefix: String,
   index: Option[(String, PStruct)] = None,
   stagingFolder: Option[Path] = None,
-  trackTotalBytes: Boolean = false,
 ) extends PartitionWriter {
   val keyType = spec.encodedVirtualType.asInstanceOf[TStruct].select(keyFields)._1
 
-  override def ctxType = PartitionNativeWriter.ctxType
-  val returnType = PartitionNativeWriter.returnType(keyType, trackTotalBytes)
+  override def ctxType = TString
+  val returnType = TStruct(
+    "filePath" -> TString,
+    "partitionCounts" -> TInt64,
+    "distinctlyKeyed" -> TBoolean,
+    "firstKey" -> keyType,
+    "lastKey" -> keyType,
+  )
+
+
 
   override def unionTypeRequiredness(
     r: TypeWithRequiredness,
@@ -251,9 +240,6 @@ case class PartitionNativeWriter(
 
     private val ob = mb.newLocal[OutputBuffer]("write_ob")
     private val n = mb.newLocal[Long]("partition_count")
-
-    private val byteCount =
-      if (trackTotalBytes) Some(mb.newPLocal("partition_byte_count", SInt64)) else None
 
     private val distinctlyKeyed = mb.newLocal[Boolean]("distinctlyKeyed")
     private val keyEmitType = EmitType(spec.decodedPType(keyType).sType, false)
@@ -363,7 +349,6 @@ case class PartitionNativeWriter(
         .apply(cb, row, ob)
 
       cb.assign(n, n + 1L)
-      byteCount.foreach(bc => cb.assign(bc, SCode.add(cb, bc, row.sizeToStoreInBytes(cb), true)))
     }
 
     def result(): SValue = {
@@ -392,7 +377,7 @@ case class PartitionNativeWriter(
         EmitCode.present(mb, new SBooleanValue(distinctlyKeyed)),
         firstSeenSettable,
         lastSeenSettable,
-      ) ++ byteCount.map(EmitCode.present(mb, _))
+      )
 
       SStackStruct.constructFromArgs(cb, region, returnType.asInstanceOf[TBaseStruct], values: _*)
     }
