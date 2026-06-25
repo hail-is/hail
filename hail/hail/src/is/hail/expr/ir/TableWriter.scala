@@ -53,7 +53,8 @@ object TableWriter {
     indexInfo: Option[(PStruct, IR)] = None,
   ): IR = {
     val partResult = streamAggIR(rows) { row =>
-      TableWriter.writerHelper(rowSpec, row, partFile, partRoot, indexInfo)
+      assert(row.typ.isInstanceOf[TStruct])
+      TableWriter.rowWriterHelper(rowSpec, row, partFile, partRoot, indexInfo)
     }
     bindIR(partResult)(TableWriter.resultHelper(_))
   }
