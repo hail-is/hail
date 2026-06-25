@@ -7,7 +7,7 @@ import traceback
 from collections import defaultdict
 from contextlib import AsyncExitStack
 from datetime import timezone
-from typing import Any, Callable, Dict, List, NoReturn, Optional, Set, Tuple, TypedDict
+from typing import Any, Callable, Dict, List, NoReturn, Optional, Set, Tuple, TypedDict, Union
 
 import aiohttp_session  # type: ignore
 import gidgethub
@@ -599,7 +599,7 @@ async def batch_callback_handler(request: web.Request):
 async def deploy_status(request: web.Request, _) -> web.Response:
     batch_client = request.app[AppKeys.BATCH_CLIENT]
 
-    async def get_failure_information(batch):
+    async def get_failure_information(batch: Union[Batch, MergeFailureBatch]) -> Any:
         if isinstance(batch, MergeFailureBatch):
             exc = batch.exception
             return traceback.format_exception(type(exc), value=exc, tb=exc.__traceback__)
@@ -613,19 +613,22 @@ async def deploy_status(request: web.Request, _) -> web.Response:
 
         return await asyncio.gather(*[fetch_job_and_log(j) for j in jobs if j['state'] in ('Error', 'Failed')])
 
-    wb_configs = [
-        {
+    async def wb_config(wb: WatchedBranch) -> Dict[str, Any]:
+        if wb.deploy_state in ('failure', 'checkout_failure'):
+            assert wb.deploy_batch is not None
+            failure_information = await get_failure_information(wb.deploy_batch)
+        else:
+            failure_information = None
+        return {
             'branch': wb.branch.short_str(),
             'sha': wb.sha,
             'deploy_batch_id': wb.deploy_batch.id if wb.deploy_batch and isinstance(wb.deploy_batch, Batch) else None,
             'deploy_state': wb.deploy_state,
             'repo': wb.branch.repo.short_str(),
-            'failure_information': None
-            if wb.deploy_state == 'success'
-            else await get_failure_information(wb.deploy_batch),
+            'failure_information': failure_information,
         }
-        for wb in watched_branches
-    ]
+
+    wb_configs = [await wb_config(wb) for wb in watched_branches]
     return json_response(wb_configs)
 
 
@@ -1046,7 +1049,8 @@ async def on_startup(app: web.Application):
     exit_stack = AsyncExitStack()
     app[AppKeys.EXIT_STACK] = exit_stack
 
-    client_session = httpx.client_session()
+    # 60s timeout: bulk GitHub GraphQL PR status fetches can take 10-30s.
+    client_session = httpx.client_session(timeout=60)
     exit_stack.push_async_callback(client_session.close)
 
     app[AppKeys.CLIENT_SESSION] = client_session
