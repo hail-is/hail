@@ -94,7 +94,7 @@ cycler==0.12.1
     # via matplotlib
 debugpy==1.8.21
     # via ipykernel
-decorator==4.4.2
+decorator==5.3.1
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   ipython

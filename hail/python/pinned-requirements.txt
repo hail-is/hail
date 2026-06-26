@@ -101,7 +101,7 @@ cryptography==49.0.0
     #   google-auth
     #   msal
     #   pyjwt
-decorator==4.4.2
+decorator==5.3.1
     # via -r hail/python/requirements.txt
 deprecated==1.2.18
     # via -r hail/python/requirements.txt
