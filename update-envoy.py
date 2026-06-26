@@ -28,7 +28,8 @@ def latest_patch_release(series: str) -> str:
         url,
         headers={'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28'},
     )
-    with urllib.request.urlopen(req) as r:  # nosec B310
+    with urllib.request.urlopen(req, timeout=30) as r:  # nosec B310
+
         releases = json.loads(r.read())
 
     series_re = re.compile(rf'^v{re.escape(series)}\.(\d+)$')
