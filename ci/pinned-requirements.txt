@@ -18,7 +18,7 @@ charset-normalizer==3.4.7
     #   -c ci/../hail/python/dev/pinned-requirements.txt
     #   -c ci/../hail/python/pinned-requirements.txt
     #   requests
-click==8.4.1
+click==8.4.2
     # via
     #   -c ci/../hail/python/dev/pinned-requirements.txt
     #   -c ci/../hail/python/pinned-requirements.txt
