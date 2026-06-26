@@ -4,6 +4,7 @@ import os
 
 import pytest
 
+from hailtop.batch_client import aioclient
 from hailtop.batch_client.client import BatchClient
 from hailtop.config import get_remote_tmpdir
 
@@ -22,6 +23,13 @@ def client():
     client = BatchClient('test')
     yield client
     client.close()
+
+
+@pytest.fixture
+async def async_client():
+    client = await aioclient.BatchClient.create('test')
+    yield client
+    await client.close()
 
 
 @pytest.fixture(scope='module')
