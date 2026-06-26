@@ -276,12 +276,12 @@ class IAMManager:
     async def all_sa_dicts(self) -> Generator[ServiceAccountDict, None, None]:
         res = await self.iam_client.get('/serviceAccounts')
         next_page_token = res.get('nextPageToken')
-        for acc in res['accounts']:
+        for acc in res.get('accounts', []):
             yield acc
         while next_page_token is not None:
             res = await self.iam_client.get('/serviceAccounts', params={'pageToken': next_page_token})
             next_page_token = res.get('nextPageToken')
-            for acc in res['accounts']:
+            for acc in res.get('accounts', []):
                 yield acc
 
 
