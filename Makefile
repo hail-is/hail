@@ -114,6 +114,12 @@ update-hail-ubuntu:
 	python3 update-hail-ubuntu.py
 	NAMESPACE=default $(MAKE) -C docker/third-party copy
 
+.PHONY: update-envoy
+update-envoy:
+	python3 update-envoy.py
+	$(MAKE) -C gateway deploy
+	$(MAKE) -C internal-gateway deploy
+
 .PHONY: generate-pip-lockfiles
 generate-pip-lockfiles:
 	./generate-pip-lockfile.sh hail/python/hailtop
