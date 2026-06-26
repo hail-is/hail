@@ -114,11 +114,14 @@ update-hail-ubuntu:
 	python3 update-hail-ubuntu.py
 	NAMESPACE=default $(MAKE) -C docker/third-party copy
 
-.PHONY: update-envoy
-update-envoy:
+.PHONY: update-gateways-envoy
+update-gateways-envoy:
 	python3 update-envoy.py
 	$(MAKE) -C gateway deploy
 	$(MAKE) -C internal-gateway deploy
+	@echo ''
+	@echo 'If traffic to hail.is services seems degraded, roll back with:'
+	@echo '  kubectl rollout undo deployment gateway-deployment && kubectl rollout undo deployment internal-gateway-deployment'
 
 .PHONY: generate-pip-lockfiles
 generate-pip-lockfiles:

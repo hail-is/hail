@@ -50,7 +50,7 @@ Minor version bumps may contain breaking changes and should be done deliberately
 To update to the latest patch release within the current minor series:
 
 ```bash
-make update-envoy
+make update-gateways-envoy
 ```
 
 This updates the image tag in `gateway/deployment.yaml` and `internal-gateway/deployment.yaml`
