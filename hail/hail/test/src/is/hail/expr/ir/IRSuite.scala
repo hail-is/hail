@@ -14,7 +14,6 @@ import is.hail.expr.ir.agg._
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.defs.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.functions._
-import is.hail.expr.ir.lowering.invariant.{TreeIR, UnsatisfiedInvariantError}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.bgen.MatrixBGENReader
 import is.hail.linalg.BlockMatrix
@@ -4013,7 +4012,7 @@ class IRSuite {
     val s = s"(JavaIR 1)"
     val x2 =
       ctx.local(persistedIrCache = mutable.Map(1 -> cached))(ctx => IRParser.parse_value_ir(ctx, s))
-    assert(x2 eq cached)
+    assert((x2 == cached) && (x2 ne cached))
   }
 
   @Test def testCachedTableIR(implicit ctx: ExecuteContext): Unit = {
@@ -4021,7 +4020,7 @@ class IRSuite {
     val s = s"(JavaTable 1)"
     val x2 =
       ctx.local(persistedIrCache = mutable.Map(1 -> cached))(ctx => IRParser.parse_table_ir(ctx, s))
-    assert(x2 eq cached)
+    assert((x2 == cached) && (x2 ne cached))
   }
 
   @Test def testArrayContinuationDealsWithIfCorrectly(implicit ctx: ExecuteContext): Unit = {
@@ -4318,13 +4317,6 @@ class IRSuite {
       }
 
     assert(memUsed == memUsed2)
-  }
-
-  @Test def testTreeIRInvariant(implicit ctx: ExecuteContext): Unit = {
-    val r = Ref(freshName(), TInt32)
-    val ir1 = MakeTuple.ordered(FastSeq(I64(1), r, r, I32(1)))
-    intercept[UnsatisfiedInvariantError](TreeIR.verify(ctx, ir1)): Unit
-    TreeIR.verify(ctx, ir1.deepCopy)
   }
 
   @Test def freeVariables(implicit ctx: ExecuteContext): Unit = {

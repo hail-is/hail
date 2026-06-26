@@ -17,8 +17,7 @@ sealed abstract class AggEnv {
   }
 
   def isEmpty: Boolean = this match {
-    case AggEnv.Create(bindings) => bindings.isEmpty
-    case AggEnv.Bind(bindings) => bindings.isEmpty
+    case a: AggEnv.Modify => a.bindings.isEmpty
     case _ => true
   }
 }
@@ -27,8 +26,10 @@ object AggEnv {
   case object NoOp extends AggEnv
   case object Drop extends AggEnv
   case object Promote extends AggEnv
-  final case class Create(bindings: Seq[Int]) extends AggEnv
-  final case class Bind(bindings: Seq[Int]) extends AggEnv
+
+  abstract class Modify extends AggEnv { def bindings: Seq[Int] }
+  final case class Create(override val bindings: Seq[Int]) extends Modify
+  final case class Bind(override val bindings: Seq[Int]) extends Modify
 
   def bindOrNoOp(bindings: Seq[Int]): AggEnv =
     if (bindings.nonEmpty) Bind(bindings) else NoOp

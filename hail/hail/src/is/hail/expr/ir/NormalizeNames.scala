@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.NormalizeNames.needsRenaming
 import is.hail.expr.ir.defs._
+import is.hail.expr.ir.lowering.invariant.{NoSharedNodes, UniquelyNamed}
 import is.hail.types.virtual.Type
 import is.hail.utils.StackSafe._
 import is.hail.utils.TimedBlock
@@ -12,6 +13,7 @@ import scala.annotation.tailrec
 object NormalizeNames {
   def apply[T <: BaseIR](allowFreeVariables: Boolean = false)(ctx: ExecuteContext, ir: T): T =
     TimedBlock.enter {
+      NoSharedNodes.verify(ctx, ir)
       val freeVariables: Set[Name] = ir match {
         case ir: IR =>
           if (allowFreeVariables) {
@@ -27,9 +29,9 @@ object NormalizeNames {
           Set.empty
       }
       val env = BindingEnv.empty[Name].createAgg.createScan
-      val noSharing = ir.noSharing(ctx)
       val normalize = new NormalizeNames(freeVariables)
-      val res = normalize.normalizeIR(noSharing, env).run().asInstanceOf[T]
+      val res = normalize.normalizeIR(ir, env).run().asInstanceOf[T]
+      UniquelyNamed.verify(ctx, res)
       uidCounter = math.max(uidCounter, normalize.count.toLong)
       res
     }
