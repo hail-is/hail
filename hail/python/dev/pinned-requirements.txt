@@ -16,7 +16,7 @@ aiosignal==1.4.0
     #   aiohttp
 alabaster==0.7.16
     # via sphinx
-anyio==4.14.0
+anyio==4.14.1
     # via
     #   httpx
     #   jupyter-server
@@ -74,7 +74,7 @@ charset-normalizer==3.4.7
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   requests
-click==8.4.1
+click==8.4.2
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   -r hail/python/dev/requirements.txt
@@ -199,7 +199,7 @@ jinja2==3.1.6
     #   nbsphinx
     #   notebook
     #   sphinx
-json5==0.14.0
+json5==0.15.0
     # via jupyterlab-server
 jsonpointer==3.1.1
     # via jsonschema
@@ -272,7 +272,7 @@ matplotlib-inline==0.2.2
     #   ipython
 mccabe==0.7.0
     # via pylint
-mistune==3.2.1
+mistune==3.3.2
     # via nbconvert
 mock==5.1.0
     # via -r hail/python/dev/requirements.txt
@@ -409,7 +409,7 @@ pyparsing==3.3.2
     # via matplotlib
 pyproject-hooks==1.2.0
     # via build
-pyright==1.1.410
+pyright==1.1.411
     # via -r hail/python/dev/requirements.txt
 pytest==7.4.4
     # via
