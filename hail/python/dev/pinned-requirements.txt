@@ -256,7 +256,7 @@ markupsafe==3.0.3
     #   -c hail/python/dev/../pinned-requirements.txt
     #   jinja2
     #   nbconvert
-matplotlib==3.10.9
+matplotlib==3.11.0
     # via -r hail/python/dev/requirements.txt
 matplotlib-inline==0.2.2
     # via
@@ -403,7 +403,7 @@ pyproject-hooks==1.2.0
     # via build
 pyright==1.1.411
     # via -r hail/python/dev/requirements.txt
-pytest==9.0.3
+pytest==9.1.1
     # via
     #   -r hail/python/dev/requirements.txt
     #   pytest-asyncio
