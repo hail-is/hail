@@ -6,7 +6,7 @@ import logging
 import os
 from collections import defaultdict, namedtuple
 from contextlib import AsyncExitStack
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import aiohttp_session
 import prometheus_client as pc  # type: ignore
@@ -18,9 +18,11 @@ from gear import (
     CommonAiohttpAppKeys,
     Database,
     SystemPermission,
+    UserData,
     json_response,
     setup_aiohttp_session,
     transaction,
+    version_response,
 )
 from hailtop import __version__, aiotools, httpx
 from hailtop.aiocloud import aiogoogle
@@ -149,6 +151,12 @@ async def _billing(request: web.Request):
     return (cost_by_service, compute_cost_breakdown, cost_by_sku_source, time_period_query)
 
 
+@routes.get('/api/v1alpha/version')
+@auth.maybe_authenticated_user
+async def get_version(_, userdata: Optional[UserData]) -> web.Response:
+    return version_response(userdata)
+
+
 @routes.get('/api/v1alpha/billing')
 @auth.authenticated_users_with_permission(SystemPermission.VIEW_MONITORING_DASHBOARDS, redirect=False)
 async def get_billing(request: web.Request, _) -> web.Response:
@@ -244,6 +252,48 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
         )
 
     await insert()
+
+
+@routes.post('/api/v1alpha/billing/fetch')
+@auth.authenticated_users_with_permission(SystemPermission.VIEW_MONITORING_DASHBOARDS, redirect=False)
+async def fetch_billing_json(request: web.Request, _) -> web.Response:
+    date_format = '%m/%Y'
+    if request.content_length:
+        try:
+            body = await request.json()
+        except Exception as exc:
+            raise web.HTTPBadRequest(reason='Request body must be valid JSON.') from exc
+        if not isinstance(body, dict):
+            raise web.HTTPBadRequest(reason='Request body must be a JSON object.')
+    else:
+        body = {}
+    time_period_raw = body.get('time_period')
+    if time_period_raw is not None and not isinstance(time_period_raw, str):
+        raise web.HTTPBadRequest(reason='time_period must be a string.')
+    time_period_query = time_period_raw or datetime.datetime.now().strftime(date_format)
+    try:
+        time_period = datetime.datetime.strptime(time_period_query, date_format)
+    except ValueError as exc:
+        raise web.HTTPBadRequest(reason='Invalid time_period.') from exc
+
+    db = request.app[AppKeys.DB]
+    bigquery_client = request.app[AppKeys.BQ_CLIENT]
+    await _fetch_billing_month(db, bigquery_client, time_period, full_query=True)
+
+    records = [
+        record
+        async for record in db.execute_and_fetchall(
+            'SELECT * FROM monitoring_billing_data WHERE year = %s AND month = %s;',
+            (time_period.year, time_period.month),
+        )
+    ]
+    cost_by_service, compute_cost_breakdown, cost_by_sku_label = format_data(records)
+    return json_response({
+        'time_period_query': time_period_query,
+        'cost_by_service': cost_by_service,
+        'compute_cost_breakdown': compute_cost_breakdown,
+        'cost_by_sku_label': cost_by_sku_label,
+    })
 
 
 @routes.post('/billing/fetch')

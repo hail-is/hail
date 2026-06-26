@@ -92,20 +92,25 @@ components:
           description: "Time period for the billing data"
           example: "07/2023"
 
-  securitySchemes:
-    developerAuth:
-      type: http
-      scheme: bearer
-      description: Developer authentication token
 
 paths:
+  /api/v1alpha/version:
+    get:
+      summary: Get version
+      description: Get the current version of the monitoring service
+      tags: [Documentation]
+      responses:
+        '200':
+          description: Version retrieved successfully
+          content:
+            text/plain:
+              schema:
+                type: string
   /api/v1alpha/billing:
     get:
       summary: Get billing information
       description: Retrieve billing information for a specific time period
       tags: [Billing]
-      security:
-        - developerAuth: []
       parameters:
         - name: time_period
           in: query
@@ -122,9 +127,40 @@ paths:
               schema:
                 $ref: '#/components/schemas/BillingResponse'
         '401':
-          description: Unauthorized
+          description: Unauthorized or insufficient permissions
         '403':
-          description: Forbidden - requires developer privileges
+          description: Forbidden - account is inactive
+  /api/v1alpha/billing/fetch:
+    post:
+      summary: Trigger billing data refresh
+      description: Force a full BigQuery billing data refresh for the specified month. Defaults to the current month if no time period is provided.
+      tags: [Billing]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                time_period:
+                  type: string
+                  description: Month to refresh in MM/YYYY format. Defaults to current month.
+                  pattern: "^(0[1-9]|1[0-2])/[0-9]{4}$"
+                  example: "07/2023"
+      responses:
+        '200':
+          description: Refresh completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BillingResponse'
+        '400':
+          description: Invalid time_period format
+        '401':
+          description: Unauthorized or insufficient permissions
+        '403':
+          description: Forbidden - account is inactive
+
   /billing:
     get:
       summary: Get billing information

@@ -3045,49 +3045,7 @@ steps:
     timeout: 1500
     dependsOn:
       - auth_image
-  - kind: runImage
-    name: test_system_permissions
-    resources:
-      memory: standard
-      cpu: '0.25'
-    image:
-      valueFrom: auth_image.image
-    script: |
-      set -ex
-      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
-      export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
-      export GOOGLE_APPLICATION_CREDENTIALS=/test-dev-gsa-key/key.json
 
-      hail-pip-install -r /io/dev-requirements.txt
-
-      python3 -m pytest \
-              --log-cli-level=INFO -s -r A -vv --instafail \
-              --durations=50 --timeout=600 \
-              /io/test/test_system_permissions.py
-    inputs:
-      - from: /repo/auth/test
-        to: /io/test
-      - from: /repo/hail/python/dev/pinned-requirements.txt
-        to: /io/dev-requirements.txt
-    timeout: 900
-    secrets:
-      - name: test-tokens
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /user-tokens
-      - name: test-dev-gsa-key
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /test-dev-gsa-key
-    dependsOn:
-      - create_deploy_config
-      - create_accounts
-      - default_ns
-      - deploy_auth
-      - deploy_batch
-      - deploy_ci
-      - deploy_monitoring
-      - auth_image
   - kind: runImage
     name: delete_test_billing_projects
     resources:
@@ -3258,6 +3216,49 @@ steps:
       - deploy_ci_agent
       - create_certs
       - hail_buildkit_image
+  - kind: runImage
+    name: test_system_permissions
+    resources:
+      memory: standard
+      cpu: '0.25'
+    image:
+      valueFrom: auth_image.image
+    script: |
+      set -ex
+      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
+      export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-dev-gsa-key/key.json
+
+      hail-pip-install -r /io/dev-requirements.txt
+
+      python3 -m pytest \
+              --log-cli-level=INFO -s -r A -vv --instafail \
+              --durations=50 --timeout=600 \
+              /io/test/test_system_permissions.py
+    inputs:
+      - from: /repo/auth/test
+        to: /io/test
+      - from: /repo/hail/python/dev/pinned-requirements.txt
+        to: /io/dev-requirements.txt
+    timeout: 900
+    secrets:
+      - name: test-tokens
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /user-tokens
+      - name: test-dev-gsa-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-dev-gsa-key
+    dependsOn:
+      - create_deploy_config
+      - create_accounts
+      - default_ns
+      - deploy_auth
+      - deploy_batch
+      - deploy_ci
+      - deploy_monitoring
+      - auth_image
   - kind: runImage
     name: test_ci_unit
     resources:
@@ -3681,158 +3682,6 @@ steps:
     clouds:
       - gcp
   - kind: runImage
-    name: release
-    image:
-      valueFrom: ci_utils_image.image
-    script: |
-      set -ex
-      cd /io
-
-      gcloud auth activate-service-account --key-file=/ci-deploy-0-1--hail-is-hail/ci-deploy-0-1--hail-is-hail.json
-
-      gcloud auth -q configure-docker {{ global.docker_prefix.split('/')[0] }}
-      cat /docker-hub-hailgenetics/password | skopeo login --username hailgenetics --password-stdin docker.io
-
-      cp /pypi-credentials/pypirc $HOME/.pypirc
-      printf 'Authorization: token ' > github-oauth
-      cat /hail-ci-0-1-github-oauth-token/oauth-token >>github-oauth
-      printf '#!/bin/bash\necho ' > git-askpass
-      cat /hail-ci-0-1-github-oauth-token/oauth-token >>git-askpass
-      chmod 755 git-askpass
-      export GIT_ASKPASS=/io/git-askpass
-
-      cd /io/repo/hail
-      export HAIL_PIP_VERSION=$(cat env/HAIL_PIP_VERSION)
-
-      if git ls-remote --exit-code --tags origin $HAIL_PIP_VERSION
-      then
-          echo "tag $HAIL_PIP_VERSION already exists"
-          echo '0' > /io/release-hail-flag
-          exit 0
-      fi
-
-      # #14452 - must build wheel with release `hailtop/hailctl/deploy.yaml`
-      # use `-o` to prevent `mill` from rebuilding the "SHADOW_JAR"
-      make upload-artifacts HAIL_BUILD_MODE=Release DEPLOY_REMOTE=origin \
-        -o out/hail/2.12/assembly.dest/out.jar
-
-      echo Setting arguments and invoking release.sh.
-
-      HAIL_VERSION=$(cat env/HAIL_VERSION) \
-      WHEEL="build/deploy/dist/hail-${HAIL_PIP_VERSION}-py3-none-any.whl" \
-      GIT_VERSION=$(cat env/REVISION) \
-      REMOTE=origin \
-      GITHUB_OAUTH_HEADER_FILE=/io/github-oauth \
-      HAIL_GENETICS_HAIL_IMAGE=docker://{{ hailgenetics_hail_image.image }} \
-      HAIL_GENETICS_HAIL_IMAGE_PY_3_10=docker://{{ hailgenetics_hail_image_python_3_10.image }} \
-      HAIL_GENETICS_HAIL_IMAGE_PY_3_11=docker://{{ hailgenetics_hail_image.image }} \
-      HAIL_GENETICS_HAIL_IMAGE_PY_3_12=docker://{{ hailgenetics_hail_image_python_3_12.image }} \
-      HAIL_GENETICS_HAIL_IMAGE_PY_3_13=docker://{{ hailgenetics_hail_image_python_3_13.image }} \
-      HAIL_GENETICS_HAILTOP_IMAGE=docker://{{ hailgenetics_hailtop_image.image }} \
-      HAIL_GENETICS_VEP_GRCH37_85_IMAGE=docker://{{ hailgenetics_vep_grch37_85_image.image }} \
-      HAIL_GENETICS_VEP_GRCH38_95_IMAGE=docker://{{ hailgenetics_vep_grch38_95_image.image }} \
-      WEBSITE_TAR=/io/www.tar.gz \
-      bash scripts/release.sh
-
-      echo '1' > /io/release-hail-flag
-    inputs:
-      - from: /repo
-        to: /io/repo
-      - from: /derived/release/hail/out/hail/2.12/assembly.dest/out.jar
-        to: /io/repo/hail/out/hail/2.12/assembly.dest/out.jar
-      - from: /www.tar.gz
-        to: /io/www.tar.gz
-    outputs:
-      - from: /io/release-hail-flag
-        to: /release-hail-flag
-    secrets:
-      - name: pypi-credentials
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /pypi-credentials
-      - name: ci-deploy-0-1--hail-is-hail
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /ci-deploy-0-1--hail-is-hail
-      - name: docker-hub-hailgenetics
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /docker-hub-hailgenetics
-      - name: hail-ci-0-1-github-oauth-token
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /hail-ci-0-1-github-oauth-token
-    scopes:
-      - deploy
-      - dev
-    dependsOn:
-      - default_ns
-      - ci_utils_image
-      - merge_code
-      - hailgenetics_hail_image
-      - hailgenetics_hail_image_python_3_10
-      - hailgenetics_hail_image_python_3_12
-      - hailgenetics_hail_image_python_3_13
-      - hailgenetics_hailtop_image
-      - hailgenetics_vep_grch37_85_image
-      - hailgenetics_vep_grch38_95_image
-      - build_hail_jar_and_wheel
-      - test_hail_java
-      - test_hail_python
-      - test_hailtop_python
-      - test_hail_python_local_backend
-      - test_hail_python_service_backend_gcp
-      - test_hail_scala_fs
-      - test_hail_services_java
-      - test_hail_spark_conf_requester_pays_parsing
-      - test_dataproc-37
-      - test_dataproc-38
-      - make_docs
-    clouds:
-      - gcp
-  - kind: runImage
-    name: make_terra_prs
-    image:
-      valueFrom: ci_utils_image.image
-    dependsOn:
-      - default_ns
-      - ci_utils_image
-      - release
-    inputs:
-      - from: /release-hail-flag
-        to: /io/release-hail-flag
-      - from: /repo
-        to: /io/repo
-    secrets:
-      - name: hail-ci-0-1-github-oauth-token
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /hail-ci-0-1-github-oauth-token
-    clouds:
-      - gcp
-    scopes:
-      - deploy
-      - dev
-    script: |
-      set -ex
-      if [[ $(< /io/release-hail-flag) != '1' ]]
-      then
-          echo 'Skipping making terra update prs (no new release published)'
-          exit 0
-      fi
-
-      printf 'Authorization: token ' > github-oauth
-      cat /hail-ci-0-1-github-oauth-token/oauth-token >> /io/github-oauth
-      printf '#!/bin/bash\necho ' > git-askpass
-      cat /hail-ci-0-1-github-oauth-token/oauth-token >> /io/git-askpass
-      chmod 755 /io/git-askpass
-      export GIT_ASKPASS=/io/git-askpass
-
-      cd /io/repo/hail
-      export HAIL_PIP_VERSION=$(cat env/HAIL_PIP_VERSION)
-      export GITHUB_OAUTH_HEADER_FILE=/io/github-oauth
-      bash scripts/make-terra-prs.sh
-  - kind: runImage
     name: mirror_hailgenetics_images
     image: quay.io/skopeo/stable:v1.13.2
     script: |
@@ -4051,6 +3900,158 @@ steps:
       - upload_query_jar
       - deploy_batch
       - download_mill_and_maven_deps
+  - kind: runImage
+    name: release
+    image:
+      valueFrom: ci_utils_image.image
+    script: |
+      set -ex
+      cd /io
+
+      gcloud auth activate-service-account --key-file=/ci-deploy-0-1--hail-is-hail/ci-deploy-0-1--hail-is-hail.json
+
+      gcloud auth -q configure-docker {{ global.docker_prefix.split('/')[0] }}
+      cat /docker-hub-hailgenetics/password | skopeo login --username hailgenetics --password-stdin docker.io
+
+      cp /pypi-credentials/pypirc $HOME/.pypirc
+      printf 'Authorization: token ' > github-oauth
+      cat /hail-ci-0-1-github-oauth-token/oauth-token >>github-oauth
+      printf '#!/bin/bash\necho ' > git-askpass
+      cat /hail-ci-0-1-github-oauth-token/oauth-token >>git-askpass
+      chmod 755 git-askpass
+      export GIT_ASKPASS=/io/git-askpass
+
+      cd /io/repo/hail
+      export HAIL_PIP_VERSION=$(cat env/HAIL_PIP_VERSION)
+
+      if git ls-remote --exit-code --tags origin $HAIL_PIP_VERSION
+      then
+          echo "tag $HAIL_PIP_VERSION already exists"
+          echo '0' > /io/release-hail-flag
+          exit 0
+      fi
+
+      # #14452 - must build wheel with release `hailtop/hailctl/deploy.yaml`
+      # use `-o` to prevent `mill` from rebuilding the "SHADOW_JAR"
+      make upload-artifacts HAIL_BUILD_MODE=Release DEPLOY_REMOTE=origin \
+        -o out/hail/2.12/assembly.dest/out.jar
+
+      echo Setting arguments and invoking release.sh.
+
+      HAIL_VERSION=$(cat env/HAIL_VERSION) \
+      WHEEL="build/deploy/dist/hail-${HAIL_PIP_VERSION}-py3-none-any.whl" \
+      GIT_VERSION=$(cat env/REVISION) \
+      REMOTE=origin \
+      GITHUB_OAUTH_HEADER_FILE=/io/github-oauth \
+      HAIL_GENETICS_HAIL_IMAGE=docker://{{ hailgenetics_hail_image.image }} \
+      HAIL_GENETICS_HAIL_IMAGE_PY_3_10=docker://{{ hailgenetics_hail_image_python_3_10.image }} \
+      HAIL_GENETICS_HAIL_IMAGE_PY_3_11=docker://{{ hailgenetics_hail_image.image }} \
+      HAIL_GENETICS_HAIL_IMAGE_PY_3_12=docker://{{ hailgenetics_hail_image_python_3_12.image }} \
+      HAIL_GENETICS_HAIL_IMAGE_PY_3_13=docker://{{ hailgenetics_hail_image_python_3_13.image }} \
+      HAIL_GENETICS_HAILTOP_IMAGE=docker://{{ hailgenetics_hailtop_image.image }} \
+      HAIL_GENETICS_VEP_GRCH37_85_IMAGE=docker://{{ hailgenetics_vep_grch37_85_image.image }} \
+      HAIL_GENETICS_VEP_GRCH38_95_IMAGE=docker://{{ hailgenetics_vep_grch38_95_image.image }} \
+      WEBSITE_TAR=/io/www.tar.gz \
+      bash scripts/release.sh
+
+      echo '1' > /io/release-hail-flag
+    inputs:
+      - from: /repo
+        to: /io/repo
+      - from: /derived/release/hail/out/hail/2.12/assembly.dest/out.jar
+        to: /io/repo/hail/out/hail/2.12/assembly.dest/out.jar
+      - from: /www.tar.gz
+        to: /io/www.tar.gz
+    outputs:
+      - from: /io/release-hail-flag
+        to: /release-hail-flag
+    secrets:
+      - name: pypi-credentials
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /pypi-credentials
+      - name: ci-deploy-0-1--hail-is-hail
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /ci-deploy-0-1--hail-is-hail
+      - name: docker-hub-hailgenetics
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /docker-hub-hailgenetics
+      - name: hail-ci-0-1-github-oauth-token
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /hail-ci-0-1-github-oauth-token
+    scopes:
+      - deploy
+      - dev
+    dependsOn:
+      - default_ns
+      - ci_utils_image
+      - merge_code
+      - hailgenetics_hail_image
+      - hailgenetics_hail_image_python_3_10
+      - hailgenetics_hail_image_python_3_12
+      - hailgenetics_hail_image_python_3_13
+      - hailgenetics_hailtop_image
+      - hailgenetics_vep_grch37_85_image
+      - hailgenetics_vep_grch38_95_image
+      - build_hail_jar_and_wheel
+      - test_hail_java
+      - test_hail_python
+      - test_hailtop_python
+      - test_hail_python_local_backend
+      - test_hail_python_service_backend_gcp
+      - test_hail_scala_fs
+      - test_hail_services_java
+      - test_hail_spark_conf_requester_pays_parsing
+      - test_dataproc-37
+      - test_dataproc-38
+      - make_docs
+    clouds:
+      - gcp
+  - kind: runImage
+    name: make_terra_prs
+    image:
+      valueFrom: ci_utils_image.image
+    dependsOn:
+      - default_ns
+      - ci_utils_image
+      - release
+    inputs:
+      - from: /release-hail-flag
+        to: /io/release-hail-flag
+      - from: /repo
+        to: /io/repo
+    secrets:
+      - name: hail-ci-0-1-github-oauth-token
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /hail-ci-0-1-github-oauth-token
+    clouds:
+      - gcp
+    scopes:
+      - deploy
+      - dev
+    script: |
+      set -ex
+      if [[ $(< /io/release-hail-flag) != '1' ]]
+      then
+          echo 'Skipping making terra update prs (no new release published)'
+          exit 0
+      fi
+
+      printf 'Authorization: token ' > github-oauth
+      cat /hail-ci-0-1-github-oauth-token/oauth-token >> /io/github-oauth
+      printf '#!/bin/bash\necho ' > git-askpass
+      cat /hail-ci-0-1-github-oauth-token/oauth-token >> /io/git-askpass
+      chmod 755 /io/git-askpass
+      export GIT_ASKPASS=/io/git-askpass
+
+      cd /io/repo/hail
+      export HAIL_PIP_VERSION=$(cat env/HAIL_PIP_VERSION)
+      export GITHUB_OAUTH_HEADER_FILE=/io/github-oauth
+      bash scripts/make-terra-prs.sh
   - kind: runImage
     name: start_hail_benchmark
     scopes:
