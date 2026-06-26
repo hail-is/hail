@@ -1,9 +1,10 @@
-package is.hail.expr.ir
+package is.hail.expr.ir.lowering
 
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.{toRichIndexedSeq, toRichMap}
+import is.hail.expr.ir.{Memoized => M, _}
 import is.hail.expr.ir.analyses.{ColumnCount, PartitionCounts, PartitionCountsOrColumnCount}
 import is.hail.expr.ir.defs._
 import is.hail.io.bgen.MatrixBGENReader
@@ -312,9 +313,6 @@ object Simplify {
       case ApplyIR("contains", _, Seq(ToSet(x), element), _, _) if x.typ.isInstanceOf[TArray] =>
         Some(invoke("contains", TBoolean, x, element))
 
-      case x: ApplyIR if x.inline || x.body.size < 10 =>
-        Some(x.explicitNode)
-
       case ArrayLen(MakeArray(args, _)) =>
         Some(I32(args.length))
 
@@ -423,6 +421,9 @@ object Simplify {
 
       case NDArrayShape(NDArrayMap(nd, _, _)) =>
         Some(NDArrayShape(nd))
+
+      case NDArrayMap(ndarray, elem, Ref(name, _)) if elem == name =>
+        Some(ndarray)
 
       case NDArrayMap(NDArrayMap(child, innerName, innerBody), outerName, outerBody) =>
         Some(NDArrayMap(child, innerName, Let(FastSeq(outerName -> innerBody), outerBody)))
@@ -970,35 +971,29 @@ object Simplify {
         Some(TableOrderBy(TableFilter(child, pred), sortFields))
 
       case TableFilter(TableParallelize(rowsAndGlobal, nPartitions), pred) =>
-        val newRowsAndGlobal = rowsAndGlobal match {
-          case MakeStruct(Seq(("rows", rows), ("global", globalVal))) =>
-            Let(
-              FastSeq(TableIR.globalName -> globalVal),
-              MakeStruct(FastSeq(
-                ("rows", ToArray(StreamFilter(ToStream(rows), TableIR.rowName, pred))),
-                ("global", Ref(TableIR.globalName, globalVal.typ)),
-              )),
-            )
-          case _ =>
-            val uid = freshName()
-            Let(
-              FastSeq(
-                uid -> rowsAndGlobal,
-                TableIR.globalName -> GetField(Ref(uid, rowsAndGlobal.typ), "global"),
-              ),
-              MakeStruct(FastSeq(
-                "rows" -> ToArray(StreamFilter(
-                  ToStream(GetField(Ref(uid, rowsAndGlobal.typ), "rows")),
-                  TableIR.rowName,
-                  pred,
-                )),
-                "global" -> Ref(
-                  TableIR.globalName,
-                  rowsAndGlobal.typ.asInstanceOf[TStruct].fieldType("global"),
-                ),
-              )),
-            )
-        }
+        import TableIR.{rowName, globalName}
+
+        def mkFilteredRowsAndGlobal(rows: IR, global: Atom): IR =
+          makestruct(
+            "rows" -> rows
+              .stream
+              .filter(r => Subst(pred, BindingEnv.eval(rowName -> r, globalName -> global)))
+              .toArray,
+            "global" -> global,
+          )
+
+        val newRowsAndGlobal =
+          rowsAndGlobal match {
+            case MakeStruct(Seq(("rows", rows), ("global", globalVal))) =>
+              globalVal.bind(mkFilteredRowsAndGlobal(rows, _))
+            case _ =>
+              M.eval {
+                rowsAndGlobal.flatMap { struct =>
+                  struct.get("global").map(mkFilteredRowsAndGlobal(struct.get("rows"), _))
+                }
+              }
+          }
+
         Some(TableParallelize(newRowsAndGlobal, nPartitions))
 
       case TableKeyBy(TableOrderBy(child, _), keys, false, nPartitions) =>
@@ -1027,8 +1022,9 @@ object Simplify {
         } yield oldName -> newName
         Some(TableRename(child, Map(renamedPairs: _*), Map.empty))
 
-      case TableMapRows(TableMapRows(child, newRow1), newRow2) if !ContainsScan(newRow2) =>
-        Some(TableMapRows(child, Let(FastSeq(TableIR.rowName -> newRow1), newRow2)))
+      case TableMapRows(TableMapRows(child, f), g) if !ContainsScan(g) =>
+        val newRow = f.bind(r => Subst(g, BindingEnv.eval(TableIR.rowName -> r)))
+        Some(TableMapRows(child, newRow))
 
       case TableMapGlobals(child, Ref(n, _)) if n == TableIR.globalName =>
         Some(child)
@@ -1156,26 +1152,15 @@ object Simplify {
             && sortFields.forall(_.sortOrder == Ascending)
             && n < 256 =>
         // n < 256 is arbitrary for memory concerns
-        val row = Ref(TableIR.rowName, child.typ.rowType)
-        val keyStruct = MakeStruct(sortFields.map(f => f.field -> GetField(row, f.field)))
-        val te =
-          TableExplode(
-            TableKeyByAndAggregate(
-              child,
-              MakeStruct(FastSeq(
-                "row" -> ApplyAggOp(
-                  FastSeq(I32(n.toInt)),
-                  ArraySeq(row, keyStruct),
-                  TakeBy(),
-                )
-              )),
-              MakeStruct(FastSeq()), // aggregate to one row
-              Some(1),
-              10,
-            ),
-            FastSeq("row"),
-          )
-        Some(TableMapRows(te, GetField(Ref(TableIR.rowName, te.typ.rowType), "row")))
+        Some(
+          child
+            .keyByAndAggregate(10, Some(1)) { (_, row) =>
+              val keyStruct = MakeStruct(sortFields.map(f => f.field -> row.get(f.field)))
+              makestruct("__row" -> ApplyAggOp(TakeBy(), n.toInt)(row, keyStruct))
+            }((_, _) => makestruct())
+            .explode("__row")
+            .mapRows((_, row) => row.get("__row"))
+        )
 
       case TableDistinct(TableDistinct(child)) =>
         Some(TableDistinct(child))
@@ -1602,7 +1587,6 @@ object Simplify {
             f,
             sparsityStrategy,
           ) =>
-        val getElement = BlockMatrixToValueApply(scalarBM, functions.GetElement(IndexedSeq(0, 0)))
         val needsDense = sparsityStrategy == NeedsDense || sparsityStrategy.exists(
           leftBlock = true,
           rightBlock = false,
@@ -1612,7 +1596,8 @@ object Simplify {
           BlockMatrixMap(
             maybeDense,
             rightName,
-            Subst(f, BindingEnv.eval(leftName -> getElement)),
+            BlockMatrixToValueApply(scalarBM, functions.GetElement(FastSeq(0L, 0L)))
+              .bind(elem => Subst(f, BindingEnv.eval(leftName -> elem))),
             needsDense,
           )
         )
@@ -1624,7 +1609,6 @@ object Simplify {
             f,
             sparsityStrategy,
           ) =>
-        val getElement = BlockMatrixToValueApply(scalarBM, functions.GetElement(IndexedSeq(0, 0)))
         val needsDense = sparsityStrategy == NeedsDense || sparsityStrategy.exists(
           leftBlock = false,
           rightBlock = true,
@@ -1634,7 +1618,8 @@ object Simplify {
           BlockMatrixMap(
             maybeDense,
             leftName,
-            Subst(f, BindingEnv.eval(rightName -> getElement)),
+            BlockMatrixToValueApply(scalarBM, functions.GetElement(FastSeq(0L, 0L)))
+              .bind(elem => Subst(f, BindingEnv.eval(rightName -> elem))),
             needsDense,
           )
         )
@@ -1644,7 +1629,7 @@ object Simplify {
           if IsConstant(ir) || (ir.isInstanceOf[Ref] && ir.asInstanceOf[Ref].name != name) =>
         val typ = matrix.typ
         Some(BlockMatrixBroadcast(
-          ValueToBlockMatrix(ir, FastSeq(1, 1), typ.blockSize),
+          ValueToBlockMatrix(ir, FastSeq(1L, 1L), typ.blockSize),
           FastSeq(),
           FastSeq(typ.nRows, typ.nCols),
           typ.blockSize,

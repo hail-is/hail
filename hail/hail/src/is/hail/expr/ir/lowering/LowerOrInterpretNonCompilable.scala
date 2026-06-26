@@ -1,9 +1,11 @@
-package is.hail.expr.ir
+package is.hail.expr.ir.lowering
 
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
+import is.hail.expr.ir.{
+  BaseIR, CompileAndEvaluate, IR, Interpret, Name, RelationalLetMatrixTable, RelationalLetTable,
+}
 import is.hail.expr.ir.defs.{Begin, Literal, RelationalLet, RelationalRef}
-import is.hail.expr.ir.lowering.{CanLowerEfficiently, DArrayLowering, LowerToDistributedArrayPass}
 import is.hail.types.virtual.TVoid
 import is.hail.utils._
 
@@ -61,6 +63,6 @@ object LowerOrInterpretNonCompilable extends Logging {
       }
     }
 
-    rewrite(ir.noSharing(ctx), mutable.HashMap.empty)
+    rewrite(ir, mutable.HashMap.empty)
   }
 }

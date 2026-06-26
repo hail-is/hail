@@ -10,8 +10,7 @@ import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.Validate
 import is.hail.expr.ir.{
-  CompileAndEvaluate, IR, IRSize, LoweringAnalyses, NormalizeNames, SortField, TableIR, TableReader,
-  TypeCheck,
+  CompileAndEvaluate, IR, IRSize, NormalizeNames, SortField, TableIR, TableReader, TypeCheck,
 }
 import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.lowering._

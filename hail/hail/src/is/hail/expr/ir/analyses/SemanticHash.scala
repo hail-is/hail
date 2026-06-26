@@ -1,10 +1,10 @@
 package is.hail.expr.ir.analyses
 
 import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.{MatrixRangeReader, _}
+import is.hail.expr.ir._
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.functions.{TableCalculateNewPartitions, WrappedMatrixToValueFunction}
-import is.hail.expr.ir.lowering.invariant.NoRedefinedNames
+import is.hail.expr.ir.lowering.invariant.UniquelyNamed
 import is.hail.io.fs.FS
 import is.hail.io.vcf.MatrixVCFReader
 import is.hail.methods._
@@ -29,7 +29,7 @@ case object SemanticHash extends Logging {
 
   def apply(ctx: ExecuteContext, root: BaseIR): Option[Type] =
     TimedBlock.enter {
-      NoRedefinedNames.verify(ctx, root)
+      UniquelyNamed.verify(ctx, root)
 
       def go: Option[Int] = {
         var hash: Type =

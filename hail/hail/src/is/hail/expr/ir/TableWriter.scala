@@ -11,7 +11,7 @@ import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.functions.StringFunctions
-import is.hail.expr.ir.lowering.TableStage
+import is.hail.expr.ir.lowering.{LowerMatrixIR, TableStage}
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, OutputBuffer, TypedCodecSpec}
 import is.hail.io.fs.FS

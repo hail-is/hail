@@ -11,12 +11,10 @@ object EvalRelationalLets {
   // need to run the rest of lowerings to eval.
   def apply(ir: BaseIR, ctx: ExecuteContext, passesBelow: LoweringPipeline): BaseIR =
     TimedBlock.enter {
-      def execute(value: BaseIR, letsAbove: Map[Name, IR]): IR =
-        TimedBlock.enter {
-          val compilable = passesBelow.apply(ctx, lower(value, letsAbove))
-            .asInstanceOf[IR]
-          CompileAndEvaluate.evalToIR(ctx, compilable)
-        }
+      def execute(value: BaseIR, letsAbove: Map[Name, IR]): IR = {
+        val compilable = passesBelow(ctx, lower(value, letsAbove)).asInstanceOf[IR]
+        CompileAndEvaluate.evalToIR(ctx, compilable)
+      }
 
       def lower(ir: BaseIR, letsAbove: Map[Name, IR]): BaseIR = {
         ir match {
@@ -29,7 +27,7 @@ object EvalRelationalLets {
           case RelationalLetMatrixTable(name, value, body) =>
             val valueLit = execute(value, letsAbove)
             lower(body, letsAbove + (name -> valueLit))
-          case RelationalRef(name, _) => letsAbove(name)
+          case RelationalRef(name, _) => letsAbove(name).deepCopy
           case x =>
             x.mapChildren(lower(_, letsAbove))
         }
