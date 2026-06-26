@@ -75,7 +75,7 @@ If something goes wrong, roll back to the previous deployment immediately:
 
 ```bash
 kubectl rollout undo deployment gateway-deployment
-kubectl rollout undo deployment internal-gateway-deployment
+kubectl rollout undo deployment internal-gateway
 ```
 
 Kubernetes retains the previous ReplicaSet so this is instant and zero-downtime.
