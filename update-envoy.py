@@ -1,55 +1,73 @@
 #!/usr/bin/env python3
+import json
 import re
 import sys
 import urllib.request
-import json
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).parent
-FILES = [
+DEPLOYMENT_FILES = [
     REPO_ROOT / 'gateway/deployment.yaml',
     REPO_ROOT / 'internal-gateway/deployment.yaml',
 ]
+ENVOY_IMAGE_RE = re.compile(r'envoyproxy/envoy:v(?P<series>\d+\.\d+)\.(?P<patch>\d+)')
 
-pattern = re.compile(r'envoyproxy/envoy:v(\d+\.\d+)\.\d+')
 
-current_version = None
-for f in FILES:
-    m = pattern.search(f.read_text())
-    if m:
-        current_version = m.group(0).split(':v')[1]
-        current_series = m.group(1)
-        break
+def current_envoy_version() -> tuple[str, str]:
+    """Return (series, full_version) parsed from the first deployment file that contains an envoy image tag."""
+    for f in DEPLOYMENT_FILES:
+        if m := ENVOY_IMAGE_RE.search(f.read_text()):
+            return m.group('series'), f"{m.group('series')}.{m.group('patch')}"
+    raise SystemExit('ERROR: Could not find envoy version in deployment files')
 
-if not current_version:
-    print('ERROR: Could not find envoy version in deployment files', file=sys.stderr)
-    sys.exit(1)
 
-print(f'Current version: v{current_version} (series {current_series})')
-print(f'Querying GitHub for latest v{current_series}.x release...')
+def latest_patch_release(series: str) -> str:
+    """Return the latest non-prerelease patch version within the given minor series from GitHub."""
+    url = 'https://api.github.com/repos/envoyproxy/envoy/releases?per_page=50'
+    req = urllib.request.Request(
+        url,
+        headers={'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28'},
+    )
+    with urllib.request.urlopen(req) as r:  # nosec B310
+        releases = json.loads(r.read())
 
-url = f'https://api.github.com/repos/envoyproxy/envoy/releases?per_page=50'
-req = urllib.request.Request(url, headers={'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28'})
-with urllib.request.urlopen(req) as r:  # nosec B310
-    releases = json.loads(r.read())
+    series_re = re.compile(rf'^v{re.escape(series)}\.(\d+)$')
+    patches = [
+        (int(m.group(1)), release['tag_name'])
+        for release in releases
+        if (m := series_re.match(release['tag_name'])) and not release['prerelease']
+    ]
+    if not patches:
+        raise SystemExit(f'ERROR: No releases found for series {series}')
 
-series_pattern = re.compile(rf'^v{re.escape(current_series)}\.(\d+)$')
-matching = [(int(m.group(1)), r['tag_name']) for r in releases if (m := series_pattern.match(r['tag_name'])) and not r['prerelease']]
+    _, latest_tag = max(patches)
+    return latest_tag.lstrip('v')
 
-if not matching:
-    print(f'ERROR: No releases found for series {current_series}', file=sys.stderr)
-    sys.exit(1)
 
-latest_patch, latest_tag = max(matching)
-latest_version = latest_tag.lstrip('v')
+def update_files(old_version: str, new_version: str) -> None:
+    """Replace the envoy image tag in all deployment files."""
+    old_image = f'envoyproxy/envoy:v{old_version}'
+    new_image = f'envoyproxy/envoy:v{new_version}'
+    for f in DEPLOYMENT_FILES:
+        updated = f.read_text().replace(old_image, new_image)
+        f.write_text(updated)
+        print(f'  Updated {f.relative_to(REPO_ROOT)}')
 
-if current_version == latest_version:
-    print(f'Already up to date: v{current_version}')
-    sys.exit(0)
 
-print(f'Updating v{current_version} -> v{latest_version}')
-for f in FILES:
-    text = f.read_text()
-    updated = text.replace(f'envoyproxy/envoy:v{current_version}', f'envoyproxy/envoy:v{latest_version}')
-    f.write_text(updated)
-    print(f'  Updated {f.relative_to(REPO_ROOT)}')
+def main() -> None:
+    series, current_version = current_envoy_version()
+    print(f'Current version: v{current_version} (series {series})')
+    print(f'Querying GitHub for latest v{series}.x release...')
+
+    latest_version = latest_patch_release(series)
+
+    if current_version == latest_version:
+        print(f'Already up to date: v{current_version}')
+        sys.exit(0)
+
+    print(f'Updating v{current_version} -> v{latest_version}')
+    update_files(current_version, latest_version)
+
+
+if __name__ == '__main__':
+    main()
