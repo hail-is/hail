@@ -5,6 +5,7 @@ import copy
 import functools
 import os
 import subprocess as sp
+import sys
 import time
 import uuid
 import warnings
@@ -221,6 +222,7 @@ class LocalBackend(Backend[None]):
         copied_input_resource_files = set()
         os.makedirs(tmpdir + '/inputs/', exist_ok=True)
 
+        python3 = shq(sys.executable)
         requester_pays_project_json = orjson.dumps(batch.requester_pays_project).decode('utf-8')
 
         def copy_input(job, r):
@@ -233,7 +235,9 @@ class LocalBackend(Backend[None]):
                     if input_scheme != '':
                         transfers_bytes = orjson.dumps([{"from": r._input_path, "to": r._get_path(tmpdir)}])
                         transfers = transfers_bytes.decode('utf-8')
-                        return [f'python3 -m hailtop.aiotools.copy {shq(requester_pays_project_json)} {shq(transfers)}']
+                        return [
+                            f'{python3} -m hailtop.aiotools.copy {shq(requester_pays_project_json)} {shq(transfers)}'
+                        ]
 
                     absolute_input_path = os.path.realpath(os.path.expanduser(r._input_path))
 
@@ -282,7 +286,9 @@ class LocalBackend(Backend[None]):
                 input_transfers = orjson.dumps(input_transfer_dicts).decode('utf-8')
                 code = new_code_block()
                 code += ["# Write input resources to output destinations"]
-                code += [f'python3 -m hailtop.aiotools.copy {shq(requester_pays_project_json)} {shq(input_transfers)}']
+                code += [
+                    f'{python3} -m hailtop.aiotools.copy {shq(requester_pays_project_json)} {shq(input_transfers)}'
+                ]
                 code += ['\n']
                 run_code(code)
 
@@ -375,7 +381,7 @@ class LocalBackend(Backend[None]):
                 if output_transfer_dicts:
                     output_transfers = orjson.dumps(output_transfer_dicts).decode('utf-8')
                     code += [
-                        f'python3 -m hailtop.aiotools.copy {shq(requester_pays_project_json)} {shq(output_transfers)}'
+                        f'{python3} -m hailtop.aiotools.copy {shq(requester_pays_project_json)} {shq(output_transfers)}'
                     ]
                 code += ['\n']
 
