@@ -120,6 +120,10 @@ update-gateways-envoy:
 	$(MAKE) -C gateway deploy
 	$(MAKE) -C internal-gateway deploy
 	@echo ''
+	@echo 'Validate with:'
+	@echo '  kubectl rollout status deployment gateway-deployment && kubectl rollout status deployment internal-gateway-deployment'
+	@echo '  kubectl get deployment gateway-deployment -o jsonpath='\''{.spec.template.spec.containers[0].image}'\'''
+	@echo '  kubectl get deployment internal-gateway-deployment -o jsonpath='\''{.spec.template.spec.containers[0].image}'\'''
 	@echo 'If traffic to hail.is services seems degraded, roll back with:'
 	@echo '  kubectl rollout undo deployment gateway-deployment && kubectl rollout undo deployment internal-gateway-deployment'
 
