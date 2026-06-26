@@ -14,7 +14,8 @@ apt-get install -y \
     curl \
     jq \
     software-properties-common \
-    xfsprogs
+    xfsprogs \
+    mdadm
 
 echo "=== Adding Docker apt repo ==="
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -

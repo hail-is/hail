@@ -118,7 +118,7 @@ def create_vm_config(
                 'autoDelete': True,
                 'initializeParams': {
                     # NB: create a new worker image with gcp-create-worker-image.sh
-                    'sourceImage': f'projects/{project}/global/images/batch-worker-20',
+                    'sourceImage': f'projects/{project}/global/images/batch-worker-21',
                     'diskType': f'projects/{project}/zones/{zone}/diskTypes/pd-ssd',
                     'diskSizeGb': str(boot_disk_size_gb),
                 },
