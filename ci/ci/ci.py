@@ -47,6 +47,7 @@ from web_common import (
     setup_aiohttp_jinja2,
     setup_common_static_routes,
     web_security_headers,
+    web_security_headers_inline_styles,
     web_security_headers_swagger,
 )
 
@@ -862,7 +863,7 @@ async def get_envoy_configs(request: web.Request, _) -> web.Response:
 
 
 @routes.get('/flaky_tests')
-@web_security_headers
+@web_security_headers_inline_styles
 @auth.authenticated_users_with_permission(SystemPermission.READ_CI)
 async def get_flaky_tests(request: web.Request, userdata: UserData) -> web.Response:
     return await render_template('ci', request, userdata, 'flaky_tests.html', {'use_tailwind': True})

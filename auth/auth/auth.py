@@ -46,6 +46,7 @@ from web_common import (
     setup_aiohttp_jinja2,
     setup_common_static_routes,
     web_security_headers,
+    web_security_headers_inline_styles,
     web_security_headers_login_page,
     web_security_headers_swagger,
 )
@@ -251,7 +252,7 @@ async def get_healthcheck(_) -> web.Response:
 
 
 @routes.get('/helloreact')
-@web_security_headers
+@web_security_headers_inline_styles
 @auth.maybe_authenticated_user
 async def hello_react(request: web.Request, userdata) -> web.Response:
     return await render_template('auth', request, userdata, 'hello_react.html', {'use_tailwind': True})
