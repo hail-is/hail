@@ -29,7 +29,33 @@ batch_state_indicator, job_state_indicator, danger_button, submit_button, link, 
         <div class='flex justify-between items-center'>
           <div>
             <div class='font-light text-zinc-500'>Submitted by {{ batch['user'] }}</div>
-            <div class='font-light text-zinc-500'>Billed to {{ batch['billing_project'] }}</div>
+            <div class='font-light text-zinc-500 flex items-center gap-1'>
+              Billed to
+              {% if bp_cost_info %}
+              <span class='relative group cursor-default flex items-center gap-0.5'>
+                <span class='material-symbols-outlined text-base text-zinc-400'>info</span>
+                <span class='underline decoration-dotted decoration-zinc-400'>{{ batch['billing_project'] }}</span>
+                <span class='absolute left-0 bottom-full mb-1 hidden group-hover:block
+                             bg-zinc-800 text-white text-xs rounded px-2 py-1 whitespace-nowrap z-10 pointer-events-none'>
+                  {% if bp_cost_info['level'] == 'error' %}
+                  Billing project over limit:
+                  {% elif bp_cost_info['level'] == 'warning' %}
+                  Billing project nearing limit:
+                  {% else %}
+                  Billing project spend:
+                  {% endif %}
+                  {{ bp_cost_info['accrued_cost'] }}{% if bp_cost_info['limit'] %} / {{ bp_cost_info['limit'] }}{% endif %}
+                </span>
+              </span>
+              {% if bp_cost_info['level'] == 'error' %}
+              <span class='material-symbols-outlined text-base text-red-600'>error</span>
+              {% elif bp_cost_info['level'] == 'warning' %}
+              <span class='material-symbols-outlined text-base text-yellow-500'>warning</span>
+              {% endif %}
+              {% else %}
+              {{ batch['billing_project'] }}
+              {% endif %}
+            </div>
           </div>
           {% if not batch['complete'] and batch['state'] != 'Cancelled' %}
           <form action="{{ base_path }}/batches/{{ batch['id'] }}/cancel" method="post">

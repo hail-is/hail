@@ -48,6 +48,7 @@ from hailtop.hail_logging import AccessLogger
 from hailtop.utils import (
     AsyncWorkerPool,
     Notice,
+    cost_str,
     dump_all_stacktraces,
     flatten,
     periodically_call,
@@ -1312,6 +1313,10 @@ async def monitor_billing_limits(app):
         limit = record['limit']
         accrued_cost = record['accrued_cost']
         if limit is not None and accrued_cost >= limit:
+            log.warning(
+                f'billing project {record["billing_project"]} has exceeded its limit; '
+                f'accrued={cost_str(accrued_cost)} limit={cost_str(limit)}; cancelling running batches'
+            )
             running_batches = db.execute_and_fetchall(
                 """
 SELECT id
