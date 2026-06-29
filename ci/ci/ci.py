@@ -268,7 +268,7 @@ async def _populate_historical_pr_context(
 
 
 @routes.get('/watched_branches/{watched_branch_index}/pr/{pr_number}')
-@web_security_headers
+@web_security_headers_inline_styles
 @auth.authenticated_users_with_permission(SystemPermission.READ_CI)
 async def get_pr(request: web.Request, userdata: UserData) -> web.Response:
     watched_branch_index = int(request.match_info['watched_branch_index'])
