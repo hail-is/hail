@@ -160,7 +160,7 @@ package object ir extends CompileOps with LowerPriorityImplicits {
   }
 
   def maybeIR(ir: IR)(f: Atom => IR): IR =
-    bindIR(ir) { a =>
+    ir.bind { a =>
       val r = f(a)
       If(IsNA(a), NA(r.typ), r)
     }
