@@ -1560,7 +1560,7 @@ steps:
     inputs:
       - from: /repo/docker/hailgenetics/hail
         to: /io/repo/docker/hailgenetics/hail
-      - from: /repo/hail/python/pinned-requirements.txt
+      - from: /repo/hail/python/pinned-requirements-py310.txt
         to: /io/repo/hail/python/pinned-requirements.txt
       - from: /derived/release/hail/build/deploy/dist
         to: /io/repo/wheel

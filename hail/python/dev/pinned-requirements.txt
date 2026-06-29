@@ -80,7 +80,7 @@ comm==0.2.3
     # via
     #   ipykernel
     #   ipywidgets
-contourpy==1.3.2
+contourpy==1.3.3
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   matplotlib
@@ -239,7 +239,7 @@ jupyter-server==2.20.0
     #   notebook-shim
 jupyter-server-terminals==0.5.4
     # via jupyter-server
-jupyterlab==4.6.0
+jupyterlab==4.6.1
     # via jupyter
 jupyterlab-pygments==0.3.0
     # via nbconvert
