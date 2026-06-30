@@ -131,6 +131,7 @@ update-gateways-envoy:
 generate-pip-lockfiles:
 	./generate-pip-lockfile.sh hail/python/hailtop
 	./generate-pip-lockfile.sh hail/python
+	uv pip compile --python-version 3.10 --python-platform linux --upgrade hail/python/requirements.txt --output-file=hail/python/pinned-requirements-py310.txt
 	./generate-pip-lockfile.sh hail/python/dev
 	./generate-pip-lockfile.sh gear
 	./generate-pip-lockfile.sh web_common

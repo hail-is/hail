@@ -1,4 +1,3 @@
-import asyncio
 import hashlib
 import logging
 import os
@@ -15,15 +14,6 @@ from hailtop.hail_event_loop import hail_event_loop
 from .helpers import hl_init_for_test, hl_stop_for_test
 
 log = logging.getLogger(__name__)
-
-
-@pytest.fixture(scope="session")
-def event_loop():
-    loop = asyncio.get_event_loop()
-    try:
-        yield loop
-    finally:
-        loop.close()
 
 
 def pytest_collection_modifyitems(items):

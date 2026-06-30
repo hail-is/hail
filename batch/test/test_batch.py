@@ -1409,8 +1409,8 @@ def test_verify_private_network_is_restricted(client: BatchClient):
         assert False
 
 
-async def test_old_clients_that_submit_mount_docker_socket_false_is_ok(client: BatchClient):
-    b = create_batch(client)._async_batch
+async def test_old_clients_that_submit_mount_docker_socket_false_is_ok(async_client: AioBatchClient):
+    b = create_batch(async_client)
     await b._open_batch()
     b.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
     update_id = await b._create_update()
@@ -1427,8 +1427,8 @@ async def test_old_clients_that_submit_mount_docker_socket_false_is_ok(client: B
             await b._submit_jobs(update_id, [spec_bytes], pbar_task)
 
 
-async def test_old_clients_that_submit_mount_docker_socket_true_is_rejected(client: BatchClient):
-    b = create_batch(client)._async_batch
+async def test_old_clients_that_submit_mount_docker_socket_true_is_rejected(async_client: AioBatchClient):
+    b = create_batch(async_client)
     await b._open_batch()
     b.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
     update_id = await b._create_update()
@@ -2234,8 +2234,8 @@ def test_cancel_job_group_with_different_nested_updates(client: BatchClient):
         b.cancel()
 
 
-async def test_get_and_cancel_job_group_with_unsubmitted_job_group_updates(client: BatchClient):
-    b = create_batch(client)._async_batch
+async def test_get_and_cancel_job_group_with_unsubmitted_job_group_updates(async_client: AioBatchClient):
+    b = create_batch(async_client)
     jg = b.create_job_group()
     jg.create_job(DOCKER_ROOT_IMAGE, ['sleep', '300'])
     await b.submit()
