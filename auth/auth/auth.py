@@ -331,7 +331,7 @@ async def creating_account(request: web.Request, userdata: Optional[UserData]) -
             set_message(session, f'Account has been created for {user["username"]}.', 'info')
             raise web.HTTPFound(next_page)
 
-        assert user['state'] == 'creating'
+        assert user['state'] in ('creating', 'reconciling')
         session['pending'] = True
         session['login_id'] = login_id
         session['next'] = next_page
@@ -364,14 +364,14 @@ async def _wait_websocket(request, login_id):
         count = 0
         user = await user_from_login_id(db, login_id)
         assert user
-        while count < 10 and user['state'] == 'creating':
+        while count < 10 and user['state'] in ('creating', 'reconciling'):
             user = await user_from_login_id(db, login_id)
             assert user
             await asyncio.sleep(1)
             count += 1
 
         if count >= 10:
-            log.info(f"user {user['username']} is still in state creating")
+            log.info(f"user {user['username']} is still in state {user['state']}")
 
         ready = user['state'] == 'active'
 
@@ -482,7 +482,7 @@ async def callback(request) -> web.Response:
             'auth', request, user, 'account-error.html', page_context, status_code=web.HTTPUnauthorized.status_code
         )
 
-    if user['state'] == 'creating':
+    if user['state'] in ('creating', 'reconciling'):
         if caller == 'signup':
             set_message(session, f'Account is already creating for login id {login_id}', 'error')
         if caller == 'login':
@@ -1192,6 +1192,10 @@ WHERE usr.user_id = %s AND sr.name = %s
                 "INSERT INTO users_system_roles (user_id, role_id) VALUES (%s, %s)", (user['id'], role_record['id'])
             )
 
+            await tx.execute_update(
+                "UPDATE users SET state = 'reconciling' WHERE id = %s AND state = 'active'", (user['id'],)
+            )
+
             return {'action': 'added', 'role': role_name, 'user': user['username']}
 
         elif 'role_removal' in body:
@@ -1218,6 +1222,10 @@ JOIN system_roles sr ON usr.role_id = sr.id
 WHERE usr.user_id = %s AND sr.name = %s
 """,
                 (user['id'], role_name),
+            )
+
+            await tx.execute_update(
+                "UPDATE users SET state = 'reconciling' WHERE id = %s AND state = 'active'", (user['id'],)
             )
 
             return {'action': 'removed', 'role': role_name, 'user': user['username']}

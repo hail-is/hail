@@ -416,7 +416,7 @@ async def _create_user(app, user, skip_trial_bp, cleanup):
     else:
         ident = ident_token
 
-    updates = {'state': 'active'}
+    updates = {'state': 'reconciling'}
 
     tokens_secret_name = user['tokens_secret_name']
     if tokens_secret_name is None:
@@ -468,20 +468,6 @@ async def _create_user(app, user, skip_trial_bp, cleanup):
         )
         updates['hail_credentials_secret_name'] = hail_credentials_secret_name
 
-    namespace_name = user['namespace_name']
-    # Namespace creation step if it doesn't exist yet and the user is a developer
-    # NB auth services in test namespaces cannot/should not be creating and deleting namespaces
-    if (
-        namespace_name is None
-        and SystemPermission.ACCESS_DEVELOPER_ENVIRONMENTS.value in system_permissions
-        and not is_test_deployment
-    ):
-        namespace_name = ident
-        namespace = K8sNamespaceResource(k8s_client)
-        cleanup.append(namespace.delete)
-        await namespace.create(namespace_name)
-        updates['namespace_name'] = namespace_name
-
     if not skip_trial_bp and user['is_service_account'] != 1:
         trial_bp = user['trial_bp_name']
         if trial_bp is None:
@@ -511,6 +497,69 @@ async def create_user(app, user, skip_trial_bp=False):
         await _create_user(app, user, skip_trial_bp, cleanup)
     except Exception:
         log.exception(f'create user {user} failed')
+
+        for f in cleanup:
+            try:
+                await f()
+            except Exception:
+                log.exception('caught exception while cleaning up user resource, ignoring')
+
+        raise
+
+
+async def _reconcile_roles(app, user, ident, system_permissions, updates, cleanup):
+    k8s_client = app['k8s_client']
+    namespace_name = user['namespace_name']
+    has_dev = SystemPermission.ACCESS_DEVELOPER_ENVIRONMENTS.value in system_permissions
+
+    if namespace_name is None and has_dev and not is_test_deployment:
+        namespace = K8sNamespaceResource(k8s_client)
+        cleanup.append(namespace.delete)
+        await namespace.create(ident)
+        updates['namespace_name'] = ident
+    elif namespace_name is not None and not has_dev and not is_test_deployment:
+        await K8sNamespaceResource(k8s_client, namespace_name).delete()
+        updates['namespace_name'] = None
+
+
+async def _reconcile_user(app, user, cleanup):
+    db = app['db']
+    username = user['username']
+
+    system_permissions = []
+    if len(user['system_roles']) > 0:
+        system_permissions = [
+            x['name']
+            async for x in db.select_and_fetchall(
+                'SELECT system_permissions.name FROM system_permissions JOIN system_role_permissions ON system_permissions.id = system_role_permissions.permission_id JOIN users_system_roles ON system_role_permissions.role_id = users_system_roles.role_id WHERE users_system_roles.user_id = %s',
+                (user['id'],),
+            )
+        ]
+
+    ident = username
+
+    updates: Dict[str, Any] = {'state': 'active'}
+    await _reconcile_roles(app, user, ident, system_permissions, updates, cleanup)
+
+    n_rows = await db.execute_update(
+        f"""
+UPDATE users
+SET {', '.join([f'{k} = %({k})s' for k in updates])}
+WHERE id = %(id)s AND state = 'reconciling';
+""",
+        {'id': user['id'], **updates},
+    )
+    if n_rows != 1:
+        assert n_rows == 0
+        raise DatabaseConflictError
+
+
+async def reconcile_user(app, user):
+    cleanup: List[Callable[[], Awaitable[None]]] = []
+    try:
+        await _reconcile_user(app, user, cleanup)
+    except Exception:
+        log.exception(f'reconcile user {user} failed')
 
         for f in cleanup:
             try:
@@ -632,6 +681,10 @@ async def update_users(app):
     deleting_users = await _users_in_state_with_roles(db, 'deleting')
     for user in deleting_users:
         await delete_user(app, user)
+
+    reconciling_users = await _users_in_state_with_roles(db, 'reconciling')
+    for user in reconciling_users:
+        await reconcile_user(app, user)
 
     users_without_hail_identity_uid = [
         x
