@@ -135,7 +135,7 @@ cat <<EOF
 Done.
   • Open a NEW notebook tab in JupyterLab and pick the "$DISPLAY_NAME" kernel.
   • No in-notebook PATH setup is needed anymore — it is baked into the kernelspec.
-  • After any compute-environment restart, just re-run:  bash $(basename "$0")
+  • After any compute-environment restart, just re-run this install.
     If the env survived it restores in seconds. If the kernel is gone again,
     the persistent path was wrong — re-run with PERSIST_DIR=<a path that persists>.
 EOF
