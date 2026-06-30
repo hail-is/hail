@@ -80,7 +80,7 @@ comm==0.2.3
     # via
     #   ipykernel
     #   ipywidgets
-contourpy==1.3.3
+contourpy==1.3.2
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   matplotlib
@@ -161,7 +161,7 @@ ipykernel==6.29.5
     #   jupyterlab
     #   nbclassic
     #   notebook
-ipython==9.10.1
+ipython==9.15.0
     # via
     #   ipykernel
     #   ipywidgets
@@ -373,7 +373,9 @@ propcache==0.5.2
     #   aiohttp
     #   yarl
 psutil==7.2.2
-    # via ipykernel
+    # via
+    #   ipykernel
+    #   ipython
 ptyprocess==0.7.0
     # via
     #   pexpect
@@ -473,7 +475,7 @@ rfc3986-validator==0.1.1
     #   jupyter-events
 rfc3987-syntax==1.1.0
     # via jsonschema
-rpds-py==2026.5.1
+rpds-py==2026.6.3
     # via
     #   jsonschema
     #   referencing
@@ -614,7 +616,7 @@ virtualenv==21.5.1
     # via pre-commit
 watchfiles==1.2.0
     # via aiohttp-devtools
-wcwidth==0.8.1
+wcwidth==0.8.2
     # via prompt-toolkit
 webcolors==25.10.0
     # via jsonschema
