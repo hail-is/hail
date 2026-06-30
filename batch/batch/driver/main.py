@@ -60,6 +60,7 @@ from web_common import (
     setup_aiohttp_jinja2,
     setup_common_static_routes,
     web_security_headers,
+    web_security_headers_inline_styles,
 )
 
 from ..batch import cancel_job_group_in_db
@@ -485,7 +486,7 @@ FROM user_inst_coll_resources;
 
 
 @routes.get('/quotas')
-@web_security_headers
+@web_security_headers_inline_styles
 @auth.authenticated_users_with_permission(SystemPermission.READ_DEPLOYED_SYSTEM_STATE)
 async def get_quotas(request, userdata):
     if CLOUD != 'gcp':
@@ -575,7 +576,7 @@ def validate_int(session, name, value, predicate, description):
 
 
 @routes.get('/helloreact')
-@web_security_headers
+@web_security_headers_inline_styles
 @auth.authenticated_users_with_permission(SystemPermission.READ_DEPLOYED_SYSTEM_STATE)
 async def hello_react(request: web.Request, userdata) -> web.Response:
     return await render_template('batch-driver', request, userdata, 'hello_react.html', {'use_tailwind': True})
