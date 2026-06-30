@@ -53,7 +53,6 @@ object LowerDistributedSort extends Logging {
       initialTmpPath,
       None,
       None,
-      trackTotalBytes = true,
     )
 
     logger.info("DISTRIBUTED SORT: PHASE 1: WRITE DATA")
