@@ -45,6 +45,70 @@ object TableWriter {
       typeHintFieldName = "name",
     )
   }
+
+  def writerHelper(
+    rowSpec: TypedCodecSpec,
+    rows: IR,
+    partFile: IR,
+    partRoot: IR,
+    indexInfo: Option[(PStruct, IR)] = None,
+  ): IR = {
+    val partResult = streamAggIR(rows) { row =>
+      assert(row.typ.isInstanceOf[TStruct])
+      TableWriter.rowWriterHelper(rowSpec, row, partFile, partRoot, indexInfo)
+    }
+    bindIR(partResult)(TableWriter.resultHelper(_))
+  }
+
+  def rowWriterHelper(
+    rowSpec: TypedCodecSpec,
+    row: Atom,
+    partFile: IR,
+    partRoot: IR,
+    indexInfo: Option[(PStruct, IR)] = None,
+  ): IR = {
+    val pKey = indexInfo.map(_._1).getOrElse(PCanonicalStruct())
+    val initOpArgs = Seq(partFile, partRoot) ++ indexInfo.map(_._2)
+    val zero = makestruct(
+      "distinct" -> !pKey.fieldNames.isEmpty,
+      "firstKey" -> NA(pKey.virtualType),
+      "lastKey" -> NA(pKey.virtualType),
+    )
+    makestruct(
+      "partpath" -> ApplyAggOp(
+        WriteRows(rowSpec, indexInfo.map(_._1)),
+        initOpArgs: _*
+      )(row),
+      "partitionCounts" -> ApplyAggOp(Count())(),
+      "keyMeta" -> aggFoldIR(zero) { accum =>
+        bindIRs(SelectFields(row, pKey.fieldNames), GetField(accum, "lastKey")) {
+          case Seq(key, prev) =>
+            makestruct(
+              "distinct" -> (GetField(accum, "distinct") && Coalesce(FastSeq(
+                prev.cne(key),
+                True(),
+              ))),
+              "firstKey" -> Coalesce(FastSeq(GetField(accum, "firstKey"), key)),
+              "lastKey" -> Coalesce(FastSeq(key, prev)),
+            )
+        }
+      } { (accum1, accum2) =>
+        Die("unreachable: calling combop on writer fold makes no sense", zero.typ)
+      },
+    )
+  }
+
+  def resultHelper(result: Atom): IR = {
+    bindIR(GetField(result, "keyMeta")) { keymeta =>
+      makestruct(
+        "filePath" -> GetField(result, "partpath"),
+        "partitionCounts" -> GetField(result, "partitionCounts"),
+        "distinctlyKeyed" -> GetField(keymeta, "distinct"),
+        "firstKey" -> GetField(keymeta, "firstKey"),
+        "lastKey" -> GetField(keymeta, "lastKey"),
+      )
+    }
+  }
 }
 
 abstract class TableWriter {
@@ -74,22 +138,7 @@ object TableNativeWriter {
     // write out partitioner key, which may be stricter than table key
     val partitioner = ts.partitioner
     val pKey: PStruct = tcoerce[PStruct](rowSpec.decodedPType(partitioner.kType))
-    val rowWriter = PartitionNativeWriter(
-      rowSpec,
-      pKey.fieldNames,
-      s"$path/rows/parts/",
-      Some(s"$path/index/" -> pKey),
-      if (stageLocally) Some(FileSystems.getDefault.getPath(
-        ctx.localTmpdir,
-        s"hail_staging_tmp_${UUID.randomUUID()}",
-        "rows",
-        "parts",
-      ))
-      else None,
-    )
 
-    val globalWriter =
-      PartitionNativeWriter(globalSpec, IndexedSeq(), s"$path/globals/parts/", None, None)
     RelationalWriter.scoped(path, overwrite, Some(ts.tableType))(
       ts.mapContexts { oldCtx =>
         val d = digitsNeeded(ts.numPartitions)
@@ -106,13 +155,17 @@ object TableNativeWriter {
         }
       }(GetField(_, "oldCtx")).mapCollectWithContextsAndGlobals("table_native_writer") {
         (rows, ctxRef) =>
-          val file = GetField(ctxRef, "writeCtx")
-          WritePartition(rows, file + UUID4(), rowWriter)
+          bindIR(GetField(ctxRef, "writeCtx") + UUID4()) { partFile =>
+            val partRoot = Str(s"$path/rows/parts/")
+            val indexRoot = Str(s"$path/index/")
+            TableWriter.writerHelper(rowSpec, rows, partFile, partRoot, Some(pKey -> indexRoot))
+          }
       } { (parts, globals) =>
-        val writeGlobals = WritePartition(
+        val writeGlobals = TableWriter.writerHelper(
+          globalSpec,
           MakeStream(globals),
           Str(partFile(1, 0)),
-          globalWriter,
+          Str(s"$path/globals/parts/"),
         )
 
         bindIR(parts) { fileCountAndDistinct =>
@@ -183,36 +236,25 @@ case class TableNativeWriter(
   }
 }
 
-object PartitionNativeWriter {
-  val ctxType = TString
-
-  def fullReturnType(keyType: TStruct): TStruct = TStruct(
-    "filePath" -> TString,
-    "partitionCounts" -> TInt64,
-    "distinctlyKeyed" -> TBoolean,
-    "firstKey" -> keyType,
-    "lastKey" -> keyType,
-    "partitionByteSize" -> TInt64,
-  )
-
-  def returnType(keyType: TStruct, trackTotalBytes: Boolean): TStruct = {
-    val t = PartitionNativeWriter.fullReturnType(keyType)
-    if (trackTotalBytes) t else t.filterSet(Set("partitionByteSize"), include = false)._1
-  }
-}
-
 case class PartitionNativeWriter(
   spec: AbstractTypedCodecSpec,
   keyFields: IndexedSeq[String],
   partPrefix: String,
   index: Option[(String, PStruct)] = None,
   stagingFolder: Option[Path] = None,
-  trackTotalBytes: Boolean = false,
 ) extends PartitionWriter {
   val keyType = spec.encodedVirtualType.asInstanceOf[TStruct].select(keyFields)._1
 
-  override def ctxType = PartitionNativeWriter.ctxType
-  val returnType = PartitionNativeWriter.returnType(keyType, trackTotalBytes)
+  override def ctxType = TString
+  val returnType = TStruct(
+    "filePath" -> TString,
+    "partitionCounts" -> TInt64,
+    "distinctlyKeyed" -> TBoolean,
+    "firstKey" -> keyType,
+    "lastKey" -> keyType,
+  )
+
+
 
   override def unionTypeRequiredness(
     r: TypeWithRequiredness,
@@ -251,9 +293,6 @@ case class PartitionNativeWriter(
 
     private val ob = mb.newLocal[OutputBuffer]("write_ob")
     private val n = mb.newLocal[Long]("partition_count")
-
-    private val byteCount =
-      if (trackTotalBytes) Some(mb.newPLocal("partition_byte_count", SInt64)) else None
 
     private val distinctlyKeyed = mb.newLocal[Boolean]("distinctlyKeyed")
     private val keyEmitType = EmitType(spec.decodedPType(keyType).sType, false)
@@ -363,7 +402,6 @@ case class PartitionNativeWriter(
         .apply(cb, row, ob)
 
       cb.assign(n, n + 1L)
-      byteCount.foreach(bc => cb.assign(bc, SCode.add(cb, bc, row.sizeToStoreInBytes(cb), true)))
     }
 
     def result(): SValue = {
@@ -392,7 +430,7 @@ case class PartitionNativeWriter(
         EmitCode.present(mb, new SBooleanValue(distinctlyKeyed)),
         firstSeenSettable,
         lastSeenSettable,
-      ) ++ byteCount.map(EmitCode.present(mb, _))
+      )
 
       SStackStruct.constructFromArgs(cb, region, returnType.asInstanceOf[TBaseStruct], values: _*)
     }
