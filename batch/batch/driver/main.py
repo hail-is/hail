@@ -1326,6 +1326,7 @@ WHERE billing_project = %s AND state = 'running';
                 (record['billing_project'],),
             )
             async for batch in running_batches:
+                log.warning(f'cancelling running batch {batch["id"]}. Project out of money.')
                 await _cancel_job_group(app, batch['id'], ROOT_JOB_GROUP_ID)
 
 
