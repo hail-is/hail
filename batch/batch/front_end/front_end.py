@@ -2235,6 +2235,7 @@ async def delete_batch(request: web.Request, _, batch_id: int) -> web.Response:
 @catch_ui_error_in_dev
 async def ui_batch(request, userdata, batch_id):
     app = request.app
+    db: Database = app['db']
     batch = await _get_batch(app, batch_id)
 
     q = request.query.get('q', '')
@@ -2267,10 +2268,33 @@ async def ui_batch(request, userdata, batch_id):
             record['cost'] = cost_str(record['cost'])
         batch['cost_breakdown'].sort(key=lambda record: record['resource'])
 
+    bp_records = await query_billing_projects_with_cost(db, billing_project=batch['billing_project'])
+    bp_cost_info = None
+    if bp_records:
+        bp = bp_records[0]
+        limit = bp['limit']
+        accrued = bp['accrued_cost']
+        if limit is not None:
+            fraction = accrued / limit if limit > 0 else 1.0
+            if fraction >= 1.0:
+                bp_level = 'error'
+            elif fraction >= 0.8:
+                bp_level = 'warning'
+            else:
+                bp_level = 'ok'
+        else:
+            bp_level = 'no_limit'
+        bp_cost_info = {
+            'accrued_cost': cost_str(accrued),
+            'limit': cost_str(limit) if limit is not None else None,
+            'level': bp_level,
+        }
+
     page_context = {
         'batch': batch,
         'q': q,
         'last_job_id': last_job_id,
+        'bp_cost_info': bp_cost_info,
     }
     return await render_template('batch', request, userdata, 'batch.html', page_context)
 
