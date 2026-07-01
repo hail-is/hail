@@ -1,6 +1,6 @@
 package is.hail.variant
 
-import is.hail.annotations.Annotation
+import is.hail.annotations.{Annotation, RowSeq}
 import is.hail.expr.Parser
 import is.hail.utils._
 
@@ -73,7 +73,7 @@ object Locus {
 }
 
 case class Locus(contig: String, position: Int) {
-  def toRow: Row = Row(contig, position)
+  def toRow: Row = RowSeq(contig, position)
 
   def toJSON: JValue = JObject(
     ("contig", JString(contig)),

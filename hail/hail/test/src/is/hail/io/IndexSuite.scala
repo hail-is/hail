@@ -2,7 +2,7 @@ package is.hail.io
 
 import is.hail.ParameterizedTest
 import is.hail.TestUtils._
-import is.hail.annotations.Annotation
+import is.hail.annotations.{Annotation, RowSeq}
 import is.hail.backend.ExecuteContext
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterator
@@ -11,7 +11,6 @@ import is.hail.types.physical.{PCanonicalString, PCanonicalStruct, PInt32, PType
 import is.hail.types.virtual._
 import is.hail.utils._
 
-import org.apache.spark.sql.Row
 import org.junit.jupiter.api.Test
 
 class IndexSuite {
@@ -30,7 +29,7 @@ class IndexSuite {
     "whale", "zebra", "zebra", "zebra")
 
   val leafsWithDups = stringsWithDups.zipWithIndex.map { case (s, i) =>
-    LeafChild(s, i.toLong, Row())
+    LeafChild(s, i.toLong, RowSeq())
   }
 
   def writeReadGivesSameAsInput() = (1 to strings.length).map(i => strings.take(i))
@@ -115,7 +114,7 @@ class IndexSuite {
     val file = ctx.createTmpPath("test", "idx")
     val attributes: Map[String, Any] = Map("foo" -> true, "bar" -> 5)
 
-    val a: (Int) => Annotation = (i: Int) => Row(i % 2 == 0)
+    val a: (Int) => Annotation = (i: Int) => RowSeq(i % 2 == 0)
 
     for (branchingFactor <- 2 to 5) {
       writeIndex(
@@ -159,7 +158,7 @@ class IndexSuite {
       writeIndex(
         file,
         stringsWithDups,
-        stringsWithDups.indices.map(i => Row()),
+        stringsWithDups.indices.map(i => RowSeq()),
         TStruct.empty,
         branchingFactor,
       )
@@ -192,7 +191,7 @@ class IndexSuite {
       writeIndex(
         file,
         stringsWithDups,
-        stringsWithDups.indices.map(i => Row()),
+        stringsWithDups.indices.map(i => RowSeq()),
         TStruct.empty,
         branchingFactor,
       )
@@ -222,7 +221,7 @@ class IndexSuite {
   @Test def testRangeIterator(implicit ctx: ExecuteContext): Unit = {
     for (branchingFactor <- 2 to 5) {
       val file = ctx.createTmpPath("range", "idx")
-      val a = { (i: Int) => Row() }
+      val a = { (i: Int) => RowSeq() }
       writeIndex(
         file,
         stringsWithDups,
@@ -250,7 +249,7 @@ class IndexSuite {
       writeIndex(
         file,
         stringsWithDups,
-        stringsWithDups.indices.map(i => Row()),
+        stringsWithDups.indices.map(i => RowSeq()),
         TStruct.empty,
         branchingFactor,
       )
@@ -272,7 +271,7 @@ class IndexSuite {
       writeIndex(
         file,
         stringsWithDups,
-        stringsWithDups.indices.map(i => Row()),
+        stringsWithDups.indices.map(i => RowSeq()),
         TStruct.empty,
         branchingFactor,
       )
@@ -451,8 +450,8 @@ class IndexSuite {
       val file = ctx.createTmpPath("from", "idx")
       writeIndex(
         file,
-        stringsWithDups.zipWithIndex.map { case (s, i) => Row(s, i) },
-        stringsWithDups.indices.map(i => Row()),
+        stringsWithDups.zipWithIndex.map { case (s, i) => RowSeq(s, i) },
+        stringsWithDups.indices.map(i => RowSeq()),
         keyType,
         +PCanonicalStruct(),
         branchingFactor,
@@ -460,7 +459,7 @@ class IndexSuite {
       )
 
       val leafChildren = stringsWithDups.zipWithIndex.map { case (s, i) =>
-        LeafChild(Row(s, i), i.toLong, Row())
+        LeafChild(RowSeq(s, i), i.toLong, RowSeq())
       }
 
       val index = indexReader(
@@ -470,8 +469,8 @@ class IndexSuite {
       )
       assertEq(
         index.queryByInterval(
-          Row("cat", 3),
-          Row("cat", 5),
+          RowSeq("cat", 3),
+          RowSeq("cat", 5),
           includesStart = true,
           includesEnd = false,
         ).toFastSeq,
@@ -479,8 +478,8 @@ class IndexSuite {
       )
       assertEq(
         index.queryByInterval(
-          Row("cat"),
-          Row("cat", 5),
+          RowSeq("cat"),
+          RowSeq("cat", 5),
           includesStart = true,
           includesEnd = false,
         ).toFastSeq,
@@ -488,8 +487,8 @@ class IndexSuite {
       )
       assertEq(
         index.queryByInterval(
-          Row(),
-          Row(),
+          RowSeq(),
+          RowSeq(),
           includesStart = true,
           includesEnd = true,
         ).toFastSeq,
@@ -497,8 +496,8 @@ class IndexSuite {
       )
       assertEq(
         index.queryByInterval(
-          Row(),
-          Row("cat"),
+          RowSeq(),
+          RowSeq("cat"),
           includesStart = true,
           includesEnd = false,
         ).toFastSeq,
@@ -506,8 +505,8 @@ class IndexSuite {
       )
       assertEq(
         index.queryByInterval(
-          Row("zebra"),
-          Row(),
+          RowSeq("zebra"),
+          RowSeq(),
           includesStart = true,
           includesEnd = true,
         ).toFastSeq,
@@ -522,7 +521,7 @@ class IndexSuite {
       writeIndex(
         file,
         stringsWithDups,
-        stringsWithDups.indices.map(i => Row()),
+        stringsWithDups.indices.map(i => RowSeq()),
         TStruct.empty,
         branchingFactor,
       )

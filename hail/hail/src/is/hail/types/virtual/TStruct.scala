@@ -146,7 +146,7 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
         case _ =>
           val arr = new Array[Any](typ.size)
           arr.update(idx, f(missing, v))
-          Row.fromSeq(ArraySeq.unsafeWrapArray(arr))
+          RowSeq.fromSeq(ArraySeq.unsafeWrapArray(arr))
       }
 
     def addField(typ: TStruct)(f: Inserter)(a: Annotation, v: Any): Annotation = {
@@ -158,7 +158,7 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
         case _ =>
       }
       arr(typ.size) = f(missing, v)
-      Row.fromSeq(ArraySeq.unsafeWrapArray(arr))
+      RowSeq.fromSeq(ArraySeq.unsafeWrapArray(arr))
     }
 
     val (newType, inserter) =
@@ -264,8 +264,8 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
 
     val newStruct = TStruct(newFieldsBuilder.result(): _*)
     val fieldIdx = fieldIdxBuilder.result()
-    val leftNulls = Row.fromSeq(ArraySeq.fill[Any](size)(null))
-    val rightNulls = Row.fromSeq(ArraySeq.fill[Any](other.size)(null))
+    val leftNulls = RowSeq.fromSeq(ArraySeq.fill[Any](size)(null))
+    val rightNulls = RowSeq.fromSeq(ArraySeq.fill[Any](other.size)(null))
 
     val annotator = (a1: Annotation, a2: Annotation) => {
       if (a1 == null && a2 == null)
@@ -276,7 +276,7 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
         val resultValues = fieldIdx.map { idx =>
           if (idx < 0) rightValues(~idx) else leftValues(idx)
         }
-        Row.fromSeq(resultValues)
+        RowSeq.fromSeq(resultValues)
       }
     }
     newStruct -> annotator
@@ -402,7 +402,7 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
     val t = TStruct(keep.map(n => n -> field(n).typ): _*)
 
     val keepIdx = keep.map(fieldIdx)
-    val selectF: Row => Row = { r => Row.fromSeq(keepIdx.map(r.get)) }
+    val selectF: Row => Row = { r => RowSeq.fromSeq(keepIdx.map(r.get)) }
     (t, selectF)
   }
 
@@ -424,7 +424,7 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
 
     { (a: Any) =>
       val r = a.asInstanceOf[Row]
-      Row.fromSeq(subsetFields.map { case (i, subset) => subset(r.get(i)) })
+      RowSeq.fromSeq(subsetFields.map { case (i, subset) => subset(r.get(i)) })
     }
   }
 

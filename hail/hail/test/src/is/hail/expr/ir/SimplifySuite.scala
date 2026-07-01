@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.{ExecStrategy, ParameterizedTest}
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
+import is.hail.annotations.RowSeq
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
@@ -14,7 +15,6 @@ import is.hail.types.virtual._
 import is.hail.utils.Interval
 import is.hail.variant.Locus
 
-import org.apache.spark.sql.Row
 import org.junit.jupiter.api.{Disabled, Test}
 import org.scalactic.{Equivalence, Prettifier}
 import org.scalatest.matchers.{MatchResult, Matcher}
@@ -62,7 +62,7 @@ class SimplifySuite {
       "rowField",
       "globalField",
     ))
-    assertEvalsTo(tmwzj, Row(FastSeq(Row(), Row(), Row())))
+    assertEvalsTo(tmwzj, RowSeq(FastSeq(RowSeq(), RowSeq(), RowSeq())))
   }
 
   @Test def testRepartitionableMapUpdatesForUpstreamOptimizations(implicit ctx: ExecuteContext)
@@ -79,7 +79,7 @@ class SimplifySuite {
     assertEvalsTo(TableAggregate(checksRepartitioningIR, IRAggCount), 1L)
   }
 
-  lazy val base = Literal(TStruct("1" -> TInt32, "2" -> TInt32), Row(1, 2))
+  lazy val base = Literal(TStruct("1" -> TInt32, "2" -> TInt32), RowSeq(1, 2))
 
   @Test def testInsertFieldsRewriteRules(implicit ctx: ExecuteContext): Unit = {
     val ir1 =
@@ -131,7 +131,7 @@ class SimplifySuite {
   }
 
   lazy val base2 =
-    Literal(TStruct("A" -> TInt32, "B" -> TInt32, "C" -> TInt32, "D" -> TInt32), Row(1, 2, 3, 4))
+    Literal(TStruct("A" -> TInt32, "B" -> TInt32, "C" -> TInt32, "D" -> TInt32), RowSeq(1, 2, 3, 4))
 
   @Test def testInsertFieldsWhereFieldBeingInsertedCouldBeSelected(implicit ctx: ExecuteContext)
     : Unit = {
@@ -422,11 +422,11 @@ class SimplifySuite {
     def r = Ref(TableIR.rowName, tir.typ.rowType)
     tir = TableMapRows(tir, InsertFields(r, FastSeq("idx2" -> GetField(r, "idx"))))
     tir = TableKeyBy(tir, FastSeq("idx", "idx2"))
-    tir = TableFilterIntervals(tir, FastSeq(Interval(Row(0), Row(1), true, false)), false)
-    tir = TableFilterIntervals(tir, FastSeq(Interval(Row(8), Row(10), true, false)), false)
+    tir = TableFilterIntervals(tir, FastSeq(Interval(RowSeq(0), RowSeq(1), true, false)), false)
+    tir = TableFilterIntervals(tir, FastSeq(Interval(RowSeq(8), RowSeq(10), true, false)), false)
     assert(Simplify(ctx, tir).asInstanceOf[TableFilterIntervals].intervals == FastSeq(
-      Interval(Row(0), Row(1), true, false),
-      Interval(Row(8), Row(10), true, false),
+      Interval(RowSeq(0), RowSeq(1), true, false),
+      Interval(RowSeq(8), RowSeq(10), true, false),
     ))
   }
 
@@ -443,16 +443,16 @@ class SimplifySuite {
     val tzrr = tzr.tr.asInstanceOf[TableNativeZippedReader]
 
     val intervals1 = FastSeq(
-      Interval(Row(Locus("1", 100000)), Row(Locus("1", 200000)), true, false),
-      Interval(Row(Locus("2", 100000)), Row(Locus("2", 200000)), true, false),
+      Interval(RowSeq(Locus("1", 100000)), RowSeq(Locus("1", 200000)), true, false),
+      Interval(RowSeq(Locus("2", 100000)), RowSeq(Locus("2", 200000)), true, false),
     )
     val intervals2 = FastSeq(
-      Interval(Row(Locus("1", 150000)), Row(Locus("1", 250000)), true, false),
-      Interval(Row(Locus("2", 150000)), Row(Locus("2", 250000)), true, false),
+      Interval(RowSeq(Locus("1", 150000)), RowSeq(Locus("1", 250000)), true, false),
+      Interval(RowSeq(Locus("2", 150000)), RowSeq(Locus("2", 250000)), true, false),
     )
     val intersection = FastSeq(
-      Interval(Row(Locus("1", 150000)), Row(Locus("1", 200000)), true, false),
-      Interval(Row(Locus("2", 150000)), Row(Locus("2", 200000)), true, false),
+      Interval(RowSeq(Locus("1", 150000)), RowSeq(Locus("1", 200000)), true, false),
+      Interval(RowSeq(Locus("2", 150000)), RowSeq(Locus("2", 200000)), true, false),
     )
 
     val exp1 =
@@ -516,7 +516,7 @@ class SimplifySuite {
     t = TableKeyBy(t, FastSeq("x"))
     t = TableFilterIntervals(
       t,
-      FastSeq(Interval(Row(-10), Row(10), includesStart = true, includesEnd = false)),
+      FastSeq(Interval(RowSeq(-10), RowSeq(10), includesStart = true, includesEnd = false)),
       keep = true,
     )
 

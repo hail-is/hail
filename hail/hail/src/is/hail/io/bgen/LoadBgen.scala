@@ -1,6 +1,6 @@
 package is.hail.io.bgen
 
-import is.hail.annotations.Region
+import is.hail.annotations.{Region, RowSeq}
 import is.hail.asm4s._
 import is.hail.asm4s.implicits.valueToRichCodeRegion
 import is.hail.backend.ExecuteContext
@@ -567,7 +567,7 @@ class MatrixBGENReader(
               arraysToZip += sampleIds.indices.map(_.toLong)
 
             val fields = arraysToZip.result()
-            Literal(ta, sampleIds.indices.map(i => Row.fromSeq(fields.map(_.apply(i)))))
+            Literal(ta, sampleIds.indices.map(i => RowSeq.fromSeq(fields.map(_.apply(i)))))
           },
         )))
       case None => MakeStruct(FastSeq())
@@ -604,7 +604,7 @@ class MatrixBGENReader(
           rangeBounds ++= strictBgenKey.rangeBounds
 
           strictShortKey.partitionBoundsIRRepresentation.value.asInstanceOf[IndexedSeq[_]]
-            .foreach(interval => contexts += Row(fileIdx, interval))
+            .foreach(interval => contexts += RowSeq(fileIdx, interval))
         }
 
         val partitioner =
@@ -644,7 +644,7 @@ class MatrixBGENReader(
             file.intervals.length == file.partN.length && file.intervals.length == file.partStarts.length
           )
           file.intervals.indices.foreach { idxInFile =>
-            contexts += Row(fileIdx, file.partStarts(idxInFile), file.partN(idxInFile), partIdx)
+            contexts += RowSeq(fileIdx, file.partStarts(idxInFile), file.partN(idxInFile), partIdx)
             partIdx += 1
           }
           fileIdx += 1

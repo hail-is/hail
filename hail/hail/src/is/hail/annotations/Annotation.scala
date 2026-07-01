@@ -7,11 +7,13 @@ import is.hail.utils._
 import org.apache.spark.sql.Row
 
 object Annotation {
-  val empty: Annotation = Row()
+  val empty: Annotation = RowSeq()
 
-  def apply(args: Any*): Annotation = Row.fromSeq(args)
+  def apply(args: Any*): Annotation =
+    RowSeq(args: _*)
 
-  def fromSeq(values: Seq[Any]): Annotation = Row.fromSeq(values)
+  def fromSeq(values: Seq[Any]): Annotation =
+    RowSeq.fromSeq(values)
 
   def copy(t: Type, a: Annotation): Annotation = {
     if (a == null)
@@ -20,7 +22,7 @@ object Annotation {
     t match {
       case t: TBaseStruct =>
         val r = a.asInstanceOf[Row]
-        Row.fromSeq(ArraySeq.tabulate(r.size)(i => Annotation.copy(t.types(i), r(i))))
+        RowSeq.fromSeq(ArraySeq.tabulate(r.size)(i => Annotation.copy(t.types(i), r(i))))
 
       case t: TArray =>
         val arr = a.asInstanceOf[IndexedSeq[Annotation]]
@@ -52,4 +54,22 @@ object Annotation {
         a
     }
   }
+}
+
+private[annotations] class RowSeq(values: ArraySeq[Any]) extends Row {
+  override def length: Int = values.length
+  override def get(i: Int): Any = values(i)
+  override def copy(): Row = this
+  override def toSeq: Seq[Any] = values
+}
+
+object RowSeq {
+  def apply(values: Any*): Row =
+    if (values.isEmpty) Row.empty else new RowSeq(ArraySeq(values: _*))
+
+  def fromSeq(values: Seq[Any]): Row =
+    if (values.isEmpty) Row.empty else new RowSeq(ArraySeq.from(values))
+
+  def fromTuple(p: Product): Row =
+    if (p.productArity == 0) Row.empty else new RowSeq(ArraySeq.from(p.productIterator))
 }

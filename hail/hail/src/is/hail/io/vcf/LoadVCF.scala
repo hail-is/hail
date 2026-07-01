@@ -183,11 +183,11 @@ case class VCFHeaderInfo(
     rvb.addAnnotation(rvb.currentType().virtualType, sampleIds.toFastSeq)
     rvb.addAnnotation(
       rvb.currentType().virtualType,
-      infoFields.map { case (x1, x2) => Row(x1, x2.parsableString()) }.toFastSeq,
+      infoFields.map { case (x1, x2) => RowSeq(x1, x2.parsableString()) }.toFastSeq,
     )
     rvb.addAnnotation(
       rvb.currentType().virtualType,
-      formatFields.map { case (x1, x2) => Row(x1, x2.parsableString()) }.toFastSeq,
+      formatFields.map { case (x1, x2) => RowSeq(x1, x2.parsableString()) }.toFastSeq,
     )
     rvb.addAnnotation(rvb.currentType().virtualType, if (dropAttrs) Map.empty else filtersAttrs)
     rvb.addAnnotation(rvb.currentType().virtualType, if (dropAttrs) Map.empty else infoAttrs)
@@ -2041,7 +2041,9 @@ class MatrixVCFReader(
         )
     }
 
-    val globals = Row(sampleIDs.zipWithIndex.map { case (s, i) => Row(s, i.toLong) }.toFastSeq)
+    val globals = RowSeq(sampleIDs.zipWithIndex.map { case (s, i) =>
+      RowSeq(s, i.toLong)
+    }.toFastSeq)
 
     val fullRowPType: PType = fullRVDType.rowType
 
@@ -2129,7 +2131,7 @@ class MatrixVCFReader(
   }
 
   override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR = {
-    val globals = Row(sampleIDs.zipWithIndex.map(t => Row(t._1, t._2.toLong)).toFastSeq)
+    val globals = RowSeq(sampleIDs.zipWithIndex.map(t => RowSeq(t._1, t._2.toLong)).toFastSeq)
     Literal.coerce(
       requestedGlobalsType,
       fullType.globalType.valueSubsetter(requestedGlobalsType)

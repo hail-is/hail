@@ -1,5 +1,6 @@
 package is.hail.sparkextras.implicits
 
+import is.hail.annotations.RowSeq
 import is.hail.collection.compat.immutable.ArraySeq
 
 import org.apache.spark.sql.Row
@@ -9,10 +10,10 @@ class RichRow(r: Row) {
   def update(i: Int, a: Any): Row = {
     val arr = Array.tabulate(r.size)(r.get)
     arr(i) = a
-    Row.fromSeq(ArraySeq.unsafeWrapArray(arr))
+    RowSeq.fromSeq(ArraySeq.unsafeWrapArray(arr))
   }
 
-  def select(indices: IndexedSeq[Int]): Row = Row.fromSeq(indices.map(r.get))
+  def select(indices: IndexedSeq[Int]): Row = RowSeq.fromSeq(indices.map(r.get))
 
   def deleteField(i: Int): Row = {
     require(i >= 0 && i < r.length)
@@ -21,7 +22,7 @@ class RichRow(r: Row) {
 
   def truncate(newSize: Int): Row = {
     require(newSize <= r.size)
-    Row.fromSeq(ArraySeq.tabulate(newSize)(i => r.get(i)))
+    RowSeq.fromSeq(ArraySeq.tabulate(newSize)(i => r.get(i)))
   }
 
   def iterator: Iterator[Any] =

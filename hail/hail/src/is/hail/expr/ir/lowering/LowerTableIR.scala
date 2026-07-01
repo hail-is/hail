@@ -1,5 +1,6 @@
 package is.hail.expr.ir.lowering
 
+import is.hail.annotations.RowSeq
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
@@ -412,7 +413,7 @@ class TableStage(
 
       val boundType = RVDPartitioner.intervalIRRepresentation(newPartitioner.kType)
       val partitionMapping: IndexedSeq[Row] = newPartitioner.rangeBounds.map { i =>
-        Row(
+        RowSeq(
           RVDPartitioner.intervalToIRRepresentation(i, newPartitioner.kType.size),
           partitioner.queryInterval(i),
         )
@@ -644,7 +645,7 @@ class TableStage(
       Some(1),
       TStruct.concat(TStruct("__partNum" -> TInt32), right.kType),
       ArraySeq.tabulate(partitioner.numPartitions)(i =>
-        Interval(Row(i), Row(i), includesStart = true, includesEnd = true)
+        Interval(RowSeq(i), RowSeq(i), includesStart = true, includesEnd = true)
       ),
     )
     val repartitioned =
@@ -1040,7 +1041,7 @@ object LowerTableIR extends Logging {
             Array("idx"),
             tir.typ.rowType,
             ranges.map { case (start, end) =>
-              Interval(Row(start), Row(end), includesStart = true, includesEnd = false)
+              Interval(RowSeq(start), RowSeq(end), includesStart = true, includesEnd = false)
             },
           ),
           TableStageDependency.none,
@@ -1172,7 +1173,7 @@ object LowerTableIR extends Logging {
                 ToStream(Literal(TArray(TInt32), includedIndices)),
                 ToStream(Literal(
                   TArray(TTuple(TInt32, TInt32)),
-                  startAndEndInterval.map(Row.fromTuple),
+                  startAndEndInterval.map(RowSeq.fromTuple),
                 )),
                 ArrayZipBehavior.AssumeSameLength,
               ) { (idx, bound) =>

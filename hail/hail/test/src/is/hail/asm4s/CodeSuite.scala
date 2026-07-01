@@ -1,7 +1,7 @@
 package is.hail.asm4s
 
 import is.hail.TestUtils._
-import is.hail.annotations.Region
+import is.hail.annotations.{Region, RowSeq}
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{EmitCodeBuilder, EmitFunctionBuilder, EmitValue, IEmitCode}
 import is.hail.types.physical._
@@ -146,12 +146,12 @@ class CodeSuite {
     )
     assert(hashTestArrayHelper(IndexedSeq(1, 2)) != hashTestArrayHelper(IndexedSeq(3, 4, 5, 6, 7)))
     assertEq(
-      hashTestStructHelper(Row("wolf", 8, .009f), fields),
-      hashTestStructHelper(Row("wolf", 8, .009f), fields),
+      hashTestStructHelper(RowSeq("wolf", 8, .009f), fields),
+      hashTestStructHelper(RowSeq("wolf", 8, .009f), fields),
     )
     assert(
-      hashTestStructHelper(Row("w", 8, .009f), fields) != hashTestStructHelper(
-        Row("opaque", 8, .009f),
+      hashTestStructHelper(RowSeq("w", 8, .009f), fields) != hashTestStructHelper(
+        RowSeq("opaque", 8, .009f),
         fields,
       )
     )

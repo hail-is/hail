@@ -189,7 +189,7 @@ object TableValue extends Logging {
       }.toCRDDPtr,
     )
 
-    val newGlobals = BroadcastRow(ctx, Row(childValues.map(_.globals.javaValue)), newGlobalType)
+    val newGlobals = BroadcastRow(ctx, RowSeq(childValues.map(_.globals.javaValue)), newGlobalType)
 
     TableValue(ctx, typ, newGlobals, rvd)
   }
@@ -284,7 +284,7 @@ object TableValue extends Logging {
           ArraySeq.tabulate(nPartitions) { i =>
             val start = partStarts(i)
             val end = partStarts(i + 1)
-            Interval(Row(start), Row(end), includesStart = true, includesEnd = false)
+            Interval(RowSeq(start), RowSeq(end), includesStart = true, includesEnd = false)
           },
         ),
         ContextRDD.parallelize(Range(0, nPartitions), nPartitions)

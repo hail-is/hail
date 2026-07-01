@@ -55,7 +55,7 @@ case class PCA(entryField: String, k: Int, computeLoadings: Boolean)
       val rowKeyTypes = mv.typ.rowKeyStruct.types
 
       mv.rvd.toUnsafeRows.map[Any] { r =>
-        Row.fromSeq(rowKeyIdx.map(i => Annotation.copy(rowKeyTypes(i), r(i))))
+        RowSeq.fromSeq(rowKeyIdx.map(i => Annotation.copy(rowKeyTypes(i), r(i))))
       }
         .collect()
     }

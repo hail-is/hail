@@ -3,6 +3,7 @@ package is.hail.expr.ir.lowering
 import is.hail.{ExecStrategy, ParameterizedTest}
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
+import is.hail.annotations.RowSeq
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
@@ -40,7 +41,10 @@ class LowerDistributedSortSuite {
     )
     val elementType = TStruct(("key1", TInt32), ("key2", TInt32), ("value", TInt32))
     val data1 =
-      ToStream(Literal(TArray(elementType), dataKeys.map { case (k1, k2) => Row(k1, k2, k1 * k1) }))
+      ToStream(Literal(
+        TArray(elementType),
+        dataKeys.map { case (k1, k2) => RowSeq(k1, k2, k1 * k1) },
+      ))
     val sampleSeq = ToStream(Literal(TArray(TInt32), IndexedSeq(0, 2, 3, 7)))
 
     val sampled = samplePartition(
@@ -51,20 +55,25 @@ class LowerDistributedSortSuite {
 
     assertEvalsTo(
       sampled,
-      Row(Row(0, -1), Row(9, 1), IndexedSeq(Row(0, 0), Row(1, 4), Row(2, 8), Row(6, 9)), false),
+      RowSeq(
+        RowSeq(0, -1),
+        RowSeq(9, 1),
+        IndexedSeq(RowSeq(0, 0), RowSeq(1, 4), RowSeq(2, 8), RowSeq(6, 9)),
+        false,
+      ),
     )
 
     val dataKeys2 = IndexedSeq((0, 0), (0, 1), (1, 0), (3, 3))
     val elementType2 = TStruct(("key1", TInt32), ("key2", TInt32))
     val data2 =
-      ToStream(Literal(TArray(elementType2), dataKeys2.map { case (k1, k2) => Row(k1, k2) }))
+      ToStream(Literal(TArray(elementType2), dataKeys2.map { case (k1, k2) => RowSeq(k1, k2) }))
     val sampleSeq2 = ToStream(Literal(TArray(TInt32), IndexedSeq(0)))
     val sampled2 = samplePartition(
       mapIR(data2)(s => SelectFields(s, IndexedSeq("key2", "key1"))),
       sampleSeq2,
       IndexedSeq(SortField("key2", Ascending), SortField("key1", Ascending)),
     )
-    assertEvalsTo(sampled2, Row(Row(0, 0), Row(3, 3), IndexedSeq(Row(0, 0)), false))
+    assertEvalsTo(sampled2, RowSeq(RowSeq(0, 0), RowSeq(3, 3), IndexedSeq(RowSeq(0, 0)), false))
   }
 
   def testDistributedSort: IndexedSeq[(TableIR, IndexedSeq[SortField])] = {

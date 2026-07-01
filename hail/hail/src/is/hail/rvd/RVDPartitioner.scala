@@ -316,7 +316,7 @@ object RVDPartitioner extends Logging {
     new RVDPartitioner(sm, typ, ArraySeq.empty)
 
   def unkeyed(sm: HailStateManager, numPartitions: Int): RVDPartitioner = {
-    val unkeyedInterval = Interval(Row(), Row(), true, true)
+    val unkeyedInterval = Interval(RowSeq(), RowSeq(), true, true)
     new RVDPartitioner(
       sm,
       TStruct.empty,
@@ -437,7 +437,10 @@ object RVDPartitioner extends Logging {
     def processEndpoint(p: IntervalEndpoint): IntervalEndpoint = {
       val r = p.point.asInstanceOf[Row]
       val newr =
-        Row(Row.fromSeq((0 until len).map(i => if (i >= r.length) null else r.get(i))), r.length)
+        RowSeq(
+          RowSeq.fromSeq((0 until len).map(i => if (i >= r.length) null else r.get(i))),
+          r.length,
+        )
       p.copy(point = newr)
     }
 

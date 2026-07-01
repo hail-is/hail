@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.{ExecStrategy, ParameterizedTest}
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
-import is.hail.annotations.{Region, SafeRow, ScalaToRegionValue}
+import is.hail.annotations.{Region, RowSeq, SafeRow, ScalaToRegionValue}
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
@@ -24,7 +24,6 @@ import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.Call2
 
-import org.apache.spark.sql.Row
 import org.junit.jupiter.api.Test
 
 class EmitStreamSuite {
@@ -209,7 +208,7 @@ class EmitStreamSuite {
         IndexedSeq[IR](MakeTuple.ordered(IndexedSeq(4, 5))),
         TStream(TTuple(TInt32, TInt32)),
       ) ->
-        IndexedSeq(Row(4, 5)),
+        IndexedSeq(RowSeq(4, 5)),
       MakeStream(IndexedSeq[IR](Str("hi"), Str("world")), TStream(TString)) ->
         IndexedSeq("hi", "world"),
     )
@@ -245,12 +244,12 @@ class EmitStreamSuite {
       step <- 1 to 3
     }
       assert(
-        range(Row(start, stop, step)) == ArraySeq.range(start, stop, step),
+        range(RowSeq(start, stop, step)) == ArraySeq.range(start, stop, step),
         s"($start, $stop, $step)",
       )
-    assert(range(Row(null, 10, 1)) == null)
-    assert(range(Row(0, null, 1)) == null)
-    assert(range(Row(0, 10, null)) == null)
+    assert(range(RowSeq(null, 10, 1)) == null)
+    assert(range(RowSeq(0, null, 1)) == null)
+    assert(range(RowSeq(0, 10, null)) == null)
     assert(range(null) == null)
   }
 
@@ -368,7 +367,7 @@ class EmitStreamSuite {
   }
 
   @Test def testStreamBufferedAggregator(implicit ctx: ExecuteContext): Unit = {
-    val resultArrayToCompare = (0 until 12).map(i => Row(Row(i, i + 1), 1))
+    val resultArrayToCompare = (0 until 12).map(i => RowSeq(RowSeq(i, i + 1), 1))
     val streamType = TStream(TStruct("a" -> TInt64, "b" -> TInt64))
     val numSeq = (0L until 12).map(i => IndexedSeq(I64(i), I64(i + 1)))
     val numTupleSeq = numSeq.map(_ => IndexedSeq("a", "b")).zip(numSeq)
@@ -414,7 +413,7 @@ class EmitStreamSuite {
   }
 
   @Test def testStreamBufferedAggregatorCombine(implicit ctx: ExecuteContext): Unit = {
-    val resultArrayToCompare = IndexedSeq(Row(Row(1), 2))
+    val resultArrayToCompare = IndexedSeq(RowSeq(RowSeq(1), 2))
     val streamType = TStream(TStruct("a" -> TInt64))
     val elemOne = MakeStruct(IndexedSeq(("a", I64(1))))
     val elemTwo = MakeStruct(IndexedSeq(("a", I64(1))))
@@ -459,7 +458,7 @@ class EmitStreamSuite {
 
   @Test def testStreamBufferedAggregatorCollectAggregator(implicit ctx: ExecuteContext): Unit = {
     val resultArrayToCompare =
-      IndexedSeq(Row(Row(1), IndexedSeq(1, 3)), Row(Row(2), IndexedSeq(2, 4)))
+      IndexedSeq(RowSeq(RowSeq(1), IndexedSeq(1, 3)), RowSeq(RowSeq(2), IndexedSeq(2, 4)))
     val streamType = TStream(TStruct("a" -> TInt64, "b" -> TInt64))
     val elemOne = MakeStruct(IndexedSeq(("a", I64(1)), ("b", I64(1))))
     val elemTwo = MakeStruct(IndexedSeq(("a", I64(2)), ("b", I64(2))))
@@ -505,17 +504,17 @@ class EmitStreamSuite {
 
   @Test def testStreamBufferedAggregatorMultipleAggregators(implicit ctx: ExecuteContext): Unit = {
     val resultArrayToCompare = IndexedSeq(
-      Row(Row(1), Row(3, IndexedSeq(1L, 3L, 2L))),
-      Row(Row(2), Row(2, IndexedSeq(2L, 4L))),
-      Row(Row(3), Row(3, IndexedSeq(1L, 2L, 3L))),
-      Row(Row(4), Row(1, IndexedSeq(4L))),
-      Row(Row(5), Row(1, IndexedSeq(1L))),
-      Row(Row(6), Row(1, IndexedSeq(3L))),
-      Row(Row(7), Row(1, IndexedSeq(4L))),
-      Row(Row(8), Row(1, IndexedSeq(1L))),
-      Row(Row(8), Row(1, IndexedSeq(2L))),
-      Row(Row(9), Row(1, IndexedSeq(3L))),
-      Row(Row(10), Row(2, IndexedSeq(4L, 4L))),
+      RowSeq(RowSeq(1), RowSeq(3, IndexedSeq(1L, 3L, 2L))),
+      RowSeq(RowSeq(2), RowSeq(2, IndexedSeq(2L, 4L))),
+      RowSeq(RowSeq(3), RowSeq(3, IndexedSeq(1L, 2L, 3L))),
+      RowSeq(RowSeq(4), RowSeq(1, IndexedSeq(4L))),
+      RowSeq(RowSeq(5), RowSeq(1, IndexedSeq(1L))),
+      RowSeq(RowSeq(6), RowSeq(1, IndexedSeq(3L))),
+      RowSeq(RowSeq(7), RowSeq(1, IndexedSeq(4L))),
+      RowSeq(RowSeq(8), RowSeq(1, IndexedSeq(1L))),
+      RowSeq(RowSeq(8), RowSeq(1, IndexedSeq(2L))),
+      RowSeq(RowSeq(9), RowSeq(1, IndexedSeq(3L))),
+      RowSeq(RowSeq(10), RowSeq(2, IndexedSeq(4L, 4L))),
     )
     val streamType = TStream(TStruct("a" -> TInt64, "b" -> TInt64))
     val elemOne = MakeStruct(IndexedSeq(("a", I64(1)), ("b", I64(1))))
@@ -617,27 +616,38 @@ class EmitStreamSuite {
       (
         pairs(IndexedSeq(3 -> "A")),
         pairs(IndexedSeq()),
-        IndexedSeq(Row("A", null)),
-        IndexedSeq(Row("A", null)),
+        IndexedSeq(RowSeq("A", null)),
+        IndexedSeq(RowSeq("A", null)),
       ),
-      (pairs(IndexedSeq()), pairs(IndexedSeq(3 -> "B")), IndexedSeq(), IndexedSeq(Row(null, "B"))),
+      (
+        pairs(IndexedSeq()),
+        pairs(IndexedSeq(3 -> "B")),
+        IndexedSeq(),
+        IndexedSeq(RowSeq(null, "B")),
+      ),
       (
         pairs(IndexedSeq(0 -> "A")),
         pairs(IndexedSeq(0 -> "B")),
-        IndexedSeq(Row("A", "B")),
-        IndexedSeq(Row("A", "B")),
+        IndexedSeq(RowSeq("A", "B")),
+        IndexedSeq(RowSeq("A", "B")),
       ),
       (
         pairs(IndexedSeq(0 -> "A", 2 -> "B", 3 -> "C")),
         pairs(IndexedSeq(0 -> "a", 1 -> ".", 2 -> "b", 4 -> "..")),
-        IndexedSeq(Row("A", "a"), Row("B", "b"), Row("C", null)),
-        IndexedSeq(Row("A", "a"), Row(null, "."), Row("B", "b"), Row("C", null), Row(null, "..")),
+        IndexedSeq(RowSeq("A", "a"), RowSeq("B", "b"), RowSeq("C", null)),
+        IndexedSeq(
+          RowSeq("A", "a"),
+          RowSeq(null, "."),
+          RowSeq("B", "b"),
+          RowSeq("C", null),
+          RowSeq(null, ".."),
+        ),
       ),
       (
         pairs(IndexedSeq(0 -> "A", 1 -> "B1", 1 -> "B2")),
         pairs(IndexedSeq(0 -> "a", 1 -> "b", 2 -> "c")),
-        IndexedSeq(Row("A", "a"), Row("B1", "b"), Row("B2", "b")),
-        IndexedSeq(Row("A", "a"), Row("B1", "b"), Row("B2", "b"), Row(null, "c")),
+        IndexedSeq(RowSeq("A", "a"), RowSeq("B1", "b"), RowSeq("B2", "b")),
+        IndexedSeq(RowSeq("A", "a"), RowSeq("B1", "b"), RowSeq("B2", "b"), RowSeq(null, "c")),
       ),
     )
     tests.foreach { case (lstream, rstream, expectedLeft, expectedOuter) =>
@@ -691,15 +701,20 @@ class EmitStreamSuite {
 
     val tests: Array[(IR, IR, IndexedSeq[Any], IndexedSeq[Any])] = Array(
       (lElts(), rElts(), IndexedSeq(), IndexedSeq()),
-      (lElts(3 -> "A"), rElts(), IndexedSeq(Row("A", null)), IndexedSeq()),
+      (lElts(3 -> "A"), rElts(), IndexedSeq(RowSeq("A", null)), IndexedSeq()),
       (lElts(), rElts(('[', 1, 2, ']') -> "B"), IndexedSeq(), IndexedSeq()),
       (
         lElts(0 -> "A"),
         rElts(('[', 0, 1, ')') -> "B"),
-        IndexedSeq(Row("A", "B")),
-        IndexedSeq(Row("A", "B")),
+        IndexedSeq(RowSeq("A", "B")),
+        IndexedSeq(RowSeq("A", "B")),
       ),
-      (lElts(0 -> "A"), rElts(('(', 0, 1, ')') -> "B"), IndexedSeq(Row("A", null)), IndexedSeq()),
+      (
+        lElts(0 -> "A"),
+        rElts(('(', 0, 1, ')') -> "B"),
+        IndexedSeq(RowSeq("A", null)),
+        IndexedSeq(),
+      ),
       (
         lElts(0 -> "A", 2 -> "B", 3 -> "C", 4 -> "D"),
         rElts(
@@ -708,8 +723,8 @@ class EmitStreamSuite {
           ('[', 1, 4, ')') -> "b",
           ('[', 2, 4, ')') -> "..",
         ),
-        IndexedSeq(Row("A", "a"), Row("B", "b"), Row("C", "b"), Row("D", null)),
-        IndexedSeq(Row("A", "a"), Row("B", "b"), Row("C", "b")),
+        IndexedSeq(RowSeq("A", "a"), RowSeq("B", "b"), RowSeq("C", "b"), RowSeq("D", null)),
+        IndexedSeq(RowSeq("A", "a"), RowSeq("B", "b"), RowSeq("C", "b")),
       ),
       (
         lElts(1 -> "A", 2 -> "B", 3 -> "C", 4 -> "D"),
@@ -719,8 +734,8 @@ class EmitStreamSuite {
           ('[', 1, 4, ')') -> "b",
           ('[', 2, 4, ')') -> "..",
         ),
-        IndexedSeq(Row("A", "a"), Row("B", "b"), Row("C", "b"), Row("D", null)),
-        IndexedSeq(Row("A", "a"), Row("B", "b"), Row("C", "b")),
+        IndexedSeq(RowSeq("A", "a"), RowSeq("B", "b"), RowSeq("C", "b"), RowSeq("D", null)),
+        IndexedSeq(RowSeq("A", "a"), RowSeq("B", "b"), RowSeq("C", "b")),
       ),
     )
 
@@ -737,19 +752,19 @@ class EmitStreamSuite {
   @Test def testStreamJoinOuterWithKeyRepeats(implicit ctx: ExecuteContext): Unit = {
     val lEltType = TStruct("k" -> TInt32, "idx_left" -> TInt32)
     val lRows = FastSeq(
-      Row(1, 1),
-      Row(1, 2),
-      Row(1, 3),
-      Row(3, 4),
+      RowSeq(1, 1),
+      RowSeq(1, 2),
+      RowSeq(1, 3),
+      RowSeq(3, 4),
     )
 
     val a = ToStream(Literal(TArray(lEltType), lRows))
 
     val rEltType = TStruct("k" -> TInt32, "idx_right" -> TInt32)
     val rRows = FastSeq(
-      Row(1, 1),
-      Row(2, 2),
-      Row(4, 3),
+      RowSeq(1, 1),
+      RowSeq(2, 2),
+      RowSeq(4, 3),
     )
     val b = ToStream(Literal(TArray(rEltType), rRows))
 
@@ -759,12 +774,12 @@ class EmitStreamSuite {
 
     val compiled = evalStream(ir)
     val expected = FastSeq(
-      Row(Row(1, 1), Row(1, 1)),
-      Row(Row(1, 2), Row(1, 1)),
-      Row(Row(1, 3), Row(1, 1)),
-      Row(null, Row(2, 2)),
-      Row(Row(3, 4), null),
-      Row(null, Row(4, 3)),
+      RowSeq(RowSeq(1, 1), RowSeq(1, 1)),
+      RowSeq(RowSeq(1, 2), RowSeq(1, 1)),
+      RowSeq(RowSeq(1, 3), RowSeq(1, 1)),
+      RowSeq(null, RowSeq(2, 2)),
+      RowSeq(RowSeq(3, 4), null),
+      RowSeq(null, RowSeq(4, 3)),
     )
     assert(compiled == expected)
   }
@@ -811,12 +826,12 @@ class EmitStreamSuite {
       },
       TArray(pairType),
       FastSeq(
-        Row(null, 1),
-        Row(Call2(0, 0), 2),
-        Row(Call2(0, 1), 3),
-        Row(Call2(1, 1), 4),
+        RowSeq(null, 1),
+        RowSeq(Call2(0, 0), 2),
+        RowSeq(Call2(0, 1), 3),
+        RowSeq(Call2(1, 1), 4),
         null,
-        Row(null, 5),
+        RowSeq(null, 5),
       ) -> FastSeq(1 + 0, 2 + 0, 3 + 2, 4 + 4, null, 5 + 6),
     )
 
@@ -925,12 +940,12 @@ class EmitStreamSuite {
     ctx.r.pool.scopedSmallRegion { r =>
       val input = t.unstagedStoreJavaObject(
         ctx.stateManager,
-        Row(null, IndexedSeq(1d, 2d), IndexedSeq(3d, 4d)),
+        RowSeq(null, IndexedSeq(1d, 2d), IndexedSeq(3d, 4d)),
         r,
       )
 
       assert(
-        SafeRow.read(pt, f(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, r)(r, input)) == Row(
+        SafeRow.read(pt, f(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, r)(r, input)) == RowSeq(
           null
         )
       )
@@ -1274,7 +1289,7 @@ class EmitStreamSuite {
         StreamLeftIntervalJoin(
           keyStream,
           ToStream(
-            Literal(TArray(rightElemType), intervals.map(Row(_))),
+            Literal(TArray(rightElemType), intervals.map(RowSeq(_))),
             requiresMemoryManagementPerElement = true,
           ),
           kType.fieldNames.head,
@@ -1295,15 +1310,15 @@ class EmitStreamSuite {
     assertEvalsTo(
       join,
       FastSeq(
-        Row(0, FastSeq()),
-        Row(1, FastSeq(intervals(0))),
-        Row(2, FastSeq(intervals(0))),
-        Row(3, FastSeq(intervals(2), intervals(0))),
-        Row(4, FastSeq(intervals(2), intervals(0), intervals(3))),
-        Row(5, FastSeq(intervals(2), intervals(0), intervals(3))),
-        Row(6, FastSeq(intervals(3))),
-        Row(7, FastSeq(intervals(4))),
-        Row(8, FastSeq()),
+        RowSeq(0, FastSeq()),
+        RowSeq(1, FastSeq(intervals(0))),
+        RowSeq(2, FastSeq(intervals(0))),
+        RowSeq(3, FastSeq(intervals(2), intervals(0))),
+        RowSeq(4, FastSeq(intervals(2), intervals(0), intervals(3))),
+        RowSeq(5, FastSeq(intervals(2), intervals(0), intervals(3))),
+        RowSeq(6, FastSeq(intervals(3))),
+        RowSeq(7, FastSeq(intervals(4))),
+        RowSeq(8, FastSeq()),
       ),
     )
   }

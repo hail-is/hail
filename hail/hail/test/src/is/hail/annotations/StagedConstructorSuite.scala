@@ -568,8 +568,8 @@ class StagedConstructorSuite {
     val t2 = RequirednessSuite.deepInnerRequired(t1, false)
 
     val value = IndexedSeq(
-      Row(1, IndexedSeq(1, 2, 3), IndexedSeq(0, -1), Set(Row("asdasdasd"), Row(""))),
-      Row(1, IndexedSeq(), IndexedSeq(-1), Set(Row("aa"))),
+      RowSeq(1, IndexedSeq(1, 2, 3), IndexedSeq(0, -1), Set(RowSeq("asdasdasd"), RowSeq(""))),
+      RowSeq(1, IndexedSeq(), IndexedSeq(-1), Set(RowSeq("aa"))),
     )
 
     ctx.r.pool.scopedRegion { r =>
@@ -605,8 +605,8 @@ class StagedConstructorSuite {
     val t2 = RequirednessSuite.deepInnerRequired(t1, false).asInstanceOf[PCanonicalStruct]
 
     val value = IndexedSeq(
-      Row(1, IndexedSeq(1, 2, 3), IndexedSeq(0, -1), Set(Row("asdasdasd"), Row(""))),
-      Row(1, IndexedSeq(), IndexedSeq(-1), Set(Row("aa"))),
+      RowSeq(1, IndexedSeq(1, 2, 3), IndexedSeq(0, -1), Set(RowSeq("asdasdasd"), RowSeq(""))),
+      RowSeq(1, IndexedSeq(), IndexedSeq(-1), Set(RowSeq("aa"))),
     )
 
     val valueT2 = t2.types(0)
@@ -625,7 +625,7 @@ class StagedConstructorSuite {
         ).a
       }
       val cp1 = f1.resultWithIndex()(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, r)()
-      assert(SafeRow.read(t2, cp1) == Row(value))
+      assert(SafeRow.read(t2, cp1) == RowSeq(value))
 
       val f2 = EmitFunctionBuilder[Long](ctx, "stagedCopy2")
       f2.emitWithBuilder { cb =>
@@ -638,7 +638,7 @@ class StagedConstructorSuite {
         ).a
       }
       val cp2 = f2.resultWithIndex()(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, r)()
-      assert(SafeRow.read(t1, cp2) == Row(value))
+      assert(SafeRow.read(t1, cp2) == RowSeq(value))
     }
   }
 }

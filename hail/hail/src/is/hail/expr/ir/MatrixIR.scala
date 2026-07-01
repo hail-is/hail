@@ -75,7 +75,7 @@ object MatrixLiteral {
           tt,
           BroadcastRow(
             ctx,
-            Row.fromSeq(globals.toSeq :+ colValues),
+            RowSeq.fromSeq(globals.toSeq :+ colValues),
             typ.canonicalTableType.globalType,
           ),
           rvd,

@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.Region
+import is.hail.annotations.{Region, RowSeq}
 import is.hail.asm4s._
 import is.hail.asm4s.implicits.{valueToRichCodeOutputBuffer, valueToRichCodeRegion}
 import is.hail.backend.ExecuteContext
@@ -38,7 +38,6 @@ import java.io.{InputStream, OutputStream}
 import java.nio.file.{FileSystems, Path}
 import java.util.UUID
 
-import org.apache.spark.sql.Row
 import org.json4s.{DefaultFormats, Formats, ShortTypeHints}
 import org.json4s.jackson.JsonMethods
 
@@ -2085,7 +2084,7 @@ case class MatrixPLINKWriter(
       val files = Literal(
         TArray(TTuple(TString, TString)),
         ArraySeq.tabulate(ts.numPartitions)(i =>
-          Row(s"$tmpBedDir/${partFile(d, i)}-", s"$tmpBimDir/${partFile(d, i)}-")
+          RowSeq(s"$tmpBedDir/${partFile(d, i)}-", s"$tmpBimDir/${partFile(d, i)}-")
         ),
       )
 
@@ -2351,7 +2350,7 @@ case class MatrixBlockMatrixWriter(
      * accordingly. */
     val inputRowIntervals =
       inputPartStarts.zip(inputPartStops).map { case (intervalStart, intervalEnd) =>
-        Interval(Row(intervalStart.toInt), Row(intervalEnd.toInt), true, false)
+        Interval(RowSeq(intervalStart.toInt), RowSeq(intervalEnd.toInt), true, false)
       }
 
     val rowIdxPartitioner =
@@ -2365,7 +2364,7 @@ case class MatrixBlockMatrixWriter(
       desiredRowStarts
         .view
         .zip(desiredRowStops)
-        .map { case (start, end) => Interval(Row(start), Row(end), true, false) }
+        .map { case (start, end) => Interval(RowSeq(start), RowSeq(end), true, false) }
         .to(ArraySeq)
 
     val blockSizeGroupsPartitioner =

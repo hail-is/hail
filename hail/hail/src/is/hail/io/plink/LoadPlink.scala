@@ -1,11 +1,12 @@
 package is.hail.io.plink
 
-import is.hail.annotations.{Region, RegionValueBuilder}
+import is.hail.annotations.{Region, RegionValueBuilder, RowSeq}
 import is.hail.asm4s.HailClassLoader
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.compat._
 import is.hail.collection.compat.immutable.ArraySeq
+import is.hail.collection.implicits.toRichArray
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir._
 import is.hail.expr.ir.defs.Literal
@@ -63,7 +64,7 @@ object LoadPlink extends Logging {
                     FastSeq(allele2, allele1)
                   else
                     FastSeq(allele1, allele2)
-                val locusAlleles = Row(locus, alleles)
+                val locusAlleles = RowSeq(locus, alleles)
                 vs += new PlinkVariant(n, locusAlleles, cmPos.toDouble, rsId)
               }
 
@@ -94,7 +95,7 @@ object LoadPlink extends Logging {
     val ffConfig = FamFileConfig(isQuantPheno, delimiter, missingValue)
     val (data, ptyp) = LoadPlink.parseFam(fs, path, ffConfig)
     JSONAnnotationImpex.exportAnnotation(
-      Row(ptyp.virtualType.toString, data),
+      RowSeq(ptyp.virtualType.toString, data),
       TStruct("type" -> TString, "data" -> TArray(ptyp.virtualType)),
     )
   }
@@ -172,7 +173,7 @@ object LoadPlink extends Logging {
               case _ => null
             }
         idBuilder += kid
-        structBuilder += Row(kid, fam1, dad1, mom1, isFemale1, pheno1)
+        structBuilder += RowSeq(kid, fam1, dad1, mom1, isFemale1, pheno1)
       }
     }
 
@@ -289,7 +290,7 @@ object MatrixPLINKReader extends Logging {
         )
           end += 1
 
-        cb += Row(start, end, variants.slice(start, end))
+        cb += RowSeq(start, end, variants.slice(start, end))
 
         ib += Interval(
           variants(start).locusAlleles,
@@ -379,9 +380,14 @@ class MatrixPLINKReader(
 
   override def partitionCounts: Option[IndexedSeq[Long]] = None
 
-  val globals = Row(sampleInfo.zipWithIndex.map { case (s, idx) =>
-    Row((0 until s.length).map(s.apply) :+ idx.toLong: _*)
-  })
+  val globals: Row =
+    RowSeq(sampleInfo.zipWithIndex.map { case (s, idx) =>
+      val N = s.length
+      val array = new Array[Any](N + 1)
+      (0 until N).foreach(i => array(i) = s(i))
+      array(N) = idx.toLong
+      RowSeq.fromSeq(array.unsafeToArraySeq)
+    })
 
   override def concreteRowRequiredness(ctx: ExecuteContext, requestedType: TableType)
     : VirtualTypeWithReq =
@@ -412,7 +418,7 @@ class MatrixPLINKReader(
     val fullContexts = contexts.zipWithIndex.map { case (Row(start, end, vars), idx) =>
       val path = ctx.createTmpPath(s"load_plink_variants_$idx")
       ctx.fs.writePDOS(path)(os => using(new ObjectOutputStream(os))(oos => oos.writeObject(vars)))
-      Row(params.bed, path, start, end, idx)
+      RowSeq(params.bed, path, start, end, idx)
     }
 
     val fullRowPType = PCanonicalStruct(

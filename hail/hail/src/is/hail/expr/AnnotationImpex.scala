@@ -1,6 +1,6 @@
 package is.hail.expr
 
-import is.hail.annotations.{Annotation, NDArray, SafeNDArray}
+import is.hail.annotations.{Annotation, NDArray, RowSeq, SafeNDArray}
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits._
 import is.hail.types.physical.{
@@ -180,7 +180,7 @@ object JSONAnnotationImpex extends Logging {
   def irImportAnnotation(s: String, t: Type, warnContext: mutable.HashSet[String]): Row = {
     try
       // wraps in a Row to handle returned missingness
-      Row(importAnnotation(JsonMethods.parse(s), t, true, warnContext))
+      RowSeq(importAnnotation(JsonMethods.parse(s), t, true, warnContext))
     catch {
       case e: Throwable =>
         fatal(s"Error parsing JSON:\n  type: $t\n  value: $s", e)
@@ -210,138 +210,150 @@ object JSONAnnotationImpex extends Logging {
   ): Annotation = {
     def imp(jv: JValue, t: Type, parent: String): Annotation =
       importAnnotationInternal(jv, t, parent, padNulls, warnContext)
-    def warnOnce(msg: String, path: String): Unit =
-      if (!warnContext.contains(path)) {
-        logger.warn(msg)
-        warnContext += path
-      }
 
-    (jv, t) match {
-      case (JNull | JNothing, _) => null
-      case (JInt(x), TInt32) => x.toInt
-      case (JInt(x), TInt64) => x.toLong
-      case (JInt(x), TFloat64) => x.toDouble
-      case (JInt(x), TString) => x.toString
-      case (JDouble(x), TFloat64) => x
-      case (JDouble(x), TFloat32) => x.toFloat
-      case (JString(x), TFloat64) if doubleConv.contains(x) => doubleConv(x)
-      case (JString(x), TFloat32) if floatConv.contains(x) => floatConv(x)
-      case (JString(x), TString) => x
-      case (JString(x), TInt32) =>
-        x.toInt
-      case (JString(x), TFloat64) =>
-        if (x.startsWith("-:"))
-          x.drop(2).toDouble
-        else
-          x.toDouble
-      case (JBool(x), TBoolean) => x
+    def warnOnce(msg: String, parent: String): Unit =
+      if (warnContext.add(parent)) logger.warn(msg)
 
-      // back compatibility
-      case (JObject(a), TDict(TString, valueType)) =>
-        a.map { case (key, value) =>
-          (key, imp(value, valueType, parent))
+    def warnCoerce(): Annotation = {
+      warnOnce(s"Can't convert JSON value $jv to type $t at $parent.", parent)
+      null
+    }
+
+    jv match {
+      case JNull | JNothing => null
+      case JInt(x) => t match {
+          case TInt32 => x.toInt
+          case TInt64 => x.toLong
+          case TFloat32 => x.toFloat
+          case TFloat64 => x.toDouble
+          case TString => x.toString
+          case _ => warnCoerce()
         }
-          .toMap
+      case JDouble(x) => t match {
+          case TFloat64 => x
+          case TFloat32 => x.toFloat
+          case _ => warnCoerce()
+        }
+      case JString(x) => t match {
+          case TFloat64 if doubleConv.contains(x) => doubleConv(x)
+          case TFloat32 if floatConv.contains(x) => floatConv(x)
+          case TString => x
+          case TInt32 => x.toInt
+          case TFloat64 =>
+            if (x.startsWith("-:")) x.drop(2).toDouble
+            else x.toDouble
+          case TCall => Call.parse(x)
+          case _ => warnCoerce()
+        }
+      case JBool(x) => t match {
+          case TBoolean => x
+          case _ => warnCoerce()
+        }
+      case JObject(jfields) => t match {
+          // back compatibility
+          case TDict(TString, valueType) =>
+            jfields
+              .foldLeft(Map.newBuilder[String, Annotation]) {
+                (b, f) => b += (f._1 -> imp(f._2, valueType, parent))
+              }
+              .result()
 
-      case (JArray(arr), TDict(keyType, valueType)) =>
-        val keyPath = parent + "[key]"
-        val valuePath = parent + "[value]"
-        arr.map {
-          case JObject(a) =>
-            a match {
-              case List(k, v) =>
-                (k, v) match {
-                  case (("key", ka), ("value", va)) =>
-                    (imp(ka, keyType, keyPath), imp(va, valueType, valuePath))
+          case t: TStruct =>
+            if (t.size == 0) Annotation.empty
+            else {
+              val annotationSize =
+                if (padNulls) t.size
+                else if (jfields.isEmpty) 0
+                else 1 + jfields.foldLeft(-1) { (max, f) =>
+                  t.selfField(f._1).fold(max)(k => math.max(max, k.index))
                 }
-              case _ =>
-                warnOnce(s"Can't convert JSON value $jv to type $t at $parent.", parent)
-                null
 
+              val a = Array.fill[Any](annotationSize)(null)
+
+              for ((name, jv2) <- jfields) {
+                t.selfField(name) match {
+                  case Some(f) =>
+                    a(f.index) = imp(jv2, f.typ, parent + "." + name)
+                  case None =>
+                    warnOnce(
+                      s"$t has no field $name at $parent for value $jv2",
+                      parent + "/" + name,
+                    )
+                }
+              }
+
+              Annotation.fromSeq(ArraySeq.unsafeWrapArray(a))
             }
-          case _ =>
-            warnOnce(s"Can't convert JSON value $jv to type $t at $parent.", parent)
-            null
-        }.toMap
-
-      case (JObject(jfields), t: TStruct) =>
-        if (t.size == 0)
-          Annotation.empty
-        else {
-          val annotationSize = if (padNulls) {
-            t.size
-          } else if (jfields.size == 0) {
-            0
-          } else {
-            jfields.map { case (name, _) =>
-              t.selfField(name).map(_.index).getOrElse(-1)
-            }.max + 1
-          }
-          val a = Array.fill[Any](annotationSize)(null)
-
-          for ((name, jv2) <- jfields) {
-            t.selfField(name) match {
-              case Some(f) =>
-                a(f.index) = imp(jv2, f.typ, parent + "." + name)
-
-              case None =>
-                warnOnce(s"$t has no field $name at $parent for value $jv2", parent + "/" + name)
+          case t @ TNDArray(_, _) =>
+            jfields match {
+              case List(("shape", shapeJson: JArray), ("data", dataJson: JArray)) =>
+                val shapeArray =
+                  shapeJson.arr.view.map(imp(_, TInt64, parent).asInstanceOf[Long]).to(ArraySeq)
+                val dataArray = dataJson.arr.view.map(imp(_, t.elementType, parent)).to(ArraySeq)
+                SafeNDArray(shapeArray, dataArray)
+              case _ => warnCoerce()
             }
-          }
+          case TInterval(pointType) =>
+            val m = jfields.toMap
+            val interval: Option[Annotation] =
+              for {
+                s <- m.get("start")
+                start = imp(s, pointType, parent + ".start")
 
-          Annotation.fromSeq(ArraySeq.unsafeWrapArray(a))
-        }
-      case (JArray(elts), t: TTuple) =>
-        if (t.size == 0)
-          Annotation.empty
-        else {
-          val b = ArraySeq.newBuilder[Any]
-          b.sizeHint(if (padNulls) t.size else elts.length)
-          b ++= elts.lazyZip(t.types).map(imp(_, _, parent))
-          if (padNulls) for (_ <- elts.length until t.size) b += null
-          Annotation.fromSeq(b.result())
-        }
-      case (_, TLocus(_)) =>
-        jv.extract[Locus]
-      case (
-            JObject(List(("shape", shapeJson: JArray), ("data", dataJson: JArray))),
-            t @ TNDArray(_, _),
-          ) =>
-        val shapeArray =
-          shapeJson.arr.map(imp(_, TInt64, parent)).map(_.asInstanceOf[Long]).toIndexedSeq
-        val dataArray = dataJson.arr.map(imp(_, t.elementType, parent)).toIndexedSeq
+                e <- m.get("end")
+                end = imp(e, pointType, parent + ".end")
 
-        new SafeNDArray(shapeArray, dataArray)
-      case (_, TInterval(pointType)) =>
-        jv match {
-          case JObject(list) =>
-            val m = list.toMap
-            (m.get("start"), m.get("end"), m.get("includeStart"), m.get("includeEnd")) match {
-              case (Some(sjv), Some(ejv), Some(isjv), Some(iejv)) =>
-                Interval(
-                  imp(sjv, pointType, parent + ".start"),
-                  imp(ejv, pointType, parent + ".end"),
-                  imp(isjv, TBoolean, parent + ".includeStart").asInstanceOf[Boolean],
-                  imp(iejv, TBoolean, parent + ".includeEnd").asInstanceOf[Boolean],
-                )
-              case _ =>
-                warnOnce(s"Can't convert JSON value $jv to type $t at $parent.", parent)
-                null
+                is <- m.get("includeStart")
+                includesStart = imp(is, TBoolean, parent + ".includeStart").asInstanceOf[Boolean]
+
+                ie <- m.get("includeEnd")
+                includesEnd = imp(ie, TBoolean, parent + ".includeEnd").asInstanceOf[Boolean]
+              } yield Interval(start, end, includesStart, includesEnd)
+
+            interval.getOrElse(warnCoerce())
+
+          case TLocus(_) => jv.extract[Locus]
+          case _ => warnCoerce()
+        }
+      case JArray(elts) => t match {
+          case TDict(keyType, valueType) =>
+            val keyPath = parent + "[key]"
+            val valuePath = parent + "[value]"
+            elts.foldLeft(Map.newBuilder[Annotation, Annotation]) { (b, elem) =>
+              elem match {
+                case JObject(List(("key", k), ("value", v))) =>
+                  b += (imp(k, keyType, keyPath) -> imp(v, valueType, valuePath))
+                case _ =>
+                  warnCoerce()
+                  b
+              }
+            }.result()
+          case t: TTuple =>
+            if (t.size == 0) Annotation.empty
+            else {
+              val b = ArraySeq.newBuilder[Any]
+              b.sizeHint(t.size)
+
+              var i = 0
+              for (e <- elts) {
+                b += imp(e, t.types(i), parent)
+                i += 1
+              }
+
+              if (padNulls && t.size > i) {
+                b.sizeHint(t.size)
+                for (_ <- i until t.size) b += null
+              }
+
+              Annotation.fromSeq(b.result())
             }
-          case _ =>
-            warnOnce(s"Can't convert JSON value $jv to type $t at $parent.", parent)
-            null
+          case TArray(elementType) =>
+            elts.view.map(jv2 => imp(jv2, elementType, parent + "[element]")).to(ArraySeq)
+          case TSet(elementType) =>
+            elts.view.map(jv2 => imp(jv2, elementType, parent + "[element]")).toSet
+          case _ => warnCoerce()
         }
-      case (JString(x), TCall) => Call.parse(x)
-
-      case (JArray(a), TArray(elementType)) =>
-        a.view.map(jv2 => imp(jv2, elementType, parent + "[element]")).to(ArraySeq)
-
-      case (JArray(a), TSet(elementType)) =>
-        a.iterator.map(jv2 => imp(jv2, elementType, parent + "[element]")).toSet[Any]
-      case _ =>
-        warnOnce(s"Can't convert JSON value $jv to type $t at $parent.", parent)
-        null
+      case _ => warnCoerce()
     }
   }
 }

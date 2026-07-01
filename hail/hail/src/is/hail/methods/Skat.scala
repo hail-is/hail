@@ -1,6 +1,6 @@
 package is.hail.methods
 
-import is.hail.annotations.{Annotation, Region, UnsafeRow}
+import is.hail.annotations.{Annotation, Region, RowSeq, UnsafeRow}
 import is.hail.backend.ExecuteContext
 import is.hail.collection.{FastSeq, IntArrayBuilder}
 import is.hail.expr.ir.{MatrixValue, TableValue}
@@ -243,9 +243,9 @@ case class Skat(
             val (pval, fault) = Skat.computePval(q / sigmaSq, gramian, accuracy, iterations)
 
             // returning qstat = q / (2 * sigmaSq) to agree with skat R table convention
-            Row(key, size, q / (2 * sigmaSq), pval, fault)
+            RowSeq(key, size, q / (2 * sigmaSq), pval, fault)
           } else {
-            Row(key, size, null, null, null)
+            RowSeq(key, size, null, null, null)
           }
         }
     }
@@ -305,9 +305,9 @@ case class Skat(
           val (pval, fault) = Skat.computePval(q, gramian, accuracy, iterations)
 
           // returning qstat = q / 2 to agree with skat R table convention
-          Row(key, size, q / 2, pval, fault)
+          RowSeq(key, size, q / 2, pval, fault)
         } else {
-          Row(key, size, null, null, null)
+          RowSeq(key, size, null, null, null)
         }
       }.persist()
     }

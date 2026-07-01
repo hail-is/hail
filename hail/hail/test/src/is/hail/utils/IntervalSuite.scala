@@ -2,14 +2,13 @@ package is.hail.utils
 
 import is.hail.ParameterizedTest
 import is.hail.TestUtils.cartesian
-import is.hail.annotations.ExtendedOrdering
+import is.hail.annotations.{ExtendedOrdering, RowSeq}
 import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.virtual.{TInt32, TStruct}
 
-import org.apache.spark.sql.Row
 import org.junit.jupiter.api.{BeforeEach, Test}
 
 class IntervalSuite {
@@ -144,7 +143,7 @@ class IntervalSuite {
   @Test def interval_tree_agrees_with_set_interval_tree_contains(): Unit =
     cartesian(test_itrees, points).foreach { case (set_itree, p) =>
       val itree = set_itree.intervalTree
-      assert(itree.contains(Row(p)) == set_itree.contains(p))
+      assert(itree.contains(RowSeq(p)) == set_itree.contains(p))
     }
 
   @Test def interval_tree_agrees_with_set_interval_tree_probably_overlaps(): Unit =
@@ -164,7 +163,7 @@ class IntervalSuite {
   @Test def interval_tree_agrees_with_set_interval_tree_query_values(): Unit =
     cartesian(test_itrees, points).foreach { case (set_itree, point) =>
       val itree = set_itree.intervalTree
-      val result = itree.queryKey(Row(point))
+      val result = itree.queryKey(RowSeq(point))
       assert(result.areDistinct())
       assert(result.toSet == set_itree.queryValues(point))
     }
@@ -196,7 +195,7 @@ case class SetInterval(start: Int, end: Int, includesStart: Boolean, includesEnd
 
   val interval: Interval = Interval(start, end, includesStart, includesEnd)
 
-  val rowInterval: Interval = Interval(Row(start), Row(end), includesStart, includesEnd)
+  val rowInterval: Interval = Interval(RowSeq(start), RowSeq(end), includesStart, includesEnd)
 
   def contains(point: Int): Boolean = doubledPointSet.contains(2 * point)
 

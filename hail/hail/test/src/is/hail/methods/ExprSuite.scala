@@ -1,6 +1,7 @@
 package is.hail.methods
 
 import is.hail.TestUtils._
+import is.hail.annotations.RowSeq
 import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.expr._
 import is.hail.expr.ir.IRParser
@@ -8,7 +9,6 @@ import is.hail.scalacheck._
 import is.hail.types.virtual._
 import is.hail.utils.StringEscapeUtils._
 
-import org.apache.spark.sql.Row
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.junit.jupiter.api.Test
@@ -71,10 +71,10 @@ class ExprSuite {
   }
 
   @Test def testImportEmptyJSONObjectAsStruct(): Unit =
-    assertEq(JSONAnnotationImpex.importAnnotation(parse("{}"), TStruct()), Row())
+    assertEq(JSONAnnotationImpex.importAnnotation(parse("{}"), TStruct()), RowSeq())
 
   @Test def testExportEmptyJSONObjectAsStruct(): Unit =
-    assertEq(compact(render(JSONAnnotationImpex.exportAnnotation(Row(), TStruct()))), "{}")
+    assertEq(compact(render(JSONAnnotationImpex.exportAnnotation(RowSeq(), TStruct()))), "{}")
 
   @Test def testRoundTripEmptyJSONObject(): Unit = {
     val actual = JSONAnnotationImpex.exportAnnotation(
@@ -86,10 +86,10 @@ class ExprSuite {
 
   @Test def testRoundTripEmptyStruct(): Unit = {
     val actual = JSONAnnotationImpex.importAnnotation(
-      JSONAnnotationImpex.exportAnnotation(Row(), TStruct()),
+      JSONAnnotationImpex.exportAnnotation(RowSeq(), TStruct()),
       TStruct(),
     )
-    assertEq(actual, Row())
+    assertEq(actual, RowSeq())
   }
 
   @Test def testImpexes(implicit ctx: ExecuteContext): Unit = {

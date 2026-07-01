@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.ParameterizedTest
 import is.hail.TestUtils._
+import is.hail.annotations.RowSeq
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
@@ -20,7 +21,6 @@ import is.hail.types.virtual._
 
 import scala.collection.mutable.ArrayBuffer
 
-import org.apache.spark.sql.Row
 import org.junit.jupiter.api.Test
 
 class RequirednessSuite {
@@ -123,7 +123,7 @@ class RequirednessSuite {
       IsNA(I32(5)),
       Cast(I32(5), TFloat64),
       Die("mumblefoo", TFloat64),
-      Literal(TStruct("x" -> TInt32), Row(1)),
+      Literal(TStruct("x" -> TInt32), RowSeq(1)),
       MakeArray(FastSeq(I32(4)), TArray(TInt32)),
       MakeStruct(FastSeq("x" -> I32(4), "y" -> Str("foo"))),
       MakeTuple.ordered(FastSeq(I32(5), Str("bar"))),
@@ -207,7 +207,7 @@ class RequirednessSuite {
     }
 
     val value =
-      Literal(pDisc.virtualType, Row(null, IndexedSeq(1), IndexedSeq(Row(1, IndexedSeq(1)))))
+      Literal(pDisc.virtualType, RowSeq(null, IndexedSeq(1), IndexedSeq(RowSeq(1, IndexedSeq(1)))))
     nodes += ((WriteValue(value, Str("foo"), vr), PCanonicalString(required)))
     nodes += ((WriteValue(NA(pDisc.virtualType), Str("foo"), vr), PCanonicalString(optional)))
     nodes += ((WriteValue(value, NA(TString), vr), PCanonicalString(optional)))

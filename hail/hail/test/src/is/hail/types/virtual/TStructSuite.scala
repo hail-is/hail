@@ -2,11 +2,10 @@ package is.hail.types.virtual
 
 import is.hail.ParameterizedTest
 import is.hail.TestUtils._
-import is.hail.annotations.{Annotation, Inserter}
+import is.hail.annotations.{Annotation, Inserter, RowSeq}
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
 
-import org.apache.spark.sql.Row
 import org.junit.jupiter.api.Test
 
 class TStructSuite {
@@ -71,12 +70,12 @@ class TStructSuite {
 
   def testInsert() =
     ArraySeq[(Inserter, Annotation, Any, Annotation)](
-      (TStruct("a" -> TInt32).insert(TInt32, FastSeq("a"))._2, null, 0, Row(0)),
-      (TStruct("a" -> TInt32).insert(TInt32, FastSeq("a"))._2, Row(0), 1, Row(1)),
-      (TStruct("a" -> TInt32).insert(TInt32, FastSeq("b"))._2, null, 0, Row(null, 0)),
-      (TStruct("a" -> TInt32).insert(TInt32, FastSeq("b"))._2, Row(0), 1, Row(0, 1)),
-      (TStruct.empty.insert(TInt32, FastSeq("a", "b"))._2, null, 0, Row(Row(0))),
-      (TStruct("a" -> TInt32).insert(TInt32, FastSeq("a", "b"))._2, Row(0), 1, Row(Row(1))),
+      (TStruct("a" -> TInt32).insert(TInt32, FastSeq("a"))._2, null, 0, RowSeq(0)),
+      (TStruct("a" -> TInt32).insert(TInt32, FastSeq("a"))._2, RowSeq(0), 1, RowSeq(1)),
+      (TStruct("a" -> TInt32).insert(TInt32, FastSeq("b"))._2, null, 0, RowSeq(null, 0)),
+      (TStruct("a" -> TInt32).insert(TInt32, FastSeq("b"))._2, RowSeq(0), 1, RowSeq(0, 1)),
+      (TStruct.empty.insert(TInt32, FastSeq("a", "b"))._2, null, 0, RowSeq(RowSeq(0))),
+      (TStruct("a" -> TInt32).insert(TInt32, FastSeq("a", "b"))._2, RowSeq(0), 1, RowSeq(RowSeq(1))),
     )
 
   @ParameterizedTest

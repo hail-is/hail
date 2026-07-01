@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.{ExecStrategy, ParameterizedTest}
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
-import is.hail.annotations.SafeNDArray
+import is.hail.annotations.{RowSeq, SafeNDArray}
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
@@ -62,12 +62,12 @@ class TableIRSuite {
     val uids = for {
       (partSize, partIndex) <- partition(10, 3).zipWithIndex
       i <- 0 until partSize
-    } yield Row(partIndex.toLong, i.toLong)
-    val expectedRows = (0 until 10).lazyZip(uids).map((i, uid) => Row(i, uid))
-    val expectedGlobals = Row(57)
+    } yield RowSeq(partIndex.toLong, i.toLong)
+    val expectedRows = (0 until 10).lazyZip(uids).map((i, uid) => RowSeq(i, uid))
+    val expectedGlobals = RowSeq(57)
 
-    assertEvalsTo(TableCollect(read), Row(expectedRows, expectedGlobals))
-    assertEvalsTo(TableCollect(droppedRows), Row(FastSeq(), expectedGlobals))
+    assertEvalsTo(TableCollect(read), RowSeq(expectedRows, expectedGlobals))
+    assertEvalsTo(TableCollect(droppedRows), RowSeq(FastSeq(), expectedGlobals))
   }
 
   @Test def testCountRead(implicit ctx: ExecuteContext): Unit = {
@@ -81,8 +81,8 @@ class TableIRSuite {
     val t = TableRange(10, 2)
     val row = Ref(TableIR.rowName, t.typ.rowType)
     val node = collect(TableMapRows(t, InsertFields(row, FastSeq("x" -> GetField(row, "idx")))))
-    assertEvalsTo(collect(t), Row(ArraySeq.tabulate(10)(Row(_)), Row()))
-    assertEvalsTo(node, Row(ArraySeq.tabulate(10)(i => Row(i, i)), Row()))
+    assertEvalsTo(collect(t), RowSeq(ArraySeq.tabulate(10)(RowSeq(_)), RowSeq()))
+    assertEvalsTo(node, RowSeq(ArraySeq.tabulate(10)(i => RowSeq(i, i)), RowSeq()))
   }
 
   @Test def testNestedRangeCollect(implicit ctx: ExecuteContext): Unit = {
@@ -97,12 +97,12 @@ class TableIRSuite {
     )
     assertEvalsTo(
       collect(m),
-      Row(
+      RowSeq(
         FastSeq(
-          Row(0, FastSeq(Row(0), Row(1))),
-          Row(1, FastSeq(Row(0), Row(1))),
+          RowSeq(0, FastSeq(RowSeq(0), RowSeq(1))),
+          RowSeq(1, FastSeq(RowSeq(0), RowSeq(1))),
         ),
-        Row(),
+        RowSeq(),
       ),
     )
   }
@@ -120,7 +120,7 @@ class TableIRSuite {
     ))
     assertEvalsTo(
       node,
-      Row(ArraySeq.tabulate(10)(i => Row(i, ArraySeq.range(0, i).sum.toLong)), Row()),
+      RowSeq(ArraySeq.tabulate(10)(i => RowSeq(i, ArraySeq.range(0, i).sum.toLong)), RowSeq()),
     )
   }
 
@@ -130,7 +130,7 @@ class TableIRSuite {
     val newGlobals =
       InsertFields(Ref(TableIR.globalName, t.typ.globalType), FastSeq("x" -> collect(t)))
     val node = TableGetGlobals(TableMapGlobals(t, newGlobals))
-    assertEvalsTo(node, Row(Row(ArraySeq.tabulate(10)(i => Row(i)), Row())))
+    assertEvalsTo(node, RowSeq(RowSeq(ArraySeq.tabulate(10)(i => RowSeq(i)), RowSeq())))
   }
 
   @Test def testCollectGlobals(implicit ctx: ExecuteContext): Unit = {
@@ -146,10 +146,10 @@ class TableIRSuite {
       ),
     )
 
-    val collectedT = Row(ArraySeq.tabulate(10)(i => Row(i)), Row())
-    val expected = ArraySeq.tabulate(10)(i => Row(i, collectedT))
+    val collectedT = RowSeq(ArraySeq.tabulate(10)(i => RowSeq(i)), RowSeq())
+    val expected = ArraySeq.tabulate(10)(i => RowSeq(i, collectedT))
 
-    assertEvalsTo(collect(node), Row(expected, Row(collectedT)))
+    assertEvalsTo(collect(node), RowSeq(expected, RowSeq(collectedT)))
   }
 
   @Test def testRangeExplode(implicit ctx: ExecuteContext): Unit = {
@@ -162,8 +162,8 @@ class TableIRSuite {
       InsertFields(row, FastSeq("x" -> ToArray(StreamRange(0, GetField(row, "idx"), 1)))),
     )
     val node = TableExplode(t2, FastSeq("x"))
-    val expected = ArraySeq.range(0, 10).flatMap(i => ArraySeq.range(0, i).map(Row(i, _)))
-    assertEvalsTo(collect(node), Row(expected, Row()))
+    val expected = ArraySeq.range(0, 10).flatMap(i => ArraySeq.range(0, i).map(RowSeq(i, _)))
+    assertEvalsTo(collect(node), RowSeq(expected, RowSeq()))
 
     val t3 = TableMapRows(
       t,
@@ -175,8 +175,8 @@ class TableIRSuite {
     )
     val node2 = TableExplode(t3, FastSeq("x", "y"))
     val expected2 =
-      ArraySeq.range(0, 10).flatMap(i => ArraySeq.range(0, i).map(j => Row(i, Row(j))))
-    assertEvalsTo(collect(node2), Row(expected2, Row()))
+      ArraySeq.range(0, 10).flatMap(i => ArraySeq.range(0, i).map(j => RowSeq(i, RowSeq(j))))
+    assertEvalsTo(collect(node2), RowSeq(expected2, RowSeq()))
   }
 
   @Test def testFilter(implicit ctx: ExecuteContext): Unit = {
@@ -194,9 +194,9 @@ class TableIRSuite {
       ),
     )
 
-    val expected = ArraySeq.tabulate(10)(Row(_)).filter(_.get(0) == 4)
+    val expected = ArraySeq.tabulate(10)(RowSeq(_)).filter(_.get(0) == 4)
 
-    assertEvalsTo(collect(node), Row(expected, Row(4)))
+    assertEvalsTo(collect(node), RowSeq(expected, RowSeq(4)))
   }
 
   @Test def testFilterIntervals(implicit ctx: ExecuteContext): Unit = {
@@ -210,10 +210,12 @@ class TableIRSuite {
       var t: TableIR = TableRange(10, 5)
       t = TableFilterIntervals(
         t,
-        intervals.map(i => Interval(Row(i.start), Row(i.end), i.includesStart, i.includesEnd)),
+        intervals.map(i =>
+          Interval(RowSeq(i.start), RowSeq(i.end), i.includesStart, i.includesEnd)
+        ),
         keep,
       )
-      assertEvalsTo(GetField(collect(t), "rows"), expected.map(Row(_)))
+      assertEvalsTo(GetField(collect(t), "rows"), expected.map(RowSeq(_)))
     }
 
     assertFilterIntervals(
@@ -276,13 +278,13 @@ class TableIRSuite {
         Ref(TableIR.rowName, t.typ.rowType),
         FastSeq(
           "a" -> Str("foo"),
-          "b" -> Literal(TTuple(TInt32, TString), Row(1, "hello")),
+          "b" -> Literal(TTuple(TInt32, TString), RowSeq(1, "hello")),
         ),
       ),
     )
 
-    val expected = ArraySeq.tabulate(10)(Row(_, "foo", Row(1, "hello")))
-    assertEvalsTo(collect(node), Row(expected, Row()))
+    val expected = ArraySeq.tabulate(10)(RowSeq(_, "foo", RowSeq(1, "hello")))
+    assertEvalsTo(collect(node), RowSeq(expected, RowSeq()))
   }
 
   @Test def testScanCountBehavesLikeIndex(implicit ctx: ExecuteContext): Unit = {
@@ -292,7 +294,7 @@ class TableIRSuite {
 
     val newRow = InsertFields(oldRow, FastSeq("idx2" -> IRScanCount))
     val newTable = TableMapRows(t, newRow)
-    val expected = ArraySeq.tabulate(20)(i => Row(i, i.toLong))
+    val expected = ArraySeq.tabulate(20)(i => RowSeq(i, i.toLong))
     assertEvalsTo(
       ArraySort(
         ToStream(TableAggregate(newTable, IRAggCollect(Ref(TableIR.rowName, newRow.typ)))),
@@ -310,7 +312,7 @@ class TableIRSuite {
     val newRow = InsertFields(oldRow, FastSeq("range" -> IRScanCollect(GetField(oldRow, "idx"))))
     val newTable = TableMapRows(t, newRow)
 
-    val expected = ArraySeq.tabulate(20)(i => Row(i, ArraySeq.range(0, i)))
+    val expected = ArraySeq.tabulate(20)(i => RowSeq(i, ArraySeq.range(0, i)))
     assertEvalsTo(
       ArraySort(
         ToStream(TableAggregate(newTable, IRAggCollect(Ref(TableIR.rowName, newRow.typ)))),
@@ -433,44 +435,44 @@ class TableIRSuite {
   ).map(Row.fromTuple)
 
   val expectedZipJoin = ArraySeq(
-    (3, 1, FastSeq(Row(-1), null)),
-    (3, 2, FastSeq(Row(-1), null)),
-    (6, 1, FastSeq(null, Row(1))),
-    (6, 2, FastSeq(null, Row(1))),
-    (11, 1, FastSeq(Row(-1), null)),
-    (11, 2, FastSeq(Row(-1), null)),
-    (16, 1, FastSeq(Row(-1), null)),
-    (16, 2, FastSeq(Row(-1), null)),
-    (17, 1, FastSeq(Row(-1), Row(1))),
-    (17, 2, FastSeq(Row(-1), Row(1))),
-    (18, 1, FastSeq(null, Row(1))),
-    (18, 2, FastSeq(null, Row(1))),
-    (21, 1, FastSeq(null, Row(1))),
-    (21, 2, FastSeq(null, Row(1))),
-    (22, 1, FastSeq(Row(-1), Row(1))),
-    (22, 2, FastSeq(Row(-1), Row(1))),
-    (23, 1, FastSeq(Row(-1), null)),
-    (23, 2, FastSeq(Row(-1), null)),
-    (26, 1, FastSeq(Row(-1), null)),
-    (26, 2, FastSeq(Row(-1), null)),
-    (27, 1, FastSeq(Row(-1), Row(1))),
-    (27, 2, FastSeq(Row(-1), Row(1))),
-    (28, 1, FastSeq(null, Row(1))),
-    (28, 2, FastSeq(null, Row(1))),
-    (31, 1, FastSeq(null, Row(1))),
-    (31, 2, FastSeq(null, Row(1))),
-    (32, 1, FastSeq(Row(-1), Row(1))),
-    (32, 2, FastSeq(Row(-1), Row(1))),
-    (33, 1, FastSeq(Row(-1), null)),
-    (33, 2, FastSeq(Row(-1), null)),
-    (36, 1, FastSeq(Row(-1), null)),
-    (36, 2, FastSeq(Row(-1), null)),
-    (37, 1, FastSeq(Row(-1), Row(1))),
-    (37, 2, FastSeq(Row(-1), Row(1))),
-    (38, 1, FastSeq(null, Row(1))),
-    (38, 2, FastSeq(null, Row(1))),
-    (41, 1, FastSeq(null, Row(1))),
-    (41, 2, FastSeq(null, Row(1))),
+    (3, 1, FastSeq(RowSeq(-1), null)),
+    (3, 2, FastSeq(RowSeq(-1), null)),
+    (6, 1, FastSeq(null, RowSeq(1))),
+    (6, 2, FastSeq(null, RowSeq(1))),
+    (11, 1, FastSeq(RowSeq(-1), null)),
+    (11, 2, FastSeq(RowSeq(-1), null)),
+    (16, 1, FastSeq(RowSeq(-1), null)),
+    (16, 2, FastSeq(RowSeq(-1), null)),
+    (17, 1, FastSeq(RowSeq(-1), RowSeq(1))),
+    (17, 2, FastSeq(RowSeq(-1), RowSeq(1))),
+    (18, 1, FastSeq(null, RowSeq(1))),
+    (18, 2, FastSeq(null, RowSeq(1))),
+    (21, 1, FastSeq(null, RowSeq(1))),
+    (21, 2, FastSeq(null, RowSeq(1))),
+    (22, 1, FastSeq(RowSeq(-1), RowSeq(1))),
+    (22, 2, FastSeq(RowSeq(-1), RowSeq(1))),
+    (23, 1, FastSeq(RowSeq(-1), null)),
+    (23, 2, FastSeq(RowSeq(-1), null)),
+    (26, 1, FastSeq(RowSeq(-1), null)),
+    (26, 2, FastSeq(RowSeq(-1), null)),
+    (27, 1, FastSeq(RowSeq(-1), RowSeq(1))),
+    (27, 2, FastSeq(RowSeq(-1), RowSeq(1))),
+    (28, 1, FastSeq(null, RowSeq(1))),
+    (28, 2, FastSeq(null, RowSeq(1))),
+    (31, 1, FastSeq(null, RowSeq(1))),
+    (31, 2, FastSeq(null, RowSeq(1))),
+    (32, 1, FastSeq(RowSeq(-1), RowSeq(1))),
+    (32, 2, FastSeq(RowSeq(-1), RowSeq(1))),
+    (33, 1, FastSeq(RowSeq(-1), null)),
+    (33, 2, FastSeq(RowSeq(-1), null)),
+    (36, 1, FastSeq(RowSeq(-1), null)),
+    (36, 2, FastSeq(RowSeq(-1), null)),
+    (37, 1, FastSeq(RowSeq(-1), RowSeq(1))),
+    (37, 2, FastSeq(RowSeq(-1), RowSeq(1))),
+    (38, 1, FastSeq(null, RowSeq(1))),
+    (38, 2, FastSeq(null, RowSeq(1))),
+    (41, 1, FastSeq(null, RowSeq(1))),
+    (41, 2, FastSeq(null, RowSeq(1))),
   ).map(Row.fromTuple)
 
   val expectedOuterJoin = ArraySeq(
@@ -570,7 +572,7 @@ class TableIRSuite {
       TableParallelize(
         Literal(
           TStruct("rows" -> TArray(leftType), "global" -> TStruct.empty),
-          Row(leftData.map(leftProjectF.asInstanceOf[Row => Row]), Row()),
+          RowSeq(leftData.map(leftProjectF.asInstanceOf[Row => Row]), RowSeq()),
         ),
         Some(lParts),
       ),
@@ -582,7 +584,7 @@ class TableIRSuite {
       TableParallelize(
         Literal(
           TStruct("rows" -> TArray(rightType), "global" -> TStruct.empty),
-          Row(rightData.map(rightProjectF.asInstanceOf[Row => Row]), Row()),
+          RowSeq(rightData.map(rightProjectF.asInstanceOf[Row => Row]), RowSeq()),
         ),
         Some(rParts),
       ),
@@ -607,7 +609,7 @@ class TableIRSuite {
       )
     )
 
-    assertEvalsTo(joined, Row(expectedOuterJoin.filter(pred).map(joinProjectF), Row()))
+    assertEvalsTo(joined, RowSeq(expectedOuterJoin.filter(pred).map(joinProjectF), RowSeq()))
   }
 
   def unionData() =
@@ -622,7 +624,7 @@ class TableIRSuite {
       TableParallelize(
         Literal(
           TStruct("rows" -> TArray(rowType), "global" -> TStruct.empty),
-          Row(leftData, Row()),
+          RowSeq(leftData, RowSeq()),
         ),
         Some(lParts),
       ),
@@ -633,7 +635,7 @@ class TableIRSuite {
       TableParallelize(
         Literal(
           TStruct("rows" -> TArray(rowType), "global" -> TStruct.empty),
-          Row(rightData, Row()),
+          RowSeq(rightData, RowSeq()),
         ),
         Some(rParts),
       ),
@@ -642,7 +644,7 @@ class TableIRSuite {
 
     val merged = collect(TableUnion(FastSeq(left, right)))
 
-    assertEvalsTo(merged, Row(expectedUnion, Row()))
+    assertEvalsTo(merged, RowSeq(expectedUnion, RowSeq()))
   }
 
   @ParameterizedTest("unionData")
@@ -652,7 +654,7 @@ class TableIRSuite {
       TableParallelize(
         Literal(
           TStruct("rows" -> TArray(rowType), "global" -> TStruct.empty),
-          Row(leftData, Row()),
+          RowSeq(leftData, RowSeq()),
         ),
         Some(lParts),
       ),
@@ -663,7 +665,7 @@ class TableIRSuite {
       TableParallelize(
         Literal(
           TStruct("rows" -> TArray(rowType), "global" -> TStruct.empty),
-          Row(rightData, Row()),
+          RowSeq(rightData, RowSeq()),
         ),
         Some(rParts),
       ),
@@ -672,7 +674,7 @@ class TableIRSuite {
 
     val merged = collect(TableMultiWayZipJoin(FastSeq(left, right), "row", "global"))
 
-    assertEvalsTo(merged, Row(expectedZipJoin, Row(FastSeq(Row(), Row()))))
+    assertEvalsTo(merged, RowSeq(expectedZipJoin, RowSeq(FastSeq(RowSeq(), RowSeq()))))
   }
 
   // Catches a bug in the partitioner created by the importer.
@@ -693,7 +695,7 @@ class TableIRSuite {
   @Test def testNativeReaderWithOverlappingPartitions(implicit ctx: ExecuteContext): Unit = {
     val path = getTestResource("sample.vcf-20-partitions-with-overlap.mt/rows")
     // i1 overlaps the first two partitions
-    val i1 = Interval(Row(Locus("20", 10200000)), Row(Locus("20", 10500000)), true, true)
+    val i1 = Interval(RowSeq(Locus("20", 10200000)), RowSeq(Locus("20", 10500000)), true, true)
 
     def test(filterIntervals: Boolean, expectedNParts: Int): Unit = {
       val opts = NativeReaderOptions(FastSeq(i1), TLocus("GRCh37"), filterIntervals)
@@ -712,7 +714,7 @@ class TableIRSuite {
   @Test def testTableKeyBy(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.interpretOnly
     val data = ArraySeq(ArraySeq("A", 1), ArraySeq("A", 2), ArraySeq("B", 1))
-    val rdd = ctx.backend.asSpark.sc.parallelize(data.map(Row.fromSeq(_)))
+    val rdd = ctx.backend.asSpark.sc.parallelize(data.map(RowSeq.fromSeq(_)))
     val signature = TStruct(("field1", TString), ("field2", TInt32))
     val keyNames = FastSeq("field1", "field2")
     val tt = TableType(rowType = signature, key = keyNames, globalType = TStruct.empty)
@@ -739,7 +741,7 @@ class TableIRSuite {
       "global" -> TStruct("x" -> TString),
     )
     val length = 10
-    val value = Row(FastSeq(0 until length: _*).map(i => Row(0, "row" + i)), Row("global"))
+    val value = RowSeq(FastSeq(0 until length: _*).map(i => RowSeq(0, "row" + i)), RowSeq("global"))
 
     val par = TableParallelize(Literal(t, value))
 
@@ -754,7 +756,8 @@ class TableIRSuite {
       "global" -> TStruct("x" -> TString),
     )
     Array(1, 10, 17, 34, 103).foreach { length =>
-      val value = Row(FastSeq(0 until length: _*).map(i => Row(i, "row" + i)), Row("global"))
+      val value =
+        RowSeq(FastSeq(0 until length: _*).map(i => RowSeq(i, "row" + i)), RowSeq("global"))
       assertEvalsTo(
         collectNoKey(
           TableParallelize(
@@ -775,7 +778,7 @@ class TableIRSuite {
       "rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)),
       "global" -> TStruct("x" -> TString),
     )
-    val value = Row(FastSeq(Row(0, "row1"), Row(1, "row2")), Row("glob"))
+    val value = RowSeq(FastSeq(RowSeq(0, "row1"), RowSeq(1, "row2")), RowSeq("glob"))
 
     assertEvalsTo(
       TableCount(
@@ -796,7 +799,7 @@ class TableIRSuite {
       "global" -> TStruct("x" -> TString),
     )
     def makeData(length: Int): Row =
-      Row(FastSeq(0 until length: _*).map(i => Row(i, "row" + i)), Row("global"))
+      RowSeq(FastSeq(0 until length: _*).map(i => RowSeq(i, "row" + i)), RowSeq("global"))
     val numRowsToTakeArray = Array(0, 4, 7, 12)
     val numInitialPartitionsArray = Array(1, 2, 6, 10, 13)
     val initialDataLength = 10
@@ -830,11 +833,11 @@ class TableIRSuite {
     val numInitialPartitionsArray = Array(1, 3, 6, 10, 13)
     val initialDataLength = 10
     def makeData(length: Int): Row =
-      Row(
+      RowSeq(
         FastSeq((initialDataLength - length) until initialDataLength: _*).map(i =>
-          Row(i, "row" + i)
+          RowSeq(i, "row" + i)
         ),
-        Row("global"),
+        RowSeq("global"),
       )
     val initialData = makeData(initialDataLength)
 
@@ -879,9 +882,10 @@ class TableIRSuite {
       "rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)),
       "global" -> TStruct(("x", TString), ("y", TInt32)),
     )
-    val value = Row(FastSeq(0 until 10: _*).map(i => Row(i, "row" + i)), Row("globalVal", 3))
+    val value =
+      RowSeq(FastSeq(0 until 10: _*).map(i => RowSeq(i, "row" + i)), RowSeq("globalVal", 3))
     val adjustedValue =
-      Row(FastSeq(0 until 10: _*).map(i => Row(i + 3, "row" + i)), Row("globalVal", 3))
+      RowSeq(FastSeq(0 until 10: _*).map(i => RowSeq(i + 3, "row" + i)), RowSeq("globalVal", 3))
 
     val renameIR =
       TableRename(
@@ -923,9 +927,9 @@ class TableIRSuite {
     val innerRowRef = Ref(TableIR.rowName, t.field("rows").typ.asInstanceOf[TArray].elementType)
     val innerGlobalRef = Ref(TableIR.globalName, t.field("global").typ)
     val length = 10
-    val value = Row(FastSeq(0 until length: _*).map(i => Row(i, "row" + i)), Row("global"))
+    val value = RowSeq(FastSeq(0 until length: _*).map(i => RowSeq(i, "row" + i)), RowSeq("global"))
     val modifedValue =
-      Row(FastSeq(0 until length: _*).map(i => Row(i, "global")), Row("newGlobals"))
+      RowSeq(FastSeq(0 until length: _*).map(i => RowSeq(i, "global")), RowSeq("newGlobals"))
     assertEvalsTo(
       collectNoKey(
         TableMapGlobals(
@@ -1040,12 +1044,12 @@ class TableIRSuite {
     )
     assertEvalsTo(
       TableCollect(tr),
-      Row(
+      RowSeq(
         IndexedSeq.tabulate(10) { i =>
           val r = (0 until i).map(_.toLong).scanLeft(0L)(_ + _).init.sum
-          Row(i, r)
+          RowSeq(i, r)
         },
-        Row(),
+        RowSeq(),
       ),
     )
   }
@@ -1072,13 +1076,13 @@ class TableIRSuite {
     )
     assertEvalsTo(
       TableCollect(tr),
-      Row(
+      RowSeq(
         ArraySeq.tabulate(10)(i => (0 until i).map(_.toLong).scanLeft(0L)(_ + _).init.sum).scanLeft(
           0L
         )(_ + _)
           .zipWithIndex
-          .map { case (x, idx) => Row(idx, x) }.init,
-        Row(),
+          .map { case (x, idx) => RowSeq(idx, x) }.init,
+        RowSeq(),
       ),
     )
   }
@@ -1101,7 +1105,7 @@ class TableIRSuite {
     assertEvalsTo(
       ir,
       (0 until 10).flatMap(i =>
-        (0 until i).map(j => Row(i, j, (0 until j).sum.toLong, j.toLong))
+        (0 until i).map(j => RowSeq(i, j, (0 until j).sum.toLong, j.toLong))
       ).filter(_.getAs[Long](3) > 0),
     )
   }
@@ -1111,7 +1115,10 @@ class TableIRSuite {
     val keyedByX = TableKeyBy(tir, FastSeq("x"), true)
     val distinctByX = TableDistinct(keyedByX)
     assertEvalsTo(TableCount(distinctByX), 8L)
-    assertEvalsTo(collect(distinctByX), Row(FastSeq(2 to 9: _*).map(i => Row(i, 1, 0)), Row()))
+    assertEvalsTo(
+      collect(distinctByX),
+      RowSeq(FastSeq(2 to 9: _*).map(i => RowSeq(i, 1, 0)), RowSeq()),
+    )
 
     val keyedByXAndY = TableKeyBy(tir, FastSeq("x", "y"), true)
     val distinctByXAndY = TableDistinct(keyedByXAndY)
@@ -1127,7 +1134,7 @@ class TableIRSuite {
     tir = TableOrderBy(tir, FastSeq(SortField("idx", Descending)))
     val x = GetField(TableCollect(tir), "rows")
 
-    assertEvalsTo(x, (0 until 10).reverse.map(i => Row(i)))
+    assertEvalsTo(x, (0 until 10).reverse.map(i => RowSeq(i)))
   }
 
   @Test def testTableLeftJoinRightDistinctRangeTables(implicit ctx: ExecuteContext): Unit = {
@@ -1140,11 +1147,11 @@ class TableIRSuite {
       val joinedRanges = TableLeftJoinRightDistinct(rangeTable1, rangeTable2, "foo")
       assertEvalsTo(TableCount(joinedRanges), 10L)
 
-      val expectedJoinCollectResult = Row(
-        (0 until 5).map(i => Row(FastSeq(i, Row(i)): _*)) ++ (5 until 10).map(i =>
-          Row(FastSeq(i, null): _*)
+      val expectedJoinCollectResult = RowSeq(
+        (0 until 5).map(i => RowSeq(FastSeq(i, RowSeq(i)): _*)) ++ (5 until 10).map(i =>
+          RowSeq(FastSeq(i, null): _*)
         ),
-        Row(),
+        RowSeq(),
       )
       assertEvalsTo(collect(joinedRanges), expectedJoinCollectResult)
     }
@@ -1159,7 +1166,7 @@ class TableIRSuite {
     tir = TableMapRows(tir, ir)
     assertEvalsTo(
       collect(tir),
-      Row(FastSeq(Row(0, FastSeq(FastSeq(0, 1), FastSeq(2, 3), FastSeq(4)))), Row()),
+      RowSeq(FastSeq(RowSeq(0, FastSeq(FastSeq(0, 1), FastSeq(2, 3), FastSeq(4)))), RowSeq()),
     )
   }
 
@@ -1170,9 +1177,9 @@ class TableIRSuite {
     "global" -> TStruct("x" -> TString),
   )
 
-  val value1 = Row(
-    FastSeq(0 until parTable1Length: _*).map(i => Row("row" + i, i * i, s"t1_$i")),
-    Row("global"),
+  val value1 = RowSeq(
+    FastSeq(0 until parTable1Length: _*).map(i => RowSeq("row" + i, i * i, s"t1_$i")),
+    RowSeq("global"),
   )
 
   val table1 = TableParallelize(Literal(parTable1Type, value1), Some(2))
@@ -1185,7 +1192,10 @@ class TableIRSuite {
   )
 
   val value2 =
-    Row(FastSeq(0 until parTable2Length: _*).map(i => Row("row" + i, -2 * i, s"t2_$i")), Row(15))
+    RowSeq(
+      FastSeq(0 until parTable2Length: _*).map(i => RowSeq("row" + i, -2 * i, s"t2_$i")),
+      RowSeq(15),
+    )
 
   val table2 = TableParallelize(Literal(parTable2Type, value2), Some(3))
 
@@ -1200,11 +1210,11 @@ class TableIRSuite {
     assertEvalsTo(TableCount(joinedParKeyedByA), parTable1Length.toLong)
     assertEvalsTo(
       collect(joinedParKeyedByA),
-      Row(
+      RowSeq(
         FastSeq(0 until parTable1Length: _*).map(i =>
-          Row("row" + i, i * i, s"t1_$i", Row(-2 * i, s"t2_$i"))
+          RowSeq("row" + i, i * i, s"t1_$i", RowSeq(-2 * i, s"t2_$i"))
         ),
-        Row("global"),
+        RowSeq("global"),
       ),
     )
   }
@@ -1218,11 +1228,11 @@ class TableIRSuite {
     assertEvalsTo(TableCount(joinedParKeyedByAAndB), parTable1Length.toLong)
     assertEvalsTo(
       collect(joinedParKeyedByAAndB),
-      Row(
+      RowSeq(
         FastSeq(0 until parTable1Length: _*).map(i =>
-          Row("row" + i, i * i, s"t1_$i", Row(-2 * i, s"t2_$i"))
+          RowSeq("row" + i, i * i, s"t1_$i", RowSeq(-2 * i, s"t2_$i"))
         ),
-        Row("global"),
+        RowSeq("global"),
       ),
     )
   }
@@ -1245,7 +1255,7 @@ class TableIRSuite {
     val left =
       TableKeyBy(
         TableParallelize(MakeStruct(FastSeq(
-          "rows" -> Literal(TArray(TStruct("a" -> TInt32)), (0 until 9).map(Row(_))),
+          "rows" -> Literal(TArray(TStruct("a" -> TInt32)), (0 until 9).map(RowSeq(_))),
           "global" -> MakeStruct(FastSeq("left" -> Str("globals"))),
         ))),
         FastSeq("a"),
@@ -1257,7 +1267,7 @@ class TableIRSuite {
         TableParallelize(MakeStruct(FastSeq(
           "rows" -> Literal(
             TArray(TStruct("interval" -> TInterval(TInt32), "b" -> TInt32)),
-            intervals.zipWithIndex.map { case (i, idx) => Row(i, idx) },
+            intervals.zipWithIndex.map { case (i, idx) => RowSeq(i, idx) },
           ),
           "global" -> MakeStruct(FastSeq("bye" -> I32(-1))),
         ))),
@@ -1269,19 +1279,19 @@ class TableIRSuite {
 
     assertEvalsTo(
       collect(join),
-      Row(
+      RowSeq(
         FastSeq(
-          Row(0, FastSeq()),
-          Row(1, FastSeq(Row(0))),
-          Row(2, FastSeq(Row(0))),
-          Row(3, FastSeq(Row(2), Row(0))),
-          Row(4, FastSeq(Row(2), Row(0), Row(3))),
-          Row(5, FastSeq(Row(2), Row(0), Row(3))),
-          Row(6, FastSeq(Row(3))),
-          Row(7, FastSeq(Row(4))),
-          Row(8, FastSeq()),
+          RowSeq(0, FastSeq()),
+          RowSeq(1, FastSeq(RowSeq(0))),
+          RowSeq(2, FastSeq(RowSeq(0))),
+          RowSeq(3, FastSeq(RowSeq(2), RowSeq(0))),
+          RowSeq(4, FastSeq(RowSeq(2), RowSeq(0), RowSeq(3))),
+          RowSeq(5, FastSeq(RowSeq(2), RowSeq(0), RowSeq(3))),
+          RowSeq(6, FastSeq(RowSeq(3))),
+          RowSeq(7, FastSeq(RowSeq(4))),
+          RowSeq(8, FastSeq()),
         ),
-        Row("globals"),
+        RowSeq("globals"),
       ),
     )
   }
@@ -1302,18 +1312,18 @@ class TableIRSuite {
 
     assertEvalsTo(
       collect(keyByXAndAggregateSum),
-      Row(
+      RowSeq(
         FastSeq(
-          Row(2, 1L),
-          Row(3, 5L),
-          Row(4, 14L),
-          Row(5, 30L),
-          Row(6, 55L),
-          Row(7, 91L),
-          Row(8, 140L),
-          Row(9, 204L),
+          RowSeq(2, 1L),
+          RowSeq(3, 5L),
+          RowSeq(4, 14L),
+          RowSeq(5, 30L),
+          RowSeq(6, 55L),
+          RowSeq(7, 91L),
+          RowSeq(8, 140L),
+          RowSeq(9, 204L),
         ),
-        Row(),
+        RowSeq(),
       ),
     )
 
@@ -1326,18 +1336,18 @@ class TableIRSuite {
     )
     assertEvalsTo(
       collect(keyByXPlusTwoAndAggregateSum),
-      Row(
+      RowSeq(
         FastSeq(
-          Row(4, 1L),
-          Row(5, 5L),
-          Row(6, 14L),
-          Row(7, 30L),
-          Row(8, 55L),
-          Row(9, 91L),
-          Row(10, 140L),
-          Row(11, 204L),
+          RowSeq(4, 1L),
+          RowSeq(5, 5L),
+          RowSeq(6, 14L),
+          RowSeq(7, 30L),
+          RowSeq(8, 55L),
+          RowSeq(9, 91L),
+          RowSeq(10, 140L),
+          RowSeq(11, 204L),
         ),
-        Row(),
+        RowSeq(),
       ),
     )
 
@@ -1350,18 +1360,18 @@ class TableIRSuite {
     )
     assertEvalsTo(
       collect(keyByZAndAggregateSum),
-      Row(
+      RowSeq(
         FastSeq(
-          Row(0, 120L),
-          Row(1, 112L),
-          Row(2, 98L),
-          Row(3, 80L),
-          Row(4, 60L),
-          Row(5, 40L),
-          Row(6, 22L),
-          Row(7, 8L),
+          RowSeq(0, 120L),
+          RowSeq(1, 112L),
+          RowSeq(2, 98L),
+          RowSeq(3, 80L),
+          RowSeq(4, 60L),
+          RowSeq(5, 40L),
+          RowSeq(6, 22L),
+          RowSeq(7, 8L),
         ),
-        Row(),
+        RowSeq(),
       ),
     )
   }
@@ -1384,8 +1394,8 @@ class TableIRSuite {
 
     assertEvalsTo(
       x,
-      Row(
-        (0 until 10).map(i => Row(i, "foo")),
+      RowSeq(
+        (0 until 10).map(i => RowSeq(i, "foo")),
         0 until 5,
       ),
     )
@@ -1437,11 +1447,11 @@ class TableIRSuite {
     assertEvalsTo(
       x,
       FastSeq(
-        Row(0, Row(0L, FastSeq())),
-        Row(1, Row(1L, FastSeq(0))),
-        Row(2, Row(2L, FastSeq(0, 1))),
-        Row(3, Row(3L, FastSeq(0, 1, 2))),
-        Row(4, Row(4L, FastSeq(0, 1, 2, 3))),
+        RowSeq(0, RowSeq(0L, FastSeq())),
+        RowSeq(1, RowSeq(1L, FastSeq(0))),
+        RowSeq(2, RowSeq(2L, FastSeq(0, 1))),
+        RowSeq(3, RowSeq(3L, FastSeq(0, 1, 2))),
+        RowSeq(4, RowSeq(4L, FastSeq(0, 1, 2, 3))),
       ),
     )
   }
@@ -1464,7 +1474,7 @@ class TableIRSuite {
       }
     val table =
       TableParallelize(makestruct("rows" -> ToArray(rows), "global" -> makestruct()), None)
-    assertEvalsTo(TableCollect(table), Row(FastSeq(Row(Row(1))), Row()))
+    assertEvalsTo(TableCollect(table), RowSeq(FastSeq(RowSeq(RowSeq(1))), RowSeq()))
   }
 
   @Test def testTableNativeZippedReaderWithPrefixKey(implicit ctx: ExecuteContext): Unit = {
@@ -1513,14 +1523,14 @@ class TableIRSuite {
           mapIR(part)(InsertFields(_, FastSeq("str" -> Str("foo"))))
         }
       ),
-      Row(IndexedSeq.tabulate(20)(i => Row(i, "foo")), Row("Hello")),
+      RowSeq(IndexedSeq.tabulate(20)(i => RowSeq(i, "foo")), RowSeq("Hello")),
     )
 
     assertEvalsTo(
       collect(
         mapPartitions(table)((_, part) => filterIR(part)(GetField(_, "idx") > 0))
       ),
-      Row(IndexedSeq.tabulate(20)(i => Row(i)).filter(_.getAs[Int](0) > 0), Row("Hello")),
+      RowSeq(IndexedSeq.tabulate(20)(i => RowSeq(i)).filter(_.getAs[Int](0) > 0), RowSeq("Hello")),
     )
 
     assertEvalsTo(
@@ -1531,7 +1541,7 @@ class TableIRSuite {
           }
         }
       ),
-      Row((0 until 20).flatMap(i => (0 until 3).map(j => Row("Hello", j))), Row("Hello")),
+      Row((0 until 20).flatMap(i => (0 until 3).map(j => RowSeq("Hello", j))), RowSeq("Hello")),
     )
 
     assertEvalsTo(
@@ -1543,13 +1553,13 @@ class TableIRSuite {
           )(x => !IsNA(x))
         }
       ),
-      Row(
+      RowSeq(
         IndexedSeq.tabulate(20) { i =>
           // 0,1,2,3,4,5,6,7,8,9,... ==>
           // 0,0,0,0,0,5,5,5,5,5,...
           Row((i / 5) * 5)
         },
-        Row("Hello"),
+        RowSeq("Hello"),
       ),
     )
 

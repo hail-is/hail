@@ -1,6 +1,6 @@
 package is.hail.scalacheck
 
-import is.hail.annotations.Annotation
+import is.hail.annotations.{Annotation, RowSeq}
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.utils.{triangle, uniqueMaxIndex}
 import is.hail.variant._
@@ -9,7 +9,6 @@ import is.hail.variant.Sex.Sex
 
 import scala.collection.compat._
 
-import org.apache.spark.sql.Row
 import org.scalacheck.{Arbitrary, Gen}
 import org.scalacheck.Arbitrary.arbitrary
 import org.scalacheck.Gen._
@@ -180,7 +179,7 @@ private[scalacheck] trait ArbitraryGenomicInstances {
         yield {
           val c =
             gp.flatMap(a => Option(uniqueMaxIndex(a))).map(Call2.fromUnphasedDiploidGtIndex(_))
-          Row(
+          RowSeq(
             c.orNull,
             gp.map(gpx => gpx.map(p => p.toDouble / 32768): IndexedSeq[Double]).orNull,
           )

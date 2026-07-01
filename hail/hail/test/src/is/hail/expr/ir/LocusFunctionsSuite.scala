@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.ExecStrategy
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
+import is.hail.annotations.RowSeq
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.expr.ir.defs.{Apply, ErrorIDs, False, I32, I64, MakeArray, MakeTuple, NA, Str, True}
@@ -10,7 +11,6 @@ import is.hail.types.virtual._
 import is.hail.utils.Interval
 import is.hail.variant.{Locus, ReferenceGenome}
 
-import org.apache.spark.sql.Row
 import org.junit.jupiter.api.Test
 
 class LocusFunctionsSuite {
@@ -64,7 +64,7 @@ class LocusFunctionsSuite {
     val alleles = MakeArray(FastSeq(Str("AA"), Str("AT")), TArray(TString))
     assertEvalsTo(
       invoke("min_rep", tvariant, locusIR, alleles),
-      Row(Locus("chr22", 2), FastSeq("A", "T")),
+      RowSeq(Locus("chr22", 2), FastSeq("A", "T")),
     )
     assertEvalsTo(invoke("min_rep", tvariant, locusIR, NA(TArray(TString))), null)
   }
@@ -90,7 +90,7 @@ class LocusFunctionsSuite {
 
     assertEvalsTo(
       ir,
-      Row(
+      RowSeq(
         Locus("1", 1, ctx.references(ReferenceGenome.GRCh37)),
         Locus("chr1", 1, ctx.references(ReferenceGenome.GRCh38)),
       ),
@@ -184,7 +184,7 @@ class LocusFunctionsSuite {
 
     assertEvalsTo(
       ir,
-      Row(
+      RowSeq(
         null,
         null,
         null,

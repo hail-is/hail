@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.{ExecStrategy, ParameterizedTest}
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
-import is.hail.annotations.{BroadcastRow, ExtendedOrdering, SafeNDArray}
+import is.hail.annotations.{BroadcastRow, ExtendedOrdering, RowSeq, SafeNDArray}
 import is.hail.backend.ExecuteContext
 import is.hail.collection.{FastSeq, IntArrayBuilder}
 import is.hail.collection.compat.immutable.ArraySeq
@@ -106,13 +106,16 @@ class IRSuite {
   }
 
   @Test def testCastRename(implicit ctx: ExecuteContext): Unit = {
-    assertEvalsTo(CastRename(MakeStruct(FastSeq(("x", I32(1)))), TStruct("foo" -> TInt32)), Row(1))
+    assertEvalsTo(
+      CastRename(MakeStruct(FastSeq(("x", I32(1)))), TStruct("foo" -> TInt32)),
+      RowSeq(1),
+    )
     assertEvalsTo(
       CastRename(
         MakeArray(FastSeq(MakeStruct(FastSeq(("x", I32(1))))), TArray(TStruct("x" -> TInt32))),
         TArray(TStruct("foo" -> TInt32)),
       ),
-      FastSeq(Row(1)),
+      FastSeq(RowSeq(1)),
     )
   }
 
@@ -1280,8 +1283,11 @@ class IRSuite {
   }
 
   @Test def testMakeStruct(implicit ctx: ExecuteContext): Unit = {
-    assertEvalsTo(MakeStruct(FastSeq()), Row())
-    assertEvalsTo(MakeStruct(FastSeq("a" -> NA(TInt32), "b" -> 4, "c" -> 0.5)), Row(null, 4, 0.5))
+    assertEvalsTo(MakeStruct(FastSeq()), RowSeq())
+    assertEvalsTo(
+      MakeStruct(FastSeq("a" -> NA(TInt32), "b" -> 4, "c" -> 0.5)),
+      RowSeq(null, 4, 0.5),
+    )
     // making sure wide structs get emitted without failure
     assertEvalsTo(GetField(MakeStruct((0 until 20000).map(i => s"foo$i" -> I32(1))), "foo1"), 1)
   }
@@ -1294,7 +1300,7 @@ class IRSuite {
       "b" -> PCanonicalArray(PInt32(), true),
     ))
 
-    val value = Row(2, FastSeq(1))
+    val value = RowSeq(2, FastSeq(1))
     assertEvalsTo(
       MakeArray(
         In(0, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(pt1.elementType))),
@@ -1306,8 +1312,8 @@ class IRSuite {
   }
 
   @Test def testMakeTuple(implicit ctx: ExecuteContext): Unit = {
-    assertEvalsTo(MakeTuple.ordered(FastSeq()), Row())
-    assertEvalsTo(MakeTuple.ordered(FastSeq(NA(TInt32), 4, 0.5)), Row(null, 4, 0.5))
+    assertEvalsTo(MakeTuple.ordered(FastSeq()), RowSeq())
+    assertEvalsTo(MakeTuple.ordered(FastSeq(NA(TInt32), 4, 0.5)), RowSeq(null, 4, 0.5))
     // making sure wide structs get emitted without failure
     assertEvalsTo(GetTupleElement(MakeTuple.ordered((0 until 20000).map(I32)), 1), 1)
   }
@@ -1465,7 +1471,7 @@ class IRSuite {
       CastToArray(In(0, t)),
       // wtf you can't do null -> ...
       FastSeq((d, t)),
-      FastSeq(Row(1, "a"), Row(2, null), Row(null, "c")),
+      FastSeq(RowSeq(1, "a"), RowSeq(2, null), RowSeq(null, "c")),
     )
   }
 
@@ -1718,11 +1724,11 @@ class IRSuite {
     assertEvalsTo(
       toNestedArray(group(a)),
       FastSeq(
-        FastSeq(Row(3, 1), Row(3, 3)),
-        FastSeq(Row(null, -1)),
-        FastSeq(Row(null, -2)),
-        FastSeq(Row(1, 2), Row(1, 4), Row(1, 6)),
-        FastSeq(Row(4, null)),
+        FastSeq(RowSeq(3, 1), RowSeq(3, 3)),
+        FastSeq(RowSeq(null, -1)),
+        FastSeq(RowSeq(null, -2)),
+        FastSeq(RowSeq(1, 2), RowSeq(1, 4), RowSeq(1, 6)),
+        FastSeq(RowSeq(4, null)),
       ),
     )
     assertEvalsTo(toNestedArray(group(MakeStream(IndexedSeq(), TStream(structType)))), FastSeq())
@@ -1736,21 +1742,21 @@ class IRSuite {
     assertEvalsTo(
       toNestedArray(takeFromEach(a, I32(1))),
       FastSeq(
-        FastSeq(Row(3, 1)),
-        FastSeq(Row(null, -1)),
-        FastSeq(Row(null, -2)),
-        FastSeq(Row(1, 2)),
-        FastSeq(Row(4, null)),
+        FastSeq(RowSeq(3, 1)),
+        FastSeq(RowSeq(null, -1)),
+        FastSeq(RowSeq(null, -2)),
+        FastSeq(RowSeq(1, 2)),
+        FastSeq(RowSeq(4, null)),
       ),
     )
     assertEvalsTo(
       toNestedArray(takeFromEach(a, I32(2))),
       FastSeq(
-        FastSeq(Row(3, 1), Row(3, 3)),
-        FastSeq(Row(null, -1)),
-        FastSeq(Row(null, -2)),
-        FastSeq(Row(1, 2), Row(1, 4)),
-        FastSeq(Row(4, null)),
+        FastSeq(RowSeq(3, 1), RowSeq(3, 3)),
+        FastSeq(RowSeq(null, -1)),
+        FastSeq(RowSeq(null, -2)),
+        FastSeq(RowSeq(1, 2), RowSeq(1, 4)),
+        FastSeq(RowSeq(4, null)),
       ),
     )
   }
@@ -1840,7 +1846,7 @@ class IRSuite {
       { case (elt, Seq(_, y)) => Coalesce(FastSeq(y, elt)) },
     ) { case Seq(x, y) => makestruct("x" -> x, "y" -> y) }
 
-    assertEvalsTo(af, FastSeq((FastSeq(1, 2, 3), TArray(TInt32))), Row(6, 1))
+    assertEvalsTo(af, FastSeq((FastSeq(1, 2, 3), TArray(TInt32))), RowSeq(6, 1))
   }
 
   @Test def testArrayScan(implicit ctx: ExecuteContext): Unit = {
@@ -1900,9 +1906,9 @@ class IRSuite {
   @Test def testNDArrayShape(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.compileOnly
 
-    assertEvalsTo(NDArrayShape(scalarRowMajor), Row())
-    assertEvalsTo(NDArrayShape(vectorRowMajor), Row(2L))
-    assertEvalsTo(NDArrayShape(cubeRowMajor), Row(3L, 3L, 3L))
+    assertEvalsTo(NDArrayShape(scalarRowMajor), RowSeq())
+    assertEvalsTo(NDArrayShape(vectorRowMajor), RowSeq(2L))
+    assertEvalsTo(NDArrayShape(cubeRowMajor), RowSeq(3L, 3L, 3L))
   }
 
   @Test def testNDArrayRef(implicit ctx: ExecuteContext): Unit = {
@@ -1955,7 +1961,7 @@ class IRSuite {
           else
             MakeNDArray(
               Literal(TArray(TInt32), values),
-              Literal(TTuple(TInt64, TInt64), Row(nRows, nCols)),
+              Literal(TTuple(TInt64, TInt64), RowSeq(nRows, nCols)),
               True(),
               ErrorIDs.NO_ERROR,
             )
@@ -2132,10 +2138,10 @@ class IRSuite {
       NDArrayReindex(vectorRowMajor, FastSeq(1, 0)),
       makeNDArray(FastSeq(), FastSeq(0, 2), True()),
     )
-    assertEvalsTo(NDArrayShape(vectorWithEmpty), Row(0L, 2L))
+    assertEvalsTo(NDArrayShape(vectorWithEmpty), RowSeq(0L, 2L))
 
     val colVectorWithEmpty = sum(colVector, makeNDArray(FastSeq(), FastSeq(2, 0), True()))
-    assertEvalsTo(NDArrayShape(colVectorWithEmpty), Row(2L, 0L))
+    assertEvalsTo(NDArrayShape(colVectorWithEmpty), RowSeq(2L, 0L))
   }
 
   @Test def testNDArrayAgg(implicit ctx: ExecuteContext): Unit = {
@@ -2205,7 +2211,7 @@ class IRSuite {
       matrixRowMajor,
       MakeTuple.ordered(IndexedSeq(MakeTuple.ordered(IndexedSeq(I64(0), I64(2), I64(1))), I64(1))),
     )
-    assertEvalsTo(NDArrayShape(rightCol), Row(2L))
+    assertEvalsTo(NDArrayShape(rightCol), RowSeq(2L))
     assertEvalsTo(makeNDArrayRef(rightCol, FastSeq(0)), 2.0)
     assertEvalsTo(makeNDArrayRef(rightCol, FastSeq(1)), 4.0)
 
@@ -2237,26 +2243,26 @@ class IRSuite {
       vectorRowMajor,
       MakeTuple.ordered(FastSeq(sliceTuple(0, 0, 1))),
     )
-    assertEvalsTo(NDArrayShape(emptyVec), Row(0L))
+    assertEvalsTo(NDArrayShape(emptyVec), RowSeq(0L))
 
     val emptyRows = NDArraySlice(
       mat4x5,
       MakeTuple.ordered(FastSeq(sliceTuple(2, 2, 1), sliceTuple(0, 5, 1))),
     )
-    assertEvalsTo(NDArrayShape(emptyRows), Row(0L, 5L))
+    assertEvalsTo(NDArrayShape(emptyRows), RowSeq(0L, 5L))
 
     val emptyCols = NDArraySlice(
       mat4x5,
       MakeTuple.ordered(FastSeq(sliceTuple(0, 4, 1), sliceTuple(3, 3, 1))),
     )
-    assertEvalsTo(NDArrayShape(emptyCols), Row(4L, 0L))
+    assertEvalsTo(NDArrayShape(emptyCols), RowSeq(4L, 0L))
 
     // empty slice with step > 1
     val emptyStride = NDArraySlice(
       mat4x5,
       MakeTuple.ordered(FastSeq(sliceTuple(1, 1, 3), sliceTuple(0, 5, 1))),
     )
-    assertEvalsTo(NDArrayShape(emptyStride), Row(0L, 5L))
+    assertEvalsTo(NDArrayShape(emptyStride), RowSeq(0L, 5L))
 
     // step=2 on rows: select rows 0, 2
     assertNDEvals(
@@ -2465,29 +2471,29 @@ class IRSuite {
     assertEvalsTo(
       zipJoin(ArraySeq(ArraySeq(0, 1, null), ArraySeq(1, 2, null)), 1),
       FastSeq(
-        Row(0, FastSeq(Row(0, "x", 0), null)),
-        Row(1, FastSeq(Row(1, "x", 1), Row(1, "x", 0))),
-        Row(2, FastSeq(null, Row(2, "x", 1))),
-        Row(null, FastSeq(Row(null, "x", 2), null)),
-        Row(null, FastSeq(null, Row(null, "x", 2))),
+        RowSeq(0, FastSeq(RowSeq(0, "x", 0), null)),
+        RowSeq(1, FastSeq(RowSeq(1, "x", 1), RowSeq(1, "x", 0))),
+        RowSeq(2, FastSeq(null, RowSeq(2, "x", 1))),
+        RowSeq(null, FastSeq(RowSeq(null, "x", 2), null)),
+        RowSeq(null, FastSeq(null, RowSeq(null, "x", 2))),
       ),
     )
 
     assertEvalsTo(
       zipJoin(ArraySeq(ArraySeq(0, 1), ArraySeq(1, 2), ArraySeq(0, 2)), 1),
       FastSeq(
-        Row(0, FastSeq(Row(0, "x", 0), null, Row(0, "x", 0))),
-        Row(1, FastSeq(Row(1, "x", 1), Row(1, "x", 0), null)),
-        Row(2, FastSeq(null, Row(2, "x", 1), Row(2, "x", 1))),
+        RowSeq(0, FastSeq(RowSeq(0, "x", 0), null, RowSeq(0, "x", 0))),
+        RowSeq(1, FastSeq(RowSeq(1, "x", 1), RowSeq(1, "x", 0), null)),
+        RowSeq(2, FastSeq(null, RowSeq(2, "x", 1), RowSeq(2, "x", 1))),
       ),
     )
 
     assertEvalsTo(
       zipJoin(ArraySeq(ArraySeq(0, 1), ArraySeq(), ArraySeq(0, 2)), 1),
       FastSeq(
-        Row(0, FastSeq(Row(0, "x", 0), null, Row(0, "x", 0))),
-        Row(1, FastSeq(Row(1, "x", 1), null, null)),
-        Row(2, FastSeq(null, null, Row(2, "x", 1))),
+        RowSeq(0, FastSeq(RowSeq(0, "x", 0), null, RowSeq(0, "x", 0))),
+        RowSeq(1, FastSeq(RowSeq(1, "x", 1), null, null)),
+        RowSeq(2, FastSeq(null, null, RowSeq(2, "x", 1))),
       ),
     )
 
@@ -2499,8 +2505,8 @@ class IRSuite {
     assertEvalsTo(
       zipJoin(ArraySeq(ArraySeq(0, 1)), 1),
       FastSeq(
-        Row(0, FastSeq(Row(0, "x", 0))),
-        Row(1, FastSeq(Row(1, "x", 1))),
+        RowSeq(0, FastSeq(RowSeq(0, "x", 0))),
+        RowSeq(1, FastSeq(RowSeq(1, "x", 1))),
       ),
     )
   }
@@ -2536,36 +2542,36 @@ class IRSuite {
     assertEvalsTo(
       merge(ArraySeq(ArraySeq(0, 1, null, null), ArraySeq(1, 2, null, null)), 1),
       FastSeq(
-        Row(0, "x", 0),
-        Row(1, "x", 1),
-        Row(1, "x", 0),
-        Row(2, "x", 1),
-        Row(null, "x", 2),
-        Row(null, "x", 3),
-        Row(null, "x", 2),
-        Row(null, "x", 3),
+        RowSeq(0, "x", 0),
+        RowSeq(1, "x", 1),
+        RowSeq(1, "x", 0),
+        RowSeq(2, "x", 1),
+        RowSeq(null, "x", 2),
+        RowSeq(null, "x", 3),
+        RowSeq(null, "x", 2),
+        RowSeq(null, "x", 3),
       ),
     )
 
     assertEvalsTo(
       merge(ArraySeq(ArraySeq(0, 1), ArraySeq(1, 2), ArraySeq(0, 2)), 1),
       FastSeq(
-        Row(0, "x", 0),
-        Row(0, "x", 0),
-        Row(1, "x", 1),
-        Row(1, "x", 0),
-        Row(2, "x", 1),
-        Row(2, "x", 1),
+        RowSeq(0, "x", 0),
+        RowSeq(0, "x", 0),
+        RowSeq(1, "x", 1),
+        RowSeq(1, "x", 0),
+        RowSeq(2, "x", 1),
+        RowSeq(2, "x", 1),
       ),
     )
 
     assertEvalsTo(
       merge(ArraySeq(ArraySeq(0, 1), ArraySeq(), ArraySeq(0, 2)), 1),
       FastSeq(
-        Row(0, "x", 0),
-        Row(0, "x", 0),
-        Row(1, "x", 1),
-        Row(2, "x", 1),
+        RowSeq(0, "x", 0),
+        RowSeq(0, "x", 0),
+        RowSeq(1, "x", 1),
+        RowSeq(2, "x", 1),
       ),
     )
 
@@ -2577,8 +2583,8 @@ class IRSuite {
     assertEvalsTo(
       merge(ArraySeq(ArraySeq(0, 1)), 1),
       FastSeq(
-        Row(0, "x", 0),
-        Row(1, "x", 1),
+        RowSeq(0, "x", 0),
+        RowSeq(1, "x", 1),
       ),
     )
   }
@@ -2658,46 +2664,46 @@ class IRSuite {
     assertEvalsTo(
       leftJoinRows(ArraySeq(0, null), ArraySeq(1, null)),
       FastSeq(
-        Row(0, "x", 0L, null, null),
-        Row(null, "x", 1L, null, null),
+        RowSeq(0, "x", 0L, null, null),
+        RowSeq(null, "x", 1L, null, null),
       ),
     )
 
     assertEvalsTo(
       outerJoinRows(ArraySeq(0, null), ArraySeq(1, null)),
       FastSeq(
-        Row(0, "x", 0L, null, null),
-        Row(1, "x", null, 0, "foo"),
-        Row(null, "x", 1L, null, null),
-        Row(null, "x", null, 1, "foo"),
+        RowSeq(0, "x", 0L, null, null),
+        RowSeq(1, "x", null, 0, "foo"),
+        RowSeq(null, "x", 1L, null, null),
+        RowSeq(null, "x", null, 1, "foo"),
       ),
     )
 
     assertEvalsTo(
       leftJoinRows(ArraySeq(0, 1, 2), ArraySeq(1)),
       FastSeq(
-        Row(0, "x", 0L, null, null),
-        Row(1, "x", 1L, 0, "foo"),
-        Row(2, "x", 2L, null, null),
+        RowSeq(0, "x", 0L, null, null),
+        RowSeq(1, "x", 1L, 0, "foo"),
+        RowSeq(2, "x", 2L, null, null),
       ),
     )
 
     assertEvalsTo(
       leftJoinRows(ArraySeq(0, 1, 2), ArraySeq(-1, 0, 0, 1, 1, 2, 2, 3)),
       FastSeq(
-        Row(0, "x", 0L, 1, "foo"),
-        Row(1, "x", 1L, 3, "foo"),
-        Row(2, "x", 2L, 5, "foo"),
+        RowSeq(0, "x", 0L, 1, "foo"),
+        RowSeq(1, "x", 1L, 3, "foo"),
+        RowSeq(2, "x", 2L, 5, "foo"),
       ),
     )
 
     assertEvalsTo(
       leftJoinRows(ArraySeq(0, 1, 1, 2), ArraySeq(-1, 0, 0, 1, 1, 2, 2, 3)),
       FastSeq(
-        Row(0, "x", 0L, 1, "foo"),
-        Row(1, "x", 1L, 3, "foo"),
-        Row(1, "x", 2L, 3, "foo"),
-        Row(2, "x", 3L, 5, "foo"),
+        RowSeq(0, "x", 0L, 1, "foo"),
+        RowSeq(1, "x", 1L, 3, "foo"),
+        RowSeq(1, "x", 2L, 3, "foo"),
+        RowSeq(2, "x", 3L, 5, "foo"),
       ),
     )
   }
@@ -2740,14 +2746,14 @@ class IRSuite {
         ArraySeq(0, 0, 1, 1, 3, 3, null, null),
       ),
       FastSeq(
-        Row(1, 0, 2),
-        Row(1, 0, 3),
-        Row(1, 1, 2),
-        Row(1, 1, 3),
-        Row(2, 2, null),
-        Row(2, 3, null),
-        Row(null, 4, null),
-        Row(null, 5, null),
+        RowSeq(1, 0, 2),
+        RowSeq(1, 0, 3),
+        RowSeq(1, 1, 2),
+        RowSeq(1, 1, 3),
+        RowSeq(2, 2, null),
+        RowSeq(2, 3, null),
+        RowSeq(null, 4, null),
+        RowSeq(null, 5, null),
       ),
     )
 
@@ -2757,20 +2763,20 @@ class IRSuite {
         ArraySeq(0, 0, 1, 1, 3, 3, null, null),
       ),
       FastSeq(
-        Row(0, null, 0),
-        Row(0, null, 1),
-        Row(1, 0, 2),
-        Row(1, 0, 3),
-        Row(1, 1, 2),
-        Row(1, 1, 3),
-        Row(2, 2, null),
-        Row(2, 3, null),
-        Row(3, null, 4),
-        Row(3, null, 5),
-        Row(null, 4, null),
-        Row(null, 5, null),
-        Row(null, null, 6),
-        Row(null, null, 7),
+        RowSeq(0, null, 0),
+        RowSeq(0, null, 1),
+        RowSeq(1, 0, 2),
+        RowSeq(1, 0, 3),
+        RowSeq(1, 1, 2),
+        RowSeq(1, 1, 3),
+        RowSeq(2, 2, null),
+        RowSeq(2, 3, null),
+        RowSeq(3, null, 4),
+        RowSeq(3, null, 5),
+        RowSeq(null, 4, null),
+        RowSeq(null, 5, null),
+        RowSeq(null, null, 6),
+        RowSeq(null, null, 7),
       ),
     )
 
@@ -2780,10 +2786,10 @@ class IRSuite {
         ArraySeq(0, 0, 1, 1, 3, 3, null, null),
       ),
       FastSeq(
-        Row(1, 0, 2),
-        Row(1, 0, 3),
-        Row(1, 1, 2),
-        Row(1, 1, 3),
+        RowSeq(1, 0, 2),
+        RowSeq(1, 0, 3),
+        RowSeq(1, 1, 2),
+        RowSeq(1, 1, 3),
       ),
     )
 
@@ -2793,16 +2799,16 @@ class IRSuite {
         ArraySeq(0, 0, 1, 1, 3, 3, null, null),
       ),
       FastSeq(
-        Row(0, null, 0),
-        Row(0, null, 1),
-        Row(1, 0, 2),
-        Row(1, 0, 3),
-        Row(1, 1, 2),
-        Row(1, 1, 3),
-        Row(3, null, 4),
-        Row(3, null, 5),
-        Row(null, null, 6),
-        Row(null, null, 7),
+        RowSeq(0, null, 0),
+        RowSeq(0, null, 1),
+        RowSeq(1, 0, 2),
+        RowSeq(1, 0, 3),
+        RowSeq(1, 1, 2),
+        RowSeq(1, 1, 3),
+        RowSeq(3, null, 4),
+        RowSeq(3, null, 5),
+        RowSeq(null, null, 6),
+        RowSeq(null, null, 7),
       ),
     )
   }
@@ -2852,20 +2858,20 @@ class IRSuite {
         1,
       ),
       FastSeq(
-        Row(0, -1, 0),
-        Row(0, -1, 1),
-        Row(1, 1, 0),
-        Row(1, 1, 1),
-        Row(1, -1, 2),
-        Row(1, -1, 3),
-        Row(2, 1, 2),
-        Row(2, 1, 3),
-        Row(3, -1, 4),
-        Row(3, -1, 5),
-        Row(null, 1, 4),
-        Row(null, 1, 5),
-        Row(null, -1, 6),
-        Row(null, -1, 7),
+        RowSeq(0, -1, 0),
+        RowSeq(0, -1, 1),
+        RowSeq(1, 1, 0),
+        RowSeq(1, 1, 1),
+        RowSeq(1, -1, 2),
+        RowSeq(1, -1, 3),
+        RowSeq(2, 1, 2),
+        RowSeq(2, 1, 3),
+        RowSeq(3, -1, 4),
+        RowSeq(3, -1, 5),
+        RowSeq(null, 1, 4),
+        RowSeq(null, 1, 5),
+        RowSeq(null, -1, 6),
+        RowSeq(null, -1, 7),
       ),
     )
 
@@ -2873,14 +2879,14 @@ class IRSuite {
     assertEvalsTo(
       mergeRows(ArraySeq(1, 1, 2, 2), ArraySeq(0, 0, 1, 1), 1),
       FastSeq(
-        Row(0, -1, 0),
-        Row(0, -1, 1),
-        Row(1, 1, 0),
-        Row(1, 1, 1),
-        Row(1, -1, 2),
-        Row(1, -1, 3),
-        Row(2, 1, 2),
-        Row(2, 1, 3),
+        RowSeq(0, -1, 0),
+        RowSeq(0, -1, 1),
+        RowSeq(1, 1, 0),
+        RowSeq(1, 1, 1),
+        RowSeq(1, -1, 2),
+        RowSeq(1, -1, 3),
+        RowSeq(2, 1, 2),
+        RowSeq(2, 1, 3),
       ),
     )
 
@@ -2892,20 +2898,20 @@ class IRSuite {
         2,
       ),
       FastSeq(
-        Row(0, -1, 0),
-        Row(0, -1, 1),
-        Row(1, -1, 2),
-        Row(1, -1, 3),
-        Row(1, 1, 0),
-        Row(1, 1, 1),
-        Row(2, 1, 2),
-        Row(2, 1, 3),
-        Row(3, -1, 4),
-        Row(3, -1, 5),
-        Row(null, 1, 4),
-        Row(null, 1, 5),
-        Row(null, -1, 6),
-        Row(null, -1, 7),
+        RowSeq(0, -1, 0),
+        RowSeq(0, -1, 1),
+        RowSeq(1, -1, 2),
+        RowSeq(1, -1, 3),
+        RowSeq(1, 1, 0),
+        RowSeq(1, 1, 1),
+        RowSeq(2, 1, 2),
+        RowSeq(2, 1, 3),
+        RowSeq(3, -1, 4),
+        RowSeq(3, -1, 5),
+        RowSeq(null, 1, 4),
+        RowSeq(null, 1, 5),
+        RowSeq(null, -1, 6),
+        RowSeq(null, -1, 7),
       ),
     )
 
@@ -2913,9 +2919,9 @@ class IRSuite {
     assertEvalsTo(
       mergeRows(ArraySeq(1, 2, null), ArraySeq(), 1),
       FastSeq(
-        Row(1, 1, 0),
-        Row(2, 1, 1),
-        Row(null, 1, 2),
+        RowSeq(1, 1, 0),
+        RowSeq(2, 1, 1),
+        RowSeq(null, 1, 2),
       ),
     )
 
@@ -2923,9 +2929,9 @@ class IRSuite {
     assertEvalsTo(
       mergeRows(ArraySeq(), ArraySeq(1, 2, null), 1),
       FastSeq(
-        Row(1, -1, 0),
-        Row(2, -1, 1),
-        Row(null, -1, 2),
+        RowSeq(1, -1, 0),
+        RowSeq(2, -1, 1),
+        RowSeq(null, -1, 2),
       ),
     )
 
@@ -3021,12 +3027,12 @@ class IRSuite {
     }
 
     val input = FastSeq(
-      Row(null, 1),
-      Row(Call2(0, 0), 2),
-      Row(Call2(0, 1), 3),
-      Row(Call2(1, 1), 4),
+      RowSeq(null, 1),
+      RowSeq(Call2(0, 0), 2),
+      RowSeq(Call2(0, 1), 3),
+      RowSeq(Call2(1, 1), 4),
       null,
-      Row(null, 5),
+      RowSeq(null, 5),
     ) -> TArray(eltType)
 
     assertEvalsTo(
@@ -3057,7 +3063,7 @@ class IRSuite {
         emptyStruct,
         IndexedSeq("a" -> I64(5)),
       ),
-      Row(5L, null),
+      RowSeq(5L, null),
     )
 
     assertEvalsTo(
@@ -3065,7 +3071,7 @@ class IRSuite {
         emptyStruct,
         IndexedSeq("c" -> F64(3.2)),
       ),
-      Row(null, null, 3.2),
+      RowSeq(null, null, 3.2),
     )
 
     assertEvalsTo(
@@ -3073,7 +3079,7 @@ class IRSuite {
         emptyStruct,
         IndexedSeq("c" -> NA(TFloat64)),
       ),
-      Row(null, null, null),
+      RowSeq(null, null, null),
     )
 
     assertEvalsTo(
@@ -3081,7 +3087,7 @@ class IRSuite {
         MakeStruct(IndexedSeq("a" -> NA(TInt64), "b" -> Str("abc"))),
         IndexedSeq(),
       ),
-      Row(null, "abc"),
+      RowSeq(null, "abc"),
     )
 
     assertEvalsTo(
@@ -3089,7 +3095,7 @@ class IRSuite {
         MakeStruct(IndexedSeq("a" -> NA(TInt64), "b" -> Str("abc"))),
         IndexedSeq("a" -> I64(5)),
       ),
-      Row(5L, "abc"),
+      RowSeq(5L, "abc"),
     )
 
     assertEvalsTo(
@@ -3097,7 +3103,7 @@ class IRSuite {
         MakeStruct(IndexedSeq("a" -> NA(TInt64), "b" -> Str("abc"))),
         IndexedSeq("c" -> F64(3.2)),
       ),
-      Row(null, "abc", 3.2),
+      RowSeq(null, "abc", 3.2),
     )
 
     assertEvalsTo(
@@ -3111,8 +3117,8 @@ class IRSuite {
         IndexedSeq("c" -> F64(3.2), "d" -> F64(5.5), "e" -> F64(6.6)),
         Some(FastSeq("c", "d", "e", "a", "b")),
       ),
-      FastSeq(Row(null, "abc") -> s),
-      Row(3.2, 5.5, 6.6, null, "abc"),
+      FastSeq(RowSeq(null, "abc") -> s),
+      RowSeq(3.2, 5.5, 6.6, null, "abc"),
     )
 
     assertEvalsTo(
@@ -3121,8 +3127,8 @@ class IRSuite {
         IndexedSeq("c" -> F64(3.2), "d" -> F64(5.5), "e" -> F64(6.6)),
         Some(FastSeq("a", "b", "c", "d", "e")),
       ),
-      FastSeq(Row(null, "abc") -> s),
-      Row(null, "abc", 3.2, 5.5, 6.6),
+      FastSeq(RowSeq(null, "abc") -> s),
+      RowSeq(null, "abc", 3.2, 5.5, 6.6),
     )
 
     assertEvalsTo(
@@ -3131,8 +3137,8 @@ class IRSuite {
         IndexedSeq("c" -> F64(3.2), "d" -> F64(5.5), "e" -> F64(6.6)),
         Some(FastSeq("c", "a", "d", "b", "e")),
       ),
-      FastSeq(Row(null, "abc") -> s),
-      Row(3.2, null, 5.5, "abc", 6.6),
+      FastSeq(RowSeq(null, "abc") -> s),
+      RowSeq(3.2, null, 5.5, "abc", 6.6),
     )
 
   }
@@ -3151,7 +3157,7 @@ class IRSuite {
         MakeStruct(FastSeq("foo" -> 6, "bar" -> 0.0)),
         FastSeq("foo"),
       ),
-      Row(6),
+      RowSeq(6),
     )
 
     assertEvalsTo(
@@ -3159,7 +3165,7 @@ class IRSuite {
         MakeStruct(FastSeq("a" -> 6, "b" -> 0.0, "c" -> 3L)),
         FastSeq("b", "a"),
       ),
-      Row(0.0, 6),
+      RowSeq(0.0, 6),
     )
   }
 
@@ -3184,7 +3190,7 @@ class IRSuite {
       TDict(TInt32, TString),
     )
     val values = ArraySeq(
-      Row(400, "foo" + poopEmoji, FastSeq(4, 6, 8)),
+      RowSeq(400, "foo" + poopEmoji, FastSeq(4, 6, 8)),
       FastSeq(poopEmoji, "", "foo"),
       Map[Int, String](1 -> "", 5 -> "foo", -4 -> poopEmoji),
     )
@@ -3192,7 +3198,7 @@ class IRSuite {
     assertEvalsTo(Literal(types(0), values(0)), values(0))
     assertEvalsTo(
       MakeTuple.ordered(types.zip(values).map { case (t, v) => Literal(t, v) }),
-      Row.fromSeq(values),
+      RowSeq.fromSeq(values),
     )
     assertEvalsTo(Str("hello" + poopEmoji), "hello" + poopEmoji)
   }
@@ -3219,8 +3225,11 @@ class IRSuite {
   @Test def testTableGetGlobals(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.interpretOnly
     assertEvalsTo(
-      TableGetGlobals(TableMapGlobals(TableRange(0, 1), Literal(TStruct("a" -> TInt32), Row(1)))),
-      Row(1),
+      TableGetGlobals(TableMapGlobals(
+        TableRange(0, 1),
+        Literal(TStruct("a" -> TInt32), RowSeq(1)),
+      )),
+      RowSeq(1),
     )
   }
 
@@ -3229,7 +3238,7 @@ class IRSuite {
 
     val table = TableRange(3, 2)
     val count = ApplyAggOp(Count())()
-    assertEvalsTo(TableAggregate(table, MakeStruct(IndexedSeq("foo" -> count))), Row(3L))
+    assertEvalsTo(TableAggregate(table, MakeStruct(IndexedSeq("foo" -> count))), RowSeq(3L))
   }
 
   @Test def testMatrixAggregate(implicit ctx: ExecuteContext): Unit = {
@@ -3237,7 +3246,7 @@ class IRSuite {
 
     val matrix = MatrixIR.range(ctx, 5, 5, None)
     val count = ApplyAggOp(Count())()
-    assertEvalsTo(MatrixAggregate(matrix, MakeStruct(IndexedSeq("foo" -> count))), Row(25L))
+    assertEvalsTo(MatrixAggregate(matrix, MakeStruct(IndexedSeq("foo" -> count))), RowSeq(25L))
   }
 
   @Test def testGroupByKey(implicit ctx: ExecuteContext): Unit = {
@@ -3279,13 +3288,13 @@ class IRSuite {
       TInterval(TInt32),
     ),
     (
-      Row("foo", 0.0),
+      RowSeq("foo", 0.0),
       TStruct("a" -> TString, "b" -> TFloat64),
       TStruct("a" -> TString, "b" -> TFloat64),
     ),
-    (Row("foo", 0.0), TTuple(TString, TFloat64), TTuple(TString, TFloat64)),
+    (RowSeq("foo", 0.0), TTuple(TString, TFloat64), TTuple(TString, TFloat64)),
     (
-      Row(FastSeq("foo"), 0.0),
+      RowSeq(FastSeq("foo"), 0.0),
       TTuple(TArray(TString), TFloat64),
       TTuple(TArray(TString), TFloat64),
     ),
@@ -3514,7 +3523,7 @@ class IRSuite {
         val left = mapIR(rangeIR(2))(x => MakeStruct(FastSeq("x" -> x)))
         val right = ToStream(Literal(
           TArray(TStruct("a" -> TInterval(TInt32))),
-          FastSeq(Row(Interval(IntervalEndpoint(0, -1), IntervalEndpoint(1, 1)))),
+          FastSeq(RowSeq(Interval(IntervalEndpoint(0, -1), IntervalEndpoint(1, 1)))),
         ))
         val lref = Ref(freshName(), elementType(left.typ))
         val rref = Ref(freshName(), TArray(elementType(right.typ)))
@@ -3597,7 +3606,7 @@ class IRSuite {
       Die("mumblefoo", TFloat64),
       invoke("land", TBoolean, b, c) -> ArraySeq(c), // ApplySpecial
       invoke("toFloat64", TFloat64, i), // Apply
-      Literal(TStruct("x" -> TInt32), Row(1)),
+      Literal(TStruct("x" -> TInt32), RowSeq(1)),
       TableCount(table),
       MatrixCount(mt),
       TableGetGlobals(table),
@@ -3766,7 +3775,7 @@ class IRSuite {
         TableRename(read, Map("idx" -> "idx_foo"), Map("global_f32" -> "global_foo")),
         TableFilterIntervals(
           read,
-          FastSeq(Interval(IntervalEndpoint(Row(0), -1), IntervalEndpoint(Row(10), 1))),
+          FastSeq(Interval(IntervalEndpoint(RowSeq(0), -1), IntervalEndpoint(RowSeq(10), 1))),
           keep = false,
         ),
         RelationalLetTable(freshName(), I32(0), read), {
@@ -3909,7 +3918,7 @@ class IRSuite {
         ),
         MatrixFilterIntervals(
           read,
-          FastSeq(Interval(IntervalEndpoint(Row(0), -1), IntervalEndpoint(Row(10), 1))),
+          FastSeq(Interval(IntervalEndpoint(RowSeq(0), -1), IntervalEndpoint(RowSeq(10), 1))),
           keep = false,
         ),
         RelationalLetMatrixTable(freshName(), I32(0), read),
@@ -4034,7 +4043,7 @@ class IRSuite {
       TableValue(
         ctx,
         t1,
-        BroadcastRow(ctx, Row(1, 1.1), t1.globalType),
+        BroadcastRow(ctx, RowSeq(1, 1.1), t1.globalType),
         RVD.empty(ctx, t1.canonicalRVDType),
       ),
       ctx.theHailClassLoader,
@@ -4043,21 +4052,21 @@ class IRSuite {
       TableValue(
         ctx,
         t2,
-        BroadcastRow(ctx, Row(2, 2.2), t2.globalType),
+        BroadcastRow(ctx, RowSeq(2, 2.2), t2.globalType),
         RVD.empty(ctx, t2.canonicalRVDType),
       ),
       ctx.theHailClassLoader,
     )
 
-    assertEvalsTo(TableGetGlobals(TableJoin(tab1, tab2, "left")), Row(1, 1.1, 2, 2.2))
+    assertEvalsTo(TableGetGlobals(TableJoin(tab1, tab2, "left")), RowSeq(1, 1.1, 2, 2.2))
     assertEvalsTo(
       TableGetGlobals(TableMapGlobals(
         tab1,
         InsertFields(Ref(TableIR.globalName, t1.globalType), IndexedSeq("g1" -> I32(3))),
       )),
-      Row(3, 1.1),
+      RowSeq(3, 1.1),
     )
-    assertEvalsTo(TableGetGlobals(TableRename(tab1, Map.empty, Map("g2" -> "g3"))), Row(1, 1.1))
+    assertEvalsTo(TableGetGlobals(TableRename(tab1, Map.empty, Map("g2" -> "g3"))), RowSeq(1, 1.1))
   }
 
   @Test def testAggLet(implicit ctx: ExecuteContext): Unit = {
@@ -4090,7 +4099,7 @@ class IRSuite {
     val ir = TableAggregate(
       RelationalLetTable(
         x.name,
-        Literal(t, FastSeq(Row(1))),
+        Literal(t, FastSeq(RowSeq(1))),
         TableParallelize(MakeStruct(FastSeq(
           "rows" -> x,
           "global" -> MakeStruct(FastSeq()),
@@ -4125,7 +4134,7 @@ class IRSuite {
       FastSeq(),
     )
     val ir = MatrixAggregate(
-      RelationalLetMatrixTable(x.name, Literal(t, FastSeq(Row(1))), m),
+      RelationalLetMatrixTable(x.name, Literal(t, FastSeq(RowSeq(1))), m),
       ApplyAggOp(Count())(),
     )
     assertEvalsTo(ir, 1L)
@@ -4219,7 +4228,7 @@ class IRSuite {
 
   @Test def testNonCanonicalTypeParsing(implicit ctx: ExecuteContext): Unit = {
     val t = TTuple(FastSeq(TupleField(1, TInt64)))
-    val lit = Literal(t, Row(1L))
+    val lit = Literal(t, RowSeq(1L))
 
     assert(IRParser.parseType(t.parsableString()) == t)
     assert(IRParser.parse_value_ir(ctx, Pretty.sexprStyle(lit, elideLiterals = false)) == lit)
@@ -4243,8 +4252,8 @@ class IRSuite {
       ir.typ.ordering(ctx.stateManager).equiv(
         FastSeq(
           Interval(
-            Row(Locus("20", 10277621)),
-            Row(Locus("20", 11898992)),
+            RowSeq(Locus("20", 10277621)),
+            RowSeq(Locus("20", 11898992)),
             includesStart = true,
             includesEnd = false,
           )
@@ -4373,7 +4382,7 @@ class IRSuite {
         PCanonicalString(),
         PCanonicalStruct(),
       )),
-      Row(3, "bar", Row()): Any,
+      RowSeq(3, "bar", RowSeq()): Any,
     ),
   )
 
@@ -4455,7 +4464,7 @@ class IRSuite {
         behavior,
       )(_ => makestruct("x" -> Str("foo"), "y" -> Str("bar")))
 
-      assertEvalsTo(ToArray(zip), ArraySeq.fill(10)(Row("foo", "bar")))
+      assertEvalsTo(ToArray(zip), ArraySeq.fill(10)(RowSeq("foo", "bar")))
     }
 
   @Test def testStreamDistribute(implicit ctx: ExecuteContext): Unit = {

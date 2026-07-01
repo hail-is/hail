@@ -3,12 +3,12 @@ package is.hail.expr.ir
 import is.hail.ExecStrategy
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
+import is.hail.annotations.RowSeq
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.expr.ir.defs.{ApplyBinaryPrimOp, I64, MakeStruct, TableCount, TableGetGlobals}
 import is.hail.expr.ir.lowering.ExecuteRelational
 
-import org.apache.spark.sql.Row
 import org.junit.jupiter.api.Test
 
 class LiftLiteralsSuite {
@@ -37,6 +37,6 @@ class LiftLiteralsSuite {
       )
     )
 
-    assertEvalsTo(ir, Row(11L))
+    assertEvalsTo(ir, RowSeq(11L))
   }
 }

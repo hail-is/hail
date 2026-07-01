@@ -1,5 +1,6 @@
 package is.hail.methods
 
+import is.hail.annotations.RowSeq
 import is.hail.backend.ExecuteContext
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.TableValue
@@ -102,7 +103,7 @@ object PCRelate {
               val k0 = if (lmK0 == null) null else lmK0(ii, jj)
               val k1 = if (lmK1 == null) null else lmK1(ii, jj)
               val k2 = if (lmK2 == null) null else lmK2(ii, jj)
-              pairs += Row(iOffset + ii, jOffset + jj, kin, k0, k1, k2)
+              pairs += RowSeq(iOffset + ii, jOffset + jj, kin, k0, k1, k2)
             }
             ii += 1
           }
