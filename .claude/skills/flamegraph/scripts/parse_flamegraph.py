@@ -11,6 +11,10 @@ Usage:
     # Filter to specific patterns
     python parse_flamegraph.py profile.html --filter 'is/hail'
 
+    # Trace call paths to a hot function
+    python parse_flamegraph.py profile.html --callers 'ArrayBuilder'
+    python parse_flamegraph.py profile.html --callers 'DECODE' --depth 12
+
     # Show top N functions
     python parse_flamegraph.py profile.html --top 30
 
@@ -22,6 +26,7 @@ import argparse
 import json
 import re
 import sys
+from bisect import bisect_right
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -131,8 +136,6 @@ def _extract_frames(content: str, cpool: list[str]) -> list[Frame]:
 
 def _compute_self_time(frames: list[Frame]) -> dict[str, int]:
     """Self-time: a frame's width minus the sum of its direct children."""
-    from bisect import bisect_right
-
     by_level: dict[int, list[Frame]] = defaultdict(list)
     for f in frames:
         by_level[f.level].append(f)
@@ -163,6 +166,136 @@ def _compute_self_time(frames: list[Frame]) -> dict[str, int]:
             self_time[f.name] += st
 
     return dict(self_time)
+
+
+def _collapse_recursion(stack: tuple[str, ...]) -> tuple:
+    """Collapse consecutive repeated cycles into (cycle_tuple, count) markers.
+
+    Detects repeating subsequences of length 1-3 that occur 3+ times
+    and replaces them with a single copy plus a count.  This merges
+    stacks that differ only in recursion depth.
+    """
+    result: list = []
+    i = 0
+    n = len(stack)
+    while i < n:
+        matched = False
+        for cycle_len in range(1, min(4, (n - i) // 2 + 1)):
+            cycle = stack[i : i + cycle_len]
+            count = 1
+            j = i + cycle_len
+            while j + cycle_len <= n and stack[j : j + cycle_len] == cycle:
+                count += 1
+                j += cycle_len
+            if count >= 3:
+                result.append((tuple(cycle), count))
+                i = j
+                matched = True
+                break
+        if not matched:
+            result.append(stack[i])
+            i += 1
+    return tuple(result)
+
+
+def _trace_callers(
+    fg: FlameGraph, pattern: str, depth: int
+) -> list[tuple[tuple, int]]:
+    """Find call stacks leading to frames matching pattern, grouped by unique stack.
+
+    Stacks are collapsed so that recursive cycles (A -> B -> A -> B ...)
+    appear once with a repetition count, merging stacks that differ only
+    in recursion depth.
+    """
+    pat = re.compile(pattern)
+
+    by_level: dict[int, list[tuple[int, int, str]]] = defaultdict(list)
+    for f in fg.frames:
+        by_level[f.level].append((f.left, f.width, f.name))
+    for lvl in by_level:
+        by_level[lvl].sort()
+
+    targets = [f for f in fg.frames if pat.search(f.name)]
+
+    stacks: dict[tuple, int] = defaultdict(int)
+    for f in targets:
+        stack = []
+        for lvl in range(f.level, -1, -1):
+            entries = by_level[lvl]
+            lefts = [e[0] for e in entries]
+            idx = bisect_right(lefts, f.left) - 1
+            if idx >= 0:
+                pleft, pwidth, pname = entries[idx]
+                if f.left >= pleft and f.left < pleft + pwidth:
+                    stack.append(pname)
+        stack.reverse()
+        collapsed = _collapse_recursion(tuple(stack))
+        if depth and len(collapsed) > depth:
+            collapsed = collapsed[-depth:]
+        stacks[collapsed] += f.width
+
+    return sorted(stacks.items(), key=lambda x: -x[1])
+
+
+def _format_collapsed_stack(stack: tuple) -> list[str]:
+    """Render a collapsed stack as display lines."""
+    lines = []
+    for element in stack:
+        if isinstance(element, tuple):
+            cycle, count = element
+            for frame in cycle[:-1]:
+                lines.append(f"    {frame}")
+            lines.append(f"    {cycle[-1]}  x{count}")
+        else:
+            lines.append(f"    {element}")
+    return lines
+
+
+def _collapsed_stack_to_json(stack: tuple) -> list:
+    """Convert a collapsed stack to a JSON-serializable list."""
+    frames = []
+    for element in stack:
+        if isinstance(element, tuple):
+            cycle, count = element
+            frames.append({"cycle": list(cycle), "count": count})
+        else:
+            frames.append(element)
+    return frames
+
+
+def print_callers(fg: FlameGraph, pattern: str, top_n: int, depth: int):
+    results = _trace_callers(fg, pattern, depth)
+    print(f"File: {fg.path}")
+    print(f"Total samples: {fg.total_samples}")
+    print(f"Pattern: {pattern}")
+    print(f"Matching stacks: {len(results)}")
+    print()
+
+    print(f"=== Top {top_n} call paths to '{pattern}' (by samples) ===")
+    for stack, samples in results[:top_n]:
+        pct = samples / fg.total_samples * 100
+        print(f"\n  [{samples} samples, {pct:.1f}%]")
+        for line in _format_collapsed_stack(stack):
+            print(line)
+    print()
+
+
+def print_json_callers(fg: FlameGraph, pattern: str, top_n: int, depth: int):
+    results = _trace_callers(fg, pattern, depth)
+    out = {
+        "file": fg.path,
+        "total_samples": fg.total_samples,
+        "pattern": pattern,
+        "stacks": [
+            {
+                "samples": samples,
+                "pct": round(samples / fg.total_samples * 100, 2),
+                "frames": _collapsed_stack_to_json(stack),
+            }
+            for stack, samples in results[:top_n]
+        ],
+    }
+    print(json.dumps(out, indent=2))
 
 
 def format_table(rows: list[tuple], headers: tuple, max_name_width: int = 90) -> str:
@@ -367,11 +500,22 @@ def main():
     parser = argparse.ArgumentParser(description="Parse async-profiler flamegraph HTML files")
     parser.add_argument("files", nargs="+", help="One or two .html flamegraph files")
     parser.add_argument("--filter", "-f", help="Regex filter for function names")
-    parser.add_argument("--top", "-n", type=int, default=20, help="Number of top functions to show (default: 20)")
+    parser.add_argument("--top", "-n", type=int, default=20, help="Number of top entries to show (default: 20)")
     parser.add_argument("--json", "-j", action="store_true", help="Output as JSON")
+    parser.add_argument("--callers", "-c", help="Trace call paths to functions matching REGEX")
+    parser.add_argument("--depth", "-d", type=int, default=20, help="Max stack depth to show with --callers (default: 20)")
     args = parser.parse_args()
 
-    if len(args.files) == 1:
+    if args.callers:
+        if len(args.files) != 1:
+            parser.error("--callers requires exactly one file")
+        fg = parse_flamegraph(args.files[0])
+        if args.json:
+            print_json_callers(fg, args.callers, args.top, args.depth)
+        else:
+            print_callers(fg, args.callers, args.top, args.depth)
+
+    elif len(args.files) == 1:
         fg = parse_flamegraph(args.files[0])
         if args.json:
             print_json_single(fg, args.top, args.filter)

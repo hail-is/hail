@@ -32,17 +32,29 @@ The comparison shows:
 - Self-time changes (where CPU time is actually spent, not just call-tree ancestry)
 - Functions unique to each profile
 
+### Single file — trace call paths to a hot function
+
+```bash
+python3 <skill-dir>/scripts/parse_flamegraph.py profile.html --callers 'ArrayBuilder'
+python3 <skill-dir>/scripts/parse_flamegraph.py profile.html --callers 'DECODE' --top 10
+python3 <skill-dir>/scripts/parse_flamegraph.py profile.html --callers 'Region.*allocate' --depth 12
+```
+
+Shows the full call stacks leading to every frame matching the regex, grouped by unique stack and sorted by sample count. Recursive cycles (e.g., mutual recursion between `applyTable` and `lower$2`) are automatically collapsed with a repetition count (`x29`).
+
 ### Flags
 
 | Flag | Effect |
 |------|--------|
 | `--top N` / `-n N` | Show top N entries per section (default 20) |
-| `--filter REGEX` / `-f REGEX` | Only show functions matching the regex |
+| `--filter REGEX` / `-f REGEX` | Only show functions matching the regex (summary/comparison modes) |
 | `--json` / `-j` | Output as JSON for programmatic use |
+| `--callers REGEX` / `-c REGEX` | Trace call paths to functions matching the regex (single file only) |
+| `--depth N` / `-d N` | Max stack depth to show with `--callers` (default 20, 0 = unlimited) |
 
 ### JSON mode
 
-Use `--json` when you need to do further computation on the results (e.g., feeding into another script or building a report). The output is a single JSON object with `inclusive_top` and `self_time_top` arrays (single file), or `by_increase`/`by_decrease` arrays (comparison).
+Use `--json` when you need to do further computation on the results (e.g., feeding into another script or building a report). The output is a single JSON object with `inclusive_top` and `self_time_top` arrays (single file), `by_increase`/`by_decrease` arrays (comparison), or `stacks` array (`--callers`). In `--callers --json` mode, recursive cycles appear as `{"cycle": [...], "count": N}` objects within the frames array.
 
 ## How to interpret the output
 
@@ -91,4 +103,5 @@ Key Hail runtime functions to watch:
 4. Filter to Hail-specific code: `--filter 'hail|__C|split_|DECODE|Region|Memory|LZ4|btree'`
 5. Check for structural changes: new `split_ToArray` (materialization regression), new GCS write paths, new decode steps
 6. Cross-reference with the "functions only in X" sections to find renamed/refactored code paths
-7. Summarize findings: what changed in the generated code, what changed in the runtime, what's the likely root cause
+7. Use `--callers` to trace call paths to any new hotspot: `--callers 'HotFunction' --depth 15`
+8. Summarize findings: what changed in the generated code, what changed in the runtime, what's the likely root cause
