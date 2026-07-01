@@ -464,19 +464,16 @@ case class IndexedRVDSpec2(
 
   override def indexSpec: AbstractIndexSpec = _indexSpec
 
-  override def partitioner(sm: HailStateManager): RVDPartitioner = {
-    val keyType = codecSpec2.encodedVirtualType.asInstanceOf[TStruct].select(key)._1
-    val rangeBoundsType = TArray(TInterval(keyType))
-    new RVDPartitioner(
-      sm,
-      keyType,
-      JSONAnnotationImpex.importAnnotation(
-        _jRangeBounds,
-        rangeBoundsType,
-        padNulls = false,
-      ).asInstanceOf[IndexedSeq[Interval]],
-    )
-  }
+  private[this] val keyType: TStruct =
+    codecSpec2.encodedVirtualType.asInstanceOf[TStruct].select(_key)._1
+
+  private[this] lazy val partitionBounds: IndexedSeq[Interval] =
+    JSONAnnotationImpex
+      .importAnnotation(_jRangeBounds, TArray(TInterval(keyType)), padNulls = false)
+      .asInstanceOf[IndexedSeq[Interval]]
+
+  override def partitioner(sm: HailStateManager): RVDPartitioner =
+    new RVDPartitioner(sm, keyType, partitionBounds)
 
   override def partFiles: IndexedSeq[String] = _partFiles
 
