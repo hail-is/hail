@@ -1045,7 +1045,7 @@ class Aggregators2Suite {
       )
     )
 
-    assertEvalsTo(ir, Row((0 until 10).map(i => RowSeq(i, 2L * i + 12L)), RowSeq()))(
+    assertEvalsTo(ir, RowSeq((0 until 10).map(i => RowSeq(i, 2L * i + 12L)), RowSeq()))(
       ctx,
       ExecStrategy.interpretOnly,
     )
