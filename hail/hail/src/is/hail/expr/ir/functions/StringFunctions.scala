@@ -5,7 +5,7 @@ import is.hail.asm4s._
 import is.hail.collection.{FastSeq, StringArrayBuilder}
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.expr.ir._
+import is.hail.expr.ir.{Memoized => M, _}
 import is.hail.expr.ir.defs._
 import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.concrete.{
@@ -271,7 +271,7 @@ object StringFunctions extends RegistryFunctions {
     cb.memoize(ab.invoke[Array[String]]("result"), "generateSplitQuotedRegexResult")
   }
 
-  def softBounds(i: IR, len: IR): IR =
+  private def softBounds(i: Atom, len: Atom): IR =
     If(i < -len, 0, If(i < 0, i + len, If(i >= len, len, i)))
 
   private val locale: Locale = Locale.US
@@ -311,13 +311,12 @@ object StringFunctions extends RegistryFunctions {
     }
 
     registerIR3("slice", TString, TInt32, TInt32, TString) { (_, str, start, end, _) =>
-      bindIR(invoke("length", TInt32, str)) { len =>
-        bindIRs(
-          softBounds(start, len),
-          softBounds(end, len),
-        ) { case Seq(s, e) =>
-          invoke("substring", TString, str, s, If(e < s, s, e))
-        }
+      M.eval {
+        for {
+          len <- str.invoke("length", TInt32)
+          s <- softBounds(start, len)
+          e <- softBounds(end, len)
+        } yield str.invoke("substring", TString, s, If(e < s, s, e))
       }
     }
 
@@ -327,17 +326,7 @@ object StringFunctions extends RegistryFunctions {
           If(
             (i < -len) || (i >= len),
             Die(
-              invoke(
-                "concat",
-                TString,
-                Str("string index out of bounds: "),
-                invoke(
-                  "concat",
-                  TString,
-                  invoke("str", TString, i),
-                  invoke("concat", TString, Str(" / "), invoke("str", TString, len)),
-                ),
-              ),
+              strConcat("string index out of bounds: ", i, "/", len),
               TInt32,
               errorID,
             ),
