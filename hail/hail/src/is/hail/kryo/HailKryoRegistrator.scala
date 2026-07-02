@@ -1,6 +1,7 @@
 package is.hail.kryo
 
-import is.hail.annotations.{Region, UnsafeIndexedSeq, UnsafeRow}
+import is.hail.annotations.{Region, RowSeq, UnsafeIndexedSeq, UnsafeRow}
+import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.utils.{Interval, SerializableHadoopConfiguration}
 import is.hail.variant.Locus
 
@@ -14,6 +15,9 @@ class HailKryoRegistrator extends KryoRegistrator {
     kryo.register(classOf[SerializableHadoopConfiguration], new JavaSerializer())
     kryo.register(classOf[UnsafeRow])
     kryo.register(classOf[GenericRow])
+    kryo.register(classOf[RowSeq])
+    kryo.register(classOf[ArraySeq.ofRef[_]])
+    kryo.register(classOf[ArraySeq.ofByte])
     kryo.register(classOf[Locus])
     kryo.register(classOf[Interval])
     kryo.register(classOf[UnsafeIndexedSeq])

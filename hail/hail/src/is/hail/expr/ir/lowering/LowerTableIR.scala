@@ -1045,7 +1045,7 @@ object LowerTableIR extends Logging {
             },
           ),
           TableStageDependency.none,
-          ToStream(Literal(TArray(contextType), ranges.map(Row.fromTuple))),
+          ToStream(Literal(TArray(contextType), ranges.map(RowSeq.fromTuple))),
           ctxRef =>
             StreamRange(ctxRef.get("start"), ctxRef.get("end"), 1, true)
               .streamMap(i => makestruct("idx" -> i)),
