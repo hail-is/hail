@@ -168,23 +168,23 @@ package object ir extends CompileOps with LowerPriorityImplicits {
   def guardIR(condition: IR)(body: IR): IR =
     If(condition, body, NA(body.typ))
 
-  def mapIR(stream: IR)(f: Atom => IR): IR = {
+  def mapIR(stream: IR)(f: Atom => IR): IR with TypedIR[TStream] = {
     val ref = Ref(freshName(), tcoerce[TStream](stream.typ).elementType)
     StreamMap(stream, ref.name, f(ref))
   }
 
-  def mapArray(array: IR)(f: Atom => IR): IR =
+  def mapArray(array: IR)(f: Atom => IR): IR with TypedIR[TArray] =
     ToArray(mapIR(ToStream(array))(f))
 
   def concatIR(containers: IR*): IR =
     flatten(MakeStream(containers: _*))
 
-  def flatMapIR(stream: IR)(f: Atom => IR): IR = {
+  def flatMapIR(stream: IR)(f: Atom => IR): IR with TypedIR[TStream] = {
     val ref = Ref(freshName(), tcoerce[TStream](stream.typ).elementType)
     StreamFlatMap(stream, ref.name, f(ref))
   }
 
-  def flatten(stream: IR): IR =
+  def flatten(stream: IR): IR with TypedIR[TStream] =
     flatMapIR(if (stream.typ.isInstanceOf[TStream]) stream else ToStream(stream)) { elt =>
       if (elt.typ.isInstanceOf[TStream]) elt else ToStream(elt)
     }
@@ -241,8 +241,8 @@ package object ir extends CompileOps with LowerPriorityImplicits {
   )(
     f: (Atom, Atom) => IR
   ): IR = {
-    val lRef = Ref(freshName(), left.typ.asInstanceOf[TStream].elementType)
-    val rRef = Ref(freshName(), right.typ.asInstanceOf[TStream].elementType)
+    val lRef = Ref(freshName(), TIterable.elementType(left.typ))
+    val rRef = Ref(freshName(), TIterable.elementType(right.typ))
     StreamJoin(
       left,
       right,
@@ -272,10 +272,31 @@ package object ir extends CompileOps with LowerPriorityImplicits {
     joinType: String,
   )(
     f: (Atom, Atom) => IR
-  ): IR = {
-    val lRef = Ref(freshName(), left.typ.asInstanceOf[TStream].elementType)
-    val rRef = Ref(freshName(), right.typ.asInstanceOf[TStream].elementType)
+  ): IR with TypedIR[TStream] = {
+    val lRef = Ref(freshName(), TIterable.elementType(left.typ))
+    val rRef = Ref(freshName(), TIterable.elementType(right.typ))
     StreamJoinRightDistinct(left, right, lkey, rkey, lRef.name, rRef.name, f(lRef, rRef), joinType)
+  }
+
+  def leftIntervalJoinIR(
+    left: IR,
+    right: IR,
+    keyField: String,
+    intervalField: String,
+  )(
+    f: (Atom, Atom) => IR
+  ): IR with TypedIR[TStream] = {
+    val lRef = Ref(freshName(), TIterable.elementType(left.typ))
+    val rRef = Ref(freshName(), TArray(TIterable.elementType(right.typ)))
+    StreamLeftIntervalJoin(
+      left,
+      right,
+      keyField,
+      intervalField,
+      lRef.name,
+      rRef.name,
+      f(lRef, rRef),
+    )
   }
 
   def streamSumIR(stream: IR): IR =

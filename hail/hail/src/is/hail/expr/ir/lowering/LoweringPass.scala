@@ -95,8 +95,8 @@ case object LowerOrInterpretNonCompilablePass extends LoweringPass {
 
 case class LowerToDistributedArrayPass(t: DArrayLowering.Type) extends LoweringPass {
   override val context: String = "LowerToDistributedArray"
-  override def before: Invariant = AnyIR and NoMatrixIR
-  override def after: Invariant = AnyIR and CompilableIR
+  override def before: Invariant = LowerableIR and NoMatrixIR
+  override def after: Invariant = LowerableIR and CompilableIR
 
   override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR =
     LowerToCDA(ir.asInstanceOf[IR], t, ctx)

@@ -961,19 +961,18 @@ class TableIRSuite {
   }
 
   @Test def testWriteKeyDistinctness(implicit ctx: ExecuteContext): Unit = {
-    val rt = TableRange(40, 4)
-    val idxRef = GetField(Ref(TableIR.rowName, rt.typ.rowType), "idx")
-    val at = TableMapRows(
-      rt,
-      MakeStruct(FastSeq(
-        "idx" -> idxRef,
-        "const" -> 5,
-        "half" -> idxRef.floorDiv(2),
-        "oneRepeat" -> If(idxRef ceq I32(10), I32(9), idxRef),
-        "oneMissing" -> If(idxRef ceq I32(4), NA(TInt32), idxRef),
-        "twoMissing" -> If((idxRef ceq 10) || (idxRef ceq 2), NA(TInt32), idxRef),
-      )),
-    )
+    val at = TableRange(40, 4).mapRows { (_, row) =>
+      row.get("idx").bind { idx =>
+        makestruct(
+          "idx" -> idx,
+          "const" -> 5,
+          "half" -> idx.floorDiv(2),
+          "oneRepeat" -> If(idx ceq I32(10), I32(9), idx),
+          "oneMissing" -> If(idx ceq I32(4), NA(TInt32), idx),
+          "twoMissing" -> If((idx ceq 10) || (idx ceq 2), NA(TInt32), idx),
+        )
+      }
+    }
     val keyedByConst = TableKeyBy(at, IndexedSeq("const"))
     val pathConst = ctx.createTmpPath("test-table-write-distinctness", "ht")
     Interpret[Unit](ctx, TableWrite(keyedByConst, TableNativeWriter(pathConst)))

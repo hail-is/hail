@@ -32,28 +32,23 @@ object LowerTableIRHelpers {
       loweredRight,
       joinKey,
       joinType,
-      (lGlobals, rGlobals) => {
-        val rGlobalType = rGlobals.typ.asInstanceOf[TStruct]
-        bindIR(rGlobals) { rGlobalRef =>
-          InsertFields(lGlobals, rGlobalType.fieldNames.map(f => f -> GetField(rGlobalRef, f)))
-        }
-      },
-      (lEltRef, rEltRef) => {
+      (l, r) => l.insert(r.typ.asInstanceOf[TStruct].fieldNames.map(f => f -> r.get(f))),
+      (lElem, rElem) =>
         MakeStruct(
           lKeyFields.lazyZip(rKeyFields).map { (lKey, rKey) =>
-            if (joinType == "outer" && lReq.field(lKey).required && rReq.field(rKey).required)
-              lKey -> Coalesce(FastSeq(
-                GetField(lEltRef, lKey),
-                GetField(rEltRef, rKey),
-                Die("TableJoin expected non-missing key", left.typ.rowType.fieldType(lKey), -1),
-              ))
-            else
-              lKey -> Coalesce(FastSeq(GetField(lEltRef, lKey), GetField(rEltRef, rKey)))
+            val die =
+              if (joinType == "outer" && lReq.field(lKey).required && rReq.field(rKey).required)
+                FastSeq(
+                  Die("TableJoin expected non-missing key", left.typ.rowType.fieldType(lKey), -1)
+                )
+              else
+                FastSeq()
+
+            lKey -> Coalesce(FastSeq(lElem.get(lKey), rElem.get(rKey)) ++ die)
           }
-            ++ lValueFields.map(f => f -> GetField(lEltRef, f))
-            ++ rValueFields.map(f => f -> GetField(rEltRef, f))
-        )
-      },
+            ++ lValueFields.map(f => f -> GetField(lElem, f))
+            ++ rValueFields.map(f => f -> GetField(rElem, f))
+        ),
       rightKeyIsDistinct,
     )
 

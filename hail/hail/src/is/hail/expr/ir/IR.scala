@@ -7,6 +7,7 @@ import is.hail.collection.FastSeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.agg.PhysicalAggSig
 import is.hail.expr.ir.defs._
+import is.hail.expr.ir.defs.ArrayZipBehavior.{ArrayZipBehavior, AssertSameLength}
 import is.hail.expr.ir.functions._
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, TypedCodecSpec}
@@ -111,8 +112,8 @@ class IROps(val ir: IR) extends AnyVal {
 
   def isNA: IR = IsNA(ir)
 
-  def if_(csq: IR)(alt: IR): IR =
-    If(ir, csq, alt)
+  def if_(cond: IR)(alt: IR): IR =
+    If(cond, ir, alt)
 
   def orElse(alt: IR): IR =
     bind(x => If(IsNA(x), alt, x))
@@ -187,6 +188,12 @@ class IROps(val ir: IR) extends AnyVal {
 
   def parallelize(nPartitions: Option[Int] = None): TableIR =
     TableParallelize(ir, nPartitions)
+
+  def zip(that: IR, behavior: ArrayZipBehavior = AssertSameLength)(f: (Atom, Atom) => IR): IR =
+    zip2(ir, that, behavior)(f)
+
+  def zipWithIndex: IR =
+    is.hail.expr.ir.zipWithIndex(ir)
 }
 
 package defs {
@@ -277,10 +284,8 @@ package defs {
       requiresMemoryManagement: Boolean,
       rightKeyIsDistinct: Boolean = false,
     ): IR = {
-      val lType = tcoerce[TStream](left.typ)
-      val rType = tcoerce[TStream](right.typ)
-      val lEltType = tcoerce[TStruct](lType.elementType)
-      val rEltType = tcoerce[TStruct](rType.elementType)
+      val lEltType = TIterable.elementType(left.typ).asInstanceOf[TStruct]
+      val rEltType = TIterable.elementType(right.typ).asInstanceOf[TStruct]
       assert(lEltType.typeAfterSelectNames(lKey) isJoinableWith rEltType.typeAfterSelectNames(rKey))
 
       if (!rightKeyIsDistinct) {
@@ -297,19 +302,10 @@ package defs {
           }
         }
 
-        val rElt = Ref(freshName(), tcoerce[TStream](rightGrouped.typ).elementType)
-        val lElt = Ref(freshName(), lEltType)
-        val makeTupleFromJoin = MakeStruct(FastSeq("left" -> lElt, "rightGroup" -> rElt))
-        val joined = StreamJoinRightDistinct(
-          left,
-          rightGrouped,
-          lKey,
-          rKey,
-          lElt.name,
-          rElt.name,
-          makeTupleFromJoin,
-          joinType,
-        )
+        val joined =
+          joinRightDistinctIR(left, rightGrouped, lKey, rKey, joinType) { (l, r) =>
+            makestruct("left" -> l, "rightGroup" -> r)
+          }
 
         // joined is a stream of {leftElement, rightGroup}
         bindIR(MakeArray(NA(rEltType))) { missingSingleton =>
