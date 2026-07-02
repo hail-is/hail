@@ -143,7 +143,7 @@ case class MatrixValue(
       path + "/globals",
       PCanonicalStruct.empty(required = true),
       bufferSpec,
-      ArraySeq[Annotation](Row()),
+      ArraySeq[Annotation](RowSeq()),
     ): Unit
 
     val globalsSpec = TableSpecParameters(

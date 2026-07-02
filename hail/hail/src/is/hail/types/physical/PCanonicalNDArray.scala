@@ -1,6 +1,6 @@
 package is.hail.types.physical
 
-import is.hail.annotations.{Annotation, NDArray, Region, UnsafeOrdering}
+import is.hail.annotations.{Annotation, NDArray, Region, RowSeq, UnsafeOrdering}
 import is.hail.asm4s.{Code, _}
 import is.hail.asm4s.implicits.valueToRichCodeRegion
 import is.hail.backend.HailStateManager
@@ -13,8 +13,6 @@ import is.hail.types.physical.stypes.SValue
 import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual.{TNDArray, Type}
-
-import org.apache.spark.sql.Row
 
 final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boolean = false)
     extends PNDArray {
@@ -440,11 +438,11 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
       val srcShape = srcPType.asInstanceOf[PNDArray].unstagedLoadShapes(srcAddress)
       val srcStrides = srcPType.asInstanceOf[PNDArray].unstagedLoadStrides(srcAddress)
 
-      shapeType.unstagedStoreJavaObjectAtAddress(sm, destAddress, Row(srcShape: _*), region)
+      shapeType.unstagedStoreJavaObjectAtAddress(sm, destAddress, RowSeq(srcShape: _*), region)
       strideType.unstagedStoreJavaObjectAtAddress(
         sm,
         destAddress + shapeType.byteSize,
-        Row(srcStrides: _*),
+        RowSeq(srcStrides: _*),
         region,
       )
 
@@ -586,12 +584,12 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
       elementType.unstagedStoreJavaObjectAtAddress(sm, curElementAddress, element, region)
       curElementAddress += elementType.byteSize
     }
-    val shapeRow = Row(aNDArray.shape: _*)
-    val stridesRow = Row(ArraySeq.unsafeWrapArray(stridesArray): _*)
+    val shapeRow = RowSeq(aNDArray.shape: _*)
+    val stridesRow = RowSeq(ArraySeq.unsafeWrapArray(stridesArray): _*)
     this.representation.unstagedStoreJavaObjectAtAddress(
       sm,
       addr,
-      Row(shapeRow, stridesRow, dataFirstElementAddress),
+      RowSeq(shapeRow, stridesRow, dataFirstElementAddress),
       region,
     )
   }

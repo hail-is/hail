@@ -158,7 +158,7 @@ object ExtendedOrdering {
       val missingEqual = _missingEqual
 
       private def toArrayOfT(x: T): Array[T] =
-        x.asInstanceOf[Map[_, _]].iterator.map { case (k, v) => Row(k, v): T }.toArray
+        x.asInstanceOf[Map[_, _]].iterator.map { case (k, v) => RowSeq(k, v): T }.toArray
 
       override def compareNonnull(x: T, y: T): Int =
         saOrd.compareNonnull(

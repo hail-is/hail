@@ -3,6 +3,7 @@ package is.hail.expr.ir.table
 import is.hail.ExecStrategy
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
+import is.hail.annotations.RowSeq
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.expr.ir._
@@ -16,7 +17,6 @@ import is.hail.types.virtual._
 import is.hail.utils.{HailException, Interval}
 
 import org.apache.spark.SparkException
-import org.apache.spark.sql.Row
 import org.junit.jupiter.api.Test
 import org.scalatest.matchers.should.Matchers.{intercept => _, _}
 
@@ -113,7 +113,7 @@ class TableGenSuite {
   @Test
   def testLowering(implicit ctx: ExecuteContext): Unit = {
     val rows = collect(mkTableGen())
-    assertEvalsTo(rows, Row(FastSeq(0, 0).map(Row(_)), Row(0)))
+    assertEvalsTo(rows, RowSeq(FastSeq(0, 0).map(RowSeq(_)), RowSeq(0)))
   }
 
   @Test
@@ -138,8 +138,8 @@ class TableGenSuite {
         ctx.stateManager,
         TStruct("a" -> TInt32),
         FastSeq(
-          Interval(Row(0), Row(0), true, false),
-          Interval(Row(1), Row(1), true, false),
+          Interval(RowSeq(0), RowSeq(0), true, false),
+          Interval(RowSeq(1), RowSeq(1), true, false),
         ),
       )),
       errorId = Some(errorId),

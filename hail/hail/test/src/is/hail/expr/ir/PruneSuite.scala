@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.ParameterizedTest
+import is.hail.annotations.RowSeq
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
@@ -16,7 +17,6 @@ import is.hail.types.virtual._
 
 import scala.collection.mutable
 
-import org.apache.spark.sql.Row
 import org.json4s.JValue
 import org.junit.jupiter.api.Test
 
@@ -154,9 +154,15 @@ class PruneSuite {
               )),
               "global" -> TStruct("g1" -> TInt32, "g2" -> TInt32),
             ),
-            Row(
-              FastSeq(Row("hi", FastSeq(Row(1)), "bye", Row(2, FastSeq(Row("bar"))), "foo")),
-              Row(5, 10),
+            RowSeq(
+              FastSeq(RowSeq(
+                "hi",
+                FastSeq(RowSeq(1)),
+                "bye",
+                RowSeq(2, FastSeq(RowSeq("bar"))),
+                "foo",
+              )),
+              RowSeq(5, 10),
             ),
           ),
           None,
@@ -194,8 +200,8 @@ class PruneSuite {
     ctx,
     mType,
     RVD.empty(ctx, mType.canonicalTableType.canonicalRVDType),
-    Row(1, 1.0),
-    FastSeq(Row("1", 2, FastSeq(Row(3)))),
+    RowSeq(1, 1.0),
+    FastSeq(RowSeq("1", 2, FastSeq(RowSeq(3)))),
   )
 
   def mr(implicit ctx: ExecuteContext) = MatrixRead(

@@ -230,12 +230,12 @@ class VEP(private val params: VEPParameters, conf: VEPConfiguration)
 
     val globalValue =
       if (params.csq)
-        Row(getCSQHeaderDefinition(cmd, conf.env).getOrElse {
+        RowSeq(getCSQHeaderDefinition(cmd, conf.env).getOrElse {
           logger.warn(f"Could not get VEP CSQ header, cmd = ${cmd.mkString(" ")}")
           ""
         })
       else
-        Row()
+        RowSeq()
 
     TableValue(ctx, outType, BroadcastRow(ctx, globalValue, outType.globalType), vepRVD)
   }

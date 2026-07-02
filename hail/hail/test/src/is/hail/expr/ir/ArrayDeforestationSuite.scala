@@ -2,13 +2,13 @@ package is.hail.expr.ir
 
 import is.hail.ExecStrategy
 import is.hail.TestUtils._
+import is.hail.annotations.RowSeq
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.expr.ir.defs.{
   GetField, GetTupleElement, If, MakeStruct, MakeTuple, StreamRange, ToArray, ToStream,
 }
 
-import org.apache.spark.sql.Row
 import org.junit.jupiter.api.Test
 
 class ArrayDeforestationSuite {
@@ -54,8 +54,8 @@ class ArrayDeforestationSuite {
 
   @Test def testArrayFold(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats: ExecStrategy.ValueSet = ExecStrategy.values
-    assertEvalsTo(arrayFoldWithStructWithPrimitiveValues(5, -5, -6), Row(5, 4))
-    assertEvalsTo(arrayFoldWithStruct(5, -5, -6), Row(Row(4, 0), Row(5, 0)))
+    assertEvalsTo(arrayFoldWithStructWithPrimitiveValues(5, -5, -6), RowSeq(5, 4))
+    assertEvalsTo(arrayFoldWithStruct(5, -5, -6), RowSeq(RowSeq(4, 0), RowSeq(5, 0)))
   }
 
 }

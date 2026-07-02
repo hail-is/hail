@@ -33,7 +33,7 @@ class MultiArray2[@specialized(Int, Long, Float, Double, Boolean) T](
     override def length: Int = n1
   }
 
-  def row(i: Int) = new Row(i)
+  def row(i: Int): Row = new Row(i)
   def column(j: Int) = new Column(j)
 
   def rows: Iterable[Row] = for (i <- rowIndices) yield row(i)

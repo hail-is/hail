@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.ExecStrategy
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
+import is.hail.annotations.RowSeq
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
@@ -13,7 +14,6 @@ import is.hail.rvd.RVDPartitioner
 import is.hail.types.virtual._
 import is.hail.utils._
 
-import org.apache.spark.sql.Row
 import org.junit.jupiter.api.{BeforeEach, Test}
 
 class IntervalSuite {
@@ -44,16 +44,16 @@ class IntervalSuite {
   val i5 = interval(NA(tpoint1), point(2), true, null)
 
   @Test def constructor(implicit ctx: ExecuteContext): Unit = {
-    assertEvalsTo(i1, Interval(Row(1), Row(2), true, false))
-    assertEvalsTo(i2, Interval(Row(1), null, true, false))
-    assertEvalsTo(i3, Interval(null, Row(2), true, false))
+    assertEvalsTo(i1, Interval(RowSeq(1), RowSeq(2), true, false))
+    assertEvalsTo(i2, Interval(RowSeq(1), null, true, false))
+    assertEvalsTo(i3, Interval(null, RowSeq(2), true, false))
     assertEvalsTo(i4, null)
     assertEvalsTo(i5, null)
   }
 
   @Test def start(implicit ctx: ExecuteContext): Unit = {
-    assertEvalsTo(invoke("start", tpoint1, i1), Row(1))
-    assertEvalsTo(invoke("start", tpoint1, i2), Row(1))
+    assertEvalsTo(invoke("start", tpoint1, i1), RowSeq(1))
+    assertEvalsTo(invoke("start", tpoint1, i2), RowSeq(1))
     assertEvalsTo(invoke("start", tpoint1, i3), null)
     assertEvalsTo(invoke("start", tpoint1, na), null)
   }
@@ -64,9 +64,9 @@ class IntervalSuite {
   }
 
   @Test def end(implicit ctx: ExecuteContext): Unit = {
-    assertEvalsTo(invoke("end", tpoint1, i1), Row(2))
+    assertEvalsTo(invoke("end", tpoint1, i1), RowSeq(2))
     assertEvalsTo(invoke("end", tpoint1, i2), null)
-    assertEvalsTo(invoke("end", tpoint1, i3), Row(2))
+    assertEvalsTo(invoke("end", tpoint1, i3), RowSeq(2))
     assertEvalsTo(invoke("end", tpoint1, na), null)
   }
 
@@ -247,9 +247,9 @@ class IntervalSuite {
       ctx.stateManager,
       partitionerKType,
       ArraySeq(
-        Interval(Row(1, 0), Row(4, 3), true, false),
-        Interval(Row(4, 3), Row(7, 9), true, false),
-        Interval(Row(7, 11), Row(10, 0), true, true),
+        Interval(RowSeq(1, 0), RowSeq(4, 3), true, false),
+        Interval(RowSeq(4, 3), RowSeq(7, 9), true, false),
+        Interval(RowSeq(7, 11), RowSeq(10, 0), true, true),
       ),
     ).partitionBoundsIRRepresentation
   }
@@ -264,14 +264,14 @@ class IntervalSuite {
       )
       assertEvalsTo(
         invoke("partitionerFindIntervalRange", resultType, partitioner, irInterval),
-        Row(startIdx, endIdx),
+        RowSeq(startIdx, endIdx),
       )
     }
-    assertRange(Interval(Row(3, 4, 0), Row(7, 11), true, true), 0, 3)
-    assertRange(Interval(Row(3, 4), Row(7, 9), true, false), 0, 2)
-    assertRange(Interval(Row(4), Row(5), true, true), 0, 2)
-    assertRange(Interval(Row(4), Row(5), false, true), 1, 2)
-    assertRange(Interval(Row(-1, 7), Row(0, 9), true, false), 0, 0)
+    assertRange(Interval(RowSeq(3, 4, 0), RowSeq(7, 11), true, true), 0, 3)
+    assertRange(Interval(RowSeq(3, 4), RowSeq(7, 9), true, false), 0, 2)
+    assertRange(Interval(RowSeq(4), RowSeq(5), true, true), 0, 2)
+    assertRange(Interval(RowSeq(4), RowSeq(5), false, true), 1, 2)
+    assertRange(Interval(RowSeq(-1, 7), RowSeq(0, 9), true, false), 0, 0)
   }
 
   @Test def testPointPartitionIntervalEndpointComparison(implicit ctx: ExecuteContext): Unit = {

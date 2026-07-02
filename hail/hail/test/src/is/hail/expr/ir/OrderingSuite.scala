@@ -471,7 +471,7 @@ class OrderingSuite {
       ctx.r.pool.scopedRegion { region =>
         val soff = pset.unstagedStoreJavaObject(sm, set, region)
 
-        val eoff = pTuple.unstagedStoreJavaObject(sm, Row(elem), region)
+        val eoff = pTuple.unstagedStoreJavaObject(sm, RowSeq(elem), region)
 
         val fb = EmitFunctionBuilder[Region, Long, Long, Int](ctx, "binary_search")
         val cset = fb.getCodeParam[Long](2)
@@ -524,7 +524,7 @@ class OrderingSuite {
         val soff = pDict.unstagedStoreJavaObject(sm, dict, region)
 
         val ptuple = PCanonicalTuple(false, FastSeq(pDict.keyType): _*)
-        val eoff = ptuple.unstagedStoreJavaObject(sm, Row(key), region)
+        val eoff = ptuple.unstagedStoreJavaObject(sm, RowSeq(key), region)
 
         val fb = EmitFunctionBuilder[Region, Long, Long, Int](ctx, "binary_search_dict")
         val cdict = fb.getCodeParam[Long](2)
@@ -679,7 +679,7 @@ class OrderingSuite {
     val rs = for {
       x <- xs
       s <- ss
-    } yield Row(x, s)
+    } yield RowSeq(x, s)
 
     for {
       r <- rs

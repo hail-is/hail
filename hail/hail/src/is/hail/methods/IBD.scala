@@ -82,7 +82,7 @@ case class ExtendedIBDInfo(ibd: IBDInfo, ibs0: Long, ibs1: Long, ibs2: Long) {
 
   def hasNaNs: Boolean = ibd.hasNaNs
 
-  def makeRow(i: Any, j: Any): Row = Row(i, j, ibd.toAnnotation, ibs0, ibs1, ibs2)
+  def makeRow(i: Any, j: Any): Row = RowSeq(i, j, ibd.toAnnotation, ibs0, ibs1, ibs2)
 
   def toRegionValue(rvb: RegionValueBuilder): Unit = {
     rvb.startStruct()

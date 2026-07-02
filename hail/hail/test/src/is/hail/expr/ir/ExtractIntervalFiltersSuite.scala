@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.ExecStrategy
 import is.hail.TestUtils._
+import is.hail.annotations.RowSeq
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.expr.ir.defs._
@@ -37,7 +38,7 @@ class ExtractIntervalFiltersSuite {
     MakeStruct(FastSeq("y" -> GetField(structRef, "y"))),
   )
 
-  def wrappedIntervalEndpoint(x: Any, sign: Int) = IntervalEndpoint(Row(x), sign)
+  def wrappedIntervalEndpoint(x: Any, sign: Int) = IntervalEndpoint(RowSeq(x), sign)
 
   def grch38(implicit ctx: ExecuteContext): ReferenceGenome = ctx.references(ReferenceGenome.GRCh38)
 
@@ -69,7 +70,7 @@ class ExtractIntervalFiltersSuite {
       key.typ.asInstanceOf[TStruct].fieldNames,
     )
     if (result.isEmpty) {
-      assert(trueIntervals == FastSeq(Interval(Row(), Row(), true, true)))
+      assert(trueIntervals == FastSeq(Interval(RowSeq(), RowSeq(), true, true)))
       return
     }
     val (rw, intervals) = result.get
@@ -123,16 +124,16 @@ class ExtractIntervalFiltersSuite {
 
   @Test def testIsNA(implicit ctx: ExecuteContext): Unit = {
     val testRows = FastSeq(
-      Row(0, 0, true),
-      Row(0, null, true),
+      RowSeq(0, 0, true),
+      RowSeq(0, null, true),
     )
     checkAll(
       IsNA(k1),
       ref1,
       k1Full,
       testRows,
-      FastSeq(Interval(Row(null), Row(), true, true)),
-      FastSeq(Interval(Row(), Row(null), true, false)),
+      FastSeq(Interval(RowSeq(null), RowSeq(), true, true)),
+      FastSeq(Interval(RowSeq(), RowSeq(null), true, false)),
       FastSeq(),
     )
   }
@@ -146,10 +147,10 @@ class ExtractIntervalFiltersSuite {
       naIntervals: IndexedSeq[Interval],
     ): Unit = {
       val testRows = FastSeq(
-        Row(0, -1, true),
-        Row(0, 0, true),
-        Row(0, 1, true),
-        Row(0, null, true),
+        RowSeq(0, -1, true),
+        RowSeq(0, 0, true),
+        RowSeq(0, 1, true),
+        RowSeq(0, null, true),
       )
 
       checkAll(
@@ -193,48 +194,48 @@ class ExtractIntervalFiltersSuite {
     check(
       LT,
       I32(0),
-      FastSeq(Interval(Row(), Row(0), true, false)),
-      FastSeq(Interval(Row(0), Row(null), true, false)),
-      FastSeq(Interval(Row(null), Row(), true, true)),
+      FastSeq(Interval(RowSeq(), RowSeq(0), true, false)),
+      FastSeq(Interval(RowSeq(0), RowSeq(null), true, false)),
+      FastSeq(Interval(RowSeq(null), RowSeq(), true, true)),
     )
     check(
       GT,
       I32(0),
-      FastSeq(Interval(Row(0), Row(null), false, false)),
-      FastSeq(Interval(Row(), Row(0), true, true)),
-      FastSeq(Interval(Row(null), Row(), true, true)),
+      FastSeq(Interval(RowSeq(0), RowSeq(null), false, false)),
+      FastSeq(Interval(RowSeq(), RowSeq(0), true, true)),
+      FastSeq(Interval(RowSeq(null), RowSeq(), true, true)),
     )
     check(
       EQ,
       I32(0),
-      FastSeq(Interval(Row(0), Row(0), true, true)),
+      FastSeq(Interval(RowSeq(0), RowSeq(0), true, true)),
       FastSeq(
-        Interval(Row(), Row(0), true, false),
-        Interval(Row(0), Row(null), false, false),
+        Interval(RowSeq(), RowSeq(0), true, false),
+        Interval(RowSeq(0), RowSeq(null), false, false),
       ),
-      FastSeq(Interval(Row(null), Row(), true, true)),
+      FastSeq(Interval(RowSeq(null), RowSeq(), true, true)),
     )
 
     // These are never true (always missing), extracts the empty set of intervals
-    check(LT, NA(TInt32), FastSeq(), FastSeq(), FastSeq(Interval(Row(), Row(), true, true)))
-    check(GT, NA(TInt32), FastSeq(), FastSeq(), FastSeq(Interval(Row(), Row(), true, true)))
-    check(EQ, NA(TInt32), FastSeq(), FastSeq(), FastSeq(Interval(Row(), Row(), true, true)))
+    check(LT, NA(TInt32), FastSeq(), FastSeq(), FastSeq(Interval(RowSeq(), RowSeq(), true, true)))
+    check(GT, NA(TInt32), FastSeq(), FastSeq(), FastSeq(Interval(RowSeq(), RowSeq(), true, true)))
+    check(EQ, NA(TInt32), FastSeq(), FastSeq(), FastSeq(Interval(RowSeq(), RowSeq(), true, true)))
 
     check(
       EQWithNA,
       I32(0),
-      FastSeq(Interval(Row(0), Row(0), true, true)),
+      FastSeq(Interval(RowSeq(0), RowSeq(0), true, true)),
       FastSeq(
-        Interval(Row(), Row(0), true, false),
-        Interval(Row(0), Row(), false, true),
+        Interval(RowSeq(), RowSeq(0), true, false),
+        Interval(RowSeq(0), RowSeq(), false, true),
       ),
       FastSeq(),
     )
     check(
       EQWithNA,
       NA(TInt32),
-      FastSeq(Interval(Row(null), Row(), true, true)),
-      FastSeq(Interval(Row(), Row(null), true, false)),
+      FastSeq(Interval(RowSeq(null), RowSeq(), true, true)),
+      FastSeq(Interval(RowSeq(), RowSeq(null), true, false)),
       FastSeq(),
     )
 
@@ -254,10 +255,10 @@ class ExtractIntervalFiltersSuite {
       naIntervals: IndexedSeq[Interval],
     ): Unit = {
       val testRows = FastSeq(
-        Row(0, 1, true),
-        Row(0, 5, true),
-        Row(0, 10, true),
-        Row(0, null, true),
+        RowSeq(0, 1, true),
+        RowSeq(0, 5, true),
+        RowSeq(0, 10, true),
+        RowSeq(0, null, true),
       )
       checkAll(node, ref1, k1Full, testRows, trueIntervals, falseIntervals, naIntervals)
     }
@@ -270,14 +271,14 @@ class ExtractIntervalFiltersSuite {
       check(
         invoke("contains", TBoolean, lit, k1),
         FastSeq(
-          Interval(Row(1), Row(1), true, true),
-          Interval(Row(10), Row(10), true, true),
-          Interval(Row(null), Row(), true, true),
+          Interval(RowSeq(1), RowSeq(1), true, true),
+          Interval(RowSeq(10), RowSeq(10), true, true),
+          Interval(RowSeq(null), RowSeq(), true, true),
         ),
         FastSeq(
-          Interval(Row(), Row(1), true, false),
-          Interval(Row(1), Row(10), false, false),
-          Interval(Row(10), Row(null), false, false),
+          Interval(RowSeq(), RowSeq(1), true, false),
+          Interval(RowSeq(1), RowSeq(10), false, false),
+          Interval(RowSeq(10), RowSeq(null), false, false),
         ),
         FastSeq(),
       )
@@ -291,13 +292,13 @@ class ExtractIntervalFiltersSuite {
       check(
         invoke("contains", TBoolean, lit, k1),
         FastSeq(
-          Interval(Row(1), Row(1), true, true),
-          Interval(Row(10), Row(10), true, true),
+          Interval(RowSeq(1), RowSeq(1), true, true),
+          Interval(RowSeq(10), RowSeq(10), true, true),
         ),
         FastSeq(
-          Interval(Row(), Row(1), true, false),
-          Interval(Row(1), Row(10), false, false),
-          Interval(Row(10), Row(), false, true),
+          Interval(RowSeq(), RowSeq(1), true, false),
+          Interval(RowSeq(1), RowSeq(10), false, false),
+          Interval(RowSeq(10), RowSeq(), false, true),
         ),
         FastSeq(),
       )
@@ -312,13 +313,13 @@ class ExtractIntervalFiltersSuite {
       naIntervals: IndexedSeq[Interval],
     ): Unit = {
       val testRows = FastSeq(
-        Row(0, 1, 2),
-        Row(0, 3, 4),
-        Row(0, 3, null),
-        Row(0, 5, null),
-        Row(0, 5, 5),
-        Row(0, null, 1),
-        Row(0, null, null),
+        RowSeq(0, 1, 2),
+        RowSeq(0, 3, 4),
+        RowSeq(0, 3, null),
+        RowSeq(0, 5, null),
+        RowSeq(0, 5, 5),
+        RowSeq(0, null, 1),
+        RowSeq(0, null, null),
       )
       checkAll(
         node,
@@ -332,26 +333,26 @@ class ExtractIntervalFiltersSuite {
     }
 
     Array(
-      Literal(TSet(structT1), Set(Row(1, 2), Row(3, 4), Row(3, null))),
-      Literal(TArray(structT1), FastSeq(Row(3, 4), Row(1, 2), Row(3, null))),
+      Literal(TSet(structT1), Set(RowSeq(1, 2), RowSeq(3, 4), RowSeq(3, null))),
+      Literal(TArray(structT1), FastSeq(RowSeq(3, 4), RowSeq(1, 2), RowSeq(3, null))),
       Literal(
         TDict(structT1, TString),
-        Map(Row(1, 2) -> "foo", Row(3, 4) -> "bar", Row(3, null) -> "baz"),
+        Map(RowSeq(1, 2) -> "foo", RowSeq(3, 4) -> "bar", RowSeq(3, null) -> "baz"),
       ),
     ).foreach { lit =>
       fullKeyRefs.foreach { k =>
         check(
           invoke("contains", TBoolean, lit, k),
           IndexedSeq(
-            Interval(Row(1, 2), Row(1, 2), true, true),
-            Interval(Row(3, 4), Row(3, 4), true, true),
-            Interval(Row(3, null), Row(3, null), true, true),
+            Interval(RowSeq(1, 2), RowSeq(1, 2), true, true),
+            Interval(RowSeq(3, 4), RowSeq(3, 4), true, true),
+            Interval(RowSeq(3, null), RowSeq(3, null), true, true),
           ),
           IndexedSeq(
-            Interval(Row(), Row(1, 2), true, false),
-            Interval(Row(1, 2), Row(3, 4), false, false),
-            Interval(Row(3, 4), Row(3, null), false, false),
-            Interval(Row(3, null), Row(), false, true),
+            Interval(RowSeq(), RowSeq(1, 2), true, false),
+            Interval(RowSeq(1, 2), RowSeq(3, 4), false, false),
+            Interval(RowSeq(3, 4), RowSeq(3, null), false, false),
+            Interval(RowSeq(3, null), RowSeq(), false, true),
           ),
           IndexedSeq(),
         )
@@ -359,22 +360,25 @@ class ExtractIntervalFiltersSuite {
     }
 
     Array(
-      Literal(TSet(structT2), Set(Row(1), Row(3), Row(null))),
-      Literal(TArray(structT2), FastSeq(Row(3), Row(null), Row(1))),
-      Literal(TDict(structT2, TString), Map(Row(1) -> "foo", Row(null) -> "baz", Row(3) -> "bar")),
+      Literal(TSet(structT2), Set(RowSeq(1), RowSeq(3), RowSeq(null))),
+      Literal(TArray(structT2), FastSeq(RowSeq(3), RowSeq(null), RowSeq(1))),
+      Literal(
+        TDict(structT2, TString),
+        Map(RowSeq(1) -> "foo", RowSeq(null) -> "baz", RowSeq(3) -> "bar"),
+      ),
     ).foreach { lit =>
       prefixKeyRefs.foreach { k =>
         check(
           invoke("contains", TBoolean, lit, k),
           IndexedSeq(
-            Interval(Row(1), Row(1), true, true),
-            Interval(Row(3), Row(3), true, true),
-            Interval(Row(null), Row(), true, true),
+            Interval(RowSeq(1), RowSeq(1), true, true),
+            Interval(RowSeq(3), RowSeq(3), true, true),
+            Interval(RowSeq(null), RowSeq(), true, true),
           ),
           IndexedSeq(
-            Interval(Row(), Row(1), true, false),
-            Interval(Row(1), Row(3), false, false),
-            Interval(Row(3), Row(null), false, false),
+            Interval(RowSeq(), RowSeq(1), true, false),
+            Interval(RowSeq(1), RowSeq(3), false, false),
+            Interval(RowSeq(3), RowSeq(null), false, false),
           ),
           IndexedSeq(),
         )
@@ -385,11 +389,11 @@ class ExtractIntervalFiltersSuite {
   @Test def testIntervalContains(implicit ctx: ExecuteContext): Unit = {
     val interval = Interval(1, 5, false, true)
     val testRows = FastSeq(
-      Row(0, 0, true),
-      Row(0, 1, true),
-      Row(0, 5, true),
-      Row(0, 10, true),
-      Row(0, null, true),
+      RowSeq(0, 0, true),
+      RowSeq(0, 1, true),
+      RowSeq(0, 5, true),
+      RowSeq(0, 10, true),
+      RowSeq(0, null, true),
     )
 
     val ir = invoke("contains", TBoolean, Literal(TInterval(TInt32), interval), k1)
@@ -398,18 +402,18 @@ class ExtractIntervalFiltersSuite {
       ref1,
       k1Full,
       testRows,
-      FastSeq(Interval(Row(1), Row(5), false, true)),
+      FastSeq(Interval(RowSeq(1), RowSeq(5), false, true)),
       FastSeq(
-        Interval(Row(), Row(1), true, true),
-        Interval(Row(5), Row(null), false, false),
+        Interval(RowSeq(), RowSeq(1), true, true),
+        Interval(RowSeq(5), RowSeq(null), false, false),
       ),
-      FastSeq(Interval(Row(null), Row(), true, true)),
+      FastSeq(Interval(RowSeq(null), RowSeq(), true, true)),
     )
   }
 
   @Test def testIntervalContainsStruct(implicit ctx: ExecuteContext): Unit = {
-    val fullInterval = Interval(Row(1, 1), Row(2, 2), false, true)
-    val prefixInterval = Interval(Row(1), Row(2), false, true)
+    val fullInterval = Interval(RowSeq(1, 1), RowSeq(2, 2), false, true)
+    val prefixInterval = Interval(RowSeq(1), RowSeq(2), false, true)
 
     def check(
       node: IR,
@@ -418,17 +422,17 @@ class ExtractIntervalFiltersSuite {
       naIntervals: IndexedSeq[Interval],
     ): Unit = {
       val testRows = FastSeq(
-        Row(0, null, 0),
-        Row(0, 0, 0),
-        Row(0, 0, null),
-        Row(0, 1, 0),
-        Row(0, 1, 1),
-        Row(0, 1, null),
-        Row(0, 2, 1),
-        Row(0, 2, 2),
-        Row(0, 2, null),
-        Row(0, 3, 0),
-        Row(0, null, null),
+        RowSeq(0, null, 0),
+        RowSeq(0, 0, 0),
+        RowSeq(0, 0, null),
+        RowSeq(0, 1, 0),
+        RowSeq(0, 1, 1),
+        RowSeq(0, 1, null),
+        RowSeq(0, 2, 1),
+        RowSeq(0, 2, 2),
+        RowSeq(0, 2, null),
+        RowSeq(0, 3, 0),
+        RowSeq(0, null, null),
       )
       checkAll(
         node,
@@ -446,8 +450,8 @@ class ExtractIntervalFiltersSuite {
         invoke("contains", TBoolean, Literal(TInterval(structT1), fullInterval), k),
         FastSeq(fullInterval),
         FastSeq(
-          Interval(Row(), Row(1, 1), true, true),
-          Interval(Row(2, 2), Row(), false, true),
+          Interval(RowSeq(), RowSeq(1, 1), true, true),
+          Interval(RowSeq(2, 2), RowSeq(), false, true),
         ),
         FastSeq(),
       )
@@ -458,8 +462,8 @@ class ExtractIntervalFiltersSuite {
         invoke("contains", TBoolean, Literal(TInterval(structT2), prefixInterval), k),
         FastSeq(prefixInterval),
         FastSeq(
-          Interval(Row(), Row(1), true, true),
-          Interval(Row(2), Row(), false, true),
+          Interval(RowSeq(), RowSeq(1), true, true),
+          Interval(RowSeq(2), RowSeq(), false, true),
         ),
         FastSeq(),
       )
@@ -474,21 +478,26 @@ class ExtractIntervalFiltersSuite {
     val ir2 = eq(invoke("contig", TString, k), Str("chr2"))
 
     val testRows = FastSeq(
-      Row(Locus("chr1", 5)),
-      Row(Locus("chr2", 1)),
-      Row(Locus("chr2", 1000)),
-      Row(Locus("chr3", 5)),
-      Row(null),
+      RowSeq(Locus("chr1", 5)),
+      RowSeq(Locus("chr2", 1)),
+      RowSeq(Locus("chr2", 1000)),
+      RowSeq(Locus("chr3", 5)),
+      RowSeq(null),
     )
 
     val trueIntervals = FastSeq(
-      Interval(Row(Locus("chr2", 1)), Row(Locus("chr2", grch38.contigLength("chr2"))), true, false)
+      Interval(
+        RowSeq(Locus("chr2", 1)),
+        RowSeq(Locus("chr2", grch38.contigLength("chr2"))),
+        true,
+        false,
+      )
     )
     val falseIntervals = FastSeq(
-      Interval(Row(), Row(Locus("chr2", 1)), true, false),
-      Interval(Row(Locus("chr2", grch38.contigLength("chr2"))), Row(null), true, false),
+      Interval(RowSeq(), RowSeq(Locus("chr2", 1)), true, false),
+      Interval(RowSeq(Locus("chr2", grch38.contigLength("chr2"))), RowSeq(null), true, false),
     )
-    val naIntervals = FastSeq(Interval(Row(null), Row(), true, true))
+    val naIntervals = FastSeq(Interval(RowSeq(null), RowSeq(), true, true))
 
     checkAll(ir1, ref, ref, testRows, trueIntervals, falseIntervals, naIntervals)
     checkAll(ir2, ref, ref, testRows, trueIntervals, falseIntervals, naIntervals)
@@ -517,15 +526,15 @@ class ExtractIntervalFiltersSuite {
       val naIntervals = ExtractIntervalFilters.liftPosIntervalsToLocus(naPosIntervals, grch38, ctx)
 
       val testRows = FastSeq(
-        Row(Locus("chr1", 1)),
-        Row(Locus("chr1", 5)),
-        Row(Locus("chr1", 100)),
-        Row(Locus("chr1", 105)),
-        Row(Locus("chr2", 1)),
-        Row(Locus("chr2", 5)),
-        Row(Locus("chr2", 100)),
-        Row(Locus("chr3", 105)),
-        Row(null),
+        RowSeq(Locus("chr1", 1)),
+        RowSeq(Locus("chr1", 5)),
+        RowSeq(Locus("chr1", 100)),
+        RowSeq(Locus("chr1", 105)),
+        RowSeq(Locus("chr2", 1)),
+        RowSeq(Locus("chr2", 5)),
+        RowSeq(Locus("chr2", 100)),
+        RowSeq(Locus("chr3", 105)),
+        RowSeq(null),
       )
 
       checkAll(
@@ -569,58 +578,58 @@ class ExtractIntervalFiltersSuite {
     check(
       GT,
       100,
-      FastSeq(Interval(Row(100), Row(null), false, false)),
-      FastSeq(Interval(Row(), Row(100), true, true)),
-      FastSeq(Interval(Row(null), Row(), true, true)),
+      FastSeq(Interval(RowSeq(100), RowSeq(null), false, false)),
+      FastSeq(Interval(RowSeq(), RowSeq(100), true, true)),
+      FastSeq(Interval(RowSeq(null), RowSeq(), true, true)),
     )
     check(
       GT,
       -1000,
-      FastSeq(Interval(Row(1), Row(null), true, false)),
+      FastSeq(Interval(RowSeq(1), RowSeq(null), true, false)),
       FastSeq(),
-      FastSeq(Interval(Row(null), Row(), true, true)),
+      FastSeq(Interval(RowSeq(null), RowSeq(), true, true)),
     )
 
     check(
       LT,
       100,
-      FastSeq(Interval(Row(), Row(100), true, false)),
-      FastSeq(Interval(Row(100), Row(null), true, false)),
-      FastSeq(Interval(Row(null), Row(), true, true)),
+      FastSeq(Interval(RowSeq(), RowSeq(100), true, false)),
+      FastSeq(Interval(RowSeq(100), RowSeq(null), true, false)),
+      FastSeq(Interval(RowSeq(null), RowSeq(), true, true)),
     )
     check(
       LT,
       -1000,
       FastSeq(),
-      FastSeq(Interval(Row(), Row(null), true, false)),
-      FastSeq(Interval(Row(null), Row(), true, true)),
+      FastSeq(Interval(RowSeq(), RowSeq(null), true, false)),
+      FastSeq(Interval(RowSeq(null), RowSeq(), true, true)),
     )
 
     check(
       EQ,
       100,
-      FastSeq(Interval(Row(100), Row(100), true, true)),
+      FastSeq(Interval(RowSeq(100), RowSeq(100), true, true)),
       FastSeq(
-        Interval(Row(), Row(100), true, false),
-        Interval(Row(100), Row(null), false, false),
+        Interval(RowSeq(), RowSeq(100), true, false),
+        Interval(RowSeq(100), RowSeq(null), false, false),
       ),
-      FastSeq(Interval(Row(null), Row(), true, true)),
+      FastSeq(Interval(RowSeq(null), RowSeq(), true, true)),
     )
     check(
       EQ,
       -1000,
       FastSeq(),
-      FastSeq(Interval(Row(), Row(null), true, false)),
-      FastSeq(Interval(Row(null), Row(), true, true)),
+      FastSeq(Interval(RowSeq(), RowSeq(null), true, false)),
+      FastSeq(Interval(RowSeq(null), RowSeq(), true, true)),
     )
 
     check(
       EQWithNA,
       100,
-      FastSeq(Interval(Row(100), Row(100), true, true)),
+      FastSeq(Interval(RowSeq(100), RowSeq(100), true, true)),
       FastSeq(
-        Interval(Row(), Row(100), true, false),
-        Interval(Row(100), Row(), false, true),
+        Interval(RowSeq(), RowSeq(100), true, false),
+        Interval(RowSeq(100), RowSeq(), false, true),
       ),
       FastSeq(),
     )
@@ -628,7 +637,7 @@ class ExtractIntervalFiltersSuite {
       EQWithNA,
       -1000,
       FastSeq(),
-      FastSeq(Interval(Row(), Row(), true, true)),
+      FastSeq(Interval(RowSeq(), RowSeq(), true, true)),
       FastSeq(),
     )
 
@@ -652,10 +661,10 @@ class ExtractIntervalFiltersSuite {
       naIntervals: IndexedSeq[Interval],
     ): Unit = {
       val testRows = FastSeq(
-        Row(Locus("chr1", 5)),
-        Row(Locus("chr2", 1)),
-        Row(Locus("chr10", 5)),
-        Row(null),
+        RowSeq(Locus("chr1", 5)),
+        RowSeq(Locus("chr2", 1)),
+        RowSeq(Locus("chr10", 5)),
+        RowSeq(null),
       )
       checkAll(node, ref, ref, testRows, trueIntervals, falseIntervals, naIntervals)
     }
@@ -672,35 +681,35 @@ class ExtractIntervalFiltersSuite {
         invoke("contains", TBoolean, lit, contig),
         FastSeq(
           Interval(
-            Row(Locus("chr1", 1)),
-            Row(Locus("chr1", grch38.contigLength("chr1"))),
+            RowSeq(Locus("chr1", 1)),
+            RowSeq(Locus("chr1", grch38.contigLength("chr1"))),
             true,
             false,
           ),
           Interval(
-            Row(Locus("chr10", 1)),
-            Row(Locus("chr10", grch38.contigLength("chr10"))),
+            RowSeq(Locus("chr10", 1)),
+            RowSeq(Locus("chr10", grch38.contigLength("chr10"))),
             true,
             false,
           ),
-          Interval(Row(null), Row(), true, true),
+          Interval(RowSeq(null), RowSeq(), true, true),
         ),
         FastSeq(
           Interval(
-            Row(),
-            Row(Locus("chr1", 1)),
+            RowSeq(),
+            RowSeq(Locus("chr1", 1)),
             true,
             false,
           ),
           Interval(
-            Row(Locus("chr1", grch38.contigLength("chr1"))),
-            Row(Locus("chr10", 1)),
+            RowSeq(Locus("chr1", grch38.contigLength("chr1"))),
+            RowSeq(Locus("chr10", 1)),
             true,
             false,
           ),
           Interval(
-            Row(Locus("chr10", grch38.contigLength("chr10"))),
-            Row(null),
+            RowSeq(Locus("chr10", grch38.contigLength("chr10"))),
+            RowSeq(null),
             true,
             false,
           ),
@@ -718,34 +727,34 @@ class ExtractIntervalFiltersSuite {
         invoke("contains", TBoolean, lit, contig),
         FastSeq(
           Interval(
-            Row(Locus("chr1", 1)),
-            Row(Locus("chr1", grch38.contigLength("chr1"))),
+            RowSeq(Locus("chr1", 1)),
+            RowSeq(Locus("chr1", grch38.contigLength("chr1"))),
             true,
             false,
           ),
           Interval(
-            Row(Locus("chr10", 1)),
-            Row(Locus("chr10", grch38.contigLength("chr10"))),
+            RowSeq(Locus("chr10", 1)),
+            RowSeq(Locus("chr10", grch38.contigLength("chr10"))),
             true,
             false,
           ),
         ),
         FastSeq(
           Interval(
-            Row(),
-            Row(Locus("chr1", 1)),
+            RowSeq(),
+            RowSeq(Locus("chr1", 1)),
             true,
             false,
           ),
           Interval(
-            Row(Locus("chr1", grch38.contigLength("chr1"))),
-            Row(Locus("chr10", 1)),
+            RowSeq(Locus("chr1", grch38.contigLength("chr1"))),
+            RowSeq(Locus("chr10", 1)),
             true,
             false,
           ),
           Interval(
-            Row(Locus("chr10", grch38.contigLength("chr10"))),
-            Row(),
+            RowSeq(Locus("chr10", grch38.contigLength("chr10"))),
+            RowSeq(),
             true,
             true,
           ),
@@ -775,18 +784,18 @@ class ExtractIntervalFiltersSuite {
       naIntervals: IndexedSeq[Interval],
     ): Unit = {
       val testRows = FastSeq(
-        Row(0, -15, true),
-        Row(0, -10, true),
-        Row(0, -5, true),
-        Row(0, 0, true),
-        Row(0, 5, true),
-        Row(0, 10, true),
-        Row(0, 15, true),
-        Row(0, 20, true),
-        Row(0, 22, true),
-        Row(0, 25, true),
-        Row(0, 30, true),
-        Row(0, null, true),
+        RowSeq(0, -15, true),
+        RowSeq(0, -10, true),
+        RowSeq(0, -5, true),
+        RowSeq(0, 0, true),
+        RowSeq(0, 5, true),
+        RowSeq(0, 10, true),
+        RowSeq(0, 15, true),
+        RowSeq(0, 20, true),
+        RowSeq(0, 22, true),
+        RowSeq(0, 25, true),
+        RowSeq(0, 30, true),
+        RowSeq(0, null, true),
       )
       checkAll(node, ref1, k1Full, testRows, trueIntervals, falseIntervals, naIntervals)
     }
@@ -799,15 +808,15 @@ class ExtractIntervalFiltersSuite {
     check(
       containsKey(inIntervals),
       FastSeq(
-        Interval(Row(-10), Row(10), true, false),
-        Interval(Row(20), Row(25), true, false),
+        Interval(RowSeq(-10), RowSeq(10), true, false),
+        Interval(RowSeq(20), RowSeq(25), true, false),
       ),
       FastSeq(
-        Interval(Row(), Row(-10), true, false),
-        Interval(Row(10), Row(20), true, false),
-        Interval(Row(25), Row(null), true, false),
+        Interval(RowSeq(), RowSeq(-10), true, false),
+        Interval(RowSeq(10), RowSeq(20), true, false),
+        Interval(RowSeq(25), RowSeq(null), true, false),
       ),
-      FastSeq(Interval(Row(null), Row(), true, true)),
+      FastSeq(Interval(RowSeq(null), RowSeq(), true, true)),
     )
 
     // Whenever the previous would be false, this is instead missing, because of the null
@@ -815,14 +824,14 @@ class ExtractIntervalFiltersSuite {
     check(
       containsKey(inIntervalsWithNull),
       FastSeq(
-        Interval(Row(-10), Row(10), true, false),
-        Interval(Row(20), Row(25), true, false),
+        Interval(RowSeq(-10), RowSeq(10), true, false),
+        Interval(RowSeq(20), RowSeq(25), true, false),
       ),
       FastSeq(),
       FastSeq(
-        Interval(Row(), Row(-10), true, false),
-        Interval(Row(10), Row(20), true, false),
-        Interval(Row(25), Row(), true, true),
+        Interval(RowSeq(), RowSeq(-10), true, false),
+        Interval(RowSeq(10), RowSeq(20), true, false),
+        Interval(RowSeq(25), RowSeq(), true, true),
       ),
     )
   }
@@ -838,18 +847,18 @@ class ExtractIntervalFiltersSuite {
       naResidual: IR = True(),
     ): Unit = {
       val testRows = FastSeq(
-        Row(0, 0, true),
-        Row(0, 0, false),
-        Row(0, 5, true),
-        Row(0, 5, false),
-        Row(0, 7, true),
-        Row(0, 7, false),
-        Row(0, 10, true),
-        Row(0, 10, false),
-        Row(0, 15, true),
-        Row(0, 15, false),
-        Row(0, null, true),
-        Row(0, null, false),
+        RowSeq(0, 0, true),
+        RowSeq(0, 0, false),
+        RowSeq(0, 5, true),
+        RowSeq(0, 5, false),
+        RowSeq(0, 7, true),
+        RowSeq(0, 7, false),
+        RowSeq(0, 10, true),
+        RowSeq(0, 10, false),
+        RowSeq(0, 15, true),
+        RowSeq(0, 15, false),
+        RowSeq(0, null, true),
+        RowSeq(0, null, false),
       )
       checkAll(node, ref1, k1Full, testRows, trueIntervals, falseIntervals, naIntervals,
         trueResidual, falseResidual, naResidual)
@@ -861,22 +870,22 @@ class ExtractIntervalFiltersSuite {
     check(
       or(lt5, gt10),
       FastSeq(
-        Interval(Row(), Row(5), true, false),
-        Interval(Row(10), Row(null), false, false),
+        Interval(RowSeq(), RowSeq(5), true, false),
+        Interval(RowSeq(10), RowSeq(null), false, false),
       ),
-      FastSeq(Interval(Row(5), Row(10), true, true)),
-      FastSeq(Interval(Row(null), Row(), true, true)),
+      FastSeq(Interval(RowSeq(5), RowSeq(10), true, true)),
+      FastSeq(Interval(RowSeq(null), RowSeq(), true, true)),
     )
 
     check(
       or(lt5, unknownBool),
       // could be true anywhere, since unknownBool might be true
-      FastSeq(Interval(Row(), Row(), true, true)),
+      FastSeq(Interval(RowSeq(), RowSeq(), true, true)),
       // can only be false if lt5 is false
-      FastSeq(Interval(Row(5), Row(null), true, false)),
+      FastSeq(Interval(RowSeq(5), RowSeq(null), true, false)),
       // can only be missing if lt5 is missing (and unknown is false or missing),
       // or if lt5 is false (and unknown is missing)
-      FastSeq(Interval(Row(5), Row(), true, true)),
+      FastSeq(Interval(RowSeq(5), RowSeq(), true, true)),
       // we've filtered to the rows where lt5 is false
       falseResidual = not(or(False(), unknownBool)),
       // we've filtered to where lt5 is false or missing, so can't simplify
@@ -885,9 +894,12 @@ class ExtractIntervalFiltersSuite {
 
     check(
       and(not(or(lt5, unknownBool)), not(or(gt10, unknownBool))),
-      FastSeq(Interval(Row(5), Row(10), true, true)),
-      FastSeq(Interval(Row(), Row(), true, true)),
-      FastSeq(Interval(Row(5), Row(10), true, true), Interval(Row(null), Row(), true, true)),
+      FastSeq(Interval(RowSeq(5), RowSeq(10), true, true)),
+      FastSeq(Interval(RowSeq(), RowSeq(), true, true)),
+      FastSeq(
+        Interval(RowSeq(5), RowSeq(10), true, true),
+        Interval(RowSeq(null), RowSeq(), true, true),
+      ),
       trueResidual = and(
         not(or(False(), unknownBool)),
         not(or(False(), unknownBool)),
@@ -910,18 +922,18 @@ class ExtractIntervalFiltersSuite {
       naResidual: IR = True(),
     ): Unit = {
       val testRows = FastSeq(
-        Row(0, 0, true),
-        Row(0, 0, false),
-        Row(0, 5, true),
-        Row(0, 5, false),
-        Row(0, 7, true),
-        Row(0, 7, false),
-        Row(0, 10, true),
-        Row(0, 10, false),
-        Row(0, 15, true),
-        Row(0, 15, false),
-        Row(0, null, true),
-        Row(0, null, false),
+        RowSeq(0, 0, true),
+        RowSeq(0, 0, false),
+        RowSeq(0, 5, true),
+        RowSeq(0, 5, false),
+        RowSeq(0, 7, true),
+        RowSeq(0, 7, false),
+        RowSeq(0, 10, true),
+        RowSeq(0, 10, false),
+        RowSeq(0, 15, true),
+        RowSeq(0, 15, false),
+        RowSeq(0, null, true),
+        RowSeq(0, null, false),
       )
       checkAll(node, ref1, k1Full, testRows, trueIntervals, falseIntervals, naIntervals,
         trueResidual, falseResidual, naResidual)
@@ -932,23 +944,23 @@ class ExtractIntervalFiltersSuite {
 
     check(
       and(gt5, lt10),
-      FastSeq(Interval(Row(5), Row(10), false, false)),
+      FastSeq(Interval(RowSeq(5), RowSeq(10), false, false)),
       FastSeq(
-        Interval(Row(), Row(5), true, true),
-        Interval(Row(10), Row(null), true, false),
+        Interval(RowSeq(), RowSeq(5), true, true),
+        Interval(RowSeq(10), RowSeq(null), true, false),
       ),
-      FastSeq(Interval(Row(null), Row(), true, true)),
+      FastSeq(Interval(RowSeq(null), RowSeq(), true, true)),
     )
 
     check(
       and(gt5, unknownBool),
       // can only be true if gt5 is true
-      FastSeq(Interval(Row(5), Row(null), false, false)),
+      FastSeq(Interval(RowSeq(5), RowSeq(null), false, false)),
       // could be false anywhere, since unknownBool might be false
-      FastSeq(Interval(Row(), Row(), true, true)),
+      FastSeq(Interval(RowSeq(), RowSeq(), true, true)),
       // can only be missing if gt5 is missing (and unknown is true or missing),
       // or if gt5 is true (and unknown is missing)
-      FastSeq(Interval(Row(5), Row(), false, true)),
+      FastSeq(Interval(RowSeq(5), RowSeq(), false, true)),
       // we've filtered to the rows where gt5 is true
       trueResidual = and(True(), unknownBool),
       // we've filtered to where gt5 is false or missing, so can't simplify
@@ -967,12 +979,12 @@ class ExtractIntervalFiltersSuite {
       naResidual: IR = True(),
     ): Unit = {
       val testRows = FastSeq(
-        Row(0, 0, true),
-        Row(0, 5, true),
-        Row(0, 7, true),
-        Row(0, 10, true),
-        Row(0, 15, true),
-        Row(0, null, true),
+        RowSeq(0, 0, true),
+        RowSeq(0, 5, true),
+        RowSeq(0, 7, true),
+        RowSeq(0, 10, true),
+        RowSeq(0, 15, true),
+        RowSeq(0, null, true),
       )
       checkAll(node, ref1, k1Full, testRows, trueIntervals, falseIntervals, naIntervals,
         trueResidual, falseResidual, naResidual)
@@ -983,10 +995,10 @@ class ExtractIntervalFiltersSuite {
 
     check(
       Coalesce(FastSeq(gt5, lt10, False())),
-      FastSeq(Interval(Row(5), Row(null), false, false)),
+      FastSeq(Interval(RowSeq(5), RowSeq(null), false, false)),
       FastSeq(
-        Interval(Row(), Row(5), true, true),
-        Interval(Row(null), Row(), true, true),
+        Interval(RowSeq(), RowSeq(5), true, true),
+        Interval(RowSeq(null), RowSeq(), true, true),
       ),
       FastSeq(),
     )
@@ -1003,12 +1015,12 @@ class ExtractIntervalFiltersSuite {
       naResidual: IR = True(),
     ): Unit = {
       val testRows = FastSeq(
-        Row(0, 0, true),
-        Row(0, 5, true),
-        Row(0, 7, true),
-        Row(0, 10, true),
-        Row(0, 15, true),
-        Row(0, null, true),
+        RowSeq(0, 0, true),
+        RowSeq(0, 5, true),
+        RowSeq(0, 7, true),
+        RowSeq(0, 10, true),
+        RowSeq(0, 15, true),
+        RowSeq(0, null, true),
       )
       checkAll(node, ref1, k1Full, testRows, trueIntervals, falseIntervals, naIntervals,
         trueResidual, falseResidual, naResidual)
@@ -1016,12 +1028,12 @@ class ExtractIntervalFiltersSuite {
 
     check(
       If(gt(k1, I32(0)), lt(k1, I32(5)), gt(k1, I32(-5))),
-      FastSeq(Interval(Row(-5), Row(5), false, false)),
+      FastSeq(Interval(RowSeq(-5), RowSeq(5), false, false)),
       FastSeq(
-        Interval(Row(), Row(-5), true, true),
-        Interval(Row(5), Row(null), true, false),
+        Interval(RowSeq(), RowSeq(-5), true, true),
+        Interval(RowSeq(5), RowSeq(null), true, false),
       ),
-      FastSeq(Interval(Row(null), Row(), true, true)),
+      FastSeq(Interval(RowSeq(null), RowSeq(), true, true)),
     )
   }
 
@@ -1036,15 +1048,15 @@ class ExtractIntervalFiltersSuite {
       naResidual: IR = True(),
     ): Unit = {
       val testRows = FastSeq(
-        Row(0, 0, true),
-        Row(0, 5, true),
-        Row(0, -5, true),
-        Row(0, null, true),
-        Row(1, 0, true),
-        Row(1, 5, true),
-        Row(1, -5, true),
-        Row(1, null, true),
-        Row(null, null, true),
+        RowSeq(0, 0, true),
+        RowSeq(0, 5, true),
+        RowSeq(0, -5, true),
+        RowSeq(0, null, true),
+        RowSeq(1, 0, true),
+        RowSeq(1, 5, true),
+        RowSeq(1, -5, true),
+        RowSeq(1, null, true),
+        RowSeq(null, null, true),
       )
       checkAll(node, ref1, k1Full, testRows, trueIntervals, falseIntervals, naIntervals,
         trueResidual, falseResidual, naResidual)
@@ -1052,24 +1064,27 @@ class ExtractIntervalFiltersSuite {
 
     check(
       Switch(I32(0), gt(k1, I32(-5)), FastSeq(lt(k1, I32(5)))),
-      FastSeq(Interval(Row(), Row(5), true, false)),
-      FastSeq(Interval(Row(5), Row(null), true, false)),
-      FastSeq(Interval(Row(null), Row(), true, true)),
+      FastSeq(Interval(RowSeq(), RowSeq(5), true, false)),
+      FastSeq(Interval(RowSeq(5), RowSeq(null), true, false)),
+      FastSeq(Interval(RowSeq(null), RowSeq(), true, true)),
     )
 
     check(
       Switch(I32(-1), gt(k1, I32(-5)), FastSeq(lt(k1, I32(5)))),
-      FastSeq(Interval(Row(-5), Row(null), false, false)),
-      FastSeq(Interval(Row(), Row(-5), true, true)),
-      FastSeq(Interval(Row(null), Row(), true, true)),
+      FastSeq(Interval(RowSeq(-5), RowSeq(null), false, false)),
+      FastSeq(Interval(RowSeq(), RowSeq(-5), true, true)),
+      FastSeq(Interval(RowSeq(null), RowSeq(), true, true)),
     )
 
     val filter = Switch(GetField(ref1, "w"), gt(k1, I32(-5)), FastSeq(lt(k1, I32(5))))
     check(
       filter,
-      FastSeq(Interval(Row(), Row(null), true, false)),
-      FastSeq(Interval(Row(), Row(-5), true, true), Interval(Row(5), Row(null), true, false)),
-      FastSeq(Interval(Row(), Row(), true, true)),
+      FastSeq(Interval(RowSeq(), RowSeq(null), true, false)),
+      FastSeq(
+        Interval(RowSeq(), RowSeq(-5), true, true),
+        Interval(RowSeq(5), RowSeq(null), true, false),
+      ),
+      FastSeq(Interval(RowSeq(), RowSeq(), true, true)),
       trueResidual = filter,
       falseResidual = ApplyUnaryPrimOp(Bang, filter),
       naResidual = IsNA(filter),
@@ -1078,10 +1093,10 @@ class ExtractIntervalFiltersSuite {
 
   @Test def testRelationalChildren(implicit ctx: ExecuteContext): Unit = {
     val testRows = FastSeq(
-      Row(0, 0, true),
-      Row(0, 10, true),
-      Row(0, 20, true),
-      Row(0, null, true),
+      RowSeq(0, 0, true),
+      RowSeq(0, 10, true),
+      RowSeq(0, 20, true),
+      RowSeq(0, null, true),
     )
 
     val count = TableAggregate(
@@ -1090,7 +1105,7 @@ class ExtractIntervalFiltersSuite {
     )
     print(count.typ)
     val filter = gt(count, Cast(k1, TInt64))
-    check(filter, ref1, k1Full, testRows, filter, FastSeq(Interval(Row(), Row(), true, true)))
+    check(filter, ref1, k1Full, testRows, filter, FastSeq(Interval(RowSeq(), RowSeq(), true, true)))
   }
 
   @Test def testIntegration(implicit ctx: ExecuteContext): Unit = {

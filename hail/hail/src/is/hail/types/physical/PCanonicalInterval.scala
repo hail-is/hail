@@ -14,8 +14,6 @@ import is.hail.types.physical.stypes.primitives.SBooleanValue
 import is.hail.types.virtual.{TInterval, Type}
 import is.hail.utils.Interval
 
-import org.apache.spark.sql.Row
-
 final case class PCanonicalInterval(pointType: PType, override val required: Boolean = false)
     extends PInterval {
 
@@ -211,7 +209,7 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
     representation.unstagedStoreJavaObjectAtAddress(
       sm,
       addr,
-      Row(jInterval.start, jInterval.end, jInterval.includesStart, jInterval.includesEnd),
+      RowSeq(jInterval.start, jInterval.end, jInterval.includesStart, jInterval.includesEnd),
       region,
     )
   }

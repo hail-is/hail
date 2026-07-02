@@ -675,7 +675,7 @@ class RVD(
 
     val pred: (RVDContext, Long) => Boolean = (ctx: RVDContext, ptr: Long) => {
       val ur = new UnsafeRow(localRowPType, ctx.r, ptr)
-      val key = Row.fromSeq(
+      val key = RowSeq.fromSeq(
         kRowFieldIdx.map(i => ur.get(i))
       )
       intervalsBc.value.contains(key)
@@ -1010,8 +1010,8 @@ class RVD(
         val interval = r.getAs[Interval](rightTyp.kFieldIdx(0))
         if (interval != null) {
           val wrappedInterval = interval.copy(
-            start = Row(interval.start),
-            end = Row(interval.end),
+            start = RowSeq(interval.start),
+            end = RowSeq(interval.end),
           )
           val bytes = encoder.regionValueToBytes(ctx.r, ptr)
           partBc.value.queryInterval(wrappedInterval).map(i => ((i, interval), bytes))

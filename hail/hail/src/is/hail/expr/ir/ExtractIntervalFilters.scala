@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.{ExtendedOrdering, IntervalEndpointOrdering, SafeRow}
+import is.hail.annotations.{ExtendedOrdering, IntervalEndpointOrdering, RowSeq, SafeRow}
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
@@ -93,19 +93,19 @@ object ExtractIntervalFilters extends Logging {
     val ord = PartitionBoundOrdering(ctx, TTuple(TInt32))
     val nonNull = rg.contigs.indices.flatMap { cont =>
       pos.flatMap { i =>
-        i.intersect(ord, Interval(Row(1), Row(rg.contigLength(cont)), true, false))
+        i.intersect(ord, Interval(RowSeq(1), RowSeq(rg.contigLength(cont)), true, false))
           .map { interval =>
             Interval(
-              Row(Locus(rg.contigs(cont), interval.start.asInstanceOf[Row].getAs[Int](0))),
-              Row(Locus(rg.contigs(cont), interval.right.point.asInstanceOf[Row].getAs[Int](0))),
+              RowSeq(Locus(rg.contigs(cont), interval.start.asInstanceOf[Row].getAs[Int](0))),
+              RowSeq(Locus(rg.contigs(cont), interval.right.point.asInstanceOf[Row].getAs[Int](0))),
               interval.includesStart,
               interval.includesEnd,
             )
           }
       }
     }
-    if (pos.nonEmpty && pos.last.contains(ord, Row(null)))
-      nonNull :+ Interval(Row(null), Row(), true, true)
+    if (pos.nonEmpty && pos.last.contains(ord, RowSeq(null)))
+      nonNull :+ Interval(RowSeq(null), RowSeq(), true, true)
     else
       nonNull
   }
@@ -134,12 +134,12 @@ class KeySetLattice(ctx: ExecuteContext, keyType: TStruct) extends Lattice {
         val reducedLast = if (intervalIsReduced(last))
           last
         else
-          Interval(last.left, IntervalEndpoint(Row(), 1))
+          Interval(last.left, IntervalEndpoint(RowSeq(), 1))
         (init :+ reducedLast).toFastSeq
     }
 
     private def intervalIsReduced(interval: Interval): Boolean =
-      interval.right != IntervalEndpoint(Row(null), 1)
+      interval.right != IntervalEndpoint(RowSeq(null), 1)
   }
 
   def keyOrd: ExtendedOrdering = PartitionBoundOrdering(ctx, keyType)
@@ -157,7 +157,7 @@ class KeySetLattice(ctx: ExecuteContext, keyType: TStruct) extends Lattice {
       )
     }
 
-  override def top: Value = KeySet(Interval(Row(), Row(), true, true))
+  override def top: Value = KeySet(Interval(RowSeq(), RowSeq(), true, true))
 
   override def bottom: Value = KeySet.empty
 
@@ -178,13 +178,13 @@ class KeySetLattice(ctx: ExecuteContext, keyType: TStruct) extends Lattice {
     if (v.isEmpty) return top
 
     val builder = ArraySeq.newBuilder[Interval]
-    if (v.head.left != IntervalEndpoint(Row(), -1)) {
-      builder += Interval(IntervalEndpoint(Row(), -1), v.head.left)
+    if (v.head.left != IntervalEndpoint(RowSeq(), -1)) {
+      builder += Interval(IntervalEndpoint(RowSeq(), -1), v.head.left)
     }
     for (i <- 0 until v.length - 1)
       builder += Interval(v(i).right, v(i + 1).left)
-    if (v.last.right != IntervalEndpoint(Row(), 1)) {
-      builder += Interval(v.last.right, IntervalEndpoint(Row(), 1))
+    if (v.last.right != IntervalEndpoint(RowSeq(), 1)) {
+      builder += Interval(v.last.right, IntervalEndpoint(RowSeq(), 1))
     }
 
     KeySet(builder.result())
@@ -746,10 +746,10 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) extends Logg
 
   private def getIntervalFromContig(c: String, rg: ReferenceGenome): Option[Interval] = {
     if (rg.contigsSet.contains(c))
-      Some(Interval(Row(Locus(c, 1)), Row(Locus(c, rg.contigLength(c))), true, false))
+      Some(Interval(RowSeq(Locus(c, 1)), RowSeq(Locus(c, rg.contigLength(c))), true, false))
     else if (c == null) {
       logger.warn(s"Filtered with null contig")
-      Some(Interval(Row(null), Row(), true, true))
+      Some(Interval(RowSeq(null), RowSeq(), true, true))
     } else {
       logger.warn(
         s"Filtered with contig '$c', but '$c' is not a valid contig in reference genome ${rg.name}"
@@ -759,14 +759,14 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) extends Logg
   }
 
   def endpoint(value: Any, sign: Int, wrapped: Boolean = true): IntervalEndpoint =
-    IntervalEndpoint(if (wrapped) Row(value) else value, sign)
+    IntervalEndpoint(if (wrapped) RowSeq(value) else value, sign)
 
   private def literalSizeOkay(lit: Any): Boolean = lit.asInstanceOf[Iterable[_]].size <=
     MAX_LITERAL_SIZE
 
-  private def posInf: IntervalEndpoint = IntervalEndpoint(Row(), 1)
+  private def posInf: IntervalEndpoint = IntervalEndpoint(RowSeq(), 1)
 
-  private def negInf: IntervalEndpoint = IntervalEndpoint(Row(), -1)
+  private def negInf: IntervalEndpoint = IntervalEndpoint(RowSeq(), -1)
 
   def analyze(
     x: IR,
@@ -850,8 +850,8 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) extends Logg
         case null => BoolValue.allNA(keySet)
         case i: Interval => queryVal match {
             case KeyField(0) =>
-              val l = IntervalEndpoint(Row(i.left.point), i.left.sign)
-              val r = IntervalEndpoint(Row(i.right.point), i.right.sign)
+              val l = IntervalEndpoint(RowSeq(i.left.point), i.left.sign)
+              val r = IntervalEndpoint(RowSeq(i.right.point), i.right.sign)
               BoolValue(
                 KeySet(Interval(l, r)),
                 KeySet(Interval(negInf, l), Interval(r, endpoint(null, -1))),

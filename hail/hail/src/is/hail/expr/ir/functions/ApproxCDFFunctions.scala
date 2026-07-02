@@ -1,6 +1,6 @@
 package is.hail.expr.ir.functions
 
-import is.hail.annotations.Region
+import is.hail.annotations.{Region, RowSeq}
 import is.hail.asm4s.{valueToCodeObject, Code, Value}
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.EmitCodeBuilder
@@ -39,7 +39,7 @@ object ApproxCDFFunctions extends RegistryFunctions {
   }
 
   def stateManagerToRow(state: ApproxCDFStateManager): Row =
-    Row(state.levels.toFastSeq, state.items.toFastSeq, state.compactionCounts.toFastSeq)
+    RowSeq(state.levels.toFastSeq, state.items.toFastSeq, state.compactionCounts.toFastSeq)
 
   def fromStateManager(cb: EmitCodeBuilder, r: Value[Region], state: Value[ApproxCDFStateManager])
     : SBaseStructValue = {

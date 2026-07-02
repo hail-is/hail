@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.{ExecStrategy, ParameterizedTest}
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
-import is.hail.annotations.BroadcastRow
+import is.hail.annotations.{BroadcastRow, RowSeq}
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
@@ -44,7 +44,7 @@ class MatrixIRSuite {
     val writer1 = MatrixNativeWriter(path, overwrite = true)
     val partType = TArray(TInterval(TStruct("row_idx" -> TInt32)))
     val parts = JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(
-      FastSeq(Interval(Row(0), Row(10), true, false)),
+      FastSeq(Interval(RowSeq(0), RowSeq(10), true, false)),
       partType,
     ))
     val writer2 = MatrixNativeWriter(
@@ -60,30 +60,30 @@ class MatrixIRSuite {
       val read = MatrixIR.read(fs, path, dropCols = false, dropRows = false, None)
       val droppedRows = MatrixIR.read(fs, path, dropCols = false, dropRows = true, None)
 
-      val expectedCols = ArraySeq.tabulate(10)(i => Row(i, Row(0L, i.toLong)))
+      val expectedCols = ArraySeq.tabulate(10)(i => RowSeq(i, RowSeq(0L, i.toLong)))
       val expectedRows = if (writer eq writer1) {
         val uids = for {
           (partSize, partIndex) <- partition(10, 3).zipWithIndex
           i <- 0 until partSize
-        } yield Row(partIndex.toLong, i.toLong)
+        } yield RowSeq(partIndex.toLong, i.toLong)
         (0 until 10).lazyZip(uids).map { (i, uid) =>
-          Row(i, uid, expectedCols.map { case Row(j, _) => Row(i, j) })
+          RowSeq(i, uid, expectedCols.map { case Row(j, _) => RowSeq(i, j) })
         }
       } else
         ArraySeq.tabulate(10)(i =>
-          Row(i, Row(0L, i.toLong), expectedCols.map { case Row(j, _) => Row(i, j) })
+          RowSeq(i, RowSeq(0L, i.toLong), expectedCols.map { case Row(j, _) => RowSeq(i, j) })
         )
-      val expectedGlobals = Row(0, expectedCols);
+      val expectedGlobals = RowSeq(0, expectedCols);
       {
         implicit val execStrats: Set[ExecStrategy] =
           Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized)
         assertEvalsTo(
           TableCollect(TableKeyBy(CastMatrixToTable(read, "entries", "cols"), FastSeq())),
-          Row(expectedRows, expectedGlobals),
+          RowSeq(expectedRows, expectedGlobals),
         )
         assertEvalsTo(
           TableCollect(TableKeyBy(CastMatrixToTable(droppedRows, "entries", "cols"), FastSeq())),
-          Row(FastSeq(), expectedGlobals),
+          RowSeq(FastSeq(), expectedGlobals),
         )
       }
     }
@@ -302,20 +302,20 @@ class MatrixIRSuite {
     var tv = TableValue(ctx, rowSig, keyNames, rowRdd)
     tv = tv.copy(
       typ = tv.typ.copy(globalType = globalType),
-      globals = BroadcastRow(ctx, Row(cdata), globalType),
+      globals = BroadcastRow(ctx, RowSeq(cdata), globalType),
     )
     TableLiteral(tv, ctx.theHailClassLoader)
   }
 
   @Test def testCastTableToMatrix(implicit ctx: ExecuteContext): Unit = {
     val rdata = ArraySeq(
-      Row(1, "fish", FastSeq(Row("a", 1.0), Row("x", 2.0))),
-      Row(2, "cat", FastSeq(Row("b", 0.0), Row("y", 0.1))),
-      Row(3, "dog", FastSeq(Row("c", -1.0), Row("z", 30.0))),
+      RowSeq(1, "fish", FastSeq(RowSeq("a", 1.0), RowSeq("x", 2.0))),
+      RowSeq(2, "cat", FastSeq(RowSeq("b", 0.0), RowSeq("y", 0.1))),
+      RowSeq(3, "dog", FastSeq(RowSeq("c", -1.0), RowSeq("z", 30.0))),
     )
     val cdata = ArraySeq(
-      Row(1, "atag"),
-      Row(2, "btag"),
+      RowSeq(1, "atag"),
+      RowSeq(2, "btag"),
     )
     val rowTab = makeLocalizedTable(rdata, cdata)
 
@@ -326,7 +326,7 @@ class MatrixIRSuite {
 
     // Rows are same
     val mtRows = Interpret(MatrixRowsTable(mir), ctx).rdd.collect()
-    assert(mtRows sameElements rdata.map(row => Row.fromSeq(row.toSeq.take(2))))
+    assert(mtRows sameElements rdata.map(row => RowSeq.fromSeq(row.toSeq.take(2))))
 
     // Round trip
     val roundTrip = Interpret(CastMatrixToTable(mir, "__entries", "__cols"), ctx)
@@ -338,13 +338,13 @@ class MatrixIRSuite {
 
   @Test def testCastTableToMatrixErrors(implicit ctx: ExecuteContext): Unit = {
     val rdata = ArraySeq(
-      Row(1, "fish", FastSeq(Row("x", 2.0))),
-      Row(2, "cat", FastSeq(Row("b", 0.0), Row("y", 0.1))),
-      Row(3, "dog", FastSeq(Row("c", -1.0), Row("z", 30.0))),
+      RowSeq(1, "fish", FastSeq(RowSeq("x", 2.0))),
+      RowSeq(2, "cat", FastSeq(RowSeq("b", 0.0), RowSeq("y", 0.1))),
+      RowSeq(3, "dog", FastSeq(RowSeq("c", -1.0), RowSeq("z", 30.0))),
     )
     val cdata = ArraySeq(
-      Row(1, "atag"),
-      Row(2, "btag"),
+      RowSeq(1, "atag"),
+      RowSeq(2, "btag"),
     )
     val rowTab = makeLocalizedTable(rdata, cdata)
 
@@ -361,9 +361,9 @@ class MatrixIRSuite {
     }
 
     val rdata2 = ArraySeq(
-      Row(1, "fish", null),
-      Row(2, "cat", FastSeq(Row("b", 0.0), Row("y", 0.1))),
-      Row(3, "dog", FastSeq(Row("c", -1.0), Row("z", 30.0))),
+      RowSeq(1, "fish", null),
+      RowSeq(2, "cat", FastSeq(RowSeq("b", 0.0), RowSeq("y", 0.1))),
+      RowSeq(3, "dog", FastSeq(RowSeq("c", -1.0), RowSeq("z", 30.0))),
     )
     val rowTab2 = makeLocalizedTable(rdata2, cdata)
     val mir2 = CastTableToMatrix(rowTab2, "__entries", "__cols", ArraySeq("col_idx"))

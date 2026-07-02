@@ -2,7 +2,7 @@ package is.hail.types.encoded
 
 import is.hail.ParameterizedTest
 import is.hail.TestUtils._
-import is.hail.annotations.{Annotation, Region, SafeNDArray, SafeRow}
+import is.hail.annotations.{Annotation, Region, RowSeq, SafeNDArray, SafeRow}
 import is.hail.asm4s.Code
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
@@ -13,7 +13,6 @@ import is.hail.rvd.AbstractRVDSpec
 import is.hail.types.physical._
 import is.hail.types.virtual._
 
-import org.apache.spark.sql.Row
 import org.json4s.jackson.Serialization
 import org.junit.jupiter.api.Test
 
@@ -162,7 +161,7 @@ class ETypeSuite {
       false,
     )
 
-    val data = FastSeq(Row(1, null, "abc", FastSeq(Row(7L), Row(8L))))
+    val data = FastSeq(RowSeq(1, null, "abc", FastSeq(RowSeq(7L), RowSeq(8L))))
 
     assertEqualEncodeDecode(inPType, etype, outPType, data)
   }
@@ -206,7 +205,7 @@ class ETypeSuite {
       true,
     )
 
-    val dataStruct = Row(dataInt2, 3)
+    val dataStruct = RowSeq(dataInt2, 3)
 
     assertEq(
       encodeDecode(
@@ -215,7 +214,7 @@ class ETypeSuite {
         pOnlyReadB,
         dataStruct,
       ),
-      Row(3),
+      RowSeq(3),
     )
   }
 
@@ -254,7 +253,7 @@ class ETypeSuite {
       "two_byte_boundary" -> PInt32Required,
       "three_byte_boundary" -> PInt32Required,
     )
-    val data = Row(0, 1, -1, Int.MaxValue, Int.MinValue, 127, 16383, 2097151)
+    val data = RowSeq(0, 1, -1, Int.MaxValue, Int.MinValue, 127, 16383, 2097151)
     assertEqualEncodeDecode(ptype, etype, ptype, data)
   }
 
@@ -279,7 +278,7 @@ class ETypeSuite {
       "min" -> PInt64Required,
       "int_max_plus_one" -> PInt64Required,
     )
-    val data = Row(0L, 1L, -1L, Long.MaxValue, Long.MinValue, Int.MaxValue.toLong + 1L)
+    val data = RowSeq(0L, 1L, -1L, Long.MaxValue, Long.MinValue, Int.MaxValue.toLong + 1L)
     assertEqualEncodeDecode(ptype, etype, ptype, data)
   }
 
@@ -336,14 +335,14 @@ class ETypeSuite {
       ))
     val toDecode = toEncode
     val data = FastSeq(
-      Row(1, 2f, true),
+      RowSeq(1, 2f, true),
       null,
-      Row(3, null, false),
-      Row(4, 5f, true),
+      RowSeq(3, null, false),
+      RowSeq(4, 5f, true),
       null,
-      Row(6, 7f, false),
-      Row(8, null, true),
-      Row(9, 10f, false),
+      RowSeq(6, 7f, false),
+      RowSeq(8, null, true),
+      RowSeq(9, 10f, false),
     )
 
     assertEqualEncodeDecode(toEncode, etype, toDecode, data)

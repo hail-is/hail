@@ -1,5 +1,6 @@
 package is.hail.expr.ir.lowering
 
+import is.hail.annotations.RowSeq
 import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
@@ -151,7 +152,7 @@ object LowerDistributedSort extends Logging {
       val perPartStatsCDAContextData =
         partitionDataPerSegment.flatten.zip(numSamplesPerPartition).map {
           case (partData, numSamples) =>
-            Row(
+            RowSeq(
               partData.indices.last,
               partData.files,
               coerceToInt(partData.currentPartSize),
@@ -364,7 +365,7 @@ object LowerDistributedSort extends Logging {
                 .foldLeft((0, ArraySeq.newBuilder[Row])) {
                   case (s, ((_, pivotIdx), indexIntoPivotsArray)) =>
                     partitionDataPerSegment(pivotIdx).foldLeft(s) { case ((partIdx, b), x) =>
-                      val r = Row(x.indices.last, x.files, partIdx, indexIntoPivotsArray)
+                      val r = RowSeq(x.indices.last, x.files, partIdx, indexIntoPivotsArray)
                       (partIdx + 1, b += r)
                     }
                 }
@@ -785,7 +786,7 @@ case class DistributionSortReader(
     val (partitionerKey, intervals) = if (keyed) {
       (key, orderedOutputPartitions.map(segment => segment.interval))
     } else {
-      (TStruct(), orderedOutputPartitions.map(_ => Interval(Row(), Row(), true, false)))
+      (TStruct(), orderedOutputPartitions.map(_ => Interval(RowSeq(), RowSeq(), true, false)))
     }
 
     new RVDPartitioner(sm, partitionerKey, intervals)
@@ -818,7 +819,7 @@ case class DistributionSortReader(
         segment.files.map { partPath =>
           val partIdx = filesCount
           filesCount += 1
-          Row(partIdx, partPath)
+          RowSeq(partIdx, partPath)
         }
       }
 

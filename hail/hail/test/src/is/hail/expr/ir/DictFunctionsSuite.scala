@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.{ExecStrategy, ParameterizedTest}
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
+import is.hail.annotations.RowSeq
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
@@ -48,10 +49,10 @@ class DictFunctionsSuite {
     )
 
   def dictToArray() = ArraySeq[(IndexedSeq[(Integer, Integer)], IndexedSeq[Row])](
-    (FastSeq[(Integer, Integer)]((1, 3), (2, 7)), FastSeq(Row(1, 3), Row(2, 7))),
+    (FastSeq[(Integer, Integer)]((1, 3), (2, 7)), FastSeq(RowSeq(1, 3), RowSeq(2, 7))),
     (
       FastSeq[(Integer, Integer)]((1, 3), (2, null), null, (null, 1), (3, 7)),
-      FastSeq(Row(1, 3), Row(2, null), Row(3, 7), Row(null, 1)),
+      FastSeq(RowSeq(1, 3), RowSeq(2, null), RowSeq(3, 7), RowSeq(null, 1)),
     ),
     (FastSeq(), FastSeq()),
     (FastSeq(null), FastSeq()),

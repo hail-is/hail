@@ -1,6 +1,6 @@
 package is.hail.types.virtual
 
-import is.hail.annotations.ExtendedOrdering
+import is.hail.annotations.{ExtendedOrdering, RowSeq}
 import is.hail.backend.HailStateManager
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
@@ -97,7 +97,7 @@ final case class TTuple(_types: IndexedSeq[TupleField]) extends TBaseStruct {
 
     { (a: Any) =>
       val r = a.asInstanceOf[Row]
-      Row.fromSeq(subsetFields.map { case (i, subset) => subset(r.get(i)) })
+      RowSeq.fromSeq(subsetFields.map { case (i, subset) => subset(r.get(i)) })
     }
   }
 }

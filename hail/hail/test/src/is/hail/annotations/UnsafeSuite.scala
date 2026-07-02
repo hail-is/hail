@@ -48,7 +48,7 @@ class UnsafeSuite {
           null
         else {
           val a2 = a.asInstanceOf[Row]
-          Row.fromSeq(requestedType2.fields.map { rf =>
+          RowSeq.fromSeq(requestedType2.fields.map { rf =>
             val f = t2.field(rf.name)
             subset(f.typ, rf.typ, a2.get(f.index))
           })
@@ -253,7 +253,7 @@ class UnsafeSuite {
           region2.clear()
           region2.allocate(1, n.toLong): Unit // preallocate
           val offset4 =
-            ps.unstagedStoreJavaObject(sm, Row.fromSeq(a.asInstanceOf[Row].toSeq), region2)
+            ps.unstagedStoreJavaObject(sm, RowSeq.fromSeq(a.asInstanceOf[Row].toSeq), region2)
           val ur4 = new UnsafeRow(ps, region2, offset4)
           assert(t.valuesSimilar(a, ur4))
           ()
@@ -272,7 +272,7 @@ class UnsafeSuite {
         case t: TStruct =>
           val ps = pt.asInstanceOf[PStruct]
           val offset6 =
-            ps.unstagedStoreJavaObject(sm, Row.fromSeq(a.asInstanceOf[Row].toSeq), region)
+            ps.unstagedStoreJavaObject(sm, RowSeq.fromSeq(a.asInstanceOf[Row].toSeq), region)
           val ur6 = new UnsafeRow(ps, region, offset6)
           assert(t.valuesSimilar(a, ur6)): Unit
         case _ =>

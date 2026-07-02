@@ -330,7 +330,7 @@ object LoweredTableReader extends Logging {
       )
 
       def selectPK(r: Row): Row =
-        Row.fromSeq(ArraySeq.tabulate(partitionKey)(r.get))
+        RowSeq.fromSeq(ArraySeq.tabulate(partitionKey)(r.get))
 
       (
         ctx: ExecuteContext,
@@ -1952,7 +1952,7 @@ case class TableFromBlockMatrixNativeReader(
     )
 
     val partitionBounds = partitionRanges.map { r =>
-      Interval(Row(r.start), Row(r.end), true, false)
+      Interval(RowSeq(r.start), RowSeq(r.end), true, false)
     }
     val partitioner = new RVDPartitioner(ctx.stateManager, fullType.keyType, partitionBounds)
 

@@ -3,6 +3,7 @@ package is.hail.io
 import is.hail.ExecStrategy
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
+import is.hail.annotations.RowSeq
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
@@ -29,11 +30,11 @@ class AvroReaderSuite {
     .endRecord()
 
   private val testValue = IndexedSeq(
-    Row(0, null, 0f, 0d, null),
-    Row(1, 1L, 1.0f, 1.0d, ""),
-    Row(-1, -1L, -1.0f, -1.0d, "minus one"),
-    Row(Int.MaxValue, Long.MaxValue, Float.MaxValue, Double.MaxValue, null),
-    Row(Int.MinValue, null, Float.MinPositiveValue, Double.MinPositiveValue, "MINIMUM STRING"),
+    RowSeq(0, null, 0f, 0d, null),
+    RowSeq(1, 1L, 1.0f, 1.0d, ""),
+    RowSeq(-1, -1L, -1.0f, -1.0d, "minus one"),
+    RowSeq(Int.MaxValue, Long.MaxValue, Float.MaxValue, Double.MaxValue, null),
+    RowSeq(Int.MinValue, null, Float.MinPositiveValue, Double.MinPositiveValue, "MINIMUM STRING"),
   )
 
   private val partitionReader = AvroPartitionReader(testSchema, "rowUID")
@@ -73,7 +74,7 @@ class AvroReaderSuite {
       partitionReader,
     ))
     val testValueWithUIDs = testValue.zipWithIndex.map { case (x, i) =>
-      Row(x(0), x(1), x(2), x(3), x(4), Row(0L, i.toLong))
+      RowSeq(x(0), x(1), x(2), x(3), x(4), RowSeq(0L, i.toLong))
     }
     assertEvalsTo(ir, testValueWithUIDs)
   }
@@ -85,7 +86,9 @@ class AvroReaderSuite {
       partitionReader.fullRowType.typeAfterSelect(FastSeq(0, 2, 4)),
       partitionReader,
     ))
-    val expected = testValue.map { case Row(int, _, float, _, string) => Row(int, float, string) }
+    val expected = testValue.map { case Row(int, _, float, _, string) =>
+      RowSeq(int, float, string)
+    }
     assertEvalsTo(ir, expected)
   }
 }

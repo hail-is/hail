@@ -2,6 +2,7 @@ package is.hail.types.physical
 
 import is.hail.ParameterizedTest
 import is.hail.TestUtils._
+import is.hail.annotations.RowSeq
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.rvd.AbstractRVDSpec
@@ -9,7 +10,6 @@ import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 
-import org.apache.spark.sql.Row
 import org.json4s.jackson.Serialization
 import org.junit.jupiter.api.Test
 
@@ -69,7 +69,7 @@ class PTypeSuite {
     val p = TStruct("a" -> TInt32, "b" -> TInt32)
     val d = TDict(p, p)
     assertEq(
-      PType.literalPType(d, Map(Row(3, null) -> Row(null, 3))),
+      PType.literalPType(d, Map(RowSeq(3, null) -> RowSeq(null, 3))),
       PCanonicalDict(
         PCanonicalStruct(true, "a" -> PInt32(true), "b" -> PInt32()),
         PCanonicalStruct(true, "a" -> PInt32(), "b" -> PInt32(true)),

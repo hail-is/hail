@@ -1,5 +1,6 @@
 package is.hail.expr.ir.lowering
 
+import is.hail.annotations.RowSeq
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
@@ -187,7 +188,7 @@ object BMSContexts {
         case sparsity: MatrixSparsity.Sparse =>
           ToStream(Literal(
             TArray(TTuple(TInt32, TInt32)),
-            sparsity.definedCoords.map(Row.fromTuple),
+            sparsity.definedCoords.map(RowSeq.fromTuple),
           ))
       }
 
@@ -454,7 +455,7 @@ case class SparseContexts(
     }
     val blockSparsitiesTuples = blockSparsities.map { sparsity =>
       val csc = sparsity.toCSC
-      Row(sparsity.nRows, sparsity.nCols, csc.rowPos, csc.rowIdx)
+      RowSeq(sparsity.nRows, sparsity.nCols, csc.rowPos, csc.rowIdx)
     }
     val coordToPos = sparsity.definedCoords.zipWithIndex.toMap
     val blockNewToOld = newSparsity.definedCoords.zip(blockSparsities).map {
@@ -1321,7 +1322,7 @@ object LowerBlockMatrixIR {
               val nSelected = math.min(maxFromBlock, outputBlockElems - outputProduced)
               assert(nSelected > 0, s"block d=$d should contribute at least one element")
               outputProduced += nSelected
-              Row(localStart, math.min(childBlockElems, localStart + nSelected * step), step)
+              RowSeq(localStart, math.min(childBlockElems, localStart + nSelected * step), step)
             }
           }
 

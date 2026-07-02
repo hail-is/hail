@@ -1,7 +1,7 @@
 package is.hail
 
 import is.hail.ExecStrategy.ExecStrategy
-import is.hail.annotations.{Region, RegionPool, RegionValueBuilder, SafeRow}
+import is.hail.annotations.{Region, RegionPool, RegionValueBuilder, RowSeq, SafeRow}
 import is.hail.asm4s.{
   classInfo, AsmFunction2RegionLongLong, AsmFunction3RegionLongLongLong, LongInfo,
 }
@@ -398,7 +398,7 @@ object TestUtils extends Logging {
   ): Unit =
     assertEvalsTo(
       MakeTuple.ordered(xs.toFastSeq.map(_._1)),
-      Row.fromSeq(xs.map(_._2)),
+      RowSeq.fromSeq(xs.map(_._2)),
     )
 
   def assertThrows[E <: Throwable: ClassTag](x: IR, regex: String)(implicit ctx: ExecuteContext)

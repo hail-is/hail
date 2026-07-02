@@ -380,7 +380,7 @@ object Interpret extends Logging {
             case s: Set[_] =>
               ArraySeq.sorted(s.asInstanceOf[Set[Any]])(implicitly, ordering)
             case d: Map[_, _] =>
-              ArraySeq.sorted[Any](d.iterator.map { case (k, v) => Row(k, v) })(
+              ArraySeq.sorted[Any](d.iterator.map { case (k, v) => RowSeq(k, v) })(
                 implicitly,
                 ordering,
               )
@@ -793,14 +793,14 @@ object Interpret extends Logging {
         throw LoopCtrl(name, exprs.map(e => interpret(e, env, args)))
 
       case MakeStruct(fields) =>
-        Row.fromSeq(fields.map { case (_, fieldIR) => interpret(fieldIR, env, args) })
+        RowSeq.fromSeq(fields.map { case (_, fieldIR) => interpret(fieldIR, env, args) })
       case SelectFields(old, fields) =>
         val oldt = tcoerce[TStruct](old.typ)
         val oldRow = interpret(old, env, args).asInstanceOf[Row]
         if (oldRow == null)
           null
         else
-          Row.fromSeq(fields.map(id => oldRow.get(oldt.fieldIdx(id))))
+          RowSeq.fromSeq(fields.map(id => oldRow.get(oldt.fieldIdx(id))))
       case InsertFields(old, fields, fieldOrder) =>
         var struct = interpret(old, env, args)
         if (struct != null)
@@ -809,7 +809,7 @@ object Interpret extends Logging {
               val m = fields.toMap
               val oldIndices =
                 old.typ.asInstanceOf[TStruct].fields.map(f => f.name -> f.index).toMap
-              Row.fromSeq(fds.map(name =>
+              RowSeq.fromSeq(fds.map(name =>
                 m.get(name).map(interpret(_, env, args)).getOrElse(
                   struct.asInstanceOf[Row].get(oldIndices(name))
                 )
@@ -836,7 +836,7 @@ object Interpret extends Logging {
           oValue.asInstanceOf[Row].get(fieldIndex)
         }
       case MakeTuple(types) =>
-        Row.fromSeq(types.map { case (_, x) => interpret(x, env, args) })
+        RowSeq.fromSeq(types.map { case (_, x) => interpret(x, env, args) })
       case GetTupleElement(o, idx) =>
         val oValue = interpret(o, env, args)
         if (oValue == null)
@@ -932,7 +932,7 @@ object Interpret extends Logging {
         ExecuteRelational(ctx, child).asTableValue(ctx).globals.safeJavaValue
       case TableCollect(child) =>
         val tv = ExecuteRelational(ctx, child).asTableValue(ctx)
-        Row(tv.rvd.collect(ctx), tv.globals.safeJavaValue)
+        RowSeq(tv.rvd.collect(ctx), tv.globals.safeJavaValue)
       case TableMultiWrite(children, writer) =>
         val tvs = children.map(child => ExecuteRelational(ctx, child).asTableValue(ctx))
         writer(ctx, tvs)

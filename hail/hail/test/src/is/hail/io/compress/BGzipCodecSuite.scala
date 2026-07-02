@@ -1,6 +1,7 @@
 package is.hail.io.compress
 
 import is.hail.TestUtils._
+import is.hail.annotations.RowSeq
 import is.hail.backend.ExecuteContext
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterator
@@ -16,7 +17,6 @@ import scala.jdk.CollectionConverters._
 import htsjdk.samtools.util.BlockCompressedFilePointerUtil
 import org.apache.{hadoop => hd}
 import org.apache.commons.io.IOUtils
-import org.apache.spark.sql.Row
 import org.junit.jupiter.api.Test
 import org.scalacheck.Gen._
 import org.scalacheck.Prop.forAll
@@ -145,7 +145,7 @@ class BGzipCodecSuite {
       val contexts = (0 until (splits.length - 1))
         .map { i =>
           val end = makeVirtualOffset(splits(i + 1), 0)
-          Row(i, 0, compPath, splits(i), end, true)
+          RowSeq(i, 0, compPath, splits(i), end, true)
         }
       val lines2 = GenericLines.collect(fs, GenericLines.read(fs, contexts, false, false))
       lines2 should equal(lines)

@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.annotations.RowSeq
 import is.hail.backend.spark.SparkBackend
 import is.hail.collection.implicits.toRichIterator
 import is.hail.io.compress.BGzipInputStream
@@ -308,14 +309,14 @@ object GenericLines extends Logging {
             var end = partScan(i + 1)
             if (codec != null)
               end = makeVirtualOffset(end, 0)
-            Row(i, fileNum, fileListEntry.getPath, start, end, true)
+            RowSeq(i, fileNum, fileListEntry.getPath, start, end, true)
           }
       } else {
         if (!allowSerialRead && !filePerPartition)
           fatal(s"Cowardly refusing to read file serially: ${fileListEntry.getPath}.")
 
         Iterator.single {
-          Row(0, fileNum, fileListEntry.getPath, 0L, size, false)
+          RowSeq(0, fileNum, fileListEntry.getPath, 0L, size, false)
         }
       }
     }
@@ -343,7 +344,7 @@ object GenericLines extends Logging {
       val start = interval.start.asInstanceOf[Row].getAs[Locus](0)
       val end = interval.end.asInstanceOf[Row].getAs[Locus](0)
       val contig = reverseContigMapping.getOrElse(start.contig, start.contig)
-      Row(i, path, contig, start.position, end.position)
+      RowSeq(i, path, contig, start.position, end.position)
     }
     val body: (FS, Any) => CloseableIterator[GenericLine] = { (fs: FS, context: Any) =>
       val contextRow = context.asInstanceOf[Row]

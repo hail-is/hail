@@ -1,6 +1,6 @@
 package is.hail.types.physical
 
-import is.hail.annotations.{Region, SafeNDArray, UnsafeRow}
+import is.hail.annotations.{Region, RowSeq, SafeNDArray, UnsafeRow}
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
@@ -8,7 +8,6 @@ import is.hail.expr.ir.{EmitCodeBuilder, EmitFunctionBuilder}
 import is.hail.methods.LocalWhitening
 import is.hail.types.physical.stypes.interfaces.{ColonIndex => Colon, _}
 
-import org.apache.spark.sql.Row
 import org.junit.jupiter.api.Test
 
 class PNDArraySuite extends PhysicalTestUtils {
@@ -492,7 +491,7 @@ class PNDArraySuite extends PhysicalTestUtils {
     val pNDOfStructs2 =
       PCanonicalNDArray(PCanonicalStruct(true, ("x", PInt32()), ("y", PInt32Required)), 1)
     val annotationNDOfStructs =
-      new SafeNDArray(IndexedSeq(5L), (0 until 5).map(idx => Row(idx, idx + 100)))
+      new SafeNDArray(IndexedSeq(5L), (0 until 5).map(idx => RowSeq(idx, idx + 100)))
 
     val addr5 = pNDOfStructs1.unstagedStoreJavaObject(
       ctx.stateManager,
