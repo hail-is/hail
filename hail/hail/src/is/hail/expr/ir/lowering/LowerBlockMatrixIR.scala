@@ -627,11 +627,9 @@ class BlockMatrixStage2 private (
         bindIR(GetField(context, "oldContext")) { oldContext =>
           If(
             IsNA(oldContext),
-            MakeNDArray.fill(
-              zero(typ.elementType),
-              FastSeq(GetField(context, "nRows"), GetField(context, "nCols")),
-              False(),
-            ),
+            bindIRs(context.get("nRows"), context.get("nCols")) { shape =>
+              MakeNDArray.fill(zero(typ.elementType), shape, False())
+            },
             blockIR(oldContext),
           )
         }
@@ -662,11 +660,9 @@ class BlockMatrixStage2 private (
         bindIR(GetField(context, "oldContext")) { oldContext =>
           If(
             IsNA(oldContext),
-            MakeNDArray.fill(
-              zero(typ.elementType),
-              FastSeq(GetField(context, "nRows"), GetField(context, "nCols")),
-              False(),
-            ),
+            bindIRs(context.get("nRows"), context.get("nCols")) { shape =>
+              MakeNDArray.fill(zero(typ.elementType), shape, False())
+            },
             blockIR(oldContext),
           )
         }
@@ -791,11 +787,9 @@ class BlockMatrixStage2 private (
             Coalesce(FastSeq(
               // FIXME: assumes blockIR is strict (preserves missing)
               NDArrayFilter(blockIR(localContext), FastSeq(rows, cols)),
-              MakeNDArray.fill(
-                zero(typ.elementType),
-                FastSeq(ArrayLen(rows).toL, ArrayLen(cols).toL),
-                False(),
-              ),
+              bindIRs(rows.len.toL, cols.len.toL) { shape =>
+                MakeNDArray.fill(zero(typ.elementType), shape, False())
+              },
             ))
           }
         }
@@ -951,7 +945,8 @@ class BlockMatrixStage2 private (
 
     blocks.collect { (i, j, block) =>
       val (m, n) = typ.blockShapeIR(i, j)
-      val zeroBlock = MakeNDArray.fill(zero(typ.elementType), FastSeq(m, n), False())
+      val zeroBlock =
+        bindIRs(m, n)(shape => MakeNDArray.fill(zero(typ.elementType), shape, False()))
       Coalesce(FastSeq(block, zeroBlock))
     }
   }
@@ -1205,11 +1200,7 @@ object LowerBlockMatrixIR {
           x.typ,
           contexts,
           ctxRef =>
-            MakeNDArray.fill(
-              elt,
-              FastSeq(GetTupleElement(ctxRef, 0), GetTupleElement(ctxRef, 1)),
-              True(),
-            ),
+            bindIRs(ctxRef.get(0), ctxRef.get(1))(shape => MakeNDArray.fill(elt, shape, True())),
         )
 
       case BlockMatrixBroadcast(child, Seq(axis), _, _) =>
@@ -1360,37 +1351,33 @@ object LowerBlockMatrixIR {
           )
         }
 
-        def sliceLen(slice: Atom): IR =
-          M.eval {
-            for {
-              start <- GetTupleElement(slice, 0)
-              stop <- GetTupleElement(slice, 1)
-              step <- GetTupleElement(slice, 2)
-            } yield (stop - start + step - 1L) floorDiv step
-          }
+        def sliceLen(slice: Atom): M[EVAL.type] =
+          for {
+            start <- GetTupleElement(slice, 0)
+            stop <- GetTupleElement(slice, 1)
+            step <- GetTupleElement(slice, 2)
+          } yield (stop - start + step - 1L) floorDiv step
 
         def newBody(ctxRef: Atom): IR =
           IRBuilder.scoped { ib =>
             val localContexts = childBMS.contexts match {
-              case _: DenseContexts => DynamicDenseContexts(ib, GetTupleElement(ctxRef, 0))
-              case _: SparseContexts => DynamicSparseContexts(ib, GetTupleElement(ctxRef, 0))
+              case _: DenseContexts => DynamicDenseContexts(ib, ctxRef.get(0))
+              case _: SparseContexts => DynamicSparseContexts(ib, ctxRef.get(0))
             }
-            val localRowSlices = ib.memoize(GetTupleElement(ctxRef, 1))
-            val localColSlices = ib.memoize(GetTupleElement(ctxRef, 2))
+            val localRowSlices = ib.memoize(ctxRef.get(1))
+            val localColSlices = ib.memoize(ctxRef.get(2))
 
             localContexts.collect { (localI, localJ, localContext) =>
-              bindIRs(ArrayRef(localRowSlices, localI), ArrayRef(localColSlices, localJ)) {
+              bindIRs(localRowSlices.at(localI), localColSlices.at(localJ)) {
                 case Seq(rowSlice, colSlice) =>
                   Coalesce(FastSeq(
-                    NDArraySlice(
-                      childBMS.blockIR(localContext),
-                      maketuple(rowSlice, colSlice),
-                    ),
-                    MakeNDArray.fill(
-                      zero(child.typ.elementType),
-                      FastSeq(sliceLen(rowSlice), sliceLen(colSlice)),
-                      False(),
-                    ),
+                    NDArraySlice(childBMS.blockIR(localContext), maketuple(rowSlice, colSlice)),
+                    M.eval {
+                      for {
+                        m <- sliceLen(rowSlice)
+                        n <- sliceLen(colSlice)
+                      } yield MakeNDArray.fill(zero(child.typ.elementType), FastSeq(m, n), False())
+                    },
                   ))
               }
             }

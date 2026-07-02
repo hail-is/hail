@@ -1,4 +1,4 @@
-package is.hail.expr.ir
+package is.hail.expr.ir.lowering
 
 import is.hail.{ExecStrategy, ParameterizedTest}
 import is.hail.ExecStrategy.ExecStrategy
@@ -7,6 +7,7 @@ import is.hail.annotations.RowSeq
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
+import is.hail.expr.ir._
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.implicits.forTesting._
@@ -42,7 +43,7 @@ class SimplifySuite {
 
           MatchResult(
             matches =
-              simplified.isAlphaEquiv(ctx, expected),
+              simplified isAlphaEquiv expected,
             rawFailureMessage =
               s"The simplified IR was not alpha-equivalent:\n$prettyDiff",
             rawNegatedFailureMessage =
@@ -405,17 +406,92 @@ class SimplifySuite {
     assert(!Exists(rw, _.isInstanceOf[TableFilter]))
   }
 
-  @Test def testStreamLenSimplifications(implicit ctx: ExecuteContext): Unit = {
-    val rangeIR = StreamRange(I32(0), I32(10), I32(1))
-    val mapOfRange = mapIR(rangeIR)(_ + 5)
-    val mapBlockedByLet =
-      bindIR(I32(5))(ref => mapIR(rangeIR)(_ + ref))
+  def testStreamSimplifications = {
+    def s = Ref(Name("sierra"), TStream(TInt32))
+    def t = Ref(Name("tango"), TStream(TInt32))
+    def g = Ref(Name("golf"), TInt32)
 
-    assert(Simplify(ctx, StreamLen(rangeIR)) == Simplify(ctx, StreamLen(mapOfRange)))
-    assert(Simplify(ctx, StreamLen(mapBlockedByLet)) match {
-      case Block(_, body) => body == Simplify(ctx, StreamLen(mapOfRange))
-    })
+    def bindings = FastSeq(Binding(Name("x"), ref(TInt32)))
+
+    FastSeq(
+      // -- StreamFlatMap --
+      Block(bindings, s).streamFlatMap(_ => t) ->
+        Block(bindings, s.streamFlatMap(_ => t)),
+      s.streamMap(_ => ref(TInt32)).streamFlatMap(_ => t) ->
+        s.streamFlatMap(_ => bindIR(ref(TInt32))(_ => t)),
+      s.streamFlatMap(_ => t).streamFlatMap(_ => t) ->
+        s.streamFlatMap(_ => t.streamFlatMap(_ => t)),
+      NA(TStream(TInt32)).streamFlatMap(_ => t) ->
+        NA(TStream(TInt32)),
+      // -- StreamMap --
+      Block(bindings, s).streamMap(_ => ref(TInt32)) ->
+        Block(bindings, s.streamMap(_ => ref(TInt32))),
+      s.streamMap(_ => ref(TInt32)).streamMap(_ => ref(TInt32)) ->
+        s.streamMap(_ => bindIR(ref(TInt32))(_ => ref(TInt32))),
+      s.zip(t)((_, _) => ref(TInt32)).streamMap(_ => ref(TInt32)) ->
+        s.zip(t)((_, _) => bindIR(ref(TInt32))(_ => ref(TInt32))),
+      s.streamFlatMap(_ => t).streamMap(_ => ref(TInt32)) ->
+        s.streamFlatMap(_ => t.streamMap(_ => ref(TInt32))),
+      RunAggScan(s, Name(""), Void(), Void(), ref(TTuple(TInt32)), FastSeq())
+        .streamMap(_.get(0)) ->
+        RunAggScan(s, Name(""), Void(), Void(), bindIR(ref(TTuple(TInt32)))(_.get(0)), FastSeq()),
+      NA(TStream(TInt32)).streamMap(_ => ref(TInt32)) ->
+        NA(TStream(TInt32)),
+      s.streamMap(x => x) ->
+        s,
+      // -- StreamFilter --
+      Block(bindings, s).filter(_ => ref(TBoolean)) ->
+        Block(bindings, s.filter(_ => ref(TBoolean))),
+      StreamFilter(sortIR(s)((_, _) => ref(TBoolean)), Name("a"), ref(TBoolean)) ->
+        sortIR(StreamFilter(s, Name("a"), ref(TBoolean)))((_, _) => ref(TBoolean)),
+      NA(TStream(TInt32)).filter(_ => ref(TBoolean)) ->
+        NA(TStream(TInt32)),
+      s.filter(_ => True()) ->
+        s,
+      // -- StreamFor --
+      Block(bindings, s).streamFor(_ => ref(TVoid)) ->
+        Block(bindings, s.streamFor(_ => ref(TVoid))),
+      s.streamMap(_ => ref(TInt32)).streamFor(_ => ref(TVoid)) ->
+        s.streamFor(_ => bindIR(ref(TInt32))(_ => ref(TVoid))),
+      s.streamFlatMap(_ => t).streamFor(_ => ref(TVoid)) ->
+        s.streamFor(_ => t.streamFor(_ => ref(TVoid))),
+      s.streamFor(_ => Void()) ->
+        Void(),
+      // -- StreamAgg --
+      s.streamAgg(_ => ref(TInt32)) ->
+        ref(TInt32),
+      // -- StreamAggScan --
+      s.streamAggScan(_ => ref(TInt32)) ->
+        s.streamMap(_ => ref(TInt32)),
+      // -- StreamFold --
+      foldIR(Block(bindings, s), ref(TInt32))((_, _) => ref(TInt32)) ->
+        Block(bindings, foldIR(s, ref(TInt32))((_, _) => ref(TInt32))),
+      foldIR(s.streamMap(_ => ref(TInt32)), ref(TInt32))((_, _) => ref(TInt32)) ->
+        foldIR(s, ref(TInt32))((_, _) => bindIR(ref(TInt32))(_ => ref(TInt32))),
+      foldIR(NA(TStream(TInt32)), ref(TInt32))((_, _) => ref(TInt32)) ->
+        NA(TInt32),
+      // -- StreamZip --
+      StreamZip(FastSeq(s), FastSeq(Name("a")), ref(TInt32), ArrayZipBehavior.AssertSameLength) ->
+        StreamMap(s, Name("a"), ref(TInt32)),
+      // -- StreamLen --
+      MakeStream(1, 2, 3).len ->
+        I32(3),
+      MakeStream.empty(TInt32).len ->
+        I32(0),
+      Block(bindings, s).len ->
+        Block(bindings, s.len),
+      s.streamMap(_ => ref(TInt32)).len ->
+        s.len,
+      s.streamFlatMap(_ => ref(TStream(TInt32))).len ->
+        foldIR(s, 0)((accum, _) => ref(TStream(TInt32)).len.bind(accum + _)),
+      s.grouped(g).len ->
+        g.bind(g2 => (s.len + g2 - I32(1)) floorDiv g2),
+    )
   }
+
+  @ParameterizedTest
+  def testStreamSimplifications(input: IR, expected: IR)(implicit ctx: ExecuteContext): Unit =
+    input should simplifyTo(expected)
 
   @Test def testNestedFilterIntervals(implicit ctx: ExecuteContext): Unit = {
     var tir: TableIR = TableRange(10, 5)

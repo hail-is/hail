@@ -1,6 +1,7 @@
-package is.hail.expr.ir
+package is.hail.expr.ir.lowering
 
 import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.{BaseIR, Pretty, PruneDeadFields, TypeCheck}
 import is.hail.utils.{fatal, HailException, TimedBlock}
 
 import scala.util.control.Breaks.{break, breakable}
