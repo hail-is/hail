@@ -8,14 +8,12 @@ import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{
-  makestruct, mapIR, Ascending, Descending, LoweringAnalyses, SortField, TableIR, TableMapRows,
-  TableRange,
+  makestruct, mapIR, Ascending, Descending, SortField, TableIR, TableMapRows, TableRange,
 }
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.defs.{
   Apply, ErrorIDs, GetField, I32, Literal, Ref, SelectFields, ToArray, ToStream,
 }
-import is.hail.expr.ir.lowering.LowerDistributedSort.samplePartition
 import is.hail.types.RTable
 import is.hail.types.virtual.{TArray, TInt32, TStruct}
 
@@ -47,7 +45,7 @@ class LowerDistributedSortSuite {
       ))
     val sampleSeq = ToStream(Literal(TArray(TInt32), IndexedSeq(0, 2, 3, 7)))
 
-    val sampled = samplePartition(
+    val sampled = LowerDistributedSort.samplePartition(
       mapIR(data1)(s => SelectFields(s, IndexedSeq("key1", "key2"))),
       sampleSeq,
       IndexedSeq(SortField("key1", Ascending), SortField("key2", Ascending)),
@@ -68,7 +66,7 @@ class LowerDistributedSortSuite {
     val data2 =
       ToStream(Literal(TArray(elementType2), dataKeys2.map { case (k1, k2) => RowSeq(k1, k2) }))
     val sampleSeq2 = ToStream(Literal(TArray(TInt32), IndexedSeq(0)))
-    val sampled2 = samplePartition(
+    val sampled2 = LowerDistributedSort.samplePartition(
       mapIR(data2)(s => SelectFields(s, IndexedSeq("key2", "key1"))),
       sampleSeq2,
       IndexedSeq(SortField("key2", Ascending), SortField("key1", Ascending)),
