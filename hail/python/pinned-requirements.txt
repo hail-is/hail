@@ -4,7 +4,7 @@ aiodns==2.0.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
-aiohappyeyeballs==2.6.2
+aiohappyeyeballs==2.7.1
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   aiohttp
@@ -59,11 +59,11 @@ azure-storage-blob==12.30.0
     #   -r hail/python/hailtop/requirements.txt
 bokeh==3.9.1
     # via -r hail/python/requirements.txt
-boto3==1.43.36
+boto3==1.43.40
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
-botocore==1.43.36
+botocore==1.43.40
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
@@ -124,7 +124,7 @@ google-auth-oauthlib==0.8.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
-humanize==4.15.0
+humanize==4.16.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
@@ -173,7 +173,7 @@ multidict==6.7.1
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   aiohttp
     #   yarl
-narwhals==2.22.1
+narwhals==2.23.0
     # via bokeh
 nest-asyncio==1.6.0
     # via
@@ -202,7 +202,7 @@ pandas==2.3.3
     # via -r hail/python/requirements.txt
 parsimonious==0.11.0
     # via -r hail/python/requirements.txt
-pillow==12.2.0
+pillow==12.3.0
     # via bokeh
 plotly==5.24.1
     # via -r hail/python/requirements.txt
@@ -257,7 +257,7 @@ pyyaml==6.0.3
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
     #   bokeh
-regex==2026.5.9
+regex==2026.6.28
     # via parsimonious
 requests==2.34.2
     # via
@@ -312,7 +312,7 @@ typer==0.24.2
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
-typing-extensions==4.15.0
+typing-extensions==4.16.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   aiohttp
