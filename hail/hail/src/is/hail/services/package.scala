@@ -184,6 +184,7 @@ package object services extends Logging {
       catch {
         case e: Exception =>
           val delay = delayMsForTry(tries)
+
           if (tries <= 5 && isLimitedRetriesError(e)) {
             logger.warn(
               s"A limited retry error has occured. We will automatically retry " +
@@ -192,21 +193,18 @@ package object services extends Logging {
             )
           } else if (!isTransientError(e)) {
             throw e
-          } else if (tries % 10 == 0) {
+          }
+
+          if (tries % 10 == 9) {
+            // WARN is redirected to the python output. It might be useful to know that hail's
+            // encountering transient errors, but we don't want to spam the user with warnings.
             logger.warn(s"Encountered $tries transient errors, most recent one was $e.")
           }
+
+          logger.info(s"Attempt #$tries - $e")
           Thread.sleep(delay)
           reset.foreach(_())
           retry
       }
     }
-
-  def formatException(e: Throwable): String = {
-    using(new StringWriter()) { sw =>
-      using(new PrintWriter(sw)) { pw =>
-        e.printStackTrace(pw)
-        sw.toString
-      }
-    }
-  }
 }
