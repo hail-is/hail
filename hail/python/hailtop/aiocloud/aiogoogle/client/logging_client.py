@@ -24,7 +24,7 @@ class PagedEntryIterator:
 
         # in case a response is empty but there are more pages
         while True:
-            assert self._page
+            assert self._page is not None
             # an empty page has no entries
             if (
                 'entries' in self._page
