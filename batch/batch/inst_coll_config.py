@@ -35,7 +35,7 @@ def instance_config_from_pool_config(
     pool_config: 'PoolConfig', product_versions: ProductVersions, location: str
 ) -> InstanceConfig:
     cloud = pool_config.cloud
-    if cloud == 'gcp':
+    if cloud == 'gcp' or cloud == 'aws':
         machine_type = family_worker_type_cores_to_gcp_machine_type(
             GCP_MACHINE_FAMILY, pool_config.worker_type, pool_config.worker_cores
         )
