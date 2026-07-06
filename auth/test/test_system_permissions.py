@@ -20,7 +20,7 @@ from contextlib import contextmanager
 
 import pytest
 
-from hailtop.auth import async_add_role, async_get_roles, async_get_user, async_remove_role
+from hailtop.auth import async_add_role, async_get_roles, async_remove_role
 from hailtop.config import get_deploy_config
 from hailtop.utils import external_requests_client_session, retry_response_returning_functions
 
@@ -47,25 +47,12 @@ _test_token = _load_test_user_token()
 TEST_USER_SESSION = external_requests_client_session(headers={'Authorization': f'Bearer {_test_token}'})
 
 
-def _wait_for_active(username: str, timeout: int = 30) -> None:
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        user = asyncio.run(async_get_user(username))
-        if user['state'] == 'active':
-            return
-        time.sleep(1)
-    raise RuntimeError(f"user '{username}' did not reach 'active' state within {timeout}s")
-
-
 @pytest.fixture(autouse=True, scope='session')
 def reset_test_user_roles():
     """Strip any roles left on `test` by a previously preempted test run."""
     existing = asyncio.run(async_get_roles('test'))
     for role in existing:
         asyncio.run(async_remove_role('test', role))
-        # Each removal puts the user into 'reconciling'; poll until the driver
-        # finishes before attempting the next removal (which requires state='active').
-        _wait_for_active('test')
 
 
 # ---------------------------------------------------------------------------

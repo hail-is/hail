@@ -416,7 +416,7 @@ async def _create_user(app, user, skip_trial_bp, cleanup):
     else:
         ident = ident_token
 
-    updates = {'state': 'reconciling'}
+    updates = {'state': 'active'}
 
     tokens_secret_name = user['tokens_secret_name']
     if tokens_secret_name is None:
@@ -478,6 +478,17 @@ async def _create_user(app, user, skip_trial_bp, cleanup):
             await billing_project.create(username, billing_project_name)
             updates['trial_bp_name'] = billing_project_name
 
+    namespace_name = user['namespace_name']
+    if (
+        namespace_name is None
+        and SystemPermission.ACCESS_DEVELOPER_ENVIRONMENTS.value in system_permissions
+        and not is_test_deployment
+    ):
+        namespace = K8sNamespaceResource(k8s_client)
+        cleanup.append(namespace.delete)
+        await namespace.create(ident)
+        updates['namespace_name'] = ident
+
     n_rows = await db.execute_update(
         f"""
 UPDATE users
@@ -497,69 +508,6 @@ async def create_user(app, user, skip_trial_bp=False):
         await _create_user(app, user, skip_trial_bp, cleanup)
     except Exception:
         log.exception(f'create user {user} failed')
-
-        for f in cleanup:
-            try:
-                await f()
-            except Exception:
-                log.exception('caught exception while cleaning up user resource, ignoring')
-
-        raise
-
-
-async def _reconcile_roles(app, user, ident, system_permissions, updates, cleanup):
-    k8s_client = app['k8s_client']
-    namespace_name = user['namespace_name']
-    has_dev = SystemPermission.ACCESS_DEVELOPER_ENVIRONMENTS.value in system_permissions
-
-    if namespace_name is None and has_dev and not is_test_deployment:
-        namespace = K8sNamespaceResource(k8s_client)
-        cleanup.append(namespace.delete)
-        await namespace.create(ident)
-        updates['namespace_name'] = ident
-    elif namespace_name is not None and not has_dev and not is_test_deployment:
-        await K8sNamespaceResource(k8s_client, namespace_name).delete()
-        updates['namespace_name'] = None
-
-
-async def _reconcile_user(app, user, cleanup):
-    db = app['db']
-    username = user['username']
-
-    system_permissions = []
-    if len(user['system_roles']) > 0:
-        system_permissions = [
-            x['name']
-            async for x in db.select_and_fetchall(
-                'SELECT system_permissions.name FROM system_permissions JOIN system_role_permissions ON system_permissions.id = system_role_permissions.permission_id JOIN users_system_roles ON system_role_permissions.role_id = users_system_roles.role_id WHERE users_system_roles.user_id = %s',
-                (user['id'],),
-            )
-        ]
-
-    ident = username
-
-    updates: Dict[str, Any] = {'state': 'active'}
-    await _reconcile_roles(app, user, ident, system_permissions, updates, cleanup)
-
-    n_rows = await db.execute_update(
-        f"""
-UPDATE users
-SET {', '.join([f'{k} = %({k})s' for k in updates])}
-WHERE id = %(id)s AND state = 'reconciling';
-""",
-        {'id': user['id'], **updates},
-    )
-    if n_rows != 1:
-        assert n_rows == 0
-        raise DatabaseConflictError
-
-
-async def reconcile_user(app, user):
-    cleanup: List[Callable[[], Awaitable[None]]] = []
-    try:
-        await _reconcile_user(app, user, cleanup)
-    except Exception:
-        log.exception(f'reconcile user {user} failed')
 
         for f in cleanup:
             try:
@@ -669,6 +617,75 @@ GROUP BY users.id
     return users
 
 
+async def _reconcile_namespaces(app):
+    if is_test_deployment:
+        return
+    db = app['db']
+    k8s_client = app['k8s_client']
+
+    needs_namespace = [
+        x
+        async for x in db.execute_and_fetchall(
+            """
+SELECT DISTINCT u.id, u.username
+FROM users u
+JOIN users_system_roles usr ON u.id = usr.user_id
+JOIN system_role_permissions srp ON usr.role_id = srp.role_id
+JOIN system_permissions sp ON srp.permission_id = sp.id
+WHERE u.state = 'active'
+  AND sp.name = 'access_developer_environments'
+  AND u.namespace_name IS NULL
+"""
+        )
+    ]
+    for user in needs_namespace:
+        namespace_name = user['username']
+        namespace = K8sNamespaceResource(k8s_client)
+        try:
+            await namespace.create(namespace_name)
+            n_rows = await db.execute_update(
+                'UPDATE users SET namespace_name = %s WHERE id = %s AND namespace_name IS NULL',
+                (namespace_name, user['id']),
+            )
+            if n_rows == 0:
+                await namespace.delete()
+        except Exception:
+            log.exception(f'failed to create namespace for user {user["username"]}')
+            try:
+                await namespace.delete()
+            except Exception:
+                log.exception('caught exception while cleaning up namespace, ignoring')
+
+    stale_namespace = [
+        x
+        async for x in db.execute_and_fetchall(
+            """
+SELECT u.id, u.namespace_name
+FROM users u
+WHERE u.state = 'active'
+  AND u.namespace_name IS NOT NULL
+  AND u.id NOT IN (
+      SELECT usr.user_id
+      FROM users_system_roles usr
+      JOIN system_role_permissions srp ON usr.role_id = srp.role_id
+      JOIN system_permissions sp ON srp.permission_id = sp.id
+      WHERE sp.name = 'access_developer_environments'
+  )
+"""
+        )
+    ]
+    for user in stale_namespace:
+        namespace_name = user['namespace_name']
+        try:
+            await K8sNamespaceResource(k8s_client, namespace_name).delete()
+            await db.execute_update(
+                'UPDATE users SET namespace_name = NULL WHERE id = %s AND namespace_name = %s',
+                (user['id'], namespace_name),
+            )
+        except Exception:
+            log.exception(f'failed to delete namespace {namespace_name}')
+
+
 async def update_users(app):
     log.info('in update_users')
 
@@ -682,10 +699,6 @@ async def update_users(app):
     for user in deleting_users:
         await delete_user(app, user)
 
-    reconciling_users = await _users_in_state_with_roles(db, 'reconciling')
-    for user in reconciling_users:
-        await reconcile_user(app, user)
-
     users_without_hail_identity_uid = [
         x
         async for x in db.execute_and_fetchall(
@@ -694,6 +707,8 @@ async def update_users(app):
     ]
     for user in users_without_hail_identity_uid:
         await resolve_identity_uid(app, user['hail_identity'])
+
+    await _reconcile_namespaces(app)
 
     return True
 
