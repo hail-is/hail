@@ -1389,7 +1389,7 @@ async def on_startup(app):
     exit_stack.push_async_callback(app[AppKeys.CLIENT_SESSION].close)
 
     credentials_file = '/auth-oauth2-client-secret/client_secret.json'
-    if CLOUD == 'gcp':
+    if CLOUD == 'gcp' or CLOUD == 'aws':
         app[AppKeys.FLOW_CLIENT] = GoogleFlow(credentials_file)
     else:
         assert CLOUD == 'azure'
