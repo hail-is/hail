@@ -8,6 +8,7 @@ This document is a WIP as we build out Hail infrastructure on AWS.
 - Set the default region for the AWS CLI using `aws configure`. The Hail backend is deployed in `us-east-1.`
 - Check out the Hail repository and switch to the `$HAIL/infra/aws-broad` directory.
 - Edit the default parameter values in `parameters.json` to match the desired configuration for your cluster.
+- Create an IAM role 
 
 ## Creating the Cluster
 
