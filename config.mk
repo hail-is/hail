@@ -3,8 +3,8 @@
 # https://make.mad-scientist.net/deferred-simple-variable-expansion/
 
 ifdef NAMESPACE
-DOCKER_PREFIX = $(eval DOCKER_PREFIX := $$(shell kubectl -n $(NAMESPACE) get secret global-config --template={{.data.docker_prefix}} | base64 --decode))$(DOCKER_PREFIX)
-DOCKERHUB_PREFIX = $(eval DOCKERHUB_PREFIX := $$(shell kubectl -n $(NAMESPACE) get secret global-config --template={{.data.dockerhub_prefix}} 2>/dev/null | base64 --decode || echo))$(DOCKERHUB_PREFIX)
+DOCKER_PREFIX = 145185391905.dkr.ecr.us-east-2.amazonaws.com/default#$(eval DOCKER_PREFIX := $$(shell kubectl -n $(NAMESPACE) get secret global-config --template={{.data.docker_prefix}} | base64 --decode))$(DOCKER_PREFIX)
+DOCKERHUB_PREFIX = #$(eval DOCKERHUB_PREFIX := $$(shell kubectl -n $(NAMESPACE) get secret global-config --template={{.data.dockerhub_prefix}} 2>/dev/null | base64 --decode || echo))$(DOCKERHUB_PREFIX)
 else
 DOCKER_PREFIX = docker.io
 DOCKERHUB_PREFIX =
