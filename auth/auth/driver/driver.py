@@ -478,17 +478,6 @@ async def _create_user(app, user, skip_trial_bp, cleanup):
             await billing_project.create(username, billing_project_name)
             updates['trial_bp_name'] = billing_project_name
 
-    namespace_name = user['namespace_name']
-    if (
-        namespace_name is None
-        and SystemPermission.ACCESS_DEVELOPER_ENVIRONMENTS.value in system_permissions
-        and not is_test_deployment
-    ):
-        namespace = K8sNamespaceResource(k8s_client)
-        cleanup.append(namespace.delete)
-        await namespace.create(ident)
-        updates['namespace_name'] = ident
-
     n_rows = await db.execute_update(
         f"""
 UPDATE users
@@ -617,13 +606,13 @@ GROUP BY users.id
     return users
 
 
-async def _reconcile_namespaces(app):
+async def _create_missing_namespaces(app):
     if is_test_deployment:
         return
     db = app['db']
     k8s_client = app['k8s_client']
 
-    needs_namespace = [
+    users = [
         x
         async for x in db.execute_and_fetchall(
             """
@@ -638,7 +627,7 @@ WHERE u.state = 'active'
 """
         )
     ]
-    for user in needs_namespace:
+    for user in users:
         namespace_name = user['username']
         namespace = K8sNamespaceResource(k8s_client)
         try:
@@ -656,7 +645,14 @@ WHERE u.state = 'active'
             except Exception:
                 log.exception('caught exception while cleaning up namespace, ignoring')
 
-    stale_namespace = [
+
+async def _remove_stale_namespaces(app):
+    if is_test_deployment:
+        return
+    db = app['db']
+    k8s_client = app['k8s_client']
+
+    users = [
         x
         async for x in db.execute_and_fetchall(
             """
@@ -674,7 +670,7 @@ WHERE u.state = 'active'
 """
         )
     ]
-    for user in stale_namespace:
+    for user in users:
         namespace_name = user['namespace_name']
         try:
             await K8sNamespaceResource(k8s_client, namespace_name).delete()
@@ -708,7 +704,8 @@ async def update_users(app):
     for user in users_without_hail_identity_uid:
         await resolve_identity_uid(app, user['hail_identity'])
 
-    await _reconcile_namespaces(app)
+    await _create_missing_namespaces(app)
+    await _remove_stale_namespaces(app)
 
     return True
 
