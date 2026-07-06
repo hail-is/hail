@@ -371,7 +371,7 @@ async def _wait_websocket(request, login_id):
             count += 1
 
         if count >= 10:
-            log.info(f"user {user['username']} is still in state {user['state']}")
+            log.info(f"user {user['username']} is still in state creating")
 
         ready = user['state'] == 'active'
 
