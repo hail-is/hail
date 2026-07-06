@@ -10,6 +10,10 @@ class CleanupPolicy(abc.ABC):
     def to_dict(self):
         pass
 
+    @abc.abstractmethod
+    def to_aws_dict(self):
+        pass
+
 
 class DeletePolicy(CleanupPolicy):
     def __init__(
