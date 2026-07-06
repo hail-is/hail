@@ -1254,7 +1254,7 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
             memory_to_worker_types = memory_to_worker_type(cloud)
             if req_memory in memory_to_worker_types:
                 worker_type = memory_to_worker_types[req_memory]
-                if CLOUD == 'gcp':
+                if CLOUD == 'gcp' or CLOUD == 'aws':
                     req_memory_bytes = gcp_cores_mcpu_to_memory_bytes(req_cores_mcpu, GCP_MACHINE_FAMILY, worker_type)
                 else:
                     assert CLOUD == 'azure'
@@ -3763,7 +3763,7 @@ SELECT instance_id, n_tokens, frozen FROM globals;
     app['hail_credentials'] = hail_credentials()
     exit_stack.push_async_callback(app['hail_credentials'].close)
 
-    if CLOUD == 'gcp':
+    if CLOUD == 'gcp' or CLOUD == 'aws':
         app['default_region'] = get_gcp_config().region
     else:
         assert CLOUD == 'azure'
