@@ -1,0 +1,30 @@
+[
+  {
+    "ParameterKey": "VpcCidrBlock",
+    "ParameterValue": "172.31.0.0/16"
+  },
+  {
+    "ParameterKey": "ClusterCidrBlock",
+    "ParameterValue": "172.20.0.0/16"
+  },
+  {
+    "ParameterKey": "SubnetCidrBlockA",
+    "ParameterValue": "172.31.0.0/20"
+  },
+  {
+    "ParameterKey": "SubnetCidrBlockB",
+    "ParameterValue": "172.31.16.0/20"
+  },
+  {
+    "ParameterKey": "SubnetCidrBlockC",
+    "ParameterValue": "172.31.32.0/20"
+  },
+  {
+    "ParameterKey": "IsBroadProduction",
+    "ParameterValue": "false"
+  },
+  {
+    "ParameterKey": "DomainName",
+    "ParameterValue": "hail.is"
+  }
+]
