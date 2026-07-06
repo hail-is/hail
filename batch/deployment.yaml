@@ -417,6 +417,11 @@ spec:
            value: /gsa-key/key.json
          - name: HAIL_IDENTITY_PROVIDER_JSON
            value: '{"idp": "Google"}'
+{% elif global.cloud == "aws" %}
+         - name: AWS_APPLICATION_CREDENTIALS
+           value: /gsa-key/key.json
+         - name: HAIL_IDENTITY_PROVIDER_JSON
+           value: '{"idp": "AWS"}'
 {% else %}
          - name: AZURE_APPLICATION_CREDENTIALS
            value: /gsa-key/key.json
