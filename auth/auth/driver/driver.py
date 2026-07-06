@@ -629,6 +629,7 @@ WHERE u.state = 'active'
     ]
     for user in users:
         namespace_name = user['username']
+        log.info(f'creating namespace {namespace_name} for user {user["username"]}')
         namespace = K8sNamespaceResource(k8s_client)
         try:
             await namespace.create(namespace_name)
@@ -672,6 +673,7 @@ WHERE u.state = 'active'
     ]
     for user in users:
         namespace_name = user['namespace_name']
+        log.info(f'deleting stale namespace {namespace_name}')
         try:
             await K8sNamespaceResource(k8s_client, namespace_name).delete()
             await db.execute_update(
