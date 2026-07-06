@@ -126,6 +126,7 @@ def get_database_ssl_context(sql_config: SQLConfig) -> ssl.SSLContext:
         database_ssl_context.load_cert_chain(sql_config.ssl_cert, keyfile=sql_config.ssl_key, password=None)
     database_ssl_context.verify_mode = ssl.CERT_REQUIRED
     database_ssl_context.check_hostname = False
+    print(f'using ssl certs {database_ssl_context.get_ca_certs()}')
     return database_ssl_context
 
 
@@ -140,6 +141,7 @@ async def create_database_pool(
     else:
         ssl_context = get_database_ssl_context(sql_config)
         assert ssl_context is not None
+    print(f'sql_config: {sql_config}')
     return aiomysql.create_pool(
         maxsize=maxsize,
         # connection args
@@ -306,7 +308,9 @@ class Database:
     @retry_transient_mysql_errors
     async def async_init(self, config_file=None, maxsize=10):
         x = await create_database_pool(config_file=config_file, autocommit=False, maxsize=maxsize)
+        print('got database connection pool')
         self.pool = await self.async_exit_stack.enter_async_context(x)
+        print('await database connection pool done')
         assert isinstance(self.pool, aiomysql.Pool)
         self.connection_release_task_manager = BackgroundTaskManager()
 
