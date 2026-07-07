@@ -386,6 +386,7 @@ async def get_swagger(request: web.Request) -> web.Response:
 
 
 @routes.get('/openapi.yaml')
+@web_security_headers
 async def get_openapi(request: web.Request) -> web.Response:
     page_context = {'base_path': deploy_config.base_path('batch-driver'), 'spec_version': __version__}
     return await render_template('batch-driver', request, None, 'openapi.yaml', page_context)
@@ -461,6 +462,8 @@ async def api_unfreeze(request: web.Request, _: UserData) -> web.Response:
 @auth.authenticated_users_with_permission(SystemPermission.UPDATE_DEPLOYED_SYSTEM_STATE)
 async def api_patch_feature_flags(request: web.Request, userdata: UserData) -> web.Response:
     body = await request.json()
+    if not isinstance(body, dict):
+        raise web.HTTPBadRequest(reason='request body must be a JSON object')
     known_flags = {'compact_billing_tables', 'oms_agent', 'dockerhub_proxy'}
     for k, v in body.items():
         if k in known_flags and not isinstance(v, bool):
@@ -530,6 +533,8 @@ async def api_patch_pool(request: web.Request, userdata: UserData) -> web.Respon
         raise web.HTTPNotFound()
 
     body = await request.json()
+    if not isinstance(body, dict):
+        raise web.HTTPBadRequest(reason='request body must be a JSON object')
     writable = {
         'boot_disk_size_gb',
         'worker_local_ssd_data_disk',
@@ -586,6 +591,8 @@ async def api_patch_pool(request: web.Request, userdata: UserData) -> web.Respon
 async def api_patch_jpim(request: web.Request, userdata: UserData) -> web.Response:
     jpim: JobPrivateInstanceManager = request.app['driver'].job_private_inst_manager
     body = await request.json()
+    if not isinstance(body, dict):
+        raise web.HTTPBadRequest(reason='request body must be a JSON object')
     writable = {
         'boot_disk_size_gb',
         'max_instances',

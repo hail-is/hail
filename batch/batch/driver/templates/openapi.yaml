@@ -53,6 +53,20 @@ paths:
                   check_resource_aggregation_error:
                     type: [string, 'null']
 
+  /api/v1alpha/version:
+    get:
+      summary: Get service version
+      description: Returns the current version of the auth service as plain text. Available to unauthenticated users; sysadmins receive the full version string while others receive only the base version (prefix before the first '-').
+      tags: [Authentication]
+      responses:
+        '200':
+          description: Version string retrieved successfully
+          content:
+            text/plain:
+              schema:
+                type: string
+                description: Service version string
+
   '/api/v1alpha/driver_info':
     get:
       summary: Get driver state
