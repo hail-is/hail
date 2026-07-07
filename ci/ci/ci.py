@@ -387,7 +387,7 @@ async def _retry_pr_core(wb: WatchedBranch, pr: PR, app: web.Application, userna
             )
 
     await db.execute_insertone('INSERT INTO invalidated_batches (batch_id) VALUES (%s);', batch_id)
-    pr.pending_build_reason = f'retry by {userdata["username"]}'
+    pr.pending_build_reason = f'retry by {username}'
     pr.batch = None
     pr.set_build_state(None)
     await wb.notify_batch_changed(
@@ -1080,7 +1080,7 @@ async def api_me(request: web.Request, userdata: UserData) -> web.Response:
         None,
     )
     if user is None:
-        raise web.HTTPNotFound()
+        raise web.HTTPNotFound(text='No such dev-authorized user. Check AUTHORIZED_USERS in constants.py.')
 
     wbs = [await watched_branch_config(request.app, wb, i) for i, wb in enumerate(watched_branches)]
     pr_wbs = [_wb_config_json(w) for w in filter_wbs(wbs, lambda pr: is_pr_author(user.gh_username, pr))]

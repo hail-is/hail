@@ -249,7 +249,7 @@ components:
         merge_candidate:
           type: string
           nullable: true
-          description: "Current merge candidate branch"
+          description: "Current merge candidate PR (eg pr-123)"
 
     WatchedBranchesResponse:
       type: object
@@ -271,6 +271,14 @@ components:
           type: string
         author:
           type: string
+        assignees:
+          type: array
+          items:
+            type: string
+        reviewers:
+          type: array
+          items:
+            type: string
         source_branch_name:
           type: string
         build_state:
@@ -503,7 +511,20 @@ paths:
               schema:
                 type: object
 
-  
+  /api/v1alpha/version:
+    get:
+      summary: Get service version
+      description: Returns the current version of the ci service as plain text. Available to unauthenticated users; sysadmins receive the full version string while others receive only the base version (prefix before the first '-').
+      tags: [Documentation]
+      responses:
+        '200':
+          description: Version string retrieved successfully
+          content:
+            text/plain:
+              schema:
+                type: string
+                description: Service version string
+
   /api/v1alpha/deploy_status:
     get:
       summary: Get deployment status
@@ -1266,8 +1287,8 @@ paths:
                       type: object
         '401':
           description: Unauthorized
-        '403':
-          description: Forbidden - user is not in AUTHORIZED_USERS
+        '404':
+          description: Not Found - user is not in AUTHORIZED_USERS in constants.py
 
   /api/v1alpha/authorized_shas:
     get:
