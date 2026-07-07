@@ -504,24 +504,21 @@ paths:
   /api/v1alpha/version:
     get:
       summary: Get service version
-      description: Returns the current version of the auth service. Available to unauthenticated users (version info may differ for authenticated users).
+      description: Returns the current version of the auth service as plain text. Available to unauthenticated users; sysadmins receive the full version string while others receive only the base version (prefix before the first '-').
       tags: [Authentication]
       responses:
         '200':
-          description: Version information retrieved successfully
+          description: Version string retrieved successfully
           content:
-            application/json:
+            text/plain:
               schema:
-                type: object
-                properties:
-                  version:
-                    type: string
-                    description: Current version of the auth service
+                type: string
+                description: Service version string
 
   /api/v1alpha/support:
     get:
       summary: Get support information
-      description: Returns support contact information and deployment configuration details.
+      description: Returns support contact information and deployment configuration details. Available to unauthenticated users.
       tags: [Authentication]
       responses:
         '200':
