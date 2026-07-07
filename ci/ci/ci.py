@@ -786,15 +786,21 @@ UPDATE globals SET frozen_merge_deploy = 0;
     raise web.HTTPFound(deploy_config.external_url('ci', '/'))
 
 
-async def _fetch_active_namespaces(db: Database) -> list:
+async def _fetch_active_namespaces(db: Database, namespace: Optional[str] = None) -> list:
+    where = 'WHERE active_namespaces.namespace = %s' if namespace is not None else ''
+    args = (namespace,) if namespace is not None else ()
     namespaces = [
         r
-        async for r in db.execute_and_fetchall("""
+        async for r in db.execute_and_fetchall(
+            f"""
 SELECT active_namespaces.*, JSON_OBJECTAGG(service, rate_limit_rps) as services
 FROM active_namespaces
 LEFT JOIN deployed_services
 ON active_namespaces.namespace = deployed_services.namespace
-GROUP BY active_namespaces.namespace""")
+{where}
+GROUP BY active_namespaces.namespace""",
+            args,
+        )
     ]
     for ns in namespaces:
         ns['services'] = json.loads(ns['services']) or {}
@@ -1176,10 +1182,10 @@ async def api_authorize_sha(request: web.Request, _) -> web.Response:
 async def api_get_namespace(request: web.Request, _) -> web.Response:
     db = request.app[AppKeys.DB]
     namespace = request.match_info['namespace']
-    record = await db.select_and_fetchone('SELECT * FROM active_namespaces WHERE namespace = %s', (namespace,))
-    if not record:
+    namespaces = await _fetch_active_namespaces(db, namespace=namespace)
+    if not namespaces:
         raise web.HTTPNotFound()
-    return json_response(dict(record))
+    return json_response(namespaces[0])
 
 
 @routes.put('/api/v1alpha/namespaces/{namespace}')

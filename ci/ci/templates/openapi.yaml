@@ -1088,7 +1088,7 @@ paths:
   /api/v1alpha/namespaces/{namespace}:
     get:
       summary: Get a namespace
-      description: Returns the record for a single active namespace.
+      description: Returns the record for a single active namespace, including its deployed services map.
       tags: [Namespaces]
       parameters:
         - name: namespace
@@ -1099,6 +1099,10 @@ paths:
       responses:
         '200':
           description: Namespace retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NamespaceInfo'
         '401':
           description: Unauthorized
         '403':
