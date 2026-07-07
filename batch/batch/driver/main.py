@@ -364,10 +364,15 @@ async def _set_frozen(app: web.Application, db: Database, freeze: bool) -> dict:
 
 
 async def _update_feature_flags(app: web.Application, db: Database, updates: dict) -> dict:
-    known_flags = ('compact_billing_tables', 'oms_agent', 'dockerhub_proxy')
-    set_clauses = ', '.join(f'{flag} = COALESCE(%s, {flag})' for flag in known_flags)
-    args = tuple(updates.get(flag) for flag in known_flags)
-    await db.execute_update(f'UPDATE feature_flags SET {set_clauses};', args)
+    await db.execute_update(
+        '''
+UPDATE feature_flags
+SET compact_billing_tables = COALESCE(%s, compact_billing_tables),
+    oms_agent = COALESCE(%s, oms_agent),
+    dockerhub_proxy = COALESCE(%s, dockerhub_proxy);
+''',
+        (updates.get('compact_billing_tables'), updates.get('oms_agent'), updates.get('dockerhub_proxy')),
+    )
     row = await db.select_and_fetchone('SELECT * FROM feature_flags')
     app['feature_flags'] = row
     return {'feature_flags': dict(row)}
