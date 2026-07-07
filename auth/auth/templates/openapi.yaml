@@ -501,6 +501,46 @@ paths:
               schema:
                 type: string
 
+  /api/v1alpha/version:
+    get:
+      summary: Get service version
+      description: Returns the current version of the auth service. Available to unauthenticated users (version info may differ for authenticated users).
+      tags: [Authentication]
+      responses:
+        '200':
+          description: Version information retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  version:
+                    type: string
+                    description: Current version of the auth service
+
+  /api/v1alpha/support:
+    get:
+      summary: Get support information
+      description: Returns support contact information and deployment configuration details.
+      tags: [Authentication]
+      responses:
+        '200':
+          description: Support information retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cloud:
+                    type: string
+                    description: Cloud provider (e.g. gcp)
+                  inactive_user_timeout_days:
+                    type: integer
+                    description: Number of days after which inactive users are timed out
+                  support_email:
+                    type: string
+                    description: Support email address (may be empty if not configured)
+
   /api/v1alpha/oauth2-client:
     get:
       summary: Get OAuth2 client configuration
