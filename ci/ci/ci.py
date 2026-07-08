@@ -1078,11 +1078,12 @@ async def api_namespaces(request: web.Request, _) -> web.Response:
     return json_response(namespaces)
 
 
-@routes.get('/api/v1alpha/me')
+@routes.get('/api/v1alpha/developers/{username}')
 @auth.authenticated_users_with_permission(SystemPermission.READ_CI, redirect=False)
-async def api_me(request: web.Request, userdata: UserData) -> web.Response:
+async def api_developer(request: web.Request, _: UserData) -> web.Response:
+    username = request.match_info['username']
     user = next(
-        (u for u in AUTHORIZED_USERS if u.hail_username == userdata['username']),
+        (u for u in AUTHORIZED_USERS if u.hail_username == username),
         None,
     )
     if user is None:

@@ -98,7 +98,7 @@ paths:
     get:
       summary: Get service version
       description: Returns the current version of the monitoring service as plain text. Available to unauthenticated users; sysadmins receive the full version string while others receive only the base version (prefix before the first '-').
-      tags: [Authentication]
+      tags: [Documentation]
       responses:
         '200':
           description: Version string retrieved successfully

@@ -1254,13 +1254,20 @@ paths:
         '403':
           description: Forbidden - requires MANAGE_CI
 
-  /api/v1alpha/me:
+  /api/v1alpha/developers/{username}:
     get:
-      summary: Current user's CI dashboard data
+      summary: Developer's CI dashboard data
       description: >
-        Returns PRs authored by, under review by, and requiring action from the current user,
+        Returns PRs authored by, under review by, and requiring action from the specified developer,
         plus their recent dev deploys.
       tags: [PRs]
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Hail username of the developer
       responses:
         '200':
           description: User data retrieved successfully
