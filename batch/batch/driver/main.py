@@ -37,6 +37,7 @@ from gear import (
     monitor_endpoints_middleware,
     setup_aiohttp_session,
     transaction,
+    version_response,
 )
 from gear.auth import AIOHTTPHandler, UserData
 from gear.clients import get_cloud_async_fs
@@ -375,12 +376,18 @@ SET compact_billing_tables = COALESCE(%s, compact_billing_tables),
     )
     row = await db.select_and_fetchone('SELECT * FROM feature_flags')
     app['feature_flags'] = row
-    return {'feature_flags': dict(row)}
+    return dict(row)
 
 
 @routes.get('/healthcheck')
 async def get_healthcheck(_) -> web.Response:
     return web.Response()
+
+
+@routes.get('/api/v1alpha/version')
+@auth.maybe_authenticated_user
+async def get_version(_, userdata: Optional[UserData]) -> web.Response:
+    return version_response(userdata)
 
 
 @routes.get('/swagger')
@@ -418,9 +425,9 @@ async def get_check_invariants(request: web.Request, _) -> web.Response:
     })
 
 
-@routes.get('/api/v1alpha/driver_info')
+@routes.get('/api/v1alpha/driver')
 @auth.authenticated_users_with_permission(SystemPermission.READ_DEPLOYED_SYSTEM_STATE)
-async def api_get_driver_info(request: web.Request, _) -> web.Response:
+async def api_get_driver(request: web.Request, _) -> web.Response:
     app = request.app
     db: Database = app['db']
     inst_coll_manager: InstanceCollectionManager = app['driver'].inst_coll_manager
@@ -447,20 +454,28 @@ FROM user_inst_coll_resources;
     })
 
 
-@routes.post('/api/v1alpha/freeze')
+@routes.patch('/api/v1alpha/driver')
 @auth.authenticated_users_with_permission(SystemPermission.UPDATE_DEPLOYED_SYSTEM_STATE)
-async def api_freeze(request: web.Request, _: UserData) -> web.Response:
-    if request.app['frozen']:
-        raise web.HTTPConflict(reason='already frozen')
-    return json_response(await _set_frozen(request.app, request.app['db'], True))
+async def api_patch_driver(request: web.Request, userdata: UserData) -> web.Response:
+    body = await request.json()
+    if not isinstance(body, dict):
+        raise web.HTTPBadRequest(reason='request body must be a JSON object')
+    unknown = set(body) - {'frozen'}
+    if unknown:
+        raise web.HTTPBadRequest(reason=f'unknown or read-only fields: {sorted(unknown)}')
+    if 'frozen' in body:
+        if not isinstance(body['frozen'], bool):
+            raise web.HTTPBadRequest(reason='frozen must be a boolean')
+        before = request.app['frozen']
+        result = await _set_frozen(request.app, request.app['db'], body['frozen'])
+        _log_config_changes(userdata['username'], 'driver', {'frozen': before}, result)
+    return json_response({'frozen': request.app['frozen']})
 
 
-@routes.post('/api/v1alpha/unfreeze')
-@auth.authenticated_users_with_permission(SystemPermission.UPDATE_DEPLOYED_SYSTEM_STATE)
-async def api_unfreeze(request: web.Request, _: UserData) -> web.Response:
-    if not request.app['frozen']:
-        raise web.HTTPConflict(reason='already unfrozen')
-    return json_response(await _set_frozen(request.app, request.app['db'], False))
+@routes.get('/api/v1alpha/feature_flags')
+@auth.authenticated_users_with_permission(SystemPermission.READ_DEPLOYED_SYSTEM_STATE)
+async def api_get_feature_flags(request: web.Request, _) -> web.Response:
+    return json_response(dict(request.app['feature_flags']))
 
 
 @routes.patch('/api/v1alpha/feature_flags')
@@ -478,7 +493,7 @@ async def api_patch_feature_flags(request: web.Request, userdata: UserData) -> w
     updates = {k: v for k, v in body.items() if k in known_flags}
     before = dict(request.app['feature_flags'])
     result = await _update_feature_flags(request.app, request.app['db'], updates)
-    _log_config_changes(userdata['username'], 'feature_flags', before, result['feature_flags'])
+    _log_config_changes(userdata['username'], 'feature_flags', before, result)
     return json_response(result)
 
 
@@ -718,9 +733,20 @@ async def api_get_gcp_quotas(request: web.Request, _) -> web.Response:
     })
 
 
-@routes.post('/api/v1alpha/instances/{instance_name}/kill')
+@routes.get('/api/v1alpha/instances/{instance_name}')
+@auth.authenticated_users_with_permission(SystemPermission.READ_DEPLOYED_SYSTEM_STATE)
+async def api_get_instance(request: web.Request, _) -> web.Response:
+    instance_name = request.match_info['instance_name']
+    inst_coll_manager: InstanceCollectionManager = request.app['driver'].inst_coll_manager
+    instance = inst_coll_manager.get_instance(instance_name)
+    if instance is None:
+        raise web.HTTPNotFound()
+    return json_response(_instance_to_dict(instance))
+
+
+@routes.delete('/api/v1alpha/instances/{instance_name}')
 @auth.authenticated_users_with_permission(SystemPermission.UPDATE_DEPLOYED_SYSTEM_STATE)
-async def api_kill_instance(request: web.Request, _) -> web.Response:
+async def api_delete_instance(request: web.Request, _) -> web.Response:
     instance_name = request.match_info['instance_name']
     inst_coll_manager: InstanceCollectionManager = request.app['driver'].inst_coll_manager
     instance = inst_coll_manager.get_instance(instance_name)
@@ -886,6 +912,13 @@ async def _pool_json(pool: Pool) -> dict:
         **pool.config(),
         'status': _inst_coll_summary(pool),
         'user_resources': sorted_user_resources,
+        'scheduler': {
+            'exceeded_shares_rate': pool.scheduler.exceeded_shares_counter.rate(),
+        },
+        'autoscaler': {
+            'healthy_instance_count': len(pool.healthy_instances_by_free_cores),
+            'live_free_cores_mcpu_by_region': dict(pool.current_worker_version_stats.live_free_cores_mcpu_by_region),
+        },
     }
 
 
@@ -1066,7 +1099,7 @@ async def configure_feature_flags(request: web.Request, userdata: UserData) -> N
         'dockerhub_proxy': 'dockerhub_proxy' in post,
     }
     result = await _update_feature_flags(request.app, request.app['db'], updates)
-    _log_config_changes(userdata['username'], 'feature_flags', before, result['feature_flags'])
+    _log_config_changes(userdata['username'], 'feature_flags', before, result)
     raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
 
 

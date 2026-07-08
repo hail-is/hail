@@ -56,8 +56,8 @@ paths:
   /api/v1alpha/version:
     get:
       summary: Get service version
-      description: Returns the current version of the auth service as plain text. Available to unauthenticated users; sysadmins receive the full version string while others receive only the base version (prefix before the first '-').
-      tags: [Authentication]
+      description: Returns the current version of the batch driver service as plain text. Available to unauthenticated users; sysadmins receive the full version string while others receive only the base version (prefix before the first '-').
+      tags: [System]
       responses:
         '200':
           description: Version string retrieved successfully
@@ -67,14 +67,14 @@ paths:
                 type: string
                 description: Service version string
 
-  '/api/v1alpha/driver_info':
+  '/api/v1alpha/driver':
     get:
       summary: Get driver state
       description: >
         Returns global system state: frozen status, total ready cores, feature
         flags, per-pool and JPIM summaries, and global instance-collection stats.
         Instance lists are available via the per-collection instances endpoints.
-      operationId: getDriverInfo
+      operationId: getDriver
       tags: [Operator]
       responses:
         '200':
@@ -83,50 +83,28 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DriverInfo'
-
-  '/api/v1alpha/freeze':
-    post:
-      summary: Freeze scheduling
+    patch:
+      summary: Update driver configuration
       description: >
-        Halts all scheduling and batch submissions system-wide. Returns 409 if
-        the system is already frozen.
-      operationId: freeze
+        Partially updates driver configuration. Currently supports setting
+        `frozen` to halt or resume scheduling and batch submissions system-wide.
+      operationId: patchDriver
       tags: [Operator]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DriverUpdate'
       responses:
         '200':
-          description: System frozen successfully.
+          description: Driver updated. Returns the updated fields.
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  frozen:
-                    type: boolean
-                    example: true
-        '409':
-          description: System is already frozen.
-
-  '/api/v1alpha/unfreeze':
-    post:
-      summary: Unfreeze scheduling
-      description: >
-        Resumes scheduling and batch submissions. Returns 409 if the system is
-        already unfrozen.
-      operationId: unfreeze
-      tags: [Operator]
-      responses:
-        '200':
-          description: System unfrozen successfully.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  frozen:
-                    type: boolean
-                    example: false
-        '409':
-          description: System is already unfrozen.
+                $ref: '#/components/schemas/DriverUpdate'
+        '400':
+          description: Validation error.
 
   '/api/v1alpha/inst_coll/pool/{pool}':
     get:
@@ -314,13 +292,33 @@ paths:
         '503':
           description: Quota cache not yet populated.
 
-  '/api/v1alpha/instances/{instance_name}/kill':
-    post:
+  '/api/v1alpha/instances/{instance_name}':
+    get:
+      summary: Get instance
+      description: Returns the current state of a single instance by name.
+      operationId: getInstance
+      tags: [Operator]
+      parameters:
+        - name: instance_name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Instance retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Instance'
+        '404':
+          description: Instance not found.
+    delete:
       summary: Kill instance
       description: >
         Kills an active instance. Returns 404 if the instance is not found,
         409 if the instance is not in the active state.
-      operationId: killInstance
+      operationId: deleteInstance
       tags: [Operator]
       parameters:
         - name: instance_name
@@ -337,6 +335,18 @@ paths:
           description: Instance is not active.
 
   '/api/v1alpha/feature_flags':
+    get:
+      summary: Get feature flags
+      description: Returns the current values of all feature flags.
+      operationId: getFeatureFlags
+      tags: [Operator]
+      responses:
+        '200':
+          description: Feature flags retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeatureFlags'
     patch:
       summary: Update feature flags
       description: >
@@ -356,10 +366,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  feature_flags:
-                    $ref: '#/components/schemas/FeatureFlags'
+                $ref: '#/components/schemas/FeatureFlags'
 
 components:
   parameters:
@@ -383,6 +390,39 @@ components:
 
 
   schemas:
+    DriverUpdate:
+      type: object
+      properties:
+        frozen:
+          type: boolean
+
+    PoolSchedulerInfo:
+      type: object
+      properties:
+        exceeded_shares_rate:
+          type: number
+          description: >
+            Fraction of the last 10 scheduling iterations where a user was skipped
+            due to fair-share limits (0–1). Higher values indicate the scheduler
+            is backpressure-limited.
+
+    PoolAutoscalerInfo:
+      type: object
+      properties:
+        healthy_instance_count:
+          type: integer
+          description: >
+            Number of active, non-degraded instances currently eligible for
+            scheduling (failed_request_count ≤ 1).
+        live_free_cores_mcpu_by_region:
+          type: object
+          additionalProperties:
+            type: integer
+          description: >
+            Free cores on live (pending + active) current-version instances,
+            broken down by region. This is the signal the autoscaler uses for
+            scale-out decisions.
+
     FeatureFlags:
       type: object
       properties:
@@ -614,6 +654,10 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PoolUserResources'
+        scheduler:
+          $ref: '#/components/schemas/PoolSchedulerInfo'
+        autoscaler:
+          $ref: '#/components/schemas/PoolAutoscalerInfo'
 
     JpimDetail:
       type: object
