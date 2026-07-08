@@ -1302,6 +1302,28 @@ paths:
         '403':
           description: Forbidden - requires MANAGE_CI
 
+  /api/v1alpha/developers:
+    get:
+      summary: List developers
+      description: Returns all authorized developers with their Hail and GitHub usernames.
+      tags: [Developers]
+      responses:
+        '200':
+          description: Developer list retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    hail_username:
+                      type: string
+                    gh_username:
+                      type: string
+        '401':
+          description: Unauthorized
+
   /api/v1alpha/developers/{username}:
     get:
       summary: Developer identity
@@ -1313,7 +1335,7 @@ paths:
           required: true
           schema:
             type: string
-          description: Hail username of the developer
+          description: Hail username of the developer, or the special value `me` for the authenticated caller
       responses:
         '200':
           description: Developer found
