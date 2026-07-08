@@ -13,7 +13,7 @@ from ....file_store import FileStore
 from ....instance_config import InstanceConfig
 from ...resource_utils import unreserved_worker_data_disk_size_gib
 from ...utils import ACCEPTABLE_QUERY_JAR_URL_PREFIX
-from ..resource_utils import GPUConfig, gcp_machine_type_to_parts, machine_type_to_gpu
+from ..resource_utils import GPUConfig, gcp_local_ssd_count, gcp_machine_type_to_parts, machine_type_to_gpu
 
 log = logging.getLogger('create_instance')
 
@@ -62,21 +62,28 @@ def create_vm_config(
     region = instance_config.region_for(zone)
     docker_run_gpu_args = '--runtime=nvidia --gpus all' if machine_type_to_gpu(machine_type_full) else ''
     if local_ssd_data_disk:
-        worker_data_disk = {
-            'type': 'SCRATCH',
-            'autoDelete': True,
-            'interface': 'NVME',
-            'initializeParams': {'diskType': f'zones/{zone}/diskTypes/local-ssd'},
-        }
-        worker_data_disk_name = 'nvme0n1'
+        num_local_ssds = gcp_local_ssd_count(parts.machine_family, cores)
+        worker_data_disks = [
+            {
+                'type': 'SCRATCH',
+                'autoDelete': True,
+                'interface': 'NVME',
+                'initializeParams': {'diskType': f'zones/{zone}/diskTypes/local-ssd'},
+            }
+            for _ in range(num_local_ssds)
+        ]
+        worker_data_disk_name = 'md0' if num_local_ssds > 1 else 'nvme0n1'
     else:
-        worker_data_disk = {
-            'autoDelete': True,
-            'initializeParams': {
-                'diskType': f'projects/{project}/zones/{zone}/diskTypes/pd-ssd',
-                'diskSizeGb': str(data_disk_size_gb),
-            },
-        }
+        num_local_ssds = 0
+        worker_data_disks = [
+            {
+                'autoDelete': True,
+                'initializeParams': {
+                    'diskType': f'projects/{project}/zones/{zone}/diskTypes/pd-ssd',
+                    'diskSizeGb': str(data_disk_size_gb),
+                },
+            }
+        ]
         worker_data_disk_name = 'nvme0n2' if 'g2' in machine_type else 'sdb'
 
     if job_private:
@@ -123,7 +130,7 @@ def create_vm_config(
                     'diskSizeGb': str(boot_disk_size_gb),
                 },
             },
-            worker_data_disk,
+            *worker_data_disks,
         ],
         'networkInterfaces': [
             {
@@ -175,6 +182,7 @@ nohup /bin/bash run.sh >run.log 2>&1 &
 set -x
 
 WORKER_DATA_DISK_NAME="{worker_data_disk_name}"
+NUM_LOCAL_SSDS="{num_local_ssds}"
 UNRESERVED_WORKER_DATA_DISK_SIZE_GB="{unreserved_disk_storage_gb}"
 ACCEPTABLE_QUERY_JAR_URL_PREFIX="{ACCEPTABLE_QUERY_JAR_URL_PREFIX}"
 
@@ -251,6 +259,15 @@ metrics:
 EOF
 
 sudo systemctl restart google-cloud-ops-agent
+
+# combine multiple local SSDs into a single RAID0 array
+if [ "$NUM_LOCAL_SSDS" -gt 1 ]; then
+    DEVICES=""
+    for i in $(seq 1 $NUM_LOCAL_SSDS); do
+        DEVICES="$DEVICES /dev/nvme0n$i"
+    done
+    mdadm --create /dev/md0 --level=0 --raid-devices=$NUM_LOCAL_SSDS $DEVICES --force --run
+fi
 
 # format worker data disk
 sudo mkfs.xfs -m reflink=1 -n ftype=1 /dev/$WORKER_DATA_DISK_NAME

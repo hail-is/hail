@@ -1,8 +1,16 @@
 import pytest
 
 from batch.cloud.azure.resource_utils import MACHINE_TYPE_TO_PARTS as MACHINE_TYPE_TO_PARTS_AZURE
-from batch.cloud.gcp.resource_utils import MACHINE_TYPE_TO_PARTS as MACHINE_TYPE_TO_PARTS_GCP
-from batch.cloud.gcp.resource_utils import gcp_worker_memory_per_core_mib, machine_type_to_gpu_num
+from batch.cloud.gcp.instance_config import region_from_location
+from batch.cloud.gcp.resource_utils import (
+    MACHINE_TYPE_TO_PARTS as MACHINE_TYPE_TO_PARTS_GCP,
+)
+from batch.cloud.gcp.resource_utils import (
+    gcp_local_ssd_count,
+    gcp_local_ssd_size,
+    gcp_worker_memory_per_core_mib,
+    machine_type_to_gpu_num,
+)
 from batch.cloud.gcp.resources import GCPAcceleratorResource, gcp_resource_from_dict
 from batch.cloud.resource_utils import adjust_cores_for_packability
 from batch.utils import rewrite_dockerhub_image
@@ -33,11 +41,12 @@ def test_memory_str_to_bytes():
 
 
 def test_gcp_worker_memory_per_core_mib():
-    with pytest.raises(AssertionError):
-        assert gcp_worker_memory_per_core_mib('n2', 'standard')
     assert gcp_worker_memory_per_core_mib('n1', 'standard') == 3840
     assert gcp_worker_memory_per_core_mib('n1', 'highmem') == 6656
     assert gcp_worker_memory_per_core_mib('n1', 'highcpu') == 924
+    assert gcp_worker_memory_per_core_mib('n2', 'standard') == 4096
+    assert gcp_worker_memory_per_core_mib('n2', 'highmem') == 8192
+    assert gcp_worker_memory_per_core_mib('n2', 'highcpu') == 1024
 
 
 def test_gcp_machine_memory_per_core_mib():
@@ -48,6 +57,15 @@ def test_gcp_machine_memory_per_core_mib():
             assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 6656
         elif machine_parts.machine_family == 'n1' and machine_parts.worker_type == 'highcpu':
             assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 924
+        elif machine_parts.machine_family == 'n2' and machine_parts.worker_type == 'standard':
+            assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 4096
+        elif machine_parts.machine_family == 'n2' and machine_parts.worker_type == 'highmem':
+            if machine_parts.cores == 128:
+                assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 6912
+            else:
+                assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 8192
+        elif machine_parts.machine_family == 'n2' and machine_parts.worker_type == 'highcpu':
+            assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 1024
         elif machine_parts.machine_family == 'g2' and machine_parts.worker_type == 'standard':
             assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 4096
         elif machine_parts.machine_family == 'a2' and machine_parts.worker_type == 'highgpu':
@@ -69,6 +87,70 @@ def test_azure_machine_memory_per_core_mib():
             assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 4096
         elif machine_parts.family == 'E':
             assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 8192
+
+
+@pytest.mark.parametrize(
+    "family,cores,expected",
+    [
+        ('n1', 16, 1),
+        ('n1', 96, 1),
+        ('n2', 2, 1),
+        ('n2', 4, 1),
+        ('n2', 8, 1),
+        ('n2', 16, 2),
+        ('n2', 32, 4),
+        ('n2', 48, 8),
+        ('n2', 64, 8),
+        ('n2', 80, 8),
+        ('n2', 96, 16),
+        ('n2', 128, 16),
+    ],
+)
+def test_gcp_local_ssd_count(family, cores, expected):
+    assert gcp_local_ssd_count(family, cores) == expected
+
+
+@pytest.mark.parametrize(
+    "family,cores,expected",
+    [
+        ('n1', 16, 375),
+        ('n2', 2, 375),
+        ('n2', 16, 750),
+        ('n2', 48, 3000),
+        ('n2', 128, 6000),
+    ],
+)
+def test_gcp_local_ssd_size(family, cores, expected):
+    assert gcp_local_ssd_size(family, cores) == expected
+
+
+@pytest.mark.parametrize(
+    "location,expected",
+    [
+        ('us-central1', 'us-central1'),
+        ('us-east1', 'us-east1'),
+        ('northamerica-northeast1', 'northamerica-northeast1'),
+        ('us-central1-a', 'us-central1'),
+        ('us-central1-b', 'us-central1'),
+        ('northamerica-northeast1-a', 'northamerica-northeast1'),
+    ],
+)
+def test_region_from_location(location, expected):
+    assert region_from_location(location) == expected
+
+
+@pytest.mark.parametrize(
+    "location",
+    [
+        '',
+        'uscentral1',
+        'us-central1-a-b',
+        'us-central1-a-b-c',
+    ],
+)
+def test_region_from_location_rejects_malformed(location):
+    with pytest.raises(ValueError, match='Expected a GCP region or zone'):
+        region_from_location(location)
 
 
 def test_gcp_resource_from_dict():
