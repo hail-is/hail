@@ -51,7 +51,7 @@ from web_common import (
     web_security_headers_swagger,
 )
 
-from .constants import AUTHORIZED_USERS, TEAMS
+from .constants import AUTHORIZED_USERS, TEAMS, User
 from .environment import CLOUD, DEFAULT_NAMESPACE, DOMAIN, STORAGE_URI
 from .envoy import Service, create_cds_response, create_rds_response
 from .github import PR, WIP, FQBranch, MergeFailureBatch, Repo, UnwatchedBranch, WatchedBranch, select_random_teammate
@@ -1002,6 +1002,22 @@ def _pr_config_json(cfg: PRConfig) -> dict:
     }
 
 
+def _pr_flat_json(cfg: PRConfig, wb: WatchedBranchConfig) -> dict:
+    return {
+        'number': cfg['number'],
+        'title': cfg['title'],
+        'wb_index': wb['index'],
+        'wb_name': wb['branch'],
+        'build_state': cfg['build_state'],
+        'out_of_date': cfg['out_of_date'],
+        'gh_statuses': cfg['gh_statuses'],
+        'labels': list(cfg['labels']),
+        'source_branch_name': cfg['source_branch_name'],
+        'review_state': cfg['review_state'],
+        'author': cfg['author'],
+    }
+
+
 def _wb_config_json(cfg: Dict[str, Any]) -> dict:
     return {
         **cfg,
@@ -1078,34 +1094,71 @@ async def api_namespaces(request: web.Request, _) -> web.Response:
     return json_response(namespaces)
 
 
+def _lookup_developer(username: str) -> User:
+    user = next((u for u in AUTHORIZED_USERS if u.hail_username == username), None)
+    if user is None:
+        raise web.HTTPNotFound(text='No such dev-authorized user. Check AUTHORIZED_USERS in constants.py.')
+    return user
+
+
 @routes.get('/api/v1alpha/developers/{username}')
 @auth.authenticated_users_with_permission(SystemPermission.READ_CI, redirect=False)
 async def api_developer(request: web.Request, _: UserData) -> web.Response:
-    username = request.match_info['username']
-    user = next(
-        (u for u in AUTHORIZED_USERS if u.hail_username == username),
-        None,
-    )
-    if user is None:
-        raise web.HTTPNotFound(text='No such dev-authorized user. Check AUTHORIZED_USERS in constants.py.')
+    user = _lookup_developer(request.match_info['username'])
+    return json_response({'hail_username': user.hail_username, 'gh_username': user.gh_username})
 
+
+@routes.get('/api/v1alpha/developers/{username}/prs')
+@auth.authenticated_users_with_permission(SystemPermission.READ_CI, redirect=False)
+async def api_developer_prs(request: web.Request, _: UserData) -> web.Response:
+    user = _lookup_developer(request.match_info['username'])
     wbs = [await watched_branch_config(request.app, wb, i) for i, wb in enumerate(watched_branches)]
-    pr_wbs = [_wb_config_json(w) for w in filter_wbs(wbs, lambda pr: is_pr_author(user.gh_username, pr))]
-    review_wbs = [_wb_config_json(w) for w in filter_wbs(wbs, lambda pr: is_pr_reviewer(user.gh_username, pr))]
-    actionable_wbs = [_wb_config_json(w) for w in filter_wbs(wbs, lambda pr: pr_requires_action(user.gh_username, pr))]
+    open_prs = [_pr_flat_json(pr, wb) for wb in wbs for pr in wb['prs'] if is_pr_author(user.gh_username, pr)]
+    reviewer_prs = [_pr_flat_json(pr, wb) for wb in wbs for pr in wb['prs'] if is_pr_reviewer(user.gh_username, pr)]
+    action_required_prs = [
+        _pr_flat_json(pr, wb) for wb in wbs for pr in wb['prs'] if pr_requires_action(user.gh_username, pr)
+    ]
+    return json_response({'open': open_prs, 'reviewer': reviewer_prs, 'action_required': action_required_prs})
 
+
+@routes.get('/api/v1alpha/developers/{username}/prs/open')
+@auth.authenticated_users_with_permission(SystemPermission.READ_CI, redirect=False)
+async def api_developer_prs_open(request: web.Request, _: UserData) -> web.Response:
+    user = _lookup_developer(request.match_info['username'])
+    wbs = [await watched_branch_config(request.app, wb, i) for i, wb in enumerate(watched_branches)]
+    return json_response([
+        _pr_flat_json(pr, wb) for wb in wbs for pr in wb['prs'] if is_pr_author(user.gh_username, pr)
+    ])
+
+
+@routes.get('/api/v1alpha/developers/{username}/prs/reviewer')
+@auth.authenticated_users_with_permission(SystemPermission.READ_CI, redirect=False)
+async def api_developer_prs_reviewer(request: web.Request, _: UserData) -> web.Response:
+    user = _lookup_developer(request.match_info['username'])
+    wbs = [await watched_branch_config(request.app, wb, i) for i, wb in enumerate(watched_branches)]
+    return json_response([
+        _pr_flat_json(pr, wb) for wb in wbs for pr in wb['prs'] if is_pr_reviewer(user.gh_username, pr)
+    ])
+
+
+@routes.get('/api/v1alpha/developers/{username}/prs/action_required')
+@auth.authenticated_users_with_permission(SystemPermission.READ_CI, redirect=False)
+async def api_developer_prs_action_required(request: web.Request, _: UserData) -> web.Response:
+    user = _lookup_developer(request.match_info['username'])
+    wbs = [await watched_branch_config(request.app, wb, i) for i, wb in enumerate(watched_branches)]
+    return json_response([
+        _pr_flat_json(pr, wb) for wb in wbs for pr in wb['prs'] if pr_requires_action(user.gh_username, pr)
+    ])
+
+
+@routes.get('/api/v1alpha/developers/{username}/dev_deploys')
+@auth.authenticated_users_with_permission(SystemPermission.READ_CI, redirect=False)
+async def api_developer_dev_deploys(request: web.Request, _: UserData) -> web.Response:
+    user = _lookup_developer(request.match_info['username'])
     batch_client = request.app[AppKeys.BATCH_CLIENT]
     dev_deploys_iter = batch_client.list_batches(f'user={user.hail_username} dev_deploy=1', limit=10)
     dev_deploys = sorted([b async for b in dev_deploys_iter], key=lambda b: b.id, reverse=True)
-
-    return json_response({
-        'hail_username': user.hail_username,
-        'gh_username': user.gh_username,
-        'pr_wbs': pr_wbs,
-        'review_wbs': review_wbs,
-        'actionable_wbs': actionable_wbs,
-        'dev_deploys': [await b.last_known_status() for b in dev_deploys],
-    })
+    return json_response([await b.last_known_status() for b in dev_deploys])
 
 
 @routes.get('/api/v1alpha/authorized_shas')

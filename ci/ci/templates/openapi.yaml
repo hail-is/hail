@@ -34,6 +34,54 @@ tags:
 
 components:
   schemas:
+    PRSummary:
+      type: object
+      properties:
+        number:
+          type: integer
+        title:
+          type: string
+        wb_index:
+          type: integer
+        wb_name:
+          type: string
+        build_state:
+          type: string
+          nullable: true
+        out_of_date:
+          type: boolean
+        gh_statuses:
+          type: object
+          additionalProperties:
+            type: string
+        labels:
+          type: array
+          items:
+            type: string
+        source_branch_name:
+          type: string
+        review_state:
+          type: string
+          nullable: true
+        author:
+          type: string
+
+    DeveloperPRs:
+      type: object
+      properties:
+        open:
+          type: array
+          items:
+            $ref: '#/components/schemas/PRSummary'
+        reviewer:
+          type: array
+          items:
+            $ref: '#/components/schemas/PRSummary'
+        action_required:
+          type: array
+          items:
+            $ref: '#/components/schemas/PRSummary'
+
     BuildStatus:
       type: object
       properties:
@@ -1256,11 +1304,9 @@ paths:
 
   /api/v1alpha/developers/{username}:
     get:
-      summary: Developer's CI dashboard data
-      description: >
-        Returns PRs authored by, under review by, and requiring action from the specified developer,
-        plus their recent dev deploys.
-      tags: [PRs]
+      summary: Developer identity
+      description: Returns the Hail and GitHub usernames for the specified developer.
+      tags: [Developers]
       parameters:
         - name: username
           in: path
@@ -1270,7 +1316,7 @@ paths:
           description: Hail username of the developer
       responses:
         '200':
-          description: User data retrieved successfully
+          description: Developer found
           content:
             application/json:
               schema:
@@ -1280,26 +1326,136 @@ paths:
                     type: string
                   gh_username:
                     type: string
-                  pr_wbs:
-                    type: array
-                    items:
-                      type: object
-                  review_wbs:
-                    type: array
-                    items:
-                      type: object
-                  actionable_wbs:
-                    type: array
-                    items:
-                      type: object
-                  dev_deploys:
-                    type: array
-                    items:
-                      type: object
         '401':
           description: Unauthorized
         '404':
           description: Not Found - user is not in AUTHORIZED_USERS in constants.py
+
+  /api/v1alpha/developers/{username}/prs:
+    get:
+      summary: Developer's PRs (all categories)
+      description: >
+        Returns all PRs relevant to the developer grouped into open (authored),
+        reviewer, and action_required lists. Each PR includes wb_index and wb_name
+        to correlate with the watched_branches endpoint.
+      tags: [Developers]
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: PR lists retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeveloperPRs'
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+
+  /api/v1alpha/developers/{username}/prs/open:
+    get:
+      summary: Developer's open PRs
+      description: PRs authored by the developer.
+      tags: [Developers]
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Open PRs retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PRSummary'
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+
+  /api/v1alpha/developers/{username}/prs/reviewer:
+    get:
+      summary: Developer's reviewer PRs
+      description: PRs where the developer is assigned as a reviewer.
+      tags: [Developers]
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Reviewer PRs retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PRSummary'
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+
+  /api/v1alpha/developers/{username}/prs/action_required:
+    get:
+      summary: Developer's action-required PRs
+      description: PRs that require action from the developer (build failure, changes requested, or pending review).
+      tags: [Developers]
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Action-required PRs retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PRSummary'
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+
+  /api/v1alpha/developers/{username}/dev_deploys:
+    get:
+      summary: Developer's recent dev deploys
+      description: Returns the 10 most recent dev deploy batches for the developer.
+      tags: [Developers]
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Dev deploys retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
 
   /api/v1alpha/authorized_shas:
     get:
