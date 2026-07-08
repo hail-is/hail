@@ -29,7 +29,8 @@ def region_from_location(location: str) -> str:
     # while zones have the form '{region}-{a,b,c,...}' (e.g. 'us-central1-a'). Accept
     # either: return the region unchanged, or strip the trailing zone suffix.
     parts = location.split('-')
-    assert len(parts) in (2, 3), location
+    if len(parts) not in (2, 3):
+        raise ValueError(f'Expected a GCP region or zone, got {location!r}')
     return '-'.join(parts[:2])
 
 

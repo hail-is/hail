@@ -139,6 +139,20 @@ def test_region_from_location(location, expected):
     assert region_from_location(location) == expected
 
 
+@pytest.mark.parametrize(
+    "location",
+    [
+        '',
+        'uscentral1',
+        'us-central1-a-b',
+        'us-central1-a-b-c',
+    ],
+)
+def test_region_from_location_rejects_malformed(location):
+    with pytest.raises(ValueError, match='Expected a GCP region or zone'):
+        region_from_location(location)
+
+
 def test_gcp_resource_from_dict():
     name = 'accelerator/l4-nonpreemptible/us-central1/1712657549063'
     gpu_data_dic_single = {'name': name, 'number': 1, 'type': 'gcp_accelerator', 'format_version': 2}
