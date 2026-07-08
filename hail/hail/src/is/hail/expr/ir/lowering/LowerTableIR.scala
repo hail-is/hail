@@ -125,7 +125,7 @@ class TableStage(
   val globals: Atom,
   val partitioner: RVDPartitioner,
   val dependency: TableStageDependency,
-  val contexts: IR,
+  val contexts: IR, // elements are required
   val ctxRefName: Name,
   val partitionIR: IR,
 ) extends Logging {
@@ -1437,7 +1437,7 @@ object LowerTableIR extends Logging {
                               aggsArray
                                 .stream
                                 .grouped(branchFactor)
-                                .zip(iota(0, 1), ArrayZipBehavior.TakeMinLength) { (group, idx) =>
+                                .enumerate { (group, idx) =>
                                   makestruct(
                                     "prev" -> last.at(idx),
                                     "partialSums" -> group.toArray,
@@ -1789,15 +1789,13 @@ object LowerTableIR extends Logging {
                   }
             ),
           contexts =
-            flatten(zip2(lc.contexts, iota(0, 1), ArrayZipBehavior.TakeMinLength) {
-              (elt, idx) =>
+            lc
+              .contexts
+              .enumerate { (elt, idx) =>
                 val `contains?` = invoke("contains", TBoolean, keepSetRef, idx)
-                If(
-                  if (keep) `contains?` else !`contains?`,
-                  MakeStream(elt),
-                  MakeStream.empty(elt.typ),
-                )
-            }),
+                If(if (keep) `contains?` else !`contains?`, elt, NA(elt.typ))
+              }
+              .filter(!_.isNA),
         )
 
       case TableToTableApply(

@@ -295,7 +295,7 @@ class MatrixNativeReader(
       val partFiles =
         colsRVDSpec.absolutePartPaths(spec.colsSpec.rowsComponent.absolutePath(colsPath))
 
-      def readCols(index: IR, path: IR): IR =
+      def readCols(path: IR, index: IR): IR =
         ReadPartition(
           makestruct("partitionIndex" -> index.toL, "partitionPath" -> path),
           requestedType.colType,
@@ -303,14 +303,8 @@ class MatrixNativeReader(
         )
 
       val cols =
-        if (partFiles.length == 1) readCols(0, Str(partFiles.head))
-        else flatten(
-          zip2(
-            iota(0, 1),
-            ToStream(Literal(TArray(TString), partFiles)),
-            ArrayZipBehavior.TakeMinLength,
-          )(readCols(_, _))
-        )
+        if (partFiles.length == 1) readCols(Str(partFiles.head), 0)
+        else flatten(Literal(TArray(TString), partFiles).stream.enumerate(readCols(_, _)))
 
       TableRead(tt, dropRows, trdr).mapGlobals(_.insert(colsFieldName -> ToArray(cols)))
     }

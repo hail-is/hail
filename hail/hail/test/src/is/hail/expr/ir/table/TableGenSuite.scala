@@ -37,7 +37,7 @@ class TableGenSuite {
 
   @Test
   def testWithInvalidGlobalsType(implicit ctx: ExecuteContext): Unit = {
-    val ex = intercept[HailException] {
+    val msg = intercept[Throwable] {
       TypeCheck(
         ctx,
         mkTableGen(
@@ -45,62 +45,58 @@ class TableGenSuite {
           body = Some((_, _) => MakeStream(IndexedSeq(), TStream(TStruct()))),
         ),
       )
-    }
-    ex.getCause.getMessage should include("globals")
-    ex.getCause.getMessage should include(s"Expected: ${classOf[TStruct].getName}")
-    ex.getCause.getMessage should include(s"Actual: ${TString.getClass.getName}")
+    }.getMessage
+    msg should include("globals")
+    msg should include(s"Expected: ${classOf[TStruct].getName}")
+    msg should include(s"Actual: ${TString.getClass.getName}")
   }
 
   @Test
   def testWithInvalidBodyType(implicit ctx: ExecuteContext): Unit = {
-    val ex = intercept[HailException] {
+    val msg = intercept[Throwable] {
       TypeCheck(ctx, mkTableGen(body = Some((_, _) => Str("oh noes :'("))))
-    }
-    ex.getCause.getMessage should include("body")
-    ex.getCause.getMessage should include(s"Expected: ${classOf[TStream].getName}")
-    ex.getCause.getMessage should include(s"Actual: ${TString.getClass.getName}")
+    }.getMessage
+    msg should include("body")
+    msg should include(s"Expected: ${classOf[TStream].getName}")
+    msg should include(s"Actual: ${TString.getClass.getName}")
   }
 
   @Test
   def testWithInvalidBodyElementType(implicit ctx: ExecuteContext): Unit = {
-    val ex = intercept[HailException] {
+    val msg = intercept[Throwable] {
       TypeCheck(
         ctx,
         mkTableGen(body =
           Some((_, _) => MakeStream(IndexedSeq(Str("oh noes :'(")), TStream(TString)))
         ),
       )
-    }
-    ex.getCause.getMessage should include("body.elementType")
-    ex.getCause.getMessage should include(s"Expected: ${classOf[TStruct].getName}")
-    ex.getCause.getMessage should include(s"Actual: ${TString.getClass.getName}")
+    }.getMessage
+    msg should include("body.elementType")
+    msg should include(s"Expected: ${classOf[TStruct].getName}")
+    msg should include(s"Actual: ${TString.getClass.getName}")
   }
 
   @Test
-  def testWithInvalidPartitionerKeyType(implicit ctx: ExecuteContext): Unit = {
-    val ex = intercept[HailException] {
+  def testWithInvalidPartitionerKeyType(implicit ctx: ExecuteContext): Unit =
+    intercept[Throwable] {
       TypeCheck(
         ctx,
         mkTableGen(partitioner =
           Some(RVDPartitioner.empty(ctx.stateManager, TStruct("does-not-exist" -> TInt32)))
         ),
       )
-    }
-    ex.getCause.getMessage should include("partitioner")
-  }
+    }.getMessage should include("partitioner")
 
   @Test
-  def testWithTooLongPartitionerKeyType(implicit ctx: ExecuteContext): Unit = {
-    val ex = intercept[HailException] {
+  def testWithTooLongPartitionerKeyType(implicit ctx: ExecuteContext): Unit =
+    intercept[Throwable] {
       TypeCheck(
         ctx,
         mkTableGen(partitioner =
           Some(RVDPartitioner.empty(ctx.stateManager, TStruct("does-not-exist" -> TInt32)))
         ),
       )
-    }
-    ex.getCause.getMessage should include("partitioner")
-  }
+    }.getMessage should include("partitioner")
 
   @Test
   def testRequiredness(implicit ctx: ExecuteContext): Unit = {
