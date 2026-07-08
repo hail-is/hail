@@ -87,10 +87,12 @@ the image name, so running without doing this would replace the current image re
 open Monitoring and watch the logs.
 4. Update the hardcoded image reference in
    `batch/batch/cloud/gcp/driver/create_instance.py` (search for `batch-worker-`)
-5. Test deploy, and check things look good.
-6. Repeat with `NAMESPACE=default`
-7. Create PR, watch CI, deploy with the updated image.
-8. NOTE: The rollout will only impact newly created workers. Any preexisting workers will remain on their
+5. [Optional] Increment the INSTANCE_VERSION in `batch/batch/globals.py`. If updated, the driver will allow
+existing instances to drain when it restarts, and force new jobs to run on updated instances.
+6. Test deploy, and check things look good.
+7. Repeat with `NAMESPACE=default`
+8. Create PR, watch CI, deploy with the updated image.
+9. NOTE: The rollout will only impact newly created workers. Any preexisting workers will remain on their
 old image until they get manually deleted, or gradually replaced through normal system operation.
 
 #### Rollback
