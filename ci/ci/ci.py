@@ -803,7 +803,7 @@ GROUP BY active_namespaces.namespace""",
         )
     ]
     for ns in namespaces:
-        ns['services'] = json.loads(ns['services']) or {}
+        ns['services'] = json.loads(ns['services'] or '{}') or {}
     return namespaces
 
 
@@ -1231,6 +1231,8 @@ async def api_retry_pr(request: web.Request, userdata: UserData) -> web.Response
 @auth.authenticated_users_with_permission(SystemPermission.MANAGE_CI, redirect=False)
 async def api_authorize_sha(request: web.Request, _) -> web.Response:
     params = await json_request(request)
+    if not isinstance(params, dict):
+        raise web.HTTPBadRequest(text='Request body must be a JSON object')
     sha = str(params.get('sha', '')).strip()
     if not sha:
         raise web.HTTPBadRequest(text='sha is required')
@@ -1309,6 +1311,8 @@ async def api_update_namespace_service(request: web.Request, _) -> web.Response:
     namespace = request.match_info['namespace']
     service = request.match_info['service']
     params = await json_request(request)
+    if not isinstance(params, dict):
+        raise web.HTTPBadRequest(text='Request body must be a JSON object')
     rate_limit_rps = params.get('rate_limit_rps')
     await db.execute_update(
         'UPDATE deployed_services SET rate_limit_rps = %s WHERE namespace = %s AND service = %s',

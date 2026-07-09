@@ -45,6 +45,7 @@ components:
           type: integer
         wb_name:
           type: string
+          description: "Branch name (e.g. 'main'), usable directly as the {branch} path parameter in watched_branches endpoints"
         build_state:
           type: string
           nullable: true
@@ -1359,7 +1360,8 @@ paths:
       description: >
         Returns all PRs relevant to the developer grouped into open (authored),
         reviewer, and action_required lists. Each PR includes wb_index and wb_name
-        to correlate with the watched_branches endpoint.
+        to correlate with the watched_branches endpoint. wb_name is the branch name
+        (e.g. 'main') and can be used directly as the {branch} path parameter.
       tags: [Developers]
       parameters:
         - name: username
