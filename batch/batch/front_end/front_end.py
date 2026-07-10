@@ -53,6 +53,7 @@ from gear.database import CallError
 from gear.profiling import install_profiler_if_requested
 from gear.time_limited_max_size_cache import TimeLimitedMaxSizeCache
 from hailtop import __version__, aiotools, dictfix, httpx, uvloopx
+from hailtop.aiocloud.aiogoogle.client.storage_client import GoogleStorageAsyncFS
 from hailtop.auth import hail_credentials
 from hailtop.batch_client.globals import MAX_JOB_GROUPS_DEPTH, ROOT_JOB_GROUP_ID
 from hailtop.batch_client.parse import parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes
@@ -743,25 +744,18 @@ async def _get_job_container_log_gcs_url(app, batch_id, job_id, container, overr
     if container not in containers:
         raise web.HTTPBadRequest(reason=f'unknown container {container}')
 
-    state = record['state']
     attempt_id = override_attempt_id if override_attempt_id is not None else attempt_id_from_spec(record)
-
-    if attempt_id is None or state not in complete_states:
-        raise web.HTTPNotFound(reason='log is not yet available in cloud storage')
+    if attempt_id is None:
+        raise web.HTTPNotFound(reason='no attempt found for this job')
 
     file_store: FileStore = app['file_store']
     format_version = BatchFormatVersion(record['format_version'])
-    gcs_url = file_store.log_path(format_version, batch_id, job_id, attempt_id, container)
-
-    if not await file_store.fs.isfile(gcs_url):
-        raise web.HTTPNotFound(reason='log file not found in cloud storage')
-
-    return gcs_url
+    return file_store.log_path(format_version, batch_id, job_id, attempt_id, container)
 
 
 def _signed_gcs_url(app, gcs_url: str) -> Tuple[str, str]:
     client: gcs.Client = app['gcs_client']
-    bucket_name, blob_name = gcs_url.removeprefix('gs://').split('/', 1)
+    bucket_name, blob_name = GoogleStorageAsyncFS.get_bucket_and_name(gcs_url)
     blob = client.bucket(bucket_name).blob(blob_name)
     expires_at = datetime.datetime.now(datetime.timezone.utc) + SIGNED_URL_EXPIRATION
     signed_url = blob.generate_signed_url(version='v4', expiration=SIGNED_URL_EXPIRATION, method='GET')
