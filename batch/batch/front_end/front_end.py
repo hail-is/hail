@@ -26,6 +26,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import pymysql
 from aiohttp import web
+from google.cloud import storage as gcs
 from plotly.subplots import make_subplots
 from prometheus_async.aio.web import server_stats  # type: ignore
 from typing_extensions import ParamSpec
@@ -105,7 +106,6 @@ from ..exceptions import (
     QueryError,
 )
 from ..file_store import FileStore
-from ..gcs_signed_url import GCSSignedURLGenerator
 from ..globals import (
     BATCH_FORMAT_VERSION,
     HTTP_CLIENT_MAX_SIZE,
@@ -151,6 +151,8 @@ deploy_config = get_deploy_config()
 auth = get_authenticator()
 
 FRONT_END_ROOT = os.path.dirname(__file__)
+
+SIGNED_URL_EXPIRATION = datetime.timedelta(minutes=15)
 
 BATCH_JOB_DEFAULT_CPU = os.environ.get('HAIL_BATCH_JOB_DEFAULT_CPU', '1')
 BATCH_JOB_DEFAULT_MEMORY = os.environ.get('HAIL_BATCH_JOB_DEFAULT_MEMORY', 'standard')
@@ -757,9 +759,12 @@ async def _get_job_container_log_gcs_url(app, batch_id, job_id, container, overr
     return gcs_url
 
 
-async def _signed_gcs_url(app, gcs_url: str) -> Tuple[str, str]:
-    signed_url_generator: GCSSignedURLGenerator = app['signed_url_generator']
-    signed_url, expires_at = await signed_url_generator.generate_signed_url(gcs_url)
+def _signed_gcs_url(app, gcs_url: str) -> Tuple[str, str]:
+    client: gcs.Client = app['gcs_client']
+    bucket_name, blob_name = gcs_url.removeprefix('gs://').split('/', 1)
+    blob = client.bucket(bucket_name).blob(blob_name)
+    expires_at = datetime.datetime.now(datetime.timezone.utc) + SIGNED_URL_EXPIRATION
+    signed_url = blob.generate_signed_url(version='v4', expiration=SIGNED_URL_EXPIRATION, method='GET')
     return signed_url, expires_at.isoformat()
 
 
@@ -767,13 +772,13 @@ async def _signed_gcs_url(app, gcs_url: str) -> Tuple[str, str]:
 @billing_project_users_only()
 @add_metadata_to_request
 async def rest_get_job_container_log_signed_url(request, _, batch_id) -> web.Response:
-    if request.app.get('signed_url_generator') is None:
+    if request.app.get('gcs_client') is None:
         raise web.HTTPNotImplemented(reason='signed URLs are not supported in this deployment')
     job_id = int(request.match_info['job_id'])
     container = request.match_info['container']
     override_attempt_id = request.query.get('attempt_id') or None
     gcs_url = await _get_job_container_log_gcs_url(request.app, batch_id, job_id, container, override_attempt_id)
-    signed_url, expires_at = await _signed_gcs_url(request.app, gcs_url)
+    signed_url, expires_at = _signed_gcs_url(request.app, gcs_url)
     return json_response({'signed_url': signed_url, 'expires_at': expires_at})
 
 
@@ -3831,9 +3836,7 @@ SELECT instance_id, n_tokens, frozen FROM globals;
     exit_stack.push_async_callback(app['file_store'].close)
 
     if CLOUD == 'gcp':
-        signed_url_generator = GCSSignedURLGenerator()
-        app['signed_url_generator'] = signed_url_generator
-        exit_stack.push_async_callback(signed_url_generator.close)
+        app['gcs_client'] = gcs.Client()
 
     app['task_manager'] = aiotools.BackgroundTaskManager()
     exit_stack.callback(app['task_manager'].shutdown)

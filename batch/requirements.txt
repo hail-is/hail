@@ -3,6 +3,7 @@
 -c ../gear/pinned-requirements.txt
 -c ../web_common/pinned-requirements.txt
 dictdiffer>=0.8.1,<1
+google-cloud-storage>=2,<4
 pandas>=2,<3
 plotly>=5.18.0,<6
 # Worker requirements

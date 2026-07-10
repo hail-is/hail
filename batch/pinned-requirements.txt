@@ -40,6 +40,29 @@ attrs==26.1.0
     #   -c batch/../hail/python/pinned-requirements.txt
     #   -c batch/../web_common/pinned-requirements.txt
     #   aiohttp
+certifi==2026.6.17
+    # via
+    #   -c batch/../gear/pinned-requirements.txt
+    #   -c batch/../hail/python/dev/pinned-requirements.txt
+    #   -c batch/../hail/python/pinned-requirements.txt
+    #   requests
+cffi==2.0.0
+    # via
+    #   -c batch/../gear/pinned-requirements.txt
+    #   -c batch/../hail/python/dev/pinned-requirements.txt
+    #   -c batch/../hail/python/pinned-requirements.txt
+    #   cryptography
+charset-normalizer==3.4.7
+    # via
+    #   -c batch/../gear/pinned-requirements.txt
+    #   -c batch/../hail/python/dev/pinned-requirements.txt
+    #   -c batch/../hail/python/pinned-requirements.txt
+    #   requests
+cryptography==49.0.0
+    # via
+    #   -c batch/../gear/pinned-requirements.txt
+    #   -c batch/../hail/python/pinned-requirements.txt
+    #   google-auth
 dictdiffer==0.9.0
     # via -r batch/requirements.txt
 frozenlist==1.8.0
@@ -50,12 +73,39 @@ frozenlist==1.8.0
     #   -c batch/../web_common/pinned-requirements.txt
     #   aiohttp
     #   aiosignal
+google-api-core==2.31.0
+    # via
+    #   -c batch/../gear/pinned-requirements.txt
+    #   google-cloud-core
+    #   google-cloud-storage
+google-auth==2.55.1
+    # via
+    #   -c batch/../gear/pinned-requirements.txt
+    #   -c batch/../hail/python/pinned-requirements.txt
+    #   google-api-core
+    #   google-cloud-core
+    #   google-cloud-storage
+google-cloud-core==2.6.0
+    # via google-cloud-storage
+google-cloud-storage==3.12.1
+    # via -r batch/requirements.txt
+google-crc32c==1.8.0
+    # via
+    #   google-cloud-storage
+    #   google-resumable-media
+google-resumable-media==2.10.0
+    # via google-cloud-storage
+googleapis-common-protos==1.75.0
+    # via
+    #   -c batch/../gear/pinned-requirements.txt
+    #   google-api-core
 idna==3.18
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   -c batch/../hail/python/dev/pinned-requirements.txt
     #   -c batch/../hail/python/pinned-requirements.txt
     #   -c batch/../web_common/pinned-requirements.txt
+    #   requests
     #   yarl
 multidict==6.7.1
     # via
@@ -92,6 +142,32 @@ propcache==0.5.2
     #   -c batch/../web_common/pinned-requirements.txt
     #   aiohttp
     #   yarl
+proto-plus==1.28.0
+    # via
+    #   -c batch/../gear/pinned-requirements.txt
+    #   google-api-core
+protobuf==7.35.1
+    # via
+    #   -c batch/../gear/pinned-requirements.txt
+    #   google-api-core
+    #   googleapis-common-protos
+    #   proto-plus
+pyasn1==0.6.3
+    # via
+    #   -c batch/../gear/pinned-requirements.txt
+    #   -c batch/../hail/python/pinned-requirements.txt
+    #   pyasn1-modules
+pyasn1-modules==0.4.2
+    # via
+    #   -c batch/../gear/pinned-requirements.txt
+    #   -c batch/../hail/python/pinned-requirements.txt
+    #   google-auth
+pycparser==3.0
+    # via
+    #   -c batch/../gear/pinned-requirements.txt
+    #   -c batch/../hail/python/dev/pinned-requirements.txt
+    #   -c batch/../hail/python/pinned-requirements.txt
+    #   cffi
 python-dateutil==2.9.0.post0
     # via
     #   -c batch/../gear/pinned-requirements.txt
@@ -102,6 +178,13 @@ pytz==2026.2
     # via
     #   -c batch/../hail/python/pinned-requirements.txt
     #   pandas
+requests==2.34.2
+    # via
+    #   -c batch/../gear/pinned-requirements.txt
+    #   -c batch/../hail/python/dev/pinned-requirements.txt
+    #   -c batch/../hail/python/pinned-requirements.txt
+    #   google-api-core
+    #   google-cloud-storage
 six==1.17.0
     # via
     #   -c batch/../gear/pinned-requirements.txt
@@ -120,12 +203,19 @@ typing-extensions==4.15.0
     #   -c batch/../web_common/pinned-requirements.txt
     #   aiohttp
     #   aiosignal
+    #   cryptography
     #   multidict
 tzdata==2026.2
     # via
     #   -c batch/../hail/python/dev/pinned-requirements.txt
     #   -c batch/../hail/python/pinned-requirements.txt
     #   pandas
+urllib3==2.7.0
+    # via
+    #   -c batch/../gear/pinned-requirements.txt
+    #   -c batch/../hail/python/dev/pinned-requirements.txt
+    #   -c batch/../hail/python/pinned-requirements.txt
+    #   requests
 yarl==1.24.2
     # via
     #   -c batch/../gear/pinned-requirements.txt
