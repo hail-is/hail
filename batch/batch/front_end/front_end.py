@@ -105,6 +105,7 @@ from ..exceptions import (
     QueryError,
 )
 from ..file_store import FileStore
+from ..gcs_signed_url import GCSSignedURLGenerator
 from ..globals import (
     BATCH_FORMAT_VERSION,
     HTTP_CLIENT_MAX_SIZE,
@@ -732,6 +733,48 @@ async def get_job_container_log(request, batch_id):
 @add_metadata_to_request
 async def rest_get_job_container_log(request, _, batch_id) -> web.Response:
     return await get_job_container_log(request, batch_id)
+
+
+async def _get_job_container_log_gcs_url(app, batch_id, job_id, container, override_attempt_id=None) -> str:
+    record = await _get_job_record(app, batch_id, job_id)
+    containers = job_tasks_from_spec(record)
+    if container not in containers:
+        raise web.HTTPBadRequest(reason=f'unknown container {container}')
+
+    state = record['state']
+    attempt_id = override_attempt_id if override_attempt_id is not None else attempt_id_from_spec(record)
+
+    if attempt_id is None or state not in complete_states:
+        raise web.HTTPNotFound(reason='log is not yet available in cloud storage')
+
+    file_store: FileStore = app['file_store']
+    format_version = BatchFormatVersion(record['format_version'])
+    gcs_url = file_store.log_path(format_version, batch_id, job_id, attempt_id, container)
+
+    if not await file_store.fs.isfile(gcs_url):
+        raise web.HTTPNotFound(reason='log file not found in cloud storage')
+
+    return gcs_url
+
+
+async def _signed_gcs_url(app, gcs_url: str) -> Tuple[str, str]:
+    signed_url_generator: GCSSignedURLGenerator = app['signed_url_generator']
+    signed_url, expires_at = await signed_url_generator.generate_signed_url(gcs_url)
+    return signed_url, expires_at.isoformat()
+
+
+@routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log/{container}/signed_url')
+@billing_project_users_only()
+@add_metadata_to_request
+async def rest_get_job_container_log_signed_url(request, _, batch_id) -> web.Response:
+    if request.app.get('signed_url_generator') is None:
+        raise web.HTTPNotImplemented(reason='signed URLs are not supported in this deployment')
+    job_id = int(request.match_info['job_id'])
+    container = request.match_info['container']
+    override_attempt_id = request.query.get('attempt_id') or None
+    gcs_url = await _get_job_container_log_gcs_url(request.app, batch_id, job_id, container, override_attempt_id)
+    signed_url, expires_at = await _signed_gcs_url(request.app, gcs_url)
+    return json_response({'signed_url': signed_url, 'expires_at': expires_at})
 
 
 async def _query_batches(request, user: str, q: str, version: int, last_batch_id: Optional[int]):
@@ -3786,6 +3829,11 @@ SELECT instance_id, n_tokens, frozen FROM globals;
     fs = get_cloud_async_fs()
     app['file_store'] = FileStore(fs, BATCH_STORAGE_URI, instance_id)
     exit_stack.push_async_callback(app['file_store'].close)
+
+    if CLOUD == 'gcp':
+        signed_url_generator = GCSSignedURLGenerator()
+        app['signed_url_generator'] = signed_url_generator
+        exit_stack.push_async_callback(signed_url_generator.close)
 
     app['task_manager'] = aiotools.BackgroundTaskManager()
     exit_stack.callback(app['task_manager'].shutdown)
