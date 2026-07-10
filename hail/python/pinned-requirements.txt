@@ -319,6 +319,8 @@ typing-extensions==4.16.0
     #   azure-identity
     #   azure-storage-blob
     #   janus
+    #   multidict
+    #   pyjwt
 tzdata==2026.3
     # via pandas
 urllib3==2.7.0

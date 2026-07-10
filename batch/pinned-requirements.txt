@@ -197,6 +197,7 @@ typing-extensions==4.16.0
     #   -c batch/../web_common/pinned-requirements.txt
     #   aiohttp
     #   aiosignal
+    #   multidict
 tzdata==2026.3
     # via
     #   -c batch/../hail/python/dev/pinned-requirements.txt

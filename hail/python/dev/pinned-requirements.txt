@@ -598,6 +598,7 @@ typing-extensions==4.16.0
     #   pyright
     #   pytest-asyncio
     #   referencing
+    #   virtualenv
 tzdata==2026.3
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
