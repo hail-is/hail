@@ -648,12 +648,10 @@ paths:
     get:
       summary: "Get signed URL for job log"
       description: |
-        Returns a time-limited GCS signed URL for direct download of a job's container log.
-        The URL is valid for 15 minutes from the time of issue. Range requests are supported,
-        so parallel download tools such as `gcloud storage cp` work correctly.
+        Returns a time-limited signed URL for direct download of a job's container log.
+        The URL is valid for 15 minutes from the time of issue.
         Only available for completed jobs whose log has been written to cloud storage.
-        Returns 404 if the job has not yet completed or if the log file is not found.
-        Returns 501 on non-GCP deployments.
+        Only available for GCP deployments using GCS logs.
       operationId: getLogSignedUrlInJobContainerV1alpha
       tags:
         - Batches API v1Alpha
