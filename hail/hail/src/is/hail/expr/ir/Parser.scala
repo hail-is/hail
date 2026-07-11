@@ -1504,9 +1504,8 @@ object IRParser {
       case "WriteValue" =>
         import ValueWriter.formats
         val writer = JsonMethods.parse(string_literal(it)).extract[ValueWriter]
-        ir_value_children(ctx)(it).map {
-          case Seq(value, path) => WriteValue(value, path, writer)
-          case Seq(value, path, stagingFile) => WriteValue(value, path, writer, Some(stagingFile))
+        ir_value_children(ctx)(it).map { case Seq(value, path) =>
+          WriteValue(value, path, writer)
         }
     }
   }

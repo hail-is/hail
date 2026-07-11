@@ -647,12 +647,12 @@ class BlockMatrix:
             to row-major format before writing.
             If ``False``, write blocks in their current format.
         stage_locally: :obj:`bool`
-            If ``True``, major output will be written to temporary local storage
-            before being copied to ``output``.
+            Deprecated and ignored. Retained for backwards compatibility; has no
+            effect.
         """
         hl.current_backend().validate_file(path)
 
-        writer = BlockMatrixNativeWriter(path, overwrite, force_row_major, stage_locally)
+        writer = BlockMatrixNativeWriter(path, overwrite, force_row_major)
         Env.backend().execute(BlockMatrixWrite(self._bmir, writer))
 
     @typecheck_method(path=str, overwrite=bool, force_row_major=bool, stage_locally=bool)
@@ -672,11 +672,11 @@ class BlockMatrix:
             to row-major format before checkpointing.
             If ``False``, checkpoint blocks in their current format.
         stage_locally: :obj:`bool`
-            If ``True``, major output will be written to temporary local storage
-            before being copied to ``output``.
+            Deprecated and ignored. Retained for backwards compatibility; has no
+            effect.
         """
         hl.current_backend().validate_file(path)
-        self.write(path, overwrite, force_row_major, stage_locally)
+        self.write(path, overwrite, force_row_major)
         return BlockMatrix.read(path, _assert_type=self._bmir._type)
 
     @staticmethod

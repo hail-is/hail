@@ -3423,7 +3423,7 @@ class IRSuite {
 
     val blockMatrix =
       BlockMatrixRead(BlockMatrixNativeReader(fs, getTestResource("blockmatrix_example/0")))
-    val blockMatrixWriter = BlockMatrixNativeWriter("/path/to/file.bm", false, false, false)
+    val blockMatrixWriter = BlockMatrixNativeWriter("/path/to/file.bm", false, false)
     val blockMatrixMultiWriter = BlockMatrixBinaryMultiWriter("/path/to/prefix", false)
     val nd = MakeNDArray(
       MakeArray(FastSeq(I32(-1), I32(1)), TArray(TInt32)),
@@ -3657,7 +3657,6 @@ class IRSuite {
           IndexedSeq(),
           "path",
           None,
-          None,
         ),
       ),
       WriteMetadata(
@@ -3677,12 +3676,6 @@ class IRSuite {
         I32(1),
         Str("foo"),
         ETypeValueWriter(TypedCodecSpec(ctx, PInt32(), BufferSpec.default)),
-      ),
-      WriteValue(
-        I32(1),
-        Str("foo"),
-        ETypeValueWriter(TypedCodecSpec(ctx, PInt32(), BufferSpec.default)),
-        Some(Str("/tmp/uid/part")),
       ),
       relationalBindIR(I32(0))(_ => I32(0)), {
         val y = freshName()

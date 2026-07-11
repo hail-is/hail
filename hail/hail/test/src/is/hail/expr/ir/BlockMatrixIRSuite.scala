@@ -186,7 +186,7 @@ class BlockMatrixIRSuite {
     val tempPath = ctx.createTmpPath("test-blockmatrix-write-read", "bm")
     Interpret[Unit](
       ctx,
-      BlockMatrixWrite(ones, BlockMatrixNativeWriter(tempPath, false, false, false)),
+      BlockMatrixWrite(ones, BlockMatrixNativeWriter(tempPath, false, false)),
     )
 
     assertBMEvalsTo(
@@ -418,7 +418,7 @@ class BlockMatrixIRSuite {
     assertEvalsTo(
       BlockMatrixWrite(
         BlockMatrixRead(BlockMatrixNativeReader(ctx.fs, original)),
-        BlockMatrixNativeWriter(path, overwrite = true, forceRowMajor = false, stageLocally = false),
+        BlockMatrixNativeWriter(path, overwrite = true, forceRowMajor = false),
       ),
       (),
     )

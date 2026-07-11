@@ -2995,21 +2995,12 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
           decoded
         }
 
-      case WriteValue(value, path, writer, stagingFile) =>
+      case WriteValue(value, path, writer) =>
         emitI(path).flatMap(cb) { case pv: SStringValue =>
           emitI(value).map(cb) { v =>
-            val s = stagingFile.map(emitI(_).getOrAssert(cb).asString)
-            val os = cb.memoize(mb.createUnbuffered(s.getOrElse(pv).loadString(cb)))
+            val os = cb.memoize(mb.createUnbuffered(pv.loadString(cb)))
             writer.writeValue(cb, v, os)
             cb += os.invoke[Unit]("close")
-            s.foreach { stage =>
-              cb += mb.getFS.invoke[String, String, Boolean, Unit](
-                "copy",
-                stage.loadString(cb),
-                pv.loadString(cb),
-                const(true),
-              )
-            }
             pv
           }
         }
