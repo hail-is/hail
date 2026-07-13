@@ -977,7 +977,6 @@ class FanoutWriterTarget(
   val rowSpec: TypedCodecSpec,
   val keyPType: PStruct,
   val tableType: TableType,
-  val rowWriter: PartitionNativeWriter,
 )
 
 case class TableNativeFanoutWriter(
@@ -1013,13 +1012,7 @@ case class TableNativeFanoutWriter(
         )
         val keyPType = tcoerce[PStruct](rowSpec.decodedPType(keyType))
         val tableType = TableType(targetRowType, keyFields, ts.globalType)
-        val rowWriter = PartitionNativeWriter(
-          rowSpec,
-          keyFields,
-          s"$targetPath/rows/parts/",
-          Some(s"$targetPath/index/" -> keyPType),
-        )
-        new FanoutWriterTarget(field, targetPath, rowSpec, keyPType, tableType, rowWriter)
+        new FanoutWriterTarget(field, targetPath, rowSpec, keyPType, tableType)
       }
     }
 
