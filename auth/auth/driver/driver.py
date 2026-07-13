@@ -468,20 +468,6 @@ async def _create_user(app, user, skip_trial_bp, cleanup):
         )
         updates['hail_credentials_secret_name'] = hail_credentials_secret_name
 
-    namespace_name = user['namespace_name']
-    # Namespace creation step if it doesn't exist yet and the user is a developer
-    # NB auth services in test namespaces cannot/should not be creating and deleting namespaces
-    if (
-        namespace_name is None
-        and SystemPermission.ACCESS_DEVELOPER_ENVIRONMENTS.value in system_permissions
-        and not is_test_deployment
-    ):
-        namespace_name = ident
-        namespace = K8sNamespaceResource(k8s_client)
-        cleanup.append(namespace.delete)
-        await namespace.create(namespace_name)
-        updates['namespace_name'] = namespace_name
-
     if not skip_trial_bp and user['is_service_account'] != 1:
         trial_bp = user['trial_bp_name']
         if trial_bp is None:
@@ -620,6 +606,84 @@ GROUP BY users.id
     return users
 
 
+async def _create_missing_namespaces(app):
+    if is_test_deployment:
+        return
+    db = app['db']
+    k8s_client = app['k8s_client']
+
+    users = [
+        x
+        async for x in db.execute_and_fetchall(
+            """
+SELECT DISTINCT u.id, u.username
+FROM users u
+JOIN users_system_roles usr ON u.id = usr.user_id
+JOIN system_role_permissions srp ON usr.role_id = srp.role_id
+JOIN system_permissions sp ON srp.permission_id = sp.id
+WHERE u.state = 'active'
+  AND sp.name = 'access_developer_environments'
+  AND u.namespace_name IS NULL
+"""
+        )
+    ]
+    for user in users:
+        namespace_name = user['username']
+        log.info(f'creating namespace {namespace_name} for user {user["username"]}')
+        namespace = K8sNamespaceResource(k8s_client)
+        try:
+            await namespace.create(namespace_name)
+            n_rows = await db.execute_update(
+                'UPDATE users SET namespace_name = %s WHERE id = %s AND namespace_name IS NULL',
+                (namespace_name, user['id']),
+            )
+            if n_rows == 0:
+                await namespace.delete()
+        except Exception:
+            log.exception(f'failed to create namespace for user {user["username"]}')
+            try:
+                await namespace.delete()
+            except Exception:
+                log.exception('caught exception while cleaning up namespace, ignoring')
+
+
+async def _remove_stale_namespaces(app):
+    if is_test_deployment:
+        return
+    db = app['db']
+    k8s_client = app['k8s_client']
+
+    users = [
+        x
+        async for x in db.execute_and_fetchall(
+            """
+SELECT u.id, u.namespace_name
+FROM users u
+WHERE u.state = 'active'
+  AND u.namespace_name IS NOT NULL
+  AND u.id NOT IN (
+      SELECT usr.user_id
+      FROM users_system_roles usr
+      JOIN system_role_permissions srp ON usr.role_id = srp.role_id
+      JOIN system_permissions sp ON srp.permission_id = sp.id
+      WHERE sp.name = 'access_developer_environments'
+  )
+"""
+        )
+    ]
+    for user in users:
+        namespace_name = user['namespace_name']
+        log.info(f'deleting stale namespace {namespace_name}')
+        try:
+            await K8sNamespaceResource(k8s_client, namespace_name).delete()
+            await db.execute_update(
+                'UPDATE users SET namespace_name = NULL WHERE id = %s AND namespace_name = %s',
+                (user['id'], namespace_name),
+            )
+        except Exception:
+            log.exception(f'failed to delete namespace {namespace_name}')
+
+
 async def update_users(app):
     log.info('in update_users')
 
@@ -641,6 +705,9 @@ async def update_users(app):
     ]
     for user in users_without_hail_identity_uid:
         await resolve_identity_uid(app, user['hail_identity'])
+
+    await _create_missing_namespaces(app)
+    await _remove_stale_namespaces(app)
 
     return True
 
