@@ -41,7 +41,7 @@ class StreamWriterState(override val kb: EmitClassBuilder[_], indexKey: Option[P
     cb: EmitCodeBuilder,
     regionStorer: (EmitCodeBuilder, Value[Region]) => Unit,
     dest: Value[Long],
-  ): Unit = fatal("makes no sense to store a writer's state")
+  ): Unit = {}
 
   override def copyFrom(cb: EmitCodeBuilder, src: Value[Long]): Unit =
     fatal("writer cannot be copied from address")
