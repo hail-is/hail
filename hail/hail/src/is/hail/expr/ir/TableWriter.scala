@@ -1045,7 +1045,13 @@ case class TableNativeFanoutWriter(
             bindIR(SelectFields(row, target.tableType.rowType.fieldNames)) { targetRow =>
               val partRoot = Str(s"${target.path}/rows/parts/")
               val indexRoot = Str(s"${target.path}/index/")
-              TableWriter.rowWriterHelper(target.rowSpec, targetRow, partFile, partRoot, Some(target.keyPType -> indexRoot))
+              TableWriter.rowWriterHelper(
+                target.rowSpec,
+                targetRow,
+                partFile,
+                partRoot,
+                Some(target.keyPType -> indexRoot),
+              )
             }
           }: _*)
         }
