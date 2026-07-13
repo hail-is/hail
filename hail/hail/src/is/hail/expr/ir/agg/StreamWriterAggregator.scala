@@ -41,13 +41,16 @@ class StreamWriterState(override val kb: EmitClassBuilder[_], indexKey: Option[P
     cb: EmitCodeBuilder,
     regionStorer: (EmitCodeBuilder, Value[Region]) => Unit,
     dest: Value[Long],
-  ): Unit = {}
+  ): Unit = fatal("makes no sense to store a writer's state")
 
-  override def copyFrom(cb: EmitCodeBuilder, src: Value[Long]): Unit = ???
+  override def copyFrom(cb: EmitCodeBuilder, src: Value[Long]): Unit =
+    fatal("writer cannot be copied from address")
 
-  override def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = ???
+  override def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit =
+    fatal("writer cannot be serialized")
 
-  override def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = ???
+  override def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit =
+    fatal("writer cannot be deserialized")
 
   private[agg] def addToIndex(cb: EmitCodeBuilder, codeRow: SValue): Unit =
     indexWriter.foreach { iw =>
