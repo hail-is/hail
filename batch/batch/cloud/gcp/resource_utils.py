@@ -6,7 +6,7 @@ log = logging.getLogger('utils')
 
 GCP_MAX_PERSISTENT_SSD_SIZE_GIB = 64 * 1024
 
-GCP_MACHINE_FAMILY = 'n2'
+GCP_MACHINE_FAMILY = 'n1'
 
 MEMORY_PER_CORE_MIB = {
     ('n1', 'standard'): 3840,
@@ -296,12 +296,18 @@ MACHINE_TYPE_TO_PARTS = {
     ),
 }
 
-gcp_valid_cores_for_pool_worker_type = {
+# Placeholder for eventual n2 pool worker support
+n2_gcp_valid_cores_for_pool_worker_type = {
     'standard': [2, 4, 8, 16, 32, 48, 64, 80, 96, 128],
     'highmem': [2, 4, 8, 16, 32, 48, 64, 80, 96, 128],
     'highcpu': [2, 4, 8, 16, 32, 48, 64, 80, 96],
 }
 
+gcp_valid_cores_for_pool_worker_type = {
+    'highcpu': [2, 4, 8, 16, 32, 64, 96],
+    'standard': [1, 2, 4, 8, 16, 32, 64, 96],
+    'highmem': [2, 4, 8, 16, 32, 64, 96],
+}
 gcp_valid_machine_types = list(MACHINE_TYPE_TO_PARTS.keys())
 
 gcp_memory_to_worker_type = {'lowmem': 'highcpu', 'standard': 'standard', 'highmem': 'highmem'}
