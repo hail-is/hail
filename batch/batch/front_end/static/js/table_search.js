@@ -92,6 +92,11 @@ const stateValues = {
 let isJobSearch;
 let currentMode = 'dropdown'; // 'dropdown' or 'textbox'
 
+// Cached clone of the initial structured criterion row. Captured on DOMContentLoaded
+// so we can reconstruct a blank structured row even when no `.search-criterion` is
+// currently in the DOM (e.g. after parseQuery() produced only free-text rows).
+let structuredRowTemplate = null;
+
 // Update operators based on selected field
 function updateOperators(selectElement) {
     const field = selectElement.value;
@@ -143,10 +148,13 @@ function updateOperators(selectElement) {
     }
 }
 
-// Add new search criterion
+// Add new search criterion. Clones the first existing structured row when available;
+// falls back to `structuredRowTemplate` when the container currently holds only
+// free-text rows.
 function addCriterion() {
     const container = document.getElementById('search-criteria-container');
-    const newCriterion = container.querySelector('.search-criterion').cloneNode(true);
+    const source = container.querySelector('.search-criterion') || structuredRowTemplate;
+    const newCriterion = source.cloneNode(true);
 
     // Reset values
     newCriterion.querySelector('.criterion-select').value = '';
@@ -166,13 +174,25 @@ function addCriterion() {
     updateRemoveButtonsVisibility(container);
 }
 
-// Update visibility of remove buttons based on criteria count
+// Add a free-text row (clones the <template id='search-freetext-template'>)
+function addFreeTextCriterion(initialValue) {
+    const container = document.getElementById('search-criteria-container');
+    const tpl = document.getElementById('search-freetext-template');
+    const row = tpl.content.firstElementChild.cloneNode(true);
+    row.querySelector('.freetext-input').value = initialValue == null ? '' : initialValue;
+    row.querySelector('.remove-criterion').addEventListener('click', function (_e) { removeCriterion(this); });
+    container.appendChild(row);
+    updateRemoveButtonsVisibility(container);
+    return row;
+}
+
+// Update visibility of remove buttons based on total row count (structured + free-text)
 function updateRemoveButtonsVisibility(container) {
-    const criteria = container.querySelectorAll('.search-criterion');
+    const rows = container.querySelectorAll('.search-criterion, .search-freetext');
     const removeButtons = container.querySelectorAll('.remove-criterion');
 
     removeButtons.forEach(button => {
-        if (criteria.length <= 1) {
+        if (rows.length <= 1) {
             button.style.display = 'none';
         } else {
             button.style.display = 'block';
@@ -180,31 +200,58 @@ function updateRemoveButtonsVisibility(container) {
     });
 }
 
-// Remove search criterion
+// Remove a row (structured or free-text). Prevents removing the last remaining row.
 function removeCriterion(button) {
     const container = button.closest('[id$="-criteria-container"]');
-    const criteria = container.querySelectorAll('.search-criterion');
+    const rows = container.querySelectorAll('.search-criterion, .search-freetext');
 
-    // Don't remove if it's the last criterion
-    if (criteria.length > 1) {
-        button.closest('.search-criterion').remove();
+    // Don't remove if it's the last remaining row
+    if (rows.length > 1) {
+        const row = button.closest('.search-criterion, .search-freetext');
+        if (row) {
+            row.remove();
+        }
         updateRemoveButtonsVisibility(container);
     }
 }
 
-// Build query string from criteria
+// Populate a structured criterion row (already in the DOM) with field/operator/value.
+function populateStructuredRow(criterion, field, operator, value) {
+    criterion.querySelector('.criterion-select').value = field;
+    updateOperators(criterion.querySelector('.criterion-select'));
+    criterion.querySelector('.operator-select').value = operator;
+
+    if (field === 'state') {
+        const stateSelect = criterion.querySelector('.state-select');
+        if (stateSelect) {
+            stateSelect.value = value;
+        }
+    } else {
+        criterion.querySelector('.value-input').value = value;
+    }
+}
+
+// Build query string from all rows (structured + free-text), preserving DOM order.
 function buildQuery() {
     const container = document.getElementById('search-criteria-container');
-    const criteria = container.querySelectorAll('.search-criterion');
+    const rows = container.querySelectorAll('.search-criterion, .search-freetext');
     const queryParts = [];
 
-    criteria.forEach(criterion => {
-        const field = criterion.querySelector('.criterion-select').value;
-        const operator = criterion.querySelector('.operator-select').value;
-        let value = criterion.querySelector('.value-input').value;
+    rows.forEach(row => {
+        if (row.classList.contains('search-freetext')) {
+            const value = row.querySelector('.freetext-input').value.trim();
+            if (value) {
+                queryParts.push(value);
+            }
+            return;
+        }
+
+        const field = row.querySelector('.criterion-select').value;
+        const operator = row.querySelector('.operator-select').value;
+        let value = row.querySelector('.value-input').value;
 
         // Check for state select
-        const stateSelect = criterion.querySelector('.state-select');
+        const stateSelect = row.querySelector('.state-select');
         if (stateSelect && stateSelect.style.display !== 'none') {
             value = stateSelect.value;
         }
@@ -217,55 +264,103 @@ function buildQuery() {
     return queryParts.join('\n');
 }
 
-// Parse existing query and populate dropdowns
+// Classify a query line: return {kind: 'structured', field, operator, value}
+// if it matches "<known-field> <valid-op> <value>"; otherwise return {kind: 'freetext'}.
+function classifyQueryLine(line) {
+    const match = line.trim().match(/^(\w+)\s*(=~|!~|<=|>=|!=|==|=|<|>)\s*(.+)$/);
+    if (match) {
+        const [, field, operator, value] = match;
+        if (
+            Object.hasOwn(fieldConfigs, field) &&
+            fieldConfigs[field].operators.includes(operator)
+        ) {
+            return { kind: 'structured', field, operator, value };
+        }
+    }
+    return { kind: 'freetext' };
+}
+
+// Parse an existing query and populate the rows. Each non-blank line becomes either
+// a structured row (if it matches "<known-field> <valid-op> <value>") or a free-text
+// row (otherwise). Unknown-field terms like `custom_attr = foo` render verbatim as
+// free-text and round-trip losslessly.
 function parseQuery(query) {
     if (!query) return;
 
     const container = document.getElementById('search-criteria-container');
-    const existingCriteria = container.querySelectorAll('.search-criterion');
 
-    // Remove extra criteria, keeping only the first one
-    for (let i = Number(existingCriteria.length - 1); i > 0; i--) {
-        existingCriteria[i].remove();
-    }
+    // Preserve the first structured row's DOM shape as a template for reconstruction,
+    // then remove ALL existing rows (both kinds). We rebuild from scratch below. Fall
+    // back to the module-level `structuredRowTemplate` if no structured row is present.
+    const firstStructured = container.querySelector('.search-criterion');
+    const structuredTemplate = firstStructured
+        ? firstStructured.cloneNode(true)
+        : structuredRowTemplate;
+    container.querySelectorAll('.search-criterion, .search-freetext').forEach(row => row.remove());
 
     const lines = query.split('\n').filter(line => line.trim());
 
-    lines.forEach((line, index) => {
-        let criterion;
-
-        if (index === 0) {
-            // Use the existing first criterion
-            criterion = container.querySelector('.search-criterion');
-        } else {
-            // Add additional criteria
-            addCriterion();
-            const criteria = container.querySelectorAll('.search-criterion');
-            criterion = criteria[criteria.length - 1];
+    if (lines.length === 0) {
+        // Nothing parseable — restore a single blank structured starter row.
+        if (structuredTemplate) {
+            appendBlankStructuredRow(container, structuredTemplate);
         }
+        updateRemoveButtonsVisibility(container);
+        return;
+    }
 
-        // Parse line and populate the criterion
-        const parts = line.trim().match(/^(\w+)\s*(=~|!~|<=|>=|!=|==|=|<|>)\s*(.+)$/);
-
-        if (parts && criterion) {
-            const [, field, operator, value] = parts;
-
-            criterion.querySelector('.criterion-select').value = field;
-            updateOperators(criterion.querySelector('.criterion-select'));
-            criterion.querySelector('.operator-select').value = operator;
-
-            if (field === 'state') {
-                const stateSelect = criterion.querySelector('.state-select');
-                if (stateSelect) {
-                    stateSelect.value = value;
-                }
-            } else {
-                criterion.querySelector('.value-input').value = value;
-            }
+    lines.forEach(line => {
+        const classification = classifyQueryLine(line);
+        if (classification.kind === 'structured' && structuredTemplate) {
+            const criterion = appendBlankStructuredRow(container, structuredTemplate);
+            populateStructuredRow(
+                criterion,
+                classification.field,
+                classification.operator,
+                classification.value,
+            );
+        } else {
+            addFreeTextCriterion(line.trim());
         }
     });
 
     updateRemoveButtonsVisibility(container);
+}
+
+// Clone `structuredTemplate`, reset its inputs, wire up its listeners, and append it
+// to `container`. Returns the newly appended row.
+function appendBlankStructuredRow(container, structuredTemplate) {
+    const newCriterion = structuredTemplate.cloneNode(true);
+
+    // Reset values
+    const criterionSelect = newCriterion.querySelector('.criterion-select');
+    if (criterionSelect) {
+        criterionSelect.value = '';
+        criterionSelect.addEventListener('change', function (_e) { updateOperators(this); });
+    }
+    const operatorSelect = newCriterion.querySelector('.operator-select');
+    if (operatorSelect) {
+        operatorSelect.innerHTML = '<option value="">Select operator...</option>';
+    }
+    const valueInput = newCriterion.querySelector('.value-input');
+    if (valueInput) {
+        valueInput.value = '';
+        valueInput.placeholder = 'Enter value...';
+        valueInput.style.display = 'block';
+    }
+    const removeButton = newCriterion.querySelector('.remove-criterion');
+    if (removeButton) {
+        removeButton.addEventListener('click', function (_e) { removeCriterion(this); });
+    }
+
+    // Remove any state select carried over from the clone
+    const stateSelect = newCriterion.querySelector('.state-select');
+    if (stateSelect) {
+        stateSelect.remove();
+    }
+
+    container.appendChild(newCriterion);
+    return newCriterion;
 }
 
 // Toggle between dropdown and textbox input modes
@@ -356,6 +451,15 @@ document.addEventListener('DOMContentLoaded', function() {
     isJobSearch = document.getElementById('search-form').getAttribute('data-is-job-search') === 'true';
 
     const container = document.getElementById('search-criteria-container');
+
+    // Capture the initial-load structured row shape so we can rebuild blank structured
+    // rows even when the container currently holds no `.search-criterion` element
+    // (e.g. after parseQuery() produces only free-text rows).
+    const initialFirst = container.querySelector('.search-criterion');
+    if (initialFirst) {
+        structuredRowTemplate = initialFirst.cloneNode(true);
+    }
+
     const existingQuery = document.getElementById('search-query').value;
     if (existingQuery) {
         parseQuery(existingQuery);
@@ -388,4 +492,5 @@ document.getElementsByName('criterion-select').forEach(selector => {
     selector.addEventListener('change', function (_e) { updateOperators(this) });
 } );
 document.getElementById('search-add-criterion').addEventListener('click', _e => addCriterion());
+document.getElementById('search-add-freetext').addEventListener('click', _e => addFreeTextCriterion(''));
 document.getElementById('search-toggle-mode').addEventListener('click', _e => toggleInputMode());

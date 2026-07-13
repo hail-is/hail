@@ -54,11 +54,26 @@
         spellcheck="false" autocorrect="off" placeholder='Enter search query (e.g., "cost > 5.00")'>{% if q %}{{ q }}{% endif %}</textarea>
     </div>
 
+    <!-- Free-text row template (cloned by addFreeTextCriterion in table_search.js) -->
+    <template id='search-freetext-template'>
+      <div class='search-freetext flex space-x-2 items-center'>
+        <span class='text-xs bg-slate-300 rounded px-2 py-1'>free text</span>
+        <input type='text' class='freetext-input p-2 bg-white rounded border flex-grow'
+               placeholder='partial match &mdash; wrap in "quotes" for exact match'>
+        <button type='button' class='remove-criterion text-red-500 hover:text-red-700' title='Remove free-text term'>
+          <span class='material-symbols-outlined text-sm'>close</span>
+        </button>
+      </div>
+    </template>
+
     <!-- Buttons below search box container -->
     <div class='flex justify-between items-center mt-3'>
       <div class='flex space-x-2'>
         <button type='button' id='search-add-criterion' class='px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600'>
           Add Search Criterion
+        </button>
+        <button type='button' id='search-add-freetext' class='px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600'>
+          + Add free text
         </button>
         <button type='button' id='search-toggle-mode' class='px-3 py-1 bg-gray-500 text-white rounded text-sm hover:bg-gray-600'>
           Switch to textbox query input
