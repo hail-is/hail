@@ -270,11 +270,11 @@ function classifyQueryLine(line) {
     const match = line.trim().match(/^(\w+)\s*(=~|!~|<=|>=|!=|==|=|<|>)\s*(.+)$/);
     if (match) {
         const [, field, operator, value] = match;
-        if (
-            Object.hasOwn(fieldConfigs, field) &&
-            fieldConfigs[field].operators.includes(operator)
-        ) {
-            return { kind: 'structured', field, operator, value };
+        if (Object.hasOwn(fieldConfigs, field)) {
+            const config = fieldConfigs[field];
+            if (config.operators.includes(operator)) {
+                return { kind: 'structured', field, operator, value };
+            }
         }
     }
     return { kind: 'freetext' };
@@ -296,7 +296,7 @@ function parseQuery(query) {
     const structuredTemplate = firstStructured
         ? firstStructured.cloneNode(true)
         : structuredRowTemplate;
-    container.querySelectorAll('.search-criterion, .search-freetext').forEach(row => row.remove());
+    container.querySelectorAll('.search-criterion, .search-freetext').forEach(row => { row.remove(); });
 
     const lines = query.split('\n').filter(line => line.trim());
 
@@ -495,5 +495,5 @@ document.getElementsByName('criterion-select').forEach(selector => {
     selector.addEventListener('change', function (_e) { updateOperators(this) });
 } );
 document.getElementById('search-add-criterion').addEventListener('click', _e => addCriterion());
-document.getElementById('search-add-freetext').addEventListener('click', _e => addFreeTextCriterion(''));
+document.getElementById('search-add-freetext').addEventListener('click', () => addFreeTextCriterion(''));
 document.getElementById('search-toggle-mode').addEventListener('click', _e => toggleInputMode());
