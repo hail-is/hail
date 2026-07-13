@@ -180,7 +180,7 @@ function addFreeTextCriterion(initialValue) {
     const tpl = document.getElementById('search-freetext-template');
     const row = tpl.content.firstElementChild.cloneNode(true);
     row.querySelector('.freetext-input').value = initialValue == null ? '' : initialValue;
-    row.querySelector('.remove-criterion').addEventListener('click', function (_e) { removeCriterion(this); });
+    row.querySelector('.remove-criterion').addEventListener('click', function () { removeCriterion(this); });
     container.appendChild(row);
     updateRemoveButtonsVisibility(container);
     return row;
@@ -336,7 +336,7 @@ function appendBlankStructuredRow(container, structuredTemplate) {
     const criterionSelect = newCriterion.querySelector('.criterion-select');
     if (criterionSelect) {
         criterionSelect.value = '';
-        criterionSelect.addEventListener('change', function (_e) { updateOperators(this); });
+        criterionSelect.addEventListener('change', function () { updateOperators(this); });
     }
     const operatorSelect = newCriterion.querySelector('.operator-select');
     if (operatorSelect) {
@@ -350,7 +350,7 @@ function appendBlankStructuredRow(container, structuredTemplate) {
     }
     const removeButton = newCriterion.querySelector('.remove-criterion');
     if (removeButton) {
-        removeButton.addEventListener('click', function (_e) { removeCriterion(this); });
+        removeButton.addEventListener('click', function () { removeCriterion(this); });
     }
 
     // Remove any state select carried over from the clone
