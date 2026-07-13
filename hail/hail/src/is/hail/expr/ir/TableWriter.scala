@@ -1035,7 +1035,7 @@ case class TableNativeFanoutWriter(
       bindIR(GetField(ctxRef, "writeCtx") + UUID4()) { partFile =>
         val partResult = streamAggIR(rows) { row =>
           maketuple(targets.map { target =>
-            bindIR(SelectFields(row, target.tableType.rowType.fieldNames)) { targetRow =>
+            aggBindIR(SelectFields(row, target.tableType.rowType.fieldNames)) { targetRow =>
               val partRoot = Str(s"${target.path}/rows/parts/")
               val indexRoot = Str(s"${target.path}/index/")
               TableWriter.rowWriterHelper(
@@ -1048,9 +1048,11 @@ case class TableNativeFanoutWriter(
             }
           }: _*)
         }
-        maketuple((0 until targets.length).map { i =>
-          bindIR(GetTupleElement(partResult, i))(TableWriter.resultHelper(_))
-        }: _*)
+        bindIR(partResult) { partResult =>
+          maketuple((0 until targets.length).map { i =>
+            bindIR(GetTupleElement(partResult, i))(TableWriter.resultHelper(_))
+          }: _*)
+        }
       }
     } { (parts, globals) =>
       bindIR(parts) { fileCountAndDistinct =>
