@@ -369,6 +369,7 @@ function toggleInputMode() {
     const textboxContainer = document.getElementById('search-textbox-container');
     const toggleButton = document.getElementById('search-toggle-mode');
     const addButton = document.getElementById('search-add-criterion');
+    const addFreeTextButton = document.getElementById('search-add-freetext');
     const textbox = document.getElementById('search-input-box');
     const hiddenInput = document.getElementById('search-query');
 
@@ -382,6 +383,7 @@ function toggleInputMode() {
         textboxContainer.style.display = 'block';
         toggleButton.textContent = 'Switch to drop-down query input';
         addButton.style.display = 'none';
+        addFreeTextButton.style.display = 'none';
 
         currentMode = 'textbox';
     } else {
@@ -393,6 +395,7 @@ function toggleInputMode() {
         textboxContainer.style.display = 'none';
         toggleButton.textContent = 'Switch to textbox query input';
         addButton.style.display = 'block';
+        addFreeTextButton.style.display = 'block';
 
         // Parse the textbox query back into dropdowns
         if (query) {
