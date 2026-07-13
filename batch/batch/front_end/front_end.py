@@ -753,8 +753,7 @@ async def _get_job_container_log_gcs_url(app, batch_id, job_id, container, overr
     return file_store.log_path(format_version, batch_id, job_id, attempt_id, container)
 
 
-def _signed_gcs_url(app, gcs_url: str) -> Tuple[str, str]:
-    client: gcs.Client = app['gcs_client']
+def _signed_gcs_url(client: gcs.Client, gcs_url: str) -> Tuple[str, str]:
     bucket_name, blob_name = GoogleStorageAsyncFS.get_bucket_and_name(gcs_url)
     blob = client.bucket(bucket_name).blob(blob_name)
     expires_at = datetime.datetime.now(datetime.timezone.utc) + SIGNED_URL_EXPIRATION
@@ -766,13 +765,14 @@ def _signed_gcs_url(app, gcs_url: str) -> Tuple[str, str]:
 @billing_project_users_only()
 @add_metadata_to_request
 async def rest_get_job_container_log_signed_url(request, _, batch_id) -> web.Response:
-    if request.app.get('gcs_client') is None:
+    gcs_client: Optional[gcs.Client] = request.app.get('gcs_client')
+    if gcs_client is None:
         raise web.HTTPNotImplemented(reason='signed URLs are not supported in this deployment')
     job_id = int(request.match_info['job_id'])
     container = request.match_info['container']
     override_attempt_id = request.query.get('attempt_id') or None
     gcs_url = await _get_job_container_log_gcs_url(request.app, batch_id, job_id, container, override_attempt_id)
-    signed_url, expires_at = _signed_gcs_url(request.app, gcs_url)
+    signed_url, expires_at = _signed_gcs_url(gcs_client, gcs_url)
     return json_response({'signed_url': signed_url, 'expires_at': expires_at})
 
 
