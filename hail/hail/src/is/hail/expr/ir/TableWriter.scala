@@ -978,7 +978,6 @@ class FanoutWriterTarget(
   val keyPType: PStruct,
   val tableType: TableType,
   val rowWriter: PartitionNativeWriter,
-  val globalWriter: PartitionNativeWriter,
 )
 
 case class TableNativeFanoutWriter(
@@ -1020,10 +1019,7 @@ case class TableNativeFanoutWriter(
           s"$targetPath/rows/parts/",
           Some(s"$targetPath/index/" -> keyPType),
         )
-        val globalWriter =
-          PartitionNativeWriter(globalSpec, IndexedSeq(), s"$targetPath/globals/parts/", None)
-        new FanoutWriterTarget(field, targetPath, rowSpec, keyPType, tableType, rowWriter,
-          globalWriter)
+        new FanoutWriterTarget(field, targetPath, rowSpec, keyPType, tableType, rowWriter)
       }
     }
 
@@ -1043,23 +1039,32 @@ case class TableNativeFanoutWriter(
     }(
       GetField(_, "oldCtx")
     ).mapCollectWithContextsAndGlobals("table_native_fanout_writer") { (rows, ctxRef) =>
-      val file = GetField(ctxRef, "writeCtx")
-      WritePartition(rows, file + UUID4(), new PartitionNativeFanoutWriter(targets))
+      bindIR(GetField(ctxRef, "writeCtx") + UUID4()) { partFile =>
+        val partResult = streamAggIR(rows) { row =>
+          maketuple(targets.map { target =>
+            bindIR(SelectFields(row, target.tableType.rowType.fieldNames)) { targetRow =>
+              val partRoot = Str(s"${target.path}/rows/parts/")
+              val indexRoot = Str(s"${target.path}/index/")
+              TableWriter.rowWriterHelper(target.rowSpec, targetRow, partFile, partRoot, Some(target.keyPType -> indexRoot))
+            }
+          }: _*)
+        }
+        maketuple((0 until targets.length).map { i =>
+          bindIR(GetTupleElement(partResult, i))(TableWriter.resultHelper(_))
+        }: _*)
+      }
     } { (parts, globals) =>
       bindIR(parts) { fileCountAndDistinct =>
         Begin(targets.zipWithIndex.map { case (target, index) =>
+          val writeGlobals = TableWriter.writerHelper(
+            globalSpec,
+            MakeStream(globals),
+            Str(partFile(1, 0)),
+            Str(s"${target.path}/globals/parts/"),
+          )
           Begin(FastSeq(
             WriteMetadata(
-              MakeArray(
-                GetField(
-                  WritePartition(
-                    MakeStream(globals),
-                    Str(partFile(1, 0)),
-                    target.globalWriter,
-                  ),
-                  "filePath",
-                )
-              ),
+              MakeArray(GetField(writeGlobals, "filePath")),
               RVDSpecWriter(
                 s"${target.path}/globals",
                 RVDSpecMaker(globalSpec, RVDPartitioner.unkeyed(ctx.stateManager, 1)),
@@ -1107,60 +1112,6 @@ case class TableNativeFanoutWriter(
       )(
         rest
       )
-    }
-  }
-}
-
-class PartitionNativeFanoutWriter(
-  targets: IndexedSeq[FanoutWriterTarget]
-) extends PartitionWriter {
-  override def consumeStream(
-    ctx: ExecuteContext,
-    cb: EmitCodeBuilder,
-    stream: StreamProducer,
-    context: EmitCode,
-    region: Value[Region],
-  ): IEmitCode = {
-    val ctx = context.toI(cb).getOrAssert(cb)
-    val consumers = targets.map(target => new target.rowWriter.StreamConsumer(ctx, cb, region))
-
-    consumers.foreach(_.setup())
-    stream.memoryManagedConsume(region, cb) { cb =>
-      val row = stream.element.toI(cb).getOrFatal(cb, "row can't be missing")
-
-      (consumers zip targets).foreach { case (consumer, target) =>
-        consumer.consumeElement(
-          cb,
-          row.asBaseStruct.subset((target.keyPType.fieldNames :+ target.field): _*),
-          stream.elementRegion,
-        )
-      }
-    }
-    IEmitCode.present(
-      cb,
-      SStackStruct.constructFromArgs(
-        cb,
-        region,
-        returnType,
-        consumers.map(consumer => EmitCode.present(cb.emb, consumer.result())): _*
-      ),
-    )
-  }
-
-  override def ctxType = TString
-
-  override def returnType: TTuple =
-    TTuple(targets.map(target => target.rowWriter.returnType): _*)
-
-  override def unionTypeRequiredness(
-    returnType: TypeWithRequiredness,
-    ctxType: TypeWithRequiredness,
-    streamType: RIterable,
-  ): Unit = {
-    val targetReturnTypes = returnType.asInstanceOf[RTuple].fields.map(_.typ)
-
-    ((targetReturnTypes) zip targets).foreach { case (returnType, target) =>
-      target.rowWriter.unionTypeRequiredness(returnType, ctxType, streamType)
     }
   }
 }
