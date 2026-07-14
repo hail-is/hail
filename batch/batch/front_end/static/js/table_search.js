@@ -92,11 +92,6 @@ const stateValues = {
 let isJobSearch;
 let currentMode = 'dropdown'; // 'dropdown' or 'textbox'
 
-// Cached clone of the initial structured criterion row. Captured on DOMContentLoaded
-// so we can reconstruct a blank structured row even when no `.search-criterion` is
-// currently in the DOM (e.g. after parseQuery() produced only free-text rows).
-let structuredRowTemplate = null;
-
 // Update operators based on selected field
 function updateOperators(selectElement) {
     const field = selectElement.value;
@@ -148,33 +143,19 @@ function updateOperators(selectElement) {
     }
 }
 
-// Add new search criterion. Clones the first existing structured row when available;
-// falls back to `structuredRowTemplate` when the container currently holds only
-// free-text rows.
-function addCriterion() {
+// Add a structured search-criterion row (clones the <template id='search-criterion-template'>).
+function addStructuredCriterion() {
     const container = document.getElementById('search-criteria-container');
-    const source = container.querySelector('.search-criterion') || structuredRowTemplate;
-    const newCriterion = source.cloneNode(true);
-
-    // Reset values
-    newCriterion.querySelector('.criterion-select').value = '';
-    newCriterion.querySelector('.criterion-select').addEventListener('change', function (_e) { updateOperators(this); });
-    newCriterion.querySelector('.operator-select').innerHTML = '<option value="">Select operator...</option>';
-    newCriterion.querySelector('.value-input').value = '';
-    newCriterion.querySelector('.value-input').placeholder = 'Enter value...';
-    newCriterion.querySelector('.remove-criterion').addEventListener('click', function (_e) { removeCriterion(this); });
-
-    // Remove any state select
-    const stateSelect = newCriterion.querySelector('.state-select');
-    if (stateSelect) {
-        stateSelect.remove();
-    }
-
-    container.appendChild(newCriterion);
+    const tpl = document.getElementById('search-criterion-template');
+    const row = tpl.content.firstElementChild.cloneNode(true);
+    row.querySelector('.criterion-select').addEventListener('change', function () { updateOperators(this); });
+    row.querySelector('.remove-criterion').addEventListener('click', function () { removeCriterion(this); });
+    container.appendChild(row);
     updateRemoveButtonsVisibility(container);
+    return row;
 }
 
-// Add a free-text row (clones the <template id='search-freetext-template'>)
+// Add a free-text row (clones the <template id='search-freetext-template'>).
 function addFreeTextCriterion(initialValue) {
     const container = document.getElementById('search-criteria-container');
     const tpl = document.getElementById('search-freetext-template');
@@ -288,31 +269,20 @@ function parseQuery(query) {
     if (!query) return;
 
     const container = document.getElementById('search-criteria-container');
-
-    // Preserve the first structured row's DOM shape as a template for reconstruction,
-    // then remove ALL existing rows (both kinds). We rebuild from scratch below. Fall
-    // back to the module-level `structuredRowTemplate` if no structured row is present.
-    const firstStructured = container.querySelector('.search-criterion');
-    const structuredTemplate = firstStructured
-        ? firstStructured.cloneNode(true)
-        : structuredRowTemplate;
     container.querySelectorAll('.search-criterion, .search-freetext').forEach(row => { row.remove(); });
 
     const lines = query.split('\n').filter(line => line.trim());
 
     if (lines.length === 0) {
         // Nothing parseable — restore a single blank structured starter row.
-        if (structuredTemplate) {
-            appendBlankStructuredRow(container, structuredTemplate);
-        }
-        updateRemoveButtonsVisibility(container);
+        addStructuredCriterion();
         return;
     }
 
     lines.forEach(line => {
         const classification = classifyQueryLine(line);
-        if (classification.kind === 'structured' && structuredTemplate) {
-            const criterion = appendBlankStructuredRow(container, structuredTemplate);
+        if (classification.kind === 'structured') {
+            const criterion = addStructuredCriterion();
             populateStructuredRow(
                 criterion,
                 classification.field,
@@ -323,44 +293,6 @@ function parseQuery(query) {
             addFreeTextCriterion(line.trim());
         }
     });
-
-    updateRemoveButtonsVisibility(container);
-}
-
-// Clone `structuredTemplate`, reset its inputs, wire up its listeners, and append it
-// to `container`. Returns the newly appended row.
-function appendBlankStructuredRow(container, structuredTemplate) {
-    const newCriterion = structuredTemplate.cloneNode(true);
-
-    // Reset values
-    const criterionSelect = newCriterion.querySelector('.criterion-select');
-    if (criterionSelect) {
-        criterionSelect.value = '';
-        criterionSelect.addEventListener('change', function () { updateOperators(this); });
-    }
-    const operatorSelect = newCriterion.querySelector('.operator-select');
-    if (operatorSelect) {
-        operatorSelect.innerHTML = '<option value="">Select operator...</option>';
-    }
-    const valueInput = newCriterion.querySelector('.value-input');
-    if (valueInput) {
-        valueInput.value = '';
-        valueInput.placeholder = 'Enter value...';
-        valueInput.style.display = 'block';
-    }
-    const removeButton = newCriterion.querySelector('.remove-criterion');
-    if (removeButton) {
-        removeButton.addEventListener('click', function () { removeCriterion(this); });
-    }
-
-    // Remove any state select carried over from the clone
-    const stateSelect = newCriterion.querySelector('.state-select');
-    if (stateSelect) {
-        stateSelect.remove();
-    }
-
-    container.appendChild(newCriterion);
-    return newCriterion;
 }
 
 // Toggle between dropdown and textbox input modes
@@ -401,23 +333,10 @@ function toggleInputMode() {
         if (query) {
             parseQuery(query);
         } else {
-            // If textbox is empty, reset to single empty criterion
+            // If textbox is empty, reset to a single empty structured criterion.
             const container = document.getElementById('search-criteria-container');
-            const criteria = container.querySelectorAll('.search-criterion');
-            // Remove extra criteria, keep only first one
-            for (let i = criteria.length - 1; i > 0; i--) {
-                criteria[i].remove();
-            }
-            // Reset first criterion
-            const firstCriterion = container.querySelector('.search-criterion');
-            if (firstCriterion) {
-                firstCriterion.querySelector('.criterion-select').value = '';
-                firstCriterion.querySelector('.operator-select').innerHTML = '<option value="">Select operator...</option>';
-                firstCriterion.querySelector('.value-input').value = '';
-                const stateSelect = firstCriterion.querySelector('.state-select');
-                if (stateSelect) stateSelect.remove();
-            }
-            updateRemoveButtonsVisibility(container);
+            container.querySelectorAll('.search-criterion, .search-freetext').forEach(row => row.remove());
+            addStructuredCriterion();
         }
 
         currentMode = 'dropdown';
@@ -453,22 +372,12 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize search context
     isJobSearch = document.getElementById('search-form').getAttribute('data-is-job-search') === 'true';
 
-    const container = document.getElementById('search-criteria-container');
-
-    // Capture the initial-load structured row shape so we can rebuild blank structured
-    // rows even when the container currently holds no `.search-criterion` element
-    // (e.g. after parseQuery() produces only free-text rows).
-    const initialFirst = container.querySelector('.search-criterion');
-    if (initialFirst) {
-        structuredRowTemplate = initialFirst.cloneNode(true);
-    }
-
     const existingQuery = document.getElementById('search-query').value;
     if (existingQuery) {
         parseQuery(existingQuery);
     } else {
-        // Update remove button visibility on initial load
-        updateRemoveButtonsVisibility(container);
+        // Stamp a single blank structured row so the container isn't empty on load.
+        addStructuredCriterion();
     }
 });
 
@@ -487,13 +396,6 @@ document.addEventListener("keydown", function (e) {
     }
 });
 
-// Add initial event listeners
-document.getElementsByName('remove-criterion').forEach(button => {
-    button.addEventListener('click', function (_e) { removeCriterion(this) });
-} );
-document.getElementsByName('criterion-select').forEach(selector => {
-    selector.addEventListener('change', function (_e) { updateOperators(this) });
-} );
-document.getElementById('search-add-criterion').addEventListener('click', _e => addCriterion());
+document.getElementById('search-add-criterion').addEventListener('click', () => addStructuredCriterion());
 document.getElementById('search-add-freetext').addEventListener('click', () => addFreeTextCriterion(''));
 document.getElementById('search-toggle-mode').addEventListener('click', _e => toggleInputMode());
