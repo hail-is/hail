@@ -1560,7 +1560,7 @@ steps:
     inputs:
       - from: /repo/docker/hailgenetics/hail
         to: /io/repo/docker/hailgenetics/hail
-      - from: /repo/hail/python/pinned-requirements.txt
+      - from: /repo/hail/python/pinned-requirements-py310.txt
         to: /io/repo/hail/python/pinned-requirements.txt
       - from: /derived/release/hail/build/deploy/dist
         to: /io/repo/wheel
@@ -2751,6 +2751,7 @@ steps:
               -vv \
               --instafail \
               --durations=50 \
+              --asyncio-mode=auto \
               /io/test_requester_pays_parsing.py
     inputs:
       - from: /derived/release/hail/build/deploy/dist
