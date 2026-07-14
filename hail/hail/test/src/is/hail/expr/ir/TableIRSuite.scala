@@ -354,7 +354,7 @@ class TableIRSuite {
     (36, 2, -1),
     (37, 1, -1),
     (37, 2, -1),
-  ).map(Row.fromTuple)
+  ).map(RowSeq.fromTuple)
 
   val rightData = FastSeq(
     (6, 1, 1),
@@ -381,7 +381,7 @@ class TableIRSuite {
     (38, 2, 1),
     (41, 1, 1),
     (41, 2, 1),
-  ).map(Row.fromTuple)
+  ).map(RowSeq.fromTuple)
 
   val expectedUnion = ArraySeq(
     (3, 1, -1),
@@ -432,7 +432,7 @@ class TableIRSuite {
     (38, 2, 1),
     (41, 1, 1),
     (41, 2, 1),
-  ).map(Row.fromTuple)
+  ).map(RowSeq.fromTuple)
 
   val expectedZipJoin = ArraySeq(
     (3, 1, FastSeq(RowSeq(-1), null)),
@@ -473,7 +473,7 @@ class TableIRSuite {
     (38, 2, FastSeq(null, RowSeq(1))),
     (41, 1, FastSeq(null, RowSeq(1))),
     (41, 2, FastSeq(null, RowSeq(1))),
-  ).map(Row.fromTuple)
+  ).map(RowSeq.fromTuple)
 
   val expectedOuterJoin = ArraySeq(
     (3, 1, -1, null, null),
@@ -524,7 +524,7 @@ class TableIRSuite {
     (38, null, null, 2, 1),
     (41, null, null, 1, 1),
     (41, null, null, 2, 1),
-  ).map(Row.fromTuple)
+  ).map(RowSeq.fromTuple)
 
   val joinTypes = ArraySeq(
     ("outer", (row: Row) => true),
@@ -1541,7 +1541,7 @@ class TableIRSuite {
           }
         }
       ),
-      Row((0 until 20).flatMap(i => (0 until 3).map(j => RowSeq("Hello", j))), RowSeq("Hello")),
+      RowSeq((0 until 20).flatMap(i => (0 until 3).map(j => RowSeq("Hello", j))), RowSeq("Hello")),
     )
 
     assertEvalsTo(
@@ -1557,7 +1557,7 @@ class TableIRSuite {
         IndexedSeq.tabulate(20) { i =>
           // 0,1,2,3,4,5,6,7,8,9,... ==>
           // 0,0,0,0,0,5,5,5,5,5,...
-          Row((i / 5) * 5)
+          RowSeq((i / 5) * 5)
         },
         RowSeq("Hello"),
       ),

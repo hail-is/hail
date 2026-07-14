@@ -1,8 +1,9 @@
 package is.hail.scalacheck
 
-import is.hail.annotations.{Annotation => An, SafeNDArray}
+import is.hail.annotations.{Annotation => An, RowSeq, SafeNDArray}
 import is.hail.backend.ExecuteContext
 import is.hail.collection.compat.immutable.ArraySeq
+import is.hail.collection.implicits.toRichArray
 import is.hail.scalacheck
 import is.hail.types.physical._
 import is.hail.types.virtual._
@@ -11,7 +12,6 @@ import is.hail.utils.Interval
 import scala.collection.compat._
 
 import org.apache.spark.sql.Row
-import org.apache.spark.sql.catalyst.expressions.GenericRow
 import org.scalacheck.{Arbitrary, Gen}
 import org.scalacheck.Arbitrary.arbitrary
 import org.scalacheck.Gen._
@@ -42,7 +42,7 @@ private[scalacheck] trait GenVal {
             values <- sequence(sizes.lazyZip(t.types).map { case (s, t) =>
               resize(s, genVal(ctx, t))
             })
-          } yield new GenericRow(values)
+          } yield new RowSeq(values.unsafeToArraySeq)
         case _: PBoolean =>
           arbitrary[Boolean]
         case _: PBinary =>
