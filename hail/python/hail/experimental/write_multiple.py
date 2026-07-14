@@ -20,7 +20,7 @@ def write_matrix_tables(
 ):
     length = len(str(len(mts) - 1))
     paths = [f"{prefix}{str(i).rjust(length, '0')}.mt" for i in range(len(mts))]
-    writer = MatrixNativeMultiWriter(paths, overwrite, stage_locally, codec_spec)
+    writer = MatrixNativeMultiWriter(paths, overwrite, codec_spec)
     Env.backend().execute(MatrixMultiWrite([mt._mir for mt in mts], writer))
 
     return paths
@@ -82,8 +82,8 @@ def write_block_matrices(
         to row-major format before writing.
         If ``False``, write blocks in their current format.
     :param stage_locally: :obj:`bool`
-        If ``True``, major output will be written to temporary local storage
-        before being copied to ``output``.
+        Deprecated and ignored. Retained for backwards compatibility; has no
+        effect.
     """
-    writer = BlockMatrixNativeMultiWriter(path_prefix, overwrite, force_row_major, stage_locally)
+    writer = BlockMatrixNativeMultiWriter(path_prefix, overwrite, force_row_major)
     Env.backend().execute(BlockMatrixMultiWrite([bm._bmir for bm in bms], writer))

@@ -35,8 +35,6 @@ import is.hail.utils.implicits.ByteTrackingOutputStream
 import is.hail.variant.{Call, ReferenceGenome}
 
 import java.io.{InputStream, OutputStream}
-import java.nio.file.{FileSystems, Path}
-import java.util.UUID
 
 import org.json4s.{DefaultFormats, Formats, ShortTypeHints}
 import org.json4s.jackson.JsonMethods
@@ -101,7 +99,6 @@ object MatrixNativeWriter {
     r: RTable,
     path: String,
     overwrite: Boolean = false,
-    stageLocally: Boolean = false,
     codecSpecJSONStr: String = null,
     partitions: String = null,
     partitionsTypeStr: String = null,
@@ -150,9 +147,6 @@ object MatrixNativeWriter {
       s"$path/entries/rows/parts/",
       pKey.virtualType.fieldNames,
       Some(s"$path/index/" -> pKey),
-      if (stageLocally)
-        Some(FileSystems.getDefault.getPath(ctx.localTmpdir, s"hail_stage_tmp_${UUID.randomUUID}"))
-      else None,
     )
 
     new MatrixWriterComponents {
@@ -200,20 +194,19 @@ object MatrixNativeWriter {
                 FastSeq(),
                 s"$path/globals/globals/parts/",
                 None,
-                None,
               ),
             )
 
             colInfo <- WritePartition(
               ToStream(GetField(globals, colsFieldName)),
               partFile,
-              PartitionNativeWriter(colSpec, FastSeq(), s"$path/cols/rows/parts/", None, None),
+              PartitionNativeWriter(colSpec, FastSeq(), s"$path/cols/rows/parts/", None),
             )
 
             writeGlobals <- WritePartition(
               MakeStream(SelectFields(globals, tm.globalType.fieldNames)),
               partFile,
-              PartitionNativeWriter(globalSpec, FastSeq(), s"$path/globals/rows/parts/", None, None),
+              PartitionNativeWriter(globalSpec, FastSeq(), s"$path/globals/rows/parts/", None),
             )
 
             _ <- WriteMetadata(
@@ -351,7 +344,6 @@ object MatrixNativeWriter {
 case class MatrixNativeWriter(
   path: String,
   overwrite: Boolean = false,
-  stageLocally: Boolean = false,
   codecSpecJSONStr: String = null,
   partitions: String = null,
   partitionsTypeStr: String = null,
@@ -368,7 +360,7 @@ case class MatrixNativeWriter(
 
     val components = MatrixNativeWriter.generateComponentFunctions(
       colsFieldName, entriesFieldName, colKey, ctx, tablestage, r,
-      path, overwrite, stageLocally, codecSpecJSONStr, partitions, partitionsTypeStr)
+      path, overwrite, codecSpecJSONStr, partitions, partitionsTypeStr)
 
     Begin(FastSeq(
       components.setup,
@@ -386,7 +378,6 @@ case class SplitPartitionNativeWriter(
   partPrefix2: String,
   keyFieldNames: IndexedSeq[String],
   index: Option[(String, PStruct)],
-  stageFolder: Option[Path],
 ) extends PartitionWriter {
 
   val keyType = spec1.encodedVirtualType.asInstanceOf[TStruct].select(keyFieldNames)._1
@@ -442,7 +433,7 @@ case class SplitPartitionNativeWriter(
 
     context.toI(cb).map(cb) { pctx =>
       val ctxValue = pctx.asString.loadString(cb)
-      val (filenames, stages, buffers) =
+      val buffers =
         FastSeq(partPrefix1, partPrefix2)
           .map(const)
           .zipWithIndex
@@ -450,26 +441,19 @@ case class SplitPartitionNativeWriter(
             val filename = mb.newLocal[String](s"filename$i")
             cb.assign(filename, prefix.concat(ctxValue))
 
-            val stagingFile = stageFolder.map { folder =>
-              val stage = mb.newLocal[String](s"stage$i")
-              cb.assign(stage, const(s"$folder/$i/").concat(ctxValue))
-              stage
-            }
-
             val ostream = mb.newLocal[ByteTrackingOutputStream](s"write_os$i")
             cb.assign(
               ostream,
               Code.newInstance[ByteTrackingOutputStream, OutputStream](
-                mb.createUnbuffered(stagingFile.getOrElse(filename).get)
+                mb.createUnbuffered(filename.get)
               ),
             )
 
             val buffer = mb.newLocal[OutputBuffer](s"write_ob$i")
             cb.assign(buffer, spec1.buildCodeOutputBuffer(Code.checkcast[OutputStream](ostream)))
 
-            (filename, stagingFile, buffer)
+            buffer
           }
-          .unzip3
 
       writeIndexInfo.foreach { case (name, _, writer) =>
         val indexFile = cb.newLocal[String]("indexFile")
@@ -585,15 +569,6 @@ case class SplitPartitionNativeWriter(
         cb += buff.writeByte(0.asInstanceOf[Byte])
         cb += buff.flush()
         cb += buff.close()
-      }
-
-      stages.flatten.zip(filenames).foreach { case (source, destination) =>
-        cb += mb.getFS.invoke[String, String, Boolean, Unit](
-          "copy",
-          source,
-          destination,
-          const(true),
-        )
       }
 
       lastSeenSettable.loadI(cb).consume(
@@ -2485,7 +2460,7 @@ case class MatrixBlockMatrixWriter(
     )
     RelationalWriter.scoped(path, overwrite, None)(WriteMetadata(
       flatPaths,
-      BlockMatrixNativeMetadataWriter(path, stageLocally = false, bmt),
+      BlockMatrixNativeMetadataWriter(path, bmt),
     ))
   }
 }
@@ -2500,13 +2475,12 @@ object MatrixNativeMultiWriter {
 case class MatrixNativeMultiWriter(
   paths: IndexedSeq[String],
   overwrite: Boolean = false,
-  stageLocally: Boolean = false,
   codecSpecJSONStr: String = null,
 ) {
   val bufferSpec: BufferSpec = BufferSpec.parseOrDefault(codecSpecJSONStr)
 
   def apply(ctx: ExecuteContext, mvs: IndexedSeq[MatrixValue]): Unit =
-    MatrixValue.writeMultiple(ctx, mvs, paths, overwrite, stageLocally, bufferSpec)
+    MatrixValue.writeMultiple(ctx, mvs, paths, overwrite, bufferSpec)
 
   def lower(
     ctx: ExecuteContext,
@@ -2515,7 +2489,7 @@ case class MatrixNativeMultiWriter(
     val components =
       paths.zip(tables).map { case (path, (colsFieldName, entriesFieldName, colKey, ts, rt)) =>
         MatrixNativeWriter.generateComponentFunctions(colsFieldName, entriesFieldName, colKey,
-          ctx, ts, rt, path, overwrite, stageLocally, codecSpecJSONStr)
+          ctx, ts, rt, path, overwrite, codecSpecJSONStr)
       }
 
     require(tables.map(_._4.tableType.keyType).distinct.length == 1)

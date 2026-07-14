@@ -641,7 +641,7 @@ class Pretty(
       single(prettyStringLiteral(JsonMethods.compact(writer.toJValue), elide = elideLiterals))
     case ReadValue(_, reader, reqType) =>
       FastSeq(prettyStringLiteral(JsonMethods.compact(reader.toJValue)), reqType.parsableString())
-    case WriteValue(_, _, writer, _) =>
+    case WriteValue(_, _, writer) =>
       single(prettyStringLiteral(JsonMethods.compact(writer.toJValue)))
     case MakeNDArray(_, _, _, errorId) => FastSeq(errorId.toString)
 

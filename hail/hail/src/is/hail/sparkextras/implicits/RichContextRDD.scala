@@ -25,40 +25,19 @@ object RichContextRDD {
     f: String,
     idxRelPath: String,
     mkIdxWriter: (String, HailClassLoader, RegionPool) => IndexWriter,
-    stageLocally: Boolean,
     fs: FS,
-    localTmpdir: String,
     it: Iterator[T],
     write: (HailClassLoader, RVDContext, Iterator[T], OutputStream, IndexWriter) => (Long, Long),
   ): Iterator[FileWriteMetadata] = {
-    val finalFilename = rootPath + "/parts/" + f
-    val finalIdxFilename =
+    val filename = rootPath + "/parts/" + f
+    val idxFilename =
       if (idxRelPath != null) rootPath + "/" + idxRelPath + "/" + f + ".idx" else null
-    val (filename, idxFilename) =
-      if (stageLocally) {
-        val context = TaskContext.get()
-        val partPath = ExecuteContext.createTmpPathNoCleanup(localTmpdir, "write-partitions-part")
-        val idxPath = partPath + ".idx"
-        context.addTaskCompletionListener[Unit] { (context: TaskContext) =>
-          fs.delete(partPath, recursive = false)
-          fs.delete(idxPath, recursive = true)
-        }: Unit
-        partPath -> idxPath
-      } else
-        finalFilename -> finalIdxFilename
     val os = fs.create(filename)
     val iw = mkIdxWriter(idxFilename, hcl, ctx.r.pool)
 
     // write must close `os` and `iw`
     val (rowCount, bytesWritten) = write(hcl, ctx, it, os, iw)
 
-    if (stageLocally) {
-      fs.copy(filename, finalFilename)
-      if (iw != null) {
-        fs.copy(idxFilename + "/index", finalIdxFilename + "/index")
-        fs.copy(idxFilename + "/metadata.json.gz", finalIdxFilename + "/metadata.json.gz")
-      }
-    }
     ctx.region.clear()
     Iterator.single(FileWriteMetadata(f, rowCount, bytesWritten))
   }
@@ -96,11 +75,9 @@ class RichContextRDD[T](val crdd: ContextRDD[T]) extends AnyVal {
     ctx: ExecuteContext,
     path: String,
     idxRelPath: String,
-    stageLocally: Boolean,
     mkIdxWriter: (String, HailClassLoader, RegionPool) => IndexWriter,
     write: (HailClassLoader, RVDContext, Iterator[T], OutputStream, IndexWriter) => (Long, Long),
   ): IndexedSeq[FileWriteMetadata] = {
-    val localTmpdir = ctx.localTmpdir
     val fs = ctx.fs
 
     fs.mkDir(path + "/parts")
@@ -113,8 +90,7 @@ class RichContextRDD[T](val crdd: ContextRDD[T]) extends AnyVal {
 
     val fileData = crdd.cmapPartitionsWithIndex { (i, hcl, ctx, it) =>
       val f = partFile(d, i, TaskContext.get())
-      RichContextRDD.writeParts(hcl, ctx, path, f, idxRelPath, mkIdxWriter, stageLocally, fs,
-        localTmpdir, it, write)
+      RichContextRDD.writeParts(hcl, ctx, path, f, idxRelPath, mkIdxWriter, fs, it, write)
     }
       .collect()
 

@@ -17,12 +17,11 @@ class TableWriter(object):
 
 
 class TableNativeWriter(TableWriter):
-    @typecheck_method(path=str, overwrite=bool, stage_locally=bool, codec_spec=nullable(str))
-    def __init__(self, path, overwrite, stage_locally, codec_spec):
+    @typecheck_method(path=str, overwrite=bool, codec_spec=nullable(str))
+    def __init__(self, path, overwrite, codec_spec):
         super(TableNativeWriter, self).__init__()
         self.path = path
         self.overwrite = overwrite
-        self.stage_locally = stage_locally
         self.codec_spec = codec_spec
 
     def render(self):
@@ -30,7 +29,6 @@ class TableNativeWriter(TableWriter):
             'name': 'TableNativeWriter',
             'path': self.path,
             'overwrite': self.overwrite,
-            'stageLocally': self.stage_locally,
             'codecSpecJSONStr': self.codec_spec,
         }
         return escape_str(json.dumps(writer))
@@ -40,7 +38,6 @@ class TableNativeWriter(TableWriter):
             isinstance(other, TableNativeWriter)
             and other.path == self.path
             and other.overwrite == self.overwrite
-            and other.stage_locally == self.stage_locally
             and other.codec_spec == self.codec_spec
         )
 
@@ -78,13 +75,12 @@ class TableTextWriter(TableWriter):
 
 
 class TableNativeFanoutWriter(TableWriter):
-    @typecheck_method(path=str, fields=sequenceof(str), overwrite=bool, stage_locally=bool, codec_spec=nullable(str))
-    def __init__(self, path, fields, overwrite, stage_locally, codec_spec):
+    @typecheck_method(path=str, fields=sequenceof(str), overwrite=bool, codec_spec=nullable(str))
+    def __init__(self, path, fields, overwrite, codec_spec):
         super(TableNativeFanoutWriter, self).__init__()
         self.path = path
         self.fields = fields
         self.overwrite = overwrite
-        self.stage_locally = stage_locally
         self.codec_spec = codec_spec
 
     def render(self):
@@ -93,7 +89,6 @@ class TableNativeFanoutWriter(TableWriter):
             'path': self.path,
             'fields': self.fields,
             'overwrite': self.overwrite,
-            'stageLocally': self.stage_locally,
             'codecSpecJSONStr': self.codec_spec,
         }
         return escape_str(json.dumps(writer))
@@ -104,6 +99,5 @@ class TableNativeFanoutWriter(TableWriter):
             and other.path == self.path
             and other.fields == self.fields
             and other.overwrite == self.overwrite
-            and other.stage_locally == self.stage_locally
             and other.codec_spec == self.codec_spec
         )
