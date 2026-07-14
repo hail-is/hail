@@ -650,7 +650,8 @@ paths:
       description: |
         Returns a time-limited GCS signed URL for direct download of a job's container log.
         The URL is valid for 15 minutes from the time of issue. Range requests are supported,
-        so parallel download tools such as `gcloud storage cp` work correctly.
+        so parallel download tools work correctly as long as all streams are initiated within
+        the validity window.
         Only available for completed jobs (or a specific past attempt via attempt_id).
         Only available for GCP deployments using GCS logs.
         The signed URL is returned without first verifying the log file exists in GCS;
