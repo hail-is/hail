@@ -53,7 +53,6 @@ object LowerDistributedSort extends Logging {
       keyToSortBy.fieldNames,
       initialTmpPath,
       None,
-      None,
       trackTotalBytes = true,
     )
 

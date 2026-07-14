@@ -1189,7 +1189,6 @@ object Main {
       in("value", child),
       in("path", child),
       in("writer", att("ValueWriter")),
-      in("stagingFile", child.?).withDefault("None"),
     )
 
     r.result()

@@ -225,7 +225,6 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
   def writePartitions(
     ctx: ExecuteContext,
     path: String,
-    stageLocally: Boolean,
     write: (Iterator[T], OutputStream) => (Long, Long),
   )(implicit T: ClassTag[T]
   ): IndexedSeq[FileWriteMetadata] =
@@ -233,7 +232,6 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
       ctx,
       path,
       null,
-      stageLocally,
       (_, _, _) => null,
       (_, _, it, os, _) => write(it, os),
     )

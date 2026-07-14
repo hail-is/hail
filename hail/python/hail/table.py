@@ -1938,8 +1938,8 @@ class Table(BaseTable):
         output : str
             Path at which to write.
         stage_locally: bool
-            If ``True``, major output will be written to temporary local storage
-            before being copied to ``output``
+            Deprecated and ignored. Retained for backwards compatibility; has no
+            effect.
         overwrite : bool
             If ``True``, overwrite an existing file at the destination.
 
@@ -1963,7 +1963,7 @@ class Table(BaseTable):
         hl.current_backend().validate_file(output)
 
         if not _read_if_exists or not hl.hadoop_exists(f'{output}/_SUCCESS'):
-            self.write(output=output, overwrite=overwrite, stage_locally=stage_locally, _codec_spec=_codec_spec)
+            self.write(output=output, overwrite=overwrite, _codec_spec=_codec_spec)
             _assert_type = self._type
             _load_refs = False
         else:
@@ -1997,17 +1997,15 @@ class Table(BaseTable):
         output : str
             Path at which to write.
         stage_locally: bool
-            If ``True``, major output will be written to temporary local storage
-            before being copied to ``output``.
+            Deprecated and ignored. Retained for backwards compatibility; has no
+            effect.
         overwrite : bool
             If ``True``, overwrite an existing file at the destination.
         """
 
         hl.current_backend().validate_file(output)
 
-        Env.backend().execute(
-            ir.TableWrite(self._tir, ir.TableNativeWriter(output, overwrite, stage_locally, _codec_spec))
-        )
+        Env.backend().execute(ir.TableWrite(self._tir, ir.TableNativeWriter(output, overwrite, _codec_spec)))
 
     @typecheck_method(output=str, fields=sequenceof(str), overwrite=bool, stage_locally=bool, _codec_spec=nullable(str))
     def write_many(
@@ -2125,8 +2123,8 @@ class Table(BaseTable):
         fields : list of str
             The fields to write.
         stage_locally: bool
-            If ``True``, major output will be written to temporary local storage
-            before being copied to ``output``.
+            Deprecated and ignored. Retained for backwards compatibility; has no
+            effect.
         overwrite : bool
             If ``True``, overwrite an existing file at the destination.
         """
@@ -2134,7 +2132,7 @@ class Table(BaseTable):
         hl.current_backend().validate_file(output)
 
         Env.backend().execute(
-            ir.TableWrite(self._tir, ir.TableNativeFanoutWriter(output, fields, overwrite, stage_locally, _codec_spec))
+            ir.TableWrite(self._tir, ir.TableNativeFanoutWriter(output, fields, overwrite, _codec_spec))
         )
 
     def _show(self, n, width, truncate, types):

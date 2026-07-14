@@ -329,7 +329,6 @@ object MatrixValue {
     mvs: IndexedSeq[MatrixValue],
     paths: IndexedSeq[String],
     overwrite: Boolean,
-    stageLocally: Boolean,
     bufferSpec: BufferSpec,
   ): Unit = {
     val first = mvs.head
@@ -348,7 +347,7 @@ object MatrixValue {
       fs.mkDir(path)
     }
 
-    val fileData = RVD.writeRowsSplitFiles(ctx, mvs.map(_.rvd), paths, bufferSpec, stageLocally)
+    val fileData = RVD.writeRowsSplitFiles(ctx, mvs.map(_.rvd), paths, bufferSpec)
     (mvs lazyZip paths lazyZip fileData).foreach { case (mv, path, fd) =>
       mv.finalizeWrite(ctx, path, bufferSpec, fd, consoleInfo = false)
     }

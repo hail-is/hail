@@ -2719,8 +2719,8 @@ class MatrixTable(BaseTable):
         output : str
             Path at which to write.
         stage_locally: bool
-            If ``True``, major output will be written to temporary local storage
-            before being copied to ``output``
+            Deprecated and ignored. Retained for backwards compatibility; has no
+            effect.
         overwrite : bool
             If ``True``, overwrite an existing file at the destination.
 
@@ -2746,7 +2746,7 @@ class MatrixTable(BaseTable):
         hl.current_backend().validate_file(output)
 
         if not _read_if_exists or not hl.hadoop_exists(f'{output}/_SUCCESS'):
-            self.write(output=output, overwrite=overwrite, stage_locally=stage_locally, _codec_spec=_codec_spec)
+            self.write(output=output, overwrite=overwrite, _codec_spec=_codec_spec)
             _assert_type = self._type
             _load_refs = False
         else:
@@ -2791,8 +2791,8 @@ class MatrixTable(BaseTable):
         output : str
             Path at which to write.
         stage_locally: bool
-            If ``True``, major output will be written to temporary local storage
-            before being copied to ``output``
+            Deprecated and ignored. Retained for backwards compatibility; has no
+            effect.
         overwrite : bool
             If ``True``, overwrite an existing file at the destination.
         """
@@ -2804,7 +2804,7 @@ class MatrixTable(BaseTable):
         else:
             _partitions_type = None
 
-        writer = ir.MatrixNativeWriter(output, overwrite, stage_locally, _codec_spec, _partitions, _partitions_type)
+        writer = ir.MatrixNativeWriter(output, overwrite, _codec_spec, _partitions, _partitions_type)
         Env.backend().execute(ir.MatrixWrite(self._mir, writer))
 
     class _Show:

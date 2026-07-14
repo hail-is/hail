@@ -32,9 +32,8 @@ import is.hail.utils.implicits.ByteTrackingOutputStream
 import is.hail.variant.ReferenceGenome
 
 import java.io.{BufferedOutputStream, OutputStream, OutputStreamWriter}
-import java.nio.file.{FileSystems, Path}
 import java.text.SimpleDateFormat
-import java.util.{Date, UUID}
+import java.util.Date
 
 import org.json4s.{DefaultFormats, Formats, JBool, JObject, ShortTypeHints}
 
@@ -67,7 +66,6 @@ object TableNativeWriter {
     ts: TableStage,
     path: String,
     overwrite: Boolean,
-    stageLocally: Boolean,
     rowSpec: TypedCodecSpec,
     globalSpec: TypedCodecSpec,
   ): IR = {
@@ -79,17 +77,10 @@ object TableNativeWriter {
       pKey.fieldNames,
       s"$path/rows/parts/",
       Some(s"$path/index/" -> pKey),
-      if (stageLocally) Some(FileSystems.getDefault.getPath(
-        ctx.localTmpdir,
-        s"hail_staging_tmp_${UUID.randomUUID()}",
-        "rows",
-        "parts",
-      ))
-      else None,
     )
 
     val globalWriter =
-      PartitionNativeWriter(globalSpec, IndexedSeq(), s"$path/globals/parts/", None, None)
+      PartitionNativeWriter(globalSpec, IndexedSeq(), s"$path/globals/parts/", None)
     RelationalWriter.scoped(path, overwrite, Some(ts.tableType))(
       ts.mapContexts { oldCtx =>
         val d = digitsNeeded(ts.numPartitions)
@@ -165,7 +156,6 @@ object TableNativeWriter {
 case class TableNativeWriter(
   path: String,
   overwrite: Boolean = true,
-  stageLocally: Boolean = false,
   codecSpecJSONStr: String = null,
 ) extends TableWriter {
 
@@ -179,7 +169,7 @@ case class TableNativeWriter(
       bufferSpec,
     )
 
-    TableNativeWriter.lower(ctx, ts, path, overwrite, stageLocally, rowSpec, globalSpec)
+    TableNativeWriter.lower(ctx, ts, path, overwrite, rowSpec, globalSpec)
   }
 }
 
@@ -206,7 +196,6 @@ case class PartitionNativeWriter(
   keyFields: IndexedSeq[String],
   partPrefix: String,
   index: Option[(String, PStruct)] = None,
-  stagingFolder: Option[Path] = None,
   trackTotalBytes: Boolean = false,
 ) extends PartitionWriter {
   val keyType = spec.encodedVirtualType.asInstanceOf[TStruct].select(keyFields)._1
@@ -247,7 +236,6 @@ case class PartitionNativeWriter(
     }
 
     private val filename = mb.newLocal[String]("filename")
-    private val stagingInfo = stagingFolder.map(folder => (folder, mb.newLocal[String]("stage")))
 
     private val ob = mb.newLocal[OutputBuffer]("write_ob")
     private val n = mb.newLocal[Long]("partition_count")
@@ -280,16 +268,11 @@ case class PartitionNativeWriter(
         writer.init(cb, indexFile, cb.memoize(mb.getObject[Map[String, Any]](Map.empty)))
       }
 
-      val stagingFile = stagingInfo.map { case (folder, fileRef) =>
-        cb.assign(fileRef, const(s"$folder/").concat(ctxValue))
-        fileRef
-      }
-
       val os = mb.newLocal[ByteTrackingOutputStream]("write_os")
       cb.assign(
         os,
         Code.newInstance[ByteTrackingOutputStream, OutputStream](
-          mb.create(stagingFile.getOrElse(filename).get)
+          mb.create(filename.get)
         ),
       )
       cb.assign(ob, spec.buildCodeOutputBuffer(Code.checkcast[OutputStream](os)))
@@ -371,10 +354,6 @@ case class PartitionNativeWriter(
       writeIndexInfo.foreach(_._3.close(cb))
       cb += ob.flush()
       cb += ob.close()
-
-      stagingInfo.foreach { case (_, source) =>
-        cb += mb.getFS.invoke[String, String, Boolean, Unit]("copy", source, filename, const(true))
-      }
 
       lastSeenSettable.loadI(cb).consume(
         cb,
@@ -946,7 +925,6 @@ case class TableNativeFanoutWriter(
   val path: String,
   val fields: IndexedSeq[String],
   overwrite: Boolean = true,
-  stageLocally: Boolean = false,
   codecSpecJSONStr: String = null,
 ) extends TableWriter {
 
@@ -981,16 +959,9 @@ case class TableNativeFanoutWriter(
           keyFields,
           s"$targetPath/rows/parts/",
           Some(s"$targetPath/index/" -> keyPType),
-          if (stageLocally) Some(FileSystems.getDefault.getPath(
-            ctx.localTmpdir,
-            s"hail_staging_tmp_${UUID.randomUUID()}",
-            "rows",
-            "parts",
-          ))
-          else None,
         )
         val globalWriter =
-          PartitionNativeWriter(globalSpec, IndexedSeq(), s"$targetPath/globals/parts/", None, None)
+          PartitionNativeWriter(globalSpec, IndexedSeq(), s"$targetPath/globals/parts/", None)
         new FanoutWriterTarget(field, targetPath, rowSpec, keyPType, tableType, rowWriter,
           globalWriter)
       }

@@ -598,9 +598,8 @@ object TypeCheck {
             assert(reader.spec.encodedType.decodedPType(requestedType).virtualType == requestedType)
           case _ => // do nothing, we can't in general typecheck an arbitrary value reader
         }
-      case WriteValue(_, path, _, stagingFile) =>
+      case WriteValue(_, path, _) =>
         assert(path.typ == TString)
-        assert(stagingFile.forall(_.typ == TString))
       case Consume(_) =>
 
       case TableAggregateByKey(child, _) =>
