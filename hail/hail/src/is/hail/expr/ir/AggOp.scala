@@ -32,8 +32,13 @@ final case class NDArrayMultiplyAdd() extends AggOp
 final case class Fold() extends AggOp
 final case class WriteRows(codec: TypedCodecSpec, indexKey: Option[PStruct]) extends AggOp
 
-// TODO
-// final case class WriteSplitRows(codec, indexKey, entries)
+// FIXME full row type not needed, just pass rows/entries separately
+final case class WriteSplitRows(
+  fullRowType: TStruct,
+  rowsCodec: TypedCodecSpec,
+  entriesCodec: TypedCodecSpec,
+  indexKey: PStruct,
+) extends AggOp
 
 // exists === map(p).sum, needs short-circuiting aggs
 // forall === map(p).product, needs short-circuiting aggs
@@ -61,7 +66,7 @@ object AggOp {
     case (Downsample(), Seq(_, _, _)) => DownsampleAggregator.resultType
     case (NDArraySum(), Seq(t)) => t
     case (NDArrayMultiplyAdd(), Seq(a: TNDArray, _)) => a
-    case (WriteRows(_, _), _) => TString
+    case (WriteRows(_, _), _) | (WriteSplitRows(_, _, _, _), _) => TString
     case _ => throw new UnsupportedExtraction(this.toString)
   }
 

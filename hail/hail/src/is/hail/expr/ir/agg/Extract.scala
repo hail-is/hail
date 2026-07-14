@@ -63,6 +63,9 @@ object AggStateSig {
       case WriteRows(codecSpec, key) =>
         assert(codecSpec.encodedVirtualType == seqVTypes.head.t)
         WriteSig(seqVTypes.head, key)
+      case WriteSplitRows(fullRowType, _, _, key) =>
+        assert(fullRowType == seqVTypes.head.t)
+        WriteSplitSig(seqVTypes.head, key)
       case _ => throw new UnsupportedExtraction(op.toString)
     }
   }
@@ -97,6 +100,7 @@ object AggStateSig {
       new TypedRegionBackedAggState(vWithReq, cb)
     case LinearRegressionStateSig() => new LinearRegressionAggregatorState(cb)
     case WriteSig(_, key) => new StreamWriterState(cb, key)
+    case WriteSplitSig(_, key) => new StreamSplitWriterState(cb, key)
   }
 }
 
@@ -149,6 +153,9 @@ case class FoldStateSig(
 
 case class WriteSig(rowType: VirtualTypeWithReq, indexKey: Option[PStruct])
     extends AggStateSig(ArraySeq(rowType), None)
+
+case class WriteSplitSig(fullRowType: VirtualTypeWithReq, indexKey: PStruct)
+    extends AggStateSig(ArraySeq(fullRowType), None)
 
 object PhysicalAggSig {
   def apply(op: AggOp, state: AggStateSig): PhysicalAggSig = BasicPhysicalAggSig(op, state)
@@ -477,6 +484,8 @@ object Extract {
       new FoldAggregator(res, accumName, otherAccumName, combOpIR)
     case PhysicalAggSig(WriteRows(codec, indexKey), WriteSig(_, _)) =>
       new StreamWriterAggregator(codec, indexKey.isDefined)
+    case PhysicalAggSig(WriteSplitRows(fullType, rowCodec, entryCodec, _), WriteSplitSig(_, _)) =>
+      new StreamSplitWriterAggregator(fullType, rowCodec, entryCodec)
   }
 
   def apply(ctx: ExecuteContext, ir: IR, r: RequirednessAnalysis, isScan: Boolean = false)
