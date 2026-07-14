@@ -2,7 +2,7 @@
 #    uv pip compile --python-version 3.11 --python-platform linux batch/requirements.txt --output-file=batch/pinned-requirements.txt
 aiodocker==0.27.0
     # via -r batch/requirements.txt
-aiohappyeyeballs==2.6.2
+aiohappyeyeballs==2.7.1
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   -c batch/../hail/python/dev/pinned-requirements.txt
@@ -40,13 +40,13 @@ certifi==2026.6.17
     #   -c batch/../hail/python/dev/pinned-requirements.txt
     #   -c batch/../hail/python/pinned-requirements.txt
     #   requests
-cffi==2.0.0
+cffi==2.1.0
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   -c batch/../hail/python/dev/pinned-requirements.txt
     #   -c batch/../hail/python/pinned-requirements.txt
     #   cryptography
-charset-normalizer==3.4.7
+charset-normalizer==3.4.9
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   -c batch/../hail/python/dev/pinned-requirements.txt
@@ -72,7 +72,7 @@ google-api-core==2.31.0
     #   -c batch/../gear/pinned-requirements.txt
     #   google-cloud-core
     #   google-cloud-storage
-google-auth==2.55.1
+google-auth==2.56.0
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   -c batch/../hail/python/pinned-requirements.txt
@@ -81,7 +81,7 @@ google-auth==2.55.1
     #   google-cloud-storage
 google-cloud-core==2.6.0
     # via google-cloud-storage
-google-cloud-storage==3.12.1
+google-cloud-storage==3.13.0
     # via -r batch/requirements.txt
 google-crc32c==1.8.0
     # via
@@ -136,7 +136,7 @@ propcache==0.5.2
     #   -c batch/../web_common/pinned-requirements.txt
     #   aiohttp
     #   yarl
-proto-plus==1.28.0
+proto-plus==1.28.1
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   google-api-core
@@ -146,7 +146,7 @@ protobuf==7.35.1
     #   google-api-core
     #   googleapis-common-protos
     #   proto-plus
-pyasn1==0.6.3
+pyasn1==0.6.4
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   -c batch/../hail/python/pinned-requirements.txt
@@ -189,7 +189,7 @@ tenacity==9.1.4
     # via
     #   -c batch/../hail/python/pinned-requirements.txt
     #   plotly
-typing-extensions==4.15.0
+typing-extensions==4.16.0
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   -c batch/../hail/python/dev/pinned-requirements.txt
@@ -197,9 +197,7 @@ typing-extensions==4.15.0
     #   -c batch/../web_common/pinned-requirements.txt
     #   aiohttp
     #   aiosignal
-    #   cryptography
-    #   multidict
-tzdata==2026.2
+tzdata==2026.3
     # via
     #   -c batch/../hail/python/dev/pinned-requirements.txt
     #   -c batch/../hail/python/pinned-requirements.txt
