@@ -7,7 +7,7 @@ from typing import Any, Deque, Dict, List, Optional, Set, Tuple, overload
 from aiohttp import web
 
 from gear import Database, maybe_parse_bearer_header
-from hailtop.utils import secret_alnum_string
+from hailtop.utils import secret_alnum_string, time_msecs
 
 log = logging.getLogger('utils')
 
@@ -144,13 +144,32 @@ class ExceededSharesCounter:
         return f'global {self._global_counter}'
 
 
-async def query_billing_projects_with_cost(db, user=None, billing_project=None, status=None) -> List[Dict[str, Any]]:
+async def query_billing_projects_with_cost(
+    db,
+    user=None,
+    billing_project=None,
+    status=None,
+    quote_manager_user=None,
+) -> List[Dict[str, Any]]:
     where_conditions = ["billing_projects.`status` != 'deleted'"]
     args = []
 
-    if user:
+    if user and quote_manager_user:
+        where_conditions.append(
+            "(JSON_CONTAINS(users, JSON_QUOTE(%s)) OR EXISTS ("
+            "SELECT 1 FROM quote_managers qm "
+            "WHERE qm.quote_id = billing_projects.quote_id AND qm.user = %s))"
+        )
+        args.append(user)
+        args.append(quote_manager_user)
+    elif user:
         where_conditions.append("JSON_CONTAINS(users, JSON_QUOTE(%s))")
         args.append(user)
+    elif quote_manager_user:
+        where_conditions.append(
+            "EXISTS (SELECT 1 FROM quote_managers qm WHERE qm.quote_id = billing_projects.quote_id AND qm.user = %s)"
+        )
+        args.append(quote_manager_user)
 
     if billing_project:
         where_conditions.append('billing_projects.name_cs = %s')
@@ -168,8 +187,15 @@ async def query_billing_projects_with_cost(db, user=None, billing_project=None, 
     sql = f"""
 SELECT billing_projects.name as billing_project,
   billing_projects.`status` as `status`,
-  users, `limit`, COALESCE(SUM(agg.`usage` * resources.rate), 0) AS accrued_cost
+  users,
+  billing_projects.`limit`,
+  billing_projects.quote_id,
+  q.name AS quote_name,
+  billing_projects.low_budget_alert,
+  IF(billing_projects.`limit` IS NULL, NULL, billing_projects.`limit` - COALESCE(SUM(agg.`usage` * resources.rate), 0)) AS remaining,
+  COALESCE(SUM(agg.`usage` * resources.rate), 0) AS accrued_cost
 FROM billing_projects
+LEFT JOIN quotes q ON q.id = billing_projects.quote_id
 LEFT JOIN LATERAL (
   SELECT billing_project, JSON_ARRAYAGG(`user_cs`) as users
   FROM billing_project_users
@@ -180,7 +206,8 @@ LEFT JOIN aggregated_billing_project_user_resources_v3 as agg
   ON billing_projects.name = agg.billing_project
 LEFT JOIN resources ON resources.resource_id = agg.resource_id
 {where_condition}
-GROUP BY billing_projects.name, billing_projects.`status`, billing_projects.`limit`, users;
+GROUP BY billing_projects.name, billing_projects.`status`, billing_projects.`limit`,
+  billing_projects.quote_id, q.name, billing_projects.low_budget_alert, users;
 """
 
     billing_projects = []
@@ -189,6 +216,41 @@ GROUP BY billing_projects.name, billing_projects.`status`, billing_projects.`lim
         billing_projects.append(record)
 
     return billing_projects
+
+
+async def _log_quote_event(
+    tx,
+    quote_id: int,
+    actor: str,
+    action: str,
+    target_user=None,
+    target_project=None,
+    detail=None,
+) -> None:
+    await tx.execute_insertone(
+        """
+INSERT INTO quote_events (quote_id, timestamp, actor, action, target_user, target_project, detail)
+VALUES (%s, %s, %s, %s, %s, %s, %s);
+""",
+        (quote_id, time_msecs(), actor, action, target_user, target_project, detail),
+    )
+
+
+async def _log_bp_event(
+    tx,
+    billing_project: str,
+    actor: str,
+    action: str,
+    target_user=None,
+    detail=None,
+) -> None:
+    await tx.execute_insertone(
+        """
+INSERT INTO billing_project_events (billing_project, timestamp, actor, action, target_user, detail)
+VALUES (%s, %s, %s, %s, %s, %s);
+""",
+        (billing_project, time_msecs(), actor, action, target_user, detail),
+    )
 
 
 async def query_billing_projects_without_cost(

@@ -88,6 +88,12 @@ from web_common import (
 from ..batch import batch_record_to_dict, cancel_job_group_in_db, job_group_record_to_dict, job_record_to_dict
 from ..batch_configuration import BATCH_STORAGE_URI, CLOUD, DEFAULT_NAMESPACE, DOCKERHUB_PREFIX, SCOPE
 from ..batch_format_version import BatchFormatVersion
+from ..billing_auth import (
+    BILLING_ROLE_PERMISSIONS,
+    BillingPermission,
+    billing_permission_required,
+    resolve_billing_role_for_quote_id,
+)
 from ..cloud.azure.resource_utils import azure_cores_mcpu_to_memory_bytes
 from ..cloud.gcp.resource_utils import GCP_MACHINE_FAMILY, gcp_cores_mcpu_to_memory_bytes
 from ..cloud.resource_utils import (
@@ -117,6 +123,8 @@ from ..inst_coll_config import InstanceCollectionConfigs
 from ..resource_usage import ResourceUsageMonitor
 from ..spec_writer import SpecWriter
 from ..utils import (
+    _log_bp_event,
+    _log_quote_event,
     add_metadata_to_request,
     query_billing_projects_with_cost,
     query_billing_projects_without_cost,
@@ -3284,14 +3292,18 @@ async def get_billing_projects(request, userdata):
 
     if not userdata['system_permissions'].get(SystemPermission.READ_ALL_BILLING_PROJECTS, False):
         user = userdata['username']
+        quote_manager_user = user
     else:
         user = None
+        quote_manager_user = None
 
     status = request.query.get('status')
     if status is not None and status not in ('open', 'closed'):
         raise web.HTTPBadRequest(reason=f"Invalid value for status '{status}'; must be 'open' or 'closed'.")
 
-    billing_projects = await query_billing_projects_with_cost(db, user=user, status=status)
+    billing_projects = await query_billing_projects_with_cost(
+        db, user=user, status=status, quote_manager_user=quote_manager_user
+    )
     return json_response(billing_projects)
 
 
@@ -3303,10 +3315,14 @@ async def get_billing_project(request, userdata):
 
     if not userdata['system_permissions'].get(SystemPermission.READ_ALL_BILLING_PROJECTS, False):
         user = userdata['username']
+        quote_manager_user = user
     else:
         user = None
+        quote_manager_user = None
 
-    billing_projects = await query_billing_projects_with_cost(db, user=user, billing_project=billing_project)
+    billing_projects = await query_billing_projects_with_cost(
+        db, user=user, billing_project=billing_project, quote_manager_user=quote_manager_user
+    )
 
     if not billing_projects:
         raise web.HTTPForbidden(reason=f'Unknown Hail Batch billing project {billing_project}.')
@@ -3378,7 +3394,8 @@ async def post_billing_projects_remove_user(request: web.Request, _) -> NoReturn
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/users/{user}/remove')
-@auth.authenticated_users_with_permission(SystemPermission.ASSIGN_USERS_TO_ALL_BILLING_PROJECTS, redirect=False)
+@auth.authenticated_users_only()
+@billing_permission_required(BillingPermission.MANAGE_BP_MEMBERS)
 async def api_get_billing_projects_remove_user(request: web.Request, _: UserData) -> web.Response:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
@@ -3461,7 +3478,8 @@ async def post_billing_projects_add_user(request: web.Request, _: UserData) -> N
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/users/{user}/add')
-@auth.authenticated_users_with_permission(SystemPermission.ASSIGN_USERS_TO_ALL_BILLING_PROJECTS, redirect=False)
+@auth.authenticated_users_only()
+@billing_permission_required(BillingPermission.MANAGE_BP_MEMBERS)
 async def api_billing_projects_add_user(request: web.Request, _: UserData) -> web.Response:
     db: Database = request.app['db']
     user = request.match_info['user']
@@ -3471,10 +3489,14 @@ async def api_billing_projects_add_user(request: web.Request, _: UserData) -> we
     return json_response({'billing_project': billing_project, 'user': user})
 
 
-async def _create_billing_project(db, billing_project):
+async def _create_billing_project(
+    db, billing_project, quote_id=1, limit=None, low_budget_alert=None, initial_users=None
+):
+    if initial_users is None:
+        initial_users = []
+
     @transaction(db)
     async def insert(tx):
-        # we want to avoid having billing projects with different cases but the same name
         row = await tx.execute_and_fetchone(
             """
 SELECT name_cs, `status`
@@ -3490,11 +3512,17 @@ FOR UPDATE;
 
         await tx.execute_insertone(
             """
-INSERT INTO billing_projects(name, name_cs)
-VALUES (%s, %s);
+INSERT INTO billing_projects(name, name_cs, quote_id, `limit`, low_budget_alert)
+VALUES (%s, %s, %s, %s, %s);
 """,
-            (billing_project, billing_project),
+            (billing_project, billing_project, quote_id, limit, low_budget_alert),
         )
+
+        for user in initial_users:
+            await tx.execute_insertone(
+                "INSERT INTO billing_project_users(billing_project, user, user_cs) VALUES (%s, %s, %s);",
+                (billing_project, user, user),
+            )
 
     await insert()
 
@@ -3517,11 +3545,35 @@ async def post_create_billing_projects(request: web.Request, _: UserData) -> NoR
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/create')
-@auth.authenticated_users_with_permission(SystemPermission.CREATE_BILLING_PROJECTS, redirect=False)
-async def api_get_create_billing_projects(request: web.Request, _: UserData) -> web.Response:
+@auth.authenticated_users_only()
+async def api_get_create_billing_projects(request: web.Request, userdata: UserData) -> web.Response:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
-    await _handle_api_error(_create_billing_project, db, billing_project)
+    username = userdata['username']
+
+    body: dict = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+
+    quote_name = body.get('quote_name', 'INTERNAL')
+    limit = body.get('limit')
+    low_budget_alert = body.get('low_budget_alert')
+    initial_users: List[str] = body.get('initial_users', [])
+
+    quote_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name_cs = %s', (quote_name,))
+    if quote_row is None:
+        raise web.HTTPBadRequest(reason=f'Unknown quote {quote_name}.')
+    quote_id = quote_row['id']
+
+    billing_role = await resolve_billing_role_for_quote_id(db, username, userdata, quote_id)
+    if billing_role is None or BillingPermission.CREATE_BP not in BILLING_ROLE_PERMISSIONS.get(billing_role, set()):
+        raise web.HTTPForbidden(reason='Insufficient billing permissions to create billing projects.')
+
+    await _handle_api_error(
+        _create_billing_project, db, billing_project, quote_id, limit, low_budget_alert, initial_users
+    )
     return json_response(billing_project)
 
 
@@ -3577,7 +3629,8 @@ async def post_close_billing_projects(request: web.Request, _: UserData) -> NoRe
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/close')
-@auth.authenticated_users_with_permission(SystemPermission.DELETE_ALL_BILLING_PROJECTS, redirect=False)
+@auth.authenticated_users_only()
+@billing_permission_required(BillingPermission.CLOSE_REOPEN_BP)
 async def api_close_billing_projects(request: web.Request, _: UserData) -> web.Response:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
@@ -3622,7 +3675,8 @@ async def post_reopen_billing_projects(request: web.Request, _: UserData) -> NoR
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/reopen')
-@auth.authenticated_users_with_permission(SystemPermission.UPDATE_ALL_BILLING_PROJECTS, redirect=False)
+@auth.authenticated_users_only()
+@billing_permission_required(BillingPermission.CLOSE_REOPEN_BP)
 async def api_reopen_billing_projects(request: web.Request, _: UserData) -> web.Response:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
@@ -3659,6 +3713,459 @@ async def api_delete_billing_projects(request: web.Request, _: UserData) -> web.
 
     await _handle_api_error(_delete_billing_project, db, billing_project)
     return json_response(billing_project)
+
+
+@routes.patch('/api/v1alpha/billing_projects/{billing_project}')
+@auth.authenticated_users_only()
+@billing_permission_required(BillingPermission.EDIT_BP_ALERT)
+async def api_patch_billing_project(request: web.Request, userdata: UserData) -> web.Response:
+    db: Database = request.app['db']
+    billing_project = request.match_info['billing_project']
+    actor = userdata['username']
+    billing_role: str = request['billing_role']
+
+    body = await request.json()
+    limit = body.get('limit', ...)
+    low_budget_alert = body.get('low_budget_alert', ...)
+
+    if limit is not ... and BillingPermission.EDIT_BP_LIMIT not in BILLING_ROLE_PERMISSIONS.get(billing_role, set()):
+        raise web.HTTPForbidden(reason='Insufficient billing permissions to edit billing project limit.')
+
+    async def _patch(tx):
+        row = await tx.execute_and_fetchone(
+            """
+SELECT billing_projects.name_cs, billing_projects.`status`, billing_projects.quote_id,
+  q.authorized_amount,
+  COALESCE((SELECT SUM(other_bp.`limit`) FROM billing_projects other_bp
+    WHERE other_bp.quote_id = billing_projects.quote_id
+      AND other_bp.name_cs != billing_projects.name_cs
+      AND other_bp.`status` != 'deleted'), 0) AS other_bp_limits_sum
+FROM billing_projects
+JOIN quotes q ON q.id = billing_projects.quote_id
+WHERE billing_projects.name_cs = %s AND billing_projects.`status` != 'deleted'
+FOR UPDATE;
+""",
+            (billing_project,),
+        )
+        if not row:
+            raise NonExistentBillingProjectError(billing_project)
+        if row['status'] == 'closed':
+            raise ClosedBillingProjectError(billing_project)
+
+        updates = {}
+        if limit is not ...:
+            new_limit = _parse_billing_limit(limit)
+            if new_limit is not None and row['authorized_amount'] is not None:
+                proposed_sum = row['other_bp_limits_sum'] + new_limit
+                if proposed_sum > row['authorized_amount']:
+                    raise BatchUserError(
+                        f'Setting limit to {new_limit} would exceed quote authorized amount {row["authorized_amount"]} '
+                        f'(other BPs use {row["other_bp_limits_sum"]}).',
+                        'error',
+                    )
+            updates['limit'] = new_limit
+            await _log_bp_event(tx, billing_project, actor, 'limit_changed', detail=str(new_limit))
+            await _log_quote_event(
+                tx, row['quote_id'], actor, 'bp_limit_changed', target_project=billing_project, detail=str(new_limit)
+            )
+
+        if low_budget_alert is not ...:
+            updates['low_budget_alert'] = low_budget_alert if low_budget_alert is not None else None
+            await _log_bp_event(tx, billing_project, actor, 'alert_threshold_changed', detail=str(low_budget_alert))
+
+        if updates:
+            set_clause = ', '.join(f'`{k}` = %s' for k in updates)
+            await tx.execute_update(
+                f'UPDATE billing_projects SET {set_clause} WHERE name_cs = %s;',
+                (*updates.values(), billing_project),
+            )
+
+    @transaction(db)
+    async def run_patch(tx):
+        await _patch(tx)
+
+    await _handle_api_error(run_patch)
+    return json_response({'billing_project': billing_project})
+
+
+@routes.post('/api/v1alpha/billing_projects/{billing_project}/change_quote')
+@auth.authenticated_users_only()
+@billing_permission_required(BillingPermission.CHANGE_BP_QUOTE)
+async def api_change_billing_project_quote(request: web.Request, userdata: UserData) -> web.Response:
+    db: Database = request.app['db']
+    billing_project = request.match_info['billing_project']
+    actor = userdata['username']
+    body = await request.json()
+    dest_quote_name = body.get('quote_name')
+    if not dest_quote_name:
+        raise web.HTTPBadRequest(reason="'quote_name' is required.")
+
+    dest_quote_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name_cs = %s', (dest_quote_name,))
+    if not dest_quote_row:
+        raise web.HTTPBadRequest(reason=f'Unknown quote {dest_quote_name}.')
+    dest_quote_id = dest_quote_row['id']
+
+    dest_role = await resolve_billing_role_for_quote_id(db, actor, userdata, dest_quote_id)
+    if dest_role is None or BillingPermission.CHANGE_BP_QUOTE not in BILLING_ROLE_PERMISSIONS.get(dest_role, set()):
+        raise web.HTTPForbidden(
+            reason='You must be a manager of the destination quote to move a billing project there.'
+        )
+
+    async def _change_quote(tx):
+        row = await tx.execute_and_fetchone(
+            """
+SELECT billing_projects.name_cs, billing_projects.`status`,
+  billing_projects.quote_id AS src_quote_id,
+  billing_projects.`limit`,
+  q_dest.authorized_amount AS dest_authorized_amount,
+  COALESCE((SELECT SUM(other_bp.`limit`) FROM billing_projects other_bp
+    WHERE other_bp.quote_id = %s
+      AND other_bp.`status` != 'deleted'), 0) AS dest_bp_limits_sum
+FROM billing_projects
+JOIN quotes q_dest ON q_dest.id = %s
+WHERE billing_projects.name_cs = %s AND billing_projects.`status` != 'deleted'
+FOR UPDATE;
+""",
+            (dest_quote_id, dest_quote_id, billing_project),
+        )
+        if not row:
+            raise NonExistentBillingProjectError(billing_project)
+        if row['status'] == 'closed':
+            raise ClosedBillingProjectError(billing_project)
+
+        if row['limit'] is not None and row['dest_authorized_amount'] is not None:
+            new_sum = row['dest_bp_limits_sum'] + row['limit']
+            if new_sum > row['dest_authorized_amount']:
+                raise BatchUserError(
+                    f'Moving billing project would exceed destination quote authorized amount '
+                    f'{row["dest_authorized_amount"]} (existing BPs use {row["dest_bp_limits_sum"]}).',
+                    'error',
+                )
+
+        src_quote_id = row['src_quote_id']
+        await tx.execute_update(
+            'UPDATE billing_projects SET quote_id = %s WHERE name_cs = %s;',
+            (dest_quote_id, billing_project),
+        )
+        await _log_quote_event(tx, src_quote_id, actor, 'bp_unassigned', target_project=billing_project)
+        await _log_quote_event(tx, dest_quote_id, actor, 'bp_assigned', target_project=billing_project)
+        await _log_bp_event(tx, billing_project, actor, 'quote_changed', detail=dest_quote_name)
+
+    @transaction(db)
+    async def run_change(tx):
+        await _change_quote(tx)
+
+    await _handle_api_error(run_change)
+    return json_response({'billing_project': billing_project, 'quote_name': dest_quote_name})
+
+
+@routes.get('/api/v1alpha/billing_projects/{billing_project}/events')
+@auth.authenticated_users_only()
+@billing_permission_required(BillingPermission.VIEW_EVENTS)
+async def api_get_billing_project_events(request: web.Request, _: UserData) -> web.Response:
+    db: Database = request.app['db']
+    billing_project = request.match_info['billing_project']
+    events = [
+        record
+        async for record in db.select_and_fetchall(
+            """
+SELECT id, timestamp, actor, action, target_user, detail
+FROM billing_project_events
+WHERE billing_project = %s
+ORDER BY timestamp DESC
+LIMIT 1000;
+""",
+            (billing_project,),
+        )
+    ]
+    return json_response(events)
+
+
+# ---------------------------------------------------------------------------
+# Quote API endpoints
+# ---------------------------------------------------------------------------
+
+
+@routes.get('/api/v1alpha/quotes')
+@auth.authenticated_users_only()
+async def list_quotes(request: web.Request, userdata) -> web.Response:
+    db: Database = request.app['db']
+    username = userdata['username']
+
+    if userdata['system_permissions'].get(SystemPermission.UPDATE_ALL_BILLING_PROJECTS, False):
+        sql = 'SELECT id, name, cost_object, authorized_amount, pi_name, pm_designee, time_created FROM quotes;'
+        args: tuple = ()
+    else:
+        sql = """
+SELECT q.id, q.name, q.cost_object, q.authorized_amount, q.pi_name, q.pm_designee, q.time_created
+FROM quotes q
+INNER JOIN quote_managers qm ON qm.quote_id = q.id
+WHERE qm.user = %s;
+"""
+        args = (username,)
+
+    quotes = [record async for record in db.select_and_fetchall(sql, args)]
+    return json_response(quotes)
+
+
+@routes.post('/api/v1alpha/quotes/{name}')
+@auth.authenticated_users_with_permission(SystemPermission.CREATE_QUOTES, redirect=False)
+async def create_quote(request: web.Request, userdata: UserData) -> web.Response:
+    db: Database = request.app['db']
+    quote_name = request.match_info['name']
+    actor = userdata['username']
+    body = await request.json()
+
+    cost_object = body.get('cost_object')
+    if not cost_object:
+        raise web.HTTPBadRequest(reason="'cost_object' is required.")
+
+    authorized_amount_raw = body.get('authorized_amount')
+    if authorized_amount_raw == 'unlimited' or authorized_amount_raw is None:
+        authorized_amount = None
+    else:
+        try:
+            authorized_amount = float(authorized_amount_raw)
+        except (TypeError, ValueError) as exc:
+            raise web.HTTPBadRequest(reason=f"Invalid authorized_amount: {authorized_amount_raw!r}.") from exc
+
+    pi_name = body.get('pi_name')
+    pm_designee = body.get('pm_designee')
+
+    async def _insert_quote(tx):
+        row = await tx.execute_and_fetchone('SELECT id FROM quotes WHERE name = %s FOR UPDATE;', (quote_name,))
+        if row is not None:
+            raise BatchOperationAlreadyCompletedError(f'Quote {quote_name} already exists.', 'info')
+
+        quote_id = await tx.execute_insertone(
+            """
+INSERT INTO quotes (name, name_cs, cost_object, authorized_amount, pi_name, pm_designee, time_created)
+VALUES (%s, %s, %s, %s, %s, %s, %s);
+""",
+            (quote_name, quote_name, cost_object, authorized_amount, pi_name, pm_designee, time_msecs()),
+        )
+        await _log_quote_event(tx, quote_id, actor, 'quote_created', detail=cost_object)
+
+    @transaction(db)
+    async def run(tx):
+        await _insert_quote(tx)
+
+    await _handle_api_error(run)
+    return json_response({'name': quote_name})
+
+
+@routes.get('/api/v1alpha/quotes/{name}')
+@auth.authenticated_users_only()
+@billing_permission_required(BillingPermission.VIEW_QUOTE)
+async def get_quote(request: web.Request, _: UserData) -> web.Response:
+    db: Database = request.app['db']
+    quote_name = request.match_info['name']
+
+    quote_row = await db.select_and_fetchone(
+        'SELECT id, name, cost_object, authorized_amount, pi_name, pm_designee, time_created FROM quotes WHERE name_cs = %s;',
+        (quote_name,),
+    )
+    if not quote_row:
+        raise web.HTTPNotFound(reason=f'Unknown quote {quote_name}.')
+
+    quote_id = quote_row['id']
+
+    managers = [
+        record
+        async for record in db.select_and_fetchall(
+            'SELECT user, role FROM quote_managers WHERE quote_id = %s;', (quote_id,)
+        )
+    ]
+
+    billing_projects_sql = """
+SELECT bp.name AS billing_project, bp.`status`, bp.`limit`, bp.low_budget_alert,
+  COALESCE(SUM(agg.`usage` * resources.rate), 0) AS accrued_cost,
+  IF(bp.`limit` IS NULL, NULL, bp.`limit` - COALESCE(SUM(agg.`usage` * resources.rate), 0)) AS remaining
+FROM billing_projects bp
+LEFT JOIN aggregated_billing_project_user_resources_v3 agg ON agg.billing_project = bp.name
+LEFT JOIN resources ON resources.resource_id = agg.resource_id
+WHERE bp.quote_id = %s AND bp.`status` != 'deleted'
+GROUP BY bp.name, bp.`status`, bp.`limit`, bp.low_budget_alert;
+"""
+    bps = [record async for record in db.select_and_fetchall(billing_projects_sql, (quote_id,))]
+
+    return json_response({**quote_row, 'managers': managers, 'billing_projects': bps})
+
+
+@routes.patch('/api/v1alpha/quotes/{name}')
+@auth.authenticated_users_only()
+@billing_permission_required(BillingPermission.EDIT_QUOTE)
+async def edit_quote(request: web.Request, userdata: UserData) -> web.Response:
+    db: Database = request.app['db']
+    quote_name = request.match_info['name']
+    actor = userdata['username']
+    body = await request.json()
+
+    async def _edit(tx):
+        row = await tx.execute_and_fetchone(
+            'SELECT id, authorized_amount FROM quotes WHERE name_cs = %s FOR UPDATE;', (quote_name,)
+        )
+        if not row:
+            raise BatchUserError(f'Unknown quote {quote_name}.', 'error')
+
+        quote_id = row['id']
+        updates: dict = {}
+
+        if 'cost_object' in body:
+            updates['cost_object'] = body['cost_object']
+        if 'pi_name' in body:
+            updates['pi_name'] = body['pi_name']
+        if 'pm_designee' in body:
+            updates['pm_designee'] = body['pm_designee']
+        if 'authorized_amount' in body:
+            aa = body['authorized_amount']
+            if aa == 'unlimited' or aa is None:
+                new_amount = None
+            else:
+                try:
+                    new_amount = float(aa)
+                except (TypeError, ValueError) as exc:
+                    raise BatchUserError(f"Invalid authorized_amount: {aa!r}.", 'error') from exc
+            if new_amount is not None:
+                limits_sum_row = await tx.execute_and_fetchone(
+                    """
+SELECT COALESCE(SUM(`limit`), 0) AS total_limit
+FROM billing_projects
+WHERE quote_id = %s AND `status` != 'deleted' AND `limit` IS NOT NULL;
+""",
+                    (quote_id,),
+                )
+                total = limits_sum_row['total_limit'] if limits_sum_row else 0
+                if total > new_amount:
+                    raise BatchUserError(
+                        f'New authorized_amount {new_amount} is less than sum of BP limits {total}.',
+                        'error',
+                    )
+            updates['authorized_amount'] = new_amount
+
+        if updates:
+            set_clause = ', '.join(f'`{k}` = %s' for k in updates)
+            await tx.execute_update(
+                f'UPDATE quotes SET {set_clause} WHERE id = %s;',
+                (*updates.values(), quote_id),
+            )
+            await _log_quote_event(tx, quote_id, actor, 'quote_edited')
+
+    @transaction(db)
+    async def run(tx):
+        await _edit(tx)
+
+    await _handle_api_error(run)
+    return json_response({'name': quote_name})
+
+
+@routes.post('/api/v1alpha/quotes/{name}/managers')
+@auth.authenticated_users_only()
+@billing_permission_required(BillingPermission.MANAGE_MANAGERS)
+async def add_quote_manager(request: web.Request, userdata: UserData) -> web.Response:
+    db: Database = request.app['db']
+    quote_name = request.match_info['name']
+    actor = userdata['username']
+    body = await request.json()
+    target_user = body.get('user')
+    role = body.get('role', 'manager')
+    if not target_user:
+        raise web.HTTPBadRequest(reason="'user' is required.")
+    if role not in ('owner', 'manager'):
+        raise web.HTTPBadRequest(reason="'role' must be 'owner' or 'manager'.")
+
+    async def _add(tx):
+        quote_row = await tx.execute_and_fetchone('SELECT id FROM quotes WHERE name_cs = %s FOR UPDATE;', (quote_name,))
+        if not quote_row:
+            raise BatchUserError(f'Unknown quote {quote_name}.', 'error')
+        quote_id = quote_row['id']
+
+        existing = await tx.execute_and_fetchone(
+            'SELECT role FROM quote_managers WHERE quote_id = %s AND user = %s;',
+            (quote_id, target_user),
+        )
+        if existing:
+            raise BatchOperationAlreadyCompletedError(
+                f'User {target_user} is already a {existing["role"]} of quote {quote_name}.', 'info'
+            )
+
+        await tx.execute_insertone(
+            'INSERT INTO quote_managers (quote_id, user, role) VALUES (%s, %s, %s);',
+            (quote_id, target_user, role),
+        )
+        await _log_quote_event(tx, quote_id, actor, 'manager_added', target_user=target_user, detail=role)
+
+    @transaction(db)
+    async def run(tx):
+        await _add(tx)
+
+    await _handle_api_error(run)
+    return json_response({'quote': quote_name, 'user': target_user, 'role': role})
+
+
+@routes.delete('/api/v1alpha/quotes/{name}/managers/{user}')
+@auth.authenticated_users_only()
+@billing_permission_required(BillingPermission.MANAGE_MANAGERS)
+async def remove_quote_manager(request: web.Request, userdata: UserData) -> web.Response:
+    db: Database = request.app['db']
+    quote_name = request.match_info['name']
+    target_user = request.match_info['user']
+    actor = userdata['username']
+
+    async def _remove(tx):
+        quote_row = await tx.execute_and_fetchone('SELECT id FROM quotes WHERE name_cs = %s FOR UPDATE;', (quote_name,))
+        if not quote_row:
+            raise BatchUserError(f'Unknown quote {quote_name}.', 'error')
+        quote_id = quote_row['id']
+
+        existing = await tx.execute_and_fetchone(
+            'SELECT role FROM quote_managers WHERE quote_id = %s AND user = %s FOR UPDATE;',
+            (quote_id, target_user),
+        )
+        if not existing:
+            raise BatchOperationAlreadyCompletedError(
+                f'User {target_user} is not a manager of quote {quote_name}.', 'info'
+            )
+
+        await tx.just_execute(
+            'DELETE FROM quote_managers WHERE quote_id = %s AND user = %s;',
+            (quote_id, target_user),
+        )
+        await _log_quote_event(tx, quote_id, actor, 'manager_removed', target_user=target_user)
+
+    @transaction(db)
+    async def run(tx):
+        await _remove(tx)
+
+    await _handle_api_error(run)
+    return json_response({'quote': quote_name, 'user': target_user})
+
+
+@routes.get('/api/v1alpha/quotes/{name}/events')
+@auth.authenticated_users_only()
+@billing_permission_required(BillingPermission.VIEW_EVENTS)
+async def get_quote_events(request: web.Request, _: UserData) -> web.Response:
+    db: Database = request.app['db']
+    quote_name = request.match_info['name']
+
+    quote_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name_cs = %s;', (quote_name,))
+    if not quote_row:
+        raise web.HTTPNotFound(reason=f'Unknown quote {quote_name}.')
+
+    events = [
+        record
+        async for record in db.select_and_fetchall(
+            """
+SELECT id, timestamp, actor, action, target_user, target_project, detail
+FROM quote_events
+WHERE quote_id = %s
+ORDER BY timestamp DESC
+LIMIT 1000;
+""",
+            (quote_row['id'],),
+        )
+    ]
+    return json_response(events)
 
 
 async def _refresh(app):

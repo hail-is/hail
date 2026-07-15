@@ -2884,6 +2884,49 @@ steps:
       - hail_ubuntu_image
       - gpu_image
   - kind: runImage
+    name: test_batch_billing_quotes
+    numSplits: 1
+    image:
+      valueFrom: batch_image.image
+    script: |
+      set -ex
+
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
+      export HAIL_TOKEN="{{ token }}"
+      export HAIL_CLOUD="{{ global.cloud }}"
+
+      hail-pip-install -r /io/dev-requirements.txt
+
+      python3 -m pytest \
+              --log-cli-level=INFO \
+              -s \
+              -r A \
+              -vv \
+              --instafail \
+              --durations=50 \
+              --timeout=360 \
+              /io/test/test_billing_quotes.py
+    inputs:
+      - from: /repo/batch/test
+        to: /io/test
+      - from: /repo/hail/python/dev/pinned-requirements.txt
+        to: /io/dev-requirements.txt
+    port: 5000
+    timeout: 600
+    secrets:
+      - name: test-gsa-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-gsa-key
+    dependsOn:
+      - create_deploy_config
+      - create_accounts
+      - default_ns
+      - merge_code
+      - deploy_batch
+      - batch_image
+  - kind: runImage
     name: test_batch_job_private_machines
     numSplits: 1
     image:
