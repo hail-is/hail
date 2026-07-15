@@ -3652,12 +3652,7 @@ class IRSuite {
       WritePartition(
         MakeStream(FastSeq(), TStream(TStruct())),
         NA(TString),
-        PartitionNativeWriter(
-          TypedCodecSpec(ctx, PType.canonical(TStruct()), BufferSpec.default),
-          IndexedSeq(),
-          "path",
-          None,
-        ),
+        TableTextPartitionWriter(TStruct(), ",", writeHeader = false),
       ),
       WriteMetadata(
         Begin(FastSeq()),

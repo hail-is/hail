@@ -48,20 +48,20 @@ object LowerDistributedSort extends Logging {
       )
     val reader = PartitionNativeReader(spec, "__dummy_uid")
     val initialTmpPath = ctx.createTmpPath("hail_shuffle_temp_initial")
-    val writer = PartitionNativeWriter(
-      spec,
-      keyToSortBy.fieldNames,
-      initialTmpPath,
-      None,
-      trackTotalBytes = true,
-    )
 
     logger.info("DISTRIBUTED SORT: PHASE 1: WRITE DATA")
     val initialStageData =
       CompileAndEvaluate[Row](
         ctx,
         inputStage.mapCollectWithGlobals("shuffle_initial_write")(
-          WritePartition(_, UUID4(), writer)
+          TableWriter.writerHelper(
+            spec,
+            _,
+            partFile = UUID4(),
+            partRoot = Str(initialTmpPath),
+            indexInfo = None,
+            trackTotalBytes = true
+          )
         ) {
           (part, globals) =>
             maketuple(
@@ -516,7 +516,15 @@ object LowerDistributedSort extends Logging {
               )
             })
 
-          WritePartition(sortedStream, UUID4(), writer)
+
+          TableWriter.writerHelper(
+            spec,
+            sortedStream,
+            partFile = UUID4(),
+            partRoot = Str(initialTmpPath),
+            indexInfo = None,
+            trackTotalBytes = true
+          )
       }
 
     logger.info(s"DISTRIBUTED SORT: PHASE ${i + 1}: LOCALLY SORT FILES")
