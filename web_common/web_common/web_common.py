@@ -139,6 +139,10 @@ def web_security_headers_swagger(fun):
     )
 
 
+def web_security_headers_inline_styles(fun):
+    return web_security_header_generator(fun, extra_style="'unsafe-inline'")
+
+
 def web_security_headers_login_page(fun):
     # Login/signup forms redirect through auth.hail.is/login to the OAuth provider. Chrome follows
     # the redirect chain when enforcing form-action, so OAuth domains must be allowed.
@@ -155,7 +159,7 @@ def web_security_header_generator(
         response = await fun(request, *args, **kwargs)
 
         default_src = 'default-src \'self\';'
-        style_src = f'style-src \'self\' \'unsafe-inline\' {extra_style} fonts.googleapis.com fonts.gstatic.com;'
+        style_src = f'style-src \'self\' {extra_style} fonts.googleapis.com fonts.gstatic.com;'
         font_src = 'font-src \'self\' fonts.gstatic.com;'
         script_src = f'script-src \'self\' {extra_script} cdn.jsdelivr.net cdn.plot.ly;'
         img_src = f'img-src \'self\' {extra_img};'

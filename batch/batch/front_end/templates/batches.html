@@ -11,15 +11,15 @@
   {{ table_search("batch-search", base_path ~ "/batches") }}
   <table class='table-fixed w-full' id='batches'>
     <thead>
-      <th class='h-12 bg-slate-200 font-light text-md rounded-tr text-left md:rounded-tr-none' style='width:1rem'></th>
-      <th class='h-12 bg-slate-200 font-light text-md text-center rounded-tl rounded-tr md:rounded-tr-none' style='width:6rem'>ID</th>
+      <th class='h-12 bg-slate-200 font-light text-md rounded-tr text-left md:rounded-tr-none w-4'></th>
+      <th class='h-12 bg-slate-200 font-light text-md text-center rounded-tl rounded-tr md:rounded-tr-none w-24'>ID</th>
       <th class='h-12 bg-slate-200 font-light text-md rounded-tr text-left md:rounded-tr-none'>Batch Name</th>
-      <th class='h-12 bg-slate-200 font-light text-md text-left hidden lg:table-cell' style='width:8rem'>Billing Project</th>
-      <th class='h-12 bg-slate-200 font-light text-md text-left hidden lg:table-cell' style='width:8rem'>Job Statuses</th>
-      <th class='h-12 bg-slate-200 font-light text-md text-left hidden lg:table-cell' style='width:12rem'>Created</th>
-      <th class='h-12 bg-slate-200 font-light text-md text-left hidden lg:table-cell' style='width:12rem'>Completed</th>
-      <th class='h-12 bg-slate-200 font-light text-md text-left hidden lg:table-cell' style='width:8rem'>Duration</th>
-      <th class='h-12 bg-slate-200 font-light text-md text-left hidden md:table-cell rounded-tr' style='width:6rem'>Cost</th>
+      <th class='h-12 bg-slate-200 font-light text-md text-left hidden lg:table-cell w-32'>Billing Project</th>
+      <th class='h-12 bg-slate-200 font-light text-md text-left hidden lg:table-cell w-32'>Job Statuses</th>
+      <th class='h-12 bg-slate-200 font-light text-md text-left hidden lg:table-cell w-48'>Created</th>
+      <th class='h-12 bg-slate-200 font-light text-md text-left hidden lg:table-cell w-48'>Completed</th>
+      <th class='h-12 bg-slate-200 font-light text-md text-left hidden lg:table-cell w-32'>Duration</th>
+      <th class='h-12 bg-slate-200 font-light text-md text-left hidden md:table-cell rounded-tr w-24'>Cost</th>
     </thead>
     <tbody class='border border-collapse border-slate-50'>
       {% for batch in batches %}
