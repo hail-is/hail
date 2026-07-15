@@ -78,12 +78,12 @@ class StreamWriterAggregator(spec: TypedCodecSpec, indexed: Boolean) extends Sta
 
   override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     val (partEC, rootEC, ixrootEC) = init match {
-      case Array(root, part) =>
+      case Array(part, root) =>
         require(!indexed)
-        (root, part, None)
-      case Array(root, part, ixroot) =>
+        (part, root, None)
+      case Array(part, root, ixroot) =>
         require(indexed)
-        (root, part, Some(ixroot))
+        (part, root, Some(ixroot))
     }
 
     val root = rootEC.toI(cb).getOrFatal(cb, "path cannot be missing").asString.loadString(cb)
