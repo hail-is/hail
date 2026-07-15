@@ -83,9 +83,7 @@ class StreamSplitWriterState(override val kb: EmitClassBuilder[_], indexKey: PSt
   }
 }
 
-// FIXME fullRowType not needed, pass rows/entries separately
 class StreamSplitWriterAggregator(
-  fullRowType: TStruct,
   rowSpec: TypedCodecSpec,
   entrySpec: TypedCodecSpec,
 ) extends StagedAggregator {
@@ -98,8 +96,9 @@ class StreamSplitWriterAggregator(
     TString, // index path root _with_ 'directory' separator
   )
 
-  // FIXME separate args for rows/entries.
-  val seqOpTypes: IndexedSeq[Type] = ArraySeq(fullRowType)
+  val seqOpTypes: IndexedSeq[Type] =
+    ArraySeq(rowSpec.encodedVirtualType, entrySpec.encodedVirtualType)
+
   val resultEmitType = EmitType(SJavaString, true)
 
   override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
@@ -124,16 +123,17 @@ class StreamSplitWriterAggregator(
   }
 
   override protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
-    val Array(fullRowEC) = seq
-    val fullRow = fullRowEC.toI(cb).getOrFatal(cb, "row cannot be missing")
-    val rowsEncoder = rowSpec.encodedType.buildEncoder(fullRow.st, cb.emb.ecb)
-    val entriesEncoder = entrySpec.encodedType.buildEncoder(fullRow.st, cb.emb.ecb)
+    val Array(rowEC, entryEC) = seq
+    val row = rowEC.toI(cb).getOrFatal(cb, "row cannot be missing")
+    val entry = entryEC.toI(cb).getOrFatal(cb, "entries array cannot be missing")
+    val rowsEncoder = rowSpec.encodedType.buildEncoder(row.st, cb.emb.ecb)
+    val entriesEncoder = entrySpec.encodedType.buildEncoder(entry.st, cb.emb.ecb)
 
-    state.addToIndex(cb, fullRow)
+    state.addToIndex(cb, row)
     cb += state.outbRows.writeByte(1.asInstanceOf[Byte])
     cb += state.outbEntries.writeByte(1.asInstanceOf[Byte])
-    rowsEncoder.apply(cb, fullRow, state.outbRows)
-    entriesEncoder.apply(cb, fullRow, state.outbEntries)
+    rowsEncoder.apply(cb, row, state.outbRows)
+    entriesEncoder.apply(cb, entry, state.outbEntries)
   }
 
   override protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region])

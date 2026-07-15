@@ -187,9 +187,9 @@ object MatrixNativeWriter {
             )
             makestruct(
               "partpath" -> ApplyAggOp(
-                WriteSplitRows(tablestage.rowType, rowSpec, entrySpec, pKey),
+                WriteSplitRows(rowSpec, entrySpec, pKey),
                 initOpArgs: _*
-              )(row),
+              )(row.drop(entriesFieldName), row.select(entriesFieldName)),
               "partitionCounts" -> ApplyAggOp(Count())(),
               "keyMeta" -> aggFoldIR(zero) { accum =>
                 bindIRs(SelectFields(row, pKey.fieldNames), GetField(accum, "lastKey")) {
