@@ -141,6 +141,10 @@ def web_security_headers_inline_styles(fun):
     return web_security_header_generator(fun, extra_style="'unsafe-inline'")
 
 
+def web_security_headers_inline_styles(fun):
+    return web_security_header_generator(fun, extra_style="'unsafe-inline'")
+
+
 def web_security_headers_login_page(fun):
     # Login/signup forms redirect through auth.hail.is/login to the OAuth provider. Chrome follows
     # the redirect chain when enforcing form-action, so OAuth domains must be allowed.
