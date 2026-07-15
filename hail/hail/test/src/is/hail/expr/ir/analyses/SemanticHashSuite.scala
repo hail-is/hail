@@ -5,7 +5,6 @@ import is.hail.TestUtils._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
-import is.hail.expr.ir
 import is.hail.expr.ir._
 import is.hail.expr.ir.defs._
 import is.hail.io.fs.{FakeURL, FileListEntry}
@@ -290,8 +289,8 @@ class SemanticHashSuite {
       isBlockMatrixIRSemanticallyEquivalent,
     )
 
-  private[this] val NormalizeNames: (ExecuteContext, BaseIR) => BaseIR =
-    ir.NormalizeNames(allowFreeVariables = true)
+  private[this] def normalize(ir: BaseIR)(implicit ctx: ExecuteContext): BaseIR =
+    NormalizeNames(allowFreeVariables = true)(ctx, ir.deepCopy)
 
   @ParameterizedTest
   def testSemanticEquivalence(
@@ -301,9 +300,8 @@ class SemanticHashSuite {
     comment: String,
   )(implicit ctx: ExecuteContext
   ): Unit =
-    ctx.local(fs = new FakeFS) { ctx =>
-      val actual =
-        SemanticHash(ctx, NormalizeNames(ctx, a)) == SemanticHash(ctx, NormalizeNames(ctx, b))
+    ctx.local(fs = new FakeFS) { implicit ctx =>
+      val actual = SemanticHash(ctx, normalize(a)) == SemanticHash(ctx, normalize(b))
       assertEq(
         actual,
         isEqual,

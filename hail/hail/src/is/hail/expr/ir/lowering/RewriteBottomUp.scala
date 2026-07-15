@@ -1,5 +1,6 @@
-package is.hail.expr.ir
+package is.hail.expr.ir.lowering
 
+import is.hail.expr.ir.BaseIR
 import is.hail.utils.StackSafe._
 
 object RewriteBottomUp {
