@@ -12,7 +12,9 @@ import is.hail.expr.Nat
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.analyses.PartitionCounts
 import is.hail.expr.ir.defs._
-import is.hail.expr.ir.lowering.{DArrayLowering, ExecuteRelational, LowerTableIR}
+import is.hail.expr.ir.lowering.{
+  DArrayLowering, ExecuteRelational, LowerTableIR, LoweringAnalyses, Optimize,
+}
 import is.hail.methods.{ForceCountTable, NPartitionsTable}
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.virtual._

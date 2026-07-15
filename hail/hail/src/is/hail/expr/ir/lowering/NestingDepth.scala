@@ -1,8 +1,9 @@
-package is.hail.expr.ir
+package is.hail.expr.ir.lowering
 
 import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.{BaseIR, IR, Memo, RefEquality, Scope, UsesAggEnv, UsesScanEnv}
 import is.hail.expr.ir.defs._
-import is.hail.expr.ir.lowering.invariant.TreeIR
+import is.hail.expr.ir.lowering.invariant.NoSharedNodes
 import is.hail.utils.TimedBlock
 
 case class ScopedDepth(eval: Int, agg: Int, scan: Int) {
@@ -144,7 +145,7 @@ object NestingDepth {
         }
       }
 
-      TreeIR.verify(ctx, ir0)
+      NoSharedNodes.verify(ctx, ir0)
 
       ir0 match {
         case ir: IR => computeIR(ir, ScopedDepth(0, 0, 0))

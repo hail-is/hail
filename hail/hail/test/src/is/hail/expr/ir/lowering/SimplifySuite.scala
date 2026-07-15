@@ -1,4 +1,4 @@
-package is.hail.expr.ir
+package is.hail.expr.ir.lowering
 
 import is.hail.{ExecStrategy, ParameterizedTest}
 import is.hail.ExecStrategy.ExecStrategy
@@ -7,6 +7,7 @@ import is.hail.annotations.RowSeq
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
+import is.hail.expr.ir._
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.implicits.forTesting._
@@ -42,7 +43,7 @@ class SimplifySuite {
 
           MatchResult(
             matches =
-              simplified.isAlphaEquiv(ctx, expected),
+              simplified isAlphaEquiv expected,
             rawFailureMessage =
               s"The simplified IR was not alpha-equivalent:\n$prettyDiff",
             rawNegatedFailureMessage =

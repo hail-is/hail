@@ -10,6 +10,7 @@ import is.hail.collection.implicits._
 import is.hail.expr.ir.analyses.PartitionCounts
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.lowering.{ExecuteRelational, LoweringPipeline}
+import is.hail.expr.ir.lowering.Optimize.Flags.Optimize
 import is.hail.io.BufferSpec
 import is.hail.linalg.BlockMatrix
 import is.hail.rvd.RVDContext
@@ -29,9 +30,7 @@ object Interpret extends Logging {
 
   def apply(tir: TableIR, ctx: ExecuteContext): TableValue = {
     val lowered =
-      LoweringPipeline.legacyRelationalLowerer(ctx, tir).asInstanceOf[TableIR].noSharing(
-        ctx
-      )
+      LoweringPipeline.legacyRelationalLowerer(ctx, tir).asInstanceOf[TableIR]
     ExecuteRelational(ctx, lowered).asTableValue(ctx)
   }
 
@@ -40,11 +39,8 @@ object Interpret extends Logging {
     ExecuteRelational(ctx, lowered).asTableValue(ctx)
   }
 
-  def apply(bmir: BlockMatrixIR, ctx: ExecuteContext): BlockMatrix = {
-    val lowered =
-      LoweringPipeline.legacyRelationalLowerer(ctx, bmir).asInstanceOf[BlockMatrixIR]
-    lowered.execute(ctx)
-  }
+  def apply(bmir: BlockMatrixIR, ctx: ExecuteContext): BlockMatrix =
+    LoweringPipeline.legacyRelationalLowerer(ctx, bmir).asInstanceOf[BlockMatrixIR].execute(ctx)
 
   def apply[T](ctx: ExecuteContext, ir: IR): T =
     apply[T](ctx, ir, Env.empty[(Any, Type)], FastSeq[(Any, Type)]())
@@ -65,7 +61,7 @@ object Interpret extends Logging {
   }
 
   def alreadyLowered(ctx: ExecuteContext, ir: IR): Any =
-    ctx.local(flags = ctx.flags - Optimize.Flags.Optimize) { ctx =>
+    ctx.local(flags = ctx.flags - Optimize) { ctx =>
       run(ctx, ir, Env.empty, FastSeq(), Memo.empty)
     }
 

@@ -3,8 +3,8 @@ package is.hail
 import is.hail.backend.ExecutionCache
 import is.hail.backend.service.ServiceBackend
 import is.hail.backend.spark.SparkBackend
-import is.hail.expr.ir.{agg, Optimize}
-import is.hail.expr.ir.lowering.invariant
+import is.hail.expr.ir.agg
+import is.hail.expr.ir.lowering.{invariant, Optimize}
 import is.hail.types.encoded.EType
 
 import scala.collection.compat._

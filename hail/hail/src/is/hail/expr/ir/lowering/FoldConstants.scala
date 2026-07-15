@@ -1,6 +1,7 @@
-package is.hail.expr.ir
+package is.hail.expr.ir.lowering
 
 import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.{BaseIR, IR, Interpret, Interpretable, IsConstant}
 import is.hail.expr.ir.defs._
 import is.hail.types.virtual.{TStream, TVoid}
 import is.hail.utils.{HailException, TimedBlock}

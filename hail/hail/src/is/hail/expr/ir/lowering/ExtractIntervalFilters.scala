@@ -1,17 +1,17 @@
-package is.hail.expr.ir
+package is.hail.expr.ir.lowering
 
 import is.hail.annotations.{ExtendedOrdering, IntervalEndpointOrdering, RowSeq, SafeRow}
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.{toRichIndexedSeq, toRichIterable}
+import is.hail.expr.ir._
 import is.hail.expr.ir.defs._
 import is.hail.rvd.PartitionBoundOrdering
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.{Locus, ReferenceGenome}
 
-import scala.Option.option2Iterable
 import scala.collection.mutable
 
 import org.apache.spark.sql.Row
@@ -194,7 +194,7 @@ class KeySetLattice(ctx: ExecuteContext, keyType: TStruct) extends Lattice {
 class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) extends Logging {
   import ExtractIntervalFilters._
 
-  object KeySetLattice extends is.hail.expr.ir.KeySetLattice(ctx, keyType)
+  object KeySetLattice extends KeySetLattice(ctx, keyType)
   import KeySetLattice.KeySet
 
   // The lattice used in the ExtractIntervalFilters analysis

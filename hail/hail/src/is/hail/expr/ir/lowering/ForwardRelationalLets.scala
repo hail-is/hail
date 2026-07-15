@@ -1,7 +1,11 @@
-package is.hail.expr.ir
+package is.hail.expr.ir.lowering
 
 import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.{
+  BaseIR, IR, IRTraversal, MatrixIR, Name, RelationalLetMatrixTable, RelationalLetTable, TableIR,
+}
 import is.hail.expr.ir.defs.{RelationalLet, RelationalRef}
+import is.hail.expr.ir.lowering.invariant.UniquelyNamed
 import is.hail.utils.TimedBlock
 
 import scala.collection.mutable
@@ -9,6 +13,7 @@ import scala.collection.mutable
 object ForwardRelationalLets {
   def apply(ctx: ExecuteContext, ir0: BaseIR): BaseIR =
     TimedBlock.enter {
+      UniquelyNamed.verify(ctx, ir0)
       val uses = mutable.HashMap.empty[Name, (Int, Int)]
       val nestingDepth = NestingDepth(ctx, ir0)
       IRTraversal.preOrder(ir0).foreach {

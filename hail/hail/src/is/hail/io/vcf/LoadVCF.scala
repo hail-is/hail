@@ -10,10 +10,10 @@ import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.{
   CloseableIterator, EmitCode, EmitCodeBuilder, EmitMethodBuilder, GenericLine, GenericLines,
-  GenericTableValue, IEmitCode, IR, IRParser, LowerMatrixIR, MatrixHybridReader, MatrixReader,
+  GenericTableValue, IEmitCode, IR, IRParser, MatrixHybridReader, MatrixReader,
 }
 import is.hail.expr.ir.defs.{Literal, PartitionReader}
-import is.hail.expr.ir.lowering.TableStage
+import is.hail.expr.ir.lowering.{LowerMatrixIR, TableStage}
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io.{checkGzipOfGlobbedFiles, VCFAttributes, VCFMetadata}
 import is.hail.io.fs.{FS, FileListEntry}

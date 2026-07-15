@@ -12,7 +12,7 @@ import is.hail.expr.ir.defs.{
   MakeStruct, MakeTuple, Ref, Str, StreamAgg, StreamAggScan, StreamRange, TableAggregate, ToArray,
   ToStream,
 }
-import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR}
+import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR, LoweringAnalyses}
 import is.hail.types.virtual._
 import is.hail.variant.Call2
 

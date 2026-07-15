@@ -1,8 +1,13 @@
-package is.hail.expr.ir
+package is.hail.expr.ir.lowering
 
 import is.hail.backend.ExecuteContext
 import is.hail.collection.compat.immutable.ArraySeq
-import is.hail.expr.ir.defs.{Atom, BaseRef, Binding, Block, Ref}
+import is.hail.expr.ir.{
+  BaseIR, BindingEnv, Bindings, ComputeUsesAndDefs, ContainsAgg, ContainsAggIntermediate,
+  ContainsScan, Env, IR, IsPure, Pretty, RefEquality, Scope, UsesAndDefs,
+}
+import is.hail.expr.ir.defs._
+import is.hail.expr.ir.lowering.invariant.UniquelyNamed
 import is.hail.utils.{Logging, TimedBlock}
 
 import scala.collection.Set
@@ -10,9 +15,9 @@ import scala.collection.Set
 object ForwardLets extends Logging {
   def apply[T <: BaseIR](ctx: ExecuteContext, ir0: T): T =
     TimedBlock.enter {
-      val ir1 = NormalizeNames(allowFreeVariables = true)(ctx, ir0)
-      val UsesAndDefs(uses, _, _) = ComputeUsesAndDefs(ir1, errorIfFreeVariables = false)
-      val nestingDepth = NestingDepth(ctx, ir1)
+      UniquelyNamed.verify(ctx, ir0)
+      val UsesAndDefs(uses, _, _) = ComputeUsesAndDefs(ir0, errorIfFreeVariables = false)
+      val nestingDepth = NestingDepth(ctx, ir0)
 
       def shouldForward(value: IR, refs: Set[RefEquality[BaseRef]], base: Block, scope: Scope)
         : Boolean =
@@ -40,7 +45,7 @@ object ForwardLets extends Logging {
                   else {
                     logger.info(
                       f"Eliminating unused binding:\n" +
-                        f"$name: ${value.typ} = ($scope) ${Pretty.ssaStyle(value).trim}"
+                        f"$name: ${value.typ} = ($scope) ${Pretty(ctx, value).trim}"
                     )
                     env
                   }
@@ -69,6 +74,6 @@ object ForwardLets extends Logging {
             )
         }
 
-      rewrite(ir1, BindingEnv(Env.empty, Some(Env.empty), Some(Env.empty))).asInstanceOf[T]
+      rewrite(ir0, BindingEnv(Env.empty, Some(Env.empty), Some(Env.empty))).asInstanceOf[T]
     }
 }

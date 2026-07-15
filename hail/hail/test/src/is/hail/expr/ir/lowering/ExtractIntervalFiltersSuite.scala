@@ -1,10 +1,11 @@
-package is.hail.expr.ir
+package is.hail.expr.ir.lowering
 
 import is.hail.ExecStrategy
 import is.hail.TestUtils._
 import is.hail.annotations.RowSeq
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
+import is.hail.expr.ir._
 import is.hail.expr.ir.defs._
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.virtual._

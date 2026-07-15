@@ -60,5 +60,5 @@ class IRBuilderSuite {
 
   @ParameterizedTest
   def testMonadicEquivalence(ib: IR, fn: IR)(implicit ctx: ExecuteContext): Unit =
-    assert(ib isAlphaEquiv (ctx, fn))
+    assert(ib isAlphaEquiv fn)
 }

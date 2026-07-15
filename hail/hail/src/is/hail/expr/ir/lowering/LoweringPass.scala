@@ -3,16 +3,10 @@ package is.hail.expr.ir.lowering
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.expr.ir._
-import is.hail.expr.ir.agg.{Extract, PhysicalAggSig, TakeStateSig}
+import is.hail.expr.ir.agg.Extract
 import is.hail.expr.ir.analyses.SemanticHash
-import is.hail.expr.ir.defs.{
-  ApplyIR, ArrayRef, Begin, GetField, I32, InitOp, Let, MakeStruct, Ref, ResultOp, RunAgg,
-  RunAggScan, SelectFields, SeqOp, StreamAgg, StreamAggScan, StreamBufferedAggregate, StreamFor,
-  StreamGroupByKey,
-}
+import is.hail.expr.ir.defs._
 import is.hail.expr.ir.lowering.invariant._
-import is.hail.types.{RTable, VirtualTypeWithReq}
-import is.hail.types.virtual.TStruct
 import is.hail.utils.TimedBlock
 
 final class IrMetadata() {
@@ -50,8 +44,8 @@ abstract class LoweringPass(implicit E: sourcecode.Enclosing) {
 
 case class OptimizePass(_context: String) extends LoweringPass {
   override val context = s"Optimize: ${_context}"
-  override def before: Invariant = AnyIR
-  override def after: Invariant = AnyIR
+  override def before: Invariant = LowerableIR
+  override def after: Invariant = LowerableIR
 
   override def apply(ctx: ExecuteContext, ir: BaseIR): BaseIR =
     if (ctx.flags.isDefined(Optimize.Flags.Optimize)) super.apply(ctx, ir)
@@ -69,15 +63,14 @@ case object LowerMatrixToTablePass extends LoweringPass {
 
 case object LiftRelationalValuesToRelationalLets extends LoweringPass {
   override val context: String = "LiftRelationalValuesToRelationalLets"
-  override def before: Invariant = AnyIR and NoMatrixIR
+  override def before: Invariant = LowerableIR and NoMatrixIR
   override def after: Invariant = before
-
-  override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = LiftRelationalValues(ir)
+  override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = LiftRelationalValues(ctx, ir)
 }
 
 case object LegacyInterpretNonCompilablePass extends LoweringPass {
   override val context: String = "InterpretNonCompilable"
-  override def before: Invariant = AnyIR and NoMatrixIR
+  override def before: Invariant = LowerableIR and NoMatrixIR
   override def after: Invariant = before and NoRelationalLets and CompilableValueIRs
 
   override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR =
@@ -86,8 +79,8 @@ case object LegacyInterpretNonCompilablePass extends LoweringPass {
 
 case object LowerOrInterpretNonCompilablePass extends LoweringPass {
   override val context: String = "LowerOrInterpretNonCompilable"
-  override def before: Invariant = AnyIR and NoMatrixIR
-  override def after: Invariant = AnyIR and CompilableIR
+  override def before: Invariant = LowerableIR and NoMatrixIR
+  override def after: Invariant = LowerableIR and CompilableIR
 
   override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR =
     LowerOrInterpretNonCompilable(ctx, ir)
@@ -104,77 +97,86 @@ case class LowerToDistributedArrayPass(t: DArrayLowering.Type) extends LoweringP
 
 case object InlineApplyIR extends LoweringPass {
   override val context: String = "InlineApplyIR"
-  override def before: Invariant = AnyIR and CompilableIR
+  override def before: Invariant = LowerableIR and CompilableIR
   override def after: Invariant = before and NoApplyIR
 
   override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR =
     TimedBlock.enter {
-      RewriteBottomUp(
-        ir,
-        {
-          case x: ApplyIR => Some(x.explicitNode)
-          case _ => None
-        },
-      )
+      val rewritten =
+        RewriteBottomUp(
+          ir,
+          {
+            case x: ApplyIR => Some(x.explicitNode)
+            case _ => None
+          },
+        )
+
+      if (rewritten ne ir) NormalizeNames()(ctx, rewritten)
+      else ir
     }
 }
 
 case object LowerArrayAggsToRunAggsPass extends LoweringPass {
   override val context: String = "LowerArrayAggsToRunAggs"
-  override def before: Invariant = CompilableIR and NoApplyIR
-  override def after: Invariant = EmittableIR
+  override def before: Invariant = LowerableIR and CompilableIR and NoApplyIR
+  override def after: Invariant = LowerableIR and EmittableIR
 
   override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR =
     TimedBlock.enter {
-      val x = ir.noSharing(ctx)
-      val r = Requiredness(x, ctx)
-      RewriteBottomUp(
-        x,
-        {
-          case x @ StreamAgg(a, name, query) =>
-            val aggs = Extract(ctx, query, r)
+      val r = Requiredness(ir, ctx)
 
-            val newNode = Let(
-              aggs.initBindings,
-              RunAgg(
-                Begin(FastSeq(
+      val rewritten =
+        RewriteBottomUp(
+          ir,
+          {
+            case x @ StreamAgg(a, name, query) =>
+              val aggs = Extract(ctx, query, r)
+
+              val newNode = Let(
+                aggs.initBindings,
+                RunAgg(
+                  Begin(FastSeq(
+                    aggs.init,
+                    StreamFor(a, name, aggs.seqPerElt),
+                  )),
+                  aggs.result,
+                  aggs.sigs.states,
+                ),
+              )
+
+              if (newNode.typ != x.typ)
+                throw new RuntimeException(s"types differ:\n  new: ${newNode.typ}\n  old: ${x.typ}")
+
+              Some(newNode)
+            case x @ StreamAggScan(a, name, query) =>
+              val aggs = Extract(ctx, query, r, isScan = true)
+
+              val newNode = Let(
+                aggs.initBindings,
+                RunAggScan(
+                  a,
+                  name,
                   aggs.init,
-                  StreamFor(a, name, aggs.seqPerElt),
-                )),
-                aggs.result,
-                aggs.sigs.states,
-              ),
-            )
+                  aggs.seqPerElt,
+                  aggs.result,
+                  aggs.sigs.states,
+                ),
+              )
+              if (newNode.typ != x.typ)
+                throw new RuntimeException(s"types differ:\n  new: ${newNode.typ}\n  old: ${x.typ}")
+              Some(newNode)
+            case _ => None
+          },
+        )
 
-            if (newNode.typ != x.typ)
-              throw new RuntimeException(s"types differ:\n  new: ${newNode.typ}\n  old: ${x.typ}")
-            Some(newNode.noSharing(ctx))
-          case x @ StreamAggScan(a, name, query) =>
-            val aggs = Extract(ctx, query, r, isScan = true)
-
-            val newNode = Let(
-              aggs.initBindings,
-              RunAggScan(
-                a,
-                name,
-                aggs.init,
-                aggs.seqPerElt,
-                aggs.result,
-                aggs.sigs.states,
-              ),
-            )
-            if (newNode.typ != x.typ)
-              throw new RuntimeException(s"types differ:\n  new: ${newNode.typ}\n  old: ${x.typ}")
-            Some(newNode.noSharing(ctx))
-          case _ => None
-        },
-      )
+      if (rewritten ne ir) NormalizeNames()(ctx, rewritten)
+      else ir
     }
 }
 
 case class EvalRelationalLetsPass(passesBelow: LoweringPipeline) extends LoweringPass {
   override val context: String = "EvalRelationalLets"
-  override def before: Invariant = NoMatrixIR
+  override def before: Invariant = LowerableIR and NoMatrixIR
   override def after: Invariant = before and NoRelationalLets
 
   override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR =
@@ -183,124 +185,21 @@ case class EvalRelationalLetsPass(passesBelow: LoweringPipeline) extends Lowerin
 
 case object LowerTableKeyByAndAggregatePass extends LoweringPass {
   override val context: String = "LowerTableKeyByAndAggregate"
-  override def before: Invariant = NoRelationalLets and NoMatrixIR
+  override def before: Invariant = LowerableIR and NoRelationalLets and NoMatrixIR
   override def after: Invariant = before and NoTableKeyByAndAggregate
 
-  override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = TimedBlock.enter {
-    RewriteBottomUp(
-      ir,
-      {
-        case t @ TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize) =>
-          val newKeyType = newKey.typ.asInstanceOf[TStruct]
-
-          val aggs = Extract(ctx, expr, Requiredness(t, ctx)).independent
-          val aggSigs = aggs.sigs
-
-          var ts = child
-
-          val origGlobalTyp = ts.typ.globalType
-          ts = TableKeyBy(child, IndexedSeq())
-          ts = TableMapGlobals(
-            ts,
-            MakeStruct(FastSeq(
-              ("oldGlobals", Ref(TableIR.globalName, origGlobalTyp)),
-              (
-                "__initState",
-                RunAgg(aggs.init, aggSigs.valuesOp, aggSigs.states),
-              ),
-            )),
-          )
-
-          val partiallyAggregated =
-            mapPartitions(ts) { (insGlob, partStream) =>
-              Let(
-                FastSeq(TableIR.globalName -> GetField(insGlob, "oldGlobals")),
-                StreamBufferedAggregate(
-                  partStream,
-                  bindIR(GetField(insGlob, "__initState"))(aggSigs.initFromSerializedValueOp),
-                  newKey,
-                  aggs.seqPerElt,
-                  TableIR.rowName,
-                  aggSigs.sigs,
-                  bufferSize,
-                ),
-              )
-            }.noSharing(ctx)
-
-          val analyses = LoweringAnalyses(partiallyAggregated, ctx)
-          val rt = analyses.requirednessAnalysis.lookup(partiallyAggregated).asInstanceOf[RTable]
-
-          val takeVirtualSig =
-            TakeStateSig(VirtualTypeWithReq(newKeyType, rt.rowType.select(newKeyType.fieldNames)))
-          val takeAggSig = PhysicalAggSig(Take(), takeVirtualSig)
-          val aggStateSigsPlusTake = aggSigs.states ++ Array(takeVirtualSig)
-
-          val result = ResultOp(aggSigs.nAggs, takeAggSig)
-
-          val shuffled = TableKeyBy(
-            partiallyAggregated,
-            newKey.typ.asInstanceOf[TStruct].fieldNames,
-            nPartitions = nPartitions,
-          )
-
-          val tmp =
-            mapPartitions(shuffled, newKeyType.size, newKeyType.size - 1) {
-              (insGlob, shuffledPartStream) =>
-                Let(
-                  FastSeq(TableIR.globalName -> GetField(insGlob, "oldGlobals")),
-                  mapIR(StreamGroupByKey(
-                    shuffledPartStream,
-                    newKeyType.fieldNames.toIndexedSeq,
-                    missingEqual = true,
-                  )) { groupRef =>
-                    RunAgg(
-                      Begin(FastSeq(
-                        bindIR(GetField(insGlob, "__initState"))(aggSigs.initFromSerializedValueOp),
-                        InitOp(
-                          aggSigs.nAggs,
-                          IndexedSeq(I32(1)),
-                          PhysicalAggSig(Take(), takeVirtualSig),
-                        ),
-                        forIR(groupRef) { elem =>
-                          Begin(FastSeq(
-                            SeqOp(
-                              aggSigs.nAggs,
-                              IndexedSeq(SelectFields(elem, newKeyType.fieldNames)),
-                              PhysicalAggSig(Take(), takeVirtualSig),
-                            ),
-                            bindIR(GetField(elem, "agg"))(aggSigs.combOpValues),
-                          ))
-                        },
-                      )),
-                      bindIRs(aggs.result, result) { case Seq(postAgg, resultFromTake) =>
-                        val keyIRs: IndexedSeq[(String, IR)] =
-                          newKeyType.fieldNames.map(keyName =>
-                            keyName -> GetField(ArrayRef(resultFromTake, 0), keyName)
-                          )
-
-                        MakeStruct(keyIRs ++ expr.typ.asInstanceOf[TStruct].fieldNames.map { f =>
-                          (f, GetField(postAgg, f))
-                        })
-                      },
-                      aggStateSigsPlusTake,
-                    )
-                  },
-                )
-            }
-          Some(TableMapGlobals(
-            tmp,
-            GetField(Ref(TableIR.globalName, tmp.typ.globalType), "oldGlobals"),
-          ))
-        case _ => None
-      },
-    )
-  }
+  override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR =
+    LowerTableKeyByAndAggregate(ctx, ir)
 }
 
 case object LowerAndExecuteShufflesPass extends LoweringPass {
   override val context: String = "LowerAndExecuteShuffles"
-  override def before: Invariant = NoRelationalLets and NoMatrixIR and NoTableKeyByAndAggregate
-  override def after: Invariant = before and LoweredShuffles
+
+  override def before: Invariant =
+    LowerableIR and NoRelationalLets and NoMatrixIR and NoTableKeyByAndAggregate
+
+  override def after: Invariant =
+    before and LoweredShuffles
 
   override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR =
     LowerAndExecuteShuffles(ir, ctx)

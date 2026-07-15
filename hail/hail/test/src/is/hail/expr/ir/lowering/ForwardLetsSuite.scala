@@ -1,4 +1,4 @@
-package is.hail.expr.ir
+package is.hail.expr.ir.lowering
 
 import is.hail.ParameterizedTest
 import is.hail.TestUtils._
@@ -6,7 +6,9 @@ import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.Nat
+import is.hail.expr.ir._
 import is.hail.expr.ir.defs._
+import is.hail.expr.ir.implicits.forTesting._
 import is.hail.types.virtual._
 
 import org.junit.jupiter.api.{BeforeEach, Test}
@@ -21,34 +23,23 @@ class ForwardLetsSuite {
     val a = ToArray(StreamRange(I32(0), I32(10), I32(1)))
     val x = Ref(freshName(), TInt32)
     ArraySeq(
-      mapArray(a)(y => ApplyBinaryPrimOp(Add(), x, y)),
-      ToArray(filterIR(ToStream(a))(y => ApplyComparisonOp(LT, x, y))),
+      mapArray(a)(y => x + y),
+      ToArray(filterIR(ToStream(a))(y => x < y)),
       ToArray(flatMapIR(ToStream(a))(y => StreamRange(x, y, I32(1)))),
-      foldIR(ToStream(a), I32(0)) { (acc, y) =>
-        ApplyBinaryPrimOp(Add(), ApplyBinaryPrimOp(Add(), x, y), acc)
-      },
+      foldIR(ToStream(a), I32(0))((acc, y) => x + y + acc),
       fold2IR(ToStream(a), I32(0)) { case (y, Seq(acc)) => x + y + acc } { case Seq(acc) => acc },
-      ToArray(streamScanIR(ToStream(a), I32(0))((acc, y) =>
-        ApplyBinaryPrimOp(Add(), ApplyBinaryPrimOp(Add(), x, y), acc)
-      )),
-      MakeStruct(FastSeq(
-        "a" -> ApplyBinaryPrimOp(Add(), x, I32(1)),
-        "b" -> ApplyBinaryPrimOp(Add(), x, I32(2)),
-      )),
-      MakeTuple.ordered(FastSeq(
-        ApplyBinaryPrimOp(Add(), x, I32(1)),
-        ApplyBinaryPrimOp(Add(), x, I32(2)),
-      )),
-      ApplyBinaryPrimOp(Add(), ApplyBinaryPrimOp(Add(), x, x), I32(1)),
+      ToArray(streamScanIR(ToStream(a), I32(0))((acc, y) => x + y + acc)),
+      makestruct("a" -> (x + 1), "b" -> (x.ir + 2)),
+      maketuple(x + 1, x.ir + 2),
+      x + x.ir + 1,
       streamAggIR(ToStream(a))(y => ApplyAggOp(Sum())(x + y)),
     ).map(ir => Let(FastSeq(x.name -> (In(0, TInt32) + In(0, TInt32))), ir))
   }
 
   def testNonForwardingNonEvalOps() = {
-    val x = Ref(freshName(), TInt32)
-    val y = Ref(freshName(), TInt32)
-    val z = Ref(freshName(), TInt32)
-    val f = freshName()
+    def x = Ref(Name("__x"), TInt32)
+    def y = Ref(Name("__y"), TInt32)
+    def z = Ref(Name("__z"), TInt32)
     ArraySeq(
       NDArrayMap(In(1, TNDArray(TInt32, Nat(1))), y.name, x + y),
       NDArrayMap2(
@@ -59,20 +50,15 @@ class ForwardLetsSuite {
         x + y + z,
         ErrorIDs.NO_ERROR,
       ),
-      TailLoop(
-        f,
-        FastSeq(y.name -> I32(0)),
-        TInt32,
-        If(y < x, Recur(f, FastSeq[IR](y - I32(1)), TInt32), x),
-      ),
+      tailLoop(TInt32, 0) { case (recur, Seq(y)) => If(y < x, recur(FastSeq(y - 1)), x.ir) },
     ).map(ir => Let(FastSeq(x.name -> (In(0, TInt32) + In(0, TInt32))), ir))
   }
 
   def aggMin(value: IR): ApplyAggOp = ApplyAggOp(Min())(value)
 
   def testNonForwardingAggOps() = {
-    val a = StreamRange(I32(0), I32(10), I32(1))
-    val x = Ref(freshName(), TInt32)
+    def a = StreamRange(I32(0), I32(10), I32(1))
+    def x = Ref(Name("__x"), TInt32)
     ArraySeq(
       aggArrayPerElement(ToArray(a))((y, _) => aggMin(x + y)),
       aggExplodeIR(a)(y => aggMin(y + x)),
@@ -82,19 +68,19 @@ class ForwardLetsSuite {
   def testForwardingOps() = {
     val x = Ref(freshName(), TInt32)
     ArraySeq(
-      MakeStruct(FastSeq("a" -> I32(1), "b" -> ApplyBinaryPrimOp(Add(), x, I32(2)))),
-      MakeTuple.ordered(FastSeq(I32(1), ApplyBinaryPrimOp(Add(), x, I32(2)))),
+      makestruct("a" -> 1, "b" -> (x + 2)),
+      maketuple(1, x + 2),
       If(True(), x, I32(0)),
-      ApplyBinaryPrimOp(Add(), ApplyBinaryPrimOp(Add(), I32(2), x), I32(1)),
-      ApplyUnaryPrimOp(Negate, x),
+      I32(2) + x + 1,
+      -x,
       ToArray(mapIR(rangeIR(x))(foo => foo)),
       ToArray(filterIR(rangeIR(x))(foo => foo <= I32(0))),
     ).map(ir => Let(FastSeq(x.name -> (In(0, TInt32) + In(0, TInt32))), ir))
   }
 
   def testForwardingAggOps() = {
-    val x = Ref(freshName(), TInt32)
-    val other = Ref(freshName(), TInt32)
+    def x = Ref(Name("__x"), TInt32)
+    def other = Ref(Name("__other"), TInt32)
     ArraySeq(
       AggFilter(x.ceq(I32(0)), aggMin(other), false),
       aggMin(x + other),
@@ -115,9 +101,8 @@ class ForwardLetsSuite {
       FastSeq(Binding(x.name, I32(1), Scope.AGG), Binding(y.name, x, Scope.AGG)),
       ApplyAggOp(Sum())(y),
     )
-    val after: IR = ForwardLets(ctx, ir)
-    val expected = ApplyAggOp(Sum())(I32(1))
-    assertEq(NormalizeNames()(ctx, after), NormalizeNames()(ctx, expected))
+
+    assert(ForwardLets(ctx, ir) isAlphaEquiv ApplyAggOp(Sum())(I32(1)))
   }
 
   @ParameterizedTest
@@ -238,8 +223,8 @@ class ForwardLetsSuite {
   @Test def testNestedBindingOverwrites(implicit ctx: ExecuteContext): Unit = {
     val x = Ref(freshName(), TInt32)
     val env = Env[Type](x.name -> TInt32)
-    def xCast = Cast(x, TFloat64)
-    val ir = bindIRs(xCast, xCast) { case Seq(x1, x2) => x2 + x2 + x1 }
+    val xCast = Cast(x, TFloat64)
+    val ir = bindIRs(xCast, xCast.deepCopy) { case Seq(x1, x2) => x2 + x2 + x1 }
 
     TypeCheck(ctx, ir, BindingEnv(env))
     TypeCheck(ctx, ForwardLets(ctx, ir), BindingEnv(env))

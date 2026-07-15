@@ -1,6 +1,7 @@
-package is.hail.expr.ir
+package is.hail.expr.ir.lowering
 
 import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.{BaseIR, Requiredness, RequirednessAnalysis}
 
 object LoweringAnalyses {
   def apply(ir: BaseIR, ctx: ExecuteContext): LoweringAnalyses = {

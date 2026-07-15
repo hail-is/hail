@@ -4,10 +4,11 @@ import is.hail.annotations._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
-import is.hail.expr.ir.LowerMatrixIR.{colsFieldName, entriesFieldName}
 import is.hail.expr.ir.analyses.{ColumnCount, PartitionCounts}
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.functions.MatrixToMatrixFunction
+import is.hail.expr.ir.lowering.LowerMatrixIR
+import is.hail.expr.ir.lowering.LowerMatrixIR.{colsFieldName, entriesFieldName}
 import is.hail.io.bgen.MatrixBGENReader
 import is.hail.io.fs.FS
 import is.hail.io.plink.MatrixPLINKReader

@@ -64,6 +64,7 @@ sealed abstract class TableIR extends BaseIR {
 
 final class TableIROps(val tir: TableIR) extends AnyVal {
 
+  def key: IndexedSeq[String] = tir.typ.key
   def global: Atom = Ref(TableIR.globalName, tir.typ.globalType)
   def row: Atom = Ref(TableIR.rowName, tir.typ.rowType)
 
@@ -75,13 +76,27 @@ final class TableIROps(val tir: TableIR) extends AnyVal {
   def mapRows(f: (Atom, Atom) => IR): TableIR =
     TableMapRows(tir, f(global, row))
 
+  def mapPartitions(keyLength: Int = 0, overlap: Int = key.length)(f: (Atom, Atom) => IR): TableIR =
+    is.hail.expr.ir.mapPartitions(tir, keyLength, overlap)(f)
+
   def explode(sym: String*): TableIR = TableExplode(tir, sym.toFastSeq)
 
   def aggregateByKey(f: (Atom, Atom) => IR): TableIR =
     TableAggregateByKey(tir, f(global, row))
 
-  def keyBy(keys: IndexedSeq[String], isSorted: Boolean = false): TableIR =
-    TableKeyBy(tir, keys, isSorted)
+  def keyByAndAggregate(
+    bufferSize: Int,
+    partitions: Option[Int],
+  )(
+    entry: (Atom, Atom) => IR
+  )(
+    key: (Atom, Atom) => IR
+  ): TableIR =
+    TableKeyByAndAggregate(tir, entry(global, row), key(global, row), partitions, bufferSize)
+
+  def keyBy(key: IndexedSeq[String], isSorted: Boolean = false, nPartitions: Option[Int] = None)
+    : TableIR =
+    TableKeyBy(tir, key, isSorted, nPartitions)
 
   def rename(rowMap: Map[String, String], globalMap: Map[String, String] = Map.empty): TableIR =
     TableRename(tir, rowMap, globalMap)
@@ -98,7 +113,7 @@ final class TableIROps(val tir: TableIR) extends AnyVal {
       .collect
       .get("rows")
       .stream
-      .streamMap(row => maketuple(row.select(tir.typ.key), row.drop(tir.typ.key)))
+      .streamMap(row => maketuple(row.select(key), row.drop(key)))
       .toDict
 
   def aggregate(f: (Atom, Atom) => IR): IR =

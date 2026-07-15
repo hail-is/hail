@@ -171,13 +171,13 @@ object ArrayFunctions extends RegistryFunctions {
       }
     }
 
-    def argF(a: IR, op: ComparisonOp[Boolean], errorID: Int): IR = {
+    def argF(a: Atom, op: ComparisonOp[Boolean], errorID: Int): IR = {
       val t = tcoerce[TArray](a.typ).elementType
       val tAccum = TTuple(t, TInt32)
 
       GetTupleElement(
-        foldIR(StreamRange(0, ArrayLen(a), 1), NA(tAccum)) { (accum, idx) =>
-          bindIRs(ArrayRef(a, idx, errorID), GetTupleElement(accum, 0)) { case Seq(value, m) =>
+        foldIR(rangeIR(a.len), NA(tAccum)) { (accum, idx) =>
+          bindIRs(ArrayRef(a, idx, errorID), accum.get(0)) { case Seq(value, m) =>
             If(
               !IsNA(value) && (IsNA(m) || ApplyComparisonOp(op, value, m)),
               maketuple(value, idx),

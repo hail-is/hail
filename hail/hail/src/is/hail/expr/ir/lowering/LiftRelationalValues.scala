@@ -1,18 +1,17 @@
-package is.hail.expr.ir
+package is.hail.expr.ir.lowering
 
+import is.hail.backend.ExecuteContext
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.compat.mutable.Growable
-import is.hail.expr.ir.defs.{
-  BlockMatrixCollect, BlockMatrixToValueApply, RelationalLet, RelationalRef, TableAggregate,
-  TableCollect, TableCount, TableGetGlobals, TableToValueApply,
-}
+import is.hail.expr.ir._
+import is.hail.expr.ir.defs._
 import is.hail.types.virtual.TVoid
 
 import scala.collection.mutable
 
 object LiftRelationalValues {
 
-  def apply(ir0: BaseIR): BaseIR = {
+  def apply(ctx: ExecuteContext, ir0: BaseIR): BaseIR = {
 
     def rewrite(ir: BaseIR, ab: Growable[(Name, IR)], memo: mutable.Map[IR, Name]): BaseIR =
       ir match {
@@ -40,13 +39,14 @@ object LiftRelationalValues {
               RelationalLetTable(name, value, acc)
             },
           )
-        case (_: TableAggregate
+        case _: TableAggregate
             | _: TableCount
             | _: TableToValueApply
             | _: BlockMatrixToValueApply
             | _: TableCollect
             | _: BlockMatrixCollect
-            | _: TableGetGlobals) if ir.typ != TVoid =>
+            | _: TableGetGlobals
+            if ir.typ != TVoid =>
           val name = memo.getOrElseUpdate(
             ir.asInstanceOf[IR], {
               val name = freshName()
@@ -62,20 +62,23 @@ object LiftRelationalValues {
 
     val ab = ArraySeq.newBuilder[(Name, IR)]
     val memo = mutable.Map.empty[IR, Name]
-    rewrite(ir0, ab, memo) match {
-      case rw: IR => ab.result().foldRight[IR](rw) { case ((name, value), acc) =>
-          RelationalLet(name, value, acc)
-        }
-      case rw: TableIR => ab.result().foldRight[TableIR](rw) { case ((name, value), acc) =>
-          RelationalLetTable(name, value, acc)
-        }
-      case rw: MatrixIR => ab.result().foldRight[MatrixIR](rw) { case ((name, value), acc) =>
-          RelationalLetMatrixTable(name, value, acc)
-        }
-      case rw: BlockMatrixIR =>
-        assert(ab.result().isEmpty)
-        rw
-    }
+    val rewritten =
+      rewrite(ir0, ab, memo) match {
+        case rw: IR => ab.result().foldRight[IR](rw) { case ((name, value), acc) =>
+            RelationalLet(name, value, acc)
+          }
+        case rw: TableIR => ab.result().foldRight[TableIR](rw) { case ((name, value), acc) =>
+            RelationalLetTable(name, value, acc)
+          }
+        case rw: MatrixIR => ab.result().foldRight[MatrixIR](rw) { case ((name, value), acc) =>
+            RelationalLetMatrixTable(name, value, acc)
+          }
+        case rw: BlockMatrixIR =>
+          assert(ab.result().isEmpty)
+          rw
+      }
 
+    if (rewritten ne ir0) NormalizeNames()(ctx, rewritten)
+    else ir0
   }
 }

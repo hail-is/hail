@@ -47,14 +47,13 @@ class EmitStreamSuite {
       LongInfo,
     )
     val mb = fb.apply_method
-    val ir = streamIR.deepCopy
 
-    val emitContext = EmitContext.analyze(ctx, ir)
+    val emitContext = EmitContext.analyze(ctx, streamIR)
 
     var arrayType: PType = null
     mb.emit(EmitCodeBuilder.scopedCode(mb) { cb =>
       val region = mb.getCodeParam[Region](1)
-      val s = ir match {
+      val s = streamIR match {
         case ToArray(s) => s
         case s => s
       }
@@ -148,17 +147,16 @@ class EmitStreamSuite {
     val fb = EmitFunctionBuilder[Region, Int](ctx, "eval_stream_len")
     val mb = fb.apply_method
     val region = mb.getCodeParam[Region](1)
-    val ir = streamIR.deepCopy
-    val emitContext = EmitContext.analyze(ctx, ir)
+    val emitContext = EmitContext.analyze(ctx, streamIR)
 
     fb.emitWithBuilder { cb =>
-      TypeCheck(ctx, ir)
+      TypeCheck(ctx, streamIR)
       val len = cb.newLocal[Int]("len", 0)
       val len2 = cb.newLocal[Int]("len2", -1)
 
       EmitStream.produce(
         new Emit(emitContext, fb.ecb),
-        ir,
+        streamIR,
         cb,
         cb.emb,
         region,
@@ -1085,7 +1083,7 @@ class EmitStreamSuite {
     lowSize: Int = 50,
     highSize: Int = 2500,
   )(
-    f: IR => IR
+    f: Atom => IR
   )(implicit ctx: ExecuteContext
   ): Unit =
     unoptimized { implicit ctx =>
@@ -1116,7 +1114,7 @@ class EmitStreamSuite {
     )
   }
 
-  def filteredRangeStructs(size: IR): IR = mapIR(filterIR(
+  def filteredRangeStructs(size: Atom): IR = mapIR(filterIR(
     StreamRange(0, size, 1, true)
   )(i => i < (size / 2).toI)) { i =>
     makestruct(

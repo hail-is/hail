@@ -10,17 +10,10 @@ import is.hail.backend.spark.SparkBackend
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
-import is.hail.expr.ir.{
-  bindIR, freshName, rangeIR, streamAggIR, BindingEnv, BlockMatrixIR, Compilable, Compile, Env,
-  Forall, IR, Interpret, MapIR, MatrixIR, MatrixRead, Name, Pretty, SingleCodeEmitParamType, Subst,
-  TypeCheck,
-}
-import is.hail.expr.ir.Optimize.Flags.Optimize
-import is.hail.expr.ir.defs.{
-  BlockMatrixCollect, Cast, GetField, GetTupleElement, In, MakeTuple, NDArrayRef, Ref, StreamMap,
-  ToArray, ToStream,
-}
-import is.hail.expr.ir.lowering.LowererUnsupportedOperation
+import is.hail.expr.ir._
+import is.hail.expr.ir.defs._
+import is.hail.expr.ir.lowering.{Compilable, LowererUnsupportedOperation}
+import is.hail.expr.ir.lowering.Optimize.Flags.Optimize
 import is.hail.io.vcf.MatrixVCFReader
 import is.hail.types.physical.{PBaseStruct, PCanonicalArray, PType}
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType

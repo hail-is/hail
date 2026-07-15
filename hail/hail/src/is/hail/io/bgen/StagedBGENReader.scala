@@ -7,9 +7,10 @@ import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{
   uuid4, ArraySorter, EmitCode, EmitCodeBuilder, EmitFunctionBuilder, EmitSettable, IEmitCode,
-  LowerMatrixIR, ParamType, StagedArrayBuilder,
+  ParamType, StagedArrayBuilder,
 }
 import is.hail.expr.ir.functions.{RegistryFunctions, StringFunctions}
+import is.hail.expr.ir.lowering.LowerMatrixIR
 import is.hail.expr.ir.streams.StreamUtils
 import is.hail.io._
 import is.hail.io.fs.SeekableDataInputStream

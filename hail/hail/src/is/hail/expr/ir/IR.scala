@@ -809,14 +809,14 @@ package defs {
     }
 
     abstract class MakeNDArrayCompanionExt {
-      def fill(elt: IR, shape: IndexedSeq[IR], rowMajor: IR): MakeNDArray = {
-        val flatSize: IR = if (shape.nonEmpty)
-          shape.reduce((l, r) => l * r)
-        else
-          0L
+      def fill(elt: IR, shape: IndexedSeq[Atom], rowMajor: IR): MakeNDArray = {
+        val flatSize: IR =
+          if (shape.nonEmpty) shape.foldLeft[IR](I64(1L))(_ * _)
+          else 0L
+
         MakeNDArray(
           ToArray(mapIR(rangeIR(flatSize.toI))(_ => elt)),
-          MakeTuple.ordered(shape),
+          MakeTuple.ordered(shape.map(_.ir)),
           rowMajor,
           ErrorIDs.NO_ERROR,
         )
