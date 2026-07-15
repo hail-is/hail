@@ -47,6 +47,7 @@ from web_common import (
     setup_aiohttp_jinja2,
     setup_common_static_routes,
     web_security_headers,
+    web_security_headers_inline_styles,
     web_security_headers_swagger,
 )
 
@@ -267,7 +268,7 @@ async def _populate_historical_pr_context(
 
 
 @routes.get('/watched_branches/{watched_branch_index}/pr/{pr_number}')
-@web_security_headers
+@web_security_headers_inline_styles
 @auth.authenticated_users_with_permission(SystemPermission.READ_CI)
 async def get_pr(request: web.Request, userdata: UserData) -> web.Response:
     watched_branch_index = int(request.match_info['watched_branch_index'])
@@ -862,7 +863,7 @@ async def get_envoy_configs(request: web.Request, _) -> web.Response:
 
 
 @routes.get('/flaky_tests')
-@web_security_headers
+@web_security_headers_inline_styles
 @auth.authenticated_users_with_permission(SystemPermission.READ_CI)
 async def get_flaky_tests(request: web.Request, userdata: UserData) -> web.Response:
     return await render_template('ci', request, userdata, 'flaky_tests.html', {'use_tailwind': True})

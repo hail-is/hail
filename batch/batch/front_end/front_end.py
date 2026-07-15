@@ -82,6 +82,7 @@ from web_common import (
     setup_aiohttp_jinja2,
     setup_common_static_routes,
     web_security_headers,
+    web_security_headers_inline_styles,
     web_security_headers_swagger,
 )
 
@@ -2825,7 +2826,7 @@ async def ui_get_jvm_profile(request: web.Request, _, batch_id: int) -> web.Resp
 
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}')
-@web_security_headers
+@web_security_headers_inline_styles
 @billing_project_users_only()
 @catch_ui_error_in_dev
 async def ui_get_job(request, userdata, batch_id):
