@@ -62,10 +62,7 @@ def parse_flamegraph(filepath: str) -> FlameGraph:
 
     total = frames[0].width
 
-    inclusive = defaultdict(int)
-    for f in frames:
-        inclusive[f.name] += f.width
-
+    inclusive = _compute_inclusive(frames)
     self_time = _compute_self_time(frames)
 
     return FlameGraph(
@@ -84,11 +81,32 @@ def _extract_cpool(content: str) -> list[str]:
         sys.exit(1)
 
     entries = re.findall(r"'((?:[^'\\]|\\.)*)'", m.group(1))
-    cpool = list(entries)
+    # Unescape JS string escapes (\' \\ etc.) BEFORE prefix decoding: the
+    # prefix lengths refer to the decoded strings, so leftover backslashes
+    # shift every subsequent entry and corrupt names.
+    cpool = [re.sub(r'\\(.)', r'\1', e) for e in entries]
     for i in range(1, len(cpool)):
         prefix_len = ord(cpool[i][0]) - 32
         cpool[i] = cpool[i - 1][:prefix_len] + cpool[i][1:]
-    return cpool
+    return [_normalize_name(s) for s in cpool]
+
+
+# JIT-generated identifiers that differ between JVM runs even for identical
+# code: lambda classes get sequential ids + hashes, and Hail's generated
+# classes/methods get sequential numbers. Normalize so two profiles of the
+# same code produce the same frame names.
+_LAMBDA_RE = re.compile(r'\$\$Lambda(?:\$\d+)?(?:/(?:0x)?[0-9a-fA-F]+)?')
+_GENCLASS_RE = re.compile(r'__C\d+')
+_GENMETHOD_RE = re.compile(r'__m\d+')
+_ACCESSOR_RE = re.compile(r'Generated(Method|Constructor)Accessor\d+')
+
+
+def _normalize_name(name: str) -> str:
+    name = _LAMBDA_RE.sub('$$Lambda$*', name)
+    name = _GENCLASS_RE.sub('__C*', name)
+    name = _GENMETHOD_RE.sub('__m*', name)
+    name = _ACCESSOR_RE.sub(r'Generated\1Accessor*', name)
+    return name
 
 
 def _extract_frames(content: str, cpool: list[str]) -> list[Frame]:
@@ -132,6 +150,30 @@ def _extract_frames(content: str, cpool: list[str]) -> list[Frame]:
             frames.append(Frame(cpool[key >> 3], level0, left0, width0))
 
     return frames
+
+
+def _compute_inclusive(frames: list[Frame]) -> dict[str, int]:
+    """Inclusive time: samples where the function is anywhere on the stack.
+
+    Each sample is counted ONCE per function: a recursive frame is counted
+    only at its topmost occurrence, otherwise recursion depth would multiply
+    the count (a walk 40 frames deep would report 40x its true time).
+    Relies on frames being emitted in DFS order, so the last-seen frame at
+    each shallower level is the current frame's ancestor.
+    """
+    inclusive: dict[str, int] = defaultdict(int)
+    path: dict[int, Frame] = {}
+    for f in frames:
+        path[f.level] = f
+        nested = any(
+            (a := path.get(lvl)) is not None
+            and a.name == f.name
+            and a.left <= f.left < a.left + a.width
+            for lvl in range(f.level)
+        )
+        if not nested:
+            inclusive[f.name] += f.width
+    return dict(inclusive)
 
 
 def _compute_self_time(frames: list[Frame]) -> dict[str, int]:
@@ -205,7 +247,9 @@ def _trace_callers(
 
     Stacks are collapsed so that recursive cycles (A -> B -> A -> B ...)
     appear once with a repetition count, merging stacks that differ only
-    in recursion depth.
+    in recursion depth.  Only the TOPMOST matching frame of each stack is
+    traced: nested recursive matches are skipped so each sample is counted
+    once, not once per recursion level.
     """
     pat = re.compile(pattern)
 
@@ -229,6 +273,8 @@ def _trace_callers(
                 if f.left >= pleft and f.left < pleft + pwidth:
                     stack.append(pname)
         stack.reverse()
+        if any(pat.search(name) for name in stack[:-1]):
+            continue  # nested occurrence; counted at the topmost match
         collapsed = _collapse_recursion(tuple(stack))
         if depth and len(collapsed) > depth:
             collapsed = collapsed[-depth:]
@@ -410,6 +456,26 @@ def print_comparison(fg_a: FlameGraph, fg_b: FlameGraph, top_n: int, filter_pat:
     else:
         print("  (none)")
 
+    # Self-time excess over uniform scaling: with sa*ratio as the expected
+    # value, a localized regression shows a large positive excess, while a
+    # longer capture window or a slower/contended CPU scales everything and
+    # leaves every excess near zero.
+    print()
+    print(f"=== Top {top_n} by self-time EXCESS vs uniform {ratio:.2f}x scaling ===")
+    min_excess = max(5.0, fg_b.total_samples * 0.001)
+    excess_rows = []
+    for func in all_self:
+        sa = fg_a.self_time.get(func, 0)
+        sb = fg_b.self_time.get(func, 0)
+        e = sb - sa * ratio
+        if abs(e) >= min_excess:
+            excess_rows.append((func, str(sa), str(sb), f"{e:+.0f}"))
+    excess_rows.sort(key=lambda r: -abs(float(r[3])))
+    if excess_rows:
+        print(format_table(excess_rows[:top_n], ("Function", f"#{label_a}", f"#{label_b}", "Excess")))
+    else:
+        print("  (none — every function scaled uniformly; suspect capture length or CPU speed, not a code change)")
+
     # Unique functions
     only_a = {f for f in fg_a.inclusive if f not in fg_b.inclusive}
     only_b = {f for f in fg_b.inclusive if f not in fg_a.inclusive}
@@ -486,12 +552,29 @@ def print_json_comparison(fg_a: FlameGraph, fg_b: FlameGraph, top_n: int, filter
             f"samples_{label_b}": fg_b.inclusive.get(func, 0),
         })
 
+    ratio = fg_b.total_samples / fg_a.total_samples if fg_a.total_samples else None
+    all_self = set(fg_a.self_time) | set(fg_b.self_time)
+    if pat:
+        all_self = {f for f in all_self if pat.search(f)}
+    self_excess = []
+    for func in all_self:
+        sa = fg_a.self_time.get(func, 0)
+        sb = fg_b.self_time.get(func, 0)
+        self_excess.append({
+            "name": func,
+            f"self_{label_a}": sa,
+            f"self_{label_b}": sb,
+            "excess_vs_uniform": round(sb - sa * ratio, 1) if ratio else None,
+        })
+    self_excess.sort(key=lambda x: -abs(x["excess_vs_uniform"] or 0))
+
     result = {
         label_a: {"file": fg_a.path, "total_samples": fg_a.total_samples},
         label_b: {"file": fg_b.path, "total_samples": fg_b.total_samples},
-        "ratio": round(fg_b.total_samples / fg_a.total_samples, 2) if fg_a.total_samples else None,
+        "ratio": round(ratio, 2) if ratio else None,
         "by_increase": sorted(diffs, key=lambda x: -x["diff"])[:top_n],
         "by_decrease": sorted(diffs, key=lambda x: x["diff"])[:top_n],
+        "by_self_excess": self_excess[:top_n],
     }
     print(json.dumps(result, indent=2))
 

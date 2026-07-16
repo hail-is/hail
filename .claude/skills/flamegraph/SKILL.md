@@ -30,6 +30,7 @@ The comparison shows:
 - Total sample counts and their ratio
 - Functions with the largest increase/decrease in inclusive %
 - Self-time changes (where CPU time is actually spent, not just call-tree ancestry)
+- Self-time excess vs uniform scaling (see below — the key regression-vs-noise discriminator)
 - Functions unique to each profile
 
 ### Single file — trace call paths to a hot function
@@ -40,7 +41,7 @@ python3 <skill-dir>/scripts/parse_flamegraph.py profile.html --callers 'DECODE' 
 python3 <skill-dir>/scripts/parse_flamegraph.py profile.html --callers 'Region.*allocate' --depth 12
 ```
 
-Shows the full call stacks leading to every frame matching the regex, grouped by unique stack and sorted by sample count. Recursive cycles (e.g., mutual recursion between `applyTable` and `lower$2`) are automatically collapsed with a repetition count (`x29`).
+Shows the full call stacks leading to every frame matching the regex, grouped by unique stack and sorted by sample count. Recursive cycles (e.g., mutual recursion between `applyTable` and `lower$2`) are automatically collapsed with a repetition count (`x29`). When the matched function is itself recursive, only the topmost occurrence per stack is traced, so each sample is counted once.
 
 ### Flags
 
@@ -54,19 +55,22 @@ Shows the full call stacks leading to every frame matching the regex, grouped by
 
 ### JSON mode
 
-Use `--json` when you need to do further computation on the results (e.g., feeding into another script or building a report). The output is a single JSON object with `inclusive_top` and `self_time_top` arrays (single file), `by_increase`/`by_decrease` arrays (comparison), or `stacks` array (`--callers`). In `--callers --json` mode, recursive cycles appear as `{"cycle": [...], "count": N}` objects within the frames array.
+Use `--json` when you need to do further computation on the results (e.g., feeding into another script or building a report). The output is a single JSON object with `inclusive_top` and `self_time_top` arrays (single file), `by_increase`/`by_decrease`/`by_self_excess` arrays (comparison), or `stacks` array (`--callers`). In `--callers --json` mode, recursive cycles appear as `{"cycle": [...], "count": N}` objects within the frames array.
 
 ## How to interpret the output
 
-**Inclusive time** counts every sample where a function appears anywhere in the call stack. A function called from many places will have inclusive % > 100% — this is expected and means it's a common ancestor, not that it's hot by itself.
+**Inclusive time** counts every sample where a function appears anywhere in the call stack, counted once per sample: recursive functions are attributed at their topmost occurrence, so percentages are always ≤ 100%. (Naively summing frame widths would multiply a recursive walk's time by its recursion depth — a tree traversal 40 frames deep would misleadingly report 40× its true cost.)
 
 **Self time** counts only samples where the function is at the top of the stack (the CPU was executing that function, not one of its callees). This is where the CPU is actually spending cycles. Regressions in self-time point to the actual bottleneck; regressions in inclusive-time point to the call subtree containing the bottleneck.
 
+**Run-specific names are normalized** so the same code aligns across profiles: JVM lambda classes (`Foo$$Lambda$733/101464973` → `Foo$$Lambda$*`), reflection accessors (`GeneratedMethodAccessor120` → `GeneratedMethodAccessor*`), and Hail's generated classes/methods (`__C197...` → `__C*...`, `__m1206split_Block` → `__m*split_Block`). Compare Hail generated code by the method suffix (`split_StreamFor`, `DECODE_r_struct_of_...`, `btree_get`, ...).
+
 **When comparing two profiles:**
-- The sample ratio tells you the overall slowdown/speedup.
+- The sample ratio tells you the overall slowdown/speedup — but check whether the two captures are comparable (same capture window, same number of requests, same machine) before attributing it to code.
+- The "self-time EXCESS vs uniform scaling" section is the key discriminator: it ranks functions by how much their self-time deviates from `samples_a × ratio`. A localized code regression shows a large positive excess in specific functions; if every excess is near zero, the profiles have the same shape and the ratio comes from something global — a longer capture window, more requests captured, or a slower/contended CPU — not a code change.
 - Large increases in self-time % pinpoint where new work is being done.
-- Functions present in only one profile reveal structural changes to the code path (renamed functions, new call wrappers, refactored APIs).
-- For Hail's generated code, the class number (e.g., `__C197` vs `__C194`) changes between versions — compare by method suffix (`split_StreamFor`, `DECODE_r_struct_of_...`, `btree_get`, etc.) rather than the full class name.
+- Functions present in only one profile reveal structural changes to the code path (renamed functions, new call wrappers, refactored APIs). One recurring false positive: `NativeMethodAccessorImpl.invoke` in one profile vs `GeneratedMethodAccessor*.invoke` in the other is JVM reflection warmup (the JVM swaps in a generated accessor after ~16 calls), not a code change.
+- For JVM driver profiles, break down by thread group first: JIT compiler threads (`CompileBroker::compiler_thread_loop`) and GC workers (`GangWorker::loop`) often dominate total CPU. A regression confined to worker threads is a code change; uniform growth across JIT + GC + workers points at the environment.
 
 ## Analyzing Hail profiles specifically
 
@@ -99,9 +103,10 @@ Key Hail runtime functions to watch:
 
 1. Run the comparison: `python3 ... before.html after.html --top 30`
 2. Check the sample ratio — is there an overall slowdown?
-3. Look at self-time changes to find where new CPU work is happening
-4. Filter to Hail-specific code: `--filter 'hail|__C|split_|DECODE|Region|Memory|LZ4|btree'`
-5. Check for structural changes: new `split_ToArray` (materialization regression), new GCS write paths, new decode steps
-6. Cross-reference with the "functions only in X" sections to find renamed/refactored code paths
-7. Use `--callers` to trace call paths to any new hotspot: `--callers 'HotFunction' --depth 15`
-8. Summarize findings: what changed in the generated code, what changed in the runtime, what's the likely root cause
+3. Check the "self-time EXCESS vs uniform scaling" section first: if no function exceeds uniform scaling, stop blaming the code — verify the captures are comparable (window length, request count, machine/CPU contention) before digging further
+4. Look at self-time changes to find where new CPU work is happening
+5. Filter to Hail-specific code: `--filter 'hail|__C|split_|DECODE|Region|Memory|LZ4|btree'`
+6. Check for structural changes: new `split_ToArray` (materialization regression), new GCS write paths, new decode steps
+7. Cross-reference with the "functions only in X" sections to find renamed/refactored code paths
+8. Use `--callers` to trace call paths to any new hotspot: `--callers 'HotFunction' --depth 15`
+9. Summarize findings: what changed in the generated code, what changed in the runtime, what's the likely root cause
