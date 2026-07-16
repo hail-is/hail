@@ -60,7 +60,7 @@ frozenlist==1.8.0
     #   -c gear/../hail/python/pinned-requirements.txt
     #   aiohttp
     #   aiosignal
-google-api-core==2.31.0
+google-api-core==2.32.0
     # via google-api-python-client
 google-api-python-client==2.198.0
     # via google-cloud-profiler

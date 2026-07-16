@@ -57,7 +57,7 @@ cryptography==49.0.0
     #   -c batch/../gear/pinned-requirements.txt
     #   -c batch/../hail/python/pinned-requirements.txt
     #   google-auth
-dictdiffer==0.9.0
+dictdiffer==0.10.0
     # via -r batch/requirements.txt
 frozenlist==1.8.0
     # via
@@ -67,7 +67,7 @@ frozenlist==1.8.0
     #   -c batch/../web_common/pinned-requirements.txt
     #   aiohttp
     #   aiosignal
-google-api-core==2.31.0
+google-api-core==2.32.0
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   google-cloud-core
@@ -197,7 +197,6 @@ typing-extensions==4.16.0
     #   -c batch/../web_common/pinned-requirements.txt
     #   aiohttp
     #   aiosignal
-    #   multidict
 tzdata==2026.3
     # via
     #   -c batch/../hail/python/dev/pinned-requirements.txt
