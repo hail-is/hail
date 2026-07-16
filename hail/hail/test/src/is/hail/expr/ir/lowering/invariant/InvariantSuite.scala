@@ -6,6 +6,7 @@ import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.expr.ir.{Memoized => M, _}
 import is.hail.expr.ir.defs._
+import is.hail.expr.ir.lowering.invariant.Flags.StrictInvariants
 import is.hail.types.virtual._
 
 import org.junit.jupiter.api.Assertions.assertThrows
@@ -13,17 +14,20 @@ import org.junit.jupiter.api.Test
 
 class InvariantSuite {
 
+  def nestedLetsRedefineName: IR =
+    M.eval {
+      val xn = Name("x")
+      for {
+        x <- Let(FastSeq(xn -> I32(1)), Ref(xn, TInt32))
+        y <- Let(FastSeq(xn -> (x + x)), x)
+      } yield x + y
+    }
+
   def testUniquelyNamed(implicit ctx: ExecuteContext) =
     FastSeq(
       // — eval —
       // nested Lets bind the same name
-      M.eval {
-        val xn = Name("x")
-        for {
-          x <- Let(FastSeq(xn -> I32(1)), Ref(xn, TInt32))
-          y <- Let(FastSeq(xn -> (x + x)), x)
-        } yield x + y
-      },
+      nestedLetsRedefineName,
       // nested StreamMaps bind the same element name
       {
         val n = Name("elt")
@@ -144,4 +148,9 @@ class InvariantSuite {
     intercept[UnsatisfiedInvariantError](NoSharedNodes.verify(ctx, ir1)): Unit
     NoSharedNodes.verify(ctx, ir1.deepCopy)
   }
+
+  @Test def testNoOpWithoutStrictInvariants(implicit ctx: ExecuteContext): Unit =
+    ctx.local(flags = ctx.flags - StrictInvariants) { ctx =>
+      NoSharedNodes.verify(ctx, nestedLetsRedefineName)
+    }
 }
