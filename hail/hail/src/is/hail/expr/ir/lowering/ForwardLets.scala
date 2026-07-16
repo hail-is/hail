@@ -8,6 +8,7 @@ import is.hail.expr.ir.{
 }
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.lowering.invariant.UniquelyNamed
+import is.hail.types.virtual.TStream
 import is.hail.utils.{Logging, TimedBlock}
 
 import scala.collection.Set
@@ -26,9 +27,8 @@ object ForwardLets extends Logging {
             refs.isEmpty ||
             (refs.size == 1 &&
               nestingDepth.lookupRef(refs.head) == nestingDepth.lookupBinding(base, scope) &&
-              !ContainsScan(value) &&
-              !ContainsAgg(value)) &&
-            !ContainsAggIntermediate(value)
+              (value.typ.isInstanceOf[TStream] ||
+                !(ContainsScan(value) || ContainsAgg(value) || ContainsAggIntermediate(value))))
         )
 
       def rewrite(ir: BaseIR, env: BindingEnv[IR]): BaseIR =

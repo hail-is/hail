@@ -3452,22 +3452,22 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
         val unified = impl.unify(typeArgs, args.map(_.typ), rt)
         assert(unified)
 
-        val emitArgs = args.map(a => EmitCode.fromI(mb)(emitI(a, _)))
-
-        val argSTypes = emitArgs.map(_.st)
-        val retType = impl.computeStrictReturnEmitType(ir.typ, argSTypes)
-        val k = (fn, typeArgs, argSTypes, retType)
-        val meth =
-          methods.get(k) match {
-            case Some(funcMB) =>
-              funcMB
-            case None =>
-              val funcMB = impl.getAsMethod(mb.ecb, retType, typeArgs, argSTypes: _*)
-              methods.update(k, funcMB)
-              funcMB
-          }
         EmitCode.fromI(mb) { cb =>
-          val emitArgs = args.map(a => EmitCode.fromI(cb.emb)(emitI(a, _)))
+          val emitArgs = args.map(a => EmitCode.fromI(mb)(emitI(a, _)))
+
+          val argSTypes = emitArgs.map(_.st)
+          val retType = impl.computeStrictReturnEmitType(ir.typ, argSTypes)
+          val k = (fn, typeArgs, argSTypes, retType)
+          val meth =
+            methods.get(k) match {
+              case Some(funcMB) =>
+                funcMB
+              case None =>
+                val funcMB = impl.getAsMethod(mb.ecb, retType, typeArgs, argSTypes: _*)
+                methods.update(k, funcMB)
+                funcMB
+            }
+
           IEmitCode.multiMapEmitCodes(cb, emitArgs) { codeArgs =>
             cb.invokeSCode(
               meth,
