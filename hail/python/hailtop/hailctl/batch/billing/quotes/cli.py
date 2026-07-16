@@ -29,13 +29,14 @@ def create(
     authorized_amount: Optional[str] = typer.Option(None, help='Authorized spending amount, or "unlimited".'),
     pi_name: Optional[str] = typer.Option(None, help='Principal investigator name.'),
     pm_designee: Optional[str] = typer.Option(None, help='Program manager designee.'),
+    comment: Optional[str] = typer.Option(None, help='Short comment to record with this event.'),
     output: StructuredFormatOption = StructuredFormat.YAML,
 ):
     """Create a new billing quote named NAME."""
     from hailtop.batch_client.client import BatchClient  # pylint: disable=import-outside-toplevel
 
     with BatchClient('') as client:
-        result = client.create_quote(name, cost_object, authorized_amount, pi_name, pm_designee)
+        result = client.create_quote(name, cost_object, authorized_amount, pi_name, pm_designee, comment=comment)
         print(make_formatter(output.value)(result))
 
 
@@ -56,6 +57,7 @@ def edit(
     authorized_amount: Optional[str] = typer.Option(None, help='New authorized amount, or "unlimited".'),
     pi_name: Optional[str] = typer.Option(None),
     pm_designee: Optional[str] = typer.Option(None),
+    comment: Optional[str] = typer.Option(None, help='Short comment to record with this event.'),
     output: StructuredFormatOption = StructuredFormat.YAML,
 ):
     """Edit fields on quote NAME."""
@@ -76,7 +78,7 @@ def edit(
         raise typer.Exit(1)
 
     with BatchClient('') as client:
-        result = client.edit_quote(name, **updates)
+        result = client.edit_quote(name, comment=comment, **updates)
         print(make_formatter(output.value)(result))
 
 
@@ -85,23 +87,29 @@ def add_manager(
     name: str,
     user: str,
     role: str = typer.Option('manager', help='Role: "owner" or "manager".'),
+    comment: Optional[str] = typer.Option(None, help='Short comment to record with this event.'),
     output: StructuredFormatOption = StructuredFormat.YAML,
 ):
     """Add USER as a manager of quote NAME."""
     from hailtop.batch_client.client import BatchClient  # pylint: disable=import-outside-toplevel
 
     with BatchClient('') as client:
-        result = client.add_quote_manager(name, user, role)
+        result = client.add_quote_manager(name, user, role, comment=comment)
         print(make_formatter(output.value)(result))
 
 
 @app.command()
-def remove_manager(name: str, user: str, output: StructuredFormatOption = StructuredFormat.YAML):
+def remove_manager(
+    name: str,
+    user: str,
+    comment: Optional[str] = typer.Option(None, help='Short comment to record with this event.'),
+    output: StructuredFormatOption = StructuredFormat.YAML,
+):
     """Remove USER as a manager of quote NAME."""
     from hailtop.batch_client.client import BatchClient  # pylint: disable=import-outside-toplevel
 
     with BatchClient('') as client:
-        result = client.remove_quote_manager(name, user)
+        result = client.remove_quote_manager(name, user, comment=comment)
         print(make_formatter(output.value)(result))
 
 

@@ -226,13 +226,14 @@ async def _log_quote_event(
     target_user=None,
     target_project=None,
     detail=None,
+    comment=None,
 ) -> None:
     await tx.execute_insertone(
         """
-INSERT INTO quote_events (quote_id, timestamp, actor, action, target_user, target_project, detail)
-VALUES (%s, %s, %s, %s, %s, %s, %s);
+INSERT INTO quote_events (quote_id, timestamp, actor, action, target_user, target_project, detail, comment)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
 """,
-        (quote_id, time_msecs(), actor, action, target_user, target_project, detail),
+        (quote_id, time_msecs(), actor, action, target_user, target_project, detail, comment),
     )
 
 
@@ -243,13 +244,14 @@ async def _log_bp_event(
     action: str,
     target_user=None,
     detail=None,
+    comment=None,
 ) -> None:
     await tx.execute_insertone(
         """
-INSERT INTO billing_project_events (billing_project, timestamp, actor, action, target_user, detail)
-VALUES (%s, %s, %s, %s, %s, %s);
+INSERT INTO billing_project_events (billing_project, timestamp, actor, action, target_user, detail, comment)
+VALUES (%s, %s, %s, %s, %s, %s, %s);
 """,
-        (billing_project, time_msecs(), actor, action, target_user, detail),
+        (billing_project, time_msecs(), actor, action, target_user, detail, comment),
     )
 
 

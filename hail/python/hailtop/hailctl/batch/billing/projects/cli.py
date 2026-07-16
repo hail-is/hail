@@ -29,6 +29,7 @@ def create(
     limit: Optional[float] = typer.Option(None, help='Spending limit in dollars.'),
     alert: Optional[float] = typer.Option(None, '--alert', help='Low-budget alert threshold in dollars.'),
     users: Optional[List[str]] = typer.Option(None, '--user', help='Initial users to add (repeatable).'),
+    comment: Optional[str] = typer.Option(None, help='Short comment to record with this event.'),
     output: StructuredFormatOption = StructuredFormat.YAML,
 ):
     """Create billing project NAME under QUOTE."""
@@ -41,6 +42,7 @@ def create(
             limit=limit,
             low_budget_alert=alert,
             initial_users=[*users] if users else None,
+            comment=comment,
         )
         print(make_formatter(output.value)(result))
 
@@ -56,22 +58,32 @@ def describe(name: str, output: StructuredFormatOption = StructuredFormat.YAML):
 
 
 @app.command()
-def add_user(name: str, user: str, output: StructuredFormatOption = StructuredFormat.YAML):
+def add_user(
+    name: str,
+    user: str,
+    comment: Optional[str] = typer.Option(None, help='Short comment to record with this event.'),
+    output: StructuredFormatOption = StructuredFormat.YAML,
+):
     """Add USER to billing project NAME."""
     from hailtop.batch_client.client import BatchClient  # pylint: disable=import-outside-toplevel
 
     with BatchClient('') as client:
-        result = client.add_user(user, name)
+        result = client.add_user(user, name, comment=comment)
         print(make_formatter(output.value)(result))
 
 
 @app.command()
-def remove_user(name: str, user: str, output: StructuredFormatOption = StructuredFormat.YAML):
+def remove_user(
+    name: str,
+    user: str,
+    comment: Optional[str] = typer.Option(None, help='Short comment to record with this event.'),
+    output: StructuredFormatOption = StructuredFormat.YAML,
+):
     """Remove USER from billing project NAME."""
     from hailtop.batch_client.client import BatchClient  # pylint: disable=import-outside-toplevel
 
     with BatchClient('') as client:
-        result = client.remove_user(user, name)
+        result = client.remove_user(user, name, comment=comment)
         print(make_formatter(output.value)(result))
 
 
@@ -79,13 +91,14 @@ def remove_user(name: str, user: str, output: StructuredFormatOption = Structure
 def set_alert(
     name: str,
     threshold: Optional[float] = typer.Argument(None, help='Alert threshold in dollars, or omit to clear.'),
+    comment: Optional[str] = typer.Option(None, help='Short comment to record with this event.'),
     output: StructuredFormatOption = StructuredFormat.YAML,
 ):
     """Set or clear the low-budget alert threshold for billing project NAME."""
     from hailtop.batch_client.client import BatchClient  # pylint: disable=import-outside-toplevel
 
     with BatchClient('') as client:
-        result = client.patch_billing_project(name, low_budget_alert=threshold)
+        result = client.patch_billing_project(name, low_budget_alert=threshold, comment=comment)
         print(make_formatter(output.value)(result))
 
 
@@ -93,23 +106,29 @@ def set_alert(
 def set_limit(
     name: str,
     limit: Optional[float] = typer.Argument(None, help='Spending limit in dollars, or omit to clear.'),
+    comment: Optional[str] = typer.Option(None, help='Short comment to record with this event.'),
     output: StructuredFormatOption = StructuredFormat.YAML,
 ):
     """Set or clear the spending limit for billing project NAME."""
     from hailtop.batch_client.client import BatchClient  # pylint: disable=import-outside-toplevel
 
     with BatchClient('') as client:
-        result = client.patch_billing_project(name, limit=limit)
+        result = client.patch_billing_project(name, limit=limit, comment=comment)
         print(make_formatter(output.value)(result))
 
 
 @app.command()
-def change_quote(name: str, quote: str, output: StructuredFormatOption = StructuredFormat.YAML):
+def change_quote(
+    name: str,
+    quote: str,
+    comment: Optional[str] = typer.Option(None, help='Short comment to record with this event.'),
+    output: StructuredFormatOption = StructuredFormat.YAML,
+):
     """Move billing project NAME to a different QUOTE."""
     from hailtop.batch_client.client import BatchClient  # pylint: disable=import-outside-toplevel
 
     with BatchClient('') as client:
-        result = client.change_billing_project_quote(name, quote)
+        result = client.change_billing_project_quote(name, quote, comment=comment)
         print(make_formatter(output.value)(result))
 
 
@@ -124,20 +143,28 @@ def events(name: str, output: StructuredFormatOption = StructuredFormat.YAML):
 
 
 @app.command()
-def close(name: str, output: StructuredFormatOption = StructuredFormat.YAML):
+def close(
+    name: str,
+    comment: Optional[str] = typer.Option(None, help='Short comment to record with this event.'),
+    output: StructuredFormatOption = StructuredFormat.YAML,
+):
     """Close billing project NAME."""
     from hailtop.batch_client.client import BatchClient  # pylint: disable=import-outside-toplevel
 
     with BatchClient('') as client:
-        result = client.close_billing_project(name)
+        result = client.close_billing_project(name, comment=comment)
         print(make_formatter(output.value)(result))
 
 
 @app.command()
-def reopen(name: str, output: StructuredFormatOption = StructuredFormat.YAML):
+def reopen(
+    name: str,
+    comment: Optional[str] = typer.Option(None, help='Short comment to record with this event.'),
+    output: StructuredFormatOption = StructuredFormat.YAML,
+):
     """Reopen billing project NAME."""
     from hailtop.batch_client.client import BatchClient  # pylint: disable=import-outside-toplevel
 
     with BatchClient('') as client:
-        result = client.reopen_billing_project(name)
+        result = client.reopen_billing_project(name, comment=comment)
         print(make_formatter(output.value)(result))

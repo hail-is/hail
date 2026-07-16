@@ -3396,11 +3396,19 @@ async def post_billing_projects_remove_user(request: web.Request, _) -> NoReturn
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/users/{user}/remove')
 @auth.authenticated_users_only()
 @billing_permission_required(BillingPermission.MANAGE_BP_MEMBERS)
-async def api_get_billing_projects_remove_user(request: web.Request, _: UserData) -> web.Response:
+async def api_get_billing_projects_remove_user(request: web.Request, userdata: UserData) -> web.Response:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
     user = request.match_info['user']
+    actor = userdata['username']
+    comment = None
+    try:
+        body = await request.json()
+        comment = body.get('comment')
+    except Exception:
+        pass
     await _handle_api_error(_remove_user_from_billing_project, db, billing_project, user)
+    await _log_bp_event(db, billing_project, actor, 'user_removed', target_user=user, comment=comment)
     return json_response({'billing_project': billing_project, 'user': user})
 
 
@@ -3480,12 +3488,19 @@ async def post_billing_projects_add_user(request: web.Request, _: UserData) -> N
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/users/{user}/add')
 @auth.authenticated_users_only()
 @billing_permission_required(BillingPermission.MANAGE_BP_MEMBERS)
-async def api_billing_projects_add_user(request: web.Request, _: UserData) -> web.Response:
+async def api_billing_projects_add_user(request: web.Request, userdata: UserData) -> web.Response:
     db: Database = request.app['db']
     user = request.match_info['user']
     billing_project = request.match_info['billing_project']
-
+    actor = userdata['username']
+    comment = None
+    try:
+        body = await request.json()
+        comment = body.get('comment')
+    except Exception:
+        pass
     await _handle_api_error(_add_user_to_billing_project, request, db, billing_project, user)
+    await _log_bp_event(db, billing_project, actor, 'user_added', target_user=user, comment=comment)
     return json_response({'billing_project': billing_project, 'user': user})
 
 
@@ -3580,9 +3595,11 @@ async def api_get_create_billing_projects(request: web.Request, userdata: UserDa
         if not quote_unlimited:
             raise web.HTTPBadRequest(reason='Unlimited billing projects can only be created under unlimited quotes.')
 
+    comment = body.get('comment')
     await _handle_api_error(
         _create_billing_project, db, billing_project, quote_id, limit, low_budget_alert, initial_users
     )
+    await _log_bp_event(db, billing_project, username, 'bp_created', comment=comment)
     return json_response(billing_project)
 
 
@@ -3640,11 +3657,18 @@ async def post_close_billing_projects(request: web.Request, _: UserData) -> NoRe
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/close')
 @auth.authenticated_users_only()
 @billing_permission_required(BillingPermission.CLOSE_REOPEN_BP)
-async def api_close_billing_projects(request: web.Request, _: UserData) -> web.Response:
+async def api_close_billing_projects(request: web.Request, userdata: UserData) -> web.Response:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
-
+    actor = userdata['username']
+    comment = None
+    try:
+        body = await request.json()
+        comment = body.get('comment')
+    except Exception:
+        pass
     await _handle_api_error(_close_billing_project, db, billing_project)
+    await _log_bp_event(db, billing_project, actor, 'bp_closed', comment=comment)
     return json_response(billing_project)
 
 
@@ -3686,10 +3710,18 @@ async def post_reopen_billing_projects(request: web.Request, _: UserData) -> NoR
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/reopen')
 @auth.authenticated_users_only()
 @billing_permission_required(BillingPermission.CLOSE_REOPEN_BP)
-async def api_reopen_billing_projects(request: web.Request, _: UserData) -> web.Response:
+async def api_reopen_billing_projects(request: web.Request, userdata: UserData) -> web.Response:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
+    actor = userdata['username']
+    comment = None
+    try:
+        body = await request.json()
+        comment = body.get('comment')
+    except Exception:
+        pass
     await _handle_api_error(_reopen_billing_project, db, billing_project)
+    await _log_bp_event(db, billing_project, actor, 'bp_reopened', comment=comment)
     return json_response(billing_project)
 
 
@@ -3736,6 +3768,7 @@ async def api_patch_billing_project(request: web.Request, userdata: UserData) ->
     body = await request.json()
     limit = body.get('limit', ...)
     low_budget_alert = body.get('low_budget_alert', ...)
+    comment = body.get('comment')
 
     if limit is not ... and BillingPermission.EDIT_BP_LIMIT not in BILLING_ROLE_PERMISSIONS.get(billing_role, set()):
         raise web.HTTPForbidden(reason='Insufficient billing permissions to edit billing project limit.')
@@ -3780,14 +3813,22 @@ FOR UPDATE;
                         'error',
                     )
             updates['limit'] = new_limit
-            await _log_bp_event(tx, billing_project, actor, 'limit_changed', detail=str(new_limit))
+            await _log_bp_event(tx, billing_project, actor, 'limit_changed', detail=str(new_limit), comment=comment)
             await _log_quote_event(
-                tx, row['quote_id'], actor, 'bp_limit_changed', target_project=billing_project, detail=str(new_limit)
+                tx,
+                row['quote_id'],
+                actor,
+                'bp_limit_changed',
+                target_project=billing_project,
+                detail=str(new_limit),
+                comment=comment,
             )
 
         if low_budget_alert is not ...:
             updates['low_budget_alert'] = low_budget_alert if low_budget_alert is not None else None
-            await _log_bp_event(tx, billing_project, actor, 'alert_threshold_changed', detail=str(low_budget_alert))
+            await _log_bp_event(
+                tx, billing_project, actor, 'alert_threshold_changed', detail=str(low_budget_alert), comment=comment
+            )
 
         if updates:
             set_clause = ', '.join(f'`{k}` = %s' for k in updates)
@@ -3813,6 +3854,7 @@ async def api_change_billing_project_quote(request: web.Request, userdata: UserD
     actor = userdata['username']
     body = await request.json()
     dest_quote_name = body.get('quote_name')
+    comment = body.get('comment')
     if not dest_quote_name:
         raise web.HTTPBadRequest(reason="'quote_name' is required.")
 
@@ -3868,9 +3910,11 @@ FOR UPDATE;
             'UPDATE billing_projects SET quote_id = %s WHERE name_cs = %s;',
             (dest_quote_id, billing_project),
         )
-        await _log_quote_event(tx, src_quote_id, actor, 'bp_unassigned', target_project=billing_project)
-        await _log_quote_event(tx, dest_quote_id, actor, 'bp_assigned', target_project=billing_project)
-        await _log_bp_event(tx, billing_project, actor, 'quote_changed', detail=dest_quote_name)
+        await _log_quote_event(
+            tx, src_quote_id, actor, 'bp_unassigned', target_project=billing_project, comment=comment
+        )
+        await _log_quote_event(tx, dest_quote_id, actor, 'bp_assigned', target_project=billing_project, comment=comment)
+        await _log_bp_event(tx, billing_project, actor, 'quote_changed', detail=dest_quote_name, comment=comment)
 
     @transaction(db)
     async def run_change(tx):
@@ -3890,7 +3934,7 @@ async def api_get_billing_project_events(request: web.Request, _: UserData) -> w
         record
         async for record in db.select_and_fetchall(
             """
-SELECT id, timestamp, actor, action, target_user, detail
+SELECT id, timestamp, actor, action, target_user, detail, comment
 FROM billing_project_events
 WHERE billing_project = %s
 ORDER BY timestamp DESC
@@ -3952,6 +3996,7 @@ async def create_quote(request: web.Request, userdata: UserData) -> web.Response
 
     pi_name = body.get('pi_name')
     pm_designee = body.get('pm_designee')
+    comment = body.get('comment')
 
     async def _insert_quote(tx):
         row = await tx.execute_and_fetchone('SELECT id FROM quotes WHERE name = %s FOR UPDATE;', (quote_name,))
@@ -3965,7 +4010,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s);
 """,
             (quote_name, quote_name, cost_object, authorized_amount, pi_name, pm_designee, time_msecs()),
         )
-        await _log_quote_event(tx, quote_id, actor, 'quote_created', detail=cost_object)
+        await _log_quote_event(tx, quote_id, actor, 'quote_created', detail=cost_object, comment=comment)
 
     @transaction(db)
     async def run(tx):
@@ -4021,6 +4066,7 @@ async def edit_quote(request: web.Request, userdata: UserData) -> web.Response:
     quote_name = request.match_info['name']
     actor = userdata['username']
     body = await request.json()
+    comment = body.get('comment')
 
     async def _edit(tx):
         row = await tx.execute_and_fetchone(
@@ -4072,7 +4118,7 @@ WHERE quote_id = %s AND `status` != 'deleted' AND `limit` IS NOT NULL;
                 f'UPDATE quotes SET {set_clause} WHERE id = %s;',
                 (*updates.values(), quote_id),
             )
-            await _log_quote_event(tx, quote_id, actor, 'quote_edited')
+            await _log_quote_event(tx, quote_id, actor, 'quote_edited', comment=comment)
 
     @transaction(db)
     async def run(tx):
@@ -4092,6 +4138,7 @@ async def add_quote_manager(request: web.Request, userdata: UserData) -> web.Res
     body = await request.json()
     target_user = body.get('user')
     role = body.get('role', 'manager')
+    comment = body.get('comment')
     if not target_user:
         raise web.HTTPBadRequest(reason="'user' is required.")
     if role not in ('owner', 'manager'):
@@ -4116,7 +4163,9 @@ async def add_quote_manager(request: web.Request, userdata: UserData) -> web.Res
             'INSERT INTO quote_managers (quote_id, user, role) VALUES (%s, %s, %s);',
             (quote_id, target_user, role),
         )
-        await _log_quote_event(tx, quote_id, actor, 'manager_added', target_user=target_user, detail=role)
+        await _log_quote_event(
+            tx, quote_id, actor, 'manager_added', target_user=target_user, detail=role, comment=comment
+        )
 
     @transaction(db)
     async def run(tx):
@@ -4134,6 +4183,12 @@ async def remove_quote_manager(request: web.Request, userdata: UserData) -> web.
     quote_name = request.match_info['name']
     target_user = request.match_info['user']
     actor = userdata['username']
+    comment = None
+    try:
+        body = await request.json()
+        comment = body.get('comment')
+    except Exception:
+        pass
 
     async def _remove(tx):
         quote_row = await tx.execute_and_fetchone('SELECT id FROM quotes WHERE name_cs = %s FOR UPDATE;', (quote_name,))
@@ -4154,7 +4209,7 @@ async def remove_quote_manager(request: web.Request, userdata: UserData) -> web.
             'DELETE FROM quote_managers WHERE quote_id = %s AND user = %s;',
             (quote_id, target_user),
         )
-        await _log_quote_event(tx, quote_id, actor, 'manager_removed', target_user=target_user)
+        await _log_quote_event(tx, quote_id, actor, 'manager_removed', target_user=target_user, comment=comment)
 
     @transaction(db)
     async def run(tx):
@@ -4179,7 +4234,7 @@ async def get_quote_events(request: web.Request, _: UserData) -> web.Response:
         record
         async for record in db.select_and_fetchall(
             """
-SELECT id, timestamp, actor, action, target_user, target_project, detail
+SELECT id, timestamp, actor, action, target_user, target_project, detail, comment
 FROM quote_events
 WHERE quote_id = %s
 ORDER BY timestamp DESC

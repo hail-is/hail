@@ -434,23 +434,25 @@ class BatchClient:
         return async_to_blocking(self._async_client.create_billing_project(project))
 
     def create_billing_project_v2(
-        self, project, quote_name='INTERNAL', limit=None, low_budget_alert=None, initial_users=None
+        self, project, quote_name='INTERNAL', limit=None, low_budget_alert=None, initial_users=None, comment=None
     ):
         return async_to_blocking(
-            self._async_client.create_billing_project_v2(project, quote_name, limit, low_budget_alert, initial_users)
+            self._async_client.create_billing_project_v2(
+                project, quote_name, limit, low_budget_alert, initial_users, comment
+            )
         )
 
-    def add_user(self, user, project):
-        return async_to_blocking(self._async_client.add_user(user, project))
+    def add_user(self, user, project, comment=None):
+        return async_to_blocking(self._async_client.add_user(user, project, comment))
 
-    def remove_user(self, user, project):
-        return async_to_blocking(self._async_client.remove_user(user, project))
+    def remove_user(self, user, project, comment=None):
+        return async_to_blocking(self._async_client.remove_user(user, project, comment))
 
-    def close_billing_project(self, project):
-        return async_to_blocking(self._async_client.close_billing_project(project))
+    def close_billing_project(self, project, comment=None):
+        return async_to_blocking(self._async_client.close_billing_project(project, comment))
 
-    def reopen_billing_project(self, project):
-        return async_to_blocking(self._async_client.reopen_billing_project(project))
+    def reopen_billing_project(self, project, comment=None):
+        return async_to_blocking(self._async_client.reopen_billing_project(project, comment))
 
     def delete_billing_project(self, project):
         return async_to_blocking(self._async_client.delete_billing_project(project))
@@ -458,11 +460,11 @@ class BatchClient:
     def edit_billing_limit(self, project, limit):
         return async_to_blocking(self._async_client.edit_billing_limit(project, limit))
 
-    def patch_billing_project(self, project, **kwargs):
-        return async_to_blocking(self._async_client.patch_billing_project(project, **kwargs))
+    def patch_billing_project(self, project, comment=None, **kwargs):
+        return async_to_blocking(self._async_client.patch_billing_project(project, comment=comment, **kwargs))
 
-    def change_billing_project_quote(self, project, quote_name):
-        return async_to_blocking(self._async_client.change_billing_project_quote(project, quote_name))
+    def change_billing_project_quote(self, project, quote_name, comment=None):
+        return async_to_blocking(self._async_client.change_billing_project_quote(project, quote_name, comment))
 
     def get_billing_project_events(self, project):
         return async_to_blocking(self._async_client.get_billing_project_events(project))
@@ -470,22 +472,22 @@ class BatchClient:
     def list_quotes(self):
         return async_to_blocking(self._async_client.list_quotes())
 
-    def create_quote(self, name, cost_object, authorized_amount=None, pi_name=None, pm_designee=None):
+    def create_quote(self, name, cost_object, authorized_amount=None, pi_name=None, pm_designee=None, comment=None):
         return async_to_blocking(
-            self._async_client.create_quote(name, cost_object, authorized_amount, pi_name, pm_designee)
+            self._async_client.create_quote(name, cost_object, authorized_amount, pi_name, pm_designee, comment)
         )
 
     def get_quote(self, name):
         return async_to_blocking(self._async_client.get_quote(name))
 
-    def edit_quote(self, name, **kwargs):
-        return async_to_blocking(self._async_client.edit_quote(name, **kwargs))
+    def edit_quote(self, name, comment=None, **kwargs):
+        return async_to_blocking(self._async_client.edit_quote(name, comment=comment, **kwargs))
 
-    def add_quote_manager(self, name, user, role='manager'):
-        return async_to_blocking(self._async_client.add_quote_manager(name, user, role))
+    def add_quote_manager(self, name, user, role='manager', comment=None):
+        return async_to_blocking(self._async_client.add_quote_manager(name, user, role, comment))
 
-    def remove_quote_manager(self, name, user):
-        return async_to_blocking(self._async_client.remove_quote_manager(name, user))
+    def remove_quote_manager(self, name, user, comment=None):
+        return async_to_blocking(self._async_client.remove_quote_manager(name, user, comment))
 
     def get_quote_events(self, name):
         return async_to_blocking(self._async_client.get_quote_events(name))
