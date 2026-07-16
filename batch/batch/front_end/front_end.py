@@ -3562,14 +3562,23 @@ async def api_get_create_billing_projects(request: web.Request, userdata: UserDa
     low_budget_alert = body.get('low_budget_alert')
     initial_users: List[str] = body.get('initial_users', [])
 
-    quote_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name_cs = %s', (quote_name,))
+    quote_row = await db.select_and_fetchone(
+        'SELECT id, authorized_amount FROM quotes WHERE name_cs = %s', (quote_name,)
+    )
     if quote_row is None:
         raise web.HTTPBadRequest(reason=f'Unknown quote {quote_name}.')
     quote_id = quote_row['id']
+    quote_unlimited = quote_row['authorized_amount'] is None
 
     billing_role = await resolve_billing_role_for_quote_id(db, username, userdata, quote_id)
     if billing_role is None or BillingPermission.CREATE_BP not in BILLING_ROLE_PERMISSIONS.get(billing_role, set()):
         raise web.HTTPForbidden(reason='Insufficient billing permissions to create billing projects.')
+
+    if limit is None:
+        if billing_role != 'global_bm':
+            raise web.HTTPForbidden(reason='Only global billing managers can create unlimited billing projects.')
+        if not quote_unlimited:
+            raise web.HTTPBadRequest(reason='Unlimited billing projects can only be created under unlimited quotes.')
 
     await _handle_api_error(
         _create_billing_project, db, billing_project, quote_id, limit, low_budget_alert, initial_users
@@ -3755,7 +3764,14 @@ FOR UPDATE;
         updates = {}
         if limit is not ...:
             new_limit = _parse_billing_limit(limit)
-            if new_limit is not None and row['authorized_amount'] is not None:
+            if new_limit is None:
+                if billing_role != 'global_bm':
+                    raise BatchUserError(
+                        'Only global billing managers can set a billing project to unlimited.', 'error'
+                    )
+                if row['authorized_amount'] is not None:
+                    raise BatchUserError('Unlimited billing projects can only exist under unlimited quotes.', 'error')
+            elif row['authorized_amount'] is not None:
                 proposed_sum = row['other_bp_limits_sum'] + new_limit
                 if proposed_sum > row['authorized_amount']:
                     raise BatchUserError(
@@ -3832,6 +3848,11 @@ FOR UPDATE;
             raise NonExistentBillingProjectError(billing_project)
         if row['status'] == 'closed':
             raise ClosedBillingProjectError(billing_project)
+
+        if row['limit'] is None and row['dest_authorized_amount'] is not None:
+            raise BatchUserError(
+                'An unlimited billing project cannot be moved to a quote with finite funding.', 'error'
+            )
 
         if row['limit'] is not None and row['dest_authorized_amount'] is not None:
             new_sum = row['dest_bp_limits_sum'] + row['limit']
@@ -4026,6 +4047,8 @@ async def edit_quote(request: web.Request, userdata: UserData) -> web.Response:
                     new_amount = float(aa)
                 except (TypeError, ValueError) as exc:
                     raise BatchUserError(f"Invalid authorized_amount: {aa!r}.", 'error') from exc
+            if new_amount is None and request['billing_role'] != 'global_bm':
+                raise BatchUserError('Only global billing managers can set a quote to unlimited funding.', 'error')
             if new_amount is not None:
                 limits_sum_row = await tx.execute_and_fetchone(
                     """
