@@ -44,12 +44,13 @@ from web_common import (
     setup_common_static_routes,
     web_security_headers,
     web_security_headers_inline_styles,
-    web_security_headers_swagger,
 )
 
 from .configuration import HAIL_USE_FULL_QUERY
 
 log = logging.getLogger('monitoring')
+
+MONITORING_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 routes = web.RouteTableDef()
 
@@ -467,7 +468,7 @@ async def hello_react(request: web.Request, userdata) -> web.Response:
 
 
 @routes.get('/swagger')
-@web_security_headers_swagger
+@web_security_headers
 async def swagger(request):
     page_context = {'service': 'monitoring', 'base_path': deploy_config.base_path('monitoring')}
     return await render_template('monitoring', request, None, 'swagger/index.html', page_context)
@@ -486,6 +487,7 @@ def run():
 
     setup_aiohttp_jinja2(app, 'monitoring')
     setup_common_static_routes(routes)
+    routes.static('/monitoring/static/compiled-js', f'{MONITORING_ROOT}/static/compiled-js')
     app.add_routes(routes)
     app.router.add_get("/metrics", server_stats)
 

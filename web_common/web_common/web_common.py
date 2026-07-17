@@ -133,12 +133,6 @@ def web_security_headers(fun):
     return web_security_header_generator(fun)
 
 
-def web_security_headers_swagger(fun):
-    return web_security_header_generator(
-        fun, extra_script='unpkg.com', extra_style='unpkg.com', extra_img='validator.swagger.io'
-    )
-
-
 def web_security_headers_inline_styles(fun):
     return web_security_header_generator(fun, extra_style="'unsafe-inline'")
 

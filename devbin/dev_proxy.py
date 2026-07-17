@@ -46,6 +46,27 @@ _ALL_STATIC_DIRS: list[tuple[str, str]] = [
 for _path, _directory in _ALL_STATIC_DIRS:
     routes.static(_path, _directory)
 
+# Serve the shared swagger bundle directly from the esbuild output dir so that
+# ui-js-watch-swagger live-reloads without needing to copy files across services.
+_SWAGGER_JS = 'services/ui/dist/shared/swagger.js'
+_SWAGGER_CSS = 'services/ui/dist/shared/swagger.css'
+_SWAGGER_SVCPATHS = [
+    ('batch', 'batch'),
+    ('ci', 'ci'),
+    ('monitoring', 'monitoring'),
+    ('auth', 'auth'),
+]
+for _svc, _svc_path in _SWAGGER_SVCPATHS:
+
+    async def _swagger_js_handler(req: web.Request, _f: str = _SWAGGER_JS) -> web.Response:
+        return web.FileResponse(_f)
+
+    async def _swagger_css_handler(req: web.Request, _f: str = _SWAGGER_CSS) -> web.Response:
+        return web.FileResponse(_f)
+
+    routes.get(f'/{_svc}/{_svc_path}/static/compiled-js/swagger.js')(_swagger_js_handler)
+    routes.get(f'/{_svc}/{_svc_path}/static/compiled-js/swagger.css')(_swagger_css_handler)
+
 # common_static must also be service-prefixed
 _WEB_COMMON_STATIC = f'{WEB_COMMON_ROOT}/static'
 for _svc in ALL_SERVICES:
@@ -91,6 +112,16 @@ for _service, _verb, _path, _template in _LOCAL_REACT_ROUTES:
         return await _render_html(request, _s, _FAKE_DEV_USERDATA, _t, {'use_tailwind': True})
     routes.route(_verb, _path)(web_security_headers(_local_handler))
 
+# Swagger pages are rendered locally so the bundled React component is used
+# instead of the upstream service's old static-file handler.
+@routes.get('/{service}/swagger')
+@web_security_headers
+async def _swagger_page_handler(request: web.Request) -> web.Response:
+    service = request.match_info['service']
+    if service not in ALL_SERVICES:
+        raise web.HTTPNotFound()
+    return await _render_html(request, service, _FAKE_DEV_USERDATA, 'swagger/index.html', {'service': service})
+
 
 @routes.view('/{service:[^/]+}/api/{route:.*}')
 @web_security_headers
@@ -109,6 +140,24 @@ async def default_proxied_api_route(request: web.Request) -> web.Response:
             raise web.HTTPNotFound()
         raise
     return web.Response(body=body, content_type=content_type)
+
+
+@routes.get('/{service:[^/]+}/openapi.yaml')
+async def openapi_yaml_route(request: web.Request) -> web.Response:
+    service = request.match_info['service']
+    if service not in ALL_SERVICES:
+        raise web.HTTPNotFound()
+    backend_client = request.app[BC]
+    backend_route = _backend_url(service, request.raw_path)
+    try:
+        async with await backend_client.request(request.method, backend_route) as resp:
+            body = await resp.read()
+    except httpx.ClientResponseError as e:
+        if e.status == 404:
+            raise web.HTTPNotFound()
+        raise
+    # Force text/yaml so adev's livereload injector (which targets text/html) leaves it alone.
+    return web.Response(body=body, content_type='text/yaml')
 
 
 @routes.view('/{route:.*}')

@@ -48,7 +48,6 @@ from web_common import (
     setup_common_static_routes,
     web_security_headers,
     web_security_headers_inline_styles,
-    web_security_headers_swagger,
 )
 
 from .constants import AUTHORIZED_USERS, TEAMS
@@ -492,7 +491,7 @@ async def healthcheck(_) -> web.Response:
 
 
 @routes.get('/swagger')
-@web_security_headers_swagger
+@web_security_headers
 async def swagger(request):
     """UI for exploring the API documentation."""
     page_context = {'service': 'ci', 'base_path': deploy_config.base_path('ci')}

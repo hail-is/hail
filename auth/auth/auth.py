@@ -48,7 +48,6 @@ from web_common import (
     web_security_headers,
     web_security_headers_inline_styles,
     web_security_headers_login_page,
-    web_security_headers_swagger,
 )
 
 from .auth_utils import is_valid_username, validate_credentials_secret_name_input
@@ -259,7 +258,7 @@ async def hello_react(request: web.Request, userdata) -> web.Response:
 
 
 @routes.get('/swagger')
-@web_security_headers_swagger
+@web_security_headers
 async def swagger(request):
     page_context = {'service': 'auth', 'base_path': deploy_config.base_path('auth')}
     return await render_template('auth', request, None, 'swagger/index.html', page_context)
@@ -1385,6 +1384,7 @@ def run():
     setup_aiohttp_session(app)
 
     setup_common_static_routes(routes)
+    routes.static('/auth/static/compiled-js', f'{AUTH_ROOT}/static/compiled-js')
     app.add_routes(routes)
     app.router.add_get("/metrics", server_stats)
 

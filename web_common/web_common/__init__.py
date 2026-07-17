@@ -8,7 +8,6 @@ from .web_common import (
     web_security_headers,
     web_security_headers_inline_styles,
     web_security_headers_login_page,
-    web_security_headers_swagger,
 )
 
 __all__ = [
@@ -21,5 +20,4 @@ __all__ = [
     'web_security_headers',
     'web_security_headers_inline_styles',
     'web_security_headers_login_page',
-    'web_security_headers_swagger',
 ]
