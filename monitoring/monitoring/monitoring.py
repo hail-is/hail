@@ -487,6 +487,7 @@ def run():
 
     setup_aiohttp_jinja2(app, 'monitoring')
     setup_common_static_routes(routes)
+    os.makedirs(f'{MONITORING_ROOT}/static/compiled-js', exist_ok=True)
     routes.static('/monitoring/static/compiled-js', f'{MONITORING_ROOT}/static/compiled-js')
     app.add_routes(routes)
     app.router.add_get("/metrics", server_stats)

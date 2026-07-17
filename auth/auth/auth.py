@@ -1384,6 +1384,7 @@ def run():
     setup_aiohttp_session(app)
 
     setup_common_static_routes(routes)
+    os.makedirs(f'{AUTH_ROOT}/static/compiled-js', exist_ok=True)
     routes.static('/auth/static/compiled-js', f'{AUTH_ROOT}/static/compiled-js')
     app.add_routes(routes)
     app.router.add_get("/metrics", server_stats)
