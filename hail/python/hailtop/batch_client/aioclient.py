@@ -1496,7 +1496,10 @@ class BatchClient:
     async def create_quote(
         self, name, cost_object, authorized_amount=None, pi_name=None, pm_designee=None, comment=None
     ):
-        body = {'cost_object': cost_object, 'authorized_amount': authorized_amount or 'unlimited'}
+        body = {
+            'cost_object': cost_object,
+            'authorized_amount': 'unlimited' if authorized_amount is None else authorized_amount,
+        }
         if pi_name is not None:
             body['pi_name'] = pi_name
         if pm_designee is not None:

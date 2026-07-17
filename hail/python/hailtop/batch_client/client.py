@@ -382,10 +382,17 @@ class BatchClient:
         headers: Optional[Dict[str, str]] = None,
         _token: Optional[str] = None,
         token_file: Optional[str] = None,
+        cloud_credentials_file: Optional[str] = None,
     ):
         self._async_client = async_to_blocking(
             aioclient.BatchClient.create(
-                billing_project, deploy_config, session, headers=headers, _token=_token, token_file=token_file
+                billing_project,
+                deploy_config,
+                session,
+                headers=headers,
+                _token=_token,
+                token_file=token_file,
+                cloud_credentials_file=cloud_credentials_file,
             )
         )
 

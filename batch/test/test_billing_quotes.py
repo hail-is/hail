@@ -4,11 +4,16 @@ Requires a running Batch deployment with billing-quote schema migrations applied
 Run via: pytest batch/test/test_billing_quotes.py
 """
 
+import os
 import secrets
 
 import pytest
 
 from hailtop.batch_client.client import BatchClient
+
+# Credentials file for a user with no billing roles (the 'test' GCP SA).
+# Set by the CI test step; tests that require a non-member are skipped if absent.
+_NON_MEMBER_CREDS = os.environ.get('HAIL_NON_MEMBER_CREDENTIALS_FILE')
 
 
 def random_name(prefix='test'):
@@ -19,6 +24,16 @@ def random_name(prefix='test'):
 def global_bm_client():
     """A BatchClient authenticated as a global billing manager."""
     client = BatchClient('test')
+    yield client
+    client.close()
+
+
+@pytest.fixture(scope='module')
+def non_member_client():
+    """A BatchClient authenticated as the 'test' user, who has no billing roles."""
+    if _NON_MEMBER_CREDS is None:
+        pytest.skip('HAIL_NON_MEMBER_CREDENTIALS_FILE not set')
+    client = BatchClient('test', cloud_credentials_file=_NON_MEMBER_CREDS)
     yield client
     client.close()
 
@@ -197,15 +212,11 @@ def test_internal_quote_accessible_via_internal_bm(global_bm_client):
     assert q['name'] == 'INTERNAL'
 
 
-def test_unlisted_quote_not_visible_to_non_member(global_bm_client):
+def test_unlisted_quote_not_visible_to_non_member(global_bm_client, non_member_client):
     """A user with no role on a quote should get 403 on get_quote."""
     q_name = random_name('q')
     global_bm_client.create_quote(q_name, cost_object='co')
 
-    non_member_client = BatchClient('test')
-    try:
-        with pytest.raises(Exception) as exc_info:
-            non_member_client.get_quote(q_name)
-        assert '403' in str(exc_info.value) or 'Forbidden' in str(exc_info.value)
-    finally:
-        non_member_client.close()
+    with pytest.raises(Exception) as exc_info:
+        non_member_client.get_quote(q_name)
+    assert '403' in str(exc_info.value) or 'Forbidden' in str(exc_info.value)
