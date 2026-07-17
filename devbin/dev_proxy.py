@@ -101,6 +101,10 @@ _LOCAL_REACT_ROUTES: list[tuple[str, str, str, str]] = [
     ('auth',         'GET', '/auth/helloreact', 'hello_react.html'),
     ('batch-driver', 'GET', '/batch-driver/helloreact', 'hello_react.html'),
     ('ci',           'GET', '/ci/flaky_tests', 'flaky_tests.html'),
+    ('batch',        'GET', '/batch/swagger', 'swagger/index.html'),
+    ('ci',           'GET', '/ci/swagger', 'swagger/index.html'),
+    ('monitoring',   'GET', '/monitoring/swagger', 'swagger/index.html'),
+    ('auth',         'GET', '/auth/swagger', 'swagger/index.html'),
 ]
 
 for _service, _verb, _path, _template in _LOCAL_REACT_ROUTES:
@@ -111,16 +115,6 @@ for _service, _verb, _path, _template in _LOCAL_REACT_ROUTES:
     ) -> web.Response:
         return await _render_html(request, _s, _FAKE_DEV_USERDATA, _t, {'use_tailwind': True})
     routes.route(_verb, _path)(web_security_headers(_local_handler))
-
-# Swagger pages are rendered locally so the bundled React component is used
-# instead of the upstream service's old static-file handler.
-@routes.get('/{service}/swagger')
-@web_security_headers
-async def _swagger_page_handler(request: web.Request) -> web.Response:
-    service = request.match_info['service']
-    if service not in ALL_SERVICES:
-        raise web.HTTPNotFound()
-    return await _render_html(request, service, _FAKE_DEV_USERDATA, 'swagger/index.html', {'service': service})
 
 
 @routes.view('/{service:[^/]+}/api/{route:.*}')
@@ -191,6 +185,7 @@ async def _render_html(
     status_code: int = 200,
 ) -> web.Response:
     page_context['base_path'] = f'/{service}'
+    page_context.setdefault('service', service)
     if IS_DEVELOPER is not None:
         all_permissions = {p.value: IS_DEVELOPER for p in SystemPermission}
         page_context['system_permissions'] = all_permissions
