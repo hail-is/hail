@@ -6,6 +6,8 @@ from aiohttp import web
 
 from gear import Database, SystemPermission, UserData
 
+from . import billing_dao
+
 
 class BillingPermission(str, Enum):
     VIEW_QUOTE = 'view_quote'
@@ -65,47 +67,16 @@ def _is_global_bm(userdata: UserData) -> bool:
 
 async def resolve_billing_role(db: Database, username: str, userdata: UserData, request: web.Request) -> Optional[str]:
     """Determine the caller's billing role for this request's resource context."""
-    if _is_global_bm(userdata):
-        return 'global_bm'
-
+    is_gbm = _is_global_bm(userdata)
     quote_name = request.match_info.get('name')
     billing_project_name = request.match_info.get('billing_project')
 
     if quote_name:
-        quote_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name_cs = %s', (quote_name,))
-        if not quote_row:
-            return None
-        mgr_row = await db.select_and_fetchone(
-            'SELECT `role` FROM quote_managers WHERE quote_id = %s AND `user` = %s',
-            (quote_row['id'], username),
-        )
-        if mgr_row:
-            return f'quote_{mgr_row["role"]}'
-        return None
-
+        return await billing_dao.get_billing_role_for_quote(db, username, is_gbm, quote_name)
     if billing_project_name:
-        row = await db.select_and_fetchone(
-            """
-SELECT billing_projects.quote_id,
-  qm.role AS qm_role,
-  bpu.user AS bpu_user
-FROM billing_projects
-LEFT JOIN quote_managers qm
-  ON qm.quote_id = billing_projects.quote_id AND qm.user = %s
-LEFT JOIN billing_project_users bpu
-  ON bpu.billing_project = billing_projects.name AND bpu.user_cs = %s
-WHERE billing_projects.name_cs = %s AND billing_projects.`status` != 'deleted'
-""",
-            (username, username, billing_project_name),
-        )
-        if not row:
-            return None
-        if row['qm_role']:
-            return f'quote_{row["qm_role"]}'
-        if row['bpu_user']:
-            return 'bp_member'
-        return None
-
+        return await billing_dao.get_billing_role_for_bp(db, username, is_gbm, billing_project_name)
+    if is_gbm:
+        return 'global_bm'
     return None
 
 
@@ -113,15 +84,7 @@ async def resolve_billing_role_for_quote_id(
     db: Database, username: str, userdata: UserData, quote_id: int
 ) -> Optional[str]:
     """Resolve billing role given an explicit quote_id (for create-BP flow)."""
-    if _is_global_bm(userdata):
-        return 'global_bm'
-    mgr_row = await db.select_and_fetchone(
-        'SELECT `role` FROM quote_managers WHERE quote_id = %s AND `user` = %s',
-        (quote_id, username),
-    )
-    if mgr_row:
-        return f'quote_{mgr_row["role"]}'
-    return None
+    return await billing_dao.get_billing_role_for_quote_id(db, username, _is_global_bm(userdata), quote_id)
 
 
 def billing_permission_required(

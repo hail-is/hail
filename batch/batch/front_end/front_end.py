@@ -13,7 +13,7 @@ import traceback
 from contextlib import AsyncExitStack
 from functools import wraps
 from numbers import Number
-from typing import Any, Awaitable, Callable, Dict, List, NoReturn, Optional, Tuple, TypeVar, Union, cast
+from typing import Any, Awaitable, Callable, Dict, List, NoReturn, Optional, Tuple, TypeVar, cast
 
 import aiohttp
 import aiohttp.web_exceptions
@@ -85,6 +85,7 @@ from web_common import (
     web_security_headers_swagger,
 )
 
+from .. import billing_dao
 from ..batch import batch_record_to_dict, cancel_job_group_in_db, job_group_record_to_dict, job_record_to_dict
 from ..batch_configuration import BATCH_STORAGE_URI, CLOUD, DEFAULT_NAMESPACE, DOCKERHUB_PREFIX, SCOPE
 from ..batch_format_version import BatchFormatVersion
@@ -94,6 +95,7 @@ from ..billing_auth import (
     billing_permission_required,
     resolve_billing_role_for_quote_id,
 )
+from ..billing_dao import _parse_billing_limit
 from ..cloud.azure.resource_utils import azure_cores_mcpu_to_memory_bytes
 from ..cloud.gcp.resource_utils import GCP_MACHINE_FAMILY, gcp_cores_mcpu_to_memory_bytes
 from ..cloud.resource_utils import (
@@ -106,7 +108,6 @@ from ..exceptions import (
     BatchOperationAlreadyCompletedError,
     BatchUserError,
     ClosedBillingProjectError,
-    InvalidBillingLimitError,
     NonExistentBillingProjectError,
     NonExistentJobGroupError,
     NonExistentUserError,
@@ -123,8 +124,6 @@ from ..inst_coll_config import InstanceCollectionConfigs
 from ..resource_usage import ResourceUsageMonitor
 from ..spec_writer import SpecWriter
 from ..utils import (
-    _log_bp_event,
-    _log_quote_event,
     add_metadata_to_request,
     query_billing_projects_with_cost,
     query_billing_projects_without_cost,
@@ -2996,19 +2995,6 @@ async def ui_get_billing_limits(request, userdata):
     return await render_template('batch', request, userdata, 'billing_limits.html', page_context)
 
 
-def _parse_billing_limit(limit: Optional[Union[str, float, int]]) -> Optional[float]:
-    assert isinstance(limit, (str, float, int)) or limit is None, (limit, type(limit))
-
-    if limit == 'None' or limit is None:
-        return None
-    try:
-        parsed_limit = float(limit)
-        assert parsed_limit >= 0
-        return parsed_limit
-    except (AssertionError, ValueError) as e:
-        raise InvalidBillingLimitError(limit) from e
-
-
 async def _edit_billing_limit(db, billing_project, limit):
     limit = _parse_billing_limit(limit)
 
@@ -3331,63 +3317,19 @@ async def get_billing_project(request, userdata):
     return json_response(billing_projects[0])
 
 
-async def _remove_user_from_billing_project(db, billing_project, user):
-    @transaction(db)
-    async def delete(tx):
-        row = await tx.execute_and_fetchone(
-            """
-SELECT billing_projects.name_cs as billing_project,
-  billing_projects.`status` as `status`,
-  `user`
-FROM billing_projects
-LEFT JOIN (
-  SELECT billing_project_users.* FROM billing_project_users
-  LEFT JOIN billing_projects ON billing_projects.name = billing_project_users.billing_project
-  WHERE billing_projects.name_cs = %s AND user_cs = %s
-  FOR UPDATE
-) AS t ON billing_projects.name = t.billing_project
-WHERE billing_projects.name_cs = %s;
-""",
-            (billing_project, user, billing_project),
-        )
-        if not row:
-            raise NonExistentBillingProjectError(billing_project)
-        assert row['billing_project'] == billing_project
-
-        if row['status'] in {'closed', 'deleted'}:
-            raise BatchUserError(
-                f'Billing project {billing_project} has been closed or deleted and cannot be modified.', 'error'
-            )
-
-        if row['user'] is None:
-            raise BatchOperationAlreadyCompletedError(
-                f'User {user} is not in billing project {billing_project}.', 'info'
-            )
-
-        await tx.just_execute(
-            """
-DELETE billing_project_users FROM billing_project_users
-LEFT JOIN billing_projects ON billing_projects.name = billing_project_users.billing_project
-WHERE billing_projects.name_cs = %s AND user_cs = %s;
-""",
-            (billing_project, user),
-        )
-
-    await delete()
-
-
 @routes.post('/billing_projects/{billing_project}/users/{user}/remove')
 @web_security_headers
 @auth.authenticated_users_with_permission(SystemPermission.ASSIGN_USERS_TO_ALL_BILLING_PROJECTS, redirect=False)
 @catch_ui_error_in_dev
-async def post_billing_projects_remove_user(request: web.Request, _) -> NoReturn:
+async def post_billing_projects_remove_user(request: web.Request, userdata: UserData) -> NoReturn:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
     user = request.match_info['user']
+    actor = userdata['username']
 
     session = await aiohttp_session.get_session(request)
     try:
-        await _handle_ui_error(session, _remove_user_from_billing_project, db, billing_project, user)
+        await _handle_ui_error(session, billing_dao.remove_billing_project_user, db, billing_project, user, actor)
         set_message(session, f'Removed user {user} from billing project {billing_project}.', 'info')
     finally:
         raise web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))  # pylint: disable=lost-exception
@@ -3407,12 +3349,14 @@ async def api_get_billing_projects_remove_user(request: web.Request, userdata: U
         comment = body.get('comment')
     except Exception:
         pass
-    await _handle_api_error(_remove_user_from_billing_project, db, billing_project, user)
-    await _log_bp_event(db, billing_project, actor, 'user_removed', target_user=user, comment=comment)
+    await _handle_api_error(billing_dao.remove_billing_project_user, db, billing_project, user, actor, comment)
     return json_response({'billing_project': billing_project, 'user': user})
 
 
-async def _add_user_to_billing_project(request: web.Request, db: Database, billing_project: str, user: str):
+async def _add_user_to_billing_project(
+    request: web.Request, db: Database, billing_project: str, user: str, actor: str, comment: Optional[str] = None
+):
+    """Verify the user exists via auth service, then insert into billing_project_users."""
     try:
         session_id = await get_session_id(request)
         assert session_id is not None
@@ -3423,63 +3367,23 @@ async def _add_user_to_billing_project(request: web.Request, db: Database, billi
             raise NonExistentUserError(user) from e
         raise
 
-    @transaction(db)
-    async def insert(tx):
-        # we want to be case-insensitive here to avoid duplicates with existing records
-        row = await tx.execute_and_fetchone(
-            """
-SELECT billing_projects.name as billing_project,
-    billing_projects.`status` as `status`,
-    user
-FROM billing_projects
-LEFT JOIN (
-  SELECT *
-  FROM billing_project_users
-  LEFT JOIN billing_projects ON billing_projects.name = billing_project_users.billing_project
-  WHERE billing_projects.name_cs = %s AND user = %s
-  FOR UPDATE
-) AS t
-ON billing_projects.name = t.billing_project
-WHERE billing_projects.name_cs = %s AND billing_projects.`status` != 'deleted' LOCK IN SHARE MODE;
-        """,
-            (billing_project, user, billing_project),
-        )
-        if row is None:
-            raise NonExistentBillingProjectError(billing_project)
-
-        if row['status'] == 'closed':
-            raise ClosedBillingProjectError(billing_project)
-
-        if row['user'] is not None:
-            raise BatchOperationAlreadyCompletedError(
-                f'User {user} is already member of billing project {billing_project}.', 'info'
-            )
-
-        await tx.execute_insertone(
-            """
-INSERT INTO billing_project_users(billing_project, user, user_cs)
-VALUES (%s, %s, %s);
-        """,
-            (billing_project, user, user),
-        )
-
-    await insert()
+    await billing_dao.add_billing_project_user(db, billing_project, user, actor, comment)
 
 
 @routes.post('/billing_projects/{billing_project}/users/add')
 @web_security_headers
 @auth.authenticated_users_with_permission(SystemPermission.ASSIGN_USERS_TO_ALL_BILLING_PROJECTS, redirect=False)
 @catch_ui_error_in_dev
-async def post_billing_projects_add_user(request: web.Request, _: UserData) -> NoReturn:
+async def post_billing_projects_add_user(request: web.Request, userdata: UserData) -> NoReturn:
     db: Database = request.app['db']
     post = await request.post()
     user = str(post['user'])
     billing_project = request.match_info['billing_project']
+    actor = userdata['username']
 
     session = await aiohttp_session.get_session(request)
-
     try:
-        await _handle_ui_error(session, _add_user_to_billing_project, request, db, billing_project, user)
+        await _handle_ui_error(session, _add_user_to_billing_project, request, db, billing_project, user, actor)
         set_message(session, f'Added user {user} to billing project {billing_project}.', 'info')  # type: ignore
     finally:
         raise web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))  # pylint: disable=lost-exception
@@ -3499,61 +3403,26 @@ async def api_billing_projects_add_user(request: web.Request, userdata: UserData
         comment = body.get('comment')
     except Exception:
         pass
-    await _handle_api_error(_add_user_to_billing_project, request, db, billing_project, user)
-    await _log_bp_event(db, billing_project, actor, 'user_added', target_user=user, comment=comment)
+    await _handle_api_error(_add_user_to_billing_project, request, db, billing_project, user, actor, comment)
     return json_response({'billing_project': billing_project, 'user': user})
-
-
-async def _create_billing_project(
-    db, billing_project, quote_id=1, limit=None, low_budget_alert=None, initial_users=None
-):
-    if initial_users is None:
-        initial_users = []
-
-    @transaction(db)
-    async def insert(tx):
-        row = await tx.execute_and_fetchone(
-            """
-SELECT name_cs, `status`
-FROM billing_projects
-WHERE name = %s
-FOR UPDATE;
-""",
-            (billing_project),
-        )
-        if row is not None:
-            billing_project_cs = row['name_cs']
-            raise BatchOperationAlreadyCompletedError(f'Billing project {billing_project_cs} already exists.', 'info')
-
-        await tx.execute_insertone(
-            """
-INSERT INTO billing_projects(name, name_cs, quote_id, `limit`, low_budget_alert)
-VALUES (%s, %s, %s, %s, %s);
-""",
-            (billing_project, billing_project, quote_id, limit, low_budget_alert),
-        )
-
-        for user in initial_users:
-            await tx.execute_insertone(
-                "INSERT INTO billing_project_users(billing_project, user, user_cs) VALUES (%s, %s, %s);",
-                (billing_project, user, user),
-            )
-
-    await insert()
 
 
 @routes.post('/billing_projects/create')
 @web_security_headers
 @auth.authenticated_users_with_permission(SystemPermission.CREATE_BILLING_PROJECTS, redirect=False)
 @catch_ui_error_in_dev
-async def post_create_billing_projects(request: web.Request, _: UserData) -> NoReturn:
+async def post_create_billing_projects(request: web.Request, userdata: UserData) -> NoReturn:
     db: Database = request.app['db']
     post = await request.post()
-    billing_project = post['billing_project']
+    billing_project = str(post['billing_project'])
+    actor = userdata['username']
 
     session = await aiohttp_session.get_session(request)
     try:
-        await _handle_ui_error(session, _create_billing_project, db, billing_project)
+        # Legacy UI path: always uses INTERNAL quote (id=1), no limit
+        await _handle_ui_error(
+            session, billing_dao.create_billing_project, db, billing_project, 1, None, None, actor, 'global_bm'
+        )
         set_message(session, f'Added billing project {billing_project}.', 'info')  # type: ignore
     finally:
         raise web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))  # pylint: disable=lost-exception
@@ -3576,79 +3445,44 @@ async def api_get_create_billing_projects(request: web.Request, userdata: UserDa
     limit = body.get('limit')
     low_budget_alert = body.get('low_budget_alert')
     initial_users: List[str] = body.get('initial_users', [])
+    comment = body.get('comment')
 
-    quote_row = await db.select_and_fetchone(
-        'SELECT id, authorized_amount FROM quotes WHERE name_cs = %s', (quote_name,)
-    )
+    quote_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name_cs = %s', (quote_name,))
     if quote_row is None:
         raise web.HTTPBadRequest(reason=f'Unknown quote {quote_name}.')
     quote_id = quote_row['id']
-    quote_unlimited = quote_row['authorized_amount'] is None
 
     billing_role = await resolve_billing_role_for_quote_id(db, username, userdata, quote_id)
     if billing_role is None or BillingPermission.CREATE_BP not in BILLING_ROLE_PERMISSIONS.get(billing_role, set()):
         raise web.HTTPForbidden(reason='Insufficient billing permissions to create billing projects.')
 
-    if limit is None:
-        if billing_role != 'global_bm':
-            raise web.HTTPForbidden(reason='Only global billing managers can create unlimited billing projects.')
-        if not quote_unlimited:
-            raise web.HTTPBadRequest(reason='Unlimited billing projects can only be created under unlimited quotes.')
-
-    comment = body.get('comment')
     await _handle_api_error(
-        _create_billing_project, db, billing_project, quote_id, limit, low_budget_alert, initial_users
+        billing_dao.create_billing_project,
+        db,
+        billing_project,
+        quote_id,
+        limit,
+        low_budget_alert,
+        username,
+        billing_role,
+        initial_users,
+        comment,
     )
-    await _log_bp_event(db, billing_project, username, 'bp_created', comment=comment)
     return json_response(billing_project)
-
-
-async def _close_billing_project(db, billing_project):
-    @transaction(db)
-    async def close_project(tx):
-        row = await tx.execute_and_fetchone(
-            """
-SELECT name_cs, `status`, batches.id as batch_id
-FROM billing_projects
-LEFT JOIN batches
-ON billing_projects.name = batches.billing_project
-AND billing_projects.`status` != 'deleted'
-AND batches.time_completed IS NULL
-AND NOT batches.deleted
-WHERE name_cs = %s
-LIMIT 1
-FOR UPDATE;
-    """,
-            (billing_project,),
-        )
-        if not row:
-            raise NonExistentBillingProjectError(billing_project)
-        assert row['name_cs'] == billing_project
-        if row['status'] == 'closed':
-            raise BatchOperationAlreadyCompletedError(
-                f'Billing project {billing_project} is already closed or deleted.', 'info'
-            )
-        if row['batch_id'] is not None:
-            raise BatchUserError(f'Billing project {billing_project} has running batches.', 'error')
-
-        await tx.execute_update(
-            "UPDATE billing_projects SET `status` = 'closed' WHERE name_cs = %s;", (billing_project,)
-        )
-
-    await close_project()
 
 
 @routes.post('/billing_projects/{billing_project}/close')
 @web_security_headers
 @auth.authenticated_users_with_permission(SystemPermission.DELETE_ALL_BILLING_PROJECTS, redirect=False)
 @catch_ui_error_in_dev
-async def post_close_billing_projects(request: web.Request, _: UserData) -> NoReturn:
+async def post_close_billing_projects(request: web.Request, userdata: UserData) -> NoReturn:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
+    actor = userdata['username']
 
     session = await aiohttp_session.get_session(request)
     try:
-        await _handle_ui_error(session, _close_billing_project, db, billing_project)
+        await _handle_ui_error(session, billing_dao.close_billing_project, db, billing_project, actor)
         set_message(session, f'Closed billing project {billing_project}.', 'info')
     finally:
         raise web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))  # pylint: disable=lost-exception
@@ -3667,41 +3501,22 @@ async def api_close_billing_projects(request: web.Request, userdata: UserData) -
         comment = body.get('comment')
     except Exception:
         pass
-    await _handle_api_error(_close_billing_project, db, billing_project)
-    await _log_bp_event(db, billing_project, actor, 'bp_closed', comment=comment)
+    await _handle_api_error(billing_dao.close_billing_project, db, billing_project, actor, comment)
     return json_response(billing_project)
-
-
-async def _reopen_billing_project(db, billing_project):
-    @transaction(db)
-    async def open_project(tx):
-        row = await tx.execute_and_fetchone(
-            "SELECT name_cs, `status` FROM billing_projects WHERE name_cs = %s FOR UPDATE;", (billing_project,)
-        )
-        if not row:
-            raise NonExistentBillingProjectError(billing_project)
-        assert row['name_cs'] == billing_project
-        if row['status'] == 'deleted':
-            raise BatchUserError(f'Billing project {billing_project} has been deleted and cannot be reopened.', 'error')
-        if row['status'] == 'open':
-            raise BatchOperationAlreadyCompletedError(f'Billing project {billing_project} is already open.', 'info')
-
-        await tx.execute_update("UPDATE billing_projects SET `status` = 'open' WHERE name_cs = %s;", (billing_project,))
-
-    await open_project()
 
 
 @routes.post('/billing_projects/{billing_project}/reopen')
 @web_security_headers
 @auth.authenticated_users_with_permission(SystemPermission.UPDATE_ALL_BILLING_PROJECTS, redirect=False)
 @catch_ui_error_in_dev
-async def post_reopen_billing_projects(request: web.Request, _: UserData) -> NoReturn:
+async def post_reopen_billing_projects(request: web.Request, userdata: UserData) -> NoReturn:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
+    actor = userdata['username']
 
     session = await aiohttp_session.get_session(request)
     try:
-        await _handle_ui_error(session, _reopen_billing_project, db, billing_project)
+        await _handle_ui_error(session, billing_dao.reopen_billing_project, db, billing_project, actor)
         set_message(session, f'Re-opened billing project {billing_project}.', 'info')
     finally:
         raise web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))  # pylint: disable=lost-exception
@@ -3720,30 +3535,8 @@ async def api_reopen_billing_projects(request: web.Request, userdata: UserData) 
         comment = body.get('comment')
     except Exception:
         pass
-    await _handle_api_error(_reopen_billing_project, db, billing_project)
-    await _log_bp_event(db, billing_project, actor, 'bp_reopened', comment=comment)
+    await _handle_api_error(billing_dao.reopen_billing_project, db, billing_project, actor, comment)
     return json_response(billing_project)
-
-
-async def _delete_billing_project(db, billing_project):
-    @transaction(db)
-    async def delete_project(tx):
-        row = await tx.execute_and_fetchone(
-            'SELECT name_cs, `status` FROM billing_projects WHERE name_cs = %s FOR UPDATE;', (billing_project,)
-        )
-        if not row:
-            raise NonExistentBillingProjectError(billing_project)
-        assert row['name_cs'] == billing_project, row
-        if row['status'] == 'deleted':
-            raise BatchOperationAlreadyCompletedError(f'Billing project {billing_project} is already deleted.', 'info')
-        if row['status'] == 'open':
-            raise BatchUserError(f'Billing project {billing_project} is open and cannot be deleted.', 'error')
-
-        await tx.execute_update(
-            "UPDATE billing_projects SET `status` = 'deleted' WHERE name_cs = %s;", (billing_project,)
-        )
-
-    await delete_project()
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/delete')
@@ -3752,7 +3545,7 @@ async def api_delete_billing_projects(request: web.Request, _: UserData) -> web.
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
 
-    await _handle_api_error(_delete_billing_project, db, billing_project)
+    await _handle_api_error(billing_dao.delete_billing_project, db, billing_project)
     return json_response(billing_project)
 
 
@@ -3766,82 +3559,19 @@ async def api_patch_billing_project(request: web.Request, userdata: UserData) ->
     billing_role: str = request['billing_role']
 
     body = await request.json()
-    limit = body.get('limit', ...)
-    low_budget_alert = body.get('low_budget_alert', ...)
     comment = body.get('comment')
 
-    if limit is not ... and BillingPermission.EDIT_BP_LIMIT not in BILLING_ROLE_PERMISSIONS.get(billing_role, set()):
-        raise web.HTTPForbidden(reason='Insufficient billing permissions to edit billing project limit.')
+    updates: dict = {}
+    if 'limit' in body:
+        if BillingPermission.EDIT_BP_LIMIT not in BILLING_ROLE_PERMISSIONS.get(billing_role, set()):
+            raise web.HTTPForbidden(reason='Insufficient billing permissions to edit billing project limit.')
+        updates['limit'] = body['limit']
+    if 'low_budget_alert' in body:
+        updates['low_budget_alert'] = body.get('low_budget_alert')
 
-    async def _patch(tx):
-        row = await tx.execute_and_fetchone(
-            """
-SELECT billing_projects.name_cs, billing_projects.`status`, billing_projects.quote_id,
-  q.authorized_amount,
-  COALESCE((SELECT SUM(other_bp.`limit`) FROM billing_projects other_bp
-    WHERE other_bp.quote_id = billing_projects.quote_id
-      AND other_bp.name_cs != billing_projects.name_cs
-      AND other_bp.`status` != 'deleted'), 0) AS other_bp_limits_sum
-FROM billing_projects
-JOIN quotes q ON q.id = billing_projects.quote_id
-WHERE billing_projects.name_cs = %s AND billing_projects.`status` != 'deleted'
-FOR UPDATE;
-""",
-            (billing_project,),
-        )
-        if not row:
-            raise NonExistentBillingProjectError(billing_project)
-        if row['status'] == 'closed':
-            raise ClosedBillingProjectError(billing_project)
-
-        updates = {}
-        if limit is not ...:
-            new_limit = _parse_billing_limit(limit)
-            if new_limit is None:
-                if billing_role != 'global_bm':
-                    raise BatchUserError(
-                        'Only global billing managers can set a billing project to unlimited.', 'error'
-                    )
-                if row['authorized_amount'] is not None:
-                    raise BatchUserError('Unlimited billing projects can only exist under unlimited quotes.', 'error')
-            elif row['authorized_amount'] is not None:
-                proposed_sum = row['other_bp_limits_sum'] + new_limit
-                if proposed_sum > row['authorized_amount']:
-                    raise BatchUserError(
-                        f'Setting limit to {new_limit} would exceed quote authorized amount {row["authorized_amount"]} '
-                        f'(other BPs use {row["other_bp_limits_sum"]}).',
-                        'error',
-                    )
-            updates['limit'] = new_limit
-            await _log_bp_event(tx, billing_project, actor, 'limit_changed', detail=str(new_limit), comment=comment)
-            await _log_quote_event(
-                tx,
-                row['quote_id'],
-                actor,
-                'bp_limit_changed',
-                target_project=billing_project,
-                detail=str(new_limit),
-                comment=comment,
-            )
-
-        if low_budget_alert is not ...:
-            updates['low_budget_alert'] = low_budget_alert if low_budget_alert is not None else None
-            await _log_bp_event(
-                tx, billing_project, actor, 'alert_threshold_changed', detail=str(low_budget_alert), comment=comment
-            )
-
-        if updates:
-            set_clause = ', '.join(f'`{k}` = %s' for k in updates)
-            await tx.execute_update(
-                f'UPDATE billing_projects SET {set_clause} WHERE name_cs = %s;',
-                (*updates.values(), billing_project),
-            )
-
-    @transaction(db)
-    async def run_patch(tx):
-        await _patch(tx)
-
-    await _handle_api_error(run_patch)
+    await _handle_api_error(
+        billing_dao.patch_billing_project, db, billing_project, updates, actor, billing_role, comment
+    )
     return json_response({'billing_project': billing_project})
 
 
@@ -3869,58 +3599,9 @@ async def api_change_billing_project_quote(request: web.Request, userdata: UserD
             reason='You must be a manager of the destination quote to move a billing project there.'
         )
 
-    async def _change_quote(tx):
-        row = await tx.execute_and_fetchone(
-            """
-SELECT billing_projects.name_cs, billing_projects.`status`,
-  billing_projects.quote_id AS src_quote_id,
-  billing_projects.`limit`,
-  q_dest.authorized_amount AS dest_authorized_amount,
-  COALESCE((SELECT SUM(other_bp.`limit`) FROM billing_projects other_bp
-    WHERE other_bp.quote_id = %s
-      AND other_bp.`status` != 'deleted'), 0) AS dest_bp_limits_sum
-FROM billing_projects
-JOIN quotes q_dest ON q_dest.id = %s
-WHERE billing_projects.name_cs = %s AND billing_projects.`status` != 'deleted'
-FOR UPDATE;
-""",
-            (dest_quote_id, dest_quote_id, billing_project),
-        )
-        if not row:
-            raise NonExistentBillingProjectError(billing_project)
-        if row['status'] == 'closed':
-            raise ClosedBillingProjectError(billing_project)
-
-        if row['limit'] is None and row['dest_authorized_amount'] is not None:
-            raise BatchUserError(
-                'An unlimited billing project cannot be moved to a quote with finite funding.', 'error'
-            )
-
-        if row['limit'] is not None and row['dest_authorized_amount'] is not None:
-            new_sum = row['dest_bp_limits_sum'] + row['limit']
-            if new_sum > row['dest_authorized_amount']:
-                raise BatchUserError(
-                    f'Moving billing project would exceed destination quote authorized amount '
-                    f'{row["dest_authorized_amount"]} (existing BPs use {row["dest_bp_limits_sum"]}).',
-                    'error',
-                )
-
-        src_quote_id = row['src_quote_id']
-        await tx.execute_update(
-            'UPDATE billing_projects SET quote_id = %s WHERE name_cs = %s;',
-            (dest_quote_id, billing_project),
-        )
-        await _log_quote_event(
-            tx, src_quote_id, actor, 'bp_unassigned', target_project=billing_project, comment=comment
-        )
-        await _log_quote_event(tx, dest_quote_id, actor, 'bp_assigned', target_project=billing_project, comment=comment)
-        await _log_bp_event(tx, billing_project, actor, 'quote_changed', detail=dest_quote_name, comment=comment)
-
-    @transaction(db)
-    async def run_change(tx):
-        await _change_quote(tx)
-
-    await _handle_api_error(run_change)
+    await _handle_api_error(
+        billing_dao.change_billing_project_quote, db, billing_project, dest_quote_id, actor, comment
+    )
     return json_response({'billing_project': billing_project, 'quote_name': dest_quote_name})
 
 
@@ -3930,19 +3611,7 @@ FOR UPDATE;
 async def api_get_billing_project_events(request: web.Request, _: UserData) -> web.Response:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
-    events = [
-        record
-        async for record in db.select_and_fetchall(
-            """
-SELECT id, timestamp, actor, action, target_user, detail, comment
-FROM billing_project_events
-WHERE billing_project = %s
-ORDER BY timestamp DESC
-LIMIT 1000;
-""",
-            (billing_project,),
-        )
-    ]
+    events = await billing_dao.get_billing_project_events(db, billing_project)
     return json_response(events)
 
 
@@ -3956,20 +3625,8 @@ LIMIT 1000;
 async def list_quotes(request: web.Request, userdata) -> web.Response:
     db: Database = request.app['db']
     username = userdata['username']
-
-    if userdata['system_permissions'].get(SystemPermission.UPDATE_ALL_BILLING_PROJECTS, False):
-        sql = 'SELECT id, name, cost_object, authorized_amount, pi_name, pm_designee, time_created FROM quotes;'
-        args: tuple = ()
-    else:
-        sql = """
-SELECT q.id, q.name, q.cost_object, q.authorized_amount, q.pi_name, q.pm_designee, q.time_created
-FROM quotes q
-INNER JOIN quote_managers qm ON qm.quote_id = q.id
-WHERE qm.user = %s;
-"""
-        args = (username,)
-
-    quotes = [record async for record in db.select_and_fetchall(sql, args)]
+    is_global_bm = userdata['system_permissions'].get(SystemPermission.UPDATE_ALL_BILLING_PROJECTS, False)
+    quotes = await billing_dao.list_quotes_for_user(db, username, is_global_bm)
     return json_response(quotes)
 
 
@@ -3998,25 +3655,17 @@ async def create_quote(request: web.Request, userdata: UserData) -> web.Response
     pm_designee = body.get('pm_designee')
     comment = body.get('comment')
 
-    async def _insert_quote(tx):
-        row = await tx.execute_and_fetchone('SELECT id FROM quotes WHERE name = %s FOR UPDATE;', (quote_name,))
-        if row is not None:
-            raise BatchOperationAlreadyCompletedError(f'Quote {quote_name} already exists.', 'info')
-
-        quote_id = await tx.execute_insertone(
-            """
-INSERT INTO quotes (name, name_cs, cost_object, authorized_amount, pi_name, pm_designee, time_created)
-VALUES (%s, %s, %s, %s, %s, %s, %s);
-""",
-            (quote_name, quote_name, cost_object, authorized_amount, pi_name, pm_designee, time_msecs()),
-        )
-        await _log_quote_event(tx, quote_id, actor, 'quote_created', detail=cost_object, comment=comment)
-
-    @transaction(db)
-    async def run(tx):
-        await _insert_quote(tx)
-
-    await _handle_api_error(run)
+    await _handle_api_error(
+        billing_dao.create_quote,
+        db,
+        quote_name,
+        cost_object,
+        actor,
+        authorized_amount=authorized_amount,
+        pi_name=pi_name,
+        pm_designee=pm_designee,
+        comment=comment,
+    )
     return json_response({'name': quote_name})
 
 
@@ -4026,36 +3675,10 @@ VALUES (%s, %s, %s, %s, %s, %s, %s);
 async def get_quote(request: web.Request, _: UserData) -> web.Response:
     db: Database = request.app['db']
     quote_name = request.match_info['name']
-
-    quote_row = await db.select_and_fetchone(
-        'SELECT id, name, cost_object, authorized_amount, pi_name, pm_designee, time_created FROM quotes WHERE name_cs = %s;',
-        (quote_name,),
-    )
-    if not quote_row:
+    quote = await billing_dao.get_quote(db, quote_name)
+    if quote is None:
         raise web.HTTPNotFound(reason=f'Unknown quote {quote_name}.')
-
-    quote_id = quote_row['id']
-
-    managers = [
-        record
-        async for record in db.select_and_fetchall(
-            'SELECT user, role FROM quote_managers WHERE quote_id = %s;', (quote_id,)
-        )
-    ]
-
-    billing_projects_sql = """
-SELECT bp.name AS billing_project, bp.`status`, bp.`limit`, bp.low_budget_alert,
-  COALESCE(SUM(agg.`usage` * resources.rate), 0) AS accrued_cost,
-  IF(bp.`limit` IS NULL, NULL, bp.`limit` - COALESCE(SUM(agg.`usage` * resources.rate), 0)) AS remaining
-FROM billing_projects bp
-LEFT JOIN aggregated_billing_project_user_resources_v3 agg ON agg.billing_project = bp.name
-LEFT JOIN resources ON resources.resource_id = agg.resource_id
-WHERE bp.quote_id = %s AND bp.`status` != 'deleted'
-GROUP BY bp.name, bp.`status`, bp.`limit`, bp.low_budget_alert;
-"""
-    bps = [record async for record in db.select_and_fetchall(billing_projects_sql, (quote_id,))]
-
-    return json_response({**quote_row, 'managers': managers, 'billing_projects': bps})
+    return json_response(quote)
 
 
 @routes.patch('/api/v1alpha/quotes/{name}')
@@ -4065,66 +3688,28 @@ async def edit_quote(request: web.Request, userdata: UserData) -> web.Response:
     db: Database = request.app['db']
     quote_name = request.match_info['name']
     actor = userdata['username']
+    billing_role: str = request['billing_role']
     body = await request.json()
     comment = body.get('comment')
 
-    async def _edit(tx):
-        row = await tx.execute_and_fetchone(
-            'SELECT id, authorized_amount FROM quotes WHERE name_cs = %s FOR UPDATE;', (quote_name,)
-        )
-        if not row:
-            raise BatchUserError(f'Unknown quote {quote_name}.', 'error')
+    updates: dict = {}
+    if 'cost_object' in body:
+        updates['cost_object'] = body['cost_object']
+    if 'pi_name' in body:
+        updates['pi_name'] = body['pi_name']
+    if 'pm_designee' in body:
+        updates['pm_designee'] = body['pm_designee']
+    if 'authorized_amount' in body:
+        aa = body['authorized_amount']
+        if aa == 'unlimited' or aa is None:
+            updates['authorized_amount'] = None
+        else:
+            try:
+                updates['authorized_amount'] = float(aa)
+            except (TypeError, ValueError) as exc:
+                raise web.HTTPBadRequest(reason=f"Invalid authorized_amount: {aa!r}.") from exc
 
-        quote_id = row['id']
-        updates: dict = {}
-
-        if 'cost_object' in body:
-            updates['cost_object'] = body['cost_object']
-        if 'pi_name' in body:
-            updates['pi_name'] = body['pi_name']
-        if 'pm_designee' in body:
-            updates['pm_designee'] = body['pm_designee']
-        if 'authorized_amount' in body:
-            aa = body['authorized_amount']
-            if aa == 'unlimited' or aa is None:
-                new_amount = None
-            else:
-                try:
-                    new_amount = float(aa)
-                except (TypeError, ValueError) as exc:
-                    raise BatchUserError(f"Invalid authorized_amount: {aa!r}.", 'error') from exc
-            if new_amount is None and request['billing_role'] != 'global_bm':
-                raise BatchUserError('Only global billing managers can set a quote to unlimited funding.', 'error')
-            if new_amount is not None:
-                limits_sum_row = await tx.execute_and_fetchone(
-                    """
-SELECT COALESCE(SUM(`limit`), 0) AS total_limit
-FROM billing_projects
-WHERE quote_id = %s AND `status` != 'deleted' AND `limit` IS NOT NULL;
-""",
-                    (quote_id,),
-                )
-                total = limits_sum_row['total_limit'] if limits_sum_row else 0
-                if total > new_amount:
-                    raise BatchUserError(
-                        f'New authorized_amount {new_amount} is less than sum of BP limits {total}.',
-                        'error',
-                    )
-            updates['authorized_amount'] = new_amount
-
-        if updates:
-            set_clause = ', '.join(f'`{k}` = %s' for k in updates)
-            await tx.execute_update(
-                f'UPDATE quotes SET {set_clause} WHERE id = %s;',
-                (*updates.values(), quote_id),
-            )
-            await _log_quote_event(tx, quote_id, actor, 'quote_edited', comment=comment)
-
-    @transaction(db)
-    async def run(tx):
-        await _edit(tx)
-
-    await _handle_api_error(run)
+    await _handle_api_error(billing_dao.edit_quote, db, quote_name, updates, actor, billing_role, comment)
     return json_response({'name': quote_name})
 
 
@@ -4144,34 +3729,7 @@ async def add_quote_manager(request: web.Request, userdata: UserData) -> web.Res
     if role not in ('owner', 'manager'):
         raise web.HTTPBadRequest(reason="'role' must be 'owner' or 'manager'.")
 
-    async def _add(tx):
-        quote_row = await tx.execute_and_fetchone('SELECT id FROM quotes WHERE name_cs = %s FOR UPDATE;', (quote_name,))
-        if not quote_row:
-            raise BatchUserError(f'Unknown quote {quote_name}.', 'error')
-        quote_id = quote_row['id']
-
-        existing = await tx.execute_and_fetchone(
-            'SELECT role FROM quote_managers WHERE quote_id = %s AND user = %s;',
-            (quote_id, target_user),
-        )
-        if existing:
-            raise BatchOperationAlreadyCompletedError(
-                f'User {target_user} is already a {existing["role"]} of quote {quote_name}.', 'info'
-            )
-
-        await tx.execute_insertone(
-            'INSERT INTO quote_managers (quote_id, user, role) VALUES (%s, %s, %s);',
-            (quote_id, target_user, role),
-        )
-        await _log_quote_event(
-            tx, quote_id, actor, 'manager_added', target_user=target_user, detail=role, comment=comment
-        )
-
-    @transaction(db)
-    async def run(tx):
-        await _add(tx)
-
-    await _handle_api_error(run)
+    await _handle_api_error(billing_dao.add_quote_manager, db, quote_name, target_user, role, actor, comment)
     return json_response({'quote': quote_name, 'user': target_user, 'role': role})
 
 
@@ -4190,32 +3748,7 @@ async def remove_quote_manager(request: web.Request, userdata: UserData) -> web.
     except Exception:
         pass
 
-    async def _remove(tx):
-        quote_row = await tx.execute_and_fetchone('SELECT id FROM quotes WHERE name_cs = %s FOR UPDATE;', (quote_name,))
-        if not quote_row:
-            raise BatchUserError(f'Unknown quote {quote_name}.', 'error')
-        quote_id = quote_row['id']
-
-        existing = await tx.execute_and_fetchone(
-            'SELECT role FROM quote_managers WHERE quote_id = %s AND user = %s FOR UPDATE;',
-            (quote_id, target_user),
-        )
-        if not existing:
-            raise BatchOperationAlreadyCompletedError(
-                f'User {target_user} is not a manager of quote {quote_name}.', 'info'
-            )
-
-        await tx.just_execute(
-            'DELETE FROM quote_managers WHERE quote_id = %s AND user = %s;',
-            (quote_id, target_user),
-        )
-        await _log_quote_event(tx, quote_id, actor, 'manager_removed', target_user=target_user, comment=comment)
-
-    @transaction(db)
-    async def run(tx):
-        await _remove(tx)
-
-    await _handle_api_error(run)
+    await _handle_api_error(billing_dao.remove_quote_manager, db, quote_name, target_user, actor, comment)
     return json_response({'quote': quote_name, 'user': target_user})
 
 
@@ -4225,24 +3758,9 @@ async def remove_quote_manager(request: web.Request, userdata: UserData) -> web.
 async def get_quote_events(request: web.Request, _: UserData) -> web.Response:
     db: Database = request.app['db']
     quote_name = request.match_info['name']
-
-    quote_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name_cs = %s;', (quote_name,))
-    if not quote_row:
+    events = await billing_dao.get_quote_events(db, quote_name)
+    if events is None:
         raise web.HTTPNotFound(reason=f'Unknown quote {quote_name}.')
-
-    events = [
-        record
-        async for record in db.select_and_fetchall(
-            """
-SELECT id, timestamp, actor, action, target_user, target_project, detail, comment
-FROM quote_events
-WHERE quote_id = %s
-ORDER BY timestamp DESC
-LIMIT 1000;
-""",
-            (quote_row['id'],),
-        )
-    ]
     return json_response(events)
 
 

@@ -7,7 +7,7 @@ from typing import Any, Deque, Dict, List, Optional, Set, Tuple, overload
 from aiohttp import web
 
 from gear import Database, maybe_parse_bearer_header
-from hailtop.utils import secret_alnum_string, time_msecs
+from hailtop.utils import secret_alnum_string
 
 log = logging.getLogger('utils')
 
@@ -216,43 +216,6 @@ GROUP BY billing_projects.name, billing_projects.`status`, billing_projects.`lim
         billing_projects.append(record)
 
     return billing_projects
-
-
-async def _log_quote_event(
-    tx,
-    quote_id: int,
-    actor: str,
-    action: str,
-    target_user=None,
-    target_project=None,
-    detail=None,
-    comment=None,
-) -> None:
-    await tx.execute_insertone(
-        """
-INSERT INTO quote_events (quote_id, timestamp, actor, action, target_user, target_project, detail, comment)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
-""",
-        (quote_id, time_msecs(), actor, action, target_user, target_project, detail, comment),
-    )
-
-
-async def _log_bp_event(
-    tx,
-    billing_project: str,
-    actor: str,
-    action: str,
-    target_user=None,
-    detail=None,
-    comment=None,
-) -> None:
-    await tx.execute_insertone(
-        """
-INSERT INTO billing_project_events (billing_project, timestamp, actor, action, target_user, detail, comment)
-VALUES (%s, %s, %s, %s, %s, %s, %s);
-""",
-        (billing_project, time_msecs(), actor, action, target_user, detail, comment),
-    )
 
 
 async def query_billing_projects_without_cost(
