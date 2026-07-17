@@ -42,7 +42,8 @@ CREATE TABLE IF NOT EXISTS `billing_projects` (
   `msec_mcpu`        BIGINT DEFAULT 0,
   `quote_id`         INT DEFAULT 1,
   `low_budget_alert` DOUBLE DEFAULT NULL,
-  PRIMARY KEY (`name`)
+  PRIMARY KEY (`name`),
+  CONSTRAINT `fk_billing_projects_quote_id` FOREIGN KEY (`quote_id`) REFERENCES `quotes`(`id`)
 ) ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `billing_project_users` (
