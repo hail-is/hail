@@ -2556,6 +2556,9 @@ steps:
       - name: add-dockerhub-proxy-flag
         script: /io/sql/120-add-dockerhub-proxy-flag.sql
         online: true
+      - name: billing-quotes
+        script: /io/sql/121-billing-quotes.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
