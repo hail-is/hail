@@ -81,7 +81,7 @@ package object invariant {
   }
 
   object UniquelyNamed extends Invariant {
-    override def verify(ctx: ExecuteContext, ir: BaseIR): Unit = {
+    override private[invariant] def verify(ctx: ExecuteContext, ir: BaseIR): Unit = {
       val globalNames: mutable.Map[Name, BaseIR] =
         is.hail.collection.compat.mutable.AnyRefMap.empty
 
