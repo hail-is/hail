@@ -48,6 +48,7 @@ from web_common import (
     web_security_headers,
     web_security_headers_inline_styles,
     web_security_headers_login_page,
+    web_security_headers_swagger,
 )
 
 from .auth_utils import is_valid_username, validate_credentials_secret_name_input
@@ -258,7 +259,7 @@ async def hello_react(request: web.Request, userdata) -> web.Response:
 
 
 @routes.get('/swagger')
-@web_security_headers
+@web_security_headers_swagger
 async def swagger(request):
     page_context = {'service': 'auth', 'base_path': deploy_config.base_path('auth')}
     return await render_template('auth', request, None, 'swagger/index.html', page_context)

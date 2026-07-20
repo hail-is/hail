@@ -44,6 +44,7 @@ from web_common import (
     setup_common_static_routes,
     web_security_headers,
     web_security_headers_inline_styles,
+    web_security_headers_swagger,
 )
 
 from .configuration import HAIL_USE_FULL_QUERY
@@ -468,7 +469,7 @@ async def hello_react(request: web.Request, userdata) -> web.Response:
 
 
 @routes.get('/swagger')
-@web_security_headers
+@web_security_headers_swagger
 async def swagger(request):
     page_context = {'service': 'monitoring', 'base_path': deploy_config.base_path('monitoring')}
     return await render_template('monitoring', request, None, 'swagger/index.html', page_context)

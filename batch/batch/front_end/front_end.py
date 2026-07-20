@@ -83,6 +83,7 @@ from web_common import (
     setup_common_static_routes,
     web_security_headers,
     web_security_headers_inline_styles,
+    web_security_headers_swagger,
 )
 
 from ..batch import batch_record_to_dict, cancel_job_group_in_db, job_group_record_to_dict, job_record_to_dict
@@ -3688,7 +3689,7 @@ async def index(request: web.Request, _) -> NoReturn:
 
 
 @routes.get('/swagger')
-@web_security_headers
+@web_security_headers_swagger
 async def swagger(request):
     page_context = {'service': 'batch', 'base_path': deploy_config.base_path('batch')}
     return await render_template('batch', request, None, 'swagger/index.html', page_context)

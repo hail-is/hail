@@ -10,6 +10,7 @@ if (rootEl) {
   createRoot(rootEl).render(
     <SwaggerUI
       url={`${basePath}/openapi.yaml`}
+      deepLinking={true}
       requestInterceptor={(request) => {
         if (csrfToken) {
           if (!request.headers) {
