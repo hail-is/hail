@@ -21,6 +21,8 @@ cluster_id=$(hailctl emr list | awk -v n="$cluster_name" '$3 == n {print $1}' | 
 aws emr wait cluster-running --cluster-id "$cluster_id"
 
 cat > /tmp/hail-emr-smoke.py <<'PY'
+import os
+assert os.environ.get('HAIL_CLOUD') == 'aws', f"HAIL_CLOUD={os.environ.get('HAIL_CLOUD')!r}, expected 'aws'"
 import hail as hl
 mt = hl.balding_nichols_model(3, 100, 100)
 mt.rows().write('SCRATCH/out.ht', overwrite=True)
