@@ -180,33 +180,15 @@ object MatrixNativeWriter {
             val entryPartsRoot = Str(s"$path/entries/rows/parts/")
             val indexRoot = Str(s"$path/index/")
             val initOpArgs: Seq[IR] = Seq(partFile, rowPartsRoot, entryPartsRoot, indexRoot)
-            val zero = makestruct(
-              "distinct" -> !pKey.fieldNames.isEmpty,
-              "firstKey" -> NA(pKey.virtualType),
-              "lastKey" -> NA(pKey.virtualType),
-            )
-            makestruct(
-              "partpath" -> ApplyAggOp(
-                WriteSplitRows(rowSpec, entrySpec, pKey),
-                initOpArgs: _*
-              )(row.drop(entriesFieldName), row.select(entriesFieldName)),
-              "partitionCounts" -> ApplyAggOp(Count())(),
-              "keyMeta" -> aggFoldIR(zero) { accum =>
-                bindIRs(SelectFields(row, pKey.fieldNames), GetField(accum, "lastKey")) {
-                  case Seq(key, prev) =>
-                    makestruct(
-                      "distinct" -> (GetField(accum, "distinct") && Coalesce(FastSeq(
-                        prev.cne(key),
-                        True(),
-                      ))),
-                      "firstKey" -> Coalesce(FastSeq(GetField(accum, "firstKey"), key)),
-                      "lastKey" -> Coalesce(FastSeq(key, prev)),
-                    )
-                }
-              } { (accum1, accum2) =>
-                Die("unreachable: calling combop on writer fold makes no sense", zero.typ)
-              },
-            )
+            val args =
+              (
+                "partpath",
+                ApplyAggOp(
+                  WriteSplitRows(rowSpec, entrySpec, pKey),
+                  initOpArgs: _*
+                )(row.drop(entriesFieldName), row.select(entriesFieldName)),
+              ) +: TableWriter.metaInfoAggs(row, pKey.virtualType)
+            makestruct(args: _*)
           }
         } yield TableWriter.resultHelper(partResult)
       }
