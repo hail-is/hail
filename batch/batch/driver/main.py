@@ -1807,6 +1807,8 @@ def run():
     setup_aiohttp_jinja2(app, 'batch.driver')
     setup_common_static_routes(routes)
     routes.static('/batch_driver/static/js', f'{DRIVER_ROOT}/static/js')
+    os.makedirs(f'{DRIVER_ROOT}/static/compiled-js', exist_ok=True)
+    routes.static('/batch/static/compiled-js', f'{DRIVER_ROOT}/static/compiled-js')
     app.add_routes(routes)
     app.router.add_get("/metrics", server_stats)
 

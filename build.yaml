@@ -383,6 +383,32 @@ steps:
         to: /io/repo/admin-pod
     dependsOn:
       - hail_ubuntu_image
+  - kind: runImage
+    name: build_ui
+    image: node:24-slim@sha256:d45d78e7929b46875bbd4e29bea672d5bc48186c6c3588306521c815e78352d6
+    script: |
+      set -ex
+      cd /io/repo/services/ui
+      npm ci
+      npm run build
+    inputs:
+      - from: /repo/services/ui
+        to: /io/repo/services/ui
+    outputs:
+      - from: /io/repo/services/ui/dist/auth
+        to: /compiled-js/auth
+      - from: /io/repo/services/ui/dist/batch
+        to: /compiled-js/batch
+      - from: /io/repo/services/ui/dist/batch_driver
+        to: /compiled-js/batch_driver
+      - from: /io/repo/services/ui/dist/ci
+        to: /compiled-js/ci
+      - from: /io/repo/services/ui/dist/monitoring
+        to: /compiled-js/monitoring
+      - from: /io/repo/services/ui/dist/shared
+        to: /compiled-js/shared
+    dependsOn:
+      - merge_code
   - kind: buildImage2
     name: auth_image
     dockerFile: /io/repo/auth/Dockerfile
@@ -405,9 +431,14 @@ steps:
         to: /io/repo/gear
       - from: /repo/web_common
         to: /io/repo/web_common
+      - from: /compiled-js/auth
+        to: /io/repo/auth/auth/static/compiled-js
+      - from: /compiled-js/shared
+        to: /io/repo/auth/auth/static/compiled-js
     dependsOn:
       - hail_ubuntu_image
       - merge_code
+      - build_ui
   - kind: runImage
     name: delete_auth_tables
     image:
@@ -680,30 +711,17 @@ steps:
         to: /io/repo/gear
       - from: /repo/web_common
         to: /io/repo/web_common
+      - from: /compiled-js/monitoring
+        to: /io/repo/monitoring/monitoring/static/compiled-js
+      - from: /compiled-js/shared
+        to: /io/repo/monitoring/monitoring/static/compiled-js
     dependsOn:
       - hail_ubuntu_image
       - merge_code
-  - kind: runImage
-    name: build_ui
-    image: node:20-slim@sha256:a82f40540f5959e0003fb7b3c0f80490def2927be8bdbee7e3e0ac65cce3be92
-    script: |
-      set -ex
-      cd /io/repo/services/ui
-      npm ci
-      npm run build
-    inputs:
-      - from: /repo/services/ui
-        to: /io/repo/services/ui
-    outputs:
-      - from: /io/repo/services/ui/dist/ci
-        to: /compiled-js/ci
-      - from: /io/repo/services/ui/dist/batch
-        to: /compiled-js/batch
-    dependsOn:
-      - merge_code
+      - build_ui
   - kind: runImage
     name: check_ui
-    image: node:20-slim@sha256:a82f40540f5959e0003fb7b3c0f80490def2927be8bdbee7e3e0ac65cce3be92
+    image: node:24-slim@sha256:d45d78e7929b46875bbd4e29bea672d5bc48186c6c3588306521c815e78352d6
     script: |
       set -ex
       cd /io/repo/services/ui
@@ -739,6 +757,12 @@ steps:
         to: /io/repo/web_common
       - from: /compiled-js/batch
         to: /io/repo/batch/batch/front_end/static/compiled-js
+      - from: /compiled-js/shared
+        to: /io/repo/batch/batch/front_end/static/compiled-js
+      - from: /compiled-js/batch_driver
+        to: /io/repo/batch/batch/driver/static/compiled-js
+      - from: /compiled-js/shared
+        to: /io/repo/batch/batch/driver/static/compiled-js
     dependsOn:
       - hail_ubuntu_image
       - merge_code
@@ -780,6 +804,8 @@ steps:
       - from: /repo/web_common
         to: /io/repo/web_common
       - from: /compiled-js/ci
+        to: /io/repo/ci/ci/static/compiled-js
+      - from: /compiled-js/shared
         to: /io/repo/ci/ci/static/compiled-js
     dependsOn:
       - hail_ubuntu_image
