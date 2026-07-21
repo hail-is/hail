@@ -56,6 +56,14 @@ def hail_configurations(off_heap_memory_per_core_mb: Optional[int]) -> List[dict
     return [
         {'Classification': 'spark-defaults', 'Properties': spark_defaults},
         {'Classification': 'spark', 'Properties': {'maximizeResourceAllocation': 'true'}},
+        {
+            # spark-env.sh is sourced by every spark-submit invocation, so this is
+            # what actually delivers HAIL_CLOUD to a client-deploy-mode driver
+            # (executorEnv/appMasterEnv do not reach it).
+            'Classification': 'spark-env',
+            'Configurations': [{'Classification': 'export', 'Properties': {'HAIL_CLOUD': 'aws'}}],
+            'Properties': {},
+        },
     ]
 
 

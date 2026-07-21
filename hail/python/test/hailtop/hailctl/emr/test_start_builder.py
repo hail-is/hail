@@ -33,6 +33,9 @@ def test_hail_configurations_sets_hail_cloud_and_jar():
     assert props['spark.executorEnv.PYTHONHASHSEED'] == '0'
     spark = next(c for c in confs if c['Classification'] == 'spark')
     assert spark['Properties']['maximizeResourceAllocation'] == 'true'
+    spark_env = next(c for c in confs if c['Classification'] == 'spark-env')
+    export = next(c for c in spark_env['Configurations'] if c['Classification'] == 'export')
+    assert export['Properties']['HAIL_CLOUD'] == 'aws'
 
 
 def test_hail_configurations_off_heap_overlay():
