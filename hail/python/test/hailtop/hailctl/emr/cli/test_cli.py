@@ -65,6 +65,15 @@ def test_list_calls_list_clusters(emr_client_mock):
     assert emr_client_mock.list_clusters.call_count == 1
 
 
+def test_start_invalid_json_overlay_errors(emr_client_mock):
+    res = runner.invoke(
+        cli.app,
+        ['start', 'c1', '--s3-scratch', 's3://bkt/tmp/', '--run-job-flow-json', '{not json'],
+    )
+    assert res.exit_code != 0
+    assert emr_client_mock.run_job_flow.call_count == 0
+
+
 def test_submit_invokes_submit(monkeypatch):
     called = {}
 

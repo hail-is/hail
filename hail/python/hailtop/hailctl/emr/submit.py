@@ -53,9 +53,12 @@ def submit(
     try:
         waiter.wait(ClusterId=cluster_id, StepId=step_id)
     except Exception as e:  # surface the failure to the user
-        desc = client.describe_step(ClusterId=cluster_id, StepId=step_id)
-        state = desc['Step']['Status']['State']
-        print(f'Step {step_id} did not complete successfully (state={state}).', file=sys.stderr)
+        try:
+            desc = client.describe_step(ClusterId=cluster_id, StepId=step_id)
+            state = desc['Step']['Status']['State']
+            print(f'Step {step_id} did not complete successfully (state={state}).', file=sys.stderr)
+        except Exception:
+            print(f'Step {step_id} did not complete successfully (state unknown).', file=sys.stderr)
         raise SystemExit(1) from e
 
     print(f'Step {step_id} completed.')

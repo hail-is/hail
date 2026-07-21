@@ -79,7 +79,11 @@ def start(
     )
 
     if run_job_flow_json is not None:
-        kwargs = start_mod.deep_merge(kwargs, json.loads(run_job_flow_json))
+        try:
+            overlay = json.loads(run_job_flow_json)
+        except json.JSONDecodeError as exc:
+            raise typer.BadParameter(f'--run-job-flow-json is not valid JSON: {exc}') from exc
+        kwargs = start_mod.deep_merge(kwargs, overlay)
 
     if dry_run:
         print(json.dumps(kwargs, indent=2))

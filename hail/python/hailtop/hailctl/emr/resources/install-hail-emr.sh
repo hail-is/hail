@@ -30,3 +30,9 @@ sudo python3 -m pip install -r /tmp/hail-requirements.txt
 # Copy the bundled JAR to a fixed path referenced by spark-defaults.
 sudo mkdir -p /usr/lib/hail
 sudo cp "${site_packages}/hail/backend/hail-all-spark.jar" /usr/lib/hail/hail-all-spark.jar
+
+# Client-mode Spark drivers (hailctl emr submit uses --deploy-mode client) run
+# as OS processes on the master node and see only the OS environment, not
+# spark.executorEnv/spark.yarn.appMasterEnv. Persist HAIL_CLOUD system-wide so
+# the driver JVM's CloudStorageConfig.readEnv sees it.
+echo 'HAIL_CLOUD=aws' | sudo tee -a /etc/environment
