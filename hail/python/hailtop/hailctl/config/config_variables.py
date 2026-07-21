@@ -18,6 +18,7 @@ def _is_float_str(x: str) -> bool:
 
 def config_variables():
     from hailtop.aiotools.router_fs import RouterAsyncFS  # pylint: disable=import-outside-toplevel
+    from hailtop.aiocloud.aioaws.fs import S3AsyncFS  # pylint: disable=import-outside-toplevel
     from hailtop.batch_client.parse import CPU_REGEXPAT, MEMORY_REGEXPAT  # pylint: disable=import-outside-toplevel
 
     global _config_variables
@@ -137,6 +138,20 @@ def config_variables():
             ConfigVariable.HTTP_TIMEOUT_IN_SECONDS: ConfigVariableInfo(
                 help_msg='The default timeout for HTTP requests in seconds.',
                 validation=(_is_float_str, 'should be a float or an int like 42.42 or 42'),
+            ),
+            ConfigVariable.EMR_REGION: ConfigVariableInfo(
+                help_msg='Default AWS region for EMR clusters',
+                validation=(
+                    lambda x: re.fullmatch(r'[a-z]{2}-[a-z]+-\d', x) is not None,
+                    'should be a valid AWS region such as us-east-1',
+                ),
+            ),
+            ConfigVariable.EMR_REMOTE_TMPDIR: ConfigVariableInfo(
+                help_msg='S3 URI to use as a scratch directory for EMR jobs',
+                validation=(
+                    S3AsyncFS.valid_url,
+                    'should be a valid S3 URI such as s3://my-bucket/hail-tmp/',
+                ),
             ),
         }
 
