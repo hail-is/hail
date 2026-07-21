@@ -50,7 +50,8 @@ Choosing an EMR release
 Hail requires Spark 3.5.x. The default release, ``emr-7.3.0``, provides Spark 3.5.3, which matches
 the Spark version Hail is built against. If you pass a ``--release-label`` that ships a different
 Spark minor version, ``hailctl emr start`` refuses to start the cluster; an unrecognized label
-produces a warning.
+produces a warning. Hail requires Python 3.10 or newer; the bootstrap installs Hail into Python
+3.11, which ships with EMR releases 7.1.0 and newer, so use ``emr-7.1.0`` or later.
 
 Advanced cluster options
 ------------------------

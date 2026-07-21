@@ -17,6 +17,10 @@ EMR_RELEASE_SPARK_VERSION: Dict[str, str] = {
 DEFAULT_EMR_RELEASE = 'emr-7.3.0'
 HAIL_REQUIRED_SPARK_MINOR = '3.5'
 HAIL_JAR_PATH = '/usr/lib/hail/hail-all-spark.jar'
+# EMR 7.x's system python3 is 3.9, but Hail requires Python >= 3.10. The
+# bootstrap installs Hail into Python 3.11 (shipped with EMR 7.1+); PySpark
+# (driver and executors) must use the same interpreter.
+EMR_PYSPARK_PYTHON = '/usr/bin/python3.11'
 
 
 def check_release_spark_compatibility(release_label: str) -> None:
@@ -48,6 +52,7 @@ def hail_configurations(off_heap_memory_per_core_mb: Optional[int]) -> List[dict
         'spark.yarn.appMasterEnv.PYTHONHASHSEED': '0',
         'spark.executorEnv.HAIL_CLOUD': 'aws',
         'spark.yarn.appMasterEnv.HAIL_CLOUD': 'aws',
+        'spark.pyspark.python': EMR_PYSPARK_PYTHON,
     }
     if off_heap_memory_per_core_mb is not None:
         spark_defaults['spark.executorEnv.HAIL_WORKER_OFF_HEAP_MEMORY_PER_CORE_MB'] = str(
@@ -61,7 +66,12 @@ def hail_configurations(off_heap_memory_per_core_mb: Optional[int]) -> List[dict
             # what actually delivers HAIL_CLOUD to a client-deploy-mode driver
             # (executorEnv/appMasterEnv do not reach it).
             'Classification': 'spark-env',
-            'Configurations': [{'Classification': 'export', 'Properties': {'HAIL_CLOUD': 'aws'}}],
+            'Configurations': [
+                {
+                    'Classification': 'export',
+                    'Properties': {'HAIL_CLOUD': 'aws', 'PYSPARK_PYTHON': EMR_PYSPARK_PYTHON},
+                }
+            ],
             'Properties': {},
         },
     ]
