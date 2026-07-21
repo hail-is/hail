@@ -2,8 +2,6 @@ import os
 import sys
 from typing import List, Optional
 
-from hailtop.utils import secret_alnum_string
-
 from . import emr
 
 
@@ -19,6 +17,8 @@ def submit(
     pass_through_args: List[str],
     wait: bool = True,
 ) -> str:
+    from hailtop.utils import secret_alnum_string  # pylint: disable=import-outside-toplevel
+
     resolved_region = emr.resolve_region(region)
     client = emr.emr_client(resolved_region)
 

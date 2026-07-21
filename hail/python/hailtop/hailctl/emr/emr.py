@@ -22,7 +22,7 @@ def resolve_region(explicit_region: Optional[str]) -> Optional[str]:
 
 
 def emr_client(region: Optional[str]):
-    import boto3  # pylint: disable=import-outside-toplevel  # noqa: PLC0415
+    import boto3  # pylint: disable=import-outside-toplevel
 
     return boto3.client('emr', region_name=region)
 

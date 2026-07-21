@@ -1,4 +1,3 @@
-import importlib.resources as ir
 import json
 from typing import Annotated as Ann
 from typing import Optional
@@ -6,13 +5,6 @@ from typing import Optional
 import typer
 from typer import Argument as Arg
 from typer import Option as Opt
-
-from hailtop import __pip_version__
-from hailtop.config import ConfigVariable, configuration_of
-
-from . import emr
-from . import start as start_mod
-from . import submit as submit_mod
 
 app = typer.Typer(
     name='emr',
@@ -51,6 +43,12 @@ def start(
     dry_run: Ann[bool, Opt(help="Build the request but don't call AWS.")] = False,
 ):
     """Start an EMR cluster configured for Hail."""
+    from hailtop import __pip_version__  # pylint: disable=import-outside-toplevel
+    from hailtop.config import ConfigVariable, configuration_of  # pylint: disable=import-outside-toplevel
+
+    from . import emr  # pylint: disable=import-outside-toplevel
+    from . import start as start_mod  # pylint: disable=import-outside-toplevel
+
     if vep is not None:
         raise NotImplementedError('VEP on EMR is planned for a future release (Phase 2).')
 
@@ -93,6 +91,10 @@ def start(
 
 
 def _upload_bootstrap(bootstrap_s3_uri: str) -> None:
+    import importlib.resources as ir  # pylint: disable=import-outside-toplevel
+
+    from . import emr  # pylint: disable=import-outside-toplevel
+
     script_bytes = (
         ir.files('hailtop.hailctl.emr').joinpath('resources/install-hail-emr.sh').read_bytes()
     )
@@ -106,6 +108,8 @@ def stop(
     region: Ann[Optional[str], Opt(help='AWS region.')] = None,
 ):
     """Terminate an EMR cluster."""
+    from . import emr  # pylint: disable=import-outside-toplevel
+
     resolved_region = emr.resolve_region(region)
     print(f'Terminating cluster {cluster_id} ...')
     emr.emr_client(resolved_region).terminate_job_flows(JobFlowIds=[cluster_id])
@@ -116,6 +120,8 @@ def list(
     region: Ann[Optional[str], Opt(help='AWS region.')] = None,
 ):
     """List EMR clusters."""
+    from . import emr  # pylint: disable=import-outside-toplevel
+
     resolved_region = emr.resolve_region(region)
     resp = emr.emr_client(resolved_region).list_clusters()
     for cluster in resp.get('Clusters', []):
@@ -135,6 +141,10 @@ def submit(
     no_wait: Ann[bool, Opt('--no-wait', help='Return immediately after submitting, without waiting for completion.')] = False,
 ):
     """Submit a Python job to an EMR cluster configured for Hail."""
+    from hailtop.config import ConfigVariable, configuration_of  # pylint: disable=import-outside-toplevel
+
+    from . import submit as submit_mod  # pylint: disable=import-outside-toplevel
+
     scratch = configuration_of(ConfigVariable.EMR_REMOTE_TMPDIR, s3_scratch, None)
     if scratch is None:
         raise typer.BadParameter('Provide --s3-scratch or set `hailctl config set emr/remote_tmpdir`.')
