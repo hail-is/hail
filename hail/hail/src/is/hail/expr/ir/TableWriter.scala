@@ -18,9 +18,7 @@ import is.hail.types._
 import is.hail.types.encoded.EType
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.EmitType
-import is.hail.types.physical.stypes.concrete.{
-  SJavaArrayString, SJavaArrayStringValue,
-}
+import is.hail.types.physical.stypes.concrete.{SJavaArrayString, SJavaArrayStringValue}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -46,7 +44,7 @@ object TableWriter {
     partFile: IR,
     partRoot: IR,
     indexInfo: Option[(PStruct, IR)] = None,
-    trackTotalBytes: Boolean = false
+    trackTotalBytes: Boolean = false,
   ): IR = {
     val partResult = streamAggIR(rows) { row =>
       assert(row.typ.isInstanceOf[TStruct])
@@ -55,29 +53,17 @@ object TableWriter {
     bindIR(partResult)(TableWriter.resultHelper(_))
   }
 
-  def rowWriterHelper(
-    rowSpec: TypedCodecSpec,
-    row: Atom,
-    partFile: IR,
-    partRoot: IR,
-    indexInfo: Option[(PStruct, IR)] = None,
-    trackTotalBytes: Boolean = false,
-  ): IR = {
-    val pKey = indexInfo.map(_._1).getOrElse(PCanonicalStruct())
-    val initOpArgs = Seq(partFile, partRoot) ++ indexInfo.map(_._2)
+  def metaInfoAggs(row: Atom, keyType: TStruct, trackTotalBytes: Boolean = false)
+    : Seq[(String, IR)] = {
     val zero = makestruct(
-      "distinct" -> !pKey.fieldNames.isEmpty,
-      "firstKey" -> NA(pKey.virtualType),
-      "lastKey" -> NA(pKey.virtualType),
+      "distinct" -> !keyType.fieldNames.isEmpty,
+      "firstKey" -> NA(keyType),
+      "lastKey" -> NA(keyType),
     )
-    val args = Seq(
-      "partpath" -> ApplyAggOp(
-        WriteRows(rowSpec, indexInfo.map(_._1)),
-        initOpArgs: _*
-      )(row),
+    Seq(
       "partitionCounts" -> ApplyAggOp(Count())(),
       "keyMeta" -> aggFoldIR(zero) { accum =>
-        bindIRs(SelectFields(row, pKey.fieldNames), GetField(accum, "lastKey")) {
+        bindIRs(SelectFields(row, keyType.fieldNames), GetField(accum, "lastKey")) {
           case Seq(key, prev) =>
             makestruct(
               "distinct" -> (GetField(accum, "distinct") && Coalesce(FastSeq(
@@ -90,7 +76,30 @@ object TableWriter {
         }
       } { (accum1, accum2) =>
         Die("unreachable: calling combop on writer fold makes no sense", zero.typ)
-      }) ++ Some("partitionByteSize" -> ApplyAggOp(Sum())(invoke("sizeofValue", TInt64, row))).filter(_ => trackTotalBytes)
+      },
+    ) ++ (if (trackTotalBytes)
+            Some("partitionByteSize" -> ApplyAggOp(Sum())(invoke("sizeofValue", TInt64, row)))
+          else None)
+  }
+
+  def rowWriterHelper(
+    rowSpec: TypedCodecSpec,
+    row: Atom,
+    partFile: IR,
+    partRoot: IR,
+    indexInfo: Option[(PStruct, IR)] = None,
+    trackTotalBytes: Boolean = false,
+  ): IR = {
+    val pKey = indexInfo.map(_._1).getOrElse(PCanonicalStruct())
+    val initOpArgs = Seq(partFile, partRoot) ++ indexInfo.map(_._2)
+    val args =
+      (
+        "partpath",
+        ApplyAggOp(
+          WriteRows(rowSpec, indexInfo.map(_._1)),
+          initOpArgs: _*
+        )(row),
+      ) +: metaInfoAggs(row, pKey.virtualType, trackTotalBytes)
     makestruct(args: _*)
   }
 

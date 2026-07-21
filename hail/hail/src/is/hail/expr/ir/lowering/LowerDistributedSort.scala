@@ -60,7 +60,7 @@ object LowerDistributedSort extends Logging {
             partFile = UUID4(),
             partRoot = Str(initialTmpPath),
             indexInfo = None,
-            trackTotalBytes = true
+            trackTotalBytes = true,
           )
         ) {
           (part, globals) =>
@@ -516,14 +516,13 @@ object LowerDistributedSort extends Logging {
               )
             })
 
-
           TableWriter.writerHelper(
             spec,
             sortedStream,
             partFile = UUID4(),
             partRoot = Str(initialTmpPath),
             indexInfo = None,
-            trackTotalBytes = true
+            trackTotalBytes = true,
           )
       }
 

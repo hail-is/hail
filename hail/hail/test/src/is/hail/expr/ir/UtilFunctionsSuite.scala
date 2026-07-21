@@ -88,7 +88,7 @@ class UtilFunctionsSuite {
 
   @Test def testSizeofValue(implicit ctx: ExecuteContext): Unit = {
     assertEvalsTo(invoke("sizeofValue", TInt64, Str("123")), 7)
-    assertEvalsTo(invoke("sizeofValue", TInt64, I32(0xDEADBEEF)), 4)
+    assertEvalsTo(invoke("sizeofValue", TInt64, I32(0xdeadbeef)), 4)
     assertEvalsTo(invoke("sizeofValue", TInt64, maketuple(Str("123"), I32(0))), 11)
   }
 }
