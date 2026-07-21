@@ -9,10 +9,10 @@ EMR_RELEASE_SPARK_VERSION: Dict[str, str] = {
     'emr-7.2.0': '3.5.2',
     'emr-7.1.0': '3.5.1',
     'emr-7.0.0': '3.5.0',
-    # EMR 6.x ships Spark 3.3.x — incompatible with Hail's Spark 3.5.x requirement
-    'emr-6.15.0': '3.3.2',
-    'emr-6.14.0': '3.3.2',
-    'emr-6.13.0': '3.3.2',
+    # EMR 6.x ships Spark 3.4.x — incompatible with Hail's Spark 3.5.x requirement
+    'emr-6.15.0': '3.4.1',
+    'emr-6.14.0': '3.4.1',
+    'emr-6.13.0': '3.4.1',
 }
 DEFAULT_EMR_RELEASE = 'emr-7.3.0'
 HAIL_REQUIRED_SPARK_MINOR = '3.5'
