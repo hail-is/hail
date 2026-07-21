@@ -2,6 +2,8 @@ import os
 import sys
 from typing import List, Optional
 
+from hailtop.utils import secret_alnum_string
+
 from . import emr
 
 
@@ -17,8 +19,6 @@ def submit(
     pass_through_args: List[str],
     wait: bool = True,
 ) -> str:
-    from hailtop.utils import secret_alnum_string  # pylint: disable=import-outside-toplevel
-
     resolved_region = emr.resolve_region(region)
     client = emr.emr_client(resolved_region)
 
@@ -52,7 +52,7 @@ def submit(
     waiter = client.get_waiter('step_complete')
     try:
         waiter.wait(ClusterId=cluster_id, StepId=step_id)
-    except Exception as e:  # noqa: BLE001 - surface the failure to the user
+    except Exception as e:  # surface the failure to the user
         desc = client.describe_step(ClusterId=cluster_id, StepId=step_id)
         state = desc['Step']['Status']['State']
         print(f'Step {step_id} did not complete successfully (state={state}).', file=sys.stderr)
