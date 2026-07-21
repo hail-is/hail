@@ -51,6 +51,8 @@ from .configuration import HAIL_USE_FULL_QUERY
 
 log = logging.getLogger('monitoring')
 
+MONITORING_ROOT = os.path.dirname(os.path.abspath(__file__))
+
 routes = web.RouteTableDef()
 
 deploy_config = get_deploy_config()
@@ -486,6 +488,8 @@ def run():
 
     setup_aiohttp_jinja2(app, 'monitoring')
     setup_common_static_routes(routes)
+    os.makedirs(f'{MONITORING_ROOT}/static/compiled-js', exist_ok=True)
+    routes.static('/monitoring/static/compiled-js', f'{MONITORING_ROOT}/static/compiled-js')
     app.add_routes(routes)
     app.router.add_get("/metrics", server_stats)
 
