@@ -11,13 +11,9 @@ import is.hail.expr.ir.defs._
 import is.hail.expr.ir.implicits.forTesting._
 import is.hail.types.virtual._
 
-import org.junit.jupiter.api.{BeforeEach, Test}
+import org.junit.jupiter.api.Test
 
 class ForwardLetsSuite {
-
-  @BeforeEach
-  def resetUidCounter(): Unit =
-    is.hail.expr.ir.uidCounter = 0
 
   def testNonForwardingOps() = {
     val a = ToArray(StreamRange(I32(0), I32(10), I32(1)))
@@ -106,12 +102,8 @@ class ForwardLetsSuite {
   }
 
   @ParameterizedTest
-  def testNonForwardingOps(ir: IR)(implicit ctx: ExecuteContext): Unit = {
-    val after = ForwardLets(ctx, ir)
-    val normalizedBefore = NormalizeNames()(ctx, ir)
-    val normalizedAfter = NormalizeNames()(ctx, after)
-    assertEq(normalizedAfter, normalizedBefore)
-  }
+  def testNonForwardingOps(ir: IR)(implicit ctx: ExecuteContext): Unit =
+    assert(ForwardLets(ctx, ir) isAlphaEquiv ir)
 
   @ParameterizedTest
   def testNonForwardingNonEvalOps(ir: IR)(implicit ctx: ExecuteContext): Unit = {
@@ -200,16 +192,8 @@ class ForwardLetsSuite {
 
   @ParameterizedTest
   def testTrivialCases(input: IR, _expected: IR, reason: String)(implicit ctx: ExecuteContext)
-    : Unit = {
-    val normalize: (ExecuteContext, BaseIR) => BaseIR = NormalizeNames(allowFreeVariables = true)
-    val result = normalize(ctx, ForwardLets(ctx, input))
-    val expected = normalize(ctx, _expected)
-    assertEq(
-      result,
-      normalize(ctx, expected),
-      s"\ninput:\n${Pretty.sexprStyle(input)}\nexpected:\n${Pretty.sexprStyle(expected)}\ngot:\n${Pretty.sexprStyle(result)}\n$reason",
-    )
-  }
+    : Unit =
+    assert(ForwardLets(ctx, input) isAlphaEquiv _expected, reason)
 
   @Test def testAggregators(implicit ctx: ExecuteContext): Unit = {
     val row = Ref(freshName(), TStruct("idx" -> TInt32))

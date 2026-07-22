@@ -3,8 +3,8 @@ package is.hail.expr.ir.lowering
 import is.hail.backend.ExecuteContext
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{
-  BaseIR, BindingEnv, Bindings, ComputeUsesAndDefs, ContainsAgg, ContainsAggIntermediate,
-  ContainsScan, Env, IR, IsPure, Pretty, RefEquality, Scope, UsesAndDefs,
+  AggContextDependent, BaseIR, BindingEnv, Bindings, ComputeUsesAndDefs, Env, IR, IsPure, Pretty,
+  RefEquality, Scope, UsesAndDefs,
 }
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.lowering.invariant.UniquelyNamed
@@ -27,8 +27,7 @@ object ForwardLets extends Logging {
             refs.isEmpty ||
             (refs.size == 1 &&
               nestingDepth.lookupRef(refs.head) == nestingDepth.lookupBinding(base, scope) &&
-              (value.typ.isInstanceOf[TStream] ||
-                !(ContainsScan(value) || ContainsAgg(value) || ContainsAggIntermediate(value))))
+              (value.typ.isInstanceOf[TStream] || !AggContextDependent(value)))
         )
 
       def rewrite(ir: BaseIR, env: BindingEnv[IR]): BaseIR =

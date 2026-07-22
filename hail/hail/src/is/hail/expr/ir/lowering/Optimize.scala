@@ -47,7 +47,7 @@ object Optimize {
             ir = FoldConstants(ctx, ir)
             ir = ExtractIntervalFilters(ctx, ir)
             ir = Simplify(ctx, ir)
-
+            ir = LiftAvailableExprs(ctx, ir)
             ir = {
               val ir_ = ForwardLets(ctx, ir)
               try
