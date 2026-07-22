@@ -56,7 +56,7 @@ object LowerDistributedSort extends Logging {
       CompileAndEvaluate[Row](
         ctx,
         inputStage.mapCollectWithGlobals("shuffle_initial_write")(
-          TableWriter.writerHelper(
+          TableNativeWriter.writePartition(
             spec,
             _,
             partFile = UUID4(),
@@ -519,7 +519,7 @@ object LowerDistributedSort extends Logging {
               )
             })
 
-          TableWriter.writerHelper(
+          TableNativeWriter.writePartition(
             spec,
             sortedStream,
             partFile = UUID4(),

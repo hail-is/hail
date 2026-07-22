@@ -37,24 +37,9 @@ object TableWriter {
       typeHintFieldName = "name",
     )
   }
+}
 
-  def writerHelper(
-    rowSpec: TypedCodecSpec,
-    rows: IR,
-    partFile: IR,
-    partRoot: IR,
-    indexRoot: Option[IR] = None,
-    trackTotalBytes: Boolean = false,
-    pKey: PStruct = PCanonicalStruct(),
-  ): IR = {
-    val partResult = streamAggIR(rows) { row =>
-      assert(row.typ.isInstanceOf[TStruct])
-      TableWriter.rowWriterHelper(rowSpec, pKey, row, partFile, partRoot, indexRoot,
-        trackTotalBytes)
-    }
-    bindIR(partResult)(TableWriter.resultHelper(_))
-  }
-
+object NativeWriter {
   def metaInfoAggs(row: Atom, keyType: TStruct, trackTotalBytes: Boolean = false)
     : Seq[(String, IR)] = {
     val zero = makestruct(
@@ -84,28 +69,7 @@ object TableWriter {
           else None)
   }
 
-  def rowWriterHelper(
-    rowSpec: TypedCodecSpec,
-    pKey: PStruct,
-    row: Atom,
-    partFile: IR,
-    partRoot: IR,
-    indexRoot: Option[IR] = None,
-    trackTotalBytes: Boolean = false,
-  ): IR = {
-    val initOpArgs = Seq(partFile, partRoot) ++ indexRoot
-    val args =
-      (
-        "partpath",
-        ApplyAggOp(
-          WriteRows(rowSpec, indexRoot.map(_ => pKey)),
-          initOpArgs: _*
-        )(row),
-      ) +: metaInfoAggs(row, pKey.virtualType, trackTotalBytes)
-    makestruct(args: _*)
-  }
-
-  def resultHelper(result: Atom): IR = {
+  def transformResult(result: Atom): IR = {
     bindIR(GetField(result, "keyMeta")) { keymeta =>
       val args = Seq(
         "filePath" -> GetField(result, "partpath"),
@@ -139,6 +103,44 @@ abstract class TableWriter {
 }
 
 object TableNativeWriter {
+  def writePartition(
+    rowSpec: TypedCodecSpec,
+    rows: IR,
+    partFile: IR,
+    partRoot: IR,
+    indexRoot: Option[IR] = None,
+    trackTotalBytes: Boolean = false,
+    pKey: PStruct = PCanonicalStruct(),
+  ): IR = {
+    val partResult = streamAggIR(rows) { row =>
+      assert(row.typ.isInstanceOf[TStruct])
+      TableNativeWriter.writeRow(rowSpec, pKey, row, partFile, partRoot, indexRoot,
+        trackTotalBytes)
+    }
+    bindIR(partResult)(NativeWriter.transformResult(_))
+  }
+
+  def writeRow(
+    rowSpec: TypedCodecSpec,
+    pKey: PStruct,
+    row: Atom,
+    partFile: IR,
+    partRoot: IR,
+    indexRoot: Option[IR] = None,
+    trackTotalBytes: Boolean = false,
+  ): IR = {
+    val initOpArgs = Seq(partFile, partRoot) ++ indexRoot
+    val args =
+      (
+        "partpath",
+        ApplyAggOp(
+          WriteRows(rowSpec, indexRoot.map(_ => pKey)),
+          initOpArgs: _*
+        )(row),
+      ) +: NativeWriter.metaInfoAggs(row, pKey.virtualType, trackTotalBytes)
+    makestruct(args: _*)
+  }
+
   def lower(
     ctx: ExecuteContext,
     ts: TableStage,
@@ -170,7 +172,7 @@ object TableNativeWriter {
           bindIR(GetField(ctxRef, "writeCtx") + UUID4()) { partFile =>
             val partRoot = Str(s"$path/rows/parts/")
             val indexRoot = Str(s"$path/index/")
-            TableWriter.writerHelper(
+            TableNativeWriter.writePartition(
               rowSpec,
               rows,
               partFile,
@@ -180,7 +182,7 @@ object TableNativeWriter {
             )
           }
       } { (parts, globals) =>
-        val writeGlobals = TableWriter.writerHelper(
+        val writeGlobals = TableNativeWriter.writePartition(
           globalSpec,
           MakeStream(globals),
           Str(partFile(1, 0)),
@@ -837,7 +839,7 @@ case class TableNativeFanoutWriter(
             aggBindIR(SelectFields(row, target.tableType.rowType.fieldNames)) { targetRow =>
               val partRoot = Str(s"${target.path}/rows/parts/")
               val indexRoot = Str(s"${target.path}/index/")
-              TableWriter.rowWriterHelper(
+              TableNativeWriter.writeRow(
                 target.rowSpec,
                 target.keyPType,
                 targetRow,
@@ -850,14 +852,14 @@ case class TableNativeFanoutWriter(
         }
         bindIR(partResult) { partResult =>
           maketuple((0 until targets.length).map { i =>
-            bindIR(GetTupleElement(partResult, i))(TableWriter.resultHelper(_))
+            bindIR(GetTupleElement(partResult, i))(NativeWriter.transformResult(_))
           }: _*)
         }
       }
     } { (parts, globals) =>
       bindIR(parts) { fileCountAndDistinct =>
         Begin(targets.zipWithIndex.map { case (target, index) =>
-          val writeGlobals = TableWriter.writerHelper(
+          val writeGlobals = TableNativeWriter.writePartition(
             globalSpec,
             MakeStream(globals),
             Str(partFile(1, 0)),
