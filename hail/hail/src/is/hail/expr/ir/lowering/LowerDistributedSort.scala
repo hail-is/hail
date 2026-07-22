@@ -29,7 +29,6 @@ object LowerDistributedSort extends Logging {
     tableRequiredness: RTable,
     optTargetNumPartitions: Option[Int] = None,
   ): TableReader = {
-
     val oversamplingNum = 3
     val maxBranchingFactor = ctx.getFlag("shuffle_max_branch_factor").toInt
     val defaultBranchingFactor =
@@ -526,6 +525,7 @@ object LowerDistributedSort extends Logging {
             partFile = UUID4(),
             partRoot = Str(initialTmpPath),
             indexRoot = None,
+            pKey = pSortKey,
             trackTotalBytes = true,
           )
       }

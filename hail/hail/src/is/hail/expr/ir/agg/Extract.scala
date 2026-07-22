@@ -61,7 +61,7 @@ object AggStateSig {
         ) // set required to false to handle empty aggs
       case NDArrayMultiplyAdd() => NDArrayMultiplyAddStateSig(seqVTypes.head.setRequired(false))
       case WriteRows(codecSpec, key) =>
-        assert(codecSpec.encodedVirtualType == seqVTypes.head.t, s"a: ${codecSpec.encodedVirtualType}\nb: ${seqVTypes.head.t}")
+        assert(codecSpec.encodedVirtualType == seqVTypes.head.t)
         WriteSig(seqVTypes.head, key)
       case _ => throw new UnsupportedExtraction(op.toString)
     }
