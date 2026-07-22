@@ -43,12 +43,14 @@ object TableWriter {
     rows: IR,
     partFile: IR,
     partRoot: IR,
-    indexInfo: Option[(PStruct, IR)] = None,
+    indexRoot: Option[IR] = None,
     trackTotalBytes: Boolean = false,
+    pKey: PStruct = PCanonicalStruct(),
   ): IR = {
     val partResult = streamAggIR(rows) { row =>
       assert(row.typ.isInstanceOf[TStruct])
-      TableWriter.rowWriterHelper(rowSpec, row, partFile, partRoot, indexInfo, trackTotalBytes)
+      TableWriter.rowWriterHelper(rowSpec, pKey, row, partFile, partRoot, indexRoot,
+        trackTotalBytes)
     }
     bindIR(partResult)(TableWriter.resultHelper(_))
   }
@@ -84,19 +86,19 @@ object TableWriter {
 
   def rowWriterHelper(
     rowSpec: TypedCodecSpec,
+    pKey: PStruct,
     row: Atom,
     partFile: IR,
     partRoot: IR,
-    indexInfo: Option[(PStruct, IR)] = None,
+    indexRoot: Option[IR] = None,
     trackTotalBytes: Boolean = false,
   ): IR = {
-    val pKey = indexInfo.map(_._1).getOrElse(PCanonicalStruct())
-    val initOpArgs = Seq(partFile, partRoot) ++ indexInfo.map(_._2)
+    val initOpArgs = Seq(partFile, partRoot) ++ indexRoot
     val args =
       (
         "partpath",
         ApplyAggOp(
-          WriteRows(rowSpec, indexInfo.map(_._1)),
+          WriteRows(rowSpec, indexRoot.map(_ => pKey)),
           initOpArgs: _*
         )(row),
       ) +: metaInfoAggs(row, pKey.virtualType, trackTotalBytes)
@@ -168,7 +170,14 @@ object TableNativeWriter {
           bindIR(GetField(ctxRef, "writeCtx") + UUID4()) { partFile =>
             val partRoot = Str(s"$path/rows/parts/")
             val indexRoot = Str(s"$path/index/")
-            TableWriter.writerHelper(rowSpec, rows, partFile, partRoot, Some(pKey -> indexRoot))
+            TableWriter.writerHelper(
+              rowSpec,
+              rows,
+              partFile,
+              partRoot,
+              indexRoot = Some(indexRoot),
+              pKey = pKey,
+            )
           }
       } { (parts, globals) =>
         val writeGlobals = TableWriter.writerHelper(
@@ -830,10 +839,11 @@ case class TableNativeFanoutWriter(
               val indexRoot = Str(s"${target.path}/index/")
               TableWriter.rowWriterHelper(
                 target.rowSpec,
+                target.keyPType,
                 targetRow,
                 partFile,
                 partRoot,
-                Some(target.keyPType -> indexRoot),
+                indexRoot = Some(indexRoot),
               )
             }
           }: _*)
