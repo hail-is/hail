@@ -481,8 +481,6 @@ object Simplify {
                 && isDefinitelyDefined(step) =>
             Some(IsNA(arr))
 
-          // bindings are unaffected; move `IsNA` closer to the source of missingness
-          case Block(bindings, body) => Some(Block(bindings, IsNA(body)))
           case If(predicate, cnsq, altr) =>
             Some(Coalesce(FastSeq(If(predicate, IsNA(cnsq), IsNA(altr)), True())))
 
@@ -598,9 +596,6 @@ object Simplify {
 
       case StreamFlatMap(stream, x, f) =>
         stream match {
-          case Block(bindings, body) =>
-            Some(Block(bindings, StreamFlatMap(body, x, f)))
-
           case StreamMap(a, y, g) =>
             Some(StreamFlatMap(a, y, Let(FastSeq(x -> g), f)))
 
@@ -616,9 +611,6 @@ object Simplify {
       // FIXME: Unqualify when StreamFold supports folding over stream of streams
       case StreamFold(s, zero, accum, elem, f) =>
         s match {
-          case Block(bindings, body) =>
-            Some(Block(bindings, StreamFold(body, zero, accum, elem, f)))
-
           case StreamFilter(a, name, cond) if TIterable.elementType(a.typ).isRealizable =>
             val ref = Ref(name, TIterable.elementType(a.typ))
             val body = If(cond, Subst(f, BindingEnv.eval(elem -> ref)), Ref(accum, zero.typ))
@@ -641,9 +633,6 @@ object Simplify {
 
       case StreamFor(stream, x, f) =>
         stream match {
-          case Block(bindings, value) =>
-            Some(Block(bindings, StreamFor(value, x, f)))
-
           case StreamMap(inner, y, g) =>
             Some(StreamFor(inner, y, Let(FastSeq(x -> g), f)))
 
@@ -664,9 +653,6 @@ object Simplify {
 
       case StreamFilter(stream, x, cond) =>
         stream match {
-          case Block(bindings, body) =>
-            Some(Block(bindings, StreamFilter(body, x, cond)))
-
           case ArraySort(a, left, right, lessThan) =>
             Some(ArraySort(StreamFilter(a, x, cond), left, right, lessThan))
 
@@ -699,9 +685,6 @@ object Simplify {
           case MakeStream(args, _, _) =>
             Some(I32(args.length))
 
-          case Block(bindings, body) =>
-            Some(Block(bindings, StreamLen(body)))
-
           case StreamMap(s, _, _) =>
             Some(StreamLen(s))
 
@@ -723,9 +706,6 @@ object Simplify {
 
       case StreamMap(stream, x, f) =>
         stream match {
-          case Block(bindings, body) =>
-            Some(Block(bindings, StreamMap(body, x, f)))
-
           case MakeStream(Seq(), _, _) =>
             Some(MakeStream(FastSeq(), tcoerce[TStream](ir.typ)))
 
@@ -947,9 +927,6 @@ object Simplify {
         child match {
           case ToArray(s) if s.typ.isInstanceOf[TStream] =>
             Some(s)
-
-          case Block(bindings, ToArray(x)) if x.typ.isInstanceOf[TStream] =>
-            Some(Block(bindings, x))
 
           case MakeArray(args, t) =>
             Some(MakeStream(args, TStream(t.elementType)))

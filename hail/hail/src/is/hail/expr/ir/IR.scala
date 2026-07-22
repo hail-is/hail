@@ -47,6 +47,11 @@ abstract class IR extends BaseIR {
   override def mapChildrenWithIndex(f: (BaseIR, Int) => BaseIR): IR =
     super.mapChildrenWithIndex(f).asInstanceOf[IR]
 
+  override def foldChildrenWithIndex[E](env: E)(f: (BaseIR, Int, E) => (BaseIR, E)): (IR, E) = {
+    val (newIR, newEnv) = super.foldChildrenWithIndex(env)(f)
+    (newIR.asInstanceOf[IR], newEnv)
+  }
+
   override def deepCopy: this.type = {
     val cp = super.deepCopy
     if (_typ != null)
@@ -262,6 +267,8 @@ package defs {
     def name: Name
     def _typ: Type
   }
+
+  trait LeafRef extends BaseRef with Atom
 
   object ArrayZipBehavior extends Enumeration {
     type ArrayZipBehavior = Value
