@@ -3569,7 +3569,7 @@ steps:
       - ci_utils_image
       - default_ns
       - build_hail_jar_and_wheel
-      - test_install_in_isolation_python3_11
+      - test_install_in_isolation_python3_12
       - upload_temporary_hailctl_artifacts
     inputs:
       - from: /repo
@@ -3614,7 +3614,7 @@ steps:
       - ci_utils_image
       - default_ns
       - build_hail_jar_and_wheel
-      - test_install_in_isolation_python3_11
+      - test_install_in_isolation_python3_12
       - upload_temporary_hailctl_artifacts
     inputs:
       - from: /repo
