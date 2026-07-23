@@ -460,6 +460,7 @@ WHERE quote_id = %s AND `status` != 'deleted' AND `limit` IS NOT NULL;
             )
 
         await _log_bp_event(tx, name, actor, 'bp_created', comment=comment)
+        await _log_quote_event(tx, quote_id, actor, 'bp_created', target_project=name, comment=comment)
 
 
 async def patch_billing_project(
@@ -721,7 +722,7 @@ async def close_billing_project(
     async with db.start() as tx:
         row = await tx.execute_and_fetchone(
             """
-SELECT name_cs, `status`, batches.id as batch_id
+SELECT name_cs, `status`, quote_id, batches.id as batch_id
 FROM billing_projects
 LEFT JOIN batches
 ON billing_projects.name = batches.billing_project
@@ -746,6 +747,7 @@ FOR UPDATE;
 
         await tx.execute_update("UPDATE billing_projects SET `status` = 'closed' WHERE name_cs = %s;", (bp_name,))
         await _log_bp_event(tx, bp_name, actor, 'bp_closed', comment=comment)
+        await _log_quote_event(tx, row['quote_id'], actor, 'bp_closed', target_project=bp_name, comment=comment)
 
 
 async def reopen_billing_project(
@@ -761,7 +763,7 @@ async def reopen_billing_project(
     """
     async with db.start() as tx:
         row = await tx.execute_and_fetchone(
-            'SELECT name_cs, `status` FROM billing_projects WHERE name_cs = %s FOR UPDATE;', (bp_name,)
+            'SELECT name_cs, `status`, quote_id FROM billing_projects WHERE name_cs = %s FOR UPDATE;', (bp_name,)
         )
         if not row:
             raise NonExistentBillingProjectError(bp_name)
@@ -773,6 +775,7 @@ async def reopen_billing_project(
 
         await tx.execute_update("UPDATE billing_projects SET `status` = 'open' WHERE name_cs = %s;", (bp_name,))
         await _log_bp_event(tx, bp_name, actor, 'bp_reopened', comment=comment)
+        await _log_quote_event(tx, row['quote_id'], actor, 'bp_reopened', target_project=bp_name, comment=comment)
 
 
 async def delete_billing_project(

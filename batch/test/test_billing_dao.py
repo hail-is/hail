@@ -450,9 +450,11 @@ async def test_create_billing_project_logs_event(db):
     await create_quote(db, 'q-log-bp', cost_object='CO', actor='admin')
     q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-log-bp',))
     await create_billing_project(db, 'bp-log', q_row['id'], None, None, 'admin', 'global_bm', comment='init')
-    events = await get_billing_project_events(db, 'bp-log')
-    actions = {e['action'] for e in events}
-    assert 'bp_created' in actions
+    bp_events = await get_billing_project_events(db, 'bp-log')
+    assert 'bp_created' in {e['action'] for e in bp_events}
+    quote_events = await get_quote_events(db, 'q-log-bp')
+    assert quote_events is not None
+    assert any(e['action'] == 'bp_created' and e['target_project'] == 'bp-log' for e in quote_events)
 
 
 # ---------------------------------------------------------------------------
@@ -727,8 +729,11 @@ async def test_close_billing_project_running_batch_raises(db):
 async def test_close_billing_project_logs_event(db):
     await _make_bp(db, 'q-close-log', 'bp-close-log')
     await close_billing_project(db, 'bp-close-log', 'admin', comment='eod')
-    events = await get_billing_project_events(db, 'bp-close-log')
-    assert any(e['action'] == 'bp_closed' for e in events)
+    bp_events = await get_billing_project_events(db, 'bp-close-log')
+    assert any(e['action'] == 'bp_closed' for e in bp_events)
+    quote_events = await get_quote_events(db, 'q-close-log')
+    assert quote_events is not None
+    assert any(e['action'] == 'bp_closed' and e['target_project'] == 'bp-close-log' for e in quote_events)
 
 
 # ---------------------------------------------------------------------------
@@ -762,8 +767,11 @@ async def test_reopen_billing_project_logs_event(db):
     await _make_bp(db, 'q-reopen-log', 'bp-reopen-log')
     await close_billing_project(db, 'bp-reopen-log', 'admin')
     await reopen_billing_project(db, 'bp-reopen-log', 'admin', comment='back')
-    events = await get_billing_project_events(db, 'bp-reopen-log')
-    assert any(e['action'] == 'bp_reopened' for e in events)
+    bp_events = await get_billing_project_events(db, 'bp-reopen-log')
+    assert any(e['action'] == 'bp_reopened' for e in bp_events)
+    quote_events = await get_quote_events(db, 'q-reopen-log')
+    assert quote_events is not None
+    assert any(e['action'] == 'bp_reopened' and e['target_project'] == 'bp-reopen-log' for e in quote_events)
 
 
 # ---------------------------------------------------------------------------
