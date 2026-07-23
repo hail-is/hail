@@ -867,14 +867,14 @@ steps:
       - merge_code
       - download_mill_and_maven_deps
   - kind: runImage
-    name: test_install_in_isolation_python3_11
+    name: test_install_in_isolation_python3_12
     image:
       valueFrom: base_image.image
     script: |
       set -ex
       cd /io/
       
-      uv venv --python 3.11 --seed _venv
+      uv venv --python 3.12 --seed _venv
       source _venv/bin/activate
       
       pip install /io/wheel/hail-*-py3-none-any.whl

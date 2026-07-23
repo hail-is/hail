@@ -79,7 +79,7 @@ echo '[+] NOT VULNERABLE: no sick entry found in /etc/passwd'
 def test_no_af_alg_socket(client: BatchClient):
     """CVE-2026-31431: AF_ALG socket creation must be blocked on worker nodes."""
     b = create_batch(client)
-    j = b.create_job('python:3.11-slim', ['/bin/sh', '-c', _AF_ALG_CHECK])
+    j = b.create_job('python:3.12-slim', ['/bin/sh', '-c', _AF_ALG_CHECK])
     b.submit()
     status = j.wait()
     assert status['state'] == 'Success', str((status, b.debug_info()))
