@@ -21,6 +21,8 @@ tags:
     description: "Endpoints for managing deployments"
   - name: Namespaces
     description: "Endpoints for managing namespaces and services"
+  - name: PRs
+    description: "Endpoints for pull request data"
   - name: GitHub Integration
     description: "Endpoints for GitHub webhook integration"
   - name: Documentation
@@ -32,6 +34,55 @@ tags:
 
 components:
   schemas:
+    PRSummary:
+      type: object
+      properties:
+        number:
+          type: integer
+        title:
+          type: string
+        wb_index:
+          type: integer
+        wb_name:
+          type: string
+          description: "Branch name (e.g. 'main'), usable directly as the {branch} path parameter in watched_branches endpoints"
+        build_state:
+          type: string
+          nullable: true
+        out_of_date:
+          type: boolean
+        gh_statuses:
+          type: object
+          additionalProperties:
+            type: string
+        labels:
+          type: array
+          items:
+            type: string
+        source_branch_name:
+          type: string
+        review_state:
+          type: string
+          nullable: true
+        author:
+          type: string
+
+    DeveloperPRs:
+      type: object
+      properties:
+        open:
+          type: array
+          items:
+            $ref: '#/components/schemas/PRSummary'
+        reviewer:
+          type: array
+          items:
+            $ref: '#/components/schemas/PRSummary'
+        action_required:
+          type: array
+          items:
+            $ref: '#/components/schemas/PRSummary'
+
     BuildStatus:
       type: object
       properties:
@@ -217,11 +268,172 @@ components:
           type: boolean
           description: "Whether more rows exist beyond this page"
 
-  securitySchemes:
-    developerAuth:
-      type: http
-      scheme: bearer
-      description: Developer authentication token
+    WatchedBranchSummary:
+      type: object
+      properties:
+        branch:
+          type: string
+          description: "Branch name (e.g. main). Use this as the {branch} path parameter."
+        branch_fqn:
+          type: string
+          description: "Fully-qualified branch ref (e.g. hail-is/hail:main)."
+        repo:
+          type: string
+          description: "Repository (e.g. hail-is/hail)"
+        sha:
+          type: string
+          nullable: true
+          description: "Current HEAD SHA"
+        deploy_state:
+          type: string
+          nullable: true
+          description: "Latest deploy state"
+        deploy_batch_id:
+          type: integer
+          nullable: true
+          description: "Latest deploy batch ID"
+        n_prs:
+          type: integer
+          description: "Number of active PRs"
+        merge_candidate:
+          type: string
+          nullable: true
+          description: "Current merge candidate PR (eg pr-123)"
+
+    WatchedBranchesResponse:
+      type: object
+      properties:
+        branches:
+          type: array
+          items:
+            $ref: '#/components/schemas/WatchedBranchSummary'
+        frozen:
+          type: boolean
+          description: "Whether merges and deploys are frozen"
+
+    PRConfig:
+      type: object
+      properties:
+        number:
+          type: integer
+        title:
+          type: string
+        author:
+          type: string
+        assignees:
+          type: array
+          items:
+            type: string
+        reviewers:
+          type: array
+          items:
+            type: string
+        source_branch_name:
+          type: string
+        build_state:
+          type: string
+          nullable: true
+        review_state:
+          type: string
+          nullable: true
+        labels:
+          type: array
+          items:
+            type: string
+        out_of_date:
+          type: boolean
+        gh_statuses:
+          type: object
+          additionalProperties:
+            type: string
+        batch_id:
+          type: integer
+          nullable: true
+
+    BatchSummary:
+      type: object
+      nullable: true
+      properties:
+        id:
+          type: integer
+        state:
+          type: string
+          nullable: true
+        cost:
+          type: number
+          nullable: true
+        artifacts_uri:
+          type: string
+
+    ActivePRDetail:
+      allOf:
+        - $ref: '#/components/schemas/PRConfig'
+        - type: object
+          properties:
+            review_approved:
+              type: boolean
+            checks_all_pass:
+              type: boolean
+            is_up_to_date:
+              type: boolean
+            blocking_labels:
+              type: array
+              items:
+                type: string
+            is_mergeable:
+              type: boolean
+            prs_ahead_in_queue:
+              type: array
+              items:
+                type: object
+                properties:
+                  number:
+                    type: integer
+                  title:
+                    type: string
+                  is_merge_candidate:
+                    type: boolean
+            is_merge_candidate:
+              type: boolean
+            blocking_deploy_batch_id:
+              type: integer
+              nullable: true
+            batch:
+              $ref: '#/components/schemas/BatchSummary'
+
+    HistoricalPRDetail:
+      type: object
+      properties:
+        number:
+          type: integer
+        title:
+          type: string
+        labels:
+          type: array
+          items:
+            type: string
+        merged:
+          type: boolean
+          nullable: true
+        merge_commit_sha:
+          type: string
+          nullable: true
+
+    TeamMember:
+      type: object
+      properties:
+        gh_username:
+          type: string
+        hail_username:
+          type: string
+          nullable: true
+
+    FreezeResponse:
+      type: object
+      properties:
+        frozen:
+          type: boolean
+
 
 paths:
   '/':
@@ -283,8 +495,6 @@ paths:
       summary: "Retry PR build"
       description: "Request a retry of the CI build for this PR"
       tags: [Deployments]
-      security:
-        - developerAuth: []
       parameters:
         - name: watched_branch_index
           in: path
@@ -350,14 +560,25 @@ paths:
               schema:
                 type: object
 
-  
+  /api/v1alpha/version:
+    get:
+      summary: Get service version
+      description: Returns the current version of the ci service as plain text. Available to unauthenticated users; sysadmins receive the full version string while others receive only the base version (prefix before the first '-').
+      tags: [Documentation]
+      responses:
+        '200':
+          description: Version string retrieved successfully
+          content:
+            text/plain:
+              schema:
+                type: string
+                description: Service version string
+
   /api/v1alpha/deploy_status:
     get:
       summary: Get deployment status
       description: Get status of all branch deployments
       tags: [Deployments]
-      security:
-        - developerAuth: []
       responses:
         '200':
           description: Deployment status retrieved successfully
@@ -377,8 +598,6 @@ paths:
       summary: Trigger update
       description: Trigger an update of all watched branches
       tags: [Deployments]
-      security:
-        - developerAuth: []
       responses:
         '200':
           description: Update triggered successfully
@@ -392,8 +611,6 @@ paths:
       summary: Deploy branch for development
       description: Create a development deployment for a specific branch
       tags: [Deployments]
-      security:
-        - developerAuth: []
       requestBody:
         required: true
         content:
@@ -434,8 +651,6 @@ paths:
       summary: List builds
       description: Get a list of CI builds
       tags: [Builds]
-      security:
-        - developerAuth: []
       parameters:
         - name: limit
           in: query
@@ -466,8 +681,6 @@ paths:
       summary: Get build details
       description: Get detailed information about a specific build
       tags: [Builds]
-      security:
-        - developerAuth: []
       parameters:
         - name: build_id
           in: path
@@ -502,8 +715,6 @@ paths:
       summary: Get Envoy configuration
       description: Get Envoy proxy configuration for gateway or internal-gateway
       tags: [Namespaces]
-      security:
-        - developerAuth: []
       parameters:
         - name: proxy
           in: path
@@ -538,8 +749,6 @@ paths:
       summary: Authorize source SHA
       description: Authorize a source SHA for deployment
       tags: [Builds]
-      security:
-        - developerAuth: []
       requestBody:
         required: true
         content:
@@ -563,8 +772,6 @@ paths:
       summary: Freeze merges and deploys
       description: Freeze all merges and deployments
       tags: [Deployments]
-      security:
-        - developerAuth: []
       responses:
         '200':
           description: Successfully froze merges and deploys
@@ -578,8 +785,6 @@ paths:
       summary: Unfreeze merges and deploys
       description: Unfreeze all merges and deployments
       tags: [Deployments]
-      security:
-        - developerAuth: []
       responses:
         '200':
           description: Successfully unfroze merges and deploys
@@ -593,8 +798,6 @@ paths:
       summary: "Namespaces (UI)"
       description: "Render the namespaces page, or (dev only) its supporting jinja context"
       tags: [UI Pages]
-      security:
-        - developerAuth: []
       parameters:
         - name: x-hail-return-jinja-context
           in: header
@@ -617,8 +820,6 @@ paths:
       summary: Add service to namespace
       description: Add a new service to a namespace
       tags: [Namespaces]
-      security:
-        - developerAuth: []
       parameters:
         - name: namespace
           in: path
@@ -649,8 +850,6 @@ paths:
       summary: Edit service in namespace
       description: Edit service configuration in a namespace
       tags: [Namespaces]
-      security:
-        - developerAuth: []
       parameters:
         - name: namespace
           in: path
@@ -688,8 +887,6 @@ paths:
       summary: Add namespace
       description: Add a new namespace
       tags: [Namespaces]
-      security:
-        - developerAuth: []
       requestBody:
         required: true
         content:
@@ -713,8 +910,6 @@ paths:
       summary: "Flaky Test Dashboard (UI)"
       description: "Render the flaky test leaderboard page"
       tags: [Flaky Tests, UI Pages]
-      security:
-        - developerAuth: []
       responses:
         '200':
           description: "Successfully rendered the flaky test dashboard"
@@ -731,8 +926,6 @@ paths:
         with cursor-based pagination and an optional date filter.
         The default window is the last 14 days.
       tags: [Flaky Tests]
-      security:
-        - developerAuth: []
       parameters:
         - name: after
           in: query
@@ -813,4 +1006,576 @@ paths:
           content:
             application/json:
               schema:
-                type: object 
+                type: object
+
+  /api/v1alpha/watched_branches:
+    get:
+      summary: List watched branches
+      description: "Returns all branches CI is monitoring, plus the current freeze status."
+      tags: [PRs]
+      responses:
+        '200':
+          description: Watched branches retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WatchedBranchesResponse'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+
+  /api/v1alpha/watched_branches/{branch}/prs:
+    get:
+      summary: List PRs for a watched branch
+      description: Returns all active PRs for the given branch with build and review state.
+      tags: [PRs]
+      parameters:
+        - name: branch
+          in: path
+          required: true
+          schema:
+            type: string
+          description: "Branch name (e.g. main)"
+      responses:
+        '200':
+          description: PR list retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PRConfig'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Branch not found
+
+  /api/v1alpha/watched_branches/{branch}/prs/{number}:
+    get:
+      summary: Get PR details
+      description: >
+        Returns full details for a single PR. For active PRs (still open against this branch)
+        includes merge eligibility and queue position. For historical PRs fetches from GitHub.
+      tags: [PRs]
+      parameters:
+        - name: branch
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: number
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: PR details retrieved successfully
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ActivePRDetail'
+                  - $ref: '#/components/schemas/HistoricalPRDetail'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Branch or PR not found
+
+  /api/v1alpha/watched_branches/{branch}/prs/{number}/retry:
+    post:
+      summary: Retry PR build
+      description: Requests a CI retry for the PR. Invalidates the current batch and triggers a fresh run.
+      tags: [PRs]
+      parameters:
+        - name: branch
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: number
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Retry requested successfully
+        '400':
+          description: PR has no batch or had a merge failure
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires MANAGE_CI
+        '404':
+          description: Branch or PR not found
+
+  /api/v1alpha/namespaces:
+    get:
+      summary: List active namespaces
+      description: Returns all active dev namespaces with their deployed services and rate limits.
+      tags: [Namespaces]
+      responses:
+        '200':
+          description: Namespace list retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NamespaceInfo'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+
+  /api/v1alpha/namespaces/{namespace}:
+    get:
+      summary: Get a namespace
+      description: Returns the record for a single active namespace, including its deployed services map.
+      tags: [Namespaces]
+      parameters:
+        - name: namespace
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Namespace retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NamespaceInfo'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Namespace not found
+    put:
+      summary: Register a namespace (idempotent)
+      description: >
+        Ensures the namespace exists in active_namespaces. Creates it and returns
+        201 if new; returns 200 if it already existed. Safe to call repeatedly.
+      tags: [Namespaces]
+      parameters:
+        - name: namespace
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Namespace already existed
+        '201':
+          description: Namespace registered
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires MANAGE_CI
+    delete:
+      summary: Remove a namespace
+      description: Removes the namespace and all its deployed services from the active list.
+      tags: [Namespaces]
+      parameters:
+        - name: namespace
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Namespace removed
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires MANAGE_CI
+
+  /api/v1alpha/namespaces/{namespace}/services/{service}:
+    get:
+      summary: Get a namespace service
+      description: Returns the record for a single deployed service in a namespace.
+      tags: [Namespaces]
+      parameters:
+        - name: namespace
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: service
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Service retrieved successfully
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Service not found
+    put:
+      summary: Add service to namespace (idempotent)
+      description: >
+        Ensures the service is registered under the namespace. Creates it and
+        returns 201 if new; returns 200 if it already existed.
+      tags: [Namespaces]
+      parameters:
+        - name: namespace
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: service
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Service already existed
+        '201':
+          description: Service registered
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires MANAGE_CI
+    patch:
+      summary: Update service rate limit
+      description: Sets the rate_limit_rps for a deployed service. Pass null to remove the limit.
+      tags: [Namespaces]
+      parameters:
+        - name: namespace
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: service
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                rate_limit_rps:
+                  type: number
+                  nullable: true
+      responses:
+        '200':
+          description: Service updated
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires MANAGE_CI
+    delete:
+      summary: Remove a service from a namespace
+      description: Removes the service from the deployed_services table.
+      tags: [Namespaces]
+      parameters:
+        - name: namespace
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: service
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Service removed
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires MANAGE_CI
+
+  /api/v1alpha/developers:
+    get:
+      summary: List developers
+      description: Returns all authorized developers with their Hail and GitHub usernames.
+      tags: [Developers]
+      responses:
+        '200':
+          description: Developer list retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    hail_username:
+                      type: string
+                    gh_username:
+                      type: string
+        '401':
+          description: Unauthorized
+
+  /api/v1alpha/developers/{username}:
+    get:
+      summary: Developer identity
+      description: Returns the Hail and GitHub usernames for the specified developer.
+      tags: [Developers]
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Hail username of the developer, or the special value `me` for the authenticated caller
+      responses:
+        '200':
+          description: Developer found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  hail_username:
+                    type: string
+                  gh_username:
+                    type: string
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found - user is not in AUTHORIZED_USERS in constants.py
+
+  /api/v1alpha/developers/{username}/prs:
+    get:
+      summary: Developer's PRs (all categories)
+      description: >
+        Returns all PRs relevant to the developer grouped into open (authored),
+        reviewer, and action_required lists. Each PR includes wb_index and wb_name
+        to correlate with the watched_branches endpoint. wb_name is the branch name
+        (e.g. 'main') and can be used directly as the {branch} path parameter.
+      tags: [Developers]
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: PR lists retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeveloperPRs'
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+
+  /api/v1alpha/developers/{username}/prs/open:
+    get:
+      summary: Developer's open PRs
+      description: PRs authored by the developer.
+      tags: [Developers]
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Open PRs retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PRSummary'
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+
+  /api/v1alpha/developers/{username}/prs/reviewer:
+    get:
+      summary: Developer's reviewer PRs
+      description: PRs where the developer is assigned as a reviewer.
+      tags: [Developers]
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Reviewer PRs retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PRSummary'
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+
+  /api/v1alpha/developers/{username}/prs/action_required:
+    get:
+      summary: Developer's action-required PRs
+      description: PRs that require action from the developer (build failure, changes requested, or pending review).
+      tags: [Developers]
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Action-required PRs retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PRSummary'
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+
+  /api/v1alpha/developers/{username}/dev_deploys:
+    get:
+      summary: Developer's recent dev deploys
+      description: Returns the 10 most recent dev deploy batches for the developer.
+      tags: [Developers]
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Dev deploys retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+
+  /api/v1alpha/authorized_shas:
+    get:
+      summary: List authorized SHAs
+      description: Returns the list of SHAs that have been manually authorized for CI.
+      tags: [Builds]
+      responses:
+        '200':
+          description: Authorized SHAs retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+
+  /api/v1alpha/authorize_sha:
+    post:
+      summary: Authorize a SHA
+      description: Adds a SHA to the authorized_shas table.
+      tags: [Builds]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sha]
+              properties:
+                sha:
+                  type: string
+      responses:
+        '201':
+          description: SHA authorized
+        '400':
+          description: Missing sha field
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires MANAGE_CI
+
+  /api/v1alpha/teams:
+    get:
+      summary: List teams and members
+      description: Returns the full team roster from AUTHORIZED_USERS grouped by team.
+      tags: [PRs]
+      responses:
+        '200':
+          description: Teams retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/TeamMember'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+
+  /api/v1alpha/freeze:
+    post:
+      summary: Freeze merges and deploys
+      description: Freezes all CI merges and deployments. Returns 409 if already frozen.
+      tags: [Deployments]
+      responses:
+        '200':
+          description: CI frozen
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FreezeResponse'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires MANAGE_CI
+        '409':
+          description: Already frozen
+
+  /api/v1alpha/unfreeze:
+    post:
+      summary: Unfreeze merges and deploys
+      description: Unfreezes CI merges and deployments. Returns 409 if already unfrozen.
+      tags: [Deployments]
+      responses:
+        '200':
+          description: CI unfrozen
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FreezeResponse'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires MANAGE_CI
+        '409':
+          description: Already unfrozen

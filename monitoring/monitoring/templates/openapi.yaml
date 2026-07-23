@@ -96,16 +96,17 @@ components:
 paths:
   /api/v1alpha/version:
     get:
-      summary: Get version
-      description: Get the current version of the monitoring service
+      summary: Get service version
+      description: Returns the current version of the monitoring service as plain text. Available to unauthenticated users; sysadmins receive the full version string while others receive only the base version (prefix before the first '-').
       tags: [Documentation]
       responses:
         '200':
-          description: Version retrieved successfully
+          description: Version string retrieved successfully
           content:
             text/plain:
               schema:
                 type: string
+                description: Service version string
   /api/v1alpha/billing:
     get:
       summary: Get billing information

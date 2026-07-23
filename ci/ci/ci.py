@@ -33,6 +33,7 @@ from gear import (
     json_response,
     monitor_endpoints_middleware,
     setup_aiohttp_session,
+    version_response,
 )
 from gear.profiling import install_profiler_if_requested
 from hailtop import __version__, aiotools, httpx, uvloopx
@@ -51,7 +52,7 @@ from web_common import (
     web_security_headers_swagger,
 )
 
-from .constants import AUTHORIZED_USERS, TEAMS
+from .constants import AUTHORIZED_USERS, TEAMS, User
 from .environment import CLOUD, DEFAULT_NAMESPACE, DOMAIN, STORAGE_URI
 from .envoy import Service, create_cds_response, create_rds_response
 from .github import PR, WIP, FQBranch, MergeFailureBatch, Repo, UnwatchedBranch, WatchedBranch, select_random_teammate
@@ -169,6 +170,13 @@ def wb_and_pr_from_request(request: web.Request) -> Tuple[WatchedBranch, PR]:
     return wb, wb.prs[pr_number]
 
 
+def _wb_by_branch(branch_name: str) -> WatchedBranch:
+    for wb in watched_branches:
+        if wb.branch.name == branch_name:
+            return wb
+    raise web.HTTPNotFound()
+
+
 def filter_jobs(jobs):
     filtered: Dict[str, list] = {
         state: []
@@ -199,6 +207,43 @@ async def _populate_batch_context(page_context: Dict[str, Any], batch: Batch) ->
         page_context['logging_queries'] = None
 
 
+async def _active_pr_json(wb: WatchedBranch, pr: PR) -> dict:
+    _do_not_merge = frozenset(('WIP', 'stacked PR'))
+    deploy_batch = wb.deploy_batch
+    blocking_deploy_batch_id = (
+        deploy_batch.id if deploy_batch and isinstance(deploy_batch, Batch) and wb.deploy_state is None else None
+    )
+    batch = pr.batch
+    batch_summary = None
+    if batch and isinstance(batch, Batch):
+        status = await batch.last_known_status()
+        batch_summary = {
+            'id': batch.id,
+            'state': status.get('state'),
+            'cost': status.get('cost'),
+            'artifacts_uri': f'{STORAGE_URI}/build/{batch.attributes["token"]}',
+        }
+    return {
+        'review_approved': pr.review_state == 'approved',
+        'checks_all_pass': len(pr.last_known_github_status) > 0 and pr.build_succeeding_on_all_platforms(),
+        'is_up_to_date': pr.is_up_to_date(),
+        'blocking_labels': [label for label in pr.labels if label in ('WIP', 'stacked PR')],
+        'is_mergeable': pr.is_mergeable(),
+        'prs_ahead_in_queue': [
+            {'number': p.number, 'title': p.title, 'is_merge_candidate': p is wb.merge_candidate}
+            for p in wb.prs_in_merge_priority_order()
+            if p.number != pr.number
+            and p.merge_priority() > pr.merge_priority()
+            and p.review_state == 'approved'
+            and not any(label in _do_not_merge for label in p.labels)
+            and not p.build_failed_on_at_least_one_platform()
+        ],
+        'is_merge_candidate': wb.merge_candidate is not None and wb.merge_candidate.number == pr.number,
+        'blocking_deploy_batch_id': blocking_deploy_batch_id,
+        'batch': batch_summary,
+    }
+
+
 async def _populate_active_pr_context(
     page_context: Dict[str, Any], wb: WatchedBranch, pr_number: int, db: Database
 ) -> None:
@@ -206,33 +251,11 @@ async def _populate_active_pr_context(
     page_context['pr'] = pr
     page_context['active_pr'] = True
     page_context['pr_authorized'] = await pr.authorized(db)
-
-    # Merge eligibility checklist
-    page_context['review_approved'] = pr.review_state == 'approved'
-    page_context['checks_all_pass'] = len(pr.last_known_github_status) > 0 and pr.build_succeeding_on_all_platforms()
-    page_context['is_up_to_date'] = pr.is_up_to_date()
-    page_context['blocking_labels'] = [label for label in pr.labels if label in ('WIP', 'stacked PR')]
-    page_context['is_mergeable'] = pr.is_mergeable()
-
-    # Merge queue: approved, non-blocked, non-failing PRs with higher priority
-    _do_not_merge = frozenset(('WIP', 'stacked PR'))
     page_context['build_failing'] = pr.build_failed_on_at_least_one_platform()
-    page_context['prs_ahead_in_queue'] = [
-        {'number': p.number, 'title': p.title, 'is_merge_candidate': p is wb.merge_candidate}
-        for p in wb.prs_in_merge_priority_order()
-        if p.number != pr.number
-        and p.merge_priority() > pr.merge_priority()
-        and p.review_state == 'approved'
-        and not any(label in _do_not_merge for label in p.labels)
-        and not p.build_failed_on_at_least_one_platform()
-    ]
-    page_context['is_merge_candidate'] = wb.merge_candidate is not None and wb.merge_candidate.number == pr.number
 
-    # Deploy batch blocking next merge (running but not yet complete)
-    deploy_batch = wb.deploy_batch
-    page_context['blocking_deploy_batch_id'] = (
-        deploy_batch.id if deploy_batch and isinstance(deploy_batch, Batch) and wb.deploy_state is None else None
-    )
+    active_data = await _active_pr_json(wb, pr)
+    page_context.update(active_data)
+    page_context.pop('batch', None)
 
     batch = pr.batch
     if batch:
@@ -331,19 +354,15 @@ def storage_uri_to_url(uri: str) -> str:
     return uri
 
 
-async def retry_pr(wb: WatchedBranch, pr: PR, request: web.Request, userdata: UserData):
-    app = request.app
-    session = await aiohttp_session.get_session(request)
-
+async def _retry_pr_core(wb: WatchedBranch, pr: PR, app: web.Application, username: str) -> Optional[str]:
+    """Executes the retry logic. Returns an error message on failure, None on success."""
     if pr.batch is None:
         log.info(f'retry cannot be requested for PR #{pr.number} because it has no batch')
-        set_message(session, f'Retry cannot be requested for PR #{pr.number} because it has no batch.', 'error')
-        return
+        return 'Retry cannot be requested because this PR has no batch.'
 
     if isinstance(pr.batch, MergeFailureBatch):
         log.info(f'retry cannot be requested for PR #{pr.number} because it was a merge failure')
-        set_message(session, f'Retry cannot be requested for PR #{pr.number} because it was a merge failure.', 'error')
-        return
+        return 'Retry cannot be requested because this PR had a merge failure.'
 
     batch_id = pr.batch.id
     db = app[AppKeys.DB]
@@ -364,20 +383,28 @@ async def retry_pr(wb: WatchedBranch, pr: PR, request: web.Request, userdata: Us
                     wb.branch.short_str(),
                     pr.source_branch.name,
                     pr.source_sha,
-                    userdata['username'],
+                    username,
                 ),
             )
 
     await db.execute_insertone('INSERT INTO invalidated_batches (batch_id) VALUES (%s);', batch_id)
-    pr.pending_build_reason = f'retry by {userdata["username"]}'
+    pr.pending_build_reason = f'retry by {username}'
     pr.batch = None
     pr.set_build_state(None)
     await wb.notify_batch_changed(
         db, app[AppKeys.BATCH_CLIENT], app[AppKeys.GH_CLIENT], app[AppKeys.FROZEN_MERGE_DEPLOY]
     )
-
     log.info(f'retry requested for PR: {pr.number}')
-    set_message(session, f'Retry requested for PR #{pr.number}.', 'info')
+    return None
+
+
+async def retry_pr(wb: WatchedBranch, pr: PR, request: web.Request, userdata: UserData):
+    session = await aiohttp_session.get_session(request)
+    error = await _retry_pr_core(wb, pr, request.app, userdata['username'])
+    if error:
+        set_message(session, error, 'error')
+    else:
+        set_message(session, f'Retry requested for PR #{pr.number}.', 'info')
 
 
 @routes.post('/watched_branches/{watched_branch_index}/pr/{pr_number}/retry')
@@ -595,6 +622,12 @@ async def batch_callback_handler(request: web.Request):
                     )
 
 
+@routes.get('/api/v1alpha/version')
+@auth.maybe_authenticated_user
+async def get_version(_, userdata: Optional[UserData]) -> web.Response:
+    return version_response(userdata)
+
+
 @routes.get('/api/v1alpha/deploy_status')
 @auth.authenticated_users_with_permission(SystemPermission.READ_CI, redirect=False)
 async def deploy_status(request: web.Request, _) -> web.Response:
@@ -754,26 +787,33 @@ UPDATE globals SET frozen_merge_deploy = 0;
     raise web.HTTPFound(deploy_config.external_url('ci', '/'))
 
 
-@routes.get('/namespaces')
-@web_security_headers
-@auth.authenticated_users_with_permission(SystemPermission.READ_CI)
-async def get_active_namespaces(request: web.Request, userdata: UserData) -> web.Response:
-    db = request.app[AppKeys.DB]
+async def _fetch_active_namespaces(db: Database, namespace: Optional[str] = None) -> list:
+    where = 'WHERE active_namespaces.namespace = %s' if namespace is not None else ''
+    args = (namespace,) if namespace is not None else ()
     namespaces = [
         r
-        async for r in db.execute_and_fetchall("""
+        async for r in db.execute_and_fetchall(
+            f"""
 SELECT active_namespaces.*, JSON_OBJECTAGG(service, rate_limit_rps) as services
 FROM active_namespaces
 LEFT JOIN deployed_services
 ON active_namespaces.namespace = deployed_services.namespace
-GROUP BY active_namespaces.namespace""")
+{where}
+GROUP BY active_namespaces.namespace""",
+            args,
+        )
     ]
     for ns in namespaces:
-        ns['services'] = json.loads(ns['services']) or {}
-    context = {
-        'namespaces': namespaces,
-    }
-    return await render_template('ci', request, userdata, 'namespaces.html', context)
+        ns['services'] = json.loads(ns['services'] or '{}') or {}
+    return namespaces
+
+
+@routes.get('/namespaces')
+@web_security_headers
+@auth.authenticated_users_with_permission(SystemPermission.READ_CI)
+async def get_active_namespaces(request: web.Request, userdata: UserData) -> web.Response:
+    namespaces = await _fetch_active_namespaces(request.app[AppKeys.DB])
+    return await render_template('ci', request, userdata, 'namespaces.html', {'namespaces': namespaces})
 
 
 @routes.post('/namespaces/{namespace}/services/add')
@@ -798,7 +838,7 @@ WHERE namespace = %s AND service = %s
         set_message(session, 'Service already registered', 'info')
     else:
         await db.execute_insertone(
-            'INSERT INTO deployed_services VALUES (%s, %s)',
+            'INSERT INTO deployed_services (`namespace`, `service`) VALUES (%s, %s)',
             (namespace, service),
         )
 
@@ -815,7 +855,7 @@ async def update_namespaced_service(request: web.Request, _) -> NoReturn:
     post = await request.post()
     rate_limit = post['rate_limit'] or None
 
-    await db.execute_insertone(
+    await db.execute_update(
         """UPDATE deployed_services SET rate_limit_rps = %s WHERE namespace = %s AND service = %s""",
         (rate_limit, namespace, service),
     )
@@ -952,6 +992,344 @@ LIMIT %s
         'cursor': rows[-1]['id'] if has_more else None,
         'has_more': has_more,
     })
+
+
+def _pr_config_json(cfg: PRConfig) -> dict:
+    return {
+        **cfg,
+        'assignees': list(cfg['assignees']),
+        'reviewers': list(cfg['reviewers']),
+        'labels': list(cfg['labels']),
+    }
+
+
+def _pr_flat_json(cfg: PRConfig, wb: WatchedBranchConfig) -> dict:
+    return {
+        'number': cfg['number'],
+        'title': cfg['title'],
+        'wb_index': wb['index'],
+        'wb_name': wb['branch'],
+        'build_state': cfg['build_state'],
+        'out_of_date': cfg['out_of_date'],
+        'gh_statuses': cfg['gh_statuses'],
+        'labels': list(cfg['labels']),
+        'source_branch_name': cfg['source_branch_name'],
+        'review_state': cfg['review_state'],
+        'author': cfg['author'],
+    }
+
+
+def _wb_config_json(cfg: Dict[str, Any]) -> dict:
+    return {
+        **cfg,
+        'prs': [_pr_config_json(pr) for pr in cfg['prs']],
+        'gh_status_names': list(cfg['gh_status_names']),
+    }
+
+
+@routes.get('/api/v1alpha/watched_branches')
+@auth.authenticated_users_with_permission(SystemPermission.READ_CI, redirect=False)
+async def api_watched_branches(request: web.Request, _) -> web.Response:
+    result = [
+        {
+            'branch': wb.branch.name,
+            'branch_fqn': wb.branch.short_str(),
+            'repo': wb.branch.repo.short_str(),
+            'sha': wb.sha,
+            'deploy_state': wb.deploy_state,
+            'deploy_batch_id': wb.deploy_batch.id if wb.deploy_batch and isinstance(wb.deploy_batch, Batch) else None,
+            'n_prs': len(wb.prs) if wb.prs else 0,
+            'merge_candidate': wb.merge_candidate.short_str() if wb.merge_candidate else None,
+        }
+        for wb in watched_branches
+    ]
+    return json_response({'branches': result, 'frozen': request.app[AppKeys.FROZEN_MERGE_DEPLOY]})
+
+
+@routes.get('/api/v1alpha/watched_branches/{branch}/prs')
+@auth.authenticated_users_with_permission(SystemPermission.READ_CI, redirect=False)
+async def api_watched_branch_prs(request: web.Request, _) -> web.Response:
+    wb = _wb_by_branch(request.match_info['branch'])
+    prs = [_pr_config_json(await pr_config(request.app, pr)) for pr in (wb.prs or {}).values()]
+    return json_response(prs)
+
+
+@routes.get('/api/v1alpha/watched_branches/{branch}/prs/{number}')
+@auth.authenticated_users_with_permission(SystemPermission.READ_CI, redirect=False)
+async def api_watched_branch_pr(request: web.Request, _) -> web.Response:
+    wb = _wb_by_branch(request.match_info['branch'])
+    try:
+        pr_number = int(request.match_info['number'])
+    except ValueError as exc:
+        raise web.HTTPBadRequest(text='PR number must be an integer') from exc
+
+    if wb.prs and pr_number in wb.prs:
+        pr = wb.prs[pr_number]
+        result = _pr_config_json(await pr_config(request.app, pr))
+        result.update(await _active_pr_json(wb, pr))
+        return json_response(result)
+
+    try:
+        gh_pr = await request.app[AppKeys.GH_CLIENT].getitem(f'/repos/{wb.branch.repo.short_str()}/pulls/{pr_number}')
+        return json_response({
+            'number': gh_pr['number'],
+            'title': gh_pr['title'],
+            'labels': [label['name'] for label in gh_pr.get('labels', [])],
+            'merged': gh_pr['merged'],
+            'merge_commit_sha': gh_pr.get('merge_commit_sha') if gh_pr['merged'] else None,
+        })
+    except gidgethub.HTTPException as e:
+        if e.status_code == 404:
+            raise web.HTTPNotFound()
+        log.exception('GitHub API error fetching PR %s', pr_number)
+        raise web.HTTPBadGateway(text='GitHub API error')
+    except ClientError as exc:
+        log.exception('GitHub API network error fetching PR %s', pr_number)
+        raise web.HTTPBadGateway(text='GitHub API unreachable') from exc
+
+
+@routes.get('/api/v1alpha/namespaces')
+@auth.authenticated_users_with_permission(SystemPermission.READ_CI, redirect=False)
+async def api_namespaces(request: web.Request, _) -> web.Response:
+    namespaces = await _fetch_active_namespaces(request.app[AppKeys.DB])
+    return json_response(namespaces)
+
+
+def _lookup_developer(username: str, userdata: UserData) -> User:
+    if username == 'me':
+        username = userdata['username']
+    user = next((u for u in AUTHORIZED_USERS if u.hail_username == username), None)
+    if user is None:
+        raise web.HTTPNotFound(text='No such dev-authorized user. Check AUTHORIZED_USERS in constants.py.')
+    return user
+
+
+@routes.get('/api/v1alpha/developers')
+@auth.authenticated_users_with_permission(SystemPermission.READ_CI, redirect=False)
+async def api_developers(_request: web.Request, _: UserData) -> web.Response:
+    return json_response([{'hail_username': u.hail_username, 'gh_username': u.gh_username} for u in AUTHORIZED_USERS])
+
+
+@routes.get('/api/v1alpha/developers/{username}')
+@auth.authenticated_users_with_permission(SystemPermission.READ_CI, redirect=False)
+async def api_developer(request: web.Request, userdata: UserData) -> web.Response:
+    user = _lookup_developer(request.match_info['username'], userdata)
+    return json_response({'hail_username': user.hail_username, 'gh_username': user.gh_username})
+
+
+@routes.get('/api/v1alpha/developers/{username}/prs')
+@auth.authenticated_users_with_permission(SystemPermission.READ_CI, redirect=False)
+async def api_developer_prs(request: web.Request, userdata: UserData) -> web.Response:
+    user = _lookup_developer(request.match_info['username'], userdata)
+    wbs = [await watched_branch_config(request.app, wb, i) for i, wb in enumerate(watched_branches)]
+    open_prs = [_pr_flat_json(pr, wb) for wb in wbs for pr in wb['prs'] if is_pr_author(user.gh_username, pr)]
+    reviewer_prs = [_pr_flat_json(pr, wb) for wb in wbs for pr in wb['prs'] if is_pr_reviewer(user.gh_username, pr)]
+    action_required_prs = [
+        _pr_flat_json(pr, wb) for wb in wbs for pr in wb['prs'] if pr_requires_action(user.gh_username, pr)
+    ]
+    return json_response({'open': open_prs, 'reviewer': reviewer_prs, 'action_required': action_required_prs})
+
+
+@routes.get('/api/v1alpha/developers/{username}/prs/open')
+@auth.authenticated_users_with_permission(SystemPermission.READ_CI, redirect=False)
+async def api_developer_prs_open(request: web.Request, userdata: UserData) -> web.Response:
+    user = _lookup_developer(request.match_info['username'], userdata)
+    wbs = [await watched_branch_config(request.app, wb, i) for i, wb in enumerate(watched_branches)]
+    return json_response([
+        _pr_flat_json(pr, wb) for wb in wbs for pr in wb['prs'] if is_pr_author(user.gh_username, pr)
+    ])
+
+
+@routes.get('/api/v1alpha/developers/{username}/prs/reviewer')
+@auth.authenticated_users_with_permission(SystemPermission.READ_CI, redirect=False)
+async def api_developer_prs_reviewer(request: web.Request, userdata: UserData) -> web.Response:
+    user = _lookup_developer(request.match_info['username'], userdata)
+    wbs = [await watched_branch_config(request.app, wb, i) for i, wb in enumerate(watched_branches)]
+    return json_response([
+        _pr_flat_json(pr, wb) for wb in wbs for pr in wb['prs'] if is_pr_reviewer(user.gh_username, pr)
+    ])
+
+
+@routes.get('/api/v1alpha/developers/{username}/prs/action_required')
+@auth.authenticated_users_with_permission(SystemPermission.READ_CI, redirect=False)
+async def api_developer_prs_action_required(request: web.Request, userdata: UserData) -> web.Response:
+    user = _lookup_developer(request.match_info['username'], userdata)
+    wbs = [await watched_branch_config(request.app, wb, i) for i, wb in enumerate(watched_branches)]
+    return json_response([
+        _pr_flat_json(pr, wb) for wb in wbs for pr in wb['prs'] if pr_requires_action(user.gh_username, pr)
+    ])
+
+
+@routes.get('/api/v1alpha/developers/{username}/dev_deploys')
+@auth.authenticated_users_with_permission(SystemPermission.READ_CI, redirect=False)
+async def api_developer_dev_deploys(request: web.Request, userdata: UserData) -> web.Response:
+    user = _lookup_developer(request.match_info['username'], userdata)
+    batch_client = request.app[AppKeys.BATCH_CLIENT]
+    dev_deploys_iter = batch_client.list_batches(f'user={user.hail_username} dev_deploy=1', limit=10)
+    dev_deploys = sorted([b async for b in dev_deploys_iter], key=lambda b: b.id, reverse=True)
+    return json_response([await b.last_known_status() for b in dev_deploys])
+
+
+@routes.get('/api/v1alpha/authorized_shas')
+@auth.authenticated_users_with_permission(SystemPermission.READ_CI, redirect=False)
+async def api_authorized_shas(request: web.Request, _) -> web.Response:
+    db = request.app[AppKeys.DB]
+    rows = [r['sha'] async for r in db.execute_and_fetchall('SELECT sha FROM authorized_shas ORDER BY sha')]
+    return json_response(rows)
+
+
+@routes.get('/api/v1alpha/teams')
+@auth.authenticated_users_with_permission(SystemPermission.READ_CI, redirect=False)
+async def api_teams(_request: web.Request, _) -> web.Response:
+    result: Dict[str, list] = {team: [] for team in TEAMS}
+    for user in AUTHORIZED_USERS:
+        for team in user.teams:
+            if team in result:
+                result[team].append({'gh_username': user.gh_username, 'hail_username': user.hail_username})
+    return json_response(result)
+
+
+@routes.post('/api/v1alpha/freeze')
+@auth.authenticated_users_with_permission(SystemPermission.MANAGE_CI, redirect=False)
+async def api_freeze(request: web.Request, _) -> web.Response:
+    app = request.app
+    if app[AppKeys.FROZEN_MERGE_DEPLOY]:
+        raise web.HTTPConflict(text='CI is already frozen.')
+    await app[AppKeys.DB].execute_update('UPDATE globals SET frozen_merge_deploy = 1;')
+    app[AppKeys.FROZEN_MERGE_DEPLOY] = True
+    return json_response({'frozen': True})
+
+
+@routes.post('/api/v1alpha/unfreeze')
+@auth.authenticated_users_with_permission(SystemPermission.MANAGE_CI, redirect=False)
+async def api_unfreeze(request: web.Request, _) -> web.Response:
+    app = request.app
+    if not app[AppKeys.FROZEN_MERGE_DEPLOY]:
+        raise web.HTTPConflict(text='CI is already unfrozen.')
+    await app[AppKeys.DB].execute_update('UPDATE globals SET frozen_merge_deploy = 0;')
+    app[AppKeys.FROZEN_MERGE_DEPLOY] = False
+    return json_response({'frozen': False})
+
+
+@routes.post('/api/v1alpha/watched_branches/{branch}/prs/{number}/retry')
+@auth.authenticated_users_with_permission(SystemPermission.MANAGE_CI, redirect=False)
+async def api_retry_pr(request: web.Request, userdata: UserData) -> web.Response:
+    wb = _wb_by_branch(request.match_info['branch'])
+    try:
+        pr_number = int(request.match_info['number'])
+    except ValueError as exc:
+        raise web.HTTPBadRequest(text='PR number must be an integer') from exc
+    if not wb.prs or pr_number not in wb.prs:
+        raise web.HTTPNotFound()
+    pr = wb.prs[pr_number]
+    error = await asyncio.shield(_retry_pr_core(wb, pr, request.app, userdata['username']))
+    if error:
+        raise web.HTTPBadRequest(text=error)
+    return web.Response(status=200)
+
+
+@routes.post('/api/v1alpha/authorize_sha')
+@auth.authenticated_users_with_permission(SystemPermission.MANAGE_CI, redirect=False)
+async def api_authorize_sha(request: web.Request, _) -> web.Response:
+    params = await json_request(request)
+    if not isinstance(params, dict):
+        raise web.HTTPBadRequest(text='Request body must be a JSON object')
+    sha = str(params.get('sha', '')).strip()
+    if not sha:
+        raise web.HTTPBadRequest(text='sha is required')
+    await request.app[AppKeys.DB].execute_insertone('INSERT INTO authorized_shas (sha) VALUES (%s);', sha)
+    log.info(f'authorized sha: {sha}')
+    return web.Response(status=201)
+
+
+@routes.get('/api/v1alpha/namespaces/{namespace}')
+@auth.authenticated_users_with_permission(SystemPermission.READ_CI, redirect=False)
+async def api_get_namespace(request: web.Request, _) -> web.Response:
+    db = request.app[AppKeys.DB]
+    namespace = request.match_info['namespace']
+    namespaces = await _fetch_active_namespaces(db, namespace=namespace)
+    if not namespaces:
+        raise web.HTTPNotFound()
+    return json_response(namespaces[0])
+
+
+@routes.put('/api/v1alpha/namespaces/{namespace}')
+@auth.authenticated_users_with_permission(SystemPermission.MANAGE_CI, redirect=False)
+async def api_put_namespace(request: web.Request, _) -> web.Response:
+    db = request.app[AppKeys.DB]
+    namespace = request.match_info['namespace']
+    existing = await db.execute_and_fetchone('SELECT 1 FROM active_namespaces WHERE namespace = %s', (namespace,))
+    if existing:
+        return json_response({'namespace': namespace})
+    await db.execute_insertone('INSERT INTO active_namespaces (`namespace`) VALUES (%s)', (namespace,))
+    return web.Response(status=201)
+
+
+@routes.delete('/api/v1alpha/namespaces/{namespace}')
+@auth.authenticated_users_with_permission(SystemPermission.MANAGE_CI, redirect=False)
+async def api_delete_namespace(request: web.Request, _) -> web.Response:
+    db = request.app[AppKeys.DB]
+    namespace = request.match_info['namespace']
+    await remove_namespace_from_db(db, namespace)
+    return web.Response(status=204)
+
+
+@routes.get('/api/v1alpha/namespaces/{namespace}/services/{service}')
+@auth.authenticated_users_with_permission(SystemPermission.READ_CI, redirect=False)
+async def api_get_namespace_service(request: web.Request, _) -> web.Response:
+    db = request.app[AppKeys.DB]
+    namespace = request.match_info['namespace']
+    service = request.match_info['service']
+    record = await db.select_and_fetchone(
+        'SELECT * FROM deployed_services WHERE namespace = %s AND service = %s', (namespace, service)
+    )
+    if not record:
+        raise web.HTTPNotFound()
+    return json_response(dict(record))
+
+
+@routes.put('/api/v1alpha/namespaces/{namespace}/services/{service}')
+@auth.authenticated_users_with_permission(SystemPermission.MANAGE_CI, redirect=False)
+async def api_put_namespace_service(request: web.Request, _) -> web.Response:
+    db = request.app[AppKeys.DB]
+    namespace = request.match_info['namespace']
+    service = request.match_info['service']
+    existing = await db.select_and_fetchone(
+        'SELECT 1 FROM deployed_services WHERE namespace = %s AND service = %s', (namespace, service)
+    )
+    if existing:
+        return json_response({'namespace': namespace, 'service': service})
+    await db.execute_insertone(
+        'INSERT INTO deployed_services (`namespace`, `service`) VALUES (%s, %s)', (namespace, service)
+    )
+    return web.Response(status=201)
+
+
+@routes.patch('/api/v1alpha/namespaces/{namespace}/services/{service}')
+@auth.authenticated_users_with_permission(SystemPermission.MANAGE_CI, redirect=False)
+async def api_update_namespace_service(request: web.Request, _) -> web.Response:
+    db = request.app[AppKeys.DB]
+    namespace = request.match_info['namespace']
+    service = request.match_info['service']
+    params = await json_request(request)
+    if not isinstance(params, dict):
+        raise web.HTTPBadRequest(text='Request body must be a JSON object')
+    rate_limit_rps = params.get('rate_limit_rps')
+    await db.execute_update(
+        'UPDATE deployed_services SET rate_limit_rps = %s WHERE namespace = %s AND service = %s',
+        (rate_limit_rps, namespace, service),
+    )
+    return web.Response(status=200)
+
+
+@routes.delete('/api/v1alpha/namespaces/{namespace}/services/{service}')
+@auth.authenticated_users_with_permission(SystemPermission.MANAGE_CI, redirect=False)
+async def api_delete_namespace_service(request: web.Request, _) -> web.Response:
+    db = request.app[AppKeys.DB]
+    namespace = request.match_info['namespace']
+    service = request.match_info['service']
+    await db.execute_update('DELETE FROM deployed_services WHERE namespace = %s AND service = %s', (namespace, service))
+    return web.Response(status=204)
 
 
 async def cleanup_expired_namespaces(db: Database):
