@@ -31,6 +31,7 @@ from gear import (
     monitor_endpoints_middleware,
     setup_aiohttp_session,
     transaction,
+    version_response,
 )
 from gear.auth import AIOHTTPHandler, get_session_id
 from gear.cloud_config import get_global_config
@@ -606,10 +607,30 @@ async def rest_login(request: web.Request) -> web.Response:
     })
 
 
+@routes.get('/api/v1alpha/version')
+@auth.maybe_authenticated_user
+async def get_version(_, userdata: Optional[UserData]) -> web.Response:
+    return version_response(userdata)
+
+
 @routes.get('/api/v1alpha/oauth2-client')
 async def hailctl_oauth_client(request):  # pylint: disable=unused-argument
     idp = IdentityProvider.GOOGLE if CLOUD == 'gcp' else IdentityProvider.MICROSOFT
     return json_response({'idp': idp.value, 'oauth2_client': request.app[AppKeys.HAILCTL_CLIENT_CONFIG]})
+
+
+@routes.get('/api/v1alpha/support')
+async def get_support(request):  # pylint: disable=unused-argument
+    try:
+        global_config = get_global_config()
+        support_email = global_config.get('support_email', '')
+    except (FileNotFoundError, OSError):
+        support_email = ''
+    return json_response({
+        'cloud': CLOUD,
+        'inactive_user_timeout_days': INACTIVE_USER_TIMEOUT_DAYS,
+        'support_email': support_email,
+    })
 
 
 @routes.get('/roles')
