@@ -3344,11 +3344,9 @@ async def api_get_billing_projects_remove_user(request: web.Request, userdata: U
     user = request.match_info['user']
     actor = userdata['username']
     comment = None
-    try:
+    if request.content_type == 'application/json':
         body = await request.json()
         comment = body.get('comment')
-    except Exception:
-        pass
     await _handle_api_error(billing_dao.remove_billing_project_user, db, billing_project, user, actor, comment)
     return json_response({'billing_project': billing_project, 'user': user})
 
@@ -3398,11 +3396,9 @@ async def api_billing_projects_add_user(request: web.Request, userdata: UserData
     billing_project = request.match_info['billing_project']
     actor = userdata['username']
     comment = None
-    try:
+    if request.content_type == 'application/json':
         body = await request.json()
         comment = body.get('comment')
-    except Exception:
-        pass
     await _handle_api_error(_add_user_to_billing_project, request, db, billing_project, user, actor, comment)
     return json_response({'billing_project': billing_project, 'user': user})
 
@@ -3436,10 +3432,8 @@ async def api_get_create_billing_projects(request: web.Request, userdata: UserDa
     username = userdata['username']
 
     body: dict = {}
-    try:
+    if request.content_type == 'application/json':
         body = await request.json()
-    except Exception:
-        pass
 
     quote_name = body.get('quote_name', 'INTERNAL')
     limit = body.get('limit')
@@ -3496,11 +3490,9 @@ async def api_close_billing_projects(request: web.Request, userdata: UserData) -
     billing_project = request.match_info['billing_project']
     actor = userdata['username']
     comment = None
-    try:
+    if request.content_type == 'application/json':
         body = await request.json()
         comment = body.get('comment')
-    except Exception:
-        pass
     await _handle_api_error(billing_dao.close_billing_project, db, billing_project, actor, comment)
     return json_response(billing_project)
 
@@ -3530,11 +3522,9 @@ async def api_reopen_billing_projects(request: web.Request, userdata: UserData) 
     billing_project = request.match_info['billing_project']
     actor = userdata['username']
     comment = None
-    try:
+    if request.content_type == 'application/json':
         body = await request.json()
         comment = body.get('comment')
-    except Exception:
-        pass
     await _handle_api_error(billing_dao.reopen_billing_project, db, billing_project, actor, comment)
     return json_response(billing_project)
 
@@ -3742,11 +3732,9 @@ async def remove_quote_manager(request: web.Request, userdata: UserData) -> web.
     target_user = request.match_info['user']
     actor = userdata['username']
     comment = None
-    try:
+    if request.content_type == 'application/json':
         body = await request.json()
         comment = body.get('comment')
-    except Exception:
-        pass
 
     await _handle_api_error(billing_dao.remove_quote_manager, db, quote_name, target_user, actor, comment)
     return json_response({'quote': quote_name, 'user': target_user})
