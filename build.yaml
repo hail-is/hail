@@ -498,6 +498,8 @@ steps:
         script: /io/sql/010-refactor-roles.sql
       - name: refactor-system-permissions
         script: /io/sql/011-refactor-system-permissions.sql
+      - name: add-create-quotes-permission
+        script: /io/sql/012-add-create-quotes-permission.sql
     inputs:
       - from: /repo/auth/sql
         to: /io/sql
@@ -2580,6 +2582,9 @@ steps:
       - name: add-dockerhub-proxy-flag
         script: /io/sql/120-add-dockerhub-proxy-flag.sql
         online: true
+      - name: billing-quotes
+        script: /io/sql/121-billing-quotes.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
@@ -2910,6 +2915,94 @@ steps:
       - workdir_image
       - hail_ubuntu_image
       - gpu_image
+  - kind: runImage
+    name: test_billing_dao
+    numSplits: 1
+    image:
+      valueFrom: batch_image.image
+    script: |
+      set -ex
+
+      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
+      export HAIL_CLOUD="{{ global.cloud }}"
+
+      hail-pip-install -r /io/dev-requirements.txt
+
+      # Install and start MySQL ad-hoc — not baked into the batch image.
+      DEBIAN_FRONTEND=noninteractive apt-get install -y -qq mysql-server
+      mysqld --user=root --daemonize --log-error=/tmp/mysqld.log
+      until mysqladmin --user=root ping --silent 2>/dev/null; do sleep 1; done
+      mysql --user=root -e "ALTER USER 'root'@'localhost' IDENTIFIED BY 'pw'; FLUSH PRIVILEGES;"
+
+      python3 -m pytest \
+              --log-cli-level=INFO \
+              -s \
+              -r A \
+              -vv \
+              --instafail \
+              --durations=50 \
+              --timeout=120 \
+              /io/test/test_billing_dao.py
+    inputs:
+      - from: /repo/batch/test
+        to: /io/test
+      - from: /repo/hail/python/dev/pinned-requirements.txt
+        to: /io/dev-requirements.txt
+    port: 5000
+    timeout: 300
+    dependsOn:
+      - merge_code
+      - batch_image
+  - kind: runImage
+    name: test_batch_billing_quotes
+    numSplits: 1
+    image:
+      valueFrom: batch_image.image
+    script: |
+      set -ex
+
+      # Use test-dev (billing_manager role) as the default identity for BM operations.
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-dev-gsa-key/key.json
+      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
+      export HAIL_TOKEN="{{ token }}"
+      export HAIL_CLOUD="{{ global.cloud }}"
+      # test-gsa-key is the 'test' user (no billing roles) — used for non-member assertions.
+      export HAIL_NON_MEMBER_CREDENTIALS_FILE=/test-gsa-key/key.json
+
+      hail-pip-install -r /io/dev-requirements.txt
+
+      python3 -m pytest \
+              --log-cli-level=INFO \
+              -s \
+              -r A \
+              -vv \
+              --instafail \
+              --durations=50 \
+              --timeout=360 \
+              /io/test/test_billing_quotes.py
+    inputs:
+      - from: /repo/batch/test
+        to: /io/test
+      - from: /repo/hail/python/dev/pinned-requirements.txt
+        to: /io/dev-requirements.txt
+    port: 5000
+    timeout: 600
+    secrets:
+      - name: test-gsa-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-gsa-key
+      - name: test-dev-gsa-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-dev-gsa-key
+    dependsOn:
+      - create_deploy_config
+      - create_accounts
+      - default_ns
+      - merge_code
+      - deploy_batch
+      - batch_image
   - kind: runImage
     name: test_batch_job_private_machines
     numSplits: 1

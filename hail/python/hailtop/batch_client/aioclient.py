@@ -1347,11 +1347,11 @@ class BatchClient:
     async def _post(self, path, data=None, json=None) -> aiohttp.ClientResponse:
         return await self._request('post', path, data=data, json=json)
 
-    async def _patch(self, path) -> aiohttp.ClientResponse:
-        return await self._request('patch', path)
+    async def _patch(self, path, json=None) -> aiohttp.ClientResponse:
+        return await self._request('patch', path, json=json)
 
-    async def _delete(self, path) -> aiohttp.ClientResponse:
-        return await self._request('delete', path)
+    async def _delete(self, path, json=None) -> aiohttp.ClientResponse:
+        return await self._request('delete', path, json=json)
 
     def reset_billing_project(self, billing_project):
         self.billing_project = billing_project
@@ -1429,20 +1429,39 @@ class BatchClient:
         bp_resp = await self._post(f'/api/v1alpha/billing_projects/{project}/create')
         return await bp_resp.json()
 
-    async def add_user(self, user, project):
-        resp = await self._post(f'/api/v1alpha/billing_projects/{project}/users/{user}/add')
-        return await resp.json()
-
-    async def remove_user(self, user, project):
-        resp = await self._post(f'/api/v1alpha/billing_projects/{project}/users/{user}/remove')
-        return await resp.json()
-
-    async def close_billing_project(self, project):
-        bp_resp = await self._post(f'/api/v1alpha/billing_projects/{project}/close')
+    async def create_billing_project_v2(
+        self, project, quote_name='INTERNAL', limit=None, low_budget_alert=None, initial_users=None, comment=None
+    ):
+        body = {'quote_name': quote_name}
+        if limit is not None:
+            body['limit'] = limit
+        if low_budget_alert is not None:
+            body['low_budget_alert'] = low_budget_alert
+        if initial_users:
+            body['initial_users'] = initial_users
+        if comment is not None:
+            body['comment'] = comment
+        bp_resp = await self._post(f'/api/v1alpha/billing_projects/{project}/create', json=body)
         return await bp_resp.json()
 
-    async def reopen_billing_project(self, project):
-        bp_resp = await self._post(f'/api/v1alpha/billing_projects/{project}/reopen')
+    async def add_user(self, user, project, comment=None):
+        body = {'comment': comment} if comment is not None else None
+        resp = await self._post(f'/api/v1alpha/billing_projects/{project}/users/{user}/add', json=body)
+        return await resp.json()
+
+    async def remove_user(self, user, project, comment=None):
+        body = {'comment': comment} if comment is not None else None
+        resp = await self._post(f'/api/v1alpha/billing_projects/{project}/users/{user}/remove', json=body)
+        return await resp.json()
+
+    async def close_billing_project(self, project, comment=None):
+        body = {'comment': comment} if comment is not None else None
+        bp_resp = await self._post(f'/api/v1alpha/billing_projects/{project}/close', json=body)
+        return await bp_resp.json()
+
+    async def reopen_billing_project(self, project, comment=None):
+        body = {'comment': comment} if comment is not None else None
+        bp_resp = await self._post(f'/api/v1alpha/billing_projects/{project}/reopen', json=body)
         return await bp_resp.json()
 
     async def delete_billing_project(self, project):
@@ -1452,6 +1471,69 @@ class BatchClient:
     async def edit_billing_limit(self, project, limit):
         bp_resp = await self._post(f'/api/v1alpha/billing_limits/{project}/edit', json={'limit': limit})
         return await bp_resp.json()
+
+    async def patch_billing_project(self, project, comment=None, **kwargs):
+        if comment is not None:
+            kwargs['comment'] = comment
+        resp = await self._patch(f'/api/v1alpha/billing_projects/{project}', json=kwargs)
+        return await resp.json()
+
+    async def change_billing_project_quote(self, project, quote_name, comment=None):
+        body: dict = {'quote_name': quote_name}
+        if comment is not None:
+            body['comment'] = comment
+        resp = await self._post(f'/api/v1alpha/billing_projects/{project}/change_quote', json=body)
+        return await resp.json()
+
+    async def get_billing_project_events(self, project):
+        resp = await self._get(f'/api/v1alpha/billing_projects/{project}/events')
+        return await resp.json()
+
+    async def list_quotes(self):
+        resp = await self._get('/api/v1alpha/quotes')
+        return await resp.json()
+
+    async def create_quote(
+        self, name, cost_object, authorized_amount=None, pi_name=None, pm_designee=None, comment=None
+    ):
+        body = {
+            'cost_object': cost_object,
+            'authorized_amount': 'unlimited' if authorized_amount is None else authorized_amount,
+        }
+        if pi_name is not None:
+            body['pi_name'] = pi_name
+        if pm_designee is not None:
+            body['pm_designee'] = pm_designee
+        if comment is not None:
+            body['comment'] = comment
+        resp = await self._post(f'/api/v1alpha/quotes/{name}', json=body)
+        return await resp.json()
+
+    async def get_quote(self, name):
+        resp = await self._get(f'/api/v1alpha/quotes/{name}')
+        return await resp.json()
+
+    async def edit_quote(self, name, comment=None, **kwargs):
+        if comment is not None:
+            kwargs['comment'] = comment
+        resp = await self._patch(f'/api/v1alpha/quotes/{name}', json=kwargs)
+        return await resp.json()
+
+    async def add_quote_manager(self, name, user, role='manager', comment=None):
+        body: dict = {'user': user, 'role': role}
+        if comment is not None:
+            body['comment'] = comment
+        resp = await self._post(f'/api/v1alpha/quotes/{name}/managers', json=body)
+        return await resp.json()
+
+    async def remove_quote_manager(self, name, user, comment=None):
+        body = {'comment': comment} if comment is not None else None
+        resp = await self._delete(f'/api/v1alpha/quotes/{name}/managers/{user}', json=body)
+        return await resp.json()
+
+    async def get_quote_events(self, name):
+        resp = await self._get(f'/api/v1alpha/quotes/{name}/events')
+        return await resp.json()
 
     async def supported_regions(self) -> List[str]:
         resp = await self._get('/api/v1alpha/supported_regions')

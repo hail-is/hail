@@ -1085,6 +1085,415 @@ paths:
           description: Forbidden - requires developer privileges
         '404':
           description: Billing project not found
+  '/api/v1alpha/billing_projects/{billing_project}/change_quote':
+    post:
+      summary: Move billing project to a different quote
+      description: >
+        Move a billing project to a different quote. The caller must have CHANGE_BP_QUOTE
+        permission on the source billing project's quote, and must also be a manager of
+        the destination quote.
+      tags: [Billing]
+      parameters:
+        - name: billing_project
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Billing project identifier
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [quote_name]
+              properties:
+                quote_name:
+                  type: string
+                  description: Name of the destination quote
+                comment:
+                  type: string
+                  description: Optional audit comment
+      responses:
+        '200':
+          description: Billing project moved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  billing_project:
+                    type: string
+                  quote_name:
+                    type: string
+        '400':
+          description: Bad request (unknown quote, limit would exceed destination quota, etc.)
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - insufficient billing permissions
+        '404':
+          description: Billing project not found
+  '/api/v1alpha/billing_projects/{billing_project}/events':
+    get:
+      summary: Get billing project event log
+      description: >
+        Return the most recent 1000 events for a billing project. Requires VIEW_EVENTS
+        billing permission on the project's quote.
+      tags: [Billing]
+      parameters:
+        - name: billing_project
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Billing project identifier
+      responses:
+        '200':
+          description: List of billing project events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                    timestamp:
+                      type: integer
+                      description: Unix epoch milliseconds
+                    actor:
+                      type: string
+                    action:
+                      type: string
+                    target_user:
+                      type: string
+                      nullable: true
+                    detail:
+                      type: string
+                      nullable: true
+                    comment:
+                      type: string
+                      nullable: true
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - insufficient billing permissions
+  '/api/v1alpha/quotes':
+    get:
+      summary: List quotes
+      description: >
+        List quotes visible to the caller. Global billing managers see all quotes;
+        other users see only quotes they manage.
+      tags: [Billing]
+      responses:
+        '200':
+          description: List of quotes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/QuoteSummary'
+        '401':
+          description: Unauthorized
+  '/api/v1alpha/quotes/{name}':
+    post:
+      summary: Create a quote
+      description: Create a new billing quote. Requires the create_quotes system permission.
+      tags: [Billing]
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Quote name (case-sensitive)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cost_object]
+              properties:
+                cost_object:
+                  type: string
+                  description: Cost object / account code for this quote
+                authorized_amount:
+                  oneOf:
+                    - type: number
+                    - type: string
+                      enum: [unlimited]
+                  nullable: true
+                  description: >
+                    Authorized spending amount in USD. Pass "unlimited" or omit for
+                    unlimited funding.
+                pi_name:
+                  type: string
+                  nullable: true
+                pm_designee:
+                  type: string
+                  nullable: true
+                comment:
+                  type: string
+                  nullable: true
+                  description: Optional audit comment
+      responses:
+        '200':
+          description: Quote created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name:
+                    type: string
+        '400':
+          description: Bad request (missing cost_object, invalid authorized_amount)
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires create_quotes permission
+        '409':
+          description: Quote already exists
+    get:
+      summary: Get a quote
+      description: >
+        Get full details of a quote including managers and billing projects.
+        Requires VIEW_QUOTE billing permission.
+      tags: [Billing]
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Quote name (case-sensitive)
+      responses:
+        '200':
+          description: Quote details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteDetail'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - insufficient billing permissions
+        '404':
+          description: Quote not found
+    patch:
+      summary: Edit a quote
+      description: >
+        Update mutable fields on a quote (cost_object, pi_name, pm_designee,
+        authorized_amount). Requires EDIT_QUOTE billing permission. Only global
+        billing managers may set authorized_amount to unlimited.
+      tags: [Billing]
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Quote name (case-sensitive)
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                cost_object:
+                  type: string
+                pi_name:
+                  type: string
+                  nullable: true
+                pm_designee:
+                  type: string
+                  nullable: true
+                authorized_amount:
+                  oneOf:
+                    - type: number
+                    - type: string
+                      enum: [unlimited]
+                  nullable: true
+                comment:
+                  type: string
+                  nullable: true
+      responses:
+        '200':
+          description: Quote updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name:
+                    type: string
+        '400':
+          description: Bad request (e.g. new amount less than sum of BP limits)
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - insufficient billing permissions
+        '404':
+          description: Quote not found
+  '/api/v1alpha/quotes/{name}/managers':
+    post:
+      summary: Add a quote manager
+      description: >
+        Add a user as a manager or owner of a quote. Requires MANAGE_MANAGERS
+        billing permission.
+      tags: [Billing]
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Quote name (case-sensitive)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user]
+              properties:
+                user:
+                  type: string
+                  description: Username to add
+                role:
+                  type: string
+                  enum: [owner, manager]
+                  default: manager
+                  description: Role to assign
+                comment:
+                  type: string
+                  nullable: true
+      responses:
+        '200':
+          description: Manager added
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  quote:
+                    type: string
+                  user:
+                    type: string
+                  role:
+                    type: string
+        '400':
+          description: Bad request (missing user, invalid role)
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - insufficient billing permissions
+        '404':
+          description: Quote not found
+        '409':
+          description: User is already a manager of this quote
+  '/api/v1alpha/quotes/{name}/managers/{user}':
+    delete:
+      summary: Remove a quote manager
+      description: Remove a user from the managers of a quote. Requires MANAGE_MANAGERS billing permission.
+      tags: [Billing]
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Quote name (case-sensitive)
+        - name: user
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Username to remove
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                comment:
+                  type: string
+                  nullable: true
+      responses:
+        '200':
+          description: Manager removed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  quote:
+                    type: string
+                  user:
+                    type: string
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - insufficient billing permissions
+        '404':
+          description: Quote not found or user not a manager
+  '/api/v1alpha/quotes/{name}/events':
+    get:
+      summary: Get quote event log
+      description: >
+        Return the most recent 1000 events for a quote. Requires VIEW_EVENTS
+        billing permission.
+      tags: [Billing]
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Quote name (case-sensitive)
+      responses:
+        '200':
+          description: List of quote events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                    timestamp:
+                      type: integer
+                      description: Unix epoch milliseconds
+                    actor:
+                      type: string
+                    action:
+                      type: string
+                    target_user:
+                      type: string
+                      nullable: true
+                    target_project:
+                      type: string
+                      nullable: true
+                    detail:
+                      type: string
+                      nullable: true
+                    comment:
+                      type: string
+                      nullable: true
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - insufficient billing permissions
+        '404':
+          description: Quote not found
   '/api/v1alpha/billing_limits/{billing_project}/edit':
     post:
       summary: Edit billing limits
@@ -2456,3 +2865,79 @@ components:
         job_group_id:
           type: integer
           description: "ID of the created job group"
+
+    QuoteSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        cost_object:
+          type: string
+        authorized_amount:
+          type: number
+          nullable: true
+          description: "Authorized spending in USD, or null for unlimited"
+        pi_name:
+          type: string
+          nullable: true
+        pm_designee:
+          type: string
+          nullable: true
+        time_created:
+          type: integer
+          description: "Unix epoch milliseconds"
+
+    QuoteDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        cost_object:
+          type: string
+        authorized_amount:
+          type: number
+          nullable: true
+          description: "Authorized spending in USD, or null for unlimited"
+        pi_name:
+          type: string
+          nullable: true
+        pm_designee:
+          type: string
+          nullable: true
+        time_created:
+          type: integer
+          description: "Unix epoch milliseconds"
+        managers:
+          type: array
+          items:
+            type: object
+            properties:
+              user:
+                type: string
+              role:
+                type: string
+                enum: [owner, manager]
+        billing_projects:
+          type: array
+          items:
+            type: object
+            properties:
+              billing_project:
+                type: string
+              status:
+                type: string
+              limit:
+                type: number
+                nullable: true
+              low_budget_alert:
+                type: number
+                nullable: true
+              accrued_cost:
+                type: number
+              remaining:
+                type: number
+                nullable: true
