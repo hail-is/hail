@@ -564,7 +564,7 @@ SELECT billing_projects.name_cs, billing_projects.`status`,
     WHERE other_bp.quote_id = %s
       AND other_bp.`status` != 'deleted'), 0) AS dest_bp_limits_sum
 FROM billing_projects
-JOIN quotes q_dest ON q_dest.id = %s
+LEFT JOIN quotes q_dest ON q_dest.id = %s
 WHERE billing_projects.name_cs = %s AND billing_projects.`status` != 'deleted'
 FOR UPDATE;
 """,
@@ -572,6 +572,8 @@ FOR UPDATE;
         )
         if not row:
             raise NonExistentBillingProjectError(bp_name)
+        if row['dest_quote_name'] is None:
+            raise BatchUserError(f'Unknown quote {dest_quote_id}.', 'error')
         if row['status'] == 'closed':
             raise ClosedBillingProjectError(bp_name)
 

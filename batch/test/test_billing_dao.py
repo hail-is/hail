@@ -525,6 +525,21 @@ async def test_change_bp_quote_updates_quote_id(db):
     assert row['quote_id'] == q_dest['id']
 
 
+async def test_change_bp_quote_nonexistent_bp_raises(db):
+    await create_quote(db, 'q-change-missing-bp', cost_object='CO', actor='admin', authorized_amount=500.0)
+    q = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-change-missing-bp',))
+    with pytest.raises(Exception):  # NonExistentBillingProjectError
+        await change_billing_project_quote(db, 'no-such-bp', q['id'], actor='admin')
+
+
+async def test_change_bp_quote_nonexistent_dest_quote_raises(db):
+    await create_quote(db, 'q-change-bad-dest', cost_object='CO', actor='admin', authorized_amount=500.0)
+    q = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-change-bad-dest',))
+    await create_billing_project(db, 'bp-bad-dest-quote', q['id'], 100.0, None, 'admin', 'global_bm')
+    with pytest.raises(BatchUserError, match='Unknown quote'):
+        await change_billing_project_quote(db, 'bp-bad-dest-quote', 999999, actor='admin')
+
+
 async def test_change_bp_quote_exceeds_dest_limit_raises(db):
     await create_quote(db, 'q-move-src', cost_object='CO1', actor='admin', authorized_amount=500.0)
     await create_quote(db, 'q-move-dest', cost_object='CO2', actor='admin', authorized_amount=200.0)
