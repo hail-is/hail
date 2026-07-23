@@ -187,10 +187,10 @@ object MatrixNativeWriter {
                   WriteSplitRows(rowSpec, entrySpec, pKey),
                   initOpArgs: _*
                 )(row.drop(entriesFieldName), row.select(entriesFieldName)),
-              ) +: TableWriter.metaInfoAggs(row, pKey.virtualType)
+              ) +: NativeWriter.metaInfoAggs(row, pKey.virtualType)
             makestruct(args: _*)
           }
-        } yield TableWriter.resultHelper(partResult)
+        } yield NativeWriter.transformResult(partResult)
       }
 
       override def finalizeWrite(parts: Atom, globals: Atom): IR =
