@@ -4,7 +4,7 @@ import is.hail.ParameterizedTest
 import is.hail.TestUtils._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.compat.immutable.ArraySeq
-import is.hail.expr.ir.{freshName, invoke, IR, Sum}
+import is.hail.expr.ir.{freshName, invoke, Add, IR, Sum}
 import is.hail.expr.ir.defs._
 import is.hail.types.virtual.{TFloat64, TInt32}
 
@@ -35,5 +35,17 @@ class FoldConstantsSuite {
 
   @ParameterizedTest
   def testAggNodesDoNotFold(node: IR)(implicit ctx: ExecuteContext): Unit =
+    assertEq(FoldConstants(ctx, node), node)
+
+  // references are atoms but not constants; folding their parents would
+  // interpret them without their bindings
+  def testReferencesDoNotFold() = ArraySeq(
+    ApplyBinaryPrimOp(Add(), Ref(freshName(), TInt32), I32(1)),
+    ApplyBinaryPrimOp(Add(), In(0, TInt32), I32(1)),
+    ApplyBinaryPrimOp(Add(), RelationalRef(freshName(), TInt32), I32(1)),
+  )
+
+  @ParameterizedTest
+  def testReferencesDoNotFold(node: IR)(implicit ctx: ExecuteContext): Unit =
     assertEq(FoldConstants(ctx, node), node)
 }
