@@ -89,6 +89,9 @@ def start(
         print(json.dumps(kwargs, indent=2))
         return
 
+    if use_default_roles:
+        emr.check_default_roles()
+
     _upload_bootstrap(bootstrap_s3_uri)
     resp = emr.emr_client(resolved_region).run_job_flow(**kwargs)
     print(f"Started cluster {resp['JobFlowId']}.")
