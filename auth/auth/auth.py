@@ -1176,9 +1176,9 @@ async def patch_system_roles_for_user(request: web.Request, _) -> web.Response:
 
     # Verify user exists - and get a user record - from either ID or unique username:
     if isinstance(user_id, int):
-        user = await db.select_and_fetchone("SELECT id, username FROM users WHERE id = %s", (user_id,))
+        user = await db.select_and_fetchone("SELECT id, username, state FROM users WHERE id = %s", (user_id,))
     else:
-        user = await db.select_and_fetchone("SELECT id, username FROM users WHERE username = %s", (user_id,))
+        user = await db.select_and_fetchone("SELECT id, username, state FROM users WHERE username = %s", (user_id,))
 
     if not user:
         raise web.HTTPNotFound(text='User not found')
@@ -1186,6 +1186,8 @@ async def patch_system_roles_for_user(request: web.Request, _) -> web.Response:
     @transaction(db)
     async def modify_roles(tx):
         if 'role_addition' in body:
+            if user['state'] != 'active':
+                raise web.HTTPBadRequest(text=f'Cannot add roles to user {user["username"]} with state {user["state"]}')
             role_name = body['role_addition']
 
             # Check if user already has this role
