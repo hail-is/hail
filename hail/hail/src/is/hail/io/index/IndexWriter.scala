@@ -83,11 +83,13 @@ object IndexWriter {
 
   val spec: BufferSpec = BufferSpec.default
 
+  val DEFAULT_BRANCHING_FACTOR: Int = 4096
+
   def builder(
     ctx: ExecuteContext,
     keyType: PType,
     annotationType: PType,
-    branchingFactor: Int = 4096,
+    branchingFactor: Int = DEFAULT_BRANCHING_FACTOR,
     attributes: Map[String, Any] = Map.empty[String, Any],
   ): (String, HailClassLoader, HailTaskContext, RegionPool) => IndexWriter = {
     val sm = ctx.stateManager;
@@ -321,7 +323,7 @@ object StagedIndexWriter {
     ctx: ExecuteContext,
     keyType: PType,
     annotationType: PType,
-    branchingFactor: Int = 4096,
+    branchingFactor: Int = IndexWriter.DEFAULT_BRANCHING_FACTOR,
   ): (String, HailClassLoader, HailTaskContext, RegionPool, Map[String, Any]) => CompiledIndexWriter = {
     val fb = EmitFunctionBuilder[CompiledIndexWriter](
       ctx,
@@ -380,7 +382,7 @@ object StagedIndexWriter {
   def withDefaults(
     keyType: PType,
     cb: EmitClassBuilder[_],
-    branchingFactor: Int = 4096,
+    branchingFactor: Int = IndexWriter.DEFAULT_BRANCHING_FACTOR,
     annotationType: PType = +PCanonicalStruct(),
   ): StagedIndexWriter =
     new StagedIndexWriter(branchingFactor, keyType, annotationType, cb)

@@ -12,6 +12,7 @@ import is.hail.expr.ir._
 import is.hail.expr.ir.defs._
 import is.hail.io.BufferSpec
 import is.hail.types.{tcoerce, TypeWithRequiredness, VirtualTypeWithReq}
+import is.hail.types.physical.PStruct
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.virtual._
 
@@ -59,6 +60,14 @@ object AggStateSig {
           seqVTypes.head.setRequired(false)
         ) // set required to false to handle empty aggs
       case NDArrayMultiplyAdd() => NDArrayMultiplyAddStateSig(seqVTypes.head.setRequired(false))
+      case WriteRows(codecSpec, key) =>
+        assert(codecSpec.encodedVirtualType == seqVTypes.head.t)
+        WriteSig(seqVTypes.head, key)
+      case WriteSplitRows(rowSpec, entrySpec, key) =>
+        val Seq(rowVType, entryVType) = seqVTypes
+        assert(rowSpec.encodedVirtualType == rowVType.t)
+        assert(entrySpec.encodedVirtualType == entryVType.t)
+        WriteSplitSig(rowVType, entryVType, key)
       case _ => throw new UnsupportedExtraction(op.toString)
     }
   }
@@ -92,6 +101,8 @@ object AggStateSig {
       val vWithReq = resultEmitType.typeWithRequiredness
       new TypedRegionBackedAggState(vWithReq, cb)
     case LinearRegressionStateSig() => new LinearRegressionAggregatorState(cb)
+    case WriteSig(_, key) => new StreamWriterState(cb, key)
+    case WriteSplitSig(_, _, key) => new StreamSplitWriterState(cb, key)
   }
 }
 
@@ -141,6 +152,15 @@ case class FoldStateSig(
   otherAccumName: Name,
   combOpIR: IR,
 ) extends AggStateSig(ArraySeq(resultEmitType.typeWithRequiredness), None)
+
+case class WriteSig(rowType: VirtualTypeWithReq, indexKey: Option[PStruct])
+    extends AggStateSig(ArraySeq(rowType), None)
+
+case class WriteSplitSig(
+  rowType: VirtualTypeWithReq,
+  entryType: VirtualTypeWithReq,
+  indexKey: PStruct,
+) extends AggStateSig(ArraySeq(rowType, entryType), None)
 
 object PhysicalAggSig {
   def apply(op: AggOp, state: AggStateSig): PhysicalAggSig = BasicPhysicalAggSig(op, state)
@@ -467,6 +487,10 @@ object Extract {
       new NDArrayMultiplyAddAggregator(nda)
     case PhysicalAggSig(Fold(), FoldStateSig(res, accumName, otherAccumName, combOpIR)) =>
       new FoldAggregator(res, accumName, otherAccumName, combOpIR)
+    case PhysicalAggSig(WriteRows(codec, indexKey), WriteSig(_, _)) =>
+      new StreamWriterAggregator(codec, indexKey.isDefined)
+    case PhysicalAggSig(WriteSplitRows(rowCodec, entryCodec, _), WriteSplitSig(_, _, _)) =>
+      new StreamSplitWriterAggregator(rowCodec, entryCodec)
   }
 
   def apply(ctx: ExecuteContext, ir: IR, r: RequirednessAnalysis, isScan: Boolean = false)

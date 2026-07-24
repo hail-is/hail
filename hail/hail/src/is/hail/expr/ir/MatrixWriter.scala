@@ -2,7 +2,6 @@ package is.hail.expr.ir
 
 import is.hail.annotations.{Region, RowSeq}
 import is.hail.asm4s._
-import is.hail.asm4s.implicits.{valueToRichCodeOutputBuffer, valueToRichCodeRegion}
 import is.hail.backend.ExecuteContext
 import is.hail.collection.{ByteArrayBuilder, FastSeq}
 import is.hail.collection.compat.immutable.ArraySeq
@@ -15,7 +14,6 @@ import is.hail.io._
 import is.hail.io.bgen.BgenSettings
 import is.hail.io.fs.FS
 import is.hail.io.gen.{BgenWriter, ExportGen}
-import is.hail.io.index.StagedIndexWriter
 import is.hail.io.plink.{BitPacker, ExportPlink}
 import is.hail.io.vcf.{ExportVCF, TabixVCF}
 import is.hail.linalg.{BlockMatrix, MatrixSparsity}
@@ -23,7 +21,7 @@ import is.hail.rvd.{IndexSpec, RVDPartitioner, RVDSpecMaker}
 import is.hail.types._
 import is.hail.types.encoded.{EBaseStruct, EBlockMatrixNDArray, EType}
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.{EmitType, SValue}
+import is.hail.types.physical.stypes.SValue
 import is.hail.types.physical.stypes.concrete.{
   SJavaArrayString, SJavaArrayStringValue, SJavaString, SStackStruct,
 }
@@ -31,7 +29,6 @@ import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives._
 import is.hail.types.virtual._
 import is.hail.utils._
-import is.hail.utils.implicits.ByteTrackingOutputStream
 import is.hail.variant.{Call, ReferenceGenome}
 
 import java.io.{InputStream, OutputStream}
@@ -140,15 +137,6 @@ object MatrixNativeWriter {
     val partitioner = lowered.partitioner
     val pKey: PStruct = tcoerce[PStruct](rowSpec.decodedPType(partitioner.kType))
 
-    val rowWriter = SplitPartitionNativeWriter(
-      rowSpec,
-      s"$path/rows/rows/parts/",
-      entrySpec,
-      s"$path/entries/rows/parts/",
-      pKey.virtualType.fieldNames,
-      Some(s"$path/index/" -> pKey),
-    )
-
     new MatrixWriterComponents {
 
       override val stage: TableStage =
@@ -175,38 +163,60 @@ object MatrixNativeWriter {
           WriteMetadata(Void(), RelationalSetup(s"$path/entries", overwrite = false, None)),
         ))
 
-      override def writePartitionType: Type =
-        rowWriter.returnType
+      override def writePartitionType: Type = TStruct(
+        "filePath" -> TString,
+        "partitionCounts" -> TInt64,
+        "distinctlyKeyed" -> TBoolean,
+        "firstKey" -> pKey.virtualType,
+        "lastKey" -> pKey.virtualType,
+      )
 
-      override def writePartition(rows: Atom, ctx: Atom): IR =
-        WritePartition(rows, GetField(ctx, "writeCtx") + UUID4(), rowWriter)
+      override def writePartition(rows: Atom, ctx: Atom): IR = M.eval {
+        for {
+          partFile <- GetField(ctx, "writeCtx") + UUID4()
+          partResult <- streamAggIR(rows) { row =>
+            assert(row.typ.isInstanceOf[TStruct])
+            val rowPartsRoot = Str(s"$path/rows/rows/parts/")
+            val entryPartsRoot = Str(s"$path/entries/rows/parts/")
+            val indexRoot = Str(s"$path/index/")
+            val initOpArgs: Seq[IR] = Seq(partFile, rowPartsRoot, entryPartsRoot, indexRoot)
+            val args =
+              (
+                "partpath",
+                ApplyAggOp(
+                  WriteSplitRows(rowSpec, entrySpec, pKey),
+                  initOpArgs: _*
+                )(row.drop(entriesFieldName), row.select(entriesFieldName)),
+              ) +: NativeWriter.metaInfoAggs(row, pKey.virtualType)
+            makestruct(args: _*)
+          }
+        } yield NativeWriter.transformResult(partResult)
+      }
 
       override def finalizeWrite(parts: Atom, globals: Atom): IR =
         M.eval {
           for {
             partFile <- Str(partFile(1, 0))
             // parts is array<struct> of partition results
-            writeEmpty <- WritePartition(
+            writeEmpty <- TableNativeWriter.writePartition(
+              emptySpec,
               MakeStream(makestruct()),
               partFile,
-              PartitionNativeWriter(
-                emptySpec,
-                FastSeq(),
-                s"$path/globals/globals/parts/",
-                None,
-              ),
+              Str(s"$path/globals/globals/parts/"),
             )
 
-            colInfo <- WritePartition(
+            colInfo <- TableNativeWriter.writePartition(
+              colSpec,
               ToStream(GetField(globals, colsFieldName)),
               partFile,
-              PartitionNativeWriter(colSpec, FastSeq(), s"$path/cols/rows/parts/", None),
+              Str(s"$path/cols/rows/parts/"),
             )
 
-            writeGlobals <- WritePartition(
+            writeGlobals <- TableNativeWriter.writePartition(
+              globalSpec,
               MakeStream(SelectFields(globals, tm.globalType.fieldNames)),
               partFile,
-              PartitionNativeWriter(globalSpec, FastSeq(), s"$path/globals/rows/parts/", None),
+              Str(s"$path/globals/rows/parts/"),
             )
 
             _ <- WriteMetadata(
@@ -368,231 +378,6 @@ case class MatrixNativeWriter(
         components.writePartition
       )(components.finalizeWrite),
     ))
-  }
-}
-
-case class SplitPartitionNativeWriter(
-  spec1: AbstractTypedCodecSpec,
-  partPrefix1: String,
-  spec2: AbstractTypedCodecSpec,
-  partPrefix2: String,
-  keyFieldNames: IndexedSeq[String],
-  index: Option[(String, PStruct)],
-) extends PartitionWriter {
-
-  val keyType = spec1.encodedVirtualType.asInstanceOf[TStruct].select(keyFieldNames)._1
-
-  override def ctxType: Type = TString
-
-  override def returnType: Type = TStruct(
-    "filePath" -> TString,
-    "partitionCounts" -> TInt64,
-    "distinctlyKeyed" -> TBoolean,
-    "firstKey" -> keyType,
-    "lastKey" -> keyType,
-  )
-
-  override def unionTypeRequiredness(
-    r: TypeWithRequiredness,
-    ctxType: TypeWithRequiredness,
-    streamType: RIterable,
-  ): Unit = {
-    val rs = r.asInstanceOf[RStruct]
-    val rKeyType = streamType.elementType.asInstanceOf[RStruct].select(keyFieldNames)
-    rs.field("firstKey").union(false)
-    rs.field("firstKey").unionFrom(rKeyType)
-    rs.field("lastKey").union(false)
-    rs.field("lastKey").unionFrom(rKeyType)
-    r.union(ctxType.required)
-    r.union(streamType.required)
-  }
-
-  override def consumeStream(
-    ctx: ExecuteContext,
-    cb: EmitCodeBuilder,
-    stream: StreamProducer,
-    context: EmitCode,
-    region: Value[Region],
-  ): IEmitCode = {
-    val iAnnotationType = PCanonicalStruct(required = true, "entries_offset" -> PInt64())
-    val mb = cb.emb
-
-    val writeIndexInfo = index.map { case (name, ktype) =>
-      val bfactor = Option(mb.ctx.getFlag("index_branching_factor")).map(_.toInt).getOrElse(4096)
-      (
-        name,
-        ktype,
-        StagedIndexWriter.withDefaults(
-          ktype,
-          mb.ecb,
-          annotationType = iAnnotationType,
-          branchingFactor = bfactor,
-        ),
-      )
-    }
-
-    context.toI(cb).map(cb) { pctx =>
-      val ctxValue = pctx.asString.loadString(cb)
-      val buffers =
-        FastSeq(partPrefix1, partPrefix2)
-          .map(const)
-          .zipWithIndex
-          .map { case (prefix, i) =>
-            val filename = mb.newLocal[String](s"filename$i")
-            cb.assign(filename, prefix.concat(ctxValue))
-
-            val ostream = mb.newLocal[ByteTrackingOutputStream](s"write_os$i")
-            cb.assign(
-              ostream,
-              Code.newInstance[ByteTrackingOutputStream, OutputStream](
-                mb.createUnbuffered(filename.get)
-              ),
-            )
-
-            val buffer = mb.newLocal[OutputBuffer](s"write_ob$i")
-            cb.assign(buffer, spec1.buildCodeOutputBuffer(Code.checkcast[OutputStream](ostream)))
-
-            buffer
-          }
-
-      writeIndexInfo.foreach { case (name, _, writer) =>
-        val indexFile = cb.newLocal[String]("indexFile")
-        cb.assign(indexFile, const(name).concat(ctxValue).concat(".idx"))
-        writer.init(cb, indexFile, cb.memoize(mb.getObject[Map[String, Any]](Map.empty)))
-      }
-
-      val pCount = mb.newLocal[Long]("partition_count")
-      cb.assign(pCount, 0L)
-
-      // True until proven otherwise, if there's a key to care about all.
-      val distinctlyKeyed = mb.newLocal[Boolean]("distinctlyKeyed")
-      cb.assign(distinctlyKeyed, keyFieldNames.nonEmpty)
-
-      val keyEmitType = EmitType(spec1.decodedPType(keyType).sType, false)
-
-      val firstSeenSettable = mb.newEmitLocal("pnw_firstSeen", keyEmitType)
-      val lastSeenSettable = mb.newEmitLocal("pnw_lastSeen", keyEmitType)
-      val lastSeenRegion = cb.newLocal[Region]("last_seen_region")
-
-      // Start off missing, we will use this to determine if we haven't processed any rows yet.
-      cb.assign(firstSeenSettable, EmitCode.missing(cb.emb, keyEmitType.st))
-      cb.assign(lastSeenSettable, EmitCode.missing(cb.emb, keyEmitType.st))
-      cb.assign(lastSeenRegion, Region.stagedCreate(Region.TINY, region.getPool()))
-
-      val specs = FastSeq(spec1, spec2)
-      stream.memoryManagedConsume(region, cb) { cb =>
-        val row = stream.element.toI(cb).getOrFatal(cb, "row can't be missing").asBaseStruct
-
-        writeIndexInfo.foreach { case (_, keyType, writer) =>
-          writer.add(
-            cb, {
-              IEmitCode.present(
-                cb,
-                keyType.asInstanceOf[PCanonicalBaseStruct]
-                  .constructFromFields(
-                    cb,
-                    stream.elementRegion,
-                    keyType.fields.map { f =>
-                      EmitCode.fromI(cb.emb)(cb => row.loadField(cb, f.name))
-                    },
-                    deepCopy = false,
-                  ),
-              )
-            },
-            buffers(0).invoke[Long]("indexOffset"), {
-              IEmitCode.present(
-                cb,
-                iAnnotationType.constructFromFields(
-                  cb,
-                  stream.elementRegion,
-                  FastSeq(EmitCode.present(
-                    cb.emb,
-                    primitive(cb.memoize(buffers(1).invoke[Long]("indexOffset"))),
-                  )),
-                  deepCopy = false,
-                ),
-              )
-            },
-          )
-        }
-
-        val key = SStackStruct.constructFromArgs(
-          cb,
-          stream.elementRegion,
-          keyType,
-          keyType.fields.map(f => EmitCode.fromI(cb.emb)(cb => row.loadField(cb, f.name))): _*
-        )
-
-        if (keyFieldNames.nonEmpty) {
-          cb.if_(
-            distinctlyKeyed, {
-              lastSeenSettable.loadI(cb).consume(
-                cb,
-                // If there's no last seen, we are in the first row.
-                cb.assign(
-                  firstSeenSettable,
-                  EmitValue.present(key.copyToRegion(cb, region, firstSeenSettable.st)),
-                ),
-                { _ =>
-                  val comparator = EQ.codeOrdering(
-                    cb.emb.ecb,
-                    lastSeenSettable.st,
-                    key.st,
-                  )
-                  val equalToLast = comparator(cb, lastSeenSettable, EmitValue.present(key))
-                  cb.if_(
-                    equalToLast.asInstanceOf[Value[Boolean]],
-                    cb.assign(distinctlyKeyed, false),
-                  )
-                },
-              )
-            },
-          )
-          cb += lastSeenRegion.clearRegion()
-          cb.assign(
-            lastSeenSettable,
-            IEmitCode.present(cb, key.copyToRegion(cb, lastSeenRegion, lastSeenSettable.st)),
-          )
-        }
-
-        buffers.zip(specs).foreach { case (buff, spec) =>
-          cb += buff.writeByte(1.asInstanceOf[Byte])
-          spec.encodedType.buildEncoder(row.st, cb.emb.ecb).apply(cb, row, buff)
-        }
-
-        cb.assign(pCount, pCount + 1L)
-      }
-
-      writeIndexInfo.foreach(_._3.close(cb))
-
-      buffers.foreach { buff =>
-        cb += buff.writeByte(0.asInstanceOf[Byte])
-        cb += buff.flush()
-        cb += buff.close()
-      }
-
-      lastSeenSettable.loadI(cb).consume(
-        cb,
-        { /* do nothing */ },
-        lastSeen =>
-          cb.assign(
-            lastSeenSettable,
-            IEmitCode.present(cb, lastSeen.copyToRegion(cb, region, lastSeenSettable.st)),
-          ),
-      )
-      cb += lastSeenRegion.invalidate()
-
-      SStackStruct.constructFromArgs(
-        cb,
-        region,
-        returnType.asInstanceOf[TBaseStruct],
-        EmitCode.present(mb, pctx),
-        EmitCode.present(mb, new SInt64Value(pCount)),
-        EmitCode.present(mb, new SBooleanValue(distinctlyKeyed)),
-        firstSeenSettable,
-        lastSeenSettable,
-      )
-    }
   }
 }
 
