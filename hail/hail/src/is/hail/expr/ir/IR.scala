@@ -441,7 +441,6 @@ package defs {
       new DefaultFormats() {
         override val typeHints = ShortTypeHints(
           List(
-            classOf[PartitionNativeWriter],
             classOf[TableTextPartitionWriter],
             classOf[VCFPartitionWriter],
             classOf[GenSampleWriter],

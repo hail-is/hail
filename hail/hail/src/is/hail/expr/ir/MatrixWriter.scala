@@ -186,27 +186,25 @@ object MatrixNativeWriter {
           for {
             partFile <- Str(partFile(1, 0))
             // parts is array<struct> of partition results
-            writeEmpty <- WritePartition(
+            writeEmpty <- TableNativeWriter.writePartition(
+              emptySpec,
               MakeStream(makestruct()),
               partFile,
-              PartitionNativeWriter(
-                emptySpec,
-                FastSeq(),
-                s"$path/globals/globals/parts/",
-                None,
-              ),
+              Str(s"$path/globals/globals/parts/"),
             )
 
-            colInfo <- WritePartition(
+            colInfo <- TableNativeWriter.writePartition(
+              colSpec,
               ToStream(GetField(globals, colsFieldName)),
               partFile,
-              PartitionNativeWriter(colSpec, FastSeq(), s"$path/cols/rows/parts/", None),
+              Str(s"$path/cols/rows/parts/"),
             )
 
-            writeGlobals <- WritePartition(
+            writeGlobals <- TableNativeWriter.writePartition(
+              globalSpec,
               MakeStream(SelectFields(globals, tm.globalType.fieldNames)),
               partFile,
-              PartitionNativeWriter(globalSpec, FastSeq(), s"$path/globals/rows/parts/", None),
+              Str(s"$path/globals/rows/parts/"),
             )
 
             _ <- WriteMetadata(
