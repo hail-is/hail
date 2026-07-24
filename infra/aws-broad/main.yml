@@ -1,0 +1,566 @@
+Transform: "AWS::LanguageExtensions"
+Parameters:
+  VpcCidrBlock:
+    Type: String
+    Description: CIDR block for the VPC
+  ClusterCidrBlock:
+    Type: String
+    Description: CIDR block for the EKS cluster
+  SubnetCidrBlockA:
+    Type: String
+    Description: Private CIDR block for the first subnet the cluster will run in
+  SubnetCidrBlockB:
+    Type: String
+    Description: Private CIDR block for the second subnet the cluster will run in
+  SubnetCidrBlockC:
+    Type: String
+    Description: Private CIDR block for the third subnet the cluster will run in
+  IsBroadProduction:
+    Type: String
+    Description: Set to true if this is the Broad production environment
+    AllowedValues:
+      - "true"
+      - "false"
+  DomainName:
+    Type: String
+    Description: The domain name for the cluster
+Conditions:
+  IsBroadProduction: !Equals [ !Ref IsBroadProduction, "true" ]
+Resources:
+  VdcGlobalConfigParameter:
+    Type: "AWS::SecretsManager::Secret"
+    Properties:
+      Name: "global-config"
+      SecretString:
+        Fn::ToJsonString:
+          cloud: "aws"
+          batch_gcp_regions: !Ref AWS::Region
+          batch_logs_storage_uri: !Sub "s3://${VdcHailBatchBucket}"
+          test_storage_uri: !Sub "s3://${VdcHailTestBucket}"
+          query_storage_uri: !Sub "s3://${VdcHailQueryBucket}"
+          default_namespace: "default"
+          docker_root_image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/hail/ubuntu:24.04"
+          domain: !Sub "aws.${DomainName}"
+          gcp_project: "dummy"
+          gcp_region: "dummy"
+          gcp_zone: "dummy"
+          docker_prefix: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/hail"
+          dockerhub_prefix: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/dockerhubproxy"
+          internal_ip: !GetAtt VdcInternalGatewayAddress.PrimaryPrivateIpAddress
+          ip: !GetAtt VdcGatewayAddress.PublicIp
+          kubernetes_server_url: !GetAtt VdcCluster.Endpoint
+          organization_domain: !Ref DomainName
+
+  VdcNonpreemptibleNodeGroup:
+    Type: "AWS::EKS::Nodegroup"
+    DependsOn: VdcClusterNodeAccessEntry
+    Properties:
+      UpdateConfig:
+        UpdateStrategy: "DEFAULT"
+        MaxUnavailable: 1
+      ScalingConfig:
+        MinSize: 0
+        DesiredSize: 2
+        MaxSize: 200
+      Labels:
+        preemptible: "false"
+      CapacityType: "ON_DEMAND"
+      NodeRepairConfig:
+        Enabled: true
+      NodegroupName: "nonpreemptible-pool"
+      NodeRole: !GetAtt VdcClusterNodegroupRole.Arn
+      Subnets:
+        - !Ref VdcSubnetA
+        - !Ref VdcSubnetB
+        - !Ref VdcSubnetC
+      ClusterName: !Ref VdcCluster
+      LaunchTemplate:
+        Id: !Ref VdcNonpreemptibleNodeLaunchTemplate
+        Version: !GetAtt VdcNonpreemptibleNodeLaunchTemplate.LatestVersionNumber
+  VdcNonpreemptibleNodeLaunchTemplate:
+    Type: "AWS::EC2::LaunchTemplate"
+    Properties:
+      LaunchTemplateData:
+        BlockDeviceMappings:
+          - DeviceName: /dev/xvda
+            Ebs:
+              VolumeType: gp3
+              Iops: 2000
+              VolumeSize: 30
+              DeleteOnTermination: true
+        ImageId: "{{resolve:ssm:/aws/service/eks/optimized-ami/1.35/amazon-linux-2023/x86_64/standard/recommended/image_id}}"
+        InstanceType: m4.large
+        UserData:
+          Fn::Base64: !Sub |
+            ---
+            apiVersion: node.eks.aws/v1alpha1
+            kind: NodeConfig
+            spec:
+              cluster:
+                name: ${VdcCluster}
+                apiServerEndpoint: ${VdcCluster.Endpoint}
+                certificateAuthority: ${VdcCluster.CertificateAuthorityData}
+                cidr: "${ClusterCidrBlock}"
+      LaunchTemplateName: "nonpreemptible-pool-launch-template"
+  VdcPreemptibleNodeGroup:
+    Type: "AWS::EKS::Nodegroup"
+    DependsOn: VdcClusterNodeAccessEntry
+    Properties:
+      UpdateConfig:
+        UpdateStrategy: "DEFAULT"
+        MaxUnavailable: 1
+      ScalingConfig:
+        MinSize: 0
+        DesiredSize: 3
+        MaxSize: 200
+      Labels:
+        preemptible: "true"
+      Taints:
+        - Value: "true"
+          Effect: "NO_SCHEDULE"
+          Key: "preemptible"
+      CapacityType: "SPOT"
+      NodeRepairConfig:
+        Enabled: true
+      NodegroupName: "preemptible-pool"
+      NodeRole: !GetAtt VdcClusterNodegroupRole.Arn
+      Subnets:
+        - !Ref VdcSubnetA
+        - !Ref VdcSubnetB
+        - !Ref VdcSubnetC
+      ClusterName: !Ref VdcCluster
+      LaunchTemplate:
+        Id: !Ref VdcPreemptibleNodeLaunchTemplate
+        Version: !GetAtt VdcPreemptibleNodeLaunchTemplate.LatestVersionNumber
+  VdcPreemptibleNodeLaunchTemplate:
+    Type: "AWS::EC2::LaunchTemplate"
+    Properties:
+      LaunchTemplateData:
+        BlockDeviceMappings:
+          - DeviceName: /dev/xvda
+            Ebs:
+              VolumeType: gp3
+              Iops: 2000
+              VolumeSize: 30
+              DeleteOnTermination: true
+        ImageId: "{{resolve:ssm:/aws/service/eks/optimized-ami/1.35/amazon-linux-2023/x86_64/standard/recommended/image_id}}"
+        InstanceType: m4.large
+        UserData:
+          Fn::Base64: !Sub |
+            ---
+            apiVersion: node.eks.aws/v1alpha1
+            kind: NodeConfig
+            spec:
+              cluster:
+                name: ${VdcCluster}
+                apiServerEndpoint: ${VdcCluster.Endpoint}
+                certificateAuthority: ${VdcCluster.CertificateAuthorityData}
+                cidr: ${ClusterCidrBlock}
+      LaunchTemplateName: "preemptible-pool-launch-template"
+
+  VdcClusterRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
+        - "arn:aws:iam::aws:policy/AmazonEKSNetworkingPolicy"
+        - "arn:aws:iam::aws:policy/AmazonEKSBlockStoragePolicy"
+        - "arn:aws:iam::aws:policy/AmazonEKSLoadBalancingPolicy"
+        - "arn:aws:iam::aws:policy/AmazonEKSComputePolicy"
+      MaxSessionDuration: 3600
+      RoleName: "vdc-cluster-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Action:
+              - "sts:AssumeRole"
+              - "sts:TagSession"
+            Effect: "Allow"
+            Principal:
+              Service: "eks.amazonaws.com"
+  VdcClusterNodegroupRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      Path: "/"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
+        - "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
+        - "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+        - "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+      MaxSessionDuration: 3600
+      RoleName: "vdc-node-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Action: "sts:AssumeRole"
+            Effect: "Allow"
+            Principal:
+              Service: "ec2.amazonaws.com"
+  VdcCluster:
+    Type: "AWS::EKS::Cluster"
+    Properties:
+      Logging:
+        ClusterLogging:
+          EnabledTypes: []
+      ComputeConfig:
+        Enabled: false
+      StorageConfig:
+        BlockStorage:
+          Enabled: false
+      DeletionProtection: false
+      ZonalShiftConfig:
+        Enabled: false
+      AccessConfig:
+        AuthenticationMode: "API_AND_CONFIG_MAP"
+      EncryptionConfig: []
+      KubernetesNetworkConfig:
+        ServiceIpv4Cidr: !Ref ClusterCidrBlock
+        ElasticLoadBalancing:
+          Enabled: false
+        IpFamily: "ipv4"
+      RoleArn: !GetAtt VdcClusterRole.Arn
+      Name: "vdc"
+      UpgradePolicy:
+        SupportType: "STANDARD"
+      Version: "1.35"
+      ResourcesVpcConfig:
+        EndpointPublicAccess: true
+        PublicAccessCidrs: !If
+          - IsBroadProduction
+          - - "69.173.64.0/18"
+            - "69.173.64.0/19"
+            - "69.173.96.0/19"
+            - "69.173.95.0/24"
+            - "69.173.97.0/24"
+          - !Ref AWS::NoValue
+        SecurityGroupIds: []
+        SubnetIds:
+          - !Ref VdcSubnetA
+          - !Ref VdcSubnetB
+          - !Ref VdcSubnetC
+        EndpointPrivateAccess: true
+      Tags:
+        - Value: "true"
+          Key: "alpha.eksctl.io/cluster-oidc-enabled"
+  VdcClusterNodeAccessEntry:
+    Type: "AWS::EKS::AccessEntry"
+    Properties:
+      ClusterName: !Ref VdcCluster
+      Type: "EC2_LINUX"
+      PrincipalArn: !GetAtt VdcClusterNodegroupRole.Arn
+  VdcClusterOidcProvider:
+    Type: "AWS::IAM::OIDCProvider"
+    Properties:
+      ClientIdList:
+        - "sts.amazonaws.com"
+      Url: !GetAtt VdcCluster.OpenIdConnectIssuerUrl
+
+  VdcVpc:
+    Type: "AWS::EC2::VPC"
+    Properties:
+      CidrBlock: !Ref VpcCidrBlock
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+  VdcSubnetA:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      MapPublicIpOnLaunch: true
+      EnableDns64: false
+      VpcId: !Ref VdcVpc
+      PrivateDnsNameOptionsOnLaunch:
+        EnableResourceNameDnsARecord: false
+        HostnameType: "ip-name"
+        EnableResourceNameDnsAAAARecord: false
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: !Ref SubnetCidrBlockA
+      Ipv6Native: false
+  VdcSubnetB:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      MapPublicIpOnLaunch: true
+      EnableDns64: false
+      VpcId: !Ref VdcVpc
+      PrivateDnsNameOptionsOnLaunch:
+        EnableResourceNameDnsARecord: false
+        HostnameType: "ip-name"
+        EnableResourceNameDnsAAAARecord: false
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      CidrBlock: !Ref SubnetCidrBlockB
+      Ipv6Native: false
+  VdcSubnetC:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      MapPublicIpOnLaunch: true
+      EnableDns64: false
+      VpcId: !Ref VdcVpc
+      PrivateDnsNameOptionsOnLaunch:
+        EnableResourceNameDnsARecord: false
+        HostnameType: "ip-name"
+        EnableResourceNameDnsAAAARecord: false
+      AvailabilityZone: !Select [2, !GetAZs ""]
+      CidrBlock: !Ref SubnetCidrBlockC
+      Ipv6Native: false
+  VdcInternetGateway:
+    Type: "AWS::EC2::InternetGateway"
+  VdcInternetGatewayAttachment:
+    Type: "AWS::EC2::VPCGatewayAttachment"
+    Properties:
+      VpcId: !Ref VdcVpc
+      InternetGatewayId: !Ref VdcInternetGateway
+  VdcRouteTable:
+    Type: "AWS::EC2::RouteTable"
+    Properties:
+      VpcId: !Ref VdcVpc
+  VdcInternetAccessRoute:
+    Type: "AWS::EC2::Route"
+    Properties:
+      RouteTableId: !Ref VdcRouteTable
+      DestinationCidrBlock: "0.0.0.0/0"
+      GatewayId: !Ref VdcInternetGateway
+  VdcSubnetARouteTableAssociation:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      RouteTableId: !Ref VdcRouteTable
+      SubnetId: !Ref VdcSubnetA
+  VdcSubnetBRouteTableAssociation:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      RouteTableId: !Ref VdcRouteTable
+      SubnetId: !Ref VdcSubnetB
+  VdcSubnetCRouteTableAssociation:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      RouteTableId: !Ref VdcRouteTable
+      SubnetId: !Ref VdcSubnetC
+
+  VdcGatewayAddress:
+    Type: "AWS::EC2::EIP"
+    DependsOn: VdcVpc
+    Properties:
+      Domain: "vpc"
+      Tags:
+        - Key: "Name"
+          Value: "gateway"
+  VdcInternalGatewayAddress:
+    Type: "AWS::EC2::NetworkInterface"
+    Properties:
+      SubnetId: !Ref VdcSubnetA
+      Tags:
+        - Key: "Name"
+          Value: "internal-gateway"
+
+  VdcArtifactRepositoryTemplate:
+    Type: "AWS::ECR::RepositoryCreationTemplate"
+    Properties:
+      AppliedFor:
+        - "CREATE_ON_PUSH"
+      EncryptionConfiguration:
+        EncryptionType: "AES256"
+      Prefix: "hail"
+  VdcDockerhubProxy:
+    Type: "AWS::ECR::Repository"
+    Properties:
+      EncryptionConfiguration:
+        EncryptionType: "AES256"
+      LifecyclePolicy:
+        LifecyclePolicyText:
+          Fn::ToJsonString:
+            rules:
+              - rulePriority: 1
+                description: "Delete after 1d"
+                selection:
+                  tagStatus: "any"
+                  countType: "sinceImagePushed"
+                  countUnit: "days"
+                  countNumber: 1
+                action:
+                  type: "expire"
+      RepositoryName: "dockerhubproxy"
+
+  VdcHailBatchBucket:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      BucketName: !Sub
+        - "hail-batch-${RandomString}"
+        - RandomString: !Select [2, !Split ["/", !Ref AWS::StackId]]
+  VdcHailQueryBucket:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      BucketName: !Sub
+        - "hail-query-${RandomString}"
+        - RandomString: !Select [2, !Split ["/", !Ref AWS::StackId]]
+  VdcHailTestBucket:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      BucketName: !Sub
+        - "hail-test-${RandomString}"
+        - RandomString: !Select [2, !Split ["/", !Ref AWS::StackId]]
+  VdcTestRequesterPaysBucket:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      BucketName: !Sub
+        - "hail-test-requester-pays-${RandomString}"
+        - RandomString: !Select [2, !Split ["/", !Ref AWS::StackId]]
+
+  # AWS-managed EKS addons & necessary roles
+
+  VdcClusterAddonEbsCsiDriver:
+    Type: "AWS::EKS::Addon"
+    Properties:
+      NamespaceConfig:
+        Namespace: "kube-system"
+      ServiceAccountRoleArn: !GetAtt VdcClusterCsiDriverRole.Arn
+      ClusterName: !Ref VdcCluster
+      AddonName: "aws-ebs-csi-driver"
+  VdcClusterAddonCloudWatchAgent:
+    Type: "AWS::EKS::Addon"
+    Properties:
+      NamespaceConfig:
+        Namespace: "amazon-cloudwatch"
+      ServiceAccountRoleArn: !GetAtt VdcClusterCloudWatchObservabilityRole.Arn
+      ClusterName: !Ref VdcCluster
+      AddonName: "amazon-cloudwatch-observability"
+  VdcClusterAddonNodeMonitoringAgent:
+    Type: "AWS::EKS::Addon"
+    Properties:
+      NamespaceConfig:
+        Namespace: "kube-system"
+      ClusterName: !Ref VdcCluster
+      AddonName: "eks-node-monitoring-agent"
+  VdcClusterAddonKubeProxy:
+    Type: "AWS::EKS::Addon"
+    Properties:
+      NamespaceConfig:
+        Namespace: "kube-system"
+      ClusterName: !Ref VdcCluster
+      AddonName: "kube-proxy"
+  VdcClusterAddonExternalDns:
+    Type: "AWS::EKS::Addon"
+    Properties:
+      NamespaceConfig:
+        Namespace: "external-dns"
+      ClusterName: !Ref VdcCluster
+      AddonName: "external-dns"
+  VdcClusterAddonCoreDns:
+    Type: "AWS::EKS::Addon"
+    Properties:
+      NamespaceConfig:
+        Namespace: "kube-system"
+      ClusterName: !Ref VdcCluster
+      AddonName: "coredns"
+  VdcClusterAddonVpcCni:
+    DependsOn: [ VdcPreemptibleNodeGroup, VdcNonpreemptibleNodeGroup ]
+    Type: "AWS::EKS::Addon"
+    Properties:
+      NamespaceConfig:
+        Namespace: "kube-system"
+      ServiceAccountRoleArn: !GetAtt VdcClusterVpcCniRole.Arn
+      ClusterName: !Ref VdcCluster
+      AddonName: "vpc-cni"
+  VdcClusterAddonPodIdentityAgent:
+    Type: "AWS::EKS::Addon"
+    Properties:
+      NamespaceConfig:
+        Namespace: "kube-system"
+      ClusterName: !Ref VdcCluster
+      AddonName: "eks-pod-identity-agent"
+  VdcClusterAddonMetricsServer:
+    Type: "AWS::EKS::Addon"
+    Properties:
+      NamespaceConfig:
+        Namespace: "kube-system"
+      ClusterName: !Ref VdcCluster
+      AddonName: "metrics-server"
+  VdcClusterAddonSecretsStoreCsiProvider:
+    Type: "AWS::EKS::Addon"
+    Properties:
+      NamespaceConfig:
+        Namespace: "aws-secrets-manager"
+      ServiceAccountRoleArn: !GetAtt VdcClusterCsiDriverRole.Arn
+      ClusterName: !Ref VdcCluster
+      AddonName: "aws-secrets-store-csi-driver-provider"
+
+  VdcClusterCsiDriverRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/AmazonEBSCSIDriverPolicyV2"
+        - "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
+        - "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+      MaxSessionDuration: 3600
+      RoleName: "vdc-csi-driver-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Action:
+              - "sts:AssumeRole"
+              - "sts:TagSession"
+            Effect: "Allow"
+            Principal:
+              Service: "pods.eks.amazonaws.com"
+  VdcClusterCloudWatchObservabilityRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      Path: "/"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
+      MaxSessionDuration: 3600
+      RoleName: "vdc-cloudwatch-observability-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Action:
+              - "sts:AssumeRole"
+              - "sts:TagSession"
+            Effect: "Allow"
+            Principal:
+              Service: "pods.eks.amazonaws.com"
+  VdcClusterVpcCniRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      Path: "/"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
+      MaxSessionDuration: 3600
+      RoleName: "vdc-vpc-cni-role"
+      AssumeRolePolicyDocument: !Sub
+        - |
+          {
+            "Version": "2012-10-17",
+            "Statement": {
+              "Condition": {
+                "StringEquals": {
+                  "${OidcPrefix}:aud": "sts.amazonaws.com",
+                  "${OidcPrefix}:sub": "system:serviceaccount:kube-system:aws-node"
+                }
+              },
+              "Action": "sts:AssumeRoleWithWebIdentity",
+              "Effect": "Allow",
+              "Principal": {
+                "Federated": "arn:aws:iam::${AWS::AccountId}:oidc-provider/${OidcPrefix}"
+              }
+            }
+          }
+        - OidcPrefix: !Select [1, !Split ["//", !GetAtt VdcCluster.OpenIdConnectIssuerUrl]]
+
+Outputs:
+  VdcClusterName:
+    Value: !Ref VdcCluster
+    Description: "EKS cluster name"
+    Export:
+      Name: VdcClusterName
+  VdcNetwork:
+    Value: !Ref VdcVpc
+    Description: "Cluster network VPC"
+    Export:
+      Name: VdcNetwork
+  VdcSubnet:
+    Value: !Ref VdcSubnetA
+    Description: "Subnet belonging to cluster VPC"
+    Export:
+      Name: VdcSubnet
+  VdcNodeRole:
+    Value: !GetAtt VdcClusterNodegroupRole.Arn
+    Description: "ARN of IAM role associated with cluster nodes"
+    Export:
+      Name: VdcNodeRole
