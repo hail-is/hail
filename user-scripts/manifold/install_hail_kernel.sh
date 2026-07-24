@@ -35,7 +35,7 @@ set -euo pipefail
 
 # ---- Config -----------------------------------------------------------------
 ENV_NAME="hail"
-PY_VERSION="3.11"
+PY_VERSION="3.12"
 DISPLAY_NAME="Python (hail)"
 
 log() { printf '>> %s\n' "$*"; }

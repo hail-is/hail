@@ -51,7 +51,7 @@ Homebrew is able to install uv for you - `brew install uv`.
 After installing, cd to the repo and create a new environment there:
 ```bash
 % cd hail
-% uv venv --seed --python 3.11
+% uv venv --seed --python 3.12
 [...]
 % source .venv/bin/activate
 ```
