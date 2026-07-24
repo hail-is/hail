@@ -10,10 +10,10 @@ HAIL_GENETICS_IMAGES = [
 
 def hailgenetics_hail_image_for_current_python_version():
     version = sys.version_info
-    if version.major != 3 or version.minor not in (11, 12, 13, 14):
+    if version.major != 3 or version.minor not in (12, 13, 14):
         raise ValueError(
             f'You must specify an "image" for Python jobs and the BatchPoolExecutor if you are '
-            f'using a Python version not between 3.11 and 3.14 inclusive (you are using {version})'
+            f'using a Python version not between 3.12 and 3.14 inclusive (you are using {version})'
         )
     if version.minor == 12:
         return f'hailgenetics/hail:{__pip_version__}'
