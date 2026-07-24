@@ -2497,17 +2497,16 @@ case class MatrixNativeMultiWriter(
 
     val contextUnionType = TStruct("__matrix_id" -> TInt32, "__options" -> unionType)
 
-    val emptyUnionIRs: IndexedSeq[(Int, IR)] =
-      ArraySeq.tabulate(unionType.size)(i => i -> NA(unionType.types(i)))
-
     val concatenatedContexts =
       flatten(
         MakeArray(
           components.zipWithIndex.map { case (c, matrixId) =>
-            ToArray(mapIR(c.stage.contexts) { ctx =>
+            ToArray(c.stage.contexts.streamMap { ctx =>
               makestruct(
                 "__matrix_id" -> I32(matrixId),
-                "__options" -> MakeTuple(emptyUnionIRs.updated(matrixId, matrixId -> ctx.ir)),
+                "__options" -> MakeTuple(ArraySeq.tabulate(unionType.size) { i =>
+                  i -> (if (i == matrixId) ctx.ir else NA(unionType.types(i)))
+                }),
               )
             })
           },
@@ -2531,25 +2530,22 @@ case class MatrixNativeMultiWriter(
 
         result <- cdaIR(concatenatedContexts, allBroadcasts, "matrix_multi_writer") {
           (ctx, globals) =>
-            Switch(
-              GetField(ctx, "__matrix_id"),
-              default = Die("MatrixId exceeds matrix count", components.head.writePartitionType),
-              cases = components.zipWithIndex.map { case (component, i) =>
-                val binds = component.stage.broadcastVals.map { case (name, _) =>
-                  name -> GetField(globals, name.str)
-                }
-
-                Let(
-                  binds,
+            ctx.get("__options").bind { options =>
+              Switch(
+                ctx.get("__matrix_id"),
+                default = Die("MatrixId exceeds matrix count", components.head.writePartitionType),
+                cases = components.zipWithIndex.map { case (component, i) =>
                   IRBuilder.scoped { b =>
-                    val options = GetField(ctx, "__options")
-                    val ctxRef = b.memoize(GetTupleElement(options, i))
+                    for ((name, _) <- component.stage.broadcastVals)
+                      b.strictMemoize(globals.get(name.str), name)
+
+                    val ctxRef = b.memoize(options.get(i))
                     val rows = b.memoize(component.stage.partition(ctxRef))
                     component.writePartition(rows, ctxRef)
-                  },
-                )
-              },
-            )
+                  }
+                },
+              )
+            }
         }
 
         partCounts = components.map(_.stage.numPartitions).scanLeft(0)(_ + _)
