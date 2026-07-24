@@ -52,6 +52,12 @@ supports.
 policy. Their functionality or even existence may change without notice. Please contact us if you
 critically depend on experimental functionality.**
 
+## Version 0.2.139
+
+### New Features
+
+- (hail#XXXXX) (CHANGELOG) Add `hailctl emr`, a command group (`start`/`stop`/`list`/`submit`) for provisioning and running Hail on Amazon EMR, bringing AWS to parity with `hailctl dataproc` and `hailctl hdinsight`. Adds the `emr/region` and `emr/remote_tmpdir` config variables and support for `HAIL_CLOUD=aws`.
+
 ## Version 0.2.138
 
 Released 2026-04-13
