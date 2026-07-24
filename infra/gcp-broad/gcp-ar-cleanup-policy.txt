@@ -132,6 +132,7 @@
                 "hail-run",
                 "hail-ubuntu",
                 "hail-ubuntu-py-3-13",
+                "hail-ubuntu-python-3-11",
                 "hail-ubuntu-python-3-13",
                 "hail-ubuntu-python-3-14",
                 "hailgenetics/hail",
