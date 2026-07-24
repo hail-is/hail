@@ -1565,13 +1565,12 @@ class TableIRSuite {
       ),
     )
 
-    val e = intercept[HailException](TypeCheck(
-      ctx,
-      collect(mapPartitions(table)((_, part) => flatMapIR(StreamRange(0, 2, 1))(_ => part))),
-    ))
-    assert(
-      "must iterate over the partition exactly once".r.findFirstIn(e.getCause.getMessage).isDefined
-    )
+    interceptException[Throwable]("must iterate over the partition exactly once") {
+      TypeCheck(
+        ctx,
+        mapPartitions(table)((_, part) => flatMapIR(StreamRange(0, 2, 1))(_ => part)).collect,
+      )
+    }
   }
 
   @Test def testRepartitionCostEstimate(implicit ctx: ExecuteContext): Unit = {

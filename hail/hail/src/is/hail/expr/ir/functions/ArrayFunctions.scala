@@ -171,16 +171,16 @@ object ArrayFunctions extends RegistryFunctions {
       }
     }
 
-    def argF(a: Atom, op: ComparisonOp[Boolean], errorID: Int): IR = {
+    def argF(a: Atom, op: ComparisonOp[Boolean]): IR = {
       val t = tcoerce[TArray](a.typ).elementType
       val tAccum = TTuple(t, TInt32)
 
       GetTupleElement(
-        foldIR(rangeIR(a.len), NA(tAccum)) { (accum, idx) =>
-          bindIRs(ArrayRef(a, idx, errorID), accum.get(0)) { case Seq(value, m) =>
+        foldIR(a.stream.zipWithIndex, NA(tAccum)) { (accum, elem) =>
+          bindIRs(elem.get("elt"), accum.get(0)) { case Seq(value, m) =>
             If(
               !IsNA(value) && (IsNA(m) || ApplyComparisonOp(op, value, m)),
-              maketuple(value, idx),
+              maketuple(value, elem.get("idx")),
               accum,
             )
           }
@@ -189,9 +189,9 @@ object ArrayFunctions extends RegistryFunctions {
       )
     }
 
-    registerIR1("argmin", TArray(tv("T")), TInt32)((_, a, errorID) => argF(a, LT, errorID))
+    registerIR1("argmin", TArray(tv("T")), TInt32)((_, a, _) => argF(a, LT))
 
-    registerIR1("argmax", TArray(tv("T")), TInt32)((_, a, errorID) => argF(a, GT, errorID))
+    registerIR1("argmax", TArray(tv("T")), TInt32)((_, a, _) => argF(a, GT))
 
     def uniqueIndex(a: Atom, op: ComparisonOp[Boolean], errorID: Int): IR = {
       val t = elementType(a.typ)

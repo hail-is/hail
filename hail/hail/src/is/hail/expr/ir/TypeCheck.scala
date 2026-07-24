@@ -13,7 +13,7 @@ import is.hail.utils.StackSafe._
 import scala.collection.compat._
 import scala.reflect.ClassTag
 
-object TypeCheck {
+object TypeCheck extends Logging {
   def apply(ctx: ExecuteContext, ir: BaseIR): Unit =
     apply(ctx, ir, BindingEnv.empty)
 
@@ -23,10 +23,11 @@ object TypeCheck {
         check(ctx, ir, env).run()
       catch {
         case e: Throwable =>
-          fatal(
-            s"Error while typechecking IR:\n${Pretty(ctx, ir, preserveNames = true, allowUnboundRefs = true)}",
+          logger.fatal(
+            s"Error while typechecking IR: ${Pretty(ctx, ir, allowUnboundRefs = true)}",
             e,
           )
+          throw e
       }
     }
 
@@ -559,7 +560,10 @@ object TypeCheck {
             !t.colType.hasField(MatrixReader.colUIDFieldName),
           t,
         )
-        assert(children.forall(_.typ == t))
+        assert(
+          children.forall(_.typ == t),
+          "MatrixMultiWrite requires MatrixTable inputs of the same type",
+        )
       case x @ TableAggregate(_, query) =>
         assert(x.typ == query.typ)
       case x @ MatrixAggregate(_, query) =>
