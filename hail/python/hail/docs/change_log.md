@@ -52,6 +52,25 @@ supports.
 policy. Their functionality or even existence may change without notice. Please contact us if you
 critically depend on experimental functionality.**
 
+## Version 0.2.139 
+
+Released 2026-05-20 
+
+- (hail#15462) no-sharing in ir functions by construction
+- (hail#15445) Add metadata as footer to index files
+- (hail#15458) `Memoized`, a monadic ir builder
+- (hail#15470) fix vep requester pays w/ batch backend
+- (hail#15376) run tests via mill in ci
+- (hail#15468) fix requester-pays in batch backend
+- (hail#15460) fix double ordering in scala 2.13
+- (hail#15449) `Atom` (nee `TrivialIR`) copy-on-use (no-sharing)
+- (hail#15408) Finally make it so that buffer specs have no notion of how the data in them is encoded
+Revert "- (hail#15439) use new enableBsp feature in mill (#15175)"
+- (hail#15401) fix check-hail target, bump scala minor versions
+- (hail#15374) Fix haploid sparse_split_multi when len(LA) >= 3
+- (hail#15373) Implement an order preserving prefix free encoding for hail v…
+- (hail#15370) normalize names before lowering
+
 ## Version 0.2.138
 
 Released 2026-04-13

@@ -15,6 +15,28 @@ versions. In particular, Hail officially supports:
 Change Log
 ==========
 
+**Version 0.2.139**
+
+- (`#15485 <https://github.com/hail-is/hail/pull/15485>`__) update worker image to noble 20260516
+- (`#15477 <https://github.com/hail-is/hail/pull/15477>`__) skip resource ingest (and errors) for DWS type SKUs
+- (`#15457 <https://github.com/hail-is/hail/pull/15457>`__) bump worker image to ubuntu 24
+- (`#15476 <https://github.com/hail-is/hail/pull/15476>`__) pip npm bump 2026 05 08
+- (`#15459 <https://github.com/hail-is/hail/pull/15459>`__) fix UI links to worker logs
+- (`#15378 <https://github.com/hail-is/hail/pull/15378>`__) Previous attempt logs w/ Job Details' React refactor
+- (`#15475 <https://github.com/hail-is/hail/pull/15475>`__) patch worker image to 17b
+- (`#15472 <https://github.com/hail-is/hail/pull/15472>`__) support indirected auth checks with any verb
+- (`#15200 <https://github.com/hail-is/hail/pull/15200>`__) Switch to role based auth
+- (`#15456 <https://github.com/hail-is/hail/pull/15456>`__) package updates 20260501
+- (`#15452 <https://github.com/hail-is/hail/pull/15452>`__) Break up file chunk reads in copier to avoid timeouts
+- (`#15453 <https://github.com/hail-is/hail/pull/15453>`__) patch worker image to 17a
+- (`#15362 <https://github.com/hail-is/hail/pull/15362>`__) docker inspect error reporting
+- (`#15443 <https://github.com/hail-is/hail/pull/15443>`__) bump ubuntu base to noble-20260410
+- (`#15442 <https://github.com/hail-is/hail/pull/15442>`__) pip and npm updates
+- (`#15298 <https://github.com/hail-is/hail/pull/15298>`__) Improve inactive client UX
+- (`#15383 <https://github.com/hail-is/hail/pull/15383>`__) bump base ubuntu to noble-20260324
+- (`#15382 <https://github.com/hail-is/hail/pull/15382>`__) pip/npm update 4-10-26
+- (`#15318 <https://github.com/hail-is/hail/pull/15318>`__) Fix update to user's last active time
+
 **Version 0.2.138**
 
 - (`#15266 <https://github.com/hail-is/hail/pull/15266>`__) Add the ability to filter jobs by exit code in the Batch UI and API.
