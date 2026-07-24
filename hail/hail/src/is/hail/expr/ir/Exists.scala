@@ -129,3 +129,8 @@ object ContainsScan {
       }
   })
 }
+
+object AggContextDependent {
+  def apply(ir: IR): Boolean =
+    ContainsAgg(ir) || ContainsScan(ir) || ContainsAggIntermediate(ir)
+}

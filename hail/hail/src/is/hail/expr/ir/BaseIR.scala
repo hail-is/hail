@@ -38,6 +38,22 @@ abstract class BaseIR {
       copyWithNewChildren(newChildren)
   }
 
+  def foldChildrenWithIndex[E](env: E)(f: (BaseIR, Int, E) => (BaseIR, E)): (BaseIR, E) = {
+    val newChildren = childrenSeq.toArray
+    var res: BaseIR = this
+    var curEnv = env
+    for (i <- newChildren.indices) {
+      val child = newChildren(i)
+      val (newChild, nextEnv) = f(child, i, curEnv)
+      if (!(newChild eq child)) {
+        newChildren(i) = newChild
+        res = res.copyWithNewChildren(ArraySeq.unsafeWrapArray(newChildren))
+      }
+      curEnv = nextEnv
+    }
+    (res, curEnv)
+  }
+
   def mapChildren(f: (BaseIR) => BaseIR): BaseIR = {
     val newChildren = childrenSeq.map(f)
     if (childrenSeq.elementsSameObjects(newChildren))

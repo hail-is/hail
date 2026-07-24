@@ -1283,11 +1283,12 @@ class Tests(unittest.TestCase):
         assert r.n_smaller == 0
         assert r.n_larger == 0
 
-    def test_aggregator_cse(self):
+    def test_aggregator_cse_1(self):
         ht = hl.utils.range_table(10)
         x = hl.agg.count()
         self.assertEqual(ht.aggregate((x, hl.agg.filter(ht.idx % 2 == 0, x))), (10, 5))
 
+    def test_aggregator_cse_2(self):
         mt = hl.utils.range_matrix_table(10, 10)
         x = hl.int64(5)
         rows = mt.annotate_rows(agg=hl.agg.sum(x + x), scan=hl.scan.sum(x + x), val=x + x).rows()
