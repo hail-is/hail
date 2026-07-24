@@ -1176,16 +1176,12 @@ async def patch_system_roles_for_user(request: web.Request, _) -> web.Response:
 
     # Verify user exists - and get a user record - from either ID or unique username:
     if isinstance(user_id, int):
-        user = await db.select_and_fetchone(
-            "SELECT id, username FROM users WHERE id = %s AND state = 'active'", (user_id,)
-        )
+        user = await db.select_and_fetchone("SELECT id, username FROM users WHERE id = %s", (user_id,))
     else:
-        user = await db.select_and_fetchone(
-            "SELECT id, username FROM users WHERE username = %s AND state = 'active'", (user_id,)
-        )
+        user = await db.select_and_fetchone("SELECT id, username FROM users WHERE username = %s", (user_id,))
 
     if not user:
-        raise web.HTTPNotFound(text='User not found or not active')
+        raise web.HTTPNotFound(text='User not found')
 
     @transaction(db)
     async def modify_roles(tx):
