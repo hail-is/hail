@@ -2114,41 +2114,33 @@ def test_grouped_flatmap_streams():
     ht._force_count()
 
 
-def make_test(table_name: str, num_parts: int, counter: str, truncator, n: int):
-    # NOTE: we cannot use Hail during test parameter initialization
-    def test():
-        if table_name == 'rt':
-            table = hl.utils.range_table(10, n_partitions=num_parts)
-        elif table_name == 'par':
-            table = hl.Table.parallelize(
-                [hl.Struct(x=x) for x in range(10)], schema='struct{x: int32}', n_partitions=num_parts
-            )
-        elif table_name == 'rtcache':
-            table = hl.utils.range_table(10, n_partitions=num_parts).cache()
-        else:
-            assert table_name == 'chkpt'
-            table = hl.utils.range_table(10, n_partitions=num_parts).checkpoint(new_temp_file(extension='ht'))
-        assert counter(truncator(table, n)) == min(10, n)
-
-    return test
-
-
-head_tail_test_data = [
-    pytest.param(
-        make_test(table_name, num_parts, counter, truncator, n),
-        id='__'.join([table_name, str(num_parts), str(n), truncator_name, counter_name]),
-    )
+head_tail_test_ids = [
+    (table_name, num_parts, n, truncator_name, counter_name)
     for table_name in ['rt', 'par', 'rtcache', 'chkpt']
     for num_parts in [3, 11]
     for n in (10, 9, 11, 0, 7)
-    for truncator_name, truncator in (('head', hl.Table.head), ('tail', hl.Table.tail))
-    for counter_name, counter in (('count', hl.Table.count), ('_force_count', hl.Table._force_count))
+    for truncator_name in ('head', 'tail')
+    for counter_name in ('count', '_force_count')
 ]
 
 
-@pytest.mark.parametrize("test", head_tail_test_data)
-def test_table_head_and_tail(test):
-    test()
+@pytest.mark.parametrize('table_name,num_parts,n,truncator_name,counter_name', head_tail_test_ids)
+def test_table_head_and_tail(table_name, num_parts, n, truncator_name, counter_name):
+    if table_name == 'rt':
+        table = hl.utils.range_table(10, n_partitions=num_parts)
+    elif table_name == 'par':
+        table = hl.Table.parallelize(
+            [hl.Struct(x=x) for x in range(10)], schema='struct{x: int32}', n_partitions=num_parts
+        )
+    elif table_name == 'rtcache':
+        table = hl.utils.range_table(10, n_partitions=num_parts).cache()
+    else:
+        assert table_name == 'chkpt'
+        table = hl.utils.range_table(10, n_partitions=num_parts).checkpoint(new_temp_file(extension='ht'))
+
+    truncator = getattr(hl.Table, truncator_name)
+    counter = getattr(hl.Table, counter_name)
+    assert counter(truncator(table, n)) == min(10, n)
 
 
 def test_to_pandas():

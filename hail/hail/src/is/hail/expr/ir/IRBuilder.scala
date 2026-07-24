@@ -10,7 +10,9 @@ object IRBuilder {
   def scoped(f: IRBuilder => IR): IR = {
     val builder = new IRBuilder()
     val result = f(builder)
-    Block(builder.getBindings, result)
+    val bindings = builder.getBindings
+    if (bindings.nonEmpty) Block(bindings, result)
+    else result
   }
 }
 

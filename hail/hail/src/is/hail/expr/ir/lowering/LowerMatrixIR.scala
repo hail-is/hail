@@ -9,6 +9,7 @@ import is.hail.expr.ir.{Memoized => M, _}
 import is.hail.expr.ir.MatrixIR.{colName, entryName, globalName, rowName}
 import is.hail.expr.ir.Scope._
 import is.hail.expr.ir.defs._
+import is.hail.expr.ir.defs.ArrayZipBehavior._
 import is.hail.expr.ir.functions.{WrappedMatrixToTableFunction, WrappedMatrixToValueFunction}
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -209,14 +210,12 @@ object LowerMatrixIR extends Logging {
 
       case MatrixAnnotateColsTable(child, table, root) =>
         lower(ctx, child, liftedRelationalLets).mapGlobals { global =>
-          bindIR(lower(ctx, table, liftedRelationalLets).collectAsDict) { annotations =>
+          lower(ctx, table, liftedRelationalLets).collectAsDict.bind { annotations =>
             global.update(colsFieldName) { cols =>
               mapArray(cols) { col =>
                 val key =
-                  MakeStruct(
-                    table.typ.key.zip(child.typ.colKey).map { case (tk, mck) =>
-                      tk -> col.get(mck)
-                    }
+                  col.select(child.typ.colKey).rename(
+                    _.rename(child.typ.colKey.zip(table.typ.key).toMap)
                   )
 
                 col.insert(root -> annotations.invoke("get", table.typ.valueType, key))
@@ -359,15 +358,19 @@ object LowerMatrixIR extends Logging {
 
               newRow <-
                 if (!ContainsAgg(body)) body
-                else rangeIR(entries.len).filter(!entries.at(_).isNA).streamAgg { i =>
-                  M.agg {
-                    M.sequence(
-                      colName -> cols.at(i),
-                      entryName -> entries.at(i),
-                      body,
-                    )
+                else cols
+                  .stream
+                  .zip(entries.stream)((c, e) => maybeIR(e)(maketuple(c, _)))
+                  .filter(!_.isNA)
+                  .streamAgg { elem =>
+                    M.agg {
+                      M.sequence(
+                        colName -> elem.get(0),
+                        entryName -> elem.get(1),
+                        body,
+                      )
+                    }
                   }
-                }
 
             } yield newRow.insert(entriesFieldName -> entries)
           }
@@ -536,7 +539,7 @@ object LowerMatrixIR extends Logging {
                                 _ <- colName -> aggCols.at(elem)
                                 g <- entryName -> entries.at(elem)
                                 _ <- M.lift[EVAL.type]((colName -> cols.at(idx)) >> M.unit)
-                              } yield AggFilter(!g.isNA, bindingsToStruct(aggs), false)
+                              } yield AggFilter(!g.isNA, bindingsToStruct(aggs), isScan = false)
                             }
                           },
                       )
@@ -595,18 +598,18 @@ object LowerMatrixIR extends Logging {
               _ <- setupOuterAggContext
               _ <- setupOuterScanContext
             } yield global.insert(
-              colsFieldName -> ToArray(StreamMap(
-                rangeIR(cols.len),
-                colIdx.name,
-                M.eval {
-                  M.sequence(
-                    colName -> cols.at(colIdx),
-                    setupInnerAggContext,
-                    setupInnerScanContext,
-                    b0,
-                  )
-                },
-              ))
+              colsFieldName ->
+                ToArray(cols.stream.enumerate { (col, idx) =>
+                  M.eval {
+                    M.sequence(
+                      colName -> col,
+                      colIdx.name -> idx,
+                      setupInnerAggContext,
+                      setupInnerScanContext,
+                      b0,
+                    )
+                  }
+                })
             )
           }
         }
@@ -623,11 +626,11 @@ object LowerMatrixIR extends Logging {
               _ <- rowName -> row.select(mtype.rowType.fieldNames)
             } yield row.insert(
               entriesFieldName ->
-                ToArray(rangeIR(cols.len).streamMap { i =>
+                ToArray(cols.stream.zip(entries.stream) { (col, entry) =>
                   M.eval {
                     for {
-                      _ <- colName -> cols.at(i)
-                      g <- entryName -> entries.at(i)
+                      _ <- colName -> col
+                      g <- entryName -> entry
                     } yield If(lower(ctx, pred, liftedRelationalLets), g, NA(mtype.entryType))
                   }
                 })
@@ -652,7 +655,7 @@ object LowerMatrixIR extends Logging {
                   def handleMissingEntriesArray(entries: String, cols: String): IR =
                     if (joinType == "inner") row.get(entries)
                     else row.get(entries).orElse {
-                      ToArray(rangeIR(global.get(cols).len).streamMap { _ =>
+                      ToArray(global.get(cols).stream.streamMap { _ =>
                         MakeStruct(right.typ.entryType.fields.map(f => f.name -> NA(f.typ)))
                       })
                     }
@@ -685,7 +688,7 @@ object LowerMatrixIR extends Logging {
                   FastSeq(ToStream(cols), ToStream(entries)),
                   FastSeq(colName, entryName),
                   lower(ctx, newEntries, liftedRelationalLets),
-                  ArrayZipBehavior.AssumeSameLength,
+                  AssumeSameLength,
                 ))
             )
           }
@@ -756,9 +759,11 @@ object LowerMatrixIR extends Logging {
                 lengths <- global.get("__lengths")
               } yield row.insert(
                 entriesFieldName ->
-                  ToArray(rangeIR(entries.len).streamFlatMap { idx =>
-                    rangeIR(lengths.at(idx)).streamMap(_ => entries.at(idx))
-                  })
+                  entries
+                    .stream
+                    .zip(lengths.stream)((entry, n) => rangeIR(n).streamMap(_ => entry))
+                    .streamFlatten
+                    .toArray
               )
             }
           }
@@ -800,8 +805,10 @@ object LowerMatrixIR extends Logging {
             bindIR(global.get(colsFieldName)) { cols =>
               global.insert(
                 "__new_col_idx" ->
-                  rangeIR(cols.len)
-                    .streamMap(i => maketuple(cols.at(i).select(child.typ.colKey), i))
+                  cols
+                    .stream
+                    .streamMap(_.select(child.typ.colKey))
+                    .zipWithIndex
                     .groupByKey
                     .stream
                     .toArray
@@ -812,7 +819,7 @@ object LowerMatrixIR extends Logging {
             row.update(entriesFieldName) { entries =>
               mapArray(global.get("__new_col_idx")) { kv =>
                 MakeStruct(child.typ.entryType.fieldNames.map { f =>
-                  f -> mapArray(kv.get("value"))(i => entries.at(i).get(f))
+                  f -> mapArray(kv.get("value"))(entries.at(_).get(f))
                 })
               }
             }
@@ -823,7 +830,7 @@ object LowerMatrixIR extends Logging {
                 InsertFields(
                   kv.get("key"),
                   child.typ.colValueStruct.fieldNames.map { f =>
-                    f -> mapArray(kv.get("value"))(i => cols.at(i).get(f))
+                    f -> mapArray(kv.get("value"))(cols.at(_).get(f))
                   },
                 )
               }
@@ -842,8 +849,10 @@ object LowerMatrixIR extends Logging {
             bindIR(global.get(colsFieldName)) { cols =>
               global.insert(
                 "__key_map" ->
-                  rangeIR(cols.len)
-                    .streamMap(idx => maketuple(cols.at(idx).select(child.typ.colKey), idx))
+                  cols
+                    .stream
+                    .streamMap(_.select(child.typ.colKey))
+                    .zipWithIndex
                     .groupByKey
                     .stream
                     .toArray
@@ -859,8 +868,8 @@ object LowerMatrixIR extends Logging {
                 entries <- row.get(entriesFieldName)
                 _ <- globalName -> global.select(child.typ.globalType.fieldNames)
                 _ <- rowName -> row.select(child.typ.rowType.fieldNames)
-                newEntries <- ToArray(rangeIR(keyMap.len).streamMap { idx =>
-                  keyMap.at(idx).get("value").stream.streamAgg { aggIdx =>
+                newEntries <- mapArray(keyMap) { kv =>
+                  kv.get("value").stream.streamAgg { aggIdx =>
                     M.agg {
                       for {
                         _ <- colName -> cols.at(aggIdx)
@@ -869,7 +878,7 @@ object LowerMatrixIR extends Logging {
                       } yield AggFilter(!g.isNA, aggEntries, isScan = false)
                     }
                   }
-                })
+                }
               } yield row.insert(entriesFieldName -> newEntries)
             }
           }
@@ -880,23 +889,20 @@ object LowerMatrixIR extends Logging {
                 keyMap <- global.get("__key_map")
                 global <- Name("__global_matrix_aggregate_cols_by_key") -> global
                 _ <- globalName -> global.select(child.typ.globalType.fieldNames)
-                newCols <- ToArray(rangeIR(keyMap.len)
-                  .streamMap { idx =>
-                    M.eval {
-                      for {
-                        elem <- keyMap.at(idx)
-                        key <- elem.get("key")
-                        value <- elem.get("value").stream.streamAgg { aggIdx =>
-                          M.agg {
-                            (colName -> cols.at(aggIdx)) >>
-                              lower(ctx, colExpr, liftedRelationalLets)
-                          }
-                        }
-                      } yield key.insert(
-                        value.typ.asInstanceOf[TStruct].fieldNames.map(f => f -> value.get(f))
-                      )
+                newCols <- ToArray(keyMap.stream.streamMap { elem =>
+                  val aggValue =
+                    elem.get("value").stream.streamAgg { aggIdx =>
+                      M.agg {
+                        (colName -> cols.at(aggIdx)) >> lower(ctx, colExpr, liftedRelationalLets)
+                      }
                     }
-                  })
+
+                  aggValue.bind { value =>
+                    elem.get("key").insert(
+                      value.typ.asInstanceOf[TStruct].fieldNames.map(f => f -> value.get(f))
+                    )
+                  }
+                })
               } yield global.insert(colsFieldName -> newCols).drop("__key_map")
             }
           }
@@ -906,8 +912,14 @@ object LowerMatrixIR extends Logging {
 
     if (!mir.typ.isCompatibleWith(lowered.typ))
       throw new RuntimeException(
-        s"Lowering changed type:\n  BEFORE: ${Pretty(ctx, mir)}\n    ${mir.typ}\n    ${mir.typ.canonicalTableType}\n  AFTER: ${Pretty(ctx, lowered)}\n    ${lowered.typ}"
+        s"Lowering changed type:" +
+          s"\n  BEFORE: ${Pretty(ctx, mir).strip}" +
+          s"\n    ${mir.typ}" +
+          s"\n    ${mir.typ.canonicalTableType}" +
+          s"\n  AFTER: ${Pretty(ctx, lowered).strip}" +
+          s"\n    ${lowered.typ}"
       )
+
     lowered
   }
 
@@ -928,11 +940,13 @@ object LowerMatrixIR extends Logging {
               bindIR(global.get(colsFieldName)) { cols =>
                 global.insert(
                   "__old_col_idx" ->
-                    rangeIR(cols.len)
-                      .streamMap(idx => maketuple(cols.at(idx).select(child.typ.colKey), idx))
+                    cols
+                      .stream
+                      .streamMap(_.select(child.typ.colKey))
+                      .zipWithIndex
                       .sort(ascending = true, onKey = true)
                       .stream
-                      .streamMap(_.get(1))
+                      .streamMap(_.get("idx"))
                       .toArray
                 )
               }
@@ -944,19 +958,33 @@ object LowerMatrixIR extends Logging {
               )
             }
             .mapRows { (global, row) =>
-              bindIR(global.get(colsFieldName)) { cols =>
+              bindIRs(global.get(colsFieldName), row.get("__values")) { case Seq(cols, values) =>
                 row.drop("__values").insert(
                   "__explode" ->
                     ToArray(global.get("__old_col_idx").stream.streamFlatMap { oldColIndex =>
                       bindIR(cols.at(oldColIndex)) { col =>
-                        row.get("__values").stream.streamFlatMap { v =>
+                        values.stream.streamFlatMap { v =>
                           bindIR(v.get(entriesFieldName).at(oldColIndex)) { entry =>
+                            val typ = child.typ
+                            val rfields = typ.rowValueStruct.fieldNames.map(f => f -> v.get(f))
+                            val cfields = typ.colType.fieldNames.map(f => f -> col.get(f))
+                            val efields = typ.entryType.fieldNames.map(f => f -> entry.get(f))
+
+                            val ordering =
+                              typ.rowValueStruct.fieldNames ++
+                                typ.colType.fieldNames ++
+                                typ.entryType.fieldNames
+
+                            val Rs = rfields.length
+                            val Cs = cfields.length
+                            val max = math.max(math.max(Rs, Cs), efields.length)
+
                             val newRow =
-                              MakeStruct(
-                                child.typ.rowValueStruct.fieldNames.map(f => f -> v.get(f)) ++
-                                  child.typ.colType.fieldNames.map(f => f -> col.get(f)) ++
-                                  child.typ.entryType.fieldNames.map(f => f -> entry.get(f))
-                              )
+                              if (max == Rs) v
+                                .select(typ.rowValueStruct.fieldNames)
+                                .insert(cfields ++ efields, Some(ordering))
+                              else if (max == Cs) col.insert(rfields ++ efields, Some(ordering))
+                              else entry.insert(rfields ++ cfields, Some(ordering))
 
                             If(IsNA(entry), MakeStream.empty(newRow.typ), MakeStream(newRow))
                           }
@@ -968,10 +996,22 @@ object LowerMatrixIR extends Logging {
             }
             .explode("__explode")
             .mapRows { (_, row) =>
-              bindIR(row.get("__explode")) { exploded =>
-                MakeStruct(x.typ.rowType.fieldNames.map { f =>
-                  f -> (if (child.typ.rowKey.contains(f)) row.get(f) else exploded.get(f))
-                })
+              row.get("__explode").bind { exploded =>
+                val fields = x.typ.rowType.fieldNames
+
+                val (rowNames, explodedNames) =
+                  fields.partition(child.typ.rowKey.contains)
+
+                if (rowNames.length > explodedNames.length)
+                  row.select(rowNames).insert(
+                    explodedNames.map(f => f -> exploded.get(f)),
+                    Some(fields),
+                  )
+                else
+                  exploded.select(explodedNames).insert(
+                    rowNames.map(f => f -> row.get(f)),
+                    Some(fields),
+                  )
               }
             }
             .mapGlobals(_.drop(colsFieldName, "__old_col_idx"))
@@ -1105,19 +1145,15 @@ object LowerMatrixIR extends Logging {
                 (globalName -> global.select(child.typ.globalType.fieldNames)) >>
                   M.unit
               }
-            } yield zip2(
-              ToStream(cols),
-              ToStream(entries),
-              ArrayZipBehavior.AssertSameLength,
-            ) {
-              (c, e) => maybeIR(e)(e => maketuple(c, e))
-            }
+            } yield cols
+              .stream
+              .zip(entries.stream)((c, e) => maybeIR(e)(e => maketuple(c, e)))
               .filter(!_.isNA)
               .aggExplode { explodedTuple =>
                 M.agg {
                   M.sequence(
-                    colName -> GetTupleElement(explodedTuple, 0),
-                    entryName -> GetTupleElement(explodedTuple, 1),
+                    colName -> explodedTuple.get(0),
+                    entryName -> explodedTuple.get(1),
                     query,
                   )
                 }
@@ -1134,6 +1170,9 @@ object LowerMatrixIR extends Logging {
   private def assertTypeUnchanged(original: BaseIR, lowered: BaseIR): Unit =
     if (lowered.typ != original.typ)
       fatal(
-        s"lowering changed type:\n  before: ${original.typ}\n after: ${lowered.typ}\n  ${original.getClass.getName} => ${lowered.getClass.getName}"
+        s"lowering changed type:" +
+          s"\n  before: ${original.typ}" +
+          s"\n  after: ${lowered.typ}" +
+          s"\n  ${original.getClass.getName} => ${lowered.getClass.getName}"
       )
 }

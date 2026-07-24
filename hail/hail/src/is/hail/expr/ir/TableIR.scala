@@ -246,8 +246,9 @@ object LoweredTableReader extends Logging {
           )((context, _) => scanBody(context))
 
         sortedPartData <-
-          rangeIR(scanResult.len)
-            .streamMap(i => scanResult.at(i).insert("__idx" -> i))
+          scanResult
+            .stream
+            .enumerate((elem, i) => elem.insert("__idx" -> i))
             .filter(_.get("__min_key").len > 0)
             .streamMap(_.update("__min_key")(_.at(0)).update("__max_key")(_.at(0)))
             .sort((l, r) => l.select("__min_key", "__max_key") < r.select("__min_key", "__max_key"))

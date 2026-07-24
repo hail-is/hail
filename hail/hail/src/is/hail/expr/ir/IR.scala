@@ -142,6 +142,9 @@ class IROps(val ir: IR) extends AnyVal {
   def dropWhile(f: Atom => IR): IR =
     is.hail.expr.ir.dropWhile(ir)(f)
 
+  def enumerate(f: (Atom, Atom) => IR): IR =
+    zip(iota(0, 1), ArrayZipBehavior.TakeMinLength)(f)
+
   def streamFor(f: Atom => IR): IR =
     forIR(ir)(f)
 

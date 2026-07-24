@@ -321,8 +321,17 @@ object Interpret extends Logging {
           null
         else
           aValue.asInstanceOf[IndexedSeq[Any]].length
-      case StreamIota(_, _, _) =>
-        throw new UnsupportedOperationException
+      case StreamIota(start_, step_, _) =>
+        // FIXME: `Stream` != `IndexedSeq`! Perhaps implement with `LazyList`?
+        interpret(start_, env, args) match {
+          case null => null
+          case start: Int =>
+            interpret(step_, env, args) match {
+              case null => null
+              case 0 => throw new UnsupportedOperationException("Iota step cannot be 0")
+              case step: Int => Range(start, if (step < 0) Int.MinValue else Int.MaxValue, step)
+            }
+        }
       case StreamRange(start, stop, step, _, errorID) =>
         val startValue = interpret(start, env, args)
         val stopValue = interpret(stop, env, args)
