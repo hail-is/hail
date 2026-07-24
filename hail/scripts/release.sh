@@ -17,6 +17,7 @@ usage: $(basename "$0")
         WHEEL=/path/to/the.whl
         GITHUB_OAUTH_HEADER_FILE=/path/to/github/oauth/header/file
         HAIL_GENETICS_HAIL_IMAGE=docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/hail:deploy-123abc
+        HAIL_GENETICS_HAIL_IMAGE_PY_3_11=docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/hail:deploy-123abc
         HAIL_GENETICS_HAIL_IMAGE_PY_3_12=docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/hail:deploy-123abc
         HAIL_GENETICS_HAIL_IMAGE_PY_3_13=docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/hail:deploy-123abc
         HAIL_GENETICS_HAIL_IMAGE_PY_3_14=docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/hail:deploy-123abc
@@ -38,6 +39,7 @@ arguments="GITHUB_OAUTH_HEADER_FILE \
            GIT_VERSION \
            HAIL_GENETICS_HAILTOP_IMAGE \
            HAIL_GENETICS_HAIL_IMAGE \
+           HAIL_GENETICS_HAIL_IMAGE_PY_3_11 \
            HAIL_GENETICS_HAIL_IMAGE_PY_3_12 \
            HAIL_GENETICS_HAIL_IMAGE_PY_3_13 \
            HAIL_GENETICS_HAIL_IMAGE_PY_3_14 \
@@ -64,6 +66,7 @@ do
 done
 
 retry skopeo inspect $HAIL_GENETICS_HAIL_IMAGE || (echo "could not pull $HAIL_GENETICS_HAIL_IMAGE" ; exit 1)
+retry skopeo inspect $HAIL_GENETICS_HAIL_IMAGE_PY_3_11 || (echo "could not pull $HAIL_GENETICS_HAIL_IMAGE_PY_3_11" ; exit 1)
 retry skopeo inspect $HAIL_GENETICS_HAIL_IMAGE_PY_3_12 || (echo "could not pull $HAIL_GENETICS_HAIL_IMAGE_PY_3_12" ; exit 1)
 retry skopeo inspect $HAIL_GENETICS_HAIL_IMAGE_PY_3_13 || (echo "could not pull $HAIL_GENETICS_HAIL_IMAGE_PY_3_13" ; exit 1)
 retry skopeo inspect $HAIL_GENETICS_HAIL_IMAGE_PY_3_14 || (echo "could not pull $HAIL_GENETICS_HAIL_IMAGE_PY_3_14" ; exit 1)
@@ -133,6 +136,9 @@ curl -XPOST -H @$GITHUB_OAUTH_HEADER_FILE https://api.github.com/repos/hail-is/h
 
 retry skopeo copy $HAIL_GENETICS_HAIL_IMAGE docker://docker.io/hailgenetics/hail:$HAIL_PIP_VERSION
 retry skopeo copy $HAIL_GENETICS_HAIL_IMAGE docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/hail:$HAIL_PIP_VERSION
+
+retry skopeo copy $HAIL_GENETICS_HAIL_IMAGE_PY_3_11 docker://docker.io/hailgenetics/hail:$HAIL_PIP_VERSION-py3.11
+retry skopeo copy $HAIL_GENETICS_HAIL_IMAGE_PY_3_11 docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/hail:$HAIL_PIP_VERSION-py3.11
 
 retry skopeo copy $HAIL_GENETICS_HAIL_IMAGE_PY_3_12 docker://docker.io/hailgenetics/hail:$HAIL_PIP_VERSION-py3.12
 retry skopeo copy $HAIL_GENETICS_HAIL_IMAGE_PY_3_12 docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/hail:$HAIL_PIP_VERSION-py3.12
