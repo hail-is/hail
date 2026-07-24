@@ -57,6 +57,7 @@ The *default* is the version used by the Batch/Auth/CI/Gear services and by `hai
 | File | What to change |
 |---|---|
 | `docker/hail-ubuntu/Dockerfile` | `ARG PYTHON_VERSION=3.XY` default |
+| `hail/python/hail/__init__.py` | `version_info < (3, XY)` runtime guard and its error message |
 | `hail/python/setup.py` | `python_requires=">=3.XY"` |
 | `hail/python/setup-hailtop.py` | `python_requires=">=3.XY"` |
 | `hail/python/hailtop/batch/hail_genetics_images.py` | The branch that returns the untagged image (`if version.minor == XY`) |
@@ -109,5 +110,7 @@ Mirror the add steps in reverse:
 - **`hail/python/test/hailtop/hailctl/batch/test_submit.py`** has a fallback default image used when no `--image` flag is set in tests; it's not near the other image constants and is easy to miss.
 
 - **`hailtop/batch/docker.py`** has a `minor_version < XY` floor check (for `build_python_image`) that also needs updating. It's separate from `hail_genetics_images.py` and easy to miss because it guards a different code path (local Docker builds, not hailgenetics image selection).
+
+- **`hail/python/hail/__init__.py`** has a runtime `version_info < (3, XY)` guard at import time. It must match `python_requires` in `setup.py` / `setup-hailtop.py`. Easy to miss because it's in the package `__init__` rather than near any build or setup file.
 
 - **EMR consideration**: EMR 7.x ships Python 3.11 and upgrades slowly. Before dropping 3.11 support in a future bump, check current EMR release notes — keeping a non-default 3.11 client image is low cost and avoids breaking EMR users.
