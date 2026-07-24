@@ -659,8 +659,7 @@ async def _remove_stale_namespaces(app):
             """
 SELECT u.id, u.namespace_name
 FROM users u
-WHERE u.state = 'active'
-  AND u.namespace_name IS NOT NULL
+WHERE u.namespace_name IS NOT NULL
   AND u.id NOT IN (
       SELECT usr.user_id
       FROM users_system_roles usr
