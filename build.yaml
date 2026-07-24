@@ -107,6 +107,26 @@ steps:
       - merge_code
       - copy_third_party_images
   - kind: buildImage2
+    name: hail_ubuntu_image_python_3_11
+    dockerFile: /io/repo/docker/hail-ubuntu/Dockerfile
+    contextPath: /io/repo
+    publishAs: hail-ubuntu-python-3-11
+    buildArgs:
+      - name: PYTHON_VERSION
+        value: "3.11"
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: standard
+    inputs:
+      - from: /repo/docker/hail-ubuntu
+        to: /io/repo/docker/hail-ubuntu
+      - from: /repo/gear/pinned-requirements.txt
+        to: /io/repo/gear/pinned-requirements.txt
+    dependsOn:
+      - merge_code
+      - copy_third_party_images
+  - kind: buildImage2
     name: hail_ubuntu_image_python_3_13
     dockerFile: /io/repo/docker/hail-ubuntu/Dockerfile
     contextPath: /io/repo
@@ -1529,6 +1549,28 @@ steps:
       - build_hail_jar_and_wheel
       - hail_ubuntu_image
   - kind: buildImage2
+    name: hailgenetics_hail_image_python_3_11
+    dockerFile: /io/repo/docker/hailgenetics/hail/Dockerfile
+    contextPath: /io/repo
+    publishAs: hailgenetics/hail
+    buildArgs:
+      - name: BASE_IMAGE
+        value:
+          valueFrom: hail_ubuntu_image_python_3_11.image
+      - name: HAIL_WHEEL_DIR
+        value: /wheel
+    inputs:
+      - from: /repo/docker/hailgenetics/hail
+        to: /io/repo/docker/hailgenetics/hail
+      - from: /repo/hail/python/pinned-requirements.txt
+        to: /io/repo/hail/python/pinned-requirements.txt
+      - from: /derived/release/hail/build/deploy/dist
+        to: /io/repo/wheel
+    dependsOn:
+      - merge_code
+      - build_hail_jar_and_wheel
+      - hail_ubuntu_image_python_3_11
+  - kind: buildImage2
     name: hailgenetics_hail_image_python_3_13
     dockerFile: /io/repo/docker/hailgenetics/hail/Dockerfile
     contextPath: /io/repo
@@ -1583,6 +1625,17 @@ steps:
       python3 -c 'import numpy; import pandas; import sklearn; import scipy'
     dependsOn:
       - hailgenetics_hail_image
+  - kind: runImage
+    name: test_hailgenetics_hail_image_python_3_11
+    image:
+      valueFrom: hailgenetics_hail_image_python_3_11.image
+    script: |
+      set -ex
+      python3 -c 'import sys; assert sys.version_info.major == 3 and sys.version_info.minor == 11, sys.version_info'
+      python3 -c 'import hail as hl; hl.balding_nichols_model(3, 100, 100)._force_count_rows()'
+      python3 -c 'import numpy; import pandas; import sklearn; import scipy'
+    dependsOn:
+      - hailgenetics_hail_image_python_3_11
   - kind: runImage
     name: test_hailgenetics_hail_image_python_3_13
     image:
@@ -3894,6 +3947,7 @@ steps:
       REMOTE=origin \
       GITHUB_OAUTH_HEADER_FILE=/io/github-oauth \
       HAIL_GENETICS_HAIL_IMAGE=docker://{{ hailgenetics_hail_image.image }} \
+      HAIL_GENETICS_HAIL_IMAGE_PY_3_11=docker://{{ hailgenetics_hail_image_python_3_11.image }} \
       HAIL_GENETICS_HAIL_IMAGE_PY_3_12=docker://{{ hailgenetics_hail_image.image }} \
       HAIL_GENETICS_HAIL_IMAGE_PY_3_13=docker://{{ hailgenetics_hail_image_python_3_13.image }} \
       HAIL_GENETICS_HAIL_IMAGE_PY_3_14=docker://{{ hailgenetics_hail_image_python_3_14.image }} \
@@ -3939,6 +3993,7 @@ steps:
       - ci_utils_image
       - merge_code
       - hailgenetics_hail_image
+      - hailgenetics_hail_image_python_3_11
       - hailgenetics_hail_image_python_3_13
       - hailgenetics_hail_image_python_3_14
       - hailgenetics_hailtop_image

@@ -2,7 +2,7 @@
 cd $(dirname $0)
 set -ex
 
-for version in 3.12 3.12-slim 3.13 3.13-slim 3.14 3.14-slim
+for version in 3.11 3.11-slim 3.12 3.12-slim 3.13 3.13-slim 3.14 3.14-slim
 do
     public=hailgenetics/python-dill:$version
 
