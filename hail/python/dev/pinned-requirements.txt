@@ -4,7 +4,7 @@ aiohappyeyeballs==2.7.1
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   aiohttp
-aiohttp==3.14.1
+aiohttp==3.14.3
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   aiohttp-devtools
@@ -54,7 +54,7 @@ bleach==6.4.0
     # via nbconvert
 build==1.1.1
     # via -r hail/python/dev/requirements.txt
-certifi==2026.6.17
+certifi==2026.7.22
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   httpcore
@@ -119,7 +119,7 @@ executing==2.2.1
     #   stack-data
 fastjsonschema==2.21.2
     # via nbformat
-filelock==3.30.2
+filelock==3.32.0
     # via
     #   python-discovery
     #   virtualenv
@@ -204,7 +204,7 @@ jsonschema-specifications==2025.9.1
     # via jsonschema
 jupyter==1.1.1
     # via -r hail/python/dev/requirements.txt
-jupyter-builder==1.1.0
+jupyter-builder==1.1.1
     # via jupyterlab
 jupyter-client==7.4.9
     # via
@@ -239,7 +239,7 @@ jupyter-server==2.20.0
     #   notebook-shim
 jupyter-server-terminals==0.5.4
     # via jupyter-server
-jupyterlab==4.6.1
+jupyterlab==4.6.2
     # via jupyter
 jupyterlab-pygments==0.3.0
     # via nbconvert
@@ -256,7 +256,7 @@ markupsafe==3.0.3
     #   -c hail/python/dev/../pinned-requirements.txt
     #   jinja2
     #   nbconvert
-matplotlib==3.11.0
+matplotlib==3.11.1
     # via -r hail/python/dev/requirements.txt
 matplotlib-inline==0.2.2
     # via
@@ -264,7 +264,7 @@ matplotlib-inline==0.2.2
     #   ipython
 mccabe==0.7.0
     # via pylint
-mistune==3.3.3
+mistune==3.3.4
     # via nbconvert
 mock==5.1.0
     # via -r hail/python/dev/requirements.txt
@@ -349,7 +349,7 @@ pillow==12.3.0
     #   -c hail/python/dev/../pinned-requirements.txt
     #   -r hail/python/dev/requirements.txt
     #   matplotlib
-platformdirs==4.10.0
+platformdirs==4.11.0
     # via
     #   jupyter-core
     #   pylint
@@ -437,7 +437,7 @@ python-dateutil==2.9.0.post0
     #   arrow
     #   jupyter-client
     #   matplotlib
-python-discovery==1.4.4
+python-discovery==1.5.0
     # via virtualenv
 python-json-logger==2.0.7
     # via
@@ -493,7 +493,7 @@ six==1.17.0
     #   rfc3339-validator
 snowballstemmer==3.1.1
     # via sphinx
-soupsieve==2.8.4
+soupsieve==2.9.1
     # via beautifulsoup4
 sphinx==6.2.1
     # via
@@ -569,17 +569,17 @@ types-decorator==5.2.0.20260712
     # via -r hail/python/dev/requirements.txt
 types-deprecated==1.3.1.20260520
     # via -r hail/python/dev/requirements.txt
-types-pymysql==1.1.0.20260518
+types-pymysql==1.2.0.20260724
     # via -r hail/python/dev/requirements.txt
 types-python-dateutil==2.9.0.20260716
     # via -r hail/python/dev/requirements.txt
-types-pyyaml==6.0.12.20260518
+types-pyyaml==6.0.12.20260724
     # via -r hail/python/dev/requirements.txt
 types-requests==2.31.0.6
     # via -r hail/python/dev/requirements.txt
-types-setuptools==83.0.0.20260716
+types-setuptools==83.0.0.20260724
     # via -r hail/python/dev/requirements.txt
-types-six==1.17.0.20260518
+types-six==1.17.0.20260724
     # via -r hail/python/dev/requirements.txt
 types-tabulate==0.10.0.20260508
     # via -r hail/python/dev/requirements.txt
@@ -595,6 +595,7 @@ typing-extensions==4.16.0
     #   anyio
     #   beautifulsoup4
     #   ipython
+    #   jupyterlab
     #   pyright
     #   pytest-asyncio
     #   referencing
@@ -608,11 +609,11 @@ urllib3==2.7.0
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   requests
-uv==0.11.29
+uv==0.11.32
     # via -r hail/python/dev/requirements.txt
-uv-build==0.11.29
+uv-build==0.11.32
     # via -r hail/python/dev/requirements.txt
-virtualenv==21.6.1
+virtualenv==21.7.0
     # via pre-commit
 watchfiles==1.2.0
     # via aiohttp-devtools
@@ -628,7 +629,7 @@ websocket-client==1.9.0
     # via jupyter-server
 widgetsnbextension==4.0.15
     # via ipywidgets
-yarl==1.24.2
+yarl==1.24.5
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   aiohttp
