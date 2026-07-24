@@ -627,9 +627,9 @@ class TableStage(
         }
       })
 
-    val rightRowRTypeWithPartNum =
-      ("__partNum" -> TypeWithRequiredness(TInt32)) +:
-        rightRowRType.fields.map(f => f.name -> f.typ)
+    val rightRowRTypeWithPartNum = rightRowRType.fields.map(f =>
+      f.name -> f.typ
+    ) :+ ("__partNum" -> TypeWithRequiredness(TInt32))
 
     val rightTableRType = RTable(rightRowRTypeWithPartNum, FastSeq(), right.key)
     val sortedReader = ctx.backend.lowerDistributedSort(

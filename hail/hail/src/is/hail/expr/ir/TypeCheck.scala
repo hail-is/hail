@@ -490,7 +490,10 @@ object TypeCheck {
           s"${args.map(_.typ)} !=  ${aggSig.initOpTypes}",
         )
       case SeqOp(_, args, aggSig) =>
-        assert(args.map(_.typ) == aggSig.seqOpTypes)
+        assert(
+          args.map(_.typ) == aggSig.seqOpTypes,
+          s"${args.map(_.typ)} !=  ${aggSig.seqOpTypes}\n$aggSig",
+        )
       case _: CombOp =>
       case _: ResultOp =>
       case AggStateValue(_, _) =>

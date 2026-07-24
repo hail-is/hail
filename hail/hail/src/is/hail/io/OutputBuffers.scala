@@ -268,7 +268,7 @@ final class StreamBlockOutputBuffer(out: OutputStream) extends OutputBlockBuffer
   override def getPos(): Long = out.asInstanceOf[ByteTrackingOutputStream].bytesWritten
 }
 
-final class StreamBlockOutputBuffer2(out: OutputStream) extends OutputBlockBuffer {
+final class StreamBlockOutputBuffer2(out: ByteTrackingOutputStream) extends OutputBlockBuffer {
   override def flush(): Unit =
     out.flush()
 
@@ -288,7 +288,7 @@ final class StreamBlockOutputBuffer2(out: OutputStream) extends OutputBlockBuffe
     out.write(buf, 0, len)
   }
 
-  override def getPos(): Long = out.asInstanceOf[ByteTrackingOutputStream].bytesWritten
+  override def getPos(): Long = out.bytesWritten
 }
 
 final class LZ4OutputBlockBuffer(lz4: LZ4, blockSize: Int, out: OutputBlockBuffer)

@@ -9,6 +9,7 @@ import is.hail.expr.ir.defs._
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.{tcoerce, RTable, VirtualTypeWithReq}
+import is.hail.types.physical.PStruct
 import is.hail.types.virtual._
 import is.hail.utils._
 
@@ -28,7 +29,6 @@ object LowerDistributedSort extends Logging {
     tableRequiredness: RTable,
     optTargetNumPartitions: Option[Int] = None,
   ): TableReader = {
-
     val oversamplingNum = 3
     val maxBranchingFactor = ctx.getFlag("shuffle_max_branch_factor").toInt
     val defaultBranchingFactor =
@@ -38,7 +38,8 @@ object LowerDistributedSort extends Logging {
     val rowTypeRequiredness = tableRequiredness.rowType
     val sizeCutoff = ctx.getFlag("shuffle_cutoff_to_local_sort").toInt
 
-    val (keyToSortBy, _) = inputStage.rowType.select(sortFields.map(sf => sf.field))
+    val (keyToSortBy, _) = inputStage.rowType.select(sortFields.map(_.field))
+    val keyTypeRequiredness = rowTypeRequiredness.select(sortFields.map(_.field))
 
     val spec =
       TypedCodecSpec(
@@ -46,22 +47,24 @@ object LowerDistributedSort extends Logging {
         rowTypeRequiredness.canonicalPType(inputStage.rowType),
         BufferSpec.wireSpec,
       )
+    val pSortKey = tcoerce[PStruct](keyTypeRequiredness.canonicalPType(keyToSortBy))
     val reader = PartitionNativeReader(spec, "__dummy_uid")
     val initialTmpPath = ctx.createTmpPath("hail_shuffle_temp_initial")
-    val writer = PartitionNativeWriter(
-      spec,
-      keyToSortBy.fieldNames,
-      initialTmpPath,
-      None,
-      trackTotalBytes = true,
-    )
 
     logger.info("DISTRIBUTED SORT: PHASE 1: WRITE DATA")
     val initialStageData =
       CompileAndEvaluate[Row](
         ctx,
         inputStage.mapCollectWithGlobals("shuffle_initial_write")(
-          WritePartition(_, UUID4(), writer)
+          TableNativeWriter.writePartition(
+            spec,
+            _,
+            partFile = UUID4(),
+            partRoot = Str(initialTmpPath),
+            indexRoot = None,
+            pKey = pSortKey,
+            trackTotalBytes = true,
+          )
         ) {
           (part, globals) =>
             maketuple(
@@ -516,7 +519,15 @@ object LowerDistributedSort extends Logging {
               )
             })
 
-          WritePartition(sortedStream, UUID4(), writer)
+          TableNativeWriter.writePartition(
+            spec,
+            sortedStream,
+            partFile = UUID4(),
+            partRoot = Str(initialTmpPath),
+            indexRoot = None,
+            pKey = pSortKey,
+            trackTotalBytes = true,
+          )
       }
 
     logger.info(s"DISTRIBUTED SORT: PHASE ${i + 1}: LOCALLY SORT FILES")
