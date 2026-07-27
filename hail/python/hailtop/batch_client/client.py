@@ -499,6 +499,9 @@ class BatchClient:
     def get_quote_events(self, name):
         return async_to_blocking(self._async_client.get_quote_events(name))
 
+    def close_quote(self, name, comment=None):
+        return async_to_blocking(self._async_client.close_quote(name, comment))
+
     def supported_regions(self) -> List[str]:
         return async_to_blocking(self._async_client.supported_regions())
 

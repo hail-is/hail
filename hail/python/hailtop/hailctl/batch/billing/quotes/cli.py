@@ -121,3 +121,17 @@ def events(name: str, output: StructuredFormatOption = StructuredFormat.YAML):
     with BatchClient('') as client:
         result = client.get_quote_events(name)
         print(make_formatter(output.value)(result))
+
+
+@app.command()
+def close(
+    name: str,
+    comment: Optional[str] = typer.Option(None, help='Short comment to record with this event.'),
+    output: StructuredFormatOption = StructuredFormat.YAML,
+):
+    """Close quote NAME. All billing projects must be closed or migrated away first."""
+    from hailtop.batch_client.client import BatchClient  # pylint: disable=import-outside-toplevel
+
+    with BatchClient('') as client:
+        result = client.close_quote(name, comment=comment)
+        print(make_formatter(output.value)(result))

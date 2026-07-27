@@ -20,6 +20,7 @@ from batch.billing_dao import (
     add_quote_manager,
     change_billing_project_quote,
     close_billing_project,
+    close_quote,
     create_billing_project,
     create_quote,
     delete_billing_project,
@@ -291,6 +292,86 @@ async def test_edit_quote_global_bm_can_set_unlimited(db):
     await edit_quote(db, 'q-ul-ok', {'authorized_amount': None}, actor='admin', billing_role='global_bm')
     row = await db.select_and_fetchone('SELECT authorized_amount FROM quotes WHERE name = %s', ('q-ul-ok',))
     assert row['authorized_amount'] is None
+
+
+# ---------------------------------------------------------------------------
+# close_quote
+# ---------------------------------------------------------------------------
+
+
+async def test_close_quote_sets_state(db):
+    await create_quote(db, 'q-close', cost_object='CO', actor='admin')
+    await close_quote(db, 'q-close', actor='admin')
+    row = await db.select_and_fetchone('SELECT state FROM quotes WHERE name = %s', ('q-close',))
+    assert row['state'] == 'closed'
+
+
+async def test_close_quote_logs_event(db):
+    await create_quote(db, 'q-close-log', cost_object='CO', actor='admin')
+    await close_quote(db, 'q-close-log', actor='admin', comment='done')
+    events = [
+        r
+        async for r in db.select_and_fetchall(
+            'SELECT action, comment FROM quote_events qe JOIN quotes q ON q.id = qe.quote_id WHERE q.name = %s',
+            ('q-close-log',),
+        )
+    ]
+    actions = [e['action'] for e in events]
+    assert 'quote_closed' in actions
+    close_event = next(e for e in events if e['action'] == 'quote_closed')
+    assert close_event['comment'] == 'done'
+
+
+async def test_close_quote_already_closed_raises(db):
+    await create_quote(db, 'q-close-dup', cost_object='CO', actor='admin')
+    await close_quote(db, 'q-close-dup', actor='admin')
+    with pytest.raises(BatchOperationAlreadyCompletedError, match='already closed'):
+        await close_quote(db, 'q-close-dup', actor='admin')
+
+
+async def test_close_quote_unknown_raises(db):
+    with pytest.raises(BatchUserError, match='Unknown quote'):
+        await close_quote(db, 'no-such-quote', actor='admin')
+
+
+async def test_close_quote_blocked_by_open_bp(db):
+    await create_quote(db, 'q-open-bp', cost_object='CO', actor='admin')
+    q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-open-bp',))
+    await create_billing_project(db, 'bp-open', q_row['id'], None, None, 'admin', 'global_bm')
+    with pytest.raises(BatchUserError, match='bp-open'):
+        await close_quote(db, 'q-open-bp', actor='admin')
+
+
+async def test_close_quote_allowed_when_all_bps_closed(db):
+    await create_quote(db, 'q-all-closed', cost_object='CO', actor='admin')
+    q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-all-closed',))
+    await create_billing_project(db, 'bp-cl', q_row['id'], None, None, 'admin', 'global_bm')
+    await close_billing_project(db, 'bp-cl', actor='admin')
+    await close_quote(db, 'q-all-closed', actor='admin')
+    row = await db.select_and_fetchone('SELECT state FROM quotes WHERE name = %s', ('q-all-closed',))
+    assert row['state'] == 'closed'
+
+
+async def test_close_quote_allowed_when_bps_deleted(db):
+    await create_quote(db, 'q-bp-deleted', cost_object='CO', actor='admin')
+    q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-bp-deleted',))
+    await create_billing_project(db, 'bp-del', q_row['id'], None, None, 'admin', 'global_bm')
+    await close_billing_project(db, 'bp-del', actor='admin')
+    await delete_billing_project(db, 'bp-del')
+    await close_quote(db, 'q-bp-deleted', actor='admin')
+    row = await db.select_and_fetchone('SELECT state FROM quotes WHERE name = %s', ('q-bp-deleted',))
+    assert row['state'] == 'closed'
+
+
+async def test_get_quote_includes_state(db):
+    await create_quote(db, 'q-state-field', cost_object='CO', actor='admin')
+    q = await get_quote(db, 'q-state-field')
+    assert q is not None
+    assert q['state'] == 'open'
+    await close_quote(db, 'q-state-field', actor='admin')
+    q2 = await get_quote(db, 'q-state-field')
+    assert q2 is not None
+    assert q2['state'] == 'closed'
 
 
 # ---------------------------------------------------------------------------

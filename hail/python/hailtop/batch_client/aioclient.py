@@ -1535,6 +1535,11 @@ class BatchClient:
         resp = await self._get(f'/api/v1alpha/quotes/{name}/events')
         return await resp.json()
 
+    async def close_quote(self, name, comment=None):
+        body = {'comment': comment} if comment is not None else {}
+        resp = await self._post(f'/api/v1alpha/quotes/{name}/close', json=body)
+        return await resp.json()
+
     async def supported_regions(self) -> List[str]:
         resp = await self._get('/api/v1alpha/supported_regions')
         return await resp.json()

@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS `quotes` (
   `name` VARCHAR(100) NOT NULL,
   `name_cs` VARCHAR(100) NOT NULL COLLATE utf8mb4_0900_as_cs,
   `cost_object` VARCHAR(255) NOT NULL,
+  `state` ENUM('open', 'closed') NOT NULL DEFAULT 'open',
   `authorized_amount` DOUBLE DEFAULT NULL,
   `pi_name` VARCHAR(255) DEFAULT NULL,
   `pm_designee` VARCHAR(255) DEFAULT NULL,

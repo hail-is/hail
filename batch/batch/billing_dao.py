@@ -73,14 +73,14 @@ async def list_quotes_for_user(db: Database, username: str, is_global_bm: bool) 
         return [
             record
             async for record in db.select_and_fetchall(
-                'SELECT id, name, cost_object, authorized_amount, pi_name, pm_designee, description, time_created FROM quotes;'
+                'SELECT id, name, state, cost_object, authorized_amount, pi_name, pm_designee, description, time_created FROM quotes;'
             )
         ]
     return [
         record
         async for record in db.select_and_fetchall(
             """
-SELECT q.id, q.name, q.cost_object, q.authorized_amount, q.pi_name, q.pm_designee, q.description, q.time_created
+SELECT q.id, q.name, q.state, q.cost_object, q.authorized_amount, q.pi_name, q.pm_designee, q.description, q.time_created
 FROM quotes q
 INNER JOIN quote_managers qm ON qm.quote_id = q.id
 WHERE qm.user = %s;
@@ -93,7 +93,7 @@ WHERE qm.user = %s;
 async def get_quote(db: Database, name: str) -> Optional[dict]:
     """Return the full quote dict (with managers and billing_projects), or None if not found."""
     quote_row = await db.select_and_fetchone(
-        'SELECT id, name, cost_object, authorized_amount, pi_name, pm_designee, description, time_created FROM quotes WHERE name_cs = %s;',
+        'SELECT id, name, state, cost_object, authorized_amount, pi_name, pm_designee, description, time_created FROM quotes WHERE name_cs = %s;',
         (name,),
     )
     if not quote_row:
@@ -337,6 +337,42 @@ WHERE quote_id = %s AND `status` != 'deleted' AND `limit` IS NOT NULL;
             )
             changes = {k: {'old': row[k], 'new': v} for k, v in db_updates.items()}
             await _log_quote_event(tx, quote_id, actor, 'quote_edited', detail=json.dumps(changes), comment=comment)
+
+
+async def close_quote(
+    db: Database,
+    name: str,
+    actor: str,
+    comment: Optional[str] = None,
+) -> None:
+    """Close a quote. All billing projects under the quote must be closed or deleted first.
+
+    Raises BatchOperationAlreadyCompletedError if the quote is already closed.
+    Raises BatchUserError if open billing projects remain.
+    """
+    async with db.start() as tx:
+        row = await tx.execute_and_fetchone(
+            'SELECT id, state FROM quotes WHERE name_cs = %s FOR UPDATE;',
+            (name,),
+        )
+        if not row:
+            raise BatchUserError(f'Unknown quote {name}.', 'error')
+        if row['state'] == 'closed':
+            raise BatchOperationAlreadyCompletedError(f'Quote {name} is already closed.', 'info')
+
+        open_bp = await tx.execute_and_fetchone(
+            "SELECT name FROM billing_projects WHERE quote_id = %s AND `status` = 'open' LIMIT 1;",
+            (row['id'],),
+        )
+        if open_bp:
+            raise BatchUserError(
+                f'Cannot close quote {name}: billing project "{open_bp["name"]}" is still open. '
+                'Close or migrate all billing projects first.',
+                'error',
+            )
+
+        await tx.execute_update("UPDATE quotes SET state = 'closed' WHERE id = %s;", (row['id'],))
+        await _log_quote_event(tx, row['id'], actor, 'quote_closed', comment=comment)
 
 
 async def add_quote_manager(

@@ -12,6 +12,7 @@ from . import billing_dao
 class BillingPermission(str, Enum):
     VIEW_QUOTE = 'view_quote'
     EDIT_QUOTE = 'edit_quote'
+    CLOSE_QUOTE = 'close_quote'
     MANAGE_MANAGERS = 'manage_managers'
     VIEW_BP = 'view_bp'
     CREATE_BP = 'create_bp'
@@ -30,6 +31,7 @@ BILLING_ROLE_PERMISSIONS: dict[str, set[BillingPermission]] = {
     'quote_owner': {
         BillingPermission.VIEW_QUOTE,
         BillingPermission.EDIT_QUOTE,
+        BillingPermission.CLOSE_QUOTE,
         BillingPermission.MANAGE_MANAGERS,
         BillingPermission.VIEW_BP,
         BillingPermission.CREATE_BP,

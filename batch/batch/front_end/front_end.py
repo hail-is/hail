@@ -3711,6 +3711,22 @@ async def edit_quote(request: web.Request, userdata: UserData) -> web.Response:
     return json_response({'name': quote_name})
 
 
+@routes.post('/api/v1alpha/quotes/{name}/close')
+@auth.authenticated_users_only()
+@billing_permission_required(BillingPermission.CLOSE_QUOTE)
+async def close_quote(request: web.Request, userdata: UserData) -> web.Response:
+    db: Database = request.app['db']
+    quote_name = request.match_info['name']
+    actor = userdata['username']
+    comment = None
+    if request.content_type == 'application/json':
+        body = await request.json()
+        comment = body.get('comment')
+
+    await _handle_api_error(billing_dao.close_quote, db, quote_name, actor, comment)
+    return json_response({'name': quote_name})
+
+
 @routes.post('/api/v1alpha/quotes/{name}/managers')
 @auth.authenticated_users_only()
 @billing_permission_required(BillingPermission.MANAGE_MANAGERS)
