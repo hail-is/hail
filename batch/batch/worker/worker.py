@@ -3613,7 +3613,7 @@ async def async_main():
     image_lock = aiorwlock.RWLock()
     docker = aiodocker.Docker()
 
-    if CLOUD == 'gcp' or CLOUD == 'aws':
+    if CLOUD == 'gcp':
         CLOUD_WORKER_API = await GCPWorkerAPI.from_env()
     else:
         assert CLOUD == 'azure'
