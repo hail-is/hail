@@ -4,6 +4,7 @@ Requires local MySQL (make local-mysql) and the HAIL_SQL_DATABASE env var,
 which the pytest fixture sets automatically.
 """
 
+import json
 import os
 import warnings
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -123,7 +124,7 @@ async def test_create_quote_logs_creation_event(db):
     )
     assert row['action'] == 'quote_created'
     assert row['actor'] == 'admin'
-    assert row['detail'] == 'CO-003'
+    assert json.loads(row['detail']) == 'CO-003'
     assert row['comment'] == 'initial'
 
 
@@ -137,6 +138,18 @@ async def test_create_quote_unlimited_stored_as_null(db):
     await create_quote(db, 'q-unlimited', cost_object='CO-005', actor='admin', authorized_amount=None)
     row = await db.select_and_fetchone('SELECT authorized_amount FROM quotes WHERE name = %s', ('q-unlimited',))
     assert row['authorized_amount'] is None
+
+
+async def test_create_quote_persists_description(db):
+    await create_quote(db, 'q-desc', cost_object='CO', actor='admin', description='My test quote')
+    row = await db.select_and_fetchone('SELECT description FROM quotes WHERE name = %s', ('q-desc',))
+    assert row['description'] == 'My test quote'
+
+
+async def test_create_quote_description_defaults_null(db):
+    await create_quote(db, 'q-no-desc', cost_object='CO', actor='admin')
+    row = await db.select_and_fetchone('SELECT description FROM quotes WHERE name = %s', ('q-no-desc',))
+    assert row['description'] is None
 
 
 # ---------------------------------------------------------------------------
@@ -221,6 +234,7 @@ async def test_get_quote_returns_none_if_missing(db):
         pytest.param('cost_object', 'UPDATED', id='cost_object'),
         pytest.param('pi_name', 'Dr. Jones', id='pi_name'),
         pytest.param('pm_designee', 'pm@acme.com', id='pm_designee'),
+        pytest.param('description', 'updated desc', id='description'),
         pytest.param('authorized_amount', 750.0, id='authorized_amount'),
     ],
 )
@@ -237,12 +251,15 @@ async def test_edit_quote_logs_event(db):
     events = [
         r
         async for r in db.select_and_fetchall(
-            'SELECT action, comment FROM quote_events qe JOIN quotes q ON q.id = qe.quote_id WHERE q.name = %s',
+            'SELECT action, comment, detail FROM quote_events qe JOIN quotes q ON q.id = qe.quote_id WHERE q.name = %s',
             ('q-edit-log',),
         )
     ]
     actions = [e['action'] for e in events]
     assert 'quote_edited' in actions
+    edit_event = next(e for e in events if e['action'] == 'quote_edited')
+    detail = json.loads(edit_event['detail'])
+    assert detail['cost_object'] == {'old': 'CO', 'new': 'NEW'}
 
 
 async def test_edit_quote_rejects_amount_below_bp_limits(db):
@@ -323,13 +340,17 @@ async def test_add_remove_quote_manager_events_written(db):
     events = [
         r
         async for r in db.select_and_fetchall(
-            'SELECT action FROM quote_events qe JOIN quotes q ON q.id = qe.quote_id WHERE q.name = %s',
+            'SELECT action, detail FROM quote_events qe JOIN quotes q ON q.id = qe.quote_id WHERE q.name = %s',
             ('q-mgr-events',),
         )
     ]
     actions = {e['action'] for e in events}
     assert 'manager_added' in actions
     assert 'manager_removed' in actions
+    added = next(e for e in events if e['action'] == 'manager_added')
+    assert json.loads(added['detail']) == 'manager'
+    removed = next(e for e in events if e['action'] == 'manager_removed')
+    assert json.loads(removed['detail']) == 'manager'
 
 
 # ---------------------------------------------------------------------------
@@ -459,12 +480,23 @@ async def test_create_billing_project_duplicate_raises(db):
 async def test_create_billing_project_logs_event(db):
     await create_quote(db, 'q-log-bp', cost_object='CO', actor='admin')
     q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-log-bp',))
-    await create_billing_project(db, 'bp-log', q_row['id'], None, None, 'admin', 'global_bm', comment='init')
+    await create_billing_project(db, 'bp-log', q_row['id'], 50.0, 25.0, 'admin', 'global_bm', comment='init')
     bp_events = await get_billing_project_events(db, 'bp-log')
     assert 'bp_created' in {e['action'] for e in bp_events}
+    created_event = next(e for e in bp_events if e['action'] == 'bp_created')
+    detail = json.loads(created_event['detail'])
+    assert detail == {'limit': 50.0, 'low_budget_alert': 25.0}
     quote_events = await get_quote_events(db, 'q-log-bp')
     assert quote_events is not None
     assert any(e['action'] == 'bp_created' and e['target_project'] == 'bp-log' for e in quote_events)
+
+
+async def test_create_billing_project_persists_description(db):
+    await create_quote(db, 'q-bp-desc', cost_object='CO', actor='admin')
+    q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-bp-desc',))
+    await create_billing_project(db, 'bp-desc', q_row['id'], None, None, 'admin', 'global_bm', description='A test BP')
+    row = await db.select_and_fetchone('SELECT description FROM billing_projects WHERE name = %s', ('bp-desc',))
+    assert row['description'] == 'A test BP'
 
 
 # ---------------------------------------------------------------------------
@@ -514,11 +546,24 @@ async def test_patch_billing_project_logs_limit_event_on_both_quote_and_bp(db):
     bp_events = await get_billing_project_events(db, 'bp-patch-log')
     bp_actions = {e['action'] for e in bp_events}
     assert 'limit_changed' in bp_actions
+    limit_event = next(e for e in bp_events if e['action'] == 'limit_changed')
+    assert json.loads(limit_event['detail']) == {'old': 100.0, 'new': 200.0}
 
     q_events = await get_quote_events(db, 'q-patch-log')
     assert q_events is not None
     q_actions = {e['action'] for e in q_events}
     assert 'bp_limit_changed' in q_actions
+
+
+async def test_patch_billing_project_description(db):
+    await create_quote(db, 'q-patch-desc', cost_object='CO', actor='admin', authorized_amount=500.0)
+    q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-patch-desc',))
+    await create_billing_project(db, 'bp-patch-desc', q_row['id'], 100.0, None, 'admin', 'global_bm')
+    await patch_billing_project(
+        db, 'bp-patch-desc', {'description': 'updated'}, actor='admin', billing_role='global_bm'
+    )
+    row = await db.select_and_fetchone('SELECT description FROM billing_projects WHERE name = %s', ('bp-patch-desc',))
+    assert row['description'] == 'updated'
 
 
 # ---------------------------------------------------------------------------
@@ -581,6 +626,8 @@ async def test_change_bp_quote_logs_events_on_src_dest_and_bp(db):
 
     bp_events = await get_billing_project_events(db, 'bp-log-move')
     assert any(e['action'] == 'quote_changed' for e in bp_events)
+    changed_event = next(e for e in bp_events if e['action'] == 'quote_changed')
+    assert json.loads(changed_event['detail']) == {'old': 'q-log-src', 'new': 'q-log-dest'}
 
 
 # ---------------------------------------------------------------------------
