@@ -5,15 +5,14 @@ umask 022
 
 # Necessary to install Skopeo on 20.04 (can be removed on 20.10)
 . /etc/os-release
-#echo "deb https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_${VERSION_ID}/ /" | sudo tee /etc/apt/sources.list.d/devel:kubic:libcontainers:stable.list
-#curl -L https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_${VERSION_ID}/Release.key | sudo apt-key add -
+echo "deb https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_${VERSION_ID}/ /" | sudo tee /etc/apt/sources.list.d/devel:kubic:libcontainers:stable.list
+curl -L https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_${VERSION_ID}/Release.key | sudo apt-key add -
 
 sudo apt update
 sudo apt install -y docker.io python3-pip openjdk-25-jdk-headless jq skopeo docker-buildx-plugin
 sudo snap install --classic kubectl
-sudo snap install --classic aws-cli
 sudo usermod -a -G docker $USER
-gcloud components install gke-gcloud-auth-plugin
+sudo gcloud components install gke-gcloud-auth-plugin
 
 
 python3 -m pip install --upgrade pip
