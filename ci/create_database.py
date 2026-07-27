@@ -14,7 +14,6 @@ from hailtop.utils import check_shell, check_shell_output
 
 create_database_config = None
 
-SQL_CONFIG_PATH = os.getenv('SQL_CONFIG_PATH', '/sql-config')
 
 async def migrate(database_name, db, mysql_cnf_file, i, migration):
     print(f'applying migration {i} {migration}')
@@ -69,7 +68,6 @@ VALUES (%s, %s, %s);
 
 
 async def create_migration_tables(db: Database, database_name: str):
-    print('creating migration tables')
     rows = db.execute_and_fetchall(f"SHOW TABLES LIKE '{database_name}_migration_version';")
     rows = [row async for row in rows]
     if len(rows) == 0:
@@ -130,7 +128,7 @@ kubectl -n {namespace} get -o json secret {shq(admin_secret_name)}
 
 
 async def _create_database():
-    with open(f'{SQL_CONFIG_PATH}/sql-config.json', 'r', encoding='utf-8') as f:
+    with open('/sql-config/sql-config.json', 'r', encoding='utf-8') as f:
         sql_config = SQLConfig.from_json(f.read())
 
     assert create_database_config
@@ -141,10 +139,8 @@ async def _create_database():
 
     db = Database()
     await db.async_init()
-    print('db init done')
 
     if scope == 'deploy':
-        print(f'deploying {_name}')
         assert _name == database_name
 
         # create if not exists
@@ -204,23 +200,20 @@ async def _create_database():
     with open(create_database_config['user_password_file'], encoding='utf-8') as f:
         user_password = f.read()
 
-    print('creating database')
     await db.just_execute(f'CREATE DATABASE IF NOT EXISTS `{_name}`')
-    print('creating admin user')
     await create_user_if_doesnt_exist('admin', admin_username, admin_password)
-    print('creating user user')
     await create_user_if_doesnt_exist('user', user_username, user_password)
 
 
 async def _write_user_config(namespace: str, database_name: str, user: str, config: SQLConfig):
-    with open(f'{SQL_CONFIG_PATH}/server-ca.pem', 'r', encoding='utf-8') as f:
+    with open('/sql-config/server-ca.pem', 'r', encoding='utf-8') as f:
         server_ca = f.read()
     client_cert: Optional[str]
     client_key: Optional[str]
     if config.using_mtls():
-        with open(f'{SQL_CONFIG_PATH}/client-cert.pem', 'r', encoding='utf-8') as f:
+        with open('/sql-config/client-cert.pem', 'r', encoding='utf-8') as f:
             client_cert = f.read()
-        with open(f'{SQL_CONFIG_PATH}/client-key.pem', 'r', encoding='utf-8') as f:
+        with open('/sql-config/client-key.pem', 'r', encoding='utf-8') as f:
             client_key = f.read()
     else:
         client_cert = None
@@ -291,11 +284,11 @@ async def _patch_user_config_certificates(namespace: str, database_name: str, us
     print(f'patching certificates in secret {secret_name}')
 
     # Read the latest certificates from the mounted location
-    with open(f'{SQL_CONFIG_PATH}/server-ca.pem', 'r', encoding='utf-8') as f:
+    with open('/sql-config/server-ca.pem', 'r', encoding='utf-8') as f:
         server_ca = f.read()
-    with open(f'{SQL_CONFIG_PATH}/client-cert.pem', 'r', encoding='utf-8') as f:
+    with open('/sql-config/client-cert.pem', 'r', encoding='utf-8') as f:
         client_cert = f.read()
-    with open(f'{SQL_CONFIG_PATH}/client-key.pem', 'r', encoding='utf-8') as f:
+    with open('/sql-config/client-key.pem', 'r', encoding='utf-8') as f:
         client_key = f.read()
 
     # Patch only the certificate files in the existing secret
