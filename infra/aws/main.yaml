@@ -3,29 +3,24 @@ Parameters:
   VpcCidrBlock:
     Type: String
     Description: CIDR block for the VPC
-  ClusterCidrBlock:
+  ClusterServiceCidrBlock:
     Type: String
     Description: CIDR block for the EKS cluster
   SubnetCidrBlockA:
     Type: String
-    Description: Private CIDR block for the first subnet the cluster will run in
+    Description: CIDR block within the VPC for the first subnet the cluster will run in
   SubnetCidrBlockB:
     Type: String
-    Description: Private CIDR block for the second subnet the cluster will run in
+    Description: CIDR block within the VPC for the second subnet the cluster will run in
   SubnetCidrBlockC:
     Type: String
-    Description: Private CIDR block for the third subnet the cluster will run in
-  IsBroadProduction:
-    Type: String
-    Description: Set to true if this is the Broad production environment
-    AllowedValues:
-      - "true"
-      - "false"
+    Description: CIDR block within the VPC for the third subnet the cluster will run in
+  PublicAccessIpList:
+    Type: CommaDelimitedList
+    Description: List of public IPs allowed to access the cluster
   DomainName:
     Type: String
     Description: The domain name for the cluster
-Conditions:
-  IsBroadProduction: !Equals [ !Ref IsBroadProduction, "true" ]
 Resources:
   VdcGlobalConfigParameter:
     Type: "AWS::SecretsManager::Secret"
@@ -34,20 +29,20 @@ Resources:
       SecretString:
         Fn::ToJsonString:
           cloud: "aws"
-          batch_gcp_regions: !Ref AWS::Region
+          batch_gcp_regions: !Sub "[ ${AWS::Region} ]"
           batch_logs_storage_uri: !Sub "s3://${VdcHailBatchBucket}"
           test_storage_uri: !Sub "s3://${VdcHailTestBucket}"
           query_storage_uri: !Sub "s3://${VdcHailQueryBucket}"
           default_namespace: "default"
           docker_root_image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/hail/ubuntu:24.04"
-          domain: !Sub "aws.${DomainName}"
+          domain: !Ref DomainName
           gcp_project: "dummy"
           gcp_region: "dummy"
           gcp_zone: "dummy"
           docker_prefix: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/hail"
           dockerhub_prefix: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/dockerhubproxy"
           internal_ip: !GetAtt VdcInternalGatewayAddress.PrimaryPrivateIpAddress
-          ip: !GetAtt VdcGatewayAddress.PublicIp
+          ip: !GetAtt VdcCluster.Endpoint                       # use the cluster endpoint in place of a static endpoint
           kubernetes_server_url: !GetAtt VdcCluster.Endpoint
           organization_domain: !Ref DomainName
 
@@ -100,7 +95,7 @@ Resources:
                 name: ${VdcCluster}
                 apiServerEndpoint: ${VdcCluster.Endpoint}
                 certificateAuthority: ${VdcCluster.CertificateAuthorityData}
-                cidr: "${ClusterCidrBlock}"
+                cidr: "${ClusterServiceCidrBlock}"
       LaunchTemplateName: "nonpreemptible-pool-launch-template"
   VdcPreemptibleNodeGroup:
     Type: "AWS::EKS::Nodegroup"
@@ -155,7 +150,7 @@ Resources:
                 name: ${VdcCluster}
                 apiServerEndpoint: ${VdcCluster.Endpoint}
                 certificateAuthority: ${VdcCluster.CertificateAuthorityData}
-                cidr: ${ClusterCidrBlock}
+                cidr: ${ClusterServiceCidrBlock}
       LaunchTemplateName: "preemptible-pool-launch-template"
 
   VdcClusterRole:
@@ -168,7 +163,7 @@ Resources:
         - "arn:aws:iam::aws:policy/AmazonEKSLoadBalancingPolicy"
         - "arn:aws:iam::aws:policy/AmazonEKSComputePolicy"
       MaxSessionDuration: 3600
-      RoleName: "vdc-cluster-role"
+      RoleName: !Sub "${AWS::StackName}-cluster-role"
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -188,7 +183,7 @@ Resources:
         - "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
         - "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
       MaxSessionDuration: 3600
-      RoleName: "vdc-node-role"
+      RoleName: !Sub "${AWS::StackName}-node-role"
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -214,7 +209,7 @@ Resources:
         AuthenticationMode: "API_AND_CONFIG_MAP"
       EncryptionConfig: []
       KubernetesNetworkConfig:
-        ServiceIpv4Cidr: !Ref ClusterCidrBlock
+        ServiceIpv4Cidr: !Ref ClusterServiceCidrBlock
         ElasticLoadBalancing:
           Enabled: false
         IpFamily: "ipv4"
@@ -225,14 +220,7 @@ Resources:
       Version: "1.35"
       ResourcesVpcConfig:
         EndpointPublicAccess: true
-        PublicAccessCidrs: !If
-          - IsBroadProduction
-          - - "69.173.64.0/18"
-            - "69.173.64.0/19"
-            - "69.173.96.0/19"
-            - "69.173.95.0/24"
-            - "69.173.97.0/24"
-          - !Ref AWS::NoValue
+        PublicAccessCidrs: !Ref PublicAccessIpList
         SecurityGroupIds: []
         SubnetIds:
           - !Ref VdcSubnetA
@@ -333,14 +321,6 @@ Resources:
       RouteTableId: !Ref VdcRouteTable
       SubnetId: !Ref VdcSubnetC
 
-  VdcGatewayAddress:
-    Type: "AWS::EC2::EIP"
-    DependsOn: VdcVpc
-    Properties:
-      Domain: "vpc"
-      Tags:
-        - Key: "Name"
-          Value: "gateway"
   VdcInternalGatewayAddress:
     Type: "AWS::EC2::NetworkInterface"
     Properties:
@@ -383,24 +363,60 @@ Resources:
       BucketName: !Sub
         - "hail-batch-${RandomString}"
         - RandomString: !Select [2, !Split ["/", !Ref AWS::StackId]]
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: "AES256"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
   VdcHailQueryBucket:
     Type: "AWS::S3::Bucket"
     Properties:
       BucketName: !Sub
         - "hail-query-${RandomString}"
         - RandomString: !Select [2, !Split ["/", !Ref AWS::StackId]]
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: "AES256"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
   VdcHailTestBucket:
     Type: "AWS::S3::Bucket"
     Properties:
       BucketName: !Sub
         - "hail-test-${RandomString}"
         - RandomString: !Select [2, !Split ["/", !Ref AWS::StackId]]
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: "AES256"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
   VdcTestRequesterPaysBucket:
     Type: "AWS::S3::Bucket"
     Properties:
       BucketName: !Sub
         - "hail-test-requester-pays-${RandomString}"
         - RandomString: !Select [2, !Split ["/", !Ref AWS::StackId]]
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: "AES256"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
 
   # AWS-managed EKS addons & necessary roles
 
@@ -488,7 +504,7 @@ Resources:
         - "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
         - "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
       MaxSessionDuration: 3600
-      RoleName: "vdc-csi-driver-role"
+      RoleName: !Sub "${AWS::StackName}-csi-driver-role"
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -505,7 +521,7 @@ Resources:
       ManagedPolicyArns:
         - "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
       MaxSessionDuration: 3600
-      RoleName: "vdc-cloudwatch-observability-role"
+      RoleName: !Sub "${AWS::StackName}-cloudwatch-observability-role"
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -522,7 +538,7 @@ Resources:
       ManagedPolicyArns:
         - "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
       MaxSessionDuration: 3600
-      RoleName: "vdc-vpc-cni-role"
+      RoleName: !Sub "${AWS::StackName}-vpc-cni-role"
       AssumeRolePolicyDocument: !Sub
         - |
           {
