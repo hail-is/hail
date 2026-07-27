@@ -153,6 +153,18 @@ async def test_create_quote_description_defaults_null(db):
     assert row['description'] is None
 
 
+async def test_create_quote_persists_quote_number(db):
+    await create_quote(db, 'q-num', cost_object='CO', actor='admin', quote_number='Q-2026-001')
+    row = await db.select_and_fetchone('SELECT quote_number FROM quotes WHERE name = %s', ('q-num',))
+    assert row['quote_number'] == 'Q-2026-001'
+
+
+async def test_create_quote_quote_number_defaults_null(db):
+    await create_quote(db, 'q-no-num', cost_object='CO', actor='admin')
+    row = await db.select_and_fetchone('SELECT quote_number FROM quotes WHERE name = %s', ('q-no-num',))
+    assert row['quote_number'] is None
+
+
 # ---------------------------------------------------------------------------
 # list_quotes_for_user
 # ---------------------------------------------------------------------------
@@ -237,6 +249,7 @@ async def test_get_quote_returns_none_if_missing(db):
         pytest.param('pm_designee', 'pm@acme.com', id='pm_designee'),
         pytest.param('description', 'updated desc', id='description'),
         pytest.param('authorized_amount', 750.0, id='authorized_amount'),
+        pytest.param('quote_number', 'Q-2026-042', id='quote_number'),
     ],
 )
 async def test_edit_quote_field(db, field, new_value):

@@ -2,6 +2,7 @@ CREATE TABLE IF NOT EXISTS `quotes` (
   `id` INT NOT NULL AUTO_INCREMENT,
   `name` VARCHAR(100) NOT NULL,
   `name_cs` VARCHAR(100) NOT NULL COLLATE utf8mb4_0900_as_cs,
+  `quote_number` VARCHAR(100) DEFAULT NULL,
   `cost_object` VARCHAR(255) NOT NULL,
   `state` ENUM('open', 'closed') NOT NULL DEFAULT 'open',
   `authorized_amount` DOUBLE DEFAULT NULL,

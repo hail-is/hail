@@ -3648,6 +3648,7 @@ async def create_quote(request: web.Request, userdata: UserData) -> web.Response
     pi_name = body.get('pi_name')
     pm_designee = body.get('pm_designee')
     description = body.get('description')
+    quote_number = body.get('quote_number')
     comment = body.get('comment')
 
     await _handle_api_error(
@@ -3660,6 +3661,7 @@ async def create_quote(request: web.Request, userdata: UserData) -> web.Response
         pi_name=pi_name,
         pm_designee=pm_designee,
         description=description,
+        quote_number=quote_number,
         comment=comment,
     )
     return json_response({'name': quote_name})
@@ -3697,6 +3699,8 @@ async def edit_quote(request: web.Request, userdata: UserData) -> web.Response:
         updates['pm_designee'] = body['pm_designee']
     if 'description' in body:
         updates['description'] = body['description']
+    if 'quote_number' in body:
+        updates['quote_number'] = body['quote_number']
     if 'authorized_amount' in body:
         aa = body['authorized_amount']
         if aa == 'unlimited' or aa is None:

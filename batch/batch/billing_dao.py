@@ -73,14 +73,14 @@ async def list_quotes_for_user(db: Database, username: str, is_global_bm: bool) 
         return [
             record
             async for record in db.select_and_fetchall(
-                'SELECT id, name, state, cost_object, authorized_amount, pi_name, pm_designee, description, time_created FROM quotes;'
+                'SELECT id, name, quote_number, state, cost_object, authorized_amount, pi_name, pm_designee, description, time_created FROM quotes;'
             )
         ]
     return [
         record
         async for record in db.select_and_fetchall(
             """
-SELECT q.id, q.name, q.state, q.cost_object, q.authorized_amount, q.pi_name, q.pm_designee, q.description, q.time_created
+SELECT q.id, q.name, q.quote_number, q.state, q.cost_object, q.authorized_amount, q.pi_name, q.pm_designee, q.description, q.time_created
 FROM quotes q
 INNER JOIN quote_managers qm ON qm.quote_id = q.id
 WHERE qm.user = %s;
@@ -93,7 +93,7 @@ WHERE qm.user = %s;
 async def get_quote(db: Database, name: str) -> Optional[dict]:
     """Return the full quote dict (with managers and billing_projects), or None if not found."""
     quote_row = await db.select_and_fetchone(
-        'SELECT id, name, state, cost_object, authorized_amount, pi_name, pm_designee, description, time_created FROM quotes WHERE name_cs = %s;',
+        'SELECT id, name, quote_number, state, cost_object, authorized_amount, pi_name, pm_designee, description, time_created FROM quotes WHERE name_cs = %s;',
         (name,),
     )
     if not quote_row:
@@ -239,6 +239,7 @@ async def create_quote(
     pi_name: Optional[str] = None,
     pm_designee: Optional[str] = None,
     description: Optional[str] = None,
+    quote_number: Optional[str] = None,
     comment: Optional[str] = None,
 ) -> int:
     """Insert a new quote and log the creation event. Returns the new quote id.
@@ -253,10 +254,10 @@ async def create_quote(
         now = time_msecs()
         quote_id = await tx.execute_insertone(
             """
-INSERT INTO quotes (name, name_cs, cost_object, authorized_amount, pi_name, pm_designee, description, time_created)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
+INSERT INTO quotes (name, name_cs, quote_number, cost_object, authorized_amount, pi_name, pm_designee, description, time_created)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
 """,
-            (name, name, cost_object, authorized_amount, pi_name, pm_designee, description, now),
+            (name, name, quote_number, cost_object, authorized_amount, pi_name, pm_designee, description, now),
         )
         assert quote_id is not None
         await _log_quote_event(tx, quote_id, actor, 'quote_created', detail=json.dumps(cost_object), comment=comment)
@@ -271,13 +272,13 @@ async def edit_quote(
     billing_role: str,
     comment: Optional[str] = None,
 ) -> None:
-    """Edit quote fields. updates keys: cost_object, pi_name, pm_designee, description, authorized_amount (float|None).
+    """Edit quote fields. updates keys: cost_object, pi_name, pm_designee, description, authorized_amount (float|None), quote_number (str|None).
 
     Raises BatchUserError for authorization or capacity violations.
     """
     async with db.start() as tx:
         row = await tx.execute_and_fetchone(
-            'SELECT id, cost_object, pi_name, pm_designee, description, authorized_amount FROM quotes WHERE name_cs = %s FOR UPDATE;',
+            'SELECT id, cost_object, pi_name, pm_designee, description, authorized_amount, quote_number FROM quotes WHERE name_cs = %s FOR UPDATE;',
             (name,),
         )
         if not row:
@@ -294,6 +295,8 @@ async def edit_quote(
             db_updates['pm_designee'] = updates['pm_designee']
         if 'description' in updates:
             db_updates['description'] = updates['description']
+        if 'quote_number' in updates:
+            db_updates['quote_number'] = updates['quote_number']
         if 'authorized_amount' in updates:
             new_amount = updates['authorized_amount']
             if new_amount is None and billing_role != 'global_bm':
