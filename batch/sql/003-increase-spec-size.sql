@@ -1,1 +1,1 @@
-w
+ALTER TABLE `jobs` MODIFY `spec` MEDIUMTEXT NOT NULL;
