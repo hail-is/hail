@@ -1,3 +1,4 @@
+import json
 from typing import Optional, Union
 
 from gear import Database
@@ -275,7 +276,8 @@ async def edit_quote(
     """
     async with db.start() as tx:
         row = await tx.execute_and_fetchone(
-            'SELECT id, authorized_amount FROM quotes WHERE name_cs = %s FOR UPDATE;', (name,)
+            'SELECT id, cost_object, pi_name, pm_designee, authorized_amount FROM quotes WHERE name_cs = %s FOR UPDATE;',
+            (name,),
         )
         if not row:
             raise BatchUserError(f'Unknown quote {name}.', 'error')
@@ -330,7 +332,8 @@ WHERE quote_id = %s AND `status` != 'deleted' AND `limit` IS NOT NULL;
                 f'UPDATE quotes SET {set_clause} WHERE id = %s;',
                 (*db_updates.values(), quote_id),
             )
-            await _log_quote_event(tx, quote_id, actor, 'quote_edited', comment=comment)
+            changes = {k: {'old': row[k], 'new': v} for k, v in db_updates.items()}
+            await _log_quote_event(tx, quote_id, actor, 'quote_edited', detail=json.dumps(changes), comment=comment)
 
 
 async def add_quote_manager(
