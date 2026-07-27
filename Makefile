@@ -271,9 +271,6 @@ $(PRIVATE_REGISTRY_IMAGES): pushed-private-%-image: %-image
 	! [ -z $(NAMESPACE) ]  # call this like: make ... NAMESPACE=default
 	[ $(DOCKER_PREFIX) != docker.io ]  # DOCKER_PREFIX should be an internal private registry
 	! [ -z $(DOCKER_PREFIX) ]  # DOCKER_PREFIX must not be empty
-	if [ "$(CLOUD)" == "aws" ]; then \
-    	aws ecr get-login-password --region us-east-2 | docker login --username AWS --password-stdin "$(DOCKER_PREFIX)" \
-    fi
 	docker tag $(shell cat $*-image) $(DOCKER_PREFIX)/$(shell cat $*-image)
 	docker push $(DOCKER_PREFIX)/$(shell cat $*-image)
 	echo $(DOCKER_PREFIX)/$(shell cat $*-image) > $@

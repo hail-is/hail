@@ -436,7 +436,7 @@ async def _create_user(app, user, skip_trial_bp, cleanup):
 
     hail_identity = user['hail_identity']
     if hail_identity is None:
-        if CLOUD == 'gcp' or CLOUD == 'aws':
+        if CLOUD == 'gcp':
             gsa = GSAResource(identity_client)
             cleanup.append(gsa.delete)
 
@@ -535,7 +535,7 @@ async def delete_user(app, user):
 
     hail_identity = user['hail_identity']
     if hail_identity is not None:
-        if CLOUD == 'gcp' or CLOUD == 'aws':
+        if CLOUD == 'gcp':
             gsa = GSAResource(identity_client, hail_identity)
             await gsa.delete()
         else:
@@ -579,7 +579,7 @@ async def resolve_identity_uid(app, hail_identity):
     id_client = app['identity_client']
     db = app['db']
 
-    if CLOUD == 'gcp' or CLOUD == 'aws':
+    if CLOUD == 'gcp':
         gsa = GSAResource(id_client, hail_identity)
         hail_identity_uid = await gsa.get_unique_id()
     else:
