@@ -294,6 +294,20 @@ async def edit_quote(
             if new_amount is None and billing_role != 'global_bm':
                 raise BatchUserError('Only global billing managers can set a quote to unlimited funding.', 'error')
             if new_amount is not None:
+                unlimited_bp_row = await tx.execute_and_fetchone(
+                    """
+SELECT name FROM billing_projects
+WHERE quote_id = %s AND `status` != 'deleted' AND `limit` IS NULL
+LIMIT 1;
+""",
+                    (quote_id,),
+                )
+                if unlimited_bp_row:
+                    raise BatchUserError(
+                        f'Cannot set a finite authorized_amount on a quote that contains unlimited billing project '
+                        f'"{unlimited_bp_row["name"]}". Set a limit on the billing project first.',
+                        'error',
+                    )
                 limits_sum_row = await tx.execute_and_fetchone(
                     """
 SELECT COALESCE(SUM(`limit`), 0) AS total_limit

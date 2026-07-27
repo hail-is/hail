@@ -253,6 +253,16 @@ async def test_edit_quote_rejects_amount_below_bp_limits(db):
         await edit_quote(db, 'q-cap', {'authorized_amount': 300.0}, actor='admin', billing_role='global_bm')
 
 
+async def test_edit_quote_rejects_finite_amount_when_unlimited_bp_exists(db):
+    # A quote containing an unlimited BP cannot be given a finite cap — the BP
+    # could keep accruing charges beyond the cap.
+    await create_quote(db, 'q-ul-bp', cost_object='CO', actor='admin', authorized_amount=None)
+    q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-ul-bp',))
+    await create_billing_project(db, 'bp-ul', q_row['id'], None, None, 'admin', 'global_bm')
+    with pytest.raises(BatchUserError, match='unlimited billing project'):
+        await edit_quote(db, 'q-ul-bp', {'authorized_amount': 1000.0}, actor='admin', billing_role='global_bm')
+
+
 async def test_edit_quote_unlimited_requires_global_bm(db):
     await create_quote(db, 'q-ul-auth', cost_object='CO', actor='admin', authorized_amount=500.0)
     with pytest.raises(BatchUserError, match='Only global billing managers'):
