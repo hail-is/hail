@@ -4,7 +4,7 @@
     "ParameterValue": "172.31.0.0/16"
   },
   {
-    "ParameterKey": "ClusterCidrBlock",
+    "ParameterKey": "ClusterServiceCidrBlock",
     "ParameterValue": "172.20.0.0/16"
   },
   {
@@ -20,11 +20,11 @@
     "ParameterValue": "172.31.32.0/20"
   },
   {
-    "ParameterKey": "IsBroadProduction",
-    "ParameterValue": "false"
+    "ParameterKey": "PublicAccessIpList",
+    "ParameterValue": "69.173.64.0/18, 69.173.64.0/19, 69.173.96.0/19, 69.173.95.0/24, 69.173.97.0/24"
   },
   {
     "ParameterKey": "DomainName",
-    "ParameterValue": "hail.is"
+    "ParameterValue": "aws.hail.is"
   }
 ]
