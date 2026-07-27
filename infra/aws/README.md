@@ -24,6 +24,7 @@ export INSTANCE_NAME=<name for this instance of Hail>
 aws cloudformation create-stack --stack-name hail-vdc --template-body file://main.yaml --role-arn $STACK_ROLE_ARN --parameters file://${INSTANCE_NAME}/parameters.json --capabilities CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND --disable-rollback
 ```
 
+<<<<<<< HEAD
 The stack will take 15 to 20 minutes to finish creating. Once it's complete, create the instance the bootstrap scripts will be run from:
 
 ```
