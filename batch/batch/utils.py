@@ -192,6 +192,7 @@ SELECT billing_projects.name as billing_project,
   billing_projects.quote_id,
   q.name AS quote_name,
   billing_projects.low_budget_alert,
+  billing_projects.description,
   IF(billing_projects.`limit` IS NULL, NULL, billing_projects.`limit` - COALESCE(SUM(agg.`usage` * resources.rate), 0)) AS remaining,
   COALESCE(SUM(agg.`usage` * resources.rate), 0) AS accrued_cost
 FROM billing_projects
@@ -207,7 +208,7 @@ LEFT JOIN aggregated_billing_project_user_resources_v3 as agg
 LEFT JOIN resources ON resources.resource_id = agg.resource_id
 {where_condition}
 GROUP BY billing_projects.name, billing_projects.`status`, billing_projects.`limit`,
-  billing_projects.quote_id, q.name, billing_projects.low_budget_alert, users;
+  billing_projects.quote_id, q.name, billing_projects.low_budget_alert, billing_projects.description, users;
 """
 
     billing_projects = []

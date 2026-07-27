@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS `quotes` (
   `authorized_amount` DOUBLE DEFAULT NULL,
   `pi_name` VARCHAR(255) DEFAULT NULL,
   `pm_designee` VARCHAR(255) DEFAULT NULL,
+  `description` VARCHAR(1000) DEFAULT NULL,
   `time_created` BIGINT NOT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE = InnoDB;
@@ -29,7 +30,7 @@ CREATE TABLE IF NOT EXISTS `quote_events` (
   `action` VARCHAR(100) NOT NULL,
   `target_user` VARCHAR(100) DEFAULT NULL,
   `target_project` VARCHAR(100) DEFAULT NULL,
-  `detail` TEXT DEFAULT NULL,
+  `detail` JSON DEFAULT NULL,
   `comment` VARCHAR(255) DEFAULT NULL,
   PRIMARY KEY (`id`),
   FOREIGN KEY (`quote_id`) REFERENCES `quotes`(`id`) ON DELETE CASCADE
@@ -43,7 +44,7 @@ CREATE TABLE IF NOT EXISTS `billing_project_events` (
   `actor` VARCHAR(100) NOT NULL,
   `action` VARCHAR(100) NOT NULL,
   `target_user` VARCHAR(100) DEFAULT NULL,
-  `detail` TEXT DEFAULT NULL,
+  `detail` JSON DEFAULT NULL,
   `comment` VARCHAR(255) DEFAULT NULL,
   PRIMARY KEY (`id`),
   FOREIGN KEY (`billing_project`) REFERENCES `billing_projects`(`name`) ON DELETE CASCADE
@@ -56,4 +57,5 @@ VALUES ('INTERNAL', 'INTERNAL', 'INTERNAL', UNIX_TIMESTAMP() * 1000);
 ALTER TABLE `billing_projects`
   ADD COLUMN `quote_id` INT DEFAULT 1,
   ADD COLUMN `low_budget_alert` DOUBLE DEFAULT NULL,
+  ADD COLUMN `description` VARCHAR(1000) DEFAULT NULL,
   ADD CONSTRAINT `fk_billing_projects_quote_id` FOREIGN KEY (`quote_id`) REFERENCES `quotes`(`id`);

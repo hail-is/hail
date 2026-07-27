@@ -73,14 +73,14 @@ async def list_quotes_for_user(db: Database, username: str, is_global_bm: bool) 
         return [
             record
             async for record in db.select_and_fetchall(
-                'SELECT id, name, cost_object, authorized_amount, pi_name, pm_designee, time_created FROM quotes;'
+                'SELECT id, name, cost_object, authorized_amount, pi_name, pm_designee, description, time_created FROM quotes;'
             )
         ]
     return [
         record
         async for record in db.select_and_fetchall(
             """
-SELECT q.id, q.name, q.cost_object, q.authorized_amount, q.pi_name, q.pm_designee, q.time_created
+SELECT q.id, q.name, q.cost_object, q.authorized_amount, q.pi_name, q.pm_designee, q.description, q.time_created
 FROM quotes q
 INNER JOIN quote_managers qm ON qm.quote_id = q.id
 WHERE qm.user = %s;
@@ -93,7 +93,7 @@ WHERE qm.user = %s;
 async def get_quote(db: Database, name: str) -> Optional[dict]:
     """Return the full quote dict (with managers and billing_projects), or None if not found."""
     quote_row = await db.select_and_fetchone(
-        'SELECT id, name, cost_object, authorized_amount, pi_name, pm_designee, time_created FROM quotes WHERE name_cs = %s;',
+        'SELECT id, name, cost_object, authorized_amount, pi_name, pm_designee, description, time_created FROM quotes WHERE name_cs = %s;',
         (name,),
     )
     if not quote_row:
@@ -238,6 +238,7 @@ async def create_quote(
     authorized_amount: Optional[float] = None,
     pi_name: Optional[str] = None,
     pm_designee: Optional[str] = None,
+    description: Optional[str] = None,
     comment: Optional[str] = None,
 ) -> int:
     """Insert a new quote and log the creation event. Returns the new quote id.
@@ -252,13 +253,13 @@ async def create_quote(
         now = time_msecs()
         quote_id = await tx.execute_insertone(
             """
-INSERT INTO quotes (name, name_cs, cost_object, authorized_amount, pi_name, pm_designee, time_created)
-VALUES (%s, %s, %s, %s, %s, %s, %s);
+INSERT INTO quotes (name, name_cs, cost_object, authorized_amount, pi_name, pm_designee, description, time_created)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
 """,
-            (name, name, cost_object, authorized_amount, pi_name, pm_designee, now),
+            (name, name, cost_object, authorized_amount, pi_name, pm_designee, description, now),
         )
         assert quote_id is not None
-        await _log_quote_event(tx, quote_id, actor, 'quote_created', detail=cost_object, comment=comment)
+        await _log_quote_event(tx, quote_id, actor, 'quote_created', detail=json.dumps(cost_object), comment=comment)
         return quote_id
 
 
@@ -270,13 +271,13 @@ async def edit_quote(
     billing_role: str,
     comment: Optional[str] = None,
 ) -> None:
-    """Edit quote fields. updates keys: cost_object, pi_name, pm_designee, authorized_amount (float|None).
+    """Edit quote fields. updates keys: cost_object, pi_name, pm_designee, description, authorized_amount (float|None).
 
     Raises BatchUserError for authorization or capacity violations.
     """
     async with db.start() as tx:
         row = await tx.execute_and_fetchone(
-            'SELECT id, cost_object, pi_name, pm_designee, authorized_amount FROM quotes WHERE name_cs = %s FOR UPDATE;',
+            'SELECT id, cost_object, pi_name, pm_designee, description, authorized_amount FROM quotes WHERE name_cs = %s FOR UPDATE;',
             (name,),
         )
         if not row:
@@ -291,6 +292,8 @@ async def edit_quote(
             db_updates['pi_name'] = updates['pi_name']
         if 'pm_designee' in updates:
             db_updates['pm_designee'] = updates['pm_designee']
+        if 'description' in updates:
+            db_updates['description'] = updates['description']
         if 'authorized_amount' in updates:
             new_amount = updates['authorized_amount']
             if new_amount is None and billing_role != 'global_bm':
@@ -368,7 +371,7 @@ async def add_quote_manager(
             (quote_id, target_user, role),
         )
         await _log_quote_event(
-            tx, quote_id, actor, 'manager_added', target_user=target_user, detail=role, comment=comment
+            tx, quote_id, actor, 'manager_added', target_user=target_user, detail=json.dumps(role), comment=comment
         )
 
 
@@ -402,7 +405,15 @@ async def remove_quote_manager(
             'DELETE FROM quote_managers WHERE quote_id = %s AND user = %s;',
             (quote_id, target_user),
         )
-        await _log_quote_event(tx, quote_id, actor, 'manager_removed', target_user=target_user, comment=comment)
+        await _log_quote_event(
+            tx,
+            quote_id,
+            actor,
+            'manager_removed',
+            target_user=target_user,
+            detail=json.dumps(existing['role']),
+            comment=comment,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -419,6 +430,7 @@ async def create_billing_project(
     actor: str,
     billing_role: str,
     initial_users: Optional[list] = None,
+    description: Optional[str] = None,
     comment: Optional[str] = None,
 ) -> None:
     """Create a billing project under a quote.
@@ -466,8 +478,8 @@ WHERE quote_id = %s AND `status` != 'deleted' AND `limit` IS NOT NULL;
             raise BatchOperationAlreadyCompletedError(f'Billing project {row["name_cs"]} already exists.', 'info')
 
         await tx.execute_insertone(
-            'INSERT INTO billing_projects(name, name_cs, quote_id, `limit`, low_budget_alert) VALUES (%s, %s, %s, %s, %s);',
-            (name, name, quote_id, limit, low_budget_alert),
+            'INSERT INTO billing_projects(name, name_cs, quote_id, `limit`, low_budget_alert, description) VALUES (%s, %s, %s, %s, %s, %s);',
+            (name, name, quote_id, limit, low_budget_alert, description),
         )
 
         for user in initial_users:
@@ -476,8 +488,11 @@ WHERE quote_id = %s AND `status` != 'deleted' AND `limit` IS NOT NULL;
                 (name, user, user),
             )
 
-        await _log_bp_event(tx, name, actor, 'bp_created', comment=comment)
-        await _log_quote_event(tx, quote_id, actor, 'bp_created', target_project=name, comment=comment)
+        bp_created_detail = json.dumps({'limit': limit, 'low_budget_alert': low_budget_alert})
+        await _log_bp_event(tx, name, actor, 'bp_created', detail=bp_created_detail, comment=comment)
+        await _log_quote_event(
+            tx, quote_id, actor, 'bp_created', target_project=name, detail=bp_created_detail, comment=comment
+        )
 
 
 async def patch_billing_project(
@@ -497,6 +512,7 @@ async def patch_billing_project(
         row = await tx.execute_and_fetchone(
             """
 SELECT billing_projects.name_cs, billing_projects.`status`, billing_projects.quote_id,
+  billing_projects.`limit`, billing_projects.low_budget_alert,
   q.authorized_amount,
   COALESCE((SELECT SUM(other_bp.`limit`) FROM billing_projects other_bp
     WHERE other_bp.quote_id = billing_projects.quote_id
@@ -534,22 +550,32 @@ FOR UPDATE;
                         'error',
                     )
             db_updates['limit'] = new_limit
-            await _log_bp_event(tx, bp_name, actor, 'limit_changed', detail=str(new_limit), comment=comment)
+            limit_detail = json.dumps({'old': row['limit'], 'new': new_limit})
+            await _log_bp_event(tx, bp_name, actor, 'limit_changed', detail=limit_detail, comment=comment)
             await _log_quote_event(
                 tx,
                 row['quote_id'],
                 actor,
                 'bp_limit_changed',
                 target_project=bp_name,
-                detail=str(new_limit),
+                detail=limit_detail,
                 comment=comment,
             )
 
         if 'low_budget_alert' in updates:
-            db_updates['low_budget_alert'] = updates['low_budget_alert']
+            new_alert = updates['low_budget_alert']
+            db_updates['low_budget_alert'] = new_alert
             await _log_bp_event(
-                tx, bp_name, actor, 'alert_threshold_changed', detail=str(updates['low_budget_alert']), comment=comment
+                tx,
+                bp_name,
+                actor,
+                'alert_threshold_changed',
+                detail=json.dumps({'old': row['low_budget_alert'], 'new': new_alert}),
+                comment=comment,
             )
+
+        if 'description' in updates:
+            db_updates['description'] = updates['description']
 
         if db_updates:
             set_clause = ', '.join(f'`{k}` = %s' for k in db_updates)
@@ -576,12 +602,14 @@ async def change_billing_project_quote(
 SELECT billing_projects.name_cs, billing_projects.`status`,
   billing_projects.quote_id AS src_quote_id,
   billing_projects.`limit`,
+  q_src.name AS src_quote_name,
   q_dest.name AS dest_quote_name,
   q_dest.authorized_amount AS dest_authorized_amount,
   COALESCE((SELECT SUM(other_bp.`limit`) FROM billing_projects other_bp
     WHERE other_bp.quote_id = %s
       AND other_bp.`status` != 'deleted'), 0) AS dest_bp_limits_sum
 FROM billing_projects
+LEFT JOIN quotes q_src ON q_src.id = billing_projects.quote_id
 LEFT JOIN quotes q_dest ON q_dest.id = %s
 WHERE billing_projects.name_cs = %s AND billing_projects.`status` != 'deleted'
 FOR UPDATE;
@@ -616,7 +644,14 @@ FOR UPDATE;
         )
         await _log_quote_event(tx, src_quote_id, actor, 'bp_unassigned', target_project=bp_name, comment=comment)
         await _log_quote_event(tx, dest_quote_id, actor, 'bp_assigned', target_project=bp_name, comment=comment)
-        await _log_bp_event(tx, bp_name, actor, 'quote_changed', detail=row['dest_quote_name'], comment=comment)
+        await _log_bp_event(
+            tx,
+            bp_name,
+            actor,
+            'quote_changed',
+            detail=json.dumps({'old': row['src_quote_name'], 'new': row['dest_quote_name']}),
+            comment=comment,
+        )
 
 
 # ---------------------------------------------------------------------------

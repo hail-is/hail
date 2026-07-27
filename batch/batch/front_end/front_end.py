@@ -3438,6 +3438,7 @@ async def api_get_create_billing_projects(request: web.Request, userdata: UserDa
     quote_name = body.get('quote_name', 'INTERNAL')
     limit = body.get('limit')
     low_budget_alert = body.get('low_budget_alert')
+    description = body.get('description')
     initial_users: List[str] = body.get('initial_users', [])
     comment = body.get('comment')
 
@@ -3460,6 +3461,7 @@ async def api_get_create_billing_projects(request: web.Request, userdata: UserDa
         username,
         billing_role,
         initial_users,
+        description,
         comment,
     )
     return json_response(billing_project)
@@ -3558,6 +3560,8 @@ async def api_patch_billing_project(request: web.Request, userdata: UserData) ->
         updates['limit'] = body['limit']
     if 'low_budget_alert' in body:
         updates['low_budget_alert'] = body.get('low_budget_alert')
+    if 'description' in body:
+        updates['description'] = body['description']
 
     await _handle_api_error(
         billing_dao.patch_billing_project, db, billing_project, updates, actor, billing_role, comment
@@ -3643,6 +3647,7 @@ async def create_quote(request: web.Request, userdata: UserData) -> web.Response
 
     pi_name = body.get('pi_name')
     pm_designee = body.get('pm_designee')
+    description = body.get('description')
     comment = body.get('comment')
 
     await _handle_api_error(
@@ -3654,6 +3659,7 @@ async def create_quote(request: web.Request, userdata: UserData) -> web.Response
         authorized_amount=authorized_amount,
         pi_name=pi_name,
         pm_designee=pm_designee,
+        description=description,
         comment=comment,
     )
     return json_response({'name': quote_name})
@@ -3689,6 +3695,8 @@ async def edit_quote(request: web.Request, userdata: UserData) -> web.Response:
         updates['pi_name'] = body['pi_name']
     if 'pm_designee' in body:
         updates['pm_designee'] = body['pm_designee']
+    if 'description' in body:
+        updates['description'] = body['description']
     if 'authorized_amount' in body:
         aa = body['authorized_amount']
         if aa == 'unlimited' or aa is None:
