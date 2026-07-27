@@ -10,7 +10,7 @@ import warnings
 from collections import defaultdict, namedtuple
 from contextlib import AsyncExitStack
 from functools import wraps
-from typing import Any, Awaitable, Callable, Dict, NoReturn, Set, Tuple
+from typing import Any, Awaitable, Callable, Dict, NoReturn, Optional, Set, Tuple
 
 import aiohttp_session
 import dictdiffer
@@ -37,11 +37,12 @@ from gear import (
     monitor_endpoints_middleware,
     setup_aiohttp_session,
     transaction,
+    version_response,
 )
 from gear.auth import AIOHTTPHandler, UserData
 from gear.clients import get_cloud_async_fs
 from gear.profiling import install_profiler_if_requested
-from hailtop import aiotools, httpx, uvloopx
+from hailtop import __version__, aiotools, httpx, uvloopx
 from hailtop.batch_client.globals import ROOT_JOB_GROUP_ID
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
@@ -61,6 +62,7 @@ from web_common import (
     setup_common_static_routes,
     web_security_headers,
     web_security_headers_inline_styles,
+    web_security_headers_swagger,
 )
 
 from ..batch import cancel_job_group_in_db
@@ -203,9 +205,203 @@ def active_instances_only(fun: Callable[[web.Request, Instance], Awaitable[web.S
     return wrapped
 
 
+_Pagination = namedtuple('_Pagination', ['offset', 'limit'])
+
+
+def _parse_pagination(request: web.Request) -> _Pagination:
+    try:
+        offset = int(request.rel_url.query.get('offset', 0))
+        if offset < 0:
+            raise ValueError
+    except ValueError as exc:
+        raise web.HTTPBadRequest(reason='offset must be a non-negative integer') from exc
+    limit_str = request.rel_url.query.get('limit')
+    if limit_str is not None:
+        try:
+            limit = int(limit_str)
+            if limit <= 0:
+                raise ValueError
+        except ValueError as exc:
+            raise web.HTTPBadRequest(reason='limit must be a positive integer') from exc
+    else:
+        limit = None
+    return _Pagination(offset=offset, limit=limit)
+
+
+def _apply_pagination(items: list, offset: int, limit: Optional[int]) -> dict:
+    total = len(items)
+    page = items[offset : offset + limit] if limit is not None else items[offset:]
+    more = limit is not None and offset + limit < total
+    return {'items': page, 'total_count': total, 'current_offset': offset, 'more': more}
+
+
+def _log_config_changes(who: str, target: str, before: dict, after: dict) -> None:
+    all_keys = before.keys() | after.keys()
+    changes = [(k, before.get(k), after.get(k)) for k in all_keys if before.get(k) != after.get(k)]
+    if changes:
+        changes_str = ', '.join(f'{k}: {old!r} -> {new!r}' for k, old, new in sorted(changes))
+        log.info(f'{who} updated {target}: {changes_str}')
+    else:
+        log.info(f'{who} updated {target}: no changes')
+
+
+def _validate_pool_config_dict(config: dict, cloud: str, worker_type: str) -> None:
+    boot = config['boot_disk_size_gb']
+    if not isinstance(boot, int) or boot < 10:
+        raise web.HTTPBadRequest(reason='boot_disk_size_gb must be an integer >= 10')
+    if cloud == 'azure' and boot != 30:
+        raise web.HTTPBadRequest(reason='boot_disk_size_gb must be 30 on Azure')
+
+    local_ssd = config['worker_local_ssd_data_disk']
+    if not isinstance(local_ssd, bool):
+        raise web.HTTPBadRequest(reason='worker_local_ssd_data_disk must be a boolean')
+    ext_ssd = config['worker_external_ssd_data_disk_size_gb']
+    if not isinstance(ext_ssd, int) or ext_ssd < 0:
+        raise web.HTTPBadRequest(reason='worker_external_ssd_data_disk_size_gb must be a non-negative integer')
+    if not local_ssd and ext_ssd == 0:
+        raise web.HTTPBadRequest(
+            reason='worker must use a local SSD or worker_external_ssd_data_disk_size_gb must be non-zero'
+        )
+    if local_ssd and ext_ssd > 0:
+        raise web.HTTPBadRequest(
+            reason='worker cannot both use local SSD and have a non-zero worker_external_ssd_data_disk_size_gb'
+        )
+
+    possible_cores = []
+    for cores in possible_cores_from_worker_type(cloud, worker_type):
+        if not local_ssd:
+            possible_cores.append(cores)
+        elif unreserved_worker_data_disk_size_gib(local_ssd_size(cloud, worker_type, cores), cores) >= 0:
+            possible_cores.append(cores)
+
+    worker_cores = config['worker_cores']
+    if worker_cores not in possible_cores:
+        raise web.HTTPBadRequest(reason=f'worker_cores must be one of {possible_cores}')
+    standing_worker_cores = config['standing_worker_cores']
+    if standing_worker_cores not in possible_cores:
+        raise web.HTTPBadRequest(reason=f'standing_worker_cores must be one of {possible_cores}')
+
+    if not local_ssd:
+        if unreserved_worker_data_disk_size_gib(ext_ssd, worker_cores) < 0:
+            min_disk = ext_ssd - unreserved_worker_data_disk_size_gib(ext_ssd, worker_cores)
+            raise web.HTTPBadRequest(reason=f'worker_external_ssd_data_disk_size_gb must be at least {min_disk} GB')
+
+    max_i = config['max_instances']
+    max_live = config['max_live_instances']
+    min_i = config['min_instances']
+    if not isinstance(max_i, int) or max_i < 0:
+        raise web.HTTPBadRequest(reason='max_instances must be a non-negative integer')
+    if not isinstance(max_live, int) or not 0 <= max_live <= max_i:
+        raise web.HTTPBadRequest(reason=f'max_live_instances must be a non-negative integer <= max_instances ({max_i})')
+    if not isinstance(min_i, int) or not 0 <= min_i <= max_live:
+        raise web.HTTPBadRequest(
+            reason=f'min_instances must be a non-negative integer <= max_live_instances ({max_live})'
+        )
+
+    for field in (
+        'max_new_instances_per_autoscaler_loop',
+        'autoscaler_loop_period_secs',
+        'worker_max_idle_time_secs',
+        'standing_worker_max_idle_time_secs',
+        'job_queue_scheduling_window_secs',
+    ):
+        v = config[field]
+        if not isinstance(v, int) or v <= 0:
+            raise web.HTTPBadRequest(reason=f'{field} must be a positive integer')
+
+
+def _validate_jpim_config_dict(config: dict, cloud: str) -> None:
+    boot = config['boot_disk_size_gb']
+    if not isinstance(boot, int) or boot < 10:
+        raise web.HTTPBadRequest(reason='boot_disk_size_gb must be an integer >= 10')
+    if cloud == 'azure' and boot != 30:
+        raise web.HTTPBadRequest(reason='boot_disk_size_gb must be 30 on Azure')
+    for field in (
+        'max_instances',
+        'max_live_instances',
+        'max_new_instances_per_autoscaler_loop',
+        'autoscaler_loop_period_secs',
+        'worker_max_idle_time_secs',
+    ):
+        v = config[field]
+        if not isinstance(v, int) or v <= 0:
+            raise web.HTTPBadRequest(reason=f'{field} must be a positive integer')
+    if config['max_live_instances'] > config['max_instances']:
+        raise web.HTTPBadRequest(reason='max_live_instances must be <= max_instances')
+
+
+def _inst_coll_summary(ic) -> dict:
+    stats = ic.current_worker_version_stats
+    return {
+        'name': ic.name,
+        'all_versions_instances_by_state': dict(ic.all_versions_instances_by_state),
+        'all_versions_cores_mcpu_by_state': dict(ic.all_versions_cores_mcpu_by_state),
+        'max_live_instances': ic.max_live_instances,
+        'max_instances': ic.max_instances,
+        'schedulable_free_cores_mcpu': stats.active_schedulable_free_cores_mcpu,
+        'schedulable_cores_mcpu': stats.cores_mcpu_by_state['active'],
+    }
+
+
+def _instance_to_dict(instance: 'Instance') -> dict:
+    return {
+        'name': instance.name,
+        'inst_coll_name': instance.inst_coll.name,
+        'location': instance.location,
+        'version': instance.version,
+        'state': instance.state,
+        'free_cores_mcpu': instance.free_cores_mcpu,
+        'cores_mcpu': instance.cores_mcpu,
+        'failed_request_count': instance.failed_request_count,
+        'time_created_ms': instance.time_created,
+        'last_updated_ms': instance.last_updated,
+    }
+
+
+async def _set_frozen(app: web.Application, db: Database, freeze: bool) -> dict:
+    await db.execute_update('UPDATE globals SET frozen = %s;', (1 if freeze else 0,))
+    app['frozen'] = freeze
+    return {'frozen': freeze}
+
+
+async def _update_feature_flags(app: web.Application, db: Database, updates: dict) -> dict:
+    await db.execute_update(
+        '''
+UPDATE feature_flags
+SET compact_billing_tables = COALESCE(%s, compact_billing_tables),
+    oms_agent = COALESCE(%s, oms_agent),
+    dockerhub_proxy = COALESCE(%s, dockerhub_proxy);
+''',
+        (updates.get('compact_billing_tables'), updates.get('oms_agent'), updates.get('dockerhub_proxy')),
+    )
+    row = await db.select_and_fetchone('SELECT * FROM feature_flags')
+    app['feature_flags'] = row
+    return dict(row)
+
+
 @routes.get('/healthcheck')
 async def get_healthcheck(_) -> web.Response:
     return web.Response()
+
+
+@routes.get('/api/v1alpha/version')
+@auth.maybe_authenticated_user
+async def get_version(_, userdata: Optional[UserData]) -> web.Response:
+    return version_response(userdata)
+
+
+@routes.get('/swagger')
+@web_security_headers_swagger
+async def get_swagger(request: web.Request) -> web.Response:
+    page_context = {'service': 'batch-driver', 'base_path': deploy_config.base_path('batch-driver')}
+    return await render_template('batch-driver', request, None, 'swagger/index.html', page_context)
+
+
+@routes.get('/openapi.yaml')
+@web_security_headers
+async def get_openapi(request: web.Request) -> web.Response:
+    page_context = {'base_path': deploy_config.base_path('batch-driver'), 'spec_version': __version__}
+    return await render_template('batch-driver', request, None, 'openapi.yaml', page_context)
 
 
 @routes.get('/check_invariants')
@@ -227,6 +423,224 @@ async def get_check_invariants(request: web.Request, _) -> web.Response:
         if resource_agg_result
         else None,
     })
+
+
+@routes.get('/api/v1alpha/driver')
+@auth.authenticated_users_with_permission(SystemPermission.READ_DEPLOYED_SYSTEM_STATE)
+async def api_get_driver(request: web.Request, _) -> web.Response:
+    app = request.app
+    db: Database = app['db']
+    inst_coll_manager: InstanceCollectionManager = app['driver'].inst_coll_manager
+    jpim: JobPrivateInstanceManager = app['driver'].job_private_inst_manager
+
+    ready_cores = await db.select_and_fetchone("""
+SELECT CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
+FROM user_inst_coll_resources;
+""")
+
+    return json_response({
+        'instance_id': app['instance_id'],
+        'frozen': app['frozen'],
+        'ready_cores_mcpu': ready_cores['ready_cores_mcpu'],
+        'feature_flags': dict(app['feature_flags']),
+        'pools': [_inst_coll_summary(p) for p in inst_coll_manager.pools.values()],
+        'jpim': _inst_coll_summary(jpim),
+        'global_stats': {
+            'n_instances_by_state': dict(inst_coll_manager.global_n_instances_by_state),
+            'cores_mcpu_by_state': dict(inst_coll_manager.global_cores_mcpu_by_state),
+            'schedulable_free_cores_mcpu': inst_coll_manager.global_schedulable_free_cores_mcpu,
+            'schedulable_cores_mcpu': inst_coll_manager.global_schedulable_cores_mcpu,
+        },
+    })
+
+
+@routes.patch('/api/v1alpha/driver')
+@auth.authenticated_users_with_permission(SystemPermission.UPDATE_DEPLOYED_SYSTEM_STATE)
+async def api_patch_driver(request: web.Request, userdata: UserData) -> web.Response:
+    body = await request.json()
+    if not isinstance(body, dict):
+        raise web.HTTPBadRequest(reason='request body must be a JSON object')
+    unknown = set(body) - {'frozen'}
+    if unknown:
+        raise web.HTTPBadRequest(reason=f'unknown or read-only fields: {sorted(unknown)}')
+    if 'frozen' in body:
+        if not isinstance(body['frozen'], bool):
+            raise web.HTTPBadRequest(reason='frozen must be a boolean')
+        before = request.app['frozen']
+        result = await _set_frozen(request.app, request.app['db'], body['frozen'])
+        _log_config_changes(userdata['username'], 'driver', {'frozen': before}, result)
+    return json_response({'frozen': request.app['frozen']})
+
+
+@routes.get('/api/v1alpha/feature_flags')
+@auth.authenticated_users_with_permission(SystemPermission.READ_DEPLOYED_SYSTEM_STATE)
+async def api_get_feature_flags(request: web.Request, _) -> web.Response:
+    return json_response(dict(request.app['feature_flags']))
+
+
+@routes.patch('/api/v1alpha/feature_flags')
+@auth.authenticated_users_with_permission(SystemPermission.UPDATE_DEPLOYED_SYSTEM_STATE)
+async def api_patch_feature_flags(request: web.Request, userdata: UserData) -> web.Response:
+    body = await request.json()
+    if not isinstance(body, dict):
+        raise web.HTTPBadRequest(reason='request body must be a JSON object')
+    known_flags = {'compact_billing_tables', 'oms_agent', 'dockerhub_proxy'}
+    for k, v in body.items():
+        if k in known_flags and not isinstance(v, bool):
+            raise web.HTTPBadRequest(reason=f'{k} must be a boolean')
+        if k not in known_flags:
+            raise web.HTTPBadRequest(reason=f'unknown feature flag: {k}')
+    updates = {k: v for k, v in body.items() if k in known_flags}
+    before = dict(request.app['feature_flags'])
+    result = await _update_feature_flags(request.app, request.app['db'], updates)
+    _log_config_changes(userdata['username'], 'feature_flags', before, result)
+    return json_response(result)
+
+
+@routes.get('/api/v1alpha/inst_coll/pool/{pool}')
+@auth.authenticated_users_with_permission(SystemPermission.READ_DEPLOYED_SYSTEM_STATE)
+async def api_get_pool(request: web.Request, _) -> web.Response:
+    inst_coll_manager: InstanceCollectionManager = request.app['driver'].inst_coll_manager
+    pool_name = request.match_info['pool']
+    pool = inst_coll_manager.get_inst_coll(pool_name)
+    if not isinstance(pool, Pool):
+        raise web.HTTPNotFound()
+    return json_response(await _pool_json(pool))
+
+
+@routes.get('/api/v1alpha/inst_coll/pool/{pool}/instances')
+@auth.authenticated_users_with_permission(SystemPermission.READ_DEPLOYED_SYSTEM_STATE)
+async def api_get_pool_instances(request: web.Request, _) -> web.Response:
+    inst_coll_manager: InstanceCollectionManager = request.app['driver'].inst_coll_manager
+    pool_name = request.match_info['pool']
+    pool = inst_coll_manager.get_inst_coll(pool_name)
+    if not isinstance(pool, Pool):
+        raise web.HTTPNotFound()
+    offset, limit = _parse_pagination(request)
+    all_instances = [_instance_to_dict(i) for i in pool.name_instance.values()]
+    return json_response(_apply_pagination(all_instances, offset, limit))
+
+
+@routes.get('/api/v1alpha/inst_coll/jpim')
+@auth.authenticated_users_with_permission(SystemPermission.READ_DEPLOYED_SYSTEM_STATE)
+async def api_get_jpim(request: web.Request, _) -> web.Response:
+    jpim: JobPrivateInstanceManager = request.app['driver'].job_private_inst_manager
+    return json_response(await _jpim_json(jpim))
+
+
+@routes.get('/api/v1alpha/inst_coll/jpim/instances')
+@auth.authenticated_users_with_permission(SystemPermission.READ_DEPLOYED_SYSTEM_STATE)
+async def api_get_jpim_instances(request: web.Request, _) -> web.Response:
+    jpim: JobPrivateInstanceManager = request.app['driver'].job_private_inst_manager
+    offset, limit = _parse_pagination(request)
+    all_instances = [_instance_to_dict(i) for i in jpim.name_instance.values()]
+    return json_response(_apply_pagination(all_instances, offset, limit))
+
+
+@routes.get('/api/v1alpha/user_resources')
+@auth.authenticated_users_with_permission(SystemPermission.READ_DEPLOYED_SYSTEM_STATE)
+async def api_get_user_resources(request: web.Request, _) -> web.Response:
+    return json_response(await _fetch_global_user_resources(request.app['db']))
+
+
+@routes.patch('/api/v1alpha/inst_coll/pool/{pool}')
+@auth.authenticated_users_with_permission(SystemPermission.UPDATE_DEPLOYED_SYSTEM_STATE)
+async def api_patch_pool(request: web.Request, userdata: UserData) -> web.Response:
+    inst_coll_manager: InstanceCollectionManager = request.app['driver'].inst_coll_manager
+    pool_name = request.match_info['pool']
+    pool = inst_coll_manager.get_inst_coll(pool_name)
+    if not isinstance(pool, Pool):
+        raise web.HTTPNotFound()
+
+    body = await request.json()
+    if not isinstance(body, dict):
+        raise web.HTTPBadRequest(reason='request body must be a JSON object')
+    writable = {
+        'boot_disk_size_gb',
+        'worker_local_ssd_data_disk',
+        'worker_external_ssd_data_disk_size_gb',
+        'worker_cores',
+        'standing_worker_cores',
+        'min_instances',
+        'max_instances',
+        'max_live_instances',
+        'max_new_instances_per_autoscaler_loop',
+        'autoscaler_loop_period_secs',
+        'worker_max_idle_time_secs',
+        'standing_worker_max_idle_time_secs',
+        'job_queue_scheduling_window_secs',
+    }
+    unknown = set(body) - writable
+    if unknown:
+        raise web.HTTPBadRequest(reason=f'unknown or read-only fields: {sorted(unknown)}')
+
+    before = pool.config()
+    merged = {**before, **{k: v for k, v in body.items() if k in writable}}
+
+    _validate_pool_config_dict(merged, pool.cloud, pool.worker_type)
+
+    proposed = PoolConfig(
+        name=pool_name,
+        cloud=pool.cloud,
+        worker_type=pool.worker_type,
+        worker_cores=merged['worker_cores'],
+        worker_local_ssd_data_disk=merged['worker_local_ssd_data_disk'],
+        worker_external_ssd_data_disk_size_gb=merged['worker_external_ssd_data_disk_size_gb'],
+        standing_worker_cores=merged['standing_worker_cores'],
+        boot_disk_size_gb=merged['boot_disk_size_gb'],
+        min_instances=merged['min_instances'],
+        max_instances=merged['max_instances'],
+        max_live_instances=merged['max_live_instances'],
+        preemptible=pool.preemptible,
+        max_new_instances_per_autoscaler_loop=merged['max_new_instances_per_autoscaler_loop'],
+        autoscaler_loop_period_secs=merged['autoscaler_loop_period_secs'],
+        worker_max_idle_time_secs=merged['worker_max_idle_time_secs'],
+        standing_worker_max_idle_time_secs=merged['standing_worker_max_idle_time_secs'],
+        job_queue_scheduling_window_secs=merged['job_queue_scheduling_window_secs'],
+    )
+    await proposed.update_database(request.app['db'])
+    pool.configure(proposed)
+
+    after = pool.config()
+    _log_config_changes(userdata['username'], f'pool/{pool_name}', before, after)
+    return json_response(await _pool_json(pool))
+
+
+@routes.patch('/api/v1alpha/inst_coll/jpim')
+@auth.authenticated_users_with_permission(SystemPermission.UPDATE_DEPLOYED_SYSTEM_STATE)
+async def api_patch_jpim(request: web.Request, userdata: UserData) -> web.Response:
+    jpim: JobPrivateInstanceManager = request.app['driver'].job_private_inst_manager
+    body = await request.json()
+    if not isinstance(body, dict):
+        raise web.HTTPBadRequest(reason='request body must be a JSON object')
+    writable = {
+        'boot_disk_size_gb',
+        'max_instances',
+        'max_live_instances',
+        'max_new_instances_per_autoscaler_loop',
+        'autoscaler_loop_period_secs',
+        'worker_max_idle_time_secs',
+    }
+    unknown = set(body) - writable
+    if unknown:
+        raise web.HTTPBadRequest(reason=f'unknown or read-only fields: {sorted(unknown)}')
+
+    before = jpim.config()
+    merged = {**before, **{k: v for k, v in body.items() if k in writable}}
+
+    _validate_jpim_config_dict(merged, jpim.cloud)
+
+    await jpim.configure(
+        boot_disk_size_gb=merged['boot_disk_size_gb'],
+        max_instances=merged['max_instances'],
+        max_live_instances=merged['max_live_instances'],
+        max_new_instances_per_autoscaler_loop=merged['max_new_instances_per_autoscaler_loop'],
+        autoscaler_loop_period_secs=merged['autoscaler_loop_period_secs'],
+        worker_max_idle_time_secs=merged['worker_max_idle_time_secs'],
+    )
+
+    _log_config_changes(userdata['username'], 'jpim', before, jpim.config())
+    return json_response(await _jpim_json(jpim))
 
 
 @routes.patch('/api/v1alpha/batches/{user}/{batch_id}/update')
@@ -302,6 +716,45 @@ async def deactivate_instance_1(instance):
 @add_metadata_to_request
 async def deactivate_instance(_, instance: Instance) -> web.Response:
     await asyncio.shield(deactivate_instance_1(instance))
+    return web.Response()
+
+
+@routes.get('/api/v1alpha/gcp_quotas')
+@auth.authenticated_users_with_permission(SystemPermission.READ_DEPLOYED_SYSTEM_STATE)
+async def api_get_gcp_quotas(request: web.Request, _) -> web.Response:
+    if CLOUD != 'gcp':
+        raise web.HTTPNotFound(reason='quotas are only available on GCP')
+    data = request.app['driver'].get_quotas()
+    if not data:
+        raise web.HTTPServiceUnavailable(reason='quota data not yet available')
+    return json_response({
+        region: {q['metric']: {'limit': q['limit'], 'usage': q['usage']} for q in info['quotas']}
+        for region, info in data.items()
+    })
+
+
+@routes.get('/api/v1alpha/instances/{instance_name}')
+@auth.authenticated_users_with_permission(SystemPermission.READ_DEPLOYED_SYSTEM_STATE)
+async def api_get_instance(request: web.Request, _) -> web.Response:
+    instance_name = request.match_info['instance_name']
+    inst_coll_manager: InstanceCollectionManager = request.app['driver'].inst_coll_manager
+    instance = inst_coll_manager.get_instance(instance_name)
+    if instance is None:
+        raise web.HTTPNotFound()
+    return json_response(_instance_to_dict(instance))
+
+
+@routes.delete('/api/v1alpha/instances/{instance_name}')
+@auth.authenticated_users_with_permission(SystemPermission.UPDATE_DEPLOYED_SYSTEM_STATE)
+async def api_delete_instance(request: web.Request, _) -> web.Response:
+    instance_name = request.match_info['instance_name']
+    inst_coll_manager: InstanceCollectionManager = request.app['driver'].inst_coll_manager
+    instance = inst_coll_manager.get_instance(instance_name)
+    if instance is None:
+        raise web.HTTPNotFound()
+    if instance.state != 'active':
+        raise web.HTTPConflict(reason=f'instance is {instance.state}, not active')
+    await asyncio.shield(instance.kill())
     return web.Response()
 
 
@@ -448,6 +901,59 @@ async def billing_update(request, instance):
     return await asyncio.shield(billing_update_1(request, instance))
 
 
+async def _pool_json(pool: Pool) -> dict:
+    user_resources = await pool.scheduler.compute_fair_share()
+    sorted_user_resources = sorted(
+        user_resources.values(),
+        key=lambda r: r['ready_cores_mcpu'] + r['running_cores_mcpu'],
+        reverse=True,
+    )
+    return {
+        **pool.config(),
+        'status': _inst_coll_summary(pool),
+        'user_resources': sorted_user_resources,
+        'scheduler': {
+            'exceeded_shares_rate': pool.scheduler.exceeded_shares_counter.rate(),
+        },
+        'autoscaler': {
+            'healthy_instance_count': len(pool.healthy_instances_by_free_cores),
+            'live_free_cores_mcpu_by_region': dict(pool.current_worker_version_stats.live_free_cores_mcpu_by_region),
+        },
+    }
+
+
+async def _jpim_json(jpim: JobPrivateInstanceManager) -> dict:
+    user_resources = await jpim.compute_fair_share()
+    sorted_user_resources = sorted(
+        user_resources.values(),
+        key=lambda r: r['n_ready_jobs'] + r['n_creating_jobs'] + r['n_running_jobs'],
+        reverse=True,
+    )
+    return {
+        **jpim.config(),
+        'status': _inst_coll_summary(jpim),
+        'user_resources': sorted_user_resources,
+    }
+
+
+async def _fetch_global_user_resources(db: Database) -> list:
+    records = db.execute_and_fetchall("""
+SELECT user,
+  CAST(COALESCE(SUM(n_ready_jobs), 0) AS SIGNED) AS n_ready_jobs,
+  CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu,
+  CAST(COALESCE(SUM(n_running_jobs), 0) AS SIGNED) AS n_running_jobs,
+  CAST(COALESCE(SUM(running_cores_mcpu), 0) AS SIGNED) AS running_cores_mcpu
+FROM user_inst_coll_resources
+GROUP BY user
+HAVING n_ready_jobs + n_running_jobs > 0;
+""")
+    return sorted(
+        [record async for record in records],
+        key=lambda r: r['ready_cores_mcpu'] + r['running_cores_mcpu'],
+        reverse=True,
+    )
+
+
 @routes.get('/')
 @routes.get('')
 @web_security_headers
@@ -584,31 +1090,22 @@ async def hello_react(request: web.Request, userdata) -> web.Response:
 
 @routes.post('/configure-feature-flags')
 @auth.authenticated_users_with_permission(SystemPermission.UPDATE_DEPLOYED_SYSTEM_STATE)
-async def configure_feature_flags(request: web.Request, _) -> NoReturn:
-    app = request.app
-    db: Database = app['db']
+async def configure_feature_flags(request: web.Request, userdata: UserData) -> NoReturn:
     post = await request.post()
-
-    compact_billing_tables = 'compact_billing_tables' in post
-    oms_agent = 'oms_agent' in post
-    dockerhub_proxy = 'dockerhub_proxy' in post
-
-    await db.execute_update(
-        """
-UPDATE feature_flags SET compact_billing_tables = %s, oms_agent = %s, dockerhub_proxy = %s;
-""",
-        (compact_billing_tables, oms_agent, dockerhub_proxy),
-    )
-
-    row = await db.select_and_fetchone('SELECT * FROM feature_flags')
-    app['feature_flags'] = row
-
+    before = dict(request.app['feature_flags'])
+    updates = {
+        'compact_billing_tables': 'compact_billing_tables' in post,
+        'oms_agent': 'oms_agent' in post,
+        'dockerhub_proxy': 'dockerhub_proxy' in post,
+    }
+    result = await _update_feature_flags(request.app, request.app['db'], updates)
+    _log_config_changes(userdata['username'], 'feature_flags', before, result)
     raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
 
 
 @routes.post('/config-update/pool/{pool}')
 @auth.authenticated_users_with_permission(SystemPermission.UPDATE_DEPLOYED_SYSTEM_STATE)
-async def pool_config_update(request: web.Request, _) -> NoReturn:
+async def pool_config_update(request: web.Request, userdata: UserData) -> NoReturn:
     app = request.app
     db: Database = app['db']
     inst_coll_manager: InstanceCollectionManager = app['driver'].inst_coll_manager
@@ -796,8 +1293,10 @@ async def pool_config_update(request: web.Request, _) -> NoReturn:
             )
             raise ConfigError()
 
+        before = pool.config()
         await proposed_pool_config.update_database(db)
         pool.configure(proposed_pool_config)
+        _log_config_changes(userdata['username'], f'pool/{pool_name}', before, pool.config())
 
         set_message(session, f'Updated configuration for {pool}.', 'info')
     except ConfigError:
@@ -813,7 +1312,7 @@ async def pool_config_update(request: web.Request, _) -> NoReturn:
 
 @routes.post('/config-update/jpim')
 @auth.authenticated_users_with_permission(SystemPermission.UPDATE_DEPLOYED_SYSTEM_STATE)
-async def job_private_config_update(request: web.Request, _) -> NoReturn:
+async def job_private_config_update(request: web.Request, userdata: UserData) -> NoReturn:
     app = request.app
     jpim: JobPrivateInstanceManager = app['driver'].job_private_inst_manager
 
@@ -868,6 +1367,7 @@ async def job_private_config_update(request: web.Request, _) -> NoReturn:
             'a positive integer',
         )
 
+        before = jpim.config()
         await jpim.configure(
             boot_disk_size_gb=boot_disk_size_gb,
             max_instances=max_instances,
@@ -876,6 +1376,7 @@ async def job_private_config_update(request: web.Request, _) -> NoReturn:
             autoscaler_loop_period_secs=autoscaler_loop_period_secs,
             worker_max_idle_time_secs=worker_max_idle_time_secs,
         )
+        _log_config_changes(userdata['username'], 'jpim', before, jpim.config())
 
         set_message(session, f'Updated configuration for {jpim}.', 'info')
     except ConfigError:
@@ -905,23 +1406,14 @@ async def get_pool(request, userdata):
         set_message(session, f'Unknown pool {pool_name}.', 'error')
         raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
 
-    user_resources = await pool.scheduler.compute_fair_share()
-    user_resources = sorted(
-        user_resources.values(),
-        key=lambda record: record['ready_cores_mcpu'] + record['running_cores_mcpu'],
-        reverse=True,
-    )
-
-    ready_cores_mcpu = sum(record['ready_cores_mcpu'] for record in user_resources)
-
-    pool_config_json = json.dumps(pool.config())
+    data = await _pool_json(pool)
 
     page_context = {
         'pool': pool,
-        'pool_config_json': pool_config_json,
+        'pool_config_json': json.dumps(pool.config()),
         'instances': pool.name_instance.values(),
-        'user_resources': user_resources,
-        'ready_cores_mcpu': ready_cores_mcpu,
+        'user_resources': data['user_resources'],
+        'ready_cores_mcpu': sum(r['ready_cores_mcpu'] for r in data['user_resources']),
     }
 
     return await render_template('batch-driver', request, userdata, 'pool.html', page_context)
@@ -934,24 +1426,15 @@ async def get_job_private_inst_manager(request, userdata):
     app = request.app
     jpim: JobPrivateInstanceManager = app['driver'].job_private_inst_manager
 
-    user_resources = await jpim.compute_fair_share()
-    user_resources = sorted(
-        user_resources.values(),
-        key=lambda record: record['n_ready_jobs'] + record['n_creating_jobs'] + record['n_running_jobs'],
-        reverse=True,
-    )
-
-    n_ready_jobs = sum(record['n_ready_jobs'] for record in user_resources)
-    n_creating_jobs = sum(record['n_creating_jobs'] for record in user_resources)
-    n_running_jobs = sum(record['n_running_jobs'] for record in user_resources)
+    data = await _jpim_json(jpim)
 
     page_context = {
         'jpim': jpim,
         'instances': jpim.name_instance.values(),
-        'user_resources': user_resources,
-        'n_ready_jobs': n_ready_jobs,
-        'n_creating_jobs': n_creating_jobs,
-        'n_running_jobs': n_running_jobs,
+        'user_resources': data['user_resources'],
+        'n_ready_jobs': sum(r['n_ready_jobs'] for r in data['user_resources']),
+        'n_creating_jobs': sum(r['n_creating_jobs'] for r in data['user_resources']),
+        'n_running_jobs': sum(r['n_running_jobs'] for r in data['user_resources']),
     }
 
     return await render_template('batch-driver', request, userdata, 'job_private.html', page_context)
@@ -961,21 +1444,12 @@ async def get_job_private_inst_manager(request, userdata):
 @auth.authenticated_users_with_permission(SystemPermission.UPDATE_DEPLOYED_SYSTEM_STATE)
 async def freeze_batch(request: web.Request, _) -> NoReturn:
     app = request.app
-    db: Database = app['db']
     session = await aiohttp_session.get_session(request)
-
     if app['frozen']:
         set_message(session, 'Batch is already frozen.', 'info')
-        raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
-
-    await db.execute_update("""
-UPDATE globals SET frozen = 1;
-""")
-
-    app['frozen'] = True
-
-    set_message(session, 'Froze all instance collections and batch submissions.', 'info')
-
+    else:
+        await _set_frozen(app, app['db'], True)
+        set_message(session, 'Froze all instance collections and batch submissions.', 'info')
     raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
 
 
@@ -983,21 +1457,12 @@ UPDATE globals SET frozen = 1;
 @auth.authenticated_users_with_permission(SystemPermission.UPDATE_DEPLOYED_SYSTEM_STATE)
 async def unfreeze_batch(request: web.Request, _) -> NoReturn:
     app = request.app
-    db: Database = app['db']
     session = await aiohttp_session.get_session(request)
-
     if not app['frozen']:
         set_message(session, 'Batch is already unfrozen.', 'info')
-        raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
-
-    await db.execute_update("""
-UPDATE globals SET frozen = 0;
-""")
-
-    app['frozen'] = False
-
-    set_message(session, 'Unfroze all instance collections and batch submissions.', 'info')
-
+    else:
+        await _set_frozen(app, app['db'], False)
+        set_message(session, 'Unfroze all instance collections and batch submissions.', 'info')
     raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
 
 
@@ -1008,23 +1473,7 @@ async def get_user_resources(request, userdata):
     app = request.app
     db: Database = app['db']
 
-    records = db.execute_and_fetchall("""
-SELECT user,
-  CAST(COALESCE(SUM(n_ready_jobs), 0) AS SIGNED) AS n_ready_jobs,
-  CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu,
-  CAST(COALESCE(SUM(n_running_jobs), 0) AS SIGNED) AS n_running_jobs,
-  CAST(COALESCE(SUM(running_cores_mcpu), 0) AS SIGNED) AS running_cores_mcpu
-FROM user_inst_coll_resources
-GROUP BY user
-HAVING n_ready_jobs + n_running_jobs > 0;
-""")
-
-    user_resources = sorted(
-        [record async for record in records],
-        key=lambda record: record['ready_cores_mcpu'] + record['running_cores_mcpu'],
-        reverse=True,
-    )
-
+    user_resources = await _fetch_global_user_resources(db)
     page_context = {'user_resources': user_resources}
     return await render_template('batch-driver', request, userdata, 'user_resources.html', page_context)
 
@@ -1740,7 +2189,7 @@ SELECT instance_id, frozen FROM globals;
     instance_id = row['instance_id']
     log.info(f'instance_id {instance_id}')
     app['instance_id'] = instance_id
-    app['frozen'] = row['frozen']
+    app['frozen'] = bool(row['frozen'])
 
     row = await db.select_and_fetchone('SELECT * FROM feature_flags')
     app['feature_flags'] = row
