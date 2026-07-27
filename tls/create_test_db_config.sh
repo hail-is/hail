@@ -3,6 +3,9 @@
 if [ -z "${NAMESPACE}" ]; then
     echo "Must specify a NAMESPACE environment variable"
     exit 1;
+elif [ "${NAMESPACE}" == "default" ]; then
+    echo "This script is only for creating test database configs"
+    exit 1;
 fi
 
 function create_key_and_cert() {
