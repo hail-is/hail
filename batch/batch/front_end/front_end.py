@@ -3105,16 +3105,19 @@ async def _query_billing(request: web.Request, user: Optional[str] = None) -> Tu
 SELECT
   billing_project,
   `user`,
+  quote_name,
   COALESCE(SUM(`usage` * rate), 0) AS cost
 FROM (
-  SELECT billing_project, `user`, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  SELECT billing_project, `user`, resource_id, quotes.name AS quote_name,
+    CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
   FROM aggregated_billing_project_user_resources_by_date_v3
   LEFT JOIN billing_projects ON billing_projects.name = aggregated_billing_project_user_resources_by_date_v3.billing_project
+  LEFT JOIN quotes ON quotes.id = billing_projects.quote_id
   WHERE {' AND '.join(where_conditions)}
-  GROUP BY billing_project, `user`, resource_id
+  GROUP BY billing_project, `user`, resource_id, quote_name
 ) AS t
 LEFT JOIN resources ON resources.resource_id = t.resource_id
-GROUP BY billing_project, `user`;
+GROUP BY billing_project, `user`, quote_name;
 """
 
     sql_args = where_args
@@ -3183,7 +3186,13 @@ async def api_get_billing(request, userdata):
         user = None
     billing, _, _ = await _query_billing(request, user=user)
     return json_response([
-        {'billing_project': r['billing_project'], 'user': r['user'], 'total_spent': r['cost']} for r in billing
+        {
+            'billing_project': r['billing_project'],
+            'user': r['user'],
+            'quote_name': r['quote_name'],
+            'total_spent': r['cost'],
+        }
+        for r in billing
     ])
 
 
