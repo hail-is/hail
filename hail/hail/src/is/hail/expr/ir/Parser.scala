@@ -1464,7 +1464,7 @@ object IRParser {
         } yield CollectDistributedArray(ctxs, globals, cname, gname, body, dynamicID, staticID)
       case "JavaIR" =>
         val id = int32_literal(it)
-        done(ctx.PersistedIrCache(id).asInstanceOf[IR])
+        done(ctx.PersistedIrCache(id).deepCopy.asInstanceOf[IR])
       case "ReadPartition" =>
         val requestedTypeRaw = it.head match {
           case x: IdentifierToken if x.value == "None" || x.value == "DropRowUIDs" =>
@@ -1504,9 +1504,8 @@ object IRParser {
       case "WriteValue" =>
         import ValueWriter.formats
         val writer = JsonMethods.parse(string_literal(it)).extract[ValueWriter]
-        ir_value_children(ctx)(it).map {
-          case Seq(value, path) => WriteValue(value, path, writer)
-          case Seq(value, path, stagingFile) => WriteValue(value, path, writer, Some(stagingFile))
+        ir_value_children(ctx)(it).map { case Seq(value, path) =>
+          WriteValue(value, path, writer)
         }
     }
   }
@@ -1717,7 +1716,7 @@ object IRParser {
         } yield RelationalLetTable(n, value, body)
       case "JavaTable" =>
         val id = int32_literal(it)
-        done(ctx.PersistedIrCache(id).asInstanceOf[TableIR])
+        done(ctx.PersistedIrCache(id).deepCopy.asInstanceOf[TableIR])
     }
   }
 
@@ -1924,7 +1923,7 @@ object IRParser {
         val blocksOnly = boolean_literal(it)
         punctuation(it, ")")
         ir_value_expr(ctx)(it).map { ir_ =>
-          val ir = annotateTypes(ctx, ir_, BindingEnv.empty).asInstanceOf[IR]
+          val ir = NormalizeNames()(ctx, annotateTypes(ctx, ir_, BindingEnv.empty)).asInstanceOf[IR]
           val Row(starts: IndexedSeq[Long @unchecked], stops: IndexedSeq[Long @unchecked]) =
             CompileAndEvaluate[Row](ctx, ir, lower = lower)
           RowIntervalSparsifier(blocksOnly, starts, stops)
@@ -1933,21 +1932,21 @@ object IRParser {
         val blocksOnly = boolean_literal(it)
         punctuation(it, ")")
         ir_value_expr(ctx)(it).map { ir_ =>
-          val ir = annotateTypes(ctx, ir_, BindingEnv.empty).asInstanceOf[IR]
+          val ir = NormalizeNames()(ctx, annotateTypes(ctx, ir_, BindingEnv.empty)).asInstanceOf[IR]
           val Row(l: Long, u: Long) = CompileAndEvaluate[Row](ctx, ir, lower = lower)
           BandSparsifier(blocksOnly, l, u)
         }
       case "PyPerBlockSparsifier" =>
         punctuation(it, ")")
         ir_value_expr(ctx)(it).map { ir_ =>
-          val ir = annotateTypes(ctx, ir_, BindingEnv.empty).asInstanceOf[IR]
+          val ir = NormalizeNames()(ctx, annotateTypes(ctx, ir_, BindingEnv.empty)).asInstanceOf[IR]
           val indices = CompileAndEvaluate[IndexedSeq[Int]](ctx, ir, lower = lower)
           PerBlockSparsifier(indices)
         }
       case "PyRectangleSparsifier" =>
         punctuation(it, ")")
         ir_value_expr(ctx)(it).map { ir_ =>
-          val ir = annotateTypes(ctx, ir_, BindingEnv.empty).asInstanceOf[IR]
+          val ir = NormalizeNames()(ctx, annotateTypes(ctx, ir_, BindingEnv.empty)).asInstanceOf[IR]
           val rectangles = CompileAndEvaluate[IndexedSeq[Long]](ctx, ir, lower = lower)
           RectangleSparsifier(rectangles.grouped(4).toIndexedSeq)
         }

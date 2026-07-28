@@ -2995,21 +2995,12 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
           decoded
         }
 
-      case WriteValue(value, path, writer, stagingFile) =>
+      case WriteValue(value, path, writer) =>
         emitI(path).flatMap(cb) { case pv: SStringValue =>
           emitI(value).map(cb) { v =>
-            val s = stagingFile.map(emitI(_).getOrAssert(cb).asString)
-            val os = cb.memoize(mb.createUnbuffered(s.getOrElse(pv).loadString(cb)))
+            val os = cb.memoize(mb.createUnbuffered(pv.loadString(cb)))
             writer.writeValue(cb, v, os)
             cb += os.invoke[Unit]("close")
-            s.foreach { stage =>
-              cb += mb.getFS.invoke[String, String, Boolean, Unit](
-                "copy",
-                stage.loadString(cb),
-                pv.loadString(cb),
-                const(true),
-              )
-            }
             pv
           }
         }
@@ -3461,22 +3452,22 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
         val unified = impl.unify(typeArgs, args.map(_.typ), rt)
         assert(unified)
 
-        val emitArgs = args.map(a => EmitCode.fromI(mb)(emitI(a, _)))
-
-        val argSTypes = emitArgs.map(_.st)
-        val retType = impl.computeStrictReturnEmitType(ir.typ, argSTypes)
-        val k = (fn, typeArgs, argSTypes, retType)
-        val meth =
-          methods.get(k) match {
-            case Some(funcMB) =>
-              funcMB
-            case None =>
-              val funcMB = impl.getAsMethod(mb.ecb, retType, typeArgs, argSTypes: _*)
-              methods.update(k, funcMB)
-              funcMB
-          }
         EmitCode.fromI(mb) { cb =>
-          val emitArgs = args.map(a => EmitCode.fromI(cb.emb)(emitI(a, _)))
+          val emitArgs = args.map(a => EmitCode.fromI(mb)(emitI(a, _)))
+
+          val argSTypes = emitArgs.map(_.st)
+          val retType = impl.computeStrictReturnEmitType(ir.typ, argSTypes)
+          val k = (fn, typeArgs, argSTypes, retType)
+          val meth =
+            methods.get(k) match {
+              case Some(funcMB) =>
+                funcMB
+              case None =>
+                val funcMB = impl.getAsMethod(mb.ecb, retType, typeArgs, argSTypes: _*)
+                methods.update(k, funcMB)
+                funcMB
+            }
+
           IEmitCode.multiMapEmitCodes(cb, emitArgs) { codeArgs =>
             cb.invokeSCode(
               meth,

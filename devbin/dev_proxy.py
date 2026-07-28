@@ -8,7 +8,7 @@ from hailtop.auth import hail_credentials
 from hailtop.aiocloud.common import Session
 from gear import new_csrf_token, SystemPermission
 
-from web_common import base_context, setup_common_static_routes, web_security_headers
+from web_common import base_context, setup_common_static_routes, web_security_headers, web_security_headers_swagger
 from web_common.web_common import WEB_COMMON_ROOT, TAILWIND_SERVICES
 
 from aiohttp import web
@@ -46,6 +46,27 @@ _ALL_STATIC_DIRS: list[tuple[str, str]] = [
 for _path, _directory in _ALL_STATIC_DIRS:
     routes.static(_path, _directory)
 
+# Serve the shared swagger bundle directly from the esbuild output dir so that
+# ui-js-watch-swagger live-reloads without needing to copy files across services.
+_SWAGGER_JS = 'services/ui/dist/shared/swagger.js'
+_SWAGGER_CSS = 'services/ui/dist/shared/swagger.css'
+_SWAGGER_SVCPATHS = [
+    ('batch', 'batch'),
+    ('ci', 'ci'),
+    ('monitoring', 'monitoring'),
+    ('auth', 'auth'),
+]
+for _svc, _svc_path in _SWAGGER_SVCPATHS:
+
+    async def _swagger_js_handler(req: web.Request, _f: str = _SWAGGER_JS) -> web.Response:
+        return web.FileResponse(_f)
+
+    async def _swagger_css_handler(req: web.Request, _f: str = _SWAGGER_CSS) -> web.Response:
+        return web.FileResponse(_f)
+
+    routes.get(f'/{_svc}/{_svc_path}/static/compiled-js/swagger.js')(_swagger_js_handler)
+    routes.get(f'/{_svc}/{_svc_path}/static/compiled-js/swagger.css')(_swagger_css_handler)
+
 # common_static must also be service-prefixed
 _WEB_COMMON_STATIC = f'{WEB_COMMON_ROOT}/static'
 for _svc in ALL_SERVICES:
@@ -80,6 +101,10 @@ _LOCAL_REACT_ROUTES: list[tuple[str, str, str, str]] = [
     ('auth',         'GET', '/auth/helloreact', 'hello_react.html'),
     ('batch-driver', 'GET', '/batch-driver/helloreact', 'hello_react.html'),
     ('ci',           'GET', '/ci/flaky_tests', 'flaky_tests.html'),
+    ('batch',        'GET', '/batch/swagger', 'swagger/index.html'),
+    ('ci',           'GET', '/ci/swagger', 'swagger/index.html'),
+    ('monitoring',   'GET', '/monitoring/swagger', 'swagger/index.html'),
+    ('auth',         'GET', '/auth/swagger', 'swagger/index.html'),
 ]
 
 for _service, _verb, _path, _template in _LOCAL_REACT_ROUTES:
@@ -89,7 +114,8 @@ for _service, _verb, _path, _template in _LOCAL_REACT_ROUTES:
         _t: str = _template,
     ) -> web.Response:
         return await _render_html(request, _s, _FAKE_DEV_USERDATA, _t, {'use_tailwind': True})
-    routes.route(_verb, _path)(web_security_headers(_local_handler))
+    _decorator = web_security_headers_swagger if _template.startswith('swagger/') else web_security_headers
+    routes.route(_verb, _path)(_decorator(_local_handler))
 
 
 @routes.view('/{service:[^/]+}/api/{route:.*}')
@@ -109,6 +135,24 @@ async def default_proxied_api_route(request: web.Request) -> web.Response:
             raise web.HTTPNotFound()
         raise
     return web.Response(body=body, content_type=content_type)
+
+
+@routes.get('/{service:[^/]+}/openapi.yaml')
+async def openapi_yaml_route(request: web.Request) -> web.Response:
+    service = request.match_info['service']
+    if service not in ALL_SERVICES:
+        raise web.HTTPNotFound()
+    backend_client = request.app[BC]
+    backend_route = _backend_url(service, request.raw_path)
+    try:
+        async with await backend_client.request(request.method, backend_route) as resp:
+            body = await resp.read()
+    except httpx.ClientResponseError as e:
+        if e.status == 404:
+            raise web.HTTPNotFound()
+        raise
+    # Force text/yaml so adev's livereload injector (which targets text/html) leaves it alone.
+    return web.Response(body=body, content_type='text/yaml')
 
 
 @routes.view('/{route:.*}')
@@ -142,6 +186,7 @@ async def _render_html(
     status_code: int = 200,
 ) -> web.Response:
     page_context['base_path'] = f'/{service}'
+    page_context.setdefault('service', service)
     if IS_DEVELOPER is not None:
         all_permissions = {p.value: IS_DEVELOPER for p in SystemPermission}
         page_context['system_permissions'] = all_permissions

@@ -1684,16 +1684,13 @@ class Tests(unittest.TestCase):
         assert localized._same(t)
 
     def test_multi_write(self):
-        mt = self.get_mt()
-        f = new_temp_file()
-        hl.experimental.write_matrix_tables([mt, mt], f)
-        path1 = f + '0.mt'
-        path2 = f + '1.mt'
-        mt1 = hl.read_matrix_table(path1)
-        mt2 = hl.read_matrix_table(path2)
-        self.assertTrue(mt._same(mt1))
-        self.assertTrue(mt._same(mt2))
-        self.assertTrue(mt1._same(mt2))
+        mt = hl.utils.range_matrix_table(10, 10)
+        mts = [mt] * 3  # RR: 15604
+        prefix = new_temp_file()
+        paths = hl.experimental.write_matrix_tables(mts, prefix)
+        for path in paths:
+            mt_n = hl.read_matrix_table(path)
+            self.assertTrue(mt._same(mt_n))
 
     def test_matrix_type_equality(self):
         mt = hl.utils.range_matrix_table(1, 1)

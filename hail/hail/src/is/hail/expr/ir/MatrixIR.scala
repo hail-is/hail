@@ -4,10 +4,11 @@ import is.hail.annotations._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
-import is.hail.expr.ir.LowerMatrixIR.{colsFieldName, entriesFieldName}
 import is.hail.expr.ir.analyses.{ColumnCount, PartitionCounts}
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.functions.MatrixToMatrixFunction
+import is.hail.expr.ir.lowering.LowerMatrixIR
+import is.hail.expr.ir.lowering.LowerMatrixIR.{colsFieldName, entriesFieldName}
 import is.hail.io.bgen.MatrixBGENReader
 import is.hail.io.fs.FS
 import is.hail.io.plink.MatrixPLINKReader
@@ -294,7 +295,7 @@ class MatrixNativeReader(
       val partFiles =
         colsRVDSpec.absolutePartPaths(spec.colsSpec.rowsComponent.absolutePath(colsPath))
 
-      def readCols(index: IR, path: IR): IR =
+      def readCols(path: IR, index: IR): IR =
         ReadPartition(
           makestruct("partitionIndex" -> index.toL, "partitionPath" -> path),
           requestedType.colType,
@@ -302,14 +303,8 @@ class MatrixNativeReader(
         )
 
       val cols =
-        if (partFiles.length == 1) readCols(0, Str(partFiles.head))
-        else flatten(
-          zip2(
-            iota(0, 1),
-            ToStream(Literal(TArray(TString), partFiles)),
-            ArrayZipBehavior.TakeMinLength,
-          )(readCols(_, _))
-        )
+        if (partFiles.length == 1) readCols(Str(partFiles.head), 0)
+        else flatten(Literal(TArray(TString), partFiles).stream.enumerate(readCols(_, _)))
 
       TableRead(tt, dropRows, trdr).mapGlobals(_.insert(colsFieldName -> ToArray(cols)))
     }

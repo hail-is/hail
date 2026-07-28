@@ -160,7 +160,7 @@ package object ir extends CompileOps with LowerPriorityImplicits {
   }
 
   def maybeIR(ir: IR)(f: Atom => IR): IR =
-    bindIR(ir) { a =>
+    ir.bind { a =>
       val r = f(a)
       If(IsNA(a), NA(r.typ), r)
     }
@@ -485,7 +485,8 @@ package object ir extends CompileOps with LowerPriorityImplicits {
     def str(x: AnyRef): IR =
       x match {
         case s: String => Str(s)
-        case ir: IR => if (ir.typ == TString) ir else invoke("str", TString, ir)
+        case a: Atom => if (a.typ == TString) a else a.invoke("str", TString)
+        case ir: IR => if (ir.typ == TString) ir else ir.invoke("str", TString)
       }
 
     irs.tail.foldLeft(str(irs.head))(_ + str(_))

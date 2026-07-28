@@ -6,6 +6,7 @@ import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.TableNativeWriter.writeFileReadMe
+import is.hail.expr.ir.lowering.LowerMatrixIR
 import is.hail.io.{BufferSpec, FileWriteMetadata}
 import is.hail.linalg.RowMatrix
 import is.hail.rvd.{AbstractRVDSpec, RVD}
@@ -329,7 +330,6 @@ object MatrixValue {
     mvs: IndexedSeq[MatrixValue],
     paths: IndexedSeq[String],
     overwrite: Boolean,
-    stageLocally: Boolean,
     bufferSpec: BufferSpec,
   ): Unit = {
     val first = mvs.head
@@ -348,7 +348,7 @@ object MatrixValue {
       fs.mkDir(path)
     }
 
-    val fileData = RVD.writeRowsSplitFiles(ctx, mvs.map(_.rvd), paths, bufferSpec, stageLocally)
+    val fileData = RVD.writeRowsSplitFiles(ctx, mvs.map(_.rvd), paths, bufferSpec)
     (mvs lazyZip paths lazyZip fileData).foreach { case (mv, path, fd) =>
       mv.finalizeWrite(ctx, path, bufferSpec, fd, consoleInfo = false)
     }

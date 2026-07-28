@@ -660,6 +660,13 @@ object UtilFunctions extends RegistryFunctions {
     }
 
     registerSCode1(
+      "sizeofValue",
+      tv("T"),
+      TInt64,
+      (_, _) => SInt64,
+    )((region, cb, st, sv, _) => sv.sizeToStoreInBytes(cb))
+
+    registerSCode1(
       "prefixCode",
       tv("T"),
       TBinary,

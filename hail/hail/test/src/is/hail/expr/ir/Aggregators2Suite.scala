@@ -76,16 +76,15 @@ class Aggregators2Suite {
     ctx.r.pool.scopedRegion { region =>
       val argOff = ScalaToRegionValue(ctx.stateManager, region, argT, argVs)
 
-      def withArgs(foo: IR) = {
+      def withArgs(foo: IR) =
         CompileWithAggregators[AsmFunction2RegionLongUnit](
           ctx,
           ArraySeq(aggSig.state),
           FastSeq((argRef.name, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(argT)))),
           FastSeq(classInfo[Region], LongInfo),
           UnitInfo,
-          Let(args.map { case (Ref(n, _), _) => n -> GetField(argRef, n.str) }, foo),
+          Let(args.map { case (Ref(n, _), _) => n -> argRef.ir.get(n.str) }, foo.deepCopy),
         )._2
-      }
 
       val serialize = SerializeAggs(0, 0, spec, ArraySeq(aggSig.state))
       val (_, writeF) = CompileWithAggregators[AsmFunction1RegionUnit](
@@ -1045,7 +1044,7 @@ class Aggregators2Suite {
       )
     )
 
-    assertEvalsTo(ir, Row((0 until 10).map(i => RowSeq(i, 2L * i + 12L)), RowSeq()))(
+    assertEvalsTo(ir, RowSeq((0 until 10).map(i => RowSeq(i, 2L * i + 12L)), RowSeq()))(
       ctx,
       ExecStrategy.interpretOnly,
     )

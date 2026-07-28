@@ -112,12 +112,6 @@ components:
           type: boolean
           description: "Whether the operation was successful"
 
-  securitySchemes:
-    developerAuth:
-      type: http
-      scheme: bearer
-      description: Hail authentication token (permissions are checked per-endpoint)
-
 paths:
   /api/v1alpha/userinfo:
     get:
@@ -137,8 +131,6 @@ paths:
     get:
       summary: List all users
       tags: [User Management]
-      security:
-        - developerAuth: []
       responses:
         '200':
           description: List of users retrieved successfully
@@ -155,8 +147,6 @@ paths:
     get:
       summary: Get user by username
       tags: [User Management]
-      security:
-        - developerAuth: []
       parameters:
         - name: username
           in: path
@@ -175,8 +165,6 @@ paths:
     delete:
       summary: Delete user
       tags: [User Management]
-      security:
-        - developerAuth: []
       parameters:
         - name: username
           in: path
@@ -193,8 +181,6 @@ paths:
     post:
       summary: Create new user
       tags: [User Management]
-      security:
-        - developerAuth: []
       parameters:
         - name: username
           in: path
@@ -290,8 +276,6 @@ paths:
       summary: Verify system permission
       description: Verify that the authenticated user has a specific system permission
       tags: [Authentication]
-      security:
-        - developerAuth: []
       parameters:
         - name: permission
           in: query
@@ -357,8 +341,6 @@ paths:
       summary: Get system roles and permissions for a specific user
       description: Get all system roles and permissions for a specific user by their user ID
       tags: [System Roles]
-      security:
-        - developerAuth: []
       parameters:
         - name: user_id
           in: path
@@ -390,8 +372,6 @@ paths:
       summary: Modify system roles for a specific user
       description: Add or remove a system role for a specific user. The request body must contain exactly one of 'role_addition' or 'role_removal' fields, but not both.
       tags: [System Roles]
-      security:
-        - developerAuth: []
       parameters:
         - name: user_id
           in: path
@@ -469,8 +449,6 @@ paths:
       summary: Get all system role assignments
       description: Get all system roles with their assigned users and permissions
       tags: [System Roles]
-      security:
-        - developerAuth: []
       responses:
         '200':
           description: All system role assignments retrieved successfully
@@ -522,6 +500,43 @@ paths:
             text/yaml:
               schema:
                 type: string
+
+  /api/v1alpha/version:
+    get:
+      summary: Get service version
+      description: Returns the current version of the auth service as plain text. Available to unauthenticated users; sysadmins receive the full version string while others receive only the base version (prefix before the first '-').
+      tags: [Authentication]
+      responses:
+        '200':
+          description: Version string retrieved successfully
+          content:
+            text/plain:
+              schema:
+                type: string
+                description: Service version string
+
+  /api/v1alpha/support:
+    get:
+      summary: Get support information
+      description: Returns support contact information and deployment configuration details. Available to unauthenticated users.
+      tags: [Authentication]
+      responses:
+        '200':
+          description: Support information retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cloud:
+                    type: string
+                    description: Cloud provider (e.g. gcp)
+                  inactive_user_timeout_days:
+                    type: integer
+                    description: Number of days after which inactive users are timed out
+                  support_email:
+                    type: string
+                    description: Support email address (may be empty if not configured)
 
   /api/v1alpha/oauth2-client:
     get:

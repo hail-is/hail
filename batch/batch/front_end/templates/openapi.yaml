@@ -644,6 +644,68 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ContainerLogResponse'
+  '/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log/{container}/signed_url':
+    get:
+      summary: "Get signed URL for job log"
+      description: |
+        Returns a time-limited GCS signed URL for direct download of a job's container log.
+        The URL is valid for 15 minutes from the time of issue. Range requests are supported,
+        so parallel download tools work correctly as long as all streams are initiated within
+        the validity window.
+        Only available for completed jobs (or a specific past attempt via attempt_id).
+        Only available for GCP deployments using GCS logs.
+        The signed URL is returned without first verifying the log file exists in GCS;
+        callers should handle a 404 from GCS if the log was never written (e.g. preempted job).
+      operationId: getLogSignedUrlInJobContainerV1alpha
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: job_id
+          in: path
+          description: "The ID of the job."
+          required: true
+          schema:
+            type: number
+        - name: container
+          in: path
+          description: "The name of the container."
+          required: true
+          schema:
+            type: string
+        - name: attempt_id
+          in: query
+          description: "Return the signed URL for a specific attempt. Defaults to the most recent attempt."
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: "Successfully generated a signed URL for the log."
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - signed_url
+                  - expires_at
+                properties:
+                  signed_url:
+                    type: string
+                    description: "A GCS signed URL for direct download of the log. Valid until expires_at."
+                  expires_at:
+                    type: string
+                    format: date-time
+                    description: "ISO 8601 timestamp at which the signed URL expires."
+        '404':
+          description: "Job has never started (no attempt found), or the job/container is unknown."
+        '501':
+          description: "Signed URLs are not supported in this deployment."
   '/api/v1alpha/batches/{batch_id}/jobs/{job_id}/resource_usage':
     get:
       summary: "Get job resource usage"

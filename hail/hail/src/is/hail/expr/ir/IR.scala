@@ -142,6 +142,9 @@ class IROps(val ir: IR) extends AnyVal {
   def dropWhile(f: Atom => IR): IR =
     is.hail.expr.ir.dropWhile(ir)(f)
 
+  def enumerate(f: (Atom, Atom) => IR): IR =
+    zip(iota(0, 1), ArrayZipBehavior.TakeMinLength)(f)
+
   def streamFor(f: Atom => IR): IR =
     forIR(ir)(f)
 
@@ -441,7 +444,6 @@ package defs {
       new DefaultFormats() {
         override val typeHints = ShortTypeHints(
           List(
-            classOf[PartitionNativeWriter],
             classOf[TableTextPartitionWriter],
             classOf[VCFPartitionWriter],
             classOf[GenSampleWriter],
@@ -809,14 +811,14 @@ package defs {
     }
 
     abstract class MakeNDArrayCompanionExt {
-      def fill(elt: IR, shape: IndexedSeq[IR], rowMajor: IR): MakeNDArray = {
-        val flatSize: IR = if (shape.nonEmpty)
-          shape.reduce((l, r) => l * r)
-        else
-          0L
+      def fill(elt: IR, shape: IndexedSeq[Atom], rowMajor: IR): MakeNDArray = {
+        val flatSize: IR =
+          if (shape.nonEmpty) shape.foldLeft[IR](I64(1L))(_ * _)
+          else 0L
+
         MakeNDArray(
           ToArray(mapIR(rangeIR(flatSize.toI))(_ => elt)),
-          MakeTuple.ordered(shape),
+          MakeTuple.ordered(shape.map(_.ir)),
           rowMajor,
           ErrorIDs.NO_ERROR,
         )

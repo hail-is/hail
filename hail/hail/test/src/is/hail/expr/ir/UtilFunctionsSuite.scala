@@ -4,8 +4,8 @@ import is.hail.ExecStrategy
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
 import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.defs.{Die, False, MakeStream, NA, Str, True}
-import is.hail.types.virtual.{TBoolean, TInt32}
+import is.hail.expr.ir.defs._
+import is.hail.types.virtual._
 
 import org.junit.jupiter.api.Test
 
@@ -84,5 +84,12 @@ class UtilFunctionsSuite {
   @Test def testParseFunctionRequiredness(implicit ctx: ExecuteContext): Unit = {
     assertEvalsTo(invoke("toInt32OrMissing", TInt32, Str("123")), 123)
     assertEvalsTo(invoke("toInt32OrMissing", TInt32, Str("foo")), null)
+  }
+
+  @Test def testSizeofValue(implicit ctx: ExecuteContext): Unit = {
+    // simple test to make sure we can invoke the function from the registry, sizeToStoreInBytes is
+    // sensitive to exact stypes chosen due to execution strategy, so only do simple types here
+    assertEvalsTo(invoke("sizeofValue", TInt64, Str("123")), 7L) // 4B len + 3B data
+    assertEvalsTo(invoke("sizeofValue", TInt64, I32(0xdeadbeef)), 4L) // 4B 32-bit integer
   }
 }

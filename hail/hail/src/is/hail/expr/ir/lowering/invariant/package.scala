@@ -1,15 +1,10 @@
 package is.hail.expr.ir.lowering
 
 import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.{
-  BaseIR, Bindings, BlockMatrixIR, Compilable, Emittable, IR, IRTraversal, MatrixIR, Name, Pretty,
-  RelationalLetMatrixTable, RelationalLetTable, TableIR, TableKeyBy, TableKeyByAndAggregate,
-  TableOrderBy,
-}
-import is.hail.expr.ir.NormalizeNames.needsRenaming
+import is.hail.expr.ir._
 import is.hail.expr.ir.defs.{ApplyIR, RelationalLet, RelationalRef}
 import is.hail.expr.ir.lowering.invariant.Flags.StrictInvariants
-import is.hail.utils.TimedBlock
+import is.hail.utils.{TimedBlock, TreeTraversal}
 import is.hail.utils.implicits.toRichPredicate
 
 import scala.collection.mutable
@@ -71,15 +66,10 @@ package object invariant {
   implicit def Invariant(p: BaseIR => Boolean)(implicit E: sourcecode.Enclosing): Invariant =
     Fused(p)
 
-  lazy val AnyIR: Invariant =
-    new Invariant {
-      override private[invariant] def verify(ctx: ExecuteContext, ir: BaseIR): Unit = ()
-    }
-
   def LowerableIR(implicit E: Enclosing): Invariant =
-    TreeIR and NoRedefinedNames
+    NoSharedNodes and UniquelyNamed
 
-  def TreeIR: Invariant = {
+  def NoSharedNodes: Invariant = {
     var mark: Int = 0
 
     val setup = new Invariant {
@@ -90,27 +80,37 @@ package object invariant {
     setup <> Invariant(ir => ir.mark != mark && { ir.mark = mark; true })
   }
 
-  def NoRedefinedNames: Invariant = {
-    val names: mutable.Map[Name, BaseIR] =
-      is.hail.collection.compat.mutable.AnyRefMap.empty
+  object UniquelyNamed extends Invariant {
+    override private[invariant] def verify(ctx: ExecuteContext, ir: BaseIR): Unit = {
+      val globalNames: mutable.Map[Name, BaseIR] =
+        is.hail.collection.compat.mutable.AnyRefMap.empty
 
-    (ir: BaseIR) =>
-      !needsRenaming(ir) || {
-        // ir may bind the same name in multiple children
-        val newNames = mutable.HashSet.empty[Name]
-        (0 until ir.children.size).forall { i =>
-          Bindings.get(ir, i).all.forall { case (name, _) =>
-            !newNames.add(name) || names.put(name, ir).forall { orig =>
-              throw new UnsatisfiedInvariantError(
-                s"""Invariant ${implicitly[Enclosing].value} forbids redefinition of '$name' in
-                   |${Pretty.ssaStyle(ir)}
-                   |Originally bound in
-                   |${Pretty.ssaStyle(orig)}""".stripMargin
-              )
+      def collision(name: Name, ir: BaseIR, original: BaseIR): Nothing =
+        throw new UnsatisfiedInvariantError(
+          s"Invariant '${getClass.getName}' forbids redefinition of '$name' in" + Pretty(ctx, ir) +
+            "Originally bound in" + Pretty(ctx, original)
+        )
+
+      type A = (BaseIR, Env[BaseIR])
+
+      val adj: A => Iterator[A] = { case (ir, env) =>
+        val newNames = mutable.HashSet.empty[Name] // ir may bind the same name in multiple children
+        ir.children.iterator.zipWithIndex.map { case (child, i) =>
+          val bindings = Bindings.get(ir, i).all.map { case (name, _) => (name, ir) }
+          if (!NormalizeNames.needsRenaming(ir)) (child, env.bindIterable(bindings))
+          else {
+            bindings.foreach { case (name, ir) =>
+              env.lookupOption(name).foreach(collision(name, ir, _))
+              !newNames.add(name) || globalNames.put(name, ir).forall(collision(name, ir, _))
             }
+
+            (child, env)
           }
         }
       }
+
+      TreeTraversal.preOrder(adj)((ir, Env.empty)).foreach(_ => ())
+    }
   }
 
   lazy val NoMatrixIR: Invariant =

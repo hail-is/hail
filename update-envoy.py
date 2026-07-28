@@ -64,7 +64,7 @@ def main() -> None:
 
     if current_version == latest_version:
         print(f'Already up to date: v{current_version}')
-        sys.exit(0)
+        sys.exit(2)
 
     print(f'Updating v{current_version} -> v{latest_version}')
     update_files(current_version, latest_version)

@@ -203,7 +203,7 @@ object Emit extends Logging {
     instructionCount
   }
 
-  def emitClass(c: Classx[_], cv: ClassVisitor, logMethodSizes: Boolean): Unit = {
+  def emitClass(c: Classx[_], cv: ClassVisitor): Unit = {
     cv.visit(V1_8, ACC_PUBLIC, c.name, null, c.superName, c.interfaces.toArray)
     c.sourceFile.foreach(cv.visitSource(_, null))
 
@@ -214,12 +214,9 @@ object Emit extends Logging {
       }
 
     for (m <- c.methods) {
-      val instructionCount = emitMethod(cv, m, c.sourceFile.isDefined)
-      if (logMethodSizes) {
-        logger.info(s"instruction count: $instructionCount: ${c.name}.${m.name}")
-        if (instructionCount > 8000)
-          logger.warn(s"big method: $instructionCount: ${c.name}.${m.name}")
-      }
+      val nInstructions = emitMethod(cv, m, c.sourceFile.isDefined)
+      logger.debug(s"instruction count: $nInstructions: ${c.name}.${m.name}")
+      if (nInstructions > 8000) logger.info(s"big method: $nInstructions: ${c.name}.${m.name}")
     }
 
     cv.visitEnd()
@@ -230,7 +227,7 @@ object Emit extends Logging {
       try {
         val cw = new ClassWriter(ClassWriter.COMPUTE_MAXS + ClassWriter.COMPUTE_FRAMES)
 
-        emitClass(c, cw, logMethodSizes = true)
+        emitClass(c, cw)
 
         val b = cw.toByteArray
         // For efficiency, the ClassWriter does no checking, and may generate invalid
@@ -244,9 +241,9 @@ object Emit extends Logging {
           val buffer = new ByteArrayOutputStream()
           val trace = new TraceClassVisitor(new PrintWriter(buffer))
           val check = new CheckClassAdapter(trace)
+          emitClass(c, check)
           val classJVMByteCodeAsEscapedStr = buffer.toString(StandardCharsets.UTF_8.name())
           logger.error(s"lir exception $e:\n" + classJVMByteCodeAsEscapedStr)
-          emitClass(c, check, logMethodSizes = false)
           throw e
       }
     print.foreach { pw =>

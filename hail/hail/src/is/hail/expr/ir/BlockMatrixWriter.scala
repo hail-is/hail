@@ -55,12 +55,11 @@ case class BlockMatrixNativeWriter(
   path: String,
   overwrite: Boolean,
   forceRowMajor: Boolean,
-  stageLocally: Boolean,
 ) extends BlockMatrixWriter {
   override def pathOpt: Option[String] = Some(path)
 
   override def apply(ctx: ExecuteContext, bm: BlockMatrix): Unit =
-    bm.write(ctx, path, overwrite, forceRowMajor, stageLocally)
+    bm.write(ctx, path, overwrite, forceRowMajor)
 
   override def loweredTyp: Type = TVoid
 
@@ -81,23 +80,17 @@ case class BlockMatrixNativeWriter(
     val paths = s.collectBlocks(evalCtx, "block_matrix_native_writer") { (_, idx, block) =>
       val suffix = strConcat("parts/part-", idx, UUID4())
       val filepath = strConcat(s"$path/", suffix)
-      WriteValue(
-        block,
-        filepath,
-        writer,
-        if (stageLocally) Some(strConcat(s"${ctx.localTmpdir}/", suffix)) else None,
-      )
+      WriteValue(block, filepath, writer)
     }
     RelationalWriter.scoped(path, overwrite, None)(WriteMetadata(
       paths,
-      BlockMatrixNativeMetadataWriter(path, stageLocally, s.typ),
+      BlockMatrixNativeMetadataWriter(path, s.typ),
     ))
   }
 }
 
 case class BlockMatrixNativeMetadataWriter(
   path: String,
-  stageLocally: Boolean,
   typ: BlockMatrixType,
 ) extends MetadataWriter with Logging {
 

@@ -101,50 +101,51 @@ case class BindingEnv[V](
 
   override def extend(bindings: Bindings[V]): BindingEnv[V] = {
     val Bindings(all, eval, agg, scan, relational, _) = bindings
-    var newEnv = modifyWithoutNewBindings(bindings)
-    if (all.nonEmpty) {
-      agg match {
-        case AggEnv.Create(bindings) =>
-          newEnv = newEnv.bindAgg(bindings.map(all): _*)
-        case AggEnv.Bind(bindings) =>
-          newEnv = newEnv.bindAgg(bindings.map(all): _*)
-        case _ =>
-      }
-      scan match {
-        case AggEnv.Create(bindings) =>
-          newEnv = newEnv.bindScan(bindings.map(all): _*)
-        case AggEnv.Bind(bindings) =>
-          newEnv = newEnv.bindScan(bindings.map(all): _*)
-        case _ =>
-      }
-      if (eval.nonEmpty) newEnv = newEnv.bindEval(eval.map(all): _*)
-      if (relational.nonEmpty)
-        newEnv = newEnv.bindRelational(relational.map(all): _*)
-    }
-    newEnv
+    val newEnv = modifyWithoutNewBindings(bindings)
+    if (all.isEmpty) newEnv
+    else newEnv.copy(
+      eval =
+        if (eval.isEmpty) newEnv.eval
+        else newEnv.eval.bindIterable(eval.map(all)),
+      agg =
+        agg match {
+          case a: AggEnv.Modify => Some(newEnv.agg.get.bindIterable(a.bindings.map(all)))
+          case _ => newEnv.agg
+        },
+      scan =
+        scan match {
+          case a: AggEnv.Modify => Some(newEnv.scan.get.bindIterable(a.bindings.map(all)))
+          case _ => newEnv.scan
+        },
+      relational =
+        if (relational.isEmpty) newEnv.relational
+        else newEnv.relational.bindIterable(relational.map(all)),
+    )
   }
 
   def subtract[T](bindings: Bindings[T]): BindingEnv[V] = {
     val Bindings(all, eval, agg, scan, relational, _) = bindings
-    var newEnv = modifyWithoutNewBindings(bindings)
-    agg match {
-      case AggEnv.Create(bindings) =>
-        newEnv = newEnv.copy(agg = Some(newEnv.agg.get.delete(bindings.map(all(_)._1))))
-      case AggEnv.Bind(bindings) =>
-        newEnv = newEnv.copy(agg = Some(newEnv.agg.get.delete(bindings.map(all(_)._1))))
-      case _ =>
-    }
-    scan match {
-      case AggEnv.Create(bindings) =>
-        newEnv = newEnv.copy(scan = Some(newEnv.scan.get.delete(bindings.map(all(_)._1))))
-      case AggEnv.Bind(bindings) =>
-        newEnv = newEnv.copy(scan = Some(newEnv.scan.get.delete(bindings.map(all(_)._1))))
-      case _ =>
-    }
-    if (eval.nonEmpty) newEnv = newEnv.copy(eval = newEnv.eval.delete(eval.map(all(_)._1)))
-    if (relational.nonEmpty)
-      newEnv = newEnv.copy(relational = newEnv.relational.delete(relational.map(all(_)._1)))
-    newEnv
+
+    val newEnv = modifyWithoutNewBindings(bindings)
+    if (all.isEmpty) newEnv
+    else newEnv.copy(
+      eval =
+        if (eval.isEmpty) newEnv.eval
+        else newEnv.eval.delete(eval.map(all(_)._1)),
+      agg =
+        agg match {
+          case a: AggEnv.Modify => Some(newEnv.agg.get.delete(a.bindings.map(all(_)._1)))
+          case _ => newEnv.agg
+        },
+      scan =
+        scan match {
+          case a: AggEnv.Modify => Some(newEnv.scan.get.delete(a.bindings.map(all(_)._1)))
+          case _ => newEnv.scan
+        },
+      relational =
+        if (relational.isEmpty) newEnv.relational
+        else newEnv.relational.delete(relational.map(all(_)._1)),
+    )
   }
 
   def allEmpty: Boolean =

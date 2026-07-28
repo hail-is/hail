@@ -409,7 +409,6 @@ object BlockMatrix {
 
     def blockMatrixURI(matrixIdx: Int): String = prefix + "_" + matrixIdx
     val fs = ctx.fs
-    val tmpdir = ctx.localTmpdir
 
     bms.zipWithIndex.foreach { case (_, bIdx) =>
       val uri = blockMatrixURI(bIdx)
@@ -474,9 +473,7 @@ object BlockMatrix {
         fileName,
         null,
         (_, _, _) => null,
-        false,
         fs,
-        tmpdir,
         trueIt,
         writeBlock,
       )
@@ -998,7 +995,6 @@ class BlockMatrix(
     uri: String,
     overwrite: Boolean = false,
     forceRowMajor: Boolean = false,
-    stageLocally: Boolean = false,
   ): Unit = {
     val fs = ctx.fs
     if (overwrite)
@@ -1021,7 +1017,7 @@ class BlockMatrix(
       (1L, bytesWritten)
     }
 
-    val fileData = blocks.writePartitions(ctx, uri, stageLocally, writeBlock)
+    val fileData = blocks.writePartitions(ctx, uri, writeBlock)
 
     using(new DataOutputStream(fs.create(uri + metadataRelativePath))) { os =>
       implicit val formats = DefaultFormats

@@ -1,6 +1,5 @@
 package is.hail.expr.ir
 
-import is.hail.backend.ExecuteContext
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIndexedSeqAnyRef
 import is.hail.types.virtual.{Type, VType}
@@ -23,9 +22,6 @@ abstract class BaseIR {
 
   def deepCopy: this.type =
     copyWithNewChildren(newChildren = childrenSeq.map(_.deepCopy)).asInstanceOf[this.type]
-
-  def noSharing(ctx: ExecuteContext): this.type =
-    if (HasIRSharing(ctx, this)) this.deepCopy else this
 
   // For use as a boolean flag by IR passes. Each pass uses a different sentinel value to encode
   // "true" (and anything else is false). As long as we maintain the global invariant that no

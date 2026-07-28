@@ -43,12 +43,15 @@ from web_common import (
     setup_aiohttp_jinja2,
     setup_common_static_routes,
     web_security_headers,
+    web_security_headers_inline_styles,
     web_security_headers_swagger,
 )
 
 from .configuration import HAIL_USE_FULL_QUERY
 
 log = logging.getLogger('monitoring')
+
+MONITORING_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 routes = web.RouteTableDef()
 
@@ -171,7 +174,7 @@ async def get_billing(request: web.Request, _) -> web.Response:
 
 
 @routes.get('/billing')
-@web_security_headers
+@web_security_headers_inline_styles
 @auth.authenticated_users_with_permission(SystemPermission.VIEW_MONITORING_DASHBOARDS)
 async def billing(request: web.Request, userdata) -> web.Response:  # pylint: disable=unused-argument
     cost_by_service, compute_cost_breakdown, cost_by_sku_label, time_period_query = await _billing(request)
@@ -459,7 +462,7 @@ async def on_cleanup(app):
 
 
 @routes.get('/helloreact')
-@web_security_headers
+@web_security_headers_inline_styles
 @auth.authenticated_users_with_permission(SystemPermission.VIEW_MONITORING_DASHBOARDS)
 async def hello_react(request: web.Request, userdata) -> web.Response:
     return await render_template('monitoring', request, userdata, 'hello_react.html', {'use_tailwind': True})
@@ -485,6 +488,8 @@ def run():
 
     setup_aiohttp_jinja2(app, 'monitoring')
     setup_common_static_routes(routes)
+    os.makedirs(f'{MONITORING_ROOT}/static/compiled-js', exist_ok=True)
+    routes.static('/monitoring/static/compiled-js', f'{MONITORING_ROOT}/static/compiled-js')
     app.add_routes(routes)
     app.router.add_get("/metrics", server_stats)
 

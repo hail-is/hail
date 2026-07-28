@@ -1939,15 +1939,12 @@ class PruneSuite {
       x,
       TArray(TTuple(selectedCtxT, selectedGlobT)),
       (_: BaseIR, r: BaseIR) => {
-        r.isAlphaEquiv(
-          ctx,
-          cdaIR(
-            NA(TStream(selectedCtxT)),
-            NA(selectedGlobT),
-            "test",
-            NA(TString),
-          )((ctx, glob) => MakeTuple.ordered(FastSeq(ctx, glob))),
-        )
+        r isAlphaEquiv cdaIR(
+          NA(TStream(selectedCtxT)),
+          NA(selectedGlobT),
+          "test",
+          NA(TString),
+        )((ctx, glob) => MakeTuple.ordered(FastSeq(ctx, glob)))
       },
     )
   }

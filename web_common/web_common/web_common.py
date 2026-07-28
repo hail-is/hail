@@ -134,9 +134,11 @@ def web_security_headers(fun):
 
 
 def web_security_headers_swagger(fun):
-    return web_security_header_generator(
-        fun, extra_script='unpkg.com', extra_style='unpkg.com', extra_img='validator.swagger.io'
-    )
+    return web_security_header_generator(fun, extra_img='validator.swagger.io')
+
+
+def web_security_headers_inline_styles(fun):
+    return web_security_header_generator(fun, extra_style="'unsafe-inline'")
 
 
 def web_security_headers_login_page(fun):
@@ -155,7 +157,7 @@ def web_security_header_generator(
         response = await fun(request, *args, **kwargs)
 
         default_src = 'default-src \'self\';'
-        style_src = f'style-src \'self\' \'unsafe-inline\' {extra_style} fonts.googleapis.com fonts.gstatic.com;'
+        style_src = f'style-src \'self\' {extra_style} fonts.googleapis.com fonts.gstatic.com;'
         font_src = 'font-src \'self\' fonts.gstatic.com;'
         script_src = f'script-src \'self\' {extra_script} cdn.jsdelivr.net cdn.plot.ly;'
         img_src = f'img-src \'self\' {extra_img};'
