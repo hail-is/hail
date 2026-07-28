@@ -143,36 +143,37 @@ function updateOperators(selectElement) {
     }
 }
 
-// Add new search criterion
-function addCriterion() {
+// Add a structured search-criterion row (clones the <template id='search-criterion-template'>).
+function addStructuredCriterion() {
     const container = document.getElementById('search-criteria-container');
-    const newCriterion = container.querySelector('.search-criterion').cloneNode(true);
-
-    // Reset values
-    newCriterion.querySelector('.criterion-select').value = '';
-    newCriterion.querySelector('.criterion-select').addEventListener('change', function (_e) { updateOperators(this); });
-    newCriterion.querySelector('.operator-select').innerHTML = '<option value="">Select operator...</option>';
-    newCriterion.querySelector('.value-input').value = '';
-    newCriterion.querySelector('.value-input').placeholder = 'Enter value...';
-    newCriterion.querySelector('.remove-criterion').addEventListener('click', function (_e) { removeCriterion(this); });
-
-    // Remove any state select
-    const stateSelect = newCriterion.querySelector('.state-select');
-    if (stateSelect) {
-        stateSelect.remove();
-    }
-
-    container.appendChild(newCriterion);
+    const tpl = document.getElementById('search-criterion-template');
+    const row = tpl.content.firstElementChild.cloneNode(true);
+    row.querySelector('.criterion-select').addEventListener('change', function () { updateOperators(this); });
+    row.querySelector('.remove-criterion').addEventListener('click', function () { removeCriterion(this); });
+    container.appendChild(row);
     updateRemoveButtonsVisibility(container);
+    return row;
 }
 
-// Update visibility of remove buttons based on criteria count
+// Add a free-text row (clones the <template id='search-freetext-template'>).
+function addFreeTextCriterion(initialValue) {
+    const container = document.getElementById('search-criteria-container');
+    const tpl = document.getElementById('search-freetext-template');
+    const row = tpl.content.firstElementChild.cloneNode(true);
+    row.querySelector('.freetext-input').value = initialValue == null ? '' : initialValue;
+    row.querySelector('.remove-criterion').addEventListener('click', function () { removeCriterion(this); });
+    container.appendChild(row);
+    updateRemoveButtonsVisibility(container);
+    return row;
+}
+
+// Update visibility of remove buttons based on total row count (structured + free-text)
 function updateRemoveButtonsVisibility(container) {
-    const criteria = container.querySelectorAll('.search-criterion');
+    const rows = container.querySelectorAll('.search-criterion, .search-freetext');
     const removeButtons = container.querySelectorAll('.remove-criterion');
 
     removeButtons.forEach(button => {
-        if (criteria.length <= 1) {
+        if (rows.length <= 1) {
             button.style.display = 'none';
         } else {
             button.style.display = 'block';
@@ -180,31 +181,58 @@ function updateRemoveButtonsVisibility(container) {
     });
 }
 
-// Remove search criterion
+// Remove a row (structured or free-text). Prevents removing the last remaining row.
 function removeCriterion(button) {
     const container = button.closest('[id$="-criteria-container"]');
-    const criteria = container.querySelectorAll('.search-criterion');
+    const rows = container.querySelectorAll('.search-criterion, .search-freetext');
 
-    // Don't remove if it's the last criterion
-    if (criteria.length > 1) {
-        button.closest('.search-criterion').remove();
+    // Don't remove if it's the last remaining row
+    if (rows.length > 1) {
+        const row = button.closest('.search-criterion, .search-freetext');
+        if (row) {
+            row.remove();
+        }
         updateRemoveButtonsVisibility(container);
     }
 }
 
-// Build query string from criteria
+// Populate a structured criterion row (already in the DOM) with field/operator/value.
+function populateStructuredRow(criterion, field, operator, value) {
+    criterion.querySelector('.criterion-select').value = field;
+    updateOperators(criterion.querySelector('.criterion-select'));
+    criterion.querySelector('.operator-select').value = operator;
+
+    if (field === 'state') {
+        const stateSelect = criterion.querySelector('.state-select');
+        if (stateSelect) {
+            stateSelect.value = value;
+        }
+    } else {
+        criterion.querySelector('.value-input').value = value;
+    }
+}
+
+// Build query string from all rows (structured + free-text), preserving DOM order.
 function buildQuery() {
     const container = document.getElementById('search-criteria-container');
-    const criteria = container.querySelectorAll('.search-criterion');
+    const rows = container.querySelectorAll('.search-criterion, .search-freetext');
     const queryParts = [];
 
-    criteria.forEach(criterion => {
-        const field = criterion.querySelector('.criterion-select').value;
-        const operator = criterion.querySelector('.operator-select').value;
-        let value = criterion.querySelector('.value-input').value;
+    rows.forEach(row => {
+        if (row.classList.contains('search-freetext')) {
+            const value = row.querySelector('.freetext-input').value.trim();
+            if (value) {
+                queryParts.push(value);
+            }
+            return;
+        }
+
+        const field = row.querySelector('.criterion-select').value;
+        const operator = row.querySelector('.operator-select').value;
+        let value = row.querySelector('.value-input').value;
 
         // Check for state select
-        const stateSelect = criterion.querySelector('.state-select');
+        const stateSelect = row.querySelector('.state-select');
         if (stateSelect && stateSelect.style.display !== 'none') {
             value = stateSelect.value;
         }
@@ -217,55 +245,54 @@ function buildQuery() {
     return queryParts.join('\n');
 }
 
-// Parse existing query and populate dropdowns
+// Classify a query line: return {kind: 'structured', field, operator, value}
+// if it matches "<known-field> <valid-op> <value>"; otherwise return {kind: 'freetext'}.
+function classifyQueryLine(line) {
+    const match = line.trim().match(/^(\w+)\s*(=~|!~|<=|>=|!=|==|=|<|>)\s*(.+)$/);
+    if (match) {
+        const [, field, operator, value] = match;
+        if (Object.hasOwn(fieldConfigs, field)) {
+            const config = fieldConfigs[field];
+            if (config.operators.includes(operator)) {
+                return { kind: 'structured', field, operator, value };
+            }
+        }
+    }
+    return { kind: 'freetext' };
+}
+
+// Parse an existing query and populate the rows. Each non-blank line becomes either
+// a structured row (if it matches "<known-field> <valid-op> <value>") or a free-text
+// row (otherwise). Unknown-field terms like `custom_attr = foo` render verbatim as
+// free-text and round-trip losslessly.
 function parseQuery(query) {
     if (!query) return;
 
     const container = document.getElementById('search-criteria-container');
-    const existingCriteria = container.querySelectorAll('.search-criterion');
-
-    // Remove extra criteria, keeping only the first one
-    for (let i = Number(existingCriteria.length - 1); i > 0; i--) {
-        existingCriteria[i].remove();
-    }
+    container.querySelectorAll('.search-criterion, .search-freetext').forEach(row => { row.remove(); });
 
     const lines = query.split('\n').filter(line => line.trim());
 
-    lines.forEach((line, index) => {
-        let criterion;
+    if (lines.length === 0) {
+        // Nothing parseable — restore a single blank structured starter row.
+        addStructuredCriterion();
+        return;
+    }
 
-        if (index === 0) {
-            // Use the existing first criterion
-            criterion = container.querySelector('.search-criterion');
+    lines.forEach(line => {
+        const classification = classifyQueryLine(line);
+        if (classification.kind === 'structured') {
+            const criterion = addStructuredCriterion();
+            populateStructuredRow(
+                criterion,
+                classification.field,
+                classification.operator,
+                classification.value,
+            );
         } else {
-            // Add additional criteria
-            addCriterion();
-            const criteria = container.querySelectorAll('.search-criterion');
-            criterion = criteria[criteria.length - 1];
-        }
-
-        // Parse line and populate the criterion
-        const parts = line.trim().match(/^(\w+)\s*(=~|!~|<=|>=|!=|==|=|<|>)\s*(.+)$/);
-
-        if (parts && criterion) {
-            const [, field, operator, value] = parts;
-
-            criterion.querySelector('.criterion-select').value = field;
-            updateOperators(criterion.querySelector('.criterion-select'));
-            criterion.querySelector('.operator-select').value = operator;
-
-            if (field === 'state') {
-                const stateSelect = criterion.querySelector('.state-select');
-                if (stateSelect) {
-                    stateSelect.value = value;
-                }
-            } else {
-                criterion.querySelector('.value-input').value = value;
-            }
+            addFreeTextCriterion(line.trim());
         }
     });
-
-    updateRemoveButtonsVisibility(container);
 }
 
 // Toggle between dropdown and textbox input modes
@@ -274,6 +301,7 @@ function toggleInputMode() {
     const textboxContainer = document.getElementById('search-textbox-container');
     const toggleButton = document.getElementById('search-toggle-mode');
     const addButton = document.getElementById('search-add-criterion');
+    const addFreeTextButton = document.getElementById('search-add-freetext');
     const textbox = document.getElementById('search-input-box');
     const hiddenInput = document.getElementById('search-query');
 
@@ -287,6 +315,7 @@ function toggleInputMode() {
         textboxContainer.style.display = 'block';
         toggleButton.textContent = 'Switch to drop-down query input';
         addButton.style.display = 'none';
+        addFreeTextButton.style.display = 'none';
 
         currentMode = 'textbox';
     } else {
@@ -298,28 +327,16 @@ function toggleInputMode() {
         textboxContainer.style.display = 'none';
         toggleButton.textContent = 'Switch to textbox query input';
         addButton.style.display = 'block';
+        addFreeTextButton.style.display = 'block';
 
         // Parse the textbox query back into dropdowns
         if (query) {
             parseQuery(query);
         } else {
-            // If textbox is empty, reset to single empty criterion
+            // If textbox is empty, reset to a single empty structured criterion.
             const container = document.getElementById('search-criteria-container');
-            const criteria = container.querySelectorAll('.search-criterion');
-            // Remove extra criteria, keep only first one
-            for (let i = criteria.length - 1; i > 0; i--) {
-                criteria[i].remove();
-            }
-            // Reset first criterion
-            const firstCriterion = container.querySelector('.search-criterion');
-            if (firstCriterion) {
-                firstCriterion.querySelector('.criterion-select').value = '';
-                firstCriterion.querySelector('.operator-select').innerHTML = '<option value="">Select operator...</option>';
-                firstCriterion.querySelector('.value-input').value = '';
-                const stateSelect = firstCriterion.querySelector('.state-select');
-                if (stateSelect) stateSelect.remove();
-            }
-            updateRemoveButtonsVisibility(container);
+            container.querySelectorAll('.search-criterion, .search-freetext').forEach(row => row.remove());
+            addStructuredCriterion();
         }
 
         currentMode = 'dropdown';
@@ -355,13 +372,12 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize search context
     isJobSearch = document.getElementById('search-form').getAttribute('data-is-job-search') === 'true';
 
-    const container = document.getElementById('search-criteria-container');
     const existingQuery = document.getElementById('search-query').value;
     if (existingQuery) {
         parseQuery(existingQuery);
     } else {
-        // Update remove button visibility on initial load
-        updateRemoveButtonsVisibility(container);
+        // Stamp a single blank structured row so the container isn't empty on load.
+        addStructuredCriterion();
     }
 });
 
@@ -380,12 +396,6 @@ document.addEventListener("keydown", function (e) {
     }
 });
 
-// Add initial event listeners
-document.getElementsByName('remove-criterion').forEach(button => {
-    button.addEventListener('click', function (_e) { removeCriterion(this) });
-} );
-document.getElementsByName('criterion-select').forEach(selector => {
-    selector.addEventListener('change', function (_e) { updateOperators(this) });
-} );
-document.getElementById('search-add-criterion').addEventListener('click', _e => addCriterion());
+document.getElementById('search-add-criterion').addEventListener('click', () => addStructuredCriterion());
+document.getElementById('search-add-freetext').addEventListener('click', () => addFreeTextCriterion(''));
 document.getElementById('search-toggle-mode').addEventListener('click', _e => toggleInputMode());
