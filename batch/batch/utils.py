@@ -216,6 +216,26 @@ GROUP BY billing_projects.name, billing_projects.`status`, billing_projects.`lim
         record['users'] = json.loads(record['users']) if record['users'] is not None else []
         billing_projects.append(record)
 
+    quote_ids = list({bp['quote_id'] for bp in billing_projects if bp['quote_id'] is not None})
+    qms_by_quote_id: Dict[int, List[Dict]] = {}
+    if quote_ids:
+        placeholders = ', '.join(['%s'] * len(quote_ids))
+        async for row in db.select_and_fetchall(
+            f'SELECT qm.quote_id, qm.user, qm.role, q.name AS quote_name'
+            f' FROM quote_managers qm JOIN quotes q ON q.id = qm.quote_id'
+            f' WHERE qm.quote_id IN ({placeholders})',
+            tuple(quote_ids),
+        ):
+            qms_by_quote_id.setdefault(row['quote_id'], []).append(row)
+
+    for bp in billing_projects:
+        merged: Dict[str, List[str]] = {}
+        for username in bp['users']:
+            merged.setdefault(username, []).append(f'{bp["billing_project"]}:member')
+        for qm in qms_by_quote_id.get(bp['quote_id'], []):
+            merged.setdefault(qm['user'], []).append(f'{qm["quote_name"]}:{qm["role"]}')
+        bp['users'] = [{'user': u, 'roles': roles} for u, roles in merged.items()]
+
     return billing_projects
 
 
@@ -245,8 +265,11 @@ async def query_billing_projects_without_cost(
     sql = f"""
 SELECT billing_projects.name as billing_project,
   billing_projects.`status` as `status`,
+  billing_projects.quote_id,
+  q.name AS quote_name,
   users, `limit`
 FROM billing_projects
+LEFT JOIN quotes q ON q.id = billing_projects.quote_id
 LEFT JOIN LATERAL (
   SELECT billing_project, JSON_ARRAYAGG(`user_cs`) as users
   FROM billing_project_users
@@ -260,6 +283,26 @@ LEFT JOIN LATERAL (
     async for record in db.select_and_fetchall(sql, tuple(args)):
         record['users'] = json.loads(record['users']) if record['users'] is not None else []
         billing_projects.append(record)
+
+    quote_ids = list({bp['quote_id'] for bp in billing_projects if bp['quote_id'] is not None})
+    qms_by_quote_id: Dict[int, List[Dict]] = {}
+    if quote_ids:
+        placeholders = ', '.join(['%s'] * len(quote_ids))
+        async for row in db.select_and_fetchall(
+            f'SELECT qm.quote_id, qm.user, qm.role, q.name AS quote_name'
+            f' FROM quote_managers qm JOIN quotes q ON q.id = qm.quote_id'
+            f' WHERE qm.quote_id IN ({placeholders})',
+            tuple(quote_ids),
+        ):
+            qms_by_quote_id.setdefault(row['quote_id'], []).append(row)
+
+    for bp in billing_projects:
+        merged: Dict[str, List[str]] = {}
+        for username in bp['users']:
+            merged.setdefault(username, []).append(f'{bp["billing_project"]}:member')
+        for qm in qms_by_quote_id.get(bp['quote_id'], []):
+            merged.setdefault(qm['user'], []).append(f'{qm["quote_name"]}:{qm["role"]}')
+        bp['users'] = [{'user': u, 'roles': roles} for u, roles in merged.items()]
 
     return billing_projects
 
