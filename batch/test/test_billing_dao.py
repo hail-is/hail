@@ -38,6 +38,7 @@ from batch.billing_dao import (
     reopen_billing_project,
 )
 from batch.exceptions import BatchOperationAlreadyCompletedError, BatchUserError
+from batch.utils import query_billing_projects_with_cost
 from gear import Database
 
 _TEST_DB = 'test_billing_dao'
@@ -955,3 +956,51 @@ async def test_delete_billing_project_already_deleted_raises(db):
 async def test_delete_billing_project_not_found_raises(db):
     with pytest.raises(Exception):  # NonExistentBillingProjectError
         await delete_billing_project(db, 'no-such-bp')
+
+
+# ---------------------------------------------------------------------------
+# query_billing_projects_with_cost — users field shape
+# ---------------------------------------------------------------------------
+
+
+async def test_query_bp_users_bp_member(db):
+    await _make_bp(db, 'q-users-bpm', 'bp-users-bpm')
+    await add_billing_project_user(db, 'bp-users-bpm', 'luna', 'admin')
+    results = await query_billing_projects_with_cost(db, billing_project='bp-users-bpm')
+    assert len(results) == 1
+    users = results[0]['users']
+    luna = next((u for u in users if u['user'] == 'luna'), None)
+    assert luna is not None
+    assert 'bp-users-bpm:member' in luna['roles']
+
+
+async def test_query_bp_users_quote_manager_appears_without_direct_membership(db):
+    await _make_bp(db, 'q-users-qm', 'bp-users-qm')
+    await add_quote_manager(db, 'q-users-qm', 'mars', 'owner', actor='admin')
+    results = await query_billing_projects_with_cost(db, billing_project='bp-users-qm')
+    assert len(results) == 1
+    users = results[0]['users']
+    mars = next((u for u in users if u['user'] == 'mars'), None)
+    assert mars is not None
+    assert 'q-users-qm:owner' in mars['roles']
+
+
+async def test_query_bp_users_dual_role(db):
+    await _make_bp(db, 'q-users-dual', 'bp-users-dual')
+    await add_quote_manager(db, 'q-users-dual', 'nova', 'manager', actor='admin')
+    await add_billing_project_user(db, 'bp-users-dual', 'nova', 'admin')
+    results = await query_billing_projects_with_cost(db, billing_project='bp-users-dual')
+    assert len(results) == 1
+    users = results[0]['users']
+    nova = next((u for u in users if u['user'] == 'nova'), None)
+    assert nova is not None
+    assert 'bp-users-dual:member' in nova['roles']
+    assert 'q-users-dual:manager' in nova['roles']
+
+
+async def test_query_bp_users_outsider_absent(db):
+    await _make_bp(db, 'q-users-out', 'bp-users-out')
+    results = await query_billing_projects_with_cost(db, billing_project='bp-users-out')
+    assert len(results) == 1
+    users = results[0]['users']
+    assert not any(u['user'] == 'outsider' for u in users)
