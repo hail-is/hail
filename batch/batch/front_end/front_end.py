@@ -3307,10 +3307,12 @@ async def get_billing_projects(request, userdata):
 async def get_billing_project(request, userdata):
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
+    username = userdata['username']
+    is_global_bm = userdata['system_permissions'].get(SystemPermission.UPDATE_ALL_BILLING_PROJECTS, False)
 
     if not userdata['system_permissions'].get(SystemPermission.READ_ALL_BILLING_PROJECTS, False):
-        user = userdata['username']
-        quote_manager_user = user
+        user = username
+        quote_manager_user = username
     else:
         user = None
         quote_manager_user = None
@@ -3323,7 +3325,9 @@ async def get_billing_project(request, userdata):
         raise web.HTTPForbidden(reason=f'Unknown Hail Batch billing project {billing_project}.')
 
     assert len(billing_projects) == 1
-    return json_response(billing_projects[0])
+    bp = billing_projects[0]
+    bp['billing_role'] = await billing_dao.get_billing_role_for_bp(db, username, is_global_bm, billing_project)
+    return json_response(bp)
 
 
 @routes.post('/billing_projects/{billing_project}/users/{user}/remove')
@@ -3685,6 +3689,7 @@ async def get_quote(request: web.Request, _: UserData) -> web.Response:
     quote = await billing_dao.get_quote(db, quote_name)
     if quote is None:
         raise web.HTTPNotFound(reason=f'Unknown quote {quote_name}.')
+    quote['billing_role'] = request['billing_role']
     return json_response(quote)
 
 

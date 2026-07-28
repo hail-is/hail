@@ -2524,6 +2524,11 @@ components:
           type: number
           description: "Billing limit in dollars"
           nullable: true
+        billing_role:
+          type: string
+          enum: ["global_bm", "quote_owner", "quote_manager", "bp_member"]
+          nullable: true
+          description: "The caller's billing role for this project (only present on the single-project endpoint)"
 
     BillingProjectListResponse:
       type: object
@@ -2895,6 +2900,10 @@ components:
           type: integer
         name:
           type: string
+        billing_role:
+          type: string
+          enum: ["global_bm", "quote_owner", "quote_manager"]
+          description: "The caller's billing role for this quote"
         cost_object:
           type: string
         authorized_amount:
