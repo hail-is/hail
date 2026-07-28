@@ -564,6 +564,13 @@ async def test_create_billing_project_limit_exceeds_quote_raises(db):
         await create_billing_project(db, 'bp-exceed-2', q_row['id'], 100.0, None, 'admin', 'global_bm')
 
 
+async def test_create_billing_project_unlimited_rejected_under_limited_quote(db):
+    await create_quote(db, 'q-ul-reject', cost_object='CO', actor='admin', authorized_amount=1000.0)
+    q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-ul-reject',))
+    with pytest.raises(BatchUserError, match='only be created under unlimited quotes'):
+        await create_billing_project(db, 'bp-ul-reject', q_row['id'], None, None, 'admin', 'global_bm')
+
+
 async def test_create_billing_project_duplicate_raises(db):
     await create_quote(db, 'q-dup-bp', cost_object='CO', actor='admin')
     q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-dup-bp',))
@@ -630,6 +637,14 @@ async def test_patch_billing_project_unlimited_requires_global_bm(db):
     await create_billing_project(db, 'bp-patch-ul', q_row['id'], 100.0, None, 'admin', 'global_bm')
     with pytest.raises(BatchUserError, match='Only global billing managers'):
         await patch_billing_project(db, 'bp-patch-ul', {'limit': None}, actor='admin', billing_role='quote_owner')
+
+
+async def test_patch_billing_project_unlimited_rejected_under_limited_quote(db):
+    await create_quote(db, 'q-patch-ul-lim', cost_object='CO', actor='admin', authorized_amount=500.0)
+    q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-patch-ul-lim',))
+    await create_billing_project(db, 'bp-patch-ul-lim', q_row['id'], 100.0, None, 'admin', 'global_bm')
+    with pytest.raises(BatchUserError, match='only exist under unlimited quotes'):
+        await patch_billing_project(db, 'bp-patch-ul-lim', {'limit': None}, actor='admin', billing_role='global_bm')
 
 
 async def test_patch_billing_project_logs_limit_event_on_both_quote_and_bp(db):
@@ -701,6 +716,16 @@ async def test_change_bp_quote_exceeds_dest_limit_raises(db):
     await create_billing_project(db, 'bp-toobig', q_src['id'], 100.0, None, 'admin', 'global_bm')
     with pytest.raises(BatchUserError, match='exceed destination quote authorized amount'):
         await change_billing_project_quote(db, 'bp-toobig', q_dest['id'], actor='admin')
+
+
+async def test_change_bp_quote_unlimited_bp_rejected_into_limited_quote(db):
+    await create_quote(db, 'q-ul-src', cost_object='CO1', actor='admin', authorized_amount=None)
+    await create_quote(db, 'q-ul-dest', cost_object='CO2', actor='admin', authorized_amount=500.0)
+    q_src = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-ul-src',))
+    q_dest = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-ul-dest',))
+    await create_billing_project(db, 'bp-ul-move', q_src['id'], None, None, 'admin', 'global_bm')
+    with pytest.raises(BatchUserError, match='finite funding'):
+        await change_billing_project_quote(db, 'bp-ul-move', q_dest['id'], actor='admin')
 
 
 async def test_change_bp_quote_logs_events_on_src_dest_and_bp(db):
