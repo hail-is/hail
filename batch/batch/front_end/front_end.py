@@ -85,7 +85,7 @@ from web_common import (
     web_security_headers_swagger,
 )
 
-from .. import billing_dao
+from .. import billing_project_management as billing_dao
 from ..batch import batch_record_to_dict, cancel_job_group_in_db, job_group_record_to_dict, job_record_to_dict
 from ..batch_configuration import BATCH_STORAGE_URI, CLOUD, DEFAULT_NAMESPACE, DOCKERHUB_PREFIX, SCOPE
 from ..batch_format_version import BatchFormatVersion
@@ -95,7 +95,13 @@ from ..billing_auth import (
     billing_permission_required,
     resolve_billing_role_for_quote_id,
 )
-from ..billing_dao import _parse_billing_limit
+from ..billing_project_management import _parse_billing_limit
+from ..billing_reporting import (
+    query_billing_breakdown,
+    query_billing_history,
+    query_billing_projects_with_cost,
+    query_billing_projects_without_cost,
+)
 from ..cloud.azure.resource_utils import azure_cores_mcpu_to_memory_bytes
 from ..cloud.gcp.resource_utils import GCP_MACHINE_FAMILY, gcp_cores_mcpu_to_memory_bytes
 from ..cloud.resource_utils import (
@@ -125,8 +131,6 @@ from ..resource_usage import ResourceUsageMonitor
 from ..spec_writer import SpecWriter
 from ..utils import (
     add_metadata_to_request,
-    query_billing_projects_with_cost,
-    query_billing_projects_without_cost,
     regions_bits_rep_to_regions,
     regions_to_bits_rep,
     rewrite_dockerhub_image,
@@ -3054,7 +3058,9 @@ async def post_edit_billing_limits_ui(request: web.Request, _) -> NoReturn:
         raise web.HTTPFound(deploy_config.external_url('batch', '/billing_limits'))  # pylint: disable=lost-exception
 
 
-async def _query_billing(request: web.Request, user: Optional[str] = None) -> Tuple[list, str, Optional[str]]:
+async def _query_billing(
+    request: web.Request, user: Optional[str] = None, quote_manager_user: Optional[str] = None
+) -> Tuple[list, str, Optional[str]]:
     db: Database = request.app['db']
 
     date_format = '%m/%d/%Y'
@@ -3087,43 +3093,7 @@ async def _query_billing(request: web.Request, user: Optional[str] = None) -> Tu
     if end is not None and start > end:
         return await parse_error('Invalid search; start must be earlier than end.')
 
-    where_conditions = [
-        "billing_projects.`status` != 'deleted'",
-        "billing_date >= %s",
-    ]
-    where_args: List[Any] = [start]
-
-    if end is not None:
-        where_conditions.append("billing_date <= %s")
-        where_args.append(end)
-
-    if user is not None:
-        where_conditions.append("`user` = %s")
-        where_args.append(user)
-
-    sql = f"""
-SELECT
-  billing_project,
-  `user`,
-  quote_name,
-  COALESCE(SUM(`usage` * rate), 0) AS cost
-FROM (
-  SELECT billing_project, `user`, resource_id, quotes.name AS quote_name,
-    CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
-  FROM aggregated_billing_project_user_resources_by_date_v3
-  LEFT JOIN billing_projects ON billing_projects.name = aggregated_billing_project_user_resources_by_date_v3.billing_project
-  LEFT JOIN quotes ON quotes.id = billing_projects.quote_id
-  WHERE {' AND '.join(where_conditions)}
-  GROUP BY billing_project, `user`, resource_id, quote_name
-) AS t
-LEFT JOIN resources ON resources.resource_id = t.resource_id
-GROUP BY billing_project, `user`, quote_name;
-"""
-
-    sql_args = where_args
-
-    billing = [record async for record in db.select_and_fetchall(sql, sql_args)]
-
+    billing = await query_billing_history(db, start, end, user=user, quote_manager_user=quote_manager_user)
     return (billing, start_query, end_query)
 
 
@@ -3134,9 +3104,11 @@ GROUP BY billing_project, `user`, quote_name;
 async def ui_get_billing(request, userdata):
     if not userdata['system_permissions'].get(SystemPermission.READ_ALL_BILLING_PROJECTS, False):
         user = userdata['username']
+        quote_manager_user = user
     else:
         user = None
-    billing, start, end = await _query_billing(request, user=user)
+        quote_manager_user = None
+    billing, start, end = await _query_billing(request, user=user, quote_manager_user=quote_manager_user)
 
     billing_by_user: Dict[str, int] = {}
     billing_by_project: Dict[str, int] = {}
@@ -3182,9 +3154,11 @@ async def ui_get_billing(request, userdata):
 async def api_get_billing(request, userdata):
     if not userdata['system_permissions'].get(SystemPermission.READ_ALL_BILLING_PROJECTS, False):
         user = userdata['username']
+        quote_manager_user = user
     else:
         user = None
-    billing, _, _ = await _query_billing(request, user=user)
+        quote_manager_user = None
+    billing, _, _ = await _query_billing(request, user=user, quote_manager_user=quote_manager_user)
     return json_response([
         {
             'billing_project': r['billing_project'],
@@ -3222,41 +3196,15 @@ async def api_get_billing_breakdown(request: web.Request, userdata) -> web.Respo
     if start > end:
         raise web.HTTPBadRequest(reason="start must be earlier than or equal to end.")
 
-    is_billing_manager = userdata['system_permissions'].get(SystemPermission.READ_ALL_BILLING_PROJECTS, False)
+    if not userdata['system_permissions'].get(SystemPermission.READ_ALL_BILLING_PROJECTS, False):
+        username = userdata['username']
+        user: Optional[str] = username
+        quote_manager_user: Optional[str] = username
+    else:
+        user = None
+        quote_manager_user = None
 
-    where = [
-        "billing_projects.`status` != 'deleted'",
-        'billing_date >= %s',
-        'billing_date <= %s',
-    ]
-    args: List[Any] = [start, end]
-
-    if not is_billing_manager:
-        where.append('`user` = %s')
-        args.append(userdata['username'])
-
-    sql = f"""
-SELECT billing_project, `user`, resources.resource, COALESCE(SUM(`usage` * rate), 0) AS cost
-FROM (
-  SELECT billing_project, `user`, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
-  FROM aggregated_billing_project_user_resources_by_date_v3
-  LEFT JOIN billing_projects ON billing_projects.name = aggregated_billing_project_user_resources_by_date_v3.billing_project
-  WHERE {' AND '.join(where)}
-  GROUP BY billing_project, `user`, resource_id
-) AS t
-LEFT JOIN resources ON resources.resource_id = t.resource_id
-GROUP BY billing_project, `user`, resources.resource
-HAVING cost > 0;
-"""
-    rows = [
-        {
-            'billing_project': r['billing_project'],
-            'user': r['user'],
-            'resource': r['resource'],
-            'cost': float(r['cost']),
-        }
-        async for r in db.select_and_fetchall(sql, args)
-    ]
+    rows = await query_billing_breakdown(db, start, end, user=user, quote_manager_user=quote_manager_user)
     return json_response(rows)
 
 

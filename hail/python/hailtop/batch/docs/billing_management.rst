@@ -97,8 +97,18 @@ user list.
      - No
      - No
      - Yes
-   * - **Read job history** in a billing project†
+   * - **Read job history** and see job details and logs in a billing project†
      - No
+     - No
+     - No
+     - Yes
+   * - View billing history for a quote
+     - Yes
+     - Yes
+     - Yes
+     - No
+   * - View billing history for a billing project
+     - Yes
      - Yes
      - Yes
      - Yes

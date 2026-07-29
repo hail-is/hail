@@ -96,5 +96,15 @@ CREATE TABLE IF NOT EXISTS `aggregated_billing_project_user_resources_v3` (
   PRIMARY KEY (`billing_project`, `user`, `resource_id`, `token`)
 ) ENGINE = InnoDB;
 
+CREATE TABLE IF NOT EXISTS `aggregated_billing_project_user_resources_by_date_v3` (
+  `billing_date`    DATE NOT NULL,
+  `billing_project` VARCHAR(100) NOT NULL,
+  `user`            VARCHAR(100) NOT NULL,
+  `resource_id`     INT NOT NULL,
+  `token`           INT NOT NULL,
+  `usage`           BIGINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (`billing_date`, `billing_project`, `user`, `resource_id`, `token`)
+) ENGINE = InnoDB;
+
 INSERT INTO `quotes` (`name`, `name_cs`, `cost_object`, `time_created`)
 VALUES ('INTERNAL', 'INTERNAL', 'INTERNAL', 0);

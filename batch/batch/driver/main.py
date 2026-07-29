@@ -70,6 +70,7 @@ from ..batch_configuration import (
     MACHINE_NAME_PREFIX,
     REFRESH_INTERVAL_IN_SECONDS,
 )
+from ..billing_reporting import query_billing_projects_with_cost
 from ..cloud.driver import get_cloud_driver
 from ..cloud.resource_utils import local_ssd_size, possible_cores_from_worker_type, unreserved_worker_data_disk_size_gib
 from ..exceptions import BatchUserError
@@ -80,7 +81,6 @@ from ..utils import (
     add_metadata_to_request,
     authorization_token,
     json_to_value,
-    query_billing_projects_with_cost,
 )
 from .canceller import Canceller
 from .driver import CloudDriver

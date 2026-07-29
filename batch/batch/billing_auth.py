@@ -6,7 +6,7 @@ from aiohttp import web
 
 from gear import Database, SystemPermission, UserData
 
-from . import billing_dao
+from . import billing_project_management as billing_dao
 
 
 class BillingPermission(str, Enum):

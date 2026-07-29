@@ -2,11 +2,11 @@ import json
 import logging
 from collections import deque
 from functools import wraps
-from typing import Any, Deque, Dict, List, Optional, Set, Tuple, overload
+from typing import Deque, Dict, List, Optional, Set, Tuple, overload
 
 from aiohttp import web
 
-from gear import Database, maybe_parse_bearer_header
+from gear import maybe_parse_bearer_header
 from hailtop.utils import secret_alnum_string
 
 log = logging.getLogger('utils')
@@ -142,169 +142,6 @@ class ExceededSharesCounter:
 
     def __repr__(self):
         return f'global {self._global_counter}'
-
-
-async def query_billing_projects_with_cost(
-    db,
-    user=None,
-    billing_project=None,
-    status=None,
-    quote_manager_user=None,
-) -> List[Dict[str, Any]]:
-    where_conditions = ["billing_projects.`status` != 'deleted'"]
-    args = []
-
-    if user and quote_manager_user:
-        where_conditions.append(
-            "(JSON_CONTAINS(users, JSON_QUOTE(%s)) OR EXISTS ("
-            "SELECT 1 FROM quote_managers qm "
-            "WHERE qm.quote_id = billing_projects.quote_id AND qm.user = %s))"
-        )
-        args.append(user)
-        args.append(quote_manager_user)
-    elif user:
-        where_conditions.append("JSON_CONTAINS(users, JSON_QUOTE(%s))")
-        args.append(user)
-    elif quote_manager_user:
-        where_conditions.append(
-            "EXISTS (SELECT 1 FROM quote_managers qm WHERE qm.quote_id = billing_projects.quote_id AND qm.user = %s)"
-        )
-        args.append(quote_manager_user)
-
-    if billing_project:
-        where_conditions.append('billing_projects.name_cs = %s')
-        args.append(billing_project)
-
-    if status:
-        where_conditions.append('billing_projects.`status` = %s')
-        args.append(status)
-
-    if where_conditions:
-        where_condition = f'WHERE {" AND ".join(where_conditions)}'
-    else:
-        where_condition = ''
-
-    sql = f"""
-SELECT billing_projects.name as billing_project,
-  billing_projects.`status` as `status`,
-  users,
-  billing_projects.`limit`,
-  billing_projects.quote_id,
-  q.name AS quote_name,
-  billing_projects.low_budget_alert,
-  billing_projects.description,
-  IF(billing_projects.`limit` IS NULL, NULL, billing_projects.`limit` - COALESCE(SUM(agg.`usage` * resources.rate), 0)) AS remaining,
-  COALESCE(SUM(agg.`usage` * resources.rate), 0) AS accrued_cost
-FROM billing_projects
-LEFT JOIN quotes q ON q.id = billing_projects.quote_id
-LEFT JOIN LATERAL (
-  SELECT billing_project, JSON_ARRAYAGG(`user_cs`) as users
-  FROM billing_project_users
-  WHERE billing_project_users.billing_project = billing_projects.name
-  GROUP BY billing_project_users.billing_project
-) AS t ON TRUE
-LEFT JOIN aggregated_billing_project_user_resources_v3 as agg
-  ON billing_projects.name = agg.billing_project
-LEFT JOIN resources ON resources.resource_id = agg.resource_id
-{where_condition}
-GROUP BY billing_projects.name, billing_projects.`status`, billing_projects.`limit`,
-  billing_projects.quote_id, q.name, billing_projects.low_budget_alert, billing_projects.description, users;
-"""
-
-    billing_projects = []
-    async for record in db.select_and_fetchall(sql, tuple(args)):
-        record['users'] = json.loads(record['users']) if record['users'] is not None else []
-        billing_projects.append(record)
-
-    quote_ids = list({bp['quote_id'] for bp in billing_projects if bp['quote_id'] is not None})
-    qms_by_quote_id: Dict[int, List[Dict]] = {}
-    if quote_ids:
-        placeholders = ', '.join(['%s'] * len(quote_ids))
-        async for row in db.select_and_fetchall(
-            f'SELECT qm.quote_id, qm.user, qm.role, q.name AS quote_name'
-            f' FROM quote_managers qm JOIN quotes q ON q.id = qm.quote_id'
-            f' WHERE qm.quote_id IN ({placeholders})',
-            tuple(quote_ids),
-        ):
-            qms_by_quote_id.setdefault(row['quote_id'], []).append(row)
-
-    for bp in billing_projects:
-        merged: Dict[str, List[str]] = {}
-        for username in bp['users']:
-            merged.setdefault(username, []).append(f'{bp["billing_project"]}:member')
-        for qm in qms_by_quote_id.get(bp['quote_id'], []):
-            merged.setdefault(qm['user'], []).append(f'{qm["quote_name"]}:{qm["role"]}')
-        bp['users'] = [{'user': u, 'roles': roles} for u, roles in merged.items()]
-
-    return billing_projects
-
-
-async def query_billing_projects_without_cost(
-    db: Database, user: Optional[str] = None, billing_project: Optional[str] = None, status: Optional[str] = None
-) -> List[Dict[str, Any]]:
-    where_conditions = ["billing_projects.`status` != 'deleted'"]
-    args = []
-
-    if user:
-        where_conditions.append("JSON_CONTAINS(users, JSON_QUOTE(%s))")
-        args.append(user)
-
-    if billing_project:
-        where_conditions.append('billing_projects.name_cs = %s')
-        args.append(billing_project)
-
-    if status:
-        where_conditions.append('billing_projects.`status` = %s')
-        args.append(status)
-
-    if where_conditions:
-        where_condition = f'WHERE {" AND ".join(where_conditions)}'
-    else:
-        where_condition = ''
-
-    sql = f"""
-SELECT billing_projects.name as billing_project,
-  billing_projects.`status` as `status`,
-  billing_projects.quote_id,
-  q.name AS quote_name,
-  users, `limit`
-FROM billing_projects
-LEFT JOIN quotes q ON q.id = billing_projects.quote_id
-LEFT JOIN LATERAL (
-  SELECT billing_project, JSON_ARRAYAGG(`user_cs`) as users
-  FROM billing_project_users
-  WHERE billing_project_users.billing_project = billing_projects.name
-  GROUP BY billing_project_users.billing_project
-) AS t ON TRUE
-{where_condition};
-"""
-
-    billing_projects = []
-    async for record in db.select_and_fetchall(sql, tuple(args)):
-        record['users'] = json.loads(record['users']) if record['users'] is not None else []
-        billing_projects.append(record)
-
-    quote_ids = list({bp['quote_id'] for bp in billing_projects if bp['quote_id'] is not None})
-    qms_by_quote_id: Dict[int, List[Dict]] = {}
-    if quote_ids:
-        placeholders = ', '.join(['%s'] * len(quote_ids))
-        async for row in db.select_and_fetchall(
-            f'SELECT qm.quote_id, qm.user, qm.role, q.name AS quote_name'
-            f' FROM quote_managers qm JOIN quotes q ON q.id = qm.quote_id'
-            f' WHERE qm.quote_id IN ({placeholders})',
-            tuple(quote_ids),
-        ):
-            qms_by_quote_id.setdefault(row['quote_id'], []).append(row)
-
-    for bp in billing_projects:
-        merged: Dict[str, List[str]] = {}
-        for username in bp['users']:
-            merged.setdefault(username, []).append(f'{bp["billing_project"]}:member')
-        for qm in qms_by_quote_id.get(bp['quote_id'], []):
-            merged.setdefault(qm['user'], []).append(f'{qm["quote_name"]}:{qm["role"]}')
-        bp['users'] = [{'user': u, 'roles': roles} for u, roles in merged.items()]
-
-    return billing_projects
 
 
 def json_to_value(x):
