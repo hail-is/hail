@@ -2,13 +2,63 @@ import asyncio
 import hashlib
 import logging
 import os
+import sys
 
+import aiomysql
 import pytest
+import pytest_asyncio
 
+from gear import Database
 from hailtop.batch_client.client import BatchClient
 from hailtop.config import get_remote_tmpdir
 
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_TEST_BILLING_DB = 'test_billing'
+
 log = logging.getLogger(__name__)
+
+
+@pytest_asyncio.fixture(scope='session')
+async def db():
+    """Billing test DB: created via real batch migrations, dropped after the module."""
+    sys.path.insert(0, os.path.join(_REPO_ROOT, 'ci'))
+    import warnings as _warnings  # pylint: disable=import-outside-toplevel
+
+    from create_local_database import async_main  # pylint: disable=import-outside-toplevel
+
+    conn = await aiomysql.connect(host='localhost', port=3306, user='root', password='pw')
+    try:
+        async with conn.cursor() as cur:
+            with _warnings.catch_warnings():
+                _warnings.simplefilter('ignore')
+                await cur.execute(f'DROP DATABASE IF EXISTS `{_TEST_BILLING_DB}`')
+            await cur.execute('SET GLOBAL log_bin_trust_function_creators = 1')
+        await conn.commit()
+    finally:
+        conn.close()
+
+    orig_dir = os.getcwd()
+    os.chdir(_REPO_ROOT)
+    # async_main bootstraps by connecting before creating the target DB, so HAIL_SQL_DATABASE
+    # must not point to a DB that doesn't exist yet (e.g. after a previous module's teardown dropped it).
+    # With db=None, aiomysql connects without selecting a database, which is fine for CREATE DATABASE.
+    os.environ.pop('HAIL_SQL_DATABASE', None)
+    try:
+        await async_main('batch', _TEST_BILLING_DB)
+    finally:
+        os.chdir(orig_dir)
+    database = Database()
+    await database.async_init()
+    yield database
+    await database.async_exit_stack.aclose()
+
+    conn = await aiomysql.connect(host='localhost', port=3306, user='root', password='pw')
+    try:
+        async with conn.cursor() as cur:
+            await cur.execute(f'DROP DATABASE IF EXISTS `{_TEST_BILLING_DB}`')
+        await conn.commit()
+    finally:
+        conn.close()
 
 
 @pytest.fixture(scope="session")

@@ -1,15 +1,11 @@
 """Unit tests for billing_project_management against a real MySQL instance.
 
-Requires local MySQL (make local-mysql) and the HAIL_SQL_DATABASE env var,
-which the pytest fixture sets automatically.
+Requires local MySQL (make local-mysql). The db fixture is provided by conftest.py.
 """
 
 import json
-import os
-import warnings
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import aiomysql
 import pytest
 import pytest_asyncio
 from aiohttp import web
@@ -38,51 +34,6 @@ from batch.billing_project_management import (
     reopen_billing_project,
 )
 from batch.exceptions import BatchOperationAlreadyCompletedError, BatchUserError
-from gear import Database
-
-_TEST_DB = 'test_billing_dao'
-_SCHEMA = os.path.join(os.path.dirname(__file__), 'billing_dao_schema.sql')
-
-
-@pytest_asyncio.fixture(scope='module')
-async def db():
-    """Create a fresh test database, yield a connected Database, then drop it."""
-
-    async def run_ddl(cur, sql):
-        for statement in (s.strip() for s in sql.split(';')):
-            if statement:
-                await cur.execute(statement)
-
-    async def admin_conn():
-        return await aiomysql.connect(host='localhost', port=3306, user='root', password='pw')
-
-    conn = await admin_conn()
-    try:
-        async with conn.cursor() as cur:
-            with warnings.catch_warnings():
-                warnings.simplefilter('ignore')
-                await cur.execute(f'DROP DATABASE IF EXISTS `{_TEST_DB}`')
-            await cur.execute(f'CREATE DATABASE `{_TEST_DB}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci')
-            await cur.execute(f'USE `{_TEST_DB}`')
-            with open(_SCHEMA, encoding='utf-8') as f:
-                await run_ddl(cur, f.read())
-        await conn.commit()
-    finally:
-        conn.close()
-
-    os.environ['HAIL_SQL_DATABASE'] = _TEST_DB
-    database = Database()
-    await database.async_init()
-    yield database
-    await database.async_exit_stack.aclose()
-
-    conn = await admin_conn()
-    try:
-        async with conn.cursor() as cur:
-            await cur.execute(f'DROP DATABASE IF EXISTS `{_TEST_DB}`')
-        await conn.commit()
-    finally:
-        conn.close()
 
 
 @pytest_asyncio.fixture(autouse=True)
@@ -895,8 +846,10 @@ async def test_close_billing_project_running_batch_raises(db):
     await _make_bp(db, 'q-close-run', 'bp-close-run')
     async with db.start() as tx:
         await tx.execute_insertone(
-            'INSERT INTO batches(billing_project, time_completed, deleted) VALUES (%s, NULL, FALSE)',
-            ('bp-close-run',),
+            """INSERT INTO batches
+               (billing_project, userdata, `user`, state, n_jobs, time_created, format_version, time_completed, deleted)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, NULL, FALSE)""",
+            ('bp-close-run', '{}', 'testuser', 'running', 0, 0, 1),
         )
     with pytest.raises(BatchUserError, match='running batches'):
         await close_billing_project(db, 'bp-close-run', 'admin')

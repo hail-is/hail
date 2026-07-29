@@ -1,14 +1,10 @@
 """Unit tests for billing_reporting against a real MySQL instance.
 
-Requires local MySQL (make local-mysql) and the HAIL_SQL_DATABASE env var,
-which the pytest fixture sets automatically.
+Requires local MySQL (make local-mysql). The db fixture is provided by conftest.py.
 """
 
 import datetime
-import os
-import warnings
 
-import aiomysql
 import pytest
 import pytest_asyncio
 
@@ -24,51 +20,6 @@ from batch.billing_reporting import (
     query_billing_projects_with_cost,
     query_billing_projects_without_cost,
 )
-from gear import Database
-
-_TEST_DB = 'test_billing_reporting'
-_SCHEMA = os.path.join(os.path.dirname(__file__), 'billing_dao_schema.sql')
-
-
-@pytest_asyncio.fixture(scope='module')
-async def db():
-    """Create a fresh test database, yield a connected Database, then drop it."""
-
-    async def run_ddl(cur, sql):
-        for statement in (s.strip() for s in sql.split(';')):
-            if statement:
-                await cur.execute(statement)
-
-    async def admin_conn():
-        return await aiomysql.connect(host='localhost', port=3306, user='root', password='pw')
-
-    conn = await admin_conn()
-    try:
-        async with conn.cursor() as cur:
-            with warnings.catch_warnings():
-                warnings.simplefilter('ignore')
-                await cur.execute(f'DROP DATABASE IF EXISTS `{_TEST_DB}`')
-            await cur.execute(f'CREATE DATABASE `{_TEST_DB}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci')
-            await cur.execute(f'USE `{_TEST_DB}`')
-            with open(_SCHEMA, encoding='utf-8') as f:
-                await run_ddl(cur, f.read())
-        await conn.commit()
-    finally:
-        conn.close()
-
-    os.environ['HAIL_SQL_DATABASE'] = _TEST_DB
-    database = Database()
-    await database.async_init()
-    yield database
-    await database.async_exit_stack.aclose()
-
-    conn = await admin_conn()
-    try:
-        async with conn.cursor() as cur:
-            await cur.execute(f'DROP DATABASE IF EXISTS `{_TEST_DB}`')
-        await conn.commit()
-    finally:
-        conn.close()
 
 
 @pytest_asyncio.fixture(autouse=True)
