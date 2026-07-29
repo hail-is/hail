@@ -8,8 +8,11 @@
     <!-- Search criteria container (rows are stamped from the templates below by table_search.js) -->
     <div id='search-criteria-container' class='min-h-24 w-full p-4 bg-slate-200 rounded space-y-3'></div>
 
-    <!-- Textbox mode (hidden by default) -->
-    <div id='search-textbox-container' class='min-h-32 w-full p-4 bg-slate-200 rounded' style='display: none;'>
+    <!-- Textbox mode (hidden by default). Use Tailwind's `hidden` class rather than
+         an inline `style='display: none;'`; the batches page CSP omits `'unsafe-inline'`
+         from `style-src`, so an inline style attribute here is dropped by the browser
+         and the textbox container would render visible on first paint. -->
+    <div id='search-textbox-container' class='min-h-32 w-full p-4 bg-slate-200 rounded hidden'>
       <textarea id='search-input-box' class='h-32 w-full p-4 bg-white rounded resize whitespace-pre border'
         spellcheck="false" autocorrect="off" placeholder='Enter search query (e.g., "cost > 5.00")'>{% if q %}{{ q }}{% endif %}</textarea>
     </div>
