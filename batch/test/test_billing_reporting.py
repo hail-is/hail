@@ -18,7 +18,6 @@ from batch.billing_reporting import (
     query_billing_breakdown,
     query_billing_history,
     query_billing_projects_with_cost,
-    query_billing_projects_without_cost,
 )
 
 
@@ -140,13 +139,6 @@ async def test_can_view_quote_bp_member_only(db):
     await add_billing_project_user(db, 'bp-cvq-bpm', 'regular', 'admin')
     results = await query_billing_projects_with_cost(db, billing_project='bp-cvq-bpm', quote_manager_user='regular')
     assert results[0]['can_view_quote'] is False
-
-
-async def test_query_billing_projects_without_cost_basic(db):
-    await _make_bp(db, 'q-woc', 'bp-woc')
-    results = await query_billing_projects_without_cost(db, billing_project='bp-woc')
-    assert len(results) == 1
-    assert results[0]['billing_project'] == 'bp-woc'
 
 
 # ---------------------------------------------------------------------------

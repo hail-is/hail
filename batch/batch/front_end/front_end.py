@@ -100,7 +100,6 @@ from ..billing_reporting import (
     query_billing_breakdown,
     query_billing_history,
     query_billing_projects_with_cost,
-    query_billing_projects_without_cost,
 )
 from ..cloud.azure.resource_utils import azure_cores_mcpu_to_memory_bytes
 from ..cloud.gcp.resource_utils import GCP_MACHINE_FAMILY, gcp_cores_mcpu_to_memory_bytes
@@ -2984,10 +2983,12 @@ async def ui_get_billing_limits(request, userdata):
 
     if not userdata['system_permissions'].get(SystemPermission.READ_ALL_BILLING_PROJECTS, False):
         user = userdata['username']
+        quote_manager_user = user
     else:
         user = None
+        quote_manager_user = None
 
-    billing_projects = await query_billing_projects_with_cost(db, user=user)
+    billing_projects = await query_billing_projects_with_cost(db, user=user, quote_manager_user=quote_manager_user)
 
     open_billing_projects = [bp for bp in billing_projects if bp['status'] == 'open']
     closed_billing_projects = [bp for bp in billing_projects if bp['status'] == 'closed']
@@ -3217,10 +3218,12 @@ async def ui_get_billing_projects(request, userdata):
 
     if not userdata['system_permissions'].get(SystemPermission.READ_ALL_BILLING_PROJECTS, False):
         user = userdata['username']
+        quote_manager_user = user
     else:
         user = None
+        quote_manager_user = None
 
-    billing_projects = await query_billing_projects_without_cost(db, user=user)
+    billing_projects = await query_billing_projects_with_cost(db, user=user, quote_manager_user=quote_manager_user)
     page_context = {
         'billing_projects': [{**p, 'size': len(p['users'])} for p in billing_projects if p['status'] == 'open'],
         'closed_projects': [p for p in billing_projects if p['status'] == 'closed'],
