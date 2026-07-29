@@ -105,9 +105,14 @@ GROUP BY billing_projects.name, billing_projects.`status`, billing_projects.`lim
         merged: Dict[str, List[str]] = {}
         for username in bp['users']:
             merged.setdefault(username, []).append(f'{bp["billing_project"]}:member')
-        for qm in qms_by_quote_id.get(bp['quote_id'], []):
+        qms_for_bp = qms_by_quote_id.get(bp['quote_id'], [])
+        for qm in qms_for_bp:
             merged.setdefault(qm['user'], []).append(f'{qm["quote_name"]}:{qm["role"]}')
         bp['users'] = [{'user': u, 'roles': roles} for u, roles in merged.items()]
+        if quote_manager_user is None:
+            bp['can_view_quote'] = True
+        else:
+            bp['can_view_quote'] = any(qm['user'] == quote_manager_user for qm in qms_for_bp)
 
     return billing_projects
 

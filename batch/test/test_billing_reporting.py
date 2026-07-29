@@ -122,6 +122,26 @@ async def test_query_bp_users_outsider_absent(db):
     assert not any(u['user'] == 'outsider' for u in users)
 
 
+async def test_can_view_quote_global_bm(db):
+    await _make_bp(db, 'q-cvq-gbm', 'bp-cvq-gbm')
+    results = await query_billing_projects_with_cost(db, billing_project='bp-cvq-gbm', quote_manager_user=None)
+    assert results[0]['can_view_quote'] is True
+
+
+async def test_can_view_quote_quote_manager(db):
+    await _make_bp(db, 'q-cvq-qm', 'bp-cvq-qm')
+    await add_quote_manager(db, 'q-cvq-qm', 'piuser', 'manager', actor='admin')
+    results = await query_billing_projects_with_cost(db, billing_project='bp-cvq-qm', quote_manager_user='piuser')
+    assert results[0]['can_view_quote'] is True
+
+
+async def test_can_view_quote_bp_member_only(db):
+    await _make_bp(db, 'q-cvq-bpm', 'bp-cvq-bpm')
+    await add_billing_project_user(db, 'bp-cvq-bpm', 'regular', 'admin')
+    results = await query_billing_projects_with_cost(db, billing_project='bp-cvq-bpm', quote_manager_user='regular')
+    assert results[0]['can_view_quote'] is False
+
+
 async def test_query_billing_projects_without_cost_basic(db):
     await _make_bp(db, 'q-woc', 'bp-woc')
     results = await query_billing_projects_without_cost(db, billing_project='bp-woc')
