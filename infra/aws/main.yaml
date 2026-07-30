@@ -695,4 +695,4 @@ Outputs:
     Value: !GetAtt VdcClusterNodegroupRole.Arn
     Description: "ARN of IAM role associated with cluster nodes"
     Export:
-      Name: VdcNodeRole
+      Name: VdcExternalSecretsRoleArn
