@@ -14,7 +14,6 @@ import is.hail.expr.ir.defs._
 import is.hail.io.BufferSpec
 import is.hail.io.index.IndexType
 import is.hail.types.{tcoerce, TypeWithRequiredness, VirtualTypeWithReq}
-import is.hail.types.physical.PStruct
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.virtual._
 

@@ -7,8 +7,8 @@ import is.hail.backend.ExecuteContext
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
-import is.hail.io.index.IndexWriter.DEFAULT_BRANCHING_FACTOR
 import is.hail.io.index.{IndexType, StagedIndexWriter}
+import is.hail.io.index.IndexWriter.DEFAULT_BRANCHING_FACTOR
 import is.hail.types._
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.{EmitType, SValue}
