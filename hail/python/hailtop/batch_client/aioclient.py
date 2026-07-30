@@ -1430,13 +1430,11 @@ class BatchClient:
         return await bp_resp.json()
 
     async def create_billing_project_v2(
-        self, project, quote_name='INTERNAL', limit=None, low_budget_alert=None, initial_users=None, comment=None
+        self, project, quote_name='INTERNAL', limit=None, initial_users=None, comment=None
     ):
         body = {'quote_name': quote_name}
         if limit is not None:
             body['limit'] = limit
-        if low_budget_alert is not None:
-            body['low_budget_alert'] = low_budget_alert
         if initial_users:
             body['initial_users'] = initial_users
         if comment is not None:
@@ -1538,6 +1536,11 @@ class BatchClient:
     async def close_quote(self, name, comment=None):
         body = {'comment': comment} if comment is not None else {}
         resp = await self._post(f'/api/v1alpha/quotes/{name}/close', json=body)
+        return await resp.json()
+
+    async def reopen_quote(self, name, comment=None):
+        body = {'comment': comment} if comment is not None else {}
+        resp = await self._post(f'/api/v1alpha/quotes/{name}/reopen', json=body)
         return await resp.json()
 
     async def supported_regions(self) -> List[str]:

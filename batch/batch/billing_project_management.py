@@ -112,14 +112,14 @@ async def get_quote(db: Database, name: str) -> Optional[dict]:
         record
         async for record in db.select_and_fetchall(
             """
-SELECT bp.name AS billing_project, bp.`status`, bp.`limit`, bp.low_budget_alert,
+SELECT bp.name AS billing_project, bp.`status`, bp.`limit`,
   COALESCE(SUM(agg.`usage` * resources.rate), 0) AS accrued_cost,
   IF(bp.`limit` IS NULL, NULL, bp.`limit` - COALESCE(SUM(agg.`usage` * resources.rate), 0)) AS remaining
 FROM billing_projects bp
 LEFT JOIN aggregated_billing_project_user_resources_v3 agg ON agg.billing_project = bp.name
 LEFT JOIN resources ON resources.resource_id = agg.resource_id
 WHERE bp.quote_id = %s AND bp.`status` != 'deleted'
-GROUP BY bp.name, bp.`status`, bp.`limit`, bp.low_budget_alert;
+GROUP BY bp.name, bp.`status`, bp.`limit`;
 """,
             (quote_id,),
         )
@@ -378,6 +378,30 @@ async def close_quote(
         await _log_quote_event(tx, row['id'], actor, 'quote_closed', comment=comment)
 
 
+async def reopen_quote(
+    db: Database,
+    name: str,
+    actor: str,
+    comment: Optional[str] = None,
+) -> None:
+    """Reopen a closed quote.
+
+    Raises BatchOperationAlreadyCompletedError if the quote is already open.
+    """
+    async with db.start() as tx:
+        row = await tx.execute_and_fetchone(
+            'SELECT id, state FROM quotes WHERE name_cs = %s FOR UPDATE;',
+            (name,),
+        )
+        if not row:
+            raise BatchUserError(f'Unknown quote {name}.', 'error')
+        if row['state'] == 'open':
+            raise BatchOperationAlreadyCompletedError(f'Quote {name} is already open.', 'info')
+
+        await tx.execute_update("UPDATE quotes SET state = 'open' WHERE id = %s;", (row['id'],))
+        await _log_quote_event(tx, row['id'], actor, 'quote_reopened', comment=comment)
+
+
 async def add_quote_manager(
     db: Database,
     quote_name: str,
@@ -465,7 +489,6 @@ async def create_billing_project(
     name: str,
     quote_id: int,
     limit: Optional[float],
-    low_budget_alert: Optional[float],
     actor: str,
     billing_role: str,
     initial_users: Optional[list] = None,
@@ -517,8 +540,8 @@ WHERE quote_id = %s AND `status` != 'deleted' AND `limit` IS NOT NULL;
             raise BatchOperationAlreadyCompletedError(f'Billing project {row["name_cs"]} already exists.', 'info')
 
         await tx.execute_insertone(
-            'INSERT INTO billing_projects(name, name_cs, quote_id, `limit`, low_budget_alert, description) VALUES (%s, %s, %s, %s, %s, %s);',
-            (name, name, quote_id, limit, low_budget_alert, description),
+            'INSERT INTO billing_projects(name, name_cs, quote_id, `limit`, description) VALUES (%s, %s, %s, %s, %s);',
+            (name, name, quote_id, limit, description),
         )
 
         for user in initial_users:
@@ -527,7 +550,7 @@ WHERE quote_id = %s AND `status` != 'deleted' AND `limit` IS NOT NULL;
                 (name, user, user),
             )
 
-        bp_created_detail = json.dumps({'limit': limit, 'low_budget_alert': low_budget_alert})
+        bp_created_detail = json.dumps({'limit': limit})
         await _log_bp_event(tx, name, actor, 'bp_created', detail=bp_created_detail, comment=comment)
         await _log_quote_event(
             tx, quote_id, actor, 'bp_created', target_project=name, detail=bp_created_detail, comment=comment
@@ -542,16 +565,16 @@ async def patch_billing_project(
     billing_role: str,
     comment: Optional[str] = None,
 ) -> None:
-    """Patch billing project limit and/or low_budget_alert.
+    """Patch billing project limit and/or description.
 
-    updates keys: 'limit' (raw value passed to _parse_billing_limit), 'low_budget_alert' (float|None).
+    updates keys: 'limit' (raw value passed to _parse_billing_limit), 'description' (str|None).
     Raises BatchUserError for authorization or capacity violations.
     """
     async with db.start() as tx:
         row = await tx.execute_and_fetchone(
             """
 SELECT billing_projects.name_cs, billing_projects.`status`, billing_projects.quote_id,
-  billing_projects.`limit`, billing_projects.low_budget_alert,
+  billing_projects.`limit`,
   q.authorized_amount,
   COALESCE((SELECT SUM(other_bp.`limit`) FROM billing_projects other_bp
     WHERE other_bp.quote_id = billing_projects.quote_id
@@ -598,18 +621,6 @@ FOR UPDATE;
                 'bp_limit_changed',
                 target_project=bp_name,
                 detail=limit_detail,
-                comment=comment,
-            )
-
-        if 'low_budget_alert' in updates:
-            new_alert = updates['low_budget_alert']
-            db_updates['low_budget_alert'] = new_alert
-            await _log_bp_event(
-                tx,
-                bp_name,
-                actor,
-                'alert_threshold_changed',
-                detail=json.dumps({'old': row['low_budget_alert'], 'new': new_alert}),
                 comment=comment,
             )
 

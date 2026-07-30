@@ -3381,7 +3381,7 @@ async def post_create_billing_projects(request: web.Request, userdata: UserData)
     try:
         # Legacy UI path: always uses INTERNAL quote (id=1), no limit
         await _handle_ui_error(
-            session, billing_dao.create_billing_project, db, billing_project, 1, None, None, actor, 'global_bm'
+            session, billing_dao.create_billing_project, db, billing_project, 1, None, actor, 'global_bm'
         )
         set_message(session, f'Added billing project {billing_project}.', 'info')  # type: ignore
     finally:
@@ -3401,7 +3401,6 @@ async def api_get_create_billing_projects(request: web.Request, userdata: UserDa
 
     quote_name = body.get('quote_name', 'INTERNAL')
     limit = body.get('limit')
-    low_budget_alert = body.get('low_budget_alert')
     description = body.get('description')
     initial_users: List[str] = body.get('initial_users', [])
     comment = body.get('comment')
@@ -3421,7 +3420,6 @@ async def api_get_create_billing_projects(request: web.Request, userdata: UserDa
         billing_project,
         quote_id,
         limit,
-        low_budget_alert,
         username,
         billing_role,
         initial_users,
@@ -3507,7 +3505,7 @@ async def api_delete_billing_projects(request: web.Request, _: UserData) -> web.
 
 @routes.patch('/api/v1alpha/billing_projects/{billing_project}')
 @auth.authenticated_users_only()
-@billing_permission_required(BillingPermission.EDIT_BP_ALERT)
+@billing_permission_required(BillingPermission.EDIT_BP_METADATA)
 async def api_patch_billing_project(request: web.Request, userdata: UserData) -> web.Response:
     db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
@@ -3522,8 +3520,6 @@ async def api_patch_billing_project(request: web.Request, userdata: UserData) ->
         if BillingPermission.EDIT_BP_LIMIT not in BILLING_ROLE_PERMISSIONS.get(billing_role, set()):
             raise web.HTTPForbidden(reason='Insufficient billing permissions to edit billing project limit.')
         updates['limit'] = body['limit']
-    if 'low_budget_alert' in body:
-        updates['low_budget_alert'] = body.get('low_budget_alert')
     if 'description' in body:
         updates['description'] = body['description']
 
@@ -3693,6 +3689,22 @@ async def close_quote(request: web.Request, userdata: UserData) -> web.Response:
         comment = body.get('comment')
 
     await _handle_api_error(billing_dao.close_quote, db, quote_name, actor, comment)
+    return json_response({'name': quote_name})
+
+
+@routes.post('/api/v1alpha/quotes/{name}/reopen')
+@auth.authenticated_users_only()
+@billing_permission_required(BillingPermission.CLOSE_QUOTE)
+async def reopen_quote(request: web.Request, userdata: UserData) -> web.Response:
+    db: Database = request.app['db']
+    quote_name = request.match_info['name']
+    actor = userdata['username']
+    comment = None
+    if request.content_type == 'application/json':
+        body = await request.json()
+        comment = body.get('comment')
+
+    await _handle_api_error(billing_dao.reopen_quote, db, quote_name, actor, comment)
     return json_response({'name': quote_name})
 
 

@@ -58,6 +58,5 @@ VALUES ('INTERNAL', 'INTERNAL', 'INTERNAL', UNIX_TIMESTAMP() * 1000);
 
 ALTER TABLE `billing_projects`
   ADD COLUMN `quote_id` INT DEFAULT 1,
-  ADD COLUMN `low_budget_alert` DOUBLE DEFAULT NULL,
   ADD COLUMN `description` VARCHAR(1000) DEFAULT NULL,
   ADD CONSTRAINT `fk_billing_projects_quote_id` FOREIGN KEY (`quote_id`) REFERENCES `quotes`(`id`);

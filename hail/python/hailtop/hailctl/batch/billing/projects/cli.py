@@ -27,7 +27,6 @@ def create(
     name: str,
     quote: str = typer.Option('INTERNAL', help='Quote to create the billing project under.'),
     limit: Optional[float] = typer.Option(None, help='Spending limit in dollars.'),
-    alert: Optional[float] = typer.Option(None, '--alert', help='Low-budget alert threshold in dollars.'),
     users: Optional[List[str]] = typer.Option(None, '--user', help='Initial users to add (repeatable).'),
     comment: Optional[str] = typer.Option(None, help='Short comment to record with this event.'),
     output: StructuredFormatOption = StructuredFormat.YAML,
@@ -40,7 +39,6 @@ def create(
             name,
             quote_name=quote,
             limit=limit,
-            low_budget_alert=alert,
             initial_users=[*users] if users else None,
             comment=comment,
         )
@@ -84,21 +82,6 @@ def remove_user(
 
     with BatchClient('') as client:
         result = client.remove_user(user, name, comment=comment)
-        print(make_formatter(output.value)(result))
-
-
-@app.command()
-def set_alert(
-    name: str,
-    threshold: Optional[float] = typer.Argument(None, help='Alert threshold in dollars, or omit to clear.'),
-    comment: Optional[str] = typer.Option(None, help='Short comment to record with this event.'),
-    output: StructuredFormatOption = StructuredFormat.YAML,
-):
-    """Set or clear the low-budget alert threshold for billing project NAME."""
-    from hailtop.batch_client.client import BatchClient  # pylint: disable=import-outside-toplevel
-
-    with BatchClient('') as client:
-        result = client.patch_billing_project(name, low_budget_alert=threshold, comment=comment)
         print(make_formatter(output.value)(result))
 
 

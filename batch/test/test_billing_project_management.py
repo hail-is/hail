@@ -32,6 +32,7 @@ from batch.billing_project_management import (
     remove_billing_project_user,
     remove_quote_manager,
     reopen_billing_project,
+    reopen_quote,
 )
 from batch.exceptions import BatchOperationAlreadyCompletedError, BatchUserError
 
@@ -175,7 +176,7 @@ async def test_get_quote_includes_managers(db):
 async def test_get_quote_includes_billing_projects(db):
     await create_quote(db, 'q-bps', cost_object='CO', actor='admin')
     q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-bps',))
-    await create_billing_project(db, 'bp-under-q', q_row['id'], 100.0, None, 'admin', 'global_bm')
+    await create_billing_project(db, 'bp-under-q', q_row['id'], 100.0, 'admin', 'global_bm')
     q = await get_quote(db, 'q-bps')
     assert q is not None
     bp_names = [bp['billing_project'] for bp in q['billing_projects']]
@@ -230,7 +231,7 @@ async def test_edit_quote_logs_event(db):
 async def test_edit_quote_rejects_amount_below_bp_limits(db):
     await create_quote(db, 'q-cap', cost_object='CO', actor='admin', authorized_amount=500.0)
     q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-cap',))
-    await create_billing_project(db, 'bp-cap', q_row['id'], 400.0, None, 'admin', 'global_bm')
+    await create_billing_project(db, 'bp-cap', q_row['id'], 400.0, 'admin', 'global_bm')
     with pytest.raises(BatchUserError, match='less than sum of BP limits'):
         await edit_quote(db, 'q-cap', {'authorized_amount': 300.0}, actor='admin', billing_role='global_bm')
 
@@ -240,7 +241,7 @@ async def test_edit_quote_rejects_finite_amount_when_unlimited_bp_exists(db):
     # could keep accruing charges beyond the cap.
     await create_quote(db, 'q-ul-bp', cost_object='CO', actor='admin', authorized_amount=None)
     q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-ul-bp',))
-    await create_billing_project(db, 'bp-ul', q_row['id'], None, None, 'admin', 'global_bm')
+    await create_billing_project(db, 'bp-ul', q_row['id'], None, 'admin', 'global_bm')
     with pytest.raises(BatchUserError, match='unlimited billing project'):
         await edit_quote(db, 'q-ul-bp', {'authorized_amount': 1000.0}, actor='admin', billing_role='global_bm')
 
@@ -301,7 +302,7 @@ async def test_close_quote_unknown_raises(db):
 async def test_close_quote_blocked_by_open_bp(db):
     await create_quote(db, 'q-open-bp', cost_object='CO', actor='admin')
     q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-open-bp',))
-    await create_billing_project(db, 'bp-open', q_row['id'], None, None, 'admin', 'global_bm')
+    await create_billing_project(db, 'bp-open', q_row['id'], None, 'admin', 'global_bm')
     with pytest.raises(BatchUserError, match='bp-open'):
         await close_quote(db, 'q-open-bp', actor='admin')
 
@@ -309,7 +310,7 @@ async def test_close_quote_blocked_by_open_bp(db):
 async def test_close_quote_allowed_when_all_bps_closed(db):
     await create_quote(db, 'q-all-closed', cost_object='CO', actor='admin')
     q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-all-closed',))
-    await create_billing_project(db, 'bp-cl', q_row['id'], None, None, 'admin', 'global_bm')
+    await create_billing_project(db, 'bp-cl', q_row['id'], None, 'admin', 'global_bm')
     await close_billing_project(db, 'bp-cl', actor='admin')
     await close_quote(db, 'q-all-closed', actor='admin')
     row = await db.select_and_fetchone('SELECT state FROM quotes WHERE name = %s', ('q-all-closed',))
@@ -319,7 +320,7 @@ async def test_close_quote_allowed_when_all_bps_closed(db):
 async def test_close_quote_allowed_when_bps_deleted(db):
     await create_quote(db, 'q-bp-deleted', cost_object='CO', actor='admin')
     q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-bp-deleted',))
-    await create_billing_project(db, 'bp-del', q_row['id'], None, None, 'admin', 'global_bm')
+    await create_billing_project(db, 'bp-del', q_row['id'], None, 'admin', 'global_bm')
     await close_billing_project(db, 'bp-del', actor='admin')
     await delete_billing_project(db, 'bp-del')
     await close_quote(db, 'q-bp-deleted', actor='admin')
@@ -336,6 +337,52 @@ async def test_get_quote_includes_state(db):
     q2 = await get_quote(db, 'q-state-field')
     assert q2 is not None
     assert q2['state'] == 'closed'
+
+
+# ---------------------------------------------------------------------------
+# reopen_quote
+# ---------------------------------------------------------------------------
+
+
+async def test_reopen_quote_sets_state(db):
+    await create_quote(db, 'q-reopen', cost_object='CO', actor='admin')
+    await close_quote(db, 'q-reopen', actor='admin')
+    await reopen_quote(db, 'q-reopen', actor='admin')
+    row = await db.select_and_fetchone('SELECT state FROM quotes WHERE name = %s', ('q-reopen',))
+    assert row['state'] == 'open'
+
+
+async def test_reopen_quote_logs_event(db):
+    await create_quote(db, 'q-reopen-log', cost_object='CO', actor='admin')
+    await close_quote(db, 'q-reopen-log', actor='admin')
+    await reopen_quote(db, 'q-reopen-log', actor='admin', comment='mistake')
+    events = await get_quote_events(db, 'q-reopen-log')
+    assert events is not None
+    assert any(e['action'] == 'quote_reopened' for e in events)
+    reopen_event = next(e for e in events if e['action'] == 'quote_reopened')
+    assert reopen_event['comment'] == 'mistake'
+
+
+async def test_reopen_quote_already_open_raises(db):
+    await create_quote(db, 'q-reopen-dup', cost_object='CO', actor='admin')
+    with pytest.raises(BatchOperationAlreadyCompletedError):
+        await reopen_quote(db, 'q-reopen-dup', actor='admin')
+
+
+async def test_reopen_quote_unknown_raises(db):
+    with pytest.raises(BatchUserError):
+        await reopen_quote(db, 'no-such-quote', actor='admin')
+
+
+async def test_reopen_quote_allows_new_bps(db):
+    await create_quote(db, 'q-reopen-bp', cost_object='CO', actor='admin')
+    await close_quote(db, 'q-reopen-bp', actor='admin')
+    await reopen_quote(db, 'q-reopen-bp', actor='admin')
+    # Should be able to create a BP again after reopening
+    q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-reopen-bp',))
+    await create_billing_project(db, 'bp-after-reopen', q_row['id'], None, 'admin', 'global_bm')
+    row = await db.select_and_fetchone('SELECT status FROM billing_projects WHERE name = %s', ('bp-after-reopen',))
+    assert row['status'] == 'open'
 
 
 # ---------------------------------------------------------------------------
@@ -456,7 +503,7 @@ async def test_get_billing_role_for_quote_global_bm_bypasses_db(db):
 async def test_get_billing_role_for_bp_member(db):
     await create_quote(db, 'q-bp-role', cost_object='CO', actor='admin')
     q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-bp-role',))
-    await create_billing_project(db, 'bp-role-test', q_row['id'], 50.0, None, 'admin', 'global_bm')
+    await create_billing_project(db, 'bp-role-test', q_row['id'], 50.0, 'admin', 'global_bm')
     async with db.start() as tx:
         await tx.execute_insertone(
             'INSERT INTO billing_project_users(billing_project, user, user_cs) VALUES (%s, %s, %s)',
@@ -469,7 +516,7 @@ async def test_get_billing_role_for_bp_member(db):
 async def test_get_billing_role_for_bp_via_quote_manager(db):
     await create_quote(db, 'q-bp-qm', cost_object='CO', actor='admin')
     q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-bp-qm',))
-    await create_billing_project(db, 'bp-via-qm', q_row['id'], 50.0, None, 'admin', 'global_bm')
+    await create_billing_project(db, 'bp-via-qm', q_row['id'], 50.0, 'admin', 'global_bm')
     await add_quote_manager(db, 'q-bp-qm', 'jack', 'owner', actor='admin')
     role = await get_billing_role_for_bp(db, 'jack', False, 'bp-via-qm')
     assert role == 'quote_owner'
@@ -478,7 +525,7 @@ async def test_get_billing_role_for_bp_via_quote_manager(db):
 async def test_get_billing_role_for_bp_non_member(db):
     await create_quote(db, 'q-bp-nm', cost_object='CO', actor='admin')
     q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-bp-nm',))
-    await create_billing_project(db, 'bp-non-member', q_row['id'], 50.0, None, 'admin', 'global_bm')
+    await create_billing_project(db, 'bp-non-member', q_row['id'], 50.0, 'admin', 'global_bm')
     role = await get_billing_role_for_bp(db, 'outsider', False, 'bp-non-member')
     assert role is None
 
@@ -499,7 +546,7 @@ async def test_get_billing_role_for_quote_id(db):
 async def test_create_billing_project_appears_in_quote(db):
     await create_quote(db, 'q-create-bp', cost_object='CO', actor='admin', authorized_amount=500.0)
     q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-create-bp',))
-    await create_billing_project(db, 'bp-new', q_row['id'], 100.0, None, 'admin', 'global_bm')
+    await create_billing_project(db, 'bp-new', q_row['id'], 100.0, 'admin', 'global_bm')
     q = await get_quote(db, 'q-create-bp')
     assert q is not None
     bp_names = [bp['billing_project'] for bp in q['billing_projects']]
@@ -509,35 +556,35 @@ async def test_create_billing_project_appears_in_quote(db):
 async def test_create_billing_project_limit_exceeds_quote_raises(db):
     await create_quote(db, 'q-exceed', cost_object='CO', actor='admin', authorized_amount=200.0)
     q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-exceed',))
-    await create_billing_project(db, 'bp-exceed-1', q_row['id'], 150.0, None, 'admin', 'global_bm')
+    await create_billing_project(db, 'bp-exceed-1', q_row['id'], 150.0, 'admin', 'global_bm')
     with pytest.raises(BatchUserError, match='exceed quote authorized amount'):
-        await create_billing_project(db, 'bp-exceed-2', q_row['id'], 100.0, None, 'admin', 'global_bm')
+        await create_billing_project(db, 'bp-exceed-2', q_row['id'], 100.0, 'admin', 'global_bm')
 
 
 async def test_create_billing_project_unlimited_rejected_under_limited_quote(db):
     await create_quote(db, 'q-ul-reject', cost_object='CO', actor='admin', authorized_amount=1000.0)
     q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-ul-reject',))
     with pytest.raises(BatchUserError, match='only be created under unlimited quotes'):
-        await create_billing_project(db, 'bp-ul-reject', q_row['id'], None, None, 'admin', 'global_bm')
+        await create_billing_project(db, 'bp-ul-reject', q_row['id'], None, 'admin', 'global_bm')
 
 
 async def test_create_billing_project_duplicate_raises(db):
     await create_quote(db, 'q-dup-bp', cost_object='CO', actor='admin')
     q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-dup-bp',))
-    await create_billing_project(db, 'bp-dup', q_row['id'], None, None, 'admin', 'global_bm')
+    await create_billing_project(db, 'bp-dup', q_row['id'], None, 'admin', 'global_bm')
     with pytest.raises(BatchOperationAlreadyCompletedError):
-        await create_billing_project(db, 'bp-dup', q_row['id'], None, None, 'admin', 'global_bm')
+        await create_billing_project(db, 'bp-dup', q_row['id'], None, 'admin', 'global_bm')
 
 
 async def test_create_billing_project_logs_event(db):
     await create_quote(db, 'q-log-bp', cost_object='CO', actor='admin')
     q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-log-bp',))
-    await create_billing_project(db, 'bp-log', q_row['id'], 50.0, 25.0, 'admin', 'global_bm', comment='init')
+    await create_billing_project(db, 'bp-log', q_row['id'], 50.0, 'admin', 'global_bm', comment='init')
     bp_events = await get_billing_project_events(db, 'bp-log')
     assert 'bp_created' in {e['action'] for e in bp_events}
     created_event = next(e for e in bp_events if e['action'] == 'bp_created')
     detail = json.loads(created_event['detail'])
-    assert detail == {'limit': 50.0, 'low_budget_alert': 25.0}
+    assert detail == {'limit': 50.0}
     quote_events = await get_quote_events(db, 'q-log-bp')
     assert quote_events is not None
     assert any(e['action'] == 'bp_created' and e['target_project'] == 'bp-log' for e in quote_events)
@@ -546,7 +593,7 @@ async def test_create_billing_project_logs_event(db):
 async def test_create_billing_project_persists_description(db):
     await create_quote(db, 'q-bp-desc', cost_object='CO', actor='admin')
     q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-bp-desc',))
-    await create_billing_project(db, 'bp-desc', q_row['id'], None, None, 'admin', 'global_bm', description='A test BP')
+    await create_billing_project(db, 'bp-desc', q_row['id'], None, 'admin', 'global_bm', description='A test BP')
     row = await db.select_and_fetchone('SELECT description FROM billing_projects WHERE name = %s', ('bp-desc',))
     assert row['description'] == 'A test BP'
 
@@ -560,13 +607,12 @@ async def test_create_billing_project_persists_description(db):
     'updates,col,expected',
     [
         pytest.param({'limit': 200.0}, 'limit', 200.0, id='limit'),
-        pytest.param({'low_budget_alert': 50.0}, 'low_budget_alert', 50.0, id='alert'),
     ],
 )
 async def test_patch_billing_project_field(db, updates, col, expected):
     await create_quote(db, 'q-patch', cost_object='CO', actor='admin', authorized_amount=500.0)
     q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-patch',))
-    await create_billing_project(db, 'bp-patch', q_row['id'], 100.0, None, 'admin', 'global_bm')
+    await create_billing_project(db, 'bp-patch', q_row['id'], 100.0, 'admin', 'global_bm')
     await patch_billing_project(db, 'bp-patch', updates, actor='admin', billing_role='global_bm')
     row = await db.select_and_fetchone(f'SELECT `{col}` FROM billing_projects WHERE name = %s', ('bp-patch',))
     assert row[col] == expected
@@ -575,8 +621,8 @@ async def test_patch_billing_project_field(db, updates, col, expected):
 async def test_patch_billing_project_limit_exceeds_quote_raises(db):
     await create_quote(db, 'q-patch-cap', cost_object='CO', actor='admin', authorized_amount=300.0)
     q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-patch-cap',))
-    await create_billing_project(db, 'bp-patch-1', q_row['id'], 200.0, None, 'admin', 'global_bm')
-    await create_billing_project(db, 'bp-patch-2', q_row['id'], 50.0, None, 'admin', 'global_bm')
+    await create_billing_project(db, 'bp-patch-1', q_row['id'], 200.0, 'admin', 'global_bm')
+    await create_billing_project(db, 'bp-patch-2', q_row['id'], 50.0, 'admin', 'global_bm')
     with pytest.raises(BatchUserError, match='would exceed quote authorized amount'):
         await patch_billing_project(db, 'bp-patch-2', {'limit': 200.0}, actor='admin', billing_role='global_bm')
 
@@ -584,7 +630,7 @@ async def test_patch_billing_project_limit_exceeds_quote_raises(db):
 async def test_patch_billing_project_unlimited_requires_global_bm(db):
     await create_quote(db, 'q-patch-ul', cost_object='CO', actor='admin', authorized_amount=500.0)
     q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-patch-ul',))
-    await create_billing_project(db, 'bp-patch-ul', q_row['id'], 100.0, None, 'admin', 'global_bm')
+    await create_billing_project(db, 'bp-patch-ul', q_row['id'], 100.0, 'admin', 'global_bm')
     with pytest.raises(BatchUserError, match='Only global billing managers'):
         await patch_billing_project(db, 'bp-patch-ul', {'limit': None}, actor='admin', billing_role='quote_owner')
 
@@ -592,7 +638,7 @@ async def test_patch_billing_project_unlimited_requires_global_bm(db):
 async def test_patch_billing_project_unlimited_rejected_under_limited_quote(db):
     await create_quote(db, 'q-patch-ul-lim', cost_object='CO', actor='admin', authorized_amount=500.0)
     q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-patch-ul-lim',))
-    await create_billing_project(db, 'bp-patch-ul-lim', q_row['id'], 100.0, None, 'admin', 'global_bm')
+    await create_billing_project(db, 'bp-patch-ul-lim', q_row['id'], 100.0, 'admin', 'global_bm')
     with pytest.raises(BatchUserError, match='only exist under unlimited quotes'):
         await patch_billing_project(db, 'bp-patch-ul-lim', {'limit': None}, actor='admin', billing_role='global_bm')
 
@@ -600,7 +646,7 @@ async def test_patch_billing_project_unlimited_rejected_under_limited_quote(db):
 async def test_patch_billing_project_logs_limit_event_on_both_quote_and_bp(db):
     await create_quote(db, 'q-patch-log', cost_object='CO', actor='admin', authorized_amount=500.0)
     q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-patch-log',))
-    await create_billing_project(db, 'bp-patch-log', q_row['id'], 100.0, None, 'admin', 'global_bm')
+    await create_billing_project(db, 'bp-patch-log', q_row['id'], 100.0, 'admin', 'global_bm')
     await patch_billing_project(db, 'bp-patch-log', {'limit': 200.0}, actor='admin', billing_role='global_bm')
 
     bp_events = await get_billing_project_events(db, 'bp-patch-log')
@@ -618,7 +664,7 @@ async def test_patch_billing_project_logs_limit_event_on_both_quote_and_bp(db):
 async def test_patch_billing_project_description(db):
     await create_quote(db, 'q-patch-desc', cost_object='CO', actor='admin', authorized_amount=500.0)
     q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-patch-desc',))
-    await create_billing_project(db, 'bp-patch-desc', q_row['id'], 100.0, None, 'admin', 'global_bm')
+    await create_billing_project(db, 'bp-patch-desc', q_row['id'], 100.0, 'admin', 'global_bm')
     await patch_billing_project(
         db, 'bp-patch-desc', {'description': 'updated'}, actor='admin', billing_role='global_bm'
     )
@@ -636,7 +682,7 @@ async def test_change_bp_quote_updates_quote_id(db):
     await create_quote(db, 'q-dest', cost_object='CO2', actor='admin', authorized_amount=500.0)
     q_src = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-src',))
     q_dest = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-dest',))
-    await create_billing_project(db, 'bp-move', q_src['id'], 100.0, None, 'admin', 'global_bm')
+    await create_billing_project(db, 'bp-move', q_src['id'], 100.0, 'admin', 'global_bm')
     await change_billing_project_quote(db, 'bp-move', q_dest['id'], actor='admin')
     row = await db.select_and_fetchone('SELECT quote_id FROM billing_projects WHERE name = %s', ('bp-move',))
     assert row['quote_id'] == q_dest['id']
@@ -652,7 +698,7 @@ async def test_change_bp_quote_nonexistent_bp_raises(db):
 async def test_change_bp_quote_nonexistent_dest_quote_raises(db):
     await create_quote(db, 'q-change-bad-dest', cost_object='CO', actor='admin', authorized_amount=500.0)
     q = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-change-bad-dest',))
-    await create_billing_project(db, 'bp-bad-dest-quote', q['id'], 100.0, None, 'admin', 'global_bm')
+    await create_billing_project(db, 'bp-bad-dest-quote', q['id'], 100.0, 'admin', 'global_bm')
     with pytest.raises(BatchUserError, match='Unknown quote'):
         await change_billing_project_quote(db, 'bp-bad-dest-quote', 999999, actor='admin')
 
@@ -662,8 +708,8 @@ async def test_change_bp_quote_exceeds_dest_limit_raises(db):
     await create_quote(db, 'q-move-dest', cost_object='CO2', actor='admin', authorized_amount=200.0)
     q_src = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-move-src',))
     q_dest = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-move-dest',))
-    await create_billing_project(db, 'bp-already', q_dest['id'], 150.0, None, 'admin', 'global_bm')
-    await create_billing_project(db, 'bp-toobig', q_src['id'], 100.0, None, 'admin', 'global_bm')
+    await create_billing_project(db, 'bp-already', q_dest['id'], 150.0, 'admin', 'global_bm')
+    await create_billing_project(db, 'bp-toobig', q_src['id'], 100.0, 'admin', 'global_bm')
     with pytest.raises(BatchUserError, match='exceed destination quote authorized amount'):
         await change_billing_project_quote(db, 'bp-toobig', q_dest['id'], actor='admin')
 
@@ -673,7 +719,7 @@ async def test_change_bp_quote_unlimited_bp_rejected_into_limited_quote(db):
     await create_quote(db, 'q-ul-dest', cost_object='CO2', actor='admin', authorized_amount=500.0)
     q_src = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-ul-src',))
     q_dest = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-ul-dest',))
-    await create_billing_project(db, 'bp-ul-move', q_src['id'], None, None, 'admin', 'global_bm')
+    await create_billing_project(db, 'bp-ul-move', q_src['id'], None, 'admin', 'global_bm')
     with pytest.raises(BatchUserError, match='finite funding'):
         await change_billing_project_quote(db, 'bp-ul-move', q_dest['id'], actor='admin')
 
@@ -683,7 +729,7 @@ async def test_change_bp_quote_logs_events_on_src_dest_and_bp(db):
     await create_quote(db, 'q-log-dest', cost_object='CO2', actor='admin', authorized_amount=500.0)
     q_src = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-log-src',))
     q_dest = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-log-dest',))
-    await create_billing_project(db, 'bp-log-move', q_src['id'], 100.0, None, 'admin', 'global_bm')
+    await create_billing_project(db, 'bp-log-move', q_src['id'], 100.0, 'admin', 'global_bm')
     await change_billing_project_quote(db, 'bp-log-move', q_dest['id'], actor='admin')
 
     src_events = await get_quote_events(db, 'q-log-src')
@@ -708,7 +754,7 @@ async def test_change_bp_quote_logs_events_on_src_dest_and_bp(db):
 async def test_get_billing_project_events_returns_events(db):
     await create_quote(db, 'q-bpe', cost_object='CO', actor='admin')
     q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', ('q-bpe',))
-    await create_billing_project(db, 'bp-bpe', q_row['id'], None, None, 'admin', 'global_bm', comment='init')
+    await create_billing_project(db, 'bp-bpe', q_row['id'], None, 'admin', 'global_bm', comment='init')
     events = await get_billing_project_events(db, 'bp-bpe')
     assert len(events) >= 1
     assert any(e['action'] == 'bp_created' for e in events)
@@ -758,7 +804,7 @@ async def _make_bp(db, quote_name, bp_name, limit=None):
     """Helper: create a quote + billing project, return quote_id."""
     await create_quote(db, quote_name, cost_object='CO', actor='admin')
     q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', (quote_name,))
-    await create_billing_project(db, bp_name, q_row['id'], limit, None, 'admin', 'global_bm')
+    await create_billing_project(db, bp_name, q_row['id'], limit, 'admin', 'global_bm')
     return q_row['id']
 
 

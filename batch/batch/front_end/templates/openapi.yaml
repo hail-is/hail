@@ -1493,6 +1493,89 @@ paths:
           description: Forbidden - insufficient billing permissions
         '404':
           description: Quote not found
+  '/api/v1alpha/quotes/{name}/close':
+    post:
+      summary: Close a quote
+      description: >
+        Close a quote. All billing projects under the quote must be closed or
+        moved to another quote first. Requires CLOSE_QUOTE billing permission
+        (global_bm or quote_owner).
+      tags: [Billing]
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Quote name (case-sensitive)
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                comment:
+                  type: string
+                  nullable: true
+      responses:
+        '200':
+          description: Quote closed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name:
+                    type: string
+        '400':
+          description: Bad request (e.g. open billing projects still exist under the quote)
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - insufficient billing permissions
+        '404':
+          description: Quote not found
+  '/api/v1alpha/quotes/{name}/reopen':
+    post:
+      summary: Reopen a closed quote
+      description: >
+        Reopen a quote that was previously closed. Requires CLOSE_QUOTE billing
+        permission (global_bm or quote_owner).
+      tags: [Billing]
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Quote name (case-sensitive)
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                comment:
+                  type: string
+                  nullable: true
+      responses:
+        '200':
+          description: Quote reopened
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name:
+                    type: string
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - insufficient billing permissions
+        '404':
+          description: Quote not found
   '/api/v1alpha/billing_limits/{billing_project}/edit':
     post:
       summary: Edit billing limits
@@ -2939,9 +3022,6 @@ components:
               status:
                 type: string
               limit:
-                type: number
-                nullable: true
-              low_budget_alert:
                 type: number
                 nullable: true
               accrued_cost:

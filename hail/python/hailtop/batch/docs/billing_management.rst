@@ -137,6 +137,11 @@ user list.
      - Yes
      - Yes
      - No
+   * - Edit billing project description
+     - Yes
+     - Yes
+     - Yes
+     - Yes
    * - Add billing project users
      - Yes
      - Yes
@@ -157,7 +162,7 @@ user list.
      - Yes†
      - Yes†
      - No
-   * - Close a quote
+   * - Close / reopen a quote
      - Yes
      - Yes
      - No

@@ -17,7 +17,7 @@ class BillingPermission(str, Enum):
     VIEW_BP = 'view_bp'
     CREATE_BP = 'create_bp'
     EDIT_BP_LIMIT = 'edit_bp_limit'
-    EDIT_BP_ALERT = 'edit_bp_alert'
+    EDIT_BP_METADATA = 'edit_bp_metadata'
     MANAGE_BP_MEMBERS = 'manage_bp_members'
     CLOSE_REOPEN_BP = 'close_reopen_bp'
     CHANGE_BP_QUOTE = 'change_bp_quote'
@@ -36,7 +36,7 @@ BILLING_ROLE_PERMISSIONS: dict[str, set[BillingPermission]] = {
         BillingPermission.VIEW_BP,
         BillingPermission.CREATE_BP,
         BillingPermission.EDIT_BP_LIMIT,
-        BillingPermission.EDIT_BP_ALERT,
+        BillingPermission.EDIT_BP_METADATA,
         BillingPermission.MANAGE_BP_MEMBERS,
         BillingPermission.CLOSE_REOPEN_BP,
         BillingPermission.CHANGE_BP_QUOTE,
@@ -48,7 +48,7 @@ BILLING_ROLE_PERMISSIONS: dict[str, set[BillingPermission]] = {
         BillingPermission.VIEW_BP,
         BillingPermission.CREATE_BP,
         BillingPermission.EDIT_BP_LIMIT,
-        BillingPermission.EDIT_BP_ALERT,
+        BillingPermission.EDIT_BP_METADATA,
         BillingPermission.MANAGE_BP_MEMBERS,
         BillingPermission.CLOSE_REOPEN_BP,
         BillingPermission.CHANGE_BP_QUOTE,
@@ -56,7 +56,7 @@ BILLING_ROLE_PERMISSIONS: dict[str, set[BillingPermission]] = {
     },
     'bp_member': {
         BillingPermission.VIEW_BP,
-        BillingPermission.EDIT_BP_ALERT,
+        BillingPermission.EDIT_BP_METADATA,
         BillingPermission.MANAGE_BP_MEMBERS,
         BillingPermission.VIEW_EVENTS,
     },

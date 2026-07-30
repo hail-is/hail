@@ -45,7 +45,7 @@ async def clean_tables(db):
 async def _make_bp(db, quote_name, bp_name, limit=None):
     await create_quote(db, quote_name, cost_object='CO', actor='admin')
     q_row = await db.select_and_fetchone('SELECT id FROM quotes WHERE name = %s', (quote_name,))
-    await create_billing_project(db, bp_name, q_row['id'], limit, None, 'admin', 'global_bm')
+    await create_billing_project(db, bp_name, q_row['id'], limit, 'admin', 'global_bm')
     return q_row['id']
 
 

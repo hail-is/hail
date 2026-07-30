@@ -135,3 +135,17 @@ def close(
     with BatchClient('') as client:
         result = client.close_quote(name, comment=comment)
         print(make_formatter(output.value)(result))
+
+
+@app.command()
+def reopen(
+    name: str,
+    comment: Optional[str] = typer.Option(None, help='Short comment to record with this event.'),
+    output: StructuredFormatOption = StructuredFormat.YAML,
+):
+    """Reopen a closed quote NAME."""
+    from hailtop.batch_client.client import BatchClient  # pylint: disable=import-outside-toplevel
+
+    with BatchClient('') as client:
+        result = client.reopen_quote(name, comment=comment)
+        print(make_formatter(output.value)(result))
