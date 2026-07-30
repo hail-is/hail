@@ -485,14 +485,6 @@ Resources:
         Namespace: "kube-system"
       ClusterName: !Ref VdcCluster
       AddonName: "metrics-server"
-  VdcClusterAddonSecretsStoreCsiProvider:
-    Type: "AWS::EKS::Addon"
-    Properties:
-      NamespaceConfig:
-        Namespace: "aws-secrets-manager"
-      ServiceAccountRoleArn: !GetAtt VdcClusterCsiDriverRole.Arn
-      ClusterName: !Ref VdcCluster
-      AddonName: "aws-secrets-store-csi-driver-provider"
 
   VdcClusterCsiDriverRole:
     Type: "AWS::IAM::Role"
@@ -556,6 +548,58 @@ Resources:
             }
           }
         - OidcPrefix: !Select [1, !Split ["//", !GetAtt VdcCluster.OpenIdConnectIssuerUrl]]
+  VdcExternalSecretsRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      Path: "/"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/SecretsManagerReadWrite"
+      MaxSessionDuration: 3600
+      RoleName: !Sub "${AWS::StackName}-external-secrets-role"
+      AssumeRolePolicyDocument: !Sub
+        - |
+          {
+            "Version": "2012-10-17",
+            "Statement": {
+              "Condition": {
+                "StringEquals": {
+                  "${OidcPrefix}:aud": "sts.amazonaws.com",
+                  "${OidcPrefix}:sub": "system:serviceaccount:external-secrets:external-secrets"
+                }
+              },
+              "Action": "sts:AssumeRoleWithWebIdentity",
+              "Effect": "Allow",
+              "Principal": {
+                "Federated": "arn:aws:iam::${AWS::AccountId}:oidc-provider/${OidcPrefix}"
+              }
+            }
+          }
+        - OidcPrefix: !Select [1, !Split ["//", !GetAtt VdcCluster.OpenIdConnectIssuerUrl]]
+  VdcLoadBalancerControllerRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      Path: "/"
+      MaxSessionDuration: 3600
+      RoleName: !Sub "${AWS::StackName}-load-balancer-controller-role"
+      AssumeRolePolicyDocument: !Sub
+        - |
+          {
+            "Version": "2012-10-17",
+            "Statement": {
+              "Condition": {
+                "StringEquals": {
+                  "${OidcPrefix}:aud": "sts.amazonaws.com",
+                  "${OidcPrefix}:sub": "system:serviceaccount:kube-system:aws-load-balancer-controller"
+                }
+              },
+              "Action": "sts:AssumeRoleWithWebIdentity",
+              "Effect": "Allow",
+              "Principal": {
+                "Federated": "arn:aws:iam::${AWS::AccountId}:oidc-provider/${OidcPrefix}"
+              }
+            }
+          }
+        - OidcPrefix: !Select [1, !Split ["//", !GetAtt VdcCluster.OpenIdConnectIssuerUrl]]
 
 Outputs:
   VdcClusterName:
@@ -573,8 +617,13 @@ Outputs:
     Description: "Subnet belonging to cluster VPC"
     Export:
       Name: VdcSubnet
-  VdcNodeRole:
-    Value: !GetAtt VdcClusterNodegroupRole.Arn
-    Description: "ARN of IAM role associated with cluster nodes"
+  VdcExternalSecretsRoleArn:
+    Value: !GetAtt VdcExternalSecretsRole.Arn
+    Description: "ARN of the role used by the external-secrets addon for EKS"
     Export:
-      Name: VdcNodeRole
+      Name: VdcExternalSecretsRoleArn
+  VdcLoadBalancerControllerRoleArn:
+    Value: !GetAtt VdcLoadBalancerControllerRole.Arn
+    Description: "ARN of the role used by the AWS Load Balancer Controller for EKS"
+    Export:
+      Name: VdcLoadBalancerControllerRoleArn
