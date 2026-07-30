@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.collection.FastSeq
 import is.hail.expr.ir.agg._
 import is.hail.io.TypedCodecSpec
+import is.hail.io.index.IndexType
 import is.hail.types.physical.PStruct
 import is.hail.types.virtual._
 
@@ -30,13 +31,9 @@ final case class ImputeType() extends AggOp
 final case class NDArraySum() extends AggOp
 final case class NDArrayMultiplyAdd() extends AggOp
 final case class Fold() extends AggOp
-final case class WriteRows(codec: TypedCodecSpec, indexKey: Option[PStruct]) extends AggOp
 
-final case class WriteSplitRows(
-  rowsCodec: TypedCodecSpec,
-  entriesCodec: TypedCodecSpec,
-  indexKey: PStruct,
-) extends AggOp
+final case class WriteRows(codecs: IndexedSeq[TypedCodecSpec], indexType: Option[IndexType])
+    extends AggOp
 
 // exists === map(p).sum, needs short-circuiting aggs
 // forall === map(p).product, needs short-circuiting aggs
@@ -64,7 +61,7 @@ object AggOp {
     case (Downsample(), Seq(_, _, _)) => DownsampleAggregator.resultType
     case (NDArraySum(), Seq(t)) => t
     case (NDArrayMultiplyAdd(), Seq(a: TNDArray, _)) => a
-    case (WriteRows(_, _), _) | (WriteSplitRows(_, _, _), _) => TString
+    case (WriteRows(_, _), _) => TString
     case _ => throw new UnsupportedExtraction(this.toString)
   }
 

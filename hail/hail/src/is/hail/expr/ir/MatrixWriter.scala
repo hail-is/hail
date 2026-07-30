@@ -179,13 +179,17 @@ object MatrixNativeWriter {
             val rowPartsRoot = Str(s"$path/rows/rows/parts/")
             val entryPartsRoot = Str(s"$path/entries/rows/parts/")
             val indexRoot = Str(s"$path/index/")
-            val initOpArgs: Seq[IR] = Seq(partFile, rowPartsRoot, entryPartsRoot, indexRoot)
+            val iAnnotationType = PCanonicalStruct(required = true, "entries_offset" -> PInt64())
+            val indexType = is.hail.io.index.IndexType(pKey, iAnnotationType)
             val args =
               (
                 "partpath",
                 ApplyAggOp(
-                  WriteSplitRows(rowSpec, entrySpec, pKey),
-                  initOpArgs: _*
+                  WriteRows(FastSeq(rowSpec, entrySpec), Some(indexType)),
+                  partFile,
+                  indexRoot,
+                  rowPartsRoot,
+                  entryPartsRoot,
                 )(row.drop(entriesFieldName), row.select(entriesFieldName)),
               ) +: NativeWriter.metaInfoAggs(row, pKey.virtualType)
             makestruct(args: _*)
