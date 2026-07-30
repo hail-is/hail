@@ -24,4 +24,48 @@ export INSTANCE_NAME=<name for this instance of Hail>
 aws cloudformation create-stack --stack-name hail-vdc --template-body file://main.yaml --role-arn $STACK_ROLE_ARN --parameters file://${INSTANCE_NAME}/parameters.json --capabilities CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND --disable-rollback
 ```
 
-The stack will take 15 to 20 minutes to finish creating.
+The stack will take 15 to 20 minutes to finish creating. Once it's complete, create the instance the bootstrap scripts will be run from:
+
+```
+aws cloudformation create-stack --stack-name bootstrap --template-body file://bootstrap-vm.yaml --role-arn $STACK_ROLE_ARN --parameters "ParameterKey=CloudFormationRoleName,ParameterValue=$STACK_ROLE_NAME" --capabilities CAPABILITY_NAMED_IAM --disable-rollback
+```
+
+When the stack reaches `CREATE_COMPLETE`, the bootstrap instance is ready. Connect to the instance using EC2 Instance Connect:
+```
+BOOTSTRAP_INSTANCE_ID=$(aws cloudformation describe-stack-resources --stack-name bootstrap --logical-resource-id BootstrapInstance --query "StackResources[0].PhysicalResourceId" --output text)
+aws ec2-instance-connect ssh --os-user root --instance-id $BOOTSTRAP_INSTANCE_ID
+```
+
+On the bootstrap instance, set up environment variables:
+```
+export HAIL=/hail
+export NAMESPACE=default
+export GITHUB_ORGANIZATION=<your GitHub organization, e.g. "hail-is">
+```
+
+Edit `$HAIL/letsencrypt/subdomains.txt` to include just the services you plan to use in this deployment, e.g. `auth`, `batch` and `batch-driver`.
+
+Deploy unmanaged resources by running
+```
+./bootstrap.sh deploy_unmanaged
+```
+
+TODO: Create the batch worker VM image. Run:
+```
+NAMESPACE=default $HAIL/batch/aws-create-worker-image.sh
+```
+
+Download the global-config to be used by `bootstrap.py`.
+```
+sudo mkdir /global-config
+source $HAIL/devbin/functions.sh
+download-secret global-config
+sudo cp contents/* /global-config/
+cd -
+sudo chmod +r /global-config/*
+```
+
+Bootstrap the cluster.
+```
+./bootstrap.sh bootstrap $GITHUB_ORGANIZATION/hail:<BRANCH> deploy_batch
+```
