@@ -144,6 +144,8 @@ class AuthServiceAuthenticator(Authenticator):
             return await impersonate_user_and_get_info(session_id=session_id, client_session=client_session)
         except asyncio.CancelledError:
             raise
+        except web.HTTPException:
+            raise
         except aiohttp.ClientResponseError as e:
             log.exception('unknown exception getting userinfo')
             raise web.HTTPInternalServerError() from e
