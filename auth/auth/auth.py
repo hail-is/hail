@@ -944,32 +944,42 @@ async def rest_logout(request: web.Request, _) -> web.Response:
     return web.Response(status=200)
 
 
-async def check_inactive_user_from_login_id_or_hail_identity_id(db: Database, login_id_or_hail_identity_uid: str) -> Optional[UserData]:
-    users = [x async for x in db.select_and_fetchall(
-        "SELECT * FROM users WHERE (login_id = %s OR hail_identity_uid = %s) AND state = 'inactive';",
-        (login_id_or_hail_identity_uid, login_id_or_hail_identity_uid),
-    )]
+async def check_inactive_user_from_login_id_or_hail_identity_id(
+    db: Database, login_id_or_hail_identity_uid: str
+) -> Optional[UserData]:
+    users = [
+        x
+        async for x in db.select_and_fetchall(
+            "SELECT * FROM users WHERE (login_id = %s OR hail_identity_uid = %s) AND state = 'inactive';",
+            (login_id_or_hail_identity_uid, login_id_or_hail_identity_uid),
+        )
+    ]
     if len(users) != 1:
-        log.info('Unknown login id')
         return None
-    return None
+    userdata = dict(users[0])
+    userdata['system_permissions'] = {}
+    return typing.cast(UserData, userdata)
 
 
 async def check_inactive_user_from_hail_session_id(db: Database, session_id: str) -> Optional[UserData]:
-    users = [x async for x in db.select_and_fetchall(
-        """
+    users = [
+        x
+        async for x in db.select_and_fetchall(
+            """
 SELECT users.*
 FROM users
 INNER JOIN sessions ON users.id = sessions.user_id
 WHERE users.state = 'inactive' AND sessions.session_id = %s
   AND (ISNULL(sessions.max_age_secs) OR (NOW() < TIMESTAMPADD(SECOND, sessions.max_age_secs, sessions.created)));
 """,
-        session_id,
-    )]
+            session_id,
+        )
+    ]
     if len(users) != 1:
-        log.info('Unknown Hail session')
         return None
-    return None
+    userdata = dict(users[0])
+    userdata['system_permissions'] = {}
+    return typing.cast(UserData, userdata)
 
 
 async def get_userinfo(request: web.Request, auth_token: str) -> UserData:
@@ -1009,9 +1019,13 @@ async def get_userinfo_from_login_id_or_hail_identity_id(
     db = request.app[AppKeys.DB]
 
     inactive_user = await check_inactive_user_from_login_id_or_hail_identity_id(db, login_id_or_hail_identity_uid)
-    if inactive_user:
-        log.info(f'Inactive user {inactive_user["username"]} found for login id or Hail identity id {login_id_or_hail_identity_uid}.')
-        raise web.HTTPUnauthorized(text='Your Hail account is inactive. Please contact a Hail administrator to reactivate.')
+    if inactive_user is not None:
+        log.info(
+            f'Inactive user {inactive_user["username"]} found for login id or Hail identity id {login_id_or_hail_identity_uid}.'
+        )
+        raise web.HTTPUnauthorized(
+            text='Your Hail account is inactive. Please contact a Hail administrator to reactivate.'
+        )
 
     users = [
         x
@@ -1061,9 +1075,11 @@ async def get_userinfo_from_hail_session_id(request: web.Request, session_id: st
 
     db = request.app[AppKeys.DB]
     inactive_user = await check_inactive_user_from_hail_session_id(db, session_id)
-    if inactive_user:
+    if inactive_user is not None:
         log.info(f'Inactive user {inactive_user["username"]} found for Hail session.')
-        raise web.HTTPUnauthorized(text='Your Hail account is inactive. Please contact a Hail administrator to reactivate.')
+        raise web.HTTPUnauthorized(
+            text='Your Hail account is inactive. Please contact a Hail administrator to reactivate.'
+        )
 
     users = [
         x
