@@ -71,9 +71,6 @@ case class BindingEnv[V](
     val Bindings(_, _, agg, scan, _, dropEval) = bindings
     var newEnv = this
     if (dropEval) newEnv = newEnv.noEval
-    if (agg.isInstanceOf[AggEnv.Create] || scan.isInstanceOf[AggEnv.Create])
-      newEnv =
-        newEnv.copy(agg = newEnv.agg.map(_ => Env.empty), scan = newEnv.scan.map(_ => Env.empty))
     agg match {
       case AggEnv.Drop => newEnv = newEnv.noAgg
       case AggEnv.Promote =>
