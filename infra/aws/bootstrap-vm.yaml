@@ -36,24 +36,31 @@ Resources:
           - |
             #!/bin/bash
             set -e
-            try_with_error_signal() {
-              git clone https://github.com/${GithubOrganizationName}/hail.git
-              cd hail
-              git checkout ${HailBranchName}
-              ./infra/aws-broad/install_bootstrap_dependencies.sh
-              aws configure set region ${AWS::Region}
-              aws eks update-kubeconfig --region ${AWS::Region} --name ${ClusterName}
-              aws ecr get-login-password | docker login --username AWS --password-stdin "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/default"
-              ./infra/aws/bootstrap.sh install_external_secrets ${ExternalSecretsRoleArn}
-              ./infra/aws/bootstrap.sh install_load_balancer_controller ${AWS::AccountId} ${LoadBalancerControllerRoleArn}
-            }
-            try_with_error_signal
-            if [ $? -ne 0 ]; then
+            send_error_signal() {
               error_message=$(tail -1 /var/log/cloud-init-output.log)
-              aws cloudformation signal-resource --stack-name ${AWS::StackName} --logical-resource-id BootstrapInstance --region ${AWS::Region} --status FAILURE --unique-id "Bootstrap failed with message \"$error_message\""
-            else
-              aws cloudformation signal-resource --stack-name ${AWS::StackName} --logical-resource-id BootstrapInstance --region ${AWS::Region} --status SUCCESS --unique-id "Bootstrap instance is ready"
-            fi
+              aws cloudformation signal-resource --stack-name ${AWS::StackName} --logical-resource-id BootstrapInstance --region ${AWS::Region} --status FAILURE --unique-id "${!error_message:0:64}"
+            }
+            trap send_error_signal ERR
+
+            git clone https://github.com/${GithubOrganizationName}/hail.git
+            cd hail
+            git checkout ${HailBranchName}
+            cd infra/aws
+            
+            ./install_bootstrap_dependencies.sh
+            export AWS_DEFAULT_REGION=${AWS::Region}
+            aws eks update-kubeconfig --region ${AWS::Region} --name ${ClusterName}
+            aws ecr get-login-password | docker login --username AWS --password-stdin "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/default"
+            
+            export HAIL=/hail
+            export NAMESPACE=default
+            export KUBECONFIG=/root/.kube/config
+
+            ./bootstrap.sh install_external_secrets ${ExternalSecretsRoleArn}
+            ./bootstrap.sh install_load_balancer_controller ${AWS::AccountId} ${ClusterName} ${LoadBalancerControllerRoleArn}
+            
+            aws cloudformation signal-resource --stack-name ${AWS::StackName} --logical-resource-id BootstrapInstance --region ${AWS::Region} --status SUCCESS --unique-id "Bootstrap instance is ready"
+
           - ClusterName: !ImportValue VdcClusterName
             ExternalSecretsRoleArn: !ImportValue VdcExternalSecretsRoleArn
             LoadBalancerControllerRoleArn: !ImportValue VdcLoadBalancerControllerRoleArn
