@@ -52,11 +52,10 @@ the Spark version Hail is built against. If you pass a ``--release-label`` that 
 Spark minor version, ``hailctl emr start`` refuses to start the cluster; an unrecognized label
 produces a warning.
 
-Hail also requires a supported version of Python. The EMR 7.x application stack officially ships
-only Python 3.9 and 3.11, and its default ``python3`` is 3.9, which is too old for Hail. The
-bootstrap therefore installs Hail into Python 3.11 (available on EMR releases 7.1.0 and newer) and
-points Spark's driver and executors at it, so use ``emr-7.1.0`` or later. If a future EMR release
-ships a newer default Python that Hail supports, ``hailctl emr`` will be updated to target it.
+Hail also requires a supported version of Python. EMR 7.x runs Amazon Linux 2023, whose default
+``python3`` is 3.9 — too old for Hail. Amazon Linux 2023 packages Python 3.12 in its ``dnf``
+repositories, so the bootstrap installs Hail into Python 3.12 and points Spark's driver and
+executors at it.
 
 Advanced cluster options
 ------------------------

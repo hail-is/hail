@@ -4,11 +4,11 @@
 # Python package here and place the bundled JAR at a deterministic path that
 # the cluster's --configurations reference (see start.py).
 #
-# EMR 7.x runs Amazon Linux 2023 whose system python3 is Python 3.9, but Hail
-# requires Python >= 3.10. Python 3.11 ships with EMR 7.1+, so we install Hail
-# into python3.11 instead. start.py's spark configurations point PySpark at
-# /usr/bin/python3.11 so that both the driver and executors use the same
-# interpreter where Hail is installed.
+# EMR 7.x runs Amazon Linux 2023, whose system python3 is Python 3.9 -- too old
+# for Hail. Amazon Linux 2023 packages python3.12 in its dnf repositories, so we
+# install Hail into python3.12 instead. start.py's spark configurations point
+# PySpark at /usr/bin/python3.12 so that both the driver and executors use the
+# same interpreter where Hail is installed.
 #
 # Argument 1: the Hail pip version to install (e.g. 0.2.140).
 
@@ -16,13 +16,13 @@ set -ex
 
 hail_pip_version=$1
 
-sudo dnf install -y gcc-c++ openblas-devel lapack-devel python3.11 python3.11-pip
+sudo dnf install -y gcc-c++ openblas-devel lapack-devel python3.12 python3.12-pip
 
 # Install Hail itself without its dependencies, so we can drop pyspark
 # (EMR provides pyspark) before installing the rest.
-sudo python3.11 -m pip install "hail==${hail_pip_version}" --no-dependencies
+sudo python3.12 -m pip install "hail==${hail_pip_version}" --no-dependencies
 
-site_packages=$(python3.11 -m pip show hail | grep -E '^Location:' | sed -E 's/^Location: //')
+site_packages=$(python3.12 -m pip show hail | grep -E '^Location:' | sed -E 's/^Location: //')
 
 # Reinstall Hail's declared dependencies, excluding pyspark.
 # See https://www.python.org/dev/peps/pep-0440/#version-specifiers
@@ -31,7 +31,7 @@ grep -E '^Requires-Dist:' "${site_packages}/hail-${hail_pip_version}.dist-info/M
     | sed -E 's/ \(([^)]*)\)/\1/' \
     | grep -Ev '^pyspark(~=|==|!=|<=|>=|<|>|===|$)' \
     > /tmp/hail-requirements.txt
-sudo python3.11 -m pip install -r /tmp/hail-requirements.txt
+sudo python3.12 -m pip install -r /tmp/hail-requirements.txt
 
 # Copy the bundled JAR to a fixed path referenced by spark-defaults.
 sudo mkdir -p /usr/lib/hail

@@ -17,13 +17,12 @@ EMR_RELEASE_SPARK_VERSION: Dict[str, str] = {
 DEFAULT_EMR_RELEASE = 'emr-7.3.0'
 HAIL_REQUIRED_SPARK_MINOR = '3.5'
 HAIL_JAR_PATH = '/usr/lib/hail/hail-all-spark.jar'
-# EMR 7.x's system python3 is 3.9, but Hail requires Python >= 3.10. The EMR 7.x
-# application stack officially ships only Python 3.9 and 3.11 (see the release's
-# component versions); 3.12 is not provided by default. So the bootstrap installs
-# Hail into Python 3.11, and PySpark (driver and executors) must use that same
-# interpreter. If a future EMR release ships a newer default Python that Hail
-# supports, update this single constant (and the bootstrap's dnf line).
-EMR_PYSPARK_PYTHON = '/usr/bin/python3.11'
+# EMR 7.x's system python3 is 3.9, which is too old for Hail. EMR 7.x runs Amazon
+# Linux 2023, which packages python3.12 in its dnf repositories, so the bootstrap
+# installs Hail into Python 3.12 and PySpark (driver and executors) must use that
+# same interpreter. To move to a newer Python, update this constant and the
+# bootstrap's dnf line together.
+EMR_PYSPARK_PYTHON = '/usr/bin/python3.12'
 
 
 def check_release_spark_compatibility(release_label: str) -> None:
