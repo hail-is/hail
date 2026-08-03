@@ -52,7 +52,7 @@ charset-normalizer==3.4.9
     #   -c batch/../hail/python/dev/pinned-requirements.txt
     #   -c batch/../hail/python/pinned-requirements.txt
     #   requests
-cryptography==49.0.0
+cryptography==50.0.0
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   -c batch/../hail/python/pinned-requirements.txt

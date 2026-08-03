@@ -90,10 +90,6 @@ cycler==0.12.1
     # via matplotlib
 debugpy==1.8.21
     # via ipykernel
-decorator==5.3.1
-    # via
-    #   -c hail/python/dev/../pinned-requirements.txt
-    #   ipython
 defusedxml==0.7.1
     # via nbconvert
 devtools==0.12.2
@@ -161,7 +157,7 @@ ipykernel==6.29.5
     #   jupyterlab
     #   nbclassic
     #   notebook
-ipython==9.15.0
+ipython==9.16.1
     # via
     #   ipykernel
     #   ipywidgets
@@ -204,7 +200,7 @@ jsonschema-specifications==2025.9.1
     # via jsonschema
 jupyter==1.1.1
     # via -r hail/python/dev/requirements.txt
-jupyter-builder==1.2.0
+jupyter-builder==1.2.1
     # via jupyterlab
 jupyter-client==7.4.9
     # via
@@ -351,7 +347,6 @@ platformdirs==4.11.0
     # via
     #   jupyter-core
     #   pylint
-    #   python-discovery
     #   virtualenv
 pluggy==1.6.0
     # via pytest
@@ -435,7 +430,7 @@ python-dateutil==2.9.0.post0
     #   arrow
     #   jupyter-client
     #   matplotlib
-python-discovery==1.5.0
+python-discovery==1.5.1
     # via virtualenv
 python-json-logger==2.0.7
     # via
@@ -543,7 +538,7 @@ tornado==6.5.7
     #   jupyterlab
     #   notebook
     #   terminado
-traitlets==5.15.1
+traitlets==5.16.1
     # via
     #   ipykernel
     #   ipython
