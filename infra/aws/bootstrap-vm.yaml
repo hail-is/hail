@@ -57,13 +57,13 @@ Resources:
             export KUBECONFIG=/root/.kube/config
 
             ./bootstrap.sh install_external_secrets ${ExternalSecretsRoleArn}
-            ./bootstrap.sh install_load_balancer_controller ${AWS::AccountId} ${ClusterName} ${LoadBalancerControllerRoleArn}
+            ./bootstrap.sh install_load_balancer_controller ${AWS::AccountId} ${ClusterName} ${LoadBalancerControllerRoleName}
             
             aws cloudformation signal-resource --stack-name ${AWS::StackName} --logical-resource-id BootstrapInstance --region ${AWS::Region} --status SUCCESS --unique-id "Bootstrap instance is ready"
 
           - ClusterName: !ImportValue VdcClusterName
             ExternalSecretsRoleArn: !ImportValue VdcExternalSecretsRoleArn
-            LoadBalancerControllerRoleArn: !ImportValue VdcLoadBalancerControllerRoleArn
+            LoadBalancerControllerRoleName: !ImportValue VdcLoadBalancerControllerRoleName
     CreationPolicy:
       ResourceSignal:
         Timeout: PT15M
@@ -77,6 +77,14 @@ Resources:
           ToPort: 22
           IpProtocol: tcp
       VpcId: !ImportValue VdcNetwork
+  BootstrapInstanceClusterAccess:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !ImportValue VdcClusterSecurityGroup
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+      SourceSecurityGroupId: !Ref BootstrapInstanceSSHSecurityGroup
   BootstrapInstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
