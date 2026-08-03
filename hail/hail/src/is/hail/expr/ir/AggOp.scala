@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.collection.FastSeq
 import is.hail.expr.ir.agg._
 import is.hail.io.TypedCodecSpec
-import is.hail.types.physical.PStruct
+import is.hail.io.index.IndexType
 import is.hail.types.virtual._
 
 sealed trait AggOp {}
@@ -30,10 +30,9 @@ final case class ImputeType() extends AggOp
 final case class NDArraySum() extends AggOp
 final case class NDArrayMultiplyAdd() extends AggOp
 final case class Fold() extends AggOp
-final case class WriteRows(codec: TypedCodecSpec, indexKey: Option[PStruct]) extends AggOp
 
-// TODO
-// final case class WriteSplitRows(codec, indexKey, entries)
+final case class WriteRows(codecs: IndexedSeq[TypedCodecSpec], indexType: Option[IndexType])
+    extends AggOp
 
 // exists === map(p).sum, needs short-circuiting aggs
 // forall === map(p).product, needs short-circuiting aggs
