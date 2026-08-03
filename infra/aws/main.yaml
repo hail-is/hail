@@ -609,6 +609,11 @@ Outputs:
     Description: "EKS cluster name"
     Export:
       Name: VdcClusterName
+  VdcClusterSecurityGroup:
+    Value: !GetAtt VdcCluster.ClusterSecurityGroupId
+    Description: "EKS cluster security group"
+    Export:
+      Name: VdcClusterSecurityGroup
   VdcNetwork:
     Value: !Ref VdcVpc
     Description: "Cluster network VPC"
@@ -624,8 +629,8 @@ Outputs:
     Description: "ARN of the role used by the external-secrets addon for EKS"
     Export:
       Name: VdcExternalSecretsRoleArn
-  VdcLoadBalancerControllerRoleArn:
-    Value: !GetAtt VdcLoadBalancerControllerRole.Arn
-    Description: "ARN of the role used by the AWS Load Balancer Controller for EKS"
+  VdcLoadBalancerControllerRoleName:
+    Value: !Ref VdcLoadBalancerControllerRole
+    Description: "Name of the role used by the AWS Load Balancer Controller for EKS"
     Export:
-      Name: VdcLoadBalancerControllerRoleArn
+      Name: VdcLoadBalancerControllerRoleName
