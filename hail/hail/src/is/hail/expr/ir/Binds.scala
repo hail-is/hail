@@ -320,6 +320,7 @@ object Bindings {
         Bindings(
           FastSeq(name -> elementType(a.typ)),
           agg = AggEnv.Create(FastSeq(0)),
+          scan = AggEnv.Drop,
         )
       case StreamScan(a, zero, accumName, valueName, _) if i == 2 =>
         Bindings(FastSeq(accumName -> zero.typ, valueName -> elementType(a.typ)))
@@ -328,6 +329,7 @@ object Bindings {
         Bindings(
           FastSeq(name -> eltType),
           eval = FastSeq(0),
+          agg = AggEnv.Drop,
           scan = AggEnv.Create(FastSeq(0)),
         )
       case StreamJoinRightDistinct(ll, rr, _, _, l, r, _, _) if i == 2 =>
