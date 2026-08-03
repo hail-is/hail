@@ -129,12 +129,16 @@ object TableNativeWriter {
     indexRoot: Option[IR] = None,
     trackTotalBytes: Boolean = false,
   ): IR = {
-    val initOpArgs = Seq(partFile, partRoot) ++ indexRoot
+    val initOpArgs = indexRoot match {
+      case Some(indexRoot) => Seq(partFile, indexRoot, partRoot)
+      case _ => Seq(partFile, partRoot)
+    }
+    val indexType = indexRoot.map(_ => is.hail.io.index.IndexType(pKey, +PCanonicalStruct()))
     val args =
       (
         "partpath",
         ApplyAggOp(
-          WriteRows(rowSpec, indexRoot.map(_ => pKey)),
+          WriteRows(FastSeq(rowSpec), indexType),
           initOpArgs: _*
         )(row),
       ) +: NativeWriter.metaInfoAggs(row, pKey.virtualType, trackTotalBytes)
