@@ -15,7 +15,8 @@ function install_external_secrets() {
 
     kubectl -n external-secrets rollout status deployments --selector=app.kubernetes.io/instance=external-secrets
     kubectl annotate serviceaccount -n external-secrets external-secrets eks.amazonaws.com/role-arn="$EXTERNAL_SECRETS_ROLE"
-    sleep 10s       # CRD creation can lag behind deployment rollout before they're discoverable
+    kubectl wait -n external-secrets --for=create crd/webhooks.generators.external-secrets.io
+    kubectl wait -n external-secrets --for=condition=established crd/webhooks.generators.external-secrets.io
 
     cat >external-secret-config.yaml <<EOF
 apiVersion: external-secrets.io/v1
@@ -82,7 +83,7 @@ EOF
         --set serviceAccount.create=false \
         --set serviceAccount.name=aws-load-balancer-controller
 
-    kubectl -n kube-system rollout status deployments --selector=app.kubernetes.io/instance=aws-load-install_load_balancer_controller
+    kubectl -n kube-system rollout status deployments --selector=app.kubernetes.io/instance=aws-load-balancer-controller
 }
 
 "$@"
