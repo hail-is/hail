@@ -90,6 +90,8 @@ def test_regions(run_on_batch_mocks):
     try:
         if CLOUD == 'gcp':
             backend.regions = ['us-east1']
+        elif CLOUD == 'aws':
+            backend.regions = ['us-east-1']
         else:
             assert CLOUD == 'azure'
             backend.regions = ['eastus']
