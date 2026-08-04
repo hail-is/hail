@@ -53,6 +53,14 @@ aws eks create-access-entry --cluster-name vdc --principal-arn "$ADMIN_PRINCIPAL
 aws eks associate-access-policy --cluster-name vdc --principal-arn "$ADMIN_PRINCIPAL" --policy-arn arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy --access-scope type=cluster
 ```
 
+By default, EKS restricts cluster access to the principal used to create the cluster, which in this case is the CloudFormation role. You must add an access entry for any role (recommended) or user that will need access to the cluster through the console or `kubectl`:
+
+```
+export ADMIN_PRINCIPAL=<role or user ARN to be used for admin access>
+aws eks create-access-entry --cluster-name vdc --principal-arn "$ADMIN_PRINCIPAL" --type STANDARD
+aws eks associate-access-policy --cluster-name vdc --principal-arn "$ADMIN_PRINCIPAL" --policy-arn arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy --access-scope type=cluster
+```
+
 Edit `$HAIL/letsencrypt/subdomains.txt` to include just the services you plan to use in this deployment, e.g. `auth`, `batch` and `batch-driver`.
 
 Deploy unmanaged resources by running
