@@ -50,7 +50,7 @@ Add `"hail-ubuntu-python-3-XY"` to the keep-list so CI builds of that image are 
 
 ## Shifting the default service Python version
 
-The *default* is the version used by the Batch/Auth/CI/Gear services and by `hailgenetics/hail:{version}` (no `-pyX.Y` suffix). Shifting the default is a bigger change.
+The *default* is the version used by the Batch/Auth/CI/Gear services and by `hailgenetics/hail:{version}` (ie the default does not have an explicit `-pyX.Y` suffix). Shifting the default is a bigger change.
 
 ### Additional files beyond the client-image list above
 
@@ -113,4 +113,4 @@ Mirror the add steps in reverse:
 
 - **`hail/python/hail/__init__.py`** has a runtime `version_info < (3, XY)` guard at import time. It must match `python_requires` in `setup.py` / `setup-hailtop.py`. Easy to miss because it's in the package `__init__` rather than near any build or setup file.
 
-- **EMR consideration**: EMR 7.x ships Python 3.11 and upgrades slowly. Before dropping 3.11 support in a future bump, check current EMR release notes — keeping a non-default 3.11 client image is low cost and avoids breaking EMR users.
+- **Various `.../requirements.txt` files** have pinned maximums that are now potentially worth reconsidering. Sometimes dependencies require an update for the newer Python versions, and sometimes the pin was there to support older Python versions that are no longer relevant.
