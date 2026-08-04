@@ -42,6 +42,7 @@ Resources:
             }
             trap send_error_signal ERR
 
+            cd $HOME
             git clone https://github.com/${GithubOrganizationName}/hail.git
             cd hail
             git checkout ${HailBranchName}

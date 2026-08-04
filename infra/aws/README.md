@@ -11,7 +11,7 @@ This document is a WIP as we build out Hail infrastructure on AWS.
 - Create an IAM role for the CloudFormation stack. CloudFormation will use this role to manage all infrastructure:
 ```
 export STACK_ROLE_NAME=hail-cloudformation-role
-export STACK_ROLE_ARN=$(aws iam create-role --role-name $STACK_ROLE_NAME --assume-role-policy-document "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"cloudformation.amazonaws.com\"},\"Action\":\"sts:AssumeRole\"}]}" --query "Role.Arn" --output text)
+export STACK_ROLE_ARN=$(aws iam create-role --role-name $STACK_ROLE_NAME --assume-role-policy-document "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"Service\":[\"cloudformation.amazonaws.com\",\"ec2.amazonaws.com\"]},\"Action\":\"sts:AssumeRole\"}]}" --query "Role.Arn" --output text)
 aws iam attach-role-policy --role-name $STACK_ROLE_NAME --policy-arn arn:aws:iam::aws:policy/AdministratorAccess
 ```
 
@@ -36,11 +36,13 @@ BOOTSTRAP_INSTANCE_ID=$(aws cloudformation describe-stack-resources --stack-name
 aws ec2-instance-connect ssh --os-user root --instance-id $BOOTSTRAP_INSTANCE_ID
 ```
 
-On the bootstrap instance, set up environment variables:
+On the bootstrap instance, set up environment variables and activate the virtual environment Hail was installed in:
 ```
-export HAIL=/hail
+export HAIL=$HOME/hail
 export NAMESPACE=default
 export GITHUB_ORGANIZATION=<your GitHub organization, e.g. "hail-is">
+cd $HAIL/infra/aws
+source .venv/bin/activate
 ```
 
 By default, EKS restricts cluster access to the principal used to create the cluster, which in this case is the CloudFormation role. You must add an access entry for any role (recommended) or user that will need access to the cluster through the console or `kubectl`:

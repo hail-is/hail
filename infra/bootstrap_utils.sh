@@ -8,12 +8,15 @@ if [[ -z "$HAIL" ]]; then
 fi
 
 source $HAIL/devbin/functions.sh
+source $HAIL/docker/copy_image.sh
 
 copy_images() {
-    make -C $HAIL/docker/third-party copy
+    make -C $HAIL/docker/third-party copy BOOTSTRAP_PROXY=true
 
     make -C $HAIL/hail python/hail/version.py
     make -C $HAIL/docker/hailgenetics mirror-dockerhub-images
+
+    copy_image "golang:1.18" "$(get_global_config_field dockerhub_prefix)/library/golang:1.18"
 }
 
 generate_ssl_certs() {
