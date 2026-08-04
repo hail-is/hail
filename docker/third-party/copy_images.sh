@@ -28,6 +28,11 @@ do
             # Bare image (e.g., "ubuntu"), need to add "library/" prefix
             src="${DOCKERHUB_PREFIX}/library/${image}"
         fi
+
+        if [ -n "${BOOTSTRAP_PROXY}" ]
+        then
+            copy_image "$image" "$src"
+        fi
     else
         # No dockerhub prefix, use docker.io as before
         src="$image"
