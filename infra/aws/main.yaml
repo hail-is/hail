@@ -262,6 +262,13 @@ Resources:
       AvailabilityZone: !Select [0, !GetAZs ""]
       CidrBlock: !Ref SubnetCidrBlockA
       Ipv6Native: false
+      Tags:
+        - Key: "kubernetes.io/cluster/vdc"
+          Value: "shared"
+        - Key: "kubernetes.io/role/elb"
+          Value: "1"
+        - Key: "kubernetes.io/role/internal-elb"
+          Value: "1"
   VdcSubnetB:
     Type: "AWS::EC2::Subnet"
     Properties:
@@ -275,6 +282,13 @@ Resources:
       AvailabilityZone: !Select [1, !GetAZs ""]
       CidrBlock: !Ref SubnetCidrBlockB
       Ipv6Native: false
+      Tags:
+        - Key: "kubernetes.io/cluster/vdc"
+          Value: "shared"
+        - Key: "kubernetes.io/role/elb"
+          Value: "1"
+        - Key: "kubernetes.io/role/internal-elb"
+          Value: "1"
   VdcSubnetC:
     Type: "AWS::EC2::Subnet"
     Properties:
@@ -288,6 +302,13 @@ Resources:
       AvailabilityZone: !Select [2, !GetAZs ""]
       CidrBlock: !Ref SubnetCidrBlockC
       Ipv6Native: false
+      Tags:
+        - Key: "kubernetes.io/cluster/vdc"
+          Value: "shared"
+        - Key: "kubernetes.io/role/elb"
+          Value: "1"
+        - Key: "kubernetes.io/role/internal-elb"
+          Value: "1"
   VdcInternetGateway:
     Type: "AWS::EC2::InternetGateway"
   VdcInternetGatewayAttachment:
@@ -337,25 +358,26 @@ Resources:
       EncryptionConfiguration:
         EncryptionType: "AES256"
       Prefix: "hail"
-  VdcDockerhubProxy:
-    Type: "AWS::ECR::Repository"
+  VdcDockerhubProxyRepositoryTemplate:
+    Type: "AWS::ECR::RepositoryCreationTemplate"
     Properties:
+      AppliedFor:
+        - "CREATE_ON_PUSH"
       EncryptionConfiguration:
         EncryptionType: "AES256"
       LifecyclePolicy:
-        LifecyclePolicyText:
-          Fn::ToJsonString:
-            rules:
-              - rulePriority: 1
-                description: "Delete after 1d"
-                selection:
-                  tagStatus: "any"
-                  countType: "sinceImagePushed"
-                  countUnit: "days"
-                  countNumber: 1
-                action:
-                  type: "expire"
-      RepositoryName: "dockerhubproxy"
+        Fn::ToJsonString:
+          rules:
+            - rulePriority: 1
+              description: "Delete after 1d"
+              selection:
+                tagStatus: "any"
+                countType: "sinceImagePushed"
+                countUnit: "days"
+                countNumber: 1
+              action:
+                type: "expire"
+      Prefix: "dockerhubproxy"
 
   VdcHailBatchBucket:
     Type: "AWS::S3::Bucket"
