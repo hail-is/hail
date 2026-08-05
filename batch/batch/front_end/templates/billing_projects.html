@@ -42,10 +42,10 @@
           {% for user in bp['users'] %}
           <div class='group flex justify-between items-top p-0.5 rounded-sm'
             :class="editing ? '' : 'hover:bg-slate-200 hover:cursor-pointer'">
-            <div>{{ user }}</div>
+            <div>{{ user['user'] }}</div>
             {% if userdata['system_permissions']['assign_users_to_all_billing_projects'] %}
             <div class='invisible group-hover:visible' x-cloak x-show='editing'>
-              <form action="{{ base_path }}/billing_projects/{{ bp['billing_project'] }}/users/{{ user }}/remove"
+              <form action="{{ base_path }}/billing_projects/{{ bp['billing_project'] }}/users/{{ user['user'] }}/remove"
                 method="POST">
                 <input type="hidden" name="_csrf" value="{{ csrf_token }}">
                 <button class="hover:bg-slate-300 rounded-sm flex align-middle">
