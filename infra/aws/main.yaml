@@ -29,16 +29,14 @@ Resources:
       SecretString:
         Fn::ToJsonString:
           cloud: "aws"
-          batch_gcp_regions: !Sub "[ ${AWS::Region} ]"
+          batch_aws_regions: !Sub "[ \"${AWS::Region}\" ]"
           batch_logs_storage_uri: !Sub "s3://${VdcHailBatchBucket}"
           test_storage_uri: !Sub "s3://${VdcHailTestBucket}"
           query_storage_uri: !Sub "s3://${VdcHailQueryBucket}"
           default_namespace: "default"
           docker_root_image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/hail/ubuntu:24.04"
           domain: !Ref DomainName
-          gcp_project: "dummy"
-          gcp_region: "dummy"
-          gcp_zone: "dummy"
+          aws_region: !Ref AWS::Region
           docker_prefix: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/hail"
           dockerhub_prefix: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/dockerhubproxy"
           internal_ip: !GetAtt VdcInternalGatewayAddress.PrimaryPrivateIpAddress
