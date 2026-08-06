@@ -1026,7 +1026,7 @@ async def get_userinfo_from_login_id_or_hail_identity_id(
         log.info(
             f'Inactive user {inactive_user["username"]} found for login id or Hail identity id {login_id_or_hail_identity_uid}.'
         )
-        raise web.HTTPUnauthorized(
+        raise web.HTTPForbidden(
             text='Your Hail account is inactive. Please contact a Hail administrator to reactivate.'
         )
 
@@ -1080,7 +1080,7 @@ async def get_userinfo_from_hail_session_id(request: web.Request, session_id: st
     inactive_user = await check_inactive_user_from_hail_session_id(db, session_id)
     if inactive_user is not None:
         log.info(f'Inactive user {inactive_user["username"]} found for Hail session.')
-        raise web.HTTPUnauthorized(
+        raise web.HTTPForbidden(
             text='Your Hail account is inactive. Please contact a Hail administrator to reactivate.'
         )
 
