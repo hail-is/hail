@@ -368,7 +368,7 @@ ui-js-watch-pr: services/ui/node_modules/.package-lock.json
 
 .PHONY: ui-js-watch-batch
 ui-js-watch-batch: services/ui/node_modules/.package-lock.json
-	cd services/ui && npx esbuild src/batch/job.tsx src/batch/batch.tsx --bundle --jsx=automatic --format=esm --outdir=../../batch/batch/front_end/static/compiled-js --minify --watch=forever
+	cd services/ui && npx esbuild src/batch/job.tsx src/batch/batch.tsx src/batch/billing.tsx --bundle --jsx=automatic --format=esm --outdir=../../batch/batch/front_end/static/compiled-js --minify --watch=forever
 
 .PHONY: ui-js-watch-batch-driver
 ui-js-watch-batch-driver: services/ui/node_modules/.package-lock.json
