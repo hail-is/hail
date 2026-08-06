@@ -144,6 +144,8 @@ class AuthServiceAuthenticator(Authenticator):
             return await impersonate_user_and_get_info(session_id=session_id, client_session=client_session)
         except asyncio.CancelledError:
             raise
+        except web.HTTPException:
+            raise
         except aiohttp.ClientResponseError as e:
             log.exception('unknown exception getting userinfo')
             raise web.HTTPInternalServerError() from e
@@ -229,6 +231,11 @@ async def impersonate_user(session_id: str, client_session: httpx.ClientSession,
         return await retry_transient_errors(client_session.get_read_json, url, headers=headers)
     except aiohttp.ClientResponseError as err:
         if err.status == 401:
+            return None
+        if err.status == 403:
+            body = getattr(err, 'body', None)
+            if body and (err.headers or {}).get('X-Hail-Auth-Reason') == 'inactive-account':
+                raise web.HTTPForbidden(text=body)
             return None
         raise
 
