@@ -89,6 +89,7 @@ from web_common import (
 from ..batch import batch_record_to_dict, cancel_job_group_in_db, job_group_record_to_dict, job_record_to_dict
 from ..batch_configuration import BATCH_STORAGE_URI, CLOUD, DEFAULT_NAMESPACE, DOCKERHUB_PREFIX, SCOPE
 from ..batch_format_version import BatchFormatVersion
+from ..billing_reporting import query_billing_projects_with_cost, query_billing_projects_without_cost
 from ..cloud.azure.resource_utils import azure_cores_mcpu_to_memory_bytes
 from ..cloud.gcp.resource_utils import GCP_MACHINE_FAMILY, gcp_cores_mcpu_to_memory_bytes
 from ..cloud.resource_utils import (
@@ -119,8 +120,6 @@ from ..resource_usage import ResourceUsageMonitor
 from ..spec_writer import SpecWriter
 from ..utils import (
     add_metadata_to_request,
-    query_billing_projects_with_cost,
-    query_billing_projects_without_cost,
     regions_bits_rep_to_regions,
     regions_to_bits_rep,
     rewrite_dockerhub_image,
