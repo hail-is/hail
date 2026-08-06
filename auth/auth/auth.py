@@ -1027,7 +1027,8 @@ async def get_userinfo_from_login_id_or_hail_identity_id(
             f'Inactive user {inactive_user["username"]} found for login id or Hail identity id {login_id_or_hail_identity_uid}.'
         )
         raise web.HTTPForbidden(
-            text='Your Hail account is inactive. Please contact a Hail administrator to reactivate.'
+            text='Your Hail account is inactive. Please contact a Hail administrator to reactivate.',
+            headers={'X-Hail-Auth-Reason': 'inactive-account'},
         )
 
     users = [
@@ -1081,7 +1082,8 @@ async def get_userinfo_from_hail_session_id(request: web.Request, session_id: st
     if inactive_user is not None:
         log.info(f'Inactive user {inactive_user["username"]} found for Hail session.')
         raise web.HTTPForbidden(
-            text='Your Hail account is inactive. Please contact a Hail administrator to reactivate.'
+            text='Your Hail account is inactive. Please contact a Hail administrator to reactivate.',
+            headers={'X-Hail-Auth-Reason': 'inactive-account'},
         )
 
     users = [
