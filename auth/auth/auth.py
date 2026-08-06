@@ -480,8 +480,11 @@ async def callback(request) -> web.Response:
             'login_id': user['login_id'],
             'inactive_timeout_days': INACTIVE_USER_TIMEOUT_DAYS,
         }
+        userdata = dict(user)
+        userdata['system_permissions'] = {}
+        userdata = typing.cast(UserData, userdata)
         return await render_template(
-            'auth', request, user, 'account-error.html', page_context, status_code=web.HTTPUnauthorized.status_code
+            'auth', request, userdata, 'account-error.html', page_context, status_code=web.HTTPUnauthorized.status_code
         )
 
     if user['state'] == 'creating':
