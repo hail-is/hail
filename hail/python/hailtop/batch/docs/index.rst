@@ -20,6 +20,7 @@ Contents
    Tutorial <tutorial>
    Docker Resources <docker_resources>
    Batch Service <service>
+   Billing Management <billing_management>
    Cookbooks <cookbook>
    Reference (Python API) <api>
    Configuration Reference <configuration_reference>
