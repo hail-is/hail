@@ -235,7 +235,7 @@ async def impersonate_user(session_id: str, client_session: httpx.ClientSession,
         if err.status == 403:
             body = getattr(err, 'body', None)
             if body:
-                raise web.HTTPUnauthorized(text=body)
+                raise web.HTTPForbidden(text=body)
             return None
         raise
 
