@@ -25,13 +25,11 @@
       <a href="{{ batch_base_url }}" class="header-dropdown-link">Batch</a>
       <div class="header-dropdown-menu">
         <div class="batch-caret header-dropdown-menu-caret"></div>
+        {% if userdata and userdata['username'] %}
+        <a class="header-dropdown-menu-link" href="{{ batch_base_url }}/batches">Batches</a>
+        {% endif %}
         {% if userdata and userdata['system_permissions']['read_deployed_system_state'] %}
         <a class="header-dropdown-menu-link" href="{{ batch_driver_base_url }}">Driver</a>
-        {% endif %}
-        {% if userdata and userdata['username'] %}
-        <a class="header-dropdown-menu-link" href="{{ batch_base_url }}/billing_projects">Billing Projects</a>
-        <a class="header-dropdown-menu-link" href="{{ batch_base_url}}/billing_limits">Billing Limits</a>
-        <a class="header-dropdown-menu-link" href="{{ batch_base_url }}/billing">Billing</a>
         {% endif %}
 
         {% if userdata and userdata['system_permissions']['read_deployed_system_state'] %}
@@ -42,6 +40,20 @@
       </div>
     </div>
   </div>
+
+  {% if userdata and userdata['username'] %}
+  <div class="header-dropdown">
+    <div class="header-dropdown-item-margin">
+      <a href="{{ batch_base_url }}/billing" class="header-dropdown-link">Billing</a>
+      <div class="header-dropdown-menu">
+        <div class="billing-projects-caret header-dropdown-menu-caret"></div>
+        <a class="header-dropdown-menu-link" href="{{ batch_base_url }}/billing/quotes">Quotes</a>
+        <a class="header-dropdown-menu-link" href="{{ batch_base_url }}/billing_projects">Billing Projects</a>
+        <a class="header-dropdown-menu-link" href="{{ batch_base_url }}/billing">Billing</a>
+      </div>
+    </div>
+  </div>
+  {% endif %}
 
   {% if userdata and userdata['system_permissions']['read_ci'] %}
   <div class="header-dropdown">
