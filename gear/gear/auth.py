@@ -234,7 +234,7 @@ async def impersonate_user(session_id: str, client_session: httpx.ClientSession,
             return None
         if err.status == 403:
             body = getattr(err, 'body', None)
-            if body:
+            if body and (err.headers or {}).get('X-Hail-Auth-Reason') == 'inactive-account':
                 raise web.HTTPForbidden(text=body)
             return None
         raise
