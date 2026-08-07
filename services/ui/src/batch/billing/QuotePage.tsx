@@ -95,6 +95,7 @@ export function QuotePage({ basePath, quoteName }: Props) {
 
   const billingRole = quote.billing_role;
   const canEdit = can(billingRole, 'edit_quote');
+  const canAddManagers = can(billingRole, 'add_manager');
   const canManageManagers = can(billingRole, 'manage_managers');
   const canCreateBp = can(billingRole, 'create_bp');
   const canCloseQuote = can(billingRole, 'close_quote');
@@ -214,7 +215,7 @@ export function QuotePage({ basePath, quoteName }: Props) {
             </tbody>
           </table>
           {mgrError && <div className="text-red-600 text-xs mb-2">{mgrError}</div>}
-          {canManageManagers && (
+          {canAddManagers && (
             <div className="flex items-center gap-2">
               <input
                 type="text" value={addMgrUser}
