@@ -51,7 +51,9 @@ def submit(
     print('Waiting for step to complete ...')
     waiter = client.get_waiter('step_complete')
     try:
-        waiter.wait(ClusterId=cluster_id, StepId=step_id)
+        # botocore's default caps the wait at 30 minutes (30s x 60), which is far
+        # too short for a Hail job. Poll for up to a week instead.
+        waiter.wait(ClusterId=cluster_id, StepId=step_id, WaiterConfig={'Delay': 30, 'MaxAttempts': 20160})
     except Exception as e:  # surface the failure to the user
         try:
             desc = client.describe_step(ClusterId=cluster_id, StepId=step_id)

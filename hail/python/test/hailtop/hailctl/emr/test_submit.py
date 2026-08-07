@@ -1,4 +1,4 @@
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 
@@ -23,6 +23,26 @@ def test_step_waiter_failure_raises_system_exit_even_when_describe_also_fails(tm
 
     with pytest.raises(SystemExit):
         submit.submit('j-FAKE', str(script), 's3://bkt/tmp/', None, [], wait=True)
+
+
+def test_step_waiter_allows_jobs_longer_than_the_botocore_default(tmp_path, monkeypatch):
+    """botocore's step_complete default gives up after 30 minutes; Hail jobs run far longer."""
+    script = tmp_path / 'job.py'
+    script.write_text('print("hello")')
+
+    mock_client = Mock()
+    mock_waiter = Mock()
+    mock_client.get_waiter.return_value = mock_waiter
+    mock_client.add_job_flow_steps.return_value = {'StepIds': ['s-FAKE']}
+
+    monkeypatch.setattr('hailtop.hailctl.emr.emr.resolve_region', lambda region: 'us-east-1')
+    monkeypatch.setattr('hailtop.hailctl.emr.emr.emr_client', lambda region: mock_client)
+    monkeypatch.setattr('hailtop.hailctl.emr.emr.upload_to_s3', Mock())
+
+    submit.submit('j-FAKE', str(script), 's3://bkt/tmp/', None, [], wait=True)
+
+    waiter_config = mock_waiter.wait.call_args.kwargs['WaiterConfig']
+    assert waiter_config['Delay'] * waiter_config['MaxAttempts'] >= 24 * 60 * 60
 
 
 def test_spark_submit_step_args():
