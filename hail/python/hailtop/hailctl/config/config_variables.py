@@ -17,8 +17,8 @@ def _is_float_str(x: str) -> bool:
 
 
 def config_variables():
-    from hailtop.aiotools.router_fs import RouterAsyncFS  # pylint: disable=import-outside-toplevel
     from hailtop.aiocloud.aioaws.fs import S3AsyncFS  # pylint: disable=import-outside-toplevel
+    from hailtop.aiotools.router_fs import RouterAsyncFS  # pylint: disable=import-outside-toplevel
     from hailtop.batch_client.parse import CPU_REGEXPAT, MEMORY_REGEXPAT  # pylint: disable=import-outside-toplevel
 
     global _config_variables
@@ -142,7 +142,8 @@ def config_variables():
             ConfigVariable.EMR_REGION: ConfigVariableInfo(
                 help_msg='Default AWS region for EMR clusters',
                 validation=(
-                    lambda x: re.fullmatch(r'[a-z]{2}-[a-z]+-\d', x) is not None,
+                    # e.g. us-east-1, ap-southeast-3, us-gov-west-1
+                    lambda x: re.fullmatch(r'[a-z]{2}(-[a-z]+)+-\d+', x) is not None,
                     'should be a valid AWS region such as us-east-1',
                 ),
             ),
