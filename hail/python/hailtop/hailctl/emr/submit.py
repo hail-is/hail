@@ -55,12 +55,15 @@ def submit(
         # too short for a Hail job. Poll for up to a week instead.
         waiter.wait(ClusterId=cluster_id, StepId=step_id, WaiterConfig={'Delay': 30, 'MaxAttempts': 20160})
     except Exception as e:  # surface the failure to the user
+        # The waiter's own message carries the state change reason AWS reported, so
+        # print it whether or not the follow-up describe_step succeeds.
+        print(f'Step {step_id} did not complete successfully: {e}', file=sys.stderr)
         try:
             desc = client.describe_step(ClusterId=cluster_id, StepId=step_id)
             state = desc['Step']['Status']['State']
-            print(f'Step {step_id} did not complete successfully (state={state}).', file=sys.stderr)
+            print(f'Step {step_id} state is {state}.', file=sys.stderr)
         except Exception:
-            print(f'Step {step_id} did not complete successfully (state unknown).', file=sys.stderr)
+            print(f'Could not describe step {step_id} to report its state.', file=sys.stderr)
         raise SystemExit(1) from e
 
     print(f'Step {step_id} completed.')
