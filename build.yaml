@@ -2911,6 +2911,44 @@ steps:
       - hail_ubuntu_image
       - gpu_image
   - kind: runImage
+    name: test_billing
+    numSplits: 1
+    image:
+      valueFrom: batch_image.image
+    script: |
+      set -ex
+
+      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
+      export HAIL_CLOUD="{{ global.cloud }}"
+
+      hail-pip-install -r /io/dev-requirements.txt
+
+      # Install and start MySQL ad-hoc — not baked into the batch image.
+      DEBIAN_FRONTEND=noninteractive apt-get install -y -qq mysql-server
+      mysqld --user=root --daemonize --log-error=/tmp/mysqld.log
+      until mysqladmin --user=root ping --silent 2>/dev/null; do sleep 1; done
+      mysql --user=root -e "ALTER USER 'root'@'localhost' IDENTIFIED BY 'pw'; FLUSH PRIVILEGES;"
+
+      python3 -m pytest \
+              --log-cli-level=INFO \
+              -s \
+              -r A \
+              -vv \
+              --instafail \
+              --durations=50 \
+              --timeout=120 \
+              /io/test/test_db_framework.py
+    inputs:
+      - from: /repo/batch/test
+        to: /io/test
+      - from: /repo/hail/python/dev/pinned-requirements.txt
+        to: /io/dev-requirements.txt
+    port: 5000
+    timeout: 300
+    dependsOn:
+      - merge_code
+      - batch_image
+  - kind: runImage
     name: test_batch_job_private_machines
     numSplits: 1
     image:
