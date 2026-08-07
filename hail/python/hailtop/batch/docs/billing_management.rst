@@ -18,7 +18,7 @@ A quote has an ``authorized_amount``: the total that may be allocated between it
 A quote also has an assigned set of **owners** and **managers** who administer it as well as global billing managers.
 
 A billing project can be administered by quote owners and managers of the containing quote. 
-when users are added to a billing project, they gain the ability to read the project's details and billing history, 
+When users are added to a billing project, they gain the ability to read the project's details and billing history, 
 add users to the project, and submit jobs within the project.
 
 As an example, a PI may hold a quote representing an overall grant or cost object. They
@@ -81,12 +81,12 @@ The table below lays out the permissions for each role type:
      - Quote Owners
      - Quote Managers
      - Billing Project Members
-   * - **Submit jobs** to a billing project†
+   * - **Submit jobs** to a billing project
      - ❌
      - ❌
      - ❌
      - ✅
-   * - **Read job history** and see job details and logs in a billing project†
+   * - **Read job history** and see job details and logs in a billing project
      - ❌
      - ❌
      - ❌
@@ -186,7 +186,7 @@ The table below lays out the permissions for each role type:
 
 .. note::
 
-    **‡ Coming soon — user invitation flow.**
+    **‡ Coming soon.**
     Adding users to billing projects, adding quote managers, and requesting billing project limit
     increases will be handled via an invitation system in a future release. For now, these actions
     are performed by global billing managers on behalf of users.
