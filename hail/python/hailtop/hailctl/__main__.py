@@ -6,9 +6,9 @@ from .auth import cli as auth_cli
 from .batch import cli as batch_cli
 from .config import cli as config_cli
 from .dataproc import cli as dataproc_cli
-from .emr import cli as emr_cli
 from .describe import describe
 from .dev import cli as dev_cli
+from .emr import cli as emr_cli
 from .hdinsight import cli as hdinsight_cli
 
 app = typer.Typer(

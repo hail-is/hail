@@ -36,7 +36,7 @@ def _fake_iam(existing_roles):
 
     iam = MagicMock()
 
-    def get_role(RoleName):  # noqa: N803 (boto3 kwarg name)
+    def get_role(RoleName):
         if RoleName in existing_roles:
             return {'Role': {'RoleName': RoleName, 'Arn': f'arn:aws:iam::123:role/{RoleName}'}}
         raise ClientError({'Error': {'Code': 'NoSuchEntity', 'Message': 'not found'}}, 'GetRole')
@@ -62,15 +62,13 @@ def test_check_default_roles_missing_raises():
 
 
 def test_check_default_roles_propagates_unexpected_error():
+    from unittest.mock import MagicMock
+
     import pytest
     from botocore.exceptions import ClientError
 
-    from unittest.mock import MagicMock
-
     iam = MagicMock()
-    iam.get_role.side_effect = ClientError(
-        {'Error': {'Code': 'AccessDenied', 'Message': 'nope'}}, 'GetRole'
-    )
+    iam.get_role.side_effect = ClientError({'Error': {'Code': 'AccessDenied', 'Message': 'nope'}}, 'GetRole')
     with pytest.raises(ClientError):
         emr.check_default_roles(iam)
 

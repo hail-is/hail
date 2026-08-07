@@ -57,9 +57,7 @@ def hail_configurations(off_heap_memory_per_core_mb: Optional[int]) -> List[dict
         'spark.pyspark.python': EMR_PYSPARK_PYTHON,
     }
     if off_heap_memory_per_core_mb is not None:
-        spark_defaults['spark.executorEnv.HAIL_WORKER_OFF_HEAP_MEMORY_PER_CORE_MB'] = str(
-            off_heap_memory_per_core_mb
-        )
+        spark_defaults['spark.executorEnv.HAIL_WORKER_OFF_HEAP_MEMORY_PER_CORE_MB'] = str(off_heap_memory_per_core_mb)
     return [
         {'Classification': 'spark-defaults', 'Properties': spark_defaults},
         {'Classification': 'spark', 'Properties': {'maximizeResourceAllocation': 'true'}},
@@ -149,9 +147,7 @@ def build_run_job_flow_kwargs(
         kwargs['JobFlowRole'] = 'EMR_EC2_DefaultRole'
     else:
         if service_role is None or instance_profile is None:
-            raise ValueError(
-                'Either pass --use-default-roles, or provide both --service-role and --instance-profile.'
-            )
+            raise ValueError('Either pass --use-default-roles, or provide both --service-role and --instance-profile.')
         kwargs['ServiceRole'] = service_role
         kwargs['JobFlowRole'] = instance_profile
 
