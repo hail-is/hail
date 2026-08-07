@@ -2943,7 +2943,8 @@ steps:
               --durations=50 \
               --timeout=120 \
               /io/test/test_billing_project_management.py \
-              /io/test/test_billing_reporting.py
+              /io/test/test_billing_reporting.py \
+              /io/test/test_quote_management.py
     inputs:
       - from: /repo/batch/test
         to: /io/test
