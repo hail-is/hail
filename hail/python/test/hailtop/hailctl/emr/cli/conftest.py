@@ -14,10 +14,18 @@ def upload_mock():
     return Mock()
 
 
+@pytest.fixture
+def check_default_roles_mock():
+    # Replaces emr.check_default_roles, which otherwise builds its own boto3 IAM
+    # client and calls GetRole for real.
+    return Mock()
+
+
 @pytest.fixture(autouse=True)
-def patch_aws(monkeypatch, emr_client_mock, upload_mock):
+def patch_aws(monkeypatch, emr_client_mock, upload_mock, check_default_roles_mock):
     monkeypatch.setattr('hailtop.hailctl.emr.emr.emr_client', lambda region: emr_client_mock)
     monkeypatch.setattr('hailtop.hailctl.emr.emr.upload_to_s3', upload_mock)
     monkeypatch.setattr('hailtop.hailctl.emr.emr.resolve_region', lambda region: 'us-east-1')
+    monkeypatch.setattr('hailtop.hailctl.emr.emr.check_default_roles', check_default_roles_mock)
     yield
     monkeypatch.undo()

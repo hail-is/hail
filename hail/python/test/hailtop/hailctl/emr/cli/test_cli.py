@@ -17,6 +17,12 @@ def test_start_dry_run_makes_no_aws_calls(emr_client_mock, upload_mock):
     assert upload_mock.call_count == 0  # dry run must not write to S3
 
 
+def test_start_dry_run_does_not_check_iam_roles(check_default_roles_mock):
+    res = runner.invoke(cli.app, ['start', 'c1', '--s3-scratch', 's3://bkt/tmp/', '--dry-run'])
+    assert res.exit_code == 0
+    assert check_default_roles_mock.call_count == 0
+
+
 def test_start_calls_run_job_flow_with_hail_config(emr_client_mock, upload_mock):
     emr_client_mock.run_job_flow.return_value = {'JobFlowId': 'j-123'}
     res = runner.invoke(cli.app, ['start', 'c1', '--s3-scratch', 's3://bkt/tmp/'])
