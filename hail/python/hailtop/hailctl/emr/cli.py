@@ -14,9 +14,8 @@ app = typer.Typer(
 )
 
 
-@app.command(context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
+@app.command()
 def start(
-    ctx: typer.Context,
     cluster_name: str,
     s3_scratch: Ann[
         Optional[str],
@@ -108,9 +107,8 @@ def _upload_bootstrap(bootstrap_s3_uri: str) -> None:
     emr.upload_to_s3(bootstrap_s3_uri, script_bytes)
 
 
-@app.command(context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
+@app.command()
 def stop(
-    ctx: typer.Context,
     cluster_id: Ann[str, Arg(help='The EMR cluster (job flow) id, e.g. j-XXXX.')],
     region: Ann[Optional[str], Opt(help='AWS region.')] = None,
 ):
