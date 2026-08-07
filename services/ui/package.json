@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "esbuild src/ci/flaky_tests.tsx --bundle --jsx=automatic --format=esm --outdir=dist/ci --minify && esbuild src/batch/job.tsx --bundle --jsx=automatic --format=esm --outdir=dist/batch --minify && esbuild src/monitoring/index.tsx --bundle --jsx=automatic --format=esm --outdir=dist/monitoring --minify && esbuild src/auth/index.tsx --bundle --jsx=automatic --format=esm --outdir=dist/auth --minify && esbuild src/batch_driver/index.tsx --bundle --jsx=automatic --format=esm --outdir=dist/batch_driver --minify && esbuild src/shared/swagger.tsx --bundle --jsx=automatic --format=esm --outdir=dist/shared --minify",
+    "build": "esbuild src/ci/flaky_tests.tsx --bundle --jsx=automatic --format=esm --outdir=dist/ci --minify && esbuild src/batch/job.tsx --bundle --jsx=automatic --format=esm --outdir=dist/batch --minify && esbuild src/batch/billing.tsx --bundle --jsx=automatic --format=esm --outdir=dist/batch --minify && esbuild src/monitoring/index.tsx --bundle --jsx=automatic --format=esm --outdir=dist/monitoring --minify && esbuild src/auth/index.tsx --bundle --jsx=automatic --format=esm --outdir=dist/auth --minify && esbuild src/batch_driver/index.tsx --bundle --jsx=automatic --format=esm --outdir=dist/batch_driver --minify && esbuild src/shared/swagger.tsx --bundle --jsx=automatic --format=esm --outdir=dist/shared --minify",
     "check": "tsc --noEmit",
     "test": "vitest run"
   },
@@ -12,7 +12,7 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "recharts": "^3.8.0",
-    "swagger-ui-react": "^5.32.9"
+    "swagger-ui-react": "^5.32.12"
   },
   "devDependencies": {
     "@testing-library/react": "^16.0.0",

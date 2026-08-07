@@ -2130,6 +2130,87 @@ paths:
             application/json:
               schema:
                 type: object
+  '/billing_projects/{billing_project}':
+    get:
+      summary: "Billing project detail page (UI)"
+      description: "Render the billing project detail page, or (dev only) its supporting jinja context"
+      operationId: getBillingProjectDetailUI
+      tags:
+        - Billing Projects
+      parameters:
+        - name: billing_project
+          in: path
+          description: "The name of the billing project."
+          required: true
+          schema:
+            type: string
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: true
+      responses:
+        '200':
+          description: "Successfully retrieved the billing project detail page."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/billing/quotes':
+    get:
+      summary: "Quotes list page (UI)"
+      description: "Render the quotes list page, or (dev only) its supporting jinja context"
+      operationId: getQuotesUI
+      tags:
+        - Quotes
+      parameters:
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: true
+      responses:
+        '200':
+          description: "Successfully retrieved the quotes list page."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/billing/quotes/{name}':
+    get:
+      summary: "Quote detail page (UI)"
+      description: "Render the quote detail page, or (dev only) its supporting jinja context"
+      operationId: getQuoteDetailUI
+      tags:
+        - Quotes
+      parameters:
+        - name: name
+          in: path
+          description: "The name of the quote."
+          required: true
+          schema:
+            type: string
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: true
+      responses:
+        '200':
+          description: "Successfully retrieved the quote detail page."
+          content:
+            application/json:
+              schema:
+                type: object
   '/openapi.yaml':
     get:
       summary: "OpenAPI spec"

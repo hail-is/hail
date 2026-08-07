@@ -2977,27 +2977,8 @@ async def ui_get_job_log(request: web.Request, _, batch_id: int) -> web.StreamRe
 @web_security_headers
 @auth.authenticated_users_only()
 @catch_ui_error_in_dev
-async def ui_get_billing_limits(request, userdata):
-    app = request.app
-    db: Database = app['db']
-
-    if not userdata['system_permissions'].get(SystemPermission.READ_ALL_BILLING_PROJECTS, False):
-        user = userdata['username']
-        quote_manager_user = user
-    else:
-        user = None
-        quote_manager_user = None
-
-    billing_projects = await query_billing_projects_with_cost(db, user=user, quote_manager_user=quote_manager_user)
-
-    open_billing_projects = [bp for bp in billing_projects if bp['status'] == 'open']
-    closed_billing_projects = [bp for bp in billing_projects if bp['status'] == 'closed']
-
-    page_context = {
-        'open_billing_projects': open_billing_projects,
-        'closed_billing_projects': closed_billing_projects,
-    }
-    return await render_template('batch', request, userdata, 'billing_limits.html', page_context)
+async def ui_get_billing_limits(request, _) -> NoReturn:
+    raise web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
 
 
 async def _edit_billing_limit(db, billing_project, limit):
@@ -3040,23 +3021,6 @@ async def post_edit_billing_limits(request: web.Request, _: UserData) -> web.Res
     limit = data['limit']
     await _handle_api_error(_edit_billing_limit, db, billing_project, limit)
     return json_response({'billing_project': billing_project, 'limit': limit})
-
-
-@routes.post('/billing_limits/{billing_project}/edit')
-@web_security_headers
-@auth.authenticated_users_with_permission(SystemPermission.UPDATE_ALL_BILLING_PROJECTS, redirect=False)
-@catch_ui_error_in_dev
-async def post_edit_billing_limits_ui(request: web.Request, _) -> NoReturn:
-    db: Database = request.app['db']
-    billing_project = request.match_info['billing_project']
-    post = await request.post()
-    limit = post['limit']
-    session = await aiohttp_session.get_session(request)
-    try:
-        await _handle_ui_error(session, _edit_billing_limit, db, billing_project, limit)
-        set_message(session, f'Modified limit {limit} for billing project {billing_project}.', 'info')  # type: ignore
-    finally:
-        raise web.HTTPFound(deploy_config.external_url('batch', '/billing_limits'))  # pylint: disable=lost-exception
 
 
 async def _query_billing(
@@ -3103,51 +3067,7 @@ async def _query_billing(
 @auth.authenticated_users_only()
 @catch_ui_error_in_dev
 async def ui_get_billing(request, userdata):
-    if not userdata['system_permissions'].get(SystemPermission.READ_ALL_BILLING_PROJECTS, False):
-        user = userdata['username']
-        quote_manager_user = user
-    else:
-        user = None
-        quote_manager_user = None
-    billing, start, end = await _query_billing(request, user=user, quote_manager_user=quote_manager_user)
-
-    billing_by_user: Dict[str, int] = {}
-    billing_by_project: Dict[str, int] = {}
-    for record in billing:
-        billing_project = record['billing_project']
-        user = record['user']
-        cost = record['cost']
-        billing_by_user[user] = billing_by_user.get(user, 0) + cost
-        billing_by_project[billing_project] = billing_by_project.get(billing_project, 0) + cost
-
-    billing_by_project_list = [
-        {'billing_project': billing_project, 'cost': cost_str(cost) or '$0'}
-        for billing_project, cost in billing_by_project.items()
-    ]
-    billing_by_project_list.sort(key=lambda record: record['billing_project'])
-
-    billing_by_user_list = [{'user': user, 'cost': cost_str(cost) or '$0'} for user, cost in billing_by_user.items()]
-    billing_by_user_list.sort(key=lambda record: record['user'])
-
-    billing_by_project_user = [
-        {'billing_project': record['billing_project'], 'user': record['user'], 'cost': cost_str(record['cost']) or '$0'}
-        for record in billing
-    ]
-    billing_by_project_user.sort(key=lambda record: (record['billing_project'], record['user']))
-
-    total_cost = cost_str(sum(record['cost'] for record in billing))
-
-    page_context = {
-        'billing_by_project': billing_by_project_list,
-        'billing_by_user': billing_by_user_list,
-        'billing_by_project_user': billing_by_project_user,
-        'start': start,
-        'end': end,
-        'today': datetime.datetime.now().strftime('%m/%d/%Y'),
-        'user': userdata['username'],
-        'total_cost': total_cost,
-    }
-    return await render_template('batch', request, userdata, 'billing.html', page_context)
+    return await render_template('batch', request, userdata, 'billing_react.html', {})
 
 
 @routes.get('/api/v1alpha/billing')
@@ -3214,21 +3134,7 @@ async def api_get_billing_breakdown(request: web.Request, userdata) -> web.Respo
 @auth.authenticated_users_only()
 @catch_ui_error_in_dev
 async def ui_get_billing_projects(request, userdata):
-    db: Database = request.app['db']
-
-    if not userdata['system_permissions'].get(SystemPermission.READ_ALL_BILLING_PROJECTS, False):
-        user = userdata['username']
-        quote_manager_user = user
-    else:
-        user = None
-        quote_manager_user = None
-
-    billing_projects = await query_billing_projects_with_cost(db, user=user, quote_manager_user=quote_manager_user)
-    page_context = {
-        'billing_projects': [{**p, 'size': len(p['users'])} for p in billing_projects if p['status'] == 'open'],
-        'closed_projects': [p for p in billing_projects if p['status'] == 'closed'],
-    }
-    return await render_template('batch', request, userdata, 'billing_projects.html', page_context)
+    return await render_template('batch', request, userdata, 'billing_projects_react.html', {})
 
 
 @routes.get('/api/v1alpha/billing_projects')
@@ -3567,6 +3473,66 @@ async def api_get_billing_project_events(request: web.Request, _: UserData) -> w
     billing_project = request.match_info['billing_project']
     events = await billing_dao.get_billing_project_events(db, billing_project)
     return json_response(events)
+
+
+# ---------------------------------------------------------------------------
+# Billing project detail UI
+# ---------------------------------------------------------------------------
+
+
+@routes.get('/billing_projects/{billing_project}')
+@web_security_headers
+@auth.authenticated_users_only()
+@catch_ui_error_in_dev
+async def ui_get_billing_project(request: web.Request, userdata) -> web.Response:
+    db: Database = request.app['db']
+    billing_project = request.match_info['billing_project']
+    username = userdata['username']
+    is_global_bm = userdata['system_permissions'].get(SystemPermission.UPDATE_ALL_BILLING_PROJECTS, False)
+
+    billing_role = await billing_dao.get_billing_role_for_bp(db, username, is_global_bm, billing_project)
+    if billing_role is None:
+        raise web.HTTPForbidden(reason=f'Unknown billing project {billing_project}.')
+
+    page_context = {
+        'bp_name': billing_project,
+    }
+    return await render_template('batch', request, userdata, 'billing_project_react.html', page_context)
+
+
+# ---------------------------------------------------------------------------
+# Quotes UI endpoints
+# ---------------------------------------------------------------------------
+
+
+@routes.get('/billing/quotes')
+@web_security_headers
+@auth.authenticated_users_only()
+@catch_ui_error_in_dev
+async def ui_get_quotes(request: web.Request, userdata) -> web.Response:
+    can_create = userdata['system_permissions'].get(SystemPermission.CREATE_QUOTES, False)
+    page_context = {'can_create': can_create}
+    return await render_template('batch', request, userdata, 'quotes_react.html', page_context)
+
+
+@routes.get('/billing/quotes/{name}')
+@web_security_headers
+@auth.authenticated_users_only()
+@catch_ui_error_in_dev
+async def ui_get_quote(request: web.Request, userdata) -> web.Response:
+    db: Database = request.app['db']
+    quote_name = request.match_info['name']
+    username = userdata['username']
+    is_global_bm = userdata['system_permissions'].get(SystemPermission.UPDATE_ALL_BILLING_PROJECTS, False)
+
+    billing_role = await billing_dao.get_billing_role_for_quote(db, username, is_global_bm, quote_name)
+    if billing_role is None:
+        raise web.HTTPForbidden(reason=f'Unknown quote {quote_name}.')
+
+    page_context = {
+        'quote_name': quote_name,
+    }
+    return await render_template('batch', request, userdata, 'quote_react.html', page_context)
 
 
 # ---------------------------------------------------------------------------
