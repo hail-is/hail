@@ -18,7 +18,6 @@ Change Log
 **Version 0.2.139**
 
 - (`#15200 <https://github.com/hail-is/hail/pull/15200>`__) Services now use role-based access control for system-level actions. Users can be granted specific system roles (e.g. sysadmin, billing manager) instead of the previous all-or-nothing developer flag.
-- (`#15497 <https://github.com/hail-is/hail/pull/15497>`__) GCP pooled worker VMs have been upgraded from the N1 to the N2 machine family. N2 machines are now also available for job-private jobs.
 - (`#15498 <https://github.com/hail-is/hail/pull/15498>`__) Add a ``hailctl batch jobs`` command to query the jobs within a batch, e.g. ``hailctl batch jobs BATCH_ID --state bad`` to list failed or errored jobs.
 - (`#15409 <https://github.com/hail-is/hail/pull/15409>`__) Billing data can now be exported to CSV from the billing page and a new API endpoint.
 - (`#15555 <https://github.com/hail-is/hail/pull/15555>`__) The batch details page now shows billing project information and warns when the billing project is low on or over its limit.
