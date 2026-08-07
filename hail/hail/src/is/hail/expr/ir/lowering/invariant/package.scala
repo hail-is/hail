@@ -67,7 +67,7 @@ package object invariant {
     Fused(p)
 
   def LowerableIR(implicit E: Enclosing): Invariant =
-    NoSharedNodes and UniquelyNamed
+    UniquelyNamed and NoSharedNodes
 
   def NoSharedNodes: Invariant = {
     var mark: Int = 0
