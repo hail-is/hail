@@ -70,7 +70,7 @@ certifi==2026.7.22
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   msrest
     #   requests
-cffi==2.1.0
+cffi==2.1.1
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   cryptography
@@ -111,7 +111,7 @@ frozenlist==1.8.0
     #   -r hail/python/hailtop/requirements.txt
     #   aiohttp
     #   aiosignal
-google-auth==2.56.2
+google-auth==2.56.3
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
@@ -190,7 +190,7 @@ orjson==3.11.9
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
-packaging==26.2
+packaging==26.3
     # via
     #   bokeh
     #   plotly
@@ -302,7 +302,7 @@ tabulate==0.10.0
     #   -r hail/python/hailtop/requirements.txt
 tenacity==9.1.4
     # via plotly
-tornado==6.5.7
+tornado==6.5.8
     # via bokeh
 typer==0.24.2
     # via

@@ -40,7 +40,7 @@ certifi==2026.7.22
     #   -c batch/../hail/python/dev/pinned-requirements.txt
     #   -c batch/../hail/python/pinned-requirements.txt
     #   requests
-cffi==2.1.0
+cffi==2.1.1
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   -c batch/../hail/python/dev/pinned-requirements.txt
@@ -67,29 +67,29 @@ frozenlist==1.8.0
     #   -c batch/../web_common/pinned-requirements.txt
     #   aiohttp
     #   aiosignal
-google-api-core==2.33.0
+google-api-core==2.34.0
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   google-cloud-core
     #   google-cloud-storage
-google-auth==2.56.2
+google-auth==2.56.3
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   -c batch/../hail/python/pinned-requirements.txt
     #   google-api-core
     #   google-cloud-core
     #   google-cloud-storage
-google-cloud-core==2.6.0
+google-cloud-core==2.6.1
     # via google-cloud-storage
-google-cloud-storage==3.13.0
+google-cloud-storage==3.13.1
     # via -r batch/requirements.txt
 google-crc32c==1.8.0
     # via
     #   google-cloud-storage
     #   google-resumable-media
-google-resumable-media==2.10.0
+google-resumable-media==2.10.1
     # via google-cloud-storage
-googleapis-common-protos==1.75.0
+googleapis-common-protos==1.75.1
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   google-api-core
@@ -114,7 +114,7 @@ numpy==2.5.1
     #   -c batch/../hail/python/dev/pinned-requirements.txt
     #   -c batch/../hail/python/pinned-requirements.txt
     #   pandas
-packaging==26.2
+packaging==26.3
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   -c batch/../hail/python/dev/pinned-requirements.txt
@@ -136,7 +136,7 @@ propcache==0.5.2
     #   -c batch/../web_common/pinned-requirements.txt
     #   aiohttp
     #   yarl
-proto-plus==1.28.2
+proto-plus==1.28.3
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   google-api-core
