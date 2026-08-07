@@ -15,6 +15,21 @@ versions. In particular, Hail officially supports:
 Change Log
 ==========
 
+**Version 0.2.139**
+
+- (`#15200 <https://github.com/hail-is/hail/pull/15200>`__) All services now use role-based access control. Permissions can be granted via intermediate roles (e.g. for billing access) instead of the previous all-or-nothing developer flag.
+- (`#15497 <https://github.com/hail-is/hail/pull/15497>`__) GCP pooled worker VMs have been upgraded from the N1 to the N2 machine family. N2 machines are now also available for job-private jobs.
+- (`#15498 <https://github.com/hail-is/hail/pull/15498>`__) Add a ``hailctl batch jobs`` command to query the jobs within a batch, e.g. ``hailctl batch jobs BATCH_ID --state bad`` to list failed or errored jobs.
+- (`#15409 <https://github.com/hail-is/hail/pull/15409>`__) Billing data can now be exported to CSV from the billing page and a new API endpoint.
+- (`#15555 <https://github.com/hail-is/hail/pull/15555>`__) The batch details page now shows billing project information and warns when the billing project is low on or over its limit.
+- (`#15588 <https://github.com/hail-is/hail/pull/15588>`__) Add an API endpoint that returns a signed URL for downloading job logs directly from cloud storage, for logs too large to fetch via the standard endpoint.
+- (`#15523 <https://github.com/hail-is/hail/pull/15523>`__, `#15572 <https://github.com/hail-is/hail/pull/15572>`__, `#15574 <https://github.com/hail-is/hail/pull/15574>`__) All queries previously only available through the web UI now have REST ``/api/`` equivalents, and the batch driver API is now documented with OpenAPI.
+- (`#15452 <https://github.com/hail-is/hail/pull/15452>`__) Fix timeouts when localizing large input files to a job, significantly speeding up large file downloads.
+- (`#15494 <https://github.com/hail-is/hail/pull/15494>`__) Fix fetching logs of a specific container with ``hailctl``, support fetching logs of previous attempts, and add a command to list a job's attempts.
+- (`#15298 <https://github.com/hail-is/hail/pull/15298>`__) Show a clearer error message, with instructions, when submitting a batch while unauthenticated or with an inactive account.
+- (`#15362 <https://github.com/hail-is/hail/pull/15362>`__) Improve the error message reported when a job's docker image cannot be inspected.
+- (`#15552 <https://github.com/hail-is/hail/pull/15552>`__) Improve behavior in hosted Jupyter environments: subprocesses now use the running Python interpreter rather than the system one.
+
 **Version 0.2.138**
 
 - (`#15266 <https://github.com/hail-is/hail/pull/15266>`__) Add the ability to filter jobs by exit code in the Batch UI and API.
