@@ -54,7 +54,7 @@ The system enforces the following invariants:
   This is an outcome of per-billing-project spend not exceeding the billing project's limit,
   and the sum of all billing project limits being less than or equal to the quote's ``authorized_amount``.
 - **A quote cannot be closed while it has open billing projects.** Billing projects must be closed
-or moved before the quote can be closed.
+  or moved before the quote can be closed.
 
 Roles and Permissions
 ---------------------
