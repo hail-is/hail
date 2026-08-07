@@ -131,16 +131,21 @@ The table below lays out the permissions for each role type:
      - ✅
      - ✅
      - ✅
-   * - Add billing project users
+   * - Add billing project users ‡
      - ✅
-     - ✅
-     - ✅
-     - ✅
+     - 🔜
+     - 🔜
+     - 🔜
    * - Remove billing project users
      - ✅
      - ✅
      - ✅
      - ✅
+   * - Request a billing project limit increase ‡
+     - N/A
+     - N/A
+     - N/A
+     - 🔜
    * - Close / reopen a billing project
      - ✅
      - ✅
@@ -156,7 +161,12 @@ The table below lays out the permissions for each role type:
      - ✅
      - ❌
      - ❌
-   * - Add / remove quote managers
+   * - Add quote managers ‡
+     - ✅
+     - 🔜
+     - ❌
+     - ❌
+   * - Remove / change quote managers
      - ✅
      - ✅
      - ❌
@@ -173,6 +183,13 @@ The table below lays out the permissions for each role type:
     To move a billing project between quotes, you must be a ``quote_owner`` or ``quote_manager`` in
     both the source and destination quotes. The destination quote must have sufficient headroom to
     accommodate the billing project's limit.
+
+.. note::
+
+    **‡ Coming soon — user invitation flow.**
+    Adding users to billing projects, adding quote managers, and requesting billing project limit
+    increases will be handled via an invitation system in a future release. For now, these actions
+    are performed by global billing managers on behalf of users.
 
 Lifecycle
 ---------
