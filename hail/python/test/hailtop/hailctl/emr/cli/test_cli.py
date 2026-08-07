@@ -92,6 +92,14 @@ def test_start_rejects_unknown_flags(emr_client_mock):
     assert emr_client_mock.run_job_flow.call_count == 0
 
 
+def test_start_rejects_custom_roles_without_no_use_default_roles(emr_client_mock):
+    # Otherwise the custom role is silently dropped and the cluster quietly runs
+    # under EMR_DefaultRole.
+    res = runner.invoke(cli.app, ['start', 'c1', '--s3-scratch', 's3://bkt/tmp/', '--service-role', 'my-role'])
+    assert res.exit_code != 0
+    assert emr_client_mock.run_job_flow.call_count == 0
+
+
 def test_start_invalid_json_overlay_errors(emr_client_mock):
     res = runner.invoke(
         cli.app,

@@ -69,6 +69,12 @@ def start(
     if scratch is None:
         raise typer.BadParameter('Provide --s3-scratch or set `hailctl config set emr/remote_tmpdir`.')
 
+    if use_default_roles and (service_role is not None or instance_profile is not None):
+        raise typer.BadParameter(
+            '--service-role and --instance-profile apply only with --no-use-default-roles, '
+            'which this command defaults to off.'
+        )
+
     start_mod.check_release_spark_compatibility(release_label)
 
     resolved_region = emr.resolve_region(region)
