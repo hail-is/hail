@@ -766,7 +766,7 @@ object Extract {
         x
       case x =>
         x.mapChildrenWithIndex { case (child: IR, i) =>
-          val newEnv = env.extend(Bindings.get(x, i).map((_, _) => new BindingState))
+          val newEnv = env.extend(Bindings.get[Unit](x, i).map((_, _) => new BindingState))
 
           this.extract(child, newEnv, initBindings, initBuilder, seqBuilder, memo,
             result, r, isScan)

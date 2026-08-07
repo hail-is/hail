@@ -2,8 +2,10 @@ package is.hail.expr.ir
 
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIndexedSeqAnyRef
-import is.hail.types.virtual.{Type, VType}
+import is.hail.types.virtual.VType
 import is.hail.utils.StackSafe._
+
+import scala.reflect.ClassTag
 
 case class Name(str: String) {
   override def toString: String = str
@@ -64,25 +66,25 @@ abstract class BaseIR {
     }
   }
 
-  def forEachChildWithEnv[E <: GenericBindingEnv[E, Type]](env: E)(f: (BaseIR, E) => Unit): Unit =
+  def forEachChildWithEnv[E <: GenericBindingEnv.Aux[E, T], T: ClassTag: Algebra](
+    env: E with GenericBindingEnv.Aux[E, T]
+  )(
+    f: (BaseIR, E) => Unit
+  ): Unit =
     childrenSeq.view.zipWithIndex.foreach { case (child, i) =>
       val childEnv = env.extend(Bindings.get(this, i))
       f(child, childEnv)
     }
 
-  def mapChildrenWithEnv(env: BindingEnv[Type])(f: (BaseIR, BindingEnv[Type]) => BaseIR): BaseIR =
-    mapChildrenWithEnv[BindingEnv[Type]](env, (env, bindings) => env.extend(bindings))(f)
-
-  def mapChildrenWithEnv[E](
-    env: E,
-    update: (E, Bindings[Type]) => E,
+  def mapChildrenWithEnv[E <: GenericBindingEnv.Aux[E, T], T: ClassTag: Algebra](
+    env: E with GenericBindingEnv.Aux[E, T]
   )(
     f: (BaseIR, E) => BaseIR
   ): BaseIR = {
     val newChildren = childrenSeq.toArray
     var res = this
     for (i <- newChildren.indices) {
-      val childEnv = update(env, Bindings.get(res, i))
+      val childEnv = env.extend(Bindings.get(res, i))
       val child = newChildren(i)
       val newChild = f(child, childEnv)
       if (!(newChild eq child)) {
@@ -93,9 +95,9 @@ abstract class BaseIR {
     res
   }
 
-  def mapChildrenWithEnvStackSafe[E](
+  def mapChildrenWithEnvStackSafe[E, T: ClassTag: Algebra](
     env: E,
-    update: (E, Bindings[Type]) => E,
+    update: (E, Bindings[T]) => E,
   )(
     f: (BaseIR, E) => StackFrame[BaseIR]
   ): StackFrame[BaseIR] = {
@@ -113,8 +115,8 @@ abstract class BaseIR {
     }.map(_ => res)
   }
 
-  def forEachChildWithEnvStackSafe[E <: GenericBindingEnv[E, Type]](
-    env: E
+  def forEachChildWithEnvStackSafe[E <: GenericBindingEnv.Aux[E, T], T: ClassTag: Algebra](
+    env: E with GenericBindingEnv.Aux[E, T]
   )(
     f: (BaseIR, Int, E) => StackFrame[Unit]
   ): StackFrame[Unit] =

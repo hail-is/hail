@@ -1,9 +1,8 @@
 package is.hail.types.virtual
 
-import is.hail.collection.FastSeq
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
-import is.hail.expr.ir.{Env, IRParser, MatrixIR, Name}
+import is.hail.expr.ir.IRParser
 import is.hail.expr.ir.lowering.LowerMatrixIR
 import is.hail.types.physical.{PArray, PStruct}
 import is.hail.utils._
@@ -34,13 +33,6 @@ object MatrixType {
     getEntryArrayType(rvRowType).elementType.asInstanceOf[PStruct]
 
   def getEntriesIndex(rvRowType: PStruct): Int = rvRowType.fieldIdx(entriesIdentifier)
-
-  def globalBindings: IndexedSeq[Int] = FastSeq(0)
-  def rowInRowBindings: IndexedSeq[Int] = FastSeq(0, 1)
-  def colInColBindings: IndexedSeq[Int] = FastSeq(0, 1)
-  def rowInEntryBindings: IndexedSeq[Int] = FastSeq(0, 2)
-  def colInEntryBindings: IndexedSeq[Int] = FastSeq(0, 1)
-  def entryBindings: IndexedSeq[Int] = FastSeq(0, 1, 2, 3)
 
   def fromTableType(
     typ: TableType,
@@ -181,35 +173,6 @@ case class MatrixType(
     sb ++= newline
     sb += '}'
   }
-
-  @transient lazy val globalEnv: Env[Type] = Env.empty[Type]
-    .bind(globalBindings: _*)
-
-  def globalBindings: IndexedSeq[(Name, Type)] =
-    FastSeq(MatrixIR.globalName -> globalType)
-
-  @transient lazy val rowEnv: Env[Type] = Env.empty[Type]
-    .bind(rowBindings: _*)
-
-  def rowBindings: IndexedSeq[(Name, Type)] =
-    FastSeq(MatrixIR.globalName -> globalType, MatrixIR.rowName -> rowType)
-
-  @transient lazy val colEnv: Env[Type] = Env.empty[Type]
-    .bind(colBindings: _*)
-
-  def colBindings: IndexedSeq[(Name, Type)] =
-    FastSeq(MatrixIR.globalName -> globalType, MatrixIR.colName -> colType)
-
-  @transient lazy val entryEnv: Env[Type] = Env.empty[Type]
-    .bind(entryBindings: _*)
-
-  def entryBindings: IndexedSeq[(Name, Type)] =
-    FastSeq(
-      MatrixIR.globalName -> globalType,
-      MatrixIR.colName -> colType,
-      MatrixIR.rowName -> rowType,
-      MatrixIR.entryName -> entryType,
-    )
 
   def requireRowKeyVariant(): Unit = {
     val rowKeyTypes = rowKeyStruct.types
