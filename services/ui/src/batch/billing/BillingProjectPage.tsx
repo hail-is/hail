@@ -186,6 +186,7 @@ export function BillingProjectPage({ basePath, bpName }: Props) {
 
   const billingRole = bp?.billing_role ?? null;
   const canEditLimit = can(billingRole, 'edit_bp_limit');
+  const canAddMembers = can(billingRole, 'add_bp_member');
   const canManageMembers = can(billingRole, 'manage_bp_members');
   const canCloseReopen = can(billingRole, 'close_reopen_bp');
   const canChangeQuote = can(billingRole, 'change_bp_quote');
@@ -297,7 +298,7 @@ export function BillingProjectPage({ basePath, bpName }: Props) {
             </tbody>
           </table>
           {memberError && <div className="text-red-600 text-xs mt-1">{memberError}</div>}
-          {canManageMembers && bp.status === 'open' && (
+          {canAddMembers && bp.status === 'open' && (
             <div className="mt-3 flex items-center gap-2">
               <input
                 type="text"
