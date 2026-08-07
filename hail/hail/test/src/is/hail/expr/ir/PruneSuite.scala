@@ -118,10 +118,10 @@ class PruneSuite {
     val rebuilt = (irCopy match {
       case mir: MatrixIR =>
         PruneDeadFields.memoizeMatrixIR(ctx, mir, requestedType.asInstanceOf[MatrixType], ms)
-        PruneDeadFields.rebuild(ctx, mir, ms.rebuildState)
+        PruneDeadFields.rebuildMatrix(ctx, mir, ms.rebuildState)
       case tir: TableIR =>
         PruneDeadFields.memoizeTableIR(ctx, tir, requestedType.asInstanceOf[TableType], ms)
-        PruneDeadFields.rebuild(ctx, tir, ms.rebuildState)
+        PruneDeadFields.rebuildTable(ctx, tir, ms.rebuildState)
       case ir: IR =>
         val envStates = env.mapValues(TypeState(_))
         PruneDeadFields.memoizeValueIR(ctx, ir, requestedType.asInstanceOf[Type], ms, envStates)

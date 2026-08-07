@@ -95,7 +95,7 @@ package object invariant {
       val adj: A => Iterator[A] = { case (ir, env) =>
         val newNames = mutable.HashSet.empty[Name] // ir may bind the same name in multiple children
         ir.children.iterator.zipWithIndex.map { case (child, i) =>
-          val bindings = Bindings.get(ir, i).all.map { case (name, _) => (name, ir) }
+          val bindings = Bindings.get[Unit](ir, i).all.map { case (name, _) => (name, ir) }
           if (!NormalizeNames.needsRenaming(ir)) (child, env.bindIterable(bindings))
           else {
             bindings.foreach { case (name, ir) =>
