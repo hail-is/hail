@@ -398,8 +398,8 @@ jobs:
     timeout-minutes: 1
     steps:
       - name: Verify all checks passed
-        if: needs.should-run.outputs.run == 'true'
         run: |
+          [[ "${{ needs.should-run.outputs.run }}" != "true" ]] && exit 0
           results=( \
             "${{ needs.check-pip-requirements.result }}" \
             "${{ needs.check-services.result }}" \
