@@ -47,7 +47,7 @@ def submit(request):
         # hailgenetics/hail is large enough that tests timeout waiting for
         # workers to pull the image.
         if '--image' not in command and 'HAIL_GENETICS_HAIL_IMAGE' not in kwargs.get('env', {}):
-            command += ['--image', 'python:3.11-slim', '--shell', '/usr/bin/bash']
+            command += ['--image', 'python:3.12-slim', '--shell', '/usr/bin/bash']
 
         return runner.invoke(
             cli.app,

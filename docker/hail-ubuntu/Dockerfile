@@ -13,7 +13,7 @@ COPY docker/hail-ubuntu/pip.conf /root/.config/pip/pip.conf
 COPY docker/hail-ubuntu/retry /bin/retry
 COPY docker/hail-ubuntu/uv.toml /root/.config/uv/uv.toml
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
-ARG PYTHON_VERSION=3.11
+ARG PYTHON_VERSION=3.12
 RUN chmod 755 /bin/retry && \
     chmod 755 /bin/hail-apt-get-install && \
     chmod 755 /bin/hail-pip-install && \
