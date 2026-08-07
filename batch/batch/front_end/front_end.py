@@ -3353,7 +3353,7 @@ async def post_billing_projects_add_user(request: web.Request, userdata: UserDat
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/users/{user}/add')
 @auth.authenticated_users_only()
-@billing_permission_required(BillingPermission.MANAGE_BP_MEMBERS)
+@billing_permission_required(BillingPermission.ADD_BP_MEMBER)
 async def api_billing_projects_add_user(request: web.Request, userdata: UserData) -> web.Response:
     db: Database = request.app['db']
     user = request.match_info['user']
@@ -3710,7 +3710,7 @@ async def reopen_quote(request: web.Request, userdata: UserData) -> web.Response
 
 @routes.post('/api/v1alpha/quotes/{name}/managers')
 @auth.authenticated_users_only()
-@billing_permission_required(BillingPermission.MANAGE_MANAGERS)
+@billing_permission_required(BillingPermission.ADD_MANAGER)
 async def add_quote_manager(request: web.Request, userdata: UserData) -> web.Response:
     db: Database = request.app['db']
     quote_name = request.match_info['name']
