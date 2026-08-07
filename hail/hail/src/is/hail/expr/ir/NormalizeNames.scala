@@ -1,10 +1,10 @@
 package is.hail.expr.ir
 
 import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.Algebra.Structural
 import is.hail.expr.ir.NormalizeNames.needsRenaming
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.lowering.invariant.{NoSharedNodes, UniquelyNamed}
-import is.hail.types.virtual.Type
 import is.hail.utils.StackSafe._
 import is.hail.utils.TimedBlock
 
@@ -102,7 +102,7 @@ class NormalizeNames(freeVariables: Set[Name]) {
       Recur(newName, args, typ).mapChildrenStackSafe(normalizeIR(_, env))
     case ir =>
       val bindingsMap = is.hail.collection.compat.mutable.AnyRefMap.empty[Name, Name]
-      val updateEnv: (BindingEnv[Name], Bindings[Type]) => BindingEnv[Name] =
+      val updateEnv: (BindingEnv[Name], Bindings[Unit]) => BindingEnv[Name] =
         if (needsRenaming(ir)) { (env, bindings) =>
           val bindingsNames = bindings.map((name, _) => bindingsMap.getOrElseUpdate(name, gen()))
           env.extend(bindingsNames)

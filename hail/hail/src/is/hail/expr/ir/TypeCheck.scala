@@ -38,14 +38,13 @@ object TypeCheck extends Logging {
           _ <- call(check(ctx, child, childEnv))
         } yield
           if (child.typ == TVoid) {
-            checkVoidTypedChild(ctx, ir, i, env)
+            checkVoidTypedChild(ctx, ir, i)
           } else ()
       }
     } yield checkSingleNode(ctx, ir, env)
   }
 
-  private def checkVoidTypedChild(ctx: ExecuteContext, ir: BaseIR, i: Int, env: BindingEnv[Type])
-    : Unit = ir match {
+  private def checkVoidTypedChild(ctx: ExecuteContext, ir: BaseIR, i: Int): Unit = ir match {
     case l: Block if i == l.bindings.length || l.body.typ == TVoid =>
     case _: StreamFor if i == 1 =>
     case _: RunAggScan if (i == 1 || i == 2) =>
