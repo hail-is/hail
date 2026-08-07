@@ -13,13 +13,20 @@ app = typer.Typer(
     pretty_exceptions_show_locals=False,
 )
 
+# Clusters that still exist and may still cost money. TERMINATING is included so
+# a cluster does not vanish from `list` before it has actually shut down.
+ACTIVE_CLUSTER_STATES = ['STARTING', 'BOOTSTRAPPING', 'RUNNING', 'WAITING', 'TERMINATING']
+
 
 @app.command()
 def start(
     cluster_name: str,
     s3_scratch: Ann[
         Optional[str],
-        Opt('--s3-scratch', help='S3 URI for scratch data (e.g. s3://bucket/hail-tmp/). Defaults to the emr/remote_tmpdir config.'),
+        Opt(
+            '--s3-scratch',
+            help='S3 URI for scratch data (e.g. s3://bucket/hail-tmp/). Defaults to the emr/remote_tmpdir config.',
+        ),
     ] = None,
     region: Ann[Optional[str], Opt(help='AWS region for the cluster.')] = None,
     release_label: Ann[str, Opt(help='EMR release label.')] = 'emr-7.3.0',
@@ -31,12 +38,19 @@ def start(
     log_uri: Ann[Optional[str], Opt(help='S3 URI for EMR logs. Defaults to <s3-scratch>/logs/.')] = None,
     use_default_roles: Ann[bool, Opt(help='Use EMR_DefaultRole and EMR_EC2_DefaultRole.')] = True,
     service_role: Ann[Optional[str], Opt(help='Custom EMR service role (requires --no-use-default-roles).')] = None,
-    instance_profile: Ann[Optional[str], Opt(help='Custom EC2 instance profile (requires --no-use-default-roles).')] = None,
-    no_off_heap_memory: Ann[bool, Opt('--no-off-heap-memory', help="Don't reserve off-heap memory for Hail values.")] = False,
+    instance_profile: Ann[
+        Optional[str], Opt(help='Custom EC2 instance profile (requires --no-use-default-roles).')
+    ] = None,
+    no_off_heap_memory: Ann[
+        bool, Opt('--no-off-heap-memory', help="Don't reserve off-heap memory for Hail values.")
+    ] = False,
     off_heap_memory_per_core_mb: Ann[int, Opt(help='Off-heap memory reserved per core, in MB.')] = 1024,
     run_job_flow_json: Ann[
         Optional[str],
-        Opt('--run-job-flow-json', help='JSON object deep-merged into the boto3 run_job_flow request for advanced options.'),
+        Opt(
+            '--run-job-flow-json',
+            help='JSON object deep-merged into the boto3 run_job_flow request for advanced options.',
+        ),
     ] = None,
     vep: Ann[Optional[str], Opt(help='(Phase 2) Install VEP for the given reference genome.')] = None,
     dry_run: Ann[bool, Opt(help="Build the request but don't call AWS.")] = False,
@@ -101,9 +115,7 @@ def _upload_bootstrap(bootstrap_s3_uri: str) -> None:
 
     from . import emr  # pylint: disable=import-outside-toplevel
 
-    script_bytes = (
-        ir.files('hailtop.hailctl.emr').joinpath('resources/install-hail-emr.sh').read_bytes()
-    )
+    script_bytes = ir.files('hailtop.hailctl.emr').joinpath('resources/install-hail-emr.sh').read_bytes()
     emr.upload_to_s3(bootstrap_s3_uri, script_bytes)
 
 
@@ -123,14 +135,17 @@ def stop(
 @app.command()
 def list(
     region: Ann[Optional[str], Opt(help='AWS region.')] = None,
+    all_states: Ann[bool, Opt('--all', help='Include terminated clusters.')] = False,
 ):
-    """List EMR clusters."""
+    """List active EMR clusters."""
     from . import emr  # pylint: disable=import-outside-toplevel
 
     resolved_region = emr.resolve_region(region)
-    resp = emr.emr_client(resolved_region).list_clusters()
-    for cluster in resp.get('Clusters', []):
-        print(f"{cluster['Id']}\t{cluster['Status']['State']}\t{cluster['Name']}")
+    kwargs = {} if all_states else {'ClusterStates': ACTIVE_CLUSTER_STATES}
+    paginator = emr.emr_client(resolved_region).get_paginator('list_clusters')
+    for page in paginator.paginate(**kwargs):
+        for cluster in page.get('Clusters', []):
+            print(f"{cluster['Id']}\t{cluster['Status']['State']}\t{cluster['Name']}")
 
 
 @app.command(context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
@@ -143,7 +158,9 @@ def submit(
         Opt('--s3-scratch', help='S3 URI for scratch data. Defaults to the emr/remote_tmpdir config.'),
     ] = None,
     region: Ann[Optional[str], Opt(help='AWS region.')] = None,
-    no_wait: Ann[bool, Opt('--no-wait', help='Return immediately after submitting, without waiting for completion.')] = False,
+    no_wait: Ann[
+        bool, Opt('--no-wait', help='Return immediately after submitting, without waiting for completion.')
+    ] = False,
 ):
     """Submit a Python job to an EMR cluster configured for Hail."""
     from hailtop.config import ConfigVariable, configuration_of  # pylint: disable=import-outside-toplevel

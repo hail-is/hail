@@ -11,9 +11,7 @@ def test_start_requires_name_and_tmpdir():
 
 
 def test_start_dry_run_makes_no_aws_calls(emr_client_mock, upload_mock):
-    res = runner.invoke(
-        cli.app, ['start', 'c1', '--s3-scratch', 's3://bkt/tmp/', '--dry-run']
-    )
+    res = runner.invoke(cli.app, ['start', 'c1', '--s3-scratch', 's3://bkt/tmp/', '--dry-run'])
     assert res.exit_code == 0
     assert emr_client_mock.run_job_flow.call_count == 0
     assert upload_mock.call_count == 0  # dry run must not write to S3
@@ -35,9 +33,7 @@ def test_start_calls_run_job_flow_with_hail_config(emr_client_mock, upload_mock)
 
 
 def test_start_unknown_release_errors(emr_client_mock):
-    res = runner.invoke(
-        cli.app, ['start', 'c1', '--s3-scratch', 's3://bkt/tmp/', '--release-label', 'emr-6.15.0']
-    )
+    res = runner.invoke(cli.app, ['start', 'c1', '--s3-scratch', 's3://bkt/tmp/', '--release-label', 'emr-6.15.0'])
     assert res.exit_code != 0
     assert emr_client_mock.run_job_flow.call_count == 0
 
@@ -58,11 +54,26 @@ def test_stop_calls_terminate(emr_client_mock):
     emr_client_mock.terminate_job_flows.assert_called_once_with(JobFlowIds=['j-123'])
 
 
-def test_list_calls_list_clusters(emr_client_mock):
-    emr_client_mock.list_clusters.return_value = {'Clusters': []}
+def test_list_filters_to_active_clusters_and_paginates(emr_client_mock):
+    paginator = emr_client_mock.get_paginator.return_value
+    paginator.paginate.return_value = [
+        {'Clusters': [{'Id': 'j-1', 'Status': {'State': 'WAITING'}, 'Name': 'c1'}]},
+        {'Clusters': [{'Id': 'j-2', 'Status': {'State': 'RUNNING'}, 'Name': 'c2'}]},
+    ]
     res = runner.invoke(cli.app, ['list'])
-    assert res.exit_code == 0
-    assert emr_client_mock.list_clusters.call_count == 1
+    assert res.exit_code == 0, res.stdout
+    emr_client_mock.get_paginator.assert_called_once_with('list_clusters')
+    paginator.paginate.assert_called_once_with(ClusterStates=cli.ACTIVE_CLUSTER_STATES)
+    # every page is consumed, not just the first
+    assert 'j-1' in res.stdout and 'j-2' in res.stdout
+
+
+def test_list_all_includes_terminated(emr_client_mock):
+    paginator = emr_client_mock.get_paginator.return_value
+    paginator.paginate.return_value = []
+    res = runner.invoke(cli.app, ['list', '--all'])
+    assert res.exit_code == 0, res.stdout
+    paginator.paginate.assert_called_once_with()
 
 
 def test_start_rejects_unknown_flags(emr_client_mock):
@@ -93,9 +104,7 @@ def test_submit_invokes_submit(monkeypatch):
         return 's-1'
 
     monkeypatch.setattr('hailtop.hailctl.emr.submit.submit', fake_submit)
-    res = runner.invoke(
-        cli.app, ['submit', 'j-123', 'script.py', '--s3-scratch', 's3://bkt/tmp/']
-    )
+    res = runner.invoke(cli.app, ['submit', 'j-123', 'script.py', '--s3-scratch', 's3://bkt/tmp/'])
     assert res.exit_code == 0, res.stdout
     assert called['cluster_id'] == 'j-123'
     assert called['script'] == 'script.py'

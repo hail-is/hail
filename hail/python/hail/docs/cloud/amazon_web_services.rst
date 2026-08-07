@@ -32,7 +32,8 @@ To submit a Python job and wait for it to finish:
 
     hailctl emr submit CLUSTER_ID SCRIPT.py --s3-scratch s3://my-bucket/hail-tmp/ [-- args to your script...]
 
-Your script should read and write ``s3://`` URIs (EMRFS resolves them). To list running clusters:
+Your script should read and write ``s3://`` URIs (EMRFS resolves them). To list active clusters
+(pass ``--all`` to include terminated ones):
 
 .. code-block:: text
 
