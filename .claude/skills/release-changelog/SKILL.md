@@ -1,5 +1,5 @@
 ---
-disable-model-incovation: true
+disable-model-invocation: true
 description: Prepare a Hail release — bump the patch version and curate the query and batch changelogs from commits since the last release tag
 ---
 
