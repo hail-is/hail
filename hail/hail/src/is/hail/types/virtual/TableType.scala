@@ -1,6 +1,5 @@
 package is.hail.types.virtual
 
-import is.hail.collection.FastSeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir._
 import is.hail.rvd.RVDType
@@ -23,10 +22,6 @@ object TableType {
 
   def valueType(ts: TStruct, key: IndexedSeq[String]): TStruct =
     ts.filterSet(key.toSet, include = false)._1
-
-  def globalBindings: IndexedSeq[Int] = FastSeq(0)
-
-  def rowBindings: IndexedSeq[Int] = FastSeq(0, 1)
 }
 
 case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStruct) extends VType {
@@ -37,18 +32,6 @@ case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStr
     if (!rowType.hasField(k))
       throw new RuntimeException(s"key field $k not in row type: $rowType")
   }
-
-  @transient lazy val globalEnv: Env[Type] =
-    Env.empty[Type].bind(globalBindings: _*)
-
-  def globalBindings: IndexedSeq[(Name, Type)] =
-    FastSeq(TableIR.globalName -> globalType)
-
-  @transient lazy val rowEnv: Env[Type] =
-    Env.empty[Type].bind(rowBindings: _*)
-
-  def rowBindings: IndexedSeq[(Name, Type)] =
-    FastSeq(TableIR.globalName -> globalType, TableIR.rowName -> rowType)
 
   def isCanonical: Boolean = rowType.isCanonical && globalType.isCanonical
 
