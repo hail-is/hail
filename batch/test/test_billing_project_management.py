@@ -10,7 +10,7 @@ import pytest
 import pytest_asyncio
 from aiohttp import web
 
-from batch.billing_auth import BillingPermission, billing_permission_required
+from batch.billing_auth import BILLING_ROLE_PERMISSIONS, BillingPermission, billing_permission_required
 from batch.billing_project_management import (
     add_billing_project_user,
     add_quote_manager,
@@ -306,6 +306,40 @@ async def test_get_billing_project_events_returns_events(db):
     events = await get_billing_project_events(db, 'bp-bpe')
     assert len(events) >= 1
     assert any(e['action'] == 'bp_created' for e in events)
+
+
+# ---------------------------------------------------------------------------
+# BILLING_ROLE_PERMISSIONS — user management restrictions
+# ---------------------------------------------------------------------------
+
+
+def test_add_bp_member_is_global_bm_only():
+    for role in ('quote_owner', 'quote_manager', 'bp_member'):
+        assert BillingPermission.ADD_BP_MEMBER not in BILLING_ROLE_PERMISSIONS[role], (
+            f'{role} should not have ADD_BP_MEMBER'
+        )
+    assert BillingPermission.ADD_BP_MEMBER in BILLING_ROLE_PERMISSIONS['global_bm']
+
+
+def test_add_manager_is_global_bm_only():
+    for role in ('quote_owner', 'quote_manager', 'bp_member'):
+        assert BillingPermission.ADD_MANAGER not in BILLING_ROLE_PERMISSIONS[role], (
+            f'{role} should not have ADD_MANAGER'
+        )
+    assert BillingPermission.ADD_MANAGER in BILLING_ROLE_PERMISSIONS['global_bm']
+
+
+def test_manage_bp_members_available_to_non_global_bm():
+    for role in ('quote_owner', 'quote_manager', 'bp_member'):
+        assert BillingPermission.MANAGE_BP_MEMBERS in BILLING_ROLE_PERMISSIONS[role], (
+            f'{role} should have MANAGE_BP_MEMBERS'
+        )
+
+
+def test_manage_managers_available_to_quote_owner():
+    assert BillingPermission.MANAGE_MANAGERS in BILLING_ROLE_PERMISSIONS['quote_owner']
+    assert BillingPermission.MANAGE_MANAGERS not in BILLING_ROLE_PERMISSIONS['quote_manager']
+    assert BillingPermission.MANAGE_MANAGERS not in BILLING_ROLE_PERMISSIONS['bp_member']
 
 
 # ---------------------------------------------------------------------------
