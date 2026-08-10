@@ -4,7 +4,6 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.asm4s.implicits.valueToRichCodeRegion
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.linalg.{BLAS, LAPACK}
@@ -15,7 +14,7 @@ import is.hail.types.physical.stypes.concrete.{SNDArraySlice, SNDArraySliceValue
 import is.hail.types.physical.stypes.primitives.SInt64Value
 import is.hail.types.virtual.TInt32
 
-import scala.collection.compat._
+import scala.collection.immutable.ArraySeq
 
 object SNDArray {
   def numElements(shape: IndexedSeq[Value[Long]]): Code[Long] =

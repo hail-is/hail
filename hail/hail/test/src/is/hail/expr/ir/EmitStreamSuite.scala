@@ -7,7 +7,6 @@ import is.hail.annotations.{Region, RowSeq, SafeRow, ScalaToRegionValue}
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.{Memoized => M}
 import is.hail.expr.ir.agg.{CollectStateSig, PhysicalAggSig, TypedStateSig}
@@ -23,6 +22,8 @@ import is.hail.types.physical.stypes.interfaces.{NoBoxLongIterator, SStreamValue
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.Call2
+
+import scala.collection.immutable.ArraySeq
 
 import org.junit.jupiter.api.Test
 

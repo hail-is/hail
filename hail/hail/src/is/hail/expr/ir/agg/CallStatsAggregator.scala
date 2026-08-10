@@ -4,7 +4,6 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.asm4s.implicits.valueToRichCodeRegion
 import is.hail.backend.ExecuteContext
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.types.physical._
@@ -12,6 +11,8 @@ import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.concrete.SBaseStructPointer
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual.{TCall, TInt32, Type}
+
+import scala.collection.immutable.ArraySeq
 
 object CallStatsState {
   val callStatsInternalArrayType = PCanonicalArray(PInt32Required, required = true)

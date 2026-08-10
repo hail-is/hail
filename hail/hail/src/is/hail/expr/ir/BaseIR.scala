@@ -1,9 +1,10 @@
 package is.hail.expr.ir
 
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIndexedSeqAnyRef
 import is.hail.types.virtual.{Type, VType}
 import is.hail.utils.StackSafe._
+
+import scala.collection.immutable.ArraySeq
 
 case class Name(str: String) {
   override def toString: String = str

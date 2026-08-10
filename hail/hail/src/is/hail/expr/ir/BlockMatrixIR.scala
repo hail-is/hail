@@ -3,7 +3,6 @@ package is.hail.expr.ir
 import is.hail.annotations.NDArray
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.Nat
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.lowering.{BMSContexts, BlockMatrixStage2, LowererUnsupportedOperation}
@@ -15,7 +14,7 @@ import is.hail.types.encoded.{EBlockMatrixNDArray, EFloat64}
 import is.hail.types.virtual._
 import is.hail.utils._
 
-import scala.collection.immutable.NumericRange
+import scala.collection.immutable.{ArraySeq, NumericRange}
 import scala.collection.mutable.ArrayBuffer
 
 import breeze.linalg.DenseMatrix

@@ -4,12 +4,11 @@ import is.hail.ParameterizedTest
 import is.hail.backend.ExecutionCache.Flags.UseFastRestarts
 import is.hail.backend.service.{BatchJobConfig, ServiceBackend, WireProtocol}
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.services._
 import is.hail.services.JobGroupStates._
 import is.hail.utils.{handleForPython, tokenUrlSafe, using, HailWorkerException}
 
-import scala.collection.compat.immutable.LazyList
+import scala.collection.immutable.ArraySeq
 import scala.concurrent.CancellationException
 import scala.reflect.io.{Directory, Path}
 import scala.util.Random

@@ -7,7 +7,6 @@ import is.hail.asm4s.implicits.{
 }
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{
   EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitValue, IEmitCode, ParamType,
 }
@@ -19,6 +18,8 @@ import is.hail.types.physical._
 import is.hail.types.physical.stypes.{EmitType, SValue}
 import is.hail.types.physical.stypes.concrete.SIndexablePointer
 import is.hail.types.virtual.{TVoid, Type}
+
+import scala.collection.immutable.ArraySeq
 
 class GroupedBTreeKey(
   kt: PType,

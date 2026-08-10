@@ -2,9 +2,10 @@ package is.hail.linalg
 
 import is.hail.TestUtils._
 import is.hail.backend.ExecuteContext
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.ExportType
 import is.hail.io.fs.FS
+
+import scala.collection.immutable.ArraySeq
 
 import breeze.linalg.DenseMatrix
 import org.junit.jupiter.api.Test

@@ -2,7 +2,8 @@ package is.hail.linalg
 
 import is.hail.ParameterizedTest
 import is.hail.TestUtils._
-import is.hail.collection.compat.immutable.ArraySeq
+
+import scala.collection.immutable.ArraySeq
 
 class MatrixSparsitySuite {
   def newToOldReference(from: MatrixSparsity, to: MatrixSparsity): IndexedSeq[Integer] =

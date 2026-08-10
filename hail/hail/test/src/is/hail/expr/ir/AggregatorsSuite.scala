@@ -6,7 +6,6 @@ import is.hail.TestUtils._
 import is.hail.annotations.RowSeq
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.defs.{
   AggFilter, AggGroupBy, ApplyAggOp, ApplyBinaryPrimOp, ArrayRef, GetField, I32, InsertFields,
   MakeStruct, MakeTuple, Ref, Str, StreamAgg, StreamAggScan, StreamRange, TableAggregate, ToArray,
@@ -15,6 +14,8 @@ import is.hail.expr.ir.defs.{
 import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR, LoweringAnalyses}
 import is.hail.types.virtual._
 import is.hail.variant.Call2
+
+import scala.collection.immutable.ArraySeq
 
 import org.apache.spark.sql.Row
 import org.junit.jupiter.api.Test

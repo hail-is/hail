@@ -3,8 +3,6 @@ package is.hail.types.physical
 import is.hail.collection.implicits.toRichIterable
 import is.hail.types.virtual.{TTuple, Type}
 
-import scala.collection.compat._
-
 object PCanonicalTuple {
   def apply(required: Boolean, args: PType*): PCanonicalTuple = PCanonicalTuple(
     args.iterator.zipWithIndex.map { case (t, i) => PTupleField(i, t) }.toIndexedSeq,

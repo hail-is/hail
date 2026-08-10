@@ -1,7 +1,6 @@
 package is.hail.expr.ir
 
 import is.hail.backend.ExecuteContext
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.{JSONAnnotationImpex, Nat, ParserUtils}
 import is.hail.expr.ir.agg._
 import is.hail.expr.ir.defs._
@@ -17,7 +16,7 @@ import is.hail.utils._
 import is.hail.utils.StackSafe._
 import is.hail.utils.StringEscapeUtils._
 
-import scala.collection.compat._
+import scala.collection.immutable.ArraySeq
 import scala.reflect.ClassTag
 import scala.util.parsing.combinator.JavaTokenParsers
 import scala.util.parsing.input.Positional

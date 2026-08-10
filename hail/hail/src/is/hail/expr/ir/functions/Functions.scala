@@ -5,7 +5,6 @@ import is.hail.asm4s._
 import is.hail.asm4s.implicits.valueToRichCodeRegion
 import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.experimental.ExperimentalFunctions
 import is.hail.expr.ir._
@@ -20,7 +19,7 @@ import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.{Locus, ReferenceGenome}
 
-import scala.collection.compat._
+import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 import scala.reflect._
 

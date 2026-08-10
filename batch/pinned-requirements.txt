@@ -140,7 +140,7 @@ proto-plus==1.28.4
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   google-api-core
-protobuf==7.36.0
+protobuf==7.36.1
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   google-api-core

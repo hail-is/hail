@@ -2,7 +2,6 @@ package is.hail.expr.ir.lowering
 
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.{toRichIndexedSeq, toRichMap}
 import is.hail.expr.ir.{Memoized => M, _}
 import is.hail.expr.ir.Scope.EVAL
@@ -14,7 +13,7 @@ import is.hail.types.tcoerce
 import is.hail.types.virtual._
 import is.hail.utils._
 
-import scala.collection.immutable.HashSet
+import scala.collection.immutable.{ArraySeq, HashSet}
 import scala.collection.mutable
 
 object Simplify {

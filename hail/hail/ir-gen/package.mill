@@ -7,9 +7,6 @@ import millbuild.MvnCoordinate.*
 
 object `package` extends build.HailScalaModule, DefaultTaskModule:
 
-  override def scalaVersion: T[String] =
-    "2.13.18"
-
   override def defaultTask(): String =
     "generate"
 
@@ -18,7 +15,6 @@ object `package` extends build.HailScalaModule, DefaultTaskModule:
       `mainargs` :: "0.7.7",
       `os-lib` :: "0.10.7",
       `sourcecode` :: "0.4.2",
-      `scala-collection-compat`,
     )
 
   def generate: T[PathRef] =

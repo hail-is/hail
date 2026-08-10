@@ -7,7 +7,6 @@ import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.defs.{
   ApplyComparisonOp, ApplySpecial, ArraySort, ErrorIDs, GetField, I32, In, IsNA, Literal,
   MakeStream, NA, ToArray, ToDict, ToSet, ToStream, True,
@@ -18,6 +17,8 @@ import is.hail.types.physical._
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.interfaces.SBaseStructValue
 import is.hail.types.virtual._
+
+import scala.collection.immutable.ArraySeq
 
 import is.hail
 import org.apache.spark.sql.Row

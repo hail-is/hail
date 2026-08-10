@@ -1,7 +1,6 @@
 package is.hail
 
-import is.hail.collection.compat.immutable.ArraySeq
-
+import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 import scala.reflect.ClassTag
 

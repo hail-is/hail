@@ -1,11 +1,11 @@
 package is.hail.asm4s
 
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.lir
 import is.hail.lir.{Block, ControlX, ValueX}
 
+import scala.collection.immutable.ArraySeq
 import scala.reflect.ClassTag
 
 import java.io.PrintStream

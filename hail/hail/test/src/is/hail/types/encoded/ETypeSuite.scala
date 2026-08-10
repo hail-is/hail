@@ -6,12 +6,13 @@ import is.hail.annotations.{Annotation, Region, RowSeq, SafeNDArray, SafeRow}
 import is.hail.asm4s.Code
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.io._
 import is.hail.rvd.AbstractRVDSpec
 import is.hail.types.physical._
 import is.hail.types.virtual._
+
+import scala.collection.immutable.ArraySeq
 
 import org.json4s.jackson.Serialization
 import org.junit.jupiter.api.Test

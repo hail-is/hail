@@ -5,10 +5,11 @@ import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.defs.{F32, I32, I64, MakeTuple, NA, Str}
 import is.hail.types.virtual._
+
+import scala.collection.immutable.ArraySeq
 
 import org.json4s.jackson.JsonMethods
 import org.junit.jupiter.api.Test

@@ -2,7 +2,6 @@ package is.hail.variant
 
 import is.hail.annotations.ExtendedOrdering
 import is.hail.backend.ExecuteContext
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits._
 import is.hail.expr.{
   JSONExtractContig, JSONExtractIntervalLocus, JSONExtractReferenceGenome, Parser,
@@ -16,6 +15,7 @@ import is.hail.types._
 import is.hail.types.virtual.{TLocus, Type}
 import is.hail.utils._
 
+import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 import scala.jdk.CollectionConverters._
 

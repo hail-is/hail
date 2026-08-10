@@ -6,7 +6,6 @@ import is.hail.TestUtils._
 import is.hail.annotations.RowSeq
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{
   makestruct, mapIR, Ascending, Descending, SortField, TableIR, TableMapRows, TableRange,
 }
@@ -16,6 +15,8 @@ import is.hail.expr.ir.defs.{
 }
 import is.hail.types.RTable
 import is.hail.types.virtual.{TArray, TInt32, TStruct}
+
+import scala.collection.immutable.ArraySeq
 
 import org.apache.spark.sql.Row
 import org.junit.jupiter.api.Test

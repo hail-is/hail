@@ -5,7 +5,6 @@ import is.hail.asm4s._
 import is.hail.asm4s.implicits.{codeToRichCodeRegion, valueToRichCodeRegion}
 import is.hail.backend.{BackendUtils, ExecuteContext, HailTaskContext}
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits._
 import is.hail.expr.ir.defs.EncodedLiteral
 import is.hail.expr.ir.orderings.{CodeOrdering, StructOrdering}
@@ -19,6 +18,7 @@ import is.hail.types.virtual.Type
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 
+import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 
 import java.io._

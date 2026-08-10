@@ -6,7 +6,7 @@ Hail is an open-source project. We welcome contributions to the repository.
 Requirements
 ~~~~~~~~~~~~
 
-- `Java 11 JDK <https://adoptopenjdk.net/index.html>`_ . If you have a Mac, you must use a
+- `Java 21 JDK <https://adoptopenjdk.net/index.html>`_ . If you have a Mac, you must use a
   compatible architecture (``uname -m`` prints your architecture).
 
 - The Python and non-pip installation requirements in `Getting Started <getting_started.html>`_.
@@ -33,9 +33,9 @@ Build and install a wheel file from source with local-mode ``pyspark``::
 
     make install HAIL_COMPILE_NATIVES=1
 
-As above, but explicitly specifying the Scala and Spark versions::
+As above, but explicitly specifying the Spark version::
 
-    make install HAIL_COMPILE_NATIVES=1 SCALA_VERSION=2.11.12 SPARK_VERSION=2.4.5
+    make install HAIL_COMPILE_NATIVES=1 SPARK_VERSION=4.1.2
 
 Building the Docs and Website
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

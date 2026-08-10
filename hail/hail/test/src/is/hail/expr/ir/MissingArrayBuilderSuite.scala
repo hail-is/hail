@@ -3,8 +3,8 @@ package is.hail.expr.ir
 import is.hail.ParameterizedTest
 import is.hail.asm4s.AsmFunction2
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 
+import scala.collection.immutable.ArraySeq
 import scala.reflect.ClassTag
 
 class MissingArrayBuilderSuite {

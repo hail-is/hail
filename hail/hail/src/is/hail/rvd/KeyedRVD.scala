@@ -2,11 +2,12 @@ package is.hail.rvd
 
 import is.hail.annotations._
 import is.hail.backend.ExecuteContext
-import is.hail.collection.compat.mutable.Growable
 import is.hail.sparkextras._
 import is.hail.types.physical.PStruct
 import is.hail.types.virtual.TInterval
 import is.hail.utils._
+
+import scala.collection.mutable
 
 class KeyedRVD(val rvd: RVD, val key: Int) {
   require(key <= rvd.typ.key.length && key >= 0)
@@ -67,8 +68,11 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
       }
     }
     val repartitionedLeft = rvd.repartition(ctx, newPartitioner)
-    val compute
-      : (OrderedRVIterator, OrderedRVIterator, Iterable[RegionValue] with Growable[RegionValue]) => Iterator[JoinedRegionValue] =
+    val compute: (
+      OrderedRVIterator,
+      OrderedRVIterator,
+      Iterable[RegionValue] with mutable.Growable[RegionValue],
+    ) => Iterator[JoinedRegionValue] =
       (joinType: @unchecked) match {
         case "inner" => _.innerJoin(_, _)
         case "left" => _.leftJoin(_, _)

@@ -1,15 +1,12 @@
 package is.hail.annotations
 
 import is.hail.backend.HailStateManager
-import is.hail.collection.compat.mutable.GrowableCompat
 import is.hail.rvd.RVDContext
 import is.hail.types.physical.{PStruct, PType}
 
-import scala.collection.mutable.{ArrayBuffer, PriorityQueue}
+import scala.collection.mutable
 
 import java.io.{ObjectInputStream, ObjectOutputStream}
-
-import sun.reflect.generics.reflectiveObjects.NotImplementedException
 
 object WritableRegionValue {
   def apply(sm: HailStateManager, t: PType, initial: RegionValue, region: Region)
@@ -88,10 +85,10 @@ class WritableRegionValue private (
   def pretty: String = value.pretty(t)
 
   private def writeObject(s: ObjectOutputStream): Unit =
-    throw new NotImplementedException()
+    throw new UnsupportedOperationException
 
   private def readObject(s: ObjectInputStream): Unit =
-    throw new NotImplementedException()
+    throw new UnsupportedOperationException
 }
 
 class RegionValuePriorityQueue(
@@ -100,7 +97,7 @@ class RegionValuePriorityQueue(
   ctx: RVDContext,
   ord: Ordering[RegionValue],
 ) extends Iterable[RegionValue] {
-  private val queue = new PriorityQueue[RegionValue]()(ord)
+  private val queue = new mutable.PriorityQueue[RegionValue]()(ord)
   private val rvb = new RegionValueBuilder(sm)
 
   override def isEmpty: Boolean = queue.isEmpty
@@ -129,12 +126,12 @@ class RegionValuePriorityQueue(
 }
 
 class RegionValueArrayBuffer(val t: PType, region: Region, sm: HailStateManager)
-    extends Iterable[RegionValue] with GrowableCompat[RegionValue] {
+    extends Iterable[RegionValue] with mutable.Growable[RegionValue] {
 
   val value = RegionValue(region, 0)
 
   private val rvb = new RegionValueBuilder(sm, region)
-  val idx = ArrayBuffer.empty[Long]
+  val idx = mutable.ArrayBuffer.empty[Long]
 
   def length = idx.length
 

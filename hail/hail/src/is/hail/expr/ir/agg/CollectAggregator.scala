@@ -4,7 +4,6 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.asm4s.implicits.valueToRichCodeRegion
 import is.hail.backend.ExecuteContext
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.types.VirtualTypeWithReq
@@ -12,6 +11,8 @@ import is.hail.types.physical._
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.concrete.SIndexablePointer
 import is.hail.types.virtual.Type
+
+import scala.collection.immutable.ArraySeq
 
 class CollectAggState(val elemVType: VirtualTypeWithReq, val kb: EmitClassBuilder[_])
     extends AggregatorState {

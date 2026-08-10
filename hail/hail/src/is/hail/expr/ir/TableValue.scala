@@ -5,7 +5,6 @@ import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.ir.agg.IndependentExtractedAggs
@@ -29,6 +28,7 @@ import is.hail.types.tcoerce
 import is.hail.types.virtual.{Field, MatrixType, TArray, TInt32, TStream, TStruct, TableType}
 import is.hail.utils._
 
+import scala.collection.immutable.ArraySeq
 import scala.reflect.ClassTag
 
 import java.io.{DataInputStream, DataOutputStream}

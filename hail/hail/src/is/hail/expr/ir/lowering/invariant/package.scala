@@ -82,8 +82,7 @@ package object invariant {
 
   object UniquelyNamed extends Invariant {
     override private[invariant] def verify(ctx: ExecuteContext, ir: BaseIR): Unit = {
-      val globalNames: mutable.Map[Name, BaseIR] =
-        is.hail.collection.compat.mutable.AnyRefMap.empty
+      val globalNames = mutable.HashMap[Name, BaseIR]()
 
       def collision(name: Name, ir: BaseIR, original: BaseIR): Nothing =
         throw new UnsatisfiedInvariantError(

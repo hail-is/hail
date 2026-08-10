@@ -2,7 +2,6 @@ package is.hail.expr
 
 import is.hail.asm4s._
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
 import is.hail.expr.ir.{Memoized => M}
 import is.hail.expr.ir.defs._
@@ -17,6 +16,7 @@ import is.hail.types.virtual.TIterable.elementType
 import is.hail.utils.fatal
 
 import scala.collection.BufferedIterator
+import scala.collection.immutable.ArraySeq
 
 import java.util.UUID
 

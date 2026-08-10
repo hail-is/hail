@@ -3,9 +3,10 @@ package is.hail.rvd
 import is.hail.annotations.RowSeq
 import is.hail.backend.ExecuteContext
 import is.hail.collection.FastSeq
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.types.virtual.{TInt32, TStruct}
 import is.hail.utils.Interval
+
+import scala.collection.immutable.ArraySeq
 
 import org.junit.jupiter.api.{BeforeEach, Test}
 

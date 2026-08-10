@@ -2,7 +2,6 @@ package is.hail.linalg
 
 import is.hail.TestUtils._
 import is.hail.backend.ExecuteContext
-import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.expr.ir.{CompileAndEvaluate, TableLiteral}
 import is.hail.expr.ir.defs.{GetField, TableCollect}
 import is.hail.expr.ir.lowering.LoweringPipeline
@@ -11,6 +10,8 @@ import is.hail.linalg.implicits._
 import is.hail.scalacheck._
 import is.hail.types.virtual.{TFloat64, TInt64, TStruct}
 import is.hail.utils._
+
+import scala.collection.immutable.ArraySeq
 
 import breeze.linalg.{*, diag, DenseMatrix, DenseVector => BDV}
 import org.apache.spark.sql.Row
