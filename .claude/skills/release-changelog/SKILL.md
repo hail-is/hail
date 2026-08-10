@@ -64,6 +64,7 @@ Keep entries that affect users; drop internal noise; reword keepers into each fi
 - Routine dependency bumps: pip/npm packages, Ubuntu base images, build tools
 - Logging tweaks and docs-only nits
 - Bugs both introduced and fixed since the previous tag — no released version ever had them
+- Likewise, any other feature or change both introduced **and** rolled back since the previous tag
 
 **Verify every bug-fix entry against the previous release.** Only bugs that existed in a released
 version belong in the changelog. For each fix, find the commit that introduced the bug (the PR
