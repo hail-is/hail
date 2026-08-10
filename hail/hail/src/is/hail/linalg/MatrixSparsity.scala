@@ -1,8 +1,7 @@
 package is.hail.linalg
 
-import is.hail.collection.compat._
 import is.hail.collection.compat.immutable.ArraySeq
-import is.hail.collection.implicits.toRichOrderedSeq
+import is.hail.collection.implicits.{toRichArray, toRichOrderedSeq}
 
 import scala.collection.Searching._
 import scala.collection.compat._
@@ -72,7 +71,7 @@ object MatrixSparsity {
   object Sparse {
     def apply(nRows: Int, nCols: Int, definedBlocks: IterableOnce[(Int, Int)]): Sparse = {
       val a = Array.from(definedBlocks)
-      new Sparse(nRows, nCols, ArraySeq.unsafeWrapArray(a.sortInPlaceBy(_.swap).array))
+      new Sparse(nRows, nCols, ArraySeq.unsafeWrapArray(a.sortedInPlaceBy(_.swap)))
     }
 
     def apply(nRows: Int, nCols: Int, definedBlocks: ArraySeq[(Int, Int)]): Sparse =

@@ -31,6 +31,7 @@ import java.io._
 import java.util.concurrent.{ExecutorCompletionService, Executors}
 
 import com.fasterxml.jackson.core.StreamReadConstraints
+import org.apache.spark.SPARK_VERSION
 
 object ServiceBackend {
   object Flags {
@@ -149,6 +150,7 @@ class ServiceBackend(
             command = null,
             spec = jarSpec,
             profile = ctx.flags.get(UseAsyncProfiler) != null,
+            sparkVersion = SPARK_VERSION,
           )
 
         val defaultJob =

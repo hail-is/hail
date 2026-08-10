@@ -865,7 +865,7 @@ steps:
       # This was likely from running mill in server mode; mill main exits before
       # the jar has finished being written.
       time retry make shadowJar
-      if [ ! -f out/hail/2.12/assembly.dest/out.jar ]; then
+      if [ ! -f out/hail/assembly.dest/out.jar ]; then
           echo 'no out.jar found after mill assembly returned. going to sleep'
           sleep 5
       fi
@@ -887,8 +887,8 @@ steps:
       - from: /derived/root/hail/out
         to: /io/repo/hail/out
     outputs:
-      - from: /io/repo/hail/out/hail/2.12/assembly.dest/out.jar
-        to: /derived/release/hail/out/hail/2.12/assembly.dest/out.jar
+      - from: /io/repo/hail/out/hail/assembly.dest/out.jar
+        to: /derived/release/hail/out/hail/assembly.dest/out.jar
       - from: /io/repo/hail/build/deploy/dist
         to: /derived/release/hail/build/deploy/dist
     dependsOn:
@@ -981,7 +981,7 @@ steps:
 
       # See `build_hail_jar_and_wheel`
       time retry make shadowJar
-      if [ ! -f out/hail/2.12/assembly.dest/out.jar ]; then
+      if [ ! -f out/hail/assembly.dest/out.jar ]; then
           echo 'no out.jar found after mill assembly returned. going to sleep'
           sleep 5
       fi
@@ -1027,8 +1027,7 @@ steps:
       export COURSIER_CACHE='/io/cache/coursier/v1'
       export COURSIER_ARCHIVE_CACHE='/io/cache/coursier/arc'
       export MILL_DOWNLOAD_PATH=/io/cache/mill
-      export SCALA_VERSION=2.12
-      time sh mill --no-daemon hail[].test.{compile,testForkGrouping}
+      time sh mill --no-daemon hail.test.{compile,testForkGrouping}
     inputs:
       - from: /repo/hail
         to: /io/repo/hail
@@ -1196,8 +1195,7 @@ steps:
       export COURSIER_CACHE='/io/cache/coursier/v1'
       export COURSIER_ARCHIVE_CACHE='/io/cache/coursier/arc'
       export MILL_DOWNLOAD_PATH=/io/cache/mill
-      export SCALA_VERSION=2.12
-      sh mill --no-daemon -j1 hail[].test.testCISplit --split $HAIL_RUN_IMAGE_SPLIT_INDEX --totalSplits 5
+      sh mill --no-daemon -j1 hail.test.testCISplit --split $HAIL_RUN_IMAGE_SPLIT_INDEX --totalSplits 5
     inputs:
       - from: /repo/hail
         to: /io/repo/hail
@@ -1696,7 +1694,7 @@ steps:
       inline: |
         ARG BASE_IMAGE={{ hail_ubuntu_image.image }}
         FROM $BASE_IMAGE
-        RUN hail-apt-get-install git make openjdk-11-jre-headless
+        RUN hail-apt-get-install git make openjdk-21-jre-headless
         COPY hail/python/pinned-requirements.txt hail-requirements.txt
         COPY hail/python/dev/pinned-requirements.txt dev-requirements.txt
         COPY gear/pinned-requirements.txt gear-requirements.txt
@@ -2707,7 +2705,7 @@ steps:
       {% else %}
       export JAR_PREFIX={{ global.test_storage_uri }}/{{ default_ns.name }}
       {% endif %}
-
+      
       bash /io/upload-qob-jar.sh {{ default_ns.name }} $(cat /io/REVISION) /io/hail.jar
     secrets:
       - name: batch-gsa-key
@@ -2717,7 +2715,7 @@ steps:
     inputs:
       - from: /repo/hail/scripts/upload-qob-jar.sh
         to: /io/upload-qob-jar.sh
-      - from: /derived/release/hail/out/hail/2.12/assembly.dest/out.jar
+      - from: /derived/release/hail/out/hail/assembly.dest/out.jar
         to: /io/hail.jar
       - from: /repo/hail/env/REVISION
         to: /io/REVISION
@@ -3874,9 +3872,6 @@ steps:
       - gcp
   - kind: runImage
     name: test_website
-    scopes:
-      - test
-      - dev
     image:
       valueFrom: hailgenetics_hailtop_image.image
     script: |
@@ -3901,9 +3896,6 @@ steps:
       - gcp
   - kind: runImage
     name: test_hail_scala_fs
-    scopes:
-      - test
-      - dev
     image:
       valueFrom: hail_run_image.image
     resources:
@@ -3928,9 +3920,8 @@ steps:
       export COURSIER_CACHE='/io/cache/coursier/v1'
       export COURSIER_ARCHIVE_CACHE='/io/cache/coursier/arc'
       export MILL_DOWNLOAD_PATH=/io/cache/mill
-      export SCALA_VERSION=2.12
       set +e
-      sh mill --no-daemon -j2 hail[].test.test-fs
+      sh mill --no-daemon -j2 hail.test.test-fs
       exit_code=$?
       set -e
       if [[ $exit_code -eq 2 ]]
@@ -3990,8 +3981,7 @@ steps:
       export COURSIER_CACHE='/io/cache/coursier/v1'
       export COURSIER_ARCHIVE_CACHE='/io/cache/coursier/arc'
       export MILL_DOWNLOAD_PATH=/io/cache/mill
-      export SCALA_VERSION=2.12
-      sh mill --no-daemon -j2 hail[].test.test-services
+      sh mill --no-daemon -j2 hail.test.test-services
     inputs:
       - from: /repo/hail
         to: /io/repo/hail
@@ -4052,7 +4042,7 @@ steps:
       # #14452 - must build wheel with release `hailtop/hailctl/deploy.yaml`
       # use `-o` to prevent `mill` from rebuilding the "SHADOW_JAR"
       make upload-artifacts HAIL_BUILD_MODE=Release DEPLOY_REMOTE=origin \
-        -o out/hail/2.12/assembly.dest/out.jar
+        -o out/hail/assembly.dest/out.jar
 
       echo Setting arguments and invoking release.sh.
 
@@ -4075,8 +4065,8 @@ steps:
     inputs:
       - from: /repo
         to: /io/repo
-      - from: /derived/release/hail/out/hail/2.12/assembly.dest/out.jar
-        to: /io/repo/hail/out/hail/2.12/assembly.dest/out.jar
+      - from: /derived/release/hail/out/hail/assembly.dest/out.jar
+        to: /io/repo/hail/out/hail/assembly.dest/out.jar
       - from: /www.tar.gz
         to: /io/www.tar.gz
     outputs:

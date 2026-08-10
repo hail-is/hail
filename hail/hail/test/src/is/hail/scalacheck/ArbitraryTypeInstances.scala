@@ -5,8 +5,6 @@ import is.hail.expr.Nat
 import is.hail.types.virtual._
 import is.hail.variant.ReferenceGenome.hailReferences
 
-import scala.collection.compat._
-
 import org.scalacheck.{Arbitrary, Gen}
 import org.scalacheck.Arbitrary.arbitrary
 import org.scalacheck.Gen._

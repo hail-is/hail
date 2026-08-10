@@ -5,8 +5,6 @@ import is.hail.backend.HailStateManager
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits.toRichIterable
 
-import scala.collection.compat._
-
 import org.apache.spark.sql.Row
 
 object TTuple {

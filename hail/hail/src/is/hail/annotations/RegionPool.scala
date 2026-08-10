@@ -10,7 +10,7 @@ object RegionPool {
 
   def apply(strictMemoryCheck: Boolean = false): RegionPool = {
     val thread = Thread.currentThread()
-    new RegionPool(strictMemoryCheck, thread.getName, thread.getId)
+    new RegionPool(strictMemoryCheck, thread.getName, thread.threadId())
   }
 
   def scoped[T](f: RegionPool => T): T = using(RegionPool(false))(f)
@@ -32,7 +32,7 @@ final class RegionPool private (strictMemoryCheck: Boolean, threadName: String, 
     Array.fill[LongArrayBuilder](4)(new LongArrayBuilder(8))
 
   protected[annotations] val regions = mutable.ArrayBuffer.empty[RegionMemory]
-  private[this] val freeRegions = mutable.ArrayStack.empty[RegionMemory]
+  private[this] val freeRegions = mutable.Stack.empty[RegionMemory]
   private[this] val blocks: Array[Long] = Array(0L, 0L, 0L, 0L)
   private[this] var totalAllocatedBytes: Long = 0L
   private[this] var allocationEchoThreshold: Long = 256 * 1024

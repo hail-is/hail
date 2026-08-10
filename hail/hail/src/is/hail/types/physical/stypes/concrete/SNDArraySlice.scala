@@ -11,8 +11,6 @@ import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.SInt64
 import is.hail.types.virtual.{TNDArray, Type}
 
-import scala.collection.compat._
-
 final case class SNDArraySlice(pType: PCanonicalNDArray) extends SNDArray {
   override def nDims: Int = pType.nDims
 

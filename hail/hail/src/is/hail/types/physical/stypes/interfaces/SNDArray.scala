@@ -15,8 +15,6 @@ import is.hail.types.physical.stypes.concrete.{SNDArraySlice, SNDArraySliceValue
 import is.hail.types.physical.stypes.primitives.SInt64Value
 import is.hail.types.virtual.TInt32
 
-import scala.collection.compat._
-
 object SNDArray {
   def numElements(shape: IndexedSeq[Value[Long]]): Code[Long] =
     shape.foldLeft(1L: Code[Long])(_ * _)

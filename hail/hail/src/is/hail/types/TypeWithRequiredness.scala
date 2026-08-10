@@ -13,8 +13,6 @@ import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SInterval, SNDArra
 import is.hail.types.virtual._
 import is.hail.utils.{toMapFast, Interval}
 
-import scala.collection.compat._
-
 import org.apache.spark.sql.Row
 
 object BaseTypeWithRequiredness {

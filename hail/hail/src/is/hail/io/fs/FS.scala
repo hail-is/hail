@@ -111,7 +111,10 @@ trait CompressionCodec {
 object GZipCompressionCodec extends CompressionCodec {
   // java.util.zip.GZIPInputStream does not support concatenated files/multiple blocks
   override def makeInputStream(is: InputStream): InputStream =
-    new GzipCompressorInputStream(is, true)
+    GzipCompressorInputStream.builder()
+      .setInputStream(is)
+      .setDecompressConcatenated(true)
+      .get()
 
   override def makeOutputStream(os: OutputStream): OutputStream = new GZIPOutputStream(os)
 }

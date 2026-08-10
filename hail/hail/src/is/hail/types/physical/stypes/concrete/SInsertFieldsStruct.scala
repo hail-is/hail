@@ -9,8 +9,6 @@ import is.hail.types.physical.stypes.{EmitType, SType, SValue}
 import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructSettable, SBaseStructValue}
 import is.hail.types.virtual.{TStruct, Type}
 
-import scala.collection.compat._
-
 final case class SInsertFieldsStruct(
   virtualType: TStruct,
   parent: SBaseStruct,

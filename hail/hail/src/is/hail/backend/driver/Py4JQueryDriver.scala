@@ -25,7 +25,6 @@ import is.hail.utils.implicits.toRichString
 import is.hail.variant.ReferenceGenome
 
 import scala.annotation.nowarn
-import scala.collection.compat._
 import scala.collection.mutable
 import scala.jdk.CollectionConverters._
 

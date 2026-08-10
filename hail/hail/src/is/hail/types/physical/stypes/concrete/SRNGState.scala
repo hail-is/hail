@@ -11,8 +11,6 @@ import is.hail.types.physical.stypes.{SSettable, SType, SValue}
 import is.hail.types.physical.stypes.primitives.SInt64Value
 import is.hail.types.virtual.{TRNGState, Type}
 
-import scala.collection.compat._
-
 final case class SRNGStateStaticInfo(
   numWordsInLastBlock: Int,
   hasStaticSplit: Boolean,

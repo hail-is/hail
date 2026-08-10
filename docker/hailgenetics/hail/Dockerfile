@@ -7,7 +7,7 @@ FROM $BASE_IMAGE
 RUN hail-apt-get-install \
     git \
     liblapack3 \
-    openjdk-11-jre-headless
+    openjdk-21-jre-headless
 
 COPY hail/python/pinned-requirements.txt requirements.txt
 RUN hail-pip-install -r requirements.txt scikit-learn ipython

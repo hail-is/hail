@@ -540,7 +540,7 @@ object ApproxCDFStateManager {
       val newItems = Array.ofDim[Double](minCapacity)
       val offset = newItems.length - items.length
       System.arraycopy(items, 0, newItems, offset, items.length)
-      paddedLevels.transform(_ + offset): Unit
+      paddedLevels.mapInPlace(_ + offset): Unit
       newItems
     } else items
     val combiner: ApproxCDFCombiner = new ApproxCDFCombiner(
