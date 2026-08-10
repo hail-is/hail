@@ -5,6 +5,7 @@ module.exports = {
     "../auth/**/*.{html,js}",
     "../batch/**/*.{html,js}",
     "../ci/**/*.{html,js}",
+    "../services/ui/src/**/*.{tsx,ts,js}",
     "!../**/node_modules/**",
   ],
   theme: {

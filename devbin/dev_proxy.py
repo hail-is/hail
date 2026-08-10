@@ -75,6 +75,7 @@ for _svc, _svc_path in _SWAGGER_SVCPATHS:
     routes.get(f'/{_svc}/{_svc_path}/static/compiled-js/swagger.js')(_swagger_js_handler)
     routes.get(f'/{_svc}/{_svc_path}/static/compiled-js/swagger.css')(_swagger_css_handler)
 
+
 # common_static must also be service-prefixed
 _WEB_COMMON_STATIC = f'{WEB_COMMON_ROOT}/static'
 for _svc in ALL_SERVICES:
@@ -107,6 +108,7 @@ def _backend_url(service: str, raw_path: str) -> str:
 # Tuple: (service, verb, path, template, extra_page_context)
 _LOCAL_REACT_ROUTES: list[tuple[str, str, str, str, dict]] = [
     ('monitoring',   'GET', '/monitoring/helloreact', 'hello_react.html', {}),
+    ('monitoring',   'GET', '/monitoring/cost-analysis', 'cost_analysis.html', {}),
     ('auth',         'GET', '/auth/helloreact', 'hello_react.html', {}),
     ('batch-driver', 'GET', '/batch-driver/', 'index_react.html', {}),
     ('batch-driver', 'GET', '/batch-driver', 'index_react.html', {}),

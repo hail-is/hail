@@ -1,0 +1,14 @@
+{% extends "layout.html" %}
+{% block title %}Cost Analysis{% endblock %}
+{% block head %}
+<script type="module" src="{{ base_path }}/monitoring/static/compiled-js/index.js"></script>
+{% endblock %}
+{% block content %}
+<div id="cost-analysis-root"
+  data-monitoring-base-url="{{ monitoring_base_url }}"
+  data-batch-base-url="{{ batch_base_url }}">
+  <div class="flex items-center justify-center mt-24">
+    <span class="text-5xl font-light text-sky-600">Loading&hellip;</span>
+  </div>
+</div>
+{% endblock %}
