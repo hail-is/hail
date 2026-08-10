@@ -428,11 +428,11 @@ test-dataproc-38: install
 # create the hailgenetics/hail image (see /docker) and place it somewhere skopeo can access it
 # set HAIL_GENETICS_HAIL_IMAGE to that image's full name including the protocol, e.g. docker://us-docker.pkg.dev/hail-vdc/hailgenetics/hail:1234abcd
 #
-# create the hailgenetics/hail image using the Python 3.10 ubuntu base image (see /docker) and place it somewhere skopeo can access it
-# set HAIL_GENETICS_HAIL_IMAGE_PY_3_10 to that image's full name including the protocol, e.g. docker://us-docker.pkg.dev/hail-vdc/hailgenetics/hail:1234abcd-py3.10
+# create the hailgenetics/hail image using the Python 3.13 ubuntu base image (see /docker) and place it somewhere skopeo can access it
+# set HAIL_GENETICS_HAIL_IMAGE_PY_3_13 to that image's full name including the protocol, e.g. docker://us-docker.pkg.dev/hail-vdc/hailgenetics/hail:1234abcd-py3.13
 #
-# create the hailgenetics/hail image using the Python 3.11 ubuntu base image (see /docker) and place it somewhere skopeo can access it
-# set HAIL_GENETICS_HAIL_IMAGE_PY_3_11 to that image's full name including the protocol, e.g. docker://us-docker.pkg.dev/hail-vdc/hailgenetics/hail:1234abcd-py3.11
+# create the hailgenetics/hail image using the Python 3.14 ubuntu base image (see /docker) and place it somewhere skopeo can access it
+# set HAIL_GENETICS_HAIL_IMAGE_PY_3_14 to that image's full name including the protocol, e.g. docker://us-docker.pkg.dev/hail-vdc/hailgenetics/hail:1234abcd-py3.14
 #
 # create the hailgenetics/hailtop image (see /docker) and place it somewhere skopeo can access it
 # set HAIL_GENETICS_HAILTOP_IMAGE to that image's full name including the protocol, e.g. docker://us-docker.pkg.dev/hail-vdc/hailgenetics/hailtop:1234abcd
@@ -458,8 +458,9 @@ release: test-dataproc $(WHEEL)
         WHEEL=$(WHEEL) \
         GITHUB_OAUTH_HEADER_FILE=$(GITHUB_OAUTH_HEADER_FILE) \
         HAIL_GENETICS_HAIL_IMAGE=$(HAIL_GENETICS_HAIL_IMAGE) \
-        HAIL_GENETICS_HAIL_IMAGE_PY_3_10=$(HAIL_GENETICS_HAIL_IMAGE_PY_3_10) \
-        HAIL_GENETICS_HAIL_IMAGE_PY_3_11=$(HAIL_GENETICS_HAIL_IMAGE_PY_3_11) \
+        HAIL_GENETICS_HAIL_IMAGE_PY_3_12=$(HAIL_GENETICS_HAIL_IMAGE_PY_3_12) \
+        HAIL_GENETICS_HAIL_IMAGE_PY_3_13=$(HAIL_GENETICS_HAIL_IMAGE_PY_3_13) \
+        HAIL_GENETICS_HAIL_IMAGE_PY_3_14=$(HAIL_GENETICS_HAIL_IMAGE_PY_3_14) \
         HAIL_GENETICS_HAILTOP_IMAGE=$(HAIL_GENETICS_HAILTOP_IMAGE) \
         HAIL_GENETICS_VEP_GRCH37_85_IMAGE=$(HAIL_GENETICS_VEP_GRCH37_85_IMAGE) \
         HAIL_GENETICS_VEP_GRCH38_95_IMAGE=$(HAIL_GENETICS_VEP_GRCH38_95_IMAGE) \
