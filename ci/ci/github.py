@@ -204,7 +204,6 @@ STACKED_PR = 'stacked PR'
 WIP = 'WIP'
 DO_NOT_TEST = 'do-not-test'
 RERUN_ALL_TESTS = 'rerun all tests'
-RUN_DATAPROC_TESTS = 'run-dataproc-tests'
 
 DO_NOT_MERGE = {STACKED_PR, WIP}
 

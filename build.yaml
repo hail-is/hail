@@ -952,7 +952,7 @@ steps:
     scopes:
       - deploy
       - dev
-    forceIfLabels:
+    runIfLabeled:
       - run-dataproc-tests
     clouds:
       - gcp
@@ -3687,7 +3687,7 @@ steps:
   #     - ci_utils_image
   #     - default_ns
   #     - build_hail_jar_and_wheel
-  #     - test_install_in_isolation_python3_12
+  #     - test_install_in_isolation_python3_11
   #     - upload_temporary_hailctl_artifacts
   #   inputs:
   #     - from: /repo
@@ -3702,7 +3702,7 @@ steps:
   #   scopes:
   #     - deploy
   #     - dev
-  #   forceIfLabels:
+  #   runIfLabeled:
   #     - run-dataproc-tests
   #   clouds:
   #     - gcp
@@ -3734,7 +3734,7 @@ steps:
   #     - ci_utils_image
   #     - default_ns
   #     - build_hail_jar_and_wheel
-  #     - test_install_in_isolation_python3_12
+  #     - test_install_in_isolation_python3_11
   #     - upload_temporary_hailctl_artifacts
   #   inputs:
   #     - from: /repo
@@ -3749,7 +3749,7 @@ steps:
   #   scopes:
   #     - deploy
   #     - dev
-  #   forceIfLabels:
+  #   runIfLabeled:
   #     - run-dataproc-tests
   #   clouds:
   #     - gcp

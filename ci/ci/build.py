@@ -202,7 +202,7 @@ class Step(abc.ABC):
         self.scopes = json.get('scopes')
         self.clouds = json.get('clouds')
         self.run_if_requested = json.get('runIfRequested', False)
-        self.force_if_labels: List[str] = json.get('forceIfLabels', [])
+        self.run_if_labeled: List[str] = json.get('runIfLabeled', [])
 
         self.token = generate_token()
 
@@ -243,7 +243,7 @@ class Step(abc.ABC):
         return self.scopes is None or scope in self.scopes
 
     def is_forced_by_labels(self, pr_labels: FrozenSet[str]) -> bool:
-        return bool(set(self.force_if_labels) & pr_labels)
+        return bool(set(self.run_if_labeled) & pr_labels)
 
     @staticmethod
     def from_json(params: StepParameters):
