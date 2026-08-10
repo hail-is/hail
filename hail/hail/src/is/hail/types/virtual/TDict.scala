@@ -58,6 +58,9 @@ final case class TDict(keyType: Type, valueType: Type) extends TContainer {
 
   override def str(a: Annotation): String = JsonMethods.compact(export(a))
 
+  override def arrowType =
+    new org.apache.arrow.vector.types.pojo.ArrowType.Map( /*keysSorted=*/ true)
+
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double, absolute: Boolean)
     : Boolean =
     a1 == a2 || (a1 != null && a2 != null &&
