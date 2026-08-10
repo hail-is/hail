@@ -3598,7 +3598,7 @@ async def async_main():
             cleanup.push_async_callback(worker.shutdown)
             await worker.run()
     finally:
-        asyncio.get_running_loop().set_debug(True)
+        asyncio.get_event_loop().set_debug(True)
         other_tasks = [t for t in asyncio.all_tasks() if t != asyncio.current_task()]
         if other_tasks:
             log.warning('Tasks immediately after docker close')
@@ -3610,8 +3610,7 @@ async def async_main():
                 t.cancel()
 
 
-loop = asyncio.new_event_loop()
-asyncio.set_event_loop(loop)
+loop = asyncio.get_event_loop()
 loop.add_signal_handler(signal.SIGUSR1, dump_all_stacktraces)
 loop.run_until_complete(async_main())
 log.info('closing loop')
