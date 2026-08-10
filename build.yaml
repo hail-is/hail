@@ -721,6 +721,9 @@ steps:
       - build_ui
   - kind: runImage
     name: check_ui
+    scopes:
+      - test
+      - dev
     image: node:24-slim@sha256:d45d78e7929b46875bbd4e29bea672d5bc48186c6c3588306521c815e78352d6
     script: |
       set -ex
@@ -912,6 +915,9 @@ steps:
       - download_mill_and_maven_deps
   - kind: runImage
     name: test_install_in_isolation_python3_11
+    scopes:
+      - test
+      - dev
     image:
       valueFrom: base_image.image
     script: |
@@ -968,6 +974,9 @@ steps:
       - gcp
   - kind: runImage
     name: build_hail_debug_jar_and_wheel
+    scopes:
+      - test
+      - dev
     image:
       valueFrom: base_image.image
     resources:
@@ -1016,6 +1025,9 @@ steps:
       - download_mill_and_maven_deps
   - kind: runImage
     name: build_debug_hail_test
+    scopes:
+      - test
+      - dev
     image:
       valueFrom: base_image.image
     resources:
@@ -1052,6 +1064,9 @@ steps:
       - download_mill_and_maven_deps
   - kind: runImage
     name: build_hail_test_artifacts
+    scopes:
+      - test
+      - dev
     image:
       valueFrom: base_image.image
     script: |
@@ -1144,6 +1159,9 @@ steps:
       - jvm_entryway_jar
   - kind: runImage
     name: upload_test_resources_to_blob_storage
+    scopes:
+      - test
+      - dev
     image:
       valueFrom: hailgenetics_hailtop_image.image
     script: |
@@ -1173,6 +1191,9 @@ steps:
       - merge_code
   - kind: runImage
     name: test_hail_java
+    scopes:
+      - test
+      - dev
     numSplits: 5
     image:
       valueFrom: hail_run_image.image
@@ -1215,6 +1236,9 @@ steps:
       - download_mill_and_maven_deps
   - kind: runImage
     name: test_hail_python
+    scopes:
+      - test
+      - dev
     numSplits: 22
     image:
       valueFrom: hail_run_image.image
@@ -1278,6 +1302,9 @@ steps:
       - gcp
   - kind: runImage
     name: test_hailtop_python_fs
+    scopes:
+      - test
+      - dev
     numSplits: 5
     image:
       valueFrom: hailgenetics_hailtop_image.image
@@ -1331,6 +1358,9 @@ steps:
       - gcp
   - kind: runImage
     name: test_hail_python_unchecked_allocator
+    scopes:
+      - test
+      - dev
     image:
       valueFrom: hail_run_image.image
     resources:
@@ -1387,6 +1417,9 @@ steps:
       - gcp
   - kind: runImage
     name: test_hail_python_local_backend
+    scopes:
+      - test
+      - dev
     numSplits: 22
     image:
       valueFrom: hail_run_image.image
@@ -1454,6 +1487,9 @@ steps:
       - build_hail_test_artifacts
   - kind: runImage
     name: test_python_docs
+    scopes:
+      - test
+      - dev
     image:
       valueFrom: hail_run_image.image
     resources:
@@ -1640,6 +1676,9 @@ steps:
       - hail_ubuntu_image_python_3_13
   - kind: runImage
     name: test_hailgenetics_hail_image
+    scopes:
+      - test
+      - dev
     image:
       valueFrom: hailgenetics_hail_image.image
     script: |
@@ -1673,6 +1712,9 @@ steps:
       - hailgenetics_hail_image_python_3_12
   - kind: runImage
     name: test_hailgenetics_hail_image_python_3_13
+    scopes:
+      - test
+      - dev
     image:
       valueFrom: hailgenetics_hail_image_python_3_13.image
     script: |
@@ -1737,6 +1779,9 @@ steps:
       - hail_ubuntu_image
   - kind: runImage
     name: check_pip_requirements
+    scopes:
+      - test
+      - dev
     image:
       valueFrom: hail_linting_image.image
     script: |
@@ -1752,6 +1797,9 @@ steps:
       - merge_code
   - kind: runImage
     name: check_services
+    scopes:
+      - test
+      - dev
     image:
       valueFrom: hail_linting_image.image
     script: |
@@ -1769,6 +1817,9 @@ steps:
       - merge_code
   - kind: runImage
     name: check_hail
+    scopes:
+      - test
+      - dev
     image:
       valueFrom: hail_linting_image.image
     resources:
@@ -2010,6 +2061,9 @@ steps:
       - gcp
   - kind: runImage
     name: test_monitoring
+    scopes:
+      - test
+      - dev
     resources:
       memory: standard
       cpu: '0.25'
@@ -2050,6 +2104,9 @@ steps:
       - gcp
   - kind: runImage
     name: test_auth_copy_paste_login
+    scopes:
+      - test
+      - dev
     resources:
       memory: standard
       cpu: '0.25'
@@ -2112,6 +2169,9 @@ steps:
       - hailgenetics_hailtop_image
   - kind: runImage
     name: test_auth_copy_paste_login_timeout
+    scopes:
+      - test
+      - dev
     resources:
       memory: standard
       cpu: '0.25'
@@ -2686,6 +2746,9 @@ steps:
       - create_test_gsa_keys
   - kind: runImage
     name: test_hail_python_service_backend_gcp
+    scopes:
+      - test
+      - dev
     numSplits: 16
     image:
       valueFrom: hail_run_image.image
@@ -2758,6 +2821,9 @@ steps:
       - gcp
   - kind: runImage
     name: test_hail_spark_conf_requester_pays_parsing
+    scopes:
+      - test
+      - dev
     image:
       valueFrom: hail_run_image.image
     resources:
@@ -2835,6 +2901,9 @@ steps:
       - hail_ubuntu_image
   - kind: runImage
     name: test_batch
+    scopes:
+      - test
+      - dev
     numSplits: 5
     image:
       valueFrom: batch_image.image
@@ -2912,6 +2981,9 @@ steps:
       - gpu_image
   - kind: runImage
     name: test_batch_job_private_machines
+    scopes:
+      - test
+      - dev
     numSplits: 1
     image:
       valueFrom: batch_image.image
@@ -2986,6 +3058,9 @@ steps:
       - hail_ubuntu_image
   - kind: runImage
     name: batch_worker_image_regression_tests
+    scopes:
+      - test
+      - dev
     numSplits: 1
     image:
       valueFrom: batch_image.image
@@ -3043,6 +3118,9 @@ steps:
       - batch_image
   - kind: runImage
     name: test_auth
+    scopes:
+      - test
+      - dev
     numSplits: 1
     image:
       valueFrom: auth_image.image
@@ -3245,6 +3323,9 @@ steps:
       - hail_buildkit_image
   - kind: runImage
     name: test_system_permissions
+    scopes:
+      - test
+      - dev
     resources:
       memory: standard
       cpu: '0.25'
@@ -3364,6 +3445,9 @@ steps:
       - create_ci_test_repo
   - kind: runImage
     name: test_hailtop_python
+    scopes:
+      - test
+      - dev
     resources:
       memory: standard
       cpu: '0.25'
@@ -3426,6 +3510,9 @@ steps:
       - deploy_batch
   - kind: runImage
     name: test_hailctl_batch
+    scopes:
+      - test
+      - dev
     resources:
       memory: standard
       cpu: '0.25'
@@ -3549,6 +3636,9 @@ steps:
       - hail_dev_image
   - kind: runImage
     name: test_batch_docs
+    scopes:
+      - test
+      - dev
     image:
       valueFrom: hail_dev_image.image
     script: |
@@ -3793,6 +3883,9 @@ steps:
       - gcp
   - kind: runImage
     name: test_website
+    scopes:
+      - test
+      - dev
     image:
       valueFrom: hailgenetics_hailtop_image.image
     script: |
@@ -3817,6 +3910,9 @@ steps:
       - gcp
   - kind: runImage
     name: test_hail_scala_fs
+    scopes:
+      - test
+      - dev
     image:
       valueFrom: hail_run_image.image
     resources:
@@ -3879,6 +3975,9 @@ steps:
       - download_mill_and_maven_deps
   - kind: runImage
     name: test_hail_services_java
+    scopes:
+      - test
+      - dev
     image:
       valueFrom: hail_run_image.image
     resources:
@@ -4325,6 +4424,9 @@ steps:
       - default_ns
   - kind: runImage
     name: test_gcp_ar_cleanup_policies
+    scopes:
+      - test
+      - dev
     resources:
       memory: standard
       cpu: '0.25'
