@@ -183,8 +183,8 @@ We use a number of technologies:
 
 ### Services Technology
 
-We almost exclusively write services in Python 3.11. We use a number of Python packages:
-- [`asyncio`](https://docs.python.org/3.11/library/asyncio.html) for concurrency which is built on
+We almost exclusively write services in Python 3.12. We use a number of Python packages:
+- [`asyncio`](https://docs.python.org/3.12/library/asyncio.html) for concurrency which is built on
   [coroutines](https://en.wikipedia.org/wiki/Coroutine) not threads
 - [`aiohttp`](https://docs.aiohttp.org/en/stable/) for serving HTTPS requests (most services speak
   HTTPS)

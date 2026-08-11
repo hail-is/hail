@@ -157,7 +157,7 @@ class HailType(object):
         self._context = None
 
     def __repr__(self):
-        s = str(self).replace("'", "\\'")
+        s = str(self).replace('\\', '\\\\').replace("'", "\\'")
         return "dtype('{}')".format(s)
 
     @abc.abstractmethod
