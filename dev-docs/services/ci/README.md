@@ -302,7 +302,7 @@ sequenceDiagram
 
 ## PR Label Reference
 
-The following GitHub labels affect CI behaviour:
+The following GitHub labels affect CI behavior:
 
 | Label | Area | Effect |
 |---|---|---|
