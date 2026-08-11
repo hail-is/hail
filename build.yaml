@@ -949,11 +949,9 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-dataproc-service-account-key
-    scopes:
-      - deploy
-      - dev
     forceIfLabeled:
       - run-dataproc-tests
+    onlyIfRelease: true
     clouds:
       - gcp
   - kind: runImage
@@ -3745,12 +3743,6 @@ steps:
   #     gcloud config set project hail-vdc
   #     gcloud config set dataproc/region us-central1
 
-  #     if git ls-remote --exit-code --tags origin $(cat hail/env/HAIL_PIP_VERSION)
-  #     then
-  #         echo "tag $HAIL_PIP_VERSION already exists"
-  #         exit 0
-  #     fi
-
   #     cd hail
   #     make test-dataproc-37 HAIL_BUILD_MODE=Release \
   #         -o $(ls build/deploy/dist/hail-*-py3-none-any.whl)
@@ -3770,11 +3762,9 @@ steps:
   #       namespace:
   #         valueFrom: default_ns.name
   #       mountPath: /test-dataproc-service-account-key
-  #   scopes:
-  #     - deploy
-  #     - dev
   #   forceIfLabeled:
   #     - run-dataproc-tests
+  #   onlyIfRelease: true
   #   clouds:
   #     - gcp
   # - kind: runImage
@@ -3791,12 +3781,6 @@ steps:
   #     gcloud auth activate-service-account --key-file=/test-dataproc-service-account-key/test-dataproc-service-account-key.json
   #     gcloud config set project hail-vdc
   #     gcloud config set dataproc/region us-central1
-
-  #     if git ls-remote --exit-code --tags origin $(cat hail/env/HAIL_PIP_VERSION)
-  #     then
-  #         echo "tag $HAIL_PIP_VERSION already exists"
-  #         exit 0
-  #     fi
 
   #     cd hail
   #     make test-dataproc-38 HAIL_BUILD_MODE=Release \
@@ -3817,11 +3801,9 @@ steps:
   #       namespace:
   #         valueFrom: default_ns.name
   #       mountPath: /test-dataproc-service-account-key
-  #   scopes:
-  #     - deploy
-  #     - dev
   #   forceIfLabeled:
   #     - run-dataproc-tests
+  #   onlyIfRelease: true
   #   clouds:
   #     - gcp
   - kind: runImage
@@ -4076,13 +4058,6 @@ steps:
       cd /io/repo/hail
       export HAIL_PIP_VERSION=$(cat env/HAIL_PIP_VERSION)
 
-      if git ls-remote --exit-code --tags origin $HAIL_PIP_VERSION
-      then
-          echo "tag $HAIL_PIP_VERSION already exists"
-          echo '0' > /io/release-hail-flag
-          exit 0
-      fi
-
       # #14452 - must build wheel with release `hailtop/hailctl/deploy.yaml`
       # use `-o` to prevent `mill` from rebuilding the "SHADOW_JAR"
       make upload-artifacts HAIL_BUILD_MODE=Release DEPLOY_REMOTE=origin \
@@ -4104,8 +4079,6 @@ steps:
       HAIL_GENETICS_VEP_GRCH38_95_IMAGE=docker://{{ hailgenetics_vep_grch38_95_image.image }} \
       WEBSITE_TAR=/io/www.tar.gz \
       bash scripts/release.sh
-
-      echo '1' > /io/release-hail-flag
     inputs:
       - from: /repo
         to: /io/repo
@@ -4113,9 +4086,6 @@ steps:
         to: /io/repo/hail/out/hail/2.12/assembly.dest/out.jar
       - from: /www.tar.gz
         to: /io/www.tar.gz
-    outputs:
-      - from: /io/release-hail-flag
-        to: /release-hail-flag
     secrets:
       - name: pypi-credentials
         namespace:
@@ -4133,9 +4103,7 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /hail-ci-0-1-github-oauth-token
-    scopes:
-      - deploy
-      - dev
+    onlyIfRelease: true
     dependsOn:
       - default_ns
       - ci_utils_image
@@ -4163,9 +4131,7 @@ steps:
       - gcp
   - kind: runImage
     name: start_hail_benchmark
-    scopes:
-      - deploy
-      - dev
+    onlyIfRelease: true
     clouds:
       - gcp
     dependsOn:
@@ -4181,17 +4147,8 @@ steps:
         to: /io/repo/hail/env
       - from: /repo/hail/scripts/benchmark_in_batch.py
         to: /io/repo/hail/scripts/benchmark_in_batch.py
-      - from: /release-hail-flag
-        to: /io/release-hail-flag
     script: |
       set -ex
-
-      # only run benchmarks iff we've published a new release
-      if [[ $(< /io/release-hail-flag) != '1' ]]
-      then
-          echo 'Skipping benchmarks (no new release published).'
-          exit 0
-      fi
 
       pushd /io/repo/hail
 

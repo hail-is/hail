@@ -21,7 +21,7 @@ from gidgethub import aiohttp as gh_aiohttp
 from gear import Database, UserData
 from hailtop.batch_client.aioclient import Batch, BatchClient
 from hailtop.config import get_deploy_config
-from hailtop.utils import RETRY_FUNCTION_SCRIPT, check_shell, check_shell_output
+from hailtop.utils import RETRY_FUNCTION_SCRIPT, CalledProcessError, check_shell, check_shell_output
 
 from .build import BuildConfiguration, Code
 from .build_selection import compute_requested_steps
@@ -1180,8 +1180,21 @@ url: {url}
 mkdir -p {shq(repo_dir)}
 (cd {shq(repo_dir)}; {self.checkout_script()})
 """)
+            with open(f'{repo_dir}/hail/env/HAIL_PIP_VERSION', 'r', encoding='utf-8') as f:
+                pip_version = f.read().strip()
+            try:
+                await check_shell_output(
+                    f'git -C {shq(repo_dir)} ls-remote --exit-code --tags origin {shq(pip_version)}'
+                )
+                is_release = False
+            except CalledProcessError:
+                is_release = True
+            log.info(f'deploy for {self.branch.short_str()} @ {self.sha[:8]}: is_release={is_release}')
+
             with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
-                config = BuildConfiguration(self, f.read(), requested_step_names=DEPLOY_STEPS or None, scope='deploy')
+                config = BuildConfiguration(
+                    self, f.read(), requested_step_names=DEPLOY_STEPS or None, scope='deploy', is_release=is_release
+                )
                 namespace = config.namespace()
                 services = config.deployed_services()
             with open(f'{repo_dir}/ci/test/resources/build.yaml', 'r', encoding='utf-8') as f:
@@ -1192,14 +1205,17 @@ mkdir -p {shq(repo_dir)}
             await add_deployed_services(db, namespace, services, None)
 
             log.info(f'creating deploy batch for {self.branch.short_str()}')
+            batch_name = f'Deploy {self.branch.name} @ {self.sha[:8]}'
+            if is_release:
+                batch_name += f' / Release {pip_version}'
             deploy_batch = batch_client.create_batch(
                 attributes={
                     'token': secrets.token_hex(16),
                     'deploy': '1',
                     'target_branch': self.branch.short_str(),
                     'sha': self.sha,
-                    'name': f'Deploy {self.branch.name} @ {self.sha[:8]}',
-                    'batch_type': 'ci/deploy/prod',
+                    'name': batch_name,
+                    'batch_type': 'ci/release/prod' if is_release else 'ci/deploy/prod',
                 },
                 callback=CALLBACK_URL,
             )

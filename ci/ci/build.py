@@ -84,11 +84,12 @@ class Code(abc.ABC):
 
 
 class StepParameters:
-    def __init__(self, code, scope, json, name_step):
+    def __init__(self, code, scope, json, name_step, is_release: bool = False):
         self.code = code
         self.scope = scope
         self.json = json
         self.name_step = name_step
+        self.is_release = is_release
 
 
 class BuildConfigurationError(Exception):
@@ -105,12 +106,14 @@ class BuildConfiguration:
         requested_step_names: Optional[Sequence[str]] = None,
         excluded_step_names: Sequence[str] = (),
         pr_labels: FrozenSet[str] = frozenset(),
+        is_release: bool = False,
     ):
         if len(excluded_step_names) > 0 and scope != 'dev':
             raise BuildConfigurationError('Excluding build steps is only permitted in a dev scope')
 
         self.pr_labels = pr_labels
 
+        self.is_release = is_release
         config = yaml.safe_load(config_str)
         if requested_step_names is not None:
             log.info(f"Constructing build configuration with steps: {requested_step_names}")
@@ -118,7 +121,7 @@ class BuildConfiguration:
         runnable_steps: List[Step] = []
         name_step: Dict[str, Step] = {}
         for step_config in config['steps']:
-            step = Step.from_json(StepParameters(code, scope, step_config, name_step))
+            step = Step.from_json(StepParameters(code, scope, step_config, name_step, is_release))
             if step.name not in excluded_step_names and step.can_run_in_current_cloud():
                 name_step[step.name] = step
                 runnable_steps.append(step)
@@ -144,7 +147,10 @@ class BuildConfiguration:
             self.steps = [step for step in runnable_steps if step in visited]
         else:
             self.steps = [
-                step for step in runnable_steps if not step.run_if_requested or step.is_forced_by_labels(pr_labels)
+                step
+                for step in runnable_steps
+                if step.is_forced_by_labels(pr_labels)
+                or (not step.run_if_requested and (not step.only_if_release or (is_release and scope == 'deploy')))
             ]
 
     def build(self, batch, code, scope):
@@ -205,6 +211,8 @@ class Step(abc.ABC):
         self.clouds = json.get('clouds')
         self.run_if_requested = json.get('runIfRequested', False)
         self.force_if_labeled: List[str] = json.get('forceIfLabeled', [])
+        self.only_if_release = json.get('onlyIfRelease', False)
+        self.is_release = params.is_release
 
         self.token = generate_token()
 
@@ -214,6 +222,7 @@ class Step(abc.ABC):
         config['token'] = self.token
         config['deploy'] = scope == 'deploy'
         config['scope'] = scope
+        config['is_release'] = self.is_release
         config['code'] = code.config()
         config['ci_storage_uri'] = STORAGE_URI
         if self.deps:
