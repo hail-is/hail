@@ -243,7 +243,7 @@ class Step(abc.ABC):
         return self.scopes is None or scope in self.scopes
 
     def is_forced_by_labels(self, pr_labels: FrozenSet[str]) -> bool:
-        return bool(set(self.force_if_labeled) & pr_labels)
+        return any(label in pr_labels for label in self.force_if_labeled)
 
     @staticmethod
     def from_json(params: StepParameters):

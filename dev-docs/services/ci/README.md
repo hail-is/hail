@@ -98,7 +98,7 @@ During its update loop, CI will potentially decide to run tests against all PRs 
 - Check for validity
   - The PR must be against a watched branch, or else it wouldn't be considered.
   - If the current commit has already had tests run against it, no further action is taken `*`
-  - If the PR is marked with the "do_not_test" label, no further action is taken
+  - If the PR is marked with the "do-not-test" label, no further action is taken
 - Run tests
   - The CI service will run tests against the PR (see below) 
   - Report results back to Github using the Checks interface
@@ -140,6 +140,23 @@ of the `ci` billing project.
 > Note:
 > - You will need to be a member of the `ci` billing project to view these logs.
 > - Due to the numbers of batches involved, this page may take a while to load 
+
+#### Step Selection
+
+Not all steps in `build.yaml` run for every PR. CI uses two mechanisms to decide which steps to include in a test batch:
+
+**File-change heuristics** — Each step can declare `runIfRequested: true`, meaning it only runs when the file-change
+analysis determines it is relevant. CI compares the files changed in the PR against each step's declared inputs to
+produce a set of requested steps, then transitively expands that set to include all dependencies.
+
+**Label-based forcing** — A step can declare `forceIfLabeled: [some-label]`. If the PR carries that label, the step
+is added to the batch unconditionally, even if the file-change heuristic would not have selected it. This is useful
+for expensive or cloud-specific tests that most PRs don't need but which authors can opt into by adding a label.
+
+These two mechanisms are independent and composed: CI first collects steps from the file-change heuristic, then adds
+any label-forced steps (and their dependencies) on top.
+
+If neither mechanism applies (i.e. no `runIfRequested` or `forceIfLabeled` on a step), the step runs for every PR.
 
 #### CI Testing Timeline
 
@@ -282,6 +299,22 @@ sequenceDiagram
     deactivate PVM
     PB-->>CI: Detects completion
 ```
+
+## PR Label Reference
+
+The following GitHub labels affect CI behaviour:
+
+| Label | Area | Effect |
+|---|---|---|
+| `do-not-test` | Testing | CI skips running tests entirely for this PR |
+| `rerun all tests` | Testing | Forces the full test suite; ignores the file-change heuristic that would otherwise select a subset of steps |
+| `run-dataproc-tests` | Testing | Forces Dataproc-specific test steps that are not selected by the file-change heuristic (`forceIfLabeled` in `build.yaml`) |
+| `WIP` | Merging | Blocks auto-merge |
+| `stacked PR` | Merging | Blocks auto-merge (used for PRs that depend on another unmerged PR) |
+| `prio:high` | Merging | Moves the PR to the front of the merge queue |
+
+Labels in the "Testing" area can be combined freely. Labels in the "Merging" area are checked independently of test
+results — a PR will not be merged while any blocking label is present, even if all checks pass.
 
 ## References
 
