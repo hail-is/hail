@@ -3,7 +3,7 @@ import json
 import logging
 from collections import Counter, defaultdict
 from shlex import quote as shq
-from typing import Dict, List, Optional, Sequence, Set, TypedDict
+from typing import Dict, FrozenSet, List, Optional, Sequence, Set, TypedDict
 
 import jinja2
 import yaml
@@ -104,9 +104,12 @@ class BuildConfiguration:
         *,
         requested_step_names: Sequence[str] = (),
         excluded_step_names: Sequence[str] = (),
+        pr_labels: FrozenSet[str] = frozenset(),
     ):
         if len(excluded_step_names) > 0 and scope != 'dev':
             raise BuildConfigurationError('Excluding build steps is only permitted in a dev scope')
+
+        self.pr_labels = pr_labels
 
         config = yaml.safe_load(config_str)
         if requested_step_names:
@@ -135,15 +138,20 @@ class BuildConfiguration:
 
             for step_name in requested_step_names:
                 visit_dependent(name_step[step_name])
+            for step in runnable_steps:
+                if step.is_forced_by_labels(pr_labels):
+                    visit_dependent(step)
             self.steps = [step for step in runnable_steps if step in visited]
         else:
-            self.steps = [step for step in runnable_steps if not step.run_if_requested]
+            self.steps = [
+                step for step in runnable_steps if not step.run_if_requested or step.is_forced_by_labels(pr_labels)
+            ]
 
     def build(self, batch, code, scope):
         assert scope in ('deploy', 'test', 'dev')
 
         for step in self.steps:
-            if step.can_run_in_scope(scope):
+            if step.can_run_in_scope(scope) or step.is_forced_by_labels(self.pr_labels):
                 assert step.can_run_in_current_cloud()
                 step.build(batch, code, scope)
 
@@ -162,7 +170,7 @@ class BuildConfiguration:
                 f"Cleanup {step.name} after running {[parent_step.name for parent_step in step_to_parent_steps[step]]}"
             )
 
-            if step.can_run_in_scope(scope):
+            if step.can_run_in_scope(scope) or step.is_forced_by_labels(self.pr_labels):
                 step.cleanup(batch, scope, parent_jobs)
 
     def namespace(self) -> Optional[str]:
@@ -196,6 +204,7 @@ class Step(abc.ABC):
         self.scopes = json.get('scopes')
         self.clouds = json.get('clouds')
         self.run_if_requested = json.get('runIfRequested', False)
+        self.force_if_labeled: List[str] = json.get('forceIfLabeled', [])
 
         self.token = generate_token()
 
@@ -234,6 +243,9 @@ class Step(abc.ABC):
 
     def can_run_in_scope(self, scope: str):
         return self.scopes is None or scope in self.scopes
+
+    def is_forced_by_labels(self, pr_labels: FrozenSet[str]) -> bool:
+        return any(label in pr_labels for label in self.force_if_labeled)
 
     @staticmethod
     def from_json(params: StepParameters):
