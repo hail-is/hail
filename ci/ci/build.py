@@ -143,7 +143,9 @@ class BuildConfiguration:
                     visit_dependent(step)
             self.steps = [step for step in runnable_steps if step in visited]
         else:
-            self.steps = [step for step in runnable_steps if not step.run_if_requested]
+            self.steps = [
+                step for step in runnable_steps if not step.run_if_requested or step.is_forced_by_labels(pr_labels)
+            ]
 
     def build(self, batch, code, scope):
         assert scope in ('deploy', 'test', 'dev')
