@@ -46,7 +46,7 @@ cffi==2.1.1
     #   -c batch/../hail/python/dev/pinned-requirements.txt
     #   -c batch/../hail/python/pinned-requirements.txt
     #   cryptography
-charset-normalizer==3.4.9
+charset-normalizer==3.5.0
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   -c batch/../hail/python/dev/pinned-requirements.txt
@@ -109,7 +109,7 @@ multidict==6.7.1
     #   -c batch/../web_common/pinned-requirements.txt
     #   aiohttp
     #   yarl
-numpy==2.5.1
+numpy==2.5.2
     # via
     #   -c batch/../hail/python/dev/pinned-requirements.txt
     #   -c batch/../hail/python/pinned-requirements.txt

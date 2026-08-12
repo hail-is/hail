@@ -55,11 +55,11 @@ azure-storage-blob==12.30.0
     #   -r hail/python/hailtop/requirements.txt
 bokeh==3.9.2
     # via -r hail/python/requirements.txt
-boto3==1.43.63
+boto3==1.43.69
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
-botocore==1.43.63
+botocore==1.43.69
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
@@ -75,7 +75,7 @@ cffi==2.1.1
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   cryptography
     #   pycares
-charset-normalizer==3.4.9
+charset-normalizer==3.5.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   requests
@@ -175,7 +175,7 @@ nest-asyncio==1.6.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
-numpy==2.5.1
+numpy==2.5.2
     # via
     #   -r hail/python/requirements.txt
     #   bokeh
@@ -279,7 +279,7 @@ s3transfer==0.19.2
     #   boto3
 scipy==1.18.0
     # via -r hail/python/requirements.txt
-setuptools==83.0.0
+setuptools==84.0.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
