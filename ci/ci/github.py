@@ -535,7 +535,6 @@ mkdir -p {shq(repo_dir)}
             tactical_skipped: Dict[str, int] = {}
             if self.tactical:
                 self.tactical = False
-                assert self.target_branch.sha is not None
                 succeeded_steps: Dict[str, int] = {}
                 async for b in batch_client.list_batches(
                     f'test=1 pr={self.number} source_sha={self.source_sha} target_sha={self.target_branch.sha} user:ci'
@@ -550,22 +549,25 @@ mkdir -p {shq(repo_dir)}
                     f'PR #{self.number} tactical retry: skipping {len(tactical_skipped)} already-succeeded steps: {list(tactical_skipped)}'
                 )
 
-            config = BuildConfiguration(
-                self,
-                build_yaml,
-                scope='test',
-                requested_step_names=requested_step_names,
-                pr_labels=frozenset(self.labels),
-            )
-            
-            namespace = config.namespace()
-            services = config.deployed_services()
-            with open(f'{repo_dir}/ci/test/resources/build.yaml', 'r', encoding='utf-8') as f:
-                test_services = BuildConfiguration(self, f.read(), scope='test').deployed_services()
+            config: Optional[BuildConfiguration] = None
+            namespace: Optional[str] = None
+            services: List[str] = []
+            if requested_step_names or not tactical_skipped:
+                config = BuildConfiguration(
+                    self,
+                    build_yaml,
+                    scope='test',
+                    requested_step_names=requested_step_names,
+                    pr_labels=frozenset(self.labels),
+                )
+                namespace = config.namespace()
+                services = config.deployed_services()
+                with open(f'{repo_dir}/ci/test/resources/build.yaml', 'r', encoding='utf-8') as f:
+                    test_services = BuildConfiguration(self, f.read(), scope='test').deployed_services()
+                services.extend(test_services)
 
-            services.extend(test_services)
-            # namespace is None when no service deploy steps are selected (e.g. hail-only PRs);
-            # in that case there are no deployed services to register.
+            # namespace is None when no service deploy steps are selected (e.g. hail-only PRs)
+            # or when all steps were skipped by tactical retry; in either case skip registering services.
             if namespace is not None:
                 tomorrow = datetime.datetime.utcnow() + datetime.timedelta(days=1)
                 await add_deployed_services(db, namespace, services, tomorrow)
@@ -603,7 +605,8 @@ mkdir -p {shq(repo_dir)}
                     always_run=True,
                     regions=[REGION],
                 )
-            config.build(batch, self, scope='test')
+            if config is not None:
+                config.build(batch, self, scope='test')
             await batch.submit()
             self.batch = batch
         except concurrent.futures.CancelledError:

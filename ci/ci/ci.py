@@ -1230,7 +1230,7 @@ async def api_retry_pr(request: web.Request, userdata: UserData) -> web.Response
     params = {}
     if request.content_type == 'application/json' and request.content_length:
         params = await json_request(request)
-    tactical = bool(params.get('tactical', False))
+    tactical = params.get('tactical', False)
     error = await asyncio.shield(_retry_pr_core(wb, pr, request.app, userdata['username'], tactical=tactical))
     if error:
         raise web.HTTPBadRequest(text=error)
