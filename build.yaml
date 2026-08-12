@@ -952,6 +952,8 @@ steps:
     scopes:
       - deploy
       - dev
+    forceIfLabeled:
+      - run-dataproc-tests
     clouds:
       - gcp
   - kind: runImage
@@ -3700,6 +3702,8 @@ steps:
   #   scopes:
   #     - deploy
   #     - dev
+  #   forceIfLabeled:
+  #     - run-dataproc-tests
   #   clouds:
   #     - gcp
   # - kind: runImage
@@ -3745,6 +3749,8 @@ steps:
   #   scopes:
   #     - deploy
   #     - dev
+  #   forceIfLabeled:
+  #     - run-dataproc-tests
   #   clouds:
   #     - gcp
   - kind: runImage
