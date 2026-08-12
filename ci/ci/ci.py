@@ -354,7 +354,9 @@ def storage_uri_to_url(uri: str) -> str:
     return uri
 
 
-async def _retry_pr_core(wb: WatchedBranch, pr: PR, app: web.Application, username: str) -> Optional[str]:
+async def _retry_pr_core(
+    wb: WatchedBranch, pr: PR, app: web.Application, username: str, tactical: bool = False
+) -> Optional[str]:
     """Executes the retry logic. Returns an error message on failure, None on success."""
     if pr.batch is None:
         log.info(f'retry cannot be requested for PR #{pr.number} because it has no batch')
@@ -388,7 +390,8 @@ async def _retry_pr_core(wb: WatchedBranch, pr: PR, app: web.Application, userna
             )
 
     await db.execute_insertone('INSERT INTO invalidated_batches (batch_id) VALUES (%s);', batch_id)
-    pr.pending_build_reason = f'retry by {username}'
+    pr.tactical = tactical
+    pr.pending_build_reason = f'{"tactical " if tactical else ""}retry by {username}'
     pr.batch = None
     pr.set_build_state(None)
     await wb.notify_batch_changed(
@@ -400,11 +403,13 @@ async def _retry_pr_core(wb: WatchedBranch, pr: PR, app: web.Application, userna
 
 async def retry_pr(wb: WatchedBranch, pr: PR, request: web.Request, userdata: UserData):
     session = await aiohttp_session.get_session(request)
-    error = await _retry_pr_core(wb, pr, request.app, userdata['username'])
+    post_data = await request.post()
+    tactical = post_data.get('tactical') == 'true'
+    error = await _retry_pr_core(wb, pr, request.app, userdata['username'], tactical=tactical)
     if error:
         set_message(session, error, 'error')
     else:
-        set_message(session, f'Retry requested for PR #{pr.number}.', 'info')
+        set_message(session, f'{"Tactical retry" if tactical else "Retry"} requested for PR #{pr.number}.', 'info')
 
 
 @routes.post('/watched_branches/{watched_branch_index}/pr/{pr_number}/retry')
@@ -1222,7 +1227,11 @@ async def api_retry_pr(request: web.Request, userdata: UserData) -> web.Response
     if not wb.prs or pr_number not in wb.prs:
         raise web.HTTPNotFound()
     pr = wb.prs[pr_number]
-    error = await asyncio.shield(_retry_pr_core(wb, pr, request.app, userdata['username']))
+    params = {}
+    if request.content_type == 'application/json' and request.content_length:
+        params = await json_request(request)
+    tactical = bool(params.get('tactical', False))
+    error = await asyncio.shield(_retry_pr_core(wb, pr, request.app, userdata['username'], tactical=tactical))
     if error:
         raise web.HTTPBadRequest(text=error)
     return web.Response(status=200)

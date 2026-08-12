@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import random
+import re
 import secrets
 import time
 from shlex import quote as shq
@@ -266,6 +267,7 @@ class PR(Code):
         self.build_state: Optional[str] = None
 
         self.pending_build_reason: str = 'unknown'
+        self.tactical: bool = False
 
         self.intended_github_status: GithubStatus = self.github_status_from_build_state()
         self.last_known_github_status: Dict[str, GithubStatus] = {}
@@ -529,6 +531,24 @@ mkdir -p {shq(repo_dir)}
                 requested_steps_set = compute_requested_steps(build_yaml, changed_files, scope='test', cloud=CLOUD)
                 log.info(f'PR #{self.number} selected steps ({len(requested_steps_set)})')
                 requested_step_names = list(requested_steps_set)
+
+            if self.tactical:
+                self.tactical = False
+                assert self.target_branch.sha is not None
+                succeeded_steps: Set[str] = set()
+                async for b in batch_client.list_batches(
+                    f'test=1 pr={self.number} source_sha={self.source_sha} target_sha={self.target_branch.sha} user:ci'
+                ):
+                    async for job in b.jobs():
+                        if job['state'] == 'Success' and job['name']:
+                            step_name = re.sub(r'_\d+$', '', job['name'])
+                            succeeded_steps.add(step_name)
+                skipped = [s for s in requested_step_names if s in succeeded_steps]
+                requested_step_names = [s for s in requested_step_names if s not in succeeded_steps]
+                log.info(
+                    f'PR #{self.number} tactical retry: skipping {len(skipped)} already-succeeded steps: {skipped}'
+                )
+
             config = BuildConfiguration(
                 self,
                 build_yaml,
@@ -536,6 +556,7 @@ mkdir -p {shq(repo_dir)}
                 requested_step_names=requested_step_names,
                 pr_labels=frozenset(self.labels),
             )
+            
             namespace = config.namespace()
             services = config.deployed_services()
             with open(f'{repo_dir}/ci/test/resources/build.yaml', 'r', encoding='utf-8') as f:
