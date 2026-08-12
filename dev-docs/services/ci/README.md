@@ -177,7 +177,7 @@ There are a few exceptions to the general step selection rules:
 - If a step is marked `runIfRequested: true`, it will only be added to the batch if:
   - In dev deploys, if the step is specifically requested.
   - In test batches, if the step is directly affected by the files changed.
-- If a step is marked `forceIfLabeled: [some-label]`, it will always be added to the batch, even if the file-change heuristic would not have selected it, and even if the scope filtering would have removed it.
+- If a step is marked `forceIfLabeled: [some-label]`, it will always be added to the batch if the PR is marked with the label, even if the file-change heuristic would not have selected it, and even if the scope filtering would have removed it.
 
 
 #### CI Testing Timeline
