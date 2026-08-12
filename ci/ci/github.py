@@ -26,7 +26,7 @@ from hailtop.utils import RETRY_FUNCTION_SCRIPT, check_shell, check_shell_output
 from .build import BuildConfiguration, Code
 from .build_selection import compute_requested_steps
 from .constants import AUTHORIZED_USERS, COMPILER_TEAM, GITHUB_CLONE_URL, GITHUB_STATUS_CONTEXT, SERVICES_TEAM
-from .environment import CLOUD, DEPLOY_STEPS
+from .environment import CLOUD, DEPLOY_STEPS, REGION
 from .globals import is_test_deployment
 from .utils import GithubStatus, add_deployed_services, github_status
 
@@ -532,21 +532,22 @@ mkdir -p {shq(repo_dir)}
                 log.info(f'PR #{self.number} selected steps ({len(requested_steps_set)})')
                 requested_step_names = list(requested_steps_set)
 
+            tactical_skipped: Dict[str, int] = {}
             if self.tactical:
                 self.tactical = False
                 assert self.target_branch.sha is not None
-                succeeded_steps: Set[str] = set()
+                succeeded_steps: Dict[str, int] = {}
                 async for b in batch_client.list_batches(
                     f'test=1 pr={self.number} source_sha={self.source_sha} target_sha={self.target_branch.sha} user:ci'
                 ):
                     async for job in b.jobs():
                         if job['state'] == 'Success' and job['name']:
                             step_name = re.sub(r'_\d+$', '', job['name'])
-                            succeeded_steps.add(step_name)
-                skipped = [s for s in requested_step_names if s in succeeded_steps]
+                            succeeded_steps[step_name] = b.id
+                tactical_skipped = {s: succeeded_steps[s] for s in requested_step_names if s in succeeded_steps}
                 requested_step_names = [s for s in requested_step_names if s not in succeeded_steps]
                 log.info(
-                    f'PR #{self.number} tactical retry: skipping {len(skipped)} already-succeeded steps: {skipped}'
+                    f'PR #{self.number} tactical retry: skipping {len(tactical_skipped)} already-succeeded steps: {list(tactical_skipped)}'
                 )
 
             config = BuildConfiguration(
@@ -586,6 +587,22 @@ mkdir -p {shq(repo_dir)}
                 },
                 callback=CALLBACK_URL,
             )
+            if tactical_skipped:
+                bullets = '\n'.join(
+                    f'  • {step}: {deploy_config.external_url("batch", f"/batches/{batch_id}")}'
+                    for step, batch_id in sorted(tactical_skipped.items())
+                )
+                batch.create_job(
+                    'ubuntu:22.04',
+                    command=[
+                        'bash',
+                        '-c',
+                        f'printf "Skipped (already succeeded with matching source and target SHA):\\n{bullets}\\n"',
+                    ],
+                    attributes={'name': 'Tactical Retry Skipped Test Log'},
+                    always_run=True,
+                    regions=[REGION],
+                )
             config.build(batch, self, scope='test')
             await batch.submit()
             self.batch = batch
