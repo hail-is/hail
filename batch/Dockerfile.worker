@@ -6,7 +6,7 @@ RUN hail-apt-get-install \
     iproute2 \
     iptables \
     ca-certificates-java \
-    openjdk-11-jre-headless \
+    openjdk-21-jre-headless \
     liblapack3 \
     xfsprogs \
     libyajl-dev
@@ -45,18 +45,13 @@ COPY batch/pinned-requirements.txt batch-requirements.txt
 RUN hail-pip-install \
     -r hailtop-requirements.txt \
     -r gear-requirements.txt \
-    -r batch-requirements.txt \
-    pyspark==3.5.3
+    -r batch-requirements.txt
 
 RUN curl -sLO https://github.com/async-profiler/async-profiler/releases/download/v4.3/async-profiler-4.3-linux-x64.tar.gz \
  && echo '69a16462c34c06ff55618f41653cffad1f8946822d30842512a3e0e774841c06  async-profiler-4.3-linux-x64.tar.gz' | sha256sum -c --status - \
  && tar -C /opt -zxvf async-profiler-4.3-linux-x64.tar.gz
 
-ENV SPARK_HOME=$VIRTUAL_ENV/lib/python$UV_PYTHON/site-packages/pyspark
-ENV PATH="$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin:/opt/async-profiler-4.3-linux-x64/bin"
-ENV PYSPARK_PYTHON=python3
-
-COPY docker/core-site.xml ${SPARK_HOME}/conf/core-site.xml
+ENV PATH="$PATH:/opt/async-profiler-4.3-linux-x64/bin"
 
 # Build crun in separate build step
 FROM base AS crun_builder
