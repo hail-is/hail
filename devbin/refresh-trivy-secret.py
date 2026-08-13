@@ -82,7 +82,6 @@ def check_prereqs():
     """Verify gcloud and gh are authenticated; print who we're acting as."""
     print('Checking prerequisites...')
 
-    # gcloud: find the active account
     def get_gcloud_account():
         out = run(['gcloud', 'auth', 'list', '--filter', 'status=ACTIVE', '--format', 'value(account)'])
         account = out.strip()
@@ -91,31 +90,26 @@ def check_prereqs():
         return account
 
     try:
-        gcloud_account = spin('  gcloud active account', get_gcloud_account)
+        spin('  gcloud account  ', get_gcloud_account)
     except RuntimeError as e:
         print(f'\ngcloud auth check failed: {e}', file=sys.stderr)
         print('Run: gcloud auth login', file=sys.stderr)
         sys.exit(1)
 
-    # gh: find the authenticated user
     def get_gh_user():
-        out = run(['gh', 'auth', 'status', '--hostname', 'github.com'])
-        # Output goes to stderr on some gh versions; run() captures stdout.
-        # Fall back to `gh api user` for the username.
-        return out.strip() or '(authenticated)'
+        result = subprocess.run(['gh', 'auth', 'status', '--hostname', 'github.com'], capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(result.stderr.strip() or 'not authenticated')
+        user_result = subprocess.run(['gh', 'api', 'user', '--jq', '.login'], capture_output=True, text=True)
+        return user_result.stdout.strip() if user_result.returncode == 0 else '(authenticated)'
 
-    # gh auth status exits 0 if authenticated, 1 if not — use that as the check,
-    # then get the username separately for display.
-    result = subprocess.run(['gh', 'auth', 'status', '--hostname', 'github.com'], capture_output=True, text=True)
-    if result.returncode != 0:
-        print('\ngh auth check failed:', file=sys.stderr)
-        print(result.stderr.strip(), file=sys.stderr)
+    try:
+        spin('  gh account      ', get_gh_user)
+    except RuntimeError as e:
+        print(f'\ngh auth check failed: {e}', file=sys.stderr)
         print('Run: gh auth login', file=sys.stderr)
         sys.exit(1)
 
-    gh_user_result = subprocess.run(['gh', 'api', 'user', '--jq', '.login'], capture_output=True, text=True)
-    gh_user = gh_user_result.stdout.strip() if gh_user_result.returncode == 0 else '(authenticated)'
-    print(f'  gh                : {gh_user}')
     print()
 
 
