@@ -533,7 +533,6 @@ mkdir -p {shq(repo_dir)}
                 requested_step_names = list(requested_steps_set)
 
             tactical = self.tactical
-            self.tactical = False
             tactical_skipped: Dict[str, int] = {}
             if tactical and requested_step_names is not None:
                 succeeded_steps: Dict[str, int] = {}
@@ -599,7 +598,7 @@ mkdir -p {shq(repo_dir)}
                 ]
                 skipped_log_text = '\n'.join(skipped_log_lines) + '\n'
                 batch.create_job(
-                    'ubuntu:22.04',
+                    'ubuntu:24.04',
                     command=['python3', '-c', 'import sys; sys.stdout.write(sys.argv[1])', skipped_log_text],
                     attributes={'name': 'Tactical Retry Skipped Test Log'},
                     always_run=True,
@@ -607,6 +606,7 @@ mkdir -p {shq(repo_dir)}
                 )
             config.build(batch, self, scope='test')
             await batch.submit()
+            self.tactical = False
             self.batch = batch
         except concurrent.futures.CancelledError:
             raise
