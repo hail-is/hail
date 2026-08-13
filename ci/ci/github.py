@@ -523,23 +523,22 @@ mkdir -p {shq(repo_dir)}
 
             with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
                 build_yaml = f.read()
-            run_all = RERUN_ALL_TESTS in self.labels or 'build.yaml' in changed_files
-            if run_all:
+            # None means run everything; a list (possibly empty) means run only those steps + label-forced.
+            if RERUN_ALL_TESTS in self.labels or 'build.yaml' in changed_files:
                 log.info(f'PR #{self.number} running full test suite (rerun all tests label or build.yaml changed)')
-                requested_step_names: List[str] = []
+                requested_step_names: Optional[List[str]] = None
             else:
                 requested_steps_set = compute_requested_steps(build_yaml, changed_files, scope='test', cloud=CLOUD)
                 log.info(f'PR #{self.number} selected steps ({len(requested_steps_set)})')
                 requested_step_names = list(requested_steps_set)
 
             tactical_skipped: Dict[str, int] = {}
-            if self.tactical:
+            if self.tactical and requested_step_names is not None:
                 self.tactical = False
                 succeeded_steps: Dict[str, int] = {}
                 async for b in batch_client.list_batches(
                     f'test=1 pr={self.number} source_sha={self.source_sha} target_sha={self.target_branch.sha} user:ci'
                 ):
-                    # Collect all job states per base step name for this batch.
                     step_states: Dict[str, List[str]] = {}
                     async for job in b.jobs():
                         if job['name']:
@@ -556,25 +555,20 @@ mkdir -p {shq(repo_dir)}
                     f'PR #{self.number} tactical retry: skipping {len(tactical_skipped)} already-succeeded steps: {list(tactical_skipped)}'
                 )
 
-            config: Optional[BuildConfiguration] = None
-            namespace: Optional[str] = None
-            services: List[str] = []
-            if requested_step_names or not tactical_skipped:
-                config = BuildConfiguration(
-                    self,
-                    build_yaml,
-                    scope='test',
-                    requested_step_names=requested_step_names,
-                    pr_labels=frozenset(self.labels),
-                )
-                namespace = config.namespace()
-                services = config.deployed_services()
-                with open(f'{repo_dir}/ci/test/resources/build.yaml', 'r', encoding='utf-8') as f:
-                    test_services = BuildConfiguration(self, f.read(), scope='test').deployed_services()
-                services.extend(test_services)
+            config = BuildConfiguration(
+                self,
+                build_yaml,
+                scope='test',
+                requested_step_names=requested_step_names,
+                pr_labels=frozenset(self.labels),
+            )
+            namespace: Optional[str] = config.namespace()
+            services: List[str] = config.deployed_services()
+            with open(f'{repo_dir}/ci/test/resources/build.yaml', 'r', encoding='utf-8') as f:
+                test_services = BuildConfiguration(self, f.read(), scope='test').deployed_services()
+            services.extend(test_services)
 
-            # namespace is None when no service deploy steps are selected (e.g. hail-only PRs)
-            # or when all steps were skipped by tactical retry; in either case skip registering services.
+            # namespace is None when no service deploy steps are selected (e.g. hail-only PRs).
             if namespace is not None:
                 tomorrow = datetime.datetime.utcnow() + datetime.timedelta(days=1)
                 await add_deployed_services(db, namespace, services, tomorrow)
@@ -610,8 +604,7 @@ mkdir -p {shq(repo_dir)}
                     always_run=True,
                     regions=[REGION],
                 )
-            if config is not None:
-                config.build(batch, self, scope='test')
+            config.build(batch, self, scope='test')
             await batch.submit()
             self.batch = batch
         except concurrent.futures.CancelledError:
