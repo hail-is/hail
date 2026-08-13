@@ -113,13 +113,8 @@ def check_prereqs():
         print('Run: gh auth login', file=sys.stderr)
         sys.exit(1)
 
-    # Extract the logged-in user from gh auth status output (stderr)
-    gh_user = '(authenticated)'
-    for line in result.stderr.splitlines():
-        if 'Logged in to github.com' in line or 'account' in line.lower():
-            gh_user = line.strip()
-            break
-
+    gh_user_result = subprocess.run(['gh', 'api', 'user', '--jq', '.login'], capture_output=True, text=True)
+    gh_user = gh_user_result.stdout.strip() if gh_user_result.returncode == 0 else '(authenticated)'
     print(f'  gh                : {gh_user}')
     print()
 
@@ -143,8 +138,15 @@ def main():
 
     check_prereqs()
 
+    existing_keys = []
+
+    def fetch_keys():
+        existing_keys.extend(list_keys())
+        n = len(existing_keys)
+        return f'{n} key{"s" if n != 1 else ""} found'
+
     try:
-        existing_keys = spin('  Fetching existing keys', list_keys)
+        spin('  Fetching existing keys', fetch_keys)
     except RuntimeError as e:
         print(f'\nError fetching keys: {e}', file=sys.stderr)
         sys.exit(1)
@@ -152,7 +154,6 @@ def main():
     if not existing_keys:
         print('  Warning: no existing user-managed keys found — the account may already be clean.')
     else:
-        print(f'  Found {len(existing_keys)} existing user-managed key(s):')
         for k in existing_keys:
             key_id = k['name'].split('/')[-1]
             print(f'    {key_id}  created: {k["validAfterTime"]}')
