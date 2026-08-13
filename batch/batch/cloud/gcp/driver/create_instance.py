@@ -13,7 +13,15 @@ from ....file_store import FileStore
 from ....instance_config import InstanceConfig
 from ...resource_utils import unreserved_worker_data_disk_size_gib
 from ...utils import ACCEPTABLE_QUERY_JAR_URL_PREFIX
-from ..resource_utils import GPUConfig, gcp_local_ssd_count, gcp_machine_type_to_parts, machine_type_to_gpu
+from ..resource_utils import (
+    GPUConfig,
+    gcp_boot_disk_type,
+    gcp_data_disk_device_name,
+    gcp_data_disk_type,
+    gcp_local_ssd_count,
+    gcp_machine_type_to_parts,
+    machine_type_to_gpu,
+)
 
 log = logging.getLogger('create_instance')
 
@@ -59,6 +67,8 @@ def create_vm_config(
     assert parts
     cores = parts.cores
 
+    assert not (local_ssd_data_disk and parts.machine_family == 'n4')
+
     region = instance_config.region_for(zone)
     docker_run_gpu_args = '--runtime=nvidia --gpus all' if machine_type_to_gpu(machine_type_full) else ''
     if local_ssd_data_disk:
@@ -79,12 +89,12 @@ def create_vm_config(
             {
                 'autoDelete': True,
                 'initializeParams': {
-                    'diskType': f'projects/{project}/zones/{zone}/diskTypes/pd-ssd',
+                    'diskType': f'projects/{project}/zones/{zone}/diskTypes/{gcp_data_disk_type(parts.machine_family)}',
                     'diskSizeGb': str(data_disk_size_gb),
                 },
             }
         ]
-        worker_data_disk_name = 'nvme0n2' if 'g2' in machine_type else 'sdb'
+        worker_data_disk_name = gcp_data_disk_device_name(parts.machine_family, machine_type)
 
     if job_private:
         unreserved_disk_storage_gb = data_disk_size_gb
@@ -126,7 +136,7 @@ def create_vm_config(
                 'initializeParams': {
                     # NB: create a new worker image with gcp-create-worker-image.sh
                     'sourceImage': f'projects/{project}/global/images/batch-worker-22',
-                    'diskType': f'projects/{project}/zones/{zone}/diskTypes/pd-ssd',
+                    'diskType': f'projects/{project}/zones/{zone}/diskTypes/{gcp_boot_disk_type(parts.machine_family)}',
                     'diskSizeGb': str(boot_disk_size_gb),
                 },
             },

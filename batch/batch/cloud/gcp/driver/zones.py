@@ -12,6 +12,28 @@ from ....utils import WindowFractionCounter
 
 log = logging.getLogger('zones')
 
+# IMPORTANT TERMINOLOGY BEFORE READING THIS SCRIPT:
+# region: us-central1
+# zone: us-central1-b
+# I have confused zone vs. region so many times,
+# and there are almost certainly places in the codebase
+# that conflate the two. Be careful and be deliberate.
+
+# NB (2026-08-13, checked against a live hail-vdc N4 test VM): n4's CPU quota ("CPUs per VM
+# family", dimensioned by vm_family=N4) and its Hyperdisk Balanced capacity quota both live in
+# GCP's newer per-dimension Cloud Quotas system, NOT in the classic quotas[] list returned by the
+# `compute.regions.get` API that `fetch_region_quotas` below calls -- that legacy list only ever
+# has per-family entries for families GCP migrated before the Cloud Quotas cutover (n2/n2d/e2/c3/
+# etc), and n4/Hyperdisk aren't in it at all, under any name. Reading the real numbers you saw in
+# the console would require integrating GCP's Cloud Quotas / Service Usage API, which hailtop does
+# not currently have a client for -- a real follow-up task, not a metric-name fix. Until that
+# lands, `compute_zone_weights` deliberately treats both n4 CPU and Hyperdisk disk quota as
+# *unknown* rather than guessing: it does NOT fall back to the generic CPUS metric for CPU (n4
+# usage isn't counted against it, so that number would be actively misleading, unlike n1 which
+# genuinely shares that legacy bucket), and it skips the disk-quota constraint the same way.
+# Net effect: zone selection for n4 is not quota-aware yet -- every candidate zone gets an equal
+# baseline weight, and real quota/capacity exhaustion still surfaces as a normal GCE creation error.
+
 
 class ZoneWeight:
     def __init__(self, zone, weight):
@@ -95,10 +117,12 @@ class ZoneMonitor(CloudLocationMonitor):
         regions: List[str],
         machine_type: str,
     ) -> str:
-        zone_weights = self.compute_zone_weights(cores, local_ssd_data_disk, data_disk_size_gb, preemptible, regions)
+        machine_family = machine_type.split("-")[0]
+        zone_weights = self.compute_zone_weights(
+            cores, local_ssd_data_disk, data_disk_size_gb, preemptible, regions, machine_family
+        )
 
         zones = [zw.zone for zw in zone_weights]
-        machine_family = machine_type.split("-")[0]
         if machine_family in self._machine_family_valid_zones:
             valid_zones = self._machine_family_valid_zones[machine_family]
             zones = [z for z in zones if z in valid_zones]
@@ -127,6 +151,7 @@ class ZoneMonitor(CloudLocationMonitor):
         data_disk_size_gb: int,
         preemptible: bool,
         regions: List[str],
+        machine_family: str,
     ) -> List[ZoneWeight]:
         weights = []
         for region_name, r in self._region_info.items():
@@ -135,18 +160,24 @@ class ZoneMonitor(CloudLocationMonitor):
 
             quota_remaining = {q['metric']: q['limit'] - q['usage'] for q in r['quotas']}
 
-            cpu_label = 'PREEMPTIBLE_CPUS' if preemptible else 'CPUS'
-            remaining = quota_remaining[cpu_label] / worker_cores
-
-            if local_ssd_data_disk:
-                specific_disk_type_quota = quota_remaining['LOCAL_SSD_TOTAL_GB']
+            if machine_family == 'n4':
+                # No visibility into n4's CPU or Hyperdisk quota via this API (see note above) --
+                # every candidate zone gets the same baseline weight rather than one computed from
+                # a quota metric (the legacy CPUS aggregate) that doesn't reflect n4's real limits.
+                weight = 1.0
             else:
-                specific_disk_type_quota = quota_remaining['SSD_TOTAL_GB']
-            # FIXME: data_disk_size_gb is assumed to be constant across all instances, but it is
-            # passed as a variable parameter to this function!!
-            remaining = min(remaining, specific_disk_type_quota / data_disk_size_gb)
+                cpu_label = 'PREEMPTIBLE_CPUS' if preemptible else 'CPUS'
+                remaining = quota_remaining[cpu_label] / worker_cores
 
-            weight = max(remaining / len(r['zones']), 1)
+                if local_ssd_data_disk:
+                    specific_disk_type_quota = quota_remaining['LOCAL_SSD_TOTAL_GB']
+                else:
+                    specific_disk_type_quota = quota_remaining['SSD_TOTAL_GB']
+                # FIXME: data_disk_size_gb is assumed to be constant across all instances, but it is
+                # passed as a variable parameter to this function!!
+                remaining = min(remaining, specific_disk_type_quota / data_disk_size_gb)
+
+                weight = max(remaining / len(r['zones']), 1)
             for z in r['zones']:
                 zone_name = url_basename(z)
                 weights.append(ZoneWeight(zone_name, weight))

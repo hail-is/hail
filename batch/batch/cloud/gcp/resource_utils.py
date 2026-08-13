@@ -15,6 +15,9 @@ MEMORY_PER_CORE_MIB = {
     ('n2', 'standard'): 4096,
     ('n2', 'highmem'): 8192,
     ('n2', 'highcpu'): 1024,
+    ('n4', 'standard'): 4096,
+    ('n4', 'highmem'): 8192,
+    ('n4', 'highcpu'): 2048,
 }
 
 
@@ -158,6 +161,44 @@ n2_highcpu_machines = {
     for cores in [2, 4, 8, 16, 32, 48, 64, 80, 96]
 }
 
+# N4 machines cores: 2, 4, 8, 16, 32, 48, 64, 80
+
+# N4 Standard mem: 4 * cores GiB
+n4_standard_machines = {
+    f'n4-standard-{cores}': MachineTypeParts(
+        cores=cores,
+        memory=gib_to_bytes(4 * cores),
+        gpu_config=None,
+        machine_family='n4',
+        worker_type='standard',
+    )
+    for cores in [2, 4, 8, 16, 32, 48, 64, 80]
+}
+
+# N4 Highmem mem: 8 * cores GiB
+n4_highmem_machines = {
+    f'n4-highmem-{cores}': MachineTypeParts(
+        cores=cores,
+        memory=gib_to_bytes(8 * cores),
+        gpu_config=None,
+        machine_family='n4',
+        worker_type='highmem',
+    )
+    for cores in [2, 4, 8, 16, 32, 48, 64, 80]
+}
+
+# N4 Highcpu mem: 2 * cores GiB
+n4_highcpu_machines = {
+    f'n4-highcpu-{cores}': MachineTypeParts(
+        cores=cores,
+        memory=gib_to_bytes(2 * cores),
+        gpu_config=None,
+        machine_family='n4',
+        worker_type='highcpu',
+    )
+    for cores in [2, 4, 8, 16, 32, 48, 64, 80]
+}
+
 MACHINE_TYPE_TO_PARTS = {
     **n1_standard_t4_machines,
     **n1_highmem_t4_machines,
@@ -168,6 +209,9 @@ MACHINE_TYPE_TO_PARTS = {
     **n2_standard_machines,
     **n2_highmem_machines,
     **n2_highcpu_machines,
+    **n4_standard_machines,
+    **n4_highmem_machines,
+    **n4_highcpu_machines,
     'n2-highmem-128': MachineTypeParts(
         cores=128,
         memory=gib_to_bytes(864),
@@ -367,7 +411,30 @@ N2_MIN_LOCAL_SSD_COUNT_BY_CORES = {
 }
 
 
+# N4 has no Persistent Disk or Local SSD support at all — it is Hyperdisk-only.
+# https://docs.cloud.google.com/compute/docs/general-purpose-machines#n4-standard_1
+def gcp_boot_disk_type(machine_family: str) -> str:
+    if machine_family == 'n4':
+        return 'hyperdisk-balanced'
+    return 'pd-ssd'
+
+
+def gcp_data_disk_type(machine_family: str) -> str:
+    if machine_family == 'n4':
+        return 'hyperdisk-balanced'
+    return 'pd-ssd'
+
+
+def gcp_data_disk_device_name(machine_family: str, machine_type: str) -> str:
+    # Hyperdisk (n4) is NVMe-attached, like g2's local NVMe SSD, rather than the SCSI 'sdb'
+    # device used by classic Persistent Disk.
+    if machine_family == 'n4' or 'g2' in machine_type:
+        return 'nvme0n2'
+    return 'sdb'
+
+
 def gcp_local_ssd_count(machine_family: str, cores: int) -> int:
+    assert machine_family != 'n4', machine_family  # n4 supports zero local SSDs; never fall through to `return 1`
     if machine_family != 'n2':
         return 1
     count = N2_MIN_LOCAL_SSD_COUNT_BY_CORES.get(cores)
