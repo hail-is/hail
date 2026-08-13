@@ -539,9 +539,16 @@ mkdir -p {shq(repo_dir)}
                 async for b in batch_client.list_batches(
                     f'test=1 pr={self.number} source_sha={self.source_sha} target_sha={self.target_branch.sha} user:ci'
                 ):
+                    # Collect all job states per base step name for this batch.
+                    step_states: Dict[str, List[str]] = {}
                     async for job in b.jobs():
-                        if job['state'] == 'Success' and job['name']:
+                        if job['name']:
                             step_name = re.sub(r'_\d+$', '', job['name'])
+                            step_states.setdefault(step_name, []).append(job['state'])
+                    # list_batches is newest-first; overwriting on each older batch means we
+                    # end up pointing to the oldest batch where every shard of the step passed.
+                    for step_name, states in step_states.items():
+                        if all(s == 'Success' for s in states):
                             succeeded_steps[step_name] = b.id
                 tactical_skipped = {s: succeeded_steps[s] for s in requested_step_names if s in succeeded_steps}
                 requested_step_names = [s for s in requested_step_names if s not in succeeded_steps]
@@ -590,17 +597,15 @@ mkdir -p {shq(repo_dir)}
                 callback=CALLBACK_URL,
             )
             if tactical_skipped:
-                bullets = '\n'.join(
-                    f'  • {step}: {deploy_config.external_url("batch", f"/batches/{batch_id}")}'
+                skipped_log_lines = ['Skipped (already succeeded with matching source and target SHA):']
+                skipped_log_lines += [
+                    f'  * {step}: {deploy_config.external_url("batch", f"/batches/{batch_id}")}'
                     for step, batch_id in sorted(tactical_skipped.items())
-                )
+                ]
+                skipped_log_text = '\n'.join(skipped_log_lines) + '\n'
                 batch.create_job(
                     'ubuntu:22.04',
-                    command=[
-                        'bash',
-                        '-c',
-                        f'printf "Skipped (already succeeded with matching source and target SHA):\\n{bullets}\\n"',
-                    ],
+                    command=['python3', '-c', 'import sys; sys.stdout.write(sys.argv[1])', skipped_log_text],
                     attributes={'name': 'Tactical Retry Skipped Test Log'},
                     always_run=True,
                     regions=[REGION],
