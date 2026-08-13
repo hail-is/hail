@@ -153,7 +153,7 @@
       <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
       <button type="submit">Retry</button>
     </form>
-    {% if pr.batch_is_up_to_date and pr.build_state in ('failure', 'error') %}
+    {% if pr.is_up_to_date() and pr.build_state in ('failure', 'error') %}
     <form action="{{ base_path }}/watched_branches/{{ wb.index }}/pr/{{ pr.number }}/retry" method="post">
       <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
       <input type="hidden" name="tactical" value="true"/>
