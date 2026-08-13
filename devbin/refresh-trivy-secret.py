@@ -240,8 +240,8 @@ def main():
         if key_file and os.path.exists(key_file):
             os.unlink(key_file)
 
-    print('Done. Verify by running the Trivy Security Scan workflow:')
-    print('  gh workflow run trivy-scan.yml --repo hail-is/hail --ref main')
+    print('Done. Verify by triggering a Trivy scan:')
+    print('  python3 devbin/trivy-scan-trigger.py')
 
 
 if __name__ == '__main__':
