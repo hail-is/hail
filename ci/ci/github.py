@@ -532,9 +532,10 @@ mkdir -p {shq(repo_dir)}
                 log.info(f'PR #{self.number} selected steps ({len(requested_steps_set)})')
                 requested_step_names = list(requested_steps_set)
 
+            tactical = self.tactical
+            self.tactical = False
             tactical_skipped: Dict[str, int] = {}
-            if self.tactical and requested_step_names is not None:
-                self.tactical = False
+            if tactical and requested_step_names is not None:
                 succeeded_steps: Dict[str, int] = {}
                 async for b in batch_client.list_batches(
                     f'test=1 pr={self.number} source_sha={self.source_sha} target_sha={self.target_branch.sha} user:ci'
