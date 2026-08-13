@@ -536,19 +536,30 @@ mkdir -p {shq(repo_dir)}
             tactical_skipped: Dict[str, int] = {}
             if tactical and requested_step_names is not None:
                 succeeded_steps: Dict[str, int] = {}
+                requested_steps_set = set(requested_step_names)
                 async for b in batch_client.list_batches(
-                    f'test=1 pr={self.number} source_sha={self.source_sha} target_sha={self.target_branch.sha} user:ci'
+                    f'test=1 pr={self.number} source_sha={self.source_sha} target_sha={self.target_branch.sha} user:ci',
+                    limit=50,
                 ):
                     step_states: Dict[str, List[str]] = {}
                     async for job in b.jobs():
                         if job['name']:
-                            step_name = re.sub(r'_\d+$', '', job['name'])
+                            name = job['name']
+                            if name in requested_steps_set:
+                                step_name = name
+                            else:
+                                stripped = re.sub(r'_\d+$', '', name)
+                                if stripped not in requested_steps_set:
+                                    continue
+                                step_name = stripped
                             step_states.setdefault(step_name, []).append(job['state'])
                     # list_batches is newest-first; overwriting on each older batch means we
                     # end up pointing to the oldest batch where every shard of the step passed.
                     for step_name, states in step_states.items():
                         if all(s == 'Success' for s in states):
                             succeeded_steps[step_name] = b.id
+                    if succeeded_steps.keys() >= requested_steps_set:
+                        break
                 tactical_skipped = {s: succeeded_steps[s] for s in requested_step_names if s in succeeded_steps}
                 requested_step_names = [s for s in requested_step_names if s not in succeeded_steps]
                 log.info(
