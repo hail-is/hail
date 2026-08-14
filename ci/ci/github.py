@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import random
+import re
 import secrets
 import time
 from shlex import quote as shq
@@ -25,7 +26,7 @@ from hailtop.utils import RETRY_FUNCTION_SCRIPT, check_shell, check_shell_output
 from .build import BuildConfiguration, Code
 from .build_selection import compute_requested_steps
 from .constants import AUTHORIZED_USERS, COMPILER_TEAM, GITHUB_CLONE_URL, GITHUB_STATUS_CONTEXT, SERVICES_TEAM
-from .environment import CLOUD, DEPLOY_STEPS
+from .environment import CLOUD, DEPLOY_STEPS, REGION
 from .globals import is_test_deployment
 from .utils import GithubStatus, add_deployed_services, github_status
 
@@ -266,6 +267,7 @@ class PR(Code):
         self.build_state: Optional[str] = None
 
         self.pending_build_reason: str = 'unknown'
+        self.tactical: bool = False
 
         self.intended_github_status: GithubStatus = self.github_status_from_build_state()
         self.last_known_github_status: Dict[str, GithubStatus] = {}
@@ -521,14 +523,49 @@ mkdir -p {shq(repo_dir)}
 
             with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
                 build_yaml = f.read()
-            run_all = RERUN_ALL_TESTS in self.labels or 'build.yaml' in changed_files
-            if run_all:
+            # None means run everything; a list (possibly empty) means run only those steps + label-forced.
+            if RERUN_ALL_TESTS in self.labels or 'build.yaml' in changed_files:
                 log.info(f'PR #{self.number} running full test suite (rerun all tests label or build.yaml changed)')
-                requested_step_names: List[str] = []
+                requested_step_names: Optional[List[str]] = None
             else:
                 requested_steps_set = compute_requested_steps(build_yaml, changed_files, scope='test', cloud=CLOUD)
                 log.info(f'PR #{self.number} selected steps ({len(requested_steps_set)})')
                 requested_step_names = list(requested_steps_set)
+
+            tactical = self.tactical
+            tactical_skipped: Dict[str, int] = {}
+            if tactical and requested_step_names is not None:
+                succeeded_steps: Dict[str, int] = {}
+                requested_steps_set = set(requested_step_names)
+                async for b in batch_client.list_batches(
+                    f'test=1 pr={self.number} source_sha={self.source_sha} target_sha={self.target_branch.sha} user:ci',
+                    limit=50,
+                ):
+                    step_states: Dict[str, List[str]] = {}
+                    async for job in b.jobs():
+                        if job['name']:
+                            name = job['name']
+                            if name in requested_steps_set:
+                                step_name = name
+                            else:
+                                stripped = re.sub(r'_\d+$', '', name)
+                                if stripped not in requested_steps_set:
+                                    continue
+                                step_name = stripped
+                            step_states.setdefault(step_name, []).append(job['state'])
+                    # list_batches is newest-first; overwriting on each older batch means we
+                    # end up pointing to the oldest batch where every shard of the step passed.
+                    for step_name, states in step_states.items():
+                        if all(s == 'Success' for s in states):
+                            succeeded_steps[step_name] = b.id
+                    if succeeded_steps.keys() >= requested_steps_set:
+                        break
+                tactical_skipped = {s: succeeded_steps[s] for s in requested_step_names if s in succeeded_steps}
+                requested_step_names = [s for s in requested_step_names if s not in succeeded_steps]
+                log.info(
+                    f'PR #{self.number} tactical retry: skipping {len(tactical_skipped)} already-succeeded steps: {list(tactical_skipped)}'
+                )
+
             config = BuildConfiguration(
                 self,
                 build_yaml,
@@ -536,14 +573,13 @@ mkdir -p {shq(repo_dir)}
                 requested_step_names=requested_step_names,
                 pr_labels=frozenset(self.labels),
             )
-            namespace = config.namespace()
-            services = config.deployed_services()
+            namespace: Optional[str] = config.namespace()
+            services: List[str] = config.deployed_services()
             with open(f'{repo_dir}/ci/test/resources/build.yaml', 'r', encoding='utf-8') as f:
                 test_services = BuildConfiguration(self, f.read(), scope='test').deployed_services()
-
             services.extend(test_services)
-            # namespace is None when no service deploy steps are selected (e.g. hail-only PRs);
-            # in that case there are no deployed services to register.
+
+            # namespace is None when no service deploy steps are selected (e.g. hail-only PRs).
             if namespace is not None:
                 tomorrow = datetime.datetime.utcnow() + datetime.timedelta(days=1)
                 await add_deployed_services(db, namespace, services, tomorrow)
@@ -565,8 +601,23 @@ mkdir -p {shq(repo_dir)}
                 },
                 callback=CALLBACK_URL,
             )
+            if tactical_skipped:
+                skipped_log_lines = ['Skipped (already succeeded with matching source and target SHA):']
+                skipped_log_lines += [
+                    f'  * {step}: {deploy_config.external_url("batch", f"/batches/{batch_id}")}'
+                    for step, batch_id in sorted(tactical_skipped.items())
+                ]
+                skipped_log_text = '\n'.join(skipped_log_lines) + '\n'
+                batch.create_job(
+                    'ubuntu:24.04',
+                    command=['python3', '-c', 'import sys; sys.stdout.write(sys.argv[1])', skipped_log_text],
+                    attributes={'name': 'Tactical Retry Skipped Test Log'},
+                    always_run=True,
+                    regions=[REGION],
+                )
             config.build(batch, self, scope='test')
             await batch.submit()
+            self.tactical = False
             self.batch = batch
         except concurrent.futures.CancelledError:
             raise
@@ -1124,7 +1175,7 @@ mkdir -p {shq(repo_dir)}
 (cd {shq(repo_dir)}; {self.checkout_script()})
 """)
             with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
-                config = BuildConfiguration(self, f.read(), requested_step_names=DEPLOY_STEPS, scope='deploy')
+                config = BuildConfiguration(self, f.read(), requested_step_names=DEPLOY_STEPS or None, scope='deploy')
                 namespace = config.namespace()
                 services = config.deployed_services()
             with open(f'{repo_dir}/ci/test/resources/build.yaml', 'r', encoding='utf-8') as f:
