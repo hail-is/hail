@@ -6,13 +6,13 @@ certifi==2026.7.22
     #   -c ci/../hail/python/dev/pinned-requirements.txt
     #   -c ci/../hail/python/pinned-requirements.txt
     #   requests
-cffi==2.1.0
+cffi==2.1.1
     # via
     #   -c ci/../gear/pinned-requirements.txt
     #   -c ci/../hail/python/dev/pinned-requirements.txt
     #   -c ci/../hail/python/pinned-requirements.txt
     #   cryptography
-charset-normalizer==3.4.9
+charset-normalizer==3.5.0
     # via
     #   -c ci/../gear/pinned-requirements.txt
     #   -c ci/../hail/python/dev/pinned-requirements.txt
