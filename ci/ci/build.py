@@ -102,7 +102,7 @@ class BuildConfiguration:
         config_str: str,
         scope: str,
         *,
-        requested_step_names: Sequence[str] = (),
+        requested_step_names: Optional[Sequence[str]] = None,
         excluded_step_names: Sequence[str] = (),
         pr_labels: FrozenSet[str] = frozenset(),
     ):
@@ -112,7 +112,7 @@ class BuildConfiguration:
         self.pr_labels = pr_labels
 
         config = yaml.safe_load(config_str)
-        if requested_step_names:
+        if requested_step_names is not None:
             log.info(f"Constructing build configuration with steps: {requested_step_names}")
 
         runnable_steps: List[Step] = []
@@ -123,7 +123,7 @@ class BuildConfiguration:
                 name_step[step.name] = step
                 runnable_steps.append(step)
 
-        if requested_step_names:
+        if requested_step_names is not None:
             # transitively close requested_step_names over dependencies
             visited = set()
 
