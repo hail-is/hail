@@ -23,7 +23,7 @@ from hailtop.utils import async_to_blocking
 
 from ..fs.hadoop_fs import HadoopFS
 from .backend import local_jar_information
-from .py4j_backend import Py4JBackend, raise_when_mismatched_hail_versions
+from .py4j_backend import Py4JBackend, _log_suppress_shutdown_exceptions, raise_when_mismatched_hail_versions
 
 
 def _modify_spark_conf(conf: pyspark.SparkConf, key: str, update: Callable[[str | None], str]):
@@ -239,20 +239,23 @@ class SparkBackend(Py4JBackend):
         self.router_fs = None
 
     def stop(self):
-        if self._hail_managed_spark:
-            self._spark.stop()
-            super().stop()
-            SparkContext._gateway.shutdown()
+        try:
+            if self._hail_managed_spark:
+                _log_suppress_shutdown_exceptions(self._spark.stop)
+                super().stop()
+                _log_suppress_shutdown_exceptions(lambda: SparkContext._gateway.shutdown())
 
-            # clean up pyspark's global state to support
-            # re-init with different spark conf
-            with pyspark.SparkContext._lock:
-                pyspark.SparkContext._gateway = None
-                pyspark.SparkContext._jvm = None
-        else:
-            super().stop()
-
-        self.router_fs = None
+                # clean up pyspark's global state to support
+                # re-init with different spark conf; pyspark only does this
+                # itself when the JVM is still reachable
+                with pyspark.SparkContext._lock:
+                    pyspark.SparkContext._active_spark_context = None
+                    pyspark.SparkContext._gateway = None
+                    pyspark.SparkContext._jvm = None
+            else:
+                super().stop()
+        finally:
+            self.router_fs = None
 
     def from_spark(self, df, key):
         result_tuple = self._jbackend.pyFromDF(df._jdf, key)
