@@ -68,7 +68,7 @@ Below ``global_bm``, roles are scoped to specific quotes and billing projects.
 - ``quote_owner`` and ``quote_manager`` are assigned per-quote.
 - ``bp_member`` is the role of anyone in a billing project's user list.
 - Roles and permissions are scoped to specific quotes and billing projects. A user may be a quote owner in
-one quote and just a plain billing project member in another.
+  one quote and just a plain billing project member in another.
 
 The table below lays out the permissions for each role type:
 
