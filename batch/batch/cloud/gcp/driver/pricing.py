@@ -370,7 +370,17 @@ def process_disk_sku(sku: dict, regions: List[str]) -> List[GCPDiskPrice]:
 def process_hyperdisk_sku(sku: dict, regions: List[str]) -> List[GCPDiskPrice]:
     category = sku['category']
     assert category['resourceFamily'] == 'Storage', sku
-    assert category['resourceGroup'] == 'HyperdiskBalancedCapacity', sku
+    # NB: GCP does not give standalone Hyperdisk Balanced SKUs (Capacity/IOPS/Throughput) their
+    # own resourceGroup -- they share 'SSD' with plain pd-ssd. Only Hyperdisk Storage Pools SKUs
+    # get a dedicated resourceGroup ('HDBSP'). So, like compute SKUs, we have to disambiguate by
+    # description. Confirmed against the live Cloud Billing Catalog on 2026-08-14.
+    assert category['resourceGroup'] == 'SSD', sku
+    assert sku['description'].startswith('Hyperdisk Balanced Capacity'), sku
+    # Exclude sibling products that also start with this prefix: Confidential Mode has its own
+    # pricing, and 'Regional'/'High Availability' Hyperdisk Balanced HA is a distinct product
+    # (Balanced HA capacity's description doesn't start with this prefix at all, but guard anyway).
+    assert 'Confidential Mode' not in sku['description'], sku
+    assert 'Regional' not in sku['description'], sku
 
     effective_start_date = parse_effective_start_date(sku)
 
@@ -433,6 +443,11 @@ async def fetch_prices(
             ):
                 for disk_price in process_disk_sku(sku, regions):
                     yield disk_price
-            elif category['resourceGroup'] == 'HyperdiskBalancedCapacity':
+            elif (
+                category['resourceGroup'] == 'SSD'
+                and sku['description'].startswith('Hyperdisk Balanced Capacity')
+                and 'Confidential Mode' not in sku['description']
+                and 'Regional' not in sku['description']
+            ):
                 for hyperdisk_price in process_hyperdisk_sku(sku, regions):
                     yield hyperdisk_price
