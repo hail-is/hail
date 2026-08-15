@@ -11,6 +11,7 @@ import yaml
 from gear.cloud_config import get_global_config
 from hailtop.utils import RETRY_FUNCTION_SCRIPT, flatten
 
+from .build_selection import select_steps
 from .environment import (
     BUILDKIT_IMAGE,
     CI_UTILS_IMAGE,
@@ -127,27 +128,16 @@ class BuildConfiguration:
                 runnable_steps.append(step)
 
         if requested_step_names is not None:
-            # transitively close requested_step_names over dependencies
-            visited = set()
-
-            def visit_dependent(step: Step):
-                if step not in visited and step.name not in excluded_step_names:
-                    if not step.can_run_in_current_cloud():
-                        raise BuildConfigurationError(f'Step {step.name} cannot be run in cloud {CLOUD}')
-                    visited.add(step)
-                    for s2 in step.deps:
-                        if not s2.run_if_requested:
-                            visit_dependent(s2)
-
-            for step_name in requested_step_names:
-                visit_dependent(name_step[step_name])
-            for step in runnable_steps:
-                if step.is_forced_by_labels(pr_labels):
-                    visit_dependent(step)
+            seeds = set(requested_step_names) | {
+                step.name for step in runnable_steps if step.is_forced_by_labels(pr_labels)
+            }
+            # Use raw step configs so the selection logic stays pure and testable.
+            valid_raw_steps = [s for s in config['steps'] if s.get('name') in name_step]
+            selected_names = select_steps(seeds, valid_raw_steps)
             self.steps = [
                 step
                 for step in runnable_steps
-                if step in visited
+                if step.name in selected_names
                 and (
                     not step.only_if_release
                     or step.is_forced_by_labels(pr_labels)
@@ -216,6 +206,13 @@ class Step(abc.ABC):
                 raise BuildConfigurationError(f'found duplicate dependencies of {self.name}: {duplicates}')
             self.deps = [params.name_step[d] for d in json['dependsOn'] if d in params.name_step]
 
+        self.after_steps: List[Step] = []
+        if 'after' in json:
+            duplicates = [name for name, count in Counter(json['after']).items() if count > 1]
+            if duplicates:
+                raise BuildConfigurationError(f'found duplicate after of {self.name}: {duplicates}')
+            self.after_steps = [params.name_step[d] for d in json['after'] if d in params.name_step]
+
         self.scopes = json.get('scopes')
         self.clouds = json.get('clouds')
         self.run_if_requested = json.get('runIfRequested', False)
@@ -240,9 +237,8 @@ class Step(abc.ABC):
         return config
 
     def deps_parents(self):
-        if not self.deps:
-            return None
-        return flatten([d.wrapped_job() for d in self.deps])
+        parents = flatten([d.wrapped_job() for d in self.deps + self.after_steps])
+        return parents or None
 
     def all_deps(self):
         visited: Set[Step] = set([self])

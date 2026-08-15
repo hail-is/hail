@@ -7,6 +7,7 @@ from ci.build_selection import (
     _repo_input_local_path,
     _valid_step,
     compute_requested_steps,
+    select_steps,
 )
 
 
@@ -285,3 +286,79 @@ steps:
 def test_compute_requested_steps(config_str, changed_files, scope, cloud, expected_steps):
     result = compute_requested_steps(config_str, changed_files, scope=scope, cloud=cloud)
     assert result == set(expected_steps)
+
+
+# ---------------------------------------------------------------------------
+# select_steps: after graph traversal
+# ---------------------------------------------------------------------------
+
+
+# Test 2: after edges are NOT followed in the backward (ancestors) pass.
+#
+#   A  <--after--  B  <--dependsOn--  C
+#
+# Seed = {C}.  Expected: {C, B}.  A must NOT be pulled in.
+def test_select_steps_after_not_followed_backwards():
+    steps = [
+        {'name': 'A'},
+        {'name': 'B', 'after': ['A']},
+        {'name': 'C', 'dependsOn': ['B']},
+    ]
+    assert select_steps({'C'}, steps) == {'C', 'B'}
+
+
+# Test 3: after edges ARE followed in the forward (descendants) pass.
+#
+#   A  <--after--  B
+#
+# Seed = {A}.  Expected: {A, B}.  B should be pulled in as a cleanup follower.
+def test_select_steps_after_followed_forwards():
+    steps = [
+        {'name': 'A'},
+        {'name': 'B', 'after': ['A']},
+    ]
+    assert select_steps({'A'}, steps) == {'A', 'B'}
+
+
+# Combined test: the realistic cancel_all / test_batch_invariants scenario.
+#
+#   infra
+#     ^-- dependsOn -- cancel_all (after: test_batch, test_ci)
+#                          ^-- dependsOn -- test_batch_invariants
+#   test_batch
+#   test_ci
+#
+# Scenario A (forward): seed = {test_batch}.
+#   cancel_all follows test_batch via after → included.
+#   test_batch_invariants follows cancel_all via dependsOn → included.
+#   infra is pulled in as an ancestor of cancel_all.
+#   test_ci is NOT included (not a seed, not downstream of test_batch).
+#
+# Scenario B (backward / tactical retry): seed = {test_batch_invariants}.
+#   cancel_all is a hard ancestor → included.
+#   infra is a hard ancestor of cancel_all → included.
+#   test_batch and test_ci are NOT included — they're only in cancel_all's
+#   after, which the backward pass does not follow.
+def test_select_steps_forwards_not_backwards():
+    steps = [
+        {'name': 'infra'},
+        {'name': 'test_batch'},
+        {'name': 'test_ci'},
+        {'name': 'cancel_all', 'dependsOn': ['infra'], 'after': ['test_batch', 'test_ci']},
+        {'name': 'test_batch_invariants', 'dependsOn': ['cancel_all', 'infra']},
+    ]
+
+    # Scenario A: running test_batch brings in cancel_all and test_batch_invariants.
+    assert select_steps({'test_batch'}, steps) == {
+        'test_batch',
+        'cancel_all',
+        'infra',
+        'test_batch_invariants',
+    }
+
+    # Scenario B: tactical retry of test_batch_invariants does NOT re-add test_batch or test_ci.
+    assert select_steps({'test_batch_invariants'}, steps) == {
+        'test_batch_invariants',
+        'cancel_all',
+        'infra',
+    }
