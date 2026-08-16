@@ -3,6 +3,8 @@ from typing import List, Union
 from ...driver.billing_manager import ProductVersions
 from ...instance_config import InstanceConfig
 from .resource_utils import (
+    gcp_boot_disk_type,
+    gcp_data_disk_type,
     gcp_machine_type_to_parts,
     machine_type_to_gpu,
     machine_type_to_gpu_num,
@@ -47,6 +49,11 @@ class GCPSlimInstanceConfig(InstanceConfig):
         location: str,
     ) -> 'GCPSlimInstanceConfig':  # pylint: disable=unused-argument
         region = region_from_location(location)
+
+        machine_type_parts = gcp_machine_type_to_parts(machine_type)
+        assert machine_type_parts is not None, machine_type
+        instance_family = machine_type_parts.machine_family
+
         data_disk_resource: Union[GCPLocalSSDStaticSizedDiskResource, GCPStaticSizedDiskResource]
         if local_ssd_data_disk:
             data_disk_resource = GCPLocalSSDStaticSizedDiskResource.create(
@@ -54,17 +61,15 @@ class GCPSlimInstanceConfig(InstanceConfig):
             )
         else:
             data_disk_resource = GCPStaticSizedDiskResource.create(
-                product_versions, 'pd-ssd', data_disk_size_gb, region
+                product_versions, gcp_data_disk_type(instance_family), data_disk_size_gb, region
             )
-
-        machine_type_parts = gcp_machine_type_to_parts(machine_type)
-        assert machine_type_parts is not None, machine_type
-        instance_family = machine_type_parts.machine_family
 
         resources = [
             GCPComputeResource.create(product_versions, instance_family, preemptible, region),
             GCPMemoryResource.create(product_versions, instance_family, preemptible, region),
-            GCPStaticSizedDiskResource.create(product_versions, 'pd-ssd', boot_disk_size_gb, region),
+            GCPStaticSizedDiskResource.create(
+                product_versions, gcp_boot_disk_type(instance_family), boot_disk_size_gb, region
+            ),
             data_disk_resource,
             GCPDynamicSizedDiskResource.create(product_versions, 'pd-ssd', region),
             GCPIPFeeResource.create(product_versions, 1024, preemptible),

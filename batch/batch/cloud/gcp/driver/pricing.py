@@ -185,6 +185,8 @@ def instance_family_from_sku(sku: dict) -> Optional[str]:
         return 'g2'
     if sku['description'].startswith("A2 Instance") or sku['description'].startswith("Spot Preemptible A2 Instance"):
         return 'a2'
+    if sku['description'].startswith("N4 Instance") or sku['description'].startswith("Spot Preemptible N4 Instance"):
+        return 'n4'
     return None
 
 
@@ -365,6 +367,29 @@ def process_disk_sku(sku: dict, regions: List[str]) -> List[GCPDiskPrice]:
     return disk_prices
 
 
+def process_hyperdisk_sku(sku: dict, regions: List[str]) -> List[GCPDiskPrice]:
+    category = sku['category']
+    assert category['resourceFamily'] == 'Storage', sku
+    assert category['resourceGroup'] == 'HyperdiskBalancedCapacity', sku
+
+    effective_start_date = parse_effective_start_date(sku)
+
+    # https://cloud.google.com/billing/docs/reference/rest/v1/services.skus/list#sku
+    pricing_info = sku['pricingInfo'][-1]  # A timeline of pricing info for this SKU in chronological order.
+    pricing_expression = pricing_info['pricingExpression']
+    assert pricing_expression['usageUnit'] == 'GiBy.mo', sku
+    cost_per_month = pricing_expression_to_price_per_unit(pricing_expression)
+
+    hyperdisk_prices = []
+    service_regions = sku['serviceRegions']
+    for service_region in service_regions:
+        if service_region in regions:
+            hyperdisk_prices.append(
+                GCPDiskPrice('hyperdisk-balanced', service_region, cost_per_month, sku['skuId'], effective_start_date)
+            )
+    return hyperdisk_prices
+
+
 async def fetch_prices(
     billing_client: aiogoogle.GoogleBillingClient, regions: List[str], currency_code: str
 ) -> AsyncGenerator[Price, None]:
@@ -408,3 +433,6 @@ async def fetch_prices(
             ):
                 for disk_price in process_disk_sku(sku, regions):
                     yield disk_price
+            elif category['resourceGroup'] == 'HyperdiskBalancedCapacity':
+                for hyperdisk_price in process_hyperdisk_sku(sku, regions):
+                    yield hyperdisk_price

@@ -6,6 +6,9 @@ from batch.cloud.gcp.resource_utils import (
     MACHINE_TYPE_TO_PARTS as MACHINE_TYPE_TO_PARTS_GCP,
 )
 from batch.cloud.gcp.resource_utils import (
+    gcp_boot_disk_type,
+    gcp_data_disk_device_name,
+    gcp_data_disk_type,
     gcp_local_ssd_count,
     gcp_local_ssd_size,
     gcp_worker_memory_per_core_mib,
@@ -47,6 +50,9 @@ def test_gcp_worker_memory_per_core_mib():
     assert gcp_worker_memory_per_core_mib('n2', 'standard') == 4096
     assert gcp_worker_memory_per_core_mib('n2', 'highmem') == 8192
     assert gcp_worker_memory_per_core_mib('n2', 'highcpu') == 1024
+    assert gcp_worker_memory_per_core_mib('n4', 'standard') == 4096
+    assert gcp_worker_memory_per_core_mib('n4', 'highmem') == 8192
+    assert gcp_worker_memory_per_core_mib('n4', 'highcpu') == 2048
 
 
 def test_gcp_machine_memory_per_core_mib():
@@ -66,6 +72,12 @@ def test_gcp_machine_memory_per_core_mib():
                 assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 8192
         elif machine_parts.machine_family == 'n2' and machine_parts.worker_type == 'highcpu':
             assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 1024
+        elif machine_parts.machine_family == 'n4' and machine_parts.worker_type == 'standard':
+            assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 4096
+        elif machine_parts.machine_family == 'n4' and machine_parts.worker_type == 'highmem':
+            assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 8192
+        elif machine_parts.machine_family == 'n4' and machine_parts.worker_type == 'highcpu':
+            assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 2048
         elif machine_parts.machine_family == 'g2' and machine_parts.worker_type == 'standard':
             assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 4096
         elif machine_parts.machine_family == 'a2' and machine_parts.worker_type == 'highgpu':
@@ -108,6 +120,27 @@ def test_azure_machine_memory_per_core_mib():
 )
 def test_gcp_local_ssd_count(family, cores, expected):
     assert gcp_local_ssd_count(family, cores) == expected
+
+
+def test_gcp_local_ssd_count_rejects_n4():
+    # n4 supports zero local SSDs; it must never fall through to the generic non-n2 default of 1.
+    with pytest.raises(AssertionError):
+        gcp_local_ssd_count('n4', 16)
+
+
+def test_gcp_disk_type_helpers():
+    assert gcp_boot_disk_type('n4') == 'hyperdisk-balanced'
+    assert gcp_boot_disk_type('n2') == 'pd-ssd'
+    assert gcp_boot_disk_type('n1') == 'pd-ssd'
+
+    assert gcp_data_disk_type('n4') == 'hyperdisk-balanced'
+    assert gcp_data_disk_type('n2') == 'pd-ssd'
+    assert gcp_data_disk_type('n1') == 'pd-ssd'
+
+    assert gcp_data_disk_device_name('n4', 'n4-standard-16') == 'nvme0n2'
+    assert gcp_data_disk_device_name('g2', 'g2-standard-4') == 'nvme0n2'
+    assert gcp_data_disk_device_name('n2', 'n2-standard-16') == 'sdb'
+    assert gcp_data_disk_device_name('n1', 'n1-standard-16') == 'sdb'
 
 
 @pytest.mark.parametrize(
