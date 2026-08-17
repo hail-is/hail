@@ -3138,6 +3138,7 @@ steps:
       - merge_code
       - batch_image
       - deploy_batch
+    after:
       - test_batch
   - kind: runImage
     name: create_ci_test_repo
@@ -3657,6 +3658,7 @@ steps:
       - default_ns
       - hail_ubuntu_image
       - create_ci_test_repo
+    after:
       - deploy_ci
       - test_ci
   # - kind: runImage
@@ -4265,12 +4267,13 @@ steps:
     dependsOn:
       - default_ns
       - ci_utils_image
+      - cancel_all_running_test_batches
+    after:
       - test_batch_invariants
       - test_batch
       - test_ci
       - test_hailtop_python
       - test_hail_python_service_backend_gcp
-      - cancel_all_running_test_batches
   - kind: runImage
     name: setup_dev_namespace_autoscaledown
     resources:
