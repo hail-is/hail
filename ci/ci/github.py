@@ -602,15 +602,21 @@ mkdir -p {shq(repo_dir)}
                 callback=CALLBACK_URL,
             )
             if tactical_skipped:
+                # A step removed from requested_step_names may still run if it's a transitive
+                # dependency of another step that is still required. Only show steps that are
+                # genuinely absent from the batch.
+                actually_running = {step.name for step in config.steps}
+                tactical_skipped = {s: bid for s, bid in tactical_skipped.items() if s not in actually_running}
+            if tactical_skipped:
                 skipped_log_lines = ['Skipped (already succeeded with matching source and target SHA):']
                 skipped_log_lines += [
                     f'  * {step}: {deploy_config.external_url("batch", f"/batches/{batch_id}")}'
                     for step, batch_id in sorted(tactical_skipped.items())
                 ]
-                skipped_log_text = '\n'.join(skipped_log_lines) + '\n'
+                shell_script = '\n'.join(f'echo {shq(line)}' for line in skipped_log_lines)
                 batch.create_job(
                     'ubuntu:24.04',
-                    command=['python3', '-c', 'import sys; sys.stdout.write(sys.argv[1])', skipped_log_text],
+                    command=['/bin/sh', '-c', shell_script],
                     attributes={'name': 'Tactical Retry Skipped Test Log'},
                     always_run=True,
                     regions=[REGION],
