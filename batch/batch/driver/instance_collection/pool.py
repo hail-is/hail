@@ -339,7 +339,7 @@ WHERE removed = 0 AND inst_coll = %s;
           SELECT 1 AS cancelled
           FROM job_group_self_and_ancestors
           INNER JOIN job_groups_cancelled
-          ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
+          ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.batch_id AND
              job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
           WHERE jobs.batch_id = job_group_self_and_ancestors.batch_id AND
                 jobs.job_group_id = job_group_self_and_ancestors.job_group_id
@@ -628,7 +628,7 @@ LEFT JOIN LATERAL (
   SELECT 1 AS cancelled
   FROM job_group_self_and_ancestors
   INNER JOIN job_groups_cancelled
-    ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
+    ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.batch_id AND
       job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
   WHERE job_groups.batch_id = job_group_self_and_ancestors.batch_id AND
     job_groups.job_group_id = job_group_self_and_ancestors.job_group_id
