@@ -2262,6 +2262,160 @@ async def test_get_and_cancel_job_group_with_unsubmitted_job_group_updates(async
         await b.cancel()
 
 
+async def test_resubmit_job_group_bunch_is_idempotent(async_client: AioBatchClient):
+    b = create_batch(async_client)
+    await b.submit()
+
+    try:
+        n_job_groups = 3
+        for _ in range(n_job_groups):
+            b.create_job_group()
+        update_id = await b._create_update()
+
+        url = f'/api/v1alpha/batches/{b.id}/updates/{update_id}/job-groups/create'
+        specs = [{'job_group_id': i, 'absolute_parent_id': 0} for i in range(1, n_job_groups + 1)]
+        await async_client._post(url, json=specs)
+        # a client that lost the response to a successful submission retries
+        # the same bunch; the resubmission must be a no-op
+        await async_client._post(url, json=specs)
+        await b._commit_update(update_id)
+
+        job_groups = [jg async for jg in b.job_groups()]
+        assert len(job_groups) == n_job_groups, str(await b.debug_info())
+    finally:
+        await b.cancel()
+
+
+async def test_submitting_job_groups_out_of_order_succeeds(async_client: AioBatchClient):
+    b = create_batch(async_client)
+    await b.submit()
+
+    try:
+        b.create_job_group()
+        b.create_job_group()
+        # the update allocates two job groups
+        update_id = await b._create_update()
+
+        url = f'/api/v1alpha/batches/{b.id}/updates/{update_id}/job-groups/create'
+        await async_client._post(url, json=[{'job_group_id': 2, 'absolute_parent_id': 0}])
+        await async_client._post(url, json=[{'job_group_id': 1, 'absolute_parent_id': 0}])
+        await b._commit_update(update_id)
+
+        job_groups = [jg async for jg in b.job_groups()]
+        assert len(job_groups) == 2, str(await b.debug_info())
+    finally:
+        await b.cancel()
+
+
+async def test_interleaved_job_group_updates(async_client: AioBatchClient):
+    b = create_batch(async_client)
+    await b.submit()
+
+    async def create_update() -> int:
+        resp = await async_client._post(
+            f'/api/v1alpha/batches/{b.id}/updates/create',
+            json={'n_jobs': 0, 'n_job_groups': 1, 'token': secrets.token_urlsafe(32)},
+        )
+        return int((await resp.json())['update_id'])
+
+    try:
+        update_a = await create_update()
+        update_b = await create_update()
+
+        # submit and commit the updates in the reverse order of their creation
+        for update_id in (update_b, update_a):
+            await async_client._post(
+                f'/api/v1alpha/batches/{b.id}/updates/{update_id}/job-groups/create',
+                json=[{'job_group_id': 1, 'absolute_parent_id': 0}],
+            )
+            await async_client._patch(f'/api/v1alpha/batches/{b.id}/updates/{update_id}/commit')
+
+        job_groups = [jg async for jg in b.job_groups()]
+        assert len(job_groups) == 2, str(await b.debug_info())
+    finally:
+        await b.cancel()
+
+
+async def test_commit_update_with_missing_job_groups_fails(async_client: AioBatchClient):
+    b = create_batch(async_client)
+    await b.submit()
+
+    try:
+        b.create_job_group()
+        b.create_job_group()
+        # the update allocates two job groups
+        update_id = await b._create_update()
+
+        await async_client._post(
+            f'/api/v1alpha/batches/{b.id}/updates/{update_id}/job-groups/create',
+            json=[{'job_group_id': 1, 'absolute_parent_id': 0}],
+        )
+
+        with pytest.raises(httpx.ClientResponseError, match='wrong number of job groups'):
+            await b._commit_update(update_id)
+    finally:
+        await b.cancel()
+
+
+async def test_create_job_group_with_missing_parent_fails(async_client: AioBatchClient):
+    b = create_batch(async_client)
+    await b.submit()
+
+    try:
+        b.create_job_group()
+        b.create_job_group()
+        # the update allocates two job groups
+        update_id = await b._create_update()
+
+        with pytest.raises(httpx.ClientResponseError, match='does not exist'):
+            await async_client._post(
+                f'/api/v1alpha/batches/{b.id}/updates/{update_id}/job-groups/create',
+                json=[{'job_group_id': 2, 'in_update_parent_id': 1}],
+            )
+    finally:
+        await b.cancel()
+
+
+async def test_submitting_more_job_groups_than_update_allocated_fails(async_client: AioBatchClient):
+    b = create_batch(async_client)
+    await b.submit()
+
+    try:
+        b.create_job_group()
+        # the update allocates exactly one job group
+        update_id = await b._create_update()
+
+        with pytest.raises(httpx.ClientResponseError, match='out of range'):
+            await async_client._post(
+                f'/api/v1alpha/batches/{b.id}/updates/{update_id}/job-groups/create',
+                json=[
+                    {'job_group_id': 1, 'absolute_parent_id': 0},
+                    {'job_group_id': 2, 'absolute_parent_id': 0},
+                ],
+            )
+    finally:
+        await b.cancel()
+
+
+async def test_submitting_more_jobs_than_update_allocated_fails(async_client: AioBatchClient):
+    b = create_batch(async_client)
+    await b.submit()
+
+    try:
+        b.create_job(DOCKER_ROOT_IMAGE, ['true'])
+        # the update allocates exactly one job
+        update_id = await b._create_update()
+
+        spec = b._job_specs[0]
+        with pytest.raises(httpx.ClientResponseError, match='out of range'):
+            await async_client._post(
+                f'/api/v1alpha/batches/{b.id}/updates/{update_id}/jobs/create',
+                json=[spec, {**spec, 'job_id': 2}],
+            )
+    finally:
+        await b.cancel()
+
+
 def test_billing_propogates_upwards(client: BatchClient):
     b = create_batch(client)
     jg = b.create_job_group()
