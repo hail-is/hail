@@ -4,7 +4,7 @@ aiodns==2.0.0
     # via -r hail/python/hailtop/requirements.txt
 aiohappyeyeballs==2.7.1
     # via aiohttp
-aiohttp==3.14.3
+aiohttp==3.13.5
     # via -r hail/python/hailtop/requirements.txt
 aiosignal==1.4.0
     # via aiohttp
@@ -28,9 +28,9 @@ azure-mgmt-storage==20.1.0
     # via -r hail/python/hailtop/requirements.txt
 azure-storage-blob==12.30.0
     # via -r hail/python/hailtop/requirements.txt
-boto3==1.43.63
+boto3==1.43.73
     # via -r hail/python/hailtop/requirements.txt
-botocore==1.43.63
+botocore==1.43.73
     # via
     #   -r hail/python/hailtop/requirements.txt
     #   boto3
@@ -39,11 +39,11 @@ certifi==2026.7.22
     # via
     #   msrest
     #   requests
-cffi==2.1.0
+cffi==2.1.1
     # via
     #   cryptography
     #   pycares
-charset-normalizer==3.4.9
+charset-normalizer==3.5.1
     # via requests
 click==8.4.2
     # via typer
@@ -63,7 +63,7 @@ frozenlist==1.8.0
     #   -r hail/python/hailtop/requirements.txt
     #   aiohttp
     #   aiosignal
-google-auth==2.56.2
+google-auth==2.56.3
     # via
     #   -r hail/python/hailtop/requirements.txt
     #   google-auth-oauthlib
@@ -71,7 +71,7 @@ google-auth-oauthlib==0.8.0
     # via -r hail/python/hailtop/requirements.txt
 humanize==4.16.0
     # via -r hail/python/hailtop/requirements.txt
-idna==3.18
+idna==3.19
     # via
     #   requests
     #   yarl
@@ -103,7 +103,7 @@ nest-asyncio==1.6.0
     # via -r hail/python/hailtop/requirements.txt
 oauthlib==3.3.1
     # via requests-oauthlib
-orjson==3.11.9
+orjson==3.12.0
     # via -r hail/python/hailtop/requirements.txt
 propcache==0.5.2
     # via
@@ -117,7 +117,7 @@ pycares==5.0.1
     # via aiodns
 pycparser==3.0
     # via cffi
-pygments==2.20.0
+pygments==2.21.0
     # via rich
 pyjwt==2.13.0
     # via msal
@@ -143,7 +143,7 @@ rich==12.6.0
     #   typer
 s3transfer==0.19.2
     # via boto3
-setuptools==83.0.0
+setuptools==84.0.0
     # via -r hail/python/hailtop/requirements.txt
 shellingham==1.5.4
     # via typer
@@ -159,7 +159,6 @@ typer==0.24.2
     # via -r hail/python/hailtop/requirements.txt
 typing-extensions==4.16.0
     # via
-    #   aiohttp
     #   aiosignal
     #   azure-core
     #   azure-identity
