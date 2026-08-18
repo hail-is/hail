@@ -53,15 +53,15 @@ apt-get update
 apt-get install -y build-essential linux-headers-$(uname -r)
 
 echo "=== Downloading NVIDIA driver ==="
-wget --no-verbose https://us.download.nvidia.com/XFree86/Linux-x86_64/595.71.05/NVIDIA-Linux-x86_64-595.71.05.run
-echo "36203b8960b7e49c8a42f6ba1f5863cde34a05e93d2b24b798af06dd846f6b82  NVIDIA-Linux-x86_64-595.71.05.run" | sha256sum -c
-chmod +x NVIDIA-Linux-x86_64-595.71.05.run
+wget --no-verbose https://us.download.nvidia.com/XFree86/Linux-x86_64/595.91.07/NVIDIA-Linux-x86_64-595.91.07.run
+echo "ca23c88dd24b07a191644e1e11cfb7bcdd7537305749af40f980018b095e6313  NVIDIA-Linux-x86_64-595.91.07.run" | sha256sum -c
+chmod +x NVIDIA-Linux-x86_64-595.91.07.run
 
 echo "=== Running NVIDIA driver installer ==="
 touch /var/log/nvidia-installer.log
 tail -f /var/log/nvidia-installer.log &
 NVIDIA_LOG_PID=$!
-./NVIDIA-Linux-x86_64-595.71.05.run --silent
+./NVIDIA-Linux-x86_64-595.91.07.run --silent
 kill $NVIDIA_LOG_PID
 
 echo "=== Installing NVIDIA container toolkit ==="
