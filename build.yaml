@@ -27,8 +27,8 @@ steps:
       cd repo
       {{ code.checkout_script }}
       make -C hail python-version-info HAIL_BUILD_MODE=Release MILLOPTS=--no-daemon
-      {% if code.pip_version %}
-      [[ "$(cat hail/env/HAIL_PIP_VERSION)" == "{{ code.pip_version }}" ]] || { echo "HAIL_PIP_VERSION mismatch: CI parsed {{ code.pip_version }} from Makefile but make produced $(cat hail/env/HAIL_PIP_VERSION)"; exit 1; }
+      {% if code.get('pip_version') %}
+      [[ "$(cat hail/env/HAIL_PIP_VERSION)" == "{{ code.get('pip_version') }}" ]] || { echo "HAIL_PIP_VERSION mismatch: CI parsed {{ code.get('pip_version') }} from Makefile but make produced $(cat hail/env/HAIL_PIP_VERSION)"; exit 1; }
       {% endif %}
     outputs:
       - from: /io/repo/
