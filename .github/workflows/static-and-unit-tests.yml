@@ -13,8 +13,31 @@ env:
   PYTHONPATH: hail/python:auth:batch:ci:gear:monitoring:website:web_common
 
 jobs:
+  should-run:
+    name: Should run checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    outputs:
+      run: ${{ steps.check.outputs.run }}
+    steps:
+      - id: check
+        # Run checks on standalone PRs targeting main, and on the tail of a
+        # stack (the final PR, which accumulates all changes). Skip intermediates.
+        # github.event.pull_request.stack is null when not part of a stack.
+        # Within a stack, position and size are 1-based; position==size is tail.
+        run: |
+          if [[ "${{ github.event.pull_request.stack == null }}" == "true" ]] \
+             || [[ "${{ github.event.pull_request.stack != null && github.event.pull_request.stack.position == github.event.pull_request.stack.size }}" == "true" ]] \
+             || [[ "${{ contains(github.event.pull_request.labels.*.name, 'mergeable') }}" == "true" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
   check-pip-requirements:
     name: Check pip requirements
+    needs: should-run
+    if: needs.should-run.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -36,10 +59,17 @@ jobs:
 
   check-services:
     name: Check services
+    needs: should-run
+    if: needs.should-run.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      HAIL_TARGET_SHA: ${{ github.event.pull_request.base.sha }}
+      # For stacked PRs, use the stack's ultimate base (main HEAD) rather than
+      # the direct base (another PR's branch), so check-sql.sh diffs correctly.
+      HAIL_TARGET_SHA: >-
+        ${{ github.event.pull_request.stack != null &&
+            github.event.pull_request.stack.base.sha ||
+            github.event.pull_request.base.sha }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -72,6 +102,8 @@ jobs:
     # Runs ruff, pyright, pylint on hail Python code. Skips Scala format and
     # scalafix checks via Mill because they raised runtime too high.
     name: Check hail fast
+    needs: should-run
+    if: needs.should-run.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -104,6 +136,8 @@ jobs:
 
   test-gcp-ar-cleanup:
     name: Test GCP AR cleanup policies
+    needs: should-run
+    if: needs.should-run.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -131,6 +165,8 @@ jobs:
 
   test-ci-unit:
     name: Test CI unit
+    needs: should-run
+    if: needs.should-run.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -179,6 +215,8 @@ jobs:
 
   test-auth:
     name: Test auth
+    needs: should-run
+    if: needs.should-run.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -224,6 +262,8 @@ jobs:
 
   test-batch-unit:
     name: Test batch unit
+    needs: should-run
+    if: needs.should-run.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -271,6 +311,8 @@ jobs:
 
   check-ui:
     name: Check UI
+    needs: should-run
+    if: needs.should-run.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -292,6 +334,8 @@ jobs:
 
   test-ci-envoy:
     name: Test CI envoy
+    needs: should-run
+    if: needs.should-run.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -340,6 +384,7 @@ jobs:
     name: Gate
     if: always()
     needs:
+      - should-run
       - check-pip-requirements
       - check-services
       - check-hail-fast
@@ -354,6 +399,7 @@ jobs:
     steps:
       - name: Verify all checks passed
         run: |
+          [[ "${{ needs.should-run.outputs.run }}" != "true" ]] && exit 0
           results=( \
             "${{ needs.check-pip-requirements.result }}" \
             "${{ needs.check-services.result }}" \
