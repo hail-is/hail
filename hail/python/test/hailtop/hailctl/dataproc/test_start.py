@@ -18,6 +18,16 @@ def test_dry_run(gcloud_run):
     assert gcloud_run.call_count == 0
 
 
+def test_jupyter_component_enabled(gcloud_run):
+    runner.invoke(cli.app, ['start', 'test-cluster'])
+    assert "--optional-components=JUPYTER" in gcloud_run.call_args[0][0]
+
+
+def test_component_gateway_enabled(gcloud_run):
+    runner.invoke(cli.app, ['start', 'test-cluster'])
+    assert "--enable-component-gateway" in gcloud_run.call_args[0][0]
+
+
 def test_cluster_project(gcloud_run):
     runner.invoke(cli.app, ['start', '--project', 'foo', 'test-cluster'])
     assert "--project=foo" in gcloud_run.call_args[0][0]
@@ -59,8 +69,8 @@ def test_secondary_workers_configuration(gcloud_run, workers_arg):
 @pytest.mark.parametrize(
     "machine_arg",
     [
-        "--master-machine-type=n1-highmem-16",
-        "--worker-machine-type=n1-standard-32",
+        "--master-machine-type=n4-highmem-16",
+        "--worker-machine-type=n4-standard-32",
     ],
 )
 def test_machine_type_configuration(gcloud_run, machine_arg):
@@ -79,7 +89,7 @@ def test_boot_disk_size_configuration(gcloud_run, machine_arg):
 
 def test_vep_defaults_to_highmem_master_machine(gcloud_run):
     runner.invoke(cli.app, ['start', 'test-cluster', '--vep=GRCh37'])
-    assert "--master-machine-type=n1-highmem-8" in gcloud_run.call_args[0][0]
+    assert "--master-machine-type=n4-highmem-8" in gcloud_run.call_args[0][0]
 
 
 def test_vep_defaults_to_larger_worker_boot_disk(gcloud_run):

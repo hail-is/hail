@@ -3693,100 +3693,100 @@ steps:
       - create_ci_test_repo
       - deploy_ci
       - test_ci
-  # - kind: runImage
-  #   name: test_dataproc-37
-  #   image:
-  #     valueFrom: ci_utils_image.image
-  #   resources:
-  #     preemptible: False
-  #   script: |
-  #     set -ex
+  - kind: runImage
+    name: test_dataproc-37
+    image:
+      valueFrom: ci_utils_image.image
+    resources:
+      preemptible: False
+    script: |
+      set -ex
 
-  #     cd /io/repo
+      cd /io/repo
 
-  #     gcloud auth activate-service-account --key-file=/test-dataproc-service-account-key/test-dataproc-service-account-key.json
-  #     gcloud config set project hail-vdc
-  #     gcloud config set dataproc/region us-central1
+      gcloud auth activate-service-account --key-file=/test-dataproc-service-account-key/test-dataproc-service-account-key.json
+      gcloud config set project hail-vdc
+      gcloud config set dataproc/region us-central1
 
-  #     if git ls-remote --exit-code --tags origin $(cat hail/env/HAIL_PIP_VERSION)
-  #     then
-  #         echo "tag $HAIL_PIP_VERSION already exists"
-  #         exit 0
-  #     fi
+      if git ls-remote --exit-code --tags origin $(cat hail/env/HAIL_PIP_VERSION)
+      then
+          echo "tag $HAIL_PIP_VERSION already exists"
+          exit 0
+      fi
 
-  #     cd hail
-  #     make test-dataproc-37 HAIL_BUILD_MODE=Release \
-  #         -o $(ls build/deploy/dist/hail-*-py3-none-any.whl)
-  #   dependsOn:
-  #     - ci_utils_image
-  #     - default_ns
-  #     - build_hail_jar_and_wheel
-  #     - test_install_in_isolation_python3_12
-  #     - upload_temporary_hailctl_artifacts
-  #   inputs:
-  #     - from: /repo
-  #       to: /io/repo
-  #     - from: /derived/release/hail/build/deploy/dist
-  #       to: /io/repo/hail/build/deploy/dist
-  #   secrets:
-  #     - name: test-dataproc-service-account-key
-  #       namespace:
-  #         valueFrom: default_ns.name
-  #       mountPath: /test-dataproc-service-account-key
-  #   scopes:
-  #     - deploy
-  #     - dev
-  #   forceIfLabeled:
-  #     - run-dataproc-tests
-  #   clouds:
-  #     - gcp
-  # - kind: runImage
-  #   name: test_dataproc-38
-  #   image:
-  #     valueFrom: ci_utils_image.image
-  #   resources:
-  #     preemptible: False
-  #   script: |
-  #     set -ex
+      cd hail
+      make test-dataproc-37 HAIL_BUILD_MODE=Release \
+          -o $(ls build/deploy/dist/hail-*-py3-none-any.whl)
+    dependsOn:
+      - ci_utils_image
+      - default_ns
+      - build_hail_jar_and_wheel
+      - test_install_in_isolation_python3_12
+      - upload_temporary_hailctl_artifacts
+    inputs:
+      - from: /repo
+        to: /io/repo
+      - from: /derived/release/hail/build/deploy/dist
+        to: /io/repo/hail/build/deploy/dist
+    secrets:
+      - name: test-dataproc-service-account-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-dataproc-service-account-key
+    scopes:
+      - deploy
+      - dev
+    forceIfLabeled:
+      - run-dataproc-tests
+    clouds:
+      - gcp
+  - kind: runImage
+    name: test_dataproc-38
+    image:
+      valueFrom: ci_utils_image.image
+    resources:
+      preemptible: False
+    script: |
+      set -ex
 
-  #     cd /io/repo
+      cd /io/repo
 
-  #     gcloud auth activate-service-account --key-file=/test-dataproc-service-account-key/test-dataproc-service-account-key.json
-  #     gcloud config set project hail-vdc
-  #     gcloud config set dataproc/region us-central1
+      gcloud auth activate-service-account --key-file=/test-dataproc-service-account-key/test-dataproc-service-account-key.json
+      gcloud config set project hail-vdc
+      gcloud config set dataproc/region us-central1
 
-  #     if git ls-remote --exit-code --tags origin $(cat hail/env/HAIL_PIP_VERSION)
-  #     then
-  #         echo "tag $HAIL_PIP_VERSION already exists"
-  #         exit 0
-  #     fi
+      if git ls-remote --exit-code --tags origin $(cat hail/env/HAIL_PIP_VERSION)
+      then
+          echo "tag $HAIL_PIP_VERSION already exists"
+          exit 0
+      fi
 
-  #     cd hail
-  #     make test-dataproc-38 HAIL_BUILD_MODE=Release \
-  #         -o $(ls build/deploy/dist/hail-*-py3-none-any.whl)
-  #   dependsOn:
-  #     - ci_utils_image
-  #     - default_ns
-  #     - build_hail_jar_and_wheel
-  #     - test_install_in_isolation_python3_12
-  #     - upload_temporary_hailctl_artifacts
-  #   inputs:
-  #     - from: /repo
-  #       to: /io/repo
-  #     - from: /derived/release/hail/build/deploy/dist
-  #       to: /io/repo/hail/build/deploy/dist
-  #   secrets:
-  #     - name: test-dataproc-service-account-key
-  #       namespace:
-  #         valueFrom: default_ns.name
-  #       mountPath: /test-dataproc-service-account-key
-  #   scopes:
-  #     - deploy
-  #     - dev
-  #   forceIfLabeled:
-  #     - run-dataproc-tests
-  #   clouds:
-  #     - gcp
+      cd hail
+      make test-dataproc-38 HAIL_BUILD_MODE=Release \
+          -o $(ls build/deploy/dist/hail-*-py3-none-any.whl)
+    dependsOn:
+      - ci_utils_image
+      - default_ns
+      - build_hail_jar_and_wheel
+      - test_install_in_isolation_python3_12
+      - upload_temporary_hailctl_artifacts
+    inputs:
+      - from: /repo
+        to: /io/repo
+      - from: /derived/release/hail/build/deploy/dist
+        to: /io/repo/hail/build/deploy/dist
+    secrets:
+      - name: test-dataproc-service-account-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-dataproc-service-account-key
+    scopes:
+      - deploy
+      - dev
+    forceIfLabeled:
+      - run-dataproc-tests
+    clouds:
+      - gcp
   - kind: runImage
     name: mirror_hailgenetics_images
     image: quay.io/skopeo/stable:v1.13.2
