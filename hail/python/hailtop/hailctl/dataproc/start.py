@@ -20,116 +20,14 @@ DEFAULT_PROPERTIES = {
     'spark:spark.speculation': 'true',
     "hdfs:dfs.replication": "1",
     'dataproc:dataproc.logging.stackdriver.enable': 'false',
-    'dataproc:dataproc.monitoring.stackdriver.enable': 'false',
 }
 
-# leadre (master) machine type to memory map, used for setting
-# spark.driver.memory property
-MACHINE_MEM = {
-    'n1-standard-1': 3.75,
-    'n1-standard-2': 7.5,
-    'n1-standard-4': 15,
-    'n1-standard-8': 30,
-    'n1-standard-16': 60,
-    'n1-standard-32': 120,
-    'n1-standard-64': 240,
-    'n1-highmem-2': 13,
-    'n1-highmem-4': 26,
-    'n1-highmem-8': 52,
-    'n1-highmem-16': 104,
-    'n1-highmem-32': 208,
-    'n1-highmem-64': 416,
-    'n1-highcpu-2': 1.8,
-    'n1-highcpu-4': 3.6,
-    'n1-highcpu-8': 7.2,
-    'n1-highcpu-16': 14.4,
-    'n1-highcpu-32': 28.8,
-    'n1-highcpu-64': 57.6,
-    'n2-standard-2': 8,
-    'n2-standard-4': 16,
-    'n2-standard-8': 32,
-    'n2-standard-16': 64,
-    'n2-standard-32': 128,
-    'n2-standard-48': 192,
-    'n2-standard-64': 256,
-    'n2-standard-80': 320,
-    'n2-highmem-2': 16,
-    'n2-highmem-4': 32,
-    'n2-highmem-8': 64,
-    'n2-highmem-16': 128,
-    'n2-highmem-32': 256,
-    'n2-highmem-48': 384,
-    'n2-highmem-64': 512,
-    'n2-highmem-80': 640,
-    'n2-highcpu-2': 2,
-    'n2-highcpu-4': 4,
-    'n2-highcpu-8': 8,
-    'n2-highcpu-16': 16,
-    'n2-highcpu-32': 32,
-    'n2-highcpu-48': 48,
-    'n2-highcpu-64': 64,
-    'n2-highcpu-80': 80,
-    'n2d-standard-2': 8,
-    'n2d-standard-4': 16,
-    'n2d-standard-8': 32,
-    'n2d-standard-16': 64,
-    'n2d-standard-32': 128,
-    'n2d-standard-48': 192,
-    'n2d-standard-64': 256,
-    'n2d-standard-80': 320,
-    'n2d-standard-96': 384,
-    'n2d-standard-128': 512,
-    'n2d-standard-224': 896,
-    'n2d-highmem-2': 16,
-    'n2d-highmem-4': 32,
-    'n2d-highmem-8': 64,
-    'n2d-highmem-16': 128,
-    'n2d-highmem-32': 256,
-    'n2d-highmem-48': 384,
-    'n2d-highmem-64': 512,
-    'n2d-highmem-80': 640,
-    'n2d-highmem-96': 786,
-    'n2d-highcpu-2': 2,
-    'n2d-highcpu-4': 4,
-    'n2d-highcpu-8': 8,
-    'n2d-highcpu-16': 16,
-    'n2d-highcpu-32': 32,
-    'n2d-highcpu-48': 48,
-    'n2d-highcpu-64': 64,
-    'n2d-highcpu-80': 80,
-    'n2d-highcpu-96': 96,
-    'n2d-highcpu-128': 128,
-    'n2d-highcpu-224': 224,
-    'e2-standard-2': 8,
-    'e2-standard-4': 16,
-    'e2-standard-8': 32,
-    'e2-standard-16': 64,
-    'e2-highmem-2': 16,
-    'e2-highmem-4': 32,
-    'e2-highmem-8': 64,
-    'e2-highmem-16': 128,
-    'e2-highcpu-2': 2,
-    'e2-highcpu-4': 4,
-    'e2-highcpu-8': 8,
-    'e2-highcpu-16': 16,
-    'm1-ultramem-40': 961,
-    'm1-ultramem-80': 1922,
-    'm1-ultramem-160': 3844,
-    'm1-megamem-96': 1433,
-    'm2-ultramem-2084': 5888,
-    'm2-ultramem-4164': 11776,
-    'c2-standard-4': 16,
-    'c2-standard-8': 32,
-    'c2-standard-16': 64,
-    'c2-standard-30': 120,
-    'c2-standard-60': 240,
-}
 
 VEP_SUPPORTED_REGIONS = {'us-central1', 'europe-west1', 'europe-west2', 'australia-southeast1'}
 
 ANNOTATION_DB_BUCKETS = ["hail-datasets-us-central1", "hail-datasets-europe-west1"]
 
-IMAGE_VERSION = '2.3.17-debian12'
+IMAGE_VERSION = '3.0.1-debian13'
 
 
 def start(
@@ -181,6 +79,10 @@ def start(
     conf = ClusterConfig()
     conf.extend_flag('image-version', IMAGE_VERSION)
 
+    # the jupyter component serves jupyterlab through the component gateway
+    # and persists notebooks in the cluster's staging bucket
+    conf.flags['optional-components'] = 'JUPYTER'
+
     deploy_metadata = get_deploy_metadata()
 
     conf.extend_flag('properties', DEFAULT_PROPERTIES)
@@ -198,7 +100,7 @@ def start(
 
     # default to highmem machines if using VEP
     if not worker_machine_type:
-        worker_machine_type = 'n1-highmem-8' if vep else 'n1-standard-8'
+        worker_machine_type = 'n2-highmem-8' if vep else 'n2-standard-8'
 
     # default initialization script to start up cluster with
     conf.extend_flag('initialization-actions', [deploy_metadata['init_notebook.py']])
@@ -287,17 +189,17 @@ def start(
             size = max(size, 200)
         return str(size) + 'GB'
 
-    def jvm_heap_size_gib(machine_type: str, memory_fraction: float) -> int:
-        advertised_memory_gib = MACHINE_MEM[machine_type]
+    def jvm_heap_size_gib(advertised_memory_gib: float, memory_fraction: float) -> int:
         # 1. GCE only provides 51 GiB for an n1-highmem-8 (advertised as 52 GiB)
         # 2. System daemons use ~10 GiB based on syslog "earlyoom" log statements during VM startup
         actual_available_memory_gib = advertised_memory_gib - 11
         jvm_heap_size = actual_available_memory_gib * memory_fraction
         return int(jvm_heap_size)
 
+    _, master_memory_gib = gcloud.get_machine_type_info(master_machine_type)
     conf.extend_flag(
         'properties',
-        {"spark:spark.driver.memory": f"{jvm_heap_size_gib(master_machine_type, master_memory_fraction)}g"},
+        {"spark:spark.driver.memory": f"{jvm_heap_size_gib(master_memory_gib, master_memory_fraction)}g"},
     )
     conf.flags['master-machine-type'] = master_machine_type
     conf.flags['master-boot-disk-size'] = '{}GB'.format(master_boot_disk_size)
@@ -310,7 +212,7 @@ def start(
     conf.flags['worker-machine-type'] = worker_machine_type
 
     if not no_off_heap_memory:
-        worker_memory = MACHINE_MEM[worker_machine_type]
+        cores_per_machine, worker_memory = gcloud.get_machine_type_info(worker_machine_type)
 
         # A Google support engineer recommended the strategy of passing the YARN
         # config params, and the default value of 95% of machine memory to give to YARN.
@@ -318,7 +220,6 @@ def start(
         # yarn.scheduler.maximum-allocation-mb - max memory to allocate to each container
         available_memory_fraction = yarn_memory_fraction
         available_memory_mb = int(worker_memory * available_memory_fraction * 1024)
-        cores_per_machine = int(worker_machine_type.split('-')[-1])
         executor_cores = min(cores_per_machine, 4)
         available_memory_per_core_mb = available_memory_mb // cores_per_machine
 
@@ -397,6 +298,7 @@ def start(
         cmd.append('--service-account={}'.format(service_account))
 
     cmd.append('--public-ip-address')
+    cmd.append('--enable-component-gateway')
 
     cmd.extend(pass_through_args)
 
