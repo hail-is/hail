@@ -10,6 +10,8 @@ case object TRNGState extends Type {
 
   override def _typeCheck(a: Any): Boolean = ???
 
+  override def arrowType = ???
+
   override def mkOrdering(sm: HailStateManager, missingEqual: Boolean)
     : is.hail.annotations.ExtendedOrdering = ???
 

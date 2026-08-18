@@ -92,6 +92,8 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase) extends Type {
     }
   }
 
+  override def arrowType = is.hail.types.arrowextension.NDArray.INSTANCE
+
   override def unify(concrete: Type): Boolean =
     concrete match {
       case TNDArray(cElementType, cNDims) =>

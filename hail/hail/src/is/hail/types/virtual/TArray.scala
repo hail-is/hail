@@ -42,6 +42,8 @@ final case class TArray(elementType: Type) extends TContainer {
 
   override def str(a: Annotation): String = JsonMethods.compact(export(a))
 
+  override def arrowType = new org.apache.arrow.vector.types.pojo.ArrowType.List()
+
   override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =
     ExtendedOrdering.iterableOrdering(elementType.ordering(sm), missingEqual)
 

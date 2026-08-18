@@ -28,6 +28,8 @@ case class TInterval(pointType: Type) extends Type {
     pointType.typeCheck(i.start) && pointType.typeCheck(i.end)
   }
 
+  override def arrowType = is.hail.types.arrowextension.Interval.INSTANCE
+
   override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =
     Interval.ordering(pointType.ordering(sm), startPrimary = true, missingEqual)
 

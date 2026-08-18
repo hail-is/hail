@@ -17,6 +17,8 @@ case object TCall extends Type {
   override def str(a: Annotation): String =
     if (a == null) "NA" else Call.toString(a.asInstanceOf[Call])
 
+  override def arrowType = is.hail.types.arrowextension.Call.INSTANCE
+
   override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =
     ExtendedOrdering.extendToNull(implicitly[Ordering[Int]], missingEqual)
 
