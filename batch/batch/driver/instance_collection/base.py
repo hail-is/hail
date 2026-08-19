@@ -413,7 +413,7 @@ class InstanceCollection:
         active_and_healthy = await instance.check_is_active_and_healthy()
 
         if instance.state == 'active' and instance.failed_request_count > 5:
-            log.exception(
+            log.warning(
                 f'deleting {instance} with {instance.failed_request_count} failed request counts after more than 5 minutes'
             )
             await self.call_delete_instance(instance, 'not_responding')
@@ -431,7 +431,7 @@ class InstanceCollection:
         # Cases are mutually exclusive and therefore order-independent
         if instance.state == 'pending' and isinstance(vm_state, (VMStateCreating, VMStateRunning)):
             if vm_state.time_since_last_state_change() > 5 * 60 * 1000:
-                log.exception(f'{instance} (state: {vm_state}) has made no progress in last 5m, deleting')
+                log.warning(f'{instance} (vm_state: {vm_state.state}) has made no progress in last 5m, deleting')
                 await self.call_delete_instance(instance, 'activation_timeout')
         elif instance.state in ('pending', 'active') and isinstance(vm_state, VMStateTerminated):
             log.info(f'{instance} live but stopping or terminated, deactivating')
