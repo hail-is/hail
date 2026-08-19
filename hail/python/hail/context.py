@@ -148,12 +148,13 @@ class HailContext(object):
 
     def stop(self):
         assert self._backend
-        self._backend.stop()
-        self._backend = None
-        Env._hc = None
-        Env._dummy_table = None
-        Env._seed_generator = None
-        hail.ir.clear_session_functions()
+        try:
+            self._backend.stop()
+        finally:
+            self._backend = None
+            Env._hc = None
+            Env._dummy_table = None
+            hail.ir.clear_session_functions()
 
 
 @typecheck(
