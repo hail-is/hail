@@ -14,10 +14,11 @@ from ci.environment import KUBERNETES_SERVER_URL, STORAGE_URI
 from ci.github import clone_or_fetch_script
 from ci.utils import generate_token
 from gear import K8sCache
+from gear.cloud_config import get_global_config
 from hailtop.utils import check_shell_output
 
 BATCH_WORKER_IMAGE = os.environ['BATCH_WORKER_IMAGE']
-
+CLOUD = get_global_config()['cloud']
 
 def populate_secret_host_path(host_path: str, secret_data: Dict[str, bytes]):
     os.makedirs(host_path)
@@ -160,7 +161,11 @@ class LocalBatchBuilder:
             if input_ok:
                 mount_options = ['-v', f'{job_root}/io:/io']
 
-                env_options = ['-e', 'GOOGLE_APPLICATION_CREDENTIALS=/gsa-key/key.json']
+                if CLOUD == 'aws':
+                    env_options = ['-e', f'AWS_DOCKER_CREDENTIALS=/aws-key/docker-password']
+                    mount_options.extend(['-v', '/aws-key:/aws-key'])
+                else:
+                    env_options = ['-e', 'GOOGLE_APPLICATION_CREDENTIALS=/gsa-key/key.json']
                 if j._env:
                     for key, value in j._env.items():
                         env_options.extend(['-e', f'{key}={value}'])
