@@ -32,7 +32,7 @@ from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
 from hailtop.aiotools.validators import validate_file
 from hailtop.fs.fs import FS
 from hailtop.fs.router_fs import RouterFS
-from hailtop.utils import async_to_blocking, find_spark_home, sync_retry_transient_errors
+from hailtop.utils import async_to_blocking, find_spark_home
 
 # This defaults to 65536 and fails if a header is longer than _MAXLINE
 # The timing json that we output can exceed 65536 bytes so we raise the limit
@@ -74,7 +74,7 @@ _make_interrupt_safe(GatewayConnection)
 _make_interrupt_safe(py4j.clientserver.ClientServerConnection)
 
 
-def _log_suppress_shutdown_exceptions(action: Callable[[], None]) -> None:
+def _log_suppress_exceptions(action: Callable[[], None]) -> None:
     # Failures while tearing down a dead or unreachable JVM must not prevent
     # the remaining shutdown steps from running, otherwise global state is
     # left pointing at the defunct JVM and re-initialization is impossible.
@@ -239,7 +239,7 @@ class Py4JBackend(Backend):
         install_exception_handler()
 
         self._initialize_flags(flags)
-        self._jhttp_server = self._new_jhttp_server()
+        self._jhttp_server = self._jbackend.pyHttpServer()
 
     def jvm(self) -> JVMView:
         return self._jvm
@@ -317,30 +317,20 @@ class Py4JBackend(Backend):
 
             raise err
 
-    def _new_jhttp_server(self) -> JavaObject:
-        server = self._jbackend.pyHttpServer()
-        if not isinstance(server, JavaObject):
-            raise FatalError(
-                'The Hail JVM is unreachable or its py4j connection is corrupted. '
-                'Call hl.stop() and hl.init() to recover.'
-            )
-        return server
-
     def _rpc(self, action, payload) -> bytes:
         data = orjson.dumps(payload)
         path = action_routes[action]
+        port = self._jhttp_server.port()
 
-        def go():
-            port = self._jhttp_server.port()
-            try:
-                # No read timeout: queries may legitimately run for a long time.
-                return requests.post(f'http://localhost:{port}{path}', data=data, timeout=(5, None))
-            except requests.exceptions.ConnectionError:
-                self._stop_jhttp_server()
-                self._jhttp_server = self._new_jhttp_server()
-                raise
-
-        resp = sync_retry_transient_errors(go)
+        try:
+            # No read timeout: queries may legitimately run for a long time.
+            resp = requests.post(f'http://localhost:{port}{path}', data=data, timeout=(5, None))
+        except BaseException:
+            # The post was interrupted (Ctrl-C, pytest timeout, ...) or the
+            # connection was severed; either way, stop the jvm running the
+            # abandoned operation to completion.
+            _log_suppress_exceptions(self._jbackend.pyCancel)
+            raise
 
         if resp.status_code >= 400:
             error_json = orjson.loads(resp.content)
@@ -409,11 +399,11 @@ class Py4JBackend(Backend):
         return self._parse_blockmatrix_ir(self._render_ir(ir))
 
     def _stop_jhttp_server(self):
-        _log_suppress_shutdown_exceptions(lambda: self._jhttp_server.close())
+        _log_suppress_exceptions(lambda: self._jhttp_server.close())
 
     def stop(self):
         super().stop()
         self._stop_jhttp_server()
-        _log_suppress_shutdown_exceptions(lambda: self._jbackend.close())
+        _log_suppress_exceptions(lambda: self._jbackend.close())
         uninstall_exception_handler()
         self.fs = None
