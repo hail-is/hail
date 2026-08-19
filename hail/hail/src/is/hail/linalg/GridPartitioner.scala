@@ -1,6 +1,5 @@
 package is.hail.linalg
 
-import is.hail.collection.compat._
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits._
 import is.hail.utils._

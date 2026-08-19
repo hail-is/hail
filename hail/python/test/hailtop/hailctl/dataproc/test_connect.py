@@ -1,3 +1,4 @@
+import json
 from unittest.mock import Mock
 
 import pytest
@@ -7,17 +8,31 @@ from hailtop.hailctl.dataproc import cli
 
 runner = CliRunner()
 
+JUPYTERLAB_URL = "https://abc123-dot-us-central1.dataproc.googleusercontent.com/gateway/default/jupyter/lab/"
+SPARK_HISTORY_URL = "https://abc123-dot-us-central1.dataproc.googleusercontent.com/sparkhistory/"
+
+DESCRIBE_OUTPUT = {
+    "config": {
+        "endpointConfig": {
+            "httpPorts": {
+                "JupyterLab": JUPYTERLAB_URL,
+                "Spark History Server": SPARK_HISTORY_URL,
+            },
+        },
+    },
+}
+
 
 @pytest.fixture
-def subprocess():
+def webbrowser():
     return Mock()
 
 
 @pytest.fixture(autouse=True)
-def patch_subprocess(monkeypatch, subprocess):
-    """Automatically mock subprocess module."""
-    monkeypatch.setattr("hailtop.hailctl.dataproc.connect.subprocess", subprocess)
-    monkeypatch.setattr("hailtop.hailctl.dataproc.connect.get_chrome_path", Mock(return_value="chromium"))
+def patch_webbrowser(monkeypatch, webbrowser, gcloud_output):
+    """Automatically mock the webbrowser module and the gateway url lookup."""
+    monkeypatch.setattr("hailtop.hailctl.dataproc.connect.webbrowser", webbrowser)
+    gcloud_output.return_value = json.dumps(DESCRIBE_OUTPUT)
     yield
     monkeypatch.undo()
 
@@ -32,92 +47,69 @@ def test_cluster_and_service_required(gcloud_run):
     assert gcloud_run.call_count == 0
 
 
-def test_dry_run(gcloud_run, subprocess):
+def test_dry_run(gcloud_output, webbrowser):
     res = runner.invoke(cli.app, ['connect', 'test-cluster', 'notebook', '--dry-run'])
     assert res.exit_code == 0
-    assert gcloud_run.call_count == 0
-    assert subprocess.Popen.call_count == 0
+    assert gcloud_output.call_count == 0
+    assert webbrowser.open.call_count == 0
 
 
-def test_connect(gcloud_run, subprocess):
-    runner.invoke(cli.app, ['connect', 'test-cluster', 'notebook'])
+@pytest.mark.parametrize("service", ["notebook", "nb", "spark-ui", "ui", "spark-history", "hist"])
+def test_connect_describes_cluster(gcloud_output, service):
+    runner.invoke(cli.app, ['connect', 'test-cluster', service])
 
-    gcloud_args = gcloud_run.call_args[0][0]
-    assert gcloud_args[:2] == ["compute", "ssh"]
-    assert gcloud_args[2][(gcloud_args[2].find("@") + 1) :] == "test-cluster-m"
-
-    assert "--ssh-flag=-D 10000" in gcloud_args
-    assert "--ssh-flag=-N" in gcloud_args
-    assert "--ssh-flag=-f" in gcloud_args
-    assert "--ssh-flag=-n" in gcloud_args
-
-    popen_args = subprocess.Popen.call_args[0][0]
-    assert popen_args[0] == "chromium"
-    assert popen_args[1].startswith("http://test-cluster-m")
-
-    assert "--proxy-server=socks5://localhost:10000" in popen_args
-    assert any(arg.startswith("--user-data-dir=") for arg in popen_args)
+    gcloud_args = gcloud_output.call_args[0][0]
+    assert gcloud_args[:4] == ["dataproc", "clusters", "describe", "test-cluster"]
+    assert "--format=json(config.endpointConfig.httpPorts)" in gcloud_args
 
 
 @pytest.mark.parametrize(
-    "service,expected_port_and_path",
+    "service,expected_url",
     [
-        ("spark-ui", "18080/?showIncomplete=true"),
-        ("ui", "18080/?showIncomplete=true"),
-        ("spark-history", "18080"),
-        ("hist", "18080"),
-        ("notebook", "8123"),
-        ("nb", "8123"),
+        ("notebook", JUPYTERLAB_URL),
+        ("nb", JUPYTERLAB_URL),
+        ("spark-ui", SPARK_HISTORY_URL + "?showIncomplete=true"),
+        ("ui", SPARK_HISTORY_URL + "?showIncomplete=true"),
+        ("spark-history", SPARK_HISTORY_URL),
+        ("hist", SPARK_HISTORY_URL),
     ],
 )
-def test_service_port_and_path(subprocess, service, expected_port_and_path):
+def test_connect_opens_gateway_url(webbrowser, service, expected_url):
     runner.invoke(cli.app, ['connect', 'test-cluster', service])
-
-    popen_args = subprocess.Popen.call_args[0][0]
-    assert popen_args[1] == f"http://test-cluster-m:{expected_port_and_path}"
+    webbrowser.open.assert_called_once_with(expected_url)
 
 
-def test_hailctl_chrome(subprocess, monkeypatch):
-    monkeypatch.setattr(
-        "hailtop.hailctl.dataproc.connect.get_chrome_path", Mock(side_effect=Exception("Unable to find chrome"))
-    )
-    monkeypatch.setenv("HAILCTL_CHROME", "/path/to/chrome.exe")
+def test_connect_region_from_config(gcloud_output, gcloud_config):
+    gcloud_config["dataproc/region"] = "europe-north1"
 
     runner.invoke(cli.app, ['connect', 'test-cluster', 'notebook'])
-    popen_args = subprocess.Popen.call_args[0][0]
-    assert popen_args[0] == "/path/to/chrome.exe"
+    assert "--region=europe-north1" in gcloud_output.call_args[0][0]
 
 
-def test_port(gcloud_run):
-    runner.invoke(cli.app, ['connect', 'test-cluster', 'notebook', '--port=8000'])
-    assert "--ssh-flag=-D 8000" in gcloud_run.call_args[0][0]
-
-
-def test_connect_zone(gcloud_run, gcloud_config):
-    gcloud_config["compute/zone"] = "us-central1-b"
+def test_connect_region_from_zone(gcloud_output, gcloud_config):
+    gcloud_config["dataproc/region"] = None
 
     runner.invoke(cli.app, ['connect', 'test-cluster', 'notebook', '--zone=us-east1-d'])
-
-    assert "--zone=us-east1-d" in gcloud_run.call_args[0][0]
-
-
-def test_connect_default_zone(gcloud_run, gcloud_config):
-    gcloud_config["compute/zone"] = "us-west1-a"
-
-    runner.invoke(cli.app, ['connect', 'test-cluster', 'notebook'])
-
-    assert "--zone=us-west1-a" in gcloud_run.call_args[0][0]
+    assert "--region=us-east1" in gcloud_output.call_args[0][0]
 
 
-def test_connect_zone_required(gcloud_run, gcloud_config):
+def test_connect_region_required(gcloud_output, gcloud_config):
+    gcloud_config["dataproc/region"] = None
     gcloud_config["compute/zone"] = None
 
     res = runner.invoke(cli.app, ['connect', 'test-cluster', 'notebook'])
     assert res.exit_code == 1
+    assert gcloud_output.call_count == 0
 
-    assert gcloud_run.call_count == 0
+
+def test_connect_gateway_not_enabled(gcloud_output, webbrowser):
+    gcloud_output.return_value = "{}"
+
+    res = runner.invoke(cli.app, ['connect', 'test-cluster', 'notebook'])
+    assert res.exit_code == 1
+    assert webbrowser.open.call_count == 0
 
 
-def test_connect_project(gcloud_run):
+def test_connect_project(gcloud_output):
     runner.invoke(cli.app, ['connect', 'test-cluster', 'notebook', '--project=test-project'])
-    assert "--project=test-project" in gcloud_run.call_args[0][0]
+    assert "--project=test-project" in gcloud_output.call_args[0][0]

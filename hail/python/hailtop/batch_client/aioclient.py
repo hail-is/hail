@@ -473,10 +473,19 @@ class JobGroup:
     def create_job(self, image: str, command: List[str], **kwargs) -> Job:
         return self._batch._create_job(self, {'command': command, 'image': image, 'type': 'docker'}, **kwargs)
 
-    def create_jvm_job(self, jar_spec: Dict[str, str], argv: List[str], *, profile: bool = False, **kwargs):
-        return self._batch._create_job(
-            self, {'type': 'jvm', 'jar_spec': jar_spec, 'command': argv, 'profile': profile}, **kwargs
-        )
+    def create_jvm_job(
+        self,
+        jar_spec: Dict[str, str],
+        argv: List[str],
+        *,
+        spark_version: Optional[str] = None,
+        profile: bool = False,
+        **kwargs,
+    ):
+        process: Dict[str, Any] = {'type': 'jvm', 'jar_spec': jar_spec, 'command': argv, 'profile': profile}
+        if spark_version is not None:
+            process['spark_version'] = spark_version
+        return self._batch._create_job(self, process, **kwargs)
 
     def create_job_group(
         self,
@@ -785,13 +794,22 @@ class Batch:
     def create_job(self, image: str, command: List[str], **kwargs) -> Job:
         return self._create_job(self._root_job_group, {'command': command, 'image': image, 'type': 'docker'}, **kwargs)
 
-    def create_jvm_job(self, jar_spec: Dict[str, str], argv: List[str], *, profile: bool = False, **kwargs):
+    def create_jvm_job(
+        self,
+        jar_spec: Dict[str, str],
+        argv: List[str],
+        *,
+        spark_version: Optional[str] = None,
+        profile: bool = False,
+        **kwargs,
+    ):
         if 'always_copy_output' in kwargs:
             raise ValueError("the 'always_copy_output' option is not allowed for JVM jobs")
         job_group = kwargs.pop('job_group', self._root_job_group)
-        return self._create_job(
-            job_group, {'type': 'jvm', 'jar_spec': jar_spec, 'command': argv, 'profile': profile}, **kwargs
-        )
+        process: Dict[str, Any] = {'type': 'jvm', 'jar_spec': jar_spec, 'command': argv, 'profile': profile}
+        if spark_version is not None:
+            process['spark_version'] = spark_version
+        return self._create_job(job_group, process, **kwargs)
 
     def create_job_group(
         self,

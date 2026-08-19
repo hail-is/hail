@@ -10,6 +10,6 @@ numpy>=2,<3
 pandas>=2,<3
 parsimonious<1
 plotly>=5.18.0,<6
-pyspark>=3.5.0,<3.6
+pyspark>=4.0.2,<4.2
 requests>=2.32.4,<3
 scipy>1.13,<2

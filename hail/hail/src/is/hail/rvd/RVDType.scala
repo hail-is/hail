@@ -8,8 +8,6 @@ import is.hail.expr.ir.IRParser
 import is.hail.types.physical.{PInterval, PStruct}
 import is.hail.utils._
 
-import scala.collection.compat._
-
 import org.json4s.CustomSerializer
 import org.json4s.JsonAST.{JArray, JObject, JString, JValue}
 

@@ -28,7 +28,6 @@ import is.hail.types.virtual.TIterable.elementType
 import is.hail.utils._
 import is.hail.variant.{Call2, Locus}
 
-import scala.collection.compat._
 import scala.collection.mutable
 
 import org.apache.spark.sql.Row

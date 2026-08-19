@@ -9,7 +9,6 @@ import is.hail.services._
 import is.hail.services.JobGroupStates._
 import is.hail.utils.{handleForPython, tokenUrlSafe, using, HailWorkerException}
 
-import scala.collection.compat.immutable.LazyList
 import scala.concurrent.CancellationException
 import scala.reflect.io.{Directory, Path}
 import scala.util.Random

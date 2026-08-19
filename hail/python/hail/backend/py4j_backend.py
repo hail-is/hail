@@ -115,10 +115,10 @@ def start_py4j_gateway(*, max_heap_size: str | None = None) -> JavaGateway:
 
 def raise_when_mismatched_hail_versions(jvm: JVMView) -> None:
     feature, *rest = jvm.System.getProperty('java.version').split('.')
-    if feature != '11':
+    if feature != '21':
         warnings.warn(
             message=(
-                'Hail was built and tested with Java 11. '
+                'Hail was built and tested with Java 21. '
                 f'You are using Java {".".join([feature, *rest])} which is not supported. '
                 'This may lead to errors. '
                 'Consider installing Java 11 and setting the JAVA_HOME environment variable.'

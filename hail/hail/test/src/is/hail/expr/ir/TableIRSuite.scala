@@ -21,8 +21,6 @@ import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.Locus
 
-import scala.collection.compat._
-
 import org.apache.spark.sql.Row
 import org.junit.jupiter.api.Test
 import org.scalatest.{Failed, Succeeded}

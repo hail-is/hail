@@ -4,9 +4,16 @@ import json
 import os
 import subprocess as sp
 import sys
-from subprocess import check_output
+import sysconfig
+import urllib.request
 
-assert sys.version_info > (3, 0), sys.version_info
+assert sys.version_info > (3, 12), sys.version_info
+
+# Dataproc 3.0 images manage the default Python environment with pixi rather
+# than conda, and neither layout is a documented interface. Derive every path
+# from the interpreter running this init action instead of hard-coding either.
+python_exe = os.path.realpath(sys.executable)
+env_prefix = sys.prefix
 
 
 def safe_call(*args, **kwargs):
@@ -17,8 +24,12 @@ def safe_call(*args, **kwargs):
         raise e
 
 
+def pip_install(*args):
+    safe_call(python_exe, '-m', 'pip', 'install', *args)
+
+
 def get_metadata(key):
-    return check_output(['/usr/share/google/get_metadata_value', 'attributes/{}'.format(key)]).decode()
+    return sp.check_output(['/usr/share/google/get_metadata_value', f'attributes/{key}']).decode()
 
 
 def mkdir_if_not_exists(path):
@@ -29,32 +40,49 @@ def mkdir_if_not_exists(path):
             raise
 
 
+# netlib's bundled jni shims link the system blas, lapack and arpack; the
+# image ships openblas but not arpack, so jvm eigensolvers fall back to java
+safe_call('apt-get', 'update', '-qq')
+safe_call('apt-get', 'install', '-qq', '-y', 'libarpack2')
+
 # get role of machine (master or worker)
 role = get_metadata('dataproc-role')
 
 if role == 'Master':
-    # additional packages to install
-    pip_pkgs = [
-        'mkl',
-        'lxml',
-        'https://github.com/hail-is/jgscm/archive/v0.1.13+hail.zip',
-        'ipykernel==6.29.2',
-        'jupyter-console==6.6.3',
-        'qtconsole==5.6.1',
-    ]
+    # install hail's dependencies and user-requested packages
+    pkgs = get_metadata('PKGS').split('|')
+    print(f'pip packages are {pkgs}')
+    pip_install(*pkgs)
 
-    # add user-requested packages
-    try:
-        user_pkgs = get_metadata('PKGS')
-    except Exception:
-        pass
-    else:
-        pip_pkgs.extend(user_pkgs.split('|'))
+    # sparkmonitor renders spark job progress in jupyter notebooks. Its kernel
+    # extension crashes if spark events arrive before the jupyterlab frontend
+    # opens its comm channel; apply the proposed patch until it is released.
+    pip_install('sparkmonitor==3.3.0')
+    urllib.request.urlretrieve(
+        'https://github.com/swan-cern/sparkmonitor/commit/28e39fc0d6ee910dc40c791528f9e3a23ea543ad.patch',
+        '/tmp/sparkmonitor.patch',
+    )
+    safe_call(
+        'git',
+        'apply',
+        '--include=sparkmonitor/*',
+        '/tmp/sparkmonitor.patch',
+        cwd=sysconfig.get_paths()['purelib'],
+    )
 
-    print('pip packages are {}'.format(pip_pkgs))
-    command = ['pip', 'install']
-    command.extend(pip_pkgs)
-    safe_call(*command)
+    # gcs-jupyter-plugin adds a cloud storage browser to jupyterlab, listing
+    # the project's buckets and writing edits back to gcs. its stale pins
+    # (aiohttp~=3.9.5, pydantic~=1.10, ...) conflict with hail's requirements
+    # but newer versions satisfy it in practice, so skip dependency resolution
+    pip_install('google-cloud-jupyter-config')
+    pip_install('--no-deps', 'gcs-jupyter-plugin')
+
+    # the cloud storage browser requires gcloud be configured with an account,
+    # project and region; dataproc images configure all but the region
+    zone = sp.check_output(['/usr/share/google/get_metadata_value', 'zone']).decode().rsplit('/', 1)[-1]
+    region = zone.rsplit('-', 1)[0]
+    safe_call('gcloud', 'config', 'set', 'compute/region', region)
+    safe_call('gcloud', 'config', 'set', 'dataproc/region', region)
 
     print('getting metadata')
 
@@ -64,19 +92,17 @@ if role == 'Master':
     print('copying wheel')
     safe_call('gcloud', 'storage', 'cp', wheel_path, f'/home/hail/{wheel_name}')
 
-    safe_call('pip', 'install', '--no-dependencies', f'/home/hail/{wheel_name}')
+    pip_install('--no-dependencies', f'/home/hail/{wheel_name}')
 
     print('setting environment')
 
-    spark_lib_base = '/usr/lib/spark/python/lib/'
-    files_to_add = [os.path.join(spark_lib_base, x) for x in os.listdir(spark_lib_base) if x.endswith('.zip')]
+    # dataproc images install spark at /usr/lib/spark; prefer SPARK_HOME when
+    # the environment provides it
+    spark_home = os.environ.get('SPARK_HOME', '/usr/lib/spark').rstrip('/')
 
     env_to_set = {
         'PYTHONHASHSEED': '0',
-        'PYTHONPATH': ':'.join(files_to_add),
-        'SPARK_HOME': '/usr/lib/spark/',
-        'PYSPARK_PYTHON': '/opt/conda/default/bin/python',
-        'PYSPARK_DRIVER_PYTHON': '/opt/conda/default/bin/python',
+        'PYSPARK_PYTHON': python_exe,
         'HAIL_LOG_DIR': '/home/hail',
         'HAIL_DATAPROC': '1',
     }
@@ -89,31 +115,31 @@ if role == 'Master':
     else:
         env_to_set["VEP_CONFIG_URI"] = vep_config_uri
 
-    print('setting environment')
+    # spark-env.sh is sourced by spark-submit, delivering these to jobs;
+    # /etc/environment is read by pam for ssh sessions
+    with open(os.path.join(spark_home, 'conf', 'spark-env.sh'), 'a') as f:
+        f.writelines(f'export {e}={value}\n' for e, value in env_to_set.items())
 
-    for e, value in env_to_set.items():
-        safe_call(
-            '/bin/sh',
-            '-c',
-            'set -ex; echo "export {}={}" | tee -a /etc/environment /usr/lib/spark/conf/spark-env.sh'.format(e, value),
-        )
+    # /etc/environment entries must be KEY=VALUE
+    with open('/etc/environment', 'a') as f:
+        f.writelines(f'{e}={value}\n' for e, value in env_to_set.items())
 
-    hail_jar = (
-        sp.check_output(['/bin/sh', '-c', 'set -ex; python3 -m pip show hail | grep Location | sed "s/Location: //"'])
-        .decode('ascii')
-        .strip()
-        + '/hail/backend/hail-all-spark.jar'
+    hail_location = next(
+        line.removeprefix('Location: ').strip()
+        for line in sp.check_output([python_exe, '-m', 'pip', 'show', 'hail']).decode().splitlines()
+        if line.startswith('Location: ')
     )
+
+    hail_jar = hail_location + '/hail/backend/hail-all-spark.jar'
 
     if not os.path.exists(hail_jar):
         raise ValueError(f'{hail_jar} must exist')
 
     conf_to_set = [
         'spark.executorEnv.PYTHONHASHSEED=0',
-        'spark.app.name=Hail',
         # the below are necessary to make 'submit' work
-        'spark.jars={}'.format(hail_jar),
-        'spark.driver.extraClassPath={}'.format(hail_jar),
+        f'spark.jars={hail_jar}',
+        f'spark.driver.extraClassPath={hail_jar}',
         'spark.executor.extraClassPath=./hail-all-spark.jar',
     ]
 
@@ -127,84 +153,44 @@ if role == 'Master':
 
     # Update python3 kernel spec with the environment variables and the hail
     # spark monitor
+    kernels_dir = os.path.join(env_prefix, 'share', 'jupyter', 'kernels')
     try:
-        with open('/opt/conda/default/share/jupyter/kernels/python3/kernel.json', 'r') as f:
+        with open(os.path.join(kernels_dir, 'python3', 'kernel.json'), 'r') as f:
             python3_kernel = json.load(f)
+            assert isinstance(python3_kernel, dict)
     except:
         python3_kernel = {
-            'argv': ['/opt/conda/default/bin/python', '-m', 'ipykernel', '-f', '{connection_file}'],
+            'argv': [python_exe, '-m', 'ipykernel', '-f', '{connection_file}'],
             'display_name': 'Python 3',
             'language': 'python',
         }
+
+    spark_lib_base = os.path.join(spark_home, 'python', 'lib')
+    files_to_add = [os.path.join(spark_lib_base, x) for x in os.listdir(spark_lib_base) if x.endswith('.zip')]
     python3_kernel['env'] = {
         **python3_kernel.get('env', dict()),
         **env_to_set,
+        # spark constructs PYTHONPATH for the python processes it launches;
+        # the kernel is a plain python process, so needs pyspark on its path
+        'PYTHONPATH': ':'.join(files_to_add),
         'HAIL_SPARK_MONITOR': '1',
-        'SPARK_MONITOR_UI': 'http://localhost:8088/proxy/%APP_ID%',
     }
 
     # write python3 kernel spec file to default Jupyter kernel directory
-    mkdir_if_not_exists('/opt/conda/default/share/jupyter/kernels/python3/')
-    with open('/opt/conda/default/share/jupyter/kernels/python3/kernel.json', 'w') as f:
+    mkdir_if_not_exists(os.path.join(kernels_dir, 'python3'))
+    with open(os.path.join(kernels_dir, 'python3', 'kernel.json'), 'w') as f:
         json.dump(python3_kernel, f)
 
-    # some old notebooks use the "Hail" kernel, so create that too
-    hail_kernel = {**python3_kernel, 'display_name': 'Hail'}
-    mkdir_if_not_exists('/opt/conda/default/share/jupyter/kernels/hail/')
-    with open('/opt/conda/default/share/jupyter/kernels/hail/kernel.json', 'w') as f:
-        json.dump(hail_kernel, f)
+    # sparkmonitor's frontend is a prebuilt jupyterlab extension, active on
+    # install; the kernel side must be enabled in the ipython kernel config.
+    # /etc/ipython applies whatever user the kernel runs as
+    mkdir_if_not_exists('/etc/ipython')
+    with open('/etc/ipython/ipython_kernel_config.py', 'a') as f:
+        f.write("c.InteractiveShellApp.extensions.append('sparkmonitor.kernelextension')\n")
 
-    # create Jupyter configuration file
-    mkdir_if_not_exists('/opt/conda/default/etc/jupyter/')
-    with open('/opt/conda/default/etc/jupyter/jupyter_notebook_config.py', 'w') as f:
-        opts = [
-            'c.Application.log_level = "DEBUG"',
-            'c.NotebookApp.ip = "0.0.0.0"',
-            'c.NotebookApp.open_browser = False',
-            'c.NotebookApp.port = 8123',
-            'c.NotebookApp.token = ""',
-            'c.NotebookApp.contents_manager_class = "jgscm.GoogleStorageContentManager"',
-        ]
-        f.write('\n'.join(opts) + '\n')
-
-    print('copying spark monitor')
-    spark_monitor_gs = (
-        'gs://hail-common/sparkmonitor-c1289a19ac117336fec31ec08a2b13afe7e420cf/sparkmonitor-0.0.12-py3-none-any.whl'
-    )
-    spark_monitor_wheel = '/home/hail/' + spark_monitor_gs.split('/')[-1]
-    safe_call('gcloud', 'storage', 'cp', spark_monitor_gs, spark_monitor_wheel)
-    safe_call('pip', 'install', spark_monitor_wheel)
-
-    # setup jupyter-spark extension
-    safe_call('/opt/conda/default/bin/jupyter', 'serverextension', 'enable', '--user', '--py', 'sparkmonitor')
-    safe_call('/opt/conda/default/bin/jupyter', 'nbextension', 'install', '--user', '--py', 'sparkmonitor')
-    safe_call('/opt/conda/default/bin/jupyter', 'nbextension', 'enable', '--user', '--py', 'sparkmonitor')
-    safe_call('/opt/conda/default/bin/jupyter', 'nbextension', 'enable', '--user', '--py', 'widgetsnbextension')
-    safe_call(
-        """ipython profile create && echo "c.InteractiveShellApp.extensions.append('sparkmonitor.kernelextension')" >> $(ipython profile locate default)/ipython_kernel_config.py""",
-        shell=True,
-    )
-
-    # create systemd service file for Jupyter notebook server process
-    with open('/lib/systemd/system/jupyter.service', 'w') as f:
-        opts = [
-            '[Unit]',
-            'Description=Jupyter Notebook',
-            'After=hadoop-yarn-resourcemanager.service',
-            '[Service]',
-            'Type=simple',
-            'User=root',
-            'Group=root',
-            'WorkingDirectory=/home/hail/',
-            'ExecStart=/opt/conda/default/bin/python /opt/conda/default/bin/jupyter notebook --allow-root',
-            'Restart=always',
-            'RestartSec=1',
-            '[Install]',
-            'WantedBy=multi-user.target',
-        ]
-        f.write('\n'.join(opts) + '\n')
-
-    # add Jupyter service to autorun and start it
-    safe_call('systemctl', 'daemon-reload')
-    safe_call('systemctl', 'enable', 'jupyter')
-    safe_call('service', 'jupyter', 'start')
+    # the jupyter optional component's server starts before init actions run;
+    # restart it to pick up the hail kernel specs and sparkmonitor labextension
+    try:
+        safe_call('systemctl', 'restart', 'jupyter')
+    except sp.CalledProcessError:
+        print('warning: failed to restart the jupyter component service')

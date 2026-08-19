@@ -1,4 +1,4 @@
-# https://cloud.google.com/dataproc/docs/concepts/versioning/dataproc-release-2.3
+# https://docs.cloud.google.com/managed-spark/docs/concepts/versioning/image-release-3.0
 #
-# 2.3.17-debian12
-pyspark==3.5.3
+# 3.0.0-debian13
+pyspark==4.1.2

@@ -82,6 +82,8 @@ job_validator = keyed({
                 }),
                 required('command'): listof(str_type),
                 'profile': bool_type,
+                # the worker uses this as a path component, hence the strict pattern
+                'spark_version': regex(r'\d+\.\d+\.\d+'),
             },
         },
     ),

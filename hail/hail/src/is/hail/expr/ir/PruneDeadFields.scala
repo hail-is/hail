@@ -13,7 +13,6 @@ import is.hail.types.virtual._
 import is.hail.types.virtual.TIterable.elementType
 import is.hail.utils._
 
-import scala.collection.compat._
 import scala.collection.mutable
 import scala.reflect.ClassTag
 

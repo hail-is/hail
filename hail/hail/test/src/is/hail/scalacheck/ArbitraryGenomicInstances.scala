@@ -7,8 +7,6 @@ import is.hail.variant._
 import is.hail.variant.Genotype.gqFromPL
 import is.hail.variant.Sex.Sex
 
-import scala.collection.compat._
-
 import org.scalacheck.{Arbitrary, Gen}
 import org.scalacheck.Arbitrary.arbitrary
 import org.scalacheck.Gen._

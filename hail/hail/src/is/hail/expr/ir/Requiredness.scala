@@ -13,7 +13,6 @@ import is.hail.types.physical.stypes.{EmitType, PTypeReferenceSingleCodeType, St
 import is.hail.types.virtual._
 import is.hail.utils._
 
-import scala.collection.compat._
 import scala.collection.mutable
 
 object Requiredness {

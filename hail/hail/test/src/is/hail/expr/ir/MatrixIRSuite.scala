@@ -17,8 +17,6 @@ import is.hail.expr.ir.defs.{
 import is.hail.types.virtual._
 import is.hail.utils._
 
-import scala.collection.compat._
-
 import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods
 import org.junit.jupiter.api.Test

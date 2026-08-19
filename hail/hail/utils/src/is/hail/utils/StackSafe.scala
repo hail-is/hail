@@ -3,7 +3,7 @@ package is.hail.utils
 import is.hail.collection.compat.immutable.ArraySeq
 
 import scala.annotation.tailrec
-import scala.collection.compat._
+import scala.collection.{BuildFrom, Factory}
 
 object StackSafe {
 

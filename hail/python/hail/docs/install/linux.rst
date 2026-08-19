@@ -14,7 +14,7 @@ On a recent Debian-like system, the following should suffice:
 .. code-block:: sh
 
    apt-get install -y \
-       openjdk-11-jre-headless \
+       openjdk-21-jre-headless \
        g++ \
        python3.11 python3-pip \
        libopenblas-base liblapack3
