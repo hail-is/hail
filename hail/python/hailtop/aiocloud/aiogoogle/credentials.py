@@ -129,6 +129,9 @@ class GoogleCredentials(CloudCredentials):
 
     async def access_token_with_expiration(self) -> Tuple[str, Optional[float]]:
         if self._access_token is None or self._access_token.expired():
+            from hailtop.tls import internal_client_ssl_context
+
+            log.info('ssl session stats before token fetch: %s', internal_client_ssl_context().session_stats())
             self._access_token = await self._get_access_token()
         return self._access_token.token, self._access_token._expiry_time
 
