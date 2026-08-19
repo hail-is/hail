@@ -299,9 +299,9 @@ class InstanceCollection:
 
     def generate_machine_name(self) -> str:
         while True:
-            # 36 ** 5 = ~60M
-            suffix = secret_alnum_string(5, case='lower')
-            machine_name = f'{self.machine_name_prefix}{suffix}'
+            # 36 ** 12 = ~4.7e18
+            suffix = f'{secret_alnum_string(6, case="lower")}-{secret_alnum_string(6, case="lower")}'
+            machine_name = f'{self.machine_name_prefix}{suffix}'[:63]
             if machine_name not in self.name_instance:
                 break
         return machine_name
@@ -317,6 +317,12 @@ class InstanceCollection:
 
         await self.db.just_execute('UPDATE instances SET removed = 1 WHERE name = %s;', (instance.name,))
 
+        # A concurrent path (e.g. activity log event) may have already removed this instance while
+        # we were suspended at one of the awaits above.  Guard with a synchronous check so we don't
+        # double-remove; no yield points follow so this is race-free within asyncio.
+        if instance.name not in self.name_instance:
+            log.info(f'{instance} already removed by concurrent path, skipping cleanup')
+            return
         self.adjust_for_remove_instance(instance)
         del self.name_instance[instance.name]
 
