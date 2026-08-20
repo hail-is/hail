@@ -10,12 +10,13 @@ import sortedcontainers
 from gear import Database
 from gear.time_limited_max_size_cache import TimeLimitedMaxSizeCache
 from hailtop import aiotools
-from hailtop.utils import periodically_call, secret_alnum_string, time_msecs
+from hailtop.utils import periodically_call, time_msecs
 
 from ...globals import INSTANCE_VERSION, live_instance_states
 from ...instance_config import QuantifiedResource
 from ..instance import Instance
 from ..location import CloudLocationMonitor
+from ..naming import build_inst_coll_regex, make_machine_name
 from ..resource_manager import (
     CloudResourceManager,
     UnknownVMState,
@@ -48,7 +49,7 @@ class InstanceCollectionManager:
         self._default_region = default_region
         self.regions = regions
 
-        self.inst_coll_regex = re.compile(f'{self.machine_name_prefix}(?P<inst_coll>.*)-.*')
+        self.inst_coll_regex = build_inst_coll_regex(self.machine_name_prefix)
         self.name_inst_coll: Dict[str, InstanceCollection] = {}
         self.name_token_cache: TimeLimitedMaxSizeCache[str, str] = TimeLimitedMaxSizeCache(
             self.get_token_from_instance_name,
@@ -299,12 +300,9 @@ class InstanceCollection:
 
     def generate_machine_name(self) -> str:
         while True:
-            # 36 ** 12 = ~4.7e18
-            suffix = f'{secret_alnum_string(6, case="lower")}-{secret_alnum_string(6, case="lower")}'
-            machine_name = f'{self.machine_name_prefix}{suffix}'[:63]
-            if machine_name not in self.name_instance:
-                break
-        return machine_name
+            name = make_machine_name(self.machine_name_prefix)
+            if name not in self.name_instance:
+                return name
 
     def adjust_for_remove_instance(self, instance: Instance):
         assert instance in self.instances_by_last_updated

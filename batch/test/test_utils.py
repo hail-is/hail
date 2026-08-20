@@ -13,6 +13,7 @@ from batch.cloud.gcp.resource_utils import (
 )
 from batch.cloud.gcp.resources import GCPAcceleratorResource, gcp_resource_from_dict
 from batch.cloud.resource_utils import adjust_cores_for_packability
+from batch.driver.naming import build_inst_coll_regex, make_machine_name
 from batch.utils import rewrite_dockerhub_image
 from hailtop.batch_client.parse import parse_memory_in_bytes
 
@@ -236,3 +237,34 @@ def test_gcp_accelerator_to_from_dict():
 def test_rewrite_dockerhub_image(image, expected):
     dockerhub_prefix = "us-central1-docker.pkg.dev/my-project/dockerhubproxy"
     assert rewrite_dockerhub_image(image, dockerhub_prefix) == expected
+
+
+_INST_COLL_NAMES = [
+    'standard',
+    'highmem',
+    'lowmem',
+    'standard-np',  # hyphenated
+    'pool-abcde',  # 5-char last segment (old suffix length)
+    'pool-abcdef',  # 6-char last segment (half of new suffix)
+    'pool-abcdef-ghijkl',  # 6-6 last two segments (looks like new suffix)
+    'pool-abcde-fghij',  # two 5-char segments
+]
+
+
+@pytest.mark.parametrize('inst_coll_name', _INST_COLL_NAMES)
+def test_machine_name_inst_coll_roundtrip(inst_coll_name):
+    manager_prefix = 'batch-worker-default-'
+    child_prefix = f'{manager_prefix}{inst_coll_name}-'
+    machine_name = make_machine_name(child_prefix)
+    match = build_inst_coll_regex(manager_prefix).search(machine_name)
+    assert match is not None, f'regex did not match {machine_name!r}'
+    assert match.group('inst_coll') == inst_coll_name
+
+
+@pytest.mark.parametrize('inst_coll_name', _INST_COLL_NAMES)
+def test_old_style_machine_name_inst_coll_roundtrip(inst_coll_name):
+    manager_prefix = 'batch-worker-default-'
+    machine_name = f'{manager_prefix}{inst_coll_name}-ab1cd'  # fixed 5-char alphanumeric suffix
+    match = build_inst_coll_regex(manager_prefix).search(machine_name)
+    assert match is not None, f'regex did not match {machine_name!r}'
+    assert match.group('inst_coll') == inst_coll_name
