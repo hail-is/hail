@@ -231,9 +231,8 @@ class Step(abc.ABC):
         config['is_release'] = self.is_release
         config['code'] = code.config()
         config['ci_storage_uri'] = STORAGE_URI
-        if self.deps:
-            for d in self.deps:
-                config[d.name] = d.config(scope)
+        for d in self.deps + self.after_steps:
+            config[d.name] = d.config(scope)
         return config
 
     def deps_parents(self):
