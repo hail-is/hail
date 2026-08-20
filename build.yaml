@@ -3138,7 +3138,6 @@ steps:
       - merge_code
       - batch_image
       - deploy_batch
-    after:
       - test_batch
   - kind: runImage
     name: create_ci_test_repo
