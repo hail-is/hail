@@ -117,7 +117,11 @@ def hadoop_open(path: str, mode: str = 'r', buffer_size: int = 8192):
     if ext in ('.gz', '.bgz'):
         binary_mode = mode[0] + 'b'
         underlying = fs.open(path, binary_mode, buffer_size)
-        file = gzip.GzipFile(fileobj=underlying, mode=mode)
+        try:
+            file = gzip.GzipFile(fileobj=underlying, mode=mode)
+        except:
+            underlying.close()
+            raise
         # GzipFile.close() only closes myfileobj, not fileobj; set it so the
         # underlying stream is closed explicitly rather than lazily via __del__.
         file.myfileobj = underlying

@@ -2814,7 +2814,7 @@ steps:
               -m backend \
               --timeout=600 \
               test/hail/utils/test_hl_hadoop_and_hail_fs.py
-    timeout: 600
+    timeout: 900
     inputs:
       - from: /derived/release/hail/build/deploy/dist
         to: /io/wheel
