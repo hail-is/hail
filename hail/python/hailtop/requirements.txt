@@ -1,4 +1,6 @@
 aiodns>=2.0.0,<3
+# <4: ssl_shutdown_timeout is deprecated in aiohttp 4.0 and will need a replacement
+# for bounding SSL shutdown time; see https://github.com/hail-is/hail/pull/15694
 aiohttp>=3.11.16,<4
 azure-identity>=1.23.0,<2
 azure-mgmt-storage==20.1.0

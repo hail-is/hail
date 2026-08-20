@@ -2700,7 +2700,7 @@ steps:
     scopes:
       - test
       - dev
-    numSplits: 16
+    numSplits: 15
     image:
       valueFrom: hail_run_image.image
     resources:
@@ -2740,10 +2740,81 @@ steps:
               --durations=50 \
               --ignore=test/hailtop/ \
               --ignore=test/hail/matrixtable/test_file_formats.py \
+              --ignore=test/hail/utils/test_hl_hadoop_and_hail_fs.py \
               -m backend \
               --timeout=600 \
               test
     timeout: 5400
+    inputs:
+      - from: /derived/release/hail/build/deploy/dist
+        to: /io/wheel
+      - from: /repo/hail/python/pytest.ini
+        to: /io/repo/hail/python/pytest.ini
+      - from: /repo/hail/python/test
+        to: /io/repo/hail/python/test
+    secrets:
+      - name: test-gsa-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-gsa-key
+    dependsOn:
+      - default_ns
+      - merge_code
+      - deploy_batch
+      - create_deploy_config
+      - create_accounts
+      - hail_run_image
+      - upload_query_jar
+      - upload_test_resources_to_blob_storage
+      - build_hail_jar_and_wheel
+      - hailgenetics_vep_grch37_85_image
+      - hailgenetics_vep_grch38_95_image
+    clouds:
+      - gcp
+  - kind: runImage
+    name: test_hail_python_service_backend_gcp_fs
+    scopes:
+      - test
+      - dev
+    image:
+      valueFrom: hail_run_image.image
+    resources:
+      cpu: '0.25'
+      preemptible: False
+    script: |
+      set -ex
+      python3 -m pip install --no-dependencies /io/wheel/hail-*-py3-none-any.whl
+
+      cd /io/repo/hail/python
+
+      export HAIL_CLOUD={{ global.cloud }}
+      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
+      export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
+      export HAIL_TEST_RESOURCES_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/test/resources/"
+      export HAIL_DOCTEST_DATA_DIR="{{ global.test_storage_uri }}/{{ upload_test_resources_to_blob_storage.token }}/doctest/data/"
+      export HAIL_GENETICS_VEP_GRCH37_85_IMAGE={{ hailgenetics_vep_grch37_85_image.image }}
+      export HAIL_GENETICS_VEP_GRCH38_95_IMAGE={{ hailgenetics_vep_grch38_95_image.image }}
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+
+      export GCS_REQUESTER_PAYS_PROJECT=broad-ctsa
+
+      export HAIL_QUERY_BACKEND=batch
+      export HAIL_BATCH_REGIONS={{ global.gcp_region }}
+      export HAIL_BATCH_BILLING_PROJECT=test
+      export HAIL_BATCH_REMOTE_TMPDIR={{ global.test_storage_uri }}
+
+      python3 -m pytest \
+              -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
+              --log-cli-level=INFO \
+              -s \
+              -r A \
+              -vv \
+              --instafail \
+              --durations=50 \
+              -m backend \
+              --timeout=600 \
+              test/hail/utils/test_hl_hadoop_and_hail_fs.py
+    timeout: 900
     inputs:
       - from: /derived/release/hail/build/deploy/dist
         to: /io/wheel
@@ -4081,6 +4152,7 @@ steps:
       - test_hailtop_python
       - test_hail_python_local_backend
       - test_hail_python_service_backend_gcp
+      - test_hail_python_service_backend_gcp_fs
       - test_hail_scala_fs
       - test_hail_services_java
       - test_hail_spark_conf_requester_pays_parsing
@@ -4180,6 +4252,7 @@ steps:
       - test_ci
       - test_hailtop_python
       - test_hail_python_service_backend_gcp
+      - test_hail_python_service_backend_gcp_fs
       - test_hail_services_java
       - test_batch_docs
       - test_hailctl_batch
@@ -4227,6 +4300,7 @@ steps:
       - test_ci
       - test_hailtop_python
       - test_hail_python_service_backend_gcp
+      - test_hail_python_service_backend_gcp_fs
       - cancel_all_running_test_batches
   - kind: runImage
     name: delete_gcp_batch_instances
@@ -4273,6 +4347,7 @@ steps:
       - test_ci
       - test_hailtop_python
       - test_hail_python_service_backend_gcp
+      - test_hail_python_service_backend_gcp_fs
       - cancel_all_running_test_batches
   - kind: runImage
     name: setup_dev_namespace_autoscaledown
