@@ -1,5 +1,12 @@
 # Refreshing the trivy-scanner GitHub Secret
 
+> [!NOTE]
+> `devbin/refresh-trivy-secret.py` automates this entire procedure. It can by triggered by running:
+> 
+> ```bash
+> python3 devbin/refresh-trivy-secret.py
+> ```
+
 The `GOOGLE_GAR_CREDENTIALS` GitHub secret is used by the Trivy Security Scan workflow
 (`.github/workflows/trivy-scan.yml`) to authenticate with Google Cloud and access
 images from Google Artifact Registry (GAR) for vulnerability scanning.
