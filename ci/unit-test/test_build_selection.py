@@ -1,4 +1,7 @@
+import pathlib
+
 import pytest
+import yaml
 
 from ci.build_selection import (
     _expand_to_descendants,
@@ -7,6 +10,7 @@ from ci.build_selection import (
     _repo_input_local_path,
     _valid_step,
     compute_requested_steps,
+    select_steps,
 )
 
 
@@ -285,3 +289,150 @@ steps:
 def test_compute_requested_steps(config_str, changed_files, scope, cloud, expected_steps):
     result = compute_requested_steps(config_str, changed_files, scope=scope, cloud=cloud)
     assert result == set(expected_steps)
+
+
+# ---------------------------------------------------------------------------
+# select_steps: after graph traversal
+# ---------------------------------------------------------------------------
+
+
+# Test 2: after edges are NOT followed in the backward (ancestors) pass.
+#
+#   A  <--after--  B  <--dependsOn--  C
+#
+# Seed = {C}.  Expected: {C, B}.  A must NOT be pulled in.
+def test_select_steps_after_not_followed_backwards():
+    steps = [
+        {'name': 'A'},
+        {'name': 'B', 'after': ['A']},
+        {'name': 'C', 'dependsOn': ['B']},
+    ]
+    assert select_steps({'C'}, steps) == {'C', 'B'}
+
+
+# Test 3: after edges ARE followed in the forward (descendants) pass.
+#
+#   A  <--after--  B
+#
+# Seed = {A}.  Expected: {A, B}.  B should be pulled in as a cleanup follower.
+def test_select_steps_after_followed_forwards():
+    steps = [
+        {'name': 'A'},
+        {'name': 'B', 'after': ['A']},
+    ]
+    assert select_steps({'A'}, steps) == {'A', 'B'}
+
+
+# Combined test: the realistic cancel_all / test_batch_invariants scenario.
+#
+#   infra
+#     ^-- dependsOn -- cancel_all (after: test_batch, test_ci)
+#                          ^-- dependsOn -- test_batch_invariants
+#   test_batch
+#   test_ci
+#
+# Scenario A (forward): seed = {test_batch}.
+#   cancel_all follows test_batch via after → included.
+#   test_batch_invariants follows cancel_all via dependsOn → included.
+#   infra is pulled in as an ancestor of cancel_all.
+#   test_ci is NOT included (not a seed, not downstream of test_batch).
+#
+# Scenario B (backward / tactical retry): seed = {test_batch_invariants}.
+#   cancel_all is a hard ancestor → included.
+#   infra is a hard ancestor of cancel_all → included.
+#   test_batch and test_ci are NOT included — they're only in cancel_all's
+#   after, which the backward pass does not follow.
+def test_select_steps_forwards_not_backwards():
+    steps = [
+        {'name': 'infra'},
+        {'name': 'test_batch'},
+        {'name': 'test_ci'},
+        {'name': 'cancel_all', 'dependsOn': ['infra'], 'after': ['test_batch', 'test_ci']},
+        {'name': 'test_batch_invariants', 'dependsOn': ['cancel_all', 'infra']},
+    ]
+
+    # Scenario A: running test_batch brings in cancel_all and test_batch_invariants.
+    assert select_steps({'test_batch'}, steps) == {
+        'test_batch',
+        'cancel_all',
+        'infra',
+        'test_batch_invariants',
+    }
+
+    # Scenario B: tactical retry of test_batch_invariants does NOT re-add test_batch or test_ci.
+    assert select_steps({'test_batch_invariants'}, steps) == {
+        'test_batch_invariants',
+        'cancel_all',
+        'infra',
+    }
+
+
+# ---------------------------------------------------------------------------
+# Unit tests against the real build.yaml
+# ---------------------------------------------------------------------------
+
+_BUILD_YAML = (pathlib.Path(__file__).parents[2] / 'build.yaml').read_text()
+_BUILD_STEPS = [s for s in yaml.safe_load(_BUILD_YAML)['steps'] if _valid_step(s, 'test', 'gcp')]
+
+
+def test_batch_file_change_selects_batch_steps():
+    # compute_requested_steps returns seeds based on file inputs — it does not
+    # follow the full graph.  test_batch_invariants is reachable only after the
+    # subsequent select_steps expansion, so it need not appear here.
+    result = compute_requested_steps(_BUILD_YAML, ['batch/batch/driver/main.py'], scope='test', cloud='gcp')
+    assert 'test_batch' in result
+    assert 'cancel_all_running_test_batches' in result
+
+
+def test_tactical_retry_of_test_hailtop_python_does_not_pull_in_test_batch_or_test_ci():
+    # Simulates a tactical retry seeded with only test_hailtop_python.
+    # The cleanup chain (cancel_all → test_batch_invariants → delete_gcp) is pulled
+    # in via forward after-edges, but test_batch and test_ci are not — they share
+    # the same cancel_all sink but have no dependsOn relationship with test_hailtop_python.
+    result = select_steps({'test_hailtop_python'}, _BUILD_STEPS)
+
+    # cleanup chain pulled in via after
+    assert 'cancel_all_running_test_batches' in result
+    assert 'test_batch_invariants' in result
+    assert 'delete_gcp_batch_instances' in result
+
+    # unrelated test suites are not
+    assert 'test_batch' not in result
+    assert 'test_ci' not in result
+
+
+def test_tactical_retry_of_test_batch_does_not_pull_in_test_ci():
+    # compute_requested_steps correctly includes test_ci via the hard dependsOn
+    # chain batch_image → deploy_batch → deploy_ci → test_ci, so we can't assert
+    # its absence there.  But a tactical retry seeded with only test_batch (a
+    # batch-specific failure) must not pull test_ci in — they're unrelated.
+    result = select_steps({'test_batch'}, _BUILD_STEPS)
+
+    # downstream cleanup steps are pulled in via `after`
+    assert 'cancel_all_running_test_batches' in result
+    assert 'delete_test_billing_projects' in result
+
+    # unrelated test suites are not
+    assert 'test_ci' not in result
+
+
+def test_tactical_retry_of_test_batch_invariants_does_not_pull_in_test_suites():
+    # Simulates a tactical retry where only test_batch_invariants needs to re-run.
+    # The backward (ancestors) pass must not follow `after` edges, so the test
+    # suites that cancel_all_running_test_batches and delete_gcp_batch_instances
+    # merely order themselves after are not pulled back in.
+    result = select_steps({'test_batch_invariants'}, _BUILD_STEPS)
+
+    # hard upstream prereqs are pulled in
+    assert 'cancel_all_running_test_batches' in result
+    assert 'deploy_batch' in result
+    assert 'default_ns' in result
+
+    # downstream cleanup is pulled in via `after`
+    assert 'delete_gcp_batch_instances' in result
+
+    # test suites are not — they're only in `after` edges, not hard deps
+    assert 'test_batch' not in result
+    assert 'test_ci' not in result
+    assert 'test_hailtop_python' not in result
+    assert 'test_hail_python_service_backend_gcp' not in result
