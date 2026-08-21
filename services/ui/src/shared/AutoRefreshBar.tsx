@@ -3,8 +3,9 @@ import { useState, useEffect } from 'react';
 function CountdownFill({ intervalMs }: { intervalMs: number }): JSX.Element {
   const [go, setGo] = useState(false);
   useEffect(() => {
-    const id = requestAnimationFrame(() => setGo(true));
-    return () => cancelAnimationFrame(id);
+    let inner = 0;
+    const outer = requestAnimationFrame(() => { inner = requestAnimationFrame(() => setGo(true)); });
+    return () => { cancelAnimationFrame(outer); cancelAnimationFrame(inner); };
   }, []);
   return (
     <div

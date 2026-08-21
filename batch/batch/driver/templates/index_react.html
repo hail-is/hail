@@ -7,18 +7,7 @@
 <div class="mb-4">
   <a id="disable-react-ui-btn" href="#" class="text-sm text-sky-600 hover:underline">Back to classic layout</a>
 </div>
-<script>
-  (function () {
-    var btn = document.getElementById('disable-react-ui-btn');
-    if (btn) {
-      btn.addEventListener('click', function (e) {
-        e.preventDefault();
-        document.cookie = 'hail_react_ui=; max-age=0; path=/; SameSite=Lax';
-        location.reload();
-      });
-    }
-  })();
-</script>
+<script src="{{ base_path }}/batch_driver/static/js/react_toggle.js"></script>
 <div id="batch-driver-react-root"
   data-base-path="{{ base_path }}"
   data-auth-base-url="{{ auth_base_url }}">
