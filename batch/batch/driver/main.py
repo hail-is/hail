@@ -107,7 +107,7 @@ auth = get_authenticator()
 
 warnings.filterwarnings(
     'ignore',
-    ".*Warning: Field or reference 'batch.billing_projects.name' of SELECT #. was resolved in SELECT #.",
+    ".*Warning: Field or reference 'batch\\..*' of SELECT #. was resolved in SELECT #.",
     module='aiomysql.*',
 )
 
