@@ -38,6 +38,7 @@ _ALL_STATIC_DIRS: list[tuple[str, str]] = [
     ('/batch/batch/static/compiled-js', 'batch/batch/front_end/static/compiled-js'),
     ('/batch/batch/static/js', 'batch/batch/front_end/static/js'),
     ('/batch-driver/batch/static/compiled-js', 'batch/batch/driver/static/compiled-js'),
+    ('/batch-driver/batch-driver/static/compiled-js', 'batch/batch/driver/static/compiled-js'),
     ('/batch-driver/batch_driver/static/js', 'batch/batch/driver/static/js'),
     ('/ci/ci/static/compiled-js', 'ci/ci/static/compiled-js'),
     ('/monitoring/monitoring/static/compiled-js', 'monitoring/monitoring/static/compiled-js'),
@@ -52,6 +53,7 @@ _SWAGGER_JS = 'services/ui/dist/shared/swagger.js'
 _SWAGGER_CSS = 'services/ui/dist/shared/swagger.css'
 _SWAGGER_SVCPATHS = [
     ('batch', 'batch'),
+    ('batch-driver', 'batch-driver'),
     ('ci', 'ci'),
     ('monitoring', 'monitoring'),
     ('auth', 'auth'),
@@ -96,24 +98,28 @@ def _backend_url(service: str, raw_path: str) -> str:
 
 # Pages served from local templates (React shell with client-side data fetching).
 # Paths include the service prefix that matches the new URL model.
-_LOCAL_REACT_ROUTES: list[tuple[str, str, str, str]] = [
-    ('monitoring',   'GET', '/monitoring/helloreact', 'hello_react.html'),
-    ('auth',         'GET', '/auth/helloreact', 'hello_react.html'),
-    ('batch-driver', 'GET', '/batch-driver/helloreact', 'hello_react.html'),
-    ('ci',           'GET', '/ci/flaky_tests', 'flaky_tests.html'),
-    ('batch',        'GET', '/batch/swagger', 'swagger/index.html'),
-    ('ci',           'GET', '/ci/swagger', 'swagger/index.html'),
-    ('monitoring',   'GET', '/monitoring/swagger', 'swagger/index.html'),
-    ('auth',         'GET', '/auth/swagger', 'swagger/index.html'),
+# Tuple: (service, verb, path, template, extra_page_context)
+_LOCAL_REACT_ROUTES: list[tuple[str, str, str, str, dict]] = [
+    ('monitoring',   'GET', '/monitoring/helloreact', 'hello_react.html', {}),
+    ('auth',         'GET', '/auth/helloreact', 'hello_react.html', {}),
+    ('batch-driver', 'GET', '/batch-driver/', 'index_react.html', {}),
+    ('batch-driver', 'GET', '/batch-driver', 'index_react.html', {}),
+    ('batch-driver', 'GET', '/batch-driver/swagger', 'swagger/index.html', {}),
+    ('ci',           'GET', '/ci/flaky_tests', 'flaky_tests.html', {}),
+    ('batch',        'GET', '/batch/swagger', 'swagger/index.html', {}),
+    ('ci',           'GET', '/ci/swagger', 'swagger/index.html', {}),
+    ('monitoring',   'GET', '/monitoring/swagger', 'swagger/index.html', {}),
+    ('auth',         'GET', '/auth/swagger', 'swagger/index.html', {}),
 ]
 
-for _service, _verb, _path, _template in _LOCAL_REACT_ROUTES:
+for _service, _verb, _path, _template, _extra_ctx in _LOCAL_REACT_ROUTES:
     async def _local_handler(
         request: web.Request,
         _s: str = _service,
         _t: str = _template,
+        _ctx: dict = _extra_ctx,
     ) -> web.Response:
-        return await _render_html(request, _s, _FAKE_DEV_USERDATA, _t, {'use_tailwind': True})
+        return await _render_html(request, _s, _FAKE_DEV_USERDATA, _t, {'use_tailwind': True, **_ctx})
     _decorator = web_security_headers_swagger if _template.startswith('swagger/') else web_security_headers
     routes.route(_verb, _path)(_decorator(_local_handler))
 

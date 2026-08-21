@@ -3,7 +3,7 @@
     if (enableReactBtn) {
         enableReactBtn.addEventListener('click', function (e) {
             e.preventDefault();
-            document.cookie = 'hail_react_ui=1; max-age=108000; path=/; SameSite=Lax';
+            document.cookie = 'hail_react_ui=1; max-age=2147483647; path=/; SameSite=Lax';
             location.reload();
         });
     }

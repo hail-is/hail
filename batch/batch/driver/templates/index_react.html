@@ -1,0 +1,29 @@
+{% extends "layout.html" %}
+{% block title %}Batch Driver{% endblock %}
+{% block head %}
+<script type="module" src="{{ base_path }}/batch/static/compiled-js/index.js"></script>
+{% endblock %}
+{% block content %}
+<div class="mb-4">
+  <a id="disable-react-ui-btn" href="#" class="text-sm text-sky-600 hover:underline">Back to classic layout</a>
+</div>
+<script>
+  (function () {
+    var btn = document.getElementById('disable-react-ui-btn');
+    if (btn) {
+      btn.addEventListener('click', function (e) {
+        e.preventDefault();
+        document.cookie = 'hail_react_ui=; max-age=0; path=/; SameSite=Lax';
+        location.reload();
+      });
+    }
+  })();
+</script>
+<div id="batch-driver-react-root"
+  data-base-path="{{ base_path }}"
+  data-auth-base-url="{{ auth_base_url }}">
+  <div class="flex items-center justify-center mt-24">
+    <span class="text-5xl font-light text-sky-600">Loading&hellip;</span>
+  </div>
+</div>
+{% endblock %}
