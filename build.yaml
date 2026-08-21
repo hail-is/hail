@@ -956,6 +956,9 @@ steps:
     forceIfLabeled:
       - run-dataproc-tests
     onlyIfRelease: true
+    scopes:
+      - deploy
+      - dev
     clouds:
       - gcp
   - kind: runImage
@@ -4108,6 +4111,9 @@ steps:
           valueFrom: default_ns.name
         mountPath: /hail-ci-0-1-github-oauth-token
     onlyIfRelease: true
+    scopes:
+      - deploy
+      - dev
     dependsOn:
       - default_ns
       - ci_utils_image
@@ -4136,6 +4142,9 @@ steps:
   - kind: runImage
     name: start_hail_benchmark
     onlyIfRelease: true
+    scopes:
+      - deploy
+      - dev
     clouds:
       - gcp
     dependsOn:
