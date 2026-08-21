@@ -23,7 +23,7 @@ from hailtop.utils import async_to_blocking
 
 from ..fs.hadoop_fs import HadoopFS
 from .backend import local_jar_information
-from .py4j_backend import Py4JBackend, _log_suppress_shutdown_exceptions, raise_when_mismatched_hail_versions
+from .py4j_backend import Py4JBackend, _log_suppress_exceptions, raise_when_mismatched_hail_versions
 
 
 def _modify_spark_conf(conf: pyspark.SparkConf, key: str, update: Callable[[str | None], str]):
@@ -241,9 +241,9 @@ class SparkBackend(Py4JBackend):
     def stop(self):
         try:
             if self._hail_managed_spark:
-                _log_suppress_shutdown_exceptions(self._spark.stop)
+                _log_suppress_exceptions(self._spark.stop)
                 super().stop()
-                _log_suppress_shutdown_exceptions(lambda: SparkContext._gateway.shutdown())
+                _log_suppress_exceptions(lambda: SparkContext._gateway.shutdown())
 
                 # clean up pyspark's global state to support
                 # re-init with different spark conf; pyspark only does this

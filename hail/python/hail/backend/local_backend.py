@@ -6,7 +6,7 @@ from py4j.java_gateway import JavaGateway, JavaObject, Py4JJavaError
 from hail.backend.backend import fatal_error_from_java_error_triplet
 from hail.backend.py4j_backend import (
     Py4JBackend,
-    _log_suppress_shutdown_exceptions,
+    _log_suppress_exceptions,
     raise_when_mismatched_hail_versions,
     start_py4j_gateway,
 )
@@ -77,4 +77,4 @@ class LocalBackend(Py4JBackend):
         try:
             super().stop()
         finally:
-            _log_suppress_shutdown_exceptions(self._gateway.shutdown)
+            _log_suppress_exceptions(self._gateway.shutdown)
