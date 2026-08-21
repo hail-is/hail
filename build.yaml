@@ -3769,6 +3769,9 @@ steps:
   #       namespace:
   #         valueFrom: default_ns.name
   #       mountPath: /test-dataproc-service-account-key
+  #   scopes:
+  #     - deploy
+  #     - dev
   #   forceIfLabeled:
   #     - run-dataproc-tests
   #   onlyIfRelease: true
@@ -3808,6 +3811,9 @@ steps:
   #       namespace:
   #         valueFrom: default_ns.name
   #       mountPath: /test-dataproc-service-account-key
+  #   scopes:
+  #     - deploy
+  #     - dev
   #   forceIfLabeled:
   #     - run-dataproc-tests
   #   onlyIfRelease: true
