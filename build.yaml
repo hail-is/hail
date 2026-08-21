@@ -480,6 +480,8 @@ steps:
         script: /io/sql/010-refactor-roles.sql
       - name: refactor-system-permissions
         script: /io/sql/011-refactor-system-permissions.sql
+      - name: add-create-quotes-permission
+        script: /io/sql/012-add-create-quotes-permission.sql
     inputs:
       - from: /repo/auth/sql
         to: /io/sql
@@ -2590,6 +2592,9 @@ steps:
         online: true
       - name: add-dockerhub-proxy-flag
         script: /io/sql/120-add-dockerhub-proxy-flag.sql
+        online: true
+      - name: billing-quotes
+        script: /io/sql/121-billing-quotes.sql
         online: true
     inputs:
       - from: /repo/batch/sql
