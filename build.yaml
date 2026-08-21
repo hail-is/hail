@@ -26,7 +26,7 @@ steps:
       mkdir -p repo
       cd repo
       {{ code.checkout_script }}
-      make -C hail python-version-info HAIL_BUILD_MODE=Release MILLOPTS=--no-daemon
+      make -C hail python-version-info env/SPARK_VERSION HAIL_BUILD_MODE=Release MILLOPTS=--no-daemon
     outputs:
       - from: /io/repo/
         to: /repo
@@ -1103,6 +1103,7 @@ steps:
 
       cd /io/batch/jvm-entryway
       time retry sh mill --no-daemon --version
+      sh mill --no-daemon palantirformat --check
       sh mill --no-daemon assembly
     inputs:
       - from: /repo/batch
@@ -2663,7 +2664,7 @@ steps:
       - hailgenetics_hailtop_image
       - deploy_batch
   - kind: runImage
-    name: upload_query_jar
+    name: upload_spark_jars
     image:
       valueFrom: hailgenetics_hailtop_image.image
     script: |
@@ -2671,19 +2672,51 @@ steps:
       export GOOGLE_APPLICATION_CREDENTIALS=/batch-gsa-key/key.json
 
       {% if deploy %}
-      HAIL_QUERY_JAR_URL={{ global.query_storage_uri }}
+      export JAR_PREFIX={{ global.query_storage_uri }}
       {% else %}
-      HAIL_QUERY_JAR_URL={{ global.test_storage_uri }}/{{ default_ns.name }}
+      export JAR_PREFIX={{ global.test_storage_uri }}/{{ default_ns.name }}
       {% endif %}
-      HAIL_QUERY_JAR_URL=${HAIL_QUERY_JAR_URL}/jars/$(cat /io/REVISION).jar
 
-      python3 -m hailtop.aiotools.copy 'null' '[{"from": "/io/hail.jar", "to": "'${HAIL_QUERY_JAR_URL}'"}]'
+      bash /io/upload-spark-jars.sh {{ default_ns.name }} $(cat /io/SPARK_VERSION)
     secrets:
       - name: batch-gsa-key
         namespace:
           valueFrom: default_ns.name
         mountPath: /batch-gsa-key
     inputs:
+      - from: /repo/hail/scripts/upload-spark-jars.sh
+        to: /io/upload-spark-jars.sh
+      - from: /repo/hail/env/SPARK_VERSION
+        to: /io/SPARK_VERSION
+    dependsOn:
+      - default_ns
+      - merge_code
+      - create_test_gsa_keys
+      - hailgenetics_hailtop_image
+  - kind: runImage
+    name: upload_query_jar
+    image:
+      valueFrom: hailgenetics_hailtop_image.image
+    script: |
+      set -ex
+      export GOOGLE_APPLICATION_CREDENTIALS=/batch-gsa-key/key.json
+      export UPLOAD_RELEASE_JAR=true
+      
+      {% if deploy %}
+      export JAR_PREFIX={{ global.query_storage_uri }}
+      {% else %}
+      export JAR_PREFIX={{ global.test_storage_uri }}/{{ default_ns.name }}
+      {% endif %}
+
+      bash /io/upload-qob-jar.sh {{ default_ns.name }} $(cat /io/REVISION) /io/hail.jar
+    secrets:
+      - name: batch-gsa-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /batch-gsa-key
+    inputs:
+      - from: /repo/hail/scripts/upload-qob-jar.sh
+        to: /io/upload-qob-jar.sh
       - from: /derived/release/hail/out/hail/2.12/assembly.dest/out.jar
         to: /io/hail.jar
       - from: /repo/hail/env/REVISION
@@ -2695,6 +2728,7 @@ steps:
       - build_hail_jar_and_wheel
       - merge_code
       - create_test_gsa_keys
+      - upload_spark_jars
   - kind: runImage
     name: test_hail_python_service_backend_gcp
     scopes:
@@ -2765,6 +2799,7 @@ steps:
       - create_accounts
       - hail_run_image
       - upload_query_jar
+      - upload_spark_jars
       - upload_test_resources_to_blob_storage
       - build_hail_jar_and_wheel
       - hailgenetics_vep_grch37_85_image
@@ -3622,6 +3657,7 @@ steps:
     dependsOn:
       - hailgenetics_hail_image
       - upload_query_jar
+      - upload_spark_jars
       - create_deploy_config
       - create_accounts
       - default_ns
@@ -4050,6 +4086,7 @@ steps:
       - build_debug_hail_test
       - build_hail_test_artifacts
       - upload_query_jar
+      - upload_spark_jars
       - deploy_batch
       - download_mill_and_maven_deps
   - kind: runImage

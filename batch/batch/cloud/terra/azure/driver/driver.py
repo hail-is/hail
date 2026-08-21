@@ -41,7 +41,7 @@ from ....azure.resource_utils import (
     azure_worker_memory_per_core_mib,
     azure_worker_properties_to_machine_type,
 )
-from ....utils import ACCEPTABLE_QUERY_JAR_URL_PREFIX
+from ....utils import ACCEPTABLE_QUERY_JAR_URL_PREFIX, SPARK_ARCHIVE_URL_PREFIX
 from ..instance_config import TerraAzureSlimInstanceConfig
 
 log = logging.getLogger('driver')
@@ -160,6 +160,7 @@ write_files:
 
       UNRESERVED_WORKER_DATA_DISK_SIZE_GB=50
       ACCEPTABLE_QUERY_JAR_URL_PREFIX={shq(ACCEPTABLE_QUERY_JAR_URL_PREFIX)}
+      SPARK_ARCHIVE_URL_PREFIX={shq(SPARK_ARCHIVE_URL_PREFIX)}
 
       sudo mkdir -p /host/batch
       sudo mkdir -p /host/logs
@@ -236,6 +237,7 @@ write_files:
       -e WORKSPACE_ID=$WORKSPACE_ID \
       -e UNRESERVED_WORKER_DATA_DISK_SIZE_GB=$UNRESERVED_WORKER_DATA_DISK_SIZE_GB \
       -e ACCEPTABLE_QUERY_JAR_URL_PREFIX=$ACCEPTABLE_QUERY_JAR_URL_PREFIX \
+      -e SPARK_ARCHIVE_URL_PREFIX=$SPARK_ARCHIVE_URL_PREFIX \
       -e REGION=$REGION \
       -v /var/run/docker.sock:/var/run/docker.sock \
       -v /var/run/netns:/var/run/netns:shared \

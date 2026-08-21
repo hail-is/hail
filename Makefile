@@ -62,7 +62,7 @@ check-hail: check-hail-fast pylint-hailtop
 
 .PHONY: check-batch
 check-batch: check-batch-fast pylint-batch
-	cd batch/jvm-entryway && $(MILL) $(MILLOPTS) checkFormat + fix --check
+	cd batch/jvm-entryway && $(MILL) $(MILLOPTS) palantirformat --check
 
 .PHONY: check-services
 check-services: $(CHECK_SERVICES_MODULES)
