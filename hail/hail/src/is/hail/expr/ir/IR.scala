@@ -24,8 +24,6 @@ import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual._
 import is.hail.utils._
 
-import scala.collection.compat._
-
 import java.io.OutputStream
 
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}

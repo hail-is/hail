@@ -9,8 +9,6 @@ import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.utils.Interval
 
-import scala.collection.compat._
-
 import org.apache.spark.sql.Row
 import org.scalacheck.{Arbitrary, Gen}
 import org.scalacheck.Arbitrary.arbitrary

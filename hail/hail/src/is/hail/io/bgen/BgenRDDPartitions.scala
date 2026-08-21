@@ -5,8 +5,6 @@ import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.types.virtual._
 import is.hail.utils._
 
-import scala.collection.compat._
-
 case class FilePartitionInfo(
   metadata: BgenFileMetadata,
   intervals: IndexedSeq[Interval],

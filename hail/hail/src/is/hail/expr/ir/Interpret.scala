@@ -20,7 +20,6 @@ import is.hail.types.tcoerce
 import is.hail.types.virtual._
 import is.hail.utils._
 
-import scala.collection.compat._
 import scala.util.control.ControlThrowable
 
 import org.apache.spark.sql.Row

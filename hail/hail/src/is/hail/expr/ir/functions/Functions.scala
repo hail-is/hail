@@ -20,7 +20,6 @@ import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.{Locus, ReferenceGenome}
 
-import scala.collection.compat._
 import scala.collection.mutable
 import scala.reflect._
 

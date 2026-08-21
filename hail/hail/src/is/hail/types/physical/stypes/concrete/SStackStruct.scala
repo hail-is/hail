@@ -10,8 +10,6 @@ import is.hail.types.physical.stypes.{EmitType, SType, SValue}
 import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructSettable, SBaseStructValue}
 import is.hail.types.virtual.{TBaseStruct, TStruct, TTuple, Type}
 
-import scala.collection.compat._
-
 object SStackStruct {
   val MAX_FIELDS_FOR_CONSTRUCT: Int = 64
 

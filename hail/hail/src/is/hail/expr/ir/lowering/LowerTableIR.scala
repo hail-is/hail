@@ -20,8 +20,6 @@ import is.hail.types.physical.{PCanonicalBinary, PCanonicalTuple}
 import is.hail.types.virtual._
 import is.hail.utils._
 
-import scala.collection.compat._
-
 import org.apache.spark.sql.Row
 
 class LowererUnsupportedOperation(msg: String = null) extends Exception(msg)

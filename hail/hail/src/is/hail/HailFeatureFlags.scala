@@ -7,7 +7,6 @@ import is.hail.expr.ir.agg
 import is.hail.expr.ir.lowering.{invariant, Optimize}
 import is.hail.types.encoded.EType
 
-import scala.collection.compat._
 import scala.collection.mutable
 
 import org.json4s.JsonAST.{JArray, JObject, JString}

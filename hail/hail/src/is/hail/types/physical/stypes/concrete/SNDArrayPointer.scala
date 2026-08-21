@@ -11,8 +11,6 @@ import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual.Type
 
-import scala.collection.compat._
-
 final case class SNDArrayPointer(pType: PCanonicalNDArray) extends SNDArray {
   require(!pType.required)
 

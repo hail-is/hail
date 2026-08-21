@@ -5,8 +5,6 @@ import is.hail.scalacheck.ArbitraryPTypeInstances.DefaultRequiredGenRatio
 import is.hail.types.physical._
 import is.hail.variant.ReferenceGenome
 
-import scala.collection.compat._
-
 import org.scalacheck.{Arbitrary, Gen}
 import org.scalacheck.Arbitrary.arbitrary
 import org.scalacheck.Gen._

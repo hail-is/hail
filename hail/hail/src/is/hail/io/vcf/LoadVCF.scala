@@ -32,7 +32,6 @@ import is.hail.variant._
 import scala.annotation.meta.param
 import scala.annotation.switch
 import scala.collection.BufferedIterator
-import scala.collection.compat._
 import scala.jdk.CollectionConverters._
 
 import htsjdk.variant.vcf._

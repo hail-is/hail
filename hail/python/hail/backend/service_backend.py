@@ -13,7 +13,7 @@ import hailtop.aiotools.fs as afs
 from hail.context import TemporaryDirectory, TemporaryFilename
 from hail.experimental import read_expression, write_expression
 from hail.utils import FatalError, maybe
-from hail.version import __revision__, __version__
+from hail.version import __revision__, __spark_version__, __version__
 from hailtop import yamlx
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
 from hailtop.aiotools.fs.exceptions import UnexpectedEOFError
@@ -314,6 +314,11 @@ class ServiceBackend(Backend):
             self._job_group = self._batch.create_job_group(attributes={'name': name})
             self._batch.create_jvm_job(
                 jar_spec=self.jar_spec,
+                # We build one jar that serves both managed spark environments and batch.
+                # That jar requires that spark and its bundled libraries are provided by
+                # the runtime. Batch workers must put the jars of the spark version this
+                # build of hail was compiled against on the classpath.
+                spark_version=__spark_version__,
                 argv=[
                     ServiceBackend.DRIVER,
                     name,

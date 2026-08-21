@@ -13,7 +13,6 @@ import is.hail.types.virtual.{MatrixType, TArray, TInterval, TStream, TableType,
 import is.hail.utils.{space => _, _}
 import is.hail.utils.prettyPrint._
 
-import scala.collection.compat._
 import scala.collection.mutable
 
 import org.json4s.DefaultFormats

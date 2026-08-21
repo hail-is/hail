@@ -11,7 +11,6 @@ import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant._
 
-import scala.collection.compat._
 import scala.collection.mutable
 
 import org.apache.spark.sql.Row

@@ -5,7 +5,6 @@ import is.hail.asm4s.HailClassLoader
 import is.hail.backend.{ExecuteContext, HailStateManager, HailTaskContext}
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
 import is.hail.collection.FastSeq
-import is.hail.collection.compat._
 import is.hail.collection.compat.immutable.ArraySeq
 import is.hail.collection.implicits._
 import is.hail.expr.ir.InferPType
@@ -1145,7 +1144,7 @@ object RVD extends Logging {
     }.flatten
 
     val kOrd = PartitionBoundOrdering(sm, typ.kType.virtualType).toOrdering
-    ArraySeq.unsafeWrapArray(keyInfo.sortInPlaceBy(_.min)(kOrd).array)
+    ArraySeq.unsafeWrapArray(keyInfo.sortedInPlaceBy(_.min)(kOrd))
   }
 
   def coerce(

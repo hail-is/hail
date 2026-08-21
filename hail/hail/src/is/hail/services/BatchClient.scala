@@ -10,9 +10,7 @@ import is.hail.services.oauth2.CloudCredentials
 import is.hail.services.requests.{ClientResponseException, Requester}
 import is.hail.utils._
 
-import scala.collection.compat.immutable.LazyList
-
-import java.net.{URL, URLEncoder}
+import java.net.{URI, URLEncoder}
 import java.nio.charset.StandardCharsets.UTF_8
 
 import org.apache.http.entity.ByteArrayEntity
@@ -50,7 +48,9 @@ case class JobRequest(
 
 sealed trait JobProcess
 case class BashJob(image: String, command: Array[String]) extends JobProcess
-case class JvmJob(command: Array[String], spec: JarSpec, profile: Boolean) extends JobProcess
+
+case class JvmJob(command: Array[String], spec: JarSpec, profile: Boolean, sparkVersion: String)
+    extends JobProcess
 
 sealed trait JarSpec
 case class GitRevision(sha: String) extends JarSpec
@@ -140,7 +140,7 @@ object BatchClient {
   ): BatchClient =
     new BatchClient(
       Requester(
-        new URL(deployConfig.baseUrl("batch")),
+        URI.create(deployConfig.baseUrl("batch")).toURL,
         credentials.scoped(RequiredOAuth2Scopes(env)),
       )
     )
@@ -155,12 +155,13 @@ object BatchClient {
                 "image" -> JString(image),
                 "command" -> JArray(command.map(JString).toList),
               )
-            case JvmJob(command, jarSpec, profile) =>
+            case JvmJob(command, jarSpec, profile, sparkVersion) =>
               JObject(
                 "type" -> JString("jvm"),
                 "command" -> JArray(command.map(JString).toList),
                 "jar_spec" -> Extraction.decompose(jarSpec),
                 "profile" -> JBool(profile),
+                "spark_version" -> JString(sparkVersion),
               )
           },
         )
@@ -328,15 +329,15 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
 
     paginated(Some(0): Option[Int]) {
       case Some(jobId) =>
-        req.get(
-          s"/api/v2alpha/batches/$batchId/job-groups/$jobGroupId/jobs?q=$q&last_job_id=$jobId"
+        val response =
+          req.get(
+            s"/api/v2alpha/batches/$batchId/job-groups/$jobGroupId/jobs?q=$q&last_job_id=$jobId"
+          )
+
+        (
+          (response \ "jobs").extract[IndexedSeq[JobListEntry]],
+          (response \ "last_job_id").extract[Option[Int]],
         )
-          .as { case obj: JObject =>
-            (
-              (obj \ "jobs").extract[IndexedSeq[JobListEntry]],
-              (obj \ "last_job_id").extract[Option[Int]],
-            )
-          }
       case None =>
         (IndexedSeq.empty, None)
     }
@@ -409,23 +410,24 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
         )
     }
 
-  private[this] def beginUpdate(batchId: Int, token: String, nJobs: Int): (Int, Int, Int) =
-    req
-      .post(
-        s"/api/v1alpha/batches/$batchId/updates/create",
-        JObject(
-          "token" -> JString(token),
-          "n_jobs" -> JInt(nJobs),
-          "n_job_groups" -> JInt(1),
-        ),
-      )
-      .as { case obj: JObject =>
-        (
-          (obj \ "update_id").extract[Int],
-          (obj \ "start_job_group_id").extract[Int],
-          (obj \ "start_job_id").extract[Int],
+  private[this] def beginUpdate(batchId: Int, token: String, nJobs: Int): (Int, Int, Int) = {
+    val response =
+      req
+        .post(
+          s"/api/v1alpha/batches/$batchId/updates/create",
+          JObject(
+            "token" -> JString(token),
+            "n_jobs" -> JInt(nJobs),
+            "n_job_groups" -> JInt(1),
+          ),
         )
-      }
+
+    (
+      (response \ "update_id").extract[Int],
+      (response \ "start_job_group_id").extract[Int],
+      (response \ "start_job_id").extract[Int],
+    )
+  }
 
   private[this] def commitUpdate(batchId: Int, updateId: Int): Unit =
     req.patch(s"/api/v1alpha/batches/$batchId/updates/$updateId/commit"): Unit
