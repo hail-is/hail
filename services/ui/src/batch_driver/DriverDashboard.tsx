@@ -192,15 +192,15 @@ function FloatingTip({ tip }: { tip: TipState }): JSX.Element | null {
 
 function PoolUsageBar({ ic, maxInstances }: { ic: InstCollSummary; maxInstances: number }): JSX.Element {
   const [tip, onEnter, onLeave] = useTip();
-  if (maxInstances === 0 || ic.max_live_instances === 0) return <td className={TD_BASE} />;
+  if (maxInstances === 0 || ic.max_instances === 0) return <td className={TD_BASE} />;
   const pending  = ic.all_versions_instances_by_state['pending'] ?? 0;
   const active   = ic.all_versions_instances_by_state['active'] ?? 0;
   const inactive = ic.all_versions_instances_by_state['inactive'] ?? 0;
   const deleted  = ic.all_versions_instances_by_state['deleted'] ?? 0;
   const used   = pending + active + inactive + deleted;
-  const unused = Math.max(0, ic.max_live_instances - used);
-  const barPct = (ic.max_live_instances / maxInstances) * 100;
-  const pct = (n: number) => ` (${((n / ic.max_live_instances) * 100).toFixed(1)}%)`;
+  const unused = Math.max(0, ic.max_instances - used);
+  const barPct = (ic.max_instances / maxInstances) * 100;
+  const pct = (n: number) => ` (${((n / ic.max_instances) * 100).toFixed(1)}%)`;
   const segments: [number, string, string][] = [
     [pending,  'bg-sky-300',    `Pending: ${pending}${pct(pending)}`],
     [active,   'bg-green-500',  `Active: ${active}${pct(active)}`],
@@ -212,7 +212,7 @@ function PoolUsageBar({ ic, maxInstances }: { ic: InstCollSummary; maxInstances:
       <div className="h-3.5 w-40">
         <div className="flex h-full bg-zinc-300 rounded overflow-hidden" style={{ width: `${barPct}%` }}>
           {segments.map(([value, color, label], i) => {
-            const pct = (value / ic.max_live_instances) * 100;
+            const pct = (value / ic.max_instances) * 100;
             return pct > 0 ? (
               <div key={i} className={`${color} h-full flex-shrink-0`} style={{ width: `${pct}%` }}
                 onMouseEnter={onEnter(label)} onMouseLeave={onLeave} />
@@ -277,7 +277,7 @@ function InstCollRow({ ic, href, showSchedulable, maxInstances }: {
       <TdNum>{ic.all_versions_instances_by_state.active ?? 0}</TdNum>
       <TdNum>{ic.all_versions_instances_by_state.inactive ?? 0}</TdNum>
       <TdNum>{ic.all_versions_instances_by_state.deleted ?? 0}</TdNum>
-      <TdNum>{ic.max_live_instances}</TdNum>
+      <TdNum>{ic.max_instances}</TdNum>
       <Td />
       <TdNum>{(ic.all_versions_cores_mcpu_by_state.pending ?? 0) / 1000}</TdNum>
       <TdNum>{(ic.all_versions_cores_mcpu_by_state.active ?? 0) / 1000}</TdNum>
@@ -306,7 +306,7 @@ function InstCollsTable({ pools, jpim, globalStats, basePath }: {
   basePath: string;
 }): JSX.Element {
   const allIcs = [...pools, jpim];
-  const maxInstances = Math.max(1, ...allIcs.map((ic) => ic.max_live_instances));
+  const maxInstances = Math.max(1, ...allIcs.map((ic) => ic.max_instances));
   return (
     <div className="overflow-x-auto">
       <table className="min-w-[600px] border-collapse">
