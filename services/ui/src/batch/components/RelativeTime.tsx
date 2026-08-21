@@ -1,13 +1,5 @@
 import { useState, useEffect } from 'react';
-
-function formatRelative(ms: number): string {
-  const diff = Date.now() - ms;
-  const abs = Math.abs(diff);
-  if (abs < 60_000) return `${Math.round(abs / 1000)}s ago`;
-  if (abs < 3_600_000) return `${Math.round(abs / 60_000)}m ago`;
-  if (abs < 86_400_000) return `${Math.round(abs / 3_600_000)}h ago`;
-  return `${Math.round(abs / 86_400_000)}d ago`;
-}
+import { formatRelative } from '../../shared/timeUtils';
 
 function formatAbsolute(ms: number): string {
   return new Date(ms).toLocaleString();
