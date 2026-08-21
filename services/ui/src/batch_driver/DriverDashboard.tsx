@@ -9,10 +9,23 @@ const REFRESH_INTERVAL_MS = 30_000;
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
+interface InstanceStateCounts {
+  pending?: number;
+  active?: number;
+  inactive?: number;
+  deleted?: number;
+}
+
+interface KnownFeatureFlags {
+  compact_billing_tables?: boolean;
+  oms_agent?: boolean;
+  dockerhub_proxy?: boolean;
+}
+
 interface InstCollSummary {
   name: string;
-  all_versions_instances_by_state: Record<string, number>;
-  all_versions_cores_mcpu_by_state: Record<string, number>;
+  all_versions_instances_by_state: InstanceStateCounts;
+  all_versions_cores_mcpu_by_state: InstanceStateCounts;
   max_live_instances: number;
   max_instances: number;
   schedulable_free_cores_mcpu: number;
@@ -20,8 +33,8 @@ interface InstCollSummary {
 }
 
 interface GlobalStats {
-  n_instances_by_state: Record<string, number>;
-  cores_mcpu_by_state: Record<string, number>;
+  n_instances_by_state: InstanceStateCounts;
+  cores_mcpu_by_state: InstanceStateCounts;
   schedulable_free_cores_mcpu: number;
   schedulable_cores_mcpu: number;
 }
@@ -30,7 +43,7 @@ interface DriverData {
   instance_id: string;
   frozen: boolean;
   ready_cores_mcpu: number;
-  feature_flags: Record<string, boolean>;
+  feature_flags: KnownFeatureFlags;
   pools: InstCollSummary[];
   jpim: InstCollSummary;
   global_stats: GlobalStats;
@@ -155,8 +168,6 @@ function SortTh({ col, label, sortCol, sortDir, onSort }: {
 
 // ── Instance Collections table ────────────────────────────────────────────────
 
-const STATES = ['pending', 'active', 'inactive', 'deleted'] as const;
-
 type TipState = { text: string; x: number; y: number } | null;
 
 function useTip(): [TipState, (text: string) => (e: React.MouseEvent) => void, () => void] {
@@ -261,14 +272,16 @@ function InstCollRow({ ic, href, showSchedulable, maxInstances }: {
   return (
     <DataTr>
       <Td><a href={href} className="text-sky-700 hover:underline">{ic.name}</a></Td>
-      {STATES.map((s) => (
-        <TdNum key={s}>{ic.all_versions_instances_by_state[s] ?? 0}</TdNum>
-      ))}
+      <TdNum>{ic.all_versions_instances_by_state.pending ?? 0}</TdNum>
+      <TdNum>{ic.all_versions_instances_by_state.active ?? 0}</TdNum>
+      <TdNum>{ic.all_versions_instances_by_state.inactive ?? 0}</TdNum>
+      <TdNum>{ic.all_versions_instances_by_state.deleted ?? 0}</TdNum>
       <TdNum>{ic.max_live_instances}</TdNum>
       <Td />
-      {STATES.map((s) => (
-        <TdNum key={s}>{(ic.all_versions_cores_mcpu_by_state[s] ?? 0) / 1000}</TdNum>
-      ))}
+      <TdNum>{(ic.all_versions_cores_mcpu_by_state.pending ?? 0) / 1000}</TdNum>
+      <TdNum>{(ic.all_versions_cores_mcpu_by_state.active ?? 0) / 1000}</TdNum>
+      <TdNum>{(ic.all_versions_cores_mcpu_by_state.inactive ?? 0) / 1000}</TdNum>
+      <TdNum>{(ic.all_versions_cores_mcpu_by_state.deleted ?? 0) / 1000}</TdNum>
       <Td />
       {showSchedulable ? (
         <>
@@ -325,13 +338,15 @@ function InstCollsTable({ pools, jpim, globalStats, basePath }: {
         <tfoot>
           <tr>
             <FootTd>Total</FootTd>
-            {STATES.map((s) => (
-              <FootTd key={s} className="text-right tabular-nums">{globalStats.n_instances_by_state[s] ?? 0}</FootTd>
-            ))}
+            <FootTd className="text-right tabular-nums">{globalStats.n_instances_by_state.pending ?? 0}</FootTd>
+            <FootTd className="text-right tabular-nums">{globalStats.n_instances_by_state.active ?? 0}</FootTd>
+            <FootTd className="text-right tabular-nums">{globalStats.n_instances_by_state.inactive ?? 0}</FootTd>
+            <FootTd className="text-right tabular-nums">{globalStats.n_instances_by_state.deleted ?? 0}</FootTd>
             <FootTd /><FootTd />
-            {STATES.map((s) => (
-              <FootTd key={s} className="text-right tabular-nums">{(globalStats.cores_mcpu_by_state[s] ?? 0) / 1000}</FootTd>
-            ))}
+            <FootTd className="text-right tabular-nums">{(globalStats.cores_mcpu_by_state.pending ?? 0) / 1000}</FootTd>
+            <FootTd className="text-right tabular-nums">{(globalStats.cores_mcpu_by_state.active ?? 0) / 1000}</FootTd>
+            <FootTd className="text-right tabular-nums">{(globalStats.cores_mcpu_by_state.inactive ?? 0) / 1000}</FootTd>
+            <FootTd className="text-right tabular-nums">{(globalStats.cores_mcpu_by_state.deleted ?? 0) / 1000}</FootTd>
             <FootTd />
             <FootTd className="text-right tabular-nums">{globalStats.schedulable_free_cores_mcpu / 1000}</FootTd>
             <FootTd className="text-right tabular-nums">{globalStats.schedulable_cores_mcpu / 1000}</FootTd>
@@ -455,17 +470,15 @@ function InstancesTable({ instances }: { instances: InstanceData[] }): JSX.Eleme
 
 // ── Feature Flags section ─────────────────────────────────────────────────────
 
-const KNOWN_FLAGS = ['compact_billing_tables', 'oms_agent', 'dockerhub_proxy'] as const;
-
 function FeatureFlagsSection({
   flags, canUpdate, basePath, onFlagsUpdated,
 }: {
-  flags: Record<string, boolean>;
+  flags: KnownFeatureFlags;
   canUpdate: boolean;
   basePath: string;
-  onFlagsUpdated: (_flags: Record<string, boolean>) => void;
+  onFlagsUpdated: (_flags: KnownFeatureFlags) => void;
 }): JSX.Element {
-  const [localFlags, setLocalFlags] = useState<Record<string, boolean> | null>(null);
+  const [localFlags, setLocalFlags] = useState<KnownFeatureFlags | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -476,7 +489,7 @@ function FeatureFlagsSection({
     setSaving(true);
     setError(null);
     try {
-      const result = await apiFetch<Record<string, boolean>>(`${basePath}/api/v1alpha/feature_flags`, {
+      const result = await apiFetch<KnownFeatureFlags>(`${basePath}/api/v1alpha/feature_flags`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(localFlags),
@@ -493,25 +506,30 @@ function FeatureFlagsSection({
   if (!canUpdate) {
     return (
       <div className="ml-4 space-y-1 text-sm">
-        {KNOWN_FLAGS.map((k) => (
-          <div key={k}>{k}: <span className="font-mono">{String(flags[k] ?? false)}</span></div>
-        ))}
+        <div>compact_billing_tables: <span className="font-mono">{String(flags.compact_billing_tables ?? false)}</span></div>
+        <div>oms_agent: <span className="font-mono">{String(flags.oms_agent ?? false)}</span></div>
+        <div>dockerhub_proxy: <span className="font-mono">{String(flags.dockerhub_proxy ?? false)}</span></div>
       </div>
     );
   }
 
   return (
     <div className="ml-4">
-      {KNOWN_FLAGS.map((flag) => (
-        <label key={flag} className="flex items-center gap-2 mb-1 cursor-pointer text-sm w-fit">
-          <input
-            type="checkbox"
-            checked={display[flag] ?? false}
-            onChange={(e) => { setLocalFlags({ ...(localFlags ?? flags), [flag]: e.target.checked }); }}
-          />
-          {flag}
-        </label>
-      ))}
+      <label className="flex items-center gap-2 mb-1 cursor-pointer text-sm w-fit">
+        <input type="checkbox" checked={display.compact_billing_tables ?? false}
+          onChange={(e) => { setLocalFlags({ ...(localFlags ?? flags), compact_billing_tables: e.target.checked }); }} />
+        compact_billing_tables
+      </label>
+      <label className="flex items-center gap-2 mb-1 cursor-pointer text-sm w-fit">
+        <input type="checkbox" checked={display.oms_agent ?? false}
+          onChange={(e) => { setLocalFlags({ ...(localFlags ?? flags), oms_agent: e.target.checked }); }} />
+        oms_agent
+      </label>
+      <label className="flex items-center gap-2 mb-1 cursor-pointer text-sm w-fit">
+        <input type="checkbox" checked={display.dockerhub_proxy ?? false}
+          onChange={(e) => { setLocalFlags({ ...(localFlags ?? flags), dockerhub_proxy: e.target.checked }); }} />
+        dockerhub_proxy
+      </label>
       {error && <p className="text-red-600 text-sm mt-1">{error}</p>}
       <button
         className="mt-2 px-2 py-0.5 border border-zinc-900 rounded text-sm cursor-pointer hover:text-zinc-500 hover:border-zinc-500 disabled:opacity-40"
