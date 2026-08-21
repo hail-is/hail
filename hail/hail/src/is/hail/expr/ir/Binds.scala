@@ -312,7 +312,7 @@ object Bindings {
           )
         else
           Bindings(accum.map { case (name, value) => (name, value.typ) })
-      case StreamBufferedAggregate(stream, _, _, _, name, _, _) if i > 0 =>
+      case StreamBufferedAggregate(stream, _, _, _, name, _, _) if i > 1 =>
         Bindings(FastSeq(name -> elementType(stream.typ)))
       case RunAggScan(a, name, _, _, _, _) if i == 2 || i == 3 =>
         Bindings(FastSeq(name -> elementType(a.typ)))
