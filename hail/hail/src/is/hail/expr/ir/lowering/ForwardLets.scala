@@ -70,7 +70,7 @@ object ForwardLets extends Logging {
               .getOrElse(x)
           case _ =>
             ir.mapChildrenWithIndex((ir1, i) =>
-              rewrite(ir1, env.extend(Bindings.get(ir, i).dropBindings))
+              rewrite(ir1, env.extend(Bindings.get[Unit](ir, i).dropBindings))
             )
         }
 

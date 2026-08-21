@@ -1260,16 +1260,15 @@ object PruneDeadFields extends Logging {
     memo: ComputeMutableState,
     env: BindingEnv[TypeState],
   ): IndexedSeq[TypeState] = {
-    val bindings = Bindings.get(ir, childIdx)
-    val bindingsStates = bindings.map((_, typ) => TypeState(typ))
+    val bindings = Bindings.get[Type](ir, childIdx).map((_, typ) => TypeState(typ))
     memoizeValueIR(
       ctx,
       ir.getChild(childIdx).asInstanceOf[IR],
       requestedType,
       memo,
-      env.extend(bindingsStates),
+      env.extend(bindings),
     )
-    bindingsStates.all.map(_._2)
+    bindings.all.map(_._2)
   }
 
   /** This function does *not* necessarily bind each child node in `memo`. Known dead code is not
@@ -1301,7 +1300,7 @@ object PruneDeadFields extends Logging {
       createTypeStatesAndMemoize(ctx, ir, childIdx, requestedType, memo, env)
 
     def recur(ir: IR, childIdx: Int, requestedType: Type): Unit = {
-      val bindings = Bindings.get(ir, childIdx)
+      val bindings = Bindings.get[Type](ir, childIdx)
       val bindingsStates = bindings.map((_, typ) => TypeState(typ))
       memoizeValueIR(
         ctx,
@@ -1322,7 +1321,7 @@ object PruneDeadFields extends Logging {
       requestedType: Type,
       bindingsMap: mutable.Map[Name, TypeState],
     ): Unit = {
-      val bindings = Bindings.get(ir, childIdx).map { (name, typ) =>
+      val bindings = Bindings.get[Type](ir, childIdx).map { (name, typ) =>
         val state = bindingsMap.getOrElseUpdate(name, TypeState(typ))
         assert(typ == state.origType)
         state
@@ -1791,16 +1790,18 @@ object PruneDeadFields extends Logging {
         TableRead(requestedTypeWithKey, dropRows, tr)
       case TableFilter(child, pred) =>
         val child2 = rebuild(ctx, child, memo)
-        val pred2 = rebuildIR(ctx, pred, BindingEnv(child2.typ.rowEnv), memo)
+        val t = Algebra.Types.denote(child2)
+        val pred2 = rebuildIR(ctx, pred, BindingEnv(Bindings.Table.rowEnv(t)), memo)
         TableFilter(child2, pred2)
       case TableMapPartitions(child, gName, pName, body, requestedKey, allowedOverlap) =>
         val child2 = rebuild(ctx, child, memo)
+        val t = Algebra.Types.denote(child2)
         val body2 = rebuildIR(
           ctx,
           body,
           BindingEnv(Env(
-            gName -> child2.typ.globalType,
-            pName -> TStream(child2.typ.rowType),
+            gName -> t.global,
+            pName -> TStream(t.row),
           )),
           memo,
         )
@@ -1821,10 +1822,11 @@ object PruneDeadFields extends Logging {
         )
       case TableMapRows(child, newRow) =>
         val child2 = rebuild(ctx, child, memo)
+        val rowEnv = Bindings.Table.rowEnv(Algebra.Types.denote(child2))
         val newRow2 = rebuildIR(
           ctx,
           newRow,
-          BindingEnv(child2.typ.rowEnv, scan = Some(child2.typ.rowEnv)),
+          BindingEnv(rowEnv, scan = Some(rowEnv)),
           memo,
         )
         val newRowType = newRow2.typ.asInstanceOf[TStruct]
@@ -1837,7 +1839,8 @@ object PruneDeadFields extends Logging {
         TableMapRows(child2Keyed, newRow2)
       case TableMapGlobals(child, newGlobals) =>
         val child2 = rebuild(ctx, child, memo)
-        TableMapGlobals(child2, rebuildIR(ctx, newGlobals, BindingEnv(child2.typ.globalEnv), memo))
+        val globalEnv = Bindings.Table.globalEnv(Algebra.Types.denote(child2))
+        TableMapGlobals(child2, rebuildIR(ctx, newGlobals, BindingEnv(globalEnv), memo))
       case TableKeyBy(child, _, isSorted, nPartitions) =>
         var child2 = rebuild(ctx, child, memo)
         val keys2 = requestedType.key
@@ -1886,24 +1889,26 @@ object PruneDeadFields extends Logging {
         TableMultiWayZipJoin(upcasted, fieldName, globalName)
       case TableAggregateByKey(child, expr) =>
         val child2 = rebuild(ctx, child, memo)
+        val t = Algebra.Types.denote(child2)
         TableAggregateByKey(
           child2,
           rebuildIR(
             ctx,
             expr,
-            BindingEnv(child2.typ.globalEnv, agg = Some(child2.typ.rowEnv)),
+            BindingEnv(Bindings.Table.globalEnv(t), agg = Some(Bindings.Table.rowEnv(t))),
             memo,
           ),
         )
       case TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize) =>
         val child2 = rebuild(ctx, child, memo)
+        val t = Algebra.Types.denote(child2)
         val expr2 = rebuildIR(
           ctx,
           expr,
-          BindingEnv(child2.typ.globalEnv, agg = Some(child2.typ.rowEnv)),
+          BindingEnv(Bindings.Table.globalEnv(t), agg = Some(Bindings.Table.rowEnv(t))),
           memo,
         )
-        val newKey2 = rebuildIR(ctx, newKey, BindingEnv(child2.typ.rowEnv), memo)
+        val newKey2 = rebuildIR(ctx, newKey, BindingEnv(Bindings.Table.rowEnv(t)), memo)
         TableKeyByAndAggregate(child2, expr2, newKey2, nPartitions, bufferSize)
       case TableRename(child, rowMap, globalMap) =>
         val child2 = rebuild(ctx, child, memo)
@@ -1955,25 +1960,36 @@ object PruneDeadFields extends Logging {
         MatrixRead(requestedTypeWithKeys, dropCols, dropRows, reader)
       case MatrixFilterCols(child, pred) =>
         val child2 = rebuild(ctx, child, memo)
-        MatrixFilterCols(child2, rebuildIR(ctx, pred, BindingEnv(child2.typ.colEnv), memo))
+        val m = Algebra.Types.denote(child2)
+        MatrixFilterCols(child2, rebuildIR(ctx, pred, BindingEnv(Bindings.Matrix.colEnv(m)), memo))
       case MatrixFilterRows(child, pred) =>
         val child2 = rebuild(ctx, child, memo)
-        MatrixFilterRows(child2, rebuildIR(ctx, pred, BindingEnv(child2.typ.rowEnv), memo))
+        val m = Algebra.Types.denote(child2)
+        MatrixFilterRows(child2, rebuildIR(ctx, pred, BindingEnv(Bindings.Matrix.rowEnv(m)), memo))
       case MatrixFilterEntries(child, pred) =>
         val child2 = rebuild(ctx, child, memo)
-        MatrixFilterEntries(child2, rebuildIR(ctx, pred, BindingEnv(child2.typ.entryEnv), memo))
+        val m = Algebra.Types.denote(child2)
+        MatrixFilterEntries(
+          child2,
+          rebuildIR(ctx, pred, BindingEnv(Bindings.Matrix.entryEnv(m)), memo),
+        )
       case MatrixMapEntries(child, newEntries) =>
         val child2 = rebuild(ctx, child, memo)
-        MatrixMapEntries(child2, rebuildIR(ctx, newEntries, BindingEnv(child2.typ.entryEnv), memo))
+        val m = Algebra.Types.denote(child2)
+        MatrixMapEntries(
+          child2,
+          rebuildIR(ctx, newEntries, BindingEnv(Bindings.Matrix.entryEnv(m)), memo),
+        )
       case MatrixMapRows(child, newRow) =>
         val child2 = rebuild(ctx, child, memo)
+        val m = Algebra.Types.denote(child2)
         val newRow2 = rebuildIR(
           ctx,
           newRow,
           BindingEnv(
-            child2.typ.rowEnv,
-            agg = Some(child2.typ.entryEnv),
-            scan = Some(child2.typ.rowEnv),
+            Bindings.Matrix.rowEnv(m),
+            agg = Some(Bindings.Matrix.entryEnv(m)),
+            scan = Some(Bindings.Matrix.rowEnv(m)),
           ),
           memo,
         )
@@ -1985,13 +2001,14 @@ object PruneDeadFields extends Logging {
         MatrixMapRows(child2Keyed, newRow2)
       case MatrixMapCols(child, newCol, newKey) =>
         val child2 = rebuild(ctx, child, memo)
+        val m = Algebra.Types.denote(child2)
         val newCol2 = rebuildIR(
           ctx,
           newCol,
           BindingEnv(
-            child2.typ.colEnv,
-            agg = Some(child2.typ.entryEnv),
-            scan = Some(child2.typ.colEnv),
+            Bindings.Matrix.colEnv(m),
+            agg = Some(Bindings.Matrix.entryEnv(m)),
+            scan = Some(Bindings.Matrix.colEnv(m)),
           ),
           memo,
         )
@@ -2006,42 +2023,45 @@ object PruneDeadFields extends Logging {
         MatrixMapCols(child2, newCol2, newKey2)
       case MatrixMapGlobals(child, newGlobals) =>
         val child2 = rebuild(ctx, child, memo)
-        MatrixMapGlobals(child2, rebuildIR(ctx, newGlobals, BindingEnv(child2.typ.globalEnv), memo))
+        val globalEnv = Bindings.Matrix.globalEnv(Algebra.Types.denote(child2))
+        MatrixMapGlobals(child2, rebuildIR(ctx, newGlobals, BindingEnv(globalEnv), memo))
       case MatrixKeyRowsBy(child, keys, isSorted) =>
         val child2 = rebuild(ctx, child, memo)
         val keys2 = keys.takeWhile(child2.typ.rowType.hasField)
         MatrixKeyRowsBy(child2, keys2, isSorted)
       case MatrixAggregateRowsByKey(child, entryExpr, rowExpr) =>
         val child2 = rebuild(ctx, child, memo)
+        val m = Algebra.Types.denote(child2)
         MatrixAggregateRowsByKey(
           child2,
           rebuildIR(
             ctx,
             entryExpr,
-            BindingEnv(child2.typ.colEnv, agg = Some(child2.typ.entryEnv)),
+            BindingEnv(Bindings.Matrix.colEnv(m), agg = Some(Bindings.Matrix.entryEnv(m))),
             memo,
           ),
           rebuildIR(
             ctx,
             rowExpr,
-            BindingEnv(child2.typ.globalEnv, agg = Some(child2.typ.rowEnv)),
+            BindingEnv(Bindings.Matrix.globalEnv(m), agg = Some(Bindings.Matrix.rowEnv(m))),
             memo,
           ),
         )
       case MatrixAggregateColsByKey(child, entryExpr, colExpr) =>
         val child2 = rebuild(ctx, child, memo)
+        val m = Algebra.Types.denote(child2)
         MatrixAggregateColsByKey(
           child2,
           rebuildIR(
             ctx,
             entryExpr,
-            BindingEnv(child2.typ.rowEnv, agg = Some(child2.typ.entryEnv)),
+            BindingEnv(Bindings.Matrix.rowEnv(m), agg = Some(Bindings.Matrix.entryEnv(m))),
             memo,
           ),
           rebuildIR(
             ctx,
             colExpr,
-            BindingEnv(child2.typ.globalEnv, agg = Some(child2.typ.colEnv)),
+            BindingEnv(Bindings.Matrix.globalEnv(m), agg = Some(Bindings.Matrix.colEnv(m))),
             memo,
           ),
         )
