@@ -2,8 +2,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { AutoRefreshBar } from '../shared/AutoRefreshBar';
 import { SpinnerIcon } from '../shared/SpinnerIcon';
 import { formatDuration, formatTime } from '../shared/timeUtils';
+import { hasPermission } from '../shared/authUtils';
 
 const REFRESH_INTERVAL_MS = 30_000;
+
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -64,7 +66,17 @@ function pctFree(free: number, total: number): string {
 }
 
 async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
-  const resp = await fetch(url, { credentials: 'same-origin', ...init });
+  const method = (init?.method ?? 'GET').toUpperCase();
+  const csrfHeaders: Record<string, string> = {};
+  if (method !== 'GET' && method !== 'HEAD') {
+    const token = document.head.querySelector('meta[name="csrf"]')?.getAttribute('value');
+    if (token) csrfHeaders['X-CSRF-Token'] = token;
+  }
+  const resp = await fetch(url, {
+    credentials: 'same-origin',
+    ...init,
+    headers: { ...csrfHeaders, ...init?.headers },
+  });
   if (!resp.ok) {
     const text = await resp.text().catch(() => '');
     throw new Error(`HTTP ${resp.status}${text ? ': ' + text : ''}`);
@@ -514,13 +526,11 @@ function FeatureFlagsSection({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function DriverDashboard({ basePath, authBaseUrl }: {
+export function DriverDashboard({ basePath }: {
   basePath: string;
-  authBaseUrl: string;
 }): JSX.Element {
   const [driver, setDriver] = useState<DriverData | null>(null);
   const [instances, setInstances] = useState<InstanceData[]>([]);
-  const [canUpdate, setCanUpdate] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -541,12 +551,7 @@ export function DriverDashboard({ basePath, authBaseUrl }: {
   const fetchData = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     try {
-      const [driverData, permData] = await Promise.all([
-        apiFetch<DriverData>(`${basePath}/api/v1alpha/driver`),
-        isRefresh ? Promise.resolve(null) : apiFetch<{ has_permission: boolean }>(
-          `${authBaseUrl}/api/v1alpha/check_system_permission?permission=update_deployed_system_state`,
-        ),
-      ]);
+      const driverData = await apiFetch<DriverData>(`${basePath}/api/v1alpha/driver`);
 
       const poolFetches = driverData.pools.map((p) =>
         apiFetch<{ items: InstanceData[] }>(`${basePath}/api/v1alpha/inst_coll/pool/${p.name}/instances`),
@@ -558,7 +563,6 @@ export function DriverDashboard({ basePath, authBaseUrl }: {
 
       setDriver(driverData);
       setInstances(instanceResponses.flatMap((r) => r.items));
-      if (permData !== null) setCanUpdate(permData.has_permission);
       setError(null);
       if (isRefresh) setCountdownKey((k) => k + 1);
     } catch (e) {
@@ -567,14 +571,22 @@ export function DriverDashboard({ basePath, authBaseUrl }: {
       setLoading(false);
       if (isRefresh) setRefreshing(false);
     }
-  }, [basePath, authBaseUrl]);
+  }, [basePath]);
 
   useEffect(() => { void fetchData(false); }, [fetchData]);
 
   useEffect(() => {
     if (!autoRefresh) return;
-    const id = setInterval(() => { void fetchData(true); }, REFRESH_INTERVAL_MS);
-    return () => { clearInterval(id); };
+    let cancelled = false;
+    const schedule = (delay: number): ReturnType<typeof setTimeout> =>
+      setTimeout(async () => {
+        if (!cancelled) {
+          await fetchData(true);
+          if (!cancelled) schedule(REFRESH_INTERVAL_MS);
+        }
+      }, delay);
+    const id = schedule(REFRESH_INTERVAL_MS);
+    return () => { cancelled = true; clearTimeout(id); };
   }, [autoRefresh, fetchData]);
 
   const handleFreeze = async (freeze: boolean) => {
@@ -624,7 +636,7 @@ export function DriverDashboard({ basePath, authBaseUrl }: {
         <div>ready cores: <span className="font-mono">{driver.ready_cores_mcpu / 1000}</span></div>
         <div>frozen: <span className="font-mono">{String(driver.frozen)}</span></div>
       </div>
-      {canUpdate && (
+      {hasPermission('update_deployed_system_state') && (
         <div className="mt-2 ml-4">
           {frozenError && <p className="text-red-600 text-sm mb-1">{frozenError}</p>}
           <button
@@ -640,7 +652,7 @@ export function DriverDashboard({ basePath, authBaseUrl }: {
       <h1 className="text-2xl font-semibold mt-6 mb-2">Feature Flags</h1>
       <FeatureFlagsSection
         flags={driver.feature_flags}
-        canUpdate={canUpdate}
+        canUpdate={hasPermission('update_deployed_system_state')}
         basePath={basePath}
         onFlagsUpdated={(updated) => { setDriver((d) => (d ? { ...d, feature_flags: updated } : d)); }}
       />

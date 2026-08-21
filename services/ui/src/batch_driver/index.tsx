@@ -6,7 +6,6 @@ if (el) {
   createRoot(el).render(
     <DriverDashboard
       basePath={el.dataset.basePath ?? ''}
-      authBaseUrl={el.dataset.authBaseUrl ?? ''}
     />,
   );
 }
