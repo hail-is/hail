@@ -331,7 +331,7 @@ run-dev-proxy: ci/ci/static/compiled-js/flaky_tests.js \
     ci/ci/static/compiled-js/swagger.js \
     monitoring/monitoring/static/compiled-js/swagger.js \
     auth/auth/static/compiled-js/swagger.js
-DEVSERVER_TARGETS = tailwind-compile-watch run-dev-proxy ui-js-watch ui-js-watch-batch ui-js-watch-batch-driver ui-js-watch-monitoring ui-js-watch-auth ui-js-watch-swagger
+DEVSERVER_TARGETS = tailwind-compile-watch run-dev-proxy ui-js-watch ui-js-watch-batch ui-js-watch-batch-billing ui-js-watch-batch-driver ui-js-watch-monitoring ui-js-watch-auth ui-js-watch-swagger
 
 .PHONY: run-dev-proxy
 run-dev-proxy:
@@ -347,6 +347,10 @@ ui-js-watch: services/ui/node_modules/.package-lock.json
 .PHONY: ui-js-watch-batch
 ui-js-watch-batch: services/ui/node_modules/.package-lock.json
 	cd services/ui && npx esbuild src/batch/job.tsx --bundle --jsx=automatic --format=esm --outfile=../../batch/batch/front_end/static/compiled-js/job.js --minify --watch=forever
+
+.PHONY: ui-js-watch-batch-billing
+ui-js-watch-batch-billing: services/ui/node_modules/.package-lock.json
+	cd services/ui && npx esbuild src/batch/billing.tsx --bundle --jsx=automatic --format=esm --outfile=../../batch/batch/front_end/static/compiled-js/billing.js --minify --watch=forever
 
 .PHONY: ui-js-watch-batch-driver
 ui-js-watch-batch-driver: services/ui/node_modules/.package-lock.json
