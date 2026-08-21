@@ -16,6 +16,7 @@ from batch.cloud.resource_utils import adjust_cores_for_packability
 from batch.driver.naming import build_inst_coll_regex, make_machine_name
 from batch.utils import rewrite_dockerhub_image
 from hailtop.batch_client.parse import parse_memory_in_bytes
+from hailtop.utils import secret_alnum_string
 
 
 def test_packability():
@@ -244,9 +245,9 @@ _INST_COLL_NAMES = [
     'highmem',
     'lowmem',
     'standard-np',  # hyphenated
-    'pool-abcde',  # 5-char last segment (old suffix length)
-    'pool-abcdef',  # 6-char last segment (half of new suffix)
-    'pool-abcdef-ghijkl',  # 6-6 last two segments (looks like new suffix)
+    'pool-abcde',  # last segment looks like an old 5-char suffix
+    'pool-abcdef',  # last segment looks like half the old 6-6 suffix
+    'pool-abcdef-ghijkl',  # last two segments look like the old 6-6 suffix
     'pool-abcde-fghij',  # two 5-char segments
 ]
 
@@ -256,6 +257,20 @@ def test_machine_name_inst_coll_roundtrip(inst_coll_name):
     manager_prefix = 'batch-worker-default-'
     child_prefix = f'{manager_prefix}{inst_coll_name}-'
     machine_name = make_machine_name(child_prefix)
+    assert len(machine_name) <= 63, f'machine name exceeds GCE limit: {machine_name!r}'
+    match = build_inst_coll_regex(manager_prefix).search(machine_name)
+    assert match is not None, f'regex did not match {machine_name!r}'
+    assert match.group('inst_coll') == inst_coll_name
+
+
+@pytest.mark.parametrize('inst_coll_name', _INST_COLL_NAMES)
+def test_machine_name_inst_coll_roundtrip_long_namespace(inst_coll_name):
+    # Verify names stay within GCE's 63-char limit even with long namespaces (e.g. CI test namespaces).
+    ns = secret_alnum_string(20, case='lower')
+    manager_prefix = f'batch-worker-{ns}-'
+    child_prefix = f'{manager_prefix}{inst_coll_name}-'
+    machine_name = make_machine_name(child_prefix)
+    assert len(machine_name) <= 63, f'machine name exceeds GCE limit: {machine_name!r}'
     match = build_inst_coll_regex(manager_prefix).search(machine_name)
     assert match is not None, f'regex did not match {machine_name!r}'
     assert match.group('inst_coll') == inst_coll_name
