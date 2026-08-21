@@ -1437,10 +1437,11 @@ object LowerTableIR extends Logging {
                               aggsArray
                                 .stream
                                 .grouped(branchFactor)
+                                .streamMap(_.toArray)
                                 .enumerate { (group, idx) =>
                                   makestruct(
                                     "prev" -> last.at(idx),
-                                    "partialSums" -> group.toArray,
+                                    "partialSums" -> group,
                                   )
                                 }
 

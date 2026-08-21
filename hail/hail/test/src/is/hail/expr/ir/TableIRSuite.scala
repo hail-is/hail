@@ -1089,6 +1089,22 @@ class TableIRSuite {
     )
   }
 
+  // # 15700
+  @Test def testTreeAggScanInMapRows(implicit ctx: ExecuteContext): Unit = {
+    val bFactor = 2
+
+    val ir =
+      TableRange(3, bFactor + 1)
+        .keyBy(ArraySeq())
+        .mapRows((_, row) => makestruct("idx" -> ApplyScanOp(Take(), 2)(row.get("idx"))))
+        .collect
+        .get("rows")
+
+    ctx.local(flags = ctx.flags + (agg.Flags.BranchingFactor -> bFactor.toString)) { implicit ctx =>
+      assertEvalsTo(ir, ArraySeq(RowSeq(ArraySeq()), RowSeq(ArraySeq(0)), RowSeq(ArraySeq(0, 1))))
+    }
+  }
+
   @Test def testTableAggregateByKey(implicit ctx: ExecuteContext): Unit = {
     implicit val execStrats = ExecStrategy.allRelational
     var tir: TableIR = TableRead.native(ctx.fs, getTestResource("three_key.ht"))
