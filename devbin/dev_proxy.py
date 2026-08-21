@@ -8,7 +8,13 @@ from hailtop.auth import hail_credentials
 from hailtop.aiocloud.common import Session
 from gear import new_csrf_token, SystemPermission
 
-from web_common import base_context, setup_common_static_routes, web_security_headers, web_security_headers_swagger
+from web_common import (
+    base_context,
+    setup_common_static_routes,
+    web_security_headers,
+    web_security_headers_inline_styles,
+    web_security_headers_swagger,
+)
 from web_common.web_common import WEB_COMMON_ROOT, TAILWIND_SERVICES
 
 from aiohttp import web
@@ -120,7 +126,12 @@ for _service, _verb, _path, _template, _extra_ctx in _LOCAL_REACT_ROUTES:
         _ctx: dict = _extra_ctx,
     ) -> web.Response:
         return await _render_html(request, _s, _FAKE_DEV_USERDATA, _t, {'use_tailwind': True, **_ctx})
-    _decorator = web_security_headers_swagger if _template.startswith('swagger/') else web_security_headers
+    if _template.startswith('swagger/'):
+        _decorator = web_security_headers_swagger
+    elif _template == 'index_react.html':
+        _decorator = web_security_headers_inline_styles
+    else:
+        _decorator = web_security_headers
     routes.route(_verb, _path)(_decorator(_local_handler))
 
 

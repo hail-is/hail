@@ -65,7 +65,7 @@ interface InstanceData {
 type SortDir = 'asc' | 'desc';
 type InstanceSortCol =
   | 'name' | 'inst_coll_name' | 'location' | 'version' | 'state'
-  | 'free_cores_mcpu' | 'failed_request_count' | 'time_created_ms' | 'last_updated_ms';
+  | 'free_cores_mcpu' | 'failed_request_count' | 'time_created_ms' | 'age' | 'last_updated_ms';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -151,17 +151,18 @@ function SortTh({ col, label, sortCol, sortDir, onSort }: {
   const active = sortCol === col;
   return (
     <th
-      className={`${TH_BASE} cursor-pointer select-none hover:bg-zinc-400`}
-      onClick={() => { onSort(col); }}
+      className={TH_BASE}
+      aria-sort={active ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
     >
-      <span className="inline-flex items-center gap-0.5">
+      <button
+        className="inline-flex items-center gap-1 w-full hover:text-zinc-200"
+        onClick={() => { onSort(col); }}
+      >
         {label}
-        {active && (
-          <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>
-            {sortDir === 'asc' ? 'arrow_upward' : 'arrow_downward'}
-          </span>
-        )}
-      </span>
+        <span className={`text-xs ${active ? '' : 'opacity-40'}`} aria-hidden>
+          {active ? (sortDir === 'asc' ? '↑' : '↓') : '↑↓'}
+        </span>
+      </button>
     </th>
   );
 }
@@ -399,6 +400,7 @@ function InstancesTable({ instances }: { instances: InstanceData[] }): JSX.Eleme
       case 'free_cores_mcpu': av = a.free_cores_mcpu; bv = b.free_cores_mcpu; break;
       case 'failed_request_count': av = a.failed_request_count; bv = b.failed_request_count; break;
       case 'time_created_ms': av = a.time_created_ms ?? 0; bv = b.time_created_ms ?? 0; break;
+      case 'age': av = a.time_created_ms ?? 0; bv = b.time_created_ms ?? 0; break;
       case 'last_updated_ms': av = a.last_updated_ms ?? 0; bv = b.last_updated_ms ?? 0; break;
       default: av = ''; bv = '';
     }
@@ -430,7 +432,7 @@ function InstancesTable({ instances }: { instances: InstanceData[] }): JSX.Eleme
               <SortTh col="free_cores_mcpu" label="Free Cores" {...shProps} />
               <SortTh col="failed_request_count" label="Failed Requests" {...shProps} />
               <SortTh col="time_created_ms" label="Time Created" {...shProps} />
-              <Th>Age</Th>
+              <SortTh col="age" label="Age" {...shProps} />
               <SortTh col="last_updated_ms" label="Last Updated" {...shProps} />
               <Th>Logs</Th>
             </tr>
