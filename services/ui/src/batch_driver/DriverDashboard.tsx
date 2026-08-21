@@ -358,8 +358,8 @@ function InstCollsTable({ pools, jpim, globalStats, basePath }: {
 
 function InstancesTable({ instances }: { instances: InstanceData[] }): JSX.Element {
   const [filter, setFilter] = useState('');
-  const [sortCol, setSortCol] = useState<InstanceSortCol>('name');
-  const [sortDir, setSortDir] = useState<SortDir>('asc');
+  const [sortCol, setSortCol] = useState<InstanceSortCol>('time_created_ms');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
 
   const handleSort = (col: string) => {
     if (sortCol === col) {
@@ -413,8 +413,8 @@ function InstancesTable({ instances }: { instances: InstanceData[] }): JSX.Eleme
         onChange={(e) => { setFilter(e.target.value); }}
         className="mb-2 px-3 py-1.5 border border-zinc-300 rounded text-sm w-full max-w-md"
       />
-      <div className="overflow-auto max-h-[600px] border border-zinc-200 rounded">
-        <table className="min-w-[600px] border-collapse">
+      <div className="w-fit max-w-full overflow-auto max-h-[600px] border border-zinc-200 rounded">
+        <table className="border-collapse">
           <thead className="sticky top-0 z-10">
             <tr>
               <SortTh col="name" label="Name" {...shProps} />
