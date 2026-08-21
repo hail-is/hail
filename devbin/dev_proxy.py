@@ -174,6 +174,8 @@ async def _proxy(request: web.Request, service: str) -> dict:
     backend_client = request.app[BC]
     backend_route = _backend_url(service, request.raw_path)
     headers = {'x-hail-return-jinja-context': '1'}
+    if request.cookies:
+        headers['Cookie'] = '; '.join(f'{k}={v}' for k, v in request.cookies.items())
     try:
         async with await backend_client.request(request.method, backend_route, headers=headers) as resp:
             return await resp.json()
