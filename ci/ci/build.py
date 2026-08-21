@@ -144,7 +144,16 @@ class BuildConfiguration:
             for step in runnable_steps:
                 if step.is_forced_by_labels(pr_labels):
                     visit_dependent(step)
-            self.steps = [step for step in runnable_steps if step in visited]
+            self.steps = [
+                step
+                for step in runnable_steps
+                if step in visited
+                and (
+                    not step.only_if_release
+                    or step.is_forced_by_labels(pr_labels)
+                    or (is_release and scope == 'deploy')
+                )
+            ]
         else:
             self.steps = [
                 step

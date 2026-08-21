@@ -1223,8 +1223,11 @@ mkdir -p {shq(repo_dir)}
                 await check_shell_output(
                     f'git -C {shq(repo_dir)} ls-remote --exit-code --tags origin {shq(pip_version)}'
                 )
-            except CalledProcessError:
-                is_release = True
+            except CalledProcessError as e:
+                if e.returncode == 2:
+                    is_release = True
+                else:
+                    raise
             log.info(f'deploy for {self.branch.short_str()} @ {self.sha[:8]}: is_release={is_release}')
 
             with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
