@@ -21,7 +21,7 @@ from gidgethub import aiohttp as gh_aiohttp
 from gear import Database, UserData
 from hailtop.batch_client.aioclient import Batch, BatchClient
 from hailtop.config import get_deploy_config
-from hailtop.utils import RETRY_FUNCTION_SCRIPT, check_shell, check_shell_output
+from hailtop.utils import RETRY_FUNCTION_SCRIPT, CalledProcessError, check_shell, check_shell_output
 
 from .build import BuildConfiguration, Code
 from .build_selection import compute_requested_steps
@@ -230,6 +230,32 @@ fi
 """
 
 
+def _read_pip_version(repo_dir: str) -> Optional[str]:
+    makefile_path = f'{repo_dir}/hail/Makefile'
+    try:
+        with open(makefile_path, 'r', encoding='utf-8') as f:
+            makefile = f.read()
+    except FileNotFoundError:
+        return None
+
+    major_minor_m = re.search(r'^HAIL_MAJOR_MINOR_VERSION\s*:=\s*(\S+)', makefile, re.MULTILINE)
+    patch_m = re.search(r'^HAIL_PATCH_VERSION\s*:=\s*(\S+)', makefile, re.MULTILINE)
+    if not major_minor_m or not patch_m:
+        raise ValueError(f'could not parse HAIL_PIP_VERSION from {makefile_path}')
+    pip_version = f'{major_minor_m.group(1)}.{patch_m.group(1)}'
+
+    generated_path = f'{repo_dir}/hail/env/HAIL_PIP_VERSION'
+    if os.path.exists(generated_path):
+        with open(generated_path, 'r', encoding='utf-8') as f:
+            generated = f.read().strip()
+        if generated != pip_version:
+            raise ValueError(
+                f'HAIL_PIP_VERSION mismatch: Makefile says {pip_version!r}, generated file says {generated!r}'
+            )
+
+    return pip_version
+
+
 class PR(Code):
     def __init__(
         self,
@@ -268,6 +294,8 @@ class PR(Code):
 
         self.pending_build_reason: str = 'unknown'
         self.tactical: bool = False
+
+        self.pip_version: Optional[str] = None
 
         self.intended_github_status: GithubStatus = self.github_status_from_build_state()
         self.last_known_github_status: Dict[str, GithubStatus] = {}
@@ -395,6 +423,7 @@ class PR(Code):
             'checkout_script': self.checkout_script(),
             'developers': self.developers,
             'number': self.number,
+            'pip_version': self.pip_version or '',
             'source_repo': source_repo.short_str(),
             'source_repo_url': source_repo.url,
             'source_sha': self.source_sha,
@@ -510,6 +539,8 @@ set -ex
 mkdir -p {shq(repo_dir)}
 (cd {shq(repo_dir)}; {self.checkout_script()})
 """)
+
+            self.pip_version = _read_pip_version(repo_dir)
 
             sha_out, _ = await check_shell_output(f'git -C {shq(repo_dir)} rev-parse HEAD')
             self.sha = sha_out.decode('utf-8').strip()
@@ -892,6 +923,8 @@ class WatchedBranch(Code):
         self.prs: Dict[int, PR] = {}
         self.sha: Optional[str] = None
 
+        self.pip_version: Optional[str] = None
+
         self.deploy_batch: Union[Batch, MergeFailureBatch, None] = None
         # success, failure, pending
         self._deploy_state: Optional[str] = None
@@ -927,6 +960,7 @@ class WatchedBranch(Code):
         return {
             'checkout_script': self.checkout_script(),
             'branch': self.branch.name,
+            'pip_version': self.pip_version or '',
             'repo': self.branch.repo.short_str(),
             'repo_url': self.branch.repo.url,
             'sha': self.sha,
@@ -1180,8 +1214,26 @@ url: {url}
 mkdir -p {shq(repo_dir)}
 (cd {shq(repo_dir)}; {self.checkout_script()})
 """)
+            self.pip_version = _read_pip_version(repo_dir)
+            pip_version = self.pip_version
+            if pip_version is None:
+                raise ValueError(f'could not determine HAIL_PIP_VERSION: hail/Makefile not found in {repo_dir}')
+            is_release = False
+            try:
+                await check_shell_output(
+                    f'git -C {shq(repo_dir)} ls-remote --exit-code --tags origin {shq(pip_version)}'
+                )
+            except CalledProcessError as e:
+                if e.returncode == 2:
+                    is_release = True
+                else:
+                    raise
+            log.info(f'deploy for {self.branch.short_str()} @ {self.sha[:8]}: is_release={is_release}')
+
             with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
-                config = BuildConfiguration(self, f.read(), requested_step_names=DEPLOY_STEPS or None, scope='deploy')
+                config = BuildConfiguration(
+                    self, f.read(), requested_step_names=DEPLOY_STEPS or None, scope='deploy', is_release=is_release
+                )
                 namespace = config.namespace()
                 services = config.deployed_services()
             with open(f'{repo_dir}/ci/test/resources/build.yaml', 'r', encoding='utf-8') as f:
@@ -1192,14 +1244,17 @@ mkdir -p {shq(repo_dir)}
             await add_deployed_services(db, namespace, services, None)
 
             log.info(f'creating deploy batch for {self.branch.short_str()}')
+            batch_name = f'Deploy {self.branch.name} @ {self.sha[:8]}'
+            if is_release:
+                batch_name += f' / Release {pip_version}'
             deploy_batch = batch_client.create_batch(
                 attributes={
                     'token': secrets.token_hex(16),
                     'deploy': '1',
                     'target_branch': self.branch.short_str(),
                     'sha': self.sha,
-                    'name': f'Deploy {self.branch.name} @ {self.sha[:8]}',
-                    'batch_type': 'ci/deploy/prod',
+                    'name': batch_name,
+                    'batch_type': 'ci/release/prod' if is_release else 'ci/deploy/prod',
                 },
                 callback=CALLBACK_URL,
             )
