@@ -2870,8 +2870,12 @@ def plot_resource_usage(
 @billing_project_users_only()
 @catch_ui_error_in_dev
 async def ui_get_jvm_profile(request: web.Request, _, batch_id: int) -> web.Response:
-    if request.headers.get('Sec-Fetch-Dest') != 'iframe':
-        raise web.HTTPFound(f'/batches/{batch_id}/jobs/{request.match_info["job_id"]}/jvm_profile_wrapped')
+    if request.headers.get('Sec-Fetch-Dest') not in (None, 'iframe'):
+        raise web.HTTPFound(
+            deploy_config.external_url(
+                'batch', f'/batches/{batch_id}/jobs/{request.match_info["job_id"]}/jvm_profile_wrapped'
+            )
+        )
     app = request.app
     job_id = int(request.match_info['job_id'])
     profile = await _get_jvm_profile(app, batch_id, job_id)
