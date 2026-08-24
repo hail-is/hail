@@ -1,4 +1,5 @@
 import os
+from typing import Union
 
 import aiohttp_jinja2
 import jinja2
@@ -161,17 +162,24 @@ async def default_proxied_web_route(request: web.Request) -> web.Response:
     service = _service_from_path(request.path)
     if service is None:
         raise web.HTTPNotFound()
-    return await _render_html(request, service, **await _proxy(request, service))
+    result = await _proxy(request, service)
+    if isinstance(result, web.Response):
+        return result
+    return await _render_html(request, service, **result)
 
 
-async def _proxy(request: web.Request, service: str) -> dict:
+async def _proxy(request: web.Request, service: str) -> Union[dict, web.Response]:
     backend_client = request.app[BC]
     backend_route = _backend_url(service, request.raw_path)
     headers = {'x-hail-return-jinja-context': '1'}
     if request.cookies:
         headers['Cookie'] = '; '.join(f'{k}={v}' for k, v in request.cookies.items())
+    if sec_fetch_dest := request.headers.get('Sec-Fetch-Dest'):
+        headers['Sec-Fetch-Dest'] = sec_fetch_dest
     try:
         async with await backend_client.request(request.method, backend_route, headers=headers) as resp:
+            if resp.headers.get('Content-Type', '').startswith('text/html'):
+                return web.Response(body=await resp.read(), content_type='text/html')
             return await resp.json()
     except httpx.ClientResponseError as e:
         if e.status == 404:
@@ -237,6 +245,9 @@ async def dev_csp_middleware(request: web.Request, handler):
     if csp:
         csp = csp.replace('script-src ', 'script-src http://localhost:8001 ')
         csp += ' connect-src \'self\' ws://localhost:8001;'
+        if request.path.endswith('/jvm_profile'):
+            csp = csp.replace('style-src ', "style-src 'unsafe-inline' ")
+            csp = csp.replace('script-src ', "script-src 'unsafe-inline' ")
         response.headers['Content-Security-Policy'] = csp
     return response
 

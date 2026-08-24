@@ -82,6 +82,7 @@ from web_common import (
     setup_aiohttp_jinja2,
     setup_common_static_routes,
     web_security_headers,
+    web_security_headers_inline,
     web_security_headers_inline_styles,
     web_security_headers_swagger,
 )
@@ -2865,16 +2866,36 @@ def plot_resource_usage(
 
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}/jvm_profile')
-@web_security_headers
+@web_security_headers_inline
 @billing_project_users_only()
 @catch_ui_error_in_dev
 async def ui_get_jvm_profile(request: web.Request, _, batch_id: int) -> web.Response:
+    if request.headers.get('Sec-Fetch-Dest') != 'iframe':
+        raise web.HTTPFound(f'/batches/{batch_id}/jobs/{request.match_info["job_id"]}/jvm_profile_wrapped')
     app = request.app
     job_id = int(request.match_info['job_id'])
     profile = await _get_jvm_profile(app, batch_id, job_id)
     if profile is None:
         raise web.HTTPNotFound()
     return web.Response(text=profile, content_type='text/html')
+
+
+@routes.get('/batches/{batch_id}/jobs/{job_id}/jvm_profile_wrapped')
+@web_security_headers
+@billing_project_users_only()
+@catch_ui_error_in_dev
+async def ui_get_jvm_profile_wrapped(request, userdata, batch_id):
+    job_id = int(request.match_info['job_id'])
+    return await render_template(
+        'batch',
+        request,
+        userdata,
+        'jvm_profile_wrapped.html',
+        {
+            'batch_id': batch_id,
+            'job_id': job_id,
+        },
+    )
 
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}')
