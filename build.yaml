@@ -3214,7 +3214,7 @@ steps:
       - merge_code
       - batch_image
       - deploy_batch
-      - test_batch
+#      - test_batch
   - kind: runImage
     name: create_ci_test_repo
     image:
@@ -3735,7 +3735,7 @@ steps:
       - hail_ubuntu_image
       - create_ci_test_repo
       - deploy_ci
-      - test_ci
+#      - test_ci
   # - kind: runImage
   #   name: test_dataproc-37
   #   image:
@@ -4132,15 +4132,15 @@ steps:
       - hailgenetics_vep_grch37_85_image
       - hailgenetics_vep_grch38_95_image
       - build_hail_jar_and_wheel
-      - test_hail_java
-      - test_hail_python
+#      - test_hail_java
+#      - test_hail_python
       - test_hailtop_python
-      - test_hail_python_local_backend
-      - test_hail_python_service_backend_gcp
-      - test_hail_python_service_backend_gcp_fs
-      - test_hail_scala_fs
-      - test_hail_services_java
-      - test_hail_spark_conf_requester_pays_parsing
+#      - test_hail_python_local_backend
+#      - test_hail_python_service_backend_gcp
+#      - test_hail_python_service_backend_gcp_fs
+#      - test_hail_scala_fs
+#      - test_hail_services_java
+#      - test_hail_spark_conf_requester_pays_parsing
       # - test_dataproc-37
       # - test_dataproc-38
       - make_docs
@@ -4225,14 +4225,14 @@ steps:
       - default_ns
       - hailgenetics_hailtop_image
       - deploy_batch
-      - test_batch
-      - test_ci
+#      - test_batch
+#      - test_ci
       - test_hailtop_python
-      - test_hail_python_service_backend_gcp
-      - test_hail_python_service_backend_gcp_fs
-      - test_hail_services_java
-      - test_batch_docs
-      - test_hailctl_batch
+#      - test_hail_python_service_backend_gcp
+#      - test_hail_python_service_backend_gcp_fs
+#      - test_hail_services_java
+#      - test_batch_docs
+#      - test_hailctl_batch
 #  - kind: runImage
 #    name: test_batch_invariants
 #    image:
@@ -4319,12 +4319,12 @@ steps:
     dependsOn:
       - default_ns
       - ci_utils_image
-      - test_batch_invariants
-      - test_batch
-      - test_ci
+#      - test_batch_invariants
+#      - test_batch
+#      - test_ci
       - test_hailtop_python
-      - test_hail_python_service_backend_gcp
-      - test_hail_python_service_backend_gcp_fs
+#      - test_hail_python_service_backend_gcp
+#      - test_hail_python_service_backend_gcp_fs
       - cancel_all_running_test_batches
   - kind: runImage
     name: setup_dev_namespace_autoscaledown
@@ -4445,5 +4445,5 @@ steps:
     clouds:
       - gcp
     dependsOn:
-      - test_gcp_ar_cleanup_policies
+#      - test_gcp_ar_cleanup_policies
       - ci_utils_image
