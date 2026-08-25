@@ -155,6 +155,27 @@ async def openapi_yaml_route(request: web.Request) -> web.Response:
     return web.Response(body=body, content_type='text/yaml')
 
 
+@routes.get('/{service:[^/]+}/batches/{batch_id}/jobs/{job_id}/jvm_profile')
+async def jvm_profile_passthrough(request: web.Request) -> web.Response:
+    service = request.match_info['service']
+    if service not in ALL_SERVICES:
+        raise web.HTTPNotFound()
+    backend_client = request.app[BC]
+    backend_route = _backend_url(service, request.raw_path)
+    headers = {}
+    if request.cookies:
+        headers['Cookie'] = '; '.join(f'{k}={v}' for k, v in request.cookies.items())
+    try:
+        async with await backend_client.request(request.method, backend_route, headers=headers) as resp:
+            body = await resp.read()
+            content_disposition = resp.headers.get('Content-Disposition', '')
+    except httpx.ClientResponseError as e:
+        if e.status == 404:
+            raise web.HTTPNotFound()
+        raise
+    return web.Response(body=body, content_type='text/html', headers={'Content-Disposition': content_disposition})
+
+
 @routes.view('/{route:.*}')
 @web_security_headers
 async def default_proxied_web_route(request: web.Request) -> web.Response:
