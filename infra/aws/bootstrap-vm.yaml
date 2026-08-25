@@ -53,7 +53,6 @@ Resources:
             aws eks update-kubeconfig --region ${AWS::Region} --name ${ClusterName}
             aws ecr get-login-password | docker login --username AWS --password-stdin "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/default"
             
-            export HAIL=/hail
             export NAMESPACE=default
             export KUBECONFIG=/root/.kube/config
 
