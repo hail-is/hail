@@ -2877,7 +2877,7 @@ async def ui_get_jvm_profile(request: web.Request, _, batch_id: int) -> web.Resp
     return web.Response(
         text=profile,
         content_type='text/html',
-        headers={'Content-Disposition': 'attachment; filename="jvm_profile.html"'},
+        headers={'Content-Disposition': f'attachment; filename="{batch_id}_{job_id}_jvm_profile.html"'},
     )
 
 

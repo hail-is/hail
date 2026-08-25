@@ -134,9 +134,9 @@
   <div class='w-full lg:basis-2/3 overflow-auto'>
     <div>
       {% if has_jvm_profile %}
-      <a href="{{ base_path }}/batches/{{ batch_id }}/jobs/{{ job_id }}/jvm_profile" download="jvm_profile.html" class="text-sm text-sky-600 hover:underline flex items-center gap-1">
+      <a href="{{ base_path }}/batches/{{ batch_id }}/jobs/{{ job_id }}/jvm_profile" download="{{ batch_id }}_{{ job_id }}_jvm_profile.html" class="text-sm text-sky-600 hover:underline flex items-center gap-1">
         <span class="material-symbols-outlined text-base leading-none">download</span>
-        Download JVM Profile
+        JVM Profile
       </a>
       {% endif %}
 
