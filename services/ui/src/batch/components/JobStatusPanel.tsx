@@ -108,8 +108,9 @@ export function JobStatusPanel({ batchId, jobId, basePath, job, latestAttempt, a
         )}
         {hasJvmProfile && isTerminal && (
           <li className="p-4">
-            <a href={`${basePath}/batches/${batchId}/jobs/${jobId}/jvm_profile_wrapped`} className="text-sky-600 hover:underline text-sm">
-              View JVM profile
+            <a href={`${basePath}/batches/${batchId}/jobs/${jobId}/jvm_profile`} download="jvm_profile.html" className="text-sm text-sky-600 hover:underline flex items-center gap-1">
+              <span className="material-symbols-outlined text-base leading-none">download</span>
+              Download JVM profile
             </a>
           </li>
         )}
