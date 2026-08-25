@@ -1,7 +1,7 @@
 import json
 import os
 
-from gear.cloud_config import get_azure_config, get_aws_config, get_gcp_config, get_global_config
+from gear.cloud_config import get_aws_config, get_azure_config, get_gcp_config, get_global_config
 
 global_config = get_global_config()
 
