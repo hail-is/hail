@@ -10,7 +10,7 @@ if [ -z "${NAMESPACE}" ]; then
     exit 1;
 fi
 
-REGION=us-east-1  #$(get_global_config_field aws_region $NAMESPACE)
+REGION=$(get_global_config_field aws_region $NAMESPACE)
 DOCKER_ROOT_IMAGE=$(get_global_config_field docker_root_image $NAMESPACE)
 
 # When you bump the WORKER_IMAGE_VERSION, you should also update:
@@ -53,7 +53,7 @@ create_build_image_instance() {
     python3 ../ci/jinja2_render.py '{"global":{"docker_root_image":"'${DOCKER_ROOT_IMAGE}'"}}' \
         build-batch-worker-image-startup-aws.sh build-batch-worker-image-startup-aws.sh.out
 
-    UBUNTU_AMI_ID=$(aws ssm get-parameter --name "$UBUNTU_IMAGE" --query="Parameter.Value" --output text)
+    UBUNTU_AMI_ID=$(aws ssm get-parameter --region ${REGION} --name ${UBUNTU_IMAGE} --query="Parameter.Value" --output text)
 
     BUILDER_ID=$(aws ec2 run-instances \
         --image-id ${UBUNTU_AMI_ID} \
@@ -85,7 +85,7 @@ create_worker_image() {
 main() {
     set -x
     create_build_image_instance
-    while [ "$(aws ec2 describe-instance-status --instance-ids ${BUILDER_ID} --include-all-instances --query='InstanceStatuses[0].InstanceState.Name' --output text)" != "stopped" ];
+    while [ "$(aws ec2 describe-instance-status --region ${REGION} --instance-ids ${BUILDER_ID} --include-all-instances --query='InstanceStatuses[0].InstanceState.Name' --output text)" != "stopped" ];
     do
         sleep 5
     done
