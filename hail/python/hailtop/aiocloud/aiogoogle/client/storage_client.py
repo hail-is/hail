@@ -34,8 +34,7 @@ from ..user_config import GCSRequesterPaysConfiguration, get_gcs_requester_pays_
 from .base_client import GoogleBaseClient
 
 log = logging.getLogger(__name__)
-if os.environ.get('HAIL_BATCH_VERBOSE_WAIT_LOGGING') == '1':
-    log.setLevel(logging.DEBUG)
+_VERBOSE = os.environ.get('HAIL_BATCH_VERBOSE_WAIT_LOGGING') == '1'
 
 
 class PageIterator:
@@ -224,7 +223,8 @@ class ResumableInsertObjectStream(WritableStream):
         # https://cloud.google.com/storage/docs/performing-resumable-uploads#chunked-upload
         it: FeedableAsyncIterable[bytes] = FeedableAsyncIterable()
         _chunk_start = time.monotonic()
-        log.debug('resumable upload: starting chunk PUT offset=%d n=%d range=%s', offset, n, range)
+        if _VERBOSE:
+            log.info('resumable upload: starting chunk PUT offset=%d n=%d range=%s', offset, n, range)
         async with _TaskManager(
             self._session.put(
                 self._session_url,
@@ -245,21 +245,23 @@ class ResumableInsertObjectStream(WritableStream):
                             raise TransientError(msg)
 
             await it.stop()
-            log.debug(
-                'resumable upload: chunk data fed, awaiting PUT response offset=%d n=%d elapsed=%.2fs',
-                offset,
-                n,
-                time.monotonic() - _chunk_start,
-            )
+            if _VERBOSE:
+                log.info(
+                    'resumable upload: chunk data fed, awaiting PUT response offset=%d n=%d elapsed=%.2fs',
+                    offset,
+                    n,
+                    time.monotonic() - _chunk_start,
+                )
 
             resp = await put_task
-            log.debug(
-                'resumable upload: chunk PUT complete offset=%d n=%d status=%d elapsed=%.2fs',
-                offset,
-                n,
-                resp.status,
-                time.monotonic() - _chunk_start,
-            )
+            if _VERBOSE:
+                log.info(
+                    'resumable upload: chunk PUT complete offset=%d n=%d status=%d elapsed=%.2fs',
+                    offset,
+                    n,
+                    resp.status,
+                    time.monotonic() - _chunk_start,
+                )
             if resp.status >= 200 and resp.status < 300:
                 assert self._closed
                 assert total_size is not None
@@ -389,12 +391,14 @@ class GoogleStorageClient(GoogleBaseClient):
         assert upload_type == 'resumable'
         chunk_size = kwargs.get('bufsize', 8 * 1024 * 1024)
 
-        log.debug('resumable upload: initiating session for gs://%s/%s', bucket, name)
+        if _VERBOSE:
+            log.info('resumable upload: initiating session for gs://%s/%s', bucket, name)
         async with await self._session.post(
             f'https://storage.googleapis.com/upload/storage/v1/b/{bucket}/o', **kwargs
         ) as resp:
             session_url = resp.headers['Location']
-        log.debug('resumable upload: session initiated for gs://%s/%s', bucket, name)
+        if _VERBOSE:
+            log.info('resumable upload: session initiated for gs://%s/%s', bucket, name)
         return ResumableInsertObjectStream(self._session, session_url, chunk_size)
 
     async def get_object(self, bucket: str, name: str, **kwargs) -> GetObjectStream:
