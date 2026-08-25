@@ -5,7 +5,7 @@ umask 022
 
 sudo apt update
 sudo snap install --classic astral-uv
-uv venv --seed --python 3.11
+uv venv --seed --python 3.12
 source .venv/bin/activate
 
 # Add Docker's official GPG key:
