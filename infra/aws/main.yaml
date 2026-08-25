@@ -438,6 +438,59 @@ Resources:
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
 
+  VdcDb:
+    Type: "AWS::RDS::DBInstance"
+    Properties:
+      AllocatedStorage: 20
+      DBInstanceClass: "db.m9g.xlarge"
+      DBSubnetGroupName: !Ref VdcDbSubnetGroup
+      Engine: "mysql"
+      EngineVersion: "8.4.10"
+      MasterUsername: "root"
+      ManageMasterUserPassword: true
+      MasterUserSecret:
+        KmsKeyId: !Ref VdcDbMasterPassword
+      VPCSecurityGroups:
+        - !Ref VdcDbSecurityGroup
+
+  VdcDbSubnetGroup:
+    Type: "AWS::RDS::DBSubnetGroup"
+    Properties:
+      DBSubnetGroupDescription: "Group for VDC network subnets"
+      SubnetIds:
+        - !Ref VdcSubnetA
+        - !Ref VdcSubnetB
+        - !Ref VdcSubnetC
+
+  VdcDbSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      VpcId: !ImportValue VdcNetwork
+      GroupDescription: "Security group for MySQL database"
+      SecurityGroupIngress:
+        - Description: "Allows MySQL access from cluster"
+          IpProtocol: "tcp"
+          FromPort: 3306
+          ToPort: 3306
+          SourceSecurityGroupId: !GetAtt VdcCluster.ClusterSecurityGroupId
+
+  VdcDbMasterPassword:
+    Type: "AWS::KMS::Key"
+    Properties:
+      Description: "Root password for MySQL database"
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: "2012-10-17"
+        Id: !Ref AWS::StackName
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              AWS:
+                Fn::Sub: 'arn:${AWS::Partition}:iam::${AWS::AccountId}:root'
+            Action:
+              - "kms:*"
+            Resource: "*"
+
   # AWS-managed EKS addons & necessary roles
 
   VdcClusterAddonEbsCsiDriver:
@@ -659,3 +712,8 @@ Outputs:
     Description: "ARN of IAM role associated with cluster nodes"
     Export:
       Name: VdcNodeRole
+  VdcDbSecurityGroup:
+    Value: !GetAtt VdcDbSecurityGroup.GroupId
+    Description: "RDS MySQL database security group"
+    Export:
+      Name: VdcDbSecurityGroup
