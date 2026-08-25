@@ -111,6 +111,7 @@ def get_gcp_config() -> GCPConfig:
         gcp_config = GCPConfig.from_global_config(get_global_config())
     return gcp_config
 
+
 def read_config_secret(path: str) -> Dict[str, str]:
     config = {}
     for field in os.listdir(path):

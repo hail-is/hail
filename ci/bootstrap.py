@@ -20,6 +20,7 @@ from hailtop.utils import check_shell_output
 BATCH_WORKER_IMAGE = os.environ['BATCH_WORKER_IMAGE']
 CLOUD = get_global_config()['cloud']
 
+
 def populate_secret_host_path(host_path: str, secret_data: Dict[str, bytes]):
     os.makedirs(host_path)
     if secret_data is not None:
@@ -162,7 +163,7 @@ class LocalBatchBuilder:
                 mount_options = ['-v', f'{job_root}/io:/io']
 
                 if CLOUD == 'aws':
-                    env_options = ['-e', f'AWS_DOCKER_CREDENTIALS=/aws-key/docker-password']
+                    env_options = ['-e', 'AWS_DOCKER_CREDENTIALS=/aws-key/docker-password']
                     mount_options.extend(['-v', '/aws-key:/aws-key'])
                 else:
                     env_options = ['-e', 'GOOGLE_APPLICATION_CREDENTIALS=/gsa-key/key.json']
