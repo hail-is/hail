@@ -88,11 +88,23 @@ class InsertObjectStream(WritableStream):
         self._request_task = request_task
         self._value = None
         self._exit_stack = AsyncExitStack()
+        self._start = time.monotonic()
+        self._bytes_written = 0
 
         async def cleanup_request_task():
+            if _VERBOSE:
+                log.info(
+                    'media upload: all data fed, awaiting POST response (%.2fs so far)', time.monotonic() - self._start
+                )
             if not self._request_task.cancelled():
                 try:
                     async with await self._request_task as response:
+                        if _VERBOSE:
+                            log.info(
+                                'media upload: POST complete status=%d elapsed=%.2fs',
+                                response.status,
+                                time.monotonic() - self._start,
+                            )
                         self._value = await response.json()
                 except AttributeError as err:
                     raise ValueError(repr(self._request_task)) from err
@@ -103,6 +115,14 @@ class InsertObjectStream(WritableStream):
     async def write(self, b):
         assert not self.closed
 
+        self._bytes_written += len(b)
+        if _VERBOSE:
+            log.info(
+                'media upload: feeding %d bytes (total so far: %d, elapsed: %.2fs)',
+                len(b),
+                self._bytes_written,
+                time.monotonic() - self._start,
+            )
         fut = asyncio.ensure_future(self._it.feed(b))
         self._exit_stack.push_async_callback(_cleanup_future, fut)
 
@@ -377,11 +397,18 @@ class GoogleStorageClient(GoogleBaseClient):
             params['uploadType'] = upload_type
 
         if upload_type == 'media':
+            if _VERBOSE:
+                log.info('media upload: starting POST for gs://%s/%s', bucket, name)
             it: FeedableAsyncIterable[bytes] = FeedableAsyncIterable()
             kwargs['data'] = aiohttp.AsyncIterablePayload(it)
             request_task = asyncio.create_task(
                 self._session.post(
-                    f'https://storage.googleapis.com/upload/storage/v1/b/{bucket}/o', retry=False, **kwargs
+                    # timeout: fails faster on a hung upload but does NOT retry — retry=False
+                    # and there's no higher-level retry wrapper around _copy_file.
+                    f'https://storage.googleapis.com/upload/storage/v1/b/{bucket}/o',
+                    retry=False,
+                    timeout=aiohttp.ClientTimeout(total=60),
+                    **kwargs,
                 )
             )
             return InsertObjectStream(it, request_task)
