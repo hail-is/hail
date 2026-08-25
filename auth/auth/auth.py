@@ -618,7 +618,7 @@ async def get_version(_, userdata: Optional[UserData]) -> web.Response:
 
 @routes.get('/api/v1alpha/oauth2-client')
 async def hailctl_oauth_client(request):  # pylint: disable=unused-argument
-    idp = IdentityProvider.GOOGLE if CLOUD == 'gcp' or CLOUD == 'aws' else IdentityProvider.MICROSOFT
+    idp = IdentityProvider.GOOGLE if CLOUD in {'gcp', 'aws'} else IdentityProvider.MICROSOFT
     return json_response({'idp': idp.value, 'oauth2_client': request.app[AppKeys.HAILCTL_CLIENT_CONFIG]})
 
 
