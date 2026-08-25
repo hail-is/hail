@@ -3496,6 +3496,7 @@ steps:
       export HAIL_GENETICS_HAIL_IMAGE="{{ hailgenetics_hail_image.image }}"
       export HAIL_GENETICS_HAILTOP_IMAGE="{{ hailgenetics_hailtop_image.image }}"
       export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
+      export HAIL_BATCH_VERBOSE_WAIT_LOGGING=1
 
       {% if global.cloud == 'gcp' %}
       export GCS_REQUESTER_PAYS_PROJECT={{ global.gcp_project }}

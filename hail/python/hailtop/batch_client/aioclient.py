@@ -3,8 +3,10 @@ import functools
 import json
 import logging
 import math
+import os
 import random
 import secrets
+import time
 import warnings
 from enum import Enum
 from typing import Any, AsyncIterator, Dict, List, Optional, Tuple, TypedDict, Union, cast
@@ -24,6 +26,7 @@ from .globals import ROOT_JOB_GROUP_ID, complete_states, tasks
 from .types import GetJobGroupResponseV1Alpha, GetJobResponseV1Alpha, GetJobsResponseV1Alpha, JobListEntryV1Alpha
 
 log = logging.getLogger('batch_client.aioclient')
+_VERBOSE_WAIT = os.environ.get('HAIL_BATCH_VERBOSE_WAIT_LOGGING') == '1'
 
 
 class JobAlreadySubmittedError(Exception):
@@ -716,6 +719,12 @@ class Batch:
             description += f'[link={url}]{self.id}[/link]'
         else:
             description += url
+        start = time.monotonic()
+        last_log = start
+        if _VERBOSE_WAIT:
+            log.info(
+                'waiting for batch %d (%s): n_jobs=%d state=%s', self.id, url, status['n_jobs'], status.get('state')
+            )
         with progress.with_task(
             description, total=status['n_jobs'] - starting_job + 1, disable=disable_progress_bar, cost=status['cost']
         ) as progress_task:
@@ -728,7 +737,29 @@ class Batch:
                     cost=status['cost'],
                 )
                 if status['complete']:
+                    if _VERBOSE_WAIT:
+                        log.info(
+                            'batch %d complete after %.1fs: state=%s n_succeeded=%d n_failed=%d n_cancelled=%d',
+                            self.id,
+                            time.monotonic() - start,
+                            status.get('state'),
+                            status.get('n_succeeded', 0),
+                            status.get('n_failed', 0),
+                            status.get('n_cancelled', 0),
+                        )
                     return status
+                if _VERBOSE_WAIT:
+                    now = time.monotonic()
+                    if now - last_log >= 30:
+                        log.warning(
+                            'batch %d still waiting after %.1fs: n_completed=%d/%d state=%s',
+                            self.id,
+                            now - start,
+                            status.get('n_completed', 0),
+                            status['n_jobs'],
+                            status.get('state'),
+                        )
+                        last_log = now
                 j = random.randrange(math.floor(1.1**i))
                 await asyncio.sleep(0.100 * j)
                 # max 44.5s

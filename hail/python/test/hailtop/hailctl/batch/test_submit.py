@@ -19,7 +19,7 @@ from hailtop.utils import secret_alnum_string
 @pytest.fixture(scope='function', autouse=True)
 def expect_timeouts_as_image_pulling_is_very_slow(request):
     five_minutes = 5 * 60
-    timeout = pytest.mark.timeout(five_minutes)
+    timeout = pytest.mark.timeout(five_minutes, method='thread')
     request.node.add_marker(timeout)
 
 
