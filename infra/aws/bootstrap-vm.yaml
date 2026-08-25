@@ -38,7 +38,7 @@ Resources:
             set -e
             send_error_signal() {
               error_message=$(tail -1 /var/log/cloud-init-output.log)
-              aws cloudformation signal-resource --stack-name ${AWS::StackName} --logical-resource-id BootstrapInstance --region ${AWS::Region} --status FAILURE --unique-id "${!error_message:0:64}"
+              aws cloudformation signal-resource --stack-name ${AWS::StackName} --logical-resource-id BootstrapInstance --region ${AWS::Region} --status FAILURE --unique-id "${error_message:0:64}"
             }
             trap send_error_signal ERR
 
