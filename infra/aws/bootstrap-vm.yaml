@@ -87,6 +87,14 @@ Resources:
       FromPort: 443
       ToPort: 443
       SourceSecurityGroupId: !Ref BootstrapInstanceSSHSecurityGroup
+  BootstrapInstanceDbAccess:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !ImportValue VdcDbSecurityGroup
+      IpProtocol: tcp
+      FromPort: 3306
+      ToPort: 3306
+      SourceSecurityGroupId: !Ref BootstrapInstanceSSHSecurityGroup
   BootstrapInstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
