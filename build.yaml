@@ -3596,6 +3596,14 @@ steps:
         mountPath: /test-gsa-key
     dependsOn:
       - test_hailtop_python
+      - hailgenetics_hail_image
+      - hailgenetics_hailtop_image
+      - create_deploy_config
+      - create_accounts
+      - default_ns
+      - hail_dev_image
+      - build_hail_debug_jar_and_wheel
+      - deploy_batch
   - kind: runImage
     name: test_hailtop_python_run_3
     alwaysRun: true
@@ -3656,6 +3664,14 @@ steps:
         mountPath: /test-gsa-key
     dependsOn:
       - test_hailtop_python_run_2
+      - hailgenetics_hail_image
+      - hailgenetics_hailtop_image
+      - create_deploy_config
+      - create_accounts
+      - default_ns
+      - hail_dev_image
+      - build_hail_debug_jar_and_wheel
+      - deploy_batch
   - kind: runImage
     name: test_hailtop_python_run_4
     alwaysRun: true
@@ -3716,6 +3732,14 @@ steps:
         mountPath: /test-gsa-key
     dependsOn:
       - test_hailtop_python_run_3
+      - hailgenetics_hail_image
+      - hailgenetics_hailtop_image
+      - create_deploy_config
+      - create_accounts
+      - default_ns
+      - hail_dev_image
+      - build_hail_debug_jar_and_wheel
+      - deploy_batch
   - kind: runImage
     name: test_hailtop_python_run_5
     alwaysRun: true
@@ -3776,6 +3800,14 @@ steps:
         mountPath: /test-gsa-key
     dependsOn:
       - test_hailtop_python_run_4
+      - hailgenetics_hail_image
+      - hailgenetics_hailtop_image
+      - create_deploy_config
+      - create_accounts
+      - default_ns
+      - hail_dev_image
+      - build_hail_debug_jar_and_wheel
+      - deploy_batch
 #  - kind: runImage
 #    name: test_hailctl_batch
 #    scopes:
