@@ -1,7 +1,9 @@
 import asyncio
 import functools
+import logging
 import os
 import os.path
+import time
 from typing import Any, AsyncIterator, Awaitable, Callable, Dict, List, Optional, Tuple, Union
 
 import humanize
@@ -17,6 +19,9 @@ from ...utils import (
 from ..weighted_semaphore import WeightedSemaphore
 from .exceptions import FileAndDirectoryError, UnexpectedEOFError
 from .fs import AsyncFS, FileListEntry, FileStatus, MultiPartCreate
+
+log = logging.getLogger(__name__)
+_VERBOSE = os.environ.get('HAIL_BATCH_VERBOSE_WAIT_LOGGING') == '1'
 
 
 class Transfer:
@@ -212,19 +217,40 @@ class SourceCopier:
     async def _copy_file(self, source_report: SourceReport, srcfile: str, size: int, destfile: str) -> None:
         assert not destfile.endswith('/')
 
+        if _VERBOSE:
+            log.info('_copy_file: start src=%s dest=%s size=%d', srcfile, destfile, size)
+        _t = time.monotonic()
         async with self.xfer_sema.acquire_manager(min(Copier.BUFFER_SIZE, size)):
+            if _VERBOSE:
+                log.info('_copy_file: semaphore acquired (%.2fs) src=%s', time.monotonic() - _t, srcfile)
+            if _VERBOSE:
+                log.info('_copy_file: opening src=%s', srcfile)
             async with await self.router_fs.open(srcfile) as srcf:
+                if _VERBOSE:
+                    log.info('_copy_file: src open (%.2fs), creating dest=%s', time.monotonic() - _t, destfile)
                 try:
                     dest_cm = await self.router_fs.create(destfile, retry_writes=False)
                 except FileNotFoundError:
+                    if _VERBOSE:
+                        log.info('_copy_file: dest FileNotFoundError, making dirs then retrying dest=%s', destfile)
                     await self.router_fs.makedirs(os.path.dirname(destfile), exist_ok=True)
                     dest_cm = await self.router_fs.create(destfile)
 
+                if _VERBOSE:
+                    log.info(
+                        '_copy_file: dest created (%.2fs), entering write loop src=%s', time.monotonic() - _t, srcfile
+                    )
                 async with dest_cm as destf:
                     while True:
                         b = await srcf.read(Copier.BUFFER_SIZE)
                         if not b:
+                            if _VERBOSE:
+                                log.info('_copy_file: done (%.2fs) src=%s', time.monotonic() - _t, srcfile)
                             return
+                        if _VERBOSE:
+                            log.info(
+                                '_copy_file: writing %d bytes (%.2fs) src=%s', len(b), time.monotonic() - _t, srcfile
+                            )
                         written = await destf.write(b)
                         assert written == len(b)
                         source_report.finish_bytes(written)
