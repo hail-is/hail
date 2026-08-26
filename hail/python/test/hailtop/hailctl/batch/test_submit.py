@@ -1,6 +1,9 @@
 import asyncio
 import logging
 import os
+import sys
+import threading
+import traceback
 from contextlib import contextmanager
 from pathlib import Path, PurePath
 from typing import List, Tuple
@@ -38,6 +41,24 @@ def cancel_lingering_tasks_after_test():
     task's finally blocks run and the connection is properly released.
     """
     yield
+
+    # Dump all non-main threads before cancellation processing shuts down the ThreadPoolExecutor.
+    # If a test hangs and is killed by pytest-timeout, the pool's with-block hasn't exited yet,
+    # so worker threads are still alive here. This tells us whether they're stuck in C code
+    # (e.g. os.scandir), idle at work_queue.get, or already gone.
+    all_frames = sys._current_frames()
+    non_main_threads = [t for t in threading.enumerate() if t is not threading.main_thread()]
+    if non_main_threads:
+        log.info('teardown: %d non-main thread(s) alive', len(non_main_threads))
+        for t in non_main_threads:
+            frame = all_frames.get(t.ident)
+            if frame is None:
+                log.info('teardown thread (no frame): name=%r daemon=%s', t.name, t.daemon)
+            else:
+                stack = ''.join(traceback.format_stack(frame))
+                log.info('teardown thread: name=%r daemon=%s\n%s', t.name, t.daemon, stack)
+    else:
+        log.info('teardown: no non-main threads alive')
 
     async def _cancel_all():
         current = asyncio.current_task()

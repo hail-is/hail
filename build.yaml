@@ -3674,7 +3674,6 @@ steps:
       - deploy_batch
   - kind: runImage
     name: test_hailtop_python_run_4
-    alwaysRun: true
     scopes:
       - test
       - dev
@@ -3742,7 +3741,6 @@ steps:
       - deploy_batch
   - kind: runImage
     name: test_hailtop_python_run_5
-    alwaysRun: true
     scopes:
       - test
       - dev
@@ -3810,7 +3808,6 @@ steps:
       - deploy_batch
   - kind: runImage
     name: test_hailtop_python_run_6
-    alwaysRun: true
     scopes:
       - test
       - dev
@@ -3878,7 +3875,6 @@ steps:
       - deploy_batch
   - kind: runImage
     name: test_hailtop_python_run_7
-    alwaysRun: true
     scopes:
       - test
       - dev
@@ -3946,7 +3942,6 @@ steps:
       - deploy_batch
   - kind: runImage
     name: test_hailtop_python_run_8
-    alwaysRun: true
     scopes:
       - test
       - dev
@@ -4014,7 +4009,6 @@ steps:
       - deploy_batch
   - kind: runImage
     name: test_hailtop_python_run_9
-    alwaysRun: true
     scopes:
       - test
       - dev
@@ -4082,7 +4076,6 @@ steps:
       - deploy_batch
   - kind: runImage
     name: test_hailtop_python_run_10
-    alwaysRun: true
     scopes:
       - test
       - dev

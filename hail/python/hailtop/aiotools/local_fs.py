@@ -1,6 +1,7 @@
 import asyncio
 import datetime
 import io
+import logging
 import os
 import os.path
 import stat
@@ -22,6 +23,9 @@ from .fs import (
     blocking_readable_stream_to_async,
     blocking_writable_stream_to_async,
 )
+
+log = logging.getLogger(__name__)
+_VERBOSE = os.environ.get('HAIL_BATCH_VERBOSE_WAIT_LOGGING') == '1'
 
 
 class LocalStatFileStatus(FileStatus):
@@ -343,7 +347,11 @@ class LocalAsyncFS(AsyncFS):
     ) -> AsyncIterator[FileListEntry]:
         del exclude_trailing_slash_files  # such files do not exist on local file systems
         path = self._get_path(url)
+        if _VERBOSE:
+            log.info('LocalAsyncFS.listfiles: submitting os.scandir(%s)', path)
         entries = await blocking_to_async(self._thread_pool, os.scandir, path)
+        if _VERBOSE:
+            log.info('LocalAsyncFS.listfiles: os.scandir(%s) completed', path)
         if recursive:
             return self._listfiles_recursive(url, entries)
         return self._listfiles_flat(url, entries)
