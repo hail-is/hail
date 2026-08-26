@@ -1,3 +1,5 @@
+import asyncio
+import logging
 import os
 from contextlib import contextmanager
 from pathlib import Path, PurePath
@@ -13,7 +15,9 @@ from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.batch_client.client import BatchClient
 from hailtop.config import ConfigVariable, configuration_of, get_remote_tmpdir
 from hailtop.hailctl.batch import cli
-from hailtop.utils import secret_alnum_string
+from hailtop.utils import async_to_blocking, secret_alnum_string
+
+log = logging.getLogger(__name__)
 
 
 @pytest.fixture(scope='function', autouse=True)
@@ -21,6 +25,40 @@ def expect_timeouts_as_image_pulling_is_very_slow(request):
     five_minutes = 5 * 60
     timeout = pytest.mark.timeout(five_minutes, method='thread')
     request.node.add_marker(timeout)
+
+
+@pytest.fixture(scope='function', autouse=True)
+def cancel_lingering_tasks_after_test():
+    """Cancel any tasks left over from a test killed mid-await.
+
+    When pytest-timeout kills a test via SIGALRM, async_to_blocking's finally block calls
+    task.cancel() but never awaits the cancellation. The dead task still holds its aiohttp
+    connection, which stays registered with the shared event loop's selector. epoll_wait then
+    blocks on that socket in subsequent tests. This fixture awaits the cancellation so the
+    task's finally blocks run and the connection is properly released.
+    """
+    yield
+
+    async def _cancel_all():
+        current = asyncio.current_task()
+        lingering = [t for t in asyncio.all_tasks() if t is not current]
+        if not lingering:
+            log.info('cancel_lingering_tasks: no lingering tasks found')
+            return
+        log.info('cancel_lingering_tasks: found %d lingering task(s)', len(lingering))
+        for task in lingering:
+            log.info('cancel_lingering_tasks: cancelling %r', task)
+            task.cancel()
+        try:
+            await asyncio.wait_for(asyncio.gather(*lingering, return_exceptions=True), timeout=5.0)
+            log.info('cancel_lingering_tasks: all tasks cleaned up')
+        except asyncio.TimeoutError:
+            log.warning('cancel_lingering_tasks: timed out waiting for task cleanup after 5s')
+
+    try:
+        async_to_blocking(_cancel_all())
+    except Exception:
+        log.exception('cancel_lingering_tasks: unexpected error during cleanup')
 
 
 @pytest.fixture(scope='session')
