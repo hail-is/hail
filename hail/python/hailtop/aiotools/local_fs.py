@@ -331,6 +331,8 @@ class LocalAsyncFS(AsyncFS):
             else:
                 new_url = await file.url()
                 new_path = self._get_path(new_url)
+                if not await blocking_to_async(self._thread_pool, os.path.isdir, new_path):
+                    raise NotADirectoryError(new_path)
                 new_entries = await blocking_to_async(self._thread_pool, os.scandir, new_path)
                 async for subfile in self._listfiles_recursive(new_url, new_entries):
                     yield subfile
@@ -347,6 +349,10 @@ class LocalAsyncFS(AsyncFS):
     ) -> AsyncIterator[FileListEntry]:
         del exclude_trailing_slash_files  # such files do not exist on local file systems
         path = self._get_path(url)
+        # Pre-check before os.scandir: on Linux overlayfs (Docker containers), os.scandir on a
+        # regular file path with a trailing '/' can hang instead of raising NotADirectoryError.
+        if not await blocking_to_async(self._thread_pool, os.path.isdir, path):
+            raise NotADirectoryError(path)
         if _VERBOSE:
             log.info('LocalAsyncFS.listfiles: submitting os.scandir(%s)', path)
         entries = await blocking_to_async(self._thread_pool, os.scandir, path)

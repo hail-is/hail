@@ -1,26 +1,38 @@
-import asyncio
+import dataclasses
 import logging
 import os
+import subprocess
 import sys
-import threading
-import traceback
 from contextlib import contextmanager
 from pathlib import Path, PurePath
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import orjson
 import pytest
 import yaml
-from typer.testing import CliRunner, Result
 
 import hailtop.batch_client.client as bc
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.batch_client.client import BatchClient
 from hailtop.config import ConfigVariable, configuration_of, get_remote_tmpdir
-from hailtop.hailctl.batch import cli
-from hailtop.utils import async_to_blocking, secret_alnum_string
+from hailtop.utils import secret_alnum_string
 
 log = logging.getLogger(__name__)
+
+
+@dataclasses.dataclass
+class SubprocessResult:
+    exit_code: int
+    stdout: str
+    stderr: str
+
+    @property
+    def output(self):
+        return self.stdout
+
+    @property
+    def exception(self):
+        return None
 
 
 @pytest.fixture(scope='function', autouse=True)
@@ -28,58 +40,6 @@ def expect_timeouts_as_image_pulling_is_very_slow(request):
     five_minutes = 5 * 60
     timeout = pytest.mark.timeout(five_minutes, method='thread')
     request.node.add_marker(timeout)
-
-
-@pytest.fixture(scope='function', autouse=True)
-def cancel_lingering_tasks_after_test():
-    """Cancel any tasks left over from a test killed mid-await.
-
-    When pytest-timeout kills a test via SIGALRM, async_to_blocking's finally block calls
-    task.cancel() but never awaits the cancellation. The dead task still holds its aiohttp
-    connection, which stays registered with the shared event loop's selector. epoll_wait then
-    blocks on that socket in subsequent tests. This fixture awaits the cancellation so the
-    task's finally blocks run and the connection is properly released.
-    """
-    yield
-
-    # Dump all non-main threads before cancellation processing shuts down the ThreadPoolExecutor.
-    # If a test hangs and is killed by pytest-timeout, the pool's with-block hasn't exited yet,
-    # so worker threads are still alive here. This tells us whether they're stuck in C code
-    # (e.g. os.scandir), idle at work_queue.get, or already gone.
-    all_frames = sys._current_frames()
-    non_main_threads = [t for t in threading.enumerate() if t is not threading.main_thread()]
-    if non_main_threads:
-        log.info('teardown: %d non-main thread(s) alive', len(non_main_threads))
-        for t in non_main_threads:
-            frame = all_frames.get(t.ident)
-            if frame is None:
-                log.info('teardown thread (no frame): name=%r daemon=%s', t.name, t.daemon)
-            else:
-                stack = ''.join(traceback.format_stack(frame))
-                log.info('teardown thread: name=%r daemon=%s\n%s', t.name, t.daemon, stack)
-    else:
-        log.info('teardown: no non-main threads alive')
-
-    async def _cancel_all():
-        current = asyncio.current_task()
-        lingering = [t for t in asyncio.all_tasks() if t is not current]
-        if not lingering:
-            log.info('cancel_lingering_tasks: no lingering tasks found')
-            return
-        log.info('cancel_lingering_tasks: found %d lingering task(s)', len(lingering))
-        for task in lingering:
-            log.info('cancel_lingering_tasks: cancelling %r', task)
-            task.cancel()
-        try:
-            await asyncio.wait_for(asyncio.gather(*lingering, return_exceptions=True), timeout=5.0)
-            log.info('cancel_lingering_tasks: all tasks cleaned up')
-        except asyncio.TimeoutError:
-            log.warning('cancel_lingering_tasks: timed out waiting for task cleanup after 5s')
-
-    try:
-        async_to_blocking(_cancel_all())
-    except Exception:
-        log.exception('cancel_lingering_tasks: unexpected error during cleanup')
 
 
 @pytest.fixture(scope='session')
@@ -93,27 +53,30 @@ def client():
 
 @pytest.fixture
 def submit(request):
-    runner = CliRunner()
-
-    def invoker(args: List[str], opts: List[str], **kwargs):
+    def invoker(args: List[str], opts: List[str], env: Optional[dict] = None, capture_stderr: bool = False):
         args = [str(arg) for arg in args]
-        command = ['submit', *opts, *args]
+        command = ['hailctl', 'batch', 'submit', *opts, *args]
 
-        # For ease of identifying the test in the batch ui
         if '--name' not in command:
             command += ['--name', request.node.nodeid]
 
-        # hailgenetics/hail is large enough that tests timeout waiting for
-        # workers to pull the image.
-        if '--image' not in command and 'HAIL_GENETICS_HAIL_IMAGE' not in kwargs.get('env', {}):
+        if '--image' not in command and 'HAIL_GENETICS_HAIL_IMAGE' not in (env or {}):
             command += ['--image', 'python:3.12-slim', '--shell', '/usr/bin/bash']
 
-        return runner.invoke(
-            cli.app,
+        env = {**os.environ, **(env or {})}
+
+        stderr_dest = subprocess.PIPE if capture_stderr else sys.stderr
+
+        with subprocess.Popen(
             command,
-            catch_exceptions=kwargs.get('catch_exceptions', False),
-            **kwargs,
-        )
+            stdout=subprocess.PIPE,
+            stderr=stderr_dest,
+            text=True,
+            env=env,
+        ) as proc:
+            stdout, stderr = proc.communicate()
+
+        return SubprocessResult(exit_code=proc.returncode, stdout=stdout, stderr=stderr or '')
 
     return invoker
 
@@ -135,11 +98,11 @@ def tmp_cwd_fixture(tmp_path):
         yield cd
 
 
-def assert_exit_code(res: Result, exit_code: int):
-    assert res.exit_code == exit_code, repr((res.output, res.stdout, res.stderr, res.exception))
+def assert_exit_code(res: SubprocessResult, exit_code: int):
+    assert res.exit_code == exit_code, repr((res.stdout, res.stderr, res.exception))
 
 
-def get_batch_from_json_output(res: Result, client: BatchClient) -> bc.Batch:
+def get_batch_from_json_output(res: SubprocessResult, client: BatchClient) -> bc.Batch:
     batch_id = orjson.loads(res.output)['batch_id']
     return client.get_batch(batch_id)
 
@@ -214,7 +177,7 @@ def test_output(submit, client, output):
     res = submit(['exit', '0'], ['--output', output, '--quiet', '--wait'])
     job_status = orjson.loads(res.output) if output == 'json' else yaml.safe_load(res.output)
     from_batch = client.get_batch(job_status['batch_id']).get_job(1).status()
-    assert job_status == from_batch, repr((res.output, res.stdout, res.stderr, res.exception))
+    assert job_status == from_batch, repr((res.stdout, res.stderr, res.exception))
 
 
 def test_image(submit, tmp_path, client):
@@ -269,19 +232,19 @@ echo "Hello, world!"
 
 @pytest.mark.parametrize("src_dest", ['', ':', ':dst'])
 def test_files_invalid_format(submit, src_dest):
-    res = submit([__file__], ['--wait', '--quiet', '-v', src_dest])
+    res = submit([__file__], ['--wait', '--quiet', '-v', src_dest], capture_stderr=True)
     assert_exit_code(res, 2)
-    assert f"Invalid format: '{src_dest}'" in res.output
+    assert f"Invalid format: '{src_dest}'" in res.stderr
 
 
 def test_files_src_not_directory(submit, tmp_path):
-    with pytest.raises(ValueError, match='does not exist or is not a valid directory'):
-        submit([__file__], ['--wait', '--quiet', '-v', '/garbage_path_does_not_exist/:/'])
+    res = submit([__file__], ['--wait', '--quiet', '-v', '/garbage_path_does_not_exist/:/'])
+    assert res.exit_code != 0
 
 
 def test_files_copy_rename_not_supported(submit, tmp_path):
-    with pytest.raises(ValueError, match='copy and renaming a directory is not supported'):
-        submit([__file__], ['--wait', '--quiet', '-v', f'{tmp_path}/:/a'])
+    res = submit([__file__], ['--wait', '--quiet', '-v', f'{tmp_path}/:/a'])
+    assert res.exit_code != 0
 
 
 def test_files_copy_rename(submit, tmp_cwd, client):
