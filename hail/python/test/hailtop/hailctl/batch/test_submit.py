@@ -1,8 +1,6 @@
 import dataclasses
-import logging
 import os
 import subprocess
-import sys
 from contextlib import contextmanager
 from pathlib import Path, PurePath
 from typing import List, Optional, Tuple
@@ -16,8 +14,6 @@ from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.batch_client.client import BatchClient
 from hailtop.config import ConfigVariable, configuration_of, get_remote_tmpdir
 from hailtop.utils import secret_alnum_string
-
-log = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
@@ -65,7 +61,7 @@ def submit(request):
 
         env = {**os.environ, **(env or {})}
 
-        stderr_dest = subprocess.PIPE if capture_stderr else sys.stderr
+        stderr_dest = subprocess.PIPE if capture_stderr else None
 
         with subprocess.Popen(
             command,
