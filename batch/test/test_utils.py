@@ -3,16 +3,19 @@ import pytest
 from batch.cloud.azure.resource_utils import MACHINE_TYPE_TO_PARTS as MACHINE_TYPE_TO_PARTS_AZURE
 from batch.cloud.gcp.instance_config import region_from_location
 from batch.cloud.gcp.resource_utils import (
-    MACHINE_TYPE_TO_PARTS as MACHINE_TYPE_TO_PARTS_GCP,
-)
-from batch.cloud.gcp.resource_utils import (
+    GCP_HYPERDISK_BALANCED_FREE_IOPS,
+    GCP_HYPERDISK_BALANCED_FREE_THROUGHPUT_MIB_PER_SEC,
     gcp_boot_disk_type,
     gcp_data_disk_device_name,
     gcp_data_disk_type,
+    gcp_hyperdisk_performance_overrides,
     gcp_local_ssd_count,
     gcp_local_ssd_size,
     gcp_worker_memory_per_core_mib,
     machine_type_to_gpu_num,
+)
+from batch.cloud.gcp.resource_utils import (
+    MACHINE_TYPE_TO_PARTS as MACHINE_TYPE_TO_PARTS_GCP,
 )
 from batch.cloud.gcp.resources import GCPAcceleratorResource, gcp_resource_from_dict
 from batch.cloud.resource_utils import adjust_cores_for_packability
@@ -141,6 +144,22 @@ def test_gcp_disk_type_helpers():
     assert gcp_data_disk_device_name('g2', 'g2-standard-4') == 'nvme0n2'
     assert gcp_data_disk_device_name('n2', 'n2-standard-16') == 'sdb'
     assert gcp_data_disk_device_name('n1', 'n1-standard-16') == 'sdb'
+
+
+def test_gcp_hyperdisk_performance_overrides_pin_free_baseline():
+    overrides = gcp_hyperdisk_performance_overrides('hyperdisk-balanced')
+    assert overrides == {
+        'provisionedIops': str(GCP_HYPERDISK_BALANCED_FREE_IOPS),
+        'provisionedThroughput': str(GCP_HYPERDISK_BALANCED_FREE_THROUGHPUT_MIB_PER_SEC),
+    }
+    assert GCP_HYPERDISK_BALANCED_FREE_IOPS == 3000
+    assert GCP_HYPERDISK_BALANCED_FREE_THROUGHPUT_MIB_PER_SEC == 140
+
+
+def test_gcp_hyperdisk_performance_overrides_noop_for_non_hyperdisk():
+    # provisionedIops/provisionedThroughput are rejected by the GCE API for non-Hyperdisk disk
+    # types, so no fields should be added for e.g. pd-ssd.
+    assert gcp_hyperdisk_performance_overrides('pd-ssd') == {}
 
 
 @pytest.mark.parametrize(

@@ -18,6 +18,7 @@ from ..resource_utils import (
     gcp_boot_disk_type,
     gcp_data_disk_device_name,
     gcp_data_disk_type,
+    gcp_hyperdisk_performance_overrides,
     gcp_local_ssd_count,
     gcp_machine_type_to_parts,
     machine_type_to_gpu,
@@ -85,12 +86,14 @@ def create_vm_config(
         worker_data_disk_name = 'md0' if num_local_ssds > 1 else 'nvme0n1'
     else:
         num_local_ssds = 0
+        data_disk_type = gcp_data_disk_type(parts.machine_family)
         worker_data_disks = [
             {
                 'autoDelete': True,
                 'initializeParams': {
-                    'diskType': f'projects/{project}/zones/{zone}/diskTypes/{gcp_data_disk_type(parts.machine_family)}',
+                    'diskType': f'projects/{project}/zones/{zone}/diskTypes/{data_disk_type}',
                     'diskSizeGb': str(data_disk_size_gb),
+                    **gcp_hyperdisk_performance_overrides(data_disk_type),
                 },
             }
         ]
@@ -125,6 +128,7 @@ def create_vm_config(
 
         return result
 
+    boot_disk_type = gcp_boot_disk_type(parts.machine_family)
     config = {
         'name': machine_name,
         'machineType': f'projects/{project}/zones/{zone}/machineTypes/{machine_type}',
@@ -136,8 +140,9 @@ def create_vm_config(
                 'initializeParams': {
                     # NB: create a new worker image with gcp-create-worker-image.sh
                     'sourceImage': f'projects/{project}/global/images/batch-worker-22',
-                    'diskType': f'projects/{project}/zones/{zone}/diskTypes/{gcp_boot_disk_type(parts.machine_family)}',
+                    'diskType': f'projects/{project}/zones/{zone}/diskTypes/{boot_disk_type}',
                     'diskSizeGb': str(boot_disk_size_gb),
+                    **gcp_hyperdisk_performance_overrides(boot_disk_type),
                 },
             },
             *worker_data_disks,
