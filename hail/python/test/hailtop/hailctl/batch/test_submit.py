@@ -22,14 +22,6 @@ class SubprocessResult:
     stdout: str
     stderr: str
 
-    @property
-    def output(self):
-        return self.stdout
-
-    @property
-    def exception(self):
-        return None
-
 
 @pytest.fixture(scope='function', autouse=True)
 def expect_timeouts_as_image_pulling_is_very_slow(request):
@@ -53,9 +45,12 @@ def submit(request):
         args = [str(arg) for arg in args]
         command = ['hailctl', 'batch', 'submit', *opts, *args]
 
+        # For ease of identifying the test in the batch ui
         if '--name' not in command:
             command += ['--name', request.node.nodeid]
 
+        # hailgenetics/hail is large enough that tests timeout waiting for
+        # workers to pull the image.
         if '--image' not in command and 'HAIL_GENETICS_HAIL_IMAGE' not in (env or {}):
             command += ['--image', 'python:3.12-slim', '--shell', '/usr/bin/bash']
 
@@ -95,11 +90,11 @@ def tmp_cwd_fixture(tmp_path):
 
 
 def assert_exit_code(res: SubprocessResult, exit_code: int):
-    assert res.exit_code == exit_code, repr((res.stdout, res.stderr, res.exception))
+    assert res.exit_code == exit_code, repr((res.stdout, res.stderr))
 
 
 def get_batch_from_json_output(res: SubprocessResult, client: BatchClient) -> bc.Batch:
-    batch_id = orjson.loads(res.output)['batch_id']
+    batch_id = orjson.loads(res.stdout)['batch_id']
     return client.get_batch(batch_id)
 
 
@@ -171,9 +166,9 @@ def test_workdir(submit, tmp_path, request, client):
 @pytest.mark.parametrize('output', ('json', 'yaml'))
 def test_output(submit, client, output):
     res = submit(['exit', '0'], ['--output', output, '--quiet', '--wait'])
-    job_status = orjson.loads(res.output) if output == 'json' else yaml.safe_load(res.output)
+    job_status = orjson.loads(res.stdout) if output == 'json' else yaml.safe_load(res.stdout)
     from_batch = client.get_batch(job_status['batch_id']).get_job(1).status()
-    assert job_status == from_batch, repr((res.stdout, res.stderr, res.exception))
+    assert job_status == from_batch, repr((res.stdout, res.stderr))
 
 
 def test_image(submit, tmp_path, client):
@@ -234,13 +229,15 @@ def test_files_invalid_format(submit, src_dest):
 
 
 def test_files_src_not_directory(submit, tmp_path):
-    res = submit([__file__], ['--wait', '--quiet', '-v', '/garbage_path_does_not_exist/:/'])
+    res = submit([__file__], ['--wait', '--quiet', '-v', '/garbage_path_does_not_exist/:/'], capture_stderr=True)
     assert res.exit_code != 0
+    assert 'does not exist or is not a valid directory' in res.stderr
 
 
 def test_files_copy_rename_not_supported(submit, tmp_path):
-    res = submit([__file__], ['--wait', '--quiet', '-v', f'{tmp_path}/:/a'])
+    res = submit([__file__], ['--wait', '--quiet', '-v', f'{tmp_path}/:/a'], capture_stderr=True)
     assert res.exit_code != 0
+    assert 'copy and renaming a directory is not supported' in res.stderr
 
 
 def test_files_copy_rename(submit, tmp_cwd, client):
