@@ -108,7 +108,7 @@ class ClientSession:
             *args,
             timeout=configuration_of_timeout,
             raise_for_status=False,
-            connector=aiohttp.TCPConnector(ssl=tls, ssl_shutdown_timeout=5, enable_cleanup_closed=True),
+            connector=aiohttp.TCPConnector(ssl=tls, ssl_shutdown_timeout=5),
             **kwargs,
         )
 
