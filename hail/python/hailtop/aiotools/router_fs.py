@@ -1,6 +1,4 @@
 import asyncio
-import logging
-import os
 from contextlib import AsyncExitStack
 from typing import Any, AsyncContextManager, AsyncIterator, Callable, ClassVar, Dict, List, Optional, Set, Type
 
@@ -10,9 +8,6 @@ from ..aiocloud import aioaws, aioazure, aiogoogle
 from ..aiocloud.aioterra import azure as aioterra_azure
 from .fs import AsyncFS, AsyncFSURL, FileListEntry, FileStatus, MultiPartCreate, ReadableStream, WritableStream
 from .local_fs import LocalAsyncFS
-
-log = logging.getLogger(__name__)
-_VERBOSE = os.environ.get('HAIL_BATCH_VERBOSE_WAIT_LOGGING') == '1'
 
 
 class RouterAsyncFS(AsyncFS):
@@ -82,25 +77,17 @@ class RouterAsyncFS(AsyncFS):
         )
 
     async def _get_fs(self, url: str):
-        if _VERBOSE:
-            log.info('RouterAsyncFS._get_fs: url=%s', url)
         if LocalAsyncFS.valid_url(url):
             if self._local_fs is None:
-                if _VERBOSE:
-                    log.info('RouterAsyncFS._get_fs: initialising LocalAsyncFS')
                 self._local_fs = LocalAsyncFS(**self._local_kwargs)
                 self._exit_stack.push_async_callback(self._local_fs.close)
             return self._local_fs
         if aiogoogle.GoogleStorageAsyncFS.valid_url(url):
             if self._google_fs is None:
-                if _VERBOSE:
-                    log.info('RouterAsyncFS._get_fs: initialising GoogleStorageAsyncFS')
                 self._google_fs = aiogoogle.GoogleStorageAsyncFS(
                     **self._gcs_kwargs, bucket_allow_list=self._gcs_bucket_allow_list.copy()
                 )
                 self._exit_stack.push_async_callback(self._google_fs.close)
-                if _VERBOSE:
-                    log.info('RouterAsyncFS._get_fs: GoogleStorageAsyncFS ready')
             return self._google_fs
         if aioterra_azure.TerraAzureAsyncFS.enabled() and aioterra_azure.TerraAzureAsyncFS.valid_url(url):
             if self._terra_azure_fs is None:
@@ -120,30 +107,16 @@ class RouterAsyncFS(AsyncFS):
         raise ValueError(f'no file system found for url {url}')
 
     async def open(self, url: str) -> ReadableStream:
-        if _VERBOSE:
-            log.info('RouterAsyncFS.open: url=%s', url)
         fs = await self._get_fs(url)
-        if _VERBOSE:
-            log.info('RouterAsyncFS.open: got fs=%s, calling open url=%s', type(fs).__name__, url)
-        result = await fs.open(url)
-        if _VERBOSE:
-            log.info('RouterAsyncFS.open: done url=%s', url)
-        return result
+        return await fs.open(url)
 
     async def _open_from(self, url: str, start: int, *, length: Optional[int] = None) -> ReadableStream:
         fs = await self._get_fs(url)
         return await fs.open_from(url, start, length=length)
 
     async def create(self, url: str, *, retry_writes: bool = True) -> AsyncContextManager[WritableStream]:
-        if _VERBOSE:
-            log.info('RouterAsyncFS.create: url=%s retry_writes=%s', url, retry_writes)
         fs = await self._get_fs(url)
-        if _VERBOSE:
-            log.info('RouterAsyncFS.create: got fs=%s, calling create url=%s', type(fs).__name__, url)
-        result = await fs.create(url, retry_writes=retry_writes)
-        if _VERBOSE:
-            log.info('RouterAsyncFS.create: done url=%s', url)
-        return result
+        return await fs.create(url, retry_writes=retry_writes)
 
     async def multi_part_create(self, sema: asyncio.Semaphore, url: str, num_parts: int) -> MultiPartCreate:
         fs = await self._get_fs(url)

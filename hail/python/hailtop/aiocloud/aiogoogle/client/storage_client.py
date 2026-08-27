@@ -2,7 +2,6 @@ import asyncio
 import datetime
 import logging
 import os
-import time
 import urllib.parse
 from contextlib import AsyncExitStack
 from types import TracebackType
@@ -34,7 +33,6 @@ from ..user_config import GCSRequesterPaysConfiguration, get_gcs_requester_pays_
 from .base_client import GoogleBaseClient
 
 log = logging.getLogger(__name__)
-_VERBOSE = os.environ.get('HAIL_BATCH_VERBOSE_WAIT_LOGGING') == '1'
 
 
 class PageIterator:
@@ -88,23 +86,11 @@ class InsertObjectStream(WritableStream):
         self._request_task = request_task
         self._value = None
         self._exit_stack = AsyncExitStack()
-        self._start = time.monotonic()
-        self._bytes_written = 0
 
         async def cleanup_request_task():
-            if _VERBOSE:
-                log.info(
-                    'media upload: all data fed, awaiting POST response (%.2fs so far)', time.monotonic() - self._start
-                )
             if not self._request_task.cancelled():
                 try:
                     async with await self._request_task as response:
-                        if _VERBOSE:
-                            log.info(
-                                'media upload: POST complete status=%d elapsed=%.2fs',
-                                response.status,
-                                time.monotonic() - self._start,
-                            )
                         self._value = await response.json()
                 except AttributeError as err:
                     raise ValueError(repr(self._request_task)) from err
@@ -115,14 +101,6 @@ class InsertObjectStream(WritableStream):
     async def write(self, b):
         assert not self.closed
 
-        self._bytes_written += len(b)
-        if _VERBOSE:
-            log.info(
-                'media upload: feeding %d bytes (total so far: %d, elapsed: %.2fs)',
-                len(b),
-                self._bytes_written,
-                time.monotonic() - self._start,
-            )
         fut = asyncio.ensure_future(self._it.feed(b))
         self._exit_stack.push_async_callback(_cleanup_future, fut)
 
@@ -242,9 +220,6 @@ class ResumableInsertObjectStream(WritableStream):
         # Upload a single chunk.  See:
         # https://cloud.google.com/storage/docs/performing-resumable-uploads#chunked-upload
         it: FeedableAsyncIterable[bytes] = FeedableAsyncIterable()
-        _chunk_start = time.monotonic()
-        if _VERBOSE:
-            log.info('resumable upload: starting chunk PUT offset=%d n=%d range=%s', offset, n, range)
         async with _TaskManager(
             self._session.put(
                 self._session_url,
@@ -265,23 +240,8 @@ class ResumableInsertObjectStream(WritableStream):
                             raise TransientError(msg)
 
             await it.stop()
-            if _VERBOSE:
-                log.info(
-                    'resumable upload: chunk data fed, awaiting PUT response offset=%d n=%d elapsed=%.2fs',
-                    offset,
-                    n,
-                    time.monotonic() - _chunk_start,
-                )
 
             resp = await put_task
-            if _VERBOSE:
-                log.info(
-                    'resumable upload: chunk PUT complete offset=%d n=%d status=%d elapsed=%.2fs',
-                    offset,
-                    n,
-                    resp.status,
-                    time.monotonic() - _chunk_start,
-                )
             if resp.status >= 200 and resp.status < 300:
                 assert self._closed
                 assert total_size is not None
@@ -397,18 +357,11 @@ class GoogleStorageClient(GoogleBaseClient):
             params['uploadType'] = upload_type
 
         if upload_type == 'media':
-            if _VERBOSE:
-                log.info('media upload: starting POST for gs://%s/%s', bucket, name)
             it: FeedableAsyncIterable[bytes] = FeedableAsyncIterable()
             kwargs['data'] = aiohttp.AsyncIterablePayload(it)
             request_task = asyncio.create_task(
                 self._session.post(
-                    # timeout: fails faster on a hung upload but does NOT retry — retry=False
-                    # and there's no higher-level retry wrapper around _copy_file.
-                    f'https://storage.googleapis.com/upload/storage/v1/b/{bucket}/o',
-                    retry=False,
-                    timeout=aiohttp.ClientTimeout(total=60),
-                    **kwargs,
+                    f'https://storage.googleapis.com/upload/storage/v1/b/{bucket}/o', retry=False, **kwargs
                 )
             )
             return InsertObjectStream(it, request_task)
@@ -418,14 +371,10 @@ class GoogleStorageClient(GoogleBaseClient):
         assert upload_type == 'resumable'
         chunk_size = kwargs.get('bufsize', 8 * 1024 * 1024)
 
-        if _VERBOSE:
-            log.info('resumable upload: initiating session for gs://%s/%s', bucket, name)
         async with await self._session.post(
             f'https://storage.googleapis.com/upload/storage/v1/b/{bucket}/o', **kwargs
         ) as resp:
             session_url = resp.headers['Location']
-        if _VERBOSE:
-            log.info('resumable upload: session initiated for gs://%s/%s', bucket, name)
         return ResumableInsertObjectStream(self._session, session_url, chunk_size)
 
     async def get_object(self, bucket: str, name: str, **kwargs) -> GetObjectStream:
@@ -793,14 +742,9 @@ class GoogleStorageAsyncFS(AsyncFS):
         return await self._storage_client.get_object(fsurl._bucket, fsurl._path, headers={'Range': range_str})
 
     async def create(self, url: str, *, retry_writes: bool = True) -> WritableStream:
-        if _VERBOSE:
-            log.info('GoogleStorageAsyncFS.create: url=%s retry_writes=%s', url, retry_writes)
         fsurl = self.parse_url(url, error_if_bucket=True)
         params = {'uploadType': 'resumable' if retry_writes else 'media'}
-        result = await self._storage_client.insert_object(fsurl._bucket, fsurl._path, params=params)
-        if _VERBOSE:
-            log.info('GoogleStorageAsyncFS.create: insert_object returned url=%s', url)
-        return result
+        return await self._storage_client.insert_object(fsurl._bucket, fsurl._path, params=params)
 
     async def multi_part_create(
         self, sema: asyncio.Semaphore, url: str, num_parts: int

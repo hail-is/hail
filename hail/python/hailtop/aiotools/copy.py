@@ -2,10 +2,8 @@ import argparse
 import asyncio
 import json
 import logging
-import os
 import subprocess
 import sys
-import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import AsyncContextManager, Dict, List, Optional, Tuple
 
@@ -16,9 +14,6 @@ from ..utils.rich_progress_bar import CopyToolProgressBar, make_listener
 from ..utils.utils import sleep_before_try
 from . import Copier, Transfer
 from .router_fs import RouterAsyncFS
-
-log = logging.getLogger(__name__)
-_VERBOSE = os.environ.get('HAIL_BATCH_VERBOSE_WAIT_LOGGING') == '1'
 
 
 class GrowingSempahore(AsyncContextManager[asyncio.Semaphore]):
@@ -88,14 +83,9 @@ async def copy(
         if 'max_pool_connections' not in s3_kwargs:
             s3_kwargs['max_pool_connections'] = max_simultaneous_transfers * 2
 
-        if _VERBOSE:
-            log.info('copy: creating RouterAsyncFS for %d transfers', len(transfers))
-        _copy_start = time.monotonic()
         async with RouterAsyncFS(
             local_kwargs=local_kwargs, gcs_kwargs=gcs_kwargs, azure_kwargs=azure_kwargs, s3_kwargs=s3_kwargs
         ) as fs:
-            if _VERBOSE:
-                log.info('copy: RouterAsyncFS ready (%.2fs)', time.monotonic() - _copy_start)
             with CopyToolProgressBar(transient=True, disable=not verbose) as progress:
                 initial_simultaneous_transfers = 10
                 parallelism_tid = progress.add_task(
@@ -109,12 +99,6 @@ async def copy(
                 ) as sema:
                     file_tid = progress.add_task(description='files', total=0, visible=verbose)
                     bytes_tid = progress.add_task(description='bytes', total=0, visible=verbose)
-                    if _VERBOSE:
-                        log.info(
-                            'copy: calling Copier.copy for %d transfers (%.2fs)',
-                            len(transfers),
-                            time.monotonic() - _copy_start,
-                        )
                     copy_report = await Copier.copy(
                         fs,
                         sema,
@@ -122,8 +106,6 @@ async def copy(
                         files_listener=make_listener(progress, file_tid),
                         bytes_listener=make_listener(progress, bytes_tid),
                     )
-                    if _VERBOSE:
-                        log.info('copy: Copier.copy complete (%.2fs)', time.monotonic() - _copy_start)
                 if verbose:
                     copy_report.summarize()
 
