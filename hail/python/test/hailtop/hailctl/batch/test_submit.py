@@ -231,7 +231,8 @@ def test_files_invalid_format(submit, src_dest):
 def test_files_src_not_directory(submit, tmp_path):
     res = submit([__file__], ['--wait', '--quiet', '-v', '/garbage_path_does_not_exist/:/'], capture_stderr=True)
     assert res.exit_code != 0
-    assert 'does not exist or is not a valid directory' in res.stderr
+    # Split and rejoin to avoid problems with newlines like 'does not exist or is not a valid \ndirectory'
+    assert 'does not exist or is not a valid directory' in ' '.join(res.stderr.split())
 
 
 def test_files_copy_rename_not_supported(submit, tmp_path):
