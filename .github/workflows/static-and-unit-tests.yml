@@ -21,13 +21,12 @@ jobs:
       run: ${{ steps.check.outputs.run }}
     steps:
       - id: check
-        # Run checks on standalone PRs targeting main, and on the tail of a
-        # stack (the final PR, which accumulates all changes). Skip intermediates.
-        # github.event.pull_request.stack is null when not part of a stack.
-        # Within a stack, position and size are 1-based; position==size is tail.
+        # Run on standalone PRs targeting main, the first PR in a stack
+        # (position == 1, which targets main directly), or any stacked PR
+        # with a 'mergeable' label. Skip all other stack intermediates.
         run: |
           if [[ "${{ github.event.pull_request.stack == null }}" == "true" ]] \
-             || [[ "${{ github.event.pull_request.stack != null && github.event.pull_request.stack.position == github.event.pull_request.stack.size }}" == "true" ]] \
+             || [[ "${{ github.event.pull_request.stack != null && github.event.pull_request.stack.position == 1 }}" == "true" ]] \
              || [[ "${{ contains(github.event.pull_request.labels.*.name, 'mergeable') }}" == "true" ]]; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
