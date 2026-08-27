@@ -161,7 +161,7 @@ def test_gcp_hyperdisk_performance_overrides_pin_free_baseline():
 def test_gcp_hyperdisk_performance_overrides_noop_for_non_hyperdisk():
     # provisionedIops/provisionedThroughput are rejected by the GCE API for non-Hyperdisk disk
     # types, so no fields should be added for e.g. pd-ssd.
-    assert gcp_hyperdisk_performance_overrides('pd-ssd') == {}
+    assert not gcp_hyperdisk_performance_overrides('pd-ssd')
 
 
 @pytest.mark.parametrize(
