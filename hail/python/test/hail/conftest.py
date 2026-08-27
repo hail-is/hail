@@ -104,6 +104,26 @@ def reset_global_randomness():
     Env.reset_global_randomness()
 
 
+def jvm_is_alive() -> bool:
+    # A verifiable round-trip: fails if the JVM is dead and returns a wrong
+    # answer if the py4j connection is desynchronized (e.g. by an interrupted
+    # test leaving an unread response on the socket).
+    try:
+        return Env.backend()._jvm.java.lang.Math.floorDiv(1729, 42) == 41
+    except Exception:
+        return False
+
+
+@pytest.fixture(autouse=True)
+def revive_dead_jvm(request):
+    from hail.backend.py4j_backend import Py4JBackend
+
+    if Env.is_fully_initialized() and isinstance(Env.backend(), Py4JBackend) and not jvm_is_alive():
+        log.warning('the Hail JVM died or its connection was corrupted; reinitializing')
+        hl_stop_for_test()
+        hl_init_for_test(backend=choose_backend(), app_name=request.node.name)
+
+
 test_results_key = StashKey[Dict[str, CollectReport]]()
 
 

@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import random
+import re
 import secrets
 import time
 from shlex import quote as shq
@@ -20,12 +21,12 @@ from gidgethub import aiohttp as gh_aiohttp
 from gear import Database, UserData
 from hailtop.batch_client.aioclient import Batch, BatchClient
 from hailtop.config import get_deploy_config
-from hailtop.utils import RETRY_FUNCTION_SCRIPT, check_shell, check_shell_output
+from hailtop.utils import RETRY_FUNCTION_SCRIPT, CalledProcessError, check_shell, check_shell_output
 
 from .build import BuildConfiguration, Code
 from .build_selection import compute_requested_steps
 from .constants import AUTHORIZED_USERS, COMPILER_TEAM, GITHUB_CLONE_URL, GITHUB_STATUS_CONTEXT, SERVICES_TEAM
-from .environment import CLOUD, DEPLOY_STEPS
+from .environment import CLOUD, DEPLOY_STEPS, REGION
 from .globals import is_test_deployment
 from .utils import GithubStatus, add_deployed_services, github_status
 
@@ -229,6 +230,32 @@ fi
 """
 
 
+def _read_pip_version(repo_dir: str) -> Optional[str]:
+    makefile_path = f'{repo_dir}/hail/Makefile'
+    try:
+        with open(makefile_path, 'r', encoding='utf-8') as f:
+            makefile = f.read()
+    except FileNotFoundError:
+        return None
+
+    major_minor_m = re.search(r'^HAIL_MAJOR_MINOR_VERSION\s*:=\s*(\S+)', makefile, re.MULTILINE)
+    patch_m = re.search(r'^HAIL_PATCH_VERSION\s*:=\s*(\S+)', makefile, re.MULTILINE)
+    if not major_minor_m or not patch_m:
+        raise ValueError(f'could not parse HAIL_PIP_VERSION from {makefile_path}')
+    pip_version = f'{major_minor_m.group(1)}.{patch_m.group(1)}'
+
+    generated_path = f'{repo_dir}/hail/env/HAIL_PIP_VERSION'
+    if os.path.exists(generated_path):
+        with open(generated_path, 'r', encoding='utf-8') as f:
+            generated = f.read().strip()
+        if generated != pip_version:
+            raise ValueError(
+                f'HAIL_PIP_VERSION mismatch: Makefile says {pip_version!r}, generated file says {generated!r}'
+            )
+
+    return pip_version
+
+
 class PR(Code):
     def __init__(
         self,
@@ -266,6 +293,9 @@ class PR(Code):
         self.build_state: Optional[str] = None
 
         self.pending_build_reason: str = 'unknown'
+        self.tactical: bool = False
+
+        self.pip_version: Optional[str] = None
 
         self.intended_github_status: GithubStatus = self.github_status_from_build_state()
         self.last_known_github_status: Dict[str, GithubStatus] = {}
@@ -393,6 +423,7 @@ class PR(Code):
             'checkout_script': self.checkout_script(),
             'developers': self.developers,
             'number': self.number,
+            'pip_version': self.pip_version or '',
             'source_repo': source_repo.short_str(),
             'source_repo_url': source_repo.url,
             'source_sha': self.source_sha,
@@ -509,6 +540,8 @@ mkdir -p {shq(repo_dir)}
 (cd {shq(repo_dir)}; {self.checkout_script()})
 """)
 
+            self.pip_version = _read_pip_version(repo_dir)
+
             sha_out, _ = await check_shell_output(f'git -C {shq(repo_dir)} rev-parse HEAD')
             self.sha = sha_out.decode('utf-8').strip()
 
@@ -521,23 +554,63 @@ mkdir -p {shq(repo_dir)}
 
             with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
                 build_yaml = f.read()
-            run_all = RERUN_ALL_TESTS in self.labels or 'build.yaml' in changed_files
-            if run_all:
+            # None means run everything; a list (possibly empty) means run only those steps + label-forced.
+            if RERUN_ALL_TESTS in self.labels or 'build.yaml' in changed_files:
                 log.info(f'PR #{self.number} running full test suite (rerun all tests label or build.yaml changed)')
-                requested_step_names: List[str] = []
+                requested_step_names: Optional[List[str]] = None
             else:
                 requested_steps_set = compute_requested_steps(build_yaml, changed_files, scope='test', cloud=CLOUD)
                 log.info(f'PR #{self.number} selected steps ({len(requested_steps_set)})')
                 requested_step_names = list(requested_steps_set)
-            config = BuildConfiguration(self, build_yaml, scope='test', requested_step_names=requested_step_names)
-            namespace = config.namespace()
-            services = config.deployed_services()
+
+            tactical = self.tactical
+            tactical_skipped: Dict[str, int] = {}
+            if tactical and requested_step_names is not None:
+                succeeded_steps: Dict[str, int] = {}
+                requested_steps_set = set(requested_step_names)
+                async for b in batch_client.list_batches(
+                    f'test=1 pr={self.number} source_sha={self.source_sha} target_sha={self.target_branch.sha} user:ci',
+                    limit=50,
+                ):
+                    step_states: Dict[str, List[str]] = {}
+                    async for job in b.jobs():
+                        if job['name']:
+                            name = job['name']
+                            if name in requested_steps_set:
+                                step_name = name
+                            else:
+                                stripped = re.sub(r'_\d+$', '', name)
+                                if stripped not in requested_steps_set:
+                                    continue
+                                step_name = stripped
+                            step_states.setdefault(step_name, []).append(job['state'])
+                    # list_batches is newest-first; overwriting on each older batch means we
+                    # end up pointing to the oldest batch where every shard of the step passed.
+                    for step_name, states in step_states.items():
+                        if all(s == 'Success' for s in states):
+                            succeeded_steps[step_name] = b.id
+                    if succeeded_steps.keys() >= requested_steps_set:
+                        break
+                tactical_skipped = {s: succeeded_steps[s] for s in requested_step_names if s in succeeded_steps}
+                requested_step_names = [s for s in requested_step_names if s not in succeeded_steps]
+                log.info(
+                    f'PR #{self.number} tactical retry: skipping {len(tactical_skipped)} already-succeeded steps: {list(tactical_skipped)}'
+                )
+
+            config = BuildConfiguration(
+                self,
+                build_yaml,
+                scope='test',
+                requested_step_names=requested_step_names,
+                pr_labels=frozenset(self.labels),
+            )
+            namespace: Optional[str] = config.namespace()
+            services: List[str] = config.deployed_services()
             with open(f'{repo_dir}/ci/test/resources/build.yaml', 'r', encoding='utf-8') as f:
                 test_services = BuildConfiguration(self, f.read(), scope='test').deployed_services()
-
             services.extend(test_services)
-            # namespace is None when no service deploy steps are selected (e.g. hail-only PRs);
-            # in that case there are no deployed services to register.
+
+            # namespace is None when no service deploy steps are selected (e.g. hail-only PRs).
             if namespace is not None:
                 tomorrow = datetime.datetime.utcnow() + datetime.timedelta(days=1)
                 await add_deployed_services(db, namespace, services, tomorrow)
@@ -559,8 +632,29 @@ mkdir -p {shq(repo_dir)}
                 },
                 callback=CALLBACK_URL,
             )
+            if tactical_skipped:
+                # A step removed from requested_step_names may still run if it's a transitive
+                # dependency of another step that is still required. Only show steps that are
+                # genuinely absent from the batch.
+                actually_running = {step.name for step in config.steps}
+                tactical_skipped = {s: bid for s, bid in tactical_skipped.items() if s not in actually_running}
+            if tactical_skipped:
+                skipped_log_lines = ['Skipped (already succeeded with matching source and target SHA):']
+                skipped_log_lines += [
+                    f'  * {step}: {deploy_config.external_url("batch", f"/batches/{batch_id}")}'
+                    for step, batch_id in sorted(tactical_skipped.items())
+                ]
+                shell_script = '\n'.join(f'echo {shq(line)}' for line in skipped_log_lines)
+                batch.create_job(
+                    'ubuntu:24.04',
+                    command=['/bin/sh', '-c', shell_script],
+                    attributes={'name': 'Tactical Retry Skipped Test Log'},
+                    always_run=True,
+                    regions=[REGION],
+                )
             config.build(batch, self, scope='test')
             await batch.submit()
+            self.tactical = False
             self.batch = batch
         except concurrent.futures.CancelledError:
             raise
@@ -829,6 +923,8 @@ class WatchedBranch(Code):
         self.prs: Dict[int, PR] = {}
         self.sha: Optional[str] = None
 
+        self.pip_version: Optional[str] = None
+
         self.deploy_batch: Union[Batch, MergeFailureBatch, None] = None
         # success, failure, pending
         self._deploy_state: Optional[str] = None
@@ -864,6 +960,7 @@ class WatchedBranch(Code):
         return {
             'checkout_script': self.checkout_script(),
             'branch': self.branch.name,
+            'pip_version': self.pip_version or '',
             'repo': self.branch.repo.short_str(),
             'repo_url': self.branch.repo.url,
             'sha': self.sha,
@@ -1117,8 +1214,26 @@ url: {url}
 mkdir -p {shq(repo_dir)}
 (cd {shq(repo_dir)}; {self.checkout_script()})
 """)
+            self.pip_version = _read_pip_version(repo_dir)
+            pip_version = self.pip_version
+            if pip_version is None:
+                raise ValueError(f'could not determine HAIL_PIP_VERSION: hail/Makefile not found in {repo_dir}')
+            is_release = False
+            try:
+                await check_shell_output(
+                    f'git -C {shq(repo_dir)} ls-remote --exit-code --tags origin {shq(pip_version)}'
+                )
+            except CalledProcessError as e:
+                if e.returncode == 2:
+                    is_release = True
+                else:
+                    raise
+            log.info(f'deploy for {self.branch.short_str()} @ {self.sha[:8]}: is_release={is_release}')
+
             with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
-                config = BuildConfiguration(self, f.read(), requested_step_names=DEPLOY_STEPS, scope='deploy')
+                config = BuildConfiguration(
+                    self, f.read(), requested_step_names=DEPLOY_STEPS or None, scope='deploy', is_release=is_release
+                )
                 namespace = config.namespace()
                 services = config.deployed_services()
             with open(f'{repo_dir}/ci/test/resources/build.yaml', 'r', encoding='utf-8') as f:
@@ -1129,14 +1244,17 @@ mkdir -p {shq(repo_dir)}
             await add_deployed_services(db, namespace, services, None)
 
             log.info(f'creating deploy batch for {self.branch.short_str()}')
+            batch_name = f'Deploy {self.branch.name} @ {self.sha[:8]}'
+            if is_release:
+                batch_name += f' / Release {pip_version}'
             deploy_batch = batch_client.create_batch(
                 attributes={
                     'token': secrets.token_hex(16),
                     'deploy': '1',
                     'target_branch': self.branch.short_str(),
                     'sha': self.sha,
-                    'name': f'Deploy {self.branch.name} @ {self.sha[:8]}',
-                    'batch_type': 'ci/deploy/prod',
+                    'name': batch_name,
+                    'batch_type': 'ci/release/prod' if is_release else 'ci/deploy/prod',
                 },
                 callback=CALLBACK_URL,
             )

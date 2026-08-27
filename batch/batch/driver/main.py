@@ -107,7 +107,7 @@ auth = get_authenticator()
 
 warnings.filterwarnings(
     'ignore',
-    ".*Warning: Field or reference 'batch.billing_projects.name' of SELECT #. was resolved in SELECT #.",
+    ".*Warning: Field or reference 'batch\\..*' of SELECT #. was resolved in SELECT #.",
     module='aiomysql.*',
 )
 
@@ -2163,6 +2163,8 @@ class BatchDriverAccessLogger(AccessLogger):
 
 
 async def on_startup(app):
+    asyncio.get_running_loop().add_signal_handler(signal.SIGUSR1, dump_all_stacktraces)
+
     exit_stack = AsyncExitStack()
     app['exit_stack'] = exit_stack
 
@@ -2263,8 +2265,6 @@ def run():
 
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
-
-    asyncio.get_event_loop().add_signal_handler(signal.SIGUSR1, dump_all_stacktraces)
 
     web.run_app(
         deploy_config.prefix_application(app, 'batch-driver', client_max_size=HTTP_CLIENT_MAX_SIZE),

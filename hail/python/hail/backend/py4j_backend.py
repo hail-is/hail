@@ -1,15 +1,18 @@
 import abc
+import functools
 import glob
 import http.client
 import logging
 import sys
 import warnings
-from typing import Any, Dict, Mapping
+from typing import Any, Callable, Dict, Mapping
 
 import orjson
 import py4j
+import py4j.clientserver
 import requests
 from py4j.java_gateway import (
+    GatewayConnection,
     GatewayParameters,
     JavaGateway,
     JavaObject,
@@ -29,7 +32,7 @@ from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
 from hailtop.aiotools.validators import validate_file
 from hailtop.fs.fs import FS
 from hailtop.fs.router_fs import RouterFS
-from hailtop.utils import async_to_blocking, find_spark_home, sync_retry_transient_errors
+from hailtop.utils import async_to_blocking, find_spark_home
 
 # This defaults to 65536 and fails if a header is longer than _MAXLINE
 # The timing json that we output can exceed 65536 bytes so we raise the limit
@@ -38,6 +41,47 @@ http.client._MAXLINE = 2**20
 
 _installed = False
 _original = None
+
+
+def _make_interrupt_safe(cls) -> None:
+    # An interrupt raised while blocked reading a py4j response (e.g.
+    # KeyboardInterrupt, or pytest-timeout's Failed, both BaseExceptions)
+    # leaves that response unread on the socket. py4j cleans up after
+    # Exception and KeyboardInterrupt only, so any other interrupt returns the
+    # connection to the pool (or leaves it bound to the thread under pyspark's
+    # ClientServer) and every subsequent command on it reads a stale,
+    # mismatched response. Closing the connection instead makes py4j open a
+    # fresh one for the next command.
+    original = cls.send_command
+    if getattr(original, '_hail_interrupt_safe', False):
+        return
+
+    @functools.wraps(original)
+    def send_command(self, command):
+        try:
+            return original(self, command)
+        except Exception:
+            raise
+        except BaseException:
+            self.close(reset=True)
+            raise
+
+    setattr(send_command, '_hail_interrupt_safe', True)
+    cls.send_command = send_command
+
+
+_make_interrupt_safe(GatewayConnection)
+_make_interrupt_safe(py4j.clientserver.ClientServerConnection)
+
+
+def _log_suppress_exceptions(action: Callable[[], None]) -> None:
+    # Failures while tearing down a dead or unreachable JVM must not prevent
+    # the remaining shutdown steps from running, otherwise global state is
+    # left pointing at the defunct JVM and re-initialization is impossible.
+    try:
+        action()
+    except Exception:
+        logging.warning('ignoring error during Hail shutdown', exc_info=True)
 
 
 def start_py4j_gateway(*, max_heap_size: str | None = None) -> JavaGateway:
@@ -276,17 +320,17 @@ class Py4JBackend(Backend):
     def _rpc(self, action, payload) -> bytes:
         data = orjson.dumps(payload)
         path = action_routes[action]
+        port = self._jhttp_server.port()
 
-        def go():
-            port = self._jhttp_server.port()
-            try:
-                return requests.post(f'http://localhost:{port}{path}', data=data)
-            except requests.exceptions.ConnectionError:
-                self._stop_jhttp_server()
-                self._jhttp_server = self._jbackend.pyHttpServer()
-                raise
-
-        resp = sync_retry_transient_errors(go)
+        try:
+            # No read timeout: queries may legitimately run for a long time.
+            resp = requests.post(f'http://localhost:{port}{path}', data=data, timeout=(5, None))
+        except BaseException:
+            # The post was interrupted (Ctrl-C, pytest timeout, ...) or the
+            # connection was severed; either way, stop the jvm running the
+            # abandoned operation to completion.
+            _log_suppress_exceptions(self._jbackend.pyCancel)
+            raise
 
         if resp.status_code >= 400:
             error_json = orjson.loads(resp.content)
@@ -355,14 +399,11 @@ class Py4JBackend(Backend):
         return self._parse_blockmatrix_ir(self._render_ir(ir))
 
     def _stop_jhttp_server(self):
-        try:
-            self._jhttp_server.close()
-        except requests.exceptions.ConnectionError:
-            pass
+        _log_suppress_exceptions(lambda: self._jhttp_server.close())
 
     def stop(self):
         super().stop()
         self._stop_jhttp_server()
-        self._jbackend.close()
+        _log_suppress_exceptions(lambda: self._jbackend.close())
         uninstall_exception_handler()
         self.fs = None

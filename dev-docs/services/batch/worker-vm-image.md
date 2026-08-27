@@ -70,6 +70,14 @@ the disk.
 
 ### Incrementing the version
 
+> [!NOTE]
+> `devbin/update-worker-disk-base-ubuntu-image.py` automates the file edits below and optionally
+> kicks off the test build. Run it with:
+>
+> ```bash
+> python3 devbin/update-worker-disk-base-ubuntu-image.py
+> ```
+
 #### At the same time
 
 1. Take this opportunity to identify a suitable new base image (`UBUNTU_IMAGE` - look in the image list in GCP console for the latest).

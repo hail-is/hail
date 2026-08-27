@@ -17,7 +17,7 @@ DOCKER_ROOT_IMAGE=$(get_global_config_field docker_root_image $NAMESPACE)
 # When you bump the WORKER_IMAGE_VERSION, you should also update:
 # - the INSTANCE_VERSION in globals.py (add one to the current value)
 # - the image name in batch/batch/cloud/gcp/driver/create_instance.py (should match this value)
-WORKER_IMAGE_VERSION=22
+WORKER_IMAGE_VERSION=23
 
 if [ "$NAMESPACE" == "default" ]; then
     WORKER_IMAGE=batch-worker-${WORKER_IMAGE_VERSION}
@@ -27,7 +27,7 @@ else
     BUILDER=build-batch-worker-$NAMESPACE-image
 fi
 
-UBUNTU_IMAGE=ubuntu-minimal-2404-noble-amd64-v20260704
+UBUNTU_IMAGE=ubuntu-minimal-2404-noble-amd64-v20260810
 
 WORKER_IMAGE_EXISTS=false
 if [[ -n "$(gcloud compute images list --project "${PROJECT}" --filter="name=${WORKER_IMAGE}" --format='value(name)')" ]]; then
@@ -87,13 +87,36 @@ create_worker_image() {
         --zone=${ZONE}
 }
 
+wait_for_vm() {
+    local -a frames=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
+    local i=0 last_poll=0 vm_status='RUNNING'
+    local start=$SECONDS
+
+    while [ "$vm_status" == "RUNNING" ]; do
+        if (( SECONDS - last_poll >= 5 )); then
+            vm_status=$(gcloud compute instances describe "$BUILDER" \
+                --project "$PROJECT" --zone "$ZONE" --format='value(status)' 2>/dev/null) || true
+            last_poll=$SECONDS
+        fi
+        local elapsed=$(( SECONDS - start ))
+        printf '\r  %s %s [%s] %dm %02ds  ' \
+            "${frames[i % ${#frames[@]}]}" "$BUILDER" "$vm_status" \
+            "$(( elapsed / 60 ))" "$(( elapsed % 60 ))"
+        i=$(( i + 1 ))
+        sleep 0.1
+    done
+
+    local elapsed=$(( SECONDS - start ))
+    printf '\r  ✓ %s done in %dm %02ds%30s\n' \
+        "$BUILDER" "$(( elapsed / 60 ))" "$(( elapsed % 60 ))" ''
+}
+
 main() {
     set -x
     create_build_image_instance
-    while [ "$(gcloud compute instances describe ${BUILDER} --project ${PROJECT} --zone ${ZONE} --format='value(status)')" == "RUNNING" ];
-    do
-        sleep 5
-    done
+    set +x
+    wait_for_vm
+    set -x
     create_worker_image
 }
 

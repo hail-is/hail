@@ -5,7 +5,7 @@ document.getElementsByName('remove-role-button').forEach(button => {
 });
 
 document.getElementsByName('add-role-button').forEach(button => {
-        button.addEventListener('click', (_e) => { addRole(button.dataset['username-input-id'], button.dataset.role); })
+        button.addEventListener('click', (_e) => { addRole(button.dataset.usernameInputId, button.dataset.role); })
 });
 
 async function removeRole(username, roleName) {

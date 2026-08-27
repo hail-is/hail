@@ -1032,6 +1032,10 @@ WHERE batch_id = %s AND job_group_id = %s;
             query_name='insert_job_group_ancestors',
         )
 
+        # a parent contributes at least its self-row, so zero rows copied
+        # means the parent has not been created
+        if n_rows_inserted == 0:
+            raise web.HTTPBadRequest(reason=f'job group parent {parent_job_group_id} does not exist')
         if n_rows_inserted > MAX_JOB_GROUPS_DEPTH:
             raise web.HTTPBadRequest(reason='job group exceeded the maximum level of nesting')
 
@@ -1069,9 +1073,9 @@ async def _create_job_groups(db: Database, batch_id: int, update_id: int, user: 
 
     @transaction(db)
     async def insert(tx):
-        record = await tx.execute_and_fetchone(
+        update = await tx.execute_and_fetchone(
             """
-SELECT `state`, format_version, `committed`, start_job_group_id
+SELECT `state`, format_version, `committed`, start_job_group_id, batch_updates.n_job_groups
 FROM batch_updates
 INNER JOIN batches ON batch_updates.batch_id = batches.id
 WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND `user` = %s AND NOT deleted
@@ -1080,28 +1084,44 @@ LOCK IN SHARE MODE;
             (batch_id, update_id, user),
         )
 
-        if not record:
+        if not update:
             raise web.HTTPNotFound()
-        if record['committed']:
+        if update['committed']:
             raise web.HTTPBadRequest(reason=f'update {update_id} is already committed')
 
-        start_job_group_id = record['start_job_group_id']
+        n_allocated_job_groups = update['n_job_groups']
+        first_in_update_job_group_id = job_group_specs[0]['job_group_id']
+        last_in_update_job_group_id = job_group_specs[-1]['job_group_id']
+        if first_in_update_job_group_id < 1 or last_in_update_job_group_id > n_allocated_job_groups:
+            raise web.HTTPBadRequest(
+                reason=f'job group ids [{first_in_update_job_group_id}, {last_in_update_job_group_id}] are out of range '
+                f'[1, {n_allocated_job_groups}] allocated by update {update_id}'
+            )
 
-        last_inserted_job_group_id = await tx.execute_and_fetchone(
+        start_job_group_id = update['start_job_group_id']
+        first_new_job_group_id = start_job_group_id + first_in_update_job_group_id - 1
+        last_new_job_group_id = start_job_group_id + last_in_update_job_group_id - 1
+
+        # specs are validated to have contiguous ids, so a range count equal to
+        # len(job_group_specs) means every spec in this request was inserted
+        n_existing = await tx.execute_and_fetchone(
             """
-SELECT job_group_id
+SELECT COUNT(*) AS n
 FROM job_groups
-WHERE batch_id = %s
-ORDER BY job_group_id DESC
-LIMIT 1
-FOR UPDATE;
+WHERE batch_id = %s AND update_id = %s AND job_group_id BETWEEN %s AND %s;
 """,
-            (batch_id,),
+            (batch_id, update_id, first_new_job_group_id, last_new_job_group_id),
         )
 
-        next_job_group_id = start_job_group_id + job_group_specs[0]['job_group_id'] - 1
-        if next_job_group_id != last_inserted_job_group_id['job_group_id'] + 1:
-            raise web.HTTPBadRequest(reason='job group specs were not submitted in order')
+        if n_existing['n'] == len(job_group_specs):
+            # the bunch was already inserted (bunches insert atomically); the
+            # client retried after losing the response
+            return web.Response()
+        if n_existing['n'] != 0:
+            raise web.HTTPBadRequest(
+                reason=f'{n_existing["n"]} of {len(job_group_specs)} job groups '
+                f'in this request already exist in update {update_id}'
+            )
 
         now = time_msecs()
 
@@ -1129,14 +1149,23 @@ FOR UPDATE;
                 )
             except asyncio.CancelledError:
                 raise
+            except pymysql.err.IntegrityError:
+                raise
             except Exception as e:
                 raise web.HTTPBadRequest(
                     reason=f'error while inserting job group {spec["job_group_id"]} into batch {batch_id}: {e}'
                 )
 
-    await insert()
+        return web.Response()
 
-    return web.Response()
+    try:
+        return await insert()
+    except pymysql.err.IntegrityError as err:
+        if err.args[0] != 1062:  # ER_DUP_ENTRY
+            raise
+        # lost a race with a concurrent retry of this bunch; re-enter to
+        # observe the winner's rows and no-op
+        return await insert()
 
 
 async def _create_jobs(
@@ -1157,7 +1186,7 @@ async def _create_jobs(
 
     record = await db.select_and_fetchone(
         """
-SELECT `state`, format_version, `committed`, start_job_id, start_job_group_id
+SELECT `state`, format_version, `committed`, start_job_id, start_job_group_id, batch_updates.n_jobs
 FROM batch_updates
 INNER JOIN batches ON batch_updates.batch_id = batches.id
 WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s AND NOT deleted;
@@ -1173,6 +1202,15 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
     batch_format_version = BatchFormatVersion(record['format_version'])
     update_start_job_id = int(record['start_job_id'])
     update_start_job_group_id = int(record['start_job_group_id'])
+
+    n_allocated_jobs = int(record['n_jobs'])
+    in_update_job_ids = [spec['job_id'] for spec in job_specs]
+    min_in_update_id, max_in_update_id = min(in_update_job_ids), max(in_update_job_ids)
+    if min_in_update_id < 1 or max_in_update_id > n_allocated_jobs:
+        raise web.HTTPBadRequest(
+            reason=f'job ids [{min_in_update_id}, {max_in_update_id}] are out of range '
+            f'[1, {n_allocated_jobs}] allocated by update {update_id}'
+        )
 
     spec_writer = SpecWriter(file_store, batch_id)
 
@@ -2241,6 +2279,20 @@ WHERE batches.user = %s AND batches.id = %s AND batch_updates.update_id = %s AND
 
 async def _commit_update(app: web.Application, batch_id: int, update_id: int, user: str, db: Database):
     client_session = app[CommonAiohttpAppKeys.CLIENT_SESSION]
+
+    record = await db.select_and_fetchone(
+        """
+SELECT n_job_groups,
+  (SELECT COUNT(*) FROM job_groups WHERE batch_id = %s AND update_id = %s) AS n_created
+FROM batch_updates
+WHERE batch_id = %s AND update_id = %s;
+""",
+        (batch_id, update_id, batch_id, update_id),
+    )
+    if record and record['n_created'] != record['n_job_groups']:
+        raise web.HTTPBadRequest(
+            reason=f'wrong number of job groups: expected {record["n_job_groups"]}, actual {record["n_created"]}'
+        )
 
     try:
         now = time_msecs()
@@ -3782,6 +3834,8 @@ class AppKeys(CommonAiohttpAppKeys):
 
 
 async def on_startup(app):
+    asyncio.get_running_loop().add_signal_handler(signal.SIGUSR1, dump_all_stacktraces)
+
     exit_stack = AsyncExitStack()
     app['exit_stack'] = exit_stack
 
@@ -3893,8 +3947,6 @@ def run():
 
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
-
-    asyncio.get_event_loop().add_signal_handler(signal.SIGUSR1, dump_all_stacktraces)
 
     web.run_app(
         deploy_config.prefix_application(app, 'batch', client_max_size=HTTP_CLIENT_MAX_SIZE),
