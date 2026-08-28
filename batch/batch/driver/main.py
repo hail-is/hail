@@ -484,7 +484,7 @@ async def api_patch_feature_flags(request: web.Request, userdata: UserData) -> w
     body = await request.json()
     if not isinstance(body, dict):
         raise web.HTTPBadRequest(reason='request body must be a JSON object')
-    known_flags = {'compact_billing_tables', 'oms_agent', 'dockerhub_proxy'}
+    known_flags = {'compact_billing_tables', 'oms_agent', 'dockerhub_proxy', 'continuous_log_sync'}
     for k, v in body.items():
         if k in known_flags and not isinstance(v, bool):
             raise web.HTTPBadRequest(reason=f'{k} must be a boolean')
@@ -695,7 +695,7 @@ async def activate_instance_1(request, instance):
     token = await instance.activate(ip_address, timestamp)
     await instance.mark_healthy()
 
-    return json_response({'token': token})
+    return json_response({'token': token, 'feature_flags': dict(request.app['feature_flags'])})
 
 
 @routes.post('/api/v1alpha/instances/activate')
@@ -1099,6 +1099,7 @@ async def configure_feature_flags(request: web.Request, userdata: UserData) -> N
         'compact_billing_tables': 'compact_billing_tables' in post,
         'oms_agent': 'oms_agent' in post,
         'dockerhub_proxy': 'dockerhub_proxy' in post,
+        'continuous_log_sync': 'continuous_log_sync' in post,
     }
     result = await _update_feature_flags(request.app, request.app['db'], updates)
     _log_config_changes(userdata['username'], 'feature_flags', before, result)

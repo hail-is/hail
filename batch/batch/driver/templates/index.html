@@ -57,6 +57,12 @@
              name="dockerhub_proxy"
              {% if feature_flags['dockerhub_proxy'] %}checked{% endif %}
       value="true" />
+      <label for="continuous_log_sync">continuous_log_sync: </label>
+      <input type="checkbox"
+             id="continuous_log_sync"
+             name="continuous_log_sync"
+             {% if feature_flags['continuous_log_sync'] %}checked{% endif %}
+      value="true" />
       <div>
         <button>Update</button>
       </div>

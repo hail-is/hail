@@ -490,38 +490,33 @@ async def _read_job_container_log_from_cloud_storage(
         return b'ERROR: could not find log file'
 
 
-async def _fetch_attempt_record(app, batch_id, job_id, attempt_id):
-    db: Database = app['db']
-    return await db.select_and_fetchone(
-        """
-SELECT attempts.start_time, attempts.end_time, instances.ip_address, instances.state AS instance_state
-FROM attempts
-LEFT JOIN instances ON attempts.instance_name = instances.name
-WHERE attempts.batch_id = %s AND attempts.job_id = %s AND attempts.attempt_id = %s
-""",
-        (batch_id, job_id, attempt_id),
-    )
-
-
 async def _get_job_container_log(
     app, batch_id, job_id, container, job_record, override_attempt_id=None
 ) -> Optional[bytes]:
     batch_format_version = BatchFormatVersion(job_record['format_version'])
-    attempt_id = override_attempt_id if override_attempt_id is not None else attempt_id_from_spec(job_record)
-    if attempt_id is None:
-        return None
-    attempt = await _fetch_attempt_record(app, batch_id, job_id, attempt_id)
-    if attempt is None:
-        return None
-    if attempt['end_time'] is not None:
+
+    if app['feature_flags']['continuous_log_sync'] and CLOUD == 'gcp':
+        attempt_id = override_attempt_id if override_attempt_id is not None else attempt_id_from_spec(job_record)
+        if attempt_id is None:
+            return None
         return await _read_job_container_log_from_cloud_storage(
             app['file_store'], batch_format_version, batch_id, job_id, container, attempt_id
         )
-    if attempt['start_time'] is not None and attempt['instance_state'] == 'active':
+
+    # Legacy path: proxy live logs from the worker, fall back to GCS for completed attempts.
+    if not has_resource_available(job_record):
+        return None
+    state = job_record['state']
+    attempt_id = override_attempt_id if override_attempt_id is not None else attempt_id_from_spec(job_record)
+    if state == 'Running':
         return await _get_job_container_log_from_worker(
-            app[CommonAiohttpAppKeys.CLIENT_SESSION], batch_id, job_id, container, attempt['ip_address']
+            app[CommonAiohttpAppKeys.CLIENT_SESSION], batch_id, job_id, container, job_record['ip_address']
         )
-    return None
+    if attempt_id is None:
+        return None
+    return await _read_job_container_log_from_cloud_storage(
+        app['file_store'], batch_format_version, batch_id, job_id, container, attempt_id
+    )
 
 
 async def _get_job_log(app, batch_id, job_id, override_attempt_id=None) -> Dict[str, Optional[bytes]]:
