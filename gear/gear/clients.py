@@ -3,12 +3,15 @@ from hailtop.aiocloud import aioazure, aiogoogle
 from hailtop.aiocloud.aioterra import azure as aioterra_azure
 from hailtop.aiotools.fs import AsyncFS, AsyncFSFactory
 
+import boto3
 
 def get_identity_client():
     cloud = get_global_config()['cloud']
 
     if cloud == 'azure':
         return aioazure.AzureGraphClient()
+    elif cloud == 'aws':
+        return boto3.client('iam')
 
     assert cloud == 'gcp', cloud
     project = get_gcp_config().project
