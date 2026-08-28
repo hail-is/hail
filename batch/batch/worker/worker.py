@@ -1536,8 +1536,8 @@ class LogSyncer:
             '/bin/bash',
             LOG_SYNC_SCRIPT,
             instruction_file,
-            stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.DEVNULL,
+            stdout=None,  # inherit worker stdout/stderr so all output appears in container logs
+            stderr=None,
         )
         log.info(f'started log syncer pid={proc.pid} {log_path} -> {remote_url}')
         return cls(log_path, remote_url, instruction_file, proc)
