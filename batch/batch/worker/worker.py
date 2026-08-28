@@ -1501,11 +1501,17 @@ def copy_container(
     )
 
 
+_active_log_syncers: set['LogSyncer'] = set()
+
 LOG_SYNC_SCRIPT = '/usr/local/bin/log-sync.sh'
 LOG_SYNC_STATE_DIR = '/run/batch-worker/log-sync'
-LOG_SYNC_INTERVAL = 30
-LOG_SYNC_LARGE_FILE_LIMIT = 5 * 1024 * 1024  # 5 MB
-LOG_SYNC_LARGE_FILE_INTERVAL = 120
+LOG_SYNC_INTERVAL = 30  # <  5 MB: every 30s
+LOG_SYNC_MEDIUM_LIMIT = 5 * 1024 * 1024  #  5 MB
+LOG_SYNC_MEDIUM_INTERVAL = 60  #  5-10 MB: every 60s
+LOG_SYNC_LARGE_LIMIT = 10 * 1024 * 1024  # 10 MB
+LOG_SYNC_LARGE_INTERVAL = 300  # 10-50 MB: every 5 min
+LOG_SYNC_XLARGE_LIMIT = 50 * 1024 * 1024  # 50 MB
+LOG_SYNC_XLARGE_INTERVAL = 600  # > 50 MB: every 10 min
 LOG_SYNC_FINISH_TIMEOUT = 120
 
 
@@ -1541,7 +1547,9 @@ class LogSyncer:
             stderr=None,
         )
         log.info(f'started log syncer pid={proc.pid} {log_path} -> {remote_url}')
-        return cls(log_path, remote_url, instruction_file, proc)
+        syncer = cls(log_path, remote_url, instruction_file, proc)
+        _active_log_syncers.add(syncer)
+        return syncer
 
     @staticmethod
     def _write_instruction_file(path: str, log_path: str, remote_url: str, state: str) -> None:
@@ -1551,13 +1559,18 @@ class LogSyncer:
             f.write(f'remote={remote_url}\n')
             f.write(f'state={state}\n')
             f.write(f'interval={LOG_SYNC_INTERVAL}\n')
-            f.write(f'large_file_limit={LOG_SYNC_LARGE_FILE_LIMIT}\n')
-            f.write(f'large_file_interval={LOG_SYNC_LARGE_FILE_INTERVAL}\n')
+            f.write(f'medium_limit={LOG_SYNC_MEDIUM_LIMIT}\n')
+            f.write(f'medium_interval={LOG_SYNC_MEDIUM_INTERVAL}\n')
+            f.write(f'large_limit={LOG_SYNC_LARGE_LIMIT}\n')
+            f.write(f'large_interval={LOG_SYNC_LARGE_INTERVAL}\n')
+            f.write(f'xlarge_limit={LOG_SYNC_XLARGE_LIMIT}\n')
+            f.write(f'xlarge_interval={LOG_SYNC_XLARGE_INTERVAL}\n')
             f.write('pid=\n')
         os.replace(tmp, path)
 
     async def finish(self) -> None:
         """Mark the job done, nudge the syncer past its sleep, wait for the final upload."""
+        _active_log_syncers.discard(self)
         self._write_instruction_file(self._instruction_file, self._log_path, self._remote_url, 'done')
         try:
             self._proc.send_signal(signal.SIGUSR1)
@@ -1573,11 +1586,19 @@ class LogSyncer:
 
     async def cancel(self) -> None:
         """Kill the syncer without a final upload (container never ran)."""
+        _active_log_syncers.discard(self)
         try:
             self._proc.kill()
         except ProcessLookupError:
             pass
         await self._proc.wait()
+
+    def wakeup(self) -> None:
+        """Send SIGUSR1 to interrupt any current sleep without marking the job done."""
+        try:
+            self._proc.send_signal(signal.SIGUSR1)
+        except ProcessLookupError:
+            pass
 
 
 class Job(abc.ABC):
@@ -3519,11 +3540,17 @@ class Worker:
             deploy_config.url('batch-driver', '/api/v1alpha/instances/deactivate'), headers=await self.headers()
         )
 
+    def initiate_shutdown(self) -> None:
+        log.info('initiating shutdown, waking log syncers')
+        for syncer in list(_active_log_syncers):
+            syncer.wakeup()
+        self.stop_event.set()
+
     async def kill(self, request):  # pylint: disable=unused-argument
         if not self.active:
             raise web.HTTPServiceUnavailable
         log.info('killed')
-        self.stop_event.set()
+        self.initiate_shutdown()
         return web.Response()
 
     async def post_job_complete_1(self, job: Job, full_status):
@@ -3767,7 +3794,16 @@ async def async_main():
 
 loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
+
+
+def _on_sigterm():
+    log.info('SIGTERM received')
+    if worker is not None:
+        worker.initiate_shutdown()
+
+
 loop.add_signal_handler(signal.SIGUSR1, dump_all_stacktraces)
+loop.add_signal_handler(signal.SIGTERM, _on_sigterm)
 loop.run_until_complete(async_main())
 log.info('closing loop')
 loop.close()
