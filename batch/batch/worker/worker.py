@@ -1501,6 +1501,7 @@ def copy_container(
 
 
 LOG_SYNC_SCRIPT = '/usr/local/bin/log-sync.sh'
+LOG_SYNC_STATE_DIR = '/run/batch-worker/log-sync'
 LOG_SYNC_INTERVAL = 30
 LOG_SYNC_LARGE_FILE_LIMIT = 5 * 1024 * 1024  # 5 MB
 LOG_SYNC_LARGE_FILE_INTERVAL = 120
@@ -1510,9 +1511,9 @@ LOG_SYNC_FINISH_TIMEOUT = 120
 class LogSyncer:
     """Manages a bash subprocess that incrementally syncs a job log file to GCS.
 
-    The instruction file alongside the log is the sole coordination channel:
-    the worker writes state=done and sends SIGUSR1 when the job finishes, and the
-    subprocess does one final upload and exits on its own.
+    The instruction file in LOG_SYNC_STATE_DIR is the sole coordination channel between
+    worker.py and the subprocess. It is deliberately kept outside the job scratch space
+    so the user cannot interfere with it.
     """
 
     def __init__(
@@ -1528,8 +1529,8 @@ class LogSyncer:
         self._proc = proc
 
     @classmethod
-    async def start(cls, log_path: str, remote_url: str) -> 'LogSyncer':
-        instruction_file = log_path + '.sync'
+    async def start(cls, log_path: str, remote_url: str, batch_id: int, job_id: int, attempt_id: str) -> 'LogSyncer':
+        instruction_file = os.path.join(LOG_SYNC_STATE_DIR, f'{batch_id}_{job_id}_{attempt_id}.conf')
         cls._write_instruction_file(instruction_file, log_path, remote_url, 'running')
         proc = await asyncio.create_subprocess_exec(
             '/bin/bash',
@@ -2032,7 +2033,9 @@ class DockerJob(Job):
             remote_url = self.worker.file_store.log_path(
                 self.format_version, self.batch_id, self.job_id, self.attempt_id, task_name
             )
-            log_syncer = await LogSyncer.start(container.log_path, remote_url)
+            log_syncer = await LogSyncer.start(
+                container.log_path, remote_url, self.batch_id, self.job_id, self.attempt_id
+            )
 
         async def on_completion():
             if container.state in ('pending', 'creating'):
@@ -2483,7 +2486,9 @@ class JVMJob(Job):
                     remote_url = self.worker.file_store.log_path(
                         self.format_version, self.batch_id, self.job_id, self.attempt_id, 'main'
                     )
-                    self._log_syncer = await LogSyncer.start(self.log_file, remote_url)
+                    self._log_syncer = await LogSyncer.start(
+                        self.log_file, remote_url, self.batch_id, self.job_id, self.attempt_id
+                    )
 
                 if os.environ.get('HAIL_TERRA'):
                     local_jar_location = '/hail-jars/hail-all-spark.jar'

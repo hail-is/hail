@@ -26,7 +26,8 @@ no shared in-process state.
 
 ## Instruction File Format
 
-Written by the worker to `<log_path>.sync` before the subprocess starts:
+Written by the worker to `/run/batch-worker/log-sync/<attempt_id>.conf` before the subprocess
+starts. This directory is outside the job scratch space so the user cannot access or tamper with it.
 
 ```bash
 log=/batch/<token>/main/container.log
