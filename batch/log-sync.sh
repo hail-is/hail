@@ -16,16 +16,18 @@ wakeup() {
 trap wakeup SIGUSR1
 
 validate() {
-    [[ "${log:-}"               =~ ^/              ]] || { echo "bad log: ${log:-unset}";                        exit 1; }
-    [[ "${remote:-}"            =~ ^gs://          ]] || { echo "bad remote: ${remote:-unset}";                  exit 1; }
-    [[ "${state:-}"             =~ ^(running|done)$ ]] || { echo "bad state: ${state:-unset}";                   exit 1; }
-    [[ "${interval:-}"          =~ ^[0-9]+$        ]] || { echo "bad interval: ${interval:-unset}";              exit 1; }
-    [[ "${medium_limit:-}"      =~ ^[0-9]+$        ]] || { echo "bad medium_limit: ${medium_limit:-unset}";      exit 1; }
-    [[ "${medium_interval:-}"   =~ ^[0-9]+$        ]] || { echo "bad medium_interval: ${medium_interval:-unset}"; exit 1; }
-    [[ "${large_limit:-}"       =~ ^[0-9]+$        ]] || { echo "bad large_limit: ${large_limit:-unset}";        exit 1; }
-    [[ "${large_interval:-}"    =~ ^[0-9]+$        ]] || { echo "bad large_interval: ${large_interval:-unset}";  exit 1; }
-    [[ "${xlarge_limit:-}"      =~ ^[0-9]+$        ]] || { echo "bad xlarge_limit: ${xlarge_limit:-unset}";      exit 1; }
-    [[ "${xlarge_interval:-}"   =~ ^[0-9]+$        ]] || { echo "bad xlarge_interval: ${xlarge_interval:-unset}"; exit 1; }
+    [[ "${log:-}"               =~ ^/              ]] || { echo "bad log: ${log:-unset}";                          exit 1; }
+    [[ "${remote:-}"            =~ ^gs://          ]] || { echo "bad remote: ${remote:-unset}";                    exit 1; }
+    [[ "${state:-}"             =~ ^(running|done)$ ]] || { echo "bad state: ${state:-unset}";                     exit 1; }
+    [[ "${interval:-}"          =~ ^[0-9]+$        ]] || { echo "bad interval: ${interval:-unset}";                exit 1; }
+    [[ "${small_limit:-}"       =~ ^[0-9]+$        ]] || { echo "bad small_limit: ${small_limit:-unset}";          exit 1; }
+    [[ "${small_interval:-}"    =~ ^[0-9]+$        ]] || { echo "bad small_interval: ${small_interval:-unset}";    exit 1; }
+    [[ "${medium_limit:-}"      =~ ^[0-9]+$        ]] || { echo "bad medium_limit: ${medium_limit:-unset}";        exit 1; }
+    [[ "${medium_interval:-}"   =~ ^[0-9]+$        ]] || { echo "bad medium_interval: ${medium_interval:-unset}";  exit 1; }
+    [[ "${large_limit:-}"       =~ ^[0-9]+$        ]] || { echo "bad large_limit: ${large_limit:-unset}";          exit 1; }
+    [[ "${large_interval:-}"    =~ ^[0-9]+$        ]] || { echo "bad large_interval: ${large_interval:-unset}";    exit 1; }
+    [[ "${xlarge_limit:-}"      =~ ^[0-9]+$        ]] || { echo "bad xlarge_limit: ${xlarge_limit:-unset}";        exit 1; }
+    [[ "${xlarge_interval:-}"   =~ ^[0-9]+$        ]] || { echo "bad xlarge_interval: ${xlarge_interval:-unset}";  exit 1; }
 }
 
 # Write own PID so the worker can detect if we've died
@@ -49,6 +51,8 @@ while true; do
         sleep_time=$large_interval
     elif (( file_size > medium_limit )); then
         sleep_time=$medium_interval
+    elif (( file_size > small_limit )); then
+        sleep_time=$small_interval
     else
         sleep_time=$interval
     fi

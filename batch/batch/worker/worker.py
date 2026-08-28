@@ -1505,7 +1505,9 @@ _active_log_syncers: set['LogSyncer'] = set()
 
 LOG_SYNC_SCRIPT = '/usr/local/bin/log-sync.sh'
 LOG_SYNC_STATE_DIR = '/run/batch-worker/log-sync'
-LOG_SYNC_INTERVAL = 30  # <  5 MB: every 30s
+LOG_SYNC_INTERVAL = 10  # < 10 KB: every 10s
+LOG_SYNC_SMALL_LIMIT = 10 * 1024  # 10 KB
+LOG_SYNC_SMALL_INTERVAL = 30  # 10 KB-5 MB: every 30s
 LOG_SYNC_MEDIUM_LIMIT = 5 * 1024 * 1024  #  5 MB
 LOG_SYNC_MEDIUM_INTERVAL = 60  #  5-10 MB: every 60s
 LOG_SYNC_LARGE_LIMIT = 10 * 1024 * 1024  # 10 MB
@@ -1559,6 +1561,8 @@ class LogSyncer:
             f.write(f'remote={remote_url}\n')
             f.write(f'state={state}\n')
             f.write(f'interval={LOG_SYNC_INTERVAL}\n')
+            f.write(f'small_limit={LOG_SYNC_SMALL_LIMIT}\n')
+            f.write(f'small_interval={LOG_SYNC_SMALL_INTERVAL}\n')
             f.write(f'medium_limit={LOG_SYNC_MEDIUM_LIMIT}\n')
             f.write(f'medium_interval={LOG_SYNC_MEDIUM_INTERVAL}\n')
             f.write(f'large_limit={LOG_SYNC_LARGE_LIMIT}\n')
