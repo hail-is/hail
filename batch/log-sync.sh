@@ -32,7 +32,7 @@ while true; do
     source "$INSTRUCTION_FILE"
     validate
 
-    if [[ -f "$log" ]]; then
+    if [[ -s "$log" ]]; then
         gcloud storage cp "$log" "$remote"
     fi
 
