@@ -81,3 +81,6 @@ RUN hail-pip-install /hailtop /gear /batch
 
 COPY batch/jvm-entryway/out/assembly.dest/out.jar /jvm-entryway/jvm-entryway.jar
 COPY letsencrypt/subdomains.txt /
+
+COPY batch/log-sync.sh /usr/local/bin/log-sync.sh
+RUN chmod +x /usr/local/bin/log-sync.sh

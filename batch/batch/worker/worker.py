@@ -1500,6 +1500,84 @@ def copy_container(
     )
 
 
+LOG_SYNC_SCRIPT = '/usr/local/bin/log-sync.sh'
+LOG_SYNC_INTERVAL = 30
+LOG_SYNC_LARGE_FILE_LIMIT = 5 * 1024 * 1024  # 5 MB
+LOG_SYNC_LARGE_FILE_INTERVAL = 120
+LOG_SYNC_FINISH_TIMEOUT = 120
+
+
+class LogSyncer:
+    """Manages a bash subprocess that incrementally syncs a job log file to GCS.
+
+    The instruction file alongside the log is the sole coordination channel:
+    the worker writes state=done and sends SIGUSR1 when the job finishes, and the
+    subprocess does one final upload and exits on its own.
+    """
+
+    def __init__(
+        self,
+        log_path: str,
+        remote_url: str,
+        instruction_file: str,
+        proc: 'asyncio.subprocess.Process',
+    ):
+        self._log_path = log_path
+        self._remote_url = remote_url
+        self._instruction_file = instruction_file
+        self._proc = proc
+
+    @classmethod
+    async def start(cls, log_path: str, remote_url: str) -> 'LogSyncer':
+        instruction_file = log_path + '.sync'
+        cls._write_instruction_file(instruction_file, log_path, remote_url, 'running')
+        proc = await asyncio.create_subprocess_exec(
+            '/bin/bash',
+            LOG_SYNC_SCRIPT,
+            instruction_file,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        log.info(f'started log syncer pid={proc.pid} {log_path} -> {remote_url}')
+        return cls(log_path, remote_url, instruction_file, proc)
+
+    @staticmethod
+    def _write_instruction_file(path: str, log_path: str, remote_url: str, state: str) -> None:
+        tmp = path + '.tmp'
+        with open(tmp, 'w', encoding='utf-8') as f:
+            f.write(f'log={log_path}\n')
+            f.write(f'remote={remote_url}\n')
+            f.write(f'state={state}\n')
+            f.write(f'interval={LOG_SYNC_INTERVAL}\n')
+            f.write(f'large_file_limit={LOG_SYNC_LARGE_FILE_LIMIT}\n')
+            f.write(f'large_file_interval={LOG_SYNC_LARGE_FILE_INTERVAL}\n')
+            f.write('pid=\n')
+        os.replace(tmp, path)
+
+    async def finish(self) -> None:
+        """Mark the job done, nudge the syncer past its sleep, wait for the final upload."""
+        self._write_instruction_file(self._instruction_file, self._log_path, self._remote_url, 'done')
+        try:
+            self._proc.send_signal(signal.SIGUSR1)
+        except ProcessLookupError:
+            pass
+        try:
+            async with async_timeout.timeout(LOG_SYNC_FINISH_TIMEOUT):
+                await self._proc.wait()
+        except asyncio.TimeoutError:
+            log.warning(f'log syncer pid={self._proc.pid} did not finish in {LOG_SYNC_FINISH_TIMEOUT}s, killing')
+            self._proc.kill()
+            await self._proc.wait()
+
+    async def cancel(self) -> None:
+        """Kill the syncer without a final upload (container never ran)."""
+        try:
+            self._proc.kill()
+        except ProcessLookupError:
+            pass
+        await self._proc.wait()
+
+
 class Job(abc.ABC):
     quota_project_id = 100
 
@@ -1948,11 +2026,24 @@ class DockerJob(Job):
         os.makedirs(self.io_host_path())
 
     async def run_container(self, container: Container, task_name: str):
+        log_syncer: Optional[LogSyncer] = None
+        if task_name == 'main' and CLOUD == 'gcp':
+            assert self.worker.file_store
+            remote_url = self.worker.file_store.log_path(
+                self.format_version, self.batch_id, self.job_id, self.attempt_id, task_name
+            )
+            log_syncer = await LogSyncer.start(container.log_path, remote_url)
+
         async def on_completion():
             if container.state in ('pending', 'creating'):
+                if log_syncer is not None:
+                    await log_syncer.cancel()
                 return
 
-            if os.path.exists(container.log_path):
+            if log_syncer is not None:
+                with container._step('finishing_log_sync'):
+                    await log_syncer.finish()
+            elif os.path.exists(container.log_path):
                 with container._step('uploading_log'):
                     assert self.worker.file_store
                     await self.worker.file_store.write_log_file(
@@ -2223,6 +2314,7 @@ class JVMJob(Job):
         self.jvm_name: Optional[str] = None
 
         self.log_file = f'{self.scratch}/log'
+        self._log_syncer: Optional[LogSyncer] = None
 
         should_profile = job_spec['process']['profile']
         self.profile_file = f'{self.scratch}/profile.html' if should_profile else None
@@ -2386,6 +2478,13 @@ class JVMJob(Job):
 
                 self.state = 'running'
 
+                if CLOUD == 'gcp':
+                    assert self.worker.file_store
+                    remote_url = self.worker.file_store.log_path(
+                        self.format_version, self.batch_id, self.job_id, self.attempt_id, 'main'
+                    )
+                    self._log_syncer = await LogSyncer.start(self.log_file, remote_url)
+
                 if os.environ.get('HAIL_TERRA'):
                     local_jar_location = '/hail-jars/hail-all-spark.jar'
                 else:
@@ -2448,7 +2547,11 @@ class JVMJob(Job):
         assert self.worker.fs
         assert self.jvm
 
-        if os.path.exists(self.log_file):
+        if self._log_syncer is not None:
+            with self.step('finishing_log_sync'):
+                await self._log_syncer.finish()
+            self._log_syncer = None
+        elif os.path.exists(self.log_file):
             with self.step('uploading_log'):
                 log_contents = await self.worker.fs.read(self.log_file)
                 await self.worker.file_store.write_log_file(
