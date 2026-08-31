@@ -1151,6 +1151,8 @@ WHERE batch_id = %s AND update_id = %s AND job_group_id BETWEEN %s AND %s;
                 raise
             except pymysql.err.IntegrityError:
                 raise
+            except (pymysql.err.OperationalError, pymysql.err.InternalError):
+                raise
             except Exception as e:
                 raise web.HTTPBadRequest(
                     reason=f'error while inserting job group {spec["job_group_id"]} into batch {batch_id}: {e}'
