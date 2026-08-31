@@ -52,7 +52,7 @@ charset-normalizer==3.5.1
     #   -c batch/../hail/python/dev/pinned-requirements.txt
     #   -c batch/../hail/python/pinned-requirements.txt
     #   requests
-cryptography==50.0.0
+cryptography==50.0.1
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   -c batch/../hail/python/pinned-requirements.txt
@@ -72,14 +72,14 @@ google-api-core==2.34.0
     #   -c batch/../gear/pinned-requirements.txt
     #   google-cloud-core
     #   google-cloud-storage
-google-auth==2.56.3
+google-auth==2.57.0
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   -c batch/../hail/python/pinned-requirements.txt
     #   google-api-core
     #   google-cloud-core
     #   google-cloud-storage
-google-cloud-core==2.6.1
+google-cloud-core==2.7.0
     # via google-cloud-storage
 google-cloud-storage==3.13.1
     # via -r batch/requirements.txt
@@ -87,9 +87,9 @@ google-crc32c==1.8.0
     # via
     #   google-cloud-storage
     #   google-resumable-media
-google-resumable-media==2.10.1
+google-resumable-media==2.10.2
     # via google-cloud-storage
-googleapis-common-protos==1.75.1
+googleapis-common-protos==1.75.2
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   google-api-core
@@ -136,7 +136,7 @@ propcache==0.5.2
     #   -c batch/../web_common/pinned-requirements.txt
     #   aiohttp
     #   yarl
-proto-plus==1.28.3
+proto-plus==1.28.4
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   google-api-core
