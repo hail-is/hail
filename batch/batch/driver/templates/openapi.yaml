@@ -432,8 +432,6 @@ components:
           type: boolean
         dockerhub_proxy:
           type: boolean
-        continuous_log_sync:
-          type: boolean
 
     FeatureFlagsUpdate:
       type: object
@@ -443,8 +441,6 @@ components:
         oms_agent:
           type: boolean
         dockerhub_proxy:
-          type: boolean
-        continuous_log_sync:
           type: boolean
 
     InstCollSummary:

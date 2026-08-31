@@ -370,14 +370,12 @@ async def _update_feature_flags(app: web.Application, db: Database, updates: dic
 UPDATE feature_flags
 SET compact_billing_tables = COALESCE(%s, compact_billing_tables),
     oms_agent = COALESCE(%s, oms_agent),
-    dockerhub_proxy = COALESCE(%s, dockerhub_proxy),
-    continuous_log_sync = COALESCE(%s, continuous_log_sync);
+    dockerhub_proxy = COALESCE(%s, dockerhub_proxy);
 ''',
         (
             updates.get('compact_billing_tables'),
             updates.get('oms_agent'),
             updates.get('dockerhub_proxy'),
-            updates.get('continuous_log_sync'),
         ),
     )
     row = await db.select_and_fetchone('SELECT * FROM feature_flags')
@@ -490,7 +488,7 @@ async def api_patch_feature_flags(request: web.Request, userdata: UserData) -> w
     body = await request.json()
     if not isinstance(body, dict):
         raise web.HTTPBadRequest(reason='request body must be a JSON object')
-    known_flags = {'compact_billing_tables', 'oms_agent', 'dockerhub_proxy', 'continuous_log_sync'}
+    known_flags = {'compact_billing_tables', 'oms_agent', 'dockerhub_proxy'}
     for k, v in body.items():
         if k in known_flags and not isinstance(v, bool):
             raise web.HTTPBadRequest(reason=f'{k} must be a boolean')
@@ -701,7 +699,7 @@ async def activate_instance_1(request, instance):
     token = await instance.activate(ip_address, timestamp)
     await instance.mark_healthy()
 
-    return json_response({'token': token, 'feature_flags': dict(request.app['feature_flags'])})
+    return json_response({'token': token})
 
 
 @routes.post('/api/v1alpha/instances/activate')
@@ -1105,7 +1103,6 @@ async def configure_feature_flags(request: web.Request, userdata: UserData) -> N
         'compact_billing_tables': 'compact_billing_tables' in post,
         'oms_agent': 'oms_agent' in post,
         'dockerhub_proxy': 'dockerhub_proxy' in post,
-        'continuous_log_sync': 'continuous_log_sync' in post,
     }
     result = await _update_feature_flags(request.app, request.app['db'], updates)
     _log_config_changes(userdata['username'], 'feature_flags', before, result)

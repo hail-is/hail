@@ -165,7 +165,6 @@ SPARK_ARCHIVE_URL_PREFIX = os.environ['SPARK_ARCHIVE_URL_PREFIX']
 assert len(SPARK_ARCHIVE_URL_PREFIX) > 3  # x:// where x is one or more characters
 
 CLOUD_WORKER_API: Optional[CloudWorkerAPI] = None
-CONTINUOUS_LOG_SYNC: bool = True  # set from activate response
 
 log.info(f'CLOUD {CLOUD}')
 log.info(f'CORES {CORES}')
@@ -2054,7 +2053,7 @@ class DockerJob(Job):
 
     async def run_container(self, container: Container, task_name: str):
         log_syncer: Optional[LogSyncer] = None
-        if task_name == 'main' and CLOUD == 'gcp' and CONTINUOUS_LOG_SYNC:
+        if CLOUD == 'gcp':
             assert self.worker.file_store
             remote_url = self.worker.file_store.log_path(
                 self.format_version, self.batch_id, self.job_id, self.attempt_id, task_name
@@ -2507,7 +2506,7 @@ class JVMJob(Job):
 
                 self.state = 'running'
 
-                if CLOUD == 'gcp' and CONTINUOUS_LOG_SYNC:
+                if CLOUD == 'gcp':
                     assert self.worker.file_store
                     remote_url = self.worker.file_store.log_path(
                         self.format_version, self.batch_id, self.job_id, self.attempt_id, 'main'
@@ -3689,7 +3688,6 @@ class Worker:
                 job.last_logged_mjs_attempt_failure = time_msecs()
 
     async def activate(self):
-        global CONTINUOUS_LOG_SYNC
         log.info('activating')
         resp_json = await retry_transient_errors(
             self.client_session.post_read_json,
@@ -3698,10 +3696,9 @@ class Worker:
             headers=await self.headers(),
         )
         self.instance_token = resp_json['token']
-        CONTINUOUS_LOG_SYNC = resp_json.get('feature_flags', {}).get('continuous_log_sync', True)
         self.active = True
         self.last_updated = time_msecs()
-        log.info(f'activated continuous_log_sync={CONTINUOUS_LOG_SYNC}')
+        log.info('activated')
 
     async def cleanup_old_images(self):
         try:

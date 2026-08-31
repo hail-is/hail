@@ -495,8 +495,7 @@ async def _get_job_container_log(
 ) -> Optional[bytes]:
     batch_format_version = BatchFormatVersion(job_record['format_version'])
 
-    # LogSyncer only runs for the 'main' container; input/output containers must use the legacy path.
-    if app['feature_flags']['continuous_log_sync'] and CLOUD == 'gcp' and container == 'main':
+    if CLOUD == 'gcp':
         attempt_id = override_attempt_id if override_attempt_id is not None else attempt_id_from_spec(job_record)
         if attempt_id is None:
             return None

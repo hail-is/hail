@@ -9,6 +9,7 @@ set -euo pipefail
 
 INSTRUCTION_FILE=$1
 SLEEP_PID=""
+last_uploaded_size=-1
 
 _base=$(basename "$INSTRUCTION_FILE" .conf)
 _batch="${_base%%_*}"; _rest="${_base#*_}"; _job="${_rest%%_*}"; _attempt="${_rest#*_}"
@@ -43,11 +44,15 @@ while true; do
     validate
 
     file_size=$(stat --printf="%s" "$log" 2>/dev/null || echo 0)
-    if [[ -s "$log" ]]; then
+    if [[ -s "$log" ]] && (( file_size != last_uploaded_size )); then
         echo "$PREFIX uploading ${file_size}B to $remote"
-        gcloud storage cp "$log" "$remote" || echo "$PREFIX upload failed, will retry next cycle"
+        if gcloud storage cp "$log" "$remote"; then
+            last_uploaded_size=$file_size
+        else
+            echo "$PREFIX upload failed, will retry next cycle"
+        fi
     else
-        echo "$PREFIX skipping upload, log is empty"
+        echo "$PREFIX skipping upload, no new bytes"
     fi
 
     # Re-source after the upload in case state=done was written while gcloud was running
@@ -57,7 +62,7 @@ while true; do
     source "$INSTRUCTION_FILE"
     if [[ "$state" == "done" ]]; then
         file_size=$(stat --printf="%s" "$log" 2>/dev/null || echo 0)
-        if [[ -s "$log" ]]; then
+        if [[ -s "$log" ]] && (( file_size != last_uploaded_size )); then
             echo "$PREFIX final upload ${file_size}B to $remote"
             gcloud storage cp "$log" "$remote" || echo "$PREFIX final upload failed"
         fi
@@ -84,7 +89,7 @@ while true; do
     source "$INSTRUCTION_FILE"
     if [[ "$state" == "done" ]]; then
         file_size=$(stat --printf="%s" "$log" 2>/dev/null || echo 0)
-        if [[ -s "$log" ]]; then
+        if [[ -s "$log" ]] && (( file_size != last_uploaded_size )); then
             echo "$PREFIX final upload ${file_size}B to $remote"
             gcloud storage cp "$log" "$remote" || echo "$PREFIX final upload failed"
         fi
