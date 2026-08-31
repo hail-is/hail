@@ -1004,7 +1004,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
         query_name='insert_job_group',
     )
 
-    # This sanity check happens after the INSERT, but its ok because it's in a transaction.
+    # This sanity check happens after the INSERT, but it's ok because it's in a transaction.
     # We do this so that the job_groups lock happens before the job_group_self_and_ancestors lock.
     cancelled_parent = await tx.execute_and_fetchone(
         """
