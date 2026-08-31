@@ -10,12 +10,14 @@ and the retry starts with no log evidence from the previous attempt.
 ## Solution
 
 Each job's main container starts a dedicated bash subprocess (`log-sync.sh`) that incrementally
-uploads the log file to GCS every 30 seconds. If the VM is preempted, the most recently uploaded
-snapshot survives. When the job finishes normally, the worker writes `state=done` to an instruction
-file and sends `SIGUSR1`; the subprocess does one final upload and exits cleanly.
+uploads the log file to GCS on a size-tiered schedule. If the VM is preempted, the most recently
+uploaded snapshot survives. When the job finishes normally, the worker writes `state=done` to an
+instruction file and sends `SIGUSR1`; the subprocess does a final upload and exits cleanly.
 
-The instruction file sitting alongside the log is the sole coordination channel — no IPC sockets,
-no shared in-process state.
+The instruction file is the sole coordination channel — no IPC sockets, no shared in-process state.
+
+Controlled by the `continuous_log_sync` feature flag (default: `true`). When disabled, the
+original single end-of-job upload behaviour is preserved.
 
 ## Files
 
@@ -23,24 +25,73 @@ no shared in-process state.
   `/usr/local/bin/log-sync.sh`
 - **`batch/batch/worker/worker.py`** — `LogSyncer` class + wiring in `DockerJob.run_container()`
   and `JVMJob.run()` / `JVMJob.cleanup()`
+- **`batch/batch/front_end/front_end.py`** — `_get_job_container_log()` feature-flagged GCS path
+- **`batch/batch/driver/main.py`** — feature flag storage, activate response
+- **`batch/sql/121-add-continuous-log-sync-flag.sql`** — migration adding the flag column
 
-## Instruction File Format
+## Feature Flag Architecture
 
-Written by the worker to `/run/batch-worker/log-sync/<attempt_id>.conf` before the subprocess
-starts. This directory is outside the job scratch space so the user cannot access or tamper with it.
+The `continuous_log_sync` flag is stored in the `feature_flags` MySQL table and toggled from the
+batch-driver admin page. It propagates in two directions:
+
+1. **Front-ends** read all feature flags at startup (and on 30s reload timer).
+2. **Workers** receive the flag in the activate HTTP response body:
+   ```python
+   # driver/main.py activate handler
+   return json_response({'token': token, 'feature_flags': dict(request.app['feature_flags'])})
+   ```
+   The worker reads it once on activation and caches it in the module-level `CONTINUOUS_LOG_SYNC`
+   bool. Changing the flag takes effect for newly activated workers; existing workers keep their
+   cached value until they restart.
+
+To revert entirely: uncheck `continuous_log_sync` in the batch-driver UI. Front-ends switch to
+the legacy log path within 30s. Workers switch on their next activation (VM restart or re-register).
+
+## Instruction File
+
+Written by the worker to `/run/batch-worker/log-sync/<batch_id>_<job_id>_<attempt_id>.conf`
+before the subprocess starts. This directory is outside the job scratch space; the user cannot
+access or tamper with it.
 
 ```bash
 log=/batch/<token>/main/container.log
 remote=gs://bucket/logs/batch/1/1/<attempt_id>/main/log
 state=running
-interval=30
-large_file_limit=5242880
-large_file_interval=120
 pid=
+interval=10
+small_limit=10240
+small_interval=30
+medium_limit=5242880
+medium_interval=60
+large_limit=10485760
+large_interval=300
+xlarge_limit=52428800
+xlarge_interval=600
 ```
 
 The subprocess fills in `pid=` on startup. The worker overwrites `state=running` → `state=done`
-atomically (tmp file + `os.replace`) when the job finishes.
+atomically (tmp file + `os.replace`) when the job finishes, then sends SIGUSR1.
+
+## Sync Intervals (Size-Tiered)
+
+| Tier   | Condition        | Interval |
+|--------|------------------|----------|
+| tiny   | < 10 KB          | 10 s     |
+| small  | 10 KB – 5 MB     | 30 s     |
+| medium | 5 MB – 10 MB     | 60 s     |
+| large  | 10 MB – 50 MB    | 5 min    |
+| xlarge | > 50 MB          | 10 min   |
+
+The 10 KB threshold for the tiny tier means that even short-lived jobs exit the 10s tier after
+the first few lines of output and spend the bulk of their lifetime in the 30s tier. This keeps
+GCS Class A write operation costs reasonable at scale.
+
+Implied bandwidth at each tier:
+- tiny: up to 10 KB / 10 s = 1 KB/s
+- small: up to 5 MB / 30 s ≈ 171 KB/s
+- medium: up to 10 MB / 60 s ≈ 171 KB/s
+- large: up to 50 MB / 300 s ≈ 171 KB/s
+- xlarge: unbounded / 600 s — best-effort for very large logs
 
 ## Subprocess Loop
 
@@ -49,23 +100,24 @@ flowchart TD
     START([subprocess starts]) --> WRITE_PID[write own PID to instruction file]
     WRITE_PID --> SOURCE[source instruction file]
     SOURCE --> VALIDATE[validate all fields]
-    VALIDATE --> EXISTS{log file exists?}
+    VALIDATE --> EXISTS{log file non-empty?}
     EXISTS -->|yes| UPLOAD[gcloud storage cp log remote]
-    EXISTS -->|no| CHECK
-    UPLOAD --> CHECK{state == done?}
-    CHECK -->|yes| EXIT([exit])
-    CHECK -->|no| SIZE[check file size]
-    SIZE --> SLEEP[sleep interval or large_file_interval]
+    EXISTS -->|no| RESRC[re-source instruction file]
+    UPLOAD --> RESRC
+    RESRC --> DONE_CHECK{state == done?}
+    DONE_CHECK -->|yes| FINAL[final gcloud storage cp]
+    FINAL --> EXIT([exit])
+    DONE_CHECK -->|no| TIER[compute tier from file size]
+    TIER --> SLEEP[sleep interval]
     SLEEP --> SOURCE
 
     SIGUSR1 -->|kills sleep subprocess| SOURCE
 ```
 
-`SIGUSR1` naturally respects "only interrupt if not uploading" because bash trap handlers fire
-between commands, not during them. If the signal arrives during `gcloud storage cp`, it is queued
-and fires at the start of the next sleep.
+The re-source after each upload (before the sleep/done-check) is the key to correct termination
+behaviour — see [Race Conditions](#race-conditions) below.
 
-## Worker Lifecycle
+## Worker Lifecycle (Normal Completion)
 
 ```mermaid
 sequenceDiagram
@@ -73,89 +125,160 @@ sequenceDiagram
     participant S as log-sync.sh subprocess
     participant GCS
 
-    W->>W: LogSyncer.start(log_path, remote_url)
-    W->>S: create instruction file (state=running)
+    W->>W: LogSyncer.start(log_path, remote_url, ...)
+    W->>S: write instruction file (state=running)
     W->>S: asyncio.create_subprocess_exec
 
-    loop every ~30s while job runs
+    loop every 10s–10min while job runs
         S->>GCS: gcloud storage cp log remote
-        S->>S: sleep interval
+        S->>S: re-source instruction file
+        S->>S: sleep (tier-based interval)
     end
 
     Note over W: job finishes (success, failure, or error)
+    W->>W: LogSyncer.finish()
     W->>W: write instruction file (state=done)
     W->>S: send SIGUSR1
-    S->>GCS: final gcloud storage cp
-    S->>S: exit
+    S->>S: sleep interrupted
+    S->>GCS: upload
+    S->>S: re-source → state=done → final upload → exit
     W->>W: await proc.wait() (timeout=120s)
     W->>W: mark_complete() → notify driver
 ```
 
-## LogSyncer Class
+## Worker Lifecycle (Preemption)
 
 ```mermaid
-classDiagram
-    class LogSyncer {
-        -_log_path: str
-        -_remote_url: str
-        -_instruction_file: str
-        -_proc: asyncio.subprocess.Process
-        +start(log_path, remote_url)$ LogSyncer
-        +finish() None
-        +cancel() None
-        -_write_instruction_file(path, log_path, remote_url, state)$
-    }
+sequenceDiagram
+    participant GCP as GCP (preemption notice)
+    participant W as Worker (worker.py)
+    participant S as log-sync.sh subprocess
+    participant GCS
 
-    class DockerJob {
-        +run_container(container, task_name)
-    }
+    GCP->>W: SIGTERM (30s before termination)
+    W->>W: _on_sigterm() → initiate_shutdown()
+    W->>S: LogSyncer.wakeup() → SIGUSR1 (all active syncers)
+    W->>W: set stop_event
 
-    class JVMJob {
-        -_log_syncer: Optional[LogSyncer]
-        +run()
-        +cleanup()
-    }
-
-    DockerJob ..> LogSyncer : creates for task_name=='main' on GCP
-    JVMJob --> LogSyncer : owns one per run
+    S->>S: sleep interrupted
+    S->>GCS: best-effort upload
+    S->>S: re-source → state not done → sleep again
+    Note over S: normal log-sync loop continues until VM dies
 ```
+
+SIGTERM gives 30 seconds before termination. `initiate_shutdown()` wakes all active syncers so
+they upload immediately rather than waiting for the current sleep to expire. There is no clean
+`state=done` written — the syncer continues its normal loop and is killed when the VM is terminated.
+
+The same `initiate_shutdown()` is called when the operator clicks "Stop" in the UI (`Worker.kill()`),
+ensuring active syncers are also woken on manual stop.
+
+## LogSyncer Class
+
+```python
+# Key interface:
+class LogSyncer:
+    @classmethod
+    async def start(cls, log_path, remote_url, batch_id, job_id, attempt_id) -> 'LogSyncer'
+    async def finish(self) -> None   # write state=done, send SIGUSR1, await with 120s timeout
+    async def cancel(self) -> None   # kill subprocess immediately (no final upload)
+    def wakeup(self) -> None         # send SIGUSR1 without marking done (used by initiate_shutdown)
+```
+
+`start()` registers the syncer in `_active_log_syncers` (module-level set).
+`finish()` and `cancel()` discard from the registry.
+
+## Front-End Log Path
+
+When `continuous_log_sync` is enabled (and `CLOUD == 'gcp'`), the log endpoint goes directly to
+GCS for all states — running, preempted, or completed:
+
+```python
+# front_end.py _get_job_container_log()
+if app['feature_flags']['continuous_log_sync'] and CLOUD == 'gcp':
+    attempt_id = override_attempt_id or attempt_id_from_spec(job_record)
+    if attempt_id is None:
+        return None   # job never started (no attempt assigned yet)
+    return await _read_job_container_log_from_cloud_storage(...)
+```
+
+A GCS 404 (no log file yet) is caught by `_read_job_container_log_from_cloud_storage` and
+returned as `b'ERROR: could not find log file'`.
+
+The legacy path (proxy live logs from the worker while Running, GCS otherwise) is preserved when
+the flag is disabled or on non-GCP clouds.
 
 ## GCP-Only Guard
 
-`LogSyncer` is only started when `CLOUD == 'gcp'`. The subprocess uses `gcloud storage cp` which
-is GCP-specific. Non-GCP deployments fall back to the existing single end-of-job upload.
+`LogSyncer` is only started when `CLOUD == 'gcp' and CONTINUOUS_LOG_SYNC`. Non-GCP deployments
+fall back to the existing single end-of-job upload. The `gcloud storage cp` command used by the
+subprocess is GCP-specific.
+
+## Race Conditions
+
+### Covered
+
+**1. SIGUSR1 arrives while gcloud cp is running.**
+
+Bash trap handlers fire between commands, not during them. If `finish()` sends SIGUSR1 while the
+subprocess is inside `gcloud storage cp`, the signal is queued and fires at the start of the next
+loop iteration rather than interrupting the upload. After the upload returns, the subprocess
+re-sources the instruction file and sees `state=done`, then does the final upload and exits. No
+bytes are lost.
+
+**2. Bytes written to the log after the upload-start but before the container exits.**
+
+When `finish()` is called, it first writes `state=done` then sends SIGUSR1. The signal wakes the
+sleep and the subprocess runs a full upload cycle: upload #N (which may be slightly stale if the
+container was still writing), then re-sources and detects `state=done`, then does a **final upload
+#N+1** capturing any bytes written since upload #N started, then exits. This double-upload on
+termination is intentional and closes the window.
+
+**3. Transient gcloud failure.**
+
+`gcloud storage cp` is run with `|| echo "$PREFIX upload failed, will retry next cycle"` rather
+than relying on `set -euo pipefail` to exit the script. A transient network error or GCS hiccup
+skips the upload for one cycle but the subprocess continues and retries on the next iteration.
+
+**4. SIGTERM (preemption) while a long sleep is running.**
+
+`initiate_shutdown()` calls `LogSyncer.wakeup()` on all active syncers, sending SIGUSR1 which
+kills the background `sleep` subprocess. The syncer immediately runs an upload and re-sources
+before sleeping again. For most tiers (tiny through large) this means a fresh upload is in flight
+within seconds of the preemption notice.
+
+### Not Fully Covered
+
+**5. Very large files (>50 MB, xlarge tier) during preemption.**
+
+The xlarge tier sleeps 10 minutes between uploads. On SIGTERM, `wakeup()` interrupts the sleep
+and starts an upload — but uploading a multi-gigabyte log file within the 30s preemption window
+is not guaranteed. The GCS object from the last completed upload cycle survives; the bytes written
+since then may be lost. This is best-effort.
+
+**6. gcloud cp still running when SIGTERM fires and 30s window expires.**
+
+If the VM is terminated while `gcloud storage cp` is in mid-flight, the upload is aborted and
+the GCS object may be left in an incomplete state (GCS does not guarantee partial writes for
+non-resumable uploads). The previous completed upload is still intact.
+
+**7. Multiple rapid re-preemptions.**
+
+If a job is preempted, rescheduled, and preempted again before completing a full sync cycle, the
+log from each attempt is independently uploaded up to the last completed sync. Each attempt gets
+its own GCS path keyed by `attempt_id`, so logs from different attempts do not overwrite each other.
 
 ## Cost
 
-- **Same-region (GCE → GCS):** network transfer is free; each `gcloud storage cp` re-uploads the
-  full log file but there are no egress charges within the same region.
-- **Cross-region:** each sync re-uploads the full file, so egress cost scales with
-  `log_size × sync_count`. The large-file fallback interval (120s) reduces this for large logs.
-  Keeping the log bucket co-located with worker regions eliminates cross-region traffic entirely.
-- **Operation cost:** ~$0.000005 per upload (Class A write); negligible at any realistic job scale.
-
-## Large File Behaviour
-
-When the log file exceeds `large_file_limit` (5 MB), the subprocess switches from `interval` (30s)
-to `large_file_interval` (120s). This reduces upload frequency for jobs producing large logs while
-still providing reasonable freshness for the common case.
+- **Network (GCE → GCS, same region):** free; GCS egress within the same region is not charged.
+- **Write operations:** ~$0.000005 per `gcloud storage cp` (Class A write). Negligible at any
+  realistic job scale. The 10 KB tiny-tier threshold ensures most jobs spend their time in the
+  30s+ tiers rather than the 10s tier, keeping operation counts low.
+- **Storage:** each sync overwrites the same GCS object (same path, same attempt_id), so storage
+  cost is proportional to current log size, not number of uploads.
 
 ## Container State Edge Cases
 
 If a container is in `pending` or `creating` state when `on_completion` fires (i.e. it was deleted
 before it started), `LogSyncer.cancel()` is called instead of `finish()` — the subprocess is killed
-immediately with no final upload attempt, since there is no log to upload.
-
-## Signed URL Migration (Future)
-
-Once logs are reliably in GCS for all attempts including preempted ones, the front_end log endpoint
-can be simplified: generate a short-lived signed URL and redirect the client directly to GCS,
-eliminating the current worker↔front_end log proxy path.
-
-## Open Questions
-
-- **Sync interval tuning:** 30s is the default; this can be made configurable via instance config
-  without changing the script (just write a different value to the instruction file).
-- **stderr from the subprocess:** currently discarded (`DEVNULL`). If debugging is needed, redirect
-  to `<log_path>.sync.log` in the scratch directory.
-- **Azure:** not applicable; Azure is being phased out.
+immediately with no final upload attempt, since there is no meaningful log to upload.
