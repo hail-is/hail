@@ -45,12 +45,24 @@ while true; do
     file_size=$(stat --printf="%s" "$log" 2>/dev/null || echo 0)
     if [[ -s "$log" ]]; then
         echo "$PREFIX uploading ${file_size}B to $remote"
-        gcloud storage cp "$log" "$remote"
+        gcloud storage cp "$log" "$remote" || echo "$PREFIX upload failed, will retry next cycle"
     else
         echo "$PREFIX skipping upload, log is empty"
     fi
 
-    [[ "$state" == "done" ]] && break
+    # Re-source after the upload in case state=done was written while gcloud was running
+    # (the SIGUSR1 would have been a no-op during the upload, so we must catch it here).
+    # If done, do one final upload to capture bytes written after the previous cp started.
+    # shellcheck source=/dev/null
+    source "$INSTRUCTION_FILE"
+    if [[ "$state" == "done" ]]; then
+        file_size=$(stat --printf="%s" "$log" 2>/dev/null || echo 0)
+        if [[ -s "$log" ]]; then
+            echo "$PREFIX final upload ${file_size}B to $remote"
+            gcloud storage cp "$log" "$remote" || echo "$PREFIX final upload failed"
+        fi
+        break
+    fi
 
     if (( file_size > xlarge_limit )); then
         tier=xlarge; sleep_time=$xlarge_interval
