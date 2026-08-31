@@ -370,9 +370,15 @@ async def _update_feature_flags(app: web.Application, db: Database, updates: dic
 UPDATE feature_flags
 SET compact_billing_tables = COALESCE(%s, compact_billing_tables),
     oms_agent = COALESCE(%s, oms_agent),
-    dockerhub_proxy = COALESCE(%s, dockerhub_proxy);
+    dockerhub_proxy = COALESCE(%s, dockerhub_proxy),
+    continuous_log_sync = COALESCE(%s, continuous_log_sync);
 ''',
-        (updates.get('compact_billing_tables'), updates.get('oms_agent'), updates.get('dockerhub_proxy')),
+        (
+            updates.get('compact_billing_tables'),
+            updates.get('oms_agent'),
+            updates.get('dockerhub_proxy'),
+            updates.get('continuous_log_sync'),
+        ),
     )
     row = await db.select_and_fetchone('SELECT * FROM feature_flags')
     app['feature_flags'] = row

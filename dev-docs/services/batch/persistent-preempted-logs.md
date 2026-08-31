@@ -34,7 +34,8 @@ original single end-of-job upload behaviour is preserved.
 The `continuous_log_sync` flag is stored in the `feature_flags` MySQL table and toggled from the
 batch-driver admin page. It propagates in two directions:
 
-1. **Front-ends** read all feature flags at startup (and on 30s reload timer).
+1. **Front-ends** read all feature flags at startup only (`on_startup`). Changing the flag requires
+   restarting the front-end pods to take effect; there is no runtime refresh.
 2. **Workers** receive the flag in the activate HTTP response body:
    ```python
    # driver/main.py activate handler
@@ -44,8 +45,8 @@ batch-driver admin page. It propagates in two directions:
    bool. Changing the flag takes effect for newly activated workers; existing workers keep their
    cached value until they restart.
 
-To revert entirely: uncheck `continuous_log_sync` in the batch-driver UI. Front-ends switch to
-the legacy log path within 30s. Workers switch on their next activation (VM restart or re-register).
+To revert entirely: uncheck `continuous_log_sync` in the batch-driver UI, then restart the
+front-end pods. Workers switch on their next activation (VM restart or re-register).
 
 ## Instruction File
 
@@ -69,8 +70,10 @@ xlarge_limit=52428800
 xlarge_interval=600
 ```
 
-The subprocess fills in `pid=` on startup. The worker overwrites `state=running` → `state=done`
-atomically (tmp file + `os.replace`) when the job finishes, then sends SIGUSR1.
+The subprocess fills in `pid=` on startup via `sed -i`. When `finish()` is called, the worker
+rewrites the entire instruction file atomically (tmp file + `os.replace`) with `state=done` and
+`pid=` reset to empty, then sends SIGUSR1. The subprocess re-sources, sees `state=done`, and exits
+— it does not need to re-read `pid=` at that point.
 
 ## Sync Intervals (Size-Tiered)
 
@@ -82,9 +85,10 @@ atomically (tmp file + `os.replace`) when the job finishes, then sends SIGUSR1.
 | large  | 10 MB – 50 MB    | 5 min    |
 | xlarge | > 50 MB          | 10 min   |
 
-The 10 KB threshold for the tiny tier means that even short-lived jobs exit the 10s tier after
-the first few lines of output and spend the bulk of their lifetime in the 30s tier. This keeps
-GCS Class A write operation costs reasonable at scale.
+The 10 KB threshold for the tiny tier means that most jobs producing any meaningful output move
+into the 30s tier within the first few upload cycles. Jobs that remain under 10 KB for their
+entire lifetime (quiet long-running jobs) stay in the tiny tier throughout. This keeps GCS Class A
+write operation costs reasonable at scale.
 
 Implied bandwidth at each tier:
 - tiny: up to 10 KB / 10 s = 1 KB/s
@@ -218,13 +222,19 @@ subprocess is GCP-specific.
 
 ### Covered
 
-**1. SIGUSR1 arrives while gcloud cp is running.**
+**1. SIGUSR1 arrives while gcloud cp is running, or in the window between the post-upload re-source
+and the sleep start.**
 
-Bash trap handlers fire between commands, not during them. If `finish()` sends SIGUSR1 while the
-subprocess is inside `gcloud storage cp`, the signal is queued and fires at the start of the next
-loop iteration rather than interrupting the upload. After the upload returns, the subprocess
-re-sources the instruction file and sees `state=done`, then does the final upload and exits. No
-bytes are lost.
+Bash trap handlers fire between commands. If `finish()` sends SIGUSR1 while the subprocess is
+inside `gcloud storage cp`, the signal is queued and fires between commands rather than interrupting
+the upload. After `gcloud` returns, the subprocess re-sources (`state=done`), does the final
+upload, and exits.
+
+A subtler race: SIGUSR1 fires *after* the post-upload re-source (which saw `state=running`) but
+*before* `SLEEP_PID` is set — so `wakeup()` is a no-op and the subprocess would otherwise sleep a
+full tier interval before detecting `state=done`. This is closed by a second re-source immediately
+before the `sleep` command. The remaining window (between the pre-sleep re-source and the actual
+`sleep` syscall) is microseconds.
 
 **2. Bytes written to the log after the upload-start but before the container exits.**
 
@@ -256,11 +266,16 @@ and starts an upload — but uploading a multi-gigabyte log file within the 30s 
 is not guaranteed. The GCS object from the last completed upload cycle survives; the bytes written
 since then may be lost. This is best-effort.
 
-**6. gcloud cp still running when SIGTERM fires and 30s window expires.**
+**6. gcloud cp still running when SIGTERM fires and 30s window expires, or when finish() times out.**
 
-If the VM is terminated while `gcloud storage cp` is in mid-flight, the upload is aborted and
-the GCS object may be left in an incomplete state (GCS does not guarantee partial writes for
-non-resumable uploads). The previous completed upload is still intact.
+If the VM is terminated while `gcloud storage cp` is in mid-flight, the upload is aborted. The
+previous completed upload is still intact.
+
+If `finish()` times out (120 s) waiting for the syncer, it sends SIGKILL to the bash process but
+does not kill `gcloud storage cp` (a grandchild in the same process group). The orphaned gcloud
+process continues its upload and exits on its own; the GCS object is overwritten after cleanup has
+started. This is best-effort — in practice 120 s is sufficient for all but the largest logs on
+slow connections.
 
 **7. Multiple rapid re-preemptions.**
 

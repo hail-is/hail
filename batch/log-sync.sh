@@ -77,6 +77,20 @@ while true; do
     fi
     echo "$PREFIX ${file_size}B -> tier=${tier}, sleeping ${sleep_time}s"
 
+    # Re-source just before sleeping: SIGUSR1 may have fired between the post-upload re-source
+    # and now (when SLEEP_PID was still empty and the signal was lost). Catching it here keeps
+    # the window to microseconds rather than a full tier interval.
+    # shellcheck source=/dev/null
+    source "$INSTRUCTION_FILE"
+    if [[ "$state" == "done" ]]; then
+        file_size=$(stat --printf="%s" "$log" 2>/dev/null || echo 0)
+        if [[ -s "$log" ]]; then
+            echo "$PREFIX final upload ${file_size}B to $remote"
+            gcloud storage cp "$log" "$remote" || echo "$PREFIX final upload failed"
+        fi
+        break
+    fi
+
     sleep "$sleep_time" &
     SLEEP_PID=$!
     wait "$SLEEP_PID" || true

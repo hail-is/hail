@@ -495,7 +495,8 @@ async def _get_job_container_log(
 ) -> Optional[bytes]:
     batch_format_version = BatchFormatVersion(job_record['format_version'])
 
-    if app['feature_flags']['continuous_log_sync'] and CLOUD == 'gcp':
+    # LogSyncer only runs for the 'main' container; input/output containers must use the legacy path.
+    if app['feature_flags']['continuous_log_sync'] and CLOUD == 'gcp' and container == 'main':
         attempt_id = override_attempt_id if override_attempt_id is not None else attempt_id_from_spec(job_record)
         if attempt_id is None:
             return None
@@ -507,8 +508,13 @@ async def _get_job_container_log(
     if not has_resource_available(job_record):
         return None
     state = job_record['state']
-    attempt_id = override_attempt_id if override_attempt_id is not None else attempt_id_from_spec(job_record)
-    if state == 'Running':
+    if override_attempt_id is not None:
+        attempt_id = override_attempt_id
+        use_worker = state == 'Running' and override_attempt_id == job_record['attempt_id']
+    else:
+        attempt_id = attempt_id_from_spec(job_record)
+        use_worker = state == 'Running'
+    if use_worker:
         return await _get_job_container_log_from_worker(
             app[CommonAiohttpAppKeys.CLIENT_SESSION], batch_id, job_id, container, job_record['ip_address']
         )
