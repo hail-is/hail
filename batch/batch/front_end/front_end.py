@@ -983,20 +983,6 @@ async def _create_job_group(
     timestamp: int,
     parent_job_group_id: int,
 ):
-    cancelled_parent = await tx.execute_and_fetchone(
-        """
-SELECT 1 AS cancelled
-FROM job_group_self_and_ancestors
-INNER JOIN job_groups_cancelled
-  ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
-     job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
-WHERE job_group_self_and_ancestors.batch_id = %s AND job_group_self_and_ancestors.job_group_id = %s;
-""",
-        (batch_id, parent_job_group_id),
-    )
-    if cancelled_parent is not None:
-        raise web.HTTPBadRequest(reason='job group parent has already been cancelled')
-
     await tx.execute_insertone(
         """
 INSERT INTO job_groups (batch_id, job_group_id, `user`, attributes, cancel_after_n_failures, state, n_jobs, time_created, time_completed, callback, update_id)
@@ -1017,6 +1003,22 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
         ),
         query_name='insert_job_group',
     )
+
+    # This sanity check happens after the INSERT, but its ok because it's in a transaction.
+    # We do this so that the job_groups lock happens before the job_group_self_and_ancestors lock.
+    cancelled_parent = await tx.execute_and_fetchone(
+        """
+SELECT 1 AS cancelled
+FROM job_group_self_and_ancestors
+INNER JOIN job_groups_cancelled
+  ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
+     job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
+WHERE job_group_self_and_ancestors.batch_id = %s AND job_group_self_and_ancestors.job_group_id = %s;
+""",
+        (batch_id, parent_job_group_id),
+    )
+    if cancelled_parent is not None:
+        raise web.HTTPBadRequest(reason='job group parent has already been cancelled')
 
     if job_group_id != ROOT_JOB_GROUP_ID:
         assert parent_job_group_id < job_group_id
@@ -1150,8 +1152,6 @@ WHERE batch_id = %s AND update_id = %s AND job_group_id BETWEEN %s AND %s;
             except asyncio.CancelledError:
                 raise
             except pymysql.err.IntegrityError:
-                raise
-            except (pymysql.err.OperationalError, pymysql.err.InternalError):
                 raise
             except Exception as e:
                 raise web.HTTPBadRequest(
