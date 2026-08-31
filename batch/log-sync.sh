@@ -30,7 +30,7 @@ validate() {
     [[ "${medium_limit:-}"     =~ ^[0-9]+$        ]] || { echo "$PREFIX bad medium_limit: ${medium_limit:-unset}";      exit 1; }
     [[ "${medium_interval:-}"  =~ ^[0-9]+$        ]] || { echo "$PREFIX bad medium_interval: ${medium_interval:-unset}"; exit 1; }
     [[ "${large_limit:-}"      =~ ^[0-9]+$        ]] || { echo "$PREFIX bad large_limit: ${large_limit:-unset}";        exit 1; }
-    [[ "${large_interval:-}"   =~ ^[0-9]+$        ]] || { echo "$PREFIX bad large_interval: ${large_interval:-unset}";  exit 1; }
+    [[ "${large_interval:-}"   =~ ^[0-9]+$        ]] || { echo "$PREFIX bad large_interval: ${large_interval:-unset}"; exit 1; }
     [[ "${xlarge_limit:-}"     =~ ^[0-9]+$        ]] || { echo "$PREFIX bad xlarge_limit: ${xlarge_limit:-unset}";      exit 1; }
     [[ "${xlarge_interval:-}"  =~ ^[0-9]+$        ]] || { echo "$PREFIX bad xlarge_interval: ${xlarge_interval:-unset}"; exit 1; }
 }
@@ -46,6 +46,7 @@ while true; do
     file_size=$(stat --printf="%s" "$log" 2>/dev/null || echo 0)
     if [[ -s "$log" ]] && (( file_size != last_uploaded_size )); then
         echo "$PREFIX uploading ${file_size}B to $remote"
+        # Transient gcloud failure: skip this cycle and retry next iteration rather than aborting.
         if gcloud storage cp "$log" "$remote"; then
             last_uploaded_size=$file_size
         else
@@ -55,9 +56,10 @@ while true; do
         echo "$PREFIX skipping upload, no new bytes"
     fi
 
-    # Re-source after the upload in case state=done was written while gcloud was running
-    # (the SIGUSR1 would have been a no-op during the upload, so we must catch it here).
-    # If done, do one final upload to capture bytes written after the previous cp started.
+    # Re-source after the upload: if SIGUSR1 fired while gcloud was running, the bash trap queued
+    # it and wakeup() was a no-op (SLEEP_PID was empty). Re-sourcing here catches state=done set
+    # during the upload so we don't then sleep a full tier interval before noticing.
+    # If done, do a final upload (upload N+1) to capture bytes written after upload N started.
     # shellcheck source=/dev/null
     source "$INSTRUCTION_FILE"
     if [[ "$state" == "done" ]]; then
@@ -82,9 +84,9 @@ while true; do
     fi
     echo "$PREFIX ${file_size}B -> tier=${tier}, sleeping ${sleep_time}s"
 
-    # Re-source just before sleeping: SIGUSR1 may have fired between the post-upload re-source
-    # and now (when SLEEP_PID was still empty and the signal was lost). Catching it here keeps
-    # the window to microseconds rather than a full tier interval.
+    # Re-source just before sleeping: SIGUSR1 may have fired after the post-upload re-source
+    # (which saw state=running) but before SLEEP_PID was set, so wakeup() would have been a no-op.
+    # A second re-source here closes that window to microseconds rather than a full tier interval.
     # shellcheck source=/dev/null
     source "$INSTRUCTION_FILE"
     if [[ "$state" == "done" ]]; then
