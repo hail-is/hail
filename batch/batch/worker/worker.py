@@ -1551,13 +1551,24 @@ class LogSyncer:
             stdout=None,  # inherit worker stdout/stderr so all output appears in container logs
             stderr=None,
         )
-        while proc.returncode is None:
-            with open(instruction_file, encoding='utf-8') as f:
-                if 'trap_installed=1\n' in f.read():
-                    break
-            await asyncio.sleep(0.01)
-        else:
-            raise RuntimeError(f'log syncer exited before becoming ready (code {proc.returncode})')
+        try:
+            async with async_timeout.timeout(30):
+                while proc.returncode is None:
+                    try:
+                        with open(instruction_file, encoding='utf-8') as f:
+                            if 'trap_installed=1\n' in f.read():
+                                break
+                    except FileNotFoundError:
+                        pass
+                    await asyncio.sleep(0.01)
+                else:
+                    raise RuntimeError(f'log syncer exited before becoming ready (code {proc.returncode})')
+        except asyncio.TimeoutError as exc:
+            proc.kill()
+            await proc.wait()
+            with suppress(FileNotFoundError):
+                os.unlink(instruction_file)
+            raise RuntimeError('log syncer did not become ready within 30s') from exc
         log.info(f'started log syncer pid={proc.pid} {log_path} -> {remote_url}')
         syncer = cls(log_path, remote_url, instruction_file, proc)
         _active_log_syncers.add(syncer)
