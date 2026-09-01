@@ -1,7 +1,7 @@
 #!/bin/bash
 # Incrementally syncs a job log file to GCS.
 # Usage: log-sync.sh <instruction-file>
-# The instruction file is sourced each loop iteration so that state changes
+# The instruction file is re-read each loop iteration so that state changes
 # written by the worker (e.g. state=done) are picked up without any IPC.
 # Responds to SIGUSR1 to skip the current sleep and proceed immediately,
 # which the worker sends when the job finishes.
@@ -15,6 +15,12 @@ wakeup_pending=0
 _base=$(basename "$INSTRUCTION_FILE" .conf)
 _batch="${_base%%_*}"; _rest="${_base#*_}"; _job="${_rest%%_*}"; _attempt="${_rest#*_}"
 PREFIX="[log-sync ${_batch}/${_job}/${_attempt}]"
+
+load_instruction_file() {
+    while IFS='=' read -r key value; do
+        declare -g "$key=$value"
+    done < "$INSTRUCTION_FILE"
+}
 
 wakeup() {
     wakeup_pending=1
@@ -39,8 +45,7 @@ validate() {
 }
 
 while true; do
-    # shellcheck source=/dev/null
-    source "$INSTRUCTION_FILE"
+    load_instruction_file
     validate
 
     file_size=$(stat --printf="%s" "$log" 2>/dev/null || echo 0)
@@ -56,12 +61,11 @@ while true; do
         echo "$PREFIX skipping upload, no new bytes"
     fi
 
-    # Re-source after the upload: if SIGUSR1 fired while gcloud was running, the bash trap queued
-    # it and wakeup() was a no-op (SLEEP_PID was empty). Re-sourcing here catches state=done set
+    # Re-read after the upload: if SIGUSR1 fired while gcloud was running, the bash trap queued
+    # it and wakeup() was a no-op (SLEEP_PID was empty). Re-reading here catches state=done set
     # during the upload so we don't then sleep a full tier interval before noticing.
     # If done, do a final upload (upload N+1) to capture bytes written after upload N started.
-    # shellcheck source=/dev/null
-    source "$INSTRUCTION_FILE"
+    load_instruction_file
     if [[ "$state" == "done" ]]; then
         file_size=$(stat --printf="%s" "$log" 2>/dev/null || echo 0)
         if [[ -e "$log" ]] && (( file_size != last_uploaded_size )); then
@@ -84,13 +88,12 @@ while true; do
     fi
     echo "$PREFIX ${file_size}B -> tier=${tier}, sleeping ${sleep_time}s"
 
-    # Re-source just before sleeping: SIGUSR1 may have fired after the post-upload re-source
+    # Re-read just before sleeping: SIGUSR1 may have fired after the post-upload re-read
     # (which saw state=running) but before SLEEP_PID was set, so wakeup() would have been a no-op.
     # wakeup_pending catches that case; consuming it here skips the sleep so the next iteration
     # uploads immediately. With the size-change guard this is safe: if nothing new was written
     # the upload is skipped and we sleep normally on the following iteration.
-    # shellcheck source=/dev/null
-    source "$INSTRUCTION_FILE"
+    load_instruction_file
     if [[ "$state" == "done" ]]; then
         file_size=$(stat --printf="%s" "$log" 2>/dev/null || echo 0)
         if [[ -e "$log" ]] && (( file_size != last_uploaded_size )); then
