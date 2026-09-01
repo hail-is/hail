@@ -75,9 +75,9 @@ bootstrap() {
 
     cd $HAIL
     export DOCKER_PREFIX=$(get_global_config_field docker_prefix)
-    export BATCH_WORKER_IMAGE=$DOCKER_PREFIX/batch-worker:cache
-    export HAIL_CI_UTILS_IMAGE=$DOCKER_PREFIX/ci-utils:cache
-    export HAIL_BUILDKIT_IMAGE=$DOCKER_PREFIX/hail-buildkit:cache
+    export BATCH_WORKER_IMAGE=batch-worker:cache
+    export HAIL_CI_UTILS_IMAGE=ci-utils:cache
+    export HAIL_BUILDKIT_IMAGE=hail-buildkit:cache
     export HAIL_DEFAULT_NAMESPACE=$(get_global_config_field default_namespace)
     export HAIL_CI_STORAGE_URI=dummy
     export HAIL_CI_GITHUB_CONTEXT=dummy
