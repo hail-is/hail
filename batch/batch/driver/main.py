@@ -372,11 +372,7 @@ SET compact_billing_tables = COALESCE(%s, compact_billing_tables),
     oms_agent = COALESCE(%s, oms_agent),
     dockerhub_proxy = COALESCE(%s, dockerhub_proxy);
 ''',
-        (
-            updates.get('compact_billing_tables'),
-            updates.get('oms_agent'),
-            updates.get('dockerhub_proxy'),
-        ),
+        (updates.get('compact_billing_tables'), updates.get('oms_agent'), updates.get('dockerhub_proxy')),
     )
     row = await db.select_and_fetchone('SELECT * FROM feature_flags')
     app['feature_flags'] = row

@@ -2597,9 +2597,6 @@ steps:
       - name: add-dockerhub-proxy-flag
         script: /io/sql/120-add-dockerhub-proxy-flag.sql
         online: true
-      - name: add-continuous-log-sync-flag
-        script: /io/sql/121-add-continuous-log-sync-flag.sql
-        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
