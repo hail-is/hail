@@ -15,7 +15,7 @@ import tempfile
 import traceback
 import uuid
 from collections import defaultdict
-from contextlib import AsyncExitStack, ExitStack
+from contextlib import AsyncExitStack, ExitStack, suppress
 from typing import (
     Any,
     Awaitable,
@@ -1541,6 +1541,7 @@ class LogSyncer:
         instruction_file = os.path.join(LOG_SYNC_STATE_DIR, f'{batch_id}_{job_id}_{attempt_id}.conf')
         cls._write_instruction_file(instruction_file, log_path, remote_url, 'running')
         # Touch the log file so GCS gets an empty object on the first sync cycle rather than a 404.
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
         with open(log_path, 'a', encoding='utf-8'):
             pass
         proc = await asyncio.create_subprocess_exec(
@@ -1550,11 +1551,13 @@ class LogSyncer:
             stdout=None,  # inherit worker stdout/stderr so all output appears in container logs
             stderr=None,
         )
-        while True:
+        while proc.returncode is None:
             with open(instruction_file, encoding='utf-8') as f:
                 if 'trap_installed=1\n' in f.read():
                     break
             await asyncio.sleep(0.01)
+        else:
+            raise RuntimeError(f'log syncer exited before becoming ready (code {proc.returncode})')
         log.info(f'started log syncer pid={proc.pid} {log_path} -> {remote_url}')
         syncer = cls(log_path, remote_url, instruction_file, proc)
         _active_log_syncers.add(syncer)
@@ -1596,6 +1599,9 @@ class LogSyncer:
             )
             self._log_copier_proc.kill()
             await self._log_copier_proc.wait()
+        finally:
+            with suppress(FileNotFoundError):
+                os.unlink(self._instruction_file)
 
     async def cancel(self) -> None:
         """Kill the syncer without a final upload (container never ran)."""
@@ -1605,6 +1611,8 @@ class LogSyncer:
         except ProcessLookupError:
             pass
         await self._log_copier_proc.wait()
+        with suppress(FileNotFoundError):
+            os.unlink(self._instruction_file)
 
     def wakeup(self) -> None:
         """Send SIGUSR1 to interrupt any current sleep without marking the job done."""
