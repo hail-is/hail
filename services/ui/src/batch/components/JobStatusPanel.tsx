@@ -2,6 +2,7 @@ import { Job, Attempt } from './jobModels';
 import { stateColor } from './StateIcon';
 import { CollapsibleItem } from './CollapsibleItem';
 import { RelativeTime } from './RelativeTime';
+import { AutoRefreshBar } from '../../shared/AutoRefreshBar';
 
 const MIN_VISIBLE_COST = 0.01;
 
@@ -43,32 +44,13 @@ export function JobStatusPanel({ batchId, jobId, job, latestAttempt, autoRefresh
           )}
           {!isTerminal && (
             <div className="mt-2">
-              <label className="flex items-center gap-1.5 text-zinc-500 text-sm cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={autoRefresh}
-                  onChange={(e) => { onAutoRefreshToggle(e.target.checked); }}
-                  className="cursor-pointer"
-                />
-                Auto-refresh
-                {autoRefresh && jobRefreshing && (
-                  <span className="material-symbols-outlined text-sm animate-spin text-sky-400" style={{ animationDuration: '1s' }}>
-                    progress_activity
-                  </span>
-                )}
-              </label>
-              <div className="mt-1.5 h-0.5 bg-zinc-200 rounded-full overflow-hidden">
-                {autoRefresh && !jobRefreshing && (
-                  <div
-                    key={countdownKey}
-                    className="h-full bg-sky-400 origin-left"
-                    style={{ animation: `countdown-grow ${refreshIntervalMs}ms linear forwards` }}
-                  />
-                )}
-                {autoRefresh && jobRefreshing && (
-                  <div className="h-full bg-sky-300 w-full animate-pulse" />
-                )}
-              </div>
+              <AutoRefreshBar
+                autoRefresh={autoRefresh}
+                onToggle={onAutoRefreshToggle}
+                countdownKey={countdownKey}
+                refreshing={jobRefreshing}
+                intervalMs={refreshIntervalMs}
+              />
             </div>
           )}
           {job.user && (

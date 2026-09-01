@@ -1,6 +1,12 @@
 {% extends "layout.html" %}
 {% block title %}Batch Status{% endblock %}
 {% block content %}
+  {% if userdata['system_permissions']['access_developer_environments'] %}
+  <div>
+    <a id="enable-react-ui-btn" href="#" class="text-sm text-sky-600 hover:underline">Try new layout</a>
+  </div>
+  <script src="{{ base_path }}/batch_driver/static/js/react_toggle.js"></script>
+  {% endif %}
   <h1>Globals</h1>
   <div class="attributes">
     <div>instance ID: {{ instance_id }}</div>
