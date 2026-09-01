@@ -493,36 +493,44 @@ async def _read_job_container_log_from_cloud_storage(
 async def _get_job_container_log(
     app, batch_id, job_id, container, job_record, override_attempt_id=None
 ) -> Optional[bytes]:
-    batch_format_version = BatchFormatVersion(job_record['format_version'])
-
     if CLOUD == 'gcp':
         attempt_id = override_attempt_id if override_attempt_id is not None else attempt_id_from_spec(job_record)
         if attempt_id is None:
             return None
         return await _read_job_container_log_from_cloud_storage(
-            app['file_store'], batch_format_version, batch_id, job_id, container, attempt_id
+            app['file_store'], BatchFormatVersion(job_record['format_version']), batch_id, job_id, container, attempt_id
         )
 
-    # Reaching here means CLOUD != 'gcp'.
-    # On this legacy path we proxy live logs from the worker, fall back to cloud storage for completed attempts.
+    # Legacy path: proxy live logs from the worker, fall back to cloud storage for completed attempts.
     if not has_resource_available(job_record):
         return None
+
     state = job_record['state']
+
     if override_attempt_id is not None:
-        attempt_id = override_attempt_id
         use_worker = state == 'Running' and override_attempt_id == job_record['attempt_id']
+        attempt_id = override_attempt_id
     else:
-        attempt_id = attempt_id_from_spec(job_record)
         use_worker = state == 'Running'
+        attempt_id = attempt_id_from_spec(job_record)
+        if not (use_worker or (attempt_id is not None and state in complete_states)):
+            raise ValueError(
+                f'unexpected log fetch state: use_worker={use_worker}, attempt_id={attempt_id}, state={state}'
+            )
+
     if use_worker:
         return await _get_job_container_log_from_worker(
             app[CommonAiohttpAppKeys.CLIENT_SESSION], batch_id, job_id, container, job_record['ip_address']
         )
-    if attempt_id is None:
-        return None
-    return await _read_job_container_log_from_cloud_storage(
-        app['file_store'], batch_format_version, batch_id, job_id, container, attempt_id
-    )
+    else:
+        return await _read_job_container_log_from_cloud_storage(
+            app['file_store'],
+            BatchFormatVersion(job_record['format_version']),
+            batch_id,
+            job_id,
+            container,
+            attempt_id,
+        )
 
 
 async def _get_job_log(app, batch_id, job_id, override_attempt_id=None) -> Dict[str, Optional[bytes]]:
