@@ -193,7 +193,8 @@ $(SERVICES_IMAGES): %-image: $(SERVICES_IMAGE_DEPS) $$(shell git ls-files $$* ':
 	echo $(IMAGE_NAME) > $@
 
 ci-utils-image: base-image $(SERVICES_IMAGE_DEPS) $(shell git ls-files ci)
-	./docker-build.sh . ci/Dockerfile.ci-utils $(IMAGE_NAME) --build-arg BASE_IMAGE=$(shell cat base-image)
+	python3 ci/jinja2_render.py '{"base_image":{"image":"'$$(cat base-image)'"},"global":{"dockerhub_prefix":"$(DOCKER_PREFIX)"}}' ci/Dockerfile.ci-utils ci/Dockerfile.ci-utils.out
+	./docker-build.sh . ci/Dockerfile.ci-utils.out $(IMAGE_NAME) --build-arg BASE_IMAGE=$(shell cat base-image)
 	echo $(IMAGE_NAME) > $@
 
 hail-buildkit-image: ci/buildkit/Dockerfile

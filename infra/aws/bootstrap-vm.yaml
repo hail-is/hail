@@ -1,0 +1,96 @@
+Parameters:
+  CloudFormationRoleName:
+    Type: String
+    Description: Name of the IAM role used to create the infrastructure stack and cluster
+  GithubOrganizationName:
+    Type: String
+    Description: Name of the organization that owns the Github Hail repository, e.g. "hail-is"
+    Default: "hail-is"
+  HailBranchName:
+    Type: String
+    Description: Name of the branch to use for bootstrapping the cluster, e.g. "main"
+    Default: "main"
+Resources:
+  BootstrapInstance:
+    Type: "AWS::EC2::Instance"
+    Properties:
+      BlockDeviceMappings:
+        - Ebs:
+            VolumeType: gp3
+            Iops: 3000
+            VolumeSize: 100
+            Encrypted: false
+            DeleteOnTermination: true
+          DeviceName: /dev/sda1
+      ImageId: "{{resolve:ssm:/aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id}}"
+      InstanceType: t2.2xlarge
+      IamInstanceProfile: !Ref BootstrapInstanceProfile
+      SubnetId: !ImportValue VdcSubnet
+      SecurityGroupIds:
+        - !GetAtt BootstrapInstanceSSHSecurityGroup.GroupId
+      Tags:
+        - Value: bootstrap VM
+          Key: Name
+      UserData:
+        Fn::Base64: !Sub
+          - |
+            #!/bin/bash
+            set -e
+            send_error_signal() {
+              error_message=$(tail -1 /var/log/cloud-init-output.log)
+              aws cloudformation signal-resource --stack-name ${AWS::StackName} --logical-resource-id BootstrapInstance --region ${AWS::Region} --status FAILURE --unique-id "${error_message:0:64}"
+            }
+            trap send_error_signal ERR
+
+            cd $HOME
+            git clone https://github.com/${GithubOrganizationName}/hail.git
+            cd hail
+            git checkout ${HailBranchName}
+            cd infra/aws
+            
+            ./install_bootstrap_dependencies.sh
+            export AWS_DEFAULT_REGION=${AWS::Region}
+            aws eks update-kubeconfig --region ${AWS::Region} --name ${ClusterName}
+            aws ecr get-login-password | docker login --username AWS --password-stdin "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/default"
+            
+            export NAMESPACE=default
+            export KUBECONFIG=/root/.kube/config
+
+            ./bootstrap.sh install_external_secrets ${ExternalSecretsRoleArn}
+            ./bootstrap.sh install_load_balancer_controller ${AWS::AccountId} ${ClusterName} ${LoadBalancerControllerRoleName}
+            
+            aws cloudformation signal-resource --stack-name ${AWS::StackName} --logical-resource-id BootstrapInstance --region ${AWS::Region} --status SUCCESS --unique-id "Bootstrap instance is ready"
+
+          - ClusterName: !ImportValue VdcClusterName
+            ExternalSecretsRoleArn: !ImportValue VdcExternalSecretsRoleArn
+            LoadBalancerControllerRoleName: !ImportValue VdcLoadBalancerControllerRoleName
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT15M
+  BootstrapInstanceSSHSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group allowing EC2 Instance Connect SSH access
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          FromPort: 22
+          ToPort: 22
+          IpProtocol: tcp
+      VpcId: !ImportValue VdcNetwork
+  BootstrapInstanceClusterAccess:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !ImportValue VdcClusterSecurityGroup
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+      SourceSecurityGroupId: !Ref BootstrapInstanceSSHSecurityGroup
+  BootstrapInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref CloudFormationRoleName
+Outputs:
+  BootstrapInstanceId:
+    Value: !Ref BootstrapInstance
+    Description: ID of the bootstrap EC2 instance
