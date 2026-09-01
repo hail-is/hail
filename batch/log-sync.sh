@@ -30,18 +30,12 @@ trap wakeup SIGUSR1
 sed -i "s|^trap_installed=.*|trap_installed=1|" "$INSTRUCTION_FILE"
 
 validate() {
-    [[ "${log:-}"              =~ ^/              ]] || { echo "$PREFIX bad log: ${log:-unset}";                        exit 1; }
-    [[ "${remote:-}"           =~ ^gs://          ]] || { echo "$PREFIX bad remote: ${remote:-unset}";                  exit 1; }
-    [[ "${state:-}"            =~ ^(running|done)$ ]] || { echo "$PREFIX bad state: ${state:-unset}";                   exit 1; }
-    [[ "${interval:-}"         =~ ^[0-9]+$        ]] || { echo "$PREFIX bad interval: ${interval:-unset}";              exit 1; }
-    [[ "${small_limit:-}"      =~ ^[0-9]+$        ]] || { echo "$PREFIX bad small_limit: ${small_limit:-unset}";        exit 1; }
-    [[ "${small_interval:-}"   =~ ^[0-9]+$        ]] || { echo "$PREFIX bad small_interval: ${small_interval:-unset}";  exit 1; }
-    [[ "${medium_limit:-}"     =~ ^[0-9]+$        ]] || { echo "$PREFIX bad medium_limit: ${medium_limit:-unset}";      exit 1; }
-    [[ "${medium_interval:-}"  =~ ^[0-9]+$        ]] || { echo "$PREFIX bad medium_interval: ${medium_interval:-unset}"; exit 1; }
-    [[ "${large_limit:-}"      =~ ^[0-9]+$        ]] || { echo "$PREFIX bad large_limit: ${large_limit:-unset}";        exit 1; }
-    [[ "${large_interval:-}"   =~ ^[0-9]+$        ]] || { echo "$PREFIX bad large_interval: ${large_interval:-unset}"; exit 1; }
-    [[ "${xlarge_limit:-}"     =~ ^[0-9]+$        ]] || { echo "$PREFIX bad xlarge_limit: ${xlarge_limit:-unset}";      exit 1; }
-    [[ "${xlarge_interval:-}"  =~ ^[0-9]+$        ]] || { echo "$PREFIX bad xlarge_interval: ${xlarge_interval:-unset}"; exit 1; }
+    [[ "${log:-}"                =~ ^/              ]] || { echo "$PREFIX bad log: ${log:-unset}";                              exit 1; }
+    [[ "${remote:-}"             =~ ^gs://          ]] || { echo "$PREFIX bad remote: ${remote:-unset}";                        exit 1; }
+    [[ "${state:-}"              =~ ^(running|done)$ ]] || { echo "$PREFIX bad state: ${state:-unset}";                         exit 1; }
+    [[ "${target_bytes_per_s:-}" =~ ^[0-9]+$        ]] || { echo "$PREFIX bad target_bytes_per_s: ${target_bytes_per_s:-unset}"; exit 1; }
+    [[ "${min_interval:-}"       =~ ^[0-9]+$        ]] || { echo "$PREFIX bad min_interval: ${min_interval:-unset}";            exit 1; }
+    [[ "${max_interval:-}"       =~ ^[0-9]+$        ]] || { echo "$PREFIX bad max_interval: ${max_interval:-unset}";            exit 1; }
 }
 
 while true; do
@@ -63,7 +57,7 @@ while true; do
 
     # Re-read after the upload: if SIGUSR1 fired while gcloud was running, the bash trap queued
     # it and wakeup() was a no-op (SLEEP_PID was empty). Re-reading here catches state=done set
-    # during the upload so we don't then sleep a full tier interval before noticing.
+    # during the upload so we don't then sleep a full interval before noticing.
     # If done, do a final upload (upload N+1) to capture bytes written after upload N started.
     load_instruction_file
     if [[ "$state" == "done" ]]; then
@@ -75,18 +69,10 @@ while true; do
         break
     fi
 
-    if (( file_size > xlarge_limit )); then
-        tier=xlarge; sleep_time=$xlarge_interval
-    elif (( file_size > large_limit )); then
-        tier=large;  sleep_time=$large_interval
-    elif (( file_size > medium_limit )); then
-        tier=medium; sleep_time=$medium_interval
-    elif (( file_size > small_limit )); then
-        tier=small;  sleep_time=$small_interval
-    else
-        tier=tiny;   sleep_time=$interval
-    fi
-    echo "$PREFIX ${file_size}B -> tier=${tier}, sleeping ${sleep_time}s"
+    sleep_time=$(( target_bytes_per_s > 0 ? file_size / target_bytes_per_s : min_interval ))
+    (( sleep_time < min_interval )) && sleep_time=$min_interval
+    (( sleep_time > max_interval )) && sleep_time=$max_interval
+    echo "$PREFIX ${file_size}B, sleeping ${sleep_time}s"
 
     # Re-read just before sleeping: SIGUSR1 may have fired after the post-upload re-read
     # (which saw state=running) but before SLEEP_PID was set, so wakeup() would have been a no-op.
