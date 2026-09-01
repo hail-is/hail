@@ -7,8 +7,7 @@ CREATE TABLE IF NOT EXISTS `globals` (
 
 CREATE TABLE IF NOT EXISTS `feature_flags` (
   `compact_billing_tables` BOOLEAN NOT NULL,
-  `oms_agent` BOOLEAN NOT NULL DEFAULT TRUE,
-  `dockerhub_proxy` BOOLEAN NOT NULL DEFAULT FALSE
+  `oms_agent` BOOLEAN NOT NULL DEFAULT TRUE
 ) ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `resources` (
