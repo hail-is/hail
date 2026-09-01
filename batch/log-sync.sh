@@ -10,15 +10,18 @@ set -euo pipefail
 INSTRUCTION_FILE=$1
 SLEEP_PID=""
 last_uploaded_size=-1
+wakeup_pending=0
 
 _base=$(basename "$INSTRUCTION_FILE" .conf)
 _batch="${_base%%_*}"; _rest="${_base#*_}"; _job="${_rest%%_*}"; _attempt="${_rest#*_}"
 PREFIX="[log-sync ${_batch}/${_job}/${_attempt}]"
 
 wakeup() {
+    wakeup_pending=1
     [[ -n "${SLEEP_PID:-}" ]] && kill "$SLEEP_PID" 2>/dev/null || true
 }
 trap wakeup SIGUSR1
+sed -i "s|^trap_installed=.*|trap_installed=1|" "$INSTRUCTION_FILE"
 
 validate() {
     [[ "${log:-}"              =~ ^/              ]] || { echo "$PREFIX bad log: ${log:-unset}";                        exit 1; }
@@ -35,16 +38,13 @@ validate() {
     [[ "${xlarge_interval:-}"  =~ ^[0-9]+$        ]] || { echo "$PREFIX bad xlarge_interval: ${xlarge_interval:-unset}"; exit 1; }
 }
 
-# Write own PID so the worker can detect if we've died
-sed -i "s|^pid=.*|pid=$$|" "$INSTRUCTION_FILE"
-
 while true; do
     # shellcheck source=/dev/null
     source "$INSTRUCTION_FILE"
     validate
 
     file_size=$(stat --printf="%s" "$log" 2>/dev/null || echo 0)
-    if [[ -s "$log" ]] && (( file_size != last_uploaded_size )); then
+    if [[ -e "$log" ]] && (( file_size != last_uploaded_size )); then
         echo "$PREFIX uploading ${file_size}B to $remote"
         # Transient gcloud failure: skip this cycle and retry next iteration rather than aborting.
         if gcloud storage cp "$log" "$remote"; then
@@ -64,7 +64,7 @@ while true; do
     source "$INSTRUCTION_FILE"
     if [[ "$state" == "done" ]]; then
         file_size=$(stat --printf="%s" "$log" 2>/dev/null || echo 0)
-        if [[ -s "$log" ]] && (( file_size != last_uploaded_size )); then
+        if [[ -e "$log" ]] && (( file_size != last_uploaded_size )); then
             echo "$PREFIX final upload ${file_size}B to $remote"
             gcloud storage cp "$log" "$remote" || echo "$PREFIX final upload failed"
         fi
@@ -86,16 +86,22 @@ while true; do
 
     # Re-source just before sleeping: SIGUSR1 may have fired after the post-upload re-source
     # (which saw state=running) but before SLEEP_PID was set, so wakeup() would have been a no-op.
-    # A second re-source here closes that window to microseconds rather than a full tier interval.
+    # wakeup_pending catches that case; consuming it here skips the sleep so the next iteration
+    # uploads immediately. With the size-change guard this is safe: if nothing new was written
+    # the upload is skipped and we sleep normally on the following iteration.
     # shellcheck source=/dev/null
     source "$INSTRUCTION_FILE"
     if [[ "$state" == "done" ]]; then
         file_size=$(stat --printf="%s" "$log" 2>/dev/null || echo 0)
-        if [[ -s "$log" ]] && (( file_size != last_uploaded_size )); then
+        if [[ -e "$log" ]] && (( file_size != last_uploaded_size )); then
             echo "$PREFIX final upload ${file_size}B to $remote"
             gcloud storage cp "$log" "$remote" || echo "$PREFIX final upload failed"
         fi
         break
+    fi
+    if (( wakeup_pending )); then
+        wakeup_pending=0
+        continue
     fi
 
     sleep "$sleep_time" &

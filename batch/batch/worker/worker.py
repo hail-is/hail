@@ -1534,12 +1534,15 @@ class LogSyncer:
         self._log_path = log_path
         self._remote_url = remote_url
         self._instruction_file = instruction_file
-        self._proc = proc
+        self._log_copier_proc = proc
 
     @classmethod
     async def start(cls, log_path: str, remote_url: str, batch_id: int, job_id: int, attempt_id: str) -> 'LogSyncer':
         instruction_file = os.path.join(LOG_SYNC_STATE_DIR, f'{batch_id}_{job_id}_{attempt_id}.conf')
         cls._write_instruction_file(instruction_file, log_path, remote_url, 'running')
+        # Touch the log file so GCS gets an empty object on the first sync cycle rather than a 404.
+        with open(log_path, 'a', encoding='utf-8'):
+            pass
         proc = await asyncio.create_subprocess_exec(
             '/bin/bash',
             LOG_SYNC_SCRIPT,
@@ -1547,6 +1550,11 @@ class LogSyncer:
             stdout=None,  # inherit worker stdout/stderr so all output appears in container logs
             stderr=None,
         )
+        while True:
+            with open(instruction_file, encoding='utf-8') as f:
+                if 'trap_installed=1\n' in f.read():
+                    break
+            await asyncio.sleep(0.01)
         log.info(f'started log syncer pid={proc.pid} {log_path} -> {remote_url}')
         syncer = cls(log_path, remote_url, instruction_file, proc)
         _active_log_syncers.add(syncer)
@@ -1568,7 +1576,7 @@ class LogSyncer:
             f.write(f'large_interval={LOG_SYNC_LARGE_INTERVAL}\n')
             f.write(f'xlarge_limit={LOG_SYNC_XLARGE_LIMIT}\n')
             f.write(f'xlarge_interval={LOG_SYNC_XLARGE_INTERVAL}\n')
-            f.write('pid=\n')
+            f.write('trap_installed=0\n')
         os.replace(tmp, path)
 
     async def finish(self) -> None:
@@ -1576,30 +1584,32 @@ class LogSyncer:
         _active_log_syncers.discard(self)
         self._write_instruction_file(self._instruction_file, self._log_path, self._remote_url, 'done')
         try:
-            self._proc.send_signal(signal.SIGUSR1)
+            self._log_copier_proc.send_signal(signal.SIGUSR1)
         except ProcessLookupError:
             pass
         try:
             async with async_timeout.timeout(LOG_SYNC_FINISH_TIMEOUT):
-                await self._proc.wait()
+                await self._log_copier_proc.wait()
         except asyncio.TimeoutError:
-            log.warning(f'log syncer pid={self._proc.pid} did not finish in {LOG_SYNC_FINISH_TIMEOUT}s, killing')
-            self._proc.kill()
-            await self._proc.wait()
+            log.warning(
+                f'log syncer pid={self._log_copier_proc.pid} did not finish in {LOG_SYNC_FINISH_TIMEOUT}s, killing'
+            )
+            self._log_copier_proc.kill()
+            await self._log_copier_proc.wait()
 
     async def cancel(self) -> None:
         """Kill the syncer without a final upload (container never ran)."""
         _active_log_syncers.discard(self)
         try:
-            self._proc.kill()
+            self._log_copier_proc.kill()
         except ProcessLookupError:
             pass
-        await self._proc.wait()
+        await self._log_copier_proc.wait()
 
     def wakeup(self) -> None:
         """Send SIGUSR1 to interrupt any current sleep without marking the job done."""
         try:
-            self._proc.send_signal(signal.SIGUSR1)
+            self._log_copier_proc.send_signal(signal.SIGUSR1)
         except ProcessLookupError:
             pass
 

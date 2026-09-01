@@ -503,7 +503,8 @@ async def _get_job_container_log(
             app['file_store'], batch_format_version, batch_id, job_id, container, attempt_id
         )
 
-    # Legacy path: proxy live logs from the worker, fall back to GCS for completed attempts.
+    # Reaching here means CLOUD != 'gcp'.
+    # On this legacy path we proxy live logs from the worker, fall back to cloud storage for completed attempts.
     if not has_resource_available(job_record):
         return None
     state = job_record['state']
