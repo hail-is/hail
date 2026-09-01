@@ -35,6 +35,8 @@ final case class TStream(elementType: Type) extends TIterable {
 
   override def str(a: Annotation): String = JsonMethods.compact(export(a))
 
+  override def arrowType = ???
+
   override def isRealizable = false
 
   override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =

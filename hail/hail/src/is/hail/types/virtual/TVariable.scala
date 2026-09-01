@@ -51,6 +51,8 @@ final case class TVariable(name: String, cond: String = null) extends Type {
   override def pyString(sb: StringBuilder): Unit =
     sb ++= _toPretty
 
+  override def arrowType = ???
+
   override def isRealizable = false
 
   override def _typeCheck(a: Any): Boolean =

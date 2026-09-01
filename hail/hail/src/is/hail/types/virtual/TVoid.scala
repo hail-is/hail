@@ -8,6 +8,8 @@ case object TVoid extends Type {
 
   override def pyString(sb: StringBuilder): Unit = sb ++= "void"
 
+  override def arrowType = ???
+
   override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering = null
 
   override def _typeCheck(a: Any): Boolean = a.isInstanceOf[Unit]
