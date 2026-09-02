@@ -130,10 +130,10 @@ export function JobPage({ basePath, batchId, jobId }: Props): JSX.Element {
 
   const [topTab, setTopTabState] = useState<TopTab>(getInitialTab);
 
-  const [specSubTab, setSpecSubTab] = useState<'input' | 'main' | 'output'>(() => {
+  const [specSubTab, setSpecSubTab] = useState<'details' | 'input' | 'main' | 'output'>(() => {
     const params = new URLSearchParams(window.location.search);
     const sub = params.get('subtab');
-    return sub === 'input' || sub === 'output' ? sub : 'main';
+    return sub === 'input' || sub === 'main' || sub === 'output' ? sub : 'details';
   });
 
   const [attemptSubTabs, setAttemptSubTabs] = useState<Record<string, 'details' | 'charts' | 'input' | 'main' | 'output'>>(() => {
@@ -158,7 +158,7 @@ export function JobPage({ basePath, batchId, jobId }: Props): JSX.Element {
     window.history.replaceState(null, '', `?${params.toString()}`);
   }, []);
 
-  const updateSpecSubTab = useCallback((sub: 'input' | 'main' | 'output') => {
+  const updateSpecSubTab = useCallback((sub: 'details' | 'input' | 'main' | 'output') => {
     setSpecSubTab(sub);
     const params = new URLSearchParams(window.location.search);
     params.set('subtab', sub);
