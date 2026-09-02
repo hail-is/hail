@@ -116,6 +116,19 @@ In `build.yaml`, two steps run before any service image that depends on compiled
 - `build_ui` — runs `npm ci && npm run build`, uploads `dist/` as an artifact.
 - `check_ui` — runs `npm ci && npm run check` for type safety.
 
+## Coding conventions
+
+### Component organization
+
+- `services/ui/src/shared/` — genuinely generic components/hooks/utils with no domain-specific coupling (e.g. `Panel`, `SpinnerIcon`, `useLegendToggle`, `timeUtils`). These are candidates for reuse across services.
+- `services/ui/src/<service>/components/` — pure functions, types, and components that are cleanly factored but only make sense for one feature or service today (e.g. dollar formatting, stats helpers for a specific dashboard). Don't promote something to `shared/` just because it's generically *coded* — promote it once a second consumer actually needs it. Until then, keeping it service-local signals its actual scope honestly. See `batch/components/jobModels.ts` for a precedent (pure types/utils colocated with a service's components, not in `shared/`).
+
+### `Map` vs `Record` vs a typed interface
+
+- If a value's field set is known and fixed at compile time, use a proper typed interface/class with named properties — not a dynamic collection at all.
+- If the field set is dynamic/unknown (e.g. keyed by external data like GCP service/SKU names, or billing project names), prefer `Map<string, T>` over `Record<string, T>`. Bracket access/assignment on a plain object with a computed key is what `eslint-plugin-security`'s `detect-object-injection` rule (wired into Codacy for this repo) flags — a key that ever equals `__proto__`/`constructor` can mutate `Object.prototype` via bracket-assignment on a `Record`, but `Map.set`/`.get` are immune to this regardless of key value.
+- **Gotcha when converting `Record` → `Map`:** `Object.entries`/`Object.values`/`Object.keys` on a `Map` instance do **not** raise a TypeScript error (they fall through to a loosely-typed `any`-returning overload) but silently return `[]` at runtime, since a `Map`'s entries aren't stored as the object's own enumerable string-keyed properties. Converting a field from `Record` to `Map` is only safe if you also grep the whole file for `Object.entries(field)` / `Object.values(field)` / `Object.keys(field)` and convert those to `[...field]` / `[...field.values()]` / `[...field.keys()]` (or direct `for...of` iteration — `Map` is natively iterable as `[k, v]` pairs). `tsc --noEmit` reliably catches stray bracket-access sites during this kind of migration, but it will not catch this one — check for it by hand.
+
 ## Local development with the dev-proxy
 
 You don't need a deployed environment to work on a React page. The dev-proxy (`devbin/dev_proxy.py`) runs a local aiohttp server that renders Jinja2 templates directly and either proxies API calls to a real deployed service or serves mock data locally.

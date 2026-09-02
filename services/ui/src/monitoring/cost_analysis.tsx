@@ -30,11 +30,11 @@ interface CloudCosts {
   k8s_nodes: number;
   k8s_mgmt: number;
   // non-compute GCP services (excludes Kubernetes Engine), service → total cost
-  non_compute_services: Record<string, number>;
+  non_compute_services: Map<string, number>;
   // non-compute services broken down by SKU: service → sku → cost
-  overhead_by_sku: Record<string, Record<string, number>>;
+  overhead_by_sku: Map<string, Map<string, number>>;
   // user_compute sub-breakdown by SKU product name
-  user_compute_by_product: Record<string, number>;
+  user_compute_by_product: Map<string, number>;
 }
 
 interface BillingRow {
@@ -47,8 +47,8 @@ interface UserBilling {
   total: number;
   resource_cost: number;
   service_fee_cost: number;
-  resource_by_type: Record<string, number>;
-  billing_by_project: Record<string, number>;
+  resource_by_type: Map<string, number>;
+  billing_by_project: Map<string, number>;
   billing_project_count: number;
   billing_project_concentration: number;
 }
@@ -64,11 +64,11 @@ interface MonthDataPoint {
   unknown: number;
   k8s_nodes: number;
   k8s_mgmt: number;
-  non_compute_services: Record<string, number>;
-  overhead_by_sku: Record<string, Record<string, number>>;
-  user_compute_by_product: Record<string, number>;
-  resource_by_type: Record<string, number>;
-  billing_by_project: Record<string, number>;
+  non_compute_services: Map<string, number>;
+  overhead_by_sku: Map<string, Map<string, number>>;
+  user_compute_by_product: Map<string, number>;
+  resource_by_type: Map<string, number>;
+  billing_by_project: Map<string, number>;
   billing_project_count: number;
   billing_project_concentration: number;
   user_billing: number;
@@ -201,7 +201,7 @@ function fieldLabel(id: string, groups: FieldGroup[]): string {
 function resolveMonthly(id: string, c: CloudCosts, b: UserBilling): number {
   if (id === 'cloud/total') return c.total;
   if (id === 'cloud/user_compute') return c.user_compute;
-  if (id.startsWith('cloud/user_compute/')) return c.user_compute_by_product[id.slice(19)] ?? 0;
+  if (id.startsWith('cloud/user_compute/')) return c.user_compute_by_product.get(id.slice(19)) ?? 0;
   if (id === 'cloud/other_compute') return c.other_compute;
   if (id === 'cloud/batch_test') return c.batch_test;
   if (id === 'cloud/batch_dev') return c.batch_dev;
@@ -212,16 +212,16 @@ function resolveMonthly(id: string, c: CloudCosts, b: UserBilling): number {
   if (id.startsWith('cloud/svc/')) {
     const rest = id.slice('cloud/svc/'.length);
     const slash = rest.indexOf('/');
-    if (slash === -1) return c.non_compute_services[rest] ?? 0;
-    return (c.overhead_by_sku[rest.slice(0, slash)] ?? {})[rest.slice(slash + 1)] ?? 0;
+    if (slash === -1) return c.non_compute_services.get(rest) ?? 0;
+    return c.overhead_by_sku.get(rest.slice(0, slash))?.get(rest.slice(slash + 1)) ?? 0;
   }
   if (id === 'billing/total') return b.total;
   if (id === 'billing/resource_cost') return b.resource_cost;
-  if (id.startsWith('billing/resource/')) return b.resource_by_type[id.slice(17)] ?? 0;
+  if (id.startsWith('billing/resource/')) return b.resource_by_type.get(id.slice(17)) ?? 0;
   if (id === 'billing/service_fees') return b.service_fee_cost;
   if (id === 'billing/project_count') return b.billing_project_count;
   if (id === 'billing/project_concentration') return b.billing_project_concentration;
-  if (id.startsWith('billing/project/')) return b.billing_by_project[id.slice(16)] ?? 0;
+  if (id.startsWith('billing/project/')) return b.billing_by_project.get(id.slice(16)) ?? 0;
   if (id === 'margin/profit') return b.total - c.total;
   if (id === 'margin/margin_pct') return b.total === 0 ? 0 : ((b.total - c.total) / b.total) * 100;
   if (id === 'derived/core_hours') return b.service_fee_cost * 100;
@@ -231,7 +231,7 @@ function resolveMonthly(id: string, c: CloudCosts, b: UserBilling): number {
 function resolveTrend(id: string, p: MonthDataPoint): number {
   if (id === 'cloud/total') return p.cloud_total;
   if (id === 'cloud/user_compute') return p.user_compute;
-  if (id.startsWith('cloud/user_compute/')) return (p.user_compute_by_product ?? {})[id.slice(19)] ?? 0;
+  if (id.startsWith('cloud/user_compute/')) return p.user_compute_by_product.get(id.slice(19)) ?? 0;
   if (id === 'cloud/other_compute') return p.other_compute;
   if (id === 'cloud/batch_test') return p.batch_test;
   if (id === 'cloud/batch_dev') return p.batch_dev;
@@ -242,16 +242,16 @@ function resolveTrend(id: string, p: MonthDataPoint): number {
   if (id.startsWith('cloud/svc/')) {
     const rest = id.slice('cloud/svc/'.length);
     const slash = rest.indexOf('/');
-    if (slash === -1) return (p.non_compute_services ?? {})[rest] ?? 0;
-    return ((p.overhead_by_sku ?? {})[rest.slice(0, slash)] ?? {})[rest.slice(slash + 1)] ?? 0;
+    if (slash === -1) return p.non_compute_services.get(rest) ?? 0;
+    return p.overhead_by_sku.get(rest.slice(0, slash))?.get(rest.slice(slash + 1)) ?? 0;
   }
   if (id === 'billing/total') return p.user_billing;
   if (id === 'billing/resource_cost') return p.resource_cost;
-  if (id.startsWith('billing/resource/')) return (p.resource_by_type ?? {})[id.slice(17)] ?? 0;
+  if (id.startsWith('billing/resource/')) return p.resource_by_type.get(id.slice(17)) ?? 0;
   if (id === 'billing/service_fees') return p.service_fees;
   if (id === 'billing/project_count') return p.billing_project_count;
   if (id === 'billing/project_concentration') return p.billing_project_concentration;
-  if (id.startsWith('billing/project/')) return (p.billing_by_project ?? {})[id.slice(16)] ?? 0;
+  if (id.startsWith('billing/project/')) return p.billing_by_project.get(id.slice(16)) ?? 0;
   if (id === 'margin/profit') return p.profit;
   if (id === 'margin/margin_pct') return p.user_billing === 0 ? 0 : (p.profit / p.user_billing) * 100;
   if (id === 'derived/core_hours') return p.service_fees * 100;
@@ -269,7 +269,7 @@ async function fetchCloudCosts(monitoringBaseUrl: string, period: string): Promi
   const byService: { service: string; cost: string }[] = data['cost_by_service'] ?? [];
   const bySkuLabel: { source: string | null; sku_description: string; service_description: string; cost: string }[] = data['cost_by_sku_label'] ?? [];
 
-  const costs: CloudCosts = { user_compute: 0, other_compute: 0, k8s: 0, total: 0, batch_test: 0, batch_dev: 0, unknown: 0, k8s_nodes: 0, k8s_mgmt: 0, non_compute_services: {}, overhead_by_sku: {}, user_compute_by_product: {} };
+  const costs: CloudCosts = { user_compute: 0, other_compute: 0, k8s: 0, total: 0, batch_test: 0, batch_dev: 0, unknown: 0, k8s_nodes: 0, k8s_mgmt: 0, non_compute_services: new Map(), overhead_by_sku: new Map(), user_compute_by_product: new Map() };
   for (const row of breakdown) {
     const cost = parseCostStr(row.cost);
     if (row.source === 'batch-production') costs.user_compute += cost;
@@ -285,16 +285,17 @@ async function fetchCloudCosts(monitoringBaseUrl: string, period: string): Promi
     const cost = parseCostStr(row.cost);
     if (row.service === 'Compute Engine') continue;
     if (row.service === GKE_SERVICE_NAME) { costs.k8s_mgmt += cost; costs.k8s += cost; }
-    else { costs.non_compute_services[row.service] = (costs.non_compute_services[row.service] ?? 0) + cost; }
+    else { costs.non_compute_services.set(row.service, (costs.non_compute_services.get(row.service) ?? 0) + cost); }
   }
   for (const row of bySkuLabel) {
     if (row.source === 'batch-production') {
       const cost = parseCostStr(row.cost);
-      costs.user_compute_by_product[row.sku_description] = (costs.user_compute_by_product[row.sku_description] ?? 0) + cost;
+      costs.user_compute_by_product.set(row.sku_description, (costs.user_compute_by_product.get(row.sku_description) ?? 0) + cost);
     } else if (row.source === null && row.service_description !== GKE_SERVICE_NAME) {
       const cost = parseCostStr(row.cost);
-      if (!costs.overhead_by_sku[row.service_description]) costs.overhead_by_sku[row.service_description] = {};
-      costs.overhead_by_sku[row.service_description][row.sku_description] = (costs.overhead_by_sku[row.service_description][row.sku_description] ?? 0) + cost;
+      const skus = costs.overhead_by_sku.get(row.service_description) ?? new Map<string, number>();
+      skus.set(row.sku_description, (skus.get(row.sku_description) ?? 0) + cost);
+      costs.overhead_by_sku.set(row.service_description, skus);
     }
   }
   const cloudTotal = byService.reduce((sum, row) => sum + parseCostStr(row.cost), 0);
@@ -311,11 +312,11 @@ async function fetchUserBilling(batchBaseUrl: string, period: string): Promise<U
 
   let total = 0;
   let service_fee_cost = 0;
-  const resource_by_type: Record<string, number> = {};
-  const billing_by_project: Record<string, number> = {};
+  const resource_by_type = new Map<string, number>();
+  const billing_by_project = new Map<string, number>();
   for (const row of rows) {
     total += row.cost;
-    billing_by_project[row.billing_project] = (billing_by_project[row.billing_project] ?? 0) + row.cost;
+    billing_by_project.set(row.billing_project, (billing_by_project.get(row.billing_project) ?? 0) + row.cost);
     if (row.resource.startsWith('service-fee')) {
       service_fee_cost += row.cost;
     } else {
@@ -323,11 +324,11 @@ async function fetchUserBilling(batchBaseUrl: string, period: string): Promise<U
       const key = lastSlash !== -1 && /^\d+$/.test(row.resource.slice(lastSlash + 1))
         ? row.resource.slice(0, lastSlash)
         : row.resource;
-      resource_by_type[key] = (resource_by_type[key] ?? 0) + row.cost;
+      resource_by_type.set(key, (resource_by_type.get(key) ?? 0) + row.cost);
     }
   }
-  const billing_project_count = Object.keys(billing_by_project).length;
-  const projectCosts = Object.values(billing_by_project);
+  const billing_project_count = billing_by_project.size;
+  const projectCosts = [...billing_by_project.values()];
   const projectTotal = projectCosts.reduce((a, b) => a + b, 0);
   const hhi = projectTotal > 0 ? projectCosts.reduce((s, c) => s + (c / projectTotal) ** 2, 0) : 0;
   const billing_project_concentration = billing_project_count > 1
@@ -436,17 +437,17 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
       skuMax.set(svc, skus);
     };
     const processCloud = (c: CloudCosts) => {
-      for (const [svc, val] of Object.entries(c.non_compute_services)) trackSvc(svc, val);
-      for (const [svc, skus] of Object.entries(c.overhead_by_sku)) {
-        for (const [sku, val] of Object.entries(skus)) trackSku(svc, sku, val);
+      for (const [svc, val] of c.non_compute_services) trackSvc(svc, val);
+      for (const [svc, skus] of c.overhead_by_sku) {
+        for (const [sku, val] of skus) trackSku(svc, sku, val);
       }
     };
     if (cloudCosts) processCloud(cloudCosts);
     if (compareCloudCosts) processCloud(compareCloudCosts);
     for (const d of trendData) {
-      for (const [svc, val] of Object.entries(d.non_compute_services ?? {})) trackSvc(svc, val);
-      for (const [svc, skus] of Object.entries(d.overhead_by_sku ?? {})) {
-        for (const [sku, val] of Object.entries(skus)) trackSku(svc, sku, val);
+      for (const [svc, val] of d.non_compute_services) trackSvc(svc, val);
+      for (const [svc, skus] of d.overhead_by_sku) {
+        for (const [sku, val] of skus) trackSku(svc, sku, val);
       }
     }
     const services = [...svcMax.keys()].filter(s => (svcMax.get(s) ?? 0) >= 10).sort();
@@ -461,10 +462,10 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
   const { billingResources, billingResourcesHasOther } = useMemo(() => {
     const maxes = new Map<string, number>();
     for (const d of trendData) {
-      for (const [r, v] of Object.entries(d.resource_by_type)) maxes.set(r, Math.max(maxes.get(r) ?? 0, v));
+      for (const [r, v] of d.resource_by_type) maxes.set(r, Math.max(maxes.get(r) ?? 0, v));
     }
     if (userBilling) {
-      for (const [r, v] of Object.entries(userBilling.resource_by_type)) maxes.set(r, Math.max(maxes.get(r) ?? 0, v));
+      for (const [r, v] of userBilling.resource_by_type) maxes.set(r, Math.max(maxes.get(r) ?? 0, v));
     }
     const resources = [...maxes.keys()].filter(r => (maxes.get(r) ?? 0) >= 10).sort();
     const hasOther = [...maxes.values()].some(v => v < 10);
@@ -473,22 +474,22 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
 
   const billingResourcesMonthly = useMemo(() => {
     if (!userBilling) return [] as string[];
-    return Object.entries(userBilling.resource_by_type).filter(([, v]) => v >= 10).sort(([, a], [, b]) => b - a).map(([r]) => r);
+    return [...userBilling.resource_by_type].filter(([, v]) => v >= 10).sort(([, a], [, b]) => b - a).map(([r]) => r);
   }, [userBilling]);
 
   const brOther = useCallback(
-    (byType: Record<string, number>) =>
-      Object.entries(byType).filter(([r]) => !billingResources.includes(r)).reduce((s, [, v]) => s + v, 0),
+    (byType: Map<string, number>) =>
+      [...byType].filter(([r]) => !billingResources.includes(r)).reduce((s, [, v]) => s + v, 0),
     [billingResources]
   );
 
   const { billingProjects, billingProjectsHasOther } = useMemo(() => {
     const maxes = new Map<string, number>();
     for (const d of trendData) {
-      for (const [p, v] of Object.entries(d.billing_by_project ?? {})) maxes.set(p, Math.max(maxes.get(p) ?? 0, v));
+      for (const [p, v] of d.billing_by_project) maxes.set(p, Math.max(maxes.get(p) ?? 0, v));
     }
     if (userBilling) {
-      for (const [p, v] of Object.entries(userBilling.billing_by_project)) maxes.set(p, Math.max(maxes.get(p) ?? 0, v));
+      for (const [p, v] of userBilling.billing_by_project) maxes.set(p, Math.max(maxes.get(p) ?? 0, v));
     }
     const projects = [...maxes.keys()].filter(p => (maxes.get(p) ?? 0) >= 10).sort();
     const hasOther = [...maxes.values()].some(v => v < 10);
@@ -496,15 +497,15 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
   }, [trendData, userBilling]);
 
   const bpOther = useCallback(
-    (byProject: Record<string, number>) =>
-      Object.entries(byProject).filter(([p]) => !billingProjects.includes(p)).reduce((s, [, v]) => s + v, 0),
+    (byProject: Map<string, number>) =>
+      [...byProject].filter(([p]) => !billingProjects.includes(p)).reduce((s, [, v]) => s + v, 0),
     [billingProjects]
   );
 
   const { userComputeProducts, userComputeHasOther } = useMemo(() => {
     const maxes = new Map<string, number>();
     for (const d of trendData) {
-      for (const [p, v] of Object.entries(d.user_compute_by_product)) maxes.set(p, Math.max(maxes.get(p) ?? 0, v));
+      for (const [p, v] of d.user_compute_by_product) maxes.set(p, Math.max(maxes.get(p) ?? 0, v));
     }
     const products = [...maxes.keys()].filter(p => (maxes.get(p) ?? 0) >= 10).sort();
     const hasOther = [...maxes.values()].some(v => v < 10);
@@ -512,22 +513,22 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
   }, [trendData]);
 
   const ucOther = useCallback(
-    (byProduct: Record<string, number>) =>
-      Object.entries(byProduct).filter(([p]) => !userComputeProducts.includes(p)).reduce((s, [, v]) => s + v, 0),
+    (byProduct: Map<string, number>) =>
+      [...byProduct].filter(([p]) => !userComputeProducts.includes(p)).reduce((s, [, v]) => s + v, 0),
     [userComputeProducts]
   );
 
   const userComputeMonthlyProducts = useMemo(() => {
     if (!cloudCosts) return [] as string[];
-    return Object.entries(cloudCosts.user_compute_by_product).filter(([, v]) => v >= 10).sort(([, a], [, b]) => b - a).map(([p]) => p);
+    return [...cloudCosts.user_compute_by_product].filter(([, v]) => v >= 10).sort(([, a], [, b]) => b - a).map(([p]) => p);
   }, [cloudCosts]);
 
   const fieldGroups = useMemo<FieldGroup[]>(() => {
-    const productMax: Record<string, number> = {};
-    const resourceMax: Record<string, number> = {};
-    const projectMax: Record<string, number> = {};
-    const track = (maxes: Record<string, number>, entries: Record<string, number>) => {
-      for (const [k, v] of Object.entries(entries)) maxes[k] = Math.max(maxes[k] ?? 0, v);
+    const productMax = new Map<string, number>();
+    const resourceMax = new Map<string, number>();
+    const projectMax = new Map<string, number>();
+    const track = (maxes: Map<string, number>, entries: Map<string, number>) => {
+      for (const [k, v] of entries) maxes.set(k, Math.max(maxes.get(k) ?? 0, v));
     };
     if (cloudCosts) {
       track(productMax, cloudCosts.user_compute_by_product);
@@ -538,11 +539,11 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
     }
     if (compareUserBilling) track(projectMax, compareUserBilling.billing_by_project);
     trendData.forEach(d => {
-      track(productMax, d.user_compute_by_product ?? {});
-      track(resourceMax, d.resource_by_type ?? {});
-      track(projectMax, d.billing_by_project ?? {});
+      track(productMax, d.user_compute_by_product);
+      track(resourceMax, d.resource_by_type);
+      track(projectMax, d.billing_by_project);
     });
-    const over10 = (maxes: Record<string, number>) => Object.keys(maxes).filter(k => maxes[k] >= 10).sort();
+    const over10 = (maxes: Map<string, number>) => [...maxes.keys()].filter(k => (maxes.get(k) ?? 0) >= 10).sort();
     return buildFieldGroups(over10(productMax), overheadServices, overheadSkusByService, over10(resourceMax), over10(projectMax));
   }, [cloudCosts, userBilling, compareUserBilling, trendData, overheadServices, overheadSkusByService]);
 
@@ -556,11 +557,11 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
 
   const cloudBaseData = useMemo(() => {
     if (cloudView === 'user_compute')
-      return trendData.map(d => ({ month: d.month, ...Object.fromEntries(userComputeProducts.map(p => [p, d.user_compute_by_product[p] ?? 0])), ...(userComputeHasOther ? { '(Other)': ucOther(d.user_compute_by_product) } : {}) }));
+      return trendData.map(d => ({ month: d.month, ...Object.fromEntries(userComputeProducts.map(p => [p, d.user_compute_by_product.get(p) ?? 0])), ...(userComputeHasOther ? { '(Other)': ucOther(d.user_compute_by_product) } : {}) }));
     if (cloudView === 'other_compute' || cloudView === 'k8s') return trendData as unknown[];
     if (overheadServices.includes(cloudView)) {
       const skus = overheadSkusByService.get(cloudView) ?? [];
-      return trendData.map(d => ({ month: d.month, ...Object.fromEntries(skus.map(sku => [sku, ((d.overhead_by_sku ?? {})[cloudView] ?? {})[sku] ?? 0])) }));
+      return trendData.map(d => ({ month: d.month, ...Object.fromEntries(skus.map(sku => [sku, d.overhead_by_sku.get(cloudView)?.get(sku) ?? 0])) }));
     }
     // summary: flatten overhead services into data
     return trendData.map(d => ({
@@ -568,7 +569,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
       user_compute: d.user_compute,
       other_compute: d.other_compute,
       k8s: d.k8s,
-      ...Object.fromEntries(overheadServices.map(svc => [svc, (d.non_compute_services ?? {})[svc] ?? 0])),
+      ...Object.fromEntries(overheadServices.map(svc => [svc, d.non_compute_services.get(svc) ?? 0])),
     }));
   }, [cloudView, trendData, userComputeProducts, userComputeHasOther, ucOther, overheadServices, overheadSkusByService]);
 
@@ -585,9 +586,9 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
 
   const billingBaseData = useMemo(() => {
     if (billingView === 'resource_usage')
-      return trendData.map(d => ({ month: d.month, ...Object.fromEntries(billingResources.map(r => [r, d.resource_by_type[r] ?? 0])), ...(billingResourcesHasOther ? { '(Other)': brOther(d.resource_by_type) } : {}) }));
+      return trendData.map(d => ({ month: d.month, ...Object.fromEntries(billingResources.map(r => [r, d.resource_by_type.get(r) ?? 0])), ...(billingResourcesHasOther ? { '(Other)': brOther(d.resource_by_type) } : {}) }));
     if (billingView === 'billing_project')
-      return trendData.map(d => ({ month: d.month, ...Object.fromEntries(billingProjects.map(p => [p, (d.billing_by_project ?? {})[p] ?? 0])), ...(billingProjectsHasOther ? { '(Other)': bpOther(d.billing_by_project ?? {}) } : {}) }));
+      return trendData.map(d => ({ month: d.month, ...Object.fromEntries(billingProjects.map(p => [p, d.billing_by_project.get(p) ?? 0])), ...(billingProjectsHasOther ? { '(Other)': bpOther(d.billing_by_project) } : {}) }));
     return trendData as unknown[];
   }, [billingView, trendData, billingResources, billingResourcesHasOther, brOther, billingProjects, billingProjectsHasOther, bpOther]);
 
@@ -601,7 +602,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
 
   const overheadServicesMonthly = useMemo(() => {
     if (!cloudCosts) return [] as string[];
-    return Object.entries(cloudCosts.non_compute_services).filter(([, v]) => v >= 10).sort(([, a], [, b]) => b - a).map(([s]) => s);
+    return [...cloudCosts.non_compute_services].filter(([, v]) => v >= 10).sort(([, a], [, b]) => b - a).map(([s]) => s);
   }, [cloudCosts]);
 
   const overheadAllKeys = useMemo(() => {
@@ -679,7 +680,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
     0,
     ...trendData.map(d =>
       cloudView === 'user_compute'
-        ? userComputeProducts.reduce((s, p) => s + (isUserComputeHidden(p) ? 0 : (d.user_compute_by_product[p] ?? 0)), 0) +
+        ? userComputeProducts.reduce((s, p) => s + (isUserComputeHidden(p) ? 0 : (d.user_compute_by_product.get(p) ?? 0)), 0) +
           (userComputeHasOther && !isUserComputeHidden('(Other)') ? ucOther(d.user_compute_by_product) : 0)
         : cloudView === 'other_compute'
           ? (otherComputeToggle.isHidden('batch_test') ? 0 : d.batch_test) +
@@ -689,22 +690,22 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
             ? (k8sToggle.isHidden('k8s_nodes') ? 0 : d.k8s_nodes) +
               (k8sToggle.isHidden('k8s_mgmt') ? 0 : d.k8s_mgmt)
             : overheadServices.includes(cloudView)
-              ? (overheadSkusByService.get(cloudView) ?? []).reduce((s, sku) => s + (isOverheadHidden(sku) ? 0 : ((d.overhead_by_sku ?? {})[cloudView] ?? {})[sku] ?? 0), 0)
+              ? (overheadSkusByService.get(cloudView) ?? []).reduce((s, sku) => s + (isOverheadHidden(sku) ? 0 : d.overhead_by_sku.get(cloudView)?.get(sku) ?? 0), 0)
               : (cloudCostsToggle.isHidden('user_compute') ? 0 : d.user_compute) +
                 (cloudCostsToggle.isHidden('other_compute') ? 0 : d.other_compute) +
                 (cloudCostsToggle.isHidden('k8s') ? 0 : d.k8s) +
-                overheadServices.reduce((s, svc) => s + (isOverheadHidden(svc) ? 0 : (d.non_compute_services[svc] ?? 0)), 0)
+                overheadServices.reduce((s, svc) => s + (isOverheadHidden(svc) ? 0 : (d.non_compute_services.get(svc) ?? 0)), 0)
     ),
   );
   const billingYMax = Math.max(
     0,
     ...trendData.map(d =>
       billingView === 'resource_usage'
-        ? billingResources.reduce((s, r) => s + (isBillingResourceHidden(r) ? 0 : (d.resource_by_type[r] ?? 0)), 0) +
+        ? billingResources.reduce((s, r) => s + (isBillingResourceHidden(r) ? 0 : (d.resource_by_type.get(r) ?? 0)), 0) +
           (billingResourcesHasOther && !isBillingResourceHidden('(Other)') ? brOther(d.resource_by_type) : 0)
         : billingView === 'billing_project'
-          ? billingProjects.reduce((s, p) => s + (isBillingProjectHidden(p) ? 0 : ((d.billing_by_project ?? {})[p] ?? 0)), 0) +
-            (billingProjectsHasOther && !isBillingProjectHidden('(Other)') ? bpOther(d.billing_by_project ?? {}) : 0)
+          ? billingProjects.reduce((s, p) => s + (isBillingProjectHidden(p) ? 0 : (d.billing_by_project.get(p) ?? 0)), 0) +
+            (billingProjectsHasOther && !isBillingProjectHidden('(Other)') ? bpOther(d.billing_by_project) : 0)
           : (billingToggle.isHidden('resource_cost') ? 0 : d.resource_cost) +
             (billingToggle.isHidden('service_fees') ? 0 : d.service_fees)
     ),
@@ -714,7 +715,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
 
   const cloudStats = computeStats(trendData.map(d =>
     cloudView === 'user_compute'
-      ? userComputeProducts.reduce((s, p) => s + (isUserComputeHidden(p) ? 0 : (d.user_compute_by_product[p] ?? 0)), 0) +
+      ? userComputeProducts.reduce((s, p) => s + (isUserComputeHidden(p) ? 0 : (d.user_compute_by_product.get(p) ?? 0)), 0) +
         (userComputeHasOther && !isUserComputeHidden('(Other)') ? ucOther(d.user_compute_by_product) : 0)
       : cloudView === 'other_compute'
         ? (otherComputeToggle.isHidden('batch_test') ? 0 : d.batch_test) +
@@ -724,15 +725,15 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
           ? (k8sToggle.isHidden('k8s_nodes') ? 0 : d.k8s_nodes) +
             (k8sToggle.isHidden('k8s_mgmt') ? 0 : d.k8s_mgmt)
           : overheadServices.includes(cloudView)
-            ? (overheadSkusByService.get(cloudView) ?? []).reduce((s, sku) => s + (isOverheadHidden(sku) ? 0 : ((d.overhead_by_sku ?? {})[cloudView] ?? {})[sku] ?? 0), 0)
+            ? (overheadSkusByService.get(cloudView) ?? []).reduce((s, sku) => s + (isOverheadHidden(sku) ? 0 : d.overhead_by_sku.get(cloudView)?.get(sku) ?? 0), 0)
             : (cloudCostsToggle.isHidden('user_compute') ? 0 : d.user_compute) +
               (cloudCostsToggle.isHidden('other_compute') ? 0 : d.other_compute) +
               (cloudCostsToggle.isHidden('k8s') ? 0 : d.k8s) +
-              overheadServices.reduce((s, svc) => s + (isOverheadHidden(svc) ? 0 : (d.non_compute_services[svc] ?? 0)), 0)
+              overheadServices.reduce((s, svc) => s + (isOverheadHidden(svc) ? 0 : (d.non_compute_services.get(svc) ?? 0)), 0)
   ));
   const cloudSeriesStats: Record<string, { mean: number; std: number } | null> = cloudView === 'user_compute'
     ? {
-        ...Object.fromEntries(userComputeProducts.map(p => [p, computeStats(trendData.map(d => d.user_compute_by_product[p] ?? 0))])),
+        ...Object.fromEntries(userComputeProducts.map(p => [p, computeStats(trendData.map(d => d.user_compute_by_product.get(p) ?? 0))])),
         ...(userComputeHasOther ? { '(Other)': computeStats(trendData.map(d => ucOther(d.user_compute_by_product))) } : {}),
       }
     : cloudView === 'other_compute'
@@ -747,32 +748,32 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
             k8s_mgmt: computeStats(trendData.map(d => d.k8s_mgmt)),
           }
         : overheadServices.includes(cloudView)
-          ? Object.fromEntries((overheadSkusByService.get(cloudView) ?? []).map(sku => [sku, computeStats(trendData.map(d => ((d.overhead_by_sku ?? {})[cloudView] ?? {})[sku] ?? 0))]))
+          ? Object.fromEntries((overheadSkusByService.get(cloudView) ?? []).map(sku => [sku, computeStats(trendData.map(d => d.overhead_by_sku.get(cloudView)?.get(sku) ?? 0))]))
           : {
               user_compute: computeStats(trendData.map(d => d.user_compute)),
               other_compute: computeStats(trendData.map(d => d.other_compute)),
               k8s: computeStats(trendData.map(d => d.k8s)),
-              ...Object.fromEntries(overheadServices.map(svc => [svc, computeStats(trendData.map(d => (d.non_compute_services ?? {})[svc] ?? 0))])),
+              ...Object.fromEntries(overheadServices.map(svc => [svc, computeStats(trendData.map(d => d.non_compute_services.get(svc) ?? 0))])),
             };
   const billingStats = computeStats(trendData.map(d =>
     billingView === 'resource_usage'
-      ? billingResources.reduce((s, r) => s + (isBillingResourceHidden(r) ? 0 : (d.resource_by_type[r] ?? 0)), 0) +
+      ? billingResources.reduce((s, r) => s + (isBillingResourceHidden(r) ? 0 : (d.resource_by_type.get(r) ?? 0)), 0) +
         (billingResourcesHasOther && !isBillingResourceHidden('(Other)') ? brOther(d.resource_by_type) : 0)
       : billingView === 'billing_project'
-        ? billingProjects.reduce((s, p) => s + (isBillingProjectHidden(p) ? 0 : ((d.billing_by_project ?? {})[p] ?? 0)), 0) +
-          (billingProjectsHasOther && !isBillingProjectHidden('(Other)') ? bpOther(d.billing_by_project ?? {}) : 0)
+        ? billingProjects.reduce((s, p) => s + (isBillingProjectHidden(p) ? 0 : (d.billing_by_project.get(p) ?? 0)), 0) +
+          (billingProjectsHasOther && !isBillingProjectHidden('(Other)') ? bpOther(d.billing_by_project) : 0)
         : (billingToggle.isHidden('resource_cost') ? 0 : d.resource_cost) +
           (billingToggle.isHidden('service_fees') ? 0 : d.service_fees)
   ));
   const billingSeriesStats: Record<string, { mean: number; std: number } | null> = billingView === 'resource_usage'
     ? {
-        ...Object.fromEntries(billingResources.map(r => [r, computeStats(trendData.map(d => d.resource_by_type[r] ?? 0))])),
+        ...Object.fromEntries(billingResources.map(r => [r, computeStats(trendData.map(d => d.resource_by_type.get(r) ?? 0))])),
         ...(billingResourcesHasOther ? { '(Other)': computeStats(trendData.map(d => brOther(d.resource_by_type))) } : {}),
       }
     : billingView === 'billing_project'
       ? {
-          ...Object.fromEntries(billingProjects.map(p => [p, computeStats(trendData.map(d => (d.billing_by_project ?? {})[p] ?? 0))])),
-          ...(billingProjectsHasOther ? { '(Other)': computeStats(trendData.map(d => bpOther(d.billing_by_project ?? {}))) } : {}),
+          ...Object.fromEntries(billingProjects.map(p => [p, computeStats(trendData.map(d => d.billing_by_project.get(p) ?? 0))])),
+          ...(billingProjectsHasOther ? { '(Other)': computeStats(trendData.map(d => bpOther(d.billing_by_project))) } : {}),
         }
       : {
           resource_cost: computeStats(trendData.map(d => d.resource_cost)),
@@ -921,7 +922,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
         ]);
         const c = cloud.status === 'fulfilled' ? cloud.value : null;
         const b = billing.status === 'fulfilled' ? billing.value : null;
-        const overhead = c ? c.other_compute + Object.values(c.non_compute_services).reduce((a, bv) => a + bv, 0) : 0;
+        const overhead = c ? c.other_compute + [...c.non_compute_services.values()].reduce((a, bv) => a + bv, 0) : 0;
         return {
           month: monthParamToLabel(m),
           cloud_total: c?.total ?? 0,
@@ -933,11 +934,11 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
           k8s: c?.k8s ?? 0,
           k8s_nodes: c?.k8s_nodes ?? 0,
           k8s_mgmt: c?.k8s_mgmt ?? 0,
-          non_compute_services: c?.non_compute_services ?? {},
-          overhead_by_sku: c?.overhead_by_sku ?? {},
-          user_compute_by_product: c?.user_compute_by_product ?? {},
-          resource_by_type: b?.resource_by_type ?? {},
-          billing_by_project: b?.billing_by_project ?? {},
+          non_compute_services: c?.non_compute_services ?? new Map(),
+          overhead_by_sku: c?.overhead_by_sku ?? new Map(),
+          user_compute_by_product: c?.user_compute_by_product ?? new Map(),
+          resource_by_type: b?.resource_by_type ?? new Map(),
+          billing_by_project: b?.billing_by_project ?? new Map(),
           billing_project_count: b?.billing_project_count ?? 0,
           billing_project_concentration: b?.billing_project_concentration ?? 0,
           user_billing: b?.total ?? 0,
@@ -969,12 +970,12 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
 
     const d = (v: number, baseV: number) => baseCosts != null ? v - baseV : undefined;
 
-    const mProducts = Object.entries(costs.user_compute_by_product)
+    const mProducts = [...costs.user_compute_by_product]
       .filter(([, v]) => v >= 10).sort(([, a], [, b]) => b - a).map(([p]) => p);
-    const hasOtherP = Object.values(costs.user_compute_by_product).some(v => v < 10);
-    const ucOtherCost = Object.entries(costs.user_compute_by_product)
+    const hasOtherP = [...costs.user_compute_by_product.values()].some(v => v < 10);
+    const ucOtherCost = [...costs.user_compute_by_product]
       .filter(([p]) => !mProducts.includes(p)).reduce((s, [, v]) => s + v, 0);
-    const mOverheadSvcs = Object.entries(costs.non_compute_services).filter(([, v]) => v >= 10).sort(([, a], [, b]) => b - a).map(([s]) => s);
+    const mOverheadSvcs = [...costs.non_compute_services].filter(([, v]) => v >= 10).sort(([, a], [, b]) => b - a).map(([s]) => s);
 
     const rows = (() => {
       if (cloudView === 'summary') return (
@@ -983,7 +984,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
             { label: 'Compute (user-driven)', value: costs.user_compute, baseV: baseCosts?.user_compute ?? 0 },
             { label: 'Compute (other)', value: costs.other_compute, baseV: baseCosts?.other_compute ?? 0 },
             { label: 'K8s', value: costs.k8s, baseV: baseCosts?.k8s ?? 0 },
-            ...mOverheadSvcs.map(svc => ({ label: svc, value: costs.non_compute_services[svc] ?? 0, baseV: baseCosts?.non_compute_services[svc] ?? 0 })),
+            ...mOverheadSvcs.map(svc => ({ label: svc, value: costs.non_compute_services.get(svc) ?? 0, baseV: baseCosts?.non_compute_services.get(svc) ?? 0 })),
           ]).sort((a, b) => b.value - a.value).map(r => (
             <CostRow key={r.label} label={r.label} value={r.value} pctStr={pct(r.value, costs.total)} delta={d(r.value, r.baseV)} />
           ))}
@@ -993,11 +994,11 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
       if (cloudView === 'user_compute') return (
         <>
           {mProducts.map(p => {
-            const v = costs.user_compute_by_product[p] ?? 0;
-            return <CostRow key={p} label={p} value={v} pctStr={pct(v, costs.user_compute)} indent delta={d(v, baseCosts?.user_compute_by_product[p] ?? 0)} />;
+            const v = costs.user_compute_by_product.get(p) ?? 0;
+            return <CostRow key={p} label={p} value={v} pctStr={pct(v, costs.user_compute)} indent delta={d(v, baseCosts?.user_compute_by_product.get(p) ?? 0)} />;
           })}
           {hasOtherP && ucOtherCost > 0 && (() => {
-            const baseOther = baseCosts ? Object.entries(baseCosts.user_compute_by_product).filter(([p]) => !mProducts.includes(p)).reduce((s, [, v]) => s + v, 0) : 0;
+            const baseOther = baseCosts ? [...baseCosts.user_compute_by_product].filter(([p]) => !mProducts.includes(p)).reduce((s, [, v]) => s + v, 0) : 0;
             return <CostRow label="(Other)" value={ucOtherCost} pctStr={pct(ucOtherCost, costs.user_compute)} indent delta={d(ucOtherCost, baseOther)} />;
           })()}
           <CostRow label="Compute (user-driven) total" value={costs.user_compute} bold delta={d(costs.user_compute, baseCosts?.user_compute ?? 0)} />
@@ -1027,21 +1028,23 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
         </>
       );
       if (overheadServicesMonthly.includes(cloudView)) {
-        const mSkus = Object.entries(costs.overhead_by_sku[cloudView] ?? {}).filter(([, v]) => v >= 10).sort(([, a], [, b]) => b - a).map(([s]) => s);
-        const hasOtherSku = Object.values(costs.overhead_by_sku[cloudView] ?? {}).some(v => v < 10);
-        const svcTotal = costs.non_compute_services[cloudView] ?? 0;
-        const otherSkuCost = Object.entries(costs.overhead_by_sku[cloudView] ?? {}).filter(([s]) => !mSkus.includes(s)).reduce((a, [, v]) => a + v, 0);
+        const skuMap = costs.overhead_by_sku.get(cloudView) ?? new Map<string, number>();
+        const mSkus = [...skuMap].filter(([, v]) => v >= 10).sort(([, a], [, b]) => b - a).map(([s]) => s);
+        const hasOtherSku = [...skuMap.values()].some(v => v < 10);
+        const svcTotal = costs.non_compute_services.get(cloudView) ?? 0;
+        const otherSkuCost = [...skuMap].filter(([s]) => !mSkus.includes(s)).reduce((a, [, v]) => a + v, 0);
         return (
           <>
             {mSkus.map(sku => {
-              const v = (costs.overhead_by_sku[cloudView] ?? {})[sku] ?? 0;
-              return <CostRow key={sku} label={sku} value={v} pctStr={pct(v, svcTotal)} indent delta={d(v, (baseCosts?.overhead_by_sku[cloudView] ?? {})[sku] ?? 0)} />;
+              const v = skuMap.get(sku) ?? 0;
+              return <CostRow key={sku} label={sku} value={v} pctStr={pct(v, svcTotal)} indent delta={d(v, baseCosts?.overhead_by_sku.get(cloudView)?.get(sku) ?? 0)} />;
             })}
             {hasOtherSku && otherSkuCost > 0 && (() => {
-              const baseOther = baseCosts ? Object.entries(baseCosts.overhead_by_sku[cloudView] ?? {}).filter(([s]) => !mSkus.includes(s)).reduce((a, [, v]) => a + v, 0) : 0;
+              const baseSkuMap = baseCosts?.overhead_by_sku.get(cloudView) ?? new Map<string, number>();
+              const baseOther = baseCosts ? [...baseSkuMap].filter(([s]) => !mSkus.includes(s)).reduce((a, [, v]) => a + v, 0) : 0;
               return <CostRow label="(Other)" value={otherSkuCost} pctStr={pct(otherSkuCost, svcTotal)} indent delta={d(otherSkuCost, baseOther)} />;
             })()}
-            <CostRow label={`${cloudView} total`} value={svcTotal} bold delta={d(svcTotal, baseCosts?.non_compute_services[cloudView] ?? 0)} />
+            <CostRow label={`${cloudView} total`} value={svcTotal} bold delta={d(svcTotal, baseCosts?.non_compute_services.get(cloudView) ?? 0)} />
           </>
         );
       }
@@ -1053,10 +1056,10 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
         { name: 'Compute (user-driven)', value: costs.user_compute, fill: '#0ea5e9' },
         { name: 'Compute (other)', value: costs.other_compute, fill: '#f59e0b' },
         { name: 'K8s', value: costs.k8s, fill: '#10b981' },
-        ...mOverheadSvcs.map((svc, i) => ({ name: svc, value: costs.non_compute_services[svc] ?? 0, fill: OVERHEAD_PALETTE[i % OVERHEAD_PALETTE.length] })),
+        ...mOverheadSvcs.map((svc, i) => ({ name: svc, value: costs.non_compute_services.get(svc) ?? 0, fill: OVERHEAD_PALETTE[i % OVERHEAD_PALETTE.length] })),
       ];
       if (cloudView === 'user_compute') return [
-        ...mProducts.map((p, i) => ({ name: p, value: costs.user_compute_by_product[p] ?? 0, fill: USER_COMPUTE_PALETTE[i % USER_COMPUTE_PALETTE.length] })),
+        ...mProducts.map((p, i) => ({ name: p, value: costs.user_compute_by_product.get(p) ?? 0, fill: USER_COMPUTE_PALETTE[i % USER_COMPUTE_PALETTE.length] })),
         ...(hasOtherP ? [{ name: '(Other)', value: ucOtherCost, fill: '#9ca3af' }] : []),
       ];
       if (cloudView === 'other_compute') return [
@@ -1069,10 +1072,11 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
         { name: 'Management fee', value: costs.k8s_mgmt, fill: '#6ee7b7' },
       ];
       if (overheadServicesMonthly.includes(cloudView)) {
-        const mSkus = Object.entries(costs.overhead_by_sku[cloudView] ?? {}).filter(([, v]) => v >= 10).sort(([, a], [, b]) => b - a).map(([s]) => s);
-        const otherSkuCost = Object.entries(costs.overhead_by_sku[cloudView] ?? {}).filter(([s]) => !mSkus.includes(s)).reduce((a, [, v]) => a + v, 0);
+        const skuMap = costs.overhead_by_sku.get(cloudView) ?? new Map<string, number>();
+        const mSkus = [...skuMap].filter(([, v]) => v >= 10).sort(([, a], [, b]) => b - a).map(([s]) => s);
+        const otherSkuCost = [...skuMap].filter(([s]) => !mSkus.includes(s)).reduce((a, [, v]) => a + v, 0);
         return [
-          ...mSkus.map((sku, i) => ({ name: sku, value: (costs.overhead_by_sku[cloudView] ?? {})[sku] ?? 0, fill: OVERHEAD_PALETTE[i % OVERHEAD_PALETTE.length] })),
+          ...mSkus.map((sku, i) => ({ name: sku, value: skuMap.get(sku) ?? 0, fill: OVERHEAD_PALETTE[i % OVERHEAD_PALETTE.length] })),
           ...(otherSkuCost > 0 ? [{ name: '(Other)', value: otherSkuCost, fill: '#9ca3af' }] : []),
         ];
       }
@@ -1102,16 +1106,16 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
 
     const d = (v: number, baseV: number) => baseBilling != null ? v - baseV : undefined;
 
-    const mResources = Object.entries(billing.resource_by_type)
+    const mResources = [...billing.resource_by_type]
       .filter(([, v]) => v >= 10).sort(([, a], [, b]) => b - a).map(([r]) => r);
-    const hasOtherR = Object.values(billing.resource_by_type).some(v => v < 10);
-    const brOtherCost = Object.entries(billing.resource_by_type)
+    const hasOtherR = [...billing.resource_by_type.values()].some(v => v < 10);
+    const brOtherCost = [...billing.resource_by_type]
       .filter(([r]) => !mResources.includes(r)).reduce((s, [, v]) => s + v, 0);
 
-    const mProjects = Object.entries(billing.billing_by_project)
+    const mProjects = [...billing.billing_by_project]
       .filter(([, v]) => v >= 10).sort(([, a], [, b]) => b - a).map(([p]) => p);
-    const hasOtherBP = Object.values(billing.billing_by_project).some(v => v < 10);
-    const bpOtherCost = Object.entries(billing.billing_by_project)
+    const hasOtherBP = [...billing.billing_by_project.values()].some(v => v < 10);
+    const bpOtherCost = [...billing.billing_by_project]
       .filter(([p]) => !mProjects.includes(p)).reduce((s, [, v]) => s + v, 0);
 
     const rows = billingView === 'summary' ? (
@@ -1123,11 +1127,11 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
     ) : billingView === 'billing_project' ? (
       <>
         {mProjects.map((p, i) => {
-          const v = billing.billing_by_project[p] ?? 0;
-          return <CostRow key={p} label={p} value={v} pctStr={pct(v, billing.total)} indent colorClass={`text-[${BILLING_PROJECT_PALETTE[i % BILLING_PROJECT_PALETTE.length]}]`} delta={d(v, baseBilling?.billing_by_project[p] ?? 0)} />;
+          const v = billing.billing_by_project.get(p) ?? 0;
+          return <CostRow key={p} label={p} value={v} pctStr={pct(v, billing.total)} indent colorClass={`text-[${BILLING_PROJECT_PALETTE[i % BILLING_PROJECT_PALETTE.length]}]`} delta={d(v, baseBilling?.billing_by_project.get(p) ?? 0)} />;
         })}
         {hasOtherBP && bpOtherCost > 0 && (() => {
-          const baseOther = baseBilling ? Object.entries(baseBilling.billing_by_project).filter(([p]) => !mProjects.includes(p)).reduce((s, [, v]) => s + v, 0) : 0;
+          const baseOther = baseBilling ? [...baseBilling.billing_by_project].filter(([p]) => !mProjects.includes(p)).reduce((s, [, v]) => s + v, 0) : 0;
           return <CostRow label="(Other)" value={bpOtherCost} pctStr={pct(bpOtherCost, billing.total)} indent delta={d(bpOtherCost, baseOther)} />;
         })()}
         <CostRow label="Total" value={billing.total} bold delta={d(billing.total, baseBilling?.total ?? 0)} />
@@ -1143,11 +1147,11 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
     ) : (
       <>
         {mResources.map(r => {
-          const v = billing.resource_by_type[r] ?? 0;
-          return <CostRow key={r} label={r} value={v} pctStr={pct(v, billing.resource_cost)} indent delta={d(v, baseBilling?.resource_by_type[r] ?? 0)} />;
+          const v = billing.resource_by_type.get(r) ?? 0;
+          return <CostRow key={r} label={r} value={v} pctStr={pct(v, billing.resource_cost)} indent delta={d(v, baseBilling?.resource_by_type.get(r) ?? 0)} />;
         })}
         {hasOtherR && brOtherCost > 0 && (() => {
-          const baseOther = baseBilling ? Object.entries(baseBilling.resource_by_type).filter(([r]) => !mResources.includes(r)).reduce((s, [, v]) => s + v, 0) : 0;
+          const baseOther = baseBilling ? [...baseBilling.resource_by_type].filter(([r]) => !mResources.includes(r)).reduce((s, [, v]) => s + v, 0) : 0;
           return <CostRow label="(Other)" value={brOtherCost} pctStr={pct(brOtherCost, billing.resource_cost)} indent delta={d(brOtherCost, baseOther)} />;
         })()}
         <CostRow label="Resource usage total" value={billing.resource_cost} bold delta={d(billing.resource_cost, baseBilling?.resource_cost ?? 0)} />
@@ -1161,11 +1165,11 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
         ]
       : billingView === 'billing_project'
         ? [
-            ...mProjects.map((p, i) => ({ name: p, value: billing.billing_by_project[p] ?? 0, fill: BILLING_PROJECT_PALETTE[i % BILLING_PROJECT_PALETTE.length] })),
+            ...mProjects.map((p, i) => ({ name: p, value: billing.billing_by_project.get(p) ?? 0, fill: BILLING_PROJECT_PALETTE[i % BILLING_PROJECT_PALETTE.length] })),
             ...(hasOtherBP ? [{ name: '(Other)', value: bpOtherCost, fill: '#9ca3af' }] : []),
           ]
         : [
-            ...mResources.map((r, i) => ({ name: r, value: billing.resource_by_type[r] ?? 0, fill: BILLING_RESOURCE_PALETTE[i % BILLING_RESOURCE_PALETTE.length] })),
+            ...mResources.map((r, i) => ({ name: r, value: billing.resource_by_type.get(r) ?? 0, fill: BILLING_RESOURCE_PALETTE[i % BILLING_RESOURCE_PALETTE.length] })),
             ...(hasOtherR ? [{ name: '(Other)', value: brOtherCost, fill: '#9ca3af' }] : []),
           ];
 
@@ -1201,7 +1205,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
         <RatioRow label="Compute (user-driven) as % of cloud" value={pct(costs.user_compute, costs.total)} />
         <RatioRow label="Resource billing as % of user-driven compute" value={pct(billing.resource_cost, costs.user_compute)} />
         <RatioRow label="Service fees as % of user billing" value={pct(billing.service_fee_cost, billing.total)} />
-        <RatioRow label="Service fees as % of overhead" value={pct(billing.service_fee_cost, costs.other_compute + Object.values(costs.non_compute_services).reduce((a, b) => a + b, 0))} />
+        <RatioRow label="Service fees as % of overhead" value={pct(billing.service_fee_cost, costs.other_compute + [...costs.non_compute_services.values()].reduce((a, b) => a + b, 0))} />
       </>
     );
   };
