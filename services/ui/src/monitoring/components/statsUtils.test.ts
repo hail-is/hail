@@ -9,8 +9,8 @@ describe('computeStats', () => {
   it('computes mean and population std dev', () => {
     const stats = computeStats([2, 4, 4, 4, 5, 5, 7, 9]);
     expect(stats).not.toBeNull();
-    expect(stats!.mean).toBeCloseTo(5);
-    expect(stats!.std).toBeCloseTo(2);
+    expect(stats?.mean).toBeCloseTo(5);
+    expect(stats?.std).toBeCloseTo(2);
   });
 
   it('reports zero std dev for identical values', () => {
@@ -29,9 +29,9 @@ describe('computeRegression', () => {
     const points = [{ x: 0, y: 1 }, { x: 1, y: 3 }, { x: 2, y: 5 }];
     const reg = computeRegression(points);
     expect(reg).not.toBeNull();
-    expect(reg!.slope).toBeCloseTo(2);
-    expect(reg!.intercept).toBeCloseTo(1);
-    expect(reg!.r2).toBeCloseTo(1);
+    expect(reg?.slope).toBeCloseTo(2);
+    expect(reg?.intercept).toBeCloseTo(1);
+    expect(reg?.r2).toBeCloseTo(1);
   });
 
   it('returns null when all x values are identical (zero variance)', () => {

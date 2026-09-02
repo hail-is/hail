@@ -27,12 +27,16 @@ export function computeRegression(points: { x: number; y: number }[]): Regressio
 
 export function toPctRows<T extends Record<string, unknown>>(rows: T[], keys: string[]): T[] {
   return rows.map(row => {
-    const total = keys.reduce((s, k) => s + (typeof row[k] === 'number' ? (row[k] as number) : 0), 0);
+    const values = new Map(Object.entries(row));
+    const total = keys.reduce((s, k) => {
+      const v = values.get(k);
+      return s + (typeof v === 'number' ? v : 0);
+    }, 0);
     if (total === 0) return row;
-    const result = { ...row } as Record<string, unknown>;
     for (const k of keys) {
-      if (typeof result[k] === 'number') result[k] = ((result[k] as number) / total) * 100;
+      const v = values.get(k);
+      if (typeof v === 'number') values.set(k, (v / total) * 100);
     }
-    return result as T;
+    return Object.fromEntries(values) as T;
   });
 }
