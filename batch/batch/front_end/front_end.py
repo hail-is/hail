@@ -2542,10 +2542,11 @@ async def _get_attempts(app, batch_id, job_id):
 
     attempts = db.select_and_fetchall(
         """
-SELECT attempts.*
+SELECT attempts.*, instances.location
 FROM jobs
 INNER JOIN batches ON jobs.batch_id = batches.id
 LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id and jobs.job_id = attempts.job_id
+LEFT JOIN instances ON attempts.instance_name = instances.name
 WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
 """,
         (batch_id, job_id),
@@ -2976,6 +2977,16 @@ async def ui_get_job(request, userdata, batch_id):
             non_io_storage_limit_bytes = int(non_io_storage_limit_gb * 1024**3 + 1)
             resources['actual_cpu'] = cores
             del resources['cores_mcpu']
+
+        spec_regions = job['spec'].get('regions') if job.get('spec') else None
+        if spec_regions:
+            resources['req_regions'] = ', '.join(spec_regions)
+
+        original_status = job.get('status')
+        if original_status:
+            actual_region = original_status.get('region')
+            if actual_region:
+                resources['actual_region'] = actual_region
 
     # Not all logs will be proper utf-8 but we attempt to show them as
     # str or else Jinja will present them surrounded by b''

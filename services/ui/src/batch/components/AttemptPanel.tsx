@@ -91,6 +91,12 @@ export function AttemptPanel({
                 <td className="py-2 font-mono">{attempt.instance_name}</td>
               </tr>
             )}
+            {attempt.location && (
+              <tr className="border-t">
+                <td className="py-2 pr-4 text-zinc-500">Location</td>
+                <td className="py-2">{attempt.location}</td>
+              </tr>
+            )}
             {attempt.start_time_ms != null && (
               <tr className="border-t">
                 <td className="py-2 pr-4 text-zinc-500">Started</td>
