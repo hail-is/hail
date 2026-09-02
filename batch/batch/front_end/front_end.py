@@ -2874,7 +2874,11 @@ async def ui_get_jvm_profile(request: web.Request, _, batch_id: int) -> web.Resp
     profile = await _get_jvm_profile(app, batch_id, job_id)
     if profile is None:
         raise web.HTTPNotFound()
-    return web.Response(text=profile, content_type='text/html')
+    return web.Response(
+        text=profile,
+        content_type='text/html',
+        headers={'Content-Disposition': f'attachment; filename="{batch_id}_{job_id}_jvm_profile.html"'},
+    )
 
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}')

@@ -227,10 +227,12 @@ export function JobPage({ basePath, batchId, jobId }: Props): JSX.Element {
         <JobStatusPanel
           batchId={batchId}
           jobId={jobId}
+          basePath={basePath}
           job={job}
           latestAttempt={latestAttempt}
           autoRefresh={autoRefresh}
           isTerminal={isTerminal}
+          hasJvmProfile={job.spec?.process?.type === 'jvm' && job.spec.process.profile === true}
           onAutoRefreshToggle={handleAutoRefreshToggle}
           countdownKey={countdownKey}
           refreshIntervalMs={refreshIntervalMs}

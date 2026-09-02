@@ -20,17 +20,19 @@ function CostDisplay({ cost }: { cost: number }): JSX.Element {
 interface Props {
   batchId: string;
   jobId: string;
+  basePath: string;
   job: Job;
   latestAttempt: Attempt | null;
   autoRefresh: boolean;
   isTerminal: boolean;
+  hasJvmProfile: boolean;
   onAutoRefreshToggle: (_checked: boolean) => void;
   countdownKey: number;
   refreshIntervalMs: number;
   jobRefreshing: boolean;
 }
 
-export function JobStatusPanel({ batchId, jobId, job, latestAttempt, autoRefresh, isTerminal, onAutoRefreshToggle, countdownKey, refreshIntervalMs, jobRefreshing }: Props): JSX.Element {
+export function JobStatusPanel({ batchId, jobId, basePath, job, latestAttempt, autoRefresh, isTerminal, hasJvmProfile, onAutoRefreshToggle, countdownKey, refreshIntervalMs, jobRefreshing }: Props): JSX.Element {
   return (
     <div className="w-full lg:basis-1/4 drop-shadow-sm shrink-0">
       <ul className="border border-collapse divide-y bg-slate-50 rounded">
@@ -85,6 +87,14 @@ export function JobStatusPanel({ batchId, jobId, job, latestAttempt, autoRefresh
               </table>
             )}
           </CollapsibleItem>
+        )}
+        {hasJvmProfile && isTerminal && (
+          <li className="p-4">
+            <a href={`${basePath}/batches/${batchId}/jobs/${jobId}/jvm_profile`} download={`${batchId}_${jobId}_jvm_profile.html`} className="text-sm text-sky-600 hover:underline flex items-center gap-1">
+              <span className="material-symbols-outlined text-base leading-none">download</span>
+              JVM profile
+            </a>
+          </li>
         )}
       </ul>
     </div>
