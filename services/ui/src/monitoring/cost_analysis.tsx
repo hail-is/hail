@@ -1,14 +1,16 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, ScatterChart, Scatter, ZAxis } from 'recharts';
-import { fmt, fmtDelta, pct, makeYDollarFormatter } from '../shared/format';
-import { computeStats, computeRegression, RegressionResult, toPctRows } from '../shared/statsUtils';
 import { useLegendToggle } from '../shared/useLegendToggle';
 import { Panel } from '../shared/Panel';
-import { CostRow, RatioRow } from '../shared/CostRow';
-import { ChartTooltip, SeriesStats } from '../shared/ChartTooltip';
-import { ToggleSwitch, StatsDisplay, RegressionStatsDisplay, statsReferenceLines } from '../shared/StatsDisplay';
+import { RatioRow } from '../shared/RatioRow';
+import { ToggleSwitch } from '../shared/ToggleSwitch';
 import { MiniPieChart, PieSlice } from '../shared/MiniPieChart';
 import { PresetChips, ScatterPresetChips } from '../shared/PresetChips';
+import { fmt, fmtDelta, pct, makeYDollarFormatter } from './components/format';
+import { computeStats, computeRegression, RegressionResult, toPctRows } from './components/statsUtils';
+import { CostRow } from './components/CostRow';
+import { ChartTooltip, SeriesStats } from './components/ChartTooltip';
+import { StatsDisplay, RegressionStatsDisplay, statsReferenceLines } from './components/StatsDisplay';
 
 // --- Types ---
 
@@ -1097,7 +1099,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
       <div className="flex items-center gap-4">
         <div className="flex-1">{rows}</div>
         <div className={`${compact ? 'w-28' : 'w-40'} flex-shrink-0`}>
-          <MiniPieChart data={pieData} size={compact ? 'sm' : 'md'} />
+          <MiniPieChart data={pieData} size={compact ? 'sm' : 'md'} format={fmt} />
         </div>
       </div>
     );
@@ -1187,7 +1189,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
       <div className="flex items-center gap-4">
         <div className="flex-1">{rows}</div>
         <div className={`${compact ? 'w-28' : 'w-40'} flex-shrink-0`}>
-          <MiniPieChart data={pieData} size={compact ? 'sm' : 'md'} />
+          <MiniPieChart data={pieData} size={compact ? 'sm' : 'md'} format={fmt} />
         </div>
       </div>
     );
