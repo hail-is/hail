@@ -141,7 +141,7 @@ function monthsBetween(start: string, end: string): string[] {
 
 interface FieldGroup { group: string; fields: { id: string; label: string }[] }
 
-function buildFieldGroups(products: string[], overheadServices: string[], overheadSkusByService: Record<string, string[]>, resourceTypes: string[], billingProjects: string[]): FieldGroup[] {
+function buildFieldGroups(products: string[], overheadServices: string[], overheadSkusByService: Map<string, string[]>, resourceTypes: string[], billingProjects: string[]): FieldGroup[] {
   return [
     {
       group: 'Cloud Costs',
@@ -158,7 +158,7 @@ function buildFieldGroups(products: string[], overheadServices: string[], overhe
         { id: 'cloud/k8s_mgmt', label: 'Cloud Costs / K8s / Management' },
         ...overheadServices.flatMap(s => [
           { id: `cloud/svc/${s}`, label: `Cloud Costs / ${s}` },
-          ...(overheadSkusByService[s] ?? []).map(sku => ({ id: `cloud/svc/${s}/${sku}`, label: `Cloud Costs / ${s} / ${sku}` })),
+          ...(overheadSkusByService.get(s) ?? []).map(sku => ({ id: `cloud/svc/${s}/${sku}`, label: `Cloud Costs / ${s} / ${sku}` })),
         ]),
       ],
     },
@@ -427,12 +427,13 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
   const [compareLoading, setCompareLoading] = useState(false);
 
   const { overheadServices, overheadSkusByService } = useMemo(() => {
-    const svcMax: Record<string, number> = {};
-    const skuMax: Record<string, Record<string, number>> = {};
-    const trackSvc = (svc: string, val: number) => { svcMax[svc] = Math.max(svcMax[svc] ?? 0, val); };
+    const svcMax = new Map<string, number>();
+    const skuMax = new Map<string, Map<string, number>>();
+    const trackSvc = (svc: string, val: number) => { svcMax.set(svc, Math.max(svcMax.get(svc) ?? 0, val)); };
     const trackSku = (svc: string, sku: string, val: number) => {
-      if (!skuMax[svc]) skuMax[svc] = {};
-      skuMax[svc][sku] = Math.max(skuMax[svc][sku] ?? 0, val);
+      const skus = skuMax.get(svc) ?? new Map<string, number>();
+      skus.set(sku, Math.max(skus.get(sku) ?? 0, val));
+      skuMax.set(svc, skus);
     };
     const processCloud = (c: CloudCosts) => {
       for (const [svc, val] of Object.entries(c.non_compute_services)) trackSvc(svc, val);
@@ -448,24 +449,25 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
         for (const [sku, val] of Object.entries(skus)) trackSku(svc, sku, val);
       }
     }
-    const services = Object.keys(svcMax).filter(s => svcMax[s] >= 10).sort();
-    const skusByService: Record<string, string[]> = {};
+    const services = [...svcMax.keys()].filter(s => (svcMax.get(s) ?? 0) >= 10).sort();
+    const skusByService = new Map<string, string[]>();
     for (const svc of services) {
-      skusByService[svc] = Object.keys(skuMax[svc] ?? {}).filter(k => (skuMax[svc][k] ?? 0) >= 10).sort();
+      const skus = skuMax.get(svc) ?? new Map<string, number>();
+      skusByService.set(svc, [...skus.keys()].filter(k => (skus.get(k) ?? 0) >= 10).sort());
     }
     return { overheadServices: services, overheadSkusByService: skusByService };
   }, [cloudCosts, compareCloudCosts, trendData]);
 
   const { billingResources, billingResourcesHasOther } = useMemo(() => {
-    const maxes: Record<string, number> = {};
+    const maxes = new Map<string, number>();
     for (const d of trendData) {
-      for (const [r, v] of Object.entries(d.resource_by_type)) maxes[r] = Math.max(maxes[r] ?? 0, v);
+      for (const [r, v] of Object.entries(d.resource_by_type)) maxes.set(r, Math.max(maxes.get(r) ?? 0, v));
     }
     if (userBilling) {
-      for (const [r, v] of Object.entries(userBilling.resource_by_type)) maxes[r] = Math.max(maxes[r] ?? 0, v);
+      for (const [r, v] of Object.entries(userBilling.resource_by_type)) maxes.set(r, Math.max(maxes.get(r) ?? 0, v));
     }
-    const resources = Object.keys(maxes).filter(r => maxes[r] >= 10).sort();
-    const hasOther = Object.keys(maxes).some(r => maxes[r] < 10);
+    const resources = [...maxes.keys()].filter(r => (maxes.get(r) ?? 0) >= 10).sort();
+    const hasOther = [...maxes.values()].some(v => v < 10);
     return { billingResources: resources, billingResourcesHasOther: hasOther };
   }, [trendData, userBilling]);
 
@@ -481,15 +483,15 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
   );
 
   const { billingProjects, billingProjectsHasOther } = useMemo(() => {
-    const maxes: Record<string, number> = {};
+    const maxes = new Map<string, number>();
     for (const d of trendData) {
-      for (const [p, v] of Object.entries(d.billing_by_project ?? {})) maxes[p] = Math.max(maxes[p] ?? 0, v);
+      for (const [p, v] of Object.entries(d.billing_by_project ?? {})) maxes.set(p, Math.max(maxes.get(p) ?? 0, v));
     }
     if (userBilling) {
-      for (const [p, v] of Object.entries(userBilling.billing_by_project)) maxes[p] = Math.max(maxes[p] ?? 0, v);
+      for (const [p, v] of Object.entries(userBilling.billing_by_project)) maxes.set(p, Math.max(maxes.get(p) ?? 0, v));
     }
-    const projects = Object.keys(maxes).filter(p => maxes[p] >= 10).sort();
-    const hasOther = Object.keys(maxes).some(p => maxes[p] < 10);
+    const projects = [...maxes.keys()].filter(p => (maxes.get(p) ?? 0) >= 10).sort();
+    const hasOther = [...maxes.values()].some(v => v < 10);
     return { billingProjects: projects, billingProjectsHasOther: hasOther };
   }, [trendData, userBilling]);
 
@@ -500,12 +502,12 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
   );
 
   const { userComputeProducts, userComputeHasOther } = useMemo(() => {
-    const maxes: Record<string, number> = {};
+    const maxes = new Map<string, number>();
     for (const d of trendData) {
-      for (const [p, v] of Object.entries(d.user_compute_by_product)) maxes[p] = Math.max(maxes[p] ?? 0, v);
+      for (const [p, v] of Object.entries(d.user_compute_by_product)) maxes.set(p, Math.max(maxes.get(p) ?? 0, v));
     }
-    const products = Object.keys(maxes).filter(p => maxes[p] >= 10).sort();
-    const hasOther = Object.keys(maxes).some(p => maxes[p] < 10);
+    const products = [...maxes.keys()].filter(p => (maxes.get(p) ?? 0) >= 10).sort();
+    const hasOther = [...maxes.values()].some(v => v < 10);
     return { userComputeProducts: products, userComputeHasOther: hasOther };
   }, [trendData]);
 
@@ -548,7 +550,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
     if (cloudView === 'user_compute') return [...userComputeProducts, ...(userComputeHasOther ? ['(Other)'] : [])];
     if (cloudView === 'other_compute') return ['batch_test', 'batch_dev', 'unknown'];
     if (cloudView === 'k8s') return ['k8s_nodes', 'k8s_mgmt'];
-    if (overheadServices.includes(cloudView)) return overheadSkusByService[cloudView] ?? [];
+    if (overheadServices.includes(cloudView)) return overheadSkusByService.get(cloudView) ?? [];
     return ['user_compute', 'other_compute', 'k8s', ...overheadServices];
   }, [cloudView, userComputeProducts, userComputeHasOther, overheadServices, overheadSkusByService]);
 
@@ -557,7 +559,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
       return trendData.map(d => ({ month: d.month, ...Object.fromEntries(userComputeProducts.map(p => [p, d.user_compute_by_product[p] ?? 0])), ...(userComputeHasOther ? { '(Other)': ucOther(d.user_compute_by_product) } : {}) }));
     if (cloudView === 'other_compute' || cloudView === 'k8s') return trendData as unknown[];
     if (overheadServices.includes(cloudView)) {
-      const skus = overheadSkusByService[cloudView] ?? [];
+      const skus = overheadSkusByService.get(cloudView) ?? [];
       return trendData.map(d => ({ month: d.month, ...Object.fromEntries(skus.map(sku => [sku, ((d.overhead_by_sku ?? {})[cloudView] ?? {})[sku] ?? 0])) }));
     }
     // summary: flatten overhead services into data
@@ -603,7 +605,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
   }, [cloudCosts]);
 
   const overheadAllKeys = useMemo(() => {
-    if (overheadServices.includes(cloudView)) return overheadSkusByService[cloudView] ?? [];
+    if (overheadServices.includes(cloudView)) return overheadSkusByService.get(cloudView) ?? [];
     return [...overheadServices];
   }, [cloudView, overheadServices, overheadSkusByService]);
   const overheadToggle = useLegendToggle(overheadAllKeys);
@@ -687,7 +689,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
             ? (k8sToggle.isHidden('k8s_nodes') ? 0 : d.k8s_nodes) +
               (k8sToggle.isHidden('k8s_mgmt') ? 0 : d.k8s_mgmt)
             : overheadServices.includes(cloudView)
-              ? (overheadSkusByService[cloudView] ?? []).reduce((s, sku) => s + (isOverheadHidden(sku) ? 0 : ((d.overhead_by_sku ?? {})[cloudView] ?? {})[sku] ?? 0), 0)
+              ? (overheadSkusByService.get(cloudView) ?? []).reduce((s, sku) => s + (isOverheadHidden(sku) ? 0 : ((d.overhead_by_sku ?? {})[cloudView] ?? {})[sku] ?? 0), 0)
               : (cloudCostsToggle.isHidden('user_compute') ? 0 : d.user_compute) +
                 (cloudCostsToggle.isHidden('other_compute') ? 0 : d.other_compute) +
                 (cloudCostsToggle.isHidden('k8s') ? 0 : d.k8s) +
@@ -722,7 +724,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
           ? (k8sToggle.isHidden('k8s_nodes') ? 0 : d.k8s_nodes) +
             (k8sToggle.isHidden('k8s_mgmt') ? 0 : d.k8s_mgmt)
           : overheadServices.includes(cloudView)
-            ? (overheadSkusByService[cloudView] ?? []).reduce((s, sku) => s + (isOverheadHidden(sku) ? 0 : ((d.overhead_by_sku ?? {})[cloudView] ?? {})[sku] ?? 0), 0)
+            ? (overheadSkusByService.get(cloudView) ?? []).reduce((s, sku) => s + (isOverheadHidden(sku) ? 0 : ((d.overhead_by_sku ?? {})[cloudView] ?? {})[sku] ?? 0), 0)
             : (cloudCostsToggle.isHidden('user_compute') ? 0 : d.user_compute) +
               (cloudCostsToggle.isHidden('other_compute') ? 0 : d.other_compute) +
               (cloudCostsToggle.isHidden('k8s') ? 0 : d.k8s) +
@@ -745,7 +747,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
             k8s_mgmt: computeStats(trendData.map(d => d.k8s_mgmt)),
           }
         : overheadServices.includes(cloudView)
-          ? Object.fromEntries((overheadSkusByService[cloudView] ?? []).map(sku => [sku, computeStats(trendData.map(d => ((d.overhead_by_sku ?? {})[cloudView] ?? {})[sku] ?? 0))]))
+          ? Object.fromEntries((overheadSkusByService.get(cloudView) ?? []).map(sku => [sku, computeStats(trendData.map(d => ((d.overhead_by_sku ?? {})[cloudView] ?? {})[sku] ?? 0))]))
           : {
               user_compute: computeStats(trendData.map(d => d.user_compute)),
               other_compute: computeStats(trendData.map(d => d.other_compute)),
@@ -787,7 +789,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
         : cloudView === 'k8s'
           ? (['k8s_nodes', 'k8s_mgmt'] as const).filter(k => !k8sToggle.isHidden(k)).reduce((s, k) => s + rowNum(row, k), 0)
           : overheadServices.includes(cloudView)
-            ? (overheadSkusByService[cloudView] ?? []).filter(s => !isOverheadHidden(s)).reduce((s, k) => s + rowNum(row, k), 0)
+            ? (overheadSkusByService.get(cloudView) ?? []).filter(s => !isOverheadHidden(s)).reduce((s, k) => s + rowNum(row, k), 0)
             : [...['user_compute', 'other_compute', 'k8s'].filter(k => !cloudCostsToggle.isHidden(k)), ...overheadServices.filter(s => !isOverheadHidden(s))].reduce((s, k) => s + rowNum(row, k), 0)
   ));
   const cloudPctSeriesStats: SeriesStats = cloudView === 'user_compute'
@@ -797,7 +799,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
       : cloudView === 'k8s'
         ? { k8s_nodes: computeStats(cloudPctRows.map(row => rowNum(row, 'k8s_nodes'))), k8s_mgmt: computeStats(cloudPctRows.map(row => rowNum(row, 'k8s_mgmt'))) }
         : overheadServices.includes(cloudView)
-          ? Object.fromEntries((overheadSkusByService[cloudView] ?? []).map(sku => [sku, computeStats(cloudPctRows.map(row => rowNum(row, sku)))]))
+          ? Object.fromEntries((overheadSkusByService.get(cloudView) ?? []).map(sku => [sku, computeStats(cloudPctRows.map(row => rowNum(row, sku)))]))
           : { user_compute: computeStats(cloudPctRows.map(row => rowNum(row, 'user_compute'))), other_compute: computeStats(cloudPctRows.map(row => rowNum(row, 'other_compute'))), k8s: computeStats(cloudPctRows.map(row => rowNum(row, 'k8s'))), ...Object.fromEntries(overheadServices.map(svc => [svc, computeStats(cloudPctRows.map(row => rowNum(row, svc)))])) };
 
   const billingPctRows = billingChartData as Record<string, unknown>[];
@@ -1502,7 +1504,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
                     <>
                       <Legend onClick={onOverheadLegendClick} wrapperStyle={{ cursor: 'pointer' }} />
                       {statsReferenceLines(cloudShowPct ? cloudPctStats : cloudStats, 0, cloudShowPct ? 100 : cloudYMax)}
-                      {(overheadSkusByService[cloudView] ?? []).map(sku => (
+                      {(overheadSkusByService.get(cloudView) ?? []).map(sku => (
                         <Bar key={sku} dataKey={sku} name={sku} stackId="a" fill={overheadServiceColor(sku)} hide={isOverheadHidden(sku)} />
                       ))}
                     </>
