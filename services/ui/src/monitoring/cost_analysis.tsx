@@ -774,9 +774,10 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
           resource_cost: computeStats(trendData.map(d => d.resource_cost)),
           service_fees: computeStats(trendData.map(d => d.service_fees)),
         };
-  const rowNum = (row: Record<string, unknown>, k: string) => typeof row[k] === 'number' ? row[k] as number : 0;
+  const rowNum = (row: Map<string, unknown>, k: string) => { const v = row.get(k); return typeof v === 'number' ? v : 0; };
+  const toRowMaps = (rows: unknown[]) => (rows as Record<string, unknown>[]).map(row => new Map(Object.entries(row)));
 
-  const cloudPctRows = cloudChartData as Record<string, unknown>[];
+  const cloudPctRows = toRowMaps(cloudChartData);
   const cloudPctStats = computeStats(cloudPctRows.map(row =>
     cloudView === 'user_compute'
       ? [...userComputeProducts.filter(p => !isUserComputeHidden(p)), ...(userComputeHasOther && !isUserComputeHidden('(Other)') ? ['(Other)'] : [])].reduce((s, k) => s + rowNum(row, k), 0)
@@ -798,7 +799,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
           ? Object.fromEntries((overheadSkusByService.get(cloudView) ?? []).map(sku => [sku, computeStats(cloudPctRows.map(row => rowNum(row, sku)))]))
           : { user_compute: computeStats(cloudPctRows.map(row => rowNum(row, 'user_compute'))), other_compute: computeStats(cloudPctRows.map(row => rowNum(row, 'other_compute'))), k8s: computeStats(cloudPctRows.map(row => rowNum(row, 'k8s'))), ...Object.fromEntries(overheadServices.map(svc => [svc, computeStats(cloudPctRows.map(row => rowNum(row, svc)))])) };
 
-  const billingPctRows = billingChartData as Record<string, unknown>[];
+  const billingPctRows = toRowMaps(billingChartData);
   const billingPctStats = computeStats(billingPctRows.map(row =>
     billingView === 'resource_usage'
       ? [...billingResources.filter(r => !isBillingResourceHidden(r)), ...(billingResourcesHasOther && !isBillingResourceHidden('(Other)') ? ['(Other)'] : [])].reduce((s, k) => s + rowNum(row, k), 0)
@@ -817,20 +818,17 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
   const coreHoursStats = useMemo(() => computeStats(coreHoursData.map(d => d.core_hours)), [coreHoursData]);
   const coreHoursExtent = Math.max(0, ...coreHoursData.map(d => d.core_hours));
 
-  const customRatioValues = useMemo(
+  const customRatioChartData = useMemo(
     () => trendData.map(d => {
       const den = resolveTrend(customRatioDen, d);
-      return den === 0 ? null : (resolveTrend(customRatioNum, d) / den) * 100;
+      const value = den === 0 ? null : (resolveTrend(customRatioNum, d) / den) * 100;
+      return { month: d.month, value };
     }),
     [trendData, customRatioNum, customRatioDen]
   );
   const customRatioStats = useMemo(
-    () => computeStats(customRatioValues.filter((v): v is number => v !== null)),
-    [customRatioValues]
-  );
-  const customRatioChartData = useMemo(
-    () => trendData.map((d, i) => ({ month: d.month, value: customRatioValues[i] })),
-    [trendData, customRatioValues]
+    () => computeStats(customRatioChartData.map(p => p.value).filter((v): v is number => v !== null)),
+    [customRatioChartData]
   );
   const scatterChartData = useMemo(
     () => trendData.map(d => ({ month: d.month, x: resolveTrend(scatterX, d), y: resolveTrend(scatterY, d) })),
