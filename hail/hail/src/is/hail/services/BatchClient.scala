@@ -7,7 +7,7 @@ import is.hail.services.BatchClient.{
 }
 import is.hail.services.JobGroupStates.Running
 import is.hail.services.oauth2.CloudCredentials
-import is.hail.services.requests.{ClientResponseException, Requester}
+import is.hail.services.requests.Requester
 import is.hail.utils._
 
 import scala.collection.compat.immutable.LazyList
@@ -268,40 +268,23 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
     batchId
   }
 
-  def newJobGroup(req: JobGroupRequest): (Int, Int) =
-    retryable { attempts =>
-      try {
-        val batchId = req.batch_id
-        val nJobs = req.jobs.length
-        val (updateId, startJobGroupId, startJobId) = beginUpdate(batchId, req.token, nJobs)
-        logger.info(s"Began update $updateId of batch $batchId.")
+  def newJobGroup(req: JobGroupRequest): (Int, Int) = {
+    val batchId = req.batch_id
+    val nJobs = req.jobs.length
+    val (updateId, startJobGroupId, startJobId) = beginUpdate(batchId, req.token, nJobs)
+    logger.info(s"Began update $updateId of batch $batchId.")
 
-        createJobGroup(updateId, req)
-        logger.info(s"Created job group $startJobGroupId in batch $batchId.")
+    createJobGroup(updateId, req)
+    logger.info(s"Created job group $startJobGroupId in batch $batchId.")
 
-        createJobs(batchId, updateId, req.jobs)
-        logger.info(s"Created $nJobs jobs in job group $startJobGroupId in batch $batchId.")
+    createJobs(batchId, updateId, req.jobs)
+    logger.info(s"Created $nJobs jobs in job group $startJobGroupId in batch $batchId.")
 
-        commitUpdate(batchId, updateId)
-        logger.info(s"Committed update $updateId of batch $batchId.")
+    commitUpdate(batchId, updateId)
+    logger.info(s"Committed update $updateId of batch $batchId.")
 
-        (startJobGroupId, startJobId)
-      } catch {
-        case e: ClientResponseException
-            if e.status == 400
-              && e.getMessage.contains("job group specs were not submitted in order") =>
-          val delay = delayMsForTry(attempts + 1)
-          logger.warn(
-            f"Tried to update batch '${req.batch_id}' before another process could commit " +
-              "an earlier update. This is most likely caused by running parallel query pipelines " +
-              "in the same batch. Batch does not yet support out-of-order updates. Sleeping for " +
-              f"'$delay' ms to allow the other update complete.",
-            e,
-          )
-          Thread.sleep(delay)
-          retry
-      }
-    }
+    (startJobGroupId, startJobId)
+  }
 
   def getJobGroup(batchId: Int, jobGroupId: Int): JobGroupResponse =
     req
