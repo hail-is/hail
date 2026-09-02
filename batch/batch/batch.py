@@ -168,14 +168,11 @@ def job_record_to_dict(record: Dict[str, Any], name: Optional[str]) -> JobListEn
 async def cancel_job_group_in_db(db, batch_id, job_group_id):
     @transaction(db)
     async def cancel(tx):
-        # Plain MVCC read — no locks needed. Locks were previously acquired here (SELECT ... FOR UPDATE)
-        # but they would be released by START TRANSACTION in the cancel_job_group stored procedure
-        # before it does any real work, so they were never protecting anything.
+        # Quick sanity check for a nicer error message before calling the cancel_job_group stored procedure.
         #
-        # In the case that it does somehow happen that a batch is lost or (soft) deleted
-        # between this check and the cancel_job_group stored procedure, the stored procedure
-        # proceeds, but maybe a soft-deleted database record gets its state updated
-        # to cancelled... pretty harmless.
+        # No SELECT ... FOR UPDATE lock here: the stored procedure has its own checks and any lock would be
+        # released by the START TRANSACTION in the stored procedure anyway. The "worst case" of calling
+        # cancel on a deleted batch due to a race condition is harmless in practice.
         record = await tx.execute_and_fetchone(
             """
 SELECT 1
