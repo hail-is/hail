@@ -1727,53 +1727,256 @@ components:
     CreateJobRequest:
       type: object
       required:
-        - job_spec
+        - job_id
+        - process
       properties:
-        job_spec:
+        job_id:
+          type: integer
+          description: "Job ID, unique within the batch update. Job ids must be contiguous and increasing across the job specs in a request."
+        process:
+          description: "What the job executes. A sum type discriminated by the 'type' field."
+          oneOf:
+            - $ref: '#/components/schemas/DockerProcess'
+            - $ref: '#/components/schemas/JvmProcess'
+          discriminator:
+            propertyName: type
+            mapping:
+              docker: '#/components/schemas/DockerProcess'
+              jvm: '#/components/schemas/JvmProcess'
+        always_copy_output:
+          type: boolean
+          description: "Copy output files even if the job fails"
+        always_run:
+          type: boolean
+          description: "Run this job even if its parents failed or the batch was cancelled"
+        attributes:
+          type: object
+          additionalProperties:
+            type: string
+          description: "Key-value pairs of attributes for the job"
+        env:
+          type: array
+          description: "Environment variables"
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              value:
+                type: string
+        cloudfuse:
+          type: array
+          description: "Cloud storage buckets to mount with FUSE"
+          items:
+            type: object
+            required:
+              - bucket
+              - mount_path
+              - read_only
+            properties:
+              bucket:
+                type: string
+                minLength: 1
+                description: "Name of the bucket to mount"
+              mount_path:
+                type: string
+                minLength: 1
+                description: "Path at which to mount the bucket in the container"
+              read_only:
+                type: boolean
+                description: "Mount the bucket read-only"
+        input_files:
+          type: array
+          description: "Files to copy into the job's container before it runs"
+          items:
+            $ref: '#/components/schemas/FileTransfer'
+        output_files:
+          type: array
+          description: "Files to copy out of the job's container after it runs"
+          items:
+            $ref: '#/components/schemas/FileTransfer'
+        mount_tokens:
+          type: boolean
+          description: "Mount user tokens into the container"
+        network:
+          type: string
+          enum: ["public", "private"]
+          description: "Network access for the job"
+        n_max_attempts:
+          type: integer
+          description: "Maximum number of times this job may be attempted"
+        unconfined:
+          type: boolean
+          description: "Run the container without default security confinement"
+        parent_ids:
+          type: array
+          items:
+            type: integer
+          description: "IDs of jobs this job depends on (alias for absolute_parent_ids)"
+        absolute_parent_ids:
+          type: array
+          items:
+            type: integer
+          description: "Batch-wide IDs of jobs this job depends on"
+        in_update_parent_ids:
+          type: array
+          items:
+            type: integer
+          description: "IDs, relative to the current update, of jobs this job depends on"
+        absolute_job_group_id:
+          type: integer
+          description: "Batch-wide ID of the job group this job belongs to"
+        in_update_job_group_id:
+          type: integer
+          description: "ID, relative to the current update, of the job group this job belongs to"
+        port:
+          type: integer
+          description: "Port to expose"
+        regions:
+          type: array
+          items:
+            type: string
+          description: "Regions in which this job may be scheduled"
+        requester_pays_project:
+          type: string
+          description: "Project to bill for accessing requester-pays buckets"
+        resources:
+          type: object
+          properties:
+            cpu:
+              type: string
+              pattern: '^[+]?((?:[0-9]*[.])?[0-9]+)([m])?$'
+              description: "CPU request, e.g. '1' or '500m'"
+            memory:
+              description: "Memory request: either a quantity, e.g. '3.75Gi', or a memory type"
+              oneOf:
+                - type: string
+                  pattern: '^[+]?((?:[0-9]*[.])?[0-9]+)([KMGTP][i]?)?B?$'
+                - type: string
+                  enum: ["lowmem", "standard", "highmem"]
+            storage:
+              type: string
+              pattern: '^[+]?((?:[0-9]*[.])?[0-9]+)([KMGTP][i]?)?B?$'
+              description: "Storage request, e.g. '10Gi'"
+            machine_type:
+              type: string
+              description: "Specific machine type on which to run the job"
+            preemptible:
+              type: boolean
+              description: "Whether the job may run on a preemptible instance"
+        secrets:
+          type: array
+          description: "Kubernetes secrets to mount into the container"
+          items:
+            type: object
+            required:
+              - namespace
+              - name
+              - mount_path
+            properties:
+              namespace:
+                type: string
+                pattern: '^[a-z0-9](?:[-a-z0-9]*[a-z0-9])?(?:\.[a-z0-9](?:[-a-z0-9]*[a-z0-9])?)*$'
+                maxLength: 253
+              name:
+                type: string
+                pattern: '^[a-z0-9](?:[-a-z0-9]*[a-z0-9])?(?:\.[a-z0-9](?:[-a-z0-9]*[a-z0-9])?)*$'
+                maxLength: 253
+              mount_path:
+                type: string
+        service_account:
           type: object
           required:
-            - command
+            - namespace
+            - name
           properties:
-            command:
-              type: array
-              items:
-                type: string
-              description: "Command to execute"
-            env:
-              type: object
-              additionalProperties:
-                type: string
-              description: "Environment variables"
-            port:
-              type: integer
-              description: "Port to expose"
-            resources:
-              type: object
-              properties:
-                cpu:
-                  type: string
-                memory:
-                  type: string
-                storage:
-                  type: string
-            service_account:
-              type: object
-              properties:
-                namespace:
-                  type: string
-                name:
-                  type: string
-            timeout:
-              type: integer
-              description: "Job timeout in seconds"
-            attributes:
-              type: object
-              additionalProperties:
-                type: string
-              description: "Job attributes"
-            callback:
+            namespace:
               type: string
-              description: "Callback URL"
+              pattern: '^[a-z0-9](?:[-a-z0-9]*[a-z0-9])?(?:\.[a-z0-9](?:[-a-z0-9]*[a-z0-9])?)*$'
+              maxLength: 253
+            name:
+              type: string
+              pattern: '^[a-z0-9](?:[-a-z0-9]*[a-z0-9])?(?:\.[a-z0-9](?:[-a-z0-9]*[a-z0-9])?)*$'
+              maxLength: 253
+        timeout:
+          type: number
+          exclusiveMinimum: 0
+          description: "Job timeout in seconds"
+        user_code:
+          type: string
+          description: "The user code that created this job, for display purposes"
+
+    FileTransfer:
+      type: object
+      required:
+        - from
+        - to
+      properties:
+        from:
+          type: string
+          description: "Source path"
+        to:
+          type: string
+          description: "Destination path"
+
+    DockerProcess:
+      type: object
+      required:
+        - type
+        - command
+        - image
+      properties:
+        type:
+          type: string
+          enum: ["docker"]
+        command:
+          type: array
+          items:
+            type: string
+          description: "Command to execute in the container"
+        image:
+          type: string
+          description: "Docker image to run"
+        mount_docker_socket:
+          type: boolean
+          deprecated: true
+          description: "DEPRECATED. No longer supported; requests with this set to true are rejected."
+
+    JvmProcess:
+      type: object
+      required:
+        - type
+        - jar_spec
+        - command
+      properties:
+        type:
+          type: string
+          enum: ["jvm"]
+        jar_spec:
+          type: object
+          required:
+            - type
+            - value
+          properties:
+            type:
+              type: string
+              enum: ["git_revision", "jar_url"]
+              description: "How the JAR is specified"
+            value:
+              type: string
+              description: "The git revision or JAR URL"
+        command:
+          type: array
+          items:
+            type: string
+          description: "Command to pass to the JVM entryway"
+        profile:
+          type: boolean
+          description: "Enable JVM profiling"
+        spark_version:
+          type: string
+          pattern: '^\d+\.\d+\.\d+$'
+          description: "Spark version that this version of hail requires, e.g. '3.5.3'"
 
     CreateBillingProjectRequest:
       type: object
