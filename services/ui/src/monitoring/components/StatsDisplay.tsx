@@ -1,8 +1,8 @@
 import { ReferenceLine } from 'recharts';
 import { StatLabel } from '../../shared/StatLabel';
-import { RegressionResult } from './statsUtils';
+import type { RegressionResult } from './statsUtils';
 
-export function StatsDisplay({ stats, format }: { stats: { mean: number; std: number } | null; format: (v: number) => string }) {
+export function StatsDisplay({ stats, format }: { stats: { mean: number; std: number } | null; format: (_v: number) => string }) {
   if (!stats) return null;
   const { mean, std } = stats;
   const cv = mean !== 0 ? (std / mean) * 100 : null;
@@ -29,7 +29,7 @@ export function StatsDisplay({ stats, format }: { stats: { mean: number; std: nu
 export function RegressionStatsDisplay({ reg, xLabel, yLabel, fmtX, fmtY }: {
   reg: RegressionResult | null;
   xLabel: string; yLabel: string;
-  fmtX: (v: number) => string; fmtY: (v: number) => string;
+  fmtX: (_v: number) => string; fmtY: (_v: number) => string;
 }) {
   if (!reg) return null;
   const slopeTooltip = `For every 1-unit increase in ${xLabel}, ${yLabel} changes by this amount on average.`;

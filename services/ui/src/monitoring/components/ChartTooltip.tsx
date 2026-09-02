@@ -2,11 +2,11 @@ export type SeriesStats = Map<string, { mean: number; std: number } | null>;
 
 interface ChartTooltipProps {
   active?: boolean;
-  payload?: readonly { name?: string | number; value?: number | string | readonly (number | string)[]; dataKey?: string | number | ((obj: unknown) => unknown); color?: string; fill?: string }[];
+  payload?: readonly { name?: string | number; value?: number | string | readonly (number | string)[]; dataKey?: string | number | ((_obj: unknown) => unknown); color?: string; fill?: string }[];
   label?: string | number;
   stats: { mean: number; std: number } | null;
   seriesStats?: SeriesStats;
-  format: (v: number) => string;
+  format: (_v: number) => string;
   stacked?: boolean;
   threshold?: number;
 }

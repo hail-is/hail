@@ -4,7 +4,7 @@ import { useLegendToggle } from '../shared/useLegendToggle';
 import { Panel } from '../shared/Panel';
 import { RatioRow } from '../shared/RatioRow';
 import { ToggleSwitch } from '../shared/ToggleSwitch';
-import { MiniPieChart, PieSlice } from '../shared/MiniPieChart';
+import { MiniPieChart, type PieSlice } from '../shared/MiniPieChart';
 import { PresetChips, ScatterPresetChips } from '../shared/PresetChips';
 import { fmt, pct, makeYDollarFormatter } from './components/format';
 import { computeStats, computeRegression, toPctRows } from './components/statsUtils';
@@ -101,7 +101,7 @@ function inputValueToMonthParam(value: string): string {
 
 function monthToDateRange(param: string): { start: string; end: string } {
   const [mm, yyyy] = param.split('/');
-  const lastDay = new Date(parseInt(yyyy), parseInt(mm), 0).getDate();
+  const lastDay = new Date(parseInt(yyyy, 10), parseInt(mm, 10), 0).getDate();
   const pad = (n: number) => String(n).padStart(2, '0');
   return { start: `${mm}/01/${yyyy}`, end: `${mm}/${pad(lastDay)}/${yyyy}` };
 }
@@ -117,17 +117,17 @@ function fmtCoreHours(v: number): string {
 
 function shiftMonthParam(param: string, delta: number): string {
   const [mm, yyyy] = param.split('/');
-  const d = new Date(parseInt(yyyy), parseInt(mm) - 1 + delta, 1);
+  const d = new Date(parseInt(yyyy, 10), parseInt(mm, 10) - 1 + delta, 1);
   return `${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
 }
 
 function monthParamToLabel(param: string): string {
   const [mm, yyyy] = param.split('/');
-  return new Date(parseInt(yyyy), parseInt(mm) - 1, 1).toLocaleString('en-US', { month: 'short', year: 'numeric' });
+  return new Date(parseInt(yyyy, 10), parseInt(mm, 10) - 1, 1).toLocaleString('en-US', { month: 'short', year: 'numeric' });
 }
 
 function monthsBetween(start: string, end: string): string[] {
-  const toOrd = (p: string) => { const [mm, yyyy] = p.split('/'); return parseInt(yyyy) * 12 + parseInt(mm); };
+  const toOrd = (p: string) => { const [mm, yyyy] = p.split('/'); return parseInt(yyyy, 10) * 12 + parseInt(mm, 10); };
   const months: string[] = [];
   let current = start;
   while (toOrd(current) <= toOrd(end)) {
@@ -348,8 +348,8 @@ async function fetchUserBilling(batchBaseUrl: string, period: string): Promise<U
 function CustomRatioPicker({ fieldGroups, num, den, onNumChange, onDenChange }: {
   fieldGroups: FieldGroup[];
   num: string; den: string;
-  onNumChange: (v: string) => void;
-  onDenChange: (v: string) => void;
+  onNumChange: (_v: string) => void;
+  onDenChange: (_v: string) => void;
 }) {
   const selectClass = 'text-xs border border-zinc-300 rounded px-2 py-1 bg-white text-zinc-600 focus:outline-none focus:ring-2 focus:ring-sky-400 flex-1 min-w-0';
   const renderOptions = () => fieldGroups.map(g => (
@@ -360,9 +360,9 @@ function CustomRatioPicker({ fieldGroups, num, den, onNumChange, onDenChange }: 
   return (
     <div className="flex items-center gap-2 py-2 flex-wrap">
       <span className="text-xs text-zinc-500 shrink-0">Custom:</span>
-      <select className={selectClass} value={num} onChange={e => onNumChange(e.target.value)}>{renderOptions()}</select>
+      <select className={selectClass} value={num} onChange={e => { onNumChange(e.target.value); }}>{renderOptions()}</select>
       <span className="text-xs text-zinc-400 shrink-0">as % of</span>
-      <select className={selectClass} value={den} onChange={e => onDenChange(e.target.value)}>{renderOptions()}</select>
+      <select className={selectClass} value={den} onChange={e => { onDenChange(e.target.value); }}>{renderOptions()}</select>
     </div>
   );
 }
@@ -611,7 +611,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
   const setOverheadHidden = overheadToggle.setHidden;
 
   const onSummaryCloudLegendClick = useCallback(
-    (e: { dataKey?: string | number | ((obj: unknown) => unknown) }, index: number, event: { shiftKey: boolean }) => {
+    (e: { dataKey?: string | number | ((_obj: unknown) => unknown) }, index: number, event: { shiftKey: boolean }) => {
       if (typeof e.dataKey !== 'string') return;
       const key = e.dataKey;
       const fixedKeys = ['user_compute', 'other_compute', 'k8s'] as const;
@@ -1215,8 +1215,8 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
       <h1 className="text-2xl font-light text-zinc-800">Cost Analysis</h1>
 
       <div className="flex border-b border-zinc-200">
-        <button type="button" className={tabClass('monthly')} onClick={() => changeTab('monthly')}>Monthly Breakdown</button>
-        <button type="button" className={tabClass('trends')} onClick={() => changeTab('trends')}>Trends</button>
+        <button type="button" className={tabClass('monthly')} onClick={() => { changeTab('monthly'); }}>Monthly Breakdown</button>
+        <button type="button" className={tabClass('trends')} onClick={() => { changeTab('trends'); }}>Trends</button>
       </div>
 
       {tab === 'monthly' && (
@@ -1224,29 +1224,29 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
           {compareTimePeriod !== null ? (
             <div className="grid grid-cols-2 gap-4">
               <div className="flex items-center gap-2">
-                <button type="button" onClick={() => setTimePeriod(p => shiftMonthParam(p, -1))} className="px-2 py-1 text-sm border border-zinc-300 rounded hover:bg-zinc-100">‹</button>
+                <button type="button" onClick={() => { setTimePeriod(p => shiftMonthParam(p, -1)); }} className="px-2 py-1 text-sm border border-zinc-300 rounded hover:bg-zinc-100">‹</button>
                 <input
                   type="month"
                   className="border border-zinc-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
                   value={monthParamToInputValue(timePeriod)}
                   onChange={e => { if (e.target.value) setTimePeriod(inputValueToMonthParam(e.target.value)); }}
                 />
-                <button type="button" onClick={() => setTimePeriod(p => shiftMonthParam(p, 1))} className="px-2 py-1 text-sm border border-zinc-300 rounded hover:bg-zinc-100">›</button>
+                <button type="button" onClick={() => { setTimePeriod(p => shiftMonthParam(p, 1)); }} className="px-2 py-1 text-sm border border-zinc-300 rounded hover:bg-zinc-100">›</button>
                 {loading && <span className="text-xs text-zinc-400 animate-pulse">Loading…</span>}
               </div>
               <div className="flex items-center gap-2">
-                <button type="button" onClick={() => setCompareTimePeriod(p => p ? shiftMonthParam(p, -1) : p)} className="px-2 py-1 text-sm border border-zinc-300 rounded hover:bg-zinc-100">‹</button>
+                <button type="button" onClick={() => { setCompareTimePeriod(p => p ? shiftMonthParam(p, -1) : p); }} className="px-2 py-1 text-sm border border-zinc-300 rounded hover:bg-zinc-100">‹</button>
                 <input
                   type="month"
                   className="border border-zinc-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
                   value={monthParamToInputValue(compareTimePeriod)}
                   onChange={e => { if (e.target.value) setCompareTimePeriod(inputValueToMonthParam(e.target.value)); }}
                 />
-                <button type="button" onClick={() => setCompareTimePeriod(p => p ? shiftMonthParam(p, 1) : p)} className="px-2 py-1 text-sm border border-zinc-300 rounded hover:bg-zinc-100">›</button>
+                <button type="button" onClick={() => { setCompareTimePeriod(p => p ? shiftMonthParam(p, 1) : p); }} className="px-2 py-1 text-sm border border-zinc-300 rounded hover:bg-zinc-100">›</button>
                 {compareLoading && <span className="text-xs text-zinc-400 animate-pulse">Loading…</span>}
                 <button
                   type="button"
-                  onClick={() => setCompareTimePeriod(null)}
+                  onClick={() => { setCompareTimePeriod(null); }}
                   className="ml-1 p-1 rounded text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100"
                   title="Remove comparison"
                 >
@@ -1259,7 +1259,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
           ) : (
             <div className="flex items-center gap-2">
               <label htmlFor="cost-analysis-month" className="text-sm text-zinc-500">Month</label>
-              <button type="button" onClick={() => setTimePeriod(p => shiftMonthParam(p, -1))} className="px-2 py-1 text-sm border border-zinc-300 rounded hover:bg-zinc-100">‹</button>
+              <button type="button" onClick={() => { setTimePeriod(p => shiftMonthParam(p, -1)); }} className="px-2 py-1 text-sm border border-zinc-300 rounded hover:bg-zinc-100">‹</button>
               <input
                 id="cost-analysis-month"
                 type="month"
@@ -1267,11 +1267,11 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
                 value={monthParamToInputValue(timePeriod)}
                 onChange={e => { if (e.target.value) setTimePeriod(inputValueToMonthParam(e.target.value)); }}
               />
-              <button type="button" onClick={() => setTimePeriod(p => shiftMonthParam(p, 1))} className="px-2 py-1 text-sm border border-zinc-300 rounded hover:bg-zinc-100">›</button>
+              <button type="button" onClick={() => { setTimePeriod(p => shiftMonthParam(p, 1)); }} className="px-2 py-1 text-sm border border-zinc-300 rounded hover:bg-zinc-100">›</button>
               {loading && <span className="text-xs text-zinc-400 animate-pulse">Loading…</span>}
               <button
                 type="button"
-                onClick={() => setCompareTimePeriod(shiftMonthParam(timePeriod, -1))}
+                onClick={() => { setCompareTimePeriod(shiftMonthParam(timePeriod, -1)); }}
                 className="ml-2 flex items-center gap-1.5 text-sm text-sky-600 hover:text-sky-700 border border-sky-200 hover:border-sky-400 rounded px-3 py-1.5 bg-sky-50 hover:bg-sky-100 transition-colors"
               >
                 <svg aria-hidden="true" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
@@ -1286,7 +1286,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
             <select
               className="text-xs border border-zinc-300 rounded px-2 py-1 bg-white text-zinc-600 focus:outline-none focus:ring-2 focus:ring-sky-400"
               value={cloudView}
-              onChange={e => setCloudView(e.target.value)}
+              onChange={e => { setCloudView(e.target.value); }}
             >
               <option value="summary">Summary</option>
               <option value="user_compute">Compute (user-driven)</option>
@@ -1307,7 +1307,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
             <select
               className="text-xs border border-zinc-300 rounded px-2 py-1 bg-white text-zinc-600 focus:outline-none focus:ring-2 focus:ring-sky-400"
               value={billingView}
-              onChange={e => setBillingView(e.target.value as typeof billingView)}
+              onChange={e => { setBillingView(e.target.value as typeof billingView); }}
             >
               <option value="summary">Summary</option>
               <option value="resource_usage">Resource usage</option>
@@ -1322,7 +1322,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
             ) : renderBillingBody(userBilling, billingError, loading, timePeriod, false)}
           </Panel>
 
-          {(userBilling || compareTimePeriod !== null) && (
+          {(userBilling ?? compareTimePeriod !== null) && (
             <Panel title="Usage">
               {compareTimePeriod !== null ? (
                 <div className="grid grid-cols-2 divide-x divide-zinc-100">
@@ -1404,7 +1404,6 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
       )}
 
       {tab === 'trends' && (
-        <>
           <div className="flex items-center gap-2">
             <label htmlFor="cost-analysis-trends-start" className="text-sm text-zinc-500">From</label>
             <input
@@ -1431,7 +1430,6 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
               {trendsLoading ? 'Loading…' : 'Compare'}
             </button>
           </div>
-        </>
       )}
 
       {tab === 'trends' && (
@@ -1447,7 +1445,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
                 <select
                   className="text-xs border border-zinc-300 rounded px-2 py-1 bg-white text-zinc-600 focus:outline-none focus:ring-2 focus:ring-sky-400"
                   value={cloudView}
-                  onChange={e => setCloudView(e.target.value)}
+                  onChange={e => { setCloudView(e.target.value); }}
                 >
                   <option value="summary">Summary</option>
                   <option value="user_compute">Compute (user-driven)</option>
@@ -1524,7 +1522,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
                 <select
                   className="text-xs border border-zinc-300 rounded px-2 py-1 bg-white text-zinc-600 focus:outline-none focus:ring-2 focus:ring-sky-400"
                   value={billingView}
-                  onChange={e => setBillingView(e.target.value as typeof billingView)}
+                  onChange={e => { setBillingView(e.target.value as typeof billingView); }}
                 >
                   <option value="summary">Summary</option>
                   <option value="resource_usage">Resource usage</option>
@@ -1642,7 +1640,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
                 <select
                   className="text-xs border border-zinc-300 rounded px-2 py-1 bg-white text-zinc-600 focus:outline-none focus:ring-2 focus:ring-sky-400 flex-1 min-w-0"
                   value={scatterX}
-                  onChange={e => setScatterX(e.target.value)}
+                  onChange={e => { setScatterX(e.target.value); }}
                 >
                   {fieldGroups.map(g => (
                     <optgroup key={g.group} label={g.group}>
@@ -1654,7 +1652,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
                 <select
                   className="text-xs border border-zinc-300 rounded px-2 py-1 bg-white text-zinc-600 focus:outline-none focus:ring-2 focus:ring-sky-400 flex-1 min-w-0"
                   value={scatterY}
-                  onChange={e => setScatterY(e.target.value)}
+                  onChange={e => { setScatterY(e.target.value); }}
                 >
                   {fieldGroups.map(g => (
                     <optgroup key={g.group} label={g.group}>

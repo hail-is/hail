@@ -10,7 +10,7 @@ export function Panel({ title, subtitle, collapsible = false, viewSelector, chil
         {collapsible && (
           <button
             type="button"
-            onClick={() => setCollapsed(c => !c)}
+            onClick={() => { setCollapsed(c => !c); }}
             aria-label={collapsed ? 'Expand panel' : 'Collapse panel'}
             className="p-1 rounded hover:bg-zinc-200 text-zinc-400 transition-colors"
           >

@@ -3,7 +3,7 @@ import { useCallback, useState } from 'react';
 export function useLegendToggle(allKeys: readonly string[]) {
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const onLegendClick = useCallback(
-    (e: { dataKey?: string | number | ((obj: unknown) => unknown) }, _index: number, event: { shiftKey: boolean }) => {
+    (e: { dataKey?: string | number | ((_obj: unknown) => unknown) }, _index: number, event: { shiftKey: boolean }) => {
       if (typeof e.dataKey !== 'string') return;
       const key = e.dataKey;
       if (event.shiftKey) {

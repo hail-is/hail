@@ -2,7 +2,7 @@ import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from 'recharts';
 
 export interface PieSlice { name: string; value: number; fill: string }
 
-export function MiniPieChart({ data, size = 'md', format = String }: { data: PieSlice[]; size?: 'sm' | 'md'; format?: (v: number) => string }) {
+export function MiniPieChart({ data, size = 'md', format = String }: { data: PieSlice[]; size?: 'sm' | 'md'; format?: (_v: number) => string }) {
   const height = size === 'sm' ? 110 : 156;
   const innerR = size === 'sm' ? 28 : 42;
   const outerR = size === 'sm' ? 46 : 64;
