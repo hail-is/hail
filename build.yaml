@@ -3421,6 +3421,8 @@ steps:
         to: /io/ci
       - from: /repo/hail/python/dev/pinned-requirements.txt
         to: /io/dev-requirements.txt
+      - from: /repo/build.yaml
+        to: /io/build.yaml
     scopes:
       - test
       - dev
