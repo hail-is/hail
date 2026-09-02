@@ -96,7 +96,7 @@ from ..cloud.resource_utils import (
     memory_to_worker_type,
     valid_machine_types,
 )
-from ..cloud.utils import ACCEPTABLE_QUERY_JAR_URL_PREFIX
+from ..cloud.utils import ACCEPTABLE_QUERY_JAR_URL_PREFIX, SPARK_ARCHIVE_URL_PREFIX
 from ..exceptions import (
     BatchOperationAlreadyCompletedError,
     BatchUserError,
@@ -110,6 +110,7 @@ from ..exceptions import (
 from ..file_store import FileStore
 from ..globals import (
     BATCH_FORMAT_VERSION,
+    DEFAULT_SPARK_VERSION,
     HTTP_CLIENT_MAX_SIZE,
     RESERVED_STORAGE_GB_PER_CORE,
     complete_states,
@@ -1311,6 +1312,10 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
                 jar_url = spec['process']['jar_spec']['value']
                 if not jar_url.startswith(ACCEPTABLE_QUERY_JAR_URL_PREFIX):
                     raise web.HTTPBadRequest(reason=f'unacceptable JAR url: {jar_url}')
+
+            spark_version = spec['process'].setdefault('spark_version', DEFAULT_SPARK_VERSION)
+            if not await app[AppKeys.SPARK_ARCHIVE_EXISTENCE_CACHE].lookup(spark_version):
+                raise web.HTTPBadRequest(reason=f'no spark jars archive exists for spark version {spark_version}')
 
         req_memory_bytes: Optional[int]
         if machine_type is None:
@@ -3835,6 +3840,7 @@ class BatchFrontEndAccessLogger(AccessLogger):
 
 class AppKeys(CommonAiohttpAppKeys):
     QOB_JAR_RESOLUTION_CACHE = web.AppKey('qob_jar_resolution_cache', TimeLimitedMaxSizeCache[Tuple[str, str], str])
+    SPARK_ARCHIVE_EXISTENCE_CACHE = web.AppKey('spark_archive_existence_cache', TimeLimitedMaxSizeCache[str, bool])
 
 
 async def on_startup(app):
@@ -3921,6 +3927,13 @@ SELECT instance_id, n_tokens, frozen FROM globals;
 
     app[AppKeys.QOB_JAR_RESOLUTION_CACHE] = TimeLimitedMaxSizeCache(
         resolve_qob_jar_url, int(1e10), 100, AppKeys.QOB_JAR_RESOLUTION_CACHE._name
+    )
+
+    async def spark_archive_exists(spark_version: str) -> bool:
+        return await fs.exists(SPARK_ARCHIVE_URL_PREFIX + '/spark-' + spark_version + '.tar.gz')
+
+    app[AppKeys.SPARK_ARCHIVE_EXISTENCE_CACHE] = TimeLimitedMaxSizeCache(
+        spark_archive_exists, int(1e10), 100, AppKeys.SPARK_ARCHIVE_EXISTENCE_CACHE._name
     )
 
     app['task_manager'].ensure_future(periodically_call(5, _refresh, app))

@@ -226,7 +226,7 @@ pytest-inter-cloud: upload-remote-test-resources install-editable
 
 # NOTE: Look at upload-remote-test-resources target if test resources are missing
 .PHONY: pytest-qob
-pytest-qob: upload-qob-jar upload-remote-test-resources install-editable
+pytest-qob: upload-qob-jar upload-spark-$(SPARK_VERSION)-jars upload-remote-test-resources install-editable
 	! [ -z $(NAMESPACE) ]  # call this like: make pytest-qob NAMESPACE=default
 	cd python && \
           HAIL_TEST_STORAGE_URI=$(TEST_STORAGE_URI) \
@@ -369,7 +369,15 @@ upload-remote-test-resources: $(shell git ls-files python/hail/docs/data)
 # > rm upload-qob-jar
 upload-qob-jar: $(SHADOW_JAR)
 	! [ -z $(NAMESPACE) ]  # call this like: make upload-qob-jar NAMESPACE=default
-	bash ./scripts/upload_qob_jar.sh $(NAMESPACE) $(REVISION) $(SHADOW_JAR) $@
+	bash ./scripts/upload-qob-jar.sh $(NAMESPACE) $(REVISION) $(SHADOW_JAR) > $@
+
+# uploads an archive of the spark jars that jvm jobs run against to the
+# namespace's jar prefix, e.g. make upload-spark-4.1.2-jars NAMESPACE=default.
+# the batch worker downloads and extracts the archive on demand.
+# the upload script is a no-op when the archive already exists.
+upload-spark-%-jars: FORCE
+	! [ -z $(NAMESPACE) ]  # call this like: make upload-spark-4.1.2-jars NAMESPACE=default
+	bash ./scripts/upload-spark-jars.sh $(NAMESPACE) $*
 
 # if the installation of Hail has changed, i.e. you pip-installed a non-development version of Hail,
 # this file will be newer than "install-editable"
@@ -387,7 +395,7 @@ install-editable: $(FAST_PYTHON_JAR) $(FAST_PYTHON_JAR_EXTRA_CLASSPATH)
 	touch install-editable
 
 .PHONY: install-for-qob
-install-for-qob: upload-qob-jar install-editable
+install-for-qob: upload-qob-jar upload-spark-$(SPARK_VERSION)-jars install-editable
 	! [ -z $(NAMESPACE) ]  # call this like: make install-for-qob NAMESPACE=default
 	hailctl config set query/backend batch
 	hailctl dev config set default_namespace $(NAMESPACE)
