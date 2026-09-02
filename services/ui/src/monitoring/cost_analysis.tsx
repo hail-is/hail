@@ -1,5 +1,14 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, ScatterChart, Scatter, ZAxis } from 'recharts';
+import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, ScatterChart, Scatter, ZAxis } from 'recharts';
+import { fmt, fmtDelta, pct, makeYDollarFormatter } from '../shared/format';
+import { computeStats, computeRegression, RegressionResult, toPctRows } from '../shared/statsUtils';
+import { useLegendToggle } from '../shared/useLegendToggle';
+import { Panel } from '../shared/Panel';
+import { CostRow, RatioRow } from '../shared/CostRow';
+import { ChartTooltip, SeriesStats } from '../shared/ChartTooltip';
+import { ToggleSwitch, StatsDisplay, RegressionStatsDisplay, statsReferenceLines } from '../shared/StatsDisplay';
+import { MiniPieChart, PieSlice } from '../shared/MiniPieChart';
+import { PresetChips, ScatterPresetChips } from '../shared/PresetChips';
 
 // --- Types ---
 
@@ -100,32 +109,8 @@ function parseCostStr(s: string): number {
   return parseFloat(s.replace(/[$,]/g, '')) || 0;
 }
 
-function fmt(dollars: number): string {
-  return dollars.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
-}
-
-function fmtDelta(delta: number, base: number): string {
-  const sign = delta >= 0 ? '+' : '−';
-  const absFmt = fmt(Math.abs(delta));
-  if (base === 0 || !isFinite(base / delta)) return `${sign}${absFmt}`;
-  const pctVal = Math.abs(delta / base) * 100;
-  const pctStr = pctVal < 10 ? pctVal.toFixed(1) : Math.round(pctVal).toString();
-  return `${sign}${absFmt} / ${sign}${pctStr}%`;
-}
-
-function makeYDollarFormatter(domainMax: number): (v: number) => string {
-  if (domainMax < 1000) return v => `$${Math.round(v)}`;
-  if (domainMax < 10000) return v => `$${(v / 1000).toFixed(1)}k`;
-  return v => `$${(v / 1000).toFixed(0)}k`;
-}
-
 function fmtCoreHours(v: number): string {
   return Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(1)}k` : `${Math.round(v)}`;
-}
-
-function pct(numerator: number, denominator: number): string {
-  if (denominator === 0) return '—';
-  return `${((numerator / denominator) * 100).toFixed(1)}%`;
 }
 
 function shiftMonthParam(param: string, delta: number): string {
@@ -375,306 +360,6 @@ function CustomRatioPicker({ fieldGroups, num, den, onNumChange, onDenChange }: 
   );
 }
 
-interface PanelProps { title: string; subtitle?: string; collapsible?: boolean; viewSelector?: React.ReactNode; children: React.ReactNode }
-function Panel({ title, subtitle, collapsible = false, viewSelector, children }: PanelProps) {
-  const [collapsed, setCollapsed] = useState(false);
-  return (
-    <div className="bg-white rounded-lg border border-zinc-200 shadow-sm overflow-hidden">
-      <div className={`px-5 py-4 bg-zinc-50 flex items-center gap-2 ${!collapsed ? 'border-b border-zinc-200' : ''}`}>
-        {collapsible && (
-          <button onClick={() => setCollapsed(c => !c)} className="p-1 rounded hover:bg-zinc-200 text-zinc-400 transition-colors">
-            <svg className={`w-4 h-4 transition-transform ${collapsed ? '' : 'rotate-90'}`} viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M7.293 4.293a1 1 0 011.414 0l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L11.586 10 7.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-            </svg>
-          </button>
-        )}
-        <div className="flex-1">
-          <h2 className="text-base font-semibold text-zinc-800">{title}</h2>
-          {subtitle && <p className="text-xs text-zinc-500 mt-0.5">{subtitle}</p>}
-        </div>
-        {viewSelector && <div onClick={e => e.stopPropagation()}>{viewSelector}</div>}
-      </div>
-      {!collapsed && <div className="px-5 py-3">{children}</div>}
-    </div>
-  );
-}
-
-interface CostRowProps { label: string; value: number; pctStr?: string; indent?: boolean; bold?: boolean; colorClass?: string; delta?: number }
-function CostRow({ label, value, pctStr, indent = false, bold = false, colorClass, delta }: CostRowProps) {
-  return (
-    <div className={`flex items-center py-2 border-b border-zinc-100 last:border-0 ${indent ? 'pl-6' : ''}`}>
-      <span className={`flex-1 min-w-0 text-zinc-700 ${bold ? 'font-semibold' : ''}`}>{label}</span>
-      <span className="shrink-0 w-16 text-right tabular-nums text-zinc-400 text-sm">{pctStr ?? ''}</span>
-      <span className={`shrink-0 w-28 text-right tabular-nums ${bold ? 'font-semibold' : ''} ${colorClass ?? ''}`}>{fmt(value)}</span>
-      {delta !== undefined && (
-        <span className={`shrink-0 w-40 text-right tabular-nums text-zinc-400 text-sm ${bold ? 'font-semibold' : ''}`}>{fmtDelta(delta, value - delta)}</span>
-      )}
-    </div>
-  );
-}
-
-function RatioRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex justify-between py-2 border-b border-zinc-100 last:border-0">
-      <span className="text-zinc-700">{label}</span>
-      <span className="tabular-nums text-zinc-600">{value}</span>
-    </div>
-  );
-}
-
-type SeriesStats = Record<string, { mean: number; std: number } | null>;
-interface ChartTooltipProps {
-  active?: boolean;
-  payload?: readonly { name?: string | number; value?: number | string | readonly (number | string)[]; dataKey?: string | number | ((obj: unknown) => unknown); color?: string; fill?: string }[];
-  label?: string | number;
-  stats: { mean: number; std: number } | null;
-  seriesStats?: SeriesStats;
-  format: (v: number) => string;
-  stacked?: boolean;
-  threshold?: number;
-}
-function ChartTooltip({ active, payload, label, stats, seriesStats, format, stacked = false, threshold }: ChartTooltipProps) {
-  if (!active || !payload?.length) return null;
-  const numVal = (v?: number | string | readonly (number | string)[]) => typeof v === 'number' ? v : 0;
-  const sigmaStr = (v: number, s: { mean: number; std: number } | null | undefined) => {
-    if (!s || s.std === 0) return null;
-    const z = (v - s.mean) / s.std;
-    return `μ${z >= 0 ? '+' : '−'}${Math.abs(z).toFixed(1)}σ`;
-  };
-  const sorted = [...payload].sort((a, b) => numVal(b.value) - numVal(a.value));
-  const visible = threshold !== undefined ? sorted.filter(p => numVal(p.value) >= threshold) : sorted;
-  const otherTotal = threshold !== undefined ? sorted.filter(p => numVal(p.value) < threshold).reduce((s, p) => s + numVal(p.value), 0) : 0;
-  const total = payload.reduce((s, p) => s + numVal(p.value), 0);
-  const totalSigma = stacked && payload.length > 1 ? sigmaStr(total, stats) : null;
-  return (
-    <div className="bg-white border border-zinc-200 rounded shadow-lg px-3 py-2 text-sm min-w-max">
-      <p className="font-medium text-zinc-700 mb-1">{label}</p>
-      {visible.map((p, i) => {
-        const val = numVal(p.value);
-        const key = typeof p.dataKey === 'string' ? p.dataKey : undefined;
-        const sg = sigmaStr(val, key && seriesStats ? seriesStats[key] : (payload.length === 1 ? stats : null));
-        return (
-          <div key={i} className="flex items-center gap-3 text-xs py-0.5">
-            <span className="flex items-center gap-1 text-zinc-600 flex-1">
-              <span style={{ color: p.fill ?? p.color }}>■</span>
-              {p.name ?? ''}
-            </span>
-            <span className="tabular-nums font-medium text-zinc-800">{format(val)}</span>
-            <span className="tabular-nums text-indigo-400 w-16 text-right">{sg ?? ''}</span>
-          </div>
-        );
-      })}
-      {threshold !== undefined && otherTotal > 0 && (
-        <div className="flex items-center gap-3 text-xs py-0.5">
-          <span className="flex items-center gap-1 text-zinc-400 flex-1">
-            <span>■</span>
-            (Other)
-          </span>
-          <span className="tabular-nums font-medium text-zinc-800">{format(otherTotal)}</span>
-          <span className="tabular-nums text-indigo-400 w-16 text-right" />
-        </div>
-      )}
-      {stacked && payload.length > 1 && (
-        <div className="flex items-center gap-3 text-xs pt-1 mt-0.5 border-t border-zinc-100">
-          <span className="text-zinc-500 font-medium flex-1">Total</span>
-          <span className="tabular-nums font-medium text-zinc-800">{format(total)}</span>
-          <span className="tabular-nums text-indigo-400 w-16 text-right">{totalSigma ?? ''}</span>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function StatLabel({ label, tooltip }: { label: string; tooltip: string }) {
-  return (
-    <span title={tooltip} className="cursor-help underline decoration-dotted decoration-zinc-400">
-      {label}
-    </span>
-  );
-}
-
-function ToggleSwitch({ checked, onChange, label = '% of total' }: { checked: boolean; onChange: (v: boolean) => void; label?: string }) {
-  return (
-    <label className="flex items-center gap-1.5 cursor-pointer select-none" onClick={() => onChange(!checked)}>
-      <div className={`relative w-8 h-4 rounded-full transition-colors ${checked ? 'bg-sky-500' : 'bg-zinc-300'}`}>
-        <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-4' : 'translate-x-0.5'}`} />
-      </div>
-      <span className="text-xs text-zinc-600">{label}</span>
-    </label>
-  );
-}
-
-function StatsDisplay({ stats, format }: { stats: { mean: number; std: number } | null; format: (v: number) => string }) {
-  if (!stats) return null;
-  const { mean, std } = stats;
-  const cv = mean !== 0 ? (std / mean) * 100 : null;
-  return (
-    <div className="flex gap-6 mt-2 pt-2 border-t border-zinc-100 text-xs tabular-nums text-zinc-500">
-      <span>
-        <StatLabel label="mean (μ)" tooltip="Average value across all months shown." />
-        {' '}<span className="text-zinc-700 font-medium">{format(mean)}</span>
-      </span>
-      <span>
-        <StatLabel label="std dev (σ)" tooltip="Standard deviation — how much individual months typically deviate from the mean. A higher value means more month-to-month variability." />
-        {' '}<span className="text-zinc-700 font-medium">{format(std)}</span>
-      </span>
-      {cv !== null && (
-        <span>
-          <StatLabel label="CV" tooltip="Coefficient of Variation (σ ÷ μ × 100) — relative variability as a percentage of the mean. Useful for comparing volatility across metrics of different scales. Under ~15% is generally stable; over ~30% suggests high variability." />
-          {' '}<span className="text-zinc-700 font-medium">{cv.toFixed(1)}%</span>
-        </span>
-      )}
-    </div>
-  );
-}
-
-// --- Stats helpers ---
-
-function computeStats(values: number[]): { mean: number; std: number } | null {
-  if (values.length === 0) return null;
-  const mean = values.reduce((a, b) => a + b, 0) / values.length;
-  const std = Math.sqrt(values.reduce((a, b) => a + (b - mean) ** 2, 0) / values.length);
-  return { mean, std };
-}
-
-interface RegressionResult { slope: number; intercept: number; r2: number }
-
-function computeRegression(points: { x: number; y: number }[]): RegressionResult | null {
-  const n = points.length;
-  if (n < 2) return null;
-  const sumX = points.reduce((s, p) => s + p.x, 0);
-  const sumY = points.reduce((s, p) => s + p.y, 0);
-  const sumXY = points.reduce((s, p) => s + p.x * p.y, 0);
-  const sumX2 = points.reduce((s, p) => s + p.x * p.x, 0);
-  const denom = n * sumX2 - sumX * sumX;
-  if (denom === 0) return null;
-  const slope = (n * sumXY - sumX * sumY) / denom;
-  const intercept = (sumY - slope * sumX) / n;
-  const meanY = sumY / n;
-  const ssTot = points.reduce((s, p) => s + (p.y - meanY) ** 2, 0);
-  const ssRes = points.reduce((s, p) => s + (p.y - (slope * p.x + intercept)) ** 2, 0);
-  const r2 = ssTot === 0 ? 1 : 1 - ssRes / ssTot;
-  return { slope, intercept, r2 };
-}
-
-function RegressionStatsDisplay({ reg, xLabel, yLabel, fmtX, fmtY }: {
-  reg: RegressionResult | null;
-  xLabel: string; yLabel: string;
-  fmtX: (v: number) => string; fmtY: (v: number) => string;
-}) {
-  if (!reg) return null;
-  const slopeTooltip = `For every 1-unit increase in ${xLabel}, ${yLabel} changes by this amount on average.`;
-  const yInterceptTooltip = `Predicted value of ${yLabel} when ${xLabel} is zero.`;
-  const xIntercept = reg.slope !== 0 ? -reg.intercept / reg.slope : null;
-  const xInterceptTooltip = `Value of ${xLabel} at which the regression line predicts ${yLabel} reaches zero.`;
-  const r2Tooltip = 'R² (coefficient of determination) — how well the regression line fits the data. 1.0 = perfect fit; 0 = no linear relationship.';
-  return (
-    <div className="flex gap-6 mt-2 pt-2 border-t border-zinc-100 text-xs tabular-nums text-zinc-500">
-      <span>
-        <StatLabel label="slope" tooltip={slopeTooltip} />
-        {' '}<span className="text-zinc-700 font-medium">{fmtY(reg.slope)}/{fmtX(1).replace('$', '')}</span>
-      </span>
-      <span>
-        <StatLabel label="y-intercept" tooltip={yInterceptTooltip} />
-        {' '}<span className="text-zinc-700 font-medium">{fmtY(reg.intercept)}</span>
-      </span>
-      {xIntercept !== null && (
-        <span>
-          <StatLabel label="x-intercept" tooltip={xInterceptTooltip} />
-          {' '}<span className="text-zinc-700 font-medium">{fmtX(xIntercept)}</span>
-        </span>
-      )}
-      <span>
-        <StatLabel label="R²" tooltip={r2Tooltip} />
-        {' '}<span className="text-zinc-700 font-medium">{reg.r2.toFixed(3)}</span>
-      </span>
-    </div>
-  );
-}
-
-function statsReferenceLines(stats: { mean: number; std: number } | null, yMin: number, yMax: number) {
-  if (!stats) return null;
-  const { mean, std } = stats;
-  return [
-    { y: mean - 2 * std, label: 'μ−2σ', solid: false, alpha: 0.35 },
-    { y: mean - std,     label: 'μ−σ',  solid: false, alpha: 0.55 },
-    { y: mean,           label: 'μ',    solid: true,  alpha: 0.8  },
-    { y: mean + std,     label: 'μ+σ',  solid: false, alpha: 0.55 },
-    { y: mean + 2 * std, label: 'μ+2σ', solid: false, alpha: 0.35 },
-  ]
-    .filter(e => e.y >= yMin && e.y <= yMax)
-    .map(e => (
-      <ReferenceLine
-        key={e.label}
-        y={e.y}
-        stroke="#818cf8"
-        strokeOpacity={e.alpha}
-        strokeWidth={e.solid ? 1.5 : 1}
-        strokeDasharray={e.solid ? undefined : '4 3'}
-        label={{ value: e.label, position: 'insideTopRight', fontSize: 9, fill: '#818cf8', fillOpacity: e.alpha }}
-      />
-    ));
-}
-
-function toPctRows<T extends Record<string, unknown>>(rows: T[], keys: string[]): T[] {
-  return rows.map(row => {
-    const total = keys.reduce((s, k) => s + (typeof row[k] === 'number' ? (row[k] as number) : 0), 0);
-    if (total === 0) return row;
-    const result = { ...row } as Record<string, unknown>;
-    for (const k of keys) {
-      if (typeof result[k] === 'number') result[k] = ((result[k] as number) / total) * 100;
-    }
-    return result as T;
-  });
-}
-
-interface PieSlice { name: string; value: number; fill: string }
-function MiniPieChart({ data, size = 'md' }: { data: PieSlice[]; size?: 'sm' | 'md' }) {
-  const height = size === 'sm' ? 110 : 156;
-  const innerR = size === 'sm' ? 28 : 42;
-  const outerR = size === 'sm' ? 46 : 64;
-  return (
-    <ResponsiveContainer width="100%" height={height}>
-      <PieChart>
-        <Pie data={data} cx="50%" cy="50%" innerRadius={innerR} outerRadius={outerR} dataKey="value" paddingAngle={2}>
-          {data.map((d, i) => <Cell key={i} fill={d.fill} />)}
-        </Pie>
-        <Tooltip formatter={(v) => typeof v === 'number' ? fmt(v) : ''} />
-      </PieChart>
-    </ResponsiveContainer>
-  );
-}
-
-// --- Legend toggle hook ---
-
-function useLegendToggle(allKeys: readonly string[]) {
-  const [hidden, setHidden] = useState<Set<string>>(new Set());
-  const onLegendClick = useCallback(
-    (e: { dataKey?: string | number | ((obj: unknown) => unknown) }, _index: number, event: { shiftKey: boolean }) => {
-      if (typeof e.dataKey !== 'string') return;
-      const key = e.dataKey;
-      if (event.shiftKey) {
-        // shift-click: toggle this series on/off
-        setHidden(prev => {
-          const next = new Set(prev);
-          if (next.has(key)) next.delete(key); else next.add(key);
-          return next;
-        });
-      } else {
-        // click: solo this series (or restore all if already soloed)
-        setHidden(prev => {
-          const visible = allKeys.filter(k => !prev.has(k));
-          const isSolo = visible.length === 1 && visible[0] === key;
-          return isSolo ? new Set() : new Set(allKeys.filter(k => k !== key));
-        });
-      }
-    },
-    [allKeys]
-  );
-  const isHidden = (key: string) => hidden.has(key);
-  return { onLegendClick, isHidden, setHidden };
-}
-
 // --- Preset quick-links ---
 
 const RATIO_PRESETS: { label: string; num: string; den: string }[] = [
@@ -692,52 +377,6 @@ const SCATTER_PRESETS: { label: string; x: string; y: string }[] = [
   { label: 'Cloud total vs User billing',      x: 'cloud/total',        y: 'billing/total' },
   { label: 'Compute (user-driven) vs Margin %',         x: 'cloud/user_compute', y: 'margin/margin_pct' },
 ];
-
-function PresetChips({ presets, activeNum, activeDen, onSelect }: {
-  presets: { label: string; num: string; den: string }[];
-  activeNum: string; activeDen: string;
-  onSelect: (num: string, den: string) => void;
-}) {
-  return (
-    <div className="flex flex-wrap gap-1.5 py-2">
-      {presets.map(p => {
-        const active = p.num === activeNum && p.den === activeDen;
-        return (
-          <button
-            key={p.label}
-            onClick={() => onSelect(p.num, p.den)}
-            className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${active ? 'bg-sky-500 border-sky-500 text-white' : 'border-zinc-300 text-zinc-500 hover:border-sky-400 hover:text-sky-600 bg-white'}`}
-          >
-            {p.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-function ScatterPresetChips({ presets, activeX, activeY, onSelect }: {
-  presets: { label: string; x: string; y: string }[];
-  activeX: string; activeY: string;
-  onSelect: (x: string, y: string) => void;
-}) {
-  return (
-    <div className="flex flex-wrap gap-1.5 py-2">
-      {presets.map(p => {
-        const active = p.x === activeX && p.y === activeY;
-        return (
-          <button
-            key={p.label}
-            onClick={() => onSelect(p.x, p.y)}
-            className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${active ? 'bg-sky-500 border-sky-500 text-white' : 'border-zinc-300 text-zinc-500 hover:border-sky-400 hover:text-sky-600 bg-white'}`}
-          >
-            {p.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
 
 // --- Main component ---
 
@@ -983,24 +622,10 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
     if (overheadServices.includes(cloudView)) return overheadSkusByService[cloudView] ?? [];
     return [...overheadServices];
   }, [cloudView, overheadServices, overheadSkusByService]);
-  const [overheadHidden, setOverheadHidden] = useState<Set<string>>(new Set());
-  const onOverheadLegendClick = useCallback(
-    (e: { dataKey?: string | number | ((obj: unknown) => unknown) }, _index: number, event: { shiftKey: boolean }) => {
-      if (typeof e.dataKey !== 'string') return;
-      const key = e.dataKey;
-      if (event.shiftKey) {
-        setOverheadHidden(prev => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next; });
-      } else {
-        setOverheadHidden(prev => {
-          const visible = overheadAllKeys.filter(k => !prev.has(k));
-          const isSolo = visible.length === 1 && visible[0] === key;
-          return isSolo ? new Set() : new Set(overheadAllKeys.filter(k => k !== key));
-        });
-      }
-    },
-    [overheadAllKeys]
-  );
-  const isOverheadHidden = (key: string) => overheadHidden.has(key);
+  const overheadToggle = useLegendToggle(overheadAllKeys);
+  const onOverheadLegendClick = overheadToggle.onLegendClick;
+  const isOverheadHidden = overheadToggle.isHidden;
+  const setOverheadHidden = overheadToggle.setHidden;
 
   const onSummaryCloudLegendClick = useCallback(
     (e: { dataKey?: string | number | ((obj: unknown) => unknown) }, index: number, event: { shiftKey: boolean }) => {
@@ -1040,47 +665,17 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
     () => [...billingProjects, ...(billingProjectsHasOther ? ['(Other)'] : [])],
     [billingProjects, billingProjectsHasOther]
   );
-  const [billingProjectHidden, setBillingProjectHidden] = useState<Set<string>>(new Set());
-  const onBillingProjectLegendClick = useCallback(
-    (e: { dataKey?: string | number | ((obj: unknown) => unknown) }, _index: number, event: { shiftKey: boolean }) => {
-      if (typeof e.dataKey !== 'string') return;
-      const key = e.dataKey;
-      if (event.shiftKey) {
-        setBillingProjectHidden(prev => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next; });
-      } else {
-        setBillingProjectHidden(prev => {
-          const visible = billingProjectAllKeys.filter(k => !prev.has(k));
-          const isSolo = visible.length === 1 && visible[0] === key;
-          return isSolo ? new Set() : new Set(billingProjectAllKeys.filter(k => k !== key));
-        });
-      }
-    },
-    [billingProjectAllKeys]
-  );
-  const isBillingProjectHidden = (key: string) => billingProjectHidden.has(key);
+  const billingProjectToggle = useLegendToggle(billingProjectAllKeys);
+  const onBillingProjectLegendClick = billingProjectToggle.onLegendClick;
+  const isBillingProjectHidden = billingProjectToggle.isHidden;
 
   const billingResourceAllKeys = useMemo(
     () => [...billingResources, ...(billingResourcesHasOther ? ['(Other)'] : [])],
     [billingResources, billingResourcesHasOther]
   );
-  const [billingResourceHidden, setBillingResourceHidden] = useState<Set<string>>(new Set());
-  const onBillingResourceLegendClick = useCallback(
-    (e: { dataKey?: string | number | ((obj: unknown) => unknown) }, _index: number, event: { shiftKey: boolean }) => {
-      if (typeof e.dataKey !== 'string') return;
-      const key = e.dataKey;
-      if (event.shiftKey) {
-        setBillingResourceHidden(prev => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next; });
-      } else {
-        setBillingResourceHidden(prev => {
-          const visible = billingResourceAllKeys.filter(k => !prev.has(k));
-          const isSolo = visible.length === 1 && visible[0] === key;
-          return isSolo ? new Set() : new Set(billingResourceAllKeys.filter(k => k !== key));
-        });
-      }
-    },
-    [billingResourceAllKeys]
-  );
-  const isBillingResourceHidden = (key: string) => billingResourceHidden.has(key);
+  const billingResourceToggle = useLegendToggle(billingResourceAllKeys);
+  const onBillingResourceLegendClick = billingResourceToggle.onLegendClick;
+  const isBillingResourceHidden = billingResourceToggle.isHidden;
 
   const USER_COMPUTE_PALETTE = ['#0ea5e9', '#38bdf8', '#7dd3fc', '#bae6fd', '#0284c7', '#0369a1', '#075985', '#0c4a6e', '#22d3ee', '#06b6d4'];
   const userComputeProductColor = (p: string) => p === '(Other)' ? '#9ca3af' : USER_COMPUTE_PALETTE[userComputeProducts.indexOf(p) % USER_COMPUTE_PALETTE.length];
@@ -1090,24 +685,9 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
     () => [...userComputeProducts, ...(userComputeHasOther ? ['(Other)'] : [])],
     [userComputeProducts, userComputeHasOther]
   );
-  const [userComputeHidden, setUserComputeHidden] = useState<Set<string>>(new Set());
-  const onUserComputeLegendClick = useCallback(
-    (e: { dataKey?: string | number | ((obj: unknown) => unknown) }, _index: number, event: { shiftKey: boolean }) => {
-      if (typeof e.dataKey !== 'string') return;
-      const key = e.dataKey;
-      if (event.shiftKey) {
-        setUserComputeHidden(prev => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next; });
-      } else {
-        setUserComputeHidden(prev => {
-          const visible = userComputeAllKeys.filter(k => !prev.has(k));
-          const isSolo = visible.length === 1 && visible[0] === key;
-          return isSolo ? new Set() : new Set(userComputeAllKeys.filter(k => k !== key));
-        });
-      }
-    },
-    [userComputeAllKeys]
-  );
-  const isUserComputeHidden = (key: string) => userComputeHidden.has(key);
+  const userComputeToggle = useLegendToggle(userComputeAllKeys);
+  const onUserComputeLegendClick = userComputeToggle.onLegendClick;
+  const isUserComputeHidden = userComputeToggle.isHidden;
 
   const cloudYMax = Math.max(
     0,
