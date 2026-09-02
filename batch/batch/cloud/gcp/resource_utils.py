@@ -1,6 +1,6 @@
 import logging
 import math
-from typing import Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 log = logging.getLogger('utils')
 
@@ -15,6 +15,9 @@ MEMORY_PER_CORE_MIB = {
     ('n2', 'standard'): 4096,
     ('n2', 'highmem'): 8192,
     ('n2', 'highcpu'): 1024,
+    ('n4', 'standard'): 4096,
+    ('n4', 'highmem'): 8192,
+    ('n4', 'highcpu'): 2048,
 }
 
 
@@ -158,6 +161,44 @@ n2_highcpu_machines = {
     for cores in [2, 4, 8, 16, 32, 48, 64, 80, 96]
 }
 
+# N4 machines cores: 2, 4, 8, 16, 32, 48, 64, 80
+
+# N4 Standard mem: 4 * cores GiB
+n4_standard_machines = {
+    f'n4-standard-{cores}': MachineTypeParts(
+        cores=cores,
+        memory=gib_to_bytes(4 * cores),
+        gpu_config=None,
+        machine_family='n4',
+        worker_type='standard',
+    )
+    for cores in [2, 4, 8, 16, 32, 48, 64, 80]
+}
+
+# N4 Highmem mem: 8 * cores GiB
+n4_highmem_machines = {
+    f'n4-highmem-{cores}': MachineTypeParts(
+        cores=cores,
+        memory=gib_to_bytes(8 * cores),
+        gpu_config=None,
+        machine_family='n4',
+        worker_type='highmem',
+    )
+    for cores in [2, 4, 8, 16, 32, 48, 64, 80]
+}
+
+# N4 Highcpu mem: 2 * cores GiB
+n4_highcpu_machines = {
+    f'n4-highcpu-{cores}': MachineTypeParts(
+        cores=cores,
+        memory=gib_to_bytes(2 * cores),
+        gpu_config=None,
+        machine_family='n4',
+        worker_type='highcpu',
+    )
+    for cores in [2, 4, 8, 16, 32, 48, 64, 80]
+}
+
 MACHINE_TYPE_TO_PARTS = {
     **n1_standard_t4_machines,
     **n1_highmem_t4_machines,
@@ -168,6 +209,9 @@ MACHINE_TYPE_TO_PARTS = {
     **n2_standard_machines,
     **n2_highmem_machines,
     **n2_highcpu_machines,
+    **n4_standard_machines,
+    **n4_highmem_machines,
+    **n4_highcpu_machines,
     'n2-highmem-128': MachineTypeParts(
         cores=128,
         memory=gib_to_bytes(864),
@@ -367,7 +411,63 @@ N2_MIN_LOCAL_SSD_COUNT_BY_CORES = {
 }
 
 
+# N4 has no Persistent Disk or Local SSD support at all — it is Hyperdisk-only.
+# https://docs.cloud.google.com/compute/docs/general-purpose-machines#n4-standard_1
+def gcp_boot_disk_type(machine_family: str) -> str:
+    if machine_family == 'n4':
+        return 'hyperdisk-balanced'
+    return 'pd-ssd'
+
+
+def gcp_data_disk_type(machine_family: str) -> str:
+    if machine_family == 'n4':
+        return 'hyperdisk-balanced'
+    return 'pd-ssd'
+
+
+def gcp_data_disk_device_name(machine_family: str, machine_type: str) -> str:
+    # Hyperdisk (n4) is NVMe-attached, like g2's local NVMe SSD, rather than the SCSI 'sdb'
+    # device used by classic Persistent Disk.
+    if machine_family == 'n4' or 'g2' in machine_type:
+        return 'nvme0n2'
+    return 'sdb'
+
+
+# The first 3,000 provisioned IOPS and 140 MiB/s of provisioned throughput on a Hyperdisk Balanced
+# volume are free; GCE bills a monthly rate for anything provisioned above these baselines.
+# https://docs.cloud.google.com/compute/docs/disks/hd-types/hyperdisk-balanced (see "Hyperdisk
+# Balanced pricing" / "baseline performance").
+#
+# If a Hyperdisk Balanced disk is created *without* explicitly setting provisionedIops/
+# provisionedThroughput, Compute Engine does not default to these free baselines -- it assigns a
+# size-scaled default that exceeds them for any disk over 6 GiB:
+#   default IOPS        = 6 * size_gib + 3000            (for 6 GiB < size <= 26.667 TiB)
+#   default throughput   = min(2400, 1.5 * size_gib + 140) MiB/s
+# (formulas from the same doc, "Hyperdisk Balanced performance limits"; verified empirically
+# against a live 10 GiB n4 boot disk, which GCP auto-provisioned at 3060 IOPS / 155 MiB/s --
+# exactly 6*10+3000 and min(2400, 1.5*10+140) -- and was billed for the small excess over the
+# 3000/140 baseline). 3,000/140 are also the documented minimums for volumes >= 6 GiB, so pinning
+# to exactly these values keeps every Hyperdisk Balanced disk at $0 IOPS/throughput surcharge
+# without violating GCE's minimum-provisioning requirement.
+GCP_HYPERDISK_BALANCED_FREE_IOPS = 3000
+GCP_HYPERDISK_BALANCED_FREE_THROUGHPUT_MIB_PER_SEC = 140
+
+
+def gcp_hyperdisk_performance_overrides(disk_type: str) -> Dict[str, str]:
+    """Extra `disks[].initializeParams` fields to pin a Hyperdisk-family disk at GCP's free
+    provisioned-IOPS/throughput baseline, to avoid an unintended billing surcharge (see
+    GCP_HYPERDISK_BALANCED_FREE_IOPS above). Returns {} for non-Hyperdisk disk types, since
+    provisionedIops/provisionedThroughput are rejected by the API for e.g. pd-ssd."""
+    if disk_type == 'hyperdisk-balanced':
+        return {
+            'provisionedIops': str(GCP_HYPERDISK_BALANCED_FREE_IOPS),
+            'provisionedThroughput': str(GCP_HYPERDISK_BALANCED_FREE_THROUGHPUT_MIB_PER_SEC),
+        }
+    return {}
+
+
 def gcp_local_ssd_count(machine_family: str, cores: int) -> int:
+    assert machine_family != 'n4', machine_family  # n4 supports zero local SSDs; never fall through to `return 1`
     if machine_family != 'n2':
         return 1
     count = N2_MIN_LOCAL_SSD_COUNT_BY_CORES.get(cores)
