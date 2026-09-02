@@ -48,10 +48,10 @@ Importantly, to shut down a cluster when you are done with it:
 Choosing an EMR release
 -----------------------
 
-Hail requires Spark 3.5.x. The default release, ``emr-7.3.0``, provides Spark 3.5.3, which matches
-the Spark version Hail is built against. If you pass a ``--release-label`` that ships a different
-Spark minor version, ``hailctl emr start`` refuses to start the cluster; an unrecognized label
-produces a warning.
+Hail requires Spark 3.5.x. The tested default release, ``emr-7.3.0``, provides
+Spark 3.5.1-amzn-1. Hail is built against Spark 3.5.3, and patch differences within the 3.5.x
+line are allowed. If the final request uses a release that ships a different Spark minor version,
+``hailctl emr start`` refuses to start the cluster; an unrecognized label produces a warning.
 
 Hail also requires a supported version of Python. EMR 7.x runs Amazon Linux 2023, whose default
 ``python3`` is 3.9 — too old for Hail. Amazon Linux 2023 packages Python 3.12 in its ``dnf``
@@ -63,13 +63,19 @@ Advanced cluster options
 
 ``hailctl emr start`` exposes common options directly (instance types and counts, ``--ec2-key-name``,
 ``--subnet-id``, custom IAM roles). For any other EMR ``RunJobFlow`` setting, pass a JSON object with
-``--run-job-flow-json``; it is deep-merged into the request, so you can set spot instance fleets,
-extra applications, tags, and so on:
+``--run-job-flow-json``. Nested objects are deep-merged and list-valued fields are replaced. An
+``InstanceFleets`` overlay replaces the default ``InstanceGroups``. If you replace ``Applications``,
+the final list must still include Spark. For example, to set tags:
 
 .. code-block:: text
 
     hailctl emr start CLUSTER_NAME --s3-scratch s3://my-bucket/hail-tmp/ \
         --run-job-flow-json '{"Tags": [{"Key": "team", "Value": "genomics"}]}'
+
+``--off-heap-memory-per-core-mb`` caps Hail's native off-heap allocation per task core. It does not
+reserve YARN container memory or automatically change ``spark.executor.memoryOverhead``. Passing
+``--no-off-heap-memory`` leaves that Hail allocation uncapped; it does not disable native off-heap
+allocation.
 
 Variant Effect Predictor (VEP)
 ------------------------------

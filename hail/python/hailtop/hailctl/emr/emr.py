@@ -43,7 +43,20 @@ def _role_exists(iam, role_name: str) -> bool:
         raise
 
 
-def check_default_roles(iam=None) -> None:
+def _instance_profile_contains_role(iam, instance_profile_name: str, role_name: str) -> bool:
+    from botocore.exceptions import ClientError  # pylint: disable=import-outside-toplevel
+
+    try:
+        response = iam.get_instance_profile(InstanceProfileName=instance_profile_name)
+    except ClientError as exc:
+        if exc.response.get('Error', {}).get('Code') == 'NoSuchEntity':
+            return False
+        raise
+    roles = response.get('InstanceProfile', {}).get('Roles', [])
+    return any(role.get('RoleName') == role_name for role in roles)
+
+
+def check_default_roles(iam=None, *, check_service_role: bool = True, check_job_flow_role: bool = True) -> None:
     """Verify the EMR default IAM roles exist, printing a clear message.
 
     `aws emr create-default-roles` prints only the roles it *creates*, so it
@@ -58,15 +71,33 @@ def check_default_roles(iam=None) -> None:
 
         iam = boto3.client('iam')
 
-    roles = (DEFAULT_SERVICE_ROLE, DEFAULT_JOB_FLOW_ROLE)
-    missing = [role for role in roles if not _role_exists(iam, role)]
-    if missing:
+    roles = []
+    if check_service_role:
+        roles.append(DEFAULT_SERVICE_ROLE)
+    if check_job_flow_role:
+        roles.append(DEFAULT_JOB_FLOW_ROLE)
+    missing_roles = [role for role in roles if not _role_exists(iam, role)]
+    missing_instance_profiles = []
+    if check_job_flow_role and not _instance_profile_contains_role(iam, DEFAULT_JOB_FLOW_ROLE, DEFAULT_JOB_FLOW_ROLE):
+        missing_instance_profiles.append(f'{DEFAULT_JOB_FLOW_ROLE} containing role {DEFAULT_JOB_FLOW_ROLE}')
+
+    if missing_roles or missing_instance_profiles:
+        missing = []
+        if missing_roles:
+            missing.append(f"role(s): {', '.join(missing_roles)}")
+        if missing_instance_profiles:
+            missing.append(f"instance profile(s): {', '.join(missing_instance_profiles)}")
         raise ValueError(
-            f"Missing EMR default IAM role(s): {', '.join(missing)}. "
+            f"Missing EMR default IAM resource(s): {'; '.join(missing)}. "
             f"Create them once with `aws emr create-default-roles`, or pass "
             f"--no-use-default-roles together with --service-role and --instance-profile."
         )
-    print(f"Using existing EMR default roles: {', '.join(roles)}.")
+    resources = []
+    if roles:
+        resources.append(f"role(s) {', '.join(roles)}")
+    if check_job_flow_role:
+        resources.append(f'instance profile {DEFAULT_JOB_FLOW_ROLE}')
+    print(f"Using existing EMR defaults: {'; '.join(resources)}.")
 
 
 def upload_to_s3(dest_uri: str, data: bytes) -> None:

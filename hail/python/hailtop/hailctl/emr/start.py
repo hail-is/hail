@@ -5,10 +5,10 @@ from typing import Dict, List, Optional
 # EMR release label -> the Spark version that release ships.
 # To support a new EMR release, add one entry here.
 EMR_RELEASE_SPARK_VERSION: Dict[str, str] = {
-    'emr-7.3.0': '3.5.3',  # matches Hail's SPARK_VERSION
-    'emr-7.2.0': '3.5.2',
-    'emr-7.1.0': '3.5.1',
-    'emr-7.0.0': '3.5.0',
+    'emr-7.3.0': '3.5.1-amzn-1',
+    'emr-7.2.0': '3.5.1-amzn-0',
+    'emr-7.1.0': '3.5.0-amzn-1',
+    'emr-7.0.0': '3.5.0-amzn-0',
     # EMR 6.x ships Spark 3.4.x — incompatible with Hail's Spark 3.5.x requirement
     'emr-6.15.0': '3.4.1',
     'emr-6.14.0': '3.4.1',
@@ -34,7 +34,7 @@ def check_release_spark_compatibility(release_label: str) -> None:
             file=sys.stderr,
         )
         return
-    minor = spark_version.rsplit('.', 1)[0]
+    minor = '.'.join(spark_version.split('.')[:2])
     if minor != HAIL_REQUIRED_SPARK_MINOR:
         raise ValueError(
             f'EMR release {release_label!r} ships Spark {spark_version}, but Hail '
@@ -47,6 +47,8 @@ def hail_configurations(off_heap_memory_per_core_mb: Optional[int]) -> List[dict
         'spark.jars': f'local://{HAIL_JAR_PATH}',
         'spark.driver.extraClassPath': HAIL_JAR_PATH,
         'spark.executor.extraClassPath': HAIL_JAR_PATH,
+        'spark.serializer': 'org.apache.spark.serializer.KryoSerializer',
+        'spark.kryo.registrator': 'is.hail.kryo.HailKryoRegistrator',
         'spark.task.maxFailures': '20',
         'spark.driver.extraJavaOptions': '-Xss4M',
         'spark.executor.extraJavaOptions': '-Xss4M',
@@ -84,6 +86,20 @@ def deep_merge(base: dict, overlay: dict) -> dict:
             result[key] = deep_merge(result[key], value)
         else:
             result[key] = copy.deepcopy(value)
+    return result
+
+
+def merge_run_job_flow_overlay(base: dict, overlay: dict) -> dict:
+    result = deep_merge(base, overlay)
+    instances_overlay = overlay.get('Instances')
+    if (
+        isinstance(instances_overlay, dict)
+        and 'InstanceFleets' in instances_overlay
+        and 'InstanceGroups' not in instances_overlay
+    ):
+        instances = result.get('Instances')
+        if isinstance(instances, dict):
+            instances.pop('InstanceGroups', None)
     return result
 
 

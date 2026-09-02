@@ -6,7 +6,8 @@ from hailtop.hailctl.emr import start
 def test_default_release_is_known_and_matches_hail_spark():
     assert start.DEFAULT_EMR_RELEASE in start.EMR_RELEASE_SPARK_VERSION
     spark = start.EMR_RELEASE_SPARK_VERSION[start.DEFAULT_EMR_RELEASE]
-    assert spark.rsplit('.', 1)[0] == start.HAIL_REQUIRED_SPARK_MINOR
+    assert '.'.join(spark.split('.')[:2]) == start.HAIL_REQUIRED_SPARK_MINOR
+    assert spark == '3.5.1-amzn-1'
 
 
 def test_check_release_unknown_warns(capsys):
@@ -28,6 +29,8 @@ def test_hail_configurations_sets_hail_cloud_and_jar():
     spark_defaults = next(c for c in confs if c['Classification'] == 'spark-defaults')
     props = spark_defaults['Properties']
     assert props['spark.jars'] == f'local://{start.HAIL_JAR_PATH}'
+    assert props['spark.serializer'] == 'org.apache.spark.serializer.KryoSerializer'
+    assert props['spark.kryo.registrator'] == 'is.hail.kryo.HailKryoRegistrator'
     assert props['spark.executorEnv.HAIL_CLOUD'] == 'aws'
     assert props['spark.yarn.appMasterEnv.HAIL_CLOUD'] == 'aws'
     assert props['spark.executorEnv.PYTHONHASHSEED'] == '0'
@@ -54,6 +57,15 @@ def test_deep_merge_overlay_wins_and_recurses():
     assert merged['Name'] == 'b'
     assert merged['Instances']['KeepJobFlowAliveWhenNoSteps'] is True
     assert merged['Instances']['Ec2SubnetId'] == 'subnet-1'
+
+
+def test_merge_run_job_flow_overlay_switches_to_instance_fleets():
+    base = {'Instances': {'InstanceGroups': [{'Name': 'Core'}], 'KeepJobFlowAliveWhenNoSteps': True}}
+    overlay = {'Instances': {'InstanceFleets': [{'Name': 'Core fleet'}]}}
+    merged = start.merge_run_job_flow_overlay(base, overlay)
+    assert 'InstanceGroups' not in merged['Instances']
+    assert merged['Instances']['InstanceFleets'] == [{'Name': 'Core fleet'}]
+    assert merged['Instances']['KeepJobFlowAliveWhenNoSteps'] is True
 
 
 def test_build_run_job_flow_kwargs_shape():
