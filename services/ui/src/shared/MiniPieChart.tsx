@@ -10,7 +10,7 @@ export function MiniPieChart({ data, size = 'md', format = String }: { data: Pie
     <ResponsiveContainer width="100%" height={height}>
       <PieChart>
         <Pie data={data} cx="50%" cy="50%" innerRadius={innerR} outerRadius={outerR} dataKey="value" paddingAngle={2}>
-          {data.map((d, i) => <Cell key={i} fill={d.fill} />)}
+          {data.map(d => <Cell key={d.name} fill={d.fill} />)}
         </Pie>
         <Tooltip formatter={(v) => typeof v === 'number' ? format(v) : ''} />
       </PieChart>
