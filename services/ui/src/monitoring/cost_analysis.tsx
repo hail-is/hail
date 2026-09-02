@@ -9,7 +9,7 @@ import { PresetChips, ScatterPresetChips } from '../shared/PresetChips';
 import { fmt, pct, makeYDollarFormatter } from './components/format';
 import { computeStats, computeRegression, toPctRows } from './components/statsUtils';
 import { CostRow } from './components/CostRow';
-import { ChartTooltip, SeriesStats } from './components/ChartTooltip';
+import { ChartTooltip } from './components/ChartTooltip';
 import { StatsDisplay, RegressionStatsDisplay, statsReferenceLines } from './components/StatsDisplay';
 
 // --- Types ---
@@ -730,7 +730,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
               (cloudCostsToggle.isHidden('k8s') ? 0 : d.k8s) +
               overheadServices.reduce((s, svc) => s + (isOverheadHidden(svc) ? 0 : (d.non_compute_services[svc] ?? 0)), 0)
   ));
-  const cloudSeriesStats: SeriesStats = cloudView === 'user_compute'
+  const cloudSeriesStats: Record<string, { mean: number; std: number } | null> = cloudView === 'user_compute'
     ? {
         ...Object.fromEntries(userComputeProducts.map(p => [p, computeStats(trendData.map(d => d.user_compute_by_product[p] ?? 0))])),
         ...(userComputeHasOther ? { '(Other)': computeStats(trendData.map(d => ucOther(d.user_compute_by_product))) } : {}),
@@ -764,7 +764,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
         : (billingToggle.isHidden('resource_cost') ? 0 : d.resource_cost) +
           (billingToggle.isHidden('service_fees') ? 0 : d.service_fees)
   ));
-  const billingSeriesStats: SeriesStats = billingView === 'resource_usage'
+  const billingSeriesStats: Record<string, { mean: number; std: number } | null> = billingView === 'resource_usage'
     ? {
         ...Object.fromEntries(billingResources.map(r => [r, computeStats(trendData.map(d => d.resource_by_type[r] ?? 0))])),
         ...(billingResourcesHasOther ? { '(Other)': computeStats(trendData.map(d => brOther(d.resource_by_type))) } : {}),
@@ -792,7 +792,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
             ? (overheadSkusByService.get(cloudView) ?? []).filter(s => !isOverheadHidden(s)).reduce((s, k) => s + rowNum(row, k), 0)
             : [...['user_compute', 'other_compute', 'k8s'].filter(k => !cloudCostsToggle.isHidden(k)), ...overheadServices.filter(s => !isOverheadHidden(s))].reduce((s, k) => s + rowNum(row, k), 0)
   ));
-  const cloudPctSeriesStats: SeriesStats = cloudView === 'user_compute'
+  const cloudPctSeriesStats: Record<string, { mean: number; std: number } | null> = cloudView === 'user_compute'
     ? { ...Object.fromEntries(userComputeProducts.map(p => [p, computeStats(cloudPctRows.map(row => rowNum(row, p)))])), ...(userComputeHasOther ? { '(Other)': computeStats(cloudPctRows.map(row => rowNum(row, '(Other)'))) } : {}) }
     : cloudView === 'other_compute'
       ? { batch_test: computeStats(cloudPctRows.map(row => rowNum(row, 'batch_test'))), batch_dev: computeStats(cloudPctRows.map(row => rowNum(row, 'batch_dev'))), unknown: computeStats(cloudPctRows.map(row => rowNum(row, 'unknown'))) }
@@ -810,7 +810,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
         ? [...billingProjects.filter(p => !isBillingProjectHidden(p)), ...(billingProjectsHasOther && !isBillingProjectHidden('(Other)') ? ['(Other)'] : [])].reduce((s, k) => s + rowNum(row, k), 0)
         : (['resource_cost', 'service_fees'] as const).filter(k => !billingToggle.isHidden(k)).reduce((s, k) => s + rowNum(row, k), 0)
   ));
-  const billingPctSeriesStats: SeriesStats = billingView === 'resource_usage'
+  const billingPctSeriesStats: Record<string, { mean: number; std: number } | null> = billingView === 'resource_usage'
     ? { ...Object.fromEntries(billingResources.map(r => [r, computeStats(billingPctRows.map(row => rowNum(row, r)))])), ...(billingResourcesHasOther ? { '(Other)': computeStats(billingPctRows.map(row => rowNum(row, '(Other)'))) } : {}) }
     : billingView === 'billing_project'
       ? { ...Object.fromEntries(billingProjects.map(p => [p, computeStats(billingPctRows.map(row => rowNum(row, p)))])), ...(billingProjectsHasOther ? { '(Other)': computeStats(billingPctRows.map(row => rowNum(row, '(Other)'))) } : {}) }
@@ -1464,7 +1464,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
                     width={56}
                     domain={cloudShowPct ? [0, 100] : [0, cloudYMax]}
                   />
-                  <Tooltip content={(p) => <ChartTooltip {...p} stats={cloudShowPct ? cloudPctStats : cloudStats} seriesStats={cloudShowPct ? cloudPctSeriesStats : cloudSeriesStats} format={cloudShowPct ? (v => `${v.toFixed(1)}%`) : fmt} stacked threshold={cloudShowPct ? undefined : 10} />} />
+                  <Tooltip content={(p) => <ChartTooltip {...p} stats={cloudShowPct ? cloudPctStats : cloudStats} seriesStats={new Map(Object.entries(cloudShowPct ? cloudPctSeriesStats : cloudSeriesStats))} format={cloudShowPct ? (v => `${v.toFixed(1)}%`) : fmt} stacked threshold={cloudShowPct ? undefined : 10} />} />
                   {cloudView === 'summary' ? (
                     <>
                       <Legend onClick={onSummaryCloudLegendClick} wrapperStyle={{ cursor: 'pointer' }} />
@@ -1539,7 +1539,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
                     width={56}
                     domain={billingShowPct ? [0, 100] : [0, billingYMax]}
                   />
-                  <Tooltip content={(p) => <ChartTooltip {...p} stats={billingShowPct ? billingPctStats : billingStats} seriesStats={billingShowPct ? billingPctSeriesStats : billingSeriesStats} format={billingShowPct ? (v => `${v.toFixed(1)}%`) : fmt} stacked threshold={billingShowPct ? undefined : 10} />} />
+                  <Tooltip content={(p) => <ChartTooltip {...p} stats={billingShowPct ? billingPctStats : billingStats} seriesStats={new Map(Object.entries(billingShowPct ? billingPctSeriesStats : billingSeriesStats))} format={billingShowPct ? (v => `${v.toFixed(1)}%`) : fmt} stacked threshold={billingShowPct ? undefined : 10} />} />
                   {billingView === 'summary' ? (
                     <>
                       <Legend onClick={billingToggle.onLegendClick} wrapperStyle={{ cursor: 'pointer' }} />

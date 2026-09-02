@@ -1,4 +1,4 @@
-export type SeriesStats = Record<string, { mean: number; std: number } | null>;
+export type SeriesStats = Map<string, { mean: number; std: number } | null>;
 
 interface ChartTooltipProps {
   active?: boolean;
@@ -30,7 +30,7 @@ export function ChartTooltip({ active, payload, label, stats, seriesStats, forma
       {visible.map(p => {
         const val = numVal(p.value);
         const key = typeof p.dataKey === 'string' ? p.dataKey : undefined;
-        const sg = sigmaStr(val, key && seriesStats ? seriesStats[key] : (payload.length === 1 ? stats : null));
+        const sg = sigmaStr(val, key && seriesStats ? seriesStats.get(key) : (payload.length === 1 ? stats : null));
         return (
           <div key={key ?? String(p.name)} className="flex items-center gap-3 text-xs py-0.5">
             <span className="flex items-center gap-1 text-zinc-600 flex-1">
