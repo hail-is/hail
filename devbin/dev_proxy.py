@@ -107,7 +107,6 @@ def _backend_url(service: str, raw_path: str) -> str:
 # Paths include the service prefix that matches the new URL model.
 # Tuple: (service, verb, path, template, extra_page_context)
 _LOCAL_REACT_ROUTES: list[tuple[str, str, str, str, dict]] = [
-    ('monitoring',   'GET', '/monitoring/helloreact', 'hello_react.html', {}),
     ('monitoring',   'GET', '/monitoring/cost-analysis', 'cost_analysis.html', {}),
     ('auth',         'GET', '/auth/helloreact', 'hello_react.html', {}),
     ('batch-driver', 'GET', '/batch-driver/', 'index_react.html', {}),
