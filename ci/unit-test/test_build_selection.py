@@ -384,6 +384,11 @@ def test_batch_file_change_selects_batch_steps():
     assert 'cancel_all_running_test_batches' in result
 
 
+@pytest.mark.xfail(
+    reason='dependsOn temporarily duplicated onto after-edges in build.yaml until the deployed CI '
+    'understands `after` (see commit "restore depends... to unblock build"); unxfail once removed',
+    strict=False,
+)
 def test_tactical_retry_of_test_hailtop_python_does_not_pull_in_test_batch_or_test_ci():
     # Simulates a tactical retry seeded with only test_hailtop_python.
     # The cleanup chain (cancel_all → test_batch_invariants → delete_gcp) is pulled
@@ -401,6 +406,11 @@ def test_tactical_retry_of_test_hailtop_python_does_not_pull_in_test_batch_or_te
     assert 'test_ci' not in result
 
 
+@pytest.mark.xfail(
+    reason='dependsOn temporarily duplicated onto after-edges in build.yaml until the deployed CI '
+    'understands `after` (see commit "restore depends... to unblock build"); unxfail once removed',
+    strict=False,
+)
 def test_tactical_retry_of_test_batch_does_not_pull_in_test_ci():
     # compute_requested_steps correctly includes test_ci via the hard dependsOn
     # chain batch_image → deploy_batch → deploy_ci → test_ci, so we can't assert
@@ -416,6 +426,11 @@ def test_tactical_retry_of_test_batch_does_not_pull_in_test_ci():
     assert 'test_ci' not in result
 
 
+@pytest.mark.xfail(
+    reason='dependsOn temporarily duplicated onto after-edges in build.yaml until the deployed CI '
+    'understands `after` (see commit "restore depends... to unblock build"); unxfail once removed',
+    strict=False,
+)
 def test_tactical_retry_of_test_batch_invariants_does_not_pull_in_test_suites():
     # Simulates a tactical retry where only test_batch_invariants needs to re-run.
     # The backward (ancestors) pass must not follow `after` edges, so the test
