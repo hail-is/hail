@@ -9,6 +9,7 @@ export function PresetChips({ presets, activeNum, activeDen, onSelect }: {
         const active = p.num === activeNum && p.den === activeDen;
         return (
           <button
+            type="button"
             key={p.label}
             onClick={() => onSelect(p.num, p.den)}
             className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${active ? 'bg-sky-500 border-sky-500 text-white' : 'border-zinc-300 text-zinc-500 hover:border-sky-400 hover:text-sky-600 bg-white'}`}
@@ -32,6 +33,7 @@ export function ScatterPresetChips({ presets, activeX, activeY, onSelect }: {
         const active = p.x === activeX && p.y === activeY;
         return (
           <button
+            type="button"
             key={p.label}
             onClick={() => onSelect(p.x, p.y)}
             className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${active ? 'bg-sky-500 border-sky-500 text-white' : 'border-zinc-300 text-zinc-500 hover:border-sky-400 hover:text-sky-600 bg-white'}`}

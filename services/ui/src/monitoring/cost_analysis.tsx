@@ -260,14 +260,20 @@ function resolveTrend(id: string, p: MonthDataPoint): number {
 
 // --- API fetchers ---
 
+interface CloudBillingResponse {
+  compute_cost_breakdown?: { source: string; cost: string }[];
+  cost_by_service?: { service: string; cost: string }[];
+  cost_by_sku_label?: { source: string | null; sku_description: string; service_description: string; cost: string }[];
+}
+
 async function fetchCloudCosts(monitoringBaseUrl: string, period: string): Promise<CloudCosts> {
   const resp = await fetch(`${monitoringBaseUrl}/api/v1alpha/billing?time_period=${encodeURIComponent(period)}`);
   if (!resp.ok) throw new Error(`Cloud billing fetch failed (HTTP ${resp.status})`);
-  const data = await resp.json();
+  const data = await resp.json() as CloudBillingResponse;
 
-  const breakdown: { source: string; cost: string }[] = data['compute_cost_breakdown'] ?? [];
-  const byService: { service: string; cost: string }[] = data['cost_by_service'] ?? [];
-  const bySkuLabel: { source: string | null; sku_description: string; service_description: string; cost: string }[] = data['cost_by_sku_label'] ?? [];
+  const breakdown = data.compute_cost_breakdown ?? [];
+  const byService = data.cost_by_service ?? [];
+  const bySkuLabel = data.cost_by_sku_label ?? [];
 
   const costs: CloudCosts = { user_compute: 0, other_compute: 0, k8s: 0, total: 0, batch_test: 0, batch_dev: 0, unknown: 0, k8s_nodes: 0, k8s_mgmt: 0, non_compute_services: new Map(), overhead_by_sku: new Map(), user_compute_by_product: new Map() };
   for (const row of breakdown) {
@@ -308,7 +314,7 @@ async function fetchUserBilling(batchBaseUrl: string, period: string): Promise<U
   const url = `${batchBaseUrl}/api/v1alpha/billing_breakdown?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
   const resp = await fetch(url);
   if (!resp.ok) throw new Error(`User billing fetch failed (HTTP ${resp.status})`);
-  const rows: BillingRow[] = await resp.json();
+  const rows = await resp.json() as BillingRow[];
 
   let total = 0;
   let service_fee_cost = 0;
@@ -472,11 +478,6 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
     return { billingResources: resources, billingResourcesHasOther: hasOther };
   }, [trendData, userBilling]);
 
-  const billingResourcesMonthly = useMemo(() => {
-    if (!userBilling) return [] as string[];
-    return [...userBilling.resource_by_type].filter(([, v]) => v >= 10).sort(([, a], [, b]) => b - a).map(([r]) => r);
-  }, [userBilling]);
-
   const brOther = useCallback(
     (byType: Map<string, number>) =>
       [...byType].filter(([r]) => !billingResources.includes(r)).reduce((s, [, v]) => s + v, 0),
@@ -517,11 +518,6 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
       [...byProduct].filter(([p]) => !userComputeProducts.includes(p)).reduce((s, [, v]) => s + v, 0),
     [userComputeProducts]
   );
-
-  const userComputeMonthlyProducts = useMemo(() => {
-    if (!cloudCosts) return [] as string[];
-    return [...cloudCosts.user_compute_by_product].filter(([, v]) => v >= 10).sort(([, a], [, b]) => b - a).map(([p]) => p);
-  }, [cloudCosts]);
 
   const fieldGroups = useMemo<FieldGroup[]>(() => {
     const productMax = new Map<string, number>();
@@ -666,7 +662,6 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
 
   const USER_COMPUTE_PALETTE = ['#0ea5e9', '#38bdf8', '#7dd3fc', '#bae6fd', '#0284c7', '#0369a1', '#075985', '#0c4a6e', '#22d3ee', '#06b6d4'];
   const userComputeProductColor = (p: string) => p === '(Other)' ? '#9ca3af' : USER_COMPUTE_PALETTE[userComputeProducts.indexOf(p) % USER_COMPUTE_PALETTE.length];
-  const userComputeMonthlyProductColor = (p: string) => p === '(Other)' ? '#9ca3af' : USER_COMPUTE_PALETTE[userComputeMonthlyProducts.indexOf(p) % USER_COMPUTE_PALETTE.length];
 
   const userComputeAllKeys = useMemo(
     () => [...userComputeProducts, ...(userComputeHasOther ? ['(Other)'] : [])],
@@ -874,7 +869,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
     setLoading(false);
   }, [monitoringBaseUrl, batchBaseUrl]);
 
-  useEffect(() => { fetchData(timePeriod); }, [fetchData, timePeriod]);
+  useEffect(() => { void fetchData(timePeriod); }, [fetchData, timePeriod]);
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -899,7 +894,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
     setCompareUserBilling(null);
     setCompareCloudError(null);
     setCompareBillingError(null);
-    Promise.allSettled([
+    void Promise.allSettled([
       fetchCloudCosts(monitoringBaseUrl, compareTimePeriod),
       fetchUserBilling(batchBaseUrl, compareTimePeriod),
     ]).then(([cloudResult, billingResult]) => {
@@ -1222,8 +1217,8 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
       <h1 className="text-2xl font-light text-zinc-800">Cost Analysis</h1>
 
       <div className="flex border-b border-zinc-200">
-        <button className={tabClass('monthly')} onClick={() => changeTab('monthly')}>Monthly Breakdown</button>
-        <button className={tabClass('trends')} onClick={() => changeTab('trends')}>Trends</button>
+        <button type="button" className={tabClass('monthly')} onClick={() => changeTab('monthly')}>Monthly Breakdown</button>
+        <button type="button" className={tabClass('trends')} onClick={() => changeTab('trends')}>Trends</button>
       </div>
 
       {tab === 'monthly' && (
@@ -1231,32 +1226,33 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
           {compareTimePeriod !== null ? (
             <div className="grid grid-cols-2 gap-4">
               <div className="flex items-center gap-2">
-                <button onClick={() => setTimePeriod(p => shiftMonthParam(p, -1))} className="px-2 py-1 text-sm border border-zinc-300 rounded hover:bg-zinc-100">‹</button>
+                <button type="button" onClick={() => setTimePeriod(p => shiftMonthParam(p, -1))} className="px-2 py-1 text-sm border border-zinc-300 rounded hover:bg-zinc-100">‹</button>
                 <input
                   type="month"
                   className="border border-zinc-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
                   value={monthParamToInputValue(timePeriod)}
                   onChange={e => { if (e.target.value) setTimePeriod(inputValueToMonthParam(e.target.value)); }}
                 />
-                <button onClick={() => setTimePeriod(p => shiftMonthParam(p, 1))} className="px-2 py-1 text-sm border border-zinc-300 rounded hover:bg-zinc-100">›</button>
+                <button type="button" onClick={() => setTimePeriod(p => shiftMonthParam(p, 1))} className="px-2 py-1 text-sm border border-zinc-300 rounded hover:bg-zinc-100">›</button>
                 {loading && <span className="text-xs text-zinc-400 animate-pulse">Loading…</span>}
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={() => setCompareTimePeriod(p => shiftMonthParam(p!, -1))} className="px-2 py-1 text-sm border border-zinc-300 rounded hover:bg-zinc-100">‹</button>
+                <button type="button" onClick={() => setCompareTimePeriod(p => p ? shiftMonthParam(p, -1) : p)} className="px-2 py-1 text-sm border border-zinc-300 rounded hover:bg-zinc-100">‹</button>
                 <input
                   type="month"
                   className="border border-zinc-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
                   value={monthParamToInputValue(compareTimePeriod)}
                   onChange={e => { if (e.target.value) setCompareTimePeriod(inputValueToMonthParam(e.target.value)); }}
                 />
-                <button onClick={() => setCompareTimePeriod(p => shiftMonthParam(p!, 1))} className="px-2 py-1 text-sm border border-zinc-300 rounded hover:bg-zinc-100">›</button>
+                <button type="button" onClick={() => setCompareTimePeriod(p => p ? shiftMonthParam(p, 1) : p)} className="px-2 py-1 text-sm border border-zinc-300 rounded hover:bg-zinc-100">›</button>
                 {compareLoading && <span className="text-xs text-zinc-400 animate-pulse">Loading…</span>}
                 <button
+                  type="button"
                   onClick={() => setCompareTimePeriod(null)}
                   className="ml-1 p-1 rounded text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100"
                   title="Remove comparison"
                 >
-                  <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                  <svg aria-hidden="true" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
                   </svg>
                 </button>
@@ -1264,21 +1260,23 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
             </div>
           ) : (
             <div className="flex items-center gap-2">
-              <label className="text-sm text-zinc-500">Month</label>
-              <button onClick={() => setTimePeriod(p => shiftMonthParam(p, -1))} className="px-2 py-1 text-sm border border-zinc-300 rounded hover:bg-zinc-100">‹</button>
+              <label htmlFor="cost-analysis-month" className="text-sm text-zinc-500">Month</label>
+              <button type="button" onClick={() => setTimePeriod(p => shiftMonthParam(p, -1))} className="px-2 py-1 text-sm border border-zinc-300 rounded hover:bg-zinc-100">‹</button>
               <input
+                id="cost-analysis-month"
                 type="month"
                 className="border border-zinc-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
                 value={monthParamToInputValue(timePeriod)}
                 onChange={e => { if (e.target.value) setTimePeriod(inputValueToMonthParam(e.target.value)); }}
               />
-              <button onClick={() => setTimePeriod(p => shiftMonthParam(p, 1))} className="px-2 py-1 text-sm border border-zinc-300 rounded hover:bg-zinc-100">›</button>
+              <button type="button" onClick={() => setTimePeriod(p => shiftMonthParam(p, 1))} className="px-2 py-1 text-sm border border-zinc-300 rounded hover:bg-zinc-100">›</button>
               {loading && <span className="text-xs text-zinc-400 animate-pulse">Loading…</span>}
               <button
+                type="button"
                 onClick={() => setCompareTimePeriod(shiftMonthParam(timePeriod, -1))}
                 className="ml-2 flex items-center gap-1.5 text-sm text-sky-600 hover:text-sky-700 border border-sky-200 hover:border-sky-400 rounded px-3 py-1.5 bg-sky-50 hover:bg-sky-100 transition-colors"
               >
-                <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                <svg aria-hidden="true" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
                 </svg>
                 Add month to compare
@@ -1410,22 +1408,25 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
       {tab === 'trends' && (
         <>
           <div className="flex items-center gap-2">
-            <label className="text-sm text-zinc-500">From</label>
+            <label htmlFor="cost-analysis-trends-start" className="text-sm text-zinc-500">From</label>
             <input
+              id="cost-analysis-trends-start"
               type="month"
               className="border border-zinc-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
               value={monthParamToInputValue(trendsStart)}
               onChange={e => { if (e.target.value) setTrendsStart(inputValueToMonthParam(e.target.value)); }}
             />
-            <label className="text-sm text-zinc-500">to</label>
+            <label htmlFor="cost-analysis-trends-end" className="text-sm text-zinc-500">to</label>
             <input
+              id="cost-analysis-trends-end"
               type="month"
               className="border border-zinc-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
               value={monthParamToInputValue(trendsEnd)}
               onChange={e => { if (e.target.value) setTrendsEnd(inputValueToMonthParam(e.target.value)); }}
             />
             <button
-              onClick={() => fetchTrends(trendsStart, trendsEnd)}
+              type="button"
+              onClick={() => void fetchTrends(trendsStart, trendsEnd)}
               disabled={trendsLoading}
               className="px-4 py-1.5 text-sm font-medium rounded border border-sky-500 bg-sky-500 text-white hover:bg-sky-600 hover:border-sky-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
@@ -1463,7 +1464,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
                   <XAxis dataKey="month" tick={{ fontSize: 11 }} />
                   <YAxis
-                    tickFormatter={cloudShowPct ? (v => `${v.toFixed(0)}%`) : makeYDollarFormatter(cloudYMax)}
+                    tickFormatter={cloudShowPct ? ((v: number) => `${v.toFixed(0)}%`) : makeYDollarFormatter(cloudYMax)}
                     tick={{ fontSize: 11 }}
                     width={56}
                     domain={cloudShowPct ? [0, 100] : [0, cloudYMax]}
@@ -1538,7 +1539,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
                   <XAxis dataKey="month" tick={{ fontSize: 11 }} />
                   <YAxis
-                    tickFormatter={billingShowPct ? (v => `${v.toFixed(0)}%`) : makeYDollarFormatter(billingYMax)}
+                    tickFormatter={billingShowPct ? ((v: number) => `${v.toFixed(0)}%`) : makeYDollarFormatter(billingYMax)}
                     tick={{ fontSize: 11 }}
                     width={56}
                     domain={billingShowPct ? [0, 100] : [0, billingYMax]}
@@ -1586,7 +1587,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
                   <ReferenceLine y={0} stroke="#52525b" strokeWidth={1.5} />
                   {statsReferenceLines(profitStats, -Infinity, Infinity)}
                   <Bar dataKey="profit" name="Profit">
-                    {trendData.map((d, i) => <Cell key={i} fill={d.profit >= 0 ? '#10b981' : '#ef4444'} />)}
+                    {trendData.map(d => <Cell key={d.month} fill={d.profit >= 0 ? '#10b981' : '#ef4444'} />)}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
@@ -1599,7 +1600,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
                 <BarChart data={coreHoursData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
                   <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                  <YAxis tickFormatter={v => fmtCoreHours(v)} tick={{ fontSize: 11 }} width={56} domain={[0, coreHoursExtent]} />
+                  <YAxis tickFormatter={(v: number) => fmtCoreHours(v)} tick={{ fontSize: 11 }} width={56} domain={[0, coreHoursExtent]} />
                   <Tooltip content={(p) => <ChartTooltip {...p} stats={coreHoursStats} format={fmtCoreHours} />} />
                   {statsReferenceLines(coreHoursStats, 0, Infinity)}
                   <Bar dataKey="core_hours" name="Core hours" fill="#818cf8" />
@@ -1621,7 +1622,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
                 <BarChart data={customRatioChartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
                   <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                  <YAxis tickFormatter={v => `${v.toFixed(0)}%`} tick={{ fontSize: 11 }} width={48} domain={[0, 'auto']} />
+                  <YAxis tickFormatter={(v: number) => `${v.toFixed(0)}%`} tick={{ fontSize: 11 }} width={48} domain={[0, 'auto']} />
                   <Tooltip content={(p) => <ChartTooltip {...p} stats={customRatioStats} format={v => `${v.toFixed(1)}%`} />} />
                   {statsReferenceLines(customRatioStats, -Infinity, Infinity)}
                   <Bar dataKey="value" name={`${fieldLabel(customRatioNum, fieldGroups)} as % of ${fieldLabel(customRatioDen, fieldGroups)}`} fill="#22d3ee" />
@@ -1693,7 +1694,7 @@ export function CostAnalysis({ monitoringBaseUrl, batchBaseUrl }: CostAnalysisPr
                   />
                   <ZAxis range={[40, 40]} />
                   <Tooltip
-                    content={({ payload }) => {
+                    content={({ payload }: { payload?: readonly { payload?: unknown }[] }) => {
                       if (!payload?.length) return null;
                       const d = payload[0].payload as { month: string; x: number; y: number };
                       const predicted = scatterRegression ? scatterRegression.slope * d.x + scatterRegression.intercept : null;
